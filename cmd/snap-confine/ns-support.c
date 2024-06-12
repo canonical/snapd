@@ -46,6 +46,7 @@
 #include "../libsnap-confine-private/infofile.h"
 #include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/mountinfo.h"
+#include "../libsnap-confine-private/snap-dir.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/tool.h"
 #include "../libsnap-confine-private/utils.h"
@@ -244,9 +245,9 @@ static dev_t find_base_snap_device(const char *base_snap_name,
 	// consideration of the mie->root component.
 	dev_t base_snap_dev = 0;
 	char base_squashfs_path[PATH_MAX];
-	sc_must_snprintf(base_squashfs_path,
-			 sizeof base_squashfs_path, "%s/%s/%s",
-			 SNAP_MOUNT_DIR, base_snap_name, base_snap_rev);
+	sc_must_snprintf(base_squashfs_path, sizeof base_squashfs_path,
+			 "%s/%s/%s", sc_snap_mount_dir(NULL), base_snap_name,
+			 base_snap_rev);
 	sc_mountinfo *mi SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 	mi = sc_parse_mountinfo(NULL);
 	if (mi == NULL) {
