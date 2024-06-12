@@ -63,15 +63,17 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 		case EPERM:
 			// NOTE: fall-through
 		case EACCES:
-			debug
-			    ("insufficient permissions to determine if apparmor is enabled");
-			// since snap-confine is setuid root this should
-			// never happen so likely someone is trying to
-			// manipulate our execution environment - fail hard
-
-			// fall-through
+			// Since snap-confine is setuid root this should never happen so
+			// likely someone is trying to manipulate our execution environment
+			// - fail hard.
+			die("insufficient permissions to determine if apparmor is enabled");
+			break;
 		case ENOENT:
+			die("apparmor is enabled but the interface is not available");
+			break;
 		case ENOMEM:
+			die("insufficient memory to determine if apparmor is available");
+			break;
 		default:
 			// this shouldn't happen under normal usage so it
 			// is possible someone is trying to manipulate our
