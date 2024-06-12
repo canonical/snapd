@@ -311,7 +311,7 @@ parts:
             # snap, snap-repair and snap-bootstrap (where snap-bootstrap isn't
             # part of the snapd snap)
             bin/snap|lib/snapd/snapd|lib/snapd/snap-repair)
-              TAGS+=(goexperiment.opensslcrypto requirefips)
+              TAGS+=(goexperiment.opensslcrypto)
               ;;
           esac
         fi
