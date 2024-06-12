@@ -42,6 +42,7 @@
 #include "../libsnap-confine-private/infofile.h"
 #include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/secure-getenv.h"
+#include "../libsnap-confine-private/snap-dir.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/tool.h"
@@ -320,9 +321,17 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 
 int main(int argc, char **argv)
 {
-	log_startup_stage("snap-confine enter");
-	// Use our super-defensive parser to figure out what we've been asked to do.
 	sc_error *err = NULL;
+
+	log_startup_stage("snap-confine enter");
+
+	// Figure out what is the SNAP_MOUNT_DIR in practice.
+	sc_probe_snap_mount_dir_from_pid_1_mount_ns(AT_FDCWD, &err);
+	sc_die_on_error(err);
+
+	debug("SNAP_MOUNT_DIR (probed): %s", sc_snap_mount_dir(NULL));
+
+	// Use our super-defensive parser to figure out what we've been asked to do.
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
 	sc_preserved_process_state proc_state
 	    SC_CLEANUP(sc_cleanup_preserved_process_state) = {
