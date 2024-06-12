@@ -71,6 +71,8 @@ network packet,
 @{PROC}/sys/net/netfilter/ r,
 @{PROC}/sys/net/netfilter/** rw,
 @{PROC}/sys/net/nf_conntrack_max rw,
+@{PROC}/sys/net/mptcp/ r,
+@{PROC}/sys/net/mptcp/** rw,
 
 # Needed for systemd's dhcp implementation
 @{PROC}/sys/kernel/random/boot_id r,
