@@ -454,6 +454,7 @@ snap_device_helper_unit_tests_SOURCES = \
 	libsnap-confine-private/cleanup-funcs.c \
 	libsnap-confine-private/panic.c \
 	libsnap-confine-private/snap.c \
+	libsnap-confine-private/snap-dir.c \
 	libsnap-confine-private/error.c \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \
