@@ -46,7 +46,7 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 	// Use aa_is_enabled() to see if apparmor is available in the kernel and
 	// enabled at boot time. If it isn't log a diagnostic message and assume
 	// we're not confined.
-	if (aa_is_enabled() != true) {
+	if (aa_is_enabled() == 0) {
 		switch (errno) {
 		case ENOSYS:
 			debug
