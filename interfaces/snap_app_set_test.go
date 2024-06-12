@@ -277,6 +277,167 @@ components:
 	})
 }
 
+func (s *snapAppSetSuite) TestPlugRunnables(c *C) {
+	const yaml = `name: name
+version: 1
+apps:
+  app:
+    plugs: [app-plug]
+hooks:
+  install:
+    plugs: [hook-plug]
+components:
+  comp:
+    type: test
+    hooks:
+      install:
+        plugs: [comp-plug]
+plugs:
+  plug:
+  hook-plug:
+  comp-plug:
+  app-plug:
+`
+	info := snaptest.MockInfo(c, yaml, nil)
+
+	compInfo := snaptest.MockComponent(c, "component: name+comp\ntype: test\nversion: 1.0", info, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
+
+	set, err := interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{compInfo})
+	c.Assert(err, IsNil)
+
+	type t struct {
+		expected []snap.Runnable
+		plug     string
+	}
+
+	tests := []t{
+		{
+			expected: []snap.Runnable{
+				{
+					CommandName: "app",
+					SecurityTag: "snap.name.app",
+				},
+				{
+					CommandName: "hook.install",
+					SecurityTag: "snap.name.hook.install",
+				},
+				{
+					CommandName: "name+comp.hook.install",
+					SecurityTag: "snap.name+comp.hook.install",
+				},
+			},
+			plug: "plug",
+		},
+		{
+			expected: []snap.Runnable{
+				{
+					CommandName: "app",
+					SecurityTag: "snap.name.app",
+				},
+			},
+			plug: "app-plug",
+		},
+		{
+			expected: []snap.Runnable{
+				{
+					CommandName: "hook.install",
+					SecurityTag: "snap.name.hook.install",
+				},
+			},
+			plug: "hook-plug",
+		},
+		{
+			expected: []snap.Runnable{
+				{
+					CommandName: "name+comp.hook.install",
+					SecurityTag: "snap.name+comp.hook.install",
+				},
+			},
+			plug: "comp-plug",
+		},
+	}
+
+	for _, test := range tests {
+		plug := interfaces.NewConnectedPlug(info.Plugs[test.plug], set, nil, nil)
+		c.Check(set.PlugRunnables(plug), testutil.DeepUnsortedMatches, test.expected)
+	}
+}
+
+func (s *snapAppSetSuite) TestSlotRunnables(c *C) {
+	const yaml = `name: name
+version: 1
+apps:
+  app:
+    slots: [app-slot]
+hooks:
+  install:
+    slots: [hook-slot]
+components:
+  comp:
+    type: test
+    hooks:
+      install:
+slots:
+  slot:
+  hook-slot:
+  app-slot:
+`
+	info := snaptest.MockInfo(c, yaml, nil)
+
+	compInfo := snaptest.MockComponent(c, "component: name+comp\ntype: test\nversion: 1.0", info, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
+
+	set, err := interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{compInfo})
+	c.Assert(err, IsNil)
+
+	type t struct {
+		expected []snap.Runnable
+		slot     string
+	}
+
+	tests := []t{
+		{
+			expected: []snap.Runnable{
+				{
+					CommandName: "app",
+					SecurityTag: "snap.name.app",
+				},
+				{
+					CommandName: "hook.install",
+					SecurityTag: "snap.name.hook.install",
+				},
+			},
+			slot: "slot",
+		},
+		{
+			expected: []snap.Runnable{
+				{
+					CommandName: "app",
+					SecurityTag: "snap.name.app",
+				},
+			},
+			slot: "app-slot",
+		},
+		{
+			expected: []snap.Runnable{
+				{
+					CommandName: "hook.install",
+					SecurityTag: "snap.name.hook.install",
+				},
+			},
+			slot: "hook-slot",
+		},
+	}
+
+	for _, test := range tests {
+		slot := interfaces.NewConnectedSlot(info.Slots[test.slot], set, nil, nil)
+		c.Check(set.SlotRunnables(slot), testutil.DeepUnsortedMatches, test.expected)
+	}
+}
+
 func (s *snapAppSetSuite) TestInfo(c *C) {
 	info := snaptest.MockInfo(c, yaml, nil)
 	set, err := interfaces.NewSnapAppSet(info, nil)
