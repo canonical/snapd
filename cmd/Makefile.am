@@ -384,7 +384,7 @@ if HAVE_RST2MAN
 endif
 
 snap-confine/snap-confine.apparmor: snap-confine/snap-confine.apparmor.in Makefile
-	sed -e 's,[@]LIBEXECDIR[@],$(libexecdir),g' -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),g' <$< >$@
+	sed -e 's,[@]LIBEXECDIR[@],$(libexecdir),g' <$< >$@
 
 # Install the apparmor profile
 #
