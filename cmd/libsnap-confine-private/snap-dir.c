@@ -32,6 +32,10 @@
 
 static const char *_snap_mount_dir = NULL;
 
+// Function is exported only for tests.
+void sc_set_snap_mount_dir(const char *dir);
+void sc_set_snap_mount_dir(const char *dir) { _snap_mount_dir = dir; }
+
 const char *sc_snap_mount_dir(sc_error **errorp) {
     sc_error *err = NULL;
 
