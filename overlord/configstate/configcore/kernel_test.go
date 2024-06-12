@@ -159,7 +159,7 @@ func (s *kernelSuite) mockEarlyConfig() {
 	s.AddCleanup(func() { devicestate.EarlyConfig = nil })
 }
 
-func (s *kernelSuite) mockClassicBasicModelWithoutSnaps() {
+func (s *kernelSuite) mockClassicBootModelWithoutSnaps() {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -493,8 +493,8 @@ func (s *kernelSuite) TestConfigureKernelCmdlineSignedGradeNotAllowed(c *C) {
 	}
 }
 
-func (s *kernelSuite) TestConfigureKernelCmdlineOnClassicFails(c *C) {
-	s.mockClassicBasicModelWithoutSnaps()
+func (s *kernelSuite) TestConfigureKernelCmdlineOnClassicBootFails(c *C) {
+	s.mockClassicBootModelWithoutSnaps()
 
 	cmdline := "param1=val1"
 	s.state.Lock()
