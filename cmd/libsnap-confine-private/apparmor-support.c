@@ -108,13 +108,13 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 	}
 	// There are several possible results for the confinement type (mode) that
 	// are checked for below.
-	if (mode != NULL && strcmp(mode, SC_AA_COMPLAIN_STR) == 0) {
+	if (sc_streq(mode, SC_AA_COMPLAIN_STR)) {
 		apparmor->mode = SC_AA_COMPLAIN;
-	} else if (mode != NULL && strcmp(mode, SC_AA_ENFORCE_STR) == 0) {
+	} else if (sc_streq(mode, SC_AA_ENFORCE_STR)) {
 		apparmor->mode = SC_AA_ENFORCE;
-	} else if (mode != NULL && strcmp(mode, SC_AA_MIXED_STR) == 0) {
+	} else if (sc_streq(mode, SC_AA_MIXED_STR)) {
 		apparmor->mode = SC_AA_MIXED;
-	} else if (mode != NULL && strcmp(mode, SC_AA_KILL_STR) == 0) {
+	} else if (sc_streq(mode, SC_AA_KILL_STR)) {
 		apparmor->mode = SC_AA_KILL;
 	} else {
 		apparmor->mode = SC_AA_INVALID;
