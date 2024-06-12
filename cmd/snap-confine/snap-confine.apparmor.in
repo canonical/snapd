@@ -175,7 +175,7 @@
     # Allow mounting dirs from /
     mount options=(rw rbind) /*/ -> /tmp/snap.rootfs_**/,
 
-    # LP: #1668659 and parallel instaces of classic snaps
+    # LP: #1668659 and parallel instances of classic snaps
     mount options=(rw rbind) /snap/ -> /snap/,
     mount options=(rw rshared) -> /snap/,
     mount options=(rw rbind) /var/lib/snapd/snap/ -> /var/lib/snapd/snap/,
