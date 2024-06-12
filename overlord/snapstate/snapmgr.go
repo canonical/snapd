@@ -194,9 +194,10 @@ type ComponentSetup struct {
 	// CompSideInfo for metadata not coming from the component
 	CompSideInfo *snap.ComponentSideInfo `json:"comp-side-info,omitempty"`
 	// CompType is needed as some types need special handling
-	CompType snap.ComponentType
-	// CompPath is the path to the file. Will be an empty string if the
-	// component should be downloaded from the store.
+	CompType snap.ComponentType `json:"comp-type,omitempty"`
+	// CompPath is the path to the component that will be mounted on the system.
+	// It may be empty if the component is not yet present on the system (i.e.,
+	// needs to be downloaded).
 	CompPath string `json:"comp-path,omitempty"`
 	// DownloadInfo contains information about how to download this component.
 	// Will be nil if the component should be sourced from a local file.
