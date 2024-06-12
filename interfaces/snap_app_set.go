@@ -155,16 +155,7 @@ func (a *SnapAppSet) PlugRunnables(plug *ConnectedPlug) []snap.Runnable {
 		hooks = append(hooks, component.HooksForPlug(plug.plugInfo)...)
 	}
 
-	runnables := make([]snap.Runnable, 0, len(apps)+len(hooks))
-	for _, app := range apps {
-		runnables = append(runnables, snap.AppRunnable(app))
-	}
-
-	for _, hook := range hooks {
-		runnables = append(runnables, snap.HookRunnable(hook))
-	}
-
-	return runnables
+	return appAndHookRunnables(apps, hooks)
 }
 
 // SlotRunnables returns a list of all runnables that should be connected to the
@@ -175,6 +166,10 @@ func (a *SnapAppSet) SlotRunnables(slot *ConnectedSlot) []snap.Runnable {
 
 	// TODO: if components ever get slots, they will need to be considered here
 
+	return appAndHookRunnables(apps, hooks)
+}
+
+func appAndHookRunnables(apps []*snap.AppInfo, hooks []*snap.HookInfo) []snap.Runnable {
 	runnables := make([]snap.Runnable, 0, len(apps)+len(hooks))
 	for _, app := range apps {
 		runnables = append(runnables, snap.AppRunnable(app))
