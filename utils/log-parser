@@ -32,7 +32,7 @@ class Phase:
     def __repr__(self):
         return self.source_line
 
-    def __dict__(self):
+    def to_dict(self):
         return {
             "type": self.type,
             "date": self.date,
@@ -66,10 +66,10 @@ class Result:
             return "{}{}".format(self.source_line, str(self.detail))
         return self.source_line
 
-    def __dict__(self):
+    def to_dict(self):
         prepared_detail = None
         if self.detail:
-            prepared_detail = self.detail.__dict__()
+            prepared_detail = self.detail.to_dict()
         return {
             "type": self.type,
             "date": self.date,
@@ -104,10 +104,10 @@ class Info:
             return "{}{}".format(self.source_line, self.detail)
         return self.source_line
 
-    def __dict__(self):
+    def to_dict(self):
         prepared_detail = None
         if self.detail:
-            prepared_detail = self.detail.__dict__()
+            prepared_detail = self.detail.to_dict()
         return {
             "type": self.type,
             "date": self.date,
@@ -159,13 +159,13 @@ class Detail:
     Detail represents the extra lines which are displayed after the info
     """
 
-    def __init__(self, lines_limit, lines, rules):
+    def __init__(self, lines_limit: int, lines: list[str], rules: list[str]) -> None:
         self.lines_limit = lines_limit
         self.lines = lines
         self.data = {}
         self._process_rules(rules)
 
-    def _get_lines(self):
+    def _get_lines(self) -> list[str]:
         if self.lines_limit < 0 or self.lines_limit > len(self.lines):
             return self.lines
 
@@ -173,7 +173,7 @@ class Detail:
         # want to count it as a line in the log details
         return self.lines[-self.lines_limit - 1 :]
 
-    def _process_rules(self, rules):
+    def _process_rules(self, rules) -> None:
         for rule in rules:
             key = rule.key
             matches = rule.filter(self.lines)
@@ -182,7 +182,7 @@ class Detail:
     def __repr__(self):
         return "".join(self._get_lines())
 
-    def __dict__(self):
+    def to_dict(self) -> dict :
         details_dict = {"lines": self.lines[-self.lines_limit - 1 :]}
         for key in self.data.keys():
             details_dict[key] = self.data[key]
@@ -197,7 +197,7 @@ class Action:
     Allocated, Connecting, Connected, Sending
     """
 
-    def __init__(self, verb, task, extra, date, time, source_line):
+    def __init__(self, verb: str, task: str, extra: str, date: str, time: str, source_line: str) -> None: 
         self.type = "action"
         self.verb = verb
         self.time = time
@@ -209,7 +209,7 @@ class Action:
     def __repr__(self):
         return self.source_line
 
-    def __dict__(self):
+    def to_dict(self) -> dict:
         return {
             "type": self.type,
             "date": self.date,
@@ -225,7 +225,7 @@ class LogReader:
     LogReader manages the spread log, it allows to read, export and print
     """
 
-    def __init__(self, filepath, output_type, lines_limit, error_rules, debug_rules):
+    def __init__(self, filepath: str, output_type: str, lines_limit: str, error_rules: str, debug_rules: str) -> None:
         self.filepath = filepath
         self.output_type = output_type
         self.lines_limit = lines_limit
@@ -236,35 +236,35 @@ class LogReader:
         self.debug_rules = [Rule(rule) for rule in debug_rules]
 
     def __repr__(self):
-        return str(self.__dict__())
+        return str(self.to_dict())
 
-    def __dict__(self):
+    def to_dict(self) -> dict:
         return {"full_log": self.full_log}
 
-    def print_log(self):
+    def print_log(self) -> None:
         if not self.full_log:
             return
 
         print("".join(str(x) for x in self.full_log))
 
-    def export_log(self, filepath):
+    def export_log(self, filepath: str) -> None:
         prepared_log = []
         for item in self.full_log:
             if isinstance(item, str):
                 prepared_log.append(item)
             else:
-                prepared_log.append(item.__dict__())
+                prepared_log.append(item.to_dict())
         with open(filepath, "w") as json_file:
             json.dump(prepared_log, json_file, indent=4)
 
-    def _next_line(self):
+    def _next_line(self) -> str:
         self.iter = self.iter + 1
         return self.lines[self.iter - 1]
 
-    def check_log_exists(self):
+    def check_log_exists(self) -> bool:
         return os.path.exists(self.filepath)
 
-    def read_spread_log(self):
+    def read_spread_log(self) -> None:
         try:
             with open(self.filepath, "r", encoding="utf-8") as filepath:
                 self.lines = filepath.readlines()
@@ -310,16 +310,19 @@ class LogReader:
                     self.full_log.append(result)
                 continue
 
-    def _match_info(self, line):
+    def _match_info(self, line: str) -> bool:
         return helper.get_operation(line) in helper.ExecutionInfo.list()
 
-    def _match_phase(self, line):
+    def _match_phase(self, line: str) -> bool:
         return helper.get_operation(line) in helper.ExecutionPhase.list()
 
-    def _match_action(self, line):
-        return helper.get_operation(line) in helper.GeneralAction.list() + helper.GeneralActionStatus.list()
+    def _match_action(self, line: str) -> bool:
+        return (
+            helper.get_operation(line)
+            in helper.GeneralAction.list() + helper.GeneralActionStatus.list()
+        )
 
-    def _match_result(self, line):
+    def _match_result(self, line: str) -> bool:
         return helper.get_operation(line) in helper.Result.list()
 
     def _get_detail(self, rules, results=False, other_limit=None):

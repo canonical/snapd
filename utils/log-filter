@@ -4,6 +4,7 @@ import argparse
 import io
 import re
 import sys
+import typing
 
 import log_helper as helper
 
@@ -15,21 +16,21 @@ import log_helper as helper
 SUPPORTED_RULES = [helper.Result.FAILED.value] + helper.ExecutionInfo.list()
 
 
-def print_line(line: str):
+def print_line(line: str) -> None:
     if not line:
         print()
     else:
         print(line.strip())
 
 
-def write_line(line: str, to_stream: io.TextIOWrapper):
+def write_line(line: str, to_stream: typing.TextIO) -> None:
     if not line:
         print('\n', file=to_stream)
     else:
         print(line.strip(), file=to_stream, end='\n')
 
 
-def compile_rules(rules, operation):
+def compile_rules(rules: list[str], operation: str) -> list[re.Pattern[str]]:
     patterns = []
     regex_list = []
 
@@ -60,7 +61,7 @@ def compile_rules(rules, operation):
     return regex_list
 
 
-def process_detail_line(line: str, regex_list: list, to_stream: io.TextIOWrapper):
+def process_detail_line(line: str, regex_list: list[re.Pattern[str]], to_stream: typing.TextIO) -> None:
     if not regex_list:
         write_line(line, to_stream)
     else:
@@ -70,12 +71,7 @@ def process_detail_line(line: str, regex_list: list, to_stream: io.TextIOWrapper
                 write_line(match, to_stream)
 
 
-def process_detail(
-    from_stream: io.TextIOWrapper,
-    start_line: str,
-    regex_list: list,
-    to_stream: io.TextIOWrapper,
-) -> str:
+def process_detail(from_stream: typing.TextIO, start_line: str, regex_list: list[re.Pattern[str]], to_stream: typing.TextIO) -> str:
     """Process lines from the start of the details section until the last line,
     returns the first line right after the details section
     """
@@ -94,7 +90,7 @@ def process_detail(
         process_detail_line(line, regex_list, to_stream)
 
 
-def skip_detail(from_stream: io.TextIOWrapper) -> str:
+def skip_detail(from_stream: typing.TextIO) -> str:
     """Skip lines from the start of the details section until the last line,
     returns the first line right after the details section
     """
@@ -108,7 +104,7 @@ def skip_detail(from_stream: io.TextIOWrapper) -> str:
             return line
 
 
-def process_spread_output(output_file, exclude_lines, filter_rules):
+def process_spread_output(output_file: str, exclude_lines: set[str], filter_rules: list[str]) -> None:
     error_regex = compile_rules(filter_rules, helper.ExecutionInfo.ERROR.value)
     debug_regex = compile_rules(filter_rules, helper.ExecutionInfo.DEBUG.value)
     failed_regex = compile_rules(filter_rules, helper.Result.FAILED.value)
@@ -158,8 +154,7 @@ def process_spread_output(output_file, exclude_lines, filter_rules):
                 write_line(line, myfile)
 
 
-def _make_parser():
-    # type: () -> argparse.ArgumentParser
+def _make_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="""
 This tool is used to save a filtered version of the spread output. It parses the spread output and filters
