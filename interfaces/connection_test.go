@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/utils"
@@ -43,6 +44,10 @@ var _ = Suite(&connSuite{})
 
 func (s *connSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	s.plugAppSet = ifacetest.MockInfoAndAppSet(c, `
 name: consumer
@@ -385,4 +390,100 @@ func (s *connSuite) TestGetAttributeHappy(c *C) {
 	err := interfaces.GetAttribute("snap0", "iface0", staticAttrs, dynamicAttrs, "attr1", &intVal)
 	c.Check(err, IsNil)
 	c.Check(intVal, Equals, 42)
+}
+
+func (s *connSuite) TestPlugLabelExpression(c *C) {
+	const snapYaml = `
+name: consumer
+version: 0
+apps:
+  app:
+    plugs: [plug, app-plug]
+plugs:
+  plug:
+    interface: interface
+  comp-plug:
+    interface: interface
+  app-plug:
+    interface: interface
+  hook-plug:
+    interface: interface
+hooks:
+  install:
+    plugs: [plug, hook-plug]
+components:
+  comp:
+    type: test
+    hooks:
+      install:
+        plugs: [plug, comp-plug]
+`
+
+	const componentYaml = `
+component: consumer+comp
+type: test
+version: 1
+`
+
+	appSet := ifacetest.MockInfoAndAppSet(c, snapYaml, []string{componentYaml}, nil)
+	info := appSet.Info()
+
+	// all runnables have it, should use glob
+	connectedPlug := interfaces.NewConnectedPlug(info.Plugs["plug"], appSet, nil, nil)
+	c.Assert(connectedPlug.LabelExpression(), Equals, `"snap.consumer.*"`)
+
+	// make sure component hooks are considered
+	connectedPlug = interfaces.NewConnectedPlug(info.Plugs["comp-plug"], appSet, nil, nil)
+	c.Assert(connectedPlug.LabelExpression(), Equals, `"snap.consumer+comp.hook.install"`)
+
+	// make sure apps are considered
+	connectedPlug = interfaces.NewConnectedPlug(info.Plugs["app-plug"], appSet, nil, nil)
+	c.Assert(connectedPlug.LabelExpression(), Equals, `"snap.consumer.app"`)
+
+	// make sure hooks are considered
+	connectedPlug = interfaces.NewConnectedPlug(info.Plugs["hook-plug"], appSet, nil, nil)
+	c.Assert(connectedPlug.LabelExpression(), Equals, `"snap.consumer.hook.install"`)
+}
+
+func (s *connSuite) TestSlotLabelExpression(c *C) {
+	const snapYaml = `
+name: producer
+version: 0
+apps:
+  app:
+    slots: [slot, app-slot]
+slots:
+  slot:
+  app-slot:
+  hook-slot:
+hooks:
+  install:
+    slots: [slot, hook-slot]
+components:
+  comp:
+    type: test
+    hooks:
+      install:
+`
+
+	const componentYaml = `
+component: producer+comp
+type: test
+version: 1
+`
+
+	appSet := ifacetest.MockInfoAndAppSet(c, snapYaml, []string{componentYaml}, nil)
+	info := appSet.Info()
+
+	// components do not have slots right now, so we should not expect a glob
+	connectedPlug := interfaces.NewConnectedSlot(info.Slots["slot"], appSet, nil, nil)
+	c.Check(connectedPlug.LabelExpression(), Equals, `"snap.producer{.app,.hook.install}"`)
+
+	// make sure apps are considered
+	connectedPlug = interfaces.NewConnectedSlot(info.Slots["app-slot"], appSet, nil, nil)
+	c.Check(connectedPlug.LabelExpression(), Equals, `"snap.producer.app"`)
+
+	// make sure hooks are considered
+	connectedPlug = interfaces.NewConnectedSlot(info.Slots["hook-slot"], appSet, nil, nil)
+	c.Check(connectedPlug.LabelExpression(), Equals, `"snap.producer.hook.install"`)
 }

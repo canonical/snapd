@@ -96,52 +96,72 @@ func (s *snapAppSetSuite) TestLabelExpr(c *C) {
 	appSet, err := interfaces.NewSnapAppSet(info, compInfos)
 	c.Assert(err, IsNil)
 
-	apps := appsInMap(info.Apps)
-	hooks := hooksInMap(info.Hooks)
-
-	var compHooks []*snap.HookInfo
-	for _, ci := range compInfos {
-		compHooks = append(compHooks, hooksInMap(ci.Hooks)...)
+	var apps []snap.Runnable
+	for _, app := range appsInMap(info.Apps) {
+		apps = append(apps, snap.AppRunnable(app))
 	}
 
-	allHooks := make([]*snap.HookInfo, 0, len(hooks)+len(compHooks))
+	var hooks []snap.Runnable
+	for _, hook := range hooksInMap(info.Hooks) {
+		hooks = append(hooks, snap.HookRunnable(hook))
+	}
+
+	var compHooks []snap.Runnable
+	for _, ci := range compInfos {
+		for _, hook := range hooksInMap(ci.Hooks) {
+			compHooks = append(compHooks, snap.HookRunnable(hook))
+		}
+	}
+
+	allHooks := make([]snap.Runnable, 0, len(hooks)+len(compHooks))
 	allHooks = append(allHooks, hooks...)
 	allHooks = append(allHooks, compHooks...)
 
+	allRunnables := appSet.Runnables()
+	runnableByName := func(name string) []snap.Runnable {
+		for _, r := range allRunnables {
+			if r.CommandName == name {
+				return []snap.Runnable{r}
+			}
+		}
+		c.Fatalf("runnable %q not found", name)
+		return nil
+	}
+
 	// all apps and all hooks
-	label := interfaces.LabelExpr(apps, allHooks, appSet)
+	label := interfaces.LabelExpr(appSet, allRunnables)
 	c.Check(label, Equals, `"snap.test-snap.*"`)
 
 	// all apps, no hooks
-	label = interfaces.LabelExpr(apps, nil, appSet)
+	label = interfaces.LabelExpr(appSet, apps)
 	c.Check(label, Equals, `"snap.test-snap{.app1,.app2}"`)
 
 	// one app, no hooks
-	label = interfaces.LabelExpr([]*snap.AppInfo{info.Apps["app1"]}, nil, appSet)
+	label = interfaces.LabelExpr(appSet, runnableByName("app1"))
 	c.Check(label, Equals, `"snap.test-snap.app1"`)
 
 	// no apps, one snap hook
-	label = interfaces.LabelExpr(nil, []*snap.HookInfo{info.Hooks["install"]}, appSet)
+	label = interfaces.LabelExpr(appSet, runnableByName("hook.install"))
 	c.Check(label, Equals, `"snap.test-snap.hook.install"`)
 
 	// one app, all snap hooks
-	label = interfaces.LabelExpr([]*snap.AppInfo{info.Apps["app1"]}, hooks, appSet)
+	label = interfaces.LabelExpr(appSet, append(runnableByName("app1"), hooks...))
 	c.Check(label, Equals, `"snap.test-snap{.app1,.hook.install,.hook.post-refresh}"`)
 
 	// one app, all hooks
-	label = interfaces.LabelExpr([]*snap.AppInfo{info.Apps["app1"]}, allHooks, appSet)
+	label = interfaces.LabelExpr(appSet, append(runnableByName("app1"), allHooks...))
 	c.Check(label, Equals, `"snap.test-snap{+comp1.hook.install,+comp2.hook.pre-refresh,.app1,.hook.install,.hook.post-refresh}"`)
 
 	// only snap hooks
-	label = interfaces.LabelExpr(nil, hooks, appSet)
+	label = interfaces.LabelExpr(appSet, hooks)
 	c.Check(label, Equals, `"snap.test-snap{.hook.install,.hook.post-refresh}"`)
 
 	// only component hooks
-	label = interfaces.LabelExpr(nil, compHooks, appSet)
+	label = interfaces.LabelExpr(appSet, compHooks)
 	c.Check(label, Equals, `"snap.test-snap{+comp1.hook.install,+comp2.hook.pre-refresh}"`)
 
 	// nothing
-	label = interfaces.LabelExpr(nil, nil, appSet)
+	label = interfaces.LabelExpr(appSet, nil)
 	c.Check(label, Equals, `"snap.test-snap."`)
 }
 

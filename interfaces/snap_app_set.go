@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/snapcore/snapd/snap"
 )
@@ -111,9 +112,7 @@ func (a *SnapAppSet) plugLabelExpression(plug *ConnectedPlug) string {
 		panic("internal error: connected plug must be from the same snap as the SnapAppSet")
 	}
 
-	apps := a.info.AppsForPlug(plug.plugInfo)
-	hooks := a.info.HooksForPlug(plug.plugInfo)
-	return labelExpr(apps, hooks, a)
+	return labelExpr(a, a.PlugRunnables(plug))
 }
 
 // slotLabelExpression returns the label expression for the given slot. It is
@@ -123,9 +122,7 @@ func (a *SnapAppSet) slotLabelExpression(slot *ConnectedSlot) string {
 		panic("internal error: connected slot must be from the same snap as the SnapAppSet")
 	}
 
-	apps := a.info.AppsForSlot(slot.slotInfo)
-	hooks := a.info.HooksForSlot(slot.slotInfo)
-	return labelExpr(apps, hooks, a)
+	return labelExpr(a, a.SlotRunnables(slot))
 }
 
 // Runnables returns a list of all runnables known by the app set.
@@ -196,35 +193,33 @@ func (a *SnapAppSet) SlotRunnables(slot *ConnectedSlot) []snap.Runnable {
 //   - "snap.$snap_instance.{$app1,...$appN, $hook1...$hookN}" if there are
 //     some, but not all, apps/hooks bound
 //   - "snap.$snap_instance.*" if all apps/hooks are bound to the plug or slot
-func labelExpr(apps []*snap.AppInfo, hooks []*snap.HookInfo, appSet *SnapAppSet) string {
+func labelExpr(appSet *SnapAppSet, connected []snap.Runnable) string {
 	var buf bytes.Buffer
 
-	names := make([]string, 0, len(apps)+len(hooks))
-	for _, app := range apps {
-		names = append(names, "."+app.Name)
+	// all security tags are prefixed with snap.$snap_instance, we use this
+	// knowledge to build a pattern that will match against all of the connected
+	// runnables
+	prefix := fmt.Sprintf("snap.%s", appSet.InstanceName())
+
+	suffixes := make([]string, 0, len(connected))
+	for _, r := range connected {
+		suffixes = append(suffixes, strings.TrimPrefix(r.SecurityTag, prefix))
 	}
 
-	for _, hook := range hooks {
-		if hook.Component != nil {
-			names = append(names, fmt.Sprintf("+%s.hook.%s", hook.Component.Name, hook.Name))
-		} else {
-			names = append(names, fmt.Sprintf(".hook.%s", hook.Name))
-		}
-	}
-	sort.Strings(names)
+	sort.Strings(suffixes)
 
-	fmt.Fprintf(&buf, `"snap.%s`, appSet.InstanceName())
+	fmt.Fprintf(&buf, `"%s`, prefix)
 
-	switch len(names) {
+	switch len(suffixes) {
 	case 0:
 		buf.WriteString(".")
 	case 1:
-		buf.WriteString(names[0])
+		buf.WriteString(suffixes[0])
 	case len(appSet.Runnables()):
 		buf.WriteString(".*")
 	default:
 		buf.WriteByte('{')
-		for _, name := range names {
+		for _, name := range suffixes {
 			buf.WriteString(name)
 			buf.WriteByte(',')
 		}
