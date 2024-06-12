@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -200,7 +201,12 @@ func labelExpr(appSet *SnapAppSet, connected []snap.Runnable) string {
 
 	suffixes := make([]string, 0, len(connected))
 	for _, r := range connected {
-		suffixes = append(suffixes, strings.TrimPrefix(r.SecurityTag, prefix))
+		suffix := strings.TrimPrefix(r.SecurityTag, prefix)
+		if suffix == r.SecurityTag {
+			logger.Noticef("security tag %q does not have expected prefix: %q", r.SecurityTag, prefix)
+			continue
+		}
+		suffixes = append(suffixes, suffix)
 	}
 
 	sort.Strings(suffixes)
