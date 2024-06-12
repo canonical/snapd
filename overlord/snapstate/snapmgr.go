@@ -769,8 +769,8 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("pre-download-snap", m.doPreDownloadSnap, nil)
 
 	// component tasks
-	runner.AddHandler("prepare-component", m.doPrepareComponent, nil)   // TODO: add undo?
-	runner.AddHandler("download-component", m.doDownloadComponent, nil) // TODO: add undo?
+	runner.AddHandler("prepare-component", m.doPrepareComponent, nil)
+	runner.AddHandler("download-component", m.doDownloadComponent, nil)
 	runner.AddHandler("mount-component", m.doMountComponent, m.undoMountComponent)
 	runner.AddHandler("unlink-current-component", m.doUnlinkCurrentComponent, m.undoUnlinkCurrentComponent)
 	runner.AddHandler("link-component", m.doLinkComponent, m.undoLinkComponent)
