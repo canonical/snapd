@@ -167,6 +167,8 @@ func (a *SnapAppSet) PlugRunnables(plug *ConnectedPlug) []snap.Runnable {
 	return runnables
 }
 
+// SlotRunnables returns a list of all runnables that should be connected to the
+// given slot.
 func (a *SnapAppSet) SlotRunnables(slot *ConnectedSlot) []snap.Runnable {
 	apps := a.info.AppsForSlot(slot.slotInfo)
 	hooks := a.info.HooksForSlot(slot.slotInfo)
