@@ -64,6 +64,9 @@
     /dev/pts/[0-9]* rw,
     /dev/tty rw,
 
+    # SNAP_MOUNT_DIR probe logic
+    /proc/1/root/snap r,
+
     # cgroup: devices
     capability sys_admin,
     capability dac_read_search,
