@@ -108,7 +108,9 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 	}
 	// There are several possible results for the confinement type (mode) that
 	// are checked for below.
-	if (sc_streq(mode, SC_AA_COMPLAIN_STR)) {
+	if (mode == NULL) {
+		apparmor->mode = SC_AA_NOT_APPLICABLE;
+	} else if (sc_streq(mode, SC_AA_COMPLAIN_STR)) {
 		apparmor->mode = SC_AA_COMPLAIN;
 	} else if (sc_streq(mode, SC_AA_ENFORCE_STR)) {
 		apparmor->mode = SC_AA_ENFORCE;
