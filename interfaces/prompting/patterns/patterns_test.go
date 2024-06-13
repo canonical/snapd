@@ -198,15 +198,15 @@ func (s *patternsSuite) TestParsePathPatternUnhappy(c *C) {
 		},
 		{
 			"/" + strings.Repeat("{a,", 1000) + "a" + strings.Repeat("}", 1000),
-			`invalid path pattern: nested group depth exceeded maximum number of expanded path patterns.*`,
+			`cannot parse path pattern .*: nested group depth exceeded maximum number of expanded path patterns \(1000\)`,
 		},
 		{
 			"/" + strings.Repeat("{", 1000) + "a" + strings.Repeat(",a}", 1000),
-			`invalid path pattern: nested group depth exceeded maximum number of expanded path patterns.*`,
+			`cannot parse path pattern .*: nested group depth exceeded maximum number of expanded path patterns \(1000\)`,
 		},
 		{
 			"/" + strings.Repeat("{", 10000),
-			`invalid path pattern: nested group depth exceeded maximum number of expanded path patterns.*`,
+			`cannot parse path pattern .*: nested group depth exceeded maximum number of expanded path patterns \(1000\)`,
 		},
 	} {
 		pathPattern, err := patterns.ParsePathPattern(testCase.pattern)

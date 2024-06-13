@@ -25,19 +25,21 @@ import (
 )
 
 func Parse(tokens []Token) (RenderNode, error) {
-	tr := tokenReader(tokens)
-	return parseSeq(&tr, false)
+	tr := tokenReader{
+		tokens: tokens,
+	}
+	return parseSeq(&tr)
 }
 
-func parseSeq(tr *tokenReader, insideAlt bool) (RenderNode, error) {
+func parseSeq(tr *tokenReader) (RenderNode, error) {
 	var seq Seq
-loop:
+seqLoop:
 	for {
 		t := tr.Peek()
 
 		switch t.Type {
 		case tokEOF:
-			break loop
+			break seqLoop
 		case tokError:
 			return nil, errors.New("cannot scan next token")
 		case tokBraceOpen:
@@ -48,8 +50,8 @@ loop:
 
 			seq = append(seq, inner)
 		case tokBraceClose:
-			if insideAlt {
-				break loop
+			if tr.depth > 0 {
+				break seqLoop
 			}
 
 			tr.Token()
@@ -59,8 +61,8 @@ loop:
 			tr.Token()
 			seq = append(seq, Literal(t.Text))
 		case tokComma:
-			if insideAlt {
-				break loop
+			if tr.depth > 0 {
+				break seqLoop
 			}
 
 			tr.Token() // discard, we get called in a loop
@@ -78,9 +80,17 @@ func parseAlt(tr *tokenReader) (RenderNode, error) {
 		return nil, errors.New("expected { in parseAlt")
 	}
 
-loop:
+	tr.depth++
+	defer func() {
+		tr.depth--
+	}()
+	if tr.depth >= maxExpandedPatterns {
+		return nil, fmt.Errorf("nested group depth exceeded maximum number of expanded path patterns (%d)", maxExpandedPatterns)
+	}
+
+altLoop:
 	for {
-		item, err := parseSeq(tr, true)
+		item, err := parseSeq(tr)
 		if err != nil {
 			return nil, err
 		}
@@ -89,7 +99,7 @@ loop:
 
 		switch t := tr.Token(); t.Type {
 		case tokBraceClose:
-			break loop
+			break altLoop
 		case tokComma:
 			continue
 		default:
@@ -100,21 +110,24 @@ loop:
 	return alt.optimize().reduceStrength(), nil
 }
 
-type tokenReader []Token
+type tokenReader struct {
+	tokens []Token
+	depth  int
+}
 
 func (tr tokenReader) Peek() Token {
-	if len(tr) == 0 {
+	if len(tr.tokens) == 0 {
 		return Token{Type: tokEOF}
 	}
 
-	return tr[0]
+	return tr.tokens[0]
 }
 
 func (tr *tokenReader) Token() Token {
 	t := tr.Peek()
 
 	if t.Type != tokEOF {
-		*tr = (*tr)[1:]
+		tr.tokens = tr.tokens[1:]
 	}
 
 	return t
