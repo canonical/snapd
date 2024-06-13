@@ -65,12 +65,12 @@ OPERATIONS = (
 START_LINE = ".*Project content is packed for delivery.*"
 
 
-def _match_date(date):
-    return re.match(r"\d{4}-\d{2}-\d{2}", date)
+def _match_date(date) -> bool:
+    return re.match(r"\d{4}-\d{2}-\d{2}", date) is not None
 
 
-def _match_time(time):
-    return re.match(r"\d{2}:\d{2}:\d{2}", time)
+def _match_time(time) -> bool:
+    return re.match(r"\d{2}:\d{2}:\d{2}", time) is not None
 
 
 def is_initial_line(line: str) -> bool:
@@ -83,7 +83,7 @@ def is_initial_line(line: str) -> bool:
         len(parts) > 2
         and _match_date(parts[0])
         and _match_time(parts[1])
-        and re.match(pattern, line)
+        and re.match(pattern, line) is not None
     )
 
 
