@@ -220,3 +220,35 @@ func (s *refreshSuite) TestConfigureRefreshRetainInvalid(c *C) {
 	})
 	c.Assert(err, ErrorMatches, `retain must be a number between 2 and 20, not "invalid"`)
 }
+
+func (s *refreshSuite) TestConfigureRefreshMaxInhibitionDays(c *C) {
+	data := []struct {
+		val interface{}
+		err string
+	}{
+		{val: "zzz", err: `max-inhibition-days must be a number between 1 and 21, not "zzz"`},
+		{val: "-1", err: `max-inhibition-days must be a number between 1 and 21, not "-1"`},
+		{val: -1, err: `max-inhibition-days must be a number between 1 and 21, not "-1"`},
+		{val: "23", err: `max-inhibition-days must be a number between 1 and 21, not "23"`},
+		{val: 0, err: `max-inhibition-days must be a number between 1 and 21, not "0"`},
+		// happy cases
+		{val: nil}, // default value (14 days)
+		{val: ""},  // default value (14 days)
+		{val: 1},
+		{val: "1"},
+		{val: 14},
+	}
+	for _, tc := range data {
+		err := configcore.Run(classicDev, &mockConf{
+			state: s.state,
+			conf: map[string]interface{}{
+				"refresh.max-inhibition-days": tc.val,
+			},
+		})
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
+}

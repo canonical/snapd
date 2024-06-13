@@ -10236,7 +10236,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshCreatePreDownload(c *C) {
 	refreshInfo := busyErr.PendingSnapRefreshInfo()
 	c.Check(refreshInfo, DeepEquals, &userclient.PendingSnapRefreshInfo{
 		InstanceName:  "some-snap",
-		TimeRemaining: snapstate.MaxInhibition,
+		TimeRemaining: snapstate.MaxInhibitionDuration(s.state),
 	})
 
 	tasks := ts.Tasks()
@@ -10664,7 +10664,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 		refreshInfo := busyErr.PendingSnapRefreshInfo()
 		c.Check(refreshInfo, DeepEquals, &userclient.PendingSnapRefreshInfo{
 			InstanceName:  "some-snap",
-			TimeRemaining: snapstate.MaxInhibition,
+			TimeRemaining: snapstate.MaxInhibitionDuration(s.state),
 		})
 		c.Assert(ts, IsNil)
 
@@ -11145,7 +11145,7 @@ func (s *snapmgrTestSuite) TestUnlinkMonitorSnapOnHardCheckFailure(c *C) {
 	var notified bool
 	restore := snapstate.MockAsyncPendingRefreshNotification(func(_ context.Context, pendingInfo *userclient.PendingSnapRefreshInfo) {
 		c.Check(pendingInfo.InstanceName, Equals, "some-snap")
-		c.Check(pendingInfo.TimeRemaining, Equals, snapstate.MaxInhibition)
+		c.Check(pendingInfo.TimeRemaining, Equals, snapstate.MaxInhibitionDuration(s.state))
 		notified = true
 	})
 	defer restore()
@@ -11211,7 +11211,7 @@ func (s *snapmgrTestSuite) TestRefreshForcedOnRefreshInhibitionTimeout(c *C) {
 	defer s.state.Unlock()
 
 	instant := time.Now()
-	pastInstant := instant.Add(-snapstate.MaxInhibition * 2)
+	pastInstant := instant.Add(-snapstate.MaxInhibitionDuration(s.state) * 2)
 	// Add first snap
 	si1 := &snap.SideInfo{
 		RealName: "some-snap",
@@ -11320,7 +11320,7 @@ func (s *snapmgrTestSuite) TestRefreshForcedOnRefreshInhibitionTimeoutError(c *C
 	defer s.state.Unlock()
 
 	instant := time.Now()
-	pastInstant := instant.Add(-snapstate.MaxInhibition * 2)
+	pastInstant := instant.Add(-snapstate.MaxInhibitionDuration(s.state) * 2)
 	// Add snap
 	si1 := &snap.SideInfo{
 		RealName: "some-snap",
