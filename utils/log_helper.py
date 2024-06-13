@@ -10,8 +10,8 @@ from enum import Enum
 
 class ListedEnum(Enum):
     @classmethod
-    def list(cls):
-        return list(map(lambda c: c.value, cls))
+    def list(cls) -> list[str]:
+        return [str(x) for x in cls.__members__.values()]
 
 
 class ExecutionPhase(ListedEnum):
@@ -65,11 +65,11 @@ OPERATIONS = (
 START_LINE = ".*Project content is packed for delivery.*"
 
 
-def _match_date(date) -> bool:
+def _match_date(date: str) -> bool:
     return re.match(r"\d{4}-\d{2}-\d{2}", date) is not None
 
 
-def _match_time(time) -> bool:
+def _match_time(time: str) -> bool:
     return re.match(r"\d{2}:\d{2}:\d{2}", time) is not None
 
 
