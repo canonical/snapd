@@ -21,7 +21,6 @@ package patterns
 
 const (
 	TokEOF        = tokEOF
-	TokError      = tokError
 	TokText       = tokText
 	TokBraceOpen  = tokBraceOpen
 	TokBraceClose = tokBraceClose

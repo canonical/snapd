@@ -63,7 +63,10 @@ func (p *PathPattern) parse(pattern string) error {
 	if strings.HasSuffix(pattern, `\`) && !strings.HasSuffix(pattern, `\\`) {
 		return fmt.Errorf(`%s: trailing unescaped '\' character`, prefix)
 	}
-	tokens := Scan(pattern)
+	tokens, err := Scan(pattern)
+	if err != nil {
+		return fmt.Errorf("%s: %w", prefix, err)
+	}
 	tree, err := Parse(tokens)
 	if err != nil {
 		return fmt.Errorf("%s: %w", prefix, err)

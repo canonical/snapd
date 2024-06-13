@@ -29,7 +29,7 @@ type scanSuite struct{}
 
 var _ = Suite(&scanSuite{})
 
-func (s *scanSuite) TestScan(c *C) {
+func (s *scanSuite) TestScanHappy(c *C) {
 	pattern := "/{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld{-*,64}.so*"
 
 	expectedTokens := []patterns.Token{
@@ -69,7 +69,39 @@ func (s *scanSuite) TestScan(c *C) {
 		patterns.Token{Type: patterns.TokText, Text: ".so*"},
 	}
 
-	tokens := patterns.Scan(pattern)
-
+	tokens, err := patterns.Scan(pattern)
+	c.Check(err, IsNil)
 	c.Check(tokens, DeepEquals, expectedTokens)
+
+	patternWithEscapedMetachars := `/foo\{a\,b\,c\}\[bar\]\\`
+	expectedTokens = []patterns.Token{
+		patterns.Token{Type: patterns.TokText, Text: patternWithEscapedMetachars},
+	}
+	tokens, err = patterns.Scan(patternWithEscapedMetachars)
+	c.Check(err, IsNil)
+	c.Check(tokens, DeepEquals, expectedTokens)
+}
+
+func (s *scanSuite) TestScanUnhappy(c *C) {
+	for _, testCase := range []struct {
+		pattern     string
+		expectedErr string
+	}{
+		{
+			`/foo\`,
+			`trailing unescaped '\\' character`,
+		},
+		{
+			`/foo[bar`,
+			`cannot contain unescaped '\[' or '\]' character`,
+		},
+		{
+			`/foo]bar`,
+			`cannot contain unescaped '\[' or '\]' character`,
+		},
+	} {
+		tokens, err := patterns.Scan(testCase.pattern)
+		c.Check(err, ErrorMatches, testCase.expectedErr)
+		c.Check(tokens, IsNil)
+	}
 }

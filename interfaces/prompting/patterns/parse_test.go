@@ -64,7 +64,9 @@ func (s *parseSuite) TestParse(c *C) {
 		patterns.Literal(".so*"),
 	}
 
-	tree, err := patterns.Parse(patterns.Scan(pattern))
+	tokens, err := patterns.Scan(pattern)
+	c.Assert(err, IsNil)
+	tree, err := patterns.Parse(tokens)
 	c.Assert(err, IsNil)
 	c.Check(tree, DeepEquals, handMadeTree)
 }

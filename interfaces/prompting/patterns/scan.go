@@ -29,7 +29,6 @@ type TokenType int
 
 const (
 	tokEOF TokenType = iota
-	tokError
 	tokText
 	tokBraceOpen
 	tokBraceClose
@@ -40,8 +39,6 @@ func (t TokenType) String() string {
 	switch t {
 	case tokEOF:
 		return "end-of-file"
-	case tokError:
-		return "error"
 	case tokText:
 		return "text"
 	case tokBraceOpen:
@@ -60,7 +57,7 @@ type Token struct {
 	Text string
 }
 
-func Scan(text string) (tokens []Token) {
+func Scan(text string) (tokens []Token, err error) {
 	var runes []rune
 
 	rr := strings.NewReader(text)
@@ -71,15 +68,8 @@ loop:
 			if errors.Is(err, io.EOF) {
 				break loop
 			}
-
-			if len(runes) > 0 {
-				tokens = append(tokens, Token{Text: string(runes), Type: tokText})
-				runes = nil
-			}
-
-			tokens = append(tokens, Token{Type: tokError, Text: string(r)})
-
-			return tokens
+			// Should not occur, err is only set if no rune available to read
+			return nil, err
 		}
 
 		switch r {
@@ -104,17 +94,14 @@ loop:
 		case '\\':
 			r2, _, err := rr.ReadRune()
 			if err != nil {
-				if len(runes) > 0 {
-					tokens = append(tokens, Token{Text: string(runes), Type: tokText})
-					runes = nil
-				}
-
-				tokens = append(tokens, Token{Type: tokError, Text: string(r2)})
-
-				return tokens
+				// Should not occur, caller should verify that patterns do not
+				// have trailing '\\'
+				return nil, errors.New(`trailing unescaped '\' character`)
 			}
 
-			runes = append(runes, '\\', r2)
+			runes = append(runes, r, r2)
+		case '[', ']':
+			return nil, errors.New("cannot contain unescaped '[' or ']' character")
 		default:
 			runes = append(runes, r)
 		}
@@ -125,5 +112,5 @@ loop:
 		runes = nil
 	}
 
-	return tokens
+	return tokens, nil
 }

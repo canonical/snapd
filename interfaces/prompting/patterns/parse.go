@@ -40,8 +40,6 @@ seqLoop:
 		switch t.Type {
 		case tokEOF:
 			break seqLoop
-		case tokError:
-			return nil, errors.New("cannot scan next token")
 		case tokBraceOpen:
 			inner, err := parseAlt(tr)
 			if err != nil {

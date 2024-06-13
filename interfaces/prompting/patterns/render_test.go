@@ -33,7 +33,8 @@ var _ = Suite(&renderSuite{})
 
 func (s *renderSuite) TestRender(c *C) {
 	pattern := "/{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld{-*,64}.so*"
-	scanned := patterns.Scan(pattern)
+	scanned, err := patterns.Scan(pattern)
+	c.Assert(err, IsNil)
 	parsed, err := patterns.Parse(scanned)
 	c.Assert(err, IsNil)
 
