@@ -53,22 +53,23 @@ func ParsePathPattern(pattern string) (*PathPattern, error) {
 // parse validates the given pattern and parses it into a PathPattern from
 // which expanded path patterns can be iterated, overwriting the receiver.
 func (p *PathPattern) parse(pattern string) error {
+	prefix := fmt.Sprintf("cannot parse path pattern %q", pattern)
 	if pattern == "" {
-		return fmt.Errorf("invalid path pattern: pattern has length 0")
+		return fmt.Errorf("%s: pattern has length 0", prefix)
 	}
 	if pattern[0] != '/' {
-		return fmt.Errorf("invalid path pattern: pattern must start with '/': %q", pattern)
+		return fmt.Errorf("%s: pattern must start with '/'", prefix)
 	}
 	if strings.HasSuffix(pattern, `\`) && !strings.HasSuffix(pattern, `\\`) {
-		return fmt.Errorf(`invalid path pattern: trailing unescaped '\' character: %q`, pattern)
+		return fmt.Errorf(`%s: trailing unescaped '\' character`, prefix)
 	}
 	tokens := Scan(pattern)
 	tree, err := Parse(tokens)
 	if err != nil {
-		return fmt.Errorf("cannot parse path pattern %q: %w", pattern, err)
+		return fmt.Errorf("%s: %w", prefix, err)
 	}
 	if count := tree.NumVariants(); count > maxExpandedPatterns {
-		return fmt.Errorf("invalid path pattern: exceeded maximum number of expanded path patterns (%d): %q expands to %d patterns", maxExpandedPatterns, pattern, count)
+		return fmt.Errorf("%s: exceeded maximum number of expanded path patterns (%d): %d", prefix, maxExpandedPatterns, count)
 	}
 	p.original = pattern
 	p.renderTree = tree

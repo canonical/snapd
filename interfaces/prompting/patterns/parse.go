@@ -56,7 +56,7 @@ seqLoop:
 
 			tr.Token()
 
-			return nil, errors.New("unexpected } (in parseSeq)")
+			return nil, errors.New("unmatched '}' character")
 		case tokText:
 			tr.Token()
 			seq = append(seq, Literal(t.Text))
@@ -102,8 +102,10 @@ altLoop:
 			break altLoop
 		case tokComma:
 			continue
+		case tokEOF:
+			return nil, errors.New("unmatched '{' character")
 		default:
-			return nil, fmt.Errorf("Unexpected token %v in parseAlt", t)
+			return nil, fmt.Errorf("unexpected token %v when parsing alt", t)
 		}
 	}
 

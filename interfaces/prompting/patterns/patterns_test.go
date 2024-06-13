@@ -146,55 +146,55 @@ func (s *patternsSuite) TestParsePathPatternUnhappy(c *C) {
 	}{
 		{
 			``,
-			`invalid path pattern: pattern has length 0`,
+			`cannot parse path pattern .*: pattern has length 0`,
 		},
 		{
 			`file.txt`,
-			`invalid path pattern: pattern must start with '/'.*`,
+			`cannot parse path pattern "file.txt": pattern must start with '/'`,
 		},
 		{
 			`{/,/foo}`,
-			`invalid path pattern: pattern must start with '/'.*`,
+			`cannot parse path pattern .*: pattern must start with '/'`,
 		},
 		{
 			`/foo{bar`,
-			`invalid path pattern: unmatched '{' character.*`,
+			`cannot parse path pattern .*: unmatched '{' character`,
 		},
 		{
 			`/foo}bar`,
-			`invalid path pattern: unmatched '}' character.*`,
+			`cannot parse path pattern .*: unmatched '}' character.*`,
 		},
 		{
 			`/foo/bar\`,
-			`invalid path pattern: trailing unescaped '\\' character.*`,
+			`cannot parse path pattern .*: trailing unescaped '\\' character`,
 		},
 		{
 			`/foo/bar{`,
-			`invalid path pattern: unmatched '{' character.*`,
+			`cannot parse path pattern .*: unmatched '{' character`,
 		},
 		{
 			`/foo/bar{baz\`,
-			`invalid path pattern: trailing unescaped '\\' character.*`,
+			`cannot parse path pattern .*: trailing unescaped '\\' character`,
 		},
 		{
 			`/foo/bar{baz{\`,
-			`invalid path pattern: trailing unescaped '\\' character.*`,
+			`cannot parse path pattern .*: trailing unescaped '\\' character`,
 		},
 		{
 			`/foo/bar{baz{`,
-			`invalid path pattern: unmatched '{' character.*`,
+			`cannot parse path pattern .*: unmatched '{' character`,
 		},
 		{
 			`/foo/ba[rz]`,
-			`invalid path pattern: cannot contain unescaped '\[' or '\]' character.*`,
+			`cannot parse path pattern .*: cannot contain unescaped '\[' or '\]' character`,
 		},
 		{
 			`/foo/{a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}{o,p}{q,r}{s,t}`, // expands to 1024
-			`invalid path pattern: exceeded maximum number of expanded path patterns.*`,
+			`cannot parse path pattern .*: exceeded maximum number of expanded path patterns \(1000\): 1024`,
 		},
 		{
 			`/foo/{a,b,c,d,e,f,g}{h,i,j,k,l,m,n,o,p,q,r}{s,t,u,v,w,x,y,z,1,2,3,4,5}`, // expands to 1001
-			`invalid path pattern: exceeded maximum number of expanded path patterns.*`,
+			`cannot parse path pattern .*: exceeded maximum number of expanded path patterns \(1000\): 1001`,
 		},
 		{
 			"/" + strings.Repeat("{a,", 1000) + "a" + strings.Repeat("}", 1000),
@@ -264,7 +264,7 @@ func (s *patternsSuite) TestPathPatternUnmarshalJSONUnhappy(c *C) {
 	}{
 		{
 			[]byte(`"foo"`),
-			`invalid path pattern: pattern must start with '/'.*`,
+			`cannot parse path pattern "foo": pattern must start with '/'.*`,
 		},
 		{
 			[]byte{'"', 0x00, '"'},
