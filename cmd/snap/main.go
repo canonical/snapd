@@ -442,6 +442,11 @@ func exitCodeFromError(err error) int {
 func main() {
 	snapdtool.ExecInSnapdOrCoreSnap()
 
+	if err := snapdtool.MaybeSetupFIPS(); err != nil {
+		fmt.Fprintf(os.Stderr, "cannot check or enable FIPS mode: %v", err)
+		os.Exit(1)
+	}
+
 	// check for magic symlink to /usr/bin/snap:
 	// 1. symlink from command-not-found to /usr/bin/snap: run c-n-f
 	if os.Args[0] == filepath.Join(dirs.GlobalRootDir, "/usr/lib/command-not-found") {
