@@ -98,18 +98,18 @@ func (s *snapAppSetSuite) TestLabelExpr(c *C) {
 
 	var apps []snap.Runnable
 	for _, app := range appsInMap(info.Apps) {
-		apps = append(apps, snap.AppRunnable(app))
+		apps = append(apps, app.Runnable())
 	}
 
 	var hooks []snap.Runnable
 	for _, hook := range hooksInMap(info.Hooks) {
-		hooks = append(hooks, snap.HookRunnable(hook))
+		hooks = append(hooks, hook.Runnable())
 	}
 
 	var compHooks []snap.Runnable
 	for _, ci := range compInfos {
 		for _, hook := range hooksInMap(ci.Hooks) {
-			compHooks = append(compHooks, snap.HookRunnable(hook))
+			compHooks = append(compHooks, hook.Runnable())
 		}
 	}
 

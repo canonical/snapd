@@ -131,16 +131,16 @@ func (a *SnapAppSet) Runnables() []snap.Runnable {
 	var runnables []snap.Runnable
 
 	for _, app := range a.info.Apps {
-		runnables = append(runnables, snap.AppRunnable(app))
+		runnables = append(runnables, app.Runnable())
 	}
 
 	for _, hook := range a.info.Hooks {
-		runnables = append(runnables, snap.HookRunnable(hook))
+		runnables = append(runnables, hook.Runnable())
 	}
 
 	for _, component := range a.components {
 		for _, hook := range component.Hooks {
-			runnables = append(runnables, snap.HookRunnable(hook))
+			runnables = append(runnables, hook.Runnable())
 		}
 	}
 
@@ -173,11 +173,11 @@ func (a *SnapAppSet) SlotRunnables(slot *ConnectedSlot) []snap.Runnable {
 func appAndHookRunnables(apps []*snap.AppInfo, hooks []*snap.HookInfo) []snap.Runnable {
 	runnables := make([]snap.Runnable, 0, len(apps)+len(hooks))
 	for _, app := range apps {
-		runnables = append(runnables, snap.AppRunnable(app))
+		runnables = append(runnables, app.Runnable())
 	}
 
 	for _, hook := range hooks {
-		runnables = append(runnables, snap.HookRunnable(hook))
+		runnables = append(runnables, hook.Runnable())
 	}
 
 	return runnables
