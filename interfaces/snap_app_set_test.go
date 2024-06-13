@@ -53,29 +53,42 @@ components:
 `
 
 func (s *snapAppSetSuite) TestPlugLabelExpr(c *C) {
-	set, connectedPlug := mockAppSetAndConnectedPlug(c, yaml, nil, nil, "network")
-	label := set.PlugLabelExpression(connectedPlug)
+	_, plug := mockAppSetAndConnectedPlug(c, yaml, nil, nil, "network")
+	label := plug.LabelExpression()
 	c.Check(label, Equals, `"snap.test-snap{.hook.install,.hook.post-refresh}"`)
 
-	set, connectedPlug = mockAppSetAndConnectedPlug(c, yaml, nil, nil, "home")
-	label = set.PlugLabelExpression(connectedPlug)
+	_, plug = mockAppSetAndConnectedPlug(c, yaml, nil, nil, "home")
+	label = plug.LabelExpression()
 	c.Check(label, Equals, `"snap.test-snap{.app1,.app2}"`)
 
-	set, connectedPlug = mockAppSetAndConnectedPlug(c, yaml, nil, nil, "x11")
-	label = set.PlugLabelExpression(connectedPlug)
+	_, plug = mockAppSetAndConnectedPlug(c, yaml, nil, nil, "x11")
+	label = plug.LabelExpression()
 	c.Check(label, Equals, `"snap.test-snap.*"`)
 }
 
 func (s *snapAppSetSuite) TestSlotLabelExpr(c *C) {
-	set, connectedSlot := mockAppSetAndConnectedSlot(c, yaml, nil, nil, "unity8")
+	_, slot := mockAppSetAndConnectedSlot(c, yaml, nil, nil, "unity8")
 
-	label := set.SlotLabelExpression(connectedSlot)
+	label := slot.LabelExpression()
 	c.Check(label, Equals, `"snap.test-snap.app1"`)
 
-	set, connectedSlot = mockAppSetAndConnectedSlot(c, yaml, nil, nil, "opengl")
+	_, slot = mockAppSetAndConnectedSlot(c, yaml, nil, nil, "opengl")
 
-	label = set.SlotLabelExpression(connectedSlot)
+	label = slot.LabelExpression()
 	c.Check(label, Equals, `"snap.test-snap.*"`)
+}
+
+type mockConnectedSlotOrPlug struct {
+	set       *interfaces.SnapAppSet
+	runnables []snap.Runnable
+}
+
+func (m *mockConnectedSlotOrPlug) Runnables() []snap.Runnable {
+	return m.runnables
+}
+
+func (m *mockConnectedSlotOrPlug) AppSet() *interfaces.SnapAppSet {
+	return m.set
 }
 
 func (s *snapAppSetSuite) TestLabelExpr(c *C) {
@@ -118,6 +131,13 @@ func (s *snapAppSetSuite) TestLabelExpr(c *C) {
 	allHooks = append(allHooks, compHooks...)
 
 	allRunnables := appSet.Runnables()
+	mockConnected := func(runnables []snap.Runnable) *mockConnectedSlotOrPlug {
+		return &mockConnectedSlotOrPlug{
+			set:       appSet,
+			runnables: runnables,
+		}
+	}
+
 	runnableByName := func(name string) []snap.Runnable {
 		for _, r := range allRunnables {
 			if r.CommandName == name {
@@ -129,39 +149,39 @@ func (s *snapAppSetSuite) TestLabelExpr(c *C) {
 	}
 
 	// all apps and all hooks
-	label := interfaces.LabelExpr(appSet, allRunnables)
+	label := interfaces.LabelExpr(mockConnected(allRunnables))
 	c.Check(label, Equals, `"snap.test-snap.*"`)
 
 	// all apps, no hooks
-	label = interfaces.LabelExpr(appSet, apps)
+	label = interfaces.LabelExpr(mockConnected(apps))
 	c.Check(label, Equals, `"snap.test-snap{.app1,.app2}"`)
 
 	// one app, no hooks
-	label = interfaces.LabelExpr(appSet, runnableByName("app1"))
+	label = interfaces.LabelExpr(mockConnected(runnableByName("app1")))
 	c.Check(label, Equals, `"snap.test-snap.app1"`)
 
 	// no apps, one snap hook
-	label = interfaces.LabelExpr(appSet, runnableByName("hook.install"))
+	label = interfaces.LabelExpr(mockConnected(runnableByName("hook.install")))
 	c.Check(label, Equals, `"snap.test-snap.hook.install"`)
 
 	// one app, all snap hooks
-	label = interfaces.LabelExpr(appSet, append(runnableByName("app1"), hooks...))
+	label = interfaces.LabelExpr(mockConnected(append(runnableByName("app1"), hooks...)))
 	c.Check(label, Equals, `"snap.test-snap{.app1,.hook.install,.hook.post-refresh}"`)
 
 	// one app, all hooks
-	label = interfaces.LabelExpr(appSet, append(runnableByName("app1"), allHooks...))
+	label = interfaces.LabelExpr(mockConnected(append(runnableByName("app1"), allHooks...)))
 	c.Check(label, Equals, `"snap.test-snap{+comp1.hook.install,+comp2.hook.pre-refresh,.app1,.hook.install,.hook.post-refresh}"`)
 
 	// only snap hooks
-	label = interfaces.LabelExpr(appSet, hooks)
+	label = interfaces.LabelExpr(mockConnected(hooks))
 	c.Check(label, Equals, `"snap.test-snap{.hook.install,.hook.post-refresh}"`)
 
 	// only component hooks
-	label = interfaces.LabelExpr(appSet, compHooks)
+	label = interfaces.LabelExpr(mockConnected(compHooks))
 	c.Check(label, Equals, `"snap.test-snap{+comp1.hook.install,+comp2.hook.pre-refresh}"`)
 
 	// nothing
-	label = interfaces.LabelExpr(appSet, nil)
+	label = interfaces.LabelExpr(mockConnected(nil))
 	c.Check(label, Equals, `"snap.test-snap."`)
 }
 
@@ -381,7 +401,7 @@ plugs:
 
 	for _, test := range tests {
 		plug := interfaces.NewConnectedPlug(info.Plugs[test.plug], set, nil, nil)
-		c.Check(set.PlugRunnables(plug), testutil.DeepUnsortedMatches, test.expected)
+		c.Check(plug.Runnables(), testutil.DeepUnsortedMatches, test.expected)
 	}
 }
 
@@ -454,7 +474,7 @@ slots:
 
 	for _, test := range tests {
 		slot := interfaces.NewConnectedSlot(info.Slots[test.slot], set, nil, nil)
-		c.Check(set.SlotRunnables(slot), testutil.DeepUnsortedMatches, test.expected)
+		c.Check(slot.Runnables(), testutil.DeepUnsortedMatches, test.expected)
 	}
 }
 

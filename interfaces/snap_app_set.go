@@ -106,26 +106,6 @@ func (a *SnapAppSet) SecurityTagsForSlot(slot *snap.SlotInfo) ([]string, error) 
 	return tags, nil
 }
 
-// plugLabelExpression returns the label expression for the given plug. It is
-// constructed from the apps and hooks that are associated with the plug.
-func (a *SnapAppSet) plugLabelExpression(plug *ConnectedPlug) string {
-	if a.info.InstanceName() != plug.appSet.InstanceName() {
-		panic("internal error: connected plug must be from the same snap as the SnapAppSet")
-	}
-
-	return labelExpr(a, a.PlugRunnables(plug))
-}
-
-// slotLabelExpression returns the label expression for the given slot. It is
-// constructed from the apps and hooks that are associated with the slot.
-func (a *SnapAppSet) slotLabelExpression(slot *ConnectedSlot) string {
-	if a.info.InstanceName() != slot.appSet.InstanceName() {
-		panic("internal error: connected slot must be from the same snap as the SnapAppSet")
-	}
-
-	return labelExpr(a, a.SlotRunnables(slot))
-}
-
 // Runnables returns a list of all runnables known by the app set.
 func (a *SnapAppSet) Runnables() []snap.Runnable {
 	var runnables []snap.Runnable
@@ -147,60 +127,28 @@ func (a *SnapAppSet) Runnables() []snap.Runnable {
 	return runnables
 }
 
-// PlugRunnables returns a list of all runnables that should be connected to the
-// given plug.
-func (a *SnapAppSet) PlugRunnables(plug *ConnectedPlug) []snap.Runnable {
-	apps := a.info.AppsForPlug(plug.plugInfo)
-	hooks := a.info.HooksForPlug(plug.plugInfo)
-	for _, component := range a.components {
-		hooks = append(hooks, component.HooksForPlug(plug.plugInfo)...)
-	}
-
-	return appAndHookRunnables(apps, hooks)
-}
-
-// SlotRunnables returns a list of all runnables that should be connected to the
-// given slot.
-func (a *SnapAppSet) SlotRunnables(slot *ConnectedSlot) []snap.Runnable {
-	apps := a.info.AppsForSlot(slot.slotInfo)
-	hooks := a.info.HooksForSlot(slot.slotInfo)
-
-	// TODO: if components ever get slots, they will need to be considered here
-
-	return appAndHookRunnables(apps, hooks)
-}
-
-func appAndHookRunnables(apps []*snap.AppInfo, hooks []*snap.HookInfo) []snap.Runnable {
-	runnables := make([]snap.Runnable, 0, len(apps)+len(hooks))
-	for _, app := range apps {
-		runnables = append(runnables, app.Runnable())
-	}
-
-	for _, hook := range hooks {
-		runnables = append(runnables, hook.Runnable())
-	}
-
-	return runnables
-}
-
-// labelExpr returns the specification of the apparmor label describing given
-// apps and hooks. The result has one of three forms, depending on how apps are
-// bound to the slot:
+// labelExpr returns the specification of the apparmor label describing the
+// given connected plug/slot. The result has one of three forms, depending on
+// how apps are bound to the slot:
 //
 //   - "snap.$snap_instance.$app" if there is exactly one app/hook bound
 //   - "snap.$snap_instance.{$app1,...$appN, $hook1...$hookN}" if there are
 //     some, but not all, apps/hooks bound
 //   - "snap.$snap_instance.*" if all apps/hooks are bound to the plug or slot
-func labelExpr(appSet *SnapAppSet, connected []snap.Runnable) string {
-	var buf bytes.Buffer
+func labelExpr(connected interface {
+	AppSet() *SnapAppSet
+	Runnables() []snap.Runnable
+}) string {
+	appSet := connected.AppSet()
+	runnables := connected.Runnables()
 
 	// all security tags are prefixed with snap.$snap_instance, we use this
 	// knowledge to build a pattern that will match against all of the connected
 	// runnables
 	prefix := fmt.Sprintf("snap.%s", appSet.InstanceName())
 
-	suffixes := make([]string, 0, len(connected))
-	for _, r := range connected {
+	suffixes := make([]string, 0, len(runnables))
+	for _, r := range runnables {
 		suffix := strings.TrimPrefix(r.SecurityTag, prefix)
 		if suffix == r.SecurityTag {
 			logger.Noticef("security tag %q does not have expected prefix: %q", r.SecurityTag, prefix)
@@ -211,6 +159,7 @@ func labelExpr(appSet *SnapAppSet, connected []snap.Runnable) string {
 
 	sort.Strings(suffixes)
 
+	var buf bytes.Buffer
 	fmt.Fprintf(&buf, `"%s`, prefix)
 
 	switch len(suffixes) {

@@ -42,8 +42,10 @@ type ConnectedPlug struct {
 	dynamicAttrs map[string]interface{}
 }
 
+// LabelExpression returns the label expression for the given plug. It is
+// constructed from the apps and hooks that are associated with the plug.
 func (plug *ConnectedPlug) LabelExpression() string {
-	return plug.appSet.plugLabelExpression(plug)
+	return labelExpr(plug)
 }
 
 // ConnectedSlot represents a slot that is connected to a plug.
@@ -59,8 +61,21 @@ func (slot *ConnectedSlot) AppSet() *SnapAppSet {
 	return slot.appSet
 }
 
+// Runnables returns a list of all runnables that should be connected to the
+// given slot.
+func (slot *ConnectedSlot) Runnables() []snap.Runnable {
+	apps := slot.appSet.info.AppsForSlot(slot.slotInfo)
+	hooks := slot.appSet.info.HooksForSlot(slot.slotInfo)
+
+	// TODO: if components ever get slots, they will need to be considered here
+
+	return appAndHookRunnables(apps, hooks)
+}
+
+// LabelExpression returns the label expression for the given slot. It is
+// constructed from the apps and hooks that are associated with the slot.
 func (slot *ConnectedSlot) LabelExpression() string {
-	return slot.appSet.slotLabelExpression(slot)
+	return labelExpr(slot)
 }
 
 // Attrer is an interface with Attr getter method common
@@ -166,6 +181,31 @@ func (plug *ConnectedPlug) Snap() *snap.Info {
 // AppSet return the app set that this plug is associated with.
 func (plug *ConnectedPlug) AppSet() *SnapAppSet {
 	return plug.appSet
+}
+
+// Runnables returns a list of all runnables that should be connected to the
+// given plug.
+func (plug *ConnectedPlug) Runnables() []snap.Runnable {
+	apps := plug.appSet.info.AppsForPlug(plug.plugInfo)
+	hooks := plug.appSet.info.HooksForPlug(plug.plugInfo)
+	for _, component := range plug.appSet.components {
+		hooks = append(hooks, component.HooksForPlug(plug.plugInfo)...)
+	}
+
+	return appAndHookRunnables(apps, hooks)
+}
+
+func appAndHookRunnables(apps []*snap.AppInfo, hooks []*snap.HookInfo) []snap.Runnable {
+	runnables := make([]snap.Runnable, 0, len(apps)+len(hooks))
+	for _, app := range apps {
+		runnables = append(runnables, app.Runnable())
+	}
+
+	for _, hook := range hooks {
+		runnables = append(runnables, hook.Runnable())
+	}
+
+	return runnables
 }
 
 // StaticAttr returns a static attribute with the given key, or error if attribute doesn't exist.

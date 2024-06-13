@@ -88,11 +88,3 @@ func MockApparmorPromptingSupportedByFeatures(f func(apparmorFeatures *apparmor.
 	apparmorPromptingSupportedByFeatures = f
 	return restore
 }
-
-func (a *SnapAppSet) PlugLabelExpression(plug *ConnectedPlug) string {
-	return a.plugLabelExpression(plug)
-}
-
-func (a *SnapAppSet) SlotLabelExpression(slot *ConnectedSlot) string {
-	return a.slotLabelExpression(slot)
-}
