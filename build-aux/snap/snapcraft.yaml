@@ -86,7 +86,6 @@ parts:
       - libbrotli1
       - libc6
       - libcap2
-      - libssl3
       - libexpat1
       - libfreetype6
       - libgcc-s1
@@ -364,6 +363,27 @@ parts:
     override-prime: |
       craftctl default
       python3 "${CRAFT_PROJECT_DIR}/build-aux/snap/local/patch-dl.py" "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
+
+  libcrypto-fips:
+    plugin: nil
+    source: .
+    after:
+      - snapd
+    override-pull: |
+      craftctl default
+      if [ -f fips-build ]; then
+        # grab the core22 from fips-updates channel
+        snap download --channel fips-updates/stable --basename core22-fips core22
+      fi
+    override-build: |
+      if [ -f fips-build ]; then
+        unsquashfs -d core22-fips-squashfs-root core22-fips.snap \
+          'usr/lib/*-linux-gnu*/engines-3' \
+          'usr/lib/*-linux-gnu*/ossl-modules-3' \
+          'usr/lib/*-linux-gnu*/libssl.so.3' \
+          'usr/lib/*-linux-gnu*/libcrypto.so.3'
+        cp -av core22-fips-squashfs-root/* "${CRAFT_PART_INSTALL}"
+      fi
 
   check-linker:
     plugin: nil
