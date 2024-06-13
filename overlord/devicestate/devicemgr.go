@@ -1067,6 +1067,13 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 }
 
 func (m *DeviceManager) ensureSerialBoundSystemUserAssertionsProcessed() error {
+	// in situations where a device serial can be anticipated, it is
+	// possible to create a serial-bound system-user assertion beforehand,
+	// this Ensure logic takes care of creating the corresponding user even
+	// if system-user gets presented to the device before the actual serial
+	// assertion is acquired, see the corresponding code setting the
+	// system-user-waiting-on-serial flag in createAllKnownSystemUsers
+	// (users.go).
 	if release.OnClassic {
 		return nil
 	}
@@ -1074,20 +1081,20 @@ func (m *DeviceManager) ensureSerialBoundSystemUserAssertionsProcessed() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
+	var waitingOnSerial bool
+	err := m.state.Get("system-user-waiting-on-serial", &waitingOnSerial)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !waitingOnSerial {
+		return nil
+	}
+
 	var seeded bool
 	if err := m.state.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !seeded {
-		return nil
-	}
-
-	var waitingOnSerial bool
-	err := m.state.Get("system-user-waiting-on-serial", &waitingOnSerial)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		logger.Noticef("failed to get serial-bound assert state")
-	}
-	if !waitingOnSerial {
 		return nil
 	}
 
