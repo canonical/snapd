@@ -392,11 +392,6 @@ class LogReader:
         if helper.is_detail(line):
             detail = self._get_detail(rules)
 
-        rules = self.debug_rules
-        if info_type == ERROR_TYPE:
-            rules = self.error_rules
-
-        detail = self._get_detail(rules, results=False)
         return Info(info_type, verb, task, extra, date, time, detail, line)
 
     def _get_result(self, line):
@@ -485,12 +480,6 @@ for the error/debug/warning output.
     )
     parser.add_argument(
         "log_path", metavar="PATH", help="path to the log to be analyzed"
-        "--debug-rule", 
-        action="append",
-        default=[],
-        help="A KEY=PATTERN used to extract and store specific data from debug output"
-    )
-    parser.add_argument(
     )
     return parser
 
