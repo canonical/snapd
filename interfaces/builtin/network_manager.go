@@ -88,6 +88,8 @@ network packet,
 
 /run/udev/data/* r,
 
+/etc/gnutls/config r,
+
 # Allow read and write access for all netplan configuration files
 # as NetworkManager will start using them to store the network
 # configuration instead of using its own internal keyfile based
@@ -260,6 +262,14 @@ dbus (receive, send)
     bus=system
     path=/fi/w1/wpa_supplicant1{,/**}
     interface=org.freedesktop.DBus.*
+    peer=(label=unconfined),
+
+# Allow network manager to manage netplan configuration
+dbus (send)
+    bus=system
+    interface=io.netplan.Netplan
+    path=/io/netplan/Netplan
+    member=Apply
     peer=(label=unconfined),
 `
 
