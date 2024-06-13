@@ -80,6 +80,7 @@ jobs:
       run: |
           sudo snap refresh --channel=latest/stable go
           go install honnef.co/go/tools/cmd/staticcheck@latest
+          sudo apt install -y pylint
 
     - name: TICS scan
       run: |
