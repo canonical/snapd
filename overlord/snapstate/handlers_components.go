@@ -470,8 +470,26 @@ func (m *SnapManager) doUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (err
 		return err
 	}
 
-	// Remove current component for the current snap
-	unlinkedComp := snapSt.Sequence.RemoveComponentForRevision(snapInfo.Revision, cref)
+	snapRevisionChanging := !snapsup.Revision().Unset() && snapsup.Revision() != snapInfo.Revision
+
+	var unlinkedComp *sequence.ComponentState
+	if snapRevisionChanging {
+		index := snapSt.LastIndex(snapInfo.Revision)
+		if index < 0 {
+			return fmt.Errorf("internal error: revision %s not found in sequence", snapInfo.Revision)
+		}
+
+		// if the snap revision is changing, then we shouldn't remove this snap from
+		// the sequence, since we're not replacing a snap's existing component with
+		// a new one
+		unlinkedComp = snapSt.Sequence.Revisions[index].FindComponent(cref)
+	} else {
+		// if the snap revision isn't changing, then we know we're replacing
+		// this snap's existing component with a new one. in this case, we
+		// should remove the component from the sequence
+		unlinkedComp = snapSt.Sequence.RemoveComponentForRevision(snapInfo.Revision, cref)
+	}
+
 	if unlinkedComp == nil {
 		return fmt.Errorf("internal error while unlinking: %s expected but not found", cref)
 	}
