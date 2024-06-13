@@ -32,7 +32,7 @@ import (
 
 func Test(t *testing.T) { TestingT(t) }
 
-type promptingSuite struct {}
+type promptingSuite struct{}
 
 var _ = Suite(&promptingSuite{})
 

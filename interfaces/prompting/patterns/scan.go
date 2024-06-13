@@ -109,7 +109,7 @@ loop:
 
 	if len(runes) > 0 {
 		tokens = append(tokens, Token{Text: string(runes), Type: tokText})
-		runes = nil
+		// runes = nil
 	}
 
 	return tokens, nil

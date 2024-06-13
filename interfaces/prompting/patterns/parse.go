@@ -75,7 +75,8 @@ func parseAlt(tr *tokenReader) (RenderNode, error) {
 	var alt Alt
 
 	if t := tr.Token(); t.Type != tokBraceOpen {
-		return nil, errors.New("expected { in parseAlt")
+		// Should not occur, caller should call parseAlt on peeking '{'
+		return nil, fmt.Errorf("expected '{' at start of alt, but got %v", t)
 	}
 
 	tr.depth++
