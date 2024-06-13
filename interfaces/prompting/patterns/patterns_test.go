@@ -315,6 +315,14 @@ func (s *patternsSuite) TestPathPatternRenderAllVariants(c *C) {
 			[]string{`/foo/bar\**baz`},
 		},
 		{
+			`/foo/bar\{baz`,
+			[]string{`/foo/bar\{baz`},
+		},
+		{
+			`/foo/bar\}baz`,
+			[]string{`/foo/bar\}baz`},
+		},
+		{
 			`/foo/bar/baz/**/*.txt`,
 			[]string{`/foo/bar/baz/**/*.txt`},
 		},

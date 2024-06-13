@@ -114,7 +114,7 @@ loop:
 				return tokens
 			}
 
-			runes = append(runes, r2)
+			runes = append(runes, '\\', r2)
 		default:
 			runes = append(runes, r)
 		}
