@@ -41,9 +41,6 @@ type Constraints struct {
 // ValidateForInterface returns nil if the constraints are valid for the given
 // interface, otherwise returns an error.
 func (c *Constraints) ValidateForInterface(iface string) error {
-	if err := ValidatePathPattern(c.PathPattern); err != nil {
-		return err
-	}
 	return c.validatePermissions(iface)
 }
 

@@ -49,12 +49,6 @@ func (s *constraintsSuite) TestConstraintsValidateForInterface(c *C) {
 		},
 		{
 			"home",
-			"invalid/path",
-			[]string{"read"},
-			"invalid path pattern.*",
-		},
-		{
-			"home",
 			"/valid/path",
 			[]string{},
 			fmt.Sprintf("%v", prompting.ErrPermissionsListEmpty),
