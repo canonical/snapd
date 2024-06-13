@@ -76,6 +76,47 @@ func (n Seq) nodeEqual(other RenderNode) bool {
 	return false
 }
 
+func (seq Seq) reduceStrength() RenderNode {
+	switch len(seq) {
+	case 0:
+		return Literal("")
+	case 1:
+		return seq[0]
+	default:
+		return seq
+	}
+}
+
+func (seq Seq) optimize() Seq {
+	var b strings.Builder
+
+	var newSeq Seq
+
+	for _, item := range seq {
+		if v, ok := item.(Literal); ok {
+			if v == "" {
+				continue
+			}
+
+			b.WriteString(string(v))
+		} else {
+			if b.Len() > 0 {
+				newSeq = append(newSeq, Literal(b.String()))
+				b.Reset()
+			}
+
+			newSeq = append(newSeq, item)
+		}
+	}
+
+	if b.Len() > 0 {
+		newSeq = append(newSeq, Literal(b.String()))
+		b.Reset()
+	}
+
+	return newSeq
+}
+
 // seqConfig is the configuration for a seqeunce of render nodes.
 //
 // Each render node has a corresponding configuration at the same index.

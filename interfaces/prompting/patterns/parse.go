@@ -22,7 +22,6 @@ package patterns
 import (
 	"errors"
 	"fmt"
-	"strings"
 )
 
 func Parse(tokens []Token) (RenderNode, error) {
@@ -72,47 +71,6 @@ loop:
 	return seq.optimize().reduceStrength(), nil
 }
 
-func (seq Seq) reduceStrength() RenderNode {
-	switch len(seq) {
-	case 0:
-		return Literal("")
-	case 1:
-		return seq[0]
-	default:
-		return seq
-	}
-}
-
-func (seq Seq) optimize() Seq {
-	var b strings.Builder
-
-	var newSeq Seq
-
-	for _, item := range seq {
-		if v, ok := item.(Literal); ok {
-			if v == "" {
-				continue
-			}
-
-			b.WriteString(string(v))
-		} else {
-			if b.Len() > 0 {
-				newSeq = append(newSeq, Literal(b.String()))
-				b.Reset()
-			}
-
-			newSeq = append(newSeq, item)
-		}
-	}
-
-	if b.Len() > 0 {
-		newSeq = append(newSeq, Literal(b.String()))
-		b.Reset()
-	}
-
-	return newSeq
-}
-
 func parseAlt(tr *tokenReader) (RenderNode, error) {
 	var alt Alt
 
@@ -139,7 +97,7 @@ loop:
 		}
 	}
 
-	return alt.optimze().reduceStrength(), nil
+	return alt.optimize().reduceStrength(), nil
 }
 
 type tokenReader []Token

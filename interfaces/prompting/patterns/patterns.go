@@ -34,130 +34,10 @@ import (
 // may not exceed this limit.
 const maxExpandedPatterns = 1000
 
-// patternComponent is a component of a path pattern which has one or more
-// expansions which may be rendered into an expanded path pattern.
-type patternComponent interface {
-	// Next advances the pattern component to its next expansion.
-	// If all expansions have been explored, resets to the initial expansion,
-	// after which subsequent calls to Next continue to cycle through
-	// expansions again. Returns true if the Next call resulted in the pattern
-	// component being reset to its initial expansion.
-	Next() bool
-	// NumExpansions returns the number of expansions into which the pattern
-	// component is able to be rendered.
-	NumExpansions() int
-	// render writes the current expansion of the pattern component to the
-	// given buffer.
-	render(*bytes.Buffer)
-	// add appends the given pattern component to the receiver, which should
-	// be a sequence or group.
-	add(patternComponent)
-}
-
-// patternLiteral is a literal string which does not contain any groups.
-type patternLiteral string
-
-func (l patternLiteral) Next() bool {
-	return true
-}
-
-func (l patternLiteral) NumExpansions() int {
-	return 1
-}
-
-func (l patternLiteral) render(b *bytes.Buffer) {
-	b.Write([]byte(l))
-}
-
-func (l patternLiteral) add(c patternComponent) {
-	panic("cannot add to a pattern literal")
-}
-
-// patternSequence is a sequence of path components, which may themselves be
-// either literals or groups, which are all concatenated when rendering.
-type patternSequence []patternComponent
-
-func (s patternSequence) Next() bool {
-	for i := len(s) - 1; i >= 0; i-- {
-		if !s[i].Next() {
-			return false
-		}
-	}
-	return true
-}
-
-func (s patternSequence) NumExpansions() int {
-	count := 1
-	for _, component := range s {
-		count *= component.NumExpansions()
-	}
-	return count
-}
-
-func (s patternSequence) render(b *bytes.Buffer) {
-	for _, component := range s {
-		component.render(b)
-	}
-}
-
-func (s *patternSequence) add(c patternComponent) {
-	*s = append(*s, c)
-}
-
-// patternGroup is a list of options, one of which is rendered at a time.
-// If an option has more than one expansion, Next advances to the next
-// expansion of that option recursively before continuing on to the next
-// option.
-type patternGroup struct {
-	options []patternComponent
-	index   int
-}
-
-func (g *patternGroup) Next() bool {
-	if !g.options[g.index].Next() {
-		return false
-	}
-	g.index = (g.index + 1) % len(g.options)
-	return g.index == 0
-}
-
-func (g *patternGroup) NumExpansions() int {
-	count := 0
-	for _, option := range g.options {
-		count += option.NumExpansions()
-	}
-	return count
-}
-
-func (g *patternGroup) render(b *bytes.Buffer) {
-	g.options[g.index].render(b)
-}
-
-func (g *patternGroup) add(c patternComponent) {
-	g.options = append(g.options, c)
-}
-
-type componentStack []patternComponent
-
-func (s *componentStack) push(x patternComponent) {
-	*s = append(*s, x)
-}
-
-func (s *componentStack) pop() patternComponent {
-	x := (*s)[len(*s)-1]
-	*s = (*s)[:len(*s)-1]
-	return x
-}
-
-func (s componentStack) peek() patternComponent {
-	return s[len(s)-1]
-}
-
 // PathPattern is an iterator which yields expanded path patterns.
 type PathPattern struct {
 	original   string
-	components patternSequence
-	renderBuf  bytes.Buffer
+	renderTree RenderNode
 }
 
 // ParsePathPattern validates the given pattern and parses it into a PathPattern
@@ -182,102 +62,16 @@ func (p *PathPattern) parse(pattern string) error {
 	if strings.HasSuffix(pattern, `\`) && !strings.HasSuffix(pattern, `\\`) {
 		return fmt.Errorf(`invalid path pattern: trailing unescaped '\' character: %q`, pattern)
 	}
-	// Whenever a new group is encountered, it will be the next item in the
-	// current sequence, but we won't be finished with this sequence until the
-	// group has been completed and any future components are pushed to the
-	// sequence, so save the sequence on a stack.
-	stack := componentStack{}
-	// Create the root sequence and push it to the stack.
-	rootSequence := &patternSequence{}
-	stack.push(rootSequence)
-	depth := 0
-	reader := strings.NewReader(pattern)
-	// index of first non-special rune after most recent special rune
-	currentStartIndex := 0
-	// index of current rune
-	currentIndex := 0
-	// index of next rune
-	nextIndex := 0
-	for {
-		currentIndex = nextIndex
-		r, size, err := reader.ReadRune()
-		if err != nil {
-			// No more runes.
-			// Append final literal to the last sequence.
-			literal := patternLiteral(pattern[currentStartIndex:])
-			stack.peek().add(literal)
-			break
-		}
-		nextIndex += size
-		switch r {
-		case '{':
-			depth++
-			if depth >= maxExpandedPatterns {
-				return fmt.Errorf("invalid path pattern: nested group depth exceeded maximum number of expanded path patterns (%d): %q", maxExpandedPatterns, pattern)
-			}
-			// A new group has been spotted, so add the last literal to the
-			// current sequence, then create and push a new group, then create
-			// and push a new sequence, the latter of which will be the first
-			// option in the new group.
-			literal := patternLiteral(pattern[currentStartIndex:currentIndex])
-			currentStartIndex = nextIndex
-			stack.peek().add(literal)
-			stack.push(&patternGroup{})
-			stack.push(&patternSequence{})
-		case ',':
-			if depth == 0 {
-				// Ignore commas outside of groups
-				break
-			}
-			// A ',' marks the end of the current option in the group (the top
-			// sequence on the stack), so add the last literal to it, then
-			// complete that sequence by popping it and adding it to its parent
-			// group, which is now the top of the stack, and start a new sequence
-			// to represent the next option in the group.
-			literal := patternLiteral(pattern[currentStartIndex:currentIndex])
-			currentStartIndex = nextIndex
-			stack.peek().add(literal)
-			completedSequence := stack.pop()
-			stack.peek().add(completedSequence)
-			stack.push(&patternSequence{})
-		case '}':
-			depth--
-			if depth < 0 {
-				return fmt.Errorf("invalid path pattern: unmatched '}' character: %q", pattern)
-			}
-			// A '}' marks the end of the current group (and its final option)
-			// so add the last literal to the top sequence on the stack, then
-			// complete that sequence by popping it and adding it to its parent
-			// group, which is now the top of the stack, the complete that group
-			// by popping it and adding it to its parent sequence, which is
-			// itself now the top of the stack.
-			literal := patternLiteral(pattern[currentStartIndex:currentIndex])
-			currentStartIndex = nextIndex
-			stack.peek().add(literal)
-			completedSequence := stack.pop()
-			stack.peek().add(completedSequence)
-			completedGroup := stack.pop()
-			stack.peek().add(completedGroup)
-		case '\\':
-			// Skip next rune, already verified can't have trailing '/'
-			_, size, _ = reader.ReadRune()
-			nextIndex += size
-		case '[', ']':
-			return fmt.Errorf("invalid path pattern: cannot contain unescaped '[' or ']' character: %q", pattern)
-		}
+	tokens := Scan(pattern)
+	tree, err := Parse(tokens)
+	if err != nil {
+		return fmt.Errorf("cannot parse path pattern %q: %w", pattern, err)
 	}
-	if depth != 0 {
-		return fmt.Errorf("invalid path pattern: unmatched '{' character: %q", pattern)
-	}
-	// The rootSequence is not the only component on the stack
-	if count := rootSequence.NumExpansions(); count > maxExpandedPatterns {
+	if count := tree.NumVariants(); count > maxExpandedPatterns {
 		return fmt.Errorf("invalid path pattern: exceeded maximum number of expanded path patterns (%d): %q expands to %d patterns", maxExpandedPatterns, pattern, count)
 	}
-	if !doublestar.ValidatePattern(pattern) {
-		return fmt.Errorf("invalid path pattern: %q", pattern)
-	}
 	p.original = pattern
-	p.components = *rootSequence
+	p.renderTree = tree
 	return nil
 }
 
@@ -300,23 +94,19 @@ func (p *PathPattern) UnmarshalJSON(b []byte) error {
 	return p.parse(s)
 }
 
-// NumExpansions returns the total number of expanded path patterns for the
+// NumVariants returns the total number of expanded path patterns for the
 // given path pattern.
-func (p *PathPattern) NumExpansions() int {
-	return p.components.NumExpansions()
+func (p *PathPattern) NumVariants() int {
+	return p.renderTree.NumVariants()
 }
 
-// Next renders the current path pattern expansion, advances it to the next
-// expansion, then returns the rendered expansion along with true if the next
-// expansion is the initial one, indicating that all expansions have been
-// explored and rendered.
-func (p *PathPattern) Next() (string, bool) {
-	p.renderBuf.Truncate(0)
-	p.components.render(&p.renderBuf)
-	expansion := p.renderBuf.String()
-	cleaned := cleanPattern(expansion)
-	finished := p.components.Next()
-	return cleaned, finished
+func (p *PathPattern) RenderAllVariants(observe func(int, string)) {
+	cleanThenObserve := func(i int, buf *bytes.Buffer) {
+		expanded := buf.String()
+		cleaned := cleanPattern(expanded)
+		observe(i, cleaned)
+	}
+	RenderAllVariants(p.renderTree, cleanThenObserve)
 }
 
 var (

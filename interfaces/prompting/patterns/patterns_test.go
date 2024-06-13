@@ -277,7 +277,7 @@ func (s *patternsSuite) TestPathPatternUnmarshalJSONUnhappy(c *C) {
 	}
 }
 
-func (s *patternsSuite) TestPathPatternNext(c *C) {
+func (s *patternsSuite) TestPathPatternRenderAllVariants(c *C) {
 	for _, testCase := range []struct {
 		pattern  string
 		expanded []string
@@ -416,14 +416,10 @@ func (s *patternsSuite) TestPathPatternNext(c *C) {
 	} {
 		pathPattern, err := patterns.ParsePathPattern(testCase.pattern)
 		c.Check(err, IsNil, Commentf("testcase: %+v", testCase))
-		expanded := make([]string, 0, pathPattern.NumExpansions())
-		for {
-			pattern, final := pathPattern.Next()
-			expanded = append(expanded, pattern)
-			if final {
-				break
-			}
-		}
+		expanded := make([]string, 0, pathPattern.NumVariants())
+		pathPattern.RenderAllVariants(func(i int, str string) {
+			expanded = append(expanded, str)
+		})
 		c.Check(expanded, DeepEquals, testCase.expanded, Commentf("test case: %+v", testCase))
 	}
 }

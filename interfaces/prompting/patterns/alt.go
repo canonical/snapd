@@ -81,7 +81,7 @@ func (alt Alt) reduceStrength() RenderNode {
 	return alt
 }
 
-func (alt Alt) optimze() Alt {
+func (alt Alt) optimize() Alt {
 	var seen []RenderNode
 	var newAlt Alt
 
