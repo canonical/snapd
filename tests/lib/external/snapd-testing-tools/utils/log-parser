@@ -142,7 +142,7 @@ class Rule:
                 "Error: pattern '{}' cannot be compiled: {}".format(self.pattern, err)
             )
 
-    def filter(self, lines):
+    def filter(self, lines) -> list[str]:
         regex = re.compile(self.pattern)
         all_matches = []
         for line in lines:
@@ -162,7 +162,7 @@ class Detail:
     def __init__(self, lines_limit: int, lines: list[str], rules: list[str]) -> None:
         self.lines_limit = lines_limit
         self.lines = lines
-        self.data = {}
+        self.data = dict[str, list[str]]()
         self._process_rules(rules)
 
     def _get_lines(self) -> list[str]:
@@ -177,12 +177,12 @@ class Detail:
         for rule in rules:
             key = rule.key
             matches = rule.filter(self.lines)
-            self.data[key] = "\n".join(matches)
+            self.data[key] = matches
 
     def __repr__(self):
         return "".join(self._get_lines())
 
-    def to_dict(self) -> dict :
+    def to_dict(self) -> dict[str, list[str]]:
         details_dict = {"lines": self.lines[-self.lines_limit - 1 :]}
         for key in self.data.keys():
             details_dict[key] = self.data[key]
@@ -197,7 +197,9 @@ class Action:
     Allocated, Connecting, Connected, Sending
     """
 
-    def __init__(self, verb: str, task: str, extra: str, date: str, time: str, source_line: str) -> None: 
+    def __init__(
+        self, verb: str, task: str, extra: str, date: str, time: str, source_line: str
+    ) -> None:
         self.type = "action"
         self.verb = verb
         self.time = time
@@ -209,7 +211,7 @@ class Action:
     def __repr__(self):
         return self.source_line
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, str]:
         return {
             "type": self.type,
             "date": self.date,
@@ -225,13 +227,20 @@ class LogReader:
     LogReader manages the spread log, it allows to read, export and print
     """
 
-    def __init__(self, filepath: str, output_type: str, lines_limit: str, error_rules: str, debug_rules: str) -> None:
+    def __init__(
+        self,
+        filepath: str,
+        output_type: str,
+        lines_limit: str,
+        error_rules: str,
+        debug_rules: str,
+    ) -> None:
         self.filepath = filepath
         self.output_type = output_type
         self.lines_limit = lines_limit
-        self.lines = []
+        self.lines = list[str]()
         self.iter = 0
-        self.full_log = []
+        self.full_log = list[str]()
         self.error_rules = [Rule(rule) for rule in error_rules]
         self.debug_rules = [Rule(rule) for rule in debug_rules]
 
