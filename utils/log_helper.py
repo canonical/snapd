@@ -11,8 +11,7 @@ from enum import Enum
 class ListedEnum(Enum):
     @classmethod
     def list(cls) -> list[str]:
-        return [str(x) for x in cls.__members__.values()]
-
+        return list(map(lambda c: c.value, cls))
 
 class ExecutionPhase(ListedEnum):
     PREPARING = "Preparing"
