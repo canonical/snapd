@@ -101,6 +101,9 @@ network packet,
 # in the same place.
 /run/NetworkManager/{,**} rw,
 
+# Allow access to the system dbus
+/run/dbus/system_bus_socket rw,
+
 # Needed by the ifupdown plugin to check which interfaces can
 # be managed an which not.
 /etc/network/interfaces r,
