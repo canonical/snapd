@@ -21,6 +21,8 @@ package patterns
 
 import (
 	"bytes"
+	"fmt"
+	"strings"
 )
 
 // RenderConfig is a configuration of a render node.
@@ -70,4 +72,277 @@ func VisitAllVariants(n RenderNode, observe func(i int, c RenderConfig)) {
 			break
 		}
 	}
+}
+
+// Literal is a render node with a literal string.
+type Literal string
+
+func (n Literal) Render(buf *bytes.Buffer, conf RenderConfig) {
+	buf.WriteString(string(n))
+}
+
+func (n Literal) NumVariants() int {
+	return 1
+}
+
+func (n Literal) Config() RenderConfig {
+	return literalConfig{}
+}
+
+func (n Literal) nodeEqual(other RenderNode) bool {
+	if other, ok := other.(Literal); ok {
+		return n == other
+	}
+
+	return false
+}
+
+type literalConfig struct{}
+
+func (literalConfig) NextEx(_ RenderNode) bool {
+	return false
+}
+
+func (literalConfig) GoString() string {
+	return "_"
+}
+
+// Seq is sequence of consecutive render nodes.
+type Seq []RenderNode
+
+func (n Seq) Render(buf *bytes.Buffer, conf RenderConfig) {
+	c := conf.(seqConfig)
+
+	for i := range n {
+		n[i].Render(buf, c[i])
+	}
+}
+
+func (n Seq) NumVariants() int {
+	num := 1
+
+	for i := range n {
+		num *= n[i].NumVariants()
+	}
+
+	return num
+}
+
+func (n Seq) Config() RenderConfig {
+	if len(n) == 0 {
+		return seqConfig(nil)
+	}
+
+	c := make(seqConfig, len(n))
+
+	for i := range n {
+		c[i] = n[i].Config()
+	}
+
+	return c
+}
+
+func (n Seq) nodeEqual(other RenderNode) bool {
+	if other, ok := other.(Seq); ok {
+		if len(other) != len(n) {
+			return false
+		}
+
+		for i := range n {
+			if !n[i].nodeEqual(other[i]) {
+				return false
+			}
+		}
+	}
+
+	return false
+}
+
+func (seq Seq) reduceStrength() RenderNode {
+	switch len(seq) {
+	case 0:
+		return Literal("")
+	case 1:
+		return seq[0]
+	default:
+		return seq
+	}
+}
+
+func (seq Seq) optimize() Seq {
+	var b strings.Builder
+
+	var newSeq Seq
+
+	for _, item := range seq {
+		if v, ok := item.(Literal); ok {
+			if v == "" {
+				continue
+			}
+
+			b.WriteString(string(v))
+		} else {
+			if b.Len() > 0 {
+				newSeq = append(newSeq, Literal(b.String()))
+				b.Reset()
+			}
+
+			newSeq = append(newSeq, item)
+		}
+	}
+
+	if b.Len() > 0 {
+		newSeq = append(newSeq, Literal(b.String()))
+		b.Reset()
+	}
+
+	return newSeq
+}
+
+// seqConfig is the configuration for a seqeunce of render nodes.
+//
+// Each render node has a corresponding configuration at the same index.
+type seqConfig []RenderConfig
+
+func (c seqConfig) NextEx(n RenderNode) bool {
+	seq := n.(Seq)
+
+	for i := len(c) - 1; i >= 0; i-- {
+		if c[i].NextEx(seq[i]) {
+			return true
+		}
+
+		c[i] = seq[i].Config()
+	}
+
+	return false
+}
+
+func (c seqConfig) GoString() string {
+	var sb strings.Builder
+
+	sb.WriteString("seqConfig{")
+
+	for i := range c {
+		if i > 0 {
+			sb.WriteRune(',')
+			sb.WriteRune(' ')
+		}
+
+		sb.WriteString(fmt.Sprintf("%#v", c[i]))
+	}
+
+	sb.WriteRune('}')
+
+	return sb.String()
+}
+
+// Alt is a sequence of alternative render nodes.
+type Alt []RenderNode
+
+func (n Alt) Render(buf *bytes.Buffer, conf RenderConfig) {
+	c := conf.(*altConfig)
+
+	n[c.idx].Render(buf, c.cfg)
+}
+
+func (n Alt) NumVariants() int {
+	num := 0
+
+	for i := range n {
+		num += n[i].NumVariants()
+	}
+
+	if num > 0 {
+		return num
+	}
+	return 1
+}
+
+func (n Alt) Config() RenderConfig {
+	if len(n) == 0 {
+		return nil
+	}
+
+	return &altConfig{
+		idx: 0,
+		cfg: n[0].Config(),
+	}
+}
+
+func (n Alt) nodeEqual(other RenderNode) bool {
+	if other, ok := other.(Alt); ok {
+		if len(other) != len(n) {
+			return false
+		}
+
+		for i := range n {
+			if !n[i].nodeEqual(other[i]) {
+				return false
+			}
+		}
+	}
+
+	return false
+}
+
+func (alt Alt) reduceStrength() RenderNode {
+	if len(alt) == 1 {
+		return alt[0]
+	}
+
+	return alt
+}
+
+func (alt Alt) optimize() Alt {
+	var seen []RenderNode
+	var newAlt Alt
+
+outer:
+	for _, item := range alt {
+		for _, seenItem := range seen {
+			if seenItem.nodeEqual(item) {
+				continue outer
+			}
+		}
+
+		seen = append(seen, item)
+		newAlt = append(newAlt, item)
+	}
+
+	return newAlt
+}
+
+// altConfig is the configuration for an seqeunce of alternative of render nodes.
+type altConfig struct {
+	idx int          // index of the alternative currently being explored
+	cfg RenderConfig // config corresponding to the alternative being explored.
+}
+
+func (c *altConfig) GoString() string {
+	return fmt.Sprintf("altConfig{idx: %d, cfg: %#v}", c.idx, c.cfg)
+}
+
+func (c *altConfig) NextEx(n RenderNode) bool {
+	if c == nil {
+		return false
+	}
+
+	alt := n.(Alt)
+
+	// Keep exploring the current alternative until all possibilities are exhausted.
+	if c.cfg.NextEx(alt[c.idx]) {
+		return true
+	}
+
+	// Advance to the next alternative if one exists and obtain the initial render configuration for it.
+	c.idx++
+
+	if c.idx >= len(alt) {
+		return false
+	}
+
+	c.cfg = alt[c.idx].Config()
+
+	return true
 }
