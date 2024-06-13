@@ -60,6 +60,13 @@ type Token struct {
 func Scan(text string) (tokens []Token, err error) {
 	var runes []rune
 
+	consumeText := func() {
+		if len(runes) > 0 {
+			tokens = append(tokens, Token{Text: string(runes), Type: tokText})
+			runes = nil
+		}
+	}
+
 	rr := strings.NewReader(text)
 loop:
 	for {
@@ -74,22 +81,13 @@ loop:
 
 		switch r {
 		case '{':
-			if len(runes) > 0 {
-				tokens = append(tokens, Token{Text: string(runes), Type: tokText})
-				runes = nil
-			}
+			consumeText()
 			tokens = append(tokens, Token{Text: string(r), Type: tokBraceOpen})
 		case '}':
-			if len(runes) > 0 {
-				tokens = append(tokens, Token{Text: string(runes), Type: tokText})
-				runes = nil
-			}
+			consumeText()
 			tokens = append(tokens, Token{Text: string(r), Type: tokBraceClose})
 		case ',':
-			if len(runes) > 0 {
-				tokens = append(tokens, Token{Text: string(runes), Type: tokText})
-				runes = nil
-			}
+			consumeText()
 			tokens = append(tokens, Token{Text: string(r), Type: tokComma})
 		case '\\':
 			r2, _, err := rr.ReadRune()
@@ -107,10 +105,7 @@ loop:
 		}
 	}
 
-	if len(runes) > 0 {
-		tokens = append(tokens, Token{Text: string(runes), Type: tokText})
-		// runes = nil
-	}
+	consumeText()
 
 	return tokens, nil
 }
