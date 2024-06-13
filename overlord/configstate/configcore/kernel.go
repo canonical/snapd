@@ -60,6 +60,10 @@ func changedKernelConfigs(c RunTransaction) []string {
 }
 
 func validateCmdlineParamsAreAllowed(st *state.State, devCtx snapstate.DeviceContext, cmdline string) error {
+	if devCtx.IsClassicBoot() {
+		return fmt.Errorf("changing the kernel command line is not supported on a classic system")
+	}
+
 	gd, err := devicestate.CurrentGadgetData(st, devCtx)
 	if err != nil {
 		return err
