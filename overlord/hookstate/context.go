@@ -102,9 +102,7 @@ func (c *Context) InstanceName() string {
 
 // HookSource returns a string that identifies the source of a hook. This could
 // either be a snap or a component. Snaps will be in the form "<snap_instance>".
-// Components will be in the form "<snap_name>+<component_name>_<instance_key>".
-// The "_<instance_key>" suffix will be omitted if the snap does not have an
-// instance key.
+// Components will be in the form "<snap_instance>+<component_name>".
 func (c *Context) HookSource() string {
 	if c.setup.Component == "" {
 		return c.setup.Snap
@@ -124,8 +122,8 @@ func (c *Context) IsSnapHook() bool {
 	return c.setup.Component == ""
 }
 
-// InstanceName returns the name of the component containing the hook. If the hook
-// is not associated with a component, it returns an empty string.
+// ComponentName returns the name of the component containing the hook. If the
+// hook is not associated with a component, it returns an empty string.
 func (c *Context) ComponentName() string {
 	return c.setup.Component
 }
