@@ -165,7 +165,18 @@ const (
 	Alt
 )
 
-var typeStrings = [...]string{"int", "number", "string", "bool", "map", "array", "any", "alt"}
+var (
+	typeStrings = [...]string{"int", "number", "string", "bool", "map", "array", "any", "alt"}
+
+	ValidRegistryName = regexp.MustCompile("^[a-z0-9](?:-?[a-z0-9])*$")
+	ValidViewName     = validSubkey
+
+	validSubkey      = regexp.MustCompile(fmt.Sprintf("^%s$", subkeyRegex))
+	validPlaceholder = regexp.MustCompile(fmt.Sprintf("^{%s}$", subkeyRegex))
+	// TODO: decide on what the format should be for aliases in schemas
+	validAliasName = validSubkey
+	subkeyRegex    = "[a-z](?:-?[a-z0-9])*"
+)
 
 // Registry holds a series of related views.
 type Registry struct {
@@ -189,7 +200,7 @@ func New(account string, registryName string, views map[string]interface{}, sche
 	}
 
 	for name, v := range views {
-		if !validSubkey.Match([]byte(name)) {
+		if !ValidViewName.Match([]byte(name)) {
 			return nil, fmt.Errorf("cannot define view %q: name must conform to %s", name, subkeyRegex)
 		}
 
@@ -366,14 +377,6 @@ func validateRequestStoragePair(request, storage string) error {
 
 	return nil
 }
-
-var (
-	subkeyRegex      = "[a-z](?:-?[a-z0-9])*"
-	validSubkey      = regexp.MustCompile(fmt.Sprintf("^%s$", subkeyRegex))
-	validPlaceholder = regexp.MustCompile(fmt.Sprintf("^{%s}$", subkeyRegex))
-	// TODO: decide on what the format should be for aliases in schemas
-	validAliasName = validSubkey
-)
 
 type validationOptions struct {
 	// allowPlaceholder means that placeholders are accepted when validating.

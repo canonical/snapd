@@ -22,7 +22,6 @@ package asserts
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"time"
 
 	"github.com/snapcore/snapd/registry"
@@ -54,10 +53,6 @@ func (ar *Registry) Registry() *registry.Registry {
 	return ar.registry
 }
 
-var (
-	validRegistryName = regexp.MustCompile("^[a-z0-9](?:-?[a-z0-9])*$")
-)
-
 func assembleRegistry(assert assertionBase) (Assertion, error) {
 	authorityID := assert.AuthorityID()
 	accountID := assert.HeaderString("account-id")
@@ -65,7 +60,7 @@ func assembleRegistry(assert assertionBase) (Assertion, error) {
 		return nil, fmt.Errorf("authority-id and account-id must match, registry assertions are expected to be signed by the issuer account: %q != %q", authorityID, accountID)
 	}
 
-	name, err := checkStringMatches(assert.headers, "name", validRegistryName)
+	name, err := checkStringMatches(assert.headers, "name", registry.ValidRegistryName)
 	if err != nil {
 		return nil, err
 	}
