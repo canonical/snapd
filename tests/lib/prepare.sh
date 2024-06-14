@@ -90,9 +90,8 @@ ensure_jq() {
         snap install --devmode --edge jq-core22
         snap alias jq-core22.jq jq
     elif os.query is-core24; then
-        # TODO: publish jq-core24
-        snap install --devmode --edge jq-core22
-        snap alias jq-core22.jq jq
+        snap install --devmode --edge test-snapd-jq-core24
+        snap alias test-snapd-jq-core24.jq jq
     else
         snap install --devmode jq
     fi
@@ -116,6 +115,7 @@ disable_refreshes() {
     snap remove --purge jq-core18
     snap remove --purge jq-core20
     snap remove --purge jq-core22
+    snap remove --purge test-snapd-jq-core24
 }
 
 setup_systemd_snapd_overrides() {
@@ -1452,8 +1452,7 @@ prepare_ubuntu_core() {
         elif os.query is-core22; then
             rsync_snap="test-snapd-rsync-core22"
         elif os.query is-core24; then
-            # TODO: publish test-snapd-rsync-core24
-            rsync_snap="test-snapd-rsync-core22"
+            rsync_snap="test-snapd-rsync-core24"
         fi
         snap install --devmode --edge "$rsync_snap"
         snap alias "$rsync_snap".rsync rsync
@@ -1482,8 +1481,7 @@ prepare_ubuntu_core() {
             cache_snaps test-snapd-sh-core22
         fi
         if os.query is-core24; then
-            # TODO: move to test-snapd-sh-core24
-            cache_snaps test-snapd-sh-core22
+            cache_snaps test-snapd-sh-core24
         fi
     fi
 

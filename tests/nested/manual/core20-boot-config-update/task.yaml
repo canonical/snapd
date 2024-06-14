@@ -33,10 +33,7 @@ prepare: |
 
   if [ "$VARIANT" != "no-gadget" ]; then
     echo "Grab and prepare the gadget snap"
-    version=20
-    if tests.nested is-nested uc22; then
-        version=22
-    fi
+    version=$(tests.nested show version)
     snap download --basename=pc --channel="$version/edge" pc
     unsquashfs -d pc-gadget pc.snap
 
