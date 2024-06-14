@@ -201,7 +201,7 @@ backends:
         systems:
             - arch-linux-64:
                   workers: 6
-                  storage: 12G
+                  storage: 15G
 
             - centos-7-64:
                   workers: 6
