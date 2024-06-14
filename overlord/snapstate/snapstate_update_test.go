@@ -835,7 +835,10 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 		Type:      snap.TypeApp,
 		Version:   "some-snapVer",
 		PlugsOnly: true,
-		Flags:     snapstate.Flags{Amend: true},
+		Flags: snapstate.Flags{
+			Amend:       true,
+			Transaction: client.TransactionPerSnap,
+		},
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
@@ -1094,6 +1097,9 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 		Type:      snap.TypeApp,
 		Version:   "services-snapVer",
 		PlugsOnly: true,
+		Flags: snapstate.Flags{
+			Transaction: client.TransactionPerSnap,
+		},
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "services-snap",
@@ -1464,6 +1470,9 @@ func (s *snapmgrTestSuite) testParallelInstanceUpdateRunThrough(c *C, refreshApp
 		Version:     "services-snapVer",
 		PlugsOnly:   true,
 		InstanceKey: "instance",
+		Flags: snapstate.Flags{
+			Transaction: client.TransactionPerSnap,
+		},
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "services-snap",
@@ -1812,6 +1821,9 @@ func (s *snapmgrTestSuite) TestUpdateModelKernelSwitchTrackRunThrough(c *C) {
 		Type:      snap.TypeKernel,
 		Version:   "kernelVer",
 		PlugsOnly: true,
+		Flags: snapstate.Flags{
+			Transaction: client.TransactionPerSnap,
+		},
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "kernel",
@@ -3179,7 +3191,7 @@ func (s *snapmgrTestSuite) TestUpdateValidateRefreshesSaysNoButIgnoreValidationI
 	// hook it up
 	snapstate.ValidateRefreshes = validateRefreshes
 
-	flags := snapstate.Flags{JailMode: true, IgnoreValidation: true}
+	flags := snapstate.Flags{JailMode: true, IgnoreValidation: true, Transaction: client.TransactionPerSnap}
 	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "stable"}, s.user.ID, flags)
 	c.Assert(err, IsNil)
 

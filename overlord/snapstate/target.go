@@ -641,11 +641,21 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 	return infos, tasksets, nil
 }
 
+// generateLane returns the lane to use for the tasks that all operate on a
+// single snap. If the transaction is set to "all-snaps", then the lane is
+// explicitly set to the lane provided in the options. If the transaction is set
+// to "per-snap", then a new lane is generated for this snap. If the transaction
+// is not set, then no lane (lane 0) is used.
+//
+// TODO: It might be good to consider eliminating the usage of an empty string
+// for transactions, and make "per-snap" be the default in that case. There are
+// some inconsistencies with how various Install/Update functions handle the
+// empty string. For example, UpdateMany and InstallMany use the empty string to
+// mean "per-snap", but Install uses the empty string to mean "no lane".
+// Currently, UpdateWithGoal and InstallWithGoal both use the empty string to
+// mean "no lane", and places that implicitly used the empty string as
+// "per-snap" have been changed to use "per-snap" explicitly.
 func generateLane(st *state.State, opts Options) int {
-	// If transactional, use a single lane for all snaps, so when
-	// one fails the changes for all affected snaps will be
-	// undone. Otherwise, have different lanes per snap so failures
-	// only affect the culprit snap.
 	switch opts.Flags.Transaction {
 	case client.TransactionAllSnaps:
 		return opts.Flags.Lane
