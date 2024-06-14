@@ -3302,7 +3302,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			Action:       "refresh",
 			InstanceName: "some-snap",
 			SnapID:       "some-snap-id",
-			Flags:        0,
+			Flags:        store.SnapActionIgnoreValidation,
 		},
 		userID: 1,
 	})
@@ -3548,7 +3548,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateIgnoreValidationSticky(c *C
 						Action:       "refresh",
 						InstanceName: "some-snap_instance",
 						SnapID:       "some-snap-id",
-						Flags:        0,
+						Flags:        store.SnapActionIgnoreValidation,
 					},
 					userID: 1,
 				})
@@ -7247,6 +7247,7 @@ func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetIgnoreValidat
 			Action:       "refresh",
 			InstanceName: "some-snap",
 			SnapID:       "some-snap-id",
+			Flags:        store.SnapActionIgnoreValidation,
 		},
 		revno: snap.R(11),
 	}}
