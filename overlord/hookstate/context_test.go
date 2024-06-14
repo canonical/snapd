@@ -60,7 +60,7 @@ func (s *contextSuite) SetUpTest(c *C) {
 		Revision:          snap.R(1),
 		Hook:              "test-hook",
 		Component:         "test-component",
-		ComponentRevision: snap.R(1),
+		ComponentRevision: snap.R(2),
 	}
 	s.componentContext, err = NewContext(s.componentTask, s.componentTask.State(), s.componentSetup, nil, "")
 	c.Check(err, IsNil)
@@ -73,7 +73,7 @@ func (s *contextSuite) TestHookSetup(c *C) {
 	c.Check(s.context.IsComponentHook(), Equals, false)
 
 	c.Check(s.componentContext.ComponentName(), Equals, "test-component")
-	c.Check(s.componentContext.ComponentRevision(), Equals, snap.R(1))
+	c.Check(s.componentContext.ComponentRevision(), Equals, snap.R(2))
 	c.Check(s.componentContext.IsSnapHook(), Equals, false)
 	c.Check(s.componentContext.IsComponentHook(), Equals, true)
 }
