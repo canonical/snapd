@@ -4428,6 +4428,7 @@ func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContext(c *C) {
 	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(8)}
 	mockSnap := makeTestSnap(c, `name: some-snap
 version: 1.0
+epoch: 1*
 `)
 	prqt := new(testPrereqTracker)
 
@@ -4463,6 +4464,7 @@ func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextSwitchChannel(c *C) {
 	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(7)}
 	mockSnap := makeTestSnap(c, `name: some-snap
 version: 1.0
+epoch: 1*
 `)
 
 	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, mockSnap, "some-snap", &snapstate.RevisionOptions{Channel: "22/edge"}, s.user.ID, snapstate.Flags{}, nil, deviceCtx, "")
