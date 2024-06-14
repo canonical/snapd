@@ -918,7 +918,13 @@ func compile(content []byte, out string) error {
 		if err != nil {
 			return fmt.Errorf("cannot create allow seccomp filter: %s", err)
 		}
-		secFilterDeny, err = seccomp.NewFilter(complainAct)
+
+		// Deny filter uses "act allow" as a default action, as it is only
+		// populated with deny rules. Any matching it does results in an
+		// explicit denial. When seccomp profiles are loaded the most
+		// restrictive action is used, so without any matching allow rules in
+		// the same filter, all system calls would be forever denied.
+		secFilterDeny, err = seccomp.NewFilter(seccomp.ActAllow)
 		if err != nil {
 			return fmt.Errorf("cannot create deny seccomp filter: %s", err)
 		}
@@ -934,6 +940,11 @@ func compile(content []byte, out string) error {
 		if err != nil {
 			return fmt.Errorf("cannot create seccomp filter: %s", err)
 		}
+		// Deny filter uses "act allow" as a default action, as it is only
+		// populated with deny rules. Any matching it does results in an
+		// explicit denial. When seccomp profiles are loaded the most
+		// restrictive action is used, so without any matching allow rules in
+		// the same filter, all system calls would be forever denied.
 		secFilterDeny, err = seccomp.NewFilter(seccomp.ActAllow)
 		if err != nil {
 			return fmt.Errorf("cannot create seccomp filter: %s", err)
