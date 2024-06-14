@@ -4021,7 +4021,7 @@ assumes: [something-that-is-not-provided]
 	c.Check(tss, HasLen, 0)
 	c.Check(affected, HasLen, 0)
 	// the skipping is logged though
-	c.Check(s.logbuf.String(), testutil.Contains, `cannot update "some-snap": snap "some-snap" assumes unsupported features: something-that-is-not-provided (try`)
+	c.Check(s.logbuf.String(), testutil.Contains, `cannot refresh snap "some-snap": snap "some-snap" assumes unsupported features: something-that-is-not-provided (try`)
 }
 
 type storeCtxSetupSuite struct {

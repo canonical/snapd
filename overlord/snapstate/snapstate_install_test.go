@@ -4454,7 +4454,7 @@ func (s *validationSetsSuite) TestInstallSnapRequiredForValidationSetCohortIgnor
 
 func (s *validationSetsSuite) TestInstallSnapReferencedByValidationSetWrongRevision(c *C) {
 	err := s.installSnapReferencedByValidationSet(c, "required", "3", snap.R(2), "", nil)
-	c.Assert(err, ErrorMatches, `cannot install snap "some-snap" at requested revision 2 without --ignore-validation, revision 3 required by validation sets: 16/foo/bar/1`)
+	c.Assert(err, ErrorMatches, `cannot install snap "some-snap" at revision 2 without --ignore-validation, revision 3 is required by validation sets: 16/foo/bar/1`)
 }
 
 func (s *validationSetsSuite) installManySnapReferencedByValidationSet(c *C, snapOnePresence, snapOneRequiredRev, snapTwoPresence, snapTwoRequiredRev string) error {
@@ -4811,7 +4811,7 @@ func (s *snapmgrTestSuite) TestInstallPrereqIgnoreConflictInSameChange(c *C) {
 func (s *validationSetsSuite) TestInstallSnapReferencedByValidationSetWrongRevisionIgnoreValidationOK(c *C) {
 	// validity check: fails with validation
 	err := s.installSnapReferencedByValidationSet(c, "required", "3", snap.R(11), "", &snapstate.Flags{IgnoreValidation: false})
-	c.Assert(err, ErrorMatches, `cannot install snap "some-snap" at requested revision 11 without --ignore-validation, revision 3 required by validation sets: 16/foo/bar/1`)
+	c.Assert(err, ErrorMatches, `cannot install snap "some-snap" at revision 11 without --ignore-validation, revision 3 is required by validation sets: 16/foo/bar/1`)
 
 	// but doesn't fail with ignore-validation flag
 	err = s.installSnapReferencedByValidationSet(c, "required", "3", snap.R(11), "", &snapstate.Flags{IgnoreValidation: true})
