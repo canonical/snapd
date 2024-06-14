@@ -4667,7 +4667,7 @@ func (s *snapmgrTestSuite) TestInstallWithOutdatedPrereq(c *C) {
 	info := &snap.SideInfo{
 		Revision: snap.R(1),
 		SnapID:   "snap-content-slot-id",
-		RealName: "content-snap",
+		RealName: "snap-content-slot",
 	}
 	snapstate.Set(s.state, "snap-content-slot", &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{info}),
