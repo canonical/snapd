@@ -421,7 +421,7 @@ func (iface *udisks2Interface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	if implicitSystemConnectedSlot(slot) {
 		new = "unconfined"
 	} else {
-		new = spec.SnapAppSet().SlotLabelExpression(slot)
+		new = slot.LabelExpression()
 	}
 	snippet := strings.Replace(udisks2ConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
@@ -463,7 +463,7 @@ func (iface *udisks2Interface) UDevPermanentSlot(spec *udev.Specification, slot 
 func (iface *udisks2Interface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if !implicitSystemConnectedSlot(slot) {
 		old := "###PLUG_SECURITY_TAGS###"
-		new := spec.SnapAppSet().PlugLabelExpression(plug)
+		new := plug.LabelExpression()
 		snippet := strings.Replace(udisks2ConnectedSlotAppArmor, old, new, -1)
 		spec.AddSnippet(snippet)
 	}

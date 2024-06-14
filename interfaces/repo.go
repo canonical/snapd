@@ -529,8 +529,18 @@ func (r *Repository) Connect(ref *ConnRef, plugStaticAttrs, plugDynamicAttrs, sl
 		return nil, fmt.Errorf("internal error: unknown interface %q", plug.Interface)
 	}
 
-	cplug := NewConnectedPlug(plug, plugStaticAttrs, plugDynamicAttrs)
-	cslot := NewConnectedSlot(slot, slotStaticAttrs, slotDynamicAttrs)
+	plugAppSet := r.appSets[plugSnapName]
+	if plugAppSet == nil {
+		return nil, fmt.Errorf("internal error: no app set for plug snap %q", plugSnapName)
+	}
+
+	slotAppSet := r.appSets[slotSnapName]
+	if slotAppSet == nil {
+		return nil, fmt.Errorf("internal error: no app set for plug snap %q", plugSnapName)
+	}
+
+	cplug := NewConnectedPlug(plug, plugAppSet, plugStaticAttrs, plugDynamicAttrs)
+	cslot := NewConnectedSlot(slot, slotAppSet, slotStaticAttrs, slotDynamicAttrs)
 
 	// policyCheck is null when reloading connections
 	if policyCheck != nil {
@@ -1073,6 +1083,11 @@ func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, po
 		return nil, nil
 	}
 
+	plugAppSet := r.appSets[plugSnapName]
+	if plugAppSet == nil {
+		return nil, nil
+	}
+
 	var candidates []*snap.SlotInfo
 	var arities []SideArity
 	for _, slotsForSnap := range r.slots {
@@ -1082,8 +1097,16 @@ func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, po
 			}
 			iface := slotInfo.Interface
 
+			slotAppSet := r.appSets[slotInfo.Snap.InstanceName()]
+			if slotAppSet == nil {
+				continue
+			}
+
+			connectedPlug := NewConnectedPlug(plugInfo, plugAppSet, nil, nil)
+			connectedSlot := NewConnectedSlot(slotInfo, slotAppSet, nil, nil)
+
 			// declaration based checks disallow
-			ok, arity, err := policyCheck(NewConnectedPlug(plugInfo, nil, nil), NewConnectedSlot(slotInfo, nil, nil))
+			ok, arity, err := policyCheck(connectedPlug, connectedSlot)
 			if !ok || err != nil {
 				continue
 			}
@@ -1108,6 +1131,11 @@ func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, po
 		return nil
 	}
 
+	slotAppSet := r.appSets[slotSnapName]
+	if slotAppSet == nil {
+		return nil
+	}
+
 	var candidates []*snap.PlugInfo
 	for _, plugsForSnap := range r.plugs {
 		for _, plugInfo := range plugsForSnap {
@@ -1116,8 +1144,16 @@ func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, po
 			}
 			iface := slotInfo.Interface
 
+			plugAppSet := r.appSets[plugInfo.Snap.InstanceName()]
+			if plugAppSet == nil {
+				continue
+			}
+
+			connectedPlug := NewConnectedPlug(plugInfo, plugAppSet, nil, nil)
+			connectedSlot := NewConnectedSlot(slotInfo, slotAppSet, nil, nil)
+
 			// declaration based checks disallow
-			ok, _, err := policyCheck(NewConnectedPlug(plugInfo, nil, nil), NewConnectedSlot(slotInfo, nil, nil))
+			ok, _, err := policyCheck(connectedPlug, connectedSlot)
 			if !ok || err != nil {
 				continue
 			}

@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -44,6 +43,12 @@ var _ = Suite(&unity8InterfaceSuite{
 })
 
 func (s *unity8InterfaceSuite) SetUpTest(c *C) {
+	const mockSlotSnapInfoYaml = `name: unity8-session
+version: 1.0
+slots:
+  unity8:
+    interface: unity8
+`
 	const mockPlugSnapInfoYaml = `name: other
 version: 1.0
 apps:
@@ -51,17 +56,10 @@ apps:
   command: foo
   plugs: [unity8]
 `
-	dirs.SetRootDir(c.MkDir())
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "unity8-session"},
-		Name:      "unity8-session",
-		Interface: "unity8",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
-	s.plugInfo = plugSnap.Plugs["unity8"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 
+	dirs.SetRootDir(c.MkDir())
+	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "unity8")
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "unity8")
 }
 
 func (s *unity8InterfaceSuite) TearDownTest(c *C) {
@@ -74,23 +72,19 @@ func (s *unity8InterfaceSuite) TestName(c *C) {
 
 func (s *unity8InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.unity8-app"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.unity8-app"), testutil.Contains, "name=com.canonical.URLDispatcher")
 }
 
 func (s *unity8InterfaceSuite) TestSecurityTags(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.unity8-app"})
-	c.Check(apparmorSpec.SnippetForTag("snap.other.unity8-app"), testutil.Contains, "label=\"snap.unity8-session.*\"")
+	c.Check(apparmorSpec.SnippetForTag("snap.other.unity8-app"), testutil.Contains, "label=\"snap.unity8-session.\"")
 }
 
 func (s *unity8InterfaceSuite) TestInterfaces(c *C) {

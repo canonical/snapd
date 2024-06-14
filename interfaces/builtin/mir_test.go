@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -75,18 +74,13 @@ apps:
   command: foo
   plugs: [mir]
 `
+
 	// mir snap with mir-server slot on an core/all-snap install.
-	snapInfo := snaptest.MockInfo(c, mirMockSlotSnapInfoYaml, nil)
-	s.coreSlotInfo = snapInfo.Slots["mir"]
-	s.coreSlot = interfaces.NewConnectedSlot(s.coreSlotInfo, nil, nil)
+	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, mirMockSlotSnapInfoYaml, nil, "mir")
 	// mir slot on a core snap in a classic install.
-	snapInfo = snaptest.MockInfo(c, mirMockClassicSlotSnapInfoYaml, nil)
-	s.classicSlotInfo = snapInfo.Slots["mir"]
-	s.classicSlot = interfaces.NewConnectedSlot(s.classicSlotInfo, nil, nil)
+	s.classicSlot, s.classicSlotInfo = MockConnectedSlot(c, mirMockClassicSlotSnapInfoYaml, nil, "mir")
 	// snap with the mir plug
-	snapInfo = snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
-	s.plugInfo = snapInfo.Plugs["mir"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "mir")
 }
 
 func (s *MirInterfaceSuite) TestName(c *C) {

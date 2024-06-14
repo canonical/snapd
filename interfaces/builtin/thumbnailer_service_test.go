@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -69,17 +68,11 @@ apps:
   plugs: [thumbnailer-service]
 `
 	// thumbnailer-service snap with thumbnailer-service slot on an core/all-snap install.
-	snapInfo := snaptest.MockInfo(c, thumbnailerServiceMockCoreSlotSnapInfoYaml, nil)
-	s.coreSlotInfo = snapInfo.Slots["thumbnailer-service"]
-	s.coreSlot = interfaces.NewConnectedSlot(s.coreSlotInfo, nil, nil)
+	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, thumbnailerServiceMockCoreSlotSnapInfoYaml, nil, "thumbnailer-service")
 	// thumbnailer-service slot on a core snap in a classic install.
-	snapInfo = snaptest.MockInfo(c, thumbnailerServiceMockClassicSlotSnapInfoYaml, nil)
-	s.classicSlotInfo = snapInfo.Slots["thumbnailer-service"]
-	s.classicSlot = interfaces.NewConnectedSlot(s.classicSlotInfo, nil, nil)
+	s.classicSlot, s.classicSlotInfo = MockConnectedSlot(c, thumbnailerServiceMockClassicSlotSnapInfoYaml, nil, "thumbnailer-service")
 
-	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
-	s.plugInfo = plugSnap.Plugs["thumbnailer-service"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfo, nil, "thumbnailer-service")
 }
 
 func (s *ThumbnailerServiceInterfaceSuite) TestName(c *C) {

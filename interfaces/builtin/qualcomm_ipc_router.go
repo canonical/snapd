@@ -214,7 +214,7 @@ func (iface *qualcomIPCRouterInterface) AppArmorConnectedPlug(spec *apparmor.Spe
 		}
 
 		old := "###SLOT_SECURITY_TAGS###"
-		slotLabel := spec.SnapAppSet().SlotLabelExpression(slot)
+		slotLabel := slot.LabelExpression()
 		snippet := strings.ReplaceAll(qipcrtrConnectedPlugAppArmor, old, slotLabel)
 		var err error
 		if snippet, err = fillSnippetSocketAddress(slot, snippet); err != nil {
@@ -231,7 +231,7 @@ func (iface *qualcomIPCRouterInterface) AppArmorConnectedSlot(spec *apparmor.Spe
 	}
 
 	old := "###PLUG_SECURITY_TAGS###"
-	new := spec.SnapAppSet().PlugLabelExpression(plug)
+	new := plug.LabelExpression()
 	snippet := strings.ReplaceAll(qipcrtrConnectedSlotAppArmor, old, new)
 	var err error
 	if snippet, err = fillSnippetSocketAddress(slot, snippet); err != nil {

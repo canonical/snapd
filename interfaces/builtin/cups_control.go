@@ -135,7 +135,7 @@ func (iface *cupsControlInterface) AppArmorConnectedSlot(spec *apparmor.Specific
 	// on classic since the slot side may be from the classic OS or snap.
 	if !implicitSystemConnectedSlot(slot) {
 		old := "###PLUG_SECURITY_TAGS###"
-		new := spec.SnapAppSet().PlugLabelExpression(plug)
+		new := plug.LabelExpression()
 		snippet := strings.Replace(cupsControlConnectedSlotAppArmor, old, new, -1)
 		spec.AddSnippet(snippet)
 	}
@@ -155,7 +155,7 @@ func (iface *cupsControlInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 		// path-based label.
 		new = "\"{unconfined,/usr/sbin/cupsd,cupsd}\""
 	} else {
-		new = spec.SnapAppSet().SlotLabelExpression(slot)
+		new = slot.LabelExpression()
 	}
 
 	// implement 'implicitOnCore: false/implicitOnClassic: true' by only

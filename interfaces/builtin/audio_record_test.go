@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -73,17 +72,11 @@ slots:
 
 func (s *AudioRecordInterfaceSuite) SetUpTest(c *C) {
 	// audio-record snap with audio-record slot on an core/all-snap install.
-	snapInfo := snaptest.MockInfo(c, audioRecordMockCoreSlotSnapInfoYaml, nil)
-	s.coreSlotInfo = snapInfo.Slots["audio-record"]
-	s.coreSlot = interfaces.NewConnectedSlot(s.coreSlotInfo, nil, nil)
+	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, audioRecordMockCoreSlotSnapInfoYaml, nil, "audio-record")
 	// audio-record slot on a core snap in a classic install.
-	snapInfo = snaptest.MockInfo(c, audioRecordMockClassicSlotSnapInfoYaml, nil)
-	s.classicSlotInfo = snapInfo.Slots["audio-record"]
-	s.classicSlot = interfaces.NewConnectedSlot(s.classicSlotInfo, nil, nil)
+	s.classicSlot, s.classicSlotInfo = MockConnectedSlot(c, audioRecordMockClassicSlotSnapInfoYaml, nil, "audio-record")
 	// snap with the audio-record plug
-	snapInfo = snaptest.MockInfo(c, audioRecordMockPlugSnapInfoYaml, nil)
-	s.plugInfo = snapInfo.Plugs["audio-record"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.plug, s.plugInfo = MockConnectedPlug(c, audioRecordMockPlugSnapInfoYaml, nil, "audio-record")
 }
 
 func (s *AudioRecordInterfaceSuite) TestName(c *C) {
@@ -104,24 +97,18 @@ func (s *AudioRecordInterfaceSuite) TestAppArmor(c *C) {
 	defer restore()
 
 	// connected plug to core slot
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec := apparmor.NewSpecification(appSet)
+	spec := apparmor.NewSpecification(s.plug.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Access for communication with audio recording service done via\n")
 
 	// connected core slot to plug
-	appSet, err = interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec = apparmor.NewSpecification(appSet)
+	spec = apparmor.NewSpecification(s.coreSlot.AppSet())
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// permanent core clot
-	appSet, err = interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
-	spec = apparmor.NewSpecification(appSet)
+	spec = apparmor.NewSpecification(s.coreSlot.AppSet())
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
@@ -131,24 +118,18 @@ func (s *AudioRecordInterfaceSuite) TestAppArmorOnClassic(c *C) {
 	defer restore()
 
 	// connected plug to classic slot
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec := apparmor.NewSpecification(appSet)
+	spec := apparmor.NewSpecification(s.plug.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Access for communication with audio recording service done via\n")
 
 	// connected classic slot to plug
-	appSet, err = interfaces.NewSnapAppSet(s.classicSlot.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec = apparmor.NewSpecification(appSet)
+	spec = apparmor.NewSpecification(s.classicSlot.AppSet())
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// permanent classic slot
-	appSet, err = interfaces.NewSnapAppSet(s.classicSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
-	spec = apparmor.NewSpecification(appSet)
+	spec = apparmor.NewSpecification(s.classicSlot.AppSet())
 	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }

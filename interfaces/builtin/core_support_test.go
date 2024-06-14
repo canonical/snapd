@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -44,22 +43,21 @@ var _ = Suite(&CoreSupportInterfaceSuite{
 })
 
 func (s *CoreSupportInterfaceSuite) SetUpTest(c *C) {
-	const mockPlugSnapInfo = `name: other
+	const mockPlugSnapInfoYaml = `name: other
 version: 1.0
 hooks:
  prepare-device:
      plugs: [core-support]
 `
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "core-support",
-		Interface: "core-support",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-
-	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
-	s.plugInfo = plugSnap.Plugs["core-support"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	const mockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ core-support:
+  interface: core-support
+`
+	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "core-support")
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "core-support")
 }
 
 func (s *CoreSupportInterfaceSuite) TestName(c *C) {
@@ -75,14 +73,11 @@ func (s *CoreSupportInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *CoreSupportInterfaceSuite) TestNoSecuritySystems(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	apparmorSpec := apparmor.NewSpecification(appSet)
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
 	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
-	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	seccompSpec := seccomp.NewSpecification(appSet)
+
+	seccompSpec := seccomp.NewSpecification(s.plug.AppSet())
 	c.Assert(seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(seccompSpec.SecurityTags(), HasLen, 0)
 }

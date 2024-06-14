@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -50,23 +49,19 @@ apps:
   plugs: [login-session-observe]
 `
 
-func (s *LoginSessionObserveSuite) SetUpTest(c *C) {
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "login-session-observe",
-		Interface: "login-session-observe",
-		Apps: map[string]*snap.AppInfo{
-			"app1": {
-				Snap: &snap.Info{
-					SuggestedName: "core",
-				},
-				Name: "app1"}},
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
+const loginObserveMockSlotSnapInfo = `name: core
+version: 1.0
+type: os
+slots:
+ login-session-observe:
+  interface: login-session-observe
+apps:
+ app1:
+`
 
-	plugSnap := snaptest.MockInfo(c, loginObserveMockPlugSnapInfo, nil)
-	s.plugInfo = plugSnap.Plugs["login-session-observe"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+func (s *LoginSessionObserveSuite) SetUpTest(c *C) {
+	s.slot, s.slotInfo = MockConnectedSlot(c, loginObserveMockSlotSnapInfo, nil, "login-session-observe")
+	s.plug, s.plugInfo = MockConnectedPlug(c, loginObserveMockPlugSnapInfo, nil, "login-session-observe")
 }
 
 func (s *LoginSessionObserveSuite) TestName(c *C) {
@@ -83,10 +78,8 @@ func (s *LoginSessionObserveSuite) TestSanitizePlug(c *C) {
 
 func (s *LoginSessionObserveSuite) TestAppArmor(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "/{,usr/}bin/who")

@@ -65,10 +65,13 @@ slots:
     interface: uio
     path: /dev/uio1
 `, nil)
+	appSet, err := interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, IsNil)
+
 	s.slotGadgetInfo0 = info.Slots["uio-0"]
 	s.slotGadgetInfo1 = info.Slots["uio-1"]
-	s.slotGadget0 = interfaces.NewConnectedSlot(s.slotGadgetInfo0, nil, nil)
-	s.slotGadget1 = interfaces.NewConnectedSlot(s.slotGadgetInfo1, nil, nil)
+	s.slotGadget0 = interfaces.NewConnectedSlot(s.slotGadgetInfo0, appSet, nil, nil)
+	s.slotGadget1 = interfaces.NewConnectedSlot(s.slotGadgetInfo1, appSet, nil, nil)
 
 	info = snaptest.MockInfo(c, `
 name: consumer
@@ -80,8 +83,11 @@ apps:
   app:
     command: foo
 `, nil)
+	appSet, err = interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, IsNil)
+
 	s.plugInfo = info.Plugs["uio"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, appSet, nil, nil)
 }
 
 func (s *uioInterfaceSuite) TestName(c *C) {
@@ -102,9 +108,7 @@ slots:
 }
 
 func (s *uioInterfaceSuite) TestUDevSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec := udev.NewSpecification(appSet)
+	spec := udev.NewSpecification(s.plug.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget0), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# uio
@@ -121,9 +125,7 @@ func (s *uioInterfaceSuite) TestAppArmorConnectedPlugIgnoresMissingConfigFile(c 
 		return "", os.ErrNotExist
 	})
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec := apparmor.NewSpecification(appSet)
+	spec := apparmor.NewSpecification(s.plug.AppSet())
 	// Simulate two UIO connections.
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget0), IsNil)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget1), IsNil)
@@ -149,9 +151,7 @@ func (s *uioInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 		return target, nil
 	})
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec := apparmor.NewSpecification(appSet)
+	spec := apparmor.NewSpecification(s.plug.AppSet())
 	// Simulate two UIO connections.
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget0), IsNil)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget1), IsNil)

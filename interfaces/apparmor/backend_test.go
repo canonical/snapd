@@ -648,8 +648,6 @@ func (s *backendSuite) testUpdatingSnapToOneWithFewerComponents(c *C, instanceNa
 	for _, opts := range testedConfinementOpts {
 		info := s.InstallSnapWithComponents(c, opts, instanceName, ifacetest.SnapWithComponentsYaml, 1, []string{ifacetest.ComponentYaml})
 
-		fmt.Println(info.InstanceName())
-
 		s.loadProfilesCalls = nil
 		// NOTE: the revision is kept the same to just test on the application being removed
 		info = s.UpdateSnap(c, info, opts, ifacetest.SnapWithComponentsYaml, 1)

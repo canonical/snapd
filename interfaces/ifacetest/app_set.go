@@ -1,6 +1,8 @@
 package ifacetest
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -34,4 +36,50 @@ func mockAppSet(c *check.C, componentYamls []string, info *snap.Info) *interface
 	c.Assert(err, check.IsNil)
 
 	return set
+}
+
+func MockProviderYaml(snapName, plugName string) string {
+	const template = `name: %s
+version: 1
+plugs:
+ %[2]s:
+  interface: %[2]s
+`
+	return fmt.Sprintf(template, snapName, plugName)
+}
+
+func MockConnectedPlug(c *check.C, yaml string, si *snap.SideInfo, plugName string) (*interfaces.ConnectedPlug, *snap.PlugInfo) {
+	return MockConnectedPlugWithAttrs(c, yaml, si, plugName, nil, nil)
+}
+
+func MockConnectedSlot(c *check.C, yaml string, si *snap.SideInfo, slotName string) (*interfaces.ConnectedSlot, *snap.SlotInfo) {
+	return MockConnectedSlotWithAttrs(c, yaml, si, slotName, nil, nil)
+}
+
+func MockConnectedSlotWithAttrs(c *check.C, yaml string, si *snap.SideInfo, slotName string, staticAttrs, dynamicAttrs map[string]interface{}) (*interfaces.ConnectedSlot, *snap.SlotInfo) {
+	info := snaptest.MockInfo(c, yaml, si)
+
+	set, err := interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, check.IsNil)
+
+	slotInfo, ok := info.Slots[slotName]
+	if !ok {
+		c.Fatalf("cannot find slot %q in snap %q", slotName, info.InstanceName())
+	}
+
+	return interfaces.NewConnectedSlot(slotInfo, set, staticAttrs, dynamicAttrs), slotInfo
+}
+
+func MockConnectedPlugWithAttrs(c *check.C, yaml string, si *snap.SideInfo, plugName string, staticAttrs, dynamicAttrs map[string]interface{}) (*interfaces.ConnectedPlug, *snap.PlugInfo) {
+	info := snaptest.MockInfo(c, yaml, si)
+
+	set, err := interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, check.IsNil)
+
+	plugInfo, ok := info.Plugs[plugName]
+	if !ok {
+		c.Fatalf("cannot find plug %q in snap %q", plugName, info.InstanceName())
+	}
+
+	return interfaces.NewConnectedPlug(plugInfo, set, staticAttrs, dynamicAttrs), plugInfo
 }

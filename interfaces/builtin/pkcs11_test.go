@@ -121,30 +121,33 @@ apps:
       - pkcs11-optee-slot-0
       - pkcs11-optee-slot-1
 `, nil)
+	appSet, err := interfaces.NewSnapAppSet(gadgetSnapInfo, nil)
+	c.Assert(err, IsNil)
+
 	s.testSlot0Info = gadgetSnapInfo.Slots["pkcs11-optee-slot-0"]
-	s.testSlot0 = interfaces.NewConnectedSlot(s.testSlot0Info, nil, nil)
+	s.testSlot0 = interfaces.NewConnectedSlot(s.testSlot0Info, appSet, nil, nil)
 	s.testSlot1Info = gadgetSnapInfo.Slots["pkcs11-optee-slot-1"]
-	s.testSlot1 = interfaces.NewConnectedSlot(s.testSlot1Info, nil, nil)
+	s.testSlot1 = interfaces.NewConnectedSlot(s.testSlot1Info, appSet, nil, nil)
 	s.testSlot2Info = gadgetSnapInfo.Slots["pkcs11-optee-slot-2"]
-	s.testSlot2 = interfaces.NewConnectedSlot(s.testSlot2Info, nil, nil)
+	s.testSlot2 = interfaces.NewConnectedSlot(s.testSlot2Info, appSet, nil, nil)
 	s.testSlot3Info = gadgetSnapInfo.Slots["pkcs11-optee-slot-3"]
-	s.testSlot3 = interfaces.NewConnectedSlot(s.testSlot3Info, nil, nil)
+	s.testSlot3 = interfaces.NewConnectedSlot(s.testSlot3Info, appSet, nil, nil)
 	s.testSlot4Info = gadgetSnapInfo.Slots["pkcs11-atec-slot-1"]
-	s.testSlot4 = interfaces.NewConnectedSlot(s.testSlot4Info, nil, nil)
+	s.testSlot4 = interfaces.NewConnectedSlot(s.testSlot4Info, appSet, nil, nil)
 	s.testBadSlot0Info = gadgetSnapInfo.Slots["pkcs11-bad-optee-slot-0"]
-	s.testBadSlot0 = interfaces.NewConnectedSlot(s.testBadSlot0Info, nil, nil)
+	s.testBadSlot0 = interfaces.NewConnectedSlot(s.testBadSlot0Info, appSet, nil, nil)
 	s.testBadSlot1Info = gadgetSnapInfo.Slots["pkcs11-bad-optee-slot-1"]
-	s.testBadSlot1 = interfaces.NewConnectedSlot(s.testBadSlot1Info, nil, nil)
+	s.testBadSlot1 = interfaces.NewConnectedSlot(s.testBadSlot1Info, appSet, nil, nil)
 	s.testBadSlot2Info = gadgetSnapInfo.Slots["pkcs11-bad-optee-slot-2"]
-	s.testBadSlot2 = interfaces.NewConnectedSlot(s.testBadSlot2Info, nil, nil)
+	s.testBadSlot2 = interfaces.NewConnectedSlot(s.testBadSlot2Info, appSet, nil, nil)
 	s.testBadSlot3Info = gadgetSnapInfo.Slots["pkcs11-bad-optee-slot-3"]
-	s.testBadSlot3 = interfaces.NewConnectedSlot(s.testBadSlot3Info, nil, nil)
+	s.testBadSlot3 = interfaces.NewConnectedSlot(s.testBadSlot3Info, appSet, nil, nil)
 	s.testBadSlot4Info = gadgetSnapInfo.Slots["pkcs11-bad-optee-slot-4"]
-	s.testBadSlot4 = interfaces.NewConnectedSlot(s.testBadSlot4Info, nil, nil)
+	s.testBadSlot4 = interfaces.NewConnectedSlot(s.testBadSlot4Info, appSet, nil, nil)
 	s.testBadSlot5Info = gadgetSnapInfo.Slots["pkcs11-bad-optee-slot-5"]
-	s.testBadSlot5 = interfaces.NewConnectedSlot(s.testBadSlot5Info, nil, nil)
+	s.testBadSlot5 = interfaces.NewConnectedSlot(s.testBadSlot5Info, appSet, nil, nil)
 	s.testBadSlot6Info = gadgetSnapInfo.Slots["pkcs11-bad-optee-slot-6"]
-	s.testBadSlot6 = interfaces.NewConnectedSlot(s.testBadSlot6Info, nil, nil)
+	s.testBadSlot6 = interfaces.NewConnectedSlot(s.testBadSlot6Info, appSet, nil, nil)
 
 	consumingSnapInfo := snaptest.MockInfo(c, `name: consumer
 version: 0
@@ -167,12 +170,15 @@ apps:
     command: foo
     plugs: [plug-for-socket-2]
 `, nil)
+	appSet, err = interfaces.NewSnapAppSet(consumingSnapInfo, nil)
+	c.Assert(err, IsNil)
+
 	s.testPlug0Info = consumingSnapInfo.Plugs["plug-for-socket-0"]
-	s.testPlug0 = interfaces.NewConnectedPlug(s.testPlug0Info, nil, nil)
+	s.testPlug0 = interfaces.NewConnectedPlug(s.testPlug0Info, appSet, nil, nil)
 	s.testPlug1Info = consumingSnapInfo.Plugs["plug-for-socket-1"]
-	s.testPlug1 = interfaces.NewConnectedPlug(s.testPlug1Info, nil, nil)
+	s.testPlug1 = interfaces.NewConnectedPlug(s.testPlug1Info, appSet, nil, nil)
 	s.testPlug2Info = consumingSnapInfo.Plugs["plug-for-socket-2"]
-	s.testPlug2 = interfaces.NewConnectedPlug(s.testPlug2Info, nil, nil)
+	s.testPlug2 = interfaces.NewConnectedPlug(s.testPlug2Info, appSet, nil, nil)
 }
 
 func (s *Pkcs11InterfaceSuite) TestName(c *C) {
@@ -180,20 +186,16 @@ func (s *Pkcs11InterfaceSuite) TestName(c *C) {
 }
 
 func (s *Pkcs11InterfaceSuite) TestSecCompPermanentSlot(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testSlot0Info.Snap, nil)
-	c.Assert(err, IsNil)
-	seccompSpec := seccomp.NewSpecification(appSet)
-	err = seccompSpec.AddPermanentSlot(s.iface, s.testSlot0Info)
+	seccompSpec := seccomp.NewSpecification(s.testSlot0.AppSet())
+	err := seccompSpec.AddPermanentSlot(s.iface, s.testSlot0Info)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.gadget.p11-server"})
 	c.Check(seccompSpec.SnippetForTag("snap.gadget.p11-server"), testutil.Contains, "listen\n")
 }
 
 func (s *Pkcs11InterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testSlot0Info.Snap, nil)
-	c.Assert(err, IsNil)
-	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddPermanentSlot(s.iface, s.testSlot0Info)
+	apparmorSpec := apparmor.NewSpecification(s.testSlot0.AppSet())
+	err := apparmorSpec.AddPermanentSlot(s.iface, s.testSlot0Info)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.gadget.p11-server"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.gadget.p11-server"), Not(IsNil))
@@ -222,17 +224,13 @@ func (s *Pkcs11InterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 }
 
 func (s *Pkcs11InterfaceSuite) TestPermanentSlotMissingSocketPath(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testBadSlot4Info.Snap, nil)
-	c.Assert(err, IsNil)
-	apparmorSpec := apparmor.NewSpecification(appSet)
+	apparmorSpec := apparmor.NewSpecification(s.testBadSlot4.AppSet())
 	c.Assert(apparmorSpec.AddPermanentSlot(s.iface, s.testBadSlot4Info), ErrorMatches, `cannot use pkcs11 slot without "pkcs11-socket" attribute`)
 }
 
 func (s *Pkcs11InterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testPlug1.Snap(), nil)
-	c.Assert(err, IsNil)
-	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.testPlug1, s.testSlot1)
+	apparmorSpec := apparmor.NewSpecification(s.testPlug1.AppSet())
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.testPlug1, s.testSlot1)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app-accessing-2-slots"})
 	c.Assert(err, IsNil)
 	err = apparmorSpec.AddConnectedPlug(s.iface, s.testPlug0, s.testSlot0)

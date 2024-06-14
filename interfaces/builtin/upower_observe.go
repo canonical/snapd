@@ -232,7 +232,7 @@ func (iface *upowerObserveInterface) StaticInfo() interfaces.StaticInfo {
 
 func (iface *upowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
-	new := spec.SnapAppSet().SlotLabelExpression(slot)
+	new := slot.LabelExpression()
 	if implicitSystemConnectedSlot(slot) {
 		// Let confined apps access unconfined upower on classic
 		new = "unconfined"
@@ -265,7 +265,7 @@ func (iface *upowerObserveInterface) DBusPermanentSlot(spec *dbus.Specification,
 
 func (iface *upowerObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
-	new := spec.SnapAppSet().PlugLabelExpression(plug)
+	new := plug.LabelExpression()
 	snippet := strings.Replace(upowerObserveConnectedSlotAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
