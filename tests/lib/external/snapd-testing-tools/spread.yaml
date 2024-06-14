@@ -28,9 +28,8 @@ backends:
                 storage: preserve-size
             - amazon-linux-2023-64:
                 storage: preserve-size
-            - centos-7-64:
                 storage: preserve-size
-            - centos-8-64:
+            - centos-7-64:
                 storage: preserve-size
             - centos-9-64:
                 storage: preserve-size
