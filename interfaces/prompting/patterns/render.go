@@ -27,16 +27,26 @@ import (
 
 // RenderConfig is a configuration of a render node.
 type RenderConfig interface {
-	// NextEx modifies the configuration to the next state returning true if more
-	// configurations remain to be rendered. The argument is always the render
-	// node that was earlier used to obtain render configuration.
-	NextEx(n RenderNode) bool
+	// NextEx modifies the configuration to the next state, if any remain.
+	// Returns the length in bytes of the new configuration, the number of
+	// bytes which remain unchanged since the previous configuration, and true
+	// if more configurations remain to be rendered. The argument is always the
+	// render node that was earlier used to obtain render configuration.
+	NextEx(n RenderNode) (length, lengthUnchanged int, moreRemain bool)
+	// Length returns the total length of the rendered node in its current
+	// configuration, including all sub-nodes if the node is a seq or alt.
+	// The argument is always the render node that was earlier used to obtain
+	// the render configuration.
+	Length(n RenderNode) int
 }
 
 // RenderNode is a node which may be rendered in a particular configuration.
 type RenderNode interface {
-	// Render renders the given configuration to the buffer.
-	Render(*bytes.Buffer, RenderConfig)
+	// Render renders the given configuration to the buffer if alreadyWritten
+	// equals 0. Otherwise, subtracts from alreadyWritten the length of the
+	// string which would have been written to the buffer, and returns the
+	// difference.
+	Render(buf *bytes.Buffer, conf RenderConfig, alreadyWritten int) int
 	// Config returns the initial render configuration.
 	Config() RenderConfig
 	// NumVariants returns the number of variants this node can be rendered as (recursively).
@@ -48,37 +58,35 @@ type RenderNode interface {
 // RenderAllVariants renders subsequent variants to a reusable buffer.
 func RenderAllVariants(n RenderNode, observe func(int, *bytes.Buffer)) {
 	var buf bytes.Buffer
+	var moreRemain bool
 
 	c := n.Config()
+	length := 0
+	lengthUnchanged := 0
 
 	for i := 0; ; i++ {
 		// TODO: change how buffer is handled, so that we only need to re-render
 		// the part that was invalidated by the old config.
-		buf.Truncate(0)
-		n.Render(&buf, c)
+		buf.Truncate(lengthUnchanged)
+		n.Render(&buf, c, lengthUnchanged)
 		observe(i, &buf)
-		if !c.NextEx(n) {
+		length, lengthUnchanged, moreRemain = c.NextEx(n)
+		if !moreRemain {
 			break
 		}
-	}
-}
-
-func VisitAllVariants(n RenderNode, observe func(i int, c RenderConfig)) {
-	c := n.Config()
-
-	for i := 0; ; i++ {
-		observe(i, c)
-		if !c.NextEx(n) {
-			break
-		}
+		buf.Grow(length)
 	}
 }
 
 // Literal is a render node with a literal string.
 type Literal string
 
-func (n Literal) Render(buf *bytes.Buffer, conf RenderConfig) {
+func (n Literal) Render(buf *bytes.Buffer, conf RenderConfig, alreadyWritten int) int {
+	if alreadyWritten > 0 {
+		return alreadyWritten - len(n)
+	}
 	buf.WriteString(string(n))
+	return 0
 }
 
 func (n Literal) NumVariants() int {
@@ -99,8 +107,14 @@ func (n Literal) nodeEqual(other RenderNode) bool {
 
 type literalConfig struct{}
 
-func (literalConfig) NextEx(_ RenderNode) bool {
-	return false
+func (literalConfig) NextEx(n RenderNode) (length, lengthUnchanged int, moreRemain bool) {
+	literal := n.(Literal)
+	return len(literal), 0, false
+}
+
+func (literalConfig) Length(n RenderNode) int {
+	literal := n.(Literal)
+	return len(literal)
 }
 
 func (literalConfig) GoString() string {
@@ -110,12 +124,14 @@ func (literalConfig) GoString() string {
 // Seq is sequence of consecutive render nodes.
 type Seq []RenderNode
 
-func (n Seq) Render(buf *bytes.Buffer, conf RenderConfig) {
+func (n Seq) Render(buf *bytes.Buffer, conf RenderConfig, alreadyWritten int) int {
 	c := conf.(seqConfig)
 
 	for i := range n {
-		n[i].Render(buf, c[i])
+		alreadyWritten = n[i].Render(buf, c[i], alreadyWritten)
 	}
+
+	return alreadyWritten
 }
 
 func (n Seq) NumVariants() int {
@@ -204,18 +220,48 @@ func (seq Seq) optimize() Seq {
 // Each render node has a corresponding configuration at the same index.
 type seqConfig []RenderConfig
 
-func (c seqConfig) NextEx(n RenderNode) bool {
+func (c seqConfig) NextEx(n RenderNode) (length, lengthUnchanged int, moreRemain bool) {
 	seq := n.(Seq)
 
-	for i := len(c) - 1; i >= 0; i-- {
-		if c[i].NextEx(seq[i]) {
-			return true
+	length = 0
+	var i int
+	for i = len(c) - 1; i >= 0; i-- {
+		componentLength, componentLengthUnchanged, moreRemain := c[i].NextEx(seq[i])
+		if moreRemain {
+			length += componentLength
+			lengthUnchanged = componentLengthUnchanged
+			break
 		}
-
+		// Reset the configuration for the node whose configs we just exhausted
 		c[i] = seq[i].Config()
+		// Include the render length of the reset node in the total length
+		length += c[i].Length(seq[i])
+	}
+	if i < 0 {
+		// No expansions remain for any node in the sequence
+		return 0, 0, false
 	}
 
-	return false
+	// We already counted c[i], so count j : 0 <= j < i
+	for j := 0; j < i; j++ {
+		componentLength := c[j].Length(seq[j])
+		length += componentLength
+		lengthUnchanged += componentLength
+	}
+
+	return length, lengthUnchanged, true
+}
+
+func (c seqConfig) Length(n RenderNode) int {
+	seq := n.(Seq)
+
+	totalLength := 0
+
+	for i := 0; i < len(c); i++ {
+		totalLength += c[i].Length(seq[i])
+	}
+
+	return totalLength
 }
 
 func (c seqConfig) GoString() string {
@@ -240,10 +286,10 @@ func (c seqConfig) GoString() string {
 // Alt is a sequence of alternative render nodes.
 type Alt []RenderNode
 
-func (n Alt) Render(buf *bytes.Buffer, conf RenderConfig) {
+func (n Alt) Render(buf *bytes.Buffer, conf RenderConfig, alreadyWritten int) int {
 	c := conf.(*altConfig)
 
-	n[c.idx].Render(buf, c.cfg)
+	return n[c.idx].Render(buf, c.cfg, alreadyWritten)
 }
 
 func (n Alt) NumVariants() int {
@@ -323,26 +369,36 @@ func (c *altConfig) GoString() string {
 	return fmt.Sprintf("altConfig{idx: %d, cfg: %#v}", c.idx, c.cfg)
 }
 
-func (c *altConfig) NextEx(n RenderNode) bool {
+func (c *altConfig) NextEx(n RenderNode) (length, lengthUnchanged int, moreRemain bool) {
 	if c == nil {
-		return false
+		return 0, 0, false
 	}
 
 	alt := n.(Alt)
 
 	// Keep exploring the current alternative until all possibilities are exhausted.
-	if c.cfg.NextEx(alt[c.idx]) {
-		return true
+	if length, lengthUnchanged, moreRemain = c.cfg.NextEx(alt[c.idx]); moreRemain {
+		return length, lengthUnchanged, true
 	}
 
 	// Advance to the next alternative if one exists and obtain the initial render configuration for it.
 	c.idx++
 
 	if c.idx >= len(alt) {
-		return false
+		return 0, 0, false
 	}
 
 	c.cfg = alt[c.idx].Config()
 
-	return true
+	return c.cfg.Length(alt[c.idx]), 0, true
+}
+
+func (c *altConfig) Length(n RenderNode) int {
+	if c == nil {
+		return 0
+	}
+
+	alt := n.(Alt)
+
+	return c.cfg.Length(alt[c.idx])
 }
