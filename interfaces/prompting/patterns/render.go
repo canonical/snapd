@@ -21,7 +21,6 @@ package patterns
 
 import (
 	"bytes"
-	"fmt"
 	"strings"
 )
 
@@ -115,10 +114,6 @@ func (literalConfig) NextEx(n RenderNode) (length, lengthUnchanged int, moreRema
 func (literalConfig) Length(n RenderNode) int {
 	literal := n.(Literal)
 	return len(literal)
-}
-
-func (literalConfig) GoString() string {
-	return "_"
 }
 
 // Seq is sequence of consecutive render nodes.
@@ -264,25 +259,6 @@ func (c seqConfig) Length(n RenderNode) int {
 	return totalLength
 }
 
-func (c seqConfig) GoString() string {
-	var sb strings.Builder
-
-	sb.WriteString("seqConfig{")
-
-	for i := range c {
-		if i > 0 {
-			sb.WriteRune(',')
-			sb.WriteRune(' ')
-		}
-
-		sb.WriteString(fmt.Sprintf("%#v", c[i]))
-	}
-
-	sb.WriteRune('}')
-
-	return sb.String()
-}
-
 // Alt is a sequence of alternative render nodes.
 type Alt []RenderNode
 
@@ -363,10 +339,6 @@ outer:
 type altConfig struct {
 	idx int          // index of the alternative currently being explored
 	cfg RenderConfig // config corresponding to the alternative being explored.
-}
-
-func (c *altConfig) GoString() string {
-	return fmt.Sprintf("altConfig{idx: %d, cfg: %#v}", c.idx, c.cfg)
 }
 
 func (c *altConfig) NextEx(n RenderNode) (length, lengthUnchanged int, moreRemain bool) {
