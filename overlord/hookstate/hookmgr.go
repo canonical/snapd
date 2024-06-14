@@ -344,6 +344,9 @@ func (m *HookManager) runHookGuardForRestarting(context *Context) error {
 }
 
 func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hooksup *HookSetup, tomb *tomb.Tomb) error {
+	// for now, we will only support hijacking snap hooks, not component hooks.
+	// if we ever add components to the snapd snap, we might need to handle
+	// hijacking component hooks as well.
 	mustHijack := context.IsSnapHook() && m.hijacked(hooksup.Hook, hooksup.Snap) != nil
 	hookExists := false
 
