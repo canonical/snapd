@@ -247,8 +247,12 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 	includeResources := false
 	actions := make([]*store.SnapAction, 0, len(s.snaps))
 	for _, sn := range s.snaps {
-		action, err := installActionForStoreTarget(sn, opts, enforcedSets)
-		if err != nil {
+		action := &store.SnapAction{
+			Action:       "install",
+			InstanceName: sn.InstanceName,
+		}
+
+		if err := completeStoreAction(action, sn.RevOpts, opts.Flags.IgnoreValidation, enforcedSets); err != nil {
 			return nil, err
 		}
 
@@ -306,7 +310,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			channel = sn.RevOpts.Channel
 		}
 
-		comps, err := requestedComponentsFromActionResult(sn, r)
+		comps, err := componentTargetsFromActionResult(r, sn.Components)
 		if err != nil {
 			return nil, fmt.Errorf("cannot extract components from snap resources: %w", err)
 		}
@@ -326,14 +330,14 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 	return installs, err
 }
 
-func requestedComponentsFromActionResult(sn StoreSnap, sar store.SnapActionResult) ([]ComponentSetup, error) {
+func componentTargetsFromActionResult(sar store.SnapActionResult, requested []string) ([]ComponentSetup, error) {
 	mapping := make(map[string]store.SnapResourceResult, len(sar.Resources))
 	for _, res := range sar.Resources {
 		mapping[res.Name] = res
 	}
 
-	setups := make([]ComponentSetup, 0, len(sn.Components))
-	for _, comp := range sn.Components {
+	setups := make([]ComponentSetup, 0, len(requested))
+	for _, comp := range requested {
 		res, ok := mapping[comp]
 		if !ok {
 			return nil, fmt.Errorf("cannot find component %q in snap resources", comp)
@@ -373,57 +377,65 @@ func componentSetupFromResource(name string, sar store.SnapResourceResult, info 
 	}, nil
 }
 
-func installActionForStoreTarget(t StoreSnap, opts Options, enforcedSets func() (*snapasserts.ValidationSets, error)) (*store.SnapAction, error) {
-	action := &store.SnapAction{
-		Action:       "install",
-		InstanceName: t.InstanceName,
-		Channel:      t.RevOpts.Channel,
-		Revision:     t.RevOpts.Revision,
-		CohortKey:    t.RevOpts.CohortKey,
+func completeStoreAction(action *store.SnapAction, revOpts RevisionOptions, ignoreValidation bool, enforcedSets func() (*snapasserts.ValidationSets, error)) error {
+	if action.Action == "" {
+		return errors.New("internal error: action must be set")
 	}
 
+	if action.InstanceName == "" {
+		return errors.New("internal error: instance name must be set")
+	}
+
+	action.Channel = revOpts.Channel
+	action.CohortKey = revOpts.CohortKey
+	action.Revision = revOpts.Revision
+
 	switch {
-	case opts.Flags.IgnoreValidation:
+	case ignoreValidation:
 		// caller requested that we ignore validation sets, nothing to do
 		action.Flags = store.SnapActionIgnoreValidation
-	case len(t.RevOpts.ValidationSets) > 0:
+	case len(revOpts.ValidationSets) > 0:
 		// caller provided some validation sets, nothing to do but send them
 		// to the store
-		action.ValidationSets = t.RevOpts.ValidationSets
+		action.ValidationSets = revOpts.ValidationSets
 	default:
 		vsets, err := enforcedSets()
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		// if the caller didn't provide any validation sets, make sure that
 		// the snap is allowed by all of the enforced validation sets
-		invalidSets, err := vsets.CheckPresenceInvalid(naming.Snap(t.InstanceName))
+		invalidSets, err := vsets.CheckPresenceInvalid(naming.Snap(action.InstanceName))
 		if err != nil {
 			if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
-				return nil, err
+				return err
 			} // else presence is optional or required, carry on
 		}
 
 		if len(invalidSets) > 0 {
-			return nil, fmt.Errorf(
-				"cannot install snap %q due to enforcing rules of validation set %s",
-				t.InstanceName, snapasserts.ValidationSetKeySlice(invalidSets).CommaSeparated(),
+			verb := "install"
+			if action.Action == "refresh" {
+				verb = "update"
+			}
+
+			return fmt.Errorf(
+				"cannot %s snap %q due to enforcing rules of validation set %s",
+				verb,
+				action.InstanceName,
+				snapasserts.ValidationSetKeySlice(invalidSets).CommaSeparated(),
 			)
 		}
 
-		requiredSets, requiredRev, err := vsets.CheckPresenceRequired(naming.Snap(t.InstanceName))
+		requiredSets, requiredRev, err := vsets.CheckPresenceRequired(naming.Snap(action.InstanceName))
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		// make sure that the caller-requested revision matches the revision
 		// required by the enforced validation sets
-		if !requiredRev.Unset() && !t.RevOpts.Revision.Unset() && requiredRev != t.RevOpts.Revision {
-			return nil, fmt.Errorf(
-				"cannot install snap %q at requested revision %s without --ignore-validation, revision %s required by validation sets: %s",
-				t.InstanceName, t.RevOpts.Revision, requiredRev, snapasserts.ValidationSetKeySlice(requiredSets).CommaSeparated(),
-			)
+		if !requiredRev.Unset() && !revOpts.Revision.Unset() && requiredRev != revOpts.Revision {
+			return invalidRevisionError(action, requiredSets, revOpts.Revision, requiredRev)
 		}
 
 		// TODO:COMPS: handle validation sets and components here
@@ -448,7 +460,26 @@ func installActionForStoreTarget(t StoreSnap, opts Options, enforcedSets func() 
 		action.Channel = ""
 	}
 
-	return action, nil
+	return nil
+}
+
+func invalidRevisionError(a *store.SnapAction, sets []snapasserts.ValidationSetKey, requested, required snap.Revision) error {
+	verb := "install"
+	preposition := "at"
+	if a.Action == "refresh" {
+		verb = "update"
+		preposition = "to"
+	}
+
+	return fmt.Errorf(
+		"cannot %s snap %q %s revision %s without --ignore-validation, revision %s is required by validation sets: %s",
+		verb,
+		a.InstanceName,
+		preposition,
+		requested,
+		required,
+		snapasserts.ValidationSetKeySlice(sets).CommaSeparated(),
+	)
 }
 
 func (s *storeInstallGoal) validateAndPrune(installedSnaps map[string]*SnapState) error {
@@ -772,6 +803,14 @@ type UpdateSummary struct {
 	Targets []target
 }
 
+func (s *UpdateSummary) targetInfos() []*snap.Info {
+	infos := make([]*snap.Info, 0, len(s.Targets))
+	for _, t := range s.Targets {
+		infos = append(infos, t.info)
+	}
+	return infos
+}
+
 // UpdateGoal represents a single snap or a group of snaps to be updated.
 type UpdateGoal interface {
 	// Install returns the data needed to update the snaps.
@@ -835,5 +874,47 @@ func StoreUpdateGoal(snaps ...StoreUpdate) UpdateGoal {
 }
 
 func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Options) (UpdateSummary, error) {
-	return UpdateSummary{}, errors.New("TODO")
+	if opts.ExpectOneSnap && len(s.snaps) != 1 {
+		return UpdateSummary{}, ErrExpectedOneSnap
+	}
+
+	if err := validateAndInitStoreUpdates(st, s.snaps, opts); err != nil {
+		return UpdateSummary{}, err
+	}
+
+	return UpdateSummary{}, nil
+}
+
+func validateAndInitStoreUpdates(st *state.State, updates map[string]StoreUpdate, opts Options) error {
+	snapstates, err := All(st)
+	if err != nil {
+		return err
+	}
+
+	for _, sn := range updates {
+		snapst, ok := snapstates[sn.InstanceName]
+		if !ok {
+			return snap.NotInstalledError{Snap: sn.InstanceName}
+		}
+
+		// default to existing cohort key if we don't have a provided one
+		if sn.RevOpts.CohortKey == "" && !sn.RevOpts.LeaveCohort {
+			sn.RevOpts.CohortKey = snapst.CohortKey
+		}
+
+		sn.RevOpts.Channel, err = resolveChannel(sn.InstanceName, snapst.TrackingChannel, sn.RevOpts.Channel, opts.DeviceCtx)
+		if err != nil {
+			return err
+		}
+
+		// default to tracking the already tracked channel, if we don't have a
+		// provided one
+		if sn.RevOpts.Channel == "" {
+			sn.RevOpts.Channel = snapst.TrackingChannel
+		}
+
+		updates[sn.InstanceName] = sn
+	}
+
+	return nil
 }

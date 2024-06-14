@@ -1687,8 +1687,8 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 // RefreshCandidates gets a list of candidates for update
 // Note that the state must be locked by the caller.
 func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, error) {
-	updates, _, _, err := refreshCandidates(context.TODO(), st, nil, nil, user, nil)
-	return updates, err
+	summary, err := refreshCandidates(context.TODO(), st, nil, user, nil, Options{})
+	return summary.targetInfos(), err
 }
 
 // ValidateRefreshes allows to hook validation into the handling of refresh candidates.
@@ -1804,114 +1804,8 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 type updateFilter func(*snap.Info, *SnapState) bool
 
 func updateManyFiltered(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, userID int, filter updateFilter, flags *Flags, fromChange string) ([]string, *UpdateTaskSets, error) {
-	if flags == nil {
-		flags = &Flags{}
-	}
-	user, err := userFromUserID(st, userID)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// need to have a model set before trying to talk the store
-	deviceCtx, err := DevicePastSeeding(st, nil)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	names = strutil.Deduplicate(names)
-
-	refreshOpts := &store.RefreshOptions{Scheduled: flags.IsAutoRefresh}
-	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, revOpts, user, refreshOpts)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// save the candidates so the auto-refresh can be continued if it's inhibited
-	// by a running snap.
-	if flags.IsAutoRefresh {
-		hints, err := refreshHintsFromCandidates(st, updates, ignoreValidation, deviceCtx)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		updateRefreshCandidates(st, hints, names)
-	}
-
-	if filter != nil {
-		actual := updates[:0]
-		for _, update := range updates {
-			if filter(update, stateByInstanceName[update.InstanceName()]) {
-				actual = append(actual, update)
-			}
-		}
-		updates = actual
-	}
-
-	if ValidateRefreshes != nil && len(updates) != 0 {
-		updates, err = ValidateRefreshes(st, updates, ignoreValidation, userID, deviceCtx)
-		if err != nil {
-			// not doing "refresh all" report the error
-			if len(names) != 0 {
-				return nil, nil, err
-			}
-			// doing "refresh all", log the problems
-			logger.Noticef("cannot refresh some snaps: %v", err)
-		}
-	}
-
-	params := func(update *snap.Info) (*RevisionOptions, Flags, *SnapState) {
-		snapst := stateByInstanceName[update.InstanceName()]
-		// setting options to what's in state as multi-refresh doesn't let you change these
-		opts := &RevisionOptions{
-			Channel:   snapst.TrackingChannel,
-			CohortKey: snapst.CohortKey,
-		}
-		return opts, snapst.Flags, snapst
-	}
-
-	toUpdate := make([]minimalInstallInfo, len(updates))
-	for i, up := range updates {
-		toUpdate[i] = installSnapInfo{up}
-	}
-
-	// don't refresh held snaps in a general refresh
-	if len(names) == 0 {
-		toUpdate, err = filterHeldSnaps(st, toUpdate, flags)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	if err = checkDiskSpace(st, "refresh", toUpdate, userID, nil); err != nil {
-		return nil, nil, err
-	}
-
-	var updated []string
-	var updateTss *UpdateTaskSets
-	if essential, nonEssential, ok := canSplitRefresh(deviceCtx, toUpdate); ok {
-		// if we're on classic with a kernel/gadget, split refreshes with essential
-		// snaps and apps so that the apps don't have to wait for a reboot
-		updateFunc := func(updates []minimalInstallInfo) ([]string, *UpdateTaskSets, error) {
-			// names are used to determine if the refresh is general, if it was
-			// requested for a snap to update aliases and if it should be reported
-			// so it's fine to pass them all into each call (extra are ignored)
-			return doUpdate(ctx, st, names, updates, params, userID, flags, nil, deviceCtx, fromChange)
-		}
-
-		// splitRefresh already creates a check-rerefresh task as needed
-		return splitRefresh(st, essential, nonEssential, userID, flags, updateFunc)
-	}
-
-	updated, updateTss, err = doUpdate(ctx, st, names, toUpdate, params, userID, flags, nil, deviceCtx, fromChange)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// if there are only pre-downloads, don't add a check-rerefresh task
-	if len(updateTss.Refresh) > 0 {
-		updateTss.Refresh = finalizeUpdate(st, updateTss.Refresh, len(updates) > 0, updated, nil, userID, flags)
-	}
-	return updated, updateTss, nil
+	// TODO: about to be replaced by implementation using UpdateWithGoal
+	return nil, nil, nil
 }
 
 // canSplitRefresh returns whether the refresh is a standard refresh of a mix
@@ -2856,7 +2750,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 
 	refreshOpts := &store.RefreshOptions{Scheduled: true}
 	// XXX: should we skip refreshCandidates if forGatingSnap isn't empty (meaning we're handling proceed from a snap)?
-	candidates, snapstateByInstance, ignoreValidationByInstanceName, err := refreshCandidates(ctx, st, nil, nil, user, refreshOpts)
+	summary, err := refreshCandidates(ctx, st, nil, user, refreshOpts, Options{})
 	if err != nil {
 		// XXX: should we reset "refresh-candidates" to nil in state for some types
 		// of errors?
@@ -2866,7 +2760,8 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 	if err != nil {
 		return nil, nil, err
 	}
-	hints, err := refreshHintsFromCandidates(st, candidates, ignoreValidationByInstanceName, deviceCtx)
+
+	hints, err := refreshHintsFromCandidates(st, summary, deviceCtx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -2881,17 +2776,17 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 
 	// check conflicts
 	fromChange := ""
-	for _, up := range candidates {
-		if _, ok := hints[up.InstanceName()]; !ok {
+	for _, t := range summary.Targets {
+		name := t.info.InstanceName()
+		if _, ok := hints[name]; !ok {
 			// filtered out by refreshHintsFromCandidates
 			continue
 		}
 
-		snapst := snapstateByInstance[up.InstanceName()]
-		if err := checkChangeConflictIgnoringOneChange(st, up.InstanceName(), snapst, fromChange); err != nil {
-			logger.Noticef("cannot refresh snap %q: %v", up.InstanceName(), err)
+		if err := checkChangeConflictIgnoringOneChange(st, name, &t.snapst, fromChange); err != nil {
+			logger.Noticef("cannot refresh snap %q: %v", name, err)
 		} else {
-			updates = append(updates, up.InstanceName())
+			updates = append(updates, name)
 		}
 	}
 
