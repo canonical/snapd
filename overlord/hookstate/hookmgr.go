@@ -102,7 +102,7 @@ type HookSetup struct {
 
 	// ComponentRevision is the revision of the component that the hook is
 	// associated with. Only valid if Component is not empty.
-	ComponentRevision snap.Revision `json:"component-revision,omitempty"`
+	ComponentRevision snap.Revision `json:"component-revision"`
 }
 
 // Manager returns a new HookManager.
