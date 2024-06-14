@@ -1,0 +1,78 @@
+summary: Verify that core seeded with old secboot and updated can be reset
+
+details: |
+    This verifies that updating to new snapd and factory-reset to a
+    snapd prior to secboot changes works. This test also forces
+    resealing with new version of snapd in order to make sure that
+    keys are kept in format readable for the factory reset.
+
+systems: [ubuntu-2*]
+
+environment:
+    # 2.63 release
+    OLD_SNAPD_REVISION: "21759"
+    NESTED_BUILD_SNAPD_FROM_CURRENT: false
+
+    # hook
+    ENCRYPTION/hook: "hook"
+    NESTED_ENABLE_TPM/hook: false
+    NESTED_ENABLE_SECURE_BOOT/hook: false
+
+    # tpm
+    ENCRYPTION/tpm: "tpm"
+    NESTED_ENABLE_TPM/tpm: true
+    NESTED_ENABLE_SECURE_BOOT/tpm: true
+
+prepare: |
+    if [ "${ENCRYPTION}" = hook ]; then
+       mkdir -p ./extra-initrd/usr/bin/
+       go build -o ./extra-initrd/usr/bin/fde-reveal-key "$TESTSLIB"/fde-setup-hook/fde-setup.go
+       mkdir -p ./extra-kernel-snap/meta/hooks
+       go build -o ./extra-kernel-snap/meta/hooks/fde-setup "$TESTSLIB"/fde-setup-hook/fde-setup.go
+    fi
+
+    snap download snapd --revision="${OLD_SNAPD_REVISION}" --target-directory="$(tests.nested get extra-snaps-path)"
+
+    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
+
+    # Because of NESTED_BUILD_SNAPD_FROM_CURRENT=false, we need to
+    # force building the other snaps.
+    tests.nested prepare-essential-snaps
+
+    unsquashfs -d pc "$(tests.nested get extra-snaps-path)"/pc.snap
+    echo "forceresealing" >>pc/cmdline.extra
+    snap pack pc/ --filename=pc-new.snap
+    rm -rf pc/
+
+    tests.nested build-image core
+    tests.nested create-vm core
+
+execute: |
+    # Make sure we have encryption
+    remote.exec "ls /dev/mapper/ubuntu-data*"
+    remote.exec "ls /dev/mapper/ubuntu-save*"
+
+    remote.exec "snap version" | MATCH "^snapd *2.63$"
+
+    remote.push snapd-from-deb.snap
+    remote.exec "sudo snap install --dangerous snapd-from-deb.snap"
+
+    boot_id="$(tests.nested boot-id)"
+    remote.exec "sudo snap reboot" || true
+    remote.wait-for reboot "${boot_id}"
+
+    remote.exec "snap version" | NOMATCH "^snapd *2.63$"
+
+    remote.push pc-new.snap
+    boot_id="$(tests.nested boot-id)"
+    remote.exec "sudo snap install --dangerous pc-new.snap" || true
+    remote.wait-for reboot "${boot_id}"
+
+    remote.exec "cat /proc/cmdline" | MATCH "forceresealing"
+
+    boot_id="$(tests.nested boot-id)"
+    remote.exec "sudo snap reboot --factory-reset" || true
+    remote.wait-for reboot "${boot_id}"
+
+    remote.exec "sudo snap wait system seed.loaded"
+    remote.exec "snap version" | MATCH "^snapd *2.63$"
