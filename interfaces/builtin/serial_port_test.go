@@ -231,68 +231,71 @@ slots:
         path: /dev/ttyillegal0
     bad-interface: other-interface
 `, nil)
+	appSet, err := interfaces.NewSnapAppSet(s.osSnapInfo, nil)
+	c.Assert(err, IsNil)
+
 	s.testSlot1Info = s.osSnapInfo.Slots["test-port-1"]
-	s.testSlot1 = interfaces.NewConnectedSlot(s.testSlot1Info, nil, nil)
+	s.testSlot1 = interfaces.NewConnectedSlot(s.testSlot1Info, appSet, nil, nil)
 	s.testSlot2Info = s.osSnapInfo.Slots["test-port-2"]
-	s.testSlot2 = interfaces.NewConnectedSlot(s.testSlot2Info, nil, nil)
+	s.testSlot2 = interfaces.NewConnectedSlot(s.testSlot2Info, appSet, nil, nil)
 	s.testSlot3Info = s.osSnapInfo.Slots["test-port-3"]
-	s.testSlot3 = interfaces.NewConnectedSlot(s.testSlot3Info, nil, nil)
+	s.testSlot3 = interfaces.NewConnectedSlot(s.testSlot3Info, appSet, nil, nil)
 	s.testSlot4Info = s.osSnapInfo.Slots["test-port-4"]
-	s.testSlot4 = interfaces.NewConnectedSlot(s.testSlot4Info, nil, nil)
+	s.testSlot4 = interfaces.NewConnectedSlot(s.testSlot4Info, appSet, nil, nil)
 	s.testSlot5Info = s.osSnapInfo.Slots["test-port-5"]
-	s.testSlot5 = interfaces.NewConnectedSlot(s.testSlot5Info, nil, nil)
+	s.testSlot5 = interfaces.NewConnectedSlot(s.testSlot5Info, appSet, nil, nil)
 	s.testSlot6Info = s.osSnapInfo.Slots["test-port-6"]
-	s.testSlot6 = interfaces.NewConnectedSlot(s.testSlot6Info, nil, nil)
+	s.testSlot6 = interfaces.NewConnectedSlot(s.testSlot6Info, appSet, nil, nil)
 	s.testSlot7Info = s.osSnapInfo.Slots["test-port-7"]
-	s.testSlot7 = interfaces.NewConnectedSlot(s.testSlot7Info, nil, nil)
+	s.testSlot7 = interfaces.NewConnectedSlot(s.testSlot7Info, appSet, nil, nil)
 	s.testSlot8Info = s.osSnapInfo.Slots["test-port-8"]
-	s.testSlot8 = interfaces.NewConnectedSlot(s.testSlot8Info, nil, nil)
+	s.testSlot8 = interfaces.NewConnectedSlot(s.testSlot8Info, appSet, nil, nil)
 	s.testSlot9Info = s.osSnapInfo.Slots["test-port-9"]
-	s.testSlot9 = interfaces.NewConnectedSlot(s.testSlot9Info, nil, nil)
+	s.testSlot9 = interfaces.NewConnectedSlot(s.testSlot9Info, appSet, nil, nil)
 	s.testSlot10Info = s.osSnapInfo.Slots["test-port-10"]
-	s.testSlot10 = interfaces.NewConnectedSlot(s.testSlot10Info, nil, nil)
+	s.testSlot10 = interfaces.NewConnectedSlot(s.testSlot10Info, appSet, nil, nil)
 	s.testSlot11Info = s.osSnapInfo.Slots["test-port-11"]
-	s.testSlot11 = interfaces.NewConnectedSlot(s.testSlot11Info, nil, nil)
+	s.testSlot11 = interfaces.NewConnectedSlot(s.testSlot11Info, appSet, nil, nil)
 	s.testSlot12Info = s.osSnapInfo.Slots["test-port-12"]
-	s.testSlot12 = interfaces.NewConnectedSlot(s.testSlot12Info, nil, nil)
+	s.testSlot12 = interfaces.NewConnectedSlot(s.testSlot12Info, appSet, nil, nil)
 	s.testSlot13Info = s.osSnapInfo.Slots["test-port-13"]
-	s.testSlot13 = interfaces.NewConnectedSlot(s.testSlot13Info, nil, nil)
+	s.testSlot13 = interfaces.NewConnectedSlot(s.testSlot13Info, appSet, nil, nil)
 	s.testSlotCleanedInfo = s.osSnapInfo.Slots["test-port-unclean"]
-	s.testSlotCleaned = interfaces.NewConnectedSlot(s.testSlotCleanedInfo, nil, nil)
+	s.testSlotCleaned = interfaces.NewConnectedSlot(s.testSlotCleanedInfo, appSet, nil, nil)
 	s.missingPathSlotInfo = s.osSnapInfo.Slots["missing-path"]
-	s.missingPathSlot = interfaces.NewConnectedSlot(s.missingPathSlotInfo, nil, nil)
+	s.missingPathSlot = interfaces.NewConnectedSlot(s.missingPathSlotInfo, appSet, nil, nil)
 	s.badPathSlot1Info = s.osSnapInfo.Slots["bad-path-1"]
-	s.badPathSlot1 = interfaces.NewConnectedSlot(s.badPathSlot1Info, nil, nil)
+	s.badPathSlot1 = interfaces.NewConnectedSlot(s.badPathSlot1Info, appSet, nil, nil)
 	s.badPathSlot2Info = s.osSnapInfo.Slots["bad-path-2"]
-	s.badPathSlot2 = interfaces.NewConnectedSlot(s.badPathSlot2Info, nil, nil)
+	s.badPathSlot2 = interfaces.NewConnectedSlot(s.badPathSlot2Info, appSet, nil, nil)
 	s.badPathSlot3Info = s.osSnapInfo.Slots["bad-path-3"]
-	s.badPathSlot3 = interfaces.NewConnectedSlot(s.badPathSlot3Info, nil, nil)
+	s.badPathSlot3 = interfaces.NewConnectedSlot(s.badPathSlot3Info, appSet, nil, nil)
 	s.badPathSlot4Info = s.osSnapInfo.Slots["bad-path-4"]
-	s.badPathSlot4 = interfaces.NewConnectedSlot(s.badPathSlot4Info, nil, nil)
+	s.badPathSlot4 = interfaces.NewConnectedSlot(s.badPathSlot4Info, appSet, nil, nil)
 	s.badPathSlot5Info = s.osSnapInfo.Slots["bad-path-5"]
-	s.badPathSlot5 = interfaces.NewConnectedSlot(s.badPathSlot5Info, nil, nil)
+	s.badPathSlot5 = interfaces.NewConnectedSlot(s.badPathSlot5Info, appSet, nil, nil)
 	s.badPathSlot6Info = s.osSnapInfo.Slots["bad-path-6"]
-	s.badPathSlot6 = interfaces.NewConnectedSlot(s.badPathSlot6Info, nil, nil)
+	s.badPathSlot6 = interfaces.NewConnectedSlot(s.badPathSlot6Info, appSet, nil, nil)
 	s.badPathSlot7Info = s.osSnapInfo.Slots["bad-path-7"]
-	s.badPathSlot7 = interfaces.NewConnectedSlot(s.badPathSlot7Info, nil, nil)
+	s.badPathSlot7 = interfaces.NewConnectedSlot(s.badPathSlot7Info, appSet, nil, nil)
 	s.badPathSlot8Info = s.osSnapInfo.Slots["bad-path-8"]
-	s.badPathSlot8 = interfaces.NewConnectedSlot(s.badPathSlot8Info, nil, nil)
+	s.badPathSlot8 = interfaces.NewConnectedSlot(s.badPathSlot8Info, appSet, nil, nil)
 	s.badPathSlot9Info = s.osSnapInfo.Slots["bad-path-9"]
-	s.badPathSlot9 = interfaces.NewConnectedSlot(s.badPathSlot9Info, nil, nil)
+	s.badPathSlot9 = interfaces.NewConnectedSlot(s.badPathSlot9Info, appSet, nil, nil)
 	s.badPathSlot10Info = s.osSnapInfo.Slots["bad-path-10"]
-	s.badPathSlot10 = interfaces.NewConnectedSlot(s.badPathSlot10Info, nil, nil)
+	s.badPathSlot10 = interfaces.NewConnectedSlot(s.badPathSlot10Info, appSet, nil, nil)
 	s.badPathSlot11Info = s.osSnapInfo.Slots["bad-path-11"]
-	s.badPathSlot11 = interfaces.NewConnectedSlot(s.badPathSlot11Info, nil, nil)
+	s.badPathSlot11 = interfaces.NewConnectedSlot(s.badPathSlot11Info, appSet, nil, nil)
 	s.badPathSlot12Info = s.osSnapInfo.Slots["bad-path-12"]
-	s.badPathSlot12 = interfaces.NewConnectedSlot(s.badPathSlot12Info, nil, nil)
+	s.badPathSlot12 = interfaces.NewConnectedSlot(s.badPathSlot12Info, appSet, nil, nil)
 	s.badPathSlot13Info = s.osSnapInfo.Slots["bad-path-13"]
-	s.badPathSlot13 = interfaces.NewConnectedSlot(s.badPathSlot13Info, nil, nil)
+	s.badPathSlot13 = interfaces.NewConnectedSlot(s.badPathSlot13Info, appSet, nil, nil)
 	s.badPathSlot14Info = s.osSnapInfo.Slots["bad-path-14"]
-	s.badPathSlot14 = interfaces.NewConnectedSlot(s.badPathSlot14Info, nil, nil)
+	s.badPathSlot14 = interfaces.NewConnectedSlot(s.badPathSlot14Info, appSet, nil, nil)
 	s.badPathSlot100Info = s.osSnapInfo.Slots["bad-path-100"]
-	s.badPathSlot100 = interfaces.NewConnectedSlot(s.badPathSlot100Info, nil, nil)
+	s.badPathSlot100 = interfaces.NewConnectedSlot(s.badPathSlot100Info, appSet, nil, nil)
 	s.badInterfaceSlotInfo = s.osSnapInfo.Slots["bad-interface"]
-	s.badInterfaceSlot = interfaces.NewConnectedSlot(s.badInterfaceSlotInfo, nil, nil)
+	s.badInterfaceSlot = interfaces.NewConnectedSlot(s.badInterfaceSlotInfo, appSet, nil, nil)
 
 	s.gadgetSnapInfo = snaptest.MockInfo(c, `
 name: some-device
@@ -343,22 +346,25 @@ slots:
       usb-interface-number: 32
       path: /dev/serial-port-overinterfacenumber
 `, nil)
+	appSet, err = interfaces.NewSnapAppSet(s.gadgetSnapInfo, nil)
+	c.Assert(err, IsNil)
+
 	s.testUDev1Info = s.gadgetSnapInfo.Slots["test-udev-1"]
-	s.testUDev1 = interfaces.NewConnectedSlot(s.testUDev1Info, nil, nil)
+	s.testUDev1 = interfaces.NewConnectedSlot(s.testUDev1Info, appSet, nil, nil)
 	s.testUDev2Info = s.gadgetSnapInfo.Slots["test-udev-2"]
-	s.testUDev2 = interfaces.NewConnectedSlot(s.testUDev2Info, nil, nil)
+	s.testUDev2 = interfaces.NewConnectedSlot(s.testUDev2Info, appSet, nil, nil)
 	s.testUDev3Info = s.gadgetSnapInfo.Slots["test-udev-3"]
-	s.testUDev3 = interfaces.NewConnectedSlot(s.testUDev3Info, nil, nil)
+	s.testUDev3 = interfaces.NewConnectedSlot(s.testUDev3Info, appSet, nil, nil)
 	s.testUDevBadValue1Info = s.gadgetSnapInfo.Slots["test-udev-bad-value-1"]
-	s.testUDevBadValue1 = interfaces.NewConnectedSlot(s.testUDevBadValue1Info, nil, nil)
+	s.testUDevBadValue1 = interfaces.NewConnectedSlot(s.testUDevBadValue1Info, appSet, nil, nil)
 	s.testUDevBadValue2Info = s.gadgetSnapInfo.Slots["test-udev-bad-value-2"]
-	s.testUDevBadValue3 = interfaces.NewConnectedSlot(s.testUDevBadValue2Info, nil, nil)
+	s.testUDevBadValue3 = interfaces.NewConnectedSlot(s.testUDevBadValue2Info, appSet, nil, nil)
 	s.testUDevBadValue3Info = s.gadgetSnapInfo.Slots["test-udev-bad-value-3"]
-	s.testUDevBadValue3 = interfaces.NewConnectedSlot(s.testUDevBadValue3Info, nil, nil)
+	s.testUDevBadValue3 = interfaces.NewConnectedSlot(s.testUDevBadValue3Info, appSet, nil, nil)
 	s.testUDevBadValue4Info = s.gadgetSnapInfo.Slots["test-udev-bad-value-4"]
-	s.testUDevBadValue4 = interfaces.NewConnectedSlot(s.testUDevBadValue4Info, nil, nil)
+	s.testUDevBadValue4 = interfaces.NewConnectedSlot(s.testUDevBadValue4Info, appSet, nil, nil)
 	s.testUDevBadValue5Info = s.gadgetSnapInfo.Slots["test-udev-bad-value-5"]
-	s.testUDevBadValue5 = interfaces.NewConnectedSlot(s.testUDevBadValue5Info, nil, nil)
+	s.testUDevBadValue5 = interfaces.NewConnectedSlot(s.testUDevBadValue5Info, appSet, nil, nil)
 
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
@@ -382,12 +388,15 @@ apps:
         command: foo
         plugs: [plug-for-port-3]
 `, nil)
+	appSet, err = interfaces.NewSnapAppSet(consumingSnapInfo, nil)
+	c.Assert(err, IsNil)
+
 	s.testPlugPort1Info = consumingSnapInfo.Plugs["plug-for-port-1"]
-	s.testPlugPort1 = interfaces.NewConnectedPlug(s.testPlugPort1Info, nil, nil)
+	s.testPlugPort1 = interfaces.NewConnectedPlug(s.testPlugPort1Info, appSet, nil, nil)
 	s.testPlugPort2Info = consumingSnapInfo.Plugs["plug-for-port-2"]
-	s.testPlugPort2 = interfaces.NewConnectedPlug(s.testPlugPort2Info, nil, nil)
+	s.testPlugPort2 = interfaces.NewConnectedPlug(s.testPlugPort2Info, appSet, nil, nil)
 	s.testPlugPort3Info = consumingSnapInfo.Plugs["plug-for-port-3"]
-	s.testPlugPort3 = interfaces.NewConnectedPlug(s.testPlugPort3Info, nil, nil)
+	s.testPlugPort3 = interfaces.NewConnectedPlug(s.testPlugPort3Info, appSet, nil, nil)
 }
 
 func (s *SerialPortInterfaceSuite) TestName(c *C) {
@@ -455,30 +464,24 @@ func (s *SerialPortInterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
 }
 
 func (s *SerialPortInterfaceSuite) TestPermanentSlotUDevSnippets(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.osSnapInfo, nil)
-	c.Assert(err, IsNil)
-	spec := udev.NewSpecification(appSet)
+	spec := udev.NewSpecification(s.testSlot1.AppSet())
 	for _, slot := range []*snap.SlotInfo{s.testSlot1Info, s.testSlot2Info, s.testSlot3Info, s.testSlot4Info} {
 		err := spec.AddPermanentSlot(s.iface, slot)
 		c.Assert(err, IsNil)
 		c.Assert(spec.Snippets(), HasLen, 0)
 	}
 
-	appSet, err = interfaces.NewSnapAppSet(s.gadgetSnapInfo, nil)
-	c.Assert(err, IsNil)
-	spec = udev.NewSpecification(appSet)
+	spec = udev.NewSpecification(s.testUDev1.AppSet())
 	expectedSnippet1 := `# serial-port
 IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", SYMLINK+="serial-port-zigbee"`
-	err = spec.AddPermanentSlot(s.iface, s.testUDev1Info)
+	err := spec.AddPermanentSlot(s.iface, s.testUDev1Info)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet := spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet1)
 
-	appSet, err = interfaces.NewSnapAppSet(s.gadgetSnapInfo, nil)
-	c.Assert(err, IsNil)
-	spec = udev.NewSpecification(appSet)
+	spec = udev.NewSpecification(s.testUDev2.AppSet())
 	expectedSnippet2 := `# serial-port
 IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", SYMLINK+="serial-port-mydevice"`
@@ -488,9 +491,7 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}==
 	snippet = spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet2)
 
-	appSet, err = interfaces.NewSnapAppSet(s.gadgetSnapInfo, nil)
-	c.Assert(err, IsNil)
-	spec = udev.NewSpecification(appSet)
+	spec = udev.NewSpecification(s.testUDev3.AppSet())
 	// The ENV{ID_USB_INTERFACE_NUM} is set to two hex digits
 	// For instance, the expectedSnippet3 is set to 00
 	expectedSnippet3 := `# serial-port
@@ -505,10 +506,8 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="abcd", ATTRS{idProduct}==
 
 func (s *SerialPortInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
 	// add the plug for the slot with just path
-	appSet, err := interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec := udev.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSlot1)
+	spec := udev.NewSpecification(s.testPlugPort1.AppSet())
+	err := spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSlot1)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	snippet := spec.Snippets()[0]
@@ -520,9 +519,7 @@ SUBSYSTEM=="tty", KERNEL=="ttyS0", TAG+="snap_client-snap_app-accessing-2-ports"
 	c.Assert(extraSnippet, Equals, expectedExtraSnippet1)
 
 	// add plug for the first slot with product and vendor ids
-	appSet, err = interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec = udev.NewSpecification(appSet)
+	spec = udev.NewSpecification(s.testPlugPort1.AppSet())
 	err = spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
@@ -536,9 +533,7 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}==
 	c.Assert(extraSnippet, Equals, expectedExtraSnippet2)
 
 	// add plug for the first slot with product and vendor ids
-	appSet, err = interfaces.NewSnapAppSet(s.testPlugPort2.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec = udev.NewSpecification(appSet)
+	spec = udev.NewSpecification(s.testPlugPort2.AppSet())
 	err = spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev2)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
@@ -552,9 +547,7 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}==
 	c.Assert(extraSnippet, Equals, expectedExtraSnippet3)
 
 	// add plug for the first slot with product and vendor ids and usb interface number
-	appSet, err = interfaces.NewSnapAppSet(s.testPlugPort2.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec = udev.NewSpecification(appSet)
+	spec = udev.NewSpecification(s.testPlugPort2.AppSet())
 	err = spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev3)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
@@ -570,10 +563,8 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="abcd", ATTRS{idProduct}==
 
 func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	checkConnectedPlugSnippet := func(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, expectedSnippet string) {
-		appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
-		c.Assert(err, IsNil)
-		apparmorSpec := apparmor.NewSpecification(appSet)
-		err = apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
+		apparmorSpec := apparmor.NewSpecification(plug.AppSet())
+		err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 		c.Assert(err, IsNil)
 
 		c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-2-ports"})
@@ -631,10 +622,8 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 
 func (s *SerialPortInterfaceSuite) TestConnectedPlugUDevSnippetsForPath(c *C) {
 	checkConnectedPlugSnippet := func(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, expectedSnippet string, expectedExtraSnippet string) {
-		appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
-		c.Assert(err, IsNil)
-		udevSpec := udev.NewSpecification(appSet)
-		err = udevSpec.AddConnectedPlug(s.iface, plug, slot)
+		udevSpec := udev.NewSpecification(plug.AppSet())
+		err := udevSpec.AddConnectedPlug(s.iface, plug, slot)
 		c.Assert(err, IsNil)
 
 		c.Assert(udevSpec.Snippets(), HasLen, 2)

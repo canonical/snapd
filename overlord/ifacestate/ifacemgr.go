@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -62,6 +62,11 @@ type InterfaceManager struct {
 	// extras
 	extraInterfaces []interfaces.Interface
 	extraBackends   []interfaces.SecurityBackend
+
+	// AppArmor Prompting -- these values should never be used directly.
+	// Always check useAppArmorPrompting().
+	useAppArmorPromptingValue   bool
+	useAppArmorPromptingChecker sync.Once
 
 	preseed bool
 }
@@ -140,7 +145,7 @@ func (m *InterfaceManager) StartUp() error {
 	s.Lock()
 	defer s.Unlock()
 
-	snaps, err := snapsWithSecurityProfiles(m.state)
+	appSets, err := snapsWithSecurityProfiles(m.state)
 	if err != nil {
 		return err
 	}
@@ -149,7 +154,7 @@ func (m *InterfaceManager) StartUp() error {
 	// duration of this process always add implicit slots to snapd and not to
 	// any other type: os snap and use a mapper to use names core-snapd-system
 	// on state, in memory and in API responses, respectively.
-	m.selectInterfaceMapper(snaps)
+	m.selectInterfaceMapper(appSets)
 
 	if err := m.addInterfaces(m.extraInterfaces); err != nil {
 		return err
@@ -157,7 +162,7 @@ func (m *InterfaceManager) StartUp() error {
 	if err := m.addBackends(m.extraBackends); err != nil {
 		return err
 	}
-	if err := m.addSnaps(snaps); err != nil {
+	if err := m.addAppSets(appSets); err != nil {
 		return err
 	}
 	if err := m.renameCorePlugConnection(); err != nil {
@@ -169,7 +174,7 @@ func (m *InterfaceManager) StartUp() error {
 	if _, err := m.reloadConnections(""); err != nil {
 		return err
 	}
-	if profilesNeedRegeneration() {
+	if m.profilesNeedRegeneration() {
 		if err := m.regenerateAllSecurityProfiles(perfTimings); err != nil {
 			return err
 		}

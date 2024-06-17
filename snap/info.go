@@ -1154,6 +1154,18 @@ func (st StopModeType) Validate() error {
 	return fmt.Errorf(`"stop-mode" field contains invalid value %q`, st)
 }
 
+// Runnable represents a runnable element of a snap. This could either be an
+// app, a hook, or a component hook.
+type Runnable struct {
+	// CommandName is the name of the command that is run when this runnable
+	// runs.
+	CommandName string
+	// SecurityTag is the security tag associated with the runnable. Security
+	// tags are used by various security subsystems as "profile names" and
+	// sometimes also as a part of the file name.
+	SecurityTag string
+}
+
 // AppInfo provides information about an app.
 type AppInfo struct {
 	Snap *Info
@@ -1201,6 +1213,14 @@ type AppInfo struct {
 	Autostart string
 }
 
+// Runnable returns a Runnable for this app.
+func (app *AppInfo) Runnable() Runnable {
+	return Runnable{
+		CommandName: app.Name,
+		SecurityTag: app.SecurityTag(),
+	}
+}
+
 // ScreenshotInfo provides information about a screenshot.
 type ScreenshotInfo struct {
 	URL    string `json:"url,omitempty"`
@@ -1242,6 +1262,22 @@ type HookInfo struct {
 	CommandChain []string
 
 	Explicit bool
+}
+
+// Runnable returns a Runnable for this hook. If this hook points to a
+// component, then this runnable will represent a component hook.
+func (hook *HookInfo) Runnable() Runnable {
+	if hook.Component == nil {
+		return Runnable{
+			CommandName: fmt.Sprintf("hook.%s", hook.Name),
+			SecurityTag: hook.SecurityTag(),
+		}
+	}
+
+	return Runnable{
+		CommandName: fmt.Sprintf("%s+%s.hook.%s", hook.Snap.SnapName(), hook.Component.Name, hook.Name),
+		SecurityTag: hook.SecurityTag(),
+	}
 }
 
 // SystemUsernameInfo provides information about a system username (ie, a

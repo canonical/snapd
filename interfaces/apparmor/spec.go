@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017-2018 Canonical Ltd
+ * Copyright (C) 2017-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -107,6 +107,9 @@ type Specification struct {
 
 	// Same as the above, but for the pycache deny rule which breaks docker
 	suppressPycacheDeny bool
+
+	// Include prompt prefix for relevant rules when generating security profiles.
+	usePromptPrefix bool
 
 	// Unconfined profile mode allows a profile to be applied without any
 	// real confinement
@@ -755,6 +758,12 @@ func (spec *Specification) SetSuppressPtraceTrace() {
 // by any of the interfaces in the spec.
 func (spec *Specification) SuppressPtraceTrace() bool {
 	return spec.suppressPtraceTrace
+}
+
+// UsePromptPrefix returns whether the prompt prefix should be included for
+// relevant rules when generating security profiles.
+func (spec *Specification) UsePromptPrefix() bool {
+	return spec.usePromptPrefix
 }
 
 // SetUsesSysModuleCapability records that some interface has granted the

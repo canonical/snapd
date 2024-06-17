@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -46,20 +45,21 @@ apps:
   plugs: [power-control]
 `
 
+const powerControlMockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ power-control:
+  interface: power-control
+`
+
 var _ = Suite(&PowerControlInterfaceSuite{
 	iface: builtin.MustInterface("power-control"),
 })
 
 func (s *PowerControlInterfaceSuite) SetUpTest(c *C) {
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "power-control",
-		Interface: "power-control",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	plugSnap := snaptest.MockInfo(c, powerControlMockPlugSnapInfoYaml, nil)
-	s.plugInfo = plugSnap.Plugs["power-control"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.slot, s.slotInfo = MockConnectedSlot(c, powerControlMockSlotSnapInfoYaml, nil, "power-control")
+	s.plug, s.plugInfo = MockConnectedPlug(c, powerControlMockPlugSnapInfoYaml, nil, "power-control")
 }
 
 func (s *PowerControlInterfaceSuite) TestName(c *C) {
@@ -76,10 +76,8 @@ func (s *PowerControlInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *PowerControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	spec := apparmor.NewSpecification(s.plug.AppSet())
+	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/sys/devices/**/power/{,*} r,`)

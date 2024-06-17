@@ -129,6 +129,7 @@ run_muinstaller() {
     tests.nested create-vm core --extra-param "${NESTED_PARAM_EXTRA}"
 
     # bind mount new seed
+    remote.exec "sudo mkdir -p /var/lib/snapd/seed"
     remote.exec "sudo mount -o bind /var/lib/snapd/install-seed /var/lib/snapd/seed"
     # push and install muinstaller
     remote.push "${muinstaller_snap}"
@@ -155,7 +156,11 @@ run_muinstaller() {
     image_path="${NESTED_IMAGES_DIR}/${image_name}"
     kpartx -asv "${image_path}"
     fatlabel /dev/disk/by-label/ubuntu-seed UBUNTU-SEED
-    kpartx -d "${image_path}"
+    if ! kpartx -d "${image_path}"; then
+        # Sometimes there are random failures, let's wait and re-try
+        sleep 1
+        kpartx -d "${image_path}"
+    fi
 
     if [ -n "${store_dir}" ]; then
         # if we had a store setup, then we should bring it back up

@@ -597,7 +597,7 @@ jobs:
             tests: 'tests/...'
           - group: centos
             backend: google-distro-2
-            systems: 'centos-7-64 centos-8-64 centos-9-64'
+            systems: 'centos-7-64 centos-9-64'
             tests: 'tests/...'
           - group: debian-req
             backend: google-distro-1
@@ -804,7 +804,7 @@ jobs:
         if [ -e spread.log ]; then
             echo "Running spread log analyzer"
             issues_metadata='{"source_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}'
-            ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --print-detail error-debug --output spread-results.json --cut 100
+            ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json --cut 100
             while IFS= read -r line; do
                 if [ ! -z "$line" ]; then
                     echo "Reporting spread error..."

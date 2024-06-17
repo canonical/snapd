@@ -444,7 +444,7 @@ func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
 		return snap.NewComponentInfo(
 			expectedCompSideInfo.Component,
 			snap.TestComponent,
-			"1.0", "", "", nil,
+			"1.0", "", "", "", nil,
 		), nil
 	})()
 

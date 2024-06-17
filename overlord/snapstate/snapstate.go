@@ -53,7 +53,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snapdenv"
-	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -579,7 +578,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	// This task is necessary only for UC20+ and hybrid
-	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx) {
+	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx.Model()) {
 		setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(setupKernel)
 		prev = setupKernel
@@ -643,7 +642,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(autoConnect)
 	prev = autoConnect
 
-	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx) {
+	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx.Model()) {
 		// This task needs to run after we're back and running the new
 		// kernel after a reboot was requested in link-snap handler.
 		setupKernel := st.NewTask("discard-old-kernel-snap-setup", fmt.Sprintf(i18n.G("Discard previous kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
@@ -821,52 +820,22 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	return installSet, nil
 }
 
-func NeedsKernelSetup(devCtx DeviceContext) bool {
-	// Must be UC20+ or hybrid
-	if !devCtx.HasModeenv() {
+func NeedsKernelSetup(model *asserts.Model) bool {
+	// Checkinf if it has modeenv - it must be UC20+ or hybrid
+	if model.Grade() == asserts.ModelGradeUnset {
 		return false
 	}
 
-	// Check that we have a snapd-generator that will create mount
-	// units for the drivers tree, for both classic & UC
-	if devCtx.Classic() {
-		// We run the generator from the deb package, so check its version
-		snapdInfoDir := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir)
-		debVersion, _, err := snapdtool.SnapdVersionFromInfoFile(snapdInfoDir)
-		if err != nil {
-			return false
-		}
-
-		res, err := strutil.VersionCompare(debVersion, "2.62")
-		if err != nil {
-			logger.Noticef("cannot compare %q to 2.62: %v", debVersion, err)
-			return false
-		}
-		if res >= 0 {
-			return true
-		}
-	} else {
-		// We assume core24 onwards has the generator, for older boot bases
-		// we return false.
-		// TODO this won't work for a UC2{0,2} -> UC24+ remodel as we
-		// need the context created from the new model. Get to this
-		// ASAP after snapd 2.62 release.
-		baseSn := devCtx.Model().BaseSnap()
-		if baseSn == nil {
-			logger.Noticef("internal error: no base in model")
-			return false
-		}
-		// TODO in remodeling we are not getting the right answer,
-		// how to fix that?
-		switch baseSn.SnapName() {
-		case "core20", "core22", "core22-desktop":
-			return false
-		default:
-			return true
-		}
+	// We assume core24/hybrid 24.04 onwards have the generator, for older
+	// boot bases we return false.
+	// TODO this won't work for a UC2{0,2} -> UC24+ remodel as we need the
+	// new model here. Get to this ASAP after snapd 2.62 release.
+	switch model.Base() {
+	case "core20", "core22", "core22-desktop":
+		return false
+	default:
+		return true
 	}
-
-	return false
 }
 
 func findTasksMatchingKindAndSnap(st *state.State, kind string, snapName string, revision snap.Revision) ([]*state.Task, error) {
@@ -2140,10 +2109,10 @@ func canSplitRefresh(deviceCtx DeviceContext, infos []minimalInstallInfo) (essen
 	return essential, nonEssential, true
 }
 
-// splitRefresh creates two separate tasksets for the essential and non-essential
-// snap refresh groups, creating dependencies between specific tasks when
-// appropriate (e.g., snapd is present and should go first or an app uses the
-// model base as its base and must wait for its update).
+// splitRefresh creates independent refresh task chains for the essential and
+// non-essential snaps, so that the latter can refresh independently without
+// waiting for the reboot that the essential snaps require. The only cross-set
+// dependency is snapd which, if present, must refresh before all other snaps.
 func splitRefresh(st *state.State, essential, nonEssential []minimalInstallInfo, userID int, flags *Flags, updateFunc func([]minimalInstallInfo) ([]string, *UpdateTaskSets, error)) ([]string, *UpdateTaskSets, error) {
 	// taskset with essential snaps (snapd, kernel, gadget and the model base)
 	essentialUpdated, essentialTss, err := updateFunc(essential)
@@ -2181,60 +2150,15 @@ func splitRefresh(st *state.State, essential, nonEssential []minimalInstallInfo,
 		}
 	}
 
-	// add dependencies between apps and the boot base, if required
-	var crossSetDependency bool
-	for _, base := range essential {
-		if base.Type() != snap.TypeBase {
-			continue
-		}
-
-		for _, app := range nonEssential {
-			if app.SnapBase() != base.InstanceName() {
-				continue
-			}
-
-			baseTaskset, err := maybeFindTasksetForSnap(essentialTss.Refresh, base.InstanceName())
-			if err != nil {
-				return nil, nil, err
-			}
-
-			appTaskset, err := maybeFindTasksetForSnap(nonEssentialTss.Refresh, app.InstanceName())
-			if err != nil {
-				return nil, nil, err
-			}
-
-			if baseTaskset == nil || appTaskset == nil {
-				// one of the snaps is not being updated
-				continue
-			}
-
-			// make the app wait for the base
-			baseEndTask := baseTaskset.MaybeEdge(EndEdge)
-			if baseEndTask == nil {
-				return nil, nil, fmt.Errorf("internal error: cannot find last task in base's update taskset")
-			}
-			appStartTask := appTaskset.MaybeEdge(BeginEdge)
-			if appStartTask == nil {
-				return nil, nil, fmt.Errorf("internal error: cannot find first task in snap's taskset")
-			}
-
-			appStartTask.WaitFor(baseEndTask)
-			crossSetDependency = true
-		}
-	}
-
-	// essential snaps don't use epochs at the moment so we only need to consider
-	// re-refreshes for the non-essential refreshes
+	// essential snaps don't use epochs at the moment so we can run a check-rerefresh
+	// task with the non-essential set (before the reboot). Note that even if some
+	// app depends on the model base, the prerequisites code will only wait for it
+	// to link and therefore doesn't need to wait for the reboot
 	if len(nonEssentialTss.Refresh) > 0 && !flags.NoReRefresh {
-		// if there are no cross-set dependencies, the rerefresh can be done
-		// before the reboot. If some app does need to wait for the reboot, the
-		// rerefresh check needs to wait for it so we do it at the end as usual
 		var considerTasks []string
-		if !crossSetDependency {
-			for _, ts := range nonEssentialTss.Refresh {
-				for _, t := range ts.Tasks() {
-					considerTasks = append(considerTasks, t.ID())
-				}
+		for _, ts := range nonEssentialTss.Refresh {
+			for _, t := range ts.Tasks() {
+				considerTasks = append(considerTasks, t.ID())
 			}
 		}
 
@@ -3486,7 +3410,7 @@ func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*stat
 		if err != nil {
 			return nil, err
 		}
-		if NeedsKernelSetup(deviceCtx) {
+		if NeedsKernelSetup(deviceCtx.Model()) {
 			setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q (%s) for remodel"), snapsup.InstanceName(), snapst.Current))
 			ts.AddTask(setupKernel)
 			setupKernel.Set("snap-setup-task", prepareSnap.ID())
@@ -3545,7 +3469,7 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet,
 		if err != nil {
 			return nil, err
 		}
-		if NeedsKernelSetup(deviceCtx) {
+		if NeedsKernelSetup(deviceCtx.Model()) {
 			setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q (%s) for remodel"), snapsup.InstanceName(), snapsup.Revision()))
 			setupKernel.Set("snap-setup-task", snapSetupTask.ID())
 			setupKernel.WaitFor(prev)

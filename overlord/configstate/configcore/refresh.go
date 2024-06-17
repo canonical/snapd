@@ -30,6 +30,11 @@ import (
 	"github.com/snapcore/snapd/timeutil"
 )
 
+const (
+	minInhibitionDays = 1
+	maxInhibitionDays = 21
+)
+
 func init() {
 	supportedConfigurations["core.refresh.hold"] = true
 	supportedConfigurations["core.refresh.schedule"] = true
@@ -37,6 +42,7 @@ func init() {
 	supportedConfigurations["core.refresh.metered"] = true
 	supportedConfigurations["core.refresh.retain"] = true
 	supportedConfigurations["core.refresh.rate-limit"] = true
+	supportedConfigurations["core.refresh.max-inhibition-days"] = true
 }
 
 func reportOrIgnoreInvalidManageRefreshes(tr RunTransaction, optName string) error {
@@ -53,6 +59,15 @@ func reportOrIgnoreInvalidManageRefreshes(tr RunTransaction, optName string) err
 }
 
 func validateRefreshSchedule(tr RunTransaction) error {
+	maxInhibitionDaysStr, err := coreCfg(tr, "refresh.max-inhibition-days")
+	if err != nil {
+		return err
+	}
+	if maxInhibitionDaysStr != "" {
+		if n, err := strconv.ParseUint(maxInhibitionDaysStr, 10, 8); err != nil || (n < minInhibitionDays || n > maxInhibitionDays) {
+			return fmt.Errorf("max-inhibition-days must be a number between %d and %d, not %q", minInhibitionDays, maxInhibitionDays, maxInhibitionDaysStr)
+		}
+	}
 	refreshRetainStr, err := coreCfg(tr, "refresh.retain")
 	if err != nil {
 		return err

@@ -183,7 +183,7 @@ func (iface *mprisInterface) StaticInfo() interfaces.StaticInfo {
 
 func (iface *mprisInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
-	new := spec.SnapAppSet().SlotLabelExpression(slot)
+	new := slot.LabelExpression()
 	spec.AddSnippet(strings.Replace(mprisConnectedPlugAppArmor, old, new, -1))
 	return nil
 }
@@ -207,7 +207,7 @@ func (iface *mprisInterface) AppArmorPermanentSlot(spec *apparmor.Specification,
 
 func (iface *mprisInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
-	new := spec.SnapAppSet().PlugLabelExpression(plug)
+	new := plug.LabelExpression()
 	spec.AddSnippet(strings.Replace(mprisConnectedSlotAppArmor, old, new, -1))
 	return nil
 }

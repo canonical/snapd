@@ -1,4 +1,4 @@
-name: jq-core24
+name: test-snapd-jq-core24
 summary: The jq command
 description: The jq command
 version: 1.6-3

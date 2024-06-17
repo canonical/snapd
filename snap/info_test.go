@@ -2344,3 +2344,40 @@ func (s *infoSuite) TestComponentHookSecurityTag(c *C) {
 	c.Check(snap.ComponentHookSecurityTag("snap", "comp", "install"), Equals, "snap.snap+comp.hook.install")
 	c.Check(snap.ComponentHookSecurityTag("snap_name", "comp", "install"), Equals, "snap.snap_name+comp.hook.install")
 }
+
+func (s *infoSuite) TestRunnables(c *C) {
+	const yaml = `
+name: test-snap
+version: 1
+components:
+  comp:
+    hooks:
+      install:
+hooks:
+  install:
+apps:
+  app:
+`
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	app := info.Apps["app"]
+	c.Assert(app, NotNil)
+	c.Check(app.Runnable(), Equals, snap.Runnable{
+		CommandName: "app",
+		SecurityTag: "snap.test-snap.app",
+	})
+
+	hook := info.Hooks["install"]
+	c.Assert(hook, NotNil)
+	c.Check(hook.Runnable(), Equals, snap.Runnable{
+		CommandName: "hook.install",
+		SecurityTag: "snap.test-snap.hook.install",
+	})
+
+	compHook := info.Components["comp"].ExplicitHooks["install"]
+	c.Assert(compHook, NotNil)
+	c.Check(compHook.Runnable(), Equals, snap.Runnable{
+		CommandName: "test-snap+comp.hook.install",
+		SecurityTag: "snap.test-snap+comp.hook.install",
+	})
+}

@@ -71,6 +71,8 @@ network packet,
 @{PROC}/sys/net/netfilter/ r,
 @{PROC}/sys/net/netfilter/** rw,
 @{PROC}/sys/net/nf_conntrack_max rw,
+@{PROC}/sys/net/mptcp/ r,
+@{PROC}/sys/net/mptcp/** rw,
 
 # Needed for systemd's dhcp implementation
 @{PROC}/sys/kernel/random/boot_id r,
@@ -526,7 +528,7 @@ func (iface *networkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 		// of the OS snap and will run unconfined.
 		new = "unconfined"
 	} else {
-		new = spec.SnapAppSet().SlotLabelExpression(slot)
+		new = slot.LabelExpression()
 	}
 	snippet := strings.Replace(networkManagerConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
@@ -540,7 +542,7 @@ func (iface *networkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 
 func (iface *networkManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
-	new := spec.SnapAppSet().PlugLabelExpression(plug)
+	new := plug.LabelExpression()
 	snippet := strings.Replace(networkManagerConnectedSlotAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	if !release.OnClassic {

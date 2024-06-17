@@ -669,6 +669,16 @@ prepare_suite_each() {
 
     # Save all the installed packages
     if os.query is-classic; then
+        # lxd-installer is in cloud images starting from 24.04. This package
+        # installs lxd when any lxc command is run. This caused problems
+        # because if we install snapcraft & lxd, in the restore step lxd is
+        # removed, and after that snapcraft is removed. However, snapcraft's
+        # remove hook calls lxd and triggers a new installation of lxd, and in
+        # turn when we try to remove core22, it fails as lxd has been
+        # re-installed and depends on that base. Therefore, we remove it to
+        # prevent these issues, and we do that before we get the list of
+        # installed packages to make sure we do not re-install it again.
+        apt remove -y --purge lxd-installer || true
         tests.pkgs list-installed > installed-initial.pkgs
     fi
 

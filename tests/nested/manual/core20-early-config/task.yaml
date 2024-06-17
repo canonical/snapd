@@ -123,7 +123,7 @@ execute: |
     echo "Check that switching the ssh port works"
     remote.exec "sudo snap set system service.ssh.listen-address=:9022" || true
     # we need to connect to 9022 now
-    remote.setup config --host localhost --port 9022 --user user1 --pass ubuntu123
+    remote.setup config --host localhost --port 9022 --user user1 --pass ubuntu
     "$TESTSLIB"/external/snapd-testing-tools/remote/remote.wait-for ssh
     remote.exec "sudo snap get system service.ssh.listen-address" | MATCH :9022
     remote.exec "sudo cat /etc/ssh/sshd_config.d/listen.conf" | MATCH "ListenAddress 0\.0\.0\.0:9022"
@@ -131,6 +131,6 @@ execute: |
     echo "Check that unsetting the ssh port works"
     remote.exec "sudo snap unset system service.ssh.listen-address" || true
     # 8022 is the default port that is forwarded to "22" in the guest
-    remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu123
+    remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
     "$TESTSLIB"/external/snapd-testing-tools/remote/remote.wait-for ssh
     remote.exec "sudo test ! -f /etc/ssh/sshd_config.d/listen.conf"

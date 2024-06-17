@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -48,20 +47,21 @@ apps:
   plugs: [netlink-audit]
 `
 
+const netlinkAuditMockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ netlink-audit:
+  interface: netlink-audit
+`
+
 var _ = Suite(&NetlinkAuditInterfaceSuite{
 	iface: builtin.MustInterface("netlink-audit"),
 })
 
 func (s *NetlinkAuditInterfaceSuite) SetUpTest(c *C) {
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "netlink-audit",
-		Interface: "netlink-audit",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	plugSnap := snaptest.MockInfo(c, netlinkAuditMockPlugSnapInfoYaml, nil)
-	s.plugInfo = plugSnap.Plugs["netlink-audit"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.slot, s.slotInfo = MockConnectedSlot(c, netlinkAuditMockSlotSnapInfoYaml, nil, "netlink-audit")
+	s.plug, s.plugInfo = MockConnectedPlug(c, netlinkAuditMockPlugSnapInfoYaml, nil, "netlink-audit")
 }
 
 func (s *NetlinkAuditInterfaceSuite) TestName(c *C) {
@@ -93,20 +93,16 @@ func (s *NetlinkAuditInterfaceSuite) TestSanitizePlugConnectionMissingNoAppArmor
 }
 
 func (s *NetlinkAuditInterfaceSuite) TestAppArmorSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	spec := apparmor.NewSpecification(s.plug.AppSet())
+	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "capability audit_write,\n")
 }
 
 func (s *NetlinkAuditInterfaceSuite) TestSecCompSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec := seccomp.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	spec := seccomp.NewSpecification(s.plug.AppSet())
+	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "socket AF_NETLINK - NETLINK_AUDIT\n")

@@ -116,6 +116,7 @@ func (s *snapmgrBaseTest) logTasks(c *C) {
 
 		for _, t := range chg.Tasks() {
 			c.Logf("  %s - %s", t.Summary(), t.Status())
+
 			if t.Status() == state.ErrorStatus {
 				c.Logf("    %s", strings.Join(t.Log(), "    \n"))
 			}
@@ -7216,29 +7217,24 @@ func (s *snapmgrTestSuite) testGadgetUpdateTaskAddedOnUCKernelRefresh(c *C, mode
 }
 
 func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c *C) {
-	s.testGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c, "2.62.1",
+	s.testGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c, "core24",
 		doesReRefresh|needsKernelSetup|isHybrid)
 }
 
-func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnUCKernelRefreshHybridOldSnapd(c *C) {
-	s.testGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c, "2.61.3",
+func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnUCKernelRefreshHybridOldBase(c *C) {
+	s.testGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c, "core22",
 		doesReRefresh|isHybrid)
 }
 
-func (s *snapmgrTestSuite) testGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c *C, snapdVersion string, opts int) {
+func (s *snapmgrTestSuite) testGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c *C, base string, opts int) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	defer snapstatetest.MockDeviceModel(MakeModelClassicWithModes("brand-gadget", nil))()
-
-	// Mock debian package version information
-	libDir := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir)
-	c.Assert(os.MkdirAll(libDir, 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(libDir, "info"),
-		[]byte(fmt.Sprintf("VERSION=%s\n", snapdVersion)), 0644), IsNil)
+	defer snapstatetest.MockDeviceModel(MakeModelClassicWithModes(
+		"brand-gadget", map[string]interface{}{"base": base}))()
 
 	snapstate.Set(s.state, "brand-kernel", &snapstate.SnapState{
 		Active: true,
@@ -7250,7 +7246,8 @@ func (s *snapmgrTestSuite) testGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c *C
 	})
 
 	// and on update
-	ts, err := snapstate.Update(s.state, "brand-kernel", &snapstate.RevisionOptions{}, 0, snapstate.Flags{})
+	ts, err := snapstate.Update(s.state, "brand-kernel",
+		&snapstate.RevisionOptions{}, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -9991,17 +9988,22 @@ func (s *snapmgrTestSuite) TestCleanDownloadsKeepsNewDownloads(c *C) {
 
 func (s *snapmgrTestSuite) TestRefreshInhibitProceedTime(c *C) {
 	snapst := snapstate.SnapState{}
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
 	// No pending refresh
 	c.Check(snapst.RefreshInhibitProceedTime(s.state).IsZero(), Equals, true)
 
 	// Refresh inhibited
 	refreshInhibitedTime := time.Date(2024, 2, 12, 18, 36, 56, 0, time.UTC)
 	snapst.RefreshInhibitedTime = &refreshInhibitedTime
-	expectedRefreshInhibitProceedTime := refreshInhibitedTime.Add(snapstate.MaxInhibition)
+	expectedRefreshInhibitProceedTime := refreshInhibitedTime.Add(snapstate.MaxInhibitionDuration(st))
 	c.Check(snapst.RefreshInhibitProceedTime(s.state), Equals, expectedRefreshInhibitProceedTime)
 }
 
 func (s *snapmgrTestSuite) TestChangeStatusRecordsChangeUpdateNotice(c *C) {
+
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -10206,4 +10208,24 @@ func (s *snapmgrTestSuite) TestCheckExpectedRestartFromStartUpRequestsStop(c *C)
 	// startup asserts the runtime failure state
 	err = s.snapmgr.StartUp()
 	c.Check(err, Equals, snapstate.ErrUnexpectedRuntimeRestart)
+}
+
+func (s *refreshSuite) TestSetMaxInhibitionDays(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	tr := config.NewTransaction(st)
+	var maxInhibitionDays int
+	tr.Get("core", "refresh.max-inhibition-days", &maxInhibitionDays)
+	c.Assert(maxInhibitionDays, Equals, 0)
+	maxInhibitionDuration := snapstate.MaxInhibitionDuration(st)
+	c.Assert(maxInhibitionDuration, Equals, 14*24*time.Hour-time.Second)
+	err := tr.Set("core", "refresh.max-inhibition-days", 10)
+	c.Assert(err, IsNil)
+	tr.Commit()
+	tr.Get("core", "refresh.max-inhibition-days", &maxInhibitionDays)
+	c.Assert(maxInhibitionDays, Equals, 10)
+	maxInhibitionDuration = snapstate.MaxInhibitionDuration(st)
+	c.Assert(maxInhibitionDuration, Equals, 10*24*time.Hour-time.Second)
 }

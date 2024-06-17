@@ -498,6 +498,64 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *apparmorSuite) TestPromptingSupported(c *C) {
+	goodKernelFeatures := []string{"policy:permstable32:prompt"}
+	goodParserFeatures := []string{"prompt"}
+
+	for _, testCase := range []struct {
+		kernelFeatures []string
+		kernelError    error
+		parserFeatures []string
+		parserError    error
+		expectedReason string
+	}{
+		{
+			kernelFeatures: []string{},
+			kernelError:    fmt.Errorf("foo"),
+			parserFeatures: []string{},
+			parserError:    fmt.Errorf("bar"),
+			expectedReason: "cannot check apparmor kernel features: foo",
+		},
+		{
+			kernelFeatures: []string{"policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt"},
+			kernelError:    nil,
+			parserFeatures: []string{},
+			parserError:    fmt.Errorf("bar"),
+			expectedReason: "cannot check apparmor parser features: bar",
+		},
+		{
+			kernelFeatures: []string{"policy:permstable32:allow", "policy:permstable32:deny"},
+			kernelError:    nil,
+			parserFeatures: []string{},
+			parserError:    nil,
+			expectedReason: "apparmor kernel features do not support prompting",
+		},
+		{
+			kernelFeatures: []string{"policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt"},
+			kernelError:    nil,
+			parserFeatures: []string{"mqueue"},
+			parserError:    nil,
+			expectedReason: "apparmor parser does not support the prompt qualifier",
+		},
+	} {
+		restore := apparmor.MockFeatures(testCase.kernelFeatures, testCase.kernelError, testCase.parserFeatures, testCase.parserError)
+		supported, reason := apparmor.PromptingSupported()
+		c.Check(supported, Equals, false)
+		c.Check(reason, Equals, testCase.expectedReason)
+		restore()
+	}
+
+	restore := apparmor.MockFeatures(goodKernelFeatures, nil, goodParserFeatures, nil)
+	defer restore()
+
+	supported, reason := apparmor.PromptingSupported()
+	// TODO: change this once snapd supports prompting
+	c.Check(supported, Equals, false)
+	c.Check(reason, Equals, "requires newer version of snapd")
+	// c.Check(supported, Equals, true)
+	// c.Check(reason, Equals, "")
+}
+
 func (s *apparmorSuite) TestValidateFreeFromAAREUnhappy(c *C) {
 	var testCases = []string{"a?", "*b", "c[c", "dd]", "e{", "f}", "g^", `h"`, "f\000", "g\x00"}
 

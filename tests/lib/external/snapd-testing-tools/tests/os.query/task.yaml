@@ -149,11 +149,6 @@ execute: |
             os.query is-classic
             ! os.query is-core
             ;;
-        centos-8-64)            
-            os.query is-centos
-            os.query is-centos 8
-            ! os.query is-core
-            ;;
         centos-9-64)            
             os.query is-centos 9
             os.query is-centos

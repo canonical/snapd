@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -33,31 +34,27 @@ type helpersSuite struct{}
 var _ = Suite(&helpersSuite{})
 
 func (s *helpersSuite) TestNestedGet(c *C) {
-	consumer := snaptest.MockInfo(c, `
-name: consumer
+	const consumerYaml = `name: consumer
 version: 0
 apps:
-    app:
+ app:
 plugs:
-    plug:
-        interface: interface
-`, nil)
-	plugInfo := consumer.Plugs["plug"]
-	plug := interfaces.NewConnectedPlug(plugInfo, nil, map[string]interface{}{
+ plug:
+  interface: interface
+`
+	plug, _ := ifacetest.MockConnectedPlugWithAttrs(c, consumerYaml, nil, "plug", nil, map[string]interface{}{
 		"a": "123",
 	})
 
-	producer := snaptest.MockInfo(c, `
-name: producer
+	const producerYaml = `name: producer
 version: 0
 apps:
-    app:
+ app:
 slots:
-    slot:
-        interface: interface
-`, nil)
-	slotInfo := producer.Slots["slot"]
-	slot := interfaces.NewConnectedSlot(slotInfo, nil, map[string]interface{}{
+ slot:
+  interface: interface
+`
+	slot, slotInfo := ifacetest.MockConnectedSlotWithAttrs(c, producerYaml, nil, "slot", nil, map[string]interface{}{
 		"a": "123",
 	})
 
@@ -71,7 +68,7 @@ slots:
 	c.Check(err, IsNil)
 	c.Check(v, Equals, "123")
 
-	slot = interfaces.NewConnectedSlot(slotInfo, nil, map[string]interface{}{
+	slot = interfaces.NewConnectedSlot(slotInfo, slot.AppSet(), nil, map[string]interface{}{
 		"a": map[string]interface{}{
 			"b": []interface{}{"1", "2", "3"},
 		},

@@ -279,7 +279,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		Revision:   kernelInfo.Revision,
 		IsCore:     !deviceCtx.Classic(),
 	}
-	if snapstate.NeedsKernelSetup(deviceCtx) {
+	if snapstate.NeedsKernelSetup(deviceCtx.Model()) {
 		kSnapInfo.NeedsDriversTree = true
 	}
 	timings.Run(perfTimings, "install-run", "Install the run system", func(tm timings.Measurer) {
@@ -559,7 +559,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		Revision:   kernelInfo.Revision,
 		IsCore:     !deviceCtx.Classic(),
 	}
-	if snapstate.NeedsKernelSetup(deviceCtx) {
+	if snapstate.NeedsKernelSetup(deviceCtx.Model()) {
 		kSnapInfo.NeedsDriversTree = true
 	}
 	timings.Run(perfTimings, "factory-reset", "Factory reset", func(tm timings.Measurer) {
@@ -1038,13 +1038,11 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 
 	logger.Debugf("writing content to partitions")
 	kSnapInfo := &install.KernelSnapInfo{
-		Name:       kernInfo.SnapName(),
-		Revision:   kernInfo.Revision,
-		MountPoint: kernMntPoint,
-		IsCore:     !deviceCtx.Classic(),
-	}
-	if snapstate.NeedsKernelSetup(deviceCtx) {
-		kSnapInfo.NeedsDriversTree = true
+		Name:             kernInfo.SnapName(),
+		Revision:         kernInfo.Revision,
+		MountPoint:       kernMntPoint,
+		IsCore:           !deviceCtx.Classic(),
+		NeedsDriversTree: snapstate.NeedsKernelSetup(systemAndSnaps.Model),
 	}
 	timings.Run(perfTimings, "install-content", "Writing content to partitions", func(tm timings.Measurer) {
 		st.Unlock()

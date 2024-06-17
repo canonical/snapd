@@ -29,11 +29,12 @@ import (
 
 // ComponentInfo contains information about a snap component.
 type ComponentInfo struct {
-	Component   naming.ComponentRef `yaml:"component"`
-	Type        ComponentType       `yaml:"type"`
-	Version     string              `yaml:"version"`
-	Summary     string              `yaml:"summary"`
-	Description string              `yaml:"description"`
+	Component           naming.ComponentRef `yaml:"component"`
+	Type                ComponentType       `yaml:"type"`
+	Version             string              `yaml:"version"`
+	Summary             string              `yaml:"summary"`
+	Description         string              `yaml:"description"`
+	ComponentProvenance string              `yaml:"provenance,omitempty"`
 
 	// Hooks contains information about implicit and explicit hooks that this
 	// component has. This information is derived from a combination of the
@@ -47,19 +48,30 @@ type ComponentInfo struct {
 	ComponentSideInfo
 }
 
+// Provenance returns the provenance of the component. This returns
+// naming.DefaultProvenance if no value is set explicitly in the component
+// metadata.
+func (ci *ComponentInfo) Provenance() string {
+	if ci.ComponentProvenance == "" {
+		return naming.DefaultProvenance
+	}
+	return ci.ComponentProvenance
+}
+
 // NewComponentInfo creates a new ComponentInfo.
-func NewComponentInfo(cref naming.ComponentRef, ctype ComponentType, version, summary, description string, csi *ComponentSideInfo) *ComponentInfo {
+func NewComponentInfo(cref naming.ComponentRef, ctype ComponentType, version, summary, description, provenance string, csi *ComponentSideInfo) *ComponentInfo {
 	if csi == nil {
 		csi = &ComponentSideInfo{}
 	}
 
 	return &ComponentInfo{
-		Component:         cref,
-		Type:              ctype,
-		Version:           version,
-		Summary:           summary,
-		Description:       description,
-		ComponentSideInfo: *csi,
+		Component:           cref,
+		Type:                ctype,
+		Version:             version,
+		Summary:             summary,
+		Description:         description,
+		ComponentProvenance: provenance,
+		ComponentSideInfo:   *csi,
 	}
 }
 
@@ -295,6 +307,9 @@ func (ci *ComponentInfo) validate() error {
 		return err
 	}
 	if err := ValidateDescription(ci.Description); err != nil {
+		return err
+	}
+	if err := validateProvenance(ci.ComponentProvenance); err != nil {
 		return err
 	}
 	return nil

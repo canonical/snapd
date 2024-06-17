@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -346,7 +346,7 @@ type profilePathsResults struct {
 
 func (b *Backend) prepareProfiles(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) (prof *profilePathsResults, err error) {
 	snapName := appSet.InstanceName()
-	spec, err := repo.SnapSpecification(b.Name(), appSet)
+	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
 		return nil, fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
 	}
@@ -676,6 +676,9 @@ func addUpdateNSProfile(snapInfo *snap.Info, snippets string, content map[string
 	}
 }
 
+// Allow optional trailing ' ' after "###PROMPT###"
+var promptReplacer = regexp.MustCompile("###PROMPT### ?")
+
 func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]osutil.FileState, spec *Specification) {
 	// If base is specified and it doesn't match the core snaps (not
 	// specifying a base should use the default core policy since in this
@@ -958,6 +961,13 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 				}
 				tagSnippets = strings.Replace(tagSnippets, "###HOME_IX###", repl, -1)
 
+				// Use prompt prefix if prompting is supported and enabled
+				repl = ""
+				if spec.UsePromptPrefix() {
+					repl = "prompt "
+				}
+				tagSnippets = promptReplacer.ReplaceAllLiteralString(tagSnippets, repl)
+
 				// Conditionally add privilege dropping policy
 				if len(snapInfo.SystemUsernames) > 0 {
 					tagSnippets += privDropAndChownRules
@@ -982,8 +992,11 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 }
 
 // NewSpecification returns a new, empty apparmor specification.
-func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet) interfaces.Specification {
-	return &Specification{appSet: appSet}
+func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions) interfaces.Specification {
+	return &Specification{
+		appSet:          appSet,
+		usePromptPrefix: opts.AppArmorPrompting,
+	}
 }
 
 // SandboxFeatures returns the list of apparmor features supported by the kernel.

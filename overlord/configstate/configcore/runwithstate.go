@@ -2,7 +2,7 @@
 //go:build !nomanagers
 
 /*
- * Copyright (C) 2020-2022 Canonical Ltd
+ * Copyright (C) 2020-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -72,6 +72,9 @@ func init() {
 
 	// debug.systemd.log-level
 	addWithStateHandler(validateDebugSystemdLogLevelSetting, handleDebugSystemdLogLevelConfiguration, coreOnly)
+
+	// experimental.apparmor-prompting
+	addWithStateHandler(nil, doExperimentalApparmorPromptingDaemonRestart, nil)
 }
 
 // RunTransaction is an interface describing how to access

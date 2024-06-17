@@ -58,7 +58,7 @@ func (s *polkitInterfaceSuite) SetUpTest(c *C) {
 		dirs.SetRootDir("/")
 	})
 
-	const mockPlugSnapInfo = `name: other
+	const mockPlugSnapInfoYaml = `name: other
 version: 1.0
 plugs:
  polkit:
@@ -68,18 +68,16 @@ apps:
   command: foo
   plugs: [polkit]
 `
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "polkit",
-		Interface: "polkit",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	plugSnap := snaptest.MockSnap(c, mockPlugSnapInfo, &snap.SideInfo{
-		RealName: "other",
-		Revision: snap.R(1),
-	})
-	s.plugInfo = plugSnap.Plugs["polkit"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	const mockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ polkit:
+  interface: polkit
+`
+
+	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "polkit")
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "polkit")
 }
 
 func (s *polkitInterfaceSuite) TestName(c *C) {
@@ -87,10 +85,8 @@ func (s *polkitInterfaceSuite) TestName(c *C) {
 }
 
 func (s *polkitInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "# Description: Can talk to polkitd's CheckAuthorization API")
@@ -248,7 +244,7 @@ plugs:
 }
 
 func (s *polkitInterfaceSuite) TestConnectedPlugPolkitInternalError(c *C) {
-	const mockPlugSnapInfo = `name: other
+	const mockPlugSnapInfoYaml = `name: other
 version: 1.0
 plugs:
  polkit:
@@ -258,18 +254,18 @@ apps:
   command: foo
   plugs: [polkit]
 `
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "polkit",
-		Interface: "polkit",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
-	s.plugInfo = plugSnap.Plugs["polkit"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	const mockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ polkit:
+  interface: polkit
+`
+	slot, _ := MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "polkit")
+	plug, _ := MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "polkit")
 
 	polkitSpec := &polkit.Specification{}
-	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := polkitSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, ErrorMatches, `snap "other" has interface "polkit" with invalid value type bool for "action-prefix" attribute: \*string`)
 }
 

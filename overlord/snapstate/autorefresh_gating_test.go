@@ -1011,7 +1011,10 @@ func (s *autorefreshGatingSuite) TestAffectedByBase(c *C) {
 	snapB := mockInstalledSnap(c, s.state, snapByaml, useHook)
 	mockInstalledSnap(c, s.state, baseSnapByaml, noHook)
 
-	c.Assert(s.repo.AddSnap(snapB), IsNil)
+	snapBAppSet, err := interfaces.NewSnapAppSet(snapB, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.repo.AddAppSet(snapBAppSet), IsNil)
 
 	updates := []string{baseSnapA.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
@@ -1036,9 +1039,16 @@ func (s *autorefreshGatingSuite) TestAffectedByCore(c *C) {
 	core := mockInstalledSnap(c, s.state, coreYaml, noHook)
 	snapB := mockInstalledSnap(c, s.state, snapByaml, useHook)
 
-	c.Assert(s.repo.AddSnap(core), IsNil)
-	c.Assert(s.repo.AddSnap(snapB), IsNil)
-	c.Assert(s.repo.AddSnap(snapC), IsNil)
+	coreAppSet, err := interfaces.NewSnapAppSet(core, nil)
+	c.Assert(err, IsNil)
+	snapBAppSet, err := interfaces.NewSnapAppSet(snapB, nil)
+	c.Assert(err, IsNil)
+	snapCAppSet, err := interfaces.NewSnapAppSet(snapC, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.repo.AddAppSet(coreAppSet), IsNil)
+	c.Assert(s.repo.AddAppSet(snapBAppSet), IsNil)
+	c.Assert(s.repo.AddAppSet(snapCAppSet), IsNil)
 
 	updates := []string{core.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
@@ -1131,11 +1141,18 @@ func (s *autorefreshGatingSuite) TestAffectedBySlot(c *C) {
 	// unrelated snap
 	snapF := mockInstalledSnap(c, s.state, snapFyaml, useHook)
 
-	c.Assert(s.repo.AddSnap(snapF), IsNil)
-	c.Assert(s.repo.AddSnap(snapD), IsNil)
-	c.Assert(s.repo.AddSnap(snapE), IsNil)
+	snapFAppSet, err := interfaces.NewSnapAppSet(snapF, nil)
+	c.Assert(err, IsNil)
+	snapDAppSet, err := interfaces.NewSnapAppSet(snapD, nil)
+	c.Assert(err, IsNil)
+	snapEAppSet, err := interfaces.NewSnapAppSet(snapE, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.repo.AddAppSet(snapFAppSet), IsNil)
+	c.Assert(s.repo.AddAppSet(snapDAppSet), IsNil)
+	c.Assert(s.repo.AddAppSet(snapEAppSet), IsNil)
 	cref := &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "snap-e", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "snap-d", Name: "slot"}}
-	_, err := s.repo.Connect(cref, nil, nil, nil, nil, nil)
+	_, err = s.repo.Connect(cref, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	updates := []string{snapD.InstanceName()}
@@ -1162,12 +1179,19 @@ func (s *autorefreshGatingSuite) TestNotAffectedByCoreOrSnapdSlot(c *C) {
 	core := mockInstalledSnap(c, s.state, coreYaml, noHook)
 	snapB := mockInstalledSnap(c, s.state, snapByaml, useHook)
 
-	c.Assert(s.repo.AddSnap(snapG), IsNil)
-	c.Assert(s.repo.AddSnap(core), IsNil)
-	c.Assert(s.repo.AddSnap(snapB), IsNil)
+	snapGAppSet, err := interfaces.NewSnapAppSet(snapG, nil)
+	c.Assert(err, IsNil)
+	coreAppSet, err := interfaces.NewSnapAppSet(core, nil)
+	c.Assert(err, IsNil)
+	snapBAppSet, err := interfaces.NewSnapAppSet(snapB, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.repo.AddAppSet(snapGAppSet), IsNil)
+	c.Assert(s.repo.AddAppSet(coreAppSet), IsNil)
+	c.Assert(s.repo.AddAppSet(snapBAppSet), IsNil)
 
 	cref := &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "snap-g", Name: "mir"}, SlotRef: interfaces.SlotRef{Snap: "core", Name: "mir"}}
-	_, err := s.repo.Connect(cref, nil, nil, nil, nil, nil)
+	_, err = s.repo.Connect(cref, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	updates := []string{core.InstanceName()}
@@ -1190,11 +1214,18 @@ func (s *autorefreshGatingSuite) TestNotAffectedByPlugWithMountBackend(c *C) {
 	// unrelated snap
 	snapF := mockInstalledSnap(c, s.state, snapFyaml, useHook)
 
-	c.Assert(s.repo.AddSnap(snapF), IsNil)
-	c.Assert(s.repo.AddSnap(snapD), IsNil)
-	c.Assert(s.repo.AddSnap(snapE), IsNil)
+	snapFAppSet, err := interfaces.NewSnapAppSet(snapF, nil)
+	c.Assert(err, IsNil)
+	snapDAppSet, err := interfaces.NewSnapAppSet(snapD, nil)
+	c.Assert(err, IsNil)
+	snapEAppSet, err := interfaces.NewSnapAppSet(snapE, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.repo.AddAppSet(snapFAppSet), IsNil)
+	c.Assert(s.repo.AddAppSet(snapDAppSet), IsNil)
+	c.Assert(s.repo.AddAppSet(snapEAppSet), IsNil)
 	cref := &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "snap-e", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "snap-d", Name: "slot"}}
-	_, err := s.repo.Connect(cref, nil, nil, nil, nil, nil)
+	_, err = s.repo.Connect(cref, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	// snapE has a plug using mount backend and is refreshed, this doesn't affect slot of snap-d.
@@ -1218,11 +1249,18 @@ func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackendSnapdSlot(c *
 	// unrelated snap
 	snapF := mockInstalledSnap(c, s.state, snapFyaml, useHook)
 
-	c.Assert(s.repo.AddSnap(snapF), IsNil)
-	c.Assert(s.repo.AddSnap(snapdSnap), IsNil)
-	c.Assert(s.repo.AddSnap(snapG), IsNil)
+	snapFAppSet, err := interfaces.NewSnapAppSet(snapF, nil)
+	c.Assert(err, IsNil)
+	snapdSnapAppSet, err := interfaces.NewSnapAppSet(snapdSnap, nil)
+	c.Assert(err, IsNil)
+	snapGAppSet, err := interfaces.NewSnapAppSet(snapG, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.repo.AddAppSet(snapFAppSet), IsNil)
+	c.Assert(s.repo.AddAppSet(snapdSnapAppSet), IsNil)
+	c.Assert(s.repo.AddAppSet(snapGAppSet), IsNil)
 	cref := &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "snap-g", Name: "desktop"}, SlotRef: interfaces.SlotRef{Snap: "snapd", Name: "desktop"}}
-	_, err := s.repo.Connect(cref, nil, nil, nil, nil, nil)
+	_, err = s.repo.Connect(cref, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	// snapE has a plug using mount backend, refreshing snapd affects snapE.
@@ -1249,10 +1287,16 @@ func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackendCoreSlot(c *C
 	coreSnap := mockInstalledSnap(c, s.state, coreYaml, noHook)
 	snapG := mockInstalledSnap(c, s.state, snapGyaml, useHook)
 
-	c.Assert(s.repo.AddSnap(coreSnap), IsNil)
-	c.Assert(s.repo.AddSnap(snapG), IsNil)
+	coreAppSet, err := interfaces.NewSnapAppSet(coreSnap, nil)
+	c.Assert(err, IsNil)
+
+	snapGAppSet, err := interfaces.NewSnapAppSet(snapG, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.repo.AddAppSet(coreAppSet), IsNil)
+	c.Assert(s.repo.AddAppSet(snapGAppSet), IsNil)
 	cref := &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "snap-g", Name: "desktop"}, SlotRef: interfaces.SlotRef{Snap: "core", Name: "desktop"}}
-	_, err := s.repo.Connect(cref, nil, nil, nil, nil, nil)
+	_, err = s.repo.Connect(cref, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	// snapG has a plug using mount backend, refreshing core affects snapE.

@@ -504,7 +504,7 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapSnapLockUnlocked(c *C) {
 	tr.Commit()
 
 	instant := time.Now()
-	pastInstant := instant.Add(-snapstate.MaxInhibition * 2)
+	pastInstant := instant.Add(-snapstate.MaxInhibitionDuration(s.state) * 2)
 	// Add test snap
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(42)}
 	snaptest.MockSnap(c, `name: pkg`, si)

@@ -97,14 +97,17 @@ slots:
     interface: spi
     path: /dev/./spidev33567.0
 `, nil)
+	appSet, err := interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, IsNil)
+
 	s.slotOs1Info = info.Slots["spi-1"]
-	s.slotOs1 = interfaces.NewConnectedSlot(s.slotOs1Info, nil, nil)
+	s.slotOs1 = interfaces.NewConnectedSlot(s.slotOs1Info, appSet, nil, nil)
 	s.slotOs2Info = info.Slots["spi-2"]
-	s.slotOs2 = interfaces.NewConnectedSlot(s.slotOs2Info, nil, nil)
+	s.slotOs2 = interfaces.NewConnectedSlot(s.slotOs2Info, appSet, nil, nil)
 	s.slotOs3Info = info.Slots["spi-3"]
-	s.slotOs3 = interfaces.NewConnectedSlot(s.slotOs3Info, nil, nil)
+	s.slotOs3 = interfaces.NewConnectedSlot(s.slotOs3Info, appSet, nil, nil)
 	s.slotOsCleanedInfo = info.Slots["spi-unclean"]
-	s.slotOsCleaned = interfaces.NewConnectedSlot(s.slotOsCleanedInfo, nil, nil)
+	s.slotOsCleaned = interfaces.NewConnectedSlot(s.slotOsCleanedInfo, appSet, nil, nil)
 
 	info = snaptest.MockInfo(c, `
 name: gadget
@@ -138,24 +141,28 @@ slots:
   bad-spi-6:
     interface: spi
 `, nil)
+
+	appSet, err = interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, IsNil)
+
 	s.slotGadget1Info = info.Slots["spi-1"]
-	s.slotGadget1 = interfaces.NewConnectedSlot(s.slotGadget1Info, nil, nil)
+	s.slotGadget1 = interfaces.NewConnectedSlot(s.slotGadget1Info, appSet, nil, nil)
 	s.slotGadget2Info = info.Slots["spi-2"]
-	s.slotGadget2 = interfaces.NewConnectedSlot(s.slotGadget2Info, nil, nil)
+	s.slotGadget2 = interfaces.NewConnectedSlot(s.slotGadget2Info, appSet, nil, nil)
 	s.slotGadget3Info = info.Slots["spi-3"]
-	s.slotGadget3 = interfaces.NewConnectedSlot(s.slotGadget3Info, nil, nil)
+	s.slotGadget3 = interfaces.NewConnectedSlot(s.slotGadget3Info, appSet, nil, nil)
 	s.slotGadgetBad1Info = info.Slots["bad-spi-1"]
-	s.slotGadgetBad1 = interfaces.NewConnectedSlot(s.slotGadgetBad1Info, nil, nil)
+	s.slotGadgetBad1 = interfaces.NewConnectedSlot(s.slotGadgetBad1Info, appSet, nil, nil)
 	s.slotGadgetBad2Info = info.Slots["bad-spi-2"]
-	s.slotGadgetBad2 = interfaces.NewConnectedSlot(s.slotGadgetBad2Info, nil, nil)
+	s.slotGadgetBad2 = interfaces.NewConnectedSlot(s.slotGadgetBad2Info, appSet, nil, nil)
 	s.slotGadgetBad3Info = info.Slots["bad-spi-3"]
-	s.slotGadgetBad3 = interfaces.NewConnectedSlot(s.slotGadgetBad3Info, nil, nil)
+	s.slotGadgetBad3 = interfaces.NewConnectedSlot(s.slotGadgetBad3Info, appSet, nil, nil)
 	s.slotGadgetBad4Info = info.Slots["bad-spi-4"]
-	s.slotGadgetBad4 = interfaces.NewConnectedSlot(s.slotGadgetBad4Info, nil, nil)
+	s.slotGadgetBad4 = interfaces.NewConnectedSlot(s.slotGadgetBad4Info, appSet, nil, nil)
 	s.slotGadgetBad5Info = info.Slots["bad-spi-5"]
-	s.slotGadgetBad5 = interfaces.NewConnectedSlot(s.slotGadgetBad5Info, nil, nil)
+	s.slotGadgetBad5 = interfaces.NewConnectedSlot(s.slotGadgetBad5Info, appSet, nil, nil)
 	s.slotGadgetBad6Info = info.Slots["bad-spi-6"]
-	s.slotGadgetBad6 = interfaces.NewConnectedSlot(s.slotGadgetBad6Info, nil, nil)
+	s.slotGadgetBad6 = interfaces.NewConnectedSlot(s.slotGadgetBad6Info, appSet, nil, nil)
 
 	info = snaptest.MockInfo(c, `
 name: consumer
@@ -175,12 +182,15 @@ apps:
     command: foo
     plugs: [spi-1]
 `, nil)
+	appSet, err = interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, IsNil)
+
 	s.plug1Info = info.Plugs["spi-1"]
-	s.plug1 = interfaces.NewConnectedPlug(s.plug1Info, nil, nil)
+	s.plug1 = interfaces.NewConnectedPlug(s.plug1Info, appSet, nil, nil)
 	s.plug2Info = info.Plugs["spi-2"]
-	s.plug2 = interfaces.NewConnectedPlug(s.plug2Info, nil, nil)
+	s.plug2 = interfaces.NewConnectedPlug(s.plug2Info, appSet, nil, nil)
 	s.plug3Info = info.Plugs["spi-3"]
-	s.plug3 = interfaces.NewConnectedPlug(s.plug3Info, nil, nil)
+	s.plug3 = interfaces.NewConnectedPlug(s.plug3Info, appSet, nil, nil)
 }
 
 func (s *spiInterfaceSuite) TestName(c *C) {
@@ -211,9 +221,7 @@ func (s *spiInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *spiInterfaceSuite) TestUDevSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug1.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec := udev.NewSpecification(appSet)
+	spec := udev.NewSpecification(s.plug1.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug1, s.slotGadget1), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# spi
@@ -222,9 +230,7 @@ KERNEL=="spidev0.0", TAG+="snap_consumer_app"`)
 }
 
 func (s *spiInterfaceSuite) TestAppArmorSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug1.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec := apparmor.NewSpecification(appSet)
+	spec := apparmor.NewSpecification(s.plug1.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug1, s.slotGadget1), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, ""+

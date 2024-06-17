@@ -37,15 +37,45 @@ type Connection struct {
 // ConnectedPlug represents a plug that is connected to a slot.
 type ConnectedPlug struct {
 	plugInfo     *snap.PlugInfo
+	appSet       *SnapAppSet
 	staticAttrs  map[string]interface{}
 	dynamicAttrs map[string]interface{}
+}
+
+// LabelExpression returns the label expression for the given plug. It is
+// constructed from the apps and hooks that are associated with the plug.
+func (plug *ConnectedPlug) LabelExpression() string {
+	return labelExpr(plug)
 }
 
 // ConnectedSlot represents a slot that is connected to a plug.
 type ConnectedSlot struct {
 	slotInfo     *snap.SlotInfo
+	appSet       *SnapAppSet
 	staticAttrs  map[string]interface{}
 	dynamicAttrs map[string]interface{}
+}
+
+// AppSet return the app set that this slot is associated with.
+func (slot *ConnectedSlot) AppSet() *SnapAppSet {
+	return slot.appSet
+}
+
+// Runnables returns a list of all runnables that should be connected to the
+// given slot.
+func (slot *ConnectedSlot) Runnables() []snap.Runnable {
+	apps := slot.appSet.info.AppsForSlot(slot.slotInfo)
+	hooks := slot.appSet.info.HooksForSlot(slot.slotInfo)
+
+	// TODO: if components ever get slots, they will need to be considered here
+
+	return appAndHookRunnables(apps, hooks)
+}
+
+// LabelExpression returns the label expression for the given slot. It is
+// constructed from the apps and hooks that are associated with the slot.
+func (slot *ConnectedSlot) LabelExpression() string {
+	return labelExpr(slot)
 }
 
 // Attrer is an interface with Attr getter method common
@@ -94,7 +124,11 @@ func getAttribute(snapName string, ifaceName string, staticAttrs map[string]inte
 }
 
 // NewConnectedSlot creates an object representing a connected slot.
-func NewConnectedSlot(slot *snap.SlotInfo, staticAttrs, dynamicAttrs map[string]interface{}) *ConnectedSlot {
+func NewConnectedSlot(slot *snap.SlotInfo, appSet *SnapAppSet, staticAttrs, dynamicAttrs map[string]interface{}) *ConnectedSlot {
+	if slot.Snap.InstanceName() != appSet.Info().InstanceName() {
+		panic(fmt.Sprintf("internal error: slot must be from the same snap as the app set: %s != %s", slot.Snap.InstanceName(), appSet.Info().InstanceName()))
+	}
+
 	var static map[string]interface{}
 	if staticAttrs != nil {
 		static = staticAttrs
@@ -103,13 +137,18 @@ func NewConnectedSlot(slot *snap.SlotInfo, staticAttrs, dynamicAttrs map[string]
 	}
 	return &ConnectedSlot{
 		slotInfo:     slot,
+		appSet:       appSet,
 		staticAttrs:  utils.CopyAttributes(static),
 		dynamicAttrs: utils.NormalizeInterfaceAttributes(dynamicAttrs).(map[string]interface{}),
 	}
 }
 
 // NewConnectedPlug creates an object representing a connected plug.
-func NewConnectedPlug(plug *snap.PlugInfo, staticAttrs, dynamicAttrs map[string]interface{}) *ConnectedPlug {
+func NewConnectedPlug(plug *snap.PlugInfo, appSet *SnapAppSet, staticAttrs, dynamicAttrs map[string]interface{}) *ConnectedPlug {
+	if plug.Snap.InstanceName() != appSet.Info().InstanceName() {
+		panic(fmt.Sprintf("internal error: plug must be from the same snap as the app set: %s != %s", plug.Snap.InstanceName(), appSet.Info().InstanceName()))
+	}
+
 	var static map[string]interface{}
 	if staticAttrs != nil {
 		static = staticAttrs
@@ -118,6 +157,7 @@ func NewConnectedPlug(plug *snap.PlugInfo, staticAttrs, dynamicAttrs map[string]
 	}
 	return &ConnectedPlug{
 		plugInfo:     plug,
+		appSet:       appSet,
 		staticAttrs:  utils.CopyAttributes(static),
 		dynamicAttrs: utils.NormalizeInterfaceAttributes(dynamicAttrs).(map[string]interface{}),
 	}
@@ -138,9 +178,34 @@ func (plug *ConnectedPlug) Snap() *snap.Info {
 	return plug.plugInfo.Snap
 }
 
-// Apps returns all the apps associated with this plug.
-func (plug *ConnectedPlug) Apps() map[string]*snap.AppInfo {
-	return plug.plugInfo.Apps
+// AppSet return the app set that this plug is associated with.
+func (plug *ConnectedPlug) AppSet() *SnapAppSet {
+	return plug.appSet
+}
+
+// Runnables returns a list of all runnables that should be connected to the
+// given plug.
+func (plug *ConnectedPlug) Runnables() []snap.Runnable {
+	apps := plug.appSet.info.AppsForPlug(plug.plugInfo)
+	hooks := plug.appSet.info.HooksForPlug(plug.plugInfo)
+	for _, component := range plug.appSet.components {
+		hooks = append(hooks, component.HooksForPlug(plug.plugInfo)...)
+	}
+
+	return appAndHookRunnables(apps, hooks)
+}
+
+func appAndHookRunnables(apps []*snap.AppInfo, hooks []*snap.HookInfo) []snap.Runnable {
+	runnables := make([]snap.Runnable, 0, len(apps)+len(hooks))
+	for _, app := range apps {
+		runnables = append(runnables, app.Runnable())
+	}
+
+	for _, hook := range hooks {
+		runnables = append(runnables, hook.Runnable())
+	}
+
+	return runnables
 }
 
 // StaticAttr returns a static attribute with the given key, or error if attribute doesn't exist.

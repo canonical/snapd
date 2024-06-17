@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017-2022 Canonical Ltd
+ * Copyright (C) 2017-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,9 +20,12 @@
 package configcore
 
 import (
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -35,6 +38,8 @@ var (
 	AddFSOnlyHandler     = addFSOnlyHandler
 	FilesystemOnlyApply  = filesystemOnlyApply
 	UpdateHomedirsConfig = updateHomedirsConfig
+
+	DoExperimentalApparmorPromptingDaemonRestart = doExperimentalApparmorPromptingDaemonRestart
 )
 
 type PlainCoreConfig = plainCoreConfig
@@ -96,5 +101,11 @@ func MockApparmorReloadAllSnapProfiles(f func() error) func() {
 func MockLoggerSimpleSetup(f func(opts *logger.LoggerOptions) error) func() {
 	r := testutil.Backup(&loggerSimpleSetup)
 	loggerSimpleSetup = f
+	return r
+}
+
+func MockRestartRequest(f func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo)) func() {
+	r := testutil.Backup(&restartRequest)
+	restartRequest = f
 	return r
 }

@@ -136,7 +136,7 @@ execute: |
 
   # however, we can check that the seed contains the correct revisions
   if tests.nested is-nested uc22; then
-    remote.exec "test -f /var/lib/snapd/seed/snaps/core22_1033.snap"
+    remote.exec "test -f /var/lib/snapd/seed/snaps/core22_1380.snap"
     remote.exec "test -f /var/lib/snapd/seed/snaps/pc-kernel_1606.snap"
     remote.exec "test -f /var/lib/snapd/seed/snaps/pc_145.snap"
   else # uc24

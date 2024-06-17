@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -130,20 +130,28 @@ func (s *handlersSuite) TestBuildConfinementOptions(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
-	flags := snapstate.Flags{}
-	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{})
+	for _, testAppArmorPrompting := range []bool{true, false} {
+		// Create fake InterfaceManager to hold fake AppArmor Prompting value
+		m := ifacestate.NewInterfaceManagerWithAppArmorPrompting(testAppArmorPrompting)
 
-	c.Check(err, IsNil)
-	c.Check(len(opts.ExtraLayouts), Equals, 0)
-	c.Check(opts.Classic, Equals, flags.Classic)
-	c.Check(opts.DevMode, Equals, flags.DevMode)
-	c.Check(opts.JailMode, Equals, flags.JailMode)
+		snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
+		flags := snapstate.Flags{}
+		opts, err := m.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{})
+
+		c.Check(err, IsNil)
+		c.Check(len(opts.ExtraLayouts), Equals, 0)
+		c.Check(opts.Classic, Equals, flags.Classic)
+		c.Check(opts.DevMode, Equals, flags.DevMode)
+		c.Check(opts.JailMode, Equals, flags.JailMode)
+		c.Check(opts.AppArmorPrompting, Equals, testAppArmorPrompting)
+	}
 }
 
 func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	m := ifacestate.NewInterfaceManagerWithAppArmorPrompting(false)
 
 	// journal quota is still experimental, so we must enable the experimental
 	// quota-groups option
@@ -158,7 +166,7 @@ func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
 	c.Assert(err, IsNil)
 
 	flags := snapstate.Flags{}
-	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{})
+	opts, err := m.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{})
 
 	c.Check(err, IsNil)
 	c.Assert(len(opts.ExtraLayouts), Equals, 1)

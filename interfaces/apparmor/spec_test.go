@@ -62,40 +62,30 @@ var _ = Suite(&specSuite{
 			return nil
 		},
 	},
-	plugInfo: &snap.PlugInfo{
-		Snap:      &snap.Info{SuggestedName: "snap1"},
-		Name:      "name",
-		Interface: "test",
-		Apps: map[string]*snap.AppInfo{
-			"app1": {
-				Snap: &snap.Info{
-					SuggestedName: "snap1",
-				},
-				Name: "app1"}},
-	},
-	slotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "snap2"},
-		Name:      "name",
-		Interface: "test",
-		Apps: map[string]*snap.AppInfo{
-			"app2": {
-				Snap: &snap.Info{
-					SuggestedName: "snap2",
-				},
-				Name: "app2"}},
-	},
 })
 
 func (s *specSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+	const plugYaml = `name: snap1
+version: 1
+apps:
+ app1:
+  plugs: [name]
+`
+	s.plug, s.plugInfo = ifacetest.MockConnectedPlug(c, plugYaml, nil, "name")
 
-	appSet, err := interfaces.NewSnapAppSet(s.plugInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	s.spec = apparmor.NewSpecification(s.plug.AppSet())
 
-	s.spec = apparmor.NewSpecification(appSet)
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
+	const slotYaml = `name: snap2
+version: 1
+slots:
+ name:
+  interface: test
+apps:
+ app2:
+`
+	s.slot, s.slotInfo = ifacetest.MockConnectedSlot(c, slotYaml, nil, "name")
 }
 
 func (s *specSuite) TearDownTest(c *C) {
