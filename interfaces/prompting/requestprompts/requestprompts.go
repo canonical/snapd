@@ -295,8 +295,7 @@ func (pdb *PromptDB) Reply(user uint32, id string, outcome prompting.OutcomeType
 		}
 	}
 	delete(userEntry.ByID, id)
-	data := make(map[string]string)
-	data["resolved"] = "replied"
+	data := map[string]string{"resolved": "replied"}
 	pdb.notifyPrompt(user, id, data)
 	return prompt, nil
 }
@@ -358,8 +357,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 		}
 		delete(userEntry.ByID, id)
 		satisfiedPromptIDs = append(satisfiedPromptIDs, id)
-		data := make(map[string]string)
-		data["resolved"] = "satisfied"
+		data := map[string]string{"resolved": "satisfied"}
 		pdb.notifyPrompt(metadata.User, id, data)
 	}
 	return satisfiedPromptIDs, nil
@@ -370,8 +368,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 // This should be called when snapd is shutting down, to notify prompt clients
 // that the given prompts are no longer awaiting a reply.
 func (pdb *PromptDB) Close() {
-	data := make(map[string]string)
-	data["resolved"] = "cancelled"
+	data := map[string]string{"resolved": "cancelled"}
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 	for user, userEntry := range pdb.perUser {
