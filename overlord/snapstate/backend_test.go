@@ -181,7 +181,7 @@ type fakeStore struct {
 	state           *state.State
 	seenPrivacyKeys map[string]bool
 
-	// snapResources is called for each snap that gets returned by SnapAction,
+	// snapResourcesFn is called for each snap that gets returned by SnapAction,
 	// it should return the resources that the snap should have.
 	snapResourcesFn func(*snap.Info) []store.SnapResourceResult
 
