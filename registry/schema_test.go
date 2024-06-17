@@ -959,7 +959,7 @@ func (*schemaSuite) TestBadAliasName(c *C) {
 
 	_, err := registry.ParseSchema(schemaStr)
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, `cannot parse alias name "-foo": must match ^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$`)
+	c.Assert(err.Error(), Equals, `cannot parse alias name "-foo": must match ^[a-z](?:-?[a-z0-9])*$`)
 }
 
 func (*schemaSuite) TestIntegerHappy(c *C) {
