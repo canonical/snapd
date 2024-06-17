@@ -1068,8 +1068,7 @@ suites:
             distro_purge_package snapd
             case "$SPREAD_SYSTEM" in
                 arch-*)
-                    # there is no snap-confine and ubuntu-core-launcher
-                    # in Arch
+                    # In Arch there is no separate snap-confine package.
                     ;;
                 *)
                     distro_purge_package snap-confine ubuntu-core-launcher
