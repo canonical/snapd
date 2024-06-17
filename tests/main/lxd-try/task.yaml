@@ -10,8 +10,8 @@ prepare: |
   "$TESTSTOOLS"/lxd-state prepare-snap
 
   REMOTE=ubuntu
-  # There isn't an official image for noble yet, let's use the daily one
-  if os.query is-ubuntu 24.04; then
+  # There isn't an official image for 24.10 yet, let's use the daily one
+  if os.query is-ubuntu 24.10; then
       REMOTE=ubuntu-daily
   fi
   VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
