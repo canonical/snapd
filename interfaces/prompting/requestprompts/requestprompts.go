@@ -99,10 +99,10 @@ type userPromptDB struct {
 // PromptDB stores outstanding prompts in memory and ensures that new prompts
 // are created with a unique ID.
 type PromptDB struct {
+	mutex     sync.RWMutex
 	perUser   map[uint32]*userPromptDB
 	maxID     uint64
 	maxIDPath string
-	mutex     sync.Mutex
 	// Function to issue a notice for a change in a prompt
 	notifyPrompt func(userID uint32, promptID string, data map[string]string) error
 }
@@ -236,8 +236,8 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 
 // Prompts returns a slice of all outstanding prompts.
 func (pdb *PromptDB) Prompts(user uint32) []*Prompt {
-	pdb.mutex.Lock()
-	defer pdb.mutex.Unlock()
+	pdb.mutex.RLock()
+	defer pdb.mutex.RUnlock()
 	userEntry, ok := pdb.perUser[user]
 	if !ok || len(userEntry.ByID) == 0 {
 		return []*Prompt{}
@@ -251,8 +251,8 @@ func (pdb *PromptDB) Prompts(user uint32) []*Prompt {
 
 // PromptWithID returns the prompt with the given ID for the given user.
 func (pdb *PromptDB) PromptWithID(user uint32, id string) (*Prompt, error) {
-	pdb.mutex.Lock()
-	defer pdb.mutex.Unlock()
+	pdb.mutex.RLock()
+	defer pdb.mutex.RUnlock()
 	_, prompt, err := pdb.promptWithID(user, id)
 	return prompt, err
 }
@@ -260,7 +260,7 @@ func (pdb *PromptDB) PromptWithID(user uint32, id string) (*Prompt, error) {
 // promptWithID returns the user entry for the given user and the prompt with
 // the given ID for the that user.
 //
-// The caller should hold the prompt DB lock.
+// The caller should hold a read lock on the prompt DB mutex.
 func (pdb *PromptDB) promptWithID(user uint32, id string) (*userPromptDB, *Prompt, error) {
 	userEntry, ok := pdb.perUser[user]
 	if !ok || len(userEntry.ByID) == 0 {
