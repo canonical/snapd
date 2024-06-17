@@ -7,6 +7,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -45,9 +46,24 @@ func (s *downloadComponentSuite) SetUpTest(c *C) {
 	s.state.Set("refresh-privacy-key", "privacy-key")
 }
 
-func (s *downloadComponentSuite) TestDoDownloadComponentNormal(c *C) {
+func (s *downloadComponentSuite) TestDoDownloadComponent(c *C) {
+	const autoRefresh = false
+	s.testDoDownloadComponent(c, autoRefresh)
+}
+
+func (s *downloadComponentSuite) TestDoDownloadComponentAutoRefresh(c *C) {
+	const autoRefresh = true
+	s.testDoDownloadComponent(c, autoRefresh)
+}
+
+func (s *downloadComponentSuite) testDoDownloadComponent(c *C, autoRefresh bool) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// set auto-refresh rate-limit
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.rate-limit", "1234B")
+	tr.Commit()
 
 	si := &snap.SideInfo{
 		RealName: "snap",
@@ -61,6 +77,7 @@ func (s *downloadComponentSuite) TestDoDownloadComponentNormal(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo:    si,
 		InstanceKey: "key",
+		Flags:       snapstate.Flags{IsAutoRefresh: autoRefresh},
 	})
 
 	t.Set("component-setup", &snapstate.ComponentSetup{
@@ -102,10 +119,19 @@ func (s *downloadComponentSuite) TestDoDownloadComponentNormal(c *C) {
 	c.Check(compsup.CompPath, Equals, expectedPath)
 	c.Check(t.Status(), Equals, state.DoneStatus)
 
+	var opts *store.DownloadOptions
+	if autoRefresh {
+		opts = &store.DownloadOptions{
+			RateLimit: 1234,
+			Scheduled: true,
+		}
+	}
+
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
 		{
 			name:   "snap+comp",
 			target: expectedPath,
+			opts:   opts,
 		},
 	})
 }
