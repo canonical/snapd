@@ -1241,6 +1241,10 @@ func (s *viewSuite) TestBadRequestPaths(c *C) {
 			request: "a.b-",
 			errMsg:  `invalid subkey "b-"`,
 		},
+		{
+			request: "0-b",
+			errMsg:  `invalid subkey "0-b"`,
+		},
 	}
 
 	for _, tc := range tcs {

@@ -364,7 +364,7 @@ func validateRequestStoragePair(request, storage string) error {
 }
 
 var (
-	subkeyRegex      = "(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*"
+	subkeyRegex      = "[a-z](?:-?[a-z0-9])*"
 	validSubkey      = regexp.MustCompile(fmt.Sprintf("^%s$", subkeyRegex))
 	validPlaceholder = regexp.MustCompile(fmt.Sprintf("^{%s}$", subkeyRegex))
 	// TODO: decide on what the format should be for aliases in schemas
