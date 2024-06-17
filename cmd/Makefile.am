@@ -427,16 +427,6 @@ snap-mgmt/snap-mgmt-selinux: snap-mgmt/snap-mgmt-selinux.sh.in Makefile snap-mgm
 endif
 
 ##
-## ubuntu-core-launcher
-##
-
-install-exec-hook::
-	install -d -m 755 $(DESTDIR)$(bindir)
-if BUILD_HOST_BINARIES
-	ln -sf $(libexecdir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher
-endif
-
-##
 ## snap-device-helper
 ##
 
