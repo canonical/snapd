@@ -179,18 +179,13 @@ func (m *SnapManager) doDownloadComponent(t *state.Task, tomb *tomb.Tomb) error 
 
 	st.Unlock()
 	timings.Run(perf, "download", fmt.Sprintf("download component %q", compsup.ComponentName()), func(timings.Measurer) {
-		err = sto.Download(
-			tomb.Context(nil),
-			compsup.CompSideInfo.Component.String(),
-			target,
-			compsup.DownloadInfo,
-			meter,
-			user,
-			&store.DownloadOptions{
-				Scheduled: snapsup.IsAutoRefresh,
-				RateLimit: rate,
-			},
-		)
+		compRef := compsup.CompSideInfo.Component.String()
+		opts := &store.DownloadOptions{
+			Scheduled: snapsup.IsAutoRefresh,
+			RateLimit: rate,
+		}
+
+		err = sto.Download(tomb.Context(nil), compRef, target, compsup.DownloadInfo, meter, user, opts)
 	})
 	st.Lock()
 	if err != nil {
