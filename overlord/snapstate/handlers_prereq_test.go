@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -836,6 +837,12 @@ func (s *prereqSuite) TestDoPrereqSkipDuringRemodel(c *C) {
 		Remodeling: true,
 	})
 	defer restore()
+
+	// replace the store here so we can force an error if we actually call
+	// InstallWithDeviceContext. if we do not do this, and we fail to properly
+	// handle the remodel case, InstallWithDeviceContext will return a
+	// ChangeConflictError, which is then ignored, making this test invalid
+	snapstate.ReplaceStore(s.state, storetest.Store{})
 
 	// install snapd so that prerequisites handler won't try to install it
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
