@@ -846,12 +846,14 @@ ptrace (read, trace) peer=unconfined,
 	privilegedProfile := dockerSupportPrivilegedAppArmor + dockerSupportConnectedPlugAppArmor
 
 	// if apparmor supports userns mediation then add this too
-	if apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
-		features, err := apparmor_sandbox.ParserFeatures()
-		c.Assert(err, IsNil)
-		if strutil.ListContains(features, "userns") {
-			privilegedProfile += dockerSupportConnectedPlugAppArmorUserNS
-		}
+	if (apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Partial) && (apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Full) {
+		c.Skip(apparmor_sandbox.Summary())
+	}
+
+	features, err := apparmor_sandbox.ParserFeatures()
+	c.Assert(err, IsNil)
+	if strutil.ListContains(features, "userns") {
+		privilegedProfile += dockerSupportConnectedPlugAppArmorUserNS
 	}
 
 	// Profile existing profile
