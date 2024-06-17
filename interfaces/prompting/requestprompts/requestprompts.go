@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -138,7 +139,7 @@ func (pdb *PromptDB) loadMaxID() error {
 
 	target := pdb.maxIDPath
 	f, err := os.Open(target)
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		pdb.maxID = 0
 		return nil
 	}
@@ -194,10 +195,13 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 		userEntry = pdb.perUser[metadata.User]
 	}
 
-	availablePermissions, _ := prompting.AvailablePermissions(metadata.Interface)
-	// Error should be impossible, since caller has already validated that iface
-	// is valid, and tests check that all valid interfaces have valid available
-	// permissions returned by AvailablePermissions.
+	availablePermissions, err := prompting.AvailablePermissions(metadata.Interface)
+	if err != nil {
+		// Error should be impossible, since caller has already validated that
+		// iface is valid, and tests check that all valid interfaces have valid
+		// available permissions returned by AvailablePermissions.
+		panic(err)
+	}
 
 	constraints := &PromptConstraints{
 		Path:                 path,
