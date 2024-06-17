@@ -204,6 +204,5 @@ package() {
   rm -fv "$pkgdir"/usr/lib/systemd/system/snapd.core-fixup.*
   # and scripts
   rm -fv "$pkgdir/usr/lib/snapd/snapd.core-fixup.sh"
-  rm -fv "$pkgdir/usr/bin/ubuntu-core-launcher"
   rm -fv "$pkgdir/usr/lib/snapd/system-shutdown"
 }
