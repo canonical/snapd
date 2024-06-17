@@ -79,7 +79,7 @@ execute: |
   
   # Ensure that the new size is printed in the journal logs. We requested 64MB but
   # this will most likely print out as 61.0M, so lets be a bit flexible
-  "$TESTSTOOLS"/journal-state get-log --namespace snap-group-one | MATCH "max 6[0-9].[0-9]M,"
+  "$TESTSTOOLS"/journal-state get-log --namespace snap-group-one | MATCH "max 6[0-9](.[0-9])?M,"
 
   # Ensure that the unit file is correct
   echo "Ensuring the unit file is correct"
