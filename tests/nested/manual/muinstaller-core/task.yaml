@@ -87,7 +87,7 @@ execute: |
   # - repacked snapd snap
   # (should be as simple as adding "--snap=./local-snapd.snap ...")
   SEED_DIR="core-seed"
-  wget -q https://raw.githubusercontent.com/snapcore/models/master/ubuntu-core-22-amd64-dangerous.model -O my.model
+  wget -q https://raw.githubusercontent.com/snapcore/models/master/ubuntu-core-"$version"-amd64-dangerous.model -O my.model
   snap prepare-image \
       --channel=edge \
       --snap ./pc-kernel.snap \
@@ -223,7 +223,7 @@ execute: |
 
   # check that seed is properly installed
   remote.exec test -d "/run/mnt/ubuntu-seed/systems/${LABEL}"
-  remote.exec "sudo snap recovery" | MATCH "${LABEL}\s+canonical\*\*\s+ubuntu-core-22-amd64-dangerous\s+current"
+  remote.exec "sudo snap recovery" | MATCH "${LABEL}\s+canonical\*\*\s+ubuntu-core-$version-amd64-dangerous\s+current"
 
   # check for unasserted snaps
   for sn in pc pc-kernel; do
@@ -232,7 +232,7 @@ execute: |
   done
 
   # check for asserted snaps
-  for sn in snapd core22; do
+  for sn in snapd core"$version"; do
       rev=$(remote.exec "snap list ${sn}" | awk 'NR != 1 { print $3 }')
       remote.exec "test -f /run/mnt/ubuntu-seed/snaps/${sn}_${rev}.snap"
   done
