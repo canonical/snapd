@@ -41,10 +41,6 @@ type Constraints struct {
 // ValidateForInterface returns nil if the constraints are valid for the given
 // interface, otherwise returns an error.
 func (c *Constraints) ValidateForInterface(iface string) error {
-	// TODO: change to this once PR #13866 is merged:
-	// if err := ValidatePathPattern(c.PathPattern); err != nil {
-	//	return err
-	// }
 	return c.validatePermissions(iface)
 }
 
@@ -81,9 +77,7 @@ func (c *Constraints) validatePermissions(iface string) error {
 //
 // If the constraints or path are invalid, returns an error.
 func (c *Constraints) Match(path string) (bool, error) {
-	// TODO: change to this once PR #13866 is merged:
-	// return PathPatternMatch(c.PathPattern, path)
-	return true, nil
+	return PathPatternMatch(c.PathPattern, path)
 }
 
 // RemovePermission removes every instance of the given permission from the
