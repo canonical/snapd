@@ -499,6 +499,7 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"ioctl - TIOCSTI", "ioctl;native;-,99", Deny},
 		{"ioctl - !TIOCSTI", "ioctl;native;-,TIOCSTI", Deny},
 		{"ioctl\n~ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", DenyExplicit},
+		{"@complain\nioctl\n~ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", Allow},
 		// also check we can deny multiple uses of ioctl but still allow
 		// others
 		{"ioctl\n~ioctl - TIOCSTI\n~ioctl - TIOCLINUX\nioctl - !TIOCSTI", "ioctl;native;-,TIOCSTI", DenyExplicit},

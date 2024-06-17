@@ -584,7 +584,7 @@ var (
 	errnoOnImplicitDenial int16 = C.EPERM
 )
 
-func parseLine(line string, secFilterAllow, secFilterDeny *seccomp.ScmpFilter) error {
+func parseLine(line string, secFilterAllow, secFilterDeny *seccomp.ScmpFilter, complain bool, complainAct seccomp.ScmpAction) error {
 	// ignore comments and empty lines
 	if strings.HasPrefix(line, "#") || line == "" {
 		return nil
@@ -607,6 +607,9 @@ func parseLine(line string, secFilterAllow, secFilterDeny *seccomp.ScmpFilter) e
 		action = seccomp.ActErrno.SetReturnCode(errnoOnExplicitDenial)
 		syscallName = syscallName[1:]
 		secFilter = secFilterDeny
+		if complain {
+			action = complainAct
+		}
 	}
 
 	secSyscall, err := seccomp.GetSyscallFromName(syscallName)
@@ -897,13 +900,13 @@ func compile(content []byte, out string) error {
 	var err error
 	var secFilterAllow, secFilterDeny *seccomp.ScmpFilter
 
+	complainAct := complainAction()
 	unrestricted, complain := preprocess(content)
+
 	switch {
 	case unrestricted:
 		return writeUnrestrictedFilter(out)
 	case complain:
-		var complainAct seccomp.ScmpAction = complainAction()
-
 		secFilterAllow, err = seccomp.NewFilter(complainAct)
 		if err != nil {
 			if complainAct != seccomp.ActAllow {
@@ -960,7 +963,7 @@ func compile(content []byte, out string) error {
 	if !unrestricted {
 		scanner := bufio.NewScanner(bytes.NewBuffer(content))
 		for scanner.Scan() {
-			if err := parseLine(scanner.Text(), secFilterAllow, secFilterDeny); err != nil {
+			if err := parseLine(scanner.Text(), secFilterAllow, secFilterDeny, complain, complainAct); err != nil {
 				return fmt.Errorf("cannot parse line: %s", err)
 			}
 		}
