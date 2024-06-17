@@ -469,18 +469,14 @@ func preUpdateInfo(st *state.State, snapst *SnapState, amend bool, userID int) (
 
 var ErrMissingExpectedResult = fmt.Errorf("unexpectedly empty response from the server (try again later)")
 
-func singleActionResult(name, action string, results []store.SnapActionResult, e error) (store.SnapActionResult, error) {
-	if len(results) > 1 {
-		return store.SnapActionResult{}, fmt.Errorf("internal error: multiple store results for a single snap op")
-	}
-	if len(results) > 0 {
-		// TODO: if we also have an error log/warn about it
-		return results[0], nil
+func singleActionResultErr(name, action string, e error) error {
+	if e == nil {
+		return nil
 	}
 
 	if saErr, ok := e.(*store.SnapActionError); ok {
 		if len(saErr.Other) != 0 {
-			return store.SnapActionResult{}, saErr
+			return saErr
 		}
 
 		var snapErr error
@@ -493,16 +489,28 @@ func singleActionResult(name, action string, results []store.SnapActionResult, e
 			snapErr = saErr.Install[name]
 		}
 		if snapErr != nil {
-			return store.SnapActionResult{}, snapErr
+			return snapErr
 		}
 
 		// no result, atypical case
 		if saErr.NoResults {
-			return store.SnapActionResult{}, ErrMissingExpectedResult
+			return ErrMissingExpectedResult
 		}
 	}
 
-	return store.SnapActionResult{}, e
+	return e
+}
+
+func singleActionResult(name, action string, results []store.SnapActionResult, e error) (store.SnapActionResult, error) {
+	if len(results) > 1 {
+		return store.SnapActionResult{}, fmt.Errorf("internal error: multiple store results for a single snap op")
+	}
+	if len(results) > 0 {
+		// TODO: if we also have an error log/warn about it
+		return results[0], nil
+	}
+
+	return store.SnapActionResult{}, singleActionResultErr(name, action, e)
 }
 
 func updateToRevisionInfo(st *state.State, snapst *SnapState, revOpts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*snap.Info, error) {
@@ -955,73 +963,4 @@ func SnapHolds(st *state.State, snaps []string) (map[string][]string, error) {
 	}
 
 	return holds, nil
-}
-
-func installCandidates(st *state.State, names []string, revOpts []*RevisionOptions, channel string, user *auth.UserState) ([]store.SnapActionResult, error) {
-	curSnaps, err := currentSnaps(st)
-	if err != nil {
-		return nil, err
-	}
-
-	opts, err := refreshOptions(st, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// if installing a specific revision, we may be trying to enforce a validation
-	// set so don't check against current ones.
-	var enforcedSets *snapasserts.ValidationSets
-	if revOpts == nil {
-		enforcedSets, err = EnforcedValidationSets(st)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	actions := make([]*store.SnapAction, len(names))
-	for i, name := range names {
-		action := &store.SnapAction{
-			Action:       "install",
-			InstanceName: name,
-			// the desired channel
-			Channel: channel,
-		}
-
-		var requiredValSets []snapasserts.ValidationSetKey
-		var requiredRevision snap.Revision
-
-		if revOpts != nil {
-			requiredValSets = revOpts[i].ValidationSets
-			requiredRevision = revOpts[i].Revision
-		} else if enforcedSets != nil {
-			// check for invalid presence first to have a list of sets where it's invalid
-			invalidForValSets, err := enforcedSets.CheckPresenceInvalid(naming.Snap(name))
-			if err != nil {
-				if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
-					return nil, err
-				} // else presence is optional or required, carry on
-			}
-
-			if len(invalidForValSets) > 0 {
-				return nil, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, snapasserts.ValidationSetKeySlice(invalidForValSets).CommaSeparated())
-			}
-			requiredValSets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(name))
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		if len(requiredValSets) > 0 {
-			setActionValidationSetsAndRequiredRevision(action, requiredValSets, requiredRevision)
-		}
-
-		actions[i] = action
-	}
-
-	// TODO: possibly support a deviceCtx
-	theStore := Store(st, nil)
-	st.Unlock() // calls to the store should be done without holding the state lock
-	defer st.Lock()
-	results, _, err := theStore.SnapAction(context.TODO(), curSnaps, actions, nil, user, opts)
-	return results, err
 }

@@ -1324,87 +1324,17 @@ func addPrereq(prqt PrereqTracker, info *snap.Info) {
 // local revision and sideloading, or full metadata in which case it
 // the snap will appear as installed from the store.
 func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel string, flags Flags, prqt PrereqTracker) (*state.TaskSet, *snap.Info, error) {
-	if si.RealName == "" {
-		return nil, nil, fmt.Errorf("internal error: snap name to install %q not provided", path)
-	}
-
-	if flags.Lane != 0 {
-		return nil, nil, fmt.Errorf("transaction lane is unsupported in InstallPath")
-	}
-
-	if instanceName == "" {
-		instanceName = si.RealName
-	}
-
-	deviceCtx, err := DeviceCtxFromState(st, nil)
+	target := PathInstallGoal(instanceName, path, si, RevisionOptions{
+		Channel: channel,
+	})
+	info, ts, err := InstallOne(context.Background(), st, target, Options{
+		Flags:         flags,
+		PrereqTracker: prqt,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
-
-	var snapst SnapState
-	err = Get(st, instanceName, &snapst)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return nil, nil, err
-	}
-
-	if si.SnapID != "" {
-		if si.Revision.Unset() {
-			return nil, nil, fmt.Errorf("internal error: snap id set to install %q but revision is unset", path)
-		}
-	}
-
-	channel, err = resolveChannel(instanceName, snapst.TrackingChannel, channel, deviceCtx)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var instFlags int
-	if flags.SkipConfigure {
-		// extract it as a doInstall flag, this is not passed
-		// into SnapSetup
-		instFlags |= skipConfigure
-	}
-
-	// It is ok do open the snap file here because we either
-	// have side info or the user passed --dangerous
-	info, err := validatedInfoFromPathAndSideInfo(instanceName, path, si)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	snapName, instanceKey := snap.SplitInstanceName(instanceName)
-	if info.SnapName() != snapName {
-		return nil, nil, fmt.Errorf("cannot install snap %q, the name does not match the metadata %q", instanceName, info.SnapName())
-	}
-	info.InstanceKey = instanceKey
-
-	flags, err = ensureInstallPreconditions(st, info, flags, &snapst)
-	if err != nil {
-		return nil, nil, err
-	}
-	// this might be a refresh; check the epoch before proceeding
-	if err := earlyEpochCheck(info, &snapst); err != nil {
-		return nil, nil, err
-	}
-
-	addPrereq(prqt, info)
-	providerContentAttrs := defaultProviderContentAttrs(st, info, prqt)
-	snapsup := &SnapSetup{
-		Base:               info.Base,
-		Prereq:             getKeys(providerContentAttrs),
-		PrereqContentAttrs: providerContentAttrs,
-		SideInfo:           si,
-		SnapPath:           path,
-		Channel:            channel,
-		Flags:              flags.ForSnapSetup(),
-		Type:               info.Type(),
-		Version:            info.Version,
-		PlugsOnly:          len(info.Slots) == 0,
-		InstanceKey:        info.InstanceKey,
-	}
-
-	ts, err := doInstall(st, &snapst, snapsup, instFlags, "", inUseFor(deviceCtx))
-	return ts, info, err
+	return ts, info, nil
 }
 
 // TryPath returns a set of tasks for trying a snap from a file path.
@@ -1426,8 +1356,6 @@ func Install(ctx context.Context, st *state.State, name string, opts *RevisionOp
 	return InstallWithDeviceContext(ctx, st, name, opts, userID, flags, nil, nil, "")
 }
 
-type snapInfoForInstall func(DeviceContext, *RevisionOptions) (si *snap.Info, snapPath, redirectChannel string, e error)
-
 // InstallWithDeviceContext returns a set of tasks for installing a snap.
 // It will query the store for the snap with the given deviceCtx.
 // Note that the state must be locked by the caller.
@@ -1437,15 +1365,27 @@ type snapInfoForInstall func(DeviceContext, *RevisionOptions) (si *snap.Info, sn
 // modifications.
 func InstallWithDeviceContext(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, prqt PrereqTracker, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
 	logger.Debugf("installing with device context %s", name)
-	snapInstallInfo := func(dc DeviceContext, ro *RevisionOptions) (si *snap.Info, snapPath, redirectChannel string, e error) {
-		sar, err := installInfo(ctx, st, name, ro, userID, flags, dc)
-		if err != nil {
-			return nil, "", "", err
-		}
-		addPrereq(prqt, sar.Info)
-		return sar.Info, "", sar.RedirectChannel, nil
+	if opts == nil {
+		opts = &RevisionOptions{}
 	}
-	return installWithDeviceContext(st, name, opts, userID, flags, prqt, deviceCtx, fromChange, snapInstallInfo)
+
+	target := StoreInstallGoal(StoreSnap{
+		InstanceName: name,
+		RevOpts:      *opts,
+	})
+
+	_, ts, err := InstallOne(ctx, st, target, Options{
+		Flags:         flags,
+		UserID:        userID,
+		FromChange:    fromChange,
+		PrereqTracker: prqt,
+		DeviceCtx:     deviceCtx,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return ts, nil
 }
 
 // InstallPathWithDeviceContext returns a set of tasks for installing a local snap.
@@ -1459,109 +1399,23 @@ func InstallPathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name
 	deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
 	logger.Debugf("installing from local file with device context %s", name)
 
-	if !opts.Revision.Unset() && si.Revision != opts.Revision {
-		return nil, fmt.Errorf("cannot install local snap %q: %v != %v (revision mismatch)", name, opts.Revision, si.Revision)
-	}
-
-	snapInstallInfo := func(DeviceContext, *RevisionOptions) (info *snap.Info, snapPath, redirectChannel string, e error) {
-		info, err := validatedInfoFromPathAndSideInfo(name, path, si)
-		if err != nil {
-			return nil, "", "", err
-		}
-		addPrereq(prqt, info)
-		return info, path, "", nil
-	}
-	return installWithDeviceContext(st, name, opts, userID, flags, prqt, deviceCtx, fromChange, snapInstallInfo)
-}
-
-func installWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, prqt PrereqTracker, deviceCtx DeviceContext, fromChange string, snapInstallInfo snapInfoForInstall) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
-	if opts.CohortKey != "" && !opts.Revision.Unset() {
-		return nil, errors.New("cannot specify revision and cohort")
-	}
 
-	if flags.Lane != 0 {
-		return nil, fmt.Errorf("transaction lane is unsupported in InstallWithDeviceContext")
-	}
+	target := PathInstallGoal(name, path, si, *opts)
 
-	if opts.Channel == "" {
-		opts.Channel = "stable"
-	}
-
-	var snapst SnapState
-	err := Get(st, name, &snapst)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return nil, err
-	}
-	if snapst.IsInstalled() {
-		return nil, &snap.AlreadyInstalledError{Snap: name}
-	}
-
-	if err := snap.ValidateInstanceName(name); err != nil {
-		return nil, fmt.Errorf("invalid instance name: %v", err)
-	}
-
-	// make sure to have a model set
-	devPastSeedCtx, err := DevicePastSeeding(st, deviceCtx)
+	_, ts, err := InstallOne(context.Background(), st, target, Options{
+		Flags:         flags,
+		UserID:        userID,
+		FromChange:    fromChange,
+		PrereqTracker: prqt,
+		DeviceCtx:     deviceCtx,
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	info, snapPath, redirectChannel, err := snapInstallInfo(devPastSeedCtx, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	if flags.RequireTypeBase && info.Type() != snap.TypeBase && info.Type() != snap.TypeOS {
-		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
-	}
-
-	flags, err = ensureInstallPreconditions(st, info, flags, &snapst)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := checkDiskSpace(st, "install", []minimalInstallInfo{installSnapInfo{info}}, userID, prqt); err != nil {
-		return nil, err
-	}
-
-	providerContentAttrs := defaultProviderContentAttrs(st, info, prqt)
-	snapsup := &SnapSetup{
-		Channel:            opts.Channel,
-		Base:               info.Base,
-		Prereq:             getKeys(providerContentAttrs),
-		PrereqContentAttrs: providerContentAttrs,
-		UserID:             userID,
-		Flags:              flags.ForSnapSetup(),
-		DownloadInfo:       &info.DownloadInfo,
-		SideInfo:           &info.SideInfo,
-		Type:               info.Type(),
-		Version:            info.Version,
-		PlugsOnly:          len(info.Slots) == 0,
-		InstanceKey:        info.InstanceKey,
-		auxStoreInfo: auxStoreInfo{
-			Media: info.Media,
-			// XXX we store this for the benefit of old snapd
-			Website: info.Website(),
-		},
-		CohortKey:          opts.CohortKey,
-		ExpectedProvenance: info.SnapProvenance,
-	}
-
-	// If we don't have a local snap we need to download it.
-	if snapPath != "" {
-		snapsup.SnapPath = snapPath
-	} else {
-		snapsup.DownloadInfo = &info.DownloadInfo
-	}
-
-	if redirectChannel != "" {
-		snapsup.Channel = redirectChannel
-	}
-
-	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
+	return ts, nil
 }
 
 // Download returns a set of tasks for downloading a snap into the given
@@ -1672,6 +1526,9 @@ func validatedInfoFromPathAndSideInfo(snapName, path string, si *snap.SideInfo) 
 // The provided SideInfos can contain just a name which results in a
 // local revision and sideloading, or full metadata in which case
 // the snaps will appear as installed from the store.
+//
+// TODO: rather than being implemeted via the the InstallTarget function, this
+// will be implemented with a variation of Update
 func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string, userID int, flags *Flags) ([]*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
@@ -1752,115 +1609,42 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 		flags = &Flags{}
 	}
 
-	// need to have a model set before trying to talk the store
-	deviceCtx, err := DevicePastSeeding(st, nil)
+	// this is to maintain backwards compatibility with the old behavior
+	if flags.Transaction == "" {
+		flags.Transaction = client.TransactionPerSnap
+	}
+
+	if len(revOpts) > 0 && len(revOpts) != len(names) {
+		return nil, nil, fmt.Errorf("number of revisions does not match number of snaps")
+	}
+
+	snaps := make([]StoreSnap, 0, len(names))
+	for i, name := range names {
+		sn := StoreSnap{
+			InstanceName:  name,
+			SkipIfPresent: true,
+		}
+		if len(revOpts) > 0 && revOpts[i] != nil {
+			sn.RevOpts = *revOpts[i]
+		}
+		snaps = append(snaps, sn)
+	}
+
+	target := StoreInstallGoal(snaps...)
+	infos, tss, err := InstallWithGoal(context.Background(), st, target, Options{
+		Flags:  *flags,
+		UserID: userID,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
 
-	names = strutil.Deduplicate(names)
-
-	toInstall := make([]string, 0, len(names))
-	for _, name := range names {
-		var snapst SnapState
-		err := Get(st, name, &snapst)
-		if err != nil && !errors.Is(err, state.ErrNoState) {
-			return nil, nil, err
-		}
-		if snapst.IsInstalled() {
-			continue
-		}
-
-		if err := snap.ValidateInstanceName(name); err != nil {
-			return nil, nil, fmt.Errorf("invalid instance name: %v", err)
-		}
-
-		toInstall = append(toInstall, name)
+	installed := make([]string, 0, len(infos))
+	for _, info := range infos {
+		installed = append(installed, info.InstanceName())
 	}
 
-	user, err := userFromUserID(st, userID)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	installs, err := installCandidates(st, toInstall, revOpts, "stable", user)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	snapInfos := make([]minimalInstallInfo, len(installs))
-	for i, sar := range installs {
-		snapInfos[i] = installSnapInfo{sar.Info}
-	}
-
-	if err = checkDiskSpace(st, "install", snapInfos, userID, nil); err != nil {
-		return nil, nil, err
-	}
-
-	// can only specify a lane when running multiple operations transactionally
-	if flags.Transaction != client.TransactionAllSnaps && flags.Lane != 0 {
-		return nil, nil, errors.New("cannot specify a lane without setting transaction to \"all-snaps\"")
-	}
-
-	var transactionLane int
-	if flags.Transaction == client.TransactionAllSnaps {
-		if flags.Lane != 0 {
-			transactionLane = flags.Lane
-		} else {
-			transactionLane = st.NewLane()
-		}
-	}
-
-	tasksets := make([]*state.TaskSet, 0, len(installs))
-	for _, sar := range installs {
-		info := sar.Info
-		var snapst SnapState
-
-		validatedFlags, err := ensureInstallPreconditions(st, info, *flags, &snapst)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		channel := "stable"
-		if sar.RedirectChannel != "" {
-			channel = sar.RedirectChannel
-		}
-
-		providerContentAttrs := defaultProviderContentAttrs(st, info, nil)
-		snapsup := &SnapSetup{
-			Channel:            channel,
-			Base:               info.Base,
-			Prereq:             getKeys(providerContentAttrs),
-			PrereqContentAttrs: providerContentAttrs,
-			UserID:             userID,
-			Flags:              validatedFlags.ForSnapSetup(),
-			DownloadInfo:       &info.DownloadInfo,
-			SideInfo:           &info.SideInfo,
-			Type:               info.Type(),
-			Version:            info.Version,
-			PlugsOnly:          len(info.Slots) == 0,
-			InstanceKey:        info.InstanceKey,
-			ExpectedProvenance: info.SnapProvenance,
-		}
-
-		ts, err := doInstall(st, &snapst, snapsup, 0, "", inUseFor(deviceCtx))
-		if err != nil {
-			return nil, nil, err
-		}
-
-		// If transactional, use a single lane for all snaps, so when
-		// one fails the changes for all affected snaps will be
-		// undone. Otherwise, have different lanes per snap so failures
-		// only affect the culprit snap.
-		if flags.Transaction == client.TransactionAllSnaps {
-			ts.JoinLane(transactionLane)
-		} else {
-			ts.JoinLane(st.NewLane())
-		}
-		tasksets = append(tasksets, ts)
-	}
-
-	return toInstall, tasksets, nil
+	return installed, tss, err
 }
 
 // RefreshCandidates gets a list of candidates for update
