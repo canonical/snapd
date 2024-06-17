@@ -23,9 +23,6 @@ usr/bin/snap-seccomp /usr/lib/snapd/
 usr/bin/snap-update-ns /usr/lib/snapd/
 usr/bin/snapctl /usr/lib/snapd/
 usr/bin/snapd /usr/lib/snapd/
-# for compatibility with ancient snap installs that wrote the shell based
-# wrapper scripts instead of the modern symlinks
-usr/bin/ubuntu-core-launcher
 usr/lib/snapd/snap-confine
 usr/lib/snapd/snap-device-helper
 usr/lib/snapd/snap-discard-ns
