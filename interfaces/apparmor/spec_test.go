@@ -654,38 +654,15 @@ func (s *specSuite) TestPrioritySnippets(c *C) {
 }
 
 func (s *specSuite) TestPrioritySnippetsNoRegisteredKey(c *C) {
-	currentStep := 0
-	defer func() {
-		r := recover()
-		// the test must panic when calling AddPrioritizedSnippet
-		c.Assert(r, NotNil)
-		c.Assert(currentStep, Equals, 1)
-	}()
-
 	key1 := interfaces.NewSnippetKey("key1")
-	currentStep = 1
-	s.spec.AddPrioritizedSnippet("Prioritized snippet 1", key1, 0)
-	currentStep = 2
+	c.Assert(func() { s.spec.AddPrioritizedSnippet("Prioritized snippet 1", key1, 0) }, PanicMatches, "priority key key1 is not registered")
 }
 
 func (s *specSuite) TestRegisterSameSnippetKeyTwice(c *C) {
-	currentStep := 0
-	defer func() {
-		r := recover()
-		// the test must panic when calling RegisterSnippetKey the second time
-		c.Assert(r, NotNil)
-		c.Assert(currentStep, Equals, 4)
-	}()
-
 	key1 := interfaces.NewSnippetKey("key")
-	currentStep = 1
 	key2 := interfaces.NewSnippetKey("key")
-	currentStep = 2
 	// ensure that both keys are detected as the same
-	c.Assert(key1 == key2, Equals, true)
-	currentStep = 3
+	c.Assert(key1, Equals, key2)
 	s.spec.RegisterSnippetKey(key1)
-	currentStep = 4
-	s.spec.RegisterSnippetKey(key2)
-	currentStep = 5
+	c.Assert(func() { s.spec.RegisterSnippetKey(key2) }, PanicMatches, "priority key key is already registered")
 }
