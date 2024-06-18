@@ -101,9 +101,6 @@ network packet,
 # in the same place.
 /run/NetworkManager/{,**} rw,
 
-# Allow access to the system dbus
-/run/dbus/system_bus_socket rw,
-
 # Needed by the ifupdown plugin to check which interfaces can
 # be managed an which not.
 /etc/network/interfaces r,
@@ -307,6 +304,12 @@ const networkManagerConnectedPlugAppArmor = `
 # to the NetworkManager service.
 
 #include <abstractions/dbus-strict>
+
+# Allow access to gnutls config
+/etc/gnutls/config r,
+
+# Allow access to the system dbus
+/run/dbus/system_bus_socket rw,
 
 # Allow all access to NetworkManager service
 dbus (receive, send)
