@@ -45,9 +45,8 @@ execute: |
     DEB=$(basename "$GOHOME"/snapd_*.deb)
     
     lxd.lxc exec ubuntu -- apt update
-    # As for ubuntu noble it is not using the official image, snapd is not installed by default
-    # This should be removed once the official image is released
-    if os.query is-ubuntu 24.04; then
+    # As for ubuntu noble container, no snaps are seeded, so install some
+    if os.query is-ubuntu-ge 24.04; then
         lxd.lxc exec ubuntu -- apt install -y snapd
         lxd.lxc exec ubuntu -- snap install "$core_snap"
     fi
