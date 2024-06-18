@@ -11,10 +11,23 @@ backends:
         halt-timeout: 2h
         groups: [default]
         systems:
+       systems:
+            - ubuntu-22.04-arm-64:
+                image: ubuntu-jammy-22.04-arm64
+                workers: 1
+
             - fedora-40-64:
                 image: fedora-40-64-v20240528
-                workers: 8
+                workers: 1
     
             - opensuse-15.5-64:
                 image: opensuse-15.5-64-v20240529
-                workers: 8
+                workers: 1
+
+            - centos-9-64:
+                image: centos-9-64-v20240613
+                workers: 1
+
+            - debian-12-64:
+                image: debian-12-64-v20240613
+                workers: 1
