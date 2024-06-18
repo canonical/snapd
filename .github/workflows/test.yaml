@@ -825,7 +825,7 @@ jobs:
     - name: Download built snap
       uses: actions/download-artifact@v3
       with:
-        name: snap-files-test
+        name: snap-files-default-test
         pattern: snapd_1337.*.snap
         path: "${{ github.workspace }}/built-snap"
 
