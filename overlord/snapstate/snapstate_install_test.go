@@ -6307,8 +6307,8 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, insta
 	c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 
 	compNameToType := func(name string) snap.ComponentType {
-		typ, ok := strings.CutSuffix(name, "-component")
-		if !ok {
+		typ := strings.TrimSuffix(name, "-component")
+		if typ == name {
 			c.Fatalf("unexpected component name %q", name)
 		}
 		return snap.ComponentType(typ)
