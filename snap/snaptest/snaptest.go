@@ -149,7 +149,7 @@ func MockComponentCurrent(c *check.C, yamlText string, info *snap.Info, csi snap
 	linkDest, err := filepath.Rel(filepath.Dir(link), mountDir)
 	c.Assert(err, check.IsNil)
 
-	err = osutil.AtomicSymlink(linkDest, link)
+	err = os.Symlink(linkDest, link)
 	c.Assert(err, check.IsNil)
 
 	return ci
