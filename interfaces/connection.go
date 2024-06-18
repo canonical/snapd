@@ -87,6 +87,10 @@ type Attrer interface {
 	Lookup(path string) (value interface{}, ok bool)
 }
 
+// SnippetKey is an opaque string identifying a class of snippets.
+//
+// Some APIs require the use of snippet keys to allow adding many different snippets
+// with the same key but possibly different priority.
 type SnippetKey struct {
 	key string
 }
