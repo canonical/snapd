@@ -1195,6 +1195,12 @@ func (r *runnable) Plugs() map[string]*snap.PlugInfo {
 	return r.app.Plugs
 }
 
+// IsHook returns true if the runnable is a hook. r.Hook() will not return nil
+// if this is true.
+func (r *runnable) IsHook() bool {
+	return r.hook != nil
+}
+
 // Hook returns the hook that is going to be run, if there is one. Will be nil
 // if running an app.
 func (r *runnable) Hook() *snap.HookInfo {
@@ -1238,7 +1244,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 		return err
 	}
 	if !osutil.FileExists(snapConfine) {
-		if runner.Hook() != nil {
+		if runner.IsHook() {
 			logger.Noticef("WARNING: skipping running hook %q of %q: missing snap-confine", runner.Hook().Name, runner.Target())
 			return nil
 		}
@@ -1281,7 +1287,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 			// kernels have no explicit base, we use the boot base
 			modelAssertion, err := x.client.CurrentModelAssertion()
 			if err != nil {
-				if runner.Hook() != nil {
+				if runner.IsHook() {
 					return fmt.Errorf("cannot get model assertion to setup kernel hook run: %v", err)
 				} else {
 					return fmt.Errorf("cannot get model assertion to setup kernel app run: %v", err)
@@ -1323,7 +1329,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 		cmd = append(cmd, "--command="+x.Command)
 	}
 
-	if runner.Hook() != nil {
+	if runner.IsHook() {
 		cmd = append(cmd, "--hook="+runner.Hook().Name)
 	}
 
@@ -1423,7 +1429,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 		}
 	}
 	// Allow using the session bus for all apps but not for hooks.
-	allowSessionBus := runner.Hook() == nil
+	allowSessionBus := !runner.IsHook()
 	// Track, or confirm existing tracking from systemd.
 	if err := cgroupConfirmSystemdAppTracking(securityTag); err != nil {
 		if err != cgroup.ErrCannotTrackProcess {
