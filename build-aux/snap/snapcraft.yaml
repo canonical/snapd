@@ -376,6 +376,10 @@ parts:
         snap download --channel fips-updates/stable --basename core22-fips core22
       fi
     override-build: |
+      # TODO this is really a hack as we should likely be using on LP; The snapd
+      # snap should include the information about a particular openssl version
+      # which was included in the build but the core22 FIPS variant snap has
+      # been stripped off of the manifest.
       if [ -f fips-build ]; then
         unsquashfs -d core22-fips-squashfs-root core22-fips.snap \
           'usr/lib/*-linux-gnu*/engines-3' \
