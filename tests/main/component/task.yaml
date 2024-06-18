@@ -64,11 +64,15 @@ execute: |
   install_comp x1
   install_comp x2
 
+  # Check message on installation
+  snap install --dangerous snap-with-comps+comp1_1.0.comp |
+      MATCH 'component comp1 1\.0 for snap-with-comps 1\.0 installed'
+
   # TODO: add checks for components removals when implemented by snapd
   # For the moment, remove the snap and then manually the components
   snap remove snap-with-comps
   cd /etc/systemd/system/
-  systemctl stop -- *'snap\x2dwith\x2dcomps-components-mnt-comp1-x2.mount'
+  systemctl stop -- *'snap\x2dwith\x2dcomps-components-mnt-comp1-x3.mount'
   cd -
-  rm /etc/systemd/system/*'-snap\x2dwith\x2dcomps-components-mnt-comp1-x2.mount'
+  rm /etc/systemd/system/*'-snap\x2dwith\x2dcomps-components-mnt-comp1-x3.mount'
   rm -rf "$SNAP_MOUNT_DIR"/snap-with-comps/
