@@ -54,6 +54,7 @@ var _ = Suite(&infoSimpleSuite{})
 
 func (s *infoSimpleSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	snap.NewContainerFromDir = snapdir.NewContainerFromDir
 }
 
 func (s *infoSimpleSuite) TearDownTest(c *C) {
@@ -404,12 +405,7 @@ type: test
 		Revision:  snap.R(21),
 	})
 
-	// TODO: fix this annoying import cycle issue
-	container := func(p string) (snap.Container, error) {
-		return snapdir.New(p), nil
-	}
-
-	currentCompInfo, err := snap.ReadCurrentComponentInfo("comp", info, container)
+	currentCompInfo, err := snap.ReadCurrentComponentInfo("comp", info)
 	c.Assert(err, IsNil)
 
 	c.Assert(currentCompInfo.Revision, Equals, snap.R(21))

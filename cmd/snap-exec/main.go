@@ -32,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/snapenv"
 )
 
@@ -259,11 +258,7 @@ func execApp(snapTarget, revision, command string, args []string) error {
 }
 
 func getComponentInfo(name string, snapInfo *snap.Info) (*snap.ComponentInfo, error) {
-	container := func(p string) (snap.Container, error) {
-		return snapdir.New(p), nil
-	}
-
-	return snap.ReadCurrentComponentInfo(name, snapInfo, container)
+	return snap.ReadCurrentComponentInfo(name, snapInfo)
 }
 
 func execHook(snapTarget string, revision, hookName string) error {

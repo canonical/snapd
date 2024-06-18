@@ -1585,7 +1585,9 @@ func ReadCurrentInfo(snapName string) (*Info, error) {
 	return ReadInfo(snapName, &SideInfo{Revision: revision})
 }
 
-func ReadCurrentComponentInfo(component string, info *Info, container func(string) (Container, error)) (*ComponentInfo, error) {
+var NewContainerFromDir func(snapName string) Container
+
+func ReadCurrentComponentInfo(component string, info *Info) (*ComponentInfo, error) {
 	link := filepath.Join(ComponentsBaseDir(info.InstanceName()), info.Revision.String(), component)
 
 	linkSource, err := os.Readlink(link)
@@ -1600,12 +1602,9 @@ func ReadCurrentComponentInfo(component string, info *Info, container func(strin
 		return nil, fmt.Errorf("cannot parse current revision for component %q: %s", component, err)
 	}
 
-	cont, err := container(link)
-	if err != nil {
-		return nil, err
-	}
+	container := NewContainerFromDir(link)
 
-	return ReadComponentInfoFromContainer(cont, info, &ComponentSideInfo{
+	return ReadComponentInfoFromContainer(container, info, &ComponentSideInfo{
 		Revision:  revision,
 		Component: naming.NewComponentRef(info.SnapName(), component),
 	})

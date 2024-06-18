@@ -52,7 +52,6 @@ import (
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/snapenv"
 	"github.com/snapcore/snapd/strutil/shlex"
 	"github.com/snapcore/snapd/timeutil"
@@ -328,14 +327,6 @@ func getSnapInfo(snapName string, revision snap.Revision) (info *snap.Info, err 
 	}
 
 	return info, err
-}
-
-func getComponentInfo(name string, snapInfo *snap.Info) (*snap.ComponentInfo, error) {
-	container := func(p string) (snap.Container, error) {
-		return snapdir.New(p), nil
-	}
-
-	return snap.ReadCurrentComponentInfo(name, snapInfo, container)
 }
 
 func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User, opts *dirs.SnapDirOptions) error {
@@ -615,7 +606,7 @@ func (x *cmdRun) snapRunHook(snapTarget string) error {
 		componentRevision := snap.Revision{}
 		_ = componentRevision
 
-		component, err = getComponentInfo(componentName, info)
+		component, err = snap.ReadCurrentComponentInfo(componentName, info)
 		if err != nil {
 			return err
 		}
