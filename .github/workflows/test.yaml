@@ -27,6 +27,9 @@ jobs:
         toolchain:
           - default
           - FIPS
+        version:
+          - pristine
+          - test
     # only build the snap for pull requests, it's not needed on release branches
     # or on master since we have launchpad build recipes which do this already
     if: ${{ github.event_name == 'pull_request' }}
@@ -50,17 +53,19 @@ jobs:
                 exit 1
                 ;;
         esac
+        case "${{ matrix.version }}" in
+            pristine)
+                rm -f test-build
+                ;;
+            test)
+                touch test-build
+                ;;
+        esac
 
     - name: Build snapd snap
       uses: snapcore/action-build@v1
       with:
         snapcraft-channel: 8.x/stable
-
-    - name: Set test version
-      run: |
-        sudo apt install -y devscripts
-        dch --newversion "1337.$(dpkg-parsechangelog --show-field Version)" "testing build"
-        sg lxd -c 'snapcraft clean snapd'
 
     - name: Build test snapd snap
       uses: snapcore/action-build@v1
@@ -95,7 +100,7 @@ jobs:
     - name: Uploading snapd snap artifact
       uses: actions/upload-artifact@v3
       with:
-        name: snap-files-${{ matrix.toolchain }}
+        name: snap-files-${{ matrix.toolchain }}-${{ matrix.version }}
         path: "*.snap"
 
   cache-build-deps:
@@ -820,7 +825,7 @@ jobs:
     - name: Download built snap
       uses: actions/download-artifact@v3
       with:
-        name: snap-files-default
+        name: snap-files-test
         pattern: snapd_1337.*.snap
         path: "${{ github.workspace }}/built-snap"
 

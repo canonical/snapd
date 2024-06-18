@@ -211,6 +211,9 @@ parts:
           echo "-- appending FIPS tag to version $VERSION"
           VERSION="$VERSION-fips"
       fi
+      if [ -f test-build ]; then
+          VERSION="1337.${VERSION}"
+      fi
       craftctl set version="$VERSION"
 
       ./get-deps.sh --skip-unused-check
