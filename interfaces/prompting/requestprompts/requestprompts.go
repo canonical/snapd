@@ -244,7 +244,7 @@ func (pdb *PromptDB) Prompts(user uint32) []*Prompt {
 	defer pdb.mutex.RUnlock()
 	userEntry, ok := pdb.perUser[user]
 	if !ok || len(userEntry.ByID) == 0 {
-		return []*Prompt{}
+		return nil
 	}
 	prompts := make([]*Prompt, 0, len(userEntry.ByID))
 	for _, prompt := range userEntry.ByID {
@@ -331,11 +331,11 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 	}
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
-	satisfiedPromptIDs := []string{}
 	userEntry, ok := pdb.perUser[metadata.User]
 	if !ok {
-		return satisfiedPromptIDs, nil
+		return nil, nil
 	}
+	var satisfiedPromptIDs []string
 	for id, prompt := range userEntry.ByID {
 		if !(prompt.Snap == metadata.Snap && prompt.Interface == metadata.Interface) {
 			continue
