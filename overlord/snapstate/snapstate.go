@@ -2122,6 +2122,8 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			return nil, nil, err
 		}
 
+		// TODO: we need to handle components here too
+
 		// Do not set any default restart boundaries, we do it when we have access to all
 		// the task-sets in preparation for single-reboot.
 		ts, err := doInstall(st, snapst, *snapsup, nil, noRestartBoundaries, fromChange, inUseFor(deviceCtx))
@@ -3938,6 +3940,8 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
+
+	// TODO: we need to handle components here too
 	return doInstall(st, &snapst, *snapsup, nil, 0, fromChange, nil)
 }
 
