@@ -87,8 +87,6 @@ func run() error {
 		return err
 	}
 
-	snapName, componentName := snap.SplitSnapComponentInstanceName(snapTarget)
-
 	// the SNAP_REVISION is set by `snap run` - we can not (easily)
 	// find it in `snap-exec` because `snap-exec` is run inside the
 	// confinement and (generally) can not talk to snapd
@@ -96,10 +94,10 @@ func run() error {
 
 	// Now actually handle the dispatching
 	if opts.Hook != "" {
-		return execHook(snapName, componentName, revision, opts.Hook)
+		return execHook(snapTarget, revision, opts.Hook)
 	}
 
-	return execApp(snapName, revision, opts.Command, extraArgs)
+	return execApp(snapTarget, revision, opts.Command, extraArgs)
 }
 
 const defaultShell = "/bin/bash"
@@ -163,13 +161,17 @@ func completionHelper() (string, error) {
 	return filepath.Join(filepath.Dir(exe), "etelpmoc.sh"), nil
 }
 
-func execApp(snapApp, revision, command string, args []string) error {
+func execApp(snapTarget, revision, command string, args []string) error {
+	if strings.ContainsRune(snapTarget, '+') {
+		return fmt.Errorf("snap-exec cannot run a snap component without a hook specified (use --hook)")
+	}
+
 	rev, err := snap.ParseRevision(revision)
 	if err != nil {
 		return fmt.Errorf("cannot parse revision %q: %s", revision, err)
 	}
 
-	snapName, appName := snap.SplitSnapApp(snapApp)
+	snapName, appName := snap.SplitSnapApp(snapTarget)
 	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
 		Revision: rev,
 	})
@@ -264,7 +266,9 @@ func getComponentInfo(name string, snapInfo *snap.Info) (*snap.ComponentInfo, er
 	return snap.ReadCurrentComponentInfo(name, snapInfo, container)
 }
 
-func execHook(snapName, componentName, revision, hookName string) error {
+func execHook(snapTarget string, revision, hookName string) error {
+	snapName, componentName := snap.SplitSnapComponentInstanceName(snapTarget)
+
 	rev, err := snap.ParseRevision(revision)
 	if err != nil {
 		return err

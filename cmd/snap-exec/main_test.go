@@ -303,7 +303,7 @@ func (s *snapExecSuite) TestSnapExecHookIntegration(c *C) {
 	defer restore()
 
 	// launch and verify it ran correctly
-	err := snapExec.ExecHook("snapname", "", "42", "configure")
+	err := snapExec.ExecHook("snapname", "42", "configure")
 	c.Assert(err, IsNil)
 	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/meta/hooks/configure", dirs.SnapMountDir))
 	c.Check(execArgs, DeepEquals, []string{execArgv0})
@@ -328,7 +328,7 @@ func (s *snapExecSuite) TestSnapExecHookCommandChainIntegration(c *C) {
 	chain2_path := fmt.Sprintf("%s/snapname/42/chain2", dirs.SnapMountDir)
 	hook_path := fmt.Sprintf("%s/snapname/42/meta/hooks/configure", dirs.SnapMountDir)
 
-	err := snapExec.ExecHook("snapname", "", "42", "configure")
+	err := snapExec.ExecHook("snapname", "42", "configure")
 	c.Assert(err, IsNil)
 	c.Check(execArgv0, Equals, chain1_path)
 	c.Check(execArgs, DeepEquals, []string{chain1_path, chain2_path, hook_path})
@@ -340,7 +340,7 @@ func (s *snapExecSuite) TestSnapExecHookMissingHookIntegration(c *C) {
 		Revision: snap.R("42"),
 	})
 
-	err := snapExec.ExecHook("snapname", "", "42", "missing-hook")
+	err := snapExec.ExecHook("snapname", "42", "missing-hook")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, "cannot find hook \"missing-hook\" in \"snapname\"")
 }
@@ -700,7 +700,7 @@ func (s *snapExecSuite) TestSnapExecComponentHookIntegration(c *C) {
 
 	hookPath := filepath.Join(dirs.SnapMountDir, "/snapname/components/mnt/comp/21/meta/hooks/install")
 
-	err := snapExec.ExecHook("snapname", "comp", "42", "install")
+	err := snapExec.ExecHook("snapname+comp", "42", "install")
 	c.Assert(err, IsNil)
 	c.Check(execArgv0, Equals, hookPath)
 	c.Check(execArgs, DeepEquals, []string{execArgv0})
@@ -728,8 +728,15 @@ func (s *snapExecSuite) TestSnapExecComponentHookCommandChainIntegration(c *C) {
 	chain4Path := filepath.Join(dirs.SnapMountDir, "/snapname/components/mnt/comp/21/chain4")
 	hookPath := filepath.Join(dirs.SnapMountDir, "/snapname/components/mnt/comp/21/meta/hooks/install")
 
-	err := snapExec.ExecHook("snapname", "comp", "42", "install")
+	err := snapExec.ExecHook("snapname+comp", "42", "install")
 	c.Assert(err, IsNil)
 	c.Check(execArgv0, Equals, chain3Path)
 	c.Check(execArgs, DeepEquals, []string{chain3Path, chain4Path, hookPath})
+}
+
+func (s *snapExecSuite) TestSnapExecComponentWithoutHookError(c *C) {
+	dirs.SetRootDir(c.MkDir())
+
+	err := snapExec.ExecApp("snapname+comp", "42", "complete", []string{"foo"})
+	c.Assert(err, ErrorMatches, `snap-exec cannot run a snap component without a hook specified \(use --hook\)`)
 }
