@@ -95,7 +95,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 
 	compsups := make([]ComponentSetup, 0, len(t.components))
 	for _, comp := range t.components {
-		compsups = append(compsups, comp.compsup())
+		compsups = append(compsups, comp.setup)
 	}
 
 	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)
@@ -126,15 +126,6 @@ type componentTarget struct {
 	setup ComponentSetup
 	// info contains the snap.ComponentInfo for the component to be installed.
 	info *snap.ComponentInfo
-}
-
-func (c *componentTarget) compsup() ComponentSetup {
-	return ComponentSetup{
-		DownloadInfo: c.setup.DownloadInfo,
-		CompPath:     c.setup.CompPath,
-		CompSideInfo: &c.info.ComponentSideInfo,
-		CompType:     c.info.Type,
-	}
 }
 
 // InstallGoal represents a single snap or a group of snaps to be installed.
@@ -356,18 +347,22 @@ func componentFromResource(name string, sar store.SnapResourceResult, info *snap
 
 	compName := naming.NewComponentRef(info.SnapName(), name)
 
+	csi := snap.ComponentSideInfo{
+		Component: compName,
+		Revision:  snap.R(sar.Revision),
+	}
+
 	return componentTarget{
 		setup: ComponentSetup{
 			DownloadInfo: &sar.DownloadInfo,
+			CompSideInfo: &csi,
+			CompType:     comp.Type,
 		},
 		info: &snap.ComponentInfo{
-			Component: compName,
-			Type:      comp.Type,
-			Version:   sar.Version,
-			ComponentSideInfo: snap.ComponentSideInfo{
-				Component: compName,
-				Revision:  snap.R(sar.Revision),
-			},
+			Component:         compName,
+			Type:              comp.Type,
+			Version:           sar.Version,
+			ComponentSideInfo: csi,
 		},
 	}, nil
 }
