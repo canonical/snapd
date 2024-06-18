@@ -1597,7 +1597,7 @@ func ReadCurrentComponentInfo(component string, info *Info, container func(strin
 
 	revision, err := ParseRevision(rev)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read revision %s: %s", rev, err)
+		return nil, fmt.Errorf("cannot parse current revision for component %q: %s", component, err)
 	}
 
 	cont, err := container(link)
