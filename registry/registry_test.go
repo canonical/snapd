@@ -47,6 +47,10 @@ func (*viewSuite) TestNewRegistry(c *C) {
 			err: `cannot define registry: no views`,
 		},
 		{
+			registry: map[string]interface{}{"0-a": map[string]interface{}{}},
+			err:      `cannot define view "0-a": name must conform to [a-z](?:-?[a-z0-9])*`,
+		},
+		{
 			registry: map[string]interface{}{"bar": "baz"},
 			err:      `cannot define view "bar": view must be non-empty map`,
 		},
@@ -118,7 +122,8 @@ func (*viewSuite) TestNewRegistry(c *C) {
 		cmt := Commentf("test number %d", i+1)
 		registry, err := registry.New("acc", "foo", tc.registry, registry.NewJSONSchema())
 		if tc.err != "" {
-			c.Assert(err, ErrorMatches, tc.err, cmt)
+			c.Assert(err, NotNil)
+			c.Assert(err.Error(), Equals, tc.err, cmt)
 		} else {
 			c.Assert(err, IsNil, cmt)
 			c.Check(registry, Not(IsNil), cmt)

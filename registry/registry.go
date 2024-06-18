@@ -189,6 +189,10 @@ func New(account string, registryName string, views map[string]interface{}, sche
 	}
 
 	for name, v := range views {
+		if !validSubkey.Match([]byte(name)) {
+			return nil, fmt.Errorf("cannot define view %q: name must conform to %s", name, subkeyRegex)
+		}
+
 		viewMap, ok := v.(map[string]interface{})
 		if !ok || len(viewMap) == 0 {
 			return nil, fmt.Errorf("cannot define view %q: view must be non-empty map", name)
