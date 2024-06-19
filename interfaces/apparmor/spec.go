@@ -64,6 +64,21 @@ func newSnippetKey(key string) SnippetKey {
 	return SnippetKey{key: key}
 }
 
+// registeredKeys is a list of allowed keys for prioritized snippets.
+// Trying to add a prioritized snippet with an unregistered key is
+// an error. Trying to register the same key twice is also an error.
+var registeredKeys map[SnippetKey]bool = make(map[SnippetKey]bool)
+
+// RegisterSnippetKey adds a key to the list of valid keys
+func RegisterSnippetKey(key string) SnippetKey {
+	snippetKey := newSnippetKey(key)
+	if _, ok := registeredKeys[snippetKey]; ok {
+		logger.Panicf("priority key %s is already registered", key)
+	}
+	registeredKeys[snippetKey] = true
+	return snippetKey
+}
+
 // Specification assists in collecting apparmor entries associated with an interface.
 type Specification struct {
 	// appSet is the set of snap applications and hooks that the specification
@@ -86,11 +101,6 @@ type Specification struct {
 	// priority is the same as the old one, and will be discarded if the new priority
 	// is smaller than the old one.
 	prioritizedSnippets map[string]map[SnippetKey]prioritizedSnippets
-
-	// registeredKeys is a list of allowed keys for prioritized snippets.
-	// Trying to add a prioritized snippet with an unregistered key is
-	// an error. Trying to register the same key twice is also an error.
-	registeredKeys map[SnippetKey]bool
 
 	// dedupSnippets are just like snippets but are added only once to the
 	// resulting policy in an effort to avoid certain expensive to de-duplicate
@@ -185,38 +195,13 @@ func (spec *Specification) AddSnippet(snippet string) {
 	}
 }
 
-// RegisterSnippetKey adds a key to the list of valid keys
-func (spec *Specification) RegisterSnippetKey(key string) {
-	snippetKey := newSnippetKey(key)
-	if spec.registeredKeys == nil {
-		spec.registeredKeys = make(map[SnippetKey]bool)
-	}
-	if _, ok := spec.registeredKeys[snippetKey]; ok {
-		logger.Panicf("priority key %s is already registered", key)
-	}
-	spec.registeredKeys[snippetKey] = true
-}
-
-// GetSnippetKey returns a SnippetKey struct from a Key string, to use with AddPrioritizedSnippet
-func (spec *Specification) GetSnippetKey(key string) (SnippetKey, bool) {
-	snippetKey := newSnippetKey(key)
-	if spec.registeredKeys == nil {
-		spec.registeredKeys = make(map[SnippetKey]bool)
-	}
-	if _, ok := spec.registeredKeys[snippetKey]; !ok {
-		logger.Debugf("priority key %s is not registered", key)
-		return snippetKey, false
-	}
-	return snippetKey, true
-}
-
 // AddPrioritizedSnippet adds a new apparmor snippet to all applications and hooks using the interface,
 // but identified with a key and a priority. If no other snippet exists with that key, the snippet is
 // added like with AddSnippet, but if there is already another snippet with that key, the priority of
 // both will be taken into account to decide whether the new snippet replaces the old one, is appended
 // to it, or is just ignored. The key must have been previously registered using RegisterSnippetKey().
 func (spec *Specification) AddPrioritizedSnippet(snippet string, key SnippetKey, priority uint) {
-	if _, ok := spec.registeredKeys[key]; !ok {
+	if _, ok := registeredKeys[key]; !ok {
 		logger.Panicf("priority key %s is not registered", key.String())
 	}
 	if len(spec.securityTags) == 0 {
