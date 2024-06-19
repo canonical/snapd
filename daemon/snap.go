@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/snapcore/snapd/client"
@@ -280,6 +281,12 @@ func mapLocal(about aboutSnap, sd clientutil.StatusDecorator) *client.Snap {
 	return result
 }
 
+type compsByName []client.Component
+
+func (c compsByName) Len() int           { return len(c) }
+func (c compsByName) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
+func (c compsByName) Less(i, j int) bool { return c[i].Name < c[j].Name }
+
 func fillComponentInfo(about aboutSnap) []client.Component {
 	localSnap, snapst := about.info, about.snapst
 	comps := make([]client.Component, 0, len(about.info.Components))
@@ -324,6 +331,9 @@ func fillComponentInfo(about aboutSnap) []client.Component {
 			Description: comp.Description,
 		})
 	}
+
+	// for test stability
+	sort.Sort(compsByName(comps))
 
 	return comps
 }
