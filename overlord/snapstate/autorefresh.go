@@ -514,6 +514,18 @@ func getRefreshScheduleConf(st *state.State) (confStr string, legacy bool, err e
 	return confStr, legacy, nil
 }
 
+func hasPendingConnectionTasks(st *state.State) bool {
+	for _, chg := range st.Changes() {
+		for _, tsk := range chg.Tasks() {
+			if tsk.Kind() == "auto-connect" || tsk.Kind() == "connect" {
+				// TODO should this this inspect the attributes?
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // refreshScheduleWithDefaultsFallback returns the current refresh schedule
 // and refresh string.
 func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (sched []*timeutil.Schedule, scheduleConf string, legacy bool, err error) {
@@ -525,6 +537,20 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (sched []*timeutil.S
 	// user requests refreshes to be managed by an external snap
 	if scheduleConf == "managed" {
 		if CanManageRefreshes == nil || !CanManageRefreshes(m.state) {
+			// the schedule was managed once, and at that time
+			// CanManageRefreshes() was true, but it may happen that
+			// snapd was restarted while a snap which has
+			// snapd-control plug is being refreshed, in which case
+			// in between the setup-profiles and auto-connect tasks,
+			// the snapd-control plug would be disconnected, but
+			// that will be resolved once the tasks are done, so
+			// temporarily report the schedule as managed until
+			// those tasks are resolved
+			if hasPendingConnectionTasks(m.state) {
+				logger.Noticef("managed refresh schedule denied, but pending connection tasks")
+				return nil, "managed", legacy, nil
+			}
+
 			// there's no snap to manage refreshes so use default schedule
 			if !m.managedDeniedLogged {
 				logger.Noticef("managed refresh schedule denied, no properly configured snapd-control")
