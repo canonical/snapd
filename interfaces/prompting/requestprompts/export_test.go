@@ -34,6 +34,6 @@ func (pdb *PromptDB) PerUser() map[uint32]*userPromptDB {
 	return pdb.perUser
 }
 
-func (pdb *PromptDB) MaxID() uint64 {
-	return pdb.maxID
+func (pdb *PromptDB) NextID() string {
+	return pdb.nextID()
 }

@@ -22,18 +22,19 @@ package requestprompts
 import (
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
+	"unsafe"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -100,76 +101,84 @@ type userPromptDB struct {
 // PromptDB stores outstanding prompts in memory and ensures that new prompts
 // are created with a unique ID.
 type PromptDB struct {
-	mutex     sync.RWMutex
-	perUser   map[uint32]*userPromptDB
-	maxID     uint64
-	maxIDPath string
+	// Mmap the max ID file to avoid unnecessary syscalls
+	maxIDMmap []byte
+	// The per-user DB is protected by a RWMutex
+	mutex   sync.RWMutex
+	perUser map[uint32]*userPromptDB
 	// Function to issue a notice for a change in a prompt
 	notifyPrompt func(userID uint32, promptID string, data map[string]string) error
 }
+
+const maxIDFileSize int = 8
 
 // New creates and returns a new prompt database.
 //
 // The given notifyPrompt closure should record a notice of type
 // "interfaces-requests-prompt" for the given user with the given
 // promptID as its key.
-func New(notifyPrompt func(userID uint32, promptID string, data map[string]string) error) *PromptDB {
+func New(notifyPrompt func(userID uint32, promptID string, data map[string]string) error) (*PromptDB, error) {
 	pdb := PromptDB{
 		perUser:      make(map[uint32]*userPromptDB),
 		notifyPrompt: notifyPrompt,
 	}
-	// Importantly, set maxIDPath before attempting to load max ID
-	pdb.maxIDPath = filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
-	err := pdb.loadMaxID()
-	if err != nil {
-		// If cannot read max existing prompt ID, start again from 0.
-		logger.Debugf("%v; restarting at ID 0", err)
-		pdb.maxID = 0
+	maxIDFilepath := filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
+	maxIDFile, err := os.OpenFile(maxIDFilepath, os.O_RDWR, 0600)
+	if errors.Is(err, fs.ErrNotExist) {
+		logger.Debugf("requestprompts: no max ID file found; initializing new one")
+		// File does not exist, so create it and write uint64(0) to it.
+		// This guarantees that the file is (at least) 8 bytes long.
+		maxIDFile, err = os.OpenFile(maxIDFilepath, os.O_RDWR|os.O_CREATE, 0600)
+		if err != nil {
+			return nil, fmt.Errorf("cannot open max ID file: %w", err)
+		}
+		// The file/FD can be safely closed once the mmap is created.
+		defer maxIDFile.Close()
+		if err = initializeMaxIDFile(maxIDFile); err != nil {
+			return nil, err
+		}
+	} else if err != nil {
+		return nil, fmt.Errorf("cannot open max ID file: %w", err)
+	} else {
+		// The file/FD can be safely closed once the mmap is created.
+		defer maxIDFile.Close()
+		fileInfo, err := maxIDFile.Stat()
+		if err != nil {
+			return nil, fmt.Errorf("cannot stat max ID file: %w", err)
+		}
+		if fileInfo.Size() != int64(maxIDFileSize) {
+			// Max ID file malformed, best to reset it
+			logger.Debugf("requestprompts: max ID file malformed; re-initializing")
+			if err = initializeMaxIDFile(maxIDFile); err != nil {
+				return nil, err
+			}
+		}
 	}
-	return &pdb
+	pdb.maxIDMmap, err = unix.Mmap(int(maxIDFile.Fd()), 0, maxIDFileSize, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	if err != nil {
+		return nil, fmt.Errorf("cannot mmap max ID file: %w", err)
+	}
+	return &pdb, nil
 }
 
-// loadMaxID reads the previous ID from the file at maxIDPath and sets maxID.
-//
-// If no file exists at maxIDPath, sets maxID to be 0. If another error occurs,
-// returns it and does not set maxID.
-func (pdb *PromptDB) loadMaxID() error {
-	pdb.mutex.Lock()
-	defer pdb.mutex.Unlock()
-
-	target := pdb.maxIDPath
-	f, err := os.Open(target)
-	if errors.Is(err, fs.ErrNotExist) {
-		pdb.maxID = 0
-		return nil
+// initializeMaxIDFile truncates the given file to 8 bytes of zeros.
+func initializeMaxIDFile(maxIDFile *os.File) (err error) {
+	if err = maxIDFile.Truncate(8); err != nil {
+		return fmt.Errorf("cannot truncate max ID file: %w", err)
 	}
-	if err != nil {
-		return fmt.Errorf("cannot read maximum prompt ID: %w", err)
+	initial := []byte{0, 0, 0, 0, 0, 0, 0, 0}
+	if _, err = maxIDFile.WriteAt(initial, 0); err != nil {
+		return fmt.Errorf("cannot initialize max ID file: %w", err)
 	}
-	defer f.Close()
-
-	idBuf := [16]byte{}
-	_, err = io.ReadFull(f, idBuf[:])
-	if err != nil {
-		return fmt.Errorf("cannot read maximum prompt ID: %w", err)
-	}
-
-	maxID, err := strconv.ParseUint(string(idBuf[:]), 16, 64)
-	if err != nil {
-		return fmt.Errorf("cannot parse maximum prompt ID: %w", err)
-	}
-
-	pdb.maxID = maxID
 	return nil
 }
 
-// nextID advances the internal monotonically-increasing maxID integer.
-//
-// The caller must ensure that the prompt DB mutex is held.
+// nextID increments the internal monotonic maxID integer and returns the
+// corresponding ID string.
 func (pdb *PromptDB) nextID() string {
-	pdb.maxID++
-	idStr := fmt.Sprintf("%016X", pdb.maxID)
-	osutil.AtomicWriteFile(pdb.maxIDPath, []byte(idStr), 0600, 0)
+	// Byte order will be consistent, and want an atomic increment.
+	id := atomic.AddUint64((*uint64)(unsafe.Pointer(&pdb.maxIDMmap[0])), 1)
+	idStr := fmt.Sprintf("%016X", id)
 	return idStr
 }
 
