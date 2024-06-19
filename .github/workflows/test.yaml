@@ -631,6 +631,10 @@ jobs:
             backend: google-distro-1
             systems: 'fedora-38-64 fedora-39-64'
             tests: 'tests/...'
+          - group: fedora-os
+            backend: openstack
+            systems: 'fedora-40-64'
+            tests: 'tests/...'
           - group: opensuse
             backend: google-distro-2
             systems: 'opensuse-15.5-64 opensuse-tumbleweed-64'
@@ -782,6 +786,11 @@ jobs:
               # in this batch will not use delta for transferring project data
               echo "Disabling xdelta support"
               export NO_DELTA=1
+          fi
+
+          # Add openstack backend definition to spread.yaml
+          if [ "${{ matrix.backend }}" = openstack ]; then
+              ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
           fi
 
           RUN_TESTS=""

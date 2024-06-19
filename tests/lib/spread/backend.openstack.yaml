@@ -1,33 +1,31 @@
-environment:
-    HTTP_PROXY: 'http://squid.internal:3128'
-    HTTPS_PROXY: 'http://squid.internal:3128'
-    http_proxy: 'http://squid.internal:3128'
-    https_proxy: 'http://squid.internal:3128'
-
-backends:
     openstack:
         key: '$(HOST: echo "$SPREAD_OPENSTACK_ENV")'
         plan: staging-cpu2-ram4-disk50
         halt-timeout: 2h
-        groups: [default]
+        groups: [default]        
+        environment:
+            HTTP_PROXY: 'http://squid.internal:3128'
+            HTTPS_PROXY: 'http://squid.internal:3128'
+            http_proxy: 'http://squid.internal:3128'
+            https_proxy: 'http://squid.internal:3128'
         systems:
-       systems:
             - ubuntu-22.04-arm-64:
                 image: ubuntu-jammy-22.04-arm64
                 workers: 1
 
             - fedora-40-64:
-                image: fedora-40-64-v20240528
+                image: fedora-40-64
                 workers: 1
     
             - opensuse-15.5-64:
-                image: opensuse-15.5-64-v20240529
+                image: opensuse-15.5-64
                 workers: 1
 
             - centos-9-64:
-                image: centos-9-64-v20240613
+                image: centos-9-64
                 workers: 1
 
             - debian-12-64:
-                image: debian-12-64-v20240613
+                image: debian-12-64
                 workers: 1
+
