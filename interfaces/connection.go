@@ -87,22 +87,6 @@ type Attrer interface {
 	Lookup(path string) (value interface{}, ok bool)
 }
 
-// SnippetKey is an opaque string identifying a class of snippets.
-//
-// Some APIs require the use of snippet keys to allow adding many different snippets
-// with the same key but possibly different priority.
-type SnippetKey struct {
-	key string
-}
-
-func (pk *SnippetKey) String() string {
-	return pk.key
-}
-
-func NewSnippetKey(key string) SnippetKey {
-	return SnippetKey{key: key}
-}
-
 func lookupAttr(staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, path string) (interface{}, bool) {
 	var v interface{}
 	comps := strings.FieldsFunc(path, func(r rune) bool { return r == '.' })

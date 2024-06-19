@@ -609,10 +609,12 @@ func (s *specSuite) TestSetSuppressPycacheDeny(c *C) {
 func (s *specSuite) TestPrioritySnippets(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.scope1"})
 
-	key1 := interfaces.NewSnippetKey("key1")
-	key2 := interfaces.NewSnippetKey("key2")
-	s.spec.RegisterSnippetKey(key1)
-	s.spec.RegisterSnippetKey(key2)
+	s.spec.RegisterSnippetKey("key1")
+	s.spec.RegisterSnippetKey("key2")
+	key1, ok := s.spec.GetSnippetKey("key1")
+	c.Assert(ok, Equals, true)
+	key2, ok := s.spec.GetSnippetKey("key2")
+	c.Assert(ok, Equals, true)
 	// Test a scope with a normal snippet and prioritized ones
 	s.spec.AddSnippet("Test snippet 1")
 	s.spec.AddPrioritizedSnippet("Prioritized snippet 1", key1, 0)
@@ -654,15 +656,18 @@ func (s *specSuite) TestPrioritySnippets(c *C) {
 }
 
 func (s *specSuite) TestPrioritySnippetsNoRegisteredKey(c *C) {
-	key1 := interfaces.NewSnippetKey("key1")
+	key1, ok := s.spec.GetSnippetKey("key1")
+	c.Assert(ok, Equals, false)
 	c.Assert(func() { s.spec.AddPrioritizedSnippet("Prioritized snippet 1", key1, 0) }, PanicMatches, "priority key key1 is not registered")
 }
 
 func (s *specSuite) TestRegisterSameSnippetKeyTwice(c *C) {
-	key1 := interfaces.NewSnippetKey("key")
-	key2 := interfaces.NewSnippetKey("key")
+	s.spec.RegisterSnippetKey("key1")
+	key1, ok := s.spec.GetSnippetKey("key1")
+	c.Assert(ok, Equals, true)
+	key2, ok := s.spec.GetSnippetKey("key1")
+	c.Assert(ok, Equals, true)
 	// ensure that both keys are detected as the same
 	c.Assert(key1, Equals, key2)
-	s.spec.RegisterSnippetKey(key1)
-	c.Assert(func() { s.spec.RegisterSnippetKey(key2) }, PanicMatches, "priority key key is already registered")
+	c.Assert(func() { s.spec.RegisterSnippetKey("key1") }, PanicMatches, "priority key key1 is already registered")
 }
