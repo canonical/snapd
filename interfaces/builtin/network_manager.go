@@ -263,14 +263,6 @@ dbus (receive, send)
     path=/fi/w1/wpa_supplicant1{,/**}
     interface=org.freedesktop.DBus.*
     peer=(label=unconfined),
-
-# Allow network manager to manage netplan configuration
-dbus (send)
-    bus=system
-    interface=io.netplan.Netplan
-    path=/io/netplan/Netplan
-    member=Apply
-    peer=(label=unconfined),
 `
 
 const networkManagerConnectedSlotAppArmor = `
