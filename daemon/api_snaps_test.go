@@ -1800,7 +1800,7 @@ components:
 				InstallDate: snap.ComponentInstallDate(cpi, snap.R(7)), InstalledSize: 2},
 			{Name: "comp-2", Type: "test", Version: "1.0", Revision: snap.R(34),
 				Summary: "summary 2", Description: "description 2",
-				InstallDate: snap.ComponentInstallDate(cpi, snap.R(7)), InstalledSize: 3},
+				InstallDate: snap.ComponentInstallDate(cpi2, snap.R(7)), InstalledSize: 3},
 			{Name: "comp-3", Type: "test",
 				Summary: "summary 3", Description: "description 3"},
 			{Name: "comp-4", Type: "test"},
