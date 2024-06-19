@@ -862,6 +862,11 @@ jobs:
                   RUN_TESTS="$FAILED_TESTS"
               fi
 
+              # Add openstack backend definition to spread.yaml
+              if [ "${{ matrix.backend }}" = openstack ]; then
+                  ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
+              fi
+
               echo "Running spread log analyzer"
               ./tests/lib/external/snapd-testing-tools/utils/log-analyzer list-reexecute-tasks "$RUN_TESTS" spread-results.json > "$FAILED_TESTS_FILE"
 
