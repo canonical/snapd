@@ -79,6 +79,15 @@ func RegisterSnippetKey(key string) SnippetKey {
 	return snippetKey
 }
 
+// GetSnippetKey retrieves a key from the list of valid keys
+func GetSnippetKey(key string) (SnippetKey, bool) {
+	snippetKey := newSnippetKey(key)
+	if _, ok := registeredKeys[snippetKey]; ok {
+		return snippetKey, true
+	}
+	return SnippetKey{}, false
+}
+
 // Specification assists in collecting apparmor entries associated with an interface.
 type Specification struct {
 	// appSet is the set of snap applications and hooks that the specification
