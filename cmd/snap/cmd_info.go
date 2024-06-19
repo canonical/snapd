@@ -265,8 +265,8 @@ func (iw *infoWriter) maybePrintRefreshInfo() {
 		return
 	}
 
-	if iw.localSnap.InstallDate != nil && !iw.localSnap.InstallDate.IsZero() {
-		fmt.Fprintf(iw, "refresh-date:\t%s\n", iw.fmtTime(*iw.localSnap.InstallDate))
+	if !iw.localSnap.InstallDate.IsZero() {
+		fmt.Fprintf(iw, "refresh-date:\t%s\n", iw.fmtTime(iw.localSnap.InstallDate))
 	}
 
 	maybePrintHold := func(key string, hold *time.Time) {

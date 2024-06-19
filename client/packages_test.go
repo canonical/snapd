@@ -306,7 +306,7 @@ func (cs *clientSuite) testClientSnap(c *check.C, refreshInhibited bool) {
 	c.Assert(err, check.IsNil)
 
 	c.Assert(pkg.InstallDate.Equal(time.Date(2016, 1, 2, 15, 4, 5, 0, time.UTC)), check.Equals, true)
-	pkg.InstallDate = nil
+	pkg.InstallDate = time.Time{}
 
 	var expectedSnapRefreshInhibit *client.SnapRefreshInhibit
 	if refreshInhibited {

@@ -36,5 +36,5 @@ type Component struct {
 	Description   string             `json:"description"`
 	Revision      snap.Revision      `json:"revision"`
 	InstalledSize int64              `json:"installed-size,omitempty"`
-	InstallDate   *time.Time         `json:"install-date,omitempty"`
+	InstallDate   time.Time          `json:"install-date,omitempty"`
 }

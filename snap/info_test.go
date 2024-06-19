@@ -403,7 +403,7 @@ func (s *infoSuite) TestInstallDate(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(1)}
 	info := snaptest.MockSnap(c, sampleYaml, si)
 	// not current -> Zero
-	c.Check(info.InstallDate(), IsNil)
+	c.Check(info.InstallDate().IsZero(), Equals, true)
 	c.Check(snap.InstallDate(info.InstanceName()).IsZero(), Equals, true)
 
 	mountdir := info.MountDir()

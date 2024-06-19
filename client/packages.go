@@ -40,7 +40,7 @@ type Snap struct {
 	DownloadSize  int64              `json:"download-size,omitempty"`
 	Icon          string             `json:"icon,omitempty"`
 	InstalledSize int64              `json:"installed-size,omitempty"`
-	InstallDate   *time.Time         `json:"install-date,omitempty"`
+	InstallDate   time.Time          `json:"install-date,omitempty"`
 	Name          string             `json:"name"`
 	Publisher     *snap.StoreAccount `json:"publisher,omitempty"`
 	StoreURL      string             `json:"store-url,omitempty"`

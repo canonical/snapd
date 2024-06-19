@@ -170,13 +170,12 @@ func ComponentLinkPath(cpi ContainerPlaceInfo, snapRev Revision) string {
 // when its symlink was created. We cannot use the mount directory as lstat
 // returns the date of the root of the container instead of the date when the
 // mount directory was created.
-func ComponentInstallDate(cpi ContainerPlaceInfo, snapRev Revision) *time.Time {
+func ComponentInstallDate(cpi ContainerPlaceInfo, snapRev Revision) time.Time {
 	symLn := ComponentLinkPath(cpi, snapRev)
 	if st, err := os.Lstat(symLn); err == nil {
-		modTime := st.ModTime()
-		return &modTime
+		return st.ModTime()
 	}
-	return nil
+	return time.Time{}
 }
 
 // ComponentSize returns the file size of a component.

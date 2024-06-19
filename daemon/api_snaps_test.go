@@ -1118,8 +1118,8 @@ UnitFileState=enabled
 	c.Check(m.InstalledSize, check.FitsTypeOf, int64(0))
 	m.InstalledSize = 0
 	// ditto install-date
-	c.Check(m.InstallDate, check.FitsTypeOf, &time.Time{})
-	m.InstallDate = nil
+	c.Check(m.InstallDate, check.FitsTypeOf, time.Time{})
+	m.InstallDate = time.Time{}
 
 	expected := &daemon.RespJSON{
 		Type:   daemon.ResponseTypeSync,

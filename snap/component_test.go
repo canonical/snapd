@@ -581,7 +581,7 @@ func (s *infoSuite) TestComponentInstallDate(c *C) {
 	cpi := snap.MinimalComponentContainerPlaceInfo("comp", snap.R(1), "snap")
 
 	// not current -> Zero
-	c.Check(snap.ComponentInstallDate(cpi, snap.R(33)), IsNil)
+	c.Check(snap.ComponentInstallDate(cpi, snap.R(33)).IsZero(), Equals, true)
 
 	//time.Sleep(time.Second)
 	link := snap.ComponentLinkPath(cpi, snap.R(33))
