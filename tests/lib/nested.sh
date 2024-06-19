@@ -1320,7 +1320,7 @@ nested_start_core_vm_unit() {
                 # Error 2 means 'recoverable error', ignore that case
                 ret=0
                 remote.exec "cloud-init status" || ret=$?
-                if "$ret" -ne 0 && "$ret" -ne 2; then
+                if [ "$ret" -ne 0 ] && [ "$ret" -ne 2 ]; then
                     echo "cloud-init finished with error $ret"
                     exit 1
                 fi
