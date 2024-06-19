@@ -270,16 +270,18 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 				filteredApps[i], filteredApps[j] = filteredApps[j], filteredApps[i]
 			}
 
-			// when collecting service units again here, for stopping, we want to ensure
-			// we include activated service units this time, as they might have been started
-			// in the mean time.
-			const includeActivatedServices = true
-			systemServices, _ := categorizeServices(filteredApps, includeActivatedServices)
-
 			// Stop them one-by-one to maintain order, the issue is if we just send all of them down
 			// to systemd, it will spawn a process for each stop anyway, just simultaneously.
-			for _, svc := range systemServices {
-				if e := systemSysd.Stop([]string{svc}); e != nil {
+			for _, app := range filteredApps {
+				if app.DaemonScope != snap.SystemDaemon {
+					continue
+				}
+
+				// when collecting service units again here, for stopping, we want to ensure
+				// we include activated service units this time, as they might have been started
+				// in the mean time.
+				svc, activators := internal.SnapServiceUnits(app)
+				if e := systemSysd.Stop(append(activators, svc)); e != nil {
 					inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", svc, e))
 				}
 			}

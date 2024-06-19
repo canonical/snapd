@@ -3500,11 +3500,9 @@ func (s *servicesTestSuite) TestStartServicesStopsServicesIncludingActivation(c 
 		{"--user", "daemon-reload"},
 
 		// Stop system services again
-		{"stop", "snap.hello-snap.svc1.sock1.socket"},
+		{"stop", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket", "snap.hello-snap.svc1.service"},
 		{"show", "--property=ActiveState", "snap.hello-snap.svc1.sock1.socket"},
-		{"stop", "snap.hello-snap.svc1.sock2.socket"},
 		{"show", "--property=ActiveState", "snap.hello-snap.svc1.sock2.socket"},
-		{"stop", "snap.hello-snap.svc1.service"},
 		{"show", "--property=ActiveState", "snap.hello-snap.svc1.service"},
 
 		// Disable phase, where the activation units are being disabled
@@ -4012,19 +4010,17 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocket
 	err := wrappers.StartServices(apps, nil, opts, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
 	c.Logf("sysdlog: %v", sysdLog)
-	c.Assert(sysdLog, HasLen, 16, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 14, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--no-reload", "enable", svc2SocketName, svc3SocketName, svc1Name},
 		{"daemon-reload"},
 		{"start", svc2SocketName},
 		{"start", svc3SocketName}, // start failed, what follows is the cleanup
-		{"stop", svc3SocketName},
+		{"stop", svc3SocketName, svc3Name},
 		{"show", "--property=ActiveState", svc3SocketName},
-		{"stop", svc2SocketName},
-		{"show", "--property=ActiveState", svc2SocketName},
-		{"stop", svc3Name},
 		{"show", "--property=ActiveState", svc3Name},
-		{"stop", svc2Name},
+		{"stop", svc2SocketName, svc2Name},
+		{"show", "--property=ActiveState", svc2SocketName},
 		{"show", "--property=ActiveState", svc2Name},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},
@@ -4079,18 +4075,16 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartNoEnableNoDisable
 	err := wrappers.StartServices(apps, nil, opts, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
 	c.Logf("sysdlog: %v", sysdLog)
-	c.Assert(sysdLog, HasLen, 13, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 11, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"start", svc2SocketName},
 		{"start", svc3SocketName},
 		{"start", svc1Name}, // start failed, what follows is the cleanup
-		{"stop", svc3SocketName},
+		{"stop", svc3SocketName, svc3Name},
 		{"show", "--property=ActiveState", svc3SocketName},
-		{"stop", svc2SocketName},
-		{"show", "--property=ActiveState", svc2SocketName},
-		{"stop", svc3Name},
 		{"show", "--property=ActiveState", svc3Name},
-		{"stop", svc2Name},
+		{"stop", svc2SocketName, svc2Name},
+		{"show", "--property=ActiveState", svc2SocketName},
 		{"show", "--property=ActiveState", svc2Name},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},
@@ -4674,14 +4668,13 @@ func (s *servicesTestSuite) TestStartSnapTimerCleanup(c *C) {
 	opts := &wrappers.StartServicesOptions{Enable: true}
 	err := wrappers.StartServices(apps, nil, opts, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
-	c.Assert(sysdLog, HasLen, 11, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--no-reload", "enable", svc2Timer, svc1Name},
 		{"daemon-reload"},
 		{"start", svc2Timer}, // this call fails
-		{"stop", svc2Timer},
+		{"stop", svc2Timer, svc2Name},
 		{"show", "--property=ActiveState", svc2Timer},
-		{"stop", svc2Name},
 		{"show", "--property=ActiveState", svc2Name},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},
