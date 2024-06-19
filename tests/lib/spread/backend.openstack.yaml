@@ -15,7 +15,7 @@
 
             - fedora-40-64:
                 image: fedora-40-64
-                workers: 1
+                workers: 6
     
             - opensuse-15.5-64:
                 image: opensuse-15.5-64
