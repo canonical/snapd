@@ -24,6 +24,8 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+const MaxOutstandingPromptsPerUser = maxOutstandingPromptsPerUser
+
 func MockSendReply(f func(listenerReq *listener.Request, reply interface{}) error) (restore func()) {
 	restore = testutil.Backup(&sendReply)
 	sendReply = f

@@ -40,7 +40,8 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("cannot find prompt with the given ID for the given user")
+	ErrNotFound       = errors.New("cannot find prompt with the given ID for the given user")
+	ErrTooManyPrompts = errors.New("cannot add new prompt, too many outstanding")
 )
 
 // Prompt contains information about a request for which a user should be
@@ -110,7 +111,10 @@ type PromptDB struct {
 	notifyPrompt func(userID uint32, promptID string, data map[string]string) error
 }
 
-const maxIDFileSize int = 8
+const (
+	maxIDFileSize                int = 8
+	maxOutstandingPromptsPerUser int = 1000
+)
 
 // New creates and returns a new prompt database.
 //
@@ -185,6 +189,7 @@ func (pdb *PromptDB) nextID() string {
 // AddOrMerge checks if the given prompt contents are identical to an existing
 // prompt and, if so, merges with it by adding the given listenerReq to it.
 // Otherwise, adds a new prompt with the given contents to the prompt DB.
+// If an error occurs, no change is made to the DB.
 //
 // If the prompt was merged with an identical existing prompt, returns the
 // existing prompt and true, indicating it was merged. If a new prompt was
@@ -193,7 +198,7 @@ func (pdb *PromptDB) nextID() string {
 //
 // The caller must ensure that the given permissions are in the order in which
 // they appear in the available permissions list for the given interface.
-func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permissions []string, listenerReq *listener.Request) (*Prompt, bool) {
+func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permissions []string, listenerReq *listener.Request) (*Prompt, bool, error) {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 	userEntry, ok := pdb.perUser[metadata.User]
@@ -209,7 +214,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 		// Error should be impossible, since caller has already validated that
 		// iface is valid, and tests check that all valid interfaces have valid
 		// available permissions returned by AvailablePermissions.
-		panic(err)
+		return nil, false, err
 	}
 
 	constraints := &PromptConstraints{
@@ -228,8 +233,14 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 			// receiving the error, so this notice encourages it to try again
 			// if the user retries the operation.
 			pdb.notifyPrompt(metadata.User, prompt.ID, nil)
-			return prompt, true
+			return prompt, true, nil
 		}
+	}
+
+	if len(userEntry.ByID) >= maxOutstandingPromptsPerUser {
+		// Too many outstanding prompts, auto-deny this one
+		sendReply(listenerReq, false)
+		return nil, false, ErrTooManyPrompts
 	}
 
 	id := pdb.nextID()
@@ -244,7 +255,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 	}
 	userEntry.ByID[id] = prompt
 	pdb.notifyPrompt(metadata.User, id, nil)
-	return prompt, false
+	return prompt, false, nil
 }
 
 // Prompts returns a slice of all outstanding prompts.

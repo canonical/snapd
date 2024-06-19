@@ -256,7 +256,8 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 	c.Assert(stored, IsNil)
 
 	before := time.Now()
-	prompt1, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq1)
+	prompt1, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq1)
+	c.Assert(err, IsNil)
 	after := time.Now()
 	c.Assert(merged, Equals, false)
 
@@ -265,7 +266,8 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 	s.checkNewNoticesSimple(c, []string{prompt1.ID}, nil)
 	s.checkWrittenMaxID(c, expectedID)
 
-	prompt2, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq2)
+	prompt2, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq2)
+	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, true)
 	c.Assert(prompt2, Equals, prompt1)
 
@@ -293,7 +295,8 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 	// Looking up prompt should not record notice
 	s.checkNewNoticesSimple(c, []string{}, nil)
 
-	prompt3, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq3)
+	prompt3, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq3)
+	c.Assert(err, IsNil)
 	c.Check(merged, Equals, true)
 	c.Check(prompt3, Equals, prompt1)
 
@@ -334,6 +337,74 @@ func (s *requestpromptsSuite) checkNewNoticesUnordered(c *C, expectedNotices not
 	s.checkNewNotices(c, expectedNotices)
 }
 
+func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
+		c.Fatalf("should not have called sendReply")
+		return nil
+	})
+	defer restore()
+
+	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+
+	metadata := &prompting.Metadata{
+		User:      s.defaultUser,
+		Snap:      "nextcloud",
+		Interface: "home",
+	}
+
+	permissions := []string{"read", "write", "execute"}
+
+	for i := 0; i < requestprompts.MaxOutstandingPromptsPerUser; i++ {
+		path := fmt.Sprintf("/home/test/Documents/%d.txt", i)
+		listenerReq := &listener.Request{}
+		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq)
+		c.Assert(err, IsNil)
+		c.Assert(prompt, Not(IsNil))
+		c.Assert(merged, Equals, false)
+		stored := pdb.Prompts(metadata.User)
+		c.Assert(stored, HasLen, i+1)
+	}
+
+	path := fmt.Sprintf("/home/test/Documents/%d.txt", requestprompts.MaxOutstandingPromptsPerUser)
+	lr := &listener.Request{}
+
+	restore = requestprompts.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
+		c.Assert(listenerReq, Equals, lr)
+		allowed, ok := reply.(bool)
+		c.Assert(ok, Equals, true)
+		c.Assert(allowed, Equals, false)
+		return nil
+	})
+	defer restore()
+
+	// Check that adding a new unmerged prompt fails once limit is reached
+	for i := 0; i < 5; i++ {
+		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, lr)
+		c.Check(err, Equals, requestprompts.ErrTooManyPrompts)
+		c.Check(prompt, IsNil)
+		c.Check(merged, Equals, false)
+		stored := pdb.Prompts(metadata.User)
+		c.Assert(stored, HasLen, requestprompts.MaxOutstandingPromptsPerUser)
+	}
+
+	// Restore sendReply to fail if called
+	restore()
+
+	// Check that new requests can still merge into existing prompts
+	for i := 0; i < requestprompts.MaxOutstandingPromptsPerUser; i++ {
+		path := fmt.Sprintf("/home/test/Documents/%d.txt", i)
+		listenerReq := &listener.Request{}
+		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq)
+		c.Assert(err, IsNil)
+		c.Assert(prompt, Not(IsNil))
+		c.Assert(merged, Equals, true)
+		stored := pdb.Prompts(metadata.User)
+		// Number of stored prompts remains the maximum
+		c.Assert(stored, HasLen, requestprompts.MaxOutstandingPromptsPerUser)
+	}
+}
+
 func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
 		c.Fatalf("should not have called sendReply")
@@ -354,7 +425,8 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 
 	listenerReq := &listener.Request{}
 
-	prompt, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq)
+	prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq)
+	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	s.checkNewNoticesSimple(c, []string{prompt.ID}, nil)
@@ -400,12 +472,14 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 		listenerReq1 := &listener.Request{}
 		listenerReq2 := &listener.Request{}
 
-		prompt1, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq1)
+		prompt1, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq1)
+		c.Assert(err, IsNil)
 		c.Check(merged, Equals, false)
 
 		s.checkNewNoticesSimple(c, []string{prompt1.ID}, nil)
 
-		prompt2, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq2)
+		prompt2, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq2)
+		c.Assert(err, IsNil)
 		c.Check(merged, Equals, true)
 		c.Check(prompt2, Equals, prompt1)
 
@@ -465,7 +539,8 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 
 	listenerReq := &listener.Request{}
 
-	prompt, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq)
+	prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq)
+	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	s.checkNewNoticesSimple(c, []string{prompt.ID}, nil)
@@ -510,22 +585,26 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 
 	permissions := []string{"read", "write", "execute"}
 	listenerReq1 := &listener.Request{}
-	prompt1, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq1)
+	prompt1, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq1)
+	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	permissions = []string{"read", "write"}
 	listenerReq2 := &listener.Request{}
-	prompt2, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq2)
+	prompt2, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq2)
+	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	permissions = []string{"read"}
 	listenerReq3 := &listener.Request{}
-	prompt3, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq3)
+	prompt3, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq3)
+	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	permissions = []string{"open"}
 	listenerReq4 := &listener.Request{}
-	prompt4, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq4)
+	prompt4, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq4)
+	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	s.checkNewNoticesSimple(c, []string{prompt1.ID, prompt2.ID, prompt3.ID, prompt4.ID}, nil)
@@ -615,22 +694,26 @@ func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 
 	permissions := []string{"read", "write", "execute"}
 	listenerReq1 := &listener.Request{}
-	prompt1, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq1)
+	prompt1, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq1)
+	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	permissions = []string{"read", "write"}
 	listenerReq2 := &listener.Request{}
-	prompt2, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq2)
+	prompt2, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq2)
+	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	permissions = []string{"read"}
 	listenerReq3 := &listener.Request{}
-	prompt3, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq3)
+	prompt3, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq3)
+	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	permissions = []string{"open"}
 	listenerReq4 := &listener.Request{}
-	prompt4, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq4)
+	prompt4, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq4)
+	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	s.checkNewNoticesSimple(c, []string{prompt1.ID, prompt2.ID, prompt3.ID, prompt4.ID}, nil)
@@ -697,7 +780,8 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read"}
 	listenerReq := &listener.Request{}
-	prompt, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq)
+	prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq)
+	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	s.checkNewNoticesSimple(c, []string{prompt.ID}, nil)
@@ -814,7 +898,8 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 	prompts := make([]*requestprompts.Prompt, 0, 3)
 	for _, path := range paths {
 		listenerReq := &listener.Request{}
-		prompt, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq)
+		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq)
+		c.Assert(err, IsNil)
 		c.Assert(merged, Equals, false)
 		prompts = append(prompts, prompt)
 	}
