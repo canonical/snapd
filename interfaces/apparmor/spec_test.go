@@ -611,6 +611,10 @@ var key1 = apparmor.RegisterSnippetKey("testkey1")
 func (s *specSuite) TestPrioritySnippets(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.scope1"})
 
+	// check that key1 is correctly registered
+	_, ok := apparmor.GetSnippetKey("testkey1")
+	c.Assert(ok, Equals, true)
+
 	key2, ok := apparmor.GetSnippetKey("testkey2")
 	c.Assert(ok, Equals, true)
 	// Test a scope with a normal snippet and prioritized ones
