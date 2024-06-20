@@ -17,12 +17,10 @@
  *
  */
 
-package patterns_test
+package patterns
 
 import (
 	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 )
 
 type parseSuite struct{}
@@ -32,41 +30,41 @@ var _ = Suite(&parseSuite{})
 func (s *parseSuite) TestParse(c *C) {
 	pattern := "/{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld{-*,64}.so*"
 
-	handMadeTree := patterns.Seq{
-		patterns.Literal("/"),
-		patterns.Alt{
-			patterns.Literal(""),
-			patterns.Literal("usr/"),
+	handMadeTree := seq{
+		literal("/"),
+		alt{
+			literal(""),
+			literal("usr/"),
 		},
-		patterns.Literal("lib"),
-		patterns.Alt{
-			patterns.Literal(""),
-			patterns.Literal("32"),
-			patterns.Literal("64"),
-			patterns.Literal("x32"),
+		literal("lib"),
+		alt{
+			literal(""),
+			literal("32"),
+			literal("64"),
+			literal("x32"),
 		},
-		patterns.Literal("/"),
-		patterns.Alt{
-			patterns.Literal(""),
-			patterns.Seq{
-				patterns.Literal("@multiarch/"),
-				patterns.Alt{
-					patterns.Literal(""),
-					patterns.Literal("atomics/"),
+		literal("/"),
+		alt{
+			literal(""),
+			seq{
+				literal("@multiarch/"),
+				alt{
+					literal(""),
+					literal("atomics/"),
 				},
 			},
 		},
-		patterns.Literal("ld"),
-		patterns.Alt{
-			patterns.Literal("-*"),
-			patterns.Literal("64"),
+		literal("ld"),
+		alt{
+			literal("-*"),
+			literal("64"),
 		},
-		patterns.Literal(".so*"),
+		literal(".so*"),
 	}
 
-	tokens, err := patterns.Scan(pattern)
+	tokens, err := scan(pattern)
 	c.Assert(err, IsNil)
-	tree, err := patterns.Parse(tokens)
+	tree, err := parse(tokens)
 	c.Assert(err, IsNil)
 	c.Check(tree, DeepEquals, handMadeTree)
 }

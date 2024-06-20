@@ -37,7 +37,7 @@ const maxExpandedPatterns = 1000
 // PathPattern is an iterator which yields expanded path patterns.
 type PathPattern struct {
 	original   string
-	renderTree RenderNode
+	renderTree renderNode
 }
 
 // ParsePathPattern validates the given pattern and parses it into a PathPattern
@@ -63,11 +63,11 @@ func (p *PathPattern) parse(pattern string) error {
 	if strings.HasSuffix(pattern, `\`) && !strings.HasSuffix(pattern, `\\`) {
 		return fmt.Errorf(`%s: trailing unescaped '\' character`, prefix)
 	}
-	tokens, err := Scan(pattern)
+	tokens, err := scan(pattern)
 	if err != nil {
 		return fmt.Errorf("%s: %w", prefix, err)
 	}
-	tree, err := Parse(tokens)
+	tree, err := parse(tokens)
 	if err != nil {
 		return fmt.Errorf("%s: %w", prefix, err)
 	}

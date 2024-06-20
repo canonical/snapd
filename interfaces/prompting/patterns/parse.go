@@ -24,20 +24,20 @@ import (
 	"fmt"
 )
 
-func Parse(tokens []Token) (RenderNode, error) {
+func parse(tokens []token) (renderNode, error) {
 	tr := tokenReader{
 		tokens: tokens,
 	}
 	return parseSeq(&tr)
 }
 
-func parseSeq(tr *tokenReader) (RenderNode, error) {
-	var seq Seq
+func parseSeq(tr *tokenReader) (renderNode, error) {
+	var s seq
 seqLoop:
 	for {
 		t := tr.Peek()
 
-		switch t.Type {
+		switch t.tType {
 		case tokEOF:
 			break seqLoop
 		case tokBraceOpen:
@@ -46,35 +46,32 @@ seqLoop:
 				return nil, err
 			}
 
-			seq = append(seq, inner)
+			s = append(s, inner)
 		case tokBraceClose:
 			if tr.depth > 0 {
 				break seqLoop
 			}
-
-			tr.Token()
-
+			tr.token()
 			return nil, errors.New("unmatched '}' character")
 		case tokText:
-			tr.Token()
-			seq = append(seq, Literal(t.Text))
+			tr.token()
+			s = append(s, literal(t.text))
 		case tokComma:
 			if tr.depth > 0 {
 				break seqLoop
 			}
-
-			tr.Token() // discard, we get called in a loop
-			seq = append(seq, Literal(","))
+			tr.token() // discard, we get called in a loop
+			s = append(s, literal(","))
 		}
 	}
 
-	return seq.optimize().reduceStrength(), nil
+	return s.optimize().reduceStrength(), nil
 }
 
-func parseAlt(tr *tokenReader) (RenderNode, error) {
-	var alt Alt
+func parseAlt(tr *tokenReader) (renderNode, error) {
+	var a alt
 
-	if t := tr.Token(); t.Type != tokBraceOpen {
+	if t := tr.token(); t.tType != tokBraceOpen {
 		// Should not occur, caller should call parseAlt on peeking '{'
 		return nil, fmt.Errorf("expected '{' at start of alt, but got %v", t)
 	}
@@ -94,9 +91,9 @@ altLoop:
 			return nil, err
 		}
 
-		alt = append(alt, item)
+		a = append(a, item)
 
-		switch t := tr.Token(); t.Type {
+		switch t := tr.token(); t.tType {
 		case tokBraceClose:
 			break altLoop
 		case tokComma:
@@ -108,26 +105,26 @@ altLoop:
 		}
 	}
 
-	return alt.optimize().reduceStrength(), nil
+	return a.optimize().reduceStrength(), nil
 }
 
 type tokenReader struct {
-	tokens []Token
+	tokens []token
 	depth  int
 }
 
-func (tr tokenReader) Peek() Token {
+func (tr tokenReader) Peek() token {
 	if len(tr.tokens) == 0 {
-		return Token{Type: tokEOF}
+		return token{tType: tokEOF}
 	}
 
 	return tr.tokens[0]
 }
 
-func (tr *tokenReader) Token() Token {
+func (tr *tokenReader) token() token {
 	t := tr.Peek()
 
-	if t.Type != tokEOF {
+	if t.tType != tokEOF {
 		tr.tokens = tr.tokens[1:]
 	}
 

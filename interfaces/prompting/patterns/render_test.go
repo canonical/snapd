@@ -17,14 +17,12 @@
  *",
  */
 
-package patterns_test
+package patterns
 
 import (
 	"bytes"
 
 	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 )
 
 type renderSuite struct{}
@@ -33,9 +31,9 @@ var _ = Suite(&renderSuite{})
 
 func (s *renderSuite) TestRenderAllVariants(c *C) {
 	pattern := "/{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld{-*,64}.so*"
-	scanned, err := patterns.Scan(pattern)
+	scanned, err := scan(pattern)
 	c.Assert(err, IsNil)
-	parsed, err := patterns.Parse(scanned)
+	parsed, err := parse(scanned)
 	c.Assert(err, IsNil)
 
 	expectedExpansions := []string{
@@ -90,7 +88,7 @@ func (s *renderSuite) TestRenderAllVariants(c *C) {
 	}
 
 	expansions := make([]string, 0, len(expectedExpansions))
-	patterns.RenderAllVariants(parsed, func(i int, buf *bytes.Buffer) {
+	RenderAllVariants(parsed, func(i int, buf *bytes.Buffer) {
 		expansions = append(expansions, buf.String())
 	})
 
@@ -101,9 +99,9 @@ func (s *renderSuite) TestRenderAllVariants(c *C) {
 
 func (s *renderSuite) TestNextEx(c *C) {
 	pattern := "/{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld{-*,64}.so*"
-	scanned, err := patterns.Scan(pattern)
+	scanned, err := scan(pattern)
 	c.Assert(err, IsNil)
-	parsed, err := patterns.Parse(scanned)
+	parsed, err := parse(scanned)
 	c.Assert(err, IsNil)
 
 	expected := []struct {

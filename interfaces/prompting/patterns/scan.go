@@ -25,17 +25,18 @@ import (
 	"strings"
 )
 
-type TokenType int
+type tokenType int
 
 const (
-	tokEOF TokenType = iota
+	tokEOF tokenType = iota
 	tokText
 	tokBraceOpen
 	tokBraceClose
 	tokComma
 )
 
-func (t TokenType) String() string {
+// String is used for debugging purposes only.
+func (t tokenType) String() string {
 	switch t {
 	case tokEOF:
 		return "end-of-file"
@@ -52,17 +53,17 @@ func (t TokenType) String() string {
 	}
 }
 
-type Token struct {
-	Type TokenType
-	Text string
+type token struct {
+	tType tokenType
+	text  string
 }
 
-func Scan(text string) (tokens []Token, err error) {
+func scan(text string) (tokens []token, err error) {
 	var runes []rune
 
 	consumeText := func() {
 		if len(runes) > 0 {
-			tokens = append(tokens, Token{Text: string(runes), Type: tokText})
+			tokens = append(tokens, token{text: string(runes), tType: tokText})
 			runes = nil
 		}
 	}
@@ -82,13 +83,13 @@ loop:
 		switch r {
 		case '{':
 			consumeText()
-			tokens = append(tokens, Token{Text: string(r), Type: tokBraceOpen})
+			tokens = append(tokens, token{text: string(r), tType: tokBraceOpen})
 		case '}':
 			consumeText()
-			tokens = append(tokens, Token{Text: string(r), Type: tokBraceClose})
+			tokens = append(tokens, token{text: string(r), tType: tokBraceClose})
 		case ',':
 			consumeText()
-			tokens = append(tokens, Token{Text: string(r), Type: tokComma})
+			tokens = append(tokens, token{text: string(r), tType: tokComma})
 		case '\\':
 			r2, _, err := rr.ReadRune()
 			if err != nil {

@@ -17,12 +17,10 @@
  *
  */
 
-package patterns_test
+package patterns
 
 import (
 	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 )
 
 type scanSuite struct{}
@@ -32,52 +30,52 @@ var _ = Suite(&scanSuite{})
 func (s *scanSuite) TestScanHappy(c *C) {
 	pattern := "/{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld{-*,64}.so*"
 
-	expectedTokens := []patterns.Token{
-		{Type: patterns.TokText, Text: "/"},
-		{Type: patterns.TokBraceOpen, Text: "{"},
-		{Type: patterns.TokComma, Text: ","},
-		{Type: patterns.TokText, Text: "usr/"},
-		{Type: patterns.TokBraceClose, Text: "}"},
-		{Type: patterns.TokText, Text: "lib"},
-		{Type: patterns.TokBraceOpen, Text: "{"},
-		{Type: patterns.TokComma, Text: ","},
-		{Type: patterns.TokText, Text: "32"},
-		{Type: patterns.TokComma, Text: ","},
-		{Type: patterns.TokText, Text: "64"},
-		{Type: patterns.TokComma, Text: ","},
-		{Type: patterns.TokText, Text: "x32"},
-		{Type: patterns.TokBraceClose, Text: "}"},
-		{Type: patterns.TokText, Text: "/"},
-		{Type: patterns.TokBraceOpen, Text: "{"},
-		{Type: patterns.TokComma, Text: ","},
-		{Type: patterns.TokText, Text: "@"},
-		{Type: patterns.TokBraceOpen, Text: "{"},
-		{Type: patterns.TokText, Text: "multiarch"},
-		{Type: patterns.TokBraceClose, Text: "}"},
-		{Type: patterns.TokText, Text: "/"},
-		{Type: patterns.TokBraceOpen, Text: "{"},
-		{Type: patterns.TokComma, Text: ","},
-		{Type: patterns.TokText, Text: "atomics/"},
-		{Type: patterns.TokBraceClose, Text: "}"},
-		{Type: patterns.TokBraceClose, Text: "}"},
-		{Type: patterns.TokText, Text: "ld"},
-		{Type: patterns.TokBraceOpen, Text: "{"},
-		{Type: patterns.TokText, Text: "-*"},
-		{Type: patterns.TokComma, Text: ","},
-		{Type: patterns.TokText, Text: "64"},
-		{Type: patterns.TokBraceClose, Text: "}"},
-		{Type: patterns.TokText, Text: ".so*"},
+	expectedTokens := []token{
+		{tType: tokText, text: "/"},
+		{tType: tokBraceOpen, text: "{"},
+		{tType: tokComma, text: ","},
+		{tType: tokText, text: "usr/"},
+		{tType: tokBraceClose, text: "}"},
+		{tType: tokText, text: "lib"},
+		{tType: tokBraceOpen, text: "{"},
+		{tType: tokComma, text: ","},
+		{tType: tokText, text: "32"},
+		{tType: tokComma, text: ","},
+		{tType: tokText, text: "64"},
+		{tType: tokComma, text: ","},
+		{tType: tokText, text: "x32"},
+		{tType: tokBraceClose, text: "}"},
+		{tType: tokText, text: "/"},
+		{tType: tokBraceOpen, text: "{"},
+		{tType: tokComma, text: ","},
+		{tType: tokText, text: "@"},
+		{tType: tokBraceOpen, text: "{"},
+		{tType: tokText, text: "multiarch"},
+		{tType: tokBraceClose, text: "}"},
+		{tType: tokText, text: "/"},
+		{tType: tokBraceOpen, text: "{"},
+		{tType: tokComma, text: ","},
+		{tType: tokText, text: "atomics/"},
+		{tType: tokBraceClose, text: "}"},
+		{tType: tokBraceClose, text: "}"},
+		{tType: tokText, text: "ld"},
+		{tType: tokBraceOpen, text: "{"},
+		{tType: tokText, text: "-*"},
+		{tType: tokComma, text: ","},
+		{tType: tokText, text: "64"},
+		{tType: tokBraceClose, text: "}"},
+		{tType: tokText, text: ".so*"},
 	}
 
-	tokens, err := patterns.Scan(pattern)
+	tokens, err := scan(pattern)
 	c.Check(err, IsNil)
 	c.Check(tokens, DeepEquals, expectedTokens)
 
 	patternWithEscapedMetachars := `/foo\{a\,b\,c\}\[bar\]\\`
-	expectedTokens = []patterns.Token{
-		{Type: patterns.TokText, Text: patternWithEscapedMetachars},
+	expectedTokens = []token{
+		{tType: tokText, text: patternWithEscapedMetachars},
 	}
-	tokens, err = patterns.Scan(patternWithEscapedMetachars)
+	tokens, err = scan(patternWithEscapedMetachars)
 	c.Check(err, IsNil)
 	c.Check(tokens, DeepEquals, expectedTokens)
 }
@@ -100,7 +98,7 @@ func (s *scanSuite) TestScanUnhappy(c *C) {
 			`cannot contain unescaped '\[' or '\]' character`,
 		},
 	} {
-		tokens, err := patterns.Scan(testCase.pattern)
+		tokens, err := scan(testCase.pattern)
 		c.Check(err, ErrorMatches, testCase.expectedErr)
 		c.Check(tokens, IsNil)
 	}
