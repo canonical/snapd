@@ -35,6 +35,17 @@ func NewComponentRef(snapName, componentName string) ComponentRef {
 	return ComponentRef{SnapName: snapName, ComponentName: componentName}
 }
 
+// ParseComponentRef parses a string in the form <snap>+<comp> into a
+// ComponentRef.
+func ParseComponentRef(s string) (ComponentRef, error) {
+	snapName, componentName, err := SplitFullComponentName(s)
+	if err != nil {
+		return ComponentRef{}, err
+	}
+
+	return ComponentRef{SnapName: snapName, ComponentName: componentName}, nil
+}
+
 // SplitFullComponentName splits <snap>+<comp> in <snap> and <comp> strings.
 func SplitFullComponentName(fullComp string) (string, string, error) {
 	names := strings.Split(fullComp, "+")

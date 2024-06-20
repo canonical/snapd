@@ -85,3 +85,13 @@ func (s *componentRefSuite) TestSplitFullComponentNameErr(c *C) {
 		c.Check(comp, Equals, "")
 	}
 }
+
+func (s *componentRefSuite) TestParseComponentRef(c *C) {
+	cr, err := naming.ParseComponentRef("foo+bar")
+	c.Check(err, IsNil)
+	c.Check(cr.SnapName, Equals, "foo")
+	c.Check(cr.ComponentName, Equals, "bar")
+
+	cr, err = naming.ParseComponentRef("foo+bar+")
+	c.Assert(err, ErrorMatches, `.*incorrect component name "foo\+bar\+"`)
+}
