@@ -80,7 +80,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 
 type componentInstallFlags struct {
 	RemoveComponentPath bool
-	SkipSecurity        bool
+	SkipProfiles        bool
 }
 
 // doInstallComponent might be called with the owner snap installed or not.
@@ -177,7 +177,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 	}
 
 	// security
-	if !flags.SkipSecurity {
+	if !flags.SkipProfiles {
 		setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup component %q%s security profiles"), compSi.Component, revisionStr))
 		addTask(setupSecurity)
 	}

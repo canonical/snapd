@@ -633,7 +633,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 			RemoveComponentPath: snapsup.RemoveSnapPath,
 			// the setup-profiles task that is created for the snap itself
 			// generates the security profiles for the snap and its new components
-			SkipSecurity: true,
+			SkipProfiles: true,
 		}, "")
 		if err != nil {
 			return nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
