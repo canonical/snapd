@@ -89,9 +89,7 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 			AuthorizedSnapModels: []sb.SnapModel{
 				params.Model,
 			},
-			AuthorizedBootModes: []string{
-				"run",
-			},
+			// TODO: add boot modes
 		}
 		protectedKey, primaryKeyOut, unlockKey, err := sb_hooks.NewProtectedKey(rand.Reader, params)
 		if err != nil {
@@ -198,7 +196,8 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(sealedEncryptionKeyFile, sourceDev
 
 	sbSetModel(model)
 	//defer sbSetModel(nil)
-	sbSetBootMode("run")
+	// TODO: set boot mode
+	//sbSetBootMode("run")
 	//defer sbSetBootMode("")
 	sbSetKeyRevealer(&keyRevealerV3{})
 	defer sbSetKeyRevealer(nil)

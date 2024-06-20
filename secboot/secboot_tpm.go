@@ -452,7 +452,7 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 	for _, key := range keys {
 		creationParams := &sb_tpm2.ProtectKeyParams{
 			PCRProfile:             pcrProfile,
-			Role:                   "run",
+			// TODO: add roles
 			PCRPolicyCounterHandle: tpm2.Handle(pcrHandle),
 			PrimaryKey:             primaryKey,
 		}
