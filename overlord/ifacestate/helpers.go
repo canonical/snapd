@@ -448,8 +448,17 @@ ConnsLoop:
 			policyChecker = connChecker.check
 		}
 
-		cplug := interfaces.NewConnectedPlug(plugInfo, newStaticPlugAttrs, connState.DynamicPlugAttrs)
-		cslot := interfaces.NewConnectedSlot(slotInfo, newStaticSlotAttrs, connState.DynamicSlotAttrs)
+		plugAppSet, err := interfaces.NewSnapAppSet(plugInfo.Snap, nil)
+		if err != nil {
+			return nil, err
+		}
+		slotAppSet, err := interfaces.NewSnapAppSet(slotInfo.Snap, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		cplug := interfaces.NewConnectedPlug(plugInfo, plugAppSet, newStaticPlugAttrs, connState.DynamicPlugAttrs)
+		cslot := interfaces.NewConnectedSlot(slotInfo, slotAppSet, newStaticSlotAttrs, connState.DynamicSlotAttrs)
 
 		ok, err := policyChecker(cplug, cslot)
 		if !ok || err != nil {
