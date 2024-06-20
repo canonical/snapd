@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -315,6 +316,21 @@ func (m *autoRefresh) Ensure() (err error) {
 		return err
 	}
 
+	// a snap plugging snapd-control can change the refresh schedule to
+	// managed thus controlling how auto-refresh works, but it may happen
+	// that snapd was restarted while such snap is being refreshed, in which
+	// case in between the setup-profiles and auto-connect tasks, the
+	// snapd-control plug would be disconnected, so hold-off any auto
+	// refresh until the connections are settled
+	pending, err := hasPendingConnectionTasks(m.state)
+	if err != nil {
+		return err
+	}
+	if pending {
+		logger.Noticef("auto-refresh held due to pending connections")
+		return nil
+	}
+
 	// get lastRefresh and schedule
 	lastRefresh, err := m.LastRefresh()
 	if err != nil {
@@ -514,16 +530,39 @@ func getRefreshScheduleConf(st *state.State) (confStr string, legacy bool, err e
 	return confStr, legacy, nil
 }
 
-func hasPendingConnectionTasks(st *state.State) bool {
+func hasPendingConnectionTasks(st *state.State) (bool, error) {
 	for _, chg := range st.Changes() {
+		if chg.IsReady() {
+			continue
+		}
+
+		// the change still has tasks to execute, note we're
+		// specifically not checking the task status, as the change may
+		// get undone if one of the tasks should fail
 		for _, tsk := range chg.Tasks() {
-			if tsk.Kind() == "auto-connect" || tsk.Kind() == "connect" {
-				// TODO should this this inspect the attributes?
-				return true
+			if tsk.Kind() == "auto-connect" {
+				// auto-connect spawns additional tasks for
+				// connecting interfaces, one of those could be
+				// snapd-control
+				return true, nil
+			}
+
+			if tsk.Kind() == "connect" {
+				var slot interfaces.SlotRef
+				if err := tsk.Get("slot", &slot); err != nil && !errors.Is(err, state.ErrNoState) {
+					return false, err
+				}
+				// TODO how to find the interface?
+				if slot.Name == "snapd-control" {
+					// pending snapd-control connection,
+					// with which the snap can change the
+					// refresh schedule
+					return true, nil
+				}
 			}
 		}
 	}
-	return false
+	return false, nil
 }
 
 // refreshScheduleWithDefaultsFallback returns the current refresh schedule
@@ -537,20 +576,6 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (sched []*timeutil.S
 	// user requests refreshes to be managed by an external snap
 	if scheduleConf == "managed" {
 		if CanManageRefreshes == nil || !CanManageRefreshes(m.state) {
-			// the schedule was managed once, and at that time
-			// CanManageRefreshes() was true, but it may happen that
-			// snapd was restarted while a snap which has
-			// snapd-control plug is being refreshed, in which case
-			// in between the setup-profiles and auto-connect tasks,
-			// the snapd-control plug would be disconnected, but
-			// that will be resolved once the tasks are done, so
-			// temporarily report the schedule as managed until
-			// those tasks are resolved
-			if hasPendingConnectionTasks(m.state) {
-				logger.Noticef("managed refresh schedule denied, but pending connection tasks")
-				return nil, "managed", legacy, nil
-			}
-
 			// there's no snap to manage refreshes so use default schedule
 			if !m.managedDeniedLogged {
 				logger.Noticef("managed refresh schedule denied, no properly configured snapd-control")
