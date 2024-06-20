@@ -5260,7 +5260,7 @@ func (s *snapmgrTestSuite) TestRefreshRetain(c *C) {
 	}
 }
 
-func (s *snapmgrTestSuite) TestSnapStateNoLocalRevision(c *C) {
+func (s *snapmgrTestSuite) TestSnapStateLocalRevision(c *C) {
 	si7 := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(-7),
@@ -5276,7 +5276,7 @@ func (s *snapmgrTestSuite) TestSnapStateNoLocalRevision(c *C) {
 	c.Assert(snapst.LocalRevision(), Equals, snap.R(-11))
 }
 
-func (s *snapmgrTestSuite) TestSnapStateLocalRevision(c *C) {
+func (s *snapmgrTestSuite) TestSnapStateNoLocalRevision(c *C) {
 	si7 := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(7),
@@ -5286,6 +5286,81 @@ func (s *snapmgrTestSuite) TestSnapStateLocalRevision(c *C) {
 		Current:  si7.Revision,
 	}
 	c.Assert(snapst.LocalRevision().Unset(), Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestSnapStateLocalComponentRevision(c *C) {
+	si7 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(-7),
+	}
+	csi0 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "mycomp"), snap.R(25))
+	csi1 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "mycomp"), snap.R(-3))
+	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "mycomp"), snap.R(-2))
+	csi3 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "othercomp"), snap.R(-13))
+	compsSi7 := []*sequence.ComponentState{
+		sequence.NewComponentState(csi0, snap.TestComponent),
+		sequence.NewComponentState(csi1, snap.TestComponent),
+		sequence.NewComponentState(csi2, snap.TestComponent),
+		sequence.NewComponentState(csi3, snap.TestComponent),
+	}
+	si11 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(-11),
+	}
+	csi4 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "mycomp"), snap.R(-8))
+	csi5 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "othercomp"), snap.R(-9))
+	compsSi11 := []*sequence.ComponentState{
+		sequence.NewComponentState(csi4, snap.TestComponent),
+		sequence.NewComponentState(csi5, snap.TestComponent),
+	}
+	snapst := &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(&si7, compsSi7),
+				sequence.NewRevisionSideState(&si11, compsSi11),
+				sequence.NewRevisionSideState(&si11, compsSi11),
+			}),
+		Current: si7.Revision,
+	}
+
+	c.Assert(snapst.LocalComponentRevision("mycomp"), Equals, snap.R(-8))
+	c.Assert(snapst.LocalComponentRevision("othercomp"), Equals, snap.R(-13))
+}
+
+func (s *snapmgrTestSuite) TestSnapStateNoLocalComponentRevision(c *C) {
+	si7 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+	}
+	csi1 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "mycomp"), snap.R(3))
+	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "mycomp"), snap.R(2))
+	csi3 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "othercomp"), snap.R(13))
+	compsSi7 := []*sequence.ComponentState{
+		sequence.NewComponentState(csi1, snap.TestComponent),
+		sequence.NewComponentState(csi2, snap.TestComponent),
+		sequence.NewComponentState(csi3, snap.TestComponent),
+	}
+	si11 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(11),
+	}
+	csi4 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "mycomp"), snap.R(8))
+	csi5 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "othercomp"), snap.R(9))
+	compsSi11 := []*sequence.ComponentState{
+		sequence.NewComponentState(csi4, snap.TestComponent),
+		sequence.NewComponentState(csi5, snap.TestComponent),
+	}
+	snapst := &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(&si7, compsSi7),
+				sequence.NewRevisionSideState(&si11, compsSi11),
+			}),
+		Current: si7.Revision,
+	}
+
+	c.Assert(snapst.LocalComponentRevision("mycomp"), Equals, snap.R(0))
+	c.Assert(snapst.LocalComponentRevision("othercomp"), Equals, snap.R(0))
 }
 
 func tasksWithKind(ts *state.TaskSet, kind string) []*state.Task {
