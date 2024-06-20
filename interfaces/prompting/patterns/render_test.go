@@ -36,7 +36,7 @@ func (s *renderSuite) TestRenderAllVariants(c *C) {
 	parsed, err := parse(scanned)
 	c.Assert(err, IsNil)
 
-	expectedExpansions := []string{
+	expectedVariants := []string{
 		"/lib/ld-*.so*",
 		"/lib/ld64.so*",
 		"/lib/@multiarch/ld-*.so*",
@@ -87,17 +87,17 @@ func (s *renderSuite) TestRenderAllVariants(c *C) {
 		"/usr/libx32/@multiarch/atomics/ld64.so*",
 	}
 
-	expansions := make([]string, 0, len(expectedExpansions))
+	variants := make([]string, 0, len(expectedVariants))
 	RenderAllVariants(parsed, func(i int, buf *bytes.Buffer) {
-		expansions = append(expansions, buf.String())
+		variants = append(variants, buf.String())
 	})
 
-	c.Check(expansions, DeepEquals, expectedExpansions)
+	c.Check(variants, DeepEquals, expectedVariants)
 
-	c.Check(expansions, HasLen, parsed.NumVariants())
+	c.Check(variants, HasLen, parsed.NumVariants())
 }
 
-func (s *renderSuite) TestNextEx(c *C) {
+func (s *renderSuite) TestNextVariant(c *C) {
 	pattern := "/{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld{-*,64}.so*"
 	scanned, err := scan(pattern)
 	c.Assert(err, IsNil)
@@ -158,15 +158,15 @@ func (s *renderSuite) TestNextEx(c *C) {
 		{39, 33}, // /usr/libx32/@multiarch/atomics/ld64.so*
 	}
 
-	conf := parsed.Config()
+	variant := parsed.InitialVariant()
 	for _, next := range expected {
-		length, truncateTo, moreRemain := conf.NextEx(parsed)
+		length, truncateTo, moreRemain := variant.NextVariant(parsed)
 		c.Check(length, Equals, next.length)
 		c.Check(truncateTo, Equals, next.truncateTo)
 		c.Check(moreRemain, Equals, true)
 	}
 
-	length, truncateTo, moreRemain := conf.NextEx(parsed)
+	length, truncateTo, moreRemain := variant.NextVariant(parsed)
 	c.Check(length, Equals, 0)
 	c.Check(truncateTo, Equals, 0)
 	c.Check(moreRemain, Equals, false)
