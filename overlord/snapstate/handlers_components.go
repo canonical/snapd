@@ -115,15 +115,12 @@ func (m *SnapManager) doPrepareComponent(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if compSetup.Revision().Unset() {
-		// This is a local installation, revision is -1 if the current
-		// one is non-local or not installed, or current one
-		// decremented by one otherwise.
-		revision := snap.R(-1)
-		current := snapSt.CurrentComponentSideInfo(compSetup.CompSideInfo.Component)
-		if current != nil && current.Revision.N < 0 {
-			revision = snap.R(current.Revision.N - 1)
-		}
-		compSetup.CompSideInfo.Revision = revision
+		// This is a local installation, assign -1 to the revision if
+		// no other local revision for the component is found, or
+		// current more negative local revision decremented by one
+		// otherwise.
+		current := snapSt.LocalComponentRevision(compSetup.CompSideInfo.Component.ComponentName)
+		compSetup.CompSideInfo.Revision = snap.R(current.N - 1)
 	}
 
 	t.Set("component-setup", compSetup)
