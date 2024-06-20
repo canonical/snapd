@@ -248,17 +248,11 @@ func (s *autoRefreshTestSuite) TestRefreshManagedTimerWins(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (s *autoRefreshTestSuite) TestRefreshManagedDenied(c *C) {
-	canManageCalled := false
+func (s *autoRefreshTestSuite) TestRefreshManagedIsRespected(c *C) {
 	snapstate.CanManageRefreshes = func(st *state.State) bool {
-		canManageCalled = true
-		// always deny
+		c.Fatalf("unexpected call")
 		return false
 	}
-	defer func() { snapstate.CanManageRefreshes = nil }()
-
-	logbuf, restore := logger.MockLogger()
-	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -275,23 +269,11 @@ func (s *autoRefreshTestSuite) TestRefreshManagedDenied(c *C) {
 			err := af.Ensure()
 			s.state.Lock()
 			c.Check(err, IsNil)
-			c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
-
-			refreshScheduleStr, _, err := af.RefreshSchedule()
-			c.Check(refreshScheduleStr, Equals, snapstate.DefaultRefreshSchedule)
-			c.Check(err, IsNil)
-			c.Check(canManageCalled, Equals, true)
-			count := strings.Count(logbuf.String(),
-				": managed refresh schedule denied, no properly configured snapd-control\n")
-			c.Check(count, Equals, 1, Commentf("too many occurrences:\n%s", logbuf.String()))
-
-			canManageCalled = false
+			c.Check(s.store.ops, HasLen, 0)
 		}
 
 		// ensure clean config for the next run
 		s.state.Set("config", nil)
-		logbuf.Reset()
-		canManageCalled = false
 	}
 }
 
