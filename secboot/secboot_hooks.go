@@ -116,6 +116,41 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 	return nil
 }
 
+func ResealKeysWithFDESetupHook(keyFiles []string, primaryKeyFile string, models []ModelForSealing) error {
+	primaryKeyBuf, err := os.ReadFile(primaryKeyFile)
+	if err != nil {
+		return fmt.Errorf("cannot read primary key file: %v", err)
+	}
+	primaryKey := sb.PrimaryKey(primaryKeyBuf)
+
+	var sbModels []sb.SnapModel
+	for _, model := range models {
+		sbModels = append(sbModels, model)
+	}
+	for _, keyFile := range keyFiles {
+		reader, err := sbNewFileKeyDataReader(keyFile)
+		if err != nil {
+			return fmt.Errorf("cannot open key data: %v", err)
+		}
+		keyData, err := sbReadKeyData(reader)
+		if err != nil {
+			return fmt.Errorf("cannot read key data: %v", err)
+		}
+		hooksKeyData, err := sb_hooks.NewKeyData(keyData)
+		if err != nil {
+			return fmt.Errorf("cannot read key data as hook key data: %v", err)
+		}
+		hooksKeyData.SetAuthorizedSnapModels(primaryKey, sbModels...)
+
+		writer := sb.NewFileKeyDataWriter(keyFile)
+		if err := keyData.WriteAtomic(writer); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func isV1EncryptedKeyFile(p string) bool {
 	// XXX move some of this to kernel/fde
 	var v1KeyPrefix = []byte("USK$")

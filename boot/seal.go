@@ -457,24 +457,21 @@ func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool,
 var resealKeyToModeenvUsingFDESetupHook = resealKeyToModeenvUsingFDESetupHookImpl
 
 func resealKeyToModeenvUsingFDESetupHookImpl(rootdir string, modeenv *Modeenv, expectReseal bool) error {
-	// TODO: we need to implement reseal at least in terms of
-	//       rebinding the keys to models on remodeling
+	var models []secboot.ModelForSealing
+	models = append(models, modeenv.ModelForSealing())
+	if modeenv.TryModel != "" {
+		models = append(models, modeenv.TryModelForSealing())
+	}
 
-	// TODO: If we have situations that do TPM-like full sealing then:
-	//       Implement reseal using the fde-setup hook. This will
-	//       require a helper like "FDEShouldResealUsingSetupHook"
-	//       that will be set by devicestate and returns (bool,
-	//       error).  It needs to return "false" during seeding
-	//       because then there is no kernel available yet.  It
-	//       can though return true as soon as there's an active
-	//       kernel if seeded is false
-	//
-	//       It will also need to run HasFDESetupHook internally
-	//       and return an error if the hook goes missing
-	//       (e.g. because a kernel refresh losses the hook by
-	//       accident). It could also run features directly and
-	//       check for "reseal" in features.
-	return nil
+	keys := []string{
+		device.DataSealedKeyUnder(InitramfsBootEncryptionKeyDir),
+		device.FallbackDataSealedKeyUnder(InitramfsSeedEncryptionKeyDir),
+		device.FallbackSaveSealedKeyUnder(InitramfsSeedEncryptionKeyDir),
+	}
+
+	primaryKey := filepath.Join(InstallHostFDESaveDir, "aux-key")
+
+	return secboot.ResealKeysWithFDESetupHook(keys, primaryKey, models)
 }
 
 // TODO:UC20: allow more than one model to accommodate the remodel scenario
