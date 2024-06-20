@@ -1,0 +1,184 @@
+summary: Blah
+details: |
+  Blah
+
+systems: [ubuntu-20.04-64]
+
+environment:
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-dangerous.model
+
+  # encrypted case
+  NESTED_ENABLE_TPM/encrypted: true
+  NESTED_ENABLE_SECURE_BOOT/encrypted: true
+  DISK_IS_ENCRYPTED/encrypted: true
+  BUILD_FDE_HOOK/encrypted: '0'
+  # unencrypted case
+  NESTED_ENABLE_TPM/notencrypted: false
+  NESTED_ENABLE_SECURE_BOOT/notencrypted: false
+  DISK_IS_ENCRYPTED/notencrypted: false
+  BUILD_FDE_HOOK/notencrypted: '0'
+
+  NESTED_ENABLE_TPM/hook: false
+  NESTED_ENABLE_SECURE_BOOT/hook: false
+  DISK_IS_ENCRYPTED/hook: true
+  BUILD_FDE_HOOK/hook: '1'
+
+  NESTED_SIGN_SNAPS_FAKESTORE: true
+  # for the fake store
+  NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
+  NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
+  REMOTE_SAS_URL: http://10.0.2.2:11028
+
+prepare: |
+  snap install jq remarshal
+  snap install test-snapd-swtpm --edge
+
+  snap install lxd
+  lxd init --auto
+
+  mkdir -p updates/
+
+  "${TESTSTOOLS}/store-state" setup-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
+  cp "${TESTSLIB}/assertions/developer1.account" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+  cp "${TESTSLIB}/assertions/developer1.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+  cp "${TESTSLIB}/assertions/testrootorg-store.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+
+  KEY_NAME=$(tests.nested download snakeoil-key)
+
+  lxc launch "ubuntu:22.04" builder-for-22
+  lxcdir="/project/$(realpath --relative-to="${PROJECT_PATH}" "${PWD}")"
+  lxc config device add builder-for-22 project disk source="${PROJECT_PATH}" path=/project shift=true
+  lxc exec --cwd "${lxcdir}" \
+           --env SNAKEOIL_KEY="${lxcdir}/${KEY_NAME}.key" \
+           --env SNAKEOIL_CERT="${lxcdir}/${KEY_NAME}.pem" \
+           --env "BUILD_FDE_HOOK=${BUILD_FDE_HOOK}" \
+           builder-for-22 -- bash -x repack-kernel.sh 22 beta
+
+  mv pc-kernel-modified.snap updates/pc-kernel-22.snap
+
+  snap download --channel="latest/edge" --basename="original-core22" "core22"
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB/prepare.sh"
+  repack_core_snap_with_tweaks original-core22.snap updates/core22.snap
+  rm -f original-core22.{snap,assert}
+
+  snap download --channel="22/edge" --basename="original-pc-22" "pc"
+  unsquashfs -d pc original-pc-22.snap
+  rm -f original-pc-22.{snap,assert}
+  SNAKEOIL_KEY="${PWD}/${KEY_NAME}.key"
+  SNAKEOIL_CERT="${PWD}/${KEY_NAME}.pem"
+  # shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+  nested_secboot_sign_gadget pc "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
+  echo "7777" > pc/serial
+  mkdir -p pc/meta/hooks/
+  cp prepare-device pc/meta/hooks/
+  echo "console=ttyS0 systemd.journald.forward_to_console=1" >>pc/cmdline.extra
+  snap pack pc updates/ --filename="pc-22.snap"
+  rm -rf pc
+
+  "$TESTSTOOLS"/store-state make-snap-installable --noack --revision 2 "${NESTED_FAKESTORE_BLOB_DIR}" "updates/core22.snap" "amcUKQILKXHHTlmSa7NMdnXSx02dNeeT"
+  "$TESTSTOOLS"/store-state make-snap-installable --noack --revision 2 "${NESTED_FAKESTORE_BLOB_DIR}" "updates/pc-kernel-22.snap" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
+  "$TESTSTOOLS"/store-state make-snap-installable --noack --revision 3 "${NESTED_FAKESTORE_BLOB_DIR}" "updates/pc-22.snap" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
+
+  getassert() {
+    FILENAME=$1
+    ID=$2
+    SUM="$(snap info --verbose "$(realpath "${FILENAME}")" | sed '/^sha3-384: */{;s///;q;};d')"
+    cat "${TESTSLIB}/assertions/developer1.account-key"
+    echo
+    SNAPPY_FORCE_SAS_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}" snap known --remote snap-declaration snap-id="${ID}" series=16
+    echo
+    SNAPPY_FORCE_SAS_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}" snap known --remote snap-revision snap-sha3-384="${SUM}"
+  }
+
+  getassert "updates/core22.snap" "amcUKQILKXHHTlmSa7NMdnXSx02dNeeT" >"updates/core22.assert"
+  getassert "updates/pc-kernel-22.snap" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza" >"updates/pc-kernel-22.assert"
+  getassert "updates/pc-22.snap" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH" >"updates/pc-22.assert"
+
+  if [ "${BUILD_FDE_HOOK-}" = 1 ]; then
+    mkdir -p ./extra-initrd/usr/bin/
+    go build -o ./extra-initrd/usr/bin/fde-reveal-key "$TESTSLIB"/fde-setup-hook/fde-setup.go
+    mkdir -p ./extra-kernel-snap/meta/hooks
+    go build -o ./extra-kernel-snap/meta/hooks/fde-setup "$TESTSLIB"/fde-setup-hook/fde-setup.go
+  fi
+
+  tests.nested prepare-essential-snaps
+  unsquashfs -d pc-20 "$(tests.nested get extra-snaps-path)/pc.snap"
+  echo "7777" > pc-20/serial
+  mkdir -p pc-20/meta/hooks/
+  cp prepare-device pc-20/meta/hooks/
+  rm "$(tests.nested get extra-snaps-path)/pc.snap"
+  echo "console=ttyS0 systemd.journald.forward_to_console=1" >>pc-20/cmdline.extra
+  snap pack pc-20/ --filename="$(tests.nested get extra-snaps-path)/pc.snap"
+  "$TESTSTOOLS"/store-state make-snap-installable --noack --revision 2 "${NESTED_FAKESTORE_BLOB_DIR}" "$(tests.nested get extra-snaps-path)/pc.snap" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
+
+  add_to_channel() {
+    FILENAME=$1
+    CHANNEL=$2
+    SUM="$(snap info --verbose "$(realpath "${FILENAME}")" | sed '/^sha3-384: */{;s///;q;};d')"
+    mkdir -p "${NESTED_FAKESTORE_BLOB_DIR}/channels"
+    echo "${CHANNEL}" >"${NESTED_FAKESTORE_BLOB_DIR}/channels/${SUM}"
+  }
+
+  add_to_channel updates/pc-kernel-22.snap 22/edge
+  add_to_channel updates/pc-22.snap 22/edge
+  add_to_channel "$(tests.nested get extra-snaps-path)/pc-kernel.snap" 20/edge
+  add_to_channel "$(tests.nested get extra-snaps-path)/pc.snap" 20/edge
+
+  for snap in "$(tests.nested get extra-snaps-path)"/snapd*.snap; do
+    add_to_channel "${snap}" latest/stable
+  done
+  add_to_channel updates/core22.snap latest/stable
+
+  # start fake device svc
+  systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
+
+  NESTED_BUILD_SNAPD_FROM_CURRENT=false tests.nested build-image core
+  tests.nested create-vm core
+
+  cat <<EOF >snapd-override.conf
+  [Service]
+  Environment=SNAPPY_FORCE_API_URL=${REMOTE_SAS_URL}
+  EOF
+  remote.push snapd-override.conf
+  remote.exec sudo mkdir -p /etc/systemd/system/snapd.service.d
+  remote.exec sudo cp snapd-override.conf /etc/systemd/system/snapd.service.d/
+  remote.exec sudo systemctl daemon-reload
+  remote.exec sudo systemctl restart snapd
+
+restore: |
+  # stop fake device svc
+  systemctl stop fakedevicesvc
+
+  "${TESTSTOOLS}/store-state" teardown-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
+
+  rm -rf updates/
+
+execute: |
+  if [ "${DISK_IS_ENCRYPTED}" = true ]; then
+    remote.exec "ls /dev/mapper/ubuntu-data*"
+    remote.exec "ls /dev/mapper/ubuntu-save*"
+  fi
+
+  for f in  updates/{core22,pc-22,pc-kernel-22}.{snap,assert} updates/pc-22.{snap,assert} updates/pc-kernel-22.{snap,assert}; do
+    remote.push "${f}"
+  done
+  remote.push "${TESTSLIB}/assertions/developer1-22-dangerous.model"
+
+  # There is no tracks on fakestore yet. So let's remove the old versions.
+  #rm "${NESTED_FAKESTORE_BLOB_DIR}/pc.snap"
+  #rm "${NESTED_FAKESTORE_BLOB_DIR}/pc-kernel.snap"
+
+  remote.exec "snap model --assertion" | MATCH '^model: testkeys-snapd-dangerous-core-20-amd64$'
+  remote.exec "snap model --assertion" | NOMATCH '^model: testkeys-snapd-dangerous-core-22-amd64$'
+
+  boot_id="$(tests.nested boot-id)"
+  change_id="$(remote.exec sudo snap remodel --no-wait developer1-22-dangerous.model)"
+  remote.wait-for reboot "${boot_id}"
+
+  retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${change_id}\s+(Done|Undone|Error)'"
+  remote.exec "sudo snap changes" | MATCH "^${change_id}\s+Done"
+
+  remote.exec "snap model --assertion" | MATCH '^model: testkeys-snapd-dangerous-core-22-amd64$'
+  remote.exec "snap model --assertion" | NOMATCH '^model: testkeys-snapd-dangerous-core-20-amd64$'
