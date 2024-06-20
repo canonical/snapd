@@ -4225,13 +4225,6 @@ func (s *snapmgrTestSuite) testEnsureRefreshesDisabledViaSnapdControl(c *C, conf
 	})
 	defer restore()
 
-	// pretend the device is refresh-control: managed
-	oldCanManageRefreshes := snapstate.CanManageRefreshes
-	snapstate.CanManageRefreshes = func(*state.State) bool {
-		return true
-	}
-	defer func() { snapstate.CanManageRefreshes = oldCanManageRefreshes }()
-
 	tr := config.NewTransaction(st)
 	confSet(tr)
 	tr.Commit()

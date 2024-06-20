@@ -173,11 +173,6 @@ func (s *autoRefreshTestSuite) TestLastRefresh(c *C) {
 }
 
 func (s *autoRefreshTestSuite) TestLastRefreshRefreshManaged(c *C) {
-	snapstate.CanManageRefreshes = func(st *state.State) bool {
-		return true
-	}
-	defer func() { snapstate.CanManageRefreshes = nil }()
-
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
@@ -220,11 +215,6 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshManaged(c *C) {
 }
 
 func (s *autoRefreshTestSuite) TestRefreshManagedTimerWins(c *C) {
-	snapstate.CanManageRefreshes = func(st *state.State) bool {
-		return true
-	}
-	defer func() { snapstate.CanManageRefreshes = nil }()
-
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -249,11 +239,6 @@ func (s *autoRefreshTestSuite) TestRefreshManagedTimerWins(c *C) {
 }
 
 func (s *autoRefreshTestSuite) TestRefreshManagedIsRespected(c *C) {
-	snapstate.CanManageRefreshes = func(st *state.State) bool {
-		c.Fatalf("unexpected call")
-		return false
-	}
-
 	s.state.Lock()
 	defer s.state.Unlock()
 

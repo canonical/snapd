@@ -61,7 +61,6 @@ const defaultMaxInhibitionDays = 14
 // hooks setup by devicestate
 var (
 	CanAutoRefresh        func(st *state.State) (bool, error)
-	CanManageRefreshes    func(st *state.State) bool
 	IsOnMeteredConnection func() (bool, error)
 
 	defaultRefreshSchedule = func() []*timeutil.Schedule {
