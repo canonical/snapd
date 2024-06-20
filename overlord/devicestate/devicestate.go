@@ -307,15 +307,14 @@ func interfaceConnected(st *state.State, snapName, ifName string) bool {
 	return err == nil && len(conns) > 0
 }
 
-// CanManageRefreshes returns true if the device can be
-// switched to the "core.refresh.schedule=managed" mode.
+// CanManageRefreshes returns true if a snap entitled to setting the
+// refresh-schedule to managed is installed in the system and the relevant
+// interface is currently connected.
 //
 // TODO:
 //   - Move the CanManageRefreshes code into the ifstate
 //   - Look at the connections and find the connection for snapd-control
 //     with the managed attribute
-//   - Take the snap from this connection and look at the snapstate to see
-//     if that snap has a snap declaration (to ensure it comes from the store)
 func CanManageRefreshes(st *state.State) bool {
 	snapStates, err := snapstate.All(st)
 	if err != nil {
