@@ -607,16 +607,11 @@ func (s *specSuite) TestSetSuppressPycacheDeny(c *C) {
 }
 
 var key1 = apparmor.RegisterSnippetKey("testkey1")
+var key2 = apparmor.RegisterSnippetKey("testkey2")
 
 func (s *specSuite) TestPrioritySnippets(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.scope1"})
 
-	// check that key1 is correctly registered
-	_, ok := apparmor.GetSnippetKey("testkey1")
-	c.Assert(ok, Equals, true)
-
-	key2, ok := apparmor.GetSnippetKey("testkey2")
-	c.Assert(ok, Equals, true)
 	// Test a scope with a normal snippet and prioritized ones
 	s.spec.AddSnippet("Test snippet 1")
 	s.spec.AddPrioritizedSnippet("Prioritized snippet 1", key1, 0)
@@ -667,15 +662,9 @@ func (s *specSuite) TestRegisterSameSnippetKeyTwice(c *C) {
 }
 
 func (s *specSuite) TestMoreSnippets(c *C) {
-	_, ok := apparmor.GetSnippetKey("akeythatdoesntexist")
-	c.Assert(ok, Equals, false)
-	key1a, ok := apparmor.GetSnippetKey("testkey1")
-	c.Assert(ok, Equals, true)
-	key1b, ok := apparmor.GetSnippetKey("testkey1")
-	c.Assert(ok, Equals, true)
-	c.Assert(key1a, Equals, key1b)
-}
+	keylist := apparmor.GetSnippetKeys()
+	c.Assert(keylist, testutil.Contains, "testkey1")
+	c.Assert(keylist, testutil.Contains, "testkey2")
+	c.Assert(len(keylist), Equals, 2)
 
-func init() {
-	apparmor.RegisterSnippetKey("testkey2")
 }

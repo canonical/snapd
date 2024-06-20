@@ -79,13 +79,13 @@ func RegisterSnippetKey(key string) SnippetKey {
 	return snippetKey
 }
 
-// GetSnippetKey retrieves a key from the list of valid keys
-func GetSnippetKey(key string) (SnippetKey, bool) {
-	snippetKey := newSnippetKey(key)
-	if _, ok := registeredKeys[snippetKey]; ok {
-		return snippetKey, true
+// GetSnippetKey retrieves all the current valid keys
+func GetSnippetKeys() []string {
+	keylist := make([]string, 0)
+	for k := range registeredKeys {
+		keylist = append(keylist, k.key)
 	}
-	return SnippetKey{}, false
+	return keylist
 }
 
 // Specification assists in collecting apparmor entries associated with an interface.
