@@ -631,6 +631,10 @@ jobs:
             backend: google-distro-1
             systems: 'fedora-38-64 fedora-39-64'
             tests: 'tests/...'
+          - group: fedora-os
+            backend: openstack
+            systems: 'fedora-40-64'
+            tests: 'tests/...'
           - group: opensuse
             backend: google-distro-2
             systems: 'opensuse-15.5-64 opensuse-tumbleweed-64'
@@ -784,6 +788,11 @@ jobs:
               export NO_DELTA=1
           fi
 
+          # Add openstack backend definition to spread.yaml
+          if [ "${{ matrix.backend }}" = openstack ]; then
+              ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
+          fi
+
           RUN_TESTS=""
           # Save previous failed test results in FAILED_TESTS env var
           if [ -n "$FAILED_TESTS" ]; then
@@ -851,6 +860,11 @@ jobs:
               done
               if [ -n "$FAILED_TESTS" ]; then
                   RUN_TESTS="$FAILED_TESTS"
+              fi
+
+              # Add openstack backend definition to spread.yaml
+              if [ "${{ matrix.backend }}" = openstack ]; then
+                  ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
               fi
 
               echo "Running spread log analyzer"
