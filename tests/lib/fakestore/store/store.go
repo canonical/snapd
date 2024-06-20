@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2020, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,7 @@
 package store
 
 import (
+	"bufio"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -68,6 +69,8 @@ type Store struct {
 	fallback       *store.Store
 
 	srv *http.Server
+
+	channelRepository *ChannelRepository
 }
 
 // NewStore creates a new store server serving snaps from the given top directory and assertions from topDir/asserts. If assertFallback is true missing assertions are looked up in the main online store.
@@ -90,6 +93,9 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 			Addr:    addr,
 			Handler: mux,
 		},
+		channelRepository: &ChannelRepository{
+			rootDir: filepath.Join(topDir, "channels"),
+		},
 	}
 
 	mux.HandleFunc("/", rootEndpoint)
@@ -97,6 +103,10 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 	mux.HandleFunc("/api/v1/snaps/details/", store.detailsEndpoint)
 	mux.HandleFunc("/api/v1/snaps/metadata", store.bulkEndpoint)
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(topDir))))
+
+	mux.HandleFunc("/api/v1/snaps/auth/nonces", store.nonceEndpoint)
+	mux.HandleFunc("/api/v1/snaps/auth/sessions", store.sessionEndpoint)
+
 	// v2
 	mux.HandleFunc("/v2/assertions/", store.assertionsEndpoint)
 	mux.HandleFunc("/v2/snaps/refresh", store.snapActionEndpoint)
@@ -109,6 +119,14 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 // URL returns the base-url that the store is listening on
 func (s *Store) URL() string {
 	return s.url
+}
+
+func (s *Store) RealURL(req *http.Request) string {
+	if req.Host == "" {
+		return s.url
+	} else {
+		return fmt.Sprintf("http://%s", req.Host)
+	}
 }
 
 func (s *Store) SnapsDir() string {
@@ -177,11 +195,12 @@ type essentialInfo struct {
 	Confinement string
 	Type        string
 	Base        string
+	/*Channels    []string*/
 }
 
 var errInfo = errors.New("cannot get info")
 
-func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Backstore) (*essentialInfo, error) {
+func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Backstore, cs *ChannelRepository) (*essentialInfo, error) {
 	f, err := snapfile.Open(fn)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("cannot read: %v: %v", fn, err), 400)
@@ -348,7 +367,7 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), 500)
 		return
 	}
-	snaps, err := s.collectSnaps()
+	snaps, err := s.collectSnaps(s.channelRepository)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), 500)
 		return
@@ -360,7 +379,7 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	essInfo, err := snapEssentialInfo(w, fn, "", bs)
+	essInfo, err := snapEssentialInfo(w, fn, "", bs, s.channelRepository)
 	if essInfo == nil {
 		if err != errInfo {
 			panic(err)
@@ -374,8 +393,8 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 		PackageName:     essInfo.Name,
 		Developer:       essInfo.DevelName,
 		DeveloperID:     essInfo.DeveloperID,
-		AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
-		DownloadURL:     fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
+		AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.RealURL(req), filepath.Base(fn)),
+		DownloadURL:     fmt.Sprintf("%s/download/%s", s.RealURL(req), filepath.Base(fn)),
 		Version:         essInfo.Version,
 		Revision:        essInfo.Revision,
 		DownloadDigest:  hexify(essInfo.Digest),
@@ -394,7 +413,7 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 	w.Write(out)
 }
 
-func (s *Store) collectSnaps() (map[string]string, error) {
+func (s *Store) collectSnaps(cs *ChannelRepository) (map[string]string, error) {
 	snapFns, err := filepath.Glob(filepath.Join(s.blobDir, "*.snap"))
 	if err != nil {
 		return nil, err
@@ -415,6 +434,19 @@ func (s *Store) collectSnaps() (map[string]string, error) {
 			return nil, err
 		}
 		snaps[info.SnapName()] = fn
+
+		digest, _, err := asserts.SnapFileSHA3_384(fn)
+		if err != nil {
+			return nil, err
+		}
+		channels, err := cs.findSnapChannels(digest)
+		if err != nil {
+			return nil, err
+		}
+		for _, channel := range channels {
+			snaps[fmt.Sprintf("%s|%s", info.SnapName(), channel)] = fn
+		}
+
 		logger.Debugf("found snap %q at %v", info.SnapName(), fn)
 	}
 
@@ -484,7 +516,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	snaps, err := s.collectSnaps()
+	snaps, err := s.collectSnaps(s.channelRepository)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), 500)
 		return
@@ -499,7 +531,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 		}
 
 		if fn, ok := snaps[name]; ok {
-			essInfo, err := snapEssentialInfo(w, fn, pkg.SnapID, bs)
+			essInfo, err := snapEssentialInfo(w, fn, pkg.SnapID, bs, s.channelRepository)
 			if essInfo == nil {
 				if err != errInfo {
 					panic(err)
@@ -513,8 +545,8 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 				PackageName:     essInfo.Name,
 				Developer:       essInfo.DevelName,
 				DeveloperID:     essInfo.DeveloperID,
-				DownloadURL:     fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
-				AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
+				DownloadURL:     fmt.Sprintf("%s/download/%s", s.RealURL(req), filepath.Base(fn)),
+				AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.RealURL(req), filepath.Base(fn)),
 				Version:         essInfo.Version,
 				Revision:        essInfo.Revision,
 				DownloadDigest:  hexify(essInfo.Digest),
@@ -577,6 +609,7 @@ func (s *Store) collectAssertions() (asserts.Backstore, error) {
 type currentSnap struct {
 	SnapID      string `json:"snap-id"`
 	InstanceKey string `json:"instance-key"`
+	TrackingChannel string `json:"tracking-channel"`
 }
 
 type snapAction struct {
@@ -585,6 +618,7 @@ type snapAction struct {
 	SnapID      string `json:"snap-id"`
 	Name        string `json:"name"`
 	Revision    int    `json:"revision,omitempty"`
+	Channel     string `json:"channel,omitempty"`
 }
 
 type snapActionRequest struct {
@@ -653,7 +687,7 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	snaps, err := s.collectSnaps()
+	snaps, err := s.collectSnaps(s.channelRepository)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), 500)
 		return
@@ -667,6 +701,7 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 				Action:      "refresh",
 				SnapID:      s.SnapID,
 				InstanceKey: s.InstanceKey,
+				Channel:     s.TrackingChannel,
 			}
 		}
 	}
@@ -684,8 +719,17 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		if fn, ok := snaps[name]; ok {
-			essInfo, err := snapEssentialInfo(w, fn, snapID, bs)
+		var snapPath string
+		var foundSnap bool
+		if a.Channel != "" {
+			snapPath, foundSnap = snaps[fmt.Sprintf("%s|%s", name, a.Channel)]
+		}
+		if !foundSnap {
+			snapPath, foundSnap = snaps[name]
+		}
+
+		if foundSnap {
+			essInfo, err := snapEssentialInfo(w, snapPath, snapID, bs, s.channelRepository)
 			if essInfo == nil {
 				if err != errInfo {
 					panic(err)
@@ -712,7 +756,7 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 			logger.Debugf("requested snap %q revision %d", essInfo.Name, a.Revision)
 			res.Snap.Publisher.ID = essInfo.DeveloperID
 			res.Snap.Publisher.Username = essInfo.DevelName
-			res.Snap.Download.URL = fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn))
+			res.Snap.Download.URL = fmt.Sprintf("%s/download/%s", s.RealURL(req), filepath.Base(snapPath))
 			res.Snap.Download.Sha3_384 = hexify(essInfo.Digest)
 			res.Snap.Download.Size = essInfo.Size
 			replyData.Results = append(replyData.Results, res)
@@ -868,4 +912,41 @@ func findSnapRevision(snapDigest string, bs asserts.Backstore) (*asserts.SnapRev
 	devAcct := a.(*asserts.Account)
 
 	return snapRev, devAcct, nil
+}
+
+func (s *Store) nonceEndpoint(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	w.Write([]byte(`{"nonce": "blah"}`))
+	return
+}
+
+func (s *Store) sessionEndpoint(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	w.Write([]byte(`{"macaroon": "blahblah"}`))
+	return
+}
+
+type ChannelRepository struct {
+	rootDir string
+}
+
+func (cr *ChannelRepository) findSnapChannels(snapDigest string) ([]string, error) {
+	dataPath := filepath.Join(cr.rootDir, snapDigest)
+	fd, err := os.Open(dataPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		} else {
+			return nil, err
+		}
+	} else {
+		sc := bufio.NewScanner(fd)
+		var lines []string
+		for sc.Scan() {
+			lines = append(lines, sc.Text())
+		}
+		return lines, nil
+	}
 }
