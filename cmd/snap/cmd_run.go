@@ -601,11 +601,6 @@ func (x *cmdRun) snapRunHook(snapTarget string) error {
 	if componentName == "" {
 		hook = info.Hooks[x.HookName]
 	} else {
-		// TODO: we need to figure out how to get the component revision to set
-		// the environment variables that we provide to the hook
-		componentRevision := snap.Revision{}
-		_ = componentRevision
-
 		component, err = snap.ReadCurrentComponentInfo(componentName, info)
 		if err != nil {
 			return err
