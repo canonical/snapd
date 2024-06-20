@@ -41,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
@@ -50,9 +49,6 @@ import (
 func init() {
 	// set User-Agent for when 'snap' talks to the store directly (snap download etc...)
 	snapdenv.SetUserAgentFromVersion(snapdtool.Version, nil, "snap")
-
-	// must set this hook, since snapdir isn't explicitly imported
-	snap.NewContainerFromDir = snapdir.NewContainerFromDir
 
 	// plug/slot sanitization not used by snap commands (except for snap
 	// pack and snap prepare-iamge, which re-sets it), make it no-op.

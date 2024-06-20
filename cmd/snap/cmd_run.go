@@ -56,6 +56,9 @@ import (
 	"github.com/snapcore/snapd/strutil/shlex"
 	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/x11"
+
+	// sets up the snap.NewContainerFromDir hook from snapdir
+	_ "github.com/snapcore/snapd/snap/snapdir"
 )
 
 var (
