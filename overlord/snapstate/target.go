@@ -77,16 +77,7 @@ type target struct {
 	// example, talking to the store).
 	snapst SnapState
 	// components is a list of components to install with this snap.
-	components []componentTarget
-}
-
-// componentTarget represents the data needed to setup a component for installation.
-type componentTarget struct {
-	// setup is a partially initialized ComponentSetup struct that contains the
-	// data needed to find the component that will be installed.
-	setup ComponentSetup
-	// info contains the snap.ComponentInfo for the component to be installed.
-	info *snap.ComponentInfo
+	components []ComponentSetup
 }
 
 // setups returns the completed SnapSetup and slice of ComponentSetup structs
@@ -100,11 +91,6 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 	flags, err := earlyChecks(st, &t.snapst, t.info, opts.Flags)
 	if err != nil {
 		return SnapSetup{}, nil, err
-	}
-
-	compsups := make([]ComponentSetup, 0, len(t.components))
-	for _, comp := range t.components {
-		compsups = append(compsups, comp.setup)
 	}
 
 	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)
@@ -125,7 +111,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		PlugsOnly:          len(t.info.Slots) == 0,
 		InstanceKey:        t.info.InstanceKey,
 		ExpectedProvenance: t.info.SnapProvenance,
-	}, compsups, nil
+	}, t.components, nil
 }
 
 // InstallGoal represents a single snap or a group of snaps to be installed.
@@ -312,37 +298,37 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 	return installs, err
 }
 
-func requestedComponentsFromActionResult(sn StoreSnap, sar store.SnapActionResult) ([]componentTarget, error) {
+func requestedComponentsFromActionResult(sn StoreSnap, sar store.SnapActionResult) ([]ComponentSetup, error) {
 	mapping := make(map[string]store.SnapResourceResult, len(sar.Resources))
 	for _, res := range sar.Resources {
 		mapping[res.Name] = res
 	}
 
-	installables := make([]componentTarget, 0, len(sn.Components))
+	setups := make([]ComponentSetup, 0, len(sn.Components))
 	for _, comp := range sn.Components {
 		res, ok := mapping[comp]
 		if !ok {
 			return nil, fmt.Errorf("cannot find component %q in snap resources", comp)
 		}
 
-		installable, err := componentFromResource(comp, res, sar.Info)
+		setup, err := componentSetupFromResource(comp, res, sar.Info)
 		if err != nil {
 			return nil, err
 		}
 
-		installables = append(installables, installable)
+		setups = append(setups, setup)
 	}
-	return installables, nil
+	return setups, nil
 }
 
-func componentFromResource(name string, sar store.SnapResourceResult, info *snap.Info) (componentTarget, error) {
+func componentSetupFromResource(name string, sar store.SnapResourceResult, info *snap.Info) (ComponentSetup, error) {
 	comp, ok := info.Components[name]
 	if !ok {
-		return componentTarget{}, fmt.Errorf("%q is not a component for snap %q", name, info.SnapName())
+		return ComponentSetup{}, fmt.Errorf("%q is not a component for snap %q", name, info.SnapName())
 	}
 
 	if typ := fmt.Sprintf("component/%s", comp.Type); typ != sar.Type {
-		return componentTarget{}, fmt.Errorf("inconsistent component type (%q in snap, %q in component)", typ, sar.Type)
+		return ComponentSetup{}, fmt.Errorf("inconsistent component type (%q in snap, %q in component)", typ, sar.Type)
 	}
 
 	compName := naming.NewComponentRef(info.SnapName(), name)
@@ -352,18 +338,10 @@ func componentFromResource(name string, sar store.SnapResourceResult, info *snap
 		Revision:  snap.R(sar.Revision),
 	}
 
-	return componentTarget{
-		setup: ComponentSetup{
-			DownloadInfo: &sar.DownloadInfo,
-			CompSideInfo: &csi,
-			CompType:     comp.Type,
-		},
-		info: &snap.ComponentInfo{
-			Component:         compName,
-			Type:              comp.Type,
-			Version:           sar.Version,
-			ComponentSideInfo: csi,
-		},
+	return ComponentSetup{
+		DownloadInfo: &sar.DownloadInfo,
+		CompSideInfo: &csi,
+		CompType:     comp.Type,
 	}, nil
 }
 
@@ -540,7 +518,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 		// sort the components by name to ensure we always install components in the
 		// same order
 		sort.Slice(t.components, func(i, j int) bool {
-			return t.components[i].info.Component.String() < t.components[j].info.Component.String()
+			return t.components[i].ComponentName() < t.components[j].ComponentName()
 		})
 	}
 
