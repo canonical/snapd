@@ -314,7 +314,7 @@ func fillComponentInfo(about aboutSnap) []client.Component {
 			Summary:       comp.Summary,
 			Description:   comp.Description,
 			Revision:      csi.Revision,
-			InstallDate:   snap.ComponentInstallDate(cpi, localSnap.Revision),
+			InstallDate:   snap.ComponentInstallDate(csi.Component, localSnap.Revision),
 			InstalledSize: compSz,
 		})
 	}

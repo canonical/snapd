@@ -1013,6 +1013,17 @@ func (s *linkSuite) TestLinkComponentError(c *C) {
 	c.Assert(err, ErrorMatches, `rename .*: file exists`)
 }
 
+func (s *linkSuite) TestLinkComponentInvalidName(c *C) {
+	compName := "invalid+name"
+	compRev := snap.R(-2)
+	snapName := "mysnap"
+	snapRev := snap.R(2)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapName)
+
+	err := s.be.LinkComponent(cpi, snapRev)
+	c.Assert(err, ErrorMatches, `internal error: cannot parse container name as component reference:.*`)
+}
+
 func (s *linkSuite) TestUnlinkComponentIdempotent(c *C) {
 	compName := "mycomp"
 	compRev := snap.R(-2)
@@ -1084,4 +1095,15 @@ func (s *linkSuite) TestUnlinkComponentError(c *C) {
 
 	err := s.be.UnlinkComponent(cpi, snapRev)
 	c.Assert(err, ErrorMatches, `remove .*: directory not empty`)
+}
+
+func (s *linkSuite) TestUnlinkComponentInvalidName(c *C) {
+	compName := "invalid+name"
+	compRev := snap.R(-2)
+	snapName := "mysnap"
+	snapRev := snap.R(2)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapName)
+
+	err := s.be.UnlinkComponent(cpi, snapRev)
+	c.Assert(err, ErrorMatches, `internal error: cannot parse container name as component reference:.*`)
 }

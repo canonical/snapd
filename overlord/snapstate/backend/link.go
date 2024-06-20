@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/wrappers"
 )
@@ -186,7 +187,13 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 
 func (b Backend) LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error {
 	mountDir := cpi.MountDir()
-	linkPath := snap.ComponentLinkPath(cpi, snapRev)
+
+	cref, err := naming.ParseComponentRef(cpi.ContainerName())
+	if err != nil {
+		return fmt.Errorf("internal error: cannot parse container name as component reference: %v", err)
+	}
+
+	linkPath := snap.ComponentLinkPath(cref, snapRev)
 
 	// Create components directory
 	compsDir := filepath.Dir(linkPath)
@@ -388,9 +395,14 @@ func removeCurrentSymlinks(info snap.PlaceInfo) error {
 }
 
 func (b Backend) UnlinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error {
-	linkPath := snap.ComponentLinkPath(cpi, snapRev)
+	cref, err := naming.ParseComponentRef(cpi.ContainerName())
+	if err != nil {
+		return fmt.Errorf("internal error: cannot parse container name as component reference: %v", err)
+	}
 
-	err := os.Remove(linkPath)
+	linkPath := snap.ComponentLinkPath(cref, snapRev)
+
+	err = os.Remove(linkPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			logger.Noticef("cannot remove symlink %q: %v", linkPath, err)

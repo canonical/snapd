@@ -560,31 +560,35 @@ version: 1
 
 func (s *componentSuite) TestComponentLinkPath(c *C) {
 	for i, tc := range []struct {
-		cpi     snap.ContainerPlaceInfo
+		cref    naming.ComponentRef
 		snapRev snap.Revision
 		link    string
 	}{
-		{snap.MinimalComponentContainerPlaceInfo("test-info", snap.R(25), "mysnap"),
-			snap.R(11), "mysnap/components/11/test-info"},
-		{snap.MinimalComponentContainerPlaceInfo("test-info", snap.R(33), "mysnap"),
-			snap.R(11), "mysnap/components/11/test-info"},
-		{snap.MinimalComponentContainerPlaceInfo("comp-1", snap.R(25), "foo"),
-			snap.R(11), "foo/components/11/comp-1"},
+		{
+			cref:    naming.NewComponentRef("mysnap", "test-info"),
+			snapRev: snap.R(11),
+			link:    "mysnap/components/11/test-info",
+		},
+		{
+			cref:    naming.NewComponentRef("foo", "comp-1"),
+			snapRev: snap.R(11),
+			link:    "foo/components/11/comp-1",
+		},
 	} {
 		c.Logf("case %d, expected link %q", i, tc.link)
-		c.Check(snap.ComponentLinkPath(tc.cpi, tc.snapRev), Equals,
+		c.Check(snap.ComponentLinkPath(tc.cref, tc.snapRev), Equals,
 			filepath.Join(dirs.SnapMountDir, tc.link))
 	}
 }
 
 func (s *infoSuite) TestComponentInstallDate(c *C) {
-	cpi := snap.MinimalComponentContainerPlaceInfo("comp", snap.R(1), "snap")
+	cref := naming.NewComponentRef("snap", "comp")
 
 	// not current -> Zero
-	c.Check(snap.ComponentInstallDate(cpi, snap.R(33)), IsNil)
+	c.Check(snap.ComponentInstallDate(cref, snap.R(33)), IsNil)
 
 	//time.Sleep(time.Second)
-	link := snap.ComponentLinkPath(cpi, snap.R(33))
+	link := snap.ComponentLinkPath(cref, snap.R(33))
 	dir, _ := filepath.Split(link)
 	c.Assert(os.MkdirAll(dir, 0755), IsNil)
 	c.Assert(os.Symlink(dirs.GlobalRootDir, link), IsNil)
@@ -592,7 +596,7 @@ func (s *infoSuite) TestComponentInstallDate(c *C) {
 	c.Assert(err, IsNil)
 	instTime := st.ModTime()
 
-	installDate := snap.ComponentInstallDate(cpi, snap.R(33))
+	installDate := snap.ComponentInstallDate(cref, snap.R(33))
 	c.Check(installDate.Equal(instTime), Equals, true)
 }
 

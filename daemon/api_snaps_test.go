@@ -1731,14 +1731,14 @@ components:
 	// make InstallDate/InstalledSize work for comp1 and comp2
 	cpi := snap.MinimalComponentContainerPlaceInfo(
 		csi.Component.ComponentName, csi.Revision, "some-snap")
-	symLn := snap.ComponentLinkPath(cpi, snap.R(7))
+	symLn := snap.ComponentLinkPath(csi.Component, snap.R(7))
 	c.Assert(os.MkdirAll(cpi.MountDir(), 0755), check.IsNil)
 	os.WriteFile(cpi.MountFile(), []byte{0, 0}, 0644)
 	c.Assert(os.MkdirAll(filepath.Dir(symLn), 0755), check.IsNil)
 	c.Assert(os.Symlink(cpi.MountDir(), symLn), check.IsNil)
 	cpi2 := snap.MinimalComponentContainerPlaceInfo(
 		csi2.Component.ComponentName, csi2.Revision, "some-snap")
-	symLn2 := snap.ComponentLinkPath(cpi2, snap.R(7))
+	symLn2 := snap.ComponentLinkPath(csi2.Component, snap.R(7))
 	c.Assert(os.MkdirAll(cpi2.MountDir(), 0755), check.IsNil)
 	os.WriteFile(cpi2.MountFile(), []byte{0, 0, 0}, 0644)
 	c.Assert(os.MkdirAll(filepath.Dir(symLn2), 0755), check.IsNil)
@@ -1797,10 +1797,10 @@ components:
 		},
 		Components: []client.Component{
 			{Name: "comp-1", Type: "test", Version: "1.0", Revision: snap.R(33),
-				InstallDate: snap.ComponentInstallDate(cpi, snap.R(7)), InstalledSize: 2},
+				InstallDate: snap.ComponentInstallDate(csi.Component, snap.R(7)), InstalledSize: 2},
 			{Name: "comp-2", Type: "test", Version: "1.0", Revision: snap.R(34),
 				Summary: "summary 2", Description: "description 2",
-				InstallDate: snap.ComponentInstallDate(cpi2, snap.R(7)), InstalledSize: 3},
+				InstallDate: snap.ComponentInstallDate(csi.Component, snap.R(7)), InstalledSize: 3},
 			{Name: "comp-3", Type: "test",
 				Summary: "summary 3", Description: "description 3"},
 			{Name: "comp-4", Type: "test"},
