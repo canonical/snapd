@@ -87,7 +87,7 @@ func (c *Constraints) Match(path string) (bool, error) {
 	if c.PathPattern == nil {
 		return false, fmt.Errorf("invalid constraints: no path pattern")
 	}
-	match, err := patterns.PathPatternMatch(c.PathPattern.String(), path)
+	match, err := c.PathPattern.Match(path)
 	if err != nil {
 		return false, fmt.Errorf("invalid constraints: %w", err)
 	}

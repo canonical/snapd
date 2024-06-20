@@ -79,9 +79,9 @@ func (p *PathPattern) parse(pattern string) error {
 	return nil
 }
 
-// String returns the original path pattern string, without group expansion.
-func (p *PathPattern) String() string {
-	return p.original
+// Match returns true if the path pattern matches the given path.
+func (p *PathPattern) Match(path string) (bool, error) {
+	return PathPatternMatches(p.original, path)
 }
 
 // MarshalJSON implements json.Marshaller for PathPattern.
@@ -142,10 +142,7 @@ func cleanPattern(pattern string) string {
 	return pattern
 }
 
-// PathPatternMatch returns true if the given pattern matches the given path.
-//
-// The pattern should not contain groups, and should likely have been an output
-// of ExpandPathPattern.
+// PathPatternMatches returns true if the given pattern matches the given path.
 //
 // Paths to directories are received with trailing slashes, but we don't want
 // to require the user to include a trailing '/' if they want to match
@@ -155,11 +152,11 @@ func cleanPattern(pattern string) string {
 // patterns with trailing slashes should not match paths without trailing
 // slashes.
 //
-// The doublestar package has special cases for patterns ending in `/**` and
-// `/**/`: `/foo/**`, and `/foo/**/` both match `/foo` and `/foo/`. We want to
-// override this behavior to make `/foo/**/` not match `/foo`. We also want to
-// override doublestar to make `/foo` match `/foo/`.
-func PathPatternMatch(pattern string, path string) (bool, error) {
+// The doublestar package (v4.6.1) has special cases for patterns ending in
+// `/**` and `/**/`: `/foo/**`, and `/foo/**/` both match `/foo` and `/foo/`.
+// We want to override this behavior to make `/foo/**/` not match `/foo`.
+// We also want to override doublestar to make `/foo` match `/foo/`.
+func PathPatternMatches(pattern string, path string) (bool, error) {
 	// Check the usual doublestar match first, in case the pattern is malformed
 	// and causes an error, and return the error if so.
 	matched, err := doublestar.Match(pattern, path)

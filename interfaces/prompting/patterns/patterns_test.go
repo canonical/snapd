@@ -215,15 +215,63 @@ func (s *patternsSuite) TestParsePathPatternUnhappy(c *C) {
 	}
 }
 
-func (s *patternsSuite) TestPathPatternString(c *C) {
-	for _, pattern := range []string{
-		"/foo",
-		"/foo/ba{r,s}/**",
-		"/{a,b}{c,d}{e,f}{g,h}",
+func (s *patternsSuite) TestPathPatternMatch(c *C) {
+	for _, testCase := range []struct {
+		pattern string
+		path    string
+		matches bool
+	}{
+		{
+			"/foo",
+			"/foo",
+			true,
+		},
+		{
+			"/foo",
+			"/foo/",
+			true, // we override doublestar here
+		},
+		{
+			"/foo/ba{r,z}/**",
+			"/foo/bar/baz/qux",
+			true,
+		},
+		{
+			"/foo/ba{r,z}/**",
+			"/foo/baz/fizz/buzz",
+			true,
+		},
+		{
+			"/foo/ba{r,z}/**",
+			"/foo/bar",
+			true,
+		},
+		{
+			"/foo/ba{r,z}/**",
+			"/foo/baz/",
+			true,
+		},
+		{
+			"/foo/ba{r,z}/**",
+			"/foo/ba/r",
+			false,
+		},
+		{
+			"/{a,b}{c,d}{e,f}{g,h}",
+			"/adeh",
+			true,
+		},
+		{
+			"/{a,b}{c,d}{e,f}{g,h}",
+			"/abcd",
+			false,
+		},
 	} {
-		pathPattern, err := patterns.ParsePathPattern(pattern)
-		c.Check(err, IsNil)
-		c.Check(pathPattern.String(), Equals, pattern)
+		pathPattern, err := patterns.ParsePathPattern(testCase.pattern)
+		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
+		matches, err := pathPattern.Match(testCase.path)
+		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
+		c.Check(matches, Equals, testCase.matches, Commentf("testCase: %+v", testCase))
 	}
 }
 
@@ -423,7 +471,7 @@ func (s *patternsSuite) TestPathPatternRenderAllVariants(c *C) {
 		},
 	} {
 		pathPattern, err := patterns.ParsePathPattern(testCase.pattern)
-		c.Check(err, IsNil, Commentf("testcase: %+v", testCase))
+		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
 		expanded := make([]string, 0, pathPattern.NumVariants())
 		pathPattern.RenderAllVariants(func(i int, str string) {
 			expanded = append(expanded, str)
@@ -432,7 +480,7 @@ func (s *patternsSuite) TestPathPatternRenderAllVariants(c *C) {
 	}
 }
 
-func (s *patternsSuite) TestPathPatternMatch(c *C) {
+func (s *patternsSuite) TestPathPatternMatches(c *C) {
 	cases := []struct {
 		pattern string
 		path    string
@@ -634,12 +682,12 @@ func (s *patternsSuite) TestPathPatternMatch(c *C) {
 		},
 		{
 			"/foo/bar*",
-			"/hoo/bar/",
-			false,
+			"/foo/bar/",
+			true,
 		},
 		{
 			"/foo/bar?",
-			"/hoo/bar/",
+			"/foo/bar/",
 			false,
 		},
 		{
@@ -762,17 +810,57 @@ func (s *patternsSuite) TestPathPatternMatch(c *C) {
 			"/foo/bar/baz/",
 			true,
 		},
+		{
+			"/foo/ba{r,z}",
+			"/foo/bar",
+			true,
+		},
+		{
+			"/foo/ba{r,z}",
+			"/foo/baz",
+			true,
+		},
+		{
+			"/foo/ba{r,z}",
+			"/foo/ba,",
+			false,
+		},
+		{
+			"/foo/ba{r,z}",
+			"/foo/ba",
+			false,
+		},
+		{
+			"/foo/ba{r,z{,fizz,buzz}}",
+			"/foo/bar",
+			true,
+		},
+		{
+			"/foo/ba{r,z{,fizz,buzz}}",
+			"/foo/baz",
+			true,
+		},
+		{
+			"/foo/ba{r,z{,/qux}}",
+			"/foo/baz/qux",
+			true,
+		},
+		{
+			"/foo/ba{r,z{,/qux}}",
+			"/foo/bar/qux",
+			false,
+		},
 	}
 	for _, testCase := range cases {
-		matches, err := patterns.PathPatternMatch(testCase.pattern, testCase.path)
+		matches, err := patterns.PathPatternMatches(testCase.pattern, testCase.path)
 		c.Check(err, IsNil, Commentf("test case: %+v", testCase))
 		c.Check(matches, Equals, testCase.matches, Commentf("test case: %+v", testCase))
 	}
 }
 
-func (s *patternsSuite) TestPathPatternMatchErrors(c *C) {
+func (s *patternsSuite) TestPathPatternMatchesErrors(c *C) {
 	badPattern := `badpattern\`
-	matches, err := patterns.PathPatternMatch(badPattern, "foo")
+	matches, err := patterns.PathPatternMatches(badPattern, "foo")
 	c.Check(err, Equals, doublestar.ErrBadPattern)
 	c.Check(matches, Equals, false)
 }
