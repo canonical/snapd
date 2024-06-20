@@ -158,8 +158,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 		addTask(kmodSetup)
 	}
 
-	// We might be replacing a component if a local install, otherwise
-	// this is not really possible.
+	// We might be replacing a component
 	compInstalled := snapst.IsComponentInCurrentSeq(compSi.Component)
 	if compInstalled {
 		unlink := st.NewTask("unlink-current-component", fmt.Sprintf(i18n.G(
@@ -179,8 +178,11 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 			compSi.Component, revisionStr))
 	addTask(linkSnap)
 
-	// clean-up previous revision of the component if present
-	if compInstalled {
+	// clean-up previous revision of the component if present and
+	// not used in previous sequence points
+	if compInstalled &&
+		!snapst.IsCurrentComponentRevInAnyNonCurrentSeq(compSetup.CompSideInfo.Component) {
+
 		discardComp := st.NewTask("discard-component", fmt.Sprintf(i18n.G(
 			"Discard previous revision for component %q"),
 			compSi.Component))
