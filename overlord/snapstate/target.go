@@ -80,6 +80,15 @@ type target struct {
 	components []componentTarget
 }
 
+// componentTarget represents the data needed to setup a component for installation.
+type componentTarget struct {
+	// setup is a partially initialized ComponentSetup struct that contains the
+	// data needed to find the component that will be installed.
+	setup ComponentSetup
+	// info contains the snap.ComponentInfo for the component to be installed.
+	info *snap.ComponentInfo
+}
+
 // setups returns the completed SnapSetup and slice of ComponentSetup structs
 // for the target snap.
 func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSetup, error) {
@@ -117,15 +126,6 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		InstanceKey:        t.info.InstanceKey,
 		ExpectedProvenance: t.info.SnapProvenance,
 	}, compsups, nil
-}
-
-// componentTarget represents the data needed to setup a component for installation.
-type componentTarget struct {
-	// setup is a partially initialized ComponentSetup struct that contains the
-	// data needed to find the component that will be installed.
-	setup ComponentSetup
-	// info contains the snap.ComponentInfo for the component to be installed.
-	info *snap.ComponentInfo
 }
 
 // InstallGoal represents a single snap or a group of snaps to be installed.
