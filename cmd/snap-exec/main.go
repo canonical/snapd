@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/snapenv"
 )
 
@@ -49,6 +50,8 @@ var opts struct {
 func init() {
 	// plug/slot sanitization not used nor possible from snap-exec, make it no-op
 	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) {}
+	// must set this hook, since snapdir isn't explicitly imported
+	snap.NewContainerFromDir = snapdir.NewContainerFromDir
 	logger.SimpleSetup(nil)
 }
 
