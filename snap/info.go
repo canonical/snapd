@@ -1585,8 +1585,14 @@ func ReadCurrentInfo(snapName string) (*Info, error) {
 	return ReadInfo(snapName, &SideInfo{Revision: revision})
 }
 
-var NewContainerFromDir func(snapName string) Container
+// NewContainerFromDir creates a new Container from the given directory.
+// Generally, the implementation of this function is set by the snapdir package.
+var NewContainerFromDir func(snapName string) Container = func(snapName string) Container {
+	panic("internal error: snap.NewContainerFromDir function unset")
+}
 
+// ReadCurrentComponentInfo reads the ComponentInfo for the currently linked
+// revision of the given component associated with the given snap.
 func ReadCurrentComponentInfo(component string, info *Info) (*ComponentInfo, error) {
 	link := filepath.Join(ComponentsBaseDir(info.InstanceName()), info.Revision.String(), component)
 
