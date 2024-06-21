@@ -27,7 +27,7 @@ import (
 // variantState is the current variant of a render node.
 type variantState interface {
 	// NextVariant modifies the variant to the next state, if any remain.
-	// Returns the length in bytes of the new variant, the number of
+	// Returns the total length in bytes of the new variant, the number of
 	// bytes which remain unchanged since the previous variant, and true
 	// if more variants remain to be rendered. The argument is always the
 	// render node that was earlier used to obtain the variant state.
@@ -41,11 +41,15 @@ type variantState interface {
 
 // renderNode is a node which may be rendered in a particular variant state.
 type renderNode interface {
-	// Render renders the given variant to the buffer if alreadyWritten
-	// equals 0. Otherwise, subtracts from alreadyWritten the length of the
-	// string which would have been written to the buffer, and returns the
-	// difference.
-	Render(buf *bytes.Buffer, variant variantState, alreadyWritten int) int
+	// Render renders the given variant to the buffer if alreadyRendered
+	// equals 0 or the node is not a literal. The alreadyRendered parameter
+	// is the number of bytes of the given variant which have already been
+	// rendered because they are unchanged from the previous variant.
+	//
+	// If alreadyRendered is greater than 0 and this
+	// node is a literal, subtract from alreadyRendered the length in bytes of
+	// the literal and return the difference.
+	Render(buf *bytes.Buffer, variant variantState, alreadyRendered int) int
 	// InitialVariant returns the initial variant state for this node.
 	InitialVariant() variantState
 	// NumVariants returns the number of variants this node can be rendered as (recursively).
@@ -54,8 +58,13 @@ type renderNode interface {
 	nodeEqual(renderNode) bool
 }
 
-// RenderAllVariants renders subsequent variants to a reusable buffer.
-func RenderAllVariants(n renderNode, observe func(int, *bytes.Buffer)) {
+// renderAllVariants renders subsequent variants to a reusable buffer.
+//
+// Each variant is a fully expanded path pattern, with one alternative chosen
+// for each group in the path pattern. The given observe closure is then called
+// on each variant, along with its index, and it can perform some action with
+// the variant, such as adding it to a data structure.
+func renderAllVariants(n renderNode, observe func(index int, variant string)) {
 	var buf bytes.Buffer
 	var moreRemain bool
 
@@ -66,7 +75,7 @@ func RenderAllVariants(n renderNode, observe func(int, *bytes.Buffer)) {
 	for i := 0; ; i++ {
 		buf.Truncate(lengthUnchanged)
 		n.Render(&buf, c, lengthUnchanged)
-		observe(i, &buf)
+		observe(i, buf.String())
 		length, lengthUnchanged, moreRemain = c.NextVariant(n)
 		if !moreRemain {
 			break
@@ -78,9 +87,9 @@ func RenderAllVariants(n renderNode, observe func(int, *bytes.Buffer)) {
 // literal is a render node with a literal string.
 type literal string
 
-func (n literal) Render(buf *bytes.Buffer, variant variantState, alreadyWritten int) int {
-	if alreadyWritten > 0 {
-		return alreadyWritten - len(n)
+func (n literal) Render(buf *bytes.Buffer, variant variantState, alreadyRendered int) int {
+	if alreadyRendered > 0 {
+		return alreadyRendered - len(n)
 	}
 	buf.WriteString(string(n))
 	return 0
@@ -117,14 +126,14 @@ func (literalVariant) Length(n renderNode) int {
 // seq is sequence of consecutive render nodes.
 type seq []renderNode
 
-func (n seq) Render(buf *bytes.Buffer, variant variantState, alreadyWritten int) int {
+func (n seq) Render(buf *bytes.Buffer, variant variantState, alreadyRendered int) int {
 	c := variant.(seqVariant)
 
 	for i := range n {
-		alreadyWritten = n[i].Render(buf, c[i], alreadyWritten)
+		alreadyRendered = n[i].Render(buf, c[i], alreadyRendered)
 	}
 
-	return alreadyWritten
+	return alreadyRendered
 }
 
 func (n seq) NumVariants() int {
@@ -260,10 +269,10 @@ func (c seqVariant) Length(n renderNode) int {
 // alt is a sequence of alternative render nodes.
 type alt []renderNode
 
-func (n alt) Render(buf *bytes.Buffer, variant variantState, alreadyWritten int) int {
+func (n alt) Render(buf *bytes.Buffer, variant variantState, alreadyRendered int) int {
 	c := variant.(*altVariant)
 
-	return n[c.idx].Render(buf, c.variant, alreadyWritten)
+	return n[c.idx].Render(buf, c.variant, alreadyRendered)
 }
 
 func (n alt) NumVariants() int {

@@ -20,8 +20,6 @@
 package patterns
 
 import (
-	"bytes"
-
 	. "gopkg.in/check.v1"
 )
 
@@ -88,8 +86,8 @@ func (s *renderSuite) TestRenderAllVariants(c *C) {
 	}
 
 	variants := make([]string, 0, len(expectedVariants))
-	RenderAllVariants(parsed, func(i int, buf *bytes.Buffer) {
-		variants = append(variants, buf.String())
+	renderAllVariants(parsed, func(index int, variant string) {
+		variants = append(variants, variant)
 	})
 
 	c.Check(variants, DeepEquals, expectedVariants)

@@ -20,7 +20,6 @@
 package patterns
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -104,13 +103,18 @@ func (p *PathPattern) NumVariants() int {
 	return p.renderTree.NumVariants()
 }
 
-func (p *PathPattern) RenderAllVariants(observe func(int, string)) {
-	cleanThenObserve := func(i int, buf *bytes.Buffer) {
-		expanded := buf.String()
-		cleaned := cleanPattern(expanded)
+// RenderAllVariants enumerates every alternative for each group in the path
+// pattern and renders each one into a string which is then passed into the
+// given observe closure, along with the index of the variant.
+//
+// The given observe closure should perform some action with the rendered
+// variant, such as adding it to a data structure.
+func (p *PathPattern) RenderAllVariants(observe func(index int, variant string)) {
+	cleanThenObserve := func(i int, variant string) {
+		cleaned := cleanPattern(variant)
 		observe(i, cleaned)
 	}
-	RenderAllVariants(p.renderTree, cleanThenObserve)
+	renderAllVariants(p.renderTree, cleanThenObserve)
 }
 
 var (
