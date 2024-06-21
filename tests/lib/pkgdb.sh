@@ -558,9 +558,10 @@ pkg_dependencies_ubuntu_classic(){
         python3-gi
         python3-yaml
         upower
-        weston
+        weston        
         xdg-user-dirs
         xdg-utils
+        xxd
         zsh
         "
 

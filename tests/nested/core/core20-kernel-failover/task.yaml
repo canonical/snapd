@@ -29,10 +29,7 @@ prepare: |
   # TODO:UC20: this doesn't work for some reason when we copy it from the 
   #            running system, we should look into that, but for now just 
   #            re-download the snap
-  version=20
-  if tests.nested is-nested uc22; then
-    version=22
-  fi
+  version="$(tests.nested show version)"
   snap download pc-kernel --channel="$version/beta" --basename=pc-kernel
   case "$PROBLEM_TYPE" in
       crash)
