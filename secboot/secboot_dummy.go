@@ -59,3 +59,7 @@ func ReleasePCRResourceHandles(handles ...uint32) error {
 func resetLockoutCounter(lockoutAuthFile string) error {
 	return errBuildWithoutSecboot
 }
+
+func ResealKeysWithFDESetupHook(keyFiles []string, primaryKeyFile string, models []ModelForSealing) error {
+	return errBuildWithoutSecboot
+}
