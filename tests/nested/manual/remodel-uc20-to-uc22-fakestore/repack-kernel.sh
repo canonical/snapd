@@ -26,7 +26,7 @@ objcopy -O binary -j .uname "${tmpd}/pc-kernel/kernel.efi" "${tmpd}/kver"
 
 mkdir "${tmpd}/early"
 mkdir "${tmpd}/main"
-((cd "${tmpd}/early"; cpio -id); (cd "${tmpd}/main"; zstdcat | cpio -id)) <"${tmpd}/initrd"
+( (cd "${tmpd}/early"; cpio -id) ; (cd "${tmpd}/main"; zstdcat | cpio -id) ) <"${tmpd}/initrd"
 
 if [ "${BUILD_FDE_HOOK-}" = 1 ]; then
     go build -o "${tmpd}/main/usr/bin/fde-reveal-key" /project/tests/lib/fde-setup-hook
