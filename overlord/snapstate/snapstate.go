@@ -644,6 +644,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 			return nil, err
 		}
 
+		// TODO: once component hooks are fully, we will need to take care to
+		// correctly order the tasks that are created for running component
+		// and snap hooks
+
 		for _, t := range beforeLink {
 			addTask(t)
 		}
