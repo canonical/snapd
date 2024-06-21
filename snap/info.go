@@ -1594,7 +1594,7 @@ var NewContainerFromDir func(snapName string) Container = func(snapName string) 
 // ReadCurrentComponentInfo reads the ComponentInfo for the currently linked
 // revision of the given component associated with the given snap.
 func ReadCurrentComponentInfo(component string, info *Info) (*ComponentInfo, error) {
-	link := ComponentLinkPath(naming.NewComponentRef(info.InstanceName(), component), info.Revision)
+	link := filepath.Join(ComponentsBaseDir(info.InstanceName()), info.Revision.String(), component)
 
 	linkSource, err := os.Readlink(link)
 	if err != nil {
