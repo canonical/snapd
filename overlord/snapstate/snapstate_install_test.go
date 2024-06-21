@@ -6580,8 +6580,9 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathNoneRunThrough(c *C) {
 		undo        = false
 		snapName    = "test-snap"
 		instanceKey = ""
+		removePaths = false
 	)
-	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, nil, undo)
+	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, nil, undo, removePaths)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentsFromPathOneRunThrough(c *C) {
@@ -6589,8 +6590,9 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathOneRunThrough(c *C) {
 		undo        = false
 		snapName    = "test-snap"
 		instanceKey = ""
+		removePaths = false
 	)
-	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"test-component"}, undo)
+	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"test-component"}, undo, removePaths)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentsFromPathManyRunThrough(c *C) {
@@ -6598,8 +6600,9 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathManyRunThrough(c *C) {
 		undo        = false
 		snapName    = "test-snap"
 		instanceKey = ""
+		removePaths = false
 	)
-	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo)
+	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo, removePaths)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentsFromPathManyInstanceRunThrough(c *C) {
@@ -6607,8 +6610,9 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathManyInstanceRunThrough(c
 		undo        = false
 		snapName    = "test-snap"
 		instanceKey = "key"
+		removePaths = false
 	)
-	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo)
+	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo, removePaths)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentsFromPathInstanceRunThroughUndo(c *C) {
@@ -6616,11 +6620,22 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathInstanceRunThroughUndo(c
 		undo        = true
 		snapName    = "test-snap"
 		instanceKey = "key"
+		removePaths = false
 	)
-	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo)
+	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo, removePaths)
 }
 
-func (s *snapmgrTestSuite) testInstallComponentsFromPathRunThrough(c *C, snapName, instanceKey string, compNames []string, undo bool) {
+func (s *snapmgrTestSuite) TestInstallComponentsFromPathManyRemovePaths(c *C) {
+	const (
+		undo        = false
+		snapName    = "test-snap"
+		instanceKey = ""
+		removePaths = true
+	)
+	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo, removePaths)
+}
+
+func (s *snapmgrTestSuite) testInstallComponentsFromPathRunThrough(c *C, snapName, instanceKey string, compNames []string, undo bool, removePaths bool) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -6692,7 +6707,10 @@ components:
 	goal := snapstate.PathInstallGoal(instanceName, snapPath, si, components, snapstate.RevisionOptions{})
 
 	info, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{
-		Flags: snapstate.Flags{Required: true},
+		Flags: snapstate.Flags{
+			Required:       true,
+			RemoveSnapPath: removePaths,
+		},
 	})
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, instanceName)
@@ -6828,6 +6846,18 @@ components:
 
 		// make sure that all of our components are accounted for
 		c.Assert(snapst.Sequence.Revisions[0].Components, DeepEquals, compst)
+
+		// if we requested that the snap be removed after install, then make
+		// sure it is gone. otherwise, make sure that it is still there
+		fileChecker := testutil.FilePresent
+		if removePaths {
+			fileChecker = testutil.FileAbsent
+		}
+
+		c.Check(snapPath, fileChecker)
+		for _, compPath := range components {
+			c.Check(compPath, fileChecker)
+		}
 	}
 }
 
