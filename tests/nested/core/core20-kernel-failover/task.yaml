@@ -33,7 +33,11 @@ prepare: |
   snap download pc-kernel --channel="$version/beta" --basename=pc-kernel
   case "$PROBLEM_TYPE" in
       crash)
-          uc20_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-in-initramfs
+          if [ "$version" -le 22 ]; then
+            uc20_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-in-initramfs
+          else
+            uc24_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-in-initramfs
+          fi
           ;;
       nolink)
           # Failure will be forced by removing the try-kernel.efi link later,

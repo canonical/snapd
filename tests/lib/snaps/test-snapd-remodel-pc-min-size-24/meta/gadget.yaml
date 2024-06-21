@@ -3,17 +3,6 @@ volumes:
     # bootloader configuration is shipped and managed by snapd
     bootloader: grub
     structure:
-      - name: mbr
-        type: mbr
-        size: 440
-        update:
-          edition: 1
-        # This mbr simply writes an error to the console, as this
-        # gadget supports gpt only
-        content:
-          - image: mbr.img
-        # This one should be removed if we find a way to allow updates
-        # without keeping all partitions.
       - name: BIOS Boot
         type: 21686148-6449-6E6F-744E-656564454649
         size: 1M

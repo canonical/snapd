@@ -716,7 +716,7 @@ uc20_build_initramfs_kernel_snap() {
         # kernel and we don't want to test that, just test our snap-bootstrap
         cp -ar unpacked-initrd skeleton
         # all the skeleton edits go to a local copy of distro directory
-         skeletondir="$PWD/skeleton"
+        skeletondir="$PWD/skeleton"
         snap_bootstrap_file="$skeletondir/main/usr/lib/snapd/snap-bootstrap"
         clock_epoch_file="$skeletondir/main/usr/lib/clock-epoch"
         if os.query is-arm; then
@@ -823,6 +823,14 @@ EOF
 uc24_build_initramfs_kernel_snap() {
     local ORIG_SNAP="$1"
     local TARGET="$2"
+    local OPT_ARG="${3:-}"
+
+    injectKernelPanic=false
+    case "$OPT_ARG" in
+        --inject-kernel-panic-in-initramfs)
+            injectKernelPanic=true
+            ;;
+    esac    
 
     unsquashfs -d pc-kernel "$ORIG_SNAP"
     objcopy -O binary -j .initrd pc-kernel/kernel.efi initrd.img
@@ -839,11 +847,20 @@ uc24_build_initramfs_kernel_snap() {
 
     if [ -d ./initrd/early ]; then
         cp -a /usr/lib/snapd/snap-bootstrap ./initrd/main/usr/lib/snapd/snap-bootstrap
+        chmod +x ./initrd/main/usr/lib/snapd/snap-bootstrap
+        if [ "$injectKernelPanic" = "true" ]; then
+            # add a kernel panic to the end of the-tool execution
+            echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> ./initrd/main/usr/lib/snapd/snap-bootstrap
+        fi
 
         (cd ./initrd/early; find . | cpio --create --quiet --format=newc --owner=0:0) >initrd.img
         (cd ./initrd/main; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >>initrd.img
     else
         cp -a /usr/lib/snapd/snap-bootstrap ./initrd/usr/lib/snapd/snap-bootstrap
+        if [ "$injectKernelPanic" = "true" ]; then
+            # add a kernel panic to the end of the-tool execution
+            echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> ./initrd/usr/lib/snapd/snap-bootstrap
+        fi
 
         (cd ./initrd; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >initrd.img
     fi
@@ -869,7 +886,9 @@ uc24_build_initramfs_kernel_snap() {
     fi
 
     snap pack pc-kernel
-    mv pc-kernel_*.snap "$TARGET"
+    if [ ! "$(pwd)" = "$TARGET" ]; then
+        mv pc-kernel_*.snap "$TARGET"
+    fi
     rm -rf pc-kernel
 }
 
