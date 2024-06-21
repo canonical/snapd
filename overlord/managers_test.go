@@ -148,6 +148,8 @@ type baseMgrsSuite struct {
 	automaticSnapshots []automaticSnapshotCall
 
 	logbuf *bytes.Buffer
+
+	storeObserver func(r *http.Request)
 }
 
 var (
@@ -1062,6 +1064,10 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 	}
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.storeObserver != nil {
+			s.storeObserver(r)
+		}
+
 		// all URLS are /api/v1/snaps/... or /v2/snaps/ or /v2/assertions/... so
 		// check the url is sane and discard the common prefix
 		// to simplify indexing into the comps slice.
@@ -14418,7 +14424,7 @@ func makeMockRepoWithConnectedSnaps(c *C, repo *interfaces.Repository, info11, c
 	c.Assert(conns, HasLen, 1)
 }
 
-func (s *mgrsSuite) TestConnectionDurabilityDuringRefreshes(c *C) {
+func (s *mgrsSuite) testConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C, hasPendingSecurityProfiles bool) {
 	// This test exists to verify that any distruptions of a refresh
 	// will maintain any pre-existing connection that was held before
 	// the snap is marked inactive. The goal of this test is to run all
@@ -14426,7 +14432,7 @@ func (s *mgrsSuite) TestConnectionDurabilityDuringRefreshes(c *C) {
 	// and then simulating a reboot inside the interface manager. We then
 	// re-verify the connection and see that functionality used return
 	// the expected values. The interface used for testing is snapd-control
-	// with the managed refresh schedule attributet.
+	// with the managed refresh schedule attribute.
 	//
 	// This was selected based on a customer case. Prior to version 2.58 this
 	// would cause the connection to be dropped, if a well-timed restart of snapd
@@ -14435,12 +14441,28 @@ func (s *mgrsSuite) TestConnectionDurabilityDuringRefreshes(c *C) {
 	mockServer := s.mockStore(c)
 	defer mockServer.Close()
 
+	canAutoRefreshCalls := 0
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) {
+		canAutoRefreshCalls++
+		return true, nil
+	}
+
+	// prevent catalog refresh
+	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapNamesFile, nil, 0644), IsNil)
+
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
 
 	err := assertstate.Add(st, s.devAcct)
 	c.Assert(err, IsNil)
+
+	var reqs []string
+	s.storeObserver = func(r *http.Request) {
+		c.Logf("request %v\n", r)
+		reqs = append(reqs, r.URL.String())
+	}
 
 	snapNames := map[string]string{
 		"snap-with-snapd-control": snapWithSnapdControlRefreshScheduleManagedYAML,
@@ -14456,6 +14478,8 @@ func (s *mgrsSuite) TestConnectionDurabilityDuringRefreshes(c *C) {
 				"plugs": map[string]interface{}{
 					"snapd-control": map[string]interface{}{
 						"allow-installation": "true",
+						"auto-connect":       "true",
+						"refresh-schedule":   "managed",
 					},
 				},
 			})
@@ -14496,25 +14520,51 @@ func (s *mgrsSuite) TestConnectionDurabilityDuringRefreshes(c *C) {
 	// restart occurs during a snap upgrade.
 	for _, t := range tts[0].Tasks() {
 		switch t.Kind() {
-		case "prerequisites", "download-snap", "validate-snap", "mount-snap", "run-hook", "stop-snap-services", "remove-aliases", "unlink-current-snap", "copy-snap-data":
+		case "prerequisites", "download-snap", "validate-snap", "mount-snap", "stop-snap-services", "remove-aliases", "unlink-current-snap", "copy-snap-data", "run-hook", "setup-profiles":
+			if t.Kind() == "run-hook" && !strings.Contains(t.Summary(), "pre-refresh") {
+				continue
+			}
 			chg.AddTask(t)
 		}
 	}
+	dumpTasks(c, "task sets", tts[0].Tasks())
+	dumpTasks(c, "tasks added to change", chg.Tasks())
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
+	c.Logf("requests: %v", reqs)
+	dumpTasks(c, "after settle", chg.Tasks())
+
+	// we hit the store for installation of the snap
+	c.Assert(len(reqs) > 0, Equals, true)
+	// and we hit the auto refresh path
+	c.Assert(canAutoRefreshCalls > 0, Equals, true)
+
 	// check connections are fine after running the expected task-set.
 	var conns map[string]interface{}
 	st.Get("conns", &conns)
+	c.Logf("connections: %v", conns)
 	c.Assert(conns, DeepEquals, map[string]interface{}{
 		"snap-with-snapd-control:snapd-control core:snapd-control": map[string]interface{}{
 			"interface": "snapd-control",
 			"auto":      true,
 		},
 	})
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "snap-with-snapd-control", &snapst)
+	c.Assert(err, IsNil)
+	if hasPendingSecurityProfiles {
+		c.Check(snapst.PendingSecurity, NotNil)
+	} else {
+		// simulate a pre 2.58 behavior, where there was no pending
+		// security profiles
+		snapst.PendingSecurity = nil
+		snapstate.Set(st, "snap-with-snapd-control", &snapst)
+	}
 
 	// Simulate a restart in the interface manager, to emulate a restart of snapd
 	// has occurred and the startup code of interface manager runs again. In versions prior
@@ -14539,12 +14589,56 @@ func (s *mgrsSuite) TestConnectionDurabilityDuringRefreshes(c *C) {
 		},
 	})
 
+	// because of a bug fixed in 2.58, the repository may or may not
+	// correctly reflect the connection state, but the test is also rigged
+	// to not execute auto-connect, which would restore the connection in
+	// the scenario when pending security profiles were not carried
+	ref, err := s.o.InterfaceManager().Repository().Connected("snap-with-snapd-control", "snapd-control")
+	if hasPendingSecurityProfiles {
+		c.Assert(err, IsNil)
+		// with pending security profiles the repo information is correctly restored
+		c.Assert(len(ref) > 0, Equals, true, Commentf("connection not restored to interfaces repo"))
+		// CanManageRefreshes must return true with the >= 2.58 fixes
+		c.Check(devicestate.CanManageRefreshes(st), Equals, true)
+	} else {
+		// but without the connection present in the state is not
+		// reflected by the repo
+		c.Assert(err, ErrorMatches, `snap "snap-with-snapd-control" has no .* "snapd-control"`)
+		c.Assert(ref, HasLen, 0)
+		// but returns false without the fix, yet we still made no
+		// auto-refresh requests as checked earlier
+		c.Check(devicestate.CanManageRefreshes(st), Equals, false)
+	}
+
+	// reset store requests and auto refresh call count
+	reqs = nil
+	canAutoRefreshCalls = 0
+	st.Unlock()
+	c.Logf("-- calling ensure")
+	err = s.o.SnapManager().Ensure()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// no requests to the store
+	c.Assert(reqs, HasLen, 0)
+	// but we hit the auto refresh path
+	c.Assert(canAutoRefreshCalls > 0, Equals, true)
+
 	// The refresh schedule must report managed
 	t1, t2, err := s.o.SnapManager().RefreshSchedule()
 	c.Assert(err, IsNil)
 	c.Check(t1, Equals, "managed")
 	c.Check(t2, Equals, true)
+}
 
-	// CanManageRefreshes must return true
-	c.Check(devicestate.CanManageRefreshes(st), Equals, true)
+func (s *mgrsSuite) TestConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C) {
+	const hasPendingSecurityProfiles = true
+	s.testConnectionDurabilityDuringRefreshesAndAutoRefresh(c, hasPendingSecurityProfiles)
+}
+
+func (s *mgrsSuite) TestOldNoConnectionDurabilityAndAutoRefresh(c *C) {
+	// simulate snapd < 2.58 where pending security profiles were not kept
+	// in the state
+	const hasPendingSecurityProfiles = false
+	s.testConnectionDurabilityDuringRefreshesAndAutoRefresh(c, hasPendingSecurityProfiles)
 }
