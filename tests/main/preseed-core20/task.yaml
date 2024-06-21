@@ -18,8 +18,8 @@ environment:
 prepare: |
   #shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB"/prepare.sh
-  [ -d /tmp/teaked-snapd-snap ] || mkdir -p /tmp/teaked-snapd-snap
-  build_snapd_snap_with_run_mode_firstboot_tweaks /tmp/teaked-snapd-snap
+  mkdir -p /tmp/tweaked-snapd-snap
+  build_snapd_snap_with_run_mode_firstboot_tweaks /tmp/tweaked-snapd-snap
 
   snap pack systemusers-snap
 
@@ -36,6 +36,7 @@ prepare: |
   gendeveloper1 show-key | gpg --homedir=~/.snap/gnupg --import
 
 restore: |
+  rm -rf /tmp/tweaked-snapd-snap
   rm -rf "$PREPARE_IMAGE_DIR"
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
 
@@ -47,9 +48,9 @@ execute: |
   export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
   echo "Running pre-seeding"
-  for f in /tmp/teaked-snapd-snap/snapd*.snap; do
+  for f in /tmp/tweaked-snapd-snap/snapd*.snap; do
     if [ "${SNAPD_SNAP:+set}" = set ]; then
-      echo "found multiple snaps in /tmp/teaked-snapd-snap" 1>&2
+      echo "found multiple snaps in /tmp/tweaked-snapd-snap" 1>&2
       exit 1
     fi
     SNAPD_SNAP="${f}"
