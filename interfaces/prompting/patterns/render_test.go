@@ -158,13 +158,13 @@ func (s *renderSuite) TestNextVariant(c *C) {
 
 	variant := parsed.InitialVariant()
 	for _, next := range expected {
-		length, truncateTo, moreRemain := variant.NextVariant(parsed)
+		length, truncateTo, moreRemain := variant.NextVariant()
 		c.Check(length, Equals, next.length)
 		c.Check(truncateTo, Equals, next.truncateTo)
 		c.Check(moreRemain, Equals, true)
 	}
 
-	length, truncateTo, moreRemain := variant.NextVariant(parsed)
+	length, truncateTo, moreRemain := variant.NextVariant()
 	c.Check(length, Equals, 0)
 	c.Check(truncateTo, Equals, 0)
 	c.Check(moreRemain, Equals, false)

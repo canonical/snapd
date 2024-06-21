@@ -26,30 +26,27 @@ import (
 
 // variantState is the current variant of a render node.
 type variantState interface {
+	// Render renders the variant to the buffer if alreadyRendered equals 0 or
+	// the node is not a literal. The alreadyRendered parameter is the number
+	// of bytes of the variant which have already been rendered because they
+	// are unchanged from the previous variant.
+	//
+	// If alreadyRendered is greater than 0 and the associated renderNode is
+	// a literal, subtract from alreadyRendered the length in bytes of the
+	// literal and return the difference.
+	Render(buf *bytes.Buffer, alreadyRendered int) int
 	// NextVariant modifies the variant to the next state, if any remain.
 	// Returns the total length in bytes of the new variant, the number of
 	// bytes which remain unchanged since the previous variant, and true
-	// if more variants remain to be rendered. The argument is always the
-	// render node that was earlier used to obtain the variant state.
-	NextVariant(n renderNode) (length, lengthUnchanged int, moreRemain bool)
+	// if more variants remain to be rendered.
+	NextVariant() (length, lengthUnchanged int, moreRemain bool)
 	// Length returns the total length of the rendered node in its current
 	// variant state, including all sub-nodes if the node is a seq or alt.
-	// The argument is always the render node that was earlier used to obtain
-	// the variant state.
-	Length(n renderNode) int
+	Length() int
 }
 
 // renderNode is a node which may be rendered in a particular variant state.
 type renderNode interface {
-	// Render renders the given variant to the buffer if alreadyRendered
-	// equals 0 or the node is not a literal. The alreadyRendered parameter
-	// is the number of bytes of the given variant which have already been
-	// rendered because they are unchanged from the previous variant.
-	//
-	// If alreadyRendered is greater than 0 and this
-	// node is a literal, subtract from alreadyRendered the length in bytes of
-	// the literal and return the difference.
-	Render(buf *bytes.Buffer, variant variantState, alreadyRendered int) int
 	// InitialVariant returns the initial variant state for this node.
 	InitialVariant() variantState
 	// NumVariants returns the number of variants this node can be rendered as (recursively).
@@ -74,9 +71,9 @@ func renderAllVariants(n renderNode, observe func(index int, variant string)) {
 
 	for i := 0; ; i++ {
 		buf.Truncate(lengthUnchanged)
-		n.Render(&buf, v, lengthUnchanged)
+		v.Render(&buf, lengthUnchanged)
 		observe(i, buf.String())
-		length, lengthUnchanged, moreRemain = v.NextVariant(n)
+		length, lengthUnchanged, moreRemain = v.NextVariant()
 		if !moreRemain {
 			break
 		}
@@ -87,20 +84,14 @@ func renderAllVariants(n renderNode, observe func(index int, variant string)) {
 // literal is a render node with a literal string.
 type literal string
 
-func (n literal) Render(buf *bytes.Buffer, variant variantState, alreadyRendered int) int {
-	if alreadyRendered > 0 {
-		return alreadyRendered - len(n)
-	}
-	buf.WriteString(string(n))
-	return 0
-}
-
 func (n literal) NumVariants() int {
 	return 1
 }
 
 func (n literal) InitialVariant() variantState {
-	return literalVariant{}
+	return &literalVariant{
+		literal: n,
+	}
 }
 
 func (n literal) nodeEqual(other renderNode) bool {
@@ -111,30 +102,28 @@ func (n literal) nodeEqual(other renderNode) bool {
 	return false
 }
 
-type literalVariant struct{}
-
-func (literalVariant) NextVariant(n renderNode) (length, lengthUnchanged int, moreRemain bool) {
-	l := n.(literal)
-	return len(l), 0, false
+type literalVariant struct {
+	literal literal
 }
 
-func (literalVariant) Length(n renderNode) int {
-	l := n.(literal)
-	return len(l)
+func (v *literalVariant) Render(buf *bytes.Buffer, alreadyRendered int) int {
+	if alreadyRendered > 0 {
+		return alreadyRendered - len(v.literal)
+	}
+	buf.WriteString(string(v.literal))
+	return 0
+}
+
+func (v *literalVariant) NextVariant() (length, lengthUnchanged int, moreRemain bool) {
+	return len(v.literal), 0, false
+}
+
+func (v *literalVariant) Length() int {
+	return len(v.literal)
 }
 
 // seq is sequence of consecutive render nodes.
 type seq []renderNode
-
-func (n seq) Render(buf *bytes.Buffer, variant variantState, alreadyRendered int) int {
-	v := variant.(seqVariant)
-
-	for i := range n {
-		alreadyRendered = n[i].Render(buf, v[i], alreadyRendered)
-	}
-
-	return alreadyRendered
-}
 
 func (n seq) NumVariants() int {
 	num := 1
@@ -148,13 +137,17 @@ func (n seq) NumVariants() int {
 
 func (n seq) InitialVariant() variantState {
 	if len(n) == 0 {
-		return seqVariant(nil)
+		// nil seq, nil elements
+		return &seqVariant{}
 	}
 
-	v := make(seqVariant, len(n))
+	v := &seqVariant{
+		seq:      n,
+		elements: make([]variantState, len(n)),
+	}
 
 	for i := range n {
-		v[i] = n[i].InitialVariant()
+		v.elements[i] = n[i].InitialVariant()
 	}
 
 	return v
@@ -219,34 +212,44 @@ func (n seq) optimize() seq {
 
 // seqVariant is the variant state for a seqeunce of render nodes.
 //
-// Each render node has a corresponding variant at the same index.
-type seqVariant []variantState
+// Each render node in the seq has a corresponding variant at the same index.
+// of the elements list.
+type seqVariant struct {
+	seq      seq
+	elements []variantState
+}
 
-func (v seqVariant) NextVariant(n renderNode) (length, lengthUnchanged int, moreRemain bool) {
-	s := n.(seq)
+func (v *seqVariant) Render(buf *bytes.Buffer, alreadyRendered int) int {
+	for _, element := range v.elements {
+		alreadyRendered = element.Render(buf, alreadyRendered)
+	}
 
+	return alreadyRendered
+}
+
+func (v *seqVariant) NextVariant() (length, lengthUnchanged int, moreRemain bool) {
 	length = 0
 	var i int
-	for i = len(v) - 1; i >= 0; i-- {
-		componentLength, componentLengthUnchanged, moreRemain := v[i].NextVariant(s[i])
+	for i = len(v.elements) - 1; i >= 0; i-- {
+		componentLength, componentLengthUnchanged, moreRemain := v.elements[i].NextVariant()
 		if moreRemain {
 			length += componentLength
 			lengthUnchanged = componentLengthUnchanged
 			break
 		}
 		// Reset the variant state for the node whose variants we just exhausted
-		v[i] = s[i].InitialVariant()
+		v.elements[i] = v.seq[i].InitialVariant()
 		// Include the render length of the reset node in the total length
-		length += v[i].Length(s[i])
+		length += v.elements[i].Length()
 	}
 	if i < 0 {
 		// No expansions remain for any node in the sequence
 		return 0, 0, false
 	}
 
-	// We already counted v[i], so count j : 0 <= j < i
+	// We already counted v.elements[i], so count j : 0 <= j < i
 	for j := 0; j < i; j++ {
-		componentLength := v[j].Length(s[j])
+		componentLength := v.elements[j].Length()
 		length += componentLength
 		lengthUnchanged += componentLength
 	}
@@ -254,13 +257,11 @@ func (v seqVariant) NextVariant(n renderNode) (length, lengthUnchanged int, more
 	return length, lengthUnchanged, true
 }
 
-func (v seqVariant) Length(n renderNode) int {
-	s := n.(seq)
-
+func (v *seqVariant) Length() int {
 	totalLength := 0
 
-	for i := 0; i < len(v); i++ {
-		totalLength += v[i].Length(s[i])
+	for _, element := range v.elements {
+		totalLength += element.Length()
 	}
 
 	return totalLength
@@ -268,12 +269,6 @@ func (v seqVariant) Length(n renderNode) int {
 
 // alt is a sequence of alternative render nodes.
 type alt []renderNode
-
-func (n alt) Render(buf *bytes.Buffer, variant variantState, alreadyRendered int) int {
-	v := variant.(*altVariant)
-
-	return n[v.idx].Render(buf, v.variant, alreadyRendered)
-}
 
 func (n alt) NumVariants() int {
 	num := 0
@@ -294,6 +289,7 @@ func (n alt) InitialVariant() variantState {
 	}
 
 	return &altVariant{
+		alt:     n,
 		idx:     0,
 		variant: n[0].InitialVariant(),
 	}
@@ -344,19 +340,18 @@ outer:
 
 // altVariant is the variant state for an set of alternative render nodes.
 type altVariant struct {
-	idx     int          // index of the alternative currently being explored
-	variant variantState // variant corresponding to the alternative being explored.
+	alt     alt          // Alt associated with this variant state.
+	idx     int          // Index of the alternative currently being explored.
+	variant variantState // Variant corresponding to the alternative currently being explored.
 }
 
-func (v *altVariant) NextVariant(n renderNode) (length, lengthUnchanged int, moreRemain bool) {
-	if v == nil {
-		return 0, 0, false
-	}
+func (v *altVariant) Render(buf *bytes.Buffer, alreadyRendered int) int {
+	return v.variant.Render(buf, alreadyRendered)
+}
 
-	a := n.(alt)
-
+func (v *altVariant) NextVariant() (length, lengthUnchanged int, moreRemain bool) {
 	// Keep exploring the current alternative until all possibilities are exhausted.
-	if length, lengthUnchanged, moreRemain = v.variant.NextVariant(a[v.idx]); moreRemain {
+	if length, lengthUnchanged, moreRemain = v.variant.NextVariant(); moreRemain {
 		return length, lengthUnchanged, true
 	}
 
@@ -364,21 +359,15 @@ func (v *altVariant) NextVariant(n renderNode) (length, lengthUnchanged int, mor
 	// variant state for it.
 
 	v.idx++
-	if v.idx >= len(a) {
+	if v.idx >= len(v.alt) {
 		return 0, 0, false
 	}
 
-	v.variant = a[v.idx].InitialVariant()
+	v.variant = v.alt[v.idx].InitialVariant()
 
-	return v.variant.Length(a[v.idx]), 0, true
+	return v.variant.Length(), 0, true
 }
 
-func (v *altVariant) Length(n renderNode) int {
-	if v == nil {
-		return 0
-	}
-
-	a := n.(alt)
-
-	return v.variant.Length(a[v.idx])
+func (v *altVariant) Length() int {
+	return v.variant.Length()
 }
