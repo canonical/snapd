@@ -194,9 +194,14 @@ type ComponentSetup struct {
 	// CompSideInfo for metadata not coming from the component
 	CompSideInfo *snap.ComponentSideInfo `json:"comp-side-info,omitempty"`
 	// CompType is needed as some types need special handling
-	CompType snap.ComponentType
-	// CompPath is the path to the file
+	CompType snap.ComponentType `json:"comp-type,omitempty"`
+	// CompPath is the path to the component that will be mounted on the system.
+	// It may be empty if the component is not yet present on the system (i.e.,
+	// needs to be downloaded).
 	CompPath string `json:"comp-path,omitempty"`
+	// DownloadInfo contains information about how to download this component.
+	// Will be nil if the component should be sourced from a local file.
+	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
 }
 
 func NewComponentSetup(csi *snap.ComponentSideInfo, compType snap.ComponentType, compPath string) *ComponentSetup {
@@ -765,6 +770,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 
 	// component tasks
 	runner.AddHandler("prepare-component", m.doPrepareComponent, nil)
+	runner.AddHandler("download-component", m.doDownloadComponent, nil)
 	runner.AddHandler("mount-component", m.doMountComponent, m.undoMountComponent)
 	runner.AddHandler("unlink-current-component", m.doUnlinkCurrentComponent, m.undoUnlinkCurrentComponent)
 	runner.AddHandler("link-component", m.doLinkComponent, m.undoLinkComponent)
