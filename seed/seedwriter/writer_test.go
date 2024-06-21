@@ -180,6 +180,10 @@ slots:
      interface: content
      content: cont
 `,
+	"oldlatest": `name: oldlatest
+type: app
+version: 1
+ `,
 })
 
 const pcGadgetYaml = `
@@ -5592,4 +5596,443 @@ func (s *writerSuite) TestSeedWriterExtraAssertionsPrerequisitesError(c *C) {
 	c.Assert(err.Error(), testutil.Contains, "cannot fetch and check prerequisites for an injected assertion: "+
 		"prerequisite injected assertion: error finding matching public key for signature: found public key \""+
 		s.StoreSigning.KeyID+"\" from \"canonical\" but expected it from: not-canonical")
+}
+
+func (s *writerSuite) TestSeedSnapsWriteMetaCore20OptionsOldLatest(c *C) {
+	// add store assertion
+	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":       "my-store",
+		"operator-id": "canonical",
+		"timestamp":   time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.StoreSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"store":        "my-store",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+
+	// validity
+	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "core", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "oldlatest", "developerid")
+
+	s.opts.Label = "20240621"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "oldlatest", Channel: "latest/stable"}, {Name: "core"}})
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 4)
+
+	for _, sn := range snaps {
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, false)
+
+	snaps, err = w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 2)
+
+	for _, sn := range snaps {
+		info := s.doFillMetaDownloadedSnap(c, w, sn)
+
+		c.Assert(sn.Path, Equals, filepath.Join(s.opts.SeedDir, "systems", s.opts.Label, "snaps", info.Filename()))
+		err := os.Rename(s.AssertedSnap(sn.SnapName()), sn.Path)
+		c.Assert(err, IsNil)
+	}
+
+	complete, err = w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	err = w.SeedSnaps(nil)
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
+	c.Check(systemDir, testutil.FilePresent)
+
+	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 4)
+	l, err = os.ReadDir(filepath.Join(s.opts.SeedDir, "systems", s.opts.Label, "snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 2)
+
+	options20, err := seedwriter.InternalReadOptions20(filepath.Join(systemDir, "options.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(options20.Snaps, DeepEquals, []*seedwriter.InternalSnap20{
+		{
+			Name:    "oldlatest",
+			SnapID:  s.AssertedSnapID("oldlatest"),
+			Channel: "latest/stable",
+		},
+		{
+			Name:    "core",
+			SnapID:  s.AssertedSnapID("core"),
+			Channel: "latest/stable",
+		},
+	})
+}
+
+func (s *writerSuite) TestSeedSnapsWriteMetaCore20RequiredOldLatestOverride(c *C) {
+	// add store assertion
+	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":       "my-store",
+		"operator-id": "canonical",
+		"timestamp":   time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.StoreSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"store":        "my-store",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "oldlatest",
+				"id":              s.AssertedSnapID("oldlatest"),
+				"default-channel": "20/stable",
+			},
+		},
+	})
+
+	// validity
+	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "core", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "oldlatest", "developerid")
+
+	s.opts.Label = "20240621"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "oldlatest", Channel: "latest/stable"}, {Name: "core"}})
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 5)
+
+	for _, sn := range snaps {
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, false)
+
+	snaps, err = w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 1)
+
+	for _, sn := range snaps {
+		info := s.doFillMetaDownloadedSnap(c, w, sn)
+
+		c.Assert(sn.Path, Equals, filepath.Join(s.opts.SeedDir, "systems", s.opts.Label, "snaps", info.Filename()))
+		err := os.Rename(s.AssertedSnap(sn.SnapName()), sn.Path)
+		c.Assert(err, IsNil)
+	}
+
+	complete, err = w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	err = w.SeedSnaps(nil)
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
+	c.Check(systemDir, testutil.FilePresent)
+
+	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 5)
+	l, err = os.ReadDir(filepath.Join(s.opts.SeedDir, "systems", s.opts.Label, "snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 1)
+
+	options20, err := seedwriter.InternalReadOptions20(filepath.Join(systemDir, "options.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(options20.Snaps, DeepEquals, []*seedwriter.InternalSnap20{
+		{
+			Name:    "oldlatest",
+			SnapID:  s.AssertedSnapID("oldlatest"),
+			Channel: "latest/stable",
+		},
+		{
+			Name:    "core",
+			SnapID:  s.AssertedSnapID("core"),
+			Channel: "latest/stable",
+		},
+	})
+}
+
+func (s *writerSuite) TestSeedSnapsWriteMetaCore20RequiredOldLatestOverrideMissingCore(c *C) {
+	// add store assertion
+	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":       "my-store",
+		"operator-id": "canonical",
+		"timestamp":   time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.StoreSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"store":        "my-store",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "oldlatest",
+				"id":              s.AssertedSnapID("oldlatest"),
+				"default-channel": "20/stable",
+			},
+		},
+	})
+
+	// validity
+	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "oldlatest", "developerid")
+
+	s.opts.Label = "20240621"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "oldlatest", Channel: "latest/stable"}})
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 5)
+
+	for _, sn := range snaps {
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	_, err = w.Downloaded(s.fetchAsserts(c))
+	c.Check(err, ErrorMatches, `prerequisites need to be added explicitly: cannot use snap "oldlatest": required snap "core" missing`)
+}
+
+func (s *writerSuite) TestSeedSnapsWriteMetaCore20RequiredOldLatestOverrideLocalCore(c *C) {
+	// add store assertion
+	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":       "my-store",
+		"operator-id": "canonical",
+		"timestamp":   time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.StoreSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"store":        "my-store",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "oldlatest",
+				"id":              s.AssertedSnapID("oldlatest"),
+				"default-channel": "20/stable",
+			},
+		},
+	})
+
+	// validity
+	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	corePath := s.makeLocalSnap(c, "core")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "oldlatest", "developerid")
+
+	s.opts.Label = "20240621"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "oldlatest", Channel: "latest/stable"}, {Path: corePath}})
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Assert(localSnaps, HasLen, 1)
+
+	for _, sn := range localSnaps {
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
+		if !errors.Is(err, &asserts.NotFoundError{}) {
+			c.Assert(err, IsNil)
+		}
+		f, err := snapfile.Open(sn.Path)
+		c.Assert(err, IsNil)
+		info, err := snap.ReadInfoFromSnapFile(f, si)
+		c.Assert(err, IsNil)
+		w.SetInfo(sn, info, nil)
+		s.aRefs[sn.SnapName()] = aRefs
+	}
+
+	err = w.InfoDerived()
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 5)
+
+	for _, sn := range snaps {
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, false)
+
+	snaps, err = w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 0)
+
+	complete, err = w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	copySnap := func(name, src, dst string) error {
+		return osutil.CopyFile(src, dst, 0)
+	}
+
+	err = w.SeedSnaps(copySnap)
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
+	c.Check(systemDir, testutil.FilePresent)
+
+	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 5)
+	l, err = os.ReadDir(filepath.Join(s.opts.SeedDir, "systems", s.opts.Label, "snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 1)
+
+	options20, err := seedwriter.InternalReadOptions20(filepath.Join(systemDir, "options.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(options20.Snaps, DeepEquals, []*seedwriter.InternalSnap20{
+		{
+			Name:    "oldlatest",
+			SnapID:  s.AssertedSnapID("oldlatest"),
+			Channel: "latest/stable",
+		},
+		{
+			Name:       "core",
+			Unasserted: "core_1.0.snap",
+		},
+	})
 }

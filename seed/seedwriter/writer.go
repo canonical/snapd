@@ -1318,6 +1318,11 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap, fetchAsserts AssertsFetchFunc
 		modes := sn.modes()
 
 		if err := w.checkBase(info, modes); err != nil {
+			// in dangerous mode check base only at the end
+			// allowing overrides to provide the new base as well
+			if w.policy.allowsDangerousFeatures() == nil && sn.optionSnap != nil {
+				continue
+			}
 			return err
 		}
 	}
