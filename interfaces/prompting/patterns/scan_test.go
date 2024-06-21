@@ -27,6 +27,36 @@ type scanSuite struct{}
 
 var _ = Suite(&scanSuite{})
 
+func (s *scanSuite) TestTokenTypeString(c *C) {
+	for _, testCase := range []struct {
+		tok tokenType
+		str string
+	}{
+		{
+			tokEOF,
+			"end-of-file",
+		},
+		{
+			tokText,
+			"text",
+		},
+		{
+			tokBraceOpen,
+			"brace-open",
+		},
+		{
+			tokBraceClose,
+			"brace-close",
+		},
+		{
+			tokComma,
+			"comma",
+		},
+	} {
+		c.Check(testCase.tok.String(), Equals, testCase.str)
+	}
+}
+
 func (s *scanSuite) TestScanHappy(c *C) {
 	pattern := "/{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld{-*,64}.so*"
 
