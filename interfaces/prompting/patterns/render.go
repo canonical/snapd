@@ -225,13 +225,13 @@ func (v *seqVariant) Render(buf *bytes.Buffer, alreadyRendered int) int {
 }
 
 func (v *seqVariant) NextVariant() (length, lengthUnchanged int, moreRemain bool) {
-	length = 0
 	var i int
 	for i = len(v.elements) - 1; i >= 0; i-- {
-		componentLength, componentLengthUnchanged, moreRemain := v.elements[i].NextVariant()
-		if moreRemain {
+		componentLength, componentLengthUnchanged, componentMoreRemain := v.elements[i].NextVariant()
+		if componentMoreRemain {
 			length += componentLength
 			lengthUnchanged = componentLengthUnchanged
+			moreRemain = true
 			break
 		}
 		// Reset the variant state for the node whose variants we just exhausted
@@ -239,7 +239,7 @@ func (v *seqVariant) NextVariant() (length, lengthUnchanged int, moreRemain bool
 		// Include the render length of the reset node in the total length
 		length += v.elements[i].Length()
 	}
-	if i < 0 {
+	if !moreRemain {
 		// No expansions remain for any node in the sequence
 		return 0, 0, false
 	}
