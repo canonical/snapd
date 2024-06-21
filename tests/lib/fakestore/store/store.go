@@ -607,8 +607,8 @@ func (s *Store) collectAssertions() (asserts.Backstore, error) {
 }
 
 type currentSnap struct {
-	SnapID      string `json:"snap-id"`
-	InstanceKey string `json:"instance-key"`
+	SnapID          string `json:"snap-id"`
+	InstanceKey     string `json:"instance-key"`
 	TrackingChannel string `json:"tracking-channel"`
 }
 
