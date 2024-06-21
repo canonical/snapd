@@ -6,7 +6,6 @@ github.com/canonical/go-efilib v0.3.0/go.mod h1:9b2PNAuPcZsB76x75/uwH99D8CyH/A2y
 github.com/canonical/go-efilib v0.3.1-0.20220314143719-95d50e8afc82/go.mod h1:9b2PNAuPcZsB76x75/uwH99D8CyH/A2y4rq1/+bvplg=
 github.com/canonical/go-efilib v0.9.5 h1:zRpWG4z61GiYsEmFYvXYuj+8xV2eJ200YY5Ht9EjrRU=
 github.com/canonical/go-efilib v0.9.5/go.mod h1:tHjv3Mni7hEpNSUNd1KJEV/AZJsFSH6LX/EQ0I75AZE=
->>>>>>> 0dcf38b9c8 (go.mod: move to latest secboot/go-tpm2/go-efilib)
 github.com/canonical/go-sp800.108-kdf v0.0.0-20210314145419-a3359f2d21b9/go.mod h1:Zrs3YjJr+w51u0R/dyLh/oWt/EcBVdLPCVFYC4daW5s=
 github.com/canonical/go-sp800.108-kdf v0.0.0-20210315104021-ead800bbf9a0 h1:ZE2XMRFHcwlib3uU9is37+pKkkMloVoEPWmgQ6GK1yo=
 github.com/canonical/go-sp800.108-kdf v0.0.0-20210315104021-ead800bbf9a0/go.mod h1:Zrs3YjJr+w51u0R/dyLh/oWt/EcBVdLPCVFYC4daW5s=
