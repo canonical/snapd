@@ -160,8 +160,8 @@ func (c *componentPlaceInfo) MountDescription() string {
 
 // ComponentLinkPath returns the path for the symlink for a component for a
 // given snap revision.
-func ComponentLinkPath(cref naming.ComponentRef, snapRev Revision) string {
-	instanceName, compName, _ := strings.Cut(cref.String(), "+")
+func ComponentLinkPath(cpi ContainerPlaceInfo, snapRev Revision) string {
+	instanceName, compName, _ := strings.Cut(cpi.ContainerName(), "+")
 	compBase := ComponentsBaseDir(instanceName)
 	return filepath.Join(compBase, snapRev.String(), compName)
 }
@@ -170,8 +170,8 @@ func ComponentLinkPath(cref naming.ComponentRef, snapRev Revision) string {
 // when its symlink was created. We cannot use the mount directory as lstat
 // returns the date of the root of the container instead of the date when the
 // mount directory was created.
-func ComponentInstallDate(cref naming.ComponentRef, snapRev Revision) *time.Time {
-	symLn := ComponentLinkPath(cref, snapRev)
+func ComponentInstallDate(cpi ContainerPlaceInfo, snapRev Revision) *time.Time {
+	symLn := ComponentLinkPath(cpi, snapRev)
 	if st, err := os.Lstat(symLn); err == nil {
 		modTime := st.ModTime()
 		return &modTime
