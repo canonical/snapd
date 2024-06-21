@@ -169,3 +169,114 @@ func (s *renderSuite) TestNextVariant(c *C) {
 	c.Check(truncateTo, Equals, 0)
 	c.Check(moreRemain, Equals, false)
 }
+
+func (s *renderSuite) TestOptimizeNodeEqualTrue(c *C) {
+	for _, testCase := range []struct {
+		pattern string
+		byHand  renderNode
+	}{
+		{
+			"/foo/b{}r",
+			literal("/foo/br"),
+		},
+		{
+			"/foo/b{a}r",
+			literal("/foo/bar"),
+		},
+		{
+			"/foo/b{a,a}r",
+			literal("/foo/bar"),
+		},
+		{
+			"/foo/{a,b}",
+			seq{
+				literal("/foo/"),
+				alt{
+					literal("a"),
+					literal("b"),
+				},
+			},
+		},
+		{
+			"/foo/{{a,b},{a,b}}",
+			seq{
+				literal("/foo/"),
+				alt{
+					literal("a"),
+					literal("b"),
+				},
+			},
+		},
+	} {
+		scanned, err := scan(testCase.pattern)
+		c.Assert(err, IsNil, Commentf("testCase: %+v", testCase))
+		parsed, err := parse(scanned)
+		c.Assert(err, IsNil, Commentf("testCase: %+v", testCase))
+		c.Check(parsed.nodeEqual(testCase.byHand), Equals, true, Commentf("testCase: %+v\nparsed: %+v", testCase, parsed))
+		c.Check(testCase.byHand.nodeEqual(parsed), Equals, true, Commentf("testCase: %+v\nparsed: %+v", testCase, parsed))
+	}
+}
+
+func (s *renderSuite) TestOptimizeNodeEqualFalse(c *C) {
+	for _, testCase := range []struct {
+		pattern string
+		byHand  renderNode
+	}{
+		{
+			"/foo/b{}r",
+			seq{
+				literal("/foo/b"),
+				alt{
+					literal(""),
+				},
+				literal("r"),
+			},
+		},
+		{
+			"/foo/{a,b}",
+			seq{
+				literal("/foo/"),
+				alt{
+					literal("a"),
+					literal("b"),
+				},
+				literal(""),
+			},
+		},
+		{
+			"/foo/{{a,b},{a,b}}",
+			seq{
+				literal("/foo/"),
+				alt{
+					alt{
+						literal("a"),
+						literal("b"),
+					},
+					alt{
+						literal("a"),
+						literal("b"),
+					},
+				},
+			},
+		},
+		{
+			"/foo/{{a,b},{a,b}}",
+			seq{
+				literal("/foo/"),
+				alt{
+					alt{
+						literal("a"),
+						literal("b"),
+					},
+				},
+			},
+		},
+	} {
+		scanned, err := scan(testCase.pattern)
+		c.Assert(err, IsNil, Commentf("testCase: %+v", testCase))
+		parsed, err := parse(scanned)
+		c.Assert(err, IsNil, Commentf("testCase: %+v", testCase))
+		c.Check(parsed.nodeEqual(testCase.byHand), Equals, false, Commentf("testCase: %+v\nparsed: %+v", testCase, parsed))
+		c.Check(testCase.byHand.nodeEqual(parsed), Equals, false, Commentf("testCase: %+v\nparsed: %+v", testCase, parsed))
+	}
+}

@@ -65,7 +65,7 @@ seqLoop:
 		}
 	}
 
-	return s.optimize().reduceStrength(), nil
+	return s.optimize(), nil
 }
 
 func parseAlt(tr *tokenReader) (renderNode, error) {
@@ -105,7 +105,7 @@ altLoop:
 		}
 	}
 
-	return a.optimize().reduceStrength(), nil
+	return a.optimize(), nil
 }
 
 type tokenReader struct {

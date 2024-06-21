@@ -136,11 +136,6 @@ func (n seq) NumVariants() int {
 }
 
 func (n seq) InitialVariant() variantState {
-	if len(n) == 0 {
-		// nil seq, nil elements
-		return &seqVariant{}
-	}
-
 	v := &seqVariant{
 		seq:      n,
 		elements: make([]variantState, len(n)),
@@ -164,23 +159,17 @@ func (n seq) nodeEqual(other renderNode) bool {
 				return false
 			}
 		}
+
+		return true
 	}
 
 	return false
 }
 
-func (n seq) reduceStrength() renderNode {
-	switch len(n) {
-	case 0:
-		return literal("")
-	case 1:
-		return n[0]
-	default:
-		return n
-	}
-}
-
-func (n seq) optimize() seq {
+// optimize for seq joins adjacent literals into a single node, reduces an
+// empty seq to a literal "", and reduces a seq with one element to that
+// element.
+func (n seq) optimize() renderNode {
 	var b strings.Builder
 
 	var newSeq seq
@@ -205,6 +194,14 @@ func (n seq) optimize() seq {
 	if b.Len() > 0 {
 		newSeq = append(newSeq, literal(b.String()))
 		b.Reset()
+	}
+
+	// Reduce strength
+	switch len(newSeq) {
+	case 0:
+		return literal("")
+	case 1:
+		return newSeq[0]
 	}
 
 	return newSeq
@@ -277,17 +274,12 @@ func (n alt) NumVariants() int {
 		num += n[i].NumVariants()
 	}
 
-	if num > 0 {
-		return num
-	}
-	return 1
+	return num
 }
 
 func (n alt) InitialVariant() variantState {
-	if len(n) == 0 {
-		return nil
-	}
-
+	// alt can't have zero length, since even "{}" would be parsed as
+	// alt{ seq{ literal("") } }, which is optimized to alt{ literal("") }
 	return &altVariant{
 		alt:     n,
 		idx:     0,
@@ -306,20 +298,16 @@ func (n alt) nodeEqual(other renderNode) bool {
 				return false
 			}
 		}
+
+		return true
 	}
 
 	return false
 }
 
-func (n alt) reduceStrength() renderNode {
-	if len(n) == 1 {
-		return n[0]
-	}
-
-	return n
-}
-
-func (n alt) optimize() alt {
+// optimize for alt eliminates equivalent items and reduces alts with one item
+// to that item.
+func (n alt) optimize() renderNode {
 	var seen []renderNode
 	var newAlt alt
 
@@ -333,6 +321,14 @@ outer:
 
 		seen = append(seen, item)
 		newAlt = append(newAlt, item)
+	}
+
+	// Can't have zero length, since even "{}" would be parsed as
+	// alt{ seq{ literal("") } }, which is optimized to alt{ literal("") }
+
+	// Reduce strength
+	if len(newAlt) == 1 {
+		return newAlt[0]
 	}
 
 	return newAlt
