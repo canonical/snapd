@@ -68,15 +68,15 @@ func renderAllVariants(n renderNode, observe func(index int, variant string)) {
 	var buf bytes.Buffer
 	var moreRemain bool
 
-	c := n.InitialVariant()
+	v := n.InitialVariant()
 	length := 0
 	lengthUnchanged := 0
 
 	for i := 0; ; i++ {
 		buf.Truncate(lengthUnchanged)
-		n.Render(&buf, c, lengthUnchanged)
+		n.Render(&buf, v, lengthUnchanged)
 		observe(i, buf.String())
-		length, lengthUnchanged, moreRemain = c.NextVariant(n)
+		length, lengthUnchanged, moreRemain = v.NextVariant(n)
 		if !moreRemain {
 			break
 		}
@@ -127,10 +127,10 @@ func (literalVariant) Length(n renderNode) int {
 type seq []renderNode
 
 func (n seq) Render(buf *bytes.Buffer, variant variantState, alreadyRendered int) int {
-	c := variant.(seqVariant)
+	v := variant.(seqVariant)
 
 	for i := range n {
-		alreadyRendered = n[i].Render(buf, c[i], alreadyRendered)
+		alreadyRendered = n[i].Render(buf, v[i], alreadyRendered)
 	}
 
 	return alreadyRendered
@@ -151,13 +151,13 @@ func (n seq) InitialVariant() variantState {
 		return seqVariant(nil)
 	}
 
-	c := make(seqVariant, len(n))
+	v := make(seqVariant, len(n))
 
 	for i := range n {
-		c[i] = n[i].InitialVariant()
+		v[i] = n[i].InitialVariant()
 	}
 
-	return c
+	return v
 }
 
 func (n seq) nodeEqual(other renderNode) bool {
@@ -193,12 +193,12 @@ func (n seq) optimize() seq {
 	var newSeq seq
 
 	for _, item := range n {
-		if v, ok := item.(literal); ok {
-			if v == "" {
+		if l, ok := item.(literal); ok {
+			if l == "" {
 				continue
 			}
 
-			b.WriteString(string(v))
+			b.WriteString(string(l))
 		} else {
 			if b.Len() > 0 {
 				newSeq = append(newSeq, literal(b.String()))
@@ -222,31 +222,31 @@ func (n seq) optimize() seq {
 // Each render node has a corresponding variant at the same index.
 type seqVariant []variantState
 
-func (c seqVariant) NextVariant(n renderNode) (length, lengthUnchanged int, moreRemain bool) {
+func (v seqVariant) NextVariant(n renderNode) (length, lengthUnchanged int, moreRemain bool) {
 	s := n.(seq)
 
 	length = 0
 	var i int
-	for i = len(c) - 1; i >= 0; i-- {
-		componentLength, componentLengthUnchanged, moreRemain := c[i].NextVariant(s[i])
+	for i = len(v) - 1; i >= 0; i-- {
+		componentLength, componentLengthUnchanged, moreRemain := v[i].NextVariant(s[i])
 		if moreRemain {
 			length += componentLength
 			lengthUnchanged = componentLengthUnchanged
 			break
 		}
 		// Reset the variant state for the node whose variants we just exhausted
-		c[i] = s[i].InitialVariant()
+		v[i] = s[i].InitialVariant()
 		// Include the render length of the reset node in the total length
-		length += c[i].Length(s[i])
+		length += v[i].Length(s[i])
 	}
 	if i < 0 {
 		// No expansions remain for any node in the sequence
 		return 0, 0, false
 	}
 
-	// We already counted c[i], so count j : 0 <= j < i
+	// We already counted v[i], so count j : 0 <= j < i
 	for j := 0; j < i; j++ {
-		componentLength := c[j].Length(s[j])
+		componentLength := v[j].Length(s[j])
 		length += componentLength
 		lengthUnchanged += componentLength
 	}
@@ -254,13 +254,13 @@ func (c seqVariant) NextVariant(n renderNode) (length, lengthUnchanged int, more
 	return length, lengthUnchanged, true
 }
 
-func (c seqVariant) Length(n renderNode) int {
+func (v seqVariant) Length(n renderNode) int {
 	s := n.(seq)
 
 	totalLength := 0
 
-	for i := 0; i < len(c); i++ {
-		totalLength += c[i].Length(s[i])
+	for i := 0; i < len(v); i++ {
+		totalLength += v[i].Length(s[i])
 	}
 
 	return totalLength
@@ -270,9 +270,9 @@ func (c seqVariant) Length(n renderNode) int {
 type alt []renderNode
 
 func (n alt) Render(buf *bytes.Buffer, variant variantState, alreadyRendered int) int {
-	c := variant.(*altVariant)
+	v := variant.(*altVariant)
 
-	return n[c.idx].Render(buf, c.variant, alreadyRendered)
+	return n[v.idx].Render(buf, v.variant, alreadyRendered)
 }
 
 func (n alt) NumVariants() int {
@@ -348,37 +348,37 @@ type altVariant struct {
 	variant variantState // variant corresponding to the alternative being explored.
 }
 
-func (c *altVariant) NextVariant(n renderNode) (length, lengthUnchanged int, moreRemain bool) {
-	if c == nil {
+func (v *altVariant) NextVariant(n renderNode) (length, lengthUnchanged int, moreRemain bool) {
+	if v == nil {
 		return 0, 0, false
 	}
 
 	a := n.(alt)
 
 	// Keep exploring the current alternative until all possibilities are exhausted.
-	if length, lengthUnchanged, moreRemain = c.variant.NextVariant(a[c.idx]); moreRemain {
+	if length, lengthUnchanged, moreRemain = v.variant.NextVariant(a[v.idx]); moreRemain {
 		return length, lengthUnchanged, true
 	}
 
 	// Advance to the next alternative if one exists and obtain the initial
 	// variant state for it.
 
-	c.idx++
-	if c.idx >= len(a) {
+	v.idx++
+	if v.idx >= len(a) {
 		return 0, 0, false
 	}
 
-	c.variant = a[c.idx].InitialVariant()
+	v.variant = a[v.idx].InitialVariant()
 
-	return c.variant.Length(a[c.idx]), 0, true
+	return v.variant.Length(a[v.idx]), 0, true
 }
 
-func (c *altVariant) Length(n renderNode) int {
-	if c == nil {
+func (v *altVariant) Length(n renderNode) int {
+	if v == nil {
 		return 0
 	}
 
 	a := n.(alt)
 
-	return c.variant.Length(a[c.idx])
+	return v.variant.Length(a[v.idx])
 }
