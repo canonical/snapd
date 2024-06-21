@@ -22,7 +22,6 @@ package snapstate
 import (
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/snapcore/snapd/logger"
@@ -291,16 +290,6 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) (err error) 
 	}
 	perfTimings.Save(st)
 	st.Unlock()
-
-	// TODO: test this conditional once we are installing local snaps+components
-	// if we're removing the snap file and we are mounting a component for the
-	// firs time, then we know that the component also must be coming from an
-	// emphemeral file. in that case, remove it.
-	if snapsup.RemoveSnapPath {
-		if err := os.Remove(compSetup.CompPath); err != nil {
-			return err
-		}
-	}
 
 	return nil
 }
