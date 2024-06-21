@@ -34,7 +34,7 @@ jobs:
 
   test:
     needs: [unit-tests]
-    runs-on: self-hosted
+    runs-on: [self-hosted, spread]
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -81,7 +81,7 @@ jobs:
 
     - name: Run test
       run: |
-          RUN_TESTS="google:tests/ google-nested:tests/"
+          RUN_TESTS="google:tests/ google-nested:tests/ openstack:tests/"
           if [ -n "$FAILED_TESTS" ]; then
               RUN_TESTS="$FAILED_TESTS"
           fi

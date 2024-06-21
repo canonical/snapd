@@ -4,7 +4,7 @@ details: |
     Check the os.query tool properly detects the current system. Also
     verify the version comparison works.
 
-backends: [google]
+backends: [google, openstack]
 
 execute: |
     os.query --help | MATCH 'usage: os.query is-core, is-classic'
@@ -120,6 +120,13 @@ execute: |
         fedora-39-64)
             os.query is-fedora
             os.query is-fedora 39
+            ! os.query is-fedora rawhide
+            os.query is-classic
+            ! os.query is-core
+            ;;
+        fedora-40-64)
+            os.query is-fedora
+            os.query is-fedora 40
             ! os.query is-fedora rawhide
             os.query is-classic
             ! os.query is-core
