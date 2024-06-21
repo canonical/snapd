@@ -206,9 +206,8 @@ func (s *storeActionSuite) testSnapAction(c *C, resources []string) {
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
 			CohortKey:    helloCohortKey,
-			Resources:    resources,
 		},
-	}, nil, nil, nil)
+	}, nil, nil, &store.RefreshOptions{IncludeResources: len(resources) > 0})
 	c.Assert(err, IsNil)
 	c.Assert(aresults, HasLen, 0)
 	c.Assert(results, HasLen, 1)

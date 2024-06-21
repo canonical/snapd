@@ -221,11 +221,16 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 		return vsets, nil
 	}
 
+	includeResources := false
 	actions := make([]*store.SnapAction, 0, len(s.snaps))
 	for _, sn := range s.snaps {
 		action, err := installActionForStoreTarget(sn, opts, enforcedSets)
 		if err != nil {
 			return nil, err
+		}
+
+		if len(sn.Components) > 0 {
+			includeResources = true
 		}
 
 		actions = append(actions, action)
@@ -236,7 +241,9 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 		return nil, err
 	}
 
-	refreshOpts, err := refreshOptions(st, nil)
+	refreshOpts, err := refreshOptions(st, &store.RefreshOptions{
+		IncludeResources: includeResources,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -352,7 +359,6 @@ func installActionForStoreTarget(t StoreSnap, opts Options, enforcedSets func() 
 		Channel:      t.RevOpts.Channel,
 		Revision:     t.RevOpts.Revision,
 		CohortKey:    t.RevOpts.CohortKey,
-		Resources:    t.Components,
 	}
 
 	switch {

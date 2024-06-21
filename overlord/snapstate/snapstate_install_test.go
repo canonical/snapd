@@ -6407,7 +6407,6 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, insta
 			Action:       "install",
 			InstanceName: instanceName,
 			Channel:      channel,
-			Resources:    components,
 		},
 		revno:  snapRevision,
 		userID: 1,
