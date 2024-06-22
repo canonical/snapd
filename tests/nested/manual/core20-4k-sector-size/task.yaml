@@ -52,7 +52,7 @@ execute: |
     echo "and secure boot is enabled on the nested vm"
     ## xxd command not available in uc24
     remote.pull "/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c"
-    xxd SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c" | MATCH "00000000: 0600 0000 01\s+....."
+    xxd SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c | MATCH '00000000: 0600 0000 01\s+.....'
 
     echo "Ensure 'snap recovery show-keys' works as root"
     remote.exec "sudo snap recovery --show-keys" | MATCH 'recovery:\s+[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}'
