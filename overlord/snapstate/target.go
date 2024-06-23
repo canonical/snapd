@@ -338,10 +338,10 @@ func componentSetupFromResource(name string, sar store.SnapResourceResult, info 
 		return ComponentSetup{}, fmt.Errorf("inconsistent component type (%q in snap, %q in component)", typ, sar.Type)
 	}
 
-	compName := naming.NewComponentRef(info.SnapName(), name)
+	cref := naming.NewComponentRef(info.SnapName(), name)
 
 	csi := snap.ComponentSideInfo{
-		Component: compName,
+		Component: cref,
 		Revision:  snap.R(sar.Revision),
 	}
 
