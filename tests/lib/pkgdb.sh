@@ -558,10 +558,9 @@ pkg_dependencies_ubuntu_classic(){
         python3-gi
         python3-yaml
         upower
-        weston        
+        weston
         xdg-user-dirs
         xdg-utils
-        xxd
         zsh
         "
 
@@ -620,6 +619,7 @@ pkg_dependencies_ubuntu_classic(){
                 qemu-kvm
                 qemu-utils
                 shellcheck
+                xxd
                 "
             ;;
         ubuntu-22.*|ubuntu-23.*|ubuntu-24.*)
@@ -633,6 +633,7 @@ pkg_dependencies_ubuntu_classic(){
                 lz4
                 qemu-kvm
                 qemu-utils
+                xxd
                 "
             ;;
         ubuntu-*)
