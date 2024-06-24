@@ -14425,7 +14425,7 @@ func makeMockRepoWithConnectedSnaps(c *C, repo *interfaces.Repository, info11, c
 }
 
 func (s *mgrsSuite) testConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C, hasPendingSecurityProfiles bool) {
-	// This test exists to verify that any distruptions of a refresh
+	// This test exists to verify that any disruptions of a refresh
 	// will maintain any pre-existing connection that was held before
 	// the snap is marked inactive. The goal of this test is to run all
 	// tasks that involve something making the snap unavailable/not active
@@ -14437,7 +14437,7 @@ func (s *mgrsSuite) testConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C, 
 	// This was selected based on a customer case. Prior to version 2.58 this
 	// would cause the connection to be dropped, if a well-timed restart of snapd
 	// would occur during a refresh. In 2.58 a fix for this was merged, and this
-	// test shall be passing.
+	// test should be passing.
 	mockServer := s.mockStore(c)
 	defer mockServer.Close()
 
@@ -14605,8 +14605,7 @@ func (s *mgrsSuite) testConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C, 
 		// reflected by the repo
 		c.Assert(err, ErrorMatches, `snap "snap-with-snapd-control" has no .* "snapd-control"`)
 		c.Assert(ref, HasLen, 0)
-		// but returns false without the fix, yet we still made no
-		// auto-refresh requests as checked earlier
+		// but returns false without the fix
 		c.Check(devicestate.CanManageRefreshes(st), Equals, false)
 	}
 
