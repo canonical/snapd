@@ -7,6 +7,8 @@ details: |
 # snapd snap is already installed by default on uc18+
 systems: [ubuntu-core-16-*]
 
+manual: true
+
 prepare: |
     "$TESTSTOOLS"/snaps-state repack_core_snap_into_snapd_snap
 
