@@ -549,7 +549,7 @@ jobs:
         esac
     - name: Set up test user
       run: |
-        useradd test-user
+        useradd -U -m test-user
         chown -R test-user:test-user $PWD
 
     - name: Unit tests (Go)
