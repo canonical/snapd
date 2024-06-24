@@ -139,7 +139,7 @@ func (s *fipsSuite) TestMaybeSetupFIPSFullWithReexecClassic(c *C) {
 		"OPENSSL_MODULES="+filepath.Join(dirs.SnapMountDir, "snapd/123/usr/lib/x86_64-linux-gnu/ossl-modules-3"))
 	c.Check(observedEnv, testutil.Contains, "GO_OPENSSL_VERSION_OVERRIDE=3")
 	// bootstrap done
-	c.Check(observedEnv, testutil.Contains, "SNAPD_FIPS_BOOTSTRAP_DONE=1")
+	c.Check(observedEnv, testutil.Contains, "SNAPD_FIPS_BOOTSTRAP=1")
 }
 
 func (s *fipsSuite) TestMaybeSetupFIPSFullWithReexecCore(c *C) {
@@ -181,7 +181,7 @@ func (s *fipsSuite) TestMaybeSetupFIPSFullWithReexecCore(c *C) {
 		"OPENSSL_MODULES="+filepath.Join(dirs.SnapMountDir, "snapd/123/usr/lib/x86_64-linux-gnu/ossl-modules-3"))
 	c.Check(observedEnv, testutil.Contains, "GO_OPENSSL_VERSION_OVERRIDE=3")
 	// bootstrap done
-	c.Check(observedEnv, testutil.Contains, "SNAPD_FIPS_BOOTSTRAP_DONE=1")
+	c.Check(observedEnv, testutil.Contains, "SNAPD_FIPS_BOOTSTRAP=1")
 }
 
 func (s *fipsSuite) TestMaybeSetupFIPSNoModulesButStillReexec(c *C) {
@@ -224,7 +224,7 @@ func (s *fipsSuite) TestMaybeSetupFIPSNoModulesButStillReexec(c *C) {
 		}
 	}
 	// bootstrap is done
-	c.Check(observedEnv, testutil.Contains, "SNAPD_FIPS_BOOTSTRAP_DONE=1")
+	c.Check(observedEnv, testutil.Contains, "SNAPD_FIPS_BOOTSTRAP=1")
 }
 
 func (s *fipsSuite) TestMaybeSetupFIPSBootstrapAlreadyDone(c *C) {
@@ -237,12 +237,12 @@ func (s *fipsSuite) TestMaybeSetupFIPSBootstrapAlreadyDone(c *C) {
 
 	defer func() {
 		os.Unsetenv("GOFIPS")
-		os.Unsetenv("SNAPD_FIPS_BOOSTRAP_DONE")
+		os.Unsetenv("SNAPD_FIPS_BOOSTRAP")
 		os.Unsetenv("OPENSSL_MODULES")
 		os.Unsetenv("GO_OPENSSL_VERSION_OVERRIDE")
 	}()
 
-	os.Setenv("SNAPD_FIPS_BOOTSTRAP_DONE", "1")
+	os.Setenv("SNAPD_FIPS_BOOTSTRAP", "1")
 	os.Setenv("GOFIPS", "1")
 	os.Setenv("OPENSSL_MODULES", "bogus-dir")
 	os.Setenv("GO_OPENSSL_VERSION_OVERRIDE", "123-xyz")
@@ -250,7 +250,7 @@ func (s *fipsSuite) TestMaybeSetupFIPSBootstrapAlreadyDone(c *C) {
 	err := snapdtool.MaybeSetupFIPS()
 	c.Assert(err, IsNil)
 
-	c.Check(os.Getenv("SNAPD_FIPS_BOOTSTRAP_DONE"), Equals, "")
+	c.Check(os.Getenv("SNAPD_FIPS_BOOTSTRAP"), Equals, "")
 	c.Check(os.Getenv("GOFIPS"), Equals, "")
 	c.Check(os.Getenv("OPENSSL_MODULES"), Equals, "")
 	c.Check(os.Getenv("GO_OPENSSL_VERSION_OVERRIDE"), Equals, "")

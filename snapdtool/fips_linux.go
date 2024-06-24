@@ -74,7 +74,7 @@ func MaybeSetupFIPS() error {
 
 	logger.Debugf("FIPS mode enabled system wide")
 
-	if os.Getenv("SNAPD_FIPS_BOOTSTRAP_DONE") == "1" {
+	if os.Getenv("SNAPD_FIPS_BOOTSTRAP") == "1" {
 		// we've already been reexeced into FIPS mode and bootstrap was
 		// performed
 		logger.Debugf("FIPS bootstrap complete")
@@ -84,7 +84,7 @@ func MaybeSetupFIPS() error {
 		// variables, other processes which may be invoked by snapd will
 		// perform the initialization cycle on their own when needed
 		os.Unsetenv("GOFIPS")
-		os.Unsetenv("SNAPD_FIPS_BOOTSTRAP_DONE")
+		os.Unsetenv("SNAPD_FIPS_BOOTSTRAP")
 		os.Unsetenv("OPENSSL_MODULES")
 		os.Unsetenv("GO_OPENSSL_VERSION_OVERRIDE")
 		return nil
@@ -120,7 +120,7 @@ func MaybeSetupFIPS() error {
 	lib, mod := findFIPSLibsAndModules(currentRevSnapdSnap)
 
 	env := append(os.Environ(), []string{
-		"SNAPD_FIPS_BOOTSTRAP_DONE=1",
+		"SNAPD_FIPS_BOOTSTRAP=1",
 		// make FIPS mod required at runtime, if the module was not
 		// found or the setup is incorrect snapd will fail in a
 		// predictable way
