@@ -12,6 +12,7 @@ environment:
     # 2.63 release
     OLD_SNAPD_REVISION: "21759"
     NESTED_BUILD_SNAPD_FROM_CURRENT: false
+    NESTED_FORCE_SNAKEOIL_KEYS: true
 
     # hook
     ENCRYPTION/hook: "hook"
