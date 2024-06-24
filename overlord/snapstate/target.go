@@ -513,10 +513,6 @@ func InstallOne(ctx context.Context, st *state.State, goal InstallGoal, opts Opt
 // TODO: rename this to Install once the API is settled, and we can rename or
 // remove the old Install function.
 func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opts Options) ([]*snap.Info, []*state.TaskSet, error) {
-	if opts.PrereqTracker == nil {
-		opts.PrereqTracker = snap.SimplePrereqTracker{}
-	}
-
 	// can only specify a lane when running multiple operations transactionally
 	if opts.Flags.Transaction != client.TransactionAllSnaps && opts.Flags.Lane != 0 {
 		return nil, nil, errors.New("cannot specify a lane without setting transaction to \"all-snaps\"")
@@ -616,7 +612,15 @@ func setDefaultSnapstateOptions(st *state.State, opts *Options) error {
 	} else {
 		opts.DeviceCtx, err = DevicePastSeeding(st, opts.DeviceCtx)
 	}
-	return err
+	if err != nil {
+		return err
+	}
+
+	if opts.PrereqTracker == nil {
+		opts.PrereqTracker = snap.SimplePrereqTracker{}
+	}
+
+	return nil
 }
 
 // pathInstallGoal represents a single snap to be installed from a path on disk.
