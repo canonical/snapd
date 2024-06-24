@@ -90,9 +90,22 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		return SnapSetup{}, nil, err
 	}
 
-	flags, err := earlyChecks(st, &t.snapst, t.info, opts.Flags)
+	flags := opts.Flags
+
+	if !flags.JailMode && !flags.DevMode {
+		flags.Classic = flags.Classic || t.snapst.Classic
+	}
+
+	flags, err = earlyChecks(st, &t.snapst, t.info, flags)
 	if err != nil {
 		return SnapSetup{}, nil, err
+	}
+
+	// to match the behavior of the original Update and UpdateMany, we only
+	// allow updating ignoring validation sets if we are working with
+	// exactly one snap
+	if !opts.ExpectOneSnap {
+		flags.IgnoreValidation = t.snapst.IgnoreValidation
 	}
 
 	compsups := make([]ComponentSetup, 0, len(t.components))
@@ -122,6 +135,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		CohortKey:    t.setup.CohortKey,
 		DownloadInfo: t.setup.DownloadInfo,
 		SnapPath:     t.setup.SnapPath,
+		AlwaysUpdate: t.setup.AlwaysUpdate,
 
 		Base:               t.info.Base,
 		Prereq:             getKeys(providerContentAttrs),
@@ -811,6 +825,22 @@ func (s *UpdateSummary) targetInfos() []*snap.Info {
 	return infos
 }
 
+func (s *UpdateSummary) filter(f func(t target) (bool, error)) error {
+	filtered := s.Targets[:0]
+	for _, t := range s.Targets {
+		ok, err := f(t)
+		if err != nil {
+			return err
+		}
+
+		if ok {
+			filtered = append(filtered, t)
+		}
+	}
+	s.Targets = filtered
+	return nil
+}
+
 // UpdateGoal represents a single snap or a group of snaps to be updated.
 type UpdateGoal interface {
 	// Install returns the data needed to update the snaps.
@@ -839,7 +869,185 @@ func UpdateOne(ctx context.Context, st *state.State, goal UpdateGoal, filter upd
 // UpdateWithGoal updates the snap/set of snaps specified by the given
 // UpdateGoal.
 func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filter updateFilter, opts Options) ([]string, *UpdateTaskSets, error) {
-	return nil, nil, errors.New("TODO")
+	if err := setDefaultSnapstateOptions(st, &opts); err != nil {
+		return nil, nil, err
+	}
+
+	if opts.ExpectOneSnap && opts.Flags.IsAutoRefresh {
+		return nil, nil, errors.New("internal error: auto-refresh is not supported when updating a single snap")
+	}
+
+	// can only specify a lane when running multiple operations transactionally
+	if opts.Flags.Transaction != client.TransactionAllSnaps && opts.Flags.Lane != 0 {
+		return nil, nil, errors.New("cannot specify a lane without setting transaction to \"all-snaps\"")
+	}
+
+	summary, err := goal.toUpdate(ctx, st, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if opts.ExpectOneSnap && len(summary.Targets) != 1 {
+		return nil, nil, ErrExpectedOneSnap
+	}
+
+	if filter != nil {
+		summary.filter(func(t target) (bool, error) {
+			return filter(t.info, &t.snapst), nil
+		})
+	}
+
+	if err := filterHeldSnapsInSummary(st, &summary, opts.Flags.IsAutoRefresh); err != nil {
+		return nil, nil, err
+	}
+
+	// save the candidates so the auto-refresh can be continued if it's inhibited
+	// by a running snap.
+	if opts.Flags.IsAutoRefresh {
+		hints, err := refreshHintsFromCandidates(st, summary, opts.DeviceCtx)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// TODO: why not check this error?
+		updateRefreshCandidates(st, hints, summary.Requested)
+	}
+
+	// validate snaps to be refreshed against validation sets. if we are
+	// refreshing all snaps, then we filter out the snaps that cannot be
+	// validated and log them
+	if err := validateAndFilterSummaryRefreshes(st, &summary, opts); err != nil {
+		return nil, nil, err
+	}
+
+	changeKind := "refresh"
+	installInfos := make([]minimalInstallInfo, 0, len(summary.Targets))
+	for _, t := range summary.Targets {
+		installInfos = append(installInfos, installSnapInfo{t.info})
+
+		// if any of the snaps are not installed, then we should use the
+		// "install" change as the kind
+		if !t.snapst.IsInstalled() {
+			changeKind = "install"
+		}
+	}
+
+	if err := checkDiskSpace(st, changeKind, installInfos, opts.UserID, opts.PrereqTracker); err != nil {
+		return nil, nil, err
+	}
+
+	updated, uts, err := updateFromSummary(st, summary, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// ideally we wouldn't use this error type here, but the current
+	// implementations share this error type for both path and store
+	// installations
+	if opts.ExpectOneSnap && len(uts.Refresh) == 0 {
+		return nil, nil, store.ErrNoUpdateAvailable
+	}
+
+	return updated, uts, nil
+}
+
+func updateFromSummary(st *state.State, summary UpdateSummary, opts Options) ([]string, *UpdateTaskSets, error) {
+	// it is sad that we have to split up UpdateSummary like this, but doUpdate
+	// is used in places where we don't have a snap.Info, so we cannot pass an
+	// UpdateSummary to doUpdate
+	updates := make([]update, 0, len(summary.Targets))
+	for _, t := range summary.Targets {
+		opts.PrereqTracker.Add(t.info)
+
+		snapsup, compsups, err := t.setups(st, opts)
+		if err != nil {
+			if !summary.RefreshAll {
+				return nil, nil, err
+			}
+
+			logger.Noticef("cannot refresh snap %q: %v", t.info.InstanceName(), err)
+			continue
+		}
+
+		updates = append(updates, update{
+			Setup:      snapsup,
+			SnapState:  t.snapst,
+			Components: compsups,
+		})
+	}
+
+	updated, uts, err := doPotentiallySplitUpdate(st, summary.Requested, updates, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// if we're only updating one snap, flatten everything into one task set
+	if opts.ExpectOneSnap && len(uts.Refresh) > 1 {
+		flat := state.NewTaskSet()
+		for _, ts := range uts.Refresh {
+			// The tasksets we get from "doUpdate" contain important "TaskEdge"
+			// information that is needed for "Remodel". To preserve those we
+			// need to use "AddAllWithEdges()".
+			if err := flat.AddAllWithEdges(ts); err != nil {
+				return nil, nil, err
+			}
+		}
+		uts.Refresh = []*state.TaskSet{flat}
+	}
+
+	return updated, uts, nil
+}
+
+func validateAndFilterSummaryRefreshes(st *state.State, summary *UpdateSummary, opts Options) error {
+	if ValidateRefreshes == nil || len(summary.Targets) == 0 || opts.Flags.IgnoreValidation {
+		return nil
+	}
+
+	ignoreValidation := make(map[string]bool, len(summary.Targets))
+	for _, t := range summary.Targets {
+		if t.snapst.IgnoreValidation {
+			ignoreValidation[t.info.InstanceName()] = true
+		}
+	}
+
+	validated, err := ValidateRefreshes(st, summary.targetInfos(), ignoreValidation, opts.UserID, opts.DeviceCtx)
+	if err != nil {
+		if !summary.RefreshAll {
+			return err
+		}
+		logger.Noticef("cannot refresh some snaps: %v", err)
+	}
+
+	validatedMap := make(map[string]bool, len(validated))
+	for _, sn := range validated {
+		validatedMap[sn.InstanceName()] = true
+	}
+
+	summary.filter(func(t target) (bool, error) {
+		_, ok := validatedMap[t.info.InstanceName()]
+		return ok, nil
+	})
+
+	return nil
+}
+
+func filterHeldSnapsInSummary(st *state.State, summary *UpdateSummary, isAutoRefresh bool) error {
+	holdLevel := HoldGeneral
+	if isAutoRefresh {
+		holdLevel = HoldAutoRefresh
+	}
+
+	heldSnaps, err := HeldSnaps(st, holdLevel)
+	if err != nil {
+		return err
+	}
+
+	summary.filter(func(t target) (bool, error) {
+		_, ok := heldSnaps[t.info.InstanceName()]
+		return !ok, nil
+	})
+
+	return nil
 }
 
 // storeInstallGoal implements the UpdateGoal interface and represents a group
@@ -882,7 +1090,18 @@ func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Op
 		return UpdateSummary{}, err
 	}
 
-	return UpdateSummary{}, nil
+	user, err := userFromUserID(st, opts.UserID)
+	if err != nil {
+		return UpdateSummary{}, err
+	}
+
+	refreshOpts := &store.RefreshOptions{Scheduled: opts.Flags.IsAutoRefresh}
+	summary, err := refreshCandidates(ctx, st, s.snaps, user, refreshOpts, opts)
+	if err != nil {
+		return UpdateSummary{}, err
+	}
+
+	return summary, nil
 }
 
 func validateAndInitStoreUpdates(st *state.State, updates map[string]StoreUpdate, opts Options) error {
