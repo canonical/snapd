@@ -7,6 +7,9 @@ details: |
 systems: [ubuntu-2*]
 
 prepare: |
+  # Install dependency
+  apt install -y llvm
+
   # we cannot use the kernel from store as it may have a version of
   # snap-bootstrap that will not be able to unseal the keys and unlock the
   # encrypted volumes, instead use the kernel we repacked when building the UC20
@@ -40,7 +43,7 @@ execute: |
 
   echo "Check that we are using the right kernel"
   remote.pull /boot/grub/kernel.efi
-  objdump -h kernel.efi  | grep [.]modified
+  objdump -h kernel.efi  | grep '[.]modified'
   
   echo "Check ubuntu-data.sealed-key mtime is newer"
   SEALED_KEY_MTIME_2="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
