@@ -9395,7 +9395,7 @@ func (s *snapmgrTestSuite) TestRefreshCandidatesMergeFlags(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si})})
 
 	globalFlags := &snapstate.Flags{IsAutoRefresh: true, IsContinuedAutoRefresh: true}
-	snapsup, _, err := cand.SnapSetupForUpdate(s.state, nil, 0, globalFlags, nil)
+	snapsup, _, err := cand.SnapSetupForUpdate(s.state, globalFlags)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, NotNil)
 	c.Assert(*snapsup, DeepEquals, snapstate.SnapSetup{

@@ -149,6 +149,11 @@ type SnapSetup struct {
 	// DownloadBlobDir is the directory where the snap blob is downloaded to. If
 	// empty, dir.SnapBlobDir is used.
 	DownloadBlobDir string `json:"download-blob-dir,omitempty"`
+
+	// AlwaysUpdate is set if the snap should be put through the entire update
+	// process, even if the snap is already at the correct revision. Has an
+	// effect on which tasks get created to update the snap.
+	AlwaysUpdate bool `json:"-"`
 }
 
 func (snapsup *SnapSetup) InstanceName() string {
