@@ -1594,7 +1594,7 @@ var NewContainerFromDir func(snapName string) Container = func(snapName string) 
 // ReadCurrentComponentInfo reads the ComponentInfo for the currently linked
 // revision of the given component associated with the given snap.
 func ReadCurrentComponentInfo(component string, info *Info) (*ComponentInfo, error) {
-	// NOTE: creating this here is a bit of a hack, since we aren't actually
+	// TODO: creating this here is a bit of a hack, since we aren't actually
 	// able to set the revision of the component. we create it so that we can
 	// use ComponentLinkPath, which doesn't use the revision.
 	cpi := MinimalComponentContainerPlaceInfo(component, Revision{}, info.InstanceName())
