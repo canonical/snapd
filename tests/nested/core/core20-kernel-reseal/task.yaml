@@ -16,9 +16,8 @@ prepare: |
   # ensure we really have the header we expect
   grep -q -a "This program cannot be run in DOS mode" pc-kernel/kernel.efi
   # modify the kernel so that the hash changes
-  sed -i 's/This program cannot be run in DOS mode/This program cannot be run in XXX mode/' pc-kernel/kernel.efi
-  grep -q -a "This program cannot be run in XXX mode" pc-kernel/kernel.efi
-
+  llvm-objcopy --add-section .modified=/dev/null pc-kernel/kernel.efi
+  
   KEY_NAME=$(tests.nested download snakeoil-key)
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
   SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
@@ -40,8 +39,9 @@ execute: |
   remote.exec sudo snap watch "${REMOTE_CHG_ID}"
 
   echo "Check that we are using the right kernel"
-  remote.exec sudo grep -q -a "This program cannot be run in XXX mode" /boot/grub/kernel.efi
-
+  remote.pull /boot/grub/kernel.efi
+  objdump -h kernel.efi  | grep [.]modified
+  
   echo "Check ubuntu-data.sealed-key mtime is newer"
   SEALED_KEY_MTIME_2="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
   test "$SEALED_KEY_MTIME_2" -gt "$SEALED_KEY_MTIME_1"
