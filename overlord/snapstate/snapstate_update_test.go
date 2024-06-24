@@ -12532,11 +12532,9 @@ type: snapd
 	updated, taskSets, err := snapstate.UpdateMany(context.Background(), s.state,
 		[]string{"snapd", "some-snap-with-new-base"},
 		[]*snapstate.RevisionOptions{{
-			Revision: snap.R(1),
-			Channel:  "latest/stable",
+			Channel: "latest/stable",
 		}, {
-			Revision: snap.R(1),
-			Channel:  "some-channel",
+			Channel: "some-channel",
 		}},
 		s.user.ID, &snapstate.Flags{
 			IgnoreRunning: true,
