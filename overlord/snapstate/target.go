@@ -222,7 +222,7 @@ func validateRevisionOpts(opts *RevisionOptions) error {
 	return nil
 }
 
-var ErrExpectedOneSnap = errors.New("expected exactly one snap to install")
+var ErrExpectedOneSnap = errors.New("expected exactly one snap to install/update")
 
 // toInstall returns the data needed to setup the snaps from the store for
 // installation.
