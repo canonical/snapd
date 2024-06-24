@@ -22,14 +22,17 @@ import (
 	"errors"
 
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/registry"
 )
 
+var assertstateRegistry = assertstate.Registry
+
 // SetViaView finds the view identified by the account, registry and view names
 // and sets the request fields to their respective values.
 func SetViaView(st *state.State, account, registryName, viewName string, requests map[string]interface{}) error {
-	registryAssert, err := assertstate.Registry(st, account, registryName)
+	registryAssert, err := assertstateRegistry(st, account, registryName)
 	if err != nil {
 		return err
 	}
@@ -37,9 +40,12 @@ func SetViaView(st *state.State, account, registryName, viewName string, request
 
 	view := reg.View(viewName)
 	if view == nil {
-		keys := make([]string, 0, len(requests))
-		for k := range requests {
-			keys = append(keys, k)
+		var keys []string
+		if len(requests) > 0 {
+			keys = make([]string, 0, len(requests))
+			for k := range requests {
+				keys = append(keys, k)
+			}
 		}
 
 		return &registry.NotFoundError{
@@ -78,7 +84,7 @@ func SetViaView(st *state.State, account, registryName, viewName string, request
 // returned in a map of fields to their values, unless there are no fields in
 // which case all views are returned.
 func GetViaView(st *state.State, account, registryName, viewName string, fields []string) (interface{}, error) {
-	registryAssert, err := assertstate.Registry(st, account, registryName)
+	registryAssert, err := assertstateRegistry(st, account, registryName)
 	if err != nil {
 		return nil, err
 	}
@@ -101,6 +107,12 @@ func GetViaView(st *state.State, account, registryName, viewName string, fields 
 		return nil, err
 	}
 
+	return GetViaViewInTx(tx, view, fields)
+}
+
+// GetViaViewInTx uses the view to get values for the fields from the databag
+// in the transaction.
+func GetViaViewInTx(tx *registry.Transaction, view *registry.View, fields []string) (interface{}, error) {
 	if len(fields) == 0 {
 		val, err := view.Get(tx, "")
 		if err != nil {
@@ -126,10 +138,11 @@ func GetViaView(st *state.State, account, registryName, viewName string, fields 
 	}
 
 	if len(results) == 0 {
+		account, registryName := tx.RegistryInfo()
 		return nil, &registry.NotFoundError{
 			Account:      account,
 			RegistryName: registryName,
-			View:         viewName,
+			View:         view.Name,
 			Operation:    "get",
 			Requests:     fields,
 			Cause:        "matching rules don't map to any values",
@@ -139,15 +152,15 @@ func GetViaView(st *state.State, account, registryName, viewName string, fields 
 	return results, nil
 }
 
-// newTransaction returns a transaction configured to read and write databags
-// from state as needed.
+// newTransaction returns a transaction configured to read and write
+// databags from state as needed.
 func newTransaction(st *state.State, reg *registry.Registry) (*registry.Transaction, error) {
 	getter := bagGetter(st, reg)
 	setter := func(bag registry.JSONDataBag) error {
 		return updateDatabags(st, bag, reg)
 	}
 
-	tx, err := registry.NewTransaction(getter, setter, reg.Schema)
+	tx, err := registry.NewTransaction(reg, getter, setter)
 	if err != nil {
 		return nil, err
 	}
@@ -198,4 +211,35 @@ func updateDatabags(st *state.State, databag registry.JSONDataBag, reg *registry
 	databags[account][registryName] = databag
 	st.Set("registry-databags", databags)
 	return nil
+}
+
+type cachedRegistryTx struct {
+	account  string
+	registry string
+}
+
+// RegistryTransaction returns the registry.Transaction cached in the context
+// or creates one and caches it, if none existed. The context must be locked by
+// the caller.
+func RegistryTransaction(ctx *hookstate.Context, reg *registry.Registry) (*registry.Transaction, error) {
+	key := cachedRegistryTx{
+		account:  reg.Account,
+		registry: reg.Name,
+	}
+	tx, ok := ctx.Cached(key).(*registry.Transaction)
+	if ok {
+		return tx, nil
+	}
+
+	tx, err := newTransaction(ctx.State(), reg)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.OnDone(func() error {
+		return tx.Commit()
+	})
+
+	ctx.Cache(key, tx)
+	return tx, nil
 }

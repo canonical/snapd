@@ -28,7 +28,7 @@ type DatabagWrite func(JSONDataBag) error
 // Transaction performs read and writes to a databag in an atomic way.
 type Transaction struct {
 	pristine JSONDataBag
-	schema   Schema
+	registry *Registry
 
 	modified      JSONDataBag
 	deltas        []map[string]interface{}
@@ -40,7 +40,7 @@ type Transaction struct {
 }
 
 // NewTransaction takes a getter and setter to read and write the databag.
-func NewTransaction(readDatabag DatabagRead, writeDatabag DatabagWrite, schema Schema) (*Transaction, error) {
+func NewTransaction(reg *Registry, readDatabag DatabagRead, writeDatabag DatabagWrite) (*Transaction, error) {
 	databag, err := readDatabag()
 	if err != nil {
 		return nil, err
@@ -48,10 +48,14 @@ func NewTransaction(readDatabag DatabagRead, writeDatabag DatabagWrite, schema S
 
 	return &Transaction{
 		pristine:     databag.Copy(),
-		schema:       schema,
+		registry:     reg,
 		readDatabag:  readDatabag,
 		writeDatabag: writeDatabag,
 	}, nil
+}
+
+func (t *Transaction) RegistryInfo() (account string, registryName string) {
+	return t.registry.Account, t.registry.Name
 }
 
 // Set sets a value in the transaction's databag. The change isn't persisted
@@ -123,7 +127,7 @@ func (t *Transaction) Commit() error {
 		return err
 	}
 
-	if err := t.schema.Validate(data); err != nil {
+	if err := t.registry.Schema.Validate(data); err != nil {
 		return err
 	}
 
