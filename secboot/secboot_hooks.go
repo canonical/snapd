@@ -43,11 +43,11 @@ var sbSetModel = sb_scope.SetModel
 var sbSetBootMode = sb_scope.SetBootMode
 var sbSetKeyRevealer = sb_hooks.SetKeyRevealer
 
-const fdeHooksPlatformName = "fde-hook-v2"
+const legacyFdeHooksPlatformName = "fde-hook-v2"
 
 func init() {
 	handler := &fdeHookV2DataHandler{}
-	sb.RegisterPlatformKeyDataHandler(fdeHooksPlatformName, handler)
+	sb.RegisterPlatformKeyDataHandler(legacyFdeHooksPlatformName, handler)
 }
 
 type hookKeyProtector struct {
@@ -136,11 +136,15 @@ func ResealKeysWithFDESetupHook(keyFiles []string, primaryKeyFile string, models
 		if err != nil {
 			return fmt.Errorf("cannot read key data: %v", err)
 		}
-		hooksKeyData, err := sb_hooks.NewKeyData(keyData)
-		if err != nil {
-			return fmt.Errorf("cannot read key data as hook key data: %v", err)
+		if keyData.PlatformName() == legacyFdeHooksPlatformName && keyData.Generation() == 1 {
+			keyData.SetAuthorizedSnapModels(primaryKey, sbModels...)
+		} else {
+			hooksKeyData, err := sb_hooks.NewKeyData(keyData)
+			if err != nil {
+				return fmt.Errorf("cannot read key data as hook key data: %v", err)
+			}
+			hooksKeyData.SetAuthorizedSnapModels(primaryKey, sbModels...)
 		}
-		hooksKeyData.SetAuthorizedSnapModels(primaryKey, sbModels...)
 
 		writer := sb.NewFileKeyDataWriter(keyFile)
 		if err := keyData.WriteAtomic(writer); err != nil {
