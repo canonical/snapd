@@ -3001,8 +3001,16 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel:  "channel-for-7/stable",
-		SideInfo: snapsup.SideInfo,
+		Channel:   "channel-for-7/stable",
+		UserID:    s.user.ID,
+		Type:      "app",
+		PlugsOnly: true,
+		Version:   "some-snapVer",
+		SideInfo:  snapsup.SideInfo,
+		Flags: snapstate.Flags{
+			Transaction: client.TransactionPerSnap,
+		},
+		SnapPath: filepath.Join(dirs.SnapBlobDir, "some-snap_7.snap"),
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
@@ -3108,16 +3116,23 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionToggleIgnoreValidationRunThroug
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Check(snapsup, DeepEquals, snapstate.SnapSetup{
-		SideInfo: snapsup.SideInfo,
+		SideInfo:  snapsup.SideInfo,
+		Channel:   "channel-for-7/stable",
+		UserID:    s.user.ID,
+		Type:      "app",
+		PlugsOnly: true,
+		Version:   "some-snapVer",
 		Flags: snapstate.Flags{
 			IgnoreValidation: true,
+			Transaction:      client.TransactionPerSnap,
 		},
+		SnapPath: filepath.Join(dirs.SnapBlobDir, "some-snap_7.snap"),
 	})
 	c.Check(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
 		Revision: snap.R(7),
-		Channel:  "channel-for-7",
+		Channel:  "channel-for-7/stable",
 	})
 
 	// verify snaps in the system state
@@ -3302,6 +3317,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			Action:       "refresh",
 			InstanceName: "some-snap",
 			SnapID:       "some-snap-id",
+			Channel:      "latest/stable",
 			Flags:        store.SnapActionIgnoreValidation,
 		},
 		userID: 1,
@@ -3548,6 +3564,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateIgnoreValidationSticky(c *C
 						Action:       "refresh",
 						InstanceName: "some-snap_instance",
 						SnapID:       "some-snap-id",
+						Channel:      "latest/stable",
 						Flags:        store.SnapActionIgnoreValidation,
 					},
 					userID: 1,
@@ -4345,7 +4362,7 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContextSameRevisionSwitchesChanne
 
 	c.Assert(prqt.infos, HasLen, 1)
 	c.Check(prqt.infos[0].SnapName(), Equals, "some-snap")
-	c.Check(prqt.missingProviderContentTagsCalls, Equals, 0)
+	c.Check(prqt.missingProviderContentTagsCalls, Equals, 1)
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithDeviceContext(c *C) {
