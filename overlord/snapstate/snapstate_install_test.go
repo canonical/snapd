@@ -5118,6 +5118,7 @@ func (s *snapmgrTestSuite) testRetainCorrectNumRevisions(c *C, installFn install
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
 		Revision: snap.R(1),
+		Channel:  "latest/stable",
 	}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
