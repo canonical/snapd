@@ -6300,13 +6300,6 @@ func undoOps(instanceName string, snapRevision, prevRev snap.Revision, component
 		containerName := fmt.Sprintf("%s+%s", instanceName, components[i])
 		filename := fmt.Sprintf("%s_%v.comp", containerName, csi.Revision)
 
-		if forRefresh {
-			ops = append(ops, fakeOp{
-				op:   "link-component",
-				path: snap.ComponentMountDir(components[i], snap.R(i+1), instanceName),
-			})
-		}
-
 		if strings.HasPrefix(components[i], string(snap.KernelModulesComponent)) {
 			ops = append(ops, fakeOp{
 				op:            "remove-kernel-modules-components-setup",

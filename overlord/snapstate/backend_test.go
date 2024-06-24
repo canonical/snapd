@@ -488,6 +488,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		revno = r
 	}
 	confinement := snap.StrictConfinement
+	var components map[string]*snap.Component
 	switch cand.channel {
 	case "channel-for-7/stable":
 		revno = snap.R(7)
@@ -495,6 +496,17 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		confinement = snap.ClassicConfinement
 	case "channel-for-devmode/stable":
 		confinement = snap.DevModeConfinement
+	case "channel-for-components":
+		components = map[string]*snap.Component{
+			"test-component": {
+				Type: snap.TestComponent,
+				Name: "test-component",
+			},
+			"kernel-modules-component": {
+				Type: snap.KernelModulesComponent,
+				Name: "kernel-modules-component",
+			},
+		}
 	}
 	if name == "some-snap-now-classic" {
 		confinement = "classic"
@@ -516,6 +528,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		Architectures: []string{"all"},
 		Epoch:         epoch,
 		Base:          base,
+		Components:    components,
 	}
 
 	if strings.HasSuffix(cand.snapID, "-without-version-id") {
