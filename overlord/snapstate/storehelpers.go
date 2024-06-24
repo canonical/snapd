@@ -593,10 +593,19 @@ func storeUpdatePlan(
 		}
 	}
 
+	// if any of the snaps that we are refreshing have components, we need to
+	// make sure to explicitly request the components from the store.
+	requestCompnentsFromStore := false
+
 	// make sure that all requested updates are currently installed
 	for _, update := range updates {
-		if _, ok := allSnaps[update.InstanceName]; !ok {
+		snapst, ok := allSnaps[update.InstanceName]
+		if !ok {
 			return updatePlan{}, snap.NotInstalledError{Snap: update.InstanceName}
+		}
+
+		if snapst.CurrentlyHasComponents() {
+			requestCompnentsFromStore = true
 		}
 	}
 
@@ -644,6 +653,7 @@ func storeUpdatePlan(
 		actionsByUserID[id] = append(actionsByUserID[id], actions...)
 	}
 
+	refreshOpts.IncludeResources = requestCompnentsFromStore
 	sars, noStoreUpdates, err := sendActionsByUserID(ctx, st, actionsByUserID, current, refreshOpts, opts)
 	if err != nil {
 		return updatePlan{}, err
@@ -664,7 +674,22 @@ func storeUpdatePlan(
 			return updatePlan{}, fmt.Errorf("internal error: snap %q not found", sar.InstanceName())
 		}
 
-		// TODO:COMPS: handle components here
+		currentComps, err := snapst.CurrentComponentInfos()
+		if err != nil {
+			return updatePlan{}, err
+		}
+
+		compNames := make([]string, 0, len(currentComps))
+		for _, comp := range currentComps {
+			compNames = append(compNames, comp.Component.ComponentName)
+		}
+
+		// TODO:COMPS: handle components losing a resource that is currently
+		// installed
+		compTargets, err := componentTargetsFromActionResult(sar, compNames)
+		if err != nil {
+			return updatePlan{}, fmt.Errorf("cannot extract components from snap resources: %w", err)
+		}
 
 		plan.targets = append(plan.targets, target{
 			info:   sar.Info,
@@ -674,7 +699,7 @@ func storeUpdatePlan(
 				Channel:      up.RevOpts.Channel,
 				CohortKey:    up.RevOpts.CohortKey,
 			},
-			components: nil,
+			components: compTargets,
 		})
 	}
 
