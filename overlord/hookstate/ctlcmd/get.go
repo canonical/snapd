@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/registry"
 )
 
 type getCommand struct {
@@ -173,7 +174,8 @@ func (c *getCommand) Execute(args []string) error {
 		}
 
 		if c.View {
-			return c.getRegistryView(context, name)
+			requests := c.Positional.Keys
+			return c.getRegistryValues(context, name, requests)
 		}
 		return c.getInterfaceSetting(context, name)
 	}
@@ -354,34 +356,53 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	})
 }
 
-func (c *getCommand) getRegistryView(ctx *hookstate.Context, plugName string) error {
+func (c *getCommand) getRegistryValues(ctx *hookstate.Context, plugName string, requests []string) error {
 	if c.ForcePlugSide || c.ForceSlotSide {
 		return fmt.Errorf(i18n.G("cannot use --plug or --slot with --view"))
 	}
-
 	ctx.Lock()
 	defer ctx.Unlock()
+
+	reg, view, err := getRegistryView(ctx, plugName)
+	if err != nil {
+		return fmt.Errorf("cannot get registry: %v", err)
+	}
+
+	tx, err := registrystate.RegistryTransaction(ctx, reg)
+	if err != nil {
+		return err
+	}
+
+	res, err := registrystate.GetViaViewInTx(tx, view, requests)
+	if err != nil {
+		return err
+	}
+
+	return c.printPatch(res)
+}
+
+func getRegistryView(ctx *hookstate.Context, plugName string) (*registry.Registry, *registry.View, error) {
 	repo := ifacerepo.Get(ctx.State())
 
 	plug := repo.Plug(ctx.InstanceName(), plugName)
 	if plug == nil {
-		return fmt.Errorf(i18n.G("no plug :%s for snap %q"), plugName, ctx.InstanceName())
+		return nil, nil, fmt.Errorf(i18n.G("cannot find plug :%s for snap %q"), plugName, ctx.InstanceName())
 	}
 
 	if plug.Interface != "registry" {
-		return fmt.Errorf(i18n.G("cannot use --view with non-registry plug :%s"), plugName)
+		return nil, nil, fmt.Errorf(i18n.G("cannot use --view with non-registry plug :%s"), plugName)
 	}
 
 	var account string
 	if err := plug.Attr("account", &account); err != nil {
 		// should not be possible at this stage
-		return fmt.Errorf(i18n.G("internal error: cannot find \"account\" attribute in plug :%s: %w"), plugName, err)
+		return nil, nil, fmt.Errorf(i18n.G("internal error: cannot find \"account\" attribute in plug :%s: %w"), plugName, err)
 	}
 
 	var registryView string
 	if err := plug.Attr("view", &registryView); err != nil {
 		// should not be possible at this stage
-		return fmt.Errorf(i18n.G("internal error: cannot find \"view\" attribute in plug :%s: %w"), plugName, err)
+		return nil, nil, fmt.Errorf(i18n.G("internal error: cannot find \"view\" attribute in plug :%s: %w"), plugName, err)
 	}
 
 	parts := strings.Split(registryView, "/")
@@ -390,26 +411,16 @@ func (c *getCommand) getRegistryView(ctx *hookstate.Context, plugName string) er
 	registryAssert, err := assertstate.Registry(ctx.State(), account, registryName)
 	if err != nil {
 		if errors.Is(err, &asserts.NotFoundError{}) {
-			return fmt.Errorf(i18n.G("cannot get %s/%s: registry not found"), account, registryView)
+			return nil, nil, fmt.Errorf(i18n.G("registry assertion %s/%s not found"), account, registryView)
 		}
-		return err
+		return nil, nil, err
 	}
 	reg := registryAssert.Registry()
 
 	view := reg.View(viewName)
 	if view == nil {
-		return fmt.Errorf(i18n.G("cannot get %s/%s: view not found"), account, registryView)
+		return nil, nil, fmt.Errorf(i18n.G("view %q not found in registry %s/%s"), viewName, account, registryName)
 	}
 
-	tx, err := registrystate.RegistryTransaction(ctx, reg)
-	if err != nil {
-		return err
-	}
-
-	res, err := registrystate.GetViaViewInTx(tx, view, c.Positional.Keys)
-	if err != nil {
-		return err
-	}
-
-	return c.printPatch(res)
+	return reg, view, nil
 }

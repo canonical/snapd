@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
+	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -401,4 +402,110 @@ func (s *setAttrSuite) TestSetCommandFailsOutsideOfValidContext(c *C) {
 	c.Check(err, ErrorMatches, `interface attributes can only be set during the execution of prepare hooks`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
+}
+
+func (s *registrySuite) TestRegistrySetSingleView(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=other-ssid"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+	s.mockContext.Lock()
+	c.Assert(s.mockContext.Done(), IsNil)
+	s.mockContext.Unlock()
+
+	s.state.Lock()
+	val, err := registrystate.GetViaView(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, map[string]interface{}{"ssid": "other-ssid"})
+}
+
+func (s *registrySuite) TestRegistrySetManyViews(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=other-ssid", "password=other-secret"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+	s.mockContext.Lock()
+	c.Assert(s.mockContext.Done(), IsNil)
+	s.mockContext.Unlock()
+
+	s.state.Lock()
+	val, err := registrystate.GetViaView(s.state, s.devAccID, "network", "read-wifi", []string{"ssid", "password"})
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, map[string]interface{}{
+		"ssid":     "other-ssid",
+		"password": "other-secret",
+	})
+}
+
+func (s *registrySuite) TestRegistrySetHappensTransactionally(c *C) {
+	// sets values in a transaction
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=my-ssid"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+
+	s.state.Lock()
+	_, err = registrystate.GetViaView(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
+	s.state.Unlock()
+	c.Assert(err, ErrorMatches, ".*matching rules don't map to any values")
+
+	// commit transaction
+	s.mockContext.Lock()
+	c.Assert(s.mockContext.Done(), IsNil)
+	s.mockContext.Unlock()
+
+	s.state.Lock()
+	val, err := registrystate.GetViaView(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, map[string]interface{}{
+		"ssid": "my-ssid",
+	})
+}
+
+func (s *registrySuite) TestRegistrySetInvalid(c *C) {
+	type testcase struct {
+		args []string
+		err  string
+	}
+
+	tcs := []testcase{
+		{
+			args: []string{":non-existent", "ssid=my-ssid"},
+			err:  `cannot set registry: cannot find plug :non-existent for snap "test-snap"`,
+		},
+		{
+			args: []string{":non-existent", "ssid"},
+			err:  `cannot set :non-existent plug: must set field with "=" or unset with "!"`,
+		},
+	}
+
+	for _, tc := range tcs {
+		stdout, stderr, err := ctlcmd.Run(s.mockContext, append([]string{"set", "--view"}, tc.args...), 0)
+		c.Assert(err, ErrorMatches, tc.err)
+		c.Check(stdout, IsNil)
+		c.Check(stderr, IsNil)
+	}
+}
+
+func (s *registrySuite) TestRegistrySetExclamationMark(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=other-ssid", "password=other-secret"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+
+	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "password!"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+
+	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, `{
+	"ssid": "other-ssid"
+}
+`)
+	c.Check(stderr, IsNil)
 }

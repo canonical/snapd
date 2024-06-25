@@ -29,10 +29,13 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/registrystate"
 )
 
 type setCommand struct {
 	baseCommand
+
+	View bool `long:"view" description:"return registry values from the view declared in the plug"`
 
 	Positional struct {
 		PlugOrSlotSpec string   `positional-arg-name:":<plug|slot>"`
@@ -99,6 +102,27 @@ func (s *setCommand) Execute(args []string) error {
 	if snap != "" {
 		return fmt.Errorf(`"snapctl set %s" not supported, use "snapctl set :%s" instead`, s.Positional.PlugOrSlotSpec, parts[1])
 	}
+
+	if s.View {
+		requests := make(map[string]interface{}, len(s.Positional.ConfValues))
+		for _, conf := range s.Positional.ConfValues {
+			splitConf := strings.SplitN(conf, "=", 2)
+			if len(splitConf) == 1 && strings.HasSuffix(conf, "!") {
+				key := strings.TrimSuffix(conf, "!")
+				requests[key] = nil
+				continue
+			}
+
+			if len(splitConf) != 2 {
+				return fmt.Errorf("cannot set %s plug: must set field with \"=\" or unset with \"!\"", s.Positional.PlugOrSlotSpec)
+			}
+
+			requests[splitConf[0]] = splitConf[1]
+		}
+
+		return s.setRegistryValues(context, name, requests)
+	}
+
 	return s.setInterfaceSetting(context, name)
 }
 
@@ -227,4 +251,24 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 
 	attrsTask.Set(dynKey, dynamicAttrs)
 	return nil
+}
+
+func (s *setCommand) setRegistryValues(ctx *hookstate.Context, plugName string, requests map[string]interface{}) error {
+	ctx.Lock()
+	defer ctx.Unlock()
+
+	reg, view, err := getRegistryView(ctx, plugName)
+	if err != nil {
+		return fmt.Errorf("cannot set registry: %v", err)
+	}
+
+	tx, err := registrystate.RegistryTransaction(ctx, reg)
+	if err != nil {
+		return err
+	}
+
+	// TODO: once we have hooks, check that we don't set values in the wrong hooks
+	// (e.g., "registry-changed" hooks can only read data)
+
+	return registrystate.SetViaViewInTx(tx, view, requests)
 }
