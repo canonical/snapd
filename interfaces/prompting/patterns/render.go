@@ -82,6 +82,9 @@ func renderAllVariants(n renderNode, observe func(index int, variant string)) {
 }
 
 // literal is a render node with a literal string.
+//
+// literal implements both renderNode and variantState, since literals can only
+// be rendered one way, and thus only have one variant.
 type literal string
 
 func (n literal) NumVariants() int {
@@ -89,9 +92,7 @@ func (n literal) NumVariants() int {
 }
 
 func (n literal) InitialVariant() variantState {
-	return &literalVariant{
-		literal: n,
-	}
+	return n
 }
 
 func (n literal) nodeEqual(other renderNode) bool {
@@ -102,24 +103,20 @@ func (n literal) nodeEqual(other renderNode) bool {
 	return false
 }
 
-type literalVariant struct {
-	literal literal
-}
-
-func (v *literalVariant) Render(buf *bytes.Buffer, alreadyRendered int) int {
+func (n literal) Render(buf *bytes.Buffer, alreadyRendered int) int {
 	if alreadyRendered > 0 {
-		return alreadyRendered - len(v.literal)
+		return alreadyRendered - len(n)
 	}
-	buf.WriteString(string(v.literal))
+	buf.WriteString(string(n))
 	return 0
 }
 
-func (v *literalVariant) NextVariant() (length, lengthUnchanged int, moreRemain bool) {
-	return len(v.literal), 0, false
+func (n literal) NextVariant() (length, lengthUnchanged int, moreRemain bool) {
+	return 0, 0, false
 }
 
-func (v *literalVariant) Length() int {
-	return len(v.literal)
+func (n literal) Length() int {
+	return len(n)
 }
 
 // seq is sequence of consecutive render nodes.

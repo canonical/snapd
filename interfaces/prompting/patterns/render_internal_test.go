@@ -103,8 +103,8 @@ func (s *renderSuite) TestNextVariant(c *C) {
 	c.Assert(err, IsNil)
 
 	expected := []struct {
-		length     int
-		truncateTo int
+		length          int
+		lengthUnchanged int
 	}{
 		// Starts with /lib/ld-*.so*
 		{13, 7},  // /lib/ld64.so*
@@ -158,15 +158,15 @@ func (s *renderSuite) TestNextVariant(c *C) {
 
 	variant := parsed.InitialVariant()
 	for _, next := range expected {
-		length, truncateTo, moreRemain := variant.NextVariant()
+		length, lengthUnchanged, moreRemain := variant.NextVariant()
 		c.Check(length, Equals, next.length)
-		c.Check(truncateTo, Equals, next.truncateTo)
+		c.Check(lengthUnchanged, Equals, next.lengthUnchanged)
 		c.Check(moreRemain, Equals, true)
 	}
 
-	length, truncateTo, moreRemain := variant.NextVariant()
+	length, lengthUnchanged, moreRemain := variant.NextVariant()
 	c.Check(length, Equals, 0)
-	c.Check(truncateTo, Equals, 0)
+	c.Check(lengthUnchanged, Equals, 0)
 	c.Check(moreRemain, Equals, false)
 }
 
