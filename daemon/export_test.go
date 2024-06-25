@@ -267,6 +267,14 @@ func MockSnapstateHoldRefreshesBySystem(f func(st *state.State, level snapstate.
 	}
 }
 
+func MockSnapstateRemoveComponents(mock func(st *state.State, snapName string, compName []string, opts snapstate.RemoveComponentsOpts) ([]*state.TaskSet, error)) (restore func()) {
+	oldSnapstateRemoveComponents := snapstateRemoveComponents
+	snapstateRemoveComponents = mock
+	return func() {
+		snapstateRemoveComponents = oldSnapstateRemoveComponents
+	}
+}
+
 func MockConfigstateConfigureInstalled(f func(st *state.State, name string, patchValues map[string]interface{}, flags int) (*state.TaskSet, error)) (restore func()) {
 	old := configstateConfigureInstalled
 	configstateConfigureInstalled = f
