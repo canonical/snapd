@@ -243,7 +243,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 
 	systemSysd := systemd.New(systemd.SystemMode, inter)
 	userGlobalSysd := systemd.New(systemd.GlobalUserMode, inter)
-	cli, err := newUserServiceClientNames(flags.Users, inter)
+	cli, err := newUserServiceClientNames(opts.Users, inter)
 	if err != nil {
 		return err
 	}
@@ -253,7 +253,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 	// not need to be enabled, we can save that.
 	const includeActivatedServices = false
 
-	filteredApps := filterServicesForStart(apps, disabledSvcs, flags.Scope)
+	filteredApps := filterServicesForStart(apps, disabledSvcs, opts.Scope)
 	systemServices, userServices := categorizeServices(filteredApps, includeActivatedServices)
 	var undoStart bool
 	defer func() {
@@ -288,7 +288,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 		}
 
 		// always disable, as we do this pre-start
-		if len(systemServices) != 0 && flags.Enable {
+		if len(systemServices) != 0 && opts.Enable {
 			if e := systemSysd.DisableNoReload(systemServices); e != nil {
 				inter.Notify(fmt.Sprintf("While trying to disable previously enabled services %q: %v", systemServices, e))
 			}
@@ -304,7 +304,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 		}
 	}()
 
-	if flags.Enable {
+	if opts.Enable {
 		timings.Run(tm, "enable-services", fmt.Sprintf("enable services %q", systemServices), func(nested timings.Measurer) {
 			if len(systemServices) != 0 {
 				if err = systemSysd.EnableNoReload(systemServices); err != nil {
@@ -353,10 +353,14 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 	}
 
 	if len(userServices) != 0 {
+		var disabledUserSvcs map[int][]string
+		if disabledSvcs != nil {
+			disabledUserSvcs = disabledSvcs.UserServices
+		}
 		// Undo logic is handled by user session agent, we only handle undo logic for system services
 		// in this function
 		timings.Run(tm, "start-user-services", "start user services", func(nested timings.Measurer) {
-			err = cli.startServices(flags.Enable, disabledUserSvcs, userServices...)
+			err = cli.startServices(opts.Enable, disabledUserSvcs, userServices...)
 		})
 		if err != nil {
 			return err
