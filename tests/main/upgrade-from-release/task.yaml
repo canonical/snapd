@@ -18,7 +18,7 @@ restore: |
 
 execute: |
     if os.query is-ubuntu 24.10; then
-        echo "Ubuntu noble is skipped until it is released."
+        echo "Ubuntu oracular is skipped until it is released."
         exit
     fi
 
