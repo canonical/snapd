@@ -9,6 +9,12 @@ details: |
       - /v2/changes{,/<id>}: to read refresh related changes
       - /v2/snaps: to read snaps whose refresh is inhibited
 
+environment:
+    # not all terminals support UTF-8, but Python tries to be smart and attempts
+    # to guess the encoding as if the output would go to the terminal, but in
+    # fact all the test does is pipe the output to jq
+    PYTHONIOENCODING: utf-8
+
 prepare: |
     snap install --edge jq
 
