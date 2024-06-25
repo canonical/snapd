@@ -169,6 +169,24 @@ backends:
                   workers: 8
                   storage: 20G
 
+    google-pro:
+        type: google
+        # XXX the role assigned to the key must allow for attaching service
+        # accounts
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/europe-west1-b
+        halt-timeout: 2h
+        systems:
+            - ubuntu-pro-20.04-64:
+                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-focal-v20240614
+                  workers: 1
+                  attach-service-account: true
+
+            - ubuntu-pro-22.04-64:
+                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-focal-v20240614
+                  workers: 1
+                  attach-service-account: true
+
     google-distro-1:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
