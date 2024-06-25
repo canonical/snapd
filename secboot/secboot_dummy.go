@@ -24,6 +24,7 @@ import (
 	"errors"
 
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 var errBuildWithoutSecboot = errors.New("build without secboot support")
