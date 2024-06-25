@@ -28,6 +28,8 @@ import (
 
 var errBuildWithoutSecboot = errors.New("build without secboot support")
 
+type DiskUnlockKey []byte
+
 func CheckTPMKeySealingSupported(mode TPMProvisionMode) error {
 	return errBuildWithoutSecboot
 }
@@ -61,5 +63,28 @@ func resetLockoutCounter(lockoutAuthFile string) error {
 }
 
 func ResealKeysWithFDESetupHook(keyFiles []string, primaryKeyFile string, models []ModelForSealing) error {
+	return errBuildWithoutSecboot
+}
+
+type ActivateVolumeOptions struct {
+}
+
+func ActivateVolumeWithKey(volumeName, sourceDevicePath string, key []byte, options *ActivateVolumeOptions) error {
+	return errBuildWithoutSecboot
+}
+
+func DeactivateVolume(volumeName string) error {
+	return errBuildWithoutSecboot
+}
+
+func AddInstallationKeyOnExistingDisk(node string, newKey keys.EncryptionKey) error {
+	return errBuildWithoutSecboot
+}
+
+func RenameOrDeleteKeys(node string, renames map[string]string) error {
+	return errBuildWithoutSecboot
+}
+
+func DeleteKeys(node string, matches map[string]bool) error {
 	return errBuildWithoutSecboot
 }

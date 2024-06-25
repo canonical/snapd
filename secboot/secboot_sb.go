@@ -2,7 +2,7 @@
 //go:build !nosecboot
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2021-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,12 +21,14 @@
 package secboot
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
 	"golang.org/x/xerrors"
 
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -37,11 +39,15 @@ var (
 	sbActivateVolumeWithKeyData     = sb.ActivateVolumeWithKeyData
 	sbActivateVolumeWithRecoveryKey = sb.ActivateVolumeWithRecoveryKey
 	sbDeactivateVolume              = sb.DeactivateVolume
+	sbAddLUKS2ContainerUnlockKey    = sb.AddLUKS2ContainerUnlockKey
 )
 
 func init() {
 	WithSecbootSupport = true
 }
+
+type DiskUnlockKey sb.DiskUnlockKey
+type ActivateVolumeOptions sb.ActivateVolumeOptions
 
 // LockSealedKeys manually locks access to the sealed keys. Meant to be
 // called in place of passing lockKeysOnFinish as true to
@@ -184,6 +190,70 @@ func UnlockEncryptedVolumeWithRecoveryKey(name, device string) error {
 
 	if err := sbActivateVolumeWithRecoveryKey(name, device, authRequestor, &options); err != nil {
 		return fmt.Errorf("cannot unlock encrypted device %q: %v", device, err)
+	}
+
+	return nil
+}
+
+func ActivateVolumeWithKey(volumeName, sourceDevicePath string, key []byte, options *ActivateVolumeOptions) error {
+	return sb.ActivateVolumeWithKey(volumeName, sourceDevicePath, key, (*sb.ActivateVolumeOptions)(options))
+}
+
+func DeactivateVolume(volumeName string) error {
+	return sb.DeactivateVolume(volumeName)
+}
+
+func AddInstallationKeyOnExistingDisk(node string, newKey keys.EncryptionKey) error {
+	const defaultPrefix = "ubuntu-fde"
+	unlockKey, err := sbGetDiskUnlockKeyFromKernel(defaultPrefix, node, false)
+	if err != nil {
+		return fmt.Errorf("cannot get key for unlocked disk %s: %v", node, err)
+	}
+
+	if err := sbAddLUKS2ContainerUnlockKey(node, "installation-key", sb.DiskUnlockKey(unlockKey), sb.DiskUnlockKey(newKey)); err != nil {
+		return fmt.Errorf("cannot enroll new installation key: %v", err)
+	}
+
+	return nil
+}
+
+func RenameOrDeleteKeys(node string, renames map[string]string) error {
+	// FIXME: listing keys, then modifying could be a TOCTOU issue.
+	// we expect here nothing else is messing with the key slots.
+	slots, err := sb.ListLUKS2ContainerUnlockKeyNames(node)
+	if err != nil {
+		return fmt.Errorf("cannot list slots in partition save partition: %v", err)
+	}
+	for _, slot := range slots {
+		renameTo, found := renames[slot]
+		if found {
+			if err := sb.RenameLUKS2ContainerKey(node, slot, renameTo); err != nil {
+				if errors.Is(err, sb.ErrMissingCryptsetupFeature) {
+					if err := sb.DeleteLUKS2ContainerKey(node, slot); err != nil {
+						return fmt.Errorf("cannot remove old container key: %v", err)
+					}
+				} else {
+					return fmt.Errorf("cannot rename container key: %v", err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func DeleteKeys(node string, matches map[string]bool) error {
+	slots, err := sb.ListLUKS2ContainerUnlockKeyNames(node)
+	if err != nil {
+		return fmt.Errorf("cannot list slots in partition save partition: %v", err)
+	}
+
+	for _, slot := range slots {
+		if matches[slot] {
+			if err := sb.DeleteLUKS2ContainerKey(node, slot); err != nil {
+				return fmt.Errorf("cannot remove old container key: %v", err)
+			}
+		}
 	}
 
 	return nil

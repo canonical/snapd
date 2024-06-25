@@ -21,20 +21,12 @@
 package devicestate
 
 import (
-	"errors"
 	"fmt"
 	"path/filepath"
-
-	sb "github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
-)
-
-var (
-	sbGetDiskUnlockKeyFromKernel = sb.GetDiskUnlockKeyFromKernel
-	sbAddLUKS2ContainerUnlockKey = sb.AddLUKS2ContainerUnlockKey
 )
 
 func createSaveResetterImpl(saveNode string) (secboot.KeyResetter, error) {
@@ -44,43 +36,20 @@ func createSaveResetterImpl(saveNode string) (secboot.KeyResetter, error) {
 		return nil, fmt.Errorf("cannot create encryption key: %v", err)
 	}
 
-	const defaultPrefix = "ubuntu-fde"
-	unlockKey, err := sbGetDiskUnlockKeyFromKernel(defaultPrefix, saveNode, false)
-	if err != nil {
-		return nil, fmt.Errorf("cannot get key for unlocked disk %s: %v", saveNode, err)
+	if err := secboot.AddInstallationKeyOnExistingDisk(saveNode, saveEncryptionKey); err != nil {
+		return nil, err
 	}
 
-	if err := sbAddLUKS2ContainerUnlockKey(saveNode, "installation-key", sb.DiskUnlockKey(unlockKey), sb.DiskUnlockKey(saveEncryptionKey)); err != nil {
-		return nil, fmt.Errorf("cannot enroll new installation key: %v", err)
-	}
-
-	// FIXME: listing keys, then modifying could be a TOCTOU issue.
-	// we expect here nothing else is messing with the key slots.
-	slots, err := sb.ListLUKS2ContainerUnlockKeyNames(saveNode)
-	if err != nil {
-		return nil, fmt.Errorf("cannot list slots in partition save partition: %v", err)
-	}
 	renames := map[string]string{
 		"default":          "factory-reset-old",
 		"default-fallback": "factory-reset-old-fallback",
 		"save":             "factory-reset-old-save",
 	}
-	for _, slot := range slots {
-		renameTo, found := renames[slot]
-		if found {
-			if err := sb.RenameLUKS2ContainerKey(saveNode, slot, renameTo); err != nil {
-				if errors.Is(err, sb.ErrMissingCryptsetupFeature) {
-					if err := sb.DeleteLUKS2ContainerKey(saveNode, slot); err != nil {
-						return nil, fmt.Errorf("cannot remove old container key: %v", err)
-					}
-				} else {
-					return nil, fmt.Errorf("cannot rename container key: %v", err)
-				}
-			}
-		}
+	if err := secboot.RenameOrDeleteKeys(saveNode, renames); err != nil {
+		return nil, err
 	}
 
-	return secboot.CreateKeyResetter(sb.DiskUnlockKey(saveEncryptionKey), saveNode), nil
+	return secboot.CreateKeyResetter(secboot.DiskUnlockKey(saveEncryptionKey), saveNode), nil
 }
 
 var createSaveResetter = createSaveResetterImpl
@@ -95,10 +64,6 @@ func deleteOldSaveKeyImpl(saveMntPnt string) error {
 	}
 
 	diskPath := filepath.Join("/dev/disk/by-partuuid", partUUID)
-	slots, err := sb.ListLUKS2ContainerUnlockKeyNames(diskPath)
-	if err != nil {
-		return fmt.Errorf("cannot list slots in partition save partition: %v", err)
-	}
 
 	toDelete := map[string]bool{
 		"factory-reset-old":          true,
@@ -106,15 +71,7 @@ func deleteOldSaveKeyImpl(saveMntPnt string) error {
 		"factory-reset-old-save":     true,
 	}
 
-	for _, slot := range slots {
-		if toDelete[slot] {
-			if err := sb.DeleteLUKS2ContainerKey(diskPath, slot); err != nil {
-				return fmt.Errorf("cannot remove old container key: %v", err)
-			}
-		}
-	}
-
-	return nil
+	return secboot.DeleteKeys(diskPath, toDelete)
 }
 
 var deleteOldSaveKey = deleteOldSaveKeyImpl

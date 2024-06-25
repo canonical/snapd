@@ -27,8 +27,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	sb "github.com/snapcore/secboot"
-
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/secboot"
@@ -81,7 +79,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 			expectedErr:     "cannot open encrypted device on /dev/node1: open error",
 		},
 	} {
-		defer install.MockCryptsetupOpen(func(key sb.DiskUnlockKey, node, name string) error {
+		defer install.MockCryptsetupOpen(func(key secboot.DiskUnlockKey, node, name string) error {
 			if tc.mockedOpenErr != "" {
 				return fmt.Errorf(tc.mockedOpenErr)
 			}
@@ -102,7 +100,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 		})
 		defer restore()
 
-		dev, err := install.NewEncryptedDeviceLUKS("/dev/node1", secboot.EncryptionTypeLUKS, sb.DiskUnlockKey(s.mockedEncryptionKey), "some-label", "some-label")
+		dev, err := install.NewEncryptedDeviceLUKS("/dev/node1", secboot.EncryptionTypeLUKS, secboot.DiskUnlockKey(s.mockedEncryptionKey), "some-label", "some-label")
 		c.Assert(calls, Equals, 1)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)

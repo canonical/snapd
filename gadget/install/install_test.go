@@ -32,8 +32,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	sb "github.com/snapcore/secboot"
-
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
@@ -365,7 +363,7 @@ fi
 		runOpts.EncryptionType = secboot.EncryptionTypeLUKS
 	}
 
-	defer install.MockCryptsetupOpen(func(key sb.DiskUnlockKey, node, name string) error {
+	defer install.MockCryptsetupOpen(func(key secboot.DiskUnlockKey, node, name string) error {
 		return nil
 	})()
 
@@ -760,7 +758,7 @@ fi
 		runOpts.EncryptionType = secboot.EncryptionTypeLUKS
 	}
 
-	defer install.MockCryptsetupOpen(func(key sb.DiskUnlockKey, node, name string) error {
+	defer install.MockCryptsetupOpen(func(key secboot.DiskUnlockKey, node, name string) error {
 		return nil
 	})()
 
@@ -1107,7 +1105,7 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 		partIdx++
 	}
 
-	defer install.MockCryptsetupOpen(func(key sb.DiskUnlockKey, node, name string) error {
+	defer install.MockCryptsetupOpen(func(key secboot.DiskUnlockKey, node, name string) error {
 		return nil
 	})()
 

@@ -26,8 +26,6 @@ import (
 	"path/filepath"
 	"sort"
 
-	sb "github.com/snapcore/secboot"
-
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -101,7 +99,7 @@ func saveStorageTraits(mod gadget.Model, allVols map[string]*gadget.Volume, opts
 	return nil
 }
 
-func maybeEncryptPartition(dgpair *gadget.OnDiskAndGadgetStructurePair, encryptionType secboot.EncryptionType, sectorSize quantity.Size, perfTimings timings.Measurer) (fsParams *mkfsParams, diskEncryptionKey sb.DiskUnlockKey, err error) {
+func maybeEncryptPartition(dgpair *gadget.OnDiskAndGadgetStructurePair, encryptionType secboot.EncryptionType, sectorSize quantity.Size, perfTimings timings.Measurer) (fsParams *mkfsParams, diskEncryptionKey secboot.DiskUnlockKey, err error) {
 	diskPart := dgpair.DiskStructure
 	volStruct := dgpair.GadgetStructure
 	mustEncrypt := (encryptionType != secboot.EncryptionTypeNone)
@@ -128,7 +126,7 @@ func maybeEncryptPartition(dgpair *gadget.OnDiskAndGadgetStructurePair, encrypti
 					err = fmt.Errorf("cannot create encryption key: %v", errk)
 					return
 				}
-				diskEncryptionKey = sb.DiskUnlockKey(encryptionKey)
+				diskEncryptionKey = secboot.DiskUnlockKey(encryptionKey)
 			})
 		if err != nil {
 			return nil, nil, err
@@ -196,7 +194,7 @@ func installOnePartition(dgpair *gadget.OnDiskAndGadgetStructurePair,
 	kernelInfo *kernel.Info, kernelSnapInfo *KernelSnapInfo, gadgetRoot string,
 	encryptionType secboot.EncryptionType, sectorSize quantity.Size,
 	observer gadget.ContentObserver, perfTimings timings.Measurer,
-) (fsDevice string, encryptionKey sb.DiskUnlockKey, err error) {
+) (fsDevice string, encryptionKey secboot.DiskUnlockKey, err error) {
 	// 1. Encrypt
 	diskPart := dgpair.DiskStructure
 	vs := dgpair.GadgetStructure

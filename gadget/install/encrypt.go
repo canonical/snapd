@@ -23,8 +23,6 @@ package install
 import (
 	"fmt"
 
-	sb "github.com/snapcore/secboot"
-
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -50,7 +48,7 @@ var _ = encryptedDevice(&encryptedDeviceLUKS{})
 
 // newEncryptedDeviceLUKS creates an encrypted device in the existing
 // partition using the specified key with the LUKS backend.
-func newEncryptedDeviceLUKS(devNode string, encType secboot.EncryptionType, key sb.DiskUnlockKey, label, name string) (encryptedDevice, error) {
+func newEncryptedDeviceLUKS(devNode string, encType secboot.EncryptionType, key secboot.DiskUnlockKey, label, name string) (encryptedDevice, error) {
 	encLabel := label + "-enc"
 	if err := secbootFormatEncryptedDevice(key, encType, encLabel, devNode); err != nil {
 		return nil, fmt.Errorf("cannot format encrypted device: %v", err)
@@ -79,14 +77,14 @@ func (dev *encryptedDeviceLUKS) Close() error {
 	return cryptsetupClose(dev.name)
 }
 
-func cryptsetupOpenImpl(key sb.DiskUnlockKey, node, name string) error {
-	return sb.ActivateVolumeWithKey(name, node, key, nil)
+func cryptsetupOpenImpl(key secboot.DiskUnlockKey, node, name string) error {
+	return secboot.ActivateVolumeWithKey(name, node, key, nil)
 }
 
 var cryptsetupOpen = cryptsetupOpenImpl
 
 func cryptsetupCloseImpl(name string) error {
-	return sb.DeactivateVolume(name)
+	return secboot.DeactivateVolume(name)
 }
 
 var cryptsetupClose = cryptsetupCloseImpl

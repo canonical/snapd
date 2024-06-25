@@ -24,7 +24,6 @@ import (
 	"os"
 
 	"github.com/jessevdk/go-flags"
-	sb "github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
@@ -110,7 +109,7 @@ func main() {
 			panic("cannot create data key")
 		}
 		const token = false
-		if _, err := dataKeyResetter.AddKey("", sb.DiskUnlockKey(dataKey), token); err != nil {
+		if _, err := dataKeyResetter.AddKey("", secboot.DiskUnlockKey(dataKey), token); err != nil {
 			panic("cannot reset data key")
 		}
 		saveKeyResetter := installSideData.ResetterForRole[gadget.SystemSave]
@@ -121,7 +120,7 @@ func main() {
 		if err != nil {
 			panic("cannot create save key")
 		}
-		if _, err := saveKeyResetter.AddKey("", sb.DiskUnlockKey(saveKey), token); err != nil {
+		if _, err := saveKeyResetter.AddKey("", secboot.DiskUnlockKey(saveKey), token); err != nil {
 			panic("cannot reset save key")
 		}
 		toWrite := map[string][]byte{

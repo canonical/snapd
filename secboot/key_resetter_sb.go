@@ -33,10 +33,10 @@ type sbKeyResetter struct {
 	finished            bool
 }
 
-func createKeyResetterImpl(key sb.DiskUnlockKey, devicePath string) KeyResetter {
+func createKeyResetterImpl(key DiskUnlockKey, devicePath string) KeyResetter {
 	return &sbKeyResetter{
 		devicePath:          devicePath,
-		oldKey:              key,
+		oldKey:              sb.DiskUnlockKey(key),
 		oldContainerKeySlot: "installation-key",
 	}
 }
@@ -71,7 +71,7 @@ func (kr *sbKeyResetter) RemoveInstallationKey() error {
 	return sb.DeleteLUKS2ContainerKey(kr.devicePath, kr.oldContainerKeySlot)
 }
 
-func MockCreateKeyResetter(f func(key sb.DiskUnlockKey, devicePath string) KeyResetter) func() {
+func MockCreateKeyResetter(f func(key DiskUnlockKey, devicePath string) KeyResetter) func() {
 	old := CreateKeyResetter
 	CreateKeyResetter = f
 	return func() {
