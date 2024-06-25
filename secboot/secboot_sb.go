@@ -28,10 +28,10 @@ import (
 	sb "github.com/snapcore/secboot"
 	"golang.org/x/xerrors"
 
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 var (
