@@ -718,7 +718,23 @@ func storeUpdatePlan(
 			return updatePlan{}, err
 		}
 
-		// TODO:COMPS: handle components here
+		// TODO:COMPS: for now, go back to the components that were already
+		// installed with this revision. to be more robust, we'd need to compare
+		// what components are installed with the revision that we are
+		// refreshing from to the components available in the store for the
+		// revision that we are refreshing to.
+		compInfos, err := snapst.ComponentInfosForRevision(si.Revision)
+		if err != nil {
+			return updatePlan{}, err
+		}
+
+		components := make([]ComponentSetup, 0, len(compInfos))
+		for _, compInfo := range compInfos {
+			components = append(components, ComponentSetup{
+				CompSideInfo: &compInfo.ComponentSideInfo,
+				CompType:     compInfo.Type,
+			})
+		}
 
 		// make sure that we switch the current channel of the snap that we're
 		// switching to
@@ -738,7 +754,7 @@ func storeUpdatePlan(
 				// installed
 				AlwaysUpdate: !revOpts.Revision.Unset(),
 			},
-			components: nil,
+			components: components,
 		})
 	}
 
