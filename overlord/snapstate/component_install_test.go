@@ -84,14 +84,8 @@ func expectedComponentInstallTasks(opts int) []string {
 	return startTasks
 }
 
-func verifyComponentInstallTasks(c *C, opts int, ts *state.TaskSet) {
-	kinds := taskKinds(ts.Tasks())
-
-	expected := expectedComponentInstallTasks(opts)
-
-	c.Assert(kinds, DeepEquals, expected)
-
-	// Check presence of attributes
+func checkSetupTasks(c *C, ts *state.TaskSet) {
+	// Check presence of snap setup / component setup in the tasks
 	var firstTaskID string
 	var compSetup snapstate.ComponentSetup
 	var snapsup snapstate.SnapSetup
@@ -119,6 +113,15 @@ func verifyComponentInstallTasks(c *C, opts int, ts *state.TaskSet) {
 		c.Assert(csup, DeepEquals, &compSetup)
 		c.Assert(ssup, DeepEquals, &snapsup)
 	}
+}
+
+func verifyComponentInstallTasks(c *C, opts int, ts *state.TaskSet) {
+	kinds := taskKinds(ts.Tasks())
+
+	expected := expectedComponentInstallTasks(opts)
+	c.Assert(kinds, DeepEquals, expected)
+
+	checkSetupTasks(c, ts)
 }
 
 func createTestComponent(c *C, snapName, compName string, snapInfo *snap.Info) (*snap.ComponentInfo, string) {
@@ -582,4 +585,45 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresentInTwoSeqPt
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	// File is not deleted
 	c.Assert(osutil.FileExists(compPath), Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentPathRun(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	ci, compPath := createTestComponent(c, snapName, compName, info)
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(
+		compMntDir string, snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		return ci, nil
+	}))
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	setStateWithOneSnap(s.state, snapName, snapRev)
+
+	cref := naming.NewComponentRef(snapName, compName)
+	csi := snap.NewComponentSideInfo(cref, snap.R(33))
+	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	// File is not deleted
+	c.Assert(osutil.FileExists(compPath), Equals, true)
+
+	chg := s.state.NewChange("install component", "...")
+	chg.AddAll(ts)
+
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+	verifyComponentInstallTasks(c, compOptIsLocal, ts)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
+
+	c.Assert(snapst.IsComponentInCurrentSeq(cref), Equals, true)
 }
