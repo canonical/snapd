@@ -521,7 +521,10 @@ func (s *toolSuite) TestExeAndRoot(c *C) {
 	root, exe, err = snapdtool.ExeAndRoot()
 	c.Assert(err, IsNil)
 	c.Assert(root, Equals, dirs.GlobalRootDir)
-	c.Assert(exe, Equals, "usr/lib/snapd/snapd")
+	// distro libexecdir without the root part
+	noRootPrefix, err := filepath.Rel(dirs.GlobalRootDir, dirs.DistroLibExecDir)
+	c.Assert(err, IsNil)
+	c.Assert(exe, Equals, filepath.Join(noRootPrefix, "snapd"))
 
 	// trouble reading the symlink
 	err = os.Remove(mockedSelfExe)
