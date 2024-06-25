@@ -35,7 +35,7 @@ func parseSeq(tr *tokenReader) (renderNode, error) {
 	var s seq
 seqLoop:
 	for {
-		t := tr.Peek()
+		t := tr.peek()
 
 		switch t.tType {
 		case tokEOF:
@@ -73,7 +73,7 @@ func parseAlt(tr *tokenReader) (renderNode, error) {
 
 	if t := tr.token(); t.tType != tokBraceOpen {
 		// Should not occur, caller should call parseAlt on peeking '{'
-		return nil, fmt.Errorf("expected '{' at start of alt, but got %v", t)
+		return nil, fmt.Errorf("internal error: expected '{' at start of alt, but got %v", t)
 	}
 
 	tr.depth++
@@ -113,7 +113,7 @@ type tokenReader struct {
 	depth  int
 }
 
-func (tr tokenReader) Peek() token {
+func (tr tokenReader) peek() token {
 	if len(tr.tokens) == 0 {
 		return token{tType: tokEOF}
 	}
@@ -122,7 +122,7 @@ func (tr tokenReader) Peek() token {
 }
 
 func (tr *tokenReader) token() token {
-	t := tr.Peek()
+	t := tr.peek()
 
 	if t.tType != tokEOF {
 		tr.tokens = tr.tokens[1:]

@@ -71,13 +71,13 @@ func renderAllVariants(n renderNode, observe func(index int, variant string)) {
 
 	for i := 0; ; i++ {
 		buf.Truncate(lengthUnchanged)
+		buf.Grow(length - lengthUnchanged)
 		v.Render(&buf, lengthUnchanged)
 		observe(i, buf.String())
 		length, lengthUnchanged, moreRemain = v.NextVariant()
 		if !moreRemain {
 			break
 		}
-		buf.Grow(length)
 	}
 }
 
