@@ -99,19 +99,20 @@ func MaybeSetupFIPS() error {
 
 	logger.Debugf("snapd snap: %s", currentRevSnapdSnap)
 
-	exe, err := osReadlink(selfExe)
+	rootDir, exe, err := exeAndRoot()
 	if err != nil {
 		return err
 	}
 
 	logger.Debugf("self exe: %s", exe)
+	logger.Debugf("exe root dir: %q", rootDir)
 
 	// on a classic system we need to be reexecuted from the snapd snap for
 	// the FIPS setup to be relevant, but on core we are not reexeced but
 	// running directly from the mount of the snapd snap under
 	// /usr/lib/snapd, yet we still want to set up the right environment
 	if release.OnClassic {
-		if !strings.HasPrefix(exe, currentRevSnapdSnap+"/") {
+		if !strings.HasPrefix(rootDir, dirs.SnapMountDir) {
 			// this is only supported for reexecing from the snapd snap
 			return nil
 		}
@@ -141,5 +142,5 @@ func MaybeSetupFIPS() error {
 
 	// TODO how to ensure that we only load the library from the snapd snap?
 
-	panic(syscallExec(exe, os.Args, env))
+	panic(syscallExec(filepath.Join(rootDir, exe), os.Args, env))
 }

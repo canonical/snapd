@@ -119,7 +119,7 @@ func (s *toolSuite) mockReExecFor(c *C, coreDir, toolName string) func() {
 		snapdtool.MockSelfExe(selfExe),
 	}
 	s.fakeInternalTool(c, coreDir, toolName)
-	c.Assert(os.Symlink(filepath.Join("/usr/lib/snapd", toolName), selfExe), IsNil)
+	c.Assert(os.Symlink(filepath.Join(s.fakeroot, "/usr/lib/snapd", toolName), selfExe), IsNil)
 
 	return func() {
 		for i := len(restore) - 1; i >= 0; i-- {
@@ -496,4 +496,46 @@ func (s *toolSuite) TestInReexecEnabled(c *C) {
 	// explicitly enabled
 	os.Setenv("SNAP_REEXEC", "1")
 	c.Assert(snapdtool.IsReexecEnabled(), Equals, true)
+}
+
+func (s *toolSuite) TestExeAndRoot(c *C) {
+	mockedSelfExe := filepath.Join(s.fakeroot, "proc/self/exe")
+	restore := snapdtool.MockSelfExe(mockedSelfExe)
+	defer restore()
+
+	// pretend the binary reexecd from snap mount location
+	err := os.Symlink(filepath.Join(s.snapdPath, "usr/lib/snapd/snapd"), mockedSelfExe)
+	c.Assert(err, IsNil)
+
+	root, exe, err := snapdtool.ExeAndRoot()
+	c.Assert(err, IsNil)
+	c.Assert(root, Equals, s.snapdPath)
+	c.Assert(exe, Equals, "usr/lib/snapd/snapd")
+
+	err = os.Remove(mockedSelfExe)
+	c.Assert(err, IsNil)
+	// now it's not
+	err = os.Symlink(filepath.Join(dirs.DistroLibExecDir, "snapd"), mockedSelfExe)
+	c.Assert(err, IsNil)
+
+	root, exe, err = snapdtool.ExeAndRoot()
+	c.Assert(err, IsNil)
+	c.Assert(root, Equals, dirs.GlobalRootDir)
+	c.Assert(exe, Equals, "usr/lib/snapd/snapd")
+
+	// trouble reading the symlink
+	err = os.Remove(mockedSelfExe)
+	c.Assert(err, IsNil)
+
+	root, exe, err = snapdtool.ExeAndRoot()
+	c.Assert(err, ErrorMatches, ".*/proc/self/exe: no such file or directory")
+	c.Check(root, Equals, "")
+	c.Check(exe, Equals, "")
+
+	err = os.Symlink(filepath.Join(dirs.SnapMountDir, "abc/def"), mockedSelfExe)
+	c.Assert(err, IsNil)
+	root, exe, err = snapdtool.ExeAndRoot()
+	c.Check(err, ErrorMatches, `cannot parse snap tool path ".*/snap/abc/def"`)
+	c.Check(root, Equals, "")
+	c.Check(exe, Equals, "")
 }

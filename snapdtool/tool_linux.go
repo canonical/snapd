@@ -20,6 +20,7 @@
 package snapdtool
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -164,9 +165,9 @@ func mustUnsetenv(key string) {
 // the snapd/core snap.
 func ExecInSnapdOrCoreSnap() {
 	// Which executable are we?
-	exe, err := os.Readlink(selfExe)
+	rootDir, exe, err := exeAndRoot()
 	if err != nil {
-		logger.Noticef("cannot read /proc/self/exe: %v", err)
+		logger.Noticef("cannot detect process exe location: %v", err)
 		return
 	}
 
@@ -175,7 +176,7 @@ func ExecInSnapdOrCoreSnap() {
 	// re-execed. In this case we need to unset the reExecKey to
 	// ensure that subsequent run of snap/snapd (e.g. when using
 	// classic confinement) will *not* prevented from re-execing.
-	if strings.HasPrefix(exe, dirs.SnapMountDir) && !osutil.GetenvBool(reExecKey, true) {
+	if strings.HasPrefix(rootDir, dirs.SnapMountDir) && !osutil.GetenvBool(reExecKey, true) {
 		mustUnsetenv(reExecKey)
 		return
 	}
@@ -186,7 +187,7 @@ func ExecInSnapdOrCoreSnap() {
 	}
 
 	// Did we already re-exec?
-	if strings.HasPrefix(exe, dirs.SnapMountDir) {
+	if strings.HasPrefix(rootDir, dirs.SnapMountDir) {
 		return
 	}
 
@@ -217,14 +218,11 @@ func ExecInSnapdOrCoreSnap() {
 
 // IsReexecd returns true when the current process binary is running from a snap.
 func IsReexecd() (bool, error) {
-	exe, err := osReadlink(selfExe)
+	rootDir, _, err := exeAndRoot()
 	if err != nil {
 		return false, err
 	}
-	if strings.HasPrefix(exe, dirs.SnapMountDir) {
-		return true, nil
-	}
-	return false, nil
+	return strings.HasPrefix(rootDir, dirs.SnapMountDir), nil
 }
 
 // MockOsReadlink is for use in tests
@@ -234,4 +232,34 @@ func MockOsReadlink(f func(string) (string, error)) func() {
 	return func() {
 		osReadlink = realOsReadlink
 	}
+}
+
+// exeAndRoot determines the current executable path and the root directory
+// which can either the the global rootfs (/) or the snap mount directory if the
+// process is executing from a snap. The returned executable path is relative to
+// the root.
+func exeAndRoot() (rootDir, exePath string, err error) {
+	// TODO this is unlikely change for the current process at runtime,
+	// consider memoizing the result
+	exe, err := osReadlink(selfExe)
+	if err != nil {
+		return "", "", err
+	}
+
+	_, rest, found := strings.Cut(exe, dirs.SnapMountDir+string(filepath.Separator))
+	if !found {
+		rel, err := filepath.Rel(dirs.GlobalRootDir, exe)
+		if err != nil {
+			return "", "", err
+		}
+		return dirs.GlobalRootDir, rel, nil
+	}
+
+	snapName, rest, foundName := strings.Cut(rest, string(filepath.Separator))
+	snapRev, exePath, foundRev := strings.Cut(rest, string(filepath.Separator))
+	if !foundName || !foundRev {
+		return "", "", fmt.Errorf("cannot parse snap tool path %q", exe)
+	}
+
+	return filepath.Join(dirs.SnapMountDir, snapName, snapRev), exePath, nil
 }
