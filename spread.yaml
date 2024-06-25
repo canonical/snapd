@@ -887,6 +887,7 @@ prepare: |
     # The idea is to have a single directory with all the testing tools
     cp -f "$TESTSLIB"/external/snapd-testing-tools/tools/* "$TESTSTOOLS"
     cp -f "$TESTSLIB"/external/snapd-testing-tools/remote/* "$TESTSTOOLS"
+    cp -f "$TESTSLIB"/external/snapd-testing-tools/utils/* "$TESTSTOOLS"
 
     # ensure there are no broken snaps or the invariant test will fail later
     if command -v snap; then

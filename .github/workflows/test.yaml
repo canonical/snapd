@@ -804,12 +804,22 @@ jobs:
                   done
               done
           fi
+
+          # Configure parameters to filter logs (these logs are sent read by grafana agent)
+          CHANGE_ID="${{ github.event.number }}"
+          if [ -z "$PR_ID" ]; then
+            CHANGE_ID="main"
+          fi
+          CHANGE_ID="${CHANGE_ID}_n${{ github.run_attempt }}"
+          # The log-filter tool is used to filter the spread logs to be stored
+          FILTER_PARAMS="-o spread_$CHANGE_ID.filtered.log -e Debug -e WARNING: -f Failed=NO_LINES -f Error=NO_LINES"
+
           # Run spread tests
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
           echo "Running command: $SPREAD $RUN_TESTS"
-          (set -o pipefail; $SPREAD -no-debug-output -logs .logs $RUN_TESTS | tee spread.log)
+          (set -o pipefail; $SPREAD -no-debug-output -logs .logs $RUN_TESTS | ./utils/log-filter $FILTER_PARAMS | tee spread.log)
 
 
     - name: Uploading spread logs
