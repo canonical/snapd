@@ -17,7 +17,7 @@ restore: |
     distro_install_build_snapd
 
 execute: |
-    if os.query is-ubuntu 24.04; then
+    if os.query is-ubuntu 24.10; then
         echo "Ubuntu noble is skipped until it is released."
         exit
     fi
@@ -48,6 +48,7 @@ execute: |
     fi
 
     declare -A EXPECTED_SNAPD_VERSIONS=(
+        ["24.04"]='2.63\+24.04'
         ["23.10"]='2.60.4\+23.10'
         ["22.04"]='2.55.3\+22.04'
         ["20.04"]='2.44.3\+20.04'
