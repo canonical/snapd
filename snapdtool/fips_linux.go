@@ -112,7 +112,7 @@ func MaybeSetupFIPS() error {
 	// running directly from the mount of the snapd snap under
 	// /usr/lib/snapd, yet we still want to set up the right environment
 	if release.OnClassic {
-		if !strings.HasPrefix(rootDir, dirs.SnapMountDir) {
+		if rootDir != currentRevSnapdSnap {
 			// this is only supported for reexecing from the snapd snap
 			return nil
 		}
