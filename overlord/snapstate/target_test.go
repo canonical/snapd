@@ -745,3 +745,297 @@ func (s *targetTestSuite) TestUpdateComponents(c *C) {
 
 	verifyUpdateTasksWithComponents(c, snap.TypeApp, doesReRefresh, 0, []string{compName}, ts)
 }
+
+func (s *targetTestSuite) TestUpdateComponentsFromPath(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const (
+		snapName = "some-snap"
+		snapID   = "some-snap-id"
+		compName = "test-component"
+		channel  = "channel-for-components"
+		snapYaml = `name: some-snap
+type: kernel
+version: 1.0
+components:
+  test-component:
+    type: test
+  kernel-modules-component:
+    type: kernel-modules
+epoch: 1
+`
+		componentYaml = `component: some-snap+test-component
+type: test
+version: 1.0
+`
+	)
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snap.R(7),
+	}})
+
+	seq.AddComponentForRevision(snap.R(7), &sequence.ComponentState{
+		SideInfo: &snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, compName),
+			Revision:  snap.R(1),
+		},
+		CompType: snap.TestComponent,
+	})
+
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: channel,
+		Sequence:        seq,
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+
+	si := &snap.SideInfo{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snap.R(9),
+	}
+	snapPath := makeTestSnap(c, snapYaml)
+
+	csi := &snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, compName),
+		Revision:  snap.R(2),
+	}
+	components := map[*snap.ComponentSideInfo]string{
+		csi: snaptest.MakeTestComponent(c, componentYaml),
+	}
+
+	goal := snapstate.PathUpdateGoal(snapstate.PathSnap{
+		InstanceName: snapName,
+		Path:         snapPath,
+		SideInfo:     si,
+		Components:   components,
+	})
+
+	ts, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	verifyUpdateTasksWithComponents(c, snap.TypeApp, doesReRefresh|localSnap|updatesGadgetAssets, 0, []string{compName}, ts)
+}
+
+func (s *targetTestSuite) TestUpdateComponentsFromPathInvalidComponentFile(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const (
+		snapName = "some-snap"
+		snapID   = "some-snap-id"
+		compName = "test-component"
+		channel  = "channel-for-components"
+		snapYaml = `name: some-snap
+type: kernel
+version: 1.0
+components:
+  test-component:
+    type: test
+  kernel-modules-component:
+    type: kernel-modules
+epoch: 1
+`
+		componentYaml = `component: some-snap+test-component
+type: test
+version: 1.0
+`
+	)
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snap.R(7),
+	}})
+
+	seq.AddComponentForRevision(snap.R(7), &sequence.ComponentState{
+		SideInfo: &snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, compName),
+			Revision:  snap.R(1),
+		},
+		CompType: snap.TestComponent,
+	})
+
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: channel,
+		Sequence:        seq,
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+
+	si := &snap.SideInfo{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snap.R(9),
+	}
+	snapPath := makeTestSnap(c, snapYaml)
+
+	csi := snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, compName),
+		Revision:  snap.R(2),
+	}
+
+	compPath := filepath.Join(c.MkDir(), "invalid-component")
+	err := os.WriteFile(compPath, []byte("invalid-component"), 0644)
+	c.Assert(err, IsNil)
+
+	components := map[*snap.ComponentSideInfo]string{
+		&csi: compPath,
+	}
+
+	goal := snapstate.PathUpdateGoal(snapstate.PathSnap{
+		InstanceName: snapName,
+		Path:         snapPath,
+		SideInfo:     si,
+		Components:   components,
+	})
+
+	_, err = snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`.*cannot process snap or snapdir: file "%s" is invalid.*`, compPath))
+}
+
+func (s *targetTestSuite) TestUpdateComponentsFromPathInvalidComponentName(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const (
+		snapName = "some-snap"
+		snapID   = "some-snap-id"
+		compName = "test-component"
+		snapYaml = `name: some-snap
+type: kernel
+version: 1.0
+components:
+  test-component:
+    type: test
+  kernel-modules-component:
+    type: kernel-modules
+epoch: 1
+`
+		componentYaml = `component: some-snap+test-component
+type: test
+version: 1.0
+`
+	)
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snap.R(7),
+	}})
+
+	seq.AddComponentForRevision(snap.R(7), &sequence.ComponentState{
+		SideInfo: &snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, compName),
+			Revision:  snap.R(1),
+		},
+		CompType: snap.TestComponent,
+	})
+
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active:   true,
+		Sequence: seq,
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	si := &snap.SideInfo{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snap.R(9),
+	}
+	snapPath := makeTestSnap(c, snapYaml)
+
+	badName := "Bad-component"
+	csi := snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, badName),
+		Revision:  snap.R(2),
+	}
+
+	compPath := filepath.Join(c.MkDir(), "invalid-component")
+	err := os.WriteFile(compPath, []byte("invalid-component"), 0644)
+	c.Assert(err, IsNil)
+
+	components := map[*snap.ComponentSideInfo]string{
+		&csi: compPath,
+	}
+
+	goal := snapstate.PathUpdateGoal(snapstate.PathSnap{
+		InstanceName: snapName,
+		Path:         snapPath,
+		SideInfo:     si,
+		Components:   components,
+	})
+
+	_, err = snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`invalid snap name: "%s"`, badName))
+}
+
+func (s *targetTestSuite) TestUpdateComponentsFromPathInvalidMissingInInfo(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const (
+		snapName = "some-snap"
+		snapID   = "some-snap-id"
+		compName = "other-component"
+		snapYaml = `name: some-snap
+type: kernel
+version: 1.0
+components:
+  test-component:
+    type: test
+  kernel-modules-component:
+    type: kernel-modules
+epoch: 1
+`
+		componentYaml = `component: some-snap+other-component
+type: test
+version: 1.0
+`
+	)
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snap.R(7),
+	}})
+
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active:   true,
+		Sequence: seq,
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	si := &snap.SideInfo{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snap.R(9),
+	}
+	snapPath := makeTestSnap(c, snapYaml)
+
+	csi := snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, compName),
+		Revision:  snap.R(2),
+	}
+
+	components := map[*snap.ComponentSideInfo]string{
+		&csi: snaptest.MakeTestComponent(c, componentYaml),
+	}
+
+	goal := snapstate.PathUpdateGoal(snapstate.PathSnap{
+		InstanceName: snapName,
+		Path:         snapPath,
+		SideInfo:     si,
+		Components:   components,
+	})
+
+	_, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`.*"%s" is not a component for snap "%s"`, compName, snapName))
+}
