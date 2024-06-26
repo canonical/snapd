@@ -74,28 +74,17 @@ jobs:
 
     - name: Check built artifact
       run: |
-        for snap in snapd*.snap; do
-          case "${snap}" in
-            snapd_1337.*.snap)
-              # Skip test build
-              ;;
-            *)
-              echo "Checking ${snap}"
-              rm -rf squashfs-root
-              unsquashfs "${snap}" meta/snap.yaml usr/lib/snapd/
-              if grep -q "version:.*dirty.*" squashfs-root/meta/snap.yaml; then
-                echo "PR produces dirty snapd snap version"
-                cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
-                exit 1
-              elif grep -q "VERSION=.*dirty.*" squashfs-root/usr/lib/snapd/info; then
-                echo "PR produces dirty internal snapd info version"
-                cat squashfs-root/usr/lib/snapd/info
-                cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
-                exit 1
-              fi
-              ;;
-          esac
-        done
+        unsquashfs snapd*.snap meta/snap.yaml usr/lib/snapd/
+        if cat squashfs-root/meta/snap.yaml | grep -q "version:.*dirty.*"; then
+          echo "PR produces dirty snapd snap version"
+          cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
+          exit 1
+        elif cat squashfs-root/usr/lib/snapd/info | grep -q "VERSION=.*dirty.*"; then
+          echo "PR produces dirty internal snapd info version"
+          cat squashfs-root/usr/lib/snapd/info
+          cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
+          exit 1
+        fi
 
     - name: Uploading snapd snap artifact
       uses: actions/upload-artifact@v3
