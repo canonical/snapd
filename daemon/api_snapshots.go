@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -216,7 +217,7 @@ func doSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Respons
 	return SyncResponse(result)
 }
 
-func snapshotMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+func snapshotMany(_ context.Context, inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
 	setID, snapshotted, ts, err := snapshotSave(st, inst.Snaps, inst.Users, inst.SnapshotOptions)
 	if err != nil {
 		return nil, err
