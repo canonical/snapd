@@ -1162,10 +1162,6 @@ func (p *pathUpdateGoal) toUpdate(_ context.Context, st *state.State, opts Optio
 			return updatePlan{}, err
 		}
 
-		// TODO:COMPS: remove this once we are ready to handle components during
-		// refresh
-		t.components = nil
-
 		targets = append(targets, t)
 		names = append(names, sn.InstanceName)
 	}
