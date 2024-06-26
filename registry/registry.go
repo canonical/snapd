@@ -168,7 +168,7 @@ const (
 var (
 	typeStrings = [...]string{"int", "number", "string", "bool", "map", "array", "any", "alt"}
 
-	ValidRegistryName = regexp.MustCompile("^[a-z0-9](?:-?[a-z0-9])*$")
+	ValidRegistryName = validSubkey
 	ValidViewName     = validSubkey
 
 	validSubkey      = regexp.MustCompile(fmt.Sprintf("^%s$", subkeyRegex))
