@@ -23,7 +23,7 @@ func (s *TargetTestSuite) TestInstallWithComponents(c *C) {
 	defer s.state.Unlock()
 
 	const (
-		snapName = "test-snap"
+		snapName = "some-snap"
 		compName = "test-component"
 		channel  = "channel-for-components"
 	)
@@ -67,7 +67,7 @@ func (s *TargetTestSuite) TestInstallWithComponentsMissingResource(c *C) {
 	defer s.state.Unlock()
 
 	const (
-		snapName = "test-snap"
+		snapName = "some-snap"
 		compName = "test-component"
 		channel  = "channel-for-components"
 	)
@@ -105,7 +105,7 @@ func (s *TargetTestSuite) TestInstallWithComponentsWrongType(c *C) {
 	defer s.state.Unlock()
 
 	const (
-		snapName = "test-snap"
+		snapName = "some-snap"
 		compName = "test-component"
 		channel  = "channel-for-components"
 	)
@@ -145,7 +145,7 @@ func (s *TargetTestSuite) TestInstallWithComponentsMissingInInfo(c *C) {
 	defer s.state.Unlock()
 
 	const (
-		snapName = "test-snap"
+		snapName = "some-snap"
 		compName = "test-missing-component"
 		channel  = "channel-for-components"
 	)
@@ -183,10 +183,10 @@ func (s *TargetTestSuite) TestInstallWithComponentsFromPath(c *C) {
 	defer s.state.Unlock()
 
 	const (
-		snapName = "test-snap"
-		snapID   = "test-snap-id"
+		snapName = "some-snap"
+		snapID   = "some-snap-id"
 		compName = "test-component"
-		snapYaml = `name: test-snap
+		snapYaml = `name: some-snap
 version: 1.0
 components:
   test-component:
@@ -194,7 +194,7 @@ components:
   kernel-modules-component:
     type: kernel-modules
 `
-		componentYaml = `component: test-snap+test-component
+		componentYaml = `component: some-snap+test-component
 type: test
 version: 1.0
 `
