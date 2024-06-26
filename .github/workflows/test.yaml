@@ -826,7 +826,7 @@ jobs:
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
           echo "Running command: $SPREAD $RUN_TESTS"
-          (set -o pipefail; $SPREAD -no-debug-output -logs .logs $RUN_TESTS | ./utils/log-filter $FILTER_PARAMS | tee spread.log)
+          (set -o pipefail; $SPREAD -no-debug-output -logs .logs $RUN_TESTS | ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | tee spread.log)
 
 
     - name: Uploading spread logs
