@@ -146,10 +146,6 @@ package() {
      SNAP_MOUNT_DIR=/var/lib/snapd/snap \
      DESTDIR="$pkgdir"
 
-  # Install polkit policy
-  install -Dm644 data/polkit/io.snapcraft.snapd.policy \
-    "$pkgdir/usr/share/polkit-1/actions/io.snapcraft.snapd.policy"
-
   # Install executables
   install -Dm755 "$srcdir/go/bin/snap" "$pkgdir/usr/bin/snap"
   install -Dm755 "$srcdir/go/bin/snapctl" "$pkgdir/usr/lib/snapd/snapctl"
