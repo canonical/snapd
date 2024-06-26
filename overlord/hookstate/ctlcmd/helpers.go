@@ -126,6 +126,11 @@ func queueConfigureHookCommand(context *hookstate.Context, tts []*state.TaskSet)
 		return err
 	}
 
+	// Note: Multiple snaps could be installed in single transaction mode
+	// where all snap tasksets are in a single lane.
+	// This is non-issue for configure hook since the command tasks are
+	// queued at the very end of the change unlike the default-configure
+	// hook.
 	for _, ts := range tts {
 		for _, t := range tasks {
 			if finalTasks[t.Kind()] {
@@ -161,6 +166,16 @@ func queueDefaultConfigureHookCommand(context *hookstate.Context, tts []*state.T
 
 	for _, t := range tasks {
 		if t.Kind() == "start-snap-services" {
+			snapsup, err := snapstate.TaskSnapSetup(t)
+			if err != nil {
+				return err
+			}
+			// Multiple snaps could be installed in single transaction mode
+			// where all snap tasksets are in a single lane.
+			// Check that the task belongs to the relevant snap.
+			if snapsup.InstanceName() != context.InstanceName() {
+				continue
+			}
 			for _, ts := range tts {
 				snapstate.InjectTasks(t, ts)
 			}
