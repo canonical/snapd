@@ -145,6 +145,7 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("unknown action %s", inst.Action)
 	}
 
+	// TODO use an explicit context parameter
 	msg, tsets, err := impl(&inst, st)
 	if err != nil {
 		return inst.errToResponse(err)
@@ -629,7 +630,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("unknown content type: %s", contentType)
 	}
 
-	return sideloadOrTrySnap(c, r.Body, params["boundary"], user)
+	return sideloadOrTrySnap(r.Context(), c, r.Body, params["boundary"], user)
 }
 
 func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -664,6 +665,7 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	if op == nil {
 		return BadRequest("unsupported multi-snap operation %q", inst.Action)
 	}
+	// TODO make ctx an explicit parameter
 	res, err := op(&inst, st)
 	if err != nil {
 		return inst.errToResponse(err)
@@ -717,6 +719,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionRe
 		}
 	}
 	transaction := inst.Transaction
+	// TODO use per request context passed in snap instruction
 	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, nil, inst.userID, &snapstate.Flags{Transaction: transaction})
 	if err != nil {
 		return nil, err
@@ -754,8 +757,7 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 	}
 
 	transaction := inst.Transaction
-	// TODO: use a per-request context
-	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, nil, inst.userID, &snapstate.Flags{
+	updated, tasksets, err := snapstateUpdateMany(inst.ctx, st, inst.Snaps, nil, inst.userID, &snapstate.Flags{
 		IgnoreRunning: inst.IgnoreRunning,
 		Transaction:   transaction,
 	})

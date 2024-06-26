@@ -20,7 +20,6 @@
 package daemon
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -75,7 +74,7 @@ func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	sets, err := snapshotList(context.TODO(), st, setID, strutil.CommaSeparatedList(r.URL.Query().Get("snaps")))
+	sets, err := snapshotList(r.Context(), st, setID, strutil.CommaSeparatedList(r.URL.Query().Get("snaps")))
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -181,7 +180,7 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 		return BadRequest("'id' must be a positive base 10 number; got %q", sid)
 	}
 
-	export, err := snapshotExport(context.TODO(), st, setID)
+	export, err := snapshotExport(r.Context(), st, setID)
 	if err != nil {
 		return BadRequest("cannot export %v: %v", setID, err)
 	}
@@ -208,7 +207,7 @@ func doSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Respons
 
 	// XXX: check that we have enough space to import the compressed snapshots
 	st := c.d.overlord.State()
-	setID, snapNames, err := snapshotImport(context.TODO(), st, limitedBodyReader)
+	setID, snapNames, err := snapshotImport(r.Context(), st, limitedBodyReader)
 	if err != nil {
 		return BadRequest(err.Error())
 	}

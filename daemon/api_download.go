@@ -105,10 +105,10 @@ func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Respons
 		return BadRequest(err.Error())
 	}
 
-	return streamOneSnap(c, action, user)
+	return streamOneSnap(r.Context(), c, action, user)
 }
 
-func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) Response {
+func streamOneSnap(ctx context.Context, c *Command, action snapDownloadAction, user *auth.UserState) Response {
 	secret, err := downloadTokensSecret(c.d)
 	if err != nil {
 		return InternalError(err.Error())
@@ -125,7 +125,7 @@ func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) 
 			CohortKey:    action.CohortKey,
 			Channel:      action.Channel,
 		}}
-		results, _, err := theStore.SnapAction(context.TODO(), nil, actions, nil, user, nil)
+		results, _, err := theStore.SnapAction(ctx, nil, actions, nil, user, nil)
 		if err != nil {
 			return errToResponse(err, []string{action.SnapName}, InternalError, "cannot download snap: %v")
 		}
@@ -148,7 +148,7 @@ func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) 
 	}
 
 	if !action.HeaderPeek {
-		stream, status, err := theStore.DownloadStream(context.TODO(), action.SnapName, ss.Info, action.resumePosition, user)
+		stream, status, err := theStore.DownloadStream(ctx, action.SnapName, ss.Info, action.resumePosition, user)
 		if err != nil {
 			return InternalError(err.Error())
 		}
