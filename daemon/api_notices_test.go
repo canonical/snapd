@@ -631,7 +631,7 @@ func (s *noticesSuite) TestNoticesRequestCancelled(c *C) {
 	c.Assert(err, IsNil)
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapdSocket)
 	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, Equals, 400)
+	c.Check(rsp.Status, Equals, 500)
 	c.Check(rsp.Message, Matches, "request canceled")
 
 	elapsed := time.Since(start)
