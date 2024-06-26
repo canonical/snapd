@@ -424,6 +424,11 @@ func (m *SnapManager) doLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// during a revert, components should already be linked
+	if snapsup.Revert {
+		return nil
+	}
+
 	if err := saveCurrentKernelModuleComponents(t, snapsup, snapSt); err != nil {
 		return err
 	}
@@ -480,6 +485,12 @@ func (m *SnapManager) undoLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 	_, snapsup, snapSt, err := compSetupAndState(t)
 	if err != nil {
 		return err
+	}
+
+	// nothing to do when unding a revert, since the components were already
+	// linked
+	if snapsup.Revert {
+		return nil
 	}
 
 	// Expected to be installed

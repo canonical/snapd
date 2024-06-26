@@ -519,3 +519,71 @@ func (s *linkCompSnapSuite) TestDoUnlinkThenUndoUnlinkComponent(c *C) {
 	s.testDoUnlinkThenUndoUnlinkComponent(c, snapName, snapRev,
 		compName, compRev, "unlink-component")
 }
+
+func (s *linkCompSnapSuite) TestDoLinkComponentDuringRevert(c *C) {
+	const (
+		snapName = "mysnap"
+		compName = "mycomp"
+	)
+	compRev := snap.R(7)
+	snapRev := snap.R(1)
+	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	ssu := createTestSnapSetup(si, snapstate.Flags{Revert: true})
+
+	s.state.Lock()
+
+	t := s.state.NewTask("link-component", "task desc")
+	cref := naming.NewComponentRef(snapName, compName)
+	csi := snap.NewComponentSideInfo(cref, compRev)
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.TestComponent, ""))
+	t.Set("snap-setup", ssu)
+	chg := s.state.NewChange("test change", "change desc")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+
+	c.Check(chg.Err(), IsNil)
+
+	c.Check(s.fakeBackend.ops, HasLen, 0)
+}
+
+func (s *linkCompSnapSuite) TestUndoLinkComponentDuringRevert(c *C) {
+	const (
+		snapName = "mysnap"
+		compName = "mycomp"
+	)
+	compRev := snap.R(7)
+	snapRev := snap.R(1)
+	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	ssu := createTestSnapSetup(si, snapstate.Flags{Revert: true})
+
+	s.state.Lock()
+
+	t := s.state.NewTask("link-component", "task desc")
+	cref := naming.NewComponentRef(snapName, compName)
+	csi := snap.NewComponentSideInfo(cref, compRev)
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.TestComponent, ""))
+	t.Set("snap-setup", ssu)
+	chg := s.state.NewChange("test change", "change desc")
+	chg.AddTask(t)
+
+	terr := s.state.NewTask("error-trigger", "provoking undo link")
+	terr.WaitFor(t)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+
+	c.Check(chg.Err(), IsNil)
+
+	c.Check(s.fakeBackend.ops, HasLen, 0)
+}
