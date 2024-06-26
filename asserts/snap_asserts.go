@@ -676,6 +676,13 @@ func checkSnapRevisionWhat(headers map[string]interface{}, name, what string) (s
 	return snapRevision, nil
 }
 
+func checkOptionalSnapRevisionWhat(headers map[string]interface{}, name, what string) (snapRevision int, err error) {
+	if _, ok := headers[name]; !ok {
+		return 0, nil
+	}
+	return checkSnapRevisionWhat(headers, name, what)
+}
+
 func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 	_, err := checkDigest(assert.headers, "snap-sha3-384", crypto.SHA3_384)
 	if err != nil {
