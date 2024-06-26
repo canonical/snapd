@@ -6874,3 +6874,87 @@ func printTasks(ts []*state.Task) string {
 	}
 	return b.String()
 }
+
+func (s *snapmgrTestSuite) TestInstallComponentsFromPathInvalidComponentFile(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// use the real thing for this one
+	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
+
+	const (
+		snapID        = "test-snap-id"
+		snapName      = "test-snap"
+		componentName = "test-component"
+	)
+	snapRevision := snap.R(11)
+
+	csi := snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, componentName),
+		Revision:  snap.R(1),
+	}
+
+	compPath := filepath.Join(c.MkDir(), "invalid-component")
+	err := os.WriteFile(compPath, []byte("invalid-component"), 0644)
+	c.Assert(err, IsNil)
+
+	components := map[*snap.ComponentSideInfo]string{
+		&csi: compPath,
+	}
+
+	snapPath := makeTestSnap(c, `name: test-snap
+version: 1.0
+components:
+  test-component:
+    type: test
+`)
+	si := &snap.SideInfo{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snapRevision,
+	}
+
+	goal := snapstate.PathInstallGoal(snapName, snapPath, si, components, snapstate.RevisionOptions{})
+	_, _, err = snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`.*cannot process snap or snapdir: file "%s" is invalid.*`, compPath))
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentsFromPathInvalidComponentName(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// use the real thing for this one
+	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
+
+	const (
+		snapID        = "test-snap-id"
+		snapName      = "test-snap"
+		componentName = "Bad-component"
+	)
+	snapRevision := snap.R(11)
+
+	csi := snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, componentName),
+		Revision:  snap.R(1),
+	}
+
+	components := map[*snap.ComponentSideInfo]string{
+		&csi: "",
+	}
+
+	snapPath := makeTestSnap(c, `name: test-snap
+version: 1.0
+components:
+  test-component:
+    type: test
+`)
+	si := &snap.SideInfo{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snapRevision,
+	}
+
+	goal := snapstate.PathInstallGoal(snapName, snapPath, si, components, snapstate.RevisionOptions{})
+	_, _, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`invalid snap name: "%s"`, componentName))
+}

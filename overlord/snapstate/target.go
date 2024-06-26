@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -682,7 +683,7 @@ func (p *pathInstallGoal) toInstall(ctx context.Context, st *state.State, opts O
 		return nil, err
 	}
 
-	comps, err := installableComponentsFromPaths(info, p.components)
+	comps, err := componentSetupsFromPaths(info, p.components)
 	if err != nil {
 		return nil, err
 	}
@@ -701,10 +702,10 @@ func (p *pathInstallGoal) toInstall(ctx context.Context, st *state.State, opts O
 	return []target{inst}, nil
 }
 
-func installableComponentsFromPaths(info *snap.Info, components map[*snap.ComponentSideInfo]string) ([]ComponentSetup, error) {
+func componentSetupsFromPaths(snapInfo *snap.Info, components map[*snap.ComponentSideInfo]string) ([]ComponentSetup, error) {
 	setups := make([]ComponentSetup, 0, len(components))
 	for csi, path := range components {
-		compInfo, _, err := backend.OpenComponentFile(path, info, csi)
+		compInfo, err := validatedComponentInfo(path, csi, snapInfo)
 		if err != nil {
 			return nil, err
 		}
@@ -717,4 +718,18 @@ func installableComponentsFromPaths(info *snap.Info, components map[*snap.Compon
 	}
 
 	return setups, nil
+}
+
+func validatedComponentInfo(path string, csi *snap.ComponentSideInfo, si *snap.Info) (*snap.ComponentInfo, error) {
+	if err := csi.Component.Validate(); err != nil {
+		return nil, err
+	}
+	componentInfo, cont, err := backend.OpenComponentFile(path, si, csi)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open snap file: %v", err)
+	}
+	if err := snap.ValidateComponentContainer(cont, csi.Component.String(), logger.Noticef); err != nil {
+		return nil, err
+	}
+	return componentInfo, nil
 }
