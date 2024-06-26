@@ -88,6 +88,31 @@ dbus (receive)
     bus=session
     path=/org/mpris/MediaPlayer2
     peer=(label=@{profile_name}),
+
+# Allow unconfined session to interact with the player
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/mpris/MediaPlayer2
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    interface="org.mpris.MediaPlayer2{,.*}"
+    path=/org/mpris/MediaPlayer2
+    peer=(label=unconfined),
+
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/mpris/MediaPlayer2
+    member=PropertiesChanged
+    peer=(label=unconfined),
 `
 
 const mprisConnectedSlotAppArmor = `
