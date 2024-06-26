@@ -8,8 +8,6 @@ data/completion/bash/snap /usr/share/bash-completion/completions
 data/completion/zsh/_snap /usr/share/zsh/vendor-completions
 # snap/snapd version information
 data/info /usr/lib/snapd/
-# polkit actions
-data/polkit/io.snapcraft.snapd.policy /usr/share/polkit-1/actions/
 # snap-confine stuff
 etc/apparmor.d/usr.lib.snapd.snap-confine.real
 usr/bin/snap

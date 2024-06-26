@@ -6,8 +6,6 @@ data/completion/bash/snap /usr/share/bash-completion/completions
 data/completion/zsh/_snap /usr/share/zsh/vendor-completions
 # snap/snapd version information
 data/info /usr/lib/snapd/
-# polkit actions
-data/polkit/io.snapcraft.snapd.policy /usr/share/polkit-1/actions/
 # udev, must be installed before 80-udisks
 data/udev/rules.d/66-snapd-autoimport.rules /lib/udev/rules.d
 # snap-confine stuff
