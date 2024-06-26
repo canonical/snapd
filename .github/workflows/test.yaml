@@ -28,6 +28,9 @@ jobs:
           - default
           - FIPS
         version:
+          # test version is a build of snapd with test keys and should
+          # only be installed by test runners. The pristine versions
+          # are the build that should be installed by human users.
           - pristine
           - test
     # only build the snap for pull requests, it's not needed on release branches
