@@ -86,6 +86,12 @@ dbus (send)
     interface=org.freedesktop.PowerManagement.Inhibit
     member={Inhibit,UnInhibit}
     peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (receive)
+    bus=session
+    path=/org/freedesktop/PowerManagement/Inhibit
+    interface=org.freedesktop.PowerManagement.Inhibit
+    member=HasInhibitChanged
+    peer=(label=###SLOT_SECURITY_TAGS###),
 
 # API rule
 dbus (send)
@@ -147,6 +153,12 @@ dbus (receive)
     path=/org/freedesktop/PowerManagement/Inhibit
     interface=org.freedesktop.PowerManagement.Inhibit
     member={Inhibit,UnInhibit}
+    peer=(label=###PLUG_SECURITY_TAGS###),
+dbus (send)
+    bus=session
+    path=/org/freedesktop/PowerManagement/Inhibit
+    interface=org.freedesktop.PowerManagement.Inhibit
+    member=HasInhibitChanged
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 # API rule
