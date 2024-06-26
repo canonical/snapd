@@ -37,6 +37,8 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// TODO: rename this type to something more general, since it is used for more
+// than just refreshes
 type RefreshOptions struct {
 	// RefreshManaged indicates to the store that the refresh is
 	// managed via snapd-control.
@@ -44,6 +46,10 @@ type RefreshOptions struct {
 	Scheduled      bool
 
 	PrivacyKey string
+
+	// IncludeResources indicates to the store that resources should be included
+	// in the response.
+	IncludeResources bool
 }
 
 // snap action: install/refresh
@@ -108,10 +114,6 @@ type SnapAction struct {
 	// ValidationSets is an optional array of validation set primary keys
 	// (relevant for install and refresh actions).
 	ValidationSets []snapasserts.ValidationSetKey
-	// Resources is an optional array of component names. If non-empty, this
-	// indicates that we should request that the store include snap resource
-	// information in responses.
-	Resources []string
 }
 
 func isValidAction(action string) bool {
@@ -541,14 +543,10 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 	}
 
-	// include resources field if any action has requested resources
 	fields := make([]string, len(snapActionFields))
 	copy(fields, snapActionFields)
-	for _, a := range actions {
-		if len(a.Resources) > 0 {
-			fields = append(fields, "resources")
-			break
-		}
+	if opts.IncludeResources {
+		fields = append(fields, "resources")
 	}
 
 	// build input for the install/refresh endpoint

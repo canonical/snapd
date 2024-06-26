@@ -60,6 +60,11 @@ type fakeOp struct {
 	sinfo snap.SideInfo
 	stype snap.Type
 
+	componentName     string
+	componentPath     string
+	componentRev      snap.Revision
+	componentSideInfo snap.ComponentSideInfo
+
 	curSnaps []store.CurrentSnap
 	action   store.SnapAction
 
@@ -326,6 +331,17 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				Name:        "user-daemon",
 				Daemon:      "simple",
 				DaemonScope: "user",
+			},
+		}
+	case "channel-for-components":
+		info.Components = map[string]*snap.Component{
+			"test-component": {
+				Type: snap.TestComponent,
+				Name: "test-component",
+			},
+			"kernel-modules-component": {
+				Type: snap.KernelModulesComponent,
+				Name: "kernel-modules-component",
 			},
 		}
 	case "channel-for-dbus-activation":
@@ -658,10 +674,14 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 				info.Channel = ""
 			}
 			info.InstanceKey = instanceKey
+
 			sar := store.SnapActionResult{
-				Info:      info,
-				Resources: f.snapResources(info),
+				Info: info,
 			}
+			if opts.IncludeResources {
+				sar.Resources = f.snapResources(info)
+			}
+
 			if strings.HasSuffix(snapName, "-with-default-track") && strutil.ListContains([]string{"stable", "candidate", "beta", "edge"}, a.Channel) {
 				sar.RedirectChannel = "2.0/" + a.Channel
 			}
@@ -1371,7 +1391,7 @@ func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bo
 	f.appendOp(&fakeOp{
 		op:             "remove-snap-data-dir",
 		name:           info.InstanceName(),
-		path:           snap.BaseDataDir(info.SnapName()),
+		path:           snap.BaseDataDir(info.InstanceName()),
 		otherInstances: otherInstances,
 	})
 	return f.maybeErrForLastOp()
@@ -1389,7 +1409,7 @@ func (f *fakeSnappyBackend) RemoveSnapDir(s snap.PlaceInfo, otherInstances bool)
 	f.appendOp(&fakeOp{
 		op:             "remove-snap-dir",
 		name:           s.InstanceName(),
-		path:           snap.BaseDir(s.SnapName()),
+		path:           snap.BaseDir(s.InstanceName()),
 		otherInstances: otherInstances,
 	})
 	return f.maybeErrForLastOp()
@@ -1440,12 +1460,21 @@ func (f *fakeSnappyBackend) CurrentInfo(curInfo *snap.Info) {
 	})
 }
 
-func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) error {
-	f.appendOp(&fakeOp{
+func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup, compsup *snapstate.ComponentSetup) error {
+	op := &fakeOp{
 		op:    kind + ":" + status.String(),
 		name:  snapsup.InstanceName(),
 		revno: snapsup.Revision(),
-	})
+	}
+
+	if compsup != nil {
+		op.componentName = compsup.ComponentName()
+		op.componentPath = compsup.CompPath
+		op.componentRev = compsup.Revision()
+		op.componentSideInfo = *compsup.CompSideInfo
+	}
+
+	f.appendOp(op)
 	return f.maybeErrForLastOp()
 }
 

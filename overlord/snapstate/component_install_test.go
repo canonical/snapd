@@ -45,6 +45,8 @@ const (
 	compTypeIsKernMods
 	// Current component is discarded at the end
 	compCurrentIsDiscarded
+	// Component is being installed with a snap, so skip setup-profiles
+	compOptSkipSecurity
 )
 
 // opts is a bitset with compOpt* as possible values.
@@ -54,8 +56,9 @@ func expectedComponentInstallTasks(opts int) []string {
 	if opts&compOptIsLocal != 0 {
 		startTasks = []string{"prepare-component"}
 	} else {
-		startTasks = []string{"download-component"}
+		startTasks = []string{"download-component", "validate-component"}
 	}
+
 	// Revision is not the same as the current one installed
 	if opts&compOptRevisionPresent == 0 {
 		startTasks = append(startTasks, "mount-component")
@@ -68,7 +71,9 @@ func expectedComponentInstallTasks(opts int) []string {
 		startTasks = append(startTasks, "unlink-current-component")
 	}
 
-	startTasks = append(startTasks, "setup-profiles")
+	if opts&compOptSkipSecurity == 0 {
+		startTasks = append(startTasks, "setup-profiles")
+	}
 
 	// link-component is always present
 	startTasks = append(startTasks, "link-component")
