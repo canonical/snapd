@@ -233,6 +233,7 @@ execute: |
   done
 
   # check for asserted snaps
+  #shellcheck disable=SC2043
   for sn in core"$version"; do
       rev=$(remote.exec "snap list ${sn}" | awk 'NR != 1 { print $3 }')
       remote.exec "test -f /run/mnt/ubuntu-seed/snaps/${sn}_${rev}.snap"
