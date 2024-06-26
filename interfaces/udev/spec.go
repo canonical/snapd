@@ -96,8 +96,16 @@ func (spec *Specification) AddSnippet(snippet string) {
 	spec.addEntry(snippet, "")
 }
 
+// udevTag converts a security tag into a string that can be used as a udev tag.
+// systemd only allows alphanumeric characters, underscores and hyphens in tags.
+// Our security tags can contain periods and plus signs, so we replace them with
+// underscores. Periods are replaced with single underscores, and plus signs are
+// replaced with two underscores.
+// Examples:
+//   - "snap.foo+bar.hook.install" -> "snap_foo__bar_hook_install"
+//   - "snap.foo.bar" -> "snap_foo_bar"
 func udevTag(securityTag string) string {
-	return strings.Replace(securityTag, ".", "_", -1)
+	return strings.ReplaceAll(strings.ReplaceAll(securityTag, "+", "__"), ".", "_")
 }
 
 // TagDevice adds an app/hook specific udev tag to devices described by the
