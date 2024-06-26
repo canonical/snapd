@@ -66,7 +66,7 @@ func renderAllVariants(n renderNode, observe func(index int, variant string)) {
 	var moreRemain bool
 
 	v := n.InitialVariant()
-	length := 0
+	length := v.Length()
 	lengthUnchanged := 0
 
 	for i := 0; ; i++ {
