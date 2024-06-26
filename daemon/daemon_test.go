@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -327,7 +328,7 @@ func (s *daemonSuite) TestMaintenanceJsonDeletedOnStart(c *check.C) {
 	s.markSeeded(d)
 
 	// after starting, maintenance.json should be removed
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 	c.Assert(dirs.SnapdMaintenanceFile, testutil.FileAbsent)
 	d.Stop(nil)
 }
@@ -631,7 +632,7 @@ version: 1`, si)
 	snapAccept := make(chan struct{})
 	d.snapListener = &witnessAcceptListener{Listener: l2, accept: snapAccept}
 
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 
 	c.Check(s.notified, check.DeepEquals, []string{extendedTimeoutUSec, "READY=1"})
 
@@ -679,7 +680,7 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	snapAccept := make(chan struct{})
 	d.snapListener = &witnessAcceptListener{Listener: l, accept: snapAccept}
 
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 	stoppedYet := false
 	defer func() {
 		if !stoppedYet {
@@ -770,7 +771,7 @@ version: 1`, si)
 	snapAccept := make(chan struct{})
 	d.snapListener = &witnessAcceptListener{Listener: snapL, accept: snapAccept}
 
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 
 	snapdAccepting := make(chan struct{})
 	go func() {
@@ -865,7 +866,7 @@ func (s *daemonSuite) TestGracefulStopHasLimits(c *check.C) {
 	snapAccept := make(chan struct{})
 	d.snapListener = &witnessAcceptListener{Listener: snapL, accept: snapAccept}
 
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 
 	snapdAccepting := make(chan struct{})
 	go func() {
@@ -961,7 +962,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 		return nil
 	}
 
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 	defer d.Stop(nil)
 
 	st := d.overlord.State()
@@ -1166,7 +1167,7 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 	makeDaemonListeners(c, d)
 	s.markSeeded(d)
 
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 	st := d.overlord.State()
 
 	st.Lock()
@@ -1219,7 +1220,7 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	makeDaemonListeners(c, d)
 	s.markSeeded(d)
 
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 	st := d.overlord.State()
 
 	st.Lock()
@@ -1278,7 +1279,7 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(n, check.Equals, 1)
 
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 
 	c.Check(s.notified, check.DeepEquals, []string{"READY=1"})
 
@@ -1352,7 +1353,7 @@ func (s *daemonSuite) TestRestartIntoSocketModeNoNewChanges(c *check.C) {
 	// go into socket activation mode
 	s.markSeeded(d)
 
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 	// pretend some ensure happened
 	for i := 0; i < 5; i++ {
 		c.Check(d.overlord.StateEngine().Ensure(), check.IsNil)
@@ -1382,7 +1383,7 @@ func (s *daemonSuite) TestRestartIntoSocketModePendingChanges(c *check.C) {
 	s.markSeeded(d)
 	st := d.overlord.State()
 
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 	// pretend some ensure happened
 	for i := 0; i < 5; i++ {
 		c.Check(d.overlord.StateEngine().Ensure(), check.IsNil)
@@ -1475,5 +1476,5 @@ func (s *daemonSuite) TestHandleUnexpectedRestart(c *check.C) {
 	// mark as already seeded
 	s.markSeeded(d)
 
-	c.Assert(d.Start(), check.Equals, ErrNoFailureRecoveryNeeded)
+	c.Assert(d.Start(context.Background()), check.Equals, ErrNoFailureRecoveryNeeded)
 }
