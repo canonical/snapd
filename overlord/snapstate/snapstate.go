@@ -3644,7 +3644,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		return nil, err
 	}
 
-	snapsup := &SnapSetup{
+	snapsup := SnapSetup{
 		Base:        info.Base,
 		SideInfo:    snapst.Sequence.SideInfos()[i],
 		Flags:       flags.ForSnapSetup(),
@@ -3654,8 +3654,19 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		InstanceKey: snapst.InstanceKey,
 	}
 
-	// TODO:COMPS: we need to handle components here too
-	return doInstall(st, &snapst, *snapsup, nil, 0, fromChange, nil)
+	components := snapst.Sequence.ComponentsForRevision(rev)
+	compsups := make([]ComponentSetup, 0, len(components))
+	for _, comp := range components {
+		compsups = append(compsups, ComponentSetup{
+			CompSideInfo: comp.SideInfo,
+			CompType:     comp.CompType,
+			componentInstallFlags: componentInstallFlags{
+				SkipProfiles: true,
+			},
+		})
+	}
+
+	return doInstall(st, &snapst, snapsup, compsups, 0, fromChange, nil)
 }
 
 // TransitionCore transitions from an old core snap name to a new core
