@@ -53,7 +53,9 @@ prepare: |
         else 
             # uc18 uses snapd snap
             test-snapd-curl.curl -s -o snapd_2.45.snap "$SNAPD_2_45_SNAPD_SNAP"
-            cp snapd_2.45.snap "$(tests.nested get extra-snaps-path)"
+            # repack to prevent automatic refresh
+            unsquashfs -d snapd-snap snapd_2.45.snap
+            snap pack snapd-snap/ "$(tests.nested get extra-snaps-path)"
         fi
     fi
 
