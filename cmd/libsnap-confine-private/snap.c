@@ -44,8 +44,10 @@ bool sc_security_tag_validate(const char *security_tag,
 
 	// first capture is for verifying the full security tag, second capture
 	// for verifying the snap_name is correct for this security tag, eighth capture
-	// for verifying the component_name is correct for this security tag
-	regmatch_t matches[8];
+	// for verifying the component_name is correct for this security tag. the
+	// expression currently contains 9 capture groups, but we only care about
+	// these 3.
+	regmatch_t matches[9];
 	int status =
 	    regexec(&re, security_tag, sizeof matches / sizeof *matches,
 		    matches, 0);
