@@ -134,7 +134,7 @@ static int skip_one_char(const char **p, char c)
 	return 0;
 }
 
-static void sc_snap_or_component_name_validate(const char *snap_name,
+static void validate_as_snap_or_component_name(const char *snap_name,
 					       bool is_component,
 					       sc_error **errorp)
 {
@@ -353,12 +353,12 @@ void sc_snap_component_validate(const char *snap_component,
 	char component_name[SNAP_NAME_LEN + 1] = { 0 };
 	strncpy(component_name, pos + 1, component_name_len);
 
-	sc_snap_or_component_name_validate(snap_name, true, &err);
+	validate_as_snap_or_component_name(snap_name, true, &err);
 	if (err != NULL) {
 		goto out;
 	}
 
-	sc_snap_or_component_name_validate(component_name, true, &err);
+	validate_as_snap_or_component_name(component_name, true, &err);
 	if (err != NULL) {
 		goto out;
 	}
@@ -383,7 +383,7 @@ void sc_snap_component_validate(const char *snap_component,
 
 void sc_snap_name_validate(const char *snap_name, sc_error **errorp)
 {
-	sc_snap_or_component_name_validate(snap_name, false, errorp);
+	validate_as_snap_or_component_name(snap_name, false, errorp);
 }
 
 void sc_snap_drop_instance_key(const char *instance_name, char *snap_name,
