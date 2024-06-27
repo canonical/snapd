@@ -248,11 +248,11 @@ backends:
             - ubuntu-20.04-arm-64:
                   image: ubuntu-os-cloud/ubuntu-2004-lts-arm64
                   workers: 8
-                  storage: 12G
+                  storage: 15G
             - ubuntu-22.04-arm-64:
                   image: ubuntu-os-cloud/ubuntu-2204-lts-arm64
                   workers: 8
-                  storage: 12G
+                  storage: 15G
             - ubuntu-core-22-arm-64:
                   image: ubuntu-22.04-arm-64
                   workers: 6
