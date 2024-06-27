@@ -48,8 +48,9 @@ type variantState interface {
 
 // renderNode is a node which may be rendered in a particular variant state.
 type renderNode interface {
-	// InitialVariant returns the initial variant state for this node.
-	InitialVariant() variantState
+	// InitialVariant returns the initial variant state for this node, along
+	// with its length.
+	InitialVariant() (variantState, int)
 	// NumVariants returns the number of variants this node can be rendered as (recursively).
 	NumVariants() int
 	// nodeEqual returns true if two nodes are recursively equal.
@@ -66,8 +67,7 @@ func renderAllVariants(n renderNode, observe func(index int, variant string)) {
 	var buf bytes.Buffer
 	var moreRemain bool
 
-	v := n.InitialVariant()
-	length := v.Length()
+	v, length := n.InitialVariant()
 	lengthUnchanged := 0
 
 	for i := 0; ; i++ {
@@ -92,8 +92,8 @@ func (n literal) NumVariants() int {
 	return 1
 }
 
-func (n literal) InitialVariant() variantState {
-	return n
+func (n literal) InitialVariant() (variantState, int) {
+	return n, len(n)
 }
 
 func (n literal) nodeEqual(other renderNode) bool {
@@ -133,17 +133,20 @@ func (n seq) NumVariants() int {
 	return num
 }
 
-func (n seq) InitialVariant() variantState {
+func (n seq) InitialVariant() (variantState, int) {
 	v := &seqVariant{
-		seq:      n,
-		elements: make([]variantState, len(n)),
+		seq:        n,
+		elements:   make([]variantState, len(n)),
+		currLength: 0,
 	}
 
 	for i := range n {
-		v.elements[i] = n[i].InitialVariant()
+		var length int
+		v.elements[i], length = n[i].InitialVariant()
+		v.currLength += length
 	}
 
-	return v
+	return v, v.currLength
 }
 
 func (n seq) nodeEqual(other renderNode) bool {
@@ -210,8 +213,9 @@ func (n seq) optimize() (renderNode, error) {
 // Each render node in the seq has a corresponding variant at the same index.
 // of the elements list.
 type seqVariant struct {
-	seq      seq
-	elements []variantState
+	seq        seq
+	elements   []variantState
+	currLength int
 }
 
 func (v *seqVariant) Render(buf *bytes.Buffer, alreadyRendered int) int {
@@ -233,9 +237,9 @@ func (v *seqVariant) NextVariant() (length, lengthUnchanged int, moreRemain bool
 			break
 		}
 		// Reset the variant state for the node whose variants we just exhausted
-		v.elements[i] = v.seq[i].InitialVariant()
+		v.elements[i], componentLength = v.seq[i].InitialVariant()
 		// Include the render length of the reset node in the total length
-		length += v.elements[i].Length()
+		length += componentLength
 	}
 	if !moreRemain {
 		// No expansions remain for any node in the sequence
@@ -249,17 +253,13 @@ func (v *seqVariant) NextVariant() (length, lengthUnchanged int, moreRemain bool
 		lengthUnchanged += componentLength
 	}
 
+	v.currLength = length
+
 	return length, lengthUnchanged, true
 }
 
 func (v *seqVariant) Length() int {
-	totalLength := 0
-
-	for _, element := range v.elements {
-		totalLength += element.Length()
-	}
-
-	return totalLength
+	return v.currLength
 }
 
 // alt is a sequence of alternative render nodes.
@@ -275,16 +275,17 @@ func (n alt) NumVariants() int {
 	return num
 }
 
-func (n alt) InitialVariant() variantState {
+func (n alt) InitialVariant() (variantState, int) {
 	// alt can't have zero length, since even "{}" would be parsed as
 	// alt{ seq{ literal("") } }, which is optimized to alt{ literal("") },
 	// which is optimized to literal("").
 	// An error was thrown by optimize rather than return a 0-length alt.
+	currVariant, length := n[0].InitialVariant()
 	return &altVariant{
 		alt:     n,
 		idx:     0,
-		variant: n[0].InitialVariant(),
-	}
+		variant: currVariant,
+	}, length
 }
 
 func (n alt) nodeEqual(other renderNode) bool {
@@ -361,9 +362,9 @@ func (v *altVariant) NextVariant() (length, lengthUnchanged int, moreRemain bool
 		return 0, 0, false
 	}
 
-	v.variant = v.alt[v.idx].InitialVariant()
+	v.variant, length = v.alt[v.idx].InitialVariant()
 
-	return v.variant.Length(), 0, true
+	return length, 0, true
 }
 
 func (v *altVariant) Length() int {

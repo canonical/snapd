@@ -156,7 +156,8 @@ func (s *renderSuite) TestNextVariant(c *C) {
 		{39, 33}, // /usr/libx32/@multiarch/atomics/ld64.so*
 	}
 
-	variant := parsed.InitialVariant()
+	variant, length := parsed.InitialVariant()
+	c.Check(length, Equals, len("/lib/ld-*.so*"))
 	for _, next := range expected {
 		length, lengthUnchanged, moreRemain := variant.NextVariant()
 		c.Check(length, Equals, next.length)
