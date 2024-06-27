@@ -280,15 +280,15 @@ void sc_string_split(const char *string, char delimiter,
 	}
 
 	const char *pos = strchr(string, delimiter);
-	const char *prefix_start = "";
+	const char *suffix_start = "";
 	size_t prefix_len = 0;
 	size_t suffix_len = 0;
 	if (pos == NULL) {
 		prefix_len = strlen(string);
 	} else {
 		prefix_len = pos - string;
-		prefix_start = pos + 1;
-		suffix_len = strlen(prefix_start);
+		suffix_start = pos + 1;
+		suffix_len = strlen(suffix_start);
 	}
 
 	if (prefix != NULL) {
@@ -304,7 +304,7 @@ void sc_string_split(const char *string, char delimiter,
 		if (suffix_len >= suffix_size) {
 			die("suffix buffer too small");
 		}
-		memcpy(suffix, prefix_start, suffix_len);
+		memcpy(suffix, suffix_start, suffix_len);
 		suffix[suffix_len] = '\0';
 	}
 }
