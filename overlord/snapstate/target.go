@@ -705,7 +705,7 @@ func (p *pathInstallGoal) toInstall(ctx context.Context, st *state.State, opts O
 func componentSetupsFromPaths(snapInfo *snap.Info, components map[*snap.ComponentSideInfo]string) ([]ComponentSetup, error) {
 	setups := make([]ComponentSetup, 0, len(components))
 	for csi, path := range components {
-		compInfo, err := validatedComponentInfo(path, csi, snapInfo)
+		compInfo, err := validatedComponentInfo(path, snapInfo, csi)
 		if err != nil {
 			return nil, err
 		}
@@ -720,7 +720,7 @@ func componentSetupsFromPaths(snapInfo *snap.Info, components map[*snap.Componen
 	return setups, nil
 }
 
-func validatedComponentInfo(path string, csi *snap.ComponentSideInfo, si *snap.Info) (*snap.ComponentInfo, error) {
+func validatedComponentInfo(path string, si *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
 	if err := csi.Component.Validate(); err != nil {
 		return nil, err
 	}
