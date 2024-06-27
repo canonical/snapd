@@ -21,6 +21,7 @@ package patterns
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 )
 
@@ -166,7 +167,7 @@ func (n seq) nodeEqual(other renderNode) bool {
 // optimize for seq joins adjacent literals into a single node, reduces an
 // empty seq to a literal "", and reduces a seq with one element to that
 // element.
-func (n seq) optimize() renderNode {
+func (n seq) optimize() (renderNode, error) {
 	var b strings.Builder
 
 	var newSeq seq
@@ -196,12 +197,12 @@ func (n seq) optimize() renderNode {
 	// Reduce strength
 	switch len(newSeq) {
 	case 0:
-		return literal("")
+		return literal(""), nil
 	case 1:
-		return newSeq[0]
+		return newSeq[0], nil
 	}
 
-	return newSeq
+	return newSeq, nil
 }
 
 // seqVariant is the variant state for a seqeunce of render nodes.
@@ -276,7 +277,9 @@ func (n alt) NumVariants() int {
 
 func (n alt) InitialVariant() variantState {
 	// alt can't have zero length, since even "{}" would be parsed as
-	// alt{ seq{ literal("") } }, which is optimized to alt{ literal("") }
+	// alt{ seq{ literal("") } }, which is optimized to alt{ literal("") },
+	// which is optimized to literal("").
+	// An error was thrown by optimize rather than return a 0-length alt.
 	return &altVariant{
 		alt:     n,
 		idx:     0,
@@ -304,7 +307,7 @@ func (n alt) nodeEqual(other renderNode) bool {
 
 // optimize for alt eliminates equivalent items and reduces alts with one item
 // to that item.
-func (n alt) optimize() renderNode {
+func (n alt) optimize() (renderNode, error) {
 	var seen []renderNode
 	var newAlt alt
 
@@ -320,15 +323,17 @@ outer:
 		newAlt = append(newAlt, item)
 	}
 
-	// Can't have zero length, since even "{}" would be parsed as
-	// alt{ seq{ literal("") } }, which is optimized to alt{ literal("") }
-
 	// Reduce strength
-	if len(newAlt) == 1 {
-		return newAlt[0]
+	switch len(newAlt) {
+	case 0:
+		// Should not occur, since even "{}" would be parsed as
+		// alt{ seq{ literal("") } }, which is optimized to alt{ literal("") }.
+		return nil, errors.New("internal error: attempted to optimize 0-length alt")
+	case 1:
+		return newAlt[0], nil
 	}
 
-	return newAlt
+	return newAlt, nil
 }
 
 // altVariant is the variant state for an set of alternative render nodes.

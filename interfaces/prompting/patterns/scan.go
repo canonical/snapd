@@ -21,6 +21,7 @@ package patterns
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 )
@@ -77,7 +78,7 @@ loop:
 				break loop
 			}
 			// Should not occur, err is only set if no rune available to read
-			return nil, err
+			return nil, fmt.Errorf("internal error: failed to read rune while scanning path pattern %q: %w", text, err)
 		}
 
 		switch r {
@@ -93,8 +94,6 @@ loop:
 		case '\\':
 			r2, _, err := rr.ReadRune()
 			if err != nil {
-				// Should not occur, caller should verify that patterns do not
-				// have trailing '\\'
 				return nil, errors.New(`trailing unescaped '\' character`)
 			}
 
