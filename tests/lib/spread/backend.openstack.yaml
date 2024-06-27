@@ -9,8 +9,12 @@
             http_proxy: 'http://squid.internal:3128'
             https_proxy: 'http://squid.internal:3128'
         systems:
-            - ubuntu-22.04-arm-64:
-                image: ubuntu-jammy-22.04-arm64
+            - ubuntu-22.04-64:
+                image: ubuntu-22.04-64
+                workers: 6
+
+            - ubuntu-24.04-64:
+                image: ubuntu-24.04-64
                 workers: 6
 
             - fedora-40-64:
