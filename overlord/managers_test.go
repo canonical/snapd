@@ -39,6 +39,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -14458,9 +14459,12 @@ func (s *mgrsSuite) testConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C, 
 	err := assertstate.Add(st, s.devAcct)
 	c.Assert(err, IsNil)
 
+	var reqsLock sync.Mutex
 	var reqs []string
 	s.storeObserver = func(r *http.Request) {
 		c.Logf("request %v\n", r)
+		reqsLock.Lock()
+		defer reqsLock.Unlock()
 		reqs = append(reqs, r.URL.String())
 	}
 
