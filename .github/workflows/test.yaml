@@ -765,6 +765,34 @@ jobs:
               fi
           fi
 
+    - name: Setup run tests variable
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+      run: |
+          RUN_TESTS=""
+          # Save previous failed test results in FAILED_TESTS env var
+          if [ -n "$FAILED_TESTS" ]; then
+              RUN_TESTS="$FAILED_TESTS"
+          else
+              for SYSTEM in ${{ matrix.systems }}; do
+                  for TESTS in ${{ matrix.tests }}; do
+                      RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:$TESTS"
+                  done
+              done
+          fi
+          echo RUN_TESTS="$RUN_TESTS"  >> $GITHUB_ENV
+
+    - name: Setup grafana parameters
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+      run: |
+          # Configure parameters to filter logs (these logs are sent read by grafana agent)
+          CHANGE_ID="${{ github.event.number }}"
+          if [ -z "$PR_ID" ]; then
+            CHANGE_ID="main"
+          fi
+          CHANGE_ID="${CHANGE_ID}_n${{ github.run_attempt }}"
+          # The log-filter tool is used to filter the spread logs to be stored
+          echo FILTER_PARAMS="-o spread_$CHANGE_ID.filtered.log -e Debug -e WARNING: -f Failed=NO_LINES -f Error=NO_LINES"  >> $GITHUB_ENV
+
     - name: Run spread tests
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && ( !startsWith(matrix.group, 'nested-') || contains(github.event.pull_request.labels.*.name, 'Run nested') )"
       env:
@@ -793,23 +821,12 @@ jobs:
               ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
           fi
 
-          RUN_TESTS=""
-          # Save previous failed test results in FAILED_TESTS env var
-          if [ -n "$FAILED_TESTS" ]; then
-              RUN_TESTS="$FAILED_TESTS"
-          else
-              for SYSTEM in ${{ matrix.systems }}; do
-                  for TESTS in ${{ matrix.tests }}; do
-                      RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:$TESTS"
-                  done
-              done
-          fi
           # Run spread tests
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
           echo "Running command: $SPREAD $RUN_TESTS"
-          (set -o pipefail; $SPREAD -no-debug-output -logs .logs $RUN_TESTS | tee spread.log)
+          (set -o pipefail; $SPREAD -no-debug-output -logs .logs $RUN_TESTS | ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | tee spread.log)
 
 
     - name: Uploading spread logs
@@ -850,17 +867,6 @@ jobs:
           if [ -f spread.log ]; then
               echo "Running spread log parser"
               ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
-
-              echo "Determining which tests were executed"
-              RUN_TESTS=""
-              for SYSTEM in ${{ matrix.systems }}; do
-                  for TESTS in ${{ matrix.tests }}; do
-                      RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:$TESTS"
-                  done                  
-              done
-              if [ -n "$FAILED_TESTS" ]; then
-                  RUN_TESTS="$FAILED_TESTS"
-              fi
 
               # Add openstack backend definition to spread.yaml
               if [ "${{ matrix.backend }}" = openstack ]; then
