@@ -72,6 +72,10 @@ const logObserveConnectedPlugAppArmor = `
 # Needed since we are root and the owner/group doesn't match :\
 # So long as we have this, the cap must be reserved.
 capability dac_override,
+
+# As of Jammy, the default setting for sysctl kernel.dmesg_restrict changed from 0 -> 1
+# This means that CAP_SYSLOG is required for to access /dev/kmsg
+capability syslog,
 `
 
 func init() {
