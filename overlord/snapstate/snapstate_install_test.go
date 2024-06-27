@@ -6655,8 +6655,8 @@ func (s *snapmgrTestSuite) testInstallComponentsFromPathRunThrough(c *C, snapNam
 	instanceName := snap.InstanceName(snapName, instanceKey)
 
 	compNameToType := func(name string) snap.ComponentType {
-		typ, ok := strings.CutSuffix(name, "-component")
-		if !ok {
+		typ := strings.TrimSuffix(name, "-component")
+		if typ == name {
 			c.Fatalf("unexpected component name %q", name)
 		}
 		return snap.ComponentType(typ)
