@@ -523,6 +523,9 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 		}
 
 		info, app, hintFlock, err := maybeWaitWhileInhibited(context.Background(), x.client, snapName, appName)
+		if errors.Is(err, errInhibitedForRemove) {
+			return fmt.Errorf(i18n.G("cannot run %q, snap is being removed"), snapName)
+		}
 		if errors.Is(err, errSnapRefreshConflict) {
 			// Possible race condition detected, let's retry.
 

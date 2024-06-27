@@ -319,14 +319,29 @@ func (s *RunSuite) TestSnapRunAppRunsChecksRefreshInhibitionLock(c *check.C) {
 	checkHintFileNotLocked(c, "snapname")
 }
 
-func (s *RunSuite) TestSnapRunAppRunsChecksRemoveInhibitionLock(c *check.C) {
+func (s *RunSuite) testSnapRunAppRunsChecksRemoveInhibitionLock(c *check.C, svc bool) {
 	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, runinhibit.InhibitInfo, error) {
 		return runinhibit.HintInhibitedForRemove, runinhibit.InhibitInfo{}, nil
 	})
 	defer restore()
 
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
-	c.Assert(err, check.ErrorMatches, `snap "snapname" is being removed`)
+	cmd := "snapname.app"
+	if svc {
+		cmd = "snapname.svc"
+	}
+
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", cmd, "--arg1"})
+	c.Assert(err, check.ErrorMatches, `cannot run "snapname", snap is being removed`)
+}
+
+func (s *RunSuite) TestSnapRunAppRunsChecksRemoveInhibitionLock(c *check.C) {
+	const svc = false
+	s.testSnapRunAppRunsChecksRemoveInhibitionLock(c, svc)
+}
+
+func (s *RunSuite) TestSnapRunAppRunsChecksRemoveInhibitionLockService(c *check.C) {
+	const svc = true
+	s.testSnapRunAppRunsChecksRemoveInhibitionLock(c, svc)
 }
 
 func (s *RunSuite) TestSnapRunAppRunsChecksRemoveInhibitionLockError(c *check.C) {

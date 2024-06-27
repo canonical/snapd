@@ -44,6 +44,10 @@ var runinhibitIsLocked = runinhibit.IsLocked
 // which could alter the current snap revision.
 var errSnapRefreshConflict = fmt.Errorf("snap refresh conflict detected")
 
+// errInhibitedForRemove indicates that snap is inhibited from running because
+// it is being removed.
+var errInhibitedForRemove = fmt.Errorf("snap is being removed")
+
 // maybeWaitWhileInhibited is a wrapper for waitWhileInhibited that skips waiting
 // if refresh-app-awareness flag is disabled and early-exits when snap run is
 // inhibited for removal.
@@ -52,9 +56,8 @@ func maybeWaitWhileInhibited(ctx context.Context, cli *client.Client, snapName s
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	// XXX: do we want to allow services to start during removal?
 	if inhibitedForRemove {
-		return nil, nil, nil, fmt.Errorf(i18n.G("snap %q is being removed"), snapName)
+		return nil, nil, nil, errInhibitedForRemove
 	}
 
 	// wait only if refresh-app-awareness flag is enabled
