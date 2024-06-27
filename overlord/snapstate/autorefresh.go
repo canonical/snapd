@@ -61,7 +61,6 @@ const defaultMaxInhibitionDays = 14
 // hooks setup by devicestate
 var (
 	CanAutoRefresh        func(st *state.State) (bool, error)
-	CanManageRefreshes    func(st *state.State) bool
 	IsOnMeteredConnection func() (bool, error)
 
 	defaultRefreshSchedule = func() []*timeutil.Schedule {
@@ -131,7 +130,6 @@ type autoRefresh struct {
 	lastRefreshSchedule string
 	nextRefresh         time.Time
 	lastRefreshAttempt  time.Time
-	managedDeniedLogged bool
 
 	restoredMonitoring bool
 }
@@ -524,25 +522,12 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (sched []*timeutil.S
 
 	// user requests refreshes to be managed by an external snap
 	if scheduleConf == "managed" {
-		if CanManageRefreshes == nil || !CanManageRefreshes(m.state) {
-			// there's no snap to manage refreshes so use default schedule
-			if !m.managedDeniedLogged {
-				logger.Noticef("managed refresh schedule denied, no properly configured snapd-control")
-				m.managedDeniedLogged = true
-			}
-
-			return defaultRefreshSchedule, defaultRefreshScheduleStr, false, nil
-		}
-
 		if m.lastRefreshSchedule != "managed" {
 			logger.Noticef("refresh is managed via the snapd-control interface")
 			m.lastRefreshSchedule = "managed"
 		}
-		m.managedDeniedLogged = false
-
 		return nil, "managed", legacy, nil
 	}
-	m.managedDeniedLogged = false
 
 	if scheduleConf == "" {
 		return defaultRefreshSchedule, defaultRefreshScheduleStr, false, nil
