@@ -95,6 +95,27 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		return SnapSetup{}, nil, err
 	}
 
+	compsups := make([]ComponentSetup, 0, len(t.components))
+	for _, comp := range t.components {
+		compsups = append(compsups, ComponentSetup{
+			CompSideInfo: comp.CompSideInfo,
+			CompType:     comp.CompType,
+			CompPath:     comp.CompPath,
+			DownloadInfo: comp.DownloadInfo,
+
+			Flags: componentInstallFlags{
+				// if we're removing the snap, then we should remove the
+				// components too
+				RemoveComponentPath: flags.RemoveSnapPath,
+
+				// since target is always used to setup components and snaps at
+				// the same time, individual components should not be create
+				// setup-profiles tasks.
+				SkipProfiles: true,
+			},
+		})
+	}
+
 	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)
 	return SnapSetup{
 		Channel:      t.setup.Channel,
@@ -113,7 +134,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		PlugsOnly:          len(t.info.Slots) == 0,
 		InstanceKey:        t.info.InstanceKey,
 		ExpectedProvenance: t.info.SnapProvenance,
-	}, t.components, nil
+	}, compsups, nil
 }
 
 // InstallGoal represents a single snap or a group of snaps to be installed.

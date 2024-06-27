@@ -627,14 +627,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 
 	tasksAfterLinkSnap := make([]*state.Task, 0, len(compsups))
 	for _, compsup := range compsups {
-		compTaskSet, err := doInstallComponent(st, snapst, &compsup, &snapsup, componentInstallFlags{
-			// if we are removing the snap, we can assume that we should remove
-			// the component too
-			RemoveComponentPath: snapsup.RemoveSnapPath,
-			// the setup-profiles task that is created for the snap itself
-			// generates the security profiles for the snap and its new components
-			SkipProfiles: true,
-		}, "")
+		compTaskSet, err := doInstallComponent(st, snapst, &compsup, &snapsup, fromChange)
 		if err != nil {
 			return nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
 		}
