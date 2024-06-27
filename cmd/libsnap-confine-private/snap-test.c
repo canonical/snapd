@@ -612,7 +612,7 @@ static void test_sc_snap_component_validate_respects_error_protocol(void)
 	g_test_trap_subprocess(NULL, 0, 0);
 	g_test_trap_assert_failed();
 	g_test_trap_assert_stderr
-	    ("snap name must use lower case letters, digits or dashes\n");
+	    ("snap name in component must use lower case letters, digits or dashes\n");
 }
 
 static void __attribute__((constructor)) init(void)
