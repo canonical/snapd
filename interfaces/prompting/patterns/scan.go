@@ -60,6 +60,13 @@ type token struct {
 }
 
 func scan(text string) (tokens []token, err error) {
+	if len(text) == 0 {
+		return nil, errors.New("pattern has length 0")
+	}
+	if text[0] != '/' {
+		return nil, errors.New("pattern must start with '/'")
+	}
+
 	var runes []rune
 
 	consumeText := func() {
@@ -78,7 +85,7 @@ loop:
 				break loop
 			}
 			// Should not occur, err is only set if no rune available to read
-			return nil, fmt.Errorf("internal error: failed to read rune while scanning path pattern %q: %w", text, err)
+			return nil, fmt.Errorf("internal error: failed to read rune while scanning path pattern: %w", err)
 		}
 
 		switch r {

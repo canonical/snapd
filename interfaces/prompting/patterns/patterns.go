@@ -53,15 +53,6 @@ func ParsePathPattern(pattern string) (*PathPattern, error) {
 // which expanded path patterns can be iterated, overwriting the receiver.
 func (p *PathPattern) parse(pattern string) error {
 	prefix := fmt.Sprintf("cannot parse path pattern %q", pattern)
-	if pattern == "" {
-		return fmt.Errorf("%s: pattern has length 0", prefix)
-	}
-	if pattern[0] != '/' {
-		return fmt.Errorf("%s: pattern must start with '/'", prefix)
-	}
-	if strings.HasSuffix(pattern, `\`) && !strings.HasSuffix(pattern, `\\`) {
-		return fmt.Errorf(`%s: trailing unescaped '\' character`, prefix)
-	}
 	tokens, err := scan(pattern)
 	if err != nil {
 		return fmt.Errorf("%s: %w", prefix, err)
@@ -161,20 +152,20 @@ func cleanPattern(pattern string) string {
 // We want to override this behavior to make `/foo/**/` not match `/foo`.
 // We also want to override doublestar to make `/foo` match `/foo/`.
 func PathPatternMatches(pattern string, path string) (bool, error) {
-	// Check the usual doublestar match first, in case the pattern is malformed
-	// and causes an error, and return the error if so.
-	matched, err := doublestar.Match(pattern, path)
-	if err != nil {
-		return false, err
-	}
-	// No matter if doublestar matched, return false if pattern ends in '/' but
-	// path is not a directory.
+	// If pattern ends in '/', it only matches paths which also end in '/'
 	if strings.HasSuffix(pattern, "/") && !strings.HasSuffix(path, "/") {
 		return false, nil
+	}
+	matched, err := doublestar.Match(pattern, path)
+	if err != nil {
+		// Pattern should not be malformed, since it was rendered internally
+		return false, err
 	}
 	if matched {
 		return true, nil
 	}
+	// If pattern already has trailing '/', don't try to match with additional
+	// trailing '/'.
 	if strings.HasSuffix(pattern, "/") {
 		return false, nil
 	}

@@ -116,6 +116,14 @@ func (s *scanSuite) TestScanUnhappy(c *C) {
 		expectedErr string
 	}{
 		{
+			``,
+			`pattern has length 0`,
+		},
+		{
+			`foo`,
+			`pattern must start with '/'`,
+		},
+		{
 			`/foo\`,
 			`trailing unescaped '\\' character`,
 		},
