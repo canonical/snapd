@@ -65,20 +65,17 @@ type renderNode interface {
 // the variant, such as adding it to a data structure.
 func renderAllVariants(n renderNode, observe func(index int, variant string)) {
 	var buf bytes.Buffer
-	var moreRemain bool
 
 	v, length := n.InitialVariant()
 	lengthUnchanged := 0
+	moreRemain := true
 
-	for i := 0; ; i++ {
+	for i := 0; moreRemain; i++ {
 		buf.Truncate(lengthUnchanged)
 		buf.Grow(length - lengthUnchanged)
 		v.Render(&buf, lengthUnchanged)
 		observe(i, buf.String())
 		length, lengthUnchanged, moreRemain = v.NextVariant()
-		if !moreRemain {
-			break
-		}
 	}
 }
 
