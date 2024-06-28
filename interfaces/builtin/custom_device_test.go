@@ -393,8 +393,8 @@ func (s *CustomDeviceInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
-	c.Check(plugSnippet, testutil.Contains, `"/dev/input/event[0-9]" rw,`)
-	c.Check(plugSnippet, testutil.Contains, `"/dev/input/mice" rw,`)
+	c.Check(plugSnippet, testutil.Contains, `"/dev/input/event[0-9]" rwk,`)
+	c.Check(plugSnippet, testutil.Contains, `"/dev/input/mice" rwk,`)
 	c.Check(plugSnippet, testutil.Contains, `"/dev/js*" r,`)
 	c.Check(plugSnippet, testutil.Contains, `"/bar" rw,`)
 	c.Check(plugSnippet, testutil.Contains, `"/dev/input/by-id/*" r,`)
