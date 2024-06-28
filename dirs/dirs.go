@@ -25,13 +25,15 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // the various file paths
 var (
-	GlobalRootDir string
+	GlobalRootDir string = "/"
 
 	RunDir string
 
@@ -39,16 +41,17 @@ var (
 
 	DistroLibExecDir string
 
-	HiddenSnapDataHomeGlob string
+	hiddenSnapDataHomeGlob []string
 
 	SnapBlobDir          string
 	SnapDataDir          string
-	SnapDataHomeGlob     string
+	snapDataHomeGlob     []string
 	SnapDownloadCacheDir string
 	SnapAppArmorDir      string
 	SnapSeccompBase      string
 	SnapSeccompDir       string
 	SnapMountPolicyDir   string
+	SnapCgroupPolicyDir  string
 	SnapUdevRulesDir     string
 	SnapKModModulesDir   string
 	SnapKModModprobeDir  string
@@ -140,6 +143,13 @@ var (
 	FeaturesDir string
 )
 
+// User defined home directory variables
+// Not exported, use SnapHomeDirs() and SetSnapHomeDirs() instead
+var (
+	snapHomeDirsMu sync.Mutex
+	snapHomeDirs   []string
+)
+
 const (
 	defaultSnapMountDir = "/snap"
 
@@ -190,6 +200,67 @@ func init() {
 	SetRootDir(root)
 }
 
+// SnapHomeDirs returns a slice of the currently configured home directories.
+func SnapHomeDirs() []string {
+	snapHomeDirsMu.Lock()
+	defer snapHomeDirsMu.Unlock()
+	dirs := make([]string, len(snapHomeDirs))
+	copy(dirs, snapHomeDirs)
+	// Should never be true since SetSnapHomeDirs is run on init and on SetRootDir calls.
+	// Useful for unit tests.
+	if len(dirs) == 0 {
+		return []string{filepath.Join(GlobalRootDir, "/home")}
+	}
+	return dirs
+}
+
+// SetSnapHomeDirs sets SnapHomeDirs to the user defined values and appends /home if needed.
+// homedirs must be a comma separated list of paths to home directories.
+// If homedirs is empty, SnapHomeDirs will be a slice of length 1 containing "/home".
+// Also generates the data directory globbing expressions for each user.
+// Expected to be run by configstate.Init, returns a slice of home directories.
+func SetSnapHomeDirs(homedirs string) []string {
+	snapHomeDirsMu.Lock()
+	defer snapHomeDirsMu.Unlock()
+
+	//clear old values
+	snapHomeDirs = nil
+	snapDataHomeGlob = nil
+	hiddenSnapDataHomeGlob = nil
+
+	// Do not set the root directory as home unless explicitly specified with "."
+	if homedirs != "" {
+		snapHomeDirs = strings.Split(homedirs, ",")
+		for i := range snapHomeDirs {
+			// clean the path
+			snapHomeDirs[i] = filepath.Clean(snapHomeDirs[i])
+			globalRootDir := GlobalRootDir
+			// Avoid false positives with HasPrefix
+			if globalRootDir != "/" && !strings.HasSuffix(globalRootDir, "/") {
+				globalRootDir += "/"
+			}
+			if !strings.HasPrefix(snapHomeDirs[i], globalRootDir) {
+				snapHomeDirs[i] = filepath.Join(GlobalRootDir, snapHomeDirs[i])
+			}
+			// Generate data directory globbing expressions for each user.
+			snapDataHomeGlob = append(snapDataHomeGlob, filepath.Join(snapHomeDirs[i], "*", UserHomeSnapDir))
+			hiddenSnapDataHomeGlob = append(hiddenSnapDataHomeGlob, filepath.Join(snapHomeDirs[i], "*", HiddenSnapDataHomeDir))
+		}
+	}
+
+	// Make sure /home is part of the list.
+	hasHome := strutil.ListContains(snapHomeDirs, filepath.Join(GlobalRootDir, "/home"))
+
+	// if not add it and create the glob expressions.
+	if !hasHome {
+		snapHomeDirs = append(snapHomeDirs, filepath.Join(GlobalRootDir, "/home"))
+		snapDataHomeGlob = append(snapDataHomeGlob, filepath.Join(GlobalRootDir, "/home", "*", UserHomeSnapDir))
+		hiddenSnapDataHomeGlob = append(hiddenSnapDataHomeGlob, filepath.Join(GlobalRootDir, "/home", "*", HiddenSnapDataHomeDir))
+	}
+
+	return snapHomeDirs
+}
+
 // StripRootDir strips the custom global root directory from the specified argument.
 func StripRootDir(dir string) string {
 	if !filepath.IsAbs(dir) {
@@ -203,6 +274,17 @@ func StripRootDir(dir string) string {
 		panic(err)
 	}
 	return "/" + result
+}
+
+// DataHomeGlobs returns a slice of globbing expressions for the snap directories in use.
+func DataHomeGlobs(opts *SnapDirOptions) []string {
+	snapHomeDirsMu.Lock()
+	defer snapHomeDirsMu.Unlock()
+	if opts != nil && opts.HiddenSnapDataDir {
+		return hiddenSnapDataHomeGlob
+	}
+
+	return snapDataHomeGlob
 }
 
 // SupportsClassicConfinement returns true if the current directory layout supports classic confinement.
@@ -332,6 +414,12 @@ func SnapRepairConfigFileUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "repair.json")
 }
 
+// SnapKernelTreesDirUnder returns the path to the snap kernel drivers trees
+// dir under rootdir.
+func SnapKernelDriversTreesDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "kernel")
+}
+
 // AddRootDirCallback registers a callback for whenever the global root
 // directory (set by SetRootDir) is changed to enable updates to variables in
 // other packages that depend on its location.
@@ -366,13 +454,12 @@ func SetRootDir(rootdir string) {
 	}
 
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
-	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/", UserHomeSnapDir)
-	HiddenSnapDataHomeGlob = filepath.Join(rootdir, "/home/*/", HiddenSnapDataHomeDir)
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
 	SnapDownloadCacheDir = filepath.Join(rootdir, snappyDir, "cache")
 	SnapSeccompBase = filepath.Join(rootdir, snappyDir, "seccomp")
 	SnapSeccompDir = filepath.Join(SnapSeccompBase, "bpf")
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
+	SnapCgroupPolicyDir = filepath.Join(rootdir, snappyDir, "cgroup")
 	SnapdMaintenanceFile = filepath.Join(rootdir, snappyDir, "maintenance.json")
 	SnapBlobDir = SnapBlobDirUnder(rootdir)
 	SnapVoidDir = filepath.Join(rootdir, snappyDir, "void")
@@ -516,11 +603,15 @@ func SetRootDir(rootdir string) {
 
 	FeaturesDir = FeaturesDirUnder(rootdir)
 
+	// If the root directory changes we also need to reset snapHomeDirs.
+	SetSnapHomeDirs("/home")
+
 	// call the callbacks last so that the callbacks can just reference the
 	// global vars if they want, instead of using the new rootdir directly
 	for _, c := range callbacks {
 		c(rootdir)
 	}
+
 }
 
 // what inside a (non-classic) snap is /usr/lib/snapd, outside can come from different places

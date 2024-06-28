@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -68,6 +68,7 @@ var (
 	SealKeyToModeenv                = sealKeyToModeenvImpl
 	ResealKeyToModeenv              = resealKeyToModeenv
 	RecoveryBootChainsForSystems    = recoveryBootChainsForSystems
+	RunModeBootChains               = runModeBootChains
 	SealKeyModelParams              = sealKeyModelParams
 
 	BootVarsForTrustedCommandLineFromGadget = bootVarsForTrustedCommandLineFromGadget
@@ -89,19 +90,25 @@ func (t *TrackedAsset) Equals(blName, name, hash string) error {
 	return nil
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentTrustedBootAssetsMap() BootAssetsMap {
+func (t *TrackedAsset) GetHash() string {
+	return t.hash
+}
+
+type TrustedAssetsInstallObserverImpl = trustedAssetsInstallObserverImpl
+
+func (o *trustedAssetsInstallObserverImpl) CurrentTrustedBootAssetsMap() BootAssetsMap {
 	return o.currentTrustedBootAssetsMap()
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentTrustedRecoveryBootAssetsMap() BootAssetsMap {
+func (o *trustedAssetsInstallObserverImpl) CurrentTrustedRecoveryBootAssetsMap() BootAssetsMap {
 	return o.currentTrustedRecoveryBootAssetsMap()
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentDataEncryptionKey() keys.EncryptionKey {
+func (o *trustedAssetsInstallObserverImpl) CurrentDataEncryptionKey() keys.EncryptionKey {
 	return o.dataEncryptionKey
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentSaveEncryptionKey() keys.EncryptionKey {
+func (o *trustedAssetsInstallObserverImpl) CurrentSaveEncryptionKey() keys.EncryptionKey {
 	return o.saveEncryptionKey
 }
 
@@ -171,7 +178,6 @@ const (
 )
 
 var (
-	ToPredictableBootAsset              = toPredictableBootAsset
 	ToPredictableBootChain              = toPredictableBootChain
 	ToPredictableBootChains             = toPredictableBootChains
 	PredictableBootChainsEqualForReseal = predictableBootChainsEqualForReseal

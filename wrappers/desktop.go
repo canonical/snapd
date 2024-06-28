@@ -23,7 +23,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -132,7 +131,7 @@ func rewriteExecLine(s *snap.Info, desktopFile, action, line string) (string, er
 
 	for _, app := range s.Apps {
 		wrapper := filepath.Base(app.WrapperPath())
-		validCmd := filepath.Base(wrapper)
+		validCmd := wrapper
 		if s.InstanceKey != "" {
 			// wrapper uses s.InstanceName(), with the instance key
 			// set the command will be 'snap_foo.app' instead of
@@ -287,7 +286,7 @@ func deriveDesktopFilesContent(s *snap.Info) (map[string]osutil.FileState, error
 	content := make(map[string]osutil.FileState)
 	for _, df := range desktopFiles {
 		base := filepath.Base(df)
-		fileContent, err := ioutil.ReadFile(df)
+		fileContent, err := os.ReadFile(df)
 		if err != nil {
 			return nil, err
 		}

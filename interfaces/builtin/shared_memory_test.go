@@ -383,54 +383,74 @@ func (s *SharedMemoryInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *SharedMemoryInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
-
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
 
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
-	slotSnippet := spec.SnippetForTag("snap.provider.app")
-
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.provider.app"})
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	c.Check(plugSnippet, testutil.Contains, `"/{dev,run}/shm/bar" mrwlk,`)
 	c.Check(plugSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro" r,`)
+
+	appSet, err = interfaces.NewSnapAppSet(s.slot.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec = apparmor.NewSpecification(appSet)
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
+
+	slotSnippet := spec.SnippetForTag("snap.provider.app")
 
 	// Slot has read-write permissions to all paths
 	c.Check(slotSnippet, testutil.Contains, `"/{dev,run}/shm/bar" mrwlk,`)
 	c.Check(slotSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro" mrwlk,`)
 
-	wildcardSpec := &apparmor.Specification{}
+	appSet, err = interfaces.NewSnapAppSet(s.wildcardPlug.Snap(), nil)
+	c.Assert(err, IsNil)
+	wildcardSpec := apparmor.NewSpecification(appSet)
 	c.Assert(wildcardSpec.AddConnectedPlug(s.iface, s.wildcardPlug, s.wildcardSlot), IsNil)
 	wildcardPlugSnippet := wildcardSpec.SnippetForTag("snap.consumer.app")
 
-	c.Assert(wildcardSpec.AddConnectedSlot(s.iface, s.wildcardPlug, s.wildcardSlot), IsNil)
-	wildcardSlotSnippet := wildcardSpec.SnippetForTag("snap.provider.app")
-
-	c.Assert(wildcardSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.provider.app"})
+	c.Assert(wildcardSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	c.Check(wildcardPlugSnippet, testutil.Contains, `"/{dev,run}/shm/bar*" mrwlk,`)
 	c.Check(wildcardPlugSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro*" r,`)
+
+	appSet, err = interfaces.NewSnapAppSet(s.wildcardSlot.Snap(), nil)
+	c.Assert(err, IsNil)
+	wildcardSpec = apparmor.NewSpecification(appSet)
+	c.Assert(wildcardSpec.AddConnectedSlot(s.iface, s.wildcardPlug, s.wildcardSlot), IsNil)
+
+	c.Assert(wildcardSpec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
+
+	wildcardSlotSnippet := wildcardSpec.SnippetForTag("snap.provider.app")
 
 	// Slot has read-write permissions to all paths
 	c.Check(wildcardSlotSnippet, testutil.Contains, `"/{dev,run}/shm/bar*" mrwlk,`)
 	c.Check(wildcardSlotSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro*" mrwlk,`)
 
-	spec = &apparmor.Specification{}
+	appSet, err = interfaces.NewSnapAppSet(s.privatePlug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.privatePlug, s.privateSlot), IsNil)
 	privatePlugSnippet := spec.SnippetForTag("snap.consumer.app")
 	privateUpdateNS := spec.UpdateNS()
 
-	c.Assert(spec.AddConnectedSlot(s.iface, s.privatePlug, s.privateSlot), IsNil)
-	privateSlotSnippet := spec.SnippetForTag("snap.core.app")
-
 	c.Check(privatePlugSnippet, testutil.Contains, `"/dev/shm/**" mrwlkix`)
-	c.Check(privateSlotSnippet, Equals, "")
 	c.Check(strings.Join(privateUpdateNS, ""), Equals, `  # Private /dev/shm
   /dev/ r,
   /dev/shm/{,**} rw,
   mount options=(bind, rw) /dev/shm/snap.consumer/ -> /dev/shm/,
   umount /dev/shm/,`)
+
+	appSet, err = interfaces.NewSnapAppSet(s.privateSlot.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec = apparmor.NewSpecification(appSet)
+	c.Assert(spec.AddConnectedSlot(s.iface, s.privatePlug, s.privateSlot), IsNil)
+	privateSlotSnippet := spec.SnippetForTag("snap.core.app")
+
+	c.Check(privateSlotSnippet, Equals, "")
 }
 
 func (s *SharedMemoryInterfaceSuite) TestMountSpec(c *C) {

@@ -1,5 +1,9 @@
 summary: Ensure `snap debug bootvars` command works
 
+details: |
+    This test checks the command `snap debug bootvars` displays
+    correct boot variables information.
+
 debug: |
     cat default.out || true
     cat uc20.out || true
@@ -10,7 +14,7 @@ execute: |
     # does not outright fail
     snap debug boot-vars  > default.out
 
-    if os.query is-core20 || os.query is-core22; then
+    if os.query is-core-ge 20; then
         echo "Check the boot-vars default output looks sane"
         # boot-vars default output is for the run mode bootloader, make sure its
         # output looks sane (though we don't expect any of the variables to be

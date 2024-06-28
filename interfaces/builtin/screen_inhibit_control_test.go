@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -50,15 +49,15 @@ apps:
   command: foo
   plugs: [screen-inhibit-control]
 `
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "screen-inhibit-control",
-		Interface: "screen-inhibit-control",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
-	s.plugInfo = snapInfo.Plugs["screen-inhibit-control"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	const mockSlotSnapInfoYaml = `name: core
+version: 1
+type: os
+slots:
+ screen-inhibit-control:
+  interface: screen-inhibit-control
+`
+	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "screen-inhibit-control")
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "screen-inhibit-control")
 }
 
 func (s *ScreenInhibitControlInterfaceSuite) TestName(c *C) {
@@ -75,7 +74,7 @@ func (s *ScreenInhibitControlInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *ScreenInhibitControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})

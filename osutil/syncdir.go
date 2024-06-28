@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -40,7 +39,7 @@ type SymlinkFileState struct {
 }
 
 func (sym SymlinkFileState) State() (io.ReadCloser, int64, os.FileMode, error) {
-	return ioutil.NopCloser(bytes.NewReader([]byte(sym.Target))), int64(len(sym.Target)), os.ModeSymlink, nil
+	return io.NopCloser(bytes.NewReader([]byte(sym.Target))), int64(len(sym.Target)), os.ModeSymlink, nil
 }
 
 // FileReference describes the desired content by referencing an existing file.
@@ -93,7 +92,7 @@ func (blob *MemoryFileState) State() (io.ReadCloser, int64, os.FileMode, error) 
 	if !blob.Mode.IsRegular() {
 		return nil, 0, os.FileMode(0), fmt.Errorf("internal error: only regular files are supported, got %q instead", blob.Mode.Type())
 	}
-	return ioutil.NopCloser(bytes.NewReader(blob.Content)), int64(len(blob.Content)), blob.Mode, nil
+	return io.NopCloser(bytes.NewReader(blob.Content)), int64(len(blob.Content)), blob.Mode, nil
 }
 
 // ErrSameState is returned when the state of a file has not changed.
@@ -264,7 +263,7 @@ func symlinkFileStateEqualTo(filePath string, state FileState) (bool, error) {
 		return false, err
 	}
 	defer readerA.Close()
-	buf, err := ioutil.ReadAll(readerA)
+	buf, err := io.ReadAll(readerA)
 	if err != nil {
 		return false, err
 	}
@@ -302,7 +301,7 @@ func ensureSymlinkFileState(filePath string, state FileState) error {
 	if err != nil {
 		return err
 	}
-	buf, err := ioutil.ReadAll(reader)
+	buf, err := io.ReadAll(reader)
 	if err != nil {
 		return err
 	}

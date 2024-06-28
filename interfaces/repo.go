@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/utils"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -45,6 +46,8 @@ type Repository struct {
 	// given a plug and a slot, are they connected?
 	plugSlots map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection
 	backends  []SecurityBackend
+	// mapping of snap name to app set that was added to the repo with AddAppSet
+	appSets map[string]*SnapAppSet
 }
 
 // NewRepository creates an empty plug repository.
@@ -56,9 +59,21 @@ func NewRepository() *Repository {
 		slots:         make(map[string]map[string]*snap.SlotInfo),
 		slotPlugs:     make(map[*snap.SlotInfo]map[*snap.PlugInfo]*Connection),
 		plugSlots:     make(map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection),
+		appSets:       make(map[string]*SnapAppSet),
 	}
 
 	return repo
+}
+
+func ResetRepository(repo *Repository) {
+	osutil.MustBeTestBinary("cannot use the ResetRepository method outside of tests")
+	repo.ifaces = make(map[string]Interface)
+	repo.hotplugIfaces = make(map[string]Interface)
+	repo.plugs = make(map[string]map[string]*snap.PlugInfo)
+	repo.slots = make(map[string]map[string]*snap.SlotInfo)
+	repo.slotPlugs = make(map[*snap.SlotInfo]map[*snap.PlugInfo]*Connection)
+	repo.plugSlots = make(map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection)
+	repo.appSets = make(map[string]*SnapAppSet)
 }
 
 // Interface returns an interface with a given name.
@@ -306,62 +321,6 @@ func (r *Repository) Connection(connRef *ConnRef) (*Connection, error) {
 	return conn, nil
 }
 
-// AddPlug adds a plug to the repository.
-// Plug names must be valid snap names, as defined by ValidateName.
-// Plug name must be unique within a particular snap.
-func (r *Repository) AddPlug(plug *snap.PlugInfo) error {
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	snapName := plug.Snap.InstanceName()
-
-	// Reject snaps with invalid names
-	if err := snap.ValidateInstanceName(snapName); err != nil {
-		return err
-	}
-	// Reject plugs with invalid names
-	if err := snap.ValidatePlugName(plug.Name); err != nil {
-		return err
-	}
-	i := r.ifaces[plug.Interface]
-	if i == nil {
-		return fmt.Errorf("cannot add plug, interface %q is not known", plug.Interface)
-	}
-	if _, ok := r.plugs[snapName][plug.Name]; ok {
-		return fmt.Errorf("snap %q has plugs conflicting on name %q", snapName, plug.Name)
-	}
-	if _, ok := r.slots[snapName][plug.Name]; ok {
-		return fmt.Errorf("snap %q has plug and slot conflicting on name %q", snapName, plug.Name)
-	}
-	if r.plugs[snapName] == nil {
-		r.plugs[snapName] = make(map[string]*snap.PlugInfo)
-	}
-	r.plugs[snapName][plug.Name] = plug
-	return nil
-}
-
-// RemovePlug removes the named plug provided by a given snap.
-// The removed plug must exist and must not be used anywhere.
-func (r *Repository) RemovePlug(snapName, plugName string) error {
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	// Ensure that such plug exists
-	plug := r.plugs[snapName][plugName]
-	if plug == nil {
-		return fmt.Errorf("cannot remove plug %q from snap %q, no such plug", plugName, snapName)
-	}
-	// Ensure that the plug is not used by any slot
-	if len(r.plugSlots[plug]) > 0 {
-		return fmt.Errorf("cannot remove plug %q from snap %q, it is still connected", plugName, snapName)
-	}
-	delete(r.plugs[snapName], plugName)
-	if len(r.plugs[snapName]) == 0 {
-		delete(r.plugs, snapName)
-	}
-	return nil
-}
-
 // AllSlots returns all slots of the given interface.
 // If interfaceName is the empty string, all slots are returned.
 func (r *Repository) AllSlots(interfaceName string) []*snap.SlotInfo {
@@ -428,6 +387,9 @@ func (r *Repository) AddSlot(slot *snap.SlotInfo) error {
 	}
 	if _, ok := r.plugs[snapName][slot.Name]; ok {
 		return fmt.Errorf("snap %q has plug and slot conflicting on name %q", snapName, slot.Name)
+	}
+	if r.appSets[snapName] == nil {
+		return fmt.Errorf("cannot add slot, snap %q is not known", snapName)
 	}
 	if r.slots[snapName] == nil {
 		r.slots[snapName] = make(map[string]*snap.SlotInfo)
@@ -579,8 +541,18 @@ func (r *Repository) Connect(ref *ConnRef, plugStaticAttrs, plugDynamicAttrs, sl
 		return nil, fmt.Errorf("internal error: unknown interface %q", plug.Interface)
 	}
 
-	cplug := NewConnectedPlug(plug, plugStaticAttrs, plugDynamicAttrs)
-	cslot := NewConnectedSlot(slot, slotStaticAttrs, slotDynamicAttrs)
+	plugAppSet := r.appSets[plugSnapName]
+	if plugAppSet == nil {
+		return nil, fmt.Errorf("internal error: no app set for plug snap %q", plugSnapName)
+	}
+
+	slotAppSet := r.appSets[slotSnapName]
+	if slotAppSet == nil {
+		return nil, fmt.Errorf("internal error: no app set for plug snap %q", plugSnapName)
+	}
+
+	cplug := NewConnectedPlug(plug, plugAppSet, plugStaticAttrs, plugDynamicAttrs)
+	cslot := NewConnectedSlot(slot, slotAppSet, slotStaticAttrs, slotDynamicAttrs)
 
 	// policyCheck is null when reloading connections
 	if policyCheck != nil {
@@ -832,11 +804,11 @@ func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
 // guessSystemSnapName returns the name of the system snap if one exists
 func (r *Repository) guessSystemSnapName() (string, error) {
 	switch {
-	case r.slots["snapd"] != nil:
+	case r.appSets["snapd"] != nil:
 		return "snapd", nil
-	case r.slots["core"] != nil:
+	case r.appSets["core"] != nil:
 		return "core", nil
-	case r.slots["ubuntu-core"] != nil:
+	case r.appSets["ubuntu-core"] != nil:
 		return "ubuntu-core", nil
 	default:
 		return "", fmt.Errorf("cannot guess the name of the core snap")
@@ -912,7 +884,7 @@ func (r *Repository) Interfaces() *Interfaces {
 }
 
 // SnapSpecification returns the specification of a given snap in a given security system.
-func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName string) (Specification, error) {
+func (r *Repository) SnapSpecification(securitySystem SecuritySystem, appSet *SnapAppSet, opts ConfinementOptions) (Specification, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -923,11 +895,13 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 			break
 		}
 	}
+
+	snapName := appSet.InstanceName()
 	if backend == nil {
 		return nil, fmt.Errorf("cannot handle interfaces of snap %q, security system %q is not known", snapName, securitySystem)
 	}
 
-	spec := backend.NewSpecification()
+	spec := backend.NewSpecification(appSet, opts)
 
 	// XXX: If either of the AddConnected{Plug,Slot} methods for a connection
 	// fail resiliently as-in they can never succeed (such as the case where a
@@ -971,23 +945,27 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 	return spec, nil
 }
 
-// AddSnap adds plugs and slots declared by the given snap to the repository.
+// AddAppSet adds plugs and slots declared by the given app set (snap +
+// components) to the repository.
 //
 // This function can be used to implement snap install or, when used along with
 // RemoveSnap, snap upgrade.
 //
-// AddSnap doesn't change existing plugs/slots. The caller is responsible for
-// ensuring that the snap is not present in the repository in any way prior to
-// calling this function. If this constraint is violated then no changes are
+// AddAppSet doesn't change existing plugs/slots. The caller is responsible for
+// ensuring that the app set is not present in the repository in any way prior
+// to calling this function. If this constraint is violated then no changes are
 // made and an error is returned.
 //
 // Each added plug/slot is validated according to the corresponding interface.
 // Unknown interfaces and plugs/slots that don't validate are not added.
 // Information about those failures are returned to the caller.
-func (r *Repository) AddSnap(snapInfo *snap.Info) error {
+func (r *Repository) AddAppSet(appSet *SnapAppSet) error {
+	snapInfo := appSet.Info()
+
 	if snapInfo.Broken != "" {
 		return fmt.Errorf("snap is broken: %s", snapInfo.Broken)
 	}
+
 	err := snap.Validate(snapInfo)
 	if err != nil {
 		return err
@@ -998,9 +976,12 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 
 	snapName := snapInfo.InstanceName()
 
-	if r.plugs[snapName] != nil || r.slots[snapName] != nil {
+	// just checking for the name's existence in r.appSets should be enough
+	if r.appSets[snapName] != nil {
 		return fmt.Errorf("cannot register interfaces for snap %q more than once", snapName)
 	}
+
+	r.appSets[snapName] = appSet
 
 	for plugName, plugInfo := range snapInfo.Plugs {
 		if _, ok := r.ifaces[plugInfo.Interface]; !ok {
@@ -1055,6 +1036,8 @@ func (r *Repository) RemoveSnap(snapName string) error {
 		delete(r.slotPlugs, slot)
 	}
 	delete(r.slots, snapName)
+
+	delete(r.appSets, snapName)
 
 	return nil
 }
@@ -1112,6 +1095,11 @@ func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, po
 		return nil, nil
 	}
 
+	plugAppSet := r.appSets[plugSnapName]
+	if plugAppSet == nil {
+		return nil, nil
+	}
+
 	var candidates []*snap.SlotInfo
 	var arities []SideArity
 	for _, slotsForSnap := range r.slots {
@@ -1121,8 +1109,16 @@ func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, po
 			}
 			iface := slotInfo.Interface
 
+			slotAppSet := r.appSets[slotInfo.Snap.InstanceName()]
+			if slotAppSet == nil {
+				continue
+			}
+
+			connectedPlug := NewConnectedPlug(plugInfo, plugAppSet, nil, nil)
+			connectedSlot := NewConnectedSlot(slotInfo, slotAppSet, nil, nil)
+
 			// declaration based checks disallow
-			ok, arity, err := policyCheck(NewConnectedPlug(plugInfo, nil, nil), NewConnectedSlot(slotInfo, nil, nil))
+			ok, arity, err := policyCheck(connectedPlug, connectedSlot)
 			if !ok || err != nil {
 				continue
 			}
@@ -1147,6 +1143,11 @@ func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, po
 		return nil
 	}
 
+	slotAppSet := r.appSets[slotSnapName]
+	if slotAppSet == nil {
+		return nil
+	}
+
 	var candidates []*snap.PlugInfo
 	for _, plugsForSnap := range r.plugs {
 		for _, plugInfo := range plugsForSnap {
@@ -1155,8 +1156,16 @@ func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, po
 			}
 			iface := slotInfo.Interface
 
+			plugAppSet := r.appSets[plugInfo.Snap.InstanceName()]
+			if plugAppSet == nil {
+				continue
+			}
+
+			connectedPlug := NewConnectedPlug(plugInfo, plugAppSet, nil, nil)
+			connectedSlot := NewConnectedSlot(slotInfo, slotAppSet, nil, nil)
+
 			// declaration based checks disallow
-			ok, _, err := policyCheck(NewConnectedPlug(plugInfo, nil, nil), NewConnectedSlot(slotInfo, nil, nil))
+			ok, _, err := policyCheck(connectedPlug, connectedSlot)
 			if !ok || err != nil {
 				continue
 			}

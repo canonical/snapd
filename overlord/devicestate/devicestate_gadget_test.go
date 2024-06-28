@@ -274,7 +274,7 @@ func (s *deviceMgrGadgetSuite) setupGadgetUpdate(c *C, modelGrade, gadgetYamlCon
 
 	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
 		SnapType: "gadget",
-		Sequence: []*snap.SideInfo{siCurrent},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siCurrent}),
 		Current:  siCurrent.Revision,
 		Active:   true,
 	})
@@ -294,11 +294,19 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 	var updateCalled bool
 	var passedRollbackDir string
 
+	defer boot.MockSetEfiBootVariables(func(description string, assetPath string, optionalData []byte) error {
+		c.Check(description, Equals, "ubuntu-test")
+		return nil
+	})()
+
 	if grade != "" {
 		bootDir := c.MkDir()
-		tbl := bootloadertest.Mock("trusted", bootDir).WithTrustedAssets()
-		tbl.TrustedAssetsList = []string{"trusted-asset"}
+		tbl := bootloadertest.Mock("trusted", bootDir).WithTrustedAssetsAndEfi()
+		tbl.TrustedAssetsMap = map[string]string{"trusted-asset": "trusted-asset"}
 		tbl.ManagedAssetsList = []string{"managed-asset"}
+		tbl.EfiLoadOptionDesc = "ubuntu-test"
+		tbl.EfiLoadOptionPath = "/some/path"
+		tbl.EfiLoadOptionData = nil
 		bootloader.Force(tbl)
 		defer func() { bootloader.Force(nil) }()
 	}
@@ -335,16 +343,9 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 			// check that the behavior is correct
 			m, err := boot.ReadModeenv("")
 			c.Assert(err, IsNil)
-			if encryption {
-				// with encryption enabled, trusted asset would
-				// have been picked up by the the observer and
-				// added to modenv
-				c.Assert(m.CurrentTrustedRecoveryBootAssets, NotNil)
-				c.Check(m.CurrentTrustedRecoveryBootAssets["trusted-asset"], DeepEquals,
-					[]string{"88478d8afe6925b348b9cd00085f3535959fde7029a64d7841b031acc39415c690796757afab1852a9e09da913a0151b"})
-			} else {
-				c.Check(m.CurrentTrustedRecoveryBootAssets, HasLen, 0)
-			}
+			c.Assert(m.CurrentTrustedRecoveryBootAssets, NotNil)
+			c.Check(m.CurrentTrustedRecoveryBootAssets["trusted-asset"], DeepEquals,
+				[]string{"88478d8afe6925b348b9cd00085f3535959fde7029a64d7841b031acc39415c690796757afab1852a9e09da913a0151b"})
 		}
 		return nil
 	})
@@ -607,7 +608,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreBadGadgetYaml(c *C) {
 
 	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
 		SnapType: "gadget",
-		Sequence: []*snap.SideInfo{siCurrent},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siCurrent}),
 		Current:  siCurrent.Revision,
 		Active:   true,
 	})
@@ -658,7 +659,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreParanoidChecks(c *C) {
 
 	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
 		SnapType: "gadget",
-		Sequence: []*snap.SideInfo{siCurrent},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siCurrent}),
 		Current:  siCurrent.Revision,
 		Active:   true,
 	})
@@ -751,7 +752,7 @@ volumes:
 
 	expectedRollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
 	updaterForStructureCalls := 0
-	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, _ gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, fromPs, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, _ gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		updaterForStructureCalls++
 
 		c.Assert(loc, Equals, gadget.StructureLocation{
@@ -776,7 +777,7 @@ volumes:
 
 	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
 		SnapType: "gadget",
-		Sequence: []*snap.SideInfo{siCurrent},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siCurrent}),
 		Current:  siCurrent.Revision,
 		Active:   true,
 	})
@@ -839,7 +840,7 @@ func (s *deviceMgrGadgetSuite) TestCurrentAndUpdateInfo(c *C) {
 
 	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
 		SnapType: "gadget",
-		Sequence: []*snap.SideInfo{siCurrent},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siCurrent}),
 		Current:  siCurrent.Revision,
 		Active:   true,
 	})
@@ -1041,7 +1042,7 @@ volumes:
 	s.setupModelWithGadget(c, "foo-gadget")
 	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
 		SnapType: "gadget",
-		Sequence: []*snap.SideInfo{siGadget},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siGadget}),
 		Current:  siGadget.Revision,
 		Active:   true,
 	})
@@ -1061,7 +1062,7 @@ volumes:
 	snaptest.MockSnapWithFiles(c, snapKernelYaml, siNext, nil)
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
 		SnapType: "kernel",
-		Sequence: []*snap.SideInfo{siNext, siCurrent},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siNext, siCurrent}),
 		Current:  siCurrent.Revision,
 		Active:   true,
 	})
@@ -1201,7 +1202,7 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType: "gadget",
-		Sequence: []*snap.SideInfo{currentSi},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{currentSi}),
 		Current:  currentSi.Revision,
 		Active:   true,
 	})
@@ -1776,7 +1777,7 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType: "gadget",
-		Sequence: []*snap.SideInfo{currentSi},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{currentSi}),
 		Current:  currentSi.Revision,
 		Active:   true,
 	})
@@ -1908,7 +1909,7 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineClassicWithModesUpdateUndo(c
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType: "gadget",
-		Sequence: []*snap.SideInfo{currentSi},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{currentSi}),
 		Current:  currentSi.Revision,
 		Active:   true,
 	})
@@ -2027,7 +2028,7 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateNoChangeNoRebootsUndo(
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType: "gadget",
-		Sequence: []*snap.SideInfo{currentSi},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{currentSi}),
 		Current:  currentSi.Revision,
 		Active:   true,
 	})

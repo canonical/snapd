@@ -76,7 +76,8 @@ func RegisterAffectedSnapsByKind(kind string, f AffectedSnapsFunc) {
 	affectedSnapsByKind[kind] = f
 }
 
-func affectedSnaps(t *state.Task) ([]string, error) {
+// SnapsAffectedByTask returns a list of names of snaps affected by the given task.
+func SnapsAffectedByTask(t *state.Task) ([]string, error) {
 	// snapstate's own styled tasks
 	if t.Has("snap-setup") || t.Has("snap-setup-task") {
 		snapsup, err := TaskSnapSetup(t)
@@ -102,7 +103,7 @@ func affectedSnaps(t *state.Task) ([]string, error) {
 func snapSetupFromChange(chg *state.Change) (*SnapSetup, error) {
 	for _, t := range chg.Tasks() {
 		// Check a known task of each change that we know keep snap info.
-		if t.Kind() != "prerequisites" {
+		if t.Kind() != "prepare-snap" && t.Kind() != "download-snap" {
 			continue
 		}
 		return TaskSnapSetup(t)
@@ -178,6 +179,18 @@ func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, 
 			return &ChangeConflictError{
 				Message:    "creating recovery system in progress, no other changes allowed until this is done",
 				ChangeKind: "create-recovery-system",
+				ChangeID:   chg.ID(),
+			}
+		case "remove-recovery-system":
+			// TODO: it is not totally necessary for this to be an exclusive
+			// change, we should probably make more fine-grained exclusivity
+			// rules
+			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
+				continue
+			}
+			return &ChangeConflictError{
+				Message:    "removing recovery system in progress, no other changes allowed until this is done",
+				ChangeKind: "remove-recovery-system",
 				ChangeID:   chg.ID(),
 			}
 		case "revert-snap", "refresh-snap":
@@ -269,7 +282,7 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 			continue
 		}
 
-		snaps, err := affectedSnaps(task)
+		snaps, err := SnapsAffectedByTask(task)
 		if err != nil {
 			return err
 		}
@@ -346,7 +359,7 @@ func CheckUpdateKernelCommandLineConflict(st *state.State, ignoreChangeID string
 			}
 		case "update-managed-boot-config":
 			return &ChangeConflictError{
-				Message:    "boot config is being updated, no change in kernel commnd line is allowed meanwhile",
+				Message:    "boot config is being updated, no change in kernel command line is allowed meanwhile",
 				ChangeKind: task.Kind(),
 				ChangeID:   chg.ID(),
 			}

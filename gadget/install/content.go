@@ -29,11 +29,16 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/mkfs"
+	"github.com/snapcore/snapd/snap"
 )
 
-var mkfsImpl = mkfs.Make
+var (
+	mkfsImpl                      = mkfs.Make
+	kernelEnsureKernelDriversTree = kernel.EnsureKernelDriversTree
+)
 
 type mkfsParams struct {
 	Type       string
@@ -83,7 +88,7 @@ func unmountWithFallbackToLazy(mntPt, operationMsg string) error {
 // writeContent populates the given on-disk filesystem structure with a
 // corresponding filesystem device, according to the contents defined in the
 // gadget.
-func writeFilesystemContent(laidOut *gadget.LaidOutStructure, fsDevice string, observer gadget.ContentObserver) (err error) {
+func writeFilesystemContent(laidOut *gadget.LaidOutStructure, kSnapInfo *KernelSnapInfo, fsDevice string, observer gadget.ContentObserver) (err error) {
 	mountpoint := filepath.Join(dirs.SnapRunDir, "gadget-install", strings.ReplaceAll(strings.Trim(fsDevice, "/"), "/", "-"))
 	if err := os.MkdirAll(mountpoint, 0755); err != nil {
 		return err
@@ -100,7 +105,7 @@ func writeFilesystemContent(laidOut *gadget.LaidOutStructure, fsDevice string, o
 			err = fmt.Errorf("cannot unmount %v after writing filesystem content: %v", fsDevice, errUnmount)
 		}
 	}()
-	fs, err := gadget.NewMountedFilesystemWriter(laidOut, observer)
+	fs, err := gadget.NewMountedFilesystemWriter(nil, laidOut, observer)
 	if err != nil {
 		return fmt.Errorf("cannot create filesystem image writer: %v", err)
 	}
@@ -108,6 +113,29 @@ func writeFilesystemContent(laidOut *gadget.LaidOutStructure, fsDevice string, o
 	var noFilesToPreserve []string
 	if err := fs.Write(mountpoint, noFilesToPreserve); err != nil {
 		return fmt.Errorf("cannot create filesystem image: %v", err)
+	}
+
+	// For data partition, build drivers tree if required, so kernel
+	// drivers are available on first boot of the installed system.
+	if laidOut.Role() == gadget.SystemData && kSnapInfo != nil && kSnapInfo.NeedsDriversTree {
+		destRoot := mountpoint
+		if kSnapInfo.IsCore {
+			destRoot = filepath.Join(mountpoint, "system-data")
+		}
+		destDir := kernel.DriversTreeDir(destRoot, kSnapInfo.Name, kSnapInfo.Revision)
+		logger.Noticef("building drivers tree in %s", destDir)
+
+		kTargetSysMntPt := snap.MinimalSnapContainerPlaceInfo(kSnapInfo.Name, kSnapInfo.Revision)
+		if err := kernelEnsureKernelDriversTree(
+			kernel.MountPoints{
+				Current: kSnapInfo.MountPoint,
+				Target:  kTargetSysMntPt.MountDir(),
+			},
+			nil,
+			destDir,
+			&kernel.KernelDriversTreeOptions{KernelInstall: true}); err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2022 Canonical Ltd
+ * Copyright (C) 2015-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -51,7 +51,7 @@ var (
 		Path:        "/v2/snaps/{name}",
 		GET:         getSnapInfo,
 		POST:        postSnap,
-		ReadAccess:  openAccess{},
+		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 
@@ -59,7 +59,7 @@ var (
 		Path:        "/v2/snaps",
 		GET:         getSnapsInfo,
 		POST:        postSnaps,
-		ReadAccess:  openAccess{},
+		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 )
@@ -68,7 +68,8 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 
-	about, err := localSnapInfo(c.d.overlord.State(), name)
+	st := c.d.overlord.State()
+	about, err := localSnapInfo(st, name)
 	if err != nil {
 		if err == errNoSnap {
 			return SnapNotFound(name, err)
@@ -157,6 +158,8 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	if inst.SystemRestartImmediate {
 		chg.Set("system-restart-immediate", true)
 	}
+
+	chg.Set("api-data", map[string]interface{}{"snap-names": inst.Snaps})
 
 	ensureStateSoon(st)
 
@@ -675,9 +678,9 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 		chg.Set("system-restart-immediate", true)
 	}
 
-	ensureStateSoon(st)
-
 	chg.Set("api-data", map[string]interface{}{"snap-names": res.Affected})
+
+	ensureStateSoon(st)
 
 	return AsyncResponse(res.Result, chg.ID())
 }
@@ -838,6 +841,31 @@ func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapIns
 func meetSnapConstraintsForEnforce(inst *snapInstruction, st *state.State, vErr *snapasserts.ValidationSetsValidationError) ([]*state.TaskSet, []string, error) {
 	// Save the sequence numbers so we can pin them later when enforcing the sets again
 	pinnedSeqs := make(map[string]int, len(inst.ValidationSets))
+
+	trackedSets, err := assertstate.ValidationSets(st)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// make sure to re-pin the already existing validation sets that were
+	// considered when creating this enforcement error
+	for key := range vErr.Sets {
+		tr, ok := trackedSets[key]
+
+		// new validation sets won't be found in the already tracked sets
+		if !ok {
+			continue
+		}
+
+		// ignore any that are not pinned
+		if tr.PinnedAt == 0 {
+			continue
+		}
+
+		pinnedSeqs[key] = tr.PinnedAt
+	}
+
+	// also pin new validation sets that are not yet tracked
 	for _, vsStr := range inst.ValidationSets {
 		account, name, sequence, err := snapasserts.ParseValidationSet(vsStr)
 		if err != nil {
@@ -894,13 +922,16 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	query := r.URL.Query()
-	var all bool
-	sel := query.Get("select")
-	switch sel {
+	var sel snapSelect
+	switch query.Get("select") {
+	case "":
+		sel = snapSelectNone
 	case "all":
-		all = true
-	case "enabled", "":
-		all = false
+		sel = snapSelectAll
+	case "enabled":
+		sel = snapSelectEnabled
+	case "refresh-inhibited":
+		sel = snapSelectRefreshInhibited
 	default:
 		return BadRequest("invalid select parameter: %q", sel)
 	}
@@ -913,7 +944,8 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	}
 
-	found, err := allLocalSnapInfos(c.d.overlord.State(), all, wanted)
+	st := c.d.overlord.State()
+	found, err := allLocalSnapInfos(st, sel, wanted)
 	if err != nil {
 		return InternalError("cannot list local snaps! %v", err)
 	}

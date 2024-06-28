@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -72,7 +73,7 @@ func (r *refreshHints) needsUpdate() (bool, error) {
 
 func (r *refreshHints) refresh() error {
 	scheduleConf, _, _ := getRefreshScheduleConf(r.state)
-	refreshManaged := scheduleConf == "managed" && CanManageRefreshes(r.state)
+	refreshManaged := scheduleConf == "managed"
 
 	var err error
 	perfTimings := timings.New(map[string]string{"ensure": "refresh-hints"})
@@ -81,7 +82,8 @@ func (r *refreshHints) refresh() error {
 	var updates []*snap.Info
 	var ignoreValidationByInstanceName map[string]bool
 	timings.Run(perfTimings, "refresh-candidates", "query store for refresh candidates", func(tm timings.Measurer) {
-		updates, _, ignoreValidationByInstanceName, err = refreshCandidates(auth.EnsureContextTODO(), r.state, nil, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
+		updates, _, ignoreValidationByInstanceName, err = refreshCandidates(auth.EnsureContextTODO(),
+			r.state, nil, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
 	})
 	// TODO: we currently set last-refresh-hints even when there was an
 	// error. In the future we may retry with a backoff.
@@ -99,7 +101,9 @@ func (r *refreshHints) refresh() error {
 		return fmt.Errorf("internal error: cannot get refresh-candidates: %v", err)
 	}
 
-	setNewRefreshCandidates(r.state, hints)
+	// update candidates in state dropping all entries which are not part of
+	// the new hints
+	updateRefreshCandidates(r.state, hints, nil)
 	return nil
 }
 
@@ -175,8 +179,8 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 			continue
 		}
 
-		monitoring := isSnapMonitored(st, update.InstanceName())
-		providerContentAttrs := defaultProviderContentAttrs(st, update)
+		monitoring := IsSnapMonitored(st, update.InstanceName())
+		providerContentAttrs := defaultProviderContentAttrs(st, update, nil)
 		snapsup := &refreshCandidate{
 			SnapSetup: SnapSetup{
 				Base:               update.Base,
@@ -199,6 +203,7 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 					Website: update.Website(),
 				},
 			},
+			// preserve fields not related to snap-setup
 			Monitored: monitoring,
 		}
 		hints[update.InstanceName()] = snapsup
@@ -255,42 +260,67 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 
 	for _, snapName := range snaps {
 		delete(candidates, snapName)
+		abortMonitoring(st, snapName)
 	}
 
-	setNewRefreshCandidates(st, candidates)
+	if len(candidates) == 0 {
+		st.Set("refresh-candidates", nil)
+	} else {
+		st.Set("refresh-candidates", candidates)
+	}
+
 	return nil
 }
 
-// setNewRefreshCandidates is used to set/replace "refresh-candidates" making
-// sure that any snap that is no longer a candidate has its monitoring stopped.
-// Must always be used when replacing the full "refresh-candidates"
-func setNewRefreshCandidates(st *state.State, hints map[string]*refreshCandidate) {
-	stopMonitoringOutdatedCandidates(st, hints)
-	if len(hints) == 0 {
-		st.Set("refresh-candidates", nil)
-		return
-	}
-	st.Set("refresh-candidates", hints)
-}
-
-// stopMonitoringOutdatedCandidates aborts the monitoring for snaps for which a
-// refresh candidate has been removed (possibly because the channel was reverted
-// to an older version)
-func stopMonitoringOutdatedCandidates(st *state.State, hints map[string]*refreshCandidate) {
+// updateRefreshCandidates updates the current set of refresh candidates stored
+// in the state. When the list of canDropOldNames is empty, existing entries
+// which aren't part of the update are dropped. When the list is non empty, only
+// those entries mentioned in the list are dropped, other existing entries are
+// preserved. Whenever an existing entry is to be replaced, the caller must have
+// provided a hint which preserves the hint's state outside of snap-setup.
+func updateRefreshCandidates(st *state.State, hints map[string]*refreshCandidate, canDropOldNames []string) error {
 	var oldHints map[string]*refreshCandidate
 	if err := st.Get("refresh-candidates", &oldHints); err != nil {
-		if errors.Is(err, &state.NoStateError{}) {
-			// nothing to abort
-			return
-		}
-
-		logger.Noticef("cannot abort removed refresh candidates: %v", err)
-		return
-	}
-
-	for oldCand := range oldHints {
-		if _, ok := hints[oldCand]; !ok {
-			abortMonitoring(st, oldCand)
+		if !errors.Is(err, &state.NoStateError{}) {
+			return err
 		}
 	}
+
+	if len(oldHints) == 0 {
+		st.Set("refresh-candidates", hints)
+		return nil
+	}
+
+	dropAllOld := len(canDropOldNames) == 0
+
+	var deleted []string
+
+	// selectively process existing entries
+	for oldHintName := range oldHints {
+		if newHint, hasUpdate := hints[oldHintName]; hasUpdate {
+			// XXX we rely on the new hint preserving the state
+			oldHints[oldHintName] = newHint
+		} else {
+			if dropAllOld || strutil.ListContains(canDropOldNames, oldHintName) {
+				// we have no new hint for this snap
+				deleted = append(deleted, oldHintName)
+				delete(oldHints, oldHintName)
+			}
+		}
+	}
+	// now add all new entries
+	for newHintName, newHint := range hints {
+		// preserved entries have already been processed
+		if _, processed := oldHints[newHintName]; !processed {
+			oldHints[newHintName] = newHint
+		}
+	}
+
+	// stop monitoring candidates which were deleted
+	for _, dropped := range deleted {
+		abortMonitoring(st, dropped)
+	}
+
+	st.Set("refresh-candidates", oldHints)
+	return nil
 }

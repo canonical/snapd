@@ -1,5 +1,18 @@
 summary: UC18 systems with vitality-rank services were generated incorrectly
 
+details: |
+    Snapd defined the concept of "vitality rank" which is used by the
+    out-of-memory killer to ensure that certain processes are more likely to be
+    sacrificed when memory is tight, and that other processes are more likely to
+    survive.
+
+    Due to a bug in earlier version of snapd, the vitality rank was resulting in
+    an incorrect re-mapping of the snapd feature to a systemd feature, causing
+    failure.
+
+    Check that using vitality hint does not break the systemd service unit of
+    the snap application configured to use it.
+
 # only applicable to UC18+
 systems: [ubuntu-core-18-64, ubuntu-core-2*]
 

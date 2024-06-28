@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -67,11 +68,13 @@ plugs:
   %s:
 `, iface)
 	}
-	slotSnap := snaptest.MockInfo(c, slotYaml, nil)
-	plugSnap := snaptest.MockInfo(c, plugYaml, nil)
+
+	slot, _ := ifacetest.MockConnectedSlot(c, slotYaml, nil, iface)
+	plug, _ := ifacetest.MockConnectedPlug(c, plugYaml, nil, iface)
+
 	return &policy.ConnectCandidate{
-		Plug:            interfaces.NewConnectedPlug(plugSnap.Plugs[iface], nil, nil),
-		Slot:            interfaces.NewConnectedSlot(slotSnap.Slots[iface], nil, nil),
+		Plug:            plug,
+		Slot:            slot,
 		BaseDeclaration: s.baseDecl,
 	}
 }
@@ -142,13 +145,16 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	snowflakes := map[string]bool{
 		"content":            true,
 		"core-support":       true,
+		"desktop":            true,
 		"home":               true,
 		"lxd-support":        true,
 		"microstack-support": true,
 		"multipass-support":  true,
 		"packagekit-control": true,
 		"pkcs11":             true,
+		"remoteproc":         true,
 		"snapd-control":      true,
+		"upower-observe":     true,
 		"empty":              true,
 	}
 
@@ -156,7 +162,6 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	autoconnect := map[string]bool{
 		"audio-playback":          true,
 		"browser-support":         true,
-		"desktop":                 true,
 		"desktop-legacy":          true,
 		"gsettings":               true,
 		"media-hub":               true,
@@ -167,6 +172,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"online-accounts-service": true,
 		"opengl":                  true,
 		"optical-drive":           true,
+		"ros-opt-data":            true,
 		"screen-inhibit-control":  true,
 		"ubuntu-download-manager": true,
 		"unity7":                  true,
@@ -199,6 +205,7 @@ func (s *baseDeclSuite) TestAutoConnectionImplicitSlotOnly(c *C) {
 
 	// these auto-connect only with an implicit slot
 	autoconnect := map[string]bool{
+		"desktop":        true,
 		"upower-observe": true,
 	}
 
@@ -229,6 +236,7 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 	snowflakes := map[string]bool{
 		"classic-support": true,
 		"content":         true,
+		"cups-control":    true,
 		"home":            true,
 		"lxd-support":     true,
 		// netlink-driver needs the family-name attributes to match
@@ -859,15 +867,16 @@ var (
 		"wayland":                   {"app", "core"},
 		"x11":                       {"app", "core"},
 		// snowflakes
-		"classic-support": nil,
-		"custom-device":   nil,
-		"docker":          nil,
-		"lxd":             nil,
-		"microceph":       nil,
-		"microovn":        nil,
-		"pkcs11":          nil,
-		"posix-mq":        nil,
-		"shared-memory":   nil,
+		"classic-support":   nil,
+		"custom-device":     nil,
+		"docker":            nil,
+		"lxd":               nil,
+		"microceph":         nil,
+		"microceph-support": nil,
+		"microovn":          nil,
+		"pkcs11":            nil,
+		"posix-mq":          nil,
+		"shared-memory":     nil,
 	}
 
 	restrictedPlugInstallation = map[string][]string{
@@ -891,6 +900,10 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 			types = []string{"core"}
 		}
 
+		// only restricted slots can use the AppArmor
+		// unconfined profile mode so check that this
+		// slot is not using it
+		c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedSlots, Equals, false)
 		if types == nil {
 			// snowflake needs to be tested specially
 			continue
@@ -995,37 +1008,42 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 	all := builtin.Interfaces()
 
 	restricted := map[string]bool{
-		"block-devices":          true,
-		"classic-support":        true,
-		"desktop-launch":         true,
-		"dm-crypt":               true,
-		"docker-support":         true,
-		"greengrass-support":     true,
-		"gpio-control":           true,
-		"ion-memory-control":     true,
-		"kernel-module-control":  true,
-		"kernel-module-load":     true,
-		"kubernetes-support":     true,
-		"lxd-support":            true,
-		"microstack-support":     true,
-		"mount-control":          true,
-		"multipass-support":      true,
-		"nvidia-drivers-support": true,
-		"packagekit-control":     true,
-		"personal-files":         true,
-		"polkit":                 true,
-		"polkit-agent":           true,
-		"sd-control":             true,
-		"snap-refresh-control":   true,
-		"snap-themes-control":    true,
-		"snapd-control":          true,
-		"steam-support":          true,
-		"system-files":           true,
-		"tee":                    true,
-		"uinput":                 true,
-		"unity8":                 true,
-		"userns":                 true,
-		"xilinx-dma":             true,
+		"block-devices":           true,
+		"classic-support":         true,
+		"desktop-launch":          true,
+		"dm-crypt":                true,
+		"docker-support":          true,
+		"greengrass-support":      true,
+		"gpio-control":            true,
+		"ion-memory-control":      true,
+		"kernel-firmware-control": true,
+		"kernel-module-control":   true,
+		"kernel-module-load":      true,
+		"kubernetes-support":      true,
+		"lxd-support":             true,
+		"microceph-support":       true,
+		"microstack-support":      true,
+		"mount-control":           true,
+		"multipass-support":       true,
+		"nvidia-drivers-support":  true,
+		"packagekit-control":      true,
+		"personal-files":          true,
+		"polkit":                  true,
+		"polkit-agent":            true,
+		"remoteproc":              true,
+		"sd-control":              true,
+		"shutdown":                true,
+		"snap-refresh-control":    true,
+		"snap-themes-control":     true,
+		"snap-refresh-observe":    true,
+		"snapd-control":           true,
+		"steam-support":           true,
+		"system-files":            true,
+		"tee":                     true,
+		"uinput":                  true,
+		"unity8":                  true,
+		"userns":                  true,
+		"xilinx-dma":              true,
 	}
 
 	for _, iface := range all {
@@ -1034,6 +1052,10 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		// need to make sure this is really the case here. If that is not
 		// the case we continue as normal.
 		if ok {
+			// only restricted plugs can use the AppArmor
+			// unconfined profile mode so check that this
+			// plug is not using it
+			c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedPlugs, Equals, false)
 			for name, snapType := range snapTypeMap {
 				ok := strutil.ListContains(types, name)
 				ic := s.installPlugCand(c, iface.Name(), snapType, ``)
@@ -1053,6 +1075,10 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 				c.Check(err, NotNil, comm)
 			} else {
 				c.Check(err, IsNil, comm)
+				// only restricted plugs can use the AppArmor
+				// unconfined profile mode so check that this
+				// plug is not using it
+				c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedPlugs, Equals, false)
 			}
 		}
 	}
@@ -1067,6 +1093,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"content":                   true,
 		"cups":                      true,
 		"custom-device":             true,
+		"desktop":                   true,
 		"docker":                    true,
 		"fwupd":                     true,
 		"location-control":          true,
@@ -1110,6 +1137,7 @@ func (s *baseDeclSuite) TestConnectionImplicitSlotOnly(c *C) {
 
 	// these allow connect only with an implicit slot
 	autoconnect := map[string]bool{
+		"desktop":             true,
 		"qualcomm-ipc-router": true,
 		"upower-observe":      true,
 	}
@@ -1273,46 +1301,52 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 	// given how the rules work this can be delicate,
 	// listed here to make sure that was a conscious decision
 	bothSides := map[string]bool{
-		"block-devices":          true,
-		"audio-playback":         true,
-		"classic-support":        true,
-		"core-support":           true,
-		"custom-device":          true,
-		"desktop-launch":         true,
-		"dm-crypt":               true,
-		"docker-support":         true,
-		"greengrass-support":     true,
-		"gpio-control":           true,
-		"ion-memory-control":     true,
-		"kernel-module-control":  true,
-		"kernel-module-load":     true,
-		"kubernetes-support":     true,
-		"lxd-support":            true,
-		"microstack-support":     true,
-		"mount-control":          true,
-		"multipass-support":      true,
-		"nvidia-drivers-support": true,
-		"packagekit-control":     true,
-		"personal-files":         true,
-		"pkcs11":                 true,
-		"posix-mq":               true,
-		"polkit":                 true,
-		"polkit-agent":           true,
-		"qualcomm-ipc-router":    true,
-		"sd-control":             true,
-		"shared-memory":          true,
-		"snap-refresh-control":   true,
-		"snap-themes-control":    true,
-		"snapd-control":          true,
-		"steam-support":          true,
-		"system-files":           true,
-		"tee":                    true,
-		"udisks2":                true,
-		"uinput":                 true,
-		"unity8":                 true,
-		"userns":                 true,
-		"wayland":                true,
-		"xilinx-dma":             true,
+		"block-devices":           true,
+		"audio-playback":          true,
+		"classic-support":         true,
+		"core-support":            true,
+		"custom-device":           true,
+		"desktop-launch":          true,
+		"dm-crypt":                true,
+		"docker-support":          true,
+		"greengrass-support":      true,
+		"gpio-control":            true,
+		"ion-memory-control":      true,
+		"kernel-firmware-control": true,
+		"kernel-module-control":   true,
+		"kernel-module-load":      true,
+		"kubernetes-support":      true,
+		"lxd-support":             true,
+		"microceph-support":       true,
+		"microstack-support":      true,
+		"mount-control":           true,
+		"multipass-support":       true,
+		"nvidia-drivers-support":  true,
+		"packagekit-control":      true,
+		"personal-files":          true,
+		"pkcs11":                  true,
+		"posix-mq":                true,
+		"polkit":                  true,
+		"polkit-agent":            true,
+		"remoteproc":              true,
+		"qualcomm-ipc-router":     true,
+		"sd-control":              true,
+		"shutdown":                true,
+		"shared-memory":           true,
+		"snap-refresh-control":    true,
+		"snap-themes-control":     true,
+		"snap-refresh-observe":    true,
+		"snapd-control":           true,
+		"steam-support":           true,
+		"system-files":            true,
+		"tee":                     true,
+		"udisks2":                 true,
+		"uinput":                  true,
+		"unity8":                  true,
+		"userns":                  true,
+		"wayland":                 true,
+		"xilinx-dma":              true,
+		"registry":                true,
 	}
 
 	for _, iface := range all {
@@ -1669,28 +1703,28 @@ plugs:
 }
 
 func (s *baseDeclSuite) TestRawVolumeOverride(c *C) {
-	slotYaml := `name: slot-snap
+	const slotYaml = `name: slot-snap
 type: gadget
 version: 0
 slots:
   raw-volume:
     path: /dev/mmcblk0p1
 `
-	slotSnap := snaptest.MockInfo(c, slotYaml, nil)
+	slot, _ := ifacetest.MockConnectedSlot(c, slotYaml, nil, "raw-volume")
 	// mock a well-formed slot snap decl with SnapID
 	slotSnapDecl := s.mockSnapDecl(c, "slot-snap", "slotsnapidididididididididididid", "canonical", "")
 
-	plugYaml := `name: plug-snap
+	const plugYaml = `name: plug-snap
 version: 0
 plugs:
   raw-volume:
 `
-	plugSnap := snaptest.MockInfo(c, plugYaml, nil)
+	plug, _ := ifacetest.MockConnectedPlug(c, plugYaml, nil, "raw-volume")
 
 	// no plug-side declaration
 	cand := &policy.ConnectCandidate{
-		Plug:                interfaces.NewConnectedPlug(plugSnap.Plugs["raw-volume"], nil, nil),
-		Slot:                interfaces.NewConnectedSlot(slotSnap.Slots["raw-volume"], nil, nil),
+		Plug:                plug,
+		Slot:                slot,
 		SlotSnapDeclaration: slotSnapDecl,
 		BaseDeclaration:     s.baseDecl,
 	}

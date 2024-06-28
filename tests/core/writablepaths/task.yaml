@@ -1,5 +1,14 @@
 summary: Ensure that the writable paths on the image are correct
 
+details: |
+    The file writable-paths allows specific paths in the root partition filesystem
+    to be made writable, whilst leaving the rest of the root filesystem read-only.
+    It does this by creating overlaying writable mounts on top of the read-only
+    root filesystem. These writable mounts are backed to the writable partition.
+
+    This test ensures everything in writable-paths is actually writable by checking
+    in the paths declared in /etc/system-image/writable-paths.
+
 execute: |
     echo "Ensure everything in writable-paths is actually writable"
     #shellcheck disable=SC2002

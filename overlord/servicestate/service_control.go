@@ -59,6 +59,7 @@ type ServiceAction struct {
 	// "reload-or-restart" actions, and when set it restarts also enabled
 	// non-running services, otherwise these services are left inactive.
 	RestartEnabledNonActive bool `json:"restart-enabled-non-active,omitempty"`
+	wrappers.ScopeOptions
 }
 
 func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
@@ -129,11 +130,12 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 	switch sc.Action {
 	case "stop":
 		disable := sc.ActionModifier == "disable"
-		flags := &wrappers.StopServicesFlags{
-			Disable: disable,
+		opts := &wrappers.StopServicesOptions{
+			Disable:      disable,
+			ScopeOptions: sc.ScopeOptions,
 		}
 		st.Unlock()
-		err := wrappers.StopServices(services, flags, snap.StopReasonOther, meter, perfTimings)
+		err := wrappers.StopServices(services, opts, snap.StopReasonOther, meter, perfTimings)
 		st.Lock()
 		if err != nil {
 			return err
@@ -153,11 +155,12 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		}
 	case "start":
 		enable := sc.ActionModifier == "enable"
-		flags := &wrappers.StartServicesFlags{
-			Enable: enable,
+		opts := &wrappers.StartServicesOptions{
+			Enable:       enable,
+			ScopeOptions: sc.ScopeOptions,
 		}
 		st.Unlock()
-		err = wrappers.StartServices(startupOrdered, nil, flags, meter, perfTimings)
+		err = wrappers.StartServices(startupOrdered, nil, opts, meter, perfTimings)
 		st.Lock()
 		if err != nil {
 			return err
@@ -177,12 +180,19 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		}
 	case "restart":
 		st.Unlock()
-		err := wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, &wrappers.RestartServicesFlags{AlsoEnabledNonActive: sc.RestartEnabledNonActive}, meter, perfTimings)
+		err := wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, &wrappers.RestartServicesOptions{
+			AlsoEnabledNonActive: sc.RestartEnabledNonActive,
+			ScopeOptions:         sc.ScopeOptions,
+		}, meter, perfTimings)
 		st.Lock()
 		return err
 	case "reload-or-restart":
 		st.Unlock()
-		err := wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, &wrappers.RestartServicesFlags{Reload: true, AlsoEnabledNonActive: sc.RestartEnabledNonActive}, meter, perfTimings)
+		err := wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, &wrappers.RestartServicesOptions{
+			Reload:               true,
+			AlsoEnabledNonActive: sc.RestartEnabledNonActive,
+			ScopeOptions:         sc.ScopeOptions,
+		}, meter, perfTimings)
 		st.Lock()
 		return err
 	default:

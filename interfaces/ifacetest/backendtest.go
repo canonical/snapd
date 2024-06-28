@@ -189,10 +189,52 @@ apps:
     someapp:
 `
 
+var SnapWithComponentsYaml = `
+name: snap
+version: 1
+apps:
+  app:
+components:
+  comp:
+    type: test
+    hooks:
+      install:
+plugs:
+  iface:
+`
+
+var ComponentYaml = `
+component: snap+comp
+type: test
+version: 1
+`
+
 // Support code for tests
 
 // InstallSnap "installs" a snap from YAML.
 func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, instanceName, snapYaml string, revision int) *snap.Info {
+	snapInfo := snaptest.MockInfo(c, snapYaml, &snap.SideInfo{
+		Revision: snap.R(revision),
+	})
+
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+	c.Assert(err, IsNil)
+
+	if instanceName != "" {
+		_, instanceKey := snap.SplitInstanceName(instanceName)
+		snapInfo.InstanceKey = instanceKey
+		c.Assert(snapInfo.InstanceName(), Equals, instanceName)
+	}
+
+	err = s.Repo.AddAppSet(appSet)
+	c.Assert(err, IsNil)
+
+	err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
+	c.Assert(err, IsNil)
+	return snapInfo
+}
+
+func (s *BackendSuite) InstallSnapWithComponents(c *C, opts interfaces.ConfinementOptions, instanceName, snapYaml string, revision int, componentYamls []string) *snap.Info {
 	snapInfo := snaptest.MockInfo(c, snapYaml, &snap.SideInfo{
 		Revision: snap.R(revision),
 	})
@@ -203,8 +245,47 @@ func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, ins
 		c.Assert(snapInfo.InstanceName(), Equals, instanceName)
 	}
 
-	s.addPlugsSlots(c, snapInfo)
-	err := s.Backend.Setup(snapInfo, opts, s.Repo, s.meas)
+	componentInfos := make([]*snap.ComponentInfo, 0, len(componentYamls))
+	for _, componentYaml := range componentYamls {
+		componentInfos = append(componentInfos, snaptest.MockComponent(c, componentYaml, snapInfo, snap.ComponentSideInfo{
+			Revision: snap.R(1),
+		}))
+	}
+
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, componentInfos)
+	c.Assert(err, IsNil)
+
+	err = s.Repo.AddAppSet(appSet)
+	c.Assert(err, IsNil)
+
+	err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
+	c.Assert(err, IsNil)
+	return snapInfo
+}
+
+func (s *BackendSuite) UpdateSnapWithComponents(c *C, oldSnapInfo *snap.Info, opts interfaces.ConfinementOptions, snapYaml string, revision int, componentYamls []string) *snap.Info {
+	snapInfo := snaptest.MockInfo(c, snapYaml, &snap.SideInfo{
+		Revision: snap.R(revision),
+	})
+
+	snapInfo.InstanceKey = oldSnapInfo.InstanceKey
+
+	componentInfos := make([]*snap.ComponentInfo, 0, len(componentYamls))
+	for _, componentYaml := range componentYamls {
+		componentInfos = append(componentInfos, snaptest.MockComponent(c, componentYaml, snapInfo, snap.ComponentSideInfo{
+			Revision: snap.R(1),
+		}))
+	}
+
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, componentInfos)
+	c.Assert(err, IsNil)
+
+	s.Repo.RemoveSnap(oldSnapInfo.InstanceName())
+
+	err = s.Repo.AddAppSet(appSet)
+	c.Assert(err, IsNil)
+
+	err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	return snapInfo
 }
@@ -221,10 +302,19 @@ func (s *BackendSuite) UpdateSnapMaybeErr(c *C, oldSnapInfo *snap.Info, opts int
 	newSnapInfo := snaptest.MockInfo(c, snapYaml, &snap.SideInfo{
 		Revision: snap.R(revision),
 	})
+
+	newSnapInfo.InstanceKey = oldSnapInfo.InstanceKey
+
+	appSet, err := interfaces.NewSnapAppSet(newSnapInfo, nil)
+	c.Assert(err, IsNil)
+
 	c.Assert(newSnapInfo.InstanceName(), Equals, oldSnapInfo.InstanceName())
-	s.removePlugsSlots(c, oldSnapInfo)
-	s.addPlugsSlots(c, newSnapInfo)
-	err := s.Backend.Setup(newSnapInfo, opts, s.Repo, s.meas)
+	s.Repo.RemoveSnap(oldSnapInfo.InstanceName())
+
+	err = s.Repo.AddAppSet(appSet)
+	c.Assert(err, IsNil)
+
+	err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
 	return newSnapInfo, err
 }
 
@@ -232,27 +322,5 @@ func (s *BackendSuite) UpdateSnapMaybeErr(c *C, oldSnapInfo *snap.Info, opts int
 func (s *BackendSuite) RemoveSnap(c *C, snapInfo *snap.Info) {
 	err := s.Backend.Remove(snapInfo.InstanceName())
 	c.Assert(err, IsNil)
-	s.removePlugsSlots(c, snapInfo)
-}
-
-func (s *BackendSuite) addPlugsSlots(c *C, snapInfo *snap.Info) {
-	for _, plugInfo := range snapInfo.Plugs {
-		err := s.Repo.AddPlug(plugInfo)
-		c.Assert(err, IsNil)
-	}
-	for _, slotInfo := range snapInfo.Slots {
-		err := s.Repo.AddSlot(slotInfo)
-		c.Assert(err, IsNil)
-	}
-}
-
-func (s *BackendSuite) removePlugsSlots(c *C, snapInfo *snap.Info) {
-	for _, plug := range s.Repo.Plugs(snapInfo.InstanceName()) {
-		err := s.Repo.RemovePlug(plug.Snap.InstanceName(), plug.Name)
-		c.Assert(err, IsNil)
-	}
-	for _, slot := range s.Repo.Slots(snapInfo.InstanceName()) {
-		err := s.Repo.RemoveSlot(slot.Snap.InstanceName(), slot.Name)
-		c.Assert(err, IsNil)
-	}
+	s.Repo.RemoveSnap(snapInfo.InstanceName())
 }

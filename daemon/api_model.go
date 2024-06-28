@@ -64,6 +64,7 @@ var (
 
 type postModelData struct {
 	NewModel string `json:"new-model"`
+	Offline  bool   `json:"offline"`
 }
 
 func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
@@ -77,12 +78,12 @@ func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 	switch mediaType {
 	case "application/json":
 		// If json content type we get only the new model assertion and
-		// the rest is downloaded from the store.
-		return storeRemodel(c, r)
+		// the rest is either downloaded from the store or already installed.
+		return remodelJSON(c, r)
 	case "multipart/form-data":
 		// multipart/form-data content type can be used to sideload
 		// part of the things necessary for a remodel.
-		return offlineRemodel(c, r, params)
+		return remodelForm(c, r, params)
 	default:
 		return BadRequest("unexpected media type %q", mediaType)
 	}
@@ -101,7 +102,7 @@ func modelFromData(data []byte) (*asserts.Model, error) {
 	return newModel, nil
 }
 
-func storeRemodel(c *Command, r *http.Request) Response {
+func remodelJSON(c *Command, r *http.Request) Response {
 	var data postModelData
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&data); err != nil {
@@ -116,7 +117,9 @@ func storeRemodel(c *Command, r *http.Request) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	chg, err := devicestateRemodel(st, newModel, nil, nil)
+	chg, err := devicestateRemodel(st, newModel, nil, nil, devicestate.RemodelOptions{
+		Offline: data.Offline,
+	})
 	if err != nil {
 		return BadRequest("cannot remodel device: %v", err)
 	}
@@ -138,9 +141,13 @@ func readOfflineRemodelForm(form *Form) (*asserts.Model, []*uploadedSnap, *asser
 	}
 
 	// Snap files
-	snapFiles, errRsp := form.GetSnapFiles()
-	if errRsp != nil {
-		return nil, nil, nil, errRsp
+	var snapFiles []*uploadedSnap
+	if len(form.FileRefs["snap"]) > 0 {
+		snaps, errRsp := form.GetSnapFiles()
+		if errRsp != nil {
+			return nil, nil, nil, errRsp
+		}
+		snapFiles = snaps
 	}
 
 	// Assertions
@@ -190,7 +197,11 @@ func startOfflineRemodelChange(st *state.State, newModel *asserts.Model,
 	}
 
 	// Now create and start the remodel change
-	chg, err := devicestateRemodel(st, newModel, slInfo.sideInfos, slInfo.tmpPaths)
+	chg, err := devicestateRemodel(st, newModel, slInfo.sideInfos, slInfo.tmpPaths, devicestate.RemodelOptions{
+		// since this is the codepath that parses the form, offline is implcit
+		// because local snaps are being provided.
+		Offline: true,
+	})
 	if err != nil {
 		return nil, BadRequest("cannot remodel device: %v", err)
 	}
@@ -199,7 +210,7 @@ func startOfflineRemodelChange(st *state.State, newModel *asserts.Model,
 	return chg, nil
 }
 
-func offlineRemodel(c *Command, r *http.Request, contentTypeParams map[string]string) Response {
+func remodelForm(c *Command, r *http.Request, contentTypeParams map[string]string) Response {
 	boundary := contentTypeParams["boundary"]
 	mpReader := multipart.NewReader(r.Body, boundary)
 	form, errRsp := readForm(mpReader)
@@ -209,6 +220,9 @@ func offlineRemodel(c *Command, r *http.Request, contentTypeParams map[string]st
 
 	// we are in charge of the temp files, until they're handed off to the change
 	var pathsToNotRemove []string
+
+	// TODO: temp files are not removed if devicestate.Remodel returns an error
+	// right now. change this to work how postSystemsActionForm does it.
 	defer func() {
 		form.RemoveAllExcept(pathsToNotRemove)
 	}()

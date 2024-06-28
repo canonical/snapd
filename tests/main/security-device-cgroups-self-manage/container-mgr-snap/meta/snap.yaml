@@ -1,0 +1,11 @@
+name: container-mgr-snap
+summary: A test snap that uses super-privileged container mgr interfaces
+version: 1.0
+base: core24
+
+apps:
+    docker-support:
+        command: bin/sh
+        plugs:
+            - docker-support
+

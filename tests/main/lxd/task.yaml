@@ -1,5 +1,13 @@
 summary: Ensure that lxd works
 
+details: |
+    Verifies lxd snap works properly. Ensure we can run things inside lxd
+    container, we can use snapd inside lxd snd we can run snaps as regular
+    users. Check that we can run lxd as a snap inside a container to create
+    a nested container and we can use lxd as a snap inside lxd. Finally 
+    exercise the lxd interface and check that snaps in containers don't
+    prevent refreshes in the host.
+
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
 backends: [-autopkgtest]
@@ -78,16 +86,15 @@ execute: |
     # prep two containers, the my-ubuntu normal container and the
     # my-nesting-ubuntu nesting container
 
-    # There isn't an official image for mantic yet, let's use the community one
-    if os.query is-ubuntu 23.10; then
-        CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
-        lxc launch --quiet "images:ubuntu/$CODENAME" my-ubuntu
-        lxc launch --quiet "images:ubuntu/$CODENAME" my-nesting-ubuntu -c security.nesting=true
-    else
-        VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
-        lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-ubuntu
-        lxc launch --quiet "ubuntu:$VERSION_ID" my-nesting-ubuntu -c security.nesting=true
+    # There isn't an official image for noble yet, let's use the community one
+    REMOTE=ubuntu
+    # There isn't an official image for 24.10 yet, let's use the daily one
+    if os.query is-ubuntu 24.10; then
+        REMOTE=ubuntu-daily
     fi
+    VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
+    lxd.lxc launch --quiet "$REMOTE:$VERSION_ID" my-ubuntu
+    lxc launch --quiet "$REMOTE:$VERSION_ID" my-nesting-ubuntu -c security.nesting=true
 
     if os.query is-pc-amd64 && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
         echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"
@@ -161,14 +168,7 @@ execute: |
     lxd.lxc exec my-nesting-ubuntu -- lxd waitready
     lxd.lxc exec my-nesting-ubuntu -- lxd init --auto
 
-    # There isn't an official image for mantic yet, let's use the community one
-    if os.query is-ubuntu 23.10; then
-      CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
-      lxd.lxc exec my-nesting-ubuntu -- lxc launch --quiet "images:ubuntu/$CODENAME" my-inner-ubuntu
-    else
-      VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
-      lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-inner-ubuntu
-    fi
+    lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch --quiet "$REMOTE:$VERSION_ID" my-inner-ubuntu
     lxd.lxc exec my-nesting-ubuntu -- lxd.lxc exec my-inner-ubuntu -- echo "from-the-INSIDE-inside" | MATCH from-the-INSIDE-inside
 
     echo "Install lxd-demo server to exercise the lxd interface"

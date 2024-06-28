@@ -21,7 +21,6 @@ package configcore_test
 
 import (
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -142,7 +141,8 @@ func (s *homedirsSuite) TestConfigureApparmorTunableFailure(c *C) {
 		},
 	})
 	c.Check(err, ErrorMatches, "tunable error")
-	c.Check(homedirs, DeepEquals, []string{"/home/existingDir/one", "/home/existingDir/two"})
+	c.Check(homedirs, DeepEquals, []string{filepath.Join(dirs.GlobalRootDir, "/home/existingDir/one"),
+		filepath.Join(dirs.GlobalRootDir, "/home/existingDir/two"), filepath.Join(dirs.GlobalRootDir, "/home")})
 }
 
 func (s *homedirsSuite) TestConfigureApparmorReloadFailure(c *C) {
@@ -238,12 +238,13 @@ func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
 
 	// Check that the config file has been written
 	configPath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "system-params")
-	contents, err := ioutil.ReadFile(configPath)
+	contents, err := os.ReadFile(configPath)
 	c.Assert(err, IsNil)
 	c.Check(string(contents), Equals, "homedirs=/home/existingDir\n")
 
 	// Check that the AppArmor tunables have been written...
-	c.Check(tunableHomedirs, DeepEquals, []string{"/home/existingDir"})
+	c.Check(tunableHomedirs, DeepEquals, []string{filepath.Join(dirs.GlobalRootDir, "/home/existingDir"),
+		filepath.Join(dirs.GlobalRootDir, "/home")})
 	// ...and that profiles have been reloaded
 	c.Check(reloadProfilesCallCount, Equals, 1)
 	// and finally that snap-confine snippets was called
@@ -308,4 +309,12 @@ func (s *homedirsSuite) TestConfigureHomedirsNotOnCore(c *C) {
 	c.Check(tunableHomedirs, HasLen, 0)
 	c.Check(reloadProfilesCallCount, Equals, 0)
 	c.Check(setupSnapConfineSnippetsCalls, Equals, 0)
+}
+
+func (s *homedirsSuite) TestupdateHomedirsConfig(c *C) {
+	config := "/home/homeDir1,/home/homeDirs/homeDir1///,/home/homeDir2/,/home/homeTest/users/"
+	expectedHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/homeDir1"), filepath.Join(dirs.GlobalRootDir, "/home/homeDirs/homeDir1"),
+		filepath.Join(dirs.GlobalRootDir, "/home/homeDir2"), filepath.Join(dirs.GlobalRootDir, "/home/homeTest/users"), filepath.Join(dirs.GlobalRootDir, "/home")}
+	configcore.UpdateHomedirsConfig(config, nil)
+	c.Check(dirs.SnapHomeDirs(), DeepEquals, expectedHomeDirs)
 }

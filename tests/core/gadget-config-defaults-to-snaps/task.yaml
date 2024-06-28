@@ -1,7 +1,9 @@
-summary: |
-   Test that config defaults specified in the gadget are picked up
-   for first boot snaps with either configure hook only, or combination
-   of default-configure and configure hooks
+summary: Test that config defaults are applied correctly
+
+details: |
+    Test that config defaults specified in the gadget are picked up
+    for first boot snaps with either configure hook only, or combination
+    of default-configure and configure hooks
 
 # the test is only meaningful on core devices
 # TODO:UC20: enable for UC20, it assumes /var/lib/snapd/seed/assertions/model

@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snapdenv"
@@ -52,6 +53,7 @@ import (
 )
 
 var ErrRestartSocket = fmt.Errorf("daemon stop requested to wait for socket activation")
+var ErrNoFailureRecoveryNeeded = fmt.Errorf("no failure recovery needed")
 
 var systemdSdNotify = systemd.SdNotify
 
@@ -342,6 +344,10 @@ func (d *Daemon) Start() error {
 	}
 	// now perform expensive overlord/manages initialization
 	if err := d.overlord.StartUp(); err != nil {
+		if errors.Is(err, snapstate.ErrUnexpectedRuntimeRestart) {
+			logger.Noticef("detected failure recovery context, but no recovery needed")
+			return ErrNoFailureRecoveryNeeded
+		}
 		return err
 	}
 
@@ -434,7 +440,7 @@ var (
 	rebootNoticeWait       = 3 * time.Second
 	rebootWaitTimeout      = 10 * time.Minute
 	rebootRetryWaitTimeout = 5 * time.Minute
-	rebootMaxTentatives    = 3
+	rebootMaxAttempts      = 3
 )
 
 func (d *Daemon) updateMaintenanceFile(rst restart.RestartType) error {
@@ -636,7 +642,7 @@ func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst restart.RestartType, rbi *
 		action = boot.RebootPoweroff
 	}
 	// ask for shutdown and wait for it to happen.
-	// if we exit snapd will be restared by systemd
+	// if we exit snapd will be restarted by systemd
 	if err := reboot(action, rebootDelay, rbi); err != nil {
 		return err
 	}
@@ -676,23 +682,23 @@ var errExpectedReboot = errors.New("expected reboot did not happen")
 
 // RebootDidNotHappen implements part of overlord.RestartBehavior.
 func (d *Daemon) RebootDidNotHappen(st *state.State) error {
-	var nTentative int
-	err := st.Get("daemon-system-restart-tentative", &nTentative)
+	var attempt int
+	err := st.Get("daemon-system-restart-tentative", &attempt)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
-	nTentative++
-	if nTentative > rebootMaxTentatives {
+	attempt++
+	if attempt > rebootMaxAttempts {
 		// giving up, proceed normally, some in-progress refresh
 		// might get rolled back!!
 		restart.ClearReboot(st)
 		clearReboot(st)
-		logger.Noticef("snapd was restarted while a system restart was expected, snapd retried to schedule and waited again for a system restart %d times and is giving up", rebootMaxTentatives)
+		logger.Noticef("snapd was restarted while a system restart was expected, snapd retried to schedule and waited again for a system restart %d times and is giving up", rebootMaxAttempts)
 		return nil
 	}
-	st.Set("daemon-system-restart-tentative", nTentative)
+	st.Set("daemon-system-restart-tentative", attempt)
 	d.state = st
-	logger.Noticef("snapd was restarted while a system restart was expected, snapd will try to schedule and wait for a system restart again (tenative %d/%d)", nTentative, rebootMaxTentatives)
+	logger.Noticef("snapd was restarted while a system restart was expected, snapd will try to schedule and wait for a system restart again (attempt %d/%d)", attempt, rebootMaxAttempts)
 	return errExpectedReboot
 }
 

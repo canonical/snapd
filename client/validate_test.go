@@ -21,7 +21,7 @@ package client_test
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/url"
 
 	"gopkg.in/check.v1"
@@ -96,7 +96,7 @@ func (cs *clientSuite) TestApplyValidationSetMonitor(c *check.C) {
 	})
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 	var req map[string]interface{}
 	err = json.Unmarshal(body, &req)
@@ -126,7 +126,7 @@ func (cs *clientSuite) TestApplyValidationSetEnforce(c *check.C) {
 	})
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 	var req map[string]interface{}
 	err = json.Unmarshal(body, &req)
@@ -164,7 +164,7 @@ func (cs *clientSuite) TestForgetValidationSet(c *check.C) {
 	c.Assert(cs.cli.ForgetValidationSet("foo", "bar", 3), check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 	var req map[string]interface{}
 	err = json.Unmarshal(body, &req)

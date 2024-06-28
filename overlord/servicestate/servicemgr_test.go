@@ -130,7 +130,7 @@ func (s *baseServiceMgrTestSuite) SetUpTest(c *C) {
 	// snapstate to be setup as needed
 	s.testSnapSideInfo = &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
 	s.testSnapState = &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{s.testSnapSideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{s.testSnapSideInfo}),
 		Current:  snap.R(42),
 		Active:   true,
 		SnapType: "app",
@@ -329,7 +329,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSkipsSnapdSnap(c *C) {
 	// it is special
 	sideInfo := &snap.SideInfo{RealName: "snapd", Revision: snap.R(42)}
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{sideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:  snap.R(42),
 		Active:   true,
 		SnapType: string(snap.TypeSnapd),

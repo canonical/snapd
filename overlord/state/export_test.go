@@ -45,15 +45,6 @@ func MockTaskTimes(t *Task, spawnTime, readyTime time.Time) {
 	t.readyTime = readyTime
 }
 
-func (s *State) AddWarning(message string, lastAdded, lastShown time.Time, expireAfter, repeatAfter time.Duration) {
-	s.addWarning(Warning{
-		message:     message,
-		lastShown:   lastShown,
-		expireAfter: expireAfter,
-		repeatAfter: repeatAfter,
-	}, lastAdded)
-}
-
 func (w Warning) LastAdded() time.Time {
 	return w.lastAdded
 }
@@ -67,9 +58,17 @@ func (t *Task) AccumulateUndoingTime(duration time.Duration) {
 }
 
 var (
+	DefaultWarningExpireAfter = defaultWarningExpireAfter
+	DefaultWarningRepeatAfter = defaultWarningRepeatAfter
+
 	ErrNoWarningMessage     = errNoWarningMessage
 	ErrBadWarningMessage    = errBadWarningMessage
 	ErrNoWarningFirstAdded  = errNoWarningFirstAdded
 	ErrNoWarningExpireAfter = errNoWarningExpireAfter
-	ErrNoWarningRepeatAfter = errNoWarningRepeatAfter
 )
+
+// NumNotices returns the total bumber of notices, including expired ones that
+// haven't yet been pruned.
+func (s *State) NumNotices() int {
+	return len(s.notices)
+}

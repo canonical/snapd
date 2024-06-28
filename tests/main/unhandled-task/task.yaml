@@ -1,5 +1,13 @@
 summary: Check that unknown tasks are aborted
 
+details: |
+    Snapd can, in theory, freely move in "time" by refreshing itself and
+    reverting to the earlier revision. It is possible to introduce an update
+    that defines a change with a new task that old snapd did not know about. The
+    test crafts a particular state file, which contains a task with an fake,
+    unknown handler name in order to check that such tasks do not cause snapd to
+    malfunction entirely, which would make rollback impossible.
+
 prepare: |
     snap install --devmode jq
 

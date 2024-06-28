@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2021 Canonical Ltd
+ * Copyright (C) 2019-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -3311,7 +3310,7 @@ grade=signed
 		c.Check(fiParent.Mode(), Equals, os.FileMode(os.ModeDir|0750))
 	}
 
-	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"last-id":1,"macaroon-key":"not-a-cookie","users":[{"id":1,"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`)
+	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"last-id":1,"macaroon-key":"not-a-cookie","users":[{"id":1,"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0,"last-notice-id":0,"last-notice-timestamp":"0001-01-01T00:00:00Z"}`)
 
 	// finally check that the recovery system bootenv was updated to be in run
 	// mode
@@ -3774,7 +3773,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 }
 
 func checkDegradedJSON(c *C, name string, exp map[string]interface{}) {
-	b, err := ioutil.ReadFile(filepath.Join(dirs.SnapBootstrapRunDir, name))
+	b, err := os.ReadFile(filepath.Join(dirs.SnapBootstrapRunDir, name))
 	c.Assert(err, IsNil)
 	degradedJSONObj := make(map[string]interface{})
 	err = json.Unmarshal(b, &degradedJSONObj)
@@ -8085,6 +8084,34 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunMissingFdeSetup(c
 	c.Check(sealedKeysLocked, Equals, true)
 }
 
+type MockObserver struct {
+	BootLoaderSupportsEfiVariablesFunc       func() bool
+	ObserveExistingTrustedRecoveryAssetsFunc func(recoveryRootDir string) error
+	ChosenEncryptionKeysFunc                 func(key, saveKey keys.EncryptionKey)
+	UpdateBootEntryFunc                      func() error
+	ObserveFunc                              func(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error)
+}
+
+func (m *MockObserver) BootLoaderSupportsEfiVariables() bool {
+	return m.BootLoaderSupportsEfiVariablesFunc()
+}
+
+func (m *MockObserver) ObserveExistingTrustedRecoveryAssets(recoveryRootDir string) error {
+	return m.ObserveExistingTrustedRecoveryAssetsFunc(recoveryRootDir)
+}
+
+func (m *MockObserver) ChosenEncryptionKeys(key, saveKey keys.EncryptionKey) {
+	m.ChosenEncryptionKeysFunc(key, saveKey)
+}
+
+func (m *MockObserver) UpdateBootEntry() error {
+	return m.UpdateBootEntryFunc()
+}
+
+func (m *MockObserver) Observe(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+	return m.ObserveFunc(op, partRole, root, relativeTarget, data)
+}
+
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupPresent(c *C) {
 	var efiArch string
 	switch runtime.GOARCH {
@@ -8151,7 +8178,7 @@ echo '{"features":[]}'
 	saveKey := keys.EncryptionKey{'s', 'a', 'v', 'e', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 
 	gadgetInstallCalled := false
-	restoreGadgetInstall := main.MockGadgetInstallRun(func(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options gadgetInstall.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*gadgetInstall.InstalledSystemSideData, error) {
+	restoreGadgetInstall := main.MockGadgetInstallRun(func(model gadget.Model, gadgetRoot string, kernelSnapInfo *gadgetInstall.KernelSnapInfo, bootDevice string, options gadgetInstall.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*gadgetInstall.InstalledSystemSideData, error) {
 		gadgetInstallCalled = true
 		c.Assert(options.Mount, Equals, true)
 		c.Assert(string(options.EncryptionType), Equals, "cryptsetup")
@@ -8159,7 +8186,7 @@ echo '{"features":[]}'
 		c.Assert(model.Classic(), Equals, false)
 		c.Assert(string(model.Grade()), Equals, "signed")
 		c.Assert(gadgetRoot, Equals, filepath.Join(boot.InitramfsRunMntDir, "gadget"))
-		c.Assert(kernelRoot, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+		c.Assert(kernelSnapInfo.MountPoint, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
 
 		keyForRole := map[string]keys.EncryptionKey{
 			gadget.SystemData: dataKey,
@@ -8170,7 +8197,7 @@ echo '{"features":[]}'
 	defer restoreGadgetInstall()
 
 	makeRunnableCalled := false
-	restoreMakeRunnableStandaloneSystem := main.MockMakeRunnableStandaloneSystem(func(model *asserts.Model, bootWith *boot.BootableSet, sealer *boot.TrustedAssetsInstallObserver) error {
+	restoreMakeRunnableStandaloneSystem := main.MockMakeRunnableStandaloneSystem(func(model *asserts.Model, bootWith *boot.BootableSet, obs boot.TrustedAssetsInstallObserver) error {
 		makeRunnableCalled = true
 		c.Assert(model.Model(), Equals, "my-model")
 		c.Assert(bootWith.RecoverySystemLabel, Equals, s.sysLabel)
@@ -8204,6 +8231,33 @@ echo '{"features":[]}'
 		return nil
 	})()
 
+	observeExistingTrustedRecoveryAssetsCalled := 0
+	mockObserver := &MockObserver{
+		BootLoaderSupportsEfiVariablesFunc: func() bool {
+			return true
+		},
+		ObserveExistingTrustedRecoveryAssetsFunc: func(recoveryRootDir string) error {
+			observeExistingTrustedRecoveryAssetsCalled += 1
+			return nil
+		},
+		ChosenEncryptionKeysFunc: func(key, saveKey keys.EncryptionKey) {
+		},
+		UpdateBootEntryFunc: func() error {
+			return nil
+		},
+		ObserveFunc: func(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+			return gadget.ChangeApply, nil
+		},
+	}
+
+	defer main.MockBuildInstallObserver(func(model *asserts.Model, gadgetDir string, useEncryption bool) (observer gadget.ContentObserver, trustedObserver boot.TrustedAssetsInstallObserver, err error) {
+		c.Check(model.Classic(), Equals, false)
+		c.Check(string(model.Grade()), Equals, "signed")
+		c.Check(gadgetDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "gadget"))
+
+		return mockObserver, mockObserver, nil
+	})()
+
 	restore := s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "install"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
@@ -8229,7 +8283,7 @@ echo '{"features":[]}'
 		{"fde-setup"},
 	})
 
-	fdeSetupInput, err := ioutil.ReadFile(filepath.Join(s.tmpDir, "fde-setup.input"))
+	fdeSetupInput, err := os.ReadFile(filepath.Join(s.tmpDir, "fde-setup.input"))
 	c.Assert(err, IsNil)
 	c.Assert(fdeSetupInput, DeepEquals, []byte(`{"op":"features"}`))
 
@@ -8237,6 +8291,156 @@ echo '{"features":[]}'
 	c.Assert(makeRunnableCalled, Equals, true)
 	c.Assert(gadgetInstallCalled, Equals, true)
 	c.Assert(nextBooEnsured, Equals, true)
+	c.Check(observeExistingTrustedRecoveryAssetsCalled, Equals, 1)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresent(c *C) {
+	var efiArch string
+	switch runtime.GOARCH {
+	case "amd64":
+		efiArch = "x64"
+	case "arm64":
+		efiArch = "aa64"
+	default:
+		c.Skip("Unknown EFI arch")
+	}
+
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+
+	systemDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(systemDir, "preseed.tgz"), []byte{}, 0640), IsNil)
+
+	kernelSnapYaml := filepath.Join(boot.InitramfsRunMntDir, "kernel", "meta", "snap.yaml")
+	c.Assert(os.MkdirAll(filepath.Dir(kernelSnapYaml), 0755), IsNil)
+	kernelSnapYamlContent := `{}`
+	c.Assert(os.WriteFile(kernelSnapYaml, []byte(kernelSnapYamlContent), 0555), IsNil)
+
+	baseSnapYaml := filepath.Join(boot.InitramfsRunMntDir, "base", "meta", "snap.yaml")
+	c.Assert(os.MkdirAll(filepath.Dir(baseSnapYaml), 0755), IsNil)
+	baseSnapYamlContent := `{}`
+	c.Assert(os.WriteFile(baseSnapYaml, []byte(baseSnapYamlContent), 0555), IsNil)
+
+	gadgetSnapYaml := filepath.Join(boot.InitramfsRunMntDir, "gadget", "meta", "snap.yaml")
+	c.Assert(os.MkdirAll(filepath.Dir(gadgetSnapYaml), 0755), IsNil)
+	gadgetSnapYamlContent := `{}`
+	c.Assert(os.WriteFile(gadgetSnapYaml, []byte(gadgetSnapYamlContent), 0555), IsNil)
+
+	grubConf := filepath.Join(boot.InitramfsRunMntDir, "gadget", "grub.conf")
+	c.Assert(os.MkdirAll(filepath.Dir(grubConf), 0755), IsNil)
+	c.Assert(os.WriteFile(grubConf, nil, 0555), IsNil)
+
+	bootloader := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed", "EFI", "boot", fmt.Sprintf("boot%s.efi", efiArch))
+	c.Assert(os.MkdirAll(filepath.Dir(bootloader), 0755), IsNil)
+	c.Assert(os.WriteFile(bootloader, nil, 0555), IsNil)
+	grub := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed", "EFI", "boot", fmt.Sprintf("grub%s.efi", efiArch))
+	c.Assert(os.MkdirAll(filepath.Dir(grub), 0755), IsNil)
+	c.Assert(os.WriteFile(grub, nil, 0555), IsNil)
+
+	writeGadget(c, "ubuntu-seed", "system-seed", "")
+
+	gadgetInstallCalled := false
+	restoreGadgetInstall := main.MockGadgetInstallRun(func(model gadget.Model, gadgetRoot string, kernelSnapInfo *gadgetInstall.KernelSnapInfo, bootDevice string, options gadgetInstall.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*gadgetInstall.InstalledSystemSideData, error) {
+		gadgetInstallCalled = true
+		c.Assert(options.Mount, Equals, true)
+		c.Assert(string(options.EncryptionType), Equals, "")
+		c.Assert(bootDevice, Equals, "")
+		c.Assert(model.Classic(), Equals, false)
+		c.Assert(string(model.Grade()), Equals, "signed")
+		c.Assert(gadgetRoot, Equals, filepath.Join(boot.InitramfsRunMntDir, "gadget"))
+		c.Assert(kernelSnapInfo.MountPoint, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+		return &gadgetInstall.InstalledSystemSideData{}, nil
+	})
+	defer restoreGadgetInstall()
+
+	makeRunnableCalled := false
+	restoreMakeRunnableStandaloneSystem := main.MockMakeRunnableStandaloneSystem(func(model *asserts.Model, bootWith *boot.BootableSet, obs boot.TrustedAssetsInstallObserver) error {
+		makeRunnableCalled = true
+		c.Assert(model.Model(), Equals, "my-model")
+		c.Assert(bootWith.RecoverySystemLabel, Equals, s.sysLabel)
+		c.Assert(bootWith.BasePath, Equals, filepath.Join(s.seedDir, "snaps", "core20_1.snap"))
+		c.Assert(bootWith.KernelPath, Equals, filepath.Join(s.seedDir, "snaps", "pc-kernel_1.snap"))
+		c.Assert(bootWith.GadgetPath, Equals, filepath.Join(s.seedDir, "snaps", "pc_1.snap"))
+		return nil
+	})
+	defer restoreMakeRunnableStandaloneSystem()
+
+	applyPreseedCalled := false
+	restoreApplyPreseededData := main.MockApplyPreseededData(func(preseedSeed seed.PreseedCapable, writableDir string) error {
+		applyPreseedCalled = true
+		c.Assert(preseedSeed.ArtifactPath("preseed.tgz"), Equals, filepath.Join(systemDir, "preseed.tgz"))
+		c.Assert(writableDir, Equals, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
+		return nil
+	})
+	defer restoreApplyPreseededData()
+
+	// ensure that we check that access to sealed keys were locked
+	sealedKeysLocked := false
+	defer main.MockSecbootLockSealedKeys(func() error {
+		sealedKeysLocked = true
+		return nil
+	})()
+
+	nextBootEnsured := false
+	defer main.MockEnsureNextBootToRunMode(func(systemLabel string) error {
+		nextBootEnsured = true
+		c.Assert(systemLabel, Equals, s.sysLabel)
+		return nil
+	})()
+
+	observeExistingTrustedRecoveryAssetsCalled := 0
+	mockObserver := &MockObserver{
+		BootLoaderSupportsEfiVariablesFunc: func() bool {
+			return true
+		},
+		ObserveExistingTrustedRecoveryAssetsFunc: func(recoveryRootDir string) error {
+			observeExistingTrustedRecoveryAssetsCalled += 1
+			return nil
+		},
+		ChosenEncryptionKeysFunc: func(key, saveKey keys.EncryptionKey) {
+		},
+		UpdateBootEntryFunc: func() error {
+			return nil
+		},
+		ObserveFunc: func(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+			return gadget.ChangeApply, nil
+		},
+	}
+
+	defer main.MockBuildInstallObserver(func(model *asserts.Model, gadgetDir string, useEncryption bool) (observer gadget.ContentObserver, trustedObserver boot.TrustedAssetsInstallObserver, err error) {
+		c.Check(model.Classic(), Equals, false)
+		c.Check(string(model.Grade()), Equals, "signed")
+		c.Check(gadgetDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "gadget"))
+
+		return mockObserver, mockObserver, nil
+	})()
+
+	restore := s.mockSystemdMountSequence(c, []systemdMount{
+		s.ubuntuLabelMount("ubuntu-seed", "install"),
+		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
+		{
+			filepath.Join(s.tmpDir, "/run/mnt/ubuntu-data"),
+			boot.InitramfsDataDir,
+			bindOpts,
+			nil,
+		},
+	}, nil)
+	defer restore()
+
+	c.Assert(os.Remove(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model")), IsNil)
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Check(sealedKeysLocked, Equals, true)
+
+	c.Assert(applyPreseedCalled, Equals, true)
+	c.Assert(makeRunnableCalled, Equals, true)
+	c.Assert(gadgetInstallCalled, Equals, true)
+	c.Assert(nextBootEnsured, Equals, true)
+	c.Check(observeExistingTrustedRecoveryAssetsCalled, Equals, 1)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunInstallDeviceHook(c *C) {

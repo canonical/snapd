@@ -1,6 +1,20 @@
 summary: |
   Ensure `snap validate --monitor` works with validation-sets from the store.
 
+details: |
+  A validation set is an assertion that lists specific snaps that are either
+  required to be installed together or are permitted to be installed together
+  on a device or system.
+
+  A validation set can either be in monitoring mode, in which case its constraints
+  aren't enforced, or in enforcing mode, in which case snapd will not allow
+  operations which would result in snaps breaking the validation set's constraints.
+
+  This test verifies that if a validation set is configured in the store and
+  set in monitor mode, it can be monitored using the `snap validate --monitor`
+  command. It verifies that the `snap validate` command shows invalid and
+  valid statuses correctly depending on whether the required snaps are installed.
+
 # This test uses validation set assertions from the store uploaded upfront
 # with my (stolowski) private store key (account-id: xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f,
 # public-key-sha3: o_x83A3wpIvJznIHBJIK7jRmRZKLlqx5jOr30HUsloFfBseXNF0ztoj18EvNualy);

@@ -2,6 +2,9 @@ summary: |
     Ensure after device initialisation registration worked and
     we have a serial and can acquire a session macaroon
 
+details: |
+    Check that initialised devices have a serial and a session macaroon
+
 execute: |
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh

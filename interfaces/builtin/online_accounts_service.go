@@ -112,14 +112,14 @@ func (iface *onlineAccountsServiceInterface) StaticInfo() interfaces.StaticInfo 
 
 func (iface *onlineAccountsServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
-	new := slotAppLabelExpr(slot)
+	new := slot.LabelExpression()
 	spec.AddSnippet(strings.Replace(onlineAccountsServiceConnectedPlugAppArmor, old, new, -1))
 	return nil
 }
 
 func (iface *onlineAccountsServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
-	new := plugAppLabelExpr(plug)
+	new := plug.LabelExpression()
 	spec.AddSnippet(strings.Replace(onlineAccountsServiceConnectedSlotAppArmor, old, new, -1))
 	return nil
 }

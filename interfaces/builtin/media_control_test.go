@@ -77,15 +77,19 @@ func (s *MediacontrolInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *MediacontrolInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/media[0-9]* rw,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/media[0-9]* rwk,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/v4l-subdev[0-9]* rw,`)
 }
 
 func (s *MediacontrolInterfaceSuite) TestUDevSpec(c *C) {
-	spec := &udev.Specification{}
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 3)
 	c.Assert(spec.Snippets(), testutil.Contains, `# media-control

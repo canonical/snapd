@@ -76,6 +76,7 @@ func (s *scanningSuite) TestSecurityTagFromCgroupPath(c *C) {
 	c.Check(cgroup.SecurityTagFromCgroupPath("snap.test-snapd-refresh.hook.configure-d854bd35-2457-4ac8-b494-06061d74df33.scope"), DeepEquals, mustParseTag("snap.test-snapd-refresh.hook.configure"))
 	// Trailing slashes are automatically handled.
 	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.foo.service/"), DeepEquals, mustParseTag("snap.foo.foo"))
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo\\x2bcomp.hook.install.54b38acc-3ba2-4c6d-b284-7ac07e1159e5.scope"), DeepEquals, mustParseTag("snap.foo+comp.hook.install"))
 }
 
 // Returns the number of occurrences of 'needle' in the array 'arr'

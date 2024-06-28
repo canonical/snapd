@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -60,11 +60,23 @@ var (
 	AllocHotplugSeq              = allocHotplugSeq
 	AddHotplugSeqWaitTask        = addHotplugSeqWaitTask
 	AddHotplugSlot               = addHotplugSlot
+	HasActiveConnection          = hasActiveConnection
 
 	BatchConnectTasks                = batchConnectTasks
 	FirstTaskAfterBootWhenPreseeding = firstTaskAfterBootWhenPreseeding
-	BuildConfinementOptions          = buildConfinementOptions
 )
+
+func NewInterfaceManagerWithAppArmorPrompting(useAppArmorPrompting bool) *InterfaceManager {
+	m := &InterfaceManager{}
+	m.useAppArmorPromptingChecker.Do(func() {
+		m.useAppArmorPromptingValue = useAppArmorPrompting
+	})
+	return m
+}
+
+func (m *InterfaceManager) BuildConfinementOptions(st *state.State, snapInfo *snap.Info, flags snapstate.Flags) (interfaces.ConfinementOptions, error) {
+	return m.buildConfinementOptions(st, snapInfo, flags)
+}
 
 type ConnectOpts = connectOpts
 
@@ -165,14 +177,14 @@ func (m *IdentityMapper) SystemSnapName() string {
 }
 
 // MockProfilesNeedRegeneration mocks the function checking if profiles need regeneration.
-func MockProfilesNeedRegeneration(fn func() bool) func() {
-	old := profilesNeedRegeneration
-	profilesNeedRegeneration = fn
-	return func() { profilesNeedRegeneration = old }
+func MockProfilesNeedRegeneration(fn func(m *InterfaceManager) bool) func() {
+	old := profilesNeedRegenerationImpl
+	profilesNeedRegenerationImpl = fn
+	return func() { profilesNeedRegenerationImpl = old }
 }
 
 // MockWriteSystemKey mocks the function responsible for writing the system key.
-func MockWriteSystemKey(fn func() error) func() {
+func MockWriteSystemKey(fn func(extraData interfaces.SystemKeyExtraData) error) func() {
 	old := writeSystemKey
 	writeSystemKey = fn
 	return func() { writeSystemKey = old }
@@ -190,6 +202,6 @@ func (m *InterfaceManager) TransitionConnectionsCoreMigration(st *state.State, o
 	return m.transitionConnectionsCoreMigration(st, oldName, newName)
 }
 
-func (m *InterfaceManager) SetupSecurityByBackend(task *state.Task, snaps []*snap.Info, opts []interfaces.ConfinementOptions, tm timings.Measurer) error {
-	return m.setupSecurityByBackend(task, snaps, opts, tm)
+func (m *InterfaceManager) SetupSecurityByBackend(task *state.Task, appSets []*interfaces.SnapAppSet, opts []interfaces.ConfinementOptions, tm timings.Measurer) error {
+	return m.setupSecurityByBackend(task, appSets, opts, tm)
 }

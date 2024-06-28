@@ -22,6 +22,7 @@ package ctlcmd_test
 import (
 	"context"
 	"fmt"
+	"os/user"
 	"sort"
 
 	. "gopkg.in/check.v1"
@@ -29,11 +30,14 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -95,12 +99,19 @@ func (f *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.CurrentS
 	return snaps, nil, nil
 }
 
+type appsSuiteDecoratorResult struct {
+	daemonType string
+	active     bool
+	enabled    bool
+}
+
 type servicectlSuite struct {
 	testutil.BaseTest
-	st          *state.State
-	fakeStore   fakeStore
-	mockContext *hookstate.Context
-	mockHandler *hooktest.MockHandler
+	st               *state.State
+	fakeStore        fakeStore
+	mockContext      *hookstate.Context
+	mockHandler      *hooktest.MockHandler
+	decoratorResults map[string]appsSuiteDecoratorResult
 }
 
 var _ = Suite(&servicectlSuite{})
@@ -136,7 +147,7 @@ apps:
 `
 
 func mockServiceChangeFunc(testServiceControlInputs func(appInfos []*snap.AppInfo, inst *servicestate.Instruction)) func() {
-	return ctlcmd.MockServicestateControlFunc(func(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction, flags *servicestate.Flags, context *hookstate.Context) ([]*state.TaskSet, error) {
+	return ctlcmd.MockServicestateControlFunc(func(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction, cu *user.User, flags *servicestate.Flags, context *hookstate.Context) ([]*state.TaskSet, error) {
 		testServiceControlInputs(appInfos, inst)
 		return nil, fmt.Errorf("forced error")
 	})
@@ -160,6 +171,9 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.st, repo)
+
 	snapstate.ReplaceStore(s.st, &s.fakeStore)
 
 	// mock installed snaps
@@ -171,24 +185,24 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	})
 	snapstate.Set(s.st, info1.InstanceName(), &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
 				RealName: info1.SnapName(),
 				Revision: info1.Revision,
 				SnapID:   "test-snap-id",
 			},
-		},
+		}),
 		Current: info1.Revision,
 	})
 	snapstate.Set(s.st, info2.InstanceName(), &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
 				RealName: info2.SnapName(),
 				Revision: info2.Revision,
 				SnapID:   "other-snap-id",
 			},
-		},
+		}),
 		Current: info2.Revision,
 	})
 
@@ -208,7 +222,7 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 		snapstate.EnforcedValidationSets = old
 	})
 	snapstate.EnforcedValidationSets = func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-		return nil, nil
+		return snapasserts.NewValidationSets(), nil
 	}
 }
 
@@ -223,6 +237,10 @@ func (s *servicectlSuite) TestStopCommand(c *C) {
 			Names:  []string{"test-snap.test-service"},
 			StopOptions: client.StopOptions{
 				Disable: false,
+			},
+			Users: client.UserSelector{
+				Selector: client.UserSelectionList,
+				Names:    []string{},
 			},
 		},
 		)
@@ -271,6 +289,10 @@ func (s *servicectlSuite) TestStartCommand(c *C) {
 			StartOptions: client.StartOptions{
 				Enable: false,
 			},
+			Users: client.UserSelector{
+				Selector: client.UserSelectionList,
+				Names:    []string{},
+			},
 		},
 		)
 	})
@@ -293,6 +315,10 @@ func (s *servicectlSuite) TestRestartCommand(c *C) {
 			RestartOptions: client.RestartOptions{
 				Reload: false,
 			},
+			Users: client.UserSelector{
+				Selector: client.UserSelectionList,
+				Names:    []string{},
+			},
 		},
 		)
 	})
@@ -301,6 +327,79 @@ func (s *servicectlSuite) TestRestartCommand(c *C) {
 	c.Check(err, NotNil)
 	c.Check(err, ErrorMatches, "forced error")
 	c.Assert(serviceChangeFuncCalled, Equals, true)
+}
+
+func (s *servicectlSuite) TestServiceCommandsScope(c *C) {
+	checkInvocation := func(action string, names, args []string, expected *servicestate.Instruction, expectedErr string) {
+		var serviceChangeFuncCalled bool
+		restore := mockServiceChangeFunc(func(appInfos []*snap.AppInfo, inst *servicestate.Instruction) {
+			serviceChangeFuncCalled = true
+			c.Check(appInfos, HasLen, 1)
+			c.Check(appInfos[0].Name, Equals, "test-service")
+			c.Check(inst, DeepEquals, expected)
+		})
+		defer restore()
+		_, _, err := ctlcmd.Run(s.mockContext, append([]string{action}, append(names, args...)...), 0)
+		c.Check(err, NotNil)
+		if expectedErr != "" {
+			c.Check(err, ErrorMatches, expectedErr)
+			c.Check(serviceChangeFuncCalled, Equals, false)
+		} else {
+			// bit weird we are always returning an error in the test code
+			c.Check(err, ErrorMatches, "forced error")
+			c.Check(serviceChangeFuncCalled, Equals, true)
+		}
+	}
+
+	for _, c := range []string{"start", "stop", "restart"} {
+		names := []string{"test-snap.test-service"}
+		checkInvocation(c, names, []string{"--system"}, &servicestate.Instruction{
+			Action: c,
+			Names:  names,
+			Scope:  []string{"system"},
+			Users: client.UserSelector{
+				Selector: client.UserSelectionList,
+				Names:    []string{},
+			},
+		}, "")
+		checkInvocation(c, names, []string{"--user"}, &servicestate.Instruction{
+			Action: c,
+			Names:  names,
+			Scope:  []string{"user"},
+			Users: client.UserSelector{
+				Selector: client.UserSelectionSelf,
+			},
+		}, "")
+		checkInvocation(c, names, []string{"--users=all"}, &servicestate.Instruction{
+			Action: c,
+			Names:  names,
+			Scope:  []string{"user"},
+			Users: client.UserSelector{
+				Selector: client.UserSelectionAll,
+			},
+		}, "")
+
+		// check combined cases
+		checkInvocation(c, names, []string{"--system", "--users=all"}, &servicestate.Instruction{
+			Action: c,
+			Names:  names,
+			Users: client.UserSelector{
+				Selector: client.UserSelectionAll,
+			},
+		}, "")
+
+		// we *must* provide a value for --users
+		checkInvocation(c, names, []string{"--users"}, nil, "expected argument for flag `--users'")
+
+		// that value must only be 'all'
+		checkInvocation(c, names, []string{"--users=foo"}, nil, "only \"all\" is supported as a value for --users")
+
+		// --system and --user not allowed together
+		checkInvocation(c, names, []string{"--system", "--user"}, nil, "--system and --user cannot be used in conjunction with each other")
+
+		// --user and --users not allowed together
+		checkInvocation(c, names, []string{"--users=all", "--user"}, nil, "--user and --users cannot be used in conjunction with each other")
+	}
 }
 
 func (s *servicectlSuite) TestConflictingChange(c *C) {
@@ -653,6 +752,96 @@ Service                 Startup  Current  Notes
 test-snap.test-service  enabled  active   -
 `[1:])
 	c.Check(string(stderr), Equals, "")
+}
+
+func (s *servicectlSuite) TestServicesAsUserWithGlobal(c *C) {
+	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		c.Assert(args[0], Equals, "show")
+		c.Check(args[2], Equals, "snap.test-snap.test-service.service")
+		return []byte(`Id=snap.test-snap.test-service.service
+Names=snap.test-snap.test-service.service
+Type=simple
+ActiveState=active
+UnitFileState=enabled
+NeedDaemonReload=no
+`), nil
+	})
+	defer restore()
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"services", "--global", "test-snap.test-service"}, 1337)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, `
+Service                 Startup  Current  Notes
+test-snap.test-service  enabled  active   -
+`[1:])
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *servicectlSuite) DecorateWithStatus(appInfo *client.AppInfo, snapApp *snap.AppInfo) error {
+	name := snapApp.Snap.RealName + "." + appInfo.Name
+	dec, ok := s.decoratorResults[name]
+	if !ok {
+		return fmt.Errorf("%s not found in expected test decorator results", name)
+	}
+	appInfo.Daemon = dec.daemonType
+	appInfo.Enabled = dec.enabled
+	appInfo.Active = dec.active
+	return nil
+}
+
+func (s *servicectlSuite) TestServicesUserSwitch(c *C) {
+	restore := ctlcmd.MockNewStatusDecorator(func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator {
+		c.Check(isGlobal, Equals, false)
+		c.Check(uid, Equals, "0")
+		return s
+	})
+	defer restore()
+
+	s.decoratorResults = map[string]appsSuiteDecoratorResult{
+		"test-snap.user-service": {
+			daemonType: "simple",
+			active:     true,
+			enabled:    true,
+		},
+	}
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"services", "--user", "test-snap.user-service"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, `
+Service                 Startup  Current  Notes
+test-snap.user-service  enabled  active   user
+`[1:])
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *servicectlSuite) TestServicesAsUser(c *C) {
+	restore := ctlcmd.MockNewStatusDecorator(func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator {
+		c.Check(isGlobal, Equals, false)
+		c.Check(uid, Equals, "1337")
+		return s
+	})
+	defer restore()
+
+	s.decoratorResults = map[string]appsSuiteDecoratorResult{
+		"test-snap.user-service": {
+			daemonType: "simple",
+			active:     true,
+			enabled:    true,
+		},
+	}
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"services", "test-snap.user-service"}, 1337)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, `
+Service                 Startup  Current  Notes
+test-snap.user-service  enabled  active   user
+`[1:])
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *servicectlSuite) TestAppStatusInvalidUserGlobalSwitches(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"services", "--global", "--user"}, 0)
+	c.Assert(err, ErrorMatches, "cannot combine --global and --user switches.")
 }
 
 func (s *servicectlSuite) TestServicesWithoutContext(c *C) {

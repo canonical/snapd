@@ -1,0 +1,222 @@
+summary: Check that EFI boot variables are successfully on UC20+
+
+details: >
+    This test checks that EFI boot variables are correctly set during
+    installation.  In particular, there should be a Boot#### variable with
+    data pointing to either \EFI\ubuntu\shimx64.efi or \EFI\boot\bootx64.efi,
+    depending on the version of the pc-gadget snap, and the first number in the
+    BootOrder variable should be the corresponding number.
+
+systems:
+  - -ubuntu-1*
+
+environment:
+    DESCRIPTION/BOOTDIR: "Install with assets in EFI/boot/, then update to gadget with assets in EFI/ubuntu/"
+    DESCRIPTION/UBUNTUDIR: "Install with assets in EFI/ubuntu/, then update to gadget with assets in EFI/boot/"
+    DESCRIPTION/BOOTDIR_NOSEC: "Install with assets in EFI/boot/, then update to gadget with assets in EFI/ubuntu/ (no secure boot)"
+    DESCRIPTION/UBUNTUDIR_NOSEC: "Install with assets in EFI/ubuntu/, then update to gadget with assets in EFI/boot/ (no secure boot)"
+
+    INITIAL_ASSET_DIR/BOOTDIR: "boot"
+    INITIAL_ASSET_DIR/UBUNTUDIR: "ubuntu"
+    INITIAL_ASSET_DIR/BOOTDIR_NOSEC: "boot"
+    INITIAL_ASSET_DIR/UBUNTUDIR_NOSEC: "ubuntu"
+
+    FINAL_ASSET_DIR/BOOTDIR: "ubuntu"
+    FINAL_ASSET_DIR/UBUNTUDIR: "boot"
+    FINAL_ASSET_DIR/BOOTDIR_NOSEC: "ubuntu"
+    FINAL_ASSET_DIR/UBUNTUDIR_NOSEC: "boot"
+
+    NESTED_ENABLE_TPM/BOOTDIR: "true"
+    NESTED_ENABLE_TPM/UBUNTUDIR: "true"
+    NESTED_ENABLE_TPM/BOOTDIR_NOSEC: "false"
+    NESTED_ENABLE_TPM/UBUNTUDIR_NOSEC: "false"
+
+    NESTED_ENABLE_SECURE_BOOT/BOOTDIR: "true"
+    NESTED_ENABLE_SECURE_BOOT/UBUNTUDIR: "true"
+    NESTED_ENABLE_SECURE_BOOT/BOOTDIR_NOSEC: "false"
+    NESTED_ENABLE_SECURE_BOOT/UBUNTUDIR_NOSEC: "false"
+
+prepare: |
+    snap install yq
+
+    VERSION=$(tests.nested show version)
+    echo "Download pc-gadget to use in initial image"
+    snap download --basename=pc --channel="${VERSION}/${GADGET_CHANNEL}" pc
+    unsquashfs -d pc-gadget pc.snap
+
+    ARCH=$(find pc-gadget -name 'grub*.efi' -printf '%f\n' | sed 's/grub//;s/\.efi//')
+
+    case "${ARCH}" in
+        x64  ) ;;
+        aa64 ) ;;
+        *    ) ERROR "Invalid architecture '${ARCH}': must be 'x64' or 'aa64'" ;;
+    esac
+
+    echo "Set up gadget with EFI assets in EFI/${INITIAL_ASSET_DIR}"
+    case "${INITIAL_ASSET_DIR}" in
+        boot )
+            sh modify-gadget.sh pc-gadget "$ARCH" no-fallback
+            ;;
+        ubuntu )
+            sh modify-gadget.sh pc-gadget "$ARCH" fallback
+            ;;
+        * )
+            ERROR "Invalid initial asset dir: ${INITIAL_ASSET_DIR}"
+            ;;
+    esac
+
+    if [ "${INITIAL_ASSET_DIR}" = "ubuntu" ]; then
+      # make the entry different for fallback
+      sed -i 's/,ubuntu,/,fallback-created,/g' "pc-gadget/BOOT${ARCH^^}.CSV"
+    fi
+
+    echo "Get snakeoil key"
+    KEY_NAME=$(tests.nested download snakeoil-key)
+    SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+    SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+
+    echo "Sign assets in the modified pc-gadget"
+    tests.nested secboot-sign gadget pc-gadget "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
+
+    echo "Repack the modified pc-gadget"
+    snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
+    # No need to re-sign again after repacking
+    echo "Build core image around modified pc-gadget"
+    tests.nested build-image core
+    echo "Create VM around custom image"
+    tests.nested create-vm core
+
+debug: |
+    rm -rf BootVars/
+    "${TESTSLIB}/pull_uefi_boot_entries.sh" BootVars/
+    echo "First boot entry:"
+    "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/
+    "${TESTSLIB}/get_uefi_boot_entry.py" --path BootVars/
+    echo "Current boot entry"
+    "${TESTSLIB}/get_uefi_boot_entry.py" --current BootVars/
+    "${TESTSLIB}/get_uefi_boot_entry.py" --current --path BootVars/
+
+    echo "Current state of the gadget.yaml"
+    if [ -f pc-gadget/meta/gadget.yaml ]; then
+        cat pc-gadget/meta/gadget.yaml
+    fi
+
+execute: |
+    ARCH="$(find pc-gadget -name 'grub*.efi' -printf '%f\n' | sed 's/grub//;s/\.efi//')"
+    ARCH_UPPER="$(echo "$ARCH" | tr '[:lower:]' '[:upper:]')"
+
+    case "${ARCH}" in
+        x64  ) ;;
+        aa64 ) ;;
+        *    ) ERROR "Invalid architecture '${ARCH}': must be 'x64' or 'aa64'" ;;
+    esac
+
+    echo "${DESCRIPTION}"
+
+    echo "#### Initial gadget: ####"
+
+    echo "Wait for device to be initialized"
+    remote.wait-for device-initialized
+
+    echo "Wait for the system to be seeded"
+    remote.exec "sudo snap wait system seed.loaded"
+
+    # Check that the EFI assets are correctly situated
+    check_efi_assets() {
+        if [ "$1" = "boot" ]; then
+            remote.exec "ls /run/mnt/ubuntu-seed/EFI/boot/boot${ARCH}.efi"
+            remote.exec "ls /run/mnt/ubuntu-seed/EFI/boot/grub${ARCH}.efi"
+            if remote.exec "ls /run/mnt/ubuntu-seed/EFI/boot/fb${ARCH}.efi"; then
+              exit 1
+            fi
+        elif [ "$1" = "ubuntu" ]; then
+            remote.exec "ls /run/mnt/ubuntu-seed/EFI/ubuntu/BOOT${ARCH_UPPER}.CSV"
+            remote.exec "ls /run/mnt/ubuntu-seed/EFI/ubuntu/grub${ARCH}.efi"
+            remote.exec "ls /run/mnt/ubuntu-seed/EFI/ubuntu/shim${ARCH}.efi"
+            remote.exec "ls /run/mnt/ubuntu-seed/EFI/boot/boot${ARCH}.efi"
+            remote.exec "ls /run/mnt/ubuntu-seed/EFI/boot/fb${ARCH}.efi"
+            if remote.exec "ls /run/mnt/ubuntu-seed/EFI/boot/grub${ARCH}.efi"; then
+              exit 1
+            fi
+        fi
+    }
+
+    echo "Check that EFI assets in EFI/${INITIAL_ASSET_DIR} and variables are set correctly"
+    check_efi_assets "$INITIAL_ASSET_DIR"
+
+    rm -rf BootVars/
+    "${TESTSLIB}/pull_uefi_boot_entries.sh" BootVars/
+    # Created boot entry is first in order
+    "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/ | NOMATCH fallback-created
+    "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/ | MATCH ubuntu
+    # It is also the current boot entry
+    "${TESTSLIB}/get_uefi_boot_entry.py" --current BootVars/ | NOMATCH fallback-created
+    "${TESTSLIB}/get_uefi_boot_entry.py" --current BootVars/ | MATCH ubuntu
+
+    if [ "${INITIAL_ASSET_DIR}" = "ubuntu" ]; then
+      "${TESTSLIB}/get_uefi_boot_entry.py" --path BootVars/ | grep -Fi "\\efi\\ubuntu\\shim${ARCH}.efi"
+    else
+      "${TESTSLIB}/get_uefi_boot_entry.py" --path BootVars/ | grep -Fi "\\efi\\boot\\boot${ARCH}.efi"
+    fi
+
+    echo "All good!"
+
+    echo "Set up gadget with EFI assets in EFI/${FINAL_ASSET_DIR}"
+    case "${FINAL_ASSET_DIR}" in
+        boot )
+            sh modify-gadget.sh pc-gadget "$ARCH" no-fallback
+            ;;
+        ubuntu )
+            sh modify-gadget.sh pc-gadget "$ARCH" fallback
+            ;;
+        * )
+            ERROR "Invalid initial asset dir: ${FINAL_ASSET_DIR}"
+            ;;
+    esac
+
+    if [ "${FINAL_ASSET_DIR}" = "ubuntu" ]; then
+      # make the entry different for fallback
+      sed -i 's/,ubuntu,/,fallback-created,/g' "pc-gadget/BOOT${ARCH^^}.CSV"
+    fi
+
+    echo "Get snakeoil key"
+    KEY_NAME=$(tests.nested download snakeoil-key)
+    SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+    SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+
+    echo "Sign the modified pc-gadget"
+    tests.nested secboot-sign gadget pc-gadget "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
+
+    snap pack --filename=pc.snap pc-gadget
+    remote.push pc.snap
+
+    boot_id=$(tests.nested boot-id)
+
+    echo "Install new gadget"
+    INSTALL_ID=$(remote.exec sudo snap install --no-wait --dangerous pc.snap)
+    # VM should reboot now
+    echo "Wait for reboot"
+    remote.wait-for reboot "${boot_id}"
+    # Wait for previous change to finish before continuing
+    remote.exec sudo snap watch "${INSTALL_ID}"
+
+    echo "#### Updated gadget: ####"
+
+    echo "Check that EFI assets in EFI/${INITIAL_ASSET_DIR} and variables are set correctly"
+    check_efi_assets "$FINAL_ASSET_DIR"
+
+    rm -rf BootVars/
+    "${TESTSLIB}/pull_uefi_boot_entries.sh" BootVars/
+    # Create boot entry is first in order
+    "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/ | NOMATCH fallback-created
+    "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/ | MATCH ubuntu
+    # It is also the current boot entry
+    "${TESTSLIB}/get_uefi_boot_entry.py" --current BootVars/ | NOMATCH fallback-created
+    "${TESTSLIB}/get_uefi_boot_entry.py" --current BootVars/ | MATCH ubuntu
+    if [ "${FINAL_ASSET_DIR}" = "ubuntu" ]; then
+      "${TESTSLIB}/get_uefi_boot_entry.py" --path BootVars/ | grep -Fi "\\efi\\ubuntu\\shim${ARCH}.efi"
+    else
+      "${TESTSLIB}/get_uefi_boot_entry.py" --path BootVars/ | grep -Fi "\\efi\\boot\\boot${ARCH}.efi"
+    fi
+
+    echo "All good!"

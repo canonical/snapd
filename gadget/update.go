@@ -938,6 +938,10 @@ func buildNewVolumeToDeviceMapping(mod Model, old GadgetData, vols map[string]*V
 
 	traits, err := DiskTraitsFromDeviceAndValidate(vol, dev, validateOpts)
 	if err != nil {
+		if isPreUC20 {
+			logger.Noticef("WARNING: not applying gadget asset updates on main system-boot volume due to error while finding disk traits: %v", err)
+			return nil, errSkipUpdateProceedRefresh
+		}
 		return nil, err
 	}
 
@@ -1607,8 +1611,19 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 	if len(oldVol.LaidOutStructure) != len(newVol.LaidOutStructure) {
 		return nil, errors.New("internal error: the number of structures in new and old volume definitions is different")
 	}
+	// We must order updates from the latest binary in the boot
+	// chain to the newest. So any seed partitions should come
+	// after boot partitions.
+	var seedUpdates []updatePair
+	var bootUpdates []updatePair
 	for j, oldStruct := range oldVol.LaidOutStructure {
 		newStruct := newVol.LaidOutStructure[j]
+		updatesTarget := &updates
+		if strings.HasPrefix(newStruct.Role(), "system-seed") {
+			updatesTarget = &seedUpdates
+		} else if strings.HasPrefix(newStruct.Role(), "system-boot") {
+			updatesTarget = &bootUpdates
+		}
 		// update only when the policy says so; boot assets
 		// are assumed to be backwards compatible, once
 		// deployed they are not rolled back or replaced unless
@@ -1627,13 +1642,15 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 			newVol.LaidOutStructure[j].ResolvedContent = resolvedContent
 
 			// and add to updates
-			updates = append(updates, updatePair{
+			*updatesTarget = append(*updatesTarget, updatePair{
 				from:   &oldVol.LaidOutStructure[j],
 				to:     &newVol.LaidOutStructure[j],
 				volume: newVol.Volume,
 			})
 		}
 	}
+	updates = append(updates, bootUpdates...)
+	updates = append(updates, seedUpdates...)
 	return updates, nil
 }
 
@@ -1682,7 +1699,7 @@ func applyUpdates(structureLocations map[string]map[int]StructureLocation, new G
 		if err != nil {
 			return fmt.Errorf("cannot prepare update for volume structure %v on volume %s: %v", one.to, one.volume.Name, err)
 		}
-		up, err := updaterForStructure(loc, one.to, new.RootDir, rollbackDir, observer)
+		up, err := updaterForStructure(loc, one.from, one.to, new.RootDir, rollbackDir, observer)
 		if err != nil {
 			return fmt.Errorf("cannot prepare update for volume structure %v on volume %s: %v", one.to, one.volume.Name, err)
 		}
@@ -1755,7 +1772,7 @@ func applyUpdates(structureLocations map[string]map[int]StructureLocation, new G
 
 var updaterForStructure = updaterForStructureImpl
 
-func updaterForStructureImpl(loc StructureLocation, ps *LaidOutStructure, newRootDir, rollbackDir string, observer ContentUpdateObserver) (Updater, error) {
+func updaterForStructureImpl(loc StructureLocation, fromPs *LaidOutStructure, ps *LaidOutStructure, newRootDir, rollbackDir string, observer ContentUpdateObserver) (Updater, error) {
 	// TODO: this is sort of clunky, we already did the lookup, but doing the
 	// lookup out of band from this function makes for easier mocking
 	if !ps.HasFilesystem() {
@@ -1767,12 +1784,12 @@ func updaterForStructureImpl(loc StructureLocation, ps *LaidOutStructure, newRoo
 		lookup := func(ps *LaidOutStructure) (string, error) {
 			return loc.RootMountPoint, nil
 		}
-		return newMountedFilesystemUpdater(ps, rollbackDir, lookup, observer)
+		return newMountedFilesystemUpdater(fromPs, ps, rollbackDir, lookup, observer)
 	}
 }
 
 // MockUpdaterForStructure replace internal call with a mocked one, for use in tests only
-func MockUpdaterForStructure(mock func(loc StructureLocation, ps *LaidOutStructure, rootDir, rollbackDir string, observer ContentUpdateObserver) (Updater, error)) (restore func()) {
+func MockUpdaterForStructure(mock func(loc StructureLocation, fromPs, ps *LaidOutStructure, rootDir, rollbackDir string, observer ContentUpdateObserver) (Updater, error)) (restore func()) {
 	old := updaterForStructure
 	updaterForStructure = mock
 	return func() {

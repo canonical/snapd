@@ -34,7 +34,8 @@ import (
 )
 
 type ParamsForEnsureMountUnitFile struct {
-	name, revision, what, where, fstype string
+	description, what, where, fstype string
+	flags                            systemd.EnsureMountUnitFlags
 }
 
 type ResultForEnsureMountUnitFile struct {
@@ -55,9 +56,9 @@ type FakeSystemd struct {
 	ListMountUnitsResult ResultForListMountUnits
 }
 
-func (s *FakeSystemd) EnsureMountUnitFile(name, revision, what, where, fstype string) (string, error) {
+func (s *FakeSystemd) EnsureMountUnitFile(description, what, where, fstype string, flags systemd.EnsureMountUnitFlags) (string, error) {
 	s.EnsureMountUnitFileCalls = append(s.EnsureMountUnitFileCalls,
-		ParamsForEnsureMountUnitFile{name, revision, what, where, fstype})
+		ParamsForEnsureMountUnitFile{description, what, where, fstype, flags})
 	return s.EnsureMountUnitFileResult.path, s.EnsureMountUnitFileResult.err
 }
 
@@ -96,6 +97,14 @@ func (s *mountunitSuite) TearDownTest(c *C) {
 }
 
 func (s *mountunitSuite) TestAddMountUnit(c *C) {
+	s.testAddMountUnit(c, systemd.EnsureMountUnitFlags{})
+}
+
+func (s *mountunitSuite) TestAddBeforeDriversMountUnit(c *C) {
+	s.testAddMountUnit(c, systemd.EnsureMountUnitFlags{StartBeforeDriversLoad: true})
+}
+
+func (s *mountunitSuite) testAddMountUnit(c *C, flags systemd.EnsureMountUnitFlags) {
 	expectedErr := errors.New("creation error")
 
 	var sysd *FakeSystemd
@@ -114,16 +123,16 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 		Version:       "1.1",
 		Architectures: []string{"all"},
 	}
-	err := backend.AddMountUnit(info, false, progress.Null)
+	err := backend.AddMountUnit(info, flags, systemd.New(systemd.SystemMode, progress.Null))
 	c.Check(err, Equals, expectedErr)
 
 	// ensure correct parameters
 	expectedParameters := ParamsForEnsureMountUnitFile{
-		name:     "foo",
-		revision: "13",
-		what:     "/var/lib/snapd/snaps/foo_13.snap",
-		where:    fmt.Sprintf("%s/foo/13", dirs.StripRootDir(dirs.SnapMountDir)),
-		fstype:   "squashfs",
+		description: "Mount unit for foo, revision 13",
+		what:        "/var/lib/snapd/snaps/foo_13.snap",
+		where:       fmt.Sprintf("%s/foo/13", dirs.StripRootDir(dirs.SnapMountDir)),
+		fstype:      "squashfs",
+		flags:       flags,
 	}
 	c.Check(sysd.EnsureMountUnitFileCalls, DeepEquals, []ParamsForEnsureMountUnitFile{
 		expectedParameters,
@@ -168,7 +177,7 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsFailOnList(c *C) {
 	defer restore()
 
 	b := backend.Backend{}
-	err := b.RemoveSnapMountUnits(info, progress.Null)
+	err := b.RemoveContainerMountUnits(info, progress.Null)
 	c.Check(err, Equals, expectedErr)
 	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
 	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{
@@ -200,7 +209,7 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsFailOnRemoval(c *C) {
 	defer restore()
 
 	b := backend.Backend{}
-	err := b.RemoveSnapMountUnits(info, progress.Null)
+	err := b.RemoveContainerMountUnits(info, progress.Null)
 	c.Check(err, Equals, expectedErr)
 	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
 	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{
@@ -233,7 +242,7 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsHappy(c *C) {
 	defer restore()
 
 	b := backend.Backend{}
-	err := b.RemoveSnapMountUnits(info, progress.Null)
+	err := b.RemoveContainerMountUnits(info, progress.Null)
 	c.Check(err, IsNil)
 	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
 	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{

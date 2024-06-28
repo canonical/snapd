@@ -26,7 +26,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -397,9 +396,9 @@ func (snapshotSuite) createConflictingChange(c *check.C) (st *state.State, resto
 
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "foo", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -452,9 +451,9 @@ func (snapshotSuite) TestSaveConflictsWithSnapstate(c *check.C) {
 
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "foo", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -574,9 +573,9 @@ func (s snapshotSuite) TestSaveOneSnap(c *check.C) {
 
 	snapstate.Set(st, "a-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "a-snap", Revision: snap.R(1)},
-		},
+		}),
 		Current: snap.R(1),
 	})
 
@@ -640,7 +639,7 @@ func (snapshotSuite) TestSaveIntegration(c *check.C) {
 		sideInfo := &snap.SideInfo{RealName: name, Revision: snap.R(i + 1)}
 		snapstate.Set(st, name, &snapstate.SnapState{
 			Active:   true,
-			Sequence: []*snap.SideInfo{sideInfo},
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 			Current:  sideInfo.Revision,
 			SnapType: "app",
 		})
@@ -751,7 +750,7 @@ exec /bin/tar "$@"
 		sideInfo := &snap.SideInfo{RealName: name, Revision: snap.R(i + 1)}
 		snapstate.Set(st, name, &snapstate.SnapState{
 			Active:   true,
-			Sequence: []*snap.SideInfo{sideInfo},
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 			Current:  sideInfo.Revision,
 			SnapType: "app",
 		})
@@ -856,7 +855,7 @@ exec /bin/tar "$@"
 	sideInfo := &snap.SideInfo{RealName: "tar-fail-snap", Revision: snap.R(1)}
 	snapstate.Set(st, "tar-fail-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:  sideInfo.Revision,
 		SnapType: "app",
 	})
@@ -953,7 +952,7 @@ func (snapshotSuite) TestRestoreConflictsWithSnapstate(c *check.C) {
 		return map[string]*snapstate.SnapState{
 			"foo": {
 				Active:   true,
-				Sequence: []*snap.SideInfo{sideInfo},
+				Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 				Current:  sideInfo.Revision,
 			},
 		}, nil
@@ -986,9 +985,9 @@ func (snapshotSuite) TestRestoreConflictsWithSnapstate(c *check.C) {
 
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "foo", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -1038,9 +1037,9 @@ func (snapshotSuite) TestRestoreChecksChangesToSnapID(c *check.C) {
 		return map[string]*snapstate.SnapState{
 			"a-snap": {
 				Active: true,
-				Sequence: []*snap.SideInfo{
+				Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 					{RealName: "a-snap", Revision: snap.R(1), SnapID: "1234567890"},
-				},
+				}),
 				Current: snap.R(1),
 			},
 		}, nil
@@ -1075,7 +1074,7 @@ func (snapshotSuite) TestRestoreChecksChangesToEpoch(c *check.C) {
 		return map[string]*snapstate.SnapState{
 			"a-snap": {
 				Active:   true,
-				Sequence: []*snap.SideInfo{sideInfo},
+				Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 				Current:  sideInfo.Revision,
 			},
 		}, nil
@@ -1116,7 +1115,7 @@ func (snapshotSuite) TestRestoreWorksWithCompatibleEpoch(c *check.C) {
 		return map[string]*snapstate.SnapState{
 			"a-snap": {
 				Active:   true,
-				Sequence: []*snap.SideInfo{sideInfo},
+				Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 				Current:  sideInfo.Revision,
 			},
 		}, nil
@@ -1251,7 +1250,7 @@ func testRestoreIntegration(c *check.C, snapDataDir string, opts *dirs.SnapDirOp
 		sideInfo := &snap.SideInfo{RealName: name, Revision: snap.R(i + 1)}
 		snapstate.Set(st, name, &snapstate.SnapState{
 			Active:   true,
-			Sequence: []*snap.SideInfo{sideInfo},
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 			Current:  sideInfo.Revision,
 			SnapType: "app",
 		})
@@ -1332,7 +1331,7 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 		sideInfo := &snap.SideInfo{RealName: name, Revision: snap.R(i + 1)}
 		snapstate.Set(st, name, &snapstate.SnapState{
 			Active:   true,
-			Sequence: []*snap.SideInfo{sideInfo},
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 			Current:  sideInfo.Revision,
 			SnapType: "app",
 		})
@@ -1844,7 +1843,7 @@ func (snapshotSuite) TestImportSnapshotHappy(c *check.C) {
 
 	buf := bytes.NewBufferString(fakeSnapshotData)
 	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader, flags *backend.ImportFlags) ([]string, error) {
-		d, err := ioutil.ReadAll(r)
+		d, err := io.ReadAll(r)
 		c.Assert(err, check.IsNil)
 		c.Check(fakeSnapshotData, check.Equals, string(d))
 		return fakeSnapNames, nil
@@ -1910,7 +1909,7 @@ func (snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
 	sideInfo := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(2)}
 	snapstate.Set(st, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:  sideInfo.Revision,
 	})
 
@@ -1931,7 +1930,7 @@ func (snapshotSuite) TestEstimateSnapshotSizeWithConfig(c *check.C) {
 	sideInfo := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(2)}
 	snapstate.Set(st, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:  sideInfo.Revision,
 	})
 
@@ -1959,7 +1958,7 @@ func (snapshotSuite) TestEstimateSnapshotSizeError(c *check.C) {
 	sideInfo := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(2)}
 	snapstate.Set(st, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:  sideInfo.Revision,
 	})
 
@@ -1979,7 +1978,7 @@ func (snapshotSuite) TestEstimateSnapshotSizeWithUsers(c *check.C) {
 	sideInfo := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(2)}
 	snapstate.Set(st, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:  sideInfo.Revision,
 	})
 

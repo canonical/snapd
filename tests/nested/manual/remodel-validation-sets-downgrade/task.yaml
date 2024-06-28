@@ -1,0 +1,45 @@
+summary: Downgrade a snap from validation sets during a remodel
+
+details: |
+  Remodel to a model that contains a validation set that has a snap pinned at a
+  version that is lower than the version currently installed on the system.
+  Make sure that the remodel downgrades the snap to the lower pinned revision.
+
+systems: [ubuntu-22.04-64, ubuntu-24.04-64]
+
+environment:
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/test-snapd-remodel-without-vset-pc-{VERSION}.model
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+
+prepare: |
+    tests.nested build-image core
+    tests.nested create-vm core
+
+execute: |
+    # shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    boot_id="$(tests.nested boot-id)"
+
+    remote.exec snap model | MATCH 'model +my-model$'
+
+    # wait until device is initialized and has a serial
+    remote.wait-for device-initialized
+
+    # Get the nested system version
+    VERSION="$(tests.nested show version)"
+
+    # make sure it is installed, but it shouldn't be at the pinned revision, 28
+    remote.exec snap info hello-world | grep installed | awk '{print $3}' | not MATCH '(28)'
+
+    # the validation set that this model points to is uploaded to the store
+    # under the account-id test-snapd and name test-snapd-pinned-hello-world
+    remote.push "${TESTSLIB}/assertions/test-snapd-remodel-pinned-hello-world-pc-${VERSION}.model"
+    change_id="$(remote.exec sudo snap remodel --no-wait "test-snapd-remodel-pinned-hello-world-pc-${VERSION}.model")"
+    remote.wait-for reboot "${boot_id}"
+    remote.exec sudo snap watch "${change_id}"
+
+    # make sure that the remodel downgraded the snap
+    remote.exec snap info hello-world | grep installed | awk '{print $3}' | MATCH '(28)'

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018-2019 Canonical Ltd
+ * Copyright (C) 2018-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -70,9 +69,13 @@ type systemKey struct {
 	// kernel version or similar settings. If those change we may
 	// need to change the generated profiles (e.g. when the user
 	// boots into a more featureful seccomp).
+	//
+	// As an exception, the NFSHome is not renamed to RemoteFSHome
+	// to avoid needless re-computation.
 	AppArmorFeatures       []string `json:"apparmor-features"`
 	AppArmorParserMtime    int64    `json:"apparmor-parser-mtime"`
 	AppArmorParserFeatures []string `json:"apparmor-parser-features"`
+	AppArmorPrompting      bool     `json:"apparmor-prompting"`
 	NFSHome                bool     `json:"nfs-home"`
 	OverlayRoot            string   `json:"overlay-root"`
 	SecCompActions         []string `json:"seccomp-features"`
@@ -81,10 +84,10 @@ type systemKey struct {
 }
 
 // IMPORTANT: when adding/removing/changing inputs bump this
-const systemKeyVersion = 10
+const systemKeyVersion = 11
 
 var (
-	isHomeUsingNFS        = osutil.IsHomeUsingNFS
+	isHomeUsingRemoteFS   = osutil.IsHomeUsingRemoteFS
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
 	mockedSystemKey       *systemKey
 
@@ -120,10 +123,10 @@ func generateSystemKey() (*systemKey, error) {
 	// Add apparmor-parser-mtime
 	sk.AppArmorParserMtime = apparmor.ParserMtime()
 
-	// Add if home is using NFS, if so we need to have a different
-	// security profile and if this changes we need to change our
+	// Add if home is using a remote file system, if so we need to have a
+	// different security profile and if this changes we need to change our
 	// profile.
-	sk.NFSHome, err = isHomeUsingNFS()
+	sk.NFSHome, err = isHomeUsingRemoteFS()
 	if err != nil {
 		// just log the error here
 		logger.Noticef("cannot determine nfs usage in generateSystemKey: %v", err)
@@ -170,8 +173,20 @@ func UnmarshalJSONSystemKey(r io.Reader) (interface{}, error) {
 	return sk, nil
 }
 
+// SystemKeyExtraData holds information about the current state of the system
+// key so that some values do not need to be re-checked and can thus be
+// guaranteed to be consistent across multiple uses of system key functions.
+type SystemKeyExtraData struct {
+	// AppArmorPrompting indicates whether AppArmorPrompting should be set in
+	// the system key, assuming that prompting is supported. If prompting is
+	// unsupported, the value in the system key will be set to false.
+	AppArmorPrompting bool
+}
+
+var apparmorPromptingSupportedByFeatures = apparmor.PromptingSupportedByFeatures
+
 // WriteSystemKey will write the current system-key to disk
-func WriteSystemKey() error {
+func WriteSystemKey(extraData SystemKeyExtraData) error {
 	sk, err := generateSystemKey()
 	if err != nil {
 		return err
@@ -186,6 +201,15 @@ func WriteSystemKey() error {
 		// simply unconditionally write this out here.
 		sk.AppArmorParserFeatures, _ = apparmor.ParserFeatures()
 	}
+
+	// AppArmorPrompting should be true if the given extra data prompting value
+	// is true and if the AppArmor kernel and parser features support prompting.
+	apparmorFeatures := apparmor.FeaturesSupported{
+		KernelFeatures: sk.AppArmorFeatures,
+		ParserFeatures: sk.AppArmorParserFeatures,
+	}
+	promptingSupported, _ := apparmorPromptingSupportedByFeatures(&apparmorFeatures)
+	sk.AppArmorPrompting = extraData.AppArmorPrompting && promptingSupported
 
 	sks, err := json.Marshal(sk)
 	if err != nil {
@@ -226,7 +250,7 @@ func WriteSystemKey() error {
 // to disk whenever apparmor-parser-mtime changes (in this manner
 // snap run only has to obtain the mtime of apparmor_parser and
 // doesn't have to invoke it)
-func SystemKeyMismatch() (bool, error) {
+func SystemKeyMismatch(extraData SystemKeyExtraData) (bool, error) {
 	mySystemKey, err := generateSystemKey()
 	if err != nil {
 		return false, err
@@ -257,6 +281,9 @@ func SystemKeyMismatch() (bool, error) {
 		}
 	}
 
+	// Store previous parser features so we can use them later, if unchanged
+	parserFeatures := diskSystemKey.AppArmorParserFeatures
+
 	// since we always write out apparmor-parser-feature when
 	// apparmor-parser-mtime changes, we don't need to compare it here
 	// (allowing snap run to only need to check the mtime of the parser)
@@ -264,12 +291,31 @@ func SystemKeyMismatch() (bool, error) {
 	diskSystemKey.AppArmorParserFeatures = nil
 	mySystemKey.AppArmorParserFeatures = nil
 
+	// AppArmorPrompting should be true if the given extra data prompting value
+	// is true and if the AppArmor kernel and parser features support prompting.
+	// Since generateSystemKey() does not exec apparmor_parser to check parser
+	// features, we cannot use mySystemKey parser features to check prompting
+	// support. If parser features differ between mySystemKey and diskSystemKey,
+	// then parser mtime will differ and we'll return true anyway. If parser
+	// features are the same, then we can use the disk parser features to check
+	// if AppArmorPrompting should be set.
+	apparmorFeatures := apparmor.FeaturesSupported{
+		KernelFeatures: mySystemKey.AppArmorFeatures,
+		ParserFeatures: parserFeatures,
+	}
+	promptingSupported, _ := apparmorPromptingSupportedByFeatures(&apparmorFeatures)
+	mySystemKey.AppArmorPrompting = extraData.AppArmorPrompting && promptingSupported
+
 	ok, err := SystemKeysMatch(mySystemKey, diskSystemKey)
-	return !ok, err
+	if err != nil || !ok {
+		return true, err
+	}
+
+	return false, nil
 }
 
 func readSystemKey() (*systemKey, error) {
-	raw, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
+	raw, err := os.ReadFile(dirs.SnapSystemKeyFile)
 	if err != nil && os.IsNotExist(err) {
 		return nil, ErrSystemKeyMissing
 	}

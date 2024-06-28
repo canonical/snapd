@@ -1,6 +1,10 @@
 summary: Check that the boot config is correctly updated when snapd is refreshed
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+details: |
+  Verify that when snapd is refreshed with new boot config assets, then boot assets
+  have been updated
+
+systems: [ubuntu-2*]
 
 environment:
   VARIANT/nogadget: "no-gadget"
@@ -29,10 +33,7 @@ prepare: |
 
   if [ "$VARIANT" != "no-gadget" ]; then
     echo "Grab and prepare the gadget snap"
-    version=20
-    if tests.nested is-nested uc22; then
-        version=22
-    fi
+    version=$(tests.nested show version)
     snap download --basename=pc --channel="$version/edge" pc
     unsquashfs -d pc-gadget pc.snap
 

@@ -1,5 +1,12 @@
 summary: Check snap search
 
+details: |
+    Check that `snap find` lists snaps that match the search terms, if any are
+    provided. Check that results can be obtained from partial matches and even
+    from a specific section, if --section is used. Check that `snap find` lists
+    featured snaps if no search terms are provided. Check that the results
+    include snaps in the beta and edge channels.
+
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
 backends: [-autopkgtest]

@@ -33,8 +33,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/snapcore/snapd/asserts"
@@ -80,6 +82,86 @@ type seed20 struct {
 	// modes holds a matching applicable modes set for each snap in snaps
 	modes             [][]string
 	essentialSnapsNum int
+}
+
+// Copy implement Copier interface.
+func (s *seed20) Copy(seedDir string, label string, tm timings.Measurer) (err error) {
+	srcSystemDir, err := filepath.Abs(s.systemDir)
+	if err != nil {
+		return err
+	}
+
+	if label == "" {
+		label = filepath.Base(srcSystemDir)
+	}
+
+	destSeedDir, err := filepath.Abs(seedDir)
+	if err != nil {
+		return err
+	}
+
+	if err := os.Mkdir(filepath.Join(destSeedDir, "systems"), 0755); err != nil && !errors.Is(err, fs.ErrExist) {
+		return err
+	}
+
+	destSystemDir := filepath.Join(destSeedDir, "systems", label)
+	if osutil.FileExists(destSystemDir) {
+		return fmt.Errorf("cannot create system: system %q already exists at %q", label, destSystemDir)
+	}
+
+	// note: we don't clean up asserted snaps that were copied over
+	defer func() {
+		if err != nil {
+			os.RemoveAll(destSystemDir)
+		}
+	}()
+
+	if err := s.LoadMeta(AllModes, nil, tm); err != nil {
+		return err
+	}
+
+	span := tm.StartSpan("copy-recovery-system", fmt.Sprintf("copy recovery system from %s to %s", srcSystemDir, destSystemDir))
+	defer span.Stop()
+
+	// copy all files (including unasserted snaps) from the seed to the
+	// destination
+	err = filepath.Walk(srcSystemDir, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		destPath := filepath.Join(destSeedDir, "systems", label, strings.TrimPrefix(path, srcSystemDir))
+		if info.IsDir() {
+			return os.Mkdir(destPath, info.Mode())
+		}
+
+		return osutil.CopyFile(path, destPath, osutil.CopyFlagDefault)
+	})
+	if err != nil {
+		return err
+	}
+
+	destAssertedSnapDir := filepath.Join(destSeedDir, "snaps")
+
+	if err := os.MkdirAll(destAssertedSnapDir, 0755); err != nil {
+		return err
+	}
+
+	// copy the asserted snaps that the seed needs
+	for _, sn := range s.snaps {
+		// unasserted snaps are already copied above, skip them
+		if sn.ID() == "" {
+			continue
+		}
+
+		destSnapPath := filepath.Join(destAssertedSnapDir, filepath.Base(sn.Path))
+
+		if err := osutil.CopyFile(sn.Path, destSnapPath, osutil.CopyFlagOverwrite); err != nil {
+			return fmt.Errorf("cannot copy asserted snap: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
@@ -501,6 +583,11 @@ func (s *seed20) doLoadMeta(handler SnapHandler, tm timings.Measurer) error {
 	for j := 1; j <= njobs; j++ {
 		jtm := tm.StartSpan(fmt.Sprintf("do-load-meta[%d]", j), fmt.Sprintf("snap metadata loading job #%d", j))
 		go func() {
+			var jobErr error
+			// defers are LIFO, make sure that time snap is stopped
+			// before we let the parent know that the goroutine is
+			// done
+			defer func() { outcomesCh <- jobErr }()
 			defer jtm.Stop()
 		Consider:
 			for sntoc := range s.snapsToConsiderCh {
@@ -526,7 +613,7 @@ func (s *seed20) doLoadMeta(handler SnapHandler, tm timings.Measurer) error {
 						if err == errSkipped {
 							continue
 						}
-						outcomesCh <- err
+						jobErr = err
 						return
 					}
 					if essential {
@@ -537,7 +624,6 @@ func (s *seed20) doLoadMeta(handler SnapHandler, tm timings.Measurer) error {
 				s.snaps[i] = seedSnap
 				s.modes[i] = modes
 			}
-			outcomesCh <- nil
 		}()
 	}
 	var firstErr error

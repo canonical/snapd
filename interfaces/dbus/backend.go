@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -83,10 +83,14 @@ func shouldCopyConfigFiles(snapInfo *snap.Info) bool {
 }
 
 // setupDbusServiceForUserd will setup the service file for the new
-// `snap userd` instance on re-exec
+// `snap userd` instance on re-exec. If there are leftover service files in
+// place which are no longer required, those files will be deleted.
 func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 	coreOrSnapdRoot := snapInfo.MountDir()
 
+	// Only ever append to this list. If a file is no longer present on the
+	// root, it needs to needs to remain here so the previously-installed
+	// service file can be removed, if present.
 	for _, srv := range []string{
 		"io.snapcraft.Launcher.service",
 		"io.snapcraft.Prompt.service",
@@ -97,6 +101,14 @@ func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 
 		// we only need the GlobalRootDir for testing
 		dst = filepath.Join(dirs.GlobalRootDir, dst)
+		if !osutil.FileExists(src) {
+			if osutil.FileExists(dst) {
+				if err := os.Remove(dst); err != nil {
+					return err
+				}
+			}
+			continue
+		}
 		if !osutil.FilesAreEqual(src, dst) {
 			if err := osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll); err != nil {
 				return err
@@ -137,14 +149,19 @@ func setupHostDBusConf(snapInfo *snap.Info) error {
 
 // Setup creates dbus configuration files specific to a given snap.
 //
+// If there are leftover configuration files for services which are no longer
+// included, those files will be removed as well.
+//
 // DBus has no concept of a complain mode so confinment type is ignored.
-func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
-	snapName := snapInfo.InstanceName()
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+	snapName := appSet.InstanceName()
 	// Get the snippets that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), snapName)
+	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
 		return fmt.Errorf("cannot obtain dbus specification for snap %q: %s", snapName, err)
 	}
+
+	snapInfo := appSet.Info()
 
 	// copy some config files when installing core/snapd if we reexec
 	if shouldCopyConfigFiles(snapInfo) {
@@ -159,26 +176,36 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	}
 
 	// Get the files that this snap should have
-	content := b.deriveContent(spec.(*Specification), snapInfo)
+	content := b.deriveContent(spec.(*Specification), appSet)
 
-	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
+	globs := profileGlobs(snapName)
+
 	dir := dirs.SnapDBusSystemPolicyDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for DBus configuration files %q: %s", dir, err)
 	}
-	_, _, err = osutil.EnsureDirState(dir, glob, content)
+
+	_, _, err = osutil.EnsureDirStateGlobs(dir, globs, content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapName, err)
 	}
 	return nil
 }
 
+func profileGlobs(snapName string) []string {
+	var globs []string
+	for _, g := range interfaces.SecurityTagGlobs(snapName) {
+		globs = append(globs, fmt.Sprintf("%s.conf", g))
+	}
+	return globs
+}
+
 // Remove removes dbus configuration files of a given snap.
 //
 // This method should be called after removing a snap.
 func (b *Backend) Remove(snapName string) error {
-	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
-	_, _, err := osutil.EnsureDirState(dirs.SnapDBusSystemPolicyDir, glob, nil)
+	globs := profileGlobs(snapName)
+	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapDBusSystemPolicyDir, globs, nil)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapName, err)
 	}
@@ -187,10 +214,9 @@ func (b *Backend) Remove(snapName string) error {
 
 // deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
-func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (content map[string]osutil.FileState) {
-	for _, appInfo := range snapInfo.Apps {
-		securityTag := appInfo.SecurityTag()
-		appSnippets := spec.SnippetForTag(securityTag)
+func (b *Backend) deriveContent(spec *Specification, appSet *interfaces.SnapAppSet) (content map[string]osutil.FileState) {
+	for _, r := range appSet.Runnables() {
+		appSnippets := spec.SnippetForTag(r.SecurityTag)
 		if appSnippets == "" {
 			continue
 		}
@@ -198,20 +224,7 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (conte
 			content = make(map[string]osutil.FileState)
 		}
 
-		addContent(securityTag, appSnippets, content)
-	}
-
-	for _, hookInfo := range snapInfo.Hooks {
-		securityTag := hookInfo.SecurityTag()
-		hookSnippets := spec.SnippetForTag(securityTag)
-		if hookSnippets == "" {
-			continue
-		}
-		if content == nil {
-			content = make(map[string]osutil.FileState)
-		}
-
-		addContent(securityTag, hookSnippets, content)
+		addContent(r.SecurityTag, appSnippets, content)
 	}
 
 	return content
@@ -229,8 +242,8 @@ func addContent(securityTag string, snippet string, content map[string]osutil.Fi
 	}
 }
 
-func (b *Backend) NewSpecification() interfaces.Specification {
-	return &Specification{}
+func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions) interfaces.Specification {
+	return &Specification{appSet: appSet}
 }
 
 // SandboxFeatures returns list of features supported by snapd for dbus communication.

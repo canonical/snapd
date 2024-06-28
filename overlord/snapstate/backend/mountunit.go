@@ -26,17 +26,12 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
-func addMountUnit(s *snap.Info, preseed bool, meter progress.Meter) error {
-	squashfsPath := dirs.StripRootDir(s.MountFile())
-	whereDir := dirs.StripRootDir(s.MountDir())
+func addMountUnit(c snap.ContainerPlaceInfo, mountFlags systemd.EnsureMountUnitFlags, sysd systemd.Systemd) error {
+	squashfsPath := dirs.StripRootDir(c.MountFile())
+	whereDir := dirs.StripRootDir(c.MountDir())
 
-	var sysd systemd.Systemd
-	if preseed {
-		sysd = systemd.NewEmulationMode(dirs.GlobalRootDir)
-	} else {
-		sysd = systemd.New(systemd.SystemMode, meter)
-	}
-	_, err := sysd.EnsureMountUnitFile(s.InstanceName(), s.Revision.String(), squashfsPath, whereDir, "squashfs")
+	_, err := sysd.EnsureMountUnitFile(c.MountDescription(), squashfsPath, whereDir, "squashfs",
+		mountFlags)
 	return err
 }
 
@@ -45,10 +40,10 @@ func removeMountUnit(mountDir string, meter progress.Meter) error {
 	return sysd.RemoveMountUnitFile(mountDir)
 }
 
-func (b Backend) RemoveSnapMountUnits(s snap.PlaceInfo, meter progress.Meter) error {
+func (b Backend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter progress.Meter) error {
 	sysd := systemd.New(systemd.SystemMode, meter)
 	originFilter := ""
-	mountPoints, err := sysd.ListMountUnits(s.InstanceName(), originFilter)
+	mountPoints, err := sysd.ListMountUnits(s.ContainerName(), originFilter)
 	if err != nil {
 		return err
 	}

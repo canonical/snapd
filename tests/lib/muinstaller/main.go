@@ -3,7 +3,7 @@
 // +build !nosecboot
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2022-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,7 +25,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -75,7 +74,7 @@ func emptyFixedBlockDevices() (devices []string, err error) {
 	}
 devicesLoop:
 	for _, removableAttr := range removable {
-		val, err := ioutil.ReadFile(removableAttr)
+		val, err := os.ReadFile(removableAttr)
 		if err != nil || string(val) != "0\n" {
 			// removable, ignore
 			continue
@@ -392,17 +391,6 @@ func copySeedDir(src, dst string) error {
 	return nil
 }
 
-func copySeedToSeedPartition() error {
-	dst := runMntFor("ubuntu-seed")
-	for _, subDir := range []string{"snaps", "systems"} {
-		src := filepath.Join(dirs.SnapSeedDir, subDir)
-		if err := copySeedDir(src, dst); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func copySeedToDataPartition() error {
 	src := dirs.SnapSeedDir
 	dataMnt := runMntFor("ubuntu-data")
@@ -552,11 +540,7 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 	if err != nil {
 		return fmt.Errorf("cannot create filesystems: %v", err)
 	}
-	if isCore {
-		if err := copySeedToSeedPartition(); err != nil {
-			return fmt.Errorf("cannot create seed on seed partition: %v", err)
-		}
-	} else {
+	if !isCore {
 		if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
 			return fmt.Errorf("cannot create classic rootfs: %v", err)
 		}
@@ -582,7 +566,7 @@ func main() {
 			"Otherwise, Ubuntu Core will be installed\n", os.Args[0])
 		os.Exit(1)
 	}
-	logger.SimpleSetup()
+	logger.SimpleSetup(nil)
 
 	seedLabel := os.Args[1]
 	bootDevice := os.Args[2]

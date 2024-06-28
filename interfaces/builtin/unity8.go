@@ -108,7 +108,7 @@ func (iface *unity8Interface) String() string {
 
 func (iface *unity8Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	oldTags := "###SLOT_SECURITY_TAGS###"
-	newTags := slotAppLabelExpr(slot)
+	newTags := slot.LabelExpression()
 	snippet := strings.Replace(unity8ConnectedPlugAppArmor, oldTags, newTags, -1)
 	spec.AddSnippet(snippet)
 	return nil

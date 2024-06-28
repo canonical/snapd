@@ -7,7 +7,7 @@
     "serial-authority": ["generic"],
     "system-user-authority": "*",
     "architecture": "amd64",
-    "timestamp": "2023-06-12T12:18:12+00:00",
+    "timestamp": "2023-10-30T11:01:45+00:00",
     "grade": "dangerous",
     "base": "core20",
     "snaps": [

@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
@@ -416,12 +417,22 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	// there either from ubuntu-image or from "install" mode.
 	c.Check(bloader.ExtractKernelAssetsCalls, HasLen, 0)
 
-	// ensure required flag is set on all essential snaps
+	namesToChannel := make(map[string]string)
+	for _, sn := range model.EssentialSnaps() {
+		ch, err := channel.Full(sn.DefaultChannel)
+		c.Assert(err, IsNil)
+		namesToChannel[sn.Name] = ch
+	}
+
+	// ensure required flag is set on all essential snaps and all of their
+	// channels got set properly
 	var snapst snapstate.SnapState
 	for _, reqName := range []string{"snapd", "core20", "pc-kernel", "pc"} {
 		err = snapstate.Get(state, reqName, &snapst)
 		c.Assert(err, IsNil)
 		c.Assert(snapst.Required, Equals, true, Commentf("required not set for %v", reqName))
+
+		c.Check(snapst.TrackingChannel, Equals, namesToChannel[reqName])
 
 		if m.Mode == "run" {
 			// also ensure that in run mode none of the snaps are installed as
@@ -509,6 +520,17 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 			Timestamp: model.Timestamp(),
 			SeedTime:  seedTime,
 		}})
+
+		var defaultRecoverySystem devicestate.DefaultRecoverySystem
+		c.Assert(state.Get("default-recovery-system", &defaultRecoverySystem), IsNil)
+		c.Check(defaultRecoverySystem, Equals, devicestate.DefaultRecoverySystem{
+			System:          m.RecoverySystem,
+			Model:           "my-model",
+			BrandID:         "my-brand",
+			Timestamp:       model.Timestamp(),
+			Revision:        model.Revision(),
+			TimeMadeDefault: seedTime,
+		})
 	} else {
 		c.Assert(err, NotNil)
 	}
@@ -1202,7 +1224,7 @@ base: core20
 			c.Check(tokens, HasLen, 3)
 			seq, err := strconv.Atoi(tokens[2])
 			c.Assert(err, IsNil)
-			key := fmt.Sprintf("%s/%s", tokens[0], tokens[1])
+			key := fmt.Sprintf("%s/%s/%s", release.Series, tokens[0], tokens[1])
 			expectedSeqs[key] = seq
 			expectedVss[key] = append([]string{release.Series}, tokens...)
 		}

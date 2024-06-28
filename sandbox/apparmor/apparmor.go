@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,7 +23,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -78,6 +77,8 @@ const (
 func setupConfCacheDirs(newrootdir string) {
 	ConfDir = filepath.Join(newrootdir, "/etc/apparmor.d")
 	CacheDir = filepath.Join(newrootdir, "/var/cache/apparmor")
+	hostAbi30File = filepath.Join(newrootdir, "/etc/apparmor.d/abi/3.0")
+	hostAbi40File = filepath.Join(newrootdir, "/etc/apparmor.d/abi/4.0")
 
 	SystemCacheDir = filepath.Join(ConfDir, "cache")
 	exists, isDir, _ := osutil.DirExists(SystemCacheDir)
@@ -169,6 +170,49 @@ func ParserMtime() int64 {
 	return mtime
 }
 
+// FeaturesSupported contains information about supported AppArmor kernel and
+// parser features.
+type FeaturesSupported struct {
+	KernelFeatures []string
+	ParserFeatures []string
+}
+
+// PromptingSupported returns true if prompting is supported by the system.
+// Otherwise, returns false, along with a string explaining why prompting is
+// unsupported.
+func PromptingSupported() (bool, string) {
+	kernelFeatures, err := appArmorAssessment.KernelFeatures()
+	if err != nil {
+		return false, fmt.Sprintf("cannot check apparmor kernel features: %v", err)
+	}
+	parserFeatures, err := appArmorAssessment.ParserFeatures()
+	if err != nil {
+		return false, fmt.Sprintf("cannot check apparmor parser features: %v", err)
+	}
+	apparmorFeatures := FeaturesSupported{
+		KernelFeatures: kernelFeatures,
+		ParserFeatures: parserFeatures,
+	}
+	return PromptingSupportedByFeatures(&apparmorFeatures)
+}
+
+// PromptingSupportedByFeatures returns whether prompting is supported by the
+// given AppArmor kernel and parser features.
+func PromptingSupportedByFeatures(apparmorFeatures *FeaturesSupported) (bool, string) {
+	if apparmorFeatures == nil {
+		return false, "no apparmor features provided"
+	}
+	if !strutil.ListContains(apparmorFeatures.KernelFeatures, "policy:permstable32:prompt") {
+		return false, "apparmor kernel features do not support prompting"
+	}
+	if !strutil.ListContains(apparmorFeatures.ParserFeatures, "prompt") {
+		return false, "apparmor parser does not support the prompt qualifier"
+	}
+	// TODO: return true once the prompting API is merged and ready
+	// return true, ""
+	return false, "requires newer version of snapd"
+}
+
 // probe related code
 
 var (
@@ -209,6 +253,14 @@ var (
 	// Filesystem root defined locally to avoid dependency on the
 	// 'dirs' package
 	rootPath = "/"
+
+	// hostAbi30File is the path to the apparmor "3.0" ABI file and is typically
+	// /etc/apparmor.d/abi/3.0. It is not present on all systems. It is notably
+	// absent when using apparmor 2.x. The variable reacts to changes to global
+	// root directory.
+	hostAbi30File = ""
+	// hostAbi40File is like hostAbi30File but for ABI 4.0
+	hostAbi40File = ""
 )
 
 // Each apparmor feature is manifested as a directory entry.
@@ -336,8 +388,8 @@ func (aap *appArmorProbe) ParserFeatures() ([]string, error) {
 }
 
 func probeKernelFeatures() ([]string, error) {
-	// note that ioutil.ReadDir() is already sorted
-	dentries, err := ioutil.ReadDir(filepath.Join(rootPath, featuresSysPath))
+	// note that os.ReadDir() is already sorted
+	dentries, err := os.ReadDir(filepath.Join(rootPath, featuresSysPath))
 	if err != nil {
 		return []string{}, err
 	}
@@ -345,14 +397,33 @@ func probeKernelFeatures() ([]string, error) {
 	for _, fi := range dentries {
 		if fi.IsDir() {
 			features = append(features, fi.Name())
+			// also read any sub-features
+			subdenties, err := os.ReadDir(filepath.Join(rootPath, featuresSysPath, fi.Name()))
+			if err != nil {
+				return []string{}, err
+			}
+			for _, subfi := range subdenties {
+				if subfi.IsDir() {
+					features = append(features, fi.Name()+":"+subfi.Name())
+				}
+			}
 		}
 	}
+	if data, err := os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "permstable32")); err == nil {
+		permstableFeatures := strings.Fields(string(data))
+		for _, feat := range permstableFeatures {
+			features = append(features, fmt.Sprintf("policy:permstable32:%s", feat))
+		}
+	}
+	// Features must be sorted
+	sort.Strings(features)
 	return features, nil
 }
 
 func probeParserFeatures() ([]string, error) {
 	var featureProbes = []struct {
 		feature string
+		flags   []string
 		probe   string
 	}{
 		{
@@ -387,6 +458,15 @@ func probeParserFeatures() ([]string, error) {
 			feature: "userns",
 			probe:   "userns,",
 		},
+		{
+			feature: "unconfined",
+			flags:   []string{"unconfined"},
+			probe:   "# test unconfined",
+		},
+		{
+			feature: "prompt",
+			probe:   "prompt /foo r,",
+		},
 	}
 	_, internal, err := AppArmorParser()
 	if err != nil {
@@ -396,7 +476,7 @@ func probeParserFeatures() ([]string, error) {
 	for _, fp := range featureProbes {
 		// recreate the Cmd each time so we can exec it each time
 		cmd, _, _ := AppArmorParser()
-		if tryAppArmorParserFeature(cmd, fp.probe) {
+		if tryAppArmorParserFeature(cmd, fp.flags, fp.probe) {
 			features = append(features, fp.feature)
 		}
 	}
@@ -470,6 +550,23 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	for _, dir := range filepath.SplitList(parserSearchPath) {
 		path := filepath.Join(dir, "apparmor_parser")
 		if _, err := os.Stat(path); err == nil {
+			// Detect but ignore apparmor 4.0 ABI support.
+			//
+			// At present this causes some bugs with mqueue mediation that can
+			// be avoided by pinning to 3.0 (which is also supported on
+			// apparmor 4). Once the mqueue issue is analyzed and fixed, this
+			// can be replaced with a --policy-features=hostAbi40File pin like
+			// we do below.
+			if fi, err := os.Lstat(hostAbi40File); err == nil && !fi.IsDir() {
+				logger.Debugf("apparmor 4.0 ABI detected but ignored")
+			}
+
+			// Perhaps 3.0?
+			if fi, err := os.Lstat(hostAbi30File); err == nil && !fi.IsDir() {
+				return exec.Command(path, "--policy-features", hostAbi30File), false, nil
+			}
+
+			// Most likely 2.0
 			return exec.Command(path), false, nil
 		}
 	}
@@ -478,9 +575,14 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 }
 
 // tryAppArmorParserFeature attempts to pre-process a bit of apparmor syntax with a given parser.
-func tryAppArmorParserFeature(cmd *exec.Cmd, rule string) bool {
+func tryAppArmorParserFeature(cmd *exec.Cmd, flags []string, rule string) bool {
 	cmd.Args = append(cmd.Args, "--preprocess")
-	cmd.Stdin = bytes.NewBufferString(fmt.Sprintf("profile snap-test {\n %s\n}", rule))
+	flagSnippet := ""
+	if len(flags) > 0 {
+		flagSnippet = fmt.Sprintf("flags=(%s) ", strings.Join(flags, ","))
+	}
+	cmd.Stdin = bytes.NewBufferString(fmt.Sprintf("profile snap-test %s{\n %s\n}",
+		flagSnippet, rule))
 	output, err := cmd.CombinedOutput()
 	// older versions of apparmor_parser can exit with success even
 	// though they fail to parse

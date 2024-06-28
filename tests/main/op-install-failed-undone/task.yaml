@@ -1,5 +1,10 @@
 summary: Check that all tasks of a failed installtion are undone
 
+details: |
+    Check that when the snap installation fails, the snap is not installed
+    in the system and all the tasks are undone. Verify that the mount,
+    data copy and security profiles subtasks are undone.
+
 systems: [-ubuntu-core-*]
 
 restore: |

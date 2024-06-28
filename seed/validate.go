@@ -45,9 +45,7 @@ func (e *ValidationError) addErr(label string, errs ...error) {
 	if e.SystemErrors == nil {
 		e.SystemErrors = make(map[string][]error)
 	}
-	for _, err := range errs {
-		e.SystemErrors[label] = append(e.SystemErrors[label], err)
-	}
+	e.SystemErrors[label] = append(e.SystemErrors[label], errs...)
 }
 
 func (e ValidationError) hasErrors() bool {
@@ -124,7 +122,8 @@ func ValidateFromYaml(seedYamlFile string) error {
 		return nil
 	})
 
-	if errs2 := snap.ValidateBasesAndProviders(snapInfos); errs2 != nil {
+	// TODO: surface the warnings too, like we do for snap container checks
+	if _, errs2 := snap.ValidateBasesAndProviders(snapInfos); errs2 != nil {
 		ve.addErr("", errs2...)
 	}
 	if ve.hasErrors() {

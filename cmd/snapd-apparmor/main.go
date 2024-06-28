@@ -36,7 +36,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -53,20 +52,21 @@ import (
 // profiles that should be loaded.
 //
 // The only known container environments capable of supporting internal policy
-// are LXD and LXC environment.
+// are LXD, LXC and incus environments.
 //
 // Returns true if the container environment is capable of having its own internal
 // policy and false otherwise.
 //
-// IMPORTANT: This function will return true in the case of a non-LXD/non-LXC
-// system container technology being nested inside of a LXD/LXC container that
-// utilized an AppArmor namespace and profile stacking. The reason true will be
-// returned is because .ns_stacked will be "yes" and .ns_name will still match
-// "lx[dc]-*" since the nested system container technology will not have set up
-// a new AppArmor profile namespace. This will result in the nested system
-// container's boot process to experience failed policy loads but the boot
-// process should continue without any loss of functionality. This is an
-// unsupported configuration that cannot be properly handled by this function.
+// IMPORTANT: This function will return true in the case of a
+// non-LXD/non-LXC/non-incus system container technology being nested inside of
+// a LXD/LXC/incus container that utilized an AppArmor namespace and profile
+// stacking. The reason true will be returned is because .ns_stacked will be
+// "yes" and .ns_name will still match "(lx[dc]|incus)-*" since the nested
+// system container technology will not have set up a new AppArmor profile
+// namespace. This will result in the nested system container's boot process to
+// experience failed policy loads but the boot process should continue without
+// any loss of functionality. This is an unsupported configuration that cannot
+// be properly handled by this function.
 func isContainerWithInternalPolicy() bool {
 	if release.OnWSL {
 		return true
@@ -76,7 +76,7 @@ func isContainerWithInternalPolicy() bool {
 	var nsStackedPath = filepath.Join(appArmorSecurityFSPath, ".ns_stacked")
 	var nsNamePath = filepath.Join(appArmorSecurityFSPath, ".ns_name")
 
-	contents, err := ioutil.ReadFile(nsStackedPath)
+	contents, err := os.ReadFile(nsStackedPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		logger.Noticef("Failed to read %s: %v", nsStackedPath, err)
 		return false
@@ -86,17 +86,17 @@ func isContainerWithInternalPolicy() bool {
 		return false
 	}
 
-	contents, err = ioutil.ReadFile(nsNamePath)
+	contents, err = os.ReadFile(nsNamePath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		logger.Noticef("Failed to read %s: %v", nsNamePath, err)
 		return false
 	}
 
-	// LXD and LXC set up AppArmor namespaces starting with "lxd-" and
-	// "lxc-", respectively. Return false for all other namespace
-	// identifiers.
+	// LXD, LXC and incus set up AppArmor namespaces starting with "lxd-",
+	// "lxc-" and "incus-" respectively. Return false for all other
+	// namespace identifiers.
 	name := strings.TrimSpace(string(contents))
-	if !strings.HasPrefix(name, "lxd-") && !strings.HasPrefix(name, "lxc-") {
+	if !strings.HasPrefix(name, "lxd-") && !strings.HasPrefix(name, "lxc-") && !strings.HasPrefix(name, "incus-") {
 		return false
 	}
 	return true
@@ -138,7 +138,7 @@ func validateArgs(args []string) error {
 }
 
 func init() {
-	if err := logger.SimpleSetup(); err != nil {
+	if err := logger.SimpleSetup(nil); err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %v\n", err)
 	}
 }

@@ -46,6 +46,12 @@ Configuration option may be unset with exclamation mark:
     $ snap set snap-name author!
 `)
 
+var longRegistrySetHelp = i18n.G(`
+If the first argument passed into set is a registry identifier matching the
+format <account-id>/<registry>/<view>, set will use the registry API. In this
+case, the command sets the values as provided for the dot-separated view paths.
+`)
+
 type cmdSet struct {
 	waitMixin
 	Positional struct {
@@ -58,6 +64,10 @@ type cmdSet struct {
 }
 
 func init() {
+	if err := validateRegistryFeatureFlag(); err == nil {
+		longSetHelp += longRegistrySetHelp
+	}
+
 	addCommand("set", shortSetHelp, longSetHelp, func() flags.Commander { return &cmdSet{} },
 		waitDescs.also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
@@ -78,7 +88,7 @@ func init() {
 		})
 }
 
-func (x *cmdSet) Execute(args []string) error {
+func (x *cmdSet) Execute([]string) error {
 	if x.String && x.Typed {
 		return fmt.Errorf(i18n.G("cannot use -t and -s together"))
 	}
@@ -112,16 +122,49 @@ func (x *cmdSet) Execute(args []string) error {
 	}
 
 	snapName := string(x.Positional.Snap)
-	id, err := x.client.SetConf(snapName, patchValues)
+
+	var chgID string
+	var err error
+	if isRegistryViewID(snapName) {
+		if err := validateRegistryFeatureFlag(); err != nil {
+			return err
+		}
+
+		// first argument is a registryViewID, use the registry API
+		registryViewID := snapName
+		if err := validateRegistryViewID(registryViewID); err != nil {
+			return err
+		}
+
+		chgID, err = x.client.RegistrySetViaView(registryViewID, patchValues)
+	} else {
+		chgID, err = x.client.SetConf(snapName, patchValues)
+	}
+
 	if err != nil {
 		return err
 	}
 
-	if _, err := x.wait(id); err != nil {
+	if _, err := x.wait(chgID); err != nil {
 		if err == noWait {
 			return nil
 		}
 		return err
+	}
+
+	return nil
+}
+
+func isRegistryViewID(s string) bool {
+	return len(strings.Split(s, "/")) == 3
+}
+
+func validateRegistryViewID(id string) error {
+	parts := strings.Split(id, "/")
+	for _, part := range parts {
+		if part == "" {
+			return fmt.Errorf(i18n.G("registry identifier must conform to format: <account-id>/<registry>/<view>"))
+		}
 	}
 
 	return nil

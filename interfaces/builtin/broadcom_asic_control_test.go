@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -54,19 +53,14 @@ type: os
 slots:
   broadcom-asic-control:
 `
-	info := snaptest.MockInfo(c, producerYaml, nil)
-	s.slotInfo = info.Slots["broadcom-asic-control"]
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-
 	const consumerYaml = `name: consumer
 version: 0
 apps:
  app:
   plugs: [broadcom-asic-control]
 `
-	info = snaptest.MockInfo(c, consumerYaml, nil)
-	s.plugInfo = info.Plugs["broadcom-asic-control"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.slot, s.slotInfo = MockConnectedSlot(c, producerYaml, nil, "broadcom-asic-control")
+	s.plug, s.plugInfo = MockConnectedPlug(c, consumerYaml, nil, "broadcom-asic-control")
 }
 
 func (s *BroadcomAsicControlSuite) TestName(c *C) {
@@ -82,14 +76,14 @@ func (s *BroadcomAsicControlSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *BroadcomAsicControlSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(s.plug.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/sys/module/linux_kernel_bde/{,**} r,")
 }
 
 func (s *BroadcomAsicControlSuite) TestUDevSpec(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(s.plug.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 3)
 	c.Assert(spec.Snippets(), testutil.Contains, `# broadcom-asic-control

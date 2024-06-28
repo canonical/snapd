@@ -20,6 +20,7 @@
 package snapdtool
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -55,12 +56,12 @@ var (
 	osReadlink  = os.Readlink
 )
 
-// distroSupportsReExec returns true if the distribution we are running on can use re-exec.
+// DistroSupportsReExec returns true if the distribution we are running on can use re-exec.
 //
 // This is true by default except for a "core/all" snap system where it makes
 // no sense and in certain distributions that we don't want to enable re-exec
 // yet because of missing validation or other issues.
-func distroSupportsReExec() bool {
+func DistroSupportsReExec() bool {
 	if !release.OnClassic {
 		return false
 	}
@@ -142,6 +143,22 @@ func InternalToolPath(tool string) (string, error) {
 	return distroTool, nil
 }
 
+// IsReexecEnabled checks the environment and configuration to assert whether
+// reexec has been explicitly enabled/disabled.
+func IsReexecEnabled() bool {
+	// XXX for now we are only checking environment variables
+
+	// If we are asked not to re-execute use distribution packages. This is
+	// "spiritual" re-exec so use the same environment variable to decide.
+	return osutil.GetenvBool(reExecKey, true)
+}
+
+// IsReexecExplicitlyEnabled is a stronger check than IsReexecEnabled as it
+// really expects the relevant environment variable to be set.
+func IsReexecExplicitlyEnabled() bool {
+	return os.Getenv(reExecKey) != "" && IsReexecEnabled()
+}
+
 // mustUnsetenv will unset the given environment key or panic if it
 // cannot do that
 func mustUnsetenv(key string) {
@@ -154,9 +171,9 @@ func mustUnsetenv(key string) {
 // the snapd/core snap.
 func ExecInSnapdOrCoreSnap() {
 	// Which executable are we?
-	exe, err := os.Readlink(selfExe)
+	rootDir, exe, err := exeAndRoot()
 	if err != nil {
-		logger.Noticef("cannot read /proc/self/exe: %v", err)
+		logger.Noticef("cannot detect process exe location: %v", err)
 		return
 	}
 
@@ -165,27 +182,32 @@ func ExecInSnapdOrCoreSnap() {
 	// re-execed. In this case we need to unset the reExecKey to
 	// ensure that subsequent run of snap/snapd (e.g. when using
 	// classic confinement) will *not* prevented from re-execing.
-	if strings.HasPrefix(exe, dirs.SnapMountDir) && !osutil.GetenvBool(reExecKey, true) {
+	if strings.HasPrefix(rootDir, dirs.SnapMountDir) && !osutil.GetenvBool(reExecKey, true) {
 		mustUnsetenv(reExecKey)
 		return
 	}
 
-	// If we are asked not to re-execute use distribution packages. This is
-	// "spiritual" re-exec so use the same environment variable to decide.
-	if !osutil.GetenvBool(reExecKey, true) {
+	if !IsReexecEnabled() {
 		logger.Debugf("re-exec disabled by user")
 		return
 	}
 
 	// Did we already re-exec?
-	if strings.HasPrefix(exe, dirs.SnapMountDir) {
+	if strings.HasPrefix(rootDir, dirs.SnapMountDir) {
 		return
 	}
 
 	// If the distribution doesn't support re-exec or run-from-core then don't do it.
-	if !distroSupportsReExec() {
-		return
+	if !DistroSupportsReExec() {
+		if IsReexecExplicitlyEnabled() {
+			logger.Debugf("reexec explicitly enabled through environment")
+		} else {
+			return
+		}
 	}
+
+	// TODO pay attention to libexecdir when enabling reexec on non-Ubuntu
+	// with /usr/libexec/
 
 	// Is this executable in the core snap too?
 	coreOrSnapdPath := snapdSnap
@@ -209,14 +231,11 @@ func ExecInSnapdOrCoreSnap() {
 
 // IsReexecd returns true when the current process binary is running from a snap.
 func IsReexecd() (bool, error) {
-	exe, err := osReadlink(selfExe)
+	rootDir, _, err := exeAndRoot()
 	if err != nil {
 		return false, err
 	}
-	if strings.HasPrefix(exe, dirs.SnapMountDir) {
-		return true, nil
-	}
-	return false, nil
+	return strings.HasPrefix(rootDir, dirs.SnapMountDir), nil
 }
 
 // MockOsReadlink is for use in tests
@@ -226,4 +245,34 @@ func MockOsReadlink(f func(string) (string, error)) func() {
 	return func() {
 		osReadlink = realOsReadlink
 	}
+}
+
+// exeAndRoot determines the current executable path and the root directory
+// which can either the the global rootfs (/) or the snap mount directory if the
+// process is executing from a snap. The returned executable path is relative to
+// the root.
+func exeAndRoot() (rootDir, exePath string, err error) {
+	// TODO this is unlikely change for the current process at runtime,
+	// consider memoizing the result
+	exe, err := osReadlink(selfExe)
+	if err != nil {
+		return "", "", err
+	}
+
+	_, rest, found := strings.Cut(exe, dirs.SnapMountDir+string(filepath.Separator))
+	if !found {
+		rel, err := filepath.Rel(dirs.GlobalRootDir, exe)
+		if err != nil {
+			return "", "", err
+		}
+		return dirs.GlobalRootDir, rel, nil
+	}
+
+	snapName, rest, foundName := strings.Cut(rest, string(filepath.Separator))
+	snapRev, exePath, foundRev := strings.Cut(rest, string(filepath.Separator))
+	if !foundName || !foundRev {
+		return "", "", fmt.Errorf("cannot parse snap tool path %q", exe)
+	}
+
+	return filepath.Join(dirs.SnapMountDir, snapName, snapRev), exePath, nil
 }

@@ -53,7 +53,7 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 		// system services
 		{"lib/systemd/system/snapd.service", "[Unit]\n[Service]\nExecStart=/usr/lib/snapd/snapd\n# X-Snapd-Snap: do-not-start"},
 		{"lib/systemd/system/snapd.system-shutdown.service", "[Unit]\n[Service]\nExecStart=/bin/umount --everything\n# X-Snapd-Snap: do-not-start"},
-		{"lib/systemd/system/snapd.autoimport.service", "[Unit]\n[Service]\nExecStart=/usr/bin/snap auto-import"},
+		{"lib/systemd/system/snapd.autoimport.service", "[Unit]\n[Service]\nExecStart=/usr/bin/snap auto-import\n# X-Snapd-Snap: do-not-start"},
 		{"lib/systemd/system/snapd.socket", "[Unit]\n[Socket]\nListenStream=/run/snapd.socket"},
 		{"lib/systemd/system/snapd.snap-repair.timer", "[Unit]\n[Timer]\nOnCalendar=*-*-* 5,11,17,23:00"},
 		// user services
@@ -66,7 +66,6 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 		{"usr/share/dbus-1/system.d/io.netplan.Netplan.conf", "<busconfig/>"},
 		// D-Bus activation files
 		{"usr/share/dbus-1/services/io.snapcraft.Launcher.service", "[D-BUS Service]\nName=io.snapcraft.Launcher"},
-		{"usr/share/dbus-1/services/io.snapcraft.Prompt.service", "[D-BUS Service]\nName=io.snapcraft.Prompt"},
 		{"usr/share/dbus-1/services/io.snapcraft.Settings.service", "[D-BUS Service]\nName=io.snapcraft.Settings"},
 		{"usr/share/dbus-1/services/io.snapcraft.SessionAgent.service", "[D-BUS Service]\nName=io.snapcraft.SessionAgent"},
 		// desktop files
@@ -123,12 +122,17 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
 
 	info := makeMockSnapdSnap(c)
 	// add the snapd service
-	err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
+	restart, err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
+	if restart != nil {
+		err = restart.Restart()
+		c.Assert(err, IsNil)
+	}
 
 	mountUnit := fmt.Sprintf(`[Unit]
 Description=Make the snapd snap tooling available for the system
 Before=snapd.service
+Before=systemd-udevd.service
 
 [Mount]
 What=%s/snap/snapd/1/usr/lib/snapd
@@ -148,7 +152,7 @@ WantedBy=snapd.service
 		// check that snapd.autoimport.service is created
 		filepath.Join(dirs.SnapServicesDir, "snapd.autoimport.service"),
 		// and paths get re-written
-		fmt.Sprintf("[Unit]\n[Service]\nExecStart=%[1]s/snapd/1/usr/bin/snap auto-import\n[Unit]\nRequiresMountsFor=%[1]s/snapd/1\n", dirs.SnapMountDir),
+		fmt.Sprintf("[Unit]\n[Service]\nExecStart=%[1]s/snapd/1/usr/bin/snap auto-import\n# X-Snapd-Snap: do-not-start\n[Unit]\nRequiresMountsFor=%[1]s/snapd/1\n", dirs.SnapMountDir),
 	}, {
 		// check that snapd.system-shutdown.service is created
 		filepath.Join(dirs.SnapServicesDir, "snapd.system-shutdown.service"),
@@ -210,23 +214,20 @@ WantedBy=snapd.service
 		{"is-enabled", "snapd.socket"},
 		{"--no-reload", "enable", "snapd.socket"},
 		{"is-enabled", "snapd.system-shutdown.service"},
-		{"is-active", "snapd.autoimport.service"},
-		{"stop", "snapd.autoimport.service"},
-		{"show", "--property=ActiveState", "snapd.autoimport.service"},
-		{"start", "snapd.autoimport.service"},
 		{"is-active", "snapd.snap-repair.timer"},
 		{"stop", "snapd.snap-repair.timer"},
 		{"show", "--property=ActiveState", "snapd.snap-repair.timer"},
 		{"start", "snapd.snap-repair.timer"},
 		{"is-active", "snapd.socket"},
-		{"start", "--no-block", "snapd.service"},
-		{"start", "--no-block", "snapd.seeded.service"},
-		{"start", "--no-block", "snapd.autoimport.service"},
 		{"--user", "--global", "--no-reload", "disable", "snapd.session-agent.service"},
 		{"--user", "--global", "--no-reload", "enable", "snapd.session-agent.service"},
 		{"--user", "--global", "--no-reload", "disable", "snapd.session-agent.socket"},
 		{"--user", "--global", "--no-reload", "enable", "snapd.session-agent.socket"},
 		{"--user", "daemon-reload"},
+		{"start", "--no-block", "snapd.apparmor.service"},
+		{"start", "--no-block", "snapd.service"},
+		{"start", "--no-block", "snapd.seeded.service"},
+		{"start", "--no-block", "snapd.autoimport.service"},
 	})
 }
 
@@ -242,12 +243,17 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCorePreseeding(c *C) {
 
 	info := makeMockSnapdSnap(c)
 	// add the snapd service
-	err := wrappers.AddSnapdSnapServices(info, &wrappers.AddSnapdSnapServicesOptions{Preseeding: true}, progress.Null)
+	restart, err := wrappers.AddSnapdSnapServices(info, &wrappers.AddSnapdSnapServicesOptions{Preseeding: true}, progress.Null)
 	c.Assert(err, IsNil)
+	if restart != nil {
+		err = restart.Restart()
+		c.Assert(err, IsNil)
+	}
 
 	mountUnit := fmt.Sprintf(`[Unit]
 Description=Make the snapd snap tooling available for the system
 Before=snapd.service
+Before=systemd-udevd.service
 
 [Mount]
 What=%s/snap/snapd/1/usr/lib/snapd
@@ -267,7 +273,7 @@ WantedBy=snapd.service
 		// check that snapd.autoimport.service is created
 		filepath.Join(dirs.SnapServicesDir, "snapd.autoimport.service"),
 		// and paths get re-written
-		fmt.Sprintf("[Unit]\n[Service]\nExecStart=%[1]s/snapd/1/usr/bin/snap auto-import\n[Unit]\nRequiresMountsFor=%[1]s/snapd/1\n", dirs.SnapMountDir),
+		fmt.Sprintf("[Unit]\n[Service]\nExecStart=%[1]s/snapd/1/usr/bin/snap auto-import\n# X-Snapd-Snap: do-not-start\n[Unit]\nRequiresMountsFor=%[1]s/snapd/1\n", dirs.SnapMountDir),
 	}, {
 		// check that snapd.system-shutdown.service is created
 		filepath.Join(dirs.SnapServicesDir, "snapd.system-shutdown.service"),
@@ -323,14 +329,76 @@ WantedBy=snapd.service
 	})
 }
 
+func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCoreDeletesRemovedServices(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+
+	// reset root dir
+	dirs.SetRootDir(s.tempdir)
+
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		if cmd[0] == "show" && cmd[1] == "--property=Id,ActiveState,UnitFileState,Type" {
+			s := fmt.Sprintf("Type=oneshot\nId=%s\nActiveState=inactive\nUnitFileState=enabled\n", cmd[2])
+			return []byte(s), nil
+		}
+		if len(cmd) == 2 && cmd[0] == "is-enabled" {
+			// pretend snapd.socket is disabled
+			if cmd[1] == "snapd.socket" {
+				return []byte("disabled"), &mockSystemctlError{msg: "disabled", exitCode: 1}
+			}
+			return []byte("enabled"), nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer systemctlRestorer()
+
+	info := makeMockSnapdSnap(c)
+
+	// Prompt service was removed from snapd, check that service file is
+	// deleted when it previously existed.
+	vestigialServiceFile := filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Prompt.service")
+	// Launcher service still exists, make sure the service file is overwritten
+	// when it previously existed.
+	existingServiceFile := filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Launcher.service")
+
+	// Create old service files
+	os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0750)
+	for _, fn := range []string{existingServiceFile, vestigialServiceFile} {
+		f, err := os.Create(fn)
+		c.Assert(err, IsNil)
+		f.Close()
+	}
+
+	// add the snapd service
+	restart, err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
+	c.Assert(err, IsNil)
+	if restart != nil {
+		err = restart.Restart()
+		c.Assert(err, IsNil)
+	}
+
+	// Check that vestigial service was deleted
+	c.Check(vestigialServiceFile, testutil.FileAbsent)
+	// Check that existing service still exists, and was overwritten
+	c.Check(existingServiceFile, testutil.FilePresent)
+	c.Check(existingServiceFile, Not(testutil.FileEquals), "")
+}
+
 func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
 	info := makeMockSnapdSnap(c)
 	// add the snapd service
-	err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
+	restart, err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
+
+	// On classic, no restart is expected
+	c.Assert(restart, IsNil)
 
 	// check that snapd services were *not* created
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "snapd.service")), Equals, false)
@@ -364,7 +432,11 @@ func (s *servicesTestSuite) TestAddSessionServicesWithReadOnlyFilesystem(c *C) {
 	defer restore()
 
 	// add the snapd service
-	err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
+	restart, err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
+	if restart != nil {
+		err = restart.Restart()
+		c.Assert(err, IsNil)
+	}
 
 	// didn't fail despite of read-only SnapDBusSessionPolicyDir
 	c.Assert(err, IsNil)
@@ -390,7 +462,12 @@ func (s *servicesTestSuite) TestAddSnapdServicesWithNonSnapd(c *C) {
 	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
 	defer restore()
 
-	err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
+	restart, err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
+	if restart != nil {
+		err = restart.Restart()
+		c.Assert(err, IsNil)
+	}
+
 	c.Assert(err, ErrorMatches, `internal error: adding explicit snapd services for snap "foo" type "app" is unexpected`)
 }
 

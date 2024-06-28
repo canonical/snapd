@@ -1,5 +1,11 @@
 summary: Check that base snaps work
 
+details: |
+    Verify the basic functionalities of the base snaps:
+    1. Base snap can be installed
+    2. Installing a snap, its base is automatically installed
+    3. Ensure the bare base works and it is pulled when required
+
 systems: [-opensuse-*]
 
 execute: |

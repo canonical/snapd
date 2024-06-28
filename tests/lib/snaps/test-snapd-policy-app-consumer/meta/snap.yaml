@@ -5,111 +5,51 @@ description: Test policy app matching snapd version
 confinement: strict
 
 apps:
-  account-control:
-    command: bin/run
-    plugs: [ account-control ]
   acrn-support:
     command: bin/run
     plugs: [ acrn-support ]
-  adb-support:
-    command: bin/run
-    plugs: [ adb-support ]
   allegro-vcu:
     command: bin/run
     plugs: [ allegro-vcu ]
-  alsa:
-    command: bin/run
-    plugs: [ alsa ]
   audio-playback:
     command: bin/run
     plugs: [ audio-playback ]
   audio-record:
     command: bin/run
     plugs: [ audio-record ]
-  appstream-metadata:
-    command: bin/run
-    plugs: [ appstream-metadata ]
-  autopilot-introspection:
-    command: bin/run
-    plugs: [ autopilot-introspection ]
   avahi-control:
     command: bin/run
     plugs: [ avahi-control ]
-  avahi-observe:
-    command: bin/run
-    plugs: [ avahi-observe ]
   block-devices:
     command: bin/run
     plugs: [ block-devices ]
-  bluetooth-control:
-    command: bin/run
-    plugs: [ bluetooth-control ]
-  bluez:
-    command: bin/run
-    plugs: [ bluez ]
-  broadcom-asic-control:
-    command: bin/run
-    plugs: [ broadcom-asic-control ]
-  browser-sandbox:
-    command: bin/run
-    plugs: [ browser-sandbox ]
-  browser-support:
-    command: bin/run
-    plugs: [ browser-support ]
-  calendar-service:
-    command: bin/run
-    plugs: [ calendar-service ]
   camera:
     command: bin/run
     plugs: [ camera ]
+  can-bus:
+    command: bin/run
+    plugs: [ can-bus ]
   cifs-mount:
     command: bin/run
     plugs: [ cifs-mount ]
   classic-support:
     command: bin/run
     plugs: [ classic-support ]
-  contacts-service:
-    command: bin/run
-    plugs: [ contacts-service ]
-  content-read:
-    command: bin/run
-    plugs: [ content-read ]
   core-support:
     command: bin/run
     plugs: [ core-support ]
   cpu-control:
     command: bin/run
     plugs: [ cpu-control ]
-  cups:
-    command: bin/run
-    plugs: [ cups ]
-  cups-control:
-    command: bin/run
-    plugs: [ cups-control ]
   custom-device:
     command: bin/run
     plugs: [ custom-device ]
-  dbus-session:
-    command: bin/run
-    plugs: [ dbus-session ]
-  dbus-system:
-    command: bin/run
-    plugs: [ dbus-system ]
   dcdbas-control:
     command: bin/run
     plugs: [ dcdbas-control ]
-  desktop:
-    command: bin/run
-    plugs: [ desktop ]
-  desktop-launch:
-    command: bin/run
-    plugs: [ desktop-launch ]
   desktop-legacy:
     command: bin/run
     plugs: [ desktop-legacy ]
-  device-buttons:
-    command: bin/run
-    plugs: [ device-buttons ]
   display-control:
     command: bin/run
     plugs: [ display-control ]
@@ -125,42 +65,12 @@ apps:
   fpga:
     command: bin/run
     plugs: [ fpga ]
-  system-files:
-    command: bin/run
-    plugs: [ system-files ]
-  personal-files:
-    command: bin/run
-    plugs: [ personal-files ]
-  dvb:
-    command: bin/run
-    plugs: [ dvb ]
-  firewall-control:
-    command: bin/run
-    plugs: [ firewall-control ]
-  framebuffer:
-    command: bin/run
-    plugs: [ framebuffer ]
-  fuse-support:
-    command: bin/run
-    plugs: [ fuse-support ]
   fwupd:
     command: bin/run
     plugs: [ fwupd ]
-  accounts-service:
-    command: bin/run
-    plugs: [ accounts-service ]
   gconf:
     command: bin/run
     plugs: [ gconf ]
-  gpg-keys:
-    command: bin/run
-    plugs: [ gpg-keys ]
-  gpg-public-keys:
-    command: bin/run
-    plugs: [ gpg-public-keys ]
-  gpio-memory-control:
-    command: bin/run
-    plugs: [ gpio-memory-control ]
   gpio-control:
     command: bin/run
     plugs: [ gpio-control ]
@@ -170,27 +80,6 @@ apps:
   gsettings:
     command: bin/run
     plugs: [ gsettings ]
-  hardware-observe:
-    command: bin/run
-    plugs: [ hardware-observe ]
-  hardware-random-control:
-    command: bin/run
-    plugs: [ hardware-random-control ]
-  hardware-random-observe:
-    command: bin/run
-    plugs: [ hardware-random-observe ]
-  home:
-    command: bin/run
-    plugs: [ home ]
-  system-packages-doc:
-    command: bin/run
-    plugs: [ system-packages-doc ]
-  system-source-code:
-    command: bin/run
-    plugs: [ system-source-code ]
-  hostname-control:
-    command: bin/run
-    plugs: [ hostname-control ]
   hugepages-control:
     command: bin/run
     plugs: [ hugepages-control ]
@@ -206,45 +95,21 @@ apps:
   jack1:
     command: bin/run
     plugs: [ jack1 ]
-  joystick:
-    command: bin/run
-    plugs: [ joystick ]
-  juju-client-observe:
-    command: bin/run
-    plugs: [ juju-client-observe ]
   kernel-crypto-api:
     command: bin/run
     plugs: [ kernel-crypto-api ]
-  kernel-module-control:
+  kernel-firmware-control:
     command: bin/run
-    plugs: [ kernel-module-control ]
-  kernel-module-load:
-    command: bin/run
-    plugs: [ kernel-module-load ]
+    plugs: [ kernel-firmware-control ]
   kernel-module-observe:
     command: bin/run
     plugs: [ kernel-module-observe ]
   kubernetes-support:
     command: bin/run
     plugs: [ kubernetes-support ]
-  kvm:
-    command: bin/run
-    plugs: [ kvm ]
-  libvirt:
-    command: bin/run
-    plugs: [ libvirt ]
-  locale-control:
-    command: bin/run
-    plugs: [ locale-control ]
-  location-control:
-    command: bin/run
-    plugs: [ location-control ]
   location-observe:
     command: bin/run
     plugs: [ location-observe ]
-  log-observe:
-    command: bin/run
-    plugs: [ log-observe ]
   login-session-control:
     command: bin/run
     plugs: [ login-session-control ]
@@ -269,66 +134,33 @@ apps:
   microceph:
     command: bin/run
     plugs: [ microceph ]
+  microceph-support:
+    command: bin/run
+    plugs: [ microceph-support ]
   microovn:
     command: bin/run
     plugs: [ microovn ]
-  microstack-support:
-    command: bin/run
-    plugs: [ microstack-support ]
   mir:
     command: bin/run
     plugs: [ mir ]
   modem-manager:
     command: bin/run
     plugs: [ modem-manager ]
-  mount-control:
-    command: bin/run
-    plugs: [ mount-control ]
-  mount-observe:
-    command: bin/run
-    plugs: [ mount-observe ]
   mpris:
     command: bin/run
     plugs: [ mpris ]
   multipass-support:
     command: bin/run
     plugs: [ multipass-support ]
-  netlink-audit:
-    command: bin/run
-    plugs: [ netlink-audit ]
-  netlink-connector:
-    command: bin/run
-    plugs: [ netlink-connector ]
-  network:
-    command: bin/run
-    plugs: [ network ]
-  network-bind:
-    command: bin/run
-    plugs: [ network-bind ]
-  network-control:
-    command: bin/run
-    plugs: [ network-control ]
-  network-manager:
-    command: bin/run
-    plugs: [ network-manager ]
   network-manager-observe:
     command: bin/run
     plugs: [ network-manager-observe ]
-  network-observe:
-    command: bin/run
-    plugs: [ network-observe ]
-  network-setup-control:
-    command: bin/run
-    plugs: [ network-setup-control ]
-  network-setup-observe:
-    command: bin/run
-    plugs: [ network-setup-observe ]
   network-status:
     command: bin/run
     plugs: [ network-status ]
-  nvidia-drivers-support:
+  nfs-mount:
     command: bin/run
-    plugs: [ nvidia-drivers-support ]
+    plugs: [ nfs-mount ]
   ofono:
     command: bin/run
     plugs: [ ofono ]
@@ -347,27 +179,15 @@ apps:
   optical-drive:
     command: bin/run
     plugs: [ optical-drive ]
-  packagekit-control:
-    command: bin/run
-    plugs: [ packagekit-control ]
-  password-manager-service:
-    command: bin/run
-    plugs: [ password-manager-service ]
   pcscd:
     command: bin/run
     plugs: [ pcscd ]
   physical-memory-control:
     command: bin/run
     plugs: [ physical-memory-control ]
-  physical-memory-observe:
-    command: bin/run
-    plugs: [ physical-memory-observe ]
   pkcs11:
     command: bin/run
     plugs: [ pkcs11 ]
-  polkit:
-    command: bin/run
-    plugs: [ polkit ]
   polkit-agent:
     command: bin/run
     plugs: [ polkit-agent ]
@@ -380,30 +200,18 @@ apps:
   ppp:
     command: bin/run
     plugs: [ ppp ]
-  process-control:
-    command: bin/run
-    plugs: [ process-control ]
   ptp:
     command: bin/run
     plugs: [ ptp ]
-  pulseaudio:
-    command: bin/run
-    plugs: [ pulseaudio ]
   qualcomm-ipc-router:
     command: bin/run
     plugs: [ qualcomm-ipc-router ]
-  raw-input:
-    command: bin/run
-    plugs: [ raw-input ]
-  raw-usb:
-    command: bin/run
-    plugs: [ raw-usb ]
   raw-volume:
     command: bin/run
     plugs: [ raw-volume ]
-  removable-media:
+  remoteproc:
     command: bin/run
-    plugs: [ removable-media ]
+    plugs: [ remoteproc ]
   screen-inhibit-control:
     command: bin/run
     plugs: [ screen-inhibit-control ]
@@ -416,33 +224,15 @@ apps:
   shutdown:
     command: bin/run
     plugs: [ shutdown ]
-  snapd-control:
-    command: bin/run
-    plugs: [ snapd-control ]
   snap-refresh-control:
     command: bin/run
     plugs: [ snap-refresh-control ]
   snap-themes-control:
     command: bin/run
     plugs: [ snap-themes-control ]
-  service-watchdog:
-    command: bin/run
-    plugs: [ daemon-notify ]
-  can-bus:
-    command: bin/run
-    plugs: [ can-bus ]
   sd-control:
     command: bin/run
     plugs: [ sd-control ]
-  shared-memory:
-    command: bin/run
-    plugs: [ shared-memory ]
-  ssh-keys:
-    command: bin/run
-    plugs: [ ssh-keys ]
-  ssh-public-keys:
-    command: bin/run
-    plugs: [ ssh-public-keys ]
   steam-support:
     command: bin/run
     plugs: [ steam-support ]
@@ -452,9 +242,9 @@ apps:
   system-backup:
     command: bin/run
     plugs: [ system-backup ]
-  system-observe:
+  system-source-code:
     command: bin/run
-    plugs: [ system-observe ]
+    plugs: [ system-source-code ]
   system-trace:
     command: bin/run
     plugs: [ system-trace ]
@@ -467,15 +257,6 @@ apps:
   thumbnailer-service:
     command: bin/run
     plugs: [ thumbnailer-service ]
-  time-control:
-    command: bin/run
-    plugs: [ time-control ]
-  timeserver-control:
-    command: bin/run
-    plugs: [ timeserver-control ]
-  timezone-control:
-    command: bin/run
-    plugs: [ timezone-control ]
   tpm:
     command: bin/run
     plugs: [ tpm ]
@@ -485,12 +266,6 @@ apps:
   ubuntu-download-manager:
     command: bin/run
     plugs: [ ubuntu-download-manager ]
-  udisks2:
-    command: bin/run
-    plugs: [ udisks2 ]
-  uhid:
-    command: bin/run
-    plugs: [ uhid ]
   uinput:
     command: bin/run
     plugs: [ uinput ]
@@ -509,18 +284,9 @@ apps:
   unity8-contacts:
     command: bin/run
     plugs: [ unity8-contacts ]
-  upower-observe:
-    command: bin/run
-    plugs: [ upower-observe ]
-  userns:
-    command: bin/run
-    plugs: [ userns ]
   vcio:
     command: bin/run
     plugs: [ vcio ]
-  wayland:
-    command: bin/run
-    plugs: [ wayland ]
   x11:
     command: bin/run
     plugs: [ x11 ]
@@ -529,49 +295,9 @@ apps:
     plugs: [ xilinx-dma ]
 
 plugs:
-  browser-sandbox:
-    interface: browser-support
-    allow-sandbox: true
-  content-read:
-    interface: content
-    content: test-content
-    target: $SNAP/content
   custom-device:
     interface: custom-device
     custom-device: mydevice
-  dbus-session:
-    interface: dbus
-    bus: session
-    name: test.session
-  dbus-system:
-    interface: dbus
-    bus: system
-    name: test.system
-  kernel-module-load:
-    interface: kernel-module-load
-    modules:
-      - name: mymodule
-        load: denied
-  mount-control:
-    interface: mount-control
-    mount:
-      - what: /dev/sda1
-        where: /media/myfiles
-        options: [rw]
-  polkit:
-    interface: polkit
-    action-prefix: io.snapcraft.example
-  shared-memory:
-    interface: shared-memory
-    private: true
-  system-files:
-    interface: system-files
-    read: [/file1]
-    write: [/dir1]
-  personal-files:
-    interface: personal-files
-    read: [$HOME/file1]
-    write: [$HOME/dir1]
   empty:
     interface: empty
   sd-control:

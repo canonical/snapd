@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,6 +18,11 @@
  */
 
 package interfaces
+
+import (
+	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/testutil"
+)
 
 type ByConnRef byConnRef
 
@@ -43,12 +48,12 @@ func (c ByInterfaceName) Len() int           { return byInterfaceName(c).Len() }
 func (c ByInterfaceName) Swap(i, j int)      { byInterfaceName(c).Swap(i, j) }
 func (c ByInterfaceName) Less(i, j int) bool { return byInterfaceName(c).Less(i, j) }
 
-// MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS
-func MockIsHomeUsingNFS(new func() (bool, error)) (restore func()) {
-	old := isHomeUsingNFS
-	isHomeUsingNFS = new
+// MockIsHomeUsingRemoteFS mocks the real implementation of osutil.IsHomeUsingRemoteFS
+func MockIsHomeUsingRemoteFS(new func() (bool, error)) (restore func()) {
+	old := isHomeUsingRemoteFS
+	isHomeUsingRemoteFS = new
 	return func() {
-		isHomeUsingNFS = old
+		isHomeUsingRemoteFS = old
 	}
 }
 
@@ -75,4 +80,11 @@ type SystemKey = systemKey
 var (
 	GetAttribute     = getAttribute
 	SystemKeyVersion = systemKeyVersion
+	LabelExpr        = labelExpr
 )
+
+func MockApparmorPromptingSupportedByFeatures(f func(apparmorFeatures *apparmor.FeaturesSupported) (bool, string)) (restore func()) {
+	restore = testutil.Backup(&apparmorPromptingSupportedByFeatures)
+	apparmorPromptingSupportedByFeatures = f
+	return restore
+}

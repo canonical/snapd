@@ -10,5 +10,6 @@ Type=oneshot
 ExecStart=@libexecdir@/snapd/snap-repair run
 EnvironmentFile=-@SNAPD_ENVIRONMENT_FILE@
 Environment=SNAP_REPAIR_FROM_TIMER=1
+EnvironmentFile=-/var/lib/snapd/environment/snapd.conf
 # There is no need to start this, the timer will run it
 # X-Snapd-Snap: do-not-start

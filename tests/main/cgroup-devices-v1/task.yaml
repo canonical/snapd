@@ -1,6 +1,25 @@
 summary: measuring basic properties of device cgroup
 
+details: |
+    Verify some basic properties of the device cgroups v1. Some checks are:
+    The device cgroup of the main process is the expected one.
+    The initial constraints imposed by the device cgroup made by systemd.
+    After a connection is done, the device cgroup is updated accordingly.
+    The main process for a snap is in the snapd-made cgroup after a command
+    is executed via snap-confine.
+
 # Disable the test on all systems that boot with cgroup v2
-systems: [ -fedora-*, -debian-*, -arch-*, -opensuse-tumbleweed-*, -ubuntu-22.*, -ubuntu-23.*, -ubuntu-core-22-*, -centos-9-*]
+systems: 
+    - -fedora-*
+    - -debian-*
+    - -arch-*
+    - -opensuse-tumbleweed-*
+    - -centos-9-*
+    - -amazon-linux-2023-*
+    - -ubuntu-22.*
+    - -ubuntu-23.*
+    - -ubuntu-24.*
+    - -ubuntu-core-22-*
+    - -ubuntu-core-24-*
 
 execute: ./task.sh

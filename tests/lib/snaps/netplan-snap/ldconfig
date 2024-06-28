@@ -1,0 +1,21 @@
+#!/bin/sh
+
+# we're fortunate ldconfig is split in the deb into a wrapper and the .real
+# binary
+LDCONFIG_REAL=/usr/sbin/ldconfig.real
+if [ ! -x "$LDCONFIG_REAL" ]; then
+    LDCONFIG_REAL=/sbin/ldconfig.real
+fi
+
+# when we're called from Python, the env is stripped to bare mininum
+if [ -z "$SNAP_DATA" ]; then
+    SNAP_DATA=/var/snap/netplan-snap/current/
+fi
+
+echo "call" "$@" >> "$SNAP_DATA/ldconfig.call"
+
+if [ ! -e "$SNAP_DATA/ld.so.cache" ]; then
+    $LDCONFIG_REAL -C "$SNAP_DATA/ld.so.cache"
+fi
+
+exec $LDCONFIG_REAL -C "$SNAP_DATA/ld.so.cache" "$@"

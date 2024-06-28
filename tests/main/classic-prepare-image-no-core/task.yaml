@@ -1,5 +1,11 @@
 summary: Check that prepare-image --classic works.
 
+details: |
+    Use prepare-image to build a classic image with a gadget and a application
+    snap. Wait for the system to be seeded, and then make sure that all snaps are
+    accounted for. Additionally, specifically check that the "core" snap is not
+    installed, as no snaps in the image require it.
+
 backends: [-autopkgtest]
 
 # building images is only supported on classic ubuntu, but ubuntu 14.04 does not have systemd-run to perform the test

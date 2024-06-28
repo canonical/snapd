@@ -105,6 +105,11 @@ func (ses *stateEngineSuite) TestStartUpError(c *C) {
 	err := se.StartUp()
 	c.Check(err.Error(), DeepEquals, "state startup errors: [boom1 boom2]")
 	c.Check(calls, DeepEquals, []string{"startup:mgr1", "startup:mgr2"})
+
+	err3 := errors.New("other error")
+	c.Check(errors.Is(err, err1), Equals, true)
+	c.Check(errors.Is(err, err2), Equals, true)
+	c.Check(errors.Is(err, err3), Equals, false)
 }
 
 func (ses *stateEngineSuite) TestEnsure(c *C) {

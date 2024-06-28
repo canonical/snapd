@@ -68,20 +68,58 @@ func (b Backend) RemoveSnapSaveData(snapInfo *snap.Info, dev snap.Device) error 
 	return os.RemoveAll(saveDir)
 }
 
-// RemoveSnapDataDir removes base snap data directory
-func (b Backend) RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool) error {
+// RemoveSnapDataDir removes base snap data directories
+func (b Backend) RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool, opts *dirs.SnapDirOptions) error {
 	if info.InstanceKey != "" {
 		// data directories of snaps with instance key are never used by
 		// other instances
-		if err := os.Remove(snap.BaseDataDir(info.InstanceName())); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("failed to remove snap %q base directory: %v", info.InstanceName(), err)
+		dirs, err := snapBaseDataDirs(info.InstanceName(), opts)
+		if err != nil {
+			return err
+		}
+		var firstRemoveErr error
+		for _, dir := range dirs {
+			// remove data symlink that could have been created by snap-run
+			// https://bugs.launchpad.net/snapd/+bug/2009617
+			if err := os.Remove(filepath.Join(dir, "current")); err != nil && !os.IsNotExist(err) {
+				if firstRemoveErr == nil {
+					firstRemoveErr = err
+				}
+			}
+			if err := os.Remove(dir); err != nil && !os.IsNotExist(err) {
+				if firstRemoveErr == nil {
+					firstRemoveErr = err
+				}
+			}
+		}
+		if firstRemoveErr != nil {
+			return fmt.Errorf("failed to remove snap %q base directory: %v", info.InstanceName(), firstRemoveErr)
 		}
 	}
 	if !hasOtherInstances {
 		// remove the snap base directory only if there are no other
 		// snap instances using it
-		if err := os.Remove(snap.BaseDataDir(info.SnapName())); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("failed to remove snap %q base directory: %v", info.SnapName(), err)
+		dirs, err := snapBaseDataDirs(info.SnapName(), opts)
+		if err != nil {
+			return err
+		}
+		var firstRemoveErr error
+		for _, dir := range dirs {
+			// remove data symlink that could have been created by snap-run
+			// https://bugs.launchpad.net/snapd/+bug/2009617
+			if err := os.Remove(filepath.Join(dir, "current")); err != nil && !os.IsNotExist(err) {
+				if firstRemoveErr == nil {
+					firstRemoveErr = err
+				}
+			}
+			if err := os.Remove(dir); err != nil && !os.IsNotExist(err) {
+				if firstRemoveErr == nil {
+					firstRemoveErr = err
+				}
+			}
+		}
+		if firstRemoveErr != nil {
+			return fmt.Errorf("failed to remove snap %q base directory: %v", info.SnapName(), firstRemoveErr)
 		}
 	}
 
@@ -113,13 +151,40 @@ func removeDirs(dirs []string) error {
 	return nil
 }
 
+// snapDataDirs returns the list of base data directories for the given snap.
+func snapBaseDataDirs(snapName string, opts *dirs.SnapDirOptions) ([]string, error) {
+	// collect the directories, homes first
+	var found []string
+
+	for _, entry := range snap.BaseDataHomeDirs(snapName, opts) {
+		entryPaths, err := filepath.Glob(entry)
+		if err != nil {
+			return nil, err
+		}
+		found = append(found, entryPaths...)
+	}
+
+	// then the /root user (including GlobalRootDir for tests)
+	found = append(found, snap.UserSnapDir(filepath.Join(dirs.GlobalRootDir, "/root/"), snapName, opts))
+	// then system data
+	found = append(found, snap.BaseDataDir(snapName))
+
+	return found, nil
+}
+
 // snapDataDirs returns the list of data directories for the given snap version
 func snapDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
 	// collect the directories, homes first
-	found, err := filepath.Glob(snap.DataHomeDir(opts))
-	if err != nil {
-		return nil, err
+	var found []string
+
+	for _, entry := range snap.DataHomeDirs(opts) {
+		entryPaths, err := filepath.Glob(entry)
+		if err != nil {
+			return nil, err
+		}
+		found = append(found, entryPaths...)
 	}
+
 	// then the /root user (including GlobalRootDir for tests)
 	found = append(found, snap.UserDataDir(filepath.Join(dirs.GlobalRootDir, "/root/"), opts))
 	// then system data
@@ -131,9 +196,14 @@ func snapDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) 
 // snapCommonDataDirs returns the list of data directories common between versions of the given snap
 func snapCommonDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
 	// collect the directories, homes first
-	found, err := filepath.Glob(snap.CommonDataHomeDir(opts))
-	if err != nil {
-		return nil, err
+	var found []string
+
+	for _, entry := range snap.CommonDataHomeDirs(opts) {
+		entryPaths, err := filepath.Glob(entry)
+		if err != nil {
+			return nil, err
+		}
+		found = append(found, entryPaths...)
 	}
 
 	// then the root user's common data dir

@@ -24,7 +24,7 @@ import (
 	"bytes"
 	"debug/elf"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -44,7 +44,7 @@ func elfInterp(cmd string) (string, error) {
 	for _, prog := range el.Progs {
 		if prog.Type == elf.PT_INTERP {
 			r := prog.Open()
-			interp, err := ioutil.ReadAll(r)
+			interp, err := io.ReadAll(r)
 			if err != nil {
 				return "", nil
 			}
@@ -94,7 +94,10 @@ func parseLdSoConf(root string, confPath string) []string {
 }
 
 // CommandFromSystemSnap runs a command from the snapd/core snap
-// using the proper interpreter and library paths.
+// using the proper interpreter and library paths if needed.
+//
+// Only files from core need this hack. Files from snapd are executed
+// normally.
 //
 // At the moment it can only run ELF files, expects a standard ld.so
 // interpreter, and can't handle RPATH.
@@ -107,6 +110,16 @@ func CommandFromSystemSnap(name string, cmdArgs ...string) (*exec.Cmd, error) {
 	}
 
 	cmdPath := filepath.Join(root, name)
+
+	if from == "snapd" {
+		// We do not need to specify the linker or library
+		// path from files coming from the snapd snap.
+		return exec.Command(cmdPath, cmdArgs...), nil
+	}
+
+	// We are trying to execute files from core snap. They need
+	// run with a their interpreter and library paths
+
 	interp, err := elfInterp(cmdPath)
 	if err != nil {
 		return nil, err

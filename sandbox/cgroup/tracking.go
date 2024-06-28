@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/randutil"
+	"github.com/snapcore/snapd/systemd"
 )
 
 var osGetuid = os.Getuid
@@ -80,13 +82,18 @@ func CreateTransientScopeForTracking(securityTag string, opts *TrackingOptions) 
 		return err
 	}
 
+	securityTagUnitName, err := systemd.SecurityTagToUnitName(securityTag)
+	if err != nil {
+		return err
+	}
+
 	// Enforcing uniqueness is preferred to reusing an existing scope for
 	// simplicity since doing otherwise by joining an existing scope has
 	// limitations:
 	// - the originally started scope must be marked as a delegate, with all
 	//   consequences.
 	// - the method AttachProcessesToUnit is unavailable on Ubuntu 16.04
-	unitName := fmt.Sprintf("%s-%s.scope", securityTag, uuid)
+	unitName := fmt.Sprintf("%s-%s.scope", securityTagUnitName, uuid)
 
 	pid := osGetpid()
 	start := time.Now()
@@ -149,6 +156,30 @@ tryAgain:
 		return ErrCannotTrackProcess
 	}
 	return nil
+}
+
+// ConfirmSystemdAppTracking checks if systemd tracks this process as a snap app.
+//
+// If the application process is not tracked then ErrCannotTrackProcess is returned.
+func ConfirmSystemdAppTracking(securityTag string) error {
+	unitName, err := systemd.SecurityTagToUnitName(securityTag)
+	if err != nil {
+		return err
+	}
+
+	pid := osGetpid()
+	path, err := cgroupProcessPathInTrackingCgroup(pid)
+	if err != nil {
+		return err
+	}
+
+	// the transient scope of the application carries the security tag, eg:
+	// snap.hello-world.sh-4706fe54-7802-4808-aa7e-ae8b567239e0.scope
+	if strings.HasPrefix(filepath.Base(path), unitName+"-") && strings.HasSuffix(path, ".scope") {
+		return nil
+	}
+
+	return ErrCannotTrackProcess
 }
 
 // ConfirmSystemdServiceTracking checks if systemd tracks this process as a snap service.

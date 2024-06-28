@@ -172,7 +172,7 @@ func (iface *mediaHubInterface) StaticInfo() interfaces.StaticInfo {
 
 func (iface *mediaHubInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
-	new := slotAppLabelExpr(slot)
+	new := slot.LabelExpression()
 	spec.AddSnippet(strings.Replace(mediaHubConnectedPlugAppArmor, old, new, -1))
 	return nil
 }
@@ -184,7 +184,7 @@ func (iface *mediaHubInterface) AppArmorPermanentSlot(spec *apparmor.Specificati
 
 func (iface *mediaHubInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
-	new := plugAppLabelExpr(plug)
+	new := plug.LabelExpression()
 	spec.AddSnippet(strings.Replace(mediaHubConnectedSlotAppArmor, old, new, -1))
 	return nil
 }

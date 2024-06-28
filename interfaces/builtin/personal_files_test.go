@@ -27,6 +27,8 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -45,34 +47,34 @@ var _ = Suite(&personalFilesInterfaceSuite{
 })
 
 func (s *personalFilesInterfaceSuite) SetUpTest(c *C) {
-	const mockPlugSnapInfo = `name: other
+	const mockPlugSnapInfoYaml = `name: other
 version: 1.0
 plugs:
  personal-files:
-  read: [$HOME/.read-dir, $HOME/.read-file]
-  write:  [$HOME/.write-dir, $HOME/.write-file]
+  read: [$HOME/.read-dir, $HOME/.read-file, $HOME/.local/share/target]
+  write: [$HOME/.write-dir, $HOME/.write-file, $HOME/.local/share/target, $HOME/.local/share/dir1/dir2/target]
 apps:
  app:
   command: foo
   plugs: [personal-files]
 `
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "personal-files",
-		Interface: "personal-files",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
-	s.plugInfo = plugSnap.Plugs["personal-files"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	const mockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ personal-files:
+  interface: personal-files
+`
+	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "personal-files")
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "personal-files")
 }
 
 func (s *personalFilesInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "personal-files")
 }
 
-func (s *personalFilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
-	apparmorSpec := &apparmor.Specification{}
+func (s *personalFilesInterfaceSuite) TestConnectedPlugAppArmorHappy(c *C) {
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -82,9 +84,118 @@ func (s *personalFilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
 # This is restricted because it gives file access to arbitrary locations.
 owner "@{HOME}/.read-dir{,/,/**}" rk,
 owner "@{HOME}/.read-file{,/,/**}" rk,
+owner "@{HOME}/.local/share/target{,/,/**}" rk,
 owner "@{HOME}/.write-dir{,/,/**}" rwkl,
 owner "@{HOME}/.write-file{,/,/**}" rwkl,
+owner "@{HOME}/.local/share/target{,/,/**}" rwkl,
+owner "@{HOME}/.local/share/dir1/dir2/target{,/,/**}" rwkl,
 `)
+
+	c.Check("\n"+strings.Join(apparmorSpec.UpdateNS(), "\n"), Equals, `
+  # Allow the personal-files interface to create potentially missing directories
+  owner @{HOME}/ rw,
+  owner @{HOME}/.local/ rw,
+  owner @{HOME}/.local/share/ rw,
+  owner @{HOME}/.local/share/dir1/ rw,
+  owner @{HOME}/.local/share/dir1/dir2/ rw,`)
+}
+
+func (s *personalFilesInterfaceSuite) TestConnectedPlugApparmorErrorNotString(c *C) {
+	const mockPlugSnapInfo = `name: other
+version: 1.0
+plugs:
+ personal-files:
+  read: [$HOME/.read-dir, $HOME/.read-file, $HOME/.local/share/target]
+  write: [123]
+apps:
+ app:
+  command: foo
+  plugs: [personal-files]
+`
+	plug, _ := MockConnectedPlug(c, mockPlugSnapInfo, nil, "personal-files")
+	apparmorSpec := apparmor.NewSpecification(plug.AppSet())
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	c.Assert(err, ErrorMatches, `cannot connect plug personal-files: 123 \(int64\) is not a string`)
+}
+
+func (s *personalFilesInterfaceSuite) TestConnectedPlugApparmorErrorNotStartWithHome(c *C) {
+	const mockPlugSnapInfo = `name: other
+version: 1.0
+plugs:
+ personal-files:
+  read: [$HOME/.read-dir, $HOME/.read-file, $HOME/.local/share/target]
+  write: [$NOTHOME/.local/share/target]
+apps:
+ app:
+  command: foo
+  plugs: [personal-files]
+`
+	plug, _ := MockConnectedPlug(c, mockPlugSnapInfo, nil, "personal-files")
+	apparmorSpec := apparmor.NewSpecification(plug.AppSet())
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	c.Assert(err, ErrorMatches, `cannot connect plug personal-files: "\$NOTHOME/.local/share/target" must start with "\$HOME/"`)
+}
+
+func (s *personalFilesInterfaceSuite) TestConnectedPlugMountHappy(c *C) {
+	mountSpec := &mount.Specification{}
+	err := mountSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(mountSpec.MountEntries(), HasLen, 0)
+	c.Assert(mountSpec.UserMountEntries(), HasLen, 2)
+
+	expectedUserMountEntries := []osutil.MountEntry{
+		{
+			Dir:     "$HOME/.local/share",
+			Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=$HOME"},
+		},
+		{
+			Dir:     "$HOME/.local/share/dir1/dir2",
+			Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=$HOME"},
+		},
+	}
+	c.Assert(mountSpec.UserMountEntries(), DeepEquals, expectedUserMountEntries)
+}
+
+func (s *personalFilesInterfaceSuite) TestConnectedPlugMountErrorNotStartWithHome(c *C) {
+	const mockPlugSnapInfo = `name: other
+version: 1.0
+plugs:
+ personal-files:
+  read: [$HOME/.read-dir, $HOME/.read-file, $HOME/.local/share/target]
+  write: [$NOTHOME/.local/share/target]
+apps:
+ app:
+  command: foo
+  plugs: [personal-files]
+`
+	plug, _ := MockConnectedPlug(c, mockPlugSnapInfo, nil, "personal-files")
+	mountSpec := &mount.Specification{}
+	err := mountSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	c.Assert(err, ErrorMatches, `cannot connect plug personal-files: "\$NOTHOME/.local/share/target" must start with "\$HOME/"`)
+}
+
+func (s *personalFilesInterfaceSuite) TestConnectedPlugMountErrorAddUserEnsureDirsUnhappy(c *C) {
+	const mockPlugSnapInfo = `name: other
+version: 1.0
+plugs:
+ personal-files:
+  read: [$HOME/.read-dir, $HOME/.read-file, $HOME/.local/share/target]
+  write: [$HOME/.local/share/target]
+apps:
+ app:
+  command: foo
+  plugs: [personal-files]
+`
+	plug, _ := MockConnectedPlug(c, mockPlugSnapInfo, nil, "personal-files")
+	mountSpec := &mount.Specification{}
+	restore := builtin.MockDirsToEnsure(func(paths []string) ([]*interfaces.EnsureDirSpec, error) {
+		return []*interfaces.EnsureDirSpec{
+			{MustExistDir: "dir", EnsureDir: "dir/dir2"},
+		}, nil
+	})
+	defer restore()
+	err := mountSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	c.Assert(err, ErrorMatches, `cannot connect plug personal-files: internal error: cannot use ensure-dir mount specification: directory that must exist "dir" is not an absolute path`)
 }
 
 func (s *personalFilesInterfaceSuite) TestSanitizeSlot(c *C) {

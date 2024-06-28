@@ -1,5 +1,24 @@
 summary: Verify that the theme REST API endpoints function correctly
 
+details: |
+    Snapd contains dedicated API for installation of snaps providing graphical
+    themes. Themes are installed and configured by the user on the host system,
+    but cannot necessarily be shared with installed snaps due to API and ABI
+    compatibility issues. The theme API, which is governed by a snap interface
+    and is available from sufficiently privileged snaps, allows checking if a
+    given theme is installed, available for installation or not available at
+    all. The same API allows requesting installation of additional themes.
+
+    The test exercises this API from a helper snap, showing that the permission
+    check governed by the interface works, and that once connected, the API can
+    be used to manage themes as described above.
+
+environment:
+    # not all terminals support UTF-8, but Python tries to be smart and attempts
+    # to guess the encoding as if the output would go to the terminal, but in
+    # fact all the test does is pipe the output to jq
+    PYTHONIOENCODING: utf-8
+
 prepare: |
     snap install --edge jq
 

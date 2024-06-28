@@ -21,7 +21,6 @@ package apparmor
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,7 +36,7 @@ func labelFromPid(pid int) (string, error) {
 		// fallback
 		procFile = filepath.Join(rootPath, fmt.Sprintf("proc/%v/attr/current", pid))
 	}
-	contents, err := ioutil.ReadFile(procFile)
+	contents, err := os.ReadFile(procFile)
 	if os.IsNotExist(err) {
 		return "unconfined", nil
 	} else if err != nil {

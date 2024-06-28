@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,11 +23,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"math"
 	"os"
 	"path/filepath"
-	"sort"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -252,108 +249,172 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 	// Pretend that apparmor kernel features directory contains some entries.
 	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "foo"), 0755), IsNil)
 	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "bar"), 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "xyz"), 0755), IsNil)
 	features, err = apparmor.ProbeKernelFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"bar", "foo"})
-}
+	c.Check(features, DeepEquals, []string{"bar", "foo", "xyz"})
 
-func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
-	var features = []string{"unsafe", "include-if-exists", "qipcrtr-socket", "mqueue", "cap-bpf", "cap-audit-read", "xdp", "userns"}
-	// test all combinations of features
-	for i := 0; i < int(math.Pow(2, float64(len(features)))); i++ {
-		expFeatures := []string{}
-		d := c.MkDir()
-		contents := ""
-		var expectedCalls [][]string
-		for j, f := range features {
-			code := 0
-			if i&(1<<j) == 0 {
-				expFeatures = append([]string{f}, expFeatures...)
-			} else {
-				code = 1
-			}
-			expectedCalls = append(expectedCalls, []string{"apparmor_parser", "--preprocess"})
-			contents += fmt.Sprintf("%d ", code)
+	// Also test sub-features features
+	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "foo", "baz"), 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "foo", "qux"), 0755), IsNil)
+	features, err = apparmor.ProbeKernelFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, []string{"bar", "foo", "foo:baz", "foo:qux", "xyz"})
+
+	// Also test that prompt feature is read from permstable32 if it exists
+	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "policy"), 0755), IsNil)
+	for _, testCase := range []struct {
+		permstableContent string
+		expectedSuffixes  []string
+	}{
+		{
+			"allow deny prompt fizz buzz",
+			[]string{"allow", "buzz", "deny", "fizz", "prompt"},
+		},
+		{
+			"allow  deny prompt fizz   buzz ",
+			[]string{"allow", "buzz", "deny", "fizz", "prompt"},
+		},
+		{
+			"allow  deny\nprompt fizz \n  buzz",
+			[]string{"allow", "buzz", "deny", "fizz", "prompt"},
+		},
+		{
+			"allow  deny\nprompt fizz \n  buzz\n ",
+			[]string{"allow", "buzz", "deny", "fizz", "prompt"},
+		},
+		{
+			"fizz",
+			[]string{"fizz"},
+		},
+		{
+			"\n\n\nfizz\n\nbuzz",
+			[]string{"buzz", "fizz"},
+		},
+		{
+			"fizz\tbuzz",
+			[]string{"buzz", "fizz"},
+		},
+		{
+			"fizz buzz\r\n",
+			[]string{"buzz", "fizz"},
+		},
+	} {
+		c.Assert(os.WriteFile(filepath.Join(d, featuresSysPath, "policy", "permstable32"), []byte(testCase.permstableContent), 0644), IsNil)
+		features, err = apparmor.ProbeKernelFeatures()
+		c.Assert(err, IsNil)
+		expected := []string{"bar", "foo", "foo:baz", "foo:qux", "policy"}
+		for _, suffix := range testCase.expectedSuffixes {
+			expected = append(expected, fmt.Sprintf("policy:permstable32:%s", suffix))
 		}
-		// probeParserFeatures() sorts the features
-		sort.Strings(expFeatures)
-		err := os.WriteFile(filepath.Join(d, "codes"), []byte(contents), 0755)
-		c.Assert(err, IsNil)
-		mockParserCmd := testutil.MockCommand(c, "apparmor_parser", fmt.Sprintf(`
-cat >> %[1]s/stdin
-echo "" >> %[1]s/stdin
-
-read -r EXIT_CODE CODES_FOR_NEXT_CALLS < %[1]s/codes
-echo "$CODES_FOR_NEXT_CALLS" > %[1]s/codes
-
-exit "$EXIT_CODE"
-`, d))
-		defer mockParserCmd.Restore()
-		restore := apparmor.MockParserSearchPath(mockParserCmd.BinDir())
-		defer restore()
-
-		features, err := apparmor.ProbeParserFeatures()
-		c.Assert(err, IsNil)
-		if len(expFeatures) == 0 {
-			c.Check(features, HasLen, 0)
-		} else {
-			c.Check(features, DeepEquals, expFeatures)
-		}
-
-		c.Check(mockParserCmd.Calls(), DeepEquals, expectedCalls)
-		data, err := ioutil.ReadFile(filepath.Join(d, "stdin"))
-		c.Assert(err, IsNil)
-		c.Check(string(data), Equals, `profile snap-test {
- change_profile unsafe /**,
-}
-profile snap-test {
- #include if exists "/foo"
-}
-profile snap-test {
- network qipcrtr dgram,
-}
-profile snap-test {
- mqueue,
-}
-profile snap-test {
- capability bpf,
-}
-profile snap-test {
- capability audit_read,
-}
-profile snap-test {
- network xdp,
-}
-profile snap-test {
- userns,
-}
-`)
+		expected = append(expected, "xyz")
+		c.Check(features, DeepEquals, expected, Commentf("test case: %+v", testCase))
 	}
+}
 
-	// Pretend that we just don't have apparmor_parser at all.
-	restore := apparmor.MockParserSearchPath(c.MkDir())
-	defer restore()
+func probeOneParserFeature(c *C, known *[]string, parserPath, featureName, profileText string) {
+	const script = `#!/bin/sh
+set -e
+test "$(cat | tr -d '\n')" = '%s'
+`
+	err := os.WriteFile(parserPath, []byte(fmt.Sprintf(script, profileText)), 0o755)
+	c.Assert(err, IsNil)
+
+	cmd, _, _ := apparmor.AppArmorParser()
+	c.Assert(cmd.Path, Equals, parserPath, Commentf("Unexpectedly using apparmor parser from %s", cmd.Path))
+
 	features, err := apparmor.ProbeParserFeatures()
-	c.Check(err, Equals, os.ErrNotExist)
-	c.Check(features, DeepEquals, []string{})
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, []string{featureName},
+		Commentf("Unexpected features detected for profile text: %s", profileText))
 
-	// pretend we have an internal apparmor_parser
-	fakeroot := c.MkDir()
-	dirs.SetRootDir(fakeroot)
+	*known = append(*known, featureName)
+}
 
-	d := filepath.Join(dirs.SnapMountDir, "/snapd/42", "/usr/lib/snapd")
-	c.Assert(os.MkdirAll(d, 0755), IsNil)
-	p := filepath.Join(d, "apparmor_parser")
-	c.Assert(os.WriteFile(p, nil, 0755), IsNil)
-	restore = snapdtool.MockOsReadlink(func(path string) (string, error) {
-		c.Assert(path, Equals, "/proc/self/exe")
-		return filepath.Join(d, "snapd"), nil
+type parserFeatureTestSuite struct {
+	testutil.BaseTest
+	d      string
+	binDir string
+}
+
+var _ = Suite(&parserFeatureTestSuite{})
+
+func (s *parserFeatureTestSuite) SetUpTest(c *C) {
+	s.d = c.MkDir()
+	// This is used to find related parser files and isolates us from the host.
+	dirs.SetRootDir(s.d)
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+
+	s.binDir = filepath.Join(s.d, "bin")
+	err := os.Mkdir(s.binDir, 0o755)
+	c.Assert(err, IsNil)
+
+	restore := apparmor.MockParserSearchPath(s.binDir)
+	s.AddCleanup(restore)
+}
+
+func (s *parserFeatureTestSuite) TestProbeFeature(c *C) {
+	// Pretend we can only support one feature at a time.
+	var knownProbes []string
+
+	parserPath := filepath.Join(s.binDir, "apparmor_parser")
+
+	probeOneParserFeature(c, &knownProbes, parserPath, "cap-audit-read", `profile snap-test { capability audit_read,}`)
+	probeOneParserFeature(c, &knownProbes, parserPath, "cap-bpf", `profile snap-test { capability bpf,}`)
+	probeOneParserFeature(c, &knownProbes, parserPath, "include-if-exists", `profile snap-test { #include if exists "/foo"}`)
+	probeOneParserFeature(c, &knownProbes, parserPath, "mqueue", `profile snap-test { mqueue,}`)
+	probeOneParserFeature(c, &knownProbes, parserPath, "prompt", `profile snap-test { prompt /foo r,}`)
+	probeOneParserFeature(c, &knownProbes, parserPath, "qipcrtr-socket", `profile snap-test { network qipcrtr dgram,}`)
+	probeOneParserFeature(c, &knownProbes, parserPath, "unconfined", `profile snap-test flags=(unconfined) { # test unconfined}`)
+	probeOneParserFeature(c, &knownProbes, parserPath, "unsafe", `profile snap-test { change_profile unsafe /**,}`)
+	probeOneParserFeature(c, &knownProbes, parserPath, "userns", `profile snap-test { userns,}`)
+	probeOneParserFeature(c, &knownProbes, parserPath, "xdp", `profile snap-test { network xdp,}`)
+
+	// Pretend we have all the features.
+	err := os.WriteFile(parserPath, []byte("#!/bin/sh\nexit 0\n"), 0o755)
+	c.Assert(err, IsNil)
+
+	// Did any feature probes got added to non-test code?
+	features, err := apparmor.ProbeParserFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, knownProbes, Commentf("Additional probes added not reflected in test code"))
+}
+
+func (s *parserFeatureTestSuite) TestNoParser(c *C) {
+	// Pretend we don't have any apparmor_parser at all.
+	features, err := apparmor.ProbeParserFeatures()
+	if !errors.Is(err, os.ErrNotExist) {
+		c.Fatal("Unexpected error", err)
+	}
+	// Did we get any features?
+	c.Check(features, HasLen, 0, Commentf("Unexpected features without any parser"))
+}
+
+func (s *parserFeatureTestSuite) TestInternalParser(c *C) {
+	// Put a fake parser at $SNAP_MOUNT_DIR/snapd/42/usr/lib/snapd/apparmor_parser
+	libSnapdDir := filepath.Join(dirs.SnapMountDir, "/snapd/42/usr/lib/snapd")
+	err := os.MkdirAll(libSnapdDir, 0755)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(filepath.Join(libSnapdDir, "apparmor_parser"), nil, 0755)
+	c.Assert(err, IsNil)
+
+	// Pretend that we are running snapd from that snap location.
+	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
+		if path != "/proc/self/exe" {
+			c.Fatal("Unexpected readlink", path)
+		}
+
+		return filepath.Join(libSnapdDir, "snapd"), nil
 	})
-	defer restore()
+	s.AddCleanup(restore)
+
+	// Pretend snapd supports re-execution from snapd snap.
 	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
-	defer restore()
-	features, err = apparmor.ProbeParserFeatures()
-	c.Check(err, Equals, nil)
+	s.AddCleanup(restore)
+
+	// Did we recognize the internal parser?
+	features, err := apparmor.ProbeParserFeatures()
+	c.Assert(err, IsNil)
 	c.Check(features, DeepEquals, []string{"snapd-internal"})
 }
 
@@ -378,7 +439,7 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "mqueue", "qipcrtr-socket", "unsafe", "userns", "xdp"})
+	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "mqueue", "prompt", "qipcrtr-socket", "unconfined", "unsafe", "userns", "xdp"})
 }
 
 func (s *apparmorSuite) TestAppArmorParserMtime(c *C) {
@@ -418,7 +479,7 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "mqueue", "qipcrtr-socket", "unsafe", "userns", "xdp"})
+	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "mqueue", "prompt", "qipcrtr-socket", "unconfined", "unsafe", "userns", "xdp"})
 
 	// this makes probing fails but is not done again
 	err = os.RemoveAll(d)
@@ -433,6 +494,64 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 
 	_, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
+}
+
+func (s *apparmorSuite) TestPromptingSupported(c *C) {
+	goodKernelFeatures := []string{"policy:permstable32:prompt"}
+	goodParserFeatures := []string{"prompt"}
+
+	for _, testCase := range []struct {
+		kernelFeatures []string
+		kernelError    error
+		parserFeatures []string
+		parserError    error
+		expectedReason string
+	}{
+		{
+			kernelFeatures: []string{},
+			kernelError:    fmt.Errorf("foo"),
+			parserFeatures: []string{},
+			parserError:    fmt.Errorf("bar"),
+			expectedReason: "cannot check apparmor kernel features: foo",
+		},
+		{
+			kernelFeatures: []string{"policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt"},
+			kernelError:    nil,
+			parserFeatures: []string{},
+			parserError:    fmt.Errorf("bar"),
+			expectedReason: "cannot check apparmor parser features: bar",
+		},
+		{
+			kernelFeatures: []string{"policy:permstable32:allow", "policy:permstable32:deny"},
+			kernelError:    nil,
+			parserFeatures: []string{},
+			parserError:    nil,
+			expectedReason: "apparmor kernel features do not support prompting",
+		},
+		{
+			kernelFeatures: []string{"policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt"},
+			kernelError:    nil,
+			parserFeatures: []string{"mqueue"},
+			parserError:    nil,
+			expectedReason: "apparmor parser does not support the prompt qualifier",
+		},
+	} {
+		restore := apparmor.MockFeatures(testCase.kernelFeatures, testCase.kernelError, testCase.parserFeatures, testCase.parserError)
+		supported, reason := apparmor.PromptingSupported()
+		c.Check(supported, Equals, false)
+		c.Check(reason, Equals, testCase.expectedReason)
+		restore()
+	}
+
+	restore := apparmor.MockFeatures(goodKernelFeatures, nil, goodParserFeatures, nil)
+	defer restore()
+
+	supported, reason := apparmor.PromptingSupported()
+	// TODO: change this once snapd supports prompting
+	c.Check(supported, Equals, false)
+	c.Check(reason, Equals, "requires newer version of snapd")
+	// c.Check(supported, Equals, true)
+	// c.Check(reason, Equals, "")
 }
 
 func (s *apparmorSuite) TestValidateFreeFromAAREUnhappy(c *C) {
@@ -483,7 +602,7 @@ func (s *apparmorSuite) TestUpdateHomedirsTunableHappy(c *C) {
 	err := apparmor.UpdateHomedirsTunable([]string{"/home/a", "/dir2"})
 	c.Assert(err, IsNil)
 	configFile := filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d/tunables/home.d/snapd")
-	fileContents, err := ioutil.ReadFile(configFile)
+	fileContents, err := os.ReadFile(configFile)
 	c.Assert(err, IsNil)
 	c.Check(string(fileContents), Equals,
 		`# Generated by snapd -- DO NOT EDIT!`+"\n"+`@{HOMEDIRS}+="/home/a" "/dir2"`+"\n")

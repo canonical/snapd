@@ -305,7 +305,7 @@ func (iface *ofonoInterface) StaticInfo() interfaces.StaticInfo {
 
 func (iface *ofonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
-	new := slotAppLabelExpr(slot)
+	new := slot.LabelExpression()
 	spec.AddSnippet(strings.Replace(ofonoConnectedPlugAppArmor, old, new, -1))
 	if release.OnClassic {
 		// Let confined apps access unconfined ofono on classic
@@ -342,7 +342,7 @@ func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *s
 
 func (iface *ofonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
-	new := plugAppLabelExpr(plug)
+	new := plug.LabelExpression()
 	spec.AddSnippet(strings.Replace(ofonoConnectedSlotAppArmor, old, new, -1))
 	return nil
 }

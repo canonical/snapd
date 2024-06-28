@@ -11,7 +11,7 @@ prepare: |
   snap install hello-world go-example-webserver test-snapd-tools
 
 execute: |
-  if os.query is-trusty || os.query is-amazon-linux || os.query is-centos 7 || os.query is-xenial || os.query is-core16; then
+  if os.query is-trusty || os.query is-amazon-linux 2 || os.query is-centos 7 || os.query is-xenial || os.query is-core16; then
     # just check that we can't do anything with quota groups on systems with
     # old systemd versions, we need at least 230 to avoid buggy slice usage
     # reporting

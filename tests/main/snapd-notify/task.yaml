@@ -1,5 +1,9 @@
 summary: Ensure snapd notify feature is working
 
+details: |
+    This test checks that snapd is using the notify feature of systemd to signal
+    when it is ready.
+
 # this test requires SNAPD_DEBUG to be set, we can't make that assumption for the
 # external backend
 backends: [-external]

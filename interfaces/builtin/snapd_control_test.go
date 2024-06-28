@@ -43,22 +43,23 @@ var _ = Suite(&SnapdControlInterfaceSuite{
 })
 
 func (s *SnapdControlInterfaceSuite) SetUpTest(c *C) {
-	consumingSnapInfo := snaptest.MockInfo(c, `
-name: other
+	const mockPlugSnapInfoYaml = `name: other
 version: 0
 apps:
  app:
-    command: foo
-    plugs: [snapd-control]
-`, nil)
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "snapd-control",
-		Interface: "snapd-control",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	s.plugInfo = consumingSnapInfo.Plugs["snapd-control"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+  command: foo
+  plugs: [snapd-control]
+`
+	const mockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ snapd-control:
+  interface: snapd-control
+`
+
+	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "snapd-control")
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "snapd-control")
 }
 
 func (s *SnapdControlInterfaceSuite) TestName(c *C) {
@@ -99,7 +100,7 @@ plugs:
 
 func (s *SnapdControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})

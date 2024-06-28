@@ -201,7 +201,7 @@ func (iface *networkManagerObserveInterface) AppArmorConnectedPlug(spec *apparmo
 		// of the OS and will run unconfined.
 		new = "unconfined"
 	} else {
-		new = slotAppLabelExpr(slot)
+		new = slot.LabelExpression()
 	}
 	snippet := strings.Replace(networkManagerObserveConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
@@ -211,7 +211,7 @@ func (iface *networkManagerObserveInterface) AppArmorConnectedPlug(spec *apparmo
 func (iface *networkManagerObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if !release.OnClassic {
 		old := "###PLUG_SECURITY_TAGS###"
-		new := plugAppLabelExpr(plug)
+		new := plug.LabelExpression()
 		snippet := strings.Replace(networkManagerObserveConnectedSlotAppArmor, old, new, -1)
 		spec.AddSnippet(snippet)
 	}

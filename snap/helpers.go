@@ -40,10 +40,14 @@ func IsSnapd(snapID string) bool {
 // AllUsers returns a list of users, including the root user and all users that
 // can be found under /home with a snap directory.
 func AllUsers(opts *dirs.SnapDirOptions) ([]*user.User, error) {
-	ds, err := filepath.Glob(DataHomeGlob(opts))
-	if err != nil {
-		// can't happen?
-		return nil, err
+	var ds []string
+
+	for _, entry := range dirs.DataHomeGlobs(opts) {
+		entryPaths, err := filepath.Glob(entry)
+		if err != nil {
+			return nil, err
+		}
+		ds = append(ds, entryPaths...)
 	}
 
 	users := make([]*user.User, 1, len(ds)+1)

@@ -25,7 +25,6 @@ import (
 	"crypto"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -599,7 +598,7 @@ func (s *storeDownloadSuite) TestDownloadDelta(c *C) {
 		})
 		defer restore()
 
-		w, err := ioutil.TempFile("", "")
+		w, err := os.CreateTemp("", "")
 		c.Assert(err, IsNil)
 		defer os.Remove(w.Name())
 
@@ -764,7 +763,7 @@ func (s *storeDownloadSuite) TestDownloadStreamOK(c *C) {
 	restore := store.MockDoDownloadReq(func(ctx context.Context, url *url.URL, cdnHeader string, resume int64, s *store.Store, user *auth.UserState) (*http.Response, error) {
 		c.Check(url.String(), Equals, "URL")
 		r := &http.Response{
-			Body: ioutil.NopCloser(bytes.NewReader(expectedContent[resume:])),
+			Body: io.NopCloser(bytes.NewReader(expectedContent[resume:])),
 		}
 		if resume > 0 {
 			r.StatusCode = 206
@@ -884,6 +883,10 @@ func (s *storeDownloadSuite) TestDownloadTimeout(c *C) {
 }
 
 func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterHappy(c *C) {
+	if os.Getenv("SNAPD_SKIP_SLOW_TESTS") != "" {
+		c.Skip("skipping slow test")
+	}
+
 	origCtx := context.TODO()
 	w, ctx := store.NewTransferSpeedMonitoringWriterAndContext(origCtx, 50*time.Millisecond, 1)
 
@@ -908,6 +911,10 @@ func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterHappy(c *C) {
 }
 
 func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterUnhappy(c *C) {
+	if os.Getenv("SNAPD_SKIP_SLOW_TESTS") != "" {
+		c.Skip("skipping slow test")
+	}
+
 	origCtx := context.TODO()
 	w, ctx := store.NewTransferSpeedMonitoringWriterAndContext(origCtx, 50*time.Millisecond, 1000)
 

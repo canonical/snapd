@@ -34,6 +34,7 @@ import (
 
 func init() {
 	snapstate.SetupInstallHook = SetupInstallHook
+	snapstate.SetupInstallComponentHook = SetupInstallComponentHook
 	snapstate.SetupPreRefreshHook = SetupPreRefreshHook
 	snapstate.SetupPostRefreshHook = SetupPostRefreshHook
 	snapstate.SetupRemoveHook = SetupRemoveHook
@@ -48,6 +49,20 @@ func SetupInstallHook(st *state.State, snapName string) *state.Task {
 	}
 
 	summary := fmt.Sprintf(i18n.G("Run install hook of %q snap if present"), hooksup.Snap)
+	task := HookTask(st, summary, hooksup, nil)
+
+	return task
+}
+
+func SetupInstallComponentHook(st *state.State, snap, component string) *state.Task {
+	hooksup := &HookSetup{
+		Snap:      snap,
+		Component: component,
+		Hook:      "install",
+		Optional:  true,
+	}
+
+	summary := fmt.Sprintf(i18n.G(`Run install hook of "%s+%s" component if present`), hooksup.Snap, hooksup.Component)
 	task := HookTask(st, summary, hooksup, nil)
 
 	return task
@@ -99,6 +114,11 @@ func (h *gateAutoRefreshHookHandler) Before() error {
 	h.refreshAppAwareness = true
 
 	snapName := h.context.InstanceName()
+	snapInfo, err := snapstate.CurrentInfo(st, snapName)
+	if err != nil {
+		return err
+	}
+	snapRev := snapInfo.SnapRevision()
 
 	// obtain snap lock before manipulating runinhibit lock.
 	lock, err := snaplock.OpenLock(snapName)
@@ -110,7 +130,8 @@ func (h *gateAutoRefreshHookHandler) Before() error {
 	}
 	defer lock.Unlock()
 
-	if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedGateRefresh); err != nil {
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snapRev}
+	if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedGateRefresh, inhibitInfo); err != nil {
 		return err
 	}
 
@@ -123,7 +144,7 @@ func (h *gateAutoRefreshHookHandler) Done() (err error) {
 	ctx.Lock()
 	defer ctx.Unlock()
 
-	snapName := h.context.InstanceName()
+	snapName := ctx.InstanceName()
 
 	var action snapstate.GateAutoRefreshAction
 	a := ctx.Cached("action")
@@ -176,9 +197,14 @@ func (h *gateAutoRefreshHookHandler) Done() (err error) {
 			return err
 		}
 		if h.refreshAppAwareness {
-			// we have HintInhibitedGateRefresh lock already when running the hook,
-			// change it to HintInhibitedForRefresh.
-			if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedForRefresh); err != nil {
+			// we have HintInhibitedGateRefresh lock already when running the hook, change
+			// it to HintInhibitedForRefresh.
+			// Also let's reuse inhibit info that was saved in Before().
+			_, inhibitInfo, err := runinhibit.IsLocked(snapName)
+			if err != nil {
+				return err
+			}
+			if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedForRefresh, inhibitInfo); err != nil {
 				return fmt.Errorf("cannot set inhibit lock for snap %s: %v", snapName, err)
 			}
 		}

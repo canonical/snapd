@@ -1,6 +1,10 @@
 summary: Test that gadget config defaults are applied early on core20.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+details: |
+    Check that defaults are applied early when the Ubuntu Core image is
+    booted and also after transition to recovery mode.
+
+systems: [ubuntu-2*]
 
 environment:
     NESTED_ENABLE_TPM: true
@@ -68,7 +72,7 @@ execute: |
         remote.exec "cat /var/snap/pc/common/debug.txt" | MATCH "backlight symlink: /dev/null"
 
         # timezone is set
-        remote.exec "cat /etc/timezone" | MATCH "Europe/Malta"
+        remote.exec "timedatectl show -p Timezone --value" | MATCH "Europe/Malta"
         remote.exec "readlink -f /etc/localtime" | MATCH "Europe/Malta"
         remote.exec "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
 

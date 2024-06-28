@@ -1,5 +1,17 @@
 summary: Check auto-aliases mechanism across different instances of the same snap
 
+details: |
+    Snapd contains an alias system, whereas an application from snap may be
+    called with an unqualified name that is different from that of the snap. The
+    alias system is closely related to snap names, and once snap instances were
+    introduced, where the same snap name may be installed under different names,
+    by combining snap name and the so-called instance key, then aliases could
+    misbehave and act on the wrong instance.
+
+    The test installs a snap twice, and relies on automatic aliasing not to
+    clobber the alias from the other instance, as instances with non-empty
+    instance key do not set up aliases automatically.
+
 prepare: |
     snap set system experimental.parallel-instances=true
 

@@ -258,7 +258,7 @@ list_executed_tasks() {
 
     local all_tasks executed_tasks
     all_tasks="$(list_all_tasks "$exec_exp")"
-    executed_tasks="$(jq -r '.[] | select( .type == "action") | select( .verb == "Executing") | .task' "$log")"
+    executed_tasks="$(jq -r '.[] | select( .type == "phase") | select( .verb == "Executing") | .task' "$log")"
     _intersection_tasks_lists "$executed_tasks" "$all_tasks"
 }
 

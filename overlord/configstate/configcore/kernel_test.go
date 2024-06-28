@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -158,6 +159,24 @@ func (s *kernelSuite) mockEarlyConfig() {
 	s.AddCleanup(func() { devicestate.EarlyConfig = nil })
 }
 
+func (s *kernelSuite) mockClassicBootModelWithoutSnaps() {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	extras := map[string]interface{}{
+		"architecture": "amd64",
+		"classic":      "true",
+	}
+	model := s.Brands.Model("my-brand", "pc", extras)
+
+	assertstatetest.AddMany(s.state, model)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  model.BrandID(),
+		Model:  model.Model(),
+		Serial: "serialserial",
+	})
+}
+
 func (s *kernelSuite) mockModelWithModeenv(grade string, isClassic bool) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -226,7 +245,7 @@ func (s *kernelSuite) mockGadget(c *C) {
 	defer s.state.Unlock()
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType: "gadget",
-		Sequence: []*snap.SideInfo{pcSideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{pcSideInfo}),
 		Current:  pcSideInfo.Revision,
 		Active:   true,
 	})
@@ -472,4 +491,27 @@ func (s *kernelSuite) TestConfigureKernelCmdlineSignedGradeNotAllowed(c *C) {
 	} {
 		s.testConfigureKernelCmdlineSignedGradeNotAllowed(c, cmdline)
 	}
+}
+
+func (s *kernelSuite) TestConfigureKernelCmdlineOnClassicBootFails(c *C) {
+	s.mockClassicBootModelWithoutSnaps()
+
+	cmdline := "param1=val1"
+	s.state.Lock()
+
+	tugc := s.state.NewTask("update-gadget-cmdline", "update gadget cmdline")
+	chgUpd := s.state.NewChange("optional-kernel-cmdline", "optional kernel cmdline")
+	chgUpd.AddTask(tugc)
+
+	ts := s.state.NewTask("hook-task", "system hook task")
+	chg := s.state.NewChange("system-option", "...")
+	chg.AddTask(ts)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), ts)
+
+	s.state.Unlock()
+
+	rt.Set("core", "system.kernel.cmdline-append", cmdline)
+
+	err := configcore.Run(core20Dev, rt)
+	c.Assert(err, ErrorMatches, "changing the kernel command line is not supported on a classic system")
 }

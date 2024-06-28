@@ -50,7 +50,9 @@ execute: |
   SNAPD_SNAP=$(ls /tmp/snapd*.snap)
 
   # XXX: confusingly, the name of our test key is actually " (test)".
-  snap prepare-image --preseed --preseed-sign-key=" (test)" --channel=stable --snap="$SNAPD_SNAP" --snap systemusers-snap_1.0_all.snap "$TESTSLIB"/assertions/developer1-20-dangerous.model "$PREPARE_IMAGE_DIR" > preseed.log 2>&1
+  SNAPD_DEBUG=1 snap prepare-image --preseed --preseed-sign-key=" (test)" --channel=stable \
+      --snap="$SNAPD_SNAP" --snap systemusers-snap_1.0_all.snap \
+      "$TESTSLIB"/assertions/developer1-20-dangerous.model "$PREPARE_IMAGE_DIR" > preseed.log 2>&1
 
   echo "Make sure no umount errors were reported during preseeding cleanup"
   NOMATCH "umount.*failed" < preseed.log
@@ -141,6 +143,14 @@ execute: |
   MATCH "^etc/systemd/system/getty.target.wants/getty@tty1.service" < files.log
   MATCH "^etc/systemd/system/snapd.failure.service" < files.log
 
+  # tar tf already escapes '\', so we need to double escape it here
+  # TODO add a preseed core24 test and check these mounts:
+  # MATCH '^etc/systemd/system/run-mnt-kernel\\\\x2dsnaps-pc\\\\x2dkernel.*.mount' < files.log
+  # MATCH '^etc/systemd/system/sysinit.target.wants/run-mnt-kernel\\\\x2dsnaps-pc\\\\x2dkernel.*.mount' < files.log
+  # TODO and these entries:
+  # MATCH "^var/lib/snapd/kernel/.*/lib/modules/.*" < files.log
+  # MATCH "^var/lib/snapd/kernel/.*/lib/firmware/.*" < files.log
+
   MATCH "^snap/pc-kernel/current" < files.log
   MATCH "^snap/core20/current" < files.log
   MATCH "^snap/snapd/current" < files.log
@@ -153,8 +163,11 @@ execute: |
   MATCH "^var/lib/snapd/apparmor/profiles/snap-update-ns.pc" < files.log
   MATCH "^var/lib/snapd/apparmor/profiles/snap-confine.snapd.x1" < files.log
 
+  MATCH "^var/lib/snapd/cgroup/snap.pc.device" < files.log
+  MATCH "^var/lib/snapd/cgroup/snap.pc-kernel.device" < files.log
+
   MATCH "^var/lib/snapd/seccomp/bpf/snap.pc.hook.configure.src" < files.log
-  MATCH "^var/lib/snapd/seccomp/bpf/snap.pc.hook.configure.bin" < files.log
+  MATCH "^var/lib/snapd/seccomp/bpf/snap.pc.hook.configure.bin2" < files.log
 
   MATCH "^var/lib/snapd/sequence/pc-kernel.json" < files.log
   MATCH "^var/lib/snapd/sequence/pc.json" < files.log

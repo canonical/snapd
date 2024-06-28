@@ -1,14 +1,17 @@
 summary: Check that `snap run` runs
 
+details: |
+    Verifies the `snap run` command and its parameters. Check
+    the parameter --strace can be used and the traced information
+    is correct. Also checks the --trace-exec and --debug-log parameters.
+
 systems:
   # strace does not support _newselect on s390x
   # (https://github.com/strace/strace/issues/57)
   - -*-s390x
-  # TODO: segfault on core22
-  - -ubuntu-core-22-*
 
 environment:
-    STRACE_STATIC_CHANNEL: beta
+    STRACE_STATIC_CHANNEL: candidate
   
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local basic-run
@@ -50,7 +53,7 @@ execute: |
         echo "snap run with an invalid strace option should fail but it did not"
         exit 1
     fi
-    MATCH "Can't stat 'invalid': No such file or directory" < stderr
+    MATCH "Cannot find executable 'invalid'" < stderr || MATCH "Can't stat 'invalid': No such file or directory" < stderr
 
     if os.query is-arch-linux || os.query is-opensuse tumbleweed; then
         # Arch linux and Opensuse tumbleweed run the mainline kernel, strace

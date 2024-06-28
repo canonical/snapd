@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -167,7 +168,7 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -354,7 +355,7 @@ slots:
 `, gadgetSideInfo)
 	snapstate.Set(s.state, "the-gadget", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&gadgetInfo.SideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&gadgetInfo.SideInfo}),
 		Current:  snap.R(1),
 		SnapType: "gadget"})
 	st.Unlock()
@@ -438,13 +439,13 @@ func (s *hotplugSuite) TestHotplugAddWithAutoconnect(c *C) {
 	st.Lock()
 	// mock the consumer snap/plug
 	si := &snap.SideInfo{RealName: "consumer", Revision: snap.R(1)}
-	testSnap := snaptest.MockSnapInstance(c, "", testSnapYaml, si)
-	c.Assert(testSnap.Plugs, HasLen, 1)
-	c.Assert(testSnap.Plugs["plug"], NotNil)
-	c.Assert(repo.AddPlug(testSnap.Plugs["plug"]), IsNil)
+	testSnap := ifacetest.MockSnapAndAppSet(c, testSnapYaml, nil, si)
+	c.Assert(testSnap.Info().Plugs, HasLen, 1)
+	c.Assert(testSnap.Info().Plugs["plug"], NotNil)
+	c.Assert(repo.AddAppSet(testSnap), IsNil)
 	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -509,16 +510,11 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 
 	repo := s.mgr.Repository()
 	si := &snap.SideInfo{RealName: "consumer", Revision: snap.R(1)}
-	testSnap := snaptest.MockSnapInstance(c, "", testSnapYaml, si)
-	c.Assert(repo.AddPlug(&snap.PlugInfo{
-		Interface: "test-a",
-		Name:      "plug",
-		Attrs:     map[string]interface{}{},
-		Snap:      testSnap,
-	}), IsNil)
+	testSnap := ifacetest.MockSnapAndAppSet(c, testSnapYaml, nil, si)
+	c.Assert(repo.AddAppSet(testSnap), IsNil)
 	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -594,16 +590,11 @@ func (s *hotplugSuite) TestHotplugEnumerationDone(c *C) {
 	repo := s.mgr.Repository()
 
 	si := &snap.SideInfo{RealName: "consumer", Revision: snap.R(1)}
-	testSnap := snaptest.MockSnapInstance(c, "", testSnapYaml, si)
-	c.Assert(repo.AddPlug(&snap.PlugInfo{
-		Interface: "test-a",
-		Name:      "plug",
-		Attrs:     map[string]interface{}{},
-		Snap:      testSnap,
-	}), IsNil)
+	testSnap := ifacetest.MockSnapAndAppSet(c, testSnapYaml, nil, si)
+	c.Assert(repo.AddAppSet(testSnap), IsNil)
 	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "app"})
 
@@ -696,16 +687,11 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 
 	repo := s.mgr.Repository()
 	si := &snap.SideInfo{RealName: "consumer", Revision: snap.R(1)}
-	testSnap := snaptest.MockSnapInstance(c, "", testSnapYaml, si)
-	c.Assert(repo.AddPlug(&snap.PlugInfo{
-		Interface: "test-a",
-		Name:      "plug",
-		Attrs:     map[string]interface{}{},
-		Snap:      testSnap,
-	}), IsNil)
+	testSnap := ifacetest.MockSnapAndAppSet(c, testSnapYaml, nil, si)
+	c.Assert(repo.AddAppSet(testSnap), IsNil)
 	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "app"})
 

@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type specSuite struct {
@@ -65,31 +64,32 @@ var _ = Suite(&specSuite{
 })
 
 func (s *specSuite) SetUpSuite(c *C) {
-	info1 := snaptest.MockInfo(c, `name: snap1
+	const plugYaml = `name: snap1
 version: 0
 plugs:
-    name:
-        interface: test
+ name:
+  interface: test
 apps:
-    foo:
-        command: bin/foo
+ foo:
+  command: bin/foo
 hooks:
-    configure:
-`, nil)
-	info2 := snaptest.MockInfo(c, `name: snap2
+ configure:
+`
+	s.plug, s.plugInfo = ifacetest.MockConnectedPlug(c, plugYaml, nil, "name")
+
+	const slotYaml = `name: snap2
 version: 0
 slots:
-    name:
-        interface: test
-`, nil)
-	s.plugInfo = info1.Plugs["name"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
-	s.slotInfo = info2.Slots["name"]
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
+ name:
+  interface: test
+`
+	s.slot, s.slotInfo = ifacetest.MockConnectedSlot(c, slotYaml, nil, "name")
 }
 
 func (s *specSuite) SetUpTest(c *C) {
-	s.spec = &udev.Specification{}
+	appSet, err := interfaces.NewSnapAppSet(s.plugInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	s.spec = udev.NewSpecification(appSet)
 }
 
 func (s *specSuite) TestAddSnippte(c *C) {
@@ -153,12 +153,21 @@ func (s *specSuite) TestTagDeviceAltLibexecdir(c *C) {
 
 // The spec.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
-	var r interfaces.Specification = s.spec
-	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	appSet, err := interfaces.NewSnapAppSet(s.plugInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
+	var r interfaces.Specification = spec
 	c.Assert(r.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.Snippets(), DeepEquals, []string{"connected-plug", "permanent-plug"})
+
+	appSet, err = interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	spec = udev.NewSpecification(appSet)
+	r = spec
+	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
-	c.Assert(s.spec.Snippets(), DeepEquals, []string{"connected-plug", "connected-slot", "permanent-plug", "permanent-slot"})
+	c.Assert(spec.Snippets(), DeepEquals, []string{"connected-slot", "permanent-slot"})
 }
 
 func (s *specSuite) TestControlsDeviceCgroup(c *C) {

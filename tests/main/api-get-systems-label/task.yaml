@@ -1,5 +1,8 @@
 summary: verify that the /systems/<label> api works
 
+details: |
+  Verify the basic functionality for the /systems/<label> API
+
 systems:
   # TODO: also test classic/core hybrid systems once they are ready
   - ubuntu-core-2*

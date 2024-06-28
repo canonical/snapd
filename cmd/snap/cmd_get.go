@@ -27,6 +27,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 )
 
@@ -50,6 +51,13 @@ Nested values may be retrieved via a dotted path:
     frank
 `)
 
+var longRegistryGetHelp = i18n.G(`
+If the first argument passed into get is a registry identifier matching the
+format <account-id>/<registry>/<view>, get will use the registry API. In this
+case, the command returns the data retrieved from the requested dot-separated
+view paths.
+`)
+
 type cmdGet struct {
 	clientMixin
 	Positional struct {
@@ -63,6 +71,10 @@ type cmdGet struct {
 }
 
 func init() {
+	if err := validateRegistryFeatureFlag(); err == nil {
+		longGetHelp += longRegistryGetHelp
+	}
+
 	addCommand("get", shortGetHelp, longGetHelp, func() flags.Commander { return &cmdGet{} },
 		map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
@@ -242,7 +254,24 @@ func (x *cmdGet) Execute(args []string) error {
 	snapName := string(x.Positional.Snap)
 	confKeys := x.Positional.Keys
 
-	conf, err := x.client.Conf(snapName, confKeys)
+	var conf map[string]interface{}
+	var err error
+	if isRegistryViewID(snapName) {
+		if err := validateRegistryFeatureFlag(); err != nil {
+			return err
+		}
+
+		// first argument is a registryViewID, use the registry API
+		registryViewID := snapName
+		if err := validateRegistryViewID(registryViewID); err != nil {
+			return err
+		}
+
+		conf, err = x.client.RegistryGetViaView(registryViewID, confKeys)
+	} else {
+		conf, err = x.client.Conf(snapName, confKeys)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -255,4 +284,12 @@ func (x *cmdGet) Execute(args []string) error {
 	default:
 		return x.outputDefault(conf, snapName, confKeys)
 	}
+}
+
+func validateRegistryFeatureFlag() error {
+	if !features.Registries.IsEnabled() {
+		_, confName := features.Registries.ConfigOption()
+		return fmt.Errorf(`the "registries" feature is disabled: set '%s' to true`, confName)
+	}
+	return nil
 }

@@ -21,7 +21,7 @@ package client_test
 
 import (
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 
@@ -41,7 +41,7 @@ func (cs *clientSuite) TestClientAssert(c *C) {
 	a := []byte("Assertion.")
 	err := cs.cli.Ack(a)
 	c.Assert(err, IsNil)
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, IsNil)
 	c.Check(body, DeepEquals, a)
 	c.Check(cs.req.Method, Equals, "POST")

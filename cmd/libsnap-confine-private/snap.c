@@ -102,7 +102,7 @@ static int skip_one_char(const char **p, char c)
 	return 0;
 }
 
-void sc_instance_name_validate(const char *instance_name, sc_error ** errorp)
+void sc_instance_name_validate(const char *instance_name, sc_error **errorp)
 {
 	// NOTE: This function should be synchronized with the two other
 	// implementations: validate_instance_name and snap.ValidateInstanceName.
@@ -113,6 +113,14 @@ void sc_instance_name_validate(const char *instance_name, sc_error ** errorp)
 		err =
 		    sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_INSTANCE_NAME,
 				  "snap instance name cannot be NULL");
+		goto out;
+	}
+
+	if (strlen(instance_name) > SNAP_INSTANCE_LEN) {
+		err =
+		    sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_INSTANCE_NAME,
+				  "snap instance name can be at most %d characters long",
+				  SNAP_INSTANCE_LEN);
 		goto out;
 	}
 	// instance name length + 1 extra overflow + 1 NULL
@@ -144,7 +152,7 @@ void sc_instance_name_validate(const char *instance_name, sc_error ** errorp)
 	sc_error_forward(errorp, err);
 }
 
-void sc_instance_key_validate(const char *instance_key, sc_error ** errorp)
+void sc_instance_key_validate(const char *instance_key, sc_error **errorp)
 {
 	// NOTE: see snap.ValidateInstanceName for reference of a valid instance key
 	// format
@@ -187,7 +195,7 @@ void sc_instance_key_validate(const char *instance_key, sc_error ** errorp)
 	sc_error_forward(errorp, err);
 }
 
-void sc_snap_name_validate(const char *snap_name, sc_error ** errorp)
+void sc_snap_name_validate(const char *snap_name, sc_error **errorp)
 {
 	// NOTE: This function should be synchronized with the two other
 	// implementations: validate_snap_name and snap.ValidateName.

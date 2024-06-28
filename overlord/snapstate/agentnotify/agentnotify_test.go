@@ -24,10 +24,13 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/agentnotify"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 func TestAgentNotify(t *testing.T) { TestingT(t) }
@@ -47,7 +50,7 @@ func (s *agentNotifySuite) TestNotifyAgentOnLinkChange(c *C) {
 	defer s.st.Unlock()
 
 	var callCount int
-	r := agentnotify.MockSendClientFinishRefreshNotification(func(snapsup *snapstate.SnapSetup) {
+	r := agentnotify.MockMaybeSendClientFinishRefreshNotification(func(st *state.State, snapsup *snapstate.SnapSetup) {
 		c.Check(snapsup.InstanceName(), Equals, "some-snap")
 		callCount++
 	})
@@ -66,9 +69,9 @@ func (s *agentNotifySuite) TestNotifyAgentOnLinkChange(c *C) {
 		callCount = 0
 		snapstate.Set(s.st, "some-snap", &snapstate.SnapState{
 			Active: tc.active,
-			Sequence: []*snap.SideInfo{{
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
 				RealName: "some-snap", Revision: snap.R(1)},
-			},
+			}),
 			Current: snap.R(1),
 		})
 		snapsup := &snapstate.SnapSetup{
@@ -81,4 +84,70 @@ func (s *agentNotifySuite) TestNotifyAgentOnLinkChange(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(callCount, Equals, tc.expectedCallCount)
 	}
+}
+
+func (s *agentNotifySuite) TestMaybeAsyncFinishedRefreshNotification(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	var connCheckCalled int
+	restore := agentnotify.MockHasActiveConnection(func(st *state.State, iface string) (bool, error) {
+		connCheckCalled++
+		c.Check(iface, Equals, "snap-refresh-observe")
+		// no snap has the marker interface connected
+		return false, nil
+	})
+	defer restore()
+
+	sendInfo := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "pkg"},
+	}
+	expectedInfo := userclient.FinishedSnapRefreshInfo{
+		InstanceName: "pkg",
+	}
+	notificationCalled := 0
+	restore = agentnotify.MockAsyncFinishRefreshNotification(func(info *userclient.FinishedSnapRefreshInfo) {
+		notificationCalled++
+		c.Check(info.InstanceName, Equals, expectedInfo.InstanceName)
+	})
+	defer restore()
+
+	tr := config.NewTransaction(s.st)
+	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
+	tr.Commit()
+
+	agentnotify.MaybeSendClientFinishedRefreshNotification(s.st, sendInfo)
+	// no notification as refresh-appawareness-ux is enabled
+	// i.e. notices + warnings fallback is used instead
+	c.Check(connCheckCalled, Equals, 0)
+	c.Check(notificationCalled, Equals, 0)
+
+	tr.Set("core", "experimental.refresh-app-awareness-ux", false)
+	tr.Commit()
+
+	agentnotify.MaybeSendClientFinishedRefreshNotification(s.st, sendInfo)
+	// notification sent as refresh-appawareness-ux is now disabled
+	c.Check(connCheckCalled, Equals, 1)
+	c.Check(notificationCalled, Equals, 1)
+}
+
+func (s *agentNotifySuite) TestMaybeAsyncFinishedRefreshNotificationSkips(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	var connCheckCalled int
+	restore := agentnotify.MockHasActiveConnection(func(st *state.State, iface string) (bool, error) {
+		connCheckCalled++
+		c.Check(iface, Equals, "snap-refresh-observe")
+		// marker interface found
+		return true, nil
+	})
+	defer restore()
+
+	restore = agentnotify.MockAsyncFinishRefreshNotification(func(info *userclient.FinishedSnapRefreshInfo) {
+		c.Fatal("shouldn't trigger Finished refresh notification because marker interface is connected")
+	})
+	defer restore()
+
+	agentnotify.MaybeSendClientFinishedRefreshNotification(s.st, &snapstate.SnapSetup{})
 }

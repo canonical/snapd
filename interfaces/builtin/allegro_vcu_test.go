@@ -77,7 +77,9 @@ func (s *AllegroVcuInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *AllegroVcuInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/allegroDecodeIP rw,`)
@@ -86,7 +88,9 @@ func (s *AllegroVcuInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *AllegroVcuInterfaceSuite) TestUDevSpec(c *C) {
-	spec := &udev.Specification{}
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 4)
 	c.Assert(spec.Snippets(), testutil.Contains, `# allegro-vcu

@@ -58,7 +58,7 @@ func (s *polkitInterfaceSuite) SetUpTest(c *C) {
 		dirs.SetRootDir("/")
 	})
 
-	const mockPlugSnapInfo = `name: other
+	const mockPlugSnapInfoYaml = `name: other
 version: 1.0
 plugs:
  polkit:
@@ -68,18 +68,16 @@ apps:
   command: foo
   plugs: [polkit]
 `
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "polkit",
-		Interface: "polkit",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	plugSnap := snaptest.MockSnap(c, mockPlugSnapInfo, &snap.SideInfo{
-		RealName: "other",
-		Revision: snap.R(1),
-	})
-	s.plugInfo = plugSnap.Plugs["polkit"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	const mockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ polkit:
+  interface: polkit
+`
+
+	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "polkit")
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "polkit")
 }
 
 func (s *polkitInterfaceSuite) TestName(c *C) {
@@ -87,7 +85,7 @@ func (s *polkitInterfaceSuite) TestName(c *C) {
 }
 
 func (s *polkitInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -246,7 +244,7 @@ plugs:
 }
 
 func (s *polkitInterfaceSuite) TestConnectedPlugPolkitInternalError(c *C) {
-	const mockPlugSnapInfo = `name: other
+	const mockPlugSnapInfoYaml = `name: other
 version: 1.0
 plugs:
  polkit:
@@ -256,24 +254,30 @@ apps:
   command: foo
   plugs: [polkit]
 `
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "polkit",
-		Interface: "polkit",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
-	s.plugInfo = plugSnap.Plugs["polkit"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	const mockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ polkit:
+  interface: polkit
+`
+	slot, _ := MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "polkit")
+	plug, _ := MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "polkit")
 
 	polkitSpec := &polkit.Specification{}
-	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := polkitSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, ErrorMatches, `snap "other" has interface "polkit" with invalid value type bool for "action-prefix" attribute: \*string`)
+}
+
+func (s *polkitInterfaceSuite) isProfilePathAccessible(c *C) bool {
+	mntProfile, err := osutil.LoadMountProfile("/proc/self/mounts")
+	c.Assert(err, IsNil)
+	return builtin.IsPathMountedWritable(mntProfile, "/usr/share/polkit-1/actions")
 }
 
 func (s *polkitInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
-	c.Check(si.ImplicitOnCore, Equals, osutil.IsExecutable("/usr/libexec/polkitd"))
+	c.Check(si.ImplicitOnCore, Equals, s.isProfilePathAccessible(c) && (osutil.IsExecutable("/usr/libexec/polkitd") || osutil.IsExecutable("/usr/lib/polkit-1/polkitd")))
 	c.Check(si.ImplicitOnClassic, Equals, true)
 	c.Check(si.Summary, Equals, "allows access to polkitd to check authorisation")
 	c.Check(si.BaseDeclarationPlugs, testutil.Contains, "polkit")
@@ -282,4 +286,89 @@ func (s *polkitInterfaceSuite) TestStaticInfo(c *C) {
 
 func (s *polkitInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+func (s *polkitInterfaceSuite) TestIsPathMountedWritable(c *C) {
+
+	tests := []struct {
+		mounts   string
+		path     string
+		expected bool
+	}{
+		// Test a base case where root is ro
+		{
+			`rpool/ROOT/ubuntu / zfs ro,relatime,xattr,posixacl,casesensitive 0 0
+`,
+			"/usr/share/polkit-1/actions",
+			false,
+		},
+
+		// Test a base case where root is rw
+		{
+			`rpool/ROOT/ubuntu / zfs rw,relatime,xattr,posixacl,casesensitive 0 0
+`,
+			"/usr/share/polkit-1/actions",
+			true,
+		},
+
+		// Test a case where the root is mounted rw, but /usr/share is ro
+		{
+			`rpool/ROOT/ubuntu / zfs rw,relatime,xattr,posixacl,casesensitive 0 0
+rpool/ROOT/ubuntu/usr/share /usr/share zfs ro,relatime,xattr,posixacl,casesensitive 0 0
+`,
+			"/usr/share/polkit-1/actions",
+			false,
+		},
+
+		// Test a case where the root is mounted ro, but /usr/share is rw
+		{
+			`rpool/ROOT/ubuntu / zfs ro,relatime,xattr,posixacl,casesensitive 0 0
+rpool/ROOT/ubuntu/usr/share /usr/share zfs rw,relatime,xattr,posixacl,casesensitive 0 0
+`,
+			"/usr/share/polkit-1/actions",
+			true,
+		},
+
+		// Test a case where the root is mounted rw, but the path specifically being ro
+		{
+			`rpool/ROOT/ubuntu / zfs ro,relatime,xattr,posixacl,casesensitive 0 0
+rpool/ROOT/ubuntu/usr/share/polkit-1/actions /usr/share/polkit-1/actions zfs ro,relatime,xattr,posixacl,casesensitive 0 0
+`,
+			"/usr/share/polkit-1/actions",
+			false,
+		},
+
+		// Test a case where the path string ends on '/', so we know it's handled
+		{
+			`rpool/ROOT/ubuntu / zfs ro,relatime,xattr,posixacl,casesensitive 0 0
+rpool/ROOT/ubuntu/usr/share /usr/share zfs rw,relatime,xattr,posixacl,casesensitive 0 0
+`,
+			"/usr/share/",
+			true,
+		},
+		// Test an more real example
+		{
+			`/dev/sda3 /run/mnt/ubuntu-boot ext4 rw,relatime 0 0
+/dev/sda2 /run/mnt/ubuntu-seed vfat rw,relatime,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro[7m>[27m
+/dev/sda5 /run/mnt/data ext4 rw,nosuid,relatime 0 0
+/dev/sda4 /run/mnt/ubuntu-save ext4 rw,relatime,stripe=4 0 0
+/dev/loop0 /run/mnt/base squashfs ro,relatime,errors=continue 0 0
+/dev/loop1 /run/mnt/gadget squashfs ro,relatime,errors=continue 0 0
+/dev/loop2 /run/mnt/kernel squashfs ro,relatime,errors=continue 0 0
+/dev/loop3 /run/mnt/snapd squashfs ro,relatime,errors=continue 0 0
+/dev/loop0 / squashfs ro,relatime,errors=continue 0 0
+/dev/loop5 /snap/test-snapd-rsync-core22/1 squashfs ro,nodev,relatime,errors=continue 0 0
+/dev/loop6 /snap/jq-core22/1 squashfs ro,nodev,relatime,errors=continue 0 0
+nsfs /run/snapd/ns/jq-core22.mnt nsfs rw 0 0
+`,
+			"/usr/share/polkit-1/actions",
+			false,
+		},
+	}
+
+	for _, t := range tests {
+		mntProfile, err := osutil.LoadMountProfileText(t.mounts)
+		c.Assert(err, IsNil)
+		c.Check(builtin.IsPathMountedWritable(mntProfile, t.path), Equals, t.expected)
+	}
 }

@@ -130,7 +130,7 @@ func (iface *unity8PimCommonInterface) DBusPermanentSlot(spec *dbus.Specificatio
 
 func (iface *unity8PimCommonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
-	new := slotAppLabelExpr(slot)
+	new := slot.LabelExpression()
 
 	originalSnippet := unity8PimCommonConnectedPlugAppArmor + "\n" + iface.connectedPlugAppArmor
 	spec.AddSnippet(strings.Replace(originalSnippet, old, new, -1))
@@ -152,7 +152,7 @@ func (iface *unity8PimCommonInterface) AppArmorPermanentSlot(spec *apparmor.Spec
 
 func (iface *unity8PimCommonInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
-	new := plugAppLabelExpr(plug)
+	new := plug.LabelExpression()
 	snippet := unity8PimCommonConnectedSlotAppArmor
 	snippet += "\n" + iface.connectedSlotAppArmor
 	snippet = strings.Replace(snippet, old, new, -1)

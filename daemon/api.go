@@ -27,10 +27,10 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/snapcore/snapd/overlord/aspectstate"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
@@ -82,13 +82,16 @@ var api = []*Command{
 	systemRecoveryKeysCmd,
 	quotaGroupsCmd,
 	quotaGroupInfoCmd,
-	aspectsCmd,
+	registryCmd,
+	noticesCmd,
+	noticeCmd,
 }
 
 const (
-	polkitActionLogin            = "io.snapcraft.snapd.login"
-	polkitActionManage           = "io.snapcraft.snapd.manage"
-	polkitActionManageInterfaces = "io.snapcraft.snapd.manage-interfaces"
+	polkitActionLogin               = "io.snapcraft.snapd.login"
+	polkitActionManage              = "io.snapcraft.snapd.manage"
+	polkitActionManageInterfaces    = "io.snapcraft.snapd.manage-interfaces"
+	polkitActionManageConfiguration = "io.snapcraft.snapd.manage-configuration"
 )
 
 // userFromRequest extracts user information from request and return the respective user in state, if valid
@@ -138,6 +141,7 @@ var (
 	snapstateInstall                        = snapstate.Install
 	snapstateInstallPath                    = snapstate.InstallPath
 	snapstateInstallPathMany                = snapstate.InstallPathMany
+	snapstateInstallComponentPath           = snapstate.InstallComponentPath
 	snapstateRefreshCandidates              = snapstate.RefreshCandidates
 	snapstateTryPath                        = snapstate.TryPath
 	snapstateUpdate                         = snapstate.Update
@@ -158,8 +162,8 @@ var (
 	assertstateRefreshSnapAssertions         = assertstate.RefreshSnapAssertions
 	assertstateRestoreValidationSetsTracking = assertstate.RestoreValidationSetsTracking
 
-	aspectstateGetAspect = aspectstate.GetAspect
-	aspectstateSetAspect = aspectstate.SetAspect
+	registrystateGetViaView = registrystate.GetViaView
+	registrystateSetViaView = registrystate.SetViaView
 )
 
 func ensureStateSoonImpl(st *state.State) {

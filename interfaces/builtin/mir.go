@@ -114,7 +114,7 @@ func (iface *mirInterface) StaticInfo() interfaces.StaticInfo {
 
 func (iface *mirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
-	new := slotAppLabelExpr(slot)
+	new := slot.LabelExpression()
 	snippet := strings.Replace(mirConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
@@ -122,7 +122,7 @@ func (iface *mirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 
 func (iface *mirInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
-	new := plugAppLabelExpr(plug)
+	new := plug.LabelExpression()
 	snippet := strings.Replace(mirConnectedSlotAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil

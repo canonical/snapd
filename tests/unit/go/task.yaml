@@ -1,5 +1,15 @@
 summary: Run project static and unit tests
 
+details: |
+    Most of snapd is implemented in Go. Some Go programs use elements of C that
+    are sensitive to the specific C compiler used. We want to make sure that Go
+    unit tests pass when executed as a non-root user. The test has three
+    variants: one that uses GCC as the C compiler, one that uses Clang and one
+    that only runs static analysis checks. That last variant is particularly
+    used by ancient versions of Ubuntu, such as Ubuntu 14.04, which is too old
+    to provide an adequate toolchain and lacks systemd running as session
+    manager, which is needed by the session test tool.
+
 # Start before anything else as it takes a long time.
 priority: 1000
 

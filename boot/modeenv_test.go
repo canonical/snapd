@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -160,8 +159,8 @@ current_kernel_command_lines=["foo", "bar"]
 		TryBase:        "core20_124.snap",
 		BaseStatus:     "try",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"thing1": {"hash1", "hash2"},
-			"thing2": {"hash3"},
+			"thing1": []string{"hash1", "hash2"},
+			"thing2": []string{"hash3"},
 		},
 		CurrentKernelCommandLines: boot.BootCommandLines{
 			"foo", "bar",
@@ -209,7 +208,7 @@ base_status=try
 	err = dupDiskModeenv.Write()
 	c.Assert(err, IsNil)
 	c.Assert(dirs.SnapModeenvFileUnder(s.tmpdir), testutil.FilePresent)
-	origBytes, err := ioutil.ReadFile(dirs.SnapModeenvFileUnder(s.tmpdir) + ".orig")
+	origBytes, err := os.ReadFile(dirs.SnapModeenvFileUnder(s.tmpdir) + ".orig")
 	c.Assert(err, IsNil)
 	// the files should be the same
 	c.Assert(dirs.SnapModeenvFileUnder(s.tmpdir), testutil.FileEquals, string(origBytes))
@@ -252,8 +251,8 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		BootFlags: []string{"foo", "factory"},
 
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"thing1": {"hash1", "hash2"},
-			"thing2": {"hash3"},
+			"thing1": []string{"hash1", "hash2"},
+			"thing2": []string{"hash3"},
 		},
 
 		CurrentKernelCommandLines: boot.BootCommandLines{
@@ -281,8 +280,8 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		BootFlags: []string{"foo", "factory"},
 
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"thing1": {"hash1", "hash2"},
-			"thing2": {"hash3"},
+			"thing1": []string{"hash1", "hash2"},
+			"thing2": []string{"hash3"},
 		},
 
 		CurrentKernelCommandLines: boot.BootCommandLines{

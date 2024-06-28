@@ -1,6 +1,14 @@
 summary: Ensure that the polkit interface works.
 
-systems: [-ubuntu-core-*]
+details: |
+    The polkit interface allows snap applications to obtain limited access to
+    the policy kit service. The test installs a snap with a plug controlling
+    permissions with a specific prefix, checks that the policy file is installed
+    and that the snap can request policy operations with the same prefix as is
+    declared in the plug.
+
+# amazon-linux-2023: polkit not installed by default
+systems: [-ubuntu-core-*, -amazon-linux-2023-*]
 
 prepare: |
     if ! tests.session has-session-systemd-and-dbus; then

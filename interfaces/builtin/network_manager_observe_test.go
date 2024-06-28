@@ -97,14 +97,18 @@ func (s *NetworkManagerObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 	defer restore()
 
 	// connected plug to app slot
-	spec := &apparmor.Specification{}
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.appSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `path="/org/freedesktop/NetworkManager{,/{ActiveConnection,Devices}/*}"`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.app"),`)
 
 	// connected app slot to plug
-	spec = &apparmor.Specification{}
+	appSet, err = interfaces.NewSnapAppSet(s.appSlot.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.appSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `path="/org/freedesktop/NetworkManager{,/{ActiveConnection,Devices}/*}"`)
@@ -115,14 +119,18 @@ func (s *NetworkManagerObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 	defer restore()
 
 	// connected plug to core slot
-	spec = &apparmor.Specification{}
+	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `path="/org/freedesktop/NetworkManager{,/{ActiveConnection,Devices}/*}"`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "peer=(label=unconfined),")
 
 	// connected core slot to plug
-	spec = &apparmor.Specification{}
+	appSet, err = interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }

@@ -2,13 +2,20 @@ name: netplan-snap
 version: 0.1
 
 # this gets replaced for different bases for the test
-base: BASESNAP
+base: %BASESNAP%
 
 plugs:
   network: {}
   network-bind: {}
   network-setup-observe: {}
   network-setup-control: {}
+
+# replace ldconfig from the base with our customized wrapper to be able to
+# generate a ld.so.cache which matches the actual base & snap and override the
+# one coming from the host
+layout:
+  %USRMERGE%/sbin/ldconfig:
+    bind-file: $SNAP/ldconfig
 
 apps:
   netplan:

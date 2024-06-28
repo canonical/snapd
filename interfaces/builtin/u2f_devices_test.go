@@ -79,7 +79,9 @@ func (s *u2fDevicesInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *u2fDevicesInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `# Description: Allow write access to u2f hidraw devices.`)
@@ -87,9 +89,11 @@ func (s *u2fDevicesInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *u2fDevicesInterfaceSuite) TestUDevSpec(c *C) {
-	spec := &udev.Specification{}
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 28)
+	c.Assert(spec.Snippets(), HasLen, 31)
 	c.Assert(spec.Snippets(), testutil.Contains, `# u2f-devices
 # Yubico YubiKey
 SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="1050", ATTRS{idProduct}=="0113|0114|0115|0116|0120|0121|0200|0402|0403|0406|0407|0410", TAG+="snap_consumer_app"`)

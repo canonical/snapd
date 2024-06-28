@@ -20,18 +20,22 @@
 package snapstate_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
+	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 type refreshSuite struct {
@@ -137,7 +141,7 @@ func (s *refreshSuite) TestPendingSnapRefreshInfo(c *C) {
 }
 
 func (s *refreshSuite) addInstalledSnap(snapst *snapstate.SnapState) (*snapstate.SnapState, *snap.Info) {
-	snapName := snapst.Sequence[0].RealName
+	snapName := snapst.Sequence.Revisions[0].Snap.RealName
 	snapstate.Set(s.state, snapName, snapst)
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: snapName, Revision: snapst.Current}}
 	return snapst, info
@@ -146,9 +150,9 @@ func (s *refreshSuite) addInstalledSnap(snapst *snapstate.SnapState) (*snapstate
 func (s *refreshSuite) addFakeInstalledSnap() (*snapstate.SnapState, *snap.Info) {
 	return s.addInstalledSnap(&snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "pkg", Revision: snap.R(5), SnapID: "pkg-snap-id"},
-		},
+		}),
 		Current:  snap.R(5),
 		SnapType: "app",
 		UserID:   1,
@@ -173,9 +177,10 @@ func (s *refreshSuite) TestDoSoftRefreshCheckAllowed(c *C) {
 	c.Assert(err, IsNil)
 
 	// In addition, the inhibition lock is not set.
-	hint, err := runinhibit.IsLocked(info.InstanceName())
+	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName())
 	c.Assert(err, IsNil)
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{})
 }
 
 func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
@@ -196,9 +201,10 @@ func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
 
 	// Validity check: the inhibition lock was not set.
-	hint, err := runinhibit.IsLocked(info.InstanceName())
+	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName())
 	c.Assert(err, IsNil)
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{})
 }
 
 func (s *refreshSuite) TestDoHardRefreshFlowRefreshAllowed(c *C) {
@@ -216,10 +222,12 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshAllowed(c *C) {
 	defer restore()
 
 	// Hard refresh should not fail and return a valid lock.
-	lock, err := snapstate.HardEnsureNothingRunningDuringRefresh(backend, s.state, snapst, snapsup, info)
+	inhibitionTimeout, lock, err := snapstate.HardEnsureNothingRunningDuringRefresh(backend, s.state, snapst, snapsup, info)
 	c.Assert(err, IsNil)
 	c.Assert(lock, NotNil)
 	defer lock.Close()
+	// Refresh inhibition didn't timeout
+	c.Check(inhibitionTimeout, Equals, false)
 
 	// We should be able to unlock the lock without an error because
 	// it was acquired in the same process by the tested logic.
@@ -245,11 +253,52 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshDisallowed(c *C) {
 	defer restore()
 
 	// Hard refresh should fail and not return a lock.
-	lock, err := snapstate.HardEnsureNothingRunningDuringRefresh(backend, s.state, snapst, snapsup, info)
+	inhibitionTimeout, lock, err := snapstate.HardEnsureNothingRunningDuringRefresh(backend, s.state, snapst, snapsup, info)
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
 	c.Assert(lock, IsNil)
+	// Refresh inhibition didn't timeout
+	c.Check(inhibitionTimeout, Equals, false)
 
 	// Validity check: the inhibition lock was not set.
+	op := backend.ops.MustFindOp(c, "run-inhibit-snap-for-unlink")
+	c.Check(op.inhibitHint, Equals, runinhibit.Hint("refresh"))
+}
+
+func (s *refreshSuite) TestDoHardRefreshFlowRefreshInhibitionTimeout(c *C) {
+	backend := &fakeSnappyBackend{}
+	// Pretend we have a snap.
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapst, info := s.addFakeInstalledSnap()
+	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
+	// Pretend its refresh inhibition timed out.
+	instant := time.Now()
+	pastInstant := instant.Add(-snapstate.MaxInhibitionDuration(s.state) * 2)
+	snapst.RefreshInhibitedTime = &pastInstant
+	snapstate.Set(s.state, snapst.InstanceName(), snapst)
+
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {})
+	defer restore()
+
+	// Pretend that the snap is running.
+	restore = snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
+	})
+	defer restore()
+
+	// Hard refresh should not fail and return a valid lock.
+	inhibitionTimeout, lock, err := snapstate.HardEnsureNothingRunningDuringRefresh(backend, s.state, snapst, snapsup, info)
+	c.Assert(err, IsNil)
+	c.Assert(lock, NotNil)
+	defer lock.Close()
+	// Refresh inhibition timed out
+	c.Check(inhibitionTimeout, Equals, true)
+
+	// We should be able to unlock the lock without an error because
+	// it was acquired in the same process by the tested logic.
+	c.Assert(lock.Unlock(), IsNil)
+
+	// In addition, the fake backend recorded that a lock was established.
 	op := backend.ops.MustFindOp(c, "run-inhibit-snap-for-unlink")
 	c.Check(op.inhibitHint, Equals, runinhibit.Hint("refresh"))
 }

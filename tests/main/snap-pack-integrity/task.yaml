@@ -1,5 +1,9 @@
 summary: Verify that snap pack works with integrity data appended
 
+details: |
+    Check that `snap pack` can produce a .snap file with integrity data appended
+    to it and that this data can be used to verify the snap's content.
+
 # TODO: add systems we know have veritysetup package available
 # so far a lot of distributions don't have veritysetup in path
 systems:

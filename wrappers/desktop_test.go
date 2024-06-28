@@ -334,7 +334,35 @@ apps:
 	c.Assert(err, IsNil)
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
+Exec=snap.app %%f %c %U
+`)
+
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
+	c.Assert(string(e), Equals, `[Desktop Entry]
+X-SnapInstanceName=snap
+Name=foo
+Exec=/usr/bin/snap routine desktop-launch --desktop foo.desktop -- %U
+X-Snap-Exec=snap.app %%f %c %U
+`)
+}
+
+func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersDesktopActions(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+`))
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+Name=foo
 Exec=snap.app %U
+Actions=foo;
+
+[Desktop Action foo]
+Name=Some action
+Exec=snap.app --foo
 `)
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
@@ -343,6 +371,12 @@ X-SnapInstanceName=snap
 Name=foo
 Exec=/usr/bin/snap routine desktop-launch --desktop foo.desktop -- %U
 X-Snap-Exec=snap.app %U
+Actions=foo;
+
+[Desktop Action foo]
+Name=Some action
+Exec=/usr/bin/snap routine desktop-launch --desktop foo.desktop --action foo -- %f
+X-Snap-Exec=snap.app --foo
 `)
 }
 

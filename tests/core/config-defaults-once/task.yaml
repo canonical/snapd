@@ -1,6 +1,11 @@
 summary: |
     Test that configuration defaults are only applied once.
 
+details: |
+    Checks that configuration defaults are only applied once, and
+    those are not applied when a snap is installed, which could
+    trigger system defaults to be reapplied.
+
 # it is not yet possible to install snapd on UC16
 # TODO:UC20: enable for UC20, currently fails because there is no seed.yaml in
 #            the same place as UC18

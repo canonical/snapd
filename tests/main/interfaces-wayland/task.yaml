@@ -1,5 +1,14 @@
 summary: Ensure that the wayland interface works
 
+details: |
+    The wayland interface (in snapd) grants permission either operate as a
+    service implementing the wayland protocol, or as a client which connects to
+    such a service.
+
+    The test installs a snap from the store, which is then used to connect to a
+    headless weston process, and ensure that it can see the wl_compositor
+    object.
+
 # Only test on classic Ubuntu amd64 systems that have wayland
 # TODO: Expand this to Fedora and other systems.
 # TODO: Enable for ubuntu 23+, currently it fails to start the headless-weston.service

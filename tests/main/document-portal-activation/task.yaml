@@ -54,6 +54,11 @@ execute: |
     }
 
     echo "No output on stderr when running with a session bus, when xdg-document-portal is not present."
+    if os.query is-amazon-linux 2023; then
+        # Just the first call is printing the following message
+        # cmd_run.go:451: restoring default SELinux context of /home/test/snap
+        tests.session -u test exec test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current
+    fi
     tests.session -u test exec test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current 2>stderr.log
     check_stderr stderr.log
 

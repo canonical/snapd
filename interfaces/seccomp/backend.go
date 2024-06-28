@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -34,7 +34,6 @@ package seccomp
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -48,7 +47,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/seccomp"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -80,52 +78,15 @@ type Backend struct {
 	versionInfo seccomp.VersionInfo
 }
 
-var globalProfileLE = []byte{
-	0x20, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x15, 0x00, 0x00, 0x04, 0x3e, 0x00, 0x00, 0xc0,
-	0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x35, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x40,
-	0x15, 0x00, 0x00, 0x0d, 0xff, 0xff, 0xff, 0xff, 0x15, 0x00, 0x06, 0x0c, 0x10, 0x00, 0x00, 0x00,
-	0x15, 0x00, 0x00, 0x02, 0xb7, 0x00, 0x00, 0xc0, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x15, 0x00, 0x03, 0x09, 0x1d, 0x00, 0x00, 0x00, 0x15, 0x00, 0x00, 0x08, 0x15, 0x00, 0x00, 0xc0,
-	0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x15, 0x00, 0x00, 0x06, 0x36, 0x00, 0x00, 0x00,
-	0x20, 0x00, 0x00, 0x00, 0x1c, 0x00, 0x00, 0x00, 0x54, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x15, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00,
-	0x15, 0x00, 0x00, 0x01, 0x12, 0x54, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x01, 0x00, 0x05, 0x00,
-	0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x7f,
-}
-
-var globalProfileBE = []byte{
-	0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x15, 0x00, 0x08, 0x80, 0x00, 0x00, 0x16,
-	0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x15, 0x00, 0x06, 0x00, 0x00, 0x00, 0x36,
-	0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x18, 0x00, 0x54, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x15, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1c,
-	0x00, 0x15, 0x00, 0x01, 0x00, 0x00, 0x54, 0x12, 0x00, 0x06, 0x00, 0x00, 0x00, 0x05, 0x00, 0x01,
-	0x00, 0x06, 0x00, 0x00, 0x7f, 0xff, 0x00, 0x00,
-}
-
 // Initialize ensures that the global profile is on disk and interrogates
 // libseccomp wrapper to generate a version string that will be used to
 // determine if we need to recompile seccomp policy due to system
 // changes outside of snapd.
 func (b *Backend) Initialize(*interfaces.SecurityBackendOptions) error {
-	dir := dirs.SnapSeccompDir
-	fname := "global.bin"
-	var globalProfile []byte
-	if arch.Endian() == binary.BigEndian {
-		globalProfile = globalProfileBE
-	} else {
-		globalProfile = globalProfileLE
-	}
-	content := map[string]osutil.FileState{
-		fname: &osutil.MemoryFileState{Content: globalProfile, Mode: 0644},
-	}
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("cannot create directory for seccomp profiles %q: %s", dir, err)
-	}
-	_, _, err := osutil.EnsureDirState(dir, fname, content)
-	if err != nil {
-		return fmt.Errorf("cannot synchronize global seccomp profile: %s", err)
-	}
-
+	// TODO: This function used to create "$SnapSeccompDir/global.bin" which is
+	// not needed anymore but also not cleaned up. Figure out a safe way to
+	// remove it.
+	var err error
 	b.snapSeccomp, err = seccomp.NewCompiler(seccompCompilerLookup)
 	if err != nil {
 		return fmt.Errorf("cannot initialize seccomp profile compiler: %v", err)
@@ -149,7 +110,7 @@ func bpfSrcPath(srcName string) string {
 }
 
 func bpfBinPath(srcName string) string {
-	return filepath.Join(dirs.SnapSeccompDir, strings.TrimSuffix(srcName, ".src")+".bin")
+	return filepath.Join(dirs.SnapSeccompDir, strings.TrimSuffix(srcName, ".src")+".bin2")
 }
 
 func parallelCompile(compiler Compiler, profiles []string) error {
@@ -237,25 +198,30 @@ func parallelCompile(compiler Compiler, profiles []string) error {
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
-	snapName := snapInfo.InstanceName()
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+	snapName := appSet.InstanceName()
 	// Get the snippets that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), snapName)
+	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
 		return fmt.Errorf("cannot obtain seccomp specification for snap %q: %s", snapName, err)
 	}
 
 	// Get the snippets that apply to this snap
-	content, err := b.deriveContent(spec.(*Specification), opts, snapInfo)
+	content, err := b.deriveContent(spec.(*Specification), opts, appSet)
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
 
-	glob := interfaces.SecurityTagGlob(snapName) + ".src"
 	dir := dirs.SnapSeccompDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for seccomp profiles %q: %s", dir, err)
 	}
+
+	var globs []string
+	for _, g := range interfaces.SecurityTagGlobs(snapName) {
+		globs = append(globs, fmt.Sprintf("%s.src", g))
+	}
+
 	// There is a delicate interaction between `snap run`, `snap-confine`
 	// and compilation of profiles:
 	// - whenever profiles need to be rebuilt due to system-key change,
@@ -265,7 +231,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// - whenever the binary file does not exist, `snap-confine` will poll
 	//   and wait for SNAP_CONFINE_MAX_PROFILE_WAIT, if the profile does not
 	//   appear in that time, `snap-confine` will fail and die
-	changed, removed, err := osutil.EnsureDirState(dir, glob, content)
+	changed, removed, err := osutil.EnsureDirStateGlobs(dir, globs, content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}
@@ -281,8 +247,8 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 
 // Remove removes seccomp profiles of a given snap.
 func (b *Backend) Remove(snapName string) error {
-	glob := interfaces.SecurityTagGlob(snapName)
-	_, _, err := osutil.EnsureDirState(dirs.SnapSeccompDir, glob, nil)
+	globs := interfaces.SecurityTagGlobs(snapName)
+	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapSeccompDir, globs, nil)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}
@@ -297,7 +263,8 @@ func uidGidChownSnippet(name string) (string, error) {
 
 // deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
-func (b *Backend) deriveContent(spec *Specification, opts interfaces.ConfinementOptions, snapInfo *snap.Info) (content map[string]osutil.FileState, err error) {
+func (b *Backend) deriveContent(spec *Specification, opts interfaces.ConfinementOptions, appSet *interfaces.SnapAppSet) (content map[string]osutil.FileState, err error) {
+	snapInfo := appSet.Info()
 	// Some base snaps and systems require the socketcall() in the default
 	// template
 	addSocketcall := requiresSocketcall(snapInfo.Base)
@@ -316,26 +283,14 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 		uidGidChownSyscalls.WriteString(rootSetUidGidSyscalls)
 	}
 
-	for _, hookInfo := range snapInfo.Hooks {
+	for _, r := range appSet.Runnables() {
 		if content == nil {
 			content = make(map[string]osutil.FileState)
 		}
-		securityTag := hookInfo.SecurityTag()
 
-		path := securityTag + ".src"
+		path := r.SecurityTag + ".src"
 		content[path] = &osutil.MemoryFileState{
-			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo, uidGidChownSyscalls.String()),
-			Mode:    0644,
-		}
-	}
-	for _, appInfo := range snapInfo.Apps {
-		if content == nil {
-			content = make(map[string]osutil.FileState)
-		}
-		securityTag := appInfo.SecurityTag()
-		path := securityTag + ".src"
-		content[path] = &osutil.MemoryFileState{
-			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo, uidGidChownSyscalls.String()),
+			Content: generateContent(opts, spec.SnippetForTag(r.SecurityTag), addSocketcall, b.versionInfo, uidGidChownSyscalls.String()),
 			Mode:    0644,
 		}
 	}
@@ -382,8 +337,8 @@ func generateContent(opts interfaces.ConfinementOptions, snippetForTag string, a
 }
 
 // NewSpecification returns an empty seccomp specification.
-func (b *Backend) NewSpecification() interfaces.Specification {
-	return &Specification{}
+func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions) interfaces.Specification {
+	return &Specification{appSet: appSet}
 }
 
 // SandboxFeatures returns the list of seccomp features supported by the kernel

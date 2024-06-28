@@ -20,8 +20,8 @@
 package snapdtool
 
 var (
-	DistroSupportsReExec     = distroSupportsReExec
 	SystemSnapSupportsReExec = systemSnapSupportsReExec
+	ExeAndRoot               = exeAndRoot
 )
 
 func MockCoreSnapdPaths(newCoreSnap, newSnapdSnap string) func() {

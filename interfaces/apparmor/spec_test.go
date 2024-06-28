@@ -62,37 +62,30 @@ var _ = Suite(&specSuite{
 			return nil
 		},
 	},
-	plugInfo: &snap.PlugInfo{
-		Snap:      &snap.Info{SuggestedName: "snap1"},
-		Name:      "name",
-		Interface: "test",
-		Apps: map[string]*snap.AppInfo{
-			"app1": {
-				Snap: &snap.Info{
-					SuggestedName: "snap1",
-				},
-				Name: "app1"}},
-	},
-	slotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "snap2"},
-		Name:      "name",
-		Interface: "test",
-		Apps: map[string]*snap.AppInfo{
-			"app2": {
-				Snap: &snap.Info{
-					SuggestedName: "snap2",
-				},
-				Name: "app2"}},
-	},
 })
 
 func (s *specSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+	const plugYaml = `name: snap1
+version: 1
+apps:
+ app1:
+  plugs: [name]
+`
+	s.plug, s.plugInfo = ifacetest.MockConnectedPlug(c, plugYaml, nil, "name")
 
-	s.spec = &apparmor.Specification{}
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
+	s.spec = apparmor.NewSpecification(s.plug.AppSet())
+
+	const slotYaml = `name: snap2
+version: 1
+slots:
+ name:
+  interface: test
+apps:
+ app2:
+`
+	s.slot, s.slotInfo = ifacetest.MockConnectedSlot(c, slotYaml, nil, "name")
 }
 
 func (s *specSuite) TearDownTest(c *C) {
@@ -101,13 +94,25 @@ func (s *specSuite) TearDownTest(c *C) {
 
 // The spec.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
-	var r interfaces.Specification = s.spec
+	appSet, err := interfaces.NewSnapAppSet(s.plugInfo.Snap, nil)
+	c.Assert(err, IsNil)
+
+	spec := apparmor.NewSpecification(appSet)
+	var r interfaces.Specification = spec
 	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
-	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
-	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
+	c.Assert(spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.snap1.app1": {"connected-plug", "permanent-plug"},
+	})
+
+	appSet, err = interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+
+	spec = apparmor.NewSpecification(appSet)
+	r = spec
+	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.snap2.app2": {"connected-slot", "permanent-slot"},
 	})
 }
@@ -280,7 +285,11 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.vanguard.vanguard"})
 	defer restore()
 
-	s.spec.AddLayout(snapInfo)
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+	c.Assert(err, IsNil)
+
+	s.spec.AddLayout(appSet)
+
 	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.vanguard.vanguard": {
 			"# Layout path: /etc/foo.conf\n\"/etc/foo.conf\" mrwklix,",
@@ -535,6 +544,42 @@ func (s *specSuite) TestApparmorExtraLayouts(c *C) {
 	c.Assert(updateNS[1], Equals, "  mount options=(rbind, rw) \"/usr/home/test/\" -> \"/test/\",\n")
 	c.Assert(updateNS[2], Equals, "  mount options=(rprivate) -> \"/test/\",\n")
 	// lines 3..9 is the traversal of the prefix for /usr/home/test
+}
+
+func (s *specSuite) TestAddEnsureDirMounts(c *C) {
+	ensureDirSpecs := []*interfaces.EnsureDirSpec{
+		{MustExistDir: "$HOME", EnsureDir: "$HOME/.local/share"},
+		{MustExistDir: "$HOME", EnsureDir: "$HOME/dir1/dir2"},
+		{MustExistDir: "/", EnsureDir: "/dir1/dir2"},
+		{MustExistDir: "/dir1", EnsureDir: "/dir1"},
+	}
+	s.spec.AddEnsureDirMounts("personal-files", ensureDirSpecs)
+	c.Check("\n"+strings.Join(s.spec.UpdateNS(), "\n"), Equals, `
+  # Allow the personal-files interface to create potentially missing directories
+  owner @{HOME}/ rw,
+  owner @{HOME}/.local/ rw,
+  owner @{HOME}/.local/share/ rw,
+  owner @{HOME}/dir1/ rw,
+  owner @{HOME}/dir1/dir2/ rw,
+  owner / rw,
+  owner /dir1/ rw,
+  owner /dir1/dir2/ rw,`)
+}
+
+func (s *specSuite) TestAddEnsureDirMountsReturnsOnDirsMatch(c *C) {
+	ensureDirSpecs := []*interfaces.EnsureDirSpec{
+		{MustExistDir: "/dir", EnsureDir: "/dir"},
+	}
+	s.spec.AddEnsureDirMounts("personal-files", ensureDirSpecs)
+	c.Check(s.spec.UpdateNS(), HasLen, 0)
+}
+
+func (s *specSuite) TestAddEnsureDirMountsReturnsOnPathIteratorError(c *C) {
+	ensureDirSpecs := []*interfaces.EnsureDirSpec{
+		{MustExistDir: "/dir1", EnsureDir: "/../"},
+	}
+	s.spec.AddEnsureDirMounts("personal-files", ensureDirSpecs)
+	c.Check(s.spec.UpdateNS(), HasLen, 0)
 }
 
 func (s *specSuite) TestUsesPtraceTrace(c *C) {

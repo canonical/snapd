@@ -1,5 +1,9 @@
 summary: tests for tests.env
 
+details: |
+    Check the tests.env tool allows getting and setting variables that can be shared
+    among different tests.
+
 restore: |
     rm -f "$RUNTIME_STATE_PATH"/test1.env "$RUNTIME_STATE_PATH"/test2.env
 

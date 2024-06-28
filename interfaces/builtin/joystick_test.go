@@ -77,7 +77,9 @@ func (s *JoystickInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *JoystickInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/input/js{[0-9],[12][0-9],3[01]} rw,`)
@@ -85,7 +87,9 @@ func (s *JoystickInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *JoystickInterfaceSuite) TestUDevSpec(c *C) {
-	spec := &udev.Specification{}
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 4)
 	c.Assert(spec.Snippets(), testutil.Contains, `# joystick

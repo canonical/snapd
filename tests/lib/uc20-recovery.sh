@@ -49,7 +49,7 @@ transition_to_recover_mode(){
     # the test, we need to add a .ssh/rc script which copies all of the data
     # from /host/ubuntu-data in recover mode to the tmpfs /home, see
     # sshd(8) for details on the ~/.ssh/rc script
-    if [ "$SPREAD_BACKEND" = "external" ]; then
+    if [ "$SPREAD_BACKEND" = "external" ] || [ "$SPREAD_BACKEND" = "testflinger" ]; then
         mkdir -p /home/external/.ssh
         chown external:external /home/external/.ssh
         touch /home/external/.ssh/rc

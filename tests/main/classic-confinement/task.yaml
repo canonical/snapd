@@ -1,5 +1,10 @@
 summary: Ensure that classic confinement works
 
+details: |
+    Verify that a snap installed with classic confinment works properly.
+    Check that it is possible to install classic confinement snaps from the store
+    and it is possible to refresh a snap with classic confinment.
+
 # Classic confinement isn't working yet on Fedora, Arch linux and Centos
 systems: [-ubuntu-core-*]
 

@@ -292,7 +292,48 @@ func (s *partitionTestSuite) TestBuildPartitionListOnlyCreatablePartitions(c *C)
 	c.Assert(err, IsNil)
 
 	_, _, err = install.BuildPartitionList(dl, pv.Volume, nil)
-	c.Assert(err, ErrorMatches, `cannot create partition #1 \(\"BIOS Boot\"\)`)
+	c.Assert(err, ErrorMatches, `gadget and boot device /dev/node partition table not compatible: cannot find gadget structure "BIOS Boot" on disk`)
+}
+
+func (s *partitionTestSuite) TestBuildPartitionListExistingPartsInSizeRange(c *C) {
+	m := map[string]*disks.MockDiskMapping{
+		"/dev/node": makeMockDiskMappingIncludingPartitions(scriptPartitionsBiosSeed),
+	}
+
+	restore := disks.MockDeviceNameToDiskMapping(m)
+	defer restore()
+
+	// The gadget has size rage of [1000, 1400]MiB for the seed partition,
+	// and the actual size on disk is 1200MiB. The partition on disk should
+	// match the one in the gadget and we will created save and data
+	// partitions right after it.
+	err := gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithRangeForSeed)
+	c.Assert(err, IsNil)
+	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
+	c.Assert(err, IsNil)
+
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
+	c.Assert(err, IsNil)
+
+	// the expected expanded writable partition size is:
+	// start offset = (2M + 1200M), expanded size in sectors = (8388575*512 - start offset)/512
+	sfdiskInput, create, err := install.BuildPartitionList(dl, pv.Volume, nil)
+	c.Assert(err, IsNil)
+	c.Assert(sfdiskInput.String(), Equals,
+		`/dev/node3 : start=     2461696, size=      262144, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Save"
+/dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
+`)
+	c.Check(create, NotNil)
+	c.Assert(create, DeepEquals, []*gadget.OnDiskAndGadgetStructurePair{
+		{
+			DiskStructure:   createOnDiskStructureSave(pv.Volume),
+			GadgetStructure: &pv.Volume.Structure[3],
+		},
+		{
+			DiskStructure:   createOnDiskStructureWritableAfterSave(pv.Volume),
+			GadgetStructure: &pv.Volume.Structure[4],
+		},
+	})
 }
 
 func (s *partitionTestSuite) TestCreatePartitions(c *C) {
@@ -589,8 +630,6 @@ func (s *partitionTestSuite) TestRemovePartitionsWithDeviceRescan(c *C) {
 	err = os.WriteFile(filepath.Join(devPath, "device", "rescan"), nil, 0755)
 	c.Assert(err, IsNil)
 
-	fmt.Println("wrote", devPath)
-
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
 
@@ -870,7 +909,7 @@ const gptGadgetContentWithSave = `volumes:
 const gptGadgetContentWithGap = `volumes:
   pc:
     bootloader: grub
-    partial: [ filesystem ]
+    partial: [ structure ]
     structure:
       - name: Recovery
         offset: 2M
@@ -925,6 +964,40 @@ const gptGadgetContentWithMinSize = `volumes:
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         min-size: 128M
         size: 256M
+      - name: Writable
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1200M
+`
+
+const gptGadgetContentWithRangeForSeed = `volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        content:
+          - image: pc-boot.img
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+      - name: Recovery
+        role: system-seed
+        filesystem: vfat
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        min-size: 1000M
+        size: 1400M
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+      - name: Save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 128M
       - name: Writable
         role: system-data
         filesystem: ext4

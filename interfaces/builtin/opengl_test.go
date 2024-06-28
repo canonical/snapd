@@ -21,6 +21,8 @@ package builtin_test
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -28,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -76,8 +79,18 @@ func (s *OpenglInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
+func (s *OpenglInterfaceSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("/")
+}
+
 func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
+	tmpdir := c.MkDir()
+	dirs.SetRootDir(tmpdir)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/nvidia"), 0777), IsNil)
+
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/nvidia* rw,`)
@@ -87,10 +100,23 @@ func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/dma_heap/system rw,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/galcore rw,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/usr/share/libdrm/amdgpu.ids r,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/usr/share/nvidia/ r,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/usr/share/nvidia/** r,`)
+
+	updateNS := spec.UpdateNS()
+
+	// This all gets added as one giant snippet so just testing for the comment fails
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf(`	# Read-only access to Nvidia driver profiles in /usr/share/nvidia
+	mount options=(bind) /var/lib/snapd/hostfs%s/usr/share/nvidia/ -> /usr/share/nvidia/,
+	remount options=(bind, ro) /usr/share/nvidia/,
+	umount /usr/share/nvidia/,
+`, tmpdir))
 }
 
 func (s *OpenglInterfaceSuite) TestUDevSpec(c *C) {
-	spec := &udev.Specification{}
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 15)
 	c.Assert(spec.Snippets(), testutil.Contains, `# opengl
@@ -134,4 +160,21 @@ func (s *OpenglInterfaceSuite) TestAutoConnect(c *C) {
 
 func (s *OpenglInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+func (s *OpenglInterfaceSuite) TestMountSpec(c *C) {
+	tmpdir := c.MkDir()
+	dirs.SetRootDir(tmpdir)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/nvidia"), 0777), IsNil)
+
+	spec := mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	entries := spec.MountEntries()
+	c.Assert(entries, HasLen, 1)
+
+	const hostfs = "/var/lib/snapd/hostfs"
+	c.Check(entries[0].Name, Equals, filepath.Join(hostfs, tmpdir, "/usr/share/nvidia"))
+	c.Check(entries[0].Dir, Equals, "/usr/share/nvidia")
+	c.Check(entries[0].Options, DeepEquals, []string{"bind", "ro"})
 }

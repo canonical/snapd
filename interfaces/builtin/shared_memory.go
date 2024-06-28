@@ -140,17 +140,6 @@ func validateSharedMemoryPath(path string) error {
 	return nil
 }
 
-func stringListAttribute(attrer interfaces.Attrer, key string) ([]string, error) {
-	var stringList []string
-	err := attrer.Attr(key, &stringList)
-	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
-		value, _ := attrer.Lookup(key)
-		return nil, fmt.Errorf(`shared-memory %q attribute must be a list of strings, not "%v"`, key, value)
-	}
-
-	return stringList, nil
-}
-
 // sharedMemoryInterface allows sharing sharedMemory between snaps
 type sharedMemoryInterface struct{}
 
@@ -186,12 +175,12 @@ func (iface *sharedMemoryInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 
 	readPaths, err := stringListAttribute(slot, "read")
 	if err != nil {
-		return err
+		return fmt.Errorf("shared-memory %v", err)
 	}
 
 	writePaths, err := stringListAttribute(slot, "write")
 	if err != nil {
-		return err
+		return fmt.Errorf("shared-memory %v", err)
 	}
 
 	// We perform the same validation for read-only and writable paths, so

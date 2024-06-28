@@ -1,5 +1,9 @@
 summary: smoke test for the user-state tool
 
+details: |
+    Check the user-state test tools works properly. Verify it can
+    remove/list users and groups.
+
 execute: |
     # Check help
     "$TESTSTOOLS"/user-state | MATCH "usage: user-state remove-with-group <user>"
@@ -14,7 +18,11 @@ execute: |
 
     # Check remove user and group
     if [ -f /var/lib/extrausers/passwd ]; then
-        adduser --extrausers --quiet --disabled-password --gecos '' mytest001
+        if os.query is-core-ge 24; then
+            useradd --extrausers mytest001
+        else
+            adduser --extrausers --quiet --disabled-password --gecos '' mytest001
+        fi
     else
         groupadd mytest001
         useradd mytest001 -g mytest001

@@ -70,8 +70,22 @@ var _ = Suite(&SpecificationSuite{
 
 func (s *SpecificationSuite) SetUpTest(c *C) {
 	s.spec = &ifacetest.Specification{}
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
+
+	const plugYaml = `name: snap
+version: 1
+apps:
+ app:
+  plugs: [name]
+`
+	s.plug, s.plugInfo = ifacetest.MockConnectedPlug(c, plugYaml, nil, "name")
+
+	const slotYaml = `name: snap
+version: 1
+slots:
+ name:
+  interface: test
+`
+	s.slot, s.slotInfo = ifacetest.MockConnectedSlot(c, slotYaml, nil, "name")
 }
 
 // AddSnippet is not broken

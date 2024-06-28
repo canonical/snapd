@@ -1,5 +1,19 @@
 summary: Ensure that the audio-playback/record interface works
 
+details: |
+    Historically snapd offered the pulseaudio interface which allowed both
+    playback and recording capabilities. Over time those were split into the
+    audio-playback and audio-record interfaces, that grant the same permission
+    to interact with pulseaudio APIs, but rely on an additional patch present in
+    Ubuntu, which checks for the interface connection before allowing recording
+    to take place.
+
+    The patch is in debian/patches/0700-modules-add-snappy-policy-module.patch
+    in the source package of pulseaudio in the Ubuntu archive.
+
+    The test exercises that both audio playback and recording are really governed
+    by the interface connection.
+
 # Only classic Ubuntu has the pulseaudio mediation patches. Ubuntu 14.04 is unsupported on the desktop.
 # TODO: extend tests.session and run this test on 14.04 as well.
 systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-2*]

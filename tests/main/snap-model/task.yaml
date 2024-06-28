@@ -1,5 +1,9 @@
 summary: Check that snap model works
 
+details: |
+  Check that the information returned by `snap model` matches the device's
+  model and serial assertions.
+
 execute: |
   knownCmdAssertion=$(snap known model)
   modelCmdAssertion=$(snap model --assertion)

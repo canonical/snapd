@@ -24,25 +24,32 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type connSuite struct {
 	testutil.BaseTest
-	plug *snap.PlugInfo
-	slot *snap.SlotInfo
+	plug       *snap.PlugInfo
+	plugAppSet *interfaces.SnapAppSet
+	slot       *snap.SlotInfo
+	slotAppSet *interfaces.SnapAppSet
 }
 
 var _ = Suite(&connSuite{})
 
 func (s *connSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
-	consumer := snaptest.MockInfo(c, `
+	s.plugAppSet = ifacetest.MockInfoAndAppSet(c, `
 name: consumer
 version: 0
 apps:
@@ -53,9 +60,9 @@ plugs:
         attr: value
         complex:
             c: d
-`, nil)
-	s.plug = consumer.Plugs["plug"]
-	producer := snaptest.MockInfo(c, `
+`, nil, nil)
+	s.plug = s.plugAppSet.Info().Plugs["plug"]
+	s.slotAppSet = ifacetest.MockInfoAndAppSet(c, `
 name: producer
 version: 0
 apps:
@@ -67,8 +74,8 @@ slots:
         number: 100
         complex:
             a: b
-`, nil)
-	s.slot = producer.Slots["slot"]
+`, nil, nil)
+	s.slot = s.slotAppSet.Info().Slots["slot"]
 }
 
 func (s *connSuite) TearDownTest(c *C) {
@@ -82,7 +89,7 @@ var _ interfaces.Attrer = (*snap.PlugInfo)(nil)
 var _ interfaces.Attrer = (*snap.SlotInfo)(nil)
 
 func (s *connSuite) TestStaticSlotAttrs(c *C) {
-	slot := interfaces.NewConnectedSlot(s.slot, nil, nil)
+	slot := interfaces.NewConnectedSlot(s.slot, s.slotAppSet, nil, nil)
 	c.Assert(slot, NotNil)
 
 	var val string
@@ -103,25 +110,25 @@ func (s *connSuite) TestStaticSlotAttrs(c *C) {
 	c.Check(slot.StaticAttr("attr", val), ErrorMatches, `internal error: cannot get "attr" attribute of interface "interface" with non-pointer value`)
 
 	// static attributes passed via args take precedence over slot.Attrs
-	slot2 := interfaces.NewConnectedSlot(s.slot, map[string]interface{}{"foo": "bar"}, nil)
+	slot2 := interfaces.NewConnectedSlot(s.slot, s.slotAppSet, map[string]interface{}{"foo": "bar"}, nil)
 	slot2.StaticAttr("foo", &val)
 	c.Assert(val, Equals, "bar")
 }
 
 func (s *connSuite) TestSlotRef(c *C) {
-	slot := interfaces.NewConnectedSlot(s.slot, nil, nil)
+	slot := interfaces.NewConnectedSlot(s.slot, s.slotAppSet, nil, nil)
 	c.Assert(slot, NotNil)
 	c.Assert(*slot.Ref(), DeepEquals, interfaces.SlotRef{Snap: "producer", Name: "slot"})
 }
 
 func (s *connSuite) TestPlugRef(c *C) {
-	plug := interfaces.NewConnectedPlug(s.plug, nil, nil)
+	plug := interfaces.NewConnectedPlug(s.plug, s.plugAppSet, nil, nil)
 	c.Assert(plug, NotNil)
 	c.Assert(*plug.Ref(), DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
 }
 
 func (s *connSuite) TestStaticPlugAttrs(c *C) {
-	plug := interfaces.NewConnectedPlug(s.plug, nil, nil)
+	plug := interfaces.NewConnectedPlug(s.plug, s.plugAppSet, nil, nil)
 	c.Assert(plug, NotNil)
 
 	var val string
@@ -141,7 +148,7 @@ func (s *connSuite) TestStaticPlugAttrs(c *C) {
 	c.Check(plug.StaticAttr("attr", val), ErrorMatches, `internal error: cannot get "attr" attribute of interface "interface" with non-pointer value`)
 
 	// static attributes passed via args take precedence over plug.Attrs
-	plug2 := interfaces.NewConnectedPlug(s.plug, map[string]interface{}{"foo": "bar"}, nil)
+	plug2 := interfaces.NewConnectedPlug(s.plug, s.plugAppSet, map[string]interface{}{"foo": "bar"}, nil)
 	plug2.StaticAttr("foo", &val)
 	c.Assert(val, Equals, "bar")
 }
@@ -151,7 +158,7 @@ func (s *connSuite) TestDynamicSlotAttrs(c *C) {
 		"foo":    "bar",
 		"number": int(100),
 	}
-	slot := interfaces.NewConnectedSlot(s.slot, nil, attrs)
+	slot := interfaces.NewConnectedSlot(s.slot, s.slotAppSet, nil, attrs)
 	c.Assert(slot, NotNil)
 
 	var strVal string
@@ -186,7 +193,7 @@ func (s *connSuite) TestDottedPathSlot(c *C) {
 	}
 	var strVal string
 
-	slot := interfaces.NewConnectedSlot(s.slot, nil, attrs)
+	slot := interfaces.NewConnectedSlot(s.slot, s.slotAppSet, nil, attrs)
 	c.Assert(slot, NotNil)
 
 	// static attribute complex.a
@@ -218,7 +225,7 @@ func (s *connSuite) TestDottedPathPlug(c *C) {
 	}
 	var strVal string
 
-	plug := interfaces.NewConnectedPlug(s.plug, nil, attrs)
+	plug := interfaces.NewConnectedPlug(s.plug, s.plugAppSet, nil, attrs)
 	c.Assert(plug, NotNil)
 
 	v, ok := plug.Lookup("a")
@@ -254,9 +261,9 @@ func (s *connSuite) TestDottedPathPlug(c *C) {
 func (s *connSuite) TestLookupFailure(c *C) {
 	attrs := map[string]interface{}{}
 
-	slot := interfaces.NewConnectedSlot(s.slot, nil, attrs)
+	slot := interfaces.NewConnectedSlot(s.slot, s.slotAppSet, nil, attrs)
 	c.Assert(slot, NotNil)
-	plug := interfaces.NewConnectedPlug(s.plug, nil, attrs)
+	plug := interfaces.NewConnectedPlug(s.plug, s.plugAppSet, nil, attrs)
 	c.Assert(plug, NotNil)
 
 	v, ok := slot.Lookup("a")
@@ -273,7 +280,7 @@ func (s *connSuite) TestDynamicPlugAttrs(c *C) {
 		"foo":    "bar",
 		"number": int(100),
 	}
-	plug := interfaces.NewConnectedPlug(s.plug, nil, attrs)
+	plug := interfaces.NewConnectedPlug(s.plug, s.plugAppSet, nil, attrs)
 	c.Assert(plug, NotNil)
 
 	var strVal string
@@ -303,9 +310,9 @@ func (s *connSuite) TestDynamicPlugAttrs(c *C) {
 func (s *connSuite) TestOverwriteStaticAttrError(c *C) {
 	attrs := map[string]interface{}{}
 
-	plug := interfaces.NewConnectedPlug(s.plug, nil, attrs)
+	plug := interfaces.NewConnectedPlug(s.plug, s.plugAppSet, nil, attrs)
 	c.Assert(plug, NotNil)
-	slot := interfaces.NewConnectedSlot(s.slot, nil, attrs)
+	slot := interfaces.NewConnectedSlot(s.slot, s.slotAppSet, nil, attrs)
 	c.Assert(slot, NotNil)
 
 	err := plug.SetAttr("attr", "overwrite")
@@ -342,7 +349,7 @@ func (s *connSuite) TestNewConnectedPlugExplicitStaticAttrs(c *C) {
 	dynAttrs := map[string]interface{}{
 		"foo": "bar",
 	}
-	plug := interfaces.NewConnectedPlug(s.plug, staticAttrs, dynAttrs)
+	plug := interfaces.NewConnectedPlug(s.plug, s.plugAppSet, staticAttrs, dynAttrs)
 	c.Assert(plug, NotNil)
 	c.Assert(plug.StaticAttrs(), DeepEquals, map[string]interface{}{"baz": "boom"})
 	c.Assert(plug.DynamicAttrs(), DeepEquals, map[string]interface{}{"foo": "bar"})
@@ -355,7 +362,7 @@ func (s *connSuite) TestNewConnectedSlotExplicitStaticAttrs(c *C) {
 	dynAttrs := map[string]interface{}{
 		"foo": "bar",
 	}
-	slot := interfaces.NewConnectedSlot(s.slot, staticAttrs, dynAttrs)
+	slot := interfaces.NewConnectedSlot(s.slot, s.slotAppSet, staticAttrs, dynAttrs)
 	c.Assert(slot, NotNil)
 	c.Assert(slot.StaticAttrs(), DeepEquals, map[string]interface{}{"baz": "boom"})
 	c.Assert(slot.DynamicAttrs(), DeepEquals, map[string]interface{}{"foo": "bar"})
@@ -383,4 +390,100 @@ func (s *connSuite) TestGetAttributeHappy(c *C) {
 	err := interfaces.GetAttribute("snap0", "iface0", staticAttrs, dynamicAttrs, "attr1", &intVal)
 	c.Check(err, IsNil)
 	c.Check(intVal, Equals, 42)
+}
+
+func (s *connSuite) TestPlugLabelExpression(c *C) {
+	const snapYaml = `
+name: consumer
+version: 0
+apps:
+  app:
+    plugs: [plug, app-plug]
+plugs:
+  plug:
+    interface: interface
+  comp-plug:
+    interface: interface
+  app-plug:
+    interface: interface
+  hook-plug:
+    interface: interface
+hooks:
+  install:
+    plugs: [plug, hook-plug]
+components:
+  comp:
+    type: test
+    hooks:
+      install:
+        plugs: [plug, comp-plug]
+`
+
+	const componentYaml = `
+component: consumer+comp
+type: test
+version: 1
+`
+
+	appSet := ifacetest.MockInfoAndAppSet(c, snapYaml, []string{componentYaml}, nil)
+	info := appSet.Info()
+
+	// all runnables have it, should use glob
+	connectedPlug := interfaces.NewConnectedPlug(info.Plugs["plug"], appSet, nil, nil)
+	c.Assert(connectedPlug.LabelExpression(), Equals, `"snap.consumer.*"`)
+
+	// make sure component hooks are considered
+	connectedPlug = interfaces.NewConnectedPlug(info.Plugs["comp-plug"], appSet, nil, nil)
+	c.Assert(connectedPlug.LabelExpression(), Equals, `"snap.consumer+comp.hook.install"`)
+
+	// make sure apps are considered
+	connectedPlug = interfaces.NewConnectedPlug(info.Plugs["app-plug"], appSet, nil, nil)
+	c.Assert(connectedPlug.LabelExpression(), Equals, `"snap.consumer.app"`)
+
+	// make sure hooks are considered
+	connectedPlug = interfaces.NewConnectedPlug(info.Plugs["hook-plug"], appSet, nil, nil)
+	c.Assert(connectedPlug.LabelExpression(), Equals, `"snap.consumer.hook.install"`)
+}
+
+func (s *connSuite) TestSlotLabelExpression(c *C) {
+	const snapYaml = `
+name: producer
+version: 0
+apps:
+  app:
+    slots: [slot, app-slot]
+slots:
+  slot:
+  app-slot:
+  hook-slot:
+hooks:
+  install:
+    slots: [slot, hook-slot]
+components:
+  comp:
+    type: test
+    hooks:
+      install:
+`
+
+	const componentYaml = `
+component: producer+comp
+type: test
+version: 1
+`
+
+	appSet := ifacetest.MockInfoAndAppSet(c, snapYaml, []string{componentYaml}, nil)
+	info := appSet.Info()
+
+	// components do not have slots right now, so we should not expect a glob
+	connectedPlug := interfaces.NewConnectedSlot(info.Slots["slot"], appSet, nil, nil)
+	c.Check(connectedPlug.LabelExpression(), Equals, `"snap.producer{.app,.hook.install}"`)
+
+	// make sure apps are considered
+	connectedPlug = interfaces.NewConnectedSlot(info.Slots["app-slot"], appSet, nil, nil)
+	c.Check(connectedPlug.LabelExpression(), Equals, `"snap.producer.app"`)
+
+	// make sure hooks are considered
+	connectedPlug = interfaces.NewConnectedSlot(info.Slots["hook-slot"], appSet, nil, nil)
+	c.Check(connectedPlug.LabelExpression(), Equals, `"snap.producer.hook.install"`)
 }

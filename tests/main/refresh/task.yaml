@@ -129,6 +129,12 @@ execute: |
       MATCH "/var/lib/snapd/inhibit/ OPEN $SNAP_NAME.lock" /tmp/inhibit.events
       MATCH "/var/lib/snapd/inhibit/ MODIFY $SNAP_NAME.lock" /tmp/inhibit.events
       MATCH "/var/lib/snapd/inhibit/ CLOSE_WRITE,CLOSE $SNAP_NAME.lock" /tmp/inhibit.events
+
+      MATCH "/var/lib/snapd/inhibit/ CREATE $SNAP_NAME.refresh" /tmp/inhibit.events
+      MATCH "/var/lib/snapd/inhibit/ OPEN $SNAP_NAME.refresh" /tmp/inhibit.events
+      MATCH "/var/lib/snapd/inhibit/ MODIFY $SNAP_NAME.refresh" /tmp/inhibit.events
+      MATCH "/var/lib/snapd/inhibit/ CLOSE_WRITE,CLOSE $SNAP_NAME.refresh" /tmp/inhibit.events
+      MATCH "/var/lib/snapd/inhibit/ DELETE $SNAP_NAME.refresh" /tmp/inhibit.events
       tests.cleanup pop  # stop the inotifywait unit
       tests.cleanup pop  # remove inotify-tools
     fi

@@ -39,6 +39,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/sandbox/selinux"
@@ -229,6 +230,12 @@ func getVersion() (int, error) {
 		}
 	}
 
+	// ignore the pre-release suffixes, since we otherwise we can't convert to an
+	// int and we only compare versions coarsely to check systemd is not too old
+	if i := strings.IndexRune(verstr, '~'); i != -1 {
+		verstr = verstr[:i]
+	}
+
 	ver, err := strconv.Atoi(verstr)
 	if err != nil {
 		return 0, fmt.Errorf("cannot convert systemd version to number: %s", verstr)
@@ -301,16 +308,31 @@ func MockJournalctl(f func(svcs []string, n int, follow, namespaces bool) (io.Re
 	}
 }
 
+// MountUnitType is an enum for the supported mount unit types.
+type MountUnitType int
+
+const (
+	// RegularMountUnit is a mount with the usual dependencies
+	RegularMountUnit MountUnitType = iota
+	// BeforeDriversLoadMountUnit mounts things before kernel modules are
+	// loaded either by udevd or by systemd-modules-load.service.
+	BeforeDriversLoadMountUnit
+)
+
 type MountUnitOptions struct {
+	// MountUnitType is the type of mount unit we want
+	MountUnitType MountUnitType
 	// Whether the unit is transient or persistent across reboots
-	Lifetime UnitLifetime
-	SnapName string
-	Revision string
-	What     string
-	Where    string
-	Fstype   string
-	Options  []string
-	Origin   string
+	Lifetime    UnitLifetime
+	Description string
+	What        string
+	Where       string
+	Fstype      string
+	Options     []string
+	Origin      string
+	// PreventRestartIfModified is set if we do not want to restart the
+	// mount unit if modified
+	PreventRestartIfModified bool
 }
 
 // Backend identifies the implementation backend in use by a Systemd instance.
@@ -332,6 +354,18 @@ const (
 	mountUpdated
 	mountCreated
 )
+
+// EnsureMountUnitFlags contains flags that modify behavior of EnsureMountUnitFile
+// TODO should we call directly EnsureMountUnitFileWithOptions and
+// remove this type instead?
+type EnsureMountUnitFlags struct {
+	// PreventRestartIfModified is set if we do not want to restart the
+	// mount unit if even though it was modified
+	PreventRestartIfModified bool
+	// StartBeforeDriversLoad is set if the unit is needed before
+	// udevd starts to run rules
+	StartBeforeDriversLoad bool
+}
 
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
@@ -359,8 +393,9 @@ type Systemd interface {
 	Restart(services []string) error
 	// Reload or restart the service via 'systemctl reload-or-restart'
 	ReloadOrRestart(services []string) error
-	// RestartAll restarts the given service using systemctl restart --all
-	RestartAll(service string) error
+	// RestartNoWaitForStop restarts the given services using systemctl restart,
+	// with no snapd specific logic to wait for the services to stop.
+	RestartNoWaitForStop(services []string) error
 	// Status fetches the status of given units. Statuses are
 	// returned in the same order as unit names passed in
 	// argument.
@@ -387,7 +422,7 @@ type Systemd interface {
 	// logs, and is required to get logs for services which are in journal namespaces.
 	LogReader(services []string, n int, follow, namespaces bool) (io.ReadCloser, error)
 	// EnsureMountUnitFile adds/enables/starts a mount unit.
-	EnsureMountUnitFile(name, revision, what, where, fstype string) (string, error)
+	EnsureMountUnitFile(description, what, where, fstype string, flags EnsureMountUnitFlags) (string, error)
 	// EnsureMountUnitFileWithOptions adds/enables/starts a mount unit with options.
 	EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
@@ -412,6 +447,8 @@ type Systemd interface {
 	CurrentTasksCount(unit string) (uint64, error)
 	// Run a command
 	Run(command []string, opts *RunOptions) ([]byte, error)
+	// Set log level for the system
+	SetLogLevel(logLevel string) error
 }
 
 // KeyringMode describes how the kernel keyring is setup, see systemd.exec(5)
@@ -429,6 +466,7 @@ type RunOptions struct {
 	//      and let the caller do the keyring setup but feels a bit loose
 	KeyringMode KeyringMode
 	Stdin       io.Reader
+	Properties  []string
 }
 
 // A Log is a single entry in the systemd journal.
@@ -1143,11 +1181,11 @@ func (s *systemd) Restart(serviceNames []string) error {
 	return s.Start(serviceNames)
 }
 
-func (s *systemd) RestartAll(serviceName string) error {
+func (s *systemd) RestartNoWaitForStop(services []string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call restart with GlobalUserMode")
 	}
-	_, err := s.systemctl("restart", serviceName, "--all")
+	_, err := s.systemctl(append([]string{"restart"}, services...)...)
 	return err
 }
 
@@ -1369,13 +1407,14 @@ var squashfsFsType = squashfs.FsType
 
 // Note that WantedBy=multi-user.target and Before=local-fs.target are
 // only used to allow downgrading to an older version of snapd.
-const mountUnitTemplate = `[Unit]
-Description=Mount unit for {{.SnapName}}
-{{- with .Revision}}, revision {{.}}{{end}}
-{{- with .Origin}} via {{.}}{{end}}
+//
+// We want (see isBeforeDrivers) some snaps and components to be mounted before
+// modules are loaded (that is before systemd-{udevd,modules-load}).
+const snapMountUnitTmpl = `[Unit]
+Description={{.Description}}
 After=snapd.mounts-pre.target
-Before=snapd.mounts.target
-Before=local-fs.target
+Before=snapd.mounts.target{{if isBeforeDrivers .MountUnitType}}
+Before=systemd-udevd.service systemd-modules-load.service{{end}}
 
 [Mount]
 What={{.What}}
@@ -1392,8 +1431,13 @@ X-SnapdOrigin={{.}}
 {{- end}}
 `
 
-var templateFuncs = template.FuncMap{"join": strings.Join}
-var parsedMountUnitTemplate = template.Must(template.New("unit").Funcs(templateFuncs).Parse(mountUnitTemplate))
+func isBeforeDriversLoadMountUnit(mType MountUnitType) bool {
+	return mType == BeforeDriversLoadMountUnit
+}
+
+var templateFuncs = template.FuncMap{"join": strings.Join,
+	"isBeforeDrivers": isBeforeDriversLoadMountUnit}
+var parsedMountUnitTmpl = template.Must(template.New("unit").Funcs(templateFuncs).Parse(snapMountUnitTmpl))
 
 const (
 	snappyOriginModule = "X-SnapdOrigin"
@@ -1406,8 +1450,7 @@ func ensureMountUnitFile(u *MountUnitOptions) (mountUnitName string, modified mo
 
 	mu := MountUnitPathWithLifetime(u.Lifetime, u.Where)
 	var unitContent bytes.Buffer
-
-	if err := parsedMountUnitTemplate.Execute(&unitContent, &u); err != nil {
+	if err := parsedMountUnitTmpl.Execute(&unitContent, &u); err != nil {
 		return "", mountUnchanged, fmt.Errorf("cannot generate mount unit: %v", err)
 	}
 
@@ -1461,21 +1504,25 @@ func hostFsTypeAndMountOptions(fstype string) (hostFsType string, options []stri
 	return hostFsType, options
 }
 
-func (s *systemd) EnsureMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
+func (s *systemd) EnsureMountUnitFile(description, what, where, fstype string, flags EnsureMountUnitFlags) (string, error) {
 	hostFsType, options := hostFsTypeAndMountOptions(fstype)
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
 		hostFsType = "none"
 	}
-	return s.EnsureMountUnitFileWithOptions(&MountUnitOptions{
-		Lifetime: Persistent,
-		SnapName: snapName,
-		Revision: revision,
-		What:     what,
-		Where:    where,
-		Fstype:   hostFsType,
-		Options:  options,
-	})
+	mountOptions := &MountUnitOptions{
+		Lifetime:                 Persistent,
+		Description:              description,
+		What:                     what,
+		Where:                    where,
+		Fstype:                   hostFsType,
+		Options:                  options,
+		PreventRestartIfModified: flags.PreventRestartIfModified,
+	}
+	if flags.StartBeforeDriversLoad {
+		mountOptions.MountUnitType = BeforeDriversLoadMountUnit
+	}
+	return s.EnsureMountUnitFileWithOptions(mountOptions)
 }
 
 func (s *systemd) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
@@ -1497,12 +1544,13 @@ func (s *systemd) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) 
 		if err := s.EnableNoReload(units); err != nil {
 			return "", err
 		}
-		// In the case of mountCreated, ReloadOrRestart
-		// has the same effect as just Start.
-		// In the case of MountUpdate, we need to reload
-		// the unit.
-		if err := s.ReloadOrRestart(units); err != nil {
-			return "", err
+
+		// If just modified, some times it is not convenient to restart
+		if modified != mountUpdated || !unitOptions.PreventRestartIfModified {
+			// Start/restart the created or modified unit now
+			if err := s.RestartNoWaitForStop(units); err != nil {
+				return "", err
+			}
 		}
 	}
 
@@ -1686,8 +1734,14 @@ func (s *systemd) Run(command []string, opts *RunOptions) ([]byte, error) {
 		"--service-type=exec",
 		"--quiet",
 	}
+	if s.mode == UserMode {
+		runArgs = append(runArgs, "--user")
+	}
 	if opts.KeyringMode != "" {
 		runArgs = append(runArgs, fmt.Sprintf("--property=KeyringMode=%v", opts.KeyringMode))
+	}
+	for _, p := range opts.Properties {
+		runArgs = append(runArgs, fmt.Sprintf("--property=%v", p))
 	}
 	runArgs = append(runArgs, "--")
 	runArgs = append(runArgs, command...)
@@ -1699,4 +1753,21 @@ func (s *systemd) Run(command []string, opts *RunOptions) ([]byte, error) {
 		return nil, fmt.Errorf("cannot run %q: %v", command, osutil.OutputErrCombine(stdout, stderr, err))
 	}
 	return stdout, nil
+}
+
+func (s *systemd) SetLogLevel(logLevel string) error {
+	_, err := s.systemctl("log-level", logLevel)
+
+	// Older systemd versions used systemd-analyze instead, try that if error
+	if err != nil {
+		if stdout, stderr, err2 := osutil.RunSplitOutput(
+			"systemd-analyze", "set-log-level", logLevel); err2 == nil {
+			return nil
+		} else {
+			logger.Noticef("while running systemd-analyze: %v",
+				osutil.OutputErrCombine(stdout, stderr, err2))
+		}
+	}
+
+	return err
 }

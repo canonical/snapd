@@ -9,6 +9,7 @@ ConditionKernelCommandLine=|snapd_recovery_mode
 [Service]
 Type=oneshot
 ExecStart=@bindir@/snap auto-import
+EnvironmentFile=-/var/lib/snapd/environment/snapd.conf
 
 [Install]
 WantedBy=multi-user.target

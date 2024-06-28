@@ -1,16 +1,27 @@
 {
     "revision": "2",
     "type": "model",
-    "authority-id": "BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz",
+    "authority-id": "test-snapd",
     "series": "16",
-    "brand-id": "BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz",
+    "brand-id": "test-snapd",
     "model": "my-model",
     "architecture": "amd64",
-    "timestamp": "2022-04-25T01:00:00+00:00",
+    "timestamp": "2023-11-09T08:40:55+00:00",
     "grade": "dangerous",
     "base": "core22",
     "serial-authority": ["generic"],
     "snaps": [
+        {
+            "default-channel": "latest/stable",
+            "id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+            "name": "hello-world",
+            "type": "app"
+        },
+        {
+            "default-channel": "latest/stable",
+            "name": "test-snapd-tools-core22",
+            "type": "app"
+        },
         {
             "default-channel": "22/edge",
             "id": "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH",
@@ -37,7 +48,9 @@
         },
         {
             "default-channel": "latest/stable",
-            "name": "test-snapd-tools-core22"
+            "id": "99T7MUlRhtI3U0QFgl5mXXESAiSwt776",
+            "name": "core",
+            "type": "core"
         }
     ]
 }

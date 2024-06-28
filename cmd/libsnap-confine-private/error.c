@@ -81,7 +81,7 @@ sc_error *sc_error_init_api_misuse(const char *msgfmt, ...)
 	return err;
 }
 
-const char *sc_error_domain(sc_error * err)
+const char *sc_error_domain(sc_error *err)
 {
 	// Set errno in case we die.
 	errno = 0;
@@ -91,7 +91,7 @@ const char *sc_error_domain(sc_error * err)
 	return err->domain;
 }
 
-int sc_error_code(sc_error * err)
+int sc_error_code(sc_error *err)
 {
 	// Set errno in case we die.
 	errno = 0;
@@ -101,7 +101,7 @@ int sc_error_code(sc_error * err)
 	return err->code;
 }
 
-const char *sc_error_msg(sc_error * err)
+const char *sc_error_msg(sc_error *err)
 {
 	// Set errno in case we die.
 	errno = 0;
@@ -111,7 +111,7 @@ const char *sc_error_msg(sc_error * err)
 	return err->msg;
 }
 
-void sc_error_free(sc_error * err)
+void sc_error_free(sc_error *err)
 {
 	if (err != NULL) {
 		free(err->msg);
@@ -120,17 +120,18 @@ void sc_error_free(sc_error * err)
 	}
 }
 
-void sc_cleanup_error(sc_error ** ptr)
+void sc_cleanup_error(sc_error **ptr)
 {
 	sc_error_free(*ptr);
 	*ptr = NULL;
 }
 
-void sc_die_on_error(sc_error * error)
+void sc_die_on_error(sc_error *error)
 {
 	if (error != NULL) {
 		if (strcmp(sc_error_domain(error), SC_ERRNO_DOMAIN) == 0) {
-			fprintf(stderr, "%s: %s\n", sc_error_msg(error), strerror(sc_error_code(error)));
+			fprintf(stderr, "%s: %s\n", sc_error_msg(error),
+				strerror(sc_error_code(error)));
 		} else {
 			fprintf(stderr, "%s\n", sc_error_msg(error));
 		}
@@ -139,7 +140,7 @@ void sc_die_on_error(sc_error * error)
 	}
 }
 
-int sc_error_forward(sc_error ** recipient, sc_error * error)
+int sc_error_forward(sc_error **recipient, sc_error *error)
 {
 	if (recipient != NULL) {
 		*recipient = error;
@@ -149,7 +150,7 @@ int sc_error_forward(sc_error ** recipient, sc_error * error)
 	return error != NULL ? -1 : 0;
 }
 
-bool sc_error_match(sc_error * error, const char *domain, int code)
+bool sc_error_match(sc_error *error, const char *domain, int code)
 {
 	// Set errno in case we die.
 	errno = 0;

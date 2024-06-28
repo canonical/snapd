@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
@@ -118,7 +119,7 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml string) *snap.Info {
 	si := &snap.SideInfo{RealName: snapName, SnapID: snapName + "-id", Revision: snap.R(1)}
 	snapstate.Set(st, snapName, &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: string(snapInfo.Type()),
 	})
@@ -129,20 +130,28 @@ func (s *handlersSuite) TestBuildConfinementOptions(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
-	flags := snapstate.Flags{}
-	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{})
+	for _, testAppArmorPrompting := range []bool{true, false} {
+		// Create fake InterfaceManager to hold fake AppArmor Prompting value
+		m := ifacestate.NewInterfaceManagerWithAppArmorPrompting(testAppArmorPrompting)
 
-	c.Check(err, IsNil)
-	c.Check(len(opts.ExtraLayouts), Equals, 0)
-	c.Check(opts.Classic, Equals, flags.Classic)
-	c.Check(opts.DevMode, Equals, flags.DevMode)
-	c.Check(opts.JailMode, Equals, flags.JailMode)
+		snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
+		flags := snapstate.Flags{}
+		opts, err := m.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{})
+
+		c.Check(err, IsNil)
+		c.Check(len(opts.ExtraLayouts), Equals, 0)
+		c.Check(opts.Classic, Equals, flags.Classic)
+		c.Check(opts.DevMode, Equals, flags.DevMode)
+		c.Check(opts.JailMode, Equals, flags.JailMode)
+		c.Check(opts.AppArmorPrompting, Equals, testAppArmorPrompting)
+	}
 }
 
 func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	m := ifacestate.NewInterfaceManagerWithAppArmorPrompting(false)
 
 	// journal quota is still experimental, so we must enable the experimental
 	// quota-groups option
@@ -157,7 +166,7 @@ func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
 	c.Assert(err, IsNil)
 
 	flags := snapstate.Flags{}
-	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{})
+	opts, err := m.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{})
 
 	c.Check(err, IsNil)
 	c.Assert(len(opts.ExtraLayouts), Equals, 1)

@@ -3,8 +3,9 @@ summary: Ensure that the network-manager interface works
 details: |
     The network-manager interface gives privileged access to configure and
     observe networking.
+
     The test uses a snap which plugs the network manager interface. Then it is
-    validated that the snap autoconects and can create a new connection.
+    validated that the snap auto-connects and can create a new connection.
     Connection against network devices cannot be validated on a virtual machine
     due to network-manager being configured not to managed them.
 

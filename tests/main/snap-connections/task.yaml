@@ -1,5 +1,13 @@
 summary: Check that "snap connections" works as expected
 
+details: |
+    This test verifies that the output of "snap connections" shows the
+    proper connections, as well a unconnected plugs and slots. Proper
+    error messages are reported for ill-formed command lines. Plugs
+    that are added or removed with a refresh should also be should
+    also properly be updated in the output. The command line allows
+    for selecting plugs and slots from a specific snap.
+
 prepare: |
     snap pack test-snap.v1
     snap pack test-snap.v2

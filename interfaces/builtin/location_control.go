@@ -217,7 +217,7 @@ func (iface *locationControlInterface) StaticInfo() interfaces.StaticInfo {
 
 func (iface *locationControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
-	new := slotAppLabelExpr(slot)
+	new := slot.LabelExpression()
 	snippet := strings.Replace(locationControlConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
@@ -240,7 +240,7 @@ func (iface *locationControlInterface) AppArmorPermanentSlot(spec *apparmor.Spec
 
 func (iface *locationControlInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
-	new := plugAppLabelExpr(plug)
+	new := plug.LabelExpression()
 	snippet := strings.Replace(locationControlConnectedSlotAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil

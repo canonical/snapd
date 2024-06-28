@@ -20,6 +20,7 @@
 package testutil
 
 import (
+	"os"
 	"runtime"
 	"time"
 )
@@ -31,12 +32,15 @@ var runtimeGOARCH = runtime.GOARCH
 //
 // This should only be used in tests and is a bit of a guess.
 func HostScaledTimeout(t time.Duration) time.Duration {
-	switch runtimeGOARCH {
-	case "riscv64":
+	switch {
+	case runtimeGOARCH == "riscv64":
 		// virt riscv64 builders are 5x times slower than
 		// armhf when building golang-1.14. These tests
 		// timeout, hence bump timeouts by 6x
 		return t * 6
+	case os.Getenv("GO_TEST_RACE") == "1":
+		// the -race detector makes test execution time 2-20x slower
+		return t * 5
 	default:
 		return t
 	}

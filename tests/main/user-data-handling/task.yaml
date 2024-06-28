@@ -1,5 +1,15 @@
 summary: Check that the refresh data copy works.
 
+details: |
+    Snapd implements a system, where a refreshed snap's data associated with a
+    particular revision is copied to the revision that a snap is being refreshed
+    to. This allows the snap to perform destructive data manipulations, like
+    schema changes, while simultaneously allowing the user to revert to the
+    previously used revision for both the application code and user data.
+
+    The test checks that snap user data is correctly copied for both root and
+    non-root users.
+
 execute: |
     echo "For an installed snap"
     snap install test-snapd-sh

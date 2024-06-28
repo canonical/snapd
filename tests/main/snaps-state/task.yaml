@@ -1,5 +1,11 @@
 summary: smoke test for the snaps-state tool
 
+details: |
+   Check that the snaps-state tool allows packing and installing local snaps. 
+   Verify that by default the tool tries to retrieve the snap from the local test,
+   and otherwise it tries from $TESTSLIB. Finally verifies that the confinement for 
+   the current system can be checked
+
 backends: [google, qemu]
 
 prepare: |
@@ -81,6 +87,12 @@ execute: |
     core_name=$("$TESTSTOOLS"/snaps-state show-name core)
     kernel_name=$("$TESTSTOOLS"/snaps-state show-name kernel)
     gadget_name=$("$TESTSTOOLS"/snaps-state show-name gadget)
+
+    # Check the core revision
+    core_rev=$("$TESTSTOOLS"/snaps-state show-revision "$core_name")
+    snap info "$core_name" | grep "installed:" | MATCH "\($core_rev\)"
+    # Check the snap revision when it is not installed
+    "$TESTSTOOLS"/snaps-state show-revision not_installed 2>&1 | MATCH "snaps-state: the snap not_installed is not installed"
 
     # Check the core, kernel and gadget snaps
     snap list "$core_name"

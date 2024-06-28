@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -82,7 +83,7 @@ func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsSystem(c *C) {
 	}
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: "app",
 	})
@@ -117,7 +118,7 @@ func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsSession(c *C) {
 	}
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: "app",
 	})
@@ -155,7 +156,7 @@ func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsDifferentBuses(c *C) {
 	}
 	snapstate.Set(s.state, "system-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: "app",
 	})
@@ -170,7 +171,7 @@ func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsDifferentBuses(c *C) {
 	}
 	snapstate.Set(s.state, "session-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: "app",
 	})
@@ -205,7 +206,7 @@ func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsNoConflictWithSelf(c *C)
 	}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: "app",
 	})
@@ -240,7 +241,7 @@ func (s *snapmgrTestSuite) TestInstallDBusActivationConflicts(c *C) {
 	}
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: "app",
 	})

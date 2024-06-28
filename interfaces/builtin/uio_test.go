@@ -21,6 +21,8 @@ package builtin_test
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -29,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -62,10 +65,13 @@ slots:
     interface: uio
     path: /dev/uio1
 `, nil)
+	appSet, err := interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, IsNil)
+
 	s.slotGadgetInfo0 = info.Slots["uio-0"]
 	s.slotGadgetInfo1 = info.Slots["uio-1"]
-	s.slotGadget0 = interfaces.NewConnectedSlot(s.slotGadgetInfo0, nil, nil)
-	s.slotGadget1 = interfaces.NewConnectedSlot(s.slotGadgetInfo1, nil, nil)
+	s.slotGadget0 = interfaces.NewConnectedSlot(s.slotGadgetInfo0, appSet, nil, nil)
+	s.slotGadget1 = interfaces.NewConnectedSlot(s.slotGadgetInfo1, appSet, nil, nil)
 
 	info = snaptest.MockInfo(c, `
 name: consumer
@@ -77,8 +83,11 @@ apps:
   app:
     command: foo
 `, nil)
+	appSet, err = interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, IsNil)
+
 	s.plugInfo = info.Plugs["uio"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, appSet, nil, nil)
 }
 
 func (s *uioInterfaceSuite) TestName(c *C) {
@@ -99,7 +108,7 @@ slots:
 }
 
 func (s *uioInterfaceSuite) TestUDevSpec(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(s.plug.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget0), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# uio
@@ -107,8 +116,16 @@ SUBSYSTEM=="uio", KERNEL=="uio0", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
-func (s *uioInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
+func (s *uioInterfaceSuite) TestAppArmorConnectedPlugIgnoresMissingConfigFile(c *C) {
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	builtin.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
+		c.Assert(path, Matches, "/sys/class/uio/uio[0-1]+/device/config")
+		return "", os.ErrNotExist
+	})
+
+	spec := apparmor.NewSpecification(s.plug.AppSet())
 	// Simulate two UIO connections.
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget0), IsNil)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget1), IsNil)
@@ -116,6 +133,34 @@ func (s *uioInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, ""+
 		"/dev/uio0 rw,\n"+
 		"/dev/uio1 rw,\n"+
+		"/sys/devices/platform/**/uio/uio[0-9]** r,  # common rule for all uio connections")
+
+	c.Assert(log.String(), testutil.Contains, "cannot configure not existing uio device config file /sys/class/uio/uio0/device/config")
+	c.Assert(log.String(), testutil.Contains, "cannot configure not existing uio device config file /sys/class/uio/uio1/device/config")
+}
+
+func (s *uioInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
+	builtin.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
+		c.Assert(path, Matches, "/sys/class/uio/uio[0-1]+/device/config")
+		device := "uio0"
+		if !strings.Contains(path, device) {
+			device = "uio1"
+		}
+		// Not representative of actual resolved symlink
+		target := fmt.Sprint("/sys/devices/", device, "/config")
+		return target, nil
+	})
+
+	spec := apparmor.NewSpecification(s.plug.AppSet())
+	// Simulate two UIO connections.
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget0), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget1), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, ""+
+		"/dev/uio0 rw,\n"+
+		"/dev/uio1 rw,\n"+
+		"/sys/devices/uio0/config rwk,\n"+
+		"/sys/devices/uio1/config rwk,\n"+
 		"/sys/devices/platform/**/uio/uio[0-9]** r,  # common rule for all uio connections")
 }
 

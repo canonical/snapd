@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2020, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,7 +22,6 @@ package sysconfig
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -36,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -169,14 +169,14 @@ func filterCloudCfgFile(in string, allowedDatasources []string) (string, error) 
 	//   intersect with what we support
 
 	dstFileName := filepath.Base(in)
-	filteredFile, err := ioutil.TempFile("", dstFileName)
+	filteredFile, err := os.CreateTemp("", dstFileName)
 	if err != nil {
 		return "", err
 	}
 	defer filteredFile.Close()
 
 	// open the source and unmarshal it as yaml
-	unfilteredFileBytes, err := ioutil.ReadFile(in)
+	unfilteredFileBytes, err := os.ReadFile(in)
 	if err != nil {
 		return "", err
 	}
@@ -238,7 +238,7 @@ func cloudDatasourcesInUse(configFile string) (*cloudDatasourcesInUseResult, err
 	// TODO: are there other keys in addition to those that we support in
 	// filtering that might mention datasources ?
 
-	b, err := ioutil.ReadFile(configFile)
+	b, err := os.ReadFile(configFile)
 	if err != nil {
 		return nil, err
 	}
@@ -743,6 +743,15 @@ func CloudInitStatus() (CloudInitState, error) {
 		return CloudInitDisabledPermanently, nil
 	}
 
+	// if it was explicitly disabled via the kernel commandline, then
+	// return special status for that
+	cmdline, err := kcmdline.KeyValues("cloud-init")
+	if err != nil {
+		logger.Noticef("WARNING: cannot obtain cloud-init from kernel command line: %v", err)
+	} else if cmdline["cloud-init"] == "disabled" {
+		return CloudInitDisabledPermanently, nil
+	}
+
 	ciBinary, err := exec.LookPath("cloud-init")
 	if err != nil {
 		logger.Noticef("cannot locate cloud-init executable: %v", err)
@@ -768,9 +777,19 @@ func CloudInitStatus() (CloudInitState, error) {
 		return CloudInitErrored, fmt.Errorf("invalid cloud-init output: %v", osutil.OutputErrCombine(out, stderr, err))
 	}
 
+	hasError := false
+	if err != nil {
+		exitError, isExitError := err.(*exec.ExitError)
+		if isExitError && exitError.ExitCode() == 2 {
+			logger.Noticef("cloud-init status returned 'recoverable error' status: cloud-init completed but experienced errors")
+		} else {
+			hasError = true
+		}
+	}
+
 	// otherwise we had a successful match, but we need to check if the status
 	// command errored itself
-	if err != nil {
+	if hasError {
 		if string(match[1]) == "error" {
 			// then the status was indeed error and we should treat this as the
 			// "positively identified" error case

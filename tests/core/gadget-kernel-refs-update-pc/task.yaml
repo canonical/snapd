@@ -1,5 +1,9 @@
 summary: Exercise a gadget update with kernel refs on a PC
 
+details: |
+    Check that it is possible to revert a kernel snap when kernel gadgets 
+    are installed. 
+
 # TODO:UC20: once LP: #1907056 is fixed and we have an updated
 #            pi gadget and pi-kernel snap this test should be
 #            replaced with a pi-only test. This test is artificial

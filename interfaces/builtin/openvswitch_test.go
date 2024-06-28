@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -50,15 +49,15 @@ apps:
   command: foo
   plugs: [openvswitch]
 `
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "openvswitch",
-		Interface: "openvswitch",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
-	s.plugInfo = snapInfo.Plugs["openvswitch"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	var mockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ openvswitch:
+   interface: openvswitch
+`
+	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "openvswitch")
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "openvswitch")
 }
 
 func (s *OpenvSwitchInterfaceSuite) TestName(c *C) {
@@ -74,7 +73,7 @@ func (s *OpenvSwitchInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *OpenvSwitchInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})

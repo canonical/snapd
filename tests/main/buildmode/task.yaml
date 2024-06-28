@@ -1,5 +1,8 @@
 summary: Test that we use the right buildmode per arch
 
+details: |
+    Verify the build mode is the correct one in amd64 and i386 architectures
+
 systems: [ubuntu-1*, ubuntu-2*]
 
 execute: |

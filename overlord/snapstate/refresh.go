@@ -164,7 +164,8 @@ func (err BusySnapError) Pids() []int {
 // should no longer run, and applications should be barred from running
 // externally (e.g. by using a new inhibition mechanism for snap run).
 //
-// On success this function returns a locked snap lock, allowing the caller to
+// On success this function returns a flag indicating if the refresh will be forced
+// due to inhibition timeout and a locked snap lock, allowing the caller to
 // atomically, with regards to "snap-confine", finish any action that required
 // the apps and hooks not to be running. In addition, the persistent run
 // inhibition lock is established, forcing snap-run to pause and postpone
@@ -172,14 +173,18 @@ func (err BusySnapError) Pids() []int {
 //
 // In practice, we either inhibit app startup and refresh the snap _or_ inhibit
 // the refresh change and continue running existing app processes.
-func hardEnsureNothingRunningDuringRefresh(backend managerBackend, st *state.State, snapst *SnapState, snapsup *SnapSetup, info *snap.Info) (*osutil.FileLock, error) {
-	return backend.RunInhibitSnapForUnlink(info, runinhibit.HintInhibitedForRefresh, func() error {
+func hardEnsureNothingRunningDuringRefresh(backend managerBackend, st *state.State, snapst *SnapState, snapsup *SnapSetup, info *snap.Info) (bool, *osutil.FileLock, error) {
+	var inhibitionTimeout bool
+	lock, err := backend.RunInhibitSnapForUnlink(info, runinhibit.HintInhibitedForRefresh, func() error {
 		// In case of successful refresh inhibition the snap state is modified
 		// to indicate when the refresh was first inhibited. If the first
 		// refresh inhibition is outside of a grace period then refresh
 		// proceeds regardless of the existing processes.
-		return inhibitRefresh(st, snapst, snapsup, info)
+		var err error
+		inhibitionTimeout, err = inhibitRefresh(st, snapst, snapsup, info)
+		return err
 	})
+	return inhibitionTimeout, lock, err
 }
 
 // softCheckNothingRunningForRefresh checks if non-service apps are off for a snap refresh.
@@ -202,6 +207,7 @@ func softCheckNothingRunningForRefresh(st *state.State, snapst *SnapState, snaps
 	return backend.WithSnapLock(info, func() error {
 		// Perform the soft refresh viability check, possibly writing to the state
 		// on failure.
-		return inhibitRefresh(st, snapst, snapsup, info)
+		_, err := inhibitRefresh(st, snapst, snapsup, info)
+		return err
 	})
 }

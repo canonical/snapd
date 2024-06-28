@@ -1,7 +1,0 @@
-[Unit]
-Description=snapd UI prompt
-ConditionPathExists=/sys/kernel/security/apparmor/.notify
-
-[Service]
-Type=simple
-ExecStart=@libexecdir@/snapd/snapd-aa-prompt-ui

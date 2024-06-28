@@ -1,6 +1,9 @@
 summary: Test that UC2* with testkeys can boot a grade signed model with cloud-init.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+details: |
+    Check that Ubuntu Core can boot a grade signed model with cloud-init using testkeys.
+
+systems: [ubuntu-2*]
 
 environment:
   # use tpm + secure boot to get full disk encryption, this is explicitly needed

@@ -54,10 +54,10 @@ execute: |
     snap install --edge test-snapd-portal-client
 
     # TODO: enable on ubuntu 23+
-    # Taking a screenshot is not supported in kinetic and lunar yet.
+    # Taking a screenshot is not supported in ubuntu 23+ yet.
     # The error displayed is the following:
     # dbus.exceptions.DBusException: org.freedesktop.DBus.Error.UnknownMethod: No such interface \u201corg.freedesktop.portal.Screenshot\u201d on object at path /org/freedesktop/portal/desktop
-    if os.query is-ubuntu-ge 23.04; then
+    if os.query is-ubuntu-ge 23.10; then
         exit
     fi
 

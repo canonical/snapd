@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -39,6 +39,9 @@ var (
 	// ErrNoTryKernelRef is returned if the bootloader finds no enabled
 	// try-kernel.
 	ErrNoTryKernelRef = errors.New("no try-kernel referenced")
+
+	// ErrNoBootChainFound is returned by ParametersForEfiLoadOption if no valid bootchain was found
+	ErrNoBootChainFound = errors.New("no valid bootchain found")
 )
 
 // Role indicates whether the bootloader is used for recovery or run mode.
@@ -219,19 +222,23 @@ type TrustedAssetsBootloader interface {
 	// system parameters.
 	DefaultCommandLine(candidate bool) (string, error)
 
-	// TrustedAssets returns the list of relative paths to assets inside the
-	// bootloader's rootdir that are measured in the boot process in the
-	// order of loading during the boot. Does not require rootdir to be set.
-	TrustedAssets() ([]string, error)
+	// TrustedAssets returns a map of relative paths to asset
+	// identifers. The paths are inside the bootloader's rootdir
+	// that are measured in the boot process. The asset
+	// identifiers correspond to the backward compatible names
+	// recorded in the modeenv (CurrentTrustedBootAssets and
+	// CurrentTrustedRecoveryBootAssets).
+	TrustedAssets() (map[string]string, error)
 
-	// RecoveryBootChain returns the load chain for recovery modes.
-	// It should be called on a RoleRecovery bootloader.
-	RecoveryBootChain(kernelPath string) ([]BootFile, error)
+	// RecoveryBootChains returns the possible load chains for
+	// recovery modes.  It should be called on a RoleRecovery
+	// bootloader.
+	RecoveryBootChains(kernelPath string) ([][]BootFile, error)
 
-	// BootChain returns the load chain for run mode.
-	// It should be called on a RoleRecovery bootloader passing the
-	// RoleRunMode bootloader.
-	BootChain(runBl Bootloader, kernelPath string) ([]BootFile, error)
+	// BootChains returns the possible load chains for run mode.
+	// It should be called on a RoleRecovery bootloader passing
+	// the RoleRunMode bootloader.
+	BootChains(runBl Bootloader, kernelPath string) ([][]BootFile, error)
 }
 
 // NotScriptableBootloader cannot change the bootloader environment
@@ -253,6 +260,15 @@ type RebootBootloader interface {
 
 	// GetRebootArguments returns the needed reboot arguments
 	GetRebootArguments() (string, error)
+}
+
+// UefiBootloader provides data for setting EFI boot variables.
+type UefiBootloader interface {
+	Bootloader
+
+	// ParametersForEfiLoadOption returns the data which may be used to construct
+	// an EFI load option.
+	ParametersForEfiLoadOption(updatedAssets []string) (description string, assetPath string, optionalData []byte, err error)
 }
 
 func genericInstallBootConfig(gadgetFile, systemFile string) error {

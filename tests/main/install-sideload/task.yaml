@@ -1,5 +1,9 @@
 summary: Checks for snap sideload install
 
+details: |
+    Check snaps installation with --dangerous, --jailmode, --devmode, and
+    deprecated options. Also validate snaps can be removed with --revision option. 
+
 # slow in autopkgtest (>1m)
 backends: [-autopkgtest]
 
@@ -13,6 +17,13 @@ prepare: |
     for snap in basic test-snapd-tools basic-desktop test-snapd-devmode snap-hooks-bad-install; do
         snap pack "$TESTSLIB"/snaps/$snap
     done
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if [ "$SNAP_REEXEC" = "1" ] && [ "$SNAP_MOUNT_DIR" != "/snap" ] && [ ! -L /snap ]; then
+        # reexec expects to find the snapd snap under /snap, enable it to do so
+        # on distros using /var/lib/snapd/snap
+        ln -sf "$SNAP_MOUNT_DIR" /snap
+        tests.cleanup defer rm -f /snap
+    fi
 
 execute: |
     echo "Sideloaded snap shows status"
@@ -25,6 +36,23 @@ execute: |
 
     echo "Sideloaded snap executes commands"
     snap install --dangerous ./test-snapd-tools_1.0_all.snap
+
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if [ "$SNAP_REEXEC" = "1" ] && [ "$SNAP_MOUNT_DIR" != "/snap" ]; then
+        # with snap mount dir different than /snap, internal s-c checks will fail
+        if test-snapd-tools.success > err.out 2>&1 ; then
+            echo "unexpected success"
+            cat err.out || true
+            exit 1
+        fi
+
+        # with no AA support, we fail on a simple check for s-c being executed
+        # from /snap/snapd/<rev>/, with AA we fail on an earlier check for AA
+        # confinement
+        MATCH "(running from unexpected location:|snap-confine has elevated permissions)" < err.out
+        exit 0
+    fi
+
     test-snapd-tools.success
     [ "$(test-snapd-tools.echo Hello World)" = "Hello World" ]
 
@@ -69,7 +97,7 @@ execute: |
     # TODO:UC20: fix to work on uc20 too
     # The "seed/" dir is on a FAT partition on uc20 so the permissions are
     # different here.
-    if ! os.query is-core20 && ! os.query is-core22; then
+    if os.query is-core-le 18; then
         echo "All snap blobs are 0600"
         test "$( find /var/lib/snapd/{snaps,cache,seed/snaps}/ -type f -printf '%#m\n' | sort -u | xargs )" = "0600"
     fi

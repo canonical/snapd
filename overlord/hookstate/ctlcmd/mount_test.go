@@ -281,13 +281,12 @@ func (s *mountSuite) TestUnitCreationFailure(c *C) {
 	c.Check(err, ErrorMatches, `cannot ensure mount unit: creation error`)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
-			Lifetime: systemd.Transient,
-			SnapName: "snap1",
-			Revision: "1",
-			What:     "/src",
-			Where:    "/dest",
-			Fstype:   "ext4",
-			Origin:   "mount-control",
+			Lifetime:    systemd.Transient,
+			Description: "Mount unit for snap1, revision 1 via mount-control",
+			What:        "/src",
+			Where:       "/dest",
+			Fstype:      "ext4",
+			Origin:      "mount-control",
 		},
 	})
 }
@@ -301,14 +300,13 @@ func (s *mountSuite) TestHappy(c *C) {
 	c.Check(err, IsNil)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
-			Lifetime: systemd.Persistent,
-			SnapName: "snap1",
-			Revision: "1",
-			What:     "/src",
-			Where:    "/dest",
-			Fstype:   "ext4",
-			Options:  []string{"sync", "rw"},
-			Origin:   "mount-control",
+			Lifetime:    systemd.Persistent,
+			Description: "Mount unit for snap1, revision 1 via mount-control",
+			What:        "/src",
+			Where:       "/dest",
+			Fstype:      "ext4",
+			Options:     []string{"sync", "rw"},
+			Origin:      "mount-control",
 		},
 	})
 }
@@ -325,13 +323,12 @@ func (s *mountSuite) TestHappyWithVariableExpansion(c *C) {
 	c.Check(err, IsNil)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
-			Lifetime: systemd.Transient,
-			SnapName: "snap1",
-			Revision: "1",
-			What:     "/media/me/data",
-			Where:    where,
-			Options:  []string{"bind", "ro"},
-			Origin:   "mount-control",
+			Lifetime:    systemd.Transient,
+			Description: "Mount unit for snap1, revision 1 via mount-control",
+			What:        "/media/me/data",
+			Where:       where,
+			Options:     []string{"bind", "ro"},
+			Origin:      "mount-control",
 		},
 	})
 }
@@ -346,13 +343,12 @@ func (s *mountSuite) TestHappyWithCommasInPath(c *C) {
 	c.Check(err, IsNil)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
-			Lifetime: systemd.Transient,
-			SnapName: "snap1",
-			Revision: "1",
-			What:     "/dev/dma_heap/qcom,qseecom",
-			Where:    "/dest,with,commas",
-			Options:  []string{"ro"},
-			Origin:   "mount-control",
+			Lifetime:    systemd.Transient,
+			Description: "Mount unit for snap1, revision 1 via mount-control",
+			What:        "/dev/dma_heap/qcom,qseecom",
+			Where:       "/dest,with,commas",
+			Options:     []string{"ro"},
+			Origin:      "mount-control",
 		},
 	})
 }
@@ -366,14 +362,13 @@ func (s *mountSuite) TestEnsureMountUnitFailed(c *C) {
 	c.Check(err, ErrorMatches, `cannot ensure mount unit: some error`)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
-			Lifetime: systemd.Persistent,
-			SnapName: "snap1",
-			Revision: "1",
-			What:     "/src",
-			Where:    "/dest",
-			Fstype:   "ext4",
-			Options:  []string{"sync", "rw"},
-			Origin:   "mount-control",
+			Lifetime:    systemd.Persistent,
+			Description: "Mount unit for snap1, revision 1 via mount-control",
+			What:        "/src",
+			Where:       "/dest",
+			Fstype:      "ext4",
+			Options:     []string{"sync", "rw"},
+			Origin:      "mount-control",
 		},
 	})
 
@@ -390,14 +385,13 @@ func (s *mountSuite) TestEnsureMountUnitFailedRemoveFailed(c *C) {
 	c.Check(err, ErrorMatches, `cannot ensure mount unit: some error`)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
-			Lifetime: systemd.Persistent,
-			SnapName: "snap1",
-			Revision: "1",
-			What:     "/src",
-			Where:    "/dest",
-			Fstype:   "ext4",
-			Options:  []string{"sync", "rw"},
-			Origin:   "mount-control",
+			Lifetime:    systemd.Persistent,
+			Description: "Mount unit for snap1, revision 1 via mount-control",
+			What:        "/src",
+			Where:       "/dest",
+			Fstype:      "ext4",
+			Options:     []string{"sync", "rw"},
+			Origin:      "mount-control",
 		},
 	})
 

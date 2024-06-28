@@ -66,11 +66,11 @@ get_google_image_url_for_vm() {
         ubuntu-22.04-arm-64*)
             echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/jammy-server-cloudimg-arm64.img"
             ;;
-        ubuntu-23.04-64*)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/lunar-server-cloudimg-amd64.img"
-            ;;
         ubuntu-23.10-64*)
             echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/mantic-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-24.04-64*)
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/noble-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"
@@ -100,11 +100,11 @@ get_ubuntu_image_url_for_vm() {
         ubuntu-22.04-arm-64*)
             echo "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-arm64.img"
             ;;
-        ubuntu-23.04-64*)
-            echo "https://cloud-images.ubuntu.com/lunar/current/lunar-server-cloudimg-amd64.img"
-            ;;
         ubuntu-23.10-64*)
             echo "https://cloud-images.ubuntu.com/mantic/current/mantic-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-24.04-64*)
+            echo "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"
@@ -115,7 +115,7 @@ get_ubuntu_image_url_for_vm() {
 
 # shellcheck disable=SC2120
 get_image_url_for_vm() {
-    if [[ "$SPREAD_BACKEND" == google* ]]; then
+    if [[ "$SPREAD_BACKEND" =~ google ]]; then
         get_google_image_url_for_vm "$@"
     else
         get_ubuntu_image_url_for_vm "$@"

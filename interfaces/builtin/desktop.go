@@ -21,6 +21,7 @@ package builtin
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -50,10 +51,12 @@ const desktopBaseDeclarationSlots = `
     deny-installation:
       slot-snap-type:
         - app
-    deny-connection:
-      on-classic: false
     deny-auto-connection:
-      on-classic: false
+      slot-snap-type:
+        - app
+    deny-connection:
+      slot-snap-type:
+        - app
 `
 
 const desktopConnectedPlugAppArmor = `
@@ -126,6 +129,37 @@ dbus (send)
     path=/org/freedesktop/portal/documents{,/**}
     peer=(name=org.freedesktop.portal.Documents),
 
+# Allow to get the current idle time only from Mutter
+dbus (send)
+    bus=session
+    path="/org/gnome/Mutter/IdleMonitor/Core"
+    interface="org.gnome.Mutter.IdleMonitor"
+    member="GetIdletime"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow for color managed applications to communicate with colord
+dbus (receive, send)
+  bus=system
+  interface=org.freedesktop.ColorManager
+  path=/org/freedesktop/ColorManager
+  member=FindDeviceByProperty
+  peer=(label=unconfined),
+dbus (send)
+  bus=system
+  interface=org.freedesktop.DBus.Properties
+  path=/org/freedesktop/ColorManager
+  member="Get{,All}"
+  peer=(label=unconfined),
+dbus (send)
+  bus=system
+  interface=org.freedesktop.DBus.Properties
+  path="/org/freedesktop/ColorManager/{devices,profiles}/*"
+  member="Get{,All}"
+  peer=(label=unconfined),
+
+# Allow access to the ICC profiles in the home directory to
+# be referred to from colord
+owner @{HOME}/.local/share/icc r,
 `
 
 const desktopConnectedPlugAppArmorClassic = `
@@ -171,14 +205,14 @@ dbus (send)
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
     member="{GetCapabilities,GetServerInformation,Notify,CloseNotification}"
-    peer=(label=unconfined),
+    peer=(label="{plasmashell,unconfined}"),
 
 dbus (receive)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
     member={ActionInvoked,NotificationClosed,NotificationReplied}
-    peer=(label=unconfined),
+    peer=(label="{plasmashell,unconfined}"),
 
 # KDE Plasma's Inhibited property indicating "do not disturb" mode
 # https://invent.kde.org/plasma/plasma-workspace/-/blob/master/libnotificationmanager/dbus/org.freedesktop.Notifications.xml#L42
@@ -187,14 +221,14 @@ dbus (send)
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.DBus.Properties
     member="Get{,All}"
-    peer=(label=unconfined),
+    peer=(label="{plasmashell,unconfined}"),
 
 dbus (receive)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
-    peer=(label=unconfined),
+    peer=(label="{plasmashell,unconfined}"),
 
 # DesktopAppInfo Launched
 dbus (send)
@@ -370,6 +404,52 @@ dbus (receive)
     member="{AddNotification,RemoveNotification}"
     peer=(label=unconfined),
 
+# Allow registering session with GDM, necessary for screen locking
+dbus (send)
+    bus=system
+    path=/org/gnome/DisplayManager/Manager
+    interface=org.gnome.DisplayManager.Manager
+    member={RegisterSession,OpenReauthenticationChannel}
+    peer=(label=unconfined),
+dbus (send)
+    bus=system
+    path=/org/gnome/DisplayManager/Manager
+    interface=org.freedesktop.DBus.Properties
+    member="Get{,All}"
+    peer=(label=unconfined),
+
+# Allow access to GDM's private reauthentication channel socket
+/run/gdm3/dbus/dbus-* rw,
+
+# Allow gnome-shell to bind to its various D-Bus names
+dbus (bind)
+    bus=session
+    name=org.gnome.Mutter.*,
+dbus (bind)
+    bus=session
+    name=org.gnome.Shell{,.*},
+
+# Allow gnome-settings-daemon to bind its various D-Bus names
+dbus (bind)
+    bus=session
+    name=org.gnome.SettingsDaemon{,.*},
+dbus (bind)
+    bus=session
+    name=org.gtk.Settings,
+
+# Allow the shell to communicate with colord
+dbus (send, receive)
+    bus=system
+    path=/org/freedesktop/ColorManager{,/**}
+    interface=org.freedesktop.ColorManager*
+    peer=(label=unconfined),
+dbus (send, receive)
+    bus=system
+    path=/org/freedesktop/ColorManager{,/**}
+    interface=org.freedesktop.DBus.Properties
+    member={Get,GetAll,PropertiesChanged}
+    peer=(label=unconfined),
+
 # Allow unconfined xdg-desktop-portal to communicate with impl
 # services provided by the snap.
 dbus (receive, send)
@@ -381,6 +461,13 @@ dbus (receive, send)
     bus=session
     path=/org/freedesktop/portal/desktop{,/**}
     interface=org.freedesktop.DBus.Properties
+    peer=(label=unconfined),
+
+# Allow access to the regular xdg-desktop-portal APIs
+dbus (send)
+    bus=session
+    interface=org.freedesktop.portal.*
+    path=/org/freedesktop/portal/desktop{,/**}
     peer=(label=unconfined),
 
 # Allow access to various paths gnome-session and gnome-shell need.
@@ -430,7 +517,17 @@ func (iface *desktopInterface) fontconfigDirs(plug *interfaces.ConnectedPlug) ([
 }
 
 func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(desktopConnectedPlugAppArmor)
+	old := "###SLOT_SECURITY_TAGS###"
+	var new string
+	if implicitSystemConnectedSlot(slot) {
+		// we are running on a system that has the desktop slot
+		// provided by the OS snap and so will run unconfined
+		new = "unconfined"
+	} else {
+		new = slot.LabelExpression()
+	}
+	snippet := strings.Replace(desktopConnectedPlugAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
 	if implicitSystemConnectedSlot(slot) {
 		// Extra rules that have not been ported to work with
 		// a desktop slot provided by a snap.

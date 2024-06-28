@@ -21,11 +21,12 @@ package builtin
 
 import (
 	"fmt"
-	"os"
+	"io/fs"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/testutil"
@@ -58,7 +59,7 @@ slots:
 		name:              "common",
 		connectedPlugUDev: []string{`KERNEL=="foo"`},
 	}
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(plug.AppSet())
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.Snippets(), DeepEquals, []string{
 		`# common
@@ -74,7 +75,9 @@ KERNEL=="foo", TAG+="snap_consumer_app-c"`,
 	iface = &commonInterface{
 		name: "common",
 	}
-	spec = &udev.Specification{}
+
+	spec = udev.NewSpecification(plug.AppSet())
+
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
@@ -88,8 +91,8 @@ func MockEvalSymlinks(test *testutil.BaseTest, fn func(string) (string, error)) 
 	})
 }
 
-// MockReadDir replaces the io/ioutil.ReadDir function used inside the caps package.
-func MockReadDir(test *testutil.BaseTest, fn func(string) ([]os.FileInfo, error)) {
+// MockReadDir replaces the os.ReadDir function used inside the caps package.
+func MockReadDir(test *testutil.BaseTest, fn func(string) ([]fs.DirEntry, error)) {
 	orig := readDir
 	readDir = fn
 	test.AddCleanup(func() {
@@ -220,7 +223,9 @@ slots:
 	}
 
 	for _, test := range tests {
-		spec := &apparmor.Specification{}
+		appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
+		c.Assert(err, IsNil)
+		spec := apparmor.NewSpecification(appSet)
 		iface := test.iface
 		// before connection, everything should be set to false
 		for _, check := range test.checks {
@@ -253,7 +258,9 @@ slots:
 		name:                 "common",
 		controlsDeviceCgroup: false,
 	}
-	spec := &udev.Specification{}
+	appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
@@ -262,7 +269,11 @@ slots:
 		name:                 "common",
 		controlsDeviceCgroup: true,
 	}
-	spec = &udev.Specification{}
+	appSet, err = interfaces.NewSnapAppSet(plug.Snap(), nil)
+	c.Assert(err, IsNil)
+
+	spec = udev.NewSpecification(appSet)
+
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, true)

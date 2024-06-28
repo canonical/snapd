@@ -34,11 +34,13 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -71,13 +73,13 @@ func (s *prereqSuite) SetUpTest(c *C) {
 	restoreCheckFreeSpace := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return nil })
 	s.AddCleanup(restoreCheckFreeSpace)
 
-	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int, prqt snapstate.PrereqTracker) (uint64, error) {
 		return 0, nil
 	})
 	s.AddCleanup(restoreInstallSize)
 
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-		return nil, nil
+		return snapasserts.NewValidationSets(), nil
 	})
 	s.AddCleanup(restore)
 
@@ -94,7 +96,7 @@ func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
 		Revision: snap.R(1),
 	}
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 	})
 
@@ -237,9 +239,9 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "core", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -342,7 +344,7 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 			var snapst snapstate.SnapState
 			snapstate.Get(st, snapsup.InstanceName(), &snapst)
 			snapst.Current = snapsup.Revision()
-			snapst.Sequence = append(snapst.Sequence, snapsup.SideInfo)
+			snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, sequence.NewRevisionSideState(snapsup.SideInfo, nil))
 			snapstate.Set(st, snapsup.InstanceName(), &snapst)
 
 			// check that prerequisites task is not done yet, it must wait for core.
@@ -410,9 +412,9 @@ func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "core", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -538,7 +540,7 @@ func (s *prereqSuite) TestDoPrereqCore16wCoreNothingToDo(c *C) {
 		Revision: snap.R(1),
 	}
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 	})
 
@@ -826,4 +828,87 @@ func (s *prereqSuite) TestPreReqContentAttrsNotSatisfiedSeeding(c *C) {
 	c.Assert(chg.Tasks(), HasLen, 1)
 	c.Assert(chg.Tasks()[0].Log(), HasLen, 1)
 	c.Check(chg.Tasks()[0].Log()[0], testutil.Contains, `cannot update "some-snap" during seeding, will not have required content "this-does-not-match": too early for operation, device not yet seeded or device model not acknowledged`)
+}
+
+func (s *prereqSuite) TestDoPrereqSkipDuringRemodel(c *C) {
+	s.state.Lock()
+
+	restore := snapstatetest.MockDeviceContext(&snapstatetest.TrivialDeviceContext{
+		Remodeling: true,
+	})
+	defer restore()
+
+	// replace the store here so we can force an error if we actually call
+	// InstallWithDeviceContext. if we do not do this, and we fail to properly
+	// handle the remodel case, InstallWithDeviceContext will return a
+	// ChangeConflictError, which is then ignored, making this test invalid
+	snapstate.ReplaceStore(s.state, storetest.Store{})
+
+	// install snapd so that prerequisites handler won't try to install it
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{
+				RealName: "snapd",
+				Revision: snap.R(1),
+			},
+		}),
+		Current: snap.R(1),
+	})
+
+	prereqTask := s.state.NewTask("prerequisites", "test")
+	prereqTask.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Base:    "core18",
+		Channel: "stable",
+	})
+
+	linkSnapTask := s.state.NewTask("link-snap", "Doing a fake link-snap")
+	linkSnapTask.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "core18",
+			Revision: snap.R(1),
+		},
+		Type:    snap.TypeBase,
+		Channel: "stable",
+	})
+
+	// this simulates the link-snap task being blocked on the prerequisites
+	// task, like during a remodel
+	linkSnapTask.WaitFor(prereqTask)
+
+	// for this test, we don't care about what link-snap does
+	s.runner.AddHandler("link-snap", func(task *state.Task, _ *tomb.Tomb) error {
+		return nil
+	}, nil)
+
+	chg := s.state.NewChange("do-prereqs", "...")
+	chg.AddTask(prereqTask)
+	chg.AddTask(linkSnapTask)
+
+	s.state.Unlock()
+
+	// ensure and wait twice since the link-snap task depends on the
+	// prerequisites task
+	s.se.Ensure()
+	s.se.Wait()
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(prereqTask.Status(), Equals, state.DoneStatus)
+	c.Check(linkSnapTask.Status(), Equals, state.DoneStatus)
+	c.Check(chg.Err(), IsNil)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+
+	// core18 should not be installed, despite the prerequisites task being
+	// finished successfully. this is because, during a remodel, we do not wait
+	// for (or attempt) prerequisites installs.
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "core18", &snapst)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 }

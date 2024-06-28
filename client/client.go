@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,7 +26,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -36,6 +35,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/jsonutil"
 )
@@ -437,7 +437,7 @@ func decodeInto(reader io.Reader, v interface{}) error {
 	dec := json.NewDecoder(reader)
 	if err := dec.Decode(v); err != nil {
 		r := dec.Buffered()
-		buf, err1 := ioutil.ReadAll(r)
+		buf, err1 := io.ReadAll(r)
 		if err1 != nil {
 			buf = []byte(fmt.Sprintf("error reading buffered response body: %s", err1))
 		}
@@ -688,6 +688,8 @@ type SysInfo struct {
 	Refresh         RefreshInfo         `json:"refresh,omitempty"`
 	Confinement     string              `json:"confinement"`
 	SandboxFeatures map[string][]string `json:"sandbox-features,omitempty"`
+
+	Features map[string]features.FeatureInfo `json:"features,omitempty"`
 }
 
 func (rsp *response) err(cli *Client, statusCode int) error {

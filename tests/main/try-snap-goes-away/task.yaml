@@ -1,6 +1,11 @@
 summary: Check that snaps vanishing are handled gracefully
 
 details: |
+    The snap try command can be used to install a snap without creating the
+    squashfs file, which for large snaps is very costly. The test shows that
+    even if the directory holding try-mode snap's files is removed, snapd does
+    not malfunction and allows the snap to be removed correctly.
+
     Note that this test is subtly different from tests/regression/lp-1764977.
     See the description of that test for details.
 

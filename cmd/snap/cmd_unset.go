@@ -39,6 +39,13 @@ Nested values may be removed via a dotted path:
 	$ snap unset snap-name user.name
 `)
 
+var longRegistryUnsetHelp = i18n.G(`
+If the first argument passed into unset is a registry identifier matching the
+format <account-id>/<registry>/<view>, unset will use the registry API. In this
+case, the command removes the data stored in the provided dot-separated view
+paths.
+`)
+
 type cmdUnset struct {
 	waitMixin
 	Positional struct {
@@ -48,6 +55,10 @@ type cmdUnset struct {
 }
 
 func init() {
+	if err := validateRegistryFeatureFlag(); err == nil {
+		longUnsetHelp += longRegistryUnsetHelp
+	}
+
 	addCommand("unset", shortUnsetHelp, longUnsetHelp, func() flags.Commander { return &cmdUnset{} }, waitDescs, []argDesc{
 		{
 			name: "<snap>",
@@ -69,7 +80,25 @@ func (x *cmdUnset) Execute(args []string) error {
 	}
 
 	snapName := string(x.Positional.Snap)
-	id, err := x.client.SetConf(snapName, patchValues)
+	var id string
+	var err error
+
+	if isRegistryViewID(snapName) {
+		if err := validateRegistryFeatureFlag(); err != nil {
+			return err
+		}
+
+		// first argument is a registryViewID, use the registry API
+		registryViewID := snapName
+		if err := validateRegistryViewID(registryViewID); err != nil {
+			return err
+		}
+
+		id, err = x.client.RegistrySetViaView(registryViewID, patchValues)
+	} else {
+		id, err = x.client.SetConf(snapName, patchValues)
+	}
+
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,52 @@
+summary: Test remodeling on a hybrid system
+
+details: |
+  This test remodels on a hybrid system to install a new kernel snap and new
+  application snaps.
+
+systems: [ubuntu-22.04-64, ubuntu-24.04-64]
+
+environment:
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_REPACK_KERNEL_SNAP: true
+  NESTED_ENABLE_OVMF: true
+
+  STORE_ADDR: localhost:11028
+  STORE_DIR: $(pwd)/fake-store-blobdir
+
+prepare: |
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB/prepare.sh"
+  # shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB"/nested.sh
+
+  "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
+     --model "${TESTSLIB}/assertions/classic-model.assert"
+
+restore: |
+  tests.systemd stop-unit --remove "nested-vm"
+
+execute: |
+  remote.wait-for device-initialized
+
+  # install this so that we get reboot notifications
+  remote.exec "sudo apt install -y update-notifier-common"
+
+  remote.push "${TESTSLIB}/assertions/classic-model-rev1.assert"
+
+  # remodel and reboot. we need to reboot because we swapped the kernel snap
+  change_id=$(remote.exec 'sudo snap remodel --no-wait classic-model-rev1.assert')
+  retry -n 100 --wait 5 remote.exec "snap tasks ${change_id} | grep 'INFO Task set to wait until a system restart allows to continue'"
+  remote.exec 'test -f /run/reboot-required'
+
+  boot_id="$(tests.nested boot-id)"
+  remote.exec 'sudo reboot' || true
+  remote.wait-for reboot "${boot_id}"
+  remote.exec snap watch "${change_id}"
+  remote.exec 'snap changes' | MATCH "${change_id}\s+Done.+Refresh model assertion from revision 0 to 1"
+
+  remote.exec 'snap list jq-core22'
+  remote.exec 'snap list pc-kernel' | awk 'NR != 1 { print $4 }' | MATCH '22-hwe/stable'
+
+  # TODO: once we support installing recovery systems during the hybrid install,
+  # we should switch this test to use a gadget that does not use "system-seed-null"

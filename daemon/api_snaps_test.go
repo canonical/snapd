@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2022 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -46,10 +46,13 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
@@ -66,6 +69,10 @@ func (s *snapsSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 
 	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
+}
+
+func (s *snapsSuite) expectSnapsReadAccess() {
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}})
 }
 
 func (s *snapsSuite) TestSnapsInfoIntegration(c *check.C) {
@@ -96,6 +103,7 @@ func snapList(rawSnaps interface{}) []map[string]interface{} {
 }
 
 func (s *snapsSuite) checkSnapsInfoIntegration(c *check.C, all bool, names []string) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	type tsnap struct {
@@ -170,6 +178,7 @@ func (s *snapsSuite) checkSnapsInfoIntegration(c *check.C, all bool, names []str
 }
 
 func (s *snapsSuite) TestSnapsInfoOnlyLocal(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	s.rsnaps = []*snap.Info{{
@@ -209,6 +218,7 @@ func (s *snapsSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoAllMixedPublishers(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	// the first 'local' is from a 'local' snap
@@ -236,6 +246,7 @@ func (s *snapsSuite) TestSnapsInfoAllMixedPublishers(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoAll(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(1), false, "")
@@ -282,6 +293,7 @@ func (s *snapsSuite) TestSnapsInfoAll(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoOnlyStore(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	s.suggestedCurrency = "EUR"
@@ -315,6 +327,7 @@ func (s *snapsSuite) TestSnapsInfoOnlyStore(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	state := d.Overlord().State()
@@ -340,6 +353,7 @@ func (s *snapsSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoLocalAndStore(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	s.rsnaps = []*snap.Info{{
@@ -386,6 +400,7 @@ func (s *snapsSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoDefaultSources(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	s.rsnaps = []*snap.Info{{
@@ -412,6 +427,7 @@ func (s *snapsSuite) TestSnapsInfoDefaultSources(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoFilterRemote(c *check.C) {
+	s.expectSnapsReadAccess()
 	s.daemon(c)
 
 	s.rsnaps = nil
@@ -957,6 +973,7 @@ func (s *snapsSuite) TestRemoveManyWithPurge(c *check.C) {
 	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 }
 func (s *snapsSuite) TestSnapInfoOneIntegration(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	// we have v0 [r5] installed
@@ -1213,6 +1230,7 @@ UnitFileState=enabled
 }
 
 func (s *snapsSuite) TestSnapInfoNotFound(c *check.C) {
+	s.expectSnapsReadAccess()
 	s.daemon(c)
 
 	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
@@ -1221,6 +1239,7 @@ func (s *snapsSuite) TestSnapInfoNotFound(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapInfoNoneFound(c *check.C) {
+	s.expectSnapsReadAccess()
 	s.daemon(c)
 
 	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
@@ -1229,6 +1248,7 @@ func (s *snapsSuite) TestSnapInfoNoneFound(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
+	s.expectSnapsReadAccess()
 	s.daemon(c)
 	s.err = errors.New("weird")
 
@@ -1240,6 +1260,7 @@ func (s *snapsSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapInfoReturnsHolds(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 	s.mkInstalledInState(c, d, "foo", "bar", "v0", snap.R(5), true, "")
 
@@ -1272,6 +1293,7 @@ func (s *snapsSuite) TestSnapInfoReturnsHolds(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapManyInfosReturnsHolds(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 	s.mkInstalledInState(c, d, "snap-a", "bar", "v0", snap.R(5), true, "")
 	s.mkInstalledInState(c, d, "snap-b", "bar", "v0", snap.R(5), true, "")
@@ -1312,6 +1334,165 @@ func (s *snapsSuite) TestSnapManyInfosReturnsHolds(c *check.C) {
 			c.Assert(snap["gating-hold"], check.Equals, gatingHold.Format(time.RFC3339Nano))
 			_, ok := snap["hold"]
 			c.Assert(ok, check.Equals, false)
+		}
+	}
+}
+
+func (s *snapsSuite) TestSnapInfoReturnsRefreshInhibitProceedTime(c *check.C) {
+	s.expectSnapsReadAccess()
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "foo", "bar", "v0", snap.R(5), true, "")
+
+	st := d.Overlord().State()
+	st.Lock()
+	var snapst snapstate.SnapState
+	// Update snap state with RefreshInhibitedTime.
+	c.Assert(snapstate.Get(st, "foo", &snapst), check.IsNil)
+	refreshInhibitTime := time.Now().Add(1 * time.Hour)
+	snapst.RefreshInhibitedTime = &refreshInhibitTime
+	snapstate.Set(st, "foo", &snapst)
+	// Get expected proceed time while we have the lock.
+	expectedProceedTime := snapst.RefreshInhibitProceedTime(st)
+
+	monitored := map[string]context.CancelFunc{"foo": func() {}}
+	st.Cache("monitored-snaps", monitored)
+	st.Unlock()
+
+	req, err := http.NewRequest("GET", "/v2/snaps/foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, nil)
+
+	c.Assert(rsp.Result, check.FitsTypeOf, &client.Snap{})
+	snapInfo := rsp.Result.(*client.Snap)
+	c.Assert(snapInfo.RefreshInhibit, check.NotNil)
+
+	c.Check(snapInfo.RefreshInhibit.ProceedTime.Equal(expectedProceedTime), check.Equals, true)
+}
+
+func (s *snapsSuite) TestSnapManyInfosReturnsRefreshInhibitProceedTime(c *check.C) {
+	s.expectSnapsReadAccess()
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "snap-a", "bar", "v0", snap.R(5), true, "")
+	s.mkInstalledInState(c, d, "snap-b", "bar", "v0", snap.R(5), true, "")
+	s.mkInstalledInState(c, d, "snap-c", "bar", "v0", snap.R(5), true, "")
+
+	st := d.Overlord().State()
+	st.Lock()
+	var snapst snapstate.SnapState
+
+	// Update snap-a state with RefreshInhibitedTime.
+	c.Assert(snapstate.Get(st, "snap-a", &snapst), check.IsNil)
+	refreshInhibitTime := time.Now().Add(1 * time.Hour)
+	snapst.RefreshInhibitedTime = &refreshInhibitTime
+	snapstate.Set(st, "snap-a", &snapst)
+	// Get expected proceed time for snap-a while we have the lock.
+	expectedProceedTimeA := snapst.RefreshInhibitProceedTime(st)
+
+	// Update snap-b state with RefreshInhibitedTime.
+	c.Assert(snapstate.Get(st, "snap-b", &snapst), check.IsNil)
+	refreshInhibitTime = time.Now().Add(1 * time.Hour)
+	snapst.RefreshInhibitedTime = &refreshInhibitTime
+	snapstate.Set(st, "snap-b", &snapst)
+	// Get expected proceed time for snap-b while we have the lock.
+	expectedProceedTimeB := snapst.RefreshInhibitProceedTime(st)
+
+	monitored := map[string]context.CancelFunc{
+		"snap-a": func() {},
+		// Simulate a scenario where a refresh is continued (i.e. snap is
+		// not monitored) but RefreshInhibitedTime is not reset yet.
+		"snap-b": nil,
+	}
+	st.Cache("monitored-snaps", monitored)
+
+	st.Unlock()
+
+	req, err := http.NewRequest("GET", "/v2/snaps", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.jsonReq(c, req, nil)
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 3)
+
+	for _, snap := range snaps {
+		testCmt := check.Commentf("snap %s failed", snap["name"])
+		switch snap["name"] {
+		case "snap-a":
+			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
+			proceedTime, err := time.Parse(time.RFC3339Nano, refreshInhibit["proceed-time"].(string))
+			c.Assert(err, check.IsNil)
+			c.Assert(proceedTime.Equal(expectedProceedTimeA), check.Equals, true, testCmt)
+		case "snap-b":
+			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
+			proceedTime, err := time.Parse(time.RFC3339Nano, refreshInhibit["proceed-time"].(string))
+			c.Assert(err, check.IsNil)
+			c.Assert(proceedTime.Equal(expectedProceedTimeB), check.Equals, true, testCmt)
+		case "snap-c":
+			_, ok := snap["refresh-inhibit"]
+			c.Assert(ok, check.Equals, false)
+		}
+	}
+}
+
+func (s *snapsSuite) TestSnapManyInfosSelectRefreshInhibited(c *check.C) {
+	s.expectSnapsReadAccess()
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "snap-a", "bar", "v0", snap.R(5), true, "")
+	s.mkInstalledInState(c, d, "snap-b", "bar", "v0", snap.R(5), true, "")
+	s.mkInstalledInState(c, d, "snap-c", "bar", "v0", snap.R(5), true, "")
+
+	st := d.Overlord().State()
+	st.Lock()
+	var snapst snapstate.SnapState
+
+	// Update snap-a state with RefreshInhibitedTime.
+	c.Assert(snapstate.Get(st, "snap-a", &snapst), check.IsNil)
+	refreshInhibitTime := time.Now().Add(1 * time.Hour)
+	snapst.RefreshInhibitedTime = &refreshInhibitTime
+	snapstate.Set(st, "snap-a", &snapst)
+	// Get expected proceed time for snap-a while we have the lock.
+	expectedProceedTimeA := snapst.RefreshInhibitProceedTime(st)
+
+	// Update snap-b state with RefreshInhibitedTime.
+	c.Assert(snapstate.Get(st, "snap-b", &snapst), check.IsNil)
+	// Simulate a scenario where proceed time is in the past but the snap is still monitored
+	refreshInhibitTime = time.Now().Add(-30 * 24 * time.Hour)
+	snapst.RefreshInhibitedTime = &refreshInhibitTime
+	snapstate.Set(st, "snap-b", &snapst)
+	// Get expected proceed time for snap-a while we have the lock.
+	expectedProceedTimeB := snapst.RefreshInhibitProceedTime(st)
+
+	monitored := map[string]context.CancelFunc{
+		"snap-a": func() {},
+		// Snap monitored should show as inhibited even when proceed-time is in the past
+		"snap-b": func() {},
+	}
+	st.Cache("monitored-snaps", monitored)
+
+	st.Unlock()
+
+	req, err := http.NewRequest("GET", "/v2/snaps?select=refresh-inhibited", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.jsonReq(c, req, nil)
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 2)
+
+	for _, snap := range snaps {
+		testCmt := check.Commentf("snap %s failed", snap["name"])
+		switch snap["name"] {
+		case "snap-a":
+			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
+			proceedTime, err := time.Parse(time.RFC3339Nano, refreshInhibit["proceed-time"].(string))
+			c.Assert(err, check.IsNil)
+			c.Assert(proceedTime.Equal(expectedProceedTimeA), check.Equals, true, testCmt)
+		case "snap-b":
+			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
+			proceedTime, err := time.Parse(time.RFC3339Nano, refreshInhibit["proceed-time"].(string))
+			c.Assert(err, check.IsNil)
+			c.Assert(proceedTime.Equal(expectedProceedTimeB), check.Equals, true, testCmt)
+		case "snap-c":
+			c.Error("snap-c should not be listed")
 		}
 	}
 }
@@ -1422,6 +1603,207 @@ func (s *snapsSuite) TestMapLocalFields(c *check.C) {
 		Apps: []client.AppInfo{
 			{Snap: "some-snap_instance", Name: "bar"},
 			{Snap: "some-snap_instance", Name: "foo"},
+		},
+	}
+	c.Check(daemon.MapLocal(about, nil), check.DeepEquals, expected)
+}
+
+func (s *snapsSuite) TestMapLocalFieldsWithComponents(c *check.C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir(dirs.GlobalRootDir)
+
+	media := snap.MediaInfos{
+		{
+			Type: "screenshot",
+			URL:  "https://example.com/shot1.svg",
+		}, {
+			Type: "icon",
+			URL:  "https://example.com/icon.png",
+		}, {
+			Type: "screenshot",
+			URL:  "https://example.com/shot2.svg",
+		},
+	}
+
+	publisher := snap.StoreAccount{
+		ID:          "some-dev-id",
+		Username:    "some-dev",
+		DisplayName: "Some Developer",
+		Validation:  "poor",
+	}
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			SnapID:            "some-snap-id",
+			RealName:          "some-snap",
+			EditedTitle:       "A Title",
+			EditedSummary:     "a summary",
+			EditedDescription: "the\nlong\ndescription",
+			Channel:           "bleeding/edge",
+			EditedLinks: map[string][]string{
+				"contact": {"mailto:alice@example.com"},
+			},
+			LegacyEditedContact: "mailto:alice@example.com",
+			Revision:            snap.R(7),
+			Private:             true,
+		},
+		SnapType:    "app",
+		Base:        "the-base",
+		Version:     "v1.0",
+		License:     "MIT",
+		Broken:      "very",
+		Confinement: "very strict",
+		CommonIDs:   []string{"foo", "bar"},
+		Media:       media,
+		DownloadInfo: snap.DownloadInfo{
+			Size:     42,
+			Sha3_384: "some-sum",
+		},
+		Publisher: publisher,
+		Components: map[string]*snap.Component{
+			"comp-1": {
+				Name: "comp-1",
+				Type: "test",
+			},
+			"comp-2": {
+				Name:        "comp-2",
+				Type:        "test",
+				Summary:     "summary 2",
+				Description: "description 2",
+			},
+			"comp-3": {
+				Name:        "comp-3",
+				Type:        "test",
+				Summary:     "summary 3",
+				Description: "description 3",
+			},
+			"comp-4": {
+				Name: "comp-4",
+				Type: "test",
+			},
+		},
+	}
+
+	// make InstallDate work
+	c.Assert(os.MkdirAll(info.MountDir(), 0755), check.IsNil)
+	c.Assert(os.Symlink("7", filepath.Join(info.MountDir(), "..", "current")), check.IsNil)
+
+	info.Apps = map[string]*snap.AppInfo{
+		"foo": {Snap: info, Name: "foo", Command: "foo"},
+		"bar": {Snap: info, Name: "bar", Command: "bar"},
+	}
+
+	const comp1yaml = `
+component: some-snap+comp-1
+type: test
+version: 1.0
+`
+	const comp2yaml = `
+component: some-snap+comp-2
+type: test
+version: 1.0
+summary: summary 2
+description: description 2
+`
+	// We need just enough info for components in snap.yaml
+	const snapYaml = `
+name: some-snap
+version: 1
+components:
+  comp-1:
+    type: test
+  comp-2:
+    type: test
+`
+
+	// Mock snap.yaml/component.yaml files for installed components
+	ssi := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(7),
+		SnapID: "some-snap-id"}
+	snaptest.MockSnap(c, snapYaml, ssi)
+	csi := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "comp-1"), snap.R(33))
+	snaptest.MockComponent(c, comp1yaml, info, *csi)
+	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "comp-2"), snap.R(34))
+	snaptest.MockComponent(c, comp2yaml, info, *csi2)
+	comps := []*sequence.ComponentState{
+		sequence.NewComponentState(csi, snap.TestComponent),
+		sequence.NewComponentState(csi2, snap.TestComponent),
+	}
+
+	// make InstallDate/InstalledSize work for comp1 and comp2
+	cpi := snap.MinimalComponentContainerPlaceInfo(
+		csi.Component.ComponentName, csi.Revision, "some-snap")
+	symLn := snap.ComponentLinkPath(cpi, snap.R(7))
+	c.Assert(os.MkdirAll(cpi.MountDir(), 0755), check.IsNil)
+	os.WriteFile(cpi.MountFile(), []byte{0, 0}, 0644)
+	c.Assert(os.MkdirAll(filepath.Dir(symLn), 0755), check.IsNil)
+	c.Assert(os.Symlink(cpi.MountDir(), symLn), check.IsNil)
+	cpi2 := snap.MinimalComponentContainerPlaceInfo(
+		csi2.Component.ComponentName, csi2.Revision, "some-snap")
+	symLn2 := snap.ComponentLinkPath(cpi2, snap.R(7))
+	c.Assert(os.MkdirAll(cpi2.MountDir(), 0755), check.IsNil)
+	os.WriteFile(cpi2.MountFile(), []byte{0, 0, 0}, 0644)
+	c.Assert(os.MkdirAll(filepath.Dir(symLn2), 0755), check.IsNil)
+	c.Assert(os.Symlink(cpi2.MountDir(), symLn2), check.IsNil)
+
+	about := daemon.MakeAboutSnap(info, &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(ssi, comps)}),
+		Active:          true,
+		TrackingChannel: "flaky/beta",
+		Current:         snap.R(7),
+		Flags: snapstate.Flags{
+			IgnoreValidation: true,
+			DevMode:          true,
+			JailMode:         true,
+		},
+	},
+	)
+
+	expected := &client.Snap{
+		ID:               "some-snap-id",
+		Name:             "some-snap",
+		Summary:          "a summary",
+		Description:      "the\nlong\ndescription",
+		Developer:        "some-dev",
+		Publisher:        &publisher,
+		Icon:             "https://example.com/icon.png",
+		Type:             "app",
+		Base:             "the-base",
+		Version:          "v1.0",
+		Revision:         snap.R(7),
+		Channel:          "bleeding/edge",
+		TrackingChannel:  "flaky/beta",
+		InstallDate:      info.InstallDate(),
+		InstalledSize:    42,
+		Status:           "active",
+		Confinement:      "very strict",
+		IgnoreValidation: true,
+		DevMode:          true,
+		JailMode:         true,
+		Private:          true,
+		Broken:           "very",
+		Links: map[string][]string{
+			"contact": {"mailto:alice@example.com"},
+		},
+		Contact:     "mailto:alice@example.com",
+		Title:       "A Title",
+		License:     "MIT",
+		CommonIDs:   []string{"foo", "bar"},
+		MountedFrom: filepath.Join(dirs.SnapBlobDir, "some-snap_7.snap"),
+		Media:       media,
+		Apps: []client.AppInfo{
+			{Snap: "some-snap", Name: "bar"},
+			{Snap: "some-snap", Name: "foo"},
+		},
+		Components: []client.Component{
+			{Name: "comp-1", Type: "test", Version: "1.0", Revision: snap.R(33),
+				InstallDate: snap.ComponentInstallDate(cpi, snap.R(7)), InstalledSize: 2},
+			{Name: "comp-2", Type: "test", Version: "1.0", Revision: snap.R(34),
+				Summary: "summary 2", Description: "description 2",
+				InstallDate: snap.ComponentInstallDate(cpi2, snap.R(7)), InstalledSize: 3},
+			{Name: "comp-3", Type: "test",
+				Summary: "summary 3", Description: "description 3"},
+			{Name: "comp-4", Type: "test"},
 		},
 	}
 	c.Check(daemon.MapLocal(about, nil), check.DeepEquals, expected)
@@ -1555,6 +1937,10 @@ func (s *snapsSuite) testPostSnap(c *check.C, extraJSON string, checkOpts func(o
 	c.Check(checked, check.Equals, true)
 	c.Check(soon, check.Equals, 1)
 	c.Check(chg.Tasks()[0].Summary(), check.Equals, "Doing a fake install")
+
+	var apiData map[string]interface{}
+	c.Check(chg.Get("api-data", &apiData), check.IsNil)
+	c.Check(apiData["snap-names"], check.DeepEquals, []interface{}{"foo"})
 
 	summary = chg.Summary()
 	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
@@ -2655,6 +3041,114 @@ func (s *snapsSuite) TestRefreshEnforce(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Enforce validation sets "foo/bar=2", "foo/baz" for snaps "install-snap", "update-snap"`)
 	c.Check(res.Affected, check.DeepEquals, []string{"install-snap", "update-snap"})
+}
+
+func (s *snapsSuite) TestRefreshEnforceWithPreexistingSet(c *check.C) {
+	unpinned := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "preexisting-unpinned",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "install-snap",
+				"id":       "mysnapdddddddddddddddddddddddddd",
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	pinned := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "preexisting-pinned",
+		"sequence":     "3",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "install-snap",
+				"id":       "mysnapdddddddddddddddddddddddddd",
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	d := s.daemon(c)
+	st := d.Overlord().State()
+
+	// start tracking these already, the pinned one should end up still pinned
+	// after everything is done
+	st.Lock()
+	assertstate.UpdateValidationSet(st, &assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Mode:      assertstate.Enforce,
+		Name:      "preexisting-pinned",
+		PinnedAt:  3,
+		Current:   3,
+	})
+	assertstate.UpdateValidationSet(st, &assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Mode:      assertstate.Enforce,
+		Name:      "preexisting-unpinned",
+		Current:   1,
+	})
+	st.Unlock()
+
+	vset := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "new",
+		"sequence":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "install-snap",
+				"id":       "mysnapcccccccccccccccccccccccccc",
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	restore := daemon.MockAssertstateTryEnforceValidationSets(func(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+		return &snapasserts.ValidationSetsValidationError{
+			MissingSnaps: map[string]map[snap.Revision][]string{
+				"install-snap": {snap.R(1): []string{"foo/new=2"}},
+			},
+			Sets: map[string]*asserts.ValidationSet{
+				"foo/preexisting-unpinned": unpinned,
+				"foo/preexisting-pinned":   pinned,
+				"foo/new":                  vset,
+			},
+		}
+	})
+	defer restore()
+
+	restore = daemon.MockSnapstateResolveValSetEnforcementError(func(_ context.Context, st *state.State, validErr *snapasserts.ValidationSetsValidationError, pinnedSeqs map[string]int, _ int) ([]*state.TaskSet, []string, error) {
+		// note that the unpinned set is not present here
+		c.Assert(pinnedSeqs, check.DeepEquals, map[string]int{
+			"foo/new":                2,
+			"foo/preexisting-pinned": 3,
+		})
+		c.Assert(validErr, check.Not(check.IsNil))
+
+		t := st.NewTask("fake-enforce-snaps", "...")
+		return []*state.TaskSet{state.NewTaskSet(t)}, []string{"install-snap"}, nil
+	})
+	defer restore()
+
+	inst := &daemon.SnapInstruction{Action: "refresh", ValidationSets: []string{"foo/new=2"}}
+
+	st.Lock()
+	defer st.Unlock()
+
+	res, err := inst.DispatchForMany()(inst, st)
+	c.Assert(err, check.IsNil)
+	c.Check(res.Summary, check.Equals, `Enforce validation sets "foo/new=2" for snaps "install-snap"`)
+	c.Check(res.Affected, check.DeepEquals, []string{"install-snap"})
 }
 
 func (s *snapsSuite) TestRefreshEnforceTryEnforceValidationSetsError(c *check.C) {

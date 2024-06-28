@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -46,21 +45,21 @@ apps:
   command: foo
   plugs: [network]
 `
+const netMockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ network:
+  interface: network
+`
 
 var _ = Suite(&NetworkInterfaceSuite{
 	iface: builtin.MustInterface("network"),
 })
 
 func (s *NetworkInterfaceSuite) SetUpTest(c *C) {
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "network",
-		Interface: "network",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	plugSnap := snaptest.MockInfo(c, netMockPlugSnapInfoYaml, nil)
-	s.plugInfo = plugSnap.Plugs["network"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.slot, s.slotInfo = MockConnectedSlot(c, netMockSlotSnapInfoYaml, nil, "network")
+	s.plug, s.plugInfo = MockConnectedPlug(c, netMockPlugSnapInfoYaml, nil, "network")
 }
 
 func (s *NetworkInterfaceSuite) TestName(c *C) {
@@ -77,14 +76,14 @@ func (s *NetworkInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *NetworkInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `tcp_fastopen`)
 
 	// connected plugs have a non-nil security snippet for seccomp
-	seccompSpec := &seccomp.Specification{}
+	seccompSpec := seccomp.NewSpecification(s.plug.AppSet())
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})

@@ -1,5 +1,17 @@
 summary: Check that `snap auto-import` works as expected
 
+details: |
+    The auto-import command searches available mounted devices looking for
+    assertions that are signed by trusted authorities, and potentially
+    performs system changes based on them.
+
+    Assertions to be imported must be made available in the auto-import.assert file
+    in the root of the filesystem.
+
+    Having created a ramdisk with the account-key assertion, this test verifies that
+    an account key can be imported by the `snap auto-import` command from the
+    mounted ramdisk. 
+
 systems: [ubuntu-core-*-64]
 
 prepare: |

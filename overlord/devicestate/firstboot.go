@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2022 Canonical Ltd
+ * Copyright (C) 2014-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,7 @@
 package devicestate
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"runtime"
@@ -43,7 +44,7 @@ var errNothingToDo = errors.New("nothing to do")
 
 var runtimeNumCPU = runtime.NumCPU
 
-func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
+func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags, prqt snapstate.PrereqTracker) (*state.TaskSet, *snap.Info, error) {
 	if sn.Required {
 		flags.Required = true
 	}
@@ -54,7 +55,19 @@ func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags) (*st
 		flags.DevMode = true
 	}
 
-	return snapstate.InstallPath(st, sn.SideInfo, sn.Path, "", sn.Channel, flags)
+	t := snapstate.PathInstallGoal("", sn.Path, sn.SideInfo, snapstate.RevisionOptions{
+		Channel: sn.Channel,
+	})
+	info, ts, err := snapstate.InstallOne(context.Background(), st, t, snapstate.Options{
+		Flags:         flags,
+		PrereqTracker: prqt,
+		Seed:          true,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return ts, info, nil
 }
 
 func criticalTaskEdges(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge *state.Task, err error) {
@@ -78,10 +91,6 @@ func criticalTaskEdges(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge
 // maybeEnforceValidationSetsTask returns a task for tracking validation-sets. This may
 // return nil if no validation-sets are present.
 func maybeEnforceValidationSetsTask(st *state.State, model *asserts.Model, mode string) (*state.Task, error) {
-	vsKey := func(accountID, name string) string {
-		return fmt.Sprintf("%s/%s", accountID, name)
-	}
-
 	// Only enforce validation-sets in run-mode after installing all required snaps
 	if mode != "run" {
 		logger.Debugf("Postponing enforcement of validation-sets in mode %s", mode)
@@ -102,15 +111,14 @@ func maybeEnforceValidationSetsTask(st *state.State, model *asserts.Model, mode 
 	vsKeys := make(map[string][]string)
 	for _, a := range as {
 		vsa := a.(*asserts.ValidationSet)
-		vsKeys[vsKey(vsa.AccountID(), vsa.Name())] = a.Ref().PrimaryKey
+		vsKeys[vsa.SequenceKey()] = a.Ref().PrimaryKey
 	}
 
 	// Set up pins from the model
 	pins := make(map[string]int)
 	for _, vs := range model.ValidationSets() {
-		key := vsKey(vs.AccountID, vs.Name)
 		if vs.Sequence > 0 {
-			pins[key] = vs.Sequence
+			pins[vs.SequenceKey()] = vs.Sequence
 		}
 	}
 
@@ -262,6 +270,8 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 
 	infoToTs := make(map[*snap.Info]*state.TaskSet, len(essentialSeedSnaps))
 
+	prqt := snap.NewSelfContainedSetPrereqTracker()
+
 	if len(essentialSeedSnaps) != 0 {
 		// we *always* configure "core" here even if bases are used
 		// for booting. "core" is where the system config lives.
@@ -282,7 +292,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 			ApplySnapDevMode: modelIsDangerous,
 		}
 
-		ts, info, err := installSeedSnap(st, seedSnap, flags)
+		ts, info, err := installSeedSnap(st, seedSnap, flags, prqt)
 		if err != nil {
 			return nil, err
 		}
@@ -323,7 +333,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 			Classic: release.OnClassic && modelIsDangerous,
 		}
 
-		ts, info, err := installSeedSnap(st, seedSnap, flags)
+		ts, info, err := installSeedSnap(st, seedSnap, flags, prqt)
 		if err != nil {
 			return nil, err
 		}
@@ -331,11 +341,17 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 		infoToTs[info] = ts
 	}
 
-	// validate that all snaps have bases
-	errs := snap.ValidateBasesAndProviders(infos)
+	// validate that all snaps have bases and providers are fulfilled
+	// using the PrereqTracker
+	warns, errs := prqt.Check()
 	if errs != nil {
 		// only report the first error encountered
 		return nil, errs[0]
+	}
+	// XXX do better, use the warnings to setup checks at end of the seeding
+	// and log onlys plug not connected or explicitly disconnected there
+	for _, w := range warns {
+		logger.Noticef("seed prerequisites: %v", w)
 	}
 
 	// now add/chain the tasksets in the right order, note that we

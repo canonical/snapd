@@ -1,0 +1,51 @@
+summary: test for the log filter tool
+
+details: |
+    This test checks the log-filter tool is able to read the spread output
+    and filter the log following a set of rules. It is also checked that the
+    output of the log-filter tool is the same than spread.
+
+backends: [google]
+
+# Github actions agents are just running ubuntu jammy
+systems: [ubuntu-22.04-64]
+
+prepare: |
+    wget https://storage.googleapis.com/snapd-spread-tests/dependencies/spread-log-filter.tar.xz
+    tar -xf spread-log-filter.tar.xz
+
+restore: |
+    rm -rf spread-log-filter.tar.xz ./*.log
+
+execute: |
+    log-filter --help | MATCH 'usage: log-filter \[-h\] \[-o PATH\]'
+    log-filter -h | MATCH 'usage: log-filter \[-h\] \[-o PATH\]'
+
+    # Run the tool for a real log    
+    # The output should:
+    # 1. the output should go to test.filtered.log file
+    # 2. exclude: Preparing, Restoring, Error, Warning
+    # 3. show: debug lines with ###DEBUG
+    # 4. show: failed tests for google-nested
+    log-filter -o test.filtered.log -e Error -e Restoring -e Preparing -f "Debug=###DEBUG" -f "Failed=google-nested:" < spread-log-filter.log > output.log
+
+    # Check the stdout is the same than the stdin
+    diff -Z spread-log-filter.log output.log
+
+    # Check exclude
+    test "$(grep -c Restoring test.filtered.log)" -eq 0
+    test "$(grep -c Preparing test.filtered.log)" -eq 0
+    test "$(grep -c Error test.filtered.log)" -eq 0
+
+    # Check the non excluded
+    test "$(grep -c 'Debug output' test.filtered.log)" -eq "$(grep -c 'Debug output' spread-log-filter.log)"
+
+    # Check the filters
+    test "$(grep -c '###DEBUG' test.filtered.log)" -eq "$(grep -c '###DEBUG' spread-log-filter.log)"
+    grep -A 1 'Failed suite prepare: 4' test.filtered.log | MATCH 'Failed suite restore: 1'
+
+    # Check no repeated
+    test "$(grep -c 'Failed suite prepare: 4' test.filtered.log)" -eq 1
+    test "$(grep -c 'Executing' test.filtered.log)" -eq "$(grep -c 'Executing' spread-log-filter.log)"
+    test "$(grep -c 'Aborted tasks' test.filtered.log)" -eq 1
+

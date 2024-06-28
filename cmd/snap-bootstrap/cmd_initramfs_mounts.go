@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2021 Canonical Ltd
+ * Copyright (C) 2019-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,7 +25,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -115,6 +114,7 @@ var (
 	bootMakeRunnableStandaloneSystem = boot.MakeRunnableStandaloneSystemFromInitrd
 	installApplyPreseededData        = install.ApplyPreseededData
 	bootEnsureNextBootToRunMode      = boot.EnsureNextBootToRunMode
+	installBuildInstallObserver      = install.BuildInstallObserver
 )
 
 func stampedAction(stamp string, action func() error) error {
@@ -246,10 +246,7 @@ func canInstallAndRunAtOnce(mst *initramfsMountsState) (bool, error) {
 		return false, nil
 	}
 
-	// TODO: when install in initrd is finished and it is tested
-	// without fde hook, turn the return into...
-	// return true, nil
-	return kernelHasFdeSetup, nil
+	return true, nil
 }
 
 func readSnapInfo(sysSnaps map[snap.Type]*seed.Snap, snapType snap.Type) (*snap.Info, error) {
@@ -310,7 +307,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	}
 	useEncryption := (encryptionSupport != secboot.EncryptionTypeNone)
 
-	installObserver, trustedInstallObserver, err := install.BuildInstallObserver(model, gadgetMountDir, useEncryption)
+	installObserver, trustedInstallObserver, err := installBuildInstallObserver(model, gadgetMountDir, useEncryption)
 	if err != nil {
 		return err
 	}
@@ -333,12 +330,33 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	}
 
 	bootDevice := ""
-	installedSystem, err := gadgetInstallRun(model, gadgetMountDir, kernelMountDir, bootDevice, options, installObserver, timings.New(nil))
+	kernelSnapInfo := &gadgetInstall.KernelSnapInfo{
+		Name:       kernelSnap.SnapName(),
+		MountPoint: kernelMountDir,
+		Revision:   kernelSnap.Revision,
+		// Should be true always anyway
+		IsCore: !model.Classic(),
+	}
+	switch model.Base() {
+	case "core20", "core22", "core22-desktop":
+		kernelSnapInfo.NeedsDriversTree = false
+	default:
+		kernelSnapInfo.NeedsDriversTree = true
+	}
+
+	installedSystem, err := gadgetInstallRun(model, gadgetMountDir, kernelSnapInfo, bootDevice, options, installObserver, timings.New(nil))
 	if err != nil {
 		return err
 	}
 
 	if trustedInstallObserver != nil {
+		// We are required to call ObserveExistingTrustedRecoveryAssets on trusted observers
+		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
+			return fmt.Errorf("cannot observe existing trusted recovery assets: %v", err)
+		}
+	}
+
+	if useEncryption {
 		if err := install.PrepareEncryptedSystemData(model, installedSystem.KeyForRole, trustedInstallObserver); err != nil {
 			return err
 		}
@@ -376,7 +394,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		return err
 	}
 	preseedSeed, ok := currentSeed.(seed.PreseedCapable)
-	if ok {
+	if ok && preseedSeed.HasArtifact("preseed.tgz") {
 		runMode := false
 		if err := installApplyPreseededData(preseedSeed, boot.InitramfsWritableDir(model, runMode)); err != nil {
 			return err
@@ -1185,7 +1203,7 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveRunKey() (stateFunc, error)
 	// to get to this state, we needed to have mounted ubuntu-data on host, so
 	// if encrypted, we can try to read the run key from host ubuntu-data
 	saveKey := device.SaveKeyUnder(dirs.SnapFDEDirUnder(boot.InitramfsHostWritableDir(m.model)))
-	key, err := ioutil.ReadFile(saveKey)
+	key, err := os.ReadFile(saveKey)
 	if err != nil {
 		// log the error and skip to trying the fallback key
 		m.degradedState.LogErrorf("cannot access run ubuntu-save key: %v", err)
@@ -1777,7 +1795,7 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 			return false, fmt.Errorf("cannot find ubuntu-save encryption key at %v", saveKey)
 		}
 		// we have save.key, volume exists and is encrypted
-		key, err := ioutil.ReadFile(saveKey)
+		key, err := os.ReadFile(saveKey)
 		if err != nil {
 			return true, err
 		}

@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -44,22 +43,23 @@ var _ = Suite(&SnapRefreshControlInterfaceSuite{
 })
 
 func (s *SnapRefreshControlInterfaceSuite) SetUpTest(c *C) {
-	consumingSnapInfo := snaptest.MockInfo(c, `
+	const mockPlugSnapInfoYaml = `
 name: other
 version: 0
 apps:
-  app:
-    command: foo
-    plugs: [snap-refresh-control]
-`, nil)
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "snap-refresh-control",
-		Interface: "snap-refresh-control",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	s.plugInfo = consumingSnapInfo.Plugs["snap-refresh-control"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+ app:
+  command: foo
+  plugs: [snap-refresh-control]
+`
+	const mockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ snap-refresh-control:
+  interface: snap-refresh-control
+`
+	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "snap-refresh-control")
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "snap-refresh-control")
 }
 
 func (s *SnapRefreshControlInterfaceSuite) TestName(c *C) {
@@ -68,13 +68,13 @@ func (s *SnapRefreshControlInterfaceSuite) TestName(c *C) {
 
 func (s *SnapRefreshControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have nil security snippet for apparmor and seccomp
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), IsNil)
 	c.Assert(apparmorSpec.Snippets(), HasLen, 0)
 
-	seccompSpec := &seccomp.Specification{}
+	seccompSpec := seccomp.NewSpecification(s.plug.AppSet())
 	c.Assert(seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(seccompSpec.Snippets(), HasLen, 0)
 }
