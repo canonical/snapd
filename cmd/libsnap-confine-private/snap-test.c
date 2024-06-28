@@ -580,9 +580,30 @@ static void test_sc_snap_component_validate(void)
 	g_assert_nonnull(err);
 	g_assert_true(sc_error_match
 		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_COMPONENT));
+	sc_snap_component_validate("snapname+compname", "othername_instance",
+				   &err);
+	g_assert_nonnull(err);
+	g_assert_true(sc_error_match
+		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_COMPONENT));
+
+	// component name should never have an instance key in it, so this should
+	// fail
+	sc_snap_component_validate("snapname_instance+compname",
+				   "snapname_instance", &err);
+	g_assert_nonnull(err);
+	g_assert_true(sc_error_match
+		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_COMPONENT));
+	sc_snap_component_validate("snapname_instance+compname", "snapname",
+				   &err);
+	g_assert_nonnull(err);
+	g_assert_true(sc_error_match
+		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_COMPONENT));
 
 	// check that we can validate the snap name in the snap component
 	sc_snap_component_validate("snapname+compname", "snapname", &err);
+	g_assert_null(err);
+	sc_snap_component_validate("snapname+compname", "snapname_instance",
+				   &err);
 	g_assert_null(err);
 
 	const char *cases[] = {
