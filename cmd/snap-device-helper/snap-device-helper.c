@@ -160,8 +160,8 @@ static char *udev_to_security_tag(const char *udev_tag) {
         die("missing snap name in tag \"%s\"", udev_tag);
     }
 
-    char *snap_component = NULL;
-    char snap_component_buffer[SNAP_NAME_LEN + 1] = {0};
+    char *component_name = NULL;
+    char component_name_buffer[SNAP_NAME_LEN + 1] = {0};
 
     // at this point, snap_name_start points to the start of the snap's name, and
     // snap_name_end either points to the end of the snap name, or the end of a
@@ -192,11 +192,11 @@ static char *udev_to_security_tag(const char *udev_tag) {
         }
 
         size_t comp_name_len = (size_t)(comp_name_end - comp_name_start);
-        if (comp_name_len >= sizeof(snap_component_buffer)) {
+        if (comp_name_len >= sizeof(component_name_buffer)) {
             die("component name of tag \"%s\" is too long", udev_tag);
         }
-        memcpy(snap_component_buffer, comp_name_start, comp_name_len);
-        snap_component = snap_component_buffer;
+        memcpy(component_name_buffer, comp_name_start, comp_name_len);
+        component_name = component_name_buffer;
     }
 
     /* let's validate the tag, but we need to extract the snap name first */
@@ -208,11 +208,11 @@ static char *udev_to_security_tag(const char *udev_tag) {
     memcpy(snap_instance, snap_name_start, snap_instance_len);
 
     debug("snap instance \"%s\"", snap_instance);
-    if (snap_component != NULL) {
-        debug("snap component \"%s\"", snap_component);
+    if (component_name != NULL) {
+        debug("snap component \"%s\"", component_name);
     }
 
-    if (!sc_security_tag_validate(tag, snap_instance, snap_component)) {
+    if (!sc_security_tag_validate(tag, snap_instance, component_name)) {
         die("security tag \"%s\" for snap \"%s\" is not valid", tag, snap_instance);
     }
 
