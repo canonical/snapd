@@ -329,7 +329,7 @@ func (iface *customDeviceInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 
 	var devicePaths []string
 	_ = slot.Attr("devices", &devicePaths)
-	emitRule(devicePaths, "rw")
+	emitRule(devicePaths, "rwk")
 
 	var readDevicePaths []string
 	_ = slot.Attr("read-devices", &readDevicePaths)
