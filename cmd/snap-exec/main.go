@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
 
@@ -221,14 +220,19 @@ func execApp(snapTarget, revision, command string, args []string) error {
 	// A similar workaround is necessary for strictly-confined Snaps to have their
 	// environment set up on libhybris devices, in order to access GL/EGL drivers,
 	// among other potentially viable libraries (as long as glibc wrappers exist).
+	// This leads the setup to an environment with:
+	// - libhybris wrappers available in an extra directory
+	// - bionic libraries residing in /android
+
 	// libhybris takes environment variables that point to the respective Android
 	// bionic linker. Do this by detecting the system.prop file shipped with every
 	// libhybris-compatible runtime environment.
-	if release.OnTouch {
+	var stLibHybrisVar syscall.Stat_t
+	err3 := syscallStat("/var/lib/snapd/lib/gl/libhybris", &stLibHybrisVar)
+	if err3 == nil {
 		env["HYBRIS_LINKER_DIR"] = "/var/lib/snapd/lib/gl/libhybris/linker"
 		env["HYBRIS_EGLPLATFORM_DIR"] = "/var/lib/snapd/lib/gl/libhybris"
 		env["HYBRIS_EGLPLATFORM"] = "wayland"
-		env["LD_LIBRARY_PATH"] += ":/var/lib/snapd/lib/gl"
 	}
 
 	// strings.Split() is ok here because we validate all app fields and the
