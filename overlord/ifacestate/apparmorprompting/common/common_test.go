@@ -740,7 +740,7 @@ func (s *commonSuite) TestAbstractPermissionsFromAppArmorFilePermissionsUnhappy(
 		},
 		{
 			"home",
-			notify.AA_MAY_GETATTR | notify.AA_MAY_READ,
+			notify.AA_MAY_GETCRED | notify.AA_MAY_READ,
 			"received unexpected permission for interface.*",
 		},
 		{
@@ -848,12 +848,12 @@ func (s *commonSuite) TestAbstractPermissionsToAppArmorFilePermissionsHappy(c *C
 		{
 			"home",
 			[]string{"read"},
-			notify.AA_MAY_OPEN | notify.AA_MAY_READ,
+			notify.AA_MAY_OPEN | notify.AA_MAY_READ | notify.AA_MAY_GETATTR,
 		},
 		{
 			"home",
 			[]string{"write"},
-			notify.AA_MAY_OPEN | notify.AA_MAY_WRITE | notify.AA_MAY_APPEND | notify.AA_MAY_CREATE | notify.AA_MAY_DELETE | notify.AA_MAY_RENAME | notify.AA_MAY_CHMOD | notify.AA_MAY_LOCK | notify.AA_MAY_LINK,
+			notify.AA_MAY_OPEN | notify.AA_MAY_WRITE | notify.AA_MAY_APPEND | notify.AA_MAY_CREATE | notify.AA_MAY_DELETE | notify.AA_MAY_RENAME | notify.AA_MAY_SETATTR | notify.AA_MAY_CHMOD | notify.AA_MAY_LOCK | notify.AA_MAY_LINK,
 		},
 		{
 			"home",
@@ -863,12 +863,12 @@ func (s *commonSuite) TestAbstractPermissionsToAppArmorFilePermissionsHappy(c *C
 		{
 			"home",
 			[]string{"read", "execute"},
-			notify.AA_MAY_OPEN | notify.AA_MAY_READ | notify.AA_MAY_EXEC | notify.AA_EXEC_MMAP,
+			notify.AA_MAY_OPEN | notify.AA_MAY_READ | notify.AA_MAY_GETATTR | notify.AA_MAY_EXEC | notify.AA_EXEC_MMAP,
 		},
 		{
 			"home",
 			[]string{"execute", "write", "read"},
-			notify.AA_MAY_OPEN | notify.AA_MAY_READ | notify.AA_MAY_EXEC | notify.AA_EXEC_MMAP | notify.AA_MAY_WRITE | notify.AA_MAY_APPEND | notify.AA_MAY_CREATE | notify.AA_MAY_DELETE | notify.AA_MAY_RENAME | notify.AA_MAY_CHMOD | notify.AA_MAY_LOCK | notify.AA_MAY_LINK,
+			notify.AA_MAY_OPEN | notify.AA_MAY_READ | notify.AA_MAY_GETATTR | notify.AA_MAY_EXEC | notify.AA_EXEC_MMAP | notify.AA_MAY_WRITE | notify.AA_MAY_APPEND | notify.AA_MAY_CREATE | notify.AA_MAY_DELETE | notify.AA_MAY_RENAME | notify.AA_MAY_SETATTR | notify.AA_MAY_CHMOD | notify.AA_MAY_LOCK | notify.AA_MAY_LINK,
 		},
 		{
 			"camera",
