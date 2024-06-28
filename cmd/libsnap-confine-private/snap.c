@@ -45,9 +45,14 @@ bool sc_security_tag_validate(const char *security_tag,
 	// first capture is for verifying the full security tag, second capture
 	// for verifying the snap_name is correct for this security tag, eighth capture
 	// for verifying the component_name is correct for this security tag. the
-	// expression currently contains 9 capture groups, but we only care about
-	// these 3.
+	// expression currently contains 9 capture groups, but we only care about these 3,
+	// which unfortunately are not within the first 3 submatches, but rather group 1,
+	// 2, and 7, so for completeness capture all the groups.
 	regmatch_t matches[9];
+	if (sizeof matches / sizeof matches[0] != re.re_nsub) {
+		die("internal error: all regex capture groups not fully accounted for");
+	}
+
 	int status =
 	    regexec(&re, security_tag, sizeof matches / sizeof *matches,
 		    matches, 0);
