@@ -22,7 +22,6 @@ package requestprompts
 import (
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
@@ -118,44 +117,31 @@ const (
 
 // New creates and returns a new prompt database.
 //
-// The given notifyPrompt closure should record a notice of type
-// "interfaces-requests-prompt" for the given user with the given
-// promptID as its key.
+// The given notifyPrompt closure will be called when a prompt is added,
+// merged, modified, or resolved.
 func New(notifyPrompt func(userID uint32, promptID string, data map[string]string) error) (*PromptDB, error) {
 	pdb := PromptDB{
 		perUser:      make(map[uint32]*userPromptDB),
 		notifyPrompt: notifyPrompt,
 	}
 	maxIDFilepath := filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
-	maxIDFile, err := os.OpenFile(maxIDFilepath, os.O_RDWR, 0600)
-	if errors.Is(err, fs.ErrNotExist) {
-		logger.Debugf("requestprompts: no max ID file found; initializing new one")
-		// File does not exist, so create it and write uint64(0) to it.
-		// This guarantees that the file is (at least) 8 bytes long.
-		maxIDFile, err = os.OpenFile(maxIDFilepath, os.O_RDWR|os.O_CREATE, 0600)
-		if err != nil {
-			return nil, fmt.Errorf("cannot open max ID file: %w", err)
-		}
-		// The file/FD can be safely closed once the mmap is created.
-		defer maxIDFile.Close()
-		if err = initializeMaxIDFile(maxIDFile); err != nil {
-			return nil, err
-		}
-	} else if err != nil {
+	maxIDFile, err := os.OpenFile(maxIDFilepath, os.O_RDWR|os.O_CREATE, 0600)
+	if err != nil {
 		return nil, fmt.Errorf("cannot open max ID file: %w", err)
-	} else {
-		// The file/FD can be safely closed once the mmap is created.
-		defer maxIDFile.Close()
-		fileInfo, err := maxIDFile.Stat()
-		if err != nil {
-			return nil, fmt.Errorf("cannot stat max ID file: %w", err)
-		}
-		if fileInfo.Size() != int64(maxIDFileSize) {
+	}
+	// The file/FD can be safely closed once the mmap is created.
+	defer maxIDFile.Close()
+	fileInfo, err := maxIDFile.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("cannot stat max ID file: %w", err)
+	}
+	if fileInfo.Size() != int64(maxIDFileSize) {
+		if fileInfo.Size() != 0 {
 			// Max ID file malformed, best to reset it
 			logger.Debugf("requestprompts: max ID file malformed; re-initializing")
-			if err = initializeMaxIDFile(maxIDFile); err != nil {
-				return nil, err
-			}
+		}
+		if err = initializeMaxIDFile(maxIDFile); err != nil {
+			return nil, err
 		}
 	}
 	pdb.maxIDMmap, err = unix.Mmap(int(maxIDFile.Fd()), 0, maxIDFileSize, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
@@ -199,22 +185,23 @@ func (pdb *PromptDB) nextID() string {
 // The caller must ensure that the given permissions are in the order in which
 // they appear in the available permissions list for the given interface.
 func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permissions []string, listenerReq *listener.Request) (*Prompt, bool, error) {
-	pdb.mutex.Lock()
-	defer pdb.mutex.Unlock()
-	userEntry, ok := pdb.perUser[metadata.User]
-	if !ok {
-		pdb.perUser[metadata.User] = &userPromptDB{
-			ByID: make(map[string]*Prompt),
-		}
-		userEntry = pdb.perUser[metadata.User]
-	}
-
 	availablePermissions, err := prompting.AvailablePermissions(metadata.Interface)
 	if err != nil {
 		// Error should be impossible, since caller has already validated that
 		// iface is valid, and tests check that all valid interfaces have valid
 		// available permissions returned by AvailablePermissions.
 		return nil, false, err
+	}
+
+	pdb.mutex.Lock()
+	defer pdb.mutex.Unlock()
+
+	userEntry, ok := pdb.perUser[metadata.User]
+	if !ok {
+		pdb.perUser[metadata.User] = &userPromptDB{
+			ByID: make(map[string]*Prompt),
+		}
+		userEntry = pdb.perUser[metadata.User]
 	}
 
 	constraints := &PromptConstraints{
@@ -238,7 +225,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 	}
 
 	if len(userEntry.ByID) >= maxOutstandingPromptsPerUser {
-		// Too many outstanding prompts, auto-deny this one
+		logger.Noticef("WARNING: too many outstanding prompts for user %d; auto-denying new one", metadata.User)
 		sendReply(listenerReq, false)
 		return nil, false, ErrTooManyPrompts
 	}
