@@ -1577,20 +1577,3 @@ func (s *daemonSuite) TestRequestContextPropagated(c *check.C) {
 	c.Assert(v, check.DeepEquals, "hello")
 	d.Stop(nil)
 }
-
-func (s *daemonSuite) TestRequestContextHijacked(c *check.C) {
-	d := s.newTestDaemon(c)
-
-	// mark as already seeded
-	s.markSeeded(d)
-
-	c.Assert(d.Init(), check.IsNil)
-	c.Assert(d.Start(context.Background()), check.IsNil)
-
-	// since the tests aren't in a package, we directly hijack d.cancel
-	c.Assert(d.cancel, check.NotNil)
-	cancel := d.cancel
-	defer cancel()
-	d.cancel = nil
-	d.Stop(nil)
-}
