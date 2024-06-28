@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
 
@@ -223,10 +224,11 @@ func execApp(snapTarget, revision, command string, args []string) error {
 	// libhybris takes environment variables that point to the respective Android
 	// bionic linker. Do this by detecting the system.prop file shipped with every
 	// libhybris-compatible runtime environment.
-	err3 := syscallStat("/system/build.prop", &stVar)
-	if !info.NeedsClassic() && err3 == nil {
+	if release.OnTouch {
 		env["HYBRIS_LINKER_DIR"] = "/var/lib/snapd/lib/gl/libhybris/linker"
 		env["HYBRIS_EGLPLATFORM_DIR"] = "/var/lib/snapd/lib/gl/libhybris"
+		env["HYBRIS_EGLPLATFORM"] = "wayland"
+		env["LD_LIBRARY_PATH"] += ":/var/lib/snapd/lib/gl"
 	}
 
 	// strings.Split() is ok here because we validate all app fields and the
