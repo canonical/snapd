@@ -70,7 +70,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		CompSideInfo: csi,
 		CompType:     compInfo.Type,
 		CompPath:     path,
-		Flags: componentInstallFlags{
+		componentInstallFlags: componentInstallFlags{
 			// The file passed around is temporary, make sure it gets removed.
 			RemoveComponentPath: true,
 		},
@@ -80,8 +80,8 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 }
 
 type componentInstallFlags struct {
-	RemoveComponentPath bool
-	SkipProfiles        bool
+	RemoveComponentPath bool `json:"remove-component-path,omitempty"`
+	SkipProfiles        bool `json:"skip-profiles,omitempty"`
 }
 
 // doInstallComponent might be called with the owner snap installed or not.
@@ -147,7 +147,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 				compSi.Component, revisionStr))
 		addTask(mount)
 	} else {
-		if compSetup.Flags.RemoveComponentPath {
+		if compSetup.RemoveComponentPath {
 			// If the revision is local, we will not need the
 			// temporary snap. This can happen when e.g.
 			// side-loading a local revision again. The path is
@@ -178,7 +178,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 	}
 
 	// security
-	if !compSetup.Flags.SkipProfiles {
+	if !compSetup.SkipProfiles {
 		setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup component %q%s security profiles"), compSi.Component, revisionStr))
 		addTask(setupSecurity)
 	}
