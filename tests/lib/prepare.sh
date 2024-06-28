@@ -531,6 +531,7 @@ build_snapd_snap_with_run_mode_firstboot_tweaks() {
     fi
 
     local UNPACK_DIR="/tmp/snapd-unpack"
+    rm -rf "${UNPACK_DIR}"
     unsquashfs -no-progress -d "$UNPACK_DIR" /tmp/snapd_from_snapcraft.snap
 
     # now install a unit that sets up enough so that we can connect

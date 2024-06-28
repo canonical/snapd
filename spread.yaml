@@ -244,6 +244,7 @@ backends:
         location: snapd-spread/us-central1-a
         plan: t2a-standard-1
         halt-timeout: 2h
+        kill-timeout: 60m
         systems:
             - ubuntu-20.04-arm-64:
                   image: ubuntu-os-cloud/ubuntu-2004-lts-arm64
