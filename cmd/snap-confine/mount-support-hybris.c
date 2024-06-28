@@ -37,8 +37,6 @@
 #include "../libsnap-confine-private/utils.h"
 #include "mount-support.h"
 
-#define SC_HYBRIS_PROPERTY_FILE "/system/build.prop"
-
 #define SC_LIBGL_DIR   SC_EXTRA_LIB_DIR "/gl"
 #define SC_VULKAN_DIR  SC_EXTRA_LIB_DIR "/vulkan"
 #define SC_GLVND_DIR  SC_EXTRA_LIB_DIR "/glvnd"
@@ -177,11 +175,6 @@ static void sc_hybris_mount_egl(const char *rootfs_dir)
 
 void sc_mount_hybris_driver(const char *rootfs_dir, const char *base_snap_name)
 {
-	/* If a hybris-typical property file doesn't exist, don't attempt to mount the drivers */
-	if (access(SC_HYBRIS_PROPERTY_FILE, F_OK) != 0) {
-		return;
-	}
-
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	int res = sc_nonfatal_mkpath(SC_EXTRA_LIB_DIR, 0755);
 	if (res != 0) {
