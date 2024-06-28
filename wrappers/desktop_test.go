@@ -315,11 +315,12 @@ Exec=snap.app.evil.evil
 `)
 
 	e := wrappers.SanitizeDesktopFile(snap, "app.desktop", desktopContent)
-	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
+	c.Assert(string(e), Equals, `[Desktop Entry]
 X-SnapInstanceName=snap
 Name=foo
-Exec=env BAMF_DESKTOP_FILE_HINT=app.desktop %s/bin/snap.app
-`, dirs.SnapMountDir))
+Exec=/usr/bin/snap routine desktop-launch --desktop app.desktop -- %f
+X-Snap-Exec=snap.app
+`)
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExecOk(c *C) {
@@ -333,15 +334,50 @@ apps:
 	c.Assert(err, IsNil)
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
-Exec=snap.app %U
+Exec=snap.app %%f %c %U
 `)
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
-	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
+	c.Assert(string(e), Equals, `[Desktop Entry]
 X-SnapInstanceName=snap
 Name=foo
-Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app %%U
-`, dirs.SnapMountDir))
+Exec=/usr/bin/snap routine desktop-launch --desktop foo.desktop -- %U
+X-Snap-Exec=snap.app %%f %c %U
+`)
+}
+
+func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersDesktopActions(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+`))
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+Name=foo
+Exec=snap.app %U
+Actions=foo;
+
+[Desktop Action foo]
+Name=Some action
+Exec=snap.app --foo
+`)
+
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
+	c.Assert(string(e), Equals, `[Desktop Entry]
+X-SnapInstanceName=snap
+Name=foo
+Exec=/usr/bin/snap routine desktop-launch --desktop foo.desktop -- %U
+X-Snap-Exec=snap.app %U
+Actions=foo;
+
+[Desktop Action foo]
+Name=Some action
+Exec=/usr/bin/snap routine desktop-launch --desktop foo.desktop --action foo -- %f
+X-Snap-Exec=snap.app --foo
+`)
 }
 
 // we do not support TryExec (even if its a valid line), this test ensures
@@ -436,11 +472,12 @@ Exec=snap.app
 `)
 	df := filepath.Base(snap.Apps["app"].DesktopFile())
 	e := wrappers.SanitizeDesktopFile(snap, df, desktopContent)
-	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
+	c.Assert(string(e), Equals, `[Desktop Entry]
 X-SnapInstanceName=snap_bar
 Name=foo
-Exec=env BAMF_DESKTOP_FILE_HINT=snap+bar_app.desktop %s/bin/snap_bar.app
-`, dirs.SnapMountDir))
+Exec=/usr/bin/snap routine desktop-launch --desktop snap+bar_app.desktop -- %f
+X-Snap-Exec=snap_bar.app
+`)
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeParallelInstancesWithArgs(c *C) {
@@ -460,16 +497,17 @@ Exec=snap.app %U
 
 	df := filepath.Base(snap.Apps["app"].DesktopFile())
 	e := wrappers.SanitizeDesktopFile(snap, df, desktopContent)
-	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
+	c.Assert(string(e), Equals, `[Desktop Entry]
 X-SnapInstanceName=snap_bar
 Name=foo
-Exec=env BAMF_DESKTOP_FILE_HINT=snap+bar_app.desktop %s/bin/snap_bar.app %%U
-`, dirs.SnapMountDir))
+Exec=/usr/bin/snap routine desktop-launch --desktop snap+bar_app.desktop -- %U
+X-Snap-Exec=snap_bar.app %U
+`)
 }
 
 func (s *sanitizeDesktopFileSuite) TestRewriteExecLineInvalid(c *C) {
 	snap := &snap.Info{}
-	_, err := wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=invalid")
+	_, err := wrappers.RewriteExecLine(snap, "foo.desktop", "", "Exec=invalid")
 	c.Assert(err, ErrorMatches, `invalid exec command: "invalid"`)
 }
 
@@ -483,9 +521,10 @@ apps:
 `))
 	c.Assert(err, IsNil)
 
-	newl, err := wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=snap.app")
+	newl, err := wrappers.RewriteExecLine(snap, "foo.desktop", "", "Exec=snap.app")
 	c.Assert(err, IsNil)
-	c.Assert(newl, Equals, fmt.Sprintf("Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app", dirs.SnapMountDir))
+	c.Assert(newl, Equals, `Exec=/usr/bin/snap routine desktop-launch --desktop foo.desktop -- %f
+X-Snap-Exec=snap.app`)
 }
 
 func (s *sanitizeDesktopFileSuite) TestLangLang(c *C) {
@@ -570,12 +609,13 @@ Exec=snap.app
 `)
 	df := filepath.Base(snap.Apps["app"].DesktopFile())
 	e := wrappers.SanitizeDesktopFile(snap, df, desktopContent)
-	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
+	c.Assert(string(e), Equals, `[Desktop Entry]
 X-SnapInstanceName=snap_bar
 Name=foo
 Icon=snap.snap_bar.icon
-Exec=env BAMF_DESKTOP_FILE_HINT=snap+bar_app.desktop %s/bin/snap_bar.app
-`, dirs.SnapMountDir))
+Exec=/usr/bin/snap routine desktop-launch --desktop snap+bar_app.desktop -- %f
+X-Snap-Exec=snap_bar.app
+`)
 }
 
 func (s *desktopSuite) TestAddRemoveDesktopFiles(c *C) {

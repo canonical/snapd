@@ -98,6 +98,8 @@ var (
 	IsStopping = isStopping
 
 	GetSnapDirOptions = getSnapDirOptions
+
+	CmdlineArgsToUris = cmdlineArgsToUris
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {

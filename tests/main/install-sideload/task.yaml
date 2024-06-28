@@ -59,12 +59,13 @@ execute: |
     echo "Sideload desktop snap"
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     snap install --dangerous ./basic-desktop_1.0_all.snap
-    diff -u <(head -n5 /var/lib/snapd/desktop/applications/basic-desktop_echo.desktop) - <<-EOF
+    diff -u <(head -n6 /var/lib/snapd/desktop/applications/basic-desktop_echo.desktop) - <<-EOF
     	[Desktop Entry]
     	X-SnapInstanceName=basic-desktop
     	Name=Echo
     	Comment=It echos stuff
-    	Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop_echo.desktop $SNAP_MOUNT_DIR/bin/basic-desktop.echo
+    	Exec=/usr/bin/snap routine desktop-launch --desktop /var/lib/snapd/desktop/applications/basic-desktop_echo.desktop -- %f
+    	X-Snap-Exec=basic-desktop.echo
     EOF
 
     echo "Sideload devmode snap fails without flags"
