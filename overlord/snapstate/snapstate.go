@@ -1370,6 +1370,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	target := PathInstallGoal(instanceName, path, si, RevisionOptions{
 		Channel: channel,
 	})
+	// TODO have caller pass a context
 	info, ts, err := InstallOne(context.Background(), st, target, Options{
 		Flags:         flags,
 		PrereqTracker: prqt,
@@ -1674,6 +1675,7 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 	}
 
 	target := StoreInstallGoal(snaps...)
+	// TODO have caller pass a context
 	infos, tss, err := InstallWithGoal(context.Background(), st, target, Options{
 		Flags:  *flags,
 		UserID: userID,

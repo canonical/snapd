@@ -20,7 +20,9 @@
 package daemon
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -85,6 +87,8 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 	s.notified = nil
 	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 	s.AddCleanup(MockRebootNoticeWait(0))
+
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdSocket), 0755), check.IsNil)
 }
 
 func (s *daemonSuite) TearDownTest(c *check.C) {
@@ -327,7 +331,7 @@ func (s *daemonSuite) TestMaintenanceJsonDeletedOnStart(c *check.C) {
 	s.markSeeded(d)
 
 	// after starting, maintenance.json should be removed
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 	c.Assert(dirs.SnapdMaintenanceFile, testutil.FileAbsent)
 	d.Stop(nil)
 }
@@ -631,7 +635,7 @@ version: 1`, si)
 	snapAccept := make(chan struct{})
 	d.snapListener = &witnessAcceptListener{Listener: l2, accept: snapAccept}
 
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 
 	c.Check(s.notified, check.DeepEquals, []string{extendedTimeoutUSec, "READY=1"})
 
@@ -679,7 +683,7 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	snapAccept := make(chan struct{})
 	d.snapListener = &witnessAcceptListener{Listener: l, accept: snapAccept}
 
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 	stoppedYet := false
 	defer func() {
 		if !stoppedYet {
@@ -770,7 +774,7 @@ version: 1`, si)
 	snapAccept := make(chan struct{})
 	d.snapListener = &witnessAcceptListener{Listener: snapL, accept: snapAccept}
 
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 
 	snapdAccepting := make(chan struct{})
 	go func() {
@@ -865,7 +869,7 @@ func (s *daemonSuite) TestGracefulStopHasLimits(c *check.C) {
 	snapAccept := make(chan struct{})
 	d.snapListener = &witnessAcceptListener{Listener: snapL, accept: snapAccept}
 
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 
 	snapdAccepting := make(chan struct{})
 	go func() {
@@ -961,7 +965,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 		return nil
 	}
 
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 	defer d.Stop(nil)
 
 	st := d.overlord.State()
@@ -1166,7 +1170,7 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 	makeDaemonListeners(c, d)
 	s.markSeeded(d)
 
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 	st := d.overlord.State()
 
 	st.Lock()
@@ -1219,7 +1223,7 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	makeDaemonListeners(c, d)
 	s.markSeeded(d)
 
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 	st := d.overlord.State()
 
 	st.Lock()
@@ -1278,7 +1282,7 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(n, check.Equals, 1)
 
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 
 	c.Check(s.notified, check.DeepEquals, []string{"READY=1"})
 
@@ -1352,7 +1356,7 @@ func (s *daemonSuite) TestRestartIntoSocketModeNoNewChanges(c *check.C) {
 	// go into socket activation mode
 	s.markSeeded(d)
 
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 	// pretend some ensure happened
 	for i := 0; i < 5; i++ {
 		c.Check(d.overlord.StateEngine().Ensure(), check.IsNil)
@@ -1382,7 +1386,7 @@ func (s *daemonSuite) TestRestartIntoSocketModePendingChanges(c *check.C) {
 	s.markSeeded(d)
 	st := d.overlord.State()
 
-	c.Assert(d.Start(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
 	// pretend some ensure happened
 	for i := 0; i < 5; i++ {
 		c.Check(d.overlord.StateEngine().Ensure(), check.IsNil)
@@ -1475,5 +1479,101 @@ func (s *daemonSuite) TestHandleUnexpectedRestart(c *check.C) {
 	// mark as already seeded
 	s.markSeeded(d)
 
-	c.Assert(d.Start(), check.Equals, ErrNoFailureRecoveryNeeded)
+	c.Assert(d.Start(context.Background()), check.Equals, ErrNoFailureRecoveryNeeded)
+}
+
+func clientForSnapdSocket() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			Dial: func(_, _ string) (net.Conn, error) {
+				return net.Dial("unix", dirs.SnapdSocket)
+			},
+		},
+	}
+}
+
+func (s *daemonSuite) TestRequestContextCanceledOnStop(c *check.C) {
+	d, err := New()
+	c.Assert(err, check.IsNil)
+	// don't talk to the store, needs to be called after daemon.New()
+	snapstate.CanAutoRefresh = nil
+
+	// mark as already seeded
+	s.markSeeded(d)
+
+	c.Assert(d.Init(), check.IsNil)
+
+	gotReqC := make(chan struct{})
+	reqErrC := make(chan error, 1)
+	d.router.HandleFunc("/test-call", func(w http.ResponseWriter, r *http.Request) {
+		close(gotReqC)
+		// since Stop() is called in the test, the request will get
+		// canceled
+		<-r.Context().Done()
+		reqErrC <- r.Context().Err()
+		w.WriteHeader(500)
+	})
+
+	client := clientForSnapdSocket()
+
+	req, err := http.NewRequest("GET", "http://localhost/test-call", nil)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(d.Start(context.Background()), check.IsNil)
+
+	clientC := make(chan struct{})
+	go func() {
+		// this will block until we call stop
+		r, err := client.Do(req)
+		if r != nil {
+			defer r.Body.Close()
+		}
+		c.Check(err, check.IsNil)
+		close(clientC)
+	}()
+
+	<-gotReqC
+	d.Stop(nil)
+	reqErr := <-reqErrC
+	c.Check(errors.Is(reqErr, context.Canceled), check.Equals, true,
+		check.Commentf("unexpected error %v", reqErr))
+	<-clientC
+}
+
+func (s *daemonSuite) TestRequestContextPropagated(c *check.C) {
+	d, err := New()
+	c.Assert(err, check.IsNil)
+	// don't talk to the store, needs to be called after daemon.New()
+	snapstate.CanAutoRefresh = nil
+
+	// mark as already seeded
+	s.markSeeded(d)
+
+	c.Assert(d.Init(), check.IsNil)
+
+	type testKey struct{}
+
+	reqC := make(chan any, 1)
+	d.router.HandleFunc("/test-call", func(w http.ResponseWriter, r *http.Request) {
+		defer close(reqC)
+		reqC <- r.Context().Value(testKey{})
+	})
+
+	client := clientForSnapdSocket()
+
+	req, err := http.NewRequest("GET", "http://localhost/test-call", nil)
+	c.Assert(err, check.IsNil)
+
+	ctx := context.WithValue(context.Background(), testKey{}, "hello")
+	c.Assert(d.Start(ctx), check.IsNil)
+
+	r, err := client.Do(req)
+	if r != nil {
+		defer r.Body.Close()
+	}
+	c.Check(err, check.IsNil)
+
+	v := <-reqC
+	c.Assert(v, check.DeepEquals, "hello")
+	d.Stop(nil)
 }
