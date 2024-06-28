@@ -2,24 +2,22 @@ summary: The file-access command provides information about access to file paths
 
 details: |
     The "snap routine file-access" command is intended to be a helper for
-    xdg-document-portal.  When xdg-document-portal is asked to make a
-    file available to a snap, we would like to avoid proxying files
-    that the snap can access directly.
+    xdg-document-portal. When xdg-document-portal is asked to make a file
+    available to a snap, we would like to avoid proxying files that the snap can
+    access directly.
 
-    The command reports whether a particular file path represents the
-    same file in both the host and sandbox mount namespaces, and
-    whether it is readable or writable inside the snap sandbox.  When
-    used with the SaveFile portal API, it may be asked about file
-    paths that don't yet exist.
+    The command reports whether a particular file path represents the same file
+    in both the host and sandbox mount namespaces, and whether it is readable or
+    writable inside the snap sandbox. When used with the SaveFile portal API,
+    it may be asked about file paths that don't yet exist.
 
-    False negatives are not considered to be a problem: if file-access
-    reports that a path is hidden, then it will just result in the
-    document portal proxying a file that it didn't need to.
+    False negatives are not considered to be a problem: if file-access reports
+    that a path is hidden, then it will just result in the document portal
+    proxying a file that it didn't need to.
 
-    The command may also report greater access than unix file
-    permissions actually allow.  This is acceptable since there is
-    nothing the document portal can do to increase the level of
-    access.
+    The command may also report greater access than unix file permissions
+    actually allow.  This is acceptable since there is nothing the document
+    portal can do to increase the level of access.
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-file-access

@@ -290,3 +290,16 @@ func (s *typeSuite) TestJsonUnmarshalInvalidDaemonScopes(c *C) {
 		c.Assert(err, NotNil, Commentf("Expected '%s' to be an invalid daemon scope", thisDaemonScope))
 	}
 }
+
+func (s *typeSuite) TestComponentTypeFromString(c *C) {
+	t, err := ComponentTypeFromString("test")
+	c.Assert(err, IsNil)
+	c.Check(t, Equals, TestComponent)
+
+	t, err = ComponentTypeFromString("kernel-modules")
+	c.Assert(err, IsNil)
+	c.Check(t, Equals, KernelModulesComponent)
+
+	_, err = ComponentTypeFromString("invalid")
+	c.Assert(err, ErrorMatches, "invalid component type \"invalid\"")
+}

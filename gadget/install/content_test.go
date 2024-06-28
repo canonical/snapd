@@ -34,7 +34,9 @@ import (
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -88,6 +90,7 @@ func mockOnDiskStructureSystemSeed(gadgetRoot string) *gadget.LaidOutStructure {
 	return &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "vfat",
+			Role:       gadget.SystemSeed,
 			Content: []gadget.VolumeContent{
 				{
 					UnresolvedSource: "grubx64.efi",
@@ -104,6 +107,16 @@ func mockOnDiskStructureSystemSeed(gadgetRoot string) *gadget.LaidOutStructure {
 				},
 				ResolvedSource: filepath.Join(gadgetRoot, "grubx64.efi"),
 			},
+		},
+	}
+}
+
+func mockOnDiskStructureSystemData() *gadget.LaidOutStructure {
+	return &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Filesystem: "ext4",
+			Role:       gadget.SystemData,
+			YamlIndex:  1000, // to demonstrate we do not use the laid out index
 		},
 	}
 }
@@ -211,7 +224,7 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 			observeErr:   tc.observeErr,
 			expectedRole: m.Role(),
 		}
-		err := install.WriteFilesystemContent(m, "/dev/node2", obs)
+		err := install.WriteFilesystemContent(m, nil, "/dev/node2", obs)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -233,6 +246,85 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 			})
 		}
 	}
+}
+
+func (s *contentTestSuite) testWriteFilesystemContentDriversTree(c *C, kMntPoint string, isCore bool) {
+	defer dirs.SetRootDir(dirs.GlobalRootDir)
+	dirs.SetRootDir(c.MkDir())
+
+	kMntPoint = filepath.Join(dirs.GlobalRootDir, kMntPoint)
+
+	dataMntPoint := filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2")
+	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+		c.Check(source, Equals, "/dev/node2")
+		c.Check(fstype, Equals, "ext4")
+		c.Check(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2"))
+		return nil
+	})
+	defer restore()
+
+	restore = install.MockSysUnmount(func(target string, flags int) error {
+		return nil
+	})
+	defer restore()
+
+	// copy existing mock
+	m := mockOnDiskStructureSystemData()
+	obs := &mockWriteObserver{
+		c:            c,
+		observeErr:   nil,
+		expectedRole: m.Role(),
+	}
+	// mock drivers tree
+	treesDir := dirs.SnapKernelDriversTreesDirUnder(dirs.GlobalRootDir)
+	modsSubDir := "pc-kernel/111/lib/modules/6.8.0-31-generic"
+	modsDir := filepath.Join(treesDir, modsSubDir)
+	c.Assert(os.MkdirAll(modsDir, 0755), IsNil)
+	someFile := filepath.Join(modsDir, "modules.alias")
+	c.Assert(os.WriteFile(someFile, []byte("blah"), 0644), IsNil)
+
+	kInfo := &install.KernelSnapInfo{
+		Name:             "pc-kernel",
+		Revision:         snap.R(111),
+		MountPoint:       kMntPoint,
+		NeedsDriversTree: true,
+		IsCore:           isCore,
+	}
+
+	restore = install.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (err error) {
+		c.Check(kMntPts, Equals,
+			kernel.MountPoints{
+				Current: kMntPoint,
+				Target:  filepath.Join(dirs.SnapMountDir, "/pc-kernel/111")})
+		if isCore {
+			c.Check(destDir, Equals, filepath.Join(dataMntPoint,
+				"system-data/var/lib/snapd/kernel/pc-kernel/111"))
+		} else {
+			c.Check(destDir, Equals, filepath.Join(dataMntPoint,
+				"var/lib/snapd/kernel/pc-kernel/111"))
+		}
+		return nil
+	})
+	defer restore()
+
+	err := install.WriteFilesystemContent(m, kInfo, "/dev/node2", obs)
+	c.Assert(err, IsNil)
+
+}
+
+func (s *contentTestSuite) TestWriteFilesystemContentDriversTreeCore(c *C) {
+	isCore := true
+	s.testWriteFilesystemContentDriversTree(c, filepath.Join(dirs.SnapMountDir, "pc-kernel/111"), isCore)
+}
+
+func (s *contentTestSuite) TestWriteFilesystemContentDriversTreeCoreUnusualMntPt(c *C) {
+	isCore := true
+	s.testWriteFilesystemContentDriversTree(c, "/somewhere/pc-kernel/111", isCore)
+}
+
+func (s *contentTestSuite) TestWriteFilesystemContentDriversTreeHybrid(c *C) {
+	isCore := false
+	s.testWriteFilesystemContentDriversTree(c, filepath.Join(dirs.SnapMountDir, "pc-kernel/111"), isCore)
 }
 
 func (s *contentTestSuite) TestWriteFilesystemContentUnmountErrHandling(c *C) {
@@ -295,7 +387,7 @@ func (s *contentTestSuite) TestWriteFilesystemContentUnmountErrHandling(c *C) {
 		})
 		defer restore()
 
-		err := install.WriteFilesystemContent(m, "/dev/node2", obs)
+		err := install.WriteFilesystemContent(m, nil, "/dev/node2", obs)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
 		} else {

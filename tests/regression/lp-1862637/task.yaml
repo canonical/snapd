@@ -1,5 +1,18 @@
 summary: /var/lib/dhcp is shared with host
 
+details: |
+    During construction of the snap execution environment, the snap-confine
+    program runs under apparmor confinement and needs to have permission to
+    mount the /var/lib/dhcp directory from the host system into the snap
+    execution environment being constructed. Historically this directory was not
+    present in all the systems (especially the oldest core system) so
+    snap-confine will only mount it, if it exists, but will silently skip the
+    mount if does not exist on the host. From the perspective of running snap
+    applications the directory is always present, but may be an empty, read-only
+    placeholder. The test is more complex as the directory is handled with both
+    snap-confine hard-coded logic and also dynamic mount profiles governed by
+    snapd interface connections, specifically the network-control interface.
+
 prepare: |
     snap pack test-snapd-app
     snap install --dangerous ./test-snapd-app_1_all.snap

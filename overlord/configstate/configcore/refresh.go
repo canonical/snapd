@@ -30,6 +30,11 @@ import (
 	"github.com/snapcore/snapd/timeutil"
 )
 
+const (
+	minInhibitionDays = 1
+	maxInhibitionDays = 21
+)
+
 func init() {
 	supportedConfigurations["core.refresh.hold"] = true
 	supportedConfigurations["core.refresh.schedule"] = true
@@ -37,13 +42,14 @@ func init() {
 	supportedConfigurations["core.refresh.metered"] = true
 	supportedConfigurations["core.refresh.retain"] = true
 	supportedConfigurations["core.refresh.rate-limit"] = true
+	supportedConfigurations["core.refresh.max-inhibition-days"] = true
 }
 
 func reportOrIgnoreInvalidManageRefreshes(tr RunTransaction, optName string) error {
-	// check if the option is set as part of transaction changes; if not than
-	// it's already set in the config state and we shouldn't error out about it
-	// now. refreshScheduleManaged will do the right thing when refresh cannot
-	// be managed anymore.
+	// check if the option is set as part of transaction changes; if not
+	// than it's already set in the config state and we shouldn't error out
+	// about it now since the required conditions were met at the time it
+	// got set
 	for _, k := range tr.Changes() {
 		if k == "core."+optName {
 			return fmt.Errorf("cannot set schedule to managed")
@@ -53,6 +59,15 @@ func reportOrIgnoreInvalidManageRefreshes(tr RunTransaction, optName string) err
 }
 
 func validateRefreshSchedule(tr RunTransaction) error {
+	maxInhibitionDaysStr, err := coreCfg(tr, "refresh.max-inhibition-days")
+	if err != nil {
+		return err
+	}
+	if maxInhibitionDaysStr != "" {
+		if n, err := strconv.ParseUint(maxInhibitionDaysStr, 10, 8); err != nil || (n < minInhibitionDays || n > maxInhibitionDays) {
+			return fmt.Errorf("max-inhibition-days must be a number between %d and %d, not %q", minInhibitionDays, maxInhibitionDays, maxInhibitionDaysStr)
+		}
+	}
 	refreshRetainStr, err := coreCfg(tr, "refresh.retain")
 	if err != nil {
 		return err
@@ -94,6 +109,8 @@ func validateRefreshSchedule(tr RunTransaction) error {
 		st.Lock()
 		defer st.Unlock()
 
+		// ensure there is a snap entitled to managing the refreshes
+		// in an autonomic manner
 		if !devicestate.CanManageRefreshes(st) {
 			return reportOrIgnoreInvalidManageRefreshes(tr, "refresh.timer")
 		}
@@ -121,6 +138,7 @@ func validateRefreshSchedule(tr RunTransaction) error {
 		st.Lock()
 		defer st.Unlock()
 
+		// see the comment around refresh.timer
 		if !devicestate.CanManageRefreshes(st) {
 			return reportOrIgnoreInvalidManageRefreshes(tr, "refresh.schedule")
 		}

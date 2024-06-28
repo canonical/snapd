@@ -1,5 +1,9 @@
 summary: Test httputil/retry.go ShouldRetryError(err)/NoNetwork(err)
 
+details: |
+    Test the httputil/retry.go helpers that determine when errors are due to
+    transient network faults such as temporary DNS failures.
+
 # ubuntu-core: no go-compiler
 # ubuntu-14.04: no nsenter
 systems: [-ubuntu-core-*, -ubuntu-14.04-*]

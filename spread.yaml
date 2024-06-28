@@ -43,8 +43,9 @@ environment:
     TRUST_TEST_KEYS: '$(HOST: echo "${SPREAD_TRUST_TEST_KEYS:-true}")'
     # a global setting for LXD channel to use in the tests
     # TODO: Consider reverting to latest/candidate after Snapcraft compatibility with LXD 5.21 extended version string "5.21 LTS" is fixed
-    LXD_SNAP_CHANNEL: "latest/edge"
+    LXD_SNAP_CHANNEL: "latest/candidate"
     UBUNTU_IMAGE_SNAP_CHANNEL: "2/stable"
+    SNAPCRAFT_SNAP_CHANNEL: "latest/candidate"
     # controls whether ubuntu-image is built using the current snapd tree as a
     # dependency or the one listed in its go.mod
     UBUNTU_IMAGE_ALLOW_API_BREAK: '$(HOST: echo "${SPREAD_UBUNTU_IMAGE_ALLOW_API_BREAK:-true}")'
@@ -56,7 +57,7 @@ environment:
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
-    DELTA_REF: 2.52
+    DELTA_REF: 2.62
     DELTA_PREFIX: snapd-$DELTA_REF/
     REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'    
     HTTP_PROXY: '$(HOST: echo "$SPREAD_HTTP_PROXY")'
@@ -72,7 +73,7 @@ environment:
     # List the snaps which are cached
     PRE_CACHE_SNAPS: test-snapd-tools test-snapd-sh jq
     # always skip removing the rsync snap
-    SKIP_REMOVE_SNAPS: '$(HOST: echo "${SPREAD_SKIP_REMOVE_SNAPS:-}") test-snapd-rsync test-snapd-rsync-core18 test-snapd-rsync-core20 test-snapd-rsync-core22'
+    SKIP_REMOVE_SNAPS: '$(HOST: echo "${SPREAD_SKIP_REMOVE_SNAPS:-}") test-snapd-rsync test-snapd-rsync-core18 test-snapd-rsync-core20 test-snapd-rsync-core22 test-snapd-rsync-core24'
     # Use the installed snapd and reset the systems without removing snapd
     REUSE_SNAPD: '$(HOST: echo "${SPREAD_REUSE_SNAPD:-0}")'
     EXPERIMENTAL_FEATURES: '$(HOST: echo "${SPREAD_EXPERIMENTAL_FEATURES:-}")'
@@ -110,7 +111,7 @@ environment:
 backends:
     google:
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-east1-b
+        location: snapd-spread/europe-west2-b
         halt-timeout: 2h
         systems:
             - ubuntu-14.04-64:
@@ -126,6 +127,29 @@ backends:
             - ubuntu-20.04-64:
                   storage: 12G
                   workers: 8
+            - ubuntu-secboot-20.04-64:
+                  image: ubuntu-20.04-64
+                  workers: 1
+                  secure-boot: true
+            - ubuntu-22.04-64:
+                  storage: 12G
+                  workers: 8
+            - ubuntu-23.10-64:
+                  storage: 12G
+                  workers: 8
+            - ubuntu-24.04-64:
+                  storage: 12G
+                  workers: 8
+            - ubuntu-24.10-64:
+                  storage: 12G
+                  workers: 8
+
+    google-core:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/europe-west1-b
+        halt-timeout: 2h
+        systems:
             - ubuntu-core-16-64:
                   image: ubuntu-16.04-64
                   workers: 6
@@ -144,24 +168,29 @@ backends:
                   image: ubuntu-24.04-64
                   workers: 8
                   storage: 20G
-            - ubuntu-secboot-20.04-64:
-                  image: ubuntu-20.04-64
-                  workers: 1
-                  secure-boot: true
-            - ubuntu-22.04-64:
-                  storage: 12G
-                  workers: 8
-            - ubuntu-23.10-64:
-                  storage: 12G
-                  workers: 8
-            - ubuntu-24.04-64:
-                  storage: 12G
-                  workers: 8
 
-    google-central:
+    google-pro:
+        type: google
+        # XXX the role assigned to the key must allow for attaching service
+        # accounts
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/europe-west1-b
+        halt-timeout: 2h
+        systems:
+            - ubuntu-pro-20.04-64:
+                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-focal-v20240614
+                  workers: 1
+                  attach-service-account: true
+
+            - ubuntu-pro-22.04-64:
+                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-focal-v20240614
+                  workers: 1
+                  attach-service-account: true
+
+    google-distro-1:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-central1-b
+        location: snapd-spread/europe-west3-b
         halt-timeout: 2h
         systems:
             - debian-11-64:
@@ -172,14 +201,9 @@ backends:
                   storage: 12G
                   workers: 6
 
-            - fedora-38-64:
-                  workers: 6
             - fedora-39-64:
                   workers: 6
 
-            - arch-linux-64:
-                  workers: 6
-                  storage: 12G
             - amazon-linux-2-64:
                   workers: 6
                   storage: preserve-size
@@ -187,14 +211,20 @@ backends:
                   workers: 6
                   storage: preserve-size
 
+    google-distro-2:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/europe-west4-b
+        halt-timeout: 2h
+        systems:
+            - arch-linux-64:
+                  workers: 6
+                  storage: 15G
+
             - centos-7-64:
                   workers: 6
                   storage: preserve-size
                   image: centos-7-64
-            - centos-8-64:
-                  workers: 6
-                  storage: preserve-size
-                  image: centos-8-64
             - centos-9-64:
                   workers: 6
                   storage: preserve-size
@@ -228,22 +258,26 @@ backends:
     google-sru:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-east1-b
+        location: snapd-spread/us-central1-a
         halt-timeout: 2h
         systems:
             - ubuntu-20.04-64:
+                  storage: 12G
                   workers: 8
             - ubuntu-22.04-64:
+                  storage: 12G
                   workers: 8
             - ubuntu-23.10-64:
+                  storage: 12G
                   workers: 8
             - ubuntu-24.04-64:
+                  storage: 12G
                   workers: 8
 
     google-nested:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-east1-b
+        location: snapd-spread/us-central1-a
         plan: n2-standard-2
         halt-timeout: 2h
         cpu-family: "Intel Cascade Lake"
@@ -263,7 +297,11 @@ backends:
             - ubuntu-22.04-64:
                   image: ubuntu-2204-64-virt-enabled
                   storage: 25G
-                  workers: 10
+                  workers: 12
+            - ubuntu-24.04-64:
+                  image: ubuntu-2404-64-virt-enabled
+                  storage: 25G
+                  workers: 12
 
     google-nested-arm:
         type: google
@@ -301,6 +339,10 @@ backends:
                   image: ubuntu-2204-64-virt-enabled
                   storage: 20G
                   workers: 8
+            - ubuntu-24.04-64:
+                  image: ubuntu-2404-64-virt-enabled
+                  storage: 20G
+                  workers: 8
 
     qemu-nested:
         memory: 4G
@@ -316,6 +358,9 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-22.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-24.04-64:
                   username: ubuntu
                   password: ubuntu
 
@@ -499,52 +544,52 @@ backends:
         systems:
             - ubuntu-core-16-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-16-32:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-16-arm-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-16-arm-32:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-18-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-18-32:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-18-arm-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-18-arm-32:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-20-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-20-arm-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-20-arm-32:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-22-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-22-arm-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-22-arm-32:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-24-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-24-arm-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
 
 path: /home/gopath/src/github.com/snapcore/snapd
 
@@ -591,6 +636,8 @@ debug-each: |
         echo
 
         remote.exec "sudo journalctl --no-pager -u snapd" || true
+
+        exit
     fi
 
     echo "# definition of snapd.service"
@@ -660,8 +707,11 @@ debug-each: |
 
     # Keep it as the last step in debug-each
     echo '# tasks executed on system'
-    # since the runs file does not have a newline at EOF, add one 
-    echo "" | cat "$RUNTIME_STATE_PATH/runs" - || true
+    if [ -f "$RUNTIME_STATE_PATH/runs" ]; then
+        echo "EXECUTED_TESTS=$(cat $RUNTIME_STATE_PATH/runs)"
+    fi
+    # Add new line at the end of the debug output
+    echo ''
 
 rename:
     # Move content into a directory, so that deltas computed by repack benefit
@@ -721,13 +771,6 @@ prepare: |
         restorecon -v /etc/gai.conf
     fi
 
-    if [[ "$SPREAD_SYSTEM" == centos-8-* ]]; then
-        # the default image of CentOS 8 Stream is set up in enforcing mode,
-        # which may break some tests. Note that there are tests targeting
-        # SELinux which explicitly enable enforcing mode.
-        setenforce 0
-    fi
-
     # Note that os.query or any other tool cannot be used here before the current.delta file is unpacked
     if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
         # The Fedora archive mirror seems to be unreliable.
@@ -777,17 +820,14 @@ prepare: |
         apt-get update && apt-get install -y eatmydata
     fi
 
+    # Enable EPEL see https://docs.fedoraproject.org/en-US/epel/
     case "$SPREAD_SYSTEM" in
         centos-7-*)
-            # make sure EPEL is enabled
             yum install -y epel-release
             ;;
-        centos-8-*)
-            # enable powertools repository
-            dnf config-manager --set-enabled powertools
-            # CentOS Stream requires EPEL Next too, see https://docs.fedoraproject.org/en-US/epel/
+        centos-9-*)
+            dnf config-manager --set-enabled crb
             dnf install -y epel-release epel-next-release
-            ;;
     esac
 
     case "$SPREAD_SYSTEM" in
@@ -802,7 +842,7 @@ prepare: |
 
     # Make sure ssh service is restarted after it is killed by spread (pkill -o -HUP sshd)
     # during the machine setup in google systems. For more details see lp:2011458
-    if [ "$SPREAD_BACKEND" = "google" ] && [[ "$SPREAD_SYSTEM" == ubuntu-2* ]] && ! systemctl is-active ssh; then
+    if [[ "$SPREAD_BACKEND" =~ google ]] && [[ "$SPREAD_SYSTEM" == ubuntu-2* ]] && ! systemctl is-active ssh; then
         systemctl restart ssh
     fi
 
@@ -1046,8 +1086,7 @@ suites:
             distro_purge_package snapd
             case "$SPREAD_SYSTEM" in
                 arch-*)
-                    # there is no snap-confine and ubuntu-core-launcher
-                    # in Arch
+                    # In Arch there is no separate snap-confine package.
                     ;;
                 *)
                     distro_purge_package snap-confine ubuntu-core-launcher
@@ -1142,7 +1181,7 @@ suites:
             #shellcheck source=tests/lib/image.sh
             . "$TESTSLIB"/image.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
             if os.query is-xenial || os.query is-arm; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
@@ -1199,7 +1238,7 @@ suites:
             #shellcheck source=tests/lib/image.sh
             . "$TESTSLIB"/image.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
             if os.query is-xenial || os.query is-arm; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
@@ -1260,7 +1299,7 @@ suites:
             #shellcheck source=tests/lib/image.sh
             . "$TESTSLIB"/image.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
             if os.query is-xenial || os.query is-arm; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
@@ -1323,7 +1362,7 @@ suites:
             #shellcheck source=tests/lib/image.sh
             . "$TESTSLIB"/image.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
             if os.query is-xenial || os.query is-arm; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04

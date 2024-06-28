@@ -1,5 +1,9 @@
 summary: smoke test for the os.query tool
 
+details: |
+    Check the os.query tool properly detects the current system. Also
+    verify the version comparison works.
+
 backends: [google]
 
 execute: |
@@ -143,11 +147,6 @@ execute: |
             os.query is-centos
             os.query is-centos 7
             os.query is-classic
-            ! os.query is-core
-            ;;
-        centos-8-64)            
-            os.query is-centos
-            os.query is-centos 8
             ! os.query is-core
             ;;
         centos-9-64)            

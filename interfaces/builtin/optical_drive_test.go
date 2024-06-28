@@ -28,9 +28,9 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -78,14 +78,14 @@ slots:
 `
 
 func (s *OpticalDriveInterfaceSuite) SetUpTest(c *C) {
-	consumingSnapInfo := snaptest.MockInfo(c, opticalDriveConsumerYaml, nil)
+	consumingAppSet := ifacetest.MockInfoAndAppSet(c, opticalDriveConsumerYaml, nil, nil)
 
-	s.testPlugDefaultInfo = consumingSnapInfo.Plugs["optical-drive"]
-	s.testPlugDefault = interfaces.NewConnectedPlug(s.testPlugDefaultInfo, nil, nil)
-	s.testPlugReadonlyInfo = consumingSnapInfo.Plugs["plug-for-readonly"]
-	s.testPlugReadonly = interfaces.NewConnectedPlug(s.testPlugReadonlyInfo, nil, nil)
-	s.testPlugWritableInfo = consumingSnapInfo.Plugs["plug-for-writable"]
-	s.testPlugWritable = interfaces.NewConnectedPlug(s.testPlugWritableInfo, nil, nil)
+	s.testPlugDefaultInfo = consumingAppSet.Info().Plugs["optical-drive"]
+	s.testPlugDefault = interfaces.NewConnectedPlug(s.testPlugDefaultInfo, consumingAppSet, nil, nil)
+	s.testPlugReadonlyInfo = consumingAppSet.Info().Plugs["plug-for-readonly"]
+	s.testPlugReadonly = interfaces.NewConnectedPlug(s.testPlugReadonlyInfo, consumingAppSet, nil, nil)
+	s.testPlugWritableInfo = consumingAppSet.Info().Plugs["plug-for-writable"]
+	s.testPlugWritable = interfaces.NewConnectedPlug(s.testPlugWritableInfo, consumingAppSet, nil, nil)
 
 	s.slot, s.slotInfo = MockConnectedSlot(c, opticalDriveCoreYaml, nil, "optical-drive")
 }
@@ -111,7 +111,7 @@ func (s *OpticalDriveInterfaceSuite) TestAppArmorSpec(c *C) {
 		excludeSnippets []string
 	}
 	checkConnectedPlugSnippet := func(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, opts *options) {
-		apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
+		apparmorSpec := apparmor.NewSpecification(plug.AppSet())
 		err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 		c.Assert(err, IsNil)
 		c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{opts.appName})
@@ -144,14 +144,14 @@ func (s *OpticalDriveInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *OpticalDriveInterfaceSuite) TestUDevSpec(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.testPlugDefault.Snap()))
+	spec := udev.NewSpecification(s.testPlugDefault.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugDefault, s.slot), IsNil)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugReadonly, s.slot), IsNil)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugWritable, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 12) // four rules multiplied by three apps
 	c.Assert(spec.Snippets(), testutil.Contains, `# optical-drive
 KERNEL=="sr[0-9]*", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_consumer_app"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *OpticalDriveInterfaceSuite) TestStaticInfo(c *C) {

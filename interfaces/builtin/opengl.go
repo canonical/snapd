@@ -48,6 +48,9 @@ const openglConnectedPlugAppArmor = `
 # libdrm data files
 /usr/share/libdrm/amdgpu.ids r,
 
+# The nvidia container toolkit needs to traverse the top level libs directory
+# in order to discover the libraries and generate a CDI config
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/} r,
 # Bi-arch distribution nvidia support
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcuda*.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvidia*.so{,.*} rm,

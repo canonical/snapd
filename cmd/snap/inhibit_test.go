@@ -21,22 +21,25 @@ package main_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
 	"time"
 
-	"github.com/godbus/dbus"
+	"github.com/snapcore/snapd/client"
 	snaprun "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
-	"github.com/snapcore/snapd/dbusutil"
-	"github.com/snapcore/snapd/dbusutil/dbustest"
-	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
-	usersessionclient "github.com/snapcore/snapd/usersession/client"
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 )
 
@@ -103,7 +106,7 @@ func (s *RunSuite) TestWaitWhileInhibitedRunThrough(c *C) {
 	restore = snaprun.MockInhibitionFlow(&inhibitionFlow)
 	defer restore()
 
-	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), "snapname", "app")
+	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app")
 	defer hintLock.Unlock()
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "snapname")
@@ -136,7 +139,7 @@ func (s *RunSuite) TestWaitWhileInhibitedErrorOnStartNotification(c *C) {
 	restore := snaprun.MockInhibitionFlow(&inhibitionFlow)
 	defer restore()
 
-	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), "snapname", "app")
+	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app")
 	c.Assert(err, ErrorMatches, "boom")
 	c.Check(info, IsNil)
 	c.Check(app, IsNil)
@@ -192,7 +195,7 @@ func (s *RunSuite) TestWaitWhileInhibitedErrorOnFinishNotification(c *C) {
 	restore = snaprun.MockInhibitionFlow(&inhibitionFlow)
 	defer restore()
 
-	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), "snapname", "app")
+	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app")
 	c.Assert(err, ErrorMatches, "boom")
 	c.Check(info, IsNil)
 	c.Check(app, IsNil)
@@ -229,7 +232,7 @@ func (s *RunSuite) TestWaitWhileInhibitedContextCancellationOnError(c *C) {
 	restore := snaprun.MockInhibitionFlow(&inhibitionFlow)
 	defer restore()
 
-	_, _, _, err := snaprun.WaitWhileInhibited(originalCtx, "snapname", "app")
+	_, _, _, err := snaprun.WaitWhileInhibited(originalCtx, snaprun.Client(), "snapname", "app")
 	c.Assert(err, ErrorMatches, "context canceled")
 	c.Assert(errors.Is(err, context.Canceled), Equals, true)
 	c.Assert(errors.Is(originalCtx.Err(), context.Canceled), Equals, true)
@@ -276,7 +279,7 @@ func (s *RunSuite) TestWaitWhileInhibitedGateRefreshNoNotification(c *C) {
 	restore = snaprun.MockInhibitionFlow(&inhibitionFlow)
 	defer restore()
 
-	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), "snapname", "app")
+	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app")
 	defer hintLock.Unlock()
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "snapname")
@@ -301,7 +304,7 @@ func (s *RunSuite) TestWaitWhileInhibitedNotInhibitedNoNotification(c *C) {
 	restore := snaprun.MockInhibitionFlow(&inhibitionFlow)
 	defer restore()
 
-	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), "snapname", "app")
+	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app")
 	c.Assert(err, IsNil)
 	c.Assert(hintLock, IsNil)
 	c.Check(info.InstanceName(), Equals, "snapname")
@@ -322,156 +325,146 @@ func (s *RunSuite) TestWaitWhileInhibitedNotInhibitHintFileOngoingRefresh(c *C) 
 	restore := snaprun.MockInhibitionFlow(&inhibitionFlow)
 	defer restore()
 
-	_, _, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), "snapname", "app")
+	// Mock that snap exists
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapname"), 0755), IsNil)
+
+	_, _, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app")
 	c.Assert(err, testutil.ErrorIs, snaprun.ErrSnapRefreshConflict)
 	c.Assert(hintLock, IsNil)
 }
 
-func makeDBusMethodNotAvailableMessage(c *C, msg *dbus.Message) *dbus.Message {
-	return &dbus.Message{
-		Type: dbus.TypeError,
-		Headers: map[dbus.HeaderField]dbus.Variant{
-			dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
-			dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
-			// dbus.FieldDestination is provided automatically by DBus test helper.
-			dbus.FieldErrorName: dbus.MakeVariant("org.freedesktop.DBus.Error.UnknownMethod"),
-		},
-	}
-}
-
-func makeDBusMethodAvailableMessage(c *C, msg *dbus.Message) *dbus.Message {
-	c.Assert(msg.Type, Equals, dbus.TypeMethodCall)
-	c.Check(msg.Flags, Equals, dbus.Flags(0))
-
-	c.Check(msg.Headers, DeepEquals, map[dbus.HeaderField]dbus.Variant{
-		dbus.FieldDestination: dbus.MakeVariant("io.snapcraft.SnapDesktopIntegration"),
-		dbus.FieldPath:        dbus.MakeVariant(dbus.ObjectPath("/io/snapcraft/SnapDesktopIntegration")),
-		dbus.FieldInterface:   dbus.MakeVariant("io.snapcraft.SnapDesktopIntegration"),
-		dbus.FieldMember:      dbus.MakeVariant("ApplicationIsBeingRefreshed"),
-		dbus.FieldSignature:   dbus.MakeVariant(dbus.SignatureOf("", "", make(map[string]dbus.Variant))),
-	})
-	c.Check(msg.Body[0], Equals, "some-snap")
-	param2 := fmt.Sprintf("%s", msg.Body[1])
-	c.Check(strings.HasSuffix(param2, "/var/lib/snapd/inhibit/some-snap.lock"), Equals, true)
-	return &dbus.Message{
-		Type: dbus.TypeMethodReply,
-		Headers: map[dbus.HeaderField]dbus.Variant{
-			dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
-			dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
-		},
-	}
-}
-
-func (s *RunSuite) TestTextInhibitionFlow(c *C) {
-	textFlow := snaprun.NewInhibitionFlow("snapname")
-
-	c.Assert(textFlow.StartInhibitionNotification(context.TODO()), IsNil)
-	c.Check(s.Stdout(), Equals, "snap package \"snapname\" is being refreshed, please wait\n")
-
-	// Finish is a no-op
-	c.Assert(textFlow.FinishInhibitionNotification(context.TODO()), IsNil)
-	c.Check(s.Stdout(), Equals, "snap package \"snapname\" is being refreshed, please wait\n")
-
-}
-
-func (s *RunSuite) TestDesktopIntegrationInhibitionFlow(c *C) {
-	// mock snapd-desktop-integration dbus available
-	var dbusCalled int
-	conn, _, err := dbustest.InjectableConnection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-		dbusCalled++
-		return []*dbus.Message{makeDBusMethodAvailableMessage(c, msg)}, nil
-	})
-	c.Assert(err, IsNil)
-
-	restore := dbusutil.MockOnlySessionBusAvailable(conn)
+func (s *RunSuite) TestInhibitionFlow(c *C) {
+	restore := snaprun.MockIsStdoutTTY(true)
 	defer restore()
 
-	// check that the normal graphical notification flow is not called
-	restorePendingRefreshNotification := snaprun.MockPendingRefreshNotification(func(ctx context.Context, refreshInfo *usersessionclient.PendingSnapRefreshInfo) error {
-		return fmt.Errorf("this should never be reached")
+	var noticeCreated int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/connections":
+			c.Assert(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Query(), check.DeepEquals, url.Values{"interface": []string{"snap-refresh-observe"}})
+			body, err := io.ReadAll(r.Body)
+			c.Assert(err, check.IsNil)
+			c.Check(body, check.DeepEquals, []byte{})
+			EncodeResponseBody(c, w, map[string]any{
+				"type": "sync",
+				"result": client.Connections{
+					// mock snap exists with connected marker interface
+					Established: []client.Connection{{Interface: "snap-refresh-observe"}},
+				},
+			})
+		case "/v2/notices":
+			noticeCreated++
+			c.Assert(r.Method, check.Equals, "POST")
+			body, err := io.ReadAll(r.Body)
+			c.Assert(err, check.IsNil)
+			var noticeRequest map[string]string
+			c.Assert(json.Unmarshal(body, &noticeRequest), check.IsNil)
+			c.Check(noticeRequest["action"], check.Equals, "add")
+			c.Check(noticeRequest["type"], check.Equals, "snap-run-inhibit")
+			c.Check(noticeRequest["key"], check.Equals, "some-snap")
+			EncodeResponseBody(c, w, map[string]any{
+				"type":   "sync",
+				"result": map[string]string{"id": "1"},
+			})
+		default:
+			c.Error("this should never be reached")
+		}
 	})
-	defer restorePendingRefreshNotification()
-	restoreFinishRefreshNotification := snaprun.MockFinishRefreshNotification(func(ctx context.Context, refreshInfo *usersessionclient.FinishedSnapRefreshInfo) error {
-		return fmt.Errorf("this should never be reached")
-	})
-	defer restoreFinishRefreshNotification()
 
-	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(true)
-	defer restoreIsGraphicalSession()
-
-	graphicalFlow := snaprun.NewInhibitionFlow("some-snap")
+	graphicalFlow := snaprun.NewInhibitionFlow(snaprun.Client(), "some-snap")
 
 	c.Assert(graphicalFlow.StartInhibitionNotification(context.TODO()), IsNil)
-	c.Check(dbusCalled, Equals, 1)
-	// check that text flow is not called
-	c.Check(s.Stdout(), Equals, "")
+	// A snap-run-inhibit notice is always created
+	c.Check(noticeCreated, check.Equals, 1)
+	c.Check(s.Stderr(), Equals, "")
 
 	c.Assert(graphicalFlow.FinishInhibitionNotification(context.TODO()), IsNil)
-	// Finish is a no-op, so dbus is only called once
-	c.Check(dbusCalled, Equals, 1)
-	// check that text flow is not called
-	c.Check(s.Stdout(), Equals, "")
+	// Finish is no-op, no new notices
+	c.Check(noticeCreated, check.Equals, 1)
+	c.Check(s.Stderr(), Equals, "")
 }
 
-func (s *RunSuite) TestGraphicalSessionInhibitionFlow(c *C) {
-	_, r := logger.MockLogger()
-	defer r()
-
-	// mock snapd-desktop-integration dbus available
-	var dbusCalled int
-	conn, _, err := dbustest.InjectableConnection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-		dbusCalled++
-		return []*dbus.Message{makeDBusMethodNotAvailableMessage(c, msg)}, nil
-	})
-	c.Assert(err, IsNil)
-
-	restore := dbusutil.MockOnlySessionBusAvailable(conn)
+func (s *RunSuite) testInhibitionFlowTextFallback(c *C, connectionsAPIErr bool) {
+	restore := snaprun.MockIsStdoutTTY(true)
 	defer restore()
 
-	// check that the normal graphical notification flow is called
-	var pendingRefreshNotificationCalled int
-	restorePendingRefreshNotification := snaprun.MockPendingRefreshNotification(func(ctx context.Context, refreshInfo *usersessionclient.PendingSnapRefreshInfo) error {
-		pendingRefreshNotificationCalled++
-		return nil
-	})
-	defer restorePendingRefreshNotification()
-	var finishRefreshNotificationCalled int
-	restoreFinishRefreshNotification := snaprun.MockFinishRefreshNotification(func(ctx context.Context, refreshInfo *usersessionclient.FinishedSnapRefreshInfo) error {
-		finishRefreshNotificationCalled++
-		return nil
-	})
-	defer restoreFinishRefreshNotification()
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/connections":
+			if connectionsAPIErr {
+				w.WriteHeader(500)
+				EncodeResponseBody(c, w, map[string]any{"type": "error"})
+			} else {
+				EncodeResponseBody(c, w, map[string]any{"type": "sync", "result": nil})
 
-	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(true)
-	defer restoreIsGraphicalSession()
+			}
+		case "/v2/notices":
+			EncodeResponseBody(c, w, map[string]any{"type": "sync", "result": map[string]string{"id": "1"}})
+		default:
+			c.Error("this should never be reached")
+		}
+	})
 
-	graphicalFlow := snaprun.NewInhibitionFlow("some-snap")
+	graphicalFlow := snaprun.NewInhibitionFlow(snaprun.Client(), "some-snap")
 
 	c.Assert(graphicalFlow.StartInhibitionNotification(context.TODO()), IsNil)
-	c.Check(pendingRefreshNotificationCalled, Equals, 1)
-	c.Check(finishRefreshNotificationCalled, Equals, 0)
-	// snapd-desktop-integration dbus is checked for availability
-	c.Check(dbusCalled, Equals, 1)
-	// check that text flow is not called
-	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "snap package \"some-snap\" is being refreshed, please wait\n")
 
 	c.Assert(graphicalFlow.FinishInhibitionNotification(context.TODO()), IsNil)
-	c.Check(pendingRefreshNotificationCalled, Equals, 1)
-	c.Check(finishRefreshNotificationCalled, Equals, 1)
-	// snapd-desktop-integration dbus is not checked on finish
-	c.Check(dbusCalled, Equals, 1)
-	// check that text flow is not called
-	c.Check(s.Stdout(), Equals, "")
+	// Finish is a noop
+	c.Check(s.Stderr(), Equals, "snap package \"some-snap\" is being refreshed, please wait\n")
 }
 
-func (s *RunSuite) TestDesktopIntegrationNoDBus(c *C) {
-	_, r := logger.MockLogger()
-	defer r()
+func (s *RunSuite) TestInhibitionFlowTextFallbackNoMarkerInterface(c *C) {
+	const connectionsAPIErr = false
+	s.testInhibitionFlowTextFallback(c, connectionsAPIErr)
+}
 
-	noDBus := func() (*dbus.Conn, error) { return nil, fmt.Errorf("dbus not available") }
-	restore := dbusutil.MockConnections(noDBus, noDBus)
+func (s *RunSuite) TestInhibitionFlowTextFallbackConnectionsAPIError(c *C) {
+	const connectionsAPIErr = true
+	s.testInhibitionFlowTextFallback(c, connectionsAPIErr)
+}
+
+func (s *RunSuite) TestInhibitionFlowNoTTY(c *C) {
+	restore := snaprun.MockIsStdoutTTY(false)
 	defer restore()
 
-	sent := snaprun.TryNotifyRefreshViaSnapDesktopIntegrationFlow(context.TODO(), "Test")
-	c.Assert(sent, Equals, false)
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/connections":
+			// No marker interface connected
+			EncodeResponseBody(c, w, map[string]any{"type": "sync", "result": nil})
+		case "/v2/notices":
+			EncodeResponseBody(c, w, map[string]any{"type": "sync", "result": map[string]string{"id": "1"}})
+		default:
+			c.Error("this should never be reached")
+		}
+	})
+
+	graphicalFlow := snaprun.NewInhibitionFlow(snaprun.Client(), "some-snap")
+
+	c.Assert(graphicalFlow.StartInhibitionNotification(context.TODO()), IsNil)
+	// No TTY, no text notification
+	c.Check(s.Stderr(), Equals, "")
+
+	c.Assert(graphicalFlow.FinishInhibitionNotification(context.TODO()), IsNil)
+	// No TTY, no text notification
+	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *RunSuite) TestInhibitionFlowError(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/notices":
+			c.Assert(r.Method, check.Equals, "POST")
+			w.WriteHeader(500)
+			EncodeResponseBody(c, w, map[string]any{"type": "error"})
+		default:
+			c.Error("this should never be reached")
+		}
+	})
+
+	graphicalFlow := snaprun.NewInhibitionFlow(snaprun.Client(), "some-snap")
+	c.Assert(graphicalFlow.StartInhibitionNotification(context.TODO()), ErrorMatches, `server error: "Internal Server Error"`)
 }

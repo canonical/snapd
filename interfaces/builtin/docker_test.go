@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -47,22 +46,21 @@ apps:
   plugs: [docker]
 `
 
+const dockerMockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ docker:
+  interface: docker
+`
+
 var _ = Suite(&DockerInterfaceSuite{
 	iface: builtin.MustInterface("docker"),
 })
 
 func (s *DockerInterfaceSuite) SetUpTest(c *C) {
-	s.slotInfo = &snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "docker",
-		},
-		Name:      "docker-daemon",
-		Interface: "docker",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	plugSnap := snaptest.MockInfo(c, dockerMockPlugSnapInfoYaml, nil)
-	s.plugInfo = plugSnap.Plugs["docker"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.slot, s.slotInfo = MockConnectedSlot(c, dockerMockSlotSnapInfoYaml, nil, "docker")
+	s.plug, s.plugInfo = MockConnectedPlug(c, dockerMockPlugSnapInfoYaml, nil, "docker")
 }
 
 func (s *DockerInterfaceSuite) TestName(c *C) {
@@ -70,13 +68,13 @@ func (s *DockerInterfaceSuite) TestName(c *C) {
 }
 
 func (s *DockerInterfaceSuite) TestConnectedPlugSnippet(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), testutil.Contains, `run/docker.sock`)
 
-	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	seccompSpec := seccomp.NewSpecification(s.plug.AppSet())
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})

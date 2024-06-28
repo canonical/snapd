@@ -1,5 +1,11 @@
 summary: Ensure network retry works correctly
 
+details: |
+    Snapd has certain capability to retry failed network operations, as network
+    in never perfectly reliable. The test creates an environment where the DNS
+    system is broken, attempts to install a snap from the store, fixes the DNS
+    environment and ensures that the snap is installed correctly.
+
 environment:
     # on core systems, the test was seen to misbehave when memory limit is set
     SNAPD_NO_MEMORY_LIMIT: 1
@@ -35,7 +41,7 @@ restore: |
 execute: |
     if [ -n "${http_proxy:-}" ] || [ -n "${https_proxy:-}" ] ||
        [ -n "${HTTPS_PROXY:-}" ] || [ -n "${HTTPS_PROXY:-}" ]; then
-       # all querries will go through the proxy so breaking DNS will not work
+       # all queries will go through the proxy so breaking DNS will not work
        echo "SKIP: cannot run when there is a http proxy set"
        exit 0
     fi

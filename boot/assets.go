@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2020, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -175,7 +175,7 @@ var ErrObserverNotApplicable = errors.New("observer not applicable")
 // for use during installation of the run mode system to track trusted and
 // control managed assets, provided the device model indicates this might be
 // needed. Otherwise, nil and ErrObserverNotApplicable is returned.
-func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string, useEncryption bool) (*TrustedAssetsInstallObserver, error) {
+func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string, useEncryption bool) (TrustedAssetsInstallObserver, error) {
 	if model.Grade() == asserts.ModelGradeUnset {
 		// no need to observe updates when assets are not managed
 		return nil, ErrObserverNotApplicable
@@ -201,7 +201,8 @@ func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string
 	if err != nil {
 		return nil, err
 	}
-	if !useEncryption {
+	_, seedBlHasEfiEntries := seedBl.(bootloader.UefiBootloader)
+	if !useEncryption && !seedBlHasEfiEntries {
 		// we do not care about trusted assets when not encrypting data
 		// partition
 		runTrusted = nil
@@ -215,7 +216,7 @@ func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string
 		return nil, ErrObserverNotApplicable
 	}
 
-	return &TrustedAssetsInstallObserver{
+	return &trustedAssetsInstallObserverImpl{
 		model:     model,
 		cache:     newTrustedAssetsCache(dirs.SnapBootAssetsDir),
 		gadgetDir: gadgetDir,
@@ -226,6 +227,8 @@ func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string
 
 		recoveryBlName:        seedBl.Name(),
 		trustedRecoveryAssets: seedTrusted,
+
+		seedBootloader: seedBl,
 	}, nil
 }
 
@@ -250,7 +253,15 @@ func isAssetHashTrackedInMap(bam bootAssetsMap, assetName, assetHash string) boo
 
 // TrustedAssetsInstallObserver tracks the installation of trusted or managed
 // boot assets.
-type TrustedAssetsInstallObserver struct {
+type TrustedAssetsInstallObserver interface {
+	BootLoaderSupportsEfiVariables() bool
+	ObserveExistingTrustedRecoveryAssets(recoveryRootDir string) error
+	ChosenEncryptionKeys(key, saveKey keys.EncryptionKey)
+	UpdateBootEntry() error
+	Observe(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error)
+}
+
+type trustedAssetsInstallObserverImpl struct {
 	model     *asserts.Model
 	gadgetDir string
 	cache     *trustedAssetsCache
@@ -268,8 +279,16 @@ type TrustedAssetsInstallObserver struct {
 	trustedRecoveryAssets map[string]string
 	trackedRecoveryAssets bootAssetsMap
 
+	useEncryption     bool
 	dataEncryptionKey keys.EncryptionKey
 	saveEncryptionKey keys.EncryptionKey
+
+	seedBootloader bootloader.Bootloader
+}
+
+func (o *trustedAssetsInstallObserverImpl) BootLoaderSupportsEfiVariables() bool {
+	_, seedBlHasEfiEntries := o.seedBootloader.(bootloader.UefiBootloader)
+	return seedBlHasEfiEntries
 }
 
 // Observe observes the operation related to the content of a given gadget
@@ -278,7 +297,7 @@ type TrustedAssetsInstallObserver struct {
 // measured as part of the secure boot or the bootloader configuration.
 //
 // Implements gadget.ContentObserver.
-func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+func (o *trustedAssetsInstallObserverImpl) Observe(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	if partRole != gadget.SystemBoot {
 		// only care about system-boot
 		return gadget.ChangeApply, nil
@@ -314,7 +333,7 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, partR
 
 // ObserveExistingTrustedRecoveryAssets observes existing trusted assets of a
 // recovery bootloader located inside a given root directory.
-func (o *TrustedAssetsInstallObserver) ObserveExistingTrustedRecoveryAssets(recoveryRootDir string) error {
+func (o *trustedAssetsInstallObserverImpl) ObserveExistingTrustedRecoveryAssets(recoveryRootDir string) error {
 	if len(o.trustedRecoveryAssets) == 0 {
 		// not a trusted assets bootloader or has no trusted assets
 		return nil
@@ -341,17 +360,35 @@ func (o *TrustedAssetsInstallObserver) ObserveExistingTrustedRecoveryAssets(reco
 	return nil
 }
 
-func (o *TrustedAssetsInstallObserver) currentTrustedBootAssetsMap() bootAssetsMap {
+func (o *trustedAssetsInstallObserverImpl) currentTrustedBootAssetsMap() bootAssetsMap {
 	return o.trackedAssets
 }
 
-func (o *TrustedAssetsInstallObserver) currentTrustedRecoveryBootAssetsMap() bootAssetsMap {
+func (o *trustedAssetsInstallObserverImpl) currentTrustedRecoveryBootAssetsMap() bootAssetsMap {
 	return o.trackedRecoveryAssets
 }
 
-func (o *TrustedAssetsInstallObserver) ChosenEncryptionKeys(key, saveKey keys.EncryptionKey) {
+func (o *trustedAssetsInstallObserverImpl) ChosenEncryptionKeys(key, saveKey keys.EncryptionKey) {
+	o.useEncryption = true
 	o.dataEncryptionKey = key
 	o.saveEncryptionKey = saveKey
+}
+
+func (o *trustedAssetsInstallObserverImpl) UpdateBootEntry() error {
+	if o.seedBootloader == nil {
+		return nil
+	}
+	efiBl, ok := o.seedBootloader.(bootloader.UefiBootloader)
+	if !ok {
+		return nil
+	}
+
+	var updatedAssets []string
+	for name := range o.trackedRecoveryAssets {
+		updatedAssets = append(updatedAssets, name)
+	}
+
+	return doUpdateBootEntry(efiBl, updatedAssets)
 }
 
 // TrustedAssetsUpdateObserverForModel returns a new trusted assets observer for
@@ -396,11 +433,13 @@ func TrustedAssetsUpdateObserverForModel(model *asserts.Model, gadgetDir string)
 		return nil, err
 	}
 
+	_, seedBlHasEfiEntries := seedBl.(bootloader.UefiBootloader)
+
 	hasManaged := len(runManaged) > 0 || len(seedManaged) > 0
 	hasTrusted := len(runTrusted) > 0 || len(seedTrusted) > 0
 	if !hasManaged {
 		// no managed assets
-		if !hasTrusted || !trackTrustedAssets {
+		if !hasTrusted || (!trackTrustedAssets && !seedBlHasEfiEntries) {
 			// no trusted assets or we are not tracking them either
 			return nil, ErrObserverNotApplicable
 		}
@@ -416,7 +455,7 @@ func TrustedAssetsUpdateObserverForModel(model *asserts.Model, gadgetDir string)
 		seedBootloader:    seedBl,
 		seedManagedAssets: seedManaged,
 	}
-	if trackTrustedAssets {
+	if trackTrustedAssets || seedBlHasEfiEntries {
 		obs.seedTrustedAssets = seedTrusted
 		obs.bootTrustedAssets = runTrusted
 	}
@@ -445,6 +484,36 @@ type TrustedAssetsUpdateObserver struct {
 
 	modeenv       *Modeenv
 	modeenvLocked bool
+}
+
+func doUpdateBootEntry(efiBl bootloader.UefiBootloader, updatedAssets []string) error {
+	description, assetPath, optionalData, err := efiBl.ParametersForEfiLoadOption(updatedAssets)
+	if err != nil {
+		if errors.Is(err, bootloader.ErrNoBootChainFound) {
+			logger.Noticef("could not find a valid boot chain, skipping setting EFI variables")
+			return nil
+		} else {
+			return fmt.Errorf("cannot get EFI load option parameter: %v", err)
+		}
+	}
+	if err := SetEfiBootVariables(description, assetPath, optionalData); err != nil {
+		return fmt.Errorf("failed to set EFI boot variables: %v", err)
+	}
+	return nil
+}
+
+func (o *TrustedAssetsUpdateObserver) UpdateBootEntry() error {
+	efiBl, ok := o.seedBootloader.(bootloader.UefiBootloader)
+	if !ok {
+		return nil
+	}
+
+	var updatedAssets []string
+	for _, asset := range o.seedChangedAssets {
+		updatedAssets = append(updatedAssets, asset.name)
+	}
+
+	return doUpdateBootEntry(efiBl, updatedAssets)
 }
 
 // Done must be called when done with the observer if any of the
@@ -822,14 +891,17 @@ func observeSuccessfulBootAssetsForBootloader(m *Modeenv, root string, opts *boo
 			if !os.IsNotExist(err) {
 				return nil, fmt.Errorf("cannot calculate the digest of existing trusted asset: %v", err)
 			}
-			logger.Noticef("system booted without %v bootloader trusted asset %q", whichBootloader, trustedAsset)
-			// Asset names are supposed to be unique, that
-			// is no 2 different paths can used the same
-			// name. If this path is not used, it is safe
-			// to say that asset name will not be used
-			// either. So we can safely removed it from
-			// the trusted asset map.
-			delete(*trustedAssetsMap, assetName)
+			_, inModeenv := (*trustedAssetsMap)[assetName]
+			if inModeenv {
+				logger.Noticef("system booted without %v bootloader trusted asset %q", whichBootloader, trustedAsset)
+				// Asset names are supposed to be unique, that
+				// is no 2 different paths can use the same
+				// name. If this path is not used, it is safe
+				// to say that asset name will not be used
+				// either. So we can safely remove it from
+				// the trusted asset map.
+				delete(*trustedAssetsMap, assetName)
+			}
 			continue
 		}
 

@@ -400,7 +400,7 @@ This command has been left available for documentation purposes only.
 }
 
 func init() {
-	err := logger.SimpleSetup()
+	err := logger.SimpleSetup(nil)
 	if err != nil {
 		fmt.Fprintf(Stderr, i18n.G("WARNING: failed to activate logging: %v\n"), err)
 	}
@@ -441,6 +441,11 @@ func exitCodeFromError(err error) int {
 
 func main() {
 	snapdtool.ExecInSnapdOrCoreSnap()
+
+	if err := snapdtool.MaybeSetupFIPS(); err != nil {
+		fmt.Fprintf(os.Stderr, "cannot check or enable FIPS mode: %v", err)
+		os.Exit(1)
+	}
 
 	// check for magic symlink to /usr/bin/snap:
 	// 1. symlink from command-not-found to /usr/bin/snap: run c-n-f

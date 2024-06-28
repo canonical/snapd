@@ -1,5 +1,11 @@
 summary: D-Bus session services support activation via systemd user session
 
+details: |
+    Verify that snaps that consume the D-Bus session bus can be activated by the
+    systemd-provided D-Bus session. This is tested by starting a systemd user
+    session, installing a snap that provides an activatable D-Bus service, and
+    verifying that the service is activated when a method call is made.
+
 prepare: |
     if ! tests.session has-session-systemd-and-dbus; then
         exit 0

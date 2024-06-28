@@ -6,7 +6,7 @@ details: |
   We test both the encrypted and unencrypted cases. We also verify that the
   system has properly installed system seed post-installation.
 
-systems: [ubuntu-22.04-64]
+systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
   # Test both encrypted and unencrypted install using the muinstaller
@@ -53,7 +53,7 @@ execute: |
   echo 'console=ttyS0' > pc-gadget/cmdline.extra
   cat <<EOF > pc-gadget/cloud.conf
   #cloud-config
-  datasource_list: [NoCloud]
+  datasource_list: [None]
   ssh_pwauth: True
   users:
    - name: user1
@@ -75,7 +75,11 @@ execute: |
   # Retrieve kernel
   snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
   # Build kernel with initramfs with the compiled snap-bootstrap
-  uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  if os.query is-ubuntu-ge 24.04; then
+    uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  else
+    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  fi
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
 
   # prepare a core seed
@@ -83,7 +87,7 @@ execute: |
   # - repacked snapd snap
   # (should be as simple as adding "--snap=./local-snapd.snap ...")
   SEED_DIR="core-seed"
-  wget -q https://raw.githubusercontent.com/snapcore/models/master/ubuntu-core-22-amd64-dangerous.model -O my.model
+  wget -q https://raw.githubusercontent.com/snapcore/models/master/ubuntu-core-"$version"-amd64-dangerous.model -O my.model
   snap prepare-image \
       --channel=edge \
       --snap ./pc-kernel.snap \
@@ -97,8 +101,7 @@ execute: |
   cp -a ./"$SEED_DIR"/system-seed/ /var/lib/snapd/seed
 
   # build the muinstaller snap
-  # TODO: Consider reverting to latest/candidate when Snapcraft 8.0.5, which includes the fix to deal with LXD 5.21.0 version naming change, becomes available
-  snap install snapcraft --edge --classic
+  snap install snapcraft --candidate --classic
   "$TESTSTOOLS"/lxd-state prepare-snap
   (cd "$TESTSLIB"/muinstaller && snapcraft)
   MUINSTALLER_SNAP="$(find "$TESTSLIB"/muinstaller/ -maxdepth 1 -name '*.snap')"
@@ -168,6 +171,7 @@ execute: |
   tests.nested create-vm core --extra-param "$NESTED_PARAM_EXTRA"
 
   # bind mount new seed
+  remote.exec sudo mkdir -p /var/lib/snapd/seed
   remote.exec "sudo mount -o bind /var/lib/snapd/install-seed /var/lib/snapd/seed"
   # push and install muinstaller
   remote.push "$MUINSTALLER_SNAP"
@@ -220,16 +224,16 @@ execute: |
 
   # check that seed is properly installed
   remote.exec test -d "/run/mnt/ubuntu-seed/systems/${LABEL}"
-  remote.exec "sudo snap recovery" | MATCH "${LABEL}\s+canonical\*\*\s+ubuntu-core-22-amd64-dangerous\s+current"
+  remote.exec "sudo snap recovery" | MATCH "${LABEL}\s+canonical\*\*\s+ubuntu-core-$version-amd64-dangerous\s+current"
 
   # check for unasserted snaps
   for sn in pc pc-kernel; do
-      version=$(remote.exec "snap list ${sn}" | awk 'NR != 1 { print $2 }')
-      remote.exec "test -f /run/mnt/ubuntu-seed/systems/${LABEL}/snaps/${sn}_${version}.snap"
+      sn_version=$(remote.exec "snap list ${sn}" | awk 'NR != 1 { print $2 }')
+      remote.exec "test -f /run/mnt/ubuntu-seed/systems/${LABEL}/snaps/${sn}_${sn_version}.snap"
   done
 
   # check for asserted snaps
-  for sn in snapd core22; do
+  for sn in snapd core"$version"; do
       rev=$(remote.exec "snap list ${sn}" | awk 'NR != 1 { print $3 }')
       remote.exec "test -f /run/mnt/ubuntu-seed/snaps/${sn}_${rev}.snap"
   done

@@ -1,6 +1,10 @@
 summary: Ensure the snapd works without core on classic systems
 
-# Run only on ubuntu classic because this re-execs.  We have a
+details: |
+    Check that snapd can be installed without the core snap on classic
+    systems and that commands can re-exec into snapd.
+
+# Run only on ubuntu classic because this re-execs. We have a
 # separate test for UC18 already and on UC16 we always have a core
 # snap so we don't need to test there.
 systems: [ubuntu-1*, ubuntu-2*]

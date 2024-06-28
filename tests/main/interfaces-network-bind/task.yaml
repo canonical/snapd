@@ -1,13 +1,15 @@
 summary: Ensure that the network-bind interface works
 
 details: |
-    The network-bind interface allows a daemon to access the network as a server.
+    The network-bind interface allows an application to accept incoming network
+    connections.
 
-    A snap which defines the network-bind plug must be shown in the interfaces list.
-    The plug must be autoconnected on install and, as usual, must be able to be
-    reconnected.
+    A snap which defines the network-bind plug must be shown in the interfaces
+    list. The plug must be auto-connected on install and, as usual, must be able
+    to be reconnected.
 
-    A snap declaring a plug on this interface must be accessible by a network client.
+    A snap declaring a plug on this interface must be accessible by a network
+    client.
 
 environment:
     SNAP_NAME: network-bind-consumer

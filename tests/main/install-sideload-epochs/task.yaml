@@ -1,4 +1,9 @@
-summary: Checks for snap sideload install w/mismatched epochs
+summary: Checks for snap sideload install w/ mismatched epochs
+
+details: |
+    Check that updating a snap via a sideload install fails if snapd can't read
+    the previous version's epoch. This ensures that an update can't result in
+    the snap not being able to read previous version's data.
 
 environment:
     # Ensure that running purely from the deb (without re-exec) works

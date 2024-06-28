@@ -45,10 +45,6 @@ struct sc_args;
  *
  * Snap confine understands very specific arguments.
  *
- * The argument vector can begin with "ubuntu-core-launcher" (with an optional
- * path) which implies that the first arctual argument (argv[1]) is a copy of
- * argv[2] and can be discarded.
- *
  * The argument vector is scanned, left to right, to look for switches that
  * start with the minus sign ('-'). Recognized options are stored and
  * memorized. Unrecognized options return an appropriate error object.

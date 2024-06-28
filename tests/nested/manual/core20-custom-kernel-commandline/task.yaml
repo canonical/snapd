@@ -3,7 +3,7 @@ summary: Verify custom kernel command line handling in UC20
 details: |
     This test checks support for customized kernel command line arguments in UC20
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
     NESTED_BUILD_SNAPD_FROM_CURRENT: true

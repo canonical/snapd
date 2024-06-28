@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -67,11 +68,13 @@ plugs:
   %s:
 `, iface)
 	}
-	slotSnap := snaptest.MockInfo(c, slotYaml, nil)
-	plugSnap := snaptest.MockInfo(c, plugYaml, nil)
+
+	slot, _ := ifacetest.MockConnectedSlot(c, slotYaml, nil, iface)
+	plug, _ := ifacetest.MockConnectedPlug(c, plugYaml, nil, iface)
+
 	return &policy.ConnectCandidate{
-		Plug:            interfaces.NewConnectedPlug(plugSnap.Plugs[iface], nil, nil),
-		Slot:            interfaces.NewConnectedSlot(slotSnap.Slots[iface], nil, nil),
+		Plug:            plug,
+		Slot:            slot,
 		BaseDeclaration: s.baseDecl,
 	}
 }
@@ -1343,6 +1346,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"userns":                  true,
 		"wayland":                 true,
 		"xilinx-dma":              true,
+		"registry":                true,
 	}
 
 	for _, iface := range all {
@@ -1699,28 +1703,28 @@ plugs:
 }
 
 func (s *baseDeclSuite) TestRawVolumeOverride(c *C) {
-	slotYaml := `name: slot-snap
+	const slotYaml = `name: slot-snap
 type: gadget
 version: 0
 slots:
   raw-volume:
     path: /dev/mmcblk0p1
 `
-	slotSnap := snaptest.MockInfo(c, slotYaml, nil)
+	slot, _ := ifacetest.MockConnectedSlot(c, slotYaml, nil, "raw-volume")
 	// mock a well-formed slot snap decl with SnapID
 	slotSnapDecl := s.mockSnapDecl(c, "slot-snap", "slotsnapidididididididididididid", "canonical", "")
 
-	plugYaml := `name: plug-snap
+	const plugYaml = `name: plug-snap
 version: 0
 plugs:
   raw-volume:
 `
-	plugSnap := snaptest.MockInfo(c, plugYaml, nil)
+	plug, _ := ifacetest.MockConnectedPlug(c, plugYaml, nil, "raw-volume")
 
 	// no plug-side declaration
 	cand := &policy.ConnectCandidate{
-		Plug:                interfaces.NewConnectedPlug(plugSnap.Plugs["raw-volume"], nil, nil),
-		Slot:                interfaces.NewConnectedSlot(slotSnap.Slots["raw-volume"], nil, nil),
+		Plug:                plug,
+		Slot:                slot,
 		SlotSnapDeclaration: slotSnapDecl,
 		BaseDeclaration:     s.baseDecl,
 	}

@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -43,22 +42,23 @@ var _ = Suite(&ShutdownInterfaceSuite{
 })
 
 func (s *ShutdownInterfaceSuite) SetUpTest(c *C) {
-	consumingSnapInfo := snaptest.MockInfo(c, `
+	const mockPlugSnapInfoYaml = `
 name: other
 version: 0
 apps:
  app:
-    command: foo
-    plugs: [shutdown]
-`, nil)
-	s.plugInfo = consumingSnapInfo.Plugs["shutdown"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "shutdown",
-		Interface: "shutdown",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
+  command: foo
+  plugs: [shutdown]
+`
+	const mockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ shutdown:
+  interface: shutdown
+`
+	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "shutdown")
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "shutdown")
 }
 
 func (s *ShutdownInterfaceSuite) TestName(c *C) {
@@ -74,7 +74,7 @@ func (s *ShutdownInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *ShutdownInterfaceSuite) TestConnectedPlugSnippet(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})

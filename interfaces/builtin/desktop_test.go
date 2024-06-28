@@ -105,7 +105,9 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// On an all-snaps system, the desktop interface grants access
 	// to system fonts.
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.appSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access basic graphical desktop resources")
@@ -122,7 +124,9 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(updateNS, testutil.Contains, "  # Read-only access to /var/cache/fontconfig\n")
 
 	// There are permanent rules on the slot side
-	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.appSlotInfo.Snap))
+	appSet, err = interfaces.NewSnapAppSet(s.appSlotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
 	c.Check(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "# Description: Can provide various desktop services")
@@ -131,7 +135,9 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	// On a classic system, additional permissions are granted
 	restore = release.MockOnClassic(true)
 	defer restore()
-	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -151,7 +157,9 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(updateNS, testutil.Contains, "  # Read-only access to /var/cache/fontconfig\n")
 
 	// connected plug to core slot
-	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
+	appSet, err = interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)

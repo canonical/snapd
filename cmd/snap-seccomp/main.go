@@ -19,7 +19,7 @@
 
 package main
 
-//#cgo CFLAGS: -D_FILE_OFFSET_BITS=64
+//#cgo CFLAGS: -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 //#cgo pkg-config: libseccomp
 //#cgo LDFLAGS:
 //
@@ -579,6 +579,22 @@ func readNumber(token string, syscallName string) (uint64, error) {
 	return uint64(uint32(value)), nil
 }
 
+func readMaskedEqual(token string, syscallName string) (uint64, uint64, error) {
+	l := strings.Split(token, "|")
+	if len(l) != 2 {
+		return 0, 0, fmt.Errorf("cannot parse masked equal: unexpected number of tokens %v", len(l))
+	}
+	value, err := readNumber(l[0], syscallName)
+	if err != nil {
+		return 0, 0, err
+	}
+	value2, err := readNumber(l[1], syscallName)
+	if err != nil {
+		return 0, 0, err
+	}
+	return value, value2, nil
+}
+
 var (
 	errnoOnExplicitDenial int16 = C.EACCES
 	errnoOnImplicitDenial int16 = C.EPERM
@@ -621,7 +637,7 @@ func parseLine(line string, secFilterAllow, secFilterDeny *seccomp.ScmpFilter) e
 	var conds []seccomp.ScmpCondition
 	for pos, arg := range tokens[1:] {
 		var cmpOp seccomp.ScmpCompareOp
-		var value uint64
+		var value, value2 uint64
 		var err error
 
 		if arg == "-" { // skip arg
@@ -646,6 +662,10 @@ func parseLine(line string, secFilterAllow, secFilterDeny *seccomp.ScmpFilter) e
 		} else if strings.HasPrefix(arg, "|") {
 			cmpOp = seccomp.CompareMaskedEqual
 			value, err = readNumber(arg[1:], syscallName)
+			value2 = value
+		} else if strings.Contains(arg, "|") {
+			cmpOp = seccomp.CompareMaskedEqual
+			value, value2, err = readMaskedEqual(arg, syscallName)
 		} else if strings.HasPrefix(arg, "u:") {
 			cmpOp = seccomp.CompareEqual
 			value, err = findUid(arg[2:])
@@ -677,7 +697,7 @@ func parseLine(line string, secFilterAllow, secFilterDeny *seccomp.ScmpFilter) e
 
 		var scmpCond seccomp.ScmpCondition
 		if cmpOp == seccomp.CompareMaskedEqual {
-			scmpCond, err = seccomp.MakeCondition(uint(pos), cmpOp, value, value)
+			scmpCond, err = seccomp.MakeCondition(uint(pos), cmpOp, value, value2)
 		} else if syscallsWithNegArgsMaskHi32[syscallName] {
 			scmpCond, err = seccomp.MakeCondition(uint(pos), seccomp.CompareMaskedEqual, 0xFFFFFFFF, value)
 		} else {
@@ -918,7 +938,13 @@ func compile(content []byte, out string) error {
 		if err != nil {
 			return fmt.Errorf("cannot create allow seccomp filter: %s", err)
 		}
-		secFilterDeny, err = seccomp.NewFilter(complainAct)
+
+		// Deny filter uses "act allow" as a default action, as it is only
+		// populated with deny rules. Any matching it does results in an
+		// explicit denial. When seccomp profiles are loaded the most
+		// restrictive action is used, so without any matching allow rules in
+		// the same filter, all system calls would be forever denied.
+		secFilterDeny, err = seccomp.NewFilter(seccomp.ActAllow)
 		if err != nil {
 			return fmt.Errorf("cannot create deny seccomp filter: %s", err)
 		}
@@ -934,6 +960,11 @@ func compile(content []byte, out string) error {
 		if err != nil {
 			return fmt.Errorf("cannot create seccomp filter: %s", err)
 		}
+		// Deny filter uses "act allow" as a default action, as it is only
+		// populated with deny rules. Any matching it does results in an
+		// explicit denial. When seccomp profiles are loaded the most
+		// restrictive action is used, so without any matching allow rules in
+		// the same filter, all system calls would be forever denied.
 		secFilterDeny, err = seccomp.NewFilter(seccomp.ActAllow)
 		if err != nil {
 			return fmt.Errorf("cannot create seccomp filter: %s", err)

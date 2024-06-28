@@ -203,7 +203,7 @@ func loggerWithSyslogMaybe() error {
 		if err != nil {
 			return err
 		}
-		l, err := logger.New(syslogWriter, logger.DefaultFlags)
+		l, err := logger.New(syslogWriter, logger.DefaultFlags, nil)
 		if err != nil {
 			return err
 		}
@@ -213,7 +213,7 @@ func loggerWithSyslogMaybe() error {
 
 	if err := maybeSyslog(); err != nil {
 		// try simple setup
-		return logger.SimpleSetup()
+		return logger.SimpleSetup(nil)
 	}
 	return nil
 }

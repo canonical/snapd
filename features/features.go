@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -72,8 +73,8 @@ const (
 	QuotaGroups
 	// RefreshAppAwarenessUX enables experimental UX improvements for refresh-app-awareness.
 	RefreshAppAwarenessUX
-	// AspectsConfiguration enables experimental aspect-based configuration.
-	AspectsConfiguration
+	// Registries enables experimental configuration based on registries and views.
+	Registries
 	// AppArmorPrompting enables AppArmor to prompt the user for permission when apps perform certain operations.
 	AppArmorPrompting
 
@@ -118,7 +119,7 @@ var featureNames = map[SnapdFeature]string{
 	QuotaGroups: "quota-groups",
 
 	RefreshAppAwarenessUX: "refresh-app-awareness-ux",
-	AspectsConfiguration:  "aspects-configuration",
+	Registries:            "registries",
 
 	AppArmorPrompting: "apparmor-prompting",
 }
@@ -144,8 +145,13 @@ var featuresExported = map[SnapdFeature]bool{
 	MoveSnapHomeDir:               true,
 
 	RefreshAppAwarenessUX: true,
-	AspectsConfiguration:  true,
+	Registries:            true,
+	AppArmorPrompting:     true,
 }
+
+var (
+	releaseSystemctlSupportsUserUnits = release.SystemctlSupportsUserUnits
+)
 
 // featuresSupportedCallbacks maps features to a callback function which may be
 // run to determine if the feature is supported and, if not, return false along
@@ -161,16 +167,13 @@ var featuresSupportedCallbacks = map[SnapdFeature]func() (bool, string){
 	},
 	// UserDaemons requires user units
 	UserDaemons: func() (bool, string) {
-		if !release.SystemctlSupportsUserUnits() {
+		if !releaseSystemctlSupportsUserUnits() {
 			return false, "user session daemons are not supported on this system's distribution version"
 		}
 		return true, ""
 	},
-	// AppArmorPrompting requires a newer version of snapd with all the
-	// prompting components in place. TODO: change this callback once ready.
-	AppArmorPrompting: func() (bool, string) {
-		return false, "requires newer version of snapd"
-	},
+	// AppArmorPrompting requires that AppArmor supports prompting.
+	AppArmorPrompting: apparmor.PromptingSupported,
 }
 
 // String returns the name of a snapd feature.
@@ -216,6 +219,16 @@ func (f SnapdFeature) ControlFile() string {
 // ConfigOption returns the snap name and configuration option associated with this feature.
 func (f SnapdFeature) ConfigOption() (snapName, confName string) {
 	return "core", "experimental." + f.String()
+}
+
+// IsSupported returns true if the feature's supported callback returns true,
+// or if it has no supportedCallback.
+func (f SnapdFeature) IsSupported() bool {
+	if callback, exists := featuresSupportedCallbacks[f]; exists {
+		supported, _ := callback() // discard unsupported reason
+		return supported
+	}
+	return true
 }
 
 // IsEnabled checks if a given exported snapd feature is enabled.

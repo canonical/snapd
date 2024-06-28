@@ -85,6 +85,38 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	return mockSnap(c, "", yamlText, sideInfo)
 }
 
+// MockComponent puts a component.yaml file on disk so to mock an installed
+// component, based on the provided arguments.
+//
+// The caller is responsible for mocking root directory with dirs.SetRootDir()
+// and for altering the overlord state if required.
+func MockComponent(c *check.C, yamlText string, info *snap.Info, csi snap.ComponentSideInfo) *snap.ComponentInfo {
+	infoForName, err := snap.InfoFromComponentYaml([]byte(yamlText))
+	c.Assert(err, check.IsNil)
+
+	// Put the component.yaml on disk, in the right spot.
+	mountDir := snap.ComponentMountDir(infoForName.Component.ComponentName, csi.Revision, info.InstanceName())
+	metaDir := filepath.Join(mountDir, "meta")
+	err = os.MkdirAll(metaDir, 0755)
+	c.Assert(err, check.IsNil)
+
+	err = os.WriteFile(filepath.Join(metaDir, "component.yaml"), []byte(yamlText), 0644)
+	c.Assert(err, check.IsNil)
+
+	// Write the .snap to disk
+	err = os.MkdirAll(filepath.Dir(info.MountFile()), 0755)
+	c.Assert(err, check.IsNil)
+
+	// TODO: write something to disk for the component snap file, like in
+	// MockSnap
+
+	container := snapdir.New(filepath.Dir(metaDir))
+	component, err := snap.ReadComponentInfoFromContainer(container, info, &csi)
+	c.Assert(err, check.IsNil)
+
+	return component
+}
+
 // MockSnapInstance puts a snap.yaml file on disk so to mock an installed snap
 // instance, based on the provided arguments.
 //
@@ -104,6 +136,23 @@ func MockSnapCurrent(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap
 	err := os.Symlink(filepath.Base(si.MountDir()), filepath.Join(si.MountDir(), "../current"))
 	c.Assert(err, check.IsNil)
 	return si
+}
+
+func MockComponentCurrent(c *check.C, yamlText string, info *snap.Info, csi snap.ComponentSideInfo) *snap.ComponentInfo {
+	ci := MockComponent(c, yamlText, info, csi)
+
+	mountDir := snap.ComponentMountDir(ci.Component.ComponentName, ci.Revision, info.InstanceName())
+	link := filepath.Join(snap.ComponentsBaseDir(info.InstanceName()), info.Revision.String(), ci.Component.ComponentName)
+	err := os.MkdirAll(filepath.Dir(link), 0755)
+	c.Assert(err, check.IsNil)
+
+	linkDest, err := filepath.Rel(filepath.Dir(link), mountDir)
+	c.Assert(err, check.IsNil)
+
+	err = os.Symlink(linkDest, link)
+	c.Assert(err, check.IsNil)
+
+	return ci
 }
 
 // MockSnapInstanceCurrent does the same as MockSnapInstance but additionally

@@ -94,32 +94,40 @@ func (s *dspSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *dspSuite) TestApparmorConnectedPlugAmbarella(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
-	err := spec.AddConnectedPlug(s.iface, s.plug, s.ambarellaSlot)
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
+	err = spec.AddConnectedPlug(s.iface, s.plug, s.ambarellaSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SnippetForTag("snap.my-device.svc"), testutil.Contains, "/proc/ambarella/vin[0-9]_idsp r,\n")
 }
 
 func (s *dspSuite) TestUDevConnectedPlugAmbarella(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
-	err := spec.AddConnectedPlug(s.iface, s.plug, s.ambarellaSlot)
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
+	err = spec.AddConnectedPlug(s.iface, s.plug, s.ambarellaSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 6)
 	c.Assert(spec.Snippets(), testutil.Contains, `# dsp
 KERNEL=="iav", TAG+="snap_my-device_svc"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_my-device_svc", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_my-device_svc"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_my-device_svc", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_my-device_svc $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *dspSuite) TestUDevConnectedPlugNoFlavor(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
-	err := spec.AddConnectedPlug(s.iface, s.plug, s.noFlavorSlot)
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
+	err = spec.AddConnectedPlug(s.iface, s.plug, s.noFlavorSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
 
 func (s *dspSuite) TestApparmorConnectedPlugNoFlavor(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
-	err := spec.AddConnectedPlug(s.iface, s.plug, s.noFlavorSlot)
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
+	err = spec.AddConnectedPlug(s.iface, s.plug, s.noFlavorSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 }

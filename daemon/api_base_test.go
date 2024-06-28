@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -428,7 +429,8 @@ func (s *apiBaseSuite) mockSnap(c *check.C, yamlText string) *snap.Info {
 		panic("call s.daemon(c) etc in your test first")
 	}
 
-	snapInfo := snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: snap.R(1)})
+	appSet := ifacetest.MockSnapAndAppSet(c, yamlText, nil, &snap.SideInfo{Revision: snap.R(1)})
+	snapInfo := appSet.Info()
 
 	st := s.d.Overlord().State()
 
@@ -451,7 +453,7 @@ func (s *apiBaseSuite) mockSnap(c *check.C, yamlText string) *snap.Info {
 
 	// Put the snap into the interface repository
 	repo := s.d.Overlord().InterfaceManager().Repository()
-	err := repo.AddSnap(snapInfo)
+	err := repo.AddAppSet(appSet)
 	c.Assert(err, check.IsNil)
 	return snapInfo
 }

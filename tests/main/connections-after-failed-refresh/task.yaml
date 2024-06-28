@@ -1,5 +1,18 @@
 summary: Test that connections are kept after failed refresh or snap try
 
+details: |
+  This test verifies that connections are kept after a failed refresh or snap try.
+
+  The test installs a snap, connects its interfaces, and then tries to refresh
+  that snap. The refresh of the snap is expected to fail, and the test verifies
+  that the interfaces are still connected.
+
+  The test then tries to "snap try" the snap, which is also expected to fail,
+  and the test verifies that the interfaces are still connected.
+
+  Finally, the test verifies that the network plug is not present since it's
+  provided by the second revision of the snap (and it failed to install).
+
 # the test relies on home getting auto-connected, so exclude core
 systems: [-ubuntu-core-*]
 

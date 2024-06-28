@@ -1,5 +1,10 @@
 summary: Check that snap user services are started on install in existing sessions
 
+details: |
+    Check that sockets are created and activated correctly for snap user services when a
+    service snap is installed and the experimental user-daemons flag is enabled. Also
+    check that the services are stopped when the snap is removed.
+
 systems:
     # Ubuntu 14.04's systemd doesn't have user@.service
     - -ubuntu-14.04-*

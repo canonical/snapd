@@ -80,18 +80,21 @@ apps:
     svc:
         command: bin/foo.sh
 `, nil)
+	appSet, err := interfaces.NewSnapAppSet(gadgetInfo, nil)
+	c.Assert(err, IsNil)
+
 	s.gadgetGpioSlotInfo = gadgetInfo.Slots["my-pin"]
-	s.gadgetGpioSlot = interfaces.NewConnectedSlot(s.gadgetGpioSlotInfo, nil, nil)
+	s.gadgetGpioSlot = interfaces.NewConnectedSlot(s.gadgetGpioSlotInfo, appSet, nil, nil)
 	s.gadgetMissingNumberSlotInfo = gadgetInfo.Slots["missing-number"]
-	s.gadgetMissingNumberSlot = interfaces.NewConnectedSlot(s.gadgetMissingNumberSlotInfo, nil, nil)
+	s.gadgetMissingNumberSlot = interfaces.NewConnectedSlot(s.gadgetMissingNumberSlotInfo, appSet, nil, nil)
 	s.gadgetBadNumberSlotInfo = gadgetInfo.Slots["bad-number"]
-	s.gadgetBadNumberSlot = interfaces.NewConnectedSlot(s.gadgetBadNumberSlotInfo, nil, nil)
+	s.gadgetBadNumberSlot = interfaces.NewConnectedSlot(s.gadgetBadNumberSlotInfo, appSet, nil, nil)
 	s.gadgetBadInterfaceSlotInfo = gadgetInfo.Slots["bad-interface-slot"]
-	s.gadgetBadInterfaceSlot = interfaces.NewConnectedSlot(s.gadgetBadInterfaceSlotInfo, nil, nil)
+	s.gadgetBadInterfaceSlot = interfaces.NewConnectedSlot(s.gadgetBadInterfaceSlotInfo, appSet, nil, nil)
 	s.gadgetPlugInfo = gadgetInfo.Plugs["plug"]
-	s.gadgetPlug = interfaces.NewConnectedPlug(s.gadgetPlugInfo, nil, nil)
+	s.gadgetPlug = interfaces.NewConnectedPlug(s.gadgetPlugInfo, appSet, nil, nil)
 	s.gadgetBadInterfacePlugInfo = gadgetInfo.Plugs["bad-interface-plug"]
-	s.gadgetBadInterfacePlug = interfaces.NewConnectedPlug(s.gadgetBadInterfacePlugInfo, nil, nil)
+	s.gadgetBadInterfacePlug = interfaces.NewConnectedPlug(s.gadgetBadInterfacePlugInfo, appSet, nil, nil)
 
 	osInfo := snaptest.MockInfo(c, `
 name: my-core
@@ -103,8 +106,11 @@ slots:
         number: 777
         direction: out
 `, nil)
+	appSet, err = interfaces.NewSnapAppSet(osInfo, nil)
+	c.Assert(err, IsNil)
+
 	s.osGpioSlotInfo = osInfo.Slots["my-pin"]
-	s.osGpioSlot = interfaces.NewConnectedSlot(s.osGpioSlotInfo, nil, nil)
+	s.osGpioSlot = interfaces.NewConnectedSlot(s.osGpioSlotInfo, appSet, nil, nil)
 }
 
 func (s *GpioInterfaceSuite) TestName(c *C) {
@@ -156,7 +162,7 @@ func (s *GpioInterfaceSuite) TestApparmorConnectedPlugIgnoresMissingSymlink(c *C
 		return "", os.ErrNotExist
 	})
 
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.gadgetPlug.Snap()))
+	spec := apparmor.NewSpecification(s.gadgetPlug.AppSet())
 	err := spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetGpioSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
@@ -170,7 +176,7 @@ func (s *GpioInterfaceSuite) TestApparmorConnectedPlug(c *C) {
 		return "/sys/dev/foo/class/gpio/gpio100", nil
 	})
 
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.gadgetPlug.Snap()))
+	spec := apparmor.NewSpecification(s.gadgetPlug.AppSet())
 	err := spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetGpioSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SnippetForTag("snap.my-device.svc"), testutil.Contains, `/sys/dev/foo/class/gpio/gpio100/* rwk`)

@@ -1,5 +1,16 @@
 summary: Ensure "snapctl is-connected" --pid and --apparmor-label options work.
 
+details: |
+    This test uses the "snapctl is-connected" command to verify that the "--pid"
+    and "--apparmor-label" options work as expected.
+
+    The "--pid" option is tested by connecting a plug and slot and verifying
+    that the slot is connected to the process ID of the service running in the
+    snap.
+
+    The "--apparmor-label" option is tested by verifying that the slot is
+    connected to the AppArmor label of the service running in the snap.
+
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snap1
     "$TESTSTOOLS"/snaps-state install-local test-snap2

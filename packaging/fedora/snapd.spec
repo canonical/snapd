@@ -71,21 +71,21 @@
 # Until we have a way to add more extldflags to gobuild macro...
 # Always use external linking when building static binaries.
 %if 0%{?fedora} || 0%{?rhel} >= 8 || 0%{?amzn2023}
-%define gobuild_static(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
+%define gobuild_static(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v %{?**};
 %endif
 %if 0%{?rhel} == 7
 # no pass PIE flags due to https://bugzilla.redhat.com/show_bug.cgi?id=1634486
-%define gobuild_static(o:) go build -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
+%define gobuild_static(o:) go build -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v %{?**};
 %endif
 
 # These macros are missing BUILDTAGS in RHEL 8/9, see RHBZ#1825138
 %if 0%{?rhel} >= 8 || 0%{?amzn2023}
-%define gobuild(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags'" -a -v -x %{?**};
+%define gobuild(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags'" -a -v %{?**};
 %endif
 
 # These macros are not defined in RHEL 7
 %if 0%{?rhel} == 7
-%define gobuild(o:) go build -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags'" -a -v -x %{?**};
+%define gobuild(o:) go build -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags'" -a -v %{?**};
 %define gotest() go test -compiler gc %{?**};
 %endif
 
@@ -104,7 +104,7 @@
 %endif
 
 Name:           snapd
-Version:        2.62
+Version:        2.63
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -124,6 +124,10 @@ ExclusiveArch:  %{ix86} x86_64 %{arm} aarch64 ppc64le s390x
 BuildRequires: make
 BuildRequires:  %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang >= 1.9}
 BuildRequires:  systemd
+%if ! 0%{?amzn2}
+BuildRequires:  fakeroot
+%endif
+BuildRequires:  squashfs-tools
 %{?systemd_requires}
 
 Requires:       snap-confine%{?_isa} = %{version}-%{release}
@@ -166,7 +170,8 @@ Provides:       %{name}-login-service%{?_isa} = 1.33
 %endif
 
 %if ! 0%{?with_bundled}
-BuildRequires: golang(github.com/boltdb/bolt)
+BuildRequires: golang(go.etcd.io/bbolt)
+BuildRequires: golang(github.com/bmatcuk/doublestar/v4)
 BuildRequires: golang(github.com/coreos/go-systemd/activation)
 BuildRequires: golang(github.com/godbus/dbus)
 BuildRequires: golang(github.com/godbus/dbus/introspect)
@@ -263,7 +268,8 @@ BuildArch:     noarch
 %endif
 
 %if ! 0%{?with_bundled}
-Requires:      golang(github.com/boltdb/bolt)
+Requires:      golang(go.etcd.io/bbolt)
+Requires:      golang(github.com/bmatcuk/doublestar/v4)
 Requires:      golang(github.com/coreos/go-systemd/activation)
 Requires:      golang(github.com/godbus/dbus)
 Requires:      golang(github.com/godbus/dbus/introspect)
@@ -292,7 +298,8 @@ Requires:      golang(gopkg.in/yaml.v3)
 # These Provides are unversioned because the sources in
 # the bundled tarball are unversioned (they go by git commit)
 # *sigh*... I hate golang...
-Provides:      bundled(golang(github.com/snapcore/bolt))
+Provides:      bundled(golang(go.etcd.io/bbolt))
+Provides:      bundled(golang(github.com/bmatcuk/doublestar/v4))
 Provides:      bundled(golang(github.com/coreos/go-systemd/activation))
 Provides:      bundled(golang(github.com/godbus/dbus))
 Provides:      bundled(golang(github.com/godbus/dbus/introspect))
@@ -574,10 +581,6 @@ BUILDTAGS="${BUILDTAGS} nomanagers"
     %gobuild_static -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
 )
 
-%if 0%{?rhel}
-# There's no static link library for libseccomp in RHEL/CentOS...
-sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
-%endif
 %gobuild -o bin/snap-seccomp $GOFLAGS %{import_path}/cmd/snap-seccomp
 
 %if 0%{?with_selinux}
@@ -646,6 +649,7 @@ install -d -p %{buildroot}%{_sharedstatedir}/snapd/dbus-1/services
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/dbus-1/system-services
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/desktop/applications
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/device
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/environment
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/hostfs
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/inhibit
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/gl
@@ -702,8 +706,6 @@ pushd ./cmd
 chmod 0755 %{buildroot}%{_sharedstatedir}/snapd/void
 # We don't use AppArmor
 rm -rfv %{buildroot}%{_sysconfdir}/apparmor.d
-# ubuntu-core-launcher is dead
-rm -fv %{buildroot}%{_bindir}/ubuntu-core-launcher
 popd
 
 # Install all systemd and dbus units, and env files
@@ -1004,6 +1006,54 @@ fi
 
 
 %changelog
+* Wed Apr 24 2024 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.63
+ - Support for snap services to show the current status of user
+   services (experimental)
+ - Refresh app awareness: record snap-run-inhibit notice when
+   starting app from snap that is busy with refresh (experimental)
+ - Refresh app awareness: use warnings as fallback for desktop
+   notifications (experimental)
+ - Aspect based configuration: make request fields in the aspect-
+   bundle's rules optional (experimental)
+ - Aspect based configuration: make map keys conform to the same
+   format as path sub-keys (experimental)
+ - Aspect based configuration: make unset and set behaviour similar
+   to configuration options (experimental)
+ - Aspect based configuration: limit nesting level for setting value
+   (experimental)
+ - Components: use symlinks to point active snap component revisions
+ - Components: add model assertion support for components
+ - Components: fix to ensure local component installation always gets
+   a new revision number
+ - Add basic support for a CIFS remote filesystem-based home
+   directory
+ - Add support for AppArmor profile kill mode to avoid snap-confine
+   error
+ - Allow more than one interface to grant access to the same API
+   endpoint or notice type
+ - Allow all snapd service's control group processes to send systemd
+   notifications to prevent warnings flooding the log
+ - Enable not preseeded single boot install
+ - Update secboot to handle new sbatlevel
+ - Fix to not use cgroup for non-strict confined snaps (devmode,
+   classic)
+ - Fix two race conditions relating to freedesktop notifications
+ - Fix missing tunables in snap-update-ns AppArmor template
+ - Fix rejection of snapd snap udev command line by older host snap-
+   device-helper
+ - Rework seccomp allow/deny list
+ - Clean up files removed by gadgets
+ - Remove non-viable boot chains to avoid secboot failure
+ - posix_mq interface: add support for missing time64 mqueue syscalls
+   mq_timedreceive_time64 and mq_timedsend_time64
+ - password-manager-service interface: allow kwalletd version 6
+ - kubernetes-support interface: allow SOCK_SEQPACKET sockets
+ - system-observe interface: allow listing systemd units and their
+   properties
+ - opengl interface: enable use of nvidia container toolkit CDI
+   config generation
+
 * Thu Mar 21 2024 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.62
  - Aspects based configuration schema support (experimental)

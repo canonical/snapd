@@ -71,19 +71,6 @@ struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
 	if (args == NULL) {
 		die("cannot allocate memory for command line arguments object");
 	}
-	// Check if we're being called through the ubuntu-core-launcher symlink.
-	// When this happens we want to skip the first positional argument as it is
-	// the security tag repeated (legacy).
-	bool ignore_first_tag = false;
-	char *basename = strrchr(argv[0], '/');
-	if (basename != NULL) {
-		// NOTE: this is safe because we, at most, may move to the NUL byte
-		// that compares to an empty string.
-		basename += 1;
-		if (strcmp(basename, "ubuntu-core-launcher") == 0) {
-			ignore_first_tag = true;
-		}
-	}
 	// Parse option switches.
 	int optind;
 	for (optind = 1; optind < argc; ++optind) {
@@ -141,12 +128,6 @@ struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
 	for (; optind < argc; ++optind) {
 		if (args->security_tag == NULL) {
 			// The first positional argument becomes the security tag.
-			if (ignore_first_tag) {
-				// Unless we are called as ubuntu-core-launcher, then we just
-				// swallow and ignore that security tag altogether.
-				ignore_first_tag = false;
-				continue;
-			}
 			args->security_tag = sc_strdup(argv[optind]);
 		} else if (args->executable == NULL) {
 			// The second positional argument becomes the executable name.

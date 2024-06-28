@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017-2018 Canonical Ltd
+ * Copyright (C) 2017-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -107,6 +107,9 @@ type Specification struct {
 
 	// Same as the above, but for the pycache deny rule which breaks docker
 	suppressPycacheDeny bool
+
+	// Include prompt prefix for relevant rules when generating security profiles.
+	usePromptPrefix bool
 
 	// Unconfined profile mode allows a profile to be applied without any
 	// real confinement
@@ -322,7 +325,8 @@ func (spec *Specification) emitLayout(si *snap.Info, layout *snap.Layout) {
 //
 // Importantly, the above mount operations are happening within the per-snap
 // mount namespace.
-func (spec *Specification) AddLayout(snapInfo *snap.Info) {
+func (spec *Specification) AddLayout(appSet *interfaces.SnapAppSet) {
+	snapInfo := appSet.Info()
 	if len(snapInfo.Layout) == 0 {
 		return
 	}
@@ -334,13 +338,11 @@ func (spec *Specification) AddLayout(snapInfo *snap.Info) {
 	}
 	sort.Strings(paths)
 
-	// Get tags describing all apps and hooks.
-	tags := make([]string, 0, len(snapInfo.Apps)+len(snapInfo.Hooks))
-	for _, app := range snapInfo.Apps {
-		tags = append(tags, app.SecurityTag())
-	}
-	for _, hook := range snapInfo.Hooks {
-		tags = append(tags, hook.SecurityTag())
+	// Get tags describing all runnables (apps, hooks, component hooks)
+	runnables := appSet.Runnables()
+	tags := make([]string, 0, len(runnables))
+	for _, r := range runnables {
+		tags = append(tags, r.SecurityTag)
 	}
 
 	// Append layout snippets to all tags; the layout applies equally to the
@@ -756,6 +758,12 @@ func (spec *Specification) SetSuppressPtraceTrace() {
 // by any of the interfaces in the spec.
 func (spec *Specification) SuppressPtraceTrace() bool {
 	return spec.suppressPtraceTrace
+}
+
+// UsePromptPrefix returns whether the prompt prefix should be included for
+// relevant rules when generating security profiles.
+func (spec *Specification) UsePromptPrefix() bool {
+	return spec.usePromptPrefix
 }
 
 // SetUsesSysModuleCapability records that some interface has granted the

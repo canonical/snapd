@@ -1,12 +1,13 @@
 summary: create a recovery system and reboot into it
+
 details: |
   This test creates a recovery system and validates that the newly created
   system can be rebooted into.
 
-systems: [ubuntu-22.04-64]
+systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
-  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/test-snapd-recovery-system-pc-22.model
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/test-snapd-recovery-system-pc-{VERSION}.model
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
@@ -54,7 +55,11 @@ execute: |
   prev_system=$(remote.exec 'sudo snap recovery' | awk 'NR != 1 { print $1 }')
 
   # create the system
-  change_id=$(post_json_data /v2/systems '{"action": "create", "label": "new-system", "validation-sets": ["test-snapd/test-snapd-pinned-essential-snaps=1"], "mark-default": true, "test-system": true}')
+  # Note: each time we have to pin different revisions of snaps on
+  # validation set test-snapd-pinned-essential-snaps, we have to use a
+  # new sequence number not to break other branches. The value of the
+  # sequence number just corresponds to the generation of this test.
+  change_id=$(post_json_data /v2/systems '{"action": "create", "label": "new-system", "validation-sets": ["test-snapd/test-snapd-pinned-essential-snaps=2"], "mark-default": true, "test-system": true}')
 
   # wait for reboot since we tested the system
   remote.wait-for reboot "${boot_id}"
@@ -124,11 +129,19 @@ execute: |
 
   # make sure that all our other snaps are there too. we can't check their
   # revisions here, since auto-refresh might have updated them.
-  remote.exec 'snap list core22'
+  VERSION="$(tests.nested show version)"
+  remote.exec "snap list core${VERSION}"
   remote.exec 'snap list pc'
   remote.exec 'snap list pc-kernel'
 
   # however, we can check that the seed contains the correct revisions
-  remote.exec "test -f /var/lib/snapd/seed/snaps/core22_1033.snap"
-  remote.exec "test -f /var/lib/snapd/seed/snaps/pc-kernel_1606.snap"
-  remote.exec "test -f /var/lib/snapd/seed/snaps/pc_145.snap"
+  if tests.nested is-nested uc22; then
+    remote.exec "test -f /var/lib/snapd/seed/snaps/core22_1380.snap"
+    remote.exec "test -f /var/lib/snapd/seed/snaps/pc-kernel_1606.snap"
+    remote.exec "test -f /var/lib/snapd/seed/snaps/pc_145.snap"
+  else # uc24
+    # however, we can check that the seed contains the correct revisions
+    remote.exec "test -f /var/lib/snapd/seed/snaps/core24_1033.snap"
+    remote.exec "test -f /var/lib/snapd/seed/snaps/pc-kernel_1606.snap"
+    remote.exec "test -f /var/lib/snapd/seed/snaps/pc_145.snap"
+  fi

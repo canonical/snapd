@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -46,20 +45,21 @@ apps:
   plugs: [netlink-connector]
 `
 
+const netlinkConnectorMockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ netlink-connector:
+  interface: netlink-connector
+`
+
 var _ = Suite(&NetlinkConnectorInterfaceSuite{
 	iface: builtin.MustInterface("netlink-connector"),
 })
 
 func (s *NetlinkConnectorInterfaceSuite) SetUpTest(c *C) {
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "netlink-connector",
-		Interface: "netlink-connector",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	plugSnap := snaptest.MockInfo(c, netlinkConnectorMockPlugSnapInfoYaml, nil)
-	s.plugInfo = plugSnap.Plugs["netlink-connector"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.slot, s.slotInfo = MockConnectedSlot(c, netlinkConnectorMockSlotSnapInfoYaml, nil, "netlink-connector")
+	s.plug, s.plugInfo = MockConnectedPlug(c, netlinkConnectorMockPlugSnapInfoYaml, nil, "netlink-connector")
 }
 
 func (s *NetlinkConnectorInterfaceSuite) TestName(c *C) {
@@ -75,7 +75,7 @@ func (s *NetlinkConnectorInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *NetlinkConnectorInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	seccompSpec := seccomp.NewSpecification(s.plug.AppSet())
 	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})

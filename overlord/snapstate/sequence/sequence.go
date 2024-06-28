@@ -148,8 +148,9 @@ func (snapSeq *SnapSequence) AddComponentForRevision(snapRev snap.Revision, cs *
 	}
 	revSt := snapSeq.Revisions[snapIdx]
 
-	if revSt.FindComponent(cs.SideInfo.Component) != nil {
-		// Component already present
+	if currentCompSt := revSt.FindComponent(cs.SideInfo.Component); currentCompSt != nil {
+		// Component already present, replace revision
+		*currentCompSt = *cs
 		return nil
 	}
 
@@ -204,4 +205,85 @@ func (snapSeq *SnapSequence) IsComponentRevPresent(compSi *snap.ComponentSideInf
 		}
 	}
 	return false
+}
+
+func (snapSeq *SnapSequence) ComponentsForRevision(rev snap.Revision) []*ComponentState {
+	for _, rss := range snapSeq.Revisions {
+		if rss.Snap.Revision == rev {
+			return rss.Components
+		}
+	}
+	return nil
+}
+
+func (snapSeq *SnapSequence) ComponentsWithTypeForRev(rev snap.Revision, compType snap.ComponentType) []*snap.ComponentSideInfo {
+	comps := snapSeq.ComponentsForRevision(rev)
+	kmodComps := make([]*snap.ComponentSideInfo, 0, len(comps))
+	for _, comp := range comps {
+		if comp.CompType != snap.KernelModulesComponent {
+			continue
+		}
+		kmodComps = append(kmodComps, comp.SideInfo)
+	}
+	return kmodComps
+}
+
+// IsComponentRevInRefSeqPtInAnyOtherSeqPt tells us if the component cref in
+// the sequence point defined by refIdx is used in another sequence point too.
+func (snapSeq *SnapSequence) IsComponentRevInRefSeqPtInAnyOtherSeqPt(cref naming.ComponentRef, refIdx int) bool {
+	// Find component in reference sequence point
+	refSeqPt := snapSeq.Revisions[refIdx]
+	refSeqPtComp := refSeqPt.FindComponent(cref)
+	if refSeqPtComp == nil {
+		return false
+	}
+
+	// Find if the reference component revision is used elsewhere
+	for idx, seqPt := range snapSeq.Revisions {
+		if idx == refIdx {
+			continue
+		}
+		compInSeqPt := seqPt.FindComponent(cref)
+		if compInSeqPt == nil {
+			continue
+		}
+		if compInSeqPt.SideInfo.Revision == refSeqPtComp.SideInfo.Revision {
+			return true
+		}
+	}
+
+	return false
+}
+
+// MinimumLocalRevision returns the the smallest local revision for the
+// sequence. Local revisions start at -1 and are counted down. 0 will be
+// returned if no local revision for the snap is found.
+func (snapSeq *SnapSequence) MinimumLocalRevision() snap.Revision {
+	var local snap.Revision
+	for _, rev := range snapSeq.Revisions {
+		if rev.Snap.Revision.N < local.N {
+			local = rev.Snap.Revision
+		}
+	}
+	return local
+}
+
+// MinimumLocalComponentRevision returns the smallest local revision for the
+// compName component in the sequence. Local revisions start at -1 and are
+// counted down. 0 will be returned if no local revision for the component is
+// found.
+func (snapSeq *SnapSequence) MinimumLocalComponentRevision(compName string) snap.Revision {
+	var local snap.Revision
+	for _, revSt := range snapSeq.Revisions {
+		for _, compSt := range revSt.Components {
+			if compSt.SideInfo.Component.ComponentName != compName {
+				continue
+			}
+			if compSt.SideInfo.Revision.N >= local.N {
+				continue
+			}
+			local = compSt.SideInfo.Revision
+		}
+	}
+	return local
 }

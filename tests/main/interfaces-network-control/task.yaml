@@ -3,13 +3,14 @@ summary: Ensure that the network-control interface works.
 details: |
     The network-control interface allows a snap to configure networking.
 
-    A snap which defines the network-control plug must be shown in the interfaces list.
-    The plug must not be autoconnected on install and, as usual, must be able to be
-    reconnected.
+    A snap which defines the network-control plug must be shown in the
+    interfaces list. The plug must not be auto-connected on install and, as
+    usual, must be able to be reconnected.
 
-    A snap declaring a plug on this interface must be able to modify the network configuration
-    and ask for its status, the test sets up a network service, gets information about it (read
-    capability) and creates an arp entry (write capability).
+    A snap declaring a plug on this interface must be able to modify the network
+    configuration and ask for its status, the test sets up a network service,
+    gets information about it (read capability) and creates an arp entry (write
+    capability).
 
 # ubuntu-14.04: systemd-run not supported
 # ubuntu-18.04-32: network-control-consumer snap not available on i386

@@ -1,5 +1,12 @@
 summary: the essential manual pages are installed by the native package
 
+details: |
+    The snapd command comes with a number of manual pages for some of the more
+    technical programs such as snap-confine and snap-update-ns, but also for the
+    user-facing program snap.
+
+    The test ensures that the manual pages are installed on classic systems.
+
 # core systems don't ship man or manual pages
 systems: [-ubuntu-core-*]
 

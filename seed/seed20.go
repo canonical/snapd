@@ -583,6 +583,11 @@ func (s *seed20) doLoadMeta(handler SnapHandler, tm timings.Measurer) error {
 	for j := 1; j <= njobs; j++ {
 		jtm := tm.StartSpan(fmt.Sprintf("do-load-meta[%d]", j), fmt.Sprintf("snap metadata loading job #%d", j))
 		go func() {
+			var jobErr error
+			// defers are LIFO, make sure that time snap is stopped
+			// before we let the parent know that the goroutine is
+			// done
+			defer func() { outcomesCh <- jobErr }()
 			defer jtm.Stop()
 		Consider:
 			for sntoc := range s.snapsToConsiderCh {
@@ -608,7 +613,7 @@ func (s *seed20) doLoadMeta(handler SnapHandler, tm timings.Measurer) error {
 						if err == errSkipped {
 							continue
 						}
-						outcomesCh <- err
+						jobErr = err
 						return
 					}
 					if essential {
@@ -619,7 +624,6 @@ func (s *seed20) doLoadMeta(handler SnapHandler, tm timings.Measurer) error {
 				s.snaps[i] = seedSnap
 				s.modes[i] = modes
 			}
-			outcomesCh <- nil
 		}()
 	}
 	var firstErr error

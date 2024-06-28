@@ -1,5 +1,14 @@
 summary: Ensure that the snap switch command works
 
+details: |
+    The switch command switches the given snap to a different channel without
+    doing a refresh. All available channels of a snap are listed in
+    its 'snap info' output.
+
+    This test switches the snap channel from stable to edge by using the
+    `snap switch` command. Also it is verified that we don't print
+    incorrect and confusing information.
+
 execute: |
     echo "Having test-snapd-sh snap installed using stable channel"
     snap install test-snapd-sh

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017-2023 Canonical Ltd
+ * Copyright (C) 2017-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,12 +20,15 @@
 package snapstate
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -49,19 +52,15 @@ const maxPostponement = 95 * 24 * time.Hour
 // buffer for maxPostponement when holding snaps with auto-refresh gating
 const maxPostponementBuffer = 5 * 24 * time.Hour
 
-// cannot inhibit refreshes for more than maxInhibition;
-// deduct 1s so it doesn't look confusing initially when two notifications
-// get displayed in short period of time and it immediately goes from "14 days"
-// to "13 days" left.
-const maxInhibition = 14*24*time.Hour - time.Second
-
 // maxDuration is used to represent "forever" internally (it's 290 years).
 const maxDuration = time.Duration(1<<63 - 1)
+
+// time in days by default to wait until a pending refresh is forced by the system
+const defaultMaxInhibitionDays = 14
 
 // hooks setup by devicestate
 var (
 	CanAutoRefresh        func(st *state.State) (bool, error)
-	CanManageRefreshes    func(st *state.State) bool
 	IsOnMeteredConnection func() (bool, error)
 
 	defaultRefreshSchedule = func() []*timeutil.Schedule {
@@ -131,7 +130,6 @@ type autoRefresh struct {
 	lastRefreshSchedule string
 	nextRefresh         time.Time
 	lastRefreshAttempt  time.Time
-	managedDeniedLogged bool
 
 	restoredMonitoring bool
 }
@@ -524,25 +522,12 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (sched []*timeutil.S
 
 	// user requests refreshes to be managed by an external snap
 	if scheduleConf == "managed" {
-		if CanManageRefreshes == nil || !CanManageRefreshes(m.state) {
-			// there's no snap to manage refreshes so use default schedule
-			if !m.managedDeniedLogged {
-				logger.Noticef("managed refresh schedule denied, no properly configured snapd-control")
-				m.managedDeniedLogged = true
-			}
-
-			return defaultRefreshSchedule, defaultRefreshScheduleStr, false, nil
-		}
-
 		if m.lastRefreshSchedule != "managed" {
 			logger.Noticef("refresh is managed via the snapd-control interface")
 			m.lastRefreshSchedule = "managed"
 		}
-		m.managedDeniedLogged = false
-
 		return nil, "managed", legacy, nil
 	}
-	m.managedDeniedLogged = false
 
 	if scheduleConf == "" {
 		return defaultRefreshSchedule, defaultRefreshScheduleStr, false, nil
@@ -739,15 +724,15 @@ var asyncPendingRefreshNotification = func(ctx context.Context, refreshInfo *use
 // maybeAsyncPendingRefreshNotification broadcasts desktop notification in a goroutine.
 //
 // The notification is sent only if no snap has the marker "snap-refresh-observe"
-// interface connected.
+// interface connected and the "refresh-app-awareness-ux" experimental flag is disabled.
 func maybeAsyncPendingRefreshNotification(ctx context.Context, st *state.State, refreshInfo *userclient.PendingSnapRefreshInfo) {
-	markerExists, err := HasActiveConnection(st, "snap-refresh-observe")
+
+	sendNotification, err := ShouldSendNotificationsToTheUser(st)
 	if err != nil {
 		logger.Noticef("Cannot send notification about pending refresh: %v", err)
 		return
 	}
-	if markerExists {
-		// found snap with marker interface, skip notification
+	if !sendNotification {
 		return
 	}
 	asyncPendingRefreshNotification(ctx, refreshInfo)
@@ -771,6 +756,26 @@ func (e *timedBusySnapError) Error() string {
 func (e *timedBusySnapError) Is(err error) bool {
 	_, ok := err.(*timedBusySnapError)
 	return ok
+}
+
+// maxInhibitionDuration returns the value of the maximum inhibition time
+func maxInhibitionDuration(st *state.State) time.Duration {
+	var maxInhibitionDays int
+	err := config.NewTransaction(st).Get("core", "refresh.max-inhibition-days", &maxInhibitionDays)
+
+	if err != nil && !config.IsNoOption(err) {
+		logger.Noticef("internal error: refresh.max-inhibition-days system option is not valid: %v", err)
+	}
+
+	// not set, use default value
+	if maxInhibitionDays == 0 {
+		maxInhibitionDays = defaultMaxInhibitionDays
+	}
+
+	// deduct 1s so it doesn't look confusing initially when two notifications
+	// get displayed in short period of time and it immediately goes from "14 days"
+	// to "13 days" left.
+	return time.Duration(maxInhibitionDays)*24*time.Hour - time.Second
 }
 
 // inhibitRefresh returns whether a refresh is forced due to inhibition
@@ -797,6 +802,8 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 	// Decide on what to do depending on the state of the snap and the remaining
 	// inhibition time.
 	now := time.Now()
+	// cannot inhibit refreshes for more than maxInhibitionDuration
+	maxInhibitionDurationValue := maxInhibitionDuration(st)
 	switch {
 	case snapst.RefreshInhibitedTime == nil:
 		// If the snap did not have inhibited refresh yet then commence a new
@@ -804,14 +811,14 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 		// time in the snap state's RefreshInhibitedTime field. This field is
 		// reset to nil on successful refresh.
 		snapst.RefreshInhibitedTime = &now
-		busyErr.timeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
+		busyErr.timeRemaining = (maxInhibitionDurationValue - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
 		Set(st, info.InstanceName(), snapst)
-	case now.Sub(*snapst.RefreshInhibitedTime) < maxInhibition:
+	case now.Sub(*snapst.RefreshInhibitedTime) < maxInhibitionDurationValue:
 		// If we are still in the allowed window then just return the error but
 		// don't change the snap state again.
 		// TODO: as time left shrinks, send additional notifications with
 		// increasing frequency, allowing the user to understand the urgency.
-		busyErr.timeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
+		busyErr.timeRemaining = (maxInhibitionDurationValue - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
 	default:
 		// XXX: should we drop this notification?
 		// if the refresh inhibition window has ended, notify the user that the
@@ -880,6 +887,86 @@ func maybeAddRefreshInhibitNotice(st *state.State) error {
 		st.Set("last-recorded-inhibited-snaps", curInhibitedSnaps)
 	}
 
+	if err := maybeAddRefreshInhibitWarningFallback(st, curInhibitedSnaps); err != nil {
+		logger.Noticef("Cannot add refresh inhibition warning: %v", err)
+	}
+
+	return nil
+}
+
+// maybeAddRefreshInhibitWarningFallback records a warning if the set of
+// inhibited snaps was changed since the last notice.
+//
+// The warning is recorded only if:
+//  1. There is at least 1 inhibited snap.
+//  2. The "refresh-app-awareness-ux" experimental flag is enabled.
+//  3. No snap exists with the marker "snap-refresh-observe" interface connected.
+//
+// Note: If no snaps are inhibited then existing inhibition warning
+// will be removed.
+func maybeAddRefreshInhibitWarningFallback(st *state.State, inhibitedSnaps map[string]bool) error {
+	if len(inhibitedSnaps) == 0 {
+		// no more inhibited snaps, remove inhibition warning if it exists.
+		return removeRefreshInhibitWarning(st)
+	}
+
+	tr := config.NewTransaction(st)
+	experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	if !experimentalRefreshAppAwarenessUX {
+		// snapd will send notifications directly, check maybeAsyncPendingRefreshNotification
+		return nil
+	}
+
+	markerExists, err := HasActiveConnection(st, "snap-refresh-observe")
+	if err != nil {
+		return err
+	}
+	if markerExists {
+		// do nothing
+		return nil
+	}
+
+	// let's fallback to issuing warnings if no snap exists with the
+	// marker snap-refresh-observe interface connected.
+
+	// remove inhibition warning if it exists.
+	if err := removeRefreshInhibitWarning(st); err != nil {
+		return err
+	}
+
+	// building warning message
+	var snapsBuf bytes.Buffer
+	i := 0
+	for snap := range inhibitedSnaps {
+		if i > 0 {
+			snapsBuf.WriteString(", ")
+		}
+		snapsBuf.WriteString(snap)
+		i++
+	}
+	message := fmt.Sprintf("cannot refresh (%s) due running apps; close running apps to continue refresh.", snapsBuf.String())
+
+	// wait some time before showing the same warning to the user again after okaying.
+	st.AddWarning(message, &state.AddWarningOptions{RepeatAfter: 24 * time.Hour})
+
+	return nil
+}
+
+// removeRefreshInhibitWarning removes inhibition warning if it exists.
+func removeRefreshInhibitWarning(st *state.State) error {
+	// XXX: is it worth it to check for unexpected multiple matches?
+	for _, warning := range st.AllWarnings() {
+		if !strings.HasSuffix(warning.String(), "close running apps to continue refresh.") {
+			continue
+		}
+		if err := st.RemoveWarning(warning.String()); err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+		return nil
+	}
 	return nil
 }
 

@@ -65,7 +65,19 @@ func testClientAppsService(cs *clientSuite, c *check.C) ([]*client.AppInfo, erro
 	return services, err
 }
 
-var appcheckers = []func(*clientSuite, *check.C) ([]*client.AppInfo, error){testClientApps, testClientAppsService}
+func testClientAppsGlobal(cs *clientSuite, c *check.C) ([]*client.AppInfo, error) {
+	services, err := cs.cli.Apps([]string{"foo", "bar"}, client.AppOptions{Global: true})
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/apps")
+	c.Check(cs.req.Method, check.Equals, "GET")
+	query := cs.req.URL.Query()
+	c.Check(query, check.HasLen, 2)
+	c.Check(query.Get("names"), check.Equals, "foo,bar")
+	c.Check(query.Get("global"), check.Equals, "true")
+
+	return services, err
+}
+
+var appcheckers = []func(*clientSuite, *check.C) ([]*client.AppInfo, error){testClientApps, testClientAppsService, testClientAppsGlobal}
 
 func (cs *clientSuite) TestClientServiceGetHappy(c *check.C) {
 	expected := []*client.AppInfo{mksvc("foo", "foo"), mksvc("bar", "bar1")}

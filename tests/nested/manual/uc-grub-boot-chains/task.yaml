@@ -5,10 +5,7 @@ details: |
   gadget will use a proper layout with fallback and boot entries. This
   tests that we support both layouts and that we can update.
 
-systems:
-  - ubuntu-24.04-64
-  - ubuntu-22.04-64
-  - ubuntu-20.04-64
+systems: [ubuntu-2*]
 
 prepare: |
   # snappy-dev:image ppa contains some weird version of shim-signed.

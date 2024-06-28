@@ -94,22 +94,25 @@ apps:
     svc:
         command: bin/foo.sh
 `, nil)
+	appSet, err := interfaces.NewSnapAppSet(gadgetInfo, nil)
+	c.Assert(err, IsNil)
+
 	s.gadgetPwmSlotInfo = gadgetInfo.Slots["my-pin"]
-	s.gadgetPwmSlot = interfaces.NewConnectedSlot(s.gadgetPwmSlotInfo, nil, nil)
+	s.gadgetPwmSlot = interfaces.NewConnectedSlot(s.gadgetPwmSlotInfo, appSet, nil, nil)
 	s.gadgetMissingChannelSlotInfo = gadgetInfo.Slots["missing-channel"]
-	s.gadgetMissingChannelSlot = interfaces.NewConnectedSlot(s.gadgetMissingChannelSlotInfo, nil, nil)
+	s.gadgetMissingChannelSlot = interfaces.NewConnectedSlot(s.gadgetMissingChannelSlotInfo, appSet, nil, nil)
 	s.gadgetBadChannelSlotInfo = gadgetInfo.Slots["bad-channel"]
-	s.gadgetBadChannelSlot = interfaces.NewConnectedSlot(s.gadgetBadChannelSlotInfo, nil, nil)
+	s.gadgetBadChannelSlot = interfaces.NewConnectedSlot(s.gadgetBadChannelSlotInfo, appSet, nil, nil)
 	s.gadgetMissingChipNumberSlotInfo = gadgetInfo.Slots["missing-chip-number"]
-	s.gadgetMissingChipNumberSlot = interfaces.NewConnectedSlot(s.gadgetMissingChipNumberSlotInfo, nil, nil)
+	s.gadgetMissingChipNumberSlot = interfaces.NewConnectedSlot(s.gadgetMissingChipNumberSlotInfo, appSet, nil, nil)
 	s.gadgetBadChipNumberSlotInfo = gadgetInfo.Slots["bad-chip-number"]
-	s.gadgetBadChipNumberSlot = interfaces.NewConnectedSlot(s.gadgetBadChipNumberSlotInfo, nil, nil)
+	s.gadgetBadChipNumberSlot = interfaces.NewConnectedSlot(s.gadgetBadChipNumberSlotInfo, appSet, nil, nil)
 	s.gadgetBadInterfaceSlotInfo = gadgetInfo.Slots["bad-interface-slot"]
-	s.gadgetBadInterfaceSlot = interfaces.NewConnectedSlot(s.gadgetBadInterfaceSlotInfo, nil, nil)
+	s.gadgetBadInterfaceSlot = interfaces.NewConnectedSlot(s.gadgetBadInterfaceSlotInfo, appSet, nil, nil)
 	s.gadgetPlugInfo = gadgetInfo.Plugs["plug"]
-	s.gadgetPlug = interfaces.NewConnectedPlug(s.gadgetPlugInfo, nil, nil)
+	s.gadgetPlug = interfaces.NewConnectedPlug(s.gadgetPlugInfo, appSet, nil, nil)
 	s.gadgetBadInterfacePlugInfo = gadgetInfo.Plugs["bad-interface-plug"]
-	s.gadgetBadInterfacePlug = interfaces.NewConnectedPlug(s.gadgetBadInterfacePlugInfo, nil, nil)
+	s.gadgetBadInterfacePlug = interfaces.NewConnectedPlug(s.gadgetBadInterfacePlugInfo, appSet, nil, nil)
 
 	osInfo := snaptest.MockInfo(c, `
 name: my-core
@@ -121,8 +124,11 @@ slots:
         chip-number: 10
         channel: 7
 `, nil)
+	appSet, err = interfaces.NewSnapAppSet(osInfo, nil)
+	c.Assert(err, IsNil)
+
 	s.osPwmSlotInfo = osInfo.Slots["my-pin"]
-	s.osPwmSlot = interfaces.NewConnectedSlot(s.osPwmSlotInfo, nil, nil)
+	s.osPwmSlot = interfaces.NewConnectedSlot(s.osPwmSlotInfo, appSet, nil, nil)
 }
 
 func (s *PwmInterfaceSuite) TestName(c *C) {
@@ -182,7 +188,7 @@ func (s *PwmInterfaceSuite) TestApparmorConnectedPlugIgnoresMissingSymlink(c *C)
 		return "", os.ErrNotExist
 	})
 
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.gadgetPlug.Snap()))
+	spec := apparmor.NewSpecification(s.gadgetPlug.AppSet())
 	err := spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetPwmSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
@@ -200,7 +206,7 @@ func (s *PwmInterfaceSuite) TestApparmorConnectedPlug(c *C) {
 		return "/sys/dev/foo/class/pwm/pwmchip10", nil
 	})
 
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.gadgetPlug.Snap()))
+	spec := apparmor.NewSpecification(s.gadgetPlug.AppSet())
 	err := spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetPwmSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SnippetForTag("snap.my-device.svc"), testutil.Contains, `/sys/dev/foo/class/pwm/pwmchip10/pwm100/* rwk`)

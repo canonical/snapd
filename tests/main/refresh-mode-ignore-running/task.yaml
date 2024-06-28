@@ -1,5 +1,9 @@
 summary: apps can request not to be tracked
 
+details: |
+  Check that installs and refreshes fail if the snap is running but not when
+  the snap has set its refresh-mode configuration to `ignore-running`.
+
 systems: [-ubuntu-14.04-*]
 
 prepare: |

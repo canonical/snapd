@@ -1,5 +1,10 @@
 summary: Check that a service installed by a snap is reported as active by systemd
 
+details: |
+    Snap packages may contain applications that are marked as services. The test
+    installs one such package and observes that the application is started as a
+    systemd service.
+
 environment:
     SERVICE_NAME: snap.test-snapd-service.test-snapd-service.service
 

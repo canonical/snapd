@@ -1,5 +1,11 @@
 summary: Check that try command works when snap dir is omitted
 
+details: |
+    The snap try command can be executed without an argument, to imply that the
+    current working directory is the root of the unpacked snap structure. The
+    test uses "snap try" to install one of the test packages and ensures that it
+    shows up as in "try" mode according to "snap list"
+
 systems: [-ubuntu-core-*]
 
 execute: |

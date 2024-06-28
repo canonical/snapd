@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -168,6 +168,49 @@ func ParserMtime() int64 {
 		}
 	}
 	return mtime
+}
+
+// FeaturesSupported contains information about supported AppArmor kernel and
+// parser features.
+type FeaturesSupported struct {
+	KernelFeatures []string
+	ParserFeatures []string
+}
+
+// PromptingSupported returns true if prompting is supported by the system.
+// Otherwise, returns false, along with a string explaining why prompting is
+// unsupported.
+func PromptingSupported() (bool, string) {
+	kernelFeatures, err := appArmorAssessment.KernelFeatures()
+	if err != nil {
+		return false, fmt.Sprintf("cannot check apparmor kernel features: %v", err)
+	}
+	parserFeatures, err := appArmorAssessment.ParserFeatures()
+	if err != nil {
+		return false, fmt.Sprintf("cannot check apparmor parser features: %v", err)
+	}
+	apparmorFeatures := FeaturesSupported{
+		KernelFeatures: kernelFeatures,
+		ParserFeatures: parserFeatures,
+	}
+	return PromptingSupportedByFeatures(&apparmorFeatures)
+}
+
+// PromptingSupportedByFeatures returns whether prompting is supported by the
+// given AppArmor kernel and parser features.
+func PromptingSupportedByFeatures(apparmorFeatures *FeaturesSupported) (bool, string) {
+	if apparmorFeatures == nil {
+		return false, "no apparmor features provided"
+	}
+	if !strutil.ListContains(apparmorFeatures.KernelFeatures, "policy:permstable32:prompt") {
+		return false, "apparmor kernel features do not support prompting"
+	}
+	if !strutil.ListContains(apparmorFeatures.ParserFeatures, "prompt") {
+		return false, "apparmor parser does not support the prompt qualifier"
+	}
+	// TODO: return true once the prompting API is merged and ready
+	// return true, ""
+	return false, "requires newer version of snapd"
 }
 
 // probe related code
@@ -366,6 +409,14 @@ func probeKernelFeatures() ([]string, error) {
 			}
 		}
 	}
+	if data, err := os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "permstable32")); err == nil {
+		permstableFeatures := strings.Fields(string(data))
+		for _, feat := range permstableFeatures {
+			features = append(features, fmt.Sprintf("policy:permstable32:%s", feat))
+		}
+	}
+	// Features must be sorted
+	sort.Strings(features)
 	return features, nil
 }
 
@@ -411,6 +462,10 @@ func probeParserFeatures() ([]string, error) {
 			feature: "unconfined",
 			flags:   []string{"unconfined"},
 			probe:   "# test unconfined",
+		},
+		{
+			feature: "prompt",
+			probe:   "prompt /foo r,",
 		},
 	}
 	_, internal, err := AppArmorParser()

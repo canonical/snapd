@@ -35,6 +35,16 @@ func NewComponentRef(snapName, componentName string) ComponentRef {
 	return ComponentRef{SnapName: snapName, ComponentName: componentName}
 }
 
+// SplitFullComponentName splits <snap>+<comp> in <snap> and <comp> strings.
+func SplitFullComponentName(fullComp string) (string, string, error) {
+	names := strings.Split(fullComp, "+")
+	if len(names) != 2 {
+		return "", "", fmt.Errorf("incorrect component name %q", fullComp)
+	}
+
+	return names[0], names[1], nil
+}
+
 func (cr ComponentRef) String() string {
 	return fmt.Sprintf("%s+%s", cr.SnapName, cr.ComponentName)
 }
@@ -56,12 +66,12 @@ func (cid *ComponentRef) UnmarshalYAML(unmarshall func(interface{}) error) error
 		return err
 	}
 
-	names := strings.Split(idStr, "+")
-	if len(names) != 2 {
-		return fmt.Errorf("incorrect component name %q", idStr)
+	snap, comp, err := SplitFullComponentName(idStr)
+	if err != nil {
+		return err
 	}
 
-	*cid = ComponentRef{SnapName: names[0], ComponentName: names[1]}
+	*cid = ComponentRef{SnapName: snap, ComponentName: comp}
 
 	return nil
 }

@@ -1,0 +1,15 @@
+name: test-snapd-sh
+version: 1.0
+apps:
+    sh:
+        command: bin/sh
+plugs:
+  mount-control:
+    mount:
+    - what: /usr/share/base-files
+      where: $SNAP_COMMON/base-files
+      options:
+      - ro
+      - bind
+      - noatime
+      - noexec

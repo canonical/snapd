@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
@@ -37,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/schema"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -51,14 +53,13 @@ func init() {
 
 var (
 	snapdAppArmorServiceIsDisabled = snapdAppArmorServiceIsDisabledImpl
-	profilesNeedRegeneration       = profilesNeedRegenerationImpl
 
 	writeSystemKey = interfaces.WriteSystemKey
 )
 
-func (m *InterfaceManager) selectInterfaceMapper(snaps []*snap.Info) {
-	for _, snapInfo := range snaps {
-		if snapInfo.Type() == snap.TypeSnapd {
+func (m *InterfaceManager) selectInterfaceMapper(appSets []*interfaces.SnapAppSet) {
+	for _, set := range appSets {
+		if set.Info().Type() == snap.TypeSnapd {
 			mapper = &CoreSnapdSystemMapper{}
 			break
 		}
@@ -132,25 +133,45 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 	return nil
 }
 
-func (m *InterfaceManager) addSnaps(snaps []*snap.Info) error {
-	for _, snapInfo := range snaps {
-		if err := addImplicitSlots(m.state, snapInfo); err != nil {
+func (m *InterfaceManager) addAppSets(appSets []*interfaces.SnapAppSet) error {
+	for _, set := range appSets {
+		if err := addImplicitSlots(m.state, set.Info()); err != nil {
 			return err
 		}
-		if err := m.repo.AddSnap(snapInfo); err != nil {
-			logger.Noticef("cannot add snap %q to interface repository: %s", snapInfo.InstanceName(), err)
+
+		if err := m.repo.AddAppSet(set); err != nil {
+			logger.Noticef("cannot add app set for snap %q to interface repository: %s", set.Info().InstanceName(), err)
 		}
 	}
 	return nil
 }
 
-func profilesNeedRegenerationImpl() bool {
-	mismatch, err := interfaces.SystemKeyMismatch()
+func (m *InterfaceManager) profilesNeedRegeneration() bool {
+	return profilesNeedRegenerationImpl(m)
+}
+
+var profilesNeedRegenerationImpl = func(m *InterfaceManager) bool {
+	extraData := interfaces.SystemKeyExtraData{
+		AppArmorPrompting: m.useAppArmorPrompting(),
+	}
+	mismatch, err := interfaces.SystemKeyMismatch(extraData)
 	if err != nil {
 		logger.Noticef("error trying to compare the snap system key: %v", err)
 		return true
 	}
 	return mismatch
+}
+
+// Checks whether AppArmor Prompting should be used. Caller must lock m.state.
+func (m *InterfaceManager) useAppArmorPrompting() bool {
+	m.useAppArmorPromptingChecker.Do(func() {
+		tr := config.NewTransaction(m.state)
+		if promptingEnabled, err := features.Flag(tr, features.AppArmorPrompting); err == nil {
+			// If error while getting AppArmorPrompting flag, don't include it
+			m.useAppArmorPromptingValue = promptingEnabled && features.AppArmorPrompting.IsSupported()
+		}
+	})
+	return m.useAppArmorPromptingValue
 }
 
 // snapdAppArmorServiceIsDisabledImpl returns true if the snapd.apparmor
@@ -167,20 +188,13 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 	securityBackends := m.repo.Backends()
 
 	// Get all the snap infos
-	snaps, err := snapsWithSecurityProfiles(m.state)
+	appSets, err := snapsWithSecurityProfiles(m.state)
 	if err != nil {
 		return err
 	}
 
-	// TODO: should snapsWithSecurityProfiles return app sets instead of snap infos?
-	appSets := make([]*interfaces.SnapAppSet, 0, len(snaps))
-	for _, sn := range snaps {
-		appSets = append(appSets, interfaces.NewSnapAppSet(sn))
-	}
-
-	// Add implicit slots to all snaps
-	for _, snapInfo := range snaps {
-		if err := addImplicitSlots(m.state, snapInfo); err != nil {
+	for _, set := range appSets {
+		if err := addImplicitSlots(m.state, set.Info()); err != nil {
 			return err
 		}
 	}
@@ -206,7 +220,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 			logger.Noticef("cannot get current info for snap %q: %s", snapName, err)
 			return interfaces.ConfinementOptions{}
 		}
-		opts, err := buildConfinementOptions(m.state, snapInfo, snapst.Flags)
+		opts, err := m.buildConfinementOptions(m.state, snapInfo, snapst.Flags)
 		if err != nil {
 			logger.Noticef("cannot get confinement options for snap %q: %s", snapName, err)
 		}
@@ -228,7 +242,10 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 	}
 
 	if shouldWriteSystemKey {
-		if err := writeSystemKey(); err != nil {
+		extraData := interfaces.SystemKeyExtraData{
+			AppArmorPrompting: m.useAppArmorPrompting(),
+		}
+		if err := writeSystemKey(extraData); err != nil {
 			logger.Noticef("cannot write system key: %v", err)
 		}
 	}
@@ -1007,12 +1024,12 @@ func setConns(st *state.State, conns map[string]*schema.ConnState) {
 // is tracked with SnapState.PendingSecurity,
 // or snap about to be active (pending link-snap) with a done
 // setup-profiles
-func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
+func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error) {
 	all, err := snapstate.All(st)
 	if err != nil {
 		return nil, err
 	}
-	infos := make([]*snap.Info, 0, len(all))
+	appSets := make([]*interfaces.SnapAppSet, 0, len(all))
 	seen := make(map[string]bool, len(all))
 	for instanceName, snapst := range all {
 		if snapst.Active {
@@ -1021,7 +1038,14 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 				logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
 				continue
 			}
-			infos = append(infos, snapInfo)
+
+			set, err := appSetForSnapRevision(st, snapInfo)
+			if err != nil {
+				logger.Noticef("cannot build app set for snap %q: %s", instanceName, err)
+				continue
+			}
+
+			appSets = append(appSets, set)
 			seen[instanceName] = true
 		} else if snapst.PendingSecurity != nil {
 			// we tracked any pending security profiles for the snap
@@ -1036,9 +1060,18 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 				logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
 				continue
 			}
-			infos = append(infos, snapInfo)
+
+			// TODO: add components to SnapState.PendingSecurity
+			set, err := interfaces.NewSnapAppSet(snapInfo, nil)
+			if err != nil {
+				logger.Noticef("cannot build app set for snap %q: %s", instanceName, err)
+				continue
+			}
+
+			appSets = append(appSets, set)
 		}
 	}
+
 	// look at the changes for old snapds and also
 	// the situation that are being installed, so they do not
 	// have SnapState yet
@@ -1078,10 +1111,19 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 			logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
 			continue
 		}
-		infos = append(infos, snapInfo)
+
+		// this should find any component setups that exist on the task and add
+		// them to the app set
+		set, err := appSetForTask(t, snapInfo)
+		if err != nil {
+			logger.Noticef("cannot build app set for snap %q: %s", instanceName, err)
+			continue
+		}
+
+		appSets = append(appSets, set)
 	}
 
-	return infos, nil
+	return appSets, nil
 }
 
 func resolveSnapIDToName(st *state.State, snapID string) (name string, err error) {
@@ -1387,4 +1429,58 @@ func hasActiveConnection(st *state.State, iface string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+func appSetForTask(t *state.Task, info *snap.Info) (*interfaces.SnapAppSet, error) {
+	compsups, err := snapstate.ComponentSetupsForTask(t)
+	if err != nil {
+		return nil, err
+	}
+
+	compInfos := make([]*snap.ComponentInfo, 0, len(compsups))
+	for _, compsup := range compsups {
+		compInfo, err := snapstate.ComponentInfoFromComponentSetup(compsup, info)
+		if err != nil {
+			return nil, err
+		}
+		compInfos = append(compInfos, compInfo)
+	}
+
+	st := t.State()
+
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, info.InstanceName(), &snapst); err != nil {
+		// if the snap isn't in the state, then we know that there aren't any
+		// pre-existing components to consider
+		if errors.Is(err, state.ErrNoState) {
+			return interfaces.NewSnapAppSet(info, compInfos)
+		}
+		return nil, err
+	}
+
+	// if we're installing/refreshing a component then we need to consider the
+	// components that are already installed
+	if snapst.LastIndex(info.Revision) != -1 {
+		compsForRevision, err := snapst.ComponentInfosForRevision(info.Revision)
+		if err != nil {
+			return nil, err
+		}
+		compInfos = append(compInfos, compsForRevision...)
+	}
+
+	return interfaces.NewSnapAppSet(info, compInfos)
+}
+
+func appSetForSnapRevision(st *state.State, info *snap.Info) (*interfaces.SnapAppSet, error) {
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, info.InstanceName(), &snapst); err != nil {
+		return nil, err
+	}
+
+	compInfos, err := snapst.ComponentInfosForRevision(info.Revision)
+	if err != nil {
+		return nil, err
+	}
+
+	return interfaces.NewSnapAppSet(info, compInfos)
 }

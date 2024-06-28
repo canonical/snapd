@@ -373,7 +373,7 @@ var templateCommon = `
   /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/** wl,
   /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/** wl,
 
-  # The ubuntu-core-launcher creates an app-specific private restricted /tmp
+  # The snap-confine program creates an app-specific private restricted /tmp
   # and will fail to launch the app if something goes wrong. As such, we can
   # simply allow full access to /tmp.
   /tmp/   r,
@@ -1001,6 +1001,12 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   /run/snapd/lock/###SNAP_INSTANCE_NAME###.lock rwk,
   /run/snapd/lock/.lock rwk,
 
+  # While the base abstraction has rules for encryptfs encrypted home and
+  # private directories, it is missing rules for directory read on the toplevel
+  # directory of the mount (LP: #1848919)
+  owner @{HOME}/.Private/ r,
+  owner @{HOMEDIRS}/.ecryptfs/*/.Private/ r,
+
   # Allow reading stored mount namespaces,
   /run/snapd/ns/ r,
   /run/snapd/ns/###SNAP_INSTANCE_NAME###.mnt r,
@@ -1059,6 +1065,8 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   /tmp/ r,
   /usr/ r,
   /var/ r,
+  /var/lib/ r,
+  /var/lib/snapd/ r,
   /var/snap/ r,
 
   # Allow reading timezone data.

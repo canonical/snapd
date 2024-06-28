@@ -1,6 +1,10 @@
 summary: Update command line from gadget in secure boot
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+details: |
+  Check that Ubuntu Core image boots properly with updated command line
+  through gadget in secure boot
+
+systems: [ubuntu-2*]
 
 environment:
   NESTED_ENABLE_SECURE_BOOT: true

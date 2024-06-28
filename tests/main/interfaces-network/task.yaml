@@ -4,10 +4,11 @@ details: |
     The network interface allows a snap to access the network as a client.
 
     A snap which defines the network plug must be shown in the interfaces list.
-    The plug must be autoconnected on install and, as usual, must be able to be
+    The plug must be auto-connected on install and, as usual, must be able to be
     reconnected.
 
-    A snap declaring a plug on this interface must be able to access network services.
+    A snap declaring a plug on this interface must be able to access network
+    services.
 
 # amazon: uses nmap-netcat
 # ubuntu-14.04: systemd-run not supported

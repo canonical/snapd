@@ -1,6 +1,6 @@
 [
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:42:58",
         "verb": "Allocating",
@@ -8,7 +8,7 @@
         "extra": "google:ubuntu-22.04-64..."
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:42:58",
         "verb": "Allocating",
@@ -16,7 +16,7 @@
         "extra": "google:ubuntu-20.04-64..."
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:43:07",
         "verb": "Waiting",
@@ -24,7 +24,7 @@
         "extra": "for google:ubuntu-22.04-64 (may242043-312411) to boot at 34.148.59.204..."
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:43:07",
         "verb": "Waiting",
@@ -32,7 +32,7 @@
         "extra": "for google:ubuntu-20.04-64 (may242043-312500) to boot at 34.138.215.109..."
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:43:43",
         "verb": "Allocated",
@@ -40,7 +40,7 @@
         "extra": "google:ubuntu-22.04-64 (may242043-312411)."
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:43:43",
         "verb": "Connecting",
@@ -48,7 +48,7 @@
         "extra": "to google:ubuntu-22.04-64 (may242043-312411)..."
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:43:45",
         "verb": "Connected",
@@ -56,7 +56,7 @@
         "extra": "to google:ubuntu-22.04-64 (may242043-312411) at 34.148.59.204."
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:43:45",
         "verb": "Sending",
@@ -64,133 +64,133 @@
         "extra": "project content to google:ubuntu-22.04-64 (may242043-312411)..."
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:43:50",
         "verb": "Preparing",
         "task": "google:ubuntu-22.04-64"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:43:50",
         "verb": "Preparing",
         "task": "google:ubuntu-22.04-64:tests/"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:43:51",
         "verb": "Preparing",
         "task": "google:ubuntu-22.04-64:tests/test-3"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:43:52",
         "verb": "Executing",
         "task": "google:ubuntu-22.04-64:tests/test-3"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:43:52",
         "verb": "Restoring",
         "task": "google:ubuntu-22.04-64:tests/test-3"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:43:53",
         "verb": "Preparing",
         "task": "google:ubuntu-22.04-64:tests/test-2"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:43:54",
         "verb": "Executing",
         "task": "google:ubuntu-22.04-64:tests/test-2"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:43:55",
         "verb": "Restoring",
         "task": "google:ubuntu-22.04-64:tests/test-2"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:43:55",
         "verb": "Preparing",
         "task": "google:ubuntu-22.04-64:tests/test-4"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:43:56",
         "verb": "Executing",
         "task": "google:ubuntu-22.04-64:tests/test-4"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:43:56",
         "verb": "Restoring",
         "task": "google:ubuntu-22.04-64:tests/test-4"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:43:57",
         "verb": "Preparing",
         "task": "google:ubuntu-22.04-64:tests/test-1"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:43:58",
         "verb": "Executing",
         "task": "google:ubuntu-22.04-64:tests/test-1"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:43:58",
         "verb": "Restoring",
         "task": "google:ubuntu-22.04-64:tests/test-1"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:43:59",
         "verb": "Preparing",
         "task": "google:ubuntu-22.04-64:tests/test-5"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:00",
         "verb": "Executing",
         "task": "google:ubuntu-22.04-64:tests/test-5"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:00",
         "verb": "Restoring",
         "task": "google:ubuntu-22.04-64:tests/test-5"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:01",
         "verb": "Restoring",
         "task": "google:ubuntu-22.04-64:tests/"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:02",
         "verb": "Restoring",
@@ -216,7 +216,7 @@
         }
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:44:02",
         "verb": "Discarding",
@@ -224,7 +224,7 @@
         "extra": "google:ubuntu-22.04-64 (may242043-312411)..."
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:44:04",
         "verb": "Allocated",
@@ -232,7 +232,7 @@
         "extra": "google:ubuntu-20.04-64 (may242043-312500)."
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:44:04",
         "verb": "Connecting",
@@ -240,7 +240,7 @@
         "extra": "to google:ubuntu-20.04-64 (may242043-312500)..."
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:44:05",
         "verb": "Connected",
@@ -248,7 +248,7 @@
         "extra": "to google:ubuntu-20.04-64 (may242043-312500) at 34.138.215.109."
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:44:05",
         "verb": "Sending",
@@ -256,133 +256,133 @@
         "extra": "project content to google:ubuntu-20.04-64 (may242043-312500)..."
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:08",
         "verb": "Preparing",
         "task": "google:ubuntu-20.04-64"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:08",
         "verb": "Preparing",
         "task": "google:ubuntu-20.04-64:tests/"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:09",
         "verb": "Preparing",
         "task": "google:ubuntu-20.04-64:tests/test-3"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:09",
         "verb": "Executing",
         "task": "google:ubuntu-20.04-64:tests/test-3"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:10",
         "verb": "Restoring",
         "task": "google:ubuntu-20.04-64:tests/test-3"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:10",
         "verb": "Preparing",
         "task": "google:ubuntu-20.04-64:tests/test-1"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:11",
         "verb": "Executing",
         "task": "google:ubuntu-20.04-64:tests/test-1"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:11",
         "verb": "Restoring",
         "task": "google:ubuntu-20.04-64:tests/test-1"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:12",
         "verb": "Preparing",
         "task": "google:ubuntu-20.04-64:tests/test-4"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:13",
         "verb": "Executing",
         "task": "google:ubuntu-20.04-64:tests/test-4"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:13",
         "verb": "Restoring",
         "task": "google:ubuntu-20.04-64:tests/test-4"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:14",
         "verb": "Preparing",
         "task": "google:ubuntu-20.04-64:tests/test-2"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:14",
         "verb": "Executing",
         "task": "google:ubuntu-20.04-64:tests/test-2"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:15",
         "verb": "Restoring",
         "task": "google:ubuntu-20.04-64:tests/test-2"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:15",
         "verb": "Preparing",
         "task": "google:ubuntu-20.04-64:tests/test-5"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:16",
         "verb": "Executing",
         "task": "google:ubuntu-20.04-64:tests/test-5"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:16",
         "verb": "Restoring",
         "task": "google:ubuntu-20.04-64:tests/test-5"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:17",
         "verb": "Restoring",
         "task": "google:ubuntu-20.04-64:tests/"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:44:17",
         "verb": "Restoring",
@@ -408,7 +408,7 @@
         }
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:44:18",
         "verb": "Discarding",

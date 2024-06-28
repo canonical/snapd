@@ -37,6 +37,8 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// TODO: rename this type to something more general, since it is used for more
+// than just refreshes
 type RefreshOptions struct {
 	// RefreshManaged indicates to the store that the refresh is
 	// managed via snapd-control.
@@ -44,6 +46,10 @@ type RefreshOptions struct {
 	Scheduled      bool
 
 	PrivacyKey string
+
+	// IncludeResources indicates to the store that resources should be included
+	// in the response.
+	IncludeResources bool
 }
 
 // snap action: install/refresh
@@ -208,12 +214,12 @@ type snapActionResultList struct {
 	ErrorList []errorListEntry    `json:"error-list"`
 }
 
-var snapActionFields = jsonutil.StructFields((*storeSnap)(nil))
+var snapActionFields = jsonutil.StructFields((*storeSnap)(nil), "resources")
 
 // SnapAction queries the store for snap information for the given
 // install/refresh actions, given the context information about
 // current installed snaps in currentSnaps. If the request was overall
-// successul (200) but there were reported errors it will return both
+// successful (200) but there were reported errors it will return both
 // the snap infos and an SnapActionError.
 // Orthogonally and at the same time it can be used to fetch or update
 // assertions by passing an AssertionQuery whose ToResolve specifies
@@ -300,7 +306,17 @@ func genInstanceKey(curSnap *CurrentSnap, salt string) (string, error) {
 // action of the SnapAction call.
 type SnapActionResult struct {
 	*snap.Info
+	Resources       []SnapResourceResult
 	RedirectChannel string
+}
+
+type SnapResourceResult struct {
+	DownloadInfo snap.DownloadInfo
+	Type         string
+	Name         string
+	Revision     int
+	Version      string
+	CreatedAt    string
 }
 
 // AssertionResult encapsulates the non-error result for one assertion
@@ -527,11 +543,17 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 	}
 
+	fields := make([]string, len(snapActionFields))
+	copy(fields, snapActionFields)
+	if opts.IncludeResources {
+		fields = append(fields, "resources")
+	}
+
 	// build input for the install/refresh endpoint
 	jsonData, err := json.Marshal(snapActionRequest{
 		Context:             curSnapJSONs,
 		Actions:             actionJSONs,
-		Fields:              snapActionFields,
+		Fields:              fields,
 		AssertionMaxFormats: assertMaxFormats,
 	})
 	if err != nil {
@@ -673,7 +695,23 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		_, instanceKey := snap.SplitInstanceName(instanceName)
 		snapInfo.InstanceKey = instanceKey
 
-		sars = append(sars, SnapActionResult{Info: snapInfo, RedirectChannel: res.RedirectChannel})
+		resources := make([]SnapResourceResult, 0, len(res.Snap.Resources))
+		for _, r := range res.Snap.Resources {
+			resources = append(resources, SnapResourceResult{
+				DownloadInfo: downloadInfoFromStoreDownload(r.Download),
+				Type:         r.Type,
+				Name:         r.Name,
+				Version:      r.Version,
+				CreatedAt:    r.CreatedAt,
+				Revision:     r.Revision,
+			})
+		}
+
+		sars = append(sars, SnapActionResult{
+			Info:            snapInfo,
+			RedirectChannel: res.RedirectChannel,
+			Resources:       resources,
+		})
 	}
 
 	for _, errObj := range results.ErrorList {

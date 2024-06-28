@@ -1,5 +1,15 @@
 summary: Check that the experimental hidden dir feature migrates the dir
 
+details: |
+    Check that enabling the experimental hidden-snap-folder feature migrates
+    snap data directories and corresponding environment variables from ~/snap
+    to ~/.snap/data during the next refresh. Verify that taking a snapshot
+    before the migration and restoring it afterwards still restores the data.
+    Check that the migration is reverted if the feature is unset.
+    NOTE: there is a significant commented-out portion of this test related to
+    the introduction of a ~/Snap directory for user-facing data. The plans for
+    it were put on hold and is unclear when/if they'll be restored.
+
 environment:
     NAME: test-snapd-tools
 

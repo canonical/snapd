@@ -150,35 +150,38 @@ slots:
     interface: i2c
     sysfs-name: ""
 `, nil)
+	appSet, err := interfaces.NewSnapAppSet(gadgetSnapInfo, nil)
+	c.Assert(err, IsNil)
+
 	s.testUDev1Info = gadgetSnapInfo.Slots["test-udev-1"]
-	s.testUDev1 = interfaces.NewConnectedSlot(s.testUDev1Info, nil, nil)
+	s.testUDev1 = interfaces.NewConnectedSlot(s.testUDev1Info, appSet, nil, nil)
 	s.testUDev2Info = gadgetSnapInfo.Slots["test-udev-2"]
-	s.testUDev2 = interfaces.NewConnectedSlot(s.testUDev2Info, nil, nil)
+	s.testUDev2 = interfaces.NewConnectedSlot(s.testUDev2Info, appSet, nil, nil)
 	s.testUDev3Info = gadgetSnapInfo.Slots["test-udev-3"]
-	s.testUDev3 = interfaces.NewConnectedSlot(s.testUDev3Info, nil, nil)
+	s.testUDev3 = interfaces.NewConnectedSlot(s.testUDev3Info, appSet, nil, nil)
 	s.testSysfsName1Info = gadgetSnapInfo.Slots["test-sysfs-name-1"]
-	s.testSysfsName1 = interfaces.NewConnectedSlot(s.testSysfsName1Info, nil, nil)
+	s.testSysfsName1 = interfaces.NewConnectedSlot(s.testSysfsName1Info, appSet, nil, nil)
 	s.testUDevBadValue1Info = gadgetSnapInfo.Slots["test-udev-bad-value-1"]
-	s.testUDevBadValue1 = interfaces.NewConnectedSlot(s.testUDevBadValue1Info, nil, nil)
+	s.testUDevBadValue1 = interfaces.NewConnectedSlot(s.testUDevBadValue1Info, appSet, nil, nil)
 	s.testUDevBadValue2Info = gadgetSnapInfo.Slots["test-udev-bad-value-2"]
-	s.testUDevBadValue2 = interfaces.NewConnectedSlot(s.testUDevBadValue2Info, nil, nil)
+	s.testUDevBadValue2 = interfaces.NewConnectedSlot(s.testUDevBadValue2Info, appSet, nil, nil)
 	s.testUDevBadValue3Info = gadgetSnapInfo.Slots["test-udev-bad-value-3"]
-	s.testUDevBadValue3 = interfaces.NewConnectedSlot(s.testUDevBadValue3Info, nil, nil)
+	s.testUDevBadValue3 = interfaces.NewConnectedSlot(s.testUDevBadValue3Info, appSet, nil, nil)
 	s.testUDevBadValue4Info = gadgetSnapInfo.Slots["test-udev-bad-value-4"]
-	s.testUDevBadValue4 = interfaces.NewConnectedSlot(s.testUDevBadValue4Info, nil, nil)
+	s.testUDevBadValue4 = interfaces.NewConnectedSlot(s.testUDevBadValue4Info, appSet, nil, nil)
 	s.testUDevBadValue5Info = gadgetSnapInfo.Slots["test-udev-bad-value-5"]
-	s.testUDevBadValue5 = interfaces.NewConnectedSlot(s.testUDevBadValue5Info, nil, nil)
+	s.testUDevBadValue5 = interfaces.NewConnectedSlot(s.testUDevBadValue5Info, appSet, nil, nil)
 	s.testUDevBadValue6Info = gadgetSnapInfo.Slots["test-udev-bad-value-6"]
-	s.testUDevBadValue6 = interfaces.NewConnectedSlot(s.testUDevBadValue6Info, nil, nil)
+	s.testUDevBadValue6 = interfaces.NewConnectedSlot(s.testUDevBadValue6Info, appSet, nil, nil)
 	s.testUDevBadValue7Info = gadgetSnapInfo.Slots["test-udev-bad-value-7"]
-	s.testUDevBadValue7 = interfaces.NewConnectedSlot(s.testUDevBadValue7Info, nil, nil)
+	s.testUDevBadValue7 = interfaces.NewConnectedSlot(s.testUDevBadValue7Info, appSet, nil, nil)
 	s.testUDevBadInterface1Info = gadgetSnapInfo.Slots["test-udev-bad-interface-1"]
 	s.testSysfsNameBadValue1Info = gadgetSnapInfo.Slots["test-sysfs-name-bad-value-1"]
-	s.testSysfsNameBadValue1 = interfaces.NewConnectedSlot(s.testSysfsNameBadValue1Info, nil, nil)
+	s.testSysfsNameBadValue1 = interfaces.NewConnectedSlot(s.testSysfsNameBadValue1Info, appSet, nil, nil)
 	s.testSysfsNameAndPathInfo = gadgetSnapInfo.Slots["test-sysfs-name-and-path"]
-	s.testSysfsNameAndPath = interfaces.NewConnectedSlot(s.testSysfsNameAndPathInfo, nil, nil)
+	s.testSysfsNameAndPath = interfaces.NewConnectedSlot(s.testSysfsNameAndPathInfo, appSet, nil, nil)
 	s.testSysfsNameEmptyInfo = gadgetSnapInfo.Slots["test-sysfs-name-empty"]
-	s.testSysfsNameEmpty = interfaces.NewConnectedSlot(s.testSysfsNameEmptyInfo, nil, nil)
+	s.testSysfsNameEmpty = interfaces.NewConnectedSlot(s.testSysfsNameEmptyInfo, appSet, nil, nil)
 
 	// Snap Consumers
 	consumingSnapInfo := snaptest.MockInfo(c, `
@@ -192,8 +195,11 @@ apps:
     command: foo
     plugs: [i2c]
 `, nil)
+	appSet, err = interfaces.NewSnapAppSet(consumingSnapInfo, nil)
+	c.Assert(err, IsNil)
+
 	s.testPlugPort1Info = consumingSnapInfo.Plugs["plug-for-port-1"]
-	s.testPlugPort1 = interfaces.NewConnectedPlug(s.testPlugPort1Info, nil, nil)
+	s.testPlugPort1 = interfaces.NewConnectedPlug(s.testPlugPort1Info, appSet, nil, nil)
 }
 
 func (s *I2cInterfaceSuite) TestName(c *C) {
@@ -227,22 +233,22 @@ func (s *I2cInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
 }
 
 func (s *I2cInterfaceSuite) TestUDevSpec(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap()))
+	spec := udev.NewSpecification(s.testPlugPort1.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# i2c
 KERNEL=="i2c-1", TAG+="snap_client-snap_app-accessing-1-port"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-1-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-1-port"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-1-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-1-port $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *I2cInterfaceSuite) TestUDevSpecSysfsName(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap()))
+	spec := udev.NewSpecification(s.testPlugPort1.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSysfsName1), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
 
 func (s *I2cInterfaceSuite) TestAppArmorSpecPath(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap()))
+	spec := apparmor.NewSpecification(s.testPlugPort1.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
 	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-port"), testutil.Contains, `/dev/i2c-1 rw,`)
@@ -250,7 +256,7 @@ func (s *I2cInterfaceSuite) TestAppArmorSpecPath(c *C) {
 }
 
 func (s *I2cInterfaceSuite) TestAppArmorSpecPathMany(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap()))
+	spec := apparmor.NewSpecification(s.testPlugPort1.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev2), IsNil)
 	// NOTE: the snap name is misleading.
@@ -261,7 +267,7 @@ func (s *I2cInterfaceSuite) TestAppArmorSpecPathMany(c *C) {
 }
 
 func (s *I2cInterfaceSuite) TestAppArmorSpecSysfsName(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap()))
+	spec := apparmor.NewSpecification(s.testPlugPort1.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSysfsName1), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
 	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-port"), Equals, `

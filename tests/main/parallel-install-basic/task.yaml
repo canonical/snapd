@@ -1,5 +1,17 @@
 summary: Checks for parallel installation of a local snap files
 
+details: |
+    Snapd allows installation of the same snap more than once by combining the
+    same snap name with different values of an instance key.
+
+    The test installs a snap twice, and inspects that the applications can be
+    invoked separately, obtain tailored environment variables which are aware of
+    the difference in the instance key, read and write data to separate
+    directories and that while the directories to not always show up as the
+    instance-key-aware names on the inside of the snap execution environment, on
+    the outside the names are indeed correct and do contain the instance key. In
+    other words, the two applications are separate and have separate state.
+
 # ubuntu-14.04: the test sets up a user session, which requires more recent systemd
 systems: [-ubuntu-14.04-*]
 

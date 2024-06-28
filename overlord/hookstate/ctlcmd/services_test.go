@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -98,12 +99,19 @@ func (f *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.CurrentS
 	return snaps, nil, nil
 }
 
+type appsSuiteDecoratorResult struct {
+	daemonType string
+	active     bool
+	enabled    bool
+}
+
 type servicectlSuite struct {
 	testutil.BaseTest
-	st          *state.State
-	fakeStore   fakeStore
-	mockContext *hookstate.Context
-	mockHandler *hooktest.MockHandler
+	st               *state.State
+	fakeStore        fakeStore
+	mockContext      *hookstate.Context
+	mockHandler      *hooktest.MockHandler
+	decoratorResults map[string]appsSuiteDecoratorResult
 }
 
 var _ = Suite(&servicectlSuite{})
@@ -214,7 +222,7 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 		snapstate.EnforcedValidationSets = old
 	})
 	snapstate.EnforcedValidationSets = func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-		return nil, nil
+		return snapasserts.NewValidationSets(), nil
 	}
 }
 
@@ -744,6 +752,96 @@ Service                 Startup  Current  Notes
 test-snap.test-service  enabled  active   -
 `[1:])
 	c.Check(string(stderr), Equals, "")
+}
+
+func (s *servicectlSuite) TestServicesAsUserWithGlobal(c *C) {
+	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		c.Assert(args[0], Equals, "show")
+		c.Check(args[2], Equals, "snap.test-snap.test-service.service")
+		return []byte(`Id=snap.test-snap.test-service.service
+Names=snap.test-snap.test-service.service
+Type=simple
+ActiveState=active
+UnitFileState=enabled
+NeedDaemonReload=no
+`), nil
+	})
+	defer restore()
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"services", "--global", "test-snap.test-service"}, 1337)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, `
+Service                 Startup  Current  Notes
+test-snap.test-service  enabled  active   -
+`[1:])
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *servicectlSuite) DecorateWithStatus(appInfo *client.AppInfo, snapApp *snap.AppInfo) error {
+	name := snapApp.Snap.RealName + "." + appInfo.Name
+	dec, ok := s.decoratorResults[name]
+	if !ok {
+		return fmt.Errorf("%s not found in expected test decorator results", name)
+	}
+	appInfo.Daemon = dec.daemonType
+	appInfo.Enabled = dec.enabled
+	appInfo.Active = dec.active
+	return nil
+}
+
+func (s *servicectlSuite) TestServicesUserSwitch(c *C) {
+	restore := ctlcmd.MockNewStatusDecorator(func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator {
+		c.Check(isGlobal, Equals, false)
+		c.Check(uid, Equals, "0")
+		return s
+	})
+	defer restore()
+
+	s.decoratorResults = map[string]appsSuiteDecoratorResult{
+		"test-snap.user-service": {
+			daemonType: "simple",
+			active:     true,
+			enabled:    true,
+		},
+	}
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"services", "--user", "test-snap.user-service"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, `
+Service                 Startup  Current  Notes
+test-snap.user-service  enabled  active   user
+`[1:])
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *servicectlSuite) TestServicesAsUser(c *C) {
+	restore := ctlcmd.MockNewStatusDecorator(func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator {
+		c.Check(isGlobal, Equals, false)
+		c.Check(uid, Equals, "1337")
+		return s
+	})
+	defer restore()
+
+	s.decoratorResults = map[string]appsSuiteDecoratorResult{
+		"test-snap.user-service": {
+			daemonType: "simple",
+			active:     true,
+			enabled:    true,
+		},
+	}
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"services", "test-snap.user-service"}, 1337)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, `
+Service                 Startup  Current  Notes
+test-snap.user-service  enabled  active   user
+`[1:])
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *servicectlSuite) TestAppStatusInvalidUserGlobalSwitches(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"services", "--global", "--user"}, 0)
+	c.Assert(err, ErrorMatches, "cannot combine --global and --user switches.")
 }
 
 func (s *servicectlSuite) TestServicesWithoutContext(c *C) {

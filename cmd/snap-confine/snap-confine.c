@@ -538,11 +538,7 @@ int main(int argc, char **argv)
 	}
 	// Now that we've dropped and regained SYS_ADMIN, we can load the
 	// seccomp profiles.
-	if (sc_apply_seccomp_profile_for_security_tag(invocation.security_tag)) {
-		// If the process is not explicitly unconfined then load the
-		// global profile as well.
-		sc_apply_global_seccomp_profile();
-	}
+	sc_apply_seccomp_profile_for_security_tag(invocation.security_tag);
 	// Even though we set inheritable to 0, let's clear SYS_ADMIN
 	// explicitly
 	if (keep_sys_admin) {
@@ -733,10 +729,13 @@ static void enter_non_classic_execution_environment(sc_invocation *inv,
 	// device cgroup by itself.
 	struct sc_device_cgroup_options cgdevopts = { false, false };
 	sc_get_device_cgroup_setup(inv, &cgdevopts);
+	bool in_container = sc_is_in_container();
 	if (cgdevopts.self_managed) {
 		debug("device cgroup is self-managed by the snap");
 	} else if (cgdevopts.non_strict) {
 		debug("device cgroup skipped, snap in non-strict confinement");
+	} else if (in_container) {
+		debug("device cgroup skipped, executing inside a container");
 	} else {
 		sc_device_cgroup_mode mode = device_cgroup_mode_for_snap(inv);
 		sc_setup_device_cgroup(inv->security_tag, mode);

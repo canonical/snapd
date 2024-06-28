@@ -1352,7 +1352,7 @@ func (iface *modemManagerInterface) StaticInfo() interfaces.StaticInfo {
 
 func (iface *modemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
-	new := spec.SnapAppSet().SlotLabelExpression(slot)
+	new := slot.LabelExpression()
 	spec.AddSnippet(strings.Replace(modemManagerConnectedPlugAppArmor, old, new, -1))
 	if release.OnClassic {
 		// Let confined apps access unconfined ofono on classic
@@ -1379,7 +1379,7 @@ func (iface *modemManagerInterface) UDevPermanentSlot(spec *udev.Specification, 
 
 func (iface *modemManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
-	new := spec.SnapAppSet().PlugLabelExpression(plug)
+	new := plug.LabelExpression()
 	snippet := strings.Replace(modemManagerConnectedSlotAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil

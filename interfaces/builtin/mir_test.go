@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -75,18 +74,13 @@ apps:
   command: foo
   plugs: [mir]
 `
+
 	// mir snap with mir-server slot on an core/all-snap install.
-	snapInfo := snaptest.MockInfo(c, mirMockSlotSnapInfoYaml, nil)
-	s.coreSlotInfo = snapInfo.Slots["mir"]
-	s.coreSlot = interfaces.NewConnectedSlot(s.coreSlotInfo, nil, nil)
+	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, mirMockSlotSnapInfoYaml, nil, "mir")
 	// mir slot on a core snap in a classic install.
-	snapInfo = snaptest.MockInfo(c, mirMockClassicSlotSnapInfoYaml, nil)
-	s.classicSlotInfo = snapInfo.Slots["mir"]
-	s.classicSlot = interfaces.NewConnectedSlot(s.classicSlotInfo, nil, nil)
+	s.classicSlot, s.classicSlotInfo = MockConnectedSlot(c, mirMockClassicSlotSnapInfoYaml, nil, "mir")
 	// snap with the mir plug
-	snapInfo = snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
-	s.plugInfo = snapInfo.Plugs["mir"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "mir")
 }
 
 func (s *MirInterfaceSuite) TestName(c *C) {
@@ -94,24 +88,32 @@ func (s *MirInterfaceSuite) TestName(c *C) {
 }
 
 func (s *MirInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
-	err := apparmorSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
+	appSet, err := interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
+	err = apparmorSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mir-server.mir"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.mir-server.mir"), testutil.Contains, "capability sys_tty_config")
 
-	apparmorSpec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.classicSlotInfo.Snap))
+	appSet, err = interfaces.NewSnapAppSet(s.classicSlotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	apparmorSpec = apparmor.NewSpecification(appSet)
 	err = apparmorSpec.AddPermanentSlot(s.iface, s.classicSlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
 
-	apparmorSpec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.coreSlot.Snap()))
+	appSet, err = interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec = apparmor.NewSpecification(appSet)
 	err = apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.coreSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mir-server.mir"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.mir-server.mir"), testutil.Contains, "unix (receive, send) type=seqpacket addr=none peer=(label=\"snap.other")
 
-	apparmorSpec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec = apparmor.NewSpecification(appSet)
 	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
@@ -119,16 +121,20 @@ func (s *MirInterfaceSuite) TestUsedSecuritySystems(c *C) {
 }
 
 func (s *MirInterfaceSuite) TestSecComp(c *C) {
-	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
-	err := seccompSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
+	appSet, err := interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	seccompSpec := seccomp.NewSpecification(appSet)
+	err = seccompSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.mir-server.mir"})
 	c.Check(seccompSpec.SnippetForTag("snap.mir-server.mir"), testutil.Contains, "listen\n")
 }
 
 func (s *MirInterfaceSuite) TestSecCompOnClassic(c *C) {
-	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.classicSlotInfo.Snap))
-	err := seccompSpec.AddPermanentSlot(s.iface, s.classicSlotInfo)
+	appSet, err := interfaces.NewSnapAppSet(s.classicSlotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	seccompSpec := seccomp.NewSpecification(appSet)
+	err = seccompSpec.AddPermanentSlot(s.iface, s.classicSlotInfo)
 	c.Assert(err, IsNil)
 	snippets := seccompSpec.Snippets()
 	// no permanent seccomp snippet for the slot
@@ -136,7 +142,9 @@ func (s *MirInterfaceSuite) TestSecCompOnClassic(c *C) {
 }
 
 func (s *MirInterfaceSuite) TestUDevSpec(c *C) {
-	udevSpec := udev.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
+	appSet, err := interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	udevSpec := udev.NewSpecification(appSet)
 	c.Assert(udevSpec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(udevSpec.Snippets(), HasLen, 6)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# mir
@@ -149,7 +157,7 @@ KERNEL=="mouse[0-9]*", TAG+="snap_mir-server_mir"`)
 KERNEL=="event[0-9]*", TAG+="snap_mir-server_mir"`)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# mir
 KERNEL=="ts[0-9]*", TAG+="snap_mir-server_mir"`)
-	c.Assert(udevSpec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_mir-server_mir", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_mir-server_mir"`, dirs.DistroLibExecDir))
+	c.Assert(udevSpec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_mir-server_mir", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_mir-server_mir $devpath $major:$minor"`, dirs.DistroLibExecDir))
 	c.Assert(udevSpec.TriggeredSubsystems(), DeepEquals, []string{"input"})
 }
 

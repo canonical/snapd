@@ -9,11 +9,11 @@ systems: [ubuntu-18.04*, ubuntu-2*]
 
 environment:
   # set minimum download speed that is a bit higher than the rate-limited speed set with tc.
-  # also force 1-minute window, so the test doesn't have to run for full 5 minutes (the default
+  # also force a 15s window, so the test doesn't have to run for full 5 minutes (the default
   # window).
-  SNAP_MIN_DOWNLOAD_SPEED: 99000
-  SNAP_DOWNLOAD_MEAS_WINDOW: 1m
-  OVERRIDES_FILE: /etc/systemd/system/snapd.service.d/env-overrides.conf
+  SNAPD_MIN_DOWNLOAD_SPEED: 99000
+  SNAPD_DOWNLOAD_MEAS_WINDOW: 15s
+  OVERRIDES_FILE: /etc/systemd/system/snapd.service.d/local.conf
 
 prepare: |
   if not os.query is-pc-amd64; then
@@ -21,10 +21,8 @@ prepare: |
       exit
   fi
 
-  cat <<EOF >> "$OVERRIDES_FILE"
-  Environment=SNAP_MIN_DOWNLOAD_SPEED=${SNAP_MIN_DOWNLOAD_SPEED}
-  Environment=SNAP_DOWNLOAD_MEAS_WINDOW=${SNAP_DOWNLOAD_MEAS_WINDOW}
-  EOF
+  cp "$OVERRIDES_FILE" "$OVERRIDES_FILE".bak
+  sed "s/Environment=/Environment=SNAPD_MIN_DOWNLOAD_SPEED=${SNAPD_MIN_DOWNLOAD_SPEED} SNAPD_DOWNLOAD_MEAS_WINDOW=${SNAPD_DOWNLOAD_MEAS_WINDOW} /" -i "$OVERRIDES_FILE"
 
   systemctl daemon-reload
   systemctl restart snapd.{socket,service}
@@ -42,7 +40,7 @@ restore: |
   fi
   tc qdisc del dev ens4 ingress
 
-  rm -f "$OVERRIDES_FILE"
+  mv "$OVERRIDES_FILE".bak "$OVERRIDES_FILE"
   systemctl daemon-reload
   systemctl restart snapd.{socket,service}
 

@@ -90,9 +90,8 @@ ensure_jq() {
         snap install --devmode --edge jq-core22
         snap alias jq-core22.jq jq
     elif os.query is-core24; then
-        # TODO: publish jq-core24
-        snap install --devmode --edge jq-core22
-        snap alias jq-core22.jq jq
+        snap install --devmode --edge test-snapd-jq-core24
+        snap alias test-snapd-jq-core24.jq jq
     else
         snap install --devmode jq
     fi
@@ -116,6 +115,7 @@ disable_refreshes() {
     snap remove --purge jq-core18
     snap remove --purge jq-core20
     snap remove --purge jq-core22
+    snap remove --purge test-snapd-jq-core24
 }
 
 setup_systemd_snapd_overrides() {
@@ -124,6 +124,10 @@ setup_systemd_snapd_overrides() {
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecStartPre=/bin/touch /dev/iio:device0
+# The default limit is usually 5, which can be easily hit in 
+# a fast system with few systemd units
+StartLimitBurst=10
+StartLimitIntervalSec=10s
 EOF
 
     # We change the service configuration so reload and restart
@@ -825,35 +829,29 @@ uc24_build_initramfs_kernel_snap() {
 
     unmkinitramfs initrd.img initrd
 
-    local output_initrd="${PWD}/initrd.img"
-
-    local unpacked_initrd_root="${PWD}/initrd"
-    if os.query is-pc-amd64; then
-        unpacked_initrd_root="${unpacked_initrd_root}/main"
+    if [ -d ./extra-initrd ]; then
+        if [ -d ./initrd/early ]; then
+            cp -aT ./extra-initrd ./initrd/main
+        else
+            cp -aT ./extra-initrd ./initrd
+        fi
     fi
 
-    # copy in snap-bootstrap from the current build
-    cp /usr/lib/snapd/snap-bootstrap "${unpacked_initrd_root}/usr/lib/snapd/snap-bootstrap"
+    if [ -d ./initrd/early ]; then
+        cp -a /usr/lib/snapd/snap-bootstrap ./initrd/main/usr/lib/snapd/snap-bootstrap
 
-    # copy in extra files that tests may need for the initrd
-    if [ -d ./extra-initrd/ ]; then
-        cp -a ./extra-initrd/* "${unpacked_initrd_root}/"
+        (cd ./initrd/early; find . | cpio --create --quiet --format=newc --owner=0:0) >initrd.img
+        (cd ./initrd/main; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >>initrd.img
+    else
+        cp -a /usr/lib/snapd/snap-bootstrap ./initrd/usr/lib/snapd/snap-bootstrap
+
+        (cd ./initrd; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >initrd.img
     fi
 
-    cd "${unpacked_initrd_root}"
-    find . | cpio --create --quiet --format=newc --owner=0:0 | lz4 -l -7 > "${output_initrd}"
-    cd -
-
-    quiet apt download systemd-boot-efi
-    quiet apt install -y llvm
-    dpkg --fsys-tarfile systemd-boot-efi_*.deb |
-       tar xf - ./usr/lib/systemd/boot/efi/linuxx64.efi.stub
+    quiet apt install -y systemd-boot-efi systemd-ukify
     objcopy -O binary -j .linux pc-kernel/kernel.efi linux
 
-    llvm-objcopy --add-section .linux=linux --set-section-flags .linux=readonly,data \
-          --add-section .initrd=initrd.img --set-section-flags .initrd=readonly,data \
-          usr/lib/systemd/boot/efi/linuxx64.efi.stub \
-          pc-kernel/kernel.efi
+    /usr/lib/systemd/ukify build --linux=linux --initrd=initrd.img --output=pc-kernel/kernel.efi
 
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
@@ -1023,9 +1021,6 @@ setup_reflash_magic() {
         core_name="core22"
     elif is_test_target_core 24; then
         core_name="core24"
-        # TODO: revert this once snaps are ready in target channel
-        KERNEL_CHANNEL=beta
-        GADGET_CHANNEL=edge    
     fi
     # XXX: we get "error: too early for operation, device not yet
     # seeded or device model not acknowledged" here sometimes. To
@@ -1167,15 +1162,9 @@ EOF
 
         # also add debug command line parameters to the kernel command line via
         # the gadget in case things go side ways and we need to debug
-        if is_test_target_core 24; then
-            # TODO: remove this once pc snap is available in beta channel
-            snap download --basename=pc --channel="${BRANCH}/edge" pc
-        else
-            snap download --basename=pc --channel="${BRANCH}/${KERNEL_CHANNEL}" pc
-        fi
+        snap download --basename=pc --channel="${BRANCH}/${KERNEL_CHANNEL}" pc
         test -e pc.snap
         unsquashfs -d pc-gadget pc.snap
-
         # TODO: it would be desirable when we need to do in-depth debugging of
         # UC20 runs in google to have snapd.debug=1 always on the kernel command
         # line, but we can't do this universally because the logic for the env
@@ -1186,7 +1175,7 @@ EOF
         # so for now, don't include snapd.debug=1, but eventually it would be
         # nice to have this on
 
-        if [ "$SPREAD_BACKEND" = "google" ]; then
+        if [[ "$SPREAD_BACKEND" =~ google ]]; then
             # the default console settings for snapd aren't super useful in GCE,
             # instead it's more useful to have all console go to ttyS0 which we 
             # can read more easily than tty1 for example
@@ -1463,8 +1452,7 @@ prepare_ubuntu_core() {
         elif os.query is-core22; then
             rsync_snap="test-snapd-rsync-core22"
         elif os.query is-core24; then
-            # TODO: publish test-snapd-rsync-core24
-            rsync_snap="test-snapd-rsync-core22"
+            rsync_snap="test-snapd-rsync-core24"
         fi
         snap install --devmode --edge "$rsync_snap"
         snap alias "$rsync_snap".rsync rsync
@@ -1493,8 +1481,7 @@ prepare_ubuntu_core() {
             cache_snaps test-snapd-sh-core22
         fi
         if os.query is-core24; then
-            # TODO: move to test-snapd-sh-core24
-            cache_snaps test-snapd-sh-core22
+            cache_snaps test-snapd-sh-core24
         fi
     fi
 

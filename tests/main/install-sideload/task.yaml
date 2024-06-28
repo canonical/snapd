@@ -17,6 +17,13 @@ prepare: |
     for snap in basic test-snapd-tools basic-desktop test-snapd-devmode snap-hooks-bad-install; do
         snap pack "$TESTSLIB"/snaps/$snap
     done
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if [ "$SNAP_REEXEC" = "1" ] && [ "$SNAP_MOUNT_DIR" != "/snap" ] && [ ! -L /snap ]; then
+        # reexec expects to find the snapd snap under /snap, enable it to do so
+        # on distros using /var/lib/snapd/snap
+        ln -sf "$SNAP_MOUNT_DIR" /snap
+        tests.cleanup defer rm -f /snap
+    fi
 
 execute: |
     echo "Sideloaded snap shows status"
@@ -29,6 +36,23 @@ execute: |
 
     echo "Sideloaded snap executes commands"
     snap install --dangerous ./test-snapd-tools_1.0_all.snap
+
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if [ "$SNAP_REEXEC" = "1" ] && [ "$SNAP_MOUNT_DIR" != "/snap" ]; then
+        # with snap mount dir different than /snap, internal s-c checks will fail
+        if test-snapd-tools.success > err.out 2>&1 ; then
+            echo "unexpected success"
+            cat err.out || true
+            exit 1
+        fi
+
+        # with no AA support, we fail on a simple check for s-c being executed
+        # from /snap/snapd/<rev>/, with AA we fail on an earlier check for AA
+        # confinement
+        MATCH "(running from unexpected location:|snap-confine has elevated permissions)" < err.out
+        exit 0
+    fi
+
     test-snapd-tools.success
     [ "$(test-snapd-tools.echo Hello World)" = "Hello World" ]
 

@@ -1,15 +1,26 @@
 package interfaces_test
 
 import (
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 	. "gopkg.in/check.v1"
 )
 
-type snapAppSetSuite struct{}
+type snapAppSetSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&snapAppSetSuite{})
+
+func (s *snapAppSetSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+}
 
 const yaml = `name: test-snap
 version: 1
@@ -30,118 +41,147 @@ hooks:
     plugs: [network, network-manager]
   post-refresh:
     plugs: [network, network-manager]
+components:
+  comp1:
+    type: test
+    hooks:
+      install:
+  comp2:
+    type: test
+    hooks:
+      pre-refresh:
 `
 
 func (s *snapAppSetSuite) TestPlugLabelExpr(c *C) {
-	info, connectedPlug := mockInfoAndConnectedPlug(c, yaml, nil, "network")
-	set := interfaces.NewSnapAppSet(info)
+	_, plug := mockAppSetAndConnectedPlug(c, yaml, nil, nil, "network")
+	label := plug.LabelExpression()
+	c.Check(label, Equals, `"snap.test-snap{.hook.install,.hook.post-refresh}"`)
 
-	label := set.PlugLabelExpression(connectedPlug)
-	c.Check(label, Equals, `"snap.test-snap.{hook.install,hook.post-refresh}"`)
+	_, plug = mockAppSetAndConnectedPlug(c, yaml, nil, nil, "home")
+	label = plug.LabelExpression()
+	c.Check(label, Equals, `"snap.test-snap{.app1,.app2}"`)
 
-	info, connectedPlug = mockInfoAndConnectedPlug(c, yaml, nil, "home")
-	set = interfaces.NewSnapAppSet(info)
-
-	label = set.PlugLabelExpression(connectedPlug)
-	c.Check(label, Equals, `"snap.test-snap.{app1,app2}"`)
-
-	info, connectedPlug = mockInfoAndConnectedPlug(c, yaml, nil, "x11")
-	set = interfaces.NewSnapAppSet(info)
-
-	label = set.PlugLabelExpression(connectedPlug)
+	_, plug = mockAppSetAndConnectedPlug(c, yaml, nil, nil, "x11")
+	label = plug.LabelExpression()
 	c.Check(label, Equals, `"snap.test-snap.*"`)
-}
-
-func (s *snapAppSetSuite) TestPlugLabelExprInfoFallback(c *C) {
-	info := snaptest.MockInfo(c, yaml, nil)
-	set := interfaces.NewSnapAppSet(info)
-
-	const otherInfo = `name: other-name
-version: 1
-apps:
-  app1:
-  app2:
-hooks:
-  install:
-plugs:
-  plug:
-slots:
-  slot:`
-
-	_, connectedPlug := mockInfoAndConnectedPlug(c, otherInfo, nil, "plug")
-
-	label := set.PlugLabelExpression(connectedPlug)
-	c.Check(label, Equals, `"snap.other-name.*"`)
 }
 
 func (s *snapAppSetSuite) TestSlotLabelExpr(c *C) {
-	info, connectedSlot := mockInfoAndConnectedSlot(c, yaml, nil, "unity8")
-	set := interfaces.NewSnapAppSet(info)
+	_, slot := mockAppSetAndConnectedSlot(c, yaml, nil, nil, "unity8")
 
-	label := set.SlotLabelExpression(connectedSlot)
+	label := slot.LabelExpression()
 	c.Check(label, Equals, `"snap.test-snap.app1"`)
 
-	info, connectedSlot = mockInfoAndConnectedSlot(c, yaml, nil, "opengl")
-	set = interfaces.NewSnapAppSet(info)
+	_, slot = mockAppSetAndConnectedSlot(c, yaml, nil, nil, "opengl")
 
-	label = set.SlotLabelExpression(connectedSlot)
+	label = slot.LabelExpression()
 	c.Check(label, Equals, `"snap.test-snap.*"`)
 }
 
-func (s *snapAppSetSuite) TestSlotLabelExprInfoFallback(c *C) {
-	info := snaptest.MockInfo(c, yaml, nil)
-	set := interfaces.NewSnapAppSet(info)
+type mockConnectedSlotOrPlug struct {
+	set       *interfaces.SnapAppSet
+	runnables []snap.Runnable
+}
 
-	const otherInfo = `name: other-name
-version: 1
-apps:
-  app1:
-  app2:
-hooks:
-  install:
-plugs:
-  plug:
-slots:
-  slot:`
+func (m *mockConnectedSlotOrPlug) Runnables() []snap.Runnable {
+	return m.runnables
+}
 
-	_, connectedSlot := mockInfoAndConnectedSlot(c, otherInfo, nil, "slot")
-
-	label := set.SlotLabelExpression(connectedSlot)
-	c.Check(label, Equals, `"snap.other-name.*"`)
+func (m *mockConnectedSlotOrPlug) AppSet() *interfaces.SnapAppSet {
+	return m.set
 }
 
 func (s *snapAppSetSuite) TestLabelExpr(c *C) {
 	info := snaptest.MockInfo(c, yaml, nil)
 
-	apps := appsInMap(info.Apps)
-	hooks := hooksInMap(info.Hooks)
+	compYamls := []string{
+		"component: test-snap+comp1\ntype: test",
+		"component: test-snap+comp2\ntype: test",
+	}
+
+	compInfos := make([]*snap.ComponentInfo, 0, len(compYamls))
+	for _, compYaml := range compYamls {
+		compInfos = append(compInfos, snaptest.MockComponent(c, compYaml, info, snap.ComponentSideInfo{
+			Revision: snap.R(1),
+		}))
+	}
+
+	appSet, err := interfaces.NewSnapAppSet(info, compInfos)
+	c.Assert(err, IsNil)
+
+	var apps []snap.Runnable
+	for _, app := range appsInMap(info.Apps) {
+		apps = append(apps, app.Runnable())
+	}
+
+	var hooks []snap.Runnable
+	for _, hook := range hooksInMap(info.Hooks) {
+		hooks = append(hooks, hook.Runnable())
+	}
+
+	var compHooks []snap.Runnable
+	for _, ci := range compInfos {
+		for _, hook := range hooksInMap(ci.Hooks) {
+			compHooks = append(compHooks, hook.Runnable())
+		}
+	}
+
+	allHooks := make([]snap.Runnable, 0, len(hooks)+len(compHooks))
+	allHooks = append(allHooks, hooks...)
+	allHooks = append(allHooks, compHooks...)
+
+	allRunnables := appSet.Runnables()
+	mockConnected := func(runnables []snap.Runnable) *mockConnectedSlotOrPlug {
+		return &mockConnectedSlotOrPlug{
+			set:       appSet,
+			runnables: runnables,
+		}
+	}
+
+	runnableByName := func(name string) []snap.Runnable {
+		for _, r := range allRunnables {
+			if r.CommandName == name {
+				return []snap.Runnable{r}
+			}
+		}
+		c.Fatalf("runnable %q not found", name)
+		return nil
+	}
 
 	// all apps and all hooks
-	label := interfaces.LabelExpr(apps, hooks, info)
+	label := interfaces.LabelExpr(mockConnected(allRunnables))
 	c.Check(label, Equals, `"snap.test-snap.*"`)
 
 	// all apps, no hooks
-	label = interfaces.LabelExpr(apps, nil, info)
-	c.Check(label, Equals, `"snap.test-snap.{app1,app2}"`)
+	label = interfaces.LabelExpr(mockConnected(apps))
+	c.Check(label, Equals, `"snap.test-snap{.app1,.app2}"`)
 
 	// one app, no hooks
-	label = interfaces.LabelExpr([]*snap.AppInfo{info.Apps["app1"]}, nil, info)
+	label = interfaces.LabelExpr(mockConnected(runnableByName("app1")))
 	c.Check(label, Equals, `"snap.test-snap.app1"`)
 
-	// no apps, one hook
-	label = interfaces.LabelExpr(nil, []*snap.HookInfo{info.Hooks["install"]}, info)
+	// no apps, one snap hook
+	label = interfaces.LabelExpr(mockConnected(runnableByName("hook.install")))
 	c.Check(label, Equals, `"snap.test-snap.hook.install"`)
 
-	// one app, all hooks
-	label = interfaces.LabelExpr([]*snap.AppInfo{info.Apps["app1"]}, hooks, info)
-	c.Check(label, Equals, `"snap.test-snap.{app1,hook.install,hook.post-refresh}"`)
+	// one app, all snap hooks
+	label = interfaces.LabelExpr(mockConnected(append(runnableByName("app1"), hooks...)))
+	c.Check(label, Equals, `"snap.test-snap{.app1,.hook.install,.hook.post-refresh}"`)
 
-	// only hooks
-	label = interfaces.LabelExpr(nil, hooks, info)
-	c.Check(label, Equals, `"snap.test-snap.{hook.install,hook.post-refresh}"`)
+	// one app, all hooks
+	label = interfaces.LabelExpr(mockConnected(append(runnableByName("app1"), allHooks...)))
+	c.Check(label, Equals, `"snap.test-snap{+comp1.hook.install,+comp2.hook.pre-refresh,.app1,.hook.install,.hook.post-refresh}"`)
+
+	// only snap hooks
+	label = interfaces.LabelExpr(mockConnected(hooks))
+	c.Check(label, Equals, `"snap.test-snap{.hook.install,.hook.post-refresh}"`)
+
+	// only component hooks
+	label = interfaces.LabelExpr(mockConnected(compHooks))
+	c.Check(label, Equals, `"snap.test-snap{+comp1.hook.install,+comp2.hook.pre-refresh}"`)
 
 	// nothing
-	label = interfaces.LabelExpr(nil, nil, info)
+	label = interfaces.LabelExpr(mockConnected(nil))
 	c.Check(label, Equals, `"snap.test-snap."`)
 }
 
@@ -151,33 +191,46 @@ version: 1
 apps:
   app1:
   app2:
+components:
+  comp:
+    type: test
+    hooks:
+      install:
 hooks:
   install:
 plugs:
   plug:
 slots:
   slot:`
-	info, connectedPlug := mockInfoAndConnectedPlug(c, yaml, nil, "plug")
-	set := interfaces.NewSnapAppSet(info)
+
+	set, connectedPlug := mockAppSetAndConnectedPlug(c, yaml, []string{
+		"component: name+comp\ntype: test\nversion: 1",
+	}, nil, "plug")
 
 	tags, err := set.SecurityTagsForConnectedPlug(connectedPlug)
 	c.Assert(err, IsNil)
-	c.Assert(tags, DeepEquals, []string{"snap.name.app1", "snap.name.app2", "snap.name.hook.install"})
+	c.Assert(tags, DeepEquals, []string{
+		"snap.name+comp.hook.install",
+		"snap.name.app1",
+		"snap.name.app2",
+		"snap.name.hook.install",
+	})
 }
 
 func (s *snapAppSetSuite) TestPlugSecurityTagsWrongSnap(c *C) {
 	const yaml = `name: name
 version: 1`
 	info := snaptest.MockInfo(c, yaml, nil)
-	set := interfaces.NewSnapAppSet(info)
+	set, err := interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, IsNil)
 
 	const otherYaml = `name: other-name
 version: 1
 plugs:
   plug:`
-	_, connectedPlug := mockInfoAndConnectedPlug(c, otherYaml, nil, "plug")
+	_, connectedPlug := mockAppSetAndConnectedPlug(c, otherYaml, nil, nil, "plug")
 
-	_, err := set.SecurityTagsForConnectedPlug(connectedPlug)
+	_, err = set.SecurityTagsForConnectedPlug(connectedPlug)
 	c.Assert(err, ErrorMatches, `internal error: plug "plug" is from snap "other-name", security tags can only be computed for processed target snap: "name"`)
 }
 
@@ -187,14 +240,17 @@ version: 1
 apps:
   app1:
   app2:
+components:
+  comp:
+    hooks:
+      install:
 hooks:
   install:
 plugs:
   plug:
 slots:
   slot:`
-	info, connectedSlot := mockInfoAndConnectedSlot(c, yaml, nil, "slot")
-	set := interfaces.NewSnapAppSet(info)
+	set, connectedSlot := mockAppSetAndConnectedSlot(c, yaml, nil, nil, "slot")
 
 	tags, err := set.SecurityTagsForConnectedSlot(connectedSlot)
 	c.Assert(err, IsNil)
@@ -205,30 +261,245 @@ func (s *snapAppSetSuite) TestSlotSecurityTagsWrongSnap(c *C) {
 	const yaml = `name: name
 version: 1`
 	info := snaptest.MockInfo(c, yaml, nil)
-	set := interfaces.NewSnapAppSet(info)
+	set, err := interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, IsNil)
 
 	const otherYaml = `name: other-name
 version: 1
 slots:
   slot:`
-	_, connectedSlot := mockInfoAndConnectedSlot(c, otherYaml, nil, "slot")
+	_, connectedSlot := mockAppSetAndConnectedSlot(c, otherYaml, nil, nil, "slot")
 
-	_, err := set.SecurityTagsForConnectedSlot(connectedSlot)
+	_, err = set.SecurityTagsForConnectedSlot(connectedSlot)
 	c.Assert(err, ErrorMatches, `internal error: slot "slot" is from snap "other-name", security tags can only be computed for processed target snap: "name"`)
+}
+
+func (s *snapAppSetSuite) TestRunnables(c *C) {
+	const yaml = `name: name
+version: 1
+apps:
+  app1:
+  app2:
+hooks:
+  install:
+components:
+  comp:
+    type: test
+    hooks:
+      install:
+`
+	info := snaptest.MockInfo(c, yaml, nil)
+
+	compInfo := snaptest.MockComponent(c, "component: name+comp\ntype: test\nversion: 1.0", info, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
+
+	set, err := interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{compInfo})
+	c.Assert(err, IsNil)
+
+	c.Check(set.Runnables(), testutil.DeepUnsortedMatches, []snap.Runnable{
+		{
+			CommandName: "app1",
+			SecurityTag: "snap.name.app1",
+		},
+		{
+			CommandName: "app2",
+			SecurityTag: "snap.name.app2",
+		},
+		{
+			CommandName: "hook.install",
+			SecurityTag: "snap.name.hook.install",
+		},
+		{
+			CommandName: "name+comp.hook.install",
+			SecurityTag: "snap.name+comp.hook.install",
+		},
+	})
+}
+
+func (s *snapAppSetSuite) TestPlugRunnables(c *C) {
+	const yaml = `name: name
+version: 1
+apps:
+  app:
+    plugs: [app-plug]
+hooks:
+  install:
+    plugs: [hook-plug]
+components:
+  comp:
+    type: test
+    hooks:
+      install:
+        plugs: [comp-plug]
+plugs:
+  plug:
+  hook-plug:
+  comp-plug:
+  app-plug:
+`
+	info := snaptest.MockInfo(c, yaml, nil)
+
+	compInfo := snaptest.MockComponent(c, "component: name+comp\ntype: test\nversion: 1.0", info, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
+
+	set, err := interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{compInfo})
+	c.Assert(err, IsNil)
+
+	type t struct {
+		expected []snap.Runnable
+		plug     string
+	}
+
+	tests := []t{
+		{
+			expected: []snap.Runnable{
+				{
+					CommandName: "app",
+					SecurityTag: "snap.name.app",
+				},
+				{
+					CommandName: "hook.install",
+					SecurityTag: "snap.name.hook.install",
+				},
+				{
+					CommandName: "name+comp.hook.install",
+					SecurityTag: "snap.name+comp.hook.install",
+				},
+			},
+			plug: "plug",
+		},
+		{
+			expected: []snap.Runnable{
+				{
+					CommandName: "app",
+					SecurityTag: "snap.name.app",
+				},
+			},
+			plug: "app-plug",
+		},
+		{
+			expected: []snap.Runnable{
+				{
+					CommandName: "hook.install",
+					SecurityTag: "snap.name.hook.install",
+				},
+			},
+			plug: "hook-plug",
+		},
+		{
+			expected: []snap.Runnable{
+				{
+					CommandName: "name+comp.hook.install",
+					SecurityTag: "snap.name+comp.hook.install",
+				},
+			},
+			plug: "comp-plug",
+		},
+	}
+
+	for _, test := range tests {
+		plug := interfaces.NewConnectedPlug(info.Plugs[test.plug], set, nil, nil)
+		c.Check(plug.Runnables(), testutil.DeepUnsortedMatches, test.expected)
+	}
+}
+
+func (s *snapAppSetSuite) TestSlotRunnables(c *C) {
+	const yaml = `name: name
+version: 1
+apps:
+  app:
+    slots: [app-slot]
+hooks:
+  install:
+    slots: [hook-slot]
+components:
+  comp:
+    type: test
+    hooks:
+      install:
+slots:
+  slot:
+  hook-slot:
+  app-slot:
+`
+	info := snaptest.MockInfo(c, yaml, nil)
+
+	compInfo := snaptest.MockComponent(c, "component: name+comp\ntype: test\nversion: 1.0", info, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
+
+	set, err := interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{compInfo})
+	c.Assert(err, IsNil)
+
+	type t struct {
+		expected []snap.Runnable
+		slot     string
+	}
+
+	tests := []t{
+		{
+			expected: []snap.Runnable{
+				{
+					CommandName: "app",
+					SecurityTag: "snap.name.app",
+				},
+				{
+					CommandName: "hook.install",
+					SecurityTag: "snap.name.hook.install",
+				},
+			},
+			slot: "slot",
+		},
+		{
+			expected: []snap.Runnable{
+				{
+					CommandName: "app",
+					SecurityTag: "snap.name.app",
+				},
+			},
+			slot: "app-slot",
+		},
+		{
+			expected: []snap.Runnable{
+				{
+					CommandName: "hook.install",
+					SecurityTag: "snap.name.hook.install",
+				},
+			},
+			slot: "hook-slot",
+		},
+	}
+
+	for _, test := range tests {
+		slot := interfaces.NewConnectedSlot(info.Slots[test.slot], set, nil, nil)
+		c.Check(slot.Runnables(), testutil.DeepUnsortedMatches, test.expected)
+	}
 }
 
 func (s *snapAppSetSuite) TestInfo(c *C) {
 	info := snaptest.MockInfo(c, yaml, nil)
-	set := interfaces.NewSnapAppSet(info)
+	set, err := interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, IsNil)
 
 	c.Check(set.Info(), DeepEquals, info)
 }
 
 func (s *snapAppSetSuite) TestInstanceName(c *C) {
 	info := snaptest.MockInfo(c, yaml, nil)
-	set := interfaces.NewSnapAppSet(info)
+	set, err := interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, IsNil)
 
 	c.Check(set.InstanceName(), Equals, "test-snap")
+}
+
+func (s *snapAppSetSuite) TestNewAppSetWithWrongComponent(c *C) {
+	info := snaptest.MockInfo(c, yaml, nil)
+	_, err := interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{
+		snap.NewComponentInfo(naming.NewComponentRef("other-name", "comp"), snap.TestComponent, "", "", "", "", nil),
+	})
+	c.Assert(err, ErrorMatches, `internal error: snap "test-snap" does not own component "other-name\+comp"`)
 }
 
 func appsInMap(apps map[string]*snap.AppInfo) []*snap.AppInfo {
@@ -247,20 +518,50 @@ func hooksInMap(hooks map[string]*snap.HookInfo) []*snap.HookInfo {
 	return result
 }
 
-func mockInfoAndConnectedPlug(c *C, yaml string, si *snap.SideInfo, plugName string) (*snap.Info, *interfaces.ConnectedPlug) {
+func mockAppSetAndConnectedPlug(c *C, yaml string, compYamls []string, si *snap.SideInfo, plugName string) (*interfaces.SnapAppSet, *interfaces.ConnectedPlug) {
 	info := snaptest.MockInfo(c, yaml, si)
+
+	compInfos := make([]*snap.ComponentInfo, 0, len(compYamls))
+	for _, compYaml := range compYamls {
+		compInfos = append(compInfos, snaptest.MockComponent(c, compYaml, info, snap.ComponentSideInfo{
+			Revision: snap.R(1),
+		}))
+	}
+
+	appSet, err := interfaces.NewSnapAppSet(info, compInfos)
+	c.Assert(err, IsNil)
+
 	plugInfo, ok := info.Plugs[plugName]
 	if !ok {
 		c.Fatalf("cannot find plug %q in snap %q", plugName, info.InstanceName())
 	}
-	return info, interfaces.NewConnectedPlug(plugInfo, nil, nil)
+
+	return appSet, interfaces.NewConnectedPlug(plugInfo, appSet, nil, nil)
 }
 
-func mockInfoAndConnectedSlot(c *C, yaml string, si *snap.SideInfo, slotName string) (*snap.Info, *interfaces.ConnectedSlot) {
+func mockAppSet(c *C, yaml string, compYamls []string, si *snap.SideInfo) *interfaces.SnapAppSet {
 	info := snaptest.MockInfo(c, yaml, si)
-	slotInfo, ok := info.Slots[slotName]
-	if !ok {
-		c.Fatalf("cannot find slot %q in snap %q", slotName, info.InstanceName())
+
+	compInfos := make([]*snap.ComponentInfo, 0, len(compYamls))
+	for _, compYaml := range compYamls {
+		compInfos = append(compInfos, snaptest.MockComponent(c, compYaml, info, snap.ComponentSideInfo{
+			Revision: snap.R(1),
+		}))
 	}
-	return info, interfaces.NewConnectedSlot(slotInfo, nil, nil)
+
+	appSet, err := interfaces.NewSnapAppSet(info, compInfos)
+	c.Assert(err, IsNil)
+
+	return appSet
+}
+
+func mockAppSetAndConnectedSlot(c *C, yaml string, compYamls []string, si *snap.SideInfo, slotName string) (*interfaces.SnapAppSet, *interfaces.ConnectedSlot) {
+	appSet := mockAppSet(c, yaml, compYamls, si)
+
+	slotInfo, ok := appSet.Info().Slots[slotName]
+	if !ok {
+		c.Fatalf("cannot find slot %q in snap %q", slotName, appSet.InstanceName())
+	}
+
+	return appSet, interfaces.NewConnectedSlot(slotInfo, appSet, nil, nil)
 }

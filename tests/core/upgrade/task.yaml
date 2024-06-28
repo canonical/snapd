@@ -1,5 +1,10 @@
 summary: Upgrade the core snap and revert a few times
 
+details: |
+    Check that it is possible to upgrade and revert the core and snapd snaps
+    in Ubuntu Core 16 and 18. Ensure the bootloader configuration is correct
+    and the device is scheduled for auto-reboot in all cases
+
 # ARM devices are not supported on ubuntu-core-18 due to fw_printenv/setenv are
 # not provided by the system and as the devices boot with uboot so it is not
 # possible to get any grub information as it is done with non arm devices.

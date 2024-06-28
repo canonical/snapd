@@ -168,32 +168,32 @@ const asyncResp = `{
 	"status-code": 202
 }`
 
-type aspectsSuite struct {
+type registrySuite struct {
 	BaseSnapSuite
 	tmpDir string
 }
 
-var _ = check.Suite(&aspectsSuite{})
+var _ = check.Suite(&registrySuite{})
 
-func (s *aspectsSuite) SetUp(c *check.C) {
+func (s *registrySuite) SetUp(c *check.C) {
 	s.BaseSnapSuite.SetUpTest(c)
 	s.tmpDir = c.MkDir()
 }
 
-func (s *aspectsSuite) mockAspectsFlag(c *check.C) (restore func()) {
+func (s *registrySuite) mockRegistryFlag(c *check.C) (restore func()) {
 	old := dirs.FeaturesDir
 	dirs.FeaturesDir = s.tmpDir
 
-	aspectsCtlFile := features.AspectsConfiguration.ControlFile()
-	c.Assert(os.WriteFile(aspectsCtlFile, []byte(nil), 0644), check.IsNil)
+	registryCtlFile := features.Registries.ControlFile()
+	c.Assert(os.WriteFile(registryCtlFile, []byte(nil), 0644), check.IsNil)
 
 	return func() {
-		c.Assert(os.Remove(aspectsCtlFile), check.IsNil)
+		c.Assert(os.Remove(registryCtlFile), check.IsNil)
 		dirs.FeaturesDir = old
 	}
 }
 
-func (s *aspectsSuite) mockAspectServer(c *check.C, expectedRequest string, nowait bool) {
+func (s *registrySuite) mockRegistryServer(c *check.C, expectedRequest string, nowait bool) {
 	fail := func(w http.ResponseWriter, err error) {
 		w.WriteHeader(500)
 		fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
@@ -205,7 +205,7 @@ func (s *aspectsSuite) mockAspectServer(c *check.C, expectedRequest string, nowa
 		switch reqs {
 		case 0:
 			c.Check(r.Method, check.Equals, "PUT")
-			c.Check(r.URL.Path, check.Equals, "/v2/aspects/foo/bar/baz")
+			c.Check(r.URL.Path, check.Equals, "/v2/registry/foo/bar/baz")
 			c.Check(r.URL.Query(), check.HasLen, 0)
 
 			raw, err := io.ReadAll(r.Body)
@@ -233,11 +233,11 @@ func (s *aspectsSuite) mockAspectServer(c *check.C, expectedRequest string, nowa
 	})
 }
 
-func (s *aspectsSuite) TestAspectSet(c *check.C) {
-	restore := s.mockAspectsFlag(c)
+func (s *registrySuite) TestRegistrySet(c *check.C) {
+	restore := s.mockRegistryFlag(c)
 	defer restore()
 
-	s.mockAspectServer(c, `{"abc":"cba"}`, false)
+	s.mockRegistryServer(c, `{"abc":"cba"}`, false)
 
 	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", `abc="cba"`})
 	c.Assert(err, check.IsNil)
@@ -247,11 +247,11 @@ func (s *aspectsSuite) TestAspectSet(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *aspectsSuite) TestAspectSetMany(c *check.C) {
-	restore := s.mockAspectsFlag(c)
+func (s *registrySuite) TestRegistrySetMany(c *check.C) {
+	restore := s.mockRegistryFlag(c)
 	defer restore()
 
-	s.mockAspectServer(c, `{"abc":{"foo":1},"xyz":true}`, false)
+	s.mockRegistryServer(c, `{"abc":{"foo":1},"xyz":true}`, false)
 
 	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", `abc={"foo":1}`, "xyz=true"})
 	c.Assert(err, check.IsNil)
@@ -261,20 +261,20 @@ func (s *aspectsSuite) TestAspectSetMany(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *aspectsSuite) TestAspectSetInvalidAspectID(c *check.C) {
-	restore := s.mockAspectsFlag(c)
+func (s *registrySuite) TestRegistrySetInvalidAspectID(c *check.C) {
+	restore := s.mockRegistryFlag(c)
 	defer restore()
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo//bar", "foo=bar"})
 	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, "aspect identifier must conform to format: <account-id>/<bundle>/<aspect>")
+	c.Check(err.Error(), check.Equals, "registry identifier must conform to format: <account-id>/<registry>/<view>")
 }
 
-func (s *aspectsSuite) TestAspectSetNoWait(c *check.C) {
-	restore := s.mockAspectsFlag(c)
+func (s *registrySuite) TestRegistrySetNoWait(c *check.C) {
+	restore := s.mockRegistryFlag(c)
 	defer restore()
 
-	s.mockAspectServer(c, `{"abc":1}`, true)
+	s.mockRegistryServer(c, `{"abc":1}`, true)
 
 	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "--no-wait", "foo/bar/baz", "abc=1"})
 	c.Assert(err, check.IsNil)
@@ -284,7 +284,7 @@ func (s *aspectsSuite) TestAspectSetNoWait(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *aspectsSuite) TestAspectSetDisabledFlag(c *check.C) {
+func (s *registrySuite) TestRegistrySetDisabledFlag(c *check.C) {
 	var reqs int
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch reqs {
@@ -299,14 +299,14 @@ func (s *aspectsSuite) TestAspectSetDisabledFlag(c *check.C) {
 	})
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", "abc=1"})
-	c.Assert(err, check.ErrorMatches, "aspect-based configuration is disabled: you must set 'experimental.aspects-configuration' to true")
+	c.Assert(err, check.ErrorMatches, `the "registries" feature is disabled: set 'experimental.registries' to true`)
 }
 
-func (s *aspectsSuite) TestAspectSetExclamationMark(c *check.C) {
-	restore := s.mockAspectsFlag(c)
+func (s *registrySuite) TestRegistrySetExclamationMark(c *check.C) {
+	restore := s.mockRegistryFlag(c)
 	defer restore()
 
-	s.mockAspectServer(c, `{"abc":null}`, false)
+	s.mockRegistryServer(c, `{"abc":null}`, false)
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", "abc!"})
 	c.Assert(err, check.IsNil)

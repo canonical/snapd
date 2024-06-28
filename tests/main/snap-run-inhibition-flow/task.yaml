@@ -1,0 +1,60 @@
+summary: Check that snap run notifies the user about run inhibition due to refreshes.
+
+details: |
+    This test exercises the inhibition flow triggered when snap run is
+    inhibited from running due to an onging refresh. When snap run is inhibited
+    it record a snap-run-inhibit notice which should be parsed by another
+    client (e.g. snapd-desktop-integration snap).
+
+    TODO: Add a check for the text fallback
+    If snap run detects that no snap has the marker interface connected and
+    we are running in a terminal then snap run falls back to showing a text
+    notification.
+
+environment:
+    SNAPD_INHIBIT_DIR: "/var/lib/snapd/inhibit"
+    # not all terminals support UTF-8, but Python tries to be smart and attempts
+    # to guess the encoding as if the output would go to the terminal, but in
+    # fact all the test does is pipe the output to jq
+    PYTHONIOENCODING: utf-8
+
+prepare: |
+    snap install --edge jq
+
+    echo "Install snap with marker snap-refresh-observe interface connected"
+    "$TESTSTOOLS"/snaps-state install-local api-client
+    snap connect api-client:snap-refresh-observe
+
+    # Make sure inhibit dir exists
+    mkdir -p $SNAPD_INHIBIT_DIR
+
+    # Mock test-snapd-tools snap as inhibited due to refresh
+    snap install test-snapd-tools
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    REVNO="$(readlink "$SNAP_MOUNT_DIR"/test-snapd-tools/current)"
+    echo -n "refresh" > $SNAPD_INHIBIT_DIR/test-snapd-tools.lock
+    echo -n '{"previous":"'"${REVNO}"'"}' > $SNAPD_INHIBIT_DIR/test-snapd-tools.refresh
+
+restore: |
+    rm -f $SNAPD_INHIBIT_DIR/test-snapd-tools.lock
+    rm -f $SNAPD_INHIBIT_DIR/test-snapd-tools.refresh
+    snap remove --purge test-snapd-tools
+
+    snap remove --purge api-client
+    snap remove --purge jq
+
+execute: |
+    echo "Try running inhibited snap"
+    touch output
+    test-snapd-tools.echo hi > output 2>&1 &
+    echo "Command is waiting due to inhibition, no output"
+    NOMATCH "hi" < output
+
+    # Notice is recorded for inhibition
+    api-client --socket /run/snapd-snap.socket "/v2/notices?types=snap-run-inhibit&keys=test-snapd-tools" | jq '.result[0].occurrences' | MATCH '^1$'
+
+    echo "Mark snap as no longer inhibited"
+    echo -n "" > $SNAPD_INHIBIT_DIR/test-snapd-tools.lock
+    echo "snap is no longer inhibited, command should run now"
+    sleep 1
+    MATCH "hi" < output

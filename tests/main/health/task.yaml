@@ -1,5 +1,17 @@
 summary: Check that health works
 
+details: |
+    Snaps can provide a check-health hook that can be used by developers to signal to the
+    system and the user that something is not well with the snap. Note the health is of the
+    snap, not of the apps it contains; it's up to the snap developer to determine how the
+    health of the individual apps add up to the health of the snap as a whole.
+
+    This test installs a snap with a check-health hook which sets the health with
+    'snapctl set-health okay'. Then it verifies that the value of 
+    .data.health.<SNAP>.status in the state.json file is set to 1.
+    It also checks that a snap app and a snap hook (other than check-health) can
+    run 'snapctl set-health' and change the health value and message.
+
 prepare: |
     snap install --edge jq
 

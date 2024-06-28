@@ -1,5 +1,9 @@
 summary: Check basic apparmor confinement rules.
 
+details: |
+    Check that a strictly confined snap can access paths available to it
+    but accesses to paths out of its confinement are denied.
+
 prepare: |
     echo "Given a basic snap is installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh

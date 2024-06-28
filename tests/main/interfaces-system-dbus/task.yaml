@@ -1,5 +1,10 @@
 summary: Ensure that the dbus interface works on the system bus.
 
+details: |
+   Check that the dbus interface can be used to access the system
+   bus for specific methods and that they cannot be accessed if the
+   interface is disconnected.
+
 prepare: |
     echo "Install dbus system test snaps"
     snap install --edge test-snapd-dbus-provider
@@ -23,7 +28,7 @@ execute: |
 
     echo "Also check if dbus works if plug/slot come from the same snap"
 
-    echo "When the  plug is connected (same snap)"
+    echo "When the plug is connected (same snap)"
     snap connect test-snapd-dbus-provider:dbus-system-test-plug test-snapd-dbus-provider:dbus-system-test
     echo "Then the consumer (same snap) is able to call the provided method"
     test-snapd-dbus-provider.system-consumer | MATCH "hello world"
@@ -42,6 +47,6 @@ execute: |
     not test-snapd-dbus-consumer.dbus-system-consumer 2> call.error
     MATCH "Permission denied" < call.error
 
-    echo "And the consumer is not able to access the provided method (same snap)"
+    echo "And the provider is not able to access the provided method (same snap)"
     not test-snapd-dbus-provider.system-consumer 2> call.error
     MATCH "Permission denied" < call.error

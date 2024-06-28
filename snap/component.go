@@ -19,33 +19,62 @@ package snap
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap/naming"
 	"gopkg.in/yaml.v2"
 )
 
-// ComponentInfo is the content of a component.yaml file.
+// ComponentInfo contains information about a snap component.
 type ComponentInfo struct {
-	Component   naming.ComponentRef `yaml:"component"`
-	Type        ComponentType       `yaml:"type"`
-	Version     string              `yaml:"version"`
-	Summary     string              `yaml:"summary"`
-	Description string              `yaml:"description"`
+	Component           naming.ComponentRef `yaml:"component"`
+	Type                ComponentType       `yaml:"type"`
+	Version             string              `yaml:"version"`
+	Summary             string              `yaml:"summary"`
+	Description         string              `yaml:"description"`
+	ComponentProvenance string              `yaml:"provenance,omitempty"`
 
-	// TODO: we will need to add fields here to carry around details about
-	// explicit and implicit hooks.
+	// Hooks contains information about implicit and explicit hooks that this
+	// component has. This information is derived from a combination on the
+	// component itself and the snap.Info that represents the snap this
+	// component is associated with. This field may be empty if the
+	// ComponentInfo was not created with the help of a snap.Info.
+	Hooks map[string]*HookInfo `yaml:"-"`
+
+	// ComponentSideInfo contains information for which the source of truth is
+	// not the component blob itself.
+	ComponentSideInfo
+}
+
+// Provenance returns the provenance of the component. This returns
+// naming.DefaultProvenance if no value is set explicitly in the component
+// metadata.
+func (ci *ComponentInfo) Provenance() string {
+	if ci.ComponentProvenance == "" {
+		return naming.DefaultProvenance
+	}
+	return ci.ComponentProvenance
 }
 
 // NewComponentInfo creates a new ComponentInfo.
-func NewComponentInfo(cref naming.ComponentRef, ctype ComponentType, version, summary, description string) *ComponentInfo {
+func NewComponentInfo(cref naming.ComponentRef, ctype ComponentType, version, summary, description, provenance string, csi *ComponentSideInfo) *ComponentInfo {
+	if csi == nil {
+		csi = &ComponentSideInfo{}
+	}
+
 	return &ComponentInfo{
-		Component:   cref,
-		Type:        ctype,
-		Version:     version,
-		Summary:     summary,
-		Description: description,
+		Component:           cref,
+		Type:                ctype,
+		Version:             version,
+		Summary:             summary,
+		Description:         description,
+		ComponentProvenance: provenance,
+		ComponentSideInfo:   *csi,
 	}
 }
 
@@ -70,6 +99,12 @@ func (csi *ComponentSideInfo) Equal(other *ComponentSideInfo) bool {
 	return *csi == *other
 }
 
+// ComponentBaseDir returns where components are to be found for the
+// snap with name instanceName.
+func ComponentsBaseDir(instanceName string) string {
+	return filepath.Join(BaseDir(instanceName), "components")
+}
+
 // componentPlaceInfo holds information about where to put a component in the
 // system. It implements ContainerPlaceInfo and should be used only via this
 // interface.
@@ -77,22 +112,20 @@ type componentPlaceInfo struct {
 	// Name and revision for the component
 	compName     string
 	compRevision Revision
-	// snapInstance and snapRevision identify the snap that uses this component.
+	// snapInstance identifies the snap that uses this component.
 	snapInstance string
-	snapRevision Revision
 }
 
 var _ ContainerPlaceInfo = (*componentPlaceInfo)(nil)
 
 // MinimalComponentContainerPlaceInfo returns a ContainerPlaceInfo with just
 // the location information for a component of the given name and revision that
-// is used by a snapInstance with revision snapRev.
-func MinimalComponentContainerPlaceInfo(compName string, compRev Revision, snapInstance string, snapRev Revision) ContainerPlaceInfo {
+// is used by a snapInstance.
+func MinimalComponentContainerPlaceInfo(compName string, compRev Revision, snapInstance string) ContainerPlaceInfo {
 	return &componentPlaceInfo{
 		compName:     compName,
 		compRevision: compRev,
 		snapInstance: snapInstance,
-		snapRevision: snapRev,
 	}
 }
 
@@ -108,10 +141,9 @@ func (c *componentPlaceInfo) Filename() string {
 
 // MountDir returns the directory where a component gets mounted, which
 // will be of the form:
-// /snaps/<snap_instance>/components/<snap_revision>/<component_name>
+// /snaps/<snap_instance>/components/mnt/<component_name>/<component_revision>
 func (c *componentPlaceInfo) MountDir() string {
-	return filepath.Join(BaseDir(c.snapInstance), "components",
-		c.snapRevision.String(), c.compName)
+	return ComponentMountDir(c.compName, c.compRevision, c.snapInstance)
 }
 
 // MountFile returns the path of the file to be mounted for a component,
@@ -126,14 +158,141 @@ func (c *componentPlaceInfo) MountDescription() string {
 	return fmt.Sprintf("Mount unit for %s, revision %s", c.ContainerName(), c.compRevision)
 }
 
-// ReadComponentInfoFromContainer reads ComponentInfo from a snap component container.
-func ReadComponentInfoFromContainer(compf Container) (*ComponentInfo, error) {
+// ComponentLinkPath returns the path for the symlink for a component for a
+// given snap revision. Note that this function only uses the ContainerName
+// method on the ContainerPlaceInfo. If that changes, callers of this function
+// may need to change how the parameters are initialized.
+func ComponentLinkPath(cpi ContainerPlaceInfo, snapRev Revision) string {
+	instanceName, compName, _ := strings.Cut(cpi.ContainerName(), "+")
+	compBase := ComponentsBaseDir(instanceName)
+	return filepath.Join(compBase, snapRev.String(), compName)
+}
+
+// ComponentInstallDate returns the "install date" of the component by checking
+// when its symlink was created. We cannot use the mount directory as lstat
+// returns the date of the root of the container instead of the date when the
+// mount directory was created.
+func ComponentInstallDate(cpi ContainerPlaceInfo, snapRev Revision) *time.Time {
+	symLn := ComponentLinkPath(cpi, snapRev)
+	if st, err := os.Lstat(symLn); err == nil {
+		modTime := st.ModTime()
+		return &modTime
+	}
+	return nil
+}
+
+// ComponentSize returns the file size of a component.
+func ComponentSize(cpi ContainerPlaceInfo) (int64, error) {
+	st, err := os.Lstat(cpi.MountFile())
+	if err != nil {
+		return 0, fmt.Errorf("error while looking for component file %q: %v",
+			cpi.MountFile(), err)
+	}
+	if !st.Mode().IsRegular() {
+		return 0, fmt.Errorf("unexpected file type for component file %q", cpi.MountFile())
+	}
+	return st.Size(), nil
+}
+
+// ReadComponentInfoFromContainer reads ComponentInfo from a snap component
+// container. If snapInfo is not nil, it is used to complete the ComponentInfo
+// information about the component's implicit and explicit hooks, and their
+// associated plugs. If snapInfo is not nil, consistency checks are performed to
+// ensure that the component is a component of the provided snap. Additionally,
+// an optional ComponentSideInfo can be passed to fill in the ComponentInfo's
+// ComponentSideInfo field.
+func ReadComponentInfoFromContainer(compf Container, snapInfo *Info, csi *ComponentSideInfo) (*ComponentInfo, error) {
 	yamlData, err := compf.ReadFile("meta/component.yaml")
 	if err != nil {
 		return nil, err
 	}
 
-	return InfoFromComponentYaml(yamlData)
+	componentInfo, err := InfoFromComponentYaml(yamlData)
+	if err != nil {
+		return nil, err
+	}
+
+	if csi != nil {
+		componentInfo.ComponentSideInfo = *csi
+	}
+
+	// if snapInfo is nil, then we can't complete the component info with
+	// implicit and explicit hooks, so we return the component info as is.
+	//
+	// we could technically create the hooks, but would be unable to bind plugs
+	// to them, so it is probably best to just leave them out.
+	if snapInfo == nil {
+		return componentInfo, nil
+	}
+
+	if snapInfo.SnapName() != componentInfo.Component.SnapName {
+		return nil, fmt.Errorf(
+			"component %q is not a component for snap %q", componentInfo.Component, snapInfo.SnapName())
+	}
+
+	componentName := componentInfo.Component.ComponentName
+
+	component, ok := snapInfo.Components[componentName]
+	if !ok {
+		return nil, fmt.Errorf("%q is not a component for snap %q", componentName, snapInfo.SnapName())
+	}
+
+	if component.Type != componentInfo.Type {
+		return nil, fmt.Errorf("inconsistent component type (%q in snap, %q in component)", component.Type, componentInfo.Type)
+	}
+
+	// attach the explicit hooks, these are defined in the snap.yaml. plugs are
+	// already bound to the hooks.
+	componentInfo.Hooks = component.ExplicitHooks
+
+	// attach the implicit hooks, these are not defined in the snap.yaml.
+	// unscoped plugs are bound to the implicit hooks here.
+	addAndBindImplicitComponentHooksFromContainer(compf, componentInfo, component, snapInfo)
+
+	return componentInfo, nil
+}
+
+func addAndBindImplicitComponentHooksFromContainer(compf Container, componentInfo *ComponentInfo, component *Component, info *Info) {
+	hooks, err := compf.ListDir("meta/hooks")
+	if err != nil {
+		return
+	}
+
+	for _, hook := range hooks {
+		addAndBindImplicitComponentHook(componentInfo, info, component, hook)
+	}
+}
+
+func addAndBindImplicitComponentHook(componentInfo *ComponentInfo, snapInfo *Info, component *Component, hook string) {
+	// don't overwrite a hook that has already been loaded from the snap.yaml
+	if _, ok := componentInfo.Hooks[hook]; ok {
+		return
+	}
+
+	// TODO: ignore unsupported implicit component hooks, or return an error?
+	if !IsComponentHookSupported(hook) {
+		logger.Noticef("ignoring unsupported implicit hook %q for component %q", componentInfo.Component, hook)
+		return
+	}
+
+	// implicit hooks get all unscoped plugs
+	unscopedPlugs := make(map[string]*PlugInfo)
+	for name, plug := range snapInfo.Plugs {
+		if plug.Unscoped {
+			unscopedPlugs[name] = plug
+		}
+	}
+
+	// TODO: if hooks ever get slots, then unscoped slots will need to be
+	// bound here
+
+	componentInfo.Hooks[hook] = &HookInfo{
+		Snap:      snapInfo,
+		Component: component,
+		Name:      hook,
+		Plugs:     unscopedPlugs,
+		Explicit:  false,
+	}
 }
 
 // InfoFromComponentYaml parses a ComponentInfo from the raw yaml data.
@@ -155,6 +314,12 @@ func InfoFromComponentYaml(compYaml []byte) (*ComponentInfo, error) {
 // by snap name and component name.
 func (ci *ComponentInfo) FullName() string {
 	return ci.Component.String()
+}
+
+// HooksForPlug returns the component hooks that are associated with the given
+// plug.
+func (ci *ComponentInfo) HooksForPlug(plug *PlugInfo) []*HookInfo {
+	return hooksForPlug(plug, ci.Hooks)
 }
 
 // Validate performs some basic validations on component.yaml values.
@@ -181,6 +346,9 @@ func (ci *ComponentInfo) validate() error {
 		return err
 	}
 	if err := ValidateDescription(ci.Description); err != nil {
+		return err
+	}
+	if err := validateProvenance(ci.ComponentProvenance); err != nil {
 		return err
 	}
 	return nil

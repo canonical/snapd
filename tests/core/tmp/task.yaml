@@ -1,5 +1,9 @@
 summary: Check that the tmp.size settings work
 
+details: |
+  Check that snapd allows to modify the size of /tmp through the 'tmp.size'
+  config. Verify also the unset of the config gets things back to defaults  
+
 environment:
   MOUNTCFG_FILE: /etc/systemd/system/tmp.mount.d/override.conf
 

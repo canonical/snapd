@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2023 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1066,6 +1066,65 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 	return nil
 }
 
+func (m *DeviceManager) ensureSerialBoundSystemUserAssertionsProcessed() error {
+	// in situations where a device serial can be anticipated, it is
+	// possible to create a serial-bound system-user assertion beforehand,
+	// this Ensure logic takes care of creating the corresponding user even
+	// if system-user gets presented to the device before the actual serial
+	// assertion is acquired, see the corresponding code setting the
+	// system-user-waiting-on-serial flag in createAllKnownSystemUsers
+	// (users.go).
+	if release.OnClassic {
+		return nil
+	}
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	var waitingOnSerial bool
+	err := m.state.Get("system-user-waiting-on-serial", &waitingOnSerial)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !waitingOnSerial {
+		return nil
+	}
+
+	var seeded bool
+	if err := m.state.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	// we should always have a model if we are seeded and not on classic
+	model, err := m.Model()
+	if err != nil {
+		return err
+	}
+
+	serial, err := m.Serial()
+	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return nil
+		}
+		return err
+	}
+
+	db := assertstate.DB(m.state)
+
+	const sudoer = true
+	_, err = createAllKnownSystemUsers(m.state, db, model, serial, sudoer)
+	if err != nil {
+		return err
+	}
+
+	m.state.Set("system-user-waiting-on-serial", false)
+
+	return nil
+}
+
 func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -1770,6 +1829,10 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if err := m.ensurePostFactoryReset(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureSerialBoundSystemUserAssertionsProcessed(); err != nil {
 			errs = append(errs, err)
 		}
 

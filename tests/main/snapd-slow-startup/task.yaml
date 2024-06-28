@@ -1,5 +1,13 @@
 summary: Test that snapd is not terminated by systemd on a slow startup
 
+details: |
+    This test checks that snapd is not terminated by systemd when it takes
+    longer to start than the default timeout. The test simulates a slow startup
+    by telling snapd to wait during startup (via SNAPD_SLOW_STARTUP) and a
+    setting a systemd timeout that is shorter than the expected startup time.
+    Internally, snapd will calculate the expected startup time based on the
+    number of snaps and adjust systemd's timeout to match it.
+
 systems: [ubuntu-18.04-64]
 
 restore: |

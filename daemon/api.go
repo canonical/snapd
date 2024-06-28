@@ -27,10 +27,10 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/snapcore/snapd/overlord/aspectstate"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
@@ -82,7 +82,7 @@ var api = []*Command{
 	systemRecoveryKeysCmd,
 	quotaGroupsCmd,
 	quotaGroupInfoCmd,
-	aspectsCmd,
+	registryCmd,
 	noticesCmd,
 	noticeCmd,
 }
@@ -162,8 +162,8 @@ var (
 	assertstateRefreshSnapAssertions         = assertstate.RefreshSnapAssertions
 	assertstateRestoreValidationSetsTracking = assertstate.RestoreValidationSetsTracking
 
-	aspectstateGetAspect = aspectstate.GetAspect
-	aspectstateSetAspect = aspectstate.SetAspect
+	registrystateGetViaView = registrystate.GetViaView
+	registrystateSetViaView = registrystate.SetViaView
 )
 
 func ensureStateSoonImpl(st *state.State) {

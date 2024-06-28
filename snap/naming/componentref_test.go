@@ -20,6 +20,8 @@
 package naming_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
@@ -53,4 +55,33 @@ func (s *componentRefSuite) TestUnmarshal(c *C) {
 
 	yamlData = []byte(`mysnap`)
 	c.Check(yaml.UnmarshalStrict(yamlData, &cr).Error(), Equals, `incorrect component name "mysnap"`)
+}
+
+func (s *componentRefSuite) TestSplitFullComponentNameOk(c *C) {
+	for _, tc := range []naming.ComponentRef{
+		naming.NewComponentRef("foo", "foo-comp"),
+		naming.NewComponentRef("a-b_c", "d_j-p"),
+		naming.NewComponentRef("_", "c"),
+	} {
+		snap, comp, err := naming.SplitFullComponentName(tc.String())
+		c.Logf("testing %q", tc)
+		c.Assert(err, IsNil)
+		c.Check(snap, Equals, tc.SnapName)
+		c.Check(comp, Equals, tc.ComponentName)
+	}
+}
+
+func (s *componentRefSuite) TestSplitFullComponentNameErr(c *C) {
+	for _, tc := range []string{
+		"blah",
+		"snap++comp",
+		"ff-rb",
+	} {
+		c.Logf("testing %q", tc)
+		snap, comp, err := naming.SplitFullComponentName(tc)
+		c.Assert(err, NotNil)
+		c.Assert(err.Error(), Equals, fmt.Sprintf("incorrect component name %q", tc))
+		c.Check(snap, Equals, "")
+		c.Check(comp, Equals, "")
+	}
 }

@@ -1,5 +1,12 @@
 summary: D-Bus session services support activation without a user instance of systemd
 
+details: |
+    Verify that snaps that consume the D-Bus session bus can be activated
+    without a user instance of systemd running (the session bus is started
+    manually). This is tested by creating a private D-Bus session, installing a
+    snap that provides an activatable D-Bus service, and verifying that the
+    service is activated when a method call is made.
+
 prepare: |
     snap set system experimental.user-daemons=true
 

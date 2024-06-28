@@ -148,6 +148,9 @@ static void sc_must_read_filter_from_file(FILE *file, uint32_t len_bytes,
 		die("%s filter may only be empty in unrestricted profiles",
 		    what);
 	}
+	if (len_bytes > MAX_BPF_SIZE) {
+		die("%s filter size too big %u", what, len_bytes);
+	}
 	prog->len = len_bytes / sizeof(struct sock_filter);
 	prog->filter = malloc(len_bytes);
 	if (prog->filter == NULL) {
@@ -279,23 +282,4 @@ bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
 	sc_apply_seccomp_filter(&prog_allow);
 
 	return true;
-}
-
-void sc_apply_global_seccomp_profile(void)
-{
-	const char *profile_path = "/var/lib/snapd/seccomp/bpf/global.bin";
-	/* The profile may be absent. */
-	if (access(profile_path, F_OK) != 0) {
-		return;
-	}
-	// TODO: move over to open/openat as an additional hardening measure.
-	validate_bpfpath_is_safe(profile_path);
-
-	char bpf[MAX_BPF_SIZE + 1] = { 0 };
-	size_t num_read = sc_read_seccomp_filter(profile_path, bpf, sizeof bpf);
-	struct sock_fprog prog = {
-		.len = num_read / sizeof(struct sock_filter),
-		.filter = (struct sock_filter *)bpf,
-	};
-	sc_apply_seccomp_filter(&prog);
 }

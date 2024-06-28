@@ -1,5 +1,15 @@
 summary: verify that python3 works in 18.04
 
+details: |
+    Snapd apparmor template contains logic that describes which of the files
+    present in the base snap may be accessed. That list was briefly out-of-date
+    when a transition to Python 3.9 to Python 3.10 meant that the rule would no
+    longer match the double-digit version number that was visible in some
+    directories.
+
+    The test ensures that a snap based on Python 3.10 can start the Python
+    interpreter and import the ssl module.
+
 systems: [ubuntu-18.04-64]
 
 execute: |

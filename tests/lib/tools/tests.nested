@@ -5,7 +5,7 @@ show_help() {
     echo "       restore"
     echo "       build-image IMAGE-TYPE"
     echo "       create-vm IMAGE-TYPE [--param-cdrom PARAM] [--param-cpus PARAM] [--param-mem PARAM]"
-    echo "       is-nested [core|classic|uc16|uc18|uc20|uc22]"
+    echo "       is-nested [core|classic|uc16|uc18|uc20|uc22|uc24]"
     echo "       show [ATTRIBUTE]"
     echo "       vm <ACTION>"
     echo "       get <ARTIFACT>"
@@ -190,6 +190,9 @@ is_nested() {
                 ;;
             uc22)
                 nested_is_core_22_system
+                ;;
+            uc24)
+                nested_is_core_24_system
                 ;;
             *)
                 echo "tests.nested: parameter not supported: $1" >&2
@@ -423,6 +426,8 @@ nested_system() {
         echo ubuntu-core-20-64
     elif os.query is-ubuntu 22.04; then
         echo ubuntu-core-22-64
+    elif os.query is-ubuntu 24.04; then
+        echo ubuntu-core-24-64
     else
         echo "unsupported nested system"
         exit 1

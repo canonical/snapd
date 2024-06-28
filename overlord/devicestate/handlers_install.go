@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021-2022 Canonical Ltd
+ * Copyright (C) 2021-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -273,16 +273,32 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	var installedSystem *install.InstalledSystemSideData
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
+	kSnapInfo := &install.KernelSnapInfo{
+		Name:       kernelInfo.SnapName(),
+		MountPoint: kernelDir,
+		Revision:   kernelInfo.Revision,
+		IsCore:     !deviceCtx.Classic(),
+	}
+	if snapstate.NeedsKernelSetup(deviceCtx.Model()) {
+		kSnapInfo.NeedsDriversTree = true
+	}
 	timings.Run(perfTimings, "install-run", "Install the run system", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		installedSystem, err = installRun(model, gadgetDir, kernelDir, "", bopts, installObserver, tm)
+		installedSystem, err = installRun(model, gadgetDir, kSnapInfo, "", bopts, installObserver, tm)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot install system: %v", err)
 	}
 
 	if trustedInstallObserver != nil {
+		// We are required to call ObserveExistingTrustedRecoveryAssets on trusted observers
+		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
+			return fmt.Errorf("cannot observe existing trusted recovery assets: %v", err)
+		}
+	}
+
+	if useEncryption {
 		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.KeyForRole, trustedInstallObserver); err != nil {
 			return err
 		}
@@ -518,7 +534,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
 
-	var trustedInstallObserver *boot.TrustedAssetsInstallObserver
+	var trustedInstallObserver boot.TrustedAssetsInstallObserver
 	// get a nice nil interface by default
 	var installObserver gadget.ContentObserver
 	trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(model, gadgetDir, useEncryption)
@@ -537,10 +553,19 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	var installedSystem *install.InstalledSystemSideData
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
+	kSnapInfo := &install.KernelSnapInfo{
+		Name:       kernelInfo.SnapName(),
+		MountPoint: kernelDir,
+		Revision:   kernelInfo.Revision,
+		IsCore:     !deviceCtx.Classic(),
+	}
+	if snapstate.NeedsKernelSetup(deviceCtx.Model()) {
+		kSnapInfo.NeedsDriversTree = true
+	}
 	timings.Run(perfTimings, "factory-reset", "Factory reset", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		installedSystem, err = installFactoryReset(model, gadgetDir, kernelDir, "", bopts, installObserver, tm)
+		installedSystem, err = installFactoryReset(model, gadgetDir, kSnapInfo, "", bopts, installObserver, tm)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot perform factory reset: %v", err)
@@ -548,6 +573,13 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	logger.Noticef("devs: %+v", installedSystem.DeviceForRole)
 
 	if trustedInstallObserver != nil {
+		// We are required to call ObserveExistingTrustedRecoveryAssets on trusted observers
+		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
+			return fmt.Errorf("cannot observe existing trusted recovery assets: %v", err)
+		}
+	}
+
+	if useEncryption {
 		// at this point we removed boot and data. sealed fallback key
 		// for ubuntu-data is becoming useless
 		err := os.Remove(device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
@@ -988,18 +1020,34 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	if useEncryption {
 		encType = secboot.EncryptionTypeLUKS
 	}
+	kernMntPoint := mntPtForType[snap.TypeKernel]
 	allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(mergedVols,
-		mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel],
+		mntPtForType[snap.TypeGadget], kernMntPoint,
 		encType, volToGadgetToDiskStruct)
 	if err != nil {
 		return fmt.Errorf("on finish install: cannot layout volumes: %v", err)
 	}
 
+	snapInfos := systemAndSnaps.InfosByType
+	snapSeeds := systemAndSnaps.SeedSnapsByType
+	kernInfo := snapInfos[snap.TypeKernel]
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return fmt.Errorf("cannot get device context: %v", err)
+	}
+
 	logger.Debugf("writing content to partitions")
+	kSnapInfo := &install.KernelSnapInfo{
+		Name:             kernInfo.SnapName(),
+		Revision:         kernInfo.Revision,
+		MountPoint:       kernMntPoint,
+		IsCore:           !deviceCtx.Classic(),
+		NeedsDriversTree: snapstate.NeedsKernelSetup(systemAndSnaps.Model),
+	}
 	timings.Run(perfTimings, "install-content", "Writing content to partitions", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		_, err = installWriteContent(mergedVols, allLaidOutVols, encryptSetupData, installObserver, perfTimings)
+		_, err = installWriteContent(mergedVols, allLaidOutVols, encryptSetupData, kSnapInfo, installObserver, perfTimings)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot write content: %v", err)
@@ -1028,6 +1076,13 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	if trustedInstallObserver != nil {
+		// We are required to call ObserveExistingTrustedRecoveryAssets on trusted observers
+		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
+			return fmt.Errorf("cannot observe existing trusted recovery assets: %v", err)
+		}
+	}
+
 	if useEncryption {
 		if trustedInstallObserver != nil {
 			if err := installLogic.PrepareEncryptedSystemData(systemAndSnaps.Model, install.KeysForRole(encryptSetupData), trustedInstallObserver); err != nil {
@@ -1035,9 +1090,6 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 			}
 		}
 	}
-
-	snapInfos := systemAndSnaps.InfosByType
-	snapSeeds := systemAndSnaps.SeedSnapsByType
 
 	bootWith := &boot.BootableSet{
 		Base:              snapInfos[snap.TypeBase],

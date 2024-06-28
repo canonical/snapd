@@ -1,5 +1,11 @@
 summary: Check that snap disconnect works
 
+details: |
+    This test verifies multiple ways to invoke "snap disconnect". It
+    can disconnect specific connections, or all connections to a plug,
+    or a slot. Forgetting connection should be correctly saved. Both
+    connections to snapd and other snaps can be disconnected.
+
 environment:
     SNAP_FILE: "home-consumer_1.0_all.snap"
 

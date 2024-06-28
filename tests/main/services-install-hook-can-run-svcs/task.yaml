@@ -1,5 +1,14 @@
 summary: Check that install hooks in snaps can start services
 
+details: |
+    Snapd hooks are programs that run in response to certain actions. 
+    The install hook is executed before starting snap services (if it has any) and
+    before the configure hook. The install hook is the place for one-time actions,
+    such as an early initialisation of a resource when installed for the first time.
+
+    This test verifies that the install hook can interact with (start and stop)
+    a snap service.
+
 environment:
   FLAGS/enableflag: --enable
   FLAGS/noflag: ""

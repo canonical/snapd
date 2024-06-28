@@ -4,7 +4,7 @@ details: |
   This will happen on UC20 and we need to make sure that it will
   continue to boot.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
   NESTED_ENABLE_SECURE_BOOT: true

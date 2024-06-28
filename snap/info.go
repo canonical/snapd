@@ -184,6 +184,13 @@ func MountDir(name string, revision Revision) string {
 	return filepath.Join(BaseDir(name), revision.String())
 }
 
+// ComponentMountDir returns the directory where a component gets mounted, which
+// will be of the form:
+// /snaps/<snap_instance>/components/mnt/<component_name>/<component_revision>
+func ComponentMountDir(componentName string, compRevision Revision, snapInstance string) string {
+	return filepath.Join(ComponentsBaseDir(snapInstance), "mnt", componentName, compRevision.String())
+}
+
 // MountFile returns the path where the snap file that is mounted is installed,
 // using the default blob directory (dirs.SnapBlobDir).
 func MountFile(name string, revision Revision) string {
@@ -209,6 +216,11 @@ func SecurityTag(snapName string) string {
 // AppSecurityTag returns the application-specific security tag.
 func AppSecurityTag(snapName, appName string) string {
 	return fmt.Sprintf("%s.%s", SecurityTag(snapName), appName)
+}
+
+// ComponentSecurityTag returns a snap component's hook-specific security tag.
+func ComponentHookSecurityTag(snapInstance, componentName, hookName string) string {
+	return ScopedSecurityTag(fmt.Sprintf("%s+%s", snapInstance, componentName), "hook", hookName)
 }
 
 // HookSecurityTag returns the hook-specific security tag.
@@ -250,6 +262,13 @@ func CommonDataDir(name string) string {
 // name. The name can be either a snap name or snap instance name.
 func HooksDir(name string, revision Revision) string {
 	return filepath.Join(MountDir(name, revision), "meta", "hooks")
+}
+
+// ComponentHooksDir returns the directory containing the component's hooks for
+// the given component hook name. The provided snap name can be either a snap
+// name or snap instance name.
+func ComponentHooksDir(componentName string, compRevision Revision, snapInstance string) string {
+	return filepath.Join(ComponentMountDir(componentName, compRevision, snapInstance), "meta", "hooks")
 }
 
 func snapDataDir(opts *dirs.SnapDirOptions) string {
@@ -832,22 +851,26 @@ func (s *Info) AppsForSlot(slot *SlotInfo) []*AppInfo {
 // HooksForPlug returns the list of hooks that are associated with the given
 // plug. If the plug is unscoped, then all hooks are returned.
 func (s *Info) HooksForPlug(plug *PlugInfo) []*HookInfo {
+	return hooksForPlug(plug, s.Hooks)
+}
+
+func hooksForPlug(plug *PlugInfo, hooks map[string]*HookInfo) []*HookInfo {
 	if plug.Unscoped {
-		hooks := make([]*HookInfo, 0, len(s.Hooks))
-		for _, hook := range s.Hooks {
-			hooks = append(hooks, hook)
+		plugHooks := make([]*HookInfo, 0, len(hooks))
+		for _, hook := range hooks {
+			plugHooks = append(plugHooks, hook)
 		}
-		return hooks
+		return plugHooks
 	}
 
-	var hooks []*HookInfo
-	for _, hook := range s.Hooks {
+	var plugHooks []*HookInfo
+	for _, hook := range hooks {
 		if _, ok := hook.Plugs[plug.Name]; ok {
-			hooks = append(hooks, hook)
+			plugHooks = append(plugHooks, hook)
 		}
 	}
 
-	return hooks
+	return plugHooks
 }
 
 // HooksForSlot returns the list of hooks that are associated with the given
@@ -1131,6 +1154,18 @@ func (st StopModeType) Validate() error {
 	return fmt.Errorf(`"stop-mode" field contains invalid value %q`, st)
 }
 
+// Runnable represents a runnable element of a snap. This could either be an
+// app, a hook, or a component hook.
+type Runnable struct {
+	// CommandName is the name of the command that is run when this runnable
+	// runs.
+	CommandName string
+	// SecurityTag is the security tag associated with the runnable. Security
+	// tags are used by various security subsystems as "profile names" and
+	// sometimes also as a part of the file name.
+	SecurityTag string
+}
+
 // AppInfo provides information about an app.
 type AppInfo struct {
 	Snap *Info
@@ -1178,6 +1213,14 @@ type AppInfo struct {
 	Autostart string
 }
 
+// Runnable returns a Runnable for this app.
+func (app *AppInfo) Runnable() Runnable {
+	return Runnable{
+		CommandName: app.Name,
+		SecurityTag: app.SecurityTag(),
+	}
+}
+
 // ScreenshotInfo provides information about a screenshot.
 type ScreenshotInfo struct {
 	URL    string `json:"url,omitempty"`
@@ -1219,6 +1262,22 @@ type HookInfo struct {
 	CommandChain []string
 
 	Explicit bool
+}
+
+// Runnable returns a Runnable for this hook. If this hook points to a
+// component, then this runnable will represent a component hook.
+func (hook *HookInfo) Runnable() Runnable {
+	if hook.Component == nil {
+		return Runnable{
+			CommandName: fmt.Sprintf("hook.%s", hook.Name),
+			SecurityTag: hook.SecurityTag(),
+		}
+	}
+
+	return Runnable{
+		CommandName: fmt.Sprintf("%s+%s.hook.%s", hook.Snap.SnapName(), hook.Component.Name, hook.Name),
+		SecurityTag: hook.SecurityTag(),
+	}
 }
 
 // SystemUsernameInfo provides information about a system username (ie, a
@@ -1361,6 +1420,12 @@ func (app *AppInfo) EnvChain() []osutil.ExpandableEnv {
 // Security tags are used by various security subsystems as "profile names" and
 // sometimes also as a part of the file name.
 func (hook *HookInfo) SecurityTag() string {
+	if hook.Component != nil {
+		return HookSecurityTag(SnapComponentName(
+			hook.Snap.InstanceName(),
+			hook.Component.Name,
+		), hook.Name)
+	}
 	return HookSecurityTag(hook.Snap.InstanceName(), hook.Name)
 }
 
@@ -1520,6 +1585,41 @@ func ReadCurrentInfo(snapName string) (*Info, error) {
 	return ReadInfo(snapName, &SideInfo{Revision: revision})
 }
 
+// NewContainerFromDir creates a new Container from the given directory.
+// Generally, the implementation of this function is set by the snapdir package.
+var NewContainerFromDir func(snapName string) Container = func(snapName string) Container {
+	panic("internal error: snap.NewContainerFromDir function unset")
+}
+
+// ReadCurrentComponentInfo reads the ComponentInfo for the currently linked
+// revision of the given component associated with the given snap.
+func ReadCurrentComponentInfo(component string, info *Info) (*ComponentInfo, error) {
+	// TODO: creating this here is a bit of a hack, since we aren't actually
+	// able to set the revision of the component. we create it so that we can
+	// use ComponentLinkPath, which doesn't use the revision.
+	cpi := MinimalComponentContainerPlaceInfo(component, Revision{}, info.InstanceName())
+	link := ComponentLinkPath(cpi, info.Revision)
+
+	linkSource, err := os.Readlink(link)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find current component %q for snap %q", component, info.InstanceName())
+	}
+
+	rev := filepath.Base(linkSource)
+
+	revision, err := ParseRevision(rev)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse current revision for component %q: %s", component, err)
+	}
+
+	container := NewContainerFromDir(link)
+
+	return ReadComponentInfoFromContainer(container, info, &ComponentSideInfo{
+		Revision:  revision,
+		Component: naming.NewComponentRef(info.SnapName(), component),
+	})
+}
+
 // ReadInfoFromSnapFile reads the snap information from the given Container and
 // completes it with the given side-info if this is not nil.
 func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
@@ -1605,6 +1705,20 @@ func SplitInstanceName(instanceName string) (snapName, instanceKey string) {
 		instanceKey = split[1]
 	}
 	return snapName, instanceKey
+}
+
+// SplitSnapComponentInstanceName extracts the snap component name from
+// a snap component instance name. Example:
+//   - SplitSnapComponentInstanceName("snap+component_1") -> "snap_1", "component"
+func SplitSnapComponentInstanceName(name string) (snapInstance, componentName string) {
+	snapInstance, componentName, _ = strings.Cut(name, "+")
+	return snapInstance, componentName
+}
+
+// SnapComponentName takes a snap instance name and a component name and returns
+// a snap component name.
+func SnapComponentName(snapInstance, componentName string) string {
+	return fmt.Sprintf("%s+%s", snapInstance, componentName)
 }
 
 // InstanceName takes the snap name and the instance key and returns an instance

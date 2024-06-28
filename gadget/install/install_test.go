@@ -68,11 +68,11 @@ func (s *installSuite) SetUpTest(c *C) {
 }
 
 func (s *installSuite) TestInstallRunError(c *C) {
-	sys, err := install.Run(nil, "", "", "", install.Options{}, nil, timings.New(nil))
+	sys, err := install.Run(nil, "", &install.KernelSnapInfo{}, "", install.Options{}, nil, timings.New(nil))
 	c.Assert(err, ErrorMatches, "cannot use empty gadget root directory")
 	c.Check(sys, IsNil)
 
-	sys, err = install.Run(&gadgettest.ModelCharacteristics{}, c.MkDir(), "", "", install.Options{}, nil, timings.New(nil))
+	sys, err = install.Run(&gadgettest.ModelCharacteristics{}, c.MkDir(), &install.KernelSnapInfo{}, "", install.Options{}, nil, timings.New(nil))
 	c.Assert(err, ErrorMatches, `cannot run install mode on pre-UC20 system`)
 	c.Check(sys, IsNil)
 }
@@ -370,7 +370,7 @@ fi
 	if opts.encryption {
 		runOpts.EncryptionType = secboot.EncryptionTypeLUKS
 	}
-	sys, err := install.Run(uc20Mod, gadgetRoot, "", "", runOpts, nil, timings.New(nil))
+	sys, err := install.Run(uc20Mod, gadgetRoot, &install.KernelSnapInfo{}, "", runOpts, nil, timings.New(nil))
 	c.Assert(err, IsNil)
 	if opts.encryption {
 		c.Check(sys, Not(IsNil))
@@ -776,7 +776,7 @@ fi
 	if opts.encryption {
 		runOpts.EncryptionType = secboot.EncryptionTypeLUKS
 	}
-	sys, err := install.FactoryReset(uc20Mod, gadgetRoot, "", "", runOpts, nil, timings.New(nil))
+	sys, err := install.FactoryReset(uc20Mod, gadgetRoot, &install.KernelSnapInfo{}, "", runOpts, nil, timings.New(nil))
 	if opts.err != "" {
 		c.Check(sys, IsNil)
 		c.Check(err, ErrorMatches, opts.err)
@@ -1028,7 +1028,7 @@ func (s *installSuite) testWriteContent(c *C, opts writeContentOpts) {
 		}
 		esd = install.MockEncryptionSetupData(labelToEncData)
 	}
-	onDiskVols, err := install.WriteContent(ginfo.Volumes, allLaidOutVols, esd, nil, timings.New(nil))
+	onDiskVols, err := install.WriteContent(ginfo.Volumes, allLaidOutVols, esd, nil, nil, timings.New(nil))
 	c.Assert(err, IsNil)
 	c.Assert(len(onDiskVols), Equals, 1)
 
@@ -1067,7 +1067,7 @@ func (s *installSuite) TestInstallWriteContentDeviceNotFound(c *C) {
 			},
 		},
 	}
-	onDiskVols, err := install.WriteContent(vols, nil, nil, nil, timings.New(nil))
+	onDiskVols, err := install.WriteContent(vols, nil, nil, nil, nil, timings.New(nil))
 	c.Check(err.Error(), testutil.Contains, "readlink /sys/class/block/randomdev: no such file or directory")
 	c.Check(onDiskVols, IsNil)
 }

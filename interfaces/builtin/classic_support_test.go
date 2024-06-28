@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -47,20 +46,21 @@ apps:
   plugs: [classic-support]
 `
 
+const classicSupportMockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ classic-support:
+  interface: classic-support
+`
+
 var _ = Suite(&ClassicSupportInterfaceSuite{
 	iface: builtin.MustInterface("classic-support"),
 })
 
 func (s *ClassicSupportInterfaceSuite) SetUpTest(c *C) {
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "classic-support",
-		Interface: "classic-support",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	plugSnap := snaptest.MockInfo(c, classicSupportMockPlugSnapInfoYaml, nil)
-	s.plugInfo = plugSnap.Plugs["classic-support"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.slot, s.slotInfo = MockConnectedSlot(c, classicSupportMockSlotSnapInfoYaml, nil, "classic-support")
+	s.plug, s.plugInfo = MockConnectedPlug(c, classicSupportMockPlugSnapInfoYaml, nil, "classic-support")
 }
 
 func (s *ClassicSupportInterfaceSuite) TestName(c *C) {
@@ -77,7 +77,7 @@ func (s *ClassicSupportInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *ClassicSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -86,7 +86,7 @@ func (s *ClassicSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Check(string(snippet), testutil.Contains, "/bin/systemctl Uxr,\n")
 
 	// connected plugs have a non-nil security snippet for seccomp
-	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	seccompSpec := seccomp.NewSpecification(s.plug.AppSet())
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})

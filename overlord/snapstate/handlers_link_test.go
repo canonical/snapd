@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -48,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
+	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 type linkSnapSuite struct {
@@ -489,6 +492,75 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithIgnoreRunning(c *C) {
 	}}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 	c.Check(called, Equals, true)
+}
+
+func (s *linkSnapSuite) TestDoUnlinkCurrentSnapSnapLockUnlocked(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Make sure refresh-app-awareness is enabled
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.refresh-app-awareness", true)
+	tr.Commit()
+
+	instant := time.Now()
+	pastInstant := instant.Add(-snapstate.MaxInhibitionDuration(s.state) * 2)
+	// Add test snap
+	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(42)}
+	snaptest.MockSnap(c, `name: pkg`, si)
+	snapstate.Set(s.state, "pkg", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		Active:   true,
+		// Pretend inhibition is overdue.
+		RefreshInhibitedTime: &pastInstant,
+	})
+
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(_ context.Context, pendingInfo *userclient.PendingSnapRefreshInfo) {})
+	defer restore()
+
+	var appCheckCalled int
+	restore = snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+		appCheckCalled++
+		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
+	})
+	defer restore()
+
+	restore = snapstate.MockOnRefreshInhibitionTimeout(func(chg *state.Change, snapName string) error {
+		return fmt.Errorf("boom!")
+	})
+	defer restore()
+
+	task := s.state.NewTask("unlink-current-snap", "")
+	task.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeApp,
+		Flags:    snapstate.Flags{IsAutoRefresh: true},
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(task)
+
+	// Run the task we created
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	// And observe the results.
+	c.Check(task.Status(), Equals, state.ErrorStatus)
+	expected := fakeOps{{
+		op:          "run-inhibit-snap-for-unlink",
+		name:        "pkg",
+		inhibitHint: "refresh",
+	}}
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+	c.Check(appCheckCalled, Equals, 1)
+
+	// snap lock should be unlocked
+	lock, err := osutil.NewFileLock(filepath.Join(s.fakeBackend.lockDir, "pkg.lock"))
+	c.Assert(err, IsNil)
+	defer lock.Close()
+	c.Assert(lock.TryLock(), IsNil)
 }
 
 func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapWithVitalityScore(c *C) {

@@ -1,5 +1,11 @@
 summary: Test that the snap vitality score works
 
+details: |
+    Snapd offers a system to influence the out-of-memory behavior for snap
+    applications, that prefers to sacrifice a particular memory-hungry process
+    over another. The test sets up the so-called vitality hint, and observes how
+    the setting is carried over to the corresponding systemd setting.
+
 execute: |
     echo "On install of a service the oom score is 0"
     snap install test-snapd-go-webserver
@@ -12,7 +18,7 @@ execute: |
 
     echo "then the oom score is set to 899"
     systemctl show snap.test-snapd-go-webserver.webserver.service |MATCH "OOMScoreAdjust=-899"
-    snap remove test-snapd-go-webserver    
+    snap remove test-snapd-go-webserver
 
     echo "When installing a snap without vitality-hint set"
     snap unset core resilience.vitality-hint

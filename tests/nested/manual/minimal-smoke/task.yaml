@@ -5,7 +5,7 @@ details: |
     minimal memory requirements. The memory requirement varies depending on the
     ubuntu core version.
 
-systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-*]
 
 environment:
     NESTED_ENABLE_SECURE_BOOT/secboot_disabled: false
@@ -21,11 +21,12 @@ execute: |
 
     # Get the nested system to use
     NESTED_SPREAD_SYSTEM="$(tests.nested nested-system)"
+    VERSION="$(tests.nested show version)"
 
     # see https://ubuntu.com/core/docs/system-requirements for ubuntu-core
     # minimum requirements by version
-    MINIMAL_MEM=256
-    if tests.nested is-nested uc20 || tests.nested is-nested uc22; then
+    MINIMAL_MEM=256    
+    if [ "$VERSION" -ge 20 ]; then
         MINIMAL_MEM=512
     fi
 

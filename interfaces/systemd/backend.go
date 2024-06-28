@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -39,7 +39,7 @@ func serviceName(snapName, distinctServiceSuffix string) string {
 	return snap.ScopedSecurityTag(snapName, "interface", distinctServiceSuffix) + ".service"
 }
 
-// Backend is responsible for maintaining apparmor profiles for ubuntu-core-launcher.
+// Backend is responsible for maintaining special systemd units.
 type Backend struct {
 	preseed bool
 }
@@ -61,11 +61,11 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Setup(appSet *interfaces.SnapAppSet, confinement interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	// Record all the extra systemd services for this snap.
 	snapName := appSet.InstanceName()
 	// Get the services that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), appSet)
+	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
 		return fmt.Errorf("cannot obtain systemd services for snap %q: %s", snapName, err)
 	}
@@ -155,7 +155,7 @@ func (b *Backend) Remove(snapName string) error {
 }
 
 // NewSpecification returns a new systemd specification.
-func (b *Backend) NewSpecification(*interfaces.SnapAppSet) interfaces.Specification {
+func (b *Backend) NewSpecification(*interfaces.SnapAppSet, interfaces.ConfinementOptions) interfaces.Specification {
 	return &Specification{}
 }
 

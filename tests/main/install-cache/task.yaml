@@ -1,5 +1,9 @@
 summary: Check that download caching works
 
+details: |
+    Check that snap downloads are cached such that repeated installs don't
+    fetch the same snap from the store.
+
 environment:
     # on core systems, the test was seen to misbehave when memory limit is set
     SNAPD_NO_MEMORY_LIMIT: 1

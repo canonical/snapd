@@ -136,6 +136,30 @@ dbus (send)
     interface="org.gnome.Mutter.IdleMonitor"
     member="GetIdletime"
     peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow for color managed applications to communicate with colord
+dbus (receive, send)
+  bus=system
+  interface=org.freedesktop.ColorManager
+  path=/org/freedesktop/ColorManager
+  member=FindDeviceByProperty
+  peer=(label=unconfined),
+dbus (send)
+  bus=system
+  interface=org.freedesktop.DBus.Properties
+  path=/org/freedesktop/ColorManager
+  member="Get{,All}"
+  peer=(label=unconfined),
+dbus (send)
+  bus=system
+  interface=org.freedesktop.DBus.Properties
+  path="/org/freedesktop/ColorManager/{devices,profiles}/*"
+  member="Get{,All}"
+  peer=(label=unconfined),
+
+# Allow access to the ICC profiles in the home directory to
+# be referred to from colord
+owner @{HOME}/.local/share/icc r,
 `
 
 const desktopConnectedPlugAppArmorClassic = `
@@ -500,7 +524,7 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 		// provided by the OS snap and so will run unconfined
 		new = "unconfined"
 	} else {
-		new = spec.SnapAppSet().SlotLabelExpression(slot)
+		new = slot.LabelExpression()
 	}
 	snippet := strings.Replace(desktopConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)

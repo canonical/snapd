@@ -126,7 +126,7 @@ func (iface *avahiControlInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 		// with stock apparmor 2.13.2+ profiles the label is avahi-daemon
 		new = "\"{unconfined,/usr/sbin/avahi-daemon,avahi-daemon}\""
 	} else {
-		new = spec.SnapAppSet().SlotLabelExpression(slot)
+		new = slot.LabelExpression()
 	}
 	// avahi-control implies avahi-observe, so add snippets for both here
 	snippet := strings.Replace(avahiObserveConnectedPlugAppArmor, old, new, -1)
@@ -152,7 +152,7 @@ func (iface *avahiControlInterface) AppArmorConnectedSlot(spec *apparmor.Specifi
 	// on classic, slot side can be system or application
 	if !implicitSystemConnectedSlot(slot) {
 		old := "###PLUG_SECURITY_TAGS###"
-		new := spec.SnapAppSet().PlugLabelExpression(plug)
+		new := plug.LabelExpression()
 		// avahi-control implies avahi-observe, so add snippets for both here
 		snippet := strings.Replace(avahiObserveConnectedSlotAppArmor, old, new, -1)
 		spec.AddSnippet(snippet)

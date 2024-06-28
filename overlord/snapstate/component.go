@@ -49,30 +49,11 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		return nil, err
 	}
 
-	// Read ComponentInfo
-	compInfo, _, err := backend.OpenComponentFile(path)
+	// Read ComponentInfo and verify that the component is consistent with the
+	// data in the snap info
+	compInfo, _, err := backend.OpenComponentFile(path, info, csi)
 	if err != nil {
 		return nil, err
-	}
-
-	// Check snap name matches
-	if compInfo.Component.SnapName != info.SnapName() {
-		return nil, fmt.Errorf(
-			"component snap name %q does not match snap name %q",
-			compInfo.Component.SnapName, info.RealName)
-	}
-
-	// Check that the component is specified in snap metadata
-	comp, ok := info.Components[csi.Component.ComponentName]
-	if !ok {
-		return nil, fmt.Errorf("%q is not a component for snap %q",
-			csi.Component.ComponentName, info.RealName)
-	}
-	// and that types in snap and component match
-	if comp.Type != compInfo.Type {
-		return nil,
-			fmt.Errorf("inconsistent component type (%q in snap, %q in component)",
-				comp.Type, compInfo.Type)
 	}
 
 	snapsup := &SnapSetup{
@@ -90,15 +71,21 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		CompType:     compInfo.Type,
 		CompPath:     path,
 	}
-	// The file passed around is temporary, make sure it gets removed.
-	// TODO probably this should be part of a flags type in the future.
-	removeComponentPath := true
-	return doInstallComponent(st, &snapst, compSetup, snapsup, path, removeComponentPath, "")
+
+	return doInstallComponent(st, &snapst, compSetup, snapsup, componentInstallFlags{
+		// The file passed around is temporary, make sure it gets removed.
+		RemoveComponentPath: true,
+	}, "")
+}
+
+type componentInstallFlags struct {
+	RemoveComponentPath bool
+	SkipProfiles        bool
 }
 
 // doInstallComponent might be called with the owner snap installed or not.
 func doInstallComponent(st *state.State, snapst *SnapState, compSetup *ComponentSetup,
-	snapsup *SnapSetup, path string, removeComponentPath bool, fromChange string) (*state.TaskSet, error) {
+	snapsup *SnapSetup, flags componentInstallFlags, fromChange string) (*state.TaskSet, error) {
 
 	// TODO check for experimental flag that will hide temporarily components
 
@@ -119,24 +106,23 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 
 	// Check if we already have the revision in the snaps folder (alters tasks).
 	// Note that this will search for all snap revisions in the system.
-	revisionIsPresent := snapst.IsComponentRevPresent(compSi) == true
+	revisionIsPresent := snapst.IsComponentRevPresent(compSi)
 	revisionStr := fmt.Sprintf(" (%s)", compSi.Revision)
 
-	var prepare, prev *state.Task
+	fromStore := compSetup.CompPath == "" && !revisionIsPresent
+
+	var prepare *state.Task
 	// if we have a local revision here we go back to that
-	if path != "" || revisionIsPresent {
-		prepare = st.NewTask("prepare-component",
-			fmt.Sprintf(i18n.G("Prepare component %q%s"),
-				path, revisionStr))
+	if fromStore {
+		prepare = st.NewTask("download-component", fmt.Sprintf(i18n.G("Download component %q%s"), compSetup.ComponentName(), revisionStr))
 	} else {
-		// TODO implement download-component
-		return nil, fmt.Errorf("download-component not implemented yet")
+		prepare = st.NewTask("prepare-component", fmt.Sprintf(i18n.G("Prepare component %q%s"), compSetup.CompPath, revisionStr))
 	}
 	prepare.Set("component-setup", compSetup)
 	prepare.Set("snap-setup", snapsup)
 
 	tasks := []*state.Task{prepare}
-	prev = prepare
+	prev := prepare
 
 	addTask := func(t *state.Task) {
 		t.Set("component-setup-task", prepare.ID())
@@ -146,8 +132,12 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 		prev = t
 	}
 
-	// TODO task to fetch and check assertions for component if from store
-	// (equivalent to "validate-snap")
+	if fromStore {
+		validate := st.NewTask("validate-component", fmt.Sprintf(
+			i18n.G("Fetch and check assertions for component %q%s"), compSetup.ComponentName(), revisionStr),
+		)
+		addTask(validate)
+	}
 
 	// Task that copies the file and creates mount units
 	if !revisionIsPresent {
@@ -156,13 +146,13 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 				compSi.Component, revisionStr))
 		addTask(mount)
 	} else {
-		if removeComponentPath {
+		if flags.RemoveComponentPath {
 			// If the revision is local, we will not need the
 			// temporary snap. This can happen when e.g.
 			// side-loading a local revision again. The path is
 			// only needed in the "mount-snap" handler and that is
 			// skipped for local revisions.
-			if err := os.Remove(path); err != nil {
+			if err := os.Remove(compSetup.CompPath); err != nil {
 				return nil, err
 			}
 		}
@@ -170,8 +160,14 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 
 	// TODO hooks for components
 
-	// We might be replacing a component if a local install, otherwise
-	// this is not really possible.
+	if compSetup.CompType == snap.KernelModulesComponent {
+		kmodSetup := st.NewTask("prepare-kernel-modules-components",
+			fmt.Sprintf(i18n.G("Prepare kernel-modules component %q%s"),
+				compSi.Component, revisionStr))
+		addTask(kmodSetup)
+	}
+
+	// We might be replacing a component
 	compInstalled := snapst.IsComponentInCurrentSeq(compSi.Component)
 	if compInstalled {
 		unlink := st.NewTask("unlink-current-component", fmt.Sprintf(i18n.G(
@@ -180,11 +176,28 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 		addTask(unlink)
 	}
 
+	// security
+	if !flags.SkipProfiles {
+		setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup component %q%s security profiles"), compSi.Component, revisionStr))
+		addTask(setupSecurity)
+	}
+
 	// finalize (sets SnapState)
 	linkSnap := st.NewTask("link-component",
 		fmt.Sprintf(i18n.G("Make component %q%s available to the system"),
 			compSi.Component, revisionStr))
 	addTask(linkSnap)
+
+	// clean-up previous revision of the component if present and
+	// not used in previous sequence points
+	if compInstalled &&
+		!snapst.IsCurrentComponentRevInAnyNonCurrentSeq(compSetup.CompSideInfo.Component) {
+
+		discardComp := st.NewTask("discard-component", fmt.Sprintf(i18n.G(
+			"Discard previous revision for component %q"),
+			compSi.Component))
+		addTask(discardComp)
+	}
 
 	installSet := state.NewTaskSet(tasks...)
 	installSet.MarkEdge(prepare, BeginEdge)

@@ -19,6 +19,7 @@
 package features_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -29,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -63,7 +65,7 @@ func (*featureSuite) TestName(c *C) {
 	check(features.GateAutoRefreshHook, "gate-auto-refresh-hook")
 	check(features.QuotaGroups, "quota-groups")
 	check(features.RefreshAppAwarenessUX, "refresh-app-awareness-ux")
-	check(features.AspectsConfiguration, "aspects-configuration")
+	check(features.Registries, "registries")
 	check(features.AppArmorPrompting, "apparmor-prompting")
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
@@ -105,10 +107,151 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.GateAutoRefreshHook, false)
 	check(features.QuotaGroups, false)
 	check(features.RefreshAppAwarenessUX, true)
-	check(features.AspectsConfiguration, true)
-	check(features.AppArmorPrompting, false)
+	check(features.Registries, true)
+	check(features.AppArmorPrompting, true)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
+}
+
+func (*featureSuite) TestQuotaGroupsSupportedCallback(c *C) {
+	callback, exists := features.FeaturesSupportedCallbacks[features.QuotaGroups]
+	c.Assert(exists, Equals, true)
+
+	restore1 := systemd.MockSystemdVersion(229, nil)
+	defer restore1()
+	supported, reason := callback()
+	c.Check(supported, Equals, false)
+	c.Check(reason, Matches, "systemd version 229 is too old.*")
+
+	restore2 := systemd.MockSystemdVersion(230, nil)
+	defer restore2()
+	supported, reason = callback()
+	c.Check(supported, Equals, true)
+	c.Check(reason, Equals, "")
+}
+
+func (*featureSuite) TestUserDaemonsSupportedCallback(c *C) {
+	callback, exists := features.FeaturesSupportedCallbacks[features.UserDaemons]
+	c.Assert(exists, Equals, true)
+
+	restore1 := features.MockReleaseSystemctlSupportsUserUnits(func() bool { return false })
+	defer restore1()
+	supported, reason := callback()
+	c.Check(supported, Equals, false)
+	c.Check(reason, Matches, "user session daemons are not supported.*")
+
+	restore2 := features.MockReleaseSystemctlSupportsUserUnits(func() bool { return true })
+	defer restore2()
+	supported, reason = callback()
+	c.Check(supported, Equals, true)
+	c.Check(reason, Equals, "")
+}
+
+func (*featureSuite) TestAppArmorPromptingSupportedCallback(c *C) {
+	callback, ok := features.FeaturesSupportedCallbacks[features.AppArmorPrompting]
+	c.Assert(ok, Equals, true)
+
+	for _, t := range []struct {
+		kernelFeatures []string
+		kernelError    error
+		parserFeatures []string
+		parserError    error
+		expectedReason string
+	}{
+		{
+			// Both unsupported
+			kernelFeatures: []string{"foo", "bar"},
+			kernelError:    nil,
+			parserFeatures: []string{"baz", "qux"},
+			parserError:    nil,
+			expectedReason: "apparmor kernel features do not support prompting",
+		},
+		{
+			// Kernel unsupported, parser supported
+			kernelFeatures: []string{"foo", "bar"},
+			kernelError:    nil,
+			parserFeatures: []string{"baz", "qux", "prompt"},
+			parserError:    nil,
+			expectedReason: "apparmor kernel features do not support prompting",
+		},
+		{
+			// Kernel supported, parser unsupported
+			kernelFeatures: []string{"foo", "bar", "policy:permstable32:prompt"},
+			kernelError:    nil,
+			parserFeatures: []string{"baz", "qux"},
+			parserError:    nil,
+			expectedReason: "apparmor parser does not support the prompt qualifier",
+		},
+		{
+			// Kernel error
+			kernelFeatures: []string{"foo", "bar", "policy:permstable32:prompt"},
+			kernelError:    fmt.Errorf("bad kernel"),
+			parserFeatures: []string{"baz", "qux", "prompt"},
+			parserError:    nil,
+			expectedReason: "cannot check apparmor kernel features: bad kernel",
+		},
+		{
+			// Parser error
+			kernelFeatures: []string{"foo", "bar", "policy:permstable32:prompt"},
+			kernelError:    nil,
+			parserFeatures: []string{"baz", "qux", "prompt"},
+			parserError:    fmt.Errorf("bad parser"),
+			expectedReason: "cannot check apparmor parser features: bad parser",
+		},
+	} {
+		restore := apparmor.MockFeatures(t.kernelFeatures, t.kernelError, t.parserFeatures, t.parserError)
+		supported, reason := callback()
+		c.Check(supported, Equals, false)
+		c.Check(reason, Equals, t.expectedReason)
+		restore()
+	}
+
+	// Both supported
+	kernelFeatures := []string{"foo", "bar", "policy:permstable32:prompt"}
+	parserFeatures := []string{"baz", "qux", "prompt"}
+	restore := apparmor.MockFeatures(kernelFeatures, nil, parserFeatures, nil)
+	defer restore()
+	supported, reason := callback()
+	//c.Check(supported, Equals, true)
+	//c.Check(reason, Equals, "")
+	// TODO: change once prompting is fully supported
+	c.Check(supported, Equals, false)
+	c.Check(reason, Equals, "requires newer version of snapd")
+}
+
+func (*featureSuite) TestIsSupported(c *C) {
+	fakeFeature := features.SnapdFeature(len(features.KnownFeatures()))
+
+	// Check that feature without callback always returns true
+	c.Check(fakeFeature.IsSupported(), Equals, true)
+
+	var fakeSupported bool
+	var fakeReason string
+	fakeCallback := func() (bool, string) {
+		return fakeSupported, fakeReason
+	}
+	features.FeaturesSupportedCallbacks[fakeFeature] = fakeCallback
+	defer func() {
+		delete(features.FeaturesSupportedCallbacks, fakeFeature)
+	}()
+
+	fakeSupported = true
+	fakeReason = ""
+	c.Check(fakeFeature.IsSupported(), Equals, true)
+
+	// Check that a non-empty reason is ignored
+	fakeSupported = true
+	fakeReason = "foo"
+	c.Check(fakeFeature.IsSupported(), Equals, true)
+
+	fakeSupported = false
+	fakeReason = "foo"
+	c.Check(fakeFeature.IsSupported(), Equals, false)
+
+	// Check that unsupported value does not require reason
+	fakeSupported = false
+	fakeReason = ""
+	c.Check(fakeFeature.IsSupported(), Equals, false)
 }
 
 func (*featureSuite) TestIsEnabled(c *C) {
@@ -155,7 +298,7 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	check(features.GateAutoRefreshHook, false)
 	check(features.QuotaGroups, false)
 	check(features.RefreshAppAwarenessUX, false)
-	check(features.AspectsConfiguration, false)
+	check(features.Registries, false)
 	check(features.AppArmorPrompting, false)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
@@ -169,9 +312,10 @@ func (*featureSuite) TestControlFile(c *C) {
 	c.Check(features.HiddenSnapDataHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/hidden-snap-folder")
 	c.Check(features.MoveSnapHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/move-snap-home-dir")
 	c.Check(features.RefreshAppAwarenessUX.ControlFile(), Equals, "/var/lib/snapd/features/refresh-app-awareness-ux")
+	c.Check(features.Registries.ControlFile(), Equals, "/var/lib/snapd/features/registries")
+	c.Check(features.AppArmorPrompting.ControlFile(), Equals, "/var/lib/snapd/features/apparmor-prompting")
 	// Features that are not exported don't have a control file.
 	c.Check(features.Layouts.ControlFile, PanicMatches, `cannot compute the control file of feature "layouts" because that feature is not exported`)
-	c.Check(features.AspectsConfiguration.ControlFile(), Equals, "/var/lib/snapd/features/aspects-configuration")
 }
 
 func (*featureSuite) TestConfigOptionLayouts(c *C) {

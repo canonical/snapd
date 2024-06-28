@@ -46,7 +46,11 @@ type (
 	ReRefreshSetup = reRefreshSetup
 
 	TooSoonError = tooSoonError
+
+	Target = target
 )
+
+var ComponentSetupTask = componentSetupTask
 
 const (
 	None         = none
@@ -68,7 +72,7 @@ func MockSnapReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, err
 	return func() { snapReadInfo = old }
 }
 
-func MockReadComponentInfo(mock func(compMntDir string) (*snap.ComponentInfo, error)) (restore func()) {
+func MockReadComponentInfo(mock func(compMntDir string, snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error)) (restore func()) {
 	old := readComponentInfo
 	readComponentInfo = mock
 	return func() { readComponentInfo = old }
@@ -137,6 +141,8 @@ var (
 	ArrangeSnapToWaitForBaseIfPresent    = arrangeSnapToWaitForBaseIfPresent
 	ArrangeSnapTaskSetsLinkageAndRestart = arrangeSnapTaskSetsLinkageAndRestart
 	ReRefreshSummary                     = reRefreshSummary
+
+	MaybeFindTasksetForSnap = maybeFindTasksetForSnap
 )
 
 const (
@@ -286,6 +292,14 @@ func MockHasActiveConnection(fn func(st *state.State, iface string) (bool, error
 	}
 }
 
+func MockOnRefreshInhibitionTimeout(fn func(chg *state.Change, snapName string) error) (restore func()) {
+	old := onRefreshInhibitionTimeout
+	onRefreshInhibitionTimeout = fn
+	return func() {
+		onRefreshInhibitionTimeout = old
+	}
+}
+
 // re-refresh related
 var (
 	RefreshedSnaps     = refreshedSnaps
@@ -391,8 +405,8 @@ var (
 // autorefresh
 var (
 	InhibitRefresh                       = inhibitRefresh
-	MaxInhibition                        = maxInhibition
 	MaxDuration                          = maxDuration
+	MaxInhibitionDuration                = maxInhibitionDuration
 	MaybeAddRefreshInhibitNotice         = maybeAddRefreshInhibitNotice
 	MaybeAsyncPendingRefreshNotification = maybeAsyncPendingRefreshNotification
 )
@@ -558,4 +572,34 @@ func SetRestoredMonitoring(snapmgr *SnapManager, value bool) {
 
 func SetPreseed(snapmgr *SnapManager, value bool) {
 	snapmgr.preseed = value
+}
+
+func SplitEssentialUpdates(deviceCtx DeviceContext, updates []minimalInstallInfo) (essential, nonEssential []MinimalInstallInfo) {
+	return splitEssentialUpdates(deviceCtx, updates)
+}
+
+func MockAffectedSnapsByAttr(value map[string]AffectedSnapsFunc) (restore func()) {
+	old := affectedSnapsByAttr
+	affectedSnapsByAttr = value
+	return func() {
+		affectedSnapsByAttr = old
+	}
+}
+
+func MockAffectedSnapsByKind(value map[string]AffectedSnapsFunc) (restore func()) {
+	old := affectedSnapsByKind
+	affectedSnapsByKind = value
+	return func() {
+		affectedSnapsByKind = old
+	}
+}
+
+// CustomInstallGoal allows us to define custom implementations of installGoal
+// to be used in tests.
+type CustomInstallGoal struct {
+	ToInstall func(context.Context, *state.State, Options) ([]Target, error)
+}
+
+func (c *CustomInstallGoal) toInstall(ctx context.Context, st *state.State, opts Options) ([]Target, error) {
+	return c.ToInstall(ctx, st, opts)
 }

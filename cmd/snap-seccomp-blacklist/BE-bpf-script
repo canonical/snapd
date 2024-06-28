@@ -1,3 +1,0 @@
-load bpf-blob BE-blacklist.bpf
-disassemble
-dump

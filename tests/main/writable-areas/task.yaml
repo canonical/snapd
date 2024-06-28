@@ -1,5 +1,11 @@
 summary: Check that snap apps and services can write to writable areas.
 
+details: |
+    The confinement system allows snap applications to write to four locations:
+    snap data specific to the current revision, snap data common across
+    revisions, snap user data specific to the current revision and lastly snap
+    user data common across revisions.
+
 environment:
     # Ensure that running purely from the deb (without re-exec) works
     # correctly
@@ -8,18 +14,40 @@ environment:
 
 prepare: |
     snap pack data-writer
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if [ "$SNAP_REEXEC" = "1" ] && [ "$SNAP_MOUNT_DIR" != "/snap" ] && [ ! -L /snap ]; then
+        # reexec expects to find the snapd snap under /snap, enable it to do so
+        # on distros using /var/lib/snapd/snap
+        ln -sf "$SNAP_MOUNT_DIR" /snap
+        tests.cleanup defer rm -f /snap
+    fi
 
 execute: |
     snap install --dangerous data-writer_1.0_all.snap
 
     echo "Apps can write to writable areas"
+
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if [ "$SNAP_REEXEC" = "1" ] && [ "$SNAP_MOUNT_DIR" != "/snap" ]; then
+        # with snap mount dir different than /snap, internal s-c checks will fail
+        if data-writer.app > err.out 2>&1 ; then
+            echo "unexpected success"
+            cat err.out || true
+            exit 1
+        fi
+
+        # with no AA support, we fail on a simple check for s-c being executed
+        # from /snap/snapd/<rev>/, with AA we fail on an earlier check for AA
+        # confinement
+        MATCH "(running from unexpected location:|snap-confine has elevated permissions)" < err.out
+        exit 0
+    fi
+
     data-writer.app
     [ -f /var/snap/data-writer/x1/from-app ]
     [ -f /var/snap/data-writer/common/from-app ]
     [ -f /root/snap/data-writer/x1/from-app ]
-    # TODO: As soon as `snap run` is used (which creates this directory),
-    # uncomment the following line:
-    #[ -f /root/snap/data-writer/common/from-app ]
+    [ -f /root/snap/data-writer/common/from-app ]
 
     echo "Waiting for data writer service to finish..."
     retry -n 20 --wait 1 sh -c 'test -f /root/snap/data-writer/x1/from-service'
@@ -27,6 +55,4 @@ execute: |
     echo "Services can write to writable areas"
     [ -f /var/snap/data-writer/x1/from-service ]
     [ -f /var/snap/data-writer/common/from-service ]
-    # TODO: As soon as `snap run` is used (which creates this directory),
-    # uncomment the following line:
-    #[ -f /root/snap/data-writer/common/from-service ]
+    [ -f /root/snap/data-writer/common/from-service ]

@@ -83,7 +83,9 @@ func (s *systemPackagesDocSuite) TestAppArmorSpec(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: can access documentation of system packages.")
@@ -245,7 +247,9 @@ func (s *systemPackagesDocBareBaseSuite) SetUpTest(c *C) {
 func (s *systemPackagesDocBareBaseSuite) TestAppArmorSpec(c *C) {
 	s.systemPackagesDocSuite.TestAppArmorSpec(c)
 
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	updateNS := spec.UpdateNS()
 	c.Check(strings.Join(updateNS, "\n"), testutil.Contains, "  # Writable mimic over / - extra permissions generalized\n")

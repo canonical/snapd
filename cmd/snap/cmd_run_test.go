@@ -60,6 +60,22 @@ hooks:
  configure:
 `)
 
+var mockYamlWithComponent = []byte(`name: snapname
+version: 1.0
+components:
+  comp:
+    type: test
+    hooks:
+      install:
+hooks:
+ configure:
+`)
+
+var mockComponentYaml = []byte(`component: snapname+comp
+type: test
+version: 1.0
+`)
+
 var mockYamlBaseNone1 = []byte(`name: snapname1
 version: 1.0
 base: none
@@ -98,8 +114,24 @@ func (s *RunSuite) SetUpTest(c *check.C) {
 		// default to showing no existing tracking
 		return cgroup.ErrCannotTrackProcess
 	}))
-	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(false)
-	s.AddCleanup(restoreIsGraphicalSession)
+	// Mock notices/connections api calls
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/notices":
+			c.Assert(r.Method, check.Equals, "POST")
+			EncodeResponseBody(c, w, map[string]any{
+				"type":   "sync",
+				"result": map[string]string{"id": "1"},
+			})
+		case "/v2/connections":
+			EncodeResponseBody(c, w, map[string]any{
+				"type":   "sync",
+				"result": nil,
+			})
+		default:
+			c.Error("this should never be reached")
+		}
+	})
 }
 
 func (s *RunSuite) TestInvalidParameters(c *check.C) {
@@ -804,6 +836,9 @@ func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingRefreshMissing
 	restore = snaprun.MockInhibitionFlow(&inhibitionFlow)
 	defer restore()
 
+	// Mock that snap exists
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapname"), 0755), check.IsNil)
+
 	var waitWhileInhibitedCalled int
 	restore = snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
 		waitWhileInhibitedCalled++
@@ -1150,6 +1185,73 @@ func (s *RunSuite) TestSnapRunHookIntegration(c *check.C) {
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
 
+func (s *RunSuite) TestSnapRunComponentHookIntegration(c *check.C) {
+	const instanceKey = ""
+	s.testSnapRunComponentHookIntegration(c, instanceKey)
+}
+
+func (s *RunSuite) TestSnapRunComponentHookFromInstanceIntegration(c *check.C) {
+	const instanceKey = "instance"
+	s.testSnapRunComponentHookIntegration(c, instanceKey)
+}
+
+func (s *RunSuite) testSnapRunComponentHookIntegration(c *check.C, instanceKey string) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	var snapInfo *snap.Info
+	if instanceKey == "" {
+		snapInfo = snaptest.MockSnapCurrent(c, string(mockYamlWithComponent), &snap.SideInfo{
+			Revision: snap.R(42),
+		})
+	} else {
+		snapInfo = snaptest.MockSnapInstanceCurrent(c, "snapname_"+instanceKey, string(mockYamlWithComponent), &snap.SideInfo{
+			Revision: snap.R(42),
+		})
+	}
+
+	snaptest.MockComponentCurrent(c, string(mockComponentYaml), snapInfo, snap.ComponentSideInfo{
+		Revision: snap.R(21),
+	})
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restorer()
+
+	expectedTarget := "snapname+comp"
+	if instanceKey != "" {
+		expectedTarget = fmt.Sprintf("snapname_%s+comp", instanceKey)
+	}
+
+	// Run a hook from the active revision
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=install", "--", expectedTarget})
+	c.Assert(err, check.IsNil)
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+		fmt.Sprintf("snap.%s.hook.install", expectedTarget),
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"--hook=install",
+		expectedTarget,
+	})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
+
+	// the mount namespace should make it appear as if the instance name is not
+	// there from inside the snap
+	c.Check(execEnv, testutil.Contains, "SNAP_COMPONENT=/snap/snapname/components/mnt/comp/21")
+	c.Check(execEnv, testutil.Contains, "SNAP_COMPONENT_NAME=snapname+comp")
+	c.Check(execEnv, testutil.Contains, "SNAP_COMPONENT_VERSION=1.0")
+	c.Check(execEnv, testutil.Contains, "SNAP_COMPONENT_REVISION=21")
+}
+
 func (s *RunSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
@@ -1271,9 +1373,9 @@ func (s *RunSuite) TestSnapRunErorsForMissingApp(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "need the application to run as argument")
 }
 
-func (s *RunSuite) TestSnapRunErorrForUnavailableApp(c *check.C) {
+func (s *RunSuite) TestSnapRunErrorForUnavailableApp(c *check.C) {
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "not-there"})
-	c.Assert(err, check.ErrorMatches, fmt.Sprintf("cannot find current revision for snap not-there: readlink %s/not-there/current: no such file or directory", dirs.SnapMountDir))
+	c.Assert(err, check.ErrorMatches, fmt.Sprintf(`snap "not-there" is not installed`))
 }
 
 func (s *RunSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {

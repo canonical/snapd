@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/systemd"
 )
 
 const (
@@ -76,16 +77,18 @@ func securityTagFromCgroupPath(path string) naming.SecurityTag {
 		// first position, the tag submatch in the second position, and
 		// the UUID submatch in the third position.
 		if matches := re.FindStringSubmatch(leaf); len(matches) == 3 {
-			if tag, err := naming.ParseSecurityTag(matches[1]); err == nil {
-				return tag
+			tag := systemd.UnitNameToSecurityTag(matches[1])
+			if parsed, err := naming.ParseSecurityTag(tag); err == nil {
+				return parsed
 			}
 		}
 	}
 
 	for _, re := range []*regexp.Regexp{roughHookTagPattern, roughAppTagPattern} {
 		if maybeTag := re.FindString(leaf); maybeTag != "" {
-			if tag, err := naming.ParseSecurityTag(maybeTag); err == nil {
-				return tag
+			tag := systemd.UnitNameToSecurityTag(maybeTag)
+			if parsed, err := naming.ParseSecurityTag(tag); err == nil {
+				return parsed
 			}
 		}
 	}

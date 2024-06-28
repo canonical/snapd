@@ -3,7 +3,7 @@
 // +build !nosecboot
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2022-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -566,7 +566,7 @@ func main() {
 			"Otherwise, Ubuntu Core will be installed\n", os.Args[0])
 		os.Exit(1)
 	}
-	logger.SimpleSetup()
+	logger.SimpleSetup(nil)
 
 	seedLabel := os.Args[1]
 	bootDevice := os.Args[2]

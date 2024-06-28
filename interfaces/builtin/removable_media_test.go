@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -43,22 +42,22 @@ var _ = Suite(&RemovableMediaInterfaceSuite{
 })
 
 func (s *RemovableMediaInterfaceSuite) SetUpTest(c *C) {
-	consumingSnapInfo := snaptest.MockInfo(c, `
-name: client-snap
+	const mockPlugSnapInfoYaml = `name: client-snap
 version: 0
 apps:
-  other:
-    command: foo
-    plugs: [removable-media]
-`, nil)
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "removable-media",
-		Interface: "removable-media",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	s.plugInfo = consumingSnapInfo.Plugs["removable-media"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+ other:
+  command: foo
+  plugs: [removable-media]
+`
+	const mockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ removable-media:
+  interface: removable-media
+`
+	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "removable-media")
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "removable-media")
 }
 
 func (s *RemovableMediaInterfaceSuite) TestName(c *C) {
@@ -75,7 +74,7 @@ func (s *RemovableMediaInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *RemovableMediaInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.other"})

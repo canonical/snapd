@@ -234,11 +234,11 @@ const syncResp = `{
   "result": %s
 }`
 
-func (s *aspectsSuite) TestAspectGet(c *C) {
+func (s *registrySuite) TestRegistryGet(c *C) {
 	restore := snapset.MockIsStdinTTY(true)
 	defer restore()
 
-	restore = s.mockAspectsFlag(c)
+	restore = s.mockRegistryFlag(c)
 	defer restore()
 
 	var reqs int
@@ -246,7 +246,7 @@ func (s *aspectsSuite) TestAspectGet(c *C) {
 		switch reqs {
 		case 0:
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/aspects/foo/bar/baz")
+			c.Check(r.URL.Path, Equals, "/v2/registry/foo/bar/baz")
 
 			q := r.URL.Query()
 			fields := strutil.CommaSeparatedList(q.Get("fields"))
@@ -271,11 +271,11 @@ func (s *aspectsSuite) TestAspectGet(c *C) {
 	c.Check(s.Stderr(), Equals, "")
 }
 
-func (s *aspectsSuite) TestAspectGetAsDocument(c *C) {
+func (s *registrySuite) TestRegistryGetAsDocument(c *C) {
 	restore := snapset.MockIsStdinTTY(true)
 	defer restore()
 
-	restore = s.mockAspectsFlag(c)
+	restore = s.mockRegistryFlag(c)
 	defer restore()
 
 	var reqs int
@@ -283,7 +283,7 @@ func (s *aspectsSuite) TestAspectGetAsDocument(c *C) {
 		switch reqs {
 		case 0:
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/aspects/foo/bar/baz")
+			c.Check(r.URL.Path, Equals, "/v2/registry/foo/bar/baz")
 
 			q := r.URL.Query()
 			fields := strutil.CommaSeparatedList(q.Get("fields"))
@@ -312,11 +312,11 @@ func (s *aspectsSuite) TestAspectGetAsDocument(c *C) {
 	c.Check(s.Stderr(), Equals, "")
 }
 
-func (s *aspectsSuite) TestAspectGetMany(c *C) {
+func (s *registrySuite) TestRegistryGetMany(c *C) {
 	restore := snapset.MockIsStdinTTY(true)
 	defer restore()
 
-	restore = s.mockAspectsFlag(c)
+	restore = s.mockRegistryFlag(c)
 	defer restore()
 
 	var reqs int
@@ -324,7 +324,7 @@ func (s *aspectsSuite) TestAspectGetMany(c *C) {
 		switch reqs {
 		case 0:
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/aspects/foo/bar/baz")
+			c.Check(r.URL.Path, Equals, "/v2/registry/foo/bar/baz")
 
 			q := r.URL.Query()
 			fields := strutil.CommaSeparatedList(q.Get("fields"))
@@ -353,11 +353,11 @@ xyz  false
 	c.Check(s.Stderr(), Equals, "")
 }
 
-func (s *aspectsSuite) TestAspectGetManyAsDocument(c *C) {
+func (s *registrySuite) TestRegistryGetManyAsDocument(c *C) {
 	restore := snapset.MockIsStdinTTY(true)
 	defer restore()
 
-	restore = s.mockAspectsFlag(c)
+	restore = s.mockRegistryFlag(c)
 	defer restore()
 
 	var reqs int
@@ -365,7 +365,7 @@ func (s *aspectsSuite) TestAspectGetManyAsDocument(c *C) {
 		switch reqs {
 		case 0:
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/aspects/foo/bar/baz")
+			c.Check(r.URL.Path, Equals, "/v2/registry/foo/bar/baz")
 
 			q := r.URL.Query()
 			fields := strutil.CommaSeparatedList(q.Get("fields"))
@@ -395,16 +395,16 @@ func (s *aspectsSuite) TestAspectGetManyAsDocument(c *C) {
 	c.Check(s.Stderr(), Equals, "")
 }
 
-func (s *aspectsSuite) TestAspectGetInvalidAspectID(c *check.C) {
-	restore := s.mockAspectsFlag(c)
+func (s *registrySuite) TestRegistryGetInvalidRegistryID(c *check.C) {
+	restore := s.mockRegistryFlag(c)
 	defer restore()
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo//bar", "foo=bar"})
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "aspect identifier must conform to format: <account-id>/<bundle>/<aspect>")
+	c.Check(err.Error(), Equals, "registry identifier must conform to format: <account-id>/<registry>/<view>")
 }
 
-func (s *aspectsSuite) TestAspectGetDisabledFlag(c *check.C) {
+func (s *registrySuite) TestRegistryGetDisabledFlag(c *check.C) {
 	var reqs int
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch reqs {
@@ -419,11 +419,11 @@ func (s *aspectsSuite) TestAspectGetDisabledFlag(c *check.C) {
 	})
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "abc"})
-	c.Assert(err, check.ErrorMatches, "aspect-based configuration is disabled: you must set 'experimental.aspects-configuration' to true")
+	c.Assert(err, check.ErrorMatches, `the "registries" feature is disabled: set 'experimental.registries' to true`)
 }
 
-func (s *aspectsSuite) TestAspectGetNoFields(c *check.C) {
-	restore := s.mockAspectsFlag(c)
+func (s *registrySuite) TestRegistryGetNoFields(c *check.C) {
+	restore := s.mockRegistryFlag(c)
 	defer restore()
 
 	var reqs int
@@ -431,7 +431,7 @@ func (s *aspectsSuite) TestAspectGetNoFields(c *check.C) {
 		switch reqs {
 		case 0:
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/aspects/foo/bar/baz")
+			c.Check(r.URL.Path, Equals, "/v2/registry/foo/bar/baz")
 
 			fields := r.URL.Query().Get("fields")
 			c.Check(fields, Equals, "")

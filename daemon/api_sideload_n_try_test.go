@@ -295,7 +295,7 @@ func (s *sideloadSuite) TestSideloadComponent(c *check.C) {
 	csi := snap.NewComponentSideInfo(naming.NewComponentRef("local", "comp"), snap.Revision{})
 
 	chgSummary, systemRestartImmediate := s.sideloadComponentCheck(c, body, head, "local", flags, csi)
-	c.Check(chgSummary, check.Equals, `Install "local" component from file "a/b/local+localcomp.comp"`)
+	c.Check(chgSummary, check.Equals, `Install "comp" component for "local" snap from file "a/b/local+localcomp.comp"`)
 	c.Check(systemRestartImmediate, check.Equals, false)
 }
 
@@ -311,7 +311,7 @@ func (s *sideloadSuite) TestSideloadComponentInstanceName(c *check.C) {
 	csi := snap.NewComponentSideInfo(naming.NewComponentRef("local", "comp"), snap.Revision{})
 
 	chgSummary, systemRestartImmediate := s.sideloadComponentCheck(c, body, head, "local_instance", flags, csi)
-	c.Check(chgSummary, check.Equals, `Install "local_instance" component from file "a/b/local+localcomp.comp"`)
+	c.Check(chgSummary, check.Equals, `Install "comp" component for "local_instance" snap from file "a/b/local+localcomp.comp"`)
 	c.Check(systemRestartImmediate, check.Equals, false)
 }
 
@@ -367,9 +367,12 @@ func (s *sideloadSuite) TestSideloadComponentForNotInstalledSnap(c *check.C) {
 	defer daemon.MockUnsafeReadSnapInfo(func(path string) (*snap.Info, error) {
 		return nil, daemon.BadRequest("mocking error to force reading as component")
 	})()
-	defer daemon.MockReadComponentInfoFromCont(func(tempPath string) (*snap.ComponentInfo, error) {
-		return snap.NewComponentInfo(naming.NewComponentRef("local", "comp"),
-			snap.TestComponent, "1.0", "", ""), nil
+	defer daemon.MockReadComponentInfoFromCont(func(tempPath string, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		return &snap.ComponentInfo{
+			Component: naming.NewComponentRef("local", "comp"),
+			Type:      snap.TestComponent,
+			Version:   "1.0",
+		}, nil
 	})()
 
 	st := s.d.Overlord().State()
@@ -437,9 +440,12 @@ func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
 		return nil, daemon.BadRequest("mocking error to force reading as component")
 	})()
 
-	defer daemon.MockReadComponentInfoFromCont(func(tempPath string) (*snap.ComponentInfo, error) {
-		return snap.NewComponentInfo(expectedCompSideInfo.Component,
-			snap.TestComponent, "1.0", "", ""), nil
+	defer daemon.MockReadComponentInfoFromCont(func(tempPath string, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		return snap.NewComponentInfo(
+			expectedCompSideInfo.Component,
+			snap.TestComponent,
+			"1.0", "", "", "", nil,
+		), nil
 	})()
 
 	defer daemon.MockSnapstateInstallComponentPath(func(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info,
@@ -485,9 +491,8 @@ func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, check.IsNil)
 	c.Check(apiData, check.DeepEquals, map[string]interface{}{
-		"snap-name":      expectedInstanceName,
-		"snap-names":     []interface{}{expectedInstanceName},
-		"component-name": expectedCompSideInfo.Component.ComponentName,
+		"components": map[string]interface{}{
+			expectedInstanceName: []interface{}{expectedCompSideInfo.Component.ComponentName}},
 	})
 
 	summary = chg.Summary()

@@ -38,9 +38,11 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -193,7 +195,7 @@ func (s *hookManagerSuite) TestHookSetupJsonMarshal(c *C) {
 	hookSetup := &hookstate.HookSetup{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"}
 	out, err := json.Marshal(hookSetup)
 	c.Assert(err, IsNil)
-	c.Check(string(out), Equals, "{\"snap\":\"snap-name\",\"revision\":\"1\",\"hook\":\"hook-name\"}")
+	c.Check(string(out), Equals, "{\"snap\":\"snap-name\",\"revision\":\"1\",\"hook\":\"hook-name\",\"component-revision\":\"unset\"}")
 }
 
 func (s *hookManagerSuite) TestHookSetupJsonUnmarshal(c *C) {
@@ -1305,4 +1307,149 @@ func (s *parallelInstancesHookManagerSuite) TestHookTaskEnsureHookRan(c *C) {
 	c.Check(s.change.Status(), Equals, state.DoneStatus)
 
 	c.Check(s.manager.NumRunningHooks(), Equals, 0)
+}
+
+type componentHookManagerSuite struct {
+	baseHookManagerSuite
+}
+
+var _ = Suite(&componentHookManagerSuite{})
+
+func (s *baseHookManagerSuite) setUpComponent(c *C, instanceName string, componentName string, hookName string) {
+	hooksup := &hookstate.HookSetup{
+		Snap:              instanceName,
+		Hook:              hookName,
+		Revision:          snap.R(1),
+		ComponentRevision: snap.R(1),
+		Component:         componentName,
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.task = hookstate.HookTask(s.state, "test-hook-task", hooksup, nil)
+
+	s.change = s.state.NewChange("run-test-hook", "...")
+	s.change.AddTask(s.task)
+
+	snapName, instanceKey := snap.SplitInstanceName(instanceName)
+
+	sideInfo := &snap.SideInfo{
+		RealName: snapName,
+		SnapID:   "some-snap-id",
+		Revision: snap.R(1),
+	}
+
+	componentSideInfo := &snap.ComponentSideInfo{
+		Component: naming.ComponentRef{
+			SnapName:      snapName,
+			ComponentName: componentName,
+		},
+		Revision: snap.R(1),
+	}
+
+	const componentYaml = `
+component: %s+%s
+type: test
+`
+
+	const snapYaml = `
+name: %s
+version: 1.0
+components:
+  %s:
+    type: test
+    hooks:
+      %s:
+`
+
+	snapInfo := snaptest.MockSnapInstance(c, instanceName, fmt.Sprintf(snapYaml, snapName, componentName, hookName), sideInfo)
+	snaptest.MockComponent(c, fmt.Sprintf(componentYaml, snapName, componentName), snapInfo, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
+
+	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{{
+			Snap: sideInfo,
+			Components: []*sequence.ComponentState{{
+				SideInfo: componentSideInfo,
+				CompType: snap.TestComponent,
+			}},
+		}}),
+		Current:     snap.R(1),
+		InstanceKey: instanceKey,
+	})
+}
+
+func (s *componentHookManagerSuite) SetUpTest(c *C) {
+	s.commonSetUpTest(c)
+	s.mockHandler = hooktest.NewMockHandler()
+}
+
+func (s *componentHookManagerSuite) TestComponentHookTaskEnsure(c *C) {
+	s.setUpComponent(c, "test-snap", "test-component", "install")
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.command.Calls(), DeepEquals, [][]string{{
+		"snap", "run", "--hook", "install", "-r", "1", "test-snap+test-component",
+	}})
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.DoneStatus)
+	c.Check(s.change.Status(), Equals, state.DoneStatus)
+
+	c.Check(s.manager.NumRunningHooks(), Equals, 0)
+}
+
+func (s *componentHookManagerSuite) TestComponentHookTaskEnsureInstance(c *C) {
+	s.setUpComponent(c, "test-snap_instance", "test-component", "install")
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.command.Calls(), DeepEquals, [][]string{{
+		"snap", "run", "--hook", "install", "-r", "1", "test-snap_instance+test-component",
+	}})
+
+	fmt.Println(s.change.Err())
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.DoneStatus)
+	c.Check(s.change.Status(), Equals, state.DoneStatus)
+
+	c.Check(s.manager.NumRunningHooks(), Equals, 0)
+}
+
+func (s *componentHookManagerSuite) TestComponentHookWithoutHookIsError(c *C) {
+	s.setUpComponent(c, "test-snap", "test-component", "install")
+
+	s.state.Lock()
+
+	var hooksup hookstate.HookSetup
+	err := s.task.Get("hook-setup", &hooksup)
+	c.Assert(err, IsNil)
+
+	hooksup.Hook = "missing-hook"
+	s.task.Set("hook-setup", &hooksup)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.ErrorStatus)
+	c.Check(s.change.Status(), Equals, state.ErrorStatus)
+	checkTaskLogContains(c, s.task, `.*component "test-snap\+test-component" has no "missing-hook" hook.*`)
 }

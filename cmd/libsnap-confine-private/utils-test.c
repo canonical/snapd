@@ -146,6 +146,13 @@ static void my_chdir(const char *path)
 	}
 }
 
+static void my_unlink(const char *path)
+{
+	if (unlink(path) != 0 && errno != ENOENT) {
+		die("cannot unlink: %s", path);
+	}
+}
+
 /**
  * Perform the rest of testing in a ephemeral directory.
  *
@@ -222,6 +229,37 @@ static void test_sc_nonfatal_mkpath__absolute(void)
 	_test_sc_nonfatal_mkpath(dirname, subdirname);
 }
 
+static void test_sc_is_container__empty(void)
+{
+	g_test_in_ephemeral_dir();
+	g_test_queue_destroy((GDestroyNotify) my_unlink, "container");
+	g_assert_true(g_file_set_contents("container", "", -1, NULL));
+	g_assert_false(_sc_is_in_container("container"));
+}
+
+static void test_sc_is_container__lxc(void)
+{
+	g_test_in_ephemeral_dir();
+	g_test_queue_destroy((GDestroyNotify) my_unlink, "container");
+	g_assert_true(g_file_set_contents("container", "lxc", -1, NULL));
+	g_assert_true(_sc_is_in_container("container"));
+}
+
+static void test_sc_is_container__lxc_with_newline(void)
+{
+	g_test_in_ephemeral_dir();
+	g_test_queue_destroy((GDestroyNotify) my_unlink, "container");
+	g_assert_true(g_file_set_contents("container", "lxc\n", -1, NULL));
+	g_assert_true(_sc_is_in_container("container"));
+}
+
+static void test_sc_is_container__no_file(void)
+{
+	g_test_in_ephemeral_dir();
+	g_test_queue_destroy((GDestroyNotify) my_unlink, "container");
+	g_assert_false(_sc_is_in_container("container"));
+}
+
 static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/utils/parse_bool", test_parse_bool);
@@ -232,4 +270,12 @@ static void __attribute__((constructor)) init(void)
 			test_sc_nonfatal_mkpath__relative);
 	g_test_add_func("/utils/sc_nonfatal_mkpath/absolute",
 			test_sc_nonfatal_mkpath__absolute);
+	g_test_add_func("/utils/sc_is_in_container/empty",
+			test_sc_is_container__empty);
+	g_test_add_func("/utils/sc_is_in_container/no_file",
+			test_sc_is_container__no_file);
+	g_test_add_func("/utils/sc_is_in_container/lxc",
+			test_sc_is_container__lxc);
+	g_test_add_func("/utils/sc_is_in_container/lxc_newline",
+			test_sc_is_container__lxc_with_newline);
 }

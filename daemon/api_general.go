@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
@@ -336,6 +337,8 @@ type taskInfo struct {
 
 	SpawnTime time.Time  `json:"spawn-time,omitempty"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
+
+	Data map[string]*json.RawMessage `json:"data,omitempty"`
 }
 
 type taskInfoProgress struct {
@@ -385,6 +388,9 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 		if !readyTime.IsZero() {
 			taskInfo.ReadyTime = &readyTime
 		}
+		if data, err := taskApiData(t); err == nil {
+			taskInfo.Data = data
+		}
 		taskInfos[j] = taskInfo
 	}
 	chgInfo.Tasks = taskInfos
@@ -395,6 +401,33 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 	}
 
 	return chgInfo
+}
+
+var snapstateSnapsAffectedByTask = snapstate.SnapsAffectedByTask
+
+// taskApiData returns a map similar to change data which is currently
+// only filled with affected snap names.
+// Example: {"snap-names": ["snap-1", "snap-2"]}
+//
+// Note: This helper could be extended if needed to allow per-task custom
+// data similar to change "api-data".
+func taskApiData(t *state.Task) (map[string]*json.RawMessage, error) {
+	affectedSnaps, err := snapstateSnapsAffectedByTask(t)
+	if err != nil {
+		return nil, err
+	}
+	if len(affectedSnaps) == 0 {
+		return nil, nil
+	}
+	raw, err := json.Marshal(affectedSnaps)
+	if err != nil {
+		return nil, err
+	}
+	var affected json.RawMessage = raw
+	data := map[string]*json.RawMessage{
+		"affected-snaps": &affected,
+	}
+	return data, nil
 }
 
 var (

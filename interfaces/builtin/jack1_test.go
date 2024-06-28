@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -50,15 +49,15 @@ apps:
   command: foo
   plugs: [jack1]
 `
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "jack1",
-		Interface: "jack1",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
-	s.plugInfo = snapInfo.Plugs["jack1"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	const mockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ jack1:
+  interface: jack1
+`
+	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "jack1")
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "jack1")
 }
 
 func (s *jack1InterfaceSuite) TestName(c *C) {
@@ -74,7 +73,7 @@ func (s *jack1InterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *jack1InterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := apparmor.NewSpecification(s.plug.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(spec.SnippetForTag("snap.other.app"), testutil.Contains, "owner /dev/shm/jack-[0-9]*/*/* rw")

@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	logger.SimpleSetup()
+	logger.SimpleSetup(nil)
 	if len(os.Args) < 2 {
 		fmt.Println("need url as first argument")
 		os.Exit(1)

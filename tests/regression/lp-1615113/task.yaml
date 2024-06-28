@@ -1,5 +1,13 @@
 summary: Check that entire snap can be shared with the content interface
 
+details: |
+    During construction of the snap execution environment, the snap-confine
+    program runs under apparmor confinement and needs to have permission to
+    mount the /snap/$SNAP_NAME/$SNAP_REVISION directory from one snap to
+    another. If snap-confine lacks permission to mount that directory, as
+    opposed to mounting a sub-directory, then content sharing between two snaps
+    may be broken.
+
 prepare: |
     echo "Having installed a pair of snaps that share content"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-content-slot

@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -43,22 +42,22 @@ var _ = Suite(&SystemTraceInterfaceSuite{
 })
 
 func (s *SystemTraceInterfaceSuite) SetUpTest(c *C) {
-	const mockPlugSnapInfo = `name: other
+	const mockPlugSnapInfoYaml = `name: other
 version: 1.0
 apps:
  app:
   command: foo
   plugs: [system-trace]
 `
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "system-trace",
-		Interface: "system-trace",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
-	s.plugInfo = plugSnap.Plugs["system-trace"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	const mockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ system-trace:
+  interface: system-trace
+`
+	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "system-trace")
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "system-trace")
 }
 
 func (s *SystemTraceInterfaceSuite) TestName(c *C) {
@@ -75,7 +74,7 @@ func (s *SystemTraceInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *SystemTraceInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})

@@ -1,5 +1,20 @@
 summary: ensure seccomp rules for snap_daemon user work correctly
 
+details: |
+    Snapd has limited capability to create a non-root accounts, so that certain
+    services that would normally run as root, perform initial configuration as
+    root but then drop to a less privileged user.
+
+    The test attempts to install a snap declaring to use a non-root user called
+    "snap_daemon". This name is allowed so the installation finishes
+    successfully and the new account is created on the system.
+
+    The test then continues to show that the resulting snap application indeed
+    has permissions to drop from the root user to the newly created account, by
+    effectively calling a number of related system calls with precise arguments,
+    checking both expected success and looking for violations where application
+    should stay contained.
+
 environment:
     # This is used to abbreviate some of the paths below.
     P1: /var/snap/test-snapd-sh/common/test.chown

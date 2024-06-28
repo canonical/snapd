@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -38,7 +39,10 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-var CreateQuotaValues = createQuotaValues
+var (
+	CreateQuotaValues = createQuotaValues
+	ParseOptionalTime = parseOptionalTime
+)
 
 func APICommands() []*Command {
 	return api
@@ -113,7 +117,7 @@ func MockUnsafeReadSnapInfo(mock func(string) (*snap.Info, error)) (restore func
 	}
 }
 
-func MockReadComponentInfoFromCont(mock func(tempPath string) (*snap.ComponentInfo, error)) (restore func()) {
+func MockReadComponentInfoFromCont(mock func(tempPath string, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error)) (restore func()) {
 	oldUnsafeReadSnapInfo := readComponentInfoFromCont
 	readComponentInfoFromCont = mock
 	return func() {
@@ -351,19 +355,19 @@ var (
 	MaxReadBuflen = maxReadBuflen
 )
 
-func MockAspectstateGet(f func(st *state.State, account, bundleName, aspect string, field []string) (interface{}, error)) (restore func()) {
-	old := aspectstateGetAspect
-	aspectstateGetAspect = f
+func MockRegistrystateGetViaView(f func(_ *state.State, _, _, _ string, _ []string) (interface{}, error)) (restore func()) {
+	old := registrystateGetViaView
+	registrystateGetViaView = f
 	return func() {
-		aspectstateGetAspect = old
+		registrystateGetViaView = old
 	}
 }
 
-func MockAspectstateSet(f func(st *state.State, account, bundleName, aspect string, requests map[string]interface{}) error) (restore func()) {
-	old := aspectstateSetAspect
-	aspectstateSetAspect = f
+func MockRegistrystateSetViaView(f func(_ *state.State, _, _, _ string, _ map[string]interface{}) error) (restore func()) {
+	old := registrystateSetViaView
+	registrystateSetViaView = f
 	return func() {
-		aspectstateSetAspect = old
+		registrystateSetViaView = old
 	}
 }
 
@@ -385,4 +389,10 @@ func MockOsReadlink(f func(string) (string, error)) func() {
 	return func() {
 		osReadlink = old
 	}
+}
+
+func MockNewStatusDecorator(f func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator) (restore func()) {
+	restore = testutil.Backup(&newStatusDecorator)
+	newStatusDecorator = f
+	return restore
 }

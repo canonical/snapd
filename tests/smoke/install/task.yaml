@@ -1,9 +1,18 @@
 summary: Check that installing and running a snap works
 
+details: |
+    Snapd installs packages by mounting them in a structure under /snap or
+    /var/lib/snapd/snap directories, depending on distribution policy. Ensure
+    that a trivial test snap can be installed, shows up in the list of installed
+    packages, can be started as both root and non-root user and that a snapd
+    state recorded that installation in the change system. The test snap is
+    installed, and partially tested (only as root) for each of the major base
+    snaps: core, core18, core20 and core22.
+
 restore: |
     rm -f /home/test/stderr.log
     rm -f /home/test/stdout.log
-    # requied! in autopkgtest no suite restore is run at all
+    # required! in autopkgtest no suite restore is run at all
     snap remove --purge test-snapd-sh
 
 debug: |
@@ -22,7 +31,7 @@ execute: |
     echo "Ensure that the snap can be run as root"
     test-snapd-sh.sh -c 'echo hello' > stdout.log 2> stderr.log
     MATCH "^hello$" < stdout.log
-    if [ -s stderr.log ]; then
+    if grep -v DEBUG stderr.log ; then
         echo "stderr.log must be empty but it is not: (run as root)"
         cat stderr.log
         exit 1
@@ -31,7 +40,7 @@ execute: |
     echo "Ensure that the snap can be run as the user"
     su -l -c "test-snapd-sh.sh -c 'echo hello' > stdout.log 2> stderr.log" test
     MATCH "^hello$" < stdout.log
-    if [ -s stderr.log ]; then
+    if grep -v DEBUG stderr.log ; then
         echo "stderr.log must be empty but it is not: (run as user)"
         cat stderr.log
         exit 1

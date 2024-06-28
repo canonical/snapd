@@ -156,6 +156,25 @@ dbus (send)
     member=GetMachineId
     peer=(label=unconfined),
 
+# Allow clients to get properties of systemd (the manager) and
+# units
+dbus (send)
+    bus=system
+    interface=org.freedesktop.DBus.Properties
+    path=/org/freedesktop/systemd1{,/**}
+    member=Get{,All}
+    peer=(label=unconfined),
+
+# Allow clients to explicitly list units with some of their details (path,
+# status) and get unit path, see
+# https://www.freedesktop.org/wiki/Software/systemd/dbus/ for details
+dbus (send)
+    bus=system
+    path=/org/freedesktop/systemd1
+    interface=org.freedesktop.systemd1.Manager
+    member={GetUnit,ListUnits}
+    peer=(label=unconfined),
+
 # Allow reading if protected hardlinks are enabled, but don't allow enabling or
 # disabling them
 @{PROC}/sys/fs/protected_hardlinks r,
@@ -171,9 +190,9 @@ const systemObserveConnectedPlugSecComp = `
 
 # ptrace can be used to break out of the seccomp sandbox, but ps requests
 # 'ptrace (trace)' from apparmor. 'ps' does not need the ptrace syscall though,
-# so we deny the ptrace here to make sure we are always safe.
-# Note: may uncomment once ubuntu-core-launcher understands @deny rules and
-# if/when we conditionally deny this in the future.
+# so we deny the ptrace here to make sure we are always safe. Note: may
+# uncomment once snap-confine understands @deny rules and if/when we
+# conditionally deny this in the future.
 #@deny ptrace
 `
 

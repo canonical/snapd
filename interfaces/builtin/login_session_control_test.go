@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -43,22 +42,25 @@ var _ = Suite(&loginSessionControlSuite{
 })
 
 func (s *loginSessionControlSuite) SetUpTest(c *C) {
-	consumingSnapInfo := snaptest.MockInfo(c, `
+	const mockPlugInfoYaml = `
 name: other
 version: 0
 apps:
  app:
-    command: foo
-    plugs: [login-session-control]
-`, nil)
-	s.plugInfo = consumingSnapInfo.Plugs["login-session-control"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "login-session-control",
-		Interface: "login-session-control",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
+  command: foo
+  plugs: [login-session-control]
+`
+	const mockSlotInfoYaml = `
+name: core
+version: 1.0
+type: os
+slots:
+ login-session-control:
+  interface: login-session-control
+`
+
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugInfoYaml, nil, "login-session-control")
+	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotInfoYaml, nil, "login-session-control")
 }
 
 func (s *loginSessionControlSuite) TestName(c *C) {
@@ -74,7 +76,7 @@ func (s *loginSessionControlSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *loginSessionControlSuite) TestConnectedPlugSnippet(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})

@@ -129,11 +129,11 @@ func (s *preseedSuite) TestRunPreseedHappy(c *C) {
 	restoreSystemSnapFromSeed := preseed.MockSystemSnapFromSeed(func(string, string) (string, string, error) { return "/a/core.snap", "", nil })
 	defer restoreSystemSnapFromSeed()
 
-	mockTargetSnapd := testutil.MockCommand(c, filepath.Join(targetSnapdRoot, "usr/lib/snapd/snapd"), `#!/bin/sh
-	if [ "$SNAPD_PRESEED" != "1" ]; then
-		exit 1
-	fi
-`)
+	mockTargetSnapd := testutil.MockCommand(c, filepath.Join(targetSnapdRoot, "usr/lib/snapd/snapd"), fmt.Sprintf(`#!/bin/sh
+	set -eu
+	[ -L %s/snap/snapd/current ]
+	[ "${SNAPD_PRESEED}" = "1" ]
+`, tmpDir))
 	defer mockTargetSnapd.Restore()
 
 	mockSnapdFromDeb := testutil.MockCommand(c, filepath.Join(tmpDir, "usr/lib/snapd/snapd"), `#!/bin/sh

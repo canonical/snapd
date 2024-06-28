@@ -78,26 +78,32 @@ func (s *ioPortsControlInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *ioPortsControlInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/port rw,")
 }
 
 func (s *ioPortsControlInterfaceSuite) TestSecCompSpec(c *C) {
-	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "ioperm\n")
 }
 
 func (s *ioPortsControlInterfaceSuite) TestUDevSpec(c *C) {
-	udevSpec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	udevSpec := udev.NewSpecification(appSet)
 	c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(udevSpec.Snippets(), HasLen, 2)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# io-ports-control
 KERNEL=="port", TAG+="snap_consumer_app"`)
-	c.Assert(udevSpec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_consumer_app"`, dirs.DistroLibExecDir))
+	c.Assert(udevSpec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *ioPortsControlInterfaceSuite) TestStaticInfo(c *C) {

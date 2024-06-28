@@ -32,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -77,18 +76,9 @@ slots:
 `
 
 func (s *AudioPlaybackInterfaceSuite) SetUpTest(c *C) {
-	// audio-playback snap with audio-playback slot on an core/all-snap install.
-	snapInfo := snaptest.MockInfo(c, audioPlaybackMockCoreSlotSnapInfoYaml, nil)
-	s.coreSlotInfo = snapInfo.Slots["audio-playback"]
-	s.coreSlot = interfaces.NewConnectedSlot(s.coreSlotInfo, nil, nil)
-	// audio-playback slot on a core snap in a classic install.
-	snapInfo = snaptest.MockInfo(c, audioPlaybackMockClassicSlotSnapInfoYaml, nil)
-	s.classicSlotInfo = snapInfo.Slots["audio-playback"]
-	s.classicSlot = interfaces.NewConnectedSlot(s.classicSlotInfo, nil, nil)
-	// snap with the audio-playback plug
-	snapInfo = snaptest.MockInfo(c, audioPlaybackMockPlugSnapInfoYaml, nil)
-	s.plugInfo = snapInfo.Plugs["audio-playback"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, audioPlaybackMockCoreSlotSnapInfoYaml, nil, "audio-playback")
+	s.classicSlot, s.classicSlotInfo = MockConnectedSlot(c, audioPlaybackMockClassicSlotSnapInfoYaml, nil, "audio-playback")
+	s.plug, s.plugInfo = MockConnectedPlug(c, audioPlaybackMockPlugSnapInfoYaml, nil, "audio-playback")
 }
 
 func (s *AudioPlaybackInterfaceSuite) TestName(c *C) {
@@ -109,18 +99,18 @@ func (s *AudioPlaybackInterfaceSuite) TestSecComp(c *C) {
 	defer restore()
 
 	// connected plug to core slot
-	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := seccomp.NewSpecification(s.plug.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "shmctl\n")
 
 	// connected core slot to plug
-	spec = seccomp.NewSpecification(interfaces.NewSnapAppSet(s.coreSlot.Snap()))
+	spec = seccomp.NewSpecification(s.coreSlot.AppSet())
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// permanent core slot
-	spec = seccomp.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
+	spec = seccomp.NewSpecification(s.coreSlot.AppSet())
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.audio-playback.app1"})
 	c.Assert(spec.SnippetForTag("snap.audio-playback.app1"), testutil.Contains, "listen\n")
@@ -131,7 +121,7 @@ func (s *AudioPlaybackInterfaceSuite) TestSecCompOnClassic(c *C) {
 	defer restore()
 
 	// connected plug to classic slot
-	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := seccomp.NewSpecification(s.plug.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "shmctl\n")
@@ -141,12 +131,12 @@ func (s *AudioPlaybackInterfaceSuite) TestSecCompOnClassic(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "owner /run/user/[0-9]*/snap.audio-playback/pulse/pid r,\n")
 
 	// connected classic slot to plug
-	spec = seccomp.NewSpecification(interfaces.NewSnapAppSet(s.classicSlot.Snap()))
+	spec = seccomp.NewSpecification(s.classicSlot.AppSet())
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// permanent classic slot
-	spec = seccomp.NewSpecification(interfaces.NewSnapAppSet(s.classicSlotInfo.Snap))
+	spec = seccomp.NewSpecification(s.classicSlot.AppSet())
 	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
@@ -160,7 +150,7 @@ func (s *AudioPlaybackInterfaceSuite) TestAppArmor(c *C) {
 	defer restore()
 
 	// connected plug to core slot
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := apparmor.NewSpecification(s.plug.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{run,dev}/shm/pulse-shm-* mrwk,\n")
@@ -169,12 +159,12 @@ func (s *AudioPlaybackInterfaceSuite) TestAppArmor(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/snap.audio-playback/pulse/pid r,\n")
 
 	// connected core slot to plug
-	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.coreSlot.Snap()))
+	spec = apparmor.NewSpecification(s.coreSlot.AppSet())
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// permanent core slot
-	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
+	spec = apparmor.NewSpecification(s.coreSlot.AppSet())
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.audio-playback.app1"})
 	c.Check(spec.SnippetForTag("snap.audio-playback.app1"), testutil.Contains, "capability setuid,\n")
@@ -188,25 +178,25 @@ func (s *AudioPlaybackInterfaceSuite) TestAppArmorOnClassic(c *C) {
 	defer restore()
 
 	// connected plug to classic slot
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := apparmor.NewSpecification(s.plug.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{run,dev}/shm/pulse-shm-* mrwk,\n")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/etc/pulse/ r,\n")
 
 	// connected classic slot to plug
-	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.classicSlot.Snap()))
+	spec = apparmor.NewSpecification(s.classicSlot.AppSet())
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// permanent classic slot
-	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.classicSlotInfo.Snap))
+	spec = apparmor.NewSpecification(s.classicSlot.AppSet())
 	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
 func (s *AudioPlaybackInterfaceSuite) TestUDev(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
+	spec := udev.NewSpecification(s.coreSlot.AppSet())
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 4)
 	c.Assert(spec.Snippets(), testutil.Contains, `# audio-playback
@@ -215,7 +205,7 @@ KERNEL=="controlC[0-9]*", TAG+="snap_audio-playback_app1"`)
 KERNEL=="pcmC[0-9]*D[0-9]*[cp]", TAG+="snap_audio-playback_app1"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# audio-playback
 KERNEL=="timer", TAG+="snap_audio-playback_app1"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_audio-playback_app1", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_audio-playback_app1"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_audio-playback_app1", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_audio-playback_app1 $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *AudioPlaybackInterfaceSuite) TestInterfaces(c *C) {

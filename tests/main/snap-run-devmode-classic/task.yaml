@@ -19,10 +19,11 @@ systems:
     # when the host has cgroupsv2 in it
     - ubuntu-16.04-*
 
-environment:
-    # to build natively on the machine rather than with multipass or lxd
-    SNAPCRAFT_BUILD_ENVIRONMENT: host
+# Start early as it takes a long time.
+priority: 100
+kill-timeout: 60m
 
+environment:
     # ensure that re-exec is on by default like it should be
     SNAP_REEXEC: "1"
 
@@ -40,61 +41,54 @@ environment:
 prepare: |
     # much of what follows is copied from tests/main/snapd-snap
 
+    apt-get autoremove -y lxd lxd-client
+
+    # load the fuse kernel module before installing lxd
+    modprobe fuse
+    "$TESTSTOOLS"/lxd-state prepare-snap
+
     # install snapcraft snap
 
-    snap install snapcraft --channel=4.x/candidate --classic
+    snap install snapcraft --channel="${SNAPCRAFT_SNAP_CHANNEL}" --classic
     tests.cleanup defer snap remove --purge snapcraft
 
     # shellcheck disable=SC2164
-    pushd "$PROJECT_PATH"
+    pushd "${PROJECT_PATH}"
     echo "Build the snap"
-    snap run snapcraft snap --output snapd-from-branch.snap
+    snap run snapcraft --verbosity debug --output snapd-from-branch.snap
+    # Save some disk
+    snap run snapcraft clean
     popd
 
     mv "$PROJECT_PATH/snapd-from-branch.snap" "$PWD/snapd-from-branch.snap"
-
-    # meh it doesn't work well to use quotas and "&&" in the arguments to sh -c
-    # with defer, so just put what we want to run in a script and execute that
-    cat >> snapcraft-cleanup.sh <<EOF
-    #!/bin/sh
-    cd $PROJECT_PATH
-    # we may have uninstalled snapcraft in the snapd_first variant, so we need
-    # to re-install it in order to clean up
-    if ! command -v snapcraft; then 
-        snap install snapcraft --channel=4.x/candidate --classic
-    fi
-    snap run snapcraft clean
-    EOF
-    chmod +x snapcraft-cleanup.sh
-    tests.cleanup defer sh -c "$PWD/snapcraft-cleanup.sh"
-
-    unsquashfs -d snapd-from-branch snapd-from-branch.snap
-    snapddir=snapd-from-branch
 
     # now repack the core snap with this snapd snap
     snap download core --edge --basename=core-from-edge
     unsquashfs -d edge-core-snap core-from-edge.snap
     coredir=edge-core-snap
 
-    # backup the meta dir
-    mv "$coredir/meta" "$coredir/meta-backup" 
-    # copy everything from the snapd snap into the core snap
-    cp -ar "$snapddir"/* "$coredir"
+    snapddir=snapd-from-branch
+    dpkg-deb -x "${SPREAD_PATH}"/../snapd_*.deb "${snapddir}"
 
-    # restore the meta dir
-    rm -r "$coredir/meta"
-    mv "$coredir/meta-backup" "$coredir/meta" 
+    pushd "${PROJECT_PATH}"
+    SNAPD_SNAP_VERSION=$(./mkversion.sh --output-only)
+    popd
+
+    # copy everything from the snapd snap into the core snap
+    cp -arT "${snapddir}" "${coredir}"
 
     # set the version for the core snap to be the version from the snapd snap
-    SNAPD_SNAP_VERSION=$(grep -Po "version: \K.*" "$snapddir/meta/snap.yaml")
-    CORE_SNAP_VERSION=$(grep -Po "version: \K.*" "$coredir/meta/snap.yaml")
-    sed -i -e "s/$CORE_SNAP_VERSION/$SNAPD_SNAP_VERSION/" "$coredir/meta/snap.yaml"
+    CORE_SNAP_VERSION=$(grep -Po "version: \K.*" "${coredir}/meta/snap.yaml")
+    sed -i -e "s/${CORE_SNAP_VERSION}/${SNAPD_SNAP_VERSION}/" "${coredir}/meta/snap.yaml"
 
     # pack the core snap
     snap pack --filename=core-from-branch.snap "$coredir"
 
     rm -r "$coredir"
     rm -r "$snapddir"
+
+restore: |
+    "$TESTSTOOLS"/lxd-state undo-mount-changes || true
 
 execute: |
     if [ "$SNAP_TO_USE_FIRST" = "core" ]; then

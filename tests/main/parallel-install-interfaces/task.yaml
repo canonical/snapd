@@ -1,5 +1,18 @@
 summary: Check that snap connect with parallel installs works
 
+details: |
+    Snapd allows installation of the same snap more than once by combining the
+    same snap name with different values of an instance key.
+
+    Another aspect of the instance system is that plugs and slots are specific
+    to the instance, allowing the system operator to connect or disconnect them
+    individually.
+
+    The test installs a pair of snaps and checks how interface connections are
+    made between the application snaps and the core snap providing the slots.
+    The test explores how auto-connection logic works and that the content
+    interface is connected correctly.
+
 # slow in autopkgtest (>1m)
 backends: [-autopkgtest]
 

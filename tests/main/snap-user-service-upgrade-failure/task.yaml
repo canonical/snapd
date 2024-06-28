@@ -1,5 +1,9 @@
 summary: On upgrade failures, user session daemons are restarted
 
+details: |
+    Check that snapd restarts the user session daemons when snap
+    refresh fails.
+
 systems:
     # Ubuntu 14.04's systemd doesn't have user@.service
     - -ubuntu-14.04-*

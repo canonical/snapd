@@ -279,8 +279,7 @@ plugs:
  content:
   target: import
 `
-	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
-	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil, nil)
+	plug, _ := MockConnectedPlug(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)}, "content")
 	const producerYaml = `name: producer
 version: 0
 slots:
@@ -288,8 +287,7 @@ slots:
   read:
    - export
 `
-	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
-	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil, nil)
+	slot, _ := MockConnectedSlot(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)}, "content")
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, slot), IsNil)
@@ -312,8 +310,7 @@ apps:
  app:
   command: foo
 `
-	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
-	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil, nil)
+	plug, _ := MockConnectedPlug(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)}, "content")
 	const producerYaml = `name: producer
 version: 0
 slots:
@@ -321,8 +318,7 @@ slots:
   read:
    - $SNAP/export
 `
-	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
-	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil, nil)
+	slot, _ := MockConnectedSlot(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)}, "content")
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, slot), IsNil)
@@ -333,7 +329,7 @@ slots:
 	}}
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(plug.AppSet())
 	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -493,8 +489,7 @@ apps:
  app:
   command: foo
 `
-	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
-	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil, nil)
+	plug, _ := MockConnectedPlug(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)}, "content")
 	const producerYaml = `name: producer
 version: 0
 slots:
@@ -502,8 +497,7 @@ slots:
   write:
    - $SNAP_DATA/export
 `
-	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
-	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil, nil)
+	slot, _ := MockConnectedSlot(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)}, "content")
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, slot), IsNil)
@@ -514,7 +508,7 @@ slots:
 	}}
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(plug.AppSet())
 	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -558,8 +552,7 @@ apps:
  app:
   command: foo
 `
-	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
-	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil, nil)
+	plug, _ := MockConnectedPlug(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)}, "content")
 	const producerYaml = `name: producer
 version: 0
 slots:
@@ -567,8 +560,7 @@ slots:
   write:
    - $SNAP_COMMON/export
 `
-	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
-	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil, nil)
+	slot, _ := MockConnectedSlot(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)}, "content")
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, slot), IsNil)
@@ -579,7 +571,7 @@ slots:
 	}}
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(plug.AppSet())
 	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -617,7 +609,7 @@ func (s *ContentSuite) TestInterfaces(c *C) {
 }
 
 func (s *ContentSuite) TestModernContentInterface(c *C) {
-	plug := MockPlug(c, `name: consumer
+	const consumerYaml = `name: consumer
 version: 0
 plugs:
  content:
@@ -625,28 +617,29 @@ plugs:
 apps:
  app:
   command: foo
-`, &snap.SideInfo{Revision: snap.R(1)}, "content")
-	connectedPlug := interfaces.NewConnectedPlug(plug, nil, nil)
+`
+	connectedPlug, _ := MockConnectedPlug(c, consumerYaml, &snap.SideInfo{Revision: snap.R(1)}, "content")
 
-	slot := MockSlot(c, `name: producer
+	const produerYaml = `name: producer
 version: 0
 slots:
  content:
   source:
-    read:
-     - $SNAP_COMMON/read-common
-     - $SNAP_DATA/read-data
-     - $SNAP/read-snap
-    write:
-     - $SNAP_COMMON/write-common
-     - $SNAP_DATA/write-data
-`, &snap.SideInfo{Revision: snap.R(2)}, "content")
-	connectedSlot := interfaces.NewConnectedSlot(slot, nil, nil)
+   read:
+    - $SNAP_COMMON/read-common
+    - $SNAP_DATA/read-data
+    - $SNAP/read-snap
+   write:
+    - $SNAP_COMMON/write-common
+    - $SNAP_DATA/write-data
+`
+	connectedSlot, _ := MockConnectedSlot(c, produerYaml, &snap.SideInfo{Revision: snap.R(2)}, "content")
 
 	// Create the mount and apparmor specifications.
 	mountSpec := &mount.Specification{}
 	c.Assert(mountSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(connectedPlug.Snap()))
+
+	apparmorSpec := apparmor.NewSpecification(connectedPlug.AppSet())
 	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
 
 	// Analyze the mount specification.
@@ -876,7 +869,7 @@ slots:
 
 func (s *ContentSuite) TestModernContentInterfacePlugins(c *C) {
 	// Define one app snap and two snaps plugin snaps.
-	plug := MockPlug(c, `name: app
+	const consumerYaml = `name: app
 version: 0
 plugs:
  plugins:
@@ -886,35 +879,34 @@ plugs:
 apps:
  app:
   command: foo
-
-`, &snap.SideInfo{Revision: snap.R(1)}, "plugins")
-	connectedPlug := interfaces.NewConnectedPlug(plug, nil, nil)
+`
+	connectedPlug, _ := MockConnectedPlug(c, consumerYaml, &snap.SideInfo{Revision: snap.R(1)}, "plugins")
 
 	// XXX: realistically the plugin may be a single file and we don't support
 	// those very well.
-	slotOne := MockSlot(c, `name: plugin-one
+	const pluginOneYaml = `name: plugin-one
 version: 0
 slots:
  plugin-for-app:
   interface: content
   source:
-    read: [$SNAP/plugin]
-`, &snap.SideInfo{Revision: snap.R(1)}, "plugin-for-app")
-	connectedSlotOne := interfaces.NewConnectedSlot(slotOne, nil, nil)
+   read: [$SNAP/plugin]
+`
+	connectedSlotOne, _ := MockConnectedSlot(c, pluginOneYaml, &snap.SideInfo{Revision: snap.R(1)}, "plugin-for-app")
 
-	slotTwo := MockSlot(c, `name: plugin-two
+	const pluginTwoYaml = `name: plugin-two
 version: 0
 slots:
  plugin-for-app:
   interface: content
   source:
-    read: [$SNAP/plugin]
-`, &snap.SideInfo{Revision: snap.R(1)}, "plugin-for-app")
-	connectedSlotTwo := interfaces.NewConnectedSlot(slotTwo, nil, nil)
+   read: [$SNAP/plugin]
+`
+	connectedSlotTwo, _ := MockConnectedSlot(c, pluginTwoYaml, &snap.SideInfo{Revision: snap.R(1)}, "plugin-for-app")
 
 	// Create the mount and apparmor specifications.
 	mountSpec := &mount.Specification{}
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(connectedPlug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(connectedPlug.AppSet())
 	for _, connectedSlot := range []*interfaces.ConnectedSlot{connectedSlotOne, connectedSlotTwo} {
 		c.Assert(mountSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
 		c.Assert(apparmorSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
@@ -954,7 +946,7 @@ slots:
 }
 
 func (s *ContentSuite) TestModernContentSameReadAndWriteClash(c *C) {
-	plug := MockPlug(c, `name: consumer
+	const consumerYaml = `name: consumer
 version: 0
 plugs:
  content:
@@ -962,25 +954,25 @@ plugs:
 apps:
  app:
   command: foo
-`, &snap.SideInfo{Revision: snap.R(1)}, "content")
-	connectedPlug := interfaces.NewConnectedPlug(plug, nil, nil)
+`
+	connectedPlug, _ := MockConnectedPlug(c, consumerYaml, &snap.SideInfo{Revision: snap.R(1)}, "content")
 
-	slot := MockSlot(c, `name: producer
+	const producerYaml = `name: producer
 version: 0
 slots:
  content:
   source:
-    read:
-     - $SNAP_DATA/directory
-    write:
-     - $SNAP_DATA/directory
-`, &snap.SideInfo{Revision: snap.R(2)}, "content")
-	connectedSlot := interfaces.NewConnectedSlot(slot, nil, nil)
+   read:
+    - $SNAP_DATA/directory
+   write:
+    - $SNAP_DATA/directory
+`
+	connectedSlot, _ := MockConnectedSlot(c, producerYaml, &snap.SideInfo{Revision: snap.R(2)}, "content")
 
 	// Create the mount and apparmor specifications.
 	mountSpec := &mount.Specification{}
 	c.Assert(mountSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(connectedPlug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(connectedPlug.AppSet())
 	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
 
 	// Analyze the mount specification
@@ -1020,8 +1012,7 @@ plugs:
  content:
   target: $SNAP_COMMON/import
 `
-	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
-	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil, nil)
+	plug, _ := MockConnectedPlug(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)}, "content")
 	const producerYaml = `name: producer
 version: 0
 slots:
@@ -1032,10 +1023,9 @@ apps:
   app:
     command: bar
 `
-	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
-	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil, nil)
+	slot, _ := MockConnectedSlot(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)}, "content")
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(slot.Snap()))
+	apparmorSpec := apparmor.NewSpecification(slot.AppSet())
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})

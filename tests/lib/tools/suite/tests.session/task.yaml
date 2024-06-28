@@ -1,5 +1,8 @@
 summary: tests for tests.session
 
+details: |
+    Check the tests.session tool can run commands in a user session
+
 # Session-tool depends on busctl and doesn't work on 14.04
 systems: [-ubuntu-14.04-*]
 

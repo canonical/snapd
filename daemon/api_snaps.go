@@ -51,7 +51,7 @@ var (
 		Path:        "/v2/snaps/{name}",
 		GET:         getSnapInfo,
 		POST:        postSnap,
-		ReadAccess:  openAccess{},
+		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 
@@ -841,6 +841,31 @@ func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapIns
 func meetSnapConstraintsForEnforce(inst *snapInstruction, st *state.State, vErr *snapasserts.ValidationSetsValidationError) ([]*state.TaskSet, []string, error) {
 	// Save the sequence numbers so we can pin them later when enforcing the sets again
 	pinnedSeqs := make(map[string]int, len(inst.ValidationSets))
+
+	trackedSets, err := assertstate.ValidationSets(st)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// make sure to re-pin the already existing validation sets that were
+	// considered when creating this enforcement error
+	for key := range vErr.Sets {
+		tr, ok := trackedSets[key]
+
+		// new validation sets won't be found in the already tracked sets
+		if !ok {
+			continue
+		}
+
+		// ignore any that are not pinned
+		if tr.PinnedAt == 0 {
+			continue
+		}
+
+		pinnedSeqs[key] = tr.PinnedAt
+	}
+
+	// also pin new validation sets that are not yet tracked
 	for _, vsStr := range inst.ValidationSets {
 		account, name, sequence, err := snapasserts.ParseValidationSet(vsStr)
 		if err != nil {

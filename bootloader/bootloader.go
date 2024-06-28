@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -39,6 +39,9 @@ var (
 	// ErrNoTryKernelRef is returned if the bootloader finds no enabled
 	// try-kernel.
 	ErrNoTryKernelRef = errors.New("no try-kernel referenced")
+
+	// ErrNoBootChainFound is returned by ParametersForEfiLoadOption if no valid bootchain was found
+	ErrNoBootChainFound = errors.New("no valid bootchain found")
 )
 
 // Role indicates whether the bootloader is used for recovery or run mode.
@@ -257,6 +260,15 @@ type RebootBootloader interface {
 
 	// GetRebootArguments returns the needed reboot arguments
 	GetRebootArguments() (string, error)
+}
+
+// UefiBootloader provides data for setting EFI boot variables.
+type UefiBootloader interface {
+	Bootloader
+
+	// ParametersForEfiLoadOption returns the data which may be used to construct
+	// an EFI load option.
+	ParametersForEfiLoadOption(updatedAssets []string) (description string, assetPath string, optionalData []byte, err error)
 }
 
 func genericInstallBootConfig(gadgetFile, systemFile string) error {

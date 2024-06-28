@@ -38,7 +38,6 @@ import (
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/tooling"
 	"github.com/snapcore/snapd/testutil"
-	usersessionclient "github.com/snapcore/snapd/usersession/client"
 )
 
 var RunMain = run
@@ -135,28 +134,27 @@ func SetVerbose(iw *infoWriter, verbose bool) {
 }
 
 var (
-	ClientSnapFromPath                            = clientSnapFromPath
-	SetupDiskSnap                                 = (*infoWriter).setupDiskSnap
-	SetupSnap                                     = (*infoWriter).setupSnap
-	MaybePrintServices                            = (*infoWriter).maybePrintServices
-	MaybePrintCommands                            = (*infoWriter).maybePrintCommands
-	MaybePrintType                                = (*infoWriter).maybePrintType
-	PrintSummary                                  = (*infoWriter).printSummary
-	MaybePrintPublisher                           = (*infoWriter).maybePrintPublisher
-	MaybePrintNotes                               = (*infoWriter).maybePrintNotes
-	MaybePrintStandaloneVersion                   = (*infoWriter).maybePrintStandaloneVersion
-	MaybePrintBuildDate                           = (*infoWriter).maybePrintBuildDate
-	MaybePrintLinks                               = (*infoWriter).maybePrintLinks
-	MaybePrintBase                                = (*infoWriter).maybePrintBase
-	MaybePrintPath                                = (*infoWriter).maybePrintPath
-	MaybePrintSum                                 = (*infoWriter).maybePrintSum
-	MaybePrintCohortKey                           = (*infoWriter).maybePrintCohortKey
-	MaybePrintHealth                              = (*infoWriter).maybePrintHealth
-	MaybePrintRefreshInfo                         = (*infoWriter).maybePrintRefreshInfo
-	WaitWhileInhibited                            = waitWhileInhibited
-	TryNotifyRefreshViaSnapDesktopIntegrationFlow = tryNotifyRefreshViaSnapDesktopIntegrationFlow
-	NewInhibitionFlow                             = newInhibitionFlow
-	ErrSnapRefreshConflict                        = errSnapRefreshConflict
+	ClientSnapFromPath          = clientSnapFromPath
+	SetupDiskSnap               = (*infoWriter).setupDiskSnap
+	SetupSnap                   = (*infoWriter).setupSnap
+	MaybePrintServices          = (*infoWriter).maybePrintServices
+	MaybePrintCommands          = (*infoWriter).maybePrintCommands
+	MaybePrintType              = (*infoWriter).maybePrintType
+	PrintSummary                = (*infoWriter).printSummary
+	MaybePrintPublisher         = (*infoWriter).maybePrintPublisher
+	MaybePrintNotes             = (*infoWriter).maybePrintNotes
+	MaybePrintStandaloneVersion = (*infoWriter).maybePrintStandaloneVersion
+	MaybePrintBuildDate         = (*infoWriter).maybePrintBuildDate
+	MaybePrintLinks             = (*infoWriter).maybePrintLinks
+	MaybePrintBase              = (*infoWriter).maybePrintBase
+	MaybePrintPath              = (*infoWriter).maybePrintPath
+	MaybePrintSum               = (*infoWriter).maybePrintSum
+	MaybePrintCohortKey         = (*infoWriter).maybePrintCohortKey
+	MaybePrintHealth            = (*infoWriter).maybePrintHealth
+	MaybePrintRefreshInfo       = (*infoWriter).maybePrintRefreshInfo
+	WaitWhileInhibited          = waitWhileInhibited
+	NewInhibitionFlow           = newInhibitionFlow
+	ErrSnapRefreshConflict      = errSnapRefreshConflict
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -438,43 +436,9 @@ func MockWaitWhileInhibited(f func(ctx context.Context, snapName string, notInhi
 	return restore
 }
 
-func MockIsGraphicalSession(graphical bool) (restore func()) {
-	old := isGraphicalSession
-	isGraphicalSession = func() bool {
-		return graphical
-	}
-	return func() {
-		isGraphicalSession = old
-	}
-}
-
-func MockPendingRefreshNotification(f func(ctx context.Context, refreshInfo *usersessionclient.PendingSnapRefreshInfo) error) (restore func()) {
-	old := pendingRefreshNotification
-	pendingRefreshNotification = f
-	return func() {
-		pendingRefreshNotification = old
-	}
-}
-
-func MockFinishRefreshNotification(f func(ctx context.Context, refreshInfo *usersessionclient.FinishedSnapRefreshInfo) error) (restore func()) {
-	old := finishRefreshNotification
-	finishRefreshNotification = f
-	return func() {
-		finishRefreshNotification = old
-	}
-}
-
-func MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(f func(ctx context.Context, snapName string) bool) (restore func()) {
-	old := tryNotifyRefreshViaSnapDesktopIntegrationFlow
-	tryNotifyRefreshViaSnapDesktopIntegrationFlow = f
-	return func() {
-		tryNotifyRefreshViaSnapDesktopIntegrationFlow = old
-	}
-}
-
 func MockInhibitionFlow(flow inhibitionFlow) (restore func()) {
 	old := newInhibitionFlow
-	newInhibitionFlow = func(name string) inhibitionFlow {
+	newInhibitionFlow = func(cli *client.Client, name string) inhibitionFlow {
 		return flow
 	}
 	return func() {

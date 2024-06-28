@@ -1,6 +1,11 @@
 summary: Check that `snap connect` runs interface hooks when plug name ends with
     a number.
 
+details: |
+    This test checks for a regression of a bug related to SNAP_COOKIE
+    environment variable, and the validation logic that previously disallowed
+    trailing digits.
+
 prepare: |
     echo "Install test hooks snaps"
     "$TESTSTOOLS"/snaps-state install-local test-snap

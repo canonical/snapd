@@ -251,7 +251,7 @@ func packSnap(sourceDir string, yaml []byte, opts *Options) (string, error) {
 
 func packComponent(sourceDir string, yaml []byte, opts *Options) (string, error) {
 	cont := snapdir.New(sourceDir)
-	ci, err := snap.ReadComponentInfoFromContainer(cont)
+	ci, err := snap.InfoFromComponentYaml(yaml)
 	if err != nil {
 		return "", err
 	}

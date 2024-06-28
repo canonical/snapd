@@ -44,8 +44,14 @@ remote_pull() {
     SSH_PASS="$(_get_pass)"
     SSH_CERT="$(_get_cert)"
 
+    LEGACY_PARAM=""
+    # We check if the scp version is greater than 9, so -O option is supported
+    if [ "$(ssh -V 2>&1 | awk -F'[_,]' '{print $2+0}')" -ge 9 ]; then
+        LEGACY_PARAM="-O"
+    fi
+
     # shellcheck disable=SC2153,SC2086
-    $SSH_PASS scp $SSH_CERT -P "$TESTS_REMOTE_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$TESTS_REMOTE_USER"@"$TESTS_REMOTE_HOST":"$REMOTE_PATH" "$LOCAL_PATH"
+    $SSH_PASS scp $SSH_CERT $LEGACY_PARAM -P "$TESTS_REMOTE_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$TESTS_REMOTE_USER"@"$TESTS_REMOTE_HOST":"$REMOTE_PATH" "$LOCAL_PATH"
 }
 
 main() {

@@ -1,5 +1,17 @@
 summary: Ensure "dh_systemd_start --restart-after-upgrade" works
 
+details: |
+    dh_systemd_start is a debhelper program that is responsible for starting/stopping or restarting
+    systemd unit files in case no corresponding sysv init script is available. The unit file is
+    stopped before upgrades and started afterwards (unless --restart-after-upgrade is specified,
+    in which case it will only be restarted after the upgrade)
+
+    In this test it is simulated an upgrade from 2.48 to the current version. To achieve this the
+    upgrade dpkg maintainer scripts have to be manually executed (preinst, postinst, prerm, and postrm)
+
+    Finally it is verified that snapd is restarted when the upgrade is completed (just after postinst
+    is executed), and it is not restarted during the process. 
+
 systems:
   # not on 16.04, dh_systemd_start --restart-after-upgrade is broken there
   - ubuntu-18.04-*
@@ -14,7 +26,7 @@ execute: |
 
     # For details how maintainer scripts are called see
     #   https://wiki.debian.org/MaintainerScripts
-    # We simualte an upgrade from 2.48 to the current version, note that
+    # We simulate an upgrade from 2.48 to the current version, note that
     # dpkg itself calls old maintainer scripts for "prerm", "postrm"
     # which we cannot simulate
     OLD_VER=2.48

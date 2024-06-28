@@ -1,0 +1,7 @@
+#!/bin/bash
+
+BACKENDS_PATH=$1
+SPREAD_YAML=$2
+
+echo "adding backend defined in $BACKENDS_PATH to the spread.yaml"
+sed "/^backends:/r $BACKENDS_PATH" -i "$SPREAD_YAML"
