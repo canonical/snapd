@@ -49,6 +49,7 @@ const desktopLaunchConnectedPlugAppArmor = `
 # to the snapd snap.
 /usr/bin/snap ixr,
 /snap/snapd/*/usr/bin/snap ixr,
+/snap/snapd/*{,/usr}/lib/@{multiarch}/lib*.so* mr,
 
 #include <abstractions/dbus-session-strict>
 
