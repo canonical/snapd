@@ -87,7 +87,8 @@ void sc_probe_snap_mount_dir_from_pid_1_mount_ns(int root_fd, sc_error **errorp)
                 goto out;
             }
 
-            if (strncmp(target, SC_ALTERNATE_SNAP_MOUNT_DIR, n) != 0) {
+            if (strncmp(target, SC_ALTERNATE_SNAP_MOUNT_DIR, n) != 0 &&
+                strncmp(target, SC_ALTERNATE_SNAP_MOUNT_DIR + 1, n) != 0) {
                 err = sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_MOUNT_DIR_UNSUPPORTED,
                                     SC_CANONICAL_SNAP_MOUNT_DIR
                                     " must be a symbolic link to " SC_ALTERNATE_SNAP_MOUNT_DIR);
