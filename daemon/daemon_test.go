@@ -22,6 +22,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -86,6 +87,8 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 	s.notified = nil
 	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 	s.AddCleanup(MockRebootNoticeWait(0))
+
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdSocket), 0755), check.IsNil)
 }
 
 func (s *daemonSuite) TearDownTest(c *check.C) {
@@ -1477,4 +1480,117 @@ func (s *daemonSuite) TestHandleUnexpectedRestart(c *check.C) {
 	s.markSeeded(d)
 
 	c.Assert(d.Start(context.Background()), check.Equals, ErrNoFailureRecoveryNeeded)
+}
+
+func clientForSnapdSocket() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			Dial: func(_, _ string) (net.Conn, error) {
+				return net.Dial("unix", dirs.SnapdSocket)
+			},
+		},
+	}
+}
+
+func (s *daemonSuite) TestRequestContextCanceledOnStop(c *check.C) {
+	d, err := New()
+	c.Assert(err, check.IsNil)
+	// don't talk to the store, needs to be called after daemon.New()
+	snapstate.CanAutoRefresh = nil
+
+	// mark as already seeded
+	s.markSeeded(d)
+
+	c.Assert(d.Init(), check.IsNil)
+
+	gotReqC := make(chan struct{})
+	reqErrC := make(chan error, 1)
+	d.router.HandleFunc("/test-call", func(w http.ResponseWriter, r *http.Request) {
+		close(gotReqC)
+		// since Stop() is called in the test, the request will get
+		// canceled
+		<-r.Context().Done()
+		reqErrC <- r.Context().Err()
+		w.WriteHeader(500)
+	})
+
+	client := clientForSnapdSocket()
+
+	req, err := http.NewRequest("GET", "http://localhost/test-call", nil)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(d.Start(context.Background()), check.IsNil)
+
+	clientC := make(chan struct{})
+	go func() {
+		// this will block until we call stop
+		r, err := client.Do(req)
+		if r != nil {
+			defer r.Body.Close()
+		}
+		c.Check(err, check.IsNil)
+		close(clientC)
+	}()
+
+	<-gotReqC
+	d.Stop(nil)
+	reqErr := <-reqErrC
+	c.Check(errors.Is(reqErr, context.Canceled), check.Equals, true,
+		check.Commentf("unexpected error %v", reqErr))
+	<-clientC
+}
+
+func (s *daemonSuite) TestRequestContextPropagated(c *check.C) {
+	d, err := New()
+	c.Assert(err, check.IsNil)
+	// don't talk to the store, needs to be called after daemon.New()
+	snapstate.CanAutoRefresh = nil
+
+	// mark as already seeded
+	s.markSeeded(d)
+
+	c.Assert(d.Init(), check.IsNil)
+
+	type testKey struct{}
+
+	reqC := make(chan any, 1)
+	d.router.HandleFunc("/test-call", func(w http.ResponseWriter, r *http.Request) {
+		defer close(reqC)
+		reqC <- r.Context().Value(testKey{})
+	})
+
+	client := clientForSnapdSocket()
+
+	req, err := http.NewRequest("GET", "http://localhost/test-call", nil)
+	c.Assert(err, check.IsNil)
+
+	ctx := context.WithValue(context.Background(), testKey{}, "hello")
+	c.Assert(d.Start(ctx), check.IsNil)
+
+	r, err := client.Do(req)
+	if r != nil {
+		defer r.Body.Close()
+	}
+	c.Check(err, check.IsNil)
+
+	v := <-reqC
+	c.Assert(v, check.DeepEquals, "hello")
+	d.Stop(nil)
+}
+
+func (s *daemonSuite) TestRequestContextHijacked(c *check.C) {
+	d := s.newTestDaemon(c)
+
+	// mark as already seeded
+	s.markSeeded(d)
+
+	c.Assert(d.Init(), check.IsNil)
+	c.Assert(d.Start(context.Background()), check.IsNil)
+
+	// since the tests aren't in a package, we directly hijack d.cancel
+	c.Assert(d.cancel, check.NotNil)
+	cancel := d.cancel
+	defer cancel()
+	d.cancel = nil
+	d.Stop(nil)
 }
