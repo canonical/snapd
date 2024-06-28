@@ -791,7 +791,7 @@ func snapUpdateMany(ctx context.Context, inst *snapInstruction, st *state.State)
 	}, nil
 }
 
-func snapEnforceValidationSets(_ context.Context, inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+func snapEnforceValidationSets(ctx context.Context, inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
 	if len(inst.ValidationSets) > 0 && len(inst.Snaps) != 0 {
 		return nil, fmt.Errorf("snap names cannot be specified with validation sets to enforce")
 	}
@@ -819,7 +819,7 @@ func snapEnforceValidationSets(_ context.Context, inst *snapInstruction, st *sta
 			return nil, err
 		}
 
-		tss, affected, err = meetSnapConstraintsForEnforce(inst, st, vErr)
+		tss, affected, err = meetSnapConstraintsForEnforce(ctx, inst, st, vErr)
 		if err != nil {
 			return nil, err
 		}
@@ -837,7 +837,7 @@ func snapEnforceValidationSets(_ context.Context, inst *snapInstruction, st *sta
 	}, nil
 }
 
-func meetSnapConstraintsForEnforce(inst *snapInstruction, st *state.State, vErr *snapasserts.ValidationSetsValidationError) ([]*state.TaskSet, []string, error) {
+func meetSnapConstraintsForEnforce(ctx context.Context, inst *snapInstruction, st *state.State, vErr *snapasserts.ValidationSetsValidationError) ([]*state.TaskSet, []string, error) {
 	// Save the sequence numbers so we can pin them later when enforcing the sets again
 	pinnedSeqs := make(map[string]int, len(inst.ValidationSets))
 
@@ -878,7 +878,7 @@ func meetSnapConstraintsForEnforce(inst *snapInstruction, st *state.State, vErr 
 		pinnedSeqs[fmt.Sprintf("%s/%s", account, name)] = sequence
 	}
 
-	return snapstateResolveValSetsEnforcementError(context.TODO(), st, vErr, pinnedSeqs, inst.userID)
+	return snapstateResolveValSetsEnforcementError(ctx, st, vErr, pinnedSeqs, inst.userID)
 }
 
 func snapRemoveMany(_ context.Context, inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
