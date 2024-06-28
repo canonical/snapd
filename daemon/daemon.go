@@ -320,7 +320,8 @@ func (d *Daemon) initStandbyHandling() {
 	d.standbyOpinions.Start()
 }
 
-// Start the Daemon
+// Start the Daemon. Takes a context which will be used as the base request
+// context in the embedded http.Server.
 func (d *Daemon) Start(ctx context.Context) (err error) {
 	if d.expectedRebootDidNotHappen {
 		// we need to schedule and wait for a system restart
