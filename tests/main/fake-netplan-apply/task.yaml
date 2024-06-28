@@ -22,6 +22,11 @@ environment:
     NETPLAN: io.netplan.Netplan
 
 prepare: |
+    is_dev=false
+    if os.query is-ubuntu-gt 24.04; then
+        is_dev=true
+    fi
+
     # build the netplan snap for this system
     if os.query is-xenial; then
         # use no base setting to use effectively "base: core"
@@ -55,7 +60,7 @@ prepare: |
                 > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
         snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-22.snap
         snap install --dangerous netplan-snap-22.snap
-    elif os.query is-noble; then
+    elif os.query is-noble || [ "$is_dev" = "true" ]; then
         # use base: core24
         sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" \
             -e "s/base: %BASESNAP%/base: core24/" \
@@ -67,7 +72,7 @@ prepare: |
         snap install --dangerous netplan-snap-24.snap
         tests.cleanup defer snap remove --purge netplan-snap
     else
-        echo "new core release, please update test for new ubuntu core version"
+        echo "new release, please update test for new ubuntu version"
         exit 1
     fi
 
