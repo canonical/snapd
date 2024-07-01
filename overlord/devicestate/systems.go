@@ -293,7 +293,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 			return "", err
 		}
 	}
-	if err := w.SetOptionsSnaps(optsSnaps); err != nil {
+	if err := w.SetOptionsSnaps(optsSnaps, nil); err != nil {
 		return "", err
 	}
 
