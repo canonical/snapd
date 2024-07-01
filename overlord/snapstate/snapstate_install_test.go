@@ -2009,6 +2009,7 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 				Action:       "install",
 				InstanceName: "some-snap",
 				Revision:     snap.R(42),
+				Channel:      "some-channel",
 			},
 			revno:  snap.R(42),
 			userID: 1,
@@ -2033,6 +2034,7 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 				RealName: "some-snap",
 				SnapID:   "some-snap-id",
 				Revision: snap.R(42),
+				Channel:  "some-channel",
 			},
 		},
 		{
@@ -2061,6 +2063,7 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 				RealName: "some-snap",
 				SnapID:   "some-snap-id",
 				Revision: snap.R(42),
+				Channel:  "some-channel",
 			},
 		},
 		{
@@ -2120,6 +2123,7 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 		RealName: "some-snap",
 		Revision: snap.R(42),
 		SnapID:   "some-snap-id",
+		Channel:  "some-channel",
 	})
 
 	// verify snaps in the system state
@@ -2136,6 +2140,7 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
 		Revision: snap.R(42),
+		Channel:  "some-channel",
 	}, nil))
 	c.Assert(snapst.Required, Equals, false)
 }
@@ -2688,6 +2693,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 				Action:       "install",
 				InstanceName: "some-snap",
 				Revision:     snap.R(42),
+				Channel:      "some-channel",
 			},
 			revno:  snap.R(42),
 			userID: 1,
@@ -2793,6 +2799,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 				RealName: "some-snap",
 				SnapID:   "some-snap-id",
 				Revision: snap.R(42),
+				Channel:  "some-channel",
 			},
 		},
 		{
@@ -2821,6 +2828,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 				RealName: "some-snap",
 				SnapID:   "some-snap-id",
 				Revision: snap.R(42),
+				Channel:  "some-channel",
 			},
 		},
 		{
@@ -2990,7 +2998,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c
 		c.Assert(snapst2.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideState(&snap.SideInfo{
 			RealName: "snap2",
 			SnapID:   "snap2-id",
-			Channel:  "",
+			Channel:  "some-other-channel",
 			Revision: snap.R(21),
 		}, nil))
 	}
@@ -3159,6 +3167,7 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 			Action:       "install",
 			InstanceName: "snap-content-plug",
 			Revision:     snap.R(42),
+			Channel:      "stable",
 		},
 		revno:  snap.R(42),
 		userID: 1,
@@ -3243,6 +3252,7 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 			RealName: "snap-content-plug",
 			SnapID:   "snap-content-plug-id",
 			Revision: snap.R(42),
+			Channel:  "stable",
 		},
 	}, {
 		op:    "setup-snap",
@@ -3266,6 +3276,7 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 			RealName: "snap-content-plug",
 			SnapID:   "snap-content-plug-id",
 			Revision: snap.R(42),
+			Channel:  "stable",
 		},
 	}, {
 		op:   "link-snap",
@@ -4835,6 +4846,7 @@ func (s *validationSetsSuite) TestInstallSnapReferencedByValidationSetWrongRevis
 			Action:       "install",
 			Revision:     snap.R(11),
 			InstanceName: "some-snap",
+			Channel:      "stable",
 			Flags:        store.SnapActionIgnoreValidation,
 		},
 		revno: snap.R(11),
