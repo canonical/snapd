@@ -20,6 +20,7 @@
 package seedwriter
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -208,6 +209,14 @@ func (tr *tree16) snapPath(sn *SeedSnap) (string, error) {
 
 func (tr *tree16) localSnapPath(sn *SeedSnap) (string, error) {
 	return filepath.Join(tr.snapsDirPath, sn.Info.Filename()), nil
+}
+
+func (tr *tree16) componentPath(sn *SeedSnap, sc *SeedComponent) (string, error) {
+	return "", errors.New("components not supported on UC16")
+}
+
+func (tr *tree16) localComponentPath(sc *SeedComponent) (string, error) {
+	return "", errors.New("components not supported on UC16")
 }
 
 func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
