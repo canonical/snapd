@@ -62,7 +62,7 @@ distro_name_package() {
         ubuntu-*|debian-*)
             debian_name_package "$@"
             ;;
-        amazon-*|centos-7-*)
+        amazon-*)
             amazon_name_package "$@"
             ;;
         fedora-*|centos-*)
@@ -108,7 +108,7 @@ distro_install_local_package() {
             # shellcheck disable=SC2086
             apt install $flags "$@"
             ;;
-        amazon-*|centos-7-*)
+        amazon-*)
             quiet yum -y localinstall "$@"
             ;;
         fedora-*|centos-*)
@@ -194,7 +194,7 @@ distro_install_package() {
             quiet eatmydata apt-get install $APT_FLAGS -y "${pkg_names[@]}"
             retval=$?
             ;;
-        amazon-linux-2-*|centos-7-*)
+        amazon-linux-2-*)
             # shellcheck disable=SC2086
             quiet yum -y install $YUM_FLAGS "${pkg_names[@]}"
             retval=$?
@@ -254,7 +254,7 @@ distro_purge_package() {
             # behind while purging in prepare
             eatmydata apt-get remove -y --purge -y "$@"
             ;;
-        amazon-*|centos-7-*)
+        amazon-*)
             quiet yum -y remove "$@"
             ;;
         fedora-*|centos-*)
@@ -279,7 +279,7 @@ distro_update_package_db() {
         ubuntu-*|debian-*)
             quiet eatmydata apt-get update
             ;;
-        amazon-*|centos-7-*)
+        amazon-*)
             quiet yum clean all
             quiet yum makecache
             ;;
@@ -305,7 +305,7 @@ distro_clean_package_cache() {
         ubuntu-*|debian-*)
             quiet eatmydata apt-get clean
             ;;
-        amazon-*|centos-7-*)
+        amazon-*)
             yum clean all
             ;;
         fedora-*|centos-*)
@@ -329,7 +329,7 @@ distro_auto_remove_packages() {
         ubuntu-*|debian-*)
             quiet eatmydata apt-get -y autoremove
             ;;
-        amazon-*|centos-7-*)
+        amazon-*)
             quiet yum -y autoremove
             ;;
         fedora-*|centos-*)
@@ -351,7 +351,7 @@ distro_query_package_info() {
         ubuntu-*|debian-*)
             apt-cache policy "$1"
             ;;
-        amazon-*|centos-7-*)
+        amazon-*)
             yum info "$1"
             ;;
         fedora-*|centos-*)
@@ -867,7 +867,7 @@ pkg_dependencies(){
             pkg_dependencies_ubuntu_generic
             pkg_dependencies_ubuntu_classic
             ;;
-        amazon-*|centos-7-*)
+        amazon-*)
             pkg_dependencies_amazon
             ;;
         centos-*)

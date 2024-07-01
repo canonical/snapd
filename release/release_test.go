@@ -142,20 +142,20 @@ BUG_REPORT_URL="https://bugs.launchpad.net/elementary/+filebug"`
 func (s *ReleaseTestSuite) TestFamilyOSRelease(c *C) {
 	mockOSRelease := filepath.Join(c.MkDir(), "mock-os-release")
 	dump := `NAME="CentOS Linux"
-VERSION="7 (Core)"
+VERSION="9 (Core)"
 ID="centos"
 ID_LIKE="rhel fedora"
-VERSION_ID="7"
-PRETTY_NAME="CentOS Linux 7 (Core)"
+VERSION_ID="9"
+PRETTY_NAME="CentOS Linux 9 (Core)"
 ANSI_COLOR="0;31"
-CPE_NAME="cpe:/o:centos:centos:7"
+CPE_NAME="cpe:/o:centos:centos:9"
 HOME_URL="https://www.centos.org/"
 BUG_REPORT_URL="https://bugs.centos.org/"
 
-CENTOS_MANTISBT_PROJECT="CentOS-7"
-CENTOS_MANTISBT_PROJECT_VERSION="7"
+CENTOS_MANTISBT_PROJECT="CentOS-9"
+CENTOS_MANTISBT_PROJECT_VERSION="9"
 REDHAT_SUPPORT_PRODUCT="centos"
-REDHAT_SUPPORT_PRODUCT_VERSION="7"`
+REDHAT_SUPPORT_PRODUCT_VERSION="9"`
 	err := os.WriteFile(mockOSRelease, []byte(dump), 0644)
 	c.Assert(err, IsNil)
 
@@ -164,7 +164,7 @@ REDHAT_SUPPORT_PRODUCT_VERSION="7"`
 
 	os := release.ReadOSRelease()
 	c.Check(os.ID, Equals, "centos")
-	c.Check(os.VersionID, Equals, "7")
+	c.Check(os.VersionID, Equals, "9")
 	c.Check(os.IDLike, DeepEquals, []string{"rhel", "fedora"})
 }
 

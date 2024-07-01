@@ -617,7 +617,7 @@ jobs:
             tests: 'tests/...'
           - group: centos
             backend: google-distro-2
-            systems: 'centos-7-64 centos-9-64'
+            systems: 'centos-9-64'
             tests: 'tests/...'
           - group: debian-req
             backend: google-distro-1

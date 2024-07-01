@@ -14,10 +14,6 @@ details: |
 systems: [fedora-*, centos-*]
 
 prepare: |
-    if [[ "$SPREAD_SYSTEM" == centos-7-* ]]; then
-        tests.pkgs install systemd-resolved
-    fi
-
     getenforce > enforcing.mode
 
     # Enable enforcing mode, our policy is already marked as permissive, so we
