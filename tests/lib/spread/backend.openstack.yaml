@@ -8,6 +8,8 @@
             HTTPS_PROXY: 'http://squid.internal:3128'
             http_proxy: 'http://squid.internal:3128'
             https_proxy: 'http://squid.internal:3128'
+            no_proxy: '127.0.0.1,ubuntu.com'
+            NO_PROXY: '127.0.0.1,ubuntu.com'
         systems:
             - ubuntu-22.04-64:
                 image: ubuntu-22.04-64
