@@ -18,7 +18,6 @@ systems:
   - -ubuntu-20.04-*
   - -ubuntu-core-*
   - -centos-7-*
-  - -centos-8-*
   - -centos-9-*
 
 prepare: |
