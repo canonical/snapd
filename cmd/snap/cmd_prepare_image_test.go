@@ -131,7 +131,7 @@ func (s *SnapPrepareImageSuite) TestPrepareImageExtraSnaps(c *C) {
 	r := cmdsnap.MockImagePrepare(prep)
 	defer r()
 
-	rest, err := cmdsnap.Parser(cmdsnap.Client()).ParseArgs([]string{"prepare-image", "model", "prepare-dir", "--channel", "candidate", "--snap", "foo", "--snap", "bar=t/edge", "--snap", "local.snap", "--extra-snaps", "local2.snap", "--extra-snaps", "store-snap"})
+	rest, err := cmdsnap.Parser(cmdsnap.Client()).ParseArgs([]string{"prepare-image", "model", "prepare-dir", "--channel", "candidate", "--snap", "foo", "--snap", "bar=t/edge", "--snap", "local.snap", "--extra-snaps", "local2.snap", "--extra-snaps", "store-snap", "--comp", "local.comp", "--comp", "bar+comp1"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 
@@ -140,6 +140,7 @@ func (s *SnapPrepareImageSuite) TestPrepareImageExtraSnaps(c *C) {
 		Channel:      "candidate",
 		PrepareDir:   "prepare-dir",
 		Snaps:        []string{"foo", "bar", "local.snap", "local2.snap", "store-snap"},
+		Components:   []string{"local.comp", "bar+comp1"},
 		SnapChannels: map[string]string{"bar": "t/edge"},
 	})
 }
