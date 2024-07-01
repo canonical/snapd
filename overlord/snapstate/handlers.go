@@ -344,7 +344,7 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 			return false, nil
 		}
 
-		// snap is being installed, retry later
+		// snap is either being installed or updated
 		return false, onInFlight
 	}
 
@@ -355,10 +355,8 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		}
 
 		// other kind of dependency, check if it's in progress
-		if _, err := shouldAttemptInstall(snapName); err != nil {
-			return nil, err
-		}
-		return nil, nil
+		_, err := shouldAttemptInstall(snapName)
+		return nil, err
 	}
 
 	// not installed, wait for it if it is. If not, we'll install it
