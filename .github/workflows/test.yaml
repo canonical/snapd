@@ -786,7 +786,7 @@ jobs:
       run: |
           # Configure parameters to filter logs (these logs are sent read by grafana agent)
           CHANGE_ID="${{ github.event.number }}"
-          if [ -z "$PR_ID" ]; then
+          if [ -z "$CHANGE_ID" ]; then
             CHANGE_ID="main"
           fi
           CHANGE_ID="${CHANGE_ID}_n${{ github.run_attempt }}"
