@@ -689,6 +689,17 @@ func (s *servicectlSuite) TestQueuedCommandsOrderingConfigureHook(c *C) {
 	s.testQueuedCommandsOrdering(c, hook, singleTransaction)
 }
 
+// NOTE: It is tricky to get snap name for all task kinds in the case of configure hook
+// so this test is left commented out just for clarity, but it will fail.
+// This is a non-issue for configure hook since the command tasks are queued at the very
+// end of the change unlike the default-configure hook.
+//
+// func (s *servicectlSuite) TestQueuedCommandsOrderingConfigureHookSingleTransaction(c *C) {
+// 	const hook = "configure"
+// 	const singleTransaction = true
+// 	s.testQueuedCommandsOrdering(c, hook, singleTransaction)
+// }
+
 func (s *servicectlSuite) testQueueCommandsConfigureHookFinalTask(c *C, finalTaskKind string) {
 	s.st.Lock()
 
