@@ -3298,6 +3298,8 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 type RemoveFlags struct {
 	// Remove the snap without creating snapshot data
 	Purge bool
+	// Kill running snap apps and services
+	Terminate bool
 }
 
 // Remove returns a set of tasks for removing snap.
