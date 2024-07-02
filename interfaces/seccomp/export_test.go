@@ -92,9 +92,5 @@ func (b *Backend) VersionInfo() seccomp_compiler.VersionInfo {
 
 var (
 	RequiresSocketcall = requiresSocketcall
-
-	GlobalProfileLE = globalProfileLE
-	GlobalProfileBE = globalProfileBE
-
-	ParallelCompile = parallelCompile
+	ParallelCompile    = parallelCompile
 )

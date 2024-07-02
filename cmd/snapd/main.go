@@ -20,6 +20,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -56,6 +57,12 @@ func main() {
 		snapdtool.ExecInSnapdOrCoreSnap()
 	}
 
+	if err := snapdtool.MaybeSetupFIPS(); err != nil {
+		fmt.Fprintf(os.Stderr, "cannot check or enable FIPS mode: %v", err)
+		os.Exit(1)
+	}
+
+	// TODO look into signal.NotifyContext
 	ch := make(chan os.Signal, 2)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	if err := run(ch); err != nil {
@@ -112,6 +119,8 @@ func runWatchdog(d *daemon.Daemon) (*time.Ticker, error) {
 var checkRunningConditionsRetryDelay = 300 * time.Second
 
 func run(ch chan os.Signal) error {
+	ctx := context.Background()
+
 	t0 := time.Now().Truncate(time.Millisecond)
 	snapdenv.SetUserAgentFromVersion(snapdtool.Version, sandbox.ForceDevMode)
 
@@ -138,7 +147,7 @@ func run(ch chan os.Signal) error {
 
 	d.Version = snapdtool.Version
 
-	if err := d.Start(); err != nil {
+	if err := d.Start(ctx); err != nil {
 		return err
 	}
 

@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/utils"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -62,6 +63,17 @@ func NewRepository() *Repository {
 	}
 
 	return repo
+}
+
+func ResetRepository(repo *Repository) {
+	osutil.MustBeTestBinary("cannot use the ResetRepository method outside of tests")
+	repo.ifaces = make(map[string]Interface)
+	repo.hotplugIfaces = make(map[string]Interface)
+	repo.plugs = make(map[string]map[string]*snap.PlugInfo)
+	repo.slots = make(map[string]map[string]*snap.SlotInfo)
+	repo.slotPlugs = make(map[*snap.SlotInfo]map[*snap.PlugInfo]*Connection)
+	repo.plugSlots = make(map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection)
+	repo.appSets = make(map[string]*SnapAppSet)
 }
 
 // Interface returns an interface with a given name.

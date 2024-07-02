@@ -126,6 +126,7 @@ func init() {
 		implicitOnCore:          true,
 		implicitOnClassic:       true,
 		appArmorUnconfinedPlugs: true,
+		controlsDeviceCgroup:    true,
 		baseDeclarationSlots:    lxdSupportBaseDeclarationSlots,
 		baseDeclarationPlugs:    lxdSupportBaseDeclarationPlugs,
 		serviceSnippets:         []string{lxdSupportServiceSnippet}},

@@ -106,6 +106,7 @@ components:
 	snapstate.Set(s.state, snapName, snapSt)
 
 	c.Check(snapSt.IsComponentInCurrentSeq(cref), Equals, true)
+	c.Check(snapSt.IsCurrentComponentRevInAnyNonCurrentSeq(cref), Equals, false)
 	c.Check(snapSt.IsComponentRevPresent(csi), Equals, true)
 	foundCsi := snapSt.CurrentComponentSideInfo(cref)
 	c.Check(foundCsi, DeepEquals, csi)
@@ -134,6 +135,7 @@ components:
 	snapstate.Set(s.state, snapName, snapSt)
 
 	c.Check(snapSt.IsComponentInCurrentSeq(cref), Equals, false)
+	c.Check(snapSt.IsCurrentComponentRevInAnyNonCurrentSeq(cref), Equals, false)
 	c.Check(snapSt.IsComponentRevPresent(csi), Equals, true)
 	c.Check(snapSt.CurrentComponentSideInfo(cref), IsNil)
 	c.Check(snapSt.CurrentComponentSideInfo(cref2), IsNil)
@@ -161,6 +163,7 @@ components:
 	snapstate.Set(s.state, snapName, snapSt)
 
 	c.Check(snapSt.IsComponentInCurrentSeq(cref), Equals, false)
+	c.Check(snapSt.IsCurrentComponentRevInAnyNonCurrentSeq(cref), Equals, false)
 	c.Check(snapSt.IsComponentRevPresent(csi), Equals, false)
 	c.Check(snapSt.CurrentComponentSideInfo(cref), IsNil)
 	c.Check(snapSt.CurrentComponentSideInfo(cref2), IsNil)
@@ -179,6 +182,8 @@ components:
 		Current: snapRev,
 	}
 	snapstate.Set(s.state, snapName, snapSt)
+
+	c.Check(snapSt.IsCurrentComponentRevInAnyNonCurrentSeq(cref), Equals, false)
 
 	foundCi, err = snapSt.CurrentComponentInfo(cref)
 	c.Check(err, IsNil)
@@ -201,4 +206,17 @@ components:
 
 	_, err = snapSt.CurrentComponentInfos()
 	c.Assert(err, testutil.ErrorIs, snapstate.ErrNoCurrent)
+
+	snapSt = &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(ssi2, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)}),
+				sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)}),
+			}),
+		Current: snapRev,
+	}
+	snapstate.Set(s.state, snapName, snapSt)
+
+	c.Check(snapSt.IsCurrentComponentRevInAnyNonCurrentSeq(cref), Equals, true)
 }

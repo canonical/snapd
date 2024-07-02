@@ -29,15 +29,16 @@ int main(int argc, char **argv) {
     if (argc == 2 && strcmp(argv[1], "--evil") == 0) {
         res = ioctl64(fd, TIOCSTI, (unsigned long)&pushmeback);
         saved_errno = errno;
-        printf("normal TIOCSTI: %d (%m) (expect EPERM)\n", res);
-        if (res < 0 && saved_errno == EPERM) {
+        // The seccomp profile contains an explicit denial so we get EACCESS instead of EPERM.
+        printf("normal TIOCSTI: %d (%m) (expect EACCES)\n", res);
+        if (res < 0 && saved_errno == EACCES) {
             rc = EXIT_SUCCESS;
         }
     } else if (argc == 2 && strcmp(argv[1], "--evil-high") == 0) {
         res = ioctl64(fd, TIOCSTI | (1UL << 32UL), (unsigned long)&pushmeback);
         saved_errno = errno;
-        printf("high-bit-set TIOCSTI: %d (%m) (expect EPERM)\n", res);
-        if (res < 0 && saved_errno == EPERM) {
+        printf("high-bit-set TIOCSTI: %d (%m) (expect EACCES)\n", res);
+        if (res < 0 && saved_errno == EACCES) {
             rc = EXIT_SUCCESS;
         }
     } else if (argc == 2 && strcmp(argv[1], "--good") == 0) {

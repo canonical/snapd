@@ -1585,6 +1585,41 @@ func ReadCurrentInfo(snapName string) (*Info, error) {
 	return ReadInfo(snapName, &SideInfo{Revision: revision})
 }
 
+// NewContainerFromDir creates a new Container from the given directory.
+// Generally, the implementation of this function is set by the snapdir package.
+var NewContainerFromDir func(snapName string) Container = func(snapName string) Container {
+	panic("internal error: snap.NewContainerFromDir function unset")
+}
+
+// ReadCurrentComponentInfo reads the ComponentInfo for the currently linked
+// revision of the given component associated with the given snap.
+func ReadCurrentComponentInfo(component string, info *Info) (*ComponentInfo, error) {
+	// TODO: creating this here is a bit of a hack, since we aren't actually
+	// able to set the revision of the component. we create it so that we can
+	// use ComponentLinkPath, which doesn't use the revision.
+	cpi := MinimalComponentContainerPlaceInfo(component, Revision{}, info.InstanceName())
+	link := ComponentLinkPath(cpi, info.Revision)
+
+	linkSource, err := os.Readlink(link)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find current component %q for snap %q", component, info.InstanceName())
+	}
+
+	rev := filepath.Base(linkSource)
+
+	revision, err := ParseRevision(rev)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse current revision for component %q: %s", component, err)
+	}
+
+	container := NewContainerFromDir(link)
+
+	return ReadComponentInfoFromContainer(container, info, &ComponentSideInfo{
+		Revision:  revision,
+		Component: naming.NewComponentRef(info.SnapName(), component),
+	})
+}
+
 // ReadInfoFromSnapFile reads the snap information from the given Container and
 // completes it with the given side-info if this is not nil.
 func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {

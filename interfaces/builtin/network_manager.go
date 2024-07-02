@@ -90,6 +90,9 @@ network packet,
 
 /run/udev/data/* r,
 
+# Allow access to read the gnutls config
+/etc/gnutls/config r,
+
 # Allow read and write access for all netplan configuration files
 # as NetworkManager will start using them to store the network
 # configuration instead of using its own internal keyfile based
@@ -296,6 +299,9 @@ const networkManagerConnectedPlugAppArmor = `
 # to the NetworkManager service.
 
 #include <abstractions/dbus-strict>
+
+# Allow access to gnutls config
+/etc/gnutls/config r,
 
 # Allow all access to NetworkManager service
 dbus (receive, send)

@@ -48,6 +48,7 @@ type recordingStore struct {
 	storetest.Store
 
 	ops            []string
+	opOpts         []store.RefreshOptions
 	refreshedSnaps []*snap.Info
 }
 
@@ -66,7 +67,13 @@ func (r *recordingStore) SnapAction(ctx context.Context, currentSnaps []*store.C
 			panic("expected refresh actions")
 		}
 	}
+	actionOpts := store.RefreshOptions{}
+	if opts != nil {
+		actionOpts = *opts
+	}
+
 	r.ops = append(r.ops, "list-refresh")
+	r.opOpts = append(r.opOpts, actionOpts)
 
 	res := []store.SnapActionResult{}
 	for _, rs := range r.refreshedSnaps {
@@ -116,7 +123,7 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 	restoreModel := snapstatetest.MockDeviceModel(DefaultModel())
 	s.AddCleanup(restoreModel)
 	restoreEnforcedValidationSets := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-		return nil, nil
+		return snapasserts.NewValidationSets(), nil
 	})
 	s.AddCleanup(restoreEnforcedValidationSets)
 	s.AddCleanup(func() {
@@ -126,11 +133,34 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 	})
 }
 
-func (s *refreshHintsTestSuite) TestLastRefresh(c *C) {
+func (s *refreshHintsTestSuite) TestListRefresh(c *C) {
 	rh := snapstate.NewRefreshHints(s.state)
 	err := rh.Ensure()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+	c.Check(s.store.opOpts, DeepEquals, []store.RefreshOptions{
+		{PrivacyKey: "privacy-key"},
+	})
+}
+
+func (s *refreshHintsTestSuite) TestListRefreshReportsManaged(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	err := tr.Set("core", "refresh.timer", "managed")
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	s.state.Unlock()
+	rh := snapstate.NewRefreshHints(s.state)
+	err = rh.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+	c.Check(s.store.opOpts, DeepEquals, []store.RefreshOptions{
+		{RefreshManaged: true, PrivacyKey: "privacy-key"},
+	})
 }
 
 func (s *refreshHintsTestSuite) TestLastRefreshNoRefreshNeeded(c *C) {

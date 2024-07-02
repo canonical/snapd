@@ -12,19 +12,30 @@ prepare: |
     . "$TESTSLIB"/snaps.sh
 
     # use no base setting to use effectively "base: core"
-    sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/# no base snap for core base/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
+    sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" \
+        -e "s/base: %BASESNAP%/# no base snap for core base/" \
+        -e "s|%USRMERGE%||" \
+            > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
     snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-16.snap
 
     # use base: core18
-    sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/base: core18/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
+    sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" \
+        -e "s/base: %BASESNAP%/base: core18/" \
+        -e "s|%USRMERGE%||" \
+            > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
     snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-18.snap
 
     # Skip i386 because core20 is not available for pc-i386 architecture
     if not os.query is-pc-i386; then
         # use base: core20
-        sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/base: core20/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
+        sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" \
+            -e "s/base: %BASESNAP%/base: core20/" \
+            -e "s|%USRMERGE%|/usr|" \
+                > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
         snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-20.snap
     fi
+
+    # TODO add core22 and 24?
 
 execute: |
     # test all base versions of netplan on all combos of core releases

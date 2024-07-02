@@ -25,7 +25,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
@@ -185,15 +184,9 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 	return rebootInfo, nil
 }
 
-func componentLinkPath(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) string {
-	instanceName, compName, _ := strings.Cut(cpi.ContainerName(), "+")
-	compBase := snap.ComponentsBaseDir(instanceName)
-	return filepath.Join(compBase, snapRev.String(), compName)
-}
-
 func (b Backend) LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error {
 	mountDir := cpi.MountDir()
-	linkPath := componentLinkPath(cpi, snapRev)
+	linkPath := snap.ComponentLinkPath(cpi, snapRev)
 
 	// Create components directory
 	compsDir := filepath.Dir(linkPath)
@@ -212,8 +205,8 @@ func (b Backend) LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revisio
 }
 
 func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, meter progress.Meter, tm timings.Measurer) error {
-	flags := &wrappers.StartServicesFlags{Enable: true}
-	return wrappers.StartServices(apps, disabledSvcs, flags, meter, tm)
+	opts := &wrappers.StartServicesOptions{Enable: true}
+	return wrappers.StartServices(apps, disabledSvcs, opts, meter, tm)
 }
 
 func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
@@ -395,7 +388,7 @@ func removeCurrentSymlinks(info snap.PlaceInfo) error {
 }
 
 func (b Backend) UnlinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error {
-	linkPath := componentLinkPath(cpi, snapRev)
+	linkPath := snap.ComponentLinkPath(cpi, snapRev)
 
 	err := os.Remove(linkPath)
 	if err != nil {

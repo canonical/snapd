@@ -295,7 +295,7 @@ func (s *sideloadSuite) TestSideloadComponent(c *check.C) {
 	csi := snap.NewComponentSideInfo(naming.NewComponentRef("local", "comp"), snap.Revision{})
 
 	chgSummary, systemRestartImmediate := s.sideloadComponentCheck(c, body, head, "local", flags, csi)
-	c.Check(chgSummary, check.Equals, `Install "local" component from file "a/b/local+localcomp.comp"`)
+	c.Check(chgSummary, check.Equals, `Install "comp" component for "local" snap from file "a/b/local+localcomp.comp"`)
 	c.Check(systemRestartImmediate, check.Equals, false)
 }
 
@@ -311,7 +311,7 @@ func (s *sideloadSuite) TestSideloadComponentInstanceName(c *check.C) {
 	csi := snap.NewComponentSideInfo(naming.NewComponentRef("local", "comp"), snap.Revision{})
 
 	chgSummary, systemRestartImmediate := s.sideloadComponentCheck(c, body, head, "local_instance", flags, csi)
-	c.Check(chgSummary, check.Equals, `Install "local_instance" component from file "a/b/local+localcomp.comp"`)
+	c.Check(chgSummary, check.Equals, `Install "comp" component for "local_instance" snap from file "a/b/local+localcomp.comp"`)
 	c.Check(systemRestartImmediate, check.Equals, false)
 }
 
@@ -491,9 +491,8 @@ func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, check.IsNil)
 	c.Check(apiData, check.DeepEquals, map[string]interface{}{
-		"snap-name":      expectedInstanceName,
-		"snap-names":     []interface{}{expectedInstanceName},
-		"component-name": expectedCompSideInfo.Component.ComponentName,
+		"components": map[string]interface{}{
+			expectedInstanceName: []interface{}{expectedCompSideInfo.Component.ComponentName}},
 	})
 
 	summary = chg.Summary()

@@ -183,12 +183,14 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	s.AddCleanup(func() { bootloader.Force(nil) })
 
 	oldSetupInstallHook := snapstate.SetupInstallHook
+	oldSetupInstallComponentHook := snapstate.SetupInstallComponentHook
 	oldSetupPreRefreshHook := snapstate.SetupPreRefreshHook
 	oldSetupPostRefreshHook := snapstate.SetupPostRefreshHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
 	oldSnapServiceOptions := snapstate.SnapServiceOptions
 	oldEnsureSnapAbsentFromQuotaGroup := snapstate.EnsureSnapAbsentFromQuotaGroup
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
+	snapstate.SetupInstallComponentHook = hookstate.SetupInstallComponentHook
 	snapstate.SetupPreRefreshHook = hookstate.SetupPreRefreshHook
 	snapstate.SetupPostRefreshHook = hookstate.SetupPostRefreshHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
@@ -196,7 +198,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	snapstate.EnsureSnapAbsentFromQuotaGroup = servicestate.EnsureSnapAbsentFromQuota
 
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-		return nil, nil
+		return snapasserts.NewValidationSets(), nil
 	})
 	s.AddCleanup(restore)
 
@@ -226,6 +228,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 
 	s.BaseTest.AddCleanup(func() {
 		snapstate.SetupInstallHook = oldSetupInstallHook
+		snapstate.SetupInstallComponentHook = oldSetupInstallComponentHook
 		snapstate.SetupPreRefreshHook = oldSetupPreRefreshHook
 		snapstate.SetupPostRefreshHook = oldSetupPostRefreshHook
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
@@ -349,22 +352,30 @@ func (s *snapmgrBaseTest) TearDownTest(c *C) {
 }
 
 type ForeignTaskTracker interface {
-	ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) error
+	ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup, compsup *snapstate.ComponentSetup) error
 }
 
 func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker) {
 	// Add fake handlers for tasks handled by interfaces manager
 	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error {
 		task.State().Lock()
+		defer task.State().Unlock()
 		kind := task.Kind()
 		status := task.Status()
 		snapsup, err := snapstate.TaskSnapSetup(task)
-		task.State().Unlock()
 		if err != nil {
 			return err
 		}
 
-		return tracker.ForeignTask(kind, status, snapsup)
+		var compsup *snapstate.ComponentSetup
+		if task.Has("component-setup") || task.Has("component-setup-task") {
+			compsup, _, err = snapstate.TaskComponentSetup(task)
+			if err != nil {
+				return err
+			}
+		}
+
+		return tracker.ForeignTask(kind, status, snapsup, compsup)
 	}
 	runner.AddHandler("setup-profiles", fakeHandler, fakeHandler)
 	runner.AddHandler("auto-connect", fakeHandler, fakeHandler)
@@ -372,6 +383,7 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 	runner.AddHandler("remove-profiles", fakeHandler, fakeHandler)
 	runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
 	runner.AddHandler("validate-snap", fakeHandler, nil)
+	runner.AddHandler("validate-component", fakeHandler, nil)
 	runner.AddHandler("transition-ubuntu-core", fakeHandler, nil)
 	runner.AddHandler("transition-to-snapd-snap", fakeHandler, nil)
 	runner.AddHandler("update-gadget-assets", fakeHandler, nil)
@@ -4213,13 +4225,6 @@ func (s *snapmgrTestSuite) testEnsureRefreshesDisabledViaSnapdControl(c *C, conf
 	})
 	defer restore()
 
-	// pretend the device is refresh-control: managed
-	oldCanManageRefreshes := snapstate.CanManageRefreshes
-	snapstate.CanManageRefreshes = func(*state.State) bool {
-		return true
-	}
-	defer func() { snapstate.CanManageRefreshes = oldCanManageRefreshes }()
-
 	tr := config.NewTransaction(st)
 	confSet(tr)
 	tr.Commit()
@@ -5260,7 +5265,7 @@ func (s *snapmgrTestSuite) TestRefreshRetain(c *C) {
 	}
 }
 
-func (s *snapmgrTestSuite) TestSnapStateNoLocalRevision(c *C) {
+func (s *snapmgrTestSuite) TestSnapStateLocalRevision(c *C) {
 	si7 := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(-7),
@@ -5276,7 +5281,7 @@ func (s *snapmgrTestSuite) TestSnapStateNoLocalRevision(c *C) {
 	c.Assert(snapst.LocalRevision(), Equals, snap.R(-11))
 }
 
-func (s *snapmgrTestSuite) TestSnapStateLocalRevision(c *C) {
+func (s *snapmgrTestSuite) TestSnapStateNoLocalRevision(c *C) {
 	si7 := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(7),
@@ -5286,6 +5291,81 @@ func (s *snapmgrTestSuite) TestSnapStateLocalRevision(c *C) {
 		Current:  si7.Revision,
 	}
 	c.Assert(snapst.LocalRevision().Unset(), Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestSnapStateLocalComponentRevision(c *C) {
+	si7 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(-7),
+	}
+	csi0 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "mycomp"), snap.R(25))
+	csi1 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "mycomp"), snap.R(-3))
+	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "mycomp"), snap.R(-2))
+	csi3 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "othercomp"), snap.R(-13))
+	compsSi7 := []*sequence.ComponentState{
+		sequence.NewComponentState(csi0, snap.TestComponent),
+		sequence.NewComponentState(csi1, snap.TestComponent),
+		sequence.NewComponentState(csi2, snap.TestComponent),
+		sequence.NewComponentState(csi3, snap.TestComponent),
+	}
+	si11 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(-11),
+	}
+	csi4 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "mycomp"), snap.R(-8))
+	csi5 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "othercomp"), snap.R(-9))
+	compsSi11 := []*sequence.ComponentState{
+		sequence.NewComponentState(csi4, snap.TestComponent),
+		sequence.NewComponentState(csi5, snap.TestComponent),
+	}
+	snapst := &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(&si7, compsSi7),
+				sequence.NewRevisionSideState(&si11, compsSi11),
+				sequence.NewRevisionSideState(&si11, compsSi11),
+			}),
+		Current: si7.Revision,
+	}
+
+	c.Assert(snapst.LocalComponentRevision("mycomp"), Equals, snap.R(-8))
+	c.Assert(snapst.LocalComponentRevision("othercomp"), Equals, snap.R(-13))
+}
+
+func (s *snapmgrTestSuite) TestSnapStateNoLocalComponentRevision(c *C) {
+	si7 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+	}
+	csi1 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "mycomp"), snap.R(3))
+	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "mycomp"), snap.R(2))
+	csi3 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "othercomp"), snap.R(13))
+	compsSi7 := []*sequence.ComponentState{
+		sequence.NewComponentState(csi1, snap.TestComponent),
+		sequence.NewComponentState(csi2, snap.TestComponent),
+		sequence.NewComponentState(csi3, snap.TestComponent),
+	}
+	si11 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(11),
+	}
+	csi4 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "mycomp"), snap.R(8))
+	csi5 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "othercomp"), snap.R(9))
+	compsSi11 := []*sequence.ComponentState{
+		sequence.NewComponentState(csi4, snap.TestComponent),
+		sequence.NewComponentState(csi5, snap.TestComponent),
+	}
+	snapst := &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(&si7, compsSi7),
+				sequence.NewRevisionSideState(&si11, compsSi11),
+			}),
+		Current: si7.Revision,
+	}
+
+	c.Assert(snapst.LocalComponentRevision("mycomp"), Equals, snap.R(0))
+	c.Assert(snapst.LocalComponentRevision("othercomp"), Equals, snap.R(0))
 }
 
 func tasksWithKind(ts *state.TaskSet, kind string) []*state.Task {
@@ -8015,7 +8095,7 @@ func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, model *asse
 	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-kernel", "")
 	c.Assert(err, IsNil)
 	tasks := ts.Tasks()
-	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, opts, 0, []string{"prepare-snap"}, kindsToSet(nonReLinkKinds)))
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, opts, 0, []string{"prepare-snap"}, nil, kindsToSet(nonReLinkKinds)))
 	tPrepare := tasks[0]
 	var tLink, tUpdateGadgetAssets *state.Task
 	if opts&needsKernelSetup != 0 {
@@ -8043,7 +8123,7 @@ func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, model *asse
 	ts, err = snapstate.LinkNewBaseOrKernel(s.state, "some-base", "")
 	c.Assert(err, IsNil)
 	tasks = ts.Tasks()
-	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeBase, 0, 0, []string{"prepare-snap"}, kindsToSet(nonReLinkKinds)))
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeBase, 0, 0, []string{"prepare-snap"}, nil, kindsToSet(nonReLinkKinds)))
 	c.Assert(tasks, HasLen, 2)
 	tPrepare = tasks[0]
 	tLink = tasks[1]
@@ -8137,7 +8217,7 @@ func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, model *assert
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks := tsNew.Tasks()
-	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, opts, 0, []string{"prepare-snap", "test-task"}, kindsToSet(nonReLinkKinds)))
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, opts, 0, []string{"prepare-snap", "test-task"}, nil, kindsToSet(nonReLinkKinds)))
 	// since this is the kernel, we have our task + test task + update-gadget-assets + link-snap
 	var tLink, tUpdateGadgetAssets *state.Task
 	if opts&needsKernelSetup != 0 {
@@ -8181,7 +8261,7 @@ func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, model *assert
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks = tsNew.Tasks()
-	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeBase, 0, 0, []string{"prepare-snap"}, kindsToSet(nonReLinkKinds)))
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeBase, 0, 0, []string{"prepare-snap"}, nil, kindsToSet(nonReLinkKinds)))
 	// since this is the base, we have our task + link-snap only
 	c.Assert(tasks, HasLen, 2)
 	tLink = tasks[1]
@@ -8210,7 +8290,9 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadget(c *C) {
 	ts, err := snapstate.SwitchToNewGadget(s.state, "some-gadget", "")
 	c.Assert(err, IsNil)
 	tasks := ts.Tasks()
-	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeGadget, 0, 0, []string{"prepare-snap"}, kindsToSet(append(nonReLinkKinds, "link-snap"))))
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(
+		snap.TypeGadget, 0, 0, []string{"prepare-snap"}, nil, kindsToSet(append(nonReLinkKinds, "link-snap"))),
+	)
 	c.Assert(tasks, HasLen, 3)
 	tPrepare := tasks[0]
 	tUpdateGadgetAssets := tasks[1]
@@ -8345,7 +8427,9 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks := tsNew.Tasks()
-	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeGadget, 0, 0, []string{"prepare-snap", "test-task"}, kindsToSet(append(nonReLinkKinds, "link-snap"))))
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(
+		snap.TypeGadget, 0, 0, []string{"prepare-snap", "test-task"}, nil, kindsToSet(append(nonReLinkKinds, "link-snap"))),
+	)
 	// since this is the gadget, we have our task + test task + update assets + update cmdline
 	c.Assert(tasks, HasLen, 4)
 	tUpdateGadgetAssets := tasks[2]

@@ -18,6 +18,8 @@
 #ifndef SNAP_CONFINE_TEST_UTILS_H
 #define SNAP_CONFINE_TEST_UTILS_H
 
+#include <glib.h>
+
 /**
  * Shell-out to "rm -rf -- $dir" as long as $dir is in /tmp.
  */
@@ -28,5 +30,14 @@ void rm_rf_tmp(const char *dir);
  **/
 void
     __attribute__((sentinel)) test_argc_argv(int *argcp, char ***argvp, ...);
+
+typedef struct {
+	int unused;
+} snap_mount_dir_fixture;
+
+void snap_mount_dir_fixture_setup(snap_mount_dir_fixture * fix,
+				  gconstpointer user_data);
+void snap_mount_dir_fixture_teardown(snap_mount_dir_fixture * fix,
+				     gconstpointer user_data);
 
 #endif

@@ -17,7 +17,9 @@
 
 #include "snap-confine-args.h"
 #include "snap-confine-args.c"
+
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/test-utils.h"
 
 #include <stdarg.h>
 
@@ -105,41 +107,6 @@ static void test_sc_nonfatal_parse_args__typical_classic(void)
 	// Check remaining arguments
 	g_assert_cmpint(argc, ==, 3);
 	g_assert_cmpstr(argv[0], ==, "/usr/lib/snapd/snap-confine");
-	g_assert_cmpstr(argv[1], ==, "--option");
-	g_assert_cmpstr(argv[2], ==, "arg");
-	g_assert_null(argv[3]);
-}
-
-static void test_sc_nonfatal_parse_args__ubuntu_core_launcher(void)
-{
-	// Test that typical legacy invocation of snap-confine via the
-	// ubuntu-core-launcher symlink, with duplicated security tag, is parsed
-	// correctly.
-	sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
-	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
-
-	int argc;
-	char **argv;
-	test_argc_argv(&argc, &argv,
-		       "/usr/bin/ubuntu-core-launcher",
-		       "snap.SNAP_NAME.APP_NAME", "snap.SNAP_NAME.APP_NAME",
-		       "/usr/lib/snapd/snap-exec", "--option", "arg", NULL);
-
-	args = sc_nonfatal_parse_args(&argc, &argv, &err);
-	g_assert_null(err);
-	g_assert_nonnull(args);
-
-	// Check supported switches and arguments
-	g_assert_cmpstr(sc_args_security_tag(args), ==,
-			"snap.SNAP_NAME.APP_NAME");
-	g_assert_cmpstr(sc_args_executable(args), ==,
-			"/usr/lib/snapd/snap-exec");
-	g_assert_cmpint(sc_args_is_version_query(args), ==, false);
-	g_assert_cmpint(sc_args_is_classic_confinement(args), ==, false);
-
-	// Check remaining arguments
-	g_assert_cmpint(argc, ==, 3);
-	g_assert_cmpstr(argv[0], ==, "/usr/bin/ubuntu-core-launcher");
 	g_assert_cmpstr(argv[1], ==, "--option");
 	g_assert_cmpstr(argv[2], ==, "arg");
 	g_assert_null(argv[3]);
@@ -407,8 +374,6 @@ static void __attribute__((constructor)) init(void)
 			test_sc_nonfatal_parse_args__typical);
 	g_test_add_func("/args/sc_nonfatal_parse_args/typical_classic",
 			test_sc_nonfatal_parse_args__typical_classic);
-	g_test_add_func("/args/sc_nonfatal_parse_args/ubuntu_core_launcher",
-			test_sc_nonfatal_parse_args__ubuntu_core_launcher);
 	g_test_add_func("/args/sc_nonfatal_parse_args/version",
 			test_sc_nonfatal_parse_args__version);
 	g_test_add_func("/args/sc_nonfatal_parse_args/nothing_to_parse",

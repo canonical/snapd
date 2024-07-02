@@ -13,6 +13,12 @@ details: |
     check governed by the interface works, and that once connected, the API can
     be used to manage themes as described above.
 
+environment:
+    # not all terminals support UTF-8, but Python tries to be smart and attempts
+    # to guess the encoding as if the output would go to the terminal, but in
+    # fact all the test does is pipe the output to jq
+    PYTHONIOENCODING: utf-8
+
 prepare: |
     snap install --edge jq
 

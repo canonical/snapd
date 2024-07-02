@@ -51,11 +51,11 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 		"account",
 		"account-key",
 		"account-key-request",
-		"aspect-bundle",
 		"base-declaration",
 		"device-session-request",
 		"model",
 		"preseed",
+		"registry",
 		"repair",
 		"serial",
 		"serial-request",
@@ -85,7 +85,7 @@ func (as *assertsSuite) TestMaxSupportedFormats(c *C) {
 	systemUserMaxFormat := asserts.SystemUserType.MaxSupportedFormat()
 	// validity
 	c.Check(accountKeyMaxFormat >= 1, Equals, true)
-	c.Check(snapDeclMaxFormat >= 4, Equals, true)
+	c.Check(snapDeclMaxFormat >= 6, Equals, true)
 	c.Check(systemUserMaxFormat >= 2, Equals, true)
 	c.Check(asserts.MaxSupportedFormats(1), DeepEquals, map[string]int{
 		"account-key":      accountKeyMaxFormat,
@@ -1190,7 +1190,6 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 	withAuthority := []string{
 		"account",
 		"account-key",
-		"aspect-bundle",
 		"base-declaration",
 		"store",
 		"snap-declaration",
@@ -1201,6 +1200,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		"snap-developer",
 		"model",
 		"preseed",
+		"registry",
 		"serial",
 		"system-user",
 		"validation",

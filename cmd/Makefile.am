@@ -68,6 +68,9 @@ new_format = \
 	 libsnap-confine-private/panic-test.h \
 	 libsnap-confine-private/panic.c \
 	 libsnap-confine-private/panic.h \
+	 libsnap-confine-private/snap-dir-test.c \
+	 libsnap-confine-private/snap-dir.c \
+	 libsnap-confine-private/snap-dir.h \
 	 snap-confine/seccomp-support-ext.c \
 	 snap-confine/seccomp-support-ext.h \
 	 snap-confine/selinux-support.c \
@@ -152,6 +155,8 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/privs.h \
 	libsnap-confine-private/secure-getenv.c \
 	libsnap-confine-private/secure-getenv.h \
+	libsnap-confine-private/snap-dir.c \
+	libsnap-confine-private/snap-dir.h \
 	libsnap-confine-private/snap.c \
 	libsnap-confine-private/snap.h \
 	libsnap-confine-private/string-utils.c \
@@ -187,6 +192,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/panic-test.c \
 	libsnap-confine-private/privs-test.c \
 	libsnap-confine-private/secure-getenv-test.c \
+	libsnap-confine-private/snap-dir-test.c \
 	libsnap-confine-private/snap-test.c \
 	libsnap-confine-private/string-utils-test.c \
 	libsnap-confine-private/test-utils-test.c \
@@ -378,7 +384,7 @@ if HAVE_RST2MAN
 endif
 
 snap-confine/snap-confine.apparmor: snap-confine/snap-confine.apparmor.in Makefile
-	sed -e 's,[@]LIBEXECDIR[@],$(libexecdir),g' -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),g' <$< >$@
+	sed -e 's,[@]LIBEXECDIR[@],$(libexecdir),g' <$< >$@
 
 # Install the apparmor profile
 #
@@ -427,16 +433,6 @@ snap-mgmt/snap-mgmt-selinux: snap-mgmt/snap-mgmt-selinux.sh.in Makefile snap-mgm
 endif
 
 ##
-## ubuntu-core-launcher
-##
-
-install-exec-hook::
-	install -d -m 755 $(DESTDIR)$(bindir)
-if BUILD_HOST_BINARIES
-	ln -sf $(libexecdir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher
-endif
-
-##
 ## snap-device-helper
 ##
 
@@ -458,6 +454,7 @@ snap_device_helper_unit_tests_SOURCES = \
 	libsnap-confine-private/cleanup-funcs.c \
 	libsnap-confine-private/panic.c \
 	libsnap-confine-private/snap.c \
+	libsnap-confine-private/snap-dir.c \
 	libsnap-confine-private/error.c \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \

@@ -350,14 +350,110 @@ func maybeWithSudoSecurePath() bool {
 	return release.DistroLike("fedora", "opensuse", "debian")
 }
 
+// changedSnapsData stores api data returned for snap actions.
+type changedSnapsData struct {
+	// snap instance names
+	names []string
+	// Map of snap instance names to components
+	comps map[string][]string
+}
+
+func changedSnapsFromChange(chg *client.Change) (*changedSnapsData, error) {
+	var snapNames []string
+	err := chg.Get("snap-names", &snapNames)
+	// No snap-names could be ok if there are components
+	if err != nil && !errors.Is(err, client.ErrNoData) {
+		return nil, err
+	}
+
+	var compsPerSnap map[string][]string
+	compErr := chg.Get("components", &compsPerSnap)
+	if compErr != nil && !errors.Is(compErr, client.ErrNoData) {
+		return nil, err
+	}
+
+	if err != nil && compErr != nil {
+		// Must be client.ErrNoData
+		return nil, err
+	}
+
+	return &changedSnapsData{
+		names: snapNames,
+		comps: compsPerSnap,
+	}, nil
+}
+
+func (csd *changedSnapsData) hasChanges() bool {
+	return len(csd.names) > 0 || len(csd.comps) > 0
+}
+
+// changedSnaps returns the snaps names touched by a change and a set of the
+// snaps for which the change was not exclusively because of changes to its
+// components.
+func (csd *changedSnapsData) changedSnaps() (names []string, notOnlyComps map[string]bool) {
+	names = make([]string, 0, len(csd.comps)+len(csd.names))
+	notOnlyComps = make(map[string]bool, len(csd.names))
+	for inst := range csd.comps {
+		names = append(names, inst)
+	}
+	for _, inst := range csd.names {
+		notOnlyComps[inst] = true
+		// if in comps, it has already been added
+		if _, ok := csd.comps[inst]; ok {
+			continue
+		}
+		names = append(names, inst)
+	}
+
+	return names, notOnlyComps
+}
+
+func compByName(compName string, snap *client.Snap) *client.Component {
+	for _, comp := range snap.Components {
+		if compName == comp.Name {
+			return &comp
+		}
+	}
+	return nil
+}
+
+func showDoneSnap(snap *client.Snap, channel, action string, esc *escapes) {
+	if snap.Publisher != nil {
+		// TRANSLATORS: the args are a snap name optionally followed by
+		// a channel, then a version, then the developer name (e.g.
+		// "some-snap (beta) 1.3 from Alice installed")
+		fmt.Fprintf(Stdout, i18n.G("%s%s %s from %s %s\n"),
+			snap.Name, channel, snap.Version, longPublisher(esc, snap.Publisher), action)
+	} else {
+		// TRANSLATORS: the args are a snap name optionally followed by
+		// a channel, then a version (e.g. "some-snap (beta) 1.3
+		// installed")
+		fmt.Fprintf(Stdout, i18n.G("%s%s %s %s\n"), snap.Name, channel, snap.Version, action)
+	}
+}
+
+func showDoneComps(snap *client.Snap, compsForSnap []string, channel, action string) {
+	for _, compName := range compsForSnap {
+		comp := compByName(compName, snap)
+		if comp == nil {
+			fmt.Fprintf(Stdout, i18n.G("Warning: component %s for %s%s %s not present\n"),
+				compName, snap.Name, channel, snap.Version)
+		} else {
+			fmt.Fprintf(Stdout, i18n.G("component %s %s for %s%s %s %s\n"),
+				compName, comp.Version, snap.Name, channel, snap.Version, action)
+		}
+	}
+}
+
 // show what has been done
-func showDone(cli *client.Client, chg *client.Change, names []string, op string, opts *client.SnapOptions, esc *escapes) error {
+func showDone(cli *client.Client, chg *client.Change, snapsData *changedSnapsData, op string, opts *client.SnapOptions, esc *escapes) error {
 	if chg.Status == "Wait" {
 		fmt.Fprintf(Stdout, i18n.G("Change %v waiting on external action to be completed\n"), chg.ID)
 		return nil
 	}
 
-	snaps, err := cli.List(names, nil)
+	instances, notOnlyComps := snapsData.changedSnaps()
+	snaps, err := cli.List(instances, nil)
 	if err != nil {
 		// XXX: When this is called snapd might have gone down - so we add detection code here
 		// even thought it does not belong here. The detection code for snapd being down
@@ -383,35 +479,34 @@ func showDone(cli *client.Client, chg *client.Change, names []string, op string,
 		}
 		switch op {
 		case "install":
-			if needsPathWarning {
-				head := i18n.G("Warning:")
-				warn := fill(fmt.Sprintf(i18n.G("%s was not found in your $PATH. If you've not restarted your session since you installed snapd, try doing that. Please see https://forum.snapcraft.io/t/9469 for more details."), dirs.SnapBinariesDir), utf8.RuneCountInString(head)+1) // +1 for the space
-				fmt.Fprint(Stderr, esc.bold, head, esc.end, " ", warn, "\n\n")
-				needsPathWarning = false
-			}
+			if notOnlyComps[snap.Name] {
+				if needsPathWarning {
+					head := i18n.G("Warning:")
+					warn := fill(fmt.Sprintf(i18n.G("%s was not found in your $PATH. If you've not restarted your session since you installed snapd, try doing that. Please see https://forum.snapcraft.io/t/9469 for more details."), dirs.SnapBinariesDir), utf8.RuneCountInString(head)+1) // +1 for the space
+					fmt.Fprint(Stderr, esc.bold, head, esc.end, " ", warn, "\n\n")
+					needsPathWarning = false
+				}
 
-			if opts != nil && opts.Classic && snap.Confinement != client.ClassicConfinement {
-				// requested classic but the snap is not classic
-				head := i18n.G("Warning:")
-				// TRANSLATORS: the arg is a snap name (e.g. "some-snap")
-				warn := fill(fmt.Sprintf(i18n.G("flag --classic ignored for strictly confined snap %s"), snap.Name), utf8.RuneCountInString(head)+1) // +1 for the space
-				fmt.Fprint(Stderr, esc.bold, head, esc.end, " ", warn, "\n\n")
-			}
+				if opts != nil && opts.Classic && snap.Confinement != client.ClassicConfinement {
+					// requested classic but the snap is not classic
+					head := i18n.G("Warning:")
+					// TRANSLATORS: the arg is a snap name (e.g. "some-snap")
+					warn := fill(fmt.Sprintf(i18n.G("flag --classic ignored for strictly confined snap %s"), snap.Name), utf8.RuneCountInString(head)+1) // +1 for the space
+					fmt.Fprint(Stderr, esc.bold, head, esc.end, " ", warn, "\n\n")
+				}
 
-			if snap.Publisher != nil {
-				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from Alice installed")
-				fmt.Fprintf(Stdout, i18n.G("%s%s %s from %s installed\n"), snap.Name, channelStr, snap.Version, longPublisher(esc, snap.Publisher))
-			} else {
-				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
-				fmt.Fprintf(Stdout, i18n.G("%s%s %s installed\n"), snap.Name, channelStr, snap.Version)
+				showDoneSnap(snap, channelStr, "installed", esc)
+			}
+			if comps, ok := snapsData.comps[snap.Name]; ok {
+				showDoneComps(snap, comps, channelStr, "installed")
 			}
 		case "refresh":
-			if snap.Publisher != nil {
-				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from Alice refreshed")
-				fmt.Fprintf(Stdout, i18n.G("%s%s %s from %s refreshed\n"), snap.Name, channelStr, snap.Version, longPublisher(esc, snap.Publisher))
-			} else {
-				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 refreshed")
-				fmt.Fprintf(Stdout, i18n.G("%s%s %s refreshed\n"), snap.Name, channelStr, snap.Version)
+			if notOnlyComps[snap.Name] {
+				showDoneSnap(snap, channelStr, "refreshed", esc)
+
+			}
+			if comps, ok := snapsData.comps[snap.Name]; ok {
+				showDoneComps(snap, comps, channelStr, "refreshed")
 			}
 		case "revert":
 			// TRANSLATORS: first %s is a snap name, second %s is a revision
@@ -557,15 +652,24 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 		return err
 	}
 
-	// extract the snapName from the change, important for sideloaded
+	var changedSnaps *changedSnapsData
 	if path != "" {
-		if err := chg.Get("snap-name", &snapName); err != nil {
-			return fmt.Errorf("cannot extract the snap-name from local file %q: %s", nameOrPath, err)
+		// extract the name from the change, important for sideloaded
+		changedSnaps, err = changedSnapsFromChange(chg)
+		if err != nil {
+			return fmt.Errorf("cannot extract the snap-name from local file %q: %s",
+				path, err)
+		}
+	} else {
+		// TODO maybe rely always on data in change?
+		changedSnaps = &changedSnapsData{
+			names: []string{snapName},
+			comps: nil,
 		}
 	}
 
 	// TODO: mention details of the install (e.g. like switch does)
-	return showDone(x.client, chg, []string{snapName}, "install", opts, x.getEscapes())
+	return showDone(x.client, chg, changedSnaps, "install", opts, x.getEscapes())
 }
 
 func isLocalContainer(name string) bool {
@@ -618,13 +722,13 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 		return err
 	}
 
-	var installed []string
-	if err := chg.Get("snap-names", &installed); err != nil && err != client.ErrNoData {
+	changedSnaps, err := changedSnapsFromChange(chg)
+	if err != nil && err != client.ErrNoData {
 		return err
 	}
 
-	if len(installed) > 0 {
-		if err := showDone(x.client, chg, installed, "install", opts, x.getEscapes()); err != nil {
+	if changedSnaps.hasChanges() {
+		if err := showDone(x.client, chg, changedSnaps, "install", opts, x.getEscapes()); err != nil {
 			return err
 		}
 	}
@@ -636,7 +740,7 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 
 	// show skipped
 	seen := make(map[string]bool)
-	for _, name := range installed {
+	for _, name := range changedSnaps.names {
 		seen[name] = true
 	}
 	for _, name := range names {
@@ -737,13 +841,13 @@ func (x *cmdRefresh) refreshMany(snaps []string, opts *client.SnapOptions) error
 		return err
 	}
 
-	var refreshed []string
-	if err := chg.Get("snap-names", &refreshed); err != nil && err != client.ErrNoData {
+	changedSnaps, err := changedSnapsFromChange(chg)
+	if err != nil && err != client.ErrNoData {
 		return err
 	}
 
-	if len(refreshed) > 0 {
-		return showDone(x.client, chg, refreshed, "refresh", opts, x.getEscapes())
+	if changedSnaps.hasChanges() {
+		return showDone(x.client, chg, changedSnaps, "refresh", opts, x.getEscapes())
 	}
 
 	fmt.Fprintln(Stderr, i18n.G("All snaps up to date."))
@@ -772,7 +876,7 @@ func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 
 	// TODO: this doesn't really tell about all the things you
 	// could set while refreshing (something switch does)
-	return showDone(x.client, chg, []string{name}, "refresh", opts, x.getEscapes())
+	return showDone(x.client, chg, &changedSnapsData{names: []string{name}, comps: nil}, "refresh", opts, x.getEscapes())
 }
 
 func parseSysinfoTime(s string) time.Time {
@@ -1085,12 +1189,16 @@ func (x *cmdTry) Execute([]string) error {
 	}
 
 	// extract the snap name
-	var snapName string
-	if err := chg.Get("snap-name", &snapName); err != nil {
+	changedSnaps, err := changedSnapsFromChange(chg)
+	if err != nil {
 		// TRANSLATORS: %q gets the snap name, %v gets the resulting error message
 		return fmt.Errorf(i18n.G("cannot extract the snap-name from local file %q: %v"), name, err)
 	}
-	name = snapName
+	if len(changedSnaps.names) != 1 {
+		return fmt.Errorf(i18n.G("internal error, wrong number of snaps in change"))
+	}
+
+	name = changedSnaps.names[0]
 
 	// show output as speced
 	snaps, err := x.client.List([]string{name}, nil)
@@ -1210,7 +1318,8 @@ func (x *cmdRevert) Execute(args []string) error {
 		return err
 	}
 
-	return showDone(x.client, chg, []string{name}, "revert", nil, nil)
+	return showDone(x.client, chg, &changedSnapsData{names: []string{name}, comps: nil},
+		"revert", nil, nil)
 }
 
 var shortSwitchHelp = i18n.G("Switches snap to a different channel")
@@ -1272,7 +1381,8 @@ func (x cmdSwitch) Execute(args []string) error {
 		return err
 	}
 
-	return showDone(x.client, chg, []string{name}, "switch", opts, nil)
+	return showDone(x.client, chg, &changedSnapsData{names: []string{name}, comps: nil},
+		"switch", opts, nil)
 }
 
 func init() {

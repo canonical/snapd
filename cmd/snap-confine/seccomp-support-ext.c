@@ -44,27 +44,6 @@ int seccomp(unsigned int operation, unsigned int flags, void *args) {
 }
 #endif
 
-size_t sc_read_seccomp_filter(const char *filename, char *buf, size_t buf_size) {
-    if (buf_size == 0) {
-        die("seccomp load buffer cannot be empty");
-    }
-    FILE *file = fopen(filename, "rb");
-    if (file == NULL) {
-        die("cannot open seccomp filter %s", filename);
-    }
-    size_t num_read = fread(buf, 1, buf_size - 1, file);
-    buf[num_read] = '\0';
-    if (ferror(file) != 0) {
-        die("cannot read seccomp profile %s", filename);
-    }
-    if (feof(file) == 0) {
-        die("cannot fit seccomp profile %s to memory buffer", filename);
-    }
-    fclose(file);
-    debug("read %zu bytes from %s", num_read, filename);
-    return num_read;
-}
-
 void sc_apply_seccomp_filter(struct sock_fprog *prog) {
     int err;
 

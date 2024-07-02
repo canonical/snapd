@@ -19,8 +19,10 @@ package snap_test
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -554,4 +556,67 @@ version: 1
 
 	unscopedHooks := componentInfo.HooksForPlug(unscoped)
 	c.Assert(unscopedHooks, testutil.DeepUnsortedMatches, []*snap.HookInfo{componentInfo.Hooks["install"], componentInfo.Hooks["pre-refresh"]})
+}
+
+func (s *componentSuite) TestComponentLinkPath(c *C) {
+	for i, tc := range []struct {
+		cpi     snap.ContainerPlaceInfo
+		snapRev snap.Revision
+		link    string
+	}{
+		{snap.MinimalComponentContainerPlaceInfo("test-info", snap.R(25), "mysnap"),
+			snap.R(11), "mysnap/components/11/test-info"},
+		{snap.MinimalComponentContainerPlaceInfo("test-info", snap.R(33), "mysnap"),
+			snap.R(11), "mysnap/components/11/test-info"},
+		{snap.MinimalComponentContainerPlaceInfo("comp-1", snap.R(25), "foo"),
+			snap.R(11), "foo/components/11/comp-1"},
+	} {
+		c.Logf("case %d, expected link %q", i, tc.link)
+		c.Check(snap.ComponentLinkPath(tc.cpi, tc.snapRev), Equals,
+			filepath.Join(dirs.SnapMountDir, tc.link))
+	}
+}
+
+func (s *infoSuite) TestComponentInstallDate(c *C) {
+	cpi := snap.MinimalComponentContainerPlaceInfo("comp", snap.R(1), "snap")
+
+	// not current -> Zero
+	c.Check(snap.ComponentInstallDate(cpi, snap.R(33)), IsNil)
+
+	//time.Sleep(time.Second)
+	link := snap.ComponentLinkPath(cpi, snap.R(33))
+	dir, _ := filepath.Split(link)
+	c.Assert(os.MkdirAll(dir, 0755), IsNil)
+	c.Assert(os.Symlink(dirs.GlobalRootDir, link), IsNil)
+	st, err := os.Lstat(link)
+	c.Assert(err, IsNil)
+	instTime := st.ModTime()
+
+	installDate := snap.ComponentInstallDate(cpi, snap.R(33))
+	c.Check(installDate.Equal(instTime), Equals, true)
+}
+
+func (s *infoSuite) TestComponentSize(c *C) {
+	cpi := snap.MinimalComponentContainerPlaceInfo("comp", snap.R(1), "snap")
+	mntFile := cpi.MountFile()
+	dir, _ := filepath.Split(mntFile)
+	c.Assert(os.MkdirAll(dir, 0755), IsNil)
+
+	// No file
+	compSz, err := snap.ComponentSize(cpi)
+	c.Check(compSz, Equals, int64(0))
+	c.Check(err, ErrorMatches, `error while looking for component file .*snap\+comp_1\.comp: no such file or directory`)
+
+	// File
+	c.Assert(os.WriteFile(mntFile, []byte{0, 0}, 0644), IsNil)
+	compSz, err = snap.ComponentSize(cpi)
+	c.Check(compSz, Equals, int64(2))
+	c.Check(err, IsNil)
+
+	// Special file
+	c.Assert(os.Remove(mntFile), IsNil)
+	c.Assert(syscall.Mkfifo(mntFile, 0666), IsNil)
+	compSz, err = snap.ComponentSize(cpi)
+	c.Check(compSz, Equals, int64(0))
+	c.Check(err, ErrorMatches, `unexpected file type for component file .*snap\+comp_1\.comp"`)
 }

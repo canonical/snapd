@@ -23,10 +23,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"path/filepath"
-	"sort"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -314,109 +312,109 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 	}
 }
 
-func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
-	var features = []string{"unsafe", "include-if-exists", "qipcrtr-socket", "mqueue", "cap-bpf", "cap-audit-read", "xdp", "userns", "unconfined", "prompt"}
-	// test all combinations of features
-	for i := 0; i < int(math.Pow(2, float64(len(features)))); i++ {
-		expFeatures := []string{}
-		d := c.MkDir()
-		contents := ""
-		var expectedCalls [][]string
-		for j, f := range features {
-			code := 0
-			if i&(1<<j) == 0 {
-				expFeatures = append([]string{f}, expFeatures...)
-			} else {
-				code = 1
-			}
-			expectedCalls = append(expectedCalls, []string{"apparmor_parser", "--preprocess"})
-			contents += fmt.Sprintf("%d ", code)
-		}
-		// probeParserFeatures() sorts the features
-		sort.Strings(expFeatures)
-		err := os.WriteFile(filepath.Join(d, "codes"), []byte(contents), 0755)
-		c.Assert(err, IsNil)
-		mockParserCmd := testutil.MockCommand(c, "apparmor_parser", fmt.Sprintf(`
-cat >> %[1]s/stdin
-echo "" >> %[1]s/stdin
+func probeOneParserFeature(c *C, known *[]string, parserPath, featureName, profileText string) {
+	const script = `#!/bin/sh
+set -e
+test "$(cat | tr -d '\n')" = '%s'
+`
+	err := os.WriteFile(parserPath, []byte(fmt.Sprintf(script, profileText)), 0o755)
+	c.Assert(err, IsNil)
 
-read -r EXIT_CODE CODES_FOR_NEXT_CALLS < %[1]s/codes
-echo "$CODES_FOR_NEXT_CALLS" > %[1]s/codes
+	cmd, _, _ := apparmor.AppArmorParser()
+	c.Assert(cmd.Path, Equals, parserPath, Commentf("Unexpectedly using apparmor parser from %s", cmd.Path))
 
-exit "$EXIT_CODE"
-`, d))
-		defer mockParserCmd.Restore()
-		restore := apparmor.MockParserSearchPath(mockParserCmd.BinDir())
-		defer restore()
-
-		features, err := apparmor.ProbeParserFeatures()
-		c.Assert(err, IsNil)
-		if len(expFeatures) == 0 {
-			c.Check(features, HasLen, 0)
-		} else {
-			c.Check(features, DeepEquals, expFeatures)
-		}
-
-		c.Check(mockParserCmd.Calls(), DeepEquals, expectedCalls)
-		data, err := os.ReadFile(filepath.Join(d, "stdin"))
-		c.Assert(err, IsNil)
-		c.Check(string(data), Equals, `profile snap-test {
- change_profile unsafe /**,
-}
-profile snap-test {
- #include if exists "/foo"
-}
-profile snap-test {
- network qipcrtr dgram,
-}
-profile snap-test {
- mqueue,
-}
-profile snap-test {
- capability bpf,
-}
-profile snap-test {
- capability audit_read,
-}
-profile snap-test {
- network xdp,
-}
-profile snap-test {
- userns,
-}
-profile snap-test flags=(unconfined) {
- # test unconfined
-}
-profile snap-test {
- prompt /foo r,
-}
-`)
-	}
-
-	// Pretend that we just don't have apparmor_parser at all.
-	restore := apparmor.MockParserSearchPath(c.MkDir())
-	defer restore()
 	features, err := apparmor.ProbeParserFeatures()
-	c.Check(err, Equals, os.ErrNotExist)
-	c.Check(features, DeepEquals, []string{})
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, []string{featureName},
+		Commentf("Unexpected features detected for profile text: %s", profileText))
 
-	// pretend we have an internal apparmor_parser
-	fakeroot := c.MkDir()
-	dirs.SetRootDir(fakeroot)
+	*known = append(*known, featureName)
+}
 
-	d := filepath.Join(dirs.SnapMountDir, "/snapd/42", "/usr/lib/snapd")
-	c.Assert(os.MkdirAll(d, 0755), IsNil)
-	p := filepath.Join(d, "apparmor_parser")
-	c.Assert(os.WriteFile(p, nil, 0755), IsNil)
-	restore = snapdtool.MockOsReadlink(func(path string) (string, error) {
-		c.Assert(path, Equals, "/proc/self/exe")
-		return filepath.Join(d, "snapd"), nil
+type parserFeatureTestSuite struct {
+	testutil.BaseTest
+	d      string
+	binDir string
+}
+
+var _ = Suite(&parserFeatureTestSuite{})
+
+func (s *parserFeatureTestSuite) SetUpTest(c *C) {
+	s.d = c.MkDir()
+	// This is used to find related parser files and isolates us from the host.
+	dirs.SetRootDir(s.d)
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+
+	s.binDir = filepath.Join(s.d, "bin")
+	err := os.Mkdir(s.binDir, 0o755)
+	c.Assert(err, IsNil)
+
+	restore := apparmor.MockParserSearchPath(s.binDir)
+	s.AddCleanup(restore)
+}
+
+func (s *parserFeatureTestSuite) TestProbeFeature(c *C) {
+	// Pretend we can only support one feature at a time.
+	var knownProbes []string
+
+	parserPath := filepath.Join(s.binDir, "apparmor_parser")
+
+	probeOneParserFeature(c, &knownProbes, parserPath, "cap-audit-read", `profile snap-test { capability audit_read,}`)
+	probeOneParserFeature(c, &knownProbes, parserPath, "cap-bpf", `profile snap-test { capability bpf,}`)
+	probeOneParserFeature(c, &knownProbes, parserPath, "include-if-exists", `profile snap-test { #include if exists "/foo"}`)
+	probeOneParserFeature(c, &knownProbes, parserPath, "mqueue", `profile snap-test { mqueue,}`)
+	probeOneParserFeature(c, &knownProbes, parserPath, "prompt", `profile snap-test { prompt /foo r,}`)
+	probeOneParserFeature(c, &knownProbes, parserPath, "qipcrtr-socket", `profile snap-test { network qipcrtr dgram,}`)
+	probeOneParserFeature(c, &knownProbes, parserPath, "unconfined", `profile snap-test flags=(unconfined) { # test unconfined}`)
+	probeOneParserFeature(c, &knownProbes, parserPath, "unsafe", `profile snap-test { change_profile unsafe /**,}`)
+	probeOneParserFeature(c, &knownProbes, parserPath, "userns", `profile snap-test { userns,}`)
+	probeOneParserFeature(c, &knownProbes, parserPath, "xdp", `profile snap-test { network xdp,}`)
+
+	// Pretend we have all the features.
+	err := os.WriteFile(parserPath, []byte("#!/bin/sh\nexit 0\n"), 0o755)
+	c.Assert(err, IsNil)
+
+	// Did any feature probes got added to non-test code?
+	features, err := apparmor.ProbeParserFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, knownProbes, Commentf("Additional probes added not reflected in test code"))
+}
+
+func (s *parserFeatureTestSuite) TestNoParser(c *C) {
+	// Pretend we don't have any apparmor_parser at all.
+	features, err := apparmor.ProbeParserFeatures()
+	if !errors.Is(err, os.ErrNotExist) {
+		c.Fatal("Unexpected error", err)
+	}
+	// Did we get any features?
+	c.Check(features, HasLen, 0, Commentf("Unexpected features without any parser"))
+}
+
+func (s *parserFeatureTestSuite) TestInternalParser(c *C) {
+	// Put a fake parser at $SNAP_MOUNT_DIR/snapd/42/usr/lib/snapd/apparmor_parser
+	libSnapdDir := filepath.Join(dirs.SnapMountDir, "/snapd/42/usr/lib/snapd")
+	err := os.MkdirAll(libSnapdDir, 0755)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(filepath.Join(libSnapdDir, "apparmor_parser"), nil, 0755)
+	c.Assert(err, IsNil)
+
+	// Pretend that we are running snapd from that snap location.
+	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
+		if path != "/proc/self/exe" {
+			c.Fatal("Unexpected readlink", path)
+		}
+
+		return filepath.Join(libSnapdDir, "snapd"), nil
 	})
-	defer restore()
+	s.AddCleanup(restore)
+
+	// Pretend snapd supports re-execution from snapd snap.
 	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
-	defer restore()
-	features, err = apparmor.ProbeParserFeatures()
-	c.Check(err, Equals, nil)
+	s.AddCleanup(restore)
+
+	// Did we recognize the internal parser?
+	features, err := apparmor.ProbeParserFeatures()
+	c.Assert(err, IsNil)
 	c.Check(features, DeepEquals, []string{"snapd-internal"})
 }
 

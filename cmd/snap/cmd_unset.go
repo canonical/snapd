@@ -39,11 +39,11 @@ Nested values may be removed via a dotted path:
 	$ snap unset snap-name user.name
 `)
 
-var longAspectUnsetHelp = i18n.G(`
-If the first argument passed into unset is an aspect identifier matching the
-format <account-id>/<bundle>/<aspect>, unset will use the aspects configuration
-API. In this case, the command removes the data stored in the provided
-dot-separated aspect paths.
+var longRegistryUnsetHelp = i18n.G(`
+If the first argument passed into unset is a registry identifier matching the
+format <account-id>/<registry>/<view>, unset will use the registry API. In this
+case, the command removes the data stored in the provided dot-separated view
+paths.
 `)
 
 type cmdUnset struct {
@@ -55,8 +55,8 @@ type cmdUnset struct {
 }
 
 func init() {
-	if err := validateAspectFeatureFlag(); err == nil {
-		longUnsetHelp += longAspectUnsetHelp
+	if err := validateRegistryFeatureFlag(); err == nil {
+		longUnsetHelp += longRegistryUnsetHelp
 	}
 
 	addCommand("unset", shortUnsetHelp, longUnsetHelp, func() flags.Commander { return &cmdUnset{} }, waitDescs, []argDesc{
@@ -83,18 +83,18 @@ func (x *cmdUnset) Execute(args []string) error {
 	var id string
 	var err error
 
-	if isAspectID(snapName) {
-		if err := validateAspectFeatureFlag(); err != nil {
+	if isRegistryViewID(snapName) {
+		if err := validateRegistryFeatureFlag(); err != nil {
 			return err
 		}
 
-		// first argument is an aspectID, use the aspects API
-		aspectID := snapName
-		if err := validateAspectID(aspectID); err != nil {
+		// first argument is a registryViewID, use the registry API
+		registryViewID := snapName
+		if err := validateRegistryViewID(registryViewID); err != nil {
 			return err
 		}
 
-		id, err = x.client.AspectSet(aspectID, patchValues)
+		id, err = x.client.RegistrySetViaView(registryViewID, patchValues)
 	} else {
 		id, err = x.client.SetConf(snapName, patchValues)
 	}

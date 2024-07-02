@@ -1346,6 +1346,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"userns":                  true,
 		"wayland":                 true,
 		"xilinx-dma":              true,
+		"registry":                true,
 	}
 
 	for _, iface := range all {

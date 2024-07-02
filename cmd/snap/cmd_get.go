@@ -51,11 +51,11 @@ Nested values may be retrieved via a dotted path:
     frank
 `)
 
-var longAspectGetHelp = i18n.G(`
-If the first argument passed into get is an aspect identifier matching the
-format <account-id>/<bundle>/<aspect>, get will use the aspects configuration
-API. In this case, the command returns the data retrieved from the requested
-dot-separated aspect paths.
+var longRegistryGetHelp = i18n.G(`
+If the first argument passed into get is a registry identifier matching the
+format <account-id>/<registry>/<view>, get will use the registry API. In this
+case, the command returns the data retrieved from the requested dot-separated
+view paths.
 `)
 
 type cmdGet struct {
@@ -71,8 +71,8 @@ type cmdGet struct {
 }
 
 func init() {
-	if err := validateAspectFeatureFlag(); err == nil {
-		longGetHelp += longAspectGetHelp
+	if err := validateRegistryFeatureFlag(); err == nil {
+		longGetHelp += longRegistryGetHelp
 	}
 
 	addCommand("get", shortGetHelp, longGetHelp, func() flags.Commander { return &cmdGet{} },
@@ -256,18 +256,18 @@ func (x *cmdGet) Execute(args []string) error {
 
 	var conf map[string]interface{}
 	var err error
-	if isAspectID(snapName) {
-		if err := validateAspectFeatureFlag(); err != nil {
+	if isRegistryViewID(snapName) {
+		if err := validateRegistryFeatureFlag(); err != nil {
 			return err
 		}
 
-		// first argument is an aspectID, use the aspects API
-		aspectID := snapName
-		if err := validateAspectID(aspectID); err != nil {
+		// first argument is a registryViewID, use the registry API
+		registryViewID := snapName
+		if err := validateRegistryViewID(registryViewID); err != nil {
 			return err
 		}
 
-		conf, err = x.client.AspectGet(aspectID, confKeys)
+		conf, err = x.client.RegistryGetViaView(registryViewID, confKeys)
 	} else {
 		conf, err = x.client.Conf(snapName, confKeys)
 	}
@@ -286,10 +286,10 @@ func (x *cmdGet) Execute(args []string) error {
 	}
 }
 
-func validateAspectFeatureFlag() error {
-	if !features.AspectsConfiguration.IsEnabled() {
-		_, confName := features.AspectsConfiguration.ConfigOption()
-		return fmt.Errorf(`aspect-based configuration is disabled: you must set '%s' to true`, confName)
+func validateRegistryFeatureFlag() error {
+	if !features.Registries.IsEnabled() {
+		_, confName := features.Registries.ConfigOption()
+		return fmt.Errorf(`the "registries" feature is disabled: set '%s' to true`, confName)
 	}
 	return nil
 }

@@ -205,6 +205,9 @@ inotify_rm_watch
 # TODO: this should be scaled back even more
 ~ioctl - TIOCSTI
 ~ioctl - TIOCLINUX
+# see CVE-2019-7303
+~ioctl - 4294967295|TIOCSTI
+~ioctl - 4294967295|TIOCLINUX
 ioctl
 
 io_cancel

@@ -24,10 +24,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	// TODO: add this once PR #13730 is merged:
-	// doublestar "github.com/bmatcuk/doublestar/v4"
-
 	"github.com/snapcore/snapd/interfaces/prompting"
+	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 )
 
@@ -36,40 +34,54 @@ type constraintsSuite struct{}
 var _ = Suite(&constraintsSuite{})
 
 func (s *constraintsSuite) TestConstraintsValidateForInterface(c *C) {
+	validPathPattern, err := patterns.ParsePathPattern("/path/to/foo")
+	c.Assert(err, IsNil)
+
+	// Happy
+	constraints := &prompting.Constraints{
+		PathPattern: validPathPattern,
+		Permissions: []string{"read"},
+	}
+	err = constraints.ValidateForInterface("home")
+	c.Check(err, IsNil)
+
+	// Bad interface or permissions
 	cases := []struct {
-		iface   string
-		pattern string
-		perms   []string
-		errStr  string
+		iface  string
+		perms  []string
+		errStr string
 	}{
 		{
 			"foo",
-			"invalid/path",
 			[]string{"read"},
-			"unsupported interface.*",
+			"invalid constraints: unsupported interface.*",
 		},
-		// TODO: add this once PR #13730 is merged:
-		// {
-		//	"home",
-		//	"invalid/path",
-		//	[]string{"read"},
-		//	"invalid path pattern.*",
-		// },
 		{
 			"home",
-			"/valid/path",
 			[]string{},
-			fmt.Sprintf("%v", prompting.ErrPermissionsListEmpty),
+			fmt.Sprintf("invalid constraints: %v", prompting.ErrPermissionsListEmpty),
+		},
+		{
+			"home",
+			[]string{"access"},
+			fmt.Sprintf("invalid constraints: unsupported permission for home interface.*"),
 		},
 	}
 	for _, testCase := range cases {
 		constraints := &prompting.Constraints{
-			PathPattern: testCase.pattern,
+			PathPattern: validPathPattern,
 			Permissions: testCase.perms,
 		}
-		err := constraints.ValidateForInterface(testCase.iface)
+		err = constraints.ValidateForInterface(testCase.iface)
 		c.Check(err, ErrorMatches, testCase.errStr)
 	}
+
+	// Check missing path pattern
+	constraints = &prompting.Constraints{
+		Permissions: []string{"read"},
+	}
+	err = constraints.ValidateForInterface("home")
+	c.Check(err, ErrorMatches, "invalid constraints: no path pattern")
 }
 
 func (s *constraintsSuite) TestValidatePermissionsHappy(c *C) {
@@ -151,16 +163,17 @@ func (*constraintsSuite) TestConstraintsMatch(c *C) {
 			"/home/test/Documents/foo.txt",
 			true,
 		},
-		// TODO: add this once PR #13730 is merged:
-		// {
-		//	"/home/test/Documents/foo",
-		//	"/home/test/Documents/foo.txt",
-		//	false,
-		// },
+		{
+			"/home/test/Documents/foo",
+			"/home/test/Documents/foo.txt",
+			false,
+		},
 	}
 	for _, testCase := range cases {
+		pattern, err := patterns.ParsePathPattern(testCase.pattern)
+		c.Check(err, IsNil)
 		constraints := &prompting.Constraints{
-			PathPattern: testCase.pattern,
+			PathPattern: pattern,
 			Permissions: []string{"read"},
 		}
 		result, err := constraints.Match(testCase.path)
@@ -170,17 +183,13 @@ func (*constraintsSuite) TestConstraintsMatch(c *C) {
 }
 
 func (s *constraintsSuite) TestConstraintsMatchUnhappy(c *C) {
-	badPath := `bad\pattern\`
+	badPath := `bad\path\`
 	badConstraints := &prompting.Constraints{
-		PathPattern: badPath,
 		Permissions: []string{"read"},
 	}
 	matches, err := badConstraints.Match(badPath)
-	// TODO: change to this once PR #13730 is merged:
-	// c.Check(err, Equals, doublestar.ErrBadPattern)
-	// c.Check(matches, Equals, false)
-	c.Check(err, Equals, nil)
-	c.Check(matches, Equals, true)
+	c.Check(err, ErrorMatches, "invalid constraints: no path pattern")
+	c.Check(matches, Equals, false)
 }
 
 func (s *constraintsSuite) TestConstraintsRemovePermission(c *C) {
@@ -240,11 +249,13 @@ func (s *constraintsSuite) TestConstraintsRemovePermission(c *C) {
 		},
 	}
 	for _, testCase := range cases {
+		pathPattern, err := patterns.ParsePathPattern("/path/to/foo")
+		c.Check(err, IsNil)
 		constraints := &prompting.Constraints{
-			PathPattern: "/path/to/foo",
+			PathPattern: pathPattern,
 			Permissions: testCase.initial,
 		}
-		err := constraints.RemovePermission(testCase.remove)
+		err = constraints.RemovePermission(testCase.remove)
 		c.Check(err, Equals, testCase.err)
 		c.Check(constraints.Permissions, DeepEquals, testCase.final)
 	}
@@ -298,8 +309,10 @@ func (s *constraintsSuite) TestConstraintsContainPermissions(c *C) {
 		},
 	}
 	for _, testCase := range cases {
+		pathPattern, err := patterns.ParsePathPattern("/arbitrary")
+		c.Check(err, IsNil)
 		constraints := &prompting.Constraints{
-			PathPattern: "arbitrary",
+			PathPattern: pathPattern,
 			Permissions: testCase.constPerms,
 		}
 		contained := constraints.ContainPermissions(testCase.queryPerms)

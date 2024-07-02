@@ -135,7 +135,7 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 
 		notices, err = st.WaitNotices(ctx, filter)
 		if errors.Is(err, context.Canceled) {
-			return BadRequest("request canceled")
+			return InternalError("request canceled")
 		}
 		// DeadlineExceeded will occur if timeout elapses; in that case return
 		// an empty list of notices, not an error.

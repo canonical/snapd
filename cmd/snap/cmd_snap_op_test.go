@@ -54,6 +54,7 @@ type snapOpTestServer struct {
 	confinement     string
 	restart         string
 	snap            string
+	component       string
 	chgInWaitStatus bool
 }
 
@@ -84,11 +85,23 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 	case 2:
 		t.c.Check(r.Method, check.Equals, "GET")
 		t.c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
-		fmt.Fprintf(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"snap-name": "%s"}}}\n`, t.snap)
+		var apiData string
+		if t.component == "" {
+			apiData = fmt.Sprintf(`{"snap-names": ["%s"]}`, t.snap)
+		} else {
+			apiData = fmt.Sprintf(`{"components": {"%s": ["%s"]}}`, t.snap, t.component)
+		}
+		fmt.Fprintf(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": %s}}\n`, apiData)
 	case 3:
 		t.c.Check(r.Method, check.Equals, "GET")
 		t.c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-		fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "%s", "status": "active", "version": "1.0", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":42, "channel":"%s", "tracking-channel": "%s", "confinement": "%s"}]}\n`, t.snap, t.channel, t.trackingChannel, t.confinement)
+		var compsData string
+		if t.component != "" {
+			compsData = fmt.Sprintf(`, "components": [{"name": "%s", "version": "3.2"}]`,
+				t.component)
+		}
+		fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "%s", "status": "active", "version": "1.0", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":42, "channel":"%s", "tracking-channel": "%s", "confinement": "%s"%s}]}\n`,
+			t.snap, t.channel, t.trackingChannel, t.confinement, compsData)
 	default:
 		t.c.Fatalf("expected to get %d requests, now on %d", t.total, t.n+1)
 	}
@@ -983,6 +996,40 @@ func (s *SnapOpSuite) TestInstallPath(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestComponentInstallPath(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+
+		form := testForm(r, c)
+		defer form.RemoveAll()
+
+		c.Check(form.Value["action"], check.DeepEquals, []string{"install"})
+		c.Check(form.Value["devmode"], check.IsNil)
+		c.Check(form.Value["snap-path"], check.NotNil)
+		c.Check(form.Value["transaction"], check.NotNil)
+		c.Check(form.Value, check.HasLen, 3)
+
+		name, _, body := formFile(form, c)
+		c.Check(name, check.Equals, "snap")
+		c.Check(string(body), check.Equals, "component-data")
+	}
+	s.srv.component = "mycomp"
+
+	snapBody := []byte("component-data")
+	s.RedirectClientToTestServer(s.srv.handle)
+	snapPath := filepath.Join(c.MkDir(), "foo.comp")
+	err := os.WriteFile(snapPath, snapBody, 0644)
+	c.Assert(err, check.IsNil)
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", snapPath})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*component mycomp 3.2 for foo 1.0 installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)

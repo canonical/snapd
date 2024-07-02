@@ -46,10 +46,13 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
@@ -686,7 +689,7 @@ func (s *snapsSuite) TestRefreshAll(c *check.C) {
 		inst := &daemon.SnapInstruction{Action: "refresh"}
 		st := d.Overlord().State()
 		st.Lock()
-		res, err := inst.DispatchForMany()(inst, st)
+		res, err := inst.DispatchForMany()(context.Background(), inst, st)
 		st.Unlock()
 		c.Assert(err, check.IsNil)
 		c.Check(res.Summary, check.Equals, tst.msg)
@@ -712,7 +715,7 @@ func (s *snapsSuite) TestRefreshAllNoChanges(c *check.C) {
 	inst := &daemon.SnapInstruction{Action: "refresh"}
 	st := d.Overlord().State()
 	st.Lock()
-	res, err := inst.DispatchForMany()(inst, st)
+	res, err := inst.DispatchForMany()(context.Background(), inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Refresh all snaps: no updates`)
@@ -740,7 +743,7 @@ func (s *snapsSuite) TestRefreshAllRestoresValidationSets(c *check.C) {
 	inst := &daemon.SnapInstruction{Action: "refresh"}
 	st := d.Overlord().State()
 	st.Lock()
-	_, err := inst.DispatchForMany()(inst, st)
+	_, err := inst.DispatchForMany()(context.Background(), inst, st)
 	st.Unlock()
 	c.Assert(err, check.ErrorMatches, "boom")
 	c.Check(refreshSnapAssertions, check.Equals, true)
@@ -775,7 +778,7 @@ func (s *snapsSuite) TestRefreshManyTransactionally(c *check.C) {
 	}
 	st := d.Overlord().State()
 	st.Lock()
-	res, err := inst.DispatchForMany()(inst, st)
+	res, err := inst.DispatchForMany()(context.Background(), inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Refresh snaps "foo", "bar"`)
@@ -806,7 +809,7 @@ func (s *snapsSuite) TestRefreshMany(c *check.C) {
 	inst := &daemon.SnapInstruction{Action: "refresh", Snaps: []string{"foo", "bar"}}
 	st := d.Overlord().State()
 	st.Lock()
-	res, err := inst.DispatchForMany()(inst, st)
+	res, err := inst.DispatchForMany()(context.Background(), inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Refresh snaps "foo", "bar"`)
@@ -838,7 +841,7 @@ func (s *snapsSuite) TestRefreshManyIgnoreRunning(c *check.C) {
 	}
 	st := d.Overlord().State()
 	st.Lock()
-	res, err := inst.DispatchForMany()(inst, st)
+	res, err := inst.DispatchForMany()(context.Background(), inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Refresh snaps "foo", "bar"`)
@@ -863,7 +866,7 @@ func (s *snapsSuite) TestRefreshMany1(c *check.C) {
 	inst := &daemon.SnapInstruction{Action: "refresh", Snaps: []string{"foo"}}
 	st := d.Overlord().State()
 	st.Lock()
-	res, err := inst.DispatchForMany()(inst, st)
+	res, err := inst.DispatchForMany()(context.Background(), inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Refresh snap "foo"`)
@@ -882,7 +885,7 @@ func (s *snapsSuite) TestInstallMany(c *check.C) {
 	inst := &daemon.SnapInstruction{Action: "install", Snaps: []string{"foo", "bar"}}
 	st := d.Overlord().State()
 	st.Lock()
-	res, err := inst.DispatchForMany()(inst, st)
+	res, err := inst.DispatchForMany()(context.Background(), inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Install snaps "foo", "bar"`)
@@ -909,7 +912,7 @@ func (s *snapsSuite) TestInstallManyTransactionally(c *check.C) {
 
 	st := d.Overlord().State()
 	st.Lock()
-	res, err := inst.DispatchForMany()(inst, st)
+	res, err := inst.DispatchForMany()(context.Background(), inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Install snaps "foo", "bar"`)
@@ -926,7 +929,7 @@ func (s *snapsSuite) TestInstallManyEmptyName(c *check.C) {
 	inst := &daemon.SnapInstruction{Action: "install", Snaps: []string{"", "bar"}}
 	st := d.Overlord().State()
 	st.Lock()
-	res, err := inst.DispatchForMany()(inst, st)
+	res, err := inst.DispatchForMany()(context.Background(), inst, st)
 	st.Unlock()
 	c.Assert(res, check.IsNil)
 	c.Assert(err, check.ErrorMatches, "cannot install snap with empty name")
@@ -944,7 +947,7 @@ func (s *snapsSuite) TestRemoveMany(c *check.C) {
 	inst := &daemon.SnapInstruction{Action: "remove", Snaps: []string{"foo", "bar"}}
 	st := d.Overlord().State()
 	st.Lock()
-	res, err := inst.DispatchForMany()(inst, st)
+	res, err := inst.DispatchForMany()(context.Background(), inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Remove snaps "foo", "bar"`)
@@ -963,7 +966,7 @@ func (s *snapsSuite) TestRemoveManyWithPurge(c *check.C) {
 	inst := &daemon.SnapInstruction{Action: "remove", Purge: true, Snaps: []string{"foo", "bar"}}
 	st := d.Overlord().State()
 	st.Lock()
-	res, err := inst.DispatchForMany()(inst, st)
+	res, err := inst.DispatchForMany()(context.Background(), inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Remove snaps "foo", "bar"`)
@@ -1605,6 +1608,207 @@ func (s *snapsSuite) TestMapLocalFields(c *check.C) {
 	c.Check(daemon.MapLocal(about, nil), check.DeepEquals, expected)
 }
 
+func (s *snapsSuite) TestMapLocalFieldsWithComponents(c *check.C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir(dirs.GlobalRootDir)
+
+	media := snap.MediaInfos{
+		{
+			Type: "screenshot",
+			URL:  "https://example.com/shot1.svg",
+		}, {
+			Type: "icon",
+			URL:  "https://example.com/icon.png",
+		}, {
+			Type: "screenshot",
+			URL:  "https://example.com/shot2.svg",
+		},
+	}
+
+	publisher := snap.StoreAccount{
+		ID:          "some-dev-id",
+		Username:    "some-dev",
+		DisplayName: "Some Developer",
+		Validation:  "poor",
+	}
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			SnapID:            "some-snap-id",
+			RealName:          "some-snap",
+			EditedTitle:       "A Title",
+			EditedSummary:     "a summary",
+			EditedDescription: "the\nlong\ndescription",
+			Channel:           "bleeding/edge",
+			EditedLinks: map[string][]string{
+				"contact": {"mailto:alice@example.com"},
+			},
+			LegacyEditedContact: "mailto:alice@example.com",
+			Revision:            snap.R(7),
+			Private:             true,
+		},
+		SnapType:    "app",
+		Base:        "the-base",
+		Version:     "v1.0",
+		License:     "MIT",
+		Broken:      "very",
+		Confinement: "very strict",
+		CommonIDs:   []string{"foo", "bar"},
+		Media:       media,
+		DownloadInfo: snap.DownloadInfo{
+			Size:     42,
+			Sha3_384: "some-sum",
+		},
+		Publisher: publisher,
+		Components: map[string]*snap.Component{
+			"comp-1": {
+				Name: "comp-1",
+				Type: "test",
+			},
+			"comp-2": {
+				Name:        "comp-2",
+				Type:        "test",
+				Summary:     "summary 2",
+				Description: "description 2",
+			},
+			"comp-3": {
+				Name:        "comp-3",
+				Type:        "test",
+				Summary:     "summary 3",
+				Description: "description 3",
+			},
+			"comp-4": {
+				Name: "comp-4",
+				Type: "test",
+			},
+		},
+	}
+
+	// make InstallDate work
+	c.Assert(os.MkdirAll(info.MountDir(), 0755), check.IsNil)
+	c.Assert(os.Symlink("7", filepath.Join(info.MountDir(), "..", "current")), check.IsNil)
+
+	info.Apps = map[string]*snap.AppInfo{
+		"foo": {Snap: info, Name: "foo", Command: "foo"},
+		"bar": {Snap: info, Name: "bar", Command: "bar"},
+	}
+
+	const comp1yaml = `
+component: some-snap+comp-1
+type: test
+version: 1.0
+`
+	const comp2yaml = `
+component: some-snap+comp-2
+type: test
+version: 1.0
+summary: summary 2
+description: description 2
+`
+	// We need just enough info for components in snap.yaml
+	const snapYaml = `
+name: some-snap
+version: 1
+components:
+  comp-1:
+    type: test
+  comp-2:
+    type: test
+`
+
+	// Mock snap.yaml/component.yaml files for installed components
+	ssi := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(7),
+		SnapID: "some-snap-id"}
+	snaptest.MockSnap(c, snapYaml, ssi)
+	csi := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "comp-1"), snap.R(33))
+	snaptest.MockComponent(c, comp1yaml, info, *csi)
+	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "comp-2"), snap.R(34))
+	snaptest.MockComponent(c, comp2yaml, info, *csi2)
+	comps := []*sequence.ComponentState{
+		sequence.NewComponentState(csi, snap.TestComponent),
+		sequence.NewComponentState(csi2, snap.TestComponent),
+	}
+
+	// make InstallDate/InstalledSize work for comp1 and comp2
+	cpi := snap.MinimalComponentContainerPlaceInfo(
+		csi.Component.ComponentName, csi.Revision, "some-snap")
+	symLn := snap.ComponentLinkPath(cpi, snap.R(7))
+	c.Assert(os.MkdirAll(cpi.MountDir(), 0755), check.IsNil)
+	os.WriteFile(cpi.MountFile(), []byte{0, 0}, 0644)
+	c.Assert(os.MkdirAll(filepath.Dir(symLn), 0755), check.IsNil)
+	c.Assert(os.Symlink(cpi.MountDir(), symLn), check.IsNil)
+	cpi2 := snap.MinimalComponentContainerPlaceInfo(
+		csi2.Component.ComponentName, csi2.Revision, "some-snap")
+	symLn2 := snap.ComponentLinkPath(cpi2, snap.R(7))
+	c.Assert(os.MkdirAll(cpi2.MountDir(), 0755), check.IsNil)
+	os.WriteFile(cpi2.MountFile(), []byte{0, 0, 0}, 0644)
+	c.Assert(os.MkdirAll(filepath.Dir(symLn2), 0755), check.IsNil)
+	c.Assert(os.Symlink(cpi2.MountDir(), symLn2), check.IsNil)
+
+	about := daemon.MakeAboutSnap(info, &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(ssi, comps)}),
+		Active:          true,
+		TrackingChannel: "flaky/beta",
+		Current:         snap.R(7),
+		Flags: snapstate.Flags{
+			IgnoreValidation: true,
+			DevMode:          true,
+			JailMode:         true,
+		},
+	},
+	)
+
+	expected := &client.Snap{
+		ID:               "some-snap-id",
+		Name:             "some-snap",
+		Summary:          "a summary",
+		Description:      "the\nlong\ndescription",
+		Developer:        "some-dev",
+		Publisher:        &publisher,
+		Icon:             "https://example.com/icon.png",
+		Type:             "app",
+		Base:             "the-base",
+		Version:          "v1.0",
+		Revision:         snap.R(7),
+		Channel:          "bleeding/edge",
+		TrackingChannel:  "flaky/beta",
+		InstallDate:      info.InstallDate(),
+		InstalledSize:    42,
+		Status:           "active",
+		Confinement:      "very strict",
+		IgnoreValidation: true,
+		DevMode:          true,
+		JailMode:         true,
+		Private:          true,
+		Broken:           "very",
+		Links: map[string][]string{
+			"contact": {"mailto:alice@example.com"},
+		},
+		Contact:     "mailto:alice@example.com",
+		Title:       "A Title",
+		License:     "MIT",
+		CommonIDs:   []string{"foo", "bar"},
+		MountedFrom: filepath.Join(dirs.SnapBlobDir, "some-snap_7.snap"),
+		Media:       media,
+		Apps: []client.AppInfo{
+			{Snap: "some-snap", Name: "bar"},
+			{Snap: "some-snap", Name: "foo"},
+		},
+		Components: []client.Component{
+			{Name: "comp-1", Type: "test", Version: "1.0", Revision: snap.R(33),
+				InstallDate: snap.ComponentInstallDate(cpi, snap.R(7)), InstalledSize: 2},
+			{Name: "comp-2", Type: "test", Version: "1.0", Revision: snap.R(34),
+				Summary: "summary 2", Description: "description 2",
+				InstallDate: snap.ComponentInstallDate(cpi2, snap.R(7)), InstalledSize: 3},
+			{Name: "comp-3", Type: "test",
+				Summary: "summary 3", Description: "description 3"},
+			{Name: "comp-4", Type: "test"},
+		},
+	}
+	c.Check(daemon.MapLocal(about, nil), check.DeepEquals, expected)
+}
+
 func (s *snapsSuite) TestMapLocalOfTryResolvesSymlink(c *check.C) {
 	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), check.IsNil)
 
@@ -1930,7 +2134,7 @@ func (s *snapsSuite) TestInstall(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	_, _, err := inst.Dispatch()(inst, st)
+	_, _, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Check(err, check.IsNil)
 	c.Check(calledName, check.Equals, "fake")
 }
@@ -1955,7 +2159,7 @@ func (s *snapsSuite) TestInstallWithQuotaGroup(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	_, _, err := inst.Dispatch()(inst, st)
+	_, _, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Check(err, check.IsNil)
 	c.Check(calledFlags.QuotaGroupName, check.Equals, "test-group")
 }
@@ -1981,7 +2185,7 @@ func (s *snapsSuite) TestInstallDevMode(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	_, _, err := inst.Dispatch()(inst, st)
+	_, _, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Check(err, check.IsNil)
 
 	c.Check(calledFlags.DevMode, check.Equals, true)
@@ -2007,7 +2211,7 @@ func (s *snapsSuite) TestInstallJailMode(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	_, _, err := inst.Dispatch()(inst, st)
+	_, _, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Check(err, check.IsNil)
 
 	c.Check(calledFlags.JailMode, check.Equals, true)
@@ -2027,7 +2231,7 @@ func (s *snapsSuite) TestInstallJailModeDevModeOS(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	_, _, err := inst.Dispatch()(inst, st)
+	_, _, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Check(err, check.ErrorMatches, "this system cannot honour the jailmode flag")
 }
 
@@ -2043,7 +2247,7 @@ func (s *snapsSuite) TestInstallJailModeDevMode(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	_, _, err := inst.Dispatch()(inst, st)
+	_, _, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Check(err, check.ErrorMatches, "cannot use devmode and jailmode flags together")
 }
 
@@ -2069,7 +2273,7 @@ func (s *snapsSuite) TestInstallCohort(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	msg, _, err := inst.Dispatch()(inst, st)
+	msg, _, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Check(err, check.IsNil)
 	c.Check(calledName, check.Equals, "fake")
 	c.Check(calledCohort, check.Equals, "To the legion of the lost ones, to the cohort of the damned.")
@@ -2100,7 +2304,7 @@ func (s *snapsSuite) TestInstallIgnoreValidation(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	summary, _, err := inst.Dispatch()(inst, st)
+	summary, _, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Check(err, check.IsNil)
 
 	flags := snapstate.Flags{}
@@ -2126,7 +2330,7 @@ func (s *snapsSuite) TestInstallEmptyName(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	_, _, err := inst.Dispatch()(inst, st)
+	_, _, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Check(err, check.ErrorMatches, "cannot install snap with empty name")
 }
 
@@ -2267,7 +2471,7 @@ func (s *snapsSuite) TestRefresh(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	summary, _, err := inst.Dispatch()(inst, st)
+	summary, _, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Check(err, check.IsNil)
 
 	c.Check(assertstateCalledUserID, check.Equals, 17)
@@ -2306,7 +2510,7 @@ func (s *snapsSuite) TestRefreshDevMode(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	summary, _, err := inst.Dispatch()(inst, st)
+	summary, _, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Check(err, check.IsNil)
 
 	flags := snapstate.Flags{}
@@ -2340,7 +2544,7 @@ func (s *snapsSuite) TestRefreshClassic(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	_, _, err := inst.Dispatch()(inst, st)
+	_, _, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Check(err, check.IsNil)
 
 	c.Check(calledFlags, check.DeepEquals, snapstate.Flags{Classic: true})
@@ -2374,7 +2578,7 @@ func (s *snapsSuite) TestRefreshIgnoreValidation(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	summary, _, err := inst.Dispatch()(inst, st)
+	summary, _, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Check(err, check.IsNil)
 
 	flags := snapstate.Flags{}
@@ -2412,7 +2616,7 @@ func (s *snapsSuite) TestRefreshIgnoreRunning(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	summary, _, err := inst.Dispatch()(inst, st)
+	summary, _, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Check(err, check.IsNil)
 
 	flags := snapstate.Flags{}
@@ -2447,7 +2651,7 @@ func (s *snapsSuite) TestRefreshCohort(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	summary, _, err := inst.Dispatch()(inst, st)
+	summary, _, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Check(err, check.IsNil)
 
 	c.Check(cohort, check.Equals, "xyzzy")
@@ -2477,7 +2681,7 @@ func (s *snapsSuite) TestRefreshLeaveCohort(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	summary, _, err := inst.Dispatch()(inst, st)
+	summary, _, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Check(err, check.IsNil)
 
 	c.Check(*leave, check.Equals, true)
@@ -2526,7 +2730,7 @@ func (s *snapsSuite) TestSwitchInstruction(c *check.C) {
 		inst.Channel = t.channel
 
 		st.Lock()
-		summary, _, err := inst.Dispatch()(inst, st)
+		summary, _, err := inst.Dispatch()(context.Background(), inst, st)
 		st.Unlock()
 		c.Check(err, check.IsNil)
 
@@ -2561,7 +2765,7 @@ func (s *snapsSuite) testRevertSnap(inst *daemon.SnapInstruction, c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	summary, _, err := inst.Dispatch()(inst, st)
+	summary, _, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Check(err, check.IsNil)
 	if inst.Revision.Unset() {
 		c.Check(queue, check.DeepEquals, []string{inst.Snaps[0]})
@@ -2833,7 +3037,7 @@ func (s *snapsSuite) TestRefreshEnforce(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	res, err := inst.DispatchForMany()(inst, st)
+	res, err := inst.DispatchForMany()(context.Background(), inst, st)
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Enforce validation sets "foo/bar=2", "foo/baz" for snaps "install-snap", "update-snap"`)
 	c.Check(res.Affected, check.DeepEquals, []string{"install-snap", "update-snap"})
@@ -2941,7 +3145,7 @@ func (s *snapsSuite) TestRefreshEnforceWithPreexistingSet(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	res, err := inst.DispatchForMany()(inst, st)
+	res, err := inst.DispatchForMany()(context.Background(), inst, st)
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Enforce validation sets "foo/new=2" for snaps "install-snap"`)
 	c.Check(res.Affected, check.DeepEquals, []string{"install-snap"})
@@ -2974,7 +3178,7 @@ func (s *snapsSuite) TestRefreshEnforceTryEnforceValidationSetsError(c *check.C)
 	st.Lock()
 	defer st.Unlock()
 
-	_, err := inst.DispatchForMany()(inst, st)
+	_, err := inst.DispatchForMany()(context.Background(), inst, st)
 	c.Assert(err, check.ErrorMatches, `boom`)
 	c.Check(refreshSnapAssertions, check.Equals, 1)
 	c.Check(snapstateEnforceSnaps, check.Equals, 0)
@@ -2982,7 +3186,7 @@ func (s *snapsSuite) TestRefreshEnforceTryEnforceValidationSetsError(c *check.C)
 	// ValidationSetsValidationError is expected and fine
 	tryEnforceErr = &snapasserts.ValidationSetsValidationError{}
 
-	_, err = inst.DispatchForMany()(inst, st)
+	_, err = inst.DispatchForMany()(context.Background(), inst, st)
 	c.Assert(err, check.IsNil)
 	c.Check(refreshSnapAssertions, check.Equals, 2)
 	c.Check(snapstateEnforceSnaps, check.Equals, 1)
@@ -3015,7 +3219,7 @@ func (s *snapsSuite) TestRefreshEnforceWithSnapsIsAnError(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, err := inst.DispatchForMany()(inst, st)
+	_, err := inst.DispatchForMany()(context.Background(), inst, st)
 	c.Assert(err, check.ErrorMatches, `snap names cannot be specified with validation sets to enforce`)
 	c.Check(refreshSnapAssertions, check.Equals, false)
 	c.Check(tryEnforceValidationSets, check.Equals, false)
@@ -3043,7 +3247,7 @@ func (s *snapsSuite) TestRefreshEnforceSetsNoUnmetConstraints(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	resp, err := inst.DispatchForMany()(inst, st)
+	resp, err := inst.DispatchForMany()(context.Background(), inst, st)
 	c.Assert(err, check.IsNil)
 	c.Check(resp.Affected, check.IsNil)
 	c.Check(resp.Tasksets, check.IsNil)
@@ -3100,7 +3304,7 @@ func (s *snapsSuite) TestHoldAllRefreshes(c *check.C) {
 			HoldLevel: "auto-refresh",
 		}
 
-		res, err := inst.DispatchForMany()(inst, st)
+		res, err := inst.DispatchForMany()(context.Background(), inst, st)
 		c.Assert(err, check.IsNil)
 		c.Assert(res.Tasksets, check.Not(check.IsNil))
 		c.Assert(res.Affected, check.IsNil)
@@ -3134,7 +3338,7 @@ func (s *snapsSuite) TestHoldManyRefreshes(c *check.C) {
 			HoldLevel: "auto-refresh",
 		}
 
-		res, err := inst.DispatchForMany()(inst, st)
+		res, err := inst.DispatchForMany()(context.Background(), inst, st)
 		c.Assert(err, check.IsNil)
 		c.Assert(res.Tasksets, check.IsNil)
 		c.Assert(res.Affected, check.DeepEquals, snaps)
@@ -3167,7 +3371,7 @@ func (s *snapsSuite) TestHoldRefresh(c *check.C) {
 			HoldLevel: "general",
 		}
 
-		summary, tasksets, err := inst.Dispatch()(inst, st)
+		summary, tasksets, err := inst.Dispatch()(context.Background(), inst, st)
 		c.Assert(err, check.IsNil)
 		c.Assert(tasksets, check.IsNil)
 		c.Assert(summary, check.Equals, `Hold general refreshes for "some-snap"`)
@@ -3193,7 +3397,7 @@ func (s *snapsSuite) TestUnholdAllRefreshes(c *check.C) {
 		Action: "unhold",
 	}
 
-	res, err := inst.DispatchForMany()(inst, st)
+	res, err := inst.DispatchForMany()(context.Background(), inst, st)
 	c.Assert(err, check.IsNil)
 	c.Assert(res.Tasksets, check.Not(check.IsNil))
 	c.Assert(res.Affected, check.IsNil)
@@ -3220,7 +3424,7 @@ func (s *snapsSuite) TestUnholdManyRefreshes(c *check.C) {
 		Snaps:  snaps,
 	}
 
-	res, err := inst.DispatchForMany()(inst, st)
+	res, err := inst.DispatchForMany()(context.Background(), inst, st)
 	c.Assert(err, check.IsNil)
 	c.Assert(res.Tasksets, check.IsNil)
 	c.Assert(res.Affected, check.DeepEquals, snaps)
@@ -3245,7 +3449,7 @@ func (s *snapsSuite) TestUnholdRefresh(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	summary, tasksets, err := inst.Dispatch()(inst, st)
+	summary, tasksets, err := inst.Dispatch()(context.Background(), inst, st)
 
 	c.Assert(err, check.IsNil)
 	c.Assert(tasksets, check.IsNil)

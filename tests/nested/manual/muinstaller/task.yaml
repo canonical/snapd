@@ -77,7 +77,12 @@ execute: |
   version="$(nested_get_version)"
   # get an updated kernel
   snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
-  uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  if os.query is-ubuntu-ge 24.04; then
+    uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  else
+    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  fi
+
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
 
   # Prepare gadget with the right gadget.yaml
@@ -92,7 +97,7 @@ execute: |
   # - create pc-classic custom gadget
   # - repacked snapd snap
   # (should be as simple as adding "--snap=./local-gadget.snap ...")
-  gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-22-classic-dangerous.json > my.model
+  gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-"$version"-classic-dangerous.json > my.model
   snap prepare-image --classic \
       --channel=edge \
       --snap ./pc-kernel.snap \

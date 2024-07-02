@@ -39,7 +39,7 @@ func serviceName(snapName, distinctServiceSuffix string) string {
 	return snap.ScopedSecurityTag(snapName, "interface", distinctServiceSuffix) + ".service"
 }
 
-// Backend is responsible for maintaining apparmor profiles for ubuntu-core-launcher.
+// Backend is responsible for maintaining special systemd units.
 type Backend struct {
 	preseed bool
 }

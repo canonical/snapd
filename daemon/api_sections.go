@@ -20,7 +20,6 @@
 package daemon
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/snapcore/snapd/overlord/auth"
@@ -44,8 +43,7 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	theStore := storeFrom(c.d)
 
-	// TODO: use a per-request context
-	sections, err := theStore.Sections(context.TODO(), user)
+	sections, err := theStore.Sections(r.Context(), user)
 	switch err {
 	case nil:
 		// pass

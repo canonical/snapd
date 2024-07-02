@@ -1,0 +1,60 @@
+summary: Check the registries and views feature
+
+details: |
+  Verify the basic features of experimental configuration feature based on
+  registries and views.
+
+prepare: |
+  snap set system experimental.registries=true
+  snap install --edge jq
+
+execute: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+    echo "This test needs test keys to be trusted"
+    exit
+  fi
+
+  snap ack "$TESTSLIB/assertions/developer1-network.registry"
+
+  # write a value
+  snap set developer1/network/wifi-setup ssid=canonical
+
+  # read the same value
+  snap get developer1/network/wifi-setup ssid | MATCH "canonical"
+
+  # delete it
+  snap set developer1/network/wifi-setup ssid!
+
+  # check it was deleted
+  snap get developer1/network/wifi-setup ssid 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH $'cannot get "ssid" in registry view developer1/network/wifi-setup: matching rules don\'t map to any values'
+
+  # write values using a placeholder access
+  snap set -t developer1/network/wifi-setup private.my-company=\"my-config\" private.your-company=\"your-config\"
+
+  # check values were set
+  snap get developer1/network/wifi-setup private.my-company | MATCH "my-config"
+  snap get developer1/network/wifi-setup private.your-company | MATCH "your-config"
+
+  # delete it
+  snap set developer1/network/wifi-setup private.my-company!
+
+  # check it was deleted
+  snap get developer1/network/wifi-setup private.my-company 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH $'cannot get "private.my-company" in registry view developer1/network/wifi-setup: matching rules don\'t map to any values'
+
+  # check second value remains
+  snap get developer1/network/wifi-setup private.your-company | MATCH "your-config"
+  snap set developer1/network/wifi-setup private.your-company!
+
+  # write a list
+  snap set -t developer1/network/wifi-setup ssids='["one", 2]'
+
+  # read the same value
+  snap get -d developer1/network/wifi-setup ssids | jq -c .ssids | MATCH '["one", 2]'
+
+  # check read-only access control works
+  snap set developer1/network/wifi-setup status=foo 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH 'cannot set "status" in registry view developer1/network/wifi-setup: no matching write rule'
+
+  # check write-only access control works
+  snap set developer1/network/wifi-setup password=foo
+
+  snap get developer1/network/wifi-setup password 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH 'cannot get "password" in registry view developer1/network/wifi-setup: no matching read rule'

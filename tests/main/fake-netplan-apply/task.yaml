@@ -22,37 +22,57 @@ environment:
     NETPLAN: io.netplan.Netplan
 
 prepare: |
+    is_dev=false
+    if os.query is-ubuntu-gt 24.04; then
+        is_dev=true
+    fi
+
     # build the netplan snap for this system
     if os.query is-xenial; then
         # use no base setting to use effectively "base: core"
-        sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/# no base snap for core base/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
+        sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" \
+            -e "s/base: %BASESNAP%/# no base snap for core base/" \
+            -e "s|%USRMERGE%||" \
+                > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
         snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-16.snap
         snap install --dangerous netplan-snap-16.snap
     elif os.query is-bionic; then
         # use base: core18
-        sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/base: core18/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
+        sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" \
+            -e "s/base: %BASESNAP%/base: core18/" \
+            -e "s|%USRMERGE%||" \
+                > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
         snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-18.snap
         snap install --dangerous netplan-snap-18.snap
     elif os.query is-focal; then
         # use base: core20
-        sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/base: core20/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
+        sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" \
+            -e "s/base: %BASESNAP%/base: core20/" \
+            -e "s|%USRMERGE%|/usr|" \
+                > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
         snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-20.snap
         snap install --dangerous netplan-snap-20.snap
     elif os.query is-jammy || os.query is-ubuntu 23.10; then
         # use base: core22
-        sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/base: core22/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
+        sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" \
+            -e "s/base: %BASESNAP%/base: core22/" \
+            -e "s|%USRMERGE%|/usr|" \
+                > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
         snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-22.snap
         snap install --dangerous netplan-snap-22.snap
-    elif os.query is-noble; then
+    elif os.query is-noble || [ "$is_dev" = "true" ]; then
         # use base: core24
-        sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/base: core24/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
+        sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" \
+            -e "s/base: %BASESNAP%/base: core24/" \
+            -e "s|%USRMERGE%|/usr|" \
+                > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
         snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-24.snap
         snap install --edge core24
         tests.cleanup defer snap remove --purge core24
         snap install --dangerous netplan-snap-24.snap
         tests.cleanup defer snap remove --purge netplan-snap
     else
-        echo "new core release, please update test for new ubuntu core version"
+        echo "new release, please update test for new ubuntu version"
         exit 1
     fi
 

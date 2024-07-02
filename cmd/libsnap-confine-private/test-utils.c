@@ -21,8 +21,6 @@
 #include "error.h"
 #include "utils.h"
 
-#include <glib.h>
-
 #if !GLIB_CHECK_VERSION(2, 69, 0)
 // g_spawn_check_exit_status is considered deprecated since 2.69
 #define g_spawn_check_wait_status(x, y) (g_spawn_check_exit_status (x, y))
@@ -110,4 +108,18 @@ void
 
 	*argcp = argc;
 	*argvp = argv;
+}
+
+extern void sc_set_snap_mount_dir(const char *dir);
+
+void snap_mount_dir_fixture_setup(snap_mount_dir_fixture *fix,
+				  gconstpointer user_data)
+{
+	sc_set_snap_mount_dir((const char *)user_data);
+}
+
+void snap_mount_dir_fixture_teardown(snap_mount_dir_fixture *fix,
+				     gconstpointer user_data)
+{
+	sc_set_snap_mount_dir(NULL);
 }

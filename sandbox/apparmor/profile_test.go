@@ -295,8 +295,6 @@ func (s *appArmorSuite) TestLoadedApparmorProfilesParsesAndFiltersData(c *C) {
 		// The pi2-piglow.{background,foreground}.snap entries are the only
 		// ones that should be reported by the function.
 		`/sbin/dhclient (enforce)
-/usr/bin/ubuntu-core-launcher (enforce)
-/usr/bin/ubuntu-core-launcher (enforce)
 /usr/lib/NetworkManager/nm-dhcp-client.action (enforce)
 /usr/lib/NetworkManager/nm-dhcp-helper (enforce)
 /usr/lib/connman/scripts/dhclient-script (enforce)

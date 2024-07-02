@@ -196,6 +196,9 @@ func snapDeclarationFormatAnalyze(headers map[string]interface{}, body []byte) (
 		if rule.feature(altAttrMatcherFeature) {
 			setFormatNum(5)
 		}
+		if rule.feature(publisherIDConstraintsFeature) {
+			setFormatNum(6)
+		}
 	})
 	if err != nil {
 		return 0, err
@@ -217,6 +220,9 @@ func snapDeclarationFormatAnalyze(headers map[string]interface{}, body []byte) (
 		}
 		if rule.feature(altAttrMatcherFeature) {
 			setFormatNum(5)
+		}
+		if rule.feature(publisherIDConstraintsFeature) {
+			setFormatNum(6)
 		}
 	})
 	if err != nil {

@@ -138,6 +138,23 @@ func MockSnapCurrent(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap
 	return si
 }
 
+func MockComponentCurrent(c *check.C, yamlText string, info *snap.Info, csi snap.ComponentSideInfo) *snap.ComponentInfo {
+	ci := MockComponent(c, yamlText, info, csi)
+
+	mountDir := snap.ComponentMountDir(ci.Component.ComponentName, ci.Revision, info.InstanceName())
+	link := filepath.Join(snap.ComponentsBaseDir(info.InstanceName()), info.Revision.String(), ci.Component.ComponentName)
+	err := os.MkdirAll(filepath.Dir(link), 0755)
+	c.Assert(err, check.IsNil)
+
+	linkDest, err := filepath.Rel(filepath.Dir(link), mountDir)
+	c.Assert(err, check.IsNil)
+
+	err = os.Symlink(linkDest, link)
+	c.Assert(err, check.IsNil)
+
+	return ci
+}
+
 // MockSnapInstanceCurrent does the same as MockSnapInstance but additionally
 // creates the 'current' symlink.
 //

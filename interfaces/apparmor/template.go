@@ -373,7 +373,7 @@ var templateCommon = `
   /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/** wl,
   /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/** wl,
 
-  # The ubuntu-core-launcher creates an app-specific private restricted /tmp
+  # The snap-confine program creates an app-specific private restricted /tmp
   # and will fail to launch the app if something goes wrong. As such, we can
   # simply allow full access to /tmp.
   /tmp/   r,

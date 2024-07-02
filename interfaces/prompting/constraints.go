@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -34,18 +35,20 @@ var (
 )
 
 type Constraints struct {
-	PathPattern string   `json:"path-pattern,omitempty"`
-	Permissions []string `json:"permissions,omitempty"`
+	PathPattern *patterns.PathPattern `json:"path-pattern,omitempty"`
+	Permissions []string              `json:"permissions,omitempty"`
 }
 
 // ValidateForInterface returns nil if the constraints are valid for the given
 // interface, otherwise returns an error.
 func (c *Constraints) ValidateForInterface(iface string) error {
-	// TODO: change to this once PR #13866 is merged:
-	// if err := ValidatePathPattern(c.PathPattern); err != nil {
-	//	return err
-	// }
-	return c.validatePermissions(iface)
+	if c.PathPattern == nil {
+		return fmt.Errorf("invalid constraints: no path pattern")
+	}
+	if err := c.validatePermissions(iface); err != nil {
+		return fmt.Errorf("invalid constraints: %w", err)
+	}
+	return nil
 }
 
 // validatePermissions checks that the permissions for the given constraints
@@ -81,9 +84,14 @@ func (c *Constraints) validatePermissions(iface string) error {
 //
 // If the constraints or path are invalid, returns an error.
 func (c *Constraints) Match(path string) (bool, error) {
-	// TODO: change to this once PR #13866 is merged:
-	// return PathPatternMatch(c.PathPattern, path)
-	return true, nil
+	if c.PathPattern == nil {
+		return false, fmt.Errorf("invalid constraints: no path pattern")
+	}
+	match, err := c.PathPattern.Match(path)
+	if err != nil {
+		return false, fmt.Errorf("invalid constraints: %w", err)
+	}
+	return match, nil
 }
 
 // RemovePermission removes every instance of the given permission from the

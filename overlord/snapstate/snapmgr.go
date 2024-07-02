@@ -194,9 +194,14 @@ type ComponentSetup struct {
 	// CompSideInfo for metadata not coming from the component
 	CompSideInfo *snap.ComponentSideInfo `json:"comp-side-info,omitempty"`
 	// CompType is needed as some types need special handling
-	CompType snap.ComponentType
-	// CompPath is the path to the file
+	CompType snap.ComponentType `json:"comp-type,omitempty"`
+	// CompPath is the path to the component that will be mounted on the system.
+	// It may be empty if the component is not yet present on the system (i.e.,
+	// needs to be downloaded).
 	CompPath string `json:"comp-path,omitempty"`
+	// DownloadInfo contains information about how to download this component.
+	// Will be nil if the component should be sourced from a local file.
+	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
 }
 
 func NewComponentSetup(csi *snap.ComponentSideInfo, compType snap.ComponentType, compPath string) *ComponentSetup {
@@ -399,16 +404,28 @@ func (snapst *SnapState) IsComponentInCurrentSeq(cref naming.ComponentRef) bool 
 	return snapst.Sequence.ComponentSideInfoForRev(idx, cref) != nil
 }
 
+// IsCurrentComponentRevInAnyNonCurrentSeq tells us if the component cref in
+// the revision for the current snap is used in another sequence point too.
+func (snapst *SnapState) IsCurrentComponentRevInAnyNonCurrentSeq(cref naming.ComponentRef) bool {
+	currentIdx := snapst.LastIndex(snapst.Current)
+	if currentIdx == -1 {
+		return false
+	}
+
+	return snapst.Sequence.IsComponentRevInRefSeqPtInAnyOtherSeqPt(cref, currentIdx)
+}
+
 // LocalRevision returns the "latest" local revision. Local revisions
 // start at -1 and are counted down.
 func (snapst *SnapState) LocalRevision() snap.Revision {
-	var local snap.Revision
-	for _, si := range snapst.Sequence.SideInfos() {
-		if si.Revision.Local() && si.Revision.N < local.N {
-			local = si.Revision
-		}
-	}
-	return local
+	return snapst.Sequence.MinimumLocalRevision()
+}
+
+// LocalComponentRevision returns the "latest" local revision for the compName
+// component. Local revisions start at -1 and are counted down. 0 will be
+// returned if no local revision for the component is found.
+func (snapst *SnapState) LocalComponentRevision(compName string) snap.Revision {
+	return snapst.Sequence.MinimumLocalComponentRevision(compName)
 }
 
 // CurrentSideInfo returns the side info for the revision indicated by snapst.Current in the snap revision sequence if there is one.
@@ -765,6 +782,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 
 	// component tasks
 	runner.AddHandler("prepare-component", m.doPrepareComponent, nil)
+	runner.AddHandler("download-component", m.doDownloadComponent, nil)
 	runner.AddHandler("mount-component", m.doMountComponent, m.undoMountComponent)
 	runner.AddHandler("unlink-current-component", m.doUnlinkCurrentComponent, m.undoUnlinkCurrentComponent)
 	runner.AddHandler("link-component", m.doLinkComponent, m.undoLinkComponent)

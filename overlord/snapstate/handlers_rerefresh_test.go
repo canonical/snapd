@@ -501,7 +501,7 @@ func (s *reRefreshSuite) TestFilterReturnsFalseIfEpochEqualZero(c *C) {
 
 func (s *refreshSuite) TestMaybeRestoreValidationSetsAndRevertSnaps(c *C) {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-		return nil, nil
+		return snapasserts.NewValidationSets(), nil
 	})
 	defer restore()
 
