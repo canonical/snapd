@@ -27,6 +27,8 @@ import (
 
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
@@ -93,6 +95,27 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		return SnapSetup{}, nil, err
 	}
 
+	compsups := make([]ComponentSetup, 0, len(t.components))
+	for _, comp := range t.components {
+		compsups = append(compsups, ComponentSetup{
+			CompSideInfo: comp.CompSideInfo,
+			CompType:     comp.CompType,
+			CompPath:     comp.CompPath,
+			DownloadInfo: comp.DownloadInfo,
+
+			componentInstallFlags: componentInstallFlags{
+				// if we're removing the snap, then we should remove the
+				// components too
+				RemoveComponentPath: flags.RemoveSnapPath,
+
+				// since target is always used to setup components and snaps at
+				// the same time, individual components should not be create
+				// setup-profiles tasks.
+				SkipProfiles: true,
+			},
+		})
+	}
+
 	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)
 	return SnapSetup{
 		Channel:      t.setup.Channel,
@@ -111,7 +134,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		PlugsOnly:          len(t.info.Slots) == 0,
 		InstanceKey:        t.info.InstanceKey,
 		ExpectedProvenance: t.info.SnapProvenance,
-	}, t.components, nil
+	}, compsups, nil
 }
 
 // InstallGoal represents a single snap or a group of snaps to be installed.
@@ -608,16 +631,20 @@ type pathInstallGoal struct {
 	revOpts RevisionOptions
 	// sideInfo contains extra information about the snap.
 	sideInfo *snap.SideInfo
+	// components is a mapping of component side infos to paths that should be
+	// installed alongside this snap.
+	components map[*snap.ComponentSideInfo]string
 }
 
 // PathInstallGoal creates a new InstallGoal to install a snap from a given from
 // a path on disk. If instanceName is not provided, si.RealName will be used.
-func PathInstallGoal(instanceName, path string, si *snap.SideInfo, opts RevisionOptions) InstallGoal {
+func PathInstallGoal(instanceName, path string, si *snap.SideInfo, components map[*snap.ComponentSideInfo]string, opts RevisionOptions) InstallGoal {
 	return &pathInstallGoal{
 		instanceName: instanceName,
 		path:         path,
 		revOpts:      opts,
 		sideInfo:     si,
+		components:   components,
 	}
 }
 
@@ -677,15 +704,53 @@ func (p *pathInstallGoal) toInstall(ctx context.Context, st *state.State, opts O
 		return nil, err
 	}
 
+	comps, err := componentSetupsFromPaths(info, p.components)
+	if err != nil {
+		return nil, err
+	}
+
 	inst := target{
 		setup: SnapSetup{
 			SnapPath:  p.path,
 			Channel:   channel,
 			CohortKey: p.revOpts.CohortKey,
 		},
-		info:   info,
-		snapst: snapst,
+		info:       info,
+		snapst:     snapst,
+		components: comps,
 	}
 
 	return []target{inst}, nil
+}
+
+func componentSetupsFromPaths(snapInfo *snap.Info, components map[*snap.ComponentSideInfo]string) ([]ComponentSetup, error) {
+	setups := make([]ComponentSetup, 0, len(components))
+	for csi, path := range components {
+		compInfo, err := validatedComponentInfo(path, snapInfo, csi)
+		if err != nil {
+			return nil, err
+		}
+
+		setups = append(setups, ComponentSetup{
+			CompPath:     path,
+			CompSideInfo: csi,
+			CompType:     compInfo.Type,
+		})
+	}
+
+	return setups, nil
+}
+
+func validatedComponentInfo(path string, si *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+	if err := csi.Component.Validate(); err != nil {
+		return nil, err
+	}
+	componentInfo, cont, err := backend.OpenComponentFile(path, si, csi)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open snap file: %v", err)
+	}
+	if err := snap.ValidateComponentContainer(cont, csi.Component.String(), logger.Noticef); err != nil {
+		return nil, err
+	}
+	return componentInfo, nil
 }

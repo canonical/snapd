@@ -627,14 +627,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 
 	tasksAfterLinkSnap := make([]*state.Task, 0, len(compsups))
 	for _, compsup := range compsups {
-		compTaskSet, err := doInstallComponent(st, snapst, &compsup, &snapsup, componentInstallFlags{
-			// if we are removing the snap, we can assume that we should remove
-			// the component too
-			RemoveComponentPath: snapsup.RemoveSnapPath,
-			// the setup-profiles task that is created for the snap itself
-			// generates the security profiles for the snap and its new components
-			SkipProfiles: true,
-		}, "")
+		compTaskSet, err := doInstallComponent(st, snapst, &compsup, &snapsup, fromChange)
 		if err != nil {
 			return nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
 		}
@@ -1367,7 +1360,7 @@ func addPrereq(prqt PrereqTracker, info *snap.Info) {
 // local revision and sideloading, or full metadata in which case it
 // the snap will appear as installed from the store.
 func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel string, flags Flags, prqt PrereqTracker) (*state.TaskSet, *snap.Info, error) {
-	target := PathInstallGoal(instanceName, path, si, RevisionOptions{
+	target := PathInstallGoal(instanceName, path, si, nil, RevisionOptions{
 		Channel: channel,
 	})
 	// TODO have caller pass a context
@@ -1447,8 +1440,7 @@ func InstallPathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name
 		opts = &RevisionOptions{}
 	}
 
-	target := PathInstallGoal(name, path, si, *opts)
-
+	target := PathInstallGoal(name, path, si, nil, *opts)
 	_, ts, err := InstallOne(context.Background(), st, target, Options{
 		Flags:         flags,
 		UserID:        userID,
