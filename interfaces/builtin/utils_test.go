@@ -25,7 +25,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
@@ -179,60 +178,6 @@ func (s *utilsSuite) TestAareExclusivePatternsInvalid(c *C) {
 		res := builtin.AareExclusivePatterns(s)
 		c.Check(res, IsNil)
 	}
-}
-
-func (s *utilsSuite) TestGetDesktopFileRules(c *C) {
-	// fake apparmor.Specification
-	info := snap.Info{}
-	snapSet, err := interfaces.NewSnapAppSet(&info, nil)
-	c.Assert(err, IsNil)
-	plugInfo := snap.PlugInfo{
-		Name: "test-plug",
-	}
-	snapSet.Info().Plugs = make(map[string]*snap.PlugInfo)
-	snapSet.Info().Plugs["test-plug"] = &plugInfo
-	spec := apparmor.NewSpecification(snapSet)
-
-	res := builtin.GetDesktopFileRules("foo-bar", spec)
-	c.Check(res, DeepEquals, []string{
-		"# Support applications which use the unity messaging menu, xdg-mime, etc",
-		"# This leaks the names of snaps with desktop files",
-		"/var/lib/snapd/desktop/applications/ r,",
-		"# Allowing reading only our desktop files (required by (at least) the unity",
-		"# messaging menu).",
-		"# parallel-installs: this leaks read access to desktop files owned by keyed",
-		"# instances of @{SNAP_NAME} to @{SNAP_NAME} snap",
-		"/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,",
-		"# Explicitly deny access to other snap's desktop files",
-		"deny /var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_DESKTOP}[^_.]*.desktop r,",
-		"deny /var/lib/snapd/desktop/applications/[^f]* r,",
-		"deny /var/lib/snapd/desktop/applications/f[^o]* r,",
-		"deny /var/lib/snapd/desktop/applications/fo[^o]* r,",
-		"deny /var/lib/snapd/desktop/applications/foo[^-]* r,",
-		"deny /var/lib/snapd/desktop/applications/foo-[^b]* r,",
-		"deny /var/lib/snapd/desktop/applications/foo-b[^a]* r,",
-		"deny /var/lib/snapd/desktop/applications/foo-ba[^r]* r,",
-	})
-}
-
-func (s *utilsSuite) TestGetDesktopFileRulesWithDesktopLaunchPlug(c *C) {
-	// fake apparmor.Specification
-	info := snap.Info{}
-	snapSet, err := interfaces.NewSnapAppSet(&info, nil)
-	c.Assert(err, IsNil)
-	// although usually the name is equal to the interface, this is not
-	// guaranteed, so to test it right we must try with a name that is
-	// different than the interface.
-	plugInfo := snap.PlugInfo{
-		Name:      "desktop-launch-iface",
-		Interface: "desktop-launch",
-	}
-	snapSet.Info().Plugs = make(map[string]*snap.PlugInfo)
-	snapSet.Info().Plugs["desktop-launch-iface"] = &plugInfo
-	spec := apparmor.NewSpecification(snapSet)
-
-	res := builtin.GetDesktopFileRules("foo-bar", spec)
-	c.Check(res, IsNil)
 }
 
 func MockPlug(c *C, yaml string, si *snap.SideInfo, plugName string) *snap.PlugInfo {
