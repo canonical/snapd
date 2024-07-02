@@ -324,7 +324,7 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		return nil, err
 	}
 
-	shouldAttemptInstall := func(snapName string) (bool, error) {
+	inProgress := func(snapName string) (bool, error) {
 		linkTask, err := findLinkSnapTaskForSnap(st, snapName)
 		if err != nil {
 			return false, err
@@ -332,20 +332,20 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 
 		if linkTask == nil {
 			// snap is not being installed
-			return true, nil
-		}
-
-		// if we are remodeling, then we should return early due to the way that
-		// tasks are ordered by the remodeling code. specifically, all snap
-		// downloads during a remodel happen prior to snap installation. thus,
-		// we cannot wait for snaps to be installed here. see remodelTasks for
-		// more information on how the tasks are ordered.
-		if deviceCtx.ForRemodeling() {
 			return false, nil
 		}
 
-		// snap is either being installed or updated
-		return false, onInFlight
+		// snap is being installed, retry later
+		return true, nil
+	}
+
+	// if we are remodeling, then we should return early due to the way that
+	// tasks are ordered by the remodeling code. specifically, all snap
+	// downloads during a remodel happen prior to snap installation. thus,
+	// we cannot wait for snaps to be installed here. see remodelTasks for
+	// more information on how the tasks are ordered.
+	if deviceCtx.ForRemodeling() {
+		return nil, nil
 	}
 
 	if isInstalled {
@@ -355,15 +355,20 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		}
 
 		// other kind of dependency, check if it's in progress
-		_, err := shouldAttemptInstall(snapName)
-		return nil, err
+		if ok, err := inProgress(snapName); err != nil {
+			return nil, err
+		} else if ok {
+			return nil, onInFlight
+		}
+
+		return nil, nil
 	}
 
 	// not installed, wait for it if it is. If not, we'll install it
-	if ok, err := shouldAttemptInstall(snapName); err != nil {
+	if ok, err := inProgress(snapName); err != nil {
 		return nil, err
-	} else if !ok {
-		return nil, nil
+	} else if ok {
+		return nil, onInFlight
 	}
 
 	// not installed, nor queued for install -> install it
