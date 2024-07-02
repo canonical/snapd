@@ -512,12 +512,13 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	// needsFullShutdown is whether the entire system will
 	// shutdown or not as a consequence of this request
 	needsFullShutdown := false
-	switch d.requestedRestart {
+	restartType := d.requestedRestart
+	switch restartType {
 	case restart.RestartSystem, restart.RestartSystemNow, restart.RestartSystemHaltNow, restart.RestartSystemPoweroffNow:
 		needsFullShutdown = true
 	}
 	immediateShutdown := false
-	switch d.requestedRestart {
+	switch restartType {
 	case restart.RestartSystemNow, restart.RestartSystemHaltNow, restart.RestartSystemPoweroffNow:
 		immediateShutdown = true
 	}
@@ -528,7 +529,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	// before not accepting any new client connections we need to write the
 	// maintenance.json file for potential clients to see after the daemon stops
 	// responding so they can read it correctly and handle the maintenance
-	if err := d.updateMaintenanceFile(d.requestedRestart); err != nil {
+	if err := d.updateMaintenanceFile(restartType); err != nil {
 		logger.Noticef("error writing maintenance file: %v", err)
 	}
 
