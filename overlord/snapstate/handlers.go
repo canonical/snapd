@@ -339,6 +339,15 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		return true, nil
 	}
 
+	// if we are remodeling, then we should return early due to the way that
+	// tasks are ordered by the remodeling code. specifically, all snap
+	// downloads during a remodel happen prior to snap installation. thus,
+	// we cannot wait for snaps to be installed here. see remodelTasks for
+	// more information on how the tasks are ordered.
+	if deviceCtx.ForRemodeling() {
+		return nil, nil
+	}
+
 	if isInstalled {
 		if len(contentAttrs) > 0 {
 			// the default provider is already installed, update it if it's missing content attributes the snap needs
@@ -351,6 +360,7 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		} else if ok {
 			return nil, onInFlight
 		}
+
 		return nil, nil
 	}
 
@@ -358,15 +368,6 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 	if ok, err := inProgress(snapName); err != nil {
 		return nil, err
 	} else if ok {
-		// if we are remodeling, then we should return early due to the way that
-		// tasks are ordered by the remodeling code. specifically, all snap
-		// downloads during a remodel happen prior to snap installation. thus,
-		// we cannot wait for snaps to be installed here. see remodelTasks for
-		// more information on how the tasks are ordered.
-		if deviceCtx.ForRemodeling() {
-			return nil, nil
-		}
-
 		return nil, onInFlight
 	}
 
