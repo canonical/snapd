@@ -79,7 +79,14 @@ const cpuControlConnectedPlugAppArmor = `
 # see https://www.osadl.org/monitoring/add-on-patches/4.16.7-rt1...4.16.15-rt7/sched-add-per-cpu-load-measurement.patch.html
 /proc/idleruntime/{all,cpu[0-9]*}/data r,
 /proc/idleruntime/{all,cpu[0-9]*}/reset w,
+
+# Allow control CPU C-states switching see: https://docs.kernel.org/power/pm_qos_interface.html#pm-qos-framework
+/dev/cpu_dma_latency rw,
 `
+
+var cpuControlConnectedPlugUDev = []string{
+	`SUBSYSTEM=="misc", KERNEL=="cpu_dma_latency"`,
+}
 
 func init() {
 	registerIface(&commonInterface{
@@ -89,5 +96,6 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  cpuControlBaseDeclarationSlots,
 		connectedPlugAppArmor: cpuControlConnectedPlugAppArmor,
+		connectedPlugUDev:     cpuControlConnectedPlugUDev,
 	})
 }
