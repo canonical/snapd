@@ -19,7 +19,6 @@ systems:
 
 prepare: |
   snap install go-example-webserver jq remarshal hello-world
-  snap install test-snapd-curl --edge --devmode
 
 execute: |
   echo "Create a group with a snap in it"
@@ -81,7 +80,7 @@ execute: |
       exit 1
   fi
 
-  snapdSaysMemUsage="$(sudo snap run test-snapd-curl.curl --unix-socket /run/snapd.socket http://localhost/v2/quotas/group-one | jq -r '.result.current.memory')"
+  snapdSaysMemUsage="$(sudo snap debug api /v2/quotas/group-one | jq -r '.result.current.memory')"
   kernelSaysMemUsage="$(cat "$cgroupMemFile")"
 
   pyCmd="import math; print(math.ceil(abs($snapdSaysMemUsage - $kernelSaysMemUsage) / $snapdSaysMemUsage * 100))"
@@ -176,7 +175,7 @@ execute: |
   # in reporting it's memory usage on old systemd versions
   snap set-quota group-five --memory=10MB --parent=group-four hello-world
 
-  snapdSaysMemUsage="$(sudo snap run test-snapd-curl.curl --unix-socket /run/snapd.socket http://localhost/v2/quotas/group-five | jq -r '.result.current.memory')"
+  snapdSaysMemUsage="$(sudo snap debug api /v2/quotas/group-five | jq -r '.result.current.memory')"
   # both 0 and up to 12KiB values are expected here, 0 is for older systemd/kernels 
   # where an empty cgroup has exactly 0, but on newer systems there is some 
   # minimum amount of accounting memory for an empty cgroup, which is observed
@@ -190,7 +189,7 @@ execute: |
           exit 1
   esac
 
-  snapdSaysMemUsage="$(sudo snap run test-snapd-curl.curl --unix-socket /run/snapd.socket http://localhost/v2/quotas/group-four | jq -r '.result.current.memory')"
+  snapdSaysMemUsage="$(sudo snap debug api /v2/quotas/group-four | jq -r '.result.current.memory')"
   case "$snapdSaysMemUsage" in
       null|0|4096|8192|12288)
           # expected

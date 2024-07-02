@@ -130,10 +130,9 @@ prepare_recover_mode() {
 
     # we're running in an ephemeral system and thus have to re-install snaps
     snap install --edge jq
-    snap install test-snapd-curl --devmode --edge
 
     MATCH 'snapd_recovery_mode=recover' < /proc/cmdline
     # verify we are in recovery mode via the API
-    test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/system-info > system-info
+    snap debug api /v2/system-info > system-info
     jq -r '.result["system-mode"]' < system-info | MATCH 'recover'
 }

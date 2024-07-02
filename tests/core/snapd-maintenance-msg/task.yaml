@@ -7,8 +7,6 @@ details: |
 systems: [ubuntu-core-20-64]
 
 prepare: |
-    # devmode as the snap does not have snapd-control
-    snap install test-snapd-curl --devmode --edge
     snap install jq
 
     # make sure that the snapd daemon gives us time for comms before
@@ -17,7 +15,7 @@ prepare: |
     systemctl restart snapd
 
 restore: |
-    snap remove test-snapd-curl jq
+    snap remove jq
 
     # remove SNAPD_SHUTDOWN_DELAY from /etc/environment again
     #shellcheck disable=SC2005
@@ -33,7 +31,7 @@ execute: |
         # closed so we need to catch it in that timeframe.
         echo "Testing maintenance message for daemon restarts"
         snap install --dangerous "$SNAPD_SNAP" &
-        retry -n 20 --wait 0.5 sh -c 'test-snapd-curl.curl -sS --unix-socket /run/snapd.socket http://localhost/v2/changes?select=all | jq ".maintenance" | MATCH "daemon is restarting"'
+        retry -n 20 --wait 0.5 sh -c 'snap debug api "/v2/changes?select=all" | jq ".maintenance" | MATCH "daemon is restarting"'
         wait
 
         echo "Restoring the snapd snap"
@@ -41,7 +39,7 @@ execute: |
 
         echo "Testing maintenance message for system reboots"
         snap refresh core20 --channel=stable --amend &
-        retry -n 20 --wait 0.5 sh -c 'test-snapd-curl.curl -sS --unix-socket /run/snapd.socket http://localhost/v2/changes?select=all | jq ".maintenance" | MATCH "system is restarting"'
+        retry -n 20 --wait 0.5 sh -c 'snap debug api "/v2/changes?select=all" | jq ".maintenance" | MATCH "system is restarting"'
         wait
 
         REBOOT

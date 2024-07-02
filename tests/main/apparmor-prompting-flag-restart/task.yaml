@@ -15,10 +15,6 @@ systems:
 
 prepare: |
     snap install jq
-    if ! command -v curl; then
-        snap install --devmode --edge test-snapd-curl
-        snap alias test-snapd-curl.curl curl
-    fi
 
 restore: |
     echo "Restore: Reset start limit so that other queries can succeed"
@@ -43,7 +39,7 @@ debug: |
     retry --wait 1 -n 100 sh -x -c 'systemctl is-active snapd.service snapd.socket'
 
     echo "Debug: Report system info"
-    curl -sS --unix-socket /run/snapd.socket http://localhost/v2/system-info | jq
+    snap debug api /v2/system-info | jq
 
 execute: |
     . /etc/os-release
@@ -84,9 +80,9 @@ execute: |
         echo "Check that snap CLI reports prompting flag set correctly"
         snap get system experimental.apparmor-prompting | MATCH "$1"
         echo "Check that /v2/snaps/system/conf reports prompting flag set correctly"
-        curl -sS --unix-socket /run/snapd.socket http://localhost/v2/snaps/system/conf | jq -r '.result.experimental."apparmor-prompting"' | MATCH "$1"
+        snap debug api /v2/snaps/system/conf | jq -r '.result.experimental."apparmor-prompting"' | MATCH "$1"
         echo "Check that /v2/system-info reports prompting correctly"
-        curl -sS --unix-socket /run/snapd.socket http://localhost/v2/system-info | jq -r '.result.features."apparmor-prompting".enabled' | MATCH "$1"
+        snap debug api /v2/system-info | jq -r '.result.features."apparmor-prompting".enabled' | MATCH "$1"
     }
 
     echo "Precondition check that snapd is active"
@@ -115,16 +111,16 @@ execute: |
     check_prompting_setting "false"
 
     echo "Enable prompting via API request"
-    curl -sS --unix-socket /run/snapd.socket http://localhost/v2/snaps/system/conf -X PUT -d '{"experimental.apparmor-prompting": true}' | jq -r '.status' | MATCH "Accepted" || reset_start_limit
+    echo '{"experimental.apparmor-prompting": true}' | snap debug api /v2/snaps/system/conf -X PUT | jq -r '.status' | MATCH "Accepted" || reset_start_limit
 
-    echo "Check that snapd restarted after prompting set to true via curl"
+    echo "Check that snapd restarted after prompting set to true via API"
     check_snapd_restarted
     check_prompting_setting "true"
 
     echo "Disable prompting via API request"
-    curl -sS --unix-socket /run/snapd.socket http://localhost/v2/snaps/system/conf -X PUT -d '{"experimental.apparmor-prompting": false}' | jq -r '.status' | MATCH "Accepted" || reset_start_limit
+    echo '{"experimental.apparmor-prompting": false}' | snap debug api /v2/snaps/system/conf -X PUT | jq -r '.status' | MATCH "Accepted" || reset_start_limit
 
-    echo "Check that snapd restarted after prompting set to false via curl"
+    echo "Check that snapd restarted after prompting set to false via API"
     check_snapd_restarted
     check_prompting_setting "false"
 

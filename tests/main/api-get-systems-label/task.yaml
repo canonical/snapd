@@ -9,15 +9,13 @@ systems:
 
 execute: |
   snap install --edge jq
-  # devmode as the snap does not have snapd-control
-  snap install test-snapd-curl --devmode --edge
 
   echo "Find what systems are available"
-  test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems > systems
+  snap debug api /v2/systems > systems
   current_label=$(jq -r '.result.systems[0]["label"]' < systems)
 
   echo "Get details for a specific system"
-  test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems/"$current_label" > current-system
+  snap debug api "/v2/systems/$current_label" > current-system
   echo "Ensure the result contains a model assertion"
   jq -r '.result.model.type' < current-system | MATCH model
   jq -r '.result.model.series' < current-system | MATCH 16

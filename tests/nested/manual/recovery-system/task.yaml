@@ -37,7 +37,7 @@ execute: |
     shift 2
 
     # shellcheck disable=SC2059
-    response=$(printf "${template}" "$@" | remote.exec "sudo test-snapd-curl.curl -X POST -H 'Content-Type: application/json' --unix-socket /run/snapd.socket -d @- http://localhost${route}")
+    response=$(printf "${template}" "$@" | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' ${route}")
     if ! jq -e .change <<< "${response}"; then
       echo "could not get change id from response: ${response}"
       false
@@ -48,8 +48,6 @@ execute: |
   . "$TESTSLIB"/core-config.sh
 
   wait_for_first_boot_change
-
-  remote.exec sudo snap install --edge --devmode test-snapd-curl
 
   boot_id="$(tests.nested boot-id)"
 

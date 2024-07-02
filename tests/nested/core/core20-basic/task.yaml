@@ -69,8 +69,7 @@ execute: |
     fi
 
     # the remove API isn't exposed by snap recovery yet
-    remote.exec "sudo snap install --devmode --edge test-snapd-curl"
-    remote.exec "sudo test-snapd-curl.curl --unix-socket /run/snapd.socket -D- -d '{\"action\":\"remove\"}' http://localhost/v2/system-recovery-keys"
+    remote.exec "echo '{\"action\":\"remove\"}' | sudo snap debug api -X POST /v2/system-recovery-keys"
 
     # keys were removed
     remote.exec "test ! -f /var/lib/snapd/device/fde/recovery.key"

@@ -29,8 +29,7 @@ execute: |
     remote.exec "stat --printf='%u:%g %a' /var/lib/snapd/device/fde/recovery.key" | MATCH '^0:0 600$'
 
     echo "verify that recovery key can be removed"
-    remote.exec "sudo snap install --devmode --edge test-snapd-curl"
-    remote.exec "sudo test-snapd-curl.curl --unix-socket /run/snapd.socket -D- -d '{\"action\":\"remove\"}' http://localhost/v2/system-recovery-keys"
+    remote.exec "echo '{\"action\":\"remove\"}' | sudo snap debug api -X POST /v2/system-recovery-keys"
     echo "and the key is no longer available"
     remote.exec "test ! -e /var/lib/snapd/device/fde/recovery.key"
 

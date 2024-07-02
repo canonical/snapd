@@ -6,14 +6,11 @@ details: |
 
 systems: [ubuntu-2*]
 
-prepare: |
-    remote.exec sudo snap install test-snapd-curl --edge --devmode
-
 execute: |
     echo "Create a recovery system with a typical recovery system label"
     boot_id="$( tests.nested boot-id )"
     echo '{"action":"create-recovery-system","params":{"recovery-system-label":"1234"}}' | \
-        remote.exec sudo test-snapd-curl.curl -X POST -d @- --unix-socket /run/snapd.socket http://localhost/v2/debug > change.out
+        remote.exec sudo snap debug api -X POST /v2/debug > change.out
     REMOTE_CHG_ID=$(jq -r .change < change.out)
     remote.wait-for reboot "${boot_id}"
     remote.exec sudo snap watch "${REMOTE_CHG_ID}"
@@ -29,7 +26,7 @@ execute: |
     echo "Create a recovery system with an alternative recovery system label"
     boot_id="$( tests.nested boot-id )"
     echo '{"action":"create-recovery-system","params":{"recovery-system-label":"1234-1"}}' | \
-        remote.exec sudo test-snapd-curl.curl -X POST -d @- --unix-socket /run/snapd.socket http://localhost/v2/debug > change.out
+        remote.exec sudo snap debug api -X POST /v2/debug > change.out
     REMOTE_CHG_ID=$(jq -r .change < change.out)
     remote.wait-for reboot "${boot_id}"
     remote.exec sudo snap watch "${REMOTE_CHG_ID}"

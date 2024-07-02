@@ -34,7 +34,7 @@ execute: |
     shift 2
 
     # shellcheck disable=SC2059
-    printf "${template}" "$@" | remote.exec "sudo test-snapd-curl.curl -X POST -H 'Content-Type: application/json' --unix-socket /run/snapd.socket -d @- http://localhost${route}" | jq .
+    printf "${template}" "$@" | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' ${route}" | jq .
   }
 
   #shellcheck source=tests/lib/core-config.sh
