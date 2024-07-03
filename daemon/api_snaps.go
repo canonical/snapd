@@ -407,9 +407,12 @@ func (inst *snapInstruction) validate() error {
 		inst.cleanSnapshotOptions()
 	}
 
-	if len(inst.CompsRaw) > 0 && inst.Action != "remove" {
-		// TODO:COMPS: allow install too
-		return fmt.Errorf("%q action is not supported for components", inst.Action)
+	if len(inst.CompsRaw) > 0 {
+		switch inst.Action {
+		case "remove", "install":
+		default:
+			return fmt.Errorf("%q action is not supported for components", inst.Action)
+		}
 	}
 
 	return inst.snapRevisionOptions.validate()
@@ -467,6 +470,7 @@ func snapInstall(ctx context.Context, inst *snapInstruction, st *state.State) (s
 
 	goal := snapstateStoreInstallGoal(snapstate.StoreSnap{
 		InstanceName: inst.Snaps[0],
+		Components:   inst.CompsForSnaps[inst.Snaps[0]],
 		RevOpts:      *inst.revnoOpts(),
 	})
 
@@ -478,14 +482,28 @@ func snapInstall(ctx context.Context, inst *snapInstruction, st *state.State) (s
 		return "", nil, err
 	}
 
-	msg := fmt.Sprintf(i18n.G("Install %q snap"), inst.Snaps[0])
+	return installMessage(inst, ckey), []*state.TaskSet{tset}, nil
+}
+
+func installMessage(inst *snapInstruction, cohort string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, i18n.G("Install %q snap"), inst.Snaps[0])
 	if inst.Channel != "stable" && inst.Channel != "" {
-		msg += fmt.Sprintf(" from %q channel", inst.Channel)
+		fmt.Fprintf(&b, " from %q channel", inst.Channel)
 	}
 	if inst.CohortKey != "" {
-		msg += fmt.Sprintf(" from %q cohort", ckey)
+		fmt.Fprintf(&b, " from %q cohort", cohort)
 	}
-	return msg, []*state.TaskSet{tset}, nil
+
+	if comps := inst.CompsForSnaps[inst.Snaps[0]]; len(comps) > 0 {
+		b.WriteString(" with component")
+		if len(comps) > 1 {
+			b.WriteRune('s')
+		}
+		fmt.Fprintf(&b, " %s", strutil.Quoted(comps))
+	}
+
+	return b.String()
 }
 
 func snapUpdate(_ context.Context, inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {

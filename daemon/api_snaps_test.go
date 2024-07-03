@@ -3768,3 +3768,43 @@ func (s *snapsSuite) TestPostComponentsManyRemoveCompsAndSnap(c *check.C) {
 	c.Check(rspe.Message, testutil.Contains,
 		`cannot remove "snap1", "bar": unexpected request to remove some components and also the full snap (which would remove all components) for "snap1"`)
 }
+
+func (s *snapsSuite) TestInstallWithComponents(c *check.C) {
+	defer daemon.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+		goal, ok := g.(*storeInstallGoalRecorder)
+		c.Assert(ok, check.Equals, true, check.Commentf("unexpected InstallGoal type %T", g))
+		c.Assert(goal.snaps, check.HasLen, 1)
+
+		c.Check(goal.snaps[0].InstanceName, check.Equals, "some-snap")
+		c.Check(goal.snaps[0].Components, check.DeepEquals, []string{"comp1", "comp2"})
+
+		t := st.NewTask("fake-install-snap", "Doing a fake install")
+		return &snap.Info{}, state.NewTaskSet(t), nil
+	})()
+
+	d := s.daemonWithFakeSnapManager(c)
+
+	r := strings.NewReader(`{"action": "install", "components": ["comp1", "comp2"]}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", r)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.asyncReq(c, req, nil)
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+
+	c.Check(chg.Tasks(), check.HasLen, 1)
+
+	st.Unlock()
+	s.waitTrivialChange(c, chg)
+	st.Lock()
+
+	c.Check(chg.Status(), check.Equals, state.DoneStatus)
+	c.Check(err, check.IsNil)
+	c.Check(chg.Kind(), check.Equals, "install-snap")
+	c.Check(chg.Summary(), check.Equals, `Install "some-snap" snap with components "comp1", "comp2"`)
+}
