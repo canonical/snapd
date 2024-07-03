@@ -56,6 +56,9 @@ import (
 	"github.com/snapcore/snapd/strutil/shlex"
 	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/x11"
+
+	// sets up the snap.NewContainerFromDir hook from snapdir
+	_ "github.com/snapcore/snapd/snap/snapdir"
 )
 
 var (
@@ -555,7 +558,9 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 			return nil
 		}
 
-		err = x.runSnapConfine(info, app.SecurityTag(), snapApp, "", closeFlockOrRetry, args)
+		runner := newAppRunnable(info, app)
+
+		err = x.runSnapConfine(info, runner, closeFlockOrRetry, args)
 		if errors.Is(err, errSnapRefreshConflict) {
 			// Possible race condition detected, let's retry.
 			//
@@ -579,23 +584,42 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 	}
 }
 
-func (x *cmdRun) snapRunHook(snapName string) error {
+func (x *cmdRun) snapRunHook(snapTarget string) error {
+	snapInstance, componentName := snap.SplitSnapComponentInstanceName(snapTarget)
+
 	revision, err := snap.ParseRevision(x.Revision)
 	if err != nil {
 		return err
 	}
 
-	info, err := getSnapInfo(snapName, revision)
+	info, err := getSnapInfo(snapInstance, revision)
 	if err != nil {
 		return err
 	}
 
-	hook := info.Hooks[x.HookName]
-	if hook == nil {
-		return fmt.Errorf(i18n.G("cannot find hook %q in %q"), x.HookName, snapName)
+	var (
+		hook      *snap.HookInfo
+		component *snap.ComponentInfo
+	)
+	if componentName == "" {
+		hook = info.Hooks[x.HookName]
+	} else {
+		component, err = snap.ReadCurrentComponentInfo(componentName, info)
+		if err != nil {
+			return err
+		}
+		hook = component.Hooks[x.HookName]
 	}
 
-	return x.runSnapConfine(info, hook.SecurityTag(), snapName, hook.Name, nil, nil)
+	if hook == nil {
+		return fmt.Errorf(i18n.G("cannot find hook %q in %q"), x.HookName, snapTarget)
+	}
+
+	// compoment may be nil here, meaning that this is a hook for the snap
+	// itself, not a component hook
+	runner := newHookRunnable(info, hook, component)
+
+	return x.runSnapConfine(info, runner, nil, nil)
 }
 
 func (x *cmdRun) snapRunTimer(snapApp, timer string, args []string) error {
@@ -776,7 +800,7 @@ func migrateXauthority(info *snap.Info) (string, error) {
 	return targetPath, nil
 }
 
-func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
+func activateXdgDocumentPortal(runner runnable) error {
 	// Don't do anything for apps or hooks that don't plug the
 	// desktop interface
 	//
@@ -787,13 +811,8 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 	// document portal can be in use by many applications, not
 	// just by snaps, so this is at most, pre-emptively using some
 	// extra memory.
-	var plugs map[string]*snap.PlugInfo
-	if hook != "" {
-		plugs = info.Hooks[hook].Plugs
-	} else {
-		_, appName := snap.SplitSnapApp(snapApp)
-		plugs = info.Apps[appName].Plugs
-	}
+	plugs := runner.Plugs()
+
 	plugsDesktop := false
 	for _, plug := range plugs {
 		if plug.Interface == "desktop" {
@@ -1107,14 +1126,115 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 	return err
 }
 
-func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook string, beforeExec func() error, args []string) error {
+func newHookRunnable(info *snap.Info, hook *snap.HookInfo, component *snap.ComponentInfo) runnable {
+	return runnable{
+		info:      info,
+		component: component,
+		hook:      hook,
+	}
+}
+
+func newAppRunnable(info *snap.Info, app *snap.AppInfo) runnable {
+	return runnable{
+		info: info,
+		app:  app,
+	}
+}
+
+// runnable bundles together the potential things that we could be running. A
+// few accessor methods are provided that delegate the request to the
+// appropriate field, depending on what we are running.
+type runnable struct {
+	hook      *snap.HookInfo
+	component *snap.ComponentInfo
+	app       *snap.AppInfo
+	info      *snap.Info
+}
+
+// SecurityTag returns the security tag for the thing being run. The tag could
+// come from a snap hook, a component hook, or a snap app.
+func (r *runnable) SecurityTag() string {
+	if r.hook != nil {
+		return r.hook.SecurityTag()
+	}
+	return r.app.SecurityTag()
+}
+
+// Target returns the string identifier of the thing that should be run. This
+// could either be a component ref, a snap ref, or a snap ref with a specific
+// app.
+func (r *runnable) Target() string {
+	if r.component != nil {
+		return snap.SnapComponentName(r.info.InstanceName(), r.component.Component.ComponentName)
+	}
+
+	if r.hook != nil {
+		return r.info.InstanceName()
+	}
+
+	return fmt.Sprintf("%s.%s", r.info.InstanceName(), r.app.Name)
+}
+
+// Plugs returns the plugs for the thing being run. The plugs could come from a
+// snap hook, a component hook, or a snap app.
+func (r *runnable) Plugs() map[string]*snap.PlugInfo {
+	if r.hook != nil {
+		return r.hook.Plugs
+	}
+	return r.app.Plugs
+}
+
+// IsHook returns true if the runnable is a hook. r.Hook() will not return nil
+// if this is true.
+func (r *runnable) IsHook() bool {
+	return r.hook != nil
+}
+
+// Hook returns the hook that is going to be run, if there is one. Will be nil
+// if running an app.
+func (r *runnable) Hook() *snap.HookInfo {
+	return r.hook
+}
+
+// Hook returns the hook that contains the thing to be run, if there is one.
+// Currently, this will only be present when running a component hook.
+func (r *runnable) Component() *snap.ComponentInfo {
+	return r.component
+}
+
+// App returns the app that is going to be run, if there is one. Will be nil if
+// running a hook or component hook.
+func (r *runnable) App() *snap.AppInfo {
+	return r.app
+}
+
+// Validate checks that the runnable is in a valid state. This is used to catch
+// programmer errors.
+func (r *runnable) Validate() error {
+	if r.hook != nil && r.app != nil {
+		return fmt.Errorf("internal error: hook and app cannot coexist in a runnable")
+	}
+
+	if r.component != nil && r.app != nil {
+		return fmt.Errorf("internal error: component and app cannot coexist in a runnable")
+	}
+
+	return nil
+}
+
+func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec func() error, args []string) error {
+	// check for programmer error, should never happen
+	if err := runner.Validate(); err != nil {
+		return err
+	}
+
 	snapConfine, err := snapdHelperPath("snap-confine")
 	if err != nil {
 		return err
 	}
 	if !osutil.FileExists(snapConfine) {
-		if hook != "" {
-			logger.Noticef("WARNING: skipping running hook %q of snap %q: missing snap-confine", hook, info.InstanceName())
+		if runner.IsHook() {
+			logger.Noticef("WARNING: skipping running hook %q of %q: missing snap-confine", runner.Hook().Name, runner.Target())
 			return nil
 		}
 		return fmt.Errorf(i18n.G("missing snap-confine: try updating your core/snapd package"))
@@ -1122,8 +1242,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 
 	logger.Debugf("executing snap-confine from %s", snapConfine)
 
-	snapName, appName := snap.SplitSnapApp(snapApp)
-	opts, err := getSnapDirOptions(snapName)
+	opts, err := getSnapDirOptions(info.InstanceName())
 	if err != nil {
 		return fmt.Errorf("cannot get snap dir options: %w", err)
 	}
@@ -1137,7 +1256,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		logger.Noticef("WARNING: cannot copy user Xauthority file: %s", err)
 	}
 
-	if err := activateXdgDocumentPortal(info, snapApp, hook); err != nil {
+	if err := activateXdgDocumentPortal(runner); err != nil {
 		logger.Noticef("WARNING: cannot start document portal: %s", err)
 	}
 
@@ -1157,7 +1276,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 			// kernels have no explicit base, we use the boot base
 			modelAssertion, err := x.client.CurrentModelAssertion()
 			if err != nil {
-				if hook != "" {
+				if runner.IsHook() {
 					return fmt.Errorf("cannot get model assertion to setup kernel hook run: %v", err)
 				} else {
 					return fmt.Errorf("cannot get model assertion to setup kernel app run: %v", err)
@@ -1169,6 +1288,8 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 			}
 		}
 	}
+
+	securityTag := runner.SecurityTag()
 	cmd = append(cmd, securityTag)
 
 	// when under confinement, snap-exec is run from 'core' snap rootfs
@@ -1197,19 +1318,20 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		cmd = append(cmd, "--command="+x.Command)
 	}
 
-	if hook != "" {
-		cmd = append(cmd, "--hook="+hook)
+	if runner.IsHook() {
+		cmd = append(cmd, "--hook="+runner.Hook().Name)
 	}
 
 	// snap-exec is POSIXly-- options must come before positionals.
-	cmd = append(cmd, snapApp)
+	cmd = append(cmd, runner.Target())
 	cmd = append(cmd, args...)
 
 	env, err := osutil.OSEnvironment()
 	if err != nil {
 		return err
 	}
-	snapenv.ExtendEnvForRun(env, info, opts)
+
+	snapenv.ExtendEnvForRun(env, info, runner.Component(), opts)
 
 	if len(xauthPath) > 0 {
 		// Environment is not nil here because it comes from
@@ -1271,7 +1393,8 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	// For more information about systemd cgroups, including unit types, see:
 	// https://www.freedesktop.org/wiki/Software/systemd/ControlGroupInterface/
 	needsTracking := true
-	if app := info.Apps[appName]; hook == "" && app != nil && app.IsService() {
+
+	if app := runner.App(); app != nil && app.IsService() {
 		// If we are running a service app then we do not need to use
 		// application tracking. Services, both in the system and user scope,
 		// do not need tracking because systemd already places them in a
@@ -1295,7 +1418,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		}
 	}
 	// Allow using the session bus for all apps but not for hooks.
-	allowSessionBus := hook == ""
+	allowSessionBus := !runner.IsHook()
 	// Track, or confirm existing tracking from systemd.
 	if err := cgroupConfirmSystemdAppTracking(securityTag); err != nil {
 		if err != cgroup.ErrCannotTrackProcess {

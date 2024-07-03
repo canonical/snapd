@@ -32,6 +32,10 @@
 
 static const char *_snap_mount_dir = NULL;
 
+// Function is exported only for tests.
+void sc_set_snap_mount_dir(const char *dir);
+void sc_set_snap_mount_dir(const char *dir) { _snap_mount_dir = dir; }
+
 const char *sc_snap_mount_dir(sc_error **errorp) {
     sc_error *err = NULL;
 
@@ -83,7 +87,8 @@ void sc_probe_snap_mount_dir_from_pid_1_mount_ns(int root_fd, sc_error **errorp)
                 goto out;
             }
 
-            if (strncmp(target, SC_ALTERNATE_SNAP_MOUNT_DIR, n) != 0) {
+            if (strncmp(target, SC_ALTERNATE_SNAP_MOUNT_DIR, n) != 0 &&
+                strncmp(target, SC_ALTERNATE_SNAP_MOUNT_DIR + 1, n) != 0) {
                 err = sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_MOUNT_DIR_UNSUPPORTED,
                                     SC_CANONICAL_SNAP_MOUNT_DIR
                                     " must be a symbolic link to " SC_ALTERNATE_SNAP_MOUNT_DIR);

@@ -73,7 +73,7 @@ func (r *refreshHints) needsUpdate() (bool, error) {
 
 func (r *refreshHints) refresh() error {
 	scheduleConf, _, _ := getRefreshScheduleConf(r.state)
-	refreshManaged := scheduleConf == "managed" && CanManageRefreshes(r.state)
+	refreshManaged := scheduleConf == "managed"
 
 	var err error
 	perfTimings := timings.New(map[string]string{"ensure": "refresh-hints"})

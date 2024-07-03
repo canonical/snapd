@@ -57,7 +57,7 @@ environment:
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
-    DELTA_REF: 2.52
+    DELTA_REF: 2.62
     DELTA_PREFIX: snapd-$DELTA_REF/
     REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'    
     HTTP_PROXY: '$(HOST: echo "$SPREAD_HTTP_PROXY")'
@@ -168,6 +168,24 @@ backends:
                   image: ubuntu-24.04-64
                   workers: 8
                   storage: 20G
+
+    google-pro:
+        type: google
+        # XXX the role assigned to the key must allow for attaching service
+        # accounts
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/europe-west1-b
+        halt-timeout: 2h
+        systems:
+            - ubuntu-pro-20.04-64:
+                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-focal-v20240614
+                  workers: 1
+                  attach-service-account: true
+
+            - ubuntu-pro-22.04-64:
+                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-focal-v20240614
+                  workers: 1
+                  attach-service-account: true
 
     google-distro-1:
         type: google

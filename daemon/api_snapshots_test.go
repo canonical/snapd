@@ -64,7 +64,7 @@ func (s *snapshotSuite) TestSnapshotManyOptionsNone(c *check.C) {
 
 	st := s.d.Overlord().State()
 	st.Lock()
-	res, err := inst.DispatchForMany()(inst, st)
+	res, err := inst.DispatchForMany()(context.Background(), inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Snapshot snaps "foo", "bar"`)
@@ -91,7 +91,7 @@ func (s *snapshotSuite) TestSnapshotManyOptionsFull(c *check.C) {
 
 	st := s.d.Overlord().State()
 	st.Lock()
-	res, err := inst.DispatchForMany()(inst, st)
+	res, err := inst.DispatchForMany()(context.Background(), inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Snapshot snaps "foo", "bar"`)
@@ -110,7 +110,7 @@ func (s *snapshotSuite) TestSnapshotManyError(c *check.C) {
 
 	st := s.d.Overlord().State()
 	st.Lock()
-	res, err := inst.DispatchForMany()(inst, st)
+	res, err := inst.DispatchForMany()(context.Background(), inst, st)
 	st.Unlock()
 	c.Check(res, check.IsNil)
 	c.Check(err, check.ErrorMatches, `snap "foo" is not installed`)

@@ -169,14 +169,14 @@ func (connc *ConnectCandidate) slotSnapID() string {
 	return "" // never a valid snap-id
 }
 
-func (connc *ConnectCandidate) plugPublisherID() string {
+func (connc *ConnectCandidate) PlugPublisherID() string {
 	if connc.PlugSnapDeclaration != nil {
 		return connc.PlugSnapDeclaration.PublisherID()
 	}
 	return "" // never a valid publisher-id
 }
 
-func (connc *ConnectCandidate) slotPublisherID() string {
+func (connc *ConnectCandidate) SlotPublisherID() string {
 	if connc.SlotSnapDeclaration != nil {
 		return connc.SlotSnapDeclaration.PublisherID()
 	}

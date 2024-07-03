@@ -123,7 +123,6 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err := decoder.Decode(&inst); err != nil {
 		return BadRequest("cannot decode request body into snap instruction: %v", err)
 	}
-	inst.ctx = r.Context()
 
 	st := c.d.overlord.State()
 	st.Lock()
@@ -145,7 +144,7 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("unknown action %s", inst.Action)
 	}
 
-	msg, tsets, err := impl(&inst, st)
+	msg, tsets, err := impl(r.Context(), &inst, st)
 	if err != nil {
 		return inst.errToResponse(err)
 	}
@@ -219,7 +218,6 @@ type snapInstruction struct {
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
-	ctx    context.Context
 }
 
 func (inst *snapInstruction) revnoOpts() *snapstate.RevisionOptions {
@@ -412,7 +410,7 @@ func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
 	return flags, nil
 }
 
-func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+func snapInstall(ctx context.Context, inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	if len(inst.Snaps[0]) == 0 {
 		return "", nil, fmt.Errorf(i18n.G("cannot install snap with empty name"))
 	}
@@ -429,7 +427,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 		ckey = strutil.ElliptLeft(inst.CohortKey, 10)
 		logger.Noticef("Installing snap %q from cohort %q", inst.Snaps[0], ckey)
 	}
-	tset, err := snapstateInstall(inst.ctx, st, inst.Snaps[0], inst.revnoOpts(), inst.userID, flags)
+	tset, err := snapstateInstall(ctx, st, inst.Snaps[0], inst.revnoOpts(), inst.userID, flags)
 	if err != nil {
 		return "", nil, err
 	}
@@ -444,7 +442,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 	return msg, []*state.TaskSet{tset}, nil
 }
 
-func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+func snapUpdate(_ context.Context, inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	// TODO: bail if revision is given (and != current?), *or* behave as with install --revision?
 	flags, err := inst.modeFlags()
 	if err != nil {
@@ -478,7 +476,7 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	return msg, []*state.TaskSet{ts}, nil
 }
 
-func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+func snapRemove(_ context.Context, inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	ts, err := snapstate.Remove(st, inst.Snaps[0], inst.Revision, &snapstate.RemoveFlags{Purge: inst.Purge})
 	if err != nil {
 		return "", nil, err
@@ -488,7 +486,7 @@ func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	return msg, []*state.TaskSet{ts}, nil
 }
 
-func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+func snapRevert(_ context.Context, inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	var ts *state.TaskSet
 
 	flags, err := inst.modeFlags()
@@ -509,7 +507,7 @@ func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	return msg, []*state.TaskSet{ts}, nil
 }
 
-func snapEnable(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+func snapEnable(_ context.Context, inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	if !inst.Revision.Unset() {
 		return "", nil, errors.New("enable takes no revision")
 	}
@@ -522,7 +520,7 @@ func snapEnable(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	return msg, []*state.TaskSet{ts}, nil
 }
 
-func snapDisable(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+func snapDisable(_ context.Context, inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	if !inst.Revision.Unset() {
 		return "", nil, errors.New("disable takes no revision")
 	}
@@ -535,7 +533,7 @@ func snapDisable(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 	return msg, []*state.TaskSet{ts}, nil
 }
 
-func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+func snapSwitch(_ context.Context, inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	if !inst.Revision.Unset() {
 		return "", nil, errors.New("switch takes no revision")
 	}
@@ -561,8 +559,8 @@ func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 }
 
 // snapHold holds refreshes for one snap.
-func snapHold(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	res, err := snapHoldMany(inst, st)
+func snapHold(ctx context.Context, inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	res, err := snapHoldMany(ctx, inst, st)
 	if err != nil {
 		return "", nil, err
 	}
@@ -571,8 +569,8 @@ func snapHold(inst *snapInstruction, st *state.State) (string, []*state.TaskSet,
 }
 
 // snapUnhold removes the hold on refreshes for one snap.
-func snapUnhold(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	res, err := snapUnholdMany(inst, st)
+func snapUnhold(ctx context.Context, inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	res, err := snapUnholdMany(ctx, inst, st)
 	if err != nil {
 		return "", nil, err
 	}
@@ -580,7 +578,7 @@ func snapUnhold(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	return res.Summary, res.Tasksets, nil
 }
 
-type snapActionFunc func(*snapInstruction, *state.State) (string, []*state.TaskSet, error)
+type snapActionFunc func(context.Context, *snapInstruction, *state.State) (string, []*state.TaskSet, error)
 
 var snapInstructionDispTable = map[string]snapActionFunc{
 	"install": snapInstall,
@@ -629,7 +627,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("unknown content type: %s", contentType)
 	}
 
-	return sideloadOrTrySnap(c, r.Body, params["boundary"], user)
+	return sideloadOrTrySnap(r.Context(), c, r.Body, params["boundary"], user)
 }
 
 func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -664,7 +662,8 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	if op == nil {
 		return BadRequest("unsupported multi-snap operation %q", inst.Action)
 	}
-	res, err := op(&inst, st)
+
+	res, err := op(r.Context(), &inst, st)
 	if err != nil {
 		return inst.errToResponse(err)
 	}
@@ -685,7 +684,7 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	return AsyncResponse(res.Result, chg.ID())
 }
 
-type snapManyActionFunc func(*snapInstruction, *state.State) (*snapInstructionResult, error)
+type snapManyActionFunc func(context.Context, *snapInstruction, *state.State) (*snapInstructionResult, error)
 
 func (inst *snapInstruction) dispatchForMany() (op snapManyActionFunc) {
 	switch inst.Action {
@@ -710,13 +709,14 @@ func (inst *snapInstruction) dispatchForMany() (op snapManyActionFunc) {
 	return op
 }
 
-func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+func snapInstallMany(_ context.Context, inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
 	for _, name := range inst.Snaps {
 		if len(name) == 0 {
 			return nil, fmt.Errorf(i18n.G("cannot install snap with empty name"))
 		}
 	}
 	transaction := inst.Transaction
+	// TODO use per request context passed in snap instruction
 	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, nil, inst.userID, &snapstate.Flags{Transaction: transaction})
 	if err != nil {
 		return nil, err
@@ -741,7 +741,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionRe
 	}, nil
 }
 
-func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+func snapUpdateMany(ctx context.Context, inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
 	// we need refreshed snap-declarations to enforce refresh-control as best as
 	// we can, this also ensures that snap-declarations and their prerequisite
 	// assertions are updated regularly; update validation sets assertions only
@@ -754,8 +754,7 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 	}
 
 	transaction := inst.Transaction
-	// TODO: use a per-request context
-	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, nil, inst.userID, &snapstate.Flags{
+	updated, tasksets, err := snapstateUpdateMany(ctx, st, inst.Snaps, nil, inst.userID, &snapstate.Flags{
 		IgnoreRunning: inst.IgnoreRunning,
 		Transaction:   transaction,
 	})
@@ -792,7 +791,7 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 	}, nil
 }
 
-func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+func snapEnforceValidationSets(ctx context.Context, inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
 	if len(inst.ValidationSets) > 0 && len(inst.Snaps) != 0 {
 		return nil, fmt.Errorf("snap names cannot be specified with validation sets to enforce")
 	}
@@ -820,7 +819,7 @@ func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapIns
 			return nil, err
 		}
 
-		tss, affected, err = meetSnapConstraintsForEnforce(inst, st, vErr)
+		tss, affected, err = meetSnapConstraintsForEnforce(ctx, inst, st, vErr)
 		if err != nil {
 			return nil, err
 		}
@@ -838,7 +837,7 @@ func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapIns
 	}, nil
 }
 
-func meetSnapConstraintsForEnforce(inst *snapInstruction, st *state.State, vErr *snapasserts.ValidationSetsValidationError) ([]*state.TaskSet, []string, error) {
+func meetSnapConstraintsForEnforce(ctx context.Context, inst *snapInstruction, st *state.State, vErr *snapasserts.ValidationSetsValidationError) ([]*state.TaskSet, []string, error) {
 	// Save the sequence numbers so we can pin them later when enforcing the sets again
 	pinnedSeqs := make(map[string]int, len(inst.ValidationSets))
 
@@ -879,10 +878,10 @@ func meetSnapConstraintsForEnforce(inst *snapInstruction, st *state.State, vErr 
 		pinnedSeqs[fmt.Sprintf("%s/%s", account, name)] = sequence
 	}
 
-	return snapstateResolveValSetsEnforcementError(context.TODO(), st, vErr, pinnedSeqs, inst.userID)
+	return snapstateResolveValSetsEnforcementError(ctx, st, vErr, pinnedSeqs, inst.userID)
 }
 
-func snapRemoveMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+func snapRemoveMany(_ context.Context, inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
 	flags := &snapstate.RemoveFlags{Purge: inst.Purge}
 	removed, tasksets, err := snapstateRemoveMany(st, inst.Snaps, flags)
 	if err != nil {
@@ -999,7 +998,7 @@ func shouldSearchStore(r *http.Request) bool {
 	return false
 }
 
-func snapHoldMany(inst *snapInstruction, st *state.State) (res *snapInstructionResult, err error) {
+func snapHoldMany(_ context.Context, inst *snapInstruction, st *state.State) (res *snapInstructionResult, err error) {
 	var msg string
 	var tss []*state.TaskSet
 	if len(inst.Snaps) == 0 {
@@ -1033,7 +1032,7 @@ func snapHoldMany(inst *snapInstruction, st *state.State) (res *snapInstructionR
 	}, nil
 }
 
-func snapUnholdMany(inst *snapInstruction, st *state.State) (res *snapInstructionResult, err error) {
+func snapUnholdMany(_ context.Context, inst *snapInstruction, st *state.State) (res *snapInstructionResult, err error) {
 	var msg string
 	var tss []*state.TaskSet
 

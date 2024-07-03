@@ -403,6 +403,76 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
 
+func (s *prereqSuite) TestDoPrereqNoRetryWhenBaseInFlightDuringRemodel(c *C) {
+	restore := snapstate.MockPrerequisitesRetryTimeout(1 * time.Millisecond)
+	defer restore()
+
+	s.runner.AddHandler("link-snap", func(task *state.Task, _ *tomb.Tomb) error {
+		st := task.State()
+		st.Lock()
+		defer st.Unlock()
+
+		snapsup, err := snapstate.TaskSnapSetup(task)
+		c.Assert(err, IsNil)
+		fmt.Println(snapsup.InstanceName())
+
+		return nil
+	}, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore = snapstatetest.MockDeviceContext(&snapstatetest.TrivialDeviceContext{
+		Remodeling: true,
+	})
+	defer restore()
+
+	// make it look like core is already installed
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	// pretend foo gets installed and needs core (which we will make it look
+	// like the install is in progress)
+	prereqTask := s.state.NewTask("prerequisites", "foo")
+	prereqTask.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
+	})
+
+	tCore := s.state.NewTask("link-snap", "Pretend core gets installed")
+	tCore.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "core",
+			Revision: snap.R(11),
+		},
+	})
+
+	// this makes sure that the prereq task runs first, but the link-snap task
+	// for core will be found by the prereq task handler
+	tCore.WaitFor(prereqTask)
+
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(prereqTask)
+	chg.AddTask(tCore)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	// prereq task is done, but the core task isn't done. this means that we
+	// didn't wait for the core task to finish, since we are remodeling
+	c.Check(prereqTask.Status(), Equals, state.DoneStatus)
+	c.Check(tCore.Status(), Equals, state.DoStatus)
+}
+
 func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
 	os.Setenv("SNAPD_BASES_CHANNEL", "edge")
 	defer os.Unsetenv("SNAPD_BASES_CHANNEL")

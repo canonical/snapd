@@ -3,3 +3,4 @@ ignore_files:
   - packaging/ubuntu-16.04/changelog
   - packaging/debian-sid/changelog
   - packaging/fedora/snapd.spec
+  - cmd/snap-confine/snap-confine.apparmor.in

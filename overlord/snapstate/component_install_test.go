@@ -43,6 +43,10 @@ const (
 	compOptIsActive
 	// Component is of kernel-modules type
 	compTypeIsKernMods
+	// Current component is discarded at the end
+	compCurrentIsDiscarded
+	// Component is being installed with a snap, so skip setup-profiles
+	compOptSkipSecurity
 )
 
 // opts is a bitset with compOpt* as possible values.
@@ -52,8 +56,9 @@ func expectedComponentInstallTasks(opts int) []string {
 	if opts&compOptIsLocal != 0 {
 		startTasks = []string{"prepare-component"}
 	} else {
-		startTasks = []string{"download-component"}
+		startTasks = []string{"download-component", "validate-component"}
 	}
+
 	// Revision is not the same as the current one installed
 	if opts&compOptRevisionPresent == 0 {
 		startTasks = append(startTasks, "mount-component")
@@ -66,11 +71,13 @@ func expectedComponentInstallTasks(opts int) []string {
 		startTasks = append(startTasks, "unlink-current-component")
 	}
 
-	startTasks = append(startTasks, "setup-profiles")
+	if opts&compOptSkipSecurity == 0 {
+		startTasks = append(startTasks, "setup-profiles")
+	}
 
 	// link-component is always present
 	startTasks = append(startTasks, "link-component")
-	if opts&compOptIsActive != 0 {
+	if opts&compCurrentIsDiscarded != 0 {
 		startTasks = append(startTasks, "discard-component")
 	}
 
@@ -355,7 +362,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresent(c *C) {
 		snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyComponentInstallTasks(c, compOptIsLocal|compOptRevisionPresent|compOptIsActive, ts)
+	verifyComponentInstallTasks(c, compOptIsLocal|compOptRevisionPresent|compOptIsActive|compCurrentIsDiscarded, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	// Temporary file is deleted as component file is already in the system
 	c.Assert(osutil.FileExists(compPath), Equals, false)
@@ -423,7 +430,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompAlreadyInstalled(c *C) {
 		snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyComponentInstallTasks(c, compOptIsLocal|compOptIsActive, ts)
+	verifyComponentInstallTasks(c, compOptIsLocal|compOptIsActive|compCurrentIsDiscarded, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(osutil.FileExists(compPath), Equals, true)
 }
@@ -529,6 +536,49 @@ func (s *snapmgrTestSuite) TestInstallKernelModulesComponentPath(c *C) {
 	c.Assert(err, IsNil)
 
 	verifyComponentInstallTasks(c, compOptIsLocal|compTypeIsKernMods, ts)
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	// File is not deleted
+	c.Assert(osutil.FileExists(compPath), Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresentInTwoSeqPts(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	compRev := snap.R(7)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	_, compPath := createTestComponent(c, snapName, compName, info)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Current component is present in current and in another sequence point
+	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
+		SnapID: "some-snap-id"}
+	ssi2 := &snap.SideInfo{RealName: snapName, Revision: snap.R(10),
+		SnapID: "some-snap-id"}
+	currentCsi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), snap.R(3))
+	compsSi := []*sequence.ComponentState{
+		sequence.NewComponentState(currentCsi, snap.TestComponent),
+	}
+	snapst := &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(ssi, compsSi),
+				sequence.NewRevisionSideState(ssi2, compsSi),
+			}),
+		Current: snapRev,
+	}
+	snapstate.Set(s.state, snapName, snapst)
+
+	csi := snap.NewComponentSideInfo(naming.ComponentRef{
+		SnapName: snapName, ComponentName: compName}, compRev)
+	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	verifyComponentInstallTasks(c, compOptIsLocal|compOptIsActive, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	// File is not deleted
 	c.Assert(osutil.FileExists(compPath), Equals, true)

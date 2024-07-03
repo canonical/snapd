@@ -43,6 +43,7 @@
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/mount-opt.h"
 #include "../libsnap-confine-private/mountinfo.h"
+#include "../libsnap-confine-private/snap-dir.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/tool.h"
@@ -712,7 +713,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// already contains the correct view of the mounted snaps.
 	if (config->normal_mode) {
 		sc_must_snprintf(dst, sizeof dst, "%s/snap", scratch_dir);
-		sc_do_mount(SNAP_MOUNT_DIR, dst, NULL, MS_BIND | MS_REC, NULL);
+		sc_do_mount(sc_snap_mount_dir(NULL), dst, NULL,
+			    MS_BIND | MS_REC, NULL);
 		sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 	}
 	// Ensure that hostfs exists and is group-owned by root. We may have (now
@@ -1060,16 +1062,16 @@ static bool is_mounted_with_shared_option(const char *dir)
 void sc_ensure_shared_snap_mount(void)
 {
 	if (!is_mounted_with_shared_option("/")
-	    && !is_mounted_with_shared_option(SNAP_MOUNT_DIR)) {
+	    && !is_mounted_with_shared_option(sc_snap_mount_dir(NULL))) {
 		// TODO: We could be more aggressive and refuse to function but since
 		// we have no data on actual environments that happen to limp along in
 		// this configuration let's not do that yet.  This code should be
 		// removed once we have a measurement and feedback mechanism that lets
 		// us decide based on measurable data.
-		sc_do_mount(SNAP_MOUNT_DIR, SNAP_MOUNT_DIR, "none",
-			    MS_BIND | MS_REC, NULL);
-		sc_do_mount("none", SNAP_MOUNT_DIR, NULL, MS_SHARED | MS_REC,
-			    NULL);
+		sc_do_mount(sc_snap_mount_dir(NULL), sc_snap_mount_dir(NULL),
+			    "none", MS_BIND | MS_REC, NULL);
+		sc_do_mount("none", sc_snap_mount_dir(NULL), NULL,
+			    MS_SHARED | MS_REC, NULL);
 	}
 }
 
@@ -1099,7 +1101,7 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 
 void sc_ensure_snap_dir_shared_mounts(void)
 {
-	const char *dirs[] = { SNAP_MOUNT_DIR, "/var/snap", NULL };
+	const char *dirs[] = { sc_snap_mount_dir(NULL), "/var/snap", NULL };
 	for (int i = 0; dirs[i] != NULL; i++) {
 		const char *dir = dirs[i];
 		if (!is_mounted_with_shared_option(dir)) {
@@ -1126,16 +1128,17 @@ void sc_setup_parallel_instance_classic_mounts(const char *snap_name,
 	char src[PATH_MAX] = { 0 };
 	char dst[PATH_MAX] = { 0 };
 
-	const char *dirs[] = { SNAP_MOUNT_DIR, "/var/snap", NULL };
+	const char *dirs[] = { sc_snap_mount_dir(NULL), "/var/snap", NULL };
 	for (int i = 0; dirs[i] != NULL; i++) {
 		const char *dir = dirs[i];
 		sc_do_mount("none", dir, NULL, MS_REC | MS_SLAVE, NULL);
 	}
 
 	/* Mount SNAP_MOUNT_DIR/<snap>_<key> on SNAP_MOUNT_DIR/<snap> */
-	sc_must_snprintf(src, sizeof src, "%s/%s", SNAP_MOUNT_DIR,
+	sc_must_snprintf(src, sizeof src, "%s/%s", sc_snap_mount_dir(NULL),
 			 snap_instance_name);
-	sc_must_snprintf(dst, sizeof dst, "%s/%s", SNAP_MOUNT_DIR, snap_name);
+	sc_must_snprintf(dst, sizeof dst, "%s/%s", sc_snap_mount_dir(NULL),
+			 snap_name);
 	sc_do_mount(src, dst, "none", MS_BIND | MS_REC, NULL);
 
 	/* Mount /var/snap/<snap>_<key> on /var/snap/<snap> */

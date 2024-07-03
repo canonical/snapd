@@ -125,7 +125,7 @@ type sideloadFlags struct {
 	dangerousOK bool
 }
 
-func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *auth.UserState) Response {
+func sideloadOrTrySnap(ctx context.Context, c *Command, body io.ReadCloser, boundary string, user *auth.UserState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for change")
@@ -194,9 +194,9 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 
 	var chg *state.Change
 	if len(snapFiles) > 1 {
-		chg, errRsp = sideloadManySnaps(st, snapFiles, sideloadFlags, user)
+		chg, errRsp = sideloadManySnaps(ctx, st, snapFiles, sideloadFlags, user)
 	} else {
-		chg, errRsp = sideloadSnap(st, snapFiles[0], sideloadFlags)
+		chg, errRsp = sideloadSnap(ctx, st, snapFiles[0], sideloadFlags)
 	}
 	if errRsp != nil {
 		return errRsp
@@ -249,7 +249,7 @@ func sideloadInfo(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlag
 		origPaths: origPaths, tmpPaths: tmpPaths}, nil
 }
 
-func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags, user *auth.UserState) (*state.Change, *apiError) {
+func sideloadManySnaps(ctx context.Context, st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags, user *auth.UserState) (*state.Change, *apiError) {
 	slInfo, apiErr := sideloadInfo(st, snapFiles, flags)
 	if apiErr != nil {
 		return nil, apiErr
@@ -260,7 +260,7 @@ func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloa
 		userID = user.ID
 	}
 
-	tss, err := snapstateInstallPathMany(context.TODO(), st, slInfo.sideInfos, slInfo.tmpPaths, userID, &flags.Flags)
+	tss, err := snapstateInstallPathMany(ctx, st, slInfo.sideInfos, slInfo.tmpPaths, userID, &flags.Flags)
 	if err != nil {
 		return nil, errToResponse(err, slInfo.names, InternalError, "cannot install snap files: %v")
 	}
@@ -272,7 +272,7 @@ func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloa
 	return chg, nil
 }
 
-func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) (*state.Change, *apiError) {
+func sideloadSnap(_ context.Context, st *state.State, snapFile *uploadedSnap, flags sideloadFlags) (*state.Change, *apiError) {
 	var instanceName string
 	if snapFile.instanceName != "" {
 		// caller has specified desired instance name
@@ -324,29 +324,36 @@ func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) 
 	}
 
 	var tset *state.TaskSet
-	container := "snap"
+	contType := "snap"
 	message := fmt.Sprintf("%q snap", instanceName)
 	if compInfo == nil {
+		// TODO pass per request context
 		tset, _, err = snapstateInstallPath(st, sideInfo, snapFile.tmpPath, instanceName, "", flags.Flags, nil)
 	} else {
 		// It is a component
-		container = "component"
+		contType = "component"
 		message = fmt.Sprintf("%q component for %q snap",
 			compInfo.Component.ComponentName, instanceName)
 		tset, err = snapstateInstallComponentPath(st, snap.NewComponentSideInfo(compInfo.Component, snap.Revision{}), snapInfo, snapFile.tmpPath, flags.Flags)
 	}
 	if err != nil {
-		return nil, errToResponse(err, []string{sideInfo.RealName}, InternalError, "cannot install %s file: %v", container)
+		return nil, errToResponse(err, []string{sideInfo.RealName}, InternalError, "cannot install %s file: %v", contType)
 	}
 
 	msg := fmt.Sprintf(i18n.G("Install %s from file %q"), message, snapFile.filename)
-	chg := newChange(st, "install-"+container, msg, []*state.TaskSet{tset}, []string{instanceName})
-	apiData := map[string]interface{}{
-		"snap-name":  instanceName,
-		"snap-names": []string{instanceName},
-	}
-	if compInfo != nil {
-		apiData["component-name"] = compInfo.Component.ComponentName
+	chg := newChange(st, "install-"+contType, msg, []*state.TaskSet{tset}, []string{instanceName})
+	apiData := map[string]interface{}{}
+	if compInfo == nil {
+		apiData = map[string]interface{}{
+			"snap-name":  instanceName,
+			"snap-names": []string{instanceName},
+		}
+	} else {
+		// Installing only a component, so snap name is inside components entry
+		// (snap-name would be included if installing snap+components)
+		apiData["components"] = map[string][]string{
+			instanceName: {compInfo.Component.ComponentName},
+		}
 	}
 	chg.Set("api-data", apiData)
 
