@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -43,25 +44,28 @@ const (
 )
 
 type SnapOptions struct {
-	Channel          string          `json:"channel,omitempty"`
-	Revision         string          `json:"revision,omitempty"`
-	CohortKey        string          `json:"cohort-key,omitempty"`
-	LeaveCohort      bool            `json:"leave-cohort,omitempty"`
-	DevMode          bool            `json:"devmode,omitempty"`
-	JailMode         bool            `json:"jailmode,omitempty"`
-	Classic          bool            `json:"classic,omitempty"`
-	Dangerous        bool            `json:"dangerous,omitempty"`
-	IgnoreValidation bool            `json:"ignore-validation,omitempty"`
-	IgnoreRunning    bool            `json:"ignore-running,omitempty"`
-	Unaliased        bool            `json:"unaliased,omitempty"`
-	Prefer           bool            `json:"prefer,omitempty"`
-	Purge            bool            `json:"purge,omitempty"`
-	Amend            bool            `json:"amend,omitempty"`
-	Transaction      TransactionType `json:"transaction,omitempty"`
-	QuotaGroupName   string          `json:"quota-group,omitempty"`
-	ValidationSets   []string        `json:"validation-sets,omitempty"`
-	Time             string          `json:"time,omitempty"`
-	HoldLevel        string          `json:"hold-level,omitempty"`
+	Channel           string              `json:"channel,omitempty"`
+	Revision          string              `json:"revision,omitempty"`
+	CohortKey         string              `json:"cohort-key,omitempty"`
+	LeaveCohort       bool                `json:"leave-cohort,omitempty"`
+	DevMode           bool                `json:"devmode,omitempty"`
+	JailMode          bool                `json:"jailmode,omitempty"`
+	Classic           bool                `json:"classic,omitempty"`
+	Dangerous         bool                `json:"dangerous,omitempty"`
+	IgnoreValidation  bool                `json:"ignore-validation,omitempty"`
+	IgnoreRunning     bool                `json:"ignore-running,omitempty"`
+	Unaliased         bool                `json:"unaliased,omitempty"`
+	Prefer            bool                `json:"prefer,omitempty"`
+	Purge             bool                `json:"purge,omitempty"`
+	Amend             bool                `json:"amend,omitempty"`
+	Transaction       TransactionType     `json:"transaction,omitempty"`
+	QuotaGroupName    string              `json:"quota-group,omitempty"`
+	ValidationSets    []string            `json:"validation-sets,omitempty"`
+	Time              string              `json:"time,omitempty"`
+	HoldLevel         string              `json:"hold-level,omitempty"`
+	CompsRaw          json.RawMessage     `json:"components,omitempty"`
+	Components        []string            `json:"-"`
+	ComponentsPerSnap map[string][]string `json:"-"`
 
 	Users []string `json:"users,omitempty"`
 }
@@ -125,15 +129,16 @@ type actionData struct {
 }
 
 type multiActionData struct {
-	Action         string          `json:"action"`
-	Snaps          []string        `json:"snaps,omitempty"`
-	Users          []string        `json:"users,omitempty"`
-	Transaction    TransactionType `json:"transaction,omitempty"`
-	IgnoreRunning  bool            `json:"ignore-running,omitempty"`
-	Purge          bool            `json:"purge,omitempty"`
-	ValidationSets []string        `json:"validation-sets,omitempty"`
-	Time           string          `json:"time,omitempty"`
-	HoldLevel      string          `json:"hold-level,omitempty"`
+	Action         string              `json:"action"`
+	Snaps          []string            `json:"snaps,omitempty"`
+	Users          []string            `json:"users,omitempty"`
+	Transaction    TransactionType     `json:"transaction,omitempty"`
+	IgnoreRunning  bool                `json:"ignore-running,omitempty"`
+	Purge          bool                `json:"purge,omitempty"`
+	ValidationSets []string            `json:"validation-sets,omitempty"`
+	Time           string              `json:"time,omitempty"`
+	HoldLevel      string              `json:"hold-level,omitempty"`
+	Components     map[string][]string `json:"components,omitempty"`
 }
 
 // Install adds the snap with the given name from the given channel (or
@@ -223,6 +228,22 @@ func (client *Client) doSnapAction(actionName string, snapName string, options *
 	if options != nil && options.Dangerous {
 		return "", ErrDangerousNotApplicable
 	}
+
+	if options != nil {
+		if len(options.ComponentsPerSnap) > 0 {
+			return "", errors.New("internal error: per-snap components should not be specified when performing a single snap action")
+		}
+
+		if len(options.Components) > 0 {
+			comps, err := json.Marshal(options.Components)
+			if err != nil {
+				return "", err
+			}
+
+			options.CompsRaw = comps
+		}
+	}
+
 	action := actionData{
 		Action:      actionName,
 		SnapOptions: options,
@@ -247,6 +268,10 @@ func (client *Client) doMultiSnapAction(actionName string, snaps []string, optio
 }
 
 func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, options *SnapOptions) (result json.RawMessage, changeID string, err error) {
+	if options != nil && len(options.Components) > 0 {
+		return nil, "", errors.New("internal error: components provided for multi-snap actions must be specified per-snap")
+	}
+
 	action := multiActionData{
 		Action: actionName,
 		Snaps:  snaps,
@@ -260,6 +285,7 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 		action.ValidationSets = options.ValidationSets
 		action.Time = options.Time
 		action.HoldLevel = options.HoldLevel
+		action.Components = options.ComponentsPerSnap
 	}
 
 	data, err := json.Marshal(&action)

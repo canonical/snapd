@@ -914,3 +914,88 @@ func (cs *clientSuite) TestClientHoldMany(c *check.C) {
 	})
 	c.Check(cs.req.Header["Content-Type"], check.DeepEquals, []string{"application/json"})
 }
+
+func (cs *clientSuite) TestClientOpInstallWithComponents(c *check.C) {
+	cs.status = 202
+	cs.rsp = `{
+		"change": "66b3",
+		"status-code": 202,
+		"type": "async"
+	}`
+
+	opts := client.SnapOptions{
+		Components: []string{"one", "two"},
+	}
+
+	_, err := cs.cli.Install("foo", &opts)
+	c.Assert(err, check.IsNil)
+
+	var body map[string]interface{}
+	err = json.NewDecoder(cs.req.Body).Decode(&body)
+	c.Assert(err, check.IsNil)
+
+	c.Check(body["components"], check.DeepEquals, []interface{}{"one", "two"})
+}
+
+func (cs *clientSuite) TestClientOpInstallWithComponentsInvalidOpts(c *check.C) {
+	cs.status = 202
+	cs.rsp = `{
+		"change": "66b3",
+		"status-code": 202,
+		"type": "async"
+	}`
+
+	opts := client.SnapOptions{
+		ComponentsPerSnap: map[string][]string{
+			"foo": {"one", "two"},
+			"bar": {"three", "four"},
+		},
+	}
+
+	_, err := cs.cli.Install("foo", &opts)
+	c.Assert(err, check.ErrorMatches, "internal error: per-snap components should not be specified when performing a single snap action")
+}
+
+func (cs *clientSuite) TestClientOpInstallManyWithComponents(c *check.C) {
+	cs.status = 202
+	cs.rsp = `{
+		"change": "66b3",
+		"status-code": 202,
+		"type": "async"
+	}`
+
+	opts := client.SnapOptions{
+		ComponentsPerSnap: map[string][]string{
+			"foo": {"one", "two"},
+			"bar": {"three", "four"},
+		},
+	}
+
+	_, err := cs.cli.InstallMany([]string{"foo", "bar"}, &opts)
+	c.Assert(err, check.IsNil)
+
+	var body map[string]interface{}
+	err = json.NewDecoder(cs.req.Body).Decode(&body)
+	c.Assert(err, check.IsNil)
+
+	c.Check(body["components"], check.DeepEquals, map[string]interface{}{
+		"foo": []interface{}{"one", "two"},
+		"bar": []interface{}{"three", "four"},
+	})
+}
+
+func (cs *clientSuite) TestClientOpInstallManyWithComponentsInvalidOpts(c *check.C) {
+	cs.status = 202
+	cs.rsp = `{
+		"change": "66b3",
+		"status-code": 202,
+		"type": "async"
+	}`
+
+	opts := client.SnapOptions{
+		Components: []string{"one", "two"},
+	}
+
+	_, err := cs.cli.InstallMany([]string{"foo", "bar"}, &opts)
+	c.Assert(err, check.ErrorMatches, "internal error: components provided for multi-snap actions must be specified per-snap")
+}
