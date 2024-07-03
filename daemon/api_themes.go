@@ -213,11 +213,16 @@ func installThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("no snaps to install")
 	}
 
-	toInstall := make([]string, 0, len(candidateSnaps))
+	toInstall := make([]snapstate.StoreSnap, 0, len(candidateSnaps))
 	for pkg := range candidateSnaps {
-		toInstall = append(toInstall, pkg)
+		toInstall = append(toInstall, snapstate.StoreSnap{
+			InstanceName: pkg,
+		})
 	}
-	sort.Strings(toInstall)
+
+	sort.Slice(toInstall, func(i, j int) bool {
+		return toInstall[i].InstanceName < toInstall[j].InstanceName
+	})
 
 	st := c.d.overlord.State()
 	st.Lock()
@@ -227,16 +232,26 @@ func installThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 	if user != nil {
 		userID = user.ID
 	}
-	installed, tasksets, err := snapstateInstallMany(st, toInstall, nil, userID, &snapstate.Flags{})
+
+	// TODO: should this use the request context?
+	installed, tasksets, err := snapstateInstallWithGoal(r.Context(), st, snapstateStoreInstallGoal(toInstall...), snapstate.Options{
+		UserID: userID,
+	})
 	if err != nil {
 		return InternalError("cannot install themes: %s", err)
 	}
+
+	names := make([]string, 0, len(installed))
+	for _, snap := range installed {
+		names = append(names, snap.InstanceName())
+	}
+
 	var summary string
-	switch len(toInstall) {
+	switch len(names) {
 	case 1:
-		summary = fmt.Sprintf(i18n.G("Install snap %q"), toInstall)
+		summary = fmt.Sprintf(i18n.G("Install snap %q"), names[0])
 	default:
-		quoted := strutil.Quoted(toInstall)
+		quoted := strutil.Quoted(names)
 		summary = fmt.Sprintf(i18n.G("Install snaps %s"), quoted)
 	}
 
@@ -245,7 +260,7 @@ func installThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 		chg = st.NewChange("install-themes", summary)
 		chg.SetStatus(state.DoneStatus)
 	} else {
-		chg = newChange(st, "install-themes", summary, tasksets, installed)
+		chg = newChange(st, "install-themes", summary, tasksets, names)
 		ensureStateSoon(st)
 	}
 	chg.Set("api-data", map[string]interface{}{"snap-names": installed})

@@ -468,12 +468,7 @@ func snapInstall(ctx context.Context, inst *snapInstruction, st *state.State) (s
 		logger.Noticef("Installing snap %q from cohort %q", inst.Snaps[0], ckey)
 	}
 
-	goal := snapstateStoreInstallGoal(snapstate.StoreSnap{
-		InstanceName: inst.Snaps[0],
-		Components:   inst.CompsForSnaps[inst.Snaps[0]],
-		RevOpts:      *inst.revnoOpts(),
-	})
-
+	goal := storeInstallGoalFromInstruction(inst)
 	_, tset, err := snapstateInstallOne(ctx, st, goal, snapstate.Options{
 		UserID: inst.userID,
 		Flags:  flags,
@@ -814,19 +809,45 @@ func (inst *snapInstruction) dispatchForMany() (op snapManyActionFunc) {
 	return op
 }
 
-func snapInstallMany(_ context.Context, inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+func storeInstallGoalFromInstruction(inst *snapInstruction) snapstate.InstallGoal {
+	snaps := make([]snapstate.StoreSnap, 0, len(inst.Snaps))
+	for _, sn := range inst.Snaps {
+		// we currently only allow revision options when installing one snap
+		opts := snapstate.RevisionOptions{}
+		if len(inst.Snaps) == 1 {
+			opts = *inst.revnoOpts()
+		}
+
+		snaps = append(snaps, snapstate.StoreSnap{
+			InstanceName: sn,
+			Components:   inst.CompsForSnaps[sn],
+			RevOpts:      opts,
+		})
+	}
+
+	return snapstateStoreInstallGoal(snaps...)
+}
+
+func snapInstallMany(ctx context.Context, inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
 	for _, name := range inst.Snaps {
 		if len(name) == 0 {
 			return nil, fmt.Errorf(i18n.G("cannot install snap with empty name"))
 		}
 	}
-	transaction := inst.Transaction
-	// TODO use per request context passed in snap instruction
-	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, nil, inst.userID, &snapstate.Flags{Transaction: transaction})
+
+	goal := storeInstallGoalFromInstruction(inst)
+	installed, tasksets, err := snapstateInstallWithGoal(ctx, st, goal, snapstate.Options{
+		UserID: inst.userID,
+		Flags: snapstate.Flags{
+			Transaction: inst.Transaction,
+		},
+	})
 	if err != nil {
 		return nil, err
 	}
 
+	// TODO: figure out what we want this message to look like when we're
+	// installing components
 	var msg string
 	switch len(inst.Snaps) {
 	case 0:
@@ -839,9 +860,14 @@ func snapInstallMany(_ context.Context, inst *snapInstruction, st *state.State) 
 		msg = fmt.Sprintf(i18n.G("Install snaps %s"), quoted)
 	}
 
+	names := make([]string, 0, len(installed))
+	for _, sn := range installed {
+		names = append(names, sn.InstanceName())
+	}
+
 	return &snapInstructionResult{
 		Summary:  msg,
-		Affected: installed,
+		Affected: names,
 		Tasksets: tasksets,
 	}, nil
 }

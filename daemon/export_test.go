@@ -147,6 +147,14 @@ func MockSnapstateInstallOne(mock func(context.Context, *state.State, snapstate.
 	}
 }
 
+func MockSnapstateInstallWithGoal(mock func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error)) (restore func()) {
+	old := snapstateInstallWithGoal
+	snapstateInstallWithGoal = mock
+	return func() {
+		snapstateInstallWithGoal = old
+	}
+}
+
 func MockSnapstateStoreInstallGoal(mock func(snaps ...snapstate.StoreSnap) snapstate.InstallGoal) (restore func()) {
 	old := snapstateStoreInstallGoal
 	snapstateStoreInstallGoal = mock
@@ -200,14 +208,6 @@ func MockSnapstateRevertToRevision(mock func(*state.State, string, snap.Revision
 	snapstateRevertToRevision = mock
 	return func() {
 		snapstateRevertToRevision = oldSnapstateRevertToRevision
-	}
-}
-
-func MockSnapstateInstallMany(mock func(*state.State, []string, []*snapstate.RevisionOptions, int, *snapstate.Flags) ([]string, []*state.TaskSet, error)) (restore func()) {
-	oldSnapstateInstallMany := snapstateInstallMany
-	snapstateInstallMany = mock
-	return func() {
-		snapstateInstallMany = oldSnapstateInstallMany
 	}
 }
 

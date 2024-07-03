@@ -140,6 +140,7 @@ func storeFrom(d *Daemon) snapstate.StoreService {
 var (
 	snapstateStoreInstallGoal               = snapstate.StoreInstallGoal
 	snapstateInstallOne                     = snapstate.InstallOne
+	snapstateInstallWithGoal                = snapstate.InstallWithGoal
 	snapstateInstallPath                    = snapstate.InstallPath
 	snapstateInstallPathMany                = snapstate.InstallPathMany
 	snapstateInstallComponentPath           = snapstate.InstallComponentPath
@@ -147,7 +148,6 @@ var (
 	snapstateTryPath                        = snapstate.TryPath
 	snapstateUpdate                         = snapstate.Update
 	snapstateUpdateMany                     = snapstate.UpdateMany
-	snapstateInstallMany                    = snapstate.InstallMany
 	snapstateRemoveMany                     = snapstate.RemoveMany
 	snapstateResolveValSetsEnforcementError = snapstate.ResolveValidationSetsEnforcementError
 	snapstateRevert                         = snapstate.Revert

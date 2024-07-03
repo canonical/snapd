@@ -874,11 +874,28 @@ func (s *snapsSuite) TestRefreshMany1(c *check.C) {
 	c.Check(refreshSnapAssertions, check.Equals, true)
 }
 
+func storeSnapInfos(snaps []snapstate.StoreSnap) []*snap.Info {
+	infos := make([]*snap.Info, 0, len(snaps))
+	for _, sn := range snaps {
+		name, key := snap.SplitInstanceName(sn.InstanceName)
+		infos = append(infos, &snap.Info{
+			SideInfo: snap.SideInfo{
+				RealName: name,
+			},
+			InstanceKey: key,
+		})
+	}
+	return infos
+}
+
 func (s *snapsSuite) TestInstallMany(c *check.C) {
-	defer daemon.MockSnapstateInstallMany(func(s *state.State, names []string, _ []*snapstate.RevisionOptions, userID int, _ *snapstate.Flags) ([]string, []*state.TaskSet, error) {
-		c.Check(names, check.HasLen, 2)
-		t := s.NewTask("fake-install-2", "Install two")
-		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		goal, ok := g.(*storeInstallGoalRecorder)
+		c.Assert(ok, check.Equals, true, check.Commentf("unexpected InstallGoal type %T", g))
+		c.Assert(goal.snaps, check.HasLen, 2)
+
+		t := st.NewTask("fake-install-2", "Install two")
+		return storeSnapInfos(goal.snaps), []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemon(c)
@@ -893,14 +910,16 @@ func (s *snapsSuite) TestInstallMany(c *check.C) {
 }
 
 func (s *snapsSuite) TestInstallManyTransactionally(c *check.C) {
-	var calledFlags *snapstate.Flags
+	var calledFlags snapstate.Flags
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		calledFlags = opts.Flags
 
-	defer daemon.MockSnapstateInstallMany(func(s *state.State, names []string, _ []*snapstate.RevisionOptions, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
-		calledFlags = flags
+		goal, ok := g.(*storeInstallGoalRecorder)
+		c.Assert(ok, check.Equals, true, check.Commentf("unexpected InstallGoal type %T", g))
+		c.Assert(goal.snaps, check.HasLen, 2)
 
-		c.Check(names, check.HasLen, 2)
-		t := s.NewTask("fake-install-2", "Install two")
-		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+		t := st.NewTask("fake-install-2", "Install two")
+		return storeSnapInfos(goal.snaps), []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemon(c)
@@ -922,7 +941,7 @@ func (s *snapsSuite) TestInstallManyTransactionally(c *check.C) {
 }
 
 func (s *snapsSuite) TestInstallManyEmptyName(c *check.C) {
-	defer daemon.MockSnapstateInstallMany(func(_ *state.State, _ []string, _ []*snapstate.RevisionOptions, _ int, _ *snapstate.Flags) ([]string, []*state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallWithGoal(func(context.Context, *state.State, snapstate.InstallGoal, snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
 		return nil, nil, errors.New("should not be called")
 	})()
 	d := s.daemon(c)
