@@ -139,11 +139,19 @@ func MockAssertstateTryEnforceValidationSets(f func(st *state.State, validationS
 	return r
 }
 
-func MockSnapstateInstall(mock func(context.Context, *state.State, string, *snapstate.RevisionOptions, int, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
-	oldSnapstateInstall := snapstateInstall
-	snapstateInstall = mock
+func MockSnapstateInstallOne(mock func(context.Context, *state.State, snapstate.InstallGoal, snapstate.Options) (*snap.Info, *state.TaskSet, error)) (restore func()) {
+	old := snapstateInstallOne
+	snapstateInstallOne = mock
 	return func() {
-		snapstateInstall = oldSnapstateInstall
+		snapstateInstallOne = old
+	}
+}
+
+func MockSnapstateStoreInstallGoal(mock func(snaps ...snapstate.StoreSnap) snapstate.InstallGoal) (restore func()) {
+	old := snapstateStoreInstallGoal
+	snapstateStoreInstallGoal = mock
+	return func() {
+		snapstateStoreInstallGoal = old
 	}
 }
 

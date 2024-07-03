@@ -464,7 +464,16 @@ func snapInstall(ctx context.Context, inst *snapInstruction, st *state.State) (s
 		ckey = strutil.ElliptLeft(inst.CohortKey, 10)
 		logger.Noticef("Installing snap %q from cohort %q", inst.Snaps[0], ckey)
 	}
-	tset, err := snapstateInstall(ctx, st, inst.Snaps[0], inst.revnoOpts(), inst.userID, flags)
+
+	goal := snapstateStoreInstallGoal(snapstate.StoreSnap{
+		InstanceName: inst.Snaps[0],
+		RevOpts:      *inst.revnoOpts(),
+	})
+
+	_, tset, err := snapstateInstallOne(ctx, st, goal, snapstate.Options{
+		UserID: inst.userID,
+		Flags:  flags,
+	})
 	if err != nil {
 		return "", nil, err
 	}
