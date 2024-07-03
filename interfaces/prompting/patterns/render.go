@@ -63,7 +63,7 @@ type renderNode interface {
 // for each group in the path pattern. The given observe closure is then called
 // on each variant, along with its index, and it can perform some action with
 // the variant, such as adding it to a data structure.
-func renderAllVariants(n renderNode, observe func(index int, variant string)) {
+func renderAllVariants(n renderNode, observe func(index int, variant *PatternVariant)) {
 	var buf bytes.Buffer
 
 	v, length := n.InitialVariant()
@@ -74,7 +74,12 @@ func renderAllVariants(n renderNode, observe func(index int, variant string)) {
 		buf.Truncate(lengthUnchanged)
 		buf.Grow(length - lengthUnchanged)
 		v.Render(&buf, lengthUnchanged)
-		observe(i, buf.String())
+		variant, err := ParsePatternVariant(buf.String())
+		if err != nil {
+			// This should never occur
+			continue
+		}
+		observe(i, variant)
 		length, lengthUnchanged, moreRemain = v.NextVariant()
 	}
 }

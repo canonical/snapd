@@ -473,8 +473,8 @@ func (s *patternsSuite) TestPathPatternRenderAllVariants(c *C) {
 		pathPattern, err := patterns.ParsePathPattern(testCase.pattern)
 		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
 		expanded := make([]string, 0, pathPattern.NumVariants())
-		pathPattern.RenderAllVariants(func(i int, str string) {
-			expanded = append(expanded, str)
+		pathPattern.RenderAllVariants(func(i int, variant *patterns.PatternVariant) {
+			expanded = append(expanded, variant.String())
 		})
 		c.Check(expanded, DeepEquals, testCase.expanded, Commentf("test case: %+v", testCase))
 	}
@@ -878,30 +878,6 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 		},
 		{
 			[]string{
-				"/foo/bar",
-				"/foo",
-				"/foo/bar/baz",
-			},
-			"/foo/bar/baz",
-		},
-		{
-			[]string{
-				"/foo",
-				"/foo/barbaz",
-				"/foobar",
-			},
-			"/foo/barbaz",
-		},
-		// Literals
-		{
-			[]string{
-				"/foo/bar/baz",
-				"/foo/bar/",
-			},
-			"/foo/bar/baz",
-		},
-		{
-			[]string{
 				"/foo/bar/baz",
 				"/foo/bar/ba?",
 			},
@@ -909,10 +885,24 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 		},
 		{
 			[]string{
-				"/foo/bar/baz",
 				"/foo/bar/b?z",
+				"/foo/bar/baz",
 			},
 			"/foo/bar/baz",
+		},
+		{
+			[]string{
+				"/foo/bar/baz*",
+				"/foo/bar/baz",
+			},
+			"/foo/bar/baz",
+		},
+		{
+			[]string{
+				"/foo/b?r/baz",
+				"/foo/bar/**",
+			},
+			"/foo/bar/**",
 		},
 		{
 			[]string{
@@ -920,13 +910,6 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 				"/foo/bar",
 			},
 			"/foo/bar/",
-		},
-		{
-			[]string{
-				"/foo/bar",
-				"/foo/ba?",
-			},
-			"/foo/bar",
 		},
 		{
 			[]string{
@@ -949,7 +932,6 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 			},
 			"/foo/bar/",
 		},
-		// Terminated
 		{
 			[]string{
 				"/foo/bar",
@@ -957,14 +939,6 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 			},
 			"/foo/bar",
 		},
-		{
-			[]string{
-				"/foo/bar",
-				"/foo/bar*",
-			},
-			"/foo/bar",
-		},
-		// Any single character
 		{
 			[]string{
 				"/foo/bar?baz",
@@ -981,19 +955,11 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 		},
 		{
 			[]string{
-				"/foo/ba?",
-				"/foo/ba*",
+				"/foo/bar/baz",
+				"/foo/b*r/baz/",
 			},
-			"/foo/ba?",
+			"/foo/bar/baz",
 		},
-		{
-			[]string{
-				"/foo/ba?/",
-				"/foo/ba?",
-			},
-			"/foo/ba?/",
-		},
-		// Singlestars
 		{
 			[]string{
 				"/foo/bar/*/baz",
@@ -1007,13 +973,6 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 				"/foo/bar/*/*",
 			},
 			"/foo/bar/*/baz",
-		},
-		{
-			[]string{
-				"/foo/bar/*/",
-				"/foo/bar/*/*",
-			},
-			"/foo/bar/*/",
 		},
 		{
 			[]string{
@@ -1078,7 +1037,6 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 			},
 			"/foo/bar/*/**",
 		},
-		// Globs
 		{
 			[]string{
 				"/foo/bar*baz",
@@ -1089,65 +1047,37 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 		{
 			[]string{
 				"/foo/bar*/baz",
-				"/foo/bar*/",
-			},
-			"/foo/bar*/baz",
-		},
-		{
-			[]string{
-				"/foo/bar*/baz",
-				"/foo/bar*/baz/**",
-			},
-			"/foo/bar*/baz",
-		},
-		{
-			[]string{
-				"/foo/bar*/baz",
-				"/foo/bar/**/baz",
-			},
-			"/foo/bar*/baz",
-		},
-		{
-			[]string{
-				"/foo/bar*/baz",
-				"/foo/bar/**/*baz/",
-			},
-			"/foo/bar*/baz",
-		},
-		{
-			[]string{
-				"/foo/bar*/baz",
-				"/foo/bar/**",
-			},
-			"/foo/bar*/baz",
-		},
-		{
-			[]string{
-				"/foo/bar*/baz/**",
-				"/foo/bar/**",
-			},
-			"/foo/bar*/baz/**",
-		},
-		{
-			[]string{
-				"/foo/bar*/",
-				"/foo/bar*/*baz",
-			},
-			"/foo/bar*/",
-		},
-		{
-			[]string{
-				"/foo/bar*/",
 				"/foo/bar*/*",
 			},
-			"/foo/bar*/",
+			"/foo/bar*/baz",
 		},
 		{
 			[]string{
-				"/foo/bar*/",
-				"/foo/bar*/**/",
+				"/foo/bar*/baz",
+				"/foo/bar*/baz/**",
 			},
-			"/foo/bar*/",
+			"/foo/bar*/baz",
+		},
+		{
+			[]string{
+				"/foo/bar*/baz",
+				"/foo/bar/**",
+			},
+			"/foo/bar/**",
+		},
+		{
+			[]string{
+				"/foo/bar*/*",
+				"/foo/bar*/*baz",
+			},
+			"/foo/bar*/*baz",
+		},
+		{
+			[]string{
+				"/foo/bar*/**",
+				"/foo/bar*",
+			},
+			"/foo/bar*",
 		},
 		{
 			[]string{
@@ -1159,30 +1089,23 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 		{
 			[]string{
 				"/foo/bar*/",
-				"/foo/bar/**/",
-			},
-			"/foo/bar*/",
-		},
-		{
-			[]string{
-				"/foo/bar*/",
 				"/foo/bar*/**/",
 			},
 			"/foo/bar*/",
 		},
 		{
 			[]string{
-				"/foo/bar*/*baz",
-				"/foo/bar*/*",
+				"/foo/bar*/",
+				"/foo/bar/**/",
 			},
-			"/foo/bar*/*baz",
+			"/foo/bar/**/",
 		},
 		{
 			[]string{
 				"/foo/bar*/*baz",
 				"/foo/bar/**/baz",
 			},
-			"/foo/bar*/*baz",
+			"/foo/bar/**/baz",
 		},
 		{
 			[]string{
@@ -1203,7 +1126,7 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 				"/foo/bar*/*/baz",
 				"/foo/bar/**/baz",
 			},
-			"/foo/bar*/*/baz",
+			"/foo/bar/**/baz",
 		},
 		{
 			[]string{
@@ -1212,56 +1135,6 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 			},
 			"/foo/bar*/*/",
 		},
-		{
-			[]string{
-				"/foo/bar*/*/baz",
-				"/foo/bar*/**/baz",
-			},
-			"/foo/bar*/*/baz",
-		},
-		{
-			[]string{
-				"/foo/bar*/*/",
-				"/foo/bar/**/baz/",
-			},
-			"/foo/bar*/*/",
-		},
-		{
-			[]string{
-				"/foo/bar*/*/",
-				"/foo/bar*/**/baz/",
-			},
-			"/foo/bar*/*/",
-		},
-		{
-			[]string{
-				"/foo/bar*/*",
-				"/foo/bar/**/baz/",
-			},
-			"/foo/bar*/*",
-		},
-		{
-			[]string{
-				"/foo/bar*/*",
-				"/foo/bar*/**/baz/",
-			},
-			"/foo/bar*/*",
-		},
-		{
-			[]string{
-				"/foo/bar*",
-				"/foo/bar/**/",
-			},
-			"/foo/bar*",
-		},
-		{
-			[]string{
-				"/foo/bar*",
-				"/foo/bar*/**/",
-			},
-			"/foo/bar*",
-		},
-		// Doublestars
 		{
 			[]string{
 				"/foo/bar/**/baz",
@@ -1275,6 +1148,14 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 				"/foo/bar/**",
 			},
 			"/foo/bar/**/baz",
+		},
+		{
+			[]string{
+				// both match /foo/bar/fizz/buzz/file.txt
+				"/foo/bar/**/fizz/**",
+				"/foo/bar/**/buzz/**",
+			},
+			"No good answer without knowing the matched path :(",
 		},
 		{
 			[]string{
@@ -1332,7 +1213,6 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 			},
 			"/foo/bar/**",
 		},
-		// Globs followed by doublestars
 		{
 			[]string{
 				"/foo/bar*/**/baz",
@@ -1347,7 +1227,6 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 			},
 			"/foo/bar*/**/",
 		},
-		// Miscellaneous
 		{
 			[]string{
 				"/foo/bar/*.gz",
@@ -1370,7 +1249,6 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 			"/foo/bar/x/**/*.gz",
 		},
 		{
-			// Both match `/foo/bar/baz.tar.gz`
 			[]string{
 				"/foo/bar/**/*.tar.gz",
 				"/foo/bar/*",
@@ -1386,28 +1264,11 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 			"/foo/bar/baz/**/*.txt",
 		},
 		{
-			// both match /foo/bar
 			[]string{
 				"/foo/bar*",
 				"/foo/bar/**",
 			},
-			"/foo/bar*",
-		},
-		{
-			[]string{
-				"/foo/bar/*/baz*/**/fizz/*buzz",
-				"/foo/bar/*/baz*/**/fizz/bu*zz",
-				"/foo/bar/*/baz*/**/fizz/buzz",
-				"/foo/bar/*/baz*/**/fizz/buzz*",
-			},
-			"/foo/bar/*/baz*/**/fizz/buzz",
-		},
-		{
-			[]string{
-				"/foo/*/bar/**",
-				"/foo/**/bar/*",
-			},
-			"/foo/*/bar/**",
+			"/foo/bar/**",
 		},
 		{
 			[]string{
@@ -1419,7 +1280,7 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 		{
 			[]string{
 				`/foo/\\`,
-				`/foo/*/bar/x`,
+				`/foo/*/**`,
 			},
 			`/foo/\\`,
 		},
@@ -1428,15 +1289,49 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 				`/foo/\**/b\ar/*\*`,
 				`/foo/*/bar/x`,
 			},
-			`/foo/\**/b\ar/*\*`,
+			`/foo/\**/bar/*\*`,
 		},
-		// Patterns with "**[^/]" should not be emitted from ExpandPathPattern
+		{
+			[]string{
+				"/foo/bar**",
+				"/foo/bar**baz",
+			},
+			"/foo/bar*baz",
+		},
 		{
 			[]string{
 				"/foo/**",
 				"/foo/**bar",
 			},
-			"/foo/**bar",
+			"/foo/*bar",
+		},
+		{
+			[]string{
+				"/foo/**/bar/*/",
+				"/foo/**/b?r/baz/",
+			},
+			"/foo/**/bar/*/",
+		},
+		{
+			[]string{
+				"/foo/**/fizz",
+				"/foo/**/bar/fizz",
+			},
+			"/foo/**/bar/fizz",
+		},
+		{
+			[]string{
+				"/foo/**/*/bar",
+				"/foo/**/*",
+			},
+			"/foo/*/**/bar",
+		},
+		{
+			[]string{
+				"/foo/**/*",
+				"/**",
+			},
+			"/foo/**",
 		},
 		// Duplicate patterns should never be passed into HighestPrecedencePattern,
 		// but if they are, handle them correctly.
@@ -1464,9 +1359,20 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 			"/foo/bar/*",
 		},
 	} {
-		highestPrecedence, err := patterns.HighestPrecedencePattern(testCase.patterns)
+		variants := make([]*patterns.PatternVariant, len(testCase.patterns))
+		variantsReversed := make([]*patterns.PatternVariant, len(testCase.patterns))
+		for i, pattern := range testCase.patterns {
+			variant, err := patterns.ParsePatternVariant(pattern)
+			c.Assert(err, IsNil, Commentf("pattern: %s", pattern))
+			variants[i] = variant
+			variantsReversed[len(variantsReversed)-1-i] = variant
+		}
+		highestPrecedence, err := patterns.HighestPrecedencePattern(variants)
 		c.Check(err, IsNil, Commentf("Error occurred during test case %d:\n%+v", i, testCase))
-		c.Check(highestPrecedence, Equals, testCase.highestPrecedence, Commentf("Highest precedence pattern incorrect for test case %d:\n%+v", i, testCase))
+		c.Check(highestPrecedence.String(), Equals, testCase.highestPrecedence, Commentf("Highest precedence pattern incorrect for test case %d:\n%+v", i, testCase))
+		highestPrecedence, err = patterns.HighestPrecedencePattern(variantsReversed)
+		c.Check(err, IsNil, Commentf("Error occurred during test case %d:\n%+v", i, testCase))
+		c.Check(highestPrecedence.String(), Equals, testCase.highestPrecedence, Commentf("Highest precedence pattern incorrect for reversed test case %d:\n%+v", i, testCase))
 	}
 
 	orderedPatterns := []string{
@@ -1477,35 +1383,45 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 		"/foo/bar/baz/*",
 		"/foo/bar/*/myfile.txt",
 		"/foo/bar/*/myfile*",
+		"/foo/bar/*/*.txt",
 		"/foo/bar/*/*",
 		"/foo/bar/**/baz/myfile.txt",
-		"/foo/bar/**/myfile.txt",
 		"/foo/bar/**/baz/*.txt",
 		"/foo/bar/**/baz/*",
+		"/foo/bar/**/myfile.txt",
 		"/foo/bar/**",
+		"/foo/ba*r/baz/myfile.txt",
 		"/foo/b?r/baz/myfile.txt",
 		"/foo/?*/baz/myfile.txt",
 		"/foo/?*/**",
-		"/foo/*?/baz/myfile.txt",
 		"/foo/*/baz/myfile.txt",
 		"/foo/*/baz/*",
 		"/foo/*/*/*",
 		"/foo/*/**/baz/myfile.txt",
+		"/foo/**/bar/baz/myfile.txt",
 		"/foo/**/baz/myfile.txt",
 		"/foo/**/baz/**",
+		"/foo/**/myfile.txt",
+		"/**/foo/bar/baz/myfile.txt",
 		"/**/myfile.txt",
 		"/**",
 	}
 	for i := 0; i < len(orderedPatterns); i++ {
 		window := orderedPatterns[i:]
-		result, err := patterns.HighestPrecedencePattern(window)
+		variants := make([]*patterns.PatternVariant, 0, len(window))
+		for _, pattern := range window {
+			variant, err := patterns.ParsePatternVariant(pattern)
+			c.Assert(err, IsNil, Commentf("pattern: %s", pattern))
+			variants = append(variants, variant)
+		}
+		result, err := patterns.HighestPrecedencePattern(variants)
 		c.Check(err, IsNil, Commentf("Error occurred while computing precedence between %v: %v", window, err))
-		c.Check(result, Equals, window[0])
+		c.Check(result.String(), Equals, window[0])
 	}
 
 	// Check that unicode in patterns treated as a single rune, and that escape
 	// characters are not counted, even when escaping unicode runes.
-	for i, testCase := range []struct {
+	for _, testCase := range []struct {
 		longerRunes string
 		longerBytes string
 	}{
@@ -1522,23 +1438,18 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 			`/foo/\🚵\🚵\🚵\🚵\🚵`,
 		},
 	} {
-		testPatterns := []string{testCase.longerRunes, testCase.longerBytes}
-		highestPrecedence, err := patterns.HighestPrecedencePattern(testPatterns)
-		c.Check(err, IsNil, Commentf("Error occurred during test case %d:\n%+v", i, testCase))
-		c.Check(highestPrecedence, Equals, testCase.longerRunes, Commentf("Highest precedence pattern incorrect for test case %d:\n%+v", i, testCase))
+		longerRunes, err := patterns.ParsePatternVariant(testCase.longerRunes)
+		c.Assert(err, IsNil, Commentf("failed to parse pattern variant: %q", testCase.longerRunes))
+		longerBytes, err := patterns.ParsePatternVariant(testCase.longerBytes)
+		c.Assert(err, IsNil, Commentf("failed to parse pattern variant: %q", testCase.longerBytes))
+		c.Check(longerRunes.Compare(longerBytes), Equals, 1, Commentf("testCase: %+v", testCase))
+		c.Check(longerBytes.Compare(longerRunes), Equals, -1, Commentf("testCase: %+v", testCase))
 		c.Check(len(testCase.longerRunes) < len(testCase.longerBytes), Equals, true, Commentf("Higher precedence pattern incorrectly does not have fewer bytes: len(%q) == %d >= len(%q) == %d:\n%+v", testCase.longerRunes, len(testCase.longerRunes), testCase.longerBytes, len(testCase.longerBytes), testCase))
 	}
 }
 
 func (s *patternsSuite) TestHighestPrecedencePatternUnhappy(c *C) {
-	empty, err := patterns.HighestPrecedencePattern([]string{})
+	result, err := patterns.HighestPrecedencePattern([]*patterns.PatternVariant{})
 	c.Check(err, Equals, patterns.ErrNoPatterns)
-	c.Check(empty, Equals, "")
-
-	result, err := patterns.HighestPrecedencePattern([]string{
-		`/foo/bar`,
-		`/foo/bar\`,
-	})
-	c.Check(err, ErrorMatches, "invalid path pattern.*")
-	c.Check(result, Equals, "")
+	c.Check(result, IsNil)
 }
