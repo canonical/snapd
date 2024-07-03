@@ -9,6 +9,7 @@ set -eux
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
+: "${WORK_DIR:=/tmp/work-dir}"
 
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
@@ -475,6 +476,8 @@ cleanup_snapcraft() {
 
 run_snapcraft() {
     ensure_snapcraft
+    # maybe read the log path from snapcraft output as an improvement
+    # but this works
     if ! (cd "${PROJECT_PATH}" && snapcraft "$@"); then
         # shellcheck disable=SC2012
         tail -n1000 "${HOME}/.local/state/snapcraft/log/$(ls -t "${HOME}/.local/state/snapcraft/log/" -1 | head -n1)"
@@ -488,14 +491,14 @@ build_snapd_snap() {
     local snapd_snap_cache
     TARGET="${1}"
 
-    snapd_snap_cache="${WORK_DIR:-/tmp/work-dir}/snapd_snap"
+    snapd_snap_cache="$WORK_DIR/snapd_snap"
     mkdir -p "${snapd_snap_cache}"
     for snap in "${snapd_snap_cache}"/snapd_*.snap; do
         if ! [ -f "${snap}" ]; then
             if [ "${TESTS_USE_PREBUILT_SNAPD_SNAP}" = true ]; then
                 cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "${snapd_snap_cache}/snapd_from_ci.snap"
             else
-                [ -d "${TARGET}" ] || mkdir "${TARGET}"
+                [ -d "${TARGET}" ] || mkdir -p "${TARGET}"
                 chmod -R go+r "${PROJECT_PATH}/tests"
                 run_snapcraft --use-lxd --verbosity quiet --output="snapd_from_snapcraft.snap"
                 mv "${PROJECT_PATH}"/snapd_from_snapcraft.snap "${snapd_snap_cache}"
@@ -513,7 +516,7 @@ build_snapd_snap_with_run_mode_firstboot_tweaks() {
 
     TARGET="${1}"
 
-    snapd_snap_cache="${WORK_DIR:-/tmp/work-dir}/snapd_snap_with_tweaks"
+    snapd_snap_cache="$WORK_DIR/snapd_snap_with_tweaks"
     mkdir -p "${snapd_snap_cache}"
     for snap in "${snapd_snap_cache}"/snapd_*.snap; do
         if [ -f "${snap}" ]; then

@@ -40,7 +40,7 @@ prepare: |
 
   # shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB"/prepare.sh
-  build_snapd_snap_with_run_mode_firstboot_tweaks .
+  build_snapd_snap_with_run_mode_firstboot_tweaks "$PWD"
   mv snapd_*.snap snapd.snap
   inject_snap_into_seed "$IMAGE_MOUNTPOINT" snapd
 
