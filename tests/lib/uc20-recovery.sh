@@ -44,7 +44,7 @@ transition_to_recover_mode(){
 
     # with the external backend, we do not have the special snapd snap with
     # the first-boot run mode tweaks as created from $TESTLIB/prepare.sh's 
-    # repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks func
+    # build_snapd_snap_with_run_mode_firstboot_tweaks func
     # so instead to get the spread gopath and other data needed to continue
     # the test, we need to add a .ssh/rc script which copies all of the data
     # from /host/ubuntu-data in recover mode to the tmpfs /home, see

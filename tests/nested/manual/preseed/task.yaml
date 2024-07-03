@@ -27,8 +27,10 @@ prepare: |
   # into seeds/ to make snap-preseed and the test happy.
 
   # add snapd from this branch into the seed
-  "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
-  mv snapd-from-deb.snap snapd.snap
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB"/prepare.sh
+  build_snapd_snap .
+  mv snapd_*.snap snapd.snap
   inject_snap_into_seed "$IMAGE_MOUNTPOINT" snapd
 
   # test-postgres-system-usernames injected below uses core18 base, while the

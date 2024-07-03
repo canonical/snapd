@@ -146,25 +146,6 @@ repack_snapd_deb_into_snap() {
             # cleanup
             rm -rf core-unpacked
             ;;
-        snapd)
-            # use snapd from edge as a recent snap that should be close to what we will
-            # have in the snapd deb
-            snap download snapd --basename=snapd --edge
-            unsquashfs -d ./snapd-unpacked snapd.snap
-            rm snapd.snap
-
-            # extract all the files from the snapd deb
-            dpkg-deb -x "$deb_file" ./snapd-unpacked
-            # copy preseed config, like we do in snapcraft.yaml for the snap
-            # build
-            cp -av "$PROJECT_PATH/data/preseed.json" ./snapd-unpacked/usr/lib/snapd/
-
-            # repack into the target dir specified
-            snap pack --filename=snapd-from-deb.snap  snapd-unpacked "$target_dir"
-
-            # cleanup
-            rm -rf snapd-unpacked
-            ;;
         *)
             echo "snaps-state: use either core or snapd snaps for repack, snapd $snap_name not supported"
             show_help

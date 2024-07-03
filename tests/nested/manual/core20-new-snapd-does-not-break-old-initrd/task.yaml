@@ -46,9 +46,10 @@ environment:
 prepare: |
   # always build the snapd snap from this branch - on the new variant it gets
   # put into the image, on the old variant it will be refreshed to
-  snap download --channel="latest/edge" snapd
-  "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
-  mv snapd-from-deb.snap snapd-from-branch.snap  
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB"/prepare.sh
+  build_snapd_snap .
+  mv snapd_*.snap snapd-from-branch.snap
 
   # on both variants we use a local, non-asserted version of the snapd snap
   # for the startwithnew variant, we use the snapd from this branch, for the

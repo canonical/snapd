@@ -44,7 +44,8 @@ environment:
     # a global setting for LXD channel to use in the tests
     # TODO: Consider reverting to latest/candidate after Snapcraft compatibility with LXD 5.21 extended version string "5.21 LTS" is fixed
     LXD_SNAP_CHANNEL: "latest/candidate"
-    UBUNTU_IMAGE_SNAP_CHANNEL: "2/stable"
+    OLD_UBUNTU_IMAGE_SNAP_CHANNEL: "2/stable"
+    UBUNTU_IMAGE_SNAP_CHANNEL: "latest/edge"
     SNAPCRAFT_SNAP_CHANNEL: "latest/candidate"
     # controls whether ubuntu-image is built using the current snapd tree as a
     # dependency or the one listed in its go.mod
@@ -107,6 +108,8 @@ environment:
     NESTED_REPACK_GADGET_SNAP: '$(HOST: echo "${NESTED_REPACK_GADGET_SNAP:-true}")'
     NESTED_REPACK_BASE_SNAP: '$(HOST: echo "${NESTED_REPACK_BASE_SNAP:-true}")'
     NESTED_FORCE_MS_KEYS: '$(HOST: echo "${NESTED_FORCE_MS_KEYS:-false}")'
+    # Whether we should use snapd snap ./built-snap/ directory
+    TESTS_USE_PREBUILT_SNAPD_SNAP: '$(HOST: echo "${TESTS_USE_PREBUILT_SNAPD_SNAP:-false}")'
 
 backends:
     google:
@@ -241,15 +244,16 @@ backends:
         location: snapd-spread/us-central1-a
         plan: t2a-standard-1
         halt-timeout: 2h
+        kill-timeout: 60m
         systems:
             - ubuntu-20.04-arm-64:
                   image: ubuntu-os-cloud/ubuntu-2004-lts-arm64
                   workers: 8
-                  storage: 12G
+                  storage: 15G
             - ubuntu-22.04-arm-64:
                   image: ubuntu-os-cloud/ubuntu-2204-lts-arm64
                   workers: 8
-                  storage: 12G
+                  storage: 15G
             - ubuntu-core-22-arm-64:
                   image: ubuntu-22.04-arm-64
                   workers: 6
@@ -1182,10 +1186,12 @@ suites:
             . "$TESTSLIB"/image.sh
             distro_update_package_db
             distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
-            if os.query is-xenial || os.query is-arm; then
+            if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 # also ubuntu-image binary is not prebuilt for arm instances
+                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            elif os.query is-arm; then
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
                get_ubuntu_image
@@ -1207,7 +1213,7 @@ suites:
             tests.nested prepare
             if os.query is-xenial && ! command -v ubuntu-image >/dev/null; then
                 # This is needed because the snap in removed during on restore-each
-                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             fi
         restore-each: |
             tests.nested vm remove
@@ -1239,10 +1245,12 @@ suites:
             . "$TESTSLIB"/image.sh
             distro_update_package_db
             distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
-            if os.query is-xenial || os.query is-arm; then
+            if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 # also ubuntu-image binary is not prebuilt for arm instances
+                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            elif os.query is-arm; then
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
                 get_ubuntu_image
@@ -1300,10 +1308,12 @@ suites:
             . "$TESTSLIB"/image.sh
             distro_update_package_db
             distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
-            if os.query is-xenial || os.query is-arm; then
+            if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 # also ubuntu-image binary is not prebuilt for arm instances
+                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            elif os.query is-arm; then
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
                 get_ubuntu_image
@@ -1363,10 +1373,12 @@ suites:
             . "$TESTSLIB"/image.sh
             distro_update_package_db
             distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
-            if os.query is-xenial || os.query is-arm; then
+            if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 # also ubuntu-image binary is not prebuilt for arm instances
+                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            elif os.query is-arm; then
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
                 get_ubuntu_image
