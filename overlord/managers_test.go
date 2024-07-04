@@ -14555,6 +14555,9 @@ func (s *mgrsSuite) testConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C, 
 		"snap-with-snapd-control:snapd-control core:snapd-control": map[string]interface{}{
 			"interface": "snapd-control",
 			"auto":      true,
+			"plug-static": map[string]interface{}{
+				"refresh-schedule": "managed",
+			},
 		},
 	})
 
@@ -14590,6 +14593,9 @@ func (s *mgrsSuite) testConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C, 
 		"snap-with-snapd-control:snapd-control core:snapd-control": map[string]interface{}{
 			"interface": "snapd-control",
 			"auto":      true,
+			"plug-static": map[string]interface{}{
+				"refresh-schedule": "managed",
+			},
 		},
 	})
 
