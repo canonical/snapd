@@ -348,6 +348,28 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 		return nil, err
 	}
 
+	var policyChecker interfaces.PolicyFunc
+	var autoChecker *autoConnectChecker
+	var connChecker *connectChecker
+
+	deviceCtx, err := snapstate.DeviceCtx(m.state, nil, nil)
+	if errors.Is(err, state.ErrNoState) {
+		// everything else is a noop, as no model means no connections
+		// to reload
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	autoChecker, err = newAutoConnectChecker(m.state, m.repo, deviceCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	connChecker, err = newConnectChecker(m.state, deviceCtx)
+	if err != nil {
+		return nil, err
+	}
+
 	connStateChanged := false
 	affected := make(map[string]bool)
 ConnsLoop:
@@ -402,27 +424,48 @@ ConnsLoop:
 		var updateStaticAttrs bool
 		staticPlugAttrs := connState.StaticPlugAttrs
 		staticSlotAttrs := connState.StaticSlotAttrs
+		newStaticPlugAttrs := utils.NormalizeInterfaceAttributes(plugInfo.Attrs).(map[string]interface{})
+		newStaticSlotAttrs := utils.NormalizeInterfaceAttributes(slotInfo.Attrs).(map[string]interface{})
 
-		// XXX: Refresh the copy of the static connection attributes for "content"
-		// and "system-files" interfaces.
-		// This is a partial and temporary solution to https://bugs.launchpad.net/snapd/+bug/1825883
-		// and https://bugs.launchpad.net/snapd/+bug/1942266.
-		switch plugInfo.Interface {
-		case "content":
-			var plugContent, slotContent string
-			plugInfo.Attr("content", &plugContent)
-			slotInfo.Attr("content", &slotContent)
+		// if the interface was originally autoconnected, update the static attrs if it would
+		// still be allowed to autoconnect. Otherwise, update the static attrs if it would still
+		// be allowed to regular connect.
+		if connState.Auto && !connState.ByGadget {
+			policyChecker = func(cplug *interfaces.ConnectedPlug, cslot *interfaces.ConnectedSlot) (bool, error) {
+				iface, err := interfaces.ByName(cplug.Interface())
+				if err != nil {
+					return false, err
+				}
 
-			if plugContent != "" && plugContent == slotContent {
-				staticPlugAttrs = utils.NormalizeInterfaceAttributes(plugInfo.Attrs).(map[string]interface{})
-				staticSlotAttrs = utils.NormalizeInterfaceAttributes(slotInfo.Attrs).(map[string]interface{})
-				updateStaticAttrs = true
-			} else {
-				logger.Noticef("cannot refresh static attributes of the connection %q", connId)
+				if !iface.AutoConnect(plugInfo, slotInfo) {
+					return false, nil
+				}
+
+				ok, _, err := autoChecker.check(cplug, cslot)
+				return ok, err
 			}
-		case "system-files":
-			staticPlugAttrs = utils.NormalizeInterfaceAttributes(plugInfo.Attrs).(map[string]interface{})
-			staticSlotAttrs = utils.NormalizeInterfaceAttributes(slotInfo.Attrs).(map[string]interface{})
+		} else {
+			policyChecker = connChecker.check
+		}
+
+		plugAppSet, err := interfaces.NewSnapAppSet(plugInfo.Snap, nil)
+		if err != nil {
+			return nil, err
+		}
+		slotAppSet, err := interfaces.NewSnapAppSet(slotInfo.Snap, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		cplug := interfaces.NewConnectedPlug(plugInfo, plugAppSet, newStaticPlugAttrs, connState.DynamicPlugAttrs)
+		cslot := interfaces.NewConnectedSlot(slotInfo, slotAppSet, newStaticSlotAttrs, connState.DynamicSlotAttrs)
+
+		ok, err := policyChecker(cplug, cslot)
+		if !ok || err != nil {
+			logger.Noticef("cannot refresh static attributes of the connection %q", connId)
+		} else {
+			staticPlugAttrs = newStaticPlugAttrs
+			staticSlotAttrs = newStaticSlotAttrs
 			updateStaticAttrs = true
 		}
 
@@ -704,7 +747,6 @@ var DebugAutoConnectCheck func(*policy.ConnectCandidate, interfaces.SideArity, e
 
 type autoConnectChecker struct {
 	st   *state.State
-	task *state.Task
 	repo *interfaces.Repository
 
 	deviceCtx snapstate.DeviceContext
@@ -712,14 +754,13 @@ type autoConnectChecker struct {
 	baseDecl  *asserts.BaseDeclaration
 }
 
-func newAutoConnectChecker(s *state.State, task *state.Task, repo *interfaces.Repository, deviceCtx snapstate.DeviceContext) (*autoConnectChecker, error) {
+func newAutoConnectChecker(s *state.State, repo *interfaces.Repository, deviceCtx snapstate.DeviceContext) (*autoConnectChecker, error) {
 	baseDecl, err := assertstate.BaseDeclaration(s)
 	if err != nil {
 		return nil, fmt.Errorf("internal error: cannot find base declaration: %v", err)
 	}
 	return &autoConnectChecker{
 		st:        s,
-		task:      task,
 		repo:      repo,
 		deviceCtx: deviceCtx,
 		cache:     make(map[string]*asserts.SnapDeclaration),
@@ -833,7 +874,7 @@ func filterUbuntuCoreSlots(candidates []*snap.SlotInfo, arities []interfaces.Sid
 // conns. cannotAutoConnectLog is called to build a log message in
 // case no applicable pair was found. conflictError is called
 // to handle checkAutoconnectConflicts errors.
-func (c *autoConnectChecker) addAutoConnections(newconns map[string]*interfaces.ConnRef, plugs []*snap.PlugInfo, filter func([]*snap.SlotInfo) []*snap.SlotInfo, conns map[string]*schema.ConnState, cannotAutoConnectLog func(plug *snap.PlugInfo, candRefs []string) string, conflictError func(*state.Retry, error) error) error {
+func (c *autoConnectChecker) addAutoConnections(task *state.Task, newconns map[string]*interfaces.ConnRef, plugs []*snap.PlugInfo, filter func([]*snap.SlotInfo) []*snap.SlotInfo, conns map[string]*schema.ConnState, cannotAutoConnectLog func(plug *snap.PlugInfo, candRefs []string) string, conflictError func(*state.Retry, error) error) error {
 	for _, plug := range plugs {
 		candSlots, arities := c.repo.AutoConnectCandidateSlots(plug.Snap.InstanceName(), plug.Name, c.check)
 
@@ -869,12 +910,12 @@ func (c *autoConnectChecker) addAutoConnections(newconns map[string]*interfaces.
 			for i, candidate := range candSlots {
 				crefs[i] = candidate.String()
 			}
-			c.task.Logf(cannotAutoConnectLog(plug, crefs))
+			task.Logf(cannotAutoConnectLog(plug, crefs))
 			continue
 		}
 
 		for _, slot := range applicable {
-			if err := addNewConnection(c.st, c.task, newconns, conns, plug, slot, conflictError); err != nil {
+			if err := addNewConnection(c.st, task, newconns, conns, plug, slot, conflictError); err != nil {
 				return err
 			}
 		}

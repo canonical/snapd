@@ -1,0 +1,21 @@
+name: test-snap-a
+version: version1
+
+apps:
+  sh:
+    command: bin/sh
+    plugs:
+      - etc-foo-bar
+
+plugs:
+  etc-foo-bar:
+    interface: system-files
+    read:
+      - /etc/foo
+
+slots:
+  shm-foo-bar:
+    interface: shared-memory
+    shared-memory: shm-foo-bar
+    read:
+      - foo
