@@ -15,6 +15,7 @@ prepare: |
   echo "Etc Bar!" > /etc/bar
   echo "Default Shm Foo!" > /dev/shm/foo
   echo "Default Shm Bar!" > /dev/shm/bar
+  tests.cleanup defer rm -rf /etc/foo /etc/bar
 
 execute: |
   if [ "$(snap debug confinement)" = partial ] ; then
