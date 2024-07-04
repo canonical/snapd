@@ -23,6 +23,8 @@ import (
 	"bytes"
 	"errors"
 	"strings"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 // variantState is the current variant of a render node.
@@ -77,6 +79,7 @@ func renderAllVariants(n renderNode, observe func(index int, variant *PatternVar
 		variant, err := ParsePatternVariant(buf.String())
 		if err != nil {
 			// This should never occur
+			logger.Noticef("patterns: cannot parse pattern variant '%s': %v", variant, err)
 			continue
 		}
 		observe(i, variant)

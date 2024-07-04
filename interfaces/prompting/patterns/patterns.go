@@ -149,7 +149,7 @@ func PathPatternMatches(pattern string, path string) (bool, error) {
 // Precedence is only defined between patterns which match the same path.
 // Precedence is determined according to which pattern places the earliest and
 // greatest restriction on the path.
-func HighestPrecedencePattern(patterns []*PatternVariant) (*PatternVariant, error) {
+func HighestPrecedencePattern(patterns []*PatternVariant, matchingPath string) (*PatternVariant, error) {
 	switch len(patterns) {
 	case 0:
 		return nil, ErrNoPatterns
@@ -159,7 +159,11 @@ func HighestPrecedencePattern(patterns []*PatternVariant) (*PatternVariant, erro
 
 	currHighest := patterns[0]
 	for _, contender := range patterns[1:] {
-		if currHighest.Compare(contender) < 0 {
+		result, err := currHighest.Compare(contender, matchingPath)
+		if err != nil {
+			return nil, err
+		}
+		if result < 0 {
 			currHighest = contender
 		}
 	}

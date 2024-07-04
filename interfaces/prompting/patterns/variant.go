@@ -70,9 +70,42 @@ func (c *component) String() string {
 	return "###ERR_UNKNOWN_COMPONENT_TYPE###" // Should not occur
 }
 
+func (c *component) componentRegex() string {
+	switch c.compType {
+	case compGlobstar:
+		return `((?:[^/]|\\/)*)`
+	case compSeparatorDoublestarTerminal:
+		return `((?:/.+)?/?)`
+	case compSeparatorDoublestarSeparatorTerminal:
+		return `((?:/.+)?/)`
+	case compSeparatorDoublestar:
+		return `((?:/.+)?)`
+	case compTerminal:
+		return `(/?)`
+	case compSeparator:
+		return `(/)`
+	case compAnySingle:
+		return `([^/])` // does escaped '/' (e.g. `\\/`) count as one character?
+	case compLiteral:
+		return `(` + regexp.QuoteMeta(unescapeLiteral(c.compText)) + `)`
+	}
+	return `()`
+}
+
+var escapeFinder = regexp.MustCompile(`\\(.)`)
+
+func unescapeLiteral(literal string) string {
+	return escapeFinder.ReplaceAllString(literal, "${1}")
+}
+
 type PatternVariant struct {
 	variant    string
 	components []component
+	regex      *regexp.Regexp
+}
+
+func (v *PatternVariant) String() string {
+	return v.variant
 }
 
 // ParsePatternVariant parses a rendered variant string into a PatternVariant
@@ -218,21 +251,24 @@ loop:
 		components = append(components, component{compType: compTerminal})
 	}
 
-	var builder strings.Builder
+	var variantBuf strings.Builder
+	var regexBuf strings.Builder
+	regexBuf.WriteRune('^')
 	for _, c := range components {
-		builder.WriteString(c.String())
+		variantBuf.WriteString(c.String())
+		regexBuf.WriteString(c.componentRegex())
 	}
+	regexBuf.WriteRune('$')
+	regex := regexp.MustCompile(regexBuf.String())
+	regex.Longest()
 
 	v := PatternVariant{
-		variant:    builder.String(),
+		variant:    variantBuf.String(),
 		components: components,
+		regex:      regex,
 	}
 
 	return &v, nil
-}
-
-func (v *PatternVariant) String() string {
-	return v.variant
 }
 
 // Need to replace unescaped "**", but must be careful about an escaped '\\'
@@ -249,49 +285,74 @@ func prepareVariantForParsing(variant string) string {
 
 type componentReader struct {
 	components []component
+	submatches []string
 	index      int
 }
 
-func (r *componentReader) next() *component {
-	if r.index >= len(r.components)-1 {
-		return &component{compType: compTerminal}
+func (r *componentReader) next() (*component, string) {
+	if r.index >= len(r.components) {
+		return &component{compType: compTerminal}, ""
 	}
+	comp := &r.components[r.index]
+	submatch := r.submatches[r.index]
 	r.index++
-	return &r.components[r.index]
+	return comp, submatch
 }
 
-// Compare returns the relative precence of the given pattern variants.
+// Compare returns the relative precence of the receiver and the given pattern
+// variant when considering the given matching path.
 //
-// Returns one of the following:
+// Returns one of the following, if no error occurs:
 // -1 if v has lower precedence than other
 // 0 if v and other have equal precedence (only possible if v == other)
 // 1 if v has higher precedence than other.
-func (v *PatternVariant) Compare(other *PatternVariant) int {
-	selfReader := componentReader{components: v.components}
-	otherReader := componentReader{components: other.components}
+func (v *PatternVariant) Compare(other *PatternVariant, matchingPath string) (int, error) {
+	selfSubmatches := v.regex.FindStringSubmatch(matchingPath)
+	if selfSubmatches == nil {
+		return 0, fmt.Errorf("internal error: no matches for pattern variant against given path:\ncomponents: %+v\nregex: %s\npath: %s", v.components, v.regex.String(), matchingPath)
+	} else if len(selfSubmatches)-1 != len(v.components) {
+		return 0, fmt.Errorf("internal error: submatch count not equal to component count:\ncomponents: %+v\nregex: %s\npath: %s", v.components, v.regex.String(), matchingPath)
+	}
+
+	otherSubmatches := other.regex.FindStringSubmatch(matchingPath)
+	if otherSubmatches == nil {
+		return 0, fmt.Errorf("internal error: no matches for pattern variant against given path\ncomponents: %+v\nregex: %s\npath: %s", other.components, other.regex.String(), matchingPath)
+	} else if len(otherSubmatches)-1 != len(other.components) {
+		return 0, fmt.Errorf("internal error: submatch count not equal to component count:\ncomponents: %+v\nregex: %s\npath: %s", other.components, other.regex.String(), matchingPath)
+	}
+
+	selfReader := componentReader{components: v.components, submatches: selfSubmatches[1:]}
+	otherReader := componentReader{components: other.components, submatches: otherSubmatches[1:]}
+
+loop:
 	for {
-		selfComp := selfReader.next()
-		otherComp := otherReader.next()
+		selfComp, selfSubmatch := selfReader.next()
+		otherComp, otherSubmatch := otherReader.next()
 		if selfComp.compType < otherComp.compType {
-			return -1
+			return -1, nil
 		} else if selfComp.compType > otherComp.compType {
-			return 1
+			return 1, nil
 		}
 		switch selfComp.compType {
-		case compTerminal, compSeparatorDoublestarTerminal, compSeparatorDoublestarSeparatorTerminal:
-			return 0
+		case compGlobstar, compSeparatorDoublestar:
+			// Prioritize shorter matches for variable-width non-terminal components
+			if len(selfSubmatch) > len(otherSubmatch) {
+				return -1, nil
+			} else if len(selfSubmatch) < len(otherSubmatch) {
+				return 1, nil
+			}
+		case compSeparatorDoublestarTerminal, compSeparatorDoublestarSeparatorTerminal, compTerminal:
+			break loop
 		case compLiteral:
-			// do nothing
+			// Prioritize longer literals (which must match exactly)
+			if selfComp.compLen < otherComp.compLen {
+				return -1, nil
+			} else if selfComp.compLen > otherComp.compLen {
+				return 1, nil
+			}
 		default:
 			continue
 		}
-		// Both literals, longest literal probably has precedence, but this is
-		// not guaranteed, as in `/foo/**/bar/file.txt` vs `/foo/**/file.txt`
-		// TODO: fix this by minimizing number of bytes matched by /**/
-		if selfComp.compLen < otherComp.compLen {
-			return -1
-		} else if selfComp.compLen > otherComp.compLen {
-			return 1
-		}
 	}
+	return 0, nil
 }

@@ -200,6 +200,30 @@ func (s *variantSuite) TestParsePatternVariant(c *C) {
 			},
 			"/foo/?*/??*",
 		},
+		// Check that unicode in patterns treated as a single rune, and that escape
+		// characters are not counted, even when escaping unicode runes.
+		{
+			"/foo/🚵🚵",
+			[]component{
+				{compType: compSeparator},
+				{compType: compLiteral, compText: "foo", compLen: 3},
+				{compType: compSeparator},
+				{compType: compLiteral, compText: "🚵🚵", compLen: 2},
+				{compType: compTerminal},
+			},
+			"/foo/🚵🚵",
+		},
+		{
+			`/foo/\🚵\🚵\🚵\🚵\🚵`,
+			[]component{
+				{compType: compSeparator},
+				{compType: compLiteral, compText: "foo", compLen: 3},
+				{compType: compSeparator},
+				{compType: compLiteral, compText: `🚵🚵🚵🚵🚵`, compLen: 5},
+				{compType: compTerminal},
+			},
+			`/foo/🚵🚵🚵🚵🚵`,
+		},
 	} {
 		variant, err := ParsePatternVariant(testCase.pattern)
 		c.Assert(err, IsNil, Commentf("testCase: %+v", testCase))
