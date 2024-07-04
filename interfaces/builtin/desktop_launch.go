@@ -25,6 +25,24 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// The desktop-legacy and unity7 interfaces denies access to the contents of the .desktop files
+// located at /var/lib/snapd/desktop/applications; only the list of files is readable.
+// The desktop-launch interface, instead, gives access to those files contents. But since, in
+// AppArmor, a deny access is "stronger", if the desktop-legacy or the unity7 interfaces are
+// connected, the access to those contents will be forbidden, no matter what the desktop-launch
+// interface adds to the AppArmor configuration.
+//
+// To fix this, a prioritized block is defined with `prioritizedSnippetDesktopFileAccess`, where
+// the AppArmor code inserted by desktop-legacy and unity7 to forbid access to those files is
+// given a lower priority than the code inserted by desktop-launch to allow it. This way, if
+// only the desktop-legacy or the unity7 interfaces are connected, everything will work as
+// before (no access to the contents of the .desktop files), but if the desktop-launch interface
+// is connected too (which, let's remind, it's a very privileged interface), then access to those
+// .desktop files is granted, because the code from desktop-legacy and unity7 is removed.
+
+const desktopLegacyAndUnity7Priority = 0
+const desktopLaunchPriority = 100
+
 var prioritizedSnippetDesktopFileAccess = apparmor.RegisterSnippetKey("desktop-content-access")
 
 type desktopLaunchInterface struct{}
@@ -85,7 +103,7 @@ func (iface *desktopLaunchInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	// interface, so they are added there with the minimum priority, while in this
 	// one an empty string is added with a bigger privilege value, thus removing
 	// those rules when desktop-launch plug is connected.
-	spec.AddPrioritizedSnippet("", prioritizedSnippetDesktopFileAccess, 100)
+	spec.AddPrioritizedSnippet("", prioritizedSnippetDesktopFileAccess, desktopLaunchPriority)
 	return nil
 }
 

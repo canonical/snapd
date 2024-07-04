@@ -391,7 +391,7 @@ func (iface *desktopLegacyInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	// priority, while those other, more privileged, interfaces will add an empty
 	// string with a bigger privilege value.
 	desktopSnippet := strings.Join(getDesktopFileRules(plug.Snap().DesktopPrefix()), "\n")
-	spec.AddPrioritizedSnippet(desktopSnippet, prioritizedSnippetDesktopFileAccess, 0)
+	spec.AddPrioritizedSnippet(desktopSnippet, prioritizedSnippetDesktopFileAccess, desktopLegacyAndUnity7Priority)
 
 	return nil
 }
