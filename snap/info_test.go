@@ -2367,6 +2367,38 @@ hooks:
 	c.Check(hook.SecurityTag(), Equals, "snap.test-snap_instance.hook.install")
 }
 
+func (s *infoSuite) TestTransientScopeGlob(c *C) {
+	pattern, err := snap.TransientScopeGlob("some-snap")
+	c.Assert(err, IsNil)
+	c.Check(pattern, Equals, "snap.some-snap.*.scope")
+	matched, err := filepath.Match(pattern, "snap.some-snap.some-app-4706fe54-7802-4808-aa7e-ae8b567239e0.scope")
+	c.Assert(err, IsNil)
+	c.Check(matched, Equals, true)
+}
+
+func (s *infoSuite) TestTransientScopeGlobInstance(c *C) {
+	pattern, err := snap.TransientScopeGlob("some-snap_instance-1")
+	c.Assert(err, IsNil)
+	c.Check(pattern, Equals, "snap.some-snap_instance-1.*.scope")
+	// matches instance
+	matched, err := filepath.Match(pattern, "snap.some-snap_instance-1.some-app-4706fe54-7802-4808-aa7e-ae8b567239e0.scope")
+	c.Assert(err, IsNil)
+	c.Check(matched, Equals, true)
+	// but not other instances
+	matched, err = filepath.Match(pattern, "snap.some-snap_instance-2.some-app-4706fe54-7802-4808-aa7e-ae8b567239e0.scope")
+	c.Assert(err, IsNil)
+	c.Check(matched, Equals, false)
+	// or the main snap
+	matched, err = filepath.Match(pattern, "snap.some-snap.some-app-4706fe54-7802-4808-aa7e-ae8b567239e0.scope")
+	c.Assert(err, IsNil)
+	c.Check(matched, Equals, false)
+}
+
+func (s *infoSuite) TestTransientScopeError(c *C) {
+	_, err := snap.TransientScopeGlob("invalid?name")
+	c.Assert(err.Error(), Equals, "invalid character in security tag: '?'")
+}
+
 func (s *infoSuite) TestComponentMountDir(c *C) {
 	dir := snap.ComponentMountDir("comp", snap.R(1), "snap")
 	c.Check(dir, Equals, filepath.Join(dirs.SnapMountDir, "snap", "components", "mnt", "comp", "1"))
