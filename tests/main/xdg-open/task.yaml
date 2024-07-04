@@ -4,7 +4,6 @@ summary: Ensure snap userd allows opening a URL via xdg-open
 # a user session environment there
 systems:
     - -amazon-linux-2-*
-    - -centos-7-*
     - -ubuntu-14.04-*
     - -ubuntu-core-*
 

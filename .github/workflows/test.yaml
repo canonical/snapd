@@ -439,7 +439,7 @@ jobs:
             systems: 'arch-linux-64'
           - group: centos
             backend: google-central
-            systems: 'centos-7-64 centos-9-64'
+            systems: 'centos-9-64'
           - group: debian-req
             backend: google-central
             systems: 'debian-11-64'

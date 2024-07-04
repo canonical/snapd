@@ -11,7 +11,6 @@ details: |
 # s390x does not support locationd
 systems:
     - -amazon-linux-2-* # no session services
-    - -centos-7-* # no session services
     - -ubuntu-*-s390x # no support for locationd
     - -ubuntu-14.04-* # no tests.session support
     - -ubuntu-core-* # no session services (except for core20+)

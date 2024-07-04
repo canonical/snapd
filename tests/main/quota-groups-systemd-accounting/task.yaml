@@ -16,7 +16,6 @@ details: |
 # memory cgroup is disabled
 systems:
   - -ubuntu-14.04-*
-  - -centos-7-*
   - -amazon-linux-2-*
   - -ubuntu-16.04-*
   - -ubuntu-core-16-*

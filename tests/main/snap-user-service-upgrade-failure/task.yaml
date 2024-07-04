@@ -5,8 +5,6 @@ systems:
     - -ubuntu-14.04-*
     # Amazon Linux 2 gives error "Unit user@12345.service not loaded."
     - -amazon-linux-2-*
-    # Centos 7 gives error "Unit user@12345.service not loaded."
-    - -centos-7-*
 
     # TODO: dbus issue
     - -ubuntu-core-22-*
