@@ -368,6 +368,18 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 			},
 		}
 		slot.Apps["dbus-daemon"] = info.Apps["dbus-daemon"]
+	case "channel-for-registry":
+		info.Plugs = map[string]*snap.PlugInfo{
+			"my-plug": {
+				Snap:      info,
+				Interface: "registry",
+				Name:      "my-plug",
+				Attrs: map[string]interface{}{
+					"account": "my-publisher",
+					"view":    "my-reg/my-view",
+				},
+			},
+		}
 	}
 
 	if spec.Name == "provenance-snap" {
@@ -559,6 +571,18 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	case "channel-for-core22/stable":
 		info.Base = "core22"
 		info.Revision = snap.R(2)
+	case "channel-for-registry":
+		info.Plugs = map[string]*snap.PlugInfo{
+			"my-plug": {
+				Snap:      info,
+				Interface: "registry",
+				Name:      "my-plug",
+				Attrs: map[string]interface{}{
+					"account": "my-publisher",
+					"view":    "my-reg/my-view",
+				},
+			},
+		}
 	}
 
 	var hit snap.Revision

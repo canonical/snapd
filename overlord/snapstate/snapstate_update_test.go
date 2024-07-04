@@ -13319,6 +13319,31 @@ func (s *snapmgrTestSuite) TestAutoRefreshSplitRefresh(c *C) {
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
 
+func (s *snapmgrTestSuite) TestRefreshWithRegistry(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/edge",
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}}),
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+
+	chg := s.state.NewChange("test", "test change")
+	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-registry"}, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	tasks := tasksWithKind(ts, "validate-snap")
+	c.Assert(tasks, HasLen, 1)
+
+	snapsup, err := snapstate.TaskSnapSetup(tasks[0])
+	c.Assert(err, IsNil)
+	c.Assert(snapsup.Registries, DeepEquals, [][2]string{{"my-publisher", "my-reg"}})
+}
+
 func findTaskForSnap(c *C, chg *state.Change, kind, snap string) *state.Task {
 	for _, t := range chg.Tasks() {
 		if t.Kind() != kind {

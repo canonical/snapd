@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -5369,4 +5369,170 @@ func (s *assertMgrSuite) testValidateComponent(c *C, provenance string) {
 		"store": "my-brand-store",
 	})
 	c.Assert(err, IsNil)
+}
+
+func (s *assertMgrSuite) setupRegistry(c *C) *snap.SideInfo {
+	extraHeaders := map[string]interface{}{
+		"revision": "1",
+		"views": map[string]interface{}{
+			"my-view": map[string]interface{}{
+				"rules": []interface{}{
+					map[string]interface{}{"request": "foo", "storage": "foo"},
+				},
+			},
+		},
+		"body-length": "60",
+	}
+	schema := `{
+  "storage": {
+    "schema": {
+      "foo": "any"
+    }
+  }
+}`
+	regAs := s.registry(c, "my-registry", extraHeaders, schema)
+	err := s.storeSigning.Add(regAs)
+	c.Assert(err, IsNil)
+
+	si := &snap.SideInfo{
+		RealName: "foo",
+		SnapID:   "snap-id-1",
+		Revision: snap.R(10),
+	}
+
+	return si
+}
+
+func (s *assertMgrSuite) TestFetchRegistryAssertion(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	paths, _ := s.prereqSnapAssertions(c, "", 10)
+	snapPath := paths[10]
+	si := s.setupRegistry(c)
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	err := s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("install", "...")
+	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
+
+	snapsup := snapstate.SnapSetup{
+		SnapPath:   snapPath,
+		UserID:     0,
+		SideInfo:   si,
+		Registries: [][2]string{{s.dev1Acct.AccountID(), "my-registry"}},
+	}
+
+	t.Set("snap-setup", snapsup)
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{snapsup.SideInfo}),
+		Current:         snapsup.Revision(),
+		TrackingChannel: "latest/stable",
+	})
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	reg, err := assertstate.DB(s.state).Find(asserts.RegistryType, map[string]string{
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "my-registry",
+	})
+	c.Assert(err, IsNil)
+	c.Check(reg, NotNil)
+
+	// store assertion was also fetched
+	_, err = assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
+		"store": "my-brand-store",
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *assertMgrSuite) TestRegistryAssertionsAutoRefreshBulkFetch(c *C) {
+	s.testRegistryAssertionsAutoRefresh(c)
+	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, true)
+}
+
+func (s *assertMgrSuite) TestRegistryAssertionsAutoRefreshSingleFetch(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	s.fakeStore.(*fakeStore).snapActionErr = &store.UnexpectedHTTPStatusError{StatusCode: 500}
+	s.testRegistryAssertionsAutoRefresh(c)
+
+	// get the last line (we call AutoRefresh more than once)
+	log := logbuf.String()
+	i := strings.LastIndex(log[:len(log)-2], "\n")
+	c.Check(log[i+1:], Matches, "(?m).*bulk refresh of registry assertions failed, falling back to one-by-one assertion fetching:.*HTTP status code 500.*")
+}
+
+func (s *assertMgrSuite) testRegistryAssertionsAutoRefresh(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	err := s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	extraHeaders := map[string]interface{}{
+		"revision": "1",
+		"views": map[string]interface{}{
+			"my-view": map[string]interface{}{
+				"rules": []interface{}{
+					map[string]interface{}{"request": "foo", "storage": "foo"},
+				},
+			},
+		},
+		"body-length": "60",
+	}
+	schema := `{
+  "storage": {
+    "schema": {
+      "foo": "any"
+    }
+  }
+}`
+	regAs := s.registry(c, "my-registry", extraHeaders, schema)
+	err = s.storeSigning.Add(regAs)
+	c.Assert(err, IsNil)
+
+	// store revision 1 of the registry assertion locally
+	for _, as := range []asserts.Assertion{s.storeSigning.StoreAccountKey(""), s.dev1Acct, s.dev1AcctKey, regAs} {
+		err = assertstate.Add(s.state, as)
+		c.Assert(err, IsNil)
+	}
+
+	// precondition check
+	c.Assert(assertstate.AutoRefreshAssertions(s.state, 0), IsNil)
+	db := assertstate.DB(s.state)
+	reg, err := db.Find(asserts.RegistryType, map[string]string{
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "my-registry",
+	})
+	c.Assert(err, IsNil)
+	c.Check(reg.Revision(), Equals, 1)
+
+	extraHeaders["revision"] = "2"
+	regAs = s.registry(c, "my-registry", extraHeaders, schema)
+	err = s.storeSigning.Add(regAs)
+	c.Assert(err, IsNil)
+
+	// auto-refresh should obtain revision 2
+	c.Assert(assertstate.AutoRefreshAssertions(s.state, 0), IsNil)
+
+	a, err := db.Find(asserts.RegistryType, map[string]string{
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "my-registry",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.Revision(), Equals, 2)
 }

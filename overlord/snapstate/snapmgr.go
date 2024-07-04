@@ -149,6 +149,10 @@ type SnapSetup struct {
 	// DownloadBlobDir is the directory where the snap blob is downloaded to. If
 	// empty, dir.SnapBlobDir is used.
 	DownloadBlobDir string `json:"download-blob-dir,omitempty"`
+
+	// Registries is the set of registries that the snap plugs, identified by
+	// account and registry name pairs.
+	Registries [][2]string
 }
 
 func (snapsup *SnapSetup) InstanceName() string {

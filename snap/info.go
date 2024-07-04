@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2022 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1912,4 +1912,30 @@ var verToSnapDecl = []struct {
 	{"2.23", 2},
 	// ancient
 	{"2.17", 1},
+}
+
+// RegistryPlugAttrs returns the account, registry and view specified in a plug
+// if that plug is of type registry. If it's not or the information cannot be
+// found, returns an error.
+func RegistryPlugAttrs(plug *PlugInfo) (account, registry, view string, err error) {
+	if plug.Interface != "registry" {
+		return "", "", "", fmt.Errorf("cannot get registry attributes: must be registry plug: %s", plug.Interface)
+	}
+
+	if err := plug.Attr("account", &account); err != nil {
+		return "", "", "", err
+	}
+
+	var registryView string
+	if err := plug.Attr("view", &registryView); err != nil {
+		return "", "", "", err
+	}
+
+	parts := strings.Split(registryView, "/")
+	if len(parts) != 2 {
+		return "", "", "", fmt.Errorf("cannot get registry attrs: \"view\" must conform to <registry>/<view>: %s", view)
+	}
+	registry, view = parts[0], parts[1]
+
+	return account, registry, view, nil
 }

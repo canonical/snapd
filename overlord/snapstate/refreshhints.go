@@ -179,6 +179,20 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 			continue
 		}
 
+		var registries [][2]string
+		for _, plug := range update.Plugs {
+			if plug.Interface != "registry" {
+				continue
+			}
+
+			account, registry, _, err := snap.RegistryPlugAttrs(plug)
+			if err != nil {
+				return nil, err
+			}
+
+			registries = append(registries, [2]string{account, registry})
+		}
+
 		monitoring := IsSnapMonitored(st, update.InstanceName())
 		providerContentAttrs := defaultProviderContentAttrs(st, update, nil)
 		snapsup := &refreshCandidate{
@@ -202,6 +216,7 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 					// old snapd
 					Website: update.Website(),
 				},
+				Registries: registries,
 			},
 			// preserve fields not related to snap-setup
 			Monitored: monitoring,

@@ -154,6 +154,20 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 		return nil, nil, err
 	}
 
+	var registries [][2]string
+	for _, plug := range ins.Plugs {
+		if plug.Interface != "registry" {
+			continue
+		}
+
+		account, registry, _, err := snap.RegistryPlugAttrs(plug)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		registries = append(registries, [2]string{account, registry})
+	}
+
 	providerContentAttrs := defaultProviderContentAttrs(st, update, prqt)
 	snapsup := SnapSetup{
 		Base:               update.Base,
@@ -175,6 +189,7 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 			Website: update.Website(),
 		},
 		ExpectedProvenance: update.SnapProvenance,
+		Registries:         registries,
 	}
 	snapsup.IgnoreRunning = globalFlags.IgnoreRunning
 	return &snapsup, snapst, nil

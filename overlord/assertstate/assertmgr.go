@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -109,6 +109,13 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	err = doFetch(st, snapsup.UserID, deviceCtx, nil, func(f asserts.Fetcher) error {
 		if err := snapasserts.FetchSnapAssertions(f, sha3_384, expectedProv); err != nil {
 			return err
+		}
+
+		for _, accRegistryID := range snapsup.Registries {
+			account, registry := accRegistryID[0], accRegistryID[1]
+			if err := snapasserts.FetchRegistry(f, account, registry); err != nil {
+				return err
+			}
 		}
 
 		// fetch store assertion if available

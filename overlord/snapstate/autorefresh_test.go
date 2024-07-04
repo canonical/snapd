@@ -1593,3 +1593,55 @@ func (s *autoRefreshTestSuite) TestMaybeAsyncPendingRefreshNotificationSkips(c *
 
 	snapstate.MaybeAsyncPendingRefreshNotification(context.TODO(), s.state, &userclient.PendingSnapRefreshInfo{})
 }
+
+func (s *autoRefreshTestSuite) TestAutoRefreshWithRegistries(c *C) {
+	si := &snap.SideInfo{
+		RealName: "foo",
+		SnapID:   "foo-id",
+		Revision: snap.R(1),
+	}
+	s.state.Lock()
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		SnapType: string(snap.TypeApp),
+	})
+	s.state.Unlock()
+
+	info := &snap.Info{
+		SnapType:      snap.TypeApp,
+		Architectures: []string{"all"},
+		SideInfo: snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(8),
+		},
+	}
+	info.Plugs = map[string]*snap.PlugInfo{
+		"my-plug": {
+			Snap:      info,
+			Name:      "my-plug",
+			Interface: "registry",
+			Attrs: map[string]interface{}{
+				"account": "my-publisher",
+				"view":    "my-reg/my-view",
+			},
+		},
+	}
+	s.store.refreshable = append(s.store.refreshable, info)
+
+	af := snapstate.NewAutoRefresh(s.state)
+	err := af.Ensure()
+	c.Check(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chgs := s.state.Changes()
+	c.Assert(chgs, HasLen, 1)
+	task := findLastTask(chgs[0], "validate-snap")
+
+	snapsup, err := snapstate.TaskSnapSetup(task)
+	c.Assert(err, IsNil)
+	c.Assert(snapsup.Registries, DeepEquals, [][2]string{{"my-publisher", "my-reg"}})
+}
