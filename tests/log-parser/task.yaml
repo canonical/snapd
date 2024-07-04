@@ -1,9 +1,14 @@
 summary: test for the log parser tool
 
+details: |
+    This test checks the log-parser tool is able to read different spread
+    logs and produce a json file with the logs info. This json file contains
+    all the information from the log but structured in json format.
+
 backends: [google]
 
-# Github actions agents are just running in bionic and focal
-systems: [ubuntu-18.04-64, ubuntu-20.04-64]
+# Github actions agents are just running ubuntu jammy
+systems: [ubuntu-22.04-64]
 
 execute: |
     log-parser --help | MATCH 'usage: log-parser \[-h\] \[-c CUT\]'
@@ -82,25 +87,34 @@ execute: |
     jq -r '.[] | select( .type == "result") | select( .result_type == "Failed")  | select(.level == "tasks") | .detail' spread-results.json | MATCH "degraded"
 
     # Check the filter
-    test "$(log-parser with-failed-and-aborted.log.spread -pd error | grep -c "Error preparing")" -eq 5
-    test "$(log-parser with-failed-and-aborted.log.spread -pd error | grep -c "command -v restorecon")" -eq 4
+    test "$(log-parser with-failed-and-aborted.log.spread | grep -c "Error preparing")" -eq 5
+    test "$(log-parser with-failed-and-aborted.log.spread | grep -c "command -v restorecon")" -eq 4
     
-    # Check the filter cuting the logs
-    test "$(log-parser with-failed-and-aborted.log.spread -pd error | wc -l)" -eq 184
-    test "$(log-parser with-failed-and-aborted.log.spread -pd error -c 0 | wc -l)" -eq 14
-    test "$(log-parser with-failed-and-aborted.log.spread -pd error -c 0 | grep -c "Error preparing")" -eq 5
-    test "$(log-parser with-failed-and-aborted.log.spread -pd error -c 0 | grep -c "<kill-timeout reached>")" -eq 0
-    test "$(log-parser with-failed-and-aborted.log.spread -pd error -c 2 | wc -l)" -eq 26
-    test "$(log-parser with-failed-and-aborted.log.spread -pd error -c 2 | grep -c "Error preparing")" -eq 5
-    test "$(log-parser with-failed-and-aborted.log.spread -pd error -c 2 | grep -c "<kill-timeout reached>")" -eq 5
-    test "$(log-parser with-failed-and-aborted.log.spread -pd error -c 3 | wc -l)" -eq 32
-    test "$(log-parser with-failed-and-aborted.log.spread -pd error -c 3 | grep -c "Error preparing")" -eq 5
-    test "$(log-parser with-failed-and-aborted.log.spread -pd error -c 3 | grep -c "<kill-timeout reached>")" -eq 5
+    # Check the filter cutting the logs
+    test "$(log-parser with-failed-and-aborted.log.spread | wc -l)" -eq 261
+    test "$(log-parser with-failed-and-aborted.log.spread -c 0 | wc -l)" -eq 77
+    test "$(log-parser with-failed-and-aborted.log.spread -c 0 | grep -c "Error preparing")" -eq 5
+    test "$(log-parser with-failed-and-aborted.log.spread -c 0 | grep -c "<kill-timeout reached>")" -eq 0
+    test "$(log-parser with-failed-and-aborted.log.spread -c 2 | wc -l)" -eq 91
+    test "$(log-parser with-failed-and-aborted.log.spread -c 2 | grep -c "Error preparing")" -eq 5
+    test "$(log-parser with-failed-and-aborted.log.spread -c 2 | grep -c "<kill-timeout reached>")" -eq 5
+    test "$(log-parser with-failed-and-aborted.log.spread -c 3 | wc -l)" -eq 98
+    test "$(log-parser with-failed-and-aborted.log.spread -c 3 | grep -c "Error preparing")" -eq 5
+    test "$(log-parser with-failed-and-aborted.log.spread -c 3 | grep -c "<kill-timeout reached>")" -eq 5
     
     # Check the results can be filtered
-    log-parser with-failed-and-aborted.log.spread -pr failed | grep -q "Failed tasks: 1"
-    log-parser with-failed-and-aborted.log.spread -pr failed | grep -c "Failed project prepare: 4"
-    log-parser with-failed-and-aborted.log.spread -pr aborted | grep -c "Aborted tasks: 24"
-    log-parser all-successful.log.spread -pr successful | grep -q "Successful tasks: 434"
-    log-parser all-successful.log.spread -pr failed | grep -v "Aborted tasks"
+    log-parser with-failed-and-aborted.log.spread | grep -q "Failed tasks: 1"
+    log-parser with-failed-and-aborted.log.spread | grep -c "Failed project prepare: 4"
+    log-parser with-failed-and-aborted.log.spread | grep -c "Aborted tasks: 24"
+    log-parser all-successful.log.spread | grep -q "Successful tasks: 434"
+    log-parser all-successful.log.spread | grep -v "Aborted tasks"
 
+    # Check filtering the debug output
+    log-parser with-debug-output.log.spread -c 1 -dr "executed_tests=EXECUTED_TESTS=(.*)" -dr "apparmor_version=AppArmor parser version .*"
+    test "$(jq -r '.[0].detail.executed_tests[0]' spread-results.json | wc -w)" -eq 44
+    test "$(jq -r '.[0].detail.apparmor_version[0]' spread-results.json)" = "AppArmor parser version 2.13.3"
+
+    # Check filtering the error output
+    log-parser with-error-output.log.spread -c 1 -er "executed_tests=EXECUTED_TESTS=(.*)" -er "apparmor_version=AppArmor parser version .*"
+    test "$(jq -r '.[0].detail.executed_tests[0]' spread-results.json | wc -w)" -eq 44
+    test "$(jq -r '.[0].detail.apparmor_version[0]' spread-results.json)" = "AppArmor parser version 2.13.3"

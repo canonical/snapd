@@ -113,6 +113,25 @@
         "task": "google:ubuntu-22.04-64:tests/test-2"
     },
     {
+        "type": "info",
+        "date": "2022-05-24",
+        "time": "17:43:54",
+        "info_type": "Error",
+        "verb": "executing",
+        "task": "google:ubuntu-22.04-64:tests/test-2",
+        "extra": null,
+        "detail": {
+            "lines": [
+                "-----\n",
+                "+ echo execute\n",
+                "execute\n",
+                "+ exit 1\n",
+                "-----\n",
+                ".\n"
+            ]
+        }
+    },
+    {
         "type": "phase",
         "date": "2022-05-24",
         "time": "17:43:55",
@@ -394,26 +413,19 @@
         "time": "17:44:18",
         "info_type": "Error",
         "verb": "restoring",
-        "task": "google:ubuntu-20.04-64",
+        "task": "google:ubuntu-20.04-64:tests/",
         "extra": null,
-        "detail": {
-            "lines": [
-                "-----\n",
-                "+ echo 'Restore snapd-testing-tools project'\n",
-                "Restore snapd-testing-tools project\n",
-                "/bin/bash: line 26: PROJECT_PATH: unbound variable\n",
-                "-----\n",
-                ".\n"
-            ]
-        }
+        "detail": null
     },
     {
-        "type": "action",
+        "type": "info",
         "date": "2022-05-24",
         "time": "17:44:18",
-        "verb": "Discarding",
-        "task": null,
-        "extra": "google:ubuntu-20.04-64 (may242043-312500)..."
+        "info_type": "Error",
+        "verb": "restoring",
+        "task": "google:ubuntu-20.04-64",
+        "extra": null,
+        "detail": null
     },
     {
         "type": "result",
@@ -422,7 +434,7 @@
         "result_type": "Successful",
         "level": "tasks",
         "stage": null,
-        "number": "10",
+        "number": "9",
         "detail": null
     },
     {
@@ -434,6 +446,34 @@
         "stage": null,
         "number": "0",
         "detail": null
+    },
+    {
+        "type": "result",
+        "date": "2022-05-24",
+        "time": "17:44:19",
+        "result_type": "Failed",
+        "level": "tasks",
+        "stage": null,
+        "number": "1",
+        "detail": {
+            "lines": [
+                "    - google:ubuntu-22.04-64:tests/test-2\n"
+            ]
+        }
+    },
+    {
+        "type": "result",
+        "date": "2022-05-24",
+        "time": "17:44:19",
+        "result_type": "Failed",
+        "level": "suite",
+        "stage": "restore",
+        "number": "1",
+        "detail": {
+            "lines": [
+                "    - google:ubuntu-20.04-64:tests/\n"
+            ]
+        }
     },
     {
         "type": "result",
