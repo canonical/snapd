@@ -4,9 +4,6 @@ details: |
     The kernel-module-load interface allows to statically control kernel module
     loading in a way that can be constrained via snap-declaration.
 
-# The bfq module is not present in centos7
-systems: [-centos-7-*]
-
 environment:
     SNAP_NAME: test-snapd-kernel-module-load
 

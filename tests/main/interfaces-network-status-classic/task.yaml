@@ -12,8 +12,6 @@ systems:
   - -ubuntu-core-*
   # stub portal implementation doesn't seem to start on 14.04
   - -ubuntu-14.04-*
-  # CentOS 7 does not include Python 3 D-Bus bindings
-  - -centos-7-*
   # Amazon-linux does not include Python 3 D-Bus bindings
   - -amazon-linux-2-*
   - -amazon-linux-2023-*
