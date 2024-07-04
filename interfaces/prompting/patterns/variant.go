@@ -44,7 +44,6 @@ const (
 
 type component struct {
 	compType componentType
-	compLen  int
 	compText string
 }
 
@@ -113,7 +112,6 @@ func (v *PatternVariant) String() string {
 func ParsePatternVariant(variant string) (*PatternVariant, error) {
 	var components []component
 	var runes []rune
-	var runeCount int
 
 	// prevComponentsAre returns true if the most recent components have types
 	// matching the given target.
@@ -152,9 +150,8 @@ func ParsePatternVariant(variant string) (*PatternVariant, error) {
 	consumeText := func() {
 		if len(runes) > 0 {
 			reducePrevDoublestar()
-			components = append(components, component{compType: compLiteral, compText: string(runes), compLen: runeCount})
+			components = append(components, component{compType: compLiteral, compText: string(runes)})
 			runes = nil
-			runeCount = 0
 		}
 	}
 
@@ -224,13 +221,11 @@ loop:
 				// do not add r to runes if it's unnecessary
 				runes = append(runes, r2)
 			}
-			runeCount++ // don't count escape characters
 		case '[', ']', '{', '}':
 			// Should be impossible, we just rendered this variant
 			return nil, fmt.Errorf(`internal error: unexpected unescaped '%v' character`, r)
 		default:
 			runes = append(runes, r)
-			runeCount++
 		}
 	}
 
@@ -345,9 +340,9 @@ loop:
 			break loop
 		case compLiteral:
 			// Prioritize longer literals (which must match exactly)
-			if selfComp.compLen < otherComp.compLen {
+			if selfSubmatch < otherSubmatch {
 				return -1, nil
-			} else if selfComp.compLen > otherComp.compLen {
+			} else if selfSubmatch > otherSubmatch {
 				return 1, nil
 			}
 		default:
