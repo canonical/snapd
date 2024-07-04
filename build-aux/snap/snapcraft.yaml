@@ -136,12 +136,6 @@ parts:
       - pkg-config
       - wget
     source: https://gitlab.com/apparmor/apparmor/-/archive/v4.0.1/apparmor-v4.0.1.tar.gz
-    override-pull: |
-      craftctl default
-      # apply local apparmor patches
-      for patch in "${CRAFT_PROJECT_DIR}"/build-aux/snap/local/patches/apparmor/*; do
-          patch -p1 < $patch
-      done
     override-build: |
       cd "${CRAFT_PART_BUILD}"/libraries/libapparmor
       ./autogen.sh
