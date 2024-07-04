@@ -185,156 +185,20 @@ pivot_root,
 # when the AppArmor parser bugs are fixed) this can go back to the much simpler
 # rule:
 # change_profile unsafe /** -> docker-default,
-# but until then we are stuck with:
-change_profile unsafe /[^s]** -> docker-default,
-change_profile unsafe /s[^n]** -> docker-default,
-change_profile unsafe /sn[^a]** -> docker-default,
-change_profile unsafe /sna[^p]** -> docker-default,
-change_profile unsafe /snap[^/]** -> docker-default,
-change_profile unsafe /snap/[^sc]** -> docker-default,
-change_profile unsafe /snap/{s[^n],c[^o]}** -> docker-default,
-change_profile unsafe /snap/{sn[^a],co[^r]}** -> docker-default,
-change_profile unsafe /snap/{sna[^p],cor[^e]}** -> docker-default,
-
-# branch for the /snap/core/... paths
-change_profile unsafe /snap/core[^/]** -> docker-default,
-change_profile unsafe /snap/core/*/[^u]** -> docker-default,
-change_profile unsafe /snap/core/*/u[^s]** -> docker-default,
-change_profile unsafe /snap/core/*/us[^r]** -> docker-default,
-change_profile unsafe /snap/core/*/usr[^/]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/[^l]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/l[^i]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/li[^b]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/lib[^/]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/lib/[^s]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/lib/s[^n]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/lib/sn[^a]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/lib/sna[^p]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/lib/snap[^d]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/lib/snapd[^/]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/lib/snapd/[^s]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/lib/snapd/s[^n]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/lib/snapd/sn[^a]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/lib/snapd/sna[^p]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap[^-]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-[^c]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-c[^o]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-co[^n]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-con[^f]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-conf[^i]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-confi[^n]** -> docker-default,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-confin[^e]** -> docker-default,
-
-# branch for the /snap/snapd/... paths
-change_profile unsafe /snap/snap[^d]** -> docker-default,
-change_profile unsafe /snap/snapd[^/]** -> docker-default,
-change_profile unsafe /snap/snapd/*/[^u]** -> docker-default,
-change_profile unsafe /snap/snapd/*/u[^s]** -> docker-default,
-change_profile unsafe /snap/snapd/*/us[^r]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr[^/]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/[^l]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/l[^i]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/li[^b]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/lib[^/]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/lib/[^s]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/lib/s[^n]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/lib/sn[^a]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/lib/sna[^p]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/lib/snap[^d]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd[^/]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/[^s]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/s[^n]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/sn[^a]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/sna[^p]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap[^-]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-[^c]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-c[^o]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-co[^n]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-con[^f]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-conf[^i]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-confi[^n]** -> docker-default,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-confin[^e]** -> docker-default,
-
+# below are auto-generated rules using GenerateAAREExclusionPatterns
+###EXCL{change_profile unsafe <> -> docker-default,:/snap/snapd/*/usr/lib/snapd/snap-confine,/snap/core/*/usr/lib/snapd/snap-confine}###
 
 # signal/tracing rules too
 signal (send) peer=docker-default,
 ptrace (read, trace) peer=docker-default,
-
 
 # defaults for containerd
 # TODO: When we drop support for executing other snaps from devmode snaps (or 
 # when the AppArmor parser bugs are fixed) this can go back to the much simpler
 # rule:	
 # change_profile unsafe /** -> cri-containerd.apparmor.d,
-# see above comment, we need this because we can't have nice things
-change_profile unsafe /[^s]** -> cri-containerd.apparmor.d,
-change_profile unsafe /s[^n]** -> cri-containerd.apparmor.d,
-change_profile unsafe /sn[^a]** -> cri-containerd.apparmor.d,
-change_profile unsafe /sna[^p]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap[^/]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/[^sc]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/{s[^n],c[^o]}** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/{sn[^a],co[^r]}** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/{sna[^p],cor[^e]}** -> cri-containerd.apparmor.d,
-
-# branch for the /snap/core/... paths
-change_profile unsafe /snap/core[^/]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/[^u]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/u[^s]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/us[^r]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr[^/]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/[^l]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/l[^i]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/li[^b]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/lib[^/]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/lib/[^s]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/lib/s[^n]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/lib/sn[^a]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/lib/sna[^p]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/lib/snap[^d]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/lib/snapd[^/]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/lib/snapd/[^s]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/lib/snapd/s[^n]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/lib/snapd/sn[^a]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/lib/snapd/sna[^p]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap[^-]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-[^c]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-c[^o]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-co[^n]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-con[^f]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-conf[^i]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-confi[^n]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-confin[^e]** -> cri-containerd.apparmor.d,
-
-# branch for the /snap/snapd/... paths
-change_profile unsafe /snap/snap[^d]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd[^/]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/[^u]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/u[^s]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/us[^r]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr[^/]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/[^l]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/l[^i]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/li[^b]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/lib[^/]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/lib/[^s]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/lib/s[^n]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/lib/sn[^a]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/lib/sna[^p]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/lib/snap[^d]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd[^/]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/[^s]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/s[^n]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/sn[^a]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/sna[^p]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap[^-]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-[^c]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-c[^o]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-co[^n]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-con[^f]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-conf[^i]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-confi[^n]** -> cri-containerd.apparmor.d,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-confin[^e]** -> cri-containerd.apparmor.d,
+# below are auto-generated rules using GenerateAAREExclusionPatterns
+###EXCL{change_profile unsafe <> -> cri-containerd.apparmor.d,:/snap/snapd/*/usr/lib/snapd/snap-confine,/snap/core/*/usr/lib/snapd/snap-confine}###
 
 # signal/tracing rules too
 signal (send) peer=cri-containerd.apparmor.d,
@@ -824,74 +688,8 @@ const dockerSupportPrivilegedAppArmor = `
 # but until then we need this set of rules to avoid exec transition conflicts.
 # See also the comment above the "change_profile unsafe /** -> docker-default," 
 # rule for more context.
-change_profile unsafe /[^s]**,
-change_profile unsafe /s[^n]**,
-change_profile unsafe /sn[^a]**,
-change_profile unsafe /sna[^p]**,
-change_profile unsafe /snap[^/]**,
-change_profile unsafe /snap/[^sc]**,
-change_profile unsafe /snap/{s[^n],c[^o]}**,
-change_profile unsafe /snap/{sn[^a],co[^r]}**,
-change_profile unsafe /snap/{sna[^p],cor[^e]}**,
-
-# branch for the /snap/core/... paths
-change_profile unsafe /snap/core[^/]**,
-change_profile unsafe /snap/core/*/[^u]**,
-change_profile unsafe /snap/core/*/u[^s]**,
-change_profile unsafe /snap/core/*/us[^r]**,
-change_profile unsafe /snap/core/*/usr[^/]**,
-change_profile unsafe /snap/core/*/usr/[^l]**,
-change_profile unsafe /snap/core/*/usr/l[^i]**,
-change_profile unsafe /snap/core/*/usr/li[^b]**,
-change_profile unsafe /snap/core/*/usr/lib[^/]**,
-change_profile unsafe /snap/core/*/usr/lib/[^s]**,
-change_profile unsafe /snap/core/*/usr/lib/s[^n]**,
-change_profile unsafe /snap/core/*/usr/lib/sn[^a]**,
-change_profile unsafe /snap/core/*/usr/lib/sna[^p]**,
-change_profile unsafe /snap/core/*/usr/lib/snap[^d]**,
-change_profile unsafe /snap/core/*/usr/lib/snapd[^/]**,
-change_profile unsafe /snap/core/*/usr/lib/snapd/[^s]**,
-change_profile unsafe /snap/core/*/usr/lib/snapd/s[^n]**,
-change_profile unsafe /snap/core/*/usr/lib/snapd/sn[^a]**,
-change_profile unsafe /snap/core/*/usr/lib/snapd/sna[^p]**,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap[^-]**,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-[^c]**,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-c[^o]**,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-co[^n]**,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-con[^f]**,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-conf[^i]**,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-confi[^n]**,
-change_profile unsafe /snap/core/*/usr/lib/snapd/snap-confin[^e]**,
-
-# branch for the /snap/snapd/... paths
-change_profile unsafe /snap/snap[^d]**,
-change_profile unsafe /snap/snapd[^/]**,
-change_profile unsafe /snap/snapd/*/[^u]**,
-change_profile unsafe /snap/snapd/*/u[^s]**,
-change_profile unsafe /snap/snapd/*/us[^r]**,
-change_profile unsafe /snap/snapd/*/usr[^/]**,
-change_profile unsafe /snap/snapd/*/usr/[^l]**,
-change_profile unsafe /snap/snapd/*/usr/l[^i]**,
-change_profile unsafe /snap/snapd/*/usr/li[^b]**,
-change_profile unsafe /snap/snapd/*/usr/lib[^/]**,
-change_profile unsafe /snap/snapd/*/usr/lib/[^s]**,
-change_profile unsafe /snap/snapd/*/usr/lib/s[^n]**,
-change_profile unsafe /snap/snapd/*/usr/lib/sn[^a]**,
-change_profile unsafe /snap/snapd/*/usr/lib/sna[^p]**,
-change_profile unsafe /snap/snapd/*/usr/lib/snap[^d]**,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd[^/]**,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/[^s]**,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/s[^n]**,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/sn[^a]**,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/sna[^p]**,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap[^-]**,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-[^c]**,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-c[^o]**,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-co[^n]**,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-con[^f]**,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-conf[^i]**,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-confi[^n]**,
-change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-confin[^e]**,
+# below are auto-generated rules using GenerateAAREExclusionPatterns
+###EXCL{change_profile unsafe <>,:/snap/snapd/*/usr/lib/snapd/snap-confine,/snap/core/*/usr/lib/snapd/snap-confine}###
 
 # allow signaling and tracing any unconfined process since if containers are 
 # launched without confinement docker still needs to trace them
@@ -914,73 +712,8 @@ ptrace (read, trace) peer=unconfined,
 # but until then we need this set of rules to avoid exec transition conflicts.
 # See also the comment above the "change_profile unsafe /** -> docker-default," 
 # rule for more context.
-/[^s]** rwlix,
-/s[^n]** rwlix,
-/sn[^a]** rwlix,
-/sna[^p]** rwlix,
-/snap/[^sc]** rwlix,
-/snap/{s[^n],c[^o]}** rwlix,
-/snap/{sn[^a],co[^r]}** rwlix,
-/snap/{sna[^p],cor[^e]}** rwlix,
-
-# branch for the /snap/core/... paths
-/snap/core[^/]** rwlix,
-/snap/core/*/[^u]** rwlix,
-/snap/core/*/u[^s]** rwlix,
-/snap/core/*/us[^r]** rwlix,
-/snap/core/*/usr[^/]** rwlix,
-/snap/core/*/usr/[^l]** rwlix,
-/snap/core/*/usr/l[^i]** rwlix,
-/snap/core/*/usr/li[^b]** rwlix,
-/snap/core/*/usr/lib[^/]** rwlix,
-/snap/core/*/usr/lib/[^s]** rwlix,
-/snap/core/*/usr/lib/s[^n]** rwlix,
-/snap/core/*/usr/lib/sn[^a]** rwlix,
-/snap/core/*/usr/lib/sna[^p]** rwlix,
-/snap/core/*/usr/lib/snap[^d]** rwlix,
-/snap/core/*/usr/lib/snapd[^/]** rwlix,
-/snap/core/*/usr/lib/snapd/[^s]** rwlix,
-/snap/core/*/usr/lib/snapd/s[^n]** rwlix,
-/snap/core/*/usr/lib/snapd/sn[^a]** rwlix,
-/snap/core/*/usr/lib/snapd/sna[^p]** rwlix,
-/snap/core/*/usr/lib/snapd/snap[^-]** rwlix,
-/snap/core/*/usr/lib/snapd/snap-[^c]** rwlix,
-/snap/core/*/usr/lib/snapd/snap-c[^o]** rwlix,
-/snap/core/*/usr/lib/snapd/snap-co[^n]** rwlix,
-/snap/core/*/usr/lib/snapd/snap-con[^f]** rwlix,
-/snap/core/*/usr/lib/snapd/snap-conf[^i]** rwlix,
-/snap/core/*/usr/lib/snapd/snap-confi[^n]** rwlix,
-/snap/core/*/usr/lib/snapd/snap-confin[^e]** rwlix,
-
-# branch for the /snap/snapd/... paths
-/snap/snap[^d]** rwlix,
-/snap/snapd[^/]** rwlix,
-/snap/snapd/*/[^u]** rwlix,
-/snap/snapd/*/u[^s]** rwlix,
-/snap/snapd/*/us[^r]** rwlix,
-/snap/snapd/*/usr[^/]** rwlix,
-/snap/snapd/*/usr/[^l]** rwlix,
-/snap/snapd/*/usr/l[^i]** rwlix,
-/snap/snapd/*/usr/li[^b]** rwlix,
-/snap/snapd/*/usr/lib[^/]** rwlix,
-/snap/snapd/*/usr/lib/[^s]** rwlix,
-/snap/snapd/*/usr/lib/s[^n]** rwlix,
-/snap/snapd/*/usr/lib/sn[^a]** rwlix,
-/snap/snapd/*/usr/lib/sna[^p]** rwlix,
-/snap/snapd/*/usr/lib/snap[^d]** rwlix,
-/snap/snapd/*/usr/lib/snapd[^/]** rwlix,
-/snap/snapd/*/usr/lib/snapd/[^s]** rwlix,
-/snap/snapd/*/usr/lib/snapd/s[^n]** rwlix,
-/snap/snapd/*/usr/lib/snapd/sn[^a]** rwlix,
-/snap/snapd/*/usr/lib/snapd/sna[^p]** rwlix,
-/snap/snapd/*/usr/lib/snapd/snap[^-]** rwlix,
-/snap/snapd/*/usr/lib/snapd/snap-[^c]** rwlix,
-/snap/snapd/*/usr/lib/snapd/snap-c[^o]** rwlix,
-/snap/snapd/*/usr/lib/snapd/snap-co[^n]** rwlix,
-/snap/snapd/*/usr/lib/snapd/snap-con[^f]** rwlix,
-/snap/snapd/*/usr/lib/snapd/snap-conf[^i]** rwlix,
-/snap/snapd/*/usr/lib/snapd/snap-confi[^n]** rwlix,
-/snap/snapd/*/usr/lib/snapd/snap-confin[^e]** rwlix,
+# below are auto-generated rules using GenerateAAREExclusionPatterns
+###EXCL{<> rwlix,:/snap/snapd/*/usr/lib/snapd/snap-confine,/snap/core/*/usr/lib/snapd/snap-confine}###
 `
 
 const dockerSupportPrivilegedSecComp = `
@@ -1021,9 +754,70 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	// try to modify, otherwise immutable, pycache inside the
 	// snaps.
 	spec.SetSuppressPycacheDeny()
-	spec.AddSnippet(dockerSupportConnectedPlugAppArmor)
+
+	defaultSnippet, err := apparmor_sandbox.InsertAAREExclusionPatterns(
+		dockerSupportConnectedPlugAppArmor,
+		[]string{
+			"/snap/snapd/*/usr/lib/snapd/snap-confine",
+			"/snap/core/*/usr/lib/snapd/snap-confine",
+		},
+		&apparmor_sandbox.AAREExclusionPatternsOptions{
+			Prefix: "change_profile unsafe ",
+			Suffix: " -> docker-default,",
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	defaultSnippet, err = apparmor_sandbox.InsertAAREExclusionPatterns(
+		defaultSnippet,
+		[]string{
+			"/snap/snapd/*/usr/lib/snapd/snap-confine",
+			"/snap/core/*/usr/lib/snapd/snap-confine",
+		},
+		&apparmor_sandbox.AAREExclusionPatternsOptions{
+			Prefix: "change_profile unsafe ",
+			Suffix: " -> cri-containerd.apparmor.d,",
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	spec.AddSnippet(defaultSnippet)
 	if privileged {
-		spec.AddSnippet(dockerSupportPrivilegedAppArmor)
+		privilegedSnippet, err := apparmor_sandbox.InsertAAREExclusionPatterns(
+			dockerSupportPrivilegedAppArmor,
+			[]string{
+				"/snap/snapd/*/usr/lib/snapd/snap-confine",
+				"/snap/core/*/usr/lib/snapd/snap-confine",
+			},
+			&apparmor_sandbox.AAREExclusionPatternsOptions{
+				Prefix: "change_profile unsafe ",
+				Suffix: ",",
+			},
+		)
+		if err != nil {
+			return err
+		}
+
+		privilegedSnippet, err = apparmor_sandbox.InsertAAREExclusionPatterns(
+			privilegedSnippet,
+			[]string{
+				"/snap/snapd/*/usr/lib/snapd/snap-confine",
+				"/snap/core/*/usr/lib/snapd/snap-confine",
+			},
+			&apparmor_sandbox.AAREExclusionPatternsOptions{
+				Prefix: "",
+				Suffix: " rwlix,",
+			},
+		)
+		if err != nil {
+			return err
+		}
+
+		spec.AddSnippet(privilegedSnippet)
 	}
 	if !release.OnClassic {
 		spec.AddSnippet(dockerSupportConnectedPlugAppArmorCore)

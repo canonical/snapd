@@ -718,3 +718,450 @@ func (s *apparmorSuite) TestSystemAppArmorLoadsSnapPolicy(c *C) {
 		c.Check(loadsPolicy, Equals, tc.expectedResult, Commentf("%v", tc))
 	}
 }
+
+func (s *apparmorSuite) TestInsertAAREExclusionPatterns(c *C) {
+	tt := []struct {
+		comment         string
+		aaRules         string
+		excludePatterns []string
+		prefix          string
+		suffix          string
+		err             string
+		expRule         string
+	}{
+		// simple single pattern cases
+		{
+			comment: "happy",
+			aaRules: `
+# Start of exclusion pattern
+###EXCL{change_profile <> -> suf,:/ab}###
+# End of exclusion pattern
+`[1:],
+			excludePatterns: []string{"/ab"},
+			prefix:          "change_profile ",
+			suffix:          " -> suf,",
+			expRule: `
+# Start of exclusion pattern
+change_profile /[^a]** -> suf,
+change_profile /a[^b]** -> suf,
+# End of exclusion pattern
+`[1:],
+		}, {
+			comment: "missing pattern",
+			aaRules: `
+# Start of exclusion pattern
+###EXCL{change_profile <> -> wrong_suf,:/ab}###
+# End of exclusion pattern
+`[1:],
+			excludePatterns: []string{"/ab"},
+			prefix:          "change_profile ",
+			suffix:          " -> suf,",
+			err:             "placeholder pattern \\\"###EXCL{change_profile <> -> suf,:/ab}###\\\" not found",
+		},
+	}
+
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+		opts := &apparmor.AAREExclusionPatternsOptions{
+			Prefix: t.prefix,
+			Suffix: t.suffix,
+		}
+		res, err := apparmor.InsertAAREExclusionPatterns(t.aaRules, t.excludePatterns, opts)
+		if t.err != "" {
+			c.Assert(err, ErrorMatches, t.err, comment)
+			continue
+		}
+		c.Assert(err, IsNil)
+
+		resHash, err1 := testutil.AppArmorParseAndHashHelper("profile test {" + res + "}")
+		expectedHash, err2 := testutil.AppArmorParseAndHashHelper("profile test {" + t.expRule + "}")
+		if (err1 != nil) || (err2 != nil) {
+			comment = Commentf(t.comment + "\n\nNote that an error occurred in AppArmorParseAndHashHelper " +
+				"while compiling and hashing the apparmor policy and string comparison was used as fallback.")
+			c.Assert(res, Equals, t.expRule, comment)
+		} else {
+			c.Assert(resHash, Equals, expectedHash, comment)
+		}
+	}
+}
+
+func (s *apparmorSuite) TestGenerateAAREExclusionPatterns(c *C) {
+	tt := []struct {
+		comment         string
+		excludePatterns []string
+		prefix          string
+		suffix          string
+		err             string
+		expRule         string
+	}{
+		// simple single pattern cases
+		{
+			comment:         "single shortest",
+			excludePatterns: []string{"/ab"},
+			prefix:          "change_profile ",
+			suffix:          " -> suf,",
+			expRule: `
+change_profile /[^a]** -> suf,
+change_profile /a[^b]** -> suf,
+`[1:],
+		},
+		{
+			comment:         "single simple with wildcard",
+			excludePatterns: []string{"/a/*/bc"},
+			suffix:          " r,",
+			expRule: `
+/[^a]** r,
+/a[^/]** r,
+/a/*/[^b]** r,
+/a/*/b[^c]** r,
+`[1:],
+		},
+
+		// multiple pattern cases
+		{
+			comment:         "same length no overlap shortest",
+			excludePatterns: []string{"/a", "/d"},
+			suffix:          " r,",
+			expRule: `
+/[^ad]** r,
+`[1:],
+		},
+		{
+			comment:         "diff length no overlap shortest",
+			excludePatterns: []string{"/a", "/dc"},
+			suffix:          " r,",
+			expRule: `
+/[^ad]** r,
+/d[^c]** r,
+`[1:],
+		},
+		{
+			comment:         "diff length overlap",
+			excludePatterns: []string{"/ad", "/adc"},
+			suffix:          " r,",
+			expRule: `
+/[^a]** r,
+/a[^d]** r,
+/ad[^c]** r,
+`[1:],
+		},
+		{
+			comment:         "same length no overlap",
+			excludePatterns: []string{"/ab", "/de"},
+			suffix:          " r,",
+			expRule: `
+/[^ad]** r,
+/{a[^b],d[^e]}** r,
+`[1:],
+		},
+		{
+			comment:         "same length overlap",
+			excludePatterns: []string{"/ab", "/ac"},
+			suffix:          " r,",
+			expRule: `
+/[^a]** r,
+/a[^bc]** r,
+`[1:],
+		},
+		{
+			comment:         "same length overlap",
+			excludePatterns: []string{"/AB", "/AC"},
+			suffix:          " r,",
+			expRule: `
+/[^A]** r,
+/A[^BC]** r,
+`[1:],
+		},
+		{
+			comment:         "same length overlap with wildcard",
+			excludePatterns: []string{"/ab/*/c", "/ad/*/c"},
+			suffix:          " r,",
+			expRule: `
+/[^a]** r,
+/a[^bd]** r,
+/a{b[^/],d[^/]}** r,
+/a{b/*/[^c],d/*/[^c]}** r,
+`[1:],
+		},
+		{
+			comment:         "different length same overlap with extra nonoverlapping",
+			excludePatterns: []string{"/a/bc/d", "/a/bc/e", "/a/fg"},
+			suffix:          " r,",
+			expRule: `
+/[^a]** r,
+/a[^/]** r,
+/a/[^bf]** r,
+/a/{b[^c],f[^g]}** r,
+/a/bc[^/]** r,
+/a/bc/[^de]** r,
+`[1:],
+		},
+		{
+			comment:         "diff length overlap with wildcard",
+			excludePatterns: []string{"/abc/*/c", "/ad/*/c"},
+			suffix:          " r,",
+			expRule: `
+/[^a]** r,
+/a[^bd]** r,
+/a{b[^c],d[^/]}** r,
+/abc[^/]** r,
+/ad/*/[^c]** r,
+/abc/*/[^c]** r,
+`[1:],
+		},
+		{
+			comment:         "more diff length overlap with wildcard",
+			excludePatterns: []string{"/abc/*/c", "/ab/*/e", "/ad/*/c"},
+			suffix:          " r,",
+			expRule: `
+/[^a]** r,
+/a[^bd]** r,
+/a{b[^c/],d[^/]}** r,
+/abc[^/]** r,
+/a{b/*/[^e],d/*/[^c]}** r,
+/abc/*/[^c]** r,
+`[1:],
+		},
+		{
+			comment:         "very diff length overlap with wildcard after diff length",
+			excludePatterns: []string{"/abc/*/c/*/e", "/ad/*/c"},
+			suffix:          " r,",
+			expRule: `
+/[^a]** r,
+/a[^bd]** r,
+/a{b[^c],d[^/]}** r,
+/abc[^/]** r,
+/ad/*/[^c]** r,
+/abc/*/[^c]** r,
+/abc/*/c[^/]** r,
+/abc/*/c/*/[^e]** r,
+`[1:],
+		},
+		{
+			comment:         "same length overlap with wildcard in overlap",
+			excludePatterns: []string{"/a/*/b", "/a/*/c"},
+			suffix:          " r,",
+			expRule: `
+/[^a]** r,
+/a[^/]** r,
+/a/*/[^bc]** r,
+`[1:],
+		},
+
+		// unhappy cases
+		{
+			comment:         "duplicates",
+			excludePatterns: []string{"/ab/*/c", "/ad/*/c", "/ad/*/c"},
+			err:             "exclude patterns contain duplicates",
+		},
+		{
+			comment:         "nothing",
+			excludePatterns: []string{},
+			err:             "no patterns provided",
+		},
+		{
+			comment:         "relative path",
+			excludePatterns: []string{"foo"},
+			err:             "exclude patterns must be absolute filepaths",
+		},
+		{
+			comment:         "pattern has suffix",
+			excludePatterns: []string{"/foo/*-bar"},
+			err:             "exclude patterns does not support suffixes for now",
+		},
+		{
+			comment:         "wildcard after common pattern",
+			excludePatterns: []string{"/foo/*/bar", "/foo/bar"},
+			err:             "first character after a common subpattern cannot be a wildcard",
+		},
+		// specific cases used around codebase
+		{
+			comment: "any file inherit exec rules except snap-confine for devmode snap executing other snaps",
+			excludePatterns: []string{
+				"/snap/core/*/usr/lib/snapd/snap-confine",
+				"/snap/snapd/*/usr/lib/snapd/snap-confine",
+			},
+			prefix: "",
+			suffix: " rwlix,",
+			expRule: `
+/[^s]** rwlix,
+/s[^n]** rwlix,
+/sn[^a]** rwlix,
+/sna[^p]** rwlix,
+/snap[^/]** rwlix,
+/snap/[^cs]** rwlix,
+/snap/{c[^o],s[^n]}** rwlix,
+/snap/{co[^r],sn[^a]}** rwlix,
+/snap/{cor[^e],sna[^p]}** rwlix,
+/snap/{core[^/],snap[^d]}** rwlix,
+/snap/snapd[^/]** rwlix,
+/snap/core/*/[^u]** rwlix,
+/snap/{core/*/u[^s],snapd/*/[^u]}** rwlix,
+/snap/{core/*/us[^r],snapd/*/u[^s]}** rwlix,
+/snap/{core/*/usr[^/],snapd/*/us[^r]}** rwlix,
+/snap/{core/*/usr/[^l],snapd/*/usr[^/]}** rwlix,
+/snap/{core/*/usr/l[^i],snapd/*/usr/[^l]}** rwlix,
+/snap/{core/*/usr/li[^b],snapd/*/usr/l[^i]}** rwlix,
+/snap/{core/*/usr/lib[^/],snapd/*/usr/li[^b]}** rwlix,
+/snap/{core/*/usr/lib/[^s],snapd/*/usr/lib[^/]}** rwlix,
+/snap/{core/*/usr/lib/s[^n],snapd/*/usr/lib/[^s]}** rwlix,
+/snap/{core/*/usr/lib/sn[^a],snapd/*/usr/lib/s[^n]}** rwlix,
+/snap/{core/*/usr/lib/sna[^p],snapd/*/usr/lib/sn[^a]}** rwlix,
+/snap/{core/*/usr/lib/snap[^d],snapd/*/usr/lib/sna[^p]}** rwlix,
+/snap/{core/*/usr/lib/snapd[^/],snapd/*/usr/lib/snap[^d]}** rwlix,
+/snap/{core/*/usr/lib/snapd/[^s],snapd/*/usr/lib/snapd[^/]}** rwlix,
+/snap/{core/*/usr/lib/snapd/s[^n],snapd/*/usr/lib/snapd/[^s]}** rwlix,
+/snap/{core/*/usr/lib/snapd/sn[^a],snapd/*/usr/lib/snapd/s[^n]}** rwlix,
+/snap/{core/*/usr/lib/snapd/sna[^p],snapd/*/usr/lib/snapd/sn[^a]}** rwlix,
+/snap/{core/*/usr/lib/snapd/snap[^-],snapd/*/usr/lib/snapd/sna[^p]}** rwlix,
+/snap/{core/*/usr/lib/snapd/snap-[^c],snapd/*/usr/lib/snapd/snap[^-]}** rwlix,
+/snap/{core/*/usr/lib/snapd/snap-c[^o],snapd/*/usr/lib/snapd/snap-[^c]}** rwlix,
+/snap/{core/*/usr/lib/snapd/snap-co[^n],snapd/*/usr/lib/snapd/snap-c[^o]}** rwlix,
+/snap/{core/*/usr/lib/snapd/snap-con[^f],snapd/*/usr/lib/snapd/snap-co[^n]}** rwlix,
+/snap/{core/*/usr/lib/snapd/snap-conf[^i],snapd/*/usr/lib/snapd/snap-con[^f]}** rwlix,
+/snap/{core/*/usr/lib/snapd/snap-confi[^n],snapd/*/usr/lib/snapd/snap-conf[^i]}** rwlix,
+/snap/{core/*/usr/lib/snapd/snap-confin[^e],snapd/*/usr/lib/snapd/snap-confi[^n]}** rwlix,
+/snap/snapd/*/usr/lib/snapd/snap-confin[^e]** rwlix,
+`[1:],
+		},
+		{
+			comment:         "anything except /lib/{firmware,modules} for non-core base template",
+			excludePatterns: []string{"/lib/firmware", "/lib/modules"},
+			suffix:          " mrklix,",
+			expRule: `
+/[^l]** mrklix,
+/l[^i]** mrklix,
+/li[^b]** mrklix,
+/lib[^/]** mrklix,
+/lib/[^fm]** mrklix,
+/lib/{f[^i],m[^o]}** mrklix,
+/lib/{fi[^r],mo[^d]}** mrklix,
+/lib/{fir[^m],mod[^u]}** mrklix,
+/lib/{firm[^w],modu[^l]}** mrklix,
+/lib/{firmw[^a],modul[^e]}** mrklix,
+/lib/{firmwa[^r],module[^s]}** mrklix,
+/lib/firmwar[^e]** mrklix,
+`[1:],
+		},
+		{
+			comment:         "anything except /usr/src, /usr/lib/{firmware,snapd,modules} for non-core base template",
+			excludePatterns: []string{"/usr/lib/firmware", "/usr/lib/modules", "/usr/lib/snapd"},
+			suffix:          " mrklix,",
+			expRule: `
+/[^u]** mrklix,
+/u[^s]** mrklix,
+/us[^r]** mrklix,
+/usr[^/]** mrklix,
+/usr/[^l]** mrklix,
+/usr/l[^i]** mrklix,
+/usr/li[^b]** mrklix,
+/usr/lib[^/]** mrklix,
+/usr/lib/[^fms]** mrklix,
+/usr/lib/{f[^i],m[^o],s[^n]}** mrklix,
+/usr/lib/{fi[^r],mo[^d],sn[^a]}** mrklix,
+/usr/lib/{fir[^m],mod[^u],sna[^p]}** mrklix,
+/usr/lib/{firm[^w],modu[^l],snap[^d]}** mrklix,
+/usr/lib/{firmw[^a],modul[^e]}** mrklix,
+/usr/lib/{firmwa[^r],module[^s]}** mrklix,
+/usr/lib/firmwar[^e]** mrklix,
+`[1:],
+		},
+		{
+			comment: "anything except /var/lib/{dhcp,extrausers,jenkins,snapd} /var/log /var/snap and /var/tmp for non-core base template",
+			excludePatterns: []string{
+				"/var/lib/dhcp",
+				"/var/lib/extrausers",
+				"/var/lib/jenkins",
+				"/var/lib/snapd",
+				"/var/log",
+				"/var/snap",
+				"/var/tmp",
+			},
+			suffix: " mrklix,",
+			expRule: `
+/[^v]** mrklix,
+/v[^a]** mrklix,
+/va[^r]** mrklix,
+/var[^/]** mrklix,
+/var/[^lst]** mrklix,
+/var/{l[^io],s[^n],t[^m]}** mrklix,
+/var/{li[^b],lo[^g],sn[^a],tm[^p]}** mrklix,
+/var/{lib[^/],sna[^p]}** mrklix,
+/var/lib/[^dejs]** mrklix,
+/var/{lib/d[^h],lib/e[^x],lib/j[^e],lib/s[^n]}** mrklix,
+/var/{lib/dh[^c],lib/ex[^t],lib/je[^n],lib/sn[^a]}** mrklix,
+/var/{lib/dhc[^p],lib/ext[^r],lib/jen[^k],lib/sna[^p]}** mrklix,
+/var/{lib/extr[^a],lib/jenk[^i],lib/snap[^d]}** mrklix,
+/var/{lib/extra[^u],lib/jenki[^n]}** mrklix,
+/var/{lib/extrau[^s],lib/jenkin[^s]}** mrklix,
+/var/lib/extraus[^e]** mrklix,
+/var/lib/extrause[^r]** mrklix,
+/var/lib/extrauser[^s]** mrklix,
+`[1:],
+		},
+		{
+			comment: "everything except {/var/lib/snapd/hostfs,}/{dev,proc,sys} for system-backup",
+			excludePatterns: []string{
+				"/dev/",
+				"/proc/",
+				"/sys/",
+				"/var/lib/snapd/hostfs/dev/",
+				"/var/lib/snapd/hostfs/proc/",
+				"/var/lib/snapd/hostfs/sys/",
+			},
+			suffix: " r,",
+			expRule: `
+/[^dpsv]** r,
+/{d[^e],p[^r],s[^y],v[^a]}** r,
+/{de[^v],pr[^o],sy[^s],va[^r]}** r,
+/{dev[^/],pro[^c],sys[^/],var[^/]}** r,
+/{proc[^/],var/[^l]}** r,
+/var/l[^i]** r,
+/var/li[^b]** r,
+/var/lib[^/]** r,
+/var/lib/[^s]** r,
+/var/lib/s[^n]** r,
+/var/lib/sn[^a]** r,
+/var/lib/sna[^p]** r,
+/var/lib/snap[^d]** r,
+/var/lib/snapd[^/]** r,
+/var/lib/snapd/[^h]** r,
+/var/lib/snapd/h[^o]** r,
+/var/lib/snapd/ho[^s]** r,
+/var/lib/snapd/hos[^t]** r,
+/var/lib/snapd/host[^f]** r,
+/var/lib/snapd/hostf[^s]** r,
+/var/lib/snapd/hostfs[^/]** r,
+/var/lib/snapd/hostfs/[^dps]** r,
+/{var/lib/snapd/hostfs/d[^e],var/lib/snapd/hostfs/p[^r],var/lib/snapd/hostfs/s[^y]}** r,
+/{var/lib/snapd/hostfs/de[^v],var/lib/snapd/hostfs/pr[^o],var/lib/snapd/hostfs/sy[^s]}** r,
+/{var/lib/snapd/hostfs/dev[^/],var/lib/snapd/hostfs/pro[^c],var/lib/snapd/hostfs/sys[^/]}** r,
+/var/lib/snapd/hostfs/proc[^/]** r,
+`[1:],
+		},
+	}
+
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+		opts := &apparmor.AAREExclusionPatternsOptions{
+			Prefix: t.prefix,
+			Suffix: t.suffix,
+		}
+		res, err := apparmor.GenerateAAREExclusionPatterns(t.excludePatterns, opts)
+		if t.err != "" {
+			c.Assert(err, ErrorMatches, t.err, comment)
+			continue
+		}
+		c.Assert(err, IsNil)
+
+		resHash, err1 := testutil.AppArmorParseAndHashHelper("profile test {" + res + "}")
+		expectedHash, err2 := testutil.AppArmorParseAndHashHelper("profile test {" + t.expRule + "}")
+		if (err1 != nil) || (err2 != nil) {
+			comment = Commentf(t.comment + "\n\nNote that an error occurred in AppArmorParseAndHashHelper " +
+				"while compiling and hashing the apparmor policy and string comparison was used as fallback.")
+			c.Assert(res, Equals, t.expRule, comment)
+		} else {
+			c.Assert(resHash, Equals, expectedHash, comment)
+		}
+	}
+}
