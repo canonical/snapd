@@ -141,21 +141,20 @@ BUG_REPORT_URL="https://bugs.launchpad.net/elementary/+filebug"`
 
 func (s *ReleaseTestSuite) TestFamilyOSRelease(c *C) {
 	mockOSRelease := filepath.Join(c.MkDir(), "mock-os-release")
-	dump := `NAME="CentOS Linux"
-VERSION="9 (Core)"
+	dump := `NAME="CentOS Stream"
+VERSION="9"
 ID="centos"
 ID_LIKE="rhel fedora"
 VERSION_ID="9"
-PRETTY_NAME="CentOS Linux 9 (Core)"
+PLATFORM_ID="platform:el9"
+PRETTY_NAME="CentOS Stream 9"
 ANSI_COLOR="0;31"
+LOGO="fedora-logo-icon"
 CPE_NAME="cpe:/o:centos:centos:9"
-HOME_URL="https://www.centos.org/"
-BUG_REPORT_URL="https://bugs.centos.org/"
-
-CENTOS_MANTISBT_PROJECT="CentOS-9"
-CENTOS_MANTISBT_PROJECT_VERSION="9"
-REDHAT_SUPPORT_PRODUCT="centos"
-REDHAT_SUPPORT_PRODUCT_VERSION="9"`
+HOME_URL="https://centos.org/"
+BUG_REPORT_URL="https://issues.redhat.com/"
+REDHAT_SUPPORT_PRODUCT="Red Hat Enterprise Linux 9"
+REDHAT_SUPPORT_PRODUCT_VERSION="CentOS Stream"`
 	err := os.WriteFile(mockOSRelease, []byte(dump), 0644)
 	c.Assert(err, IsNil)
 
