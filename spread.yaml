@@ -188,10 +188,6 @@ backends:
                   workers: 6
                   storage: preserve-size
 
-            - centos-7-64:
-                  workers: 6
-                  storage: preserve-size
-                  image: centos-7-64
             - centos-9-64:
                   workers: 6
                   storage: preserve-size
@@ -383,9 +379,6 @@ backends:
             - debian-sid-64:
                   username: debian
                   password: debian
-            - centos-7-64:
-                  username: centos
-                  password: centos
             - amazon-linux-2-64:
                   username: ec2-user
                   password: ec2-user
@@ -768,10 +761,6 @@ prepare: |
     fi
 
     case "$SPREAD_SYSTEM" in
-        centos-7-*)
-            # make sure EPEL is enabled
-            yum install -y epel-release
-            ;;
         centos-9-*)
             dnf config-manager --set-enabled crb
             dnf install -y epel-release epel-next-release
@@ -809,7 +798,7 @@ prepare: |
                 echo "deltas are not supported on $SPREAD_SYSTEM, use NO_DELTA=1 when running spread"
                 exit 1
                 ;;
-            amazon-*|centos-7-*)
+            amazon-*)
                 yum install -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
             fedora-*|centos-*)

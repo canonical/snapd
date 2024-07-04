@@ -4,7 +4,7 @@ summary: ensure snap fails to install if one of user or group doesn't exist
 # too old. Since the illegal name check happens after verifying system support,
 # we can ignore these. Ignore ubuntu-core since groupdel doesn't support
 # --extrausers
-systems: [-amazon-linux-2-*, -centos-7-*, -ubuntu-14.04-*, -ubuntu-core-*]
+systems: [-amazon-linux-2-*, -ubuntu-14.04-*, -ubuntu-core-*]
 
 prepare: |
     groupadd --system snap_daemon

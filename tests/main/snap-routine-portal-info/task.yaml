@@ -3,7 +3,6 @@ summary: The portal-info command provides information about a confined process
 systems:
     - -ubuntu-14.04-*
     - -amazon-linux-*
-    - -centos-7-*
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
