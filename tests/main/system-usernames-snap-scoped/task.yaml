@@ -13,7 +13,7 @@ details: |
 # - also exclude centos 7 because of old libseccomp (the
 #   system-usernames test is already checking which distributions have the
 #   needed support, so there's no need to replicate that code here)
-systems: [-ubuntu-14.04-*, -centos-7-*]
+systems: [-ubuntu-14.04-*]
 
 environment:
     STORE_DIR: $(pwd)/fake-store-blobdir

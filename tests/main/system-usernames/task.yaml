@@ -23,7 +23,7 @@ environment:
     # List of expected snap install failures due to libseccomp/golang-seccomp
     # being too old. This should only reduce with time since new systems should
     # have newer libseccomp and golang-seccomp
-    EXFAIL: "centos-7-64 ubuntu-14"
+    EXFAIL: "ubuntu-14"
     SNAP_USER/snap_daemon: snap_daemon
     SNAP_USER/_daemon_: _daemon_
     SNAP_USER_UID/snap_daemon: 584788
