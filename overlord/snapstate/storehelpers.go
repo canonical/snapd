@@ -471,7 +471,7 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]st
 	return curSnaps, nil
 }
 
-// refreshCandidates is a wrapper for storeUpdateSummary.
+// refreshCandidates is a wrapper for storeUpdatePlan.
 //
 // It addresses the case where the store doesn't return refresh candidates for
 // snaps with already existing monitored refresh-candidates due to inconsistent
@@ -481,31 +481,31 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]st
 //
 // Note: This wrapper is a short term solution and should be removed once a better
 // solution is reached.
-func refreshCandidates(ctx context.Context, st *state.State, requested map[string]StoreUpdate, user *auth.UserState, refreshOpts *store.RefreshOptions, opts Options) (UpdateSummary, error) {
+func refreshCandidates(ctx context.Context, st *state.State, requested map[string]StoreUpdate, user *auth.UserState, refreshOpts *store.RefreshOptions, opts Options) (updatePlan, error) {
 	// initialize options before using
 	refreshOpts, err := refreshOptions(st, refreshOpts)
 	if err != nil {
-		return UpdateSummary{}, err
+		return updatePlan{}, err
 	}
 
-	summary, err := storeUpdateSummary(ctx, st, requested, user, refreshOpts, opts)
+	plan, err := storeUpdatePlan(ctx, st, requested, user, refreshOpts, opts)
 	if err != nil {
-		return UpdateSummary{}, err
+		return updatePlan{}, err
 	}
 
 	if !refreshOpts.Scheduled {
 		// not an auto-refresh, just return what we got
-		return summary, nil
+		return plan, nil
 	}
 
 	var oldHints map[string]*refreshCandidate
 	if err := st.Get("refresh-candidates", &oldHints); err != nil {
 		if errors.Is(err, &state.NoStateError{}) {
 			// do nothing
-			return summary, nil
+			return plan, nil
 		}
 
-		return UpdateSummary{}, fmt.Errorf("cannot get refresh-candidates: %v", err)
+		return updatePlan{}, fmt.Errorf("cannot get refresh-candidates: %v", err)
 	}
 
 	missingRequests := make(map[string]StoreUpdate)
@@ -514,7 +514,7 @@ func refreshCandidates(ctx context.Context, st *state.State, requested map[strin
 			continue
 		}
 		hasUpdate := false
-		for _, update := range summary.Targets {
+		for _, update := range plan.targets {
 			if update.info.InstanceName() == name {
 				hasUpdate = true
 				break
@@ -526,7 +526,7 @@ func refreshCandidates(ctx context.Context, st *state.State, requested map[strin
 
 		req, ok := requested[name]
 		if !ok {
-			if !summary.refreshAll() {
+			if !plan.refreshAll() {
 				continue
 			}
 			req = StoreUpdate{InstanceName: name}
@@ -537,7 +537,7 @@ func refreshCandidates(ctx context.Context, st *state.State, requested map[strin
 
 	if len(missingRequests) > 0 {
 		if err := validateAndInitStoreUpdates(st, missingRequests, opts); err != nil {
-			return UpdateSummary{}, err
+			return updatePlan{}, err
 		}
 
 		// mimic manual refresh to avoid throttling.
@@ -547,43 +547,43 @@ func refreshCandidates(ctx context.Context, st *state.State, requested map[strin
 		// we already started a pre-download for this snap, so no extra
 		// load is being exerted on the store.
 		refreshOpts.Scheduled = false
-		extraSummary, err := storeUpdateSummary(ctx, st, missingRequests, user, refreshOpts, opts)
+		extraPlan, err := storeUpdatePlan(ctx, st, missingRequests, user, refreshOpts, opts)
 		if err != nil {
-			return UpdateSummary{}, err
+			return updatePlan{}, err
 		}
-		summary.Targets = append(summary.Targets, extraSummary.Targets...)
+		plan.targets = append(plan.targets, extraPlan.targets...)
 	}
 
-	return summary, nil
+	return plan, nil
 }
 
-func storeUpdateSummary(
+func storeUpdatePlan(
 	ctx context.Context,
 	st *state.State,
 	requested map[string]StoreUpdate,
 	user *auth.UserState,
 	refreshOpts *store.RefreshOptions,
 	opts Options,
-) (UpdateSummary, error) {
+) (updatePlan, error) {
 	if refreshOpts == nil {
-		return UpdateSummary{}, errors.New("internal error: refresh opts cannot be nil")
+		return updatePlan{}, errors.New("internal error: refresh opts cannot be nil")
 	}
 
-	summary := UpdateSummary{
-		Requested: make([]string, 0, len(requested)),
+	plan := updatePlan{
+		requested: make([]string, 0, len(requested)),
 	}
 
 	for name := range requested {
-		summary.Requested = append(summary.Requested, name)
+		plan.requested = append(plan.requested, name)
 	}
 
 	all, err := All(st)
 	if err != nil {
-		return UpdateSummary{}, err
+		return updatePlan{}, err
 	}
 
 	updates := requested
-	if summary.refreshAll() {
+	if plan.refreshAll() {
 		updates = make(map[string]StoreUpdate, len(all))
 		for _, snapst := range all {
 			updates[snapst.InstanceName()] = StoreUpdate{
@@ -600,7 +600,7 @@ func storeUpdateSummary(
 	// make sure that all requested updates are currently installed
 	for _, update := range updates {
 		if _, ok := all[update.InstanceName]; !ok {
-			return UpdateSummary{}, snap.NotInstalledError{Snap: update.InstanceName}
+			return updatePlan{}, snap.NotInstalledError{Snap: update.InstanceName}
 		}
 	}
 
@@ -649,7 +649,7 @@ func storeUpdateSummary(
 
 	addCand := func(installed *store.CurrentSnap, snapst *SnapState) error {
 		// no auto-refresh for devmode
-		if summary.refreshAll() && snapst.DevMode {
+		if plan.refreshAll() && snapst.DevMode {
 			return nil
 		}
 
@@ -712,7 +712,7 @@ func storeUpdateSummary(
 		}
 
 		// only enforce refresh block if we are refreshing everything
-		if summary.refreshAll() {
+		if plan.refreshAll() {
 			installed.Block = snapst.Block()
 		}
 
@@ -727,23 +727,23 @@ func storeUpdateSummary(
 
 	// TODO: is this right? why do we only pass in the requested names here?
 	// what about when we are refreshing all snaps?
-	holds, err := SnapHolds(st, summary.Requested)
+	holds, err := SnapHolds(st, plan.requested)
 	if err != nil {
-		return UpdateSummary{}, err
+		return updatePlan{}, err
 	}
 
 	// determine current snaps and create actions for each snap that needs to
 	// be refreshed
 	current, err := collectCurrentSnaps(all, holds, addCand)
 	if err != nil {
-		return UpdateSummary{}, err
+		return updatePlan{}, err
 	}
 
 	// create actions to refresh (install, from the store's perspective) snaps
 	// that were installed locally
 	ammendActionsByUserID, err := installActionsForAmmend(st, updates, opts, enforcedSets, fallbackID)
 	if err != nil {
-		return UpdateSummary{}, err
+		return updatePlan{}, err
 	}
 
 	for id, actions := range ammendActionsByUserID {
@@ -752,7 +752,7 @@ func storeUpdateSummary(
 
 	sars, noStoreUpdates, err := sendActionsByUserID(ctx, st, actionsByUserID, current, refreshOpts, opts)
 	if err != nil {
-		return UpdateSummary{}, err
+		return updatePlan{}, err
 	}
 
 	for _, name := range noStoreUpdates {
@@ -762,17 +762,17 @@ func storeUpdateSummary(
 	for _, sar := range sars {
 		up, ok := updates[sar.InstanceName()]
 		if !ok {
-			return UpdateSummary{}, fmt.Errorf("unsolicited snap action result: %q", sar.InstanceName())
+			return updatePlan{}, fmt.Errorf("unsolicited snap action result: %q", sar.InstanceName())
 		}
 
 		snapst, ok := all[sar.InstanceName()]
 		if !ok {
-			return UpdateSummary{}, fmt.Errorf("internal error: snap %q not found", sar.InstanceName())
+			return updatePlan{}, fmt.Errorf("internal error: snap %q not found", sar.InstanceName())
 		}
 
 		// TODO: handle components here
 
-		summary.Targets = append(summary.Targets, target{
+		plan.targets = append(plan.targets, target{
 			info:   sar.Info,
 			snapst: *snapst,
 			setup: SnapSetup{
@@ -796,7 +796,7 @@ func storeUpdateSummary(
 
 		info, err := readInfo(snapst.InstanceName(), si, errorOnBroken)
 		if err != nil {
-			return UpdateSummary{}, err
+			return updatePlan{}, err
 		}
 
 		// TODO: handle components here
@@ -805,7 +805,7 @@ func storeUpdateSummary(
 		// switching to
 		info.Channel = revOpts.Channel
 
-		summary.Targets = append(summary.Targets, target{
+		plan.targets = append(plan.targets, target{
 			info:   info,
 			snapst: *snapst,
 			setup: SnapSetup{
@@ -823,7 +823,7 @@ func storeUpdateSummary(
 		})
 	}
 
-	return summary, nil
+	return plan, nil
 }
 
 func installActionsForAmmend(st *state.State, updates map[string]StoreUpdate, opts Options, enforcedSets func() (*snapasserts.ValidationSets, error), fallbackID int) (map[int][]*store.SnapAction, error) {

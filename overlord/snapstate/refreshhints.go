@@ -78,9 +78,9 @@ func (r *refreshHints) refresh() error {
 	perfTimings := timings.New(map[string]string{"ensure": "refresh-hints"})
 	defer perfTimings.Save(r.state)
 
-	var summary UpdateSummary
+	var plan updatePlan
 	timings.Run(perfTimings, "refresh-candidates", "query store for refresh candidates", func(tm timings.Measurer) {
-		summary, err = refreshCandidates(auth.EnsureContextTODO(),
+		plan, err = refreshCandidates(auth.EnsureContextTODO(),
 			r.state, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged}, Options{})
 	})
 	// TODO: we currently set last-refresh-hints even when there was an
@@ -95,7 +95,7 @@ func (r *refreshHints) refresh() error {
 		return err
 	}
 
-	hints, err := refreshHintsFromCandidates(r.state, summary, deviceCtx)
+	hints, err := refreshHintsFromCandidates(r.state, plan, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot get refresh-candidates: %v", err)
 	}
@@ -153,11 +153,11 @@ func (r *refreshHints) Ensure() error {
 	return r.refresh()
 }
 
-func refreshHintsFromCandidates(st *state.State, summary UpdateSummary, deviceCtx DeviceContext) (map[string]*refreshCandidate, error) {
-	updates := summary.targetInfos()
-	if ValidateRefreshes != nil && len(summary.Targets) != 0 {
-		ignoreValidation := make(map[string]bool, len(summary.Targets))
-		for _, t := range summary.Targets {
+func refreshHintsFromCandidates(st *state.State, plan updatePlan, deviceCtx DeviceContext) (map[string]*refreshCandidate, error) {
+	updates := plan.targetInfos()
+	if ValidateRefreshes != nil && len(plan.targets) != 0 {
+		ignoreValidation := make(map[string]bool, len(plan.targets))
+		for _, t := range plan.targets {
 			if t.setup.IgnoreValidation {
 				ignoreValidation[t.info.InstanceName()] = true
 			}
@@ -167,7 +167,7 @@ func refreshHintsFromCandidates(st *state.State, summary UpdateSummary, deviceCt
 
 		// if an error isn't returned here, then the returned list of snaps to
 		// refresh will match the input
-		_, err := ValidateRefreshes(st, summary.targetInfos(), ignoreValidation, userID, deviceCtx)
+		_, err := ValidateRefreshes(st, plan.targetInfos(), ignoreValidation, userID, deviceCtx)
 		if err != nil {
 			return nil, err
 		}

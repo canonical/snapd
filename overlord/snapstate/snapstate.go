@@ -1549,8 +1549,8 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 // RefreshCandidates gets a list of candidates for update
 // Note that the state must be locked by the caller.
 func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, error) {
-	summary, err := refreshCandidates(context.TODO(), st, nil, user, nil, Options{})
-	return summary.targetInfos(), err
+	plan, err := refreshCandidates(context.TODO(), st, nil, user, nil, Options{})
+	return plan.targetInfos(), err
 }
 
 // ValidateRefreshes allows to hook validation into the handling of refresh candidates.
@@ -2535,7 +2535,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 
 	refreshOpts := &store.RefreshOptions{Scheduled: true}
 	// XXX: should we skip refreshCandidates if forGatingSnap isn't empty (meaning we're handling proceed from a snap)?
-	summary, err := refreshCandidates(ctx, st, nil, user, refreshOpts, Options{})
+	plan, err := refreshCandidates(ctx, st, nil, user, refreshOpts, Options{})
 	if err != nil {
 		// XXX: should we reset "refresh-candidates" to nil in state for some types
 		// of errors?
@@ -2546,7 +2546,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 		return nil, nil, err
 	}
 
-	hints, err := refreshHintsFromCandidates(st, summary, deviceCtx)
+	hints, err := refreshHintsFromCandidates(st, plan, deviceCtx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -2561,7 +2561,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 
 	// check conflicts
 	fromChange := ""
-	for _, t := range summary.Targets {
+	for _, t := range plan.targets {
 		name := t.info.InstanceName()
 		if _, ok := hints[name]; !ok {
 			// filtered out by refreshHintsFromCandidates

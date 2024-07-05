@@ -817,34 +817,34 @@ func validatedComponentInfo(path string, si *snap.Info, csi *snap.ComponentSideI
 	return componentInfo, nil
 }
 
-// UpdateSummary contains the data that describes an update, including a list of
+// updatePlan contains the data that describes an update, including a list of
 // Target structs that represent the snaps that are to be updated.
-type UpdateSummary struct {
-	// Requested is the list of snaps that were requested to be updated. If
+type updatePlan struct {
+	// requested is the list of snaps that were requested to be updated. If
 	// RefreshAll is true, then this list should be empty.
-	Requested []string
-	// Targets is the list of snaps that are to be updated. Note that this list
+	requested []string
+	// targets is the list of snaps that are to be updated. Note that this list
 	// does not necessarily match the list of snaps in Requested.
-	Targets []target
+	targets []target
 }
 
 // refreshAll returns true if all snaps on the system are being refreshed (could
 // be either an auto-refresh or something like a manual "snap refresh").
-func (s *UpdateSummary) refreshAll() bool {
-	return len(s.Requested) == 0
+func (p *updatePlan) refreshAll() bool {
+	return len(p.requested) == 0
 }
 
-func (s *UpdateSummary) targetInfos() []*snap.Info {
-	infos := make([]*snap.Info, 0, len(s.Targets))
-	for _, t := range s.Targets {
+func (p *updatePlan) targetInfos() []*snap.Info {
+	infos := make([]*snap.Info, 0, len(p.targets))
+	for _, t := range p.targets {
 		infos = append(infos, t.info)
 	}
 	return infos
 }
 
-func (s *UpdateSummary) filter(f func(t target) (bool, error)) error {
-	filtered := s.Targets[:0]
-	for _, t := range s.Targets {
+func (p *updatePlan) filter(f func(t target) (bool, error)) error {
+	filtered := p.targets[:0]
+	for _, t := range p.targets {
 		ok, err := f(t)
 		if err != nil {
 			return err
@@ -854,14 +854,14 @@ func (s *UpdateSummary) filter(f func(t target) (bool, error)) error {
 			filtered = append(filtered, t)
 		}
 	}
-	s.Targets = filtered
+	p.targets = filtered
 	return nil
 }
 
 // UpdateGoal represents a single snap or a group of snaps to be updated.
 type UpdateGoal interface {
 	// Install returns the data needed to update the snaps.
-	toUpdate(context.Context, *state.State, Options) (UpdateSummary, error)
+	toUpdate(context.Context, *state.State, Options) (updatePlan, error)
 }
 
 // UpdateOne is a convenience wrapper for UpdateWithGoal that ensures that a
@@ -899,47 +899,47 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 		return nil, nil, errors.New("cannot specify a lane without setting transaction to \"all-snaps\"")
 	}
 
-	summary, err := goal.toUpdate(ctx, st, opts)
+	plan, err := goal.toUpdate(ctx, st, opts)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if opts.ExpectOneSnap && len(summary.Targets) != 1 {
+	if opts.ExpectOneSnap && len(plan.targets) != 1 {
 		return nil, nil, ErrExpectedOneSnap
 	}
 
 	if filter != nil {
-		summary.filter(func(t target) (bool, error) {
+		plan.filter(func(t target) (bool, error) {
 			return filter(t.info, &t.snapst), nil
 		})
 	}
 
-	if err := filterHeldSnapsInSummary(st, &summary, opts.Flags.IsAutoRefresh); err != nil {
+	if err := filterHeldSnapsInPlan(st, &plan, opts.Flags.IsAutoRefresh); err != nil {
 		return nil, nil, err
 	}
 
 	// save the candidates so the auto-refresh can be continued if it's inhibited
 	// by a running snap.
 	if opts.Flags.IsAutoRefresh {
-		hints, err := refreshHintsFromCandidates(st, summary, opts.DeviceCtx)
+		hints, err := refreshHintsFromCandidates(st, plan, opts.DeviceCtx)
 		if err != nil {
 			return nil, nil, err
 		}
 
 		// TODO: why not check this error?
-		updateRefreshCandidates(st, hints, summary.Requested)
+		updateRefreshCandidates(st, hints, plan.requested)
 	}
 
 	// validate snaps to be refreshed against validation sets. if we are
 	// refreshing all snaps, then we filter out the snaps that cannot be
 	// validated and log them
-	if err := validateAndFilterSummaryRefreshes(st, &summary, opts); err != nil {
+	if err := validateAndFilterPlanRefreshes(st, &plan, opts); err != nil {
 		return nil, nil, err
 	}
 
 	changeKind := "refresh"
-	installInfos := make([]minimalInstallInfo, 0, len(summary.Targets))
-	for _, t := range summary.Targets {
+	installInfos := make([]minimalInstallInfo, 0, len(plan.targets))
+	for _, t := range plan.targets {
 		installInfos = append(installInfos, installSnapInfo{t.info})
 
 		// if any of the snaps are not installed, then we should use the
@@ -953,7 +953,7 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 		return nil, nil, err
 	}
 
-	updated, uts, err := updateFromSummary(st, summary, opts)
+	updated, uts, err := updateFromPlan(st, plan, opts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -968,17 +968,17 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 	return updated, uts, nil
 }
 
-func updateFromSummary(st *state.State, summary UpdateSummary, opts Options) ([]string, *UpdateTaskSets, error) {
-	// it is sad that we have to split up UpdateSummary like this, but doUpdate
-	// is used in places where we don't have a snap.Info, so we cannot pass an
-	// UpdateSummary to doUpdate
-	updates := make([]update, 0, len(summary.Targets))
-	for _, t := range summary.Targets {
+func updateFromPlan(st *state.State, plan updatePlan, opts Options) ([]string, *UpdateTaskSets, error) {
+	// it is sad that we have to split up updatePlan like this, but doUpdate is
+	// used in places where we don't have a snap.Info, so we cannot pass an
+	// updatePlan to doUpdate
+	updates := make([]update, 0, len(plan.targets))
+	for _, t := range plan.targets {
 		opts.PrereqTracker.Add(t.info)
 
 		snapsup, compsups, err := t.setups(st, opts)
 		if err != nil {
-			if !summary.refreshAll() {
+			if !plan.refreshAll() {
 				return nil, nil, err
 			}
 
@@ -993,7 +993,7 @@ func updateFromSummary(st *state.State, summary UpdateSummary, opts Options) ([]
 		})
 	}
 
-	updated, uts, err := doPotentiallySplitUpdate(st, summary.Requested, updates, opts)
+	updated, uts, err := doPotentiallySplitUpdate(st, plan.requested, updates, opts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1015,21 +1015,21 @@ func updateFromSummary(st *state.State, summary UpdateSummary, opts Options) ([]
 	return updated, uts, nil
 }
 
-func validateAndFilterSummaryRefreshes(st *state.State, summary *UpdateSummary, opts Options) error {
-	if ValidateRefreshes == nil || len(summary.Targets) == 0 || opts.Flags.IgnoreValidation {
+func validateAndFilterPlanRefreshes(st *state.State, plan *updatePlan, opts Options) error {
+	if ValidateRefreshes == nil || len(plan.targets) == 0 || opts.Flags.IgnoreValidation {
 		return nil
 	}
 
-	ignoreValidation := make(map[string]bool, len(summary.Targets))
-	for _, t := range summary.Targets {
+	ignoreValidation := make(map[string]bool, len(plan.targets))
+	for _, t := range plan.targets {
 		if t.snapst.IgnoreValidation {
 			ignoreValidation[t.info.InstanceName()] = true
 		}
 	}
 
-	validated, err := ValidateRefreshes(st, summary.targetInfos(), ignoreValidation, opts.UserID, opts.DeviceCtx)
+	validated, err := ValidateRefreshes(st, plan.targetInfos(), ignoreValidation, opts.UserID, opts.DeviceCtx)
 	if err != nil {
-		if !summary.refreshAll() {
+		if !plan.refreshAll() {
 			return err
 		}
 		logger.Noticef("cannot refresh some snaps: %v", err)
@@ -1040,7 +1040,7 @@ func validateAndFilterSummaryRefreshes(st *state.State, summary *UpdateSummary, 
 		validatedMap[sn.InstanceName()] = true
 	}
 
-	summary.filter(func(t target) (bool, error) {
+	plan.filter(func(t target) (bool, error) {
 		_, ok := validatedMap[t.info.InstanceName()]
 		return ok, nil
 	})
@@ -1048,7 +1048,7 @@ func validateAndFilterSummaryRefreshes(st *state.State, summary *UpdateSummary, 
 	return nil
 }
 
-func filterHeldSnapsInSummary(st *state.State, summary *UpdateSummary, isAutoRefresh bool) error {
+func filterHeldSnapsInPlan(st *state.State, plan *updatePlan, isAutoRefresh bool) error {
 	holdLevel := HoldGeneral
 	if isAutoRefresh {
 		holdLevel = HoldAutoRefresh
@@ -1059,7 +1059,7 @@ func filterHeldSnapsInSummary(st *state.State, summary *UpdateSummary, isAutoRef
 		return err
 	}
 
-	summary.filter(func(t target) (bool, error) {
+	plan.filter(func(t target) (bool, error) {
 		_, ok := heldSnaps[t.info.InstanceName()]
 		return !ok, nil
 	})
@@ -1098,27 +1098,27 @@ func StoreUpdateGoal(snaps ...StoreUpdate) UpdateGoal {
 	}
 }
 
-func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Options) (UpdateSummary, error) {
+func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Options) (updatePlan, error) {
 	if opts.ExpectOneSnap && len(s.snaps) != 1 {
-		return UpdateSummary{}, ErrExpectedOneSnap
+		return updatePlan{}, ErrExpectedOneSnap
 	}
 
 	if err := validateAndInitStoreUpdates(st, s.snaps, opts); err != nil {
-		return UpdateSummary{}, err
+		return updatePlan{}, err
 	}
 
 	user, err := userFromUserID(st, opts.UserID)
 	if err != nil {
-		return UpdateSummary{}, err
+		return updatePlan{}, err
 	}
 
 	refreshOpts := &store.RefreshOptions{Scheduled: opts.Flags.IsAutoRefresh}
-	summary, err := refreshCandidates(ctx, st, s.snaps, user, refreshOpts, opts)
+	plan, err := refreshCandidates(ctx, st, s.snaps, user, refreshOpts, opts)
 	if err != nil {
-		return UpdateSummary{}, err
+		return updatePlan{}, err
 	}
 
-	return summary, nil
+	return plan, nil
 }
 
 func validateAndInitStoreUpdates(st *state.State, updates map[string]StoreUpdate, opts Options) error {
@@ -1198,28 +1198,28 @@ func PathUpdateGoal(snaps ...PathUpdate) UpdateGoal {
 	}
 }
 
-func (p *pathUpdateGoal) toUpdate(_ context.Context, st *state.State, opts Options) (UpdateSummary, error) {
+func (p *pathUpdateGoal) toUpdate(_ context.Context, st *state.State, opts Options) (updatePlan, error) {
 	targets := make([]target, 0, len(p.updates))
 	names := make([]string, 0, len(p.updates))
 
 	for _, sn := range p.updates {
 		var snapst SnapState
 		if err := Get(st, sn.InstanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
-			return UpdateSummary{}, err
+			return updatePlan{}, err
 		}
 
 		t, err := targetForPathUpdate(sn, snapst, opts)
 		if err != nil {
-			return UpdateSummary{}, err
+			return updatePlan{}, err
 		}
 
 		targets = append(targets, t)
 		names = append(names, sn.InstanceName)
 	}
 
-	return UpdateSummary{
-		Targets:   targets,
-		Requested: names,
+	return updatePlan{
+		targets:   targets,
+		requested: names,
 	}, nil
 }
 
