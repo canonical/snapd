@@ -429,6 +429,18 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsHappy(c
 			notify.AA_MAY_EXEC | notify.AA_MAY_WRITE | notify.AA_MAY_READ,
 			[]string{"read", "write", "execute"},
 		},
+		{
+			// Check that unmapped permissions are discarded without error
+			"home",
+			notify.AA_MAY_READ | notify.AA_MAY_GETCRED,
+			[]string{"read"},
+		},
+		{
+			// Check that unknown permissions are discarded without error
+			"home",
+			notify.AA_MAY_READ | notify.FilePermission(1<<17),
+			[]string{"read"},
+		},
 	}
 	for _, testCase := range cases {
 		perms, err := prompting.AbstractPermissionsFromAppArmorPermissions(testCase.iface, testCase.perms)
@@ -457,16 +469,6 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy
 			"foo",
 			notify.AA_MAY_READ,
 			"cannot map the given interface to list of available permissions.*",
-		},
-		{
-			"home",
-			notify.FilePermission(1 << 17),
-			"cannot map AppArmor permission to abstract permission for the home interface.*",
-		},
-		{
-			"home",
-			notify.AA_MAY_GETATTR | notify.AA_MAY_READ,
-			"cannot map AppArmor permission to abstract permission for the home interface.*",
 		},
 	}
 	for _, testCase := range cases {

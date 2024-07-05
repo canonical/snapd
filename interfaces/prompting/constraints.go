@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -194,7 +195,15 @@ func AbstractPermissionsFromAppArmorPermissions(iface string, permissions interf
 		}
 	}
 	if filePerms != notify.FilePermission(0) {
-		return nil, fmt.Errorf("cannot map AppArmor permission to abstract permission for the %s interface: %q", iface, filePerms)
+		logger.Noticef("WARNING: cannot map AppArmor permission to abstract permission for the %s interface: %q", iface, filePerms)
+		// Replying to request sends back original (allow | deny) permissions as
+		// allowed, so permissions which are unknown/excluded here will still be
+		// included in the final reply notification (as we desire).
+		//
+		// XXX: If we instead send back the explicit permissions which the user
+		// allowed (or denied), need to be careful to re-include permissions
+		// which were originally requested but were not mapped to abstract
+		// permissions.
 	}
 	return abstractPerms, nil
 }
