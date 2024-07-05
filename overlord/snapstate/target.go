@@ -823,13 +823,15 @@ type UpdateSummary struct {
 	// Requested is the list of snaps that were requested to be updated. If
 	// RefreshAll is true, then this list should be empty.
 	Requested []string
-	// RefreshAll is true if all snaps on the system are being refreshed (could
-	// be either an auto-refresh or something like a manual "snap refresh").
-	// This mostly has the effect of ignoring some some non-fatal errors.
-	RefreshAll bool
 	// Targets is the list of snaps that are to be updated. Note that this list
 	// does not necessarily match the list of snaps in Requested.
 	Targets []target
+}
+
+// refreshAll returns true if all snaps on the system are being refreshed (could
+// be either an auto-refresh or something like a manual "snap refresh").
+func (s *UpdateSummary) refreshAll() bool {
+	return len(s.Requested) == 0
 }
 
 func (s *UpdateSummary) targetInfos() []*snap.Info {
@@ -976,7 +978,7 @@ func updateFromSummary(st *state.State, summary UpdateSummary, opts Options) ([]
 
 		snapsup, compsups, err := t.setups(st, opts)
 		if err != nil {
-			if !summary.RefreshAll {
+			if !summary.refreshAll() {
 				return nil, nil, err
 			}
 
@@ -1027,7 +1029,7 @@ func validateAndFilterSummaryRefreshes(st *state.State, summary *UpdateSummary, 
 
 	validated, err := ValidateRefreshes(st, summary.targetInfos(), ignoreValidation, opts.UserID, opts.DeviceCtx)
 	if err != nil {
-		if !summary.RefreshAll {
+		if !summary.refreshAll() {
 			return err
 		}
 		logger.Noticef("cannot refresh some snaps: %v", err)

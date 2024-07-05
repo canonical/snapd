@@ -526,7 +526,7 @@ func refreshCandidates(ctx context.Context, st *state.State, requested map[strin
 
 		req, ok := requested[name]
 		if !ok {
-			if !summary.RefreshAll {
+			if !summary.refreshAll() {
 				continue
 			}
 			req = StoreUpdate{InstanceName: name}
@@ -570,8 +570,7 @@ func storeUpdateSummary(
 	}
 
 	summary := UpdateSummary{
-		Requested:  make([]string, 0, len(requested)),
-		RefreshAll: len(requested) == 0,
+		Requested: make([]string, 0, len(requested)),
 	}
 
 	for name := range requested {
@@ -584,7 +583,7 @@ func storeUpdateSummary(
 	}
 
 	updates := requested
-	if summary.RefreshAll {
+	if summary.refreshAll() {
 		updates = make(map[string]StoreUpdate, len(all))
 		for _, snapst := range all {
 			updates[snapst.InstanceName()] = StoreUpdate{
@@ -650,7 +649,7 @@ func storeUpdateSummary(
 
 	addCand := func(installed *store.CurrentSnap, snapst *SnapState) error {
 		// no auto-refresh for devmode
-		if summary.RefreshAll && snapst.DevMode {
+		if summary.refreshAll() && snapst.DevMode {
 			return nil
 		}
 
@@ -713,7 +712,7 @@ func storeUpdateSummary(
 		}
 
 		// only enforce refresh block if we are refreshing everything
-		if summary.RefreshAll {
+		if summary.refreshAll() {
 			installed.Block = snapst.Block()
 		}
 
