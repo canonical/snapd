@@ -40,7 +40,6 @@ type (
 	MinimalInstallInfo  = minimalInstallInfo
 	SnapUpdate          = update
 	InstallSnapInfo     = installSnapInfo
-	ByType              = byType
 	DirMigrationOptions = dirMigrationOptions
 	Migration           = migration
 

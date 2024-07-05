@@ -103,15 +103,6 @@ type minimalInstallInfo interface {
 	Prereq(st *state.State, prqt PrereqTracker) []string
 }
 
-// ByType supports sorting by snap type. The most important types come first.
-type byType []minimalInstallInfo
-
-func (r byType) Len() int      { return len(r) }
-func (r byType) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
-func (r byType) Less(i, j int) bool {
-	return r[i].Type().SortsBefore(r[j].Type())
-}
-
 type installSnapInfo struct {
 	*snap.Info
 }

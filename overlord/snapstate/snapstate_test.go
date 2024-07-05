@@ -7953,26 +7953,6 @@ func (t *installTestType) Prereq(st *state.State, prqt snapstate.PrereqTracker) 
 	panic("not expected")
 }
 
-func (s *snapmgrTestSuite) TestMinimalInstallInfoSortByType(c *C) {
-	snaps := []snapstate.MinimalInstallInfo{
-		&installTestType{snap.TypeApp},
-		&installTestType{snap.TypeBase},
-		&installTestType{snap.TypeApp},
-		&installTestType{snap.TypeSnapd},
-		&installTestType{snap.TypeKernel},
-		&installTestType{snap.TypeGadget},
-	}
-
-	sort.Sort(snapstate.ByType(snaps))
-	c.Check(snaps, DeepEquals, []snapstate.MinimalInstallInfo{
-		&installTestType{snap.TypeSnapd},
-		&installTestType{snap.TypeKernel},
-		&installTestType{snap.TypeBase},
-		&installTestType{snap.TypeGadget},
-		&installTestType{snap.TypeApp},
-		&installTestType{snap.TypeApp}})
-}
-
 func (s *snapmgrTestSuite) TestInstalledSnaps(c *C) {
 	st := state.New(nil)
 	st.Lock()
