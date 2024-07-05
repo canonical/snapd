@@ -32,9 +32,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -292,7 +294,7 @@ type ServiceInstruction struct {
 	Reload bool `json:"reload,omitempty"`
 }
 
-func (client *Client) decodeControlResponses(responses []*response) (startFailures, stopFailures []ServiceFailure, err error) {
+func (client *Client) decodeServiceControlResponses(responses []*response) (startFailures, stopFailures []ServiceFailure, err error) {
 	for _, resp := range responses {
 		if agentErr, ok := resp.err.(*Error); ok && agentErr.Kind == "service-control" {
 			if errorValue, ok := agentErr.Value.(map[string]interface{}); ok {
@@ -323,7 +325,7 @@ func (client *Client) serviceControlCall(ctx context.Context, inst *ServiceInstr
 	if err != nil {
 		return nil, nil, err
 	}
-	return client.decodeControlResponses(responses)
+	return client.decodeServiceControlResponses(responses)
 }
 
 func (client *Client) ServicesDaemonReload(ctx context.Context) error {
@@ -411,7 +413,7 @@ func (client *Client) ServicesStart(ctx context.Context, services []string, opts
 		}(uid)
 	}
 	wg.Wait()
-	return client.decodeControlResponses(responses)
+	return client.decodeServiceControlResponses(responses)
 }
 
 // ServicesStop attempts to stop the services in `services`.
@@ -533,4 +535,83 @@ func (client *Client) FinishRefreshNotification(ctx context.Context, closeInfo *
 	}
 	_, err = client.doMany(ctx, "POST", "/v1/notifications/finish-refresh", nil, headers, reqBody)
 	return err
+}
+
+// AppInstruction is the json representation of possible arguments
+// for the user session rest api to control apps.
+type AppInstruction struct {
+	Action string   `json:"action"`
+	Snaps  []string `json:"snaps,omitempty"`
+
+	// Kill options
+	Signal syscall.Signal     `json:"signal,omitempty"`
+	Reason snap.AppKillReason `json:"reason,omitempty"`
+}
+
+type AppFailure struct {
+	Uid   int
+	Unit  string
+	Error string
+}
+
+func decodeAppErrors(uid int, errorValue map[string]interface{}, kind string) []AppFailure {
+	if errorValue[kind] == nil {
+		return nil
+	}
+	errors, ok := errorValue[kind].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	var failures []AppFailure
+	for unit, reason := range errors {
+		if reasonString, ok := reason.(string); ok {
+			failures = append(failures, AppFailure{
+				Uid:   uid,
+				Unit:  unit,
+				Error: reasonString,
+			})
+		}
+	}
+	return failures
+}
+
+func (client *Client) decodeAppControlResponses(responses []*response) (killFailures []AppFailure, err error) {
+	for _, resp := range responses {
+		// Parse kill errors which were a result of failure to kill running snap apps
+		if agentErr, ok := resp.err.(*Error); ok && agentErr.Kind == "app-control" {
+			if errorValue, ok := agentErr.Value.(map[string]interface{}); ok {
+				failures := decodeAppErrors(resp.uid, errorValue, "kill-errors")
+				killFailures = append(killFailures, failures...)
+			}
+		}
+		// The response was an error, store the first error
+		if resp.err != nil && err == nil {
+			err = resp.err
+		}
+	}
+	return killFailures, err
+}
+
+func (client *Client) appControlCall(ctx context.Context, inst *AppInstruction) (killFailures []AppFailure, err error) {
+	headers := map[string]string{"Content-Type": "application/json"}
+	reqBody, err := json.Marshal(inst)
+	if err != nil {
+		return nil, err
+	}
+	responses, err := client.doMany(ctx, "POST", "/v1/app-control", nil, headers, reqBody)
+	if err != nil {
+		return nil, err
+	}
+	return client.decodeAppControlResponses(responses)
+}
+
+// AppsKill attempts to send a signal to running snap apps.
+func (client *Client) AppsKill(ctx context.Context, snaps []string, signal syscall.Signal, reason snap.AppKillReason) (killFailures []AppFailure, err error) {
+	killFailures, err = client.appControlCall(ctx, &AppInstruction{
+		Action: "kill",
+		Snaps:  snaps,
+		Signal: signal,
+		Reason: reason,
+	})
+	return killFailures, err
 }
