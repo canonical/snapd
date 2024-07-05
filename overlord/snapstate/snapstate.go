@@ -1908,8 +1908,9 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 	var alreadySatisfied []update
 
 	// keep track of any snaps that we requested to refresh actually got
-	// refreshed. if any do, tell the caller that we need to re-refresh
-	needsRerefresh := false
+	// refreshed. if any do, tell the caller that we need check for potential
+	// re-refreshes
+	needsRerefreshCheck := false
 
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
@@ -1920,8 +1921,9 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 			continue
 		}
 
-		// if any snaps actually get a revision change, we need to re-refresh
-		needsRerefresh = true
+		// if any snaps actually get a revision change, we need to do a
+		// re-refresh check
+		needsRerefreshCheck = true
 
 		// TODO:COMPS: we need to handle components here too
 
@@ -1993,7 +1995,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		PreDownload: preDlTasksets,
 	}
 
-	return updated, needsRerefresh, updateTss, nil
+	return updated, needsRerefreshCheck, updateTss, nil
 }
 
 func maybeSwitchSnapMetadataTaskSet(st *state.State, snapsup SnapSetup, snapst SnapState, opts Options) (*state.TaskSet, error) {

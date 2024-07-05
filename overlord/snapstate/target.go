@@ -860,7 +860,7 @@ func (p *updatePlan) filter(f func(t target) (bool, error)) error {
 
 // UpdateGoal represents a single snap or a group of snaps to be updated.
 type UpdateGoal interface {
-	// Install returns the data needed to update the snaps.
+	// toUpdate returns the data needed to update the snaps.
 	toUpdate(context.Context, *state.State, Options) (updatePlan, error)
 }
 
