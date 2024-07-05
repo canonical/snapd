@@ -617,6 +617,14 @@ type cmdInstall struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
+func splitSnapAndComponents(name string) (string, []string) {
+	parts := strings.Split(name, "+")
+	if len(parts) == 1 {
+		return parts[0], nil
+	}
+	return parts[0], parts[1:]
+}
+
 func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.SnapOptions) error {
 	var err error
 	var changeID string
@@ -633,7 +641,12 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 		if desiredName != "" {
 			return errors.New(i18n.G("cannot use explicit name when installing from store"))
 		}
-		changeID, err = x.client.Install(snapName, opts)
+
+		// TODO: mutating opts here isn't great
+		name, comps := splitSnapAndComponents(snapName)
+		opts.Components = comps
+
+		changeID, err = x.client.Install(name, opts)
 	}
 	if err != nil {
 		msg, err := errorToCmdMessage(nameOrPath, "install", err, opts)
@@ -652,20 +665,13 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 		return err
 	}
 
-	var changedSnaps *changedSnapsData
-	if path != "" {
-		// extract the name from the change, important for sideloaded
-		changedSnaps, err = changedSnapsFromChange(chg)
-		if err != nil {
-			return fmt.Errorf("cannot extract the snap-name from local file %q: %s",
-				path, err)
-		}
-	} else {
-		// TODO maybe rely always on data in change?
-		changedSnaps = &changedSnapsData{
-			names: []string{snapName},
-			comps: nil,
-		}
+	changedSnaps, err := changedSnapsFromChange(chg)
+
+	// TODO: if we're waiting, then there won't be any changed snaps. showDone
+	// will catch the case where we're waiting. might want to move this code
+	// around a bit
+	if err != nil && chg.Status != "Wait" {
+		return fmt.Errorf("cannot extract the snap-name from change: %w", err)
 	}
 
 	// TODO: mention details of the install (e.g. like switch does)

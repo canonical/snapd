@@ -46,21 +46,26 @@ import (
 type snapOpTestServer struct {
 	c *check.C
 
-	checker         func(r *http.Request)
-	n               int
-	total           int
-	channel         string
-	trackingChannel string
-	confinement     string
-	restart         string
-	snap            string
-	component       string
-	chgInWaitStatus bool
+	checker             func(r *http.Request)
+	n                   int
+	total               int
+	channel             string
+	trackingChannel     string
+	confinement         string
+	restart             string
+	snap                string
+	components          []string
+	onlyComponentChange string
+	chgInWaitStatus     bool
 }
 
 var _ = check.Suite(&SnapOpSuite{})
 
 func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
+	if len(t.components) > 0 && t.onlyComponentChange != "" {
+		t.c.Fatalf("components and onlyComponentChange are mutually exclusive")
+	}
+
 	switch t.n {
 	case 0:
 		t.checker(r)
@@ -85,21 +90,51 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 	case 2:
 		t.c.Check(r.Method, check.Equals, "GET")
 		t.c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
-		var apiData string
-		if t.component == "" {
-			apiData = fmt.Sprintf(`{"snap-names": ["%s"]}`, t.snap)
-		} else {
-			apiData = fmt.Sprintf(`{"components": {"%s": ["%s"]}}`, t.snap, t.component)
+		var data struct {
+			SnapNames  []string            `json:"snap-names,omitempty"`
+			Components map[string][]string `json:"components,omitempty"`
 		}
-		fmt.Fprintf(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": %s}}\n`, apiData)
+
+		switch {
+		case t.components != nil:
+			data.Components = map[string][]string{
+				t.snap: t.components,
+			}
+			data.SnapNames = []string{t.snap}
+		case t.onlyComponentChange != "":
+			data.Components = map[string][]string{
+				t.snap: {t.onlyComponentChange},
+			}
+		default:
+			data.SnapNames = []string{t.snap}
+		}
+
+		encoded, err := json.Marshal(data)
+		t.c.Assert(err, check.IsNil)
+
+		fmt.Fprintf(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": %s}}\n`, string(encoded))
 	case 3:
 		t.c.Check(r.Method, check.Equals, "GET")
 		t.c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-		var compsData string
-		if t.component != "" {
-			compsData = fmt.Sprintf(`, "components": [{"name": "%s", "version": "3.2"}]`,
-				t.component)
+
+		compNames := t.components
+		if t.onlyComponentChange != "" {
+			compNames = []string{t.onlyComponentChange}
 		}
+
+		var compsData string
+		if len(compNames) > 0 {
+			comps := make([]map[string]string, 0, len(compNames))
+			for _, comp := range compNames {
+				comps = append(comps, map[string]string{"name": comp, "version": "3.2"})
+			}
+
+			encoded, err := json.Marshal(comps)
+			t.c.Assert(err, check.IsNil)
+
+			compsData = fmt.Sprintf(`, "components": %s`, string(encoded))
+		}
+
 		fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "%s", "status": "active", "version": "1.0", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":42, "channel":"%s", "tracking-channel": "%s", "confinement": "%s"%s}]}\n`,
 			t.snap, t.channel, t.trackingChannel, t.confinement, compsData)
 	default:
@@ -281,6 +316,35 @@ func (s *SnapOpSuite) TestInstall(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapOpSuite) TestInstallWithComponent(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":      "install",
+			"channel":     "candidate",
+			"cohort-key":  "what",
+			"components":  []interface{}{"comp1", "comp2"},
+			"transaction": string(client.TransactionPerSnap),
+		})
+		s.srv.channel = "candidate"
+	}
+
+	s.srv.components = []string{"comp1", "comp2"}
+	s.RedirectClientToTestServer(s.srv.handle)
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel", "candidate", "--cohort", "what", "foo+comp1+comp2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(candidate\) 1.0 from Bar installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*component comp1 3.2 for foo \(candidate\) 1.0 installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*component comp2 3.2 for foo \(candidate\) 1.0 installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
 func (s *SnapOpSuite) TestInstallWithWaitStatus(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
@@ -307,7 +371,7 @@ func (s *SnapOpSuite) TestListReportsRestartError(c *check.C) {
 			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
 		case 1:
-			fmt.Fprintf(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"snap-name": "foo"}}}\n`)
+			fmt.Fprintf(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"snap-names": ["foo"]}}}\n`)
 		case 2:
 			fmt.Fprintf(w, `{"type": "sync", "maintenance": {"kind": "system-restart", "message": "system is restarting", "value": {"op": "system-restart"}}}}, "result": [{"name": "foo", "status": "active", "version": "1.0", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":42, "channel":"stable", "tracking-channel": "stable", "confinement": "classic"}]}\n`)
 		default:
@@ -1018,7 +1082,7 @@ func (s *SnapOpSuite) TestComponentInstallPath(c *check.C) {
 		c.Check(name, check.Equals, "snap")
 		c.Check(string(body), check.Equals, "component-data")
 	}
-	s.srv.component = "mycomp"
+	s.srv.onlyComponentChange = "mycomp"
 
 	snapBody := []byte("component-data")
 	s.RedirectClientToTestServer(s.srv.handle)
