@@ -727,7 +727,8 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 		return err
 	}
 
-	if changedSnaps.hasChanges() {
+	// changedSnaps might be nil in some operations with the fakestore
+	if changedSnaps != nil && changedSnaps.hasChanges() {
 		if err := showDone(x.client, chg, changedSnaps, "install", opts, x.getEscapes()); err != nil {
 			return err
 		}
@@ -740,8 +741,10 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 
 	// show skipped
 	seen := make(map[string]bool)
-	for _, name := range changedSnaps.names {
-		seen[name] = true
+	if changedSnaps != nil {
+		for _, name := range changedSnaps.names {
+			seen[name] = true
+		}
 	}
 	for _, name := range names {
 		if !seen[name] {
@@ -846,7 +849,8 @@ func (x *cmdRefresh) refreshMany(snaps []string, opts *client.SnapOptions) error
 		return err
 	}
 
-	if changedSnaps.hasChanges() {
+	// changedSnaps might be nil in some operations with the fakestore
+	if changedSnaps != nil && changedSnaps.hasChanges() {
 		return showDone(x.client, chg, changedSnaps, "refresh", opts, x.getEscapes())
 	}
 
