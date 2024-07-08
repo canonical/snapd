@@ -2238,8 +2238,8 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeFromComponent(c *C, sn
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// TODO: we'll need to update this to handle refreshing components once that
-	// work is done
+	// TODO:COMPS: we'll need to update this to handle refreshing components
+	// once that work is done
 
 	s.o.TaskRunner().AddHandler("mock-link-component-n-witness", func(task *state.Task, tomb *tomb.Tomb) error { // do handler
 		s.state.Lock()

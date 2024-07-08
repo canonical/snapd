@@ -301,8 +301,6 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			snapst = &SnapState{}
 		}
 
-		// TODO: is it safe to pull the channel from here? i'm not sure what
-		// this will actually look like as a response from the real store
 		channel := r.RedirectChannel
 		if r.RedirectChannel == "" {
 			channel = sn.RevOpts.Channel
@@ -428,7 +426,7 @@ func installActionForStoreTarget(t StoreSnap, opts Options, enforcedSets func() 
 			)
 		}
 
-		// TODO: handle validation sets and components here
+		// TODO:COMPS: handle validation sets and components here
 
 		action.ValidationSets = requiredSets
 
