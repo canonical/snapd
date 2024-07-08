@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type AllSuite struct{}
@@ -464,4 +465,10 @@ func (s *AllSuite) TestAppArmorUnconfinedSlots(c *C) {
 	for _, iface := range all {
 		c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedSlots, Equals, appArmorUnconfinedSlots[iface.Name()])
 	}
+}
+
+func (s *AllSuite) TestPrioritizedSnippets(c *C) {
+	keys := apparmor.GetSnippetKeys()
+	c.Assert(len(keys), Equals, 1)
+	c.Assert(keys, testutil.Contains, "desktop-file-access")
 }

@@ -43,7 +43,7 @@ import (
 const desktopLegacyAndUnity7Priority = 0
 const desktopLaunchPriority = 100
 
-var prioritizedSnippetDesktopFileAccess = apparmor.RegisterSnippetKey("desktop-content-access")
+var prioritizedSnippetDesktopFileAccess = apparmor.RegisterSnippetKey("desktop-file-access")
 
 type desktopLaunchInterface struct{}
 
