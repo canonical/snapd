@@ -109,6 +109,7 @@ void sc_cleanup_invocation(sc_invocation *inv) {
         sc_cleanup_string(&inv->security_tag);
         sc_cleanup_string(&inv->executable);
         sc_cleanup_string(&inv->rootfs_dir);
+        sc_cleanup_string(&inv->snap_component);
         sc_cleanup_deep_strv(&inv->homedirs);
     }
 }
