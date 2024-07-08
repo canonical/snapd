@@ -581,7 +581,6 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 		return fmt.Errorf("snap %q has no %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
 	}
 
-	// TODO: should the repo return an app set here?
 	plugAppSet, err := appSetForSnapRevision(st, plug.Snap)
 	if err != nil {
 		return fmt.Errorf("building app set for snap %q: %v", plug.Snap.InstanceName(), err)
@@ -593,7 +592,6 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 		return fmt.Errorf("snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	}
 
-	// TODO: should the repo return an app set here?
 	slotAppSet, err := appSetForSnapRevision(st, slot.Snap)
 	if err != nil {
 		return fmt.Errorf("building app set for snap %q: %v", slot.Snap.InstanceName(), err)
