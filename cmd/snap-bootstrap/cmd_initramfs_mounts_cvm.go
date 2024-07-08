@@ -144,7 +144,7 @@ func generateMounts(disk disks.Disk) ([]partitionMount, error) {
 			pm.Opts.VerityRootHash = p.RootHash
 
 			// Auto-discover verity device from disk for partition types meant to be used as lowerdir
-			verityPartition, err := disk.FindMatchingPartitionWithFsLabel(p.FsLabel + "-verity")
+			verityPartition, err := disk.FindMatchingPartitionWithPartLabel(p.FsLabel + "-verity")
 			if err != nil {
 				return []partitionMount{}, err
 			}
