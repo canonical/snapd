@@ -90,5 +90,8 @@ cmd/test-driver
 # Snap files
 *.snap
 
+# Component files
+*.comp
+
 # Image files
 *.img
