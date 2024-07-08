@@ -610,7 +610,8 @@ var key1 = apparmor.RegisterSnippetKey("testkey1")
 var key2 = apparmor.RegisterSnippetKey("testkey2")
 
 func (s *specSuite) TestPrioritySnippets(c *C) {
-	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.scope1"})
+	restoreScope1 := apparmor.SetSpecScope(s.spec, []string{"snap.demo.scope1"})
+	defer restoreScope1()
 
 	// Test a scope with a normal snippet and prioritized ones
 	s.spec.AddSnippet("Test snippet 1")
@@ -620,11 +621,9 @@ func (s *specSuite) TestPrioritySnippets(c *C) {
 	s.spec.AddPrioritizedSnippet("Prioritized snippet 4", key2, 2)
 	s.spec.AddPrioritizedSnippet("Prioritized snippet 5", key2, 0)
 
-	restore()
-
 	// Test a scope with only prioritized snippets
-	restore = apparmor.SetSpecScope(s.spec, []string{"snap.demo.scope2"})
-	defer restore()
+	restoreScope2 := apparmor.SetSpecScope(s.spec, []string{"snap.demo.scope2"})
+	defer restoreScope2()
 
 	s.spec.AddPrioritizedSnippet("Prioritized snippet 6", key1, 0)
 	s.spec.AddPrioritizedSnippet("Prioritized snippet 7", key1, 0)
@@ -643,8 +642,10 @@ func (s *specSuite) TestPrioritySnippets(c *C) {
 	snippets = s.spec.SnippetForTag("snap.demo.scope2")
 	c.Assert(snippets, testutil.Contains, "Prioritized snippet 6")
 	c.Assert(snippets, testutil.Contains, "Prioritized snippet 7")
+	// Overridden by higher-priority snippet 9 with the same key (key2)
 	c.Assert(snippets, Not(testutil.Contains), "Prioritized snippet 8")
 	c.Assert(snippets, testutil.Contains, "Prioritized snippet 9")
+	// Overridden by higher-priority snippet 9 with the same key (key2)
 	c.Assert(snippets, Not(testutil.Contains), "Prioritized snippet 10")
 
 	tags := s.spec.SecurityTags()
@@ -662,7 +663,7 @@ func (s *specSuite) TestRegisterSameSnippetKeyTwice(c *C) {
 }
 
 func (s *specSuite) TestMoreSnippets(c *C) {
-	keylist := apparmor.GetSnippetKeys()
+	keylist := apparmor.RegisteredSnippetKeys()
 	c.Assert(keylist, testutil.Contains, "testkey1")
 	c.Assert(keylist, testutil.Contains, "testkey2")
 	c.Assert(len(keylist), Equals, 2)

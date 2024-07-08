@@ -80,8 +80,8 @@ func RegisterSnippetKey(key string) SnippetKey {
 }
 
 // GetSnippetKey retrieves all the current valid keys
-func GetSnippetKeys() []string {
-	keylist := make([]string, 0)
+func RegisteredSnippetKeys() []string {
+	keylist := make([]string, 0, len(registeredKeys))
 	for k := range registeredKeys {
 		keylist = append(keylist, k.key)
 	}
@@ -632,7 +632,7 @@ func (spec *Specification) SnippetForTag(tag string) string {
 // SecurityTags returns a list of security tags which have a snippet.
 func (spec *Specification) SecurityTags() []string {
 	var tags []string
-	seen := make(map[string]bool)
+	seen := make(map[string]bool, len(spec.snippets))
 	for t := range spec.snippets {
 		tags = append(tags, t)
 		seen[t] = true

@@ -468,7 +468,7 @@ func (s *AllSuite) TestAppArmorUnconfinedSlots(c *C) {
 }
 
 func (s *AllSuite) TestPrioritizedSnippets(c *C) {
-	keys := apparmor.GetSnippetKeys()
+	keys := apparmor.RegisteredSnippetKeys()
 	c.Assert(len(keys), Equals, 1)
 	c.Assert(keys, testutil.Contains, "desktop-file-access")
 }
