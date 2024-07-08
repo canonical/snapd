@@ -914,8 +914,10 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 		})
 	}
 
-	if err := filterHeldSnapsInPlan(st, &plan, opts.Flags.IsAutoRefresh); err != nil {
-		return nil, nil, err
+	if plan.refreshAll() {
+		if err := filterHeldSnapsInPlan(st, &plan, opts.Flags.IsAutoRefresh); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	// save the candidates so the auto-refresh can be continued if it's inhibited
