@@ -9171,8 +9171,9 @@ Exec=test-snap
 [Desktop Entry]
 X-SnapInstanceName=test-snap
 Name=test
-Exec=env BAMF_DESKTOP_FILE_HINT=%s/test-snap_test-snap.desktop %s/test-snap
-`[1:], dirs.SnapDesktopFilesDir, dirs.SnapBinariesDir)
+Exec=/usr/bin/snap routine desktop-launch --desktop %s/test-snap_test-snap.desktop -- %%f
+X-Snap-Exec=test-snap
+`[1:], dirs.SnapDesktopFilesDir)
 
 	c.Assert(desktopFile, testutil.FileEquals, expectedContent)
 	c.Assert(otherDesktopFile, testutil.FileAbsent)

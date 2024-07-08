@@ -1,9 +1,19 @@
 name: test-launcher
 version: 1.0
+base: core22
 summary: Basic desktop launcher snap
 description: A basic snap that attempts to launch other snaps
 
 apps:
-  test-launcher:
-    command: bin/launcher.sh
+  cmd:
+    command: bin/cmd.sh
+    plugs: [desktop-launch]
+  dbus-v1:
+    command: bin/dbus-v1.sh
+    plugs: [desktop-launch]
+  dbus-v2:
+    command: bin/dbus-v2.sh
+    plugs: [desktop-launch]
+  exec:
+    command: bin/exec.sh
     plugs: [desktop-launch]

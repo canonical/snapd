@@ -22,6 +22,7 @@ package userd_test
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -52,7 +53,7 @@ func (s *privilegedDesktopLauncherSuite) SetUpTest(c *C) {
 	var rawMircadeDesktop = `[Desktop Entry]
   X-SnapInstanceName=mircade
   Name=mircade
-  Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/mircade_mircade.desktop /snap/bin/mircade
+  Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/mircade_mircade.desktop /snap/bin/mircade %f
   Icon=/snap/mircade/143/meta/gui/mircade.png
   Comment=Sample confined desktop
   Type=Application
@@ -133,4 +134,73 @@ func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntryFailsForNonSnap(c *
 
 	err := s.launcher.OpenDesktopEntry("shadow-test.desktop", ":some-dbus-sender")
 	c.Check(err, ErrorMatches, `only launching snap applications from .* is supported`)
+}
+
+func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntry2SucceedsWithURIs(c *C) {
+	cmd := testutil.MockCommand(c, "systemd-run", "true")
+	defer cmd.Restore()
+
+	err := s.launcher.OpenDesktopEntry2("mircade_mircade.desktop", "", []string{"file:///test.txt"}, nil, ":some-dbus-sender")
+	c.Check(err, IsNil)
+}
+
+func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntry2WithEnv(c *C) {
+	cmd := testutil.MockCommand(c, "systemd-run", "true")
+	defer cmd.Restore()
+
+	err := s.launcher.OpenDesktopEntry2("mircade_mircade.desktop", "", []string{"file:///test.txt"}, map[string]string{"XDG_ACTIVATION_TOKEN": "wayland-id"}, ":some-dbus-sender")
+	c.Check(err, IsNil)
+}
+
+func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntry2FailsWithUnexpectedURI(c *C) {
+	cmd := testutil.MockCommand(c, "systemd-run", "true")
+	defer cmd.Restore()
+
+	err := s.launcher.OpenDesktopEntry2("mircade_mircade.desktop", "", []string{"http://example.org"}, nil, ":some-dbus-sender")
+	c.Check(err, ErrorMatches, `"http://example.org" is not a file URI`)
+}
+
+func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntry2FailsWithEnvironmentVars(c *C) {
+	cmd := testutil.MockCommand(c, "systemd-run", "true")
+	defer cmd.Restore()
+
+	err := s.launcher.OpenDesktopEntry2("mircade_mircade.desktop", "", nil, map[string]string{"foo": "bar"}, ":some-dbus-sender")
+	c.Check(err, ErrorMatches, `unknown variables in environment`)
+}
+
+func (s *privilegedDesktopLauncherSuite) TestAppendEnvironment(c *C) {
+	// If no environment variables are passed, args is passed
+	// through unchanged.
+	args, err := userd.AppendEnvironment([]string{"foo"}, nil)
+	c.Check(err, IsNil)
+	c.Check(args, DeepEquals, []string{"foo"})
+
+	// Startup notification environment variables are passed through
+	args, err = userd.AppendEnvironment([]string{"foo"}, map[string]string{
+		"DESKTOP_STARTUP_ID":   "x11-id",
+		"XDG_ACTIVATION_TOKEN": "wayland-id",
+	})
+	c.Check(err, IsNil)
+	// Sort the extra arguments in the slice, to remove dependence
+	// on map iteration order.
+	sort.Strings(args[1:])
+	c.Check(args, DeepEquals, []string{"foo", "--setenv=DESKTOP_STARTUP_ID=x11-id", "--setenv=XDG_ACTIVATION_TOKEN=wayland-id"})
+
+	// Error out on unexpected variables
+	args, err = userd.AppendEnvironment([]string{"foo"}, map[string]string{
+		"WAYLAND_DISPLAY": "wayland-0",
+	})
+	c.Check(args, IsNil)
+	c.Check(err, ErrorMatches, `unknown variables in environment`)
+}
+
+func (s *privilegedDesktopLauncherSuite) TestValidateURIs(c *C) {
+	err := userd.ValidateURIs([]string{"http://param1.com", "file:///param2.txt", "mailto:user@example.org"})
+	c.Check(err, IsNil)
+	err = userd.ValidateURIs([]string{"-param2"})
+	c.Check(err, ErrorMatches, `passed a non-absolute URI: -param2`)
+	err = userd.ValidateURIs([]string{"file://a/test.txt"})
+	c.Check(err, ErrorMatches, `passed a file URI with a non-empty host: file://a/test.txt`)
+	err = userd.ValidateURIs([]string{"file:test.txt"})
+	c.Check(err, ErrorMatches, `passed a file URI with a relative path: file:test.txt`)
 }

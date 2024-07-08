@@ -21,6 +21,7 @@ package userd
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -46,6 +47,12 @@ const privilegedLauncherIntrospectionXML = `
 <interface name='io.snapcraft.PrivilegedDesktopLauncher'>
 	<method name='OpenDesktopEntry'>
 		<arg type='s' name='desktop_file_id' direction='in'/>
+	</method>
+	<method name='OpenDesktopEntry2'>
+		<arg type='s' name='desktop_file_id' direction='in'/>
+		<arg type='s' name='action' direction='in'/>
+		<arg type='as' name='uris' direction='in' />
+		<arg type='a{ss}' name='environment' direction='in' />
 	</method>
 </interface>`
 
@@ -74,6 +81,10 @@ func (s *PrivilegedDesktopLauncher) IntrospectionData() string {
 // DBus interface. The desktopFileID is described here:
 // https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id
 func (s *PrivilegedDesktopLauncher) OpenDesktopEntry(desktopFileID string, sender dbus.Sender) *dbus.Error {
+	return s.OpenDesktopEntry2(desktopFileID, "", nil, nil, sender)
+}
+
+func (s *PrivilegedDesktopLauncher) OpenDesktopEntry2(desktopFileID string, action string, uris []string, environment map[string]string, sender dbus.Sender) *dbus.Error {
 	desktopFile, err := desktopFileIDToFilename(desktopFileID)
 	if err != nil {
 		return dbus.MakeFailedError(err)
@@ -84,37 +95,91 @@ func (s *PrivilegedDesktopLauncher) OpenDesktopEntry(desktopFileID string, sende
 		return dbus.MakeFailedError(err)
 	}
 
+	if err := validateURIs(uris); err != nil {
+		return dbus.MakeFailedError(err)
+	}
+
 	de, err := desktopentry.Read(desktopFile)
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
 
-	args, err := de.ExpandExec(nil)
+	var execArgs []string
+	if action == "" {
+		execArgs, err = de.ExpandExec(uris)
+	} else {
+		execArgs, err = de.ExpandActionExec(action, uris)
+	}
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
 
-	err = systemd.EnsureAtLeast(236)
-	if err == nil {
+	args := []string{"--user"}
+	if err = systemd.EnsureAtLeast(236); err == nil {
 		// systemd 236 introduced the --collect option to systemd-run,
 		// which specifies that the unit should be garbage collected
 		// even if it fails.
 		//   https://github.com/systemd/systemd/pull/7314
-		args = append([]string{"systemd-run", "--user", "--collect", "--"}, args...)
-	} else if systemd.IsSystemdTooOld(err) {
-		args = append([]string{"systemd-run", "--user", "--"}, args...)
-	} else {
+		args = append(args, "--collect")
+	} else if !systemd.IsSystemdTooOld(err) {
 		// systemd not available
 		return dbus.MakeFailedError(err)
 	}
+	if args, err = appendEnvironment(args, environment); err != nil {
+		return dbus.MakeFailedError(err)
+	}
+	args = append(args, "--")
+	args = append(args, execArgs...)
 
-	cmd := exec.Command(args[0], args[1:]...)
+	cmd := exec.Command("systemd-run", args...)
 
 	if err := cmd.Run(); err != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot run %q: %v", args, err))
 	}
 
 	return nil
+}
+
+// validateURIs ensures that all of the uris passed are absolute URIs,
+// and if they are file URIs that their path component is absolute.
+func validateURIs(uris []string) error {
+	for _, arg := range uris {
+		if arg == "" {
+			return fmt.Errorf("passed an empty parameter")
+		}
+		uri, err := url.Parse(arg)
+		if err != nil {
+			return fmt.Errorf("one of the parameters is not an URI: %s", arg)
+		}
+		if !uri.IsAbs() {
+			return fmt.Errorf("passed a non-absolute URI: %s", arg)
+		}
+		if uri.Scheme == "file" {
+			if uri.Host != "" {
+				return fmt.Errorf("passed a file URI with a non-empty host: %s", arg)
+			}
+			if !filepath.IsAbs(uri.Path) {
+				return fmt.Errorf("passed a file URI with a relative path: %s", arg)
+			}
+		}
+	}
+	return nil
+}
+
+// appendEnvironment extends a systemd-run command line to set allowed
+// environment variables.
+func appendEnvironment(args []string, environment map[string]string) ([]string, error) {
+	for key, value := range environment {
+		switch key {
+		case "DESKTOP_STARTUP_ID", "XDG_ACTIVATION_TOKEN":
+			// Allow startup notification related
+			// environment variables
+			args = append(args, fmt.Sprintf("--setenv=%s=%s", key, value))
+		default:
+			return nil, fmt.Errorf("unknown variables in environment")
+		}
+	}
+	return args, nil
 }
 
 var regularFileExists = osutil.RegularFileExists

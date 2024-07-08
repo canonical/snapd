@@ -45,13 +45,18 @@ const desktopLaunchConnectedPlugAppArmor = `
 # Allow access to all snap metadata
 /snap/*/*/** r,
 
+# Desktop files use the "snap" command, which may be symlinked
+# to the snapd snap.
+/usr/bin/snap ixr,
+/snap/snapd/*/usr/bin/snap ixr,
+
 #include <abstractions/dbus-session-strict>
 
 dbus (send)
     bus=session
     path=/io/snapcraft/PrivilegedDesktopLauncher
     interface=io.snapcraft.PrivilegedDesktopLauncher
-    member=OpenDesktopEntry
+    member={OpenDesktopEntry,OpenDesktopEntry2}
     peer=(label=unconfined),
 `
 
@@ -60,6 +65,7 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "desktop-launch",
 		summary:               desktopLaunchSummary,
+		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		baseDeclarationPlugs:  desktopLaunchBaseDeclarationPlugs,
 		baseDeclarationSlots:  desktopLaunchBaseDeclarationSlots,

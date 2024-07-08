@@ -3,3 +3,8 @@ Type=Application
 Name=test-app
 Comment=A desktop file for test-app
 Exec=test-app arg-before %U arg-after
+Actions=foo-action
+
+[Desktop Action foo-action]
+Name=test action
+Exec=test-app action

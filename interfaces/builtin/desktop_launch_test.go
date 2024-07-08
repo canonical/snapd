@@ -82,7 +82,7 @@ func (s *desktopLaunchSuite) TestConnectedPlugSnippet(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `Can identify and launch other snaps.`)
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `member=OpenDesktopEntry`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `member={OpenDesktopEntry,OpenDesktopEntry2}`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label=unconfined),`)
 }
 
@@ -92,7 +92,7 @@ func (s *desktopLaunchSuite) TestInterfaces(c *C) {
 
 func (s *desktopLaunchSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
-	c.Assert(si.ImplicitOnCore, Equals, false)
+	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows snaps to identify and launch desktop applications in (or from) other snaps`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "desktop-launch")

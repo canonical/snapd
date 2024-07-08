@@ -32,12 +32,13 @@ execute: |
         expected="^basic-desktop_$instance 1.0 installed\$"
         "$TESTSTOOLS"/snaps-state install-local-as basic-desktop "basic-desktop_$instance" | MATCH "$expected"
 
-        diff -u <(head -n5 "/var/lib/snapd/desktop/applications/basic-desktop+${instance}_echo.desktop") - <<-EOF
+        diff -u <(head -n6 "/var/lib/snapd/desktop/applications/basic-desktop+${instance}_echo.desktop") - <<-EOF
     [Desktop Entry]
     X-SnapInstanceName=basic-desktop_${instance}
     Name=Echo
     Comment=It echos stuff
-    Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop+${instance}_echo.desktop $SNAP_MOUNT_DIR/bin/basic-desktop_$instance.echo
+    Exec=/usr/bin/snap routine desktop-launch --desktop /var/lib/snapd/desktop/applications/basic-desktop+${instance}_echo.desktop -- %f
+    X-Snap-Exec=basic-desktop_$instance.echo
     EOF
 
         test -d "$SNAP_MOUNT_DIR/basic-desktop_$instance/x1"
