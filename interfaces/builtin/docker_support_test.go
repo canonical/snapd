@@ -322,6 +322,11 @@ func (s *DockerSupportInterfaceSuite) TestGenerateAAREExclusionPatterns(c *C) {
 userns,
 `
 
+	const dockerSupportConnectedPlugAppArmorMqueue = `
+# allow unrestricted use of posix message queues
+mqueue,
+`
+
 	const dockerSupportConnectedPlugAppArmor = `
 # Description: allow operating as the Docker daemon/containerd. This policy is
 # intentionally not restrictive and is here to help guard against programming
@@ -845,15 +850,20 @@ ptrace (read, trace) peer=unconfined,
 	// Generate profile to compare with
 	privilegedProfile := dockerSupportPrivilegedAppArmor + dockerSupportConnectedPlugAppArmor
 
-	// if apparmor supports userns mediation then add this too
 	if (apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Partial) && (apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Full) {
 		c.Skip(apparmor_sandbox.Summary())
 	}
 
+	// if apparmor supports userns mediation then add this too
 	features, err := apparmor_sandbox.ParserFeatures()
 	c.Assert(err, IsNil)
 	if strutil.ListContains(features, "userns") {
 		privilegedProfile += dockerSupportConnectedPlugAppArmorUserNS
+	}
+
+	// if apparmor supports mqueue mediation then add this too
+	if strutil.ListContains(features, "mqueue") {
+		privilegedProfile += dockerSupportConnectedPlugAppArmorMqueue
 	}
 
 	// Profile existing profile
