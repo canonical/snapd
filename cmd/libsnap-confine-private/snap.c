@@ -66,11 +66,6 @@ bool sc_security_tag_validate(const char *security_tag,
 	// if we expect a component name (a non-null string was passed in here),
 	// then we need to make sure that the regex captured a component name
 	if (component_name != NULL) {
-		// don't allow empty component names, only allow NULL as an indication
-		// that we don't expect a component name.
-		if (strlen(component_name) == 0) {
-			return false;
-		}
 		// fail if the security tag doesn't contain a component name and we
 		// expected one
 		if (matches[7].rm_so < 0) {
@@ -78,6 +73,13 @@ bool sc_security_tag_validate(const char *security_tag,
 		}
 
 		size_t component_name_len = strlen(component_name);
+
+		// don't allow empty component names, only allow NULL as an indication
+		// that we don't expect a component name.
+		if (component_name_len == 0) {
+			return false;
+		}
+
 		size_t len = matches[7].rm_eo - matches[7].rm_so;
 		if (len != component_name_len
 		    || strncmp(security_tag + matches[7].rm_so, component_name,
