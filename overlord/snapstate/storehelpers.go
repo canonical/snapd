@@ -737,12 +737,12 @@ func storeUpdatePlan(
 
 	// create actions to refresh (install, from the store's perspective) snaps
 	// that were installed locally
-	ammendActionsByUserID, err := installActionsForAmmend(st, updates, opts, enforcedSets, fallbackID)
+	amendActionsByUserID, err := installActionsForAmend(st, updates, opts, enforcedSets, fallbackID)
 	if err != nil {
 		return updatePlan{}, err
 	}
 
-	for id, actions := range ammendActionsByUserID {
+	for id, actions := range amendActionsByUserID {
 		actionsByUserID[id] = append(actionsByUserID[id], actions...)
 	}
 
@@ -822,7 +822,7 @@ func storeUpdatePlan(
 	return plan, nil
 }
 
-func installActionsForAmmend(st *state.State, updates map[string]StoreUpdate, opts Options, enforcedSets func() (*snapasserts.ValidationSets, error), fallbackID int) (map[int][]*store.SnapAction, error) {
+func installActionsForAmend(st *state.State, updates map[string]StoreUpdate, opts Options, enforcedSets func() (*snapasserts.ValidationSets, error), fallbackID int) (map[int][]*store.SnapAction, error) {
 	actionsByUserID := make(map[int][]*store.SnapAction)
 	for _, up := range updates {
 		var snapst SnapState
