@@ -2235,7 +2235,7 @@ func autoAliasesUpdate(st *state.State, requested []string, updates []update) (c
 // requested channel is forbidden.
 func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceContext) (effectiveChannel string, err error) {
 	if newChannel == "" {
-		return "", nil
+		return oldChannel, nil
 	}
 
 	// ensure we do not switch away from the kernel-track in the model
@@ -2357,7 +2357,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 		return nil, err
 	}
 
-	opts.Channel, err = resolveChannel(name, snapst.TrackingChannel, opts.Channel, deviceCtx)
+	channel, err := resolveChannel(name, snapst.TrackingChannel, opts.Channel, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -2367,13 +2367,10 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 		InstanceKey: snapst.InstanceKey,
 		// set the from state (i.e. no change), they are overridden from opts as needed below
 		CohortKey: snapst.CohortKey,
-		Channel:   snapst.TrackingChannel,
+		Channel:   channel,
 		Type:      snap.Type(snapst.SnapType),
 	}
 
-	if opts.Channel != "" {
-		snapsup.Channel = opts.Channel
-	}
 	if opts.CohortKey != "" {
 		snapsup.CohortKey = opts.CohortKey
 	}

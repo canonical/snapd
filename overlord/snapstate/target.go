@@ -1081,12 +1081,6 @@ func validateAndInitStoreUpdates(allSnaps map[string]*SnapState, updates map[str
 			return err
 		}
 
-		// default to tracking the already tracked channel, if we don't have a
-		// provided one
-		if sn.RevOpts.Channel == "" {
-			sn.RevOpts.Channel = snapst.TrackingChannel
-		}
-
 		updates[sn.InstanceName] = sn
 	}
 
