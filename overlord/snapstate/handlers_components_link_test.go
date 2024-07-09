@@ -214,7 +214,7 @@ func (s *linkCompSnapSuite) TestDoLinkThenUndoLinkComponentOtherCompPresent(c *C
 	s.testDoLinkThenUndoLinkComponent(c, snapName, snapRev)
 }
 
-func (s *linkCompSnapSuite) testDoUnlinkCurrentComponent(c *C, snapName string, snapRev snap.Revision, compName string, compRev snap.Revision, duringSnapUpdate bool) {
+func (s *linkCompSnapSuite) testDoUnlinkCurrentComponent(c *C, snapName string, snapRev snap.Revision, compName string, compRev snap.Revision) {
 	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
 	ssu := createTestSnapSetup(si, snapstate.Flags{})
 
@@ -234,7 +234,6 @@ func (s *linkCompSnapSuite) testDoUnlinkCurrentComponent(c *C, snapName string, 
 	s.se.Wait()
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	c.Check(chg.Err(), IsNil)
 	// undo information has been stored
@@ -251,20 +250,13 @@ func (s *linkCompSnapSuite) testDoUnlinkCurrentComponent(c *C, snapName string, 
 				"mnt", compName, compRev.String()),
 		},
 	})
-
 	// state is modified as expected
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
-
-	// if we are replacing a snap's existing component, the component should be
-	// removed from the sequence; otherwise, it should remain
-	if duringSnapUpdate {
-		c.Assert(snapst.CurrentComponentSideInfo(cref), DeepEquals, csi)
-	} else {
-		c.Assert(snapst.CurrentComponentSideInfo(cref), IsNil)
-	}
-
+	c.Assert(snapst.CurrentComponentSideInfo(cref), IsNil)
 	c.Assert(t.Status(), Equals, state.DoneStatus)
+
+	s.state.Unlock()
 }
 
 func (s *linkCompSnapSuite) TestDoUnlinkCurrentComponent(c *C) {
@@ -278,8 +270,7 @@ func (s *linkCompSnapSuite) TestDoUnlinkCurrentComponent(c *C) {
 	setStateWithOneComponent(s.state, snapName, snapRev, compName, compRev)
 	s.state.Unlock()
 
-	const duringSnapUpdate = false
-	s.testDoUnlinkCurrentComponent(c, snapName, snapRev, compName, compRev, duringSnapUpdate)
+	s.testDoUnlinkCurrentComponent(c, snapName, snapRev, compName, compRev)
 }
 
 func (s *linkCompSnapSuite) TestDoUnlinkCurrentComponentOtherCompPresent(c *C) {
@@ -297,23 +288,7 @@ func (s *linkCompSnapSuite) TestDoUnlinkCurrentComponentOtherCompPresent(c *C) {
 	setStateWithComponents(s.state, snapName, snapRev, []*sequence.ComponentState{cs1, cs2})
 	s.state.Unlock()
 
-	const duringSnapUpdate = false
-	s.testDoUnlinkCurrentComponent(c, snapName, snapRev, compName, compRev, duringSnapUpdate)
-}
-
-func (s *linkCompSnapSuite) TestDoUnlinkCurrentComponentDuringSnapUpdate(c *C) {
-	const snapName = "mysnap"
-	const compName = "mycomp"
-	currentSnapRev := snap.R(1)
-	updatedSnapRev := snap.R(2)
-	compRev := snap.R(7)
-
-	s.state.Lock()
-	setStateWithOneComponent(s.state, snapName, currentSnapRev, compName, compRev)
-	s.state.Unlock()
-
-	const duringSnapUpdate = true
-	s.testDoUnlinkCurrentComponent(c, snapName, updatedSnapRev, compName, compRev, duringSnapUpdate)
+	s.testDoUnlinkCurrentComponent(c, snapName, snapRev, compName, compRev)
 }
 
 func (s *linkCompSnapSuite) TestDoUnlinkCurrentComponentTwoTasks(c *C) {
@@ -449,21 +424,6 @@ func (s *linkCompSnapSuite) TestDoUnlinkThenUndoUnlinkCurrentComponent(c *C) {
 	s.state.Unlock()
 
 	s.testDoUnlinkThenUndoUnlinkCurrentComponent(c, snapName, snapRev, compName, compRev)
-}
-
-func (s *linkCompSnapSuite) TestDoUnlinkThenUndoUnlinkCurrentComponentDuringSnapUpdate(c *C) {
-	const snapName = "mysnap"
-	const compName = "mycomp"
-	currentSnapRev := snap.R(1)
-	updatedSnapRev := snap.R(2)
-	compRev := snap.R(7)
-
-	s.state.Lock()
-	// state must contain the component
-	setStateWithOneComponent(s.state, snapName, currentSnapRev, compName, compRev)
-	s.state.Unlock()
-
-	s.testDoUnlinkThenUndoUnlinkCurrentComponent(c, snapName, updatedSnapRev, compName, compRev)
 }
 
 func (s *linkCompSnapSuite) TestDoUnlinkThenUndoUnlinkCurrentComponentOtherCompPresent(c *C) {
