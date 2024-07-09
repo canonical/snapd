@@ -226,3 +226,78 @@ version: 1.0
 
 	verifyInstallTasksWithComponents(c, snap.TypeApp, localSnap, 0, []string{compName}, ts)
 }
+
+func (s *TargetTestSuite) TestUpdateSnapNotInstalled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	goal := snapstate.StoreUpdateGoal(snapstate.StoreUpdate{
+		InstanceName: "some-snap",
+		RevOpts: snapstate.RevisionOptions{
+			Channel: "some-channel",
+		},
+	})
+
+	_, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, ErrorMatches, `snap "some-snap" is not installed`)
+}
+
+func (s *TargetTestSuite) TestInvalidPathGoals(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	type test struct {
+		snap snapstate.PathSnap
+		err  string
+	}
+
+	tests := []test{
+		{
+			snap: snapstate.PathSnap{
+				SideInfo: &snap.SideInfo{},
+				Path:     "some-path",
+			},
+			err: `internal error: snap name to install "some-path" not provided`,
+		},
+		{
+			snap: snapstate.PathSnap{
+				SideInfo: &snap.SideInfo{
+					RealName: "some-snap",
+					SnapID:   "some-snap-id",
+				},
+				Path: "some-path",
+			},
+			err: `internal error: snap id set to install "some-path" but revision is unset`,
+		},
+		{
+			snap: snapstate.PathSnap{
+				SideInfo: &snap.SideInfo{
+					RealName: "some+snap",
+				},
+			},
+			err: `invalid instance name: invalid snap name: "some\+snap"`,
+		},
+		{
+			snap: snapstate.PathSnap{
+				SideInfo: &snap.SideInfo{
+					RealName: "some-snap",
+					Revision: snap.R(1),
+				},
+				RevOpts: snapstate.RevisionOptions{
+					Revision: snap.R(2),
+				},
+			},
+			err: `cannot install local snap "some-snap": 2 != 1 \(revision mismatch\)`,
+		},
+	}
+
+	for _, t := range tests {
+		update := snapstate.PathUpdateGoal(t.snap)
+		_, err := snapstate.UpdateOne(context.Background(), s.state, update, nil, snapstate.Options{})
+		c.Check(err, ErrorMatches, t.err)
+
+		install := snapstate.PathInstallGoal(t.snap.InstanceName, t.snap.Path, t.snap.SideInfo, nil, t.snap.RevOpts)
+		_, _, err = snapstate.InstallOne(context.Background(), s.state, install, snapstate.Options{})
+		c.Check(err, ErrorMatches, t.err)
+	}
+}
