@@ -37,7 +37,7 @@ enum {
 	SC_SNAP_INVALID_INSTANCE_NAME = 3,
 	/** System configuration is not supported. */
 	SC_SNAP_MOUNT_DIR_UNSUPPORTED = 4,
-	/** The component name of the snap is not valid. */
+	/** The name of the snap component is not valid. */
 	SC_SNAP_INVALID_COMPONENT = 5,
 };
 
