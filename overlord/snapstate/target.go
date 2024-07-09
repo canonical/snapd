@@ -685,104 +685,39 @@ func setDefaultSnapstateOptions(st *state.State, opts *Options) error {
 
 // pathInstallGoal represents a single snap to be installed from a path on disk.
 type pathInstallGoal struct {
-	// path is the path to the snap on disk.
-	path string
-	// instanceName is the name of the snap to install.
-	instanceName string
-	// revOpts contains options that apply to the installation of this snap.
-	revOpts RevisionOptions
-	// sideInfo contains extra information about the snap.
-	sideInfo *snap.SideInfo
-	// components is a mapping of component side infos to paths that should be
-	// installed alongside this snap.
-	components map[*snap.ComponentSideInfo]string
+	snap PathSnap
 }
 
 // PathInstallGoal creates a new InstallGoal to install a snap from a given from
 // a path on disk. If instanceName is not provided, si.RealName will be used.
 func PathInstallGoal(instanceName, path string, si *snap.SideInfo, components map[*snap.ComponentSideInfo]string, opts RevisionOptions) InstallGoal {
+	if instanceName == "" {
+		instanceName = si.RealName
+	}
+
 	return &pathInstallGoal{
-		instanceName: instanceName,
-		path:         path,
-		revOpts:      opts,
-		sideInfo:     si,
-		components:   components,
+		snap: PathSnap{
+			InstanceName: instanceName,
+			Path:         path,
+			RevOpts:      opts,
+			SideInfo:     si,
+			Components:   components,
+		},
 	}
 }
 
 // toInstall returns the data needed to setup the snap from disk.
 func (p *pathInstallGoal) toInstall(ctx context.Context, st *state.State, opts Options) ([]target, error) {
-	si := p.sideInfo
-
-	if si.RealName == "" {
-		return nil, fmt.Errorf("internal error: snap name to install %q not provided", p.path)
-	}
-
-	if si.SnapID != "" {
-		if si.Revision.Unset() {
-			return nil, fmt.Errorf("internal error: snap id set to install %q but revision is unset", p.path)
-		}
-	}
-
-	if p.instanceName == "" {
-		p.instanceName = si.RealName
-	}
-
-	if err := snap.ValidateInstanceName(p.instanceName); err != nil {
-		return nil, fmt.Errorf("invalid instance name: %v", err)
-	}
-
-	if err := validateRevisionOpts(&p.revOpts); err != nil {
-		return nil, fmt.Errorf("invalid revision options for snap %q: %w", p.instanceName, err)
-	}
-
-	if !p.revOpts.Revision.Unset() && p.revOpts.Revision != si.Revision {
-		return nil, fmt.Errorf("cannot install local snap %q: %v != %v (revision mismatch)", p.instanceName, p.revOpts.Revision, si.Revision)
-	}
-
-	info, err := validatedInfoFromPathAndSideInfo(p.instanceName, p.path, si)
-	if err != nil {
-		return nil, err
-	}
-
-	snapName, instanceKey := snap.SplitInstanceName(p.instanceName)
-	if info.SnapName() != snapName {
-		return nil, fmt.Errorf("cannot install snap %q, the name does not match the metadata %q", p.instanceName, info.SnapName())
-	}
-	info.InstanceKey = instanceKey
-
 	var snapst SnapState
-	if err := Get(st, p.instanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+	if err := Get(st, p.snap.InstanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
-	var trackingChannel string
-	if snapst.IsInstalled() {
-		trackingChannel = snapst.TrackingChannel
-	}
-
-	channel, err := resolveChannel(p.instanceName, trackingChannel, p.revOpts.Channel, opts.DeviceCtx)
+	t, err := targetForPathSnap(p.snap, snapst, opts)
 	if err != nil {
 		return nil, err
 	}
-
-	comps, err := componentSetupsFromPaths(info, p.components)
-	if err != nil {
-		return nil, err
-	}
-
-	inst := target{
-		setup: SnapSetup{
-			SnapPath:  p.path,
-			Channel:   channel,
-			CohortKey: p.revOpts.CohortKey,
-		},
-		info:       info,
-		snapst:     snapst,
-		components: comps,
-	}
-
-	return []target{inst}, nil
+	return []target{t}, nil
 }
 
 func componentSetupsFromPaths(snapInfo *snap.Info, components map[*snap.ComponentSideInfo]string) ([]ComponentSetup, error) {
@@ -1157,31 +1092,33 @@ func validateAndInitStoreUpdates(st *state.State, updates map[string]StoreUpdate
 	return nil
 }
 
-// PathUpdate represents a single snap to be updated from a path on disk.
-type PathUpdate struct {
+// PathSnap represents a single snap to be installed or updated from a path on
+// disk.
+type PathSnap struct {
 	// Path is the path to the snap on disk.
 	Path string
-	// InstanceName is the name of the snap to update.
+	// InstanceName is the name of the snap.
 	InstanceName string
-	// RevOpts contains options that apply to the update of this snap.
+	// RevOpts contains options that apply to the installation or update of this
+	// snap.
 	RevOpts RevisionOptions
 	// SideInfo contains extra information about the snap.
 	SideInfo *snap.SideInfo
 	// Components is a mapping of component side infos to paths that should be
-	// updated alongside this snap.
+	// intsalled alongside this snap.
 	Components map[*snap.ComponentSideInfo]string
 }
 
 // pathUpdateGoal implements the UpdateGoal interface and represents a group of
 // snaps that are to be updated from paths on disk.
 type pathUpdateGoal struct {
-	updates []PathUpdate
+	updates []PathSnap
 }
 
 // PathUpdateGoal creates a new UpdateGoal to update snaps from paths on disk.
-func PathUpdateGoal(snaps ...PathUpdate) UpdateGoal {
+func PathUpdateGoal(snaps ...PathSnap) UpdateGoal {
 	seen := make(map[string]bool)
-	filtered := make([]PathUpdate, 0, len(snaps))
+	filtered := make([]PathSnap, 0, len(snaps))
 	for _, snap := range snaps {
 		if snap.InstanceName == "" {
 			snap.InstanceName = snap.SideInfo.RealName
@@ -1210,10 +1147,14 @@ func (p *pathUpdateGoal) toUpdate(_ context.Context, st *state.State, opts Optio
 			return updatePlan{}, err
 		}
 
-		t, err := targetForPathUpdate(sn, snapst, opts)
+		t, err := targetForPathSnap(sn, snapst, opts)
 		if err != nil {
 			return updatePlan{}, err
 		}
+
+		// TODO:COMPS: remove this once we are ready to handle components during
+		// refresh
+		t.components = nil
 
 		targets = append(targets, t)
 		names = append(names, sn.InstanceName)
@@ -1225,7 +1166,7 @@ func (p *pathUpdateGoal) toUpdate(_ context.Context, st *state.State, opts Optio
 	}, nil
 }
 
-func targetForPathUpdate(update PathUpdate, snapst SnapState, opts Options) (target, error) {
+func targetForPathSnap(update PathSnap, snapst SnapState, opts Options) (target, error) {
 	si := update.SideInfo
 
 	if si.RealName == "" {
@@ -1271,7 +1212,10 @@ func targetForPathUpdate(update PathUpdate, snapst SnapState, opts Options) (tar
 		return target{}, err
 	}
 
-	// TODO: handle components here
+	comps, err := componentSetupsFromPaths(info, update.Components)
+	if err != nil {
+		return target{}, err
+	}
 
 	return target{
 		setup: SnapSetup{
@@ -1281,6 +1225,6 @@ func targetForPathUpdate(update PathUpdate, snapst SnapState, opts Options) (tar
 		},
 		info:       info,
 		snapst:     snapst,
-		components: nil,
+		components: comps,
 	}, nil
 }

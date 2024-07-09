@@ -1469,9 +1469,9 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 	// InstallPathMany
 	flags.NoReRefresh = true
 
-	updates := make([]PathUpdate, 0, len(sideInfos))
+	updates := make([]PathSnap, 0, len(sideInfos))
 	for i, si := range sideInfos {
-		updates = append(updates, PathUpdate{
+		updates = append(updates, PathSnap{
 			Path:     paths[i],
 			SideInfo: si,
 		})
@@ -2452,7 +2452,7 @@ func UpdatePathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name 
 		flags.Transaction = client.TransactionPerSnap
 	}
 
-	goal := PathUpdateGoal(PathUpdate{
+	goal := PathUpdateGoal(PathSnap{
 		Path:         path,
 		SideInfo:     si,
 		InstanceName: name,
