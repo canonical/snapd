@@ -1820,7 +1820,7 @@ func (u *update) satisfied() bool {
 		return false
 	}
 
-	// TODO: check that we need change the state of components
+	// TODO:COMPS: check that we need change the state of components
 
 	return u.SnapState.Current == u.Setup.Revision()
 }
