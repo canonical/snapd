@@ -824,6 +824,93 @@ func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingRefreshService
 	s.testSnapRunAppRetryNoInhibitHintFileThenOngoingRefresh(c, svc)
 }
 
+func (s *RunSuite) testSnapRunAppRetryNoInhibitHintFileThenOngoingRemove(c *check.C, svc bool) {
+	_, restore := logger.MockLogger()
+	defer restore()
+
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x2")})
+
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
+	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
+
+	var waitWhileInhibitedCalled int
+	restore = snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
+		waitWhileInhibitedCalled++
+
+		c.Check(snapName, check.Equals, "snapname")
+		err := notInhibited(ctx)
+		c.Assert(err, check.IsNil)
+
+		// mock snap inhibited to trigger race condition detection
+		// i.e. we started without a hint lock file (snap on first install)
+		// then a remove started which created the hint lock file.
+		c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRemove, runinhibit.InhibitInfo{Previous: snap.R("x2")}), check.IsNil)
+
+		// nil FileLock means no inhibit file exists
+		return nil, nil
+	})
+	defer restore()
+
+	var createCgroupCalled int
+	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string, opts *cgroup.TrackingOptions) error {
+		createCgroupCalled++
+		return nil
+	})
+	defer restore()
+
+	var confirmCgroupCalled int
+	confirmCgroup := func(securityTag string) error {
+		confirmCgroupCalled++
+		if createCgroupCalled >= 1 || svc {
+			// tracking cgroup was already created
+			return nil
+		}
+		// no tracking cgroup exists for current process
+		return cgroup.ErrCannotTrackProcess
+	}
+
+	if svc {
+		restore = snaprun.MockConfirmSystemdServiceTracking(confirmCgroup)
+	} else {
+		restore = snaprun.MockConfirmSystemdAppTracking(confirmCgroup)
+	}
+	defer restore()
+
+	cmd := "snapname.app"
+	if svc {
+		cmd = "snapname.svc"
+	}
+
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--debug-log", "--", cmd})
+	c.Assert(err, check.ErrorMatches, `cannot run "snapname", snap is being removed`)
+
+	// no retry, sinlge call
+	c.Check(waitWhileInhibitedCalled, check.Equals, 1)
+	c.Check(confirmCgroupCalled, check.Equals, 1)
+	if svc {
+		// service cgroup already created
+		c.Check(createCgroupCalled, check.Equals, 0)
+	} else {
+		c.Check(createCgroupCalled, check.Equals, 1)
+	}
+
+	// lock should be released
+	checkHintFileNotLocked(c, "snapname")
+}
+
+func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingRemove(c *check.C) {
+	const svc = false
+	s.testSnapRunAppRetryNoInhibitHintFileThenOngoingRemove(c, svc)
+}
+
+func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingRemoveService(c *check.C) {
+	const svc = true
+	s.testSnapRunAppRetryNoInhibitHintFileThenOngoingRemove(c, svc)
+}
+
 func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingRefreshMissingCurrent(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
