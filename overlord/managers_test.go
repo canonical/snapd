@@ -465,6 +465,19 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 		},
 	})
 
+	// add snapd itself
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "snapd", SnapID: fakeSnapID("snapd"), Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: "snapd",
+		Flags: snapstate.Flags{
+			Required: true,
+		},
+	})
+
 	// commonly used core and snapd revisions in tests
 	defaultInfoFile := `
 VERSION=2.54.3+git1.g479e745-dirty
@@ -575,6 +588,13 @@ func (s *mgrsSuiteCore) SetUpTest(c *C) {
 	// it panicking.
 	restore := release.MockOnClassic(false)
 	s.baseMgrsSuite.SetUpTest(c)
+
+	// remove snapd snap added for baseMgrsSuite
+	st := s.o.State()
+	st.Lock()
+	snapstate.Set(st, "snapd", nil)
+	st.Unlock()
+
 	s.AddCleanup(restore)
 }
 
@@ -712,8 +732,10 @@ hooks:
 	// nothing in snaps
 	all, err := snapstate.All(st)
 	c.Assert(err, IsNil)
-	c.Check(all, HasLen, 1)
+	c.Check(all, HasLen, 2)
 	_, ok := all["core"]
+	c.Check(ok, Equals, true)
+	_, ok = all["snapd"]
 	c.Check(ok, Equals, true)
 
 	// nothing in config
@@ -6060,6 +6082,9 @@ func (s *kernelSuite) SetUpTest(c *C) {
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
+
+	// remove snapd snap added for baseMgrsSuite
+	snapstate.Set(st, "snapd", nil)
 
 	// create/set custom model assertion
 	model := s.brands.Model("can0nical", "my-model", modelDefaults)

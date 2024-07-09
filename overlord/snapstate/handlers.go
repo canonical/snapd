@@ -560,18 +560,23 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq map[stri
 		}
 	}
 
-	// on systems without core or snapd need to install snapd to
-	// make interfaces work - LP: 1819318
+	// On classic systems that are already seeded, automatically
+	// install snapd snap (covers LP: 1819318). Not allowed for
+	// Ubuntu Core systems - requires remodeling.
 	var tsSnapd *state.TaskSet
 	snapdSnapInstalled, err := isInstalled(st, "snapd")
 	if err != nil {
 		return err
 	}
-	coreSnapInstalled, err := isInstalled(st, "core")
-	if err != nil {
+
+	// consider the state of seeding to avoid seed conflict error
+	var seeded bool
+	err = st.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
-	if base != "core" && !snapdSnapInstalled && !coreSnapInstalled {
+
+	if release.OnClassic && seeded && !snapdSnapInstalled {
 		timings.Run(tm, "install-prereq", "install snapd", func(timings.Measurer) {
 			noTypeBaseCheck := false
 			tsSnapd, err = m.installOneBaseOrRequired(t, "snapd", nil, noTypeBaseCheck, defaultSnapdSnapsChannel(), onInFlightErr, userID, Flags{

@@ -386,6 +386,9 @@ func (s *snapmgrTestSuite) TestInstallSnapdSnapTypeOnClassic(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// remove snapd snap added for snapmgrBaseTest
+	snapstate.Set(s.state, "snapd", nil)
+
 	// setup a classic model so the device context says we are on classic
 	defer snapstatetest.MockDeviceModel(ClassicModel())()
 
@@ -406,6 +409,9 @@ func (s *snapmgrTestSuite) TestInstallSnapdSnapTypeOnCore(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// remove snapd snap added for snapmgrBaseTest
+	snapstate.Set(s.state, "snapd", nil)
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
 	ts, err := snapstate.Install(context.Background(), s.state, "snapd", opts, 0, snapstate.Flags{})
@@ -529,6 +535,9 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContextNoRemodelConflict(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// remove snapd snap added for snapmgrBaseTest
+	snapstate.Set(s.state, "snapd", nil)
 
 	// unset the global store, it will need to come via the device context
 	snapstate.ReplaceStore(s.state, nil)
@@ -925,6 +934,9 @@ func (s *snapmgrTestSuite) TestInstallSnapdConflict(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// remove snapd snap added for snapmgrBaseTest
+	snapstate.Set(s.state, "snapd", nil)
 
 	tugc := s.state.NewTask("update-gadget-cmdline", "update gadget cmdline")
 	chg := s.state.NewChange("optional-kernel-cmdline", "optional kernel cmdline")
