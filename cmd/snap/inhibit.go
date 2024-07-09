@@ -37,7 +37,6 @@ import (
 )
 
 var runinhibitWaitWhileInhibited = runinhibit.WaitWhileInhibited
-var runinhibitIsLocked = runinhibit.IsLocked
 
 // errSnapRefreshConflict indicates that a retry is needed because snap-run
 // might have started without a hint lock file and now there is an ongoing refresh
@@ -51,29 +50,6 @@ var errInhibitedForRemove = fmt.Errorf("snap is being removed")
 // errOngoingSnapRefresh indicates snap cannot run because it is being refreshed
 // and refresh-app-awareness is not enabled.
 var errOngoingSnapRefresh = fmt.Errorf("snap is being refreshed")
-
-// maybeWaitWhileInhibited is a wrapper for waitWhileInhibited that skips waiting
-// if refresh-app-awareness flag is disabled and early-exits when snap run is
-// inhibited for removal.
-func maybeWaitWhileInhibited(ctx context.Context, cli *client.Client, snapName string, appName string) (info *snap.Info, app *snap.AppInfo, hintFlock *osutil.FileLock, err error) {
-	inhibitedForRemove, err := isInhibitedForRemove(snapName)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	if inhibitedForRemove {
-		return nil, nil, nil, errInhibitedForRemove
-	}
-
-	return waitWhileInhibited(ctx, cli, snapName, appName)
-}
-
-func isInhibitedForRemove(snapName string) (bool, error) {
-	hint, _, err := runinhibitIsLocked(snapName)
-	if err != nil {
-		return false, err
-	}
-	return hint == runinhibit.HintInhibitedForRemove, nil
-}
 
 // waitWhileInhibited blocks until snap is not inhibited for refresh anymore and then
 // returns a locked hint file lock along with the latest snap and app information.
@@ -99,6 +75,9 @@ func waitWhileInhibited(ctx context.Context, cli *client.Client, snapName string
 		return err
 	}
 	inhibited := func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
+		if hint == runinhibit.HintInhibitedForRemove {
+			return false, errInhibitedForRemove
+		}
 		if !features.RefreshAppAwareness.IsEnabled() {
 			return true, errOngoingSnapRefresh
 		}

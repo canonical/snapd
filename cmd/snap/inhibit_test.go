@@ -305,6 +305,48 @@ func (s *RunSuite) TestWaitWhileInhibitedGateRefreshNoNotification(c *C) {
 	checkHintFileLocked(c, "snapname")
 }
 
+func (s *RunSuite) testWaitWhileInhibitedRemoveInhibition(c *C, svc bool) {
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R(11)})
+
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(11)}
+	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRemove, inhibitInfo), IsNil)
+
+	inhibitionFlow := fakeInhibitionFlow{
+		start: func(ctx context.Context) error {
+			return fmt.Errorf("this should never be reached")
+		},
+		finish: func(ctx context.Context) error {
+			return fmt.Errorf("this should never be reached")
+		},
+	}
+	restore := snaprun.MockInhibitionFlow(&inhibitionFlow)
+	defer restore()
+
+	appName := "app"
+	if svc {
+		appName = "svc"
+	}
+
+	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", appName)
+	c.Assert(err, ErrorMatches, "snap is being removed")
+	c.Assert(hintLock, IsNil)
+	c.Check(info, IsNil)
+	c.Check(app, IsNil)
+
+	checkHintFileNotLocked(c, "snapname")
+}
+
+func (s *RunSuite) TestWaitWhileInhibitedRemoveInhibition(c *C) {
+	const svc = false
+	s.testWaitWhileInhibitedRemoveInhibition(c, svc)
+}
+
+func (s *RunSuite) TestWaitWhileInhibitedRemoveInhibitionSevice(c *C) {
+	const svc = false
+	s.testWaitWhileInhibitedRemoveInhibition(c, svc)
+}
+
 func (s *RunSuite) TestWaitWhileInhibitedNotInhibitedNoNotification(c *C) {
 	// mock installed snap
 	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R(11)})

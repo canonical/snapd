@@ -434,12 +434,6 @@ func MockWaitWhileInhibited(f func(ctx context.Context, snapName string, notInhi
 	return restore
 }
 
-func MockIsLocked(f func(snapName string) (runinhibit.Hint, runinhibit.InhibitInfo, error)) (restore func()) {
-	restore = testutil.Backup(&runinhibitIsLocked)
-	runinhibitIsLocked = f
-	return restore
-}
-
 func MockInhibitionFlow(flow inhibitionFlow) (restore func()) {
 	old := newInhibitionFlow
 	newInhibitionFlow = func(cli *client.Client, name string) inhibitionFlow {

@@ -320,10 +320,8 @@ func (s *RunSuite) TestSnapRunAppRunsChecksRefreshInhibitionLock(c *check.C) {
 }
 
 func (s *RunSuite) testSnapRunAppRunsChecksRemoveInhibitionLock(c *check.C, svc bool) {
-	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, runinhibit.InhibitInfo, error) {
-		return runinhibit.HintInhibitedForRemove, runinhibit.InhibitInfo{}, nil
-	})
-	defer restore()
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(11)}
+	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRemove, inhibitInfo), check.IsNil)
 
 	cmd := "snapname.app"
 	if svc {
@@ -342,16 +340,6 @@ func (s *RunSuite) TestSnapRunAppRunsChecksRemoveInhibitionLock(c *check.C) {
 func (s *RunSuite) TestSnapRunAppRunsChecksRemoveInhibitionLockService(c *check.C) {
 	const svc = true
 	s.testSnapRunAppRunsChecksRemoveInhibitionLock(c, svc)
-}
-
-func (s *RunSuite) TestSnapRunAppRunsChecksRemoveInhibitionLockError(c *check.C) {
-	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, runinhibit.InhibitInfo, error) {
-		return runinhibit.HintInhibitedForRemove, runinhibit.InhibitInfo{}, fmt.Errorf("boom!")
-	})
-	defer restore()
-
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
-	c.Assert(err, check.ErrorMatches, "boom!")
 }
 
 func (s *RunSuite) TestSnapRunAppRefreshAppAwarenessUnsetSkipsInhibitionLockWait(c *check.C) {
