@@ -354,7 +354,7 @@ func (s *RunSuite) TestSnapRunAppRunsChecksRemoveInhibitionLockError(c *check.C)
 	c.Assert(err, check.ErrorMatches, "boom!")
 }
 
-func (s *RunSuite) TestSnapRunAppRefreshAppAwarenessUnsetSkipsInhibitionLockCheck(c *check.C) {
+func (s *RunSuite) TestSnapRunAppRefreshAppAwarenessUnsetSkipsInhibitionLockWait(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
@@ -372,13 +372,8 @@ func (s *RunSuite) TestSnapRunAppRefreshAppAwarenessUnsetSkipsInhibitionLockChec
 	// unset refresh-app-awareness flag
 	c.Assert(os.RemoveAll(features.RefreshAppAwareness.ControlFile()), check.IsNil)
 
-	restore := snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
-		return nil, fmt.Errorf("runinhibit.WaitWhileInhibited should not have been called")
-	})
-	defer restore()
-
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.ErrorMatches, `cannot run "snapname", snap is being refreshed`)
 }
 
 func (s *RunSuite) TestSnapRunAppNewRevisionAfterInhibition(c *check.C) {

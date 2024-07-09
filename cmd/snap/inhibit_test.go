@@ -35,6 +35,7 @@ import (
 	snaprun "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -65,6 +66,9 @@ func (flow *fakeInhibitionFlow) FinishInhibitionNotification(ctx context.Context
 func (s *RunSuite) TestWaitWhileInhibitedRunThrough(c *C) {
 	// mock installed snap
 	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R(11)})
+
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
+	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(11)}
 	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo), IsNil)
@@ -122,6 +126,9 @@ func (s *RunSuite) TestWaitWhileInhibitedErrorOnStartNotification(c *C) {
 	// mock installed snap
 	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R(11)})
 
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
+	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
+
 	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(11)}
 	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo), IsNil)
 
@@ -154,6 +161,9 @@ func (s *RunSuite) TestWaitWhileInhibitedErrorOnStartNotification(c *C) {
 func (s *RunSuite) TestWaitWhileInhibitedErrorOnFinishNotification(c *C) {
 	// mock installed snap
 	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R(11)})
+
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
+	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(11)}
 	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo), IsNil)
@@ -212,6 +222,9 @@ func (s *RunSuite) TestWaitWhileInhibitedContextCancellationOnError(c *C) {
 	// mock installed snap
 	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R(11)})
 
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
+	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
+
 	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(11)}
 	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo), IsNil)
 
@@ -241,6 +254,9 @@ func (s *RunSuite) TestWaitWhileInhibitedContextCancellationOnError(c *C) {
 func (s *RunSuite) TestWaitWhileInhibitedGateRefreshNoNotification(c *C) {
 	// mock installed snap
 	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R(11)})
+
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
+	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(11)}
 	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedGateRefresh, inhibitInfo), IsNil)
