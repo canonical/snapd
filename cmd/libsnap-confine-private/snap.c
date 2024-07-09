@@ -48,8 +48,9 @@ bool sc_security_tag_validate(const char *security_tag,
 	// expression currently contains 9 capture groups, but we only care about these 3,
 	// which unfortunately are not within the first 3 submatches, but rather group 1,
 	// 2, and 7, so for completeness capture all the groups.
-	regmatch_t matches[9];
-	if (sizeof matches / sizeof matches[0] != re.re_nsub) {
+	enum { num_matches = 9 };
+	regmatch_t matches[num_matches];
+	if (num_matches != re.re_nsub) {
 		die("internal error: all regex capture groups not fully accounted for");
 	}
 
