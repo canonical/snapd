@@ -1040,7 +1040,12 @@ func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Op
 		return updatePlan{}, ErrExpectedOneSnap
 	}
 
-	if err := validateAndInitStoreUpdates(st, s.snaps, opts); err != nil {
+	allSnaps, err := All(st)
+	if err != nil {
+		return updatePlan{}, err
+	}
+
+	if err := validateAndInitStoreUpdates(allSnaps, s.snaps, opts); err != nil {
 		return updatePlan{}, err
 	}
 
@@ -1050,7 +1055,7 @@ func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Op
 	}
 
 	refreshOpts := &store.RefreshOptions{Scheduled: opts.Flags.IsAutoRefresh}
-	plan, err := refreshCandidates(ctx, st, s.snaps, user, refreshOpts, opts)
+	plan, err := refreshCandidates(ctx, st, allSnaps, s.snaps, user, refreshOpts, opts)
 	if err != nil {
 		return updatePlan{}, err
 	}
@@ -1058,14 +1063,9 @@ func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Op
 	return plan, nil
 }
 
-func validateAndInitStoreUpdates(st *state.State, updates map[string]StoreUpdate, opts Options) error {
-	snapstates, err := All(st)
-	if err != nil {
-		return err
-	}
-
+func validateAndInitStoreUpdates(allSnaps map[string]*SnapState, updates map[string]StoreUpdate, opts Options) error {
 	for _, sn := range updates {
-		snapst, ok := snapstates[sn.InstanceName]
+		snapst, ok := allSnaps[sn.InstanceName]
 		if !ok {
 			return snap.NotInstalledError{Snap: sn.InstanceName}
 		}
@@ -1075,6 +1075,7 @@ func validateAndInitStoreUpdates(st *state.State, updates map[string]StoreUpdate
 			sn.RevOpts.CohortKey = snapst.CohortKey
 		}
 
+		var err error
 		sn.RevOpts.Channel, err = resolveChannel(sn.InstanceName, snapst.TrackingChannel, sn.RevOpts.Channel, opts.DeviceCtx)
 		if err != nil {
 			return err

@@ -1540,7 +1540,12 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 // RefreshCandidates gets a list of candidates for update
 // Note that the state must be locked by the caller.
 func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, error) {
-	plan, err := refreshCandidates(context.TODO(), st, nil, user, nil, Options{})
+	allSnaps, err := All(st)
+	if err != nil {
+		return nil, err
+	}
+
+	plan, err := refreshCandidates(context.TODO(), st, allSnaps, nil, user, nil, Options{})
 	return plan.targetInfos(), err
 }
 
@@ -2526,9 +2531,14 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 		return nil, nil, err
 	}
 
+	allSnaps, err := All(st)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	refreshOpts := &store.RefreshOptions{Scheduled: true}
 	// XXX: should we skip refreshCandidates if forGatingSnap isn't empty (meaning we're handling proceed from a snap)?
-	plan, err := refreshCandidates(ctx, st, nil, user, refreshOpts, Options{})
+	plan, err := refreshCandidates(ctx, st, allSnaps, nil, user, refreshOpts, Options{})
 	if err != nil {
 		// XXX: should we reset "refresh-candidates" to nil in state for some types
 		// of errors?

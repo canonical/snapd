@@ -481,14 +481,14 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]st
 //
 // Note: This wrapper is a short term solution and should be removed once a better
 // solution is reached.
-func refreshCandidates(ctx context.Context, st *state.State, requested map[string]StoreUpdate, user *auth.UserState, refreshOpts *store.RefreshOptions, opts Options) (updatePlan, error) {
+func refreshCandidates(ctx context.Context, st *state.State, allSnaps map[string]*SnapState, requested map[string]StoreUpdate, user *auth.UserState, refreshOpts *store.RefreshOptions, opts Options) (updatePlan, error) {
 	// initialize options before using
 	refreshOpts, err := refreshOptions(st, refreshOpts)
 	if err != nil {
 		return updatePlan{}, err
 	}
 
-	plan, err := storeUpdatePlan(ctx, st, requested, user, refreshOpts, opts)
+	plan, err := storeUpdatePlan(ctx, st, allSnaps, requested, user, refreshOpts, opts)
 	if err != nil {
 		return updatePlan{}, err
 	}
@@ -536,7 +536,7 @@ func refreshCandidates(ctx context.Context, st *state.State, requested map[strin
 	}
 
 	if len(missingRequests) > 0 {
-		if err := validateAndInitStoreUpdates(st, missingRequests, opts); err != nil {
+		if err := validateAndInitStoreUpdates(allSnaps, missingRequests, opts); err != nil {
 			return updatePlan{}, err
 		}
 
@@ -547,7 +547,7 @@ func refreshCandidates(ctx context.Context, st *state.State, requested map[strin
 		// we already started a pre-download for this snap, so no extra
 		// load is being exerted on the store.
 		refreshOpts.Scheduled = false
-		extraPlan, err := storeUpdatePlan(ctx, st, missingRequests, user, refreshOpts, opts)
+		extraPlan, err := storeUpdatePlan(ctx, st, allSnaps, missingRequests, user, refreshOpts, opts)
 		if err != nil {
 			return updatePlan{}, err
 		}
@@ -560,6 +560,7 @@ func refreshCandidates(ctx context.Context, st *state.State, requested map[strin
 func storeUpdatePlan(
 	ctx context.Context,
 	st *state.State,
+	allSnaps map[string]*SnapState,
 	requested map[string]StoreUpdate,
 	user *auth.UserState,
 	refreshOpts *store.RefreshOptions,
@@ -577,15 +578,10 @@ func storeUpdatePlan(
 		plan.requested = append(plan.requested, name)
 	}
 
-	all, err := All(st)
-	if err != nil {
-		return updatePlan{}, err
-	}
-
 	updates := requested
 	if plan.refreshAll() {
-		updates = make(map[string]StoreUpdate, len(all))
-		for _, snapst := range all {
+		updates = make(map[string]StoreUpdate, len(allSnaps))
+		for _, snapst := range allSnaps {
 			updates[snapst.InstanceName()] = StoreUpdate{
 				InstanceName: snapst.InstanceName(),
 				// default the channel and cohort key to the existing values,
@@ -599,7 +595,7 @@ func storeUpdatePlan(
 
 	// make sure that all requested updates are currently installed
 	for _, update := range updates {
-		if _, ok := all[update.InstanceName]; !ok {
+		if _, ok := allSnaps[update.InstanceName]; !ok {
 			return updatePlan{}, snap.NotInstalledError{Snap: update.InstanceName}
 		}
 	}
@@ -734,7 +730,7 @@ func storeUpdatePlan(
 
 	// determine current snaps and create actions for each snap that needs to
 	// be refreshed
-	current, err := collectCurrentSnaps(all, holds, addCand)
+	current, err := collectCurrentSnaps(allSnaps, holds, addCand)
 	if err != nil {
 		return updatePlan{}, err
 	}
@@ -756,7 +752,7 @@ func storeUpdatePlan(
 	}
 
 	for _, name := range noStoreUpdates {
-		hasLocalRevision[all[name]] = updates[name].RevOpts
+		hasLocalRevision[allSnaps[name]] = updates[name].RevOpts
 	}
 
 	for _, sar := range sars {
@@ -765,7 +761,7 @@ func storeUpdatePlan(
 			return updatePlan{}, fmt.Errorf("unsolicited snap action result: %q", sar.InstanceName())
 		}
 
-		snapst, ok := all[sar.InstanceName()]
+		snapst, ok := allSnaps[sar.InstanceName()]
 		if !ok {
 			return updatePlan{}, fmt.Errorf("internal error: snap %q not found", sar.InstanceName())
 		}

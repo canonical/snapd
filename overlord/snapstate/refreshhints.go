@@ -78,10 +78,15 @@ func (r *refreshHints) refresh() error {
 	perfTimings := timings.New(map[string]string{"ensure": "refresh-hints"})
 	defer perfTimings.Save(r.state)
 
+	allSnaps, err := All(r.state)
+	if err != nil {
+		return err
+	}
+
 	var plan updatePlan
 	timings.Run(perfTimings, "refresh-candidates", "query store for refresh candidates", func(tm timings.Measurer) {
 		plan, err = refreshCandidates(auth.EnsureContextTODO(),
-			r.state, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged}, Options{})
+			r.state, allSnaps, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged}, Options{})
 	})
 	// TODO: we currently set last-refresh-hints even when there was an
 	// error. In the future we may retry with a backoff.
