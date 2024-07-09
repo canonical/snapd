@@ -787,6 +787,64 @@ func (p *updatePlan) filter(f func(t target) (bool, error)) error {
 	return nil
 }
 
+func (p *updatePlan) filterHeldSnaps(st *state.State, opts Options) error {
+	// we only filter out held snaps during auto-refresh or general refreshes
+	// that do not specify specific snaps
+	if !p.refreshAll() {
+		return nil
+	}
+
+	holdLevel := HoldGeneral
+	if opts.Flags.IsAutoRefresh {
+		holdLevel = HoldAutoRefresh
+	}
+
+	heldSnaps, err := HeldSnaps(st, holdLevel)
+	if err != nil {
+		return err
+	}
+
+	p.filter(func(t target) (bool, error) {
+		_, ok := heldSnaps[t.info.InstanceName()]
+		return !ok, nil
+	})
+
+	return nil
+}
+
+func (p *updatePlan) validateAndFilterTargets(st *state.State, opts Options) error {
+	if ValidateRefreshes == nil || len(p.targets) == 0 || opts.Flags.IgnoreValidation {
+		return nil
+	}
+
+	ignoreValidation := make(map[string]bool, len(p.targets))
+	for _, t := range p.targets {
+		if t.snapst.IgnoreValidation {
+			ignoreValidation[t.info.InstanceName()] = true
+		}
+	}
+
+	validated, err := ValidateRefreshes(st, p.targetInfos(), ignoreValidation, opts.UserID, opts.DeviceCtx)
+	if err != nil {
+		if !p.refreshAll() {
+			return err
+		}
+		logger.Noticef("cannot refresh some snaps: %v", err)
+	}
+
+	validatedMap := make(map[string]bool, len(validated))
+	for _, sn := range validated {
+		validatedMap[sn.InstanceName()] = true
+	}
+
+	p.filter(func(t target) (bool, error) {
+		_, ok := validatedMap[t.info.InstanceName()]
+		return ok, nil
+	})
+
+	return nil
+}
+
 // UpdateGoal represents a single snap or a group of snaps to be updated.
 type UpdateGoal interface {
 	// toUpdate returns the data needed to update the snaps.
@@ -843,10 +901,8 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 		})
 	}
 
-	if plan.refreshAll() {
-		if err := filterHeldSnapsInPlan(st, &plan, opts.Flags.IsAutoRefresh); err != nil {
-			return nil, nil, err
-		}
+	if err := plan.filterHeldSnaps(st, opts); err != nil {
+		return nil, nil, err
 	}
 
 	// save the candidates so the auto-refresh can be continued if it's inhibited
@@ -864,7 +920,7 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 	// validate snaps to be refreshed against validation sets. if we are
 	// refreshing all snaps, then we filter out the snaps that cannot be
 	// validated and log them
-	if err := validateAndFilterPlanRefreshes(st, &plan, opts); err != nil {
+	if err := plan.validateAndFilterTargets(st, opts); err != nil {
 		return nil, nil, err
 	}
 
@@ -944,58 +1000,6 @@ func updateFromPlan(st *state.State, plan updatePlan, opts Options) ([]string, *
 	}
 
 	return updated, uts, nil
-}
-
-func validateAndFilterPlanRefreshes(st *state.State, plan *updatePlan, opts Options) error {
-	if ValidateRefreshes == nil || len(plan.targets) == 0 || opts.Flags.IgnoreValidation {
-		return nil
-	}
-
-	ignoreValidation := make(map[string]bool, len(plan.targets))
-	for _, t := range plan.targets {
-		if t.snapst.IgnoreValidation {
-			ignoreValidation[t.info.InstanceName()] = true
-		}
-	}
-
-	validated, err := ValidateRefreshes(st, plan.targetInfos(), ignoreValidation, opts.UserID, opts.DeviceCtx)
-	if err != nil {
-		if !plan.refreshAll() {
-			return err
-		}
-		logger.Noticef("cannot refresh some snaps: %v", err)
-	}
-
-	validatedMap := make(map[string]bool, len(validated))
-	for _, sn := range validated {
-		validatedMap[sn.InstanceName()] = true
-	}
-
-	plan.filter(func(t target) (bool, error) {
-		_, ok := validatedMap[t.info.InstanceName()]
-		return ok, nil
-	})
-
-	return nil
-}
-
-func filterHeldSnapsInPlan(st *state.State, plan *updatePlan, isAutoRefresh bool) error {
-	holdLevel := HoldGeneral
-	if isAutoRefresh {
-		holdLevel = HoldAutoRefresh
-	}
-
-	heldSnaps, err := HeldSnaps(st, holdLevel)
-	if err != nil {
-		return err
-	}
-
-	plan.filter(func(t target) (bool, error) {
-		_, ok := heldSnaps[t.info.InstanceName()]
-		return !ok, nil
-	})
-
-	return nil
 }
 
 // storeInstallGoal implements the UpdateGoal interface and represents a group
