@@ -1434,7 +1434,7 @@ func Download(ctx context.Context, st *state.State, name string, blobDirectory s
 	return installSet, info, nil
 }
 
-func validatedInfoFromPathAndSideInfo(snapName, path string, si *snap.SideInfo) (*snap.Info, error) {
+func validatedInfoFromPathAndSideInfo(instanceName string, path string, si *snap.SideInfo) (*snap.Info, error) {
 	var info *snap.Info
 	info, cont, err := backend.OpenSnapFile(path, si)
 	if err != nil {
@@ -1443,9 +1443,13 @@ func validatedInfoFromPathAndSideInfo(snapName, path string, si *snap.SideInfo) 
 	if err := validateContainer(cont, info, logger.Noticef); err != nil {
 		return nil, err
 	}
-	if err := snap.ValidateInstanceName(snapName); err != nil {
-		return nil, fmt.Errorf("invalid instance name: %v", err)
+
+	snapName, instanceKey := snap.SplitInstanceName(instanceName)
+	if info.SnapName() != snapName {
+		return nil, fmt.Errorf("cannot install snap %q, the name does not match the metadata %q", instanceName, info.SnapName())
 	}
+	info.InstanceKey = instanceKey
+
 	return info, nil
 }
 

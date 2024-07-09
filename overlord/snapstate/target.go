@@ -1191,12 +1191,6 @@ func targetForPathSnap(update PathSnap, snapst SnapState, opts Options) (target,
 		return target{}, err
 	}
 
-	snapName, instanceKey := snap.SplitInstanceName(update.InstanceName)
-	if info.SnapName() != snapName {
-		return target{}, fmt.Errorf("cannot install snap %q, the name does not match the metadata %q", update.InstanceName, info.SnapName())
-	}
-	info.InstanceKey = instanceKey
-
 	var trackingChannel string
 	if snapst.IsInstalled() {
 		trackingChannel = snapst.TrackingChannel
