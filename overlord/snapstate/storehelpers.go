@@ -885,7 +885,7 @@ func installActionsForAmmend(st *state.State, updates map[string]StoreUpdate, op
 	return actionsByUserID, nil
 }
 
-func sendActionsByUserID(ctx context.Context, st *state.State, actionsByUserID map[int][]*store.SnapAction, current []*store.CurrentSnap, refreshOpts *store.RefreshOptions, opts Options) ([]store.SnapActionResult, []string, error) {
+func sendActionsByUserID(ctx context.Context, st *state.State, actionsByUserID map[int][]*store.SnapAction, current []*store.CurrentSnap, refreshOpts *store.RefreshOptions, opts Options) (sars []store.SnapActionResult, noUpdatesAvailable []string, err error) {
 	actionsForUser := make(map[*auth.UserState][]*store.SnapAction, len(actionsByUserID))
 	noUserActions := actionsByUserID[0]
 	for userID, actions := range actionsByUserID {
@@ -920,8 +920,6 @@ func sendActionsByUserID(ctx context.Context, st *state.State, actionsByUserID m
 
 	sto := Store(st, opts.DeviceCtx)
 
-	var noUpdates []string
-	var sars []store.SnapActionResult
 	for u, actions := range actionsForUser {
 		st.Unlock()
 		perUserSars, _, err := sto.SnapAction(ctx, current, actions, nil, u, refreshOpts)
@@ -947,7 +945,7 @@ func sendActionsByUserID(ctx context.Context, st *state.State, actionsByUserID m
 			// might not have a new revision available
 			for name, e := range saErr.Refresh {
 				if errors.Is(e, store.ErrNoUpdateAvailable) {
-					noUpdates = append(noUpdates, name)
+					noUpdatesAvailable = append(noUpdatesAvailable, name)
 				}
 			}
 
@@ -957,7 +955,7 @@ func sendActionsByUserID(ctx context.Context, st *state.State, actionsByUserID m
 		sars = append(sars, perUserSars...)
 	}
 
-	return sars, noUpdates, nil
+	return sars, noUpdatesAvailable, nil
 }
 
 // SnapHolds returns a map of held snaps to lists of holding snaps (including
