@@ -863,7 +863,6 @@ func installActionsForAmend(st *state.State, updates map[string]StoreUpdate, opt
 			Action:       "install",
 			InstanceName: info.InstanceName(),
 			Epoch:        info.Epoch,
-			Flags:        store.SnapActionEnforceValidation,
 		}
 
 		ignoreValidation := snapst.IgnoreValidation

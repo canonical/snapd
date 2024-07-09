@@ -811,7 +811,6 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 			InstanceName: "some-snap",
 			Channel:      "some-channel",
 			Epoch:        snap.E("1*"), // in amend, epoch in the action is not nil!
-			Flags:        store.SnapActionEnforceValidation,
 		},
 		revno:  snap.R(11),
 		userID: 1,
