@@ -1194,6 +1194,12 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 		flags.DevMode = true
 	}
 
+	// maintain the classic flag for already classic-confined snaps, assuming
+	// we're not switching to jail-mode or devmode
+	if !flags.JailMode && !flags.DevMode {
+		flags.Classic = flags.Classic || snapst.Classic
+	}
+
 	if flags.Classic && !info.NeedsClassic() {
 		// snap does not require classic confinement, silently drop the flag
 		flags.Classic = false

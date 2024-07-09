@@ -90,13 +90,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		return SnapSetup{}, nil, err
 	}
 
-	flags := opts.Flags
-
-	if !flags.JailMode && !flags.DevMode {
-		flags.Classic = flags.Classic || t.snapst.Classic
-	}
-
-	flags, err = earlyChecks(st, &t.snapst, t.info, flags)
+	flags, err := earlyChecks(st, &t.snapst, t.info, opts.Flags)
 	if err != nil {
 		return SnapSetup{}, nil, err
 	}
