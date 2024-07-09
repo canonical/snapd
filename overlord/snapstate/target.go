@@ -753,7 +753,7 @@ type updatePlan struct {
 	// RefreshAll is true, then this list should be empty.
 	requested []string
 	// targets is the list of snaps that are to be updated. Note that this list
-	// does not necessarily match the list of snaps in Requested.
+	// does not necessarily match the list of snaps in requested.
 	targets []target
 }
 
