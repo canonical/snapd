@@ -1981,8 +1981,8 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 			continue
 		}
 
-		for _, ts := range installTasksets {
-			switchTs.WaitAll(ts)
+		if len(installTasksets) != 0 {
+			switchTs.WaitAll(installTasksets[len(installTasksets)-1])
 		}
 
 		switchTs.JoinLane(generateLane(st, opts))
