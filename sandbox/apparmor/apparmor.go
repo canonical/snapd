@@ -699,12 +699,12 @@ func probeParserFeatures() ([]string, error) {
 			probe:   "prompt /foo r,",
 		},
 	}
-	cmd, internal, err := AppArmorParser()
+	_, internal, err := AppArmorParser()
 	if err != nil {
 		return []string{}, err
 	}
 
-	aaVer := appArmorParserVersion(cmd)
+	aaVer := appArmorParserVersion()
 	logger.Debugf("apparmor parser version: %q", aaVer)
 
 	features := make([]string, 0, len(featureProbes)+1)
@@ -842,7 +842,8 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	return nil, false, os.ErrNotExist
 }
 
-func appArmorParserVersion(cmd *exec.Cmd) string {
+func appArmorParserVersion() string {
+	cmd, _, _ := AppArmorParser()
 	cmd.Args = append(cmd.Args, "--version")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
