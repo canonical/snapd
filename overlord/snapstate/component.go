@@ -192,9 +192,10 @@ func installComponentAction(st *state.State, snapst SnapState, opts Options) (*s
 	// we send a refresh action, since that is what the store requested that
 	// we do in this case
 	action := &store.SnapAction{
-		Action:       "refresh",
-		SnapID:       si.SnapID,
-		InstanceName: snapst.InstanceName(),
+		Action:          "refresh",
+		SnapID:          si.SnapID,
+		InstanceName:    snapst.InstanceName(),
+		ResourceInstall: true,
 	}
 
 	// we send an action that contains the current channel and revision so

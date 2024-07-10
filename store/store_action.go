@@ -70,6 +70,9 @@ type CurrentSnap struct {
 	// HeldBy is an optional array of snaps with holds on the current snap's
 	// refreshes. The "system" snap represents a hold placed by the user.
 	HeldBy []string
+	// Resources is a map of resource names to the resource revision that is
+	// currently installed for the snap.
+	Resources map[string]snap.Revision
 }
 
 type AssertionQuery interface {
@@ -104,14 +107,15 @@ const (
 )
 
 type SnapAction struct {
-	Action       string
-	InstanceName string
-	SnapID       string
-	Channel      string
-	Revision     snap.Revision
-	CohortKey    string
-	Flags        SnapActionFlags
-	Epoch        snap.Epoch
+	Action          string
+	InstanceName    string
+	SnapID          string
+	Channel         string
+	Revision        snap.Revision
+	CohortKey       string
+	Flags           SnapActionFlags
+	Epoch           snap.Epoch
+	ResourceInstall bool
 	// ValidationSets is an optional array of validation set primary keys
 	// (relevant for install and refresh actions).
 	ValidationSets []snapasserts.ValidationSetKey
@@ -693,7 +697,8 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 				return nil, nil, fmt.Errorf("unexpected invalid install/refresh API result: unexpected refresh")
 			}
 			rrev := snap.R(res.Snap.Revision)
-			if rrev == cur.Revision || findRev(rrev, cur.Block) {
+
+			if !refreshes[res.InstanceKey].ResourceInstall && (currentSnapMatchesStoreSnap(cur, res.Snap) || findRev(rrev, cur.Block)) {
 				refreshErrors[cur.InstanceName] = ErrNoUpdateAvailable
 				continue
 			}
@@ -755,6 +760,27 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	return sars, ars, nil
+}
+
+func currentSnapMatchesStoreSnap(cur *CurrentSnap, storeSnap storeSnap) bool {
+	if cur.Revision.N != storeSnap.Revision {
+		return false
+	}
+
+	for _, res := range storeSnap.Resources {
+		curRes, ok := cur.Resources[res.Name]
+		if !ok {
+			continue
+		}
+
+		// TODO:COMPS: should local resources be considered when deciding if the
+		// snap has an update available?
+		if !curRes.Local() && curRes.N != res.Revision {
+			return false
+		}
+	}
+
+	return true
 }
 
 func findRev(needle snap.Revision, haystack []snap.Revision) bool {
