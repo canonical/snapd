@@ -79,15 +79,16 @@ func (*apparmorSuite) TestAppArmorInternalAppArmorParserAbi3(c *C) {
 	fakeroot := c.MkDir()
 	dirs.SetRootDir(fakeroot)
 
-	d := filepath.Join(dirs.SnapMountDir, "/snapd/42", "/usr/lib/snapd")
-	c.Assert(os.MkdirAll(d, 0755), IsNil)
-	p := filepath.Join(d, "apparmor_parser")
-	c.Assert(os.WriteFile(p, nil, 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(d, "apparmor.d/abi"), 755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(d, "apparmor.d/abi/3.0"), nil, 0644), IsNil)
+	libSnapdDir := filepath.Join(dirs.SnapMountDir, "/snapd/42/usr/lib/snapd")
+	parser := filepath.Join(libSnapdDir, "apparmor_parser")
+	c.Assert(os.MkdirAll(libSnapdDir, 0755), IsNil)
+	c.Assert(os.WriteFile(parser, nil, 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/3.0"), nil, 0644), IsNil)
+
 	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
 		c.Assert(path, Equals, "/proc/self/exe")
-		return filepath.Join(d, "snapd"), nil
+		return filepath.Join(libSnapdDir, "snapd"), nil
 	})
 	defer restore()
 	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
@@ -95,12 +96,12 @@ func (*apparmorSuite) TestAppArmorInternalAppArmorParserAbi3(c *C) {
 
 	cmd, internal, err := apparmor.AppArmorParser()
 	c.Check(err, IsNil)
-	c.Check(cmd.Path, Equals, p)
+	c.Check(cmd.Path, Equals, parser)
 	c.Check(cmd.Args, DeepEquals, []string{
-		p,
-		"--config-file", filepath.Join(d, "/apparmor/parser.conf"),
-		"--base", filepath.Join(d, "/apparmor.d"),
-		"--policy-features", filepath.Join(d, "/apparmor.d/abi/3.0"),
+		parser,
+		"--config-file", filepath.Join(libSnapdDir, "/apparmor/parser.conf"),
+		"--base", filepath.Join(libSnapdDir, "/apparmor.d"),
+		"--policy-features", filepath.Join(libSnapdDir, "/apparmor.d/abi/3.0"),
 	})
 	c.Check(internal, Equals, true)
 }
@@ -109,16 +110,17 @@ func (*apparmorSuite) TestAppArmorInternalAppArmorParserAbi4(c *C) {
 	fakeroot := c.MkDir()
 	dirs.SetRootDir(fakeroot)
 
-	d := filepath.Join(dirs.SnapMountDir, "/snapd/42", "/usr/lib/snapd")
-	c.Assert(os.MkdirAll(d, 0755), IsNil)
-	p := filepath.Join(d, "apparmor_parser")
-	c.Assert(os.WriteFile(p, nil, 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(d, "apparmor.d/abi"), 755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(d, "apparmor.d/abi/3.0"), nil, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(d, "apparmor.d/abi/4.0"), nil, 0644), IsNil)
+	libSnapdDir := filepath.Join(dirs.SnapMountDir, "/snapd/42/usr/lib/snapd")
+	parser := filepath.Join(libSnapdDir, "apparmor_parser")
+	c.Assert(os.MkdirAll(libSnapdDir, 0755), IsNil)
+	c.Assert(os.WriteFile(parser, nil, 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/3.0"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/4.0"), nil, 0644), IsNil)
+
 	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
 		c.Assert(path, Equals, "/proc/self/exe")
-		return filepath.Join(d, "snapd"), nil
+		return filepath.Join(libSnapdDir, "snapd"), nil
 	})
 	defer restore()
 	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
@@ -126,13 +128,13 @@ func (*apparmorSuite) TestAppArmorInternalAppArmorParserAbi4(c *C) {
 
 	cmd, internal, err := apparmor.AppArmorParser()
 	c.Check(err, IsNil)
-	c.Check(cmd.Path, Equals, p)
+	c.Check(cmd.Path, Equals, parser)
 	c.Check(cmd.Args, DeepEquals, []string{
-		p,
-		"--config-file", filepath.Join(d, "/apparmor/parser.conf"),
-		"--base", filepath.Join(d, "/apparmor.d"),
+		parser,
+		"--config-file", filepath.Join(libSnapdDir, "/apparmor/parser.conf"),
+		"--base", filepath.Join(libSnapdDir, "/apparmor.d"),
 		// 4.0 was preferred.
-		"--policy-features", filepath.Join(d, "/apparmor.d/abi/4.0"),
+		"--policy-features", filepath.Join(libSnapdDir, "/apparmor.d/abi/4.0"),
 	})
 	c.Check(internal, Equals, true)
 }
@@ -469,12 +471,11 @@ func (s *parserFeatureTestSuite) TestNoParser(c *C) {
 func (s *parserFeatureTestSuite) TestInternalParser(c *C) {
 	// Put a fake parser at $SNAP_MOUNT_DIR/snapd/42/usr/lib/snapd/apparmor_parser
 	libSnapdDir := filepath.Join(dirs.SnapMountDir, "/snapd/42/usr/lib/snapd")
-	err := os.MkdirAll(libSnapdDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(libSnapdDir, "apparmor_parser"), nil, 0755)
-	c.Assert(err, IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(d, "apparmor.d/abi"), 755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(d, "apparmor.d/abi/4.0"), nil, 0644), IsNil)
+	parser := filepath.Join(libSnapdDir, "apparmor_parser")
+	c.Assert(os.MkdirAll(libSnapdDir, 0755), IsNil)
+	c.Assert(os.WriteFile(parser, nil, 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/4.0"), nil, 0644), IsNil)
 
 	// Pretend that we are running snapd from that snap location.
 	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
@@ -722,15 +723,15 @@ func (s *apparmorSuite) TestSetupConfCacheDirsWithInternalApparmor(c *C) {
 	fakeroot := c.MkDir()
 	dirs.SetRootDir(fakeroot)
 
-	d := filepath.Join(dirs.SnapMountDir, "/snapd/42", "/usr/lib/snapd")
-	c.Assert(os.MkdirAll(d, 0755), IsNil)
-	p := filepath.Join(d, "apparmor_parser")
-	c.Assert(os.WriteFile(p, nil, 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(d, "apparmor.d/abi"), 755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(d, "apparmor.d/abi/4.0"), nil, 0644), IsNil)
+	libSnapdDir := filepath.Join(dirs.SnapMountDir, "/snapd/42/usr/lib/snapd")
+	parser := filepath.Join(libSnapdDir, "apparmor_parser")
+	c.Assert(os.MkdirAll(libSnapdDir, 0755), IsNil)
+	c.Assert(os.WriteFile(parser, nil, 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/4.0"), nil, 0644), IsNil)
 	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
 		c.Assert(path, Equals, "/proc/self/exe")
-		return filepath.Join(d, "snapd"), nil
+		return filepath.Join(libSnapdDir, "snapd"), nil
 	})
 	defer restore()
 	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
