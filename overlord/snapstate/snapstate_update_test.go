@@ -14147,6 +14147,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, instanceKey 
 
 	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si})
 
+	var currentResources map[string]snap.Revision
 	for i, comp := range components {
 		err := seq.AddComponentForRevision(currentSnapRev, &sequence.ComponentState{
 			SideInfo: &snap.ComponentSideInfo{
@@ -14156,6 +14157,11 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, instanceKey 
 			CompType: compNameToType(comp),
 		})
 		c.Assert(err, IsNil)
+
+		if currentResources == nil {
+			currentResources = make(map[string]snap.Revision, len(components))
+		}
+		currentResources[comp] = snap.R(i + 1)
 	}
 
 	s.AddCleanup(snapstate.MockReadComponentInfo(func(
@@ -14226,6 +14232,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, instanceKey 
 				TrackingChannel: channel,
 				RefreshedDate:   refreshedDate,
 				Epoch:           snap.E("1*"),
+				Resources:       currentResources,
 			}},
 			userID: 1,
 		},
