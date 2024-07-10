@@ -6411,8 +6411,22 @@ func undoOps(instanceName string, newSequence, prevSequence *sequence.RevisionSi
 	for i := len(newComponents) - 1; i >= 0; i-- {
 		csi := newComponents[i].SideInfo
 
-		containerName := fmt.Sprintf("%s+%s", instanceName, csi.Component.ComponentName)
-		filename := fmt.Sprintf("%s_%v.comp", containerName, csi.Revision)
+		compName := csi.Component.ComponentName
+		compRev := csi.Revision
+
+		containerName := fmt.Sprintf("%s+%s", instanceName, compName)
+		filename := fmt.Sprintf("%s_%v.comp", containerName, compRev)
+
+		// if the snap revision isn't changing, then we need to re-link the old
+		// component
+		if snapRevision == prevRevision {
+			oldCS := prevSequence.FindComponent(csi.Component)
+
+			ops = append(ops, []fakeOp{{
+				op:   "link-component",
+				path: snap.ComponentMountDir(compName, oldCS.SideInfo.Revision, instanceName),
+			}}...)
+		}
 
 		ops = append(ops, []fakeOp{{
 			op:                "undo-setup-component",
@@ -6425,16 +6439,18 @@ func undoOps(instanceName string, newSequence, prevSequence *sequence.RevisionSi
 		}}...)
 	}
 
-	ops = append(ops, []fakeOp{{
-		op:    "undo-setup-snap",
-		name:  instanceName,
-		stype: "app",
-		path:  snapMount,
-	}, {
-		op:   "remove-snap-dir",
-		name: instanceName,
-		path: filepath.Join(dirs.SnapMountDir, instanceName),
-	}}...)
+	if snapRevision != prevRevision {
+		ops = append(ops, []fakeOp{{
+			op:    "undo-setup-snap",
+			name:  instanceName,
+			stype: "app",
+			path:  snapMount,
+		}, {
+			op:   "remove-snap-dir",
+			name: instanceName,
+			path: filepath.Join(dirs.SnapMountDir, instanceName),
+		}}...)
+	}
 
 	return ops
 }

@@ -256,18 +256,18 @@ type componentInstallFlags struct {
 }
 
 type componentInstallTaskSet struct {
-	compSetupTaskID    string
-	beforeLink         []*state.Task
-	linkTask           *state.Task
-	postOpHookAndAfter []*state.Task
-	discardTask        *state.Task
+	compSetupTaskID     string
+	beforeLink          []*state.Task
+	linkTask            *state.Task
+	postOpHookToDiscard []*state.Task
+	discardTask         *state.Task
 }
 
 func (c *componentInstallTaskSet) taskSet() *state.TaskSet {
-	tasks := make([]*state.Task, 0, len(c.beforeLink)+1+len(c.postOpHookAndAfter)+1)
+	tasks := make([]*state.Task, 0, len(c.beforeLink)+1+len(c.postOpHookToDiscard)+1)
 	tasks = append(tasks, c.beforeLink...)
 	tasks = append(tasks, c.linkTask)
-	tasks = append(tasks, c.postOpHookAndAfter...)
+	tasks = append(tasks, c.postOpHookToDiscard...)
 	if c.discardTask != nil {
 		tasks = append(tasks, c.discardTask)
 	}
@@ -428,7 +428,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 	} else {
 		postOpHook = SetupPostRefreshComponentHook(st, snapsup.InstanceName(), compSi.Component.ComponentName)
 	}
-	componentTS.postOpHookAndAfter = append(componentTS.postOpHookAndAfter, postOpHook)
+	componentTS.postOpHookToDiscard = append(componentTS.postOpHookToDiscard, postOpHook)
 	addTask(postOpHook)
 
 	if !compSetup.MultiComponentInstall && kmodSetup == nil && compSetup.CompType == snap.KernelModulesComponent {
@@ -437,7 +437,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 				compSi.Component, revisionStr))
 		kmodSetup.Set("component-setup-task", prepare.ID())
 		kmodSetup.Set("snap-setup-task", snapSetupTaskID)
-		componentTS.postOpHookAndAfter = append(componentTS.postOpHookAndAfter, kmodSetup)
+		componentTS.postOpHookToDiscard = append(componentTS.postOpHookToDiscard, kmodSetup)
 	}
 	if kmodSetup != nil {
 		// note that we don't use addTask here because this task is shared and

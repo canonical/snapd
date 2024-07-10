@@ -510,7 +510,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		confinement = snap.ClassicConfinement
 	case "channel-for-devmode/stable":
 		confinement = snap.DevModeConfinement
-	case "channel-for-components":
+	case "channel-for-components", "channel-for-components-only-component-refresh":
 		components = map[string]*snap.Component{
 			"test-component": {
 				Type: snap.TestComponent,
@@ -612,6 +612,12 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	}
 
 	if !hit.Unset() {
+		return info, nil
+	}
+
+	// this is a special case for testing the case where we only refresh
+	// component revisions
+	if cand.channel == "channel-for-components-only-component-refresh" {
 		return info, nil
 	}
 

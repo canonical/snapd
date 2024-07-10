@@ -522,11 +522,15 @@ func (m *SnapManager) doUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (err
 	defer st.Unlock()
 
 	// snapSt is a copy of the current state
-	compSetup, _, snapSt, err := compSetupAndState(t)
+	compSetup, snapsup, snapSt, err := compSetupAndState(t)
 	if err != nil {
 		return err
 	}
 	cref := compSetup.CompSideInfo.Component
+
+	if err := saveCurrentKernelModuleComponents(t, snapsup, snapSt); err != nil {
+		return err
+	}
 
 	// Expected to be installed
 	snapInfo, err := snapSt.CurrentInfo()
@@ -557,12 +561,6 @@ func (m *SnapManager) doUnlinkComponent(t *state.Task, _ *tomb.Tomb) (err error)
 	// snapSt is a copy of the current state
 	compSetup, snapSup, snapSt, err := compSetupAndState(t)
 	if err != nil {
-		return err
-	}
-
-	// TODO:COMPS: test taking this branch when unlinking components during a
-	// refresh where we lose components
-	if err := saveCurrentKernelModuleComponents(t, snapSup, snapSt); err != nil {
 		return err
 	}
 
