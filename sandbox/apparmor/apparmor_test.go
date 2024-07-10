@@ -313,11 +313,36 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 }
 
 func probeOneParserFeature(c *C, known *[]string, parserPath, featureName, profileText string) {
+	probeOneVersionDependentParserFeature(c, known, parserPath, "0.0.0", featureName, profileText)
+}
+
+// fakeParserScript returns a shell script mimicking apparmor_parser.
+//
+// The returned script is prepared such, that additional logic may be safely
+// appended to it.
+func fakeParserScript(parserVersion string) string {
 	const script = `#!/bin/sh
 set -e
-test "$(cat | tr -d '\n')" = '%s'
+if [ "${1:-}" = "--version" ]; then
+  cat <<__VERSION__
+AppArmor parser version %s
+Copyright (C) 1999-2008 Novell Inc.
+Copyright 2009-2018 Canonical Ltd.
+__VERSION__
+  exit 0
+fi
 `
-	err := os.WriteFile(parserPath, []byte(fmt.Sprintf(script, profileText)), 0o755)
+	return fmt.Sprintf(script, parserVersion)
+}
+
+func fakeParserAnticipatingProfileScript(parserVersion, profileText string) string {
+	textCompareLogic := fmt.Sprintf(`test "$(cat | tr -d '\n')" = '%s'`, profileText)
+
+	return fakeParserScript(parserVersion) + textCompareLogic
+}
+
+func probeOneVersionDependentParserFeature(c *C, known *[]string, parserPath, parserVersion, featureName, profileText string) {
+	err := os.WriteFile(parserPath, []byte(fakeParserAnticipatingProfileScript(parserVersion, profileText)), 0o700)
 	c.Assert(err, IsNil)
 
 	cmd, _, _ := apparmor.AppArmorParser()
@@ -353,6 +378,23 @@ func (s *parserFeatureTestSuite) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 }
 
+func (s *parserFeatureTestSuite) TestProbeMqueueWith4Beta(c *C) {
+	const parserVersion = "4.0.0~beta3"
+	const profileText = `profile snap-test { mqueue,}`
+
+	parserPath := filepath.Join(s.binDir, "apparmor_parser")
+
+	err := os.WriteFile(parserPath, []byte(fakeParserAnticipatingProfileScript(parserVersion, profileText)), 0o700)
+	c.Assert(err, IsNil)
+
+	cmd, _, _ := apparmor.AppArmorParser()
+	c.Assert(cmd.Path, Equals, parserPath, Commentf("Unexpectedly using apparmor parser from %s", cmd.Path))
+
+	features, err := apparmor.ProbeParserFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, HasLen, 0, Commentf("Mqueue feature unexpectedly enabled by fake 4.0.0~beta3 parser"))
+}
+
 func (s *parserFeatureTestSuite) TestProbeFeature(c *C) {
 	// Pretend we can only support one feature at a time.
 	var knownProbes []string
@@ -362,7 +404,7 @@ func (s *parserFeatureTestSuite) TestProbeFeature(c *C) {
 	probeOneParserFeature(c, &knownProbes, parserPath, "cap-audit-read", `profile snap-test { capability audit_read,}`)
 	probeOneParserFeature(c, &knownProbes, parserPath, "cap-bpf", `profile snap-test { capability bpf,}`)
 	probeOneParserFeature(c, &knownProbes, parserPath, "include-if-exists", `profile snap-test { #include if exists "/foo"}`)
-	probeOneParserFeature(c, &knownProbes, parserPath, "mqueue", `profile snap-test { mqueue,}`)
+	probeOneVersionDependentParserFeature(c, &knownProbes, parserPath, "4.0.1", "mqueue", `profile snap-test { mqueue,}`)
 	probeOneParserFeature(c, &knownProbes, parserPath, "prompt", `profile snap-test { prompt /foo r,}`)
 	probeOneParserFeature(c, &knownProbes, parserPath, "qipcrtr-socket", `profile snap-test { network qipcrtr dgram,}`)
 	probeOneParserFeature(c, &knownProbes, parserPath, "unconfined", `profile snap-test flags=(unconfined) { # test unconfined}`)
@@ -371,7 +413,7 @@ func (s *parserFeatureTestSuite) TestProbeFeature(c *C) {
 	probeOneParserFeature(c, &knownProbes, parserPath, "xdp", `profile snap-test { network xdp,}`)
 
 	// Pretend we have all the features.
-	err := os.WriteFile(parserPath, []byte("#!/bin/sh\nexit 0\n"), 0o755)
+	err := os.WriteFile(parserPath, []byte(fakeParserScript("4.0.1")), 0o755)
 	c.Assert(err, IsNil)
 
 	// Did any feature probes got added to non-test code?
@@ -427,7 +469,7 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "policy"), 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "network"), 0755), IsNil)
 
-	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", "")
+	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", fakeParserScript("4.0.1"))
 	defer mockParserCmd.Restore()
 	restore = apparmor.MockParserSearchPath(mockParserCmd.BinDir())
 	defer restore()
@@ -469,7 +511,7 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "policy"), 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "network"), 0755), IsNil)
 
-	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", "")
+	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", fakeParserScript("4.0.1"))
 	defer mockParserCmd.Restore()
 	restore = apparmor.MockParserSearchPath(mockParserCmd.BinDir())
 	defer restore()

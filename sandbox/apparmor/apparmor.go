@@ -654,6 +654,7 @@ func probeParserFeatures() ([]string, error) {
 		feature string
 		flags   []string
 		probe   string
+		minVer  string
 	}{
 		{
 			feature: "unsafe",
@@ -670,6 +671,7 @@ func probeParserFeatures() ([]string, error) {
 		{
 			feature: "mqueue",
 			probe:   "mqueue,",
+			minVer:  "4.0.1",
 		},
 		{
 			feature: "cap-bpf",
@@ -701,8 +703,23 @@ func probeParserFeatures() ([]string, error) {
 	if err != nil {
 		return []string{}, err
 	}
+
+	aaVer := appArmorParserVersion(cmd)
+	logger.Debugf("apparmor parser version: %q", aaVer)
+
 	features := make([]string, 0, len(featureProbes)+1)
 	for _, fp := range featureProbes {
+		if minVer := fp.minVer; minVer != "" {
+			res, err := strutil.VersionCompare(aaVer, minVer)
+			if err != nil {
+				logger.Noticef("cannot compare versions: %s", err)
+				continue
+			}
+			if res < 0 {
+				logger.Debugf("skipping apparmor feature check for %s due to insufficient version %s", fp.feature, aaVer)
+				continue
+			}
+		}
 		// recreate the Cmd each time so we can exec it each time
 		cmd, _, _ := AppArmorParser()
 		err := tryAppArmorParserFeature(cmd, fp.flags, fp.probe)
@@ -716,7 +733,7 @@ func probeParserFeatures() ([]string, error) {
 		features = append(features, "snapd-internal")
 	}
 	sort.Strings(features)
-	logger.Debugf("probed apparmor parser features for version %s (internal=%v): %v", appArmorParserVersion(cmd), internal, features)
+	logger.Debugf("probed apparmor parser features for version %s (internal=%v): %v", aaVer, internal, features)
 	return features, nil
 }
 
