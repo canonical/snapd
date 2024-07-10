@@ -782,16 +782,34 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	if path, err := snapdtool.InternalToolPath("apparmor_parser"); err == nil {
 		if osutil.IsExecutable(path) && snapdAppArmorSupportsReexec() && !systemAppArmorLoadsSnapPolicy() {
 			prefix := strings.TrimSuffix(path, "apparmor_parser")
-			// when using the internal apparmor_parser also use
-			// its own configuration and includes etc plus
-			// also ensure we use the 4.0 feature ABI to get
-			// the widest array of policy features across the
-			// widest array of kernel versions
+			snapdAbi30File := filepath.Join(prefix, "/apparmor.d/abi/3.0")
+			snapdAbi40File := filepath.Join(prefix, "/apparmor.d/abi/4.0")
+
+			// When using the internal apparmor_parser also use its own
+			// configuration and includes etc plus also ensure we use the 4.0
+			// feature ABI to get the widest array of policy features across
+			// the widest array of kernel versions.
+			//
+			// In case snapd is injectd into snapd with older apparmor, use
+			// that instead so that things don't generally fail.
+			abiFile := ""
+			fi40, err40 := os.Lstat(snapdAbi40File)
+			fi30, err30 := os.Lstat(snapdAbi30File)
+			switch {
+			case err40 == nil && !fi40.IsDir():
+				abiFile = snapdAbi40File
+			case err30 == nil && !fi30.IsDir():
+				abiFile = snapdAbi30File
+			default:
+				return nil, false, fmt.Errorf("internal snapd apparmor_parser but no abi files")
+			}
+
 			args := []string{
 				"--config-file", filepath.Join(prefix, "/apparmor/parser.conf"),
 				"--base", filepath.Join(prefix, "/apparmor.d"),
-				"--policy-features", filepath.Join(prefix, "/apparmor.d/abi/4.0"),
+				"--policy-features", abiFile,
 			}
+
 			return exec.Command(path, args...), true, nil
 		}
 	}
