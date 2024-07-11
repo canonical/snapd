@@ -9,10 +9,9 @@ restore: |
   snap remove test-snap-with-channel-and-revision
 
 execute: |
-  # TODO: enable this check once the store's implementation is fixed
   # install a snap with a channel and revision from a channel that is missing
   # the revision, should fail
-  # not snap install --channel=latest/stable --revision=2 test-snap-with-channel-and-revision
+  not snap install --channel=latest/stable --revision=2 test-snap-with-channel-and-revision
 
   # install a snap with a channel and revision
   snap install --channel=latest/stable --revision=1 test-snap-with-channel-and-revision
