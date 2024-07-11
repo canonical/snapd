@@ -22,6 +22,7 @@ package apparmor
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -54,6 +55,234 @@ func ValidateNoAppArmorRegexp(s string) error {
 		return fmt.Errorf("%q contains a reserved apparmor char from %s", s, AARE)
 	}
 	return nil
+}
+
+type AAREExclusionPatternsOptions struct {
+	// Prefix is a string to include on every line in the permutations before
+	// the exclusion permutation itself.
+	Prefix string
+	// Suffix is a string to include on every line in the permutations after
+	// the exclusion permutation itself.
+	Suffix string
+
+	// TODO: add options for generating non-filepaths like what we need for the
+	// unconfined profile transition exclusion in snap-confine's profile as well
+	// as an option for adding an extra character to the very first rule like we
+	// need in the home interface
+}
+
+// InsertAAREExclusionPatterns replaces a ###EXCL{<pref>,<suf>}### snippet
+// with matching prefix and comma separated suffixes with a set of rules generated
+// by GenerateAAREExclusionPatterns.
+func InsertAAREExclusionPatterns(aaRules string, excludePatterns []string, opts *AAREExclusionPatternsOptions) (string, error) {
+	exclussionPatterns, err := GenerateAAREExclusionPatterns(excludePatterns, opts)
+	if err != nil {
+		return "", err
+	}
+
+	placeHolder := fmt.Sprintf("###EXCL{%s<>%s:%s}###", opts.Prefix, opts.Suffix, strings.Join(excludePatterns[:], ","))
+
+	if !strings.Contains(aaRules, placeHolder) {
+		return "", fmt.Errorf("placeholder pattern %q not found", placeHolder)
+	}
+	return strings.Replace(aaRules, placeHolder, strings.TrimSuffix(exclussionPatterns, "\n"), -1), nil
+}
+
+// GenerateAAREExclusionPatterns generates a series of valid AppArmor
+// regular expression negation rules such that anything except the specific
+// excludePatterns will match with the specified prefix and suffix rules. For
+// example to allow reading any file except those matching /usr/*/foo, you would
+// call this function with "/usr/*/foo" as the first argument, "" as the prefix
+// and " r," as the suffix (the suffix being the main part of the read rule) and
+// this function would return the following multi-line string with the relevant
+// rules:
+//
+// /[^u]** r,
+// /u[^s]** r,
+// /us[^r]** r,
+// /usr[^/]** r,
+// /usr/*/[^f]** r,
+// /usr/*/f[^o]** r,
+// /usr/*/fo[^o]** r,
+//
+// This function only treats '*' specially in the string and does not handle any
+// other alternations etc. that AARE may more generally support, and all
+// patterns provided must be absolute filepaths that are at least 2 runes long.
+//
+// This function also works with multiple exclude patterns such as specifying to
+// exclude "/usr/lib/snapd" and "/var/lib/snapd" with suffix " r," would yield:
+//
+// /[^uv]** r,
+// /{u[^s],v[^a]}** r,
+// /{us[^r],va[^r]}** r,
+// /{usr[^/],var[^/]}** r,
+// /{usr/[^l],var/[^l]}** r,
+// /{usr/l[^i],var/l[^i]}** r,
+// /{usr/li[^b],var/li[^b]}** r,
+// /{usr/lib[^/],var/lib[^/]}** r,
+// /{usr/lib/[^s],var/lib/[^s]}** r,
+// /{usr/lib/s[^n],var/lib/s[^n]}** r,
+// /{usr/lib/sn[^a],var/lib/sn[^a]}** r,
+// /{usr/lib/sna[^p],var/lib/sna[^p]}** r,
+// /{usr/lib/snap[^d],var/lib/snap[^d]}** r,
+//
+// Note that with the previous rules, /usr/lib/snapdaemon would not match any rule
+//
+// This function has the following limitations:
+// The first character after a subpattern common to two or more excludePatterns cannot
+// be '*' on any of the excludePatterns that share the common prefix.
+// Eg. ["/snap/core/**", "/snap/*/core/**"] where '/snap/' would be the subpattern common
+// to both excludePattern, and '*' would be the first character after the common subpattern
+// in the second excludePattern.
+// This is because there are no apparmor rules that can fulfill both requirements.
+// For /snap/[^c]** -> It will also match /snap/a/core/** which should be excluded by
+// the second pattern.
+// For /snap/[^c*]** -> It will also exclude access to /snap/a/a that should be allowed
+// as it is not explicitly excluded by any pattern
+//
+// When the '*' is used to exclude suffixes, like in ["/*.bin"], rules should be generated
+// in a reverse way:
+//
+// /*[^n]{,/**} rw,
+// /*[^i]n{,/**} rw,
+// /*[^b]in{,/**} rw,
+// /*[^.]bin{,/**} rw,
+//
+// While generating those rules is technically possible, it will make the logic way more
+// complex, thus the function would just return an error if a pattern of this kind is found.
+// This functionality can be added in a subsequent PR if needed in the future
+func GenerateAAREExclusionPatterns(excludePatterns []string, opts *AAREExclusionPatternsOptions) (string, error) {
+	if len(excludePatterns) == 0 {
+		return "", errors.New("no patterns provided")
+	}
+	seen := map[string]bool{}
+	for _, patt := range excludePatterns {
+		// check for duplicates
+		if seen[patt] {
+			return "", errors.New("exclude patterns contain duplicates")
+		}
+		seen[patt] = true
+
+		// check if it is at least legnth 2
+		if len(patt) < 2 {
+			return "", errors.New("exclude patterns must be at least length 2")
+		}
+
+		// check that it starts as an absolute path
+		if patt[0] != '/' {
+			return "", errors.New("exclude patterns must be absolute filepaths")
+		}
+
+		// TODO: should we also validate that the only character in the pattern
+		// from AARE is "*" ?
+	}
+	if opts == nil {
+		opts = &AAREExclusionPatternsOptions{}
+	}
+	return generateAAREExclusionPatternsGenericImpl(excludePatterns, opts)
+
+}
+
+func generateAAREExclusionPatternsGenericImpl(excludePatterns []string, opts *AAREExclusionPatternsOptions) (string, error) {
+	// Find the length of longest pattern (size)
+	size := 0
+	for _, pattern := range excludePatterns {
+		if len(pattern) > size {
+			size = len(pattern)
+		}
+	}
+
+	// Find the longest prefix common to ALL patterns.
+	commonPrefix, _ := strutil.FindCommonPrefix(excludePatterns)
+
+	// This loop will iterate over the length of the longest excludePattern
+	// (charInd = 1..size), generating an apparmor rule on each iteration
+	// for the corresponding subpatterns, understanding as such, the first
+	// (charInd+1) characters of the excludePatterns.
+	var builder strings.Builder
+	for charInd := 1; charInd < size; charInd++ {
+		// This loop will group the subpatterns properly, generating the subpatterns map, where:
+		//     - the key would be the subpatternPrefix, considering as such the subpattern except
+		//       its last character (pattern[0:charInd]).
+		//     - the value would be the charset, which would be the subpattern last character
+		//       (pattern[charInd]). If several subpatterns share the same subpatternPrefix, the
+		//       charset would be a string including the last character of all those subpatterns.
+		subpatternPrefix := ""
+		subpatterns := map[string]string{}
+		for _, pattern := range excludePatterns {
+			// Handle unsupported cases
+			if (charInd < len(pattern)) && pattern[charInd] == '*' {
+				// Check if the excludePattern has a character different from '/' after a wildcard
+				if ((charInd + 1) < len(pattern)) && (pattern[charInd+1] != '/') {
+					return "", errors.New("exclude patterns does not support suffixes for now")
+				}
+				// Check if '*' is the first character after a common subpattern
+				for _, patt := range excludePatterns {
+					if (patt != pattern) && ((charInd) < len(patt)) && (pattern[:charInd] == patt[:charInd]) && (patt[charInd] != '*') {
+						return "", errors.New("first character after a common subpattern cannot be a wildcard")
+					}
+				}
+			}
+
+			// Skip patterns that are already finished, wildcards and slashes preceded by wildcards.
+			if (charInd >= len(pattern)) ||
+				(pattern[charInd] == '*') ||
+				((pattern[charInd] == '/') && (pattern[charInd-1] == '*')) {
+				continue
+			}
+			// Group subpatterns
+			subpatternPrefix = pattern[:charInd]
+			if charset, exists := subpatterns[subpatternPrefix]; !exists {
+				// Add the pattern if it didn't exist yet
+				subpatterns[subpatternPrefix] = string(pattern[charInd])
+			} else {
+				if !strings.Contains(charset, string(pattern[charInd])) {
+					// Two patterns only differ on the last character
+					subpatterns[subpatternPrefix] = charset + string(pattern[charInd])
+				}
+			}
+		}
+
+		// Write patterns
+		if len(subpatterns) > 0 {
+			// First order keys to ensure profiles are always the same
+			// Sort key in map to ensure consistency in results
+			prefixes := make([]string, 0, len(subpatterns))
+			for prefix := range subpatterns {
+				prefixes = append(prefixes, prefix)
+			}
+			sort.Strings(prefixes)
+
+			// <prefix><common-prefix><exp><suffix>
+			// eg. /squashfs-root/usr/lib/[^a]**			if len(subpatterns) == 1
+			// eg. /squashfs-root/usr/lib/{[^a],[^b]}**		if len(subpatterns) > 1
+			builder.WriteString(opts.Prefix)
+			if charInd < len(commonPrefix) {
+				builder.WriteString(commonPrefix[:charInd])
+			} else {
+				builder.WriteString(commonPrefix)
+			}
+			if len(subpatterns) > 1 {
+				builder.WriteRune('{')
+			}
+			for i := range prefixes {
+				if i > 0 {
+					builder.WriteRune(',')
+				}
+				if len(commonPrefix) < len(prefixes[i]) {
+					builder.WriteString(prefixes[i][len(commonPrefix):])
+				}
+				builder.WriteString("[^" + subpatterns[prefixes[i]] + "]")
+			}
+			if len(subpatterns) > 1 {
+				builder.WriteRune('}')
+			}
+			builder.WriteString("**")
+			builder.WriteString(opts.Suffix)
+			builder.WriteRune('\n')
+		}
+	}
+	return builder.String(), nil
 }
 
 // LevelType encodes the kind of support for apparmor

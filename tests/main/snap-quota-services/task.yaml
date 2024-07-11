@@ -14,8 +14,6 @@ backends:
 # requires systemd v245+
 systems:
   - -amazon-linux-2-*
-  - -centos-7-*
-  - -centos-8-*
   - -ubuntu-14.04-*
   - -ubuntu-16.04-*
   - -ubuntu-18.04-*

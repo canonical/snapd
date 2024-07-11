@@ -194,9 +194,17 @@ type ComponentSetup struct {
 	// CompSideInfo for metadata not coming from the component
 	CompSideInfo *snap.ComponentSideInfo `json:"comp-side-info,omitempty"`
 	// CompType is needed as some types need special handling
-	CompType snap.ComponentType
-	// CompPath is the path to the file
+	CompType snap.ComponentType `json:"comp-type,omitempty"`
+	// CompPath is the path to the component that will be mounted on the system.
+	// It may be empty if the component is not yet present on the system (i.e.,
+	// needs to be downloaded).
 	CompPath string `json:"comp-path,omitempty"`
+	// DownloadInfo contains information about how to download this component.
+	// Will be nil if the component should be sourced from a local file.
+	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
+	// componentInstallFlags is a set of flags that control the behavior of the
+	// component's installation/update.
+	componentInstallFlags
 }
 
 func NewComponentSetup(csi *snap.ComponentSideInfo, compType snap.ComponentType, compPath string) *ComponentSetup {
@@ -227,7 +235,7 @@ func (compsu *ComponentSetup) Revision() snap.Revision {
 // * Installing/refreshing a snap with components
 // * Installing/refreshing a snap without any components
 func ComponentSetupsForTask(t *state.Task) ([]*ComponentSetup, error) {
-	// TODO: handle remaining cases in this switch:
+	// TODO:COMPS: handle remaining cases in this switch:
 	// * installing multiple components for an already installed snap
 	// * installing/refreshing a snap with components
 	switch {
@@ -396,19 +404,31 @@ func (snapst *SnapState) IsComponentInCurrentSeq(cref naming.ComponentRef) bool 
 	}
 
 	idx := snapst.LastIndex(snapst.Current)
-	return snapst.Sequence.ComponentSideInfoForRev(idx, cref) != nil
+	return snapst.Sequence.ComponentStateForRev(idx, cref) != nil
+}
+
+// IsCurrentComponentRevInAnyNonCurrentSeq tells us if the component cref in
+// the revision for the current snap is used in another sequence point too.
+func (snapst *SnapState) IsCurrentComponentRevInAnyNonCurrentSeq(cref naming.ComponentRef) bool {
+	currentIdx := snapst.LastIndex(snapst.Current)
+	if currentIdx == -1 {
+		return false
+	}
+
+	return snapst.Sequence.IsComponentRevInRefSeqPtInAnyOtherSeqPt(cref, currentIdx)
 }
 
 // LocalRevision returns the "latest" local revision. Local revisions
 // start at -1 and are counted down.
 func (snapst *SnapState) LocalRevision() snap.Revision {
-	var local snap.Revision
-	for _, si := range snapst.Sequence.SideInfos() {
-		if si.Revision.Local() && si.Revision.N < local.N {
-			local = si.Revision
-		}
-	}
-	return local
+	return snapst.Sequence.MinimumLocalRevision()
+}
+
+// LocalComponentRevision returns the "latest" local revision for the compName
+// component. Local revisions start at -1 and are counted down. 0 will be
+// returned if no local revision for the component is found.
+func (snapst *SnapState) LocalComponentRevision(compName string) snap.Revision {
+	return snapst.Sequence.MinimumLocalComponentRevision(compName)
 }
 
 // CurrentSideInfo returns the side info for the revision indicated by snapst.Current in the snap revision sequence if there is one.
@@ -425,12 +445,20 @@ func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
 // CurrentComponentSideInfo returns the component side info for the revision indicated by
 // snapst.Current in the snap revision sequence if there is one.
 func (snapst *SnapState) CurrentComponentSideInfo(cref naming.ComponentRef) *snap.ComponentSideInfo {
+	compState := snapst.CurrentComponentState(cref)
+	if compState == nil {
+		return nil
+	}
+	return compState.SideInfo
+}
+
+func (snapst *SnapState) CurrentComponentState(cref naming.ComponentRef) *sequence.ComponentState {
 	if !snapst.IsInstalled() {
 		return nil
 	}
 
 	if idx := snapst.LastIndex(snapst.Current); idx >= 0 {
-		return snapst.Sequence.ComponentSideInfoForRev(idx, cref)
+		return snapst.Sequence.ComponentStateForRev(idx, cref)
 	}
 
 	// should not really happen as the method checks if the snap is installed
@@ -765,13 +793,27 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 
 	// component tasks
 	runner.AddHandler("prepare-component", m.doPrepareComponent, nil)
+	runner.AddHandler("download-component", m.doDownloadComponent, nil)
 	runner.AddHandler("mount-component", m.doMountComponent, m.undoMountComponent)
 	runner.AddHandler("unlink-current-component", m.doUnlinkCurrentComponent, m.undoUnlinkCurrentComponent)
 	runner.AddHandler("link-component", m.doLinkComponent, m.undoLinkComponent)
 	// We cannot undo much after a component file is removed. And it is the
 	// last task anyway.
 	runner.AddHandler("discard-component", m.doDiscardComponent, nil)
-	runner.AddHandler("prepare-kernel-modules-components", m.doSetupKernelModules, m.doRemoveKernelModulesSetup)
+	setupKModsInDo := func(t *state.Task, _ *tomb.Tomb) error {
+		return m.doSetupKernelModules(t, state.DoneStatus)
+	}
+	setupKModsInUndo := func(t *state.Task, _ *tomb.Tomb) error {
+		return m.doSetupKernelModules(t, state.UndoneStatus)
+	}
+	removeKModsInUndo := func(t *state.Task, _ *tomb.Tomb) error {
+		return m.doRemoveKernelModulesSetup(t, state.UndoneStatus)
+	}
+	removeKModsInDo := func(t *state.Task, _ *tomb.Tomb) error {
+		return m.doRemoveKernelModulesSetup(t, state.DoneStatus)
+	}
+	runner.AddHandler("prepare-kernel-modules-components", setupKModsInDo, removeKModsInUndo)
+	runner.AddHandler("clear-kernel-modules-components", removeKModsInDo, setupKModsInUndo)
 
 	// control serialisation
 	runner.AddBlocked(m.blockedTask)

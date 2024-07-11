@@ -12,9 +12,8 @@ details: |
 systems:
     # Ubuntu 14.04 does not have a complete systemd implementation
     - -ubuntu-14.04-*
-    # Systemd on CentOS 7/Amazon Linux 2 does not have the user@uid unit
+    # Systemd on Amazon Linux 2 does not have the user@uid unit
     - -amazon-linux-2-*
-    - -centos-7-*
     # fails regularly with "curl: Recv failure: connection reset by peer"
     - -ubuntu-core-16-*
 

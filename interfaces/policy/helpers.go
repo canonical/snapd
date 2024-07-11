@@ -133,8 +133,8 @@ func checkPlugConnectionConstraints1(connc *ConnectCandidate, constraints *asser
 	if err := checkID("snap id", connc.slotSnapID(), constraints.SlotSnapIDs, nil); err != nil {
 		return err
 	}
-	err := checkID("publisher id", connc.slotPublisherID(), constraints.SlotPublisherIDs, map[string]string{
-		"$PLUG_PUBLISHER_ID": connc.plugPublisherID(),
+	err := checkID("publisher id", connc.SlotPublisherID(), constraints.SlotPublisherIDs, map[string]string{
+		"$PLUG_PUBLISHER_ID": connc.PlugPublisherID(),
 	})
 	if err != nil {
 		return err
@@ -189,8 +189,8 @@ func checkSlotConnectionConstraints1(connc *ConnectCandidate, constraints *asser
 	if err := checkID("snap id", connc.plugSnapID(), constraints.PlugSnapIDs, nil); err != nil {
 		return err
 	}
-	err := checkID("publisher id", connc.plugPublisherID(), constraints.PlugPublisherIDs, map[string]string{
-		"$SLOT_PUBLISHER_ID": connc.slotPublisherID(),
+	err := checkID("publisher id", connc.PlugPublisherID(), constraints.PlugPublisherIDs, map[string]string{
+		"$SLOT_PUBLISHER_ID": connc.SlotPublisherID(),
 	})
 	if err != nil {
 		return err

@@ -44,7 +44,8 @@ environment:
     # a global setting for LXD channel to use in the tests
     # TODO: Consider reverting to latest/candidate after Snapcraft compatibility with LXD 5.21 extended version string "5.21 LTS" is fixed
     LXD_SNAP_CHANNEL: "latest/candidate"
-    UBUNTU_IMAGE_SNAP_CHANNEL: "2/stable"
+    OLD_UBUNTU_IMAGE_SNAP_CHANNEL: "2/stable"
+    UBUNTU_IMAGE_SNAP_CHANNEL: "latest/edge"
     SNAPCRAFT_SNAP_CHANNEL: "latest/candidate"
     # controls whether ubuntu-image is built using the current snapd tree as a
     # dependency or the one listed in its go.mod
@@ -57,7 +58,7 @@ environment:
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
-    DELTA_REF: 2.52
+    DELTA_REF: 2.62
     DELTA_PREFIX: snapd-$DELTA_REF/
     REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'    
     HTTP_PROXY: '$(HOST: echo "$SPREAD_HTTP_PROXY")'
@@ -107,6 +108,8 @@ environment:
     NESTED_REPACK_GADGET_SNAP: '$(HOST: echo "${NESTED_REPACK_GADGET_SNAP:-true}")'
     NESTED_REPACK_BASE_SNAP: '$(HOST: echo "${NESTED_REPACK_BASE_SNAP:-true}")'
     NESTED_FORCE_MS_KEYS: '$(HOST: echo "${NESTED_FORCE_MS_KEYS:-false}")'
+    # Whether we should use snapd snap ./built-snap/ directory
+    TESTS_USE_PREBUILT_SNAPD_SNAP: '$(HOST: echo "${TESTS_USE_PREBUILT_SNAPD_SNAP:-false}")'
 
 backends:
     google:
@@ -169,6 +172,24 @@ backends:
                   workers: 8
                   storage: 20G
 
+    google-pro:
+        type: google
+        # XXX the role assigned to the key must allow for attaching service
+        # accounts
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/europe-west1-b
+        halt-timeout: 2h
+        systems:
+            - ubuntu-pro-20.04-64:
+                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-focal-v20240614
+                  workers: 1
+                  attach-service-account: true
+
+            - ubuntu-pro-22.04-64:
+                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-focal-v20240614
+                  workers: 1
+                  attach-service-account: true
+
     google-distro-1:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
@@ -203,10 +224,6 @@ backends:
                   workers: 6
                   storage: 15G
 
-            - centos-7-64:
-                  workers: 6
-                  storage: preserve-size
-                  image: centos-7-64
             - centos-9-64:
                   workers: 6
                   storage: preserve-size
@@ -223,15 +240,16 @@ backends:
         location: snapd-spread/us-central1-a
         plan: t2a-standard-1
         halt-timeout: 2h
+        kill-timeout: 60m
         systems:
             - ubuntu-20.04-arm-64:
                   image: ubuntu-os-cloud/ubuntu-2004-lts-arm64
                   workers: 8
-                  storage: 12G
+                  storage: 15G
             - ubuntu-22.04-arm-64:
                   image: ubuntu-os-cloud/ubuntu-2204-lts-arm64
                   workers: 8
-                  storage: 12G
+                  storage: 15G
             - ubuntu-core-22-arm-64:
                   image: ubuntu-22.04-arm-64
                   workers: 6
@@ -413,9 +431,6 @@ backends:
             - debian-sid-64:
                   username: debian
                   password: debian
-            - centos-7-64:
-                  username: centos
-                  password: centos
             - amazon-linux-2-64:
                   username: ec2-user
                   password: ec2-user
@@ -804,12 +819,10 @@ prepare: |
 
     # Enable EPEL see https://docs.fedoraproject.org/en-US/epel/
     case "$SPREAD_SYSTEM" in
-        centos-7-*)
-            yum install -y epel-release
-            ;;
         centos-9-*)
             dnf config-manager --set-enabled crb
             dnf install -y epel-release epel-next-release
+            ;;
     esac
 
     case "$SPREAD_SYSTEM" in
@@ -843,7 +856,7 @@ prepare: |
                 echo "deltas are not supported on $SPREAD_SYSTEM, use NO_DELTA=1 when running spread"
                 exit 1
                 ;;
-            amazon-*|centos-7-*)
+            amazon-*)
                 yum install -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
             fedora-*|centos-*)
@@ -1164,10 +1177,12 @@ suites:
             . "$TESTSLIB"/image.sh
             distro_update_package_db
             distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
-            if os.query is-xenial || os.query is-arm; then
+            if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 # also ubuntu-image binary is not prebuilt for arm instances
+                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            elif os.query is-arm; then
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
                get_ubuntu_image
@@ -1189,7 +1204,7 @@ suites:
             tests.nested prepare
             if os.query is-xenial && ! command -v ubuntu-image >/dev/null; then
                 # This is needed because the snap in removed during on restore-each
-                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             fi
         restore-each: |
             tests.nested vm remove
@@ -1221,10 +1236,12 @@ suites:
             . "$TESTSLIB"/image.sh
             distro_update_package_db
             distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
-            if os.query is-xenial || os.query is-arm; then
+            if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 # also ubuntu-image binary is not prebuilt for arm instances
+                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            elif os.query is-arm; then
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
                 get_ubuntu_image
@@ -1282,10 +1299,12 @@ suites:
             . "$TESTSLIB"/image.sh
             distro_update_package_db
             distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
-            if os.query is-xenial || os.query is-arm; then
+            if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 # also ubuntu-image binary is not prebuilt for arm instances
+                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            elif os.query is-arm; then
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
                 get_ubuntu_image
@@ -1345,10 +1364,12 @@ suites:
             . "$TESTSLIB"/image.sh
             distro_update_package_db
             distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
-            if os.query is-xenial || os.query is-arm; then
+            if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 # also ubuntu-image binary is not prebuilt for arm instances
+                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            elif os.query is-arm; then
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
                 get_ubuntu_image

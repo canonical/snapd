@@ -21,6 +21,7 @@
 #include <unistd.h>
 
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/snap-dir.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
@@ -77,7 +78,7 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
 
     // construct rootfs_dir based on base_snap_name
     char mount_point[PATH_MAX] = {0};
-    sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current", SNAP_MOUNT_DIR, inv->base_snap_name);
+    sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current", sc_snap_mount_dir(NULL), inv->base_snap_name);
     inv->rootfs_dir = sc_strdup(mount_point);
 
     debug("security tag: %s", inv->security_tag);
@@ -114,7 +115,7 @@ void sc_check_rootfs_dir(sc_invocation *inv) {
         /* For "core" we can still use the ubuntu-core snap. This is helpful in
          * the migration path when new snap-confine runs before snapd has
          * finished obtaining the core snap. */
-        sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current", SNAP_MOUNT_DIR, "ubuntu-core");
+        sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current", sc_snap_mount_dir(NULL), "ubuntu-core");
         if (access(mount_point, F_OK) == 0) {
             sc_cleanup_string(&inv->base_snap_name);
             inv->base_snap_name = sc_strdup("ubuntu-core");
@@ -132,7 +133,7 @@ void sc_check_rootfs_dir(sc_invocation *inv) {
          * to help people transition to core16 bases without requiring
          * twice the disk space.
          */
-        sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current", SNAP_MOUNT_DIR, "core");
+        sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current", sc_snap_mount_dir(NULL), "core");
         if (access(mount_point, F_OK) == 0) {
             sc_cleanup_string(&inv->base_snap_name);
             inv->base_snap_name = sc_strdup("core");

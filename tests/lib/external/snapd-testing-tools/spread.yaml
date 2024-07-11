@@ -28,9 +28,6 @@ backends:
                 storage: preserve-size
             - amazon-linux-2023-64:
                 storage: preserve-size
-                storage: preserve-size
-            - centos-7-64:
-                storage: preserve-size
             - centos-9-64:
                 storage: preserve-size
             - opensuse-15.5-64:
@@ -47,7 +44,25 @@ backends:
             - ubuntu-20.04-64:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
-                  workers: 1
+
+    openstack:
+        key: '$(HOST: echo "$SPREAD_OPENSTACK_ENV")'
+        plan: staging-cpu2-ram4-disk50
+        halt-timeout: 2h
+        groups: [default]
+        environment:
+            HTTP_PROXY: 'http://squid.internal:3128'
+            HTTPS_PROXY: 'http://squid.internal:3128'
+            NO_PROXY: 'canonical.com'
+        systems:
+            - ubuntu-20.04-64:
+                image: ubuntu-focal-20.04-amd64
+            - ubuntu-22.04-64:
+                image: ubuntu-jammy-22.04-amd64
+            - centos-9-64:
+            - debian-12-64:
+            - fedora-40-64:
+            - opensuse-15.5-64:
 
 path: /root/snapd-testing-tools
 

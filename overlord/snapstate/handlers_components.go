@@ -22,6 +22,7 @@ package snapstate
 import (
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/snapcore/snapd/logger"
@@ -30,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/timings"
 	"gopkg.in/tomb.v2"
 )
@@ -114,18 +116,86 @@ func (m *SnapManager) doPrepareComponent(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if compSetup.Revision().Unset() {
-		// This is a local installation, revision is -1 if the current
-		// one is non-local or not installed, or current one
-		// decremented by one otherwise.
-		revision := snap.R(-1)
-		current := snapSt.CurrentComponentSideInfo(compSetup.CompSideInfo.Component)
-		if current != nil && current.Revision.N < 0 {
-			revision = snap.R(current.Revision.N - 1)
-		}
-		compSetup.CompSideInfo.Revision = revision
+		// This is a local installation, assign -1 to the revision if
+		// no other local revision for the component is found, or
+		// current more negative local revision decremented by one
+		// otherwise.
+		current := snapSt.LocalComponentRevision(compSetup.CompSideInfo.Component.ComponentName)
+		compSetup.CompSideInfo.Revision = snap.R(current.N - 1)
 	}
 
 	t.Set("component-setup", compSetup)
+	return nil
+}
+
+func (m *SnapManager) doDownloadComponent(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	compsup, snapsup, err := TaskComponentSetup(t)
+	if err != nil {
+		return err
+	}
+
+	if compsup.CompPath != "" {
+		return fmt.Errorf("internal error: cannot download component %q that specifies a local file path", compsup.ComponentName())
+	}
+
+	if compsup.DownloadInfo == nil {
+		return fmt.Errorf("internal error: cannot download component %q that does not specify download information", compsup.ComponentName())
+	}
+
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return err
+	}
+
+	user, err := userFromUserID(st, snapsup.UserID)
+	if err != nil {
+		return fmt.Errorf("cannot get user for user ID %d: %w", snapsup.UserID, err)
+	}
+
+	var rate int64
+	if snapsup.IsAutoRefresh {
+		rate = autoRefreshRateLimited(st)
+	}
+
+	cpi := snap.MinimalComponentContainerPlaceInfo(
+		compsup.ComponentName(), compsup.CompSideInfo.Revision,
+		snapsup.InstanceName(),
+	)
+
+	// TODO:COMPS: to be consistent with snaps, this should be able to point
+	// somewhere else, based on a path that is in the compsup. this would be
+	// used for creating new recovery systems, like it is now for snaps
+	target := cpi.MountFile()
+
+	sto := Store(st, deviceCtx)
+	meter := NewTaskProgressAdapterUnlocked(t)
+	perf := state.TimingsForTask(t)
+
+	st.Unlock()
+	timings.Run(perf, "download", fmt.Sprintf("download component %q", compsup.ComponentName()), func(timings.Measurer) {
+		compRef := compsup.CompSideInfo.Component.String()
+		opts := &store.DownloadOptions{
+			Scheduled: snapsup.IsAutoRefresh,
+			RateLimit: rate,
+		}
+
+		err = sto.Download(tomb.Context(nil), compRef, target, compsup.DownloadInfo, meter, user, opts)
+	})
+	st.Lock()
+	if err != nil {
+		return fmt.Errorf("cannot download component %q: %w", compsup.ComponentName(), err)
+	}
+
+	// update component path for all the future tasks
+	compsup.CompPath = target
+	t.Set("component-setup", compsup)
+
+	perf.Save(st)
+
 	return nil
 }
 
@@ -221,6 +291,15 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) (err error) 
 	}
 	perfTimings.Save(st)
 	st.Unlock()
+
+	// if we're removing the snap file and we are mounting a component for the
+	// first time, then we know that the component also must be coming from an
+	// emphemeral file. in that case, remove it.
+	if compSetup.RemoveComponentPath {
+		if err := os.Remove(compSetup.CompPath); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -469,7 +548,7 @@ func (m *SnapManager) undoUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (e
 	return nil
 }
 
-func (m *SnapManager) doSetupKernelModules(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doSetupKernelModules(t *state.Task, finalStatus state.Status) error {
 	// invariant: component not linked yet
 	st := t.State()
 
@@ -497,11 +576,11 @@ func (m *SnapManager) doSetupKernelModules(t *state.Task, _ *tomb.Tomb) error {
 	// Make sure we won't be rerun
 	st.Lock()
 	defer st.Unlock()
-	t.SetStatus(state.DoneStatus)
+	t.SetStatus(finalStatus)
 	return nil
 }
 
-func (m *SnapManager) doRemoveKernelModulesSetup(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doRemoveKernelModulesSetup(t *state.Task, finalStatus state.Status) error {
 	// invariant: component unlinked on undo
 	st := t.State()
 
@@ -532,7 +611,7 @@ func (m *SnapManager) doRemoveKernelModulesSetup(t *state.Task, _ *tomb.Tomb) er
 	// Make sure we won't be rerun
 	st.Lock()
 	defer st.Unlock()
-	t.SetStatus(state.UndoneStatus)
+	t.SetStatus(finalStatus)
 	return nil
 }
 

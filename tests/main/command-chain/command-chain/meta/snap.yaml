@@ -2,6 +2,7 @@ name: command-chain
 version: 1.0
 summary: Command chain snap
 description: A buildable snap that uses command chain
+base: core20
 
 apps:
   hello:

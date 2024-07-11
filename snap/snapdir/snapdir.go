@@ -211,3 +211,13 @@ func (s *SnapDir) ListDir(path string) ([]string, error) {
 func (s *SnapDir) Unpack(src, dstDir string) error {
 	return fmt.Errorf("unpack is not supported with snaps of type snapdir")
 }
+
+// NewContainerFromDir returns a snap.Container that is implemented by a
+// SnapDir. It should be used as the implementation of snap.NewContainerFromDir.
+func NewContainerFromDir(path string) snap.Container {
+	return New(path)
+}
+
+func init() {
+	snap.NewContainerFromDir = NewContainerFromDir
+}

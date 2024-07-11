@@ -159,7 +159,9 @@ func (c *componentPlaceInfo) MountDescription() string {
 }
 
 // ComponentLinkPath returns the path for the symlink for a component for a
-// given snap revision.
+// given snap revision. Note that this function only uses the ContainerName
+// method on the ContainerPlaceInfo. If that changes, callers of this function
+// may need to change how the parameters are initialized.
 func ComponentLinkPath(cpi ContainerPlaceInfo, snapRev Revision) string {
 	instanceName, compName, _ := strings.Cut(cpi.ContainerName(), "+")
 	compBase := ComponentsBaseDir(instanceName)
@@ -267,7 +269,6 @@ func addAndBindImplicitComponentHook(componentInfo *ComponentInfo, snapInfo *Inf
 		return
 	}
 
-	// TODO: ignore unsupported implicit component hooks, or return an error?
 	if !IsComponentHookSupported(hook) {
 		logger.Noticef("ignoring unsupported implicit hook %q for component %q", componentInfo.Component, hook)
 		return

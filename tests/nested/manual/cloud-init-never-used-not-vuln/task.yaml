@@ -94,11 +94,15 @@ execute: |
             
         else
             # build the snapd snap for this run
-            "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
-            remote.push "$PWD/snapd-from-deb.snap"
+            # shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
+            mkdir -p snap-output
+            build_snapd_snap snap-output
+            mv snap-output/snapd_*.snap snapd.snap
+            remote.push "$PWD/snapd.snap"
 
             # install the snapd snap
-            remote.exec "sudo snap install snapd-from-deb.snap --dangerous"
+            remote.exec "sudo snap install snapd.snap --dangerous"
         fi
     fi
 

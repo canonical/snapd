@@ -689,12 +689,14 @@ func (iface *unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification
 	new = strings.Replace(new, "+", "_", -1)
 	old := "###UNITY_SNAP_NAME###"
 	snippet := strings.Replace(unity7ConnectedPlugAppArmor, old, new, -1)
-
-	old = "###SNAP_DESKTOP_FILE_RULES###"
-	new = strings.Join(getDesktopFileRules(plug.Snap().DesktopPrefix()), "\n")
-	snippet = strings.Replace(snippet, old, new+"\n", -1)
-
 	spec.AddSnippet(snippet)
+
+	// the DesktopFileRules can conflict with the rules in other, more privileged,
+	// interfaces (like desktop-launch), so they are added here with the minimum
+	// priority, while those other, more privileged, interfaces will add an empty
+	// string with a bigger privilege value.
+	desktopSnippet := strings.Join(getDesktopFileRules(plug.Snap().DesktopPrefix()), "\n")
+	spec.AddPrioritizedSnippet(desktopSnippet, prioritizedSnippetDesktopFileAccess, desktopLegacyAndUnity7Priority)
 	return nil
 }
 

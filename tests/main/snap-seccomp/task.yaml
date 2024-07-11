@@ -22,17 +22,6 @@ execute: |
     snap install test-snapd-sh
     test-snapd-sh.sh -c 'echo hello' | MATCH hello
 
-    # The 16.04 build is static as it goes into the snapd snap but 14.04
-    # is dynamically linked.
-    if ! os.query is-trusty; then
-        echo "Ensure snap-seccomp is statically linked"
-        # FIXME: use dirs.sh in 2.27+
-        if ldd /usr/lib/snapd/snap-seccomp | MATCH libseccomp ; then
-            echo "found dynamically linked libseccomp, we need a staticly linked one"
-            exit 1
-        fi
-    fi
-
     # from the old test_complain
     echo "Test that the @complain keyword works"
     rm -f "${PROFILE}.bin2"

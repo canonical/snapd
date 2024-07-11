@@ -47,24 +47,51 @@ var userCurrent = user.Current
 //
 // It ensures all SNAP_* override any pre-existing environment
 // variables.
-func ExtendEnvForRun(env osutil.Environment, info *snap.Info, opts *dirs.SnapDirOptions) {
+func ExtendEnvForRun(env osutil.Environment, info *snap.Info, component *snap.ComponentInfo, opts *dirs.SnapDirOptions) {
 	// Set various SNAP_ environment variables as well as some non-SNAP variables,
 	// depending on snap confinement mode. Note that this does not include environment
 	// set by snap-exec.
-	for k, v := range snapEnv(info, opts) {
+	for k, v := range snapEnv(info, component, opts) {
 		env[k] = v
 	}
 }
 
-func snapEnv(info *snap.Info, opts *dirs.SnapDirOptions) osutil.Environment {
+func snapEnv(info *snap.Info, component *snap.ComponentInfo, opts *dirs.SnapDirOptions) osutil.Environment {
 	// Environment variables with basic properties of a snap.
 	env := basicEnv(info)
+
+	if component != nil {
+		for k, v := range componentEnv(info, component) {
+			env[k] = v
+		}
+	}
+
 	if usr, err := userCurrent(); err == nil && usr.HomeDir != "" {
 		// Environment variables with values specific to the calling user.
 		for k, v := range userEnv(info, usr.HomeDir, opts) {
 			env[k] = v
 		}
 	}
+	return env
+}
+
+func componentEnv(info *snap.Info, component *snap.ComponentInfo) osutil.Environment {
+	env := osutil.Environment{
+		// this uses dirs.CoreSnapMountDir for the same reasons that it is used
+		// to set SNAP in basicEnv, see comment there for more details
+		"SNAP_COMPONENT": filepath.Join(
+			dirs.CoreSnapMountDir,
+			info.SnapName(),
+			"components",
+			"mnt",
+			component.Component.ComponentName,
+			component.Revision.String(),
+		),
+		"SNAP_COMPONENT_NAME":     component.FullName(),
+		"SNAP_COMPONENT_VERSION":  component.Version,
+		"SNAP_COMPONENT_REVISION": component.Revision.String(),
+	}
+
 	return env
 }
 

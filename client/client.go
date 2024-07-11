@@ -801,3 +801,9 @@ func (c *Client) MigrateSnapHome(snaps []string) (changeID string, err error) {
 
 	return c.doAsync("POST", "/v2/debug", nil, nil, bytes.NewReader(body))
 }
+
+// DebugRaw allows to make raw queries to the API with the intention of using it
+// from the debug code.
+func (client *Client) DebugRaw(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body io.Reader) (*http.Response, error) {
+	return client.raw(ctx, method, urlpath, query, headers, body)
+}

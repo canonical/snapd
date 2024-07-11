@@ -27,22 +27,14 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
 )
 
 func Test(t *testing.T) { TestingT(t) }
 
-type promptingSuite struct {
-	tmpdir string
-}
+type promptingSuite struct{}
 
 var _ = Suite(&promptingSuite{})
-
-func (s *promptingSuite) SetUpTest(c *C) {
-	s.tmpdir = c.MkDir()
-	dirs.SetRootDir(s.tmpdir)
-}
 
 func (s *promptingSuite) TestOutcomeIsAllow(c *C) {
 	result, err := prompting.OutcomeAllow.IsAllow()

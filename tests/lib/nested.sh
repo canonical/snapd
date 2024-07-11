@@ -595,23 +595,33 @@ nested_prepare_snapd() {
         echo "Repacking snapd snap"
         local snap_name output_name snap_id
         if nested_is_core_16_system; then
-            snap_name="core"
-            output_name="core-from-snapd-deb.snap"
-            snap_id="99T7MUlRhtI3U0QFgl5mXXESAiSwt776"
+            if [ ! -f "$NESTED_ASSETS_DIR/core-from-snapd-deb.snap" ]; then
+                "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap core "$NESTED_ASSETS_DIR"
+                cp "$NESTED_ASSETS_DIR/core-from-snapd-deb.snap" "$(nested_get_extra_snaps_path)/core-from-snapd-deb.snap"
+            fi
+            # sign the snapd snap with fakestore if requested
+            if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                "$TESTSTOOLS"/store-state make-snap-installable --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/core-from-snapd-deb.snap" "99T7MUlRhtI3U0QFgl5mXXESAiSwt776"
+            fi
         else
-            snap_name="snapd"
-            output_name="snapd-from-deb.snap"
-            snap_id="PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
-        fi
-
-        if [ ! -f "$NESTED_ASSETS_DIR/$output_name" ]; then
-            "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap "$snap_name" "$NESTED_ASSETS_DIR"
-        fi
-        cp "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
-
-        # sign the snapd snap with fakestore if requested
-        if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-            "$TESTSTOOLS"/store-state make-snap-installable --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
+            for f in "${NESTED_ASSETS_DIR}"/snapd_*.snap; do
+                snap_name="$(basename "${f}")"
+                break
+            done
+            if [ ! -f "${NESTED_ASSETS_DIR}/${snap_name}" ]; then
+                # shellcheck source=tests/lib/prepare.sh
+                . "$TESTSLIB"/prepare.sh
+                build_snapd_snap "$NESTED_ASSETS_DIR"
+                for f in "${NESTED_ASSETS_DIR}"/snapd_*.snap; do
+                    snap_name="$(basename "${f}")"
+                    break
+                done
+                cp "${NESTED_ASSETS_DIR}/${snap_name}" "$(nested_get_extra_snaps_path)/"
+            fi
+            # sign the snapd snap with fakestore if requested
+            if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                "$TESTSTOOLS"/store-state make-snap-installable --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/${snap_name}" "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
+            fi
         fi
     fi
 }
@@ -1320,7 +1330,7 @@ nested_start_core_vm_unit() {
                 # Error 2 means 'recoverable error', ignore that case
                 ret=0
                 remote.exec "cloud-init status" || ret=$?
-                if "$ret" -ne 0 && "$ret" -ne 2; then
+                if [ "$ret" -ne 0 ] && [ "$ret" -ne 2 ]; then
                     echo "cloud-init finished with error $ret"
                     exit 1
                 fi

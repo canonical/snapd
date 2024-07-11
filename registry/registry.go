@@ -70,12 +70,16 @@ type NotFoundError struct {
 
 func (e *NotFoundError) Error() string {
 	var reqStr string
-	if len(e.Requests) == 1 {
-		reqStr = fmt.Sprintf("%q", e.Requests[0])
-	} else {
-		reqStr = strutil.Quoted(e.Requests)
+	switch len(e.Requests) {
+	case 0:
+		// leave empty, so the message reflects the request gets the whole view
+	case 1:
+		reqStr = fmt.Sprintf(" %q in", e.Requests[0])
+	default:
+		reqStr = fmt.Sprintf(" %s in", strutil.Quoted(e.Requests))
 	}
-	return fmt.Sprintf("cannot %s %s in registry view %s/%s/%s: %s", e.Operation, reqStr, e.Account, e.RegistryName, e.View, e.Cause)
+
+	return fmt.Sprintf("cannot %s%s registry view %s/%s/%s: %s", e.Operation, reqStr, e.Account, e.RegistryName, e.View, e.Cause)
 }
 
 func (e *NotFoundError) Is(err error) bool {
@@ -84,12 +88,17 @@ func (e *NotFoundError) Is(err error) bool {
 }
 
 func notFoundErrorFrom(v *View, op, request, errMsg string) *NotFoundError {
+	var req []string
+	if request != "" {
+		req = []string{request}
+	}
+
 	return &NotFoundError{
 		Account:      v.registry.Account,
 		RegistryName: v.registry.Name,
 		View:         v.Name,
 		Operation:    op,
-		Requests:     []string{request},
+		Requests:     req,
 		Cause:        errMsg,
 	}
 }
@@ -165,7 +174,18 @@ const (
 	Alt
 )
 
-var typeStrings = [...]string{"int", "number", "string", "bool", "map", "array", "any", "alt"}
+var (
+	typeStrings = [...]string{"int", "number", "string", "bool", "map", "array", "any", "alt"}
+
+	ValidRegistryName = validSubkey
+	ValidViewName     = validSubkey
+
+	validSubkey      = regexp.MustCompile(fmt.Sprintf("^%s$", subkeyRegex))
+	validPlaceholder = regexp.MustCompile(fmt.Sprintf("^{%s}$", subkeyRegex))
+	// TODO: decide on what the format should be for aliases in schemas
+	validAliasName = validSubkey
+	subkeyRegex    = "[a-z](?:-?[a-z0-9])*"
+)
 
 // Registry holds a series of related views.
 type Registry struct {
@@ -189,6 +209,10 @@ func New(account string, registryName string, views map[string]interface{}, sche
 	}
 
 	for name, v := range views {
+		if !ValidViewName.Match([]byte(name)) {
+			return nil, fmt.Errorf("cannot define view %q: name must conform to %s", name, subkeyRegex)
+		}
+
 		viewMap, ok := v.(map[string]interface{})
 		if !ok || len(viewMap) == 0 {
 			return nil, fmt.Errorf("cannot define view %q: view must be non-empty map", name)
@@ -362,14 +386,6 @@ func validateRequestStoragePair(request, storage string) error {
 
 	return nil
 }
-
-var (
-	subkeyRegex      = "[a-z](?:-?[a-z0-9])*"
-	validSubkey      = regexp.MustCompile(fmt.Sprintf("^%s$", subkeyRegex))
-	validPlaceholder = regexp.MustCompile(fmt.Sprintf("^{%s}$", subkeyRegex))
-	// TODO: decide on what the format should be for aliases in schemas
-	validAliasName = validSubkey
-)
 
 type validationOptions struct {
 	// allowPlaceholder means that placeholders are accepted when validating.
@@ -973,6 +989,7 @@ func (v *View) Get(databag DataBag, request string) (interface{}, error) {
 	}
 
 	if merged == nil {
+		// TODO: improve this error message
 		return nil, notFoundErrorFrom(v, "get", request, "matching rules don't map to any values")
 	}
 

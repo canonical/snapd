@@ -171,6 +171,7 @@ execute: |
   tests.nested create-vm core --extra-param "$NESTED_PARAM_EXTRA"
 
   # bind mount new seed
+  remote.exec sudo mkdir -p /var/lib/snapd/seed
   remote.exec "sudo mount -o bind /var/lib/snapd/install-seed /var/lib/snapd/seed"
   # push and install muinstaller
   remote.push "$MUINSTALLER_SNAP"
@@ -227,8 +228,8 @@ execute: |
 
   # check for unasserted snaps
   for sn in pc pc-kernel; do
-      version=$(remote.exec "snap list ${sn}" | awk 'NR != 1 { print $2 }')
-      remote.exec "test -f /run/mnt/ubuntu-seed/systems/${LABEL}/snaps/${sn}_${version}.snap"
+      sn_version=$(remote.exec "snap list ${sn}" | awk 'NR != 1 { print $2 }')
+      remote.exec "test -f /run/mnt/ubuntu-seed/systems/${LABEL}/snaps/${sn}_${sn_version}.snap"
   done
 
   # check for asserted snaps

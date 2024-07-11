@@ -39,6 +39,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -148,6 +149,8 @@ type baseMgrsSuite struct {
 	automaticSnapshots []automaticSnapshotCall
 
 	logbuf *bytes.Buffer
+
+	storeObserver func(r *http.Request)
 }
 
 var (
@@ -1062,6 +1065,10 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 	}
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.storeObserver != nil {
+			s.storeObserver(r)
+		}
+
 		// all URLS are /api/v1/snaps/... or /v2/snaps/ or /v2/assertions/... so
 		// check the url is sane and discard the common prefix
 		// to simplify indexing into the comps slice.
@@ -14378,4 +14385,269 @@ type: snapd`
 		err := snapstate.CheckExpectedRestart(st)
 		c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeRestart)
 	}()
+}
+
+var snapWithSnapdControlRefreshScheduleManagedYAML = `
+name: snap-with-snapd-control
+version: 1.0
+plugs:
+ snapd-control:
+  refresh-schedule: managed
+`
+
+var coreWithSnapdControlOnlyYAML = `
+name: core
+version: 1.0
+slots:
+ snapd-control:
+`
+
+func makeMockRepoWithConnectedSnaps(c *C, repo *interfaces.Repository, info11, core11 *snap.Info, ifname string) {
+	info11AppSet, err := interfaces.NewSnapAppSet(info11, nil)
+	c.Assert(err, IsNil)
+
+	err = repo.AddAppSet(info11AppSet)
+	c.Assert(err, IsNil)
+
+	core11AppSet, err := interfaces.NewSnapAppSet(core11, nil)
+	c.Assert(err, IsNil)
+
+	err = repo.AddAppSet(core11AppSet)
+	c.Assert(err, IsNil)
+
+	_, err = repo.Connect(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: info11.InstanceName(), Name: ifname},
+		SlotRef: interfaces.SlotRef{Snap: core11.InstanceName(), Name: ifname},
+	}, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+	conns, err := repo.Connected(info11.RealName, ifname)
+	c.Assert(err, IsNil)
+	c.Assert(conns, HasLen, 1)
+}
+
+func (s *mgrsSuite) testConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C, hasPendingSecurityProfiles bool) {
+	// This test exists to verify that any disruptions of a refresh
+	// will maintain any pre-existing connection that was held before
+	// the snap is marked inactive. The goal of this test is to run all
+	// tasks that involve something making the snap unavailable/not active
+	// and then simulating a reboot inside the interface manager. We then
+	// re-verify the connection and see that functionality used return
+	// the expected values. The interface used for testing is snapd-control
+	// with the managed refresh schedule attribute.
+	//
+	// This was selected based on a customer case. Prior to version 2.58 this
+	// would cause the connection to be dropped, if a well-timed restart of snapd
+	// would occur during a refresh. In 2.58 a fix for this was merged, and this
+	// test should be passing.
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	canAutoRefreshCalls := 0
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) {
+		canAutoRefreshCalls++
+		return true, nil
+	}
+
+	// prevent catalog refresh
+	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapNamesFile, nil, 0644), IsNil)
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	err := assertstate.Add(st, s.devAcct)
+	c.Assert(err, IsNil)
+
+	var reqsLock sync.Mutex
+	var reqs []string
+	s.storeObserver = func(r *http.Request) {
+		c.Logf("request %v\n", r)
+		reqsLock.Lock()
+		defer reqsLock.Unlock()
+		reqs = append(reqs, r.URL.String())
+	}
+
+	snapNames := map[string]string{
+		"snap-with-snapd-control": snapWithSnapdControlRefreshScheduleManagedYAML,
+		"core":                    coreWithSnapdControlOnlyYAML,
+	}
+	snapInfos := make(map[string]*snap.Info)
+	for name, yaml := range snapNames {
+		rev := snap.R(1)
+		if name != "core" {
+			snapDecl := s.prereqSnapAssertions(c, map[string]interface{}{
+				"snap-name": name,
+				"format":    "1",
+				"plugs": map[string]interface{}{
+					"snapd-control": map[string]interface{}{
+						"allow-installation": "true",
+						"auto-connect":       "true",
+						"refresh-schedule":   "managed",
+					},
+				},
+			})
+			err = assertstate.Add(st, snapDecl)
+			c.Assert(err, IsNil)
+		}
+		snapInfos[name] = s.mockInstalledSnapWithRevAndFiles(c, yaml, rev, nil)
+	}
+
+	// now add another snap revisions of "snap-with-snapd-control"
+	snapPath, _ := s.makeStoreTestSnap(c, snapWithSnapdControlRefreshScheduleManagedYAML, "2")
+	s.serveSnap(snapPath, "2")
+
+	makeMockRepoWithConnectedSnaps(c, s.o.InterfaceManager().Repository(), snapInfos["snap-with-snapd-control"], snapInfos["core"], "snapd-control")
+	c.Check(devicestate.CanManageRefreshes(st), Equals, true)
+
+	// setup connection in state to emulate that we have a snap installed with an active
+	// connection.
+	st.Set("conns", map[string]interface{}{
+		"snap-with-snapd-control:snapd-control core:snapd-control": map[string]interface{}{
+			"interface": "snapd-control",
+			"auto":      true,
+		},
+	})
+
+	// set config to have refresh schedule as managed.
+	tr := config.NewTransaction(st)
+	c.Assert(tr.Set("core", "refresh.schedule", "managed"), IsNil)
+	tr.Commit()
+
+	chg := st.NewChange("update many change", "update change")
+	affected, tts, err := snapstate.UpdateMany(context.Background(), st, []string{"snap-with-snapd-control"}, nil, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(tts, HasLen, 2)
+	c.Check(affected, DeepEquals, []string{"snap-with-snapd-control"})
+
+	// Run only up until setup-profiles. We do not want to run past here, but simulate that a snapd
+	// restart occurs during a snap upgrade.
+	for _, t := range tts[0].Tasks() {
+		switch t.Kind() {
+		case "prerequisites", "download-snap", "validate-snap", "mount-snap", "stop-snap-services", "remove-aliases", "unlink-current-snap", "copy-snap-data", "run-hook", "setup-profiles":
+			if t.Kind() == "run-hook" && !strings.Contains(t.Summary(), "pre-refresh") {
+				continue
+			}
+			chg.AddTask(t)
+		}
+	}
+	dumpTasks(c, "task sets", tts[0].Tasks())
+	dumpTasks(c, "tasks added to change", chg.Tasks())
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Logf("requests: %v", reqs)
+	dumpTasks(c, "after settle", chg.Tasks())
+
+	// we hit the store for installation of the snap
+	c.Assert(len(reqs) > 0, Equals, true)
+	// and we hit the auto refresh path
+	c.Assert(canAutoRefreshCalls > 0, Equals, true)
+
+	// check connections are fine after running the expected task-set.
+	var conns map[string]interface{}
+	st.Get("conns", &conns)
+	c.Logf("connections: %v", conns)
+	c.Assert(conns, DeepEquals, map[string]interface{}{
+		"snap-with-snapd-control:snapd-control core:snapd-control": map[string]interface{}{
+			"interface": "snapd-control",
+			"auto":      true,
+			"plug-static": map[string]interface{}{
+				"refresh-schedule": "managed",
+			},
+		},
+	})
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "snap-with-snapd-control", &snapst)
+	c.Assert(err, IsNil)
+	if hasPendingSecurityProfiles {
+		c.Check(snapst.PendingSecurity, NotNil)
+	} else {
+		// simulate a pre 2.58 behavior, where there was no pending
+		// security profiles
+		snapst.PendingSecurity = nil
+		snapstate.Set(st, "snap-with-snapd-control", &snapst)
+	}
+
+	// Simulate a restart in the interface manager, to emulate a restart of snapd
+	// has occurred and the startup code of interface manager runs again. In versions prior
+	// to 2.58 of snapd, this could result in interfaces being dropped as updating snaps that
+	// had not run "setup-profiles" and were marked inactive would not be added to the inteface
+	// repository.
+	ifmgr := s.o.InterfaceManager()
+	c.Assert(ifmgr, NotNil)
+	interfaces.ResetRepository(ifmgr.Repository())
+
+	st.Unlock()
+	err = ifmgr.StartUp()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// The connection state should not change
+	st.Get("conns", &conns)
+	c.Assert(conns, DeepEquals, map[string]interface{}{
+		"snap-with-snapd-control:snapd-control core:snapd-control": map[string]interface{}{
+			"interface": "snapd-control",
+			"auto":      true,
+			"plug-static": map[string]interface{}{
+				"refresh-schedule": "managed",
+			},
+		},
+	})
+
+	// because of a bug fixed in 2.58, the repository may or may not
+	// correctly reflect the connection state, but the test is also rigged
+	// to not execute auto-connect, which would restore the connection in
+	// the scenario when pending security profiles were not carried
+	ref, err := s.o.InterfaceManager().Repository().Connected("snap-with-snapd-control", "snapd-control")
+	if hasPendingSecurityProfiles {
+		c.Assert(err, IsNil)
+		// with pending security profiles the repo information is correctly restored
+		c.Assert(len(ref) > 0, Equals, true, Commentf("connection not restored to interfaces repo"))
+		// CanManageRefreshes must return true with the >= 2.58 fixes
+		c.Check(devicestate.CanManageRefreshes(st), Equals, true)
+	} else {
+		// but without the connection present in the state is not
+		// reflected by the repo
+		c.Assert(err, ErrorMatches, `snap "snap-with-snapd-control" has no .* "snapd-control"`)
+		c.Assert(ref, HasLen, 0)
+		// but returns false without the fix
+		c.Check(devicestate.CanManageRefreshes(st), Equals, false)
+	}
+
+	// reset store requests and auto refresh call count
+	reqs = nil
+	canAutoRefreshCalls = 0
+	st.Unlock()
+	c.Logf("-- calling ensure")
+	err = s.o.SnapManager().Ensure()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// no requests to the store
+	c.Assert(reqs, HasLen, 0)
+	// but we hit the auto refresh path
+	c.Assert(canAutoRefreshCalls > 0, Equals, true)
+
+	// The refresh schedule must report managed
+	t1, t2, err := s.o.SnapManager().RefreshSchedule()
+	c.Assert(err, IsNil)
+	c.Check(t1, Equals, "managed")
+	c.Check(t2, Equals, true)
+}
+
+func (s *mgrsSuite) TestConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C) {
+	const hasPendingSecurityProfiles = true
+	s.testConnectionDurabilityDuringRefreshesAndAutoRefresh(c, hasPendingSecurityProfiles)
+}
+
+func (s *mgrsSuite) TestOldNoConnectionDurabilityAndAutoRefresh(c *C) {
+	// simulate snapd < 2.58 where pending security profiles were not kept
+	// in the state
+	const hasPendingSecurityProfiles = false
+	s.testConnectionDurabilityDuringRefreshesAndAutoRefresh(c, hasPendingSecurityProfiles)
 }

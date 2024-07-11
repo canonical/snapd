@@ -90,7 +90,8 @@ type Daemon struct {
 
 	expectedRebootDidNotHappen bool
 
-	mu sync.Mutex
+	mu     sync.Mutex
+	cancel func()
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -319,8 +320,9 @@ func (d *Daemon) initStandbyHandling() {
 	d.standbyOpinions.Start()
 }
 
-// Start the Daemon
-func (d *Daemon) Start() error {
+// Start the Daemon. Takes a context which will be used as the base request
+// context in the embedded http.Server.
+func (d *Daemon) Start(ctx context.Context) (err error) {
 	if d.expectedRebootDidNotHappen {
 		// we need to schedule and wait for a system restart
 		d.tomb.Kill(nil)
@@ -331,6 +333,15 @@ func (d *Daemon) Start() error {
 	if d.overlord == nil {
 		panic("internal error: no Overlord")
 	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	d.cancel = cancel
+	defer func() {
+		// cancel the context on any errors
+		if err != nil {
+			cancel()
+		}
+	}()
 
 	to, reasoning, err := d.overlord.StartupTimeout()
 	if err != nil {
@@ -355,6 +366,13 @@ func (d *Daemon) Start() error {
 	d.serve = &http.Server{
 		Handler:   logit(d.router),
 		ConnState: d.connTracker.trackConn,
+		BaseContext: func(net.Listener) context.Context {
+			// requests will use the context provided to Start, as
+			// the caller will likely cancel it when appropriate
+			// thus canceling any outstanding requests to the snapd
+			// API
+			return ctx
+		},
 	}
 
 	// enable standby handling
@@ -482,6 +500,10 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		return fmt.Errorf("internal error: no Overlord")
 	}
 
+	if d.cancel != nil {
+		d.cancel()
+	}
+
 	d.tomb.Kill(nil)
 
 	// check the state associated with a potential restart with the lock to
@@ -490,12 +512,13 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	// needsFullShutdown is whether the entire system will
 	// shutdown or not as a consequence of this request
 	needsFullShutdown := false
-	switch d.requestedRestart {
+	restartType := d.requestedRestart
+	switch restartType {
 	case restart.RestartSystem, restart.RestartSystemNow, restart.RestartSystemHaltNow, restart.RestartSystemPoweroffNow:
 		needsFullShutdown = true
 	}
 	immediateShutdown := false
-	switch d.requestedRestart {
+	switch restartType {
 	case restart.RestartSystemNow, restart.RestartSystemHaltNow, restart.RestartSystemPoweroffNow:
 		immediateShutdown = true
 	}
@@ -506,7 +529,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	// before not accepting any new client connections we need to write the
 	// maintenance.json file for potential clients to see after the daemon stops
 	// responding so they can read it correctly and handle the maintenance
-	if err := d.updateMaintenanceFile(d.requestedRestart); err != nil {
+	if err := d.updateMaintenanceFile(restartType); err != nil {
 		logger.Noticef("error writing maintenance file: %v", err)
 	}
 

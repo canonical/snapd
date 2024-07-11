@@ -25,9 +25,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -45,6 +48,7 @@ import (
 )
 
 type helpersSuite struct {
+	testutil.BaseTest
 	st *state.State
 }
 
@@ -53,10 +57,28 @@ var _ = Suite(&helpersSuite{})
 func (s *helpersSuite) SetUpTest(c *C) {
 	s.st = state.New(nil)
 	dirs.SetRootDir(c.MkDir())
+
+	s.MockModel(c, nil)
 }
 
 func (s *helpersSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
+}
+
+func (s *helpersSuite) MockModel(c *C, extraHeaders map[string]interface{}) {
+	model := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, extraHeaders).(*asserts.Model)
+
+	s.AddCleanup(snapstatetest.MockDeviceModel(model))
 }
 
 func (s *helpersSuite) TestIdentityMapper(c *C) {

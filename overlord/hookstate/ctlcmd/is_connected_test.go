@@ -135,7 +135,7 @@ var isConnectedTests = []struct {
 	exitCode: ctlcmd.ClassicSnapCode,
 }}
 
-func mockInstalledSnap(c *C, st *state.State, snapYaml, cohortKey string) {
+func mockInstalledSnap(c *C, st *state.State, snapYaml, cohortKey string) *snap.Info {
 	info := snaptest.MockSnapCurrent(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
 	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
 		Active: true,
@@ -150,6 +150,7 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml, cohortKey string) {
 		TrackingChannel: "stable",
 		CohortKey:       cohortKey,
 	})
+	return info
 }
 
 func (s *isConnectedSuite) testIsConnected(c *C, context *hookstate.Context) {

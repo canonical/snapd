@@ -34,6 +34,7 @@ const systemBackupConnectedPlugAppArmor = `
 capability dac_read_search,
 
 # read access to everything except items under /dev, /sys and /proc
+# TODO: use GenerateAAREExclusionPatterns for this
 /{,var/lib/snapd/hostfs/}[^dsp]** r,
 /{,var/lib/snapd/hostfs/}{d[^e],s[^y],p[^r]}** r,
 /{,var/lib/snapd/hostfs/}{de[^v],sy[^s],pr[^o]}** r,

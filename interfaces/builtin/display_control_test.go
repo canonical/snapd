@@ -101,6 +101,8 @@ func (s *displayControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "(dereferenced)/sys/class/backlight/bar_backlight/{,**} r,\n")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "autodetected backlight: foo_backlight\n")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "(dereferenced)/sys/class/backlight/foo_backlight/{,**} r,\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/sys/devices/platform/lvds_backlight/backlight/lvds_backlight/brightness rw,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/sys/devices/platform/lvds_backlight/backlight/lvds_backlight/bl_power rw,`)
 }
 
 func (s *displayControlInterfaceSuite) TestStaticInfo(c *C) {

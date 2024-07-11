@@ -438,7 +438,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 		{
 			op:             "remove-snap-data-dir",
 			name:           "some-snap_instance",
-			path:           filepath.Join(dirs.SnapDataDir, "some-snap"),
+			path:           filepath.Join(dirs.SnapDataDir, "some-snap_instance"),
 			otherInstances: true,
 		},
 		{
@@ -461,7 +461,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 		{
 			op:             "remove-snap-dir",
 			name:           "some-snap_instance",
-			path:           filepath.Join(dirs.SnapMountDir, "some-snap"),
+			path:           filepath.Join(dirs.SnapMountDir, "some-snap_instance"),
 			otherInstances: true,
 		},
 	}
@@ -592,7 +592,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 		{
 			op:             "remove-snap-data-dir",
 			name:           "some-snap_instance",
-			path:           filepath.Join(dirs.SnapDataDir, "some-snap"),
+			path:           filepath.Join(dirs.SnapDataDir, "some-snap_instance"),
 			otherInstances: true,
 		},
 		{
@@ -615,7 +615,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 		{
 			op:             "remove-snap-dir",
 			name:           "some-snap_instance",
-			path:           filepath.Join(dirs.SnapMountDir, "some-snap"),
+			path:           filepath.Join(dirs.SnapMountDir, "some-snap_instance"),
 			otherInstances: true,
 		},
 	}

@@ -7,6 +7,11 @@ details: |
     that the command-chain is executed when running a snap with `snap run
     --shell`.
 
+systems:
+  # uubuntu 32bit: test uses snap with base core20 which there is no 32bit
+  # variant of
+  - -ubuntu-*-32
+
 environment:
     # Ensure that running purely from the deb (without re-exec) works
     # correctly
@@ -19,12 +24,35 @@ prepare: |
     echo "Build command chain snap"
     snap pack command-chain
     snap install --dangerous command-chain_1.0_all.snap
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if [ "$SNAP_REEXEC" = "1" ] && [ "$SNAP_MOUNT_DIR" != "/snap" ] && [ ! -L /snap ]; then
+        # reexec expects to find the snapd snap under /snap, enable it to do so
+        # on distros using /var/lib/snapd/snap
+        ln -sf "$SNAP_MOUNT_DIR" /snap
+        tests.cleanup defer rm -f /snap
+    fi
 
 execute: |
     echo "Test that command-chain runs for hooks"
     [ "$(cat "$BREADCRUMB")" = "chain1 chain2 configure" ]
     MATCH '^CHAIN_1_RAN=1$' < "$ENVDUMP"
     MATCH '^CHAIN_2_RAN=1$' < "$ENVDUMP"
+
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if [ "$SNAP_REEXEC" = "1" ] && [ "$SNAP_MOUNT_DIR" != "/snap" ]; then
+        # with snap mount dir different than /snap, internal s-c checks will fail
+        if command-chain.hello > err.out 2>&1 ; then
+            echo "unexpected success"
+            cat err.out || true
+            exit 1
+        fi
+
+        # with no AA support, we fail on a simple check for s-c being executed
+        # from /snap/snapd/<rev>/, with AA we fail on an earlier check for AA
+        # confinement
+        MATCH "(running from unexpected location:|snap-confine has elevated permissions)" < err.out
+        exit 0
+    fi
 
     echo "Test that command-chain runs for apps"
     [ "$(command-chain.hello)" = "chain1 chain2 hello" ]

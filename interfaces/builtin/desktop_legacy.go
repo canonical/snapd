@@ -251,7 +251,6 @@ dbus (send)
     interface=org.gtk.vfs.MountTracker
     member=LookupMount,
 
-###SNAP_DESKTOP_FILE_RULES###
 # Snaps are unable to use the data in mimeinfo.cache (since they can't execute
 # the returned desktop file themselves). unity messaging menu doesn't require
 # mimeinfo.cache and xdg-mime will fallback to reading the desktop files
@@ -385,8 +384,14 @@ type desktopLegacyInterface struct {
 }
 
 func (iface *desktopLegacyInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	snippet := strings.Join(getDesktopFileRules(plug.Snap().DesktopPrefix()), "\n")
-	spec.AddSnippet(strings.Replace(desktopLegacyConnectedPlugAppArmor, "###SNAP_DESKTOP_FILE_RULES###", snippet+"\n", -1))
+	spec.AddSnippet(desktopLegacyConnectedPlugAppArmor)
+
+	// the DesktopFileRules can conflict with the rules in other, more privileged,
+	// interfaces (like desktop-launch), so they are added here with the minimum
+	// priority, while those other, more privileged, interfaces will add an empty
+	// string with a bigger privilege value.
+	desktopSnippet := strings.Join(getDesktopFileRules(plug.Snap().DesktopPrefix()), "\n")
+	spec.AddPrioritizedSnippet(desktopSnippet, prioritizedSnippetDesktopFileAccess, desktopLegacyAndUnity7Priority)
 
 	return nil
 }
