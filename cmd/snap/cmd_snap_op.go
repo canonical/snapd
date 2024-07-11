@@ -622,6 +622,19 @@ func splitSnapAndComponents(name string) (string, []string) {
 	return parts[0], parts[1:]
 }
 
+func snapsAndComponentsFromNames(names []string) ([]string, map[string][]string) {
+	snaps := make([]string, 0, len(names))
+	allComps := make(map[string][]string, len(names))
+	for _, name := range names {
+		snap, comps := splitSnapAndComponents(name)
+		snaps = append(snaps, snap)
+		if len(comps) > 0 {
+			allComps[snap] = comps
+		}
+	}
+	return snaps, allComps
+}
+
 func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.SnapOptions) error {
 	var err error
 	var changeID string
@@ -699,8 +712,8 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 			return errors.New(i18n.G("cannot specify mode for multiple store snaps (only for one store snap or several local ones)"))
 		}
 
-		// TODO: add support for components when installing many snaps
-		changeID, err = x.client.InstallMany(names, nil, opts)
+		names, comps := snapsAndComponentsFromNames(names)
+		changeID, err = x.client.InstallMany(names, comps, opts)
 	}
 
 	if err != nil {
