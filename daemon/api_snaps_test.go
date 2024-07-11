@@ -3841,7 +3841,7 @@ func (s *snapsSuite) TestInstallManyWithComponents(c *check.C) {
 			},
 			{
 				InstanceName: "other-snap",
-				Components:   []string{"other-comp1", "other-comp2"},
+				Components:   []string{"other-comp1"},
 			},
 		})
 
@@ -3851,7 +3851,7 @@ func (s *snapsSuite) TestInstallManyWithComponents(c *check.C) {
 
 	d := s.daemonWithFakeSnapManager(c)
 
-	r := strings.NewReader(`{"action": "install", "snaps": ["some-snap", "other-snap"], "components": {"some-snap": ["some-comp1", "some-comp2"], "other-snap": ["other-comp1", "other-comp2"]}}`)
+	r := strings.NewReader(`{"action": "install", "snaps": ["some-snap", "other-snap"], "components": {"some-snap": ["some-comp1", "some-comp2"], "other-snap": ["other-comp1"]}}`)
 	req, err := http.NewRequest("POST", "/v2/snaps", r)
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "application/json")
@@ -3874,5 +3874,5 @@ func (s *snapsSuite) TestInstallManyWithComponents(c *check.C) {
 	c.Check(chg.Status(), check.Equals, state.DoneStatus)
 	c.Check(err, check.IsNil)
 	c.Check(chg.Kind(), check.Equals, "install-snap")
-	c.Check(chg.Summary(), check.Equals, `Install snaps "some-snap", "other-snap"`)
+	c.Check(chg.Summary(), check.Equals, `Install snaps "some-snap" (with components "some-comp1", "some-comp2"), "other-snap" (with component "other-comp1")`)
 }

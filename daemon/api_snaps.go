@@ -501,6 +501,33 @@ func installMessage(inst *snapInstruction, cohort string) string {
 	return b.String()
 }
 
+func multiInstallMessage(inst *snapInstruction) string {
+	if len(inst.Snaps) == 1 {
+		return installMessage(inst, "")
+	}
+
+	var b strings.Builder
+	fmt.Fprint(&b, i18n.G("Install snaps"))
+
+	for i, name := range inst.Snaps {
+		fmt.Fprintf(&b, " %q", name)
+
+		if comps := inst.CompsForSnaps[name]; len(comps) > 0 {
+			b.WriteString(" (with component")
+			if len(comps) > 1 {
+				b.WriteRune('s')
+			}
+			fmt.Fprintf(&b, " %s", strutil.Quoted(comps))
+			b.WriteRune(')')
+		}
+
+		if i < len(inst.Snaps)-1 {
+			b.WriteRune(',')
+		}
+	}
+	return b.String()
+}
+
 func snapUpdate(_ context.Context, inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	// TODO: bail if revision is given (and != current?), *or* behave as with install --revision?
 	flags, err := inst.modeFlags()
@@ -846,19 +873,11 @@ func snapInstallMany(ctx context.Context, inst *snapInstruction, st *state.State
 		return nil, err
 	}
 
-	// TODO: figure out what we want this message to look like when we're
-	// installing components
-	var msg string
-	switch len(inst.Snaps) {
-	case 0:
+	if len(inst.Snaps) == 0 {
 		return nil, fmt.Errorf("cannot install zero snaps")
-	case 1:
-		msg = fmt.Sprintf(i18n.G("Install snap %q"), inst.Snaps[0])
-	default:
-		quoted := strutil.Quoted(inst.Snaps)
-		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		msg = fmt.Sprintf(i18n.G("Install snaps %s"), quoted)
 	}
+
+	msg := multiInstallMessage(inst)
 
 	names := make([]string, 0, len(installed))
 	for _, sn := range installed {
