@@ -42,7 +42,6 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/tooling"
 	"github.com/snapcore/snapd/testutil"
@@ -395,49 +394,10 @@ func (s *toolingSuite) TestDownloadSnap(c *C) {
 	c.Check(dlSnap.RedirectChannel, Equals, "")
 
 	c.Assert(s.storeActions, HasLen, 1)
-	// make sure that we provided stable as a default channel
-	c.Check(s.storeActions[0].Channel, Equals, "stable")
+	// make sure that we do not provide a default channel here
+	c.Check(s.storeActions[0].Channel, Equals, "")
 
 	c.Check(logbuf.String(), Matches, `.* DEBUG: Going to download snap "core" `+opts.String()+".\n")
-}
-
-func (s *toolingSuite) TestDownloadMany(c *C) {
-	// env shenanigans
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
-	debug, hadDebug := os.LookupEnv("SNAPD_DEBUG")
-	os.Setenv("SNAPD_DEBUG", "1")
-	if hadDebug {
-		defer os.Setenv("SNAPD_DEBUG", debug)
-	} else {
-		defer os.Unsetenv("SNAPD_DEBUG")
-	}
-
-	s.setupSnaps(c, map[string]string{
-		"core": "canonical",
-	}, "")
-
-	dir := c.MkDir()
-	beforeDownload := func(info *snap.Info) (string, error) {
-		return filepath.Join(dir, "core.snap"), nil
-	}
-
-	downloaded, err := s.tsto.DownloadMany([]tooling.SnapToDownload{{
-		Snap:     naming.NewSnapRef("core", "core-id"),
-		Revision: snap.R(1),
-	}}, nil, tooling.DownloadManyOptions{
-		BeforeDownloadFunc: beforeDownload,
-	})
-	c.Assert(err, IsNil)
-
-	dlSnap := downloaded["core"]
-	c.Check(dlSnap.Info.SnapName(), Equals, "core")
-	c.Check(dlSnap.Path, Matches, filepath.Join(dir, "core.snap"))
-
-	c.Assert(s.storeActions, HasLen, 1)
-	// make sure that we provided stable as a default channel
-	c.Check(s.storeActions[0].Channel, Equals, "stable")
 }
 
 func (s *toolingSuite) TestSetAssertionMaxFormats(c *C) {

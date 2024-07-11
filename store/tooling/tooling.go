@@ -193,17 +193,12 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadSnapOptions) (d
 
 	logger.Debugf("Going to download snap %q %s.", name, &opts)
 
-	channel := opts.Channel
-	if channel == "" {
-		channel = "stable"
-	}
-
 	actions := []*store.SnapAction{{
 		Action:       "download",
 		InstanceName: name,
 		Revision:     opts.Revision,
 		CohortKey:    opts.CohortKey,
-		Channel:      channel,
+		Channel:      opts.Channel,
 	}}
 
 	sars, _, err := sto.SnapAction(context.TODO(), nil, actions, nil, nil, nil)
@@ -328,15 +323,10 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 
 	actions := make([]*store.SnapAction, 0, len(toDownload))
 	for _, sn := range toDownload {
-		channel := sn.Channel
-		if channel == "" {
-			channel = "stable"
-		}
-
 		actions = append(actions, &store.SnapAction{
 			Action:         "download",
 			InstanceName:   sn.Snap.SnapName(), // XXX consider using snap-id first
-			Channel:        channel,
+			Channel:        sn.Channel,
 			Revision:       sn.Revision,
 			CohortKey:      sn.CohortKey,
 			Flags:          actionFlag,
