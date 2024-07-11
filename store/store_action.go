@@ -419,9 +419,6 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			ValidationSets:   valsetKeyComponents,
 			IgnoreValidation: ignoreValidation,
 		}
-		if !a.Revision.Unset() {
-			a.Channel = ""
-		}
 
 		if a.Action == "install" {
 			installNum++

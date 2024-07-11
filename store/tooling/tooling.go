@@ -191,11 +191,6 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadSnapOptions) (d
 		opts.TargetDir = pwd
 	}
 
-	if !opts.Revision.Unset() {
-		// XXX: is this really necessary (and, if it is, shoudn't we error out instead)
-		opts.Channel = ""
-	}
-
 	logger.Debugf("Going to download snap %q %s.", name, &opts)
 
 	actions := []*store.SnapAction{{
