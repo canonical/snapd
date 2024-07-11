@@ -193,12 +193,17 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadSnapOptions) (d
 
 	logger.Debugf("Going to download snap %q %s.", name, &opts)
 
+	channel := opts.Channel
+	if channel == "" {
+		channel = "stable"
+	}
+
 	actions := []*store.SnapAction{{
 		Action:       "download",
 		InstanceName: name,
 		Revision:     opts.Revision,
 		CohortKey:    opts.CohortKey,
-		Channel:      opts.Channel,
+		Channel:      channel,
 	}}
 
 	sars, _, err := sto.SnapAction(context.TODO(), nil, actions, nil, nil, nil)
@@ -323,11 +328,9 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 
 	actions := make([]*store.SnapAction, 0, len(toDownload))
 	for _, sn := range toDownload {
-		// One cannot specify both a channel and specific revision. The store
-		// will return an error if do this.
 		channel := sn.Channel
-		if !sn.Revision.Unset() {
-			channel = ""
+		if channel == "" {
+			channel = "stable"
 		}
 
 		actions = append(actions, &store.SnapAction{
