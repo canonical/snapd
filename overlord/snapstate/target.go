@@ -763,8 +763,8 @@ func (p *updatePlan) refreshAll() bool {
 	return len(p.requested) == 0
 }
 
-// TODO: consider making functions that call this method into a method on
-// updatePlan
+// TODO: consider making functions that call this method (and functions that
+// accept the output of this method) into methods on updatePlan
 func (p *updatePlan) targetInfos() []*snap.Info {
 	infos := make([]*snap.Info, 0, len(p.targets))
 	for _, t := range p.targets {
