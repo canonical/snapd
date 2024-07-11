@@ -790,8 +790,9 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 			// feature ABI to get the widest array of policy features across
 			// the widest array of kernel versions.
 			//
-			// In case snapd is injectd into snapd with older apparmor, use
-			// that instead so that things don't generally fail.
+			// In case snapd is injected into snapd snap, with
+			// older apparmor, use that instead so that things
+			// don't generally fail.
 			abiFile := ""
 			fi40, err40 := os.Lstat(snapdAbi40File)
 			fi30, err30 := os.Lstat(snapdAbi30File)
