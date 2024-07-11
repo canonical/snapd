@@ -468,6 +468,8 @@ func snapInstall(ctx context.Context, inst *snapInstruction, st *state.State) (s
 		logger.Noticef("Installing snap %q from cohort %q", inst.Snaps[0], ckey)
 	}
 
+	// TODO:COMPS: handle installing a component of a snap that is already
+	// installed
 	goal := storeInstallGoalFromInstruction(inst)
 	_, tset, err := snapstateInstallOne(ctx, st, goal, snapstate.Options{
 		UserID: inst.userID,
@@ -862,6 +864,8 @@ func snapInstallMany(ctx context.Context, inst *snapInstruction, st *state.State
 		}
 	}
 
+	// TODO:COMPS: handle installing a component of a snap that is already
+	// installed
 	goal := storeInstallGoalFromInstruction(inst)
 	installed, tasksets, err := snapstateInstallWithGoal(ctx, st, goal, snapstate.Options{
 		UserID: inst.userID,
