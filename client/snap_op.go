@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -44,30 +43,26 @@ const (
 )
 
 type SnapOptions struct {
-	Channel           string              `json:"channel,omitempty"`
-	Revision          string              `json:"revision,omitempty"`
-	CohortKey         string              `json:"cohort-key,omitempty"`
-	LeaveCohort       bool                `json:"leave-cohort,omitempty"`
-	DevMode           bool                `json:"devmode,omitempty"`
-	JailMode          bool                `json:"jailmode,omitempty"`
-	Classic           bool                `json:"classic,omitempty"`
-	Dangerous         bool                `json:"dangerous,omitempty"`
-	IgnoreValidation  bool                `json:"ignore-validation,omitempty"`
-	IgnoreRunning     bool                `json:"ignore-running,omitempty"`
-	Unaliased         bool                `json:"unaliased,omitempty"`
-	Prefer            bool                `json:"prefer,omitempty"`
-	Purge             bool                `json:"purge,omitempty"`
-	Amend             bool                `json:"amend,omitempty"`
-	Transaction       TransactionType     `json:"transaction,omitempty"`
-	QuotaGroupName    string              `json:"quota-group,omitempty"`
-	ValidationSets    []string            `json:"validation-sets,omitempty"`
-	Time              string              `json:"time,omitempty"`
-	HoldLevel         string              `json:"hold-level,omitempty"`
-	CompsRaw          json.RawMessage     `json:"components,omitempty"`
-	Components        []string            `json:"-"`
-	ComponentsPerSnap map[string][]string `json:"-"`
-
-	Users []string `json:"users,omitempty"`
+	Channel          string          `json:"channel,omitempty"`
+	Revision         string          `json:"revision,omitempty"`
+	CohortKey        string          `json:"cohort-key,omitempty"`
+	LeaveCohort      bool            `json:"leave-cohort,omitempty"`
+	DevMode          bool            `json:"devmode,omitempty"`
+	JailMode         bool            `json:"jailmode,omitempty"`
+	Classic          bool            `json:"classic,omitempty"`
+	Dangerous        bool            `json:"dangerous,omitempty"`
+	IgnoreValidation bool            `json:"ignore-validation,omitempty"`
+	IgnoreRunning    bool            `json:"ignore-running,omitempty"`
+	Unaliased        bool            `json:"unaliased,omitempty"`
+	Prefer           bool            `json:"prefer,omitempty"`
+	Purge            bool            `json:"purge,omitempty"`
+	Amend            bool            `json:"amend,omitempty"`
+	Transaction      TransactionType `json:"transaction,omitempty"`
+	QuotaGroupName   string          `json:"quota-group,omitempty"`
+	ValidationSets   []string        `json:"validation-sets,omitempty"`
+	Time             string          `json:"time,omitempty"`
+	HoldLevel        string          `json:"hold-level,omitempty"`
+	Users            []string        `json:"users,omitempty"`
 }
 
 func writeFieldBool(mw *multipart.Writer, key string, val bool) error {
@@ -122,9 +117,10 @@ func (opts *SnapOptions) writeOptionFields(mw *multipart.Writer) error {
 }
 
 type actionData struct {
-	Action   string `json:"action"`
-	Name     string `json:"name,omitempty"`
-	SnapPath string `json:"snap-path,omitempty"`
+	Action     string   `json:"action"`
+	Name       string   `json:"name,omitempty"`
+	SnapPath   string   `json:"snap-path,omitempty"`
+	Components []string `json:"components,omitempty"`
 	*SnapOptions
 }
 
@@ -143,70 +139,70 @@ type multiActionData struct {
 
 // Install adds the snap with the given name from the given channel (or
 // the system default channel if not).
-func (client *Client) Install(name string, options *SnapOptions) (changeID string, err error) {
-	return client.doSnapAction("install", name, options)
+func (client *Client) Install(name string, components []string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("install", name, components, options)
 }
 
-func (client *Client) InstallMany(names []string, options *SnapOptions) (changeID string, err error) {
-	return client.doMultiSnapAction("install", names, options)
+func (client *Client) InstallMany(names []string, components map[string][]string, options *SnapOptions) (changeID string, err error) {
+	return client.doMultiSnapAction("install", names, components, options)
 }
 
 // Remove removes the snap with the given name.
 func (client *Client) Remove(name string, options *SnapOptions) (changeID string, err error) {
-	return client.doSnapAction("remove", name, options)
+	return client.doSnapAction("remove", name, nil, options)
 }
 
 func (client *Client) RemoveMany(names []string, options *SnapOptions) (changeID string, err error) {
-	return client.doMultiSnapAction("remove", names, options)
+	return client.doMultiSnapAction("remove", names, nil, options)
 }
 
 // Refresh refreshes the snap with the given name (switching it to track
 // the given channel if given).
 func (client *Client) Refresh(name string, options *SnapOptions) (changeID string, err error) {
-	return client.doSnapAction("refresh", name, options)
+	return client.doSnapAction("refresh", name, nil, options)
 }
 
 func (client *Client) RefreshMany(names []string, options *SnapOptions) (changeID string, err error) {
-	return client.doMultiSnapAction("refresh", names, options)
+	return client.doMultiSnapAction("refresh", names, nil, options)
 }
 
 func (client *Client) HoldRefreshes(name string, options *SnapOptions) (changeID string, err error) {
-	return client.doSnapAction("hold", name, options)
+	return client.doSnapAction("hold", name, nil, options)
 }
 
 func (client *Client) HoldRefreshesMany(names []string, options *SnapOptions) (changeID string, err error) {
-	return client.doMultiSnapAction("hold", names, options)
+	return client.doMultiSnapAction("hold", names, nil, options)
 }
 
 func (client *Client) UnholdRefreshes(name string, options *SnapOptions) (changeID string, err error) {
-	return client.doSnapAction("unhold", name, options)
+	return client.doSnapAction("unhold", name, nil, options)
 }
 
 func (client *Client) UnholdRefreshesMany(names []string, options *SnapOptions) (changeID string, err error) {
-	return client.doMultiSnapAction("unhold", names, options)
+	return client.doMultiSnapAction("unhold", names, nil, options)
 }
 
 func (client *Client) Enable(name string, options *SnapOptions) (changeID string, err error) {
-	return client.doSnapAction("enable", name, options)
+	return client.doSnapAction("enable", name, nil, options)
 }
 
 func (client *Client) Disable(name string, options *SnapOptions) (changeID string, err error) {
-	return client.doSnapAction("disable", name, options)
+	return client.doSnapAction("disable", name, nil, options)
 }
 
 // Revert rolls the snap back to the previous on-disk state
 func (client *Client) Revert(name string, options *SnapOptions) (changeID string, err error) {
-	return client.doSnapAction("revert", name, options)
+	return client.doSnapAction("revert", name, nil, options)
 }
 
 // Switch moves the snap to a different channel without a refresh
 func (client *Client) Switch(name string, options *SnapOptions) (changeID string, err error) {
-	return client.doSnapAction("switch", name, options)
+	return client.doSnapAction("switch", name, nil, options)
 }
 
 // SnapshotMany snapshots many snaps (all, if names empty) for many users (all, if users is empty).
 func (client *Client) SnapshotMany(names []string, users []string) (setID uint64, changeID string, err error) {
-	result, changeID, err := client.doMultiSnapActionFull("snapshot", names, &SnapOptions{Users: users})
+	result, changeID, err := client.doMultiSnapActionFull("snapshot", names, nil, &SnapOptions{Users: users})
 	if err != nil {
 		return 0, "", err
 	}
@@ -224,29 +220,15 @@ func (client *Client) SnapshotMany(names []string, users []string) (setID uint64
 
 var ErrDangerousNotApplicable = fmt.Errorf("dangerous option only meaningful when installing from a local file")
 
-func (client *Client) doSnapAction(actionName string, snapName string, options *SnapOptions) (changeID string, err error) {
+func (client *Client) doSnapAction(actionName string, snapName string, components []string, options *SnapOptions) (changeID string, err error) {
 	if options != nil && options.Dangerous {
 		return "", ErrDangerousNotApplicable
-	}
-
-	if options != nil {
-		if len(options.ComponentsPerSnap) > 0 {
-			return "", errors.New("internal error: per-snap components should not be specified when performing a single snap action")
-		}
-
-		if len(options.Components) > 0 {
-			comps, err := json.Marshal(options.Components)
-			if err != nil {
-				return "", err
-			}
-
-			options.CompsRaw = comps
-		}
 	}
 
 	action := actionData{
 		Action:      actionName,
 		SnapOptions: options,
+		Components:  components,
 	}
 	data, err := json.Marshal(&action)
 	if err != nil {
@@ -261,21 +243,19 @@ func (client *Client) doSnapAction(actionName string, snapName string, options *
 	return client.doAsync("POST", path, nil, headers, bytes.NewBuffer(data))
 }
 
-func (client *Client) doMultiSnapAction(actionName string, snaps []string, options *SnapOptions) (changeID string, err error) {
-	_, changeID, err = client.doMultiSnapActionFull(actionName, snaps, options)
+func (client *Client) doMultiSnapAction(actionName string, snaps []string, components map[string][]string, options *SnapOptions) (changeID string, err error) {
+	_, changeID, err = client.doMultiSnapActionFull(actionName, snaps, components, options)
 
 	return changeID, err
 }
 
-func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, options *SnapOptions) (result json.RawMessage, changeID string, err error) {
-	if options != nil && len(options.Components) > 0 {
-		return nil, "", errors.New("internal error: components provided for multi-snap actions must be specified per-snap")
+func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, components map[string][]string, options *SnapOptions) (result json.RawMessage, changeID string, err error) {
+	action := multiActionData{
+		Action:     actionName,
+		Snaps:      snaps,
+		Components: components,
 	}
 
-	action := multiActionData{
-		Action: actionName,
-		Snaps:  snaps,
-	}
 	if options != nil {
 		// TODO: consider returning error when options.Dangerous is set
 		action.Users = options.Users
@@ -285,7 +265,6 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 		action.ValidationSets = options.ValidationSets
 		action.Time = options.Time
 		action.HoldLevel = options.HoldLevel
-		action.Components = options.ComponentsPerSnap
 	}
 
 	data, err := json.Marshal(&action)

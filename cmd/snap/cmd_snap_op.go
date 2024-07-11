@@ -619,9 +619,6 @@ type cmdInstall struct {
 
 func splitSnapAndComponents(name string) (string, []string) {
 	parts := strings.Split(name, "+")
-	if len(parts) == 1 {
-		return parts[0], nil
-	}
 	return parts[0], parts[1:]
 }
 
@@ -642,11 +639,9 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 			return errors.New(i18n.G("cannot use explicit name when installing from store"))
 		}
 
-		// TODO: mutating opts here isn't great
 		name, comps := splitSnapAndComponents(snapName)
-		opts.Components = comps
 
-		changeID, err = x.client.Install(name, opts)
+		changeID, err = x.client.Install(name, comps, opts)
 	}
 	if err != nil {
 		msg, err := errorToCmdMessage(nameOrPath, "install", err, opts)
@@ -704,7 +699,8 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 			return errors.New(i18n.G("cannot specify mode for multiple store snaps (only for one store snap or several local ones)"))
 		}
 
-		changeID, err = x.client.InstallMany(names, opts)
+		// TODO: add support for components when installing many snaps
+		changeID, err = x.client.InstallMany(names, nil, opts)
 	}
 
 	if err != nil {

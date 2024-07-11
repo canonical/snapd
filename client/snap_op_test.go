@@ -42,7 +42,12 @@ var ops = []struct {
 	op     func(*client.Client, string, *client.SnapOptions) (string, error)
 	action string
 }{
-	{(*client.Client).Install, "install"},
+	{
+		op: func(c *client.Client, name string, options *client.SnapOptions) (string, error) {
+			return c.Install(name, nil, options)
+		},
+		action: "install",
+	},
 	{(*client.Client).Refresh, "refresh"},
 	{(*client.Client).Remove, "remove"},
 	{(*client.Client).Revert, "revert"},
@@ -58,7 +63,12 @@ var multiOps = []struct {
 	action string
 }{
 	{(*client.Client).RefreshMany, "refresh"},
-	{(*client.Client).InstallMany, "install"},
+	{
+		op: func(c *client.Client, names []string, options *client.SnapOptions) (string, error) {
+			return c.InstallMany(names, nil, options)
+		},
+		action: "install",
+	},
 	{(*client.Client).RemoveMany, "remove"},
 	{(*client.Client).HoldRefreshesMany, "hold"},
 	{(*client.Client).UnholdRefreshesMany, "unhold"},
@@ -533,11 +543,11 @@ func (cs *clientSuite) TestClientOpInstallDangerous(c *check.C) {
 	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"dangerous\"\r\n\r\ntrue\r\n.*")
 
 	// Install does not (and gives us a clear error message)
-	_, err = cs.cli.Install("foo", &opts)
+	_, err = cs.cli.Install("foo", nil, &opts)
 	c.Assert(err, check.Equals, client.ErrDangerousNotApplicable)
 
 	// InstallMany just ignores it without error for the moment
-	_, err = cs.cli.InstallMany([]string{"foo"}, &opts)
+	_, err = cs.cli.InstallMany([]string{"foo"}, nil, &opts)
 	c.Assert(err, check.IsNil)
 }
 
@@ -558,7 +568,7 @@ func (cs *clientSuite) TestClientOpInstallUnaliased(c *check.C) {
 		Unaliased: true,
 	}
 
-	_, err = cs.cli.Install("foo", &opts)
+	_, err = cs.cli.Install("foo", nil, &opts)
 	c.Assert(err, check.IsNil)
 
 	body, err := io.ReadAll(cs.req.Body)
@@ -594,7 +604,7 @@ func (cs *clientSuite) TestClientOpInstallTransactional(c *check.C) {
 		Transaction: client.TransactionAllSnaps,
 	}
 
-	_, err = cs.cli.InstallMany([]string{"foo", "bar"}, &opts)
+	_, err = cs.cli.InstallMany([]string{"foo", "bar"}, nil, &opts)
 	c.Assert(err, check.IsNil)
 
 	body, err := io.ReadAll(cs.req.Body)
@@ -632,7 +642,7 @@ func (cs *clientSuite) TestClientOpInstallPrefer(c *check.C) {
 		Prefer: true,
 	}
 
-	_, err = cs.cli.Install("foo", &opts)
+	_, err = cs.cli.Install("foo", nil, &opts)
 	c.Assert(err, check.IsNil)
 
 	body, err := io.ReadAll(cs.req.Body)
@@ -923,11 +933,7 @@ func (cs *clientSuite) TestClientOpInstallWithComponents(c *check.C) {
 		"type": "async"
 	}`
 
-	opts := client.SnapOptions{
-		Components: []string{"one", "two"},
-	}
-
-	_, err := cs.cli.Install("foo", &opts)
+	_, err := cs.cli.Install("foo", []string{"one", "two"}, nil)
 	c.Assert(err, check.IsNil)
 
 	var body map[string]interface{}
@@ -935,25 +941,6 @@ func (cs *clientSuite) TestClientOpInstallWithComponents(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	c.Check(body["components"], check.DeepEquals, []interface{}{"one", "two"})
-}
-
-func (cs *clientSuite) TestClientOpInstallWithComponentsInvalidOpts(c *check.C) {
-	cs.status = 202
-	cs.rsp = `{
-		"change": "66b3",
-		"status-code": 202,
-		"type": "async"
-	}`
-
-	opts := client.SnapOptions{
-		ComponentsPerSnap: map[string][]string{
-			"foo": {"one", "two"},
-			"bar": {"three", "four"},
-		},
-	}
-
-	_, err := cs.cli.Install("foo", &opts)
-	c.Assert(err, check.ErrorMatches, "internal error: per-snap components should not be specified when performing a single snap action")
 }
 
 func (cs *clientSuite) TestClientOpInstallManyWithComponents(c *check.C) {
@@ -964,14 +951,12 @@ func (cs *clientSuite) TestClientOpInstallManyWithComponents(c *check.C) {
 		"type": "async"
 	}`
 
-	opts := client.SnapOptions{
-		ComponentsPerSnap: map[string][]string{
-			"foo": {"one", "two"},
-			"bar": {"three", "four"},
-		},
+	comps := map[string][]string{
+		"foo": {"one", "two"},
+		"bar": {"three", "four"},
 	}
 
-	_, err := cs.cli.InstallMany([]string{"foo", "bar"}, &opts)
+	_, err := cs.cli.InstallMany([]string{"foo", "bar"}, comps, nil)
 	c.Assert(err, check.IsNil)
 
 	var body map[string]interface{}
@@ -982,20 +967,4 @@ func (cs *clientSuite) TestClientOpInstallManyWithComponents(c *check.C) {
 		"foo": []interface{}{"one", "two"},
 		"bar": []interface{}{"three", "four"},
 	})
-}
-
-func (cs *clientSuite) TestClientOpInstallManyWithComponentsInvalidOpts(c *check.C) {
-	cs.status = 202
-	cs.rsp = `{
-		"change": "66b3",
-		"status-code": 202,
-		"type": "async"
-	}`
-
-	opts := client.SnapOptions{
-		Components: []string{"one", "two"},
-	}
-
-	_, err := cs.cli.InstallMany([]string{"foo", "bar"}, &opts)
-	c.Assert(err, check.ErrorMatches, "internal error: components provided for multi-snap actions must be specified per-snap")
 }
