@@ -122,6 +122,10 @@ func waitWhileInhibited(ctx context.Context, cli *client.Client, snapName string
 		}
 	}
 
+	if info == nil || app == nil {
+		return nil, nil, nil, fmt.Errorf("internal error: info and app cannot be nil")
+	}
+
 	return info, app, hintFlock, nil
 }
 

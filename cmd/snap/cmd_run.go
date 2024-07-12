@@ -514,7 +514,7 @@ func checkSnapRunInhibitionConflict(app *snap.AppInfo) error {
 
 	// We started without a hint lock file, if it exists now this means that a
 	// refresh might have started and retry is needed.
-	if osutil.FileExists(runinhibit.HintFile(app.Snap.InstanceName())) {
+	if osutil.FileExists(runinhibit.HintFile(snapName)) {
 		return errSnapRefreshConflict
 	}
 
