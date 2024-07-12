@@ -262,16 +262,23 @@ func PrepareEncryptedSystemData(model *asserts.Model, resetterForRole map[string
 	}
 
 	if saveResetter != nil {
-		// TODO: use plainkey from secboot
-		saveKey, err := keys.NewEncryptionKey()
+		platformKey, err := keys.NewPlatformKey()
 		if err != nil {
 			return err
 		}
-		const token = false
-		if _, err := saveResetter.AddKey("save", saveKey, token); err != nil {
+		plainKey, diskKey, err := platformKey.CreateProtectedKey()
+		if err != nil {
 			return err
 		}
-		if err := saveKeys(model, saveKey); err != nil {
+		const token = true
+		tokenWriter, err := saveResetter.AddKey("default", diskKey, token)
+		if err != nil {
+			return err
+		}
+		if err := plainKey.Write(tokenWriter); err != nil {
+			return err
+		}
+		if err := saveKeys(model, platformKey); err != nil {
 			return err
 		}
 	}
@@ -301,11 +308,11 @@ func writeMarkers(model *asserts.Model) error {
 	return device.WriteEncryptionMarkers(boot.InstallHostFDEDataDir(model), boot.InstallHostFDESaveDir, markerSecret)
 }
 
-func saveKeys(model *asserts.Model, saveKey keys.EncryptionKey) error {
+func saveKeys(model *asserts.Model, saveKey keys.PlatformKey) error {
 	if err := os.MkdirAll(boot.InstallHostFDEDataDir(model), 0755); err != nil {
 		return err
 	}
-	if err := saveKey.Save(device.SaveKeyUnder(boot.InstallHostFDEDataDir(model))); err != nil {
+	if err := saveKey.SaveToFile(device.SaveKeyUnder(boot.InstallHostFDEDataDir(model))); err != nil {
 		return fmt.Errorf("cannot store system save key: %v", err)
 	}
 	return nil

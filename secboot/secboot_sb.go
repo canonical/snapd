@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
+	sb_plainkey "github.com/snapcore/secboot/plainkey"
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/kernel/fde"
@@ -127,7 +128,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 }
 
 // UnlockEncryptedVolumeUsingKey unlocks an existing volume using the provided key.
-func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (UnlockResult, error) {
+func UnlockEncryptedVolumeUsingPlatformKey(disk disks.Disk, name string, key []byte) (UnlockResult, error) {
 	unlockRes := UnlockResult{
 		UnlockMethod: NotUnlocked,
 	}
@@ -154,8 +155,30 @@ func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (Un
 
 	// make up a new name for the mapped device
 	mapperName := name + "-" + uuid
-	if err := unlockEncryptedPartitionWithKey(mapperName, encdev, key); err != nil {
+
+	slots, err := sbListLUKS2ContainerUnlockKeyNames(encdev)
+	if err != nil {
 		return unlockRes, err
+	}
+	keyExists := false
+	for _, slot := range slots {
+		if slot == "default-fallback" {
+			keyExists = true
+			break
+		}
+	}
+
+	if keyExists {
+		sb_plainkey.SetPlatformKeys(key)
+
+		options := sb.ActivateVolumeOptions{}
+		if err := sbActivateVolumeWithKeyData(mapperName, encdev, nil, &options); err != nil {
+			return unlockRes, err
+		}
+	} else {
+		if err := unlockEncryptedPartitionWithKey(mapperName, encdev, key); err != nil {
+			return unlockRes, err
+		}
 	}
 
 	unlockRes.FsDevice = filepath.Join("/dev/mapper/", mapperName)

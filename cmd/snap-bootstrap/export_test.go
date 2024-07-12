@@ -129,11 +129,11 @@ func MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(f func(disk disks.Disk, na
 	}
 }
 
-func MockSecbootUnlockEncryptedVolumeUsingKey(f func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error)) (restore func()) {
-	old := secbootUnlockEncryptedVolumeUsingKey
-	secbootUnlockEncryptedVolumeUsingKey = f
+func MockSecbootUnlockEncryptedVolumeUsingPlatformKey(f func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error)) (restore func()) {
+	old := secbootUnlockEncryptedVolumeUsingPlatformKey
+	secbootUnlockEncryptedVolumeUsingPlatformKey = f
 	return func() {
-		secbootUnlockEncryptedVolumeUsingKey = old
+		secbootUnlockEncryptedVolumeUsingPlatformKey = old
 	}
 }
 

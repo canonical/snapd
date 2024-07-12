@@ -1259,7 +1259,7 @@ func mockSbTPMConnection(c *C, tpmErr error) (*sb_tpm2.Connection, func()) {
 
 func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyBadDisk(c *C) {
 	disk := &disks.MockDiskMapping{}
-	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	unlockRes, err := secboot.UnlockEncryptedVolumeUsingPlatformKey(disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, ErrorMatches, `filesystem label "ubuntu-save-enc" not found`)
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{})
 }
@@ -1278,7 +1278,7 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyUUIDError(c *C) {
 	})
 	defer restore()
 
-	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	unlockRes, err := secboot.UnlockEncryptedVolumeUsingPlatformKey(disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, ErrorMatches, "mocked uuid error")
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
 		PartDevice:  "/dev/disk/by-partuuid/123-123-123",
@@ -1299,6 +1299,9 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
 		return "random-uuid-123-123", nil
 	})
 	defer restore()
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		return []string{}, nil
+	})()
 	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte,
 		options *sb.ActivateVolumeOptions) error {
 		c.Check(options, DeepEquals, &sb.ActivateVolumeOptions{})
@@ -1308,7 +1311,7 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
 		return nil
 	})
 	defer restore()
-	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	unlockRes, err := secboot.UnlockEncryptedVolumeUsingPlatformKey(disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, IsNil)
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
 		PartDevice:   "/dev/disk/by-partuuid/123-123-123",
@@ -1331,12 +1334,15 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
 		return "random-uuid-123-123", nil
 	})
 	defer restore()
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		return []string{}, nil
+	})()
 	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte,
 		options *sb.ActivateVolumeOptions) error {
 		return fmt.Errorf("failed")
 	})
 	defer restore()
-	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	unlockRes, err := secboot.UnlockEncryptedVolumeUsingPlatformKey(disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, ErrorMatches, "failed")
 	// we would have at least identified that the device is a decrypted one
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
