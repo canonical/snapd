@@ -59,8 +59,8 @@ create_test_user(){
     echo >> /etc/sudoers
     echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-    chown test.test -R "$SPREAD_PATH"
-    chown test.test "$SPREAD_PATH/../"
+    chown test:test -R "$SPREAD_PATH"
+    chown test:test "$SPREAD_PATH/../"
 }
 
 build_deb(){
@@ -288,7 +288,7 @@ prepare_project() {
     # declare the "quiet" wrapper
 
     if [ "$SPREAD_BACKEND" = "external" ]; then
-        chown test.test -R "$PROJECT_PATH"
+        chown test:test -R "$PROJECT_PATH"
         exit 0
     fi
 
@@ -300,7 +300,7 @@ prepare_project() {
         fi
         echo test:ubuntu | sudo chpasswd
         echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test
-        chown test.test -R "$PROJECT_PATH"
+        chown test:test -R "$PROJECT_PATH"
         exit 0
     fi
 
@@ -574,7 +574,7 @@ prepare_project() {
     done
 
     # go mod runs as root and will leave strange permissions
-    chown test.test -R "$SPREAD_PATH"
+    chown test:test -R "$SPREAD_PATH"
 
     if [ "$BUILD_SNAPD_FROM_CURRENT" = true ]; then
         case "$SPREAD_SYSTEM" in
