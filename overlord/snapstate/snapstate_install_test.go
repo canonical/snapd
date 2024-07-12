@@ -78,13 +78,19 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 		}
 	}
 	if startTasks == nil {
-		if opts&localSnap != 0 {
+		switch {
+		case opts&localSnap != 0:
 			startTasks = []string{
 				"prerequisites",
 				"prepare-snap",
 				"mount-snap",
 			}
-		} else {
+		case opts&localRevision != 0:
+			startTasks = []string{
+				"prerequisites",
+				"prepare-snap",
+			}
+		default:
 			startTasks = []string{
 				"prerequisites",
 				"download-snap",

@@ -77,7 +77,7 @@ func verifyUpdateTasks(c *C, typ snap.Type, opts, discards int, ts *state.TaskSe
 
 	te := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(te, NotNil)
-	if opts&localSnap != 0 {
+	if opts&localSnap != 0 || opts&localRevision != 0 {
 		c.Assert(te.Kind(), Equals, "prepare-snap")
 	} else {
 		c.Assert(te.Kind(), Equals, "validate-snap")
@@ -3625,6 +3625,45 @@ func (s *snapmgrTestSuite) TestUpdateAmend(c *C) {
 	err = tasks[1].Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Check(snapsup.Revision(), Equals, snap.R(7))
+}
+
+func (s *snapmgrTestSuite) TestUpdateAmendToLocalRevWithoutFlag(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R("x1"),
+	}
+
+	otherSI := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R("x2"),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			&si,
+			&otherSI,
+		}),
+		TrackingChannel: "channel-for-7/stable",
+		Current:         si.Revision,
+	})
+
+	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{
+		Revision: otherSI.Revision,
+	}, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh|localRevision, 0, ts)
+
+	// ensure we go from local to local revision x2
+	var snapsup snapstate.SnapSetup
+	tasks := ts.Tasks()
+	c.Check(tasks[1].Kind(), Equals, "prepare-snap")
+	err = tasks[1].Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Revision(), Equals, otherSI.Revision)
 }
 
 func (s *snapmgrTestSuite) TestUpdateAmendSnapNotFound(c *C) {

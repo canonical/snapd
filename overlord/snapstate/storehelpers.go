@@ -646,9 +646,13 @@ func storeUpdatePlan(
 
 	// create actions to refresh (install, from the store's perspective) snaps
 	// that were installed locally
-	amendActionsByUserID, err := installActionsForAmend(st, updates, opts, enforcedSets, fallbackID)
+	amendActionsByUserID, localAmends, err := installActionsForAmend(st, updates, opts, enforcedSets, fallbackID)
 	if err != nil {
 		return updatePlan{}, err
+	}
+
+	for _, name := range localAmends {
+		hasLocalRevision[allSnaps[name]] = updates[name].RevOpts
 	}
 
 	for id, actions := range amendActionsByUserID {
@@ -839,12 +843,13 @@ func collectCurrentSnapsAndActions(
 	return actionsByUserID, hasLocalRevision, current, nil
 }
 
-func installActionsForAmend(st *state.State, updates map[string]StoreUpdate, opts Options, enforcedSets func() (*snapasserts.ValidationSets, error), fallbackID int) (map[int][]*store.SnapAction, error) {
+func installActionsForAmend(st *state.State, updates map[string]StoreUpdate, opts Options, enforcedSets func() (*snapasserts.ValidationSets, error), fallbackID int) (map[int][]*store.SnapAction, []string, error) {
 	actionsByUserID := make(map[int][]*store.SnapAction)
+	var localAmends []string
 	for _, up := range updates {
 		var snapst SnapState
 		if err := Get(st, up.InstanceName, &snapst); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		si := snapst.CurrentSideInfo()
@@ -853,27 +858,34 @@ func installActionsForAmend(st *state.State, updates map[string]StoreUpdate, opt
 			continue
 		}
 
+		// we allow changing snap revisions of a local-only snap without the
+		// --amend flag as long as we already have had the revision installed
+		if !up.RevOpts.Revision.Unset() && snapst.LastIndex(up.RevOpts.Revision) != -1 {
+			localAmends = append(localAmends, snapst.InstanceName())
+			continue
+		}
+
 		if !opts.Flags.Amend {
 			if opts.ExpectOneSnap {
-				return nil, store.ErrLocalSnap
+				return nil, nil, store.ErrLocalSnap
 			}
 			continue
 		}
 
 		info, err := snapst.CurrentInfo()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		comps, err := snapst.CurrentComponentInfos()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		// TODO: lift this restriction, just don't want to think about it right
 		// now
 		if len(comps) > 0 {
-			return nil, fmt.Errorf("cannot amend snap %q with components", up.InstanceName)
+			return nil, nil, fmt.Errorf("cannot amend snap %q with components", up.InstanceName)
 		}
 
 		action := &store.SnapAction{
@@ -888,7 +900,7 @@ func installActionsForAmend(st *state.State, updates map[string]StoreUpdate, opt
 		}
 
 		if err := completeStoreAction(action, up.RevOpts, ignoreValidation, enforcedSets); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		userID := snapst.UserID
@@ -898,7 +910,7 @@ func installActionsForAmend(st *state.State, updates map[string]StoreUpdate, opt
 		actionsByUserID[userID] = append(actionsByUserID[userID], action)
 	}
 
-	return actionsByUserID, nil
+	return actionsByUserID, localAmends, nil
 }
 
 func sendActionsByUserID(ctx context.Context, st *state.State, actionsByUserID map[int][]*store.SnapAction, current []*store.CurrentSnap, refreshOpts *store.RefreshOptions, opts Options) (sars []store.SnapActionResult, noUpdatesAvailable []string, err error) {

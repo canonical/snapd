@@ -523,6 +523,7 @@ const (
 	noLastBeforeModificationsEdge
 	preferInstalled
 	localSnap
+	localRevision
 	needsKernelSetup
 	isHybrid
 )
