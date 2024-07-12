@@ -29,6 +29,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -610,6 +611,17 @@ func partitionPropsFromMountPoint(mountpoint string) (source string, props map[s
 	}
 	if source == "" {
 		return "", nil, fmt.Errorf("cannot find mountpoint %q", mountpoint)
+	}
+
+	// for verity partitions, mount creates /dev/mapper/libmnt_<partition> devices
+	// automatically. udevPropertiesForName fails to detect partition information
+	// for mapper devices therefore if one of these is encountered, it is translated
+	// to the underlying physical device.
+	r := `^/dev/mapper/libmnt_(\w+)$`
+	re := regexp.MustCompile(r)
+	matches := re.FindStringSubmatch(source)
+	if matches != nil && matches[1] != "tmpfs" {
+		source = fmt.Sprintf("/dev/%s", matches[1])
 	}
 
 	// now we have the partition for this mountpoint, we need to tie that back
