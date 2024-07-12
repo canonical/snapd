@@ -898,13 +898,11 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		sequences1 := sb_efi.NewImageLoadSequences().Append(
 			sb_efi.NewImageLoadActivity(
 				sb_efi.NewFileImage(mockBF[0].Path),
-				sb_efi.Firmware,
 			).Loads(sb_efi.NewImageLoadActivity(
 				sb_efi.NewSnapFileImage(
 					kernelSnap,
 					"kernel.efi",
 				),
-				sb_efi.Shim,
 			)),
 		)
 
@@ -914,23 +912,19 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		cdk := []sb_efi.ImageLoadActivity{
 			sb_efi.NewImageLoadActivity(
 				sb_efi.NewFileImage(mockBF[2].Path),
-				sb_efi.Shim,
 			).Loads(sb_efi.NewImageLoadActivity(
 				sb_efi.NewSnapFileImage(
 					kernelSnap,
 					"kernel.efi",
 				),
-				sb_efi.Shim,
 			)),
 			sb_efi.NewImageLoadActivity(
 				sb_efi.NewFileImage(mockBF[3].Path),
-				sb_efi.Shim,
 			).Loads(sb_efi.NewImageLoadActivity(
 				sb_efi.NewSnapFileImage(
 					kernelSnap,
 					"kernel.efi",
 				),
-				sb_efi.Shim,
 			)),
 		}
 
@@ -940,11 +934,9 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		sequences2 := sb_efi.NewImageLoadSequences().Append(
 			sb_efi.NewImageLoadActivity(
 				sb_efi.NewFileImage(mockBF[0].Path),
-				sb_efi.Firmware,
 			).Loads(cdk...),
 			sb_efi.NewImageLoadActivity(
 				sb_efi.NewFileImage(mockBF[1].Path),
-				sb_efi.Firmware,
 			).Loads(cdk...),
 		)
 
@@ -1113,7 +1105,6 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		sequences := sb_efi.NewImageLoadSequences().Append(
 			sb_efi.NewImageLoadActivity(
 				sb_efi.NewFileImage(mockEFI.Path),
-				sb_efi.Firmware,
 			),
 		)
 

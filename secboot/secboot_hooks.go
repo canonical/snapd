@@ -144,7 +144,7 @@ func ResealKeysWithFDESetupHook(keyFiles []string, primaryKeyFile string, models
 			if err != nil {
 				return fmt.Errorf("cannot read key data as hook key data: %v", err)
 			}
-			hooksKeyData.SetAuthorizedSnapModels(primaryKey, sbModels...)
+			hooksKeyData.SetAuthorizedSnapModels(rand.Reader, primaryKey, sbModels...)
 		}
 
 		writer := sb.NewFileKeyDataWriter(keyFile)

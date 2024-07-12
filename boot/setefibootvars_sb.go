@@ -78,7 +78,7 @@ func constructLoadOption(description string, assetPath string, optionalData []by
 // number should be written. If a different error occurs, returns that error,
 // and the returned boot number should be ignored.
 func findMatchingBootOption(optionData []byte) (uint16, error) {
-	variables, err := efiListVariables()
+	variables, err := efiListVariables(efi.DefaultVarContext)
 	if err != nil {
 		return 0, err
 	}
@@ -101,7 +101,7 @@ func findMatchingBootOption(optionData []byte) (uint16, error) {
 		}
 		// Since we never overwrite an existing variable, we can ignore
 		// variable attributes when reading the variable
-		varData, _, err := efiReadVariable(varName, varGUID)
+		varData, _, err := efiReadVariable(efi.DefaultVarContext, varName, varGUID)
 		if err != nil {
 			return 0, err
 		}
@@ -135,7 +135,7 @@ func setEfiBootOptionVariable(loadOptionData []byte) (uint16, error) {
 		return 0, err
 	}
 	varName := fmt.Sprintf("Boot%04X", bootNum)
-	err = efiWriteVariable(varName, efi.GlobalVariable, defaultVarAttrs, loadOptionData)
+	err = efiWriteVariable(efi.DefaultVarContext, varName, efi.GlobalVariable, defaultVarAttrs, loadOptionData)
 	return bootNum, err
 }
 
@@ -144,7 +144,7 @@ func setEfiBootOptionVariable(loadOptionData []byte) (uint16, error) {
 // (and removes it from later in the list if it occurs) and writes the
 // list as the new BootOrder variable.
 func setEfiBootOrderVariable(newBootNum uint16) error {
-	origData, attrs, err := efiReadVariable("BootOrder", efi.GlobalVariable)
+	origData, attrs, err := efiReadVariable(efi.DefaultVarContext, "BootOrder", efi.GlobalVariable)
 	if err == efi.ErrVarNotExist {
 		attrs = defaultVarAttrs
 		origData = make([]byte, 0)
@@ -177,7 +177,7 @@ func setEfiBootOrderVariable(newBootNum uint16) error {
 		copy(newData[2:], origData[:optionOffset])
 		copy(newData[optionOffset+2:], origData[optionOffset+2:])
 	}
-	return efiWriteVariable("BootOrder", efi.GlobalVariable, attrs, newData)
+	return efiWriteVariable(efi.DefaultVarContext, "BootOrder", efi.GlobalVariable, attrs, newData)
 }
 
 // SetEfiBootVariables sets the Boot#### and BootOrder variables for the given

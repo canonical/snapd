@@ -22,6 +22,7 @@ package boot_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -230,7 +231,7 @@ func (s *setEfiBootVarsSuite) TestSetEfiBootOptionVariable(c *C) {
 			defaultVarAttrs,
 		},
 	}
-	restore := boot.MockEfiListVariables(func() ([]efi.VariableDescriptor, error) {
+	restore := boot.MockEfiListVariables(func(ctx context.Context) ([]efi.VariableDescriptor, error) {
 		varDescriptorList := make([]efi.VariableDescriptor, 0, len(fakeVariableData))
 		for key := range fakeVariableData {
 			varDescriptorList = append(varDescriptorList, key)
@@ -238,7 +239,7 @@ func (s *setEfiBootVarsSuite) TestSetEfiBootOptionVariable(c *C) {
 		return varDescriptorList, nil
 	})
 	defer restore()
-	restore = boot.MockEfiReadVariable(func(name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
+	restore = boot.MockEfiReadVariable(func(ctx context.Context, name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
 		descriptor := efi.VariableDescriptor{
 			Name: name,
 			GUID: guid,
@@ -250,7 +251,7 @@ func (s *setEfiBootVarsSuite) TestSetEfiBootOptionVariable(c *C) {
 	})
 	defer restore()
 	writeChan := make(chan []byte, 1)
-	restore = boot.MockEfiWriteVariable(func(name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
+	restore = boot.MockEfiWriteVariable(func(ctx context.Context, name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
 		for varDesc := range fakeVariableData {
 			if varDesc.Name == name && varDesc.GUID == guid {
 				return errShouldNotOverwrite
@@ -359,7 +360,7 @@ func (s *setEfiBootVarsSuite) TestMismatchedGuid(c *C) {
 			defaultVarAttrs,
 		},
 	}
-	restore := boot.MockEfiListVariables(func() ([]efi.VariableDescriptor, error) {
+	restore := boot.MockEfiListVariables(func(ctx context.Context) ([]efi.VariableDescriptor, error) {
 		varDescriptorList := make([]efi.VariableDescriptor, 0, len(fakeVariableData))
 		for key := range fakeVariableData {
 			varDescriptorList = append(varDescriptorList, key)
@@ -367,7 +368,7 @@ func (s *setEfiBootVarsSuite) TestMismatchedGuid(c *C) {
 		return varDescriptorList, nil
 	})
 	defer restore()
-	restore = boot.MockEfiReadVariable(func(name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
+	restore = boot.MockEfiReadVariable(func(ctx context.Context, name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
 		descriptor := efi.VariableDescriptor{
 			Name: name,
 			GUID: guid,
@@ -379,7 +380,7 @@ func (s *setEfiBootVarsSuite) TestMismatchedGuid(c *C) {
 	})
 	defer restore()
 	writeChan := make(chan []byte, 1)
-	restore = boot.MockEfiWriteVariable(func(name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
+	restore = boot.MockEfiWriteVariable(func(ctx context.Context, name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
 		for varDesc := range fakeVariableData {
 			if varDesc.Name == name && varDesc.GUID == guid {
 				return errShouldNotOverwrite
@@ -455,7 +456,7 @@ func (s *setEfiBootVarsSuite) TestSetEfiBootOptionVarAttrs(c *C) {
 			grubAttrs,
 		},
 	}
-	restore := boot.MockEfiListVariables(func() ([]efi.VariableDescriptor, error) {
+	restore := boot.MockEfiListVariables(func(ctx context.Context) ([]efi.VariableDescriptor, error) {
 		varDescriptorList := make([]efi.VariableDescriptor, 0, len(fakeVariableData))
 		for key := range fakeVariableData {
 			varDescriptorList = append(varDescriptorList, key)
@@ -463,7 +464,7 @@ func (s *setEfiBootVarsSuite) TestSetEfiBootOptionVarAttrs(c *C) {
 		return varDescriptorList, nil
 	})
 	defer restore()
-	restore = boot.MockEfiReadVariable(func(name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
+	restore = boot.MockEfiReadVariable(func(ctx context.Context, name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
 		descriptor := efi.VariableDescriptor{
 			Name: name,
 			GUID: guid,
@@ -474,7 +475,7 @@ func (s *setEfiBootVarsSuite) TestSetEfiBootOptionVarAttrs(c *C) {
 		return nil, 0, efi.ErrVarNotExist
 	})
 	defer restore()
-	restore = boot.MockEfiWriteVariable(func(name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
+	restore = boot.MockEfiWriteVariable(func(ctx context.Context, name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
 		for varDesc := range fakeVariableData {
 			if varDesc.Name == name && varDesc.GUID == guid {
 				return errShouldNotOverwrite
@@ -528,7 +529,7 @@ func (s *setEfiBootVarsSuite) TestOutOfBootNumbers(c *C) {
 
 	fakeVariableData := make(map[efi.VariableDescriptor]*varDataAttrs)
 
-	restore := boot.MockEfiListVariables(func() ([]efi.VariableDescriptor, error) {
+	restore := boot.MockEfiListVariables(func(ctx context.Context) ([]efi.VariableDescriptor, error) {
 		varDescriptorList := make([]efi.VariableDescriptor, 0, len(fakeVariableData))
 		for key := range fakeVariableData {
 			varDescriptorList = append(varDescriptorList, key)
@@ -536,7 +537,7 @@ func (s *setEfiBootVarsSuite) TestOutOfBootNumbers(c *C) {
 		return varDescriptorList, nil
 	})
 	defer restore()
-	restore = boot.MockEfiReadVariable(func(name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
+	restore = boot.MockEfiReadVariable(func(ctx context.Context, name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
 		descriptor := efi.VariableDescriptor{
 			Name: name,
 			GUID: guid,
@@ -548,7 +549,7 @@ func (s *setEfiBootVarsSuite) TestOutOfBootNumbers(c *C) {
 	})
 	defer restore()
 	writeChan := make(chan []byte, 1)
-	restore = boot.MockEfiWriteVariable(func(name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
+	restore = boot.MockEfiWriteVariable(func(ctx context.Context, name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
 		for varDesc := range fakeVariableData {
 			if varDesc.Name == name && varDesc.GUID == guid {
 				return errShouldNotOverwrite
@@ -682,7 +683,7 @@ func (s *setEfiBootVarsSuite) TestSetEfiBootOrderVariable(c *C) {
 		},
 	}
 	readChan := make(chan []byte, 1)
-	restore := boot.MockEfiReadVariable(func(name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
+	restore := boot.MockEfiReadVariable(func(ctx context.Context, name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
 		value := <-readChan
 		if value == nil {
 			return nil, 0, efi.ErrVarNotExist
@@ -691,7 +692,7 @@ func (s *setEfiBootVarsSuite) TestSetEfiBootOrderVariable(c *C) {
 	})
 	defer restore()
 	writeChan := make(chan []byte, 1)
-	restore = boot.MockEfiWriteVariable(func(name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
+	restore = boot.MockEfiWriteVariable(func(ctx context.Context, name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
 		c.Assert(name, Equals, "BootOrder")
 		c.Assert(guid, Equals, efi.GlobalVariable)
 		c.Assert(attrs, Equals, defaultVarAttrs)
@@ -728,12 +729,12 @@ func (s *setEfiBootVarsSuite) TestSetEfiBootOrderVarAttrs(c *C) {
 		defaultVarAttrs | efi.AttributeAuthenticatedWriteAccess,
 	}
 	attrReadChan := make(chan efi.VariableAttributes, 1)
-	restore := boot.MockEfiReadVariable(func(name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
+	restore := boot.MockEfiReadVariable(func(ctx context.Context, name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
 		return initialBootOrder, <-attrReadChan, nil
 	})
 	defer restore()
 	attrWriteChan := make(chan efi.VariableAttributes, 1)
-	restore = boot.MockEfiWriteVariable(func(name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
+	restore = boot.MockEfiWriteVariable(func(ctx context.Context, name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
 		c.Assert(name, Equals, "BootOrder")
 		c.Assert(guid, Equals, efi.GlobalVariable)
 		c.Assert(data, DeepEquals, finalBootOrder)
@@ -780,7 +781,7 @@ func (s *setEfiBootVarsSuite) TestSetEfiBootVariables(c *C) {
 		},
 	}
 
-	defer boot.MockEfiReadVariable(func(name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
+	defer boot.MockEfiReadVariable(func(ctx context.Context, name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
 		descriptor := efi.VariableDescriptor{
 			Name: name,
 			GUID: guid,
@@ -791,7 +792,7 @@ func (s *setEfiBootVarsSuite) TestSetEfiBootVariables(c *C) {
 		return nil, 0, efi.ErrVarNotExist
 	})()
 
-	defer boot.MockEfiListVariables(func() ([]efi.VariableDescriptor, error) {
+	defer boot.MockEfiListVariables(func(ctx context.Context) ([]efi.VariableDescriptor, error) {
 		varDescriptorList := make([]efi.VariableDescriptor, 0, len(fakeVariableData))
 		for key := range fakeVariableData {
 			varDescriptorList = append(varDescriptorList, key)
@@ -800,7 +801,7 @@ func (s *setEfiBootVarsSuite) TestSetEfiBootVariables(c *C) {
 	})()
 
 	written := 0
-	defer boot.MockEfiWriteVariable(func(name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
+	defer boot.MockEfiWriteVariable(func(ctx context.Context, name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
 		written += 1
 		if name == "BootOrder" && guid == efi.GlobalVariable {
 			return nil
@@ -850,7 +851,7 @@ func (s *setEfiBootVarsSuite) TestSetEfiBootVariablesConstructError(c *C) {
 		},
 	}
 
-	defer boot.MockEfiReadVariable(func(name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
+	defer boot.MockEfiReadVariable(func(ctx context.Context, name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
 		descriptor := efi.VariableDescriptor{
 			Name: name,
 			GUID: guid,
@@ -861,7 +862,7 @@ func (s *setEfiBootVarsSuite) TestSetEfiBootVariablesConstructError(c *C) {
 		return nil, 0, efi.ErrVarNotExist
 	})()
 
-	defer boot.MockEfiListVariables(func() ([]efi.VariableDescriptor, error) {
+	defer boot.MockEfiListVariables(func(ctx context.Context) ([]efi.VariableDescriptor, error) {
 		varDescriptorList := make([]efi.VariableDescriptor, 0, len(fakeVariableData))
 		for key := range fakeVariableData {
 			varDescriptorList = append(varDescriptorList, key)
@@ -869,7 +870,7 @@ func (s *setEfiBootVarsSuite) TestSetEfiBootVariablesConstructError(c *C) {
 		return varDescriptorList, nil
 	})()
 
-	defer boot.MockEfiWriteVariable(func(name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
+	defer boot.MockEfiWriteVariable(func(ctx context.Context, name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
 		c.Fatalf("Not execpted to write variables")
 		return nil
 	})()
@@ -911,7 +912,7 @@ func (s *setEfiBootVarsSuite) TestSetEfiBootVariablesErrorSetVariable(c *C) {
 		},
 	}
 
-	defer boot.MockEfiReadVariable(func(name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
+	defer boot.MockEfiReadVariable(func(ctx context.Context, name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
 		descriptor := efi.VariableDescriptor{
 			Name: name,
 			GUID: guid,
@@ -922,7 +923,7 @@ func (s *setEfiBootVarsSuite) TestSetEfiBootVariablesErrorSetVariable(c *C) {
 		return nil, 0, efi.ErrVarNotExist
 	})()
 
-	defer boot.MockEfiListVariables(func() ([]efi.VariableDescriptor, error) {
+	defer boot.MockEfiListVariables(func(ctx context.Context) ([]efi.VariableDescriptor, error) {
 		varDescriptorList := make([]efi.VariableDescriptor, 0, len(fakeVariableData))
 		for key := range fakeVariableData {
 			varDescriptorList = append(varDescriptorList, key)
@@ -931,7 +932,7 @@ func (s *setEfiBootVarsSuite) TestSetEfiBootVariablesErrorSetVariable(c *C) {
 	})()
 
 	written := 0
-	defer boot.MockEfiWriteVariable(func(name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
+	defer boot.MockEfiWriteVariable(func(ctx context.Context, name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
 		written += 1
 		return fmt.Errorf(`INJECT ERROR`)
 	})()

@@ -678,7 +678,7 @@ func buildLoadSequences(chains []*LoadChain) (loadseqs *sb_efi.ImageLoadSequence
 
 	for _, chain := range chains {
 		// root of load events has source Firmware
-		loadseq, err := chain.loadEvent(sb_efi.Firmware)
+		loadseq, err := chain.loadEvent()
 		if err != nil {
 			return nil, err
 		}
@@ -688,11 +688,11 @@ func buildLoadSequences(chains []*LoadChain) (loadseqs *sb_efi.ImageLoadSequence
 }
 
 // loadEvent builds the corresponding load event and its tree
-func (lc *LoadChain) loadEvent(source sb_efi.ImageLoadEventSource) (sb_efi.ImageLoadActivity, error) {
+func (lc *LoadChain) loadEvent() (sb_efi.ImageLoadActivity, error) {
 	var next []sb_efi.ImageLoadActivity
 	for _, nextChain := range lc.Next {
 		// everything that is not the root has source shim
-		ev, err := nextChain.loadEvent(sb_efi.Shim)
+		ev, err := nextChain.loadEvent()
 		if err != nil {
 			return nil, err
 		}
@@ -702,7 +702,7 @@ func (lc *LoadChain) loadEvent(source sb_efi.ImageLoadEventSource) (sb_efi.Image
 	if err != nil {
 		return nil, err
 	}
-	return sb_efi.NewImageLoadActivity(image, source).Loads(next...), nil
+	return sb_efi.NewImageLoadActivity(image).Loads(next...), nil
 }
 
 func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {

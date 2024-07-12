@@ -21,6 +21,8 @@
 package boot
 
 import (
+	"context"
+
 	"github.com/canonical/go-efilib"
 	"github.com/canonical/go-efilib/linux"
 
@@ -33,19 +35,19 @@ var (
 	SetEfiBootOrderVariable  = setEfiBootOrderVariable
 )
 
-func MockEfiListVariables(f func() ([]efi.VariableDescriptor, error)) (restore func()) {
+func MockEfiListVariables(f func(ctx context.Context) ([]efi.VariableDescriptor, error)) (restore func()) {
 	restore = testutil.Backup(&efiListVariables)
 	efiListVariables = f
 	return restore
 }
 
-func MockEfiReadVariable(f func(name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error)) (restore func()) {
+func MockEfiReadVariable(f func(ctx context.Context, name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error)) (restore func()) {
 	restore = testutil.Backup(&efiReadVariable)
 	efiReadVariable = f
 	return restore
 }
 
-func MockEfiWriteVariable(f func(name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error) (restore func()) {
+func MockEfiWriteVariable(f func(ctx context.Context, name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error) (restore func()) {
 	restore = testutil.Backup(&efiWriteVariable)
 	efiWriteVariable = f
 	return restore
