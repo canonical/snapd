@@ -2,7 +2,7 @@ summary: Test refreshing from old snapd and base prior to required symlink
 
 details: |
     Base snaps used to not initialize /snap/snapd/current symlink to seed.
-    However the question is what happen when starting with an old image,
+    However the question is what happens when starting with an old image,
     and updating snapd before the base. This makes sure that this initial
     symlink is not involved with updates.
 
@@ -19,14 +19,19 @@ prepare: |
 
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
-    [ -d new-snap/ ] || mkdir -p new-snap/
+    rm -rf new-snap/
+    mkdir new-snap/
     build_snapd_snap new-snap/
     for f in new-snap/snapd_*.snap; do
         mv "${f}" snapd-new.snap
     done
     rm -rf new-snap
 
+    # 1033 does not contain the work around for missing
+    # /snap/snapd/current symlink during seeding. See
+    # https://github.com/snapcore/core-base/pull/185
     snap download --revision=1033 core22 --basename=core22-old
+    # We need to repack to avoid auto refresh
     unsquashfs -d core22-old core22-old.snap
     rm core22-old.snap
     snap pack core22-old/ "$(tests.nested get extra-snaps-path)"
