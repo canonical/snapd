@@ -59,6 +59,7 @@ func (h *hookKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ci
 	keyParams := &fde.InitialSetupParams{
 		Key:     cleartext,
 		KeyName: h.keyName,
+		AAD:     aad,
 	}
 	res, err := fde.InitialSetup(h.runHook, keyParams)
 	if err != nil {
@@ -308,6 +309,7 @@ func (kr *keyRevealerV3) RevealKey(data, ciphertext, aad []byte) (plaintext []by
 	p := fde.RevealParams{
 		SealedKey: ciphertext,
 		Handle:    handle,
+		AAD:       aad,
 		V2Payload: true,
 	}
 	return fde.Reveal(&p)

@@ -35,6 +35,7 @@ type RevealKeyRequest struct {
 
 	SealedKey []byte           `json:"sealed-key,omitempty"`
 	Handle    *json.RawMessage `json:"handle,omitempty"`
+	AAD       []byte           `json:"aad,omitempty"`
 	// deprecated for v1
 	KeyName string `json:"key-name,omitempty"`
 
@@ -85,6 +86,7 @@ type RevealParams struct {
 	// V2Payload is set true if SealedKey is expected to contain a v2 payload
 	// (disk key + aux key)
 	V2Payload bool
+	AAD       []byte
 }
 
 type revealKeyResult struct {
@@ -106,6 +108,7 @@ func Reveal(params *RevealParams) (payload []byte, err error) {
 		Op:        "reveal",
 		SealedKey: params.SealedKey,
 		Handle:    handle,
+		AAD:       params.AAD,
 		// deprecated but needed for v1 hooks
 		KeyName: "deprecated-" + randutil.RandomString(12),
 	}
