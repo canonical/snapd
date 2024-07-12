@@ -106,6 +106,10 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	whereEscaped := systemd.EscapeUnitNamePath(where)
 	unitName := whereEscaped + ".mount"
 
+	if opts.Tmpfs && what == "" {
+		what = "tmpfs"
+	}
+
 	args := []string{what, where, "--no-pager", "--no-ask-password"}
 
 	if opts.Umount {

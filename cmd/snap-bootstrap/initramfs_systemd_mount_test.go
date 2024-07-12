@@ -86,6 +86,16 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			comment:          "happy tmpfs",
 		},
 		{
+			what:  "",
+			where: "/run/mnt/data",
+			opts: &main.SystemdMountOptions{
+				Tmpfs: true,
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy tmpfs with empty what argument",
+		},
+		{
 			what:  "tmpfs",
 			where: "/run/mnt/data",
 			opts: &main.SystemdMountOptions{
@@ -259,6 +269,11 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			call := cmd.Calls()[0]
 			args := []string{
 				"systemd-mount", t.what, t.where, "--no-pager", "--no-ask-password",
+			}
+			if opts.Tmpfs {
+				args = []string{
+					"systemd-mount", "tmpfs", t.where, "--no-pager", "--no-ask-password",
+				}
 			}
 			if opts.Umount {
 				args = []string{
