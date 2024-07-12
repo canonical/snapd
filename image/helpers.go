@@ -33,11 +33,18 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// FetchAndCheckSnapAssertions fetches and cross checks the snap assertions
-// matching the given snap file using the provided asserts.Fetcher and
-// assertion database.
-// The optional model assertion must be passed for full cross checks.
-func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, model *asserts.Model, f asserts.Fetcher, db asserts.RODatabase) (*asserts.SnapDeclaration, error) {
+// CompInfoPath contains information for a component file that we need
+// to get its assertions.
+type CompInfoPath struct {
+	Info *snap.ComponentInfo
+	Path string
+}
+
+// FetchAndCheckSnapAssertions fetches and cross checks the snap
+// assertions matching the given snap file and wanted components using
+// the provided asserts.Fetcher and assertion database. The optional
+// model assertion must be passed for full cross checks.
+func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, comps []CompInfoPath, model *asserts.Model, f asserts.Fetcher, db asserts.RODatabase) (*asserts.SnapDeclaration, error) {
 	sha3_384, size, err := asserts.SnapFileSHA3_384(snapPath)
 	if err != nil {
 		return nil, err
@@ -65,6 +72,24 @@ func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, model *assert
 	if err != nil {
 		return nil, fmt.Errorf("internal error: lost snap declaration for %q: %v", info.InstanceName(), err)
 	}
+
+	// fetch component assertions
+	for _, comp := range comps {
+		sha3_384, _, err := asserts.SnapFileSHA3_384(comp.Path)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := snapasserts.FetchComponentAssertions(
+			f, &info.SideInfo, &comp.Info.ComponentSideInfo,
+			sha3_384, expectedProv); err != nil {
+			return nil, err
+		}
+
+		// TODO:COMPS: do similar cross check for components
+		// as what is done for snaps in snapasserts.CrossCheck
+	}
+
 	return a.(*asserts.SnapDeclaration), nil
 }
 

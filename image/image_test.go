@@ -198,9 +198,11 @@ func (s *imageSuite) SnapAction(_ context.Context, curSnaps []*store.CurrentSnap
 			redirectChannel = channel
 		}
 		info1.Channel = channel
+		comps := s.AssertedSnapComponents(a.InstanceName)
 		sars = append(sars, store.SnapActionResult{
 			Info:            &info1,
 			RedirectChannel: redirectChannel,
+			Resources:       comps,
 		})
 	}
 
@@ -3292,7 +3294,12 @@ func (s *imageSuite) testSetupSeedCore20Grub(c *C, kernelContent [][]string, exp
 		{"meta/gadget.yaml", pcUC20GadgetYaml},
 	}
 	s.makeSnap(c, "pc=20", gadgetContent, snap.R(22), "")
-	s.makeSnap(c, "required20", nil, snap.R(21), "other")
+	comRevs := map[string]snap.Revision{
+		"comp1": snap.R(22),
+		"comp2": snap.R(33),
+	}
+	s.SeedSnaps.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["required20"], nil,
+		snap.R(21), comRevs, "other", s.StoreSigning.Database)
 
 	opts := &image.Options{
 		PrepareDir: prepareDir,
@@ -3346,7 +3353,19 @@ func (s *imageSuite) testSetupSeedCore20Grub(c *C, kernelContent [][]string, exp
 
 	l, err := os.ReadDir(seedsnapsdir)
 	c.Assert(err, IsNil)
-	c.Check(l, HasLen, 5)
+	foundFiles := map[string]bool{}
+	for _, entry := range l {
+		foundFiles[entry.Name()] = true
+	}
+	expectedFiles := map[string]bool{
+		"snapd_1.snap":             true,
+		"pc-kernel_1.snap":         true,
+		"core20_20.snap":           true,
+		"pc_22.snap":               true,
+		"required20_21.snap":       true,
+		"required20+comp1_22.comp": true,
+	}
+	c.Check(foundFiles, DeepEquals, expectedFiles)
 
 	// check boot config
 	grubCfg := filepath.Join(prepareDir, "system-seed", "EFI/ubuntu/grub.cfg")
@@ -3411,12 +3430,21 @@ func (s *imageSuite) testSetupSeedCore20Grub(c *C, kernelContent [][]string, exp
 		Flags:        store.SnapActionIgnoreValidation,
 	})
 	declCount := 0
+	compsWithResRevAssert := map[string]bool{}
+	compsWithResPairAssert := map[string]bool{}
 	for _, req := range s.assertReqs {
-		if req.ref.Type == asserts.SnapDeclarationType {
+		switch req.ref.Type {
+		case asserts.SnapDeclarationType:
 			c.Check(req.maxFormats, DeepEquals, expectedAssertMaxFormats)
 			declCount += 1
+		case asserts.SnapResourceRevisionType:
+			compsWithResRevAssert[req.ref.PrimaryKey[1]] = true
+		case asserts.SnapResourcePairType:
+			compsWithResPairAssert[req.ref.PrimaryKey[1]] = true
 		}
 	}
+	c.Check(compsWithResRevAssert, DeepEquals, map[string]bool{"comp1": true})
+	c.Check(compsWithResPairAssert, DeepEquals, map[string]bool{"comp1": true})
 	c.Check(declCount, Equals, 5)
 }
 
@@ -3986,7 +4014,12 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadHappy(c *C) {
 		{"meta/gadget.yaml", pcUC20GadgetYaml},
 	}
 	s.makeSnap(c, "pc=20", gadgetContent, snap.R(12), "")
-	s.makeSnap(c, "required20", nil, snap.R(59), "other")
+	comRevs := map[string]snap.Revision{
+		"comp1": snap.R(22),
+		"comp2": snap.R(33),
+	}
+	s.SeedSnaps.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["required20"], nil,
+		snap.R(59), comRevs, "other", s.StoreSigning.Database)
 
 	opts := &image.Options{
 		PrepareDir: prepareDir,
@@ -3994,6 +4027,8 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadHappy(c *C) {
 			BootFlags:  []string{"factory"},
 			Validation: "ignore",
 		},
+		// ask for inclusion of optional component comp2
+		Components: []string{"required20+comp2"},
 		SeedManifest: seedwriter.MockManifest(map[string]*seedwriter.ManifestSnapRevision{
 			"snapd":      {SnapName: "snapd", Revision: snap.R(133)},
 			"core20":     {SnapName: "core20", Revision: snap.R(58)},
@@ -4047,7 +4082,20 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadHappy(c *C) {
 
 	l, err := os.ReadDir(seedsnapsdir)
 	c.Assert(err, IsNil)
-	c.Check(l, HasLen, 5)
+	foundFiles := map[string]bool{}
+	for _, entry := range l {
+		foundFiles[entry.Name()] = true
+	}
+	expectFiles := map[string]bool{
+		"snapd_133.snap":           true,
+		"pc-kernel_15.snap":        true,
+		"core20_58.snap":           true,
+		"pc_12.snap":               true,
+		"required20_59.snap":       true,
+		"required20+comp1_22.comp": true,
+		"required20+comp2_33.comp": true,
+	}
+	c.Check(foundFiles, DeepEquals, expectFiles)
 
 	// check the downloads
 	c.Check(s.storeActionsBunchSizes, DeepEquals, []int{5})
@@ -4081,6 +4129,21 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadHappy(c *C) {
 		Revision:     snap.R(59),
 		Flags:        store.SnapActionIgnoreValidation,
 	})
+
+	compsWithResRevAssert := map[string]bool{}
+	compsWithResPairAssert := map[string]bool{}
+	for _, req := range s.assertReqs {
+		switch req.ref.Type {
+		case asserts.SnapResourceRevisionType:
+			compsWithResRevAssert[req.ref.PrimaryKey[1]] = true
+		case asserts.SnapResourcePairType:
+			compsWithResPairAssert[req.ref.PrimaryKey[1]] = true
+		}
+	}
+	c.Check(compsWithResRevAssert, DeepEquals, map[string]bool{
+		"comp1": true, "comp2": true})
+	c.Check(compsWithResPairAssert, DeepEquals, map[string]bool{
+		"comp1": true, "comp2": true})
 }
 
 func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadWrongRevision(c *C) {
