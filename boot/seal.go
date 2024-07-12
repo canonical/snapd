@@ -183,6 +183,7 @@ func fallbackKeySealRequests(resetter, saveResetter secboot.KeyResetter, factory
 		},
 		{
 			KeyName:  "ubuntu-save",
+			SlotName: "default-fallback",
 			Resetter: saveResetter,
 			KeyFile:  saveFallbackKey,
 		},
