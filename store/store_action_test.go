@@ -3468,3 +3468,26 @@ func (s *storeActionSuite) TestSnapActionTimeout(c *C) {
 	// exceeded may appear in place of request being canceled
 	c.Assert(err, ErrorMatches, `.*/v2/snaps/refresh"?: (net/http: request canceled|context deadline exceeded)( \(Client.Timeout exceeded while awaiting headers\))?.*`)
 }
+
+func (s *storeActionSuite) TestResourceToComponentType(c *C) {
+	for _, tc := range []struct {
+		resource   string
+		error      string
+		expCompTyp snap.ComponentType
+	}{
+		{"foo/bar", "foo/bar is not a component resource", ""},
+		{"foobar", "foobar is not a component resource", ""},
+		{"component/newtype", "invalid component type \"newtype\"", ""},
+		{"component/test", "", snap.TestComponent},
+		{"component/kernel-modules", "", snap.KernelModulesComponent},
+	} {
+		ctyp, err := store.ResourceToComponentType(tc.resource)
+		if tc.error != "" {
+			c.Check(ctyp, Equals, snap.ComponentType(""))
+			c.Check(err.Error(), Equals, tc.error)
+		} else {
+			c.Check(ctyp, Equals, tc.expCompTyp)
+			c.Check(err, IsNil)
+		}
+	}
+}
