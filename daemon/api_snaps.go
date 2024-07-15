@@ -493,11 +493,11 @@ func installMessage(inst *snapInstruction, cohort string) string {
 	}
 
 	if comps := inst.CompsForSnaps[inst.Snaps[0]]; len(comps) > 0 {
-		b.WriteString(" with component")
 		if len(comps) > 1 {
-			b.WriteRune('s')
+			fmt.Fprintf(&b, i18n.G(" with components %s"), strutil.Quoted(comps))
+		} else {
+			fmt.Fprintf(&b, i18n.G(" with component %s"), strutil.Quoted(comps))
 		}
-		fmt.Fprintf(&b, " %s", strutil.Quoted(comps))
 	}
 
 	return b.String()
@@ -515,11 +515,12 @@ func multiInstallMessage(inst *snapInstruction) string {
 		fmt.Fprintf(&b, " %q", name)
 
 		if comps := inst.CompsForSnaps[name]; len(comps) > 0 {
-			b.WriteString(" (with component")
+			b.WriteString(" (")
 			if len(comps) > 1 {
-				b.WriteRune('s')
+				fmt.Fprintf(&b, i18n.G("with components %s"), strutil.Quoted(comps))
+			} else {
+				fmt.Fprintf(&b, i18n.G("with component %s"), strutil.Quoted(comps))
 			}
-			fmt.Fprintf(&b, " %s", strutil.Quoted(comps))
 			b.WriteRune(')')
 		}
 
