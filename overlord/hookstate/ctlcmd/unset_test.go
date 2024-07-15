@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
+	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -159,4 +160,83 @@ func (s *unsetSuite) TestUnsetHelpRegularUserAllowed(c *C) {
 func (s *unsetSuite) TestCommandWithoutContext(c *C) {
 	_, _, err := ctlcmd.Run(nil, []string{"unset", "foo"}, 0)
 	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "unset"\) from outside of a snap`)
+}
+
+func (s *registrySuite) TestRegistryUnsetManyViews(c *C) {
+	s.state.Lock()
+	err := registrystate.SetViaView(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{"ssid": "my-ssid", "password": "my-secret"})
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"unset", "--view", ":write-wifi", "ssid", "password"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+	s.mockContext.Lock()
+	c.Assert(s.mockContext.Done(), IsNil)
+	s.mockContext.Unlock()
+
+	s.state.Lock()
+	_, err = registrystate.GetViaView(s.state, s.devAccID, "network", "write-wifi", []string{"ssid", "password"})
+	s.state.Unlock()
+	c.Assert(err, ErrorMatches, `cannot get "ssid", "password" .*: matching rules don't map to any values`)
+}
+
+func (s *registrySuite) TestRegistryUnsetHappensTransactionally(c *C) {
+	s.state.Lock()
+	err := registrystate.SetViaView(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{"ssid": "my-ssid"})
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"unset", "--view", ":write-wifi", "ssid"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+
+	s.state.Lock()
+	val, err := registrystate.GetViaView(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, map[string]interface{}{
+		"ssid": "my-ssid",
+	})
+
+	// commit transaction
+	s.mockContext.Lock()
+	c.Assert(s.mockContext.Done(), IsNil)
+	s.mockContext.Unlock()
+
+	s.state.Lock()
+	_, err = registrystate.GetViaView(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
+	s.state.Unlock()
+	c.Assert(err, ErrorMatches, `cannot get "ssid" .*: matching rules don't map to any values`)
+}
+
+func (s *registrySuite) TestRegistryUnsetInvalid(c *C) {
+	type testcase struct {
+		args []string
+		err  string
+	}
+
+	tcs := []testcase{
+		{
+			args: []string{"snap:plug"},
+			err:  `cannot unset registry: plug must conform to format ":<plug-name>": snap:plug`,
+		},
+		{
+			args: []string{":"},
+			err:  `cannot unset registry: plug name was not provided`,
+		},
+		{
+			args: []string{":plug"},
+			err:  `cannot unset registry: no paths provided to unset`,
+		},
+	}
+
+	for _, tc := range tcs {
+		stdout, stderr, err := ctlcmd.Run(s.mockContext, append([]string{"unset", "--view"}, tc.args...), 0)
+		c.Assert(err, ErrorMatches, tc.err)
+		c.Check(stdout, IsNil)
+		c.Check(stderr, IsNil)
+	}
 }
