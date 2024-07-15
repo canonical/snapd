@@ -2071,7 +2071,7 @@ apps:
 	c.Assert(err, IsNil)
 
 	_, _, err = snapstate.InstallPath(st, si, snapPath, "bar_instance", "", snapstate.Flags{DevMode: true}, nil)
-	c.Assert(err, ErrorMatches, `cannot install snap "bar_instance", the name does not match the metadata "foo"`)
+	c.Assert(err, ErrorMatches, `cannot install snap "bar_instance": instance name prefix does not match snap name: bar != foo`)
 }
 
 func (s *mgrsSuite) TestParallelInstanceLocalInstallInvalidInstanceName(c *C) {

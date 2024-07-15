@@ -1446,7 +1446,7 @@ func validatedInfoFromPathAndSideInfo(instanceName string, path string, si *snap
 
 	snapName, instanceKey := snap.SplitInstanceName(instanceName)
 	if info.SnapName() != snapName {
-		return nil, fmt.Errorf("cannot install snap %q, the name does not match the metadata %q", instanceName, info.SnapName())
+		return nil, fmt.Errorf("cannot install snap %q: instance name prefix does not match snap name: %s != %s", instanceName, snapName, info.SnapName())
 	}
 	info.InstanceKey = instanceKey
 
