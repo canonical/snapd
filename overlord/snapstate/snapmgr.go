@@ -340,8 +340,8 @@ type SnapState struct {
 	// LastRefreshTime records the time when the snap was last refreshed.
 	LastRefreshTime *time.Time `json:"last-refresh-time,omitempty"`
 
-	// LastRefreshTime is a map of component names to times that records
-	// the time when a component was last refreshed.
+	// LastCompRefreshTime is a map of component names to times that records the
+	// time when a component was last refreshed.
 	LastCompRefreshTime map[string]time.Time `json:"last-component-refresh-time,omitempty"`
 
 	// MigratedHidden is set if the user's snap dir has been migrated

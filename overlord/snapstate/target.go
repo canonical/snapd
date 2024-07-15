@@ -747,7 +747,7 @@ func validatedComponentInfo(path string, si *snap.Info, csi *snap.ComponentSideI
 }
 
 // updatePlan contains the data that describes an update, including a list of
-// Target structs that represent the snaps that are to be updated.
+// target structs that represent the snaps that are to be updated.
 type updatePlan struct {
 	// requested is the list of snaps that were requested to be updated. If
 	// RefreshAll is true, then this list should be empty.
@@ -1013,7 +1013,7 @@ type storeUpdateGoal struct {
 
 // StoreUpdate represents a snap that is to be updated from the store.
 type StoreUpdate struct {
-	// InstanceName is the instancename of snap to update.
+	// InstanceName is the instance name of the snap to update.
 	InstanceName string
 	// RevOpts contains options that apply to the update of this snap.
 	RevOpts RevisionOptions
