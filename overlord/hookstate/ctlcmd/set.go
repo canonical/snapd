@@ -121,32 +121,13 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 	tr := configstate.ContextTransaction(context)
 	context.Unlock()
 
-	for _, patchValue := range s.Positional.ConfValues {
-		parts := strings.SplitN(patchValue, "=", 2)
-		if len(parts) == 1 && strings.HasSuffix(patchValue, "!") {
-			key := strings.TrimSuffix(patchValue, "!")
-			tr.Set(s.context().InstanceName(), key, nil)
-			continue
-		}
-		if len(parts) != 2 {
-			return fmt.Errorf(i18n.G("invalid parameter: %q (want key=value)"), patchValue)
-		}
-		key := parts[0]
+	opts := &ParseConfigOptions{String: s.String, Typed: s.Typed}
+	confValues, err := ParseConfigValues(s.Positional.ConfValues, opts)
+	if err != nil {
+		return err
+	}
 
-		var value interface{}
-		if s.String {
-			value = parts[1]
-		} else {
-			if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
-				if s.Typed {
-					return fmt.Errorf("failed to parse JSON: %w", err)
-				}
-
-				// Not valid JSON-- just save the string as-is.
-				value = parts[1]
-			}
-		}
-
+	for key, value := range confValues {
 		tr.Set(s.context().InstanceName(), key, value)
 	}
 
@@ -280,7 +261,7 @@ func ParseConfigValues(confValues []string, opts *ParseConfigOptions) (map[strin
 		opts = &ParseConfigOptions{}
 	}
 
-	patchValues := make(map[string]interface{})
+	patchValues := make(map[string]interface{}, len(confValues))
 	for _, patchValue := range confValues {
 		parts := strings.SplitN(patchValue, "=", 2)
 		if len(parts) == 1 && strings.HasSuffix(patchValue, "!") {

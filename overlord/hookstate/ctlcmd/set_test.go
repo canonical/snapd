@@ -69,7 +69,7 @@ func (s *setSuite) TestInvalidArguments(c *C) {
 	_, _, err := ctlcmd.Run(s.mockContext, []string{"set"}, 0)
 	c.Check(err, ErrorMatches, "set which option.*")
 	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", "foo", "bar"}, 0)
-	c.Check(err, ErrorMatches, ".*invalid parameter.*want key=value.*")
+	c.Check(err, ErrorMatches, ".*invalid configuration.*want key=value.*")
 	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", ":foo", "bar=baz"}, 0)
 	c.Check(err, ErrorMatches, ".*interface attributes can only be set during the execution of prepare hooks.*")
 }
@@ -508,4 +508,50 @@ func (s *registrySuite) TestRegistrySetExclamationMark(c *C) {
 }
 `)
 	c.Check(stderr, IsNil)
+}
+
+func (s *registrySuite) TestParseConfigValues(c *C) {
+	// check basic setting and unsetting behaviour
+	confValues, err := ctlcmd.ParseConfigValues([]string{"foo=bar", "baz!"}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(confValues, DeepEquals, map[string]interface{}{
+		"foo": "bar",
+		"baz": nil,
+	})
+
+	// parses JSON
+	opts := &ctlcmd.ParseConfigOptions{
+		Typed: true,
+	}
+	confValues, err = ctlcmd.ParseConfigValues([]string{`foo={"bar": 1}`}, opts)
+	c.Assert(err, IsNil)
+	c.Assert(confValues, DeepEquals, map[string]interface{}{
+		"foo": map[string]interface{}{
+			"bar": json.Number("1"),
+		},
+	})
+
+	// stores strings w/o parsing
+	opts.String = true
+	confValues, err = ctlcmd.ParseConfigValues([]string{`foo={"bar": 1}`}, opts)
+	c.Assert(err, IsNil)
+	c.Assert(confValues, DeepEquals, map[string]interface{}{
+		"foo": `{"bar": 1}`,
+	})
+
+	// default is to parse
+	confValues, err = ctlcmd.ParseConfigValues([]string{`foo={"bar": 1}`}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(confValues, DeepEquals, map[string]interface{}{
+		"foo": map[string]interface{}{
+			"bar": json.Number("1"),
+		},
+	})
+
+	// unless it's not valid JSON
+	confValues, err = ctlcmd.ParseConfigValues([]string{`foo={"bar": 1`}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(confValues, DeepEquals, map[string]interface{}{
+		"foo": `{"bar": 1`,
+	})
 }
