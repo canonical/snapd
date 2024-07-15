@@ -600,22 +600,7 @@ func storeUpdatePlan(
 		}
 	}
 
-	// create a closure that will lazily load (and cache, in vsets) the enforced
-	// validation sets if any of the targets require them
-	var vsets *snapasserts.ValidationSets
-	enforcedSets := func() (*snapasserts.ValidationSets, error) {
-		if vsets != nil {
-			return vsets, nil
-		}
-
-		var err error
-		vsets, err = EnforcedValidationSets(st)
-		if err != nil {
-			return nil, err
-		}
-
-		return vsets, nil
-	}
+	enforcedSetsFunc := cachedEnforcedValidationSets(st)
 
 	var fallbackID int
 	// normalize fallback user
@@ -639,14 +624,14 @@ func storeUpdatePlan(
 	//
 	// in either case, we need to keep track of these, since we still might need
 	// to change the channel, cohort key, or validation set enforcement.
-	actionsByUserID, hasLocalRevision, current, err := collectCurrentSnapsAndActions(st, allSnaps, updates, plan.requested, opts, enforcedSets, fallbackID)
+	actionsByUserID, hasLocalRevision, current, err := collectCurrentSnapsAndActions(st, allSnaps, updates, plan.requested, opts, enforcedSetsFunc, fallbackID)
 	if err != nil {
 		return updatePlan{}, err
 	}
 
 	// create actions to refresh (install, from the store's perspective) snaps
 	// that were installed locally
-	amendActionsByUserID, localAmends, err := installActionsForAmend(st, updates, opts, enforcedSets, fallbackID)
+	amendActionsByUserID, localAmends, err := installActionsForAmend(st, updates, opts, enforcedSetsFunc, fallbackID)
 	if err != nil {
 		return updatePlan{}, err
 	}

@@ -240,21 +240,9 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 		return nil, err
 	}
 
-	// create a closure that will lazily load (and cache, in vsets) the enforced
-	// validation sets if any of the targets require them
-	var vsets *snapasserts.ValidationSets
-	enforcedSets := func() (*snapasserts.ValidationSets, error) {
-		if vsets != nil {
-			return vsets, nil
-		}
-
-		var err error
-		vsets, err = EnforcedValidationSets(st)
-		if err != nil {
-			return nil, err
-		}
-
-		return vsets, nil
+	enforcedSetsFunc := cachedEnforcedValidationSets(st)
+	if err != nil {
+		return nil, err
 	}
 
 	includeResources := false
@@ -265,7 +253,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			InstanceName: sn.InstanceName,
 		}
 
-		if err := completeStoreAction(action, sn.RevOpts, opts.Flags.IgnoreValidation, enforcedSets); err != nil {
+		if err := completeStoreAction(action, sn.RevOpts, opts.Flags.IgnoreValidation, enforcedSetsFunc); err != nil {
 			return nil, err
 		}
 
@@ -341,6 +329,25 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 	}
 
 	return installs, err
+}
+
+// cachedEnforcedValidationSets returns a function that will lazily load (and
+// cache) the enforced validation sets if is is ever called.
+func cachedEnforcedValidationSets(st *state.State) func() (*snapasserts.ValidationSets, error) {
+	var vsets *snapasserts.ValidationSets
+	return func() (*snapasserts.ValidationSets, error) {
+		if vsets != nil {
+			return vsets, nil
+		}
+
+		var err error
+		vsets, err = EnforcedValidationSets(st)
+		if err != nil {
+			return nil, err
+		}
+
+		return vsets, nil
+	}
 }
 
 func componentTargetsFromActionResult(sar store.SnapActionResult, requested []string) ([]ComponentSetup, error) {
