@@ -691,12 +691,20 @@ func storeUpdatePlan(
 			return updatePlan{}, fmt.Errorf("cannot extract components from snap resources: %w", err)
 		}
 
+		// if we still have no channel here, this means that we refreshed
+		// by-revision without specifying a channel. make sure we continue to
+		// track the channel that the snap is currently on
+		channel := up.RevOpts.Channel
+		if channel == "" {
+			channel = snapst.TrackingChannel
+		}
+
 		plan.targets = append(plan.targets, target{
 			info:   sar.Info,
 			snapst: *snapst,
 			setup: SnapSetup{
 				DownloadInfo: &sar.DownloadInfo,
-				Channel:      up.RevOpts.Channel,
+				Channel:      channel,
 				CohortKey:    up.RevOpts.CohortKey,
 			},
 			components: compTargets,
@@ -736,15 +744,20 @@ func storeUpdatePlan(
 			})
 		}
 
+		channel := revOpts.Channel
+		if channel == "" {
+			channel = snapst.TrackingChannel
+		}
+
 		// make sure that we switch the current channel of the snap that we're
 		// switching to
-		info.Channel = revOpts.Channel
+		info.Channel = channel
 
 		plan.targets = append(plan.targets, target{
 			info:   info,
 			snapst: *snapst,
 			setup: SnapSetup{
-				Channel:   revOpts.Channel,
+				Channel:   channel,
 				CohortKey: revOpts.CohortKey,
 				SnapPath:  info.MountFile(),
 

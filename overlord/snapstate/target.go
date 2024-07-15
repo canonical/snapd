@@ -1098,10 +1098,16 @@ func validateAndInitStoreUpdates(allSnaps map[string]*SnapState, updates map[str
 			sn.RevOpts.CohortKey = snapst.CohortKey
 		}
 
-		var err error
-		sn.RevOpts.Channel, err = resolveChannel(sn.InstanceName, snapst.TrackingChannel, sn.RevOpts.Channel, opts.DeviceCtx)
-		if err != nil {
-			return err
+		// if either the revision is not set (which means this is just a normal
+		// refresh), or the channel is set, then we need to resolve the channel
+		// to something. if the revison is set and the channel is not set, then
+		// we shouldn't do anything with the channel
+		if sn.RevOpts.Revision.Unset() || sn.RevOpts.Channel != "" {
+			var err error
+			sn.RevOpts.Channel, err = resolveChannel(sn.InstanceName, snapst.TrackingChannel, sn.RevOpts.Channel, opts.DeviceCtx)
+			if err != nil {
+				return err
+			}
 		}
 
 		updates[sn.InstanceName] = sn
