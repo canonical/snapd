@@ -83,7 +83,7 @@ func (*apparmorSuite) TestAppArmorInternalAppArmorParserAbi3(c *C) {
 	parser := filepath.Join(libSnapdDir, "apparmor_parser")
 	c.Assert(os.MkdirAll(libSnapdDir, 0755), IsNil)
 	c.Assert(os.WriteFile(parser, nil, 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/3.0"), nil, 0644), IsNil)
 
 	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
@@ -114,7 +114,7 @@ func (*apparmorSuite) TestAppArmorInternalAppArmorParserAbi4(c *C) {
 	parser := filepath.Join(libSnapdDir, "apparmor_parser")
 	c.Assert(os.MkdirAll(libSnapdDir, 0755), IsNil)
 	c.Assert(os.WriteFile(parser, nil, 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/3.0"), nil, 0644), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/4.0"), nil, 0644), IsNil)
 
@@ -474,7 +474,7 @@ func (s *parserFeatureTestSuite) TestInternalParser(c *C) {
 	parser := filepath.Join(libSnapdDir, "apparmor_parser")
 	c.Assert(os.MkdirAll(libSnapdDir, 0755), IsNil)
 	c.Assert(os.WriteFile(parser, nil, 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/4.0"), nil, 0644), IsNil)
 
 	// Pretend that we are running snapd from that snap location.
@@ -727,7 +727,7 @@ func (s *apparmorSuite) TestSetupConfCacheDirsWithInternalApparmor(c *C) {
 	parser := filepath.Join(libSnapdDir, "apparmor_parser")
 	c.Assert(os.MkdirAll(libSnapdDir, 0755), IsNil)
 	c.Assert(os.WriteFile(parser, nil, 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/4.0"), nil, 0644), IsNil)
 	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
 		c.Assert(path, Equals, "/proc/self/exe")
