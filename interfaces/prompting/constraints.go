@@ -137,8 +137,8 @@ var (
 	// and if it does not, it should be interpreted as AA_MAY_READ.
 	interfaceFilePermissionsMaps = map[string]map[string]notify.FilePermission{
 		"home": {
-			"read":    notify.AA_MAY_READ,
-			"write":   notify.AA_MAY_WRITE | notify.AA_MAY_APPEND | notify.AA_MAY_CREATE | notify.AA_MAY_DELETE | notify.AA_MAY_RENAME | notify.AA_MAY_CHMOD | notify.AA_MAY_LOCK | notify.AA_MAY_LINK,
+			"read":    notify.AA_MAY_READ | notify.AA_MAY_GETATTR,
+			"write":   notify.AA_MAY_WRITE | notify.AA_MAY_APPEND | notify.AA_MAY_CREATE | notify.AA_MAY_DELETE | notify.AA_MAY_RENAME | notify.AA_MAY_SETATTR | notify.AA_MAY_CHMOD | notify.AA_MAY_LOCK | notify.AA_MAY_LINK,
 			"execute": notify.AA_MAY_EXEC | notify.AA_EXEC_MMAP,
 		},
 	}
