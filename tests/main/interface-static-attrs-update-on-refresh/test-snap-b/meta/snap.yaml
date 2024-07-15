@@ -1,0 +1,13 @@
+name: test-snap-b
+version: version1
+
+apps:
+  sh:
+    command: bin/sh
+    plugs:
+      - shm-foo-bar
+
+plugs:
+  shm-foo-bar:
+    interface: shared-memory
+    shared-memory: shm-foo-bar

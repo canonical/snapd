@@ -75,17 +75,20 @@ func (*apparmorSuite) TestAppArmorParser(c *C) {
 	c.Check(err, Equals, nil)
 }
 
-func (*apparmorSuite) TestAppArmorInternalAppArmorParser(c *C) {
+func (*apparmorSuite) TestAppArmorInternalAppArmorParserAbi3(c *C) {
 	fakeroot := c.MkDir()
 	dirs.SetRootDir(fakeroot)
 
-	d := filepath.Join(dirs.SnapMountDir, "/snapd/42", "/usr/lib/snapd")
-	c.Assert(os.MkdirAll(d, 0755), IsNil)
-	p := filepath.Join(d, "apparmor_parser")
-	c.Assert(os.WriteFile(p, nil, 0755), IsNil)
+	libSnapdDir := filepath.Join(dirs.SnapMountDir, "/snapd/42/usr/lib/snapd")
+	parser := filepath.Join(libSnapdDir, "apparmor_parser")
+	c.Assert(os.MkdirAll(libSnapdDir, 0755), IsNil)
+	c.Assert(os.WriteFile(parser, nil, 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/3.0"), nil, 0644), IsNil)
+
 	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
 		c.Assert(path, Equals, "/proc/self/exe")
-		return filepath.Join(d, "snapd"), nil
+		return filepath.Join(libSnapdDir, "snapd"), nil
 	})
 	defer restore()
 	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
@@ -93,12 +96,45 @@ func (*apparmorSuite) TestAppArmorInternalAppArmorParser(c *C) {
 
 	cmd, internal, err := apparmor.AppArmorParser()
 	c.Check(err, IsNil)
-	c.Check(cmd.Path, Equals, p)
+	c.Check(cmd.Path, Equals, parser)
 	c.Check(cmd.Args, DeepEquals, []string{
-		p,
-		"--config-file", filepath.Join(d, "/apparmor/parser.conf"),
-		"--base", filepath.Join(d, "/apparmor.d"),
-		"--policy-features", filepath.Join(d, "/apparmor.d/abi/3.0"),
+		parser,
+		"--config-file", filepath.Join(libSnapdDir, "/apparmor/parser.conf"),
+		"--base", filepath.Join(libSnapdDir, "/apparmor.d"),
+		"--policy-features", filepath.Join(libSnapdDir, "/apparmor.d/abi/3.0"),
+	})
+	c.Check(internal, Equals, true)
+}
+
+func (*apparmorSuite) TestAppArmorInternalAppArmorParserAbi4(c *C) {
+	fakeroot := c.MkDir()
+	dirs.SetRootDir(fakeroot)
+
+	libSnapdDir := filepath.Join(dirs.SnapMountDir, "/snapd/42/usr/lib/snapd")
+	parser := filepath.Join(libSnapdDir, "apparmor_parser")
+	c.Assert(os.MkdirAll(libSnapdDir, 0755), IsNil)
+	c.Assert(os.WriteFile(parser, nil, 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/3.0"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/4.0"), nil, 0644), IsNil)
+
+	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
+		c.Assert(path, Equals, "/proc/self/exe")
+		return filepath.Join(libSnapdDir, "snapd"), nil
+	})
+	defer restore()
+	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
+	defer restore()
+
+	cmd, internal, err := apparmor.AppArmorParser()
+	c.Check(err, IsNil)
+	c.Check(cmd.Path, Equals, parser)
+	c.Check(cmd.Args, DeepEquals, []string{
+		parser,
+		"--config-file", filepath.Join(libSnapdDir, "/apparmor/parser.conf"),
+		"--base", filepath.Join(libSnapdDir, "/apparmor.d"),
+		// 4.0 was preferred.
+		"--policy-features", filepath.Join(libSnapdDir, "/apparmor.d/abi/4.0"),
 	})
 	c.Check(internal, Equals, true)
 }
@@ -313,11 +349,36 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 }
 
 func probeOneParserFeature(c *C, known *[]string, parserPath, featureName, profileText string) {
+	probeOneVersionDependentParserFeature(c, known, parserPath, "0.0.0", featureName, profileText)
+}
+
+// fakeParserScript returns a shell script mimicking apparmor_parser.
+//
+// The returned script is prepared such, that additional logic may be safely
+// appended to it.
+func fakeParserScript(parserVersion string) string {
 	const script = `#!/bin/sh
 set -e
-test "$(cat | tr -d '\n')" = '%s'
+if [ "${1:-}" = "--version" ]; then
+  cat <<__VERSION__
+AppArmor parser version %s
+Copyright (C) 1999-2008 Novell Inc.
+Copyright 2009-2018 Canonical Ltd.
+__VERSION__
+  exit 0
+fi
 `
-	err := os.WriteFile(parserPath, []byte(fmt.Sprintf(script, profileText)), 0o755)
+	return fmt.Sprintf(script, parserVersion)
+}
+
+func fakeParserAnticipatingProfileScript(parserVersion, profileText string) string {
+	textCompareLogic := fmt.Sprintf(`test "$(cat | tr -d '\n')" = '%s'`, profileText)
+
+	return fakeParserScript(parserVersion) + textCompareLogic
+}
+
+func probeOneVersionDependentParserFeature(c *C, known *[]string, parserPath, parserVersion, featureName, profileText string) {
+	err := os.WriteFile(parserPath, []byte(fakeParserAnticipatingProfileScript(parserVersion, profileText)), 0o700)
 	c.Assert(err, IsNil)
 
 	cmd, _, _ := apparmor.AppArmorParser()
@@ -353,6 +414,23 @@ func (s *parserFeatureTestSuite) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 }
 
+func (s *parserFeatureTestSuite) TestProbeMqueueWith4Beta(c *C) {
+	const parserVersion = "4.0.0~beta3"
+	const profileText = `profile snap-test { mqueue,}`
+
+	parserPath := filepath.Join(s.binDir, "apparmor_parser")
+
+	err := os.WriteFile(parserPath, []byte(fakeParserAnticipatingProfileScript(parserVersion, profileText)), 0o700)
+	c.Assert(err, IsNil)
+
+	cmd, _, _ := apparmor.AppArmorParser()
+	c.Assert(cmd.Path, Equals, parserPath, Commentf("Unexpectedly using apparmor parser from %s", cmd.Path))
+
+	features, err := apparmor.ProbeParserFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, HasLen, 0, Commentf("Mqueue feature unexpectedly enabled by fake 4.0.0~beta3 parser"))
+}
+
 func (s *parserFeatureTestSuite) TestProbeFeature(c *C) {
 	// Pretend we can only support one feature at a time.
 	var knownProbes []string
@@ -362,7 +440,7 @@ func (s *parserFeatureTestSuite) TestProbeFeature(c *C) {
 	probeOneParserFeature(c, &knownProbes, parserPath, "cap-audit-read", `profile snap-test { capability audit_read,}`)
 	probeOneParserFeature(c, &knownProbes, parserPath, "cap-bpf", `profile snap-test { capability bpf,}`)
 	probeOneParserFeature(c, &knownProbes, parserPath, "include-if-exists", `profile snap-test { #include if exists "/foo"}`)
-	probeOneParserFeature(c, &knownProbes, parserPath, "mqueue", `profile snap-test { mqueue,}`)
+	probeOneVersionDependentParserFeature(c, &knownProbes, parserPath, "4.0.1", "mqueue", `profile snap-test { mqueue,}`)
 	probeOneParserFeature(c, &knownProbes, parserPath, "prompt", `profile snap-test { prompt /foo r,}`)
 	probeOneParserFeature(c, &knownProbes, parserPath, "qipcrtr-socket", `profile snap-test { network qipcrtr dgram,}`)
 	probeOneParserFeature(c, &knownProbes, parserPath, "unconfined", `profile snap-test flags=(unconfined) { # test unconfined}`)
@@ -371,7 +449,7 @@ func (s *parserFeatureTestSuite) TestProbeFeature(c *C) {
 	probeOneParserFeature(c, &knownProbes, parserPath, "xdp", `profile snap-test { network xdp,}`)
 
 	// Pretend we have all the features.
-	err := os.WriteFile(parserPath, []byte("#!/bin/sh\nexit 0\n"), 0o755)
+	err := os.WriteFile(parserPath, []byte(fakeParserScript("4.0.1")), 0o755)
 	c.Assert(err, IsNil)
 
 	// Did any feature probes got added to non-test code?
@@ -393,10 +471,11 @@ func (s *parserFeatureTestSuite) TestNoParser(c *C) {
 func (s *parserFeatureTestSuite) TestInternalParser(c *C) {
 	// Put a fake parser at $SNAP_MOUNT_DIR/snapd/42/usr/lib/snapd/apparmor_parser
 	libSnapdDir := filepath.Join(dirs.SnapMountDir, "/snapd/42/usr/lib/snapd")
-	err := os.MkdirAll(libSnapdDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(libSnapdDir, "apparmor_parser"), nil, 0755)
-	c.Assert(err, IsNil)
+	parser := filepath.Join(libSnapdDir, "apparmor_parser")
+	c.Assert(os.MkdirAll(libSnapdDir, 0755), IsNil)
+	c.Assert(os.WriteFile(parser, nil, 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/4.0"), nil, 0644), IsNil)
 
 	// Pretend that we are running snapd from that snap location.
 	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
@@ -427,7 +506,7 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "policy"), 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "network"), 0755), IsNil)
 
-	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", "")
+	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", fakeParserScript("4.0.1"))
 	defer mockParserCmd.Restore()
 	restore = apparmor.MockParserSearchPath(mockParserCmd.BinDir())
 	defer restore()
@@ -469,7 +548,7 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "policy"), 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "network"), 0755), IsNil)
 
-	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", "")
+	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", fakeParserScript("4.0.1"))
 	defer mockParserCmd.Restore()
 	restore = apparmor.MockParserSearchPath(mockParserCmd.BinDir())
 	defer restore()
@@ -644,13 +723,15 @@ func (s *apparmorSuite) TestSetupConfCacheDirsWithInternalApparmor(c *C) {
 	fakeroot := c.MkDir()
 	dirs.SetRootDir(fakeroot)
 
-	d := filepath.Join(dirs.SnapMountDir, "/snapd/42", "/usr/lib/snapd")
-	c.Assert(os.MkdirAll(d, 0755), IsNil)
-	p := filepath.Join(d, "apparmor_parser")
-	c.Assert(os.WriteFile(p, nil, 0755), IsNil)
+	libSnapdDir := filepath.Join(dirs.SnapMountDir, "/snapd/42/usr/lib/snapd")
+	parser := filepath.Join(libSnapdDir, "apparmor_parser")
+	c.Assert(os.MkdirAll(libSnapdDir, 0755), IsNil)
+	c.Assert(os.WriteFile(parser, nil, 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/4.0"), nil, 0644), IsNil)
 	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
 		c.Assert(path, Equals, "/proc/self/exe")
-		return filepath.Join(d, "snapd"), nil
+		return filepath.Join(libSnapdDir, "snapd"), nil
 	})
 	defer restore()
 	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
@@ -716,5 +797,452 @@ func (s *apparmorSuite) TestSystemAppArmorLoadsSnapPolicy(c *C) {
 
 		loadsPolicy := apparmor.SystemAppArmorLoadsSnapPolicy()
 		c.Check(loadsPolicy, Equals, tc.expectedResult, Commentf("%v", tc))
+	}
+}
+
+func (s *apparmorSuite) TestInsertAAREExclusionPatterns(c *C) {
+	tt := []struct {
+		comment         string
+		aaRules         string
+		excludePatterns []string
+		prefix          string
+		suffix          string
+		err             string
+		expRule         string
+	}{
+		// simple single pattern cases
+		{
+			comment: "happy",
+			aaRules: `
+# Start of exclusion pattern
+###EXCL{change_profile <> -> suf,:/ab}###
+# End of exclusion pattern
+`[1:],
+			excludePatterns: []string{"/ab"},
+			prefix:          "change_profile ",
+			suffix:          " -> suf,",
+			expRule: `
+# Start of exclusion pattern
+change_profile /[^a]** -> suf,
+change_profile /a[^b]** -> suf,
+# End of exclusion pattern
+`[1:],
+		}, {
+			comment: "missing pattern",
+			aaRules: `
+# Start of exclusion pattern
+###EXCL{change_profile <> -> wrong_suf,:/ab}###
+# End of exclusion pattern
+`[1:],
+			excludePatterns: []string{"/ab"},
+			prefix:          "change_profile ",
+			suffix:          " -> suf,",
+			err:             "placeholder pattern \\\"###EXCL{change_profile <> -> suf,:/ab}###\\\" not found",
+		},
+	}
+
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+		opts := &apparmor.AAREExclusionPatternsOptions{
+			Prefix: t.prefix,
+			Suffix: t.suffix,
+		}
+		res, err := apparmor.InsertAAREExclusionPatterns(t.aaRules, t.excludePatterns, opts)
+		if t.err != "" {
+			c.Assert(err, ErrorMatches, t.err, comment)
+			continue
+		}
+		c.Assert(err, IsNil)
+
+		resHash, err1 := testutil.AppArmorParseAndHashHelper("profile test {" + res + "}")
+		expectedHash, err2 := testutil.AppArmorParseAndHashHelper("profile test {" + t.expRule + "}")
+		if (err1 != nil) || (err2 != nil) {
+			comment = Commentf(t.comment + "\n\nNote that an error occurred in AppArmorParseAndHashHelper " +
+				"while compiling and hashing the apparmor policy and string comparison was used as fallback.")
+			c.Assert(res, Equals, t.expRule, comment)
+		} else {
+			c.Assert(resHash, Equals, expectedHash, comment)
+		}
+	}
+}
+
+func (s *apparmorSuite) TestGenerateAAREExclusionPatterns(c *C) {
+	tt := []struct {
+		comment         string
+		excludePatterns []string
+		prefix          string
+		suffix          string
+		err             string
+		expRule         string
+	}{
+		// simple single pattern cases
+		{
+			comment:         "single shortest",
+			excludePatterns: []string{"/ab"},
+			prefix:          "change_profile ",
+			suffix:          " -> suf,",
+			expRule: `
+change_profile /[^a]** -> suf,
+change_profile /a[^b]** -> suf,
+`[1:],
+		},
+		{
+			comment:         "single simple with wildcard",
+			excludePatterns: []string{"/a/*/bc"},
+			suffix:          " r,",
+			expRule: `
+/[^a]** r,
+/a[^/]** r,
+/a/*/[^b]** r,
+/a/*/b[^c]** r,
+`[1:],
+		},
+
+		// multiple pattern cases
+		{
+			comment:         "same length no overlap shortest",
+			excludePatterns: []string{"/a", "/d"},
+			suffix:          " r,",
+			expRule: `
+/[^ad]** r,
+`[1:],
+		},
+		{
+			comment:         "diff length no overlap shortest",
+			excludePatterns: []string{"/a", "/dc"},
+			suffix:          " r,",
+			expRule: `
+/[^ad]** r,
+/d[^c]** r,
+`[1:],
+		},
+		{
+			comment:         "diff length overlap",
+			excludePatterns: []string{"/ad", "/adc"},
+			suffix:          " r,",
+			expRule: `
+/[^a]** r,
+/a[^d]** r,
+/ad[^c]** r,
+`[1:],
+		},
+		{
+			comment:         "same length no overlap",
+			excludePatterns: []string{"/ab", "/de"},
+			suffix:          " r,",
+			expRule: `
+/[^ad]** r,
+/{a[^b],d[^e]}** r,
+`[1:],
+		},
+		{
+			comment:         "same length overlap",
+			excludePatterns: []string{"/ab", "/ac"},
+			suffix:          " r,",
+			expRule: `
+/[^a]** r,
+/a[^bc]** r,
+`[1:],
+		},
+		{
+			comment:         "same length overlap",
+			excludePatterns: []string{"/AB", "/AC"},
+			suffix:          " r,",
+			expRule: `
+/[^A]** r,
+/A[^BC]** r,
+`[1:],
+		},
+		{
+			comment:         "same length overlap with wildcard",
+			excludePatterns: []string{"/ab/*/c", "/ad/*/c"},
+			suffix:          " r,",
+			expRule: `
+/[^a]** r,
+/a[^bd]** r,
+/a{b[^/],d[^/]}** r,
+/a{b/*/[^c],d/*/[^c]}** r,
+`[1:],
+		},
+		{
+			comment:         "different length same overlap with extra nonoverlapping",
+			excludePatterns: []string{"/a/bc/d", "/a/bc/e", "/a/fg"},
+			suffix:          " r,",
+			expRule: `
+/[^a]** r,
+/a[^/]** r,
+/a/[^bf]** r,
+/a/{b[^c],f[^g]}** r,
+/a/bc[^/]** r,
+/a/bc/[^de]** r,
+`[1:],
+		},
+		{
+			comment:         "diff length overlap with wildcard",
+			excludePatterns: []string{"/abc/*/c", "/ad/*/c"},
+			suffix:          " r,",
+			expRule: `
+/[^a]** r,
+/a[^bd]** r,
+/a{b[^c],d[^/]}** r,
+/abc[^/]** r,
+/ad/*/[^c]** r,
+/abc/*/[^c]** r,
+`[1:],
+		},
+		{
+			comment:         "more diff length overlap with wildcard",
+			excludePatterns: []string{"/abc/*/c", "/ab/*/e", "/ad/*/c"},
+			suffix:          " r,",
+			expRule: `
+/[^a]** r,
+/a[^bd]** r,
+/a{b[^c/],d[^/]}** r,
+/abc[^/]** r,
+/a{b/*/[^e],d/*/[^c]}** r,
+/abc/*/[^c]** r,
+`[1:],
+		},
+		{
+			comment:         "very diff length overlap with wildcard after diff length",
+			excludePatterns: []string{"/abc/*/c/*/e", "/ad/*/c"},
+			suffix:          " r,",
+			expRule: `
+/[^a]** r,
+/a[^bd]** r,
+/a{b[^c],d[^/]}** r,
+/abc[^/]** r,
+/ad/*/[^c]** r,
+/abc/*/[^c]** r,
+/abc/*/c[^/]** r,
+/abc/*/c/*/[^e]** r,
+`[1:],
+		},
+		{
+			comment:         "same length overlap with wildcard in overlap",
+			excludePatterns: []string{"/a/*/b", "/a/*/c"},
+			suffix:          " r,",
+			expRule: `
+/[^a]** r,
+/a[^/]** r,
+/a/*/[^bc]** r,
+`[1:],
+		},
+
+		// unhappy cases
+		{
+			comment:         "duplicates",
+			excludePatterns: []string{"/ab/*/c", "/ad/*/c", "/ad/*/c"},
+			err:             "exclude patterns contain duplicates",
+		},
+		{
+			comment:         "nothing",
+			excludePatterns: []string{},
+			err:             "no patterns provided",
+		},
+		{
+			comment:         "relative path",
+			excludePatterns: []string{"foo"},
+			err:             "exclude patterns must be absolute filepaths",
+		},
+		{
+			comment:         "pattern has suffix",
+			excludePatterns: []string{"/foo/*-bar"},
+			err:             "exclude patterns does not support suffixes for now",
+		},
+		{
+			comment:         "wildcard after common pattern",
+			excludePatterns: []string{"/foo/*/bar", "/foo/bar"},
+			err:             "first character after a common subpattern cannot be a wildcard",
+		},
+		// specific cases used around codebase
+		{
+			comment: "any file inherit exec rules except snap-confine for devmode snap executing other snaps",
+			excludePatterns: []string{
+				"/snap/core/*/usr/lib/snapd/snap-confine",
+				"/snap/snapd/*/usr/lib/snapd/snap-confine",
+			},
+			prefix: "",
+			suffix: " rwlix,",
+			expRule: `
+/[^s]** rwlix,
+/s[^n]** rwlix,
+/sn[^a]** rwlix,
+/sna[^p]** rwlix,
+/snap[^/]** rwlix,
+/snap/[^cs]** rwlix,
+/snap/{c[^o],s[^n]}** rwlix,
+/snap/{co[^r],sn[^a]}** rwlix,
+/snap/{cor[^e],sna[^p]}** rwlix,
+/snap/{core[^/],snap[^d]}** rwlix,
+/snap/snapd[^/]** rwlix,
+/snap/core/*/[^u]** rwlix,
+/snap/{core/*/u[^s],snapd/*/[^u]}** rwlix,
+/snap/{core/*/us[^r],snapd/*/u[^s]}** rwlix,
+/snap/{core/*/usr[^/],snapd/*/us[^r]}** rwlix,
+/snap/{core/*/usr/[^l],snapd/*/usr[^/]}** rwlix,
+/snap/{core/*/usr/l[^i],snapd/*/usr/[^l]}** rwlix,
+/snap/{core/*/usr/li[^b],snapd/*/usr/l[^i]}** rwlix,
+/snap/{core/*/usr/lib[^/],snapd/*/usr/li[^b]}** rwlix,
+/snap/{core/*/usr/lib/[^s],snapd/*/usr/lib[^/]}** rwlix,
+/snap/{core/*/usr/lib/s[^n],snapd/*/usr/lib/[^s]}** rwlix,
+/snap/{core/*/usr/lib/sn[^a],snapd/*/usr/lib/s[^n]}** rwlix,
+/snap/{core/*/usr/lib/sna[^p],snapd/*/usr/lib/sn[^a]}** rwlix,
+/snap/{core/*/usr/lib/snap[^d],snapd/*/usr/lib/sna[^p]}** rwlix,
+/snap/{core/*/usr/lib/snapd[^/],snapd/*/usr/lib/snap[^d]}** rwlix,
+/snap/{core/*/usr/lib/snapd/[^s],snapd/*/usr/lib/snapd[^/]}** rwlix,
+/snap/{core/*/usr/lib/snapd/s[^n],snapd/*/usr/lib/snapd/[^s]}** rwlix,
+/snap/{core/*/usr/lib/snapd/sn[^a],snapd/*/usr/lib/snapd/s[^n]}** rwlix,
+/snap/{core/*/usr/lib/snapd/sna[^p],snapd/*/usr/lib/snapd/sn[^a]}** rwlix,
+/snap/{core/*/usr/lib/snapd/snap[^-],snapd/*/usr/lib/snapd/sna[^p]}** rwlix,
+/snap/{core/*/usr/lib/snapd/snap-[^c],snapd/*/usr/lib/snapd/snap[^-]}** rwlix,
+/snap/{core/*/usr/lib/snapd/snap-c[^o],snapd/*/usr/lib/snapd/snap-[^c]}** rwlix,
+/snap/{core/*/usr/lib/snapd/snap-co[^n],snapd/*/usr/lib/snapd/snap-c[^o]}** rwlix,
+/snap/{core/*/usr/lib/snapd/snap-con[^f],snapd/*/usr/lib/snapd/snap-co[^n]}** rwlix,
+/snap/{core/*/usr/lib/snapd/snap-conf[^i],snapd/*/usr/lib/snapd/snap-con[^f]}** rwlix,
+/snap/{core/*/usr/lib/snapd/snap-confi[^n],snapd/*/usr/lib/snapd/snap-conf[^i]}** rwlix,
+/snap/{core/*/usr/lib/snapd/snap-confin[^e],snapd/*/usr/lib/snapd/snap-confi[^n]}** rwlix,
+/snap/snapd/*/usr/lib/snapd/snap-confin[^e]** rwlix,
+`[1:],
+		},
+		{
+			comment:         "anything except /lib/{firmware,modules} for non-core base template",
+			excludePatterns: []string{"/lib/firmware", "/lib/modules"},
+			suffix:          " mrklix,",
+			expRule: `
+/[^l]** mrklix,
+/l[^i]** mrklix,
+/li[^b]** mrklix,
+/lib[^/]** mrklix,
+/lib/[^fm]** mrklix,
+/lib/{f[^i],m[^o]}** mrklix,
+/lib/{fi[^r],mo[^d]}** mrklix,
+/lib/{fir[^m],mod[^u]}** mrklix,
+/lib/{firm[^w],modu[^l]}** mrklix,
+/lib/{firmw[^a],modul[^e]}** mrklix,
+/lib/{firmwa[^r],module[^s]}** mrklix,
+/lib/firmwar[^e]** mrklix,
+`[1:],
+		},
+		{
+			comment:         "anything except /usr/src, /usr/lib/{firmware,snapd,modules} for non-core base template",
+			excludePatterns: []string{"/usr/lib/firmware", "/usr/lib/modules", "/usr/lib/snapd"},
+			suffix:          " mrklix,",
+			expRule: `
+/[^u]** mrklix,
+/u[^s]** mrklix,
+/us[^r]** mrklix,
+/usr[^/]** mrklix,
+/usr/[^l]** mrklix,
+/usr/l[^i]** mrklix,
+/usr/li[^b]** mrklix,
+/usr/lib[^/]** mrklix,
+/usr/lib/[^fms]** mrklix,
+/usr/lib/{f[^i],m[^o],s[^n]}** mrklix,
+/usr/lib/{fi[^r],mo[^d],sn[^a]}** mrklix,
+/usr/lib/{fir[^m],mod[^u],sna[^p]}** mrklix,
+/usr/lib/{firm[^w],modu[^l],snap[^d]}** mrklix,
+/usr/lib/{firmw[^a],modul[^e]}** mrklix,
+/usr/lib/{firmwa[^r],module[^s]}** mrklix,
+/usr/lib/firmwar[^e]** mrklix,
+`[1:],
+		},
+		{
+			comment: "anything except /var/lib/{dhcp,extrausers,jenkins,snapd} /var/log /var/snap and /var/tmp for non-core base template",
+			excludePatterns: []string{
+				"/var/lib/dhcp",
+				"/var/lib/extrausers",
+				"/var/lib/jenkins",
+				"/var/lib/snapd",
+				"/var/log",
+				"/var/snap",
+				"/var/tmp",
+			},
+			suffix: " mrklix,",
+			expRule: `
+/[^v]** mrklix,
+/v[^a]** mrklix,
+/va[^r]** mrklix,
+/var[^/]** mrklix,
+/var/[^lst]** mrklix,
+/var/{l[^io],s[^n],t[^m]}** mrklix,
+/var/{li[^b],lo[^g],sn[^a],tm[^p]}** mrklix,
+/var/{lib[^/],sna[^p]}** mrklix,
+/var/lib/[^dejs]** mrklix,
+/var/{lib/d[^h],lib/e[^x],lib/j[^e],lib/s[^n]}** mrklix,
+/var/{lib/dh[^c],lib/ex[^t],lib/je[^n],lib/sn[^a]}** mrklix,
+/var/{lib/dhc[^p],lib/ext[^r],lib/jen[^k],lib/sna[^p]}** mrklix,
+/var/{lib/extr[^a],lib/jenk[^i],lib/snap[^d]}** mrklix,
+/var/{lib/extra[^u],lib/jenki[^n]}** mrklix,
+/var/{lib/extrau[^s],lib/jenkin[^s]}** mrklix,
+/var/lib/extraus[^e]** mrklix,
+/var/lib/extrause[^r]** mrklix,
+/var/lib/extrauser[^s]** mrklix,
+`[1:],
+		},
+		{
+			comment: "everything except {/var/lib/snapd/hostfs,}/{dev,proc,sys} for system-backup",
+			excludePatterns: []string{
+				"/dev/",
+				"/proc/",
+				"/sys/",
+				"/var/lib/snapd/hostfs/dev/",
+				"/var/lib/snapd/hostfs/proc/",
+				"/var/lib/snapd/hostfs/sys/",
+			},
+			suffix: " r,",
+			expRule: `
+/[^dpsv]** r,
+/{d[^e],p[^r],s[^y],v[^a]}** r,
+/{de[^v],pr[^o],sy[^s],va[^r]}** r,
+/{dev[^/],pro[^c],sys[^/],var[^/]}** r,
+/{proc[^/],var/[^l]}** r,
+/var/l[^i]** r,
+/var/li[^b]** r,
+/var/lib[^/]** r,
+/var/lib/[^s]** r,
+/var/lib/s[^n]** r,
+/var/lib/sn[^a]** r,
+/var/lib/sna[^p]** r,
+/var/lib/snap[^d]** r,
+/var/lib/snapd[^/]** r,
+/var/lib/snapd/[^h]** r,
+/var/lib/snapd/h[^o]** r,
+/var/lib/snapd/ho[^s]** r,
+/var/lib/snapd/hos[^t]** r,
+/var/lib/snapd/host[^f]** r,
+/var/lib/snapd/hostf[^s]** r,
+/var/lib/snapd/hostfs[^/]** r,
+/var/lib/snapd/hostfs/[^dps]** r,
+/{var/lib/snapd/hostfs/d[^e],var/lib/snapd/hostfs/p[^r],var/lib/snapd/hostfs/s[^y]}** r,
+/{var/lib/snapd/hostfs/de[^v],var/lib/snapd/hostfs/pr[^o],var/lib/snapd/hostfs/sy[^s]}** r,
+/{var/lib/snapd/hostfs/dev[^/],var/lib/snapd/hostfs/pro[^c],var/lib/snapd/hostfs/sys[^/]}** r,
+/var/lib/snapd/hostfs/proc[^/]** r,
+`[1:],
+		},
+	}
+
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+		opts := &apparmor.AAREExclusionPatternsOptions{
+			Prefix: t.prefix,
+			Suffix: t.suffix,
+		}
+		res, err := apparmor.GenerateAAREExclusionPatterns(t.excludePatterns, opts)
+		if t.err != "" {
+			c.Assert(err, ErrorMatches, t.err, comment)
+			continue
+		}
+		c.Assert(err, IsNil)
+
+		resHash, err1 := testutil.AppArmorParseAndHashHelper("profile test {" + res + "}")
+		expectedHash, err2 := testutil.AppArmorParseAndHashHelper("profile test {" + t.expRule + "}")
+		if (err1 != nil) || (err2 != nil) {
+			comment = Commentf(t.comment + "\n\nNote that an error occurred in AppArmorParseAndHashHelper " +
+				"while compiling and hashing the apparmor policy and string comparison was used as fallback.")
+			c.Assert(res, Equals, t.expRule, comment)
+		} else {
+			c.Assert(resHash, Equals, expectedHash, comment)
+		}
 	}
 }

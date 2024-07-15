@@ -137,6 +137,9 @@
     # LD_PRELOAD to be set to a library which is in a directory configured by
     # ld.so.conf, but access to those locations is mediated by this profile
     # (which requires rules for specific locations).
+    # TODO: use GenerateAAREExclusionPatterns for this, though the first
+    # rule and the fact that the generative aspect is not an absolute filepath
+    # complicate using that function directly
     change_profile unsafe /** -> [^u/]**,
     change_profile unsafe /** -> u[^n]**,
     change_profile unsafe /** -> un[^c]**,

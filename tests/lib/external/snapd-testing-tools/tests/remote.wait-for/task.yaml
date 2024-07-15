@@ -15,14 +15,11 @@ environment:
     host: localhost
     port: 8022
     unit: nested-vm
-    TARGET/xenial: xenial
-    TARGET/bionic: bionic
+    TARGET: xenial
 
 prepare: |
     if [ "$TARGET" = xenial ]; then
         wget -O pc.img.xz https://storage.googleapis.com/snapd-spread-tests/images/booted/pc-amd64-16-stable-core_beta_2.56.2.img.xz
-    elif [ "$TARGET" = bionic ]; then
-        wget -O pc.img.xz https://storage.googleapis.com/snapd-spread-tests/images/booted/pc-amd64-18-stable-snapd_beta_2.56.2.img.xz
     fi
     unxz pc.img.xz
 

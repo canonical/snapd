@@ -86,6 +86,8 @@ dbus (send)
 
 # Allow changing backlight
 /sys/devices/**/**/drm/card[0-9]/card[0-9]*/*_backlight/brightness w,
+/sys/devices/platform/lvds_backlight/backlight/lvds_backlight/brightness rw,
+/sys/devices/platform/lvds_backlight/backlight/lvds_backlight/bl_power rw,
 `
 
 type displayControlInterface struct {

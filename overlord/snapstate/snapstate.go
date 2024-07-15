@@ -637,8 +637,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 			return nil, err
 		}
 
-		// TODO: once component hooks are fully, we will need to take care to
-		// correctly order the tasks that are created for running component
+		// TODO:COMPS: once component hooks are fully, we will need to take care
+		// to correctly order the tasks that are created for running component
 		// and snap hooks
 
 		for _, t := range beforeLink {
@@ -2122,7 +2122,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			return nil, nil, err
 		}
 
-		// TODO: we need to handle components here too
+		// TODO:COMPS: we need to handle components here too
 
 		// Do not set any default restart boundaries, we do it when we have access to all
 		// the task-sets in preparation for single-reboot.
@@ -3826,6 +3826,7 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
 
 	for _, name := range names {
+		// TODO:COMPS: remove components
 		ts, snapshotSize, err := removeTasks(st, name, snap.R(0), flags)
 		// FIXME: is this expected behavior?
 		if _, ok := err.(*snap.NotInstalledError); ok {
@@ -3941,7 +3942,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		InstanceKey: snapst.InstanceKey,
 	}
 
-	// TODO: we need to handle components here too
+	// TODO:COMPS: we need to handle components here too
 	return doInstall(st, &snapst, *snapsup, nil, 0, fromChange, nil)
 }
 

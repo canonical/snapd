@@ -25,7 +25,7 @@ remap_one() {
             echo "python-gobject"
             ;;
         test-snapd-pkg-1)
-            echo "freeglut"
+            echo "cmus"
             ;;
         test-snapd-pkg-2)
             echo "robotfindskitten"

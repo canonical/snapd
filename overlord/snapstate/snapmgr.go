@@ -235,7 +235,7 @@ func (compsu *ComponentSetup) Revision() snap.Revision {
 // * Installing/refreshing a snap with components
 // * Installing/refreshing a snap without any components
 func ComponentSetupsForTask(t *state.Task) ([]*ComponentSetup, error) {
-	// TODO: handle remaining cases in this switch:
+	// TODO:COMPS: handle remaining cases in this switch:
 	// * installing multiple components for an already installed snap
 	// * installing/refreshing a snap with components
 	switch {
@@ -404,7 +404,7 @@ func (snapst *SnapState) IsComponentInCurrentSeq(cref naming.ComponentRef) bool 
 	}
 
 	idx := snapst.LastIndex(snapst.Current)
-	return snapst.Sequence.ComponentSideInfoForRev(idx, cref) != nil
+	return snapst.Sequence.ComponentStateForRev(idx, cref) != nil
 }
 
 // IsCurrentComponentRevInAnyNonCurrentSeq tells us if the component cref in
@@ -445,12 +445,20 @@ func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
 // CurrentComponentSideInfo returns the component side info for the revision indicated by
 // snapst.Current in the snap revision sequence if there is one.
 func (snapst *SnapState) CurrentComponentSideInfo(cref naming.ComponentRef) *snap.ComponentSideInfo {
+	compState := snapst.CurrentComponentState(cref)
+	if compState == nil {
+		return nil
+	}
+	return compState.SideInfo
+}
+
+func (snapst *SnapState) CurrentComponentState(cref naming.ComponentRef) *sequence.ComponentState {
 	if !snapst.IsInstalled() {
 		return nil
 	}
 
 	if idx := snapst.LastIndex(snapst.Current); idx >= 0 {
-		return snapst.Sequence.ComponentSideInfoForRev(idx, cref)
+		return snapst.Sequence.ComponentStateForRev(idx, cref)
 	}
 
 	// should not really happen as the method checks if the snap is installed
@@ -792,7 +800,20 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	// We cannot undo much after a component file is removed. And it is the
 	// last task anyway.
 	runner.AddHandler("discard-component", m.doDiscardComponent, nil)
-	runner.AddHandler("prepare-kernel-modules-components", m.doSetupKernelModules, m.doRemoveKernelModulesSetup)
+	setupKModsInDo := func(t *state.Task, _ *tomb.Tomb) error {
+		return m.doSetupKernelModules(t, state.DoneStatus)
+	}
+	setupKModsInUndo := func(t *state.Task, _ *tomb.Tomb) error {
+		return m.doSetupKernelModules(t, state.UndoneStatus)
+	}
+	removeKModsInUndo := func(t *state.Task, _ *tomb.Tomb) error {
+		return m.doRemoveKernelModulesSetup(t, state.UndoneStatus)
+	}
+	removeKModsInDo := func(t *state.Task, _ *tomb.Tomb) error {
+		return m.doRemoveKernelModulesSetup(t, state.DoneStatus)
+	}
+	runner.AddHandler("prepare-kernel-modules-components", setupKModsInDo, removeKModsInUndo)
+	runner.AddHandler("clear-kernel-modules-components", removeKModsInDo, setupKModsInUndo)
 
 	// control serialisation
 	runner.AddBlocked(m.blockedTask)

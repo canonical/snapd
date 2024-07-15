@@ -185,6 +185,11 @@ type OnClassicConstraint struct {
 	SystemIDs []string
 }
 
+// OnCoreDesktopConstraint specifies a constraint based whether the system is core desktop.
+type OnCoreDesktopConstraint struct {
+	CoreDesktop bool
+}
+
 type nameMatcher interface {
 	match(name string, special map[string]string) error
 }
@@ -307,6 +312,7 @@ type constraintsHolder interface {
 	setAttributeConstraints(field string, cstrs *AttributeConstraints)
 	setIDConstraints(field string, cstrs []string)
 	setOnClassicConstraint(onClassic *OnClassicConstraint)
+	setOnCoreDesktopConstraint(onCoreDesktop *OnCoreDesktopConstraint)
 	setDeviceScopeConstraint(deviceScope *DeviceScopeConstraint)
 }
 
@@ -400,6 +406,25 @@ func baseCompileConstraints(context *subruleContext, cDef constraintsDef, target
 		}
 		target.setOnClassicConstraint(c)
 	}
+	onCoreDesktop := cMap["on-core-desktop"]
+	if onCoreDesktop == nil {
+		defaultUsed++
+	} else {
+		var c *OnCoreDesktopConstraint
+		switch x := onCoreDesktop.(type) {
+		case string:
+			switch x {
+			case "true":
+				c = &OnCoreDesktopConstraint{CoreDesktop: true}
+			case "false":
+				c = &OnCoreDesktopConstraint{CoreDesktop: false}
+			}
+		}
+		if c == nil {
+			return fmt.Errorf("on-core-desktop in %s must be 'true' or 'false'", context)
+		}
+		target.setOnCoreDesktopConstraint(c)
+	}
 	dsc, err := compileDeviceScopeConstraint(cMap, context.String())
 	if err != nil {
 		return err
@@ -411,10 +436,10 @@ func baseCompileConstraints(context *subruleContext, cDef constraintsDef, target
 	}
 	// checks whether defaults have been used for everything, which is not
 	// well-formed
-	// +1+1 accounts for defaults for missing on-classic plus missing
+	// +1+1+1 accounts for defaults for missing on-classic, on-core-desktop plus missing
 	// on-store/on-brand/on-model
-	if defaultUsed == len(nameConstraints)+len(attributeConstraints)+len(idConstraints)+len(sideArityConstraints)+1+1 {
-		return fmt.Errorf("%s must specify at least one of %s, %s, %s, %s, on-classic, on-store, on-brand, on-model", context, strings.Join(nameConstraints, ", "), strings.Join(attrConstraints, ", "), strings.Join(idConstraints, ", "), strings.Join(sideArityConstraints, ", "))
+	if defaultUsed == len(nameConstraints)+len(attributeConstraints)+len(idConstraints)+len(sideArityConstraints)+1+1+1 {
+		return fmt.Errorf("%s must specify at least one of %s, %s, %s, %s, on-classic, on-core-desktop, on-store, on-brand, on-model", context, strings.Join(nameConstraints, ", "), strings.Join(attrConstraints, ", "), strings.Join(idConstraints, ", "), strings.Join(sideArityConstraints, ", "))
 	}
 	return nil
 }
@@ -630,7 +655,8 @@ type PlugInstallationConstraints struct {
 
 	PlugAttributes *AttributeConstraints
 
-	OnClassic *OnClassicConstraint
+	OnClassic     *OnClassicConstraint
+	OnCoreDesktop *OnCoreDesktopConstraint
 
 	DeviceScope *DeviceScopeConstraint
 }
@@ -678,6 +704,10 @@ func (c *PlugInstallationConstraints) setOnClassicConstraint(onClassic *OnClassi
 	c.OnClassic = onClassic
 }
 
+func (c *PlugInstallationConstraints) setOnCoreDesktopConstraint(onCoreDesktop *OnCoreDesktopConstraint) {
+	c.OnCoreDesktop = onCoreDesktop
+}
+
 func (c *PlugInstallationConstraints) setDeviceScopeConstraint(deviceScope *DeviceScopeConstraint) {
 	c.DeviceScope = deviceScope
 }
@@ -712,7 +742,8 @@ type PlugConnectionConstraints struct {
 	// PlugsPerSlot is always * (any) (for now)
 	PlugsPerSlot SideArityConstraint
 
-	OnClassic *OnClassicConstraint
+	OnClassic     *OnClassicConstraint
+	OnCoreDesktop *OnCoreDesktopConstraint
 
 	DeviceScope *DeviceScopeConstraint
 }
@@ -780,6 +811,10 @@ func (c *PlugConnectionConstraints) plugsPerSlot() SideArityConstraint {
 
 func (c *PlugConnectionConstraints) setOnClassicConstraint(onClassic *OnClassicConstraint) {
 	c.OnClassic = onClassic
+}
+
+func (c *PlugConnectionConstraints) setOnCoreDesktopConstraint(onCoreDesktop *OnCoreDesktopConstraint) {
+	c.OnCoreDesktop = onCoreDesktop
 }
 
 func (c *PlugConnectionConstraints) setDeviceScopeConstraint(deviceScope *DeviceScopeConstraint) {
@@ -939,7 +974,8 @@ type SlotInstallationConstraints struct {
 
 	SlotAttributes *AttributeConstraints
 
-	OnClassic *OnClassicConstraint
+	OnClassic     *OnClassicConstraint
+	OnCoreDesktop *OnCoreDesktopConstraint
 
 	DeviceScope *DeviceScopeConstraint
 }
@@ -985,6 +1021,10 @@ func (c *SlotInstallationConstraints) setIDConstraints(field string, cstrs []str
 
 func (c *SlotInstallationConstraints) setOnClassicConstraint(onClassic *OnClassicConstraint) {
 	c.OnClassic = onClassic
+}
+
+func (c *SlotInstallationConstraints) setOnCoreDesktopConstraint(onCoreDesktop *OnCoreDesktopConstraint) {
+	c.OnCoreDesktop = onCoreDesktop
 }
 
 func (c *SlotInstallationConstraints) setDeviceScopeConstraint(deviceScope *DeviceScopeConstraint) {
@@ -1035,7 +1075,8 @@ type SlotConnectionConstraints struct {
 	// PlugsPerSlot is always * (any) (for now)
 	PlugsPerSlot SideArityConstraint
 
-	OnClassic *OnClassicConstraint
+	OnClassic     *OnClassicConstraint
+	OnCoreDesktop *OnCoreDesktopConstraint
 
 	DeviceScope *DeviceScopeConstraint
 }
@@ -1109,6 +1150,10 @@ func (c *SlotConnectionConstraints) plugsPerSlot() SideArityConstraint {
 
 func (c *SlotConnectionConstraints) setOnClassicConstraint(onClassic *OnClassicConstraint) {
 	c.OnClassic = onClassic
+}
+
+func (c *SlotConnectionConstraints) setOnCoreDesktopConstraint(onCoreDesktop *OnCoreDesktopConstraint) {
+	c.OnCoreDesktop = onCoreDesktop
 }
 
 func (c *SlotConnectionConstraints) setDeviceScopeConstraint(deviceScope *DeviceScopeConstraint) {

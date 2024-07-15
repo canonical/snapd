@@ -46,6 +46,7 @@ type Options struct {
 
 	// TODO: use OptionsSnap directly here?
 	Snaps        []string
+	Components   []string
 	SnapChannels map[string]string
 
 	// SeedManifest is a pre-provided seed manifest, to allow for
