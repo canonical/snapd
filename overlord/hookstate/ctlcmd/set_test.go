@@ -478,7 +478,7 @@ func (s *registrySuite) TestRegistrySetInvalid(c *C) {
 		},
 		{
 			args: []string{":non-existent", "ssid"},
-			err:  `cannot set :non-existent plug: must set field with "=" or unset with "!"`,
+			err:  `cannot set :non-existent plug: invalid configuration: "ssid" \(want key=value\)`,
 		},
 	}
 

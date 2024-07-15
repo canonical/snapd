@@ -104,20 +104,10 @@ func (s *setCommand) Execute(args []string) error {
 	}
 
 	if s.View {
-		requests := make(map[string]interface{}, len(s.Positional.ConfValues))
-		for _, conf := range s.Positional.ConfValues {
-			splitConf := strings.SplitN(conf, "=", 2)
-			if len(splitConf) == 1 && strings.HasSuffix(conf, "!") {
-				key := strings.TrimSuffix(conf, "!")
-				requests[key] = nil
-				continue
-			}
-
-			if len(splitConf) != 2 {
-				return fmt.Errorf("cannot set %s plug: must set field with \"=\" or unset with \"!\"", s.Positional.PlugOrSlotSpec)
-			}
-
-			requests[splitConf[0]] = splitConf[1]
+		opts := &ParseConfigOptions{String: s.String, Typed: s.Typed}
+		requests, err := ParseConfigValues(s.Positional.ConfValues, opts)
+		if err != nil {
+			return fmt.Errorf(i18n.G("cannot set %s plug: %w"), s.Positional.PlugOrSlotSpec, err)
 		}
 
 		return s.setRegistryValues(context, name, requests)
@@ -257,12 +247,12 @@ func (s *setCommand) setRegistryValues(ctx *hookstate.Context, plugName string, 
 	ctx.Lock()
 	defer ctx.Unlock()
 
-	reg, view, err := getRegistryView(ctx, plugName)
+	view, err := getRegistryView(ctx, plugName)
 	if err != nil {
 		return fmt.Errorf("cannot set registry: %v", err)
 	}
 
-	tx, err := registrystate.RegistryTransaction(ctx, reg)
+	tx, err := registrystate.RegistryTransaction(ctx, view.Registry())
 	if err != nil {
 		return err
 	}
@@ -271,4 +261,53 @@ func (s *setCommand) setRegistryValues(ctx *hookstate.Context, plugName string, 
 	// (e.g., "registry-changed" hooks can only read data)
 
 	return registrystate.SetViaViewInTx(tx, view, requests)
+}
+
+// ParseConfigOptions controls how config values should be parsed.
+type ParseConfigOptions struct {
+	// String is enabled when values should be stored as-is w/o parsing being parsed.
+	String bool
+	// Typed is enabled when values should be stored parsed as JSON. If String is
+	// enabled, this value is ignored.
+	Typed bool
+}
+
+// ParseConfigValues parses config values in the format of "foo=bar" or "!foo",
+// optionally a strict strings or JSON values depending on passed options.
+// By default, values are parsed if valid JSON and stored as-is if not.
+func ParseConfigValues(confValues []string, opts *ParseConfigOptions) (map[string]interface{}, error) {
+	if opts == nil {
+		opts = &ParseConfigOptions{}
+	}
+
+	patchValues := make(map[string]interface{})
+	for _, patchValue := range confValues {
+		parts := strings.SplitN(patchValue, "=", 2)
+		if len(parts) == 1 && strings.HasSuffix(patchValue, "!") {
+			patchValues[strings.TrimSuffix(patchValue, "!")] = nil
+			continue
+		}
+
+		if len(parts) != 2 {
+			return nil, fmt.Errorf(i18n.G("invalid configuration: %q (want key=value)"), patchValue)
+		}
+
+		if opts.String {
+			patchValues[parts[0]] = parts[1]
+		} else {
+			var value interface{}
+			if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
+				if opts.Typed {
+					return nil, fmt.Errorf(i18n.G("failed to parse JSON: %w"), err)
+				}
+
+				// Not valid JSON-- just save the string as-is.
+				patchValues[parts[0]] = parts[1]
+			} else {
+				patchValues[parts[0]] = value
+			}
+		}
+	}
+
+	return patchValues, nil
 }

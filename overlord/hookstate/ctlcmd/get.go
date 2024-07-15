@@ -363,12 +363,12 @@ func (c *getCommand) getRegistryValues(ctx *hookstate.Context, plugName string, 
 	ctx.Lock()
 	defer ctx.Unlock()
 
-	reg, view, err := getRegistryView(ctx, plugName)
+	view, err := getRegistryView(ctx, plugName)
 	if err != nil {
 		return fmt.Errorf("cannot get registry: %v", err)
 	}
 
-	tx, err := registrystate.RegistryTransaction(ctx, reg)
+	tx, err := registrystate.RegistryTransaction(ctx, view.Registry())
 	if err != nil {
 		return err
 	}
@@ -381,28 +381,28 @@ func (c *getCommand) getRegistryValues(ctx *hookstate.Context, plugName string, 
 	return c.printPatch(res)
 }
 
-func getRegistryView(ctx *hookstate.Context, plugName string) (*registry.Registry, *registry.View, error) {
+func getRegistryView(ctx *hookstate.Context, plugName string) (*registry.View, error) {
 	repo := ifacerepo.Get(ctx.State())
 
 	plug := repo.Plug(ctx.InstanceName(), plugName)
 	if plug == nil {
-		return nil, nil, fmt.Errorf(i18n.G("cannot find plug :%s for snap %q"), plugName, ctx.InstanceName())
+		return nil, fmt.Errorf(i18n.G("cannot find plug :%s for snap %q"), plugName, ctx.InstanceName())
 	}
 
 	if plug.Interface != "registry" {
-		return nil, nil, fmt.Errorf(i18n.G("cannot use --view with non-registry plug :%s"), plugName)
+		return nil, fmt.Errorf(i18n.G("cannot use --view with non-registry plug :%s"), plugName)
 	}
 
 	var account string
 	if err := plug.Attr("account", &account); err != nil {
 		// should not be possible at this stage
-		return nil, nil, fmt.Errorf(i18n.G("internal error: cannot find \"account\" attribute in plug :%s: %w"), plugName, err)
+		return nil, fmt.Errorf(i18n.G("internal error: cannot find \"account\" attribute in plug :%s: %w"), plugName, err)
 	}
 
 	var registryView string
 	if err := plug.Attr("view", &registryView); err != nil {
 		// should not be possible at this stage
-		return nil, nil, fmt.Errorf(i18n.G("internal error: cannot find \"view\" attribute in plug :%s: %w"), plugName, err)
+		return nil, fmt.Errorf(i18n.G("internal error: cannot find \"view\" attribute in plug :%s: %w"), plugName, err)
 	}
 
 	parts := strings.Split(registryView, "/")
@@ -411,16 +411,16 @@ func getRegistryView(ctx *hookstate.Context, plugName string) (*registry.Registr
 	registryAssert, err := assertstate.Registry(ctx.State(), account, registryName)
 	if err != nil {
 		if errors.Is(err, &asserts.NotFoundError{}) {
-			return nil, nil, fmt.Errorf(i18n.G("registry assertion %s/%s not found"), account, registryView)
+			return nil, fmt.Errorf(i18n.G("registry assertion %s/%s not found"), account, registryView)
 		}
-		return nil, nil, err
+		return nil, err
 	}
 	reg := registryAssert.Registry()
 
 	view := reg.View(viewName)
 	if view == nil {
-		return nil, nil, fmt.Errorf(i18n.G("view %q not found in registry %s/%s"), viewName, account, registryName)
+		return nil, fmt.Errorf(i18n.G("view %q not found in registry %s/%s"), viewName, account, registryName)
 	}
 
-	return reg, view, nil
+	return view, nil
 }

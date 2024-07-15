@@ -26,7 +26,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/jsonutil"
+	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 )
 
 var shortSetHelp = i18n.G("Change configuration options")
@@ -93,38 +93,14 @@ func (x *cmdSet) Execute([]string) error {
 		return fmt.Errorf(i18n.G("cannot use -t and -s together"))
 	}
 
-	patchValues := make(map[string]interface{})
-	for _, patchValue := range x.Positional.ConfValues {
-		parts := strings.SplitN(patchValue, "=", 2)
-		if len(parts) == 1 && strings.HasSuffix(patchValue, "!") {
-			patchValues[strings.TrimSuffix(patchValue, "!")] = nil
-			continue
-		}
-		if len(parts) != 2 {
-			return fmt.Errorf(i18n.G("invalid configuration: %q (want key=value)"), patchValue)
-		}
-
-		if x.String {
-			patchValues[parts[0]] = parts[1]
-		} else {
-			var value interface{}
-			if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
-				if x.Typed {
-					return fmt.Errorf("failed to parse JSON: %w", err)
-				}
-
-				// Not valid JSON-- just save the string as-is.
-				patchValues[parts[0]] = parts[1]
-			} else {
-				patchValues[parts[0]] = value
-			}
-		}
+	opts := &ctlcmd.ParseConfigOptions{String: x.String, Typed: x.Typed}
+	patchValues, err := ctlcmd.ParseConfigValues(x.Positional.ConfValues, opts)
+	if err != nil {
+		return err
 	}
 
 	snapName := string(x.Positional.Snap)
-
 	var chgID string
-	var err error
 	if isRegistryViewID(snapName) {
 		if err := validateRegistryFeatureFlag(); err != nil {
 			return err
