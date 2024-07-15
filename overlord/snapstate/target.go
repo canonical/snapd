@@ -240,8 +240,8 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 		return nil, err
 	}
 
-	// create a closure that will lazily load the enforced validation sets if
-	// any of the targets require them
+	// create a closure that will lazily load (and cache, in vsets) the enforced
+	// validation sets if any of the targets require them
 	var vsets *snapasserts.ValidationSets
 	enforcedSets := func() (*snapasserts.ValidationSets, error) {
 		if vsets != nil {
@@ -773,6 +773,8 @@ func (p *updatePlan) targetInfos() []*snap.Info {
 	return infos
 }
 
+// filter applies the given function to each target in the update plan and
+// removes any targets for which the function returns false.
 func (p *updatePlan) filter(f func(t target) (bool, error)) error {
 	filtered := p.targets[:0]
 	for _, t := range p.targets {
@@ -789,6 +791,9 @@ func (p *updatePlan) filter(f func(t target) (bool, error)) error {
 	return nil
 }
 
+// filterHeldSnaps removes any targets from the update plan that are held.
+// If the update plan is not refreshing all snaps, then this function does
+// nothing.
 func (p *updatePlan) filterHeldSnaps(st *state.State, opts Options) error {
 	// we only filter out held snaps during auto-refresh or general refreshes
 	// that do not specify specific snaps
@@ -814,6 +819,9 @@ func (p *updatePlan) filterHeldSnaps(st *state.State, opts Options) error {
 	return nil
 }
 
+// validateAndFilterTargets validates the targets in the update plan against the
+// enforced validation sets. Any targets that cannot be validated are removed
+// from the update plan.
 func (p *updatePlan) validateAndFilterTargets(st *state.State, opts Options) error {
 	if ValidateRefreshes == nil || len(p.targets) == 0 || opts.Flags.IgnoreValidation {
 		return nil

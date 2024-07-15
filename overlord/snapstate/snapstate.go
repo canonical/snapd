@@ -1813,18 +1813,27 @@ type UpdateTaskSets struct {
 	Refresh []*state.TaskSet
 }
 
+// update contains the state of a snap before it is updated on the system and
+// the desired state of the snap.
 type update struct {
-	Setup      SnapSetup
-	SnapState  SnapState
+	// SnapState contains the state of the snap on the system, before the snap is
+	// updated.
+	SnapState SnapState
+	// Setup contains the desired state of the snap.
+	Setup SnapSetup
+	// Components contains the desired state of the components of the snap.
 	Components []ComponentSetup
 }
 
+// satisfied returns true if the state of the snap on the system matches the
+// state specified in the update. This method is primarily concerned with the
+// revision of the snap.
+//
+// TODO:COMPS: check if we need to change the state of components
 func (u *update) satisfied() bool {
 	if u.Setup.AlwaysUpdate || !u.SnapState.IsInstalled() {
 		return false
 	}
-
-	// TODO:COMPS: check that we need change the state of components
 
 	return u.SnapState.Current == u.Setup.Revision()
 }

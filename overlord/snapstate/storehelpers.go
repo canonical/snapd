@@ -600,8 +600,8 @@ func storeUpdatePlan(
 		}
 	}
 
-	// create a closure that will lazily load the enforced validation sets if
-	// any of the targets require them
+	// create a closure that will lazily load (and cache, in vsets) the enforced
+	// validation sets if any of the targets require them
 	var vsets *snapasserts.ValidationSets
 	enforcedSets := func() (*snapasserts.ValidationSets, error) {
 		if vsets != nil {
@@ -626,7 +626,7 @@ func storeUpdatePlan(
 	}
 
 	// hasLocalRevision keeps track of snaps that already have a local revision
-	// matches the requested revision. there are two distinct cases here:
+	// matching the requested revision. there are two distinct cases here:
 	//
 	// * the snap might have been requested to be updated but didn't get
 	//   updated, either because we detected that the requested/required revision
@@ -679,7 +679,7 @@ func storeUpdatePlan(
 			return updatePlan{}, fmt.Errorf("internal error: snap %q not found", sar.InstanceName())
 		}
 
-		// TODO: handle components here
+		// TODO:COMPS: handle components here
 
 		plan.targets = append(plan.targets, target{
 			info:   sar.Info,
@@ -708,7 +708,7 @@ func storeUpdatePlan(
 			return updatePlan{}, err
 		}
 
-		// TODO: handle components here
+		// TODO:COMPS: handle components here
 
 		// make sure that we switch the current channel of the snap that we're
 		// switching to
