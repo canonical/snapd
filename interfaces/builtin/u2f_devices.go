@@ -170,7 +170,7 @@ var u2fDevices = []u2fDevice{
 	{
 		Name:             "Token2 FIDO2 key",
 		VendorIDPattern:  "349e",
-		ProductIDPattern: "0010|0011|0012|0020|0021|0022|0200|0201|0202",
+		ProductIDPattern: "0010|0011|0012|0013|0014|0015|0016|0020|0021|0022|0023|0024|0025|0026|0200|0201|0202|0203|0204|0205|0206",
 	},
 	{
 		Name:             "Swissbit iShield Key",
