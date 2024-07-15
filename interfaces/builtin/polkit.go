@@ -172,16 +172,20 @@ func isPathMountedWritable(mntProfile *osutil.MountProfile, fsPath string) bool 
 	return false
 }
 
+var (
+	// polkitProcSelfMounts is the path of /proc/self/mounts as used by polkit interface.
+	polkitProcSelfMounts = "/proc/self/mounts"
+	// polkitDaemonPath1 is the path of polkitd on core<24.
+	polkitDaemonPath1 = "/usr/libexec/polkitd"
+	// polkitDaemonPath2 is the path of polkid on core>=24.
+	polkitDaemonPath2 = "/usr/lib/polkit-1/polkitd"
+)
+
 // hasPolkitDaemonExecutable checks known paths on core for the presence of
 // the polkit daemon executable. This function can be shortened but keep it like
 // this for readability.
 func hasPolkitDaemonExecutable() bool {
-	// On core22(+core-desktop?) polkitd is at /usr/libexec/polkitd
-	if osutil.IsExecutable("/usr/libexec/polkitd") {
-		return true
-	}
-	// On core24 polkitd is at /usr/lib/polkit-1/polkitd
-	return osutil.IsExecutable("/usr/lib/polkit-1/polkitd")
+	return osutil.IsExecutable(polkitDaemonPath1) || osutil.IsExecutable(polkitDaemonPath2)
 }
 
 func polkitPoliciesSupported() bool {
@@ -190,7 +194,7 @@ func polkitPoliciesSupported() bool {
 		return false
 	}
 
-	mntProfile, err := osutil.LoadMountProfile("/proc/self/mounts")
+	mntProfile, err := osutil.LoadMountProfile(polkitProcSelfMounts)
 	if err != nil {
 		// XXX: we are called from init() what can we do here?
 		return false
@@ -202,12 +206,18 @@ func polkitPoliciesSupported() bool {
 	return isPathMountedWritable(mntProfile, "/usr/share/polkit-1/actions")
 }
 
+func (iface *polkitInterface) StaticInfo() interfaces.StaticInfo {
+	info := iface.commonInterface.StaticInfo()
+	info.ImplicitOnCore = polkitPoliciesSupported()
+	return info
+}
+
 func init() {
 	registerIface(&polkitInterface{
 		commonInterface{
-			name:                  "polkit",
-			summary:               polkitSummary,
-			implicitOnCore:        polkitPoliciesSupported(),
+			name:    "polkit",
+			summary: polkitSummary,
+			// implicitOnCore is computed dynamically
 			implicitOnClassic:     true,
 			baseDeclarationPlugs:  polkitBaseDeclarationPlugs,
 			baseDeclarationSlots:  polkitBaseDeclarationSlots,
