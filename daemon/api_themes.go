@@ -233,7 +233,6 @@ func installThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 		userID = user.ID
 	}
 
-	// TODO: should this use the request context?
 	installed, tasksets, err := snapstateInstallWithGoal(r.Context(), st, snapstateStoreInstallGoal(toInstall...), snapstate.Options{
 		UserID: userID,
 	})
