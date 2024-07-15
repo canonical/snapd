@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/configstate"
@@ -104,8 +105,8 @@ func (s *setCommand) Execute(args []string) error {
 	}
 
 	if s.View {
-		opts := &ParseConfigOptions{String: s.String, Typed: s.Typed}
-		requests, err := ParseConfigValues(s.Positional.ConfValues, opts)
+		opts := &clientutil.ParseConfigOptions{String: s.String, Typed: s.Typed}
+		requests, err := clientutil.ParseConfigValues(s.Positional.ConfValues, opts)
 		if err != nil {
 			return fmt.Errorf(i18n.G("cannot set %s plug: %w"), s.Positional.PlugOrSlotSpec, err)
 		}
@@ -121,8 +122,8 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 	tr := configstate.ContextTransaction(context)
 	context.Unlock()
 
-	opts := &ParseConfigOptions{String: s.String, Typed: s.Typed}
-	confValues, err := ParseConfigValues(s.Positional.ConfValues, opts)
+	opts := &clientutil.ParseConfigOptions{String: s.String, Typed: s.Typed}
+	confValues, err := clientutil.ParseConfigValues(s.Positional.ConfValues, opts)
 	if err != nil {
 		return err
 	}
@@ -242,53 +243,4 @@ func (s *setCommand) setRegistryValues(ctx *hookstate.Context, plugName string, 
 	// (e.g., "registry-changed" hooks can only read data)
 
 	return registrystate.SetViaViewInTx(tx, view, requests)
-}
-
-// ParseConfigOptions controls how config values should be parsed.
-type ParseConfigOptions struct {
-	// String is enabled when values should be stored as-is w/o parsing being parsed.
-	String bool
-	// Typed is enabled when values should be stored parsed as JSON. If String is
-	// enabled, this value is ignored.
-	Typed bool
-}
-
-// ParseConfigValues parses config values in the format of "foo=bar" or "!foo",
-// optionally a strict strings or JSON values depending on passed options.
-// By default, values are parsed if valid JSON and stored as-is if not.
-func ParseConfigValues(confValues []string, opts *ParseConfigOptions) (map[string]interface{}, error) {
-	if opts == nil {
-		opts = &ParseConfigOptions{}
-	}
-
-	patchValues := make(map[string]interface{}, len(confValues))
-	for _, patchValue := range confValues {
-		parts := strings.SplitN(patchValue, "=", 2)
-		if len(parts) == 1 && strings.HasSuffix(patchValue, "!") {
-			patchValues[strings.TrimSuffix(patchValue, "!")] = nil
-			continue
-		}
-
-		if len(parts) != 2 {
-			return nil, fmt.Errorf(i18n.G("invalid configuration: %q (want key=value)"), patchValue)
-		}
-
-		if opts.String {
-			patchValues[parts[0]] = parts[1]
-		} else {
-			var value interface{}
-			if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
-				if opts.Typed {
-					return nil, fmt.Errorf(i18n.G("failed to parse JSON: %w"), err)
-				}
-
-				// Not valid JSON-- just save the string as-is.
-				patchValues[parts[0]] = parts[1]
-			} else {
-				patchValues[parts[0]] = value
-			}
-		}
-	}
-
-	return patchValues, nil
 }

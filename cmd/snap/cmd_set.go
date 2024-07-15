@@ -25,8 +25,8 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 )
 
 var shortSetHelp = i18n.G("Change configuration options")
@@ -93,8 +93,8 @@ func (x *cmdSet) Execute([]string) error {
 		return fmt.Errorf(i18n.G("cannot use -t and -s together"))
 	}
 
-	opts := &ctlcmd.ParseConfigOptions{String: x.String, Typed: x.Typed}
-	patchValues, err := ctlcmd.ParseConfigValues(x.Positional.ConfValues, opts)
+	opts := &clientutil.ParseConfigOptions{String: x.String, Typed: x.Typed}
+	patchValues, err := clientutil.ParseConfigValues(x.Positional.ConfValues, opts)
 	if err != nil {
 		return err
 	}
