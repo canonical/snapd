@@ -45,11 +45,29 @@ type polkitInterfaceSuite struct {
 	slotInfo *snap.SlotInfo
 	plug     *interfaces.ConnectedPlug
 	plugInfo *snap.PlugInfo
+
+	procSelfMounts string
+	daemonPath1    string
+	daemonPath2    string
+	restorePaths   func()
 }
 
 var _ = Suite(&polkitInterfaceSuite{
 	iface: builtin.MustInterface("polkit"),
 })
+
+func (s *polkitInterfaceSuite) SetUpSuite(c *C) {
+	mockedPolkitBase := c.MkDir()
+
+	s.procSelfMounts = filepath.Join(mockedPolkitBase, "proc-self-mounts")
+	s.daemonPath1 = filepath.Join(mockedPolkitBase, "polkitd-1")
+	s.daemonPath2 = filepath.Join(mockedPolkitBase, "polkitd-2")
+	s.restorePaths = builtin.MockPolkitPaths(s.procSelfMounts, s.daemonPath1, s.daemonPath2)
+}
+
+func (s *polkitInterfaceSuite) TearDownSuite(c *C) {
+	s.restorePaths()
+}
 
 func (s *polkitInterfaceSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
@@ -78,6 +96,10 @@ slots:
 
 	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "polkit")
 	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "polkit")
+
+	c.Assert(os.WriteFile(s.procSelfMounts, nil, 0o600), IsNil)
+	c.Assert(os.WriteFile(s.daemonPath1, nil, 0o600), IsNil)
+	c.Assert(os.WriteFile(s.daemonPath2, nil, 0o600), IsNil)
 }
 
 func (s *polkitInterfaceSuite) TestName(c *C) {
@@ -277,11 +299,48 @@ func (s *polkitInterfaceSuite) isProfilePathAccessible(c *C) bool {
 
 func (s *polkitInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
-	c.Check(si.ImplicitOnCore, Equals, s.isProfilePathAccessible(c) && (osutil.IsExecutable("/usr/libexec/polkitd") || osutil.IsExecutable("/usr/lib/polkit-1/polkitd")))
+	c.Check(si.ImplicitOnCore, Equals, false) // This is really tested in TestPolkitPoliciesSupported.
 	c.Check(si.ImplicitOnClassic, Equals, true)
 	c.Check(si.Summary, Equals, "allows access to polkitd to check authorisation")
 	c.Check(si.BaseDeclarationPlugs, testutil.Contains, "polkit")
 	c.Check(si.BaseDeclarationSlots, testutil.Contains, "polkit")
+}
+
+func (s *polkitInterfaceSuite) TestPolkitPoliciesSupported(c *C) {
+	const (
+		procSelfMountsRoPolkitActions = `/usr/share/polkit-1/actions /usr/share/polkit-1/actions none ro,bind 0 0`
+		procSelfMountsRwPolkitActions = `/usr/share/polkit-1/actions /usr/share/polkit-1/actions none rw,bind 0 0`
+	)
+
+	// From now on the actions directory is a read-write mount so daemon permissions matter.
+	c.Assert(os.WriteFile(s.procSelfMounts, []byte(procSelfMountsRwPolkitActions), 0o600), IsNil)
+
+	// Neither daemon is executable so polkit policies are not supported.
+	c.Assert(os.Chmod(s.daemonPath1, 0o600), IsNil)
+	c.Assert(os.Chmod(s.daemonPath2, 0o600), IsNil)
+	c.Check(builtin.PolkitPoliciesSupported(), Equals, false)
+
+	// The 1st daemon is executable so polkit policies are supported.
+	c.Assert(os.Chmod(s.daemonPath1, 0o700), IsNil)
+	c.Assert(os.Chmod(s.daemonPath2, 0o600), IsNil)
+	c.Check(builtin.PolkitPoliciesSupported(), Equals, true)
+
+	// The 2nd daemon is executable so polkit policies are supported.
+	c.Assert(os.Chmod(s.daemonPath1, 0o600), IsNil)
+	c.Assert(os.Chmod(s.daemonPath2, 0o700), IsNil)
+	c.Check(builtin.PolkitPoliciesSupported(), Equals, true)
+
+	// From now own, both daemons are executable so mounts matter.
+	c.Assert(os.Chmod(s.daemonPath1, 0o700), IsNil)
+	c.Assert(os.Chmod(s.daemonPath2, 0o700), IsNil)
+
+	// Actions directory is a read-only mount so polkit policies are not supported.
+	c.Assert(os.WriteFile(s.procSelfMounts, []byte(procSelfMountsRoPolkitActions), 0o600), IsNil)
+	c.Check(builtin.PolkitPoliciesSupported(), Equals, false)
+
+	// Actions directory is a read-write mount so polkit policies are not supported.
+	c.Assert(os.WriteFile(s.procSelfMounts, []byte(procSelfMountsRwPolkitActions), 0o600), IsNil)
+	c.Check(builtin.PolkitPoliciesSupported(), Equals, true)
 }
 
 func (s *polkitInterfaceSuite) TestInterfaces(c *C) {

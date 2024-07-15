@@ -38,6 +38,7 @@ var (
 	GetDesktopFileRules         = getDesktopFileRules
 	StringListAttribute         = stringListAttribute
 	IsPathMountedWritable       = isPathMountedWritable
+	PolkitPoliciesSupported     = polkitPoliciesSupported
 )
 
 func MprisGetName(iface interfaces.Interface, attribs map[string]interface{}) (string, error) {
@@ -132,4 +133,20 @@ func MockDirsToEnsure(fn func(paths []string) ([]*interfaces.EnsureDirSpec, erro
 	dirsToEnsure = fn
 
 	return restore
+}
+
+func MockPolkitPaths(procSelfMounts, daemonPath1, daemonPath2 string) (restore func()) {
+	oldProcSelfMounts := polkitProcSelfMounts
+	oldDaemonPath1 := polkitDaemonPath1
+	oldDaemonPath2 := polkitDaemonPath2
+
+	polkitProcSelfMounts = procSelfMounts
+	polkitDaemonPath1 = daemonPath1
+	polkitDaemonPath2 = daemonPath2
+
+	return func() {
+		polkitProcSelfMounts = oldProcSelfMounts
+		polkitDaemonPath1 = oldDaemonPath1
+		polkitDaemonPath2 = oldDaemonPath2
+	}
 }
