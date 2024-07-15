@@ -2004,7 +2004,16 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThroughDefaultTrack(c *C) {
 	s.testInstallWithRevisionRunThrough(c, snapName, channel, defaultTrack)
 }
 
-func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, channel, defaultTrack string) {
+func (s *snapmgrTestSuite) TestInstallWithRevisionRunThroughDefaultTrackWithChannel(c *C) {
+	const (
+		channel      = "edge"
+		snapName     = "some-snap-with-default-track"
+		defaultTrack = "2.0/edge"
+	)
+	s.testInstallWithRevisionRunThrough(c, snapName, channel, defaultTrack)
+}
+
+func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, requestedChannel, defaultTrack string) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2012,17 +2021,12 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, cha
 	snapFileName := snapName + "_42.snap"
 
 	chg := s.state.NewChange("install", "install a snap")
-	opts := &snapstate.RevisionOptions{Channel: channel, Revision: snap.R(42)}
+	opts := &snapstate.RevisionOptions{Channel: requestedChannel, Revision: snap.R(42)}
 	ts, err := snapstate.Install(context.Background(), s.state, snapName, opts, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
 	s.settle(c)
-
-	effectiveChannel := channel
-	if effectiveChannel == "" {
-		effectiveChannel = "stable"
-	}
 
 	// ensure all our tasks ran
 	c.Assert(chg.Err(), IsNil)
@@ -2044,7 +2048,7 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, cha
 				Action:       "install",
 				InstanceName: snapName,
 				Revision:     snap.R(42),
-				Channel:      effectiveChannel,
+				Channel:      requestedChannel,
 			},
 			revno:  snap.R(42),
 			userID: 1,
@@ -2069,7 +2073,7 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, cha
 				RealName: snapName,
 				SnapID:   snapID,
 				Revision: snap.R(42),
-				Channel:  effectiveChannel,
+				Channel:  requestedChannel,
 			},
 		},
 		{
@@ -2098,7 +2102,7 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, cha
 				RealName: snapName,
 				SnapID:   snapID,
 				Revision: snap.R(42),
-				Channel:  effectiveChannel,
+				Channel:  requestedChannel,
 			},
 		},
 		{
@@ -2123,9 +2127,17 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, cha
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
-	setupChannel := defaultTrack
-	if setupChannel == "" {
-		setupChannel = effectiveChannel
+	var setupChannel, trackedChannel string
+	switch {
+	case defaultTrack != "":
+		trackedChannel = defaultTrack
+		setupChannel = defaultTrack
+	case requestedChannel != "":
+		trackedChannel = requestedChannel
+		setupChannel = requestedChannel
+	default:
+		trackedChannel = "latest/stable"
+		setupChannel = "stable"
 	}
 
 	// check progress
@@ -2163,23 +2175,13 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, cha
 		RealName: snapName,
 		Revision: snap.R(42),
 		SnapID:   snapID,
-		Channel:  effectiveChannel,
+		Channel:  requestedChannel,
 	})
 
 	// verify snaps in the system state
 	var snaps map[string]*snapstate.SnapState
 	err = s.state.Get("snaps", &snaps)
 	c.Assert(err, IsNil)
-
-	var trackedChannel string
-	switch {
-	case defaultTrack != "":
-		trackedChannel = defaultTrack
-	case channel != "":
-		trackedChannel = channel
-	default:
-		trackedChannel = "latest/stable"
-	}
 
 	snapst := snaps[snapName]
 	c.Assert(snapst, NotNil)
@@ -2190,7 +2192,7 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, cha
 		RealName: snapName,
 		SnapID:   snapID,
 		Revision: snap.R(42),
-		Channel:  effectiveChannel,
+		Channel:  requestedChannel,
 	}, nil))
 	c.Assert(snapst.Required, Equals, false)
 }
@@ -4896,7 +4898,6 @@ func (s *validationSetsSuite) TestInstallSnapReferencedByValidationSetWrongRevis
 			Action:       "install",
 			Revision:     snap.R(11),
 			InstanceName: "some-snap",
-			Channel:      "stable",
 			Flags:        store.SnapActionIgnoreValidation,
 		},
 		revno: snap.R(11),

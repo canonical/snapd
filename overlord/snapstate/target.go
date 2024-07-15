@@ -192,7 +192,10 @@ func StoreInstallGoal(snaps ...StoreSnap) InstallGoal {
 			continue
 		}
 
-		if sn.RevOpts.Channel == "" {
+		// only provide a default the channel if the revision is not set, since
+		// we don't want to prevent the user from installing a specific revision
+		// that doesn't happen to exist in the "stable" risk
+		if sn.RevOpts.Channel == "" && sn.RevOpts.Revision.Unset() {
 			sn.RevOpts.Channel = "stable"
 		}
 
@@ -306,9 +309,18 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			snapst = &SnapState{}
 		}
 
-		channel := r.RedirectChannel
-		if r.RedirectChannel == "" {
+		var channel string
+		switch {
+		case r.RedirectChannel != "":
+			channel = r.RedirectChannel
+		case sn.RevOpts.Channel != "":
 			channel = sn.RevOpts.Channel
+		default:
+			// this should only ever happen if the caller requested a specific
+			// revision to be installed (without specifying a channel), but the
+			// store didn't return a redirect channel. this would happen if the
+			// snap doens't have a default track
+			channel = "stable"
 		}
 
 		comps, err := componentTargetsFromActionResult(r, sn.Components)
