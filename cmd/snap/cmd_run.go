@@ -497,7 +497,7 @@ func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 // for a window where we don't hold the lock before the tracking cgroup is created
 // where a snap refresh/removal could start.
 func checkSnapRunInhibitionConflict(app *snap.AppInfo) error {
-	// Remove hint check takes precedence because we want to exit
+	// Remove hint check takes precedence because we want to exit early
 	snapName := app.Snap.InstanceName()
 	hint, _, err := runinhibit.IsLocked(snapName)
 	if err != nil {
@@ -512,9 +512,13 @@ func checkSnapRunInhibitionConflict(app *snap.AppInfo) error {
 		return nil
 	}
 
-	// We started without a hint lock file, if it exists now this means that a
-	// refresh might have started and retry is needed.
+	// We started without a hint lock file, if it exists now this means that:
+	// - There is an ongoing refresh
+	// - Or, A refresh was started and finished
+	// Let's retry to avoid either existing with an error due to missing current
+	// symlink or worse starting with the wrong revision.
 	if osutil.FileExists(runinhibit.HintFile(snapName)) {
+		// errSnapRefreshConflict should trigger a retry
 		return errSnapRefreshConflict
 	}
 
