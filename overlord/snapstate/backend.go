@@ -96,6 +96,7 @@ type managerBackend interface {
 	// remove related
 	UnlinkSnap(info *snap.Info, linkCtx backend.LinkContext, meter progress.Meter) error
 	UnlinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error
+	KillSnapApps(snapName string, reason snap.AppKillReason, meter progress.Meter) error
 	RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, dev snap.Device, meter progress.Meter) error
 	RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error
 	RemoveSnapData(info *snap.Info, opts *dirs.SnapDirOptions) error

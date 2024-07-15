@@ -20,12 +20,17 @@
 package backend_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -46,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
+	"github.com/snapcore/snapd/usersession/client"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -1084,4 +1090,85 @@ func (s *linkSuite) TestUnlinkComponentError(c *C) {
 
 	err := s.be.UnlinkComponent(cpi, snapRev)
 	c.Assert(err, ErrorMatches, `remove .*: directory not empty`)
+}
+
+func mockUserSessionAgent(handler http.Handler, c *C) (restore func()) {
+	server := &http.Server{Handler: handler}
+	for _, uid := range []int{1000, 42} {
+		sock := fmt.Sprintf("%s/%d/snapd-session-agent.socket", dirs.XdgRuntimeDirBase, uid)
+		err := os.MkdirAll(filepath.Dir(sock), 0755)
+		c.Assert(err, IsNil)
+		l, err := net.Listen("unix", sock)
+		c.Assert(err, IsNil)
+		go func(l net.Listener) {
+			err := server.Serve(l)
+			c.Check(err, Equals, http.ErrServerClosed)
+		}(l)
+	}
+
+	return func() {
+		err := server.Shutdown(context.Background())
+		c.Check(err, IsNil)
+	}
+}
+
+func (s *linkSuite) TestKillSnapApps(c *C) {
+	var agentCalled int32
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&agentCalled, 1)
+		c.Assert(r.URL.Path, Equals, "/v1/app-control")
+		w.Header().Set("Content-Type", "application/json")
+
+		decoder := json.NewDecoder(r.Body)
+		var inst client.AppInstruction
+		c.Assert(decoder.Decode(&inst), IsNil)
+		c.Check(inst.Action, Equals, "kill")
+		c.Check(inst.Snaps, DeepEquals, []string{"foo"})
+		c.Check(inst.Signal, Equals, syscall.SIGKILL)
+		c.Check(inst.Reason, Equals, snap.KillReasonRemove)
+
+		w.WriteHeader(200)
+		w.Write([]byte(`{
+  "type": "sync",
+  "result": null
+}`))
+	})
+	restore := mockUserSessionAgent(handler, c)
+	defer restore()
+
+	err := s.be.KillSnapApps("foo", snap.KillReasonRemove, nil)
+	c.Assert(err, IsNil)
+
+	// called for two users 1000 and 42
+	c.Check(agentCalled, Equals, int32(2))
+}
+
+func (s *linkSuite) TestKillSnapAppsFailure(c *C) {
+	var agentCalled int32
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&agentCalled, 1)
+		c.Assert(r.URL.Path, Equals, "/v1/app-control")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(500)
+		w.Write([]byte(`{
+  "type": "error",
+  "result": {
+    "kind": "app-control",
+    "message": "failed to kill running apps",
+    "value": {
+      "kill-errors": {
+        "snap.foo.some-app-7414e1a3-6d08-43ff-a81c-6547242a78b0.scope": "failed to kill running app"
+      }
+    }
+  }
+}`))
+	})
+	restore := mockUserSessionAgent(handler, c)
+	defer restore()
+
+	err := s.be.KillSnapApps("foo", snap.KillReasonRemove, progress.Null)
+	c.Assert(err, ErrorMatches, "failed to kill running apps")
+
+	// called for two users 1000 and 42
+	c.Check(agentCalled, Equals, int32(2))
 }

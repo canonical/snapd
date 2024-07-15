@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -2535,4 +2536,197 @@ func (s *linkSnapSuite) TestDoLinkSnapWithToolingCore18(c *C) {
 
 func (s *linkSnapSuite) TestDoLinkSnapWithToolingCore20(c *C) {
 	s.testDoLinkSnapWithToolingDependency(c, "core20")
+}
+
+func (s *linkSnapSuite) testDoKillSnapApps(c *C, svc bool) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		Active:   true,
+	})
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		c.Assert(name, Equals, "some-snap")
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
+		if svc {
+			info.Apps = map[string]*snap.AppInfo{
+				"svc1": {Snap: info, Name: "svc1", Daemon: "simple"},
+			}
+		}
+		return info, nil
+	})
+	defer restore()
+
+	task := s.state.NewTask("kill-snap-apps", "")
+	task.Set("kill-reason", snap.KillReasonRemove)
+	task.Set("snap-setup", &snapstate.SnapSetup{SideInfo: si})
+	chg := s.state.NewChange("test", "")
+	chg.AddTask(task)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	expected := fakeOps{
+		{
+			op:   "kill-snap-apps:remove",
+			name: "some-snap",
+		},
+	}
+	if svc {
+		expected = append(expected, fakeOp{
+			op:   "stop-snap-services:remove",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
+		})
+	}
+
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+
+	hint, _, err := runinhibit.IsLocked("some-snap")
+	c.Assert(err, IsNil)
+	c.Check(hint, Equals, runinhibit.HintInhibitedForRemove)
+}
+
+func (s *linkSnapSuite) TestDoKillSnapApps(c *C) {
+	const svc = false
+	s.testDoKillSnapApps(c, svc)
+}
+
+func (s *linkSnapSuite) TestDoKillSnapAppsWithServices(c *C) {
+	const svc = true
+	s.testDoKillSnapApps(c, svc)
+}
+
+func (s *linkSnapSuite) TestDoKillSnapAppsUnlocksOnError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		Active:   true,
+	})
+
+	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+		if op.op == "kill-snap-apps:remove" {
+			return fmt.Errorf("boom!")
+		}
+		return nil
+	}
+
+	task := s.state.NewTask("kill-snap-apps", "")
+	task.Set("kill-reason", snap.KillReasonRemove)
+	task.Set("snap-setup", &snapstate.SnapSetup{SideInfo: si})
+	chg := s.state.NewChange("test", "")
+	chg.AddTask(task)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+
+	c.Assert(task.Status(), Equals, state.ErrorStatus)
+
+	hint, _, err := runinhibit.IsLocked("some-snap")
+	c.Assert(err, IsNil)
+	// On error hint inhibition file is unlocked
+	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+}
+
+func (s *linkSnapSuite) testDoUndoKillSnapApps(c *C, svc bool) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		Active:   true,
+	})
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		c.Assert(name, Equals, "some-snap")
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
+		if svc {
+			info.Apps = map[string]*snap.AppInfo{
+				"svc1": {Snap: info, Name: "svc1", Daemon: "simple"},
+			}
+		}
+		return info, nil
+	})
+	defer restore()
+
+	task := s.state.NewTask("kill-snap-apps", "")
+	task.Set("kill-reason", snap.KillReasonRemove)
+	task.Set("snap-setup", &snapstate.SnapSetup{SideInfo: si})
+	chg := s.state.NewChange("test", "")
+	chg.AddTask(task)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(task)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Check(task.Status(), Equals, state.UndoneStatus)
+
+	expected := fakeOps{
+		{
+			op:   "kill-snap-apps:remove",
+			name: "some-snap",
+		},
+	}
+	if svc {
+		expected = append(expected, fakeOp{
+			op:   "stop-snap-services:remove",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
+		})
+	}
+
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+
+	hint, _, err := runinhibit.IsLocked("some-snap")
+	c.Assert(err, IsNil)
+	// On undo hint inhibition file is unlocked
+	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+}
+
+func (s *linkSnapSuite) TestDoUndoKillSnapApps(c *C) {
+	const svc = false
+	s.testDoUndoKillSnapApps(c, svc)
+}
+
+func (s *linkSnapSuite) TestDoUndoKillSnapAppsWithServices(c *C) {
+	const svc = true
+	s.testDoUndoKillSnapApps(c, svc)
 }
