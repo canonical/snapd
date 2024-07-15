@@ -1933,7 +1933,7 @@ func RegistryPlugAttrs(plug *PlugInfo) (account, registry, view string, err erro
 
 	parts := strings.Split(registryView, "/")
 	if len(parts) != 2 {
-		return "", "", "", fmt.Errorf("cannot get registry attrs: \"view\" must conform to <registry>/<view>: %s", view)
+		return "", "", "", fmt.Errorf("cannot get registry attributes: \"view\" must conform to <registry>/<view>: %s", registryView)
 	}
 	registry, view = parts[0], parts[1]
 
