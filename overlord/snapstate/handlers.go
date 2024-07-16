@@ -3278,6 +3278,8 @@ func (m *SnapManager) doKillSnapApps(t *state.Task, _ *tomb.Tomb) (err error) {
 	if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedForRemove, inhibitInfo); err != nil {
 		return err
 	}
+	// Note: The snap hint lock file is completely removed in “discard-snap”
+	// so we only need to unlock it in case of an error here or during undo.
 	defer func() {
 		// Unlock snap inhibition if anything goes wrong afterwards to
 		// avoid keeping the snap stuck at this inhibited state.

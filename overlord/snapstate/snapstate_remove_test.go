@@ -2090,6 +2090,24 @@ func (s *snapmgrTestSuite) TestRemoveWithTerminate(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestRemoveWithTerminateAndRevisionSet(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(11)},
+			{RealName: "foo", Revision: snap.R(10)},
+		}),
+		Current:  snap.R(11),
+		SnapType: "app",
+	})
+
+	_, err := snapstate.Remove(s.state, "foo", snap.R(10), &snapstate.RemoveFlags{Terminate: true})
+	c.Assert(err, ErrorMatches, "cannot terminate running apps unless all revisions are removed")
+}
+
 func (s *snapmgrTestSuite) TestRemoveManyWithTerminate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

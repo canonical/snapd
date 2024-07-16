@@ -3477,6 +3477,12 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 	}
 
 	if flags.Terminate {
+		// This check is needed to avoid having the snap stuck in inhibition since
+		// "kill-snap-apps" inhibits the snap from running and "discard-snap" only
+		// removes the inhibition file when removing last revision.
+		if !removeAll {
+			return nil, 0, fmt.Errorf("cannot terminate running apps unless all revisions are removed")
+		}
 		stopSnapApps := st.NewTask("kill-snap-apps", fmt.Sprintf(i18n.G("Kill running snap %q apps"), name))
 		stopSnapApps.Set("snap-setup", snapsup)
 		stopSnapApps.Set("kill-reason", snap.KillReasonRemove)

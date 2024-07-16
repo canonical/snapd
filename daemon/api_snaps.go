@@ -403,6 +403,9 @@ func (inst *snapInstruction) validate() error {
 	if inst.Terminate && inst.Action != "remove" {
 		return fmt.Errorf(`terminate can only be specified for the "remove" action`)
 	}
+	if inst.Terminate && !inst.Revision.Unset() {
+		return fmt.Errorf(`terminate can only be specified when revision is unset`)
+	}
 
 	if err := inst.validateSnapshotOptions(); err != nil {
 		return err
