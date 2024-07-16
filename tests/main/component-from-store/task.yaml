@@ -24,5 +24,8 @@ execute: |
   # while this component is defined in the snap, it should not be installed
   not snap run test-snap-with-components three
 
+  snap remove test-snap-with-components+one+two
+  snap remove test-snap-with-components
+
   # TODO:COMPS: test variations of installing snap with components at specific
   # revisions once PR to enable installing with revision and channel is merged
