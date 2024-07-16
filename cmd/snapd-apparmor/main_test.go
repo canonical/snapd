@@ -46,6 +46,7 @@ var _ = Suite(&mainSuite{})
 
 func (s *mainSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(mockWSL(0))
 }
 
 func (s *mainSuite) TearDownTest(c *C) {
@@ -235,6 +236,7 @@ type integrationSuite struct {
 var _ = Suite(&integrationSuite{})
 
 func (s *integrationSuite) SetUpTest(c *C) {
+	s.AddCleanup(mockWSL(0))
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 
