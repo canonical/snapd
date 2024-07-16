@@ -83,10 +83,12 @@ func (s *mainSuite) TestIsContainerWithInternalPolicy(c *C) {
 
 	// simulate being inside WSL
 	restore := mockWSL(1)
+	// FIXME: This is clearly wrong, WSL-1 doesn't emulate any LSM support.
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, true)
 	restore()
 
 	restore = mockWSL(2)
+	// FIXME: This is clearly wrong WSL-2 doesn't have LSM support.
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, true)
 	restore()
 
@@ -269,6 +271,7 @@ func (s *integrationSuite) TestRunInContainerSkipsLoading(c *C) {
 }
 
 func (s *integrationSuite) TestRunInContainerWithInternalPolicyLoadsProfiles(c *C) {
+	// FIXME: This is clearly broken, apparmor doesn't exist in WSL-1.
 	defer mockWSL(1)()
 	err := snapd_apparmor.Run()
 	c.Assert(err, IsNil)
