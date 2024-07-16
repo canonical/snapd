@@ -102,8 +102,11 @@ func (s *requestpromptsSuite) TestNew(c *C) {
 	}
 	pdb, err := requestprompts.New(notifyPrompt)
 	c.Assert(err, IsNil)
+	defer pdb.Close()
 	c.Check(pdb.PerUser(), HasLen, 0)
-	c.Check(pdb.NextID(), Equals, "0000000000000001")
+	nextID, err := pdb.NextID()
+	c.Check(err, IsNil)
+	c.Check(nextID, Equals, "0000000000000001")
 }
 
 func (s *requestpromptsSuite) TestNewValidMaxID(c *C) {
@@ -141,8 +144,11 @@ func (s *requestpromptsSuite) TestNewValidMaxID(c *C) {
 		osutil.AtomicWriteFile(s.maxIDPath, initialData[:], 0600, 0)
 		pdb, err := requestprompts.New(notifyPrompt)
 		c.Assert(err, IsNil)
+		defer pdb.Close()
 		s.checkWrittenMaxID(c, testCase.initial)
-		c.Check(pdb.NextID(), Equals, testCase.nextID)
+		nextID, err := pdb.NextID()
+		c.Check(err, IsNil)
+		c.Check(nextID, Equals, testCase.nextID)
 		s.checkWrittenMaxID(c, testCase.initial+1)
 	}
 }
@@ -156,8 +162,11 @@ func (s *requestpromptsSuite) TestNewInvalidMaxID(c *C) {
 	// First try with no existing max ID file
 	pdb, err := requestprompts.New(notifyPrompt)
 	c.Assert(err, IsNil)
+	defer pdb.Close()
 	s.checkWrittenMaxID(c, 0)
-	c.Check(pdb.NextID(), Equals, "0000000000000001")
+	nextID, err := pdb.NextID()
+	c.Check(err, IsNil)
+	c.Check(nextID, Equals, "0000000000000001")
 	s.checkWrittenMaxID(c, 1)
 
 	// Now try with various invalid max ID files
@@ -171,8 +180,11 @@ func (s *requestpromptsSuite) TestNewInvalidMaxID(c *C) {
 		osutil.AtomicWriteFile(s.maxIDPath, initial, 0600, 0)
 		pdb, err := requestprompts.New(notifyPrompt)
 		c.Assert(err, IsNil)
+		defer pdb.Close()
 		s.checkWrittenMaxID(c, 0)
-		c.Check(pdb.NextID(), Equals, "0000000000000001")
+		nextID, err := pdb.NextID()
+		c.Check(err, IsNil)
+		c.Check(nextID, Equals, "0000000000000001")
 		s.checkWrittenMaxID(c, 1)
 	}
 }
@@ -191,30 +203,42 @@ func (s *requestpromptsSuite) TestNewNextIDUniqueIDs(c *C) {
 
 	pdb1, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
+	defer pdb1.Close()
 	expectedID := initialMaxID + 1
 	expectedIDStr := fmt.Sprintf("%016X", expectedID)
-	c.Check(pdb1.NextID(), Equals, expectedIDStr)
+	nextID, err := pdb1.NextID()
+	c.Check(err, IsNil)
+	c.Check(nextID, Equals, expectedIDStr)
 	s.checkWrittenMaxID(c, expectedID)
 
 	// New prompt DB should start where existing one left off
 	pdb2, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
+	defer pdb2.Close()
 	expectedID++
 	expectedIDStr = fmt.Sprintf("%016X", expectedID)
-	c.Check(pdb2.NextID(), Equals, expectedIDStr)
+	nextID, err = pdb2.NextID()
+	c.Check(err, IsNil)
+	c.Check(nextID, Equals, expectedIDStr)
 
 	// Both prompt DBs should be aware of any new IDs created by any others
 	expectedID++
 	expectedIDStr = fmt.Sprintf("%016X", expectedID)
-	c.Check(pdb1.NextID(), Equals, expectedIDStr)
+	nextID, err = pdb1.NextID()
+	c.Check(err, IsNil)
+	c.Check(nextID, Equals, expectedIDStr)
 
 	expectedID++
 	expectedIDStr = fmt.Sprintf("%016X", expectedID)
-	c.Check(pdb1.NextID(), Equals, expectedIDStr)
+	nextID, err = pdb1.NextID()
+	c.Check(err, IsNil)
+	c.Check(nextID, Equals, expectedIDStr)
 
 	expectedID++
 	expectedIDStr = fmt.Sprintf("%016X", expectedID)
-	c.Check(pdb2.NextID(), Equals, expectedIDStr)
+	nextID, err = pdb2.NextID()
+	c.Check(err, IsNil)
+	c.Check(nextID, Equals, expectedIDStr)
 
 	// For the checks above to have passed, incremented IDs must have been
 	// written to disk, but check now anyway. Theoretically, checking disk
@@ -239,6 +263,7 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
+	defer pdb.Close()
 
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
@@ -252,7 +277,8 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 	listenerReq2 := &listener.Request{}
 	listenerReq3 := &listener.Request{}
 
-	stored := pdb.Prompts(metadata.User)
+	stored, err := pdb.Prompts(metadata.User)
+	c.Assert(err, IsNil)
 	c.Assert(stored, IsNil)
 
 	before := time.Now()
@@ -284,7 +310,8 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 	c.Check(prompt1.Constraints.Path, Equals, path)
 	c.Check(prompt1.Constraints.Permissions, DeepEquals, permissions)
 
-	stored = pdb.Prompts(metadata.User)
+	stored, err = pdb.Prompts(metadata.User)
+	c.Assert(err, IsNil)
 	c.Assert(stored, HasLen, 1)
 	c.Check(stored[0], Equals, prompt1)
 
@@ -346,6 +373,7 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
+	defer pdb.Close()
 
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
@@ -362,7 +390,8 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(prompt, Not(IsNil))
 		c.Assert(merged, Equals, false)
-		stored := pdb.Prompts(metadata.User)
+		stored, err := pdb.Prompts(metadata.User)
+		c.Assert(err, IsNil)
 		c.Assert(stored, HasLen, i+1)
 	}
 
@@ -384,7 +413,8 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 		c.Check(err, Equals, requestprompts.ErrTooManyPrompts)
 		c.Check(prompt, IsNil)
 		c.Check(merged, Equals, false)
-		stored := pdb.Prompts(metadata.User)
+		stored, err := pdb.Prompts(metadata.User)
+		c.Assert(err, IsNil)
 		c.Assert(stored, HasLen, requestprompts.MaxOutstandingPromptsPerUser)
 	}
 
@@ -399,7 +429,8 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(prompt, Not(IsNil))
 		c.Assert(merged, Equals, true)
-		stored := pdb.Prompts(metadata.User)
+		stored, err := pdb.Prompts(metadata.User)
+		c.Assert(err, IsNil)
 		// Number of stored prompts remains the maximum
 		c.Assert(stored, HasLen, requestprompts.MaxOutstandingPromptsPerUser)
 	}
@@ -414,6 +445,7 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
+	defer pdb.Close()
 
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
@@ -459,6 +491,7 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
+	defer pdb.Close()
 
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
@@ -528,6 +561,7 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
+	defer pdb.Close()
 
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
@@ -575,6 +609,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
+	defer pdb.Close()
 
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
@@ -609,7 +644,8 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 
 	s.checkNewNoticesSimple(c, []string{prompt1.ID, prompt2.ID, prompt3.ID, prompt4.ID}, nil)
 
-	stored := pdb.Prompts(metadata.User)
+	stored, err := pdb.Prompts(metadata.User)
+	c.Assert(err, IsNil)
 	c.Assert(stored, HasLen, 4)
 
 	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
@@ -646,7 +682,8 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 		c.Check(allowed, Equals, true)
 	}
 
-	stored = pdb.Prompts(metadata.User)
+	stored, err = pdb.Prompts(metadata.User)
+	c.Assert(err, IsNil)
 	c.Assert(stored, HasLen, 2)
 
 	// Check that allowing the final missing permission allows the prompt.
@@ -684,6 +721,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
+	defer pdb.Close()
 
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
@@ -718,7 +756,8 @@ func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 
 	s.checkNewNoticesSimple(c, []string{prompt1.ID, prompt2.ID, prompt3.ID, prompt4.ID}, nil)
 
-	stored := pdb.Prompts(metadata.User)
+	stored, err := pdb.Prompts(metadata.User)
+	c.Assert(err, IsNil)
 	c.Assert(stored, HasLen, 4)
 
 	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
@@ -752,7 +791,8 @@ func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 		c.Check(allowed, Equals, false)
 	}
 
-	stored = pdb.Prompts(metadata.User)
+	stored, err = pdb.Prompts(metadata.User)
+	c.Check(err, IsNil)
 	c.Check(stored, HasLen, 1)
 }
 
@@ -768,6 +808,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
+	defer pdb.Close()
 
 	user := s.defaultUser
 	snap := "nextcloud"
@@ -805,7 +846,8 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	}
 	badOutcome := prompting.OutcomeType("foo")
 
-	stored := pdb.Prompts(metadata.User)
+	stored, err := pdb.Prompts(metadata.User)
+	c.Assert(err, IsNil)
 	c.Assert(stored, HasLen, 1)
 	c.Assert(stored[0], Equals, prompt)
 
@@ -868,7 +910,8 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	c.Check(ok, Equals, true)
 	c.Check(allowed, Equals, true)
 
-	stored = pdb.Prompts(metadata.User)
+	stored, err = pdb.Prompts(metadata.User)
+	c.Check(err, IsNil)
 	c.Check(stored, IsNil)
 }
 
@@ -921,4 +964,47 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 
 	// All prompts have been cleared, and all per-user maps deleted
 	c.Check(pdb.PerUser(), HasLen, 0)
+}
+
+func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
+		c.Fatalf("should not have called sendReply")
+		return nil
+	})
+	defer restore()
+
+	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+
+	err = pdb.Close()
+	c.Assert(err, IsNil)
+
+	nextID, err := pdb.NextID()
+	c.Check(err, Equals, requestprompts.ErrClosed)
+	c.Check(nextID, Equals, "")
+
+	metadata := prompting.Metadata{Interface: "home"}
+	result, merged, err := pdb.AddOrMerge(&metadata, "", nil, nil)
+	c.Check(err, Equals, requestprompts.ErrClosed)
+	c.Check(result, IsNil)
+	c.Check(merged, Equals, false)
+
+	prompts, err := pdb.Prompts(1000)
+	c.Check(err, Equals, requestprompts.ErrClosed)
+	c.Check(prompts, IsNil)
+
+	prompt, err := pdb.PromptWithID(1000, "foo")
+	c.Check(err, Equals, requestprompts.ErrClosed)
+	c.Check(prompt, IsNil)
+
+	result, err = pdb.Reply(1000, "foo", prompting.OutcomeDeny)
+	c.Check(err, Equals, requestprompts.ErrClosed)
+	c.Check(result, IsNil)
+
+	promptIDs, err := pdb.HandleNewRule(nil, nil, prompting.OutcomeDeny)
+	c.Check(err, Equals, requestprompts.ErrClosed)
+	c.Check(promptIDs, IsNil)
+
+	err = pdb.Close()
+	c.Check(err, Equals, requestprompts.ErrClosed)
 }

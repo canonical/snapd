@@ -39,6 +39,7 @@ import (
 )
 
 var (
+	ErrClosed         = errors.New("prompt DB has already been closed")
 	ErrNotFound       = errors.New("cannot find prompt with the given ID for the given user")
 	ErrTooManyPrompts = errors.New("cannot add new prompt, too many outstanding")
 )
@@ -129,7 +130,7 @@ func New(notifyPrompt func(userID uint32, promptID string, data map[string]strin
 	if err != nil {
 		return nil, fmt.Errorf("cannot open max ID file: %w", err)
 	}
-	// The file/FD can be safely closed once the mmap is created.
+	// The file/FD can be safely closed once the mmap is created. See mmap(2).
 	defer maxIDFile.Close()
 	fileInfo, err := maxIDFile.Stat()
 	if err != nil {
@@ -144,20 +145,32 @@ func New(notifyPrompt func(userID uint32, promptID string, data map[string]strin
 			return nil, err
 		}
 	}
-	pdb.maxIDMmap, err = unix.Mmap(int(maxIDFile.Fd()), 0, maxIDFileSize, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	conn, err := maxIDFile.SyscallConn()
 	if err != nil {
-		return nil, fmt.Errorf("cannot mmap max ID file: %w", err)
+		return nil, fmt.Errorf("cannot get raw file for maxIDFile: %w", err)
+	}
+	var controlErr error
+	err = conn.Control(func(fd uintptr) {
+		// Use Control() so that the file/fd is not garbage collected during
+		// the syscall.
+		pdb.maxIDMmap, controlErr = unix.Mmap(int(fd), 0, maxIDFileSize, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot call control function on maxIDFile conn: %w", err)
+	}
+	if controlErr != nil {
+		return nil, fmt.Errorf("cannot mmap max ID file: %w", controlErr)
 	}
 	return &pdb, nil
 }
 
-// initializeMaxIDFile truncates the given file to 8 bytes of zeros.
+// initializeMaxIDFile truncates the given file to maxIDFileSize bytes of zeros.
 func initializeMaxIDFile(maxIDFile *os.File) (err error) {
-	if err = maxIDFile.Truncate(8); err != nil {
+	initial := [maxIDFileSize]byte{}
+	if err = maxIDFile.Truncate(int64(len(initial))); err != nil {
 		return fmt.Errorf("cannot truncate max ID file: %w", err)
 	}
-	initial := []byte{0, 0, 0, 0, 0, 0, 0, 0}
-	if _, err = maxIDFile.WriteAt(initial, 0); err != nil {
+	if _, err = maxIDFile.WriteAt(initial[:], 0); err != nil {
 		return fmt.Errorf("cannot initialize max ID file: %w", err)
 	}
 	return nil
@@ -165,11 +178,14 @@ func initializeMaxIDFile(maxIDFile *os.File) (err error) {
 
 // nextID increments the internal monotonic maxID integer and returns the
 // corresponding ID string.
-func (pdb *PromptDB) nextID() string {
+func (pdb *PromptDB) nextID() (string, error) {
+	if pdb.maxIDMmap == nil {
+		return "", ErrClosed
+	}
 	// Byte order will be consistent, and want an atomic increment.
 	id := atomic.AddUint64((*uint64)(unsafe.Pointer(&pdb.maxIDMmap[0])), 1)
 	idStr := fmt.Sprintf("%016X", id)
-	return idStr
+	return idStr, nil
 }
 
 // AddOrMerge checks if the given prompt contents are identical to an existing
@@ -195,6 +211,10 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
+
+	if pdb.maxIDMmap == nil {
+		return nil, false, ErrClosed
+	}
 
 	userEntry, ok := pdb.perUser[metadata.User]
 	if !ok {
@@ -230,7 +250,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 		return nil, false, ErrTooManyPrompts
 	}
 
-	id := pdb.nextID()
+	id, _ := pdb.nextID() // err must be nil because maxIDMmap is not nil and lock is held
 	timestamp := time.Now()
 	prompt := &Prompt{
 		ID:           id,
@@ -246,18 +266,22 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 }
 
 // Prompts returns a slice of all outstanding prompts.
-func (pdb *PromptDB) Prompts(user uint32) []*Prompt {
+func (pdb *PromptDB) Prompts(user uint32) ([]*Prompt, error) {
 	pdb.mutex.RLock()
 	defer pdb.mutex.RUnlock()
+	if pdb.maxIDMmap == nil {
+		return nil, ErrClosed
+	}
 	userEntry, ok := pdb.perUser[user]
 	if !ok || len(userEntry.ByID) == 0 {
-		return nil
+		// No prompts for user, but no error
+		return nil, nil
 	}
 	prompts := make([]*Prompt, 0, len(userEntry.ByID))
 	for _, prompt := range userEntry.ByID {
 		prompts = append(prompts, prompt)
 	}
-	return prompts
+	return prompts, nil
 }
 
 // PromptWithID returns the prompt with the given ID for the given user.
@@ -273,6 +297,9 @@ func (pdb *PromptDB) PromptWithID(user uint32, id string) (*Prompt, error) {
 //
 // The caller should hold a read lock on the prompt DB mutex.
 func (pdb *PromptDB) promptWithID(user uint32, id string) (*userPromptDB, *Prompt, error) {
+	if pdb.maxIDMmap == nil {
+		return nil, nil, ErrClosed
+	}
 	userEntry, ok := pdb.perUser[user]
 	if !ok || len(userEntry.ByID) == 0 {
 		return nil, nil, ErrNotFound
@@ -338,6 +365,11 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 	}
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
+
+	if pdb.maxIDMmap == nil {
+		return nil, ErrClosed
+	}
+
 	userEntry, ok := pdb.perUser[metadata.User]
 	if !ok {
 		return nil, nil
@@ -378,10 +410,15 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 //
 // This should be called when snapd is shutting down, to notify prompt clients
 // that the given prompts are no longer awaiting a reply.
-func (pdb *PromptDB) Close() {
+func (pdb *PromptDB) Close() error {
 	data := map[string]string{"resolved": "cancelled"}
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
+
+	if pdb.maxIDMmap == nil {
+		return ErrClosed
+	}
+
 	for user, userEntry := range pdb.perUser {
 		for id := range userEntry.ByID {
 			pdb.notifyPrompt(user, id, data)
@@ -389,4 +426,7 @@ func (pdb *PromptDB) Close() {
 	}
 	// Clear all outstanding prompts
 	pdb.perUser = nil
+	unix.Munmap(pdb.maxIDMmap)
+	pdb.maxIDMmap = nil // reset maxIDMmap to nil so we know pdb has been closed
+	return nil
 }

@@ -36,6 +36,6 @@ func (pdb *PromptDB) PerUser() map[uint32]*userPromptDB {
 	return pdb.perUser
 }
 
-func (pdb *PromptDB) NextID() string {
+func (pdb *PromptDB) NextID() (string, error) {
 	return pdb.nextID()
 }
