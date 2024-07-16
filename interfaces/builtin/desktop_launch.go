@@ -90,6 +90,7 @@ func (iface *desktopLaunchInterface) Name() string {
 func (iface *desktopLaunchInterface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
 		Summary:              desktopLaunchSummary,
+		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,
 		BaseDeclarationPlugs: desktopLaunchBaseDeclarationPlugs,
 		BaseDeclarationSlots: desktopLaunchBaseDeclarationSlots,
@@ -112,7 +113,8 @@ func (iface *desktopLaunchInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo)
 	return true
 }
 
-// Only implicitOnClassic since userd isn't yet usable on core
+// Available on both Core and Classic to allow access to app metadata,
+// despite userd being unusable on Core
 func init() {
 	registerIface(&desktopLaunchInterface{})
 }
