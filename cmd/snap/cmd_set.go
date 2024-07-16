@@ -94,7 +94,7 @@ func (x *cmdSet) Execute([]string) error {
 	}
 
 	opts := &clientutil.ParseConfigOptions{String: x.String, Typed: x.Typed}
-	patchValues, err := clientutil.ParseConfigValues(x.Positional.ConfValues, opts)
+	patchValues, _, err := clientutil.ParseConfigValues(x.Positional.ConfValues, opts)
 	if err != nil {
 		return err
 	}

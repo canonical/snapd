@@ -39,21 +39,26 @@ type ParseConfigOptions struct {
 // ParseConfigValues parses config values in the format of "foo=bar" or "!foo",
 // optionally a strict strings or JSON values depending on passed options.
 // By default, values are parsed if valid JSON and stored as-is if not.
-func ParseConfigValues(confValues []string, opts *ParseConfigOptions) (map[string]interface{}, error) {
+// Returns a map of config keys to values to set and a slice of keys in the order
+// they were passed in.
+func ParseConfigValues(confValues []string, opts *ParseConfigOptions) (map[string]interface{}, []string, error) {
 	if opts == nil {
 		opts = &ParseConfigOptions{}
 	}
 
 	patchValues := make(map[string]interface{}, len(confValues))
+	keys := make([]string, 0, len(confValues))
 	for _, patchValue := range confValues {
 		parts := strings.SplitN(patchValue, "=", 2)
 		if len(parts) == 1 && strings.HasSuffix(patchValue, "!") {
-			patchValues[strings.TrimSuffix(patchValue, "!")] = nil
+			key := strings.TrimSuffix(patchValue, "!")
+			patchValues[key] = nil
+			keys = append(keys, key)
 			continue
 		}
 
 		if len(parts) != 2 {
-			return nil, fmt.Errorf(i18n.G("invalid configuration: %q (want key=value)"), patchValue)
+			return nil, nil, fmt.Errorf(i18n.G("invalid configuration: %q (want key=value)"), patchValue)
 		}
 
 		if opts.String {
@@ -62,7 +67,7 @@ func ParseConfigValues(confValues []string, opts *ParseConfigOptions) (map[strin
 			var value interface{}
 			if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
 				if opts.Typed {
-					return nil, fmt.Errorf(i18n.G("failed to parse JSON: %w"), err)
+					return nil, nil, fmt.Errorf(i18n.G("failed to parse JSON: %w"), err)
 				}
 
 				// Not valid JSON-- just save the string as-is.
@@ -71,7 +76,8 @@ func ParseConfigValues(confValues []string, opts *ParseConfigOptions) (map[strin
 				patchValues[parts[0]] = value
 			}
 		}
+		keys = append(keys, parts[0])
 	}
 
-	return patchValues, nil
+	return patchValues, keys, nil
 }

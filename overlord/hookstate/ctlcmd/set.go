@@ -106,7 +106,7 @@ func (s *setCommand) Execute(args []string) error {
 
 	if s.View {
 		opts := &clientutil.ParseConfigOptions{String: s.String, Typed: s.Typed}
-		requests, err := clientutil.ParseConfigValues(s.Positional.ConfValues, opts)
+		requests, _, err := clientutil.ParseConfigValues(s.Positional.ConfValues, opts)
 		if err != nil {
 			return fmt.Errorf(i18n.G("cannot set %s plug: %w"), s.Positional.PlugOrSlotSpec, err)
 		}
@@ -123,13 +123,13 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 	context.Unlock()
 
 	opts := &clientutil.ParseConfigOptions{String: s.String, Typed: s.Typed}
-	confValues, err := clientutil.ParseConfigValues(s.Positional.ConfValues, opts)
+	confValues, confKeys, err := clientutil.ParseConfigValues(s.Positional.ConfValues, opts)
 	if err != nil {
 		return err
 	}
 
-	for key, value := range confValues {
-		tr.Set(s.context().InstanceName(), key, value)
+	for _, key := range confKeys {
+		tr.Set(s.context().InstanceName(), key, confValues[key])
 	}
 
 	return nil

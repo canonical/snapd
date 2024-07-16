@@ -32,46 +32,51 @@ var _ = Suite(&parseSuite{})
 
 func (s *parseSuite) TestParseConfigValues(c *C) {
 	// check basic setting and unsetting behaviour
-	confValues, err := clientutil.ParseConfigValues([]string{"foo=bar", "baz!"}, nil)
+	confValues, keys, err := clientutil.ParseConfigValues([]string{"foo=bar", "baz!"}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(confValues, DeepEquals, map[string]interface{}{
 		"foo": "bar",
 		"baz": nil,
 	})
+	c.Assert(keys, DeepEquals, []string{"foo", "baz"})
 
 	// parses JSON
 	opts := &clientutil.ParseConfigOptions{
 		Typed: true,
 	}
-	confValues, err = clientutil.ParseConfigValues([]string{`foo={"bar": 1}`}, opts)
+	confValues, keys, err = clientutil.ParseConfigValues([]string{`foo={"bar": 1}`}, opts)
 	c.Assert(err, IsNil)
 	c.Assert(confValues, DeepEquals, map[string]interface{}{
 		"foo": map[string]interface{}{
 			"bar": json.Number("1"),
 		},
 	})
+	c.Assert(keys, DeepEquals, []string{"foo"})
 
 	// stores strings w/o parsing
 	opts.String = true
-	confValues, err = clientutil.ParseConfigValues([]string{`foo={"bar": 1}`}, opts)
+	confValues, keys, err = clientutil.ParseConfigValues([]string{`foo={"bar": 1}`}, opts)
 	c.Assert(err, IsNil)
 	c.Assert(confValues, DeepEquals, map[string]interface{}{
 		"foo": `{"bar": 1}`,
 	})
+	c.Assert(keys, DeepEquals, []string{"foo"})
 
 	// default is to parse
-	confValues, err = clientutil.ParseConfigValues([]string{`foo={"bar": 1}`}, nil)
+	confValues, keys, err = clientutil.ParseConfigValues([]string{`foo={"bar": 1}`}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(confValues, DeepEquals, map[string]interface{}{
 		"foo": map[string]interface{}{
 			"bar": json.Number("1"),
 		},
 	})
+	c.Assert(keys, DeepEquals, []string{"foo"})
 
 	// unless it's not valid JSON
-	confValues, err = clientutil.ParseConfigValues([]string{`foo={"bar": 1`}, nil)
+	confValues, keys, err = clientutil.ParseConfigValues([]string{`foo={"bar": 1`}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(confValues, DeepEquals, map[string]interface{}{
 		"foo": `{"bar": 1`,
 	})
+	c.Assert(keys, DeepEquals, []string{"foo"})
 }
