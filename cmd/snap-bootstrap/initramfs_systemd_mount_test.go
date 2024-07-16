@@ -321,11 +321,11 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 							foundReadOnly = true
 						case opt == "private":
 							foundPrivate = true
-						case strings.HasPrefix(opt, "lowerdir"):
+						case strings.HasPrefix(opt, "lowerdir="):
 							foundOverlayLowerDir = true
-						case strings.HasPrefix(opt, "upperdir"):
+						case strings.HasPrefix(opt, "upperdir="):
 							foundOverlayUpperDir = true
-						case strings.HasPrefix(opt, "workdir"):
+						case strings.HasPrefix(opt, "workdir="):
 							foundOverlayWorkDir = true
 						default:
 							c.Logf("Option '%s' unexpected", opt)
