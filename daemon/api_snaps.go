@@ -486,10 +486,10 @@ func installMessage(inst *snapInstruction, cohort string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, i18n.G("Install %q snap"), inst.Snaps[0])
 	if inst.Channel != "stable" && inst.Channel != "" {
-		fmt.Fprintf(&b, " from %q channel", inst.Channel)
+		fmt.Fprintf(&b, i18n.G(" from %q channel"), inst.Channel)
 	}
 	if inst.CohortKey != "" {
-		fmt.Fprintf(&b, " from %q cohort", cohort)
+		fmt.Fprintf(&b, i18n.G(" from %q cohort"), cohort)
 	}
 
 	if comps := inst.CompsForSnaps[inst.Snaps[0]]; len(comps) > 0 {
