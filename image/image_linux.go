@@ -524,7 +524,7 @@ func (s *imageSeeder) validationSetKeysAndRevisionForSnap(snapName string) ([]sn
 func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curSnaps []*tooling.CurrentSnap) (downloadedSnaps map[string]*tooling.DownloadedSnap, err error) {
 	byName := make(map[string]*seedwriter.SeedSnap, len(snapsToDownload))
 	revisions := make(map[string]snap.Revision)
-	beforeDownload := func(info *snap.Info) (string, error) {
+	beforeDownload := func(info *snap.Info, cinfos map[string]*snap.ComponentInfo) (string, error) {
 		sn := byName[info.SnapName()]
 		if sn == nil {
 			return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
@@ -534,6 +534,7 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 			rev = info.Revision
 		}
 		fmt.Fprintf(Stdout, "Fetching %s (%s)\n", sn.SnapName(), rev)
+		// TODO:COMPS: pass component infos to SetInfo (next PR)
 		if err := s.w.SetInfo(sn, info); err != nil {
 			return "", err
 		}
