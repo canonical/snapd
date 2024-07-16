@@ -317,9 +317,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			channel = sn.RevOpts.Channel
 		default:
 			// this should only ever happen if the caller requested a specific
-			// revision to be installed (without specifying a channel), but the
-			// store didn't return a redirect channel. this would happen if the
-			// snap doens't have a default track
+			// revision to be installed (without specifying a channel)
 			channel = "stable"
 		}
 

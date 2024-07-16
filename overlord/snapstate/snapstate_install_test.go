@@ -1995,15 +1995,6 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThroughChannel(c *C) {
 	s.testInstallWithRevisionRunThrough(c, snapName, channel, defaultTrack)
 }
 
-func (s *snapmgrTestSuite) TestInstallWithRevisionRunThroughDefaultTrack(c *C) {
-	const (
-		channel      = ""
-		snapName     = "some-snap-with-default-track"
-		defaultTrack = "2.0/stable"
-	)
-	s.testInstallWithRevisionRunThrough(c, snapName, channel, defaultTrack)
-}
-
 func (s *snapmgrTestSuite) TestInstallWithRevisionRunThroughDefaultTrackWithChannel(c *C) {
 	const (
 		channel      = "edge"

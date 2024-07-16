@@ -679,12 +679,8 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 				sar.Resources = f.snapResources(info)
 			}
 
-			if strings.HasSuffix(snapName, "-with-default-track") {
-				if strutil.ListContains([]string{"stable", "candidate", "beta", "edge"}, a.Channel) {
-					sar.RedirectChannel = "2.0/" + a.Channel
-				} else if a.Channel == "" {
-					sar.RedirectChannel = "2.0/stable"
-				}
+			if strings.HasSuffix(snapName, "-with-default-track") && strutil.ListContains([]string{"stable", "candidate", "beta", "edge"}, a.Channel) {
+				sar.RedirectChannel = "2.0/" + a.Channel
 			}
 			res = append(res, sar)
 			continue
