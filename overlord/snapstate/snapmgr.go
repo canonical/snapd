@@ -595,6 +595,18 @@ func (snapst *SnapState) CurrentComponentInfos() ([]*snap.ComponentInfo, error) 
 	return snapst.ComponentInfosForRevision(snapst.Current)
 }
 
+// CurrentlyHasComponents returns true if the current revision of this snap has
+// any components installed with it. Otherwise, false is returned if either the
+// snap isn't installed or the snap has no components installed with it.
+func (snapst *SnapState) CurrentlyHasComponents() bool {
+	index := snapst.LastIndex(snapst.Current)
+	if index == -1 {
+		return false
+	}
+
+	return len(snapst.Sequence.Revisions[index].Components) > 0
+}
+
 // CurrentComponentInfos return a snap.ComponentInfo slice that contains all of
 // the components for the last appearance of the specified revision. Returns an
 // error if the revision is not found in the sequence of snaps.
