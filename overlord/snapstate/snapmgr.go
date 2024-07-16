@@ -152,7 +152,15 @@ type SnapSetup struct {
 
 	// Registries is the set of registries that the snap plugs, identified by
 	// account and registry name pairs.
-	Registries [][2]string
+	Registries []RegistryID
+}
+
+// RegistryID identifies a registry.
+type RegistryID struct {
+	// Account is the name of the account that publishes the registry.
+	Account string
+	// Registry is the name of the registry within the account namespace.
+	Registry string
 }
 
 func (snapsup *SnapSetup) InstanceName() string {

@@ -13341,7 +13341,7 @@ func (s *snapmgrTestSuite) TestRefreshWithRegistry(c *C) {
 
 	snapsup, err := snapstate.TaskSnapSetup(tasks[0])
 	c.Assert(err, IsNil)
-	c.Assert(snapsup.Registries, DeepEquals, [][2]string{{"my-publisher", "my-reg"}})
+	c.Assert(snapsup.Registries, DeepEquals, []snapstate.RegistryID{{Account: "my-publisher", Registry: "my-reg"}})
 }
 
 func findTaskForSnap(c *C, chg *state.Change, kind, snap string) *state.Task {

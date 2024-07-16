@@ -116,7 +116,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		})
 	}
 
-	var registries [][2]string
+	var registries []RegistryID
 	for _, plug := range t.info.Plugs {
 		if plug.Interface != "registry" {
 			continue
@@ -127,7 +127,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 			return SnapSetup{}, nil, err
 		}
 
-		registries = append(registries, [2]string{account, registry})
+		registries = append(registries, RegistryID{Account: account, Registry: registry})
 	}
 
 	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)

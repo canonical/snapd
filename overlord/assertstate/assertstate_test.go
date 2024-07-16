@@ -5423,7 +5423,7 @@ func (s *assertMgrSuite) TestFetchRegistryAssertion(c *C) {
 		SnapPath:   snapPath,
 		UserID:     0,
 		SideInfo:   si,
-		Registries: [][2]string{{s.dev1Acct.AccountID(), "my-registry"}},
+		Registries: []snapstate.RegistryID{{Account: s.dev1Acct.AccountID(), Registry: "my-registry"}},
 	}
 
 	t.Set("snap-setup", snapsup)

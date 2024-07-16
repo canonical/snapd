@@ -154,7 +154,7 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 		return nil, nil, err
 	}
 
-	var registries [][2]string
+	var registries []RegistryID
 	for _, plug := range ins.Plugs {
 		if plug.Interface != "registry" {
 			continue
@@ -165,7 +165,7 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 			return nil, nil, err
 		}
 
-		registries = append(registries, [2]string{account, registry})
+		registries = append(registries, RegistryID{Account: account, Registry: registry})
 	}
 
 	providerContentAttrs := defaultProviderContentAttrs(st, update, prqt)

@@ -179,7 +179,7 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 			continue
 		}
 
-		var registries [][2]string
+		var registries []RegistryID
 		for _, plug := range update.Plugs {
 			if plug.Interface != "registry" {
 				continue
@@ -190,7 +190,7 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 				return nil, err
 			}
 
-			registries = append(registries, [2]string{account, registry})
+			registries = append(registries, RegistryID{Account: account, Registry: registry})
 		}
 
 		monitoring := IsSnapMonitored(st, update.InstanceName())

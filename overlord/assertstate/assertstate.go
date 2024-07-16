@@ -394,7 +394,7 @@ func AutoRefreshAssertions(s *state.State, userID int) error {
 }
 
 // autoRefreshRegistryAssertions fetches the newest revision of all stored
-// registry assertions. Overwrites the IsAutoRefresh field in opts.
+// registry assertions.
 func autoRefreshRegistryAssertions(st *state.State, userID int, opts *RefreshAssertionsOptions) error {
 	db := cachedDB(st)
 	regAsserts, err := db.FindMany(asserts.RegistryType, nil)

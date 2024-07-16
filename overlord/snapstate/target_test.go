@@ -257,5 +257,5 @@ func (s *TargetTestSuite) TestStoreInstallWithRegistry(c *C) {
 
 	snapsup, err := snapstate.TaskSnapSetup(tasks[0])
 	c.Assert(err, IsNil)
-	c.Assert(snapsup.Registries, DeepEquals, [][2]string{{"my-publisher", "my-reg"}})
+	c.Assert(snapsup.Registries, DeepEquals, []snapstate.RegistryID{{Account: "my-publisher", Registry: "my-reg"}})
 }

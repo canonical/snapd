@@ -1643,5 +1643,5 @@ func (s *autoRefreshTestSuite) TestAutoRefreshWithRegistries(c *C) {
 
 	snapsup, err := snapstate.TaskSnapSetup(task)
 	c.Assert(err, IsNil)
-	c.Assert(snapsup.Registries, DeepEquals, [][2]string{{"my-publisher", "my-reg"}})
+	c.Assert(snapsup.Registries, DeepEquals, []snapstate.RegistryID{{Account: "my-publisher", Registry: "my-reg"}})
 }
