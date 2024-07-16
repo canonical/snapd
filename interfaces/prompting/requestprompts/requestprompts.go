@@ -112,7 +112,10 @@ type PromptDB struct {
 }
 
 const (
-	maxIDFileSize                int = 8
+	// maxIDFileSize should be enough bytes to encode the maximum prompt ID.
+	maxIDFileSize int = 8
+	// maxOutstandingPromptsPerUser is an arbitrary limit.
+	// TODO: review this limit after some usage.
 	maxOutstandingPromptsPerUser int = 1000
 )
 
@@ -329,6 +332,10 @@ func (pdb *PromptDB) Reply(user uint32, id string, outcome prompting.OutcomeType
 	}
 	for _, listenerReq := range prompt.listenerReqs {
 		if err := sendReply(listenerReq, allow); err != nil {
+			// Error should only occur if reply is malformed, and since these
+			// listener requests should be identical, if a reply is malformed
+			// for one, it should be malformed for all. Malformed replies should
+			// leave the listener request unchanged. Thus, return early.
 			return nil, err
 		}
 	}
