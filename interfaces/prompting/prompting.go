@@ -22,6 +22,7 @@ package prompting
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -34,6 +35,25 @@ type Metadata struct {
 	Snap string
 	// Interface is the interface for which the prompt or rule applies.
 	Interface string
+}
+
+type IDType uint64
+
+func (i *IDType) MarshalJSON() ([]byte, error) {
+	return json.Marshal(fmt.Sprintf("%016X", *i))
+}
+
+func (i *IDType) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return fmt.Errorf("cannot read ID into string: %w", err)
+	}
+	value, err := strconv.ParseUint(s, 16, 64)
+	if err != nil {
+		return fmt.Errorf("cannot parse ID as uint64: %w", err)
+	}
+	*i = IDType(value)
+	return nil
 }
 
 // OutcomeType describes the outcome associated with a reply or rule.

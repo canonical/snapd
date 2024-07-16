@@ -20,6 +20,7 @@
 package requestprompts
 
 import (
+	"github.com/snapcore/snapd/interfaces/prompting"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -36,6 +37,6 @@ func (pdb *PromptDB) PerUser() map[uint32]*userPromptDB {
 	return pdb.perUser
 }
 
-func (pdb *PromptDB) NextID() (string, error) {
+func (pdb *PromptDB) NextID() (prompting.IDType, error) {
 	return pdb.nextID()
 }

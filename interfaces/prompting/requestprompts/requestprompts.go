@@ -47,7 +47,7 @@ var (
 // Prompt contains information about a request for which a user should be
 // prompted.
 type Prompt struct {
-	ID           string             `json:"id"`
+	ID           prompting.IDType   `json:"id"`
 	Timestamp    time.Time          `json:"timestamp"`
 	Snap         string             `json:"snap"`
 	Interface    string             `json:"interface"`
@@ -96,7 +96,7 @@ func (pc *PromptConstraints) subtractPermissions(permissions []string) (modified
 
 // userPromptDB maps prompt IDs to prompts for a single user.
 type userPromptDB struct {
-	ByID map[string]*Prompt
+	ByID map[prompting.IDType]*Prompt
 }
 
 // PromptDB stores outstanding prompts in memory and ensures that new prompts
@@ -108,7 +108,7 @@ type PromptDB struct {
 	mutex   sync.RWMutex
 	perUser map[uint32]*userPromptDB
 	// Function to issue a notice for a change in a prompt
-	notifyPrompt func(userID uint32, promptID string, data map[string]string) error
+	notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
 }
 
 const (
@@ -123,7 +123,7 @@ const (
 //
 // The given notifyPrompt closure will be called when a prompt is added,
 // merged, modified, or resolved.
-func New(notifyPrompt func(userID uint32, promptID string, data map[string]string) error) (*PromptDB, error) {
+func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error) (*PromptDB, error) {
 	pdb := PromptDB{
 		perUser:      make(map[uint32]*userPromptDB),
 		notifyPrompt: notifyPrompt,
@@ -180,15 +180,14 @@ func initializeMaxIDFile(maxIDFile *os.File) (err error) {
 }
 
 // nextID increments the internal monotonic maxID integer and returns the
-// corresponding ID string.
-func (pdb *PromptDB) nextID() (string, error) {
+// corresponding ID.
+func (pdb *PromptDB) nextID() (prompting.IDType, error) {
 	if pdb.maxIDMmap == nil {
-		return "", ErrClosed
+		return 0, ErrClosed
 	}
 	// Byte order will be consistent, and want an atomic increment.
 	id := atomic.AddUint64((*uint64)(unsafe.Pointer(&pdb.maxIDMmap[0])), 1)
-	idStr := fmt.Sprintf("%016X", id)
-	return idStr, nil
+	return prompting.IDType(id), nil
 }
 
 // AddOrMerge checks if the given prompt contents are identical to an existing
@@ -222,7 +221,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 	userEntry, ok := pdb.perUser[metadata.User]
 	if !ok {
 		pdb.perUser[metadata.User] = &userPromptDB{
-			ByID: make(map[string]*Prompt),
+			ByID: make(map[prompting.IDType]*Prompt),
 		}
 		userEntry = pdb.perUser[metadata.User]
 	}
@@ -288,7 +287,7 @@ func (pdb *PromptDB) Prompts(user uint32) ([]*Prompt, error) {
 }
 
 // PromptWithID returns the prompt with the given ID for the given user.
-func (pdb *PromptDB) PromptWithID(user uint32, id string) (*Prompt, error) {
+func (pdb *PromptDB) PromptWithID(user uint32, id prompting.IDType) (*Prompt, error) {
 	pdb.mutex.RLock()
 	defer pdb.mutex.RUnlock()
 	_, prompt, err := pdb.promptWithID(user, id)
@@ -299,7 +298,7 @@ func (pdb *PromptDB) PromptWithID(user uint32, id string) (*Prompt, error) {
 // the given ID for the that user.
 //
 // The caller should hold a read lock on the prompt DB mutex.
-func (pdb *PromptDB) promptWithID(user uint32, id string) (*userPromptDB, *Prompt, error) {
+func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType) (*userPromptDB, *Prompt, error) {
 	if pdb.maxIDMmap == nil {
 		return nil, nil, ErrClosed
 	}
@@ -319,7 +318,7 @@ func (pdb *PromptDB) promptWithID(user uint32, id string) (*userPromptDB, *Promp
 // prompt from the prompt DB.
 //
 // Records a notice for the prompt, and returns the prompt's former contents.
-func (pdb *PromptDB) Reply(user uint32, id string, outcome prompting.OutcomeType) (*Prompt, error) {
+func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.OutcomeType) (*Prompt, error) {
 	allow, err := outcome.AsBool()
 	if err != nil {
 		return nil, err
@@ -365,7 +364,7 @@ var sendReply = func(listenerReq *listener.Request, reply interface{}) error {
 //
 // Returns the IDs of any prompts which were fully satisfied by the given rule
 // contents.
-func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *prompting.Constraints, outcome prompting.OutcomeType) ([]string, error) {
+func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *prompting.Constraints, outcome prompting.OutcomeType) ([]prompting.IDType, error) {
 	allow, err := outcome.AsBool()
 	if err != nil {
 		return nil, err
@@ -381,7 +380,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 	if !ok {
 		return nil, nil
 	}
-	var satisfiedPromptIDs []string
+	var satisfiedPromptIDs []prompting.IDType
 	for id, prompt := range userEntry.ByID {
 		if !(prompt.Snap == metadata.Snap && prompt.Interface == metadata.Interface) {
 			continue

@@ -36,6 +36,27 @@ type promptingSuite struct{}
 
 var _ = Suite(&promptingSuite{})
 
+func (s *promptingSuite) TestIDTypeMarshalUnmarshalJSON(c *C) {
+	for _, testCase := range []struct {
+		id         prompting.IDType
+		marshalled []byte
+	}{
+		{0, []byte(`"0000000000000000"`)},
+		{1, []byte(`"0000000000000001"`)},
+		{0x1000000000000000, []byte(`"1000000000000000"`)},
+		{0xDEADBEEFDEADBEEF, []byte(`"DEADBEEFDEADBEEF"`)},
+		{0xFFFFFFFFFFFFFFFF, []byte(`"FFFFFFFFFFFFFFFF"`)},
+	} {
+		marshalled, err := testCase.id.MarshalJSON()
+		c.Check(err, IsNil)
+		c.Check(marshalled, DeepEquals, testCase.marshalled)
+		var id prompting.IDType
+		err = id.UnmarshalJSON(testCase.marshalled)
+		c.Check(err, IsNil)
+		c.Check(id, Equals, testCase.id)
+	}
+}
+
 func (s *promptingSuite) TestOutcomeAsBool(c *C) {
 	result, err := prompting.OutcomeAllow.AsBool()
 	c.Check(err, IsNil)

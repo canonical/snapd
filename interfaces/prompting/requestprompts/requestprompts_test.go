@@ -24,7 +24,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 	"unsafe"
@@ -37,13 +36,12 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
-	"github.com/snapcore/snapd/strutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
 
 type noticeInfo struct {
-	promptID string
+	promptID prompting.IDType
 	data     map[string]string
 }
 
@@ -56,7 +54,7 @@ func (l noticeList) Len() int {
 
 // Implements sort.Interface
 func (l noticeList) Less(i, j int) bool {
-	return strings.Compare(l[i].promptID, l[j].promptID) < 0
+	return l[i].promptID < l[j].promptID
 }
 
 // Implements sort.Interface
@@ -67,7 +65,7 @@ func (l noticeList) Swap(i, j int) {
 }
 
 type requestpromptsSuite struct {
-	defaultNotifyPrompt func(userID uint32, promptID string, data map[string]string) error
+	defaultNotifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
 	defaultUser         uint32
 	promptNotices       noticeList
 
@@ -79,7 +77,7 @@ var _ = Suite(&requestpromptsSuite{})
 
 func (s *requestpromptsSuite) SetUpTest(c *C) {
 	s.defaultUser = 1000
-	s.defaultNotifyPrompt = func(userID uint32, promptID string, data map[string]string) error {
+	s.defaultNotifyPrompt = func(userID uint32, promptID prompting.IDType, data map[string]string) error {
 		c.Check(userID, Equals, s.defaultUser)
 		info := &noticeInfo{
 			promptID: promptID,
@@ -96,8 +94,8 @@ func (s *requestpromptsSuite) SetUpTest(c *C) {
 }
 
 func (s *requestpromptsSuite) TestNew(c *C) {
-	notifyPrompt := func(userID uint32, promptID string, data map[string]string) error {
-		c.Fatalf("unexpected notice with userID %d and ID %s", userID, promptID)
+	notifyPrompt := func(userID uint32, promptID prompting.IDType, data map[string]string) error {
+		c.Fatalf("unexpected notice with userID %d and ID %016X", userID, promptID)
 		return nil
 	}
 	pdb, err := requestprompts.New(notifyPrompt)
@@ -106,37 +104,37 @@ func (s *requestpromptsSuite) TestNew(c *C) {
 	c.Check(pdb.PerUser(), HasLen, 0)
 	nextID, err := pdb.NextID()
 	c.Check(err, IsNil)
-	c.Check(nextID, Equals, "0000000000000001")
+	c.Check(nextID, Equals, prompting.IDType(1))
 }
 
 func (s *requestpromptsSuite) TestNewValidMaxID(c *C) {
-	notifyPrompt := func(userID uint32, promptID string, data map[string]string) error {
-		c.Fatalf("unexpected notice with userID %d and ID %s", userID, promptID)
+	notifyPrompt := func(userID uint32, promptID prompting.IDType, data map[string]string) error {
+		c.Fatalf("unexpected notice with userID %d and ID %016X", userID, promptID)
 		return nil
 	}
 	for _, testCase := range []struct {
 		initial uint64
-		nextID  string
+		nextID  prompting.IDType
 	}{
 		{
 			0,
-			"0000000000000001",
+			1,
 		},
 		{
 			1,
-			"0000000000000002",
+			2,
 		},
 		{
 			0x1000000000000001,
-			"1000000000000002",
+			0x1000000000000002,
 		},
 		{
 			0x0123456789ABCDEF,
-			"0123456789ABCDF0",
+			0x0123456789ABCDF0,
 		},
 		{
 			0xDEADBEEFDEADBEEF,
-			"DEADBEEFDEADBEF0",
+			0xDEADBEEFDEADBEF0,
 		},
 	} {
 		var initialData [8]byte
@@ -154,8 +152,8 @@ func (s *requestpromptsSuite) TestNewValidMaxID(c *C) {
 }
 
 func (s *requestpromptsSuite) TestNewInvalidMaxID(c *C) {
-	notifyPrompt := func(userID uint32, promptID string, data map[string]string) error {
-		c.Fatalf("unexpected notice with userID %d and ID %s", userID, promptID)
+	notifyPrompt := func(userID uint32, promptID prompting.IDType, data map[string]string) error {
+		c.Fatalf("unexpected notice with userID %d and ID %016X", userID, promptID)
 		return nil
 	}
 
@@ -166,7 +164,7 @@ func (s *requestpromptsSuite) TestNewInvalidMaxID(c *C) {
 	s.checkWrittenMaxID(c, 0)
 	nextID, err := pdb.NextID()
 	c.Check(err, IsNil)
-	c.Check(nextID, Equals, "0000000000000001")
+	c.Check(nextID, Equals, prompting.IDType(1))
 	s.checkWrittenMaxID(c, 1)
 
 	// Now try with various invalid max ID files
@@ -184,7 +182,7 @@ func (s *requestpromptsSuite) TestNewInvalidMaxID(c *C) {
 		s.checkWrittenMaxID(c, 0)
 		nextID, err := pdb.NextID()
 		c.Check(err, IsNil)
-		c.Check(nextID, Equals, "0000000000000001")
+		c.Check(nextID, Equals, prompting.IDType(1))
 		s.checkWrittenMaxID(c, 1)
 	}
 }
@@ -205,10 +203,9 @@ func (s *requestpromptsSuite) TestNewNextIDUniqueIDs(c *C) {
 	c.Assert(err, IsNil)
 	defer pdb1.Close()
 	expectedID := initialMaxID + 1
-	expectedIDStr := fmt.Sprintf("%016X", expectedID)
 	nextID, err := pdb1.NextID()
 	c.Check(err, IsNil)
-	c.Check(nextID, Equals, expectedIDStr)
+	c.Check(nextID, Equals, prompting.IDType(expectedID))
 	s.checkWrittenMaxID(c, expectedID)
 
 	// New prompt DB should start where existing one left off
@@ -216,29 +213,25 @@ func (s *requestpromptsSuite) TestNewNextIDUniqueIDs(c *C) {
 	c.Assert(err, IsNil)
 	defer pdb2.Close()
 	expectedID++
-	expectedIDStr = fmt.Sprintf("%016X", expectedID)
 	nextID, err = pdb2.NextID()
 	c.Check(err, IsNil)
-	c.Check(nextID, Equals, expectedIDStr)
+	c.Check(nextID, Equals, prompting.IDType(expectedID))
 
 	// Both prompt DBs should be aware of any new IDs created by any others
 	expectedID++
-	expectedIDStr = fmt.Sprintf("%016X", expectedID)
 	nextID, err = pdb1.NextID()
 	c.Check(err, IsNil)
-	c.Check(nextID, Equals, expectedIDStr)
+	c.Check(nextID, Equals, prompting.IDType(expectedID))
 
 	expectedID++
-	expectedIDStr = fmt.Sprintf("%016X", expectedID)
 	nextID, err = pdb1.NextID()
 	c.Check(err, IsNil)
-	c.Check(nextID, Equals, expectedIDStr)
+	c.Check(nextID, Equals, prompting.IDType(expectedID))
 
 	expectedID++
-	expectedIDStr = fmt.Sprintf("%016X", expectedID)
 	nextID, err = pdb2.NextID()
 	c.Check(err, IsNil)
-	c.Check(nextID, Equals, expectedIDStr)
+	c.Check(nextID, Equals, prompting.IDType(expectedID))
 
 	// For the checks above to have passed, incremented IDs must have been
 	// written to disk, but check now anyway. Theoretically, checking disk
@@ -289,7 +282,7 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 
 	expectedID := uint64(1)
 
-	s.checkNewNoticesSimple(c, []string{prompt1.ID}, nil)
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
 	s.checkWrittenMaxID(c, expectedID)
 
 	prompt2, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq2)
@@ -298,7 +291,7 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 	c.Assert(prompt2, Equals, prompt1)
 
 	// Merged prompts should re-record notice
-	s.checkNewNoticesSimple(c, []string{prompt1.ID}, nil)
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
 	// Merged prompts should not advance the max ID
 	s.checkWrittenMaxID(c, expectedID)
 
@@ -320,7 +313,7 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 	c.Check(storedPrompt, Equals, prompt1)
 
 	// Looking up prompt should not record notice
-	s.checkNewNoticesSimple(c, []string{}, nil)
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
 	prompt3, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq3)
 	c.Assert(err, IsNil)
@@ -328,16 +321,16 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 	c.Check(prompt3, Equals, prompt1)
 
 	// Merged prompts should re-record notice
-	s.checkNewNoticesSimple(c, []string{prompt1.ID}, nil)
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
 	// Merged prompts should not advance the max ID
 	s.checkWrittenMaxID(c, expectedID)
 }
 
-func (s *requestpromptsSuite) checkNewNoticesSimple(c *C, expectedPromptIDs []string, expectedData map[string]string) {
+func (s *requestpromptsSuite) checkNewNoticesSimple(c *C, expectedPromptIDs []prompting.IDType, expectedData map[string]string) {
 	s.checkNewNotices(c, applyNotices(expectedPromptIDs, expectedData))
 }
 
-func applyNotices(expectedPromptIDs []string, expectedData map[string]string) noticeList {
+func applyNotices(expectedPromptIDs []prompting.IDType, expectedData map[string]string) noticeList {
 	expectedNotices := make(noticeList, len(expectedPromptIDs))
 	for i, id := range expectedPromptIDs {
 		info := &noticeInfo{
@@ -354,7 +347,7 @@ func (s *requestpromptsSuite) checkNewNotices(c *C, expectedNotices noticeList) 
 	s.promptNotices = s.promptNotices[:0]
 }
 
-func (s *requestpromptsSuite) checkNewNoticesUnorderedSimple(c *C, expectedPromptIDs []string, expectedData map[string]string) {
+func (s *requestpromptsSuite) checkNewNoticesUnorderedSimple(c *C, expectedPromptIDs []prompting.IDType, expectedData map[string]string) {
 	s.checkNewNoticesUnordered(c, applyNotices(expectedPromptIDs, expectedData))
 }
 
@@ -461,22 +454,22 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
-	s.checkNewNoticesSimple(c, []string{prompt.ID}, nil)
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt.ID}, nil)
 
 	result, err := pdb.PromptWithID(metadata.User, prompt.ID)
 	c.Check(err, IsNil)
 	c.Check(result, Equals, prompt)
 
-	result, err = pdb.PromptWithID(metadata.User, "foo")
+	result, err = pdb.PromptWithID(metadata.User, 1234)
 	c.Check(err, Equals, requestprompts.ErrNotFound)
 	c.Check(result, IsNil)
 
-	result, err = pdb.PromptWithID(metadata.User+1, "foo")
+	result, err = pdb.PromptWithID(metadata.User+1, prompt.ID)
 	c.Check(err, Equals, requestprompts.ErrNotFound)
 	c.Check(result, IsNil)
 
 	// Looking up prompts (with or without errors) should not record notices
-	s.checkNewNoticesSimple(c, []string{}, nil)
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 }
 
 func (s *requestpromptsSuite) TestReply(c *C) {
@@ -509,7 +502,7 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(merged, Equals, false)
 
-		s.checkNewNoticesSimple(c, []string{prompt1.ID}, nil)
+		s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
 
 		prompt2, merged, err := pdb.AddOrMerge(metadata, path, permissions, listenerReq2)
 		c.Assert(err, IsNil)
@@ -517,7 +510,7 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 		c.Check(prompt2, Equals, prompt1)
 
 		// Merged prompts should re-record notice
-		s.checkNewNoticesSimple(c, []string{prompt1.ID}, nil)
+		s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
 
 		repliedPrompt, err := pdb.Reply(metadata.User, prompt1.ID, outcome)
 		c.Check(err, IsNil)
@@ -534,7 +527,7 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 		}
 
 		expectedData := map[string]string{"resolved": "replied"}
-		s.checkNewNoticesSimple(c, []string{repliedPrompt.ID}, expectedData)
+		s.checkNewNoticesSimple(c, []prompting.IDType{repliedPrompt.ID}, expectedData)
 	}
 }
 
@@ -577,14 +570,14 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
-	s.checkNewNoticesSimple(c, []string{prompt.ID}, nil)
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt.ID}, nil)
 
 	outcome := prompting.OutcomeAllow
 
-	_, err = pdb.Reply(metadata.User, "foo", outcome)
+	_, err = pdb.Reply(metadata.User, 1234, outcome)
 	c.Check(err, Equals, requestprompts.ErrNotFound)
 
-	_, err = pdb.Reply(metadata.User+1, "foo", outcome)
+	_, err = pdb.Reply(metadata.User+1, prompt.ID, outcome)
 	c.Check(err, Equals, requestprompts.ErrNotFound)
 
 	_, err = pdb.Reply(metadata.User, prompt.ID, prompting.OutcomeUnset)
@@ -594,7 +587,7 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 	c.Check(err, Equals, fakeError)
 
 	// Failed replies should not record notice
-	s.checkNewNoticesSimple(c, []string{}, nil)
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 }
 
 func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
@@ -642,7 +635,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
-	s.checkNewNoticesSimple(c, []string{prompt1.ID, prompt2.ID, prompt3.ID, prompt4.ID}, nil)
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID, prompt2.ID, prompt3.ID, prompt4.ID}, nil)
 
 	stored, err := pdb.Prompts(metadata.User)
 	c.Assert(err, IsNil)
@@ -660,8 +653,8 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	satisfied, err := pdb.HandleNewRule(metadata, constraints, outcome)
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 2)
-	c.Check(strutil.ListContains(satisfied, prompt2.ID), Equals, true)
-	c.Check(strutil.ListContains(satisfied, prompt3.ID), Equals, true)
+	c.Check(promptIDListContains(satisfied, prompt2.ID), Equals, true)
+	c.Check(promptIDListContains(satisfied, prompt3.ID), Equals, true)
 
 	// Read and write permissions of prompt1 satisfied, so notice re-issued,
 	// but it has one remaining permission. prompt2 and prompt3 fully satisfied.
@@ -699,7 +692,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	c.Check(satisfied[0], Equals, prompt1.ID)
 
 	expectedData := map[string]string{"resolved": "satisfied"}
-	s.checkNewNoticesSimple(c, []string{prompt1.ID}, expectedData)
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, expectedData)
 
 	satisfiedReq, result, err := s.waitForListenerReqAndReply(c, listenerReqChan, replyChan)
 	c.Check(err, IsNil)
@@ -707,6 +700,15 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	allowed, ok := result.(bool)
 	c.Check(ok, Equals, true)
 	c.Check(allowed, Equals, true)
+}
+
+func promptIDListContains(haystack []prompting.IDType, needle prompting.IDType) bool {
+	for _, id := range haystack {
+		if id == needle {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
@@ -754,7 +756,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
-	s.checkNewNoticesSimple(c, []string{prompt1.ID, prompt2.ID, prompt3.ID, prompt4.ID}, nil)
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID, prompt2.ID, prompt3.ID, prompt4.ID}, nil)
 
 	stored, err := pdb.Prompts(metadata.User)
 	c.Assert(err, IsNil)
@@ -773,12 +775,12 @@ func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 	satisfied, err := pdb.HandleNewRule(metadata, constraints, outcome)
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 3)
-	c.Check(strutil.ListContains(satisfied, prompt1.ID), Equals, true)
-	c.Check(strutil.ListContains(satisfied, prompt2.ID), Equals, true)
-	c.Check(strutil.ListContains(satisfied, prompt3.ID), Equals, true)
+	c.Check(promptIDListContains(satisfied, prompt1.ID), Equals, true)
+	c.Check(promptIDListContains(satisfied, prompt2.ID), Equals, true)
+	c.Check(promptIDListContains(satisfied, prompt3.ID), Equals, true)
 
 	expectedData := map[string]string{"resolved": "satisfied"}
-	s.checkNewNoticesUnorderedSimple(c, []string{prompt1.ID, prompt2.ID, prompt3.ID}, expectedData)
+	s.checkNewNoticesUnorderedSimple(c, []prompting.IDType{prompt1.ID, prompt2.ID, prompt3.ID}, expectedData)
 
 	for i := 0; i < 3; i++ {
 		satisfiedReq, result, err := s.waitForListenerReqAndReply(c, listenerReqChan, replyChan)
@@ -825,7 +827,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
-	s.checkNewNoticesSimple(c, []string{prompt.ID}, nil)
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt.ID}, nil)
 
 	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
 	c.Assert(err, IsNil)
@@ -855,7 +857,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	c.Check(err, ErrorMatches, `internal error: invalid outcome.*`)
 	c.Check(satisfied, IsNil)
 
-	s.checkNewNoticesSimple(c, []string{}, nil)
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
 	otherUserMetadata := &prompting.Metadata{
 		User:      otherUser,
@@ -866,7 +868,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	c.Check(err, IsNil)
 	c.Check(satisfied, IsNil)
 
-	s.checkNewNoticesSimple(c, []string{}, nil)
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
 	otherSnapMetadata := &prompting.Metadata{
 		User:      user,
@@ -877,7 +879,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	c.Check(err, IsNil)
 	c.Check(satisfied, IsNil)
 
-	s.checkNewNoticesSimple(c, []string{}, nil)
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
 	otherInterfaceMetadata := &prompting.Metadata{
 		User:      user,
@@ -888,20 +890,20 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	c.Check(err, IsNil)
 	c.Check(satisfied, IsNil)
 
-	s.checkNewNoticesSimple(c, []string{}, nil)
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
 	satisfied, err = pdb.HandleNewRule(metadata, otherConstraints, outcome)
 	c.Check(err, IsNil)
 	c.Check(satisfied, IsNil)
 
-	s.checkNewNoticesSimple(c, []string{}, nil)
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
 	satisfied, err = pdb.HandleNewRule(metadata, constraints, outcome)
 	c.Check(err, IsNil)
 	c.Assert(satisfied, HasLen, 1)
 
 	expectedData := map[string]string{"resolved": "satisfied"}
-	s.checkNewNoticesSimple(c, []string{prompt.ID}, expectedData)
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt.ID}, expectedData)
 
 	satisfiedReq, result, err := s.waitForListenerReqAndReply(c, listenerReqChan, replyChan)
 	c.Check(err, IsNil)
@@ -947,11 +949,11 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 		prompts = append(prompts, prompt)
 	}
 
-	expectedPromptIDs := make([]string, 0, 3)
+	expectedPromptIDs := make([]prompting.IDType, 0, 3)
 	for _, prompt := range prompts {
 		expectedPromptIDs = append(expectedPromptIDs, prompt.ID)
 	}
-	c.Check(prompts[2].ID, Equals, fmt.Sprintf("%016X", 3))
+	c.Check(prompts[2].ID, Equals, prompting.IDType(3))
 
 	// One notice for each prompt when created
 	s.checkNewNoticesSimple(c, expectedPromptIDs, nil)
@@ -981,7 +983,7 @@ func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
 
 	nextID, err := pdb.NextID()
 	c.Check(err, Equals, requestprompts.ErrClosed)
-	c.Check(nextID, Equals, "")
+	c.Check(nextID, Equals, prompting.IDType(0))
 
 	metadata := prompting.Metadata{Interface: "home"}
 	result, merged, err := pdb.AddOrMerge(&metadata, "", nil, nil)
@@ -993,11 +995,11 @@ func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
 	c.Check(err, Equals, requestprompts.ErrClosed)
 	c.Check(prompts, IsNil)
 
-	prompt, err := pdb.PromptWithID(1000, "foo")
+	prompt, err := pdb.PromptWithID(1000, 1)
 	c.Check(err, Equals, requestprompts.ErrClosed)
 	c.Check(prompt, IsNil)
 
-	result, err = pdb.Reply(1000, "foo", prompting.OutcomeDeny)
+	result, err = pdb.Reply(1000, 1, prompting.OutcomeDeny)
 	c.Check(err, Equals, requestprompts.ErrClosed)
 	c.Check(result, IsNil)
 
