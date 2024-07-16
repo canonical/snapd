@@ -194,6 +194,44 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			isMountedReturns: []bool{true},
 			comment:          "happy with attached dm-verity data",
 		},
+		{
+			what:  "/run/mnt/data/some.snap",
+			where: "/run/mnt/base",
+			opts: &main.SystemdMountOptions{
+				VerityHashDevice: "test.verity",
+				VerityRootHash:   "00000000000000000000000000000000",
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy without specifying a verity offset",
+		},
+		{
+			what:  "what",
+			where: "where",
+			opts: &main.SystemdMountOptions{
+				VerityHashDevice: "test.verity",
+			},
+			expErr:  "cannot mount \"what\" at \"where\": mount with dm-verity was requested but a root hash was not specified",
+			comment: "verity hash device specified without specifying a verity root hash",
+		},
+		{
+			what:  "what",
+			where: "where",
+			opts: &main.SystemdMountOptions{
+				VerityRootHash: "00000000000000000000000000000000",
+			},
+			expErr:  "cannot mount \"what\" at \"where\": mount with dm-verity was requested but a hash device was not specified",
+			comment: "verity root hash specified without specifying a verity hash device",
+		},
+		{
+			what:  "what",
+			where: "where",
+			opts: &main.SystemdMountOptions{
+				VerityHashOffset: 4096,
+			},
+			expErr:  "cannot mount \"what\" at \"where\": mount with dm-verity was requested but a hash device and root hash were not specified",
+			comment: "verity hash offset specified without specifying a verity root hash and a verity hash device",
+		},
 	}
 
 	for _, t := range tt {
@@ -302,11 +340,11 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 							foundReadOnly = true
 						case opt == "private":
 							foundPrivate = true
-						case strings.HasPrefix(opt, "verity.hashdevice"):
+						case strings.HasPrefix(opt, "verity.hashdevice="):
 							foundVerityHashDevice = true
-						case strings.HasPrefix(opt, "verity.roothash"):
+						case strings.HasPrefix(opt, "verity.roothash="):
 							foundVerityRootHash = true
-						case strings.HasPrefix(opt, "verity.hashoffset"):
+						case strings.HasPrefix(opt, "verity.hashoffset="):
 							foundVerityHashOffset = true
 						default:
 							c.Logf("Option '%s' unexpected", opt)
