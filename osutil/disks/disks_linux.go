@@ -29,7 +29,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -617,11 +616,12 @@ func partitionPropsFromMountPoint(mountpoint string) (source string, props map[s
 	// automatically. udevPropertiesForName fails to detect partition information
 	// for mapper devices therefore if one of these is encountered, it is translated
 	// to the underlying physical device.
-	r := `^/dev/mapper/libmnt_(\w+)$`
-	re := regexp.MustCompile(r)
-	matches := re.FindStringSubmatch(source)
-	if matches != nil && matches[1] != "tmpfs" {
-		source = fmt.Sprintf("/dev/%s", matches[1])
+	p := "/dev/mapper/libmnt_"
+	if strings.HasPrefix(source, p) {
+		d := strings.TrimPrefix(source, p)
+		if d != "tmpfs" {
+			source = fmt.Sprintf("/dev/%s", d)
+		}
 	}
 
 	// now we have the partition for this mountpoint, we need to tie that back
