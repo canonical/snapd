@@ -12,7 +12,7 @@ restore: |
   # TODO:COMPS: remove this once removing a snap also removes components
   systemctl stop -- '*test\x2dsnap\x2dwith\x2dcomponents-components-mnt-*.mount' || true
   rm /etc/systemd/system/*'-test\x2dsnap\x2dwith\x2dcomponents-components-mnt-'*'.mount' || true
-  rm -rf "${SNAP_MOUNT_DIR}/test-snap-with-components"
+  rm -rf "$(os.paths snap-mount-dir)/test-snap-with-components"
 
 execute: |
   snap install test-snap-with-components+one+two
