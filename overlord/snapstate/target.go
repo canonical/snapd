@@ -392,8 +392,12 @@ func componentSetupFromResource(name string, sar store.SnapResourceResult, info 
 		return ComponentSetup{}, fmt.Errorf("%q is not a component for snap %q", name, info.SnapName())
 	}
 
-	if typ := fmt.Sprintf("component/%s", comp.Type); typ != sar.Type {
-		return ComponentSetup{}, fmt.Errorf("inconsistent component type (%q in snap, %q in component)", typ, sar.Type)
+	typ, err := store.ResourceToComponentType(sar.Type)
+	if err != nil {
+		return ComponentSetup{}, fmt.Errorf("%q is not a component resource", sar.Type)
+	}
+	if typ != comp.Type {
+		return ComponentSetup{}, fmt.Errorf("inconsistent component type (%q in snap, %q in component)", comp.Type, typ)
 	}
 
 	cref := naming.NewComponentRef(info.SnapName(), name)
