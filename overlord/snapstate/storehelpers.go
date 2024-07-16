@@ -944,22 +944,19 @@ func sendActionsByUserID(ctx context.Context, st *state.State, actionsByUserID m
 				return nil, nil, err
 			}
 
-			if opts.ExpectOneSnap {
-				switch {
-				case saErr.NoResults:
-					return nil, nil, ErrMissingExpectedResult
-				case len(saErr.Install) == 1:
-					_, _, err := saErr.SingleOpError()
-					return nil, nil, err
-				}
+			if opts.ExpectOneSnap && saErr.NoResults {
+				return nil, nil, ErrMissingExpectedResult
 			}
 
 			// save these, since we still have things to do with snaps that
 			// might not have a new revision available
-			for name, e := range saErr.Refresh {
-				if errors.Is(e, store.ErrNoUpdateAvailable) {
-					noUpdatesAvailable = append(noUpdatesAvailable, name)
+			for name, e := range combineErrs(saErr) {
+				if !errors.Is(e, store.ErrNoUpdateAvailable) && opts.ExpectOneSnap {
+					_, _, err := saErr.SingleOpError()
+					return nil, nil, err
 				}
+
+				noUpdatesAvailable = append(noUpdatesAvailable, name)
 			}
 
 			logger.Noticef("%v", saErr)
@@ -969,6 +966,20 @@ func sendActionsByUserID(ctx context.Context, st *state.State, actionsByUserID m
 	}
 
 	return sars, noUpdatesAvailable, nil
+}
+
+func combineErrs(saErr *store.SnapActionError) map[string]error {
+	errs := make(map[string]error, len(saErr.Refresh)+len(saErr.Install)+len(saErr.Download))
+	for name, e := range saErr.Refresh {
+		errs[name] = e
+	}
+	for name, e := range saErr.Install {
+		errs[name] = e
+	}
+	for name, e := range saErr.Download {
+		errs[name] = e
+	}
+	return errs
 }
 
 // SnapHolds returns a map of held snaps to lists of holding snaps (including
