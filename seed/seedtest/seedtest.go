@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -48,6 +49,7 @@ type SeedSnaps struct {
 
 	snaps map[string]string
 	infos map[string]*snap.Info
+	comps map[string][]store.SnapResourceResult
 
 	snapAssertNow time.Time
 
@@ -80,10 +82,14 @@ func (ss *SeedSnaps) SetSnapAssertionNow(t time.Time) {
 }
 
 func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
-	return ss.makeAssertedSnap(c, snapYaml, files, revision, developerID, ss.StoreSigning.SigningDB, "", nil, dbs...)
+	return ss.makeAssertedSnap(c, snapYaml, files, revision, nil, developerID, ss.StoreSigning.SigningDB, "", nil, dbs...)
 }
 
-func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string, revSigning *assertstest.SigningDB, revProvenance string, revisionAuthority map[string]interface{}, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
+func (ss *SeedSnaps) MakeAssertedSnapWithComps(c *C, snapYaml string, files [][]string, revision snap.Revision, compRevisions map[string]snap.Revision, developerID string, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
+	return ss.makeAssertedSnap(c, snapYaml, files, revision, compRevisions, developerID, ss.StoreSigning.SigningDB, "", nil, dbs...)
+}
+
+func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, compRevisions map[string]snap.Revision, developerID string, revSigning *assertstest.SigningDB, revProvenance string, revisionAuthority map[string]interface{}, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 	snapName := info.SnapName()
@@ -137,6 +143,7 @@ func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	if ss.snaps == nil {
 		ss.snaps = make(map[string]string)
 		ss.infos = make(map[string]*snap.Info)
+		ss.comps = make(map[string][]store.SnapResourceResult)
 		ss.snapRevs = make(map[string]*asserts.SnapRevision)
 	}
 
@@ -147,11 +154,82 @@ func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	snapRev := revA.(*asserts.SnapRevision)
 	ss.snapRevs[snapName] = snapRev
 
+	if len(compRevisions) == 0 {
+		compRevisions = make(map[string]snap.Revision, len(info.Components))
+		for compName := range info.Components {
+			compRevisions[compName] = snap.R(77)
+		}
+	}
+	// If passed as argument, make sure it is of the right size
+	c.Assert(len(compRevisions), Equals, len(info.Components))
+
+	resResults := make([]store.SnapResourceResult, 0, len(info.Components))
+	for _, comp := range info.Components {
+		cref := naming.NewComponentRef(snapName, comp.Name)
+		compFile := snaptest.MakeTestComponent(c, SampleSnapYaml[cref.String()])
+		ss.snaps[cref.String()] = compFile
+
+		sha3_384, size, err := asserts.SnapFileSHA3_384(compFile)
+		c.Assert(err, IsNil)
+
+		// Now add the resource revision assertion
+		compRev := compRevisions[comp.Name]
+		resRevHeads := map[string]interface{}{
+			"authority-id":      revSigning.AuthorityID,
+			"snap-id":           snapID,
+			"resource-name":     comp.Name,
+			"resource-sha3-384": sha3_384,
+			"resource-size":     fmt.Sprintf("%d", size),
+			"resource-revision": compRev.String(),
+			"developer-id":      developerID,
+			"timestamp":         ss.snapAssertionNow().UTC().Format(time.RFC3339),
+		}
+		if revProvenance != "" {
+			resRevHeads["provenance"] = revProvenance
+		}
+		resRev, err := revSigning.Sign(asserts.SnapResourceRevisionType, resRevHeads, nil, "")
+		c.Assert(err, IsNil)
+
+		// and the resource pair revision
+		resPairHeads := map[string]interface{}{
+			"authority-id":      revSigning.AuthorityID,
+			"snap-id":           snapID,
+			"resource-name":     comp.Name,
+			"resource-revision": compRev.String(),
+			"snap-revision":     revision.String(),
+			"developer-id":      developerID,
+			"timestamp":         ss.snapAssertionNow().UTC().Format(time.RFC3339),
+		}
+		if revProvenance != "" {
+			resPairHeads["provenance"] = revProvenance
+		}
+		resPair, err := revSigning.Sign(asserts.SnapResourcePairType, resPairHeads, nil, "")
+		c.Assert(err, IsNil)
+
+		for _, db := range dbs {
+			err := db.Add(resRev)
+			c.Assert(err, IsNil)
+			err = db.Add(resPair)
+			c.Assert(err, IsNil)
+		}
+
+		resResults = append(resResults, store.SnapResourceResult{
+			DownloadInfo: snap.DownloadInfo{
+				Size:     int64(size),
+				Sha3_384: sha3_384,
+			},
+			Type:     "component/" + string(comp.Type),
+			Name:     comp.Name,
+			Revision: compRev.N,
+		})
+	}
+	ss.comps[snapName] = resResults
+
 	return snapDecl, snapRev
 }
 
 func (ss *SeedSnaps) MakeAssertedDelegatedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID, delegateID, revProvenance string, revisionAuthority map[string]interface{}, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
-	return ss.makeAssertedSnap(c, snapYaml, files, revision, developerID, ss.Brands.Signing(delegateID), revProvenance, revisionAuthority, dbs...)
+	return ss.makeAssertedSnap(c, snapYaml, files, revision, nil, developerID, ss.Brands.Signing(delegateID), revProvenance, revisionAuthority, dbs...)
 }
 
 func (ss *SeedSnaps) AssertedSnap(snapName string) (snapFile string) {
@@ -160,6 +238,10 @@ func (ss *SeedSnaps) AssertedSnap(snapName string) (snapFile string) {
 
 func (ss *SeedSnaps) AssertedSnapInfo(snapName string) *snap.Info {
 	return ss.infos[snapName]
+}
+
+func (ss *SeedSnaps) AssertedSnapComponents(snapName string) []store.SnapResourceResult {
+	return ss.comps[snapName]
 }
 
 func (ss *SeedSnaps) AssertedSnapRevision(snapName string) *asserts.SnapRevision {
