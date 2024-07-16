@@ -317,7 +317,10 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			channel = sn.RevOpts.Channel
 		default:
 			// this should only ever happen if the caller requested a specific
-			// revision to be installed (without specifying a channel)
+			// revision to be installed (without specifying a channel). note
+			// that we won't actually end up tracking "stable", it will get
+			// mapped to "latest/stable" by SnapState.SetTrackingChannel in
+			// doLinkSnap
 			channel = "stable"
 		}
 
