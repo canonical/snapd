@@ -45,29 +45,10 @@ type noticeInfo struct {
 	data     map[string]string
 }
 
-type noticeList []*noticeInfo
-
-// Implements sort.Interface
-func (l noticeList) Len() int {
-	return len(l)
-}
-
-// Implements sort.Interface
-func (l noticeList) Less(i, j int) bool {
-	return l[i].promptID < l[j].promptID
-}
-
-// Implements sort.Interface
-func (l noticeList) Swap(i, j int) {
-	atI := l[i]
-	l[i] = l[j]
-	l[j] = atI
-}
-
 type requestpromptsSuite struct {
 	defaultNotifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
 	defaultUser         uint32
-	promptNotices       noticeList
+	promptNotices       []*noticeInfo
 
 	tmpdir    string
 	maxIDPath string
@@ -330,8 +311,8 @@ func (s *requestpromptsSuite) checkNewNoticesSimple(c *C, expectedPromptIDs []pr
 	s.checkNewNotices(c, applyNotices(expectedPromptIDs, expectedData))
 }
 
-func applyNotices(expectedPromptIDs []prompting.IDType, expectedData map[string]string) noticeList {
-	expectedNotices := make(noticeList, len(expectedPromptIDs))
+func applyNotices(expectedPromptIDs []prompting.IDType, expectedData map[string]string) []*noticeInfo {
+	expectedNotices := make([]*noticeInfo, len(expectedPromptIDs))
 	for i, id := range expectedPromptIDs {
 		info := &noticeInfo{
 			promptID: id,
@@ -342,7 +323,7 @@ func applyNotices(expectedPromptIDs []prompting.IDType, expectedData map[string]
 	return expectedNotices
 }
 
-func (s *requestpromptsSuite) checkNewNotices(c *C, expectedNotices noticeList) {
+func (s *requestpromptsSuite) checkNewNotices(c *C, expectedNotices []*noticeInfo) {
 	c.Check(s.promptNotices, DeepEquals, expectedNotices)
 	s.promptNotices = s.promptNotices[:0]
 }
@@ -351,10 +332,17 @@ func (s *requestpromptsSuite) checkNewNoticesUnorderedSimple(c *C, expectedPromp
 	s.checkNewNoticesUnordered(c, applyNotices(expectedPromptIDs, expectedData))
 }
 
-func (s *requestpromptsSuite) checkNewNoticesUnordered(c *C, expectedNotices noticeList) {
-	sort.Sort(s.promptNotices)
-	sort.Sort(expectedNotices)
+func (s *requestpromptsSuite) checkNewNoticesUnordered(c *C, expectedNotices []*noticeInfo) {
+	sort.Slice(sortSliceParams(s.promptNotices))
+	sort.Slice(sortSliceParams(expectedNotices))
 	s.checkNewNotices(c, expectedNotices)
+}
+
+func sortSliceParams(list []*noticeInfo) ([]*noticeInfo, func(i, j int) bool) {
+	less := func(i, j int) bool {
+		return list[i].promptID < list[j].promptID
+	}
+	return list, less
 }
 
 func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
@@ -661,7 +649,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	e1 := &noticeInfo{promptID: prompt1.ID, data: nil}
 	e2 := &noticeInfo{promptID: prompt2.ID, data: map[string]string{"resolved": "satisfied"}}
 	e3 := &noticeInfo{promptID: prompt3.ID, data: map[string]string{"resolved": "satisfied"}}
-	expectedNotices := noticeList{e1, e2, e3}
+	expectedNotices := []*noticeInfo{e1, e2, e3}
 	s.checkNewNoticesUnordered(c, expectedNotices)
 
 	for i := 0; i < 2; i++ {
