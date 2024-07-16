@@ -46,6 +46,8 @@ const rawusbConnectedPlugAppArmor = `
 /sys/devices/pci**/usb[0-9]** r,
 /sys/devices/platform/soc**/*.usb**/usb[0-9]** r,
 /sys/devices/platform/scb/*.pcie/pci**/usb[0-9]** r,
+/sys/devices/platform/axi/*.pcie/*.usb/xhci-hcd.[0-9]*/usb[0-9]** r,
+/sys/devices/platform/axi/*.usb/usb[0-9]** r,
 
 /run/udev/data/c16[67]:[0-9] r, # ACM USB modems
 /run/udev/data/b180:*    r, # various USB block devices

@@ -27,6 +27,18 @@ import (
 
 type transactionTestSuite struct{}
 
+func newRegistry(c *C, schema registry.Schema) *registry.Registry {
+	registry, err := registry.New("my-account", "my-reg", map[string]interface{}{
+		"my-view": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{"request": "foo", "storage": "foo"},
+			},
+		},
+	}, schema)
+	c.Assert(err, IsNil)
+	return registry
+}
+
 var _ = Suite(&transactionTestSuite{})
 
 type witnessReadWriter struct {
@@ -50,8 +62,8 @@ func (w *witnessReadWriter) write(bag registry.JSONDataBag) error {
 func (s *transactionTestSuite) TestSet(c *C) {
 	bag := registry.NewJSONDataBag()
 	witness := &witnessReadWriter{bag: bag}
-	schema := registry.NewJSONSchema()
-	tx, err := registry.NewTransaction(witness.read, witness.write, schema)
+	reg := newRegistry(c, registry.NewJSONSchema())
+	tx, err := registry.NewTransaction(reg, witness.read, witness.write)
 	c.Assert(err, IsNil)
 	c.Assert(witness.readCalled, Equals, 1)
 
@@ -65,8 +77,8 @@ func (s *transactionTestSuite) TestSet(c *C) {
 
 func (s *transactionTestSuite) TestCommit(c *C) {
 	witness := &witnessReadWriter{bag: registry.NewJSONDataBag()}
-	schema := registry.NewJSONSchema()
-	tx, err := registry.NewTransaction(witness.read, witness.write, schema)
+	reg := newRegistry(c, registry.NewJSONSchema())
+	tx, err := registry.NewTransaction(reg, witness.read, witness.write)
 	c.Assert(err, IsNil)
 	c.Assert(witness.readCalled, Equals, 1)
 
@@ -88,8 +100,8 @@ func (s *transactionTestSuite) TestCommit(c *C) {
 func (s *transactionTestSuite) TestGetReadsUncommitted(c *C) {
 	databag := registry.NewJSONDataBag()
 	witness := &witnessReadWriter{bag: databag}
-	schema := registry.NewJSONSchema()
-	tx, err := registry.NewTransaction(witness.read, witness.write, schema)
+	reg := newRegistry(c, registry.NewJSONSchema())
+	tx, err := registry.NewTransaction(reg, witness.read, witness.write)
 	c.Assert(err, IsNil)
 
 	err = databag.Set("foo", "bar")
@@ -125,8 +137,8 @@ func (f *failingSchema) Type() registry.SchemaType {
 func (s *transactionTestSuite) TestRollBackOnCommitError(c *C) {
 	databag := registry.NewJSONDataBag()
 	witness := &witnessReadWriter{bag: databag}
-	schema := &failingSchema{err: errors.New("expected error")}
-	tx, err := registry.NewTransaction(witness.read, witness.write, schema)
+	reg := newRegistry(c, &failingSchema{err: errors.New("expected error")})
+	tx, err := registry.NewTransaction(reg, witness.read, witness.write)
 	c.Assert(err, IsNil)
 
 	err = tx.Set("foo", "bar")
@@ -148,8 +160,8 @@ func (s *transactionTestSuite) TestRollBackOnCommitError(c *C) {
 func (s *transactionTestSuite) TestManyWrites(c *C) {
 	databag := registry.NewJSONDataBag()
 	witness := &witnessReadWriter{bag: databag}
-	schema := registry.NewJSONSchema()
-	tx, err := registry.NewTransaction(witness.read, witness.write, schema)
+	reg := newRegistry(c, registry.NewJSONSchema())
+	tx, err := registry.NewTransaction(reg, witness.read, witness.write)
 	c.Assert(err, IsNil)
 
 	err = tx.Set("foo", "bar")
@@ -172,8 +184,8 @@ func (s *transactionTestSuite) TestManyWrites(c *C) {
 func (s *transactionTestSuite) TestCommittedIncludesRecentWrites(c *C) {
 	databag := registry.NewJSONDataBag()
 	witness := &witnessReadWriter{bag: databag}
-	schema := registry.NewJSONSchema()
-	tx, err := registry.NewTransaction(witness.read, witness.write, schema)
+	reg := newRegistry(c, registry.NewJSONSchema())
+	tx, err := registry.NewTransaction(reg, witness.read, witness.write)
 	c.Assert(err, IsNil)
 	c.Assert(witness.readCalled, Equals, 1)
 
@@ -214,11 +226,11 @@ func (s *transactionTestSuite) TestCommittedIncludesPreviousCommit(c *C) {
 		return nil
 	}
 
-	schema := registry.NewJSONSchema()
-	txOne, err := registry.NewTransaction(readBag, writeBag, schema)
+	reg := newRegistry(c, registry.NewJSONSchema())
+	txOne, err := registry.NewTransaction(reg, readBag, writeBag)
 	c.Assert(err, IsNil)
 
-	txTwo, err := registry.NewTransaction(readBag, writeBag, schema)
+	txTwo, err := registry.NewTransaction(reg, readBag, writeBag)
 	c.Assert(err, IsNil)
 
 	err = txOne.Set("foo", "bar")
@@ -259,8 +271,8 @@ func (s *transactionTestSuite) TestTransactionBagReadError(c *C) {
 		return nil
 	}
 
-	schema := registry.NewJSONSchema()
-	txOne, err := registry.NewTransaction(readBag, writeBag, schema)
+	reg := newRegistry(c, registry.NewJSONSchema())
+	txOne, err := registry.NewTransaction(reg, readBag, writeBag)
 	c.Assert(err, IsNil)
 
 	readErr = errors.New("expected")
@@ -269,7 +281,7 @@ func (s *transactionTestSuite) TestTransactionBagReadError(c *C) {
 	c.Assert(err, ErrorMatches, "expected")
 
 	// NewTransaction()'s databag read fails
-	txOne, err = registry.NewTransaction(readBag, writeBag, schema)
+	txOne, err = registry.NewTransaction(reg, readBag, writeBag)
 	c.Assert(err, ErrorMatches, "expected")
 }
 
@@ -282,8 +294,8 @@ func (s *transactionTestSuite) TestTransactionBagWriteError(c *C) {
 		return writeErr
 	}
 
-	schema := registry.NewJSONSchema()
-	txOne, err := registry.NewTransaction(readBag, writeBag, schema)
+	reg := newRegistry(c, registry.NewJSONSchema())
+	txOne, err := registry.NewTransaction(reg, readBag, writeBag)
 	c.Assert(err, IsNil)
 
 	writeErr = errors.New("expected")
@@ -301,8 +313,8 @@ func (s *transactionTestSuite) TestTransactionReadsIsolated(c *C) {
 		return nil
 	}
 
-	schema := registry.NewJSONSchema()
-	tx, err := registry.NewTransaction(readBag, writeBag, schema)
+	reg := newRegistry(c, registry.NewJSONSchema())
+	tx, err := registry.NewTransaction(reg, readBag, writeBag)
 	c.Assert(err, IsNil)
 
 	err = databag.Set("foo", "bar")
@@ -315,7 +327,8 @@ func (s *transactionTestSuite) TestTransactionReadsIsolated(c *C) {
 func (s *transactionTestSuite) TestReadDatabagsAreCopiedForIsolation(c *C) {
 	witness := &witnessReadWriter{bag: registry.NewJSONDataBag()}
 	schema := &failingSchema{}
-	tx, err := registry.NewTransaction(witness.read, witness.write, schema)
+	reg := newRegistry(c, schema)
+	tx, err := registry.NewTransaction(reg, witness.read, witness.write)
 	c.Assert(err, IsNil)
 
 	err = tx.Set("foo", "bar")
@@ -342,7 +355,8 @@ func (s *transactionTestSuite) TestReadDatabagsAreCopiedForIsolation(c *C) {
 
 func (s *transactionTestSuite) TestUnset(c *C) {
 	witness := &witnessReadWriter{bag: registry.NewJSONDataBag()}
-	tx, err := registry.NewTransaction(witness.read, witness.write, registry.NewJSONSchema())
+	reg := newRegistry(c, registry.NewJSONSchema())
+	tx, err := registry.NewTransaction(reg, witness.read, witness.write)
 	c.Assert(err, IsNil)
 
 	err = tx.Set("foo", "bar")

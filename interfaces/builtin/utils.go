@@ -27,7 +27,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -85,6 +84,9 @@ func verifySlotPathAttribute(slotRef *interfaces.SlotRef, attrs interfaces.Attre
 //	  "f[^o]*",
 //	  "fo[^o]*",
 //	}
+//
+// For a more generic version of this see GenerateAAREExclusionPatterns
+// TODO: can this be rewritten to use/share code with that function instead?
 func aareExclusivePatterns(orig string) []string {
 	// This function currently is only intended to be used with desktop
 	// prefixes as calculated by info.DesktopPrefix (the snap name and
@@ -111,23 +113,7 @@ func aareExclusivePatterns(orig string) []string {
 // dirs.SnapDesktopFilesDir, but explicitly denies access to all other snaps'
 // desktop files since xdg libraries may try to read all the desktop files
 // in the dir, causing excessive noise. (LP: #1868051)
-func getDesktopFileRules(snapInstanceName string, spec *apparmor.Specification) []string {
-	// desktop-launch allows to read all .desktop files; but "deny" rules overrule any "allow"
-	// rule, so we must not add these rules if this snap uses the desktop-launch interface.
-	// Also, for security reasons, all these rules are removed if the desktop-launch interface
-	// is listed, thus only if it is really connected will the snap have any kind of access to
-	// these folders/files.
-	//
-	// FIXME: this is really an ugly trick, so a better and more general mechanism is required
-	// in the future to define priorities between AppArmor rules blocks.
-	if spec != nil {
-		for _, plug := range spec.SnapAppSet().Info().Plugs {
-			if plug.Interface == "desktop-launch" {
-				return nil
-			}
-		}
-	}
-
+func getDesktopFileRules(snapInstanceName string) []string {
 	baseDir := dirs.SnapDesktopFilesDir
 
 	rules := []string{

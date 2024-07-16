@@ -34,7 +34,7 @@ jobs:
 
   test:
     needs: [unit-tests]
-    runs-on: [self-hosted, spread]
+    runs-on: [self-hosted, spread-enabled]
     steps:
     - name: Checkout code
       uses: actions/checkout@v2

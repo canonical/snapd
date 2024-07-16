@@ -321,6 +321,10 @@ func (s *viewSuite) TestRegistryNotFound(c *C) {
 	c.Assert(err, testutil.ErrorIs, &registry.NotFoundError{})
 	c.Assert(err, ErrorMatches, `cannot get "top-level" in registry view acc/foo/bar: matching rules don't map to any values`)
 
+	_, err = view.Get(databag, "")
+	c.Assert(err, testutil.ErrorIs, &registry.NotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot get registry view acc/foo/bar: matching rules don't map to any values`)
+
 	err = view.Set(databag, "nested", "thing")
 	c.Assert(err, IsNil)
 

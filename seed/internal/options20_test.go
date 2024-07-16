@@ -175,3 +175,97 @@ snaps:
 	_, err = internal.ReadOptions20(fn)
 	c.Assert(err, ErrorMatches, `cannot read grade dangerous options yaml: at least one of id, channel or unasserted must be set for snap "foo"`)
 }
+
+func (s *options20Suite) TestWithComponents(c *C) {
+	fn := filepath.Join(c.MkDir(), "options.yaml")
+	err := os.WriteFile(fn, []byte(`
+snaps:
+ - name: foo
+   unasserted: bar.snap
+   components:
+     - name: comp1
+       unasserted: comp1_1.comp
+     - name: comp2
+       unasserted: file.comp
+`), 0644)
+
+	c.Assert(err, IsNil)
+	options20, err := internal.ReadOptions20(fn)
+	c.Assert(err, IsNil)
+	c.Assert(options20.Snaps, HasLen, 1)
+	c.Assert(options20.Snaps[0], DeepEquals, &internal.Snap20{
+		Name:       "foo",
+		Unasserted: "bar.snap",
+		Components: []internal.Component{
+			{Name: "comp1", Unasserted: "comp1_1.comp"},
+			{Name: "comp2", Unasserted: "file.comp"},
+		},
+	})
+}
+
+func (s *options20Suite) TestWithComponentsAssertedSnap(c *C) {
+	fn := filepath.Join(c.MkDir(), "options.yaml")
+	err := os.WriteFile(fn, []byte(`
+snaps:
+ - name: foo
+   id: snapidsnapidsnapidsnapidsnapidsn
+   components:
+     - name: comp1
+       unasserted: comp1_1.comp
+`), 0644)
+
+	c.Assert(err, IsNil)
+	options20, err := internal.ReadOptions20(fn)
+	c.Assert(options20, IsNil)
+	c.Assert(err, ErrorMatches, `cannot read grade dangerous options yaml: local components specified for non-local snap "foo"`)
+}
+
+func (s *options20Suite) TestWithComponentsBadCompName(c *C) {
+	fn := filepath.Join(c.MkDir(), "options.yaml")
+	err := os.WriteFile(fn, []byte(`
+snaps:
+ - name: foo
+   unasserted: bar.snap
+   components:
+     - name: comp_1
+       unasserted: comp1_1.comp
+`), 0644)
+
+	c.Assert(err, IsNil)
+	options20, err := internal.ReadOptions20(fn)
+	c.Assert(options20, IsNil)
+	c.Assert(err, ErrorMatches, `cannot read grade dangerous options yaml: invalid snap name: "comp_1"`)
+}
+
+func (s *options20Suite) TestWithComponentsNoUnassertedComp(c *C) {
+	fn := filepath.Join(c.MkDir(), "options.yaml")
+	err := os.WriteFile(fn, []byte(`
+snaps:
+ - name: foo
+   unasserted: bar.snap
+   components:
+     - name: comp-1
+`), 0644)
+
+	c.Assert(err, IsNil)
+	options20, err := internal.ReadOptions20(fn)
+	c.Assert(options20, IsNil)
+	c.Assert(err, ErrorMatches, `cannot read grade dangerous options yaml: no file specified for unasserted component "comp-1"`)
+}
+
+func (s *options20Suite) TestWithComponentsNoPathAllowed(c *C) {
+	fn := filepath.Join(c.MkDir(), "options.yaml")
+	err := os.WriteFile(fn, []byte(`
+snaps:
+ - name: foo
+   unasserted: bar.snap
+   components:
+     - name: comp1
+       unasserted: ./comp1_1.comp
+`), 0644)
+
+	c.Assert(err, IsNil)
+	options20, err := internal.ReadOptions20(fn)
+	c.Assert(options20, IsNil)
+	c.Assert(err, ErrorMatches, `cannot read grade dangerous options yaml: "\./comp1_1.comp" must be a filename, not a path`)
+}

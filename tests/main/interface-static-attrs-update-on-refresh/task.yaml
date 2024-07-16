@@ -1,0 +1,106 @@
+summary: check that security profiles get regenerated on refresh
+
+details: |
+  This tests that a refresh regenerates AppArmor profiles, even if the set of 
+  slots/plugs hasn't changed.
+
+# the test relies on a writable rootfs, as we want to use a nonsense path so that
+# changes to the base profile or contents of the core snap will never break the test
+systems: [-ubuntu-core-*]
+
+prepare: |
+  "$TESTSTOOLS"/snaps-state install-local test-snap-a-v1
+  "$TESTSTOOLS"/snaps-state install-local test-snap-b
+  echo "Etc Foo!" > /etc/foo
+  echo "Etc Bar!" > /etc/bar
+  echo "Default Shm Foo!" > /dev/shm/foo
+  echo "Default Shm Bar!" > /dev/shm/bar
+  tests.cleanup defer rm -rf /etc/foo /etc/bar
+
+execute: |
+  if [ "$(snap debug confinement)" = partial ] ; then
+    exit 0
+  fi
+
+  snap info test-snap-a | MATCH "^installed: +version1"
+
+  echo "test-snap-a reading /etc/foo, /etc/bar should fail."
+  if test-snap-a.sh -c 'cat /etc/foo'; then
+    echo "Expected error from test-snap-a reading /etc/foo"
+    exit 1
+  fi
+  if test-snap-a.sh -c 'cat /etc/bar'; then
+    echo "Expected error from test-snap-a reading /etc/bar"
+    exit 1
+  fi
+
+  echo "test-snap-a writing /dev/shm/foo, /dev/shm/bar should fail."
+  if test-snap-a.sh -c 'echo "Shm Foo!" > /dev/shm/foo'; then
+    echo "Expected error from test-snap-a writing /dev/shm/foo"
+    exit 1
+  fi
+  if test-snap-a.sh -c 'echo "Shm Bar!" > /dev/shm/bar'; then
+    echo "Expected error from test-snap-a writing /dev/shm/bar"
+    exit 1
+  fi
+
+  echo "test-snap-b reading /dev/shm/foo, /dev/shm/bar should fail."
+  if test-snap-b.sh -c 'cat /dev/shm/foo'; then
+    echo "Expected error from test-snap-b reading /dev/shm/foo"
+    exit 1
+  fi
+  if test-snap-b.sh -c 'cat /dev/shm/bar'; then
+    echo "Expected error from test-snap-a writing /dev/shm/bar"
+    exit 1
+  fi
+
+  echo "Connecting interfaces..."
+  snap connect test-snap-a:etc-foo-bar
+  snap connections test-snap-a | MATCH "^system-files +test-snap-a:etc-foo-bar +:system-files +manual"
+  snap connect test-snap-b:shm-foo-bar test-snap-a:shm-foo-bar
+  snap connections test-snap-a | MATCH "^shared-memory +test-snap-b:shm-foo-bar +test-snap-a:shm-foo-bar +manual"
+
+  echo "test-snap-a reading /etc/foo should succeed."
+  test-snap-a.sh -c 'cat /etc/foo'
+
+  echo "test-snap-a reading /etc/bar should fail."
+  if test-snap-a.sh -c 'cat /etc/bar'; then
+    echo "Expected error from test-snap-a reading /etc/bar"
+    exit 1
+  fi
+
+  echo "test-snap-a writing /dev/shm/foo should succeed."
+  test-snap-a.sh -c 'echo "Shm Foo!" > /dev/shm/foo'
+
+  echo "test-snap-a writing /dev/shm/bar should fail."
+  if test-snap-a.sh -c 'echo "Shm Bar!" > /dev/shm/bar'; then
+    echo "Expected error from test-snap-a writing /dev/shm/bar"
+    exit 1
+  fi
+
+  echo "test-snap-b reading /dev/shm/foo should succeed."
+  test-snap-b.sh -c 'cat /dev/shm/foo' | MATCH "^Shm Foo!"
+
+  echo "test-snap-b reading /dev/shm/bar should fail."
+  if test-snap-b.sh -c 'cat /dev/shm/bar'; then
+    echo "Expected error from test-snap-b reading /dev/shm/bar"
+    exit 1
+  fi
+
+  echo "Refreshing test-snap-a to v2..."
+  "$TESTSTOOLS"/snaps-state install-local test-snap-a-v2
+  snap info test-snap-a | MATCH "^installed: +version2"
+  snap connections test-snap-a | MATCH "^system-files +test-snap-a:etc-foo-bar +:system-files +manual"
+  snap connections test-snap-a | MATCH "^shared-memory +test-snap-b:shm-foo-bar +test-snap-a:shm-foo-bar +manual"
+
+  echo "test-snap-a reading /etc/foo, /etc/bar should succeed."
+  test-snap-a.sh -c 'cat /etc/foo'
+  test-snap-a.sh -c 'cat /etc/bar'
+
+  echo "test-snap-a writing /dev/shm/foo, /dev/shm/bar should succeed."
+  test-snap-a.sh -c 'echo "Shm Foo!" > /dev/shm/foo'
+  test-snap-a.sh -c 'echo "Shm Bar!" > /dev/shm/bar'
+
+  echo "test-snap-b reading /dev/shm/foo, /dev/shm/bar should succeed."
+  test-snap-b.sh -c 'cat /dev/shm/foo' | MATCH "^Shm Foo!"
+  test-snap-b.sh -c 'cat /dev/shm/bar' | MATCH "^Shm Bar!"

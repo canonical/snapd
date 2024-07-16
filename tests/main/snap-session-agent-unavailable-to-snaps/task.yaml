@@ -8,9 +8,8 @@ details: |
 systems:
     # Ubuntu 14.04 does not have a complete systemd implementation
     - -ubuntu-14.04-*
-    # Systemd on CentOS 7/Amazon Linux 2 does not have the user@uid unit
+    # Systemd on Amazon Linux 2 does not have the user@uid unit
     - -amazon-linux-2-*
-    - -centos-7-*
 
 prepare: |
     # Ensure that snapd.session-agent.socket is enabled.  This may not

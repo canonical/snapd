@@ -89,6 +89,27 @@ version: 1.0
 type: app
 base: core20
 version: 1.0
+components:
+  comp1:
+    type: test
+  comp2:
+    type: test
+`,
+	"required20+comp1": `component: required20+comp1
+type: test
+version: 1.0
+`,
+	"required20+comp1_kernel": `component: required20+comp1
+type: kernel-modules
+version: 1.0
+`,
+	"required20+comp2": `component: required20+comp2
+type: test
+version: 2.0
+`,
+	"required20+unknown": `component: required20+unknown
+type: test
+version: 2.0
 `,
 	"optional20-a": `name: optional20-a
 type: app

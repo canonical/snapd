@@ -166,9 +166,9 @@ func (m *SnapManager) doDownloadComponent(t *state.Task, tomb *tomb.Tomb) error 
 		snapsup.InstanceName(),
 	)
 
-	// TODO: to be consistent with snaps, this should be able to point somewhere
-	// else, based on a path that is in the compsup. this would be used for
-	// creating new recovery systems, like it is now for snaps
+	// TODO:COMPS: to be consistent with snaps, this should be able to point
+	// somewhere else, based on a path that is in the compsup. this would be
+	// used for creating new recovery systems, like it is now for snaps
 	target := cpi.MountFile()
 
 	sto := Store(st, deviceCtx)
@@ -548,7 +548,7 @@ func (m *SnapManager) undoUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (e
 	return nil
 }
 
-func (m *SnapManager) doSetupKernelModules(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doSetupKernelModules(t *state.Task, finalStatus state.Status) error {
 	// invariant: component not linked yet
 	st := t.State()
 
@@ -576,11 +576,11 @@ func (m *SnapManager) doSetupKernelModules(t *state.Task, _ *tomb.Tomb) error {
 	// Make sure we won't be rerun
 	st.Lock()
 	defer st.Unlock()
-	t.SetStatus(state.DoneStatus)
+	t.SetStatus(finalStatus)
 	return nil
 }
 
-func (m *SnapManager) doRemoveKernelModulesSetup(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doRemoveKernelModulesSetup(t *state.Task, finalStatus state.Status) error {
 	// invariant: component unlinked on undo
 	st := t.State()
 
@@ -611,7 +611,7 @@ func (m *SnapManager) doRemoveKernelModulesSetup(t *state.Task, _ *tomb.Tomb) er
 	// Make sure we won't be rerun
 	st.Lock()
 	defer st.Unlock()
-	t.SetStatus(state.UndoneStatus)
+	t.SetStatus(finalStatus)
 	return nil
 }
 

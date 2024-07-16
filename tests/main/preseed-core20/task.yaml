@@ -18,8 +18,8 @@ environment:
 prepare: |
   #shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB"/prepare.sh
-  snap download "--channel=${SNAPD_CHANNEL}" snapd
-  repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks /tmp
+  mkdir -p /tmp/tweaked-snapd-snap
+  build_snapd_snap_with_run_mode_firstboot_tweaks /tmp/tweaked-snapd-snap
 
   snap pack systemusers-snap
 
@@ -36,6 +36,7 @@ prepare: |
   gendeveloper1 show-key | gpg --homedir=~/.snap/gnupg --import
 
 restore: |
+  rm -rf /tmp/tweaked-snapd-snap
   rm -rf "$PREPARE_IMAGE_DIR"
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
 
@@ -47,7 +48,13 @@ execute: |
   export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
   echo "Running pre-seeding"
-  SNAPD_SNAP=$(ls /tmp/snapd*.snap)
+  for f in /tmp/tweaked-snapd-snap/snapd*.snap; do
+    if [ "${SNAPD_SNAP:+set}" = set ]; then
+      echo "found multiple snaps in /tmp/tweaked-snapd-snap" 1>&2
+      exit 1
+    fi
+    SNAPD_SNAP="${f}"
+  done
 
   # XXX: confusingly, the name of our test key is actually " (test)".
   SNAPD_DEBUG=1 snap prepare-image --preseed --preseed-sign-key=" (test)" --channel=stable \

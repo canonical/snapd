@@ -681,6 +681,7 @@ var defaultOtherBaseTemplateRules = `
   # - /lib/modules
   #
   # Everything but /lib/firmware and /lib/modules
+  # TODO: use GenerateAAREExclusionPatterns for this
   /{,usr/}lib/ r,
   /{,usr/}lib/[^fm]** mrklix,
   /{,usr/}lib/{f[^i],m[^o]}** mrklix,
@@ -709,6 +710,7 @@ var defaultOtherBaseTemplateRules = `
   #
   # Everything but /usr/lib and /usr/src, which are handled elsewhere.
   /usr/ r,
+  # TODO: use GenerateAAREExclusionPatterns for this
   /usr/[^ls]** mrklix,
   /usr/{l[^i],s[^r]}** mrklix,
   /usr/{li[^b],sr[^c]}** mrklix,

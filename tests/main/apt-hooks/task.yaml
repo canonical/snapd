@@ -58,8 +58,12 @@ execute: |
     No apt package "aws-cli", but there is a snap with that name.
     Try "snap install aws-cli"
     
-    E: Unable to locate package aws-cli
     EOF
+    if os.query is-ubuntu-ge 24.10; then
+        echo "Error: Unable to locate package aws-cli" >> expected
+    else
+        echo "E: Unable to locate package aws-cli" >> expected
+    fi
 
     echo "Checking apt hook"
     if apt install -qq aws-cli > out 2>&1; then

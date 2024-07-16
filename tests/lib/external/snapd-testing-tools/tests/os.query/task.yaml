@@ -150,12 +150,6 @@ execute: |
             os.query is-classic
             ! os.query is-core
             ;;
-        centos-7-64)            
-            os.query is-centos
-            os.query is-centos 7
-            os.query is-classic
-            ! os.query is-core
-            ;;
         centos-9-64)            
             os.query is-centos 9
             os.query is-centos

@@ -70,12 +70,16 @@ type NotFoundError struct {
 
 func (e *NotFoundError) Error() string {
 	var reqStr string
-	if len(e.Requests) == 1 {
-		reqStr = fmt.Sprintf("%q", e.Requests[0])
-	} else {
-		reqStr = strutil.Quoted(e.Requests)
+	switch len(e.Requests) {
+	case 0:
+		// leave empty, so the message reflects the request gets the whole view
+	case 1:
+		reqStr = fmt.Sprintf(" %q in", e.Requests[0])
+	default:
+		reqStr = fmt.Sprintf(" %s in", strutil.Quoted(e.Requests))
 	}
-	return fmt.Sprintf("cannot %s %s in registry view %s/%s/%s: %s", e.Operation, reqStr, e.Account, e.RegistryName, e.View, e.Cause)
+
+	return fmt.Sprintf("cannot %s%s registry view %s/%s/%s: %s", e.Operation, reqStr, e.Account, e.RegistryName, e.View, e.Cause)
 }
 
 func (e *NotFoundError) Is(err error) bool {
@@ -84,12 +88,17 @@ func (e *NotFoundError) Is(err error) bool {
 }
 
 func notFoundErrorFrom(v *View, op, request, errMsg string) *NotFoundError {
+	var req []string
+	if request != "" {
+		req = []string{request}
+	}
+
 	return &NotFoundError{
 		Account:      v.registry.Account,
 		RegistryName: v.registry.Name,
 		View:         v.Name,
 		Operation:    op,
-		Requests:     []string{request},
+		Requests:     req,
 		Cause:        errMsg,
 	}
 }
@@ -980,6 +989,7 @@ func (v *View) Get(databag DataBag, request string) (interface{}, error) {
 	}
 
 	if merged == nil {
+		// TODO: improve this error message
 		return nil, notFoundErrorFrom(v, "get", request, "matching rules don't map to any values")
 	}
 

@@ -29,9 +29,12 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
+	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/registry"
+	"github.com/snapcore/snapd/snap"
 )
 
 type registryTestSuite struct {
@@ -290,4 +293,76 @@ func (s *registryTestSuite) TestRegistrystateGetEntireView(c *C) {
 			"b": float64(2),
 		},
 	})
+}
+
+func (s *registryTestSuite) TestRegistryTransaction(c *C) {
+	mkRegistry := func(account, name string) *registry.Registry {
+		reg, err := registry.New(account, name, map[string]interface{}{
+			"bar": map[string]interface{}{
+				"rules": []interface{}{
+					map[string]interface{}{"request": "foo", "storage": "foo"},
+				},
+			},
+		}, registry.NewJSONSchema())
+		c.Assert(err, IsNil)
+		return reg
+	}
+
+	s.state.Lock()
+	task := s.state.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
+	s.state.Unlock()
+	mockHandler := hooktest.NewMockHandler()
+
+	type testcase struct {
+		acc1, acc2 string
+		reg1, reg2 string
+		equals     bool
+	}
+
+	tcs := []testcase{
+		{
+			// same transaction
+			acc1: "acc-1", reg1: "reg-1",
+			acc2: "acc-1", reg2: "reg-1",
+			equals: true,
+		},
+		{
+			// different registry name, different transaction
+			acc1: "acc-1", reg1: "reg-1",
+			acc2: "acc-1", reg2: "reg-2",
+		},
+		{
+			// different account, different transaction
+			acc1: "acc-1", reg1: "reg-1",
+			acc2: "acc-2", reg2: "reg-1",
+		},
+		{
+			// both different, different transaction
+			acc1: "acc-1", reg1: "reg-1",
+			acc2: "acc-2", reg2: "reg-2",
+		},
+	}
+
+	for _, tc := range tcs {
+		ctx, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
+		c.Assert(err, IsNil)
+		ctx.Lock()
+
+		reg1 := mkRegistry(tc.acc1, tc.reg1)
+		reg2 := mkRegistry(tc.acc2, tc.reg2)
+
+		tx1, err := registrystate.RegistryTransaction(ctx, reg1)
+		c.Assert(err, IsNil)
+
+		tx2, err := registrystate.RegistryTransaction(ctx, reg2)
+		c.Assert(err, IsNil)
+
+		if tc.equals {
+			c.Assert(tx1, Equals, tx2)
+		} else {
+			c.Assert(tx1, Not(Equals), tx2)
+		}
+		ctx.Unlock()
+	}
 }
