@@ -96,7 +96,39 @@ func (pc *PromptConstraints) subtractPermissions(permissions []string) (modified
 
 // userPromptDB maps prompt IDs to prompts for a single user.
 type userPromptDB struct {
-	ByID map[prompting.IDType]*Prompt
+	// ids maps from id to the corresponding prompt's index in the prompts array.
+	ids     map[prompting.IDType]int
+	prompts []*Prompt
+}
+
+func (udb *userPromptDB) get(id prompting.IDType) (*Prompt, error) {
+	index, ok := udb.ids[id]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return udb.prompts[index], nil
+}
+
+func (udb *userPromptDB) add(prompt *Prompt) {
+	udb.prompts = append(udb.prompts, prompt)
+	index := len(udb.prompts) - 1
+	udb.ids[prompt.ID] = index
+}
+
+func (udb *userPromptDB) remove(id prompting.IDType) (*Prompt, error) {
+	index, ok := udb.ids[id]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	prompt := udb.prompts[index]
+	// Remove the prompt with the given ID by moving the final prompt in
+	// udb.prompts to its index, then deleting its id.
+	udb.prompts[index] = udb.prompts[len(udb.prompts)-1]
+	overwritingID := udb.prompts[index].ID
+	udb.prompts = udb.prompts[:len(udb.prompts)-1]
+	udb.ids[overwritingID] = index
+	delete(udb.ids, id)
+	return prompt, nil
 }
 
 // PromptDB stores outstanding prompts in memory and ensures that new prompts
@@ -221,7 +253,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 	userEntry, ok := pdb.perUser[metadata.User]
 	if !ok {
 		pdb.perUser[metadata.User] = &userPromptDB{
-			ByID: make(map[prompting.IDType]*Prompt),
+			ids: make(map[prompting.IDType]int),
 		}
 		userEntry = pdb.perUser[metadata.User]
 	}
@@ -233,7 +265,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 	}
 
 	// Search for an identical existing prompt, merge if found
-	for _, prompt := range userEntry.ByID {
+	for _, prompt := range userEntry.prompts {
 		if prompt.Snap == metadata.Snap && prompt.Interface == metadata.Interface && prompt.Constraints.equals(constraints) {
 			prompt.listenerReqs = append(prompt.listenerReqs, listenerReq)
 			// Although the prompt itself has not changed, re-record a notice
@@ -246,7 +278,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 		}
 	}
 
-	if len(userEntry.ByID) >= maxOutstandingPromptsPerUser {
+	if len(userEntry.prompts) >= maxOutstandingPromptsPerUser {
 		logger.Noticef("WARNING: too many outstanding prompts for user %d; auto-denying new one", metadata.User)
 		sendReply(listenerReq, false)
 		return nil, false, ErrTooManyPrompts
@@ -262,12 +294,12 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 		Constraints:  constraints,
 		listenerReqs: []*listener.Request{listenerReq},
 	}
-	userEntry.ByID[id] = prompt
+	userEntry.add(prompt)
 	pdb.notifyPrompt(metadata.User, id, nil)
 	return prompt, false, nil
 }
 
-// Prompts returns a slice of all outstanding prompts.
+// Prompts returns a slice of all outstanding prompts for the given user.
 func (pdb *PromptDB) Prompts(user uint32) ([]*Prompt, error) {
 	pdb.mutex.RLock()
 	defer pdb.mutex.RUnlock()
@@ -275,15 +307,13 @@ func (pdb *PromptDB) Prompts(user uint32) ([]*Prompt, error) {
 		return nil, ErrClosed
 	}
 	userEntry, ok := pdb.perUser[user]
-	if !ok || len(userEntry.ByID) == 0 {
+	if !ok || len(userEntry.prompts) == 0 {
 		// No prompts for user, but no error
 		return nil, nil
 	}
-	prompts := make([]*Prompt, 0, len(userEntry.ByID))
-	for _, prompt := range userEntry.ByID {
-		prompts = append(prompts, prompt)
-	}
-	return prompts, nil
+	promptsCopy := make([]*Prompt, len(userEntry.prompts))
+	copy(promptsCopy, userEntry.prompts)
+	return promptsCopy, nil
 }
 
 // PromptWithID returns the prompt with the given ID for the given user.
@@ -303,12 +333,12 @@ func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType) (*userPrompt
 		return nil, nil, ErrClosed
 	}
 	userEntry, ok := pdb.perUser[user]
-	if !ok || len(userEntry.ByID) == 0 {
-		return nil, nil, ErrNotFound
-	}
-	prompt, ok := userEntry.ByID[id]
 	if !ok {
 		return nil, nil, ErrNotFound
+	}
+	prompt, err := userEntry.get(id)
+	if err != nil {
+		return nil, nil, err
 	}
 	return userEntry, prompt, nil
 }
@@ -338,7 +368,7 @@ func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.O
 			return nil, err
 		}
 	}
-	delete(userEntry.ByID, id)
+	userEntry.remove(id)
 	data := map[string]string{"resolved": "replied"}
 	pdb.notifyPrompt(user, id, data)
 	return prompt, nil
@@ -381,7 +411,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 		return nil, nil
 	}
 	var satisfiedPromptIDs []prompting.IDType
-	for id, prompt := range userEntry.ByID {
+	for _, prompt := range userEntry.prompts {
 		if !(prompt.Snap == metadata.Snap && prompt.Interface == metadata.Interface) {
 			continue
 		}
@@ -396,6 +426,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 		if !modified {
 			continue
 		}
+		id := prompt.ID
 		if len(prompt.Constraints.Permissions) > 0 && allow == true {
 			pdb.notifyPrompt(metadata.User, id, nil)
 			continue
@@ -404,7 +435,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 		for _, listenerReq := range prompt.listenerReqs {
 			sendReply(listenerReq, allow)
 		}
-		delete(userEntry.ByID, id)
+		userEntry.remove(id)
 		satisfiedPromptIDs = append(satisfiedPromptIDs, id)
 		data := map[string]string{"resolved": "satisfied"}
 		pdb.notifyPrompt(metadata.User, id, data)
@@ -426,7 +457,7 @@ func (pdb *PromptDB) Close() error {
 	}
 
 	for user, userEntry := range pdb.perUser {
-		for id := range userEntry.ByID {
+		for id := range userEntry.ids {
 			pdb.notifyPrompt(user, id, data)
 		}
 	}
