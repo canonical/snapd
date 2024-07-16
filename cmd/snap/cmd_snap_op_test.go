@@ -405,6 +405,148 @@ func (s *SnapOpSuite) TestInstallManyWithComponents(c *check.C) {
 	c.Check(n, check.Equals, total)
 }
 
+func (s *SnapOpSuite) TestRemoveWithComponent(c *check.C) {
+	total := 3
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+				"action":     "remove",
+				"components": []interface{}{"comp1", "comp2"},
+			})
+
+			c.Check(r.Method, check.Equals, "POST")
+			w.WriteHeader(202)
+			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
+		case 2:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"components": {"foo": ["comp1", "comp2"]}}}}`)
+		default:
+			c.Fatalf("expected to get %d requests, now on %d", total, n+1)
+		}
+
+		n++
+	})
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "foo+comp1+comp2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+
+	c.Check(s.Stdout(), check.Equals, "component comp1 for foo removed\n"+
+		"component comp2 for foo removed\n")
+	c.Check(s.Stderr(), check.Equals, "")
+
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, total)
+}
+
+func (s *SnapOpSuite) TestRemoveManyWithComponents(c *check.C) {
+	total := 3
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+				"action": "remove",
+				"snaps":  []interface{}{"three"},
+				"components": map[string]interface{}{
+					"one": []interface{}{"comp1", "comp2"},
+					"two": []interface{}{"comp3", "comp4"},
+				},
+			})
+
+			c.Check(r.Method, check.Equals, "POST")
+			w.WriteHeader(202)
+			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
+		case 2:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"snap-names": ["three"], "components": {"one": ["comp1", "comp2"], "two": ["comp3", "comp4"]}}}}`)
+		default:
+			c.Fatalf("expected to get %d requests, now on %d", total, n+1)
+		}
+
+		n++
+	})
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs(
+		[]string{"remove", "one+comp1+comp2", "two+comp3+comp4", "three"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+
+	c.Check(s.Stdout(), check.Matches, `(?sm).*three removed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*component comp1 for one removed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*component comp2 for one removed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*component comp3 for two removed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*component comp4 for two removed`)
+	c.Check(s.Stderr(), check.Equals, "")
+
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, total)
+}
+
+func (s *SnapOpSuite) TestRemoveManyWithComponentsSomeNotInstalled(c *check.C) {
+	total := 3
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+				"action": "remove",
+				"snaps":  []interface{}{"three"},
+				"components": map[string]interface{}{
+					"one": []interface{}{"comp1", "comp2"},
+					"two": []interface{}{"comp3", "comp4"},
+				},
+			})
+
+			c.Check(r.Method, check.Equals, "POST")
+			w.WriteHeader(202)
+			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
+		case 2:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"components": {"one": ["comp1"]}}}}`)
+		default:
+			c.Fatalf("expected to get %d requests, now on %d", total, n+1)
+		}
+
+		n++
+	})
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs(
+		[]string{"remove", "one+comp1+comp2", "two+comp3+comp4", "three"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+
+	c.Check(s.Stdout(), check.Matches, `(?sm).*three not installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*component comp1 for one removed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*component comp2 for one is not installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*component comp3 for two is not installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*component comp4 for two is not installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, total)
+}
+
 func (s *SnapOpSuite) TestInstallWithWaitStatus(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")

@@ -147,13 +147,16 @@ func (client *Client) InstallMany(names []string, components map[string][]string
 	return client.doMultiSnapAction("install", names, components, options)
 }
 
-// Remove removes the snap with the given name.
-func (client *Client) Remove(name string, options *SnapOptions) (changeID string, err error) {
-	return client.doSnapAction("remove", name, nil, options)
+// Remove removes the snap with the given name, or only the specified
+// components if present.
+func (client *Client) Remove(name string, components []string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("remove", name, components, options)
 }
 
-func (client *Client) RemoveMany(names []string, options *SnapOptions) (changeID string, err error) {
-	return client.doMultiSnapAction("remove", names, nil, options)
+// RemoveMany removes the snaps in names and the components as a map
+// of snap names to a list of components.
+func (client *Client) RemoveMany(names []string, components map[string][]string, options *SnapOptions) (changeID string, err error) {
+	return client.doMultiSnapAction("remove", names, components, options)
 }
 
 // Refresh refreshes the snap with the given name (switching it to track
