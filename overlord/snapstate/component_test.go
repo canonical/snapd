@@ -122,6 +122,7 @@ components:
 	comps, err := snapSt.CurrentComponentInfos()
 	c.Assert(err, IsNil)
 	c.Check(comps, testutil.DeepUnsortedMatches, []*snap.ComponentInfo{foundCi, foundCi2})
+	c.Check(snapSt.CurrentlyHasComponents(), Equals, true)
 
 	snapSt = &snapstate.SnapState{
 		Active: true,
@@ -150,6 +151,7 @@ components:
 	comps, err = snapSt.ComponentInfosForRevision(ssi2.Revision)
 	c.Assert(err, IsNil)
 	c.Check(comps, HasLen, 0)
+	c.Check(snapSt.CurrentlyHasComponents(), Equals, false)
 
 	snapSt = &snapstate.SnapState{
 		Active: true,
