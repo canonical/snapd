@@ -92,6 +92,7 @@ type componentInstallFlags struct {
 }
 
 type componentInstallTaskSet struct {
+	compSetupTask      *state.Task
 	beforeLink         []*state.Task
 	linkToHook         []*state.Task
 	postOpHookAndAfter []*state.Task
@@ -138,6 +139,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 		prepare = st.NewTask("prepare-component", fmt.Sprintf(i18n.G("Prepare component %q%s"), compSetup.CompPath, revisionStr))
 	}
 
+	componentTS.compSetupTask = prepare
 	componentTS.beforeLink = append(componentTS.beforeLink, prepare)
 	componentTS.ts.AddTask(prepare)
 

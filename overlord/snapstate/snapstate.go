@@ -444,10 +444,13 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		addTask(preRefreshHook)
 	}
 
-	tasksAfterLinkSnap, tasksBeforeCurrentUnlink, tasksAfterPostOpHook, err := splitComponentTasksForInstall(compsups, st, snapst, snapsup, fromChange)
+	tasksAfterLinkSnap, tasksBeforeCurrentUnlink, tasksAfterPostOpHook, compSetupIDs, err := splitComponentTasksForInstall(
+		compsups, st, snapst, snapsup, fromChange,
+	)
 	if err != nil {
 		return nil, err
 	}
+	prepare.Set("component-setup-tasks", compSetupIDs)
 
 	if snapst.IsInstalled() {
 		// unlink-current-snap (will stop services for copy-data)
@@ -729,19 +732,22 @@ func splitComponentTasksForInstall(
 	fromChange string,
 ) (
 	tasksAfterLinkSnap, tasksBeforeCurrentUnlink, tasksAfterPostOpHook []*state.Task,
+	compSetupIDs []string,
 	err error,
 ) {
 	for _, compsup := range compsups {
 		componentTS, err := doInstallComponent(st, snapst, compsup, snapsup, fromChange)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
+			return nil, nil, nil, nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
 		}
+
+		compSetupIDs = append(compSetupIDs, componentTS.compSetupTask.ID())
 
 		tasksBeforeCurrentUnlink = append(tasksBeforeCurrentUnlink, componentTS.beforeLink...)
 		tasksAfterLinkSnap = append(tasksAfterLinkSnap, componentTS.linkToHook...)
 		tasksAfterPostOpHook = append(tasksAfterPostOpHook, componentTS.postOpHookAndAfter...)
 	}
-	return tasksAfterLinkSnap, tasksBeforeCurrentUnlink, tasksAfterPostOpHook, nil
+	return tasksAfterLinkSnap, tasksBeforeCurrentUnlink, tasksAfterPostOpHook, compSetupIDs, nil
 }
 
 func NeedsKernelSetup(model *asserts.Model) bool {

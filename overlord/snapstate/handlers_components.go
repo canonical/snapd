@@ -69,6 +69,34 @@ func TaskComponentSetup(t *state.Task) (*ComponentSetup, *SnapSetup, error) {
 	return &compSetup, snapsup, nil
 }
 
+func TaskComponentSetups(t *state.Task) ([]*ComponentSetup, error) {
+	snapSetupTask, err := snapSetupTask(t)
+	if err != nil {
+		return nil, err
+	}
+
+	var compsupTaskIDs []string
+	if err := snapSetupTask.Get("component-setup-tasks", &compsupTaskIDs); err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+
+	var compsups []*ComponentSetup
+	for _, id := range compsupTaskIDs {
+		ts := t.State().Task(id)
+		if ts == nil {
+			return nil, fmt.Errorf("internal error: unable to find component-setup task %q", id)
+		}
+
+		compsup, _, err := TaskComponentSetup(ts)
+		if err != nil {
+			return nil, err
+		}
+		compsups = append(compsups, compsup)
+	}
+
+	return compsups, nil
+}
+
 func compSetupAndState(t *state.Task) (*ComponentSetup, *SnapSetup, *SnapState, error) {
 	csup, ssup, err := TaskComponentSetup(t)
 	if err != nil {

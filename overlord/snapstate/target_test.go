@@ -60,6 +60,16 @@ func (s *TargetTestSuite) TestInstallWithComponents(c *C) {
 	c.Check(info.Components[compName].Name, Equals, compName)
 
 	verifyInstallTasksWithComponents(c, snap.TypeApp, 0, 0, []string{compName}, ts)
+
+	setupTask := ts.Tasks()[1]
+	// link to a change so that TaskComponentSetups works properly
+	chg := setupTask.State().NewChange("install", "...")
+	chg.AddAll(ts)
+
+	compsups, err := snapstate.TaskComponentSetups(setupTask)
+	c.Assert(err, IsNil)
+	c.Assert(compsups, HasLen, 1)
+	c.Check(compsups[0].CompSideInfo.Component.ComponentName, Equals, compName)
 }
 
 func (s *TargetTestSuite) TestInstallWithComponentsMissingResource(c *C) {
