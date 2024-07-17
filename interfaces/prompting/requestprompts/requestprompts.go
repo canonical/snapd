@@ -96,11 +96,13 @@ func (pc *PromptConstraints) subtractPermissions(permissions []string) (modified
 
 // userPromptDB maps prompt IDs to prompts for a single user.
 type userPromptDB struct {
-	// ids maps from id to the corresponding prompt's index in the prompts array.
-	ids     map[prompting.IDType]int
+	// ids maps from id to the corresponding prompt's index in the prompts list.
+	ids map[prompting.IDType]int
+	// prompts is the list of prompts which apply to the given user.
 	prompts []*Prompt
 }
 
+// get returns the prompt with the given ID from the user prompt DB.
 func (udb *userPromptDB) get(id prompting.IDType) (*Prompt, error) {
 	index, ok := udb.ids[id]
 	if !ok {
@@ -109,24 +111,37 @@ func (udb *userPromptDB) get(id prompting.IDType) (*Prompt, error) {
 	return udb.prompts[index], nil
 }
 
+// add appends the given prompt to the list of prompts for the user prompt DB
+// and maps the ID of the prompt to its index in the list.
 func (udb *userPromptDB) add(prompt *Prompt) {
 	udb.prompts = append(udb.prompts, prompt)
 	index := len(udb.prompts) - 1
 	udb.ids[prompt.ID] = index
 }
 
+// remove deletes the prompt with the given ID from the user prompt DB and
+// returns it.
+//
+// The prompt is removed from the prompt list my moving the final prompt in the
+// list to the index of the removed prompt, truncating the prompt list by one,
+// setting the ID of that final prompt to map to the (former) index of the
+// removed prompt, and deleting the removed prompt's ID from the map.
 func (udb *userPromptDB) remove(id prompting.IDType) (*Prompt, error) {
 	index, ok := udb.ids[id]
 	if !ok {
 		return nil, ErrNotFound
 	}
 	prompt := udb.prompts[index]
-	// Remove the prompt with the given ID by moving the final prompt in
-	// udb.prompts to its index, then deleting its id.
+	// Remove the prompt with the given ID by copying the final prompt in
+	// udb.prompts to its index.
 	udb.prompts[index] = udb.prompts[len(udb.prompts)-1]
-	overwritingID := udb.prompts[index].ID
+	// Record the ID of the moved prompt now before truncating, in case the
+	// prompt to remove is the moved prompt (so nothing was moved).
+	movedID := udb.prompts[index].ID
+	// Truncate prompts to remove the final element, which was just copied.
 	udb.prompts = udb.prompts[:len(udb.prompts)-1]
-	udb.ids[overwritingID] = index
+	// Update the ID-index mapping of the moved prompt.
+	udb.ids[movedID] = index
 	delete(udb.ids, id)
 	return prompt, nil
 }
@@ -134,12 +149,16 @@ func (udb *userPromptDB) remove(id prompting.IDType) (*Prompt, error) {
 // PromptDB stores outstanding prompts in memory and ensures that new prompts
 // are created with a unique ID.
 type PromptDB struct {
-	// Mmap the max ID file to avoid unnecessary syscalls
+	// The prompt DB is protected by a RWMutex.
+	mutex sync.RWMutex
+	// maxIDMmap is the byte slice which is memory mapped to the max ID file in
+	// order to avoid unnecessary syscalls.
+	// If maxIDMmap is nil, then the prompt DB has already been closed.
 	maxIDMmap []byte
-	// The per-user DB is protected by a RWMutex
-	mutex   sync.RWMutex
+	// perUser maps UID to the DB of prompts for that user.
 	perUser map[uint32]*userPromptDB
-	// Function to issue a notice for a change in a prompt
+	// notifyPrompt is a closure which will be called to record a notice when a
+	// prompt is added, merged, modified, or resolved.
 	notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
 }
 
@@ -154,7 +173,9 @@ const (
 // New creates and returns a new prompt database.
 //
 // The given notifyPrompt closure will be called when a prompt is added,
-// merged, modified, or resolved.
+// merged, modified, or resolved. In order to guarantee the order of notices,
+// notifyPrompt is called with the prompt DB lock held, so it should not block
+// for a substantial amount of time (such as to lock and modify snapd state).
 func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error) (*PromptDB, error) {
 	pdb := PromptDB{
 		perUser:      make(map[uint32]*userPromptDB),
@@ -213,6 +234,8 @@ func initializeMaxIDFile(maxIDFile *os.File) (err error) {
 
 // nextID increments the internal monotonic maxID integer and returns the
 // corresponding ID.
+//
+// The caller must ensure that the prompt DB mutex is locked.
 func (pdb *PromptDB) nextID() (prompting.IDType, error) {
 	if pdb.maxIDMmap == nil {
 		return 0, ErrClosed
@@ -448,7 +471,6 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 // This should be called when snapd is shutting down, to notify prompt clients
 // that the given prompts are no longer awaiting a reply.
 func (pdb *PromptDB) Close() error {
-	data := map[string]string{"resolved": "cancelled"}
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 
@@ -456,11 +478,15 @@ func (pdb *PromptDB) Close() error {
 		return ErrClosed
 	}
 
+	// TODO: if in the future we persist prompts across snapd restarts, we do
+	// not want to send {"resolved": "cancelled"} in the notice data.
+	data := map[string]string{"resolved": "cancelled"}
 	for user, userEntry := range pdb.perUser {
 		for id := range userEntry.ids {
 			pdb.notifyPrompt(user, id, data)
 		}
 	}
+
 	// Clear all outstanding prompts
 	pdb.perUser = nil
 	unix.Munmap(pdb.maxIDMmap)
