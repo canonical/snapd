@@ -109,3 +109,9 @@ func MockRestartRequest(f func(st *state.State, t restart.RestartType, rebootInf
 	restartRequest = f
 	return r
 }
+
+func MockEnvPath(newEnvPath string) func() {
+	oldEnvPath := envFilePath
+	envFilePath = newEnvPath
+	return func() { envFilePath = oldEnvPath }
+}
