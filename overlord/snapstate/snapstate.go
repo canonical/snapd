@@ -3635,7 +3635,7 @@ func removeInactiveRevision(st *state.State, snapst *SnapState, name, snapID str
 			CompSideInfo: &cinfo.ComponentSideInfo,
 			CompType:     cinfo.Type,
 			componentInstallFlags: componentInstallFlags{
-				JointSnapComponentsInstall: true,
+				MultiComponentInstall: true,
 			},
 		}
 

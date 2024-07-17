@@ -112,8 +112,8 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 			componentInstallFlags: componentInstallFlags{
 				// if we're removing the snap, then we should remove the
 				// components too
-				RemoveComponentPath:        flags.RemoveSnapPath,
-				JointSnapComponentsInstall: true,
+				RemoveComponentPath:   flags.RemoveSnapPath,
+				MultiComponentInstall: true,
 			},
 		})
 	}
@@ -321,7 +321,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			channel = "stable"
 		}
 
-		comps, err := componentTargetsFromActionResult(r, sn.Components)
+		comps, err := componentTargetsFromActionResult("install", r, sn.Components)
 		if err != nil {
 			return nil, fmt.Errorf("cannot extract components from snap resources: %w", err)
 		}
@@ -360,7 +360,7 @@ func cachedEnforcedValidationSets(st *state.State) func() (*snapasserts.Validati
 	}
 }
 
-func componentTargetsFromActionResult(sar store.SnapActionResult, requested []string) ([]ComponentSetup, error) {
+func componentTargetsFromActionResult(action string, sar store.SnapActionResult, requested []string) ([]ComponentSetup, error) {
 	mapping := make(map[string]store.SnapResourceResult, len(sar.Resources))
 	for _, res := range sar.Resources {
 		mapping[res.Name] = res
@@ -370,6 +370,12 @@ func componentTargetsFromActionResult(sar store.SnapActionResult, requested []st
 	for _, comp := range requested {
 		res, ok := mapping[comp]
 		if !ok {
+			// during a refresh, we will not install components that don't exist
+			// in the new revision
+			if action == "refresh" {
+				continue
+			}
+
 			return nil, fmt.Errorf("cannot find component %q in snap resources", comp)
 		}
 
