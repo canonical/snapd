@@ -169,9 +169,9 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		options = append(options, "private")
 	}
 	if opts.Overlayfs {
-		options = append(options, fmt.Sprintf("lowerdir=%s", opts.LowerDir))
-		options = append(options, fmt.Sprintf("upperdir=%s", opts.UpperDir))
-		options = append(options, fmt.Sprintf("workdir=%s", opts.WorkDir))
+		options = append(options, fmt.Sprintf("lowerdir=%s", strings.ReplaceAll(opts.LowerDir, ",", "\\\\,")))
+		options = append(options, fmt.Sprintf("upperdir=%s", strings.ReplaceAll(opts.UpperDir, ",", "\\\\,")))
+		options = append(options, fmt.Sprintf("workdir=%s", strings.ReplaceAll(opts.WorkDir, ",", "\\\\,")))
 	}
 	if len(options) > 0 {
 		args = append(args, "--options="+strings.Join(options, ","))

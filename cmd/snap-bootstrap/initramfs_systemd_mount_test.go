@@ -55,6 +55,44 @@ exit 1
 	c.Assert(err, ErrorMatches, "mocked error")
 }
 
+// This is needed to properly split options that contain a ',' character that
+// is double escaped before passed as an argument to systemd-mount.
+func splitOptions(s string) []string {
+	var o []string
+
+	s = strings.ReplaceAll(s, "\\\\", "\\")
+
+	var cur strings.Builder
+	escaped := false
+	for _, c := range s {
+		switch c {
+		case '\\':
+			if escaped {
+				cur.WriteRune(c)
+				escaped = false
+			} else {
+				escaped = true
+			}
+		case ',':
+			if escaped {
+				cur.WriteRune(c)
+				escaped = false
+			} else {
+				o = append(o, cur.String())
+				cur.Reset()
+			}
+		default:
+			cur.WriteRune(c)
+		}
+	}
+
+	if cur.Len() > 0 {
+		o = append(o, cur.String())
+	}
+
+	return o
+}
+
 func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 
 	testStart := time.Now()
@@ -193,7 +231,8 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			comment:          "happy ro",
 		},
 		{
-			what:  "overlay",
+			// The What argument is ignored for overlay mounts but needs to be a path that exists.
+			what:  "/merged",
 			where: "/merged",
 			opts: &main.SystemdMountOptions{
 				Overlayfs: true,
@@ -204,6 +243,48 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			timeNowTimes:     []time.Time{testStart, testStart},
 			isMountedReturns: []bool{true},
 			comment:          "happy overlay mount",
+		},
+		{
+			// The What argument is ignored for overlay mounts but needs to be a path that exists.
+			what:  "/merged",
+			where: "/merged",
+			opts: &main.SystemdMountOptions{
+				Overlayfs: true,
+				LowerDir:  "/lower,",
+				UpperDir:  "/upper",
+				WorkDir:   "/work",
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy overlay mount with lowerdir path containing a comma",
+		},
+		{
+			// The What argument is ignored for overlay mounts but needs to be a path that exists.
+			what:  "/merged",
+			where: "/merged",
+			opts: &main.SystemdMountOptions{
+				Overlayfs: true,
+				LowerDir:  "/lower",
+				UpperDir:  "/upper,",
+				WorkDir:   "/work",
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy overlay mount with upperdir path containing a comma",
+		},
+		{
+			// The What argument is ignored for overlay mounts but needs to be a path that exists.
+			what:  "/merged",
+			where: "/merged",
+			opts: &main.SystemdMountOptions{
+				Overlayfs: true,
+				LowerDir:  "/lower",
+				UpperDir:  "/upper",
+				WorkDir:   "/work,",
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy overlay mount with workdir path containing a comma",
 		},
 	}
 
@@ -311,7 +392,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 				case arg == "--property=Before=initrd-fs.target":
 					foundBeforeInitrdfsTarget = true
 				case strings.HasPrefix(arg, "--options="):
-					for _, opt := range strings.Split(strings.TrimPrefix(arg, "--options="), ",") {
+					for _, opt := range splitOptions(strings.TrimPrefix(arg, "--options=")) {
 						switch opt := opt; {
 						case opt == "nosuid":
 							foundNoSuid = true
