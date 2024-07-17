@@ -268,47 +268,6 @@ func isCoreSnap(snapName string) bool {
 	return snapName == defaultCoreSnapName
 }
 
-func componentTasksForInstallWithSnap(ts *state.TaskSet) (beforeLink, linkToHook, postOpHookAndAfter []*state.Task, err error) {
-	link, err := ts.Edge(MaybeRebootEdge)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	postOpHook, err := ts.Edge(PostOpHookEdge)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	isBeforeLink := true
-	isBeforePostOpHook := true
-
-	// this depends on the order of the tasks in the set, but if we want to
-	// maintain a logical ordering of the snaps in the task set returned by
-	// doInstall, then requiring this order simplifies the code a lot
-	for _, t := range ts.Tasks() {
-		switch t.ID() {
-		case link.ID():
-			isBeforeLink = false
-		case postOpHook.ID():
-			isBeforePostOpHook = false
-			if isBeforeLink {
-				return nil, nil, nil, errors.New("internal error: post-op hook should be after link")
-			}
-		}
-
-		switch {
-		case isBeforeLink:
-			beforeLink = append(beforeLink, t)
-		case isBeforePostOpHook:
-			linkToHook = append(linkToHook, t)
-		default:
-			postOpHookAndAfter = append(postOpHookAndAfter, t)
-		}
-	}
-
-	return beforeLink, linkToHook, postOpHookAndAfter, nil
-}
-
 func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups []ComponentSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
 	tr := config.NewTransaction(st)
 	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
@@ -773,19 +732,14 @@ func splitComponentTasksForInstall(
 	err error,
 ) {
 	for _, compsup := range compsups {
-		compTaskSet, err := doInstallComponent(st, snapst, &compsup, &snapsup, fromChange)
+		componentTS, err := doInstallComponent(st, snapst, compsup, snapsup, fromChange)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
 		}
 
-		beforeLink, linkToHooks, hooksAndAfter, err := componentTasksForInstallWithSnap(compTaskSet)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-
-		tasksBeforeCurrentUnlink = append(tasksBeforeCurrentUnlink, beforeLink...)
-		tasksAfterLinkSnap = append(tasksAfterLinkSnap, linkToHooks...)
-		tasksAfterPostOpHook = append(tasksAfterPostOpHook, hooksAndAfter...)
+		tasksBeforeCurrentUnlink = append(tasksBeforeCurrentUnlink, componentTS.beforeLink...)
+		tasksAfterLinkSnap = append(tasksAfterLinkSnap, componentTS.linkToHook...)
+		tasksAfterPostOpHook = append(tasksAfterPostOpHook, componentTS.postOpHookAndAfter...)
 	}
 	return tasksAfterLinkSnap, tasksBeforeCurrentUnlink, tasksAfterPostOpHook, nil
 }
