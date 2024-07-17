@@ -69,8 +69,7 @@ func (e *ManifestError) Error() string {
 	return fmt.Sprintf("")
 }
 
-func parseImageManifest() (ImageManifest, error) {
-	imageManifestFilePath := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu", "manifest.json")
+func parseImageManifest(imageManifestFilePath string) (ImageManifest, error) {
 	imageManifestFile, err := os.ReadFile(imageManifestFilePath)
 	if err != nil {
 		return ImageManifest{}, err
@@ -93,27 +92,7 @@ func parseImageManifest() (ImageManifest, error) {
 	return im, nil
 }
 
-func generateMounts(disk disks.Disk) ([]partitionMount, error) {
-	im, err := parseImageManifest()
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			// XXX: if a manifest file is not found fall-back to CVM v1 behaviour
-			partitionMounts := []partitionMount{
-				{
-					Where:   boot.InitramfsDataDir,
-					FsLabel: "cloudimg-rootfs",
-					Opts: &systemdMountOptions{
-						NeedsFsck: true,
-					},
-				},
-			}
-
-			return partitionMounts, nil
-		} else {
-			return []partitionMount{}, err
-		}
-	}
-
+func generateMountsFromManifest(im ImageManifest, disk disks.Disk) ([]partitionMount, error) {
 	foundReadOnlyPartition := ""
 	foundWritablePartition := ""
 
@@ -217,9 +196,31 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 		return err
 	}
 
-	partitionMounts, err := generateMounts(disk)
+	var partitionMounts []partitionMount
+
+	// try searching for a manifest that contains mount information
+	imageManifestFilePath := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu", "manifest.json")
+	im, err := parseImageManifest(imageManifestFilePath)
 	if err != nil {
-		return err
+		if errors.Is(err, os.ErrNotExist) {
+			// XXX: if a manifest file is not found fall-back to CVM v1 behaviour
+			partitionMounts = []partitionMount{
+				{
+					Where:   boot.InitramfsDataDir,
+					FsLabel: "cloudimg-rootfs",
+					Opts: &systemdMountOptions{
+						NeedsFsck: true,
+					},
+				},
+			}
+		} else {
+			return err
+		}
+	} else {
+		partitionMounts, err = generateMountsFromManifest(im, disk)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Provision TPM TODO: should become "try and provision TPM" to support the unencrypted root fs case
