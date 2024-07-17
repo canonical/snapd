@@ -241,9 +241,6 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 	}
 
 	enforcedSetsFunc := cachedEnforcedValidationSets(st)
-	if err != nil {
-		return nil, err
-	}
 
 	includeResources := false
 	actions := make([]*store.SnapAction, 0, len(s.snaps))
