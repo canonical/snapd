@@ -77,9 +77,9 @@ type systemdMountOptions struct {
 	Umount bool
 	// Overlayfs indicates an overlay filesystem.
 	Overlayfs bool
-	// A directory to be used as the lower layer of an overlay mount.
+	// Directories to be used as lower layers of an overlay mount.
 	// It does not need to be on a writable filesystem.
-	LowerDir string
+	LowerDirs []string
 	// A directory to be used as the upper layer of an overlay mount.
 	// This is normally on a writable filesystem.
 	UpperDir string
@@ -169,7 +169,16 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		options = append(options, "private")
 	}
 	if opts.Overlayfs {
-		options = append(options, fmt.Sprintf("lowerdir=%s", strings.ReplaceAll(opts.LowerDir, ",", "\\\\,")))
+		var lowerDirs strings.Builder
+		for i, d := range opts.LowerDirs {
+			if i != 0 {
+				lowerDirs.WriteRune(':')
+			}
+			ed := strings.ReplaceAll(d, ",", "\\\\,")
+			ed = strings.ReplaceAll(ed, ":", "\\\\:")
+			lowerDirs.WriteString(ed)
+		}
+		options = append(options, fmt.Sprintf("lowerdir=%s", lowerDirs.String()))
 		options = append(options, fmt.Sprintf("upperdir=%s", strings.ReplaceAll(opts.UpperDir, ",", "\\\\,")))
 		options = append(options, fmt.Sprintf("workdir=%s", strings.ReplaceAll(opts.WorkDir, ",", "\\\\,")))
 	}

@@ -236,7 +236,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			where: "/merged",
 			opts: &main.SystemdMountOptions{
 				Overlayfs: true,
-				LowerDir:  "/lower",
+				LowerDirs: []string{"/lower"},
 				UpperDir:  "/upper",
 				WorkDir:   "/work",
 			},
@@ -250,7 +250,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			where: "/merged",
 			opts: &main.SystemdMountOptions{
 				Overlayfs: true,
-				LowerDir:  "/lower,",
+				LowerDirs: []string{"/lower"},
 				UpperDir:  "/upper",
 				WorkDir:   "/work",
 			},
@@ -264,7 +264,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			where: "/merged",
 			opts: &main.SystemdMountOptions{
 				Overlayfs: true,
-				LowerDir:  "/lower",
+				LowerDirs: []string{"/lower"},
 				UpperDir:  "/upper,",
 				WorkDir:   "/work",
 			},
@@ -278,13 +278,41 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			where: "/merged",
 			opts: &main.SystemdMountOptions{
 				Overlayfs: true,
-				LowerDir:  "/lower",
+				LowerDirs: []string{"/lower"},
 				UpperDir:  "/upper",
 				WorkDir:   "/work,",
 			},
 			timeNowTimes:     []time.Time{testStart, testStart},
 			isMountedReturns: []bool{true},
 			comment:          "happy overlay mount with workdir path containing a comma",
+		},
+		{
+			// The What argument is ignored for overlay mounts but needs to be a path that exists.
+			what:  "/merged",
+			where: "/merged",
+			opts: &main.SystemdMountOptions{
+				Overlayfs: true,
+				LowerDirs: []string{"/lower1", "/lower2"},
+				UpperDir:  "/upper",
+				WorkDir:   "/work",
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy overlay mount with multiple lowerdirs for overlayfs",
+		},
+		{
+			// The What argument is ignored for overlay mounts but needs to be a path that exists.
+			what:  "/merged",
+			where: "/merged",
+			opts: &main.SystemdMountOptions{
+				Overlayfs: true,
+				LowerDirs: []string{"/lower1:", "/lower2:"},
+				UpperDir:  "/upper",
+				WorkDir:   "/work",
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy overlay mount with multiple lowerdirs that contain colons",
 		},
 	}
 
@@ -377,6 +405,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			foundOverlayUpperDir := false
 			foundOverlayWorkDir := false
 
+			c.Log(call)
 			for _, arg := range call[len(args):] {
 				switch {
 				case arg == "--type=tmpfs":
@@ -428,7 +457,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			c.Assert(foundBind, Equals, opts.Bind)
 			c.Assert(foundReadOnly, Equals, opts.ReadOnly)
 			c.Assert(foundPrivate, Equals, opts.Private)
-			c.Assert(foundOverlayLowerDir, Equals, len(opts.LowerDir) > 0)
+			c.Assert(foundOverlayLowerDir, Equals, len(opts.LowerDirs) > 0)
 			c.Assert(foundOverlayUpperDir, Equals, len(opts.UpperDir) > 0)
 			c.Assert(foundOverlayWorkDir, Equals, len(opts.WorkDir) > 0)
 
