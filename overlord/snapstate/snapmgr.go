@@ -604,7 +604,7 @@ func (snapst *SnapState) CurrentlyHasComponents() bool {
 		return false
 	}
 
-	return len(snapst.Sequence.Revisions[index].Components) > 0
+	return snapst.Sequence.CurrentlyHasComponents(index)
 }
 
 // CurrentComponentInfos return a snap.ComponentInfo slice that contains all of

@@ -186,6 +186,7 @@ func (s *sequenceTestSuite) TestSequenceHelpers(c *C) {
 	foundCst2 := seq.ComponentStateForRev(0, cref2)
 	c.Check(foundCst2, DeepEquals, compSt2)
 	c.Check(seq.ComponentsForRevision(snapRev), DeepEquals, rev1Comps)
+	c.Check(seq.CurrentlyHasComponents(0), Equals, true)
 
 	rev1Comps = []*sequence.ComponentState{
 		sequence.NewComponentState(csi, snap.TestComponent)}
@@ -202,6 +203,8 @@ func (s *sequenceTestSuite) TestSequenceHelpers(c *C) {
 	c.Check(foundCst, IsNil)
 	c.Check(seq.ComponentsForRevision(snapRev), DeepEquals, rev1Comps)
 	c.Check(seq.ComponentsForRevision(snapRev2), IsNil)
+	c.Check(seq.CurrentlyHasComponents(0), Equals, false)
+	c.Check(seq.CurrentlyHasComponents(1), Equals, true)
 
 	seq = snapstatetest.NewSequenceFromRevisionSideInfos(
 		[]*sequence.RevisionSideState{
@@ -212,6 +215,8 @@ func (s *sequenceTestSuite) TestSequenceHelpers(c *C) {
 	c.Check(seq.IsComponentRevPresent(csi), Equals, false)
 	c.Check(seq.ComponentStateForRev(0, cref), IsNil)
 	c.Check(seq.ComponentStateForRev(1, cref2), IsNil)
+	c.Check(seq.CurrentlyHasComponents(0), Equals, false)
+	c.Check(seq.CurrentlyHasComponents(1), Equals, false)
 }
 
 func (s *sequenceTestSuite) TestKernelModulesComponentsForRev(c *C) {

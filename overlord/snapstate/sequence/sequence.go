@@ -287,3 +287,9 @@ func (snapSeq *SnapSequence) MinimumLocalComponentRevision(compName string) snap
 	}
 	return local
 }
+
+// CurrentlyHasComponents returns true if the revision at the given index has
+// any components installed with it.
+func (snapSeq *SnapSequence) CurrentlyHasComponents(revIdx int) bool {
+	return len(snapSeq.Revisions[revIdx].Components) > 0
+}
