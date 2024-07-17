@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2022-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -108,9 +108,10 @@ var ErrNoSealedKeys = errors.New("no sealed keys")
 type SealingMethod string
 
 const (
-	SealingMethodLegacyTPM    = SealingMethod("")
-	SealingMethodTPM          = SealingMethod("tpm")
-	SealingMethodFDESetupHook = SealingMethod("fde-setup-hook")
+	SealingMethodLegacyTPM      = SealingMethod("")
+	SealingMethodTPM            = SealingMethod("tpm")
+	SealingMethodFDESetupHook   = SealingMethod("fde-setup-hook")
+	SealingMethodNextGeneration = SealingMethod("next-generation")
 )
 
 // StampSealedKeys writes what sealing method was used for key sealing

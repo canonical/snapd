@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020-2023 Canonical Ltd
+ * Copyright (C) 2020-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -130,7 +130,7 @@ type sealKeyToModeenvFlags struct {
 // in modeenv.
 // It assumes to be invoked in install mode.
 func sealKeyToModeenvImpl(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
-	if !isModeeenvLocked() {
+	if !IsModeeenvLocked() {
 		return fmt.Errorf("internal error: cannot seal without the modeenv lock")
 	}
 
@@ -414,6 +414,10 @@ func sealFallbackObjectKeys(key, saveKey keys.EncryptionKey, pbc predictableBoot
 
 var resealKeyToModeenv = resealKeyToModeenvImpl
 
+func ProvideResealKeyToModeenv(f func(rootdir string, modeenv *Modeenv, expectReseal bool, unlocker Unlocker) error) {
+	resealKeyToModeenv = f
+}
+
 // resealKeyToModeenv reseals the existing encryption key to the
 // parameters specified in modeenv.
 // It is *very intentional* that resealing takes the modeenv and only
@@ -422,7 +426,7 @@ var resealKeyToModeenv = resealKeyToModeenvImpl
 // transient/in-memory information with the risk that successive
 // reseals during in-progress operations produce diverging outcomes.
 func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool, unlocker Unlocker) error {
-	if !isModeeenvLocked() {
+	if !IsModeeenvLocked() {
 		return fmt.Errorf("internal error: cannot reseal without the modeenv lock")
 	}
 
@@ -436,19 +440,19 @@ func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool,
 	}
 	switch method {
 	case device.SealingMethodFDESetupHook:
-		return resealKeyToModeenvUsingFDESetupHook(rootdir, modeenv, expectReseal)
+		return ResealKeyToModeenvUsingFDESetupHook(rootdir, modeenv, expectReseal)
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
 		if unlocker != nil {
 			// unlock/relock global state
 			defer unlocker()()
 		}
-		return resealKeyToModeenvSecboot(rootdir, modeenv, expectReseal)
+		return ResealKeyToModeenvSecboot(rootdir, modeenv, expectReseal)
 	default:
 		return fmt.Errorf("unknown key sealing method: %q", method)
 	}
 }
 
-var resealKeyToModeenvUsingFDESetupHook = resealKeyToModeenvUsingFDESetupHookImpl
+var ResealKeyToModeenvUsingFDESetupHook = resealKeyToModeenvUsingFDESetupHookImpl
 
 func resealKeyToModeenvUsingFDESetupHookImpl(rootdir string, modeenv *Modeenv, expectReseal bool) error {
 	// TODO: we need to implement reseal at least in terms of
@@ -472,7 +476,7 @@ func resealKeyToModeenvUsingFDESetupHookImpl(rootdir string, modeenv *Modeenv, e
 }
 
 // TODO:UC20: allow more than one model to accommodate the remodel scenario
-func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, expectReseal bool) error {
+func ResealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, expectReseal bool) error {
 	// build the recovery mode boot chain
 	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
 		Role: bootloader.RoleRecovery,
