@@ -62,16 +62,20 @@ type PromptConstraints struct {
 	Path                 string   `json:"path"`
 	Permissions          []string `json:"permissions"`
 	AvailablePermissions []string `json:"available-permissions"`
+	// Preserve originally-requested permissions so we can send a response with
+	// explicitly-allowed/denied permissions, even if some permissions were
+	// previously satisfied.
+	originalPermissions []string
 }
 
 // equals returns true if the two prompt constraints are identical.
 func (pc *PromptConstraints) equals(other *PromptConstraints) bool {
-	if pc.Path != other.Path || len(pc.Permissions) != len(other.Permissions) {
+	if pc.Path != other.Path || len(pc.originalPermissions) != len(other.originalPermissions) {
 		return false
 	}
 	// Avoid using reflect.DeepEquals to compare []string contents
-	for i := range pc.Permissions {
-		if pc.Permissions[i] != other.Permissions[i] {
+	for i := range pc.originalPermissions {
+		if pc.originalPermissions[i] != other.originalPermissions[i] {
 			return false
 		}
 	}
@@ -285,6 +289,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 		Path:                 path,
 		Permissions:          permissions,
 		AvailablePermissions: availablePermissions,
+		originalPermissions:  permissions,
 	}
 
 	// Search for an identical existing prompt, merge if found
@@ -303,7 +308,8 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 
 	if len(userEntry.prompts) >= maxOutstandingPromptsPerUser {
 		logger.Noticef("WARNING: too many outstanding prompts for user %d; auto-denying new one", metadata.User)
-		sendReply(listenerReq, false)
+		response := responseForInterfaceConstraintsOutcome(metadata.Interface, constraints, prompting.OutcomeDeny)
+		sendReply(listenerReq, response)
 		return nil, false, ErrTooManyPrompts
 	}
 
@@ -320,6 +326,27 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 	userEntry.add(prompt)
 	pdb.notifyPrompt(metadata.User, id, nil)
 	return prompt, false, nil
+}
+
+func responseForInterfaceConstraintsOutcome(iface string, constraints *PromptConstraints, outcome prompting.OutcomeType) *listener.Response {
+	allow, err := outcome.AsBool()
+	if err != nil {
+		// This should not occur, but if so, default to deny
+		allow = false
+		logger.Debugf("%v", err)
+	}
+	permission, err := prompting.AbstractPermissionsToAppArmorPermissions(iface, constraints.originalPermissions)
+	if err != nil {
+		// This should not occur, but if so, default to denying the request,
+		// which denies all requested permissions.
+		allow = false
+		logger.Debugf("internal error: cannot convert abstract permissions to AppArmor permissions: %v", err)
+	}
+	response := &listener.Response{
+		Allow:      allow,
+		Permission: permission,
+	}
+	return response
 }
 
 // Prompts returns a slice of all outstanding prompts for the given user.
@@ -372,18 +399,15 @@ func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType) (*userPrompt
 //
 // Records a notice for the prompt, and returns the prompt's former contents.
 func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.OutcomeType) (*Prompt, error) {
-	allow, err := outcome.AsBool()
-	if err != nil {
-		return nil, err
-	}
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 	userEntry, prompt, err := pdb.promptWithID(user, id)
 	if err != nil {
 		return nil, err
 	}
+	response := responseForInterfaceConstraintsOutcome(prompt.Interface, prompt.Constraints, outcome)
 	for _, listenerReq := range prompt.listenerReqs {
-		if err := sendReply(listenerReq, allow); err != nil {
+		if err := sendReply(listenerReq, response); err != nil {
 			// Error should only occur if reply is malformed, and since these
 			// listener requests should be identical, if a reply is malformed
 			// for one, it should be malformed for all. Malformed replies should
@@ -397,8 +421,8 @@ func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.O
 	return prompt, nil
 }
 
-var sendReply = func(listenerReq *listener.Request, reply interface{}) error {
-	return listenerReq.Reply(reply)
+var sendReply = func(listenerReq *listener.Request, response *listener.Response) error {
+	return listenerReq.Reply(response)
 }
 
 // HandleNewRule checks if any existing prompts are satisfied by the given rule
@@ -418,6 +442,7 @@ var sendReply = func(listenerReq *listener.Request, reply interface{}) error {
 // Returns the IDs of any prompts which were fully satisfied by the given rule
 // contents.
 func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *prompting.Constraints, outcome prompting.OutcomeType) ([]prompting.IDType, error) {
+	// Validate outcome before locking
 	allow, err := outcome.AsBool()
 	if err != nil {
 		return nil, err
@@ -455,8 +480,9 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 			continue
 		}
 		// All permissions of prompt satisfied, or any permission denied
+		response := responseForInterfaceConstraintsOutcome(metadata.Interface, prompt.Constraints, outcome)
 		for _, listenerReq := range prompt.listenerReqs {
-			sendReply(listenerReq, allow)
+			sendReply(listenerReq, response)
 		}
 		userEntry.remove(id)
 		satisfiedPromptIDs = append(satisfiedPromptIDs, id)

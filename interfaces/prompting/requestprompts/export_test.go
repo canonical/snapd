@@ -27,7 +27,7 @@ import (
 
 const MaxOutstandingPromptsPerUser = maxOutstandingPromptsPerUser
 
-func MockSendReply(f func(listenerReq *listener.Request, reply interface{}) error) (restore func()) {
+func MockSendReply(f func(listenerReq *listener.Request, reply *listener.Response) error) (restore func()) {
 	restore = testutil.Backup(&sendReply)
 	sendReply = f
 	return restore
