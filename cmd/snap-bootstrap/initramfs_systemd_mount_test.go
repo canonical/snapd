@@ -314,6 +314,42 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			isMountedReturns: []bool{true},
 			comment:          "happy overlay mount with multiple lowerdirs that contain colons",
 		},
+		{
+			// The What argument is ignored for overlay mounts but needs to be a path that exists.
+			what:  "what",
+			where: "where",
+			opts: &main.SystemdMountOptions{
+				Overlayfs: true,
+				UpperDir:  "/upper",
+				WorkDir:   "/work",
+			},
+			expErr:  "cannot mount \"what\" at \"where\": missing arguments for overlayfs mount. lowerdir, upperdir, workdir are needed.",
+			comment: "overlayfs mount requested without specifying a lowerdir",
+		},
+		{
+			// The What argument is ignored for overlay mounts but needs to be a path that exists.
+			what:  "what",
+			where: "where",
+			opts: &main.SystemdMountOptions{
+				Overlayfs: true,
+				LowerDirs: []string{"/lower1"},
+				WorkDir:   "/work",
+			},
+			expErr:  "cannot mount \"what\" at \"where\": missing arguments for overlayfs mount. lowerdir, upperdir, workdir are needed.",
+			comment: "overlayfs mount requested without specifying an upperdir",
+		},
+		{
+			// The What argument is ignored for overlay mounts but needs to be a path that exists.
+			what:  "what",
+			where: "where",
+			opts: &main.SystemdMountOptions{
+				Overlayfs: true,
+				LowerDirs: []string{"/lower1"},
+				UpperDir:  "/upper",
+			},
+			expErr:  "cannot mount \"what\" at \"where\": missing arguments for overlayfs mount. lowerdir, upperdir, workdir are needed.",
+			comment: "overlayfs mount requested without specifying a workdir",
+		},
 	}
 
 	for _, t := range tt {

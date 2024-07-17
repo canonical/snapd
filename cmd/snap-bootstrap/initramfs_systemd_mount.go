@@ -169,6 +169,10 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		options = append(options, "private")
 	}
 	if opts.Overlayfs {
+		if len(opts.LowerDirs) <= 0 || len(opts.UpperDir) <= 0 || len(opts.WorkDir) <= 0 {
+			return fmt.Errorf("cannot mount %q at %q: missing arguments for overlayfs mount. lowerdir, upperdir, workdir are needed.", what, where)
+		}
+
 		var lowerDirs strings.Builder
 		for i, d := range opts.LowerDirs {
 			if i != 0 {
