@@ -253,9 +253,9 @@ func ComponentSetupsForTask(t *state.Task) ([]*ComponentSetup, error) {
 		}
 		return []*ComponentSetup{compsup}, nil
 	default:
-		// task comes from a snap installation that doesn't contain any
+		// task comes from a snap install/refresh that might contain some
 		// components
-		return nil, nil
+		return TaskComponentSetups(t)
 	}
 }
 
