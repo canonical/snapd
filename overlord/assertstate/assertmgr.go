@@ -220,8 +220,8 @@ func doValidateComponent(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// TODO: check the provenance stored inside the component blob against what
-	// we expect from the assertion (similar to
+	// TODO:COMPS: check the provenance stored inside the component blob against
+	// what we expect from the assertion (similar to
 	// snapasserts.CheckProvenanceWithVerifiedRevision)
 
 	return nil

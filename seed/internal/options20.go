@@ -31,6 +31,14 @@ import (
 	"github.com/snapcore/snapd/snap/naming"
 )
 
+// Component contains the options for components for grade: dangerous.
+type Component struct {
+	// Name is the component name
+	Name string `yaml:"name"`
+	// Unasserted has the filename for an unasserted local component
+	Unasserted string `yaml:"unasserted,omitempty"`
+}
+
 // Snap20 carries options for a model snap or an extra snap
 // in grade: dangerous.
 type Snap20 struct {
@@ -44,6 +52,11 @@ type Snap20 struct {
 
 	Channel string `yaml:"channel,omitempty"`
 	// TODO: DevMode bool   `yaml:"devmode,omitempty"`
+
+	// Components is a list of component options. It is only valid to add a
+	// list of unasserted local components when we are using an unasserted
+	// local snap.
+	Components []Component `yaml:"components,omitempty"`
 }
 
 // SnapName implements naming.SnapRef.
@@ -99,6 +112,23 @@ func ReadOptions20(optionsFn string) (*Options20, error) {
 		}
 		if sn.Unasserted != "" && strings.Contains(sn.Unasserted, "/") {
 			return nil, fmt.Errorf("%s: %q must be a filename, not a path", errPrefix, sn.Unasserted)
+		}
+		if len(sn.Components) > 0 {
+			if sn.Unasserted == "" {
+				return nil, fmt.Errorf("%s: local components specified for non-local snap %q", errPrefix, sn.Name)
+			}
+
+			for _, comp := range sn.Components {
+				if err := naming.ValidateSnap(comp.Name); err != nil {
+					return nil, fmt.Errorf("%s: %v", errPrefix, err)
+				}
+				if comp.Unasserted == "" {
+					return nil, fmt.Errorf("%s: no file specified for unasserted component %q", errPrefix, comp.Name)
+				}
+				if strings.Contains(comp.Unasserted, "/") {
+					return nil, fmt.Errorf("%s: %q must be a filename, not a path", errPrefix, comp.Unasserted)
+				}
+			}
 		}
 
 		// make sure names and file names are unique

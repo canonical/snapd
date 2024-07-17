@@ -78,13 +78,19 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 		}
 	}
 	if startTasks == nil {
-		if opts&localSnap != 0 {
+		switch {
+		case opts&localSnap != 0:
 			startTasks = []string{
 				"prerequisites",
 				"prepare-snap",
 				"mount-snap",
 			}
-		} else {
+		case opts&localRevision != 0:
+			startTasks = []string{
+				"prerequisites",
+				"prepare-snap",
+			}
+		default:
 			startTasks = []string{
 				"prerequisites",
 				"download-snap",
@@ -1046,18 +1052,23 @@ func (s *snapmgrTestSuite) TestInstallManySnapOneWithDefaultTrack(c *C) {
 // A sneakyStore changes the state when called
 type sneakyStore struct {
 	*fakeStore
-	state *state.State
+	state  *state.State
+	remove bool
 }
 
 func (s sneakyStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
 	s.state.Lock()
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active:          true,
-		TrackingChannel: "latest/edge",
-		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}}),
-		Current:         snap.R(1),
-		SnapType:        "app",
-	})
+	if s.remove {
+		snapstate.Set(s.state, "some-snap", nil)
+	} else {
+		snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+			Active:          true,
+			TrackingChannel: "latest/edge",
+			Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}}),
+			Current:         snap.R(1),
+			SnapType:        "app",
+		})
+	}
 	s.state.Unlock()
 	return s.fakeStore.SnapAction(ctx, currentSnaps, actions, assertQuery, user, opts)
 }
@@ -4454,7 +4465,7 @@ func (s *validationSetsSuite) TestInstallSnapRequiredForValidationSetCohortIgnor
 
 func (s *validationSetsSuite) TestInstallSnapReferencedByValidationSetWrongRevision(c *C) {
 	err := s.installSnapReferencedByValidationSet(c, "required", "3", snap.R(2), "", nil)
-	c.Assert(err, ErrorMatches, `cannot install snap "some-snap" at requested revision 2 without --ignore-validation, revision 3 required by validation sets: 16/foo/bar/1`)
+	c.Assert(err, ErrorMatches, `cannot install snap "some-snap" at revision 2 without --ignore-validation, revision 3 is required by validation sets: 16/foo/bar/1`)
 }
 
 func (s *validationSetsSuite) installManySnapReferencedByValidationSet(c *C, snapOnePresence, snapOneRequiredRev, snapTwoPresence, snapTwoRequiredRev string) error {
@@ -4667,7 +4678,7 @@ func (s *snapmgrTestSuite) TestInstallWithOutdatedPrereq(c *C) {
 	info := &snap.SideInfo{
 		Revision: snap.R(1),
 		SnapID:   "snap-content-slot-id",
-		RealName: "content-snap",
+		RealName: "snap-content-slot",
 	}
 	snapstate.Set(s.state, "snap-content-slot", &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{info}),
@@ -4811,7 +4822,7 @@ func (s *snapmgrTestSuite) TestInstallPrereqIgnoreConflictInSameChange(c *C) {
 func (s *validationSetsSuite) TestInstallSnapReferencedByValidationSetWrongRevisionIgnoreValidationOK(c *C) {
 	// validity check: fails with validation
 	err := s.installSnapReferencedByValidationSet(c, "required", "3", snap.R(11), "", &snapstate.Flags{IgnoreValidation: false})
-	c.Assert(err, ErrorMatches, `cannot install snap "some-snap" at requested revision 11 without --ignore-validation, revision 3 required by validation sets: 16/foo/bar/1`)
+	c.Assert(err, ErrorMatches, `cannot install snap "some-snap" at revision 11 without --ignore-validation, revision 3 is required by validation sets: 16/foo/bar/1`)
 
 	// but doesn't fail with ignore-validation flag
 	err = s.installSnapReferencedByValidationSet(c, "required", "3", snap.R(11), "", &snapstate.Flags{IgnoreValidation: true})
@@ -5118,6 +5129,7 @@ func (s *snapmgrTestSuite) testRetainCorrectNumRevisions(c *C, installFn install
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
 		Revision: snap.R(1),
+		Channel:  "latest/stable",
 	}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,

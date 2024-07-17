@@ -79,11 +79,15 @@ func (r *refreshHints) refresh() error {
 	perfTimings := timings.New(map[string]string{"ensure": "refresh-hints"})
 	defer perfTimings.Save(r.state)
 
-	var updates []*snap.Info
-	var ignoreValidationByInstanceName map[string]bool
+	allSnaps, err := All(r.state)
+	if err != nil {
+		return err
+	}
+
+	var plan updatePlan
 	timings.Run(perfTimings, "refresh-candidates", "query store for refresh candidates", func(tm timings.Measurer) {
-		updates, _, ignoreValidationByInstanceName, err = refreshCandidates(auth.EnsureContextTODO(),
-			r.state, nil, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
+		plan, err = refreshCandidates(auth.EnsureContextTODO(),
+			r.state, allSnaps, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged}, Options{})
 	})
 	// TODO: we currently set last-refresh-hints even when there was an
 	// error. In the future we may retry with a backoff.
@@ -96,7 +100,8 @@ func (r *refreshHints) refresh() error {
 	if err != nil {
 		return err
 	}
-	hints, err := refreshHintsFromCandidates(r.state, updates, ignoreValidationByInstanceName, deviceCtx)
+
+	hints, err := refreshHintsFromCandidates(r.state, plan, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot get refresh-candidates: %v", err)
 	}
@@ -154,11 +159,21 @@ func (r *refreshHints) Ensure() error {
 	return r.refresh()
 }
 
-func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreValidationByInstanceName map[string]bool, deviceCtx DeviceContext) (map[string]*refreshCandidate, error) {
-	if ValidateRefreshes != nil && len(updates) != 0 {
-		userID := 0
-		var err error
-		updates, err = ValidateRefreshes(st, updates, ignoreValidationByInstanceName, userID, deviceCtx)
+func refreshHintsFromCandidates(st *state.State, plan updatePlan, deviceCtx DeviceContext) (map[string]*refreshCandidate, error) {
+	updates := plan.targetInfos()
+	if ValidateRefreshes != nil && len(plan.targets) != 0 {
+		ignoreValidation := make(map[string]bool, len(plan.targets))
+		for _, t := range plan.targets {
+			if t.setup.IgnoreValidation {
+				ignoreValidation[t.info.InstanceName()] = true
+			}
+		}
+
+		const userID = 0
+
+		// if an error isn't returned here, then the returned list of snaps to
+		// refresh will match the input
+		_, err := ValidateRefreshes(st, plan.targetInfos(), ignoreValidation, userID, deviceCtx)
 		if err != nil {
 			return nil, err
 		}
@@ -169,6 +184,12 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 		var snapst SnapState
 		if err := Get(st, update.InstanceName(), &snapst); err != nil {
 			return nil, err
+		}
+
+		// we don't need to handle potential channel switches here, since those
+		// shouldn't happen during a auto-refresh
+		if snapst.IsInstalled() && !update.Revision.Unset() && snapst.Current == update.Revision {
+			continue
 		}
 
 		flags := snapst.Flags

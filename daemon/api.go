@@ -156,6 +156,7 @@ var (
 	snapstateHoldRefreshesBySystem          = snapstate.HoldRefreshesBySystem
 	snapstateLongestGatingHold              = snapstate.LongestGatingHold
 	snapstateSystemHold                     = snapstate.SystemHold
+	snapstateRemoveComponents               = snapstate.RemoveComponents
 
 	configstateConfigureInstalled = configstate.ConfigureInstalled
 

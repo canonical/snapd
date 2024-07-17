@@ -3555,3 +3555,195 @@ func (s *snapsSuite) TestOnlyAllowUnaliasedOrPrefer(c *check.C) {
 	c.Check(rspe.Status, check.Equals, 400)
 	c.Assert(rspe.Error(), check.Matches, `cannot use unaliased and prefer flags together.*`)
 }
+
+func (s *snapsSuite) TestPostRemoveComponents(c *check.C) {
+	d := s.daemonWithOverlordMockAndStore()
+
+	var t *state.Task
+	defer daemon.MockSnapstateRemoveComponents(func(st *state.State, snapName string, compNames []string, opts snapstate.RemoveComponentsOpts) ([]*state.TaskSet, error) {
+		c.Check(snapName, check.Equals, "foo")
+		c.Check(compNames, check.DeepEquals, []string{"comp1", "comp2"})
+		t = st.NewTask("fake-remove-comps-2", "Remove two")
+		return []*state.TaskSet{state.NewTaskSet(t)}, nil
+	})()
+
+	buf := strings.NewReader(`{"action": "remove","components":["comp1","comp2"]}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/foo", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	rsp := s.jsonReq(c, req, nil)
+	c.Assert(rsp.Status, check.Equals, 202)
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	tasks := chg.Tasks()
+	c.Check(len(tasks), check.Equals, 1)
+	c.Check(tasks[0], check.DeepEquals, t)
+	c.Check(chg.Summary(), check.Equals, `Remove component(s) [comp1 comp2] for "foo" snap`)
+
+	var apiData map[string]interface{}
+	c.Check(chg.Get("api-data", &apiData), check.IsNil)
+	c.Check(apiData["snap-names"], check.IsNil)
+	c.Check(apiData["components"], check.DeepEquals,
+		map[string]interface{}{"foo": []interface{}{"comp1", "comp2"}})
+}
+
+func (s *snapsSuite) TestPostComponentsWrongAction(c *check.C) {
+	s.daemonWithOverlordMockAndStore()
+
+	for _, action := range []string{"refresh", "revert", "enable", "disable"} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": %q,"components":["comp1","comp2"]}`,
+			action))
+		req, err := http.NewRequest("POST", "/v2/snaps/foo", buf)
+		c.Assert(err, check.IsNil)
+		req.Header.Set("Content-Type", "application/json")
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400)
+		c.Check(rspe.Message, testutil.Contains,
+			fmt.Sprintf(`%q action is not supported for components`, action))
+	}
+}
+
+func (s *snapsSuite) TestPostComponentsRemoveMany(c *check.C) {
+	d := s.daemonWithOverlordMockAndStore()
+
+	var compTsk *state.Task
+	numCalls := 0
+	expectedMsg := "Remove component(s)"
+	defer daemon.MockSnapstateRemoveComponents(func(st *state.State, snapName string, compNames []string, opts snapstate.RemoveComponentsOpts) ([]*state.TaskSet, error) {
+		numCalls++
+		if numCalls == 2 {
+			expectedMsg += ","
+		}
+		switch snapName {
+		case "snap1":
+			c.Check(compNames, check.DeepEquals, []string{"comp1", "comp2"})
+			expectedMsg += ` [comp1 comp2] for "snap1" snap`
+		case "snap2":
+			c.Check(compNames, check.DeepEquals, []string{"comp3", "comp4"})
+			expectedMsg += ` [comp3 comp4] for "snap2" snap`
+		default:
+			c.Error("unexpected snap:", snapName)
+		}
+		compTsk = st.NewTask("fake-remove-comps-2", "Remove two")
+		return []*state.TaskSet{state.NewTaskSet(compTsk)}, nil
+	})()
+
+	buf := strings.NewReader(`{"action": "remove", "components": { "snap1": ["comp1", "comp2"], "snap2": ["comp3", "comp4"] }}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	rsp := s.jsonReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 202)
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Check(chg.Summary(), check.Equals, expectedMsg)
+	tasks := chg.Tasks()
+	c.Check(len(tasks), check.Equals, 2)
+	c.Check(numCalls, check.Equals, 2)
+
+	var apiData map[string]interface{}
+	c.Check(chg.Get("api-data", &apiData), check.IsNil)
+	c.Check(apiData["snap-names"], check.IsNil)
+	c.Check(apiData["components"], check.DeepEquals,
+		map[string]interface{}{
+			"snap1": []interface{}{"comp1", "comp2"},
+			"snap2": []interface{}{"comp3", "comp4"}},
+	)
+}
+
+func (s *snapsSuite) TestPostComponentsRemoveManyWithSnaps(c *check.C) {
+	d := s.daemonWithOverlordMockAndStore()
+
+	var snapTsk *state.Task
+	defer daemon.MockSnapstateRemoveMany(func(s *state.State, names []string, opts *snapstate.RemoveFlags) ([]string, []*state.TaskSet, error) {
+		c.Check(names, check.HasLen, 2)
+		snapTsk = s.NewTask("fake-remove-2", "Remove two")
+		return names, []*state.TaskSet{state.NewTaskSet(snapTsk)}, nil
+	})()
+	var compTsk *state.Task
+	expectedMsg := `Remove snaps "foo", "bar" - Remove component(s)`
+	numCalls := 0
+	defer daemon.MockSnapstateRemoveComponents(func(st *state.State, snapName string, compNames []string, opts snapstate.RemoveComponentsOpts) ([]*state.TaskSet, error) {
+		numCalls++
+		if numCalls == 2 {
+			expectedMsg += ","
+		}
+		switch snapName {
+		case "snap1":
+			c.Check(compNames, check.DeepEquals, []string{"comp1", "comp2"})
+			expectedMsg += ` [comp1 comp2] for "snap1" snap`
+		case "snap2":
+			c.Check(compNames, check.DeepEquals, []string{"comp3", "comp4"})
+			expectedMsg += ` [comp3 comp4] for "snap2" snap`
+		default:
+			c.Error("unexpected snap:", snapName)
+		}
+		compTsk = st.NewTask("fake-remove-comps-2", "Remove two")
+		return []*state.TaskSet{state.NewTaskSet(compTsk)}, nil
+	})()
+
+	buf := strings.NewReader(`{"action": "remove", "snaps":["foo", "bar"], "components": { "snap1": ["comp1", "comp2"], "snap2": ["comp3", "comp4"] }}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	rsp := s.jsonReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 202)
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Check(chg.Summary(), check.Equals, expectedMsg)
+	tasks := chg.Tasks()
+	c.Check(len(tasks), check.Equals, 3)
+	c.Check(numCalls, check.Equals, 2)
+
+	var apiData map[string]interface{}
+	c.Check(chg.Get("api-data", &apiData), check.IsNil)
+	c.Check(apiData["snap-names"], check.DeepEquals, []interface{}{"foo", "bar"})
+	c.Check(apiData["components"], check.DeepEquals,
+		map[string]interface{}{
+			"snap1": []interface{}{"comp1", "comp2"},
+			"snap2": []interface{}{"comp3", "comp4"}},
+	)
+}
+
+func (s *snapsSuite) TestPostComponentsManyWrongAction(c *check.C) {
+	s.daemonWithOverlordMockAndStore()
+
+	for _, action := range []string{"refresh", "revert", "enable", "disable"} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": %q, "snaps":["foo", "bar"], "components": { "snap1": ["comp1", "comp2"], "snap2": ["comp3", "comp4"] }}`, action))
+		req, err := http.NewRequest("POST", "/v2/snaps", buf)
+		c.Assert(err, check.IsNil)
+		req.Header.Set("Content-Type", "application/json")
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400)
+		c.Check(rspe.Message, testutil.Contains,
+			fmt.Sprintf(`%q action is not supported for components`, action))
+	}
+}
+
+func (s *snapsSuite) TestPostComponentsManyRemoveCompsAndSnap(c *check.C) {
+	s.daemonWithOverlordMockAndStore()
+
+	buf := strings.NewReader(`{"action": "remove", "snaps":["snap1", "bar"], "components": { "snap1": ["comp1", "comp2"]}}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, testutil.Contains,
+		`cannot remove "snap1", "bar": unexpected request to remove some components and also the full snap (which would remove all components) for "snap1"`)
+}

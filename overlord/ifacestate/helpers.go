@@ -1102,7 +1102,7 @@ func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error
 				continue
 			}
 
-			// TODO: add components to SnapState.PendingSecurity
+			// TODO:COMPS: add components to SnapState.PendingSecurity
 			set, err := interfaces.NewSnapAppSet(snapInfo, nil)
 			if err != nil {
 				logger.Noticef("cannot build app set for snap %q: %s", instanceName, err)

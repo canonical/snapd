@@ -128,25 +128,14 @@ parts:
   apparmor:
     plugin: autotools
     build-packages:
+      - autoconf-archive
       - bison
       - flex
       - gettext
       - g++
       - pkg-config
       - wget
-    source: https://launchpad.net/apparmor/3.0/3.0.8/+download/apparmor-3.0.8.tar.gz
-    override-pull: |
-      craftctl default
-      # add support for mediating posix mqueue's and userns - these come from
-      # the ubuntu source package for lunar
-      # https://git.launchpad.net/ubuntu/+source/apparmor/tree/debian/patches/ubuntu?h=ubuntu/lunar
-      for feature in mqueue userns; do
-        wget https://git.launchpad.net/ubuntu/+source/apparmor/plain/debian/patches/ubuntu/add-${feature}-support.patch?h=ubuntu/lunar -O - | patch -p1
-      done
-      # apply local apparmor patches
-      for patch in "${CRAFT_PROJECT_DIR}"/build-aux/snap/local/patches/apparmor/*; do
-          patch -p1 < $patch
-      done
+    source: https://gitlab.com/apparmor/apparmor/-/archive/v4.0.1/apparmor-v4.0.1.tar.gz
     override-build: |
       cd "${CRAFT_PART_BUILD}"/libraries/libapparmor
       ./autogen.sh

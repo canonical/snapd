@@ -55,7 +55,7 @@ func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags, prqt
 		flags.DevMode = true
 	}
 
-	// TODO: this will need to account for components in the future
+	// TODO:COMPS: this will need to account for components in the future
 
 	goal := snapstate.PathInstallGoal("", sn.Path, sn.SideInfo, nil, snapstate.RevisionOptions{
 		Channel: sn.Channel,

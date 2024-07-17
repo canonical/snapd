@@ -306,7 +306,7 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 	w, err := seedwriter.New(model, &opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps(optSnaps)
+	err = w.SetOptionsSnaps(optSnaps, nil)
 	c.Assert(err, IsNil)
 
 	err = w.Start(db, sf)

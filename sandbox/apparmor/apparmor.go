@@ -654,6 +654,7 @@ func probeParserFeatures() ([]string, error) {
 		feature string
 		flags   []string
 		probe   string
+		minVer  string
 	}{
 		{
 			feature: "unsafe",
@@ -670,6 +671,7 @@ func probeParserFeatures() ([]string, error) {
 		{
 			feature: "mqueue",
 			probe:   "mqueue,",
+			minVer:  "4.0.1",
 		},
 		{
 			feature: "cap-bpf",
@@ -701,11 +703,29 @@ func probeParserFeatures() ([]string, error) {
 	if err != nil {
 		return []string{}, err
 	}
+
+	aaVer := appArmorParserVersion()
+	logger.Debugf("apparmor parser version: %q", aaVer)
+
 	features := make([]string, 0, len(featureProbes)+1)
 	for _, fp := range featureProbes {
+		if minVer := fp.minVer; minVer != "" {
+			res, err := strutil.VersionCompare(aaVer, minVer)
+			if err != nil {
+				logger.Noticef("cannot compare versions: %s", err)
+				continue
+			}
+			if res < 0 {
+				logger.Debugf("skipping apparmor feature check for %s due to insufficient version %s", fp.feature, aaVer)
+				continue
+			}
+		}
 		// recreate the Cmd each time so we can exec it each time
 		cmd, _, _ := AppArmorParser()
-		if tryAppArmorParserFeature(cmd, fp.flags, fp.probe) {
+		err := tryAppArmorParserFeature(cmd, fp.flags, fp.probe)
+		if err != nil {
+			logger.Debugf("cannot probe apparmor feature %q: %v", fp.feature, err)
+		} else {
 			features = append(features, fp.feature)
 		}
 	}
@@ -713,6 +733,7 @@ func probeParserFeatures() ([]string, error) {
 		features = append(features, "snapd-internal")
 	}
 	sort.Strings(features)
+	logger.Debugf("probed apparmor parser features for version %s (internal=%v): %v", aaVer, internal, features)
 	return features, nil
 }
 
@@ -761,16 +782,35 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	if path, err := snapdtool.InternalToolPath("apparmor_parser"); err == nil {
 		if osutil.IsExecutable(path) && snapdAppArmorSupportsReexec() && !systemAppArmorLoadsSnapPolicy() {
 			prefix := strings.TrimSuffix(path, "apparmor_parser")
-			// when using the internal apparmor_parser also use
-			// its own configuration and includes etc plus
-			// also ensure we use the 3.0 feature ABI to get
-			// the widest array of policy features across the
-			// widest array of kernel versions
+			snapdAbi30File := filepath.Join(prefix, "/apparmor.d/abi/3.0")
+			snapdAbi40File := filepath.Join(prefix, "/apparmor.d/abi/4.0")
+
+			// When using the internal apparmor_parser also use its own
+			// configuration and includes etc plus also ensure we use the 4.0
+			// feature ABI to get the widest array of policy features across
+			// the widest array of kernel versions.
+			//
+			// In case snapd is injected into snapd snap, with
+			// older apparmor, use that instead so that things
+			// don't generally fail.
+			abiFile := ""
+			fi40, err40 := os.Lstat(snapdAbi40File)
+			fi30, err30 := os.Lstat(snapdAbi30File)
+			switch {
+			case err40 == nil && !fi40.IsDir():
+				abiFile = snapdAbi40File
+			case err30 == nil && !fi30.IsDir():
+				abiFile = snapdAbi30File
+			default:
+				return nil, false, fmt.Errorf("internal snapd apparmor_parser but no abi files")
+			}
+
 			args := []string{
 				"--config-file", filepath.Join(prefix, "/apparmor/parser.conf"),
 				"--base", filepath.Join(prefix, "/apparmor.d"),
-				"--policy-features", filepath.Join(prefix, "/apparmor.d/abi/3.0"),
+				"--policy-features", abiFile,
 			}
+
 			return exec.Command(path, args...), true, nil
 		}
 	}
@@ -803,8 +843,23 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	return nil, false, os.ErrNotExist
 }
 
+func appArmorParserVersion() string {
+	cmd, _, _ := AppArmorParser()
+	cmd.Args = append(cmd.Args, "--version")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return ""
+	}
+	logger.Debugf("apparmor_parser --version\n%s", output)
+	// output is like "AppArmor parser version 2.13.4\n"
+	// "Copyright ..."
+	// get the version number from the first line
+	parts := strings.Split(strings.Split(string(output), "\n")[0], " ")
+	return parts[len(parts)-1]
+}
+
 // tryAppArmorParserFeature attempts to pre-process a bit of apparmor syntax with a given parser.
-func tryAppArmorParserFeature(cmd *exec.Cmd, flags []string, rule string) bool {
+func tryAppArmorParserFeature(cmd *exec.Cmd, flags []string, rule string) error {
 	cmd.Args = append(cmd.Args, "--preprocess")
 	flagSnippet := ""
 	if len(flags) > 0 {
@@ -816,9 +871,9 @@ func tryAppArmorParserFeature(cmd *exec.Cmd, flags []string, rule string) bool {
 	// older versions of apparmor_parser can exit with success even
 	// though they fail to parse
 	if err != nil || strings.Contains(string(output), "parser error") {
-		return false
+		return fmt.Errorf("apparmor_parser failed: %v: %s", err, output)
 	}
-	return true
+	return nil
 }
 
 // UpdateHomedirsTunable sets the AppArmor HOMEDIRS tunable to the list of the

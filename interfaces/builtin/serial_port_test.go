@@ -66,6 +66,8 @@ type SerialPortInterfaceSuite struct {
 	testSlot12           *interfaces.ConnectedSlot
 	testSlot13Info       *snap.SlotInfo
 	testSlot13           *interfaces.ConnectedSlot
+	testSlot14Info       *snap.SlotInfo
+	testSlot14           *interfaces.ConnectedSlot
 	testSlot12Info       *snap.SlotInfo
 	testSlotCleaned      *interfaces.ConnectedSlot
 	testSlotCleanedInfo  *snap.SlotInfo
@@ -180,6 +182,9 @@ slots:
     test-port-13:
         interface: serial-port
         path: /dev/ttyLP0
+    test-port-14:
+        interface: serial-port
+        path: /dev/ttyRPMSG0
     test-port-unclean:
         interface: serial-port
         path: /dev/./././ttyS1////
@@ -260,6 +265,8 @@ slots:
 	s.testSlot12 = interfaces.NewConnectedSlot(s.testSlot12Info, appSet, nil, nil)
 	s.testSlot13Info = s.osSnapInfo.Slots["test-port-13"]
 	s.testSlot13 = interfaces.NewConnectedSlot(s.testSlot13Info, appSet, nil, nil)
+	s.testSlot14Info = s.osSnapInfo.Slots["test-port-14"]
+	s.testSlot14 = interfaces.NewConnectedSlot(s.testSlot14Info, appSet, nil, nil)
 	s.testSlotCleanedInfo = s.osSnapInfo.Slots["test-port-unclean"]
 	s.testSlotCleaned = interfaces.NewConnectedSlot(s.testSlotCleanedInfo, appSet, nil, nil)
 	s.missingPathSlotInfo = s.osSnapInfo.Slots["missing-path"]
@@ -418,6 +425,7 @@ func (s *SerialPortInterfaceSuite) TestSanitizeCoreSnapSlots(c *C) {
 		s.testSlot11Info,
 		s.testSlot12Info,
 		s.testSlot13Info,
+		s.testSlot14Info,
 	} {
 		c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 	}
@@ -609,6 +617,9 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 
 	expectedSnippet13 := `/dev/ttyLP0 rwk,`
 	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot13, expectedSnippet13)
+
+	expectedSnippet14 := `/dev/ttyRPMSG0 rwk,`
+	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot14, expectedSnippet14)
 
 	expectedSnippet100 := `/dev/tty[A-Z]*[0-9] rwk,`
 	checkConnectedPlugSnippet(s.testPlugPort1, s.testUDev1, expectedSnippet100)
