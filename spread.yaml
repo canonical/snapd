@@ -156,9 +156,11 @@ backends:
             - ubuntu-core-16-64:
                   image: ubuntu-16.04-64
                   workers: 6
+                  storage: 20G
             - ubuntu-core-18-64:
                   image: ubuntu-18.04-64
                   workers: 6
+                  storage: 20G
             - ubuntu-core-20-64:
                   image: ubuntu-20.04-64
                   workers: 8
