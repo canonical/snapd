@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/polkit"
 	"github.com/snapcore/snapd/osutil"
@@ -154,8 +155,6 @@ var (
 	polkitDaemonPath1 = "/usr/libexec/polkitd"
 	// polkitDaemonPath2 is the path of polkid on core>=24.
 	polkitDaemonPath2 = "/usr/lib/polkit-1/polkitd"
-	// polkitActionsDir is the path of polkit action definitions.
-	polkitActionsDir = "/usr/share/polkit-1/actions"
 )
 
 // hasPolkitDaemonExecutable checks known paths on core for the presence of
@@ -166,7 +165,7 @@ func hasPolkitDaemonExecutable() bool {
 }
 
 func canWriteToPolkitActionsDir() bool {
-	return unix.Access(polkitActionsDir, unix.W_OK) == nil
+	return unix.Access(dirs.SnapPolkitPolicyDir, unix.W_OK) == nil
 }
 
 func polkitPoliciesSupported() bool {

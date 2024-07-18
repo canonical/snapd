@@ -45,7 +45,6 @@ type polkitInterfaceSuite struct {
 	plug     *interfaces.ConnectedPlug
 	plugInfo *snap.PlugInfo
 
-	actionsDir   string
 	daemonPath1  string
 	daemonPath2  string
 	restorePaths func()
@@ -56,15 +55,10 @@ var _ = Suite(&polkitInterfaceSuite{
 })
 
 func (s *polkitInterfaceSuite) SetUpSuite(c *C) {
-	mockedPolkitBase := c.MkDir()
-
-	s.actionsDir = filepath.Join(mockedPolkitBase, "actions")
-	s.daemonPath1 = filepath.Join(mockedPolkitBase, "polkitd-1")
-	s.daemonPath2 = filepath.Join(mockedPolkitBase, "polkitd-2")
-	s.restorePaths = builtin.MockPolkitPaths(s.actionsDir, s.daemonPath1, s.daemonPath2)
-
-	// We make the directory once and only adjust permissions.
-	c.Assert(os.Mkdir(s.actionsDir, 0o700), IsNil)
+	d := c.MkDir()
+	s.daemonPath1 = filepath.Join(d, "polkitd-1")
+	s.daemonPath2 = filepath.Join(d, "polkitd-2")
+	s.restorePaths = builtin.MockPolkitDaemonPaths(s.daemonPath1, s.daemonPath2)
 }
 
 func (s *polkitInterfaceSuite) TearDownSuite(c *C) {
@@ -99,9 +93,9 @@ slots:
 	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "polkit")
 	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "polkit")
 
-	c.Assert(os.Chmod(s.actionsDir, 0o700), IsNil)
 	c.Assert(os.WriteFile(s.daemonPath1, nil, 0o600), IsNil)
 	c.Assert(os.WriteFile(s.daemonPath2, nil, 0o600), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapPolkitPolicyDir, 0o700), IsNil)
 }
 
 func (s *polkitInterfaceSuite) TestName(c *C) {
@@ -304,7 +298,7 @@ func (s *polkitInterfaceSuite) TestStaticInfo(c *C) {
 
 func (s *polkitInterfaceSuite) TestPolkitPoliciesSupported(c *C) {
 	// From now the actions directory is writable so daemon permissions matter.
-	c.Assert(os.Chmod(s.actionsDir, 0o700), IsNil)
+	c.Assert(os.Chmod(dirs.SnapPolkitPolicyDir, 0o700), IsNil)
 
 	// Neither daemon is executable so polkit policies are not supported.
 	c.Assert(os.Chmod(s.daemonPath1, 0o600), IsNil)
@@ -326,11 +320,11 @@ func (s *polkitInterfaceSuite) TestPolkitPoliciesSupported(c *C) {
 	c.Assert(os.Chmod(s.daemonPath2, 0o700), IsNil)
 
 	// Actions directory is not writable so polkit policies are not supported.
-	c.Assert(os.Chmod(s.actionsDir, 0o500), IsNil)
+	c.Assert(os.Chmod(dirs.SnapPolkitPolicyDir, 0o500), IsNil)
 	c.Check(builtin.PolkitPoliciesSupported(), Equals, false)
 
 	// Actions directory is writable so polkit policies are not supported.
-	c.Assert(os.Chmod(s.actionsDir, 0o700), IsNil)
+	c.Assert(os.Chmod(dirs.SnapPolkitPolicyDir, 0o700), IsNil)
 	c.Check(builtin.PolkitPoliciesSupported(), Equals, true)
 }
 
