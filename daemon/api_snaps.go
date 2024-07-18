@@ -407,9 +407,12 @@ func (inst *snapInstruction) validate() error {
 		inst.cleanSnapshotOptions()
 	}
 
-	if len(inst.CompsRaw) > 0 && inst.Action != "remove" {
-		// TODO:COMPS: allow install too
-		return fmt.Errorf("%q action is not supported for components", inst.Action)
+	if len(inst.CompsRaw) > 0 {
+		switch inst.Action {
+		case "remove", "install":
+		default:
+			return fmt.Errorf("%q action is not supported for components", inst.Action)
+		}
 	}
 
 	return inst.snapRevisionOptions.validate()
@@ -464,19 +467,68 @@ func snapInstall(ctx context.Context, inst *snapInstruction, st *state.State) (s
 		ckey = strutil.ElliptLeft(inst.CohortKey, 10)
 		logger.Noticef("Installing snap %q from cohort %q", inst.Snaps[0], ckey)
 	}
-	tset, err := snapstateInstall(ctx, st, inst.Snaps[0], inst.revnoOpts(), inst.userID, flags)
+
+	// TODO:COMPS: handle installing a component of a snap that is already
+	// installed
+	goal := storeInstallGoalFromInstruction(inst)
+	_, tset, err := snapstateInstallOne(ctx, st, goal, snapstate.Options{
+		UserID: inst.userID,
+		Flags:  flags,
+	})
 	if err != nil {
 		return "", nil, err
 	}
 
-	msg := fmt.Sprintf(i18n.G("Install %q snap"), inst.Snaps[0])
+	return installMessage(inst, ckey), []*state.TaskSet{tset}, nil
+}
+
+func installMessage(inst *snapInstruction, cohort string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, i18n.G("Install %q snap"), inst.Snaps[0])
 	if inst.Channel != "stable" && inst.Channel != "" {
-		msg += fmt.Sprintf(" from %q channel", inst.Channel)
+		fmt.Fprintf(&b, i18n.G(" from %q channel"), inst.Channel)
 	}
 	if inst.CohortKey != "" {
-		msg += fmt.Sprintf(" from %q cohort", ckey)
+		fmt.Fprintf(&b, i18n.G(" from %q cohort"), cohort)
 	}
-	return msg, []*state.TaskSet{tset}, nil
+
+	if comps := inst.CompsForSnaps[inst.Snaps[0]]; len(comps) > 0 {
+		if len(comps) > 1 {
+			fmt.Fprintf(&b, i18n.G(" with components %s"), strutil.Quoted(comps))
+		} else {
+			fmt.Fprintf(&b, i18n.G(" with component %s"), strutil.Quoted(comps))
+		}
+	}
+
+	return b.String()
+}
+
+func multiInstallMessage(inst *snapInstruction) string {
+	if len(inst.Snaps) == 1 {
+		return installMessage(inst, "")
+	}
+
+	var b strings.Builder
+	fmt.Fprint(&b, i18n.G("Install snaps"))
+
+	for i, name := range inst.Snaps {
+		fmt.Fprintf(&b, " %q", name)
+
+		if comps := inst.CompsForSnaps[name]; len(comps) > 0 {
+			b.WriteString(" (")
+			if len(comps) > 1 {
+				fmt.Fprintf(&b, i18n.G("with components %s"), strutil.Quoted(comps))
+			} else {
+				fmt.Fprintf(&b, i18n.G("with component %s"), strutil.Quoted(comps))
+			}
+			b.WriteRune(')')
+		}
+
+		if i < len(inst.Snaps)-1 {
+			b.WriteRune(',')
+		}
+	}
+	return b.String()
 }
 
 func snapUpdate(_ context.Context, inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
@@ -787,34 +839,59 @@ func (inst *snapInstruction) dispatchForMany() (op snapManyActionFunc) {
 	return op
 }
 
-func snapInstallMany(_ context.Context, inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+func storeInstallGoalFromInstruction(inst *snapInstruction) snapstate.InstallGoal {
+	snaps := make([]snapstate.StoreSnap, 0, len(inst.Snaps))
+	for _, sn := range inst.Snaps {
+		// we currently only allow revision options when installing one snap
+		opts := snapstate.RevisionOptions{}
+		if len(inst.Snaps) == 1 {
+			opts = *inst.revnoOpts()
+		}
+
+		snaps = append(snaps, snapstate.StoreSnap{
+			InstanceName: sn,
+			Components:   inst.CompsForSnaps[sn],
+			RevOpts:      opts,
+		})
+	}
+
+	return snapstateStoreInstallGoal(snaps...)
+}
+
+func snapInstallMany(ctx context.Context, inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
 	for _, name := range inst.Snaps {
 		if len(name) == 0 {
 			return nil, fmt.Errorf(i18n.G("cannot install snap with empty name"))
 		}
 	}
-	transaction := inst.Transaction
-	// TODO use per request context passed in snap instruction
-	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, nil, inst.userID, &snapstate.Flags{Transaction: transaction})
+
+	// TODO:COMPS: handle installing a component of a snap that is already
+	// installed
+	goal := storeInstallGoalFromInstruction(inst)
+	installed, tasksets, err := snapstateInstallWithGoal(ctx, st, goal, snapstate.Options{
+		UserID: inst.userID,
+		Flags: snapstate.Flags{
+			Transaction: inst.Transaction,
+		},
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	var msg string
-	switch len(inst.Snaps) {
-	case 0:
+	if len(inst.Snaps) == 0 {
 		return nil, fmt.Errorf("cannot install zero snaps")
-	case 1:
-		msg = fmt.Sprintf(i18n.G("Install snap %q"), inst.Snaps[0])
-	default:
-		quoted := strutil.Quoted(inst.Snaps)
-		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		msg = fmt.Sprintf(i18n.G("Install snaps %s"), quoted)
+	}
+
+	msg := multiInstallMessage(inst)
+
+	names := make([]string, 0, len(installed))
+	for _, sn := range installed {
+		names = append(names, sn.InstanceName())
 	}
 
 	return &snapInstructionResult{
 		Summary:  msg,
-		Affected: installed,
+		Affected: names,
 		Tasksets: tasksets,
 	}, nil
 }

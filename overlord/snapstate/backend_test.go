@@ -683,9 +683,6 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 				revno:  info.Revision,
 				userID: userID,
 			})
-			if !a.Revision.Unset() {
-				info.Channel = ""
-			}
 			info.InstanceKey = instanceKey
 
 			sar := store.SnapActionResult{

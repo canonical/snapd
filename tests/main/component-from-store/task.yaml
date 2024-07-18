@@ -1,0 +1,28 @@
+summary: Test installing a component from the store
+
+details: |
+  Verifies that we can install a snap and components from the store at the same
+  time.
+
+systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
+
+restore: |
+  snap remove test-snap-with-components || true
+
+  # TODO:COMPS: remove this once removing a snap also removes components
+  systemctl stop -- '*test*snap*with*components-components-mnt-*.mount' || true
+  rm /etc/systemd/system/*'-test\x2dsnap\x2dwith\x2dcomponents-components-mnt-'*'.mount' || true
+  rm -rf "$(os.paths snap-mount-dir)/test-snap-with-components"
+
+execute: |
+  snap install test-snap-with-components+one+two
+
+  for comp in one two; do
+      snap run test-snap-with-components ${comp}
+  done
+
+  # while this component is defined in the snap, it should not be installed
+  not snap run test-snap-with-components three
+
+  # TODO:COMPS: test variations of installing snap with components at specific
+  # revisions once PR to enable installing with revision and channel is merged

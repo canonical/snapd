@@ -32,7 +32,6 @@ prepare: |
   fi
   "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
 
-
 restore: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
       echo "This test needs test keys to be trusted"
@@ -71,7 +70,11 @@ execute: |
   version="$(nested_get_version)"
 
   snap download --basename=pc-kernel --channel="$version/stable" pc-kernel
-  uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  if os.query is-ubuntu-ge 24.04; then
+    uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  else
+    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  fi
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
 
   # Prepare gadget with the right gadget.yaml

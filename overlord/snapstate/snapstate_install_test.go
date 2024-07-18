@@ -1984,12 +1984,42 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
+	const (
+		channel      = ""
+		snapName     = "some-snap"
+		defaultTrack = ""
+	)
+	s.testInstallWithRevisionRunThrough(c, snapName, channel, defaultTrack)
+}
+
+func (s *snapmgrTestSuite) TestInstallWithRevisionRunThroughChannel(c *C) {
+	const (
+		channel      = "some-channel/stable"
+		snapName     = "some-snap"
+		defaultTrack = ""
+	)
+	s.testInstallWithRevisionRunThrough(c, snapName, channel, defaultTrack)
+}
+
+func (s *snapmgrTestSuite) TestInstallWithRevisionRunThroughDefaultTrackWithChannel(c *C) {
+	const (
+		channel      = "edge"
+		snapName     = "some-snap-with-default-track"
+		defaultTrack = "2.0/edge"
+	)
+	s.testInstallWithRevisionRunThrough(c, snapName, channel, defaultTrack)
+}
+
+func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, requestedChannel, defaultTrack string) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	snapID := snapName + "-id"
+	snapFileName := snapName + "_42.snap"
+
 	chg := s.state.NewChange("install", "install a snap")
-	opts := &snapstate.RevisionOptions{Channel: "some-channel", Revision: snap.R(42)}
-	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	opts := &snapstate.RevisionOptions{Channel: requestedChannel, Revision: snap.R(42)}
+	ts, err := snapstate.Install(context.Background(), s.state, snapName, opts, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -2001,8 +2031,8 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 	c.Check(snapstate.Installing(s.state), Equals, false)
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.StoreMacaroon,
-		name:     "some-snap",
-		target:   filepath.Join(dirs.SnapBlobDir, "some-snap_42.snap"),
+		name:     snapName,
+		target:   filepath.Join(dirs.SnapBlobDir, snapFileName),
 	}})
 	expected := fakeOps{
 		{
@@ -2013,19 +2043,20 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
 				Action:       "install",
-				InstanceName: "some-snap",
+				InstanceName: snapName,
 				Revision:     snap.R(42),
+				Channel:      requestedChannel,
 			},
 			revno:  snap.R(42),
 			userID: 1,
 		},
 		{
 			op:   "storesvc-download",
-			name: "some-snap",
+			name: snapName,
 		},
 		{
 			op:    "validate-snap:Doing",
-			name:  "some-snap",
+			name:  snapName,
 			revno: snap.R(42),
 		},
 		{
@@ -2034,48 +2065,50 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 		},
 		{
 			op:   "open-snap-file",
-			path: filepath.Join(dirs.SnapBlobDir, "some-snap_42.snap"),
+			path: filepath.Join(dirs.SnapBlobDir, snapFileName),
 			sinfo: snap.SideInfo{
-				RealName: "some-snap",
-				SnapID:   "some-snap-id",
+				RealName: snapName,
+				SnapID:   snapID,
 				Revision: snap.R(42),
+				Channel:  requestedChannel,
 			},
 		},
 		{
 			op:    "setup-snap",
-			name:  "some-snap",
-			path:  filepath.Join(dirs.SnapBlobDir, "some-snap_42.snap"),
+			name:  snapName,
+			path:  filepath.Join(dirs.SnapBlobDir, snapFileName),
 			revno: snap.R(42),
 		},
 		{
 			op:   "copy-data",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/42"),
+			path: filepath.Join(dirs.SnapMountDir, filepath.Join(snapName, "42")),
 			old:  "<no-old>",
 		},
 		{
 			op:   "setup-snap-save-data",
-			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
+			path: filepath.Join(dirs.SnapDataSaveDir, snapName),
 		},
 		{
 			op:    "setup-profiles:Doing",
-			name:  "some-snap",
+			name:  snapName,
 			revno: snap.R(42),
 		},
 		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
-				RealName: "some-snap",
-				SnapID:   "some-snap-id",
+				RealName: snapName,
+				SnapID:   snapID,
 				Revision: snap.R(42),
+				Channel:  requestedChannel,
 			},
 		},
 		{
 			op:   "link-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/42"),
+			path: filepath.Join(dirs.SnapMountDir, filepath.Join(snapName, "42")),
 		},
 		{
 			op:    "auto-connect:Doing",
-			name:  "some-snap",
+			name:  snapName,
 			revno: snap.R(42),
 		},
 		{
@@ -2083,7 +2116,7 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 		},
 		{
 			op:    "cleanup-trash",
-			name:  "some-snap",
+			name:  snapName,
 			revno: snap.R(42),
 		},
 	}
@@ -2091,41 +2124,55 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
+	var setupChannel, trackedChannel string
+	switch {
+	case defaultTrack != "":
+		trackedChannel = defaultTrack
+		setupChannel = defaultTrack
+	case requestedChannel != "":
+		trackedChannel = requestedChannel
+		setupChannel = requestedChannel
+	default:
+		trackedChannel = "latest/stable"
+		setupChannel = "stable"
+	}
+
 	// check progress
 	ta := ts.Tasks()
 	task := ta[1]
 	_, cur, total := task.Progress()
 	c.Assert(cur, Equals, s.fakeStore.fakeCurrentProgress)
 	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
-	c.Check(task.Summary(), Equals, `Download snap "some-snap" (42) from channel "some-channel"`)
+	c.Check(task.Summary(), Equals, fmt.Sprintf(`Download snap "%s" (42) from channel "%s"`, snapName, setupChannel))
 
 	// check link/start snap summary
 	linkTask := ta[len(ta)-9]
-	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (42) available to the system`)
+	c.Check(linkTask.Summary(), Equals, fmt.Sprintf(`Make snap "%s" (42) available to the system`, snapName))
 	startTask := ta[len(ta)-3]
-	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (42) services`)
+	c.Check(startTask.Summary(), Equals, fmt.Sprintf(`Start snap "%s" (42) services`, snapName))
 
 	// verify snap-setup in the task state
 	var snapsup snapstate.SnapSetup
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel:  "some-channel",
+		Channel:  setupChannel,
 		UserID:   s.user.ID,
-		SnapPath: filepath.Join(dirs.SnapBlobDir, "some-snap_42.snap"),
+		SnapPath: filepath.Join(dirs.SnapBlobDir, snapFileName),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Size:        5,
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
-		Version:   "some-snapVer",
+		Version:   snapName + "Ver",
 		PlugsOnly: true,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
-		RealName: "some-snap",
+		RealName: snapName,
 		Revision: snap.R(42),
-		SnapID:   "some-snap-id",
+		SnapID:   snapID,
+		Channel:  requestedChannel,
 	})
 
 	// verify snaps in the system state
@@ -2133,15 +2180,16 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 	err = s.state.Get("snaps", &snaps)
 	c.Assert(err, IsNil)
 
-	snapst := snaps["some-snap"]
+	snapst := snaps[snapName]
 	c.Assert(snapst, NotNil)
 	c.Assert(snapst.Active, Equals, true)
-	c.Assert(snapst.TrackingChannel, Equals, "some-channel/stable")
+	c.Assert(snapst.TrackingChannel, Equals, trackedChannel)
 	c.Assert(snapst.CohortKey, Equals, "")
 	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideState(&snap.SideInfo{
-		RealName: "some-snap",
-		SnapID:   "some-snap-id",
+		RealName: snapName,
+		SnapID:   snapID,
 		Revision: snap.R(42),
+		Channel:  requestedChannel,
 	}, nil))
 	c.Assert(snapst.Required, Equals, false)
 }
@@ -2694,6 +2742,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 				Action:       "install",
 				InstanceName: "some-snap",
 				Revision:     snap.R(42),
+				Channel:      "some-channel",
 			},
 			revno:  snap.R(42),
 			userID: 1,
@@ -2799,6 +2848,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 				RealName: "some-snap",
 				SnapID:   "some-snap-id",
 				Revision: snap.R(42),
+				Channel:  "some-channel",
 			},
 		},
 		{
@@ -2827,6 +2877,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 				RealName: "some-snap",
 				SnapID:   "some-snap-id",
 				Revision: snap.R(42),
+				Channel:  "some-channel",
 			},
 		},
 		{
@@ -2996,7 +3047,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c
 		c.Assert(snapst2.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideState(&snap.SideInfo{
 			RealName: "snap2",
 			SnapID:   "snap2-id",
-			Channel:  "",
+			Channel:  "some-other-channel",
 			Revision: snap.R(21),
 		}, nil))
 	}
@@ -3165,6 +3216,7 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 			Action:       "install",
 			InstanceName: "snap-content-plug",
 			Revision:     snap.R(42),
+			Channel:      "stable",
 		},
 		revno:  snap.R(42),
 		userID: 1,
@@ -3249,6 +3301,7 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 			RealName: "snap-content-plug",
 			SnapID:   "snap-content-plug-id",
 			Revision: snap.R(42),
+			Channel:  "stable",
 		},
 	}, {
 		op:    "setup-snap",
@@ -3272,6 +3325,7 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 			RealName: "snap-content-plug",
 			SnapID:   "snap-content-plug-id",
 			Revision: snap.R(42),
+			Channel:  "stable",
 		},
 	}, {
 		op:   "link-snap",
