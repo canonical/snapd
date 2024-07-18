@@ -37,7 +37,6 @@ var (
 	AareExclusivePatterns       = aareExclusivePatterns
 	GetDesktopFileRules         = getDesktopFileRules
 	StringListAttribute         = stringListAttribute
-	IsPathMountedWritable       = isPathMountedWritable
 	PolkitPoliciesSupported     = polkitPoliciesSupported
 )
 
@@ -135,17 +134,17 @@ func MockDirsToEnsure(fn func(paths []string) ([]*interfaces.EnsureDirSpec, erro
 	return restore
 }
 
-func MockPolkitPaths(procSelfMounts, daemonPath1, daemonPath2 string) (restore func()) {
-	oldProcSelfMounts := polkitProcSelfMounts
+func MockPolkitPaths(actionsDir, daemonPath1, daemonPath2 string) (restore func()) {
+	oldActionsDir := polkitActionsDir
 	oldDaemonPath1 := polkitDaemonPath1
 	oldDaemonPath2 := polkitDaemonPath2
 
-	polkitProcSelfMounts = procSelfMounts
+	polkitActionsDir = actionsDir
 	polkitDaemonPath1 = daemonPath1
 	polkitDaemonPath2 = daemonPath2
 
 	return func() {
-		polkitProcSelfMounts = oldProcSelfMounts
+		polkitActionsDir = oldActionsDir
 		polkitDaemonPath1 = oldDaemonPath1
 		polkitDaemonPath2 = oldDaemonPath2
 	}
