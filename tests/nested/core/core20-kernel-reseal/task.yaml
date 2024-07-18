@@ -13,14 +13,14 @@ prepare: |
   # image
   KERNEL_SNAP="$(ls "$(tests.nested get assets-path)"/pc-kernel*.snap)"
   unsquashfs -d pc-kernel "$KERNEL_SNAP"
-  # ensure we really have the header we expect
-  grep -q -a "This program cannot be run in DOS mode" pc-kernel/kernel.efi
-  # modify the kernel so that the hash changes
-
+  
   if os.query is-ubuntu-ge 24.04; then
     apt install -y llvm
     llvm-objcopy --add-section .modified=/dev/null pc-kernel/kernel.efi
   else
+    # ensure we really have the header we expect
+    grep -q -a "This program cannot be run in DOS mode" pc-kernel/kernel.efi
+    # modify the kernel so that the hash changes
     sed -i 's/This program cannot be run in DOS mode/This program cannot be run in XXX mode/' pc-kernel/kernel.efi
     grep -q -a "This program cannot be run in XXX mode" pc-kernel/kernel.efi
   fi
