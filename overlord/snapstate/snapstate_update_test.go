@@ -4567,6 +4567,24 @@ func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextBadFile(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithDeviceContextToRevision(c *C) {
+	const channel = ""
+	revision := snap.R(11)
+	s.testUpdateWithDeviceContext(c, revision, channel)
+}
+
+func (s *snapmgrTestSuite) TestUpdateWithDeviceContextToRevisionWithChannel(c *C) {
+	const channel = "some-channel"
+	revision := snap.R(11)
+	s.testUpdateWithDeviceContext(c, revision, channel)
+}
+
+func (s *snapmgrTestSuite) TestUpdateWithDeviceContextDefaultsToTracked(c *C) {
+	const channel = ""
+	revision := snap.R(0)
+	s.testUpdateWithDeviceContext(c, revision, channel)
+}
+
+func (s *snapmgrTestSuite) testUpdateWithDeviceContext(c *C, revision snap.Revision, channel string) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -4578,21 +4596,55 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContextToRevision(c *C) {
 		CtxStore:    s.fakeStore,
 	}
 
+	const trackedChannel = "latest/tracked-channel"
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
+			{
+				RealName: "some-snap",
+				Revision: snap.R(5),
+				SnapID:   "some-snap-id",
+			},
 		}),
-		Current:  snap.R(5),
-		SnapType: "app",
-		UserID:   1,
+		TrackingChannel: trackedChannel,
+		Current:         snap.R(5),
+		SnapType:        "app",
+		UserID:          1,
 	})
 
-	opts := &snapstate.RevisionOptions{Channel: "some-channel", Revision: snap.R(11)}
+	opts := &snapstate.RevisionOptions{Channel: channel, Revision: revision}
 	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", opts, 0, snapstate.Flags{}, nil, deviceCtx, "")
 	c.Assert(err, IsNil)
 	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+
+	enforceValidationSets := store.SnapActionFlags(0)
+	if revision.Unset() {
+		enforceValidationSets = store.SnapActionEnforceValidation
+	}
+
+	expectedChannel := channel
+	if revision.Unset() && channel == "" {
+		expectedChannel = trackedChannel
+	}
+
+	for _, op := range s.fakeBackend.ops {
+		if op.op == "storesvc-snap-action:action" {
+			c.Check(op, DeepEquals, fakeOp{
+				op: "storesvc-snap-action:action",
+				action: store.SnapAction{
+					Action:       "refresh",
+					InstanceName: "some-snap",
+					SnapID:       "some-snap-id",
+					Revision:     revision,
+					Channel:      expectedChannel,
+					Flags:        enforceValidationSets,
+				},
+				userID: 1,
+				revno:  snap.R(11),
+			})
+		}
+	}
 }
 
 func (s *snapmgrTestSuite) TestUpdateTasksCoreSetsIgnoreOnConfigure(c *C) {
