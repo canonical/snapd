@@ -42,179 +42,31 @@ const steamSupportBaseDeclarationSlots = `
 `
 
 const steamSupportConnectedPlugAppArmor = `
-# Allow pressure-vessel to set up its Bubblewrap sandbox.
-/sys/kernel/ r,
-@{PROC}/sys/kernel/overflowuid r,
-@{PROC}/sys/kernel/overflowgid r,
-@{PROC}/sys/kernel/sched_autogroup_enabled r,
-@{PROC}/pressure/io r,
-owner @{PROC}/@{pid}/uid_map rw,
-owner @{PROC}/@{pid}/gid_map rw,
-owner @{PROC}/@{pid}/setgroups rw,
-owner @{PROC}/@{pid}/mounts r,
-owner @{PROC}/@{pid}/mountinfo r,
+# Mimic allow all with a base set of AppArmor rules, of supported
+# mediation classes before "allow all," was fully supported
+allow capability,
+allow userns,
+# file includes ix for x transitions
+allow file,
+allow network,
+allow unix,
+allow ptrace,
+allow signal,
+allow mqueue,
+allow io_uring,
+allow mount,
+allow umount,
+allow pivot_root,
+allow dbus,
+# rlimit is implicitly allowed in the abi version unless an rlimit
+# rule is specified
+# change_profile not allowed
+`
 
-# Create and pivot to the intermediate root
-mount options=(rw, rslave) -> /,
-mount options=(rw, silent, rslave) -> /,
-mount fstype=tmpfs options=(rw, nosuid, nodev) tmpfs -> /tmp/,
-mount options=(rw, rbind) /tmp/newroot/ -> /tmp/newroot/,
-pivot_root oldroot=/tmp/oldroot/ /tmp/,
-
-# Set up sandbox in /newroot
-mount options=(rw, rbind) /oldroot/ -> /newroot/,
-mount options=(rw, rbind) /oldroot/dev/ -> /newroot/dev/,
-mount options=(rw, rbind) /oldroot/etc/ -> /newroot/etc/,
-mount options=(rw, rbind) /oldroot/proc/ -> /newroot/proc/,
-mount options=(rw, rbind) /oldroot/sys/ -> /newroot/sys/,
-mount options=(rw, rbind) /oldroot/tmp/ -> /newroot/tmp/,
-mount options=(rw, rbind) /oldroot/var/ -> /newroot/var/,
-mount options=(rw, rbind) /oldroot/var/tmp/ -> /newroot/var/tmp/,
-mount options=(rw, rbind) /oldroot/usr/ -> /newroot/run/host/usr/,
-mount options=(rw, rbind) /oldroot/etc/ -> /newroot/run/host/etc/,
-mount options=(rw, rbind) /oldroot/usr/lib/os-release -> /newroot/run/host/os-release,
-
-# Bubblewrap performs remounts on directories it binds under /newroot
-# to fix up the options (since options other than MS_REC are ignored
-# when performing a bind mount). Ideally we could do something like:
-#   remount options=(bind, silent, nosuid, *) /newroot/{,**},
-#
-# But that is not supported by AppArmor. So we enumerate the possible
-# combinations of options Bubblewrap might use.
-remount options=(bind, silent, nosuid, rw) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, nodev) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, noexec) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, nodev, noexec) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, noatime) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, nodev, noatime) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, noexec, noatime) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, nodev, noexec, noatime) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, relatime) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, nodev, relatime) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, noexec, relatime) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, nodev, noexec, relatime) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, nodev, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, noexec, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, nodev, noexec, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, noatime, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, nodev, noatime, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, noexec, noatime, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, nodev, noexec, noatime, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, relatime, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, nodev, relatime, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, noexec, relatime, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, rw, nodev, noexec, relatime, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, nodev) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, noexec) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, nodev, noexec) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, noatime) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, nodev, noatime) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, noexec, noatime) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, nodev, noexec, noatime) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, relatime) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, nodev, relatime) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, noexec, relatime) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, nodev, noexec, relatime) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, nodev, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, noexec, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, nodev, noexec, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, noatime, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, nodev, noatime, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, noexec, noatime, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, nodev, noexec, noatime, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, relatime, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, nodev, relatime, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, noexec, relatime, nodiratime) /newroot/{,**},
-remount options=(bind, silent, nosuid, ro, nodev, noexec, relatime, nodiratime) /newroot/{,**},
-
-/newroot/** rwkl,
-/bindfile* rw,
-mount options=(rw, rbind) /oldroot/opt/ -> /newroot/opt/,
-mount options=(rw, rbind) /oldroot/srv/ -> /newroot/srv/,
-mount options=(rw, rbind) /oldroot/run/udev/ -> /newroot/run/udev/,
-mount options=(rw, rbind) /oldroot/home/{,**} -> /newroot/home/{,**},
-mount options=(rw, rbind) /oldroot/snap/{,**} -> /newroot/snap/{,**},
-mount options=(rw, rbind) /oldroot/home/**/usr/ -> /newroot/usr/,
-mount options=(rw, rbind) /oldroot/home/**/usr/etc/** -> /newroot/etc/**,
-mount options=(rw, rbind) /oldroot/home/**/usr/etc/ld.so.cache -> /newroot/**,
-mount options=(rw, rbind) /oldroot/home/**/usr/etc/ld.so.conf -> /newroot/**,
-
-mount options=(rw, rbind) /oldroot/{home,media,mnt,run/media,opt,srv}/**/steamapps/common/** -> /newroot/**,
-
-mount options=(rw, rbind) /oldroot/mnt/{,**} -> /newroot/mnt/{,**},
-mount options=(rw, rbind) /oldroot/media/{,**} -> /newroot/media/{,**},
-mount options=(rw, rbind) /oldroot/run/media/ -> /newroot/run/media/,
-mount options=(rw, rbind) /oldroot/etc/nvidia/ -> /newroot/etc/nvidia/,
-
-mount options=(rw, rbind) /oldroot/etc/machine-id -> /newroot/etc/machine-id,
-mount options=(rw, rbind) /oldroot/etc/group -> /newroot/etc/group,
-mount options=(rw, rbind) /oldroot/etc/passwd -> /newroot/etc/passwd,
-mount options=(rw, rbind) /oldroot/etc/host.conf -> /newroot/etc/host.conf,
-mount options=(rw, rbind) /oldroot/etc/hosts -> /newroot/etc/hosts,
-mount options=(rw, rbind) /oldroot/usr/share/zoneinfo/** -> /newroot/etc/localtime,
-mount options=(rw, rbind) /oldroot/**/*resolv.conf -> /newroot/etc/resolv.conf,
-mount options=(rw, rbind) /bindfile* -> /newroot/etc/timezone,
-
-mount options=(rw, rbind) /oldroot/run/systemd/journal/socket -> /newroot/run/systemd/journal/socket,
-mount options=(rw, rbind) /oldroot/run/systemd/journal/stdout -> /newroot/run/systemd/journal/stdout,
-
-mount options=(rw, rbind) /oldroot/usr/share/fonts/ -> /newroot/run/host/fonts/,
-mount options=(rw, rbind) /oldroot/usr/local/share/fonts/ -> /newroot/run/host/local-fonts/,
-mount options=(rw, rbind) /oldroot/{var/cache/fontconfig,usr/lib/fontconfig/cache}/ -> /newroot/run/host/fonts-cache/,
-mount options=(rw, rbind) /oldroot/home/**/.cache/fontconfig/ -> /newroot/run/host/user-fonts-cache/,
-mount options=(rw, rbind) /bindfile* -> /newroot/run/host/font-dirs.xml,
-
-mount options=(rw, rbind) /oldroot/usr/share/icons/ -> /newroot/run/host/share/icons/,
-mount options=(rw, rbind) /oldroot/home/**/.local/share/icons/ -> /newroot/run/host/user-share/icons/,
-
-mount options=(rw, rbind) /oldroot/run/user/[0-9]*/wayland-* -> /newroot/**,
-mount options=(rw, rbind) /oldroot/tmp/.X11-unix/X* -> /newroot/tmp/.X11-unix/X*,
-mount options=(rw, rbind) /bindfile* -> /newroot/**,
-
-mount options=(rw, rbind) /bindfile* -> /newroot/**,
-mount options=(rw, rbind) /oldroot/run/user/[0-9]*/pulse/native -> /newroot/**,
-mount options=(rw, rbind) /oldroot/dev/snd/ -> /newroot/dev/snd/,
-mount options=(rw, rbind) /bindfile* -> /newroot/etc/asound.conf,
-mount options=(rw, rbind) /oldroot/run/user/[0-9]*/bus -> /newroot/**,
-
-mount options=(rw, rbind) /oldroot/run/dbus/system_bus_socket -> /newroot/run/dbus/system_bus_socket,
-mount options=(rw, rbind) /oldroot/run/systemd/resolve/io.systemd.Resolve -> /newroot/run/systemd/resolve/io.systemd.Resolve,
-mount options=(rw, rbind) /bindfile* -> /newroot/run/host/container-manager,
-
-# Allow mounting Nvidia drivers into the sandbox
-mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/usr/lib/@{multiarch}/** -> /newroot/var/lib/snapd/hostfs/usr/lib/@{multiarch}/**,
-
-# Allow PV to access driver information and features necessary for some games to run
-mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/usr/share/** -> /newroot/**,
-mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/ -> /newroot/var/lib/snapd/hostfs/,
-
-# Allow masking of certain directories in the sandbox
-mount fstype=tmpfs options=(rw, nosuid, nodev) tmpfs -> /newroot/**,
-
-# Pivot from the intermediate root to sandbox root
-mount options in (rw, silent, rprivate) -> /oldroot/,
-umount /oldroot/,
-pivot_root oldroot=/newroot/ /newroot/,
-umount /,
-
-# Permissions needed within sandbox root
-/usr/** ixr,
-deny /usr/bin/{chfn,chsh,gpasswd,mount,newgrp,passwd,su,sudo,umount} x,
-/run/host/** mr,
-/*/pressure-vessel/** mrw,
-/run/host/usr/sbin/ldconfig* ixr,
-/run/host/usr/bin/localedef ixr,
-/var/cache/ldconfig/** rw,
-/sys/module/nvidia/version r,
-/var/lib/snapd/hostfs/usr/share/nvidia/** mr,
-/etc/debian_chroot r,
-
-capability sys_admin,
-capability sys_ptrace,
-capability setpcap,
+const steamSupportConnectedPlugAppArmorAll = `
+# For now to avoid steam constantly breaking with every update, requiring
+# new permissions just allow everything.
+allow all,
 `
 
 const steamSupportConnectedPlugSecComp = `
@@ -395,6 +247,25 @@ type steamSupportInterface struct {
 	commonInterface
 }
 
+func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// if apparmor supports allow all us it. This allows not updating
+	// the supported features list as new features are added.
+	if apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
+		features, err := apparmor_sandbox.ParserFeatures()
+		if err != nil {
+			return err
+		}
+		if strutil.ListContains(features, "all") {
+			spec.AddSnippet(steamSupportConnectedPlugAppArmorAll)
+		} else {
+			spec.AddSnippet(steamSupportConnectedPlugAppArmor)
+		}
+	}
+
+	spec.SetUsesPtraceTrace()
+	return nil
+}
+
 func (iface *steamSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(steamSupportSteamInputUDevRules)
 	spec.AddSnippet(steamSupportSteamVRUDevRules)
@@ -409,7 +280,6 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  steamSupportBaseDeclarationSlots,
 		baseDeclarationPlugs:  steamSupportBaseDeclarationPlugs,
-		connectedPlugAppArmor: steamSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:  steamSupportConnectedPlugSecComp,
 	}})
 }
