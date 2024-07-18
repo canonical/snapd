@@ -322,7 +322,7 @@ static void sc_initialize_ns_fstab(const char *snap_instance_name)
 		die("cannot open %s", info_path);
 	}
 	if (fchown(fd, 0, 0) < 0) {
-		die("cannot chown %s to root.root", info_path);
+		die("cannot chown %s to root:root", info_path);
 	}
 	// The stream now owns the file descriptor.
 	stream = fdopen(fd, "w");
