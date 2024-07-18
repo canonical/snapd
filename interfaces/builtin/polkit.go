@@ -25,13 +25,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/polkit"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/polkit/validate"
 	"github.com/snapcore/snapd/snap"
+	"golang.org/x/sys/unix"
 )
 
 const polkitSummary = `allows access to polkitd to check authorisation`
@@ -166,8 +166,7 @@ func hasPolkitDaemonExecutable() bool {
 }
 
 func canWriteToPolkitActionsDir() bool {
-	const W_OK = 2
-	return syscall.Access(polkitActionsDir, W_OK) == nil
+	return unix.Access(polkitActionsDir, unix.W_OK) == nil
 }
 
 func polkitPoliciesSupported() bool {
