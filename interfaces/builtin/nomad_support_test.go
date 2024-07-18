@@ -32,11 +32,11 @@ import (
 )
 
 type NomadSupportInterfaceSuite struct {
-	iface interfaces.Interface
+	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
-	slot *interfaces.ConnectedSlot
+	slot     *interfaces.ConnectedSlot
 	plugInfo *snap.PlugInfo
-	plug *interfaces.ConnectedPlug
+	plug     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&NomadSupportInterfaceSuite{
@@ -80,9 +80,8 @@ func (s *NomadSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/sys/fs/cgroup/nomad.slice/cgroup.subtree_control rw,\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/sys/fs/cgroup/nomad.slice/* rw,\n")
 }
-
 
 func (s *NomadSupportInterfaceSuite) TestSecCompSpec(c *C) {
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
@@ -115,4 +114,3 @@ func (s *NomadSupportInterfaceSuite) TestAutoConnect(c *C) {
 func (s *NomadSupportInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
-
