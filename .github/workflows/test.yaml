@@ -421,7 +421,7 @@ jobs:
     # release branches
     if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
     name: ${{ matrix.group }}
-    runs-on: self-hosted
+    runs-on: [self-hosted, spread-enabled]
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
       # Disable fail-fast mode as it doesn't function with spread. It seems
