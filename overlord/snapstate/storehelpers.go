@@ -604,7 +604,7 @@ func storeUpdatePlan(
 			return updatePlan{}, snap.NotInstalledError{Snap: update.InstanceName}
 		}
 
-		if snapst.CurrentlyHasComponents() {
+		if snapst.HasActiveComponents() {
 			requestComponentsFromStore = true
 		}
 	}
