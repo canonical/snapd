@@ -7,9 +7,6 @@ details: |
 systems: [ubuntu-2*]
 
 prepare: |
-  # Install dependency
-  apt install -y llvm
-
   # we cannot use the kernel from store as it may have a version of
   # snap-bootstrap that will not be able to unseal the keys and unlock the
   # encrypted volumes, instead use the kernel we repacked when building the UC20
@@ -19,7 +16,14 @@ prepare: |
   # ensure we really have the header we expect
   grep -q -a "This program cannot be run in DOS mode" pc-kernel/kernel.efi
   # modify the kernel so that the hash changes
-  llvm-objcopy --add-section .modified=/dev/null pc-kernel/kernel.efi
+
+  if os.query is-ubuntu-lt 24.04; then
+    sed -i 's/This program cannot be run in DOS mode/This program cannot be run in XXX mode/' pc-kernel/kernel.efi
+    grep -q -a "This program cannot be run in XXX mode" pc-kernel/kernel.efi
+  else
+    apt install -y llvm
+    llvm-objcopy --add-section .modified=/dev/null pc-kernel/kernel.efi
+  fi
   
   KEY_NAME=$(tests.nested download snakeoil-key)
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
