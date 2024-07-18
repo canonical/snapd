@@ -590,11 +590,11 @@ func (s *aliasesSuite) TestAliases(c *check.C) {
 func (s *aliasesSuite) TestInstallUnaliased(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	defer daemon.MockSnapstateInstall(func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		calledFlags = flags
+	defer daemon.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+		calledFlags = opts.Flags
 
-		t := s.NewTask("fake-install-snap", "Doing a fake install")
-		return state.NewTaskSet(t), nil
+		t := st.NewTask("fake-install-snap", "Doing a fake install")
+		return &snap.Info{}, state.NewTaskSet(t), nil
 	})()
 
 	d := s.daemon(c)
@@ -617,11 +617,11 @@ func (s *aliasesSuite) TestInstallUnaliased(c *check.C) {
 func (s *aliasesSuite) TestInstallIgnoreRunning(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	defer daemon.MockSnapstateInstall(func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		calledFlags = flags
+	defer daemon.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+		calledFlags = opts.Flags
 
-		t := s.NewTask("fake-install-snap", "Doing a fake install")
-		return state.NewTaskSet(t), nil
+		t := st.NewTask("fake-install-snap", "Doing a fake install")
+		return &snap.Info{}, state.NewTaskSet(t), nil
 	})()
 
 	d := s.daemon(c)
@@ -644,11 +644,11 @@ func (s *aliasesSuite) TestInstallIgnoreRunning(c *check.C) {
 func (s *aliasesSuite) TestInstallPrefer(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	defer daemon.MockSnapstateInstall(func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		calledFlags = flags
+	defer daemon.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+		calledFlags = opts.Flags
 
-		t := s.NewTask("fake-install-snap", "Doing a fake install")
-		return state.NewTaskSet(t), nil
+		t := st.NewTask("fake-install-snap", "Doing a fake install")
+		return &snap.Info{}, state.NewTaskSet(t), nil
 	})()
 
 	d := s.daemon(c)
