@@ -595,7 +595,7 @@ func storeUpdatePlan(
 
 	// if any of the snaps that we are refreshing have components, we need to
 	// make sure to explicitly request the components from the store.
-	requestCompnentsFromStore := false
+	requestComponentsFromStore := false
 
 	// make sure that all requested updates are currently installed
 	for _, update := range updates {
@@ -605,7 +605,7 @@ func storeUpdatePlan(
 		}
 
 		if snapst.CurrentlyHasComponents() {
-			requestCompnentsFromStore = true
+			requestComponentsFromStore = true
 		}
 	}
 
@@ -653,7 +653,7 @@ func storeUpdatePlan(
 		actionsByUserID[id] = append(actionsByUserID[id], actions...)
 	}
 
-	refreshOpts.IncludeResources = requestCompnentsFromStore
+	refreshOpts.IncludeResources = requestComponentsFromStore
 	sars, noStoreUpdates, err := sendActionsByUserID(ctx, st, actionsByUserID, current, refreshOpts, opts)
 	if err != nil {
 		return updatePlan{}, err
