@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,14 +30,14 @@ import (
 )
 
 var (
-	appIconCmd = &Command{
+	snapIconCmd = &Command{
 		Path:       "/v2/icons/{name}/icon",
-		GET:        appIconGet,
+		GET:        snapIconGet,
 		ReadAccess: openAccess{},
 	}
 )
 
-func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
+func snapIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 

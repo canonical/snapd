@@ -101,7 +101,7 @@ func webify(result *client.Snap, resource string) *client.Snap {
 	}
 	result.Icon = ""
 
-	route := appIconCmd.d.router.Get(appIconCmd.Path)
+	route := snapIconCmd.d.router.Get(snapIconCmd.Path)
 	if route != nil {
 		url, err := route.URL("name", result.Name)
 		if err == nil {

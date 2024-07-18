@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -37,7 +37,7 @@ type iconsSuite struct {
 	apiBaseSuite
 }
 
-func (s *iconsSuite) TestAppIconGet(c *check.C) {
+func (s *iconsSuite) TestSnapIconGet(c *check.C) {
 	d := s.daemon(c)
 
 	// have an active foo in the system
@@ -58,7 +58,7 @@ func (s *iconsSuite) TestAppIconGet(c *check.C) {
 	c.Check(rec.Body.String(), check.Equals, "ick")
 }
 
-func (s *iconsSuite) TestAppIconGetInactive(c *check.C) {
+func (s *iconsSuite) TestSnapIconGetInactive(c *check.C) {
 	d := s.daemon(c)
 
 	// have an *in*active foo in the system
@@ -79,7 +79,7 @@ func (s *iconsSuite) TestAppIconGetInactive(c *check.C) {
 	c.Check(rec.Body.String(), check.Equals, "ick")
 }
 
-func (s *iconsSuite) TestAppIconGetNoIcon(c *check.C) {
+func (s *iconsSuite) TestSnapIconGetNoIcon(c *check.C) {
 	d := s.daemon(c)
 
 	// have an *in*active foo in the system
@@ -98,7 +98,7 @@ func (s *iconsSuite) TestAppIconGetNoIcon(c *check.C) {
 	c.Check(rec.Code/100, check.Equals, 4)
 }
 
-func (s *iconsSuite) TestAppIconGetNoApp(c *check.C) {
+func (s *iconsSuite) TestSnapIconGetNoApp(c *check.C) {
 	s.daemon(c)
 
 	req, err := http.NewRequest("GET", "/v2/icons/foo/icon", nil)
