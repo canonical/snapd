@@ -431,12 +431,30 @@ func (s *parserFeatureTestSuite) TestProbeMqueueWith4Beta(c *C) {
 	c.Check(features, HasLen, 0, Commentf("Mqueue feature unexpectedly enabled by fake 4.0.0~beta3 parser"))
 }
 
+func (s *parserFeatureTestSuite) TestProbeAllowAllWith4_0_1(c *C) {
+	const parserVersion = "4.0.1"
+	const profileText = `profile snap-test { allow all,}`
+
+	parserPath := filepath.Join(s.binDir, "apparmor_parser")
+
+	err := os.WriteFile(parserPath, []byte(fakeParserAnticipatingProfileScript(parserVersion, profileText)), 0o700)
+	c.Assert(err, IsNil)
+
+	cmd, _, _ := apparmor.AppArmorParser()
+	c.Assert(cmd.Path, Equals, parserPath, Commentf("Unexpectedly using apparmor parser from %s", cmd.Path))
+
+	features, err := apparmor.ProbeParserFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, HasLen, 0, Commentf("Allow all unexpectedly enabled by fake 4.0.1 parser"))
+}
+
 func (s *parserFeatureTestSuite) TestProbeFeature(c *C) {
 	// Pretend we can only support one feature at a time.
 	var knownProbes []string
 
 	parserPath := filepath.Join(s.binDir, "apparmor_parser")
 
+	probeOneVersionDependentParserFeature(c, &knownProbes, parserPath, "4.0.2", "allow-all", `profile snap-test { allow all,}`)
 	probeOneParserFeature(c, &knownProbes, parserPath, "cap-audit-read", `profile snap-test { capability audit_read,}`)
 	probeOneParserFeature(c, &knownProbes, parserPath, "cap-bpf", `profile snap-test { capability bpf,}`)
 	probeOneParserFeature(c, &knownProbes, parserPath, "include-if-exists", `profile snap-test { #include if exists "/foo"}`)
@@ -449,7 +467,7 @@ func (s *parserFeatureTestSuite) TestProbeFeature(c *C) {
 	probeOneParserFeature(c, &knownProbes, parserPath, "xdp", `profile snap-test { network xdp,}`)
 
 	// Pretend we have all the features.
-	err := os.WriteFile(parserPath, []byte(fakeParserScript("4.0.1")), 0o755)
+	err := os.WriteFile(parserPath, []byte(fakeParserScript("4.0.2")), 0o755)
 	c.Assert(err, IsNil)
 
 	// Did any feature probes got added to non-test code?
