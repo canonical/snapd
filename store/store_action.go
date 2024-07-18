@@ -320,6 +320,15 @@ type SnapResourceResult struct {
 	CreatedAt    string
 }
 
+func (sar *SnapActionResult) ResourceResult(resName string) *SnapResourceResult {
+	for _, res := range sar.Resources {
+		if res.Name == resName {
+			return &res
+		}
+	}
+	return nil
+}
+
 // ResourceToComponentType returns a validated component type from a resource type.
 func ResourceToComponentType(resType string) (snap.ComponentType, error) {
 	compTp := strings.TrimPrefix(resType, "component/")
