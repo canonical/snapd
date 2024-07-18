@@ -160,7 +160,7 @@ func isPathMountedWritable(mntProfile *osutil.MountProfile, fsPath string) bool 
 	currentPath := fsPath
 	for {
 		if mnt, ok := mntMap[currentPath]; ok {
-			return mnt.Options[0] == "rw"
+			return mnt.OptBool("rw")
 		}
 
 		// Make sure we terminate on the last path token
