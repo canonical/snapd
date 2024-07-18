@@ -170,7 +170,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 		addTask(kmodSetup)
 	}
 
-	changingSnapRev := !snapst.Current.Unset() && snapst.Current != snapSi.Revision
+	changingSnapRev := snapst.IsInstalled() && snapst.Current != snapSi.Revision
 
 	// We might be replacing a component
 	compInstalled := snapst.IsComponentInCurrentSeq(compSi.Component)
