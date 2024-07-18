@@ -76,11 +76,10 @@ func (s *SteamSupportInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *SteamSupportInterfaceSuite) TestAppArmorSpec(c *C) {
-
 	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "mount options=(rw, rbind) /tmp/newroot/ -> /tmp/newroot/,\n")
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "Mimic allow all")
 }
 
 func (s *SteamSupportInterfaceSuite) TestSecCompSpec(c *C) {
