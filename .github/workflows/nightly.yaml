@@ -92,4 +92,3 @@ jobs:
         . ./install_tics.sh
 
         TICSQServer -project snapd -tmpdir /tmp/tics -branchdir "${{ github.workspace }}/src/github.com/snapcore/snapd"
-        tar -cvzf tics-logs.tar.gz /tmp/tics
