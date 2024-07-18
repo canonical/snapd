@@ -549,10 +549,26 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 			return nil, err
 		}
 
+		var channel string
+		switch {
+		case !rev.Unset():
+			// if we're setting a revision from a validation set, we don't want
+			// to send a channel, since we don't know if that revision is in
+			// that channel
+			channel = ""
+		case sn.Channel == "":
+			// otherwise, we want to make sure to set a default channel if
+			// possible. this case shouldn't ever really happen, since SeedSnaps
+			// should have a channel set
+			channel = "stable"
+		default:
+			channel = sn.Channel
+		}
+
 		byName[sn.SnapName()] = sn
 		revisions[sn.SnapName()] = rev
 		snapToDownloadOptions[i].Snap = sn
-		snapToDownloadOptions[i].Channel = sn.Channel
+		snapToDownloadOptions[i].Channel = channel
 		snapToDownloadOptions[i].Revision = rev
 		snapToDownloadOptions[i].CohortKey = s.wideCohortKey
 		snapToDownloadOptions[i].ValidationSets = vss

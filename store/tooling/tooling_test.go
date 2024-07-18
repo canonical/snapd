@@ -85,6 +85,9 @@ func (s *toolingSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	s.tsto = tooling.MockToolingStore(s)
+	s.storeActionsBunchSizes = nil
+	s.storeActions = nil
+	s.curSnaps = nil
 
 	s.SeedSnaps = &seedtest.SeedSnaps{}
 	s.SetupAssertSigning("canonical")
@@ -389,6 +392,10 @@ func (s *toolingSuite) TestDownloadSnap(c *C) {
 	c.Check(dlSnap.Path, Matches, filepath.Join(dlDir, `core_\d+.snap`))
 	c.Check(dlSnap.Info.SnapName(), Equals, "core")
 	c.Check(dlSnap.RedirectChannel, Equals, "")
+
+	c.Assert(s.storeActions, HasLen, 1)
+	// make sure that we do not provide a default channel here
+	c.Check(s.storeActions[0].Channel, Equals, "")
 
 	c.Check(logbuf.String(), Matches, `.* DEBUG: Going to download snap "core" `+opts.String()+".\n")
 }
