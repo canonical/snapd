@@ -22,10 +22,12 @@ package fdestate
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/secboot"
 )
 
 // ServiceManager is responsible for starting and stopping snap services.
@@ -126,6 +128,106 @@ func Reseal(st *state.State, modeenv *boot.Modeenv, expectReseal bool) error {
 	defer st.Unlock()
 
 	return resealLocked(st, modeenv, expectReseal)
+}
+
+type keyDigest struct {
+	Algorithm string `json:"algorithm"`
+	Salt      []byte `json:"salt"`
+	Digest    []byte `json:"digest"`
+}
+
+type serializedModel struct {
+	SeriesValue    string             `json:"series"`
+	BrandIDValue   string             `json:"brand-id"`
+	ModelValue     string             `json:"model"`
+	ClassicValue   bool               `json:"classic"`
+	GradeValue     asserts.ModelGrade `json:"grade"`
+	SignKeyIDValue string             `json:"sign-key-id"`
+}
+
+func (m *serializedModel) Series() string {
+	return m.SeriesValue
+}
+
+func (m *serializedModel) BrandID() string {
+	return m.BrandIDValue
+}
+
+func (m *serializedModel) Model() string {
+	return m.ModelValue
+}
+
+func (m *serializedModel) Classic() bool {
+	return m.ClassicValue
+}
+
+func (m *serializedModel) Grade() asserts.ModelGrade {
+	return m.GradeValue
+}
+
+func (m *serializedModel) SignKeyID() string {
+	return m.SignKeyIDValue
+}
+
+var _ secboot.ModelForSealing = (*serializedModel)(nil)
+
+func wrapModel(m secboot.ModelForSealing) *serializedModel {
+	return &serializedModel{
+		SeriesValue:    m.Series(),
+		BrandIDValue:   m.BrandID(),
+		ModelValue:     m.Model(),
+		ClassicValue:   m.Classic(),
+		GradeValue:     m.Grade(),
+		SignKeyIDValue: m.SignKeyID(),
+	}
+}
+
+type keyslotRoleParams struct {
+	Models         []serializedModel `yaml:"models,omitempty"`
+	BootModes      []string          `yaml:"boot-modes,omitempty"`
+	Tpm2PcrProfile []byte            `yaml:"tpm2-pcr-profile,omitempty"`
+}
+
+type keyslotRoleInfo struct {
+	Params                  keyslotRoleParams            `yaml:"params"`
+	ContainerSpecificParams map[string]keyslotRoleParams `yaml:"container-specific-params"`
+}
+
+func (m *FDEManager) getPlatformKeyDigest() *keyDigest {
+	var ret keyDigest
+	m.state.Get("platform-key-digest", &ret)
+	return &ret
+}
+
+func (m *FDEManager) setPlatformKeyDigest(value *keyDigest) {
+	m.state.Set("platform-key-digest", value)
+}
+
+func (m *FDEManager) getKeyslotRoleInfo(role string) *keyslotRoleInfo {
+	var ret map[string]*keyslotRoleInfo
+	m.state.Get("keyslot-role-infos", &ret)
+	return ret[role]
+}
+
+func (m *FDEManager) setKeyslotRoleInfo(role string, value *keyslotRoleInfo) {
+	var ret map[string]*keyslotRoleInfo
+	m.state.Get("keyslot-role-infos", &ret)
+	if value == nil {
+		delete(ret, role)
+	} else {
+		ret[role] = value
+	}
+	m.state.Set("keyslot-role-infos", &ret)
+}
+
+func (m *FDEManager) getTpm2PcrPolicyRevocationCounter() uint64 {
+	var ret uint64
+	m.state.Get("tpm2-pcr-policy-revocation-counter", &ret)
+	return ret
+}
+
+func (m *FDEManager) setTpm2PcrPolicyRevocationCounter(value uint64) {
+	m.state.Set("tpm2-pcr-policy-revocation-counter", value)
 }
 
 func init() {
