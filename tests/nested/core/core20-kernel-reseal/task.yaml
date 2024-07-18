@@ -17,12 +17,12 @@ prepare: |
   grep -q -a "This program cannot be run in DOS mode" pc-kernel/kernel.efi
   # modify the kernel so that the hash changes
 
-  if os.query is-ubuntu-lt 24.04; then
-    sed -i 's/This program cannot be run in DOS mode/This program cannot be run in XXX mode/' pc-kernel/kernel.efi
-    grep -q -a "This program cannot be run in XXX mode" pc-kernel/kernel.efi
-  else
+  if os.query is-ubuntu-ge 24.04; then
     apt install -y llvm
     llvm-objcopy --add-section .modified=/dev/null pc-kernel/kernel.efi
+  else
+    sed -i 's/This program cannot be run in DOS mode/This program cannot be run in XXX mode/' pc-kernel/kernel.efi
+    grep -q -a "This program cannot be run in XXX mode" pc-kernel/kernel.efi
   fi
   
   KEY_NAME=$(tests.nested download snakeoil-key)
@@ -46,9 +46,13 @@ execute: |
   remote.exec sudo snap watch "${REMOTE_CHG_ID}"
 
   echo "Check that we are using the right kernel"
-  remote.pull /boot/grub/kernel.efi
-  objdump -h kernel.efi  | grep '[.]modified'
-  
+  if os.query is-ubuntu-ge 24.04; then
+    remote.pull /boot/grub/kernel.efi
+    objdump -h kernel.efi  | grep '[.]modified'
+  else
+    remote.exec sudo grep -q -a "This program cannot be run in XXX mode" /boot/grub/kernel.efi
+  fi
+
   echo "Check ubuntu-data.sealed-key mtime is newer"
   SEALED_KEY_MTIME_2="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
   test "$SEALED_KEY_MTIME_2" -gt "$SEALED_KEY_MTIME_1"
