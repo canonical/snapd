@@ -674,6 +674,11 @@ func probeParserFeatures() ([]string, error) {
 			minVer:  "4.0.1",
 		},
 		{
+			feature: "all",
+			probe:   "allow all,",
+			minVer:  "4.0.2",
+		},
+		{
 			feature: "cap-bpf",
 			probe:   "capability bpf,",
 		},
