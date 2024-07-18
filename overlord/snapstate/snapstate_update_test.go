@@ -4596,7 +4596,7 @@ func (s *snapmgrTestSuite) testUpdateWithDeviceContext(c *C, revision snap.Revis
 		CtxStore:    s.fakeStore,
 	}
 
-	const trackedChannel = "latest/tracked-channel"
+	const trackedChannel = "tracked-channel/stable"
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
