@@ -30,7 +30,7 @@ import (
 )
 
 func serverVersion(cli *client.Client) *client.ServerVersion {
-	if release.OnWSL {
+	if release.OnWSL && release.WSLVersion == 1 {
 		return &client.ServerVersion{
 			Version:       i18n.G("unavailable"),
 			Series:        release.Series,

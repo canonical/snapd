@@ -314,7 +314,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	err = snapstate.Get(s.state, "some-snap", &snapst1)
 	c.Assert(err, IsNil)
 
-	sup, snapst, err := cand1.SnapSetupForUpdate(s.state, nil, 0, nil, nil)
+	sup, snapst, err := cand1.SnapSetupForUpdate(s.state, nil)
 	c.Assert(err, IsNil)
 	c.Check(sup, DeepEquals, &snapstate.SnapSetup{
 		Base:    "some-base",
@@ -340,7 +340,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	err = snapstate.Get(s.state, "other-snap", &snapst2)
 	c.Assert(err, IsNil)
 
-	sup, snapst, err = cand2.SnapSetupForUpdate(s.state, nil, 0, nil, nil)
+	sup, snapst, err = cand2.SnapSetupForUpdate(s.state, nil)
 	c.Assert(err, IsNil)
 	c.Check(sup, DeepEquals, &snapstate.SnapSetup{
 		Type:    "app",

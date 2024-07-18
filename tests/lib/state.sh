@@ -112,22 +112,24 @@ restore_snapd_state() {
 }
 
 restore_snapd_lib() {
-    # Clean all the state but the snaps and seed dirs. Then make a selective clean for
-    # snaps and seed dirs leaving the .snap files which then are going to be synchronized.
-    find /var/lib/snapd/* -maxdepth 0 ! \( -name 'snaps' -o -name 'seed' -o -name 'cache' \) -exec rm -rf {} \;
+    # Clean all the state but the snaps, seed, cache and kernel dirs. Then make
+    # a selective clean for snaps, seed and cache dirs leaving the .snap files
+    # which then are going to be synchronized. We cannot touch kernel dir as it
+    # is bind mounted in /lib/{modules,firmware}.
+    find /var/lib/snapd/* -maxdepth 0 ! \( -name 'snaps' -o -name 'seed' -o -name 'cache' -o -name 'kernel' \) -exec rm -rf {} \;
 
-    # Copy the whole state but the snaps, seed and cache dirs
-    find "$SNAPD_STATE_PATH"/snapd-lib/* -maxdepth 0 ! \( -name 'snaps' -o -name 'seed' -o -name 'cache' \) -exec cp -rf {} /var/lib/snapd \;
+    # Copy the whole state but the snaps, seed, cache and kernel dirs
+    find "$SNAPD_STATE_PATH"/snapd-lib/* -maxdepth 0 ! \( -name 'snaps' -o -name 'seed' -o -name 'cache' -o -name 'kernel' \) -exec cp -rf {} /var/lib/snapd \;
 
     # Synchronize snaps, seed and cache directories. The this is done separately in order to avoid copying
     # the snap files due to it is a heavy task and take most of the time of the restore phase.
     rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/snaps /var/lib/snapd
-    if os.query is-core20 || os.query is-core22; then
+    if os.query is-core16 || os.query is-core18; then
+        rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/seed/ /var/lib/snapd/seed/
+    else
         # TODO:UC20: /var/lib/snapd/seed is a read only bind mount, use the rw
         # mount or later mount seed as needed
         rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/seed/ /run/mnt/ubuntu-seed/
-    else
-        rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/seed/ /var/lib/snapd/seed/
     fi
     rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/cache /var/lib/snapd
 }

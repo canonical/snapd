@@ -191,11 +191,6 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadSnapOptions) (d
 		opts.TargetDir = pwd
 	}
 
-	if !opts.Revision.Unset() {
-		// XXX: is this really necessary (and, if it is, shoudn't we error out instead)
-		opts.Channel = ""
-	}
-
 	logger.Debugf("Going to download snap %q %s.", name, &opts)
 
 	actions := []*store.SnapAction{{
@@ -328,17 +323,10 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 
 	actions := make([]*store.SnapAction, 0, len(toDownload))
 	for _, sn := range toDownload {
-		// One cannot specify both a channel and specific revision. The store
-		// will return an error if do this.
-		channel := sn.Channel
-		if !sn.Revision.Unset() {
-			channel = ""
-		}
-
 		actions = append(actions, &store.SnapAction{
 			Action:         "download",
 			InstanceName:   sn.Snap.SnapName(), // XXX consider using snap-id first
-			Channel:        channel,
+			Channel:        sn.Channel,
 			Revision:       sn.Revision,
 			CohortKey:      sn.CohortKey,
 			Flags:          actionFlag,

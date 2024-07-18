@@ -1449,6 +1449,8 @@ EOF
     else
         "${TESTSLIB}/reflash.sh" "${IMAGE_HOME}/${IMAGE}.gz"
     fi
+
+    rm -rf "$UNPACK_DIR"
 }
 
 # prepare_ubuntu_core will prepare ubuntu-core 16+

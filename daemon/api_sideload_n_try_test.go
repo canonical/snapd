@@ -204,13 +204,17 @@ func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[strin
 		return &snap.Info{SuggestedName: mockedName}, nil
 	})()
 
-	defer daemon.MockSnapstateInstall(func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		// NOTE: ubuntu-core is not installed in developer mode
-		c.Check(flags, check.Equals, snapstate.Flags{})
-		installQueue = append(installQueue, name)
+	defer daemon.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+		goal, ok := g.(*storeInstallGoalRecorder)
+		c.Assert(ok, check.Equals, true, check.Commentf("unexpected InstallGoal type %T", g))
+		c.Assert(goal.snaps, check.HasLen, 1)
 
-		t := s.NewTask("fake-install-snap", "Doing a fake install")
-		return state.NewTaskSet(t), nil
+		// NOTE: ubuntu-core is not installed in developer mode
+		c.Check(opts.Flags, check.Equals, snapstate.Flags{})
+		installQueue = append(installQueue, goal.snaps[0].InstanceName)
+
+		t := st.NewTask("fake-install-snap", "Doing a fake install")
+		return &snap.Info{}, state.NewTaskSet(t), nil
 	})()
 
 	defer daemon.MockSnapstateInstallPath(func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags, prqt snapstate.PrereqTracker) (*state.TaskSet, *snap.Info, error) {
@@ -1311,12 +1315,17 @@ func (s *trySuite) TestTrySnap(c *check.C) {
 			return state.NewTaskSet(t), nil
 		})()
 
-		defer daemon.MockSnapstateInstall(func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-			if name != "core" {
-				c.Check(flags, check.DeepEquals, t.flags, check.Commentf(t.desc))
+		defer daemon.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+			goal, ok := g.(*storeInstallGoalRecorder)
+			c.Assert(ok, check.Equals, true, check.Commentf("unexpected InstallGoal type %T", g))
+			c.Assert(goal.snaps, check.HasLen, 1)
+
+			if goal.snaps[0].InstanceName != "core" {
+				c.Check(opts.Flags, check.DeepEquals, t.flags, check.Commentf(t.desc))
 			}
-			t := s.NewTask("fake-install-snap", "Doing a fake install")
-			return state.NewTaskSet(t), nil
+
+			t := st.NewTask("fake-install-snap", "Doing a fake install")
+			return &snap.Info{}, state.NewTaskSet(t), nil
 		})()
 
 		// try the snap (without an installed core)
