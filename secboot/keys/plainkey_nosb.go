@@ -2,6 +2,12 @@
 
 package keys
 
+import (
+	"crypto/rand"
+	"errors"
+	"io"
+)
+
 const (
 	PlatformKeySize = 32
 )
