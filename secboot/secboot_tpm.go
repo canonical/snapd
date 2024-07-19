@@ -327,10 +327,12 @@ func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile str
 	var keys []*sb.KeyData
 
 	keyData, _, err := readKeyFile(keyfile)
-	if err != nil {
+	if os.IsNotExist(err) {
+	} else if err != nil {
 		return NotUnlocked, fmt.Errorf("cannot read key data: %v", err)
+	} else {
+		keys = append(keys, keyData)
 	}
-	keys = append(keys, keyData)
 	options := activateVolOpts(allowRecovery)
 	options.Model = sb.SkipSnapModelCheck
 	// ignoring model checker as it doesn't work with tpm "legacy" platform key data

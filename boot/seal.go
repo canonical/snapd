@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -593,18 +594,22 @@ func ResealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, expectReseal bo
 }
 
 func ResealKeyToModeenvNextGeneration(rootdir string, modeenv *Modeenv, expectReseal bool) error {
-	deviceDir := filepath.Join(rootdir, "dev", "mapper")
-	deviceNames, err := os.ReadDir(deviceDir)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
+	fmt.Fprintf(os.Stderr, "resealing!")
 	var devices []string
-	for _, de := range deviceNames {
-		resolved, err := filepath.EvalSymlinks(filepath.Join(deviceDir, de.Name()))
+
+	// FIXME: find out the correct way to list disks
+	for _, p := range []string{
+		"/run/mnt/data",
+		"/run/mnt/ubuntu-save",
+	} {
+		partUUID, err := disks.PartitionUUIDFromMountPoint(p, &disks.Options{
+			IsDecryptedDevice: true,
+		})
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot partition partition %s: %v", p, err)
 		}
-		devices = append(devices, resolved)
+		diskPath := filepath.Join("/dev/disk/by-partuuid", partUUID)
+		devices = append(devices, diskPath)
 	}
 
 	// build the recovery mode boot chain
