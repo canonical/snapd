@@ -46,6 +46,7 @@ var _ = Suite(&mainSuite{})
 
 func (s *mainSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(mockWSL(0))
 }
 
 func (s *mainSuite) TearDownTest(c *C) {
@@ -80,13 +81,19 @@ func (s *mainSuite) TestIsContainerWithInternalPolicy(c *C) {
 
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
 
-	// simulate being inside WSL
+	// Simulate being inside WSL 1 and 2.
+	//
+	// At present neither version is capable of running AppArmor correctly.
+	// AppArmor on WSL-1 is just not emulated by the Windows kernel.
+	// AppArmor on WSL-2 is neither configured in the Microsoft distribution
+	// of Linux nor properly set up to stack so that each running
+	// distribution gets an isolated playground.
 	restore := mockWSL(1)
-	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, true)
+	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
 	restore()
 
 	restore = mockWSL(2)
-	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, true)
+	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
 	restore()
 
 	for _, prefix := range []string{"lxc", "lxd", "incus"} {
@@ -235,6 +242,7 @@ type integrationSuite struct {
 var _ = Suite(&integrationSuite{})
 
 func (s *integrationSuite) SetUpTest(c *C) {
+	s.AddCleanup(mockWSL(0))
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 
@@ -271,8 +279,8 @@ func (s *integrationSuite) TestRunInContainerWithInternalPolicyLoadsProfiles(c *
 	err := snapd_apparmor.Run()
 	c.Assert(err, IsNil)
 	c.Check(s.logBuf.String(), testutil.Contains, "DEBUG: inside container environment")
-	c.Check(s.logBuf.String(), Not(testutil.Contains), "Inside container environment without internal policy")
-	c.Assert(s.parserCmd.Calls(), HasLen, 1)
+	c.Check(s.logBuf.String(), testutil.Contains, "Inside container environment without internal policy")
+	c.Assert(s.parserCmd.Calls(), HasLen, 0)
 }
 
 func (s *integrationSuite) TestRunNormalLoadsProfiles(c *C) {
