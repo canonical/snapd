@@ -2,8 +2,6 @@
 
 package keys
 
-import ()
-
 const (
 	PlatformKeySize = 32
 )
