@@ -269,13 +269,13 @@ void sc_string_quote(char *buf, size_t buf_size, const char *str)
 }
 
 void sc_string_split(const char *string, char delimiter,
-		     char *prefix, size_t prefix_size,
-		     char *suffix, size_t suffix_size)
+		     char *prefix_buf, size_t prefix_size,
+		     char *suffix_buf, size_t suffix_size)
 {
 	if (string == NULL) {
 		die("internal error: cannot split string when it is unset");
 	}
-	if (prefix == NULL && suffix == NULL) {
+	if (prefix_buf == NULL && suffix_buf == NULL) {
 		die("internal error: cannot split string when both prefix and suffix are unset");
 	}
 
@@ -291,20 +291,20 @@ void sc_string_split(const char *string, char delimiter,
 		suffix_len = strlen(suffix_start);
 	}
 
-	if (prefix != NULL) {
+	if (prefix_buf != NULL) {
 		if (prefix_len >= prefix_size) {
 			die("prefix buffer too small");
 		}
 
-		memcpy(prefix, string, prefix_len);
-		prefix[prefix_len] = '\0';
+		memcpy(prefix_buf, string, prefix_len);
+		prefix_buf[prefix_len] = '\0';
 	}
 
-	if (suffix != NULL) {
+	if (suffix_buf != NULL) {
 		if (suffix_len >= suffix_size) {
 			die("suffix buffer too small");
 		}
-		memcpy(suffix, suffix_start, suffix_len);
-		suffix[suffix_len] = '\0';
+		memcpy(suffix_buf, suffix_start, suffix_len);
+		suffix_buf[suffix_len] = '\0';
 	}
 }

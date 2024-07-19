@@ -121,7 +121,7 @@ void sc_string_quote(char *buf, size_t buf_size, const char *str);
  * of the string.
  **/
 void sc_string_split(const char *string, char delimiter,
-		     char *prefix, size_t prefix_size,
-		     char *suffix, size_t suffix_size);
+		     char *prefix_buf, size_t prefix_size,
+		     char *suffix_buf, size_t suffix_size);
 
 #endif
