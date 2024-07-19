@@ -27,8 +27,8 @@ import (
 	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
-	sb_plainkey "github.com/snapcore/secboot/plainkey"
 	sb_hooks "github.com/snapcore/secboot/hooks"
+	sb_plainkey "github.com/snapcore/secboot/plainkey"
 	sb_tpm2 "github.com/snapcore/secboot/tpm2"
 	"golang.org/x/xerrors"
 
@@ -398,7 +398,6 @@ func ResealKeysNextGeneration(devices []string, modelParams map[string][]*SealKe
 			}
 		}
 	}
-
 
 	return nil
 }

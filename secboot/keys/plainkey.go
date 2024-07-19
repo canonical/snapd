@@ -1,4 +1,5 @@
 //go:build !nosecboot
+
 package keys
 
 import (
@@ -25,7 +26,7 @@ func NewPlatformKey() (PlatformKey, error) {
 	return key, err
 }
 
-func (key PlatformKey) SaveToFile(path string) (error) {
+func (key PlatformKey) SaveToFile(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
@@ -37,7 +38,7 @@ type PlainKey struct {
 }
 
 func (key PlatformKey) CreateProtectedKey() (*PlainKey, []byte, error) {
-	protectedKey, /*primaryKey*/_, unlockKey, err := sb_plainkey.NewProtectedKey(rand.Reader, key[:], nil)
+	protectedKey /*primaryKey*/, _, unlockKey, err := sb_plainkey.NewProtectedKey(rand.Reader, key[:], nil)
 	return &PlainKey{protectedKey}, unlockKey, err
 }
 
