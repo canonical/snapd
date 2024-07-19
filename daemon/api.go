@@ -42,6 +42,7 @@ var api = []*Command{
 	loginCmd,
 	logoutCmd,
 	snapIconCmd,
+	snapAppIconCmd,
 	findCmd,
 	snapsCmd,
 	snapCmd,

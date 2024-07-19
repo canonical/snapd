@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,11 +20,14 @@
 package daemon
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/client"
@@ -346,4 +349,30 @@ func snapIcon(info snap.PlaceInfo) string {
 	}
 
 	return found[0]
+}
+
+var iconMatcher = regexp.MustCompile("^Icon=(.*)$")
+
+// iconPathFromDesktopFile opens the given filepath and searches for a line
+// starting with `Icon=`, returning the icon path.
+func iconPathFromDesktopFile(filepath string) (string, error) {
+	desktopFile, err := os.Open(filepath)
+	if err != nil {
+		return "", fmt.Errorf("cannot open desktop file: %v", err)
+	}
+
+	scanner := bufio.NewScanner(desktopFile)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		matches := iconMatcher.FindSubmatch(line)
+		if matches == nil {
+			continue
+		}
+
+		iconPath := strings.TrimSpace(string(matches[1]))
+
+		return iconPath, nil
+	}
+
+	return "", fmt.Errorf("cannot find icon path in desktop file: %q", filepath)
 }

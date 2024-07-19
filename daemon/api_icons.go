@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/snapcore/snapd/overlord/auth"
@@ -33,6 +34,12 @@ var (
 	snapIconCmd = &Command{
 		Path:       "/v2/icons/{name}/icon",
 		GET:        snapIconGet,
+		ReadAccess: openAccess{},
+	}
+
+	snapAppIconCmd = &Command{
+		Path:       "/v2/icons/{snap}/icon/{app}",
+		GET:        snapAppIconGet,
 		ReadAccess: openAccess{},
 	}
 )
@@ -68,4 +75,33 @@ func iconGet(st *state.State, name string) Response {
 	}
 
 	return fileResponse(icon)
+}
+
+func snapAppIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
+	vars := muxVars(r)
+	snap := vars["snap"]
+	app := vars["app"]
+
+	snapInfo, err := localSnapInfo(c.d.overlord.State(), snap)
+	if err != nil {
+		if errors.Is(err, errNoSnap) {
+			return SnapNotFound(snap, err)
+		}
+		return InternalError(fmt.Sprintf("%v", err))
+	}
+
+	for _, appInfo := range snapInfo.info.Apps {
+		if appInfo.Name != app {
+			continue
+		}
+
+		iconPath, err := iconPathFromDesktopFile(appInfo.DesktopFile())
+		if err != nil {
+			return NotFound("cannot find icon for app %q of snap %q", app, snap)
+		}
+
+		return fileResponse(iconPath)
+	}
+
+	return AppNotFound("snap %q has no app %q", snap, app)
 }
