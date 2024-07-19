@@ -99,12 +99,18 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 		if primaryKey == nil {
 			primaryKey = primaryKeyOut
 		}
-		const token = false
-		if _, err := skr.Resetter.AddKey(skr.SlotName, unlockKey, token); err != nil {
+		token := skr.KeyFile == ""
+		tokenWriter, err := skr.Resetter.AddKey(skr.SlotName, unlockKey, token)
+		if err != nil {
 			return err
 		}
-		writer := sb.NewFileKeyDataWriter(skr.KeyFile)
-		if err := protectedKey.WriteAtomic(writer); err != nil {
+		var keyDataWriter sb.KeyDataWriter
+		if token {
+			keyDataWriter = tokenWriter
+		} else {
+			keyDataWriter = sb.NewFileKeyDataWriter(skr.KeyFile)
+		}
+		if err := protectedKey.WriteAtomic(keyDataWriter); err != nil {
 			return err
 		}
 	}
@@ -137,15 +143,7 @@ func ResealKeysWithFDESetupHook(keyFiles []string, primaryKeyFile string, models
 		if err != nil {
 			return fmt.Errorf("cannot read key data: %v", err)
 		}
-		if keyData.PlatformName() == legacyFdeHooksPlatformName && keyData.Generation() == 1 {
-			keyData.SetAuthorizedSnapModels(primaryKey, sbModels...)
-		} else {
-			hooksKeyData, err := sb_hooks.NewKeyData(keyData)
-			if err != nil {
-				return fmt.Errorf("cannot read key data as hook key data: %v", err)
-			}
-			hooksKeyData.SetAuthorizedSnapModels(rand.Reader, primaryKey, sbModels...)
-		}
+		keyData.SetAuthorizedSnapModels(primaryKey, sbModels...)
 
 		writer := sb.NewFileKeyDataWriter(keyFile)
 		if err := keyData.WriteAtomic(writer); err != nil {

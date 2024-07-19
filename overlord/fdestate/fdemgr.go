@@ -86,8 +86,11 @@ func resealWithSecbootLocked(st *state.State, modeenv *boot.Modeenv, expectResea
 	return boot.ResealKeyToModeenvSecboot(dirs.GlobalRootDir, modeenv, expectReseal)
 }
 
-func resealNextGenLocked(st *state.State, modeenv *boot.Modeenv) error {
-	return fmt.Errorf("not implemented")
+func resealNextGenLocked(st *state.State, modeenv *boot.Modeenv, expectReseal bool) error {
+	st.Unlock()
+	defer st.Lock()
+
+	return boot.ResealKeyToModeenvNextGeneration(dirs.GlobalRootDir, modeenv, expectReseal)
 }
 
 func resealLocked(st *state.State, modeenv *boot.Modeenv, expectReseal bool) error {
@@ -115,7 +118,7 @@ func resealLocked(st *state.State, modeenv *boot.Modeenv, expectReseal bool) err
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
 		return resealWithSecbootLocked(st, modeenv, expectReseal)
 	case device.SealingMethodNextGeneration:
-		return resealNextGenLocked(st, modeenv)
+		return resealNextGenLocked(st, modeenv, expectReseal)
 	default:
 		return fmt.Errorf("unknown key sealing method: %q", method)
 	}

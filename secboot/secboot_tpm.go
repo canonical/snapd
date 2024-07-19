@@ -451,8 +451,8 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 	}
 	for _, key := range keys {
 		creationParams := &sb_tpm2.ProtectKeyParams{
-			PCRProfile: pcrProfile,
-			// TODO: add roles
+			PCRProfile:             pcrProfile,
+			Role:                   key.Role,
 			PCRPolicyCounterHandle: tpm2.Handle(pcrHandle),
 			PrimaryKey:             primaryKey,
 		}
@@ -463,12 +463,18 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		const token = false
-		if _, err := key.Resetter.AddKey(key.SlotName, unlockKey, token); err != nil {
+		token := key.KeyFile == ""
+		tokenWriter, err := key.Resetter.AddKey(key.SlotName, unlockKey, token)
+		if err != nil {
 			return nil, err
 		}
-		writer := sb.NewFileKeyDataWriter(key.KeyFile)
-		if err := protectedKey.WriteAtomic(writer); err != nil {
+		var keyDataWriter sb.KeyDataWriter
+		if token {
+			keyDataWriter = tokenWriter
+		} else {
+			keyDataWriter = sb.NewFileKeyDataWriter(key.KeyFile)
+		}
+		if err := protectedKey.WriteAtomic(keyDataWriter); err != nil {
 			return nil, err
 		}
 	}
@@ -553,21 +559,9 @@ func ResealKeys(params *ResealKeysParams) error {
 			return fmt.Errorf("cannot revoke old PCR protection policies: %w", err)
 		}
 	} else {
-		// TODO: find out which context when revocation should happen
-		if err := sbUpdateKeyDataPCRProtectionPolicy(tpm, authKey, pcrProfile, sb_tpm2.NoNewPCRPolicyVersion, keyDatas...); err != nil {
-			return fmt.Errorf("cannot update PCR protection policy: %w", err)
-		}
-
-		for i, keyfile := range params.KeyFiles {
-			writer := sb.NewFileKeyDataWriter(keyfile)
-			if err := keyDatas[i].WriteAtomic(writer); err != nil {
-				return fmt.Errorf("cannot write key data in keyfile %s: %w", keyfile, err)
-			}
-		}
-
-		//TODO: revoke after writing? Not sure how.
-
+		return fmt.Errorf("Old code, new stuff")
 	}
+
 	return nil
 }
 

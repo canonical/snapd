@@ -79,9 +79,12 @@ type SealKeyRequest struct {
 	KeyName string
 
 	SlotName string
+
 	// The path to store the sealed key file. The same Key/KeyName
 	// can be stored under multiple KeyFile names for safety.
 	KeyFile string
+
+	Role string
 
 	Resetter KeyResetter
 }

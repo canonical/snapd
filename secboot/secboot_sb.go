@@ -21,12 +21,15 @@
 package secboot
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
 	sb_plainkey "github.com/snapcore/secboot/plainkey"
+	sb_hooks "github.com/snapcore/secboot/hooks"
+	sb_tpm2 "github.com/snapcore/secboot/tpm2"
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/kernel/fde"
@@ -278,6 +281,124 @@ func DeleteKeys(node string, matches map[string]bool) error {
 			}
 		}
 	}
+
+	return nil
+}
+
+func ResealKeysNextGeneration(devices []string, modelParams map[string][]*SealKeyModelParams) error {
+	type keyDataAndSlot struct {
+		KeyData  *sb.KeyData
+		SlotName string
+		Device   string
+	}
+	byPlatform := make(map[string][]*keyDataAndSlot)
+	for _, device := range devices {
+		slots, err := sbListLUKS2ContainerUnlockKeyNames(device)
+		if err != nil {
+			return err
+		}
+		for _, slotName := range slots {
+			reader, err := sb.NewLUKS2KeyDataReader(device, slotName)
+			if err != nil {
+				return err
+			}
+			keyData, err := sb.ReadKeyData(reader)
+			if err != nil {
+				return err
+			}
+			if keyData.PlatformName() == legacyFdeHooksPlatformName || keyData.Generation() == 1 {
+				return fmt.Errorf("Wrong resealing")
+			}
+			switch keyData.PlatformName() {
+			case "fde-hooks-v3":
+			case "tpm2":
+				byPlatform[keyData.PlatformName()] = append(byPlatform[keyData.PlatformName()], &keyDataAndSlot{keyData, slotName, device})
+			default:
+			}
+		}
+	}
+
+	const defaultPrefix = "ubuntu-fde"
+	const remove = false
+	var primaryKey sb.PrimaryKey
+	var errors []error
+	foundPrimaryKey := false
+	for _, device := range devices {
+		var err error
+		primaryKey, err = sb.GetPrimaryKeyFromKernel(defaultPrefix, device, remove)
+		if err == nil {
+			foundPrimaryKey = true
+			break
+		}
+		errors = append(errors, err)
+	}
+	if !foundPrimaryKey {
+		return fmt.Errorf("no primary key found")
+	}
+
+	hooksKS := make(map[string][]*sb.KeyData)
+	for _, ks := range byPlatform["fde-hooks-v3"] {
+		hooksKS[ks.KeyData.Role()] = append(hooksKS[ks.KeyData.Role()], ks.KeyData)
+	}
+
+	for role, keyDatas := range hooksKS {
+		var sbModels []sb.SnapModel
+		for _, p := range modelParams[role] {
+			sbModels = append(sbModels, p.Model)
+		}
+
+		for _, kd := range keyDatas {
+			hooksKeyData, err := sb_hooks.NewKeyData(kd)
+			if err != nil {
+				return fmt.Errorf("cannot read key data as hook key data: %v", err)
+			}
+			hooksKeyData.SetAuthorizedSnapModels(rand.Reader, primaryKey, sbModels...)
+		}
+	}
+
+	tpmKS := make(map[string][]*sb.KeyData)
+	for _, ks := range byPlatform["tpm2"] {
+		tpmKS[ks.KeyData.Role()] = append(tpmKS[ks.KeyData.Role()], ks.KeyData)
+	}
+
+	tpm, err := sbConnectToDefaultTPM()
+	if err != nil {
+		return fmt.Errorf("cannot connect to TPM: %v", err)
+	}
+	defer tpm.Close()
+	if !isTPMEnabled(tpm) {
+		return fmt.Errorf("TPM device is not enabled")
+	}
+
+	for role, keyDatas := range tpmKS {
+		mp, ok := modelParams[role]
+		if !ok {
+			continue
+		}
+
+		pcrProfile, err := buildPCRProtectionProfile(mp)
+		if err != nil {
+			return fmt.Errorf("cannot build new PCR protection profile: %w", err)
+		}
+
+		// TODO: find out which context when revocation should happen
+		if err := sbUpdateKeyDataPCRProtectionPolicy(tpm, primaryKey, pcrProfile, sb_tpm2.NoNewPCRPolicyVersion, keyDatas...); err != nil {
+			return fmt.Errorf("cannot update PCR protection policy: %w", err)
+		}
+	}
+
+	for _, p := range byPlatform {
+		for _, ks := range p {
+			writer, err := sb.NewLUKS2KeyDataWriter(ks.Device, ks.SlotName)
+			if err != nil {
+				return err
+			}
+			if err := ks.KeyData.WriteAtomic(writer); err != nil {
+				return err
+			}
+		}
+	}
+
 
 	return nil
 }
