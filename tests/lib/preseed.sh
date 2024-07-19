@@ -66,7 +66,7 @@ inject_snap_into_seed() {
     # https://bugs.launchpad.net/ubuntu/+source/ubuntu-meta/+bug/2051572
     if [ ! -d "$SEED_DIR" ]; then
         snap known model > /tmp/generic.model
-        snap prepare-image --classic /tmp/generic.model $IMAGE_MOUNTPOINT
+        snap prepare-image --classic /tmp/generic.model "$IMAGE_MOUNTPOINT"
     fi
 
     # need remarshal for going from json to yaml and back for seed manipulation
