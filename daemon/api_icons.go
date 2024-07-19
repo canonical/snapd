@@ -23,6 +23,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
+
+	"github.com/mvo5/goconfigparser"
 
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -95,10 +98,17 @@ func snapAppIconGet(c *Command, r *http.Request, user *auth.UserState) Response 
 			continue
 		}
 
-		iconPath, err := iconPathFromDesktopFile(appInfo.DesktopFile())
+		parser := goconfigparser.New()
+		if err := parser.ReadFile(appInfo.DesktopFile()); err != nil {
+			return NotFound("cannot find icon for app %q of snap %q", app, snap)
+		}
+		icons, err := parser.Get("Desktop Entry", "Icon")
 		if err != nil {
 			return NotFound("cannot find icon for app %q of snap %q", app, snap)
 		}
+
+		// parser.Get() may return '\n'-separated string, choose the first one
+		iconPath, _, _ := strings.Cut(icons, "\n")
 
 		return fileResponse(iconPath)
 	}
