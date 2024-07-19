@@ -1,8 +1,8 @@
 //go:build nosecboot
+
 package keys
 
-import (
-)
+import ()
 
 const (
 	PlatformKeySize = 32
