@@ -90,7 +90,7 @@ execute: |
   # the host VM as the nested VM, currently we are not, and as such there is a 
   # diff between the preseed apparmor-features and the nested VM actual 
   # system-key
-  if not os.query is-focal && not os.query is-jammy; then
+  if not os.query is-focal && not os.query is-jammy && not os.query is-noble; then
     # note, this doesn't actually test the functionality, but acts as a canary:
     # the test is run against a vm image with ubuntu release matching that from spread host;
     # system-key check can fail if the nested vm image differs too much from the spread host system,
