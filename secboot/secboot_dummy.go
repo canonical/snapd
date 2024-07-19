@@ -89,3 +89,7 @@ func RenameOrDeleteKeys(node string, renames map[string]string) error {
 func DeleteKeys(node string, matches map[string]bool) error {
 	return errBuildWithoutSecboot
 }
+
+func ResealKeysNextGeneration(devices []string, modelParams map[string][]*SealKeyModelParams) error {
+	return errBuildWithoutSecboot
+}
