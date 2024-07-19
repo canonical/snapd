@@ -969,7 +969,6 @@ func MockFeatures(kernelFeatures []string, kernelError error, parserFeatures []s
 	return func() {
 		appArmorAssessment = oldAppArmorAssessment
 	}
-
 }
 
 func MockParserSearchPath(new string) (restore func()) {
