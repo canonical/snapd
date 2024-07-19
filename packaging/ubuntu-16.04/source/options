@@ -1,1 +1,1 @@
-tar-ignore = "tests/lib/cache/*,tests/**/__pycache__/*"
+tar-ignore = {"tests/lib/cache/*","tests/**/__pycache__/*"}
