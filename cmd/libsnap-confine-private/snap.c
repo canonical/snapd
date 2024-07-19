@@ -172,7 +172,7 @@ static void validate_as_snap_or_component_name(const char *name,
 	}
 	bool got_letter = false;
 	int n = 0, m;
-	for (; *p != '\0';) {
+	while (*p != '\0') {
 		if ((m = skip_lowercase_letters(&p)) > 0) {
 			n += m;
 			got_letter = true;
