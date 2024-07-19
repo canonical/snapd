@@ -13830,10 +13830,11 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 		if strings.HasPrefix(compName, string(snap.KernelModulesComponent)) {
 			expected = append(expected, fakeOp{
 				op: "setup-kernel-modules-components",
-				currentComps: []*snap.ComponentSideInfo{{
-					Component: csi.Component,
-					Revision:  snap.R(i + 2),
-				}},
+				// note that currentComps is empty here. this test ensures that
+				// we don't accidentally consider components that were already
+				// installed with a previous revision of a snap, when refreshing
+				// to that revision
+				currentComps: nil,
 				compsToInstall: []*snap.ComponentSideInfo{{
 					Component: naming.NewComponentRef(snapName, compName),
 					Revision:  csi.Revision,
@@ -14238,8 +14239,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, instanceKey 
 
 		if strings.HasPrefix(compName, string(snap.KernelModulesComponent)) {
 			expected = append(expected, fakeOp{
-				op:           "setup-kernel-modules-components",
-				currentComps: []*snap.ComponentSideInfo{},
+				op: "setup-kernel-modules-components",
 				compsToInstall: []*snap.ComponentSideInfo{{
 					Component: naming.NewComponentRef(snapName, compName),
 					Revision:  csi.Revision,

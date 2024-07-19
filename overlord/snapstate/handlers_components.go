@@ -560,15 +560,19 @@ func (m *SnapManager) doSetupKernelModules(t *state.Task, finalStatus state.Stat
 		return err
 	}
 
-	// kernel-modules components already in the system
-	kmodComps := snapSt.Sequence.ComponentsWithTypeForRev(snapsup.Revision(), snap.KernelModulesComponent)
+	// if we're not installing a new snap, we need to consider kernel-modules
+	// components already in the system
+	var currentKmodComps []*snap.ComponentSideInfo
+	if snapsup.Revision() == snapSt.Current {
+		currentKmodComps = snapSt.Sequence.ComponentsWithTypeForRev(snapsup.Revision(), snap.KernelModulesComponent)
+	}
 
 	// Set-up the new kernel modules component - called with unlocked state
 	// as it can take a couple of seconds.
 	pm := NewTaskProgressAdapterUnlocked(t)
 	err = m.backend.SetupKernelModulesComponents(
 		[]*snap.ComponentSideInfo{compSetup.CompSideInfo},
-		kmodComps, snapsup.InstanceName(), snapsup.Revision(), pm)
+		currentKmodComps, snapsup.InstanceName(), snapsup.Revision(), pm)
 	if err != nil {
 		return err
 	}
