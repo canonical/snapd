@@ -4,15 +4,12 @@ package keys
 
 import (
 	"crypto/rand"
-	"errors"
 	"io"
 )
 
 const (
 	PlatformKeySize = 32
 )
-
-var errBuildWithoutSecboot = errors.New("build without secboot support")
 
 type PlatformKey []byte
 
@@ -25,8 +22,12 @@ func NewPlatformKey() (PlatformKey, error) {
 type PlainKey struct {
 }
 
+func (key PlatformKey) SaveToFile(path string) error {
+	return nil
+}
+
 func (key PlatformKey) CreateProtectedKey() (*PlainKey, []byte, error) {
-	return &PlainKey{}, []byte{}, errBuildWithoutSecboot
+	return &PlainKey{}, []byte{}, nil
 }
 
 type KeyDataWriter interface {
@@ -35,5 +36,5 @@ type KeyDataWriter interface {
 }
 
 func (key *PlainKey) Write(writer KeyDataWriter) error {
-	return errBuildWithoutSecboot
+	return nil
 }
