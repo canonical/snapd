@@ -114,12 +114,16 @@ execute: |
   remote.exec "snap debug seeding" | MATCH "image-preseeding:\s+[0-9]+\.[0-9]+s"
   remote.exec "snap debug seeding" | MATCH "seed-completion:\s+[0-9]+\.[0-9]+s"
 
-  echo "Checking that lxd snap is operational"
-  remote.exec "snap list" | NOMATCH "broken"
-  remote.exec "snap services" | MATCH "lxd.activate +enabled +inactive"
-  remote.exec "snap services" | MATCH "lxd.daemon +enabled +inactive +socket-activated"
-  remote.exec "sudo lxd init --auto"
-  remote.exec "snap services" | MATCH "+lxd.daemon +enabled +active +socket-activated"
+  # there is no longer any seeded snaps in base or minimal cloud images
+  # in noble, skip lxd checks for noble
+  if not os.query is-noble; then
+    echo "Checking that lxd snap is operational"
+    remote.exec "snap list" | NOMATCH "broken"
+    remote.exec "snap services" | MATCH "lxd.activate +enabled +inactive"
+    remote.exec "snap services" | MATCH "lxd.daemon +enabled +inactive +socket-activated"
+    remote.exec "sudo lxd init --auto"
+    remote.exec "snap services" | MATCH "+lxd.daemon +enabled +active +socket-activated"
+  fi
 
   echo "Checking that the test-postgres-system-usernames snap is operational"
   remote.exec "sudo snap start --enable test-postgres-system-usernames.postgres"
