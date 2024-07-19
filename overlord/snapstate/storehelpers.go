@@ -727,10 +727,10 @@ func storeUpdatePlan(
 		}
 
 		// TODO:COMPS: for now, go back to the components that were already
-		// installed with this revision. to be more robust, we'd need to compare
-		// what components are installed with the revision that we are
-		// refreshing from to the components available in the store for the
-		// revision that we are refreshing to.
+		// installed with this revision. to be more robust, we should refresh
+		// only the components that are installed with the current revision of
+		// the snap. this means we'll need to check with the store for which
+		// revisions now available for that snap.
 		compInfos, err := snapst.ComponentInfosForRevision(si.Revision)
 		if err != nil {
 			return updatePlan{}, err
