@@ -561,7 +561,7 @@ func (m *SnapManager) doSetupKernelModules(t *state.Task, finalStatus state.Stat
 	}
 
 	// kernel-modules components already in the system
-	kmodComps := snapSt.Sequence.ComponentsWithTypeForRev(snapSt.Current, snap.KernelModulesComponent)
+	kmodComps := snapSt.Sequence.ComponentsWithTypeForRev(snapsup.Revision(), snap.KernelModulesComponent)
 
 	// Set-up the new kernel modules component - called with unlocked state
 	// as it can take a couple of seconds.
