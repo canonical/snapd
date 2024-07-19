@@ -929,7 +929,7 @@ uc24_build_initramfs_kernel_snap() {
     fi
 
     snap pack pc-kernel
-    if [ ! "$(pwd)" = "$TARGET" ]; then
+    if [ "$(pwd)" != "$TARGET" ]; then
         mv pc-kernel_*.snap "$TARGET"
     fi
     rm -rf pc-kernel
