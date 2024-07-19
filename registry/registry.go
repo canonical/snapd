@@ -448,6 +448,10 @@ type View struct {
 	registry *Registry
 }
 
+func (v *View) Registry() *Registry {
+	return v.registry
+}
+
 type expandedMatch struct {
 	// storagePath is dot-separated storage path without unfilled placeholders.
 	storagePath string

@@ -170,8 +170,14 @@ func (s *viewSuite) TestBundleWithSample(c *C) {
 			},
 		},
 	}
-	_, err := registry.New("acc", "foo", views, registry.NewJSONSchema())
+	reg, err := registry.New("acc", "foo", views, registry.NewJSONSchema())
 	c.Assert(err, IsNil)
+
+	view := reg.View("other")
+	c.Assert(view, IsNil)
+	view = reg.View("wifi-setup")
+	c.Assert(view, NotNil)
+	c.Assert(view.Registry(), Equals, reg)
 }
 
 func (s *viewSuite) TestAccessTypes(c *C) {
