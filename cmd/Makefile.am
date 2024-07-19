@@ -45,10 +45,10 @@ check-syntax-c:
 .PHONY: check-unit-tests
 if WITH_UNIT_TESTS
 check-unit-tests: snap-confine/unit-tests system-shutdown/unit-tests libsnap-confine-private/unit-tests snap-device-helper/unit-tests
-	$(HAVE_VALGRIND) ./libsnap-confine-private/unit-tests
-	$(HAVE_VALGRIND) ./snap-confine/unit-tests
-	$(HAVE_VALGRIND) ./system-shutdown/unit-tests
-	$(HAVE_VALGRIND) ./snap-device-helper/unit-tests
+	$(if $(HAVE_VALGRIND),$(HAVE_VALGRIND) --leak-check=full) ./libsnap-confine-private/unit-tests
+	$(if $(HAVE_VALGRIND),$(HAVE_VALGRIND) --leak-check=full) ./snap-confine/unit-tests
+	$(if $(HAVE_VALGRIND),$(HAVE_VALGRIND) --leak-check=full) ./system-shutdown/unit-tests
+	$(if $(HAVE_VALGRIND),$(HAVE_VALGRIND) --leak-check=full) ./snap-device-helper/unit-tests
 else
 check-unit-tests:
 	echo "unit tests are disabled (rebuild with --enable-unit-tests)"
