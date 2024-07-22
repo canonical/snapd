@@ -1555,8 +1555,16 @@ func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, err
 		return nil, err
 	}
 
-	plan, err := refreshCandidates(context.TODO(), st, allSnaps, nil, user, nil, Options{})
-	return plan.targetInfos(), err
+	opts := Options{
+		PrereqTracker: snap.SimplePrereqTracker{},
+	}
+
+	plan, err := refreshCandidates(context.TODO(), st, allSnaps, nil, user, nil, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return plan.revisionChanges(st, opts)
 }
 
 // ValidateRefreshes allows to hook validation into the handling of refresh candidates.
@@ -1825,12 +1833,12 @@ type update struct {
 	Components []ComponentSetup
 }
 
-// satisfied returns true if the state of the snap on the system matches the
+// revisionSatisfied returns true if the state of the snap on the system matches the
 // state specified in the update. This method is primarily concerned with the
 // revision of the snap.
 //
 // TODO:COMPS: check if we need to change the state of components
-func (u *update) satisfied() bool {
+func (u *update) revisionSatisfied() bool {
 	if u.Setup.AlwaysUpdate || !u.SnapState.IsInstalled() {
 		return false
 	}
@@ -1940,7 +1948,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 	// and bases and then other snaps
 	for _, up := range updates {
 		// if the update is already satisfied, then we can skip it
-		if up.satisfied() {
+		if up.revisionSatisfied() {
 			alreadySatisfied = append(alreadySatisfied, up)
 			continue
 		}
@@ -2216,7 +2224,7 @@ func autoAliasesUpdate(st *state.State, requested []string, updates []update) (c
 	// snaps with updates
 	updating := make(map[string]bool, len(updates))
 	for _, up := range updates {
-		updating[up.Setup.InstanceName()] = !up.satisfied()
+		updating[up.Setup.InstanceName()] = !up.revisionSatisfied()
 	}
 
 	// add explicitly auto-aliases only for snaps that are not updated
