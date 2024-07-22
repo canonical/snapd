@@ -237,10 +237,7 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(sealedEncryptionKeyFile, sourceDev
 	options.Model = model
 
 	sbSetModel(model)
-	//defer sbSetModel(nil)
-	// TODO: set boot mode
-	//sbSetBootMode("run")
-	//defer sbSetBootMode("")
+	sbSetBootMode(opts.BootMode)
 	sbSetKeyRevealer(&keyRevealerV3{})
 	defer sbSetKeyRevealer(nil)
 
