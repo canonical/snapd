@@ -976,7 +976,7 @@ func newRecoverModeStateMachine(model *asserts.Model, disk disks.Disk, allowFall
 			ErrorLog: []string{},
 		},
 		noFallback: !allowFallback,
-		bootMode: bootMode,
+		bootMode:   bootMode,
 	}
 	// first step is to mount ubuntu-boot to check for run mode keys to unlock
 	// ubuntu-data
