@@ -34,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot/keys"
 )
@@ -123,10 +124,14 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	sourceDevice := partDevice
 	targetDevice := filepath.Join("/dev/mapper", mapperName)
 
-	if fdeHasRevealKey() {
-		return unlockVolumeUsingSealedKeyFDERevealKey(sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
+	if osutil.FileExists(sealedEncryptionKeyFile) {
+		if fdeHasRevealKey() {
+			return unlockVolumeUsingSealedKeyFDERevealKey(sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
+		} else {
+			return unlockVolumeUsingSealedKeyTPM(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
+		}
 	} else {
-		return unlockVolumeUsingSealedKeyTPM(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
+		return unlockVolumeUsingSealedKeyGeneric(name, sourceDevice, targetDevice, mapperName, opts)
 	}
 }
 
@@ -400,4 +405,51 @@ func ResealKeysNextGeneration(devices []string, modelParams map[string][]*SealKe
 	}
 
 	return nil
+}
+
+func unlockVolumeUsingSealedKeyGeneric(name, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+	// TODO:UC20: use sb.SecureConnectToDefaultTPM() if we decide there's benefit in doing that or
+	//            we have a hard requirement for a valid EK cert chain for every boot (ie, panic
+	//            if there isn't one). But we can't do that as long as we need to download
+	//            intermediate certs from the manufacturer.
+
+	res := UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
+
+	if fdeHasRevealKey() {
+		sbSetKeyRevealer(&keyRevealerV3{})
+	}
+	model, err := opts.WhichModel()
+	if err != nil {
+		return res, fmt.Errorf("cannot retrieve which model to unlock for: %v", err)
+	}
+	sbSetModel(model)
+	sbSetBootMode(opts.BootMode)
+
+	method, err := unlockEncryptedPartitionNoKeyFile(mapperName, sourceDevice, opts.AllowRecoveryKey)
+	res.UnlockMethod = method
+	if err == nil {
+		res.FsDevice = targetDevice
+	}
+	return res, err
+}
+
+func unlockEncryptedPartitionNoKeyFile(mapperName, sourceDevice string, allowRecovery bool) (UnlockMethod, error) {
+	options := activateVolOpts(allowRecovery)
+	options.Model = sb.SkipSnapModelCheck
+	// ignoring model checker as it doesn't work with tpm "legacy" platform key data
+	authRequestor, err := newAuthRequestor()
+	if err != nil {
+		return NotUnlocked, fmt.Errorf("cannot build an auth requestor: %v", err)
+	}
+
+	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, authRequestor, options)
+	if err == sb.ErrRecoveryKeyUsed {
+		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
+		return UnlockedWithRecoveryKey, nil
+	}
+	if err != nil {
+		return NotUnlocked, fmt.Errorf("cannot activate encrypted device %q: %v", sourceDevice, err)
+	}
+	logger.Noticef("successfully activated encrypted device %q with TPM", sourceDevice)
+	return UnlockedWithSealedKey, nil
 }
