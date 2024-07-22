@@ -10,13 +10,16 @@ fi
 touch test-build
 rm -rf built-snap
 mkdir built-snap
-rm -f snapd_1337.*.snap snapd_1337.*.snap.keep
+rm -f snapd_1337.*.snap 
+rm -f snapd_1337.*.snap.keep
 
 # Build snapd snap
 snapcraft --use-lxd
 for snap in built-snap/snapd_1337.*.snap; do
     mv "${snap}" "${snap}.keep"
 done
+
+export TESTS_USE_PREBUILT_SNAPD_SNAP=true
 
 # Run spread
 spread "$@"
