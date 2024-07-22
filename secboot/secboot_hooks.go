@@ -86,11 +86,15 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 
 		params := &sb_hooks.KeyParams{
 			PrimaryKey: primaryKey,
-			Role:       skr.KeyName,
+			Role:       skr.Role,
 			AuthorizedSnapModels: []sb.SnapModel{
 				params.Model,
 			},
-			// TODO: add boot modes
+			AuthorizedBootModes: []string{
+				"run",
+				"recover",
+				"factory-reset",
+			},
 		}
 		protectedKey, primaryKeyOut, unlockKey, err := sb_hooks.NewProtectedKey(rand.Reader, params)
 		if err != nil {
