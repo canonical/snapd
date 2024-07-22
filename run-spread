@@ -15,6 +15,7 @@ rm -f snapd_1337.*.snap
 rm -f snapd_1337.*.snap.keep
 
 # Build snapd snap
+snapcraft clean
 snapcraft --use-lxd
 for snap in snapd_1337.*.snap; do
     mv "${snap}" built-snap/"${snap}.keep"
