@@ -48,15 +48,12 @@ const steamSupportConnectedPlugAppArmor = `
 # Mimic allow all with a base set of AppArmor rules, of supported
 # mediation classes before "allow all," was fully supported
 allow capability,
-allow userns,
 # file includes ix for x transitions
 allow file,
 allow network,
 allow unix,
 allow ptrace,
 allow signal,
-allow mqueue,
-allow io_uring,
 allow mount,
 allow umount,
 allow pivot_root,
@@ -262,6 +259,15 @@ func (iface *steamSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 			spec.AddSnippet(steamSupportConnectedPlugAppArmorAll)
 		} else {
 			spec.AddSnippet(steamSupportConnectedPlugAppArmor)
+			if strutil.ListContains(features, "mqueue") {
+				spec.AddSnippet("allow mqueue,\n")
+			}
+			if strutil.ListContains(features, "userns") {
+				spec.AddSnippet("allow userns,\n")
+			}
+			if strutil.ListContains(features, "io_uring") {
+				spec.AddSnippet("allow io_uring,\n")
+			}
 		}
 	}
 
