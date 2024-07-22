@@ -6384,7 +6384,7 @@ func (s *snapmgrTestSuite) TestStartSnapServicesCorrectlyKeepsDisabledByHooks(c 
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		fakeOp{
 			op:                   "start-snap-services",
-			path:                 "/tmp/check-237257918/0/snap/services-snap/11",
+			path:                 filepath.Join(dirs.SnapMountDir, "services-snap/11"),
 			services:             []string{"svc1", "svc3", "svc2"},
 			disabledServices:     []string{"svc1"},
 			disabledUserServices: map[int][]string{1000: {"svc3"}},
