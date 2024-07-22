@@ -7,9 +7,10 @@ if ! snap list snapcraft &>/dev/null; then
 fi
 
 # Clean the snaps created in previous runs
+rm -rf built-snap test-build
 touch test-build
-rm -rf built-snap
 mkdir built-snap
+
 rm -f snapd_1337.*.snap 
 rm -f snapd_1337.*.snap.keep
 
