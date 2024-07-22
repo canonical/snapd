@@ -1126,7 +1126,7 @@ func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Op
 	}
 
 	refreshOpts := &store.RefreshOptions{Scheduled: opts.Flags.IsAutoRefresh}
-	plan, err := refreshCandidates(ctx, st, allSnaps, s.snaps, user, refreshOpts, opts)
+	plan, err := storeUpdatePlan(ctx, st, allSnaps, s.snaps, user, refreshOpts, opts)
 	if err != nil {
 		return updatePlan{}, err
 	}

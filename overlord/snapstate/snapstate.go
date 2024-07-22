@@ -1559,7 +1559,7 @@ func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, err
 		PrereqTracker: snap.SimplePrereqTracker{},
 	}
 
-	plan, err := refreshCandidates(context.TODO(), st, allSnaps, nil, user, nil, opts)
+	plan, err := storeUpdatePlan(context.TODO(), st, allSnaps, nil, user, nil, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -2562,7 +2562,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 
 	refreshOpts := &store.RefreshOptions{Scheduled: true}
 	// XXX: should we skip refreshCandidates if forGatingSnap isn't empty (meaning we're handling proceed from a snap)?
-	plan, err := refreshCandidates(ctx, st, allSnaps, nil, user, refreshOpts, Options{})
+	plan, err := storeUpdatePlan(ctx, st, allSnaps, nil, user, refreshOpts, Options{})
 	if err != nil {
 		// XXX: should we reset "refresh-candidates" to nil in state for some types
 		// of errors?

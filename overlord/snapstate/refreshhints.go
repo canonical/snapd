@@ -85,7 +85,7 @@ func (r *refreshHints) refresh() error {
 
 	var plan updatePlan
 	timings.Run(perfTimings, "refresh-candidates", "query store for refresh candidates", func(tm timings.Measurer) {
-		plan, err = refreshCandidates(auth.EnsureContextTODO(),
+		plan, err = storeUpdatePlan(auth.EnsureContextTODO(),
 			r.state, allSnaps, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged}, Options{})
 	})
 	// TODO: we currently set last-refresh-hints even when there was an
