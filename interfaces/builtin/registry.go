@@ -70,8 +70,8 @@ func (iface *registryInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	}
 
 	role, ok := plug.Attrs["role"].(string)
-	if !ok || (role != "observer" && role != "manager") {
-		return fmt.Errorf(`registry plug "role" attribute must be "observer" or "manager"`)
+	if ok && role != "manager" {
+		return fmt.Errorf(`optional registry plug "role" attribute must be "manager"`)
 	}
 
 	return nil
