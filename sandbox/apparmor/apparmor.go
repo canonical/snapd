@@ -674,11 +674,6 @@ func probeParserFeatures() ([]string, error) {
 			minVer:  "4.0.1",
 		},
 		{
-			feature: "allow-all",
-			probe:   "allow all,",
-			minVer:  "4.0.2",
-		},
-		{
 			feature: "cap-bpf",
 			probe:   "capability bpf,",
 		},
@@ -969,6 +964,7 @@ func MockFeatures(kernelFeatures []string, kernelError error, parserFeatures []s
 	return func() {
 		appArmorAssessment = oldAppArmorAssessment
 	}
+
 }
 
 func MockParserSearchPath(new string) (restore func()) {
