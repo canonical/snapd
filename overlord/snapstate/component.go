@@ -55,7 +55,7 @@ func InstallComponents(ctx context.Context, st *state.State, names []string, inf
 		}
 	}
 
-	compsups, err := componentSetupsForInstall(ctx, st, names, info, opts)
+	compsups, err := componentSetupsForInstall(ctx, st, names, snapst, snapst.Current, snapst.TrackingChannel, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -111,14 +111,9 @@ func InstallComponents(ctx context.Context, st *state.State, names []string, inf
 	return append(tss, ts), nil
 }
 
-func componentSetupsForInstall(ctx context.Context, st *state.State, names []string, info *snap.Info, opts Options) ([]ComponentSetup, error) {
-	var snapst SnapState
-	err := Get(st, info.InstanceName(), &snapst)
-	if err != nil {
-		if errors.Is(err, state.ErrNoState) {
-			return nil, &snap.NotInstalledError{Snap: info.InstanceName()}
-		}
-		return nil, err
+func componentSetupsForInstall(ctx context.Context, st *state.State, names []string, snapst SnapState, snapRev snap.Revision, channel string, opts Options) ([]ComponentSetup, error) {
+	if len(names) == 0 {
+		return nil, nil
 	}
 
 	current, err := currentSnaps(st)
@@ -132,7 +127,7 @@ func componentSetupsForInstall(ctx context.Context, st *state.State, names []str
 		return nil, err
 	}
 
-	action, err := installComponentAction(st, snapst, opts)
+	action, err := installComponentAction(st, snapst, snapRev, channel, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -159,10 +154,16 @@ func componentSetupsForInstall(ctx context.Context, st *state.State, names []str
 	return componentTargetsFromActionResult("install", sars[0], names)
 }
 
-func installComponentAction(st *state.State, snapst SnapState, opts Options) (*store.SnapAction, error) {
-	si := snapst.CurrentSideInfo()
-	if si == nil {
-		return nil, errors.New("internal error: cannot install components for a snap that is not installed")
+func installComponentAction(st *state.State, snapst SnapState, snapRev snap.Revision, channel string, opts Options) (*store.SnapAction, error) {
+	var si *snap.SideInfo
+	if snapRev.Unset() {
+		si = snapst.CurrentSideInfo()
+	} else {
+		index := snapst.LastIndex(snapRev)
+		if index == -1 {
+			return nil, fmt.Errorf("internal error: cannot find snap revision %s in sequence", snapRev)
+		}
+		si = snapst.Sequence.SideInfos()[index]
 	}
 
 	if si.SnapID == "" {
@@ -184,8 +185,8 @@ func installComponentAction(st *state.State, snapst SnapState, opts Options) (*s
 	// that we make sure to get back components that are compatible with the
 	// currently installed snap
 	revOpts := RevisionOptions{
-		Channel:  snapst.TrackingChannel,
-		Revision: snapst.Current,
+		Revision: si.Revision,
+		Channel:  channel,
 	}
 
 	// TODO:COMPS: handle validation sets here

@@ -738,12 +738,22 @@ func storeUpdatePlanCore(
 			return updatePlan{}, err
 		}
 
-		components, err := componentTargetsFromLocalRevision(snapst, si.Revision)
+		// here, we attempt to refresh components that are currently installed.
+		// first, we take the list of currently installed components and remove
+		// any components that are not available in the target snap revision.
+		// then we check with the store to get the revisions of the desired
+		// components.
+		compsToInstall, err := currentComponentsAvailableInRevision(snapst, info)
 		if err != nil {
 			return updatePlan{}, err
 		}
 
 		revOpts.setChannelIfUnset(snapst.TrackingChannel)
+
+		compsups, err := componentSetupsForInstall(ctx, st, compsToInstall, *snapst, si.Revision, revOpts.Channel, opts)
+		if err != nil {
+			return updatePlan{}, err
+		}
 
 		// make sure that we switch the current channel of the snap that we're
 		// switching to
@@ -763,32 +773,30 @@ func storeUpdatePlanCore(
 				// installed
 				AlwaysUpdate: !revOpts.Revision.Unset(),
 			},
-			components: components,
+			components: compsups,
 		})
 	}
 
 	return plan, nil
 }
 
-func componentTargetsFromLocalRevision(snapst *SnapState, snapRev snap.Revision) ([]ComponentSetup, error) {
-	// TODO:COMPS: for now, go back to the components that were already
-	// installed with this revision. to be more robust, we should refresh
-	// only the components that are installed with the current revision of
-	// the snap. this means we'll need to check with the store for which
-	// revisions now available for that snap.
-	compInfos, err := snapst.ComponentInfosForRevision(snapRev)
+func currentComponentsAvailableInRevision(snapst *SnapState, info *snap.Info) ([]string, error) {
+	if len(info.Components) == 0 {
+		return nil, nil
+	}
+
+	current, err := snapst.CurrentComponentInfos()
 	if err != nil {
 		return nil, err
 	}
 
-	components := make([]ComponentSetup, 0, len(compInfos))
-	for _, compInfo := range compInfos {
-		components = append(components, ComponentSetup{
-			CompSideInfo: &compInfo.ComponentSideInfo,
-			CompType:     compInfo.Type,
-		})
+	var intersection []string
+	for _, comp := range current {
+		if _, ok := info.Components[comp.Component.ComponentName]; ok {
+			intersection = append(intersection, comp.Component.ComponentName)
+		}
 	}
-	return components, nil
+	return intersection, nil
 }
 
 func collectCurrentSnapsAndActions(
