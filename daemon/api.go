@@ -143,6 +143,7 @@ var (
 	snapstateInstallPath                    = snapstate.InstallPath
 	snapstateInstallPathMany                = snapstate.InstallPathMany
 	snapstateInstallComponentPath           = snapstate.InstallComponentPath
+	snapstateInstallComponents              = snapstate.InstallComponents
 	snapstateRefreshCandidates              = snapstate.RefreshCandidates
 	snapstateTryPath                        = snapstate.TryPath
 	snapstateUpdate                         = snapstate.Update

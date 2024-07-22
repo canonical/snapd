@@ -860,6 +860,30 @@ func installationTaskSets(ctx context.Context, st *state.State, inst *snapInstru
 		infos []*snap.Info
 	)
 	for _, name := range inst.Snaps {
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(st, name, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+			return nil, nil, err
+		}
+
+		comps := inst.CompsForSnaps[name]
+
+		if snapst.IsInstalled() && len(comps) > 0 {
+			info, err := snapst.CurrentInfo()
+			if err != nil {
+				return nil, nil, err
+			}
+
+			ts, err := snapstateInstallComponents(ctx, st, comps, info, opts)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			infos = append(infos, info)
+			tss = append(tss, ts...)
+
+			continue
+		}
+
 		revOpts := snapstate.RevisionOptions{}
 		if expectOneSnap {
 			revOpts = *inst.revnoOpts()
@@ -867,9 +891,15 @@ func installationTaskSets(ctx context.Context, st *state.State, inst *snapInstru
 
 		snaps = append(snaps, snapstate.StoreSnap{
 			InstanceName: name,
-			Components:   inst.CompsForSnaps[name],
+			Components:   comps,
 			RevOpts:      revOpts,
 		})
+	}
+
+	// this means that we're installing a set of components for one snap that is
+	// already installed
+	if len(snaps) == 0 {
+		return infos, tss, nil
 	}
 
 	installed, ts, err := snapstateInstallWithGoal(ctx, st, snapstateStoreInstallGoal(snaps...), opts)
