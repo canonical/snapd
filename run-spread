@@ -16,11 +16,9 @@ rm -f snapd_1337.*.snap.keep
 
 # Build snapd snap
 snapcraft --use-lxd
-for snap in built-snap/snapd_1337.*.snap; do
-    mv "${snap}" "${snap}.keep"
+for snap in snapd_1337.*.snap; do
+    mv "${snap}" built-snap/"${snap}.keep"
 done
 
-export TESTS_USE_PREBUILT_SNAPD_SNAP=true
-
 # Run spread
-spread "$@"
+TESTS_USE_PREBUILT_SNAPD_SNAP=true spread "$@"
