@@ -250,7 +250,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			where: "/merged",
 			opts: &main.SystemdMountOptions{
 				Overlayfs: true,
-				LowerDirs: []string{"/lower"},
+				LowerDirs: []string{"/lower,"},
 				UpperDir:  "/upper",
 				WorkDir:   "/work",
 			},
