@@ -38,6 +38,8 @@ import (
 // InstallComponents installs all of the components in the given names list. The
 // snap represented by info must already be installed, and all of the components
 // in names should not be installed prior to calling this function.
+//
+// TODO:COMPS: respect the transaction that is passed to this function
 func InstallComponents(ctx context.Context, st *state.State, names []string, info *snap.Info, opts Options) ([]*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, info.InstanceName(), &snapst)
