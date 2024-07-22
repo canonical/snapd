@@ -19,5 +19,4 @@ for snap in built-snap/snapd_1337.*.snap; do
 done
 
 # Run spread
-#shellcheck disable=SC2068
-spread $@
+spread "$@"
