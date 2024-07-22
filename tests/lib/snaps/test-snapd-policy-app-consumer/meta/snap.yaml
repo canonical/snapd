@@ -293,6 +293,9 @@ apps:
   xilinx-dma:
     command: bin/run
     plugs: [ xilinx-dma ]
+  systemd-user-control:
+    command: bin/run
+    plugs: [ systemd-user-control ]
 
 plugs:
   custom-device:

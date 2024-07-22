@@ -143,19 +143,20 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	// these have more complex or in flux policies and have their
 	// own separate tests
 	snowflakes := map[string]bool{
-		"content":            true,
-		"core-support":       true,
-		"desktop":            true,
-		"home":               true,
-		"lxd-support":        true,
-		"microstack-support": true,
-		"multipass-support":  true,
-		"packagekit-control": true,
-		"pkcs11":             true,
-		"remoteproc":         true,
-		"snapd-control":      true,
-		"upower-observe":     true,
-		"empty":              true,
+		"content":              true,
+		"core-support":         true,
+		"desktop":              true,
+		"home":                 true,
+		"lxd-support":          true,
+		"microstack-support":   true,
+		"multipass-support":    true,
+		"packagekit-control":   true,
+		"pkcs11":               true,
+		"remoteproc":           true,
+		"snapd-control":        true,
+		"systemd-user-control": true,
+		"upower-observe":       true,
+		"empty":                true,
 	}
 
 	// these simply auto-connect, anything else doesn't
@@ -323,6 +324,25 @@ func (s *baseDeclSuite) TestAutoConnectionSnapdControl(c *C) {
 	plugsSlots := `
 plugs:
   snapd-control:
+    allow-auto-connection: true
+`
+
+	lxdDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = lxdDecl
+	arity, err := cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+	c.Check(arity.SlotsPerPlugAny(), Equals, false)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionSystemdUserControl(c *C) {
+	cand := s.connectCand(c, "systemd-user-control", "", "")
+	_, err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"systemd-user-control\"")
+
+	plugsSlots := `
+plugs:
+  systemd-user-control:
     allow-auto-connection: true
 `
 
@@ -1040,6 +1060,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"snapd-control":                    true,
 		"steam-support":                    true,
 		"system-files":                     true,
+		"systemd-user-control":             true,
 		"tee":                              true,
 		"uinput":                           true,
 		"unity8":                           true,
@@ -1342,6 +1363,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"snapd-control":                    true,
 		"steam-support":                    true,
 		"system-files":                     true,
+		"systemd-user-control":             true,
 		"tee":                              true,
 		"udisks2":                          true,
 		"uinput":                           true,
