@@ -2991,7 +2991,7 @@ func installModeDisabledSystemServices(snapst *SnapState, currentInfo *snap.Info
 // installModeDisabledUserServices returns a map of currently active users
 // with user services that have been marked for 'install-mode: disable', which
 // were not already disabled for each of the active users.
-// The reason we are doing this only for currently online users, is because we
+// The reason we are doing this only for users currently logged in, is because we
 // do a best-effort handling of user sewrvices - we can only query the user service
 // agent for users that have it running.
 func installModeDisabledUserServices(snapst *SnapState, currentInfo *snap.Info, prevCurrentSvcs map[string]bool) (map[int][]string, error) {
@@ -3029,7 +3029,7 @@ func installModeDisabledUserServices(snapst *SnapState, currentInfo *snap.Info, 
 // installModeDisabledServices returns what services with
 // "install-mode: disabled" should be disabled. Only services
 // seen for the first time are considered.
-func installModeDisabledServices(st *state.State, snapst *SnapState, currentInfo *snap.Info) ([]string, map[int][]string, error) {
+func installModeDisabledServices(st *state.State, snapst *SnapState, currentInfo *snap.Info) (sysSvcsToDisable []string, usrSvcsToDisable map[int][]string, err error) {
 	enabledByHookSvcs := map[string]bool{}
 	for _, svcName := range snapst.ServicesEnabledByHooks {
 		enabledByHookSvcs[svcName] = true
@@ -3054,8 +3054,8 @@ func installModeDisabledServices(st *state.State, snapst *SnapState, currentInfo
 	// Services that are not new but have "install-mode: disable"
 	// do not need special handling. They are either still disabled
 	// or something has enabled them and then they should stay enabled.
-	sysSvcsToDisable := installModeDisabledSystemServices(snapst, currentInfo, prevCurrentSvcs)
-	usrSvcsToDisable, err := installModeDisabledUserServices(snapst, currentInfo, prevCurrentSvcs)
+	sysSvcsToDisable = installModeDisabledSystemServices(snapst, currentInfo, prevCurrentSvcs)
+	usrSvcsToDisable, err = installModeDisabledUserServices(snapst, currentInfo, prevCurrentSvcs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -3103,15 +3103,15 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// check what services with "InstallMode: disable" need to be disabled
-	sysSvcsToDisable, usrSvcsToDisable, err := installModeDisabledServices(st, snapst, currentInfo)
+	sysSvcsToDisableFromInstallMode, usrSvcsToDisableFromInstallMode, err := installModeDisabledServices(st, snapst, currentInfo)
 	if err != nil {
 		return err
 	}
 
 	// append the system services that should be disabled (i.e those that were not enabled by hooks)
-	missingSvcsOverview.FoundSystemServices = append(missingSvcsOverview.FoundSystemServices, sysSvcsToDisable...)
+	missingSvcsOverview.FoundSystemServices = append(missingSvcsOverview.FoundSystemServices, sysSvcsToDisableFromInstallMode...)
 	// merge user services disabled by hooks
-	for uid, svcs := range usrSvcsToDisable {
+	for uid, svcs := range usrSvcsToDisableFromInstallMode {
 		missingSvcsOverview.FoundUserServices[uid] = append(missingSvcsOverview.FoundUserServices[uid], svcs...)
 	}
 

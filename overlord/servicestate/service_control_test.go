@@ -1334,6 +1334,43 @@ func (s *serviceControlSuite) TestUpdateSnapstateSystemServices(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: cannot handle enabled and disabled services at the same time`)
 }
 
+func (s *serviceControlSuite) TestUpdateSnapstateServicesIgnoresNonServices(c *C) {
+	snapst := snapstate.SnapState{}
+
+	enable := []*snap.AppInfo{
+		{
+			Name:        "foo",
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
+		},
+		{
+			Name: "baz",
+		},
+	}
+	disable := []*snap.AppInfo{
+		{
+			Name:        "bar",
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
+		},
+		{
+			Name: "jazz",
+		},
+	}
+
+	result, err := servicestate.UpdateSnapstateServices(&snapst, enable, nil, wrappers.ScopeOptions{})
+	c.Assert(err, IsNil)
+	c.Check(result, Equals, true)
+	c.Check(snapst.ServicesEnabledByHooks, DeepEquals, []string{"foo"})
+	c.Check(snapst.ServicesDisabledByHooks, HasLen, 0)
+
+	result, err = servicestate.UpdateSnapstateServices(&snapst, nil, disable, wrappers.ScopeOptions{})
+	c.Assert(err, IsNil)
+	c.Check(result, Equals, true)
+	c.Check(snapst.ServicesEnabledByHooks, DeepEquals, []string{"foo"})
+	c.Check(snapst.ServicesDisabledByHooks, DeepEquals, []string{"bar"})
+}
+
 func (s *serviceControlSuite) TestUpdateSnapstateUserServices(c *C) {
 	// fake two sockets, one for 0 and one for 1000
 	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "0", "snapd-session-agent.socket"), 0700)
@@ -1490,4 +1527,67 @@ func (s *serviceControlSuite) TestUpdateSnapstateUserServices(c *C) {
 		c.Assert(snapst.UserServicesEnabledByHooks, DeepEquals, tst.expectedSnapstateEnabled)
 		c.Assert(snapst.UserServicesDisabledByHooks, DeepEquals, tst.expectedSnapstateDisabled)
 	}
+}
+
+func (s *serviceControlSuite) TestUpdateSnapstateUserServicesFailsOnUserError(c *C) {
+	// fake two sockets, one for 0 and one for 1000
+	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "0", "snapd-session-agent.socket"), 0700)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0700)
+	c.Assert(err, IsNil)
+
+	servicestate.MockUserLookup(func(s string) (*user.User, error) {
+		return nil, fmt.Errorf("unknown user %s", s)
+	})
+
+	snapst := snapstate.SnapState{}
+	enable := []*snap.AppInfo{
+		{
+			Name:        "foo",
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
+		},
+	}
+
+	result, err := servicestate.UpdateSnapstateServices(&snapst, enable, nil, wrappers.ScopeOptions{
+		Scope: wrappers.ServiceScopeUser,
+		Users: []string{"test"},
+	})
+	c.Assert(err, ErrorMatches, `unknown user test`)
+	c.Assert(result, Equals, false)
+	c.Assert(snapst.UserServicesEnabledByHooks, HasLen, 0)
+	c.Assert(snapst.UserServicesDisabledByHooks, HasLen, 0)
+}
+
+func (s *serviceControlSuite) TestUpdateSnapstateUserServicesFailsOnInvalidUID(c *C) {
+	// fake two sockets, one for 0 and one for 1000
+	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "0", "snapd-session-agent.socket"), 0700)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0700)
+	c.Assert(err, IsNil)
+
+	servicestate.MockUserLookup(func(s string) (*user.User, error) {
+		return &user.User{
+			Uid:      "wups",
+			Username: s,
+		}, nil
+	})
+
+	snapst := snapstate.SnapState{}
+	enable := []*snap.AppInfo{
+		{
+			Name:        "foo",
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
+		},
+	}
+
+	result, err := servicestate.UpdateSnapstateServices(&snapst, enable, nil, wrappers.ScopeOptions{
+		Scope: wrappers.ServiceScopeUser,
+		Users: []string{"test"},
+	})
+	c.Assert(err, ErrorMatches, `strconv.Atoi: parsing "wups": invalid syntax`)
+	c.Assert(result, Equals, false)
+	c.Assert(snapst.UserServicesEnabledByHooks, HasLen, 0)
+	c.Assert(snapst.UserServicesDisabledByHooks, HasLen, 0)
 }

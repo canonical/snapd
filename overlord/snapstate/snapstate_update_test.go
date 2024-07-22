@@ -6340,6 +6340,58 @@ func (s *snapmgrTestSuite) TestStopSnapServicesSavesSnapSetupLastActiveDisabledS
 	})
 }
 
+func (s *snapmgrTestSuite) TestStartSnapServicesCorrectlyKeepsDisabledByHooks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "services-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "services-snap", Revision: snap.R(11)},
+		}),
+		Current: snap.R(11),
+		Active:  true,
+		// fake this having services disabled by hooks
+		ServicesDisabledByHooks: []string{"svc1"},
+		UserServicesDisabledByHooks: map[int][]string{
+			1000: {"svc3"},
+		},
+	})
+
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "services-snap",
+			Revision: snap.R(11),
+			SnapID:   "services-snap-id",
+		},
+	}
+
+	chg := s.state.NewChange("start-services", "start the services")
+	t1 := s.state.NewTask("prerequisites", "...")
+	t1.Set("snap-setup", snapsup)
+	t2 := s.state.NewTask("start-snap-services", "...")
+	t2.Set("stop-reason", snap.StopReasonDisable)
+	t2.Set("snap-setup-task", t1.ID())
+	t2.WaitFor(t1)
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	// verify correct call was made
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		fakeOp{
+			op:                   "start-snap-services",
+			path:                 "/tmp/check-237257918/0/snap/services-snap/11",
+			services:             []string{"svc1", "svc3", "svc2"},
+			disabledServices:     []string{"svc1"},
+			disabledUserServices: map[int][]string{1000: {"svc3"}},
+		},
+	})
+}
+
 func (s *snapmgrTestSuite) TestStopSnapServicesFirstSavesSnapSetupLastActiveDisabledServices(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

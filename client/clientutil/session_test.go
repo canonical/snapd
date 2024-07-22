@@ -26,15 +26,19 @@ import (
 
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/testutil"
 	. "gopkg.in/check.v1"
 )
 
-type sessionSuite struct{}
+type sessionSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&sessionSuite{})
 
 func (s *sessionSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
 }
 
 func (s *sessionSuite) TestAvailableUserSessionsHappy(c *C) {
