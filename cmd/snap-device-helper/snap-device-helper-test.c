@@ -382,7 +382,7 @@ static void test_sdh_err_noaction(sdh_test_fixture *fixture, gconstpointer test_
 }
 
 static void test_sdh_err_funtag1(sdh_test_fixture *fixture, gconstpointer test_data) {
-    run_sdh_die("add", "snap___bar", "8", "4", "block", "security tag \"snap._.bar\" for snap \"_\" is not valid\n");
+    run_sdh_die("add", "snap___bar", "8", "4", "block", "missing app name in tag \"snap___bar\"\n");
 }
 
 static void test_sdh_err_funtag2(sdh_test_fixture *fixture, gconstpointer test_data) {
@@ -416,6 +416,32 @@ static void test_sdh_err_funtag8(sdh_test_fixture *fixture, gconstpointer test_d
                 "security tag \"snap.#.barbar\" for snap \"#\" is not valid\n");
 }
 
+static void test_sdh_err_funtag9(sdh_test_fixture *fixture, gconstpointer test_data) {
+    run_sdh_die("add", "snap_foo___hook_install", "8", "4", "block",
+                "missing component name in tag \"snap_foo___hook_install\"\n");
+}
+
+static void test_sdh_err_funtag10(sdh_test_fixture *fixture, gconstpointer test_data) {
+    run_sdh_die("add", "snap___comp_hook_install", "8", "4", "block",
+                "missing snap name in tag \"snap___comp_hook_install\"\n");
+}
+
+static void test_sdh_err_funtag11(sdh_test_fixture *fixture, gconstpointer test_data) {
+    run_sdh_die(
+        "add", "snap_foo__ccccccccccccccccccccccccccccccccccccccccc_hook_install", "8", "4", "block",
+        "component name of tag \"snap_foo__ccccccccccccccccccccccccccccccccccccccccc_hook_install\" is too long\n");
+}
+
+static void test_sdh_err_funtag12(sdh_test_fixture *fixture, gconstpointer test_data) {
+    run_sdh_die("add", "snap_foo_hook_inst__all", "8", "4", "block",
+                "component separator in tag \"snap_foo_hook_inst__all\" is misplaced\n");
+}
+
+static void test_sdh_err_funtag13(sdh_test_fixture *fixture, gconstpointer test_data) {
+    run_sdh_die("add", "snap_foo__comp_hook__install", "8", "4", "block",
+                "malformed tag \"snap_foo__comp_hook__install\"\n");
+}
+
 static struct sdh_test_data add_data = {"add", "snap.foo.bar", "snap_foo_bar"};
 static struct sdh_test_data change_data = {"change", "snap.foo.bar", "snap_foo_bar"};
 
@@ -440,6 +466,12 @@ static struct sdh_test_data instance_add_hook_data = {"add", "snap.foo_bar.hook.
 
 static struct sdh_test_data instance_add_instance_name_is_hook_data = {"add", "snap.foo_hook.hook.configure",
                                                                        "snap_foo_hook_hook_configure"};
+
+static struct sdh_test_data component_instance_add_hook_data = {"add", "snap.foo_bar+comp.hook.install",
+                                                                "snap_foo_bar__comp_hook_install"};
+
+static struct sdh_test_data component_add_hook_data = {"add", "snap.foo+comp.hook.install",
+                                                       "snap_foo__comp_hook_install"};
 
 static void __attribute__((constructor)) init(void) {
 #define _test_add(_name, _data, _func) \
@@ -466,6 +498,11 @@ static void __attribute__((constructor)) init(void) {
     _test_add("/snap-device-helper/err/funtag6", NULL, test_sdh_err_funtag6);
     _test_add("/snap-device-helper/err/funtag7", NULL, test_sdh_err_funtag7);
     _test_add("/snap-device-helper/err/funtag8", NULL, test_sdh_err_funtag8);
+    _test_add("/snap-device-helper/err/funtag9", NULL, test_sdh_err_funtag9);
+    _test_add("/snap-device-helper/err/funtag10", NULL, test_sdh_err_funtag10);
+    _test_add("/snap-device-helper/err/funtag11", NULL, test_sdh_err_funtag11);
+    _test_add("/snap-device-helper/err/funtag12", NULL, test_sdh_err_funtag12);
+    _test_add("/snap-device-helper/err/funtag13", NULL, test_sdh_err_funtag13);
     // parallel instances
     _test_add("/snap-device-helper/parallel/add", &instance_add_data, test_sdh_action);
     _test_add("/snap-device-helper/parallel/change", &instance_change_data, test_sdh_action);
@@ -477,6 +514,9 @@ static void __attribute__((constructor)) init(void) {
     _test_add("/snap-device-helper/hook/parallel/add", &instance_add_hook_data, test_sdh_action);
     _test_add("/snap-device-helper/hook-name-hook/parallel/add", &instance_add_instance_name_is_hook_data,
               test_sdh_action);
+    // components
+    _test_add("/snap-device-helper/component/add", &component_add_hook_data, test_sdh_action);
+    _test_add("/snap-device-helper/component/parallel/add", &component_instance_add_hook_data, test_sdh_action);
 
     _test_add("/snap-device-helper/nvme", NULL, test_sdh_action_nvme);
 }
