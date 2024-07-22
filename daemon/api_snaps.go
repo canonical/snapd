@@ -463,11 +463,6 @@ func snapInstall(ctx context.Context, inst *snapInstruction, st *state.State) (s
 		return "", nil, fmt.Errorf(i18n.G("cannot install snap with empty name"))
 	}
 
-	flags, err := inst.installFlags()
-	if err != nil {
-		return "", nil, err
-	}
-
 	var ckey string
 	if inst.CohortKey == "" {
 		logger.Noticef("Installing snap %q revision %s", inst.Snaps[0], inst.Revision)
@@ -476,18 +471,12 @@ func snapInstall(ctx context.Context, inst *snapInstruction, st *state.State) (s
 		logger.Noticef("Installing snap %q from cohort %q", inst.Snaps[0], ckey)
 	}
 
-	// TODO:COMPS: handle installing a component of a snap that is already
-	// installed
-	goal := storeInstallGoalFromInstruction(inst)
-	_, tset, err := snapstateInstallOne(ctx, st, goal, snapstate.Options{
-		UserID: inst.userID,
-		Flags:  flags,
-	})
+	_, tss, err := installationTaskSets(ctx, st, inst)
 	if err != nil {
 		return "", nil, err
 	}
 
-	return installMessage(inst, ckey), []*state.TaskSet{tset}, nil
+	return installMessage(inst, ckey), tss, nil
 }
 
 func installMessage(inst *snapInstruction, cohort string) string {
@@ -848,50 +837,67 @@ func (inst *snapInstruction) dispatchForMany() (op snapManyActionFunc) {
 	return op
 }
 
-func storeInstallGoalFromInstruction(inst *snapInstruction) snapstate.InstallGoal {
-	snaps := make([]snapstate.StoreSnap, 0, len(inst.Snaps))
-	for _, sn := range inst.Snaps {
-		// we currently only allow revision options when installing one snap
-		opts := snapstate.RevisionOptions{}
-		if len(inst.Snaps) == 1 {
-			opts = *inst.revnoOpts()
+func installationTaskSets(ctx context.Context, st *state.State, inst *snapInstruction) ([]*snap.Info, []*state.TaskSet, error) {
+	expectOneSnap := len(inst.Snaps) == 1
+	opts := snapstate.Options{
+		UserID:        inst.userID,
+		ExpectOneSnap: expectOneSnap,
+	}
+
+	if expectOneSnap {
+		flags, err := inst.installFlags()
+		if err != nil {
+			return nil, nil, err
+		}
+		opts.Flags = flags
+	} else {
+		opts.Flags.Transaction = inst.Transaction
+	}
+
+	var (
+		tss   []*state.TaskSet
+		snaps []snapstate.StoreSnap
+		infos []*snap.Info
+	)
+	for _, name := range inst.Snaps {
+		revOpts := snapstate.RevisionOptions{}
+		if expectOneSnap {
+			revOpts = *inst.revnoOpts()
 		}
 
 		snaps = append(snaps, snapstate.StoreSnap{
-			InstanceName: sn,
-			Components:   inst.CompsForSnaps[sn],
-			RevOpts:      opts,
+			InstanceName: name,
+			Components:   inst.CompsForSnaps[name],
+			RevOpts:      revOpts,
 		})
 	}
 
-	return snapstateStoreInstallGoal(snaps...)
+	installed, ts, err := snapstateInstallWithGoal(ctx, st, snapstateStoreInstallGoal(snaps...), opts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	infos = append(infos, installed...)
+	tss = append(tss, ts...)
+
+	return infos, tss, nil
 }
 
 func snapInstallMany(ctx context.Context, inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
 	for _, name := range inst.Snaps {
 		if len(name) == 0 {
-			return nil, fmt.Errorf(i18n.G("cannot install snap with empty name"))
+			return nil, errors.New(i18n.G("cannot install snap with empty name"))
 		}
 	}
 
-	// TODO:COMPS: handle installing a component of a snap that is already
-	// installed
-	goal := storeInstallGoalFromInstruction(inst)
-	installed, tasksets, err := snapstateInstallWithGoal(ctx, st, goal, snapstate.Options{
-		UserID: inst.userID,
-		Flags: snapstate.Flags{
-			Transaction: inst.Transaction,
-		},
-	})
+	if len(inst.Snaps) == 0 {
+		return nil, errors.New(i18n.G("cannot install zero snaps"))
+	}
+
+	installed, tasksets, err := installationTaskSets(ctx, st, inst)
 	if err != nil {
 		return nil, err
 	}
-
-	if len(inst.Snaps) == 0 {
-		return nil, fmt.Errorf("cannot install zero snaps")
-	}
-
-	msg := multiInstallMessage(inst)
 
 	names := make([]string, 0, len(installed))
 	for _, sn := range installed {
@@ -899,7 +905,7 @@ func snapInstallMany(ctx context.Context, inst *snapInstruction, st *state.State
 	}
 
 	return &snapInstructionResult{
-		Summary:  msg,
+		Summary:  multiInstallMessage(inst),
 		Affected: names,
 		Tasksets: tasksets,
 	}, nil
