@@ -392,6 +392,10 @@ func probeParserFeatures() ([]string, error) {
 			probe:   "mqueue,",
 		},
 		{
+			feature: "io-uring",
+			probe:   "allow io_uring,",
+		},
+		{
 			feature: "cap-bpf",
 			probe:   "capability bpf,",
 		},
