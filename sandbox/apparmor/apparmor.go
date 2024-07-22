@@ -679,6 +679,10 @@ func probeParserFeatures() ([]string, error) {
 			minVer:  "4.0.2",
 		},
 		{
+			feature: "io-uring",
+			probe:   "allow io_uring,",
+		},
+		{
 			feature: "cap-bpf",
 			probe:   "capability bpf,",
 		},
