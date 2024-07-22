@@ -55,12 +55,10 @@ exit 1
 	c.Assert(err, ErrorMatches, "mocked error")
 }
 
-// This is needed to properly split options that contain a ',' character that
-// is double escaped before passed as an argument to systemd-mount.
+// This is needed to properly split options that could contain a ',' character
+// that should be escaped before passed as an argument to systemd-mount.
 func splitOptions(s string) []string {
 	var o []string
-
-	s = strings.ReplaceAll(s, "\\\\", "\\")
 
 	var cur strings.Builder
 	escaped := false
