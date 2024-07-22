@@ -441,7 +441,6 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			foundOverlayUpperDir := false
 			foundOverlayWorkDir := false
 
-			c.Log(call)
 			for _, arg := range call[len(args):] {
 				switch {
 				case arg == "--type=tmpfs":
