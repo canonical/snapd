@@ -13701,8 +13701,8 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 	sort.Strings(components)
 
 	compNameToType := func(name string) snap.ComponentType {
-		typ, ok := strings.CutSuffix(name, "-component")
-		if !ok {
+		typ := strings.TrimSuffix(name, "-component")
+		if typ == name {
 			c.Fatalf("unexpected component name %q", name)
 		}
 		return snap.ComponentType(typ)
@@ -14017,8 +14017,8 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, instanceKey 
 	sort.Strings(components)
 
 	compNameToType := func(name string) snap.ComponentType {
-		typ, ok := strings.CutSuffix(name, "-component")
-		if !ok {
+		typ := strings.TrimSuffix(name, "-component")
+		if typ == name {
 			c.Fatalf("unexpected component name %q", name)
 		}
 		return snap.ComponentType(typ)
