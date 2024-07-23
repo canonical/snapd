@@ -796,6 +796,62 @@ func (p *updatePlan) targetInfos() []*snap.Info {
 	return infos
 }
 
+// updates returns the updates that should be applied to the system's state for
+// this plan.
+func (p *updatePlan) updates(st *state.State, opts Options) ([]update, error) {
+	updates := make([]update, 0, len(p.targets))
+	for _, t := range p.targets {
+		opts.PrereqTracker.Add(t.info)
+
+		snapsup, compsups, err := t.setups(st, opts)
+		if err != nil {
+			if !p.refreshAll() {
+				return nil, err
+			}
+
+			logger.Noticef("cannot refresh snap %q: %v", t.info.InstanceName(), err)
+			continue
+		}
+
+		updates = append(updates, update{
+			Setup:      snapsup,
+			SnapState:  t.snapst,
+			Components: compsups,
+		})
+	}
+	return updates, nil
+}
+
+// revisionChanges returns the snaps that will have their revisions changed by
+// the updates in this plan.
+func (p *updatePlan) revisionChanges(st *state.State, opts Options) ([]*snap.Info, error) {
+	updates, err := p.updates(st, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	targetByName := make(map[string]target, len(p.targets))
+	for _, t := range p.targets {
+		targetByName[t.info.InstanceName()] = t
+	}
+
+	changes := make([]*snap.Info, 0, len(updates))
+	for _, up := range updates {
+		if up.revisionSatisfied() {
+			continue
+		}
+
+		t, ok := targetByName[up.SnapState.InstanceName()]
+		// this should never happen
+		if !ok {
+			return nil, fmt.Errorf("internal error: update %q not found in targets", up.SnapState.InstanceName())
+		}
+
+		changes = append(changes, t.info)
+	}
+	return changes, nil
+}
+
 // filter applies the given function to each target in the update plan and
 // removes any targets for which the function returns false.
 func (p *updatePlan) filter(f func(t target) (bool, error)) error {
@@ -992,25 +1048,9 @@ func updateFromPlan(st *state.State, plan updatePlan, opts Options) ([]string, *
 	// it is sad that we have to split up updatePlan like this, but doUpdate is
 	// used in places where we don't have a snap.Info, so we cannot pass an
 	// updatePlan to doUpdate
-	updates := make([]update, 0, len(plan.targets))
-	for _, t := range plan.targets {
-		opts.PrereqTracker.Add(t.info)
-
-		snapsup, compsups, err := t.setups(st, opts)
-		if err != nil {
-			if !plan.refreshAll() {
-				return nil, nil, err
-			}
-
-			logger.Noticef("cannot refresh snap %q: %v", t.info.InstanceName(), err)
-			continue
-		}
-
-		updates = append(updates, update{
-			Setup:      snapsup,
-			SnapState:  t.snapst,
-			Components: compsups,
-		})
+	updates, err := plan.updates(st, opts)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	updated, uts, err := doPotentiallySplitUpdate(st, plan.requested, updates, opts)
@@ -1086,7 +1126,7 @@ func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Op
 	}
 
 	refreshOpts := &store.RefreshOptions{Scheduled: opts.Flags.IsAutoRefresh}
-	plan, err := refreshCandidates(ctx, st, allSnaps, s.snaps, user, refreshOpts, opts)
+	plan, err := storeUpdatePlan(ctx, st, allSnaps, s.snaps, user, refreshOpts, opts)
 	if err != nil {
 		return updatePlan{}, err
 	}

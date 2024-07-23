@@ -471,7 +471,7 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]st
 	return curSnaps, nil
 }
 
-// refreshCandidates is a wrapper for storeUpdatePlan.
+// storeUpdatePlan is a wrapper for storeUpdatePlanCore.
 //
 // It addresses the case where the store doesn't return refresh candidates for
 // snaps with already existing monitored refresh-candidates due to inconsistent
@@ -481,14 +481,14 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]st
 //
 // Note: This wrapper is a short term solution and should be removed once a better
 // solution is reached.
-func refreshCandidates(ctx context.Context, st *state.State, allSnaps map[string]*SnapState, requested map[string]StoreUpdate, user *auth.UserState, refreshOpts *store.RefreshOptions, opts Options) (updatePlan, error) {
+func storeUpdatePlan(ctx context.Context, st *state.State, allSnaps map[string]*SnapState, requested map[string]StoreUpdate, user *auth.UserState, refreshOpts *store.RefreshOptions, opts Options) (updatePlan, error) {
 	// initialize options before using
 	refreshOpts, err := refreshOptions(st, refreshOpts)
 	if err != nil {
 		return updatePlan{}, err
 	}
 
-	plan, err := storeUpdatePlan(ctx, st, allSnaps, requested, user, refreshOpts, opts)
+	plan, err := storeUpdatePlanCore(ctx, st, allSnaps, requested, user, refreshOpts, opts)
 	if err != nil {
 		return updatePlan{}, err
 	}
@@ -547,7 +547,7 @@ func refreshCandidates(ctx context.Context, st *state.State, allSnaps map[string
 		// we already started a pre-download for this snap, so no extra
 		// load is being exerted on the store.
 		refreshOpts.Scheduled = false
-		extraPlan, err := storeUpdatePlan(ctx, st, allSnaps, missingRequests, user, refreshOpts, opts)
+		extraPlan, err := storeUpdatePlanCore(ctx, st, allSnaps, missingRequests, user, refreshOpts, opts)
 		if err != nil {
 			return updatePlan{}, err
 		}
@@ -557,7 +557,7 @@ func refreshCandidates(ctx context.Context, st *state.State, allSnaps map[string
 	return plan, nil
 }
 
-func storeUpdatePlan(
+func storeUpdatePlanCore(
 	ctx context.Context,
 	st *state.State,
 	allSnaps map[string]*SnapState,
