@@ -230,6 +230,18 @@ func (s *entrySuite) TestParseMountEntryEnsureDir(c *C) {
 	c.Assert(e.CheckPassNumber, Equals, 0)
 }
 
+// Test that an fstab entry with overlay options containing a comma is parsed correctly.
+func (s *entrySuite) TestParseMountEntryWithOverlayOptions(c *C) {
+	e, err := osutil.ParseMountEntry(`name dir type a,b,upperdir=b\,,c 0 0`)
+	c.Assert(err, IsNil)
+	c.Assert(e.Name, Equals, "name")
+	c.Assert(e.Dir, Equals, "dir")
+	c.Assert(e.Type, Equals, "type")
+	c.Assert(e.Options, DeepEquals, []string{"a", "b", "upperdir=b,", "c"})
+	c.Assert(e.DumpFrequency, Equals, 0)
+	c.Assert(e.CheckPassNumber, Equals, 0)
+}
+
 // Test (string) options -> (int) flag conversion code.
 func (s *entrySuite) TestMountOptsToFlags(c *C) {
 	flags, err := osutil.MountOptsToFlags(nil)

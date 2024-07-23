@@ -29,6 +29,7 @@ import (
 
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -53,42 +54,6 @@ exit 1
 
 	err := main.DoSystemdMount("something", "somewhere only we know", nil)
 	c.Assert(err, ErrorMatches, "mocked error")
-}
-
-// This is needed to properly split options that could contain a ',' character
-// that should be escaped before passed as an argument to systemd-mount.
-func splitOptions(s string) []string {
-	var o []string
-
-	var cur strings.Builder
-	escaped := false
-	for _, c := range s {
-		switch c {
-		case '\\':
-			if escaped {
-				cur.WriteRune(c)
-				escaped = false
-			} else {
-				escaped = true
-			}
-		case ',':
-			if escaped {
-				cur.WriteRune(c)
-				escaped = false
-			} else {
-				o = append(o, cur.String())
-				cur.Reset()
-			}
-		default:
-			cur.WriteRune(c)
-		}
-	}
-
-	if cur.Len() > 0 {
-		o = append(o, cur.String())
-	}
-
-	return o
 }
 
 func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
@@ -454,7 +419,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 				case arg == "--property=Before=initrd-fs.target":
 					foundBeforeInitrdfsTarget = true
 				case strings.HasPrefix(arg, "--options="):
-					for _, opt := range splitOptions(strings.TrimPrefix(arg, "--options=")) {
+					for _, opt := range osutil.SplitMountOptions(strings.TrimPrefix(arg, "--options=")) {
 						switch opt := opt; {
 						case opt == "nosuid":
 							foundNoSuid = true
