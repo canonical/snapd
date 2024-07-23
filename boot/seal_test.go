@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
@@ -2233,9 +2234,10 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 	dirs.SetRootDir(rootdir)
 	defer dirs.SetRootDir("")
 
-	resealKeyToModeenvUsingFDESetupHookCalled := 0
-	restore := boot.MockResealKeyToModeenvUsingFDESetupHook(func(string, *boot.Modeenv, bool) error {
-		resealKeyToModeenvUsingFDESetupHookCalled++
+	mockResealKeyForBootChainsCalls := 0
+	restore := boot.MockResealKeyForBootChains(func(method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+		c.Check(method, Equals, device.SealingMethodFDESetupHook)
+		mockResealKeyForBootChainsCalls++
 		return nil
 	})
 	defer restore()
@@ -2267,7 +2269,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 	expectReseal := false
 	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, nil)
 	c.Assert(err, IsNil)
-	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
+	c.Check(mockResealKeyForBootChainsCalls, Equals, 1)
 }
 
 func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
@@ -2275,9 +2277,10 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
 	dirs.SetRootDir(rootdir)
 	defer dirs.SetRootDir("")
 
-	resealKeyToModeenvUsingFDESetupHookCalled := 0
-	restore := boot.MockResealKeyToModeenvUsingFDESetupHook(func(string, *boot.Modeenv, bool) error {
-		resealKeyToModeenvUsingFDESetupHookCalled++
+	mockResealKeyForBootChainsCalls := 0
+	restore := boot.MockResealKeyForBootChains(func(method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+		c.Check(method, Equals, device.SealingMethodFDESetupHook)
+		mockResealKeyForBootChainsCalls++
 		return fmt.Errorf("fde setup hook failed")
 	})
 	defer restore()
@@ -2301,7 +2304,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
 	expectReseal := false
 	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, nil)
 	c.Assert(err, ErrorMatches, "fde setup hook failed")
-	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
+	c.Check(mockResealKeyForBootChainsCalls, Equals, 1)
 }
 
 func (s *sealSuite) testResealKeyToModeenvWithTryModel(c *C, shimId, grubId string) {
