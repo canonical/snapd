@@ -62,6 +62,7 @@ capability dac_override,
 # managing our own cgroup config
 # https://github.com/hashicorp/nomad/issues/18211
 /sys/fs/cgroup/nomad.slice/* rw,
+/sys/fs/cgroup/nomad.slice/*.slice/{,**} rw,
 /sys/fs/cgroup/nomad.slice/*.scope/{,**} rw,
 
 # NVIDIA device plugin
