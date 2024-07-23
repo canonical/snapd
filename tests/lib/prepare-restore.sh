@@ -561,12 +561,7 @@ prepare_project() {
     # Retry go mod vendor to minimize the number of connection errors during the sync
     retry -n 10 go mod vendor
     # Update C dependencies
-    for _ in $(seq 10); do
-        if (cd c-vendor && ./vendor.sh); then
-            break
-        fi
-        sleep 1
-    done
+    ( cd c-vendor && retry -n 10 ./vendor.sh )
 
     # go mod runs as root and will leave strange permissions
     chown test.test -R "$SPREAD_PATH"
