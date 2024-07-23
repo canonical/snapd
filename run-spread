@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# check dependencies
+if ! snap list snapcraft &>/dev/null; then
+    echo "snapcraft is not installed"
+    exit 1
+fi
+
+# Clean the snaps created in previous runs
+rm -rf built-snap test-build
+touch test-build
+mkdir built-snap
+
+rm -f snapd_1337.*.snap 
+rm -f snapd_1337.*.snap.keep
+
+# Build snapd snap
+snapcraft clean
+snapcraft --use-lxd
+for snap in snapd_1337.*.snap; do
+    mv "${snap}" built-snap/"${snap}.keep"
+done
+
+# Run spread
+TESTS_USE_PREBUILT_SNAPD_SNAP=true spread "$@"
