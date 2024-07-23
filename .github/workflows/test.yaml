@@ -644,7 +644,7 @@ jobs:
             backend: google-distro-1
             systems: 'debian-11-64'
             tests: 'tests/...'
-          - group: debian-no-req
+          - group: debian-not-req
             backend: google-distro-1
             systems: 'debian-12-64 debian-sid-64'
             tests: 'tests/...'
