@@ -7930,30 +7930,6 @@ func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {
 	c.Assert(snapst.Current, Equals, snap.R(11))
 }
 
-type installTestType struct {
-	t snap.Type
-}
-
-func (t *installTestType) InstanceName() string {
-	panic("not expected")
-}
-
-func (t *installTestType) Type() snap.Type {
-	return t.t
-}
-
-func (t *installTestType) SnapBase() string {
-	panic("not expected")
-}
-
-func (t *installTestType) DownloadSize() int64 {
-	panic("not expected")
-}
-
-func (t *installTestType) Prereq(st *state.State, prqt snapstate.PrereqTracker) []string {
-	panic("not expected")
-}
-
 func (s *snapmgrTestSuite) TestInstalledSnaps(c *C) {
 	st := state.New(nil)
 	st.Lock()

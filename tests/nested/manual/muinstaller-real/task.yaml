@@ -231,7 +231,11 @@ execute: |
   refresh_rebooting_snap pc pc.snap.orig ./pc-gadget
 
   # Make sure we installed the new grub
-  remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-seed/EFI/boot/grubx64.efi'
+  if os.query is-ubuntu-ge 24.04 && [ "$PARTIAL_GADGET" = false ]; then
+    remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-seed/EFI/ubuntu/grubx64.efi'
+  else
+    remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-seed/EFI/boot/grubx64.efi'
+  fi
   remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi'
 
   unsquashfs -d pc-kernel pc-kernel.snap

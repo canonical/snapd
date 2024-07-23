@@ -57,8 +57,17 @@ inject_snap_into_seed() {
     local IMAGE_MOUNTPOINT=$1
     local SNAP_NAME=$2
     local SNAP_FILE="$SNAP_NAME.snap"
-    local SEED_YAML="$IMAGE_MOUNTPOINT/var/lib/snapd/seed/seed.yaml"
-    local SEED_SNAPS_DIR="$IMAGE_MOUNTPOINT/var/lib/snapd/seed/snaps"
+    local SEED_DIR="$IMAGE_MOUNTPOINT/var/lib/snapd/seed"
+    local SEED_YAML="$SEED_DIR/seed.yaml"
+    local SEED_SNAPS_DIR="$SEED_DIR/snaps"
+
+    # Ubuntu 24.04: there is no longer any seeded snaps in base or minimal cloud images
+    # https://bugs.launchpad.net/ubuntu/+source/ubuntu-meta/+bug/2051346
+    # https://bugs.launchpad.net/ubuntu/+source/ubuntu-meta/+bug/2051572
+    if [ ! -d "$SEED_DIR" ]; then
+        snap known model > /tmp/generic.model
+        snap prepare-image --classic /tmp/generic.model "$IMAGE_MOUNTPOINT"
+    fi
 
     # need remarshal for going from json to yaml and back for seed manipulation
     if ! command -v json2yaml || ! command -v yaml2json; then

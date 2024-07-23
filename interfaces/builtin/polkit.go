@@ -23,15 +23,16 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/polkit"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/polkit/validate"
 	"github.com/snapcore/snapd/snap"
+	"golang.org/x/sys/unix"
 )
 
 const polkitSummary = `allows access to polkitd to check authorisation`
@@ -149,65 +150,42 @@ func (iface *polkitInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	return err
 }
 
-func isPathMountedWritable(mntProfile *osutil.MountProfile, fsPath string) bool {
-	mntMap := make(map[string]*osutil.MountEntry, len(mntProfile.Entries))
-	for i := range mntProfile.Entries {
-		mnt := &mntProfile.Entries[i]
-		mntMap[mnt.Dir] = mnt
-	}
-
-	// go backwards in path until we hit a match
-	currentPath := fsPath
-	for {
-		if mnt, ok := mntMap[currentPath]; ok {
-			return mnt.OptBool("rw")
-		}
-
-		// Make sure we terminate on the last path token
-		if currentPath == "/" || !strings.Contains(currentPath, "/") {
-			break
-		}
-		currentPath = path.Dir(currentPath)
-	}
-	return false
-}
+var (
+	// polkitDaemonPath1 is the path of polkitd on core<24.
+	polkitDaemonPath1 = "/usr/libexec/polkitd"
+	// polkitDaemonPath2 is the path of polkid on core>=24.
+	polkitDaemonPath2 = "/usr/lib/polkit-1/polkitd"
+)
 
 // hasPolkitDaemonExecutable checks known paths on core for the presence of
 // the polkit daemon executable. This function can be shortened but keep it like
 // this for readability.
 func hasPolkitDaemonExecutable() bool {
-	// On core22(+core-desktop?) polkitd is at /usr/libexec/polkitd
-	if osutil.IsExecutable("/usr/libexec/polkitd") {
-		return true
-	}
-	// On core24 polkitd is at /usr/lib/polkit-1/polkitd
-	return osutil.IsExecutable("/usr/lib/polkit-1/polkitd")
+	return osutil.IsExecutable(polkitDaemonPath1) || osutil.IsExecutable(polkitDaemonPath2)
+}
+
+func canWriteToPolkitActionsDir() bool {
+	return unix.Access(dirs.SnapPolkitPolicyDir, unix.W_OK) == nil
 }
 
 func polkitPoliciesSupported() bool {
-	// We must have the polkit daemon present on the system
-	if !hasPolkitDaemonExecutable() {
-		return false
-	}
+	// We must have the polkit daemon present on the system and be able to write
+	// to the polkit actions directory.
+	return hasPolkitDaemonExecutable() && canWriteToPolkitActionsDir()
+}
 
-	mntProfile, err := osutil.LoadMountProfile("/proc/self/mounts")
-	if err != nil {
-		// XXX: we are called from init() what can we do here?
-		return false
-	}
-
-	// For core22+ polkitd is present, but it's not possible to install
-	// any policy files, as polkit only checks /usr/share/polkit-1/actions,
-	// which is readonly on core.
-	return isPathMountedWritable(mntProfile, "/usr/share/polkit-1/actions")
+func (iface *polkitInterface) StaticInfo() interfaces.StaticInfo {
+	info := iface.commonInterface.StaticInfo()
+	info.ImplicitOnCore = polkitPoliciesSupported()
+	return info
 }
 
 func init() {
 	registerIface(&polkitInterface{
 		commonInterface{
-			name:                  "polkit",
-			summary:               polkitSummary,
-			implicitOnCore:        polkitPoliciesSupported(),
+			name:    "polkit",
+			summary: polkitSummary,
+			// implicitOnCore is computed dynamically
 			implicitOnClassic:     true,
 			baseDeclarationPlugs:  polkitBaseDeclarationPlugs,
 			baseDeclarationSlots:  polkitBaseDeclarationSlots,

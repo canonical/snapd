@@ -63,6 +63,15 @@ func SetViaView(st *state.State, account, registryName, viewName string, request
 		return err
 	}
 
+	if err = SetViaViewInTx(tx, view, requests); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// SetViaViewInTx uses the view to set the requests in the transaction's databag.
+func SetViaViewInTx(tx *registry.Transaction, view *registry.View, requests map[string]interface{}) error {
 	for field, value := range requests {
 		var err error
 		if value == nil {
@@ -76,7 +85,7 @@ func SetViaView(st *state.State, account, registryName, viewName string, request
 		}
 	}
 
-	return tx.Commit()
+	return nil
 }
 
 // GetViaView finds the view identified by the account, registry and view names

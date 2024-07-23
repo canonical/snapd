@@ -124,9 +124,16 @@ func (vss *validationSetSuite) TestDecodeInvalid(c *C) {
 		{"OTHER", "  -\n    name: baz-linux\n    id: bazlinuxidididididididididididid\n", `cannot list the same snap "baz-linux" multiple times`},
 		{"OTHER", "  -\n    name: baz-linux2\n    id: bazlinuxidididididididididididid\n", `cannot specify the same snap id "bazlinuxidididididididididididid" multiple times, specified for snaps "baz-linux" and "baz-linux2"`},
 		{"presence: optional\n", "presence:\n      - opt\n", `"presence" of snap "baz-linux" must be a string`},
-		{"presence: optional\n", "presence: no\n", `"presence" of snap "baz-linux" must be one of must be one of required|optional|invalid`},
+		{"presence: optional\n", "presence: no\n", `presence of snap "baz-linux" must be one of required\|optional\|invalid`},
 		{"revision: 99\n", "revision: 0\n", `"revision" of snap "baz-linux" must be >=1: 0`},
 		{"presence: optional\n", "presence: invalid\n", `cannot specify revision of snap "baz-linux" at the same time as stating its presence is invalid`},
+		{"OTHER", "    components:\n      comp: no\n", `presence of component "comp" must be one of required\|optional\|invalid`},
+		{"OTHER", "    components:\n      comp:\n        revision: 1\n        presence: invalid\n", `cannot specify component revision of component "comp" at the same time as stating its presence is invalid`},
+		{"OTHER", "    components:\n      c: optional\n", `invalid component name "c"`},
+		{"OTHER", "    components:\n      comp:\n        revision: 1\n", `"presence" of component "comp" is mandatory`},
+		{"OTHER", "    components:\n      comp:\n        - test\n", `each field in "components" map must be either a map or a string`},
+		{"OTHER", "    components:\n      comp:\n        revision: -1\n        presence: optional\n", `"revision" of component "comp" must be >=1: -1`},
+		{"OTHER", "    components: some-string", `"components" field in "snaps" header must be a map`},
 	}
 
 	for _, test := range invalidTests {
@@ -165,6 +172,43 @@ func (vss *validationSetSuite) TestSnapRevisionOptional(c *C) {
 	c.Assert(snaps, HasLen, 1)
 	// 0 means unset
 	c.Check(snaps[0].Revision, Equals, 0)
+}
+
+func (vss *validationSetSuite) TestSnapComponents(c *C) {
+	encoded := strings.Replace(validationSetExample, "TSLINE", vss.tsLine, 1)
+
+	const components = `    components:
+      string-only: optional
+      with-revision:
+        revision: 10
+        presence: required
+      no-revision:
+        presence: invalid
+`
+
+	encoded = strings.Replace(encoded, "OTHER", components, 1)
+
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.ValidationSetType)
+
+	valset := a.(*asserts.ValidationSet)
+	snaps := valset.Snaps()
+	c.Assert(snaps, HasLen, 1)
+	c.Assert(snaps[0].Components, HasLen, 3)
+
+	c.Check(snaps[0].Components, DeepEquals, map[string]asserts.ValidationSetComponent{
+		"string-only": {
+			Presence: asserts.PresenceOptional,
+		},
+		"with-revision": {
+			Presence: asserts.PresenceRequired,
+			Revision: 10,
+		},
+		"no-revision": {
+			Presence: asserts.PresenceInvalid,
+		},
+	})
 }
 
 func (vss *validationSetSuite) TestIsValidValidationSetName(c *C) {

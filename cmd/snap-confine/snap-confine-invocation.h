@@ -31,6 +31,7 @@ typedef struct sc_invocation {
     /* Things declared by the system. */
     char *snap_instance; /* snap instance name (<snap>_<key>) */
     char *snap_name;     /* snap name (without instance key) */
+    char *snap_component;
     char *orig_base_snap_name;
     char *security_tag;
     char *executable;
@@ -50,7 +51,8 @@ typedef struct sc_invocation {
  * environment value (SNAP_INSTANCE_NAME). All input is untrusted and is
  * validated internally.
  **/
-void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const char *snap_instance);
+void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const char *snap_instance,
+                        const char *component_name);
 
 /**
  * sc_cleanup_invocation is a cleanup function for sc_invocation.

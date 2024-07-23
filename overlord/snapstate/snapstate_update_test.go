@@ -14416,3 +14416,33 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, instanceKey 
 		c.Assert(snapst.Sequence.Revisions[0], DeepEquals, seq.Revisions[0])
 	}
 }
+
+func (s *snapmgrTestSuite) TestRefreshCandidates(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/stable",
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
+		}),
+		Current:  snap.R(2),
+		SnapType: "app",
+	})
+
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "channel-for-7/stable",
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(7)},
+		}),
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	candidates, err := snapstate.RefreshCandidates(s.state, nil)
+	c.Assert(err, IsNil)
+	c.Assert(candidates, HasLen, 1)
+	c.Check(candidates[0].InstanceName(), Equals, "some-snap")
+}
