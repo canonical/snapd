@@ -601,6 +601,7 @@ exclude:
     - cmd/autom4te.cache
     - "*.o"
     - "*.a"
+    - "*.pyc"
     - ./vendor
     - "*.snap"
 
