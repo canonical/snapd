@@ -559,12 +559,7 @@ prepare_project() {
     esac
 
     # Retry go mod vendor to minimize the number of connection errors during the sync
-    for _ in $(seq 10); do
-        if go mod vendor; then
-            break
-        fi
-        sleep 1
-    done
+    retry -n 10 go mod vendor
     # Update C dependencies
     for _ in $(seq 10); do
         if (cd c-vendor && ./vendor.sh); then
