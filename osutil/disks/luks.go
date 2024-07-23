@@ -39,8 +39,8 @@ var (
 	luksUUIDPatternRe = regexp.MustCompile(`^CRYPT-LUKS2-([0-9a-f]{32})$`)
 )
 
-func cryptLuks2DeviceMapperBackResolver(dmUUID, dmName []byte) (dev string, ok bool) {
-	if !strings.HasPrefix(string(dmUUID), "CRYPT-LUKS") {
+func cryptLuks2DeviceMapperBackResolver(opts *deviceMapperBackResolversOpts) (dev string, ok bool) {
+	if !strings.HasPrefix(string(opts.dmUUID), "CRYPT-LUKS") {
 		return "", false
 	}
 
@@ -53,8 +53,8 @@ func cryptLuks2DeviceMapperBackResolver(dmUUID, dmName []byte) (dev string, ok b
 	// we are extra safe here since the dm name could be hypothetically user
 	// controlled via an external USB disk with LVM partition names, etc.
 	dmUUIDSafe := bytes.TrimSuffix(
-		bytes.TrimSpace(dmUUID),
-		append([]byte("-"), bytes.TrimSpace(dmName)...),
+		bytes.TrimSpace(opts.dmUUID),
+		append([]byte("-"), bytes.TrimSpace(opts.dmName)...),
 	)
 	matches := luksUUIDPatternRe.FindSubmatch(dmUUIDSafe)
 	if len(matches) != 2 {

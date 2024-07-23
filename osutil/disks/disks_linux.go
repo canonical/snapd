@@ -458,8 +458,8 @@ func parentPartitionPropsForOptions(props map[string]string) (map[string]string,
 	// 1. have DEVTYPE == disk from udev
 	// 2. have dm files in the sysfs entry for the maj:min of the device
 	if props["DEVTYPE"] != "disk" {
-		// not a decrypted device
-		return nil, fmt.Errorf("not a decrypted device: devtype is not disk (is %s)", props["DEVTYPE"])
+		// not a decrypted or verity device
+		return nil, fmt.Errorf("not a decrypted or verity device: devtype is not disk (is %s)", props["DEVTYPE"])
 	}
 
 	// TODO:UC20: currently, we effectively parse the DM_UUID env variable
@@ -483,7 +483,7 @@ func parentPartitionPropsForOptions(props map[string]string) (map[string]string,
 	//            or not, given that these variables have been observed to
 	//            be missing from the initrd previously, and are not
 	//            available at all during userspace on UC20 for some reason
-	errFmt := "not a decrypted device: could not read device mapper metadata: %v"
+	errFmt := "not a decrypted or verity device: could not read device mapper metadata: %v"
 
 	if props["MAJOR"] == "" {
 		return nil, fmt.Errorf("incomplete udev output missing required property \"MAJOR\"")
@@ -508,7 +508,12 @@ func parentPartitionPropsForOptions(props map[string]string) (map[string]string,
 	dmName = bytes.TrimSpace(dmName)
 
 	for _, resolver := range deviceMapperBackResolvers {
-		if dev, ok := resolver(dmUUID, dmName); ok {
+		opts := &deviceMapperBackResolversOpts{
+			dmUUID:   dmUUID,
+			dmName:   dmName,
+			idFsUUID: props["ID_FS_UUID"],
+		}
+		if dev, ok := resolver(opts); ok {
 			props, err = udevPropertiesForName(dev)
 			if err != nil {
 				return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", dev, err)
@@ -634,7 +639,7 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		return nil, err
 	}
 
-	if opts != nil && opts.IsDecryptedDevice {
+	if opts != nil && (opts.IsDecryptedDevice || opts.IsVerityDevice) {
 		props, err = parentPartitionPropsForOptions(props)
 		if err != nil {
 			return nil, fmt.Errorf("cannot process properties of %v parent device: %v", source, err)

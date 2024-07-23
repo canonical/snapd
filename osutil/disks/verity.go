@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,12 +19,22 @@
 
 package disks
 
-var (
-	UnregisterDeviceMapperBackResolver = unregisterDeviceMapperBackResolver
-
-	CryptLuks2DeviceMapperBackResolver = cryptLuks2DeviceMapperBackResolver
-
-	CryptVerityDeviceMapperBackResolver = cryptVerityDeviceMapperBackResolver
-
-	FilesystemTypeForPartition = filesystemTypeForPartition
+import (
+	"path/filepath"
+	"strings"
 )
+
+func cryptVerityDeviceMapperBackResolver(opts *deviceMapperBackResolversOpts) (dev string, ok bool) {
+	if !strings.HasPrefix(string(opts.dmUUID), "CRYPT-VERITY") {
+		return "", false
+	}
+
+	// this is a verity mounted device
+
+	byUUIDPath := filepath.Join("/dev/disk/by-uuid", opts.idFsUUID)
+	return byUUIDPath, true
+}
+
+func init() {
+	RegisterDeviceMapperBackResolver("crypt-verity", cryptVerityDeviceMapperBackResolver)
+}
