@@ -843,13 +843,13 @@ jobs:
 
           case "${{ matrix.systems }}" in
             *-arm-*)
-              TESTS_USE_PREBUILT_SNAPD_SNAP=false
+              SPREAD_USE_PREBUILT_SNAPD_SNAP=false
               ;;
             *)
-              TESTS_USE_PREBUILT_SNAPD_SNAP=true
+              SPREAD_USE_PREBUILT_SNAPD_SNAP=true
               ;;
           esac
-          export TESTS_USE_PREBUILT_SNAPD_SNAP
+          export SPREAD_USE_PREBUILT_SNAPD_SNAP
 
           if [[ "${{ matrix.systems }}" =~ amazon-linux-2023 ]]; then
               # Amazon Linux 2023 has no xdelta, however we cannot disable
