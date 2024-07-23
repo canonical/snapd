@@ -26,6 +26,46 @@ import (
 	"syscall"
 )
 
+// This is needed to properly split options that could contain an escaped
+// ',' character.
+func SplitMountOptions(s string) []string {
+	var o []string
+
+	var cur strings.Builder
+	escaped := false
+	for _, c := range s {
+		switch c {
+		case '\\':
+			if escaped {
+				cur.WriteRune(c)
+				escaped = false
+			} else {
+				escaped = true
+			}
+		case ',':
+			if escaped {
+				cur.WriteRune(c)
+				escaped = false
+			} else {
+				o = append(o, cur.String())
+				cur.Reset()
+			}
+		default:
+			if escaped {
+				cur.WriteRune('\\')
+				escaped = false
+			}
+			cur.WriteRune(c)
+		}
+	}
+
+	if cur.Len() > 0 {
+		o = append(o, cur.String())
+	}
+
+	return o
+}
+
 // ParseMountEntry parses a fstab-like entry.
 func ParseMountEntry(s string) (MountEntry, error) {
 	var e MountEntry
@@ -76,7 +116,7 @@ func ParseMountEntry(s string) (MountEntry, error) {
 			tailFieldIndex = len(fields) - 2
 			escapedOptions = strings.Join(fields[3:tailFieldIndex], " ")
 		}
-		e.Options = strings.Split(unescape(escapedOptions), ",")
+		e.Options = SplitMountOptions(unescape(escapedOptions))
 	}
 
 	// Parse DumpFrequency if we have one tail field.
