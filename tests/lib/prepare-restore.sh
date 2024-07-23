@@ -383,7 +383,7 @@ prepare_project() {
         rm -rf vendor/*/
 
         # and create a fake upstream tarball
-        tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version|cut -d- -f1)".orig.tar.gz --exclude=./debian --exclude=./.git .
+        tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version|cut -d- -f1)".orig.tar.gz --exclude=./debian --exclude=./.git --exclude='*.pyc' .
 
         # and build a source package - this will be used during the sbuild test
         dpkg-buildpackage -S -uc -us
