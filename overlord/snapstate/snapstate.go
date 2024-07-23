@@ -671,7 +671,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 				// but don't discard this one; its' the thing we're switching to!
 				continue
 			}
-			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.Snap.SnapID, si.Snap.Revision, snapsup.Type)
+			ts, err := removeInactiveRevision(st, snapst, snapsup.InstanceName(), si.Snap.SnapID, si.Snap.Revision, snapsup.Type)
+			if err != nil {
+				return nil, err
+			}
 			addTasksFromTaskSet(ts)
 		}
 
@@ -703,7 +706,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 			if inUse(snapsup.InstanceName(), si.Snap.Revision) {
 				continue
 			}
-			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.Snap.SnapID, si.Snap.Revision, snapsup.Type)
+			ts, err := removeInactiveRevision(st, snapst, snapsup.InstanceName(), si.Snap.SnapID, si.Snap.Revision, snapsup.Type)
+			if err != nil {
+				return nil, err
+			}
 			addTasksFromTaskSet(ts)
 		}
 
@@ -3458,6 +3464,8 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 
 	// only run remove hook if uninstalling the snap completely
 	if removeAll {
+		// TODO:COMPS: Run component remove hooks
+
 		removeHook := SetupRemoveHook(st, snapsup.InstanceName())
 		addNext(state.NewTaskSet(removeHook))
 		prev = removeHook
@@ -3523,22 +3531,39 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 		for i := len(si) - 1; i >= 0; i-- {
 			if i != currentIndex {
 				si := si[i]
-				addNext(removeInactiveRevision(st, name, info.SnapID, si.Revision, snapsup.Type))
+				ts, err := removeInactiveRevision(st, &snapst, name,
+					info.SnapID, si.Revision, snapsup.Type)
+				if err != nil {
+					return nil, 0, err
+				}
+				addNext(ts)
 			}
 		}
 		// add tasks for removing the current revision last,
 		// this is then also when common data will be removed
 		if currentIndex >= 0 {
-			addNext(removeInactiveRevision(st, name, info.SnapID, si[currentIndex].Revision, snapsup.Type))
+			ts, err := removeInactiveRevision(st, &snapst, name,
+				info.SnapID, si[currentIndex].Revision, snapsup.Type)
+			if err != nil {
+				return nil, 0, err
+			}
+			addNext(ts)
 		}
 	} else {
-		addNext(removeInactiveRevision(st, name, info.SnapID, revision, snapsup.Type))
+		ts, err := removeInactiveRevision(st, &snapst, name, info.SnapID, revision,
+			snapsup.Type)
+		if err != nil {
+			return nil, 0, err
+		}
+		addNext(ts)
 	}
 
 	return removeTs, snapshotSize, nil
 }
 
-func removeInactiveRevision(st *state.State, name, snapID string, revision snap.Revision, typ snap.Type) *state.TaskSet {
+func removeInactiveRevision(st *state.State, snapst *SnapState, name, snapID string, revision snap.Revision, typ snap.Type) (*state.TaskSet, error) {
+	var tasks []*state.Task
+
 	snapName, instanceKey := snap.SplitInstanceName(name)
 	snapsup := SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -3551,14 +3576,55 @@ func removeInactiveRevision(st *state.State, name, snapID string, revision snap.
 		// no version info needed
 	}
 
-	clearData := st.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q (%s)"), name, revision))
+	clearData := st.NewTask("clear-snap",
+		fmt.Sprintf(i18n.G("Remove data for snap %q (%s)"), name, revision))
 	clearData.Set("snap-setup", snapsup)
+	tasks = append(tasks, clearData)
 
-	discardSnap := st.NewTask("discard-snap", fmt.Sprintf(i18n.G("Remove snap %q (%s) from the system"), name, revision))
-	discardSnap.WaitFor(clearData)
+	// Discard components first
+	cinfos, err := snapst.ComponentInfosForRevision(revision)
+	if err != nil {
+		return nil, err
+	}
+	discardCompTasks := make([]*state.Task, len(cinfos))
+	for i, cinfo := range cinfos {
+		compsup := ComponentSetup{
+			CompSideInfo: &cinfo.ComponentSideInfo,
+			CompType:     cinfo.Type,
+			componentInstallFlags: componentInstallFlags{
+				SkipProfiles: true,
+			},
+		}
+
+		unlinkComp := st.NewTask("unlink-component", fmt.Sprintf(i18n.G(
+			"Unlink component %q for snap revision %s"),
+			compsup.CompSideInfo.Component, revision.String()))
+		unlinkComp.Set("snap-setup-task", clearData.ID())
+		unlinkComp.Set("component-setup", compsup)
+		unlinkComp.WaitFor(clearData)
+
+		discardComp := st.NewTask("discard-component", fmt.Sprintf(i18n.G(
+			"Discard revision for component %q"),
+			compsup.CompSideInfo.Component))
+		discardComp.Set("snap-setup-task", clearData.ID())
+		discardComp.Set("component-setup-task", unlinkComp.ID())
+		discardComp.WaitFor(unlinkComp)
+		discardCompTasks[i] = discardComp
+
+		tasks = append(tasks, unlinkComp, discardComp)
+	}
+
+	discardSnap := st.NewTask("discard-snap",
+		fmt.Sprintf(i18n.G("Remove snap %q (%s) from the system"), name, revision))
 	discardSnap.Set("snap-setup-task", clearData.ID())
+	if len(discardCompTasks) > 0 {
+		discardSnap.WaitAll(state.NewTaskSet(discardCompTasks...))
+	} else {
+		discardSnap.WaitFor(clearData)
+	}
+	tasks = append(tasks, discardSnap)
 
-	return state.NewTaskSet(clearData, discardSnap)
+	return state.NewTaskSet(tasks...), nil
 }
 
 // RemoveMany removes everything from the given list of names.
@@ -3577,7 +3643,6 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
 
 	for _, name := range names {
-		// TODO:COMPS: remove components
 		ts, snapshotSize, err := removeTasks(st, name, snap.R(0), flags)
 		// FIXME: is this expected behavior?
 		if _, ok := err.(*snap.NotInstalledError); ok {
