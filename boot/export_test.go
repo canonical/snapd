@@ -170,6 +170,7 @@ func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash
 type BootAsset = bootAsset
 type BootChain = bootChain
 type PredictableBootChains = predictableBootChains
+type ResealKeyForBootChainsParams = resealKeyForBootChainsParams
 
 const (
 	BootChainEquivalent   = bootChainEquivalent
@@ -250,14 +251,6 @@ func MockRunFDESetupHook(f fde.RunSetupHookFunc) (restore func()) {
 	oldRunFDESetupHook := RunFDESetupHook
 	RunFDESetupHook = f
 	return func() { RunFDESetupHook = oldRunFDESetupHook }
-}
-
-func MockResealKeyToModeenvUsingFDESetupHook(f func(string, *Modeenv, bool) error) (restore func()) {
-	old := resealKeyToModeenvUsingFDESetupHook
-	resealKeyToModeenvUsingFDESetupHook = f
-	return func() {
-		resealKeyToModeenvUsingFDESetupHook = old
-	}
 }
 
 func MockModeenvLocked() (restore func()) {
