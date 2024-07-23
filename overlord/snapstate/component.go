@@ -174,6 +174,13 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 
 	// We might be replacing a component
 	compInstalled := snapst.IsComponentInCurrentSeq(compSi.Component)
+
+	// note that we don't unlink the currect component if we're also changing
+	// snap revisions while installing this component. that is because we don't
+	// want to remove the component from the state of the previous snap revision
+	// (for the purpose of something like a revert). additionally, this is
+	// consistent with us keeping previous snap revisions mounted after changing
+	// their revision.
 	if compInstalled && !changingSnapRev {
 		unlink := st.NewTask("unlink-current-component", fmt.Sprintf(i18n.G(
 			"Make current revision for component %q unavailable"),
