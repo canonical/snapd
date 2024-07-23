@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
-	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -76,28 +75,14 @@ func (s *SteamSupportInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *SteamSupportInterfaceSuite) TestAppArmorSpecWithAllowAll(c *C) {
-	restore := apparmor_sandbox.MockFeatures(nil, nil, []string{"allow-all"}, nil)
-	defer restore()
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec := apparmor.NewSpecification(appSet)
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	snippet := spec.SnippetForTag("snap.consumer.app")
-	c.Check(snippet, testutil.Contains, "allow all,\n")
-}
+func (s *SteamSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 
-func (s *SteamSupportInterfaceSuite) TestAppArmorSpecWithoutAllowAll(c *C) {
-	restore := apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
-	defer restore()
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	snippet := spec.SnippetForTag("snap.consumer.app")
-	c.Check(snippet, testutil.Contains, "Mimic allow all")
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "mount options=(rw, rbind) /tmp/newroot/ -> /tmp/newroot/,\n")
 }
 
 func (s *SteamSupportInterfaceSuite) TestSecCompSpec(c *C) {
