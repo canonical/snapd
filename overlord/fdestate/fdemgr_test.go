@@ -39,6 +39,7 @@ func (s *fdeMgrSuite) TestGetManagerFromState(c *C) {
 
 	runner := state.NewTaskRunner(st)
 	manager := fdestate.Manager(st, runner)
+	c.Assert(manager.Ensure(), IsNil)
 	st.Lock()
 	defer st.Unlock()
 	foundManager := fdestate.FdeMgr(st)

@@ -23,7 +23,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -47,7 +46,6 @@ var (
 	secbootProvisionTPM              = secboot.ProvisionTPM
 	secbootSealKeys                  = secboot.SealKeys
 	secbootSealKeysWithFDESetupHook  = secboot.SealKeysWithFDESetupHook
-	secbootResealKeys                = secboot.ResealKeys
 	secbootPCRHandleOfSealedKey      = secboot.PCRHandleOfSealedKey
 	secbootReleasePCRResourceHandles = secboot.ReleasePCRResourceHandles
 
@@ -68,17 +66,6 @@ var (
 		return nil, fmt.Errorf("internal error: RunFDESetupHook not set yet")
 	}
 )
-
-// MockSecbootResealKeys is only useful in testing. Note that this is a very low
-// level call and may need significant environment setup.
-func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams) error) (restore func()) {
-	osutil.MustBeTestBinary("secbootResealKeys only can be mocked in tests")
-	old := secbootResealKeys
-	secbootResealKeys = f
-	return func() {
-		secbootResealKeys = old
-	}
-}
 
 // MockResealKeyToModeenv is only useful in testing.
 func MockResealKeyToModeenv(f func(rootdir string, modeenv *Modeenv, expectReseal bool, unlocker Unlocker) error) (restore func()) {
@@ -102,11 +89,11 @@ func MockSealKeyToModeenv(f func(key, saveKey keys.EncryptionKey, model *asserts
 	}
 }
 
-func bootChainsFileUnder(rootdir string) string {
+func BootChainsFileUnder(rootdir string) string {
 	return filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains")
 }
 
-func recoveryBootChainsFileUnder(rootdir string) string {
+func RecoveryBootChainsFileUnder(rootdir string) string {
 	return filepath.Join(dirs.SnapFDEDirUnder(rootdir), "recovery-boot-chains")
 }
 
@@ -264,7 +251,7 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, model *assert
 	}
 	logger.Debugf("run mode bootchain:\n%+v", runModeBootChains)
 
-	pbc := toPredictableBootChains(append(runModeBootChains, recoveryBootChains...))
+	pbc := ToPredictableBootChains(append(runModeBootChains, recoveryBootChains...))
 
 	roleToBlName := map[bootloader.Role]string{
 		bootloader.RoleRecovery: rbl.Name(),
@@ -272,7 +259,7 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, model *assert
 	}
 
 	// the boot chains we seal the fallback object to
-	rpbc := toPredictableBootChains(recoveryBootChains)
+	rpbc := ToPredictableBootChains(recoveryBootChains)
 
 	// gets written to a file by sealRunObjectKeys()
 	authKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -339,13 +326,13 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, model *assert
 		return err
 	}
 
-	installBootChainsPath := bootChainsFileUnder(InstallHostWritableDir(model))
-	if err := writeBootChains(pbc, installBootChainsPath, 0); err != nil {
+	installBootChainsPath := BootChainsFileUnder(InstallHostWritableDir(model))
+	if err := WriteBootChains(pbc, installBootChainsPath, 0); err != nil {
 		return err
 	}
 
-	installRecoveryBootChainsPath := recoveryBootChainsFileUnder(InstallHostWritableDir(model))
-	if err := writeBootChains(rpbc, installRecoveryBootChainsPath, 0); err != nil {
+	installRecoveryBootChainsPath := RecoveryBootChainsFileUnder(InstallHostWritableDir(model))
+	if err := WriteBootChains(rpbc, installRecoveryBootChainsPath, 0); err != nil {
 		return err
 	}
 
@@ -363,8 +350,8 @@ func usesAltPCRHandles() (bool, error) {
 	return handle == secboot.AltFallbackObjectPCRPolicyCounterHandle, nil
 }
 
-func sealRunObjectKeys(key keys.EncryptionKey, pbc predictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string, pcrHandle uint32) error {
-	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
+func sealRunObjectKeys(key keys.EncryptionKey, pbc PredictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string, pcrHandle uint32) error {
+	modelParams, err := SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
 		return fmt.Errorf("cannot prepare for key sealing: %v", err)
 	}
@@ -389,9 +376,9 @@ func sealRunObjectKeys(key keys.EncryptionKey, pbc predictableBootChains, authKe
 	return nil
 }
 
-func sealFallbackObjectKeys(key, saveKey keys.EncryptionKey, pbc predictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string, factoryReset bool, pcrHandle uint32) error {
+func sealFallbackObjectKeys(key, saveKey keys.EncryptionKey, pbc PredictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string, factoryReset bool, pcrHandle uint32) error {
 	// also seal the keys to the recovery bootchains as a fallback
-	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
+	modelParams, err := SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
 		return fmt.Errorf("cannot prepare for fallback key sealing: %v", err)
 	}
@@ -442,11 +429,11 @@ func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool,
 	return resealKeyToModeenvForMethod(method, rootdir, modeenv, expectReseal)
 }
 
-type resealKeyForBootChainsParams struct {
-	runModeBootChains           []bootChain
-	recoveryBootChainsForRunKey []bootChain
-	recoveryBootChains          []bootChain
-	roleToBlName                map[bootloader.Role]string
+type ResealKeyForBootChainsParams struct {
+	RunModeBootChains           []bootChain
+	RecoveryBootChainsForRunKey []bootChain
+	RecoveryBootChains          []bootChain
+	RoleToBlName                map[bootloader.Role]string
 }
 
 // TODO:UC20: allow more than one model to accommodate the remodel scenario
@@ -458,7 +445,7 @@ func resealKeyToModeenvForMethod(method device.SealingMethod, rootdir string, mo
 		requiresBootChains = false
 	}
 
-	params := &resealKeyForBootChainsParams{}
+	params := &ResealKeyForBootChainsParams{}
 
 	if requiresBootChains {
 		// build the recovery mode boot chain
@@ -481,7 +468,7 @@ func resealKeyToModeenvForMethod(method device.SealingMethod, rootdir string, mo
 		// a run key, the boot chains are generated for both models to
 		// accommodate the dynamics of a remodel
 		includeTryModel := true
-		params.recoveryBootChainsForRunKey, err = recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, modes, tbl,
+		params.RecoveryBootChainsForRunKey, err = recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, modes, tbl,
 			modeenv, includeTryModel, dirs.SnapSeedDir)
 		if err != nil {
 			return fmt.Errorf("cannot compose recovery boot chains for run key: %v", err)
@@ -500,7 +487,7 @@ func resealKeyToModeenvForMethod(method device.SealingMethod, rootdir string, mo
 		// use the current model as the recovery keys are not expected to be
 		// used during a remodel
 		includeTryModel = false
-		params.recoveryBootChains, err = recoveryBootChainsForSystems(testedRecoverySystems, modes, tbl, modeenv, includeTryModel, dirs.SnapSeedDir)
+		params.RecoveryBootChains, err = recoveryBootChainsForSystems(testedRecoverySystems, modes, tbl, modeenv, includeTryModel, dirs.SnapSeedDir)
 		if err != nil {
 			return fmt.Errorf("cannot compose recovery boot chains: %v", err)
 		}
@@ -517,142 +504,25 @@ func resealKeyToModeenvForMethod(method device.SealingMethod, rootdir string, mo
 		if err != nil {
 			return err
 		}
-		params.runModeBootChains, err = runModeBootChains(rbl, bl, modeenv, cmdlines, "")
+		params.RunModeBootChains, err = runModeBootChains(rbl, bl, modeenv, cmdlines, "")
 		if err != nil {
 			return fmt.Errorf("cannot compose run mode boot chains: %v", err)
 		}
 
-		params.roleToBlName = map[bootloader.Role]string{
+		params.RoleToBlName = map[bootloader.Role]string{
 			bootloader.RoleRecovery: rbl.Name(),
 			bootloader.RoleRunMode:  bl.Name(),
 		}
 	}
 
-	return resealKeyForBootChains(method, rootdir, params, expectReseal)
+	return ResealKeyForBootChains(method, rootdir, params, expectReseal)
 }
 
-func resealKeyForBootChainsImpl(method device.SealingMethod, rootdir string, params *resealKeyForBootChainsParams, expectReseal bool) error {
-	switch method {
-	case device.SealingMethodFDESetupHook:
-		// FIXME: do something
-		return nil
-	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
-	default:
-		return fmt.Errorf("unknown key sealing method: %q", method)
-	}
-
-	saveFDEDir := dirs.SnapFDEDirUnderSave(dirs.SnapSaveDirUnder(rootdir))
-	authKeyFile := filepath.Join(saveFDEDir, "tpm-policy-auth-key")
-
-	// reseal the run object
-	pbc := toPredictableBootChains(append(params.runModeBootChains, params.recoveryBootChainsForRunKey...))
-
-	needed, nextCount, err := isResealNeeded(pbc, bootChainsFileUnder(rootdir), expectReseal)
-	if err != nil {
-		return err
-	}
-	if needed {
-		pbcJSON, _ := json.Marshal(pbc)
-		logger.Debugf("resealing (%d) to boot chains: %s", nextCount, pbcJSON)
-
-		if err := resealRunObjectKeys(pbc, authKeyFile, params.roleToBlName); err != nil {
-			return err
-		}
-		logger.Debugf("resealing (%d) succeeded", nextCount)
-
-		bootChainsPath := bootChainsFileUnder(rootdir)
-		if err := writeBootChains(pbc, bootChainsPath, nextCount); err != nil {
-			return err
-		}
-	} else {
-		logger.Debugf("reseal not necessary")
-	}
-
-	// reseal the fallback object
-	rpbc := toPredictableBootChains(params.recoveryBootChains)
-
-	var nextFallbackCount int
-	needed, nextFallbackCount, err = isResealNeeded(rpbc, recoveryBootChainsFileUnder(rootdir), expectReseal)
-	if err != nil {
-		return err
-	}
-	if needed {
-		rpbcJSON, _ := json.Marshal(rpbc)
-		logger.Debugf("resealing (%d) to recovery boot chains: %s", nextFallbackCount, rpbcJSON)
-
-		if err := resealFallbackObjectKeys(rpbc, authKeyFile, params.roleToBlName); err != nil {
-			return err
-		}
-		logger.Debugf("fallback resealing (%d) succeeded", nextFallbackCount)
-
-		recoveryBootChainsPath := recoveryBootChainsFileUnder(rootdir)
-		if err := writeBootChains(rpbc, recoveryBootChainsPath, nextFallbackCount); err != nil {
-			return err
-		}
-	} else {
-		logger.Debugf("fallback reseal not necessary")
-	}
-
-	return nil
+func resealKeyForBootChainsImpl(method device.SealingMethod, rootdir string, params *ResealKeyForBootChainsParams, expectReseal bool) error {
+	return fmt.Errorf("FDE manager was not started")
 }
 
-var resealKeyForBootChains = resealKeyForBootChainsImpl
-
-func MockResealKeyForBootChains(f func(method device.SealingMethod, rootdir string, params *resealKeyForBootChainsParams, expectReseal bool) error) (restore func()) {
-	osutil.MustBeTestBinary("resealKeyForBootChains only can be mocked in tests")
-	old := resealKeyForBootChains
-	resealKeyForBootChains = f
-	return func() {
-		resealKeyForBootChains = old
-	}
-}
-
-func resealRunObjectKeys(pbc predictableBootChains, authKeyFile string, roleToBlName map[bootloader.Role]string) error {
-	// get model parameters from bootchains
-	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
-	if err != nil {
-		return fmt.Errorf("cannot prepare for key resealing: %v", err)
-	}
-
-	// list all the key files to reseal
-	keyFiles := []string{device.DataSealedKeyUnder(InitramfsBootEncryptionKeyDir)}
-
-	resealKeyParams := &secboot.ResealKeysParams{
-		ModelParams:          modelParams,
-		KeyFiles:             keyFiles,
-		TPMPolicyAuthKeyFile: authKeyFile,
-	}
-	if err := secbootResealKeys(resealKeyParams); err != nil {
-		return fmt.Errorf("cannot reseal the encryption key: %v", err)
-	}
-
-	return nil
-}
-
-func resealFallbackObjectKeys(pbc predictableBootChains, authKeyFile string, roleToBlName map[bootloader.Role]string) error {
-	// get model parameters from bootchains
-	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
-	if err != nil {
-		return fmt.Errorf("cannot prepare for fallback key resealing: %v", err)
-	}
-
-	// list all the key files to reseal
-	keyFiles := []string{
-		device.FallbackDataSealedKeyUnder(InitramfsSeedEncryptionKeyDir),
-		device.FallbackSaveSealedKeyUnder(InitramfsSeedEncryptionKeyDir),
-	}
-
-	resealKeyParams := &secboot.ResealKeysParams{
-		ModelParams:          modelParams,
-		KeyFiles:             keyFiles,
-		TPMPolicyAuthKeyFile: authKeyFile,
-	}
-	if err := secbootResealKeys(resealKeyParams); err != nil {
-		return fmt.Errorf("cannot reseal the fallback encryption keys: %v", err)
-	}
-
-	return nil
-}
+var ResealKeyForBootChains = resealKeyForBootChainsImpl
 
 // recoveryModesForSystems returns a map for recovery modes for recovery systems
 // mentioned in the modeenv. The returned map contains both tested and candidate
@@ -919,7 +789,7 @@ func buildBootAssets(bootFiles []bootloader.BootFile, modeenv *Modeenv, trustedA
 	return assets, bootFiles[len(bootFiles)-1], nil
 }
 
-func sealKeyModelParams(pbc predictableBootChains, roleToBlName map[bootloader.Role]string) ([]*secboot.SealKeyModelParams, error) {
+func SealKeyModelParams(pbc PredictableBootChains, roleToBlName map[bootloader.Role]string) ([]*secboot.SealKeyModelParams, error) {
 	// seal parameters keyed by unique model ID
 	modelToParams := map[string]*secboot.SealKeyModelParams{}
 	modelParams := make([]*secboot.SealKeyModelParams, 0, len(pbc))
@@ -952,13 +822,13 @@ func sealKeyModelParams(pbc predictableBootChains, roleToBlName map[bootloader.R
 	return modelParams, nil
 }
 
-// isResealNeeded returns true when the predictable boot chains provided as
+// IsResealNeeded returns true when the predictable boot chains provided as
 // input do not match the cached boot chains on disk under rootdir.
 // It also returns the next value for the reseal count that is saved
 // together with the boot chains.
 // A hint expectReseal can be provided, it is used when the matching
 // is ambigous because the boot chains contain unrevisioned kernels.
-func isResealNeeded(pbc predictableBootChains, bootChainsFile string, expectReseal bool) (ok bool, nextCount int, err error) {
+func IsResealNeeded(pbc PredictableBootChains, bootChainsFile string, expectReseal bool) (ok bool, nextCount int, err error) {
 	previousPbc, c, err := readBootChains(bootChainsFile)
 	if err != nil {
 		return false, 0, err
