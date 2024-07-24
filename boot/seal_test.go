@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
+	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
@@ -57,6 +58,9 @@ var _ = Suite(&sealSuite{})
 
 func (s *sealSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
+	restore := boot.MockResealKeyForBootChains(fdeBackend.ResealKeyForBootChains)
+	s.AddCleanup(restore)
 
 	rootdir := c.MkDir()
 	dirs.SetRootDir(rootdir)
@@ -666,7 +670,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 
 		// set mock key resealing
 		resealKeysCalls := 0
-		restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 			c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
 
 			resealKeysCalls++
@@ -1130,7 +1134,7 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 
 	// set mock key resealing
 	resealKeysCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
 
 		resealKeysCalls++
@@ -1406,7 +1410,7 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 
 	// set mock key resealing
 	resealKeysCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
 		c.Assert(params.ModelParams, HasLen, 1)
 		c.Logf("reseal: %+v", params)
@@ -2395,7 +2399,7 @@ func (s *sealSuite) testResealKeyToModeenvWithTryModel(c *C, shimId, grubId stri
 
 	// set mock key resealing
 	resealKeysCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
 		c.Logf("got:")
 		for _, mp := range params.ModelParams {
