@@ -2431,6 +2431,12 @@ type RevisionOptions struct {
 	LeaveCohort    bool
 }
 
+func (r *RevisionOptions) setChannelIfUnset(channel string) {
+	if r.Channel == "" {
+		r.Channel = channel
+	}
+}
+
 // resolveChannel conditionally resolves the channel for the given snap. If the
 // the revision is set and the channel is empty, then we assume that the caller
 // wants to install by revision and do not mutate the channel.

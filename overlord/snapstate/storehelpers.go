@@ -694,17 +694,14 @@ func storeUpdatePlanCore(
 		// if we still have no channel here, this means that we refreshed
 		// by-revision without specifying a channel. make sure we continue to
 		// track the channel that the snap is currently on
-		channel := up.RevOpts.Channel
-		if channel == "" {
-			channel = snapst.TrackingChannel
-		}
+		up.RevOpts.setChannelIfUnset(snapst.TrackingChannel)
 
 		plan.targets = append(plan.targets, target{
 			info:   sar.Info,
 			snapst: *snapst,
 			setup: SnapSetup{
 				DownloadInfo: &sar.DownloadInfo,
-				Channel:      channel,
+				Channel:      up.RevOpts.Channel,
 				CohortKey:    up.RevOpts.CohortKey,
 			},
 			components: compTargets,
@@ -743,21 +740,17 @@ func storeUpdatePlanCore(
 				CompType:     compInfo.Type,
 			})
 		}
-
-		channel := revOpts.Channel
-		if channel == "" {
-			channel = snapst.TrackingChannel
-		}
+		revOpts.setChannelIfUnset(snapst.TrackingChannel)
 
 		// make sure that we switch the current channel of the snap that we're
 		// switching to
-		info.Channel = channel
+		info.Channel = revOpts.Channel
 
 		plan.targets = append(plan.targets, target{
 			info:   info,
 			snapst: *snapst,
 			setup: SnapSetup{
-				Channel:   channel,
+				Channel:   revOpts.Channel,
 				CohortKey: revOpts.CohortKey,
 				SnapPath:  info.MountFile(),
 
