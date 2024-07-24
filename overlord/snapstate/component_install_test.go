@@ -390,7 +390,9 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresent(c *C) {
 		snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyComponentInstallTasks(c, compOptIsLocal|compOptRevisionPresent|compOptIsActive|compCurrentIsDiscarded, ts)
+	// note that we don't discard the component here, since the component
+	// revision is the same as the one we install
+	verifyComponentInstallTasks(c, compOptIsLocal|compOptRevisionPresent|compOptIsActive, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	// Temporary file is deleted as component file is already in the system
 	c.Assert(osutil.FileExists(compPath), Equals, false)
