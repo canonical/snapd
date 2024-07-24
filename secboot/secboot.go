@@ -66,8 +66,8 @@ func NewLoadChain(bf bootloader.BootFile, next ...*LoadChain) *LoadChain {
 }
 
 type SealKeyRequest struct {
-	// The key to seal
-	Key keys.EncryptionKey
+	// The installation key to enroll a new key slot
+	BootstrappedContainer BootstrappedContainer
 	// The key name; identical keys should have identical names
 	KeyName string
 	// The path to store the sealed key file. The same Key/KeyName

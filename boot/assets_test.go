@@ -38,7 +38,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -479,13 +478,16 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
-	obs.ChosenEncryptionKeys(keys.EncryptionKey{1, 2, 3, 4}, keys.EncryptionKey{5, 6, 7, 8})
+	dataBootstrappedContainer := secboot.CreateMockBootstrappedContainer()
+	saveBootstrappedContainer := secboot.CreateMockBootstrappedContainer()
+	c.Assert(dataBootstrappedContainer, Not(Equals), saveBootstrappedContainer)
+	obs.SetBootstrappedContainers(dataBootstrappedContainer, saveBootstrappedContainer)
 
 	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
 	c.Assert(ok, Equals, true)
 
-	c.Check(observerImpl.CurrentDataEncryptionKey(), DeepEquals, keys.EncryptionKey{1, 2, 3, 4})
-	c.Check(observerImpl.CurrentSaveEncryptionKey(), DeepEquals, keys.EncryptionKey{5, 6, 7, 8})
+	c.Check(observerImpl.CurrentDataBootstrappedContainer(), DeepEquals, dataBootstrappedContainer)
+	c.Check(observerImpl.CurrentSaveBootstrappedContainer(), DeepEquals, saveBootstrappedContainer)
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
@@ -504,13 +506,15 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
-	obs.ChosenEncryptionKeys(keys.EncryptionKey{1, 2, 3, 4}, keys.EncryptionKey{5, 6, 7, 8})
+	dataBootstrappedContainer := secboot.CreateMockBootstrappedContainer()
+	saveBootstrappedContainer := secboot.CreateMockBootstrappedContainer()
+	obs.SetBootstrappedContainers(dataBootstrappedContainer, saveBootstrappedContainer)
 
 	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
 	c.Assert(ok, Equals, true)
 
-	c.Check(observerImpl.CurrentDataEncryptionKey(), DeepEquals, keys.EncryptionKey{1, 2, 3, 4})
-	c.Check(observerImpl.CurrentSaveEncryptionKey(), DeepEquals, keys.EncryptionKey{5, 6, 7, 8})
+	c.Check(observerImpl.CurrentDataBootstrappedContainer(), DeepEquals, dataBootstrappedContainer)
+	c.Check(observerImpl.CurrentSaveBootstrappedContainer(), DeepEquals, saveBootstrappedContainer)
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {

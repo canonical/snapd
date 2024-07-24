@@ -373,17 +373,14 @@ fi
 	sys, err := install.Run(uc20Mod, gadgetRoot, &install.KernelSnapInfo{}, "", runOpts, nil, timings.New(nil))
 	c.Assert(err, IsNil)
 	if opts.encryption {
-		c.Check(sys, Not(IsNil))
-		c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{
-			KeyForRole: map[string]keys.EncryptionKey{
-				gadget.SystemData: dataEncryptionKey,
-				gadget.SystemSave: saveEncryptionKey,
-			},
-			DeviceForRole: map[string]string{
-				"system-boot": "/dev/mmcblk0p2",
-				"system-save": "/dev/mmcblk0p3",
-				"system-data": "/dev/mmcblk0p4",
-			},
+		c.Assert(sys, Not(IsNil))
+		c.Assert(sys.BootstrappedContainerForRole, HasLen, 2)
+		c.Check(sys.BootstrappedContainerForRole[gadget.SystemData].LegacyKeptKey(), DeepEquals, secboot.DiskUnlockKey(dataEncryptionKey))
+		c.Check(sys.BootstrappedContainerForRole[gadget.SystemSave].LegacyKeptKey(), DeepEquals, secboot.DiskUnlockKey(saveEncryptionKey))
+		c.Check(sys.DeviceForRole, DeepEquals, map[string]string{
+			"system-boot": "/dev/mmcblk0p2",
+			"system-save": "/dev/mmcblk0p3",
+			"system-data": "/dev/mmcblk0p4",
 		})
 	} else {
 		c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{
@@ -799,12 +796,9 @@ fi
 			DeviceForRole: devsForRoles,
 		})
 	} else {
-		c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{
-			KeyForRole: map[string]keys.EncryptionKey{
-				gadget.SystemData: dataPrimaryKey,
-			},
-			DeviceForRole: devsForRoles,
-		})
+		c.Check(sys.DeviceForRole, DeepEquals, devsForRoles)
+		c.Assert(sys.BootstrappedContainerForRole, HasLen, 1)
+		c.Check(sys.BootstrappedContainerForRole[gadget.SystemData].LegacyKeptKey(), DeepEquals, secboot.DiskUnlockKey(dataPrimaryKey))
 	}
 
 	c.Assert(mockSfdisk.Calls(), HasLen, 0)

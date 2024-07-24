@@ -299,7 +299,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if useEncryption {
-		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.KeyForRole, trustedInstallObserver); err != nil {
+		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.BootstrappedContainerForRole, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
@@ -615,13 +615,15 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 			return fmt.Errorf("internal error: no system-save device")
 		}
 
+		saveBootstrappedContainer := secboot.CreateBootstrappedContainer(saveEncryptionKey, saveNode)
+
 		if err := secbootStageEncryptionKeyChange(saveNode, saveEncryptionKey); err != nil {
 			return fmt.Errorf("cannot change encryption keys: %v", err)
 		}
 		// keep track of the new ubuntu-save encryption key
-		installedSystem.KeyForRole[gadget.SystemSave] = saveEncryptionKey
+		installedSystem.BootstrappedContainerForRole[gadget.SystemSave] = saveBootstrappedContainer
 
-		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.KeyForRole, trustedInstallObserver); err != nil {
+		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.BootstrappedContainerForRole, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
@@ -1085,7 +1087,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 
 	if useEncryption {
 		if trustedInstallObserver != nil {
-			if err := installLogic.PrepareEncryptedSystemData(systemAndSnaps.Model, install.KeysForRole(encryptSetupData), trustedInstallObserver); err != nil {
+			if err := installLogic.PrepareEncryptedSystemData(systemAndSnaps.Model, install.BootstrappedContainersForRole(encryptSetupData), trustedInstallObserver); err != nil {
 				return err
 			}
 		}

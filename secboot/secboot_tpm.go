@@ -395,8 +395,11 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 
 	sbKeys := make([]*sb_tpm2.SealKeyRequest, 0, len(keys))
 	for i := range keys {
+		// TODO: we will create a new sealed key here and add
+		// it to a key slot instead of sealing the bootstrap
+		// key.
 		sbKeys = append(sbKeys, &sb_tpm2.SealKeyRequest{
-			Key:  keys[i].Key,
+			Key:  keys[i].BootstrappedContainer.LegacyKeptKey(),
 			Path: keys[i].KeyFile,
 		})
 	}

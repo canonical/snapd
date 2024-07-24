@@ -255,15 +255,15 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		brOpts = options
 		installSealingObserver = obs
 		installRunCalled++
-		var keyForRole map[string]keys.EncryptionKey
+		var installKeyForRole map[string]secboot.BootstrappedContainer
 		if tc.encrypt {
-			keyForRole = map[string]keys.EncryptionKey{
-				gadget.SystemData: dataEncryptionKey,
-				gadget.SystemSave: saveKey,
+			installKeyForRole = map[string]secboot.BootstrappedContainer{
+				gadget.SystemData: secboot.CreateBootstrappedContainer(dataEncryptionKey, ""),
+				gadget.SystemSave: secboot.CreateBootstrappedContainer(saveKey, ""),
 			}
 		}
 		return &install.InstalledSystemSideData{
-			KeyForRole: keyForRole,
+			BootstrappedContainerForRole: installKeyForRole,
 		}, nil
 	})
 	defer restore()
@@ -1210,7 +1210,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallEncryptionValidityChecksNoSystemD
 		// no keys set
 		return &install.InstalledSystemSideData{
 			// empty map
-			KeyForRole: map[string]keys.EncryptionKey{},
+			BootstrappedContainerForRole: map[string]secboot.BootstrappedContainer{},
 		}, nil
 	})
 	defer restore()
@@ -1568,11 +1568,11 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		brOpts = options
 		installSealingObserver = obs
 		installFactoryResetCalled++
-		var keyForRole map[string]keys.EncryptionKey
+		var installKeyForRole map[string]secboot.BootstrappedContainer
 		if tc.encrypt {
-			keyForRole = map[string]keys.EncryptionKey{
-				gadget.SystemData: dataEncryptionKey,
-				gadget.SystemSave: saveKey,
+			installKeyForRole = map[string]secboot.BootstrappedContainer{
+				gadget.SystemData: secboot.CreateBootstrappedContainer(dataEncryptionKey, ""),
+				gadget.SystemSave: secboot.CreateBootstrappedContainer(saveKey, ""),
 			}
 		}
 		devForRole := map[string]string{
@@ -1583,8 +1583,8 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		}
 		c.Assert(os.MkdirAll(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), 0755), IsNil)
 		return &install.InstalledSystemSideData{
-			KeyForRole:    keyForRole,
-			DeviceForRole: devForRole,
+			BootstrappedContainerForRole: installKeyForRole,
+			DeviceForRole:                devForRole,
 		}, nil
 	})
 	defer restore()

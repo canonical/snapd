@@ -44,7 +44,6 @@ import (
 	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -528,7 +527,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 			return nil
 		})
 		s.AddCleanup(restore)
-		restore = boot.MockSealKeyToModeenv(func(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *boot.Modeenv, flags boot.MockSealKeyToModeenvFlags) error {
+		restore = boot.MockSealKeyToModeenv(func(key, saveKey secboot.BootstrappedContainer, model *asserts.Model, modeenv *boot.Modeenv, flags boot.MockSealKeyToModeenvFlags) error {
 			c.Check(model.Classic(), Equals, opts.installClassic)
 			// Note that we cannot compare the full structure and we check
 			// separately bits as the types for these are not exported.
