@@ -182,12 +182,12 @@ func (b byBootChainOrder) Less(i, j int) bool {
 	return false
 }
 
-type predictableBootChains []bootChain
+type PredictableBootChains []bootChain
 
 // hasUnrevisionedKernels returns true if any of the chains have an
 // unrevisioned kernel. Revisions will not be set for unasserted
 // kernels.
-func (pbc predictableBootChains) hasUnrevisionedKernels() bool {
+func (pbc PredictableBootChains) hasUnrevisionedKernels() bool {
 	for i := range pbc {
 		if pbc[i].KernelRevision == "" {
 			return true
@@ -196,7 +196,7 @@ func (pbc predictableBootChains) hasUnrevisionedKernels() bool {
 	return false
 }
 
-func toPredictableBootChains(chains []bootChain) predictableBootChains {
+func ToPredictableBootChains(chains []bootChain) PredictableBootChains {
 	if chains == nil {
 		return nil
 	}
@@ -221,7 +221,7 @@ const (
 // are clearly different it returns bootChainDifferent.
 // If it would return bootChainEquivalent but the chains contain
 // unrevisioned kernels it will return bootChainUnrevisioned.
-func predictableBootChainsEqualForReseal(pb1, pb2 predictableBootChains) bootChainEquivalence {
+func predictableBootChainsEqualForReseal(pb1, pb2 PredictableBootChains) bootChainEquivalence {
 	pb1JSON, err := json.Marshal(pb1)
 	if err != nil {
 		return bootChainDifferent
@@ -308,10 +308,10 @@ func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFi
 // other information
 type predictableBootChainsWrapperForStorage struct {
 	ResealCount int                   `json:"reseal-count"`
-	BootChains  predictableBootChains `json:"boot-chains"`
+	BootChains  PredictableBootChains `json:"boot-chains"`
 }
 
-func readBootChains(path string) (pbc predictableBootChains, resealCount int, err error) {
+func readBootChains(path string) (pbc PredictableBootChains, resealCount int, err error) {
 	inf, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -327,7 +327,7 @@ func readBootChains(path string) (pbc predictableBootChains, resealCount int, er
 	return wrapped.BootChains, wrapped.ResealCount, nil
 }
 
-func writeBootChains(pbc predictableBootChains, path string, resealCount int) error {
+func WriteBootChains(pbc PredictableBootChains, path string, resealCount int) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("cannot create device fde state directory: %v", err)
 	}
