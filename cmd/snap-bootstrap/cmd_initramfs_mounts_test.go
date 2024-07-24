@@ -7977,7 +7977,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunMissingFdeSetup(c
 type MockObserver struct {
 	BootLoaderSupportsEfiVariablesFunc       func() bool
 	ObserveExistingTrustedRecoveryAssetsFunc func(recoveryRootDir string) error
-	ChosenEncryptionKeysFunc                 func(key, saveKey keys.EncryptionKey)
+	SetBootstrappedContainersFunc            func(key, saveKey secboot.BootstrappedContainer)
 	UpdateBootEntryFunc                      func() error
 	ObserveFunc                              func(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error)
 }
@@ -7990,8 +7990,8 @@ func (m *MockObserver) ObserveExistingTrustedRecoveryAssets(recoveryRootDir stri
 	return m.ObserveExistingTrustedRecoveryAssetsFunc(recoveryRootDir)
 }
 
-func (m *MockObserver) ChosenEncryptionKeys(key, saveKey keys.EncryptionKey) {
-	m.ChosenEncryptionKeysFunc(key, saveKey)
+func (m *MockObserver) SetBootstrappedContainers(key, saveKey secboot.BootstrappedContainer) {
+	m.SetBootstrappedContainersFunc(key, saveKey)
 }
 
 func (m *MockObserver) UpdateBootEntry() error {
@@ -8078,11 +8078,11 @@ echo '{"features":[]}'
 		c.Assert(gadgetRoot, Equals, filepath.Join(boot.InitramfsRunMntDir, "gadget"))
 		c.Assert(kernelSnapInfo.MountPoint, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
 
-		keyForRole := map[string]keys.EncryptionKey{
-			gadget.SystemData: dataKey,
-			gadget.SystemSave: saveKey,
+		installKeyForRole := map[string]secboot.BootstrappedContainer{
+			gadget.SystemData: secboot.CreateBootstrappedContainer(dataKey, ""),
+			gadget.SystemSave: secboot.CreateBootstrappedContainer(saveKey, ""),
 		}
-		return &gadgetInstall.InstalledSystemSideData{KeyForRole: keyForRole}, nil
+		return &gadgetInstall.InstalledSystemSideData{BootstrappedContainerForRole: installKeyForRole}, nil
 	})
 	defer restoreGadgetInstall()
 
@@ -8130,7 +8130,7 @@ echo '{"features":[]}'
 			observeExistingTrustedRecoveryAssetsCalled += 1
 			return nil
 		},
-		ChosenEncryptionKeysFunc: func(key, saveKey keys.EncryptionKey) {
+		SetBootstrappedContainersFunc: func(key, saveKey secboot.BootstrappedContainer) {
 		},
 		UpdateBootEntryFunc: func() error {
 			return nil
@@ -8287,7 +8287,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresen
 			observeExistingTrustedRecoveryAssetsCalled += 1
 			return nil
 		},
-		ChosenEncryptionKeysFunc: func(key, saveKey keys.EncryptionKey) {
+		SetBootstrappedContainersFunc: func(key, saveKey secboot.BootstrappedContainer) {
 		},
 		UpdateBootEntryFunc: func() error {
 			return nil

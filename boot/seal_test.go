@@ -42,7 +42,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -222,12 +221,8 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		})
 
 		// set encryption key
-		myKey := keys.EncryptionKey{}
-		myKey2 := keys.EncryptionKey{}
-		for i := range myKey {
-			myKey[i] = byte(i)
-			myKey2[i] = byte(128 + i)
-		}
+		myKey := secboot.CreateMockBootstrappedContainer()
+		myKey2 := secboot.CreateMockBootstrappedContainer()
 
 		// set a mock recovery kernel
 		readSystemEssentialCalls := 0
@@ -289,7 +284,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 				c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-policy-auth-key"))
 
 				dataKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key")
-				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{Key: myKey, KeyName: "ubuntu-data", KeyFile: dataKeyFile}})
+				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{BootstrappedContainer: myKey, KeyName: "ubuntu-data", KeyFile: dataKeyFile}})
 				if tc.pcrHandleOfKey == secboot.FallbackObjectPCRPolicyCounterHandle {
 					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltRunObjectPCRPolicyCounterHandle)
 				} else {
@@ -305,7 +300,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 					// during factory reset we use a different key location
 					saveKeyFile = filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory-reset")
 				}
-				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{Key: myKey, KeyName: "ubuntu-data", KeyFile: dataKeyFile}, {Key: myKey2, KeyName: "ubuntu-save", KeyFile: saveKeyFile}})
+				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{BootstrappedContainer: myKey, KeyName: "ubuntu-data", KeyFile: dataKeyFile}, {BootstrappedContainer: myKey2, KeyName: "ubuntu-save", KeyFile: saveKeyFile}})
 				if tc.pcrHandleOfKey == secboot.FallbackObjectPCRPolicyCounterHandle {
 					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltFallbackObjectPCRPolicyCounterHandle)
 				} else {
@@ -2157,13 +2152,24 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 		return key, nil
 	})
 	defer restore()
+	key := secboot.CreateMockBootstrappedContainer()
+	saveKey := secboot.CreateMockBootstrappedContainer()
 	keyToSave := make(map[string][]byte)
 	restore = boot.MockSecbootSealKeysWithFDESetupHook(func(runHook fde.RunSetupHookFunc, skrs []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error {
 		c.Check(params.Model.Model(), Equals, model.Model())
+		c.Check(params.Model.Model(), Equals, model.Model())
 		c.Check(params.AuxKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "aux-key"))
 		for _, skr := range skrs {
+			var expectedBootstrappedContainer secboot.BootstrappedContainer
+			switch skr.KeyName {
+			case "ubuntu-data":
+				expectedBootstrappedContainer = key
+			case "ubuntu-save":
+				expectedBootstrappedContainer = saveKey
+			}
+			c.Assert(skr.BootstrappedContainer, Equals, expectedBootstrappedContainer)
 			out, err := runHook(&fde.SetupRequest{
-				Key:     skr.Key,
+				Key:     []byte{1, 2, 3, 4},
 				KeyName: skr.KeyName,
 			})
 			c.Assert(err, IsNil)
@@ -2180,8 +2186,6 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
 	}
-	key := keys.EncryptionKey{1, 2, 3, 4}
-	saveKey := keys.EncryptionKey{5, 6, 7, 8}
 
 	defer boot.MockModeenvLocked()()
 
@@ -2189,9 +2193,9 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookReqs, DeepEquals, []*fde.SetupRequest{
-		{Key: key, KeyName: "ubuntu-data"},
-		{Key: key, KeyName: "ubuntu-data"},
-		{Key: saveKey, KeyName: "ubuntu-save"},
+		{Key: []byte{1, 2, 3, 4}, KeyName: "ubuntu-data"},
+		{Key: []byte{1, 2, 3, 4}, KeyName: "ubuntu-data"},
+		{Key: []byte{1, 2, 3, 4}, KeyName: "ubuntu-save"},
 	})
 	// check that the sealed keys got written to the expected places
 	for i, p := range []string{
@@ -2221,8 +2225,8 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	modeenv := &boot.Modeenv{
 		RecoverySystem: "20200825",
 	}
-	key := keys.EncryptionKey{1, 2, 3, 4}
-	saveKey := keys.EncryptionKey{5, 6, 7, 8}
+	key := secboot.CreateMockBootstrappedContainer()
+	saveKey := secboot.CreateMockBootstrappedContainer()
 
 	defer boot.MockModeenvLocked()()
 
