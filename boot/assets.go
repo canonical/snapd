@@ -37,7 +37,7 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -256,7 +256,7 @@ func isAssetHashTrackedInMap(bam bootAssetsMap, assetName, assetHash string) boo
 type TrustedAssetsInstallObserver interface {
 	BootLoaderSupportsEfiVariables() bool
 	ObserveExistingTrustedRecoveryAssets(recoveryRootDir string) error
-	ChosenEncryptionKeys(key, saveKey keys.EncryptionKey)
+	SetBootstrappedContainers(key, saveKey secboot.BootstrappedContainer)
 	UpdateBootEntry() error
 	Observe(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error)
 }
@@ -279,9 +279,9 @@ type trustedAssetsInstallObserverImpl struct {
 	trustedRecoveryAssets map[string]string
 	trackedRecoveryAssets bootAssetsMap
 
-	useEncryption     bool
-	dataEncryptionKey keys.EncryptionKey
-	saveEncryptionKey keys.EncryptionKey
+	useEncryption             bool
+	dataBootstrappedContainer secboot.BootstrappedContainer
+	saveBootstrappedContainer secboot.BootstrappedContainer
 
 	seedBootloader bootloader.Bootloader
 }
@@ -368,10 +368,10 @@ func (o *trustedAssetsInstallObserverImpl) currentTrustedRecoveryBootAssetsMap()
 	return o.trackedRecoveryAssets
 }
 
-func (o *trustedAssetsInstallObserverImpl) ChosenEncryptionKeys(key, saveKey keys.EncryptionKey) {
+func (o *trustedAssetsInstallObserverImpl) SetBootstrappedContainers(key, saveKey secboot.BootstrappedContainer) {
 	o.useEncryption = true
-	o.dataEncryptionKey = key
-	o.saveEncryptionKey = saveKey
+	o.dataBootstrappedContainer = key
+	o.saveBootstrappedContainer = saveKey
 }
 
 func (o *trustedAssetsInstallObserverImpl) UpdateBootEntry() error {

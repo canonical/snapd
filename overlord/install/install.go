@@ -43,7 +43,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
@@ -244,18 +243,18 @@ func BuildInstallObserver(model *asserts.Model, gadgetDir string, useEncryption 
 // * save keys and markers for ubuntu-data being able to safely open ubuntu-save
 // It is the responsibility of the caller to call
 // ObserveExistingTrustedRecoveryAssets on trustedInstallObserver.
-func PrepareEncryptedSystemData(model *asserts.Model, keyForRole map[string]keys.EncryptionKey, trustedInstallObserver boot.TrustedAssetsInstallObserver) error {
+func PrepareEncryptedSystemData(model *asserts.Model, installKeyForRole map[string]secboot.BootstrappedContainer, trustedInstallObserver boot.TrustedAssetsInstallObserver) error {
 	// validity check
-	if len(keyForRole) == 0 || keyForRole[gadget.SystemData] == nil || keyForRole[gadget.SystemSave] == nil {
+	if len(installKeyForRole) == 0 || installKeyForRole[gadget.SystemData] == nil || installKeyForRole[gadget.SystemSave] == nil {
 		return fmt.Errorf("internal error: system encryption keys are unset")
 	}
-	dataEncryptionKey := keyForRole[gadget.SystemData]
-	saveEncryptionKey := keyForRole[gadget.SystemSave]
+	dataBootstrappedContainer := installKeyForRole[gadget.SystemData]
+	saveBootstrappedContainer := installKeyForRole[gadget.SystemSave]
 
 	// make note of the encryption keys
-	trustedInstallObserver.ChosenEncryptionKeys(dataEncryptionKey, saveEncryptionKey)
+	trustedInstallObserver.SetBootstrappedContainers(dataBootstrappedContainer, saveBootstrappedContainer)
 
-	if err := saveKeys(model, keyForRole); err != nil {
+	if err := saveKeys(model, installKeyForRole); err != nil {
 		return err
 	}
 	// write markers containing a secret to pair data and save
@@ -284,17 +283,23 @@ func writeMarkers(model *asserts.Model) error {
 	return device.WriteEncryptionMarkers(boot.InstallHostFDEDataDir(model), boot.InstallHostFDESaveDir, markerSecret)
 }
 
-func saveKeys(model *asserts.Model, keyForRole map[string]keys.EncryptionKey) error {
-	saveEncryptionKey := keyForRole[gadget.SystemSave]
-	if saveEncryptionKey == nil {
+func saveKeys(model *asserts.Model, installKeyForRole map[string]secboot.BootstrappedContainer) error {
+	saveBootstrappedContainer := installKeyForRole[gadget.SystemSave]
+	if saveBootstrappedContainer == nil {
 		// no system-save support
 		return nil
 	}
-	// ensure directory for keys exists
-	if err := os.MkdirAll(boot.InstallHostFDEDataDir(model), 0755); err != nil {
+
+	saveKeyPath := device.SaveKeyUnder(boot.InstallHostFDEDataDir(model))
+
+	if err := os.MkdirAll(filepath.Dir(saveKeyPath), 0755); err != nil {
 		return err
 	}
-	if err := saveEncryptionKey.Save(device.SaveKeyUnder(boot.InstallHostFDEDataDir(model))); err != nil {
+	// TODO: once we have key slots, we will create a different
+	// key stored in saveKeyPath. This key will be added using
+	// saveBootstrappedContainer.AddKey. For now, we just write the
+	// bootstrap key for the save disk.
+	if err := osutil.AtomicWriteFile(saveKeyPath, saveBootstrappedContainer.LegacyKeptKey()[:], 0600, 0); err != nil {
 		return fmt.Errorf("cannot store system save key: %v", err)
 	}
 	return nil

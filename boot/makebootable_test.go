@@ -40,7 +40,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -628,13 +627,9 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	// set encryption key
-	myKey := keys.EncryptionKey{}
-	myKey2 := keys.EncryptionKey{}
-	for i := range myKey {
-		myKey[i] = byte(i)
-		myKey2[i] = byte(128 + i)
-	}
-	obs.ChosenEncryptionKeys(myKey, myKey2)
+	myKey := secboot.CreateMockBootstrappedContainer()
+	myKey2 := secboot.CreateMockBootstrappedContainer()
+	obs.SetBootstrappedContainers(myKey, myKey2)
 
 	// set a mock recovery kernel
 	readSystemEssentialCalls := 0
@@ -705,7 +700,7 @@ version: 5.0
 		switch sealKeysCalls {
 		case 1:
 			c.Check(keys, HasLen, 1)
-			c.Check(keys[0].Key, DeepEquals, myKey)
+			c.Check(keys[0].BootstrappedContainer, DeepEquals, myKey)
 			c.Check(keys[0].KeyFile, Equals,
 				filepath.Join(s.rootdir, "/run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
 			if factoryReset {
@@ -715,8 +710,8 @@ version: 5.0
 			}
 		case 2:
 			c.Check(keys, HasLen, 2)
-			c.Check(keys[0].Key, DeepEquals, myKey)
-			c.Check(keys[1].Key, DeepEquals, myKey2)
+			c.Check(keys[0].BootstrappedContainer, DeepEquals, myKey)
+			c.Check(keys[1].BootstrappedContainer, DeepEquals, myKey2)
 			c.Check(keys[0].KeyFile, Equals,
 				filepath.Join(s.rootdir,
 					"/run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"))
@@ -1153,13 +1148,9 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	// set encryption key
-	myKey := keys.EncryptionKey{}
-	myKey2 := keys.EncryptionKey{}
-	for i := range myKey {
-		myKey[i] = byte(i)
-		myKey2[i] = byte(128 + i)
-	}
-	obs.ChosenEncryptionKeys(myKey, myKey2)
+	myKey := secboot.CreateMockBootstrappedContainer()
+	myKey2 := secboot.CreateMockBootstrappedContainer()
+	obs.SetBootstrappedContainers(myKey, myKey2)
 
 	// set a mock recovery kernel
 	readSystemEssentialCalls := 0
@@ -1184,11 +1175,11 @@ version: 5.0
 		switch sealKeysCalls {
 		case 1:
 			c.Check(keys, HasLen, 1)
-			c.Check(keys[0].Key, DeepEquals, myKey)
+			c.Check(keys[0].BootstrappedContainer, DeepEquals, myKey)
 		case 2:
 			c.Check(keys, HasLen, 2)
-			c.Check(keys[0].Key, DeepEquals, myKey)
-			c.Check(keys[1].Key, DeepEquals, myKey2)
+			c.Check(keys[0].BootstrappedContainer, DeepEquals, myKey)
+			c.Check(keys[1].BootstrappedContainer, DeepEquals, myKey2)
 		default:
 			c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 		}
@@ -1349,8 +1340,7 @@ version: 5.0
 	// observe recovery assets
 	err = obs.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir)
 	c.Assert(err, IsNil)
-
-	obs.ChosenEncryptionKeys(keys.EncryptionKey{}, keys.EncryptionKey{})
+	obs.SetBootstrappedContainers(secboot.CreateMockBootstrappedContainer(), secboot.CreateMockBootstrappedContainer())
 
 	// set a mock recovery kernel
 	readSystemEssentialCalls := 0
