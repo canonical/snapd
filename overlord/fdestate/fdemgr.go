@@ -25,8 +25,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// FDEManager is responsible for managing managing full disk
-// encryption keys.
+// FDEManager is responsible for managing full disk encryption keys.
 type FDEManager struct {
 	state *state.State
 }
