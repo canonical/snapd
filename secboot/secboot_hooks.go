@@ -51,7 +51,9 @@ func init() {
 func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
 	auxKey := params.AuxKey[:]
 	for _, skr := range keys {
-		payload := sb.MarshalKeys([]byte(skr.Key), auxKey)
+		// TODO: enroll a new keyslot instead of reusing the bootstrap key
+		key := skr.BootstrappedContainer.LegacyKeptKey()
+		payload := sb.MarshalKeys([]byte(key), auxKey)
 		keyParams := &fde.InitialSetupParams{
 			Key:     payload,
 			KeyName: skr.KeyName,
