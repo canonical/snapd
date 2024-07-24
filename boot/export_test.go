@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -104,12 +103,12 @@ func (o *trustedAssetsInstallObserverImpl) CurrentTrustedRecoveryBootAssetsMap()
 	return o.currentTrustedRecoveryBootAssetsMap()
 }
 
-func (o *trustedAssetsInstallObserverImpl) CurrentDataEncryptionKey() keys.EncryptionKey {
-	return o.dataEncryptionKey
+func (o *trustedAssetsInstallObserverImpl) CurrentDataBootstrappedContainer() secboot.BootstrappedContainer {
+	return o.dataBootstrappedContainer
 }
 
-func (o *trustedAssetsInstallObserverImpl) CurrentSaveEncryptionKey() keys.EncryptionKey {
-	return o.saveEncryptionKey
+func (o *trustedAssetsInstallObserverImpl) CurrentSaveBootstrappedContainer() secboot.BootstrappedContainer {
+	return o.saveBootstrappedContainer
 }
 
 func MockSecbootProvisionTPM(f func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error) (restore func()) {
