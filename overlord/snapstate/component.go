@@ -252,12 +252,20 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 		addTask(kmodSetup)
 	}
 
-	// clean-up previous revision of the component if present, not used in
-	// previous sequence points, and the snap is not being updated (it will soon
-	// be referenced by a previous sequence point).
-	if !changingSnapRev && compInstalled &&
-		!snapst.IsCurrentComponentRevInAnyNonCurrentSeq(compSetup.CompSideInfo.Component) {
+	changingComponentRev := false
+	if compInstalled {
+		currentRev := snapst.CurrentComponentSideInfo(compSetup.CompSideInfo.Component).Revision
+		changingComponentRev = currentRev != compSetup.CompSideInfo.Revision
+	}
 
+	// we can only discard the component if all of the following are true:
+	// * we are not changing the snap revision
+	// * we are actually changing the component revision (or it is not installed)
+	// * the component is not used in any other sequence point
+	canDiscardComponent := !changingSnapRev && changingComponentRev &&
+		!snapst.IsCurrentComponentRevInAnyNonCurrentSeq(compSetup.CompSideInfo.Component)
+
+	if canDiscardComponent {
 		discardComp := st.NewTask("discard-component", fmt.Sprintf(i18n.G(
 			"Discard previous revision for component %q"),
 			compSi.Component))
