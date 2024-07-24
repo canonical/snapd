@@ -469,6 +469,27 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		addTask(preRefreshHook)
 	}
 
+	var tasksAfterLinkSnap []*state.Task
+	var tasksBeforeCurrentUnlink []*state.Task
+	for _, compsup := range compsups {
+		compTaskSet, err := doInstallComponent(st, snapst, &compsup, &snapsup, fromChange)
+		if err != nil {
+			return nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
+		}
+
+		beforeLink, afterLink, err := componentTasksForInstallWithSnap(compTaskSet)
+		if err != nil {
+			return nil, err
+		}
+
+		tasksBeforeCurrentUnlink = append(tasksBeforeCurrentUnlink, beforeLink...)
+		tasksAfterLinkSnap = append(tasksAfterLinkSnap, afterLink...)
+
+		// TODO:COMPS: once component hooks are fully merged, we will need to
+		// take care to correctly order the tasks that are created for running
+		// component and snap hooks
+	}
+
 	if snapst.IsInstalled() {
 		// unlink-current-snap (will stop services for copy-data)
 		stop := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), snapsup.InstanceName()))
@@ -479,9 +500,21 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		removeAliases.Set("remove-reason", removeAliasesReasonRefresh)
 		addTask(removeAliases)
 
+		// if we're replacing an already installed snaps, make sure that we do
+		// some of the component tasks, up to unlinking the current components,
+		// before we unlink the current snap. this makes sure that undos happen
+		// in the right order
+		for _, t := range tasksBeforeCurrentUnlink {
+			addTask(t)
+		}
+
 		unlink := st.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), snapsup.InstanceName()))
 		unlink.Set("unlink-reason", unlinkReasonRefresh)
 		addTask(unlink)
+	} else {
+		for _, t := range tasksBeforeCurrentUnlink {
+			addTask(t)
+		}
 	}
 
 	// we need to know some of the characteristics of the device - it is
@@ -519,29 +552,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	if !snapsup.Flags.Revert {
 		copyData := st.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copy snap %q data"), snapsup.InstanceName()))
 		addTask(copyData)
-	}
-
-	tasksAfterLinkSnap := make([]*state.Task, 0, len(compsups))
-	for _, compsup := range compsups {
-		compTaskSet, err := doInstallComponent(st, snapst, &compsup, &snapsup, fromChange)
-		if err != nil {
-			return nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
-		}
-
-		beforeLink, afterLink, err := componentTasksForInstallWithSnap(compTaskSet)
-		if err != nil {
-			return nil, err
-		}
-
-		// TODO:COMPS: once component hooks are fully, we will need to take care
-		// to correctly order the tasks that are created for running component
-		// and snap hooks
-
-		for _, t := range beforeLink {
-			addTask(t)
-		}
-
-		tasksAfterLinkSnap = append(tasksAfterLinkSnap, afterLink...)
 	}
 
 	// security
@@ -2419,6 +2429,35 @@ type RevisionOptions struct {
 	ValidationSets []snapasserts.ValidationSetKey
 	CohortKey      string
 	LeaveCohort    bool
+}
+
+func (r *RevisionOptions) setChannelIfUnset(channel string) {
+	if r.Channel == "" {
+		r.Channel = channel
+	}
+}
+
+// resolveChannel conditionally resolves the channel for the given snap. If the
+// the revision is set and the channel is empty, then we assume that the caller
+// wants to install by revision and do not mutate the channel.
+func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, deviceCtx DeviceContext) error {
+	// if the revision is set and the caller didn't provide a channel, then we
+	// shouldn't mess with the channel. this is because we don't want the caller
+	// to have to pick the right channel when refreshing/installing by revision.
+	if !r.Revision.Unset() && r.Channel == "" {
+		return nil
+	}
+
+	// otherwise, we know that the channel is either empty, or it is specified
+	// along with the revision. in either case, we need to resolve the channel.
+
+	resolved, err := resolveChannel(instanceName, fallback, r.Channel, deviceCtx)
+	if err != nil {
+		return err
+	}
+	r.Channel = resolved
+
+	return nil
 }
 
 // Update initiates a change updating a snap.
