@@ -22,8 +22,39 @@ package prompting
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 )
+
+// Metadata stores information about the origin or applicability of a prompt or
+// rule.
+type Metadata struct {
+	// User is the UID of the subject (user) triggering the applicable requests.
+	User uint32
+	// Snap is the instance name of the snap for which the prompt or rule applies.
+	Snap string
+	// Interface is the interface for which the prompt or rule applies.
+	Interface string
+}
+
+type IDType uint64
+
+func (i *IDType) MarshalJSON() ([]byte, error) {
+	return json.Marshal(fmt.Sprintf("%016X", *i))
+}
+
+func (i *IDType) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return fmt.Errorf("cannot read ID into string: %w", err)
+	}
+	value, err := strconv.ParseUint(s, 16, 64)
+	if err != nil {
+		return fmt.Errorf("cannot parse ID as uint64: %w", err)
+	}
+	*i = IDType(value)
+	return nil
+}
 
 // OutcomeType describes the outcome associated with a reply or rule.
 type OutcomeType string
@@ -53,9 +84,9 @@ func (outcome *OutcomeType) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// IsAllow returns true if the outcome is OutcomeAllow, false if the outcome is
+// AsBool returns true if the outcome is OutcomeAllow, false if the outcome is
 // OutcomeDeny, or an error if it cannot be parsed.
-func (outcome OutcomeType) IsAllow() (bool, error) {
+func (outcome OutcomeType) AsBool() (bool, error) {
 	switch outcome {
 	case OutcomeAllow:
 		return true, nil
