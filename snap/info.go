@@ -1919,7 +1919,7 @@ var verToSnapDecl = []struct {
 // found, returns an error.
 func RegistryPlugAttrs(plug *PlugInfo) (account, registry, view string, err error) {
 	if plug.Interface != "registry" {
-		return "", "", "", fmt.Errorf("not registry interface plug: %s", plug.Interface)
+		return "", "", "", fmt.Errorf("must be registry plug: %s", plug.Interface)
 	}
 
 	if err := plug.Attr("account", &account); err != nil {
@@ -1933,7 +1933,7 @@ func RegistryPlugAttrs(plug *PlugInfo) (account, registry, view string, err erro
 
 	parts := strings.Split(registryView, "/")
 	if len(parts) != 2 {
-		return "", "", "", fmt.Errorf("cannot get registry attributes: \"view\" must conform to <registry>/<view>: %s", registryView)
+		return "", "", "", fmt.Errorf("\"view\" must conform to <registry>/<view>: %s", registryView)
 	}
 	registry, view = parts[0], parts[1]
 

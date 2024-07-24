@@ -2444,14 +2444,14 @@ func (s *infoSuite) TestRegistryPlugAttrsInvalid(c *C) {
 	tcs := []testcase{
 		{
 			iface: "other-thing",
-			err:   "cannot get registry attributes: must be registry plug: other-thing",
+			err:   "must be registry plug: other-thing",
 		},
 
 		{
 			iface:   "registry",
 			account: "my-acc",
 			view:    "reg",
-			err:     "cannot get registry attributes: \"view\" must conform to <registry>/<view>: reg",
+			err:     "\"view\" must conform to <registry>/<view>: reg",
 		},
 	}
 
