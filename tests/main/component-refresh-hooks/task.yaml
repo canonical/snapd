@@ -1,0 +1,48 @@
+summary: Test running component install, pre-refresh, and post-refresh hooks
+
+details: |
+  Tests a snap with two components, with two components. Some arbitrary
+  auto-connect plugs are picked for the components so that we can test that they
+  are properly connected.
+
+  The first component explicitly defines hooks that have the network-bind plug.
+  These plugs succeed only if they are able to bind to the network. The second
+  component contains implicit hooks that only receive the network plug. These
+  hooks succeed only if they are able create a network connection.
+
+  All of the hooks set variables that we use to verify that they are run.
+
+systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*]
+
+execute: |
+  snap install test-snap-component-hooks+one+two --revision=6
+
+  snap connections test-snap-component-hooks | MATCH "network-bind"
+  snap connections test-snap-component-hooks | MATCH "network"
+
+  snap list test-snap-component-hooks | awk 'NR != 1 { print $3 }' | MATCH 6
+
+  # 4 is the component revision
+  snap get test-snap-component-hooks one-installed | MATCH 4
+  snap get test-snap-component-hooks two-installed | MATCH 4
+
+  not snap get test-snap-component-hooks one-prerefreshed
+  not snap get test-snap-component-hooks two-prerefreshed
+  not snap get test-snap-component-hooks one-postrefreshed
+  not snap get test-snap-component-hooks two-postrefreshed
+
+  snap refresh test-snap-component-hooks --edge
+
+  snap list test-snap-component-hooks | awk 'NR != 1 { print $3 }' | MATCH 7
+
+  # these shouldn't run again
+  snap get test-snap-component-hooks one-installed | MATCH 4
+  snap get test-snap-component-hooks two-installed | MATCH 4
+
+  # these run as their previous revision
+  snap get test-snap-component-hooks one-prerefreshed | MATCH 4
+  snap get test-snap-component-hooks two-prerefreshed | MATCH 4
+
+  # these run as the new revision
+  snap get test-snap-component-hooks one-postrefreshed | MATCH 5
+  snap get test-snap-component-hooks two-postrefreshed | MATCH 5

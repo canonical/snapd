@@ -1,0 +1,15 @@
+#!/bin/sh -e
+
+if [ $# -ne 1 ]; then
+    echo "pass in a component name to check if it is installed"
+    exit 1
+fi
+
+if [ ! -f "/snap/${SNAP_NAME}/components/${SNAP_REVISION}/${1}/meta/component.yaml" ]; then
+    echo "component ${1} is not installed!"
+    exit 1
+fi
+
+comp_rev=$(basename "$(readlink -f "/snap/${SNAP_NAME}/components/${SNAP_REVISION}/${1}")")
+
+echo "component ${1} is installed at revision ${comp_rev}"
