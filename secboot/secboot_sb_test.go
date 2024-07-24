@@ -870,21 +870,17 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			PCRPolicyCounterHandle: 42,
 		}
 
-		myKey := keys.EncryptionKey{}
-		myKey2 := keys.EncryptionKey{}
-		for i := range myKey {
-			myKey[i] = byte(i)
-			myKey2[i] = byte(128 + i)
-		}
+		myKey := secboot.CreateBootstrappedContainer([]byte{1, 2, 3, 4}, "")
+		myKey2 := secboot.CreateBootstrappedContainer([]byte{5, 6, 7, 8}, "")
 
 		myKeys := []secboot.SealKeyRequest{
 			{
-				Key:     myKey,
-				KeyFile: "keyfile",
+				BootstrappedContainer: myKey,
+				KeyFile:               "keyfile",
 			},
 			{
-				Key:     myKey2,
-				KeyFile: "keyfile2",
+				BootstrappedContainer: myKey2,
+				KeyFile:               "keyfile2",
 			},
 		}
 
@@ -1037,7 +1033,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		restore = secboot.MockSbSealKeyToTPMMultiple(func(t *sb_tpm2.Connection, kr []*sb_tpm2.SealKeyRequest, params *sb_tpm2.KeyCreationParams) (sb_tpm2.PolicyAuthKey, error) {
 			sealCalls++
 			c.Assert(t, Equals, tpm)
-			c.Assert(kr, DeepEquals, []*sb_tpm2.SealKeyRequest{{Key: myKey, Path: "keyfile"}, {Key: myKey2, Path: "keyfile2"}})
+			c.Assert(kr, DeepEquals, []*sb_tpm2.SealKeyRequest{{Key: []byte{1, 2, 3, 4}, Path: "keyfile"}, {Key: []byte{5, 6, 7, 8}, Path: "keyfile2"}})
 			c.Assert(params.AuthKey, Equals, myAuthKey)
 			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(42))
 			return sb_tpm2.PolicyAuthKey{}, tc.sealErr
@@ -1257,8 +1253,8 @@ func (s *secbootSuite) TestResealKey(c *C) {
 func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
 	myKeys := []secboot.SealKeyRequest{
 		{
-			Key:     keys.EncryptionKey{},
-			KeyFile: "keyfile",
+			BootstrappedContainer: secboot.CreateMockBootstrappedContainer(),
+			KeyFile:               "keyfile",
 		},
 	}
 	myParams := secboot.SealKeysParams{
@@ -1529,8 +1525,8 @@ func (s *secbootSuite) TestSealKeysWithFDESetupHookHappy(c *C) {
 		return json.Marshal(res)
 	}
 
-	key1 := keys.EncryptionKey{1, 2, 3, 4}
-	key2 := keys.EncryptionKey{5, 6, 7, 8}
+	key1 := secboot.CreateBootstrappedContainer([]byte{1, 2, 3, 4}, "")
+	key2 := secboot.CreateBootstrappedContainer([]byte{5, 6, 7, 8}, "")
 	auxKey := keys.AuxKey{9, 10, 11, 12}
 	key1Fn := filepath.Join(tmpdir, "key1.key")
 	key2Fn := filepath.Join(tmpdir, "key2.key")
@@ -1542,13 +1538,13 @@ func (s *secbootSuite) TestSealKeysWithFDESetupHookHappy(c *C) {
 	}
 	err := secboot.SealKeysWithFDESetupHook(runFDESetupHook,
 		[]secboot.SealKeyRequest{
-			{Key: key1, KeyName: "key1", KeyFile: key1Fn},
-			{Key: key2, KeyName: "key2", KeyFile: key2Fn},
+			{BootstrappedContainer: key1, KeyName: "key1", KeyFile: key1Fn},
+			{BootstrappedContainer: key2, KeyName: "key2", KeyFile: key2Fn},
 		}, &params)
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
-	key1Payload := sb.MarshalKeys([]byte(key1), auxKey[:])
-	key2Payload := sb.MarshalKeys([]byte(key2), auxKey[:])
+	key1Payload := sb.MarshalKeys([]byte{1, 2, 3, 4}, auxKey[:])
+	key2Payload := sb.MarshalKeys([]byte{5, 6, 7, 8}, auxKey[:])
 	c.Check(runFDESetupHookReqs, DeepEquals, []*fde.SetupRequest{
 		{Op: "initial-setup", Key: key1Payload, KeyName: "key1"},
 		{Op: "initial-setup", Key: key2Payload, KeyName: "key2"},
@@ -1560,9 +1556,9 @@ func (s *secbootSuite) TestSealKeysWithFDESetupHookHappy(c *C) {
 	c.Check(auxKeyFn, testutil.FileEquals, auxKey[:])
 
 	// roundtrip to check what was written
-	s.checkV2Key(c, key1Fn, sealedPrefix, key1, auxKey[:], fakeModel, &rawHandle1)
+	s.checkV2Key(c, key1Fn, sealedPrefix, []byte{1, 2, 3, 4}, auxKey[:], fakeModel, &rawHandle1)
 	nullHandle := json.RawMessage("null")
-	s.checkV2Key(c, key2Fn, sealedPrefix, key2, auxKey[:], fakeModel, &nullHandle)
+	s.checkV2Key(c, key2Fn, sealedPrefix, []byte{5, 6, 7, 8}, auxKey[:], fakeModel, &nullHandle)
 }
 
 func (s *secbootSuite) TestSealKeysWithFDESetupHookSad(c *C) {
@@ -1572,7 +1568,7 @@ func (s *secbootSuite) TestSealKeysWithFDESetupHookSad(c *C) {
 		return nil, fmt.Errorf("hook failed")
 	}
 
-	key := keys.EncryptionKey{1, 2, 3, 4}
+	key := secboot.CreateBootstrappedContainer([]byte{1, 2, 3, 4}, "")
 	auxKey := keys.AuxKey{5, 6, 7, 8}
 	keyFn := filepath.Join(tmpdir, "key.key")
 	auxKeyFn := filepath.Join(tmpdir, "aux-key")
@@ -1583,7 +1579,7 @@ func (s *secbootSuite) TestSealKeysWithFDESetupHookSad(c *C) {
 	}
 	err := secboot.SealKeysWithFDESetupHook(runFDESetupHook,
 		[]secboot.SealKeyRequest{
-			{Key: key, KeyName: "key1", KeyFile: keyFn},
+			{BootstrappedContainer: key, KeyName: "key1", KeyFile: keyFn},
 		}, &params)
 	c.Assert(err, ErrorMatches, "hook failed")
 	c.Check(keyFn, testutil.FileAbsent)

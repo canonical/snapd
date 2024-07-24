@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -55,7 +54,7 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 	return nil, fmt.Errorf("build without secboot support")
 }
 
-func KeysForRole(setupData *EncryptionSetupData) map[string]keys.EncryptionKey {
+func BootstrappedContainersForRole(setupData *EncryptionSetupData) map[string]secboot.BootstrappedContainer {
 	return nil
 }
 

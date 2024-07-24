@@ -81,7 +81,7 @@ func MockResealKeyToModeenv(f func(rootdir string, modeenv *Modeenv, expectResea
 type MockSealKeyToModeenvFlags = sealKeyToModeenvFlags
 
 // MockSealKeyToModeenv is used for testing from other packages.
-func MockSealKeyToModeenv(f func(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *Modeenv, flags MockSealKeyToModeenvFlags) error) (restore func()) {
+func MockSealKeyToModeenv(f func(key, saveKey secboot.BootstrappedContainer, model *asserts.Model, modeenv *Modeenv, flags MockSealKeyToModeenvFlags) error) (restore func()) {
 	old := sealKeyToModeenv
 	sealKeyToModeenv = f
 	return func() {
@@ -116,7 +116,7 @@ type sealKeyToModeenvFlags struct {
 // sealKeyToModeenvImpl seals the supplied keys to the parameters specified
 // in modeenv.
 // It assumes to be invoked in install mode.
-func sealKeyToModeenvImpl(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
+func sealKeyToModeenvImpl(key, saveKey secboot.BootstrappedContainer, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
 	if !isModeeenvLocked() {
 		return fmt.Errorf("internal error: cannot seal without the modeenv lock")
 	}
@@ -145,17 +145,17 @@ func sealKeyToModeenvImpl(key, saveKey keys.EncryptionKey, model *asserts.Model,
 	return sealKeyToModeenvUsingSecboot(key, saveKey, model, modeenv, flags)
 }
 
-func runKeySealRequests(key keys.EncryptionKey) []secboot.SealKeyRequest {
+func runKeySealRequests(key secboot.BootstrappedContainer) []secboot.SealKeyRequest {
 	return []secboot.SealKeyRequest{
 		{
-			Key:     key,
-			KeyName: "ubuntu-data",
-			KeyFile: device.DataSealedKeyUnder(InitramfsBootEncryptionKeyDir),
+			BootstrappedContainer: key,
+			KeyName:               "ubuntu-data",
+			KeyFile:               device.DataSealedKeyUnder(InitramfsBootEncryptionKeyDir),
 		},
 	}
 }
 
-func fallbackKeySealRequests(key, saveKey keys.EncryptionKey, factoryReset bool) []secboot.SealKeyRequest {
+func fallbackKeySealRequests(key, saveKey secboot.BootstrappedContainer, factoryReset bool) []secboot.SealKeyRequest {
 	saveFallbackKey := device.FallbackSaveSealedKeyUnder(InitramfsSeedEncryptionKeyDir)
 
 	if factoryReset {
@@ -166,19 +166,19 @@ func fallbackKeySealRequests(key, saveKey keys.EncryptionKey, factoryReset bool)
 	}
 	return []secboot.SealKeyRequest{
 		{
-			Key:     key,
-			KeyName: "ubuntu-data",
-			KeyFile: device.FallbackDataSealedKeyUnder(InitramfsSeedEncryptionKeyDir),
+			BootstrappedContainer: key,
+			KeyName:               "ubuntu-data",
+			KeyFile:               device.FallbackDataSealedKeyUnder(InitramfsSeedEncryptionKeyDir),
 		},
 		{
-			Key:     saveKey,
-			KeyName: "ubuntu-save",
-			KeyFile: saveFallbackKey,
+			BootstrappedContainer: saveKey,
+			KeyName:               "ubuntu-save",
+			KeyFile:               saveFallbackKey,
 		},
 	}
 }
 
-func sealKeyToModeenvUsingFDESetupHook(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
+func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.BootstrappedContainer, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
 	// XXX: Move the auxKey creation to a more generic place, see
 	// PR#10123 for a possible way of doing this. However given
 	// that the equivalent key for the TPM case is also created in
@@ -207,7 +207,7 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey keys.EncryptionKey, model *a
 	return nil
 }
 
-func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
+func sealKeyToModeenvUsingSecboot(key, saveKey secboot.BootstrappedContainer, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
 	// build the recovery mode boot chain
 	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
 		Role: bootloader.RoleRecovery,
@@ -350,7 +350,7 @@ func usesAltPCRHandles() (bool, error) {
 	return handle == secboot.AltFallbackObjectPCRPolicyCounterHandle, nil
 }
 
-func sealRunObjectKeys(key keys.EncryptionKey, pbc PredictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string, pcrHandle uint32) error {
+func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc PredictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string, pcrHandle uint32) error {
 	modelParams, err := SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
 		return fmt.Errorf("cannot prepare for key sealing: %v", err)
@@ -376,7 +376,7 @@ func sealRunObjectKeys(key keys.EncryptionKey, pbc PredictableBootChains, authKe
 	return nil
 }
 
-func sealFallbackObjectKeys(key, saveKey keys.EncryptionKey, pbc PredictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string, factoryReset bool, pcrHandle uint32) error {
+func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc PredictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string, factoryReset bool, pcrHandle uint32) error {
 	// also seal the keys to the recovery bootchains as a fallback
 	modelParams, err := SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
