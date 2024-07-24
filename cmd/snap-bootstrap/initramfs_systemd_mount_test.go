@@ -331,7 +331,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 					foundBeforeInitrdfsTarget = true
 				case strings.HasPrefix(arg, "--options="):
 					for _, opt := range strings.Split(strings.TrimPrefix(arg, "--options="), ",") {
-						switch opt := opt; {
+						switch {
 						case opt == "nosuid":
 							foundNoSuid = true
 						case opt == "bind":

@@ -156,21 +156,22 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	if opts.Private {
 		options = append(options, "private")
 	}
-	if len(opts.VerityHashDevice) > 0 && len(opts.VerityRootHash) == 0 {
+	if opts.VerityHashDevice != "" && opts.VerityRootHash == "" {
 		return fmt.Errorf("cannot mount %q at %q: mount with dm-verity was requested but a root hash was not specified", what, where)
 	}
-	if len(opts.VerityRootHash) > 0 && len(opts.VerityHashDevice) == 0 {
+	if opts.VerityRootHash != "" && opts.VerityHashDevice == "" {
 		return fmt.Errorf("cannot mount %q at %q: mount with dm-verity was requested but a hash device was not specified", what, where)
 	}
-	if opts.VerityHashOffset != 0 && (len(opts.VerityHashDevice) == 0 || len(opts.VerityRootHash) == 0) {
+	if opts.VerityHashOffset != 0 && (opts.VerityHashDevice == "" || opts.VerityRootHash == "") {
 		return fmt.Errorf("cannot mount %q at %q: mount with dm-verity was requested but a hash device and root hash were not specified", what, where)
 	}
-	if len(opts.VerityHashDevice) > 0 && len(opts.VerityRootHash) > 0 {
+	if opts.VerityHashDevice != "" && opts.VerityRootHash != "" {
 		options = append(options, fmt.Sprintf("verity.roothash=%s", opts.VerityRootHash))
 		options = append(options, fmt.Sprintf("verity.hashdevice=%s", opts.VerityHashDevice))
-	}
-	if opts.VerityHashOffset != 0 {
-		options = append(options, fmt.Sprintf("verity.hashoffset=%d", opts.VerityHashOffset))
+
+		if opts.VerityHashOffset != 0 {
+			options = append(options, fmt.Sprintf("verity.hashoffset=%d", opts.VerityHashOffset))
+		}
 	}
 	if len(options) > 0 {
 		args = append(args, "--options="+strings.Join(options, ","))
