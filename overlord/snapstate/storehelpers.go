@@ -723,23 +723,11 @@ func storeUpdatePlanCore(
 			return updatePlan{}, err
 		}
 
-		// TODO:COMPS: for now, go back to the components that were already
-		// installed with this revision. to be more robust, we should refresh
-		// only the components that are installed with the current revision of
-		// the snap. this means we'll need to check with the store for which
-		// revisions now available for that snap.
-		compInfos, err := snapst.ComponentInfosForRevision(si.Revision)
+		components, err := componentTargetsFromLocalRevision(snapst, si.Revision)
 		if err != nil {
 			return updatePlan{}, err
 		}
 
-		components := make([]ComponentSetup, 0, len(compInfos))
-		for _, compInfo := range compInfos {
-			components = append(components, ComponentSetup{
-				CompSideInfo: &compInfo.ComponentSideInfo,
-				CompType:     compInfo.Type,
-			})
-		}
 		revOpts.setChannelIfUnset(snapst.TrackingChannel)
 
 		// make sure that we switch the current channel of the snap that we're
@@ -765,6 +753,27 @@ func storeUpdatePlanCore(
 	}
 
 	return plan, nil
+}
+
+func componentTargetsFromLocalRevision(snapst *SnapState, snapRev snap.Revision) ([]ComponentSetup, error) {
+	// TODO:COMPS: for now, go back to the components that were already
+	// installed with this revision. to be more robust, we should refresh
+	// only the components that are installed with the current revision of
+	// the snap. this means we'll need to check with the store for which
+	// revisions now available for that snap.
+	compInfos, err := snapst.ComponentInfosForRevision(snapRev)
+	if err != nil {
+		return nil, err
+	}
+
+	components := make([]ComponentSetup, 0, len(compInfos))
+	for _, compInfo := range compInfos {
+		components = append(components, ComponentSetup{
+			CompSideInfo: &compInfo.ComponentSideInfo,
+			CompType:     compInfo.Type,
+		})
+	}
+	return components, nil
 }
 
 func collectCurrentSnapsAndActions(
