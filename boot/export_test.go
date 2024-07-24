@@ -69,7 +69,6 @@ var (
 	ResealKeyToModeenv              = resealKeyToModeenv
 	RecoveryBootChainsForSystems    = recoveryBootChainsForSystems
 	RunModeBootChains               = runModeBootChains
-	SealKeyModelParams              = sealKeyModelParams
 
 	BootVarsForTrustedCommandLineFromGadget = bootVarsForTrustedCommandLineFromGadget
 
@@ -169,8 +168,6 @@ func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash
 
 type BootAsset = bootAsset
 type BootChain = bootChain
-type PredictableBootChains = predictableBootChains
-type ResealKeyForBootChainsParams = resealKeyForBootChainsParams
 
 const (
 	BootChainEquivalent   = bootChainEquivalent
@@ -180,13 +177,10 @@ const (
 
 var (
 	ToPredictableBootChain              = toPredictableBootChain
-	ToPredictableBootChains             = toPredictableBootChains
 	PredictableBootChainsEqualForReseal = predictableBootChainsEqualForReseal
 	BootAssetsToLoadChains              = bootAssetsToLoadChains
 	BootAssetLess                       = bootAssetLess
-	WriteBootChains                     = writeBootChains
 	ReadBootChains                      = readBootChains
-	IsResealNeeded                      = isResealNeeded
 
 	SetImageBootFlags = setImageBootFlags
 	NextBootFlags     = nextBootFlags

@@ -33,6 +33,9 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/fdestate"
+	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -89,12 +92,19 @@ func makeEncodableModel(signingAccounts *assertstest.SigningAccounts, overrides 
 func (s *modelSuite) SetUpTest(c *C) {
 	s.baseBootenvSuite.SetUpTest(c)
 
+	st := state.New(nil)
+	runner := state.NewTaskRunner(st)
+	manager := fdestate.Manager(st, runner)
+	s.AddCleanup(func() {
+		manager.Stop()
+	})
+
 	store := assertstest.NewStoreStack("canonical", nil)
 	brands := assertstest.NewSigningAccounts(store)
 	brands.Register("my-brand", brandPrivKey, nil)
 	s.keyID = brands.Signing("canonical").KeyID
 
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error { return nil })
+	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error { return nil })
 	s.AddCleanup(restore)
 	s.oldUc20dev = boottest.MockUC20Device("", makeEncodableModel(brands, nil))
 	s.newUc20dev = boottest.MockUC20Device("", makeEncodableModel(brands, map[string]interface{}{
@@ -200,7 +210,7 @@ func (s *modelSuite) TestDeviceChangeHappy(c *C) {
 		"model: my-model-uc20\n")
 
 	resealKeysCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
 		m, err := boot.ReadModeenv("")
 		c.Assert(err, IsNil)
@@ -285,7 +295,7 @@ func (s *modelSuite) TestDeviceChangeUnhappyFirstReseal(c *C) {
 		"model: my-model-uc20\n")
 
 	resealKeysCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
 		m, err := boot.ReadModeenv("")
 		c.Assert(err, IsNil)
@@ -343,7 +353,7 @@ func (s *modelSuite) TestDeviceChangeUnhappyFirstSwapModelFile(c *C) {
 		"model: my-model-uc20\n")
 
 	resealKeysCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
 		m, err := boot.ReadModeenv("")
 		c.Assert(err, IsNil)
@@ -409,7 +419,7 @@ func (s *modelSuite) TestDeviceChangeUnhappySecondReseal(c *C) {
 		"model: my-model-uc20\n")
 
 	resealKeysCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
 		m, err := boot.ReadModeenv("")
 		c.Assert(err, IsNil)
@@ -503,7 +513,7 @@ func (s *modelSuite) TestDeviceChangeRebootBeforeNewModel(c *C) {
 		"model: my-model-uc20\n")
 
 	resealKeysCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
 		c.Logf("reseal key call: %v", resealKeysCalls)
 		m, err := boot.ReadModeenv("")
@@ -628,7 +638,7 @@ func (s *modelSuite) TestDeviceChangeRebootAfterNewModelFileWrite(c *C) {
 		"model: my-model-uc20\n")
 
 	resealKeysCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
 		c.Logf("reseal key call: %v", resealKeysCalls)
 		m, err := boot.ReadModeenv("")
@@ -751,7 +761,7 @@ func (s *modelSuite) TestDeviceChangeRebootPostSameModel(c *C) {
 		"model: my-model-uc20\n")
 
 	resealKeysCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
 		c.Logf("reseal key call: %v", resealKeysCalls)
 		m, err := boot.ReadModeenv("")
@@ -882,7 +892,7 @@ func (s *modelSuite) testDeviceChangeUnhappyMockedWriteModelToBoot(c *C, tc unha
 
 	writeModelToBootCalls := 0
 	resealKeysCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
 		m, err := boot.ReadModeenv("")
 		c.Assert(err, IsNil)
@@ -1019,7 +1029,7 @@ func (s *modelSuite) TestDeviceChangeUnhappyFailReseaWithSwappedModelMockedWrite
 
 	writeModelToBootCalls := 0
 	resealKeysCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
 		if resealKeysCalls == 3 {
 			// we are resealing the run key, the old model has been
@@ -1111,7 +1121,7 @@ func (s *modelSuite) TestDeviceChangeRebootRestoreModelKeyChangeMockedWriteModel
 	}))
 
 	resealKeysCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
 		c.Logf("reseal key call: %v", resealKeysCalls)
 		m, err := boot.ReadModeenv("")

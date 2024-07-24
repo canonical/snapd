@@ -22,6 +22,9 @@
 package fdestate
 
 import (
+	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -42,11 +45,23 @@ func Manager(st *state.State, runner *state.TaskRunner) *FDEManager {
 	defer st.Unlock()
 	st.Cache(fdeMgrKey{}, m)
 
+	boot.InstallResealKeyForBootChains(func(method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+		return m.resealKeyForBootChains(method, rootdir, params, expectReseal)
+	})
+
 	return m
 }
 
 func (m *FDEManager) Ensure() error {
 	return nil
+}
+
+func (m *FDEManager) Stop() {
+	boot.RemoveResealKeyForBootChains()
+}
+
+func (m *FDEManager) resealKeyForBootChains(method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+	return backend.ResealKeyForBootChains(method, rootdir, params, expectReseal)
 }
 
 func fdeMgr(st *state.State) *FDEManager {
