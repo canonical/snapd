@@ -69,7 +69,15 @@ import (
 // be properly handled by this function.
 func isContainerWithInternalPolicy() bool {
 	if release.OnWSL {
-		return true
+		// WSL-1 is an emulated Windows layer that has no support for AppArmor.
+		// WSL-2 is a virtualised environment with the Linux kernel as
+		// distributed by Microsoft.  In the future, if Microsoft enables
+		// AppArmor in their kernel configuration and adjusts their special
+		// init process, which launches individual distributions in
+		// quasi-containers, to initialize apparmor nesting, we might re-enable
+		// this and treat WSL-2 like a LXD/Incus container, with nested
+		// security.
+		return false
 	}
 
 	var appArmorSecurityFSPath = filepath.Join(dirs.GlobalRootDir, "/sys/kernel/security/apparmor")

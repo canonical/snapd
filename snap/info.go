@@ -1919,7 +1919,7 @@ var verToSnapDecl = []struct {
 // found, returns an error.
 func RegistryPlugAttrs(plug *PlugInfo) (account, registry, view string, err error) {
 	if plug.Interface != "registry" {
-		return "", "", "", fmt.Errorf("cannot get registry attributes: must be registry plug: %s", plug.Interface)
+		return "", "", "", fmt.Errorf("not registry interface plug: %s", plug.Interface)
 	}
 
 	if err := plug.Attr("account", &account); err != nil {

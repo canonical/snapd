@@ -70,7 +70,7 @@ func (x *cmdHandleLink) ensureSnapStoreInstalled() error {
 		return fmt.Errorf(i18n.G("Snap Store required"))
 	}
 
-	changeID, err := x.client.Install("snap-store", nil)
+	changeID, err := x.client.Install("snap-store", nil, nil)
 	if err != nil {
 		return err
 	}

@@ -552,6 +552,12 @@ plugs:
     interface: registry
     account: %[1]s
     view: network/read-wifi
+    role: observer
+  write-wifi:
+    interface: registry
+    account: %[1]s
+    view: network/write-wifi
+    role: manager
 `, s.devAccID)
 	info := mockInstalledSnap(c, s.state, snapYaml, "")
 
@@ -703,7 +709,7 @@ func (s *registrySuite) TestRegistryGetInvalid(c *C) {
 		},
 		{
 			args: []string{":non-existent"},
-			err:  `no plug :non-existent for snap "test-snap"`,
+			err:  `cannot get registry: cannot find plug :non-existent for snap "test-snap"`,
 		},
 	}
 
@@ -715,7 +721,7 @@ func (s *registrySuite) TestRegistryGetInvalid(c *C) {
 	}
 }
 
-func (s *registrySuite) TestRegistryGetNonRegistryPlug(c *C) {
+func (s *registrySuite) TestRegistryGetAndSetNonRegistryPlug(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() {
 		dirs.SetRootDir("/")
@@ -766,12 +772,17 @@ slots:
 	s.state.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":my-plug"}, 0)
-	c.Assert(err, ErrorMatches, "cannot use --view with non-registry plug :my-plug")
+	c.Assert(err, ErrorMatches, "cannot get registry: cannot use --view with non-registry plug :my-plug")
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+
+	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":my-plug", "ssid=my-ssid"}, 0)
+	c.Assert(err, ErrorMatches, "cannot set registry: cannot use --view with non-registry plug :my-plug")
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 }
 
-func (s *registrySuite) TestRegistryGetAssertionNotFound(c *C) {
+func (s *registrySuite) TestRegistryGetAndSetAssertionNotFound(c *C) {
 	storeSigning := assertstest.NewStoreStack("can0nical", nil)
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
@@ -785,12 +796,18 @@ func (s *registrySuite) TestRegistryGetAssertionNotFound(c *C) {
 	s.state.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot get %s/network/read-wifi: registry not found", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot get registry: registry assertion %s/network not found", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
+
+	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=my-ssid"}, 0)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot set registry: registry assertion %s/network not found", s.devAccID))
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+
 }
 
-func (s *registrySuite) TestRegistryGetViewNotFound(c *C) {
+func (s *registrySuite) TestRegistryGetAndSetViewNotFound(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": s.devAccID,
 		"account-id":   s.devAccID,
@@ -821,7 +838,12 @@ func (s *registrySuite) TestRegistryGetViewNotFound(c *C) {
 	s.state.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot get %s/network/read-wifi: view not found", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot get registry: view \"read-wifi\" not found in registry %s/network", s.devAccID))
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+
+	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=my-ssid"}, 0)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot set registry: view \"write-wifi\" not found in registry %s/network", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 }

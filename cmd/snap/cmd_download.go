@@ -125,7 +125,8 @@ func downloadDirectImpl(snapName string, revision snap.Revision, dlOpts tooling.
 	tsto.Stdout = Stdout
 
 	fmt.Fprintf(Stdout, i18n.G("Fetching snap %q\n"), snapName)
-	dlSnap, err := tsto.DownloadSnap(snapName, dlOpts)
+	// TODO:COMPS: consider downloading components
+	dlSnap, err := tsto.DownloadSnap(snapName, nil, dlOpts)
 	if err != nil {
 		return err
 	}

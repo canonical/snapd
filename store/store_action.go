@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -319,6 +320,24 @@ type SnapResourceResult struct {
 	CreatedAt    string
 }
 
+func (sar *SnapActionResult) ResourceResult(resName string) *SnapResourceResult {
+	for _, res := range sar.Resources {
+		if res.Name == resName {
+			return &res
+		}
+	}
+	return nil
+}
+
+// ResourceToComponentType returns a validated component type from a resource type.
+func ResourceToComponentType(resType string) (snap.ComponentType, error) {
+	compTp := strings.TrimPrefix(resType, "component/")
+	if len(compTp) == len(resType) {
+		return "", fmt.Errorf("%s is not a component resource", resType)
+	}
+	return snap.ComponentTypeFromString(compTp)
+}
+
 // AssertionResult encapsulates the non-error result for one assertion
 // grouping fetch action.
 type AssertionResult struct {
@@ -418,9 +437,6 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			CohortKey:        a.CohortKey,
 			ValidationSets:   valsetKeyComponents,
 			IgnoreValidation: ignoreValidation,
-		}
-		if !a.Revision.Unset() {
-			a.Channel = ""
 		}
 
 		if a.Action == "install" {

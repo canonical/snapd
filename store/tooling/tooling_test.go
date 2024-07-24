@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/tooling"
 	"github.com/snapcore/snapd/testutil"
@@ -85,6 +86,9 @@ func (s *toolingSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	s.tsto = tooling.MockToolingStore(s)
+	s.storeActionsBunchSizes = nil
+	s.storeActions = nil
+	s.curSnaps = nil
 
 	s.SeedSnaps = &seedtest.SeedSnaps{}
 	s.SetupAssertSigning("canonical")
@@ -384,13 +388,179 @@ func (s *toolingSuite) TestDownloadSnap(c *C) {
 	opts := tooling.DownloadSnapOptions{
 		TargetDir: dlDir,
 	}
-	dlSnap, err := s.tsto.DownloadSnap("core", opts)
+	dlSnap, err := s.tsto.DownloadSnap("core", nil, opts)
 	c.Assert(err, IsNil)
 	c.Check(dlSnap.Path, Matches, filepath.Join(dlDir, `core_\d+.snap`))
 	c.Check(dlSnap.Info.SnapName(), Equals, "core")
 	c.Check(dlSnap.RedirectChannel, Equals, "")
+	c.Check(len(dlSnap.Components), Equals, 0)
+
+	c.Assert(s.storeActions, HasLen, 1)
+	// make sure that we do not provide a default channel here
+	c.Check(s.storeActions[0].Channel, Equals, "")
 
 	c.Check(logbuf.String(), Matches, `.* DEBUG: Going to download snap "core" `+opts.String()+".\n")
+}
+
+func (s *toolingSuite) TestDownloadSnapWithComps(c *C) {
+	dlDir := c.MkDir()
+	opts := tooling.DownloadSnapOptions{
+		TargetDir: dlDir,
+	}
+	s.testDownloadSnapWithComps(c, opts)
+}
+
+func (s *toolingSuite) TestDownloadOnlyComps(c *C) {
+	dlDir := c.MkDir()
+	opts := tooling.DownloadSnapOptions{
+		TargetDir:      dlDir,
+		OnlyComponents: true,
+	}
+	s.testDownloadSnapWithComps(c, opts)
+}
+
+func (s *toolingSuite) TestDownloadSnapWithCompsAndBasename(c *C) {
+	dlDir := c.MkDir()
+	opts := tooling.DownloadSnapOptions{
+		TargetDir: dlDir,
+		Basename:  "mybasename",
+	}
+	s.testDownloadSnapWithComps(c, opts)
+}
+
+func (s *toolingSuite) testDownloadSnapWithComps(c *C, opts tooling.DownloadSnapOptions) {
+	dlDir := opts.TargetDir
+	comRevs := map[string]snap.Revision{
+		"comp1": snap.R(22),
+		"comp2": snap.R(33),
+	}
+	s.SeedSnaps.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["required20"], nil,
+		snap.R(21), comRevs, "other", s.StoreSigning.Database)
+
+	// env shenanigans
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	debug, hadDebug := os.LookupEnv("SNAPD_DEBUG")
+	os.Setenv("SNAPD_DEBUG", "1")
+	if hadDebug {
+		defer os.Setenv("SNAPD_DEBUG", debug)
+	} else {
+		defer os.Unsetenv("SNAPD_DEBUG")
+	}
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	dlSnap, err := s.tsto.DownloadSnap("required20", []string{"comp1", "comp2"}, opts)
+	c.Assert(err, IsNil)
+	var snapPath, comp1Path, comp2Path string
+	if opts.Basename != "" {
+		if opts.OnlyComponents {
+			// The snap is not downloaded in this case
+			snapPath = ""
+		} else {
+			snapPath = filepath.Join(dlDir, opts.Basename+".snap")
+		}
+		comp1Path = filepath.Join(dlDir, opts.Basename+`\+comp1.comp`)
+		comp2Path = filepath.Join(dlDir, opts.Basename+`\+comp2.comp`)
+	} else {
+		if opts.OnlyComponents {
+			// The snap is not downloaded in this case
+			snapPath = ""
+		} else {
+			snapPath = filepath.Join(dlDir, "required20_21.snap")
+		}
+		comp1Path = filepath.Join(dlDir, `required20\+comp1_22.comp`)
+		comp2Path = filepath.Join(dlDir, `required20\+comp2_33.comp`)
+	}
+	c.Check(dlSnap.Path, Equals, snapPath)
+	c.Check(dlSnap.Info.SnapName(), Equals, "required20")
+	c.Check(dlSnap.RedirectChannel, Equals, "")
+	dlComps := dlSnap.Components
+	c.Check(len(dlComps), Equals, 2)
+	c.Check(dlComps[0].Path, Matches, comp1Path)
+	c.Check(dlComps[1].Path, Matches, comp2Path)
+	cref1 := naming.NewComponentRef("required20", "comp1")
+	c.Check(dlComps[0].Info, DeepEquals, &snap.ComponentInfo{
+		Component:         cref1,
+		Type:              snap.TestComponent,
+		ComponentSideInfo: *snap.NewComponentSideInfo(cref1, snap.R(22)),
+	})
+	cref2 := naming.NewComponentRef("required20", "comp2")
+	c.Check(dlComps[1].Info, DeepEquals, &snap.ComponentInfo{
+		Component:         cref2,
+		Type:              snap.TestComponent,
+		ComponentSideInfo: *snap.NewComponentSideInfo(cref2, snap.R(33)),
+	})
+
+	c.Check(logbuf.String(), Matches, `.* DEBUG: Going to download snap "required20" and component\(s\) "comp1", "comp2" `+opts.String()+".\n"+
+		"")
+}
+
+func (s *toolingSuite) TestDownloadManySnapWithComps(c *C) {
+	comRevs := map[string]snap.Revision{
+		"comp1": snap.R(22),
+		"comp2": snap.R(33),
+	}
+	s.SeedSnaps.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["required20"], nil,
+		snap.R(21), comRevs, "other", s.StoreSigning.Database)
+	s.setupSnaps(c, map[string]string{"core": "canonical"}, "")
+
+	// env shenanigans
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	snapsToDownld := []tooling.SnapToDownload{
+		{Snap: naming.Snap("core")},
+		{Snap: naming.Snap("required20"), CompsToDownload: []string{"comp1", "comp2"}},
+	}
+	dlDir := c.MkDir()
+	var numCore, numReq int
+	bdf := func(si *snap.Info, cinfos map[string]*snap.ComponentInfo) (targetPath string, err error) {
+		switch si.SnapName() {
+		case "core":
+			c.Check(len(cinfos), Equals, 0)
+			numCore++
+		case "required20":
+			cref1 := naming.NewComponentRef(si.SnapName(), "comp1")
+			cref2 := naming.NewComponentRef(si.SnapName(), "comp2")
+			c.Check(cinfos, DeepEquals, map[string]*snap.ComponentInfo{
+				"comp1": {
+					Component:           cref1,
+					Type:                snap.TestComponent,
+					ComponentProvenance: "global-upload",
+					ComponentSideInfo:   *snap.NewComponentSideInfo(cref1, snap.R(22)),
+				},
+				"comp2": {
+					Component:           cref2,
+					Type:                snap.TestComponent,
+					ComponentProvenance: "global-upload",
+					ComponentSideInfo:   *snap.NewComponentSideInfo(cref2, snap.R(33)),
+				},
+			})
+			numReq++
+		default:
+			c.Error("unexpected snap", si.SnapName())
+		}
+		return filepath.Join(dlDir, si.SnapName()), nil
+	}
+	topts := tooling.DownloadManyOptions{
+		BeforeDownloadFunc: bdf,
+		EnforceValidation:  false,
+	}
+	dss, err := s.tsto.DownloadMany(snapsToDownld, nil, topts)
+	c.Assert(err, IsNil)
+	c.Check(len(dss), Equals, 2)
+	c.Check(dss["core"].Info.SnapName(), Equals, "core")
+	c.Check(dss["required20"].Info.SnapName(), Equals, "required20")
+	c.Check(len(dss["core"].Components), Equals, 0)
+	comps := dss["required20"].Components
+	c.Check(len(comps), Equals, 2)
+	c.Check(comps[0].Info.Component, Equals, naming.NewComponentRef("required20", "comp1"))
+	c.Check(comps[1].Info.Component, Equals, naming.NewComponentRef("required20", "comp2"))
+
+	c.Check(numCore, Equals, 1)
+	c.Check(numReq, Equals, 1)
 }
 
 func (s *toolingSuite) TestSetAssertionMaxFormats(c *C) {
@@ -440,9 +610,11 @@ func (s *toolingSuite) SnapAction(_ context.Context, curSnaps []*store.CurrentSn
 			redirectChannel = channel
 		}
 		info1.Channel = channel
+		comps := s.AssertedSnapComponents(a.InstanceName)
 		sars = append(sars, store.SnapActionResult{
 			Info:            &info1,
 			RedirectChannel: redirectChannel,
+			Resources:       comps,
 		})
 	}
 

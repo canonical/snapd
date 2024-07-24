@@ -336,4 +336,4 @@ override_dh_systemd_start:
 	# Then service
 	dh_systemd_start $(DH_SYSTEMD_START_OPTS) snapd.service
 	# Then the rest
-	dh_systemd_start $(DH_SYSTEMD_START_OPTS) $(filter-out snapd.socket snapd.service, $(shell ls debian/snapd/lib/systemd/system/))
+	dh_systemd_start $(DH_SYSTEMD_START_OPTS) $(filter-out snapd.socket snapd.service snapd.mounts-pre.target, $(shell ls debian/snapd/lib/systemd/system/))

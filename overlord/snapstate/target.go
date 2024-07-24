@@ -207,7 +207,10 @@ func StoreInstallGoal(snaps ...StoreSnap) InstallGoal {
 			continue
 		}
 
-		if sn.RevOpts.Channel == "" {
+		// only provide a default the channel if the revision is not set, since
+		// we don't want to prevent the user from installing a specific revision
+		// that doesn't happen to exist in the "stable" risk
+		if sn.RevOpts.Channel == "" && sn.RevOpts.Revision.Unset() {
 			sn.RevOpts.Channel = "stable"
 		}
 
@@ -321,9 +324,19 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			snapst = &SnapState{}
 		}
 
-		channel := r.RedirectChannel
-		if r.RedirectChannel == "" {
+		var channel string
+		switch {
+		case r.RedirectChannel != "":
+			channel = r.RedirectChannel
+		case sn.RevOpts.Channel != "":
 			channel = sn.RevOpts.Channel
+		default:
+			// this should only ever happen if the caller requested a specific
+			// revision to be installed (without specifying a channel). note
+			// that we won't actually end up tracking "stable", it will get
+			// mapped to "latest/stable" by SnapState.SetTrackingChannel in
+			// doLinkSnap
+			channel = "stable"
 		}
 
 		comps, err := componentTargetsFromActionResult(r, sn.Components)
@@ -433,6 +446,12 @@ func completeStoreAction(action *store.SnapAction, revOpts RevisionOptions, igno
 		// caller provided some validation sets, nothing to do but send them
 		// to the store
 		action.ValidationSets = revOpts.ValidationSets
+
+		// the channel here should be cleared out. if the validation sets that
+		// we are sending require a specific revision, we don't know if that
+		// revision will be part of any requested channel. the caller still
+		// might choose to track any channel in the RevisionOptions.
+		action.Channel = ""
 	default:
 		vsets, err := enforcedSets()
 		if err != nil {
@@ -485,14 +504,11 @@ func completeStoreAction(action *store.SnapAction, revOpts RevisionOptions, igno
 			// we ignore the cohort if a validation set requires that the
 			// snap is pinned to a specific revision
 			action.CohortKey = ""
-		}
-	}
 
-	// clear out the channel if we're requesting a specific revision, which
-	// could be because the user requested a specific revision or because a
-	// validation set requires it
-	if !action.Revision.Unset() {
-		action.Channel = ""
+			// since we're constraining this snap to a revision required by a
+			// validation set, we shouldn't supply a channel.
+			action.Channel = ""
+		}
 	}
 
 	return nil
@@ -795,6 +811,62 @@ func (p *updatePlan) targetInfos() []*snap.Info {
 	return infos
 }
 
+// updates returns the updates that should be applied to the system's state for
+// this plan.
+func (p *updatePlan) updates(st *state.State, opts Options) ([]update, error) {
+	updates := make([]update, 0, len(p.targets))
+	for _, t := range p.targets {
+		opts.PrereqTracker.Add(t.info)
+
+		snapsup, compsups, err := t.setups(st, opts)
+		if err != nil {
+			if !p.refreshAll() {
+				return nil, err
+			}
+
+			logger.Noticef("cannot refresh snap %q: %v", t.info.InstanceName(), err)
+			continue
+		}
+
+		updates = append(updates, update{
+			Setup:      snapsup,
+			SnapState:  t.snapst,
+			Components: compsups,
+		})
+	}
+	return updates, nil
+}
+
+// revisionChanges returns the snaps that will have their revisions changed by
+// the updates in this plan.
+func (p *updatePlan) revisionChanges(st *state.State, opts Options) ([]*snap.Info, error) {
+	updates, err := p.updates(st, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	targetByName := make(map[string]target, len(p.targets))
+	for _, t := range p.targets {
+		targetByName[t.info.InstanceName()] = t
+	}
+
+	changes := make([]*snap.Info, 0, len(updates))
+	for _, up := range updates {
+		if up.revisionSatisfied() {
+			continue
+		}
+
+		t, ok := targetByName[up.SnapState.InstanceName()]
+		// this should never happen
+		if !ok {
+			return nil, fmt.Errorf("internal error: update %q not found in targets", up.SnapState.InstanceName())
+		}
+
+		changes = append(changes, t.info)
+	}
+	return changes, nil
+}
+
 // filter applies the given function to each target in the update plan and
 // removes any targets for which the function returns false.
 func (p *updatePlan) filter(f func(t target) (bool, error)) error {
@@ -991,25 +1063,9 @@ func updateFromPlan(st *state.State, plan updatePlan, opts Options) ([]string, *
 	// it is sad that we have to split up updatePlan like this, but doUpdate is
 	// used in places where we don't have a snap.Info, so we cannot pass an
 	// updatePlan to doUpdate
-	updates := make([]update, 0, len(plan.targets))
-	for _, t := range plan.targets {
-		opts.PrereqTracker.Add(t.info)
-
-		snapsup, compsups, err := t.setups(st, opts)
-		if err != nil {
-			if !plan.refreshAll() {
-				return nil, nil, err
-			}
-
-			logger.Noticef("cannot refresh snap %q: %v", t.info.InstanceName(), err)
-			continue
-		}
-
-		updates = append(updates, update{
-			Setup:      snapsup,
-			SnapState:  t.snapst,
-			Components: compsups,
-		})
+	updates, err := plan.updates(st, opts)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	updated, uts, err := doPotentiallySplitUpdate(st, plan.requested, updates, opts)
@@ -1085,7 +1141,7 @@ func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Op
 	}
 
 	refreshOpts := &store.RefreshOptions{Scheduled: opts.Flags.IsAutoRefresh}
-	plan, err := refreshCandidates(ctx, st, allSnaps, s.snaps, user, refreshOpts, opts)
+	plan, err := storeUpdatePlan(ctx, st, allSnaps, s.snaps, user, refreshOpts, opts)
 	if err != nil {
 		return updatePlan{}, err
 	}
@@ -1216,6 +1272,10 @@ func targetForPathSnap(update PathSnap, snapst SnapState, opts Options) (target,
 		return target{}, fmt.Errorf("cannot install local snap %q: %v != %v (revision mismatch)", update.InstanceName, update.RevOpts.Revision, si.Revision)
 	}
 
+	if update.RevOpts.Channel != "" && update.SideInfo.Channel != "" && update.RevOpts.Channel != update.SideInfo.Channel {
+		return target{}, fmt.Errorf("cannot install local snap %q: %v != %v (channel mismatch)", update.InstanceName, update.RevOpts.Channel, si.Channel)
+	}
+
 	info, err := validatedInfoFromPathAndSideInfo(update.InstanceName, update.Path, si)
 	if err != nil {
 		return target{}, err
@@ -1224,6 +1284,10 @@ func targetForPathSnap(update PathSnap, snapst SnapState, opts Options) (target,
 	var trackingChannel string
 	if snapst.IsInstalled() {
 		trackingChannel = snapst.TrackingChannel
+	}
+
+	if update.RevOpts.Channel == "" {
+		update.RevOpts.Channel = update.SideInfo.Channel
 	}
 
 	channel, err := resolveChannel(update.InstanceName, trackingChannel, update.RevOpts.Channel, opts.DeviceCtx)

@@ -30,9 +30,11 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type specSuite struct {
+	testutil.BaseTest
 	iface    *ifacetest.TestInterface
 	spec     *udev.Specification
 	plugInfo *snap.PlugInfo
@@ -63,33 +65,40 @@ var _ = Suite(&specSuite{
 	},
 })
 
-func (s *specSuite) SetUpSuite(c *C) {
+func (s *specSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+
 	const plugYaml = `name: snap1
 version: 0
 plugs:
- name:
-  interface: test
+  name:
+    interface: test
 apps:
- foo:
-  command: bin/foo
+  foo:
+    command: bin/foo
+components:
+  comp:
+    type: test
+    hooks:
+      install:
 hooks:
- configure:
+  configure:
 `
-	s.plug, s.plugInfo = ifacetest.MockConnectedPlug(c, plugYaml, nil, "name")
+	const compYaml = "component: snap1+comp\ntype: test"
+	s.plug, s.plugInfo = ifacetest.MockConnectedPlugWithComponents(c, plugYaml, nil, []string{compYaml}, "name")
 
 	const slotYaml = `name: snap2
 version: 0
 slots:
- name:
-  interface: test
+  name:
+    interface: test
 `
 	s.slot, s.slotInfo = ifacetest.MockConnectedSlot(c, slotYaml, nil, "name")
-}
 
-func (s *specSuite) SetUpTest(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plugInfo.Snap, nil)
-	c.Assert(err, IsNil)
-	s.spec = udev.NewSpecification(appSet)
+	s.spec = udev.NewSpecification(s.plug.AppSet())
 }
 
 func (s *specSuite) TestAddSnippte(c *C) {
@@ -120,6 +129,11 @@ func (s *specSuite) testTagDevice(c *C, helperDir string) {
 	c.Assert(s.spec.AddConnectedPlug(iface, s.plug, s.slot), IsNil)
 
 	c.Assert(s.spec.Snippets(), DeepEquals, []string{
+		`# iface-1
+kernel="voodoo", TAG+="snap_snap1__comp_hook_install"`,
+		`# iface-2
+kernel="hoodoo", TAG+="snap_snap1__comp_hook_install"`,
+		fmt.Sprintf(`TAG=="snap_snap1__comp_hook_install", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%s/snap-device-helper $env{ACTION} snap_snap1__comp_hook_install $devpath $major:$minor"`, helperDir),
 		`# iface-1
 kernel="voodoo", TAG+="snap_snap1_foo"`,
 		`# iface-2

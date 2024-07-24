@@ -524,7 +524,7 @@ func (s *imageSeeder) validationSetKeysAndRevisionForSnap(snapName string) ([]sn
 func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curSnaps []*tooling.CurrentSnap) (downloadedSnaps map[string]*tooling.DownloadedSnap, err error) {
 	byName := make(map[string]*seedwriter.SeedSnap, len(snapsToDownload))
 	revisions := make(map[string]snap.Revision)
-	beforeDownload := func(info *snap.Info) (string, error) {
+	beforeDownload := func(info *snap.Info, cinfos map[string]*snap.ComponentInfo) (string, error) {
 		sn := byName[info.SnapName()]
 		if sn == nil {
 			return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
@@ -534,6 +534,7 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 			rev = info.Revision
 		}
 		fmt.Fprintf(Stdout, "Fetching %s (%s)\n", sn.SnapName(), rev)
+		// TODO:COMPS: pass component infos to SetInfo (next PR)
 		if err := s.w.SetInfo(sn, info); err != nil {
 			return "", err
 		}
@@ -549,10 +550,26 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 			return nil, err
 		}
 
+		var channel string
+		switch {
+		case !rev.Unset():
+			// if we're setting a revision from a validation set, we don't want
+			// to send a channel, since we don't know if that revision is in
+			// that channel
+			channel = ""
+		case sn.Channel == "":
+			// otherwise, we want to make sure to set a default channel if
+			// possible. this case shouldn't ever really happen, since SeedSnaps
+			// should have a channel set
+			channel = "stable"
+		default:
+			channel = sn.Channel
+		}
+
 		byName[sn.SnapName()] = sn
 		revisions[sn.SnapName()] = rev
 		snapToDownloadOptions[i].Snap = sn
-		snapToDownloadOptions[i].Channel = sn.Channel
+		snapToDownloadOptions[i].Channel = channel
 		snapToDownloadOptions[i].Revision = rev
 		snapToDownloadOptions[i].CohortKey = s.wideCohortKey
 		snapToDownloadOptions[i].ValidationSets = vss

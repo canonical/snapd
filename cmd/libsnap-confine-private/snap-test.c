@@ -23,84 +23,142 @@
 static void test_sc_security_tag_validate(void)
 {
 	// First, test the names we know are good
-	g_assert_true(sc_security_tag_validate("snap.name.app", "name"));
+	g_assert_true(sc_security_tag_validate("snap.name.app", "name", NULL));
 	g_assert_true(sc_security_tag_validate
 		      ("snap.network-manager.NetworkManager",
-		       "network-manager"));
-	g_assert_true(sc_security_tag_validate("snap.f00.bar-baz1", "f00"));
-	g_assert_true(sc_security_tag_validate("snap.foo.hook.bar", "foo"));
-	g_assert_true(sc_security_tag_validate("snap.foo.hook.bar-baz", "foo"));
+		       "network-manager", NULL));
 	g_assert_true(sc_security_tag_validate
-		      ("snap.foo_instance.bar-baz", "foo_instance"));
+		      ("snap.f00.bar-baz1", "f00", NULL));
 	g_assert_true(sc_security_tag_validate
-		      ("snap.foo_instance.hook.bar-baz", "foo_instance"));
+		      ("snap.foo.hook.bar", "foo", NULL));
 	g_assert_true(sc_security_tag_validate
-		      ("snap.foo_bar.hook.bar-baz", "foo_bar"));
+		      ("snap.foo.hook.bar-baz", "foo", NULL));
+	g_assert_true(sc_security_tag_validate
+		      ("snap.foo_instance.bar-baz", "foo_instance", NULL));
+	g_assert_true(sc_security_tag_validate
+		      ("snap.foo_instance.hook.bar-baz", "foo_instance", NULL));
+	g_assert_true(sc_security_tag_validate
+		      ("snap.foo_bar.hook.bar-baz", "foo_bar", NULL));
 
 	// Now, test the names we know are bad
 	g_assert_false(sc_security_tag_validate
-		       ("pkg-foo.bar.0binary-bar+baz", "bar"));
-	g_assert_false(sc_security_tag_validate("pkg-foo_bar_1.1", ""));
-	g_assert_false(sc_security_tag_validate("appname/..", ""));
-	g_assert_false(sc_security_tag_validate("snap", ""));
-	g_assert_false(sc_security_tag_validate("snap.", ""));
-	g_assert_false(sc_security_tag_validate("snap.name", "name"));
-	g_assert_false(sc_security_tag_validate("snap.name.", "name"));
-	g_assert_false(sc_security_tag_validate("snap.name.app.", "name"));
-	g_assert_false(sc_security_tag_validate("snap.name.hook.", "name"));
-	g_assert_false(sc_security_tag_validate("snap!name.app", "!name"));
-	g_assert_false(sc_security_tag_validate("snap.-name.app", "-name"));
-	g_assert_false(sc_security_tag_validate("snap.name!app", "name!"));
-	g_assert_false(sc_security_tag_validate("snap.name.-app", "name"));
+		       ("pkg-foo.bar.0binary-bar+baz", "bar", NULL));
+	g_assert_false(sc_security_tag_validate("pkg-foo_bar_1.1", NULL, NULL));
+	g_assert_false(sc_security_tag_validate("appname/..", NULL, NULL));
+	g_assert_false(sc_security_tag_validate("snap", NULL, NULL));
+	g_assert_false(sc_security_tag_validate("snap.", NULL, NULL));
+	g_assert_false(sc_security_tag_validate("snap.name", "name", NULL));
+	g_assert_false(sc_security_tag_validate("snap.name.", "name", NULL));
 	g_assert_false(sc_security_tag_validate
-		       ("snap.name.app!hook.foo", "name"));
+		       ("snap.name.app.", "name", NULL));
 	g_assert_false(sc_security_tag_validate
-		       ("snap.name.app.hook!foo", "name"));
+		       ("snap.name.hook.", "name", NULL));
 	g_assert_false(sc_security_tag_validate
-		       ("snap.name.app.hook.-foo", "name"));
+		       ("snap!name.app", "!name", NULL));
 	g_assert_false(sc_security_tag_validate
-		       ("snap.name.app.hook.f00", "name"));
-	g_assert_false(sc_security_tag_validate("sna.pname.app", "pname"));
-	g_assert_false(sc_security_tag_validate("snap.n@me.app", "n@me"));
-	g_assert_false(sc_security_tag_validate("SNAP.name.app", "name"));
-	g_assert_false(sc_security_tag_validate("snap.Name.app", "Name"));
+		       ("snap.-name.app", "-name", NULL));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.name!app", "name!", NULL));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.name.-app", "name", NULL));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.name.app!hook.foo", "name", NULL));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.name.app.hook!foo", "name", NULL));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.name.app.hook.-foo", "name", NULL));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.name.app.hook.f00", "name", NULL));
+	g_assert_false(sc_security_tag_validate
+		       ("sna.pname.app", "pname", NULL));
+	g_assert_false(sc_security_tag_validate("snap.n@me.app", "n@me", NULL));
+	g_assert_false(sc_security_tag_validate("SNAP.name.app", "name", NULL));
+	g_assert_false(sc_security_tag_validate("snap.Name.app", "Name", NULL));
 	// This used to be false but it's now allowed.
-	g_assert_true(sc_security_tag_validate("snap.0name.app", "0name"));
-	g_assert_false(sc_security_tag_validate("snap.-name.app", "-name"));
-	g_assert_false(sc_security_tag_validate("snap.name.@app", "name"));
-	g_assert_false(sc_security_tag_validate(".name.app", "name"));
-	g_assert_false(sc_security_tag_validate("snap..name.app", ".name"));
-	g_assert_false(sc_security_tag_validate("snap.name..app", "name."));
-	g_assert_false(sc_security_tag_validate("snap.name.app..", "name"));
+	g_assert_true(sc_security_tag_validate
+		      ("snap.0name.app", "0name", NULL));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.-name.app", "-name", NULL));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.name.@app", "name", NULL));
+	g_assert_false(sc_security_tag_validate(".name.app", "name", NULL));
+	g_assert_false(sc_security_tag_validate
+		       ("snap..name.app", ".name", NULL));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.name..app", "name.", NULL));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.name.app..", "name", NULL));
 	// These contain invalid instance key
-	g_assert_false(sc_security_tag_validate("snap.foo_.bar-baz", "foo"));
 	g_assert_false(sc_security_tag_validate
-		       ("snap.foo_toolonginstance.bar-baz", "foo"));
+		       ("snap.foo_.bar-baz", "foo", NULL));
 	g_assert_false(sc_security_tag_validate
-		       ("snap.foo_inst@nace.bar-baz", "foo"));
+		       ("snap.foo_toolonginstance.bar-baz", "foo", NULL));
 	g_assert_false(sc_security_tag_validate
-		       ("snap.foo_in-stan-ce.bar-baz", "foo"));
+		       ("snap.foo_inst@nace.bar-baz", "foo", NULL));
 	g_assert_false(sc_security_tag_validate
-		       ("snap.foo_in stan.bar-baz", "foo"));
+		       ("snap.foo_in-stan-ce.bar-baz", "foo", NULL));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.foo_in stan.bar-baz", "foo", NULL));
 
 	// Test names that are both good, but snap name doesn't match security tag
-	g_assert_false(sc_security_tag_validate("snap.foo.hook.bar", "fo"));
-	g_assert_false(sc_security_tag_validate("snap.foo.hook.bar", "fooo"));
-	g_assert_false(sc_security_tag_validate("snap.foo.hook.bar", "snap"));
-	g_assert_false(sc_security_tag_validate("snap.foo.hook.bar", "bar"));
 	g_assert_false(sc_security_tag_validate
-		       ("snap.foo_instance.bar", "foo_bar"));
+		       ("snap.foo.hook.bar", "fo", NULL));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.foo.hook.bar", "fooo", NULL));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.foo.hook.bar", "snap", NULL));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.foo.hook.bar", "bar", NULL));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.foo_instance.bar", "foo_bar", NULL));
 
 	// Regression test 12to8
-	g_assert_true(sc_security_tag_validate("snap.12to8.128to8", "12to8"));
 	g_assert_true(sc_security_tag_validate
-		      ("snap.123test.123test", "123test"));
+		      ("snap.12to8.128to8", "12to8", NULL));
 	g_assert_true(sc_security_tag_validate
-		      ("snap.123test.hook.configure", "123test"));
+		      ("snap.123test.123test", "123test", NULL));
+	g_assert_true(sc_security_tag_validate
+		      ("snap.123test.hook.configure", "123test", NULL));
 
 	// regression test snap.eon-edg-shb-pulseaudio.hook.connect-plug-i2c
 	g_assert_true(sc_security_tag_validate
-		      ("snap.foo.hook.connect-plug-i2c", "foo"));
+		      ("snap.foo.hook.connect-plug-i2c", "foo", NULL));
+
+	// make sure that component hooks can be validated
+	g_assert_true(sc_security_tag_validate
+		      ("snap.foo+comp.hook.install", "foo", "comp"));
+	g_assert_true(sc_security_tag_validate
+		      ("snap.foo_instance+comp.hook.install", "foo_instance",
+		       "comp"));
+	// make sure that only hooks from components can be validated, not apps
+	g_assert_false(sc_security_tag_validate
+		       ("snap.foo+comp.app", "foo", "comp"));
+
+	// unexpected component names should not work
+	g_assert_false(sc_security_tag_validate
+		       ("snap.foo+comp.hook.install", "foo", NULL));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.foo+comp.hook.install", "foo", NULL));
+
+	// missing component names when we expect one should not work
+	g_assert_false(sc_security_tag_validate
+		       ("snap.foo.hook.install", "foo", "comp"));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.foo.hook.install", "foo", "comp"));
+
+	// mismatch component names should not work
+	g_assert_false(sc_security_tag_validate
+		       ("snap.foo+comp.hook.install", "foo", "component"));
+
+	// empty component name should not work
+	g_assert_false(sc_security_tag_validate
+		       ("snap.foo+comp.hook.install", "foo", ""));
+
+	// invalid component names should not work
+	g_assert_false(sc_security_tag_validate
+		       ("snap.foo+coMp.hook.install", "foo", "coMp"));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.foo+-omp.hook.install", "foo", "-omp"));
 
 	// Security tag that's too long. The extra +2 is for the string
 	// terminator and to allow us to make the tag too long to validate.
@@ -109,11 +167,11 @@ static void test_sc_security_tag_validate(void)
 	memcpy(long_tag, "snap.foo.b", sizeof "snap.foo.b" - 1);
 	long_tag[sizeof long_tag - 1] = '\0';
 	g_assert_true(strlen(long_tag) == SNAP_SECURITY_TAG_MAX_LEN + 1);
-	g_assert_false(sc_security_tag_validate(long_tag, "foo"));
+	g_assert_false(sc_security_tag_validate(long_tag, "foo", NULL));
 
 	// If we make it one byte shorter it will be valid.
 	long_tag[sizeof long_tag - 2] = '\0';
-	g_assert_true(sc_security_tag_validate(long_tag, "foo"));
+	g_assert_true(sc_security_tag_validate(long_tag, "foo", NULL));
 
 }
 
@@ -486,30 +544,6 @@ static void test_sc_snap_drop_instance_key_basic(void)
 	g_assert_cmpstr(name, ==, "0123456789012345678901234567890123456789");
 }
 
-static void test_sc_snap_split_instance_name_trailing_nil(void)
-{
-	if (g_test_subprocess()) {
-		char dest[3] = { 0 };
-		// pretend there is no place for trailing \0
-		sc_snap_split_instance_name("_", NULL, 0, dest, 0);
-		return;
-	}
-	g_test_trap_subprocess(NULL, 0, 0);
-	g_test_trap_assert_failed();
-}
-
-static void test_sc_snap_split_instance_name_short_instance_dest(void)
-{
-	if (g_test_subprocess()) {
-		char dest[10] = { 0 };
-		sc_snap_split_instance_name("foo_barbarbarbar", NULL, 0,
-					    dest, sizeof dest);
-		return;
-	}
-	g_test_trap_subprocess(NULL, 0, 0);
-	g_test_trap_assert_failed();
-}
-
 static void test_sc_snap_split_instance_name_basic(void)
 {
 	char name[SNAP_NAME_LEN + 1] = { 0xff };
@@ -519,71 +553,94 @@ static void test_sc_snap_split_instance_name_basic(void)
 				    sizeof instance);
 	g_assert_cmpstr(name, ==, "foo");
 	g_assert_cmpstr(instance, ==, "bar");
+}
 
-	memset(name, 0xff, sizeof name);
-	memset(instance, 0xff, sizeof instance);
-	sc_snap_split_instance_name("foo-bar_bar", name, sizeof name, instance,
-				    sizeof instance);
-	g_assert_cmpstr(name, ==, "foo-bar");
-	g_assert_cmpstr(instance, ==, "bar");
+static void test_sc_snap_split_snap_component_basic(void)
+{
+	char snap_name[SNAP_NAME_LEN + 1] = { 0xff };
+	char component_name[SNAP_NAME_LEN + 1] = { 0xff };
 
-	memset(name, 0xff, sizeof name);
-	memset(instance, 0xff, sizeof instance);
-	sc_snap_split_instance_name("foo-bar", name, sizeof name, instance,
-				    sizeof instance);
-	g_assert_cmpstr(name, ==, "foo-bar");
-	g_assert_cmpstr(instance, ==, "");
+	sc_snap_split_snap_component("foo+bar", snap_name, sizeof snap_name,
+				     component_name, sizeof component_name);
+	g_assert_cmpstr(snap_name, ==, "foo");
+	g_assert_cmpstr(component_name, ==, "bar");
+}
 
-	memset(name, 0xff, sizeof name);
-	memset(instance, 0xff, sizeof instance);
-	sc_snap_split_instance_name("_baz", name, sizeof name, instance,
-				    sizeof instance);
-	g_assert_cmpstr(name, ==, "");
-	g_assert_cmpstr(instance, ==, "baz");
+static void test_sc_snap_component_validate(void)
+{
+	sc_error *err = NULL;
+	sc_snap_component_validate("snapname+compname", NULL, &err);
+	g_assert_null(err);
 
-	memset(name, 0xff, sizeof name);
-	memset(instance, 0xff, sizeof instance);
-	sc_snap_split_instance_name("foo", name, sizeof name, instance,
-				    sizeof instance);
-	g_assert_cmpstr(name, ==, "foo");
-	g_assert_cmpstr(instance, ==, "");
+	sc_snap_component_validate("snap-name+comp-name", NULL, &err);
+	g_assert_null(err);
 
-	memset(name, 0xff, sizeof name);
-	sc_snap_split_instance_name("foo_bar", name, sizeof name, NULL, 0);
-	g_assert_cmpstr(name, ==, "foo");
+	// check that we fail if the snap name isn't in the snap component
+	sc_snap_component_validate("snapname+compname", "othername", &err);
+	g_assert_nonnull(err);
+	g_assert_true(sc_error_match
+		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_COMPONENT));
+	sc_error_free(err);
 
-	memset(instance, 0xff, sizeof instance);
-	sc_snap_split_instance_name("foo_bar", NULL, 0, instance,
-				    sizeof instance);
-	g_assert_cmpstr(instance, ==, "bar");
+	sc_snap_component_validate("snapname+compname", "othername_instance",
+				   &err);
+	g_assert_nonnull(err);
+	g_assert_true(sc_error_match
+		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_COMPONENT));
+	sc_error_free(err);
 
-	memset(name, 0xff, sizeof name);
-	memset(instance, 0xff, sizeof instance);
-	sc_snap_split_instance_name("hello_world_surprise", name, sizeof name,
-				    instance, sizeof instance);
-	g_assert_cmpstr(name, ==, "hello");
-	g_assert_cmpstr(instance, ==, "world_surprise");
+	// component name should never have an instance key in it, so this should
+	// fail
+	sc_snap_component_validate("snapname_instance+compname",
+				   "snapname_instance", &err);
+	g_assert_nonnull(err);
+	g_assert_true(sc_error_match
+		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_COMPONENT));
+	sc_error_free(err);
 
-	memset(name, 0xff, sizeof name);
-	memset(instance, 0xff, sizeof instance);
-	sc_snap_split_instance_name("", name, sizeof name, instance,
-				    sizeof instance);
-	g_assert_cmpstr(name, ==, "");
-	g_assert_cmpstr(instance, ==, "");
+	sc_snap_component_validate("snapname_instance+compname", "snapname",
+				   &err);
+	g_assert_nonnull(err);
+	g_assert_true(sc_error_match
+		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_COMPONENT));
+	sc_error_free(err);
 
-	memset(name, 0xff, sizeof name);
-	memset(instance, 0xff, sizeof instance);
-	sc_snap_split_instance_name("_", name, sizeof name, instance,
-				    sizeof instance);
-	g_assert_cmpstr(name, ==, "");
-	g_assert_cmpstr(instance, ==, "");
+	// check that we can validate the snap name in the snap component
+	sc_snap_component_validate("snapname+compname", "snapname", &err);
+	g_assert_null(err);
+	sc_snap_component_validate("snapname+compname", "snapname_instance",
+				   &err);
+	g_assert_null(err);
 
-	memset(name, 0xff, sizeof name);
-	memset(instance, 0xff, sizeof instance);
-	sc_snap_split_instance_name("foo_", name, sizeof name, instance,
-				    sizeof instance);
-	g_assert_cmpstr(name, ==, "foo");
-	g_assert_cmpstr(instance, ==, "");
+	const char *cases[] = {
+		NULL, "snap-name+", "+comp-name", "snap-name",
+		"snap-name+comp_name",
+		"loooooooooooooooooooooooooooong-snap-name+comp-name",
+		"snap-name+loooooooooooooooooooooooooooong-comp-name",
+	};
+
+	for (size_t i = 0; i < sizeof cases / sizeof *cases; ++i) {
+		g_test_message("checking invalid snap name: %s", cases[i]);
+		sc_snap_component_validate(cases[i], NULL, &err);
+		g_assert_nonnull(err);
+		g_assert_true(sc_error_match
+			      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_COMPONENT));
+		sc_error_free(err);
+	}
+}
+
+static void test_sc_snap_component_validate_respects_error_protocol(void)
+{
+	if (g_test_subprocess()) {
+		sc_snap_component_validate("hello world+comp name", NULL, NULL);
+		g_test_message("expected sc_snap_name_validate to return");
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	g_test_trap_assert_stderr
+	    ("snap name in component must use lower case letters, digits or dashes\n");
 }
 
 static void __attribute__((constructor)) init(void)
@@ -620,8 +677,11 @@ static void __attribute__((constructor)) init(void)
 
 	g_test_add_func("/snap/sc_snap_split_instance_name/basic",
 			test_sc_snap_split_instance_name_basic);
-	g_test_add_func("/snap/sc_snap_split_instance_name/trailing_nil",
-			test_sc_snap_split_instance_name_trailing_nil);
-	g_test_add_func("/snap/sc_snap_split_instance_name/short_instance_dest",
-			test_sc_snap_split_instance_name_short_instance_dest);
+	g_test_add_func("/snap/sc_snap_split_snap_component/basic",
+			test_sc_snap_split_snap_component_basic);
+	g_test_add_func("/snap/sc_snap_component_validate",
+			test_sc_snap_component_validate);
+	g_test_add_func
+	    ("/snap/sc_snap_component_validate/respects_error_protocol",
+	     test_sc_snap_component_validate_respects_error_protocol);
 }

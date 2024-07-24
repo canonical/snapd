@@ -257,6 +257,20 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 			HomeDir:  "",
 		}, nil
 	}))
+
+	s.AddCleanup(daemon.MockSnapstateStoreInstallGoal(newStoreInstallGoalRecorder))
+}
+
+type storeInstallGoalRecorder struct {
+	snapstate.InstallGoal
+	snaps []snapstate.StoreSnap
+}
+
+func newStoreInstallGoalRecorder(snaps ...snapstate.StoreSnap) snapstate.InstallGoal {
+	return &storeInstallGoalRecorder{
+		snaps:       snaps,
+		InstallGoal: snapstate.StoreInstallGoal(snaps...),
+	}
 }
 
 func (s *apiBaseSuite) mockModel(st *state.State, model *asserts.Model) {

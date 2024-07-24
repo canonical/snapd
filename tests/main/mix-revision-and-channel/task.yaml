@@ -1,0 +1,28 @@
+summary: Test installing a snap while providing a channel and revision.
+
+details: |
+  Verifies that we can install a snap while providing a channel and revision.
+
+systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
+
+restore: |
+  snap remove test-snap-with-channel-and-revision
+
+execute: |
+  # install a snap with a channel and revision from a channel that is missing
+  # the revision, should fail
+  not snap install --channel=latest/stable --revision=2 test-snap-with-channel-and-revision
+
+  # install a snap with a channel and revision
+  snap install --channel=latest/stable --revision=1 test-snap-with-channel-and-revision
+  snap list test-snap-with-channel-and-revision | MATCH '1\s+latest/stable'
+
+  snap remove test-snap-with-channel-and-revision
+
+  # revision 1 isn't the tip of candidate, but it was released to the channel,
+  # so we should be able to install it
+  snap install --channel=latest/candidate --revision=1 test-snap-with-channel-and-revision
+  snap list test-snap-with-channel-and-revision | MATCH '1\s+latest/candidate'
+
+  snap refresh test-snap-with-channel-and-revision
+  snap list test-snap-with-channel-and-revision | MATCH '2\s+latest/candidate'

@@ -45,6 +45,7 @@ execute: |
     fi
 
     echo "Precondition check for the fake store"
+    snap refresh --list 2>&1 | MATCH "All snaps up to date."
     snap refresh 2>&1 | MATCH "All snaps up to date."
 
     echo "When the store is configured to make them refreshable"
@@ -52,6 +53,12 @@ execute: |
     retry -n 4 --wait 0.5 test -e "$BLOB_DIR"/test-snapd-tools*fake1*.snap
     "$TESTSTOOLS"/store-state init-fake-refreshes  "$BLOB_DIR" test-snapd-python-webserver
     retry -n 4 --wait 0.5 test -e "$BLOB_DIR"/test-snapd-python-webserver*fake1*.snap
+
+    # make sure that "snap refresh --list" correctly shows the new revisions
+    snap refresh --list > refresh-list.out 2>&1
+    MATCH 'test-snapd-python-webserver\s+16.04-3\+fake1\s+7' < refresh-list.out
+    MATCH 'test-snapd-tools\s+1.0\+fake1\s+10' < refresh-list.out
+    MATCH 'test-snapd-tools_instance\s+1.0\+fake1\s+10' < refresh-list.out
 
     echo "And a refresh is performed"
     snap refresh
