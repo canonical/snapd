@@ -86,7 +86,7 @@ func (s *SteamSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 func (s *SteamSupportInterfaceSuite) TestSecCompSpec(c *C) {
 	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow Steam to set up \"pressure-vessel\" containers to run games in.\nmount\numount2\npivot_root\n")
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "@unrestricted\n")
 }
 
 func (s *SteamSupportInterfaceSuite) TestInterfaces(c *C) {

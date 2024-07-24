@@ -218,16 +218,11 @@ capability setpcap,
 `
 
 const steamSupportConnectedPlugSecComp = `
-# Description: additional permissions needed by Steam
+# Description: allow steam to run without a seccomp profile so that
+# steam's internal sandbox can use any features available on the system
+# without having to perpetually update the snapd interface side.
 
-# Allow Steam to set up "pressure-vessel" containers to run games in.
-mount
-umount2
-pivot_root
-
-# Native games using QtWebEngineProcess -
-# https://forum.snapcraft.io/t/autoconnect-request-steam-network-control/34267
-unshare CLONE_NEWNS
+@unrestricted
 `
 
 const steamSupportSteamInputUDevRules = `
