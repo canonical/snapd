@@ -439,21 +439,9 @@ func refreshRegistryAssertions(st *state.State, registries []*registry.Registry,
 	}
 	logger.Noticef("bulk refresh of registry assertions failed, falling back to one-by-one assertion fetching: %v", err)
 
-	modelAs := deviceCtx.Model()
 	return doFetch(st, userID, deviceCtx, nil, func(f asserts.Fetcher) error {
 		for _, registry := range registries {
 			if err := snapasserts.FetchRegistry(f, registry.Account, registry.Name); err != nil {
-				return err
-			}
-		}
-
-		if modelAs.Store() != "" {
-			err := snapasserts.FetchStore(f, modelAs.Store())
-			if notFound, ok := err.(*asserts.NotFoundError); ok {
-				if notFound.Type != asserts.StoreType {
-					return err
-				}
-			} else if err != nil {
 				return err
 			}
 		}
