@@ -22,6 +22,7 @@ package builtin
 import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 // The nomad-support interface enables running Hashicorp Nomad within
@@ -58,6 +59,8 @@ const nomadSupportConnectedPlugAppArmor = `
 
 # Required to allow mkdir /sys/fs/cgroup/nomad.slice/
 capability dac_override,
+# Required to allow chown task_dir to nobody
+capability chown,
 
 # managing our own cgroup config
 # https://github.com/hashicorp/nomad/issues/18211
@@ -71,6 +74,20 @@ capability dac_override,
 @{PROC}/driver/nvidia/capabilities/mig/monitor r,
 `
 
+const nomadSupportConnectedPlugSecComp = `
+# Description: allow operating as the nomad daemon
+
+# Filesystem syscalls nomad will need, as it allows user to change
+# file owner/group arbitrarily.
+chown
+chown32
+fchown
+fchown32
+fchownat
+lchown
+lchownat
+`
+
 type nomadSupportInterface struct {
 	commonInterface
 }
@@ -81,6 +98,11 @@ func (iface *nomadSupportInterface) Name() string {
 
 func (iface *nomadSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(nomadSupportConnectedPlugAppArmor)
+	return nil
+}
+
+func (iface *nomadSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(nomadSupportConnectedPlugSecComp)
 	return nil
 }
 
