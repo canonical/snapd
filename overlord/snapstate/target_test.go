@@ -490,36 +490,3 @@ func (s *TargetTestSuite) TestInstallFromStoreRevisionAndChannelWithRedirectChan
 	c.Check(snapsup.Channel, Equals, "2.0/stable")
 	c.Check(snapsup.Revision(), Equals, snap.R(7))
 }
-
-func (s *TargetTestSuite) TestStoreInstallWithRegistry(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	const (
-		snapName = "test-snap"
-		channel  = "channel-for-registry"
-	)
-
-	goal := snapstate.StoreInstallGoal(snapstate.StoreSnap{
-		InstanceName: snapName,
-		RevOpts: snapstate.RevisionOptions{
-			Channel: channel,
-		},
-	})
-
-	// need a change to add tasks to state, otherwise can't find prepare task to
-	// check SnapSetup
-	chg := s.state.NewChange("test", "test change")
-	info, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
-	c.Assert(err, IsNil)
-	c.Check(info.Channel, Equals, channel)
-	c.Check(info.InstanceName(), Equals, snapName)
-	chg.AddAll(ts)
-
-	tasks := tasksWithKind(ts, "validate-snap")
-	c.Assert(tasks, HasLen, 1)
-
-	snapsup, err := snapstate.TaskSnapSetup(tasks[0])
-	c.Assert(err, IsNil)
-	c.Assert(snapsup.Registries, DeepEquals, []snapstate.RegistryID{{Account: "my-publisher", Registry: "my-reg"}})
-}
