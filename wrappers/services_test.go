@@ -5427,11 +5427,11 @@ apps:
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile1, srvFile2},
 		{"show", "--property=Id,ActiveState,UnitFileState,Names", srvFile2Sock1, srvFile2Sock2},
-		{"stop", srvFile2, srvFile2Sock1, srvFile2Sock2},
-		{"show", "--property=ActiveState", srvFile2},
+		{"stop", srvFile2Sock1, srvFile2Sock2, srvFile2},
 		{"show", "--property=ActiveState", srvFile2Sock1},
 		{"show", "--property=ActiveState", srvFile2Sock2},
-		{"start", srvFile2, srvFile2Sock1, srvFile2Sock2},
+		{"show", "--property=ActiveState", srvFile2},
+		{"start", srvFile2Sock1, srvFile2Sock2, srvFile2},
 	})
 }
 

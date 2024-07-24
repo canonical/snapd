@@ -1253,20 +1253,20 @@ func restartServicesByStatus(svcsSts []*internal.ServiceStatus, explicitServices
 
 		// If the service is activated, then we must also consider it's activators
 		if len(st.ActivatorUnitStatuses()) != 0 {
-			// If the primary unit was running then we restart it, for the primary
-			// unit we cannot take enabled into account as that is static for activated
-			// services.
-			if unitActive {
-				unitsToRestart = append(unitsToRestart, unitName)
-			}
-
-			// And restart any activators, but operate normally on these
+			// Restart any activators first and operate normally on these
 			for _, act := range st.ActivatorUnitStatuses() {
 				// Use the primary name here for shouldRestart, as the caller
 				// will never refer directly to the sub-services.
 				if shouldRestart(act.Active, act.Enabled, unitName) {
 					unitsToRestart = append(unitsToRestart, act.Name)
 				}
+			}
+
+			// If the primary unit was running then we restart it, for the primary
+			// unit we cannot take enabled into account as that is static for activated
+			// services.
+			if unitActive {
+				unitsToRestart = append(unitsToRestart, unitName)
 			}
 		} else {
 			if shouldRestart(unitActive, unitEnabled, unitName) {
