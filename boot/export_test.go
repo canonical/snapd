@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -69,7 +70,6 @@ var (
 	ResealKeyToModeenv              = resealKeyToModeenv
 	RecoveryBootChainsForSystems    = recoveryBootChainsForSystems
 	RunModeBootChains               = runModeBootChains
-	SealKeyModelParams              = sealKeyModelParams
 
 	BootVarsForTrustedCommandLineFromGadget = bootVarsForTrustedCommandLineFromGadget
 
@@ -169,8 +169,6 @@ func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash
 
 type BootAsset = bootAsset
 type BootChain = bootChain
-type PredictableBootChains = predictableBootChains
-type ResealKeyForBootChainsParams = resealKeyForBootChainsParams
 
 const (
 	BootChainEquivalent   = bootChainEquivalent
@@ -180,13 +178,10 @@ const (
 
 var (
 	ToPredictableBootChain              = toPredictableBootChain
-	ToPredictableBootChains             = toPredictableBootChains
 	PredictableBootChainsEqualForReseal = predictableBootChainsEqualForReseal
 	BootAssetsToLoadChains              = bootAssetsToLoadChains
 	BootAssetLess                       = bootAssetLess
-	WriteBootChains                     = writeBootChains
 	ReadBootChains                      = readBootChains
-	IsResealNeeded                      = isResealNeeded
 
 	SetImageBootFlags = setImageBootFlags
 	NextBootFlags     = nextBootFlags
@@ -279,4 +274,12 @@ func MockWriteModelToUbuntuBoot(mock func(*asserts.Model) error) (restore func()
 func EnableTestingRebootFunction() (restore func()) {
 	testingRebootItself = true
 	return func() { testingRebootItself = false }
+}
+
+func MockResealKeyForBootChains(f func(method device.SealingMethod, rootdir string, params *ResealKeyForBootChainsParams, expectReseal bool) error) (restore func()) {
+	old := ResealKeyForBootChains
+	ResealKeyForBootChains = f
+	return func() {
+		ResealKeyForBootChains = old
+	}
 }

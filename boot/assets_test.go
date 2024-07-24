@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
+	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
@@ -52,10 +53,14 @@ var _ = Suite(&assetsSuite{})
 
 func (s *assetsSuite) SetUpTest(c *C) {
 	s.baseBootenvSuite.SetUpTest(c)
+
+	restore := boot.MockResealKeyForBootChains(fdeBackend.ResealKeyForBootChains)
+	s.AddCleanup(restore)
+
 	c.Assert(os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755), IsNil)
 	c.Assert(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755), IsNil)
 
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error { return nil })
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error { return nil })
 	s.AddCleanup(restore)
 
 	s.AddCleanup(archtest.MockArchitecture("amd64"))
@@ -780,7 +785,7 @@ func (s *assetsSuite) testUpdateObserverUpdateMockedWithReseal(c *C, seedRole st
 
 	// everything is set up, trigger a reseal
 	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -885,7 +890,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 
 	// everything is set up, trigger reseal
 	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -1641,7 +1646,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 		"shim":  []string{shimHash},
 	})
 	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -1801,7 +1806,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledNoActionsMocked(c *C) {
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -2560,7 +2565,7 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 		runKernelBf,
 	}
 
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 
 		c.Assert(params.ModelParams, HasLen, 1)
@@ -2697,7 +2702,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 	}
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		c.Assert(params.ModelParams, HasLen, 1)
 		mp := params.ModelParams[0]
@@ -2808,7 +2813,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedNonEncryption(c *C) {
 
 	// make sure that no reseal is triggered
 	resealCalls := 0
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})

@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -84,7 +85,10 @@ func (s *systemsSuite) mockTrustedBootloaderWithAssetAndChains(c *C, runKernelBf
 func (s *systemsSuite) SetUpTest(c *C) {
 	s.baseBootenvSuite.SetUpTest(c)
 
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error { return nil })
+	restore := boot.MockResealKeyForBootChains(fdeBackend.ResealKeyForBootChains)
+	s.AddCleanup(restore)
+
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error { return nil })
 	s.AddCleanup(restore)
 
 	s.uc20dev = boottest.MockUC20Device("", nil)
@@ -144,7 +148,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 	defer restore()
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		// bootloader variables have already been modified
 		c.Check(mtbl.SetBootVarsCalls, Equals, 1)
@@ -268,7 +272,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemRemodelEncrypted(c *C) {
 	defer restore()
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		// bootloader variables have already been modified
 		c.Check(mtbl.SetBootVarsCalls, Equals, 1)
@@ -371,7 +375,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemSimple(c *C) {
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		return fmt.Errorf("unexpected call")
 	})
 	s.AddCleanup(restore)
@@ -412,7 +416,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemSetBootVarsErr(c *C) {
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
-	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		return fmt.Errorf("unexpected call")
 	})
 	s.AddCleanup(restore)
@@ -523,7 +527,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 	defer restore()
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		if cleanupTriggered {
 			return nil
@@ -632,7 +636,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 	defer restore()
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		switch resealCalls {
 		case 1:
@@ -735,7 +739,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 	defer restore()
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		switch resealCalls {
 		case 1:
@@ -783,7 +787,7 @@ func (s *systemsSuite) testInspectRecoverySystemOutcomeHappy(c *C, mtbl *bootloa
 	})
 	defer restore()
 
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
@@ -979,7 +983,7 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 	defer restore()
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		c.Assert(params, NotNil)
 		c.Assert(params.ModelParams, HasLen, 1)
@@ -1242,7 +1246,7 @@ func (s *systemsSuite) TestClearRecoverySystemReboot(c *C) {
 	defer restore()
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		c.Assert(params, NotNil)
 		c.Assert(params.ModelParams, HasLen, 1)
@@ -1384,7 +1388,7 @@ func (s *systemsSuite) testPromoteTriedRecoverySystem(c *C, systemLabel string, 
 	defer restore()
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		c.Assert(params, NotNil)
 		c.Assert(params.ModelParams, HasLen, 1)
@@ -1655,7 +1659,7 @@ func (s *systemsSuite) testDropRecoverySystem(c *C, systemLabel string, tc recov
 	defer restore()
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		c.Assert(params, NotNil)
 		c.Assert(params.ModelParams, HasLen, 1)
