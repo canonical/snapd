@@ -1223,32 +1223,64 @@ type RestartServicesOptions struct {
 
 func restartServicesByStatus(svcsSts []*internal.ServiceStatus, explicitServices []string,
 	opts *RestartServicesOptions, sysd systemd.Systemd, cli *userServiceClient, tm timings.Measurer) error {
+	shouldRestart := func(active, enabled bool, name string) bool {
+		// If the unit was explicitly mentioned in the command line, restart it
+		// even if it is disabled; otherwise, we only restart units which are
+		// currently enabled or running. Reference:
+		// https://forum.snapcraft.io/t/command-line-interface-to-manipulate-services/262/47
+		if !active && !strutil.ListContains(explicitServices, name) {
+			if !opts.AlsoEnabledNonActive {
+				logger.Noticef("not restarting inactive unit %s", name)
+				return false
+			} else if !enabled {
+				logger.Noticef("not restarting disabled and inactive unit %s", name)
+				return false
+			}
+		}
+		return true
+	}
+
 	for _, st := range svcsSts {
 		unitName := st.ServiceUnitStatus().Name
 		unitActive := st.ServiceUnitStatus().Active
-		unitEnabled := st.IsEnabled()
+		unitEnabled := st.ServiceUnitStatus().Enabled
 		unitScope := snap.SystemDaemon
 		if st.IsUserService() {
 			unitScope = snap.UserDaemon
 		}
 
-		// If the unit was explicitly mentioned in the command line, restart it
-		// even if it is disabled; otherwise, we only restart units which are
-		// currently enabled or running. Reference:
-		// https://forum.snapcraft.io/t/command-line-interface-to-manipulate-services/262/47
-		if !unitActive && !strutil.ListContains(explicitServices, unitName) {
-			if !opts.AlsoEnabledNonActive {
-				logger.Noticef("not restarting inactive unit %s", unitName)
-				continue
-			} else if !unitEnabled {
-				logger.Noticef("not restarting disabled and inactive unit %s", unitName)
-				continue
+		var unitsToRestart []string
+
+		// If the service is activated, then we must also consider it's activators
+		if len(st.ActivatorUnitStatuses()) != 0 {
+			// Restart any activators first and operate normally on these
+			for _, act := range st.ActivatorUnitStatuses() {
+				// Use the primary name here for shouldRestart, as the caller
+				// will never refer directly to the sub-services.
+				if shouldRestart(act.Active, act.Enabled, unitName) {
+					unitsToRestart = append(unitsToRestart, act.Name)
+				}
+			}
+
+			// If the primary unit was running then we restart it, for the primary
+			// unit we cannot take enabled into account as that is static for activated
+			// services.
+			if unitActive {
+				unitsToRestart = append(unitsToRestart, unitName)
+			}
+		} else {
+			if shouldRestart(unitActive, unitEnabled, unitName) {
+				unitsToRestart = append(unitsToRestart, unitName)
 			}
 		}
 
+		if len(unitsToRestart) == 0 {
+			continue
+		}
+
 		var err error
-		timings.Run(tm, "restart-service", fmt.Sprintf("restart service %s", unitName), func(nested timings.Measurer) {
-			err = reloadOrRestartServices(sysd, cli, opts.Reload, unitScope, []string{unitName})
+		timings.Run(tm, "restart-service", fmt.Sprintf("restart service(s) %s", unitName), func(nested timings.Measurer) {
+			err = reloadOrRestartServices(sysd, cli, opts.Reload, unitScope, unitsToRestart)
 		})
 		if err != nil {
 			// there is nothing we can do about failed service
