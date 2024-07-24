@@ -5229,6 +5229,212 @@ apps:
 	})
 }
 
+func (s *servicesTestSuite) TestRestartWithActivatedServicesInactive(c *C) {
+	const manyServicesYaml = `name: test-snap
+version: 1.0
+apps:
+  svc1:
+    command: bin/foo
+    daemon: simple
+  svc2:
+    daemon: simple
+    plugs: [network-bind]
+    sockets:
+      sock1:
+        listen-stream: $SNAP_DATA/sock1.socket
+        socket-mode: 0666
+      sock2:
+        listen-stream: $SNAP_COMMON/sock2.socket
+`
+	srvFile1 := "snap.test-snap.svc1.service"
+	srvFile2 := "snap.test-snap.svc2.service"
+	srvFile2Sock1 := "snap.test-snap.svc2.sock1.socket"
+	srvFile2Sock2 := "snap.test-snap.svc2.sock2.socket"
+
+	info := snaptest.MockSnap(c, manyServicesYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		states := map[string]systemdtest.ServiceState{
+			srvFile1:      {ActiveState: "active", UnitFileState: "enabled"},
+			srvFile2:      {ActiveState: "inactive", UnitFileState: "enabled"},
+			srvFile2Sock1: {ActiveState: "inactive", UnitFileState: "enabled"},
+			srvFile2Sock2: {ActiveState: "inactive", UnitFileState: "enabled"},
+		}
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, states); out != nil {
+			return out, nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+
+	// Restart without restarting things that were inactive to test this case,
+	// which should result in just svc1 restarting
+	s.sysdLog = nil
+	services := info.Services()
+	sort.Sort(snap.AppInfoBySnapApp(services))
+	c.Assert(wrappers.RestartServices(services, nil, nil, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile1, srvFile2},
+		{"show", "--property=Id,ActiveState,UnitFileState,Names", srvFile2Sock1, srvFile2Sock2},
+		{"stop", srvFile1},
+		{"show", "--property=ActiveState", srvFile1},
+		{"start", srvFile1},
+	})
+
+	// Restart but with restarting non-active, this means that the activated services
+	// should be restarted now
+	s.sysdLog = nil
+	c.Assert(wrappers.RestartServices(services, nil, &wrappers.RestartServicesOptions{AlsoEnabledNonActive: true}, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile1, srvFile2},
+		{"show", "--property=Id,ActiveState,UnitFileState,Names", srvFile2Sock1, srvFile2Sock2},
+		{"stop", srvFile1},
+		{"show", "--property=ActiveState", srvFile1},
+		{"start", srvFile1},
+		{"stop", srvFile2Sock1, srvFile2Sock2},
+		{"show", "--property=ActiveState", srvFile2Sock1},
+		{"show", "--property=ActiveState", srvFile2Sock2},
+		{"start", srvFile2Sock1, srvFile2Sock2},
+	})
+}
+
+func (s *servicesTestSuite) TestRestartWithActivatedServicesActive(c *C) {
+	const manyServicesYaml = `name: test-snap
+version: 1.0
+apps:
+  svc1:
+    command: bin/foo
+    daemon: simple
+  svc2:
+    daemon: simple
+    plugs: [network-bind]
+    sockets:
+      sock1:
+        listen-stream: $SNAP_DATA/sock1.socket
+        socket-mode: 0666
+      sock2:
+        listen-stream: $SNAP_COMMON/sock2.socket
+`
+	srvFile1 := "snap.test-snap.svc1.service"
+	srvFile2 := "snap.test-snap.svc2.service"
+	srvFile2Sock1 := "snap.test-snap.svc2.sock1.socket"
+	srvFile2Sock2 := "snap.test-snap.svc2.sock2.socket"
+
+	info := snaptest.MockSnap(c, manyServicesYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		states := map[string]systemdtest.ServiceState{
+			srvFile1:      {ActiveState: "inactive", UnitFileState: "enabled"},
+			srvFile2:      {ActiveState: "inactive", UnitFileState: "enabled"},
+			srvFile2Sock1: {ActiveState: "active", UnitFileState: "enabled"},
+			srvFile2Sock2: {ActiveState: "active", UnitFileState: "enabled"},
+		}
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, states); out != nil {
+			return out, nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+
+	// Restart without restarting things that were inactive,
+	// which will result in activators only restarting
+	s.sysdLog = nil
+	services := info.Services()
+	sort.Sort(snap.AppInfoBySnapApp(services))
+	c.Assert(wrappers.RestartServices(services, nil, nil, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile1, srvFile2},
+		{"show", "--property=Id,ActiveState,UnitFileState,Names", srvFile2Sock1, srvFile2Sock2},
+		{"stop", srvFile2Sock1, srvFile2Sock2},
+		{"show", "--property=ActiveState", srvFile2Sock1},
+		{"show", "--property=ActiveState", srvFile2Sock2},
+		{"start", srvFile2Sock1, srvFile2Sock2},
+	})
+
+	// Restart but with restarting non-active, which means that all services
+	// **except** for any activated service will restart  (svc2 primary unit).
+	// The activator service units should restart, but not the main one since
+	// it was reported as inactive
+	s.sysdLog = nil
+	c.Assert(wrappers.RestartServices(services, nil, &wrappers.RestartServicesOptions{AlsoEnabledNonActive: true}, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile1, srvFile2},
+		{"show", "--property=Id,ActiveState,UnitFileState,Names", srvFile2Sock1, srvFile2Sock2},
+		{"stop", srvFile1},
+		{"show", "--property=ActiveState", srvFile1},
+		{"start", srvFile1},
+		{"stop", srvFile2Sock1, srvFile2Sock2},
+		{"show", "--property=ActiveState", srvFile2Sock1},
+		{"show", "--property=ActiveState", srvFile2Sock2},
+		{"start", srvFile2Sock1, srvFile2Sock2},
+	})
+}
+
+func (s *servicesTestSuite) TestRestartWithActivatedServicesActivePrimaryUnit(c *C) {
+	const manyServicesYaml = `name: test-snap
+version: 1.0
+apps:
+  svc1:
+    command: bin/foo
+    daemon: simple
+  svc2:
+    daemon: simple
+    plugs: [network-bind]
+    sockets:
+      sock1:
+        listen-stream: $SNAP_DATA/sock1.socket
+        socket-mode: 0666
+      sock2:
+        listen-stream: $SNAP_COMMON/sock2.socket
+`
+	srvFile1 := "snap.test-snap.svc1.service"
+	srvFile2 := "snap.test-snap.svc2.service"
+	srvFile2Sock1 := "snap.test-snap.svc2.sock1.socket"
+	srvFile2Sock2 := "snap.test-snap.svc2.sock2.socket"
+
+	info := snaptest.MockSnap(c, manyServicesYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		states := map[string]systemdtest.ServiceState{
+			srvFile1:      {ActiveState: "inactive", UnitFileState: "enabled"},
+			srvFile2:      {ActiveState: "active", UnitFileState: "enabled"},
+			srvFile2Sock1: {ActiveState: "active", UnitFileState: "enabled"},
+			srvFile2Sock2: {ActiveState: "active", UnitFileState: "enabled"},
+		}
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, states); out != nil {
+			return out, nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+
+	s.sysdLog = nil
+	services := info.Services()
+	sort.Sort(snap.AppInfoBySnapApp(services))
+	c.Assert(wrappers.RestartServices(services, nil, nil, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile1, srvFile2},
+		{"show", "--property=Id,ActiveState,UnitFileState,Names", srvFile2Sock1, srvFile2Sock2},
+		{"stop", srvFile2, srvFile2Sock1, srvFile2Sock2},
+		{"show", "--property=ActiveState", srvFile2},
+		{"show", "--property=ActiveState", srvFile2Sock1},
+		{"show", "--property=ActiveState", srvFile2Sock2},
+		{"start", srvFile2, srvFile2Sock1, srvFile2Sock2},
+	})
+}
+
 func (s *servicesTestSuite) TestStopAndDisableServices(c *C) {
 	info := snaptest.MockSnap(c, packageHelloNoSrv+`
  svc1:
