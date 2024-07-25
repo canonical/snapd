@@ -53,8 +53,7 @@ var (
 	sbMeasureSnapSystemEpochToTPM                   = sb_tpm2.MeasureSnapSystemEpochToTPM
 	sbMeasureSnapModelToTPM                         = sb_tpm2.MeasureSnapModelToTPM
 	sbBlockPCRProtectionPolicies                    = sb_tpm2.BlockPCRProtectionPolicies
-	sbefiAddSecureBootPolicyProfile                 = sb_efi.AddSecureBootPolicyProfile
-	sbefiAddBootManagerProfile                      = sb_efi.AddBootManagerProfile
+	sbefiAddPCRProfile                              = sb_efi.AddPCRProfile
 	sbefiAddSystemdStubProfile                      = sb_efi.AddSystemdStubProfile
 	sbAddSnapModelProfile                           = sb_tpm2.AddSnapModelProfile
 	sbSealKeyToTPMMultiple                          = sb_tpm2.SealKeyToTPMMultiple
@@ -271,6 +270,13 @@ func activateVolOpts(allowRecoveryKey bool) *sb.ActivateVolumeOptions {
 	return &options
 }
 
+func newAuthRequestor() (sb.AuthRequestor, error) {
+	return sb.NewSystemdAuthRequestor(
+		"Please enter the passphrase for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
+		"Please enter the recovery key for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
+	)
+}
+
 // unlockEncryptedPartitionWithSealedKey unseals the keyfile and opens an encrypted
 // device. If activation with the sealed key fails, this function will attempt to
 // activate it with the fallback recovery key instead.
@@ -280,8 +286,16 @@ func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile str
 		return NotUnlocked, fmt.Errorf("cannot read key data: %v", err)
 	}
 	options := activateVolOpts(allowRecovery)
-	// ignoring model checker as it doesn't work with tpm "legacy" platform key data
-	_, err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, keyData, options)
+	// Ignoring model checker as it doesn't work with tpm "legacy" platform key data.
+	// TODO: In the general case anway, it is also not how the model is
+	// supposed to be provided. We should call SetModels instead.
+	options.Model = sb.SkipSnapModelCheck
+	authRequestor, err := newAuthRequestor()
+	if err != nil {
+		return NotUnlocked, fmt.Errorf("internal error: cannot build an auth requestor: %v", err)
+	}
+
+	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, authRequestor, sb.Argon2iKDF(), options, keyData)
 	if err == sb.ErrRecoveryKeyUsed {
 		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
 		return UnlockedWithRecoveryKey, nil
@@ -485,27 +499,14 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 			return nil, fmt.Errorf("cannot build EFI image load sequences: %v", err)
 		}
 
-		// Add EFI secure boot policy profile
-		policyParams := sb_efi.SecureBootPolicyProfileParams{
-			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
-			LoadSequences: loadSequences,
-			// TODO:UC20: set SignatureDbUpdateKeystore to support applying forbidden
-			//            signature updates to exclude signing keys (after rotating them).
-			//            This also requires integration of sbkeysync, and some work to
-			//            ensure that the PCR profile is updated before/after sbkeysync executes.
-		}
-
-		if err := sbefiAddSecureBootPolicyProfile(modelProfile, &policyParams); err != nil {
-			return nil, fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
-		}
-
-		// Add EFI boot manager profile
-		bootManagerParams := sb_efi.BootManagerProfileParams{
-			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
-			LoadSequences: loadSequences,
-		}
-		if err := sbefiAddBootManagerProfile(modelProfile, &bootManagerParams); err != nil {
-			return nil, fmt.Errorf("cannot add EFI boot manager profile: %v", err)
+		if err := sbefiAddPCRProfile(
+			tpm2.HashAlgorithmSHA256,
+			modelProfile.RootBranch(),
+			loadSequences,
+			sb_efi.WithSecureBootPolicyProfile(),
+			sb_efi.WithBootManagerCodeProfile(),
+		); err != nil {
+			return nil, fmt.Errorf("cannot add EFI secure boot and boot manager policy profiles: %v", err)
 		}
 
 		// Add systemd EFI stub profile
@@ -515,7 +516,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 				PCRIndex:       initramfsPCR,
 				KernelCmdlines: mp.KernelCmdlines,
 			}
-			if err := sbefiAddSystemdStubProfile(modelProfile, &systemdStubParams); err != nil {
+			if err := sbefiAddSystemdStubProfile(modelProfile.RootBranch(), &systemdStubParams); err != nil {
 				return nil, fmt.Errorf("cannot add systemd EFI stub profile: %v", err)
 			}
 		}
@@ -527,7 +528,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 				PCRIndex:     initramfsPCR,
 				Models:       []sb.SnapModel{mp.Model},
 			}
-			if err := sbAddSnapModelProfile(modelProfile, &snapModelParams); err != nil {
+			if err := sbAddSnapModelProfile(modelProfile.RootBranch(), &snapModelParams); err != nil {
 				return nil, fmt.Errorf("cannot add snap model profile: %v", err)
 			}
 		}
@@ -535,12 +536,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 		modelPCRProfiles = append(modelPCRProfiles, modelProfile)
 	}
 
-	var pcrProfile *sb_tpm2.PCRProtectionProfile
-	if numModels > 1 {
-		pcrProfile = sb_tpm2.NewPCRProtectionProfile().AddProfileOR(modelPCRProfiles...)
-	} else {
-		pcrProfile = modelPCRProfiles[0]
-	}
+	pcrProfile := sb_tpm2.NewPCRProtectionProfile().AddProfileOR(modelPCRProfiles...)
 
 	logger.Debugf("PCR protection profile:\n%s", pcrProfile.String())
 
@@ -584,7 +580,7 @@ func tpmProvision(tpm *sb_tpm2.Connection, mode TPMProvisionMode, lockoutAuthFil
 }
 
 // buildLoadSequences builds EFI load image event trees from this package LoadChains
-func buildLoadSequences(chains []*LoadChain) (loadseqs []*sb_efi.ImageLoadEvent, err error) {
+func buildLoadSequences(chains []*LoadChain) (loadseqs *sb_efi.ImageLoadSequences, err error) {
 	// this will build load event trees for the current
 	// device configuration, e.g. something like:
 	//
@@ -594,20 +590,22 @@ func buildLoadSequences(chains []*LoadChain) (loadseqs []*sb_efi.ImageLoadEvent,
 	//                      |-> normal grub -> run kernel good
 	//                                     |-> run kernel try
 
+	loadseqs = sb_efi.NewImageLoadSequences()
+
 	for _, chain := range chains {
 		// root of load events has source Firmware
 		loadseq, err := chain.loadEvent(sb_efi.Firmware)
 		if err != nil {
 			return nil, err
 		}
-		loadseqs = append(loadseqs, loadseq)
+		loadseqs.Append(loadseq)
 	}
 	return loadseqs, nil
 }
 
 // loadEvent builds the corresponding load event and its tree
-func (lc *LoadChain) loadEvent(source sb_efi.ImageLoadEventSource) (*sb_efi.ImageLoadEvent, error) {
-	var next []*sb_efi.ImageLoadEvent
+func (lc *LoadChain) loadEvent(source sb_efi.ImageLoadEventSource) (sb_efi.ImageLoadActivity, error) {
+	var next []sb_efi.ImageLoadActivity
 	for _, nextChain := range lc.Next {
 		// everything that is not the root has source shim
 		ev, err := nextChain.loadEvent(sb_efi.Shim)
@@ -620,11 +618,7 @@ func (lc *LoadChain) loadEvent(source sb_efi.ImageLoadEventSource) (*sb_efi.Imag
 	if err != nil {
 		return nil, err
 	}
-	return &sb_efi.ImageLoadEvent{
-		Source: source,
-		Image:  image,
-		Next:   next,
-	}, nil
+	return sb_efi.NewImageLoadActivity(image, source).Loads(next...), nil
 }
 
 func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {
@@ -639,10 +633,10 @@ func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {
 	if err != nil {
 		return nil, err
 	}
-	return sb_efi.SnapFileImage{
-		Container: snapf,
-		FileName:  b.Path,
-	}, nil
+	return sb_efi.NewSnapFileImage(
+		snapf,
+		b.Path,
+	), nil
 }
 
 // PCRHandleOfSealedKey retunrs the PCR handle which was used when sealing a
