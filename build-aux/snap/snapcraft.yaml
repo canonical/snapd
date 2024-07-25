@@ -135,7 +135,8 @@ parts:
       - g++
       - pkg-config
       - wget
-    source: https://gitlab.com/apparmor/apparmor/-/archive/v4.0.1/apparmor-v4.0.1.tar.gz
+    source: https://gitlab.com/apparmor/apparmor/-/archive/v4.0.2/apparmor-v4.0.2.tar.gz
+    source-checksum: sha256/0b847751b8c0e2344169ec2065cad6251063c5c5ff311953e194bbf25686d981
     override-build: |
       cd "${CRAFT_PART_BUILD}"/libraries/libapparmor
       ./autogen.sh
