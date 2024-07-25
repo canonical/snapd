@@ -4,3 +4,8 @@ ignore_files:
   - packaging/debian-sid/changelog
   - packaging/fedora/snapd.spec
   - cmd/snap-confine/snap-confine.apparmor.in
+  - cmd/snap-confine/snap-confine.c
+  - cmd/libsnap-confine-private/string-utils.c
+  - cmd/libsnap-confine-private/string-utils-test.c
+  - cmd/libsnap-confine-private/string-utils-test.c
+  - cmd/libsnap-confine-private/snap.c

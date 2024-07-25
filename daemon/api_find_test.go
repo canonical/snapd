@@ -84,6 +84,7 @@ func (s *findSuite) TestFindRefreshes(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "store",
 		},
+		Architectures: []string{"all"},
 		Publisher: snap.StoreAccount{
 			ID:          "foo-id",
 			Username:    "foo",

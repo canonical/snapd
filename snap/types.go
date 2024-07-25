@@ -145,6 +145,15 @@ const (
 	StopReasonOther   ServiceStopReason = ""
 )
 
+// TODO: merge ServiceStopReason, AppKillReason and removeAliasesReason
+type AppKillReason string
+
+const (
+	KillReasonRemove      AppKillReason = "remove"
+	KillReasonForceRemove AppKillReason = "force-remove"
+	KillReasonOther       AppKillReason = ""
+)
+
 // DaemonScope represents the scope of the daemon running under systemd
 type DaemonScope string
 

@@ -104,7 +104,7 @@ func (rc *refreshCandidate) Prereq(*state.State, PrereqTracker) []string {
 	return rc.SnapSetup.Prereq
 }
 
-func (rc *refreshCandidate) SnapSetupForUpdate(st *state.State, _ updateParamsFunc, _ int, globalFlags *Flags, _ PrereqTracker) (*SnapSetup, *SnapState, error) {
+func (rc *refreshCandidate) SnapSetupForUpdate(st *state.State, globalFlags *Flags) (*SnapSetup, *SnapState, error) {
 	var snapst SnapState
 	if err := Get(st, rc.InstanceName(), &snapst); err != nil {
 		return nil, nil, err
@@ -118,9 +118,6 @@ func (rc *refreshCandidate) SnapSetupForUpdate(st *state.State, _ updateParamsFu
 
 	return snapsup, &snapst, nil
 }
-
-// soundness check
-var _ readyUpdateInfo = (*refreshCandidate)(nil)
 
 // autoRefresh will ensure that snaps are refreshed automatically
 // according to the refresh schedule.

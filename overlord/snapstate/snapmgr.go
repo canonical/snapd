@@ -149,6 +149,11 @@ type SnapSetup struct {
 	// DownloadBlobDir is the directory where the snap blob is downloaded to. If
 	// empty, dir.SnapBlobDir is used.
 	DownloadBlobDir string `json:"download-blob-dir,omitempty"`
+
+	// AlwaysUpdate is set if the snap should be put through the entire update
+	// process, even if the snap is already at the correct revision. Has an
+	// effect on which tasks get created to update the snap.
+	AlwaysUpdate bool `json:"-"`
 }
 
 func (snapsup *SnapSetup) InstanceName() string {
@@ -335,8 +340,8 @@ type SnapState struct {
 	// LastRefreshTime records the time when the snap was last refreshed.
 	LastRefreshTime *time.Time `json:"last-refresh-time,omitempty"`
 
-	// LastRefreshTime is a map of component names to times that records
-	// the time when a component was last refreshed.
+	// LastCompRefreshTime is a map of component names to times that records the
+	// time when a component was last refreshed.
 	LastCompRefreshTime map[string]time.Time `json:"last-component-refresh-time,omitempty"`
 
 	// MigratedHidden is set if the user's snap dir has been migrated
@@ -588,6 +593,18 @@ func (snapst *SnapState) CurrentComponentInfos() ([]*snap.ComponentInfo, error) 
 	}
 
 	return snapst.ComponentInfosForRevision(snapst.Current)
+}
+
+// HasActiveComponents returns true if the current revision of this snap has
+// any components installed with it. Otherwise, false is returned if either the
+// snap isn't installed or the snap has no components installed with it.
+func (snapst *SnapState) HasActiveComponents() bool {
+	index := snapst.LastIndex(snapst.Current)
+	if index == -1 {
+		return false
+	}
+
+	return snapst.Sequence.HasComponents(index)
 }
 
 // CurrentComponentInfos return a snap.ComponentInfo slice that contains all of

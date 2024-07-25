@@ -12,26 +12,26 @@
             NO_PROXY: '127.0.0.1,ubuntu.com'
         systems:
             - ubuntu-22.04-64:
-                image: ubuntu-22.04-64
+                image: snapd-spread/ubuntu-22.04-64
                 workers: 6
 
             - ubuntu-24.04-64:
-                image: ubuntu-24.04-64
+                image: snapd-spread/ubuntu-24.04-64
                 workers: 6
 
             - fedora-40-64:
-                image: fedora-40-64
+                image: snapd-spread/fedora-40-64
                 workers: 6
     
             - opensuse-15.5-64:
-                image: opensuse-15.5-64
+                image: snapd-spread/opensuse-15.5-64
                 workers: 6
 
             - centos-9-64:
-                image: centos-9-64
+                image: snapd-spread/centos-9-64
                 workers: 6
 
             - debian-12-64:
-                image: debian-12-64
+                image: snapd-spread/debian-12-64
                 workers: 6
 

@@ -2071,7 +2071,7 @@ apps:
 	c.Assert(err, IsNil)
 
 	_, _, err = snapstate.InstallPath(st, si, snapPath, "bar_instance", "", snapstate.Flags{DevMode: true}, nil)
-	c.Assert(err, ErrorMatches, `cannot install snap "bar_instance", the name does not match the metadata "foo"`)
+	c.Assert(err, ErrorMatches, `cannot install snap "bar_instance": instance name prefix does not match snap name: bar != foo`)
 }
 
 func (s *mgrsSuite) TestParallelInstanceLocalInstallInvalidInstanceName(c *C) {
@@ -4021,7 +4021,7 @@ assumes: [something-that-is-not-provided]
 	c.Check(tss, HasLen, 0)
 	c.Check(affected, HasLen, 0)
 	// the skipping is logged though
-	c.Check(s.logbuf.String(), testutil.Contains, `cannot update "some-snap": snap "some-snap" assumes unsupported features: something-that-is-not-provided (try`)
+	c.Check(s.logbuf.String(), testutil.Contains, `cannot refresh snap "some-snap": snap "some-snap" assumes unsupported features: something-that-is-not-provided (try`)
 }
 
 type storeCtxSetupSuite struct {
