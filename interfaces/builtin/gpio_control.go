@@ -38,6 +38,8 @@ const gpioControlBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
+// TODO extend apparmor pattern to allow /sys/devices/platform/gpio-sim.[0-9]*
+// for better spread testing
 const gpioControlConnectedPlugAppArmor = `
 # Description: Allow controlling all aspects of GPIO pins. This can potentially
 # impact the system and other snaps, and allows privileged access to hardware.
