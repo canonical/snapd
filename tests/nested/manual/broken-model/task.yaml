@@ -36,16 +36,16 @@ execute: |
   if [ "${BUILD_FDE_HOOK-}" = 1 ]; then
     # FIXME: we should allow recovery key in case of hook. But we do not.
     for (( i=0 ; i < 100 ; i++ )); do
-      if tests.nested get serial-log | grep "execution error: cannot unlock volume: model .* not authorized"; then
+      if tests.nested get serial-log | grep "snap model is not authorized"; then
         break
       fi
       sleep 10
     done
-    tests.nested get serial-log | MATCH "execution error: cannot unlock volume: model .* not authorized"
+    tests.nested get serial-log | MATCH "snap model is not authorized"
   else
     sent_recovery=0
     for (( i=0 ; i < 100 ; i++ )); do
-      if [ "${sent_recovery}" -lt "$(tests.nested get serial-log | grep -c "Please enter the recovery key for disk")" ]; then
+      if [ "${sent_recovery}" -lt "$(tests.nested get serial-log | grep -c "Please enter the recovery key for volume")" ]; then
         sent_recovery=$((sent_recovery+1))
         echo "${recovery_key}" | nc -q 0 127.0.0.1 7777
         break
