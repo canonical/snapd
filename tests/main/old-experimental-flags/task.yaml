@@ -1,0 +1,32 @@
+summary: Ensure that old experimental flag configs are removed
+
+details: |
+    Check that experimental flag configs that used to exist but now
+    are out of experimental are removed from snapd state.
+
+prepare: |
+    snap install --devmode jq
+
+restore: |
+    snap remove jq
+
+execute: |
+    echo "Check that users cannot set unsupported experimental features"
+    snap set core experimental.old-flag=true 2>&1 | MATCH "unsupported system option"
+    snap get core experimental.old-flag | NOMATCH "true"
+
+    # Stop snapd while editing state.json manually
+    systemctl stop snapd.service snapd.socket
+
+    echo "Force setting the unsupported experimental.old-flag"
+    # This simulates the situation where an experimental feature got out
+    # of experimental after a snapd refresh and now is an unsupported config
+    jq '.data.config.core.experimental += {"old-flag": true}' /var/lib/snapd/state.json > state.json
+    mv state.json /var/lib/snapd/state.json
+    echo "Check that experimental.old-flag is persisted in state.json"
+    jq '.data.config.core.experimental."old-flag"' /var/lib/snapd/state.json | MATCH "true"
+
+    echo "Starting snapd should clean old experimental flags"
+    systemctl start snapd.service snapd.socket
+    snap get core experimental.old-flag | NOMATCH "true"
+    jq '.data.config.core.experimental."old-flag"' /var/lib/snapd/state.json | MATCH "null"

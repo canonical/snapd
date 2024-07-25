@@ -55,6 +55,11 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 	}
 	dirs.SetSnapHomeDirs(homedirs)
 
+	// cleanup old experimental features
+	if err := configcore.CleanExperimentalFlags(tr); err != nil {
+		return err
+	}
+
 	// Default configuration is handled via the "default-configure" hook
 	hookManager.Register(regexp.MustCompile("^default-configure$"), newDefaultConfigureHandler)
 

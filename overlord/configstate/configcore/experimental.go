@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
@@ -86,4 +87,28 @@ func doExportExperimentalFlags(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyCo
 
 func ExportExperimentalFlags(tr ConfGetter) error {
 	return doExportExperimentalFlags(nil, tr, nil)
+}
+
+// CleanExperimentalFlags removes experimental flag configs that used to
+// exist but now are out of experimental.
+func CleanExperimentalFlags(tr *config.Transaction) error {
+	experimentalFlags := make(map[string]bool)
+	if err := tr.Get("core", "experimental", &experimentalFlags); err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	for flag := range experimentalFlags {
+		if supportedConfigurations["core.experimental."+flag] {
+			continue
+		}
+		// The flag is not supported anymore, let's remove it.
+		// Note: This is never a user-side mistake of setting a bad config
+		// because "snap set/unset" prevents setting/unsetting unsupported
+		// flags in the first place.
+		if err := tr.Set("core", "experimental."+flag, nil); err != nil {
+			return err
+		}
+	}
+	tr.Commit()
+
+	return nil
 }

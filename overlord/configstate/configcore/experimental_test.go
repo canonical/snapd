@@ -27,7 +27,11 @@ import (
 
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -95,4 +99,40 @@ func (s *experimentalSuite) TestFilesystemOnlyApplyValidationFails(c *C) {
 	})
 	tmpDir := c.MkDir()
 	c.Assert(configcore.FilesystemOnlyApply(classicDev, tmpDir, conf), ErrorMatches, `experimental.refresh-app-awareness can only be set to 'true' or 'false'`)
+}
+
+func (s *experimentalSuite) TestCleanExperimentalFlags(c *C) {
+	o := overlord.Mock()
+	s.state = o.State()
+	hookMgr, err := hookstate.Manager(s.state, o.TaskRunner())
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	t := config.NewTransaction(s.state)
+	// Mock an old feature that got out of experimental but still has the config set
+	c.Assert(t.Set("core", "experimental.old-stale-flag", true), IsNil)
+	// Example of an existing experimental flag
+	c.Assert(t.Set("core", "experimental.parallel-instances", true), IsNil)
+	t.Commit()
+	s.state.Unlock()
+
+	experimentalFlags := make(map[string]bool, 1)
+	c.Assert(t.Get("core", "experimental", &experimentalFlags), IsNil)
+	c.Check(experimentalFlags, DeepEquals, map[string]bool{
+		"old-stale-flag":     true,
+		"parallel-instances": true,
+	})
+
+	err = configstate.Init(s.state, hookMgr)
+	c.Assert(err, IsNil)
+	// Create a new transaction to get latest config from state
+	s.state.Lock()
+	t = config.NewTransaction(s.state)
+	s.state.Unlock()
+	// configstate.Init cleans up stale experimental flag
+	experimentalFlags = nil
+	c.Assert(t.Get("core", "experimental", &experimentalFlags), IsNil)
+	c.Check(experimentalFlags, DeepEquals, map[string]bool{
+		"parallel-instances": true,
+	})
 }
