@@ -55,6 +55,13 @@ type installSuite struct {
 
 var _ = Suite(&installSuite{})
 
+var mockCryptsetupCmd = `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "cryptsetup 2.1.0 flags: BLAH BLAH"
+  exit 0
+fi
+`
+
 // XXX: write a very high level integration like test here that
 // mocks the world (sfdisk,lsblk,mkfs,...)? probably silly as
 // each part inside bootstrap is tested and we have a spread test
@@ -181,7 +188,7 @@ fi
 		defer restoreMountInfo()
 	}
 
-	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", "")
+	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", mockCryptsetupCmd)
 	defer mockCryptsetup.Restore()
 
 	if opts.encryption {
@@ -635,7 +642,7 @@ fi
 		defer restoreMountInfo()
 	}
 
-	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", "")
+	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", mockCryptsetupCmd)
 	defer mockCryptsetup.Restore()
 
 	if opts.encryption {
@@ -1101,7 +1108,7 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 	c.Assert(err, IsNil)
 	defer restore()
 
-	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", "")
+	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", mockCryptsetupCmd)
 	defer mockCryptsetup.Restore()
 
 	mockBlockdev := testutil.MockCommand(c, "blockdev", "case ${1} in --getss) echo 4096; exit 0;; esac; exit 1")
@@ -1126,10 +1133,14 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 	c.Assert(err, IsNil)
 
 	c.Assert(mockCryptsetup.Calls(), DeepEquals, [][]string{
-		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--cipher", expectedCipher(), "--key-size", expectedKeysize(), "--label", "ubuntu-save-enc", "--pbkdf", "argon2i", "--pbkdf-force-iterations", "4", "--pbkdf-memory", "32", "--luks2-metadata-size", "2048k", "--luks2-keyslots-size", "2560k", "/dev/vda4"},
+		{"cryptsetup", "--version"},
+		{"cryptsetup", "--test-args", "token", "import", "--token-id", "0", "--token-replace", "/dev/null"},
+		{"cryptsetup", "--batch-mode", "luksFormat", "--type", "luks2", "--key-file", "-", "--cipher", expectedCipher(), "--key-size", expectedKeysize(), "--label", "ubuntu-save-enc", "--pbkdf", "argon2i", "--pbkdf-force-iterations", "4", "--pbkdf-memory", "32", "--luks2-metadata-size", "2048k", "--luks2-keyslots-size", "2560k", "/dev/vda4"},
+		{"cryptsetup", "token", "import", "/dev/vda4"},
 		{"cryptsetup", "config", "--priority", "prefer", "--key-slot", "0", "/dev/vda4"},
 		{"cryptsetup", "open", "--key-file", "-", "/dev/vda4", "ubuntu-save"},
-		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--cipher", expectedCipher(), "--key-size", expectedKeysize(), "--label", "ubuntu-data-enc", "--pbkdf", "argon2i", "--pbkdf-force-iterations", "4", "--pbkdf-memory", "32", "--luks2-metadata-size", "2048k", "--luks2-keyslots-size", "2560k", "/dev/vda5"},
+		{"cryptsetup", "--batch-mode", "luksFormat", "--type", "luks2", "--key-file", "-", "--cipher", expectedCipher(), "--key-size", expectedKeysize(), "--label", "ubuntu-data-enc", "--pbkdf", "argon2i", "--pbkdf-force-iterations", "4", "--pbkdf-memory", "32", "--luks2-metadata-size", "2048k", "--luks2-keyslots-size", "2560k", "/dev/vda5"},
+		{"cryptsetup", "token", "import", "/dev/vda5"},
 		{"cryptsetup", "config", "--priority", "prefer", "--key-slot", "0", "/dev/vda5"},
 		{"cryptsetup", "open", "--key-file", "-", "/dev/vda5", "ubuntu-data"},
 	})
