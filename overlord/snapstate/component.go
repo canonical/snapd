@@ -470,6 +470,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 
 type RemoveComponentsOpts struct {
 	RefreshProfile bool
+	FromChange     string
 }
 
 // RemoveComponents returns a taskset that removes the components in compName
@@ -510,7 +511,7 @@ func RemoveComponents(st *state.State, snapName string, compName []string, opts 
 				CompRev:   snap.R(0),
 			}
 		}
-		ts, err := removeComponentTasks(st, &snapst, compst, info, setupSecurity)
+		ts, err := removeComponentTasks(st, &snapst, compst, info, setupSecurity, opts.FromChange)
 		if err != nil {
 			return nil, err
 		}
@@ -524,12 +525,12 @@ func RemoveComponents(st *state.State, snapName string, compName []string, opts 
 	return tss, nil
 }
 
-func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.ComponentState, info *snap.Info, setupSecurity *state.Task) (*state.TaskSet, error) {
+func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.ComponentState, info *snap.Info, setupSecurity *state.Task, fromChange string) (*state.TaskSet, error) {
 	instName := info.InstanceName()
 
 	// For the moment we consider the same conflicts as if the component
 	// was actually the snap.
-	if err := CheckChangeConflict(st, instName, nil); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, instName, nil, fromChange); err != nil {
 		return nil, err
 	}
 
