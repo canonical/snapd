@@ -1,12 +1,12 @@
-summary: Test installing a component from the store
+summary: Test refreshing a component from the store
 
 details: |
-  Verifies that we can install a snap and components from the store at the same
-  time.
+  Verifies that we can refresh a snap with components from the store.
 
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
 
 restore: |
+  snap refresh --unhold
   # TODO:COMPS: properly remove the snap and components
   true
 
@@ -19,7 +19,7 @@ execute: |
   # custom/edge
   snap list test-snap-component-refreshes | awk 'NR != 1 { print $4 }' | MATCH 'custom/edge'
 
-  # verify that the components are instlaled wit the correct revisions (these
+  # verify that the components are installed with the correct revisions (these
   # are component revisions, not snap revisions)
   test-snap-component-refreshes one | MATCH '.*revision 3$'
   test-snap-component-refreshes two | MATCH '.*revision 3$'
