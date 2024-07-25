@@ -7,8 +7,7 @@ systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
 
 restore: |
   snap refresh --unhold
-  # TODO:COMPS: properly remove the snap and components
-  true
+  snap remove test-snap-component-refreshes
 
 execute: |
   snap refresh --hold

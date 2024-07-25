@@ -7,12 +7,7 @@ details: |
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
 
 restore: |
-  snap remove test-snap-with-components || true
-
-  # TODO:COMPS: remove this once removing a snap also removes components
-  systemctl stop -- '*test*snap*with*components-components-mnt-*.mount' || true
-  rm /etc/systemd/system/*'-test\x2dsnap\x2dwith\x2dcomponents-components-mnt-'*'.mount' || true
-  rm -rf "$(os.paths snap-mount-dir)/test-snap-with-components"
+  snap remove test-snap-with-components
 
 execute: |
   snap install test-snap-with-components+one+two

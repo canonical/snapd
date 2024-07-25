@@ -14,6 +14,9 @@ details: |
 
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*]
 
+restore: |
+  snap remove test-snap-component-hooks
+
 execute: |
   snap install test-snap-component-hooks+one+two --revision=6
 
