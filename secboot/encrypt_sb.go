@@ -70,7 +70,7 @@ func FormatEncryptedDevice(key keys.EncryptionKey, encType EncryptionType, label
 		},
 		InlineCryptoEngine: useICE,
 	}
-	return sbInitializeLUKS2Container(node, label, key[:], opts)
+	return sbInitializeLUKS2Container(node, label, sb.DiskUnlockKey(key), opts)
 }
 
 // AddRecoveryKey adds a fallback recovery key rkey to the existing encrypted
