@@ -13449,18 +13449,6 @@ func (s *snapmgrTestSuite) TestRefreshWithRegistry(c *C) {
 	checkSnapsupHasRegistry(ts, c)
 }
 
-func (s *snapmgrTestSuite) TestInstallWithRegistry(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	chg := s.state.NewChange("test", "test change")
-	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-registry"}, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-	chg.AddAll(ts)
-
-	checkSnapsupHasRegistry(ts, c)
-}
-
 func checkSnapsupHasRegistry(ts *state.TaskSet, c *C) {
 	tasks := tasksWithKind(ts, "validate-snap")
 	c.Assert(tasks, HasLen, 1)
