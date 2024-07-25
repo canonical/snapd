@@ -49,8 +49,6 @@ const (
 	compOptSkipSecurity
 	// Component is being installed with a snap that is being refreshed
 	compOptDuringSnapRefresh
-	// The snap that the component is associated with is being reverted
-	compOptIsRevert
 )
 
 // opts is a bitset with compOpt* as possible values.
@@ -71,7 +69,7 @@ func expectedComponentInstallTasksSplit(opts int) (beforeLink []string, linkToHo
 		beforeLink = append(beforeLink, "mount-component")
 	}
 
-	if opts&compOptIsRevert == 0 && opts&compOptIsActive != 0 {
+	if opts&compOptIsActive != 0 {
 		beforeLink = append(beforeLink, "run-hook[pre-refresh]")
 	}
 
