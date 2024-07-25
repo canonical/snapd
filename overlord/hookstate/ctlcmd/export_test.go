@@ -28,9 +28,11 @@ import (
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/registry"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -175,5 +177,11 @@ func MockAutoRefreshForGatingSnap(f func(st *state.State, gatingSnap string) err
 func MockNewStatusDecorator(f func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator) (restore func()) {
 	restore = testutil.Backup(&newStatusDecorator)
 	newStatusDecorator = f
+	return restore
+}
+
+func MockGetTransaction(f func(*hookstate.Context, *state.State, *registry.View) (*registrystate.Transaction, string, error)) (restore func()) {
+	restore = testutil.Backup(&registrystateGetTransaction)
+	registrystateGetTransaction = f
 	return restore
 }

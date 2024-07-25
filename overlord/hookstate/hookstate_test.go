@@ -283,8 +283,6 @@ func (s *hookManagerSuite) TestHookTaskEnsureRestarting(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Assert(s.context, IsNil)
-
 	c.Check(s.command.Calls(), HasLen, 0)
 
 	c.Check(s.mockHandler.BeforeCalled, Equals, false)
@@ -777,6 +775,10 @@ func (s *hookManagerSuite) TestHookWithMultipleHandlersIsError(c *C) {
 }
 
 func (s *hookManagerSuite) TestHookWithoutHookIsError(c *C) {
+	s.manager.Register(regexp.MustCompile("missing-hook"), func(context *hookstate.Context) hookstate.Handler {
+		return s.mockHandler
+	})
+
 	hooksup := &hookstate.HookSetup{
 		Snap: "test-snap",
 		Hook: "missing-hook",
@@ -1218,7 +1220,7 @@ func (s *hookManagerSuite) TestEphemeralRunHookNoSnap(c *C) {
 		"key": "value",
 	}
 	_, err := s.manager.EphemeralRunHook(context.Background(), hooksup, contextData)
-	c.Assert(err, ErrorMatches, `cannot run ephemeral hook "configure" for snap "not-installed-snap": no state entry for key`)
+	c.Assert(err, ErrorMatches, `cannot find "not-installed-snap" snap`)
 }
 
 func (s *hookManagerSuite) TestEphemeralRunHookContextCanCancel(c *C) {
@@ -1429,6 +1431,10 @@ func (s *componentHookManagerSuite) TestComponentHookTaskEnsureInstance(c *C) {
 }
 
 func (s *componentHookManagerSuite) TestComponentHookWithoutHookIsError(c *C) {
+	s.manager.Register(regexp.MustCompile("missing-hook"), func(context *hookstate.Context) hookstate.Handler {
+		return s.mockHandler
+	})
+
 	s.setUpComponent(c, "test-snap", "test-component", "install")
 
 	s.state.Lock()

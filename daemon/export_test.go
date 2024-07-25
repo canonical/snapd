@@ -27,14 +27,17 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/registry"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -387,11 +390,19 @@ func MockRegistrystateGetViaView(f func(_ *state.State, _, _, _ string, _ []stri
 	}
 }
 
-func MockRegistrystateSetViaView(f func(_ *state.State, _, _, _ string, _ map[string]interface{}) error) (restore func()) {
-	old := registrystateSetViaView
-	registrystateSetViaView = f
+func MockRegistrystateSetViaViewInTx(f func(*registrystate.Transaction, *registry.View, map[string]interface{}) error) (restore func()) {
+	old := registrystateSetViaViewInTx
+	registrystateSetViaViewInTx = f
 	return func() {
-		registrystateSetViaView = old
+		registrystateSetViaViewInTx = old
+	}
+}
+
+func MockAssertstateRegistry(f func(*state.State, string, string) (*asserts.Registry, error)) (restore func()) {
+	old := assertstateRegistry
+	assertstateRegistry = f
+	return func() {
+		assertstateRegistry = old
 	}
 }
 

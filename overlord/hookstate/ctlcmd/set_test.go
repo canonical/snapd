@@ -509,3 +509,5 @@ func (s *registrySuite) TestRegistrySetExclamationMark(c *C) {
 `)
 	c.Check(stderr, IsNil)
 }
+
+// TODO: test with a change-registry and non change-registry task to check

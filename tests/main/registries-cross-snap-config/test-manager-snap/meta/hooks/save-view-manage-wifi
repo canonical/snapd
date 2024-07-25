@@ -1,0 +1,8 @@
+#!/bin/sh -xe
+
+# save the original value so we can check it in the test
+value=$(snapctl get --view :manage-wifi ssid)
+
+# this is intentionally appending so we can check the values of each run if
+# there is more than one (i.e., in a rollback)
+echo "$value" >> "$SNAP_COMMON"/save-view-manage-wifi-ran

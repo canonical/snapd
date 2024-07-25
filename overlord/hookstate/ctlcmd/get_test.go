@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/registry"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -466,17 +467,7 @@ func (s *registrySuite) SetUpTest(c *C) {
 	s.AddCleanup(func() {
 		dirs.SetRootDir("/")
 	})
-
-	s.mockHandler = hooktest.NewMockHandler()
 	s.state = state.New(nil)
-	s.state.Lock()
-	task := s.state.NewTask("test-task", "my test task")
-	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
-	s.state.Unlock()
-
-	var err error
-	s.mockContext, err = hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
 
 	storeSigning := assertstest.NewStoreStack("can0nical", nil)
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
@@ -487,7 +478,6 @@ func (s *registrySuite) SetUpTest(c *C) {
 	c.Assert(db.Add(storeSigning.StoreAccountKey("")), IsNil)
 
 	s.state.Lock()
-	defer s.state.Unlock()
 	assertstate.ReplaceDB(s.state, db)
 
 	// add developer1's account and account-key assertions
@@ -552,7 +542,6 @@ plugs:
     interface: registry
     account: %[1]s
     view: network/read-wifi
-    role: observer
   write-wifi:
     interface: registry
     account: %[1]s
@@ -587,6 +576,40 @@ slots:
 	}
 	_, err = repo.Connect(ref, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
+
+	ref = &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "test-snap", Name: "write-wifi"},
+		SlotRef: interfaces.SlotRef{Snap: "core", Name: "registry-slot"},
+	}
+	_, err = repo.Connect(ref, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+	s.state.Unlock()
+
+	// TODO: mock registry.RegistryTransaction for these tests and move all of
+	// this mocking of assertions, iface connections, etc into a test suite of
+	// RegistryTransaction in registrystate
+
+	s.mockHandler = hooktest.NewMockHandler()
+	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: ""}
+
+	s.mockContext, err = hookstate.NewContext(nil, s.state, setup, s.mockHandler, "")
+	c.Assert(err, IsNil)
+	s.mockContext.Lock()
+	defer s.mockContext.Unlock()
+
+	schema, err := registry.ParseSchema([]byte(`{ "schema": { "wifi": "any" } }`))
+	c.Assert(err, IsNil)
+
+	tx, err := registrystate.NewTransaction(s.state, false, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	s.mockContext.OnDone(func() error {
+		return tx.Commit(s.state, schema)
+	})
+
+	ctlcmd.MockGetTransaction(func(*hookstate.Context, *state.State, *registry.View) (*registrystate.Transaction, string, error) {
+		return tx, "", nil
+	})
 }
 
 func (s *registrySuite) TestRegistryGetSingleView(c *C) {

@@ -65,6 +65,8 @@ type Task struct {
 	undoingTime time.Duration
 
 	atTime time.Time
+
+	blockers []blocker
 }
 
 func newTask(state *State, id, kind, summary string) *Task {
@@ -101,6 +103,14 @@ type marshalledTask struct {
 	UndoingTime time.Duration `json:"undoing-time,omitempty"`
 
 	AtTime *time.Time `json:"at-time,omitempty"`
+
+	Blockers []blocker `json:"blockers,omitempty"`
+}
+
+type blocker struct {
+	Cond       ConditionFunc `json:"cond"`
+	Args       []interface{} `json:"args,omitempty"`
+	CheckAfter time.Duration `json:"check-after,omitempty"`
 }
 
 // MarshalJSON makes Task a json.Marshaller
@@ -182,6 +192,17 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.doingTime = unmarshalled.DoingTime
 	t.undoingTime = unmarshalled.UndoingTime
 	return nil
+}
+
+// BlockOn blocks the task on a condition that takes a set of arguments. If the
+// condition fails, it will be rechecked before checkAfter duration (if set).
+func (t *Task) BlockOn(cond ConditionFunc, checkAfter time.Duration, args ...interface{}) {
+	t.state.writing()
+	t.blockers = append(t.blockers, blocker{
+		Cond:       cond,
+		Args:       args,
+		CheckAfter: checkAfter,
+	})
 }
 
 // ID returns the individual random key for this task.

@@ -280,6 +280,11 @@ func New(account string, registryName string, views map[string]interface{}, sche
 	return registry, nil
 }
 
+// View returns an view from the registry.
+func (r *Registry) View(view string) *View {
+	return r.views[view]
+}
+
 func newView(registry *Registry, name string, viewRules []interface{}) (*View, error) {
 	view := &View{
 		Name:     name,
@@ -474,11 +479,6 @@ func getPlaceholders(viewStr string) map[string]bool {
 	}
 
 	return placeholders
-}
-
-// View returns an view from the registry.
-func (d *Registry) View(view string) *View {
-	return d.views[view]
 }
 
 // View carries access rules for a particular view in a registry.

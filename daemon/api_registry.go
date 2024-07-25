@@ -23,10 +23,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/registry"
 	"github.com/snapcore/snapd/strutil"
@@ -60,6 +63,8 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		fields = strutil.CommaSeparatedList(fieldStr)
 	}
 
+	// TODO: should this try to read an ongoing transaction or read a pristine bag
+	// each time?
 	results, err := registrystateGetViaView(st, account, registryName, view, fields)
 	if err != nil {
 		return toAPIError(err)
@@ -78,7 +83,7 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	vars := muxVars(r)
-	account, registryName, view := vars["account"], vars["registry"], vars["view"]
+	account, registryName, viewName := vars["account"], vars["registry"], vars["view"]
 
 	decoder := json.NewDecoder(r.Body)
 	var values map[string]interface{}
@@ -86,13 +91,41 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return BadRequest("cannot decode registry request body: %v", err)
 	}
 
-	err := registrystateSetViaView(st, account, registryName, view, values)
+	registryAssert, err := assertstateRegistry(st, account, registryName)
 	if err != nil {
 		return toAPIError(err)
 	}
 
-	// NOTE: could be sync but this is closer to the final version and the conf API
-	summary := fmt.Sprintf("Set registry view %s/%s/%s", account, registryName, view)
+	view := registryAssert.Registry().View(viewName)
+	if view == nil {
+		return NotFound(fmt.Sprintf("view %q not found in registry %s/%s", viewName, account, registryName))
+	}
+
+	tx, ongoingTxCommit, err := registrystate.GetTransaction(nil, st, view)
+	if err != nil {
+		return toAPIError(err)
+	}
+
+	for i := 0; ongoingTxCommit != "" && i < 100; i++ {
+		<-time.After(3 * time.Second)
+		tx, ongoingTxCommit, err = registrystate.GetTransaction(nil, st, view)
+		if err != nil {
+			return toAPIError(err)
+		}
+	}
+
+	err = registrystate.SetViaViewInTx(tx, view, values)
+	if err != nil {
+		return toAPIError(err)
+	}
+
+	if err := tx.Done(); err != nil {
+		return toAPIError(err)
+	}
+
+	// TODO: create the change even if we're waiting? we could return it in the
+	// async response, add a task that only waits for the other tx to finish?
+	summary := fmt.Sprintf("Set registry view %s/%s/%s", account, registryName, viewName)
 	chg := newChange(st, "set-registry-view", summary, nil, nil)
 	chg.SetStatus(state.DoneStatus)
 	ensureStateSoon(st)
@@ -103,6 +136,8 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 func toAPIError(err error) *apiError {
 	switch {
 	case errors.Is(err, &registry.NotFoundError{}):
+		fallthrough
+	case errors.Is(err, &asserts.NotFoundError{}):
 		return NotFound(err.Error())
 
 	case errors.Is(err, &registry.BadRequestError{}):

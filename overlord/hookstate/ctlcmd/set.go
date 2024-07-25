@@ -24,14 +24,21 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/jsonutil"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/registrystate"
+	"github.com/snapcore/snapd/overlord/state"
+)
+
+var (
+	registrystateGetTransaction = registrystate.GetTransaction
 )
 
 type setCommand struct {
@@ -232,16 +239,46 @@ func setRegistryValues(ctx *hookstate.Context, plugName string, requests map[str
 
 	view, err := getRegistryView(ctx, plugName)
 	if err != nil {
-		return fmt.Errorf("cannot set registry: %v", err)
+		return fmt.Errorf("cannot modify registry: cannot get registry view for plug %s: %v", plugName, err)
 	}
 
-	tx, err := registrystate.RegistryTransaction(ctx, view.Registry())
+	if registrystate.IsRegistryHook(ctx) && !strings.HasPrefix(ctx.HookName(), "change-view-") {
+		return fmt.Errorf("cannot modify registry in %q hook", ctx.HookName())
+	}
+
+	tx, ongoingTxCommit, err := registrystateGetTransaction(ctx, ctx.State(), view)
+	if err != nil {
+		// TODO: more info
+		return err
+	}
+
+	if ongoingTxCommit != "" {
+		logger.Debugf("ongoing transaction for registry %s/%s: waiting for task %s", view.Registry().Account, view.Registry().Name, ongoingTxCommit)
+		if task, ok := ctx.Task(); ok {
+			// need to wait for another transaction to complete
+			task.BlockOn(state.TasksReadyCond, 5*time.Second, []string{ongoingTxCommit})
+			return nil
+		}
+
+		// waiting but there's no task to schedule, need to poll
+		for i := 0; ongoingTxCommit != "" && i < 100; i++ {
+			<-time.After(3 * time.Second)
+			tx, ongoingTxCommit, err = registrystateGetTransaction(ctx, ctx.State(), view)
+			if err != nil {
+				return err
+			}
+		}
+
+		if ongoingTxCommit != "" {
+			t := ctx.State().Task(ongoingTxCommit)
+			return fmt.Errorf("timed out waiting for ongoing transaction attached to task %s (%s)", t.Kind(), t.Summary())
+		}
+	}
+
+	err = registrystate.SetViaViewInTx(tx, view, requests)
 	if err != nil {
 		return err
 	}
 
-	// TODO: once we have hooks, check that we don't set values in the wrong hooks
-	// (e.g., "registry-changed" hooks can only read data)
-
-	return registrystate.SetViaViewInTx(tx, view, requests)
+	return tx.Done()
 }

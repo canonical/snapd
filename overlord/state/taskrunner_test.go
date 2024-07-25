@@ -1328,3 +1328,51 @@ func (ts *taskRunnerSuite) TestErrorCallbackNotCalled(c *C) {
 	c.Check(t1.Status(), Equals, state.DoneStatus)
 	c.Check(called, Equals, false)
 }
+
+func (ts *taskRunnerSuite) TestTaskBlockOn(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+
+	st.Lock()
+	chg := st.NewChange("install", "some change")
+	blockerTask := st.NewTask("blocking", "blocking task")
+	blockerTask.SetStatus(state.DoStatus)
+	chg.AddTask(blockerTask)
+
+	block := true
+	var calls int
+	r.AddHandler("foo", func(t *state.Task, tomb *tomb.Tomb) error {
+		calls++
+		if block {
+			st.Lock()
+			defer st.Unlock()
+			t.BlockOn(state.TasksReadyCond, 0, blockerTask.ID())
+			block = false
+		}
+		return nil
+	}, nil)
+
+	blockedTask := st.NewTask("foo", "task summary")
+	chg.AddTask(blockedTask)
+	st.Unlock()
+
+	r.Ensure()
+	r.Wait()
+
+	st.Lock()
+	c.Assert(blockedTask.Status(), Equals, state.DoStatus)
+
+	// unblock the waiting task
+	blockerTask.SetStatus(state.DoneStatus)
+	st.Unlock()
+
+	r.Ensure()
+	r.Wait()
+
+	c.Assert(block, Equals, false)
+	c.Assert(calls, Equals, 2)
+	st.Lock()
+	c.Assert(blockedTask.Status(), Equals, state.DoneStatus)
+	defer st.Unlock()
+}

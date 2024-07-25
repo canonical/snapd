@@ -1,0 +1,114 @@
+summary: Check the registry interface and hooks
+
+details: |
+  TODO: longer description
+
+prepare: |
+  snap set system experimental.registries=true
+  snap install --edge jq
+
+execute: |
+  changeAfterID() {
+    local OLD_CHANGE="$1"
+    local NEW_CHANGE
+
+    for _ in $(seq 30); do
+      NEW_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
+      if [ "$NEW_CHANGE" -gt "$OLD_CHANGE" ]; then
+        break
+      fi
+
+      snap debug ensure-state-soon
+      sleep 1s
+    done
+
+    if [ "$NEW_CHANGE" -le "$OLD_CHANGE" ]; then
+      echo "expected a change with an id greater than $OLD_CHANGE"
+      exit 1
+    fi
+  }
+
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+    echo "This test needs test keys to be trusted"
+    exit
+  fi
+
+  snap ack "$TESTSLIB/assertions/developer1-network.registry"
+  "$TESTSTOOLS"/snaps-state install-local test-manager-snap
+  "$TESTSTOOLS"/snaps-state install-local test-snap
+
+  snap connect test-manager-snap:manage-wifi
+  snap connect test-snap:setup-wifi
+
+  echo "Test that registry changes are observed by other snaps"
+  OLD_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
+  test-manager-snap.sh -c 'snapctl set --view :manage-wifi ssid=first'
+  changeAfterID "$OLD_CHANGE"
+
+  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Modify registry \"developer1/network\""'
+
+  # check that the right hooks were called and they can see the expected values
+  MATCH "first" < /var/snap/test-manager-snap/common/change-view-manage-wifi-ran
+  # the value was modified by change-registry
+  MATCH "first-modified" < /var/snap/test-manager-snap/common/save-view-manage-wifi-ran
+  MATCH "first-modified" < /var/snap/test-snap/common/setup-wifi-view-changed-ran
+  
+  # check no other hooks were called
+  test "2" = "$(find /var/snap/test-manager-snap/common/* -maxdepth 1 | wc -l)"
+  test "1" = "$(find /var/snap/test-snap/common/* -maxdepth 1 | wc -l)"
+
+  # the change was persisted
+  snap get developer1/network/wifi-setup ssid | MATCH "first-modified"
+
+  # reset the test state
+  rm /var/snap/test-manager-snap/common/change-view-manage-wifi-ran
+  rm /var/snap/test-manager-snap/common/save-view-manage-wifi-ran
+  rm /var/snap/test-snap/common/setup-wifi-view-changed-ran
+
+  echo "Test that manager snaps can manage and save registry changes"
+  OLD_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
+  test-snap.sh -c 'snapctl set --view :setup-wifi ssid=second'
+  changeAfterID "$OLD_CHANGE"
+  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Modify registry \"developer1/network\""'
+
+  MATCH "second" < /var/snap/test-manager-snap/common/change-view-manage-wifi-ran
+  # the value was modified by the manager snap
+  MATCH "second-modified" < /var/snap/test-manager-snap/common/save-view-manage-wifi-ran
+  MATCH "second-modified" < /var/snap/test-manager-snap/common/manage-wifi-view-changed-ran
+
+  # check no other hooks were called
+  test "3" = "$(find /var/snap/test-manager-snap/common/* -maxdepth 1 | wc -l)"
+  test "0" = "$(find /var/snap/test-snap/common/* -maxdepth 1 | wc -l)"
+
+  rm /var/snap/test-manager-snap/common/change-view-manage-wifi-ran
+  rm /var/snap/test-manager-snap/common/save-view-manage-wifi-ran
+  rm /var/snap/test-manager-snap/common/manage-wifi-view-changed-ran
+
+  snap get developer1/network/wifi-setup ssid | MATCH "second-modified"
+
+  echo "Test that many snaps can change the value and that failed save-registry phases are rolled back"
+  # install another manager snap that will fail to save-registry
+  "$TESTSTOOLS"/snaps-state install-local test-other-manager-snap
+  snap connect test-other-manager-snap:manage-wifi
+
+  OLD_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
+  test-snap.sh -c 'snapctl set --view :setup-wifi ssid=third'
+  changeAfterID "$OLD_CHANGE"
+  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Error.*Modify registry \"developer1/network\""'
+
+  MATCH "third" < /var/snap/test-manager-snap/common/change-view-manage-wifi-ran
+  # the value was modified by test-manager-snap
+  MATCH "third-modified" < /var/snap/test-other-manager-snap/common/change-view-manage-wifi-ran
+  # and again by test-other-manager-snap, for the first run. The second run is
+  # a rollback so the value should be the original one
+  test "2" = "$(wc -l /var/snap/test-manager-snap/common/save-view-manage-wifi-ran | awk '{printf $1}')"
+  head -n 1 /var/snap/test-manager-snap/common/save-view-manage-wifi-ran | MATCH "third-modified-again"
+  tail -n 1 /var/snap/test-manager-snap/common/save-view-manage-wifi-ran | MATCH "second-modified"
+
+  # check no other hooks were called (don't call view-change since the change failed)
+  test "2" = "$(find /var/snap/test-manager-snap/common/* -maxdepth 1 | wc -l)"
+  test "1" = "$(find /var/snap/test-other-manager-snap/common/* -maxdepth 1 | wc -l)"
+  test "0" = "$(find /var/snap/test-snap/common/* -maxdepth 1 | wc -l)"
+
+  # still the same value
+  snap get developer1/network/wifi-setup ssid | MATCH "second-modified"
