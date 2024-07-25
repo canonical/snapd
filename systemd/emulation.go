@@ -217,6 +217,10 @@ func (s *emulation) ListMountUnits(snapName, origin string) ([]string, error) {
 	return nil, &notImplementedError{"ListMountUnits"}
 }
 
+func (s *emulation) ListUnits(pattern string) ([]string, error) {
+	return nil, &notImplementedError{"ListUnits"}
+}
+
 func (s *emulation) Mask(service string) error {
 	_, err := systemctlCmd("--root", s.rootDir, "mask", service)
 	return err

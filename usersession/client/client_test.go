@@ -29,12 +29,14 @@ import (
 	"os"
 	"path/filepath"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/usersession/client"
 )
@@ -743,4 +745,140 @@ func (s *clientSuite) TestPendingRefreshNotificationOneClient(c *C) {
 	err := cli.PendingRefreshNotification(context.Background(), &client.PendingSnapRefreshInfo{})
 	c.Assert(err, IsNil)
 	c.Check(atomic.LoadInt32(&n), Equals, int32(1))
+}
+
+func (s *clientSuite) TestAppsKill(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(r.URL.Path, Equals, "/v1/app-control")
+		w.Header().Set("Content-Type", "application/json")
+
+		decoder := json.NewDecoder(r.Body)
+		var inst client.AppInstruction
+		c.Assert(decoder.Decode(&inst), IsNil)
+		c.Check(inst.Action, Equals, "kill")
+		c.Check(inst.Snaps, DeepEquals, []string{"foo", "foo_bar"})
+		c.Check(inst.Signal, Equals, syscall.SIGKILL)
+		c.Check(inst.Reason, Equals, snap.KillReasonForceRemove)
+
+		w.WriteHeader(200)
+		w.Write([]byte(`{
+  "type": "sync",
+  "result": null
+}`))
+	})
+	failures, err := s.cli.AppsKill(context.Background(), []string{"foo", "foo_bar"}, 9, snap.KillReasonForceRemove)
+	c.Assert(err, IsNil)
+	c.Check(failures, HasLen, 0)
+}
+
+func (s *clientSuite) TestAppsKillFailure(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(r.URL.Path, Equals, "/v1/app-control")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(500)
+		w.Write([]byte(`{
+  "type": "error",
+  "result": {
+    "kind": "app-control",
+    "message": "failed to kill running apps",
+    "value": {
+      "kill-errors": {
+        "snap.foo.some-app-7414e1a3-6d08-43ff-a81c-6547242a78b0.scope": "failed to kill running app"
+      }
+    }
+  }
+}`))
+	})
+	failures, err := s.cli.AppsKill(context.Background(), []string{"foo", "foo_bar"}, 9, snap.KillReasonForceRemove)
+	c.Assert(err, ErrorMatches, "failed to kill running apps")
+	c.Check(failures, HasLen, 2)
+	failure0 := failures[0]
+	failure1 := failures[1]
+	if failure0.Uid == 1000 {
+		failure0, failure1 = failure1, failure0
+	}
+	c.Check(failure0, DeepEquals, client.AppFailure{
+		Uid:   42,
+		Unit:  "snap.foo.some-app-7414e1a3-6d08-43ff-a81c-6547242a78b0.scope",
+		Error: "failed to kill running app",
+	})
+	c.Check(failure1, DeepEquals, client.AppFailure{
+		Uid:   1000,
+		Unit:  "snap.foo.some-app-7414e1a3-6d08-43ff-a81c-6547242a78b0.scope",
+		Error: "failed to kill running app",
+	})
+}
+
+func (s *clientSuite) TestAppsKillBadErrors(c *C) {
+	errorValue := "null"
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Only produce failure from one agent
+		if r.Host != "42" {
+			w.WriteHeader(200)
+			w.Write([]byte(`{"type": "sync","result": null}`))
+			return
+		}
+
+		w.WriteHeader(500)
+		w.Write([]byte(fmt.Sprintf(`{
+  "type": "error",
+  "result": {
+    "kind": "app-control",
+    "message": "failed to kill running apps",
+    "value": %s
+  }
+}`, errorValue)))
+	})
+
+	// Error value is not a map
+	errorValue = "[]"
+	failures, err := s.cli.AppsKill(context.Background(), []string{"foo"}, 9, snap.KillReasonForceRemove)
+	c.Check(err, ErrorMatches, "failed to kill running apps")
+	c.Check(failures, HasLen, 0)
+
+	// Error value is a map, but missing kill-errors key
+	errorValue = "{}"
+	failures, err = s.cli.AppsKill(context.Background(), []string{"foo"}, 9, snap.KillReasonForceRemove)
+	c.Check(err, ErrorMatches, "failed to kill running apps")
+	c.Check(failures, HasLen, 0)
+
+	// kill-errors is a map
+	errorValue = `{
+  "kill-errors": []
+}`
+	failures, err = s.cli.AppsKill(context.Background(), []string{"foo"}, 9, snap.KillReasonForceRemove)
+	c.Check(err, ErrorMatches, "failed to kill running apps")
+	c.Check(failures, HasLen, 0)
+
+	// kill-error values are not strings
+	errorValue = `{
+  "kill-errors": {
+    "snap.foo.some-app-7414e1a3-6d08-43ff-a81c-6547242a78b0.scope": 42
+  }
+}`
+	failures, err = s.cli.AppsKill(context.Background(), []string{"foo"}, 9, snap.KillReasonForceRemove)
+	c.Check(err, ErrorMatches, "failed to kill running apps")
+	c.Check(failures, HasLen, 0)
+
+	// When some valid app failures are mixed in with bad
+	// ones, report the valid failure along with the error
+	// message.
+	errorValue = `{
+  "kill-errors": {
+    "snap.foo.some-app-7414e1a3-6d08-43ff-a81c-6547242a78b0.scope": "failure one",
+    "snap.foo.some-other-app-f3a1d6fa-c660-4b7d-a450-aaa8849614c7.scope": 42
+  }
+}`
+	failures, err = s.cli.AppsKill(context.Background(), []string{"foo"}, 9, snap.KillReasonForceRemove)
+	c.Check(err, ErrorMatches, "failed to kill running apps")
+	c.Check(failures, HasLen, 1)
+	c.Check(failures, DeepEquals, []client.AppFailure{
+		{
+			Uid:   42,
+			Unit:  "snap.foo.some-app-7414e1a3-6d08-43ff-a81c-6547242a78b0.scope",
+			Error: "failure one",
+		},
+	})
 }

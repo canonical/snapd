@@ -138,10 +138,70 @@ type cmdRemove struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
-func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
-	name := string(x.Positional.Snaps[0])
+func showRemoved(expectedSnaps []string, expectedComps map[string][]string, snapToRev map[string]string, removed *changedSnapsData) {
+	showRemovedSnaps(expectedSnaps, removed.names, snapToRev)
+	showRemovedComponents(expectedComps, removed.comps)
+}
 
-	changeID, err := x.client.Remove(name, opts)
+func showRemovedSnaps(expectedSnaps []string, removedSnaps []string, snapToRev map[string]string) {
+	seen := make(map[string]bool)
+	for _, name := range removedSnaps {
+		if rev, ok := snapToRev[name]; ok {
+			fmt.Fprintf(Stdout, i18n.G("%s (revision %s) removed\n"), name, rev)
+		} else {
+			fmt.Fprintf(Stdout, i18n.G("%s removed\n"), name)
+		}
+		seen[name] = true
+	}
+	for _, name := range expectedSnaps {
+		if !seen[name] {
+			// FIXME: this is the only reason why a name can be
+			// skipped, but it does feel awkward
+			fmt.Fprintf(Stdout, i18n.G("%s not installed\n"), name)
+		}
+	}
+}
+
+func showRemovedComponents(expectedBySnap, removedBySnap map[string][]string) {
+	snapCompsSeen := make(map[string]bool, len(removedBySnap))
+	for snapName, removedComps := range removedBySnap {
+		snapCompsSeen[snapName] = true
+
+		for _, comp := range removedComps {
+			fmt.Fprintf(Stdout, i18n.G("component %s for %s removed\n"), comp, snapName)
+		}
+
+		expected := expectedBySnap[snapName]
+		for _, comp := range expected {
+			if strutil.ListContains(removedComps, comp) {
+				continue
+			}
+			// FIXME: this is the only reason why a name can be
+			// skipped, but it does feel awkward
+			fmt.Fprintf(Stdout, i18n.G("component %s for %s is not installed\n"),
+				comp, snapName)
+		}
+	}
+	// Case of no component of the expected ones removed for a snap
+	for snapWithComps, expected := range expectedBySnap {
+		if _, ok := snapCompsSeen[snapWithComps]; ok {
+			continue
+		}
+		for _, comp := range expected {
+			// See FIXME comment above
+			fmt.Fprintf(Stdout, i18n.G("component %s for %s is not installed\n"),
+				comp, snapWithComps)
+		}
+	}
+}
+
+func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
+	arg := string(x.Positional.Snaps[0])
+
+	name, comps := splitSnapAndComponents(arg)
+	// If there are components, only the components will be removed,
+	// otherwise the full snap with its components will be removed.
+	changeID, err := x.client.Remove(name, comps, opts)
 	if err != nil {
 		msg, err := errorToCmdMessage(name, "remove", err, opts)
 		if err != nil {
@@ -151,24 +211,38 @@ func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 		return nil
 	}
 
-	if _, err := x.wait(changeID); err != nil {
+	chg, err := x.wait(changeID)
+	if err != nil {
 		if err == noWait {
 			return nil
 		}
 		return err
 	}
 
-	if opts.Revision != "" {
-		fmt.Fprintf(Stdout, i18n.G("%s (revision %s) removed\n"), name, opts.Revision)
-	} else {
-		fmt.Fprintf(Stdout, i18n.G("%s removed\n"), name)
+	changes, err := changedSnapsFromChange(chg)
+	if err != nil {
+		return err
 	}
+
+	expectedRemovedSnaps := []string{}
+	snapToRev := map[string]string{}
+	if len(comps) == 0 {
+		expectedRemovedSnaps = []string{name}
+		if opts.Revision != "" {
+			snapToRev[name] = opts.Revision
+		}
+	}
+	showRemoved(expectedRemovedSnaps, map[string][]string{name: comps}, snapToRev, changes)
+
 	return nil
 }
 
 func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
 	names := installedSnapNames(x.Positional.Snaps)
-	changeID, err := x.client.RemoveMany(names, opts)
+
+	const forInstall = false
+	names, comps := snapsAndComponentsFromNames(names, forInstall)
+	changeID, err := x.client.RemoveMany(names, comps, opts)
 	if err != nil {
 		var name string
 		if cerr, ok := err.(*client.Error); ok {
@@ -193,26 +267,13 @@ func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
 		return err
 	}
 
-	var removed []string
-	if err := chg.Get("snap-names", &removed); err != nil && err != client.ErrNoData {
+	changes, err := changedSnapsFromChange(chg)
+	if err != nil {
 		return err
 	}
 
-	seen := make(map[string]bool)
-	for _, name := range removed {
-		fmt.Fprintf(Stdout, i18n.G("%s removed\n"), name)
-		seen[name] = true
-	}
-	for _, name := range names {
-		if !seen[name] {
-			// FIXME: this is the only reason why a name can be
-			// skipped, but it does feel awkward
-			fmt.Fprintf(Stdout, i18n.G("%s not installed\n"), name)
-		}
-	}
-
+	showRemoved(names, comps, nil, changes)
 	return nil
-
 }
 
 func (x *cmdRemove) Execute([]string) error {
@@ -622,12 +683,18 @@ func splitSnapAndComponents(name string) (string, []string) {
 	return parts[0], parts[1:]
 }
 
-func snapsAndComponentsFromNames(names []string) ([]string, map[string][]string) {
+func snapsAndComponentsFromNames(names []string, forInstall bool) ([]string, map[string][]string) {
 	snaps := make([]string, 0, len(names))
 	allComps := make(map[string][]string, len(names))
 	for _, name := range names {
 		snap, comps := splitSnapAndComponents(name)
-		snaps = append(snaps, snap)
+		// When installing we implicitly want to install the snap when
+		// we have specified also components, but when removing we
+		// actually want to remove only components if any of them have
+		// been specified.
+		if forInstall || len(comps) == 0 {
+			snaps = append(snaps, snap)
+		}
 		if len(comps) > 0 {
 			allComps[snap] = comps
 		}
@@ -712,7 +779,8 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 			return errors.New(i18n.G("cannot specify mode for multiple store snaps (only for one store snap or several local ones)"))
 		}
 
-		names, comps := snapsAndComponentsFromNames(names)
+		const forInstall = true
+		names, comps := snapsAndComponentsFromNames(names, forInstall)
 		changeID, err = x.client.InstallMany(names, comps, opts)
 	}
 

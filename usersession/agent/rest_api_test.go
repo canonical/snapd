@@ -28,6 +28,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/godbus/dbus"
@@ -791,6 +792,222 @@ func (s *restSuite) TestServicesStatusReportsError(c *C) {
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--user", "show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.foo.service"},
 		{"--user", "show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.bar.service"},
+	})
+}
+
+func (s *restSuite) TestAppControl(c *C) {
+	// the agent.Apps end point only supports POST requests
+	c.Assert(agent.AppControlCmd.GET, IsNil)
+	c.Check(agent.AppControlCmd.PUT, IsNil)
+	c.Check(agent.AppControlCmd.POST, NotNil)
+	c.Check(agent.AppControlCmd.DELETE, IsNil)
+
+	c.Check(agent.AppControlCmd.Path, Equals, "/v1/app-control")
+}
+
+func (s *restSuite) testAppControlBadRequest(c *C, inst string, contentType string, expectedErr string) {
+	req := httptest.NewRequest("POST", "/v1/app-control", bytes.NewBufferString(inst))
+	req.Header.Set("Content-Type", contentType)
+	rec := httptest.NewRecorder()
+	agent.AppControlCmd.POST(agent.AppControlCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, Equals, 400)
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
+
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
+	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
+	c.Check(rsp.Result, DeepEquals, map[string]interface{}{"message": expectedErr})
+}
+
+func (s *restSuite) TestAppControlBadContentType(c *C) {
+	const inst = `{"action":"kill","snaps":["foo"],"signal":9}`
+	const contentType = "text/html"
+	const expectedErr = "unknown content type: text/html"
+	s.testAppControlBadRequest(c, inst, contentType, expectedErr)
+}
+
+func (s *restSuite) TestAppControlBadAction(c *C) {
+	const inst = `{"action":"bad-action","snaps":["foo"],"signal":9}`
+	const contentType = "application/json"
+	const expectedErr = "unknown action bad-action"
+	s.testAppControlBadRequest(c, inst, contentType, expectedErr)
+}
+
+func (s *restSuite) TestAppControlBadJsonFormat(c *C) {
+	const inst = `{"action":}`
+	const contentType = "application/json"
+	const expectedErr = "cannot decode request body into service instruction: invalid character '}' looking for beginning of value"
+	s.testAppControlBadRequest(c, inst, contentType, expectedErr)
+}
+
+func mockSystemctlUnitJsonOutput(units []string, c *C) []byte {
+	type rawUnit struct {
+		UnitName string `json:"unit"`
+	}
+	var fakeUnits = make([]rawUnit, len(units))
+	for i, unit := range units {
+		fakeUnits[i].UnitName = unit
+	}
+	systemctlOutput, err := json.Marshal(fakeUnits)
+	c.Assert(err, IsNil)
+	return systemctlOutput
+}
+
+func (s *restSuite) TestAppControlKill(c *C) {
+	var sysdLog [][]string
+	unitsForPattern := map[string][]string{
+		"snap.foo.*.scope": {
+			"snap.foo.some-app-7414e1a3-6d08-43ff-a81c-6547242a78b0.scope",
+			"snap.foo.some-app-ff81c9d9-cabb-494b-84b5-494ba945a458.scope",
+		},
+		"snap.bar.*.scope": {
+			"snap.bar.some-app-f3a1d6fa-c660-4b7d-a450-aaa8849614c7.scope",
+		},
+		// no running apps for foobar
+		"snap.foobar.*.scope": nil,
+	}
+	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		switch cmd[1] {
+		case "list-units":
+			units, exists := unitsForPattern[cmd[len(cmd)-1]]
+			c.Assert(exists, Equals, true)
+			return mockSystemctlUnitJsonOutput(units, c), nil
+		case "kill":
+			return []byte{}, nil
+		default:
+			return nil, fmt.Errorf("unexpected systemctl cmd %q", cmd[1])
+		}
+	})
+	defer restore()
+
+	req := httptest.NewRequest("POST", "/v1/app-control", bytes.NewBufferString(`{"action":"kill","snaps":["foo", "bar", "foobar"],"signal":9}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	agent.AppControlCmd.POST(agent.AppControlCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, Equals, 200)
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
+
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
+	c.Check(rsp.Type, Equals, agent.ResponseTypeSync)
+	c.Check(rsp.Result, Equals, nil)
+
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"--user", "list-units", "--output=json", "snap.foo.*.scope"},
+		{"--user", "list-units", "--output=json", "snap.bar.*.scope"},
+		{"--user", "list-units", "--output=json", "snap.foobar.*.scope"},
+		{"--user", "kill", "snap.foo.some-app-7414e1a3-6d08-43ff-a81c-6547242a78b0.scope", "-s", "9", "--kill-who=all"},
+		{"--user", "kill", "snap.foo.some-app-ff81c9d9-cabb-494b-84b5-494ba945a458.scope", "-s", "9", "--kill-who=all"},
+		{"--user", "kill", "snap.bar.some-app-f3a1d6fa-c660-4b7d-a450-aaa8849614c7.scope", "-s", "9", "--kill-who=all"},
+	})
+}
+
+func (s *restSuite) TestAppControlKillBadSignal(c *C) {
+	const inst = `{"action":"kill","snaps":["foo"],"signal":15}`
+	const contentType = "application/json"
+	const expectedErr = "only signal SIGKILL is supported"
+	s.testAppControlBadRequest(c, inst, contentType, expectedErr)
+}
+
+func (s *restSuite) TestAppControlKillBadInstanceName(c *C) {
+	const inst = `{"action":"kill","snaps":["foo_bad-instance-name"],"signal":9}`
+	const contentType = "application/json"
+	const expectedErr = `invalid snap instance name "foo_bad-instance-name": invalid instance key: "bad-instance-name"`
+	s.testAppControlBadRequest(c, inst, contentType, expectedErr)
+}
+
+func (s *restSuite) TestAppControlKillBadSnapName(c *C) {
+	const inst = `{"action":"kill","snaps":["Bad"],"signal":9}`
+	const contentType = "application/json"
+	const expectedErr = `invalid snap instance name "Bad": invalid snap name: "Bad"`
+	s.testAppControlBadRequest(c, inst, contentType, expectedErr)
+}
+
+func (s *restSuite) TestAppControlKillListUnitsError(c *C) {
+	var sysdLog [][]string
+	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		switch cmd[1] {
+		case "list-units":
+			return nil, errors.New("mock systemctl error")
+		default:
+			return nil, fmt.Errorf("unexpected systemctl cmd %q", cmd[1])
+		}
+	})
+	defer restore()
+
+	req := httptest.NewRequest("POST", "/v1/app-control", bytes.NewBufferString(`{"action":"kill","snaps":["foo", "bar", "foobar"],"signal":9}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	agent.AppControlCmd.POST(agent.AppControlCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, Equals, 500)
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
+
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
+	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
+	c.Check(rsp.Result, DeepEquals, map[string]interface{}{"message": `cannot collect snap app units for "foo": mock systemctl error`})
+}
+
+func (s *restSuite) TestAppControlKillReportsError(c *C) {
+	var sysdLog [][]string
+	unitsForPattern := map[string][]string{
+		"snap.foo.*.scope": {
+			"snap.foo.some-app-7414e1a3-6d08-43ff-a81c-6547242a78b0.scope",
+		},
+		"snap.bad.*.scope": {
+			"snap.bad.app-ff81c9d9-cabb-494b-84b5-494ba945a458.scope",
+		},
+		"snap.bar.*.scope": {
+			"snap.bar.some-app-f3a1d6fa-c660-4b7d-a450-aaa8849614c7.scope",
+		},
+	}
+	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		switch cmd[1] {
+		case "list-units":
+			units, exists := unitsForPattern[cmd[len(cmd)-1]]
+			c.Assert(exists, Equals, true)
+			return mockSystemctlUnitJsonOutput(units, c), nil
+		case "kill":
+			if strings.HasPrefix(cmd[2], "snap.bad.") {
+				return []byte{}, errors.New("mock systemctl error")
+			}
+			return []byte{}, nil
+		default:
+			return nil, fmt.Errorf("unexpected systemctl cmd %q", cmd[1])
+		}
+	})
+	defer restore()
+
+	req := httptest.NewRequest("POST", "/v1/app-control", bytes.NewBufferString(`{"action":"kill","snaps":["foo", "bad", "bar"],"signal":9}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	agent.AppControlCmd.POST(agent.AppControlCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, Equals, 500)
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
+
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
+	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
+	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
+		"message": "some transient units failed to be killed",
+		"kind":    "app-control",
+		"value": map[string]interface{}{
+			"kill-errors": map[string]interface{}{
+				"snap.bad.app-ff81c9d9-cabb-494b-84b5-494ba945a458.scope": "mock systemctl error",
+			},
+		},
+	})
+
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"--user", "list-units", "--output=json", "snap.foo.*.scope"},
+		{"--user", "list-units", "--output=json", "snap.bad.*.scope"},
+		{"--user", "list-units", "--output=json", "snap.bar.*.scope"},
+		{"--user", "kill", "snap.foo.some-app-7414e1a3-6d08-43ff-a81c-6547242a78b0.scope", "-s", "9", "--kill-who=all"},
+		{"--user", "kill", "snap.bad.app-ff81c9d9-cabb-494b-84b5-494ba945a458.scope", "-s", "9", "--kill-who=all"},
+		{"--user", "kill", "snap.bar.some-app-f3a1d6fa-c660-4b7d-a450-aaa8849614c7.scope", "-s", "9", "--kill-who=all"},
 	})
 }
 

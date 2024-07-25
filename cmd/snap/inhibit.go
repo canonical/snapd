@@ -43,20 +43,13 @@ var runinhibitWaitWhileInhibited = runinhibit.WaitWhileInhibited
 // which could alter the current snap revision.
 var errSnapRefreshConflict = fmt.Errorf("snap refresh conflict detected")
 
-// maybeWaitWhileInhibited is a wrapper for waitWhileInhibited that skips waiting
-// if refresh-app-awareness flag is disabled.
-func maybeWaitWhileInhibited(ctx context.Context, cli *client.Client, snapName string, appName string) (info *snap.Info, app *snap.AppInfo, hintFlock *osutil.FileLock, err error) {
-	// wait only if refresh-app-awareness flag is enabled
-	if features.RefreshAppAwareness.IsEnabled() {
-		return waitWhileInhibited(ctx, cli, snapName, appName)
-	}
+// errInhibitedForRemove indicates that snap is inhibited from running because
+// it is being removed.
+var errInhibitedForRemove = fmt.Errorf("snap is being removed")
 
-	info, app, err = getInfoAndApp(snapName, appName, snap.R(0))
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	return info, app, nil, nil
-}
+// errOngoingSnapRefresh indicates snap cannot run because it is being refreshed
+// and refresh-app-awareness is not enabled.
+var errOngoingSnapRefresh = fmt.Errorf("snap is being refreshed")
 
 // waitWhileInhibited blocks until snap is not inhibited for refresh anymore and then
 // returns a locked hint file lock along with the latest snap and app information.
@@ -82,6 +75,12 @@ func waitWhileInhibited(ctx context.Context, cli *client.Client, snapName string
 		return err
 	}
 	inhibited := func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
+		if hint == runinhibit.HintInhibitedForRemove {
+			return false, errInhibitedForRemove
+		}
+		if !features.RefreshAppAwareness.IsEnabled() {
+			return true, errOngoingSnapRefresh
+		}
 		if !notified {
 			flow = newInhibitionFlow(cli, snapName)
 			info, app, err = getInfoAndApp(snapName, appName, inhibitInfo.Previous)
@@ -121,6 +120,10 @@ func waitWhileInhibited(ctx context.Context, cli *client.Client, snapName string
 			hintFlock.Close()
 			return nil, nil, nil, err
 		}
+	}
+
+	if info == nil || app == nil {
+		return nil, nil, nil, fmt.Errorf("internal error: info and app cannot be nil")
 	}
 
 	return info, app, hintFlock, nil

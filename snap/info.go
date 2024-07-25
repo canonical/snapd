@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
 
@@ -232,6 +233,18 @@ func HookSecurityTag(snapName, hookName string) string {
 // are not associated to an app or hook in the snap.
 func NoneSecurityTag(snapName, uniqueName string) string {
 	return ScopedSecurityTag(snapName, "none", uniqueName)
+}
+
+// TransientScopeGlob returns the glob pattern matching
+// snap's transient scope units.
+//
+// e.g. snap.hello-world.sh-4706fe54-7802-4808-aa7e-ae8b567239e0.scope
+func TransientScopeGlob(snapName string) (string, error) {
+	snapSecurityTag := SecurityTag(snapName)
+	unitPrefix, err := systemd.SecurityTagToUnitName(snapSecurityTag)
+	// XXX: Should we also match snap components glob pattern (i.e. snap.name+*.*.scope?
+	// snap.name.*.scope
+	return unitPrefix + ".*.scope", err
 }
 
 // BaseDataDir returns the base directory for snap data locations.

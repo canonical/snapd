@@ -542,6 +542,64 @@ func (s *snapsSuite) TestPostSnapsOptionsOtherErrors(c *check.C) {
 	}
 }
 
+func (s *snapsSuite) TestPostSnapsRemoveWithTerminate(c *check.C) {
+	d := s.daemonWithOverlordMockAndStore()
+
+	var snapstateRemoveCalled int
+	defer daemon.MockSnapstateRemove(func(st *state.State, name string, revision snap.Revision, flags *snapstate.RemoveFlags) (*state.TaskSet, error) {
+		snapstateRemoveCalled++
+		c.Check(name, check.Equals, "foo")
+		c.Check(flags.Terminate, check.Equals, true)
+		t := st.NewTask("fake-remove", "Remove one")
+		return state.NewTaskSet(t), nil
+	})()
+
+	buf := strings.NewReader(fmt.Sprintf(`{"action": "remove", "terminate":true}`))
+	req, err := http.NewRequest("POST", "/v2/snaps/foo", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	rsp := s.jsonReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 202)
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Check(chg.Summary(), check.Equals, `Remove "foo" snap`)
+
+	c.Assert(snapstateRemoveCalled, check.Equals, 1)
+}
+
+func (s *snapsSuite) TestPostSnapsRemoveManyWithTerminate(c *check.C) {
+	d := s.daemonWithOverlordMockAndStore()
+
+	var snapstateRemoveManyCalled int
+	defer daemon.MockSnapstateRemoveMany(func(s *state.State, names []string, opts *snapstate.RemoveFlags) ([]string, []*state.TaskSet, error) {
+		snapstateRemoveManyCalled++
+		c.Check(names, check.HasLen, 2)
+		c.Check(opts.Terminate, check.Equals, true)
+		t := s.NewTask("fake-remove-2", "Remove two")
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	})()
+
+	buf := strings.NewReader(fmt.Sprintf(`{"action": "remove", "snaps":["foo", "bar"], "terminate":true}`))
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	rsp := s.jsonReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 202)
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Check(chg.Summary(), check.Equals, `Remove snaps "foo", "bar"`)
+
+	c.Assert(snapstateRemoveManyCalled, check.Equals, 1)
+}
+
 func (s *snapsSuite) TestPostSnapsRemoveManyWithPurge(c *check.C) {
 	d := s.daemonWithOverlordMockAndStore()
 
@@ -2036,6 +2094,21 @@ func (s *snapsSuite) TestPostSnapPreferWrongAction(c *check.C) {
 
 	for _, action := range []string{"remove", "refresh", "revert", "enable", "disable", "xyzzy"} {
 		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "prefer": true}`, action))
+		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+		c.Assert(err, check.IsNil)
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rspe.Message, check.Equals, expectedErr, check.Commentf("%q", action))
+	}
+}
+
+func (s *snapsSuite) TestPostSnapTerminateWrongAction(c *check.C) {
+	s.daemonWithOverlordMock()
+	const expectedErr = `terminate can only be specified for the "remove" action`
+
+	for _, action := range []string{"install", "refresh", "revert", "enable", "disable", "xyzzy"} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "terminate": true}`, action))
 		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
 		c.Assert(err, check.IsNil)
 
