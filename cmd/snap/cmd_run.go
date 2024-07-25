@@ -489,22 +489,40 @@ func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 	return opts, raw, nil
 }
 
-// isSnapRefreshConflictDetected detects if snap refreshed was started while not
-// holding the inhibition hint file lock.
+// checkSnapRunInhibitionConflict detects if snap refreshed/removed was started
+// while not holding the inhibition hint file lock.
 //
 // For context, on snap first install, the inhibition hint lock file is not created
-// so we cannot hold it. It is created after the first refresh. This allows for a
-// window where we don't hold the lock before the tracking cgroup is created where
-// a snap refresh could start.
-func isSnapRefreshConflictDetected(app *snap.AppInfo, hintFlock *osutil.FileLock) bool {
-	if !features.RefreshAppAwareness.IsEnabled() || app.IsService() || hintFlock != nil {
-		// Skip check
-		return false
+// so we cannot hold it. It is created after the first refresh/remove. This allows
+// for a window where we don't hold the lock before the tracking cgroup is created
+// where a snap refresh/removal could start.
+func checkSnapRunInhibitionConflict(app *snap.AppInfo) error {
+	// Remove hint check takes precedence because we want to exit early
+	snapName := app.Snap.InstanceName()
+	hint, _, err := runinhibit.IsLocked(snapName)
+	if err != nil {
+		return err
+	}
+	if hint == runinhibit.HintInhibitedForRemove {
+		return fmt.Errorf(i18n.G("cannot run %q, snap is being removed"), snapName)
 	}
 
-	// We started without a hint lock file, if it exists now this means that a
-	// refresh was started.
-	return osutil.FileExists(runinhibit.HintFile(app.Snap.InstanceName()))
+	if !features.RefreshAppAwareness.IsEnabled() || app.IsService() {
+		// Skip check
+		return nil
+	}
+
+	// We started without a hint lock file, if it exists now this means that:
+	// - There is an ongoing refresh
+	// - Or, A refresh was started and finished
+	// Let's retry to avoid either existing with an error due to missing current
+	// symlink or worse starting with the wrong revision.
+	if osutil.FileExists(runinhibit.HintFile(snapName)) {
+		// errSnapRefreshConflict should trigger a retry
+		return errSnapRefreshConflict
+	}
+
+	return nil
 }
 
 func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
@@ -522,7 +540,13 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 			return fmt.Errorf("race condition detected, snap-run can only retry once")
 		}
 
-		info, app, hintFlock, err := maybeWaitWhileInhibited(context.Background(), x.client, snapName, appName)
+		info, app, hintFlock, err := waitWhileInhibited(context.Background(), x.client, snapName, appName)
+		if errors.Is(err, errOngoingSnapRefresh) {
+			return fmt.Errorf(i18n.G("cannot run %q, snap is being refreshed"), snapName)
+		}
+		if errors.Is(err, errInhibitedForRemove) {
+			return fmt.Errorf(i18n.G("cannot run %q, snap is being removed"), snapName)
+		}
 		if errors.Is(err, errSnapRefreshConflict) {
 			// Possible race condition detected, let's retry.
 
@@ -537,10 +561,12 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 			return err
 		}
 
-		closeFlockOrRetry := func() error {
-			// This needs to run inside the transient cgroup created for a snap
-			// such that any pending refresh of the snap will get blocked after
-			// we release the lock.
+		closeFlockOrCheckConflict := func() error {
+			// Unlocking the hint file needs to run inside the transient cgroup
+			// created such that:
+			// - For refresh, snap refresh will get blocked after we release the lock.
+			// - For removal, created transient cgroup can be detected by the remove change
+			//   and process will be killed after we release the lock.
 			if hintFlock != nil {
 				// It is okay to release the lock here (beforeExec) because snapd unless forced
 				// will not inhibit the snap and do a refresh anymore because it detects app
@@ -551,16 +577,13 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 				hintFlock.Close()
 				return nil
 			}
-			// hintFlock might be nil if the hint file did not exist
-			if isSnapRefreshConflictDetected(app, hintFlock) {
-				return errSnapRefreshConflict
-			}
-			return nil
+
+			return checkSnapRunInhibitionConflict(app)
 		}
 
 		runner := newAppRunnable(info, app)
 
-		err = x.runSnapConfine(info, runner, closeFlockOrRetry, args)
+		err = x.runSnapConfine(info, runner, closeFlockOrCheckConflict, args)
 		if errors.Is(err, errSnapRefreshConflict) {
 			// Possible race condition detected, let's retry.
 			//
