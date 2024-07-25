@@ -13,11 +13,11 @@
         systems:
             - ubuntu-22.04-64:
                 image: snapd-spread/ubuntu-22.04-64
-                workers: 6
+                workers: 8
 
             - ubuntu-24.04-64:
                 image: snapd-spread/ubuntu-24.04-64
-                workers: 6
+                workers: 8
 
             - fedora-40-64:
                 image: snapd-spread/fedora-40-64
