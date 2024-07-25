@@ -437,18 +437,22 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		}
 	}
 
+	tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, compSetupIDs, err := splitComponentTasksForInstall(
+		compsups, st, snapst, snapsup, fromChange,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, t := range tasksBeforePreRefreshHook {
+		addTask(t)
+	}
+
 	// run refresh hooks when updating existing snap, otherwise run install hook further down.
 	runRefreshHooks := snapst.IsInstalled() && !snapsup.Flags.Revert
 	if runRefreshHooks {
 		preRefreshHook := SetupPreRefreshHook(st, snapsup.InstanceName())
 		addTask(preRefreshHook)
-	}
-
-	tasksAfterLinkSnap, tasksBeforeCurrentUnlink, tasksAfterPostOpHook, compSetupIDs, err := splitComponentTasksForInstall(
-		compsups, st, snapst, snapsup, fromChange,
-	)
-	if err != nil {
-		return nil, err
 	}
 	prepare.Set("component-setup-tasks", compSetupIDs)
 
@@ -462,21 +466,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		removeAliases.Set("remove-reason", removeAliasesReasonRefresh)
 		addTask(removeAliases)
 
-		// if we're replacing an already installed snaps, make sure that we do
-		// some of the component tasks, up to unlinking the current components,
-		// before we unlink the current snap. this makes sure that undos happen
-		// in the right order
-		for _, t := range tasksBeforeCurrentUnlink {
-			addTask(t)
-		}
-
 		unlink := st.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), snapsup.InstanceName()))
 		unlink.Set("unlink-reason", unlinkReasonRefresh)
 		addTask(unlink)
-	} else {
-		for _, t := range tasksBeforeCurrentUnlink {
-			addTask(t)
-		}
 	}
 
 	// we need to know some of the characteristics of the device - it is
@@ -731,7 +723,7 @@ func splitComponentTasksForInstall(
 	snapsup SnapSetup,
 	fromChange string,
 ) (
-	tasksAfterLinkSnap, tasksBeforeCurrentUnlink, tasksAfterPostOpHook []*state.Task,
+	tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook []*state.Task,
 	compSetupIDs []string,
 	err error,
 ) {
@@ -743,11 +735,11 @@ func splitComponentTasksForInstall(
 
 		compSetupIDs = append(compSetupIDs, componentTS.compSetupTask.ID())
 
-		tasksBeforeCurrentUnlink = append(tasksBeforeCurrentUnlink, componentTS.beforeLink...)
+		tasksBeforePreRefreshHook = append(tasksBeforePreRefreshHook, componentTS.beforeLink...)
 		tasksAfterLinkSnap = append(tasksAfterLinkSnap, componentTS.linkToHook...)
 		tasksAfterPostOpHook = append(tasksAfterPostOpHook, componentTS.postOpHookAndAfter...)
 	}
-	return tasksAfterLinkSnap, tasksBeforeCurrentUnlink, tasksAfterPostOpHook, compSetupIDs, nil
+	return tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, compSetupIDs, nil
 }
 
 func NeedsKernelSetup(model *asserts.Model) bool {
