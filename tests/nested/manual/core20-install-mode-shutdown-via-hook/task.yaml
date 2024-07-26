@@ -87,6 +87,7 @@ execute: |
     # Wait for snap seeding to be done
     remote.exec "sudo snap wait system seed.loaded"
     # Wait for cloud init to be done
+    ret=0
     remote.exec "cloud-init status --wait" || ret=$?
     if [ "$ret" -ne 0 ] && [ "$ret" -ne 2 ]; then
         echo "cloud-init finished with error $ret"
