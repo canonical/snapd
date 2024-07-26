@@ -1,0 +1,34 @@
+name: test-snap-components-snapctl
+summary: A snap with components that uses snapctl install/remove
+description: |
+  A snap with components used that uses snapctl install/remove from
+  the configure hook.
+platforms:
+  all:
+    build-on: [amd64, arm64, riscv64]
+    build-for: [all]
+version: 1.0
+grade: stable
+confinement: strict
+base: core24
+components:
+  one:
+    summary: Component 1
+    description: First component for test-snap-components-snapctl
+    version: 1.0
+    type: test
+  two:
+    summary: Component 2
+    description: Second component for test-snap-components-snapctl
+    version: 1.0
+    type: test
+apps:
+  test-snap-components-snapctl:
+    command: test
+parts:
+  copy:
+    plugin: dump
+    source: dump
+    organize:
+      one-hooks: (component/one)/meta/hooks
+      two-hooks: (component/two)/meta/hooks

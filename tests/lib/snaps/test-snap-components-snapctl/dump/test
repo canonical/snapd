@@ -1,0 +1,16 @@
+#!/bin/sh -ex
+
+# Ephemeral usage of snapctl commands
+
+snapctl install +one+two
+
+printf "Check that components are seen from snap\n"
+# to remove the revision
+snap_d=$(dirname "$SNAP")
+grep "First component" "/$snap_d/components/$SNAP_REVISION/one/meta/component.yaml"
+grep "Second component" "/$snap_d/components/$SNAP_REVISION/two/meta/component.yaml"
+
+snapctl remove +one+two
+
+printf "There should not be any components anymore\n"
+test ! -d /"$SNAP"/components/
