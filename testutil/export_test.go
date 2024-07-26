@@ -28,17 +28,9 @@ func UnexpectedIntChecker(relation string) *intChecker {
 }
 
 func MockShellcheckPath(p string) (restore func()) {
-	old := shellcheckPath
-	shellcheckPath = p
-	return func() {
-		shellcheckPath = old
-	}
+	return Mock(&shellcheckPath, p)
 }
 
 func MockRuntimeARCH(new string) (restore func()) {
-	old := runtimeGOARCH
-	runtimeGOARCH = new
-	return func() {
-		runtimeGOARCH = old
-	}
+	return Mock(&runtimeGOARCH, new)
 }
