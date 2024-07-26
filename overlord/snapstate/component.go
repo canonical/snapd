@@ -83,7 +83,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		return nil, err
 	}
 
-	return componentTS.taskSet()
+	return componentTS.taskSet(), nil
 }
 
 type componentInstallFlags struct {
@@ -98,21 +98,16 @@ type componentInstallTaskSet struct {
 	postOpHookAndAfter []*state.Task
 }
 
-func (c *componentInstallTaskSet) taskSet() (*state.TaskSet, error) {
+func (c *componentInstallTaskSet) taskSet() *state.TaskSet {
 	tasks := make([]*state.Task, 0, len(c.beforeLink)+len(c.linkToHook)+len(c.postOpHookAndAfter))
 	tasks = append(tasks, c.beforeLink...)
 	tasks = append(tasks, c.linkToHook...)
 	tasks = append(tasks, c.postOpHookAndAfter...)
 
-	if len(c.linkToHook) == 0 {
-		return nil, errors.New("internal error: link component task set does not have a link task")
-	}
-
 	ts := state.NewTaskSet(tasks...)
 	ts.MarkEdge(c.compSetupTask, BeginEdge)
-	ts.MarkEdge(c.linkToHook[0], MaybeRebootEdge)
 
-	return ts, nil
+	return ts
 }
 
 // doInstallComponent might be called with the owner snap installed or not.
