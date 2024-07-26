@@ -98,7 +98,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 			CompPath:     comp.CompPath,
 			DownloadInfo: comp.DownloadInfo,
 
-			componentInstallFlags: componentInstallFlags{
+			ComponentInstallFlags: ComponentInstallFlags{
 				// if we're removing the snap, then we should remove the
 				// components too
 				RemoveComponentPath:   opts.Flags.RemoveSnapPath,
