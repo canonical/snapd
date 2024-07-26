@@ -189,8 +189,11 @@ func (*featureSuite) TestAppArmorPromptingSupportedCallback(c *C) {
 	kernelFeatures = &[]string{"foo", "bar", "policy:permstable32:prompt"}
 	parserFeatures = &[]string{"baz", "qux", "prompt"}
 	supported, reason = callback()
-	c.Check(supported, Equals, true)
-	c.Check(reason, Equals, "")
+	//c.Check(supported, Equals, true)
+	//c.Check(reason, Equals, "")
+	// TODO: change once prompting is fully supported
+	c.Check(supported, Equals, false)
+	c.Check(reason, Equals, "requires newer version of snapd")
 
 	// Parser error
 	parserError = fmt.Errorf("bad parser")
