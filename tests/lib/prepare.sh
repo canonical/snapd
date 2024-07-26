@@ -495,8 +495,12 @@ build_snapd_snap() {
     mkdir -p "${snapd_snap_cache}"
     for snap in "${snapd_snap_cache}"/snapd_*.snap; do
         if ! [ -f "${snap}" ]; then
-            if [ "${TESTS_USE_PREBUILT_SNAPD_SNAP}" = true ]; then
-                cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "${snapd_snap_cache}/snapd_from_ci.snap"
+            if [ "${USE_PREBUILT_SNAPD_SNAP}" = true ]; then
+                if [ -n "${USE_SNAPD_SNAP_URL}" ]; then
+                    wget "$USE_SNAPD_SNAP_URL" -O "${snapd_snap_cache}/snapd_from_ci.snap"
+                else
+                    cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "${snapd_snap_cache}/snapd_from_ci.snap"
+                fi
             else
                 [ -d "${TARGET}" ] || mkdir -p "${TARGET}"
                 chmod -R go+r "${PROJECT_PATH}/tests"
@@ -525,8 +529,12 @@ build_snapd_snap_with_run_mode_firstboot_tweaks() {
         fi
     done
 
-    if [ "${TESTS_USE_PREBUILT_SNAPD_SNAP}" = true ]; then
-        cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "/tmp/snapd_from_snapcraft.snap"
+    if [ "${USE_PREBUILT_SNAPD_SNAP}" = true ]; then
+        if [ -n "${USE_SNAPD_SNAP_URL}" ]; then
+            wget "$USE_SNAPD_SNAP_URL" -O /tmp/snapd_from_snapcraft.snap
+        else
+            cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "/tmp/snapd_from_snapcraft.snap"
+        fi
     else
         chmod -R go+r "${PROJECT_PATH}/tests"
         run_snapcraft --use-lxd --verbosity quiet --output="snapd_from_snapcraft.snap"
