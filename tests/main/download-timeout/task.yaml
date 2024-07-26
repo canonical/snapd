@@ -5,6 +5,10 @@ details: |
   is reduced with 'tc', and in addition the download parameters for snapd are
   tweaked for the test.
 
+  ens3 is the interface for the external network and owns the Additional IP address
+  in the subnet base with VLAN 0. ens4 is the interface for the internal network in
+  the subnet infra with VLAN 1
+
 systems: [ubuntu-18.04*, ubuntu-2*]
 
 environment:
@@ -16,8 +20,13 @@ environment:
   OVERRIDES_FILE: /etc/systemd/system/snapd.service.d/local.conf
 
 prepare: |
+  device=ens4
+  if [ "$SPREAD_BACKEND" = openstack ]; then
+    device=ens3
+  fi
+
   if not os.query is-pc-amd64; then
-      echo "tc fail to add a device in arm architecture with error: 'Cannot find device ens4'"
+      echo "tc fail to add a device in arm architecture with error: \"Cannot find device $device\""
       exit
   fi
 
@@ -28,31 +37,41 @@ prepare: |
   systemctl restart snapd.{socket,service}
 
 restore: |
+  device=ens4
+  if [ "$SPREAD_BACKEND" = openstack ]; then
+    device=ens3
+  fi
+
   if not os.query is-pc-amd64; then
-      echo "tc fail to add a device in arm architecture with error: 'Cannot find device ens4'"
+      echo "tc fail to add a device in arm architecture with error: \"Cannot find device $device\""
       exit
   fi
   # We need to skip this step in 23+ because it fails with error:
   # Error: Qdisc not classful. We have an error talking to the kernel
   # The test works well even after skipping this
   if os.query is-ubuntu-le 22.04; then
-      tc filter del dev ens4
+      tc filter del dev "$device"
   fi
-  tc qdisc del dev ens4 ingress
+  tc qdisc del dev "$device" ingress
 
   mv "$OVERRIDES_FILE".bak "$OVERRIDES_FILE"
   systemctl daemon-reload
   systemctl restart snapd.{socket,service}
 
 execute: |
+  device=ens4
+  if [ "$SPREAD_BACKEND" = openstack ]; then
+    device=ens3
+  fi
+
   if not os.query is-pc-amd64; then
-      echo "tc fail to add a device in arm architecture with error: 'Cannot find device ens4'"
+      echo "tc fail to add a device in arm architecture with error: \"Cannot find device $device\""
       exit
   fi
 
-  tc qdisc add dev ens4 ingress
-  tc filter add dev ens4 root protocol ip u32 match u32 0 0 police rate 32kbit burst 16k drop flowid :1
-  tc filter add dev ens4 parent ffff: protocol ip u32 match u32 0 0 police rate 32kbit burst 16k drop flowid :1
+  tc qdisc add dev "$device" ingress
+  tc filter add dev "$device" root protocol ip u32 match u32 0 0 police rate 32kbit burst 16k drop flowid :1
+  tc filter add dev "$device" parent ffff: protocol ip u32 match u32 0 0 police rate 32kbit burst 16k drop flowid :1
 
   echo "Installing a large snap fails if connection is very slow"
   snap install --edge test-snapd-huge 2>&1 | MATCH "download too slow:"
