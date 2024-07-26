@@ -108,8 +108,10 @@ environment:
     NESTED_REPACK_GADGET_SNAP: '$(HOST: echo "${NESTED_REPACK_GADGET_SNAP:-true}")'
     NESTED_REPACK_BASE_SNAP: '$(HOST: echo "${NESTED_REPACK_BASE_SNAP:-true}")'
     NESTED_FORCE_MS_KEYS: '$(HOST: echo "${NESTED_FORCE_MS_KEYS:-false}")'
+    
     # Whether we should use snapd snap ./built-snap/ directory
-    TESTS_USE_PREBUILT_SNAPD_SNAP: '$(HOST: echo "${TESTS_USE_PREBUILT_SNAPD_SNAP:-false}")'
+    USE_PREBUILT_SNAPD_SNAP: '$(HOST: echo "${SPREAD_USE_PREBUILT_SNAPD_SNAP:-false}")'
+    USE_SNAPD_SNAP_URL: '$(HOST: echo "${SPREAD_USE_SNAPD_SNAP_URL:-}")'
 
 backends:
     google:
@@ -232,6 +234,8 @@ backends:
                   image: centos-9-64
 
             - opensuse-15.5-64:
+                  workers: 6
+            - opensuse-15.6-64:
                   workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6

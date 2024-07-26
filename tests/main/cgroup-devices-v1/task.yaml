@@ -13,6 +13,7 @@ systems:
     - -fedora-*
     - -debian-*
     - -arch-*
+    - -opensuse-15.6-*
     - -opensuse-tumbleweed-*
     - -centos-9-*
     - -amazon-linux-2023-*

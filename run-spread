@@ -22,4 +22,4 @@ for snap in snapd_1337.*.snap; do
 done
 
 # Run spread
-TESTS_USE_PREBUILT_SNAPD_SNAP=true spread "$@"
+SPREAD_USE_PREBUILT_SNAPD_SNAP=true spread "$@"

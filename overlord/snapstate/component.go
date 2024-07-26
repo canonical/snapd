@@ -309,7 +309,7 @@ func RemoveComponents(st *state.State, snapName string, compName []string, opts 
 				CompRev:   snap.R(0),
 			}
 		}
-		ts, err := removeComponentTasks(st, compst, info, setupSecurity)
+		ts, err := removeComponentTasks(st, &snapst, compst, info, setupSecurity)
 		if err != nil {
 			return nil, err
 		}
@@ -323,7 +323,7 @@ func RemoveComponents(st *state.State, snapName string, compName []string, opts 
 	return tss, nil
 }
 
-func removeComponentTasks(st *state.State, compst *sequence.ComponentState, info *snap.Info, setupSecurity *state.Task) (*state.TaskSet, error) {
+func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.ComponentState, info *snap.Info, setupSecurity *state.Task) (*state.TaskSet, error) {
 	instName := info.InstanceName()
 
 	// For the moment we consider the same conflicts as if the component
@@ -390,14 +390,13 @@ func removeComponentTasks(st *state.State, compst *sequence.ComponentState, info
 		prev = setupSecurity
 	}
 
-	// Discard component
-	// TODO:COMPS: this removes the component file and when the full
-	// removal of snap+components is implemented it needs to be done as one
-	// of the last tasks in the change.
-	discardComp := st.NewTask("discard-component", fmt.Sprintf(i18n.G(
-		"Discard previous revision for component %q"),
-		compst.SideInfo.Component))
-	addTask(discardComp)
+	// Discard component if not used in other sequence points
+	if !snapst.IsCurrentComponentRevInAnyNonCurrentSeq(compSetup.CompSideInfo.Component) {
+		discardComp := st.NewTask("discard-component", fmt.Sprintf(i18n.G(
+			"Discard previous revision for component %q"),
+			compst.SideInfo.Component))
+		addTask(discardComp)
+	}
 
 	return state.NewTaskSet(tasks...), nil
 }

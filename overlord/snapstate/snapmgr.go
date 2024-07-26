@@ -814,6 +814,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("mount-component", m.doMountComponent, m.undoMountComponent)
 	runner.AddHandler("unlink-current-component", m.doUnlinkCurrentComponent, m.undoUnlinkCurrentComponent)
 	runner.AddHandler("link-component", m.doLinkComponent, m.undoLinkComponent)
+	runner.AddHandler("unlink-component", m.doUnlinkComponent, m.undoUnlinkComponent)
 	// We cannot undo much after a component file is removed. And it is the
 	// last task anyway.
 	runner.AddHandler("discard-component", m.doDiscardComponent, nil)

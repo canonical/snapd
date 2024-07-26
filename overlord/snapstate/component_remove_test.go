@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
@@ -36,7 +37,9 @@ func expectedComponentRemoveTasks(opts int) []string {
 	if opts&compTypeIsKernMods != 0 {
 		removeTasks = append(removeTasks, "clear-kernel-modules-components")
 	}
-	removeTasks = append(removeTasks, "discard-component")
+	if opts&compCurrentIsDiscarded != 0 {
+		removeTasks = append(removeTasks, "discard-component")
+	}
 	return removeTasks
 }
 
@@ -82,7 +85,7 @@ func (s *snapmgrTestSuite) testRemoveComponent(c *C, opts snapstate.RemoveCompon
 			kinds := taskKinds(ts.Tasks())
 			c.Assert(kinds, DeepEquals, []string{"setup-profiles"})
 		} else {
-			verifyComponentRemoveTasks(c, 0, ts)
+			verifyComponentRemoveTasks(c, compCurrentIsDiscarded, ts)
 		}
 		totalTasks += len(ts.Tasks())
 	}
@@ -127,7 +130,7 @@ func (s *snapmgrTestSuite) testRemoveComponents(c *C, opts snapstate.RemoveCompo
 			kinds := taskKinds(ts.Tasks())
 			c.Assert(kinds, DeepEquals, []string{"setup-profiles"})
 		} else {
-			verifyComponentRemoveTasks(c, compTypeIsKernMods, ts)
+			verifyComponentRemoveTasks(c, compTypeIsKernMods|compCurrentIsDiscarded, ts)
 		}
 		totalTasks += len(ts.Tasks())
 	}
@@ -217,7 +220,7 @@ func (s *snapmgrTestSuite) TestRemoveComponentPathRun(c *C) {
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
 	for _, ts := range tss {
-		verifyComponentRemoveTasks(c, compTypeIsKernMods, ts)
+		verifyComponentRemoveTasks(c, compTypeIsKernMods|compCurrentIsDiscarded, ts)
 	}
 
 	var snapst snapstate.SnapState
@@ -281,8 +284,8 @@ func (s *snapmgrTestSuite) TestRemoveComponentsPathRunWithError(c *C) {
 	c.Assert(chg.Err().Error(), Equals,
 		"cannot perform the following tasks:\n- provoking total undo (error out)")
 	c.Assert(chg.IsReady(), Equals, true)
-	verifyComponentRemoveTasks(c, compTypeIsKernMods, tss[0])
-	verifyComponentRemoveTasks(c, compTypeIsKernMods, tss[1])
+	verifyComponentRemoveTasks(c, compTypeIsKernMods|compCurrentIsDiscarded, tss[0])
+	verifyComponentRemoveTasks(c, compTypeIsKernMods|compCurrentIsDiscarded, tss[1])
 	kinds := taskKinds(tss[2].Tasks())
 	c.Assert(kinds, DeepEquals, []string{"setup-profiles"})
 
@@ -302,4 +305,51 @@ func (s *snapmgrTestSuite) TestRemoveComponentsPathRunWithError(c *C) {
 	// we could not remove the components
 	c.Assert(snapst.IsComponentInCurrentSeq(cref1), Equals, true)
 	c.Assert(snapst.IsComponentInCurrentSeq(cref2), Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestRemoveComponentsRevInTwoSeqPts(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	opts := snapstate.RemoveComponentsOpts{RefreshProfile: true}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Current component is present in current and in another sequence point
+	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
+		SnapID: "some-snap-id"}
+	ssi2 := &snap.SideInfo{RealName: snapName, Revision: snap.R(10),
+		SnapID: "some-snap-id"}
+	currentCsi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), snap.R(3))
+	compsSi := []*sequence.ComponentState{
+		sequence.NewComponentState(currentCsi, snap.KernelModulesComponent),
+	}
+	snapst := &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(ssi, compsSi),
+				sequence.NewRevisionSideState(ssi2, compsSi),
+			}),
+		Current: snapRev,
+	}
+	snapstate.Set(s.state, snapName, snapst)
+
+	tss, err := snapstate.RemoveComponents(s.state, snapName, []string{compName}, opts)
+	c.Assert(err, IsNil)
+
+	c.Assert(len(tss), Equals, 2)
+	totalTasks := 0
+	for i, ts := range tss {
+		if i == len(tss)-1 {
+			kinds := taskKinds(ts.Tasks())
+			c.Assert(kinds, DeepEquals, []string{"setup-profiles"})
+		} else {
+			verifyComponentRemoveTasks(c, compTypeIsKernMods, ts)
+		}
+		totalTasks += len(ts.Tasks())
+	}
+
+	c.Assert(s.state.TaskCount(), Equals, totalTasks)
 }
