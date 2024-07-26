@@ -68,7 +68,7 @@ prepare: |
       tests.cleanup defer rmdir /var/home
     fi
     mkdir /var/home/test-remote
-    chown test-remote.test-remote /var/home/test-remote
+    chown test-remote:test-remote /var/home/test-remote
     tests.cleanup defer rm -rf /var/home/test-remote
     # TODO: it would be nice to successfully pass ",posix" option and get things to mount.
     mount -t cifs //127.0.0.1/var-home/test-remote /home/test-remote -o vers=3.1.1,nomapposix,mfsymlinks,username=test-remote,password=secret,uid=54321,gid=54321

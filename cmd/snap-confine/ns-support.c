@@ -963,7 +963,7 @@ void sc_store_ns_info(const sc_invocation *inv)
 		die("cannot open %s", info_path);
 	}
 	if (fchown(fd, 0, 0) < 0) {
-		die("cannot chown %s to root.root", info_path);
+		die("cannot chown %s to root:root", info_path);
 	}
 	// The stream now owns the file descriptor.
 	stream = fdopen(fd, "w");

@@ -221,7 +221,7 @@ func MkDir(dirFd int, dirName string, name string, perm os.FileMode, uid sys.Use
 			// Close the FD we opened if we fail here since the caller will get
 			// an error and won't assume responsibility for the FD.
 			sysClose(newFd)
-			return -1, fmt.Errorf("cannot chown directory %q to %d.%d: %v", filepath.Join(dirName, name), uid, gid, err)
+			return -1, fmt.Errorf("cannot chown directory %q to %d:%d: %v", filepath.Join(dirName, name), uid, gid, err)
 		}
 		// As soon as we find a place that is safe to write we can switch off
 		// the restricted mode (and thus any subsequent checks). This is
@@ -281,7 +281,7 @@ func MkFile(dirFd int, dirName string, name string, perm os.FileMode, uid sys.Us
 	if made {
 		// Chown the file if we made it.
 		if err := sysFchown(newFd, uid, gid); err != nil {
-			return fmt.Errorf("cannot chown file %q to %d.%d: %v", filepath.Join(dirName, name), uid, gid, err)
+			return fmt.Errorf("cannot chown file %q to %d:%d: %v", filepath.Join(dirName, name), uid, gid, err)
 		}
 	}
 
