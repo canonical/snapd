@@ -589,6 +589,14 @@ func InstallOne(ctx context.Context, st *state.State, goal InstallGoal, opts Opt
 	return infos[0], tasksets[0], nil
 }
 
+func sortComponentsOnTargets(targets []target) {
+	for _, t := range targets {
+		sort.Slice(t.components, func(i, j int) bool {
+			return t.components[i].ComponentName() < t.components[j].ComponentName()
+		})
+	}
+}
+
 // InstallWithGoal installs the snap/set of snaps specified by the given
 // InstallGoal.
 //
@@ -627,13 +635,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 		return nil, nil, ErrExpectedOneSnap
 	}
 
-	for _, t := range targets {
-		// sort the components by name to ensure we always install components in the
-		// same order
-		sort.Slice(t.components, func(i, j int) bool {
-			return t.components[i].ComponentName() < t.components[j].ComponentName()
-		})
-	}
+	sortComponentsOnTargets(targets)
 
 	installInfos := make([]minimalInstallInfo, 0, len(targets))
 	for _, t := range targets {
@@ -1003,13 +1005,7 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 		return nil, nil, err
 	}
 
-	for _, t := range plan.targets {
-		// sort the components by name to ensure we always install components in the
-		// same order
-		sort.Slice(t.components, func(i, j int) bool {
-			return t.components[i].ComponentName() < t.components[j].ComponentName()
-		})
-	}
+	sortComponentsOnTargets(plan.targets)
 
 	if opts.ExpectOneSnap && len(plan.targets) != 1 {
 		return nil, nil, ErrExpectedOneSnap
