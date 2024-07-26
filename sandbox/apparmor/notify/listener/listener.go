@@ -61,7 +61,7 @@ var (
 // permissions for which the decision should apply.
 type Response struct {
 	Allow      bool
-	Permission interface{}
+	Permission any
 }
 
 // Request is a high-level representation of an apparmor prompting message.
@@ -80,7 +80,7 @@ type Request struct {
 	// class is the mediation class corresponding to this request.
 	class notify.MediationClass
 	// permission is the opaque permission that is being requested.
-	permission interface{}
+	permission any
 	// replyChan is a channel for writing the response.
 	replyChan chan *Response
 	// replied indicates whether a reply has already been sent for this request.
@@ -88,7 +88,7 @@ type Request struct {
 }
 
 func newRequest(msg *notify.MsgNotificationFile) (*Request, error) {
-	var perm interface{}
+	var perm any
 	switch msg.Class {
 	case notify.AA_CLASS_FILE:
 		_, missingPerms, err := msg.DecodeFilePermissions()
@@ -138,7 +138,7 @@ func (r *Request) Class() notify.MediationClass {
 }
 
 // Permission returns the opaque permission that is being requested.
-func (r *Request) Permission() interface{} {
+func (r *Request) Permission() any {
 	return r.permission
 }
 

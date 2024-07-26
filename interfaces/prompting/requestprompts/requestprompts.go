@@ -62,9 +62,12 @@ type PromptConstraints struct {
 	Path                 string   `json:"path"`
 	Permissions          []string `json:"permissions"`
 	AvailablePermissions []string `json:"available-permissions"`
-	// Preserve originally-requested permissions so we can send a response with
-	// explicitly-allowed/denied permissions, even if some permissions were
-	// previously satisfied.
+	// Preserve originally-requested permissions. A prompt's permissions may be
+	// partially satisfied over time as new rules are added, but we need to
+	// keep track of the originally-requested permissions so that we can still
+	// send back a response to the kernel with all of the permissions which
+	// were included in the request from the kernel (aside from any which we
+	// didn't recognize).
 	originalPermissions []string
 }
 
