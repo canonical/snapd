@@ -738,9 +738,11 @@ compsLoop:
 	return nil
 }
 
-// SetInfo sets Info of the SeedSnap and possibly computes its
-// destination Path.
-func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info) error {
+// SetInfo sets Info and ComponentInfos of the SeedSnap and possibly computes
+// its destination Path. For local snaps the components information will come
+// from data previously read and stored in w.byPathLocalComps, while for snaps
+// downloaded from the store it is expected in cinfos argument.
+func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info, cinfos map[string]*snap.ComponentInfo) error {
 	if info.NeedsDevMode() {
 		if err := w.policy.allowsDangerousFeatures(); err != nil {
 			return err
@@ -751,6 +753,20 @@ func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info) error {
 	if sn.local {
 		sn.SnapRef = info
 		return w.assignLocalComponents(sn)
+	}
+
+	for i := range sn.Components {
+		cinfo, ok := cinfos[sn.Components[i].ComponentName]
+		if !ok {
+			return fmt.Errorf("store did not return information about %s",
+				sn.Components[i].ComponentName)
+		}
+		sn.Components[i].Info = cinfo
+		compPath, err := w.tree.componentPath(sn, &sn.Components[i])
+		if err != nil {
+			return err
+		}
+		sn.Components[i].Path = compPath
 	}
 
 	p, err := w.tree.snapPath(sn)
@@ -852,15 +868,34 @@ func (w *Writer) modelSnapToSeed(modSnap *asserts.ModelSnap) (*SeedSnap, error) 
 			// by an OptionsSnap entry is skipped
 			return nil, errSkipOptional
 		}
-		seedComps := make([]SeedComponent, 0, len(modSnap.Components))
+		seedCompsMap := make(map[string]SeedComponent, len(modSnap.Components))
 		for comp, modComp := range modSnap.Components {
-			// optional snap not confirmed, skipping
-			if modComp.Presence == "optional" && optSnap != nil && !optSnap.HasComponent(comp) {
+			// optional snap not confirmed (no options or not in options), skipping
+			if modComp.Presence == "optional" &&
+				(optSnap == nil || !optSnap.HasComponent(comp)) {
 				continue
 			}
-			seedComps = append(seedComps, SeedComponent{
+			seedCompsMap[comp] = SeedComponent{
 				ComponentRef: naming.NewComponentRef(modSnap.Name, comp),
-			})
+			}
+		}
+		// We add also components in command options if the model allows it
+		if optSnap != nil {
+			for _, comp := range optSnap.Components {
+				if _, ok := seedCompsMap[comp.Name]; ok {
+					continue
+				}
+				if err := w.policy.allowsDangerousFeatures(); err != nil {
+					return nil, err
+				}
+				seedCompsMap[comp.Name] = SeedComponent{
+					ComponentRef: naming.NewComponentRef(modSnap.Name, comp.Name),
+				}
+			}
+		}
+		seedComps := make([]SeedComponent, 0, len(seedCompsMap))
+		for _, sc := range seedCompsMap {
+			seedComps = append(seedComps, sc)
 		}
 		sn = &SeedSnap{
 			SnapRef: modSnap,

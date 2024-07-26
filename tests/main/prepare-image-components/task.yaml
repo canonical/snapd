@@ -1,0 +1,70 @@
+summary: Check that prepare-image works when we have components
+
+details: |
+  The `snap prepare-image` command performs some of the steps necessary for
+  creating device images.
+
+  This test verifies that in classic and Ubuntu Core systems, the
+  prepare-image command prepares properly an image with components. It is
+  checked that the fundamental snaps are present and the snap assertions are
+  retrieved.
+
+backends: [-autopkgtest]
+
+systems: [ubuntu-18*, ubuntu-2*]
+
+execute: |
+  TARGET_D=target
+
+  # Checks for container files and assertions.
+  # $1: number of expected components
+  check_files_and_assertions() {
+      SNAPS_D=$TARGET_D/system-seed/snaps
+      LABEL_D=$(find $TARGET_D/system-seed/systems/ -maxdepth 1 -mindepth 1)
+
+      for f in snapd pc pc-kernel core24 test-snap-with-components; do
+          stat "$SNAPS_D"/"$f"_*.snap
+      done
+      for comp in "$@"; do
+          stat "$SNAPS_D"/test-snap-with-components+"$comp"_*.comp
+          MATCH "resource-name: $comp" < "$LABEL_D"/assertions/snaps
+      done
+      MATCH "type: snap-resource-revision" < "$LABEL_D"/assertions/snaps
+      MATCH "type: snap-resource-pair" < "$LABEL_D"/assertions/snaps
+  }
+
+  ## dangerous model
+
+  # component one is mandatory in model
+  snap prepare-image "$TESTSLIB"/assertions/pc24-with-comps-dangerous.model "$TARGET_D"
+  check_files_and_assertions one
+
+  # component one is optional in model
+  rm -rf "$TARGET_D"
+  snap prepare-image "$TESTSLIB"/assertions/pc24-with-comps-dangerous.model \
+       --comp test-snap-with-components+two "$TARGET_D"
+  check_files_and_assertions one two
+
+  # component three is not in model
+  rm -rf "$TARGET_D"
+  snap prepare-image "$TESTSLIB"/assertions/pc24-with-comps-dangerous.model \
+       --comp test-snap-with-components+two --comp test-snap-with-components+three "$TARGET_D"
+  check_files_and_assertions one two three
+
+  ## signed model
+
+  # component one is mandatory in model
+  rm -rf "$TARGET_D"
+  snap prepare-image "$TESTSLIB"/assertions/pc24-with-comps-signed.model "$TARGET_D"
+  check_files_and_assertions one
+
+  # component one is optional in model
+  rm -rf "$TARGET_D"
+  snap prepare-image "$TESTSLIB"/assertions/pc24-with-comps-signed.model \
+       --comp test-snap-with-components+two "$TARGET_D"
+  check_files_and_assertions one two
+
+  # component three is not in model, must fail
+  rm -rf "$TARGET_D"
+  not snap prepare-image "$TESTSLIB"/assertions/pc24-with-comps-signed.model \
+       --comp test-snap-with-components+two --comp test-snap-with-components+three "$TARGET_D"

@@ -40,7 +40,7 @@ type policy20 struct {
 	warningf func(format string, a ...interface{})
 }
 
-var errNotAllowedExceptForDangerous = errors.New("cannot override channels, add devmode snaps, local snaps, or extra snaps with a model of grade higher than dangerous")
+var errNotAllowedExceptForDangerous = errors.New("cannot override channels, add devmode snaps, local snaps, or extra snaps/components with a model of grade higher than dangerous")
 
 func (pol *policy20) checkAllowedDangerous() error {
 	if pol.model.Grade() != asserts.ModelDangerous {

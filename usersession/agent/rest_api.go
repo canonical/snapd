@@ -25,8 +25,10 @@ import (
 	"mime"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/mvo5/goconfigparser"
@@ -46,6 +48,7 @@ var restApi = []*Command{
 	sessionInfoCmd,
 	serviceControlCmd,
 	serviceStatusCmd,
+	appControlCmd,
 	pendingRefreshNotificationCmd,
 	finishRefreshNotificationCmd,
 }
@@ -69,6 +72,11 @@ var (
 	serviceStatusCmd = &Command{
 		Path: "/v1/service-status",
 		GET:  serviceStatus,
+	}
+
+	appControlCmd = &Command{
+		Path: "/v1/app-control",
+		POST: postAppControl,
 	}
 
 	pendingRefreshNotificationCmd = &Command{
@@ -571,4 +579,81 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		})
 	}
 	return SyncResponse(nil)
+}
+
+func collectSnapAppUnits(snapName string, sysd systemd.Systemd) (units []string, err error) {
+	pattern, err := snap.TransientScopeGlob(snapName)
+	if err != nil {
+		return nil, err
+	}
+
+	return sysd.ListUnits(pattern)
+}
+
+func appKill(inst *client.AppInstruction, sysd systemd.Systemd) Response {
+	// TODO: Use inst.Reason as a hint to explain to users what is happening
+	if inst.Signal != syscall.SIGKILL {
+		return BadRequest("only signal SIGKILL is supported")
+	}
+
+	var units []string
+	for _, snapName := range inst.Snaps {
+		if err := snap.ValidateInstanceName(snapName); err != nil {
+			return BadRequest("invalid snap instance name %q: %v", snapName, err)
+		}
+		snapAppUnits, err := collectSnapAppUnits(snapName, sysd)
+		if err != nil {
+			return InternalError("cannot collect snap app units for %q: %v", snapName, err)
+		}
+		units = append(units, snapAppUnits...)
+	}
+
+	killErrors := make(map[string]string)
+	for _, unit := range units {
+		signal := strconv.Itoa(int(inst.Signal))
+		if err := sysd.Kill(unit, signal, "all"); err != nil {
+			killErrors[unit] = err.Error()
+		}
+	}
+
+	if len(killErrors) != 0 {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: "some transient units failed to be killed",
+				Kind:    errorKindAppControl,
+				Value: map[string]interface{}{
+					"kill-errors": killErrors,
+				},
+			},
+		})
+	}
+
+	return SyncResponse(nil)
+}
+
+var appInstructionDispTable = map[string]func(*client.AppInstruction, systemd.Systemd) Response{
+	"kill": appKill,
+}
+
+func postAppControl(c *Command, r *http.Request) Response {
+	if ok, resp := validateJSONRequest(r); !ok {
+		return resp
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	var inst client.AppInstruction
+	if err := decoder.Decode(&inst); err != nil {
+		return BadRequest("cannot decode request body into service instruction: %v", err)
+	}
+	impl := appInstructionDispTable[inst.Action]
+	if impl == nil {
+		return BadRequest("unknown action %s", inst.Action)
+	}
+	// Prevent multiple systemd actions from being carried out simultaneously
+	systemdLock.Lock()
+	defer systemdLock.Unlock()
+	sysd := systemd.New(systemd.UserMode, noopReporter{})
+	return impl(&inst, sysd)
 }

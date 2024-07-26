@@ -3434,7 +3434,9 @@ func (s *servicesTestSuite) TestStartServicesStopsServicesIncludingActivation(c 
 	s.systemctlRestorer()
 	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		s.sysdLog = append(s.sysdLog, cmd)
-		if len(cmd) == 2 && cmd[0] == "start" && cmd[1] == "snap.hello-snap.svc1.sock1.socket" {
+		// Inject an error into the last socket of the last service so we can see the full
+		// 'undo' logic chain
+		if len(cmd) == 3 && cmd[1] == "start" && cmd[2] == "snap.hello-snap.svc2.sock2.socket" {
 			return []byte("no"), fmt.Errorf("mock error")
 		}
 		return []byte("ActiveState=inactive\n"), nil
@@ -3480,19 +3482,24 @@ func (s *servicesTestSuite) TestStartServicesStopsServicesIncludingActivation(c 
 		{"daemon-reload"},
 		{"--user", "--global", "--no-reload", "enable", "snap.hello-snap.svc2.sock1.socket", "snap.hello-snap.svc2.sock2.socket"},
 
-		// Start phase for service activation units, we have rigged the game by making sure this stage fails,
-		// so only one of the services will attempt to start
+		// Start phase for system service activation units
 		{"start", "snap.hello-snap.svc1.sock1.socket"},
+		{"start", "snap.hello-snap.svc1.sock2.socket"},
 
-		// Stop phase, where we attempt to stop the activation units and the primary services
-		// We first attempt to stop the user services, then the system services
+		// Start phase for user service activation units, we have rigged the system here to
+		// fail on this step, so we can test undo logic.
+		{"--user", "--no-reload", "enable", "snap.hello-snap.svc2.sock1.socket", "snap.hello-snap.svc2.sock2.socket"},
+		{"--user", "daemon-reload"},
+		{"--user", "start", "snap.hello-snap.svc2.sock1.socket"},
+		{"--user", "start", "snap.hello-snap.svc2.sock2.socket"},
+
+		// It failed, we attempt to stop all started user services again
 		{"--user", "stop", "snap.hello-snap.svc2.sock1.socket"},
 		{"--user", "show", "--property=ActiveState", "snap.hello-snap.svc2.sock1.socket"},
-		{"--user", "stop", "snap.hello-snap.svc2.sock2.socket"},
-		{"--user", "show", "--property=ActiveState", "snap.hello-snap.svc2.sock2.socket"},
-		{"--user", "stop", "snap.hello-snap.svc2.service"},
-		{"--user", "show", "--property=ActiveState", "snap.hello-snap.svc2.service"},
+		{"--user", "--no-reload", "disable", "snap.hello-snap.svc2.sock1.socket", "snap.hello-snap.svc2.sock2.socket"},
+		{"--user", "daemon-reload"},
 
+		// Stop system services again
 		{"stop", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket", "snap.hello-snap.svc1.service"},
 		{"show", "--property=ActiveState", "snap.hello-snap.svc1.sock1.socket"},
 		{"show", "--property=ActiveState", "snap.hello-snap.svc1.sock2.socket"},
@@ -4120,7 +4127,7 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 	opts := &wrappers.StartServicesOptions{Enable: true}
 	err := wrappers.StartServices(svcs, nil, opts, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "some user services failed to start")
-	c.Assert(sysdLog, HasLen, 14, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--user", "--global", "--no-reload", "enable", svc1Name, svc2Name},
 		{"--user", "--no-reload", "enable", "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.service"},
@@ -4132,11 +4139,7 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 		{"--user", "show", "--property=ActiveState", svc1Name},
 		{"--user", "--no-reload", "disable", "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.service"},
 		{"--user", "daemon-reload"},
-		// StartServices ensures everything is stopped
-		{"--user", "stop", svc2Name},
-		{"--user", "show", "--property=ActiveState", svc2Name},
-		{"--user", "stop", svc1Name},
-		{"--user", "show", "--property=ActiveState", svc1Name},
+		// and we disable previously enabled user-services
 		{"--user", "--global", "--no-reload", "disable", svc1Name, svc2Name},
 	}, Commentf("calls: %v", sysdLog))
 }
@@ -5226,6 +5229,212 @@ apps:
 		{"stop", srvFile3},
 		{"show", "--property=ActiveState", srvFile3},
 		{"start", srvFile3},
+	})
+}
+
+func (s *servicesTestSuite) TestRestartWithActivatedServicesInactive(c *C) {
+	const manyServicesYaml = `name: test-snap
+version: 1.0
+apps:
+  svc1:
+    command: bin/foo
+    daemon: simple
+  svc2:
+    daemon: simple
+    plugs: [network-bind]
+    sockets:
+      sock1:
+        listen-stream: $SNAP_DATA/sock1.socket
+        socket-mode: 0666
+      sock2:
+        listen-stream: $SNAP_COMMON/sock2.socket
+`
+	srvFile1 := "snap.test-snap.svc1.service"
+	srvFile2 := "snap.test-snap.svc2.service"
+	srvFile2Sock1 := "snap.test-snap.svc2.sock1.socket"
+	srvFile2Sock2 := "snap.test-snap.svc2.sock2.socket"
+
+	info := snaptest.MockSnap(c, manyServicesYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		states := map[string]systemdtest.ServiceState{
+			srvFile1:      {ActiveState: "active", UnitFileState: "enabled"},
+			srvFile2:      {ActiveState: "inactive", UnitFileState: "enabled"},
+			srvFile2Sock1: {ActiveState: "inactive", UnitFileState: "enabled"},
+			srvFile2Sock2: {ActiveState: "inactive", UnitFileState: "enabled"},
+		}
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, states); out != nil {
+			return out, nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+
+	// Restart without restarting things that were inactive to test this case,
+	// which should result in just svc1 restarting
+	s.sysdLog = nil
+	services := info.Services()
+	sort.Sort(snap.AppInfoBySnapApp(services))
+	c.Assert(wrappers.RestartServices(services, nil, nil, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile1, srvFile2},
+		{"show", "--property=Id,ActiveState,UnitFileState,Names", srvFile2Sock1, srvFile2Sock2},
+		{"stop", srvFile1},
+		{"show", "--property=ActiveState", srvFile1},
+		{"start", srvFile1},
+	})
+
+	// Restart but with restarting non-active, this means that the activated services
+	// should be restarted now
+	s.sysdLog = nil
+	c.Assert(wrappers.RestartServices(services, nil, &wrappers.RestartServicesOptions{AlsoEnabledNonActive: true}, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile1, srvFile2},
+		{"show", "--property=Id,ActiveState,UnitFileState,Names", srvFile2Sock1, srvFile2Sock2},
+		{"stop", srvFile1},
+		{"show", "--property=ActiveState", srvFile1},
+		{"start", srvFile1},
+		{"stop", srvFile2Sock1, srvFile2Sock2},
+		{"show", "--property=ActiveState", srvFile2Sock1},
+		{"show", "--property=ActiveState", srvFile2Sock2},
+		{"start", srvFile2Sock1, srvFile2Sock2},
+	})
+}
+
+func (s *servicesTestSuite) TestRestartWithActivatedServicesActive(c *C) {
+	const manyServicesYaml = `name: test-snap
+version: 1.0
+apps:
+  svc1:
+    command: bin/foo
+    daemon: simple
+  svc2:
+    daemon: simple
+    plugs: [network-bind]
+    sockets:
+      sock1:
+        listen-stream: $SNAP_DATA/sock1.socket
+        socket-mode: 0666
+      sock2:
+        listen-stream: $SNAP_COMMON/sock2.socket
+`
+	srvFile1 := "snap.test-snap.svc1.service"
+	srvFile2 := "snap.test-snap.svc2.service"
+	srvFile2Sock1 := "snap.test-snap.svc2.sock1.socket"
+	srvFile2Sock2 := "snap.test-snap.svc2.sock2.socket"
+
+	info := snaptest.MockSnap(c, manyServicesYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		states := map[string]systemdtest.ServiceState{
+			srvFile1:      {ActiveState: "inactive", UnitFileState: "enabled"},
+			srvFile2:      {ActiveState: "inactive", UnitFileState: "enabled"},
+			srvFile2Sock1: {ActiveState: "active", UnitFileState: "enabled"},
+			srvFile2Sock2: {ActiveState: "active", UnitFileState: "enabled"},
+		}
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, states); out != nil {
+			return out, nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+
+	// Restart without restarting things that were inactive,
+	// which will result in activators only restarting
+	s.sysdLog = nil
+	services := info.Services()
+	sort.Sort(snap.AppInfoBySnapApp(services))
+	c.Assert(wrappers.RestartServices(services, nil, nil, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile1, srvFile2},
+		{"show", "--property=Id,ActiveState,UnitFileState,Names", srvFile2Sock1, srvFile2Sock2},
+		{"stop", srvFile2Sock1, srvFile2Sock2},
+		{"show", "--property=ActiveState", srvFile2Sock1},
+		{"show", "--property=ActiveState", srvFile2Sock2},
+		{"start", srvFile2Sock1, srvFile2Sock2},
+	})
+
+	// Restart but with restarting non-active, which means that all services
+	// **except** for any activated service will restart  (svc2 primary unit).
+	// The activator service units should restart, but not the main one since
+	// it was reported as inactive
+	s.sysdLog = nil
+	c.Assert(wrappers.RestartServices(services, nil, &wrappers.RestartServicesOptions{AlsoEnabledNonActive: true}, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile1, srvFile2},
+		{"show", "--property=Id,ActiveState,UnitFileState,Names", srvFile2Sock1, srvFile2Sock2},
+		{"stop", srvFile1},
+		{"show", "--property=ActiveState", srvFile1},
+		{"start", srvFile1},
+		{"stop", srvFile2Sock1, srvFile2Sock2},
+		{"show", "--property=ActiveState", srvFile2Sock1},
+		{"show", "--property=ActiveState", srvFile2Sock2},
+		{"start", srvFile2Sock1, srvFile2Sock2},
+	})
+}
+
+func (s *servicesTestSuite) TestRestartWithActivatedServicesActivePrimaryUnit(c *C) {
+	const manyServicesYaml = `name: test-snap
+version: 1.0
+apps:
+  svc1:
+    command: bin/foo
+    daemon: simple
+  svc2:
+    daemon: simple
+    plugs: [network-bind]
+    sockets:
+      sock1:
+        listen-stream: $SNAP_DATA/sock1.socket
+        socket-mode: 0666
+      sock2:
+        listen-stream: $SNAP_COMMON/sock2.socket
+`
+	srvFile1 := "snap.test-snap.svc1.service"
+	srvFile2 := "snap.test-snap.svc2.service"
+	srvFile2Sock1 := "snap.test-snap.svc2.sock1.socket"
+	srvFile2Sock2 := "snap.test-snap.svc2.sock2.socket"
+
+	info := snaptest.MockSnap(c, manyServicesYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		states := map[string]systemdtest.ServiceState{
+			srvFile1:      {ActiveState: "inactive", UnitFileState: "enabled"},
+			srvFile2:      {ActiveState: "active", UnitFileState: "enabled"},
+			srvFile2Sock1: {ActiveState: "active", UnitFileState: "enabled"},
+			srvFile2Sock2: {ActiveState: "active", UnitFileState: "enabled"},
+		}
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, states); out != nil {
+			return out, nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+
+	s.sysdLog = nil
+	services := info.Services()
+	sort.Sort(snap.AppInfoBySnapApp(services))
+	c.Assert(wrappers.RestartServices(services, nil, nil, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile1, srvFile2},
+		{"show", "--property=Id,ActiveState,UnitFileState,Names", srvFile2Sock1, srvFile2Sock2},
+		{"stop", srvFile2Sock1, srvFile2Sock2, srvFile2},
+		{"show", "--property=ActiveState", srvFile2Sock1},
+		{"show", "--property=ActiveState", srvFile2Sock2},
+		{"show", "--property=ActiveState", srvFile2},
+		{"start", srvFile2Sock1, srvFile2Sock2, srvFile2},
 	})
 }
 

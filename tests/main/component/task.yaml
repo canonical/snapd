@@ -20,6 +20,16 @@ execute: |
 
   SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
 
+  # Check component removed
+  check_removed() {
+      local comp_rev=$1
+      local mnt_point=$SNAP_MOUNT_DIR/snap-with-comps/components/mnt/comp1/${comp_rev}
+      local comp_inst_path=/var/lib/snapd/snaps/snap-with-comps+comp1_${comp_rev}.comp
+      mount | not MATCH "^${comp_inst_path/+/\\+} on ${mnt_point} .*"
+      not stat "$comp_inst_path"
+      not stat "$mnt_point"
+  }
+
   # Install local component function
   # $1: expected component revision
   install_comp() {
@@ -52,11 +62,7 @@ execute: |
 
       # Old component is not mounted and has been removed
       if [ -n "$prev_comp_rev" ]; then
-          prev_mnt_point=$SNAP_MOUNT_DIR/snap-with-comps/components/mnt/comp1/${prev_comp_rev}
-          prev_comp_inst_path=/var/lib/snapd/snaps/snap-with-comps+comp1_${prev_comp_rev}.comp
-          mount | not MATCH "^${prev_comp_inst_path/+/\\+} on ${prev_mnt_point} .*"
-          not stat "$prev_comp_inst_path"
-          not stat "$prev_mnt_point"
+          check_removed "$prev_comp_rev"
       fi
   }
 
@@ -68,11 +74,9 @@ execute: |
   snap install --dangerous snap-with-comps+comp1_1.0.comp |
       MATCH 'component comp1 1\.0 for snap-with-comps 1\.0 installed'
 
-  # TODO: add checks for components removals when implemented by snapd
-  # For the moment, remove the snap and then manually the components
+  # Remove the component and check result
+  snap remove snap-with-comps+comp1
+  check_removed x3
+
+  # Finally, remove the snap
   snap remove snap-with-comps
-  cd /etc/systemd/system/
-  systemctl stop -- *'snap\x2dwith\x2dcomps-components-mnt-comp1-x3.mount'
-  cd -
-  rm /etc/systemd/system/*'-snap\x2dwith\x2dcomps-components-mnt-comp1-x3.mount'
-  rm -rf "$SNAP_MOUNT_DIR"/snap-with-comps/

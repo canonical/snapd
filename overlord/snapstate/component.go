@@ -170,9 +170,18 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 		addTask(kmodSetup)
 	}
 
+	changingSnapRev := snapst.IsInstalled() && snapst.Current != snapSi.Revision
+
 	// We might be replacing a component
 	compInstalled := snapst.IsComponentInCurrentSeq(compSi.Component)
-	if compInstalled {
+
+	// note that we don't unlink the currect component if we're also changing
+	// snap revisions while installing this component. that is because we don't
+	// want to remove the component from the state of the previous snap revision
+	// (for the purpose of something like a revert). additionally, this is
+	// consistent with us keeping previous snap revisions mounted after changing
+	// their revision.
+	if !changingSnapRev && compInstalled {
 		unlink := st.NewTask("unlink-current-component", fmt.Sprintf(i18n.G(
 			"Make current revision for component %q unavailable"),
 			compSi.Component))
@@ -191,9 +200,10 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 			compSi.Component, revisionStr))
 	addTask(linkSnap)
 
-	// clean-up previous revision of the component if present and
-	// not used in previous sequence points
-	if compInstalled &&
+	// clean-up previous revision of the component if present, not used in
+	// previous sequence points, and the snap is not being updated (it will soon
+	// be referenced by a previous sequence point).
+	if !changingSnapRev && compInstalled &&
 		!snapst.IsCurrentComponentRevInAnyNonCurrentSeq(compSetup.CompSideInfo.Component) {
 
 		discardComp := st.NewTask("discard-component", fmt.Sprintf(i18n.G(

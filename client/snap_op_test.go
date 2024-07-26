@@ -49,7 +49,12 @@ var ops = []struct {
 		action: "install",
 	},
 	{(*client.Client).Refresh, "refresh"},
-	{(*client.Client).Remove, "remove"},
+	{
+		op: func(c *client.Client, name string, options *client.SnapOptions) (string, error) {
+			return c.Remove(name, nil, options)
+		},
+		action: "remove",
+	},
 	{(*client.Client).Revert, "revert"},
 	{(*client.Client).Enable, "enable"},
 	{(*client.Client).Disable, "disable"},
@@ -69,7 +74,12 @@ var multiOps = []struct {
 		},
 		action: "install",
 	},
-	{(*client.Client).RemoveMany, "remove"},
+	{
+		op: func(c *client.Client, names []string, options *client.SnapOptions) (string, error) {
+			return c.RemoveMany(names, nil, options)
+		},
+		action: "remove",
+	},
 	{(*client.Client).HoldRefreshesMany, "hold"},
 	{(*client.Client).UnholdRefreshesMany, "unhold"},
 }
@@ -925,7 +935,7 @@ func (cs *clientSuite) TestClientHoldMany(c *check.C) {
 	c.Check(cs.req.Header["Content-Type"], check.DeepEquals, []string{"application/json"})
 }
 
-func (cs *clientSuite) TestClientOpInstallWithComponents(c *check.C) {
+func (cs *clientSuite) testClientOpWithComponents(c *check.C, action func(name string, components []string, options *client.SnapOptions) (changeID string, err error)) {
 	cs.status = 202
 	cs.rsp = `{
 		"change": "66b3",
@@ -933,7 +943,7 @@ func (cs *clientSuite) TestClientOpInstallWithComponents(c *check.C) {
 		"type": "async"
 	}`
 
-	_, err := cs.cli.Install("foo", []string{"one", "two"}, nil)
+	_, err := action("foo", []string{"one", "two"}, nil)
 	c.Assert(err, check.IsNil)
 
 	var body map[string]interface{}
@@ -943,7 +953,15 @@ func (cs *clientSuite) TestClientOpInstallWithComponents(c *check.C) {
 	c.Check(body["components"], check.DeepEquals, []interface{}{"one", "two"})
 }
 
-func (cs *clientSuite) TestClientOpInstallManyWithComponents(c *check.C) {
+func (cs *clientSuite) TestClientOpInstallWithComponents(c *check.C) {
+	cs.testClientOpWithComponents(c, cs.cli.Install)
+}
+
+func (cs *clientSuite) TestClientOpRemoveWithComponents(c *check.C) {
+	cs.testClientOpWithComponents(c, cs.cli.Remove)
+}
+
+func (cs *clientSuite) testClientOpManyWithComponents(c *check.C, action func(names []string, components map[string][]string, options *client.SnapOptions) (changeID string, err error)) {
 	cs.status = 202
 	cs.rsp = `{
 		"change": "66b3",
@@ -956,7 +974,7 @@ func (cs *clientSuite) TestClientOpInstallManyWithComponents(c *check.C) {
 		"bar": {"three", "four"},
 	}
 
-	_, err := cs.cli.InstallMany([]string{"foo", "bar"}, comps, nil)
+	_, err := action([]string{"foo", "bar"}, comps, nil)
 	c.Assert(err, check.IsNil)
 
 	var body map[string]interface{}
@@ -967,4 +985,12 @@ func (cs *clientSuite) TestClientOpInstallManyWithComponents(c *check.C) {
 		"foo": []interface{}{"one", "two"},
 		"bar": []interface{}{"three", "four"},
 	})
+}
+
+func (cs *clientSuite) TestClientOpInstallManyWithComponents(c *check.C) {
+	cs.testClientOpManyWithComponents(c, cs.cli.InstallMany)
+}
+
+func (cs *clientSuite) TestClientOpRemoveManyWithComponents(c *check.C) {
+	cs.testClientOpManyWithComponents(c, cs.cli.RemoveMany)
 }

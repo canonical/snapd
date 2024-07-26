@@ -23,7 +23,7 @@ func (s *TargetTestSuite) TestInstallWithComponents(c *C) {
 	defer s.state.Unlock()
 
 	const (
-		snapName = "test-snap"
+		snapName = "some-snap"
 		compName = "test-component"
 		channel  = "channel-for-components"
 	)
@@ -67,7 +67,7 @@ func (s *TargetTestSuite) TestInstallWithComponentsMissingResource(c *C) {
 	defer s.state.Unlock()
 
 	const (
-		snapName = "test-snap"
+		snapName = "some-snap"
 		compName = "test-component"
 		channel  = "channel-for-components"
 	)
@@ -105,7 +105,7 @@ func (s *TargetTestSuite) TestInstallWithComponentsWrongType(c *C) {
 	defer s.state.Unlock()
 
 	const (
-		snapName = "test-snap"
+		snapName = "some-snap"
 		compName = "test-component"
 		channel  = "channel-for-components"
 	)
@@ -136,8 +136,47 @@ func (s *TargetTestSuite) TestInstallWithComponentsWrongType(c *C) {
 
 	_, _, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(
-		`.*inconsistent component type \("component/%s" in snap, "component/%s" in component\)`, snap.TestComponent, snap.KernelModulesComponent,
+		`.*inconsistent component type \("%s" in snap, "%s" in component\)`, snap.TestComponent, snap.KernelModulesComponent,
 	))
+}
+
+func (s *TargetTestSuite) TestInstallWithComponentsOtherResource(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const (
+		snapName = "test-snap"
+		compName = "test-component"
+		channel  = "channel-for-components"
+	)
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		c.Assert(info.SnapName(), DeepEquals, snapName)
+
+		return []store.SnapResourceResult{
+			{
+				DownloadInfo: snap.DownloadInfo{
+					DownloadURL: fmt.Sprintf("http://example.com/%s", snapName),
+				},
+				Name:      compName,
+				Revision:  1,
+				Type:      "otherresource/restype",
+				Version:   "1.0",
+				CreatedAt: "2024-01-01T00:00:00Z",
+			},
+		}
+	}
+
+	goal := snapstate.StoreInstallGoal(snapstate.StoreSnap{
+		InstanceName: snapName,
+		Components:   []string{compName},
+		RevOpts: snapstate.RevisionOptions{
+			Channel: channel,
+		},
+	})
+
+	_, _, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(
+		`.*"otherresource/restype" is not a component resource`))
 }
 
 func (s *TargetTestSuite) TestInstallWithComponentsMissingInInfo(c *C) {
@@ -145,7 +184,7 @@ func (s *TargetTestSuite) TestInstallWithComponentsMissingInInfo(c *C) {
 	defer s.state.Unlock()
 
 	const (
-		snapName = "test-snap"
+		snapName = "some-snap"
 		compName = "test-missing-component"
 		channel  = "channel-for-components"
 	)
@@ -183,10 +222,10 @@ func (s *TargetTestSuite) TestInstallWithComponentsFromPath(c *C) {
 	defer s.state.Unlock()
 
 	const (
-		snapName = "test-snap"
-		snapID   = "test-snap-id"
+		snapName = "some-snap"
+		snapID   = "some-snap-id"
 		compName = "test-component"
-		snapYaml = `name: test-snap
+		snapYaml = `name: some-snap
 version: 1.0
 components:
   test-component:
@@ -194,7 +233,7 @@ components:
   kernel-modules-component:
     type: kernel-modules
 `
-		componentYaml = `component: test-snap+test-component
+		componentYaml = `component: some-snap+test-component
 type: test
 version: 1.0
 `

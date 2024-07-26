@@ -26,7 +26,8 @@
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 
-void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const char *snap_instance) {
+void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const char *snap_instance,
+                        const char *snap_component) {
     /* Snap instance name is conveyed via untrusted environment. It may be
      * unset (typically when experimenting with snap-confine by hand). It
      * must also be a valid snap instance name. */
@@ -35,11 +36,22 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
     }
     sc_instance_name_validate(snap_instance, NULL);
 
+    // snap_component may be NULL if what we're confining isn't from a component
+    char *component_name = NULL;
+    char component_name_buffer[SNAP_NAME_LEN + 1] = {0};
+    if (snap_component != NULL) {
+        sc_snap_component_validate(snap_component, snap_instance, NULL);
+
+        sc_snap_split_snap_component(snap_component, NULL, 0, component_name_buffer, sizeof component_name_buffer);
+
+        component_name = component_name_buffer;
+    }
+
     /* The security tag is conveyed via untrusted command line. It must be
      * in agreement with snap instance name and must be a valid security
      * tag. */
     const char *security_tag = sc_args_security_tag(args);
-    if (!sc_security_tag_validate(security_tag, snap_instance)) {
+    if (!sc_security_tag_validate(security_tag, snap_instance, component_name)) {
         die("security tag %s not allowed", security_tag);
     }
 
@@ -73,6 +85,7 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
     inv->executable = sc_strdup(executable);
     inv->security_tag = sc_strdup(security_tag);
     inv->snap_instance = sc_strdup(snap_instance);
+    inv->snap_component = snap_component != NULL ? sc_strdup(snap_component) : NULL;
     inv->snap_name = sc_strdup(snap_name);
     inv->classic_confinement = sc_args_is_classic_confinement(args);
 
@@ -96,6 +109,7 @@ void sc_cleanup_invocation(sc_invocation *inv) {
         sc_cleanup_string(&inv->security_tag);
         sc_cleanup_string(&inv->executable);
         sc_cleanup_string(&inv->rootfs_dir);
+        sc_cleanup_string(&inv->snap_component);
         sc_cleanup_deep_strv(&inv->homedirs);
     }
 }

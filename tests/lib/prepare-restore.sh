@@ -383,7 +383,7 @@ prepare_project() {
         rm -rf vendor/*/
 
         # and create a fake upstream tarball
-        tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version|cut -d- -f1)".orig.tar.gz --exclude=./debian --exclude=./.git .
+        tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version|cut -d- -f1)".orig.tar.gz --exclude=./debian --exclude=./.git --exclude='*.pyc' .
 
         # and build a source package - this will be used during the sbuild test
         dpkg-buildpackage -S -uc -us
@@ -559,19 +559,9 @@ prepare_project() {
     esac
 
     # Retry go mod vendor to minimize the number of connection errors during the sync
-    for _ in $(seq 10); do
-        if go mod vendor; then
-            break
-        fi
-        sleep 1
-    done
+    retry -n 10 go mod vendor
     # Update C dependencies
-    for _ in $(seq 10); do
-        if (cd c-vendor && ./vendor.sh); then
-            break
-        fi
-        sleep 1
-    done
+    ( cd c-vendor && retry -n 10 ./vendor.sh )
 
     # go mod runs as root and will leave strange permissions
     chown test.test -R "$SPREAD_PATH"

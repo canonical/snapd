@@ -125,26 +125,26 @@ backends:
             - ubuntu-18.04-32:
                   workers: 6
             - ubuntu-18.04-64:
-                  storage: 12G
+                  storage: 15G
                   workers: 8
             - ubuntu-20.04-64:
-                  storage: 12G
+                  storage: 15G
                   workers: 8
             - ubuntu-secboot-20.04-64:
                   image: ubuntu-20.04-64
                   workers: 1
                   secure-boot: true
             - ubuntu-22.04-64:
-                  storage: 12G
+                  storage: 15G
                   workers: 8
             - ubuntu-23.10-64:
-                  storage: 12G
+                  storage: 15G
                   workers: 8
             - ubuntu-24.04-64:
-                  storage: 12G
+                  storage: 15G
                   workers: 8
             - ubuntu-24.10-64:
-                  storage: 12G
+                  storage: 15G
                   workers: 8
 
     google-core:
@@ -601,6 +601,7 @@ exclude:
     - cmd/autom4te.cache
     - "*.o"
     - "*.a"
+    - "*.pyc"
     - ./vendor
     - "*.snap"
 

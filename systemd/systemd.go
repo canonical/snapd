@@ -430,6 +430,8 @@ type Systemd interface {
 	// ListMountUnits gets the list of targets of the mount units created by
 	// the `origin` module for the given snap
 	ListMountUnits(snapName, origin string) ([]string, error)
+	// ListUnits get the list of units currently in memory including transient units.
+	ListUnits(pattern string) ([]string, error)
 	// Mask the given service.
 	Mask(service string) error
 	// Unmask the given service.
@@ -1692,6 +1694,28 @@ func (s *systemd) ListMountUnits(snapName, origin string) ([]string, error) {
 		mountPoints = append(mountPoints, where)
 	}
 	return mountPoints, nil
+}
+
+func (s *systemd) ListUnits(pattern string) ([]string, error) {
+	out, err := s.systemctl("list-units", "--output=json", pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	type rawUnit struct {
+		UnitName string `json:"unit"`
+	}
+	var parsedUnits []rawUnit
+	err = json.Unmarshal(out, &parsedUnits)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse systemctl output: %w", err)
+	}
+
+	units := make([]string, len(parsedUnits))
+	for i, parsedUnit := range parsedUnits {
+		units[i] = parsedUnit.UnitName
+	}
+	return units, nil
 }
 
 func (s *systemd) ReloadOrRestart(serviceNames []string) error {

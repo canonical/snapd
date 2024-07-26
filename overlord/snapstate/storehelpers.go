@@ -471,7 +471,7 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]st
 	return curSnaps, nil
 }
 
-// refreshCandidates is a wrapper for storeUpdatePlan.
+// storeUpdatePlan is a wrapper for storeUpdatePlanCore.
 //
 // It addresses the case where the store doesn't return refresh candidates for
 // snaps with already existing monitored refresh-candidates due to inconsistent
@@ -481,14 +481,14 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]st
 //
 // Note: This wrapper is a short term solution and should be removed once a better
 // solution is reached.
-func refreshCandidates(ctx context.Context, st *state.State, allSnaps map[string]*SnapState, requested map[string]StoreUpdate, user *auth.UserState, refreshOpts *store.RefreshOptions, opts Options) (updatePlan, error) {
+func storeUpdatePlan(ctx context.Context, st *state.State, allSnaps map[string]*SnapState, requested map[string]StoreUpdate, user *auth.UserState, refreshOpts *store.RefreshOptions, opts Options) (updatePlan, error) {
 	// initialize options before using
 	refreshOpts, err := refreshOptions(st, refreshOpts)
 	if err != nil {
 		return updatePlan{}, err
 	}
 
-	plan, err := storeUpdatePlan(ctx, st, allSnaps, requested, user, refreshOpts, opts)
+	plan, err := storeUpdatePlanCore(ctx, st, allSnaps, requested, user, refreshOpts, opts)
 	if err != nil {
 		return updatePlan{}, err
 	}
@@ -547,7 +547,7 @@ func refreshCandidates(ctx context.Context, st *state.State, allSnaps map[string
 		// we already started a pre-download for this snap, so no extra
 		// load is being exerted on the store.
 		refreshOpts.Scheduled = false
-		extraPlan, err := storeUpdatePlan(ctx, st, allSnaps, missingRequests, user, refreshOpts, opts)
+		extraPlan, err := storeUpdatePlanCore(ctx, st, allSnaps, missingRequests, user, refreshOpts, opts)
 		if err != nil {
 			return updatePlan{}, err
 		}
@@ -557,7 +557,7 @@ func refreshCandidates(ctx context.Context, st *state.State, allSnaps map[string
 	return plan, nil
 }
 
-func storeUpdatePlan(
+func storeUpdatePlanCore(
 	ctx context.Context,
 	st *state.State,
 	allSnaps map[string]*SnapState,
@@ -593,10 +593,19 @@ func storeUpdatePlan(
 		}
 	}
 
+	// if any of the snaps that we are refreshing have components, we need to
+	// make sure to explicitly request the components from the store.
+	requestComponentsFromStore := false
+
 	// make sure that all requested updates are currently installed
 	for _, update := range updates {
-		if _, ok := allSnaps[update.InstanceName]; !ok {
+		snapst, ok := allSnaps[update.InstanceName]
+		if !ok {
 			return updatePlan{}, snap.NotInstalledError{Snap: update.InstanceName}
+		}
+
+		if snapst.HasActiveComponents() {
+			requestComponentsFromStore = true
 		}
 	}
 
@@ -644,6 +653,7 @@ func storeUpdatePlan(
 		actionsByUserID[id] = append(actionsByUserID[id], actions...)
 	}
 
+	refreshOpts.IncludeResources = requestComponentsFromStore
 	sars, noStoreUpdates, err := sendActionsByUserID(ctx, st, actionsByUserID, current, refreshOpts, opts)
 	if err != nil {
 		return updatePlan{}, err
@@ -664,7 +674,27 @@ func storeUpdatePlan(
 			return updatePlan{}, fmt.Errorf("internal error: snap %q not found", sar.InstanceName())
 		}
 
-		// TODO:COMPS: handle components here
+		currentComps, err := snapst.CurrentComponentInfos()
+		if err != nil {
+			return updatePlan{}, err
+		}
+
+		compNames := make([]string, 0, len(currentComps))
+		for _, comp := range currentComps {
+			compNames = append(compNames, comp.Component.ComponentName)
+		}
+
+		// TODO:COMPS: handle components losing a resource that is currently
+		// installed
+		compTargets, err := componentTargetsFromActionResult(sar, compNames)
+		if err != nil {
+			return updatePlan{}, fmt.Errorf("cannot extract components from snap resources: %w", err)
+		}
+
+		// if we still have no channel here, this means that we refreshed
+		// by-revision without specifying a channel. make sure we continue to
+		// track the channel that the snap is currently on
+		up.RevOpts.setChannelIfUnset(snapst.TrackingChannel)
 
 		plan.targets = append(plan.targets, target{
 			info:   sar.Info,
@@ -674,7 +704,7 @@ func storeUpdatePlan(
 				Channel:      up.RevOpts.Channel,
 				CohortKey:    up.RevOpts.CohortKey,
 			},
-			components: nil,
+			components: compTargets,
 		})
 	}
 
@@ -693,7 +723,12 @@ func storeUpdatePlan(
 			return updatePlan{}, err
 		}
 
-		// TODO:COMPS: handle components here
+		components, err := componentTargetsFromLocalRevision(snapst, si.Revision)
+		if err != nil {
+			return updatePlan{}, err
+		}
+
+		revOpts.setChannelIfUnset(snapst.TrackingChannel)
 
 		// make sure that we switch the current channel of the snap that we're
 		// switching to
@@ -713,11 +748,32 @@ func storeUpdatePlan(
 				// installed
 				AlwaysUpdate: !revOpts.Revision.Unset(),
 			},
-			components: nil,
+			components: components,
 		})
 	}
 
 	return plan, nil
+}
+
+func componentTargetsFromLocalRevision(snapst *SnapState, snapRev snap.Revision) ([]ComponentSetup, error) {
+	// TODO:COMPS: for now, go back to the components that were already
+	// installed with this revision. to be more robust, we should refresh
+	// only the components that are installed with the current revision of
+	// the snap. this means we'll need to check with the store for which
+	// revisions now available for that snap.
+	compInfos, err := snapst.ComponentInfosForRevision(snapRev)
+	if err != nil {
+		return nil, err
+	}
+
+	components := make([]ComponentSetup, 0, len(compInfos))
+	for _, compInfo := range compInfos {
+		components = append(components, ComponentSetup{
+			CompSideInfo: &compInfo.ComponentSideInfo,
+			CompType:     compInfo.Type,
+		})
+	}
+	return components, nil
 }
 
 func collectCurrentSnapsAndActions(
