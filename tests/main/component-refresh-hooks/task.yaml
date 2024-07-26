@@ -1,9 +1,9 @@
 summary: Test running component install, pre-refresh, and post-refresh hooks
 
 details: |
-  Tests a snap with two components, with two components. Some arbitrary
-  auto-connect plugs are picked for the components so that we can test that they
-  are properly connected.
+  Tests a snap operations on a snap with two components. Some arbitrary
+  auto-connect plugs are picked for the components so that we can test that
+  plugs are properly connected.
 
   The first component explicitly defines hooks that have the network-bind plug.
   These plugs succeed only if they are able to bind to the network. The second
