@@ -72,9 +72,6 @@ func init() {
 
 	// debug.systemd.log-level
 	addWithStateHandler(validateDebugSystemdLogLevelSetting, handleDebugSystemdLogLevelConfiguration, coreOnly)
-
-	// experimental.apparmor-prompting
-	addWithStateHandler(nil, doExperimentalApparmorPromptProfileRegeneration, nil)
 }
 
 // RunTransaction is an interface describing how to access

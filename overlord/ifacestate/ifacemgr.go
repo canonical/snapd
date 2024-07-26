@@ -118,9 +118,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	// helper for ubuntu-core -> core
 	addHandler("transition-ubuntu-core", m.doTransitionUbuntuCore, m.undoTransitionUbuntuCore)
 
-	// helper for apparmor prompting backend
-	addHandler("regenerate-all-security-profiles", m.doRegenerateAllSecurityProfiles, nil)
-
 	// interface tasks might touch more than the immediate task target snap, serialize them
 	runner.AddBlocked(func(t *state.Task, running []*state.Task) bool {
 		if !taskKinds[t.Kind()] {
