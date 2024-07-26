@@ -147,8 +147,6 @@ var featuresExported = map[SnapdFeature]bool{
 
 	RefreshAppAwarenessUX: true,
 	AspectsConfiguration:  true,
-
-	AppArmorPrompting: true,
 }
 
 // featuresSupportedCallbacks maps features to a callback function which may be
