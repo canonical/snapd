@@ -3508,3 +3508,31 @@ func (s *SnapOpSuite) TestWaitReportsInfoStatus(c *check.C) {
 	c.Check(meter.Notices, testutil.Contains, "INFO: Task set to wait until a manual system restart allows to continue")
 	c.Check(n, check.Equals, 2)
 }
+
+func (s *infoSuite) TestSnapInstancesAndComponentsFromNames(c *check.C) {
+	type testcase struct {
+		input       []string
+		instances   []string
+		instToComps map[string][]string
+	}
+
+	tests := []testcase{
+		{[]string{"snap"}, []string{"snap"}, map[string][]string{}},
+		{[]string{"snap_instance"}, []string{"snap_instance"}, map[string][]string{}},
+		{[]string{"snap+comp1+comp2"}, []string{"snap"},
+			map[string][]string{"snap": {"comp1", "comp2"}}},
+		{[]string{"snap1+comp1+comp2", "snap2+comp3+comp4"}, []string{"snap1", "snap2"},
+			map[string][]string{"snap1": {"comp1", "comp2"}, "snap2": {"comp3", "comp4"}}},
+		{[]string{""}, []string{""}, map[string][]string{}},
+		// We allow empty snap in some cases (snapctl)
+		{[]string{"+comp1"}, []string{""}, map[string][]string{"": {"comp1"}}},
+		{[]string{"+comp1+comp2"}, []string{""}, map[string][]string{"": {"comp1", "comp2"}}},
+	}
+
+	for _, t := range tests {
+		const forInstall = true
+		instances, component := snap.SnapInstancesAndComponentsFromNames(t.input, forInstall)
+		c.Check(instances, check.DeepEquals, t.instances)
+		c.Check(component, check.DeepEquals, t.instToComps)
+	}
+}

@@ -1735,6 +1735,28 @@ func SplitSnapInstanceAndComponents(name string) (string, []string) {
 	return parts[0], parts[1:]
 }
 
+// SnapInstancesAndComponentsFromNames splits a slice of names of the form
+// <snap_instance>+<comp1>...+<compN> into a slice of snap instances and a map
+// from these instances to components.
+func SnapInstancesAndComponentsFromNames(names []string, forInstall bool) ([]string, map[string][]string) {
+	snaps := make([]string, 0, len(names))
+	allComps := make(map[string][]string, len(names))
+	for _, name := range names {
+		snap, comps := SplitSnapInstanceAndComponents(name)
+		// When installing we implicitly want to install the snap when
+		// we have specified also components, but when removing we
+		// actually want to remove only components if any of them have
+		// been specified.
+		if forInstall || len(comps) == 0 {
+			snaps = append(snaps, snap)
+		}
+		if len(comps) > 0 {
+			allComps[snap] = comps
+		}
+	}
+	return snaps, allComps
+}
+
 // SnapComponentName takes a snap instance name and a component name and returns
 // a snap component name.
 func SnapComponentName(snapInstance, componentName string) string {

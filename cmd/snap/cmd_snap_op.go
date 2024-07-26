@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -198,7 +199,7 @@ func showRemovedComponents(expectedBySnap, removedBySnap map[string][]string) {
 func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 	arg := string(x.Positional.Snaps[0])
 
-	name, comps := splitSnapAndComponents(arg)
+	name, comps := snap.SplitSnapInstanceAndComponents(arg)
 	// If there are components, only the components will be removed,
 	// otherwise the full snap with its components will be removed.
 	changeID, err := x.client.Remove(name, comps, opts)
@@ -237,11 +238,33 @@ func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 	return nil
 }
 
+// snapInstancesAndComponentsFromNames splits a slice of names of the form
+// <snap_instance>+<comp1>...+<compN> into a slice of snap instances and a map
+// from these instances to components.
+func snapInstancesAndComponentsFromNames(names []string, forInstall bool) ([]string, map[string][]string) {
+	snaps := make([]string, 0, len(names))
+	allComps := make(map[string][]string, len(names))
+	for _, name := range names {
+		snap, comps := snap.SplitSnapInstanceAndComponents(name)
+		// When installing we implicitly want to install the snap when
+		// we have specified also components, but when removing we
+		// actually want to remove only components if any of them have
+		// been specified.
+		if forInstall || len(comps) == 0 {
+			snaps = append(snaps, snap)
+		}
+		if len(comps) > 0 {
+			allComps[snap] = comps
+		}
+	}
+	return snaps, allComps
+}
+
 func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
 	names := installedSnapNames(x.Positional.Snaps)
 
 	const forInstall = false
-	names, comps := snapsAndComponentsFromNames(names, forInstall)
+	names, comps := snapInstancesAndComponentsFromNames(names, forInstall)
 	changeID, err := x.client.RemoveMany(names, comps, opts)
 	if err != nil {
 		var name string
@@ -678,30 +701,6 @@ type cmdInstall struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
-func splitSnapAndComponents(name string) (string, []string) {
-	parts := strings.Split(name, "+")
-	return parts[0], parts[1:]
-}
-
-func snapsAndComponentsFromNames(names []string, forInstall bool) ([]string, map[string][]string) {
-	snaps := make([]string, 0, len(names))
-	allComps := make(map[string][]string, len(names))
-	for _, name := range names {
-		snap, comps := splitSnapAndComponents(name)
-		// When installing we implicitly want to install the snap when
-		// we have specified also components, but when removing we
-		// actually want to remove only components if any of them have
-		// been specified.
-		if forInstall || len(comps) == 0 {
-			snaps = append(snaps, snap)
-		}
-		if len(comps) > 0 {
-			allComps[snap] = comps
-		}
-	}
-	return snaps, allComps
-}
-
 func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.SnapOptions) error {
 	var err error
 	var changeID string
@@ -719,7 +718,7 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 			return errors.New(i18n.G("cannot use explicit name when installing from store"))
 		}
 
-		name, comps := splitSnapAndComponents(snapName)
+		name, comps := snap.SplitSnapInstanceAndComponents(snapName)
 
 		changeID, err = x.client.Install(name, comps, opts)
 	}
@@ -780,7 +779,7 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 		}
 
 		const forInstall = true
-		names, comps := snapsAndComponentsFromNames(names, forInstall)
+		names, comps := snapInstancesAndComponentsFromNames(names, forInstall)
 		changeID, err = x.client.InstallMany(names, comps, opts)
 	}
 

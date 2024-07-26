@@ -97,7 +97,8 @@ var (
 
 	IsStopping = isStopping
 
-	GetSnapDirOptions = getSnapDirOptions
+	GetSnapDirOptions                   = getSnapDirOptions
+	SnapInstancesAndComponentsFromNames = snapInstancesAndComponentsFromNames
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
