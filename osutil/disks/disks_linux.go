@@ -459,7 +459,7 @@ func parentPartitionPropsForOptions(props map[string]string) (map[string]string,
 	// 2. have dm files in the sysfs entry for the maj:min of the device
 	if props["DEVTYPE"] != "disk" {
 		// not a decrypted or verity device
-		return nil, fmt.Errorf("not a decrypted or verity device: devtype is not disk (is %s)", props["DEVTYPE"])
+		return nil, fmt.Errorf("devtype is not disk (is %s)", props["DEVTYPE"])
 	}
 
 	// TODO:UC20: currently, we effectively parse the DM_UUID env variable
@@ -483,7 +483,7 @@ func parentPartitionPropsForOptions(props map[string]string) (map[string]string,
 	//            or not, given that these variables have been observed to
 	//            be missing from the initrd previously, and are not
 	//            available at all during userspace on UC20 for some reason
-	errFmt := "not a decrypted or verity device: could not read device mapper metadata: %v"
+	errFmt := "could not read device mapper metadata: %v"
 
 	if props["MAJOR"] == "" {
 		return nil, fmt.Errorf("incomplete udev output missing required property \"MAJOR\"")
