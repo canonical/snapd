@@ -83,7 +83,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		return nil, err
 	}
 
-	return componentTS.ts, nil
+	return componentTS.taskSet()
 }
 
 type componentInstallFlags struct {
@@ -96,7 +96,23 @@ type componentInstallTaskSet struct {
 	beforeLink         []*state.Task
 	linkToHook         []*state.Task
 	postOpHookAndAfter []*state.Task
-	ts                 *state.TaskSet
+}
+
+func (c *componentInstallTaskSet) taskSet() (*state.TaskSet, error) {
+	tasks := make([]*state.Task, 0, len(c.beforeLink)+len(c.linkToHook)+len(c.postOpHookAndAfter))
+	tasks = append(tasks, c.beforeLink...)
+	tasks = append(tasks, c.linkToHook...)
+	tasks = append(tasks, c.postOpHookAndAfter...)
+
+	if len(c.linkToHook) == 0 {
+		return nil, errors.New("internal error: link component task set does not have a link task")
+	}
+
+	ts := state.NewTaskSet(tasks...)
+	ts.MarkEdge(c.compSetupTask, BeginEdge)
+	ts.MarkEdge(c.linkToHook[0], MaybeRebootEdge)
+
+	return ts, nil
 }
 
 // doInstallComponent might be called with the owner snap installed or not.
@@ -127,10 +143,6 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 
 	fromStore := compSetup.CompPath == "" && !revisionIsPresent
 
-	componentTS := componentInstallTaskSet{
-		ts: state.NewTaskSet(),
-	}
-
 	var prepare *state.Task
 	// if we have a local revision here we go back to that
 	if fromStore {
@@ -138,10 +150,6 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 	} else {
 		prepare = st.NewTask("prepare-component", fmt.Sprintf(i18n.G("Prepare component %q%s"), compSetup.CompPath, revisionStr))
 	}
-
-	componentTS.compSetupTask = prepare
-	componentTS.beforeLink = append(componentTS.beforeLink, prepare)
-	componentTS.ts.AddTask(prepare)
 
 	prepare.Set("component-setup", compSetup)
 	prepare.Set("snap-setup", snapsup)
@@ -151,9 +159,14 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 		t.Set("component-setup-task", prepare.ID())
 		t.Set("snap-setup-task", prepare.ID())
 		t.WaitFor(prev)
-		componentTS.ts.AddTask(t)
 		prev = t
 	}
+
+	componentTS := componentInstallTaskSet{
+		compSetupTask: prepare,
+	}
+
+	componentTS.beforeLink = append(componentTS.beforeLink, prepare)
 
 	if fromStore {
 		validate := st.NewTask("validate-component", fmt.Sprintf(
@@ -252,9 +265,6 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 
 	componentTS.postOpHookAndAfter = append(componentTS.postOpHookAndAfter, postOpHook)
 	addTask(postOpHook)
-
-	componentTS.ts.MarkEdge(prepare, BeginEdge)
-	componentTS.ts.MarkEdge(linkSnap, MaybeRebootEdge)
 
 	// TODO:COMPS: do we need to set restart boundaries here? (probably for
 	// kernel-modules components if installed along the kernel)
