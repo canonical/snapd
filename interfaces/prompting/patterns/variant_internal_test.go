@@ -29,12 +29,14 @@ var _ = Suite(&variantSuite{})
 
 func (s *variantSuite) TestParsePatternVariant(c *C) {
 	for _, testCase := range []struct {
-		pattern    string
-		components []component
-		variantStr string
+		pattern         string
+		preparedPattern string
+		components      []component
+		variantStr      string
 	}{
 		{
 			"/foo/bar/baz",
+			"/foo/bar/baz",
 			[]component{
 				{compType: compSeparator},
 				{compType: compLiteral, compText: "foo"},
@@ -48,6 +50,7 @@ func (s *variantSuite) TestParsePatternVariant(c *C) {
 		},
 		{
 			"/foo/bar/baz/",
+			"/foo/bar/baz/",
 			[]component{
 				{compType: compSeparator},
 				{compType: compLiteral, compText: "foo"},
@@ -61,6 +64,7 @@ func (s *variantSuite) TestParsePatternVariant(c *C) {
 			"/foo/bar/baz/",
 		},
 		{
+			"/?o*/b?r/*a?/",
 			"/?o*/b?r/*a?/",
 			[]component{
 				{compType: compSeparator},
@@ -82,6 +86,7 @@ func (s *variantSuite) TestParsePatternVariant(c *C) {
 		},
 		{
 			"/foo////bar",
+			"/foo////bar",
 			[]component{
 				{compType: compSeparator},
 				{compType: compLiteral, compText: "foo"},
@@ -93,6 +98,7 @@ func (s *variantSuite) TestParsePatternVariant(c *C) {
 		},
 		{
 			"/foo**/bar",
+			"/foo⁑/bar",
 			[]component{
 				{compType: compSeparator},
 				{compType: compLiteral, compText: "foo"},
@@ -105,6 +111,7 @@ func (s *variantSuite) TestParsePatternVariant(c *C) {
 		},
 		{
 			"/foo/**bar",
+			"/foo/⁑bar",
 			[]component{
 				{compType: compSeparator},
 				{compType: compLiteral, compText: "foo"},
@@ -117,6 +124,7 @@ func (s *variantSuite) TestParsePatternVariant(c *C) {
 		},
 		{
 			"/foo/**/**/bar",
+			"/foo/⁑/⁑/bar",
 			[]component{
 				{compType: compSeparator},
 				{compType: compLiteral, compText: "foo"},
@@ -129,6 +137,7 @@ func (s *variantSuite) TestParsePatternVariant(c *C) {
 		},
 		{
 			"/foo/**/*/bar",
+			"/foo/⁑/*/bar",
 			[]component{
 				{compType: compSeparator},
 				{compType: compLiteral, compText: "foo"},
@@ -143,6 +152,7 @@ func (s *variantSuite) TestParsePatternVariant(c *C) {
 		},
 		{
 			"/foo/**/**/",
+			"/foo/⁑/⁑/",
 			[]component{
 				{compType: compSeparator},
 				{compType: compLiteral, compText: "foo"},
@@ -152,6 +162,7 @@ func (s *variantSuite) TestParsePatternVariant(c *C) {
 		},
 		{
 			"/foo/**/**",
+			"/foo/⁑/⁑",
 			[]component{
 				{compType: compSeparator},
 				{compType: compLiteral, compText: "foo"},
@@ -161,6 +172,7 @@ func (s *variantSuite) TestParsePatternVariant(c *C) {
 		},
 		{
 			"/foo/**/*",
+			"/foo/⁑/*",
 			[]component{
 				{compType: compSeparator},
 				{compType: compLiteral, compText: "foo"},
@@ -170,6 +182,7 @@ func (s *variantSuite) TestParsePatternVariant(c *C) {
 		},
 		{
 			"/foo/**?/*?*?*",
+			"/foo/⁑?/*?*?*",
 			[]component{
 				{compType: compSeparator},
 				{compType: compLiteral, compText: "foo"},
@@ -186,6 +199,7 @@ func (s *variantSuite) TestParsePatternVariant(c *C) {
 		},
 		{
 			"/foo/**?/***?***?***",
+			"/foo/⁑?/⁑*?⁑*?⁑*",
 			[]component{
 				{compType: compSeparator},
 				{compType: compLiteral, compText: "foo"},
@@ -204,6 +218,7 @@ func (s *variantSuite) TestParsePatternVariant(c *C) {
 		// characters are not counted, even when escaping unicode runes.
 		{
 			"/foo/🚵🚵",
+			"/foo/🚵🚵",
 			[]component{
 				{compType: compSeparator},
 				{compType: compLiteral, compText: "foo"},
@@ -215,6 +230,7 @@ func (s *variantSuite) TestParsePatternVariant(c *C) {
 		},
 		{
 			`/foo/\🚵\🚵\🚵\🚵\🚵`,
+			`/foo/\🚵\🚵\🚵\🚵\🚵`,
 			[]component{
 				{compType: compSeparator},
 				{compType: compLiteral, compText: "foo"},
@@ -224,7 +240,129 @@ func (s *variantSuite) TestParsePatternVariant(c *C) {
 			},
 			`/foo/🚵🚵🚵🚵🚵`,
 		},
+		{
+			`/foo/\\`,
+			`/foo/\\`,
+			[]component{
+				{compType: compSeparator},
+				{compType: compLiteral, compText: "foo"},
+				{compType: compSeparator},
+				{compType: compLiteral, compText: `\\`},
+				{compType: compTerminal},
+			},
+			`/foo/\\`,
+		},
+		{
+			`/foo/⁑⁑⁑⁑⁑`,
+			`/foo/\⁑\⁑\⁑\⁑\⁑`,
+			[]component{
+				{compType: compSeparator},
+				{compType: compLiteral, compText: "foo"},
+				{compType: compSeparator},
+				{compType: compLiteral, compText: `⁑⁑⁑⁑⁑`},
+				{compType: compTerminal},
+			},
+			`/foo/⁑⁑⁑⁑⁑`,
+		},
+		{
+			`/foo/⁑\\⁑\\⁑\\⁑\\⁑`,
+			`/foo/\⁑\\\⁑\\\⁑\\\⁑\\\⁑`,
+			[]component{
+				{compType: compSeparator},
+				{compType: compLiteral, compText: "foo"},
+				{compType: compSeparator},
+				{compType: compLiteral, compText: `⁑\\⁑\\⁑\\⁑\\⁑`},
+				{compType: compTerminal},
+			},
+			`/foo/⁑\\⁑\\⁑\\⁑\\⁑`,
+		},
+		{
+			`/foo/⁑\⁑\\⁑\\\⁑\\\\⁑`,
+			`/foo/\⁑\⁑\\\⁑\\\⁑\\\\\⁑`,
+			[]component{
+				{compType: compSeparator},
+				{compType: compLiteral, compText: "foo"},
+				{compType: compSeparator},
+				{compType: compLiteral, compText: `⁑⁑\\⁑\\⁑\\\\⁑`},
+				{compType: compTerminal},
+			},
+			`/foo/⁑⁑\\⁑\\⁑\\\\⁑`,
+		},
+		{
+			`/foo/**********`,
+			`/foo/⁑⁑⁑⁑⁑`,
+			[]component{
+				{compType: compSeparator},
+				{compType: compLiteral, compText: "foo"},
+				{compType: compSeparatorDoublestarTerminal},
+			},
+			`/foo/**`,
+		},
+		{
+			`/foo/\**\**\**\**\**`,
+			`/foo/\**\**\**\**\**`,
+			[]component{
+				{compType: compSeparator},
+				{compType: compLiteral, compText: "foo"},
+				{compType: compSeparator},
+				{compType: compLiteral, compText: `\*`},
+				{compType: compGlobstar},
+				{compType: compLiteral, compText: `\*`},
+				{compType: compGlobstar},
+				{compType: compLiteral, compText: `\*`},
+				{compType: compGlobstar},
+				{compType: compLiteral, compText: `\*`},
+				{compType: compGlobstar},
+				{compType: compLiteral, compText: `\*`},
+				{compType: compGlobstar},
+				{compType: compTerminal},
+			},
+			`/foo/\**\**\**\**\**`,
+		},
+		{
+			`/foo/**\\**\\**\\**\\**`,
+			`/foo/⁑\\⁑\\⁑\\⁑\\⁑`,
+			[]component{
+				{compType: compSeparator},
+				{compType: compLiteral, compText: "foo"},
+				{compType: compSeparator},
+				{compType: compGlobstar},
+				{compType: compLiteral, compText: `\\`},
+				{compType: compGlobstar},
+				{compType: compLiteral, compText: `\\`},
+				{compType: compGlobstar},
+				{compType: compLiteral, compText: `\\`},
+				{compType: compGlobstar},
+				{compType: compLiteral, compText: `\\`},
+				{compType: compGlobstar},
+				{compType: compTerminal},
+			},
+			`/foo/*\\*\\*\\*\\*`,
+		},
+		{
+			`/foo/⁑**⁑\**\⁑*\\*⁑\\\**\\\⁑`,
+			`/foo/\⁑⁑\⁑\**\⁑*\\*\⁑\\\**\\\⁑`,
+			[]component{
+				{compType: compSeparator},
+				{compType: compLiteral, compText: "foo"},
+				{compType: compSeparator},
+				{compType: compLiteral, compText: `⁑`},
+				{compType: compGlobstar},
+				{compType: compLiteral, compText: `⁑\*`},
+				{compType: compGlobstar},
+				{compType: compLiteral, compText: `⁑`},
+				{compType: compGlobstar},
+				{compType: compLiteral, compText: `\\`},
+				{compType: compGlobstar},
+				{compType: compLiteral, compText: `⁑\\\*`},
+				{compType: compGlobstar},
+				{compType: compLiteral, compText: `\\⁑`},
+				{compType: compTerminal},
+			},
+			`/foo/⁑*⁑\**⁑*\\*⁑\\\**\\⁑`,
+		},
 	} {
+		c.Check(prepareVariantForParsing(testCase.pattern), Equals, testCase.preparedPattern, Commentf("testCase: %+v", testCase))
 		variant, err := ParsePatternVariant(testCase.pattern)
 		c.Assert(err, IsNil, Commentf("testCase: %+v", testCase))
 		c.Check(variant.components, DeepEquals, testCase.components, Commentf("testCase: %+v", testCase))

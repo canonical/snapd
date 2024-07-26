@@ -128,9 +128,9 @@ func ParsePatternVariant(variant string) (*PatternVariant, error) {
 	}
 
 	// addGlobstar adds a globstar to the components if the previous component
-	// was not a globstar.
+	// was not a globstar or a doublestar.
 	addGlobstar := func() {
-		if !prevComponentsAre([]componentType{compGlobstar}) {
+		if !prevComponentsAre([]componentType{compGlobstar}) && !prevComponentsAre([]componentType{compSeparatorDoublestar}) {
 			components = append(components, component{compType: compGlobstar})
 		}
 	}
@@ -158,12 +158,11 @@ func ParsePatternVariant(variant string) (*PatternVariant, error) {
 	preparedVariant := prepareVariantForParsing(variant)
 
 	rr := strings.NewReader(preparedVariant)
-loop:
 	for {
 		r, _, err := rr.ReadRune()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				break loop
+				break
 			}
 			// Should not occur, err is only set if no rune available to read
 			return nil, fmt.Errorf("internal error: failed to read rune while scanning variant: %w", err)
@@ -254,8 +253,7 @@ loop:
 		regexBuf.WriteString(c.componentRegex())
 	}
 	regexBuf.WriteRune('$')
-	regex := regexp.MustCompile(regexBuf.String())
-	regex.Longest()
+	regex := regexpMustCompileLongest(regexBuf.String())
 
 	v := PatternVariant{
 		variant:    variantBuf.String(),
@@ -266,12 +264,36 @@ loop:
 	return &v, nil
 }
 
+// regexpMustCompileLongest compiles the given string into a Regexp and then
+// calls Longest() on it before returning it.
+func regexpMustCompileLongest(str string) *regexp.Regexp {
+	re := regexp.MustCompile(str)
+	re.Longest()
+	return re
+}
+
+// Need to escape any unescaped literal "⁑" runes before we use that symbol to
+// indicate the presence of a "**" doublestar.
+var doublestarEscaper = regexpMustCompileLongest(`((\\)*)⁑`)
+
 // Need to replace unescaped "**", but must be careful about an escaped '\\'
 // before the first '*', since that doesn't escape the first '*'.
-var doublestarReplacer = regexp.MustCompile(`([^\\](\\\\)*)\*\*`)
+var doublestarReplacer = regexpMustCompileLongest(`((\\)*)\*\*`)
 
 func prepareVariantForParsing(variant string) string {
-	prepared := doublestarReplacer.ReplaceAllStringFunc(variant, func(s string) string {
+	escaped := doublestarEscaper.ReplaceAllStringFunc(variant, func(s string) string {
+		if (len(s)-len("⁑"))%2 == 1 {
+			// Odd number of leading '\\'s, so already escaped
+			return s
+		}
+		// Escape any unescaped literal "⁑"
+		return s[:len(s)-len("⁑")] + `\` + "⁑"
+	})
+	prepared := doublestarReplacer.ReplaceAllStringFunc(escaped, func(s string) string {
+		if (len(s)-len("**"))%2 == 1 {
+			// Odd number of leading '\\'s, so escaped
+			return s
+		}
 		// Discard trailing "**", add "⁑" instead
 		return s[:len(s)-2] + "⁑"
 	})
