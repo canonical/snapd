@@ -79,7 +79,6 @@ const (
 	AfterMaybeRebootWaitEdge         = state.TaskSetEdge("after-maybe-reboot-wait")
 	LastBeforeLocalModificationsEdge = state.TaskSetEdge("last-before-local-modifications")
 	EndEdge                          = state.TaskSetEdge("end")
-	PostOpHookEdge                   = state.TaskSetEdge("post-op-hook-edge")
 )
 
 const (

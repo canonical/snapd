@@ -255,7 +255,6 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 
 	componentTS.ts.MarkEdge(prepare, BeginEdge)
 	componentTS.ts.MarkEdge(linkSnap, MaybeRebootEdge)
-	componentTS.ts.MarkEdge(postOpHook, PostOpHookEdge)
 
 	// TODO do we need to set restart boundaries here? (probably
 	// for kernel-modules components if installed along the kernel)
