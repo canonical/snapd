@@ -69,6 +69,8 @@ func (iface *registryInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 		return fmt.Errorf(`registry plug must have a valid "view" attribute: %w`, err)
 	}
 
+	// by default, snaps can read/write registries and be notified of changes. The
+	// manager role allows snaps to change, reject and persist changes made by others
 	role, ok := plug.Attrs["role"].(string)
 	if ok && role != "manager" {
 		return fmt.Errorf(`optional registry plug "role" attribute must be "manager"`)

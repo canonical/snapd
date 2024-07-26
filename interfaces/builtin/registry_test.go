@@ -126,7 +126,6 @@ func (s *registrySuite) TestRegistrySanitizePlug(c *C) {
 			view:    "foo/0-bar",
 			err:     `registry plug must have a valid "view" attribute: invalid view name: 0-bar does not match '^[a-z](?:-?[a-z0-9])*$'`,
 		},
-
 		{
 			account: "_my-acc",
 			view:    "foo/bar",
