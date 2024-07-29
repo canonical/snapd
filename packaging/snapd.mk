@@ -116,8 +116,8 @@ install:: | $(DESTDIR)$(bindir)
 	ln -s $(libexecdir)/snapd/snapctl $|/snapctl
 
 # Generate and install man page for snap command
-install:: snap | $(DESTDIR)$(mandir)/man8
-	./snap help --man > $|/snap.8
+install:: $(builddir)/snap | $(DESTDIR)$(mandir)/man8
+	$(builddir)/snap help --man > $|/snap.8
 
 # Install the directory structure in /var/lib/snapd
 install::
