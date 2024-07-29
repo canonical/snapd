@@ -40,6 +40,19 @@ prepare: |
     cp /etc/systemd/system/snapd.service.d/local.conf /etc/systemd/system/snapd.service.d/local.conf.bak
     sed 's/SNAPD_CONFIGURE_HOOK_TIMEOUT=.*s/SNAPD_CONFIGURE_HOOK_TIMEOUT=180s/g' -i /etc/systemd/system/snapd.service.d/local.conf
     tests.cleanup defer mv /etc/systemd/system/snapd.service.d/local.conf.bak /etc/systemd/system/snapd.service.d/local.conf
+
+    if [ -n "${http_proxy:-}" ] || [ -n "${https_proxy:-}" ] ; then
+        # Configuration done following https://microk8s.io/docs/install-proxy
+        cp /etc/environment /etc/environment.bak
+        echo "http_proxy=$http_proxy" >> /etc/environment
+        echo "HTTP_PROXY=$https_proxy" >> /etc/environment
+        echo "https_proxy=$https_proxy" >> /etc/environment
+        echo "HTTPS_PROXY=$https_proxy" >> /etc/environment
+        echo "NO_PROXY=10.0.0.0/8,192.168.0.0/16,127.0.0.1,172.16.0.0/16,.svc,localhost"  >> /etc/environment
+        echo "no_proxy=10.0.0.0/8,192.168.0.0/16,127.0.0.1,172.16.0.0/16,.svc,localhost"  >> /etc/environment
+        tests.cleanup defer mv /etc/environment.bak /etc/environment
+    fi
+
     systemctl daemon-reload
     tests.cleanup defer systemctl daemon-reload
     systemctl restart snapd.socket
@@ -81,7 +94,11 @@ execute: |
     microk8s kubectl patch svc nginx-np --patch '{"spec":{"ports":[{"port":80,"nodePort":31313}]}}'
 
     echo "Test if nginx can be connected"
-    retry -n 15 sh -c "curl --max-time 3 'http://localhost:31313/' | MATCH 'Welcome to nginx'"
+    no_proxy_param=""
+    if [ -n "${http_proxy:-}" ] || [ -n "${https_proxy:-}" ] ; then
+        no_proxy_param="no_proxy=localhost"
+    fi
+    retry -n 15 sh -c "$no_proxy_param curl --max-time 3 'http://localhost:31313/' | MATCH 'Welcome to nginx'"
 
     echo "Running a microk8s causes no DENIED messages"
     dmesg | not grep DENIED
