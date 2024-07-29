@@ -299,6 +299,119 @@ func (r *failureSuite) TestCallPrevSnapdFromSnapdWhenNoCore(c *C) {
 	})
 }
 
+type distroVersionDrivenTestCase struct {
+	releaseInfo    *release.OS
+	classic        bool
+	callsFromSnapd bool
+	hasCore        bool
+}
+
+func (r *failureSuite) testCallPrevSnapdWhenDistroInfoDriven(c *C, tc distroVersionDrivenTestCase) {
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+
+	defer release.MockReleaseInfo(tc.releaseInfo)()
+	// TODO release should update that internally when mocking release info
+	defer release.MockOnClassic(tc.classic)()
+
+	// only one entry in sequence
+	writeSeqFile(c, "snapd", snap.R(123), []*snap.SideInfo{
+		{Revision: snap.R(123)},
+	})
+
+	var snippetSnapdSnapd, snippetCoreSnapd string
+	if tc.callsFromSnapd {
+		snippetSnapdSnapd, snippetCoreSnapd = `test "$SNAPD_REVERT_TO_REV" = "0"`, `exit 1`
+	} else {
+		snippetSnapdSnapd, snippetCoreSnapd = `exit 1`, `test "$SNAPD_REVERT_TO_REV" = "0"`
+	}
+
+	var snapdInCore, snapdInSnapd *testutil.MockCmd
+	// mock snapd in the core snap
+	if tc.hasCore {
+		snapdInCore = testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd/snapd"),
+			snippetCoreSnapd)
+		defer snapdInCore.Restore()
+	}
+
+	snapdInSnapd = testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "current", "/usr/lib/snapd/snapd"),
+		snippetSnapdSnapd)
+	defer snapdInSnapd.Restore()
+
+	os.Args = []string{"snap-failure", "snapd"}
+	err := failure.Run()
+	c.Check(err, IsNil)
+	c.Check(r.Stderr(), HasLen, 0)
+
+	if tc.callsFromSnapd {
+		c.Check(snapdInSnapd.Calls(), DeepEquals, [][]string{
+			{"snapd"},
+		})
+		if tc.hasCore {
+			c.Check(snapdInCore.Calls(), HasLen, 0)
+		}
+	} else {
+		c.Check(snapdInSnapd.Calls(), HasLen, 0)
+		if tc.hasCore {
+			c.Check(snapdInCore.Calls(), DeepEquals, [][]string{
+				{"snapd"},
+			})
+		}
+	}
+
+	c.Check(r.systemctlCmd.Calls(), DeepEquals, [][]string{
+		{"systemctl", "stop", "snapd.socket"},
+		{"systemctl", "is-failed", "snapd.socket", "snapd.service"},
+		{"systemctl", "reset-failed", "snapd.socket", "snapd.service"},
+		{"systemctl", "restart", "snapd.socket"},
+	})
+}
+
+func (r *failureSuite) TestCallPrevSnapdWithSnapdUC20(c *C) {
+	r.testCallPrevSnapdWhenDistroInfoDriven(c, distroVersionDrivenTestCase{
+		releaseInfo:    &release.OS{ID: "ubuntu-core", VersionID: "20"},
+		classic:        false,
+		callsFromSnapd: true,
+		hasCore:        true,
+	})
+}
+
+func (r *failureSuite) TestCallPrevSnapdWithSnapdUC18(c *C) {
+	r.testCallPrevSnapdWhenDistroInfoDriven(c, distroVersionDrivenTestCase{
+		releaseInfo:    &release.OS{ID: "ubuntu-core", VersionID: "18"},
+		classic:        false,
+		callsFromSnapd: true,
+		hasCore:        true,
+	})
+}
+
+func (r *failureSuite) TestCallPrevSnapdWithCoreUC16(c *C) {
+	r.testCallPrevSnapdWhenDistroInfoDriven(c, distroVersionDrivenTestCase{
+		releaseInfo:    &release.OS{ID: "ubuntu-core", VersionID: "16"},
+		classic:        false,
+		callsFromSnapd: false, // calls snapd from core as it's a UC16 system
+		hasCore:        true,
+	})
+}
+
+func (r *failureSuite) TestCallPrevSnapdWithCoreClassic(c *C) {
+	r.testCallPrevSnapdWhenDistroInfoDriven(c, distroVersionDrivenTestCase{
+		releaseInfo:    &release.OS{ID: "ubuntu", VersionID: "24.04"},
+		classic:        true,
+		hasCore:        true,
+		callsFromSnapd: false, // classic is allowed to fall back to core
+	})
+}
+
+func (r *failureSuite) TestCallPrevSnapdWithSnapdClassic(c *C) {
+	r.testCallPrevSnapdWhenDistroInfoDriven(c, distroVersionDrivenTestCase{
+		releaseInfo:    &release.OS{ID: "ubuntu", VersionID: "24.04"},
+		classic:        true,
+		hasCore:        false,
+		callsFromSnapd: true, // no core, so classic stays with the snapd snap
+	})
+}
+
 func (r *failureSuite) TestCallPrevSnapdFail(c *C) {
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
