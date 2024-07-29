@@ -86,7 +86,7 @@ func (s *renderSuite) TestRenderAllVariants(c *C) {
 	}
 
 	variants := make([]string, 0, len(expectedVariants))
-	renderAllVariants(parsed, func(index int, variant *PatternVariant) {
+	renderAllVariants(parsed, func(index int, variant PatternVariant) {
 		variants = append(variants, variant.String())
 	})
 

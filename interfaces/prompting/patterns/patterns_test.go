@@ -473,7 +473,7 @@ func (s *patternsSuite) TestPathPatternRenderAllVariants(c *C) {
 		pathPattern, err := patterns.ParsePathPattern(testCase.pattern)
 		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
 		expanded := make([]string, 0, pathPattern.NumVariants())
-		pathPattern.RenderAllVariants(func(i int, variant *patterns.PatternVariant) {
+		pathPattern.RenderAllVariants(func(i int, variant patterns.PatternVariant) {
 			expanded = append(expanded, variant.String())
 		})
 		c.Check(expanded, DeepEquals, testCase.expanded, Commentf("test case: %+v", testCase))
@@ -1429,13 +1429,17 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 			"/foo/bar/*",
 		},
 	} {
-		variants := make([]*patterns.PatternVariant, len(testCase.patterns))
-		variantsReversed := make([]*patterns.PatternVariant, len(testCase.patterns))
+		variants := make([]patterns.PatternVariant, len(testCase.patterns))
+		variantsReversed := make([]patterns.PatternVariant, len(testCase.patterns))
 		for i, pattern := range testCase.patterns {
 			variant, err := patterns.ParsePatternVariant(pattern)
 			c.Assert(err, IsNil, Commentf("pattern: %s", pattern))
 			variants[i] = variant
 			variantsReversed[len(variantsReversed)-1-i] = variant
+			// Check that the rendered variant actually matches the path
+			matches, err := patterns.PathPatternMatches(variant.String(), testCase.matchingPath)
+			c.Check(err, IsNil, Commentf("testCase: %+v\npath: %s\nvariant: %s", testCase, testCase.matchingPath, variant.String()))
+			c.Check(matches, Equals, true, Commentf("testCase: %+v\npath: %s\nvariant: %s", testCase, testCase.matchingPath, variant.String()))
 		}
 		highestPrecedence, err := patterns.HighestPrecedencePattern(variants, testCase.matchingPath)
 		c.Check(err, IsNil, Commentf("Error occurred during test case %d:\n%+v\nerror: %v", i, testCase, err))
@@ -1488,7 +1492,7 @@ func (s *patternsSuite) TestHighestPrecedencePatternOrdered(c *C) {
 	}
 	for i := 0; i < len(orderedPatterns); i++ {
 		window := orderedPatterns[i:]
-		variants := make([]*patterns.PatternVariant, 0, len(window))
+		variants := make([]patterns.PatternVariant, 0, len(window))
 		for _, pattern := range window {
 			variant, err := patterns.ParsePatternVariant(pattern)
 			c.Assert(err, IsNil, Commentf("pattern: %s", pattern))
@@ -1501,7 +1505,7 @@ func (s *patternsSuite) TestHighestPrecedencePatternOrdered(c *C) {
 }
 
 func (s *patternsSuite) TestHighestPrecedencePatternUnhappy(c *C) {
-	result, err := patterns.HighestPrecedencePattern([]*patterns.PatternVariant{}, "")
+	result, err := patterns.HighestPrecedencePattern([]patterns.PatternVariant{}, "")
 	c.Check(err, Equals, patterns.ErrNoPatterns)
-	c.Check(result, IsNil)
+	c.Check(result, DeepEquals, patterns.PatternVariant{})
 }

@@ -30,6 +30,35 @@ import (
 type componentType int
 
 // Component types in order from lowest to highest precedence.
+//
+// A literal exactly matches the next non-zero number of characters, so it has
+// the highest precedence. The '?' character matches exactly one non-separator
+// character, so it has precedence over globstars; the only way a '?' can match
+// a path at the same component position as another lower-precedence component
+// is if the '?' were to occur after a '*' (and zero or more '?'s), and if this
+// were the case, then the '?' would give additional information about the
+// length of the path component matched by the '*', so it is higher precedence
+// than the separator or terminal following the '*'. Next, a separator ('/') is
+// like a literal, except that when following a '*', it precludes any more
+// information being given about the length or content of the path prior to the
+// separator (e.g. "/foo*bar/baz" clearly has precedence over "/foo*/baz"), so
+// '/' has lower precedence than literals or '?' but higher than the rest. Next,
+// terminals match when there is no path left, so they have precedence over all
+// the variable-length component types, which may match zero or more characters.
+// The next three component types relate to doublestars, which always follow a
+// '/' character, and may match zero or more characters; in order to know
+// whether a '/' is followed by a "**" or not without looking ahead in the list
+// of components, we group these components together, along with their suffix
+// when relevant: the non-terminal "/**" must be followed by a component which
+// gives more information about the matching path, so it has the highest
+// precedence of the three doublestar components; the terminal "/**/" component
+// means that the variant only matches directories, while the terminal "/**"
+// component can match files or directories, so the former has precedence over
+// the latter. Lastly, '*' has the lowest precedence, since all other component
+// types begin with more information about the length or content of the next
+// characters in the path: "/foo/**" has precedence over "/foo*" since the
+// former matches "/foo" exactly or a path in the "/foo" directory, while
+// "/foo*" matches any path which happens to begin with "/foo".
 const (
 	compUnset componentType = iota
 	compGlobstar
@@ -47,7 +76,9 @@ type component struct {
 	compText string
 }
 
-func (c *component) String() string {
+// String returns the globstar-style pattern string associated with the given
+// component.
+func (c component) String() string {
 	switch c.compType {
 	case compGlobstar:
 		return "*"
@@ -69,7 +100,18 @@ func (c *component) String() string {
 	return "###ERR_UNKNOWN_COMPONENT_TYPE###" // Should not occur
 }
 
-func (c *component) componentRegex() string {
+// componentRegex returns a regular expression corresponding to the bash-style
+// globstar matching behavior of the receiving component.
+//
+// For example, "*" matches any non-separator characters, so we return the regex
+// `((?:[^/]|\\/)*)` for the globstar component type.
+//
+// The returned regexps should each be enclosed in a capturing group with no
+// capturing groups within. This allows a single regex to be constructed for a
+// given pattern variant by concatenating all the component regular expressions
+// together, and the resulting regex has exactly one capturing group for each
+// component, in order.
+func (c component) componentRegex() string {
 	switch c.compType {
 	case compGlobstar:
 		return `((?:[^/]|\\/)*)`
@@ -93,6 +135,10 @@ func (c *component) componentRegex() string {
 
 var escapeFinder = regexp.MustCompile(`\\(.)`)
 
+// unescapeLiteral removes any `\` characters which are used to escape another
+// character. Note that escaped `\` characters are not removed, since they are
+// not acting as an escape character in those instances. That is, `\\` is
+// reduced to `\`.
 func unescapeLiteral(literal string) string {
 	return escapeFinder.ReplaceAllString(literal, "${1}")
 }
@@ -103,13 +149,14 @@ type PatternVariant struct {
 	regex      *regexp.Regexp
 }
 
-func (v *PatternVariant) String() string {
+// String returns the rendered string associated with the pattern variant.
+func (v PatternVariant) String() string {
 	return v.variant
 }
 
 // ParsePatternVariant parses a rendered variant string into a PatternVariant
 // whose precedence can be compared against others.
-func ParsePatternVariant(variant string) (*PatternVariant, error) {
+func ParsePatternVariant(variant string) (PatternVariant, error) {
 	var components []component
 	var runes []rune
 
@@ -165,7 +212,7 @@ func ParsePatternVariant(variant string) (*PatternVariant, error) {
 				break
 			}
 			// Should not occur, err is only set if no rune available to read
-			return nil, fmt.Errorf("internal error: failed to read rune while scanning variant: %w", err)
+			return PatternVariant{}, fmt.Errorf("internal error: failed to read rune while scanning variant: %w", err)
 		}
 
 		switch r {
@@ -211,7 +258,7 @@ func ParsePatternVariant(variant string) (*PatternVariant, error) {
 			r2, _, err := rr.ReadRune()
 			if err != nil {
 				// Should be impossible, we just rendered this variant
-				return nil, errors.New(`internal error: trailing unescaped '\' character`)
+				return PatternVariant{}, errors.New(`internal error: trailing unescaped '\' character`)
 			}
 			switch r2 {
 			case '*', '?', '[', ']', '{', '}', '\\':
@@ -222,7 +269,7 @@ func ParsePatternVariant(variant string) (*PatternVariant, error) {
 			}
 		case '[', ']', '{', '}':
 			// Should be impossible, we just rendered this variant
-			return nil, fmt.Errorf(`internal error: unexpected unescaped '%v' character`, r)
+			return PatternVariant{}, fmt.Errorf(`internal error: unexpected unescaped '%v' character`, r)
 		default:
 			runes = append(runes, r)
 		}
@@ -261,7 +308,7 @@ func ParsePatternVariant(variant string) (*PatternVariant, error) {
 		regex:      regex,
 	}
 
-	return &v, nil
+	return v, nil
 }
 
 // regexpMustCompileLongest compiles the given string into a Regexp and then
@@ -280,6 +327,9 @@ var doublestarEscaper = regexpMustCompileLongest(`((\\)*)⁑`)
 // before the first '*', since that doesn't escape the first '*'.
 var doublestarReplacer = regexpMustCompileLongest(`((\\)*)\*\*`)
 
+// prepareVariantForParsing escapes any unescaped '⁑' characters and then
+// replaces any unescaped "**" with a single '⁑' so that doublestars can be
+// identified without needing to look ahead whenever a '*' is seen.
 func prepareVariantForParsing(variant string) string {
 	escaped := doublestarEscaper.ReplaceAllStringFunc(variant, func(s string) string {
 		if (len(s)-len("⁑"))%2 == 1 {
@@ -323,11 +373,12 @@ func (r *componentReader) next() (*component, string) {
 // -1 if v has lower precedence than other
 // 0 if v and other have equal precedence (only possible if v == other)
 // 1 if v has higher precedence than other.
-func (v *PatternVariant) Compare(other *PatternVariant, matchingPath string) (int, error) {
+func (v PatternVariant) Compare(other PatternVariant, matchingPath string) (int, error) {
 	selfSubmatches := v.regex.FindStringSubmatch(matchingPath)
-	if selfSubmatches == nil {
+	switch {
+	case selfSubmatches == nil:
 		return 0, fmt.Errorf("internal error: no matches for pattern variant against given path:\ncomponents: %+v\nregex: %s\npath: %s", v.components, v.regex.String(), matchingPath)
-	} else if len(selfSubmatches)-1 != len(v.components) {
+	case len(selfSubmatches)-1 != len(v.components):
 		return 0, fmt.Errorf("internal error: submatch count not equal to component count:\ncomponents: %+v\nregex: %s\npath: %s", v.components, v.regex.String(), matchingPath)
 	}
 

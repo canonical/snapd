@@ -102,7 +102,7 @@ func (p *PathPattern) NumVariants() int {
 //
 // The given observe closure should perform some action with the rendered
 // variant, such as adding it to a data structure.
-func (p *PathPattern) RenderAllVariants(observe func(index int, variant *PatternVariant)) {
+func (p *PathPattern) RenderAllVariants(observe func(index int, variant PatternVariant)) {
 	renderAllVariants(p.renderTree, observe)
 }
 
@@ -149,10 +149,10 @@ func PathPatternMatches(pattern string, path string) (bool, error) {
 // Precedence is only defined between patterns which match the same path.
 // Precedence is determined according to which pattern places the earliest and
 // greatest restriction on the path.
-func HighestPrecedencePattern(patterns []*PatternVariant, matchingPath string) (*PatternVariant, error) {
+func HighestPrecedencePattern(patterns []PatternVariant, matchingPath string) (PatternVariant, error) {
 	switch len(patterns) {
 	case 0:
-		return nil, ErrNoPatterns
+		return PatternVariant{}, ErrNoPatterns
 	case 1:
 		return patterns[0], nil
 	}
@@ -161,7 +161,7 @@ func HighestPrecedencePattern(patterns []*PatternVariant, matchingPath string) (
 	for _, contender := range patterns[1:] {
 		result, err := currHighest.Compare(contender, matchingPath)
 		if err != nil {
-			return nil, err
+			return PatternVariant{}, err
 		}
 		if result < 0 {
 			currHighest = contender
