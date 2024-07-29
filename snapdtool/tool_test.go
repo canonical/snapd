@@ -286,7 +286,7 @@ func (s *toolSuite) TestInternalToolPathWithDevLocationFallback(c *C) {
 	c.Check(path, Equals, filepath.Join(dirs.DistroLibExecDir, "potato"))
 }
 
-func (s *toolSuite) TestInternalToolPathWithOtherDevLocationWhenExecutable(c *C) {
+func (s *toolSuite) TestInternalToolPathWithOtherDevLocationWhenExecutableFallback(c *C) {
 	restore := snapdtool.MockOsReadlink(func(string) (string, error) {
 		return filepath.Join(dirs.GlobalRootDir, "/tmp/snapd"), nil
 	})
@@ -300,7 +300,7 @@ func (s *toolSuite) TestInternalToolPathWithOtherDevLocationWhenExecutable(c *C)
 
 	path, err := snapdtool.InternalToolPath("potato")
 	c.Check(err, IsNil)
-	c.Check(path, Equals, filepath.Join(dirs.GlobalRootDir, "/tmp/potato"))
+	c.Check(path, Equals, filepath.Join(dirs.DistroLibExecDir, "potato"))
 }
 
 func (s *toolSuite) TestInternalToolPathWithOtherDevLocationNonExecutable(c *C) {
