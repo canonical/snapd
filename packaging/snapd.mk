@@ -72,8 +72,9 @@ $(builddir)/snap: GO_TAGS += nomanagers
 $(builddir)/snap $(builddir)/snap-seccomp $(builddir)/snapd-apparmor:
 	go build -o $@ $(if $(GO_TAGS),-tags "$(GO_TAGS)") \
 		-buildmode=pie \
-		-ldflags="-w -B 0x$$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \n')" \
+		-ldflags="-B 0x$$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \n') $(EXTRA_GO_LDFLAGS)" \
 		-mod=vendor \
+		$(EXTRA_GO_BUILD_FLAGS) \
 		$(import_path)/cmd/$(notdir $@)
 
 # Those three need to be built as static binaries. They run on the inside of a
@@ -84,7 +85,8 @@ $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
 	# used
 	go build -o $@ -buildmode=default -mod=vendor \
 		$(if $(GO_TAGS),-tags "$(GO_TAGS)") \
-		-ldflags '-linkmode external -extldflags "-static"' \
+		-ldflags '-linkmode external -extldflags "-static" $(EXTRA_GO_LDFLAGS)' \
+		$(EXTRA_GO_BUILD_FLAGS) \
 		$(import_path)/cmd/$(notdir $@)
 
 # XXX see the note about build ID in rule for building 'snap'
@@ -92,9 +94,10 @@ $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
 # suite to add test assertions. Do not enable this in distribution packages.
 $(builddir)/snapd:
 	go build -o $@ -buildmode=pie \
-		-ldflags="-w -B 0x$$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \n')" \
+		-ldflags="-B 0x$$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \n') $(EXTRA_GO_LDFLAGS)" \
 		-mod=vendor \
 		$(if $(GO_TAGS),-tags "$(GO_TAGS)") \
+		$(EXTRA_GO_BUILD_FLAGS) \
 		$(import_path)/cmd/$(notdir $@)
 
 # Know how to create certain directories.
