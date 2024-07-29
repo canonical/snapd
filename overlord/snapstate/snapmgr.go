@@ -154,6 +154,18 @@ type SnapSetup struct {
 	// process, even if the snap is already at the correct revision. Has an
 	// effect on which tasks get created to update the snap.
 	AlwaysUpdate bool `json:"-"`
+
+	// Registries is the set of registries that the snap plugs, identified by
+	// account and registry name pairs.
+	Registries []RegistryID `json:"registries,omitempty"`
+}
+
+// RegistryID identifies a registry.
+type RegistryID struct {
+	// Account is the name of the account that publishes the registry.
+	Account string
+	// Registry is the name of the registry within the account namespace.
+	Registry string
 }
 
 func (snapsup *SnapSetup) InstanceName() string {

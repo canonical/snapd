@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -199,6 +200,20 @@ func refreshHintsFromCandidates(st *state.State, plan updatePlan, deviceCtx Devi
 			continue
 		}
 
+		var registries []RegistryID
+		for _, plug := range update.Plugs {
+			if plug.Interface != "registry" {
+				continue
+			}
+
+			account, registry, _, err := snap.RegistryPlugAttrs(plug)
+			if err != nil {
+				return nil, err
+			}
+
+			registries = append(registries, RegistryID{Account: account, Registry: registry})
+		}
+
 		monitoring := IsSnapMonitored(st, update.InstanceName())
 		providerContentAttrs := defaultProviderContentAttrs(st, update, nil)
 		snapsup := &refreshCandidate{
@@ -222,6 +237,7 @@ func refreshHintsFromCandidates(st *state.State, plan updatePlan, deviceCtx Devi
 					// old snapd
 					Website: update.Website(),
 				},
+				Registries: registries,
 			},
 			// preserve fields not related to snap-setup
 			Monitored: monitoring,

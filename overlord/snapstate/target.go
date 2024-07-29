@@ -122,6 +122,20 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		})
 	}
 
+	var registries []RegistryID
+	for _, plug := range t.info.Plugs {
+		if plug.Interface != "registry" {
+			continue
+		}
+
+		account, registry, _, err := snap.RegistryPlugAttrs(plug)
+		if err != nil {
+			return SnapSetup{}, nil, err
+		}
+
+		registries = append(registries, RegistryID{Account: account, Registry: registry})
+	}
+
 	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)
 	return SnapSetup{
 		Channel:      t.setup.Channel,
@@ -141,6 +155,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		PlugsOnly:          len(t.info.Slots) == 0,
 		InstanceKey:        t.info.InstanceKey,
 		ExpectedProvenance: t.info.SnapProvenance,
+		Registries:         registries,
 	}, compsups, nil
 }
 
