@@ -796,12 +796,12 @@ func (s *registrySuite) TestRegistryGetAndSetAssertionNotFound(c *C) {
 	s.state.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot get registry: registry assertion %s/network/read-wifi not found", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot get registry: registry assertion %s/network not found", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
 	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=my-ssid"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot set registry: registry assertion %s/network/write-wifi not found", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot set registry: registry assertion %s/network not found", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 

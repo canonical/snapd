@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2022 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
 
@@ -232,6 +233,18 @@ func HookSecurityTag(snapName, hookName string) string {
 // are not associated to an app or hook in the snap.
 func NoneSecurityTag(snapName, uniqueName string) string {
 	return ScopedSecurityTag(snapName, "none", uniqueName)
+}
+
+// TransientScopeGlob returns the glob pattern matching
+// snap's transient scope units.
+//
+// e.g. snap.hello-world.sh-4706fe54-7802-4808-aa7e-ae8b567239e0.scope
+func TransientScopeGlob(snapName string) (string, error) {
+	snapSecurityTag := SecurityTag(snapName)
+	unitPrefix, err := systemd.SecurityTagToUnitName(snapSecurityTag)
+	// XXX: Should we also match snap components glob pattern (i.e. snap.name+*.*.scope?
+	// snap.name.*.scope
+	return unitPrefix + ".*.scope", err
 }
 
 // BaseDataDir returns the base directory for snap data locations.
@@ -1912,4 +1925,30 @@ var verToSnapDecl = []struct {
 	{"2.23", 2},
 	// ancient
 	{"2.17", 1},
+}
+
+// RegistryPlugAttrs returns the account, registry and view specified in a plug
+// if that plug is of type registry. If it's not or the information cannot be
+// found, returns an error.
+func RegistryPlugAttrs(plug *PlugInfo) (account, registry, view string, err error) {
+	if plug.Interface != "registry" {
+		return "", "", "", fmt.Errorf("must be registry plug: %s", plug.Interface)
+	}
+
+	if err := plug.Attr("account", &account); err != nil {
+		return "", "", "", err
+	}
+
+	var registryView string
+	if err := plug.Attr("view", &registryView); err != nil {
+		return "", "", "", err
+	}
+
+	parts := strings.Split(registryView, "/")
+	if len(parts) != 2 {
+		return "", "", "", fmt.Errorf("\"view\" must conform to <registry>/<view>: %s", registryView)
+	}
+	registry, view = parts[0], parts[1]
+
+	return account, registry, view, nil
 }

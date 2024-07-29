@@ -224,6 +224,7 @@ type snapInstruction struct {
 	Unaliased              bool                             `json:"unaliased"`
 	Prefer                 bool                             `json:"prefer"`
 	Purge                  bool                             `json:"purge,omitempty"`
+	Terminate              bool                             `json:"terminate"`
 	SystemRestartImmediate bool                             `json:"system-restart-immediate"`
 	Transaction            client.TransactionType           `json:"transaction"`
 	Snaps                  []string                         `json:"snaps"`
@@ -397,6 +398,10 @@ func (inst *snapInstruction) validate() error {
 	}
 	if inst.Prefer && inst.Action != "install" {
 		return fmt.Errorf("the prefer flag can only be specified on install")
+	}
+
+	if inst.Terminate && inst.Action != "remove" {
+		return fmt.Errorf(`terminate can only be specified for the "remove" action`)
 	}
 
 	if err := inst.validateSnapshotOptions(); err != nil {
@@ -574,7 +579,8 @@ func snapRemove(_ context.Context, inst *snapInstruction, st *state.State) (stri
 }
 
 func removeSnap(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	ts, err := snapstate.Remove(st, inst.Snaps[0], inst.Revision, &snapstate.RemoveFlags{Purge: inst.Purge})
+	flags := &snapstate.RemoveFlags{Purge: inst.Purge, Terminate: inst.Terminate}
+	ts, err := snapstateRemove(st, inst.Snaps[0], inst.Revision, flags)
 	if err != nil {
 		return "", nil, err
 	}
@@ -1057,7 +1063,7 @@ func snapRemoveMany(_ context.Context, inst *snapInstruction, st *state.State) (
 		}
 	}
 	if len(inst.Snaps) > 0 {
-		flags := &snapstate.RemoveFlags{Purge: inst.Purge}
+		flags := &snapstate.RemoveFlags{Purge: inst.Purge, Terminate: inst.Terminate}
 		removed, snapsTaskSets, err = snapstateRemoveMany(st, inst.Snaps, flags)
 		if err != nil {
 			return nil, err

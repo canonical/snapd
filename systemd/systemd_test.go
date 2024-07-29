@@ -2311,6 +2311,53 @@ X-SnapdOrigin=%s
 	c.Check(err, IsNil)
 }
 
+func (s *SystemdTestSuite) TestListUnitsEmpty(c *C) {
+	s.outs = [][]byte{
+		[]byte("[]"),
+	}
+
+	sysd := New(UserMode, nil)
+	units, err := sysd.ListUnits("snap.some-snap.*.scope")
+	c.Check(units, HasLen, 0)
+	c.Check(err, IsNil)
+}
+
+func (s *SystemdTestSuite) TestListUnitsMalformed(c *C) {
+	s.outs = [][]byte{
+		[]byte(`[{"unit":}]
+`),
+	}
+
+	sysd := New(UserMode, nil)
+	units, err := sysd.ListUnits("snap.some-snap.*.scope")
+	c.Check(units, HasLen, 0)
+	c.Check(err, ErrorMatches, "cannot parse systemctl output:.*")
+}
+
+func (s *SystemdTestSuite) TestListUnitsHappy(c *C) {
+	type rawUnit struct {
+		UnitName string `json:"unit"`
+	}
+	var fakeUnits = []rawUnit{
+		{UnitName: "snap.some-snap.some-app-7414e1a3-6d08-43ff-a81c-6547242a78b0.scope"},
+		{UnitName: "snap.some-snap.some-app-ff81c9d9-cabb-494b-84b5-494ba945a458.scope"},
+		{UnitName: "snap.some-snap.some-other-app-f3a1d6fa-c660-4b7d-a450-aaa8849614c7.scope"},
+	}
+	systemctlOutput, err := json.Marshal(fakeUnits)
+	c.Assert(err, IsNil)
+
+	s.outs = [][]byte{systemctlOutput}
+
+	sysd := New(UserMode, nil)
+	units, err := sysd.ListUnits("some-snap.*.scope")
+	c.Assert(err, IsNil)
+	c.Check(units, DeepEquals, []string{
+		"snap.some-snap.some-app-7414e1a3-6d08-43ff-a81c-6547242a78b0.scope",
+		"snap.some-snap.some-app-ff81c9d9-cabb-494b-84b5-494ba945a458.scope",
+		"snap.some-snap.some-other-app-f3a1d6fa-c660-4b7d-a450-aaa8849614c7.scope",
+	})
+}
+
 func (s *SystemdTestSuite) TestMountHappy(c *C) {
 	sysd := New(SystemMode, nil)
 

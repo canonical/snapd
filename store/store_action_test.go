@@ -3096,7 +3096,7 @@ func (s *storeActionSuite) TestSnapActionErrorsWhenNoInstanceName(c *C) {
 	c.Assert(results, IsNil)
 }
 
-func (s *storeActionSuite) TestSnapActionInstallUnexpectedInstallKey(c *C) {
+func (s *storeActionSuite) TestSnapActionInstallUnexpectedInstanceKey(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", snapActionPath)
 		// check device authorization is set, implicitly checking doRequest was used

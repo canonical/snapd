@@ -474,7 +474,12 @@ func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.SeedAssertionFetcher,
 			return nil, err
 		}
 
-		if err := s.w.SetInfo(sn, info); err != nil {
+		// For local snaps, the component information is set inside
+		// w.SetInfo by looking at the local components information set
+		// in the call to w.SetOptionsSnaps.
+		// TODO:COMPS: we need to revisit this once we start to derive
+		// ComponentSideInfo for local componentss.
+		if err := s.w.SetInfo(sn, info, nil); err != nil {
 			return nil, err
 		}
 
@@ -534,8 +539,7 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 			rev = info.Revision
 		}
 		fmt.Fprintf(Stdout, "Fetching %s (%s)\n", sn.SnapName(), rev)
-		// TODO:COMPS: pass component infos to SetInfo (next PR)
-		if err := s.w.SetInfo(sn, info); err != nil {
+		if err := s.w.SetInfo(sn, info, cinfos); err != nil {
 			return "", err
 		}
 		if err := s.validateSnapArchs([]*seedwriter.SeedSnap{sn}); err != nil {
@@ -573,6 +577,13 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 		snapToDownloadOptions[i].Revision = rev
 		snapToDownloadOptions[i].CohortKey = s.wideCohortKey
 		snapToDownloadOptions[i].ValidationSets = vss
+
+		// Components
+		compsToDownload := make([]string, len(sn.Components))
+		for i, comp := range sn.Components {
+			compsToDownload[i] = comp.ComponentRef.ComponentName
+		}
+		snapToDownloadOptions[i].CompsToDownload = compsToDownload
 	}
 
 	// sort the curSnaps slice for test consistency
@@ -586,6 +597,7 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 	if err != nil {
 		return nil, err
 	}
+
 	return downloadedSnaps, nil
 }
 
@@ -840,7 +852,7 @@ func optionSnaps(opts *Options) ([]*seedwriter.OptionsSnap, map[string]*snap.Com
 			// Being a map, we ensure we do not get duplicates
 			pathToLocalComp[compOpt] = cinfo
 		} else {
-			compName, snapName, err := naming.SplitFullComponentName(compOpt)
+			snapName, compName, err := naming.SplitFullComponentName(compOpt)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -850,7 +862,7 @@ func optionSnaps(opts *Options) ([]*seedwriter.OptionsSnap, map[string]*snap.Com
 			// --comp <snap>+<comp> implicitly pulls also the snap)
 			snapFound := false
 			for _, optSn := range optSnaps {
-				if optSn.Name == compName {
+				if optSn.Name == snapName {
 					optSn.Components = append(optSn.Components, optComp)
 					snapFound = true
 					break
@@ -983,8 +995,15 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 				return nil, err
 			}
 		} else {
-			// fetch snap assertions
-			if _, err = FetchAndCheckSnapAssertions(sn.Path, sn.Info, model, s.f, s.db); err != nil {
+			// fetch snap and components assertions
+			compPaths := make([]CompInfoPath, len(sn.Components))
+			for i, comp := range sn.Components {
+				compPaths[i] = CompInfoPath{
+					Info: comp.Info,
+					Path: comp.Path,
+				}
+			}
+			if _, err = FetchAndCheckSnapAssertions(sn.Path, sn.Info, compPaths, model, s.f, s.db); err != nil {
 				return nil, err
 			}
 		}

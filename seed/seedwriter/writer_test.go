@@ -26,6 +26,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 
@@ -242,7 +243,7 @@ func (s *writerSuite) fetchAsserts(c *C) seedwriter.AssertsFetchFunc {
 func (s *writerSuite) doFillMetaDownloadedSnap(c *C, w *seedwriter.Writer, sn *seedwriter.SeedSnap) *snap.Info {
 	info := s.AssertedSnapInfo(sn.SnapName())
 	c.Assert(info, NotNil, Commentf("%s not defined", sn.SnapName()))
-	err := w.SetInfo(sn, info)
+	err := w.SetInfo(sn, info, nil)
 	c.Assert(err, IsNil)
 	return info
 }
@@ -1181,7 +1182,7 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
-		w.SetInfo(sn, info)
+		w.SetInfo(sn, info, nil)
 		s.aRefs[sn.SnapName()] = aRefs
 	}
 
@@ -1472,7 +1473,7 @@ func (s *writerSuite) TestInfoDerivedLocalCompButNoLocalSnap(c *C) {
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
-		w.SetInfo(sn, info)
+		w.SetInfo(sn, info, nil)
 		s.aRefs[sn.SnapName()] = aRefs
 	}
 
@@ -1518,7 +1519,7 @@ func (s *writerSuite) TestInfoDerivedRepeatedLocalSnap(c *C) {
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
-		w.SetInfo(sn, info)
+		w.SetInfo(sn, info, nil)
 	}
 
 	err = w.InfoDerived()
@@ -1562,7 +1563,7 @@ func (s *writerSuite) TestInfoDerivedInconsistentChannel(c *C) {
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
-		w.SetInfo(sn, info)
+		w.SetInfo(sn, info, nil)
 	}
 
 	err = w.InfoDerived()
@@ -1600,7 +1601,7 @@ func (s *writerSuite) TestSetRedirectChannelLocalError(c *C) {
 	c.Assert(err, IsNil)
 	info, err := snap.ReadInfoFromSnapFile(f, nil)
 	c.Assert(err, IsNil)
-	err = w.SetInfo(sn, info)
+	err = w.SetInfo(sn, info, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(w.SetRedirectChannel(sn, "foo"), ErrorMatches, `internal error: cannot set redirect channel for local snap .*`)
@@ -2173,7 +2174,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
-		w.SetInfo(sn, info)
+		w.SetInfo(sn, info, nil)
 		s.aRefs[sn.SnapName()] = aRefs
 	}
 
@@ -2882,8 +2883,8 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedDevmodeSnaps(c *C) {
 
 	info := s.AssertedSnapInfo(sn.SnapName())
 	c.Assert(info, NotNil, Commentf("%s not defined", sn.SnapName()))
-	err = w.SetInfo(sn, info)
-	c.Assert(err, ErrorMatches, "cannot override channels, add devmode snaps, local snaps, or extra snaps with a model of grade higher than dangerous")
+	err = w.SetInfo(sn, info, nil)
+	c.Assert(err, ErrorMatches, "cannot override channels, add devmode snaps, local snaps, or extra snaps/components with a model of grade higher than dangerous")
 	c.Check(sn.Info, Not(Equals), info)
 }
 
@@ -2921,7 +2922,7 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
 		{&seedwriter.OptionsSnap{Name: "pc", Channel: "edge"}},
 	}
 
-	const expectedErr = `cannot override channels, add devmode snaps, local snaps, or extra snaps with a model of grade higher than dangerous`
+	const expectedErr = `cannot override channels, add devmode snaps, local snaps, or extra snaps/components with a model of grade higher than dangerous`
 
 	for idx, t := range tests {
 		s.opts.Label = fmt.Sprintf("%s%d", baseLabel, idx)
@@ -2951,7 +2952,7 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
 				c.Assert(err, IsNil)
 				info, err := snap.ReadInfoFromSnapFile(f, si)
 				c.Assert(err, IsNil)
-				w.SetInfo(sn, info)
+				w.SetInfo(sn, info, nil)
 			}
 
 			err = w.InfoDerived()
@@ -2990,7 +2991,7 @@ func (s *writerSuite) TestCore20NonDangerousNoChannelOverride(c *C) {
 	s.opts.Label = "20191107"
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(w, IsNil)
-	c.Check(err, ErrorMatches, `cannot override channels, add devmode snaps, local snaps, or extra snaps with a model of grade higher than dangerous`)
+	c.Check(err, ErrorMatches, `cannot override channels, add devmode snaps, local snaps, or extra snaps/components with a model of grade higher than dangerous`)
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalSnaps(c *C) {
@@ -3082,7 +3083,18 @@ func (s *writerSuite) testSeedSnapsWriteMetaCore20LocalSnaps(c *C, withComps boo
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
-		c.Assert(w.SetInfo(sn, info), IsNil)
+		cinfos := map[string]*snap.ComponentInfo{}
+		if withComps {
+			cref1 := naming.NewComponentRef("required20", "comp1")
+			cinfo1 := snap.NewComponentInfo(cref1, snap.TestComponent, "1.0", "", "", "", nil)
+			pathComp1 = s.makeLocalComponent(c, "required20+comp1")
+			cref2 := naming.NewComponentRef("required20", "comp2")
+			cinfo2 := snap.NewComponentInfo(cref2, snap.TestComponent, "2.0", "", "", "", nil)
+			pathComp2 = s.makeLocalComponent(c, "required20+comp2")
+			cinfos["comp1"] = cinfo1
+			cinfos["comp2"] = cinfo2
+		}
+		c.Assert(w.SetInfo(sn, info, cinfos), IsNil)
 	}
 
 	err = w.InfoDerived()
@@ -3586,7 +3598,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
-		w.SetInfo(sn, info)
+		w.SetInfo(sn, info, nil)
 	}
 
 	err = w.InfoDerived()
@@ -3758,7 +3770,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalAssertedSnaps(c *C) {
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
-		w.SetInfo(sn, info)
+		w.SetInfo(sn, info, nil)
 		s.aRefs[sn.SnapName()] = aRefs
 	}
 
@@ -3882,7 +3894,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20SignedLocalAssertedSnaps(c *C)
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
-		w.SetInfo(sn, info)
+		w.SetInfo(sn, info, nil)
 		s.aRefs[sn.SnapName()] = aRefs
 	}
 
@@ -4174,7 +4186,7 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedInvalid(c *C) {
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
-		w.SetInfo(sn, info)
+		w.SetInfo(sn, info, nil)
 	}
 
 	err = w.InfoDerived()
@@ -4277,7 +4289,7 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedHappy(c *C) {
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
-		w.SetInfo(sn, info)
+		w.SetInfo(sn, info, nil)
 	}
 
 	err = w.InfoDerived()
@@ -4386,7 +4398,7 @@ func (s *writerSuite) TestValidateValidationSetsCore18EnforcedHappy(c *C) {
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
-		w.SetInfo(sn, info)
+		w.SetInfo(sn, info, nil)
 	}
 
 	err = w.InfoDerived()
@@ -4530,7 +4542,7 @@ func (s *writerSuite) TestManifestCorrectlyProduced(c *C) {
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
-		w.SetInfo(sn, info)
+		w.SetInfo(sn, info, nil)
 	}
 
 	err = w.InfoDerived()
@@ -4623,7 +4635,7 @@ func (s *writerSuite) TestManifestPreProvidedFailsMarkSeeding(c *C) {
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
-		w.SetInfo(sn, info)
+		w.SetInfo(sn, info, nil)
 	}
 
 	err = w.InfoDerived()
@@ -4801,7 +4813,7 @@ func (s *writerSuite) TestValidateValidationSetsManifestsCorrectly(c *C) {
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
-		w.SetInfo(sn, info)
+		w.SetInfo(sn, info, nil)
 	}
 
 	err = w.InfoDerived()
@@ -4859,4 +4871,103 @@ sequence: 1`)
 core20 1
 snapd 1
 `)
+}
+
+func (s *writerSuite) TestOptionalComponentNotIncluded(c *C) {
+	comps := map[string]interface{}{
+		"comp1": "required",
+		"comp2": "optional",
+	}
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"store":        "my-store",
+		"base":         "core24",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "24",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "24",
+			},
+			map[string]interface{}{
+				"name":       "required20",
+				"id":         s.AssertedSnapID("required20"),
+				"components": comps,
+			},
+		},
+	})
+
+	// No options
+	s.opts.Label = "20240712"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps(nil, nil)
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 5)
+	cref1 := naming.NewComponentRef("required20", "comp1")
+	c.Check(snaps[4].Components, DeepEquals, []seedwriter.SeedComponent{{
+		ComponentRef: cref1,
+	}})
+
+	// Options contains the already required snap
+	s.opts.Label = "20240713"
+	w, err = seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{
+		Name:       "required20",
+		Components: []seedwriter.OptionsComponent{{Name: "comp1"}},
+	}}, nil)
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	snaps, err = w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 5)
+	c.Check(snaps[4].Components, DeepEquals, []seedwriter.SeedComponent{{
+		ComponentRef: cref1,
+	}})
+
+	// Ask for optional component to be included
+	s.opts.Label = "20240714"
+	w, err = seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{
+		Name:       "required20",
+		Components: []seedwriter.OptionsComponent{{Name: "comp2"}},
+	}}, nil)
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	snaps, err = w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 5)
+	cref2 := naming.NewComponentRef("required20", "comp2")
+	compsSl := snaps[4].Components
+	sort.Slice(compsSl, func(i, j int) bool {
+		return compsSl[i].ComponentName < compsSl[j].ComponentName
+	})
+	c.Check(compsSl, DeepEquals, []seedwriter.SeedComponent{
+		{ComponentRef: cref1},
+		{ComponentRef: cref2},
+	})
 }

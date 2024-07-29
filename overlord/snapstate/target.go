@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // Options contains optional parameters for the snapstate operations. All of
@@ -123,6 +122,20 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		})
 	}
 
+	var registries []RegistryID
+	for _, plug := range t.info.Plugs {
+		if plug.Interface != "registry" {
+			continue
+		}
+
+		account, registry, _, err := snap.RegistryPlugAttrs(plug)
+		if err != nil {
+			return SnapSetup{}, nil, err
+		}
+
+		registries = append(registries, RegistryID{Account: account, Registry: registry})
+	}
+
 	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)
 	return SnapSetup{
 		Channel:      t.setup.Channel,
@@ -142,6 +155,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		PlugsOnly:          len(t.info.Slots) == 0,
 		InstanceKey:        t.info.InstanceKey,
 		ExpectedProvenance: t.info.SnapProvenance,
+		Registries:         registries,
 	}, compsups, nil
 }
 
@@ -192,17 +206,6 @@ func StoreInstallGoal(snaps ...StoreSnap) InstallGoal {
 			continue
 		}
 
-		// only provide a default the channel if the revision is not set, since
-		// we don't want to prevent the user from installing a specific revision
-		// that doesn't happen to exist in the "stable" risk
-		if sn.RevOpts.Channel == "" && sn.RevOpts.Revision.Unset() {
-			sn.RevOpts.Channel = "stable"
-		}
-
-		if len(sn.Components) > 0 {
-			sn.Components = strutil.Deduplicate(sn.Components)
-		}
-
 		seen[sn.InstanceName] = true
 		unique = append(unique, sn)
 	}
@@ -225,7 +228,7 @@ func validateRevisionOpts(opts *RevisionOptions) error {
 	return nil
 }
 
-var ErrExpectedOneSnap = errors.New("expected exactly one snap to install")
+var ErrExpectedOneSnap = errors.New("expected exactly one snap to install/update")
 
 // toInstall returns the data needed to setup the snaps from the store for
 // installation.
@@ -239,14 +242,11 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 		return nil, err
 	}
 
-	if err := s.validateAndPrune(allSnaps); err != nil {
+	if err := s.validateAndPrune(allSnaps, opts); err != nil {
 		return nil, err
 	}
 
 	enforcedSetsFunc := cachedEnforcedValidationSets(st)
-	if err != nil {
-		return nil, err
-	}
 
 	includeResources := false
 	actions := make([]*store.SnapAction, 0, len(s.snaps))
@@ -392,8 +392,12 @@ func componentSetupFromResource(name string, sar store.SnapResourceResult, info 
 		return ComponentSetup{}, fmt.Errorf("%q is not a component for snap %q", name, info.SnapName())
 	}
 
-	if typ := fmt.Sprintf("component/%s", comp.Type); typ != sar.Type {
-		return ComponentSetup{}, fmt.Errorf("inconsistent component type (%q in snap, %q in component)", typ, sar.Type)
+	typ, err := store.ResourceToComponentType(sar.Type)
+	if err != nil {
+		return ComponentSetup{}, fmt.Errorf("%q is not a component resource", sar.Type)
+	}
+	if typ != comp.Type {
+		return ComponentSetup{}, fmt.Errorf("inconsistent component type (%q in snap, %q in component)", comp.Type, typ)
 	}
 
 	cref := naming.NewComponentRef(info.SnapName(), name)
@@ -518,26 +522,35 @@ func invalidRevisionError(a *store.SnapAction, sets []snapasserts.ValidationSetK
 	)
 }
 
-func (s *storeInstallGoal) validateAndPrune(installedSnaps map[string]*SnapState) error {
+func (s *storeInstallGoal) validateAndPrune(installedSnaps map[string]*SnapState, opts Options) error {
 	uninstalled := s.snaps[:0]
-	for _, t := range s.snaps {
-		if err := snap.ValidateInstanceName(t.InstanceName); err != nil {
+	for _, sn := range s.snaps {
+		if err := snap.ValidateInstanceName(sn.InstanceName); err != nil {
 			return fmt.Errorf("invalid instance name: %v", err)
 		}
 
-		if err := validateRevisionOpts(&t.RevOpts); err != nil {
-			return fmt.Errorf("invalid revision options for snap %q: %w", t.InstanceName, err)
+		if err := validateRevisionOpts(&sn.RevOpts); err != nil {
+			return fmt.Errorf("invalid revision options for snap %q: %w", sn.InstanceName, err)
 		}
 
-		snapst, ok := installedSnaps[t.InstanceName]
+		snapst, ok := installedSnaps[sn.InstanceName]
 		if ok && snapst.IsInstalled() {
-			if !t.SkipIfPresent {
-				return &snap.AlreadyInstalledError{Snap: t.InstanceName}
+			if !sn.SkipIfPresent {
+				return &snap.AlreadyInstalledError{Snap: sn.InstanceName}
 			}
 			continue
 		}
 
-		uninstalled = append(uninstalled, t)
+		// only provide a default the channel if the revision is not set, since
+		// we don't want to prevent the user from installing a specific revision
+		// that doesn't happen to exist in the "stable" risk
+		if sn.RevOpts.Channel == "" && sn.RevOpts.Revision.Unset() {
+			sn.RevOpts.Channel = "stable"
+		}
+
+		sn.RevOpts.resolveChannel(sn.InstanceName, "stable", opts.DeviceCtx)
+
+		uninstalled = append(uninstalled, sn)
 	}
 
 	s.snaps = uninstalled
@@ -1146,9 +1159,7 @@ func validateAndInitStoreUpdates(allSnaps map[string]*SnapState, updates map[str
 			sn.RevOpts.CohortKey = snapst.CohortKey
 		}
 
-		var err error
-		sn.RevOpts.Channel, err = resolveChannel(sn.InstanceName, snapst.TrackingChannel, sn.RevOpts.Channel, opts.DeviceCtx)
-		if err != nil {
+		if err := sn.RevOpts.resolveChannel(sn.InstanceName, snapst.TrackingChannel, opts.DeviceCtx); err != nil {
 			return err
 		}
 
