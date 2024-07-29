@@ -1,6 +1,7 @@
 package requestrules_test
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -26,6 +27,39 @@ var _ = Suite(&requestrulesSuite{})
 func (s *requestrulesSuite) SetUpTest(c *C) {
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
+}
+
+func (s *requestrulesSuite) TestJoinInternalErrors(c *C) {
+	ErrFoo := errors.New("foo")
+	ErrBar := errors.New("bar")
+	ErrBaz := errors.New("baz")
+
+	// Check that empty list or list of nil error(s) result in nil error.
+	for _, errs := range [][]error{
+		{},
+		{nil},
+		{nil, nil, nil},
+	} {
+		err := requestrules.JoinInternalErrors(errs)
+		c.Check(err, IsNil)
+	}
+
+	errs := []error{nil, ErrFoo, nil}
+	err := requestrules.JoinInternalErrors(errs)
+	c.Check(errors.Is(err, requestrules.ErrInternalInconsistency), Equals, true)
+	// XXX: check the following when we're on golang v1.20+
+	// c.Check(errors.Is(err, ErrFoo), Equals, true)
+	c.Check(errors.Is(err, ErrBar), Equals, false)
+	c.Check(fmt.Sprintf("%v", err), Equals, fmt.Sprintf("%v\n%v", requestrules.ErrInternalInconsistency, ErrFoo))
+
+	errs = append(errs, ErrBar, ErrBaz)
+	err = requestrules.JoinInternalErrors(errs)
+	c.Check(errors.Is(err, requestrules.ErrInternalInconsistency), Equals, true)
+	// XXX: check the following when we're on golang v1.20+
+	// c.Check(errors.Is(err, ErrFoo), Equals, true)
+	// c.Check(errors.Is(err, ErrBar), Equals, true)
+	// c.Check(errors.Is(err, ErrBaz), Equals, true)
+	c.Check(fmt.Sprintf("%v", err), Equals, fmt.Sprintf("%v\n%v\n%v\n%v", requestrules.ErrInternalInconsistency, ErrFoo, ErrBar, ErrBaz))
 }
 
 func (s *requestrulesSuite) TestPopulateNewRule(c *C) {
@@ -363,6 +397,122 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	c.Assert(currentRule, DeepEquals, patchedRule)
 }
 
+func (s *requestrulesSuite) TestRemoveRulesForSnap(c *C) {
+	var user uint32 = 1000
+	ruleNoticeIDs := make([]string, 0, 5)
+	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
+		c.Check(userID, Equals, user)
+		ruleNoticeIDs = append(ruleNoticeIDs, ruleID)
+		return nil
+	}
+	rdb, _ := requestrules.New(notifyRule)
+
+	snap := "lxd"
+	otherSnap := "nextcloud"
+	iface := "home"
+	pathPattern := "/home/test/Documents/**"
+	outcome := common.OutcomeAllow
+	lifespan := common.LifespanForever
+	duration := ""
+	permissions := []string{"read", "write", "execute"}
+	constraints := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: permissions[:1],
+	}
+	otherConstraints := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: permissions[1:],
+	}
+
+	rule1, err := rdb.AddRule(user, snap, iface, constraints, outcome, lifespan, duration)
+	c.Assert(err, IsNil)
+	c.Assert(rule1, NotNil)
+
+	rule2, err := rdb.AddRule(user, otherSnap, iface, constraints, outcome, lifespan, duration)
+	c.Assert(err, IsNil)
+	c.Assert(rule2, NotNil)
+
+	rule3, err := rdb.AddRule(user, snap, iface, otherConstraints, outcome, lifespan, duration)
+	c.Assert(err, IsNil)
+	c.Assert(rule3, NotNil)
+
+	c.Assert(ruleNoticeIDs, HasLen, 3, Commentf("ruleNoticeIDs: %v; rdb.ByID: %v", ruleNoticeIDs, rdb.ByID))
+	c.Check(ruleNoticeIDs[0], Equals, rule1.ID)
+	c.Check(ruleNoticeIDs[1], Equals, rule2.ID)
+	c.Check(ruleNoticeIDs[2], Equals, rule3.ID)
+	ruleNoticeIDs = ruleNoticeIDs[3:]
+
+	removed := rdb.RemoveRulesForSnap(user, snap)
+	c.Check(removed, HasLen, 2, Commentf("expected to remove 2 rules but instead removed: %+v", removed))
+	c.Check(removed[0] == rule1 || removed[0] == rule3, Equals, true, Commentf("unexpected rule: %+v", removed[0]))
+	c.Check(removed[1] == rule1 || removed[1] == rule3, Equals, true, Commentf("unexpected rule: %+v", removed[1]))
+	c.Check(removed[0] != removed[1], Equals, true, Commentf("removed duplicate rules: %+v", removed))
+
+	c.Assert(ruleNoticeIDs, HasLen, 2, Commentf("ruleNoticeIDs: %v; rdb.ByID: %v", ruleNoticeIDs, rdb.ByID))
+	c.Check(strutil.ListContains(ruleNoticeIDs, rule1.ID), Equals, true)
+	c.Check(strutil.ListContains(ruleNoticeIDs, rule3.ID), Equals, true)
+	ruleNoticeIDs = ruleNoticeIDs[2:]
+}
+
+func (s *requestrulesSuite) TestRemoveRulesForSnapInterface(c *C) {
+	var user uint32 = 1000
+	ruleNoticeIDs := make([]string, 0, 5)
+	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
+		c.Check(userID, Equals, user)
+		ruleNoticeIDs = append(ruleNoticeIDs, ruleID)
+		return nil
+	}
+	rdb, _ := requestrules.New(notifyRule)
+
+	snap := "lxd"
+	otherSnap := "nextcloud"
+	iface := "home"
+	otherIface := "camera"
+	pathPattern := "/home/test/Documents/**"
+	outcome := common.OutcomeAllow
+	lifespan := common.LifespanForever
+	duration := ""
+	permissions := []string{"read", "write", "execute"}
+	constraints := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: permissions[:1],
+	}
+	otherConstraints := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: permissions[1:],
+	}
+
+	rule1, err := rdb.AddRule(user, snap, iface, constraints, outcome, lifespan, duration)
+	c.Assert(err, IsNil)
+	c.Assert(rule1, NotNil)
+
+	rule2, err := rdb.AddRule(user, otherSnap, iface, constraints, outcome, lifespan, duration)
+	c.Assert(err, IsNil)
+	c.Assert(rule2, NotNil)
+
+	rule3, err := rdb.AddRule(user, snap, iface, otherConstraints, outcome, lifespan, duration)
+	c.Assert(err, IsNil)
+	c.Assert(rule3, NotNil)
+
+	// For now, impossible to add a rule for an interface other than "home", so
+	// must adjust it after it's been added.
+	rule3.Interface = otherIface
+
+	c.Assert(ruleNoticeIDs, HasLen, 3, Commentf("ruleNoticeIDs: %v; rdb.ByID: %v", ruleNoticeIDs, rdb.ByID))
+	c.Check(ruleNoticeIDs[0], Equals, rule1.ID)
+	c.Check(ruleNoticeIDs[1], Equals, rule2.ID)
+	c.Check(ruleNoticeIDs[2], Equals, rule3.ID)
+	ruleNoticeIDs = ruleNoticeIDs[3:]
+
+	removed := rdb.RemoveRulesForSnapInterface(user, snap, iface)
+	c.Check(removed, HasLen, 1, Commentf("expected to remove 2 rules but instead removed: %+v", removed))
+	c.Check(removed[0] == rule1, Equals, true, Commentf("unexpected rule: %+v", removed[0]))
+
+	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %v", ruleNoticeIDs, rdb.ByID))
+	c.Check(ruleNoticeIDs[0], Equals, rule1.ID)
+	ruleNoticeIDs = ruleNoticeIDs[1:]
+}
+
 func (s *requestrulesSuite) TestRuleWithID(c *C) {
 	var user uint32 = 1000
 	ruleNoticeIDs := make([]string, 0, 1)
@@ -405,7 +555,7 @@ func (s *requestrulesSuite) TestRuleWithID(c *C) {
 	c.Check(err, Equals, requestrules.ErrUserNotAllowed)
 	c.Check(accessedRule, IsNil)
 
-	// Reading (or failing to read) a notice should not trigger a notice
+	// Reading (or failing to read) a notice should not record a notice
 	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 }
 
@@ -903,11 +1053,18 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 
 	time.Sleep(time.Second)
 
+	// rule 3 should have expired, check that it's not included when getting rules
+	rules := rdb.Rules(user)
+	c.Check(rules, HasLen, 2, Commentf("rules: %+v", rules))
+	c.Check(rules[0] == rule1 || rules[0] == rule2, Equals, true, Commentf("unexpected rule: %+v", rules[0]))
+	c.Check(rules[1] == rule1 || rules[1] == rule2, Equals, true, Commentf("unexpected rule: %+v", rules[1]))
+	c.Check(rules[0] != rules[1], Equals, true, Commentf("Rules returned duplicate rules: %+v", rules))
+
 	allowed, err = rdb.IsPathAllowed(user, snap, iface, path1, "read")
 	c.Assert(err, IsNil)
 	c.Assert(allowed, Equals, false)
 
-	// rule3 should have expired and triggered a notice
+	// rule3 expiration should have recorded a notice
 	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 	c.Check(ruleNoticeIDs[0], Equals, rule3.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]

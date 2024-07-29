@@ -1,6 +1,7 @@
 package apparmorprompting
 
 import (
+	"errors"
 	"fmt"
 
 	"gopkg.in/tomb.v2"
@@ -15,6 +16,14 @@ import (
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 )
 
+var (
+	ErrPromptingNotEnabled = errors.New("AppArmor Prompting is not enabled")
+)
+
+// TODO: replace with the following in ifacemgr.go:
+//func (m *InterfaceManager) AppArmorPromptingRunning() bool {
+//	return m.useAppArmorPrompting()
+//}
 var PromptingEnabled = func() bool {
 	return features.AppArmorPrompting.IsEnabled() && notify.SupportAvailable()
 }
@@ -200,116 +209,118 @@ func (p *Prompting) Stop() error {
 	return p.tomb.Wait()
 }
 
+// GetPrompts returns all prompts for the user with the given user ID.
 func (p *Prompting) GetPrompts(userID uint32) ([]*requestprompts.Prompt, error) {
-	if !PromptingEnabled() {
-		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
-	}
-	prompts := p.prompts.Prompts(userID)
-	return prompts, nil
+	// TODO: when we switch from o/i/a/requestprompts to i/p/requestprompts,
+	// return error from Prompts() instead of nil
+	return p.prompts.Prompts(userID), nil
 }
 
-func (p *Prompting) GetPrompt(userID uint32, promptID string) (*requestprompts.Prompt, error) {
-	if !PromptingEnabled() {
-		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
-	}
-	prompt, err := p.prompts.PromptWithID(userID, promptID)
-	return prompt, err
+// GetPromptWithID returns the prompt with the given ID for the given user.
+func (p *Prompting) GetPromptWithID(userID uint32, promptID string) (*requestprompts.Prompt, error) {
+	return p.prompts.PromptWithID(userID, promptID)
 }
 
-type PromptReply struct {
-	Outcome     common.OutcomeType  `json:"action"`
-	Lifespan    common.LifespanType `json:"lifespan"`
-	Duration    string              `json:"duration,omitempty"`
-	Constraints *common.Constraints `json:"constraints"`
-}
-
-func (p *Prompting) PostPrompt(userID uint32, promptID string, reply *PromptReply) ([]string, error) {
-	if !PromptingEnabled() {
-		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
-	}
+// HandleReply checks that the given reply contents are valid, satisfies the
+// original request, and does not conflict with any existing rules (if lifespan
+// is not "single"). If all of these are true, sends a reply for the prompt with
+// the given ID, and both creates a new rule and checks any outstanding prompts
+// against it, if the lifespan is not "single".
+func (p *Prompting) HandleReply(userID uint32, promptID string, constraints *common.Constraints, outcome common.OutcomeType, lifespan common.LifespanType, duration string) (satisfiedPromptIDs []string, retErr error) {
 	prompt, err := p.prompts.PromptWithID(userID, promptID)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := common.ValidateConstraintsOutcomeLifespanDuration(prompt.Interface, reply.Constraints, reply.Outcome, reply.Lifespan, reply.Duration); err != nil {
+
+	// TODO: when we switch from o/i/a/common to i/prompting, no need to
+	// validate outcome and lifespan, as OutcomeType and LifespanType are both
+	// validated while unmarshalling, and duration is validated when the rule
+	// is being added. Path pattern (within constraints) is also validated, so
+	// the only manual validation required is permissions, which can be done
+	// via constraints.ValidateForInterface()
+	if _, err := common.ValidateConstraintsOutcomeLifespanDuration(prompt.Interface, constraints, outcome, lifespan, duration); err != nil {
 		return nil, err
 	}
 
-	// Check that reply.Constraints matches original requested path.
+	// Check that constraints matches original requested path.
 	// AppArmor is responsible for pre-vetting that all paths which appear
 	// in requests from the kernel are allowed by the appropriate
 	// interfaces, so we do not assert anything else particular about the
-	// reply.Constraints.
+	// constraints, such as check that the path pattern does not match
+	// any paths not granted by the interface.
 	// TODO: Should this be reconsidered?
-	matches, err := reply.Constraints.Match(prompt.Constraints.Path)
+	matches, err := constraints.Match(prompt.Constraints.Path)
 	if err != nil {
 		return nil, err
 	}
 	if !matches {
-		return nil, fmt.Errorf("constraints in reply do not match original request: '%v' does not match '%v'; please try again", reply.Constraints, prompt.Constraints)
+		return nil, fmt.Errorf("constraints in reply do not match original request: '%v' does not match '%v'; please try again", constraints, prompt.Constraints)
 	}
-	contained := reply.Constraints.ContainPermissions(prompt.Constraints.Permissions)
+
+	// TODO: once support for sending back bitmask of allowed permissions lands,
+	// do we want to allow only replying to a select subset of permissions, and
+	// auto-deny the rest?
+	contained := constraints.ContainPermissions(prompt.Constraints.Permissions)
 	if !contained {
-		return nil, fmt.Errorf("replied permissions do not include all requested permissions: requested %v, replied %v; please try again", prompt.Constraints.Permissions, reply.Constraints.Permissions)
+		return nil, fmt.Errorf("replied permissions do not include all requested permissions: requested %v, replied %v; please try again", prompt.Constraints.Permissions, constraints.Permissions)
 	}
 
-	prompt, err = p.prompts.Reply(userID, promptID, reply.Outcome)
-	if err != nil {
-		return nil, err
+	// TODO: a lock should be held while checking for conflicts with other rules
+	// so that if the rule is eventually removed due to an error, no prompts can
+	// have been matched against it in the meantime.
+	// A RWMutex over prompts and rules should work well, and could potentially
+	// replace the internal mutexes in those packages.
+	var newRule *requestrules.Rule
+	if lifespan != common.LifespanSingle {
+		// Check that adding the rule doesn't conflict with other rules
+		newRule, err = p.rules.AddRule(userID, prompt.Snap, prompt.Interface, constraints, outcome, lifespan, duration)
+		if err != nil {
+			// Rule conflicts with existing rule (at least one identical pattern
+			// variant and permission). This should be considered a bad reply,
+			// since the user should only be prompted for permissions and paths
+			// which are not already covered.
+
+			// TODO: there are scenarios where this could reasonably happen, so
+			// better to retry adding the new rule after removing any conflicts
+			// with existing rules. Likely, the new rule should replace the old.
+			// A new requestrules.ForceAddRule() might be the best way.
+
+			return nil, err
+		}
+
+		defer func() {
+			if retErr != nil || lifespan == common.LifespanSingle {
+				p.rules.RemoveRule(userID, newRule.ID)
+			}
+		}()
 	}
 
-	if reply.Lifespan == common.LifespanSingle {
+	prompt, retErr = p.prompts.Reply(userID, promptID, outcome)
+	if retErr != nil {
+		return nil, retErr
+	}
+
+	if lifespan == common.LifespanSingle {
 		return []string{}, nil
 	}
 
-	// Add new rule based on the reply.
-	newRule, err := p.rules.AddRule(userID, prompt.Snap, prompt.Interface, reply.Constraints, reply.Outcome, reply.Lifespan, reply.Duration)
-	if err != nil {
-		// XXX: should only occur if identical constraints to an existing rule
-		// with overlapping permissions
-		// TODO: extract conflicting permissions, retry AddRule with
-		// conflicting permissions removed
-		// TODO: what to do if new reply has different Outcome from previous
-		// conflicting rule? Modify old rule to remove conflicting permissions,
-		// then re-add new rule? This should probably be built into a version of
-		// AddRule (AddRuleFromReply ?)
-		return nil, err
-	}
-
 	// Apply new rule to outstanding prompts.
-	satisfiedPromptIDs, err := p.prompts.HandleNewRule(userID, newRule.Snap, newRule.Interface, newRule.Constraints, newRule.Outcome)
+	satisfiedPromptIDs, err = p.prompts.HandleNewRule(userID, newRule.Snap, newRule.Interface, newRule.Constraints, newRule.Outcome)
 	if err != nil {
-		return nil, err
+		// Should not occur, as outcome and constraints have already been
+		// validated. However, it's possible an error could occur if the prompt
+		// DB was already closed. This should be an internal error. However, we
+		// can't un-send the reply, and this should only be the case if the
+		// prompting system is shutting down, so don't actually return an error.
+		logger.Noticef("WARNING: error when handling new rule as a result of reply: %v", err)
 	}
 
 	return satisfiedPromptIDs, nil
 }
 
-type AddRuleContents struct {
-	Snap        string              `json:"snap"`
-	Interface   string              `json:"interface"`
-	Constraints *common.Constraints `json:"constraints"`
-	Outcome     common.OutcomeType  `json:"outcome"`
-	Lifespan    common.LifespanType `json:"lifespan"`
-	Duration    string              `json:"duration,omitempty"`
-}
-
-type RemoveRulesSelector struct {
-	Snap      string `json:"snap"`
-	Interface string `json:"interface,omitempty"`
-}
-
-type PatchRuleContents struct {
-	Constraints *common.Constraints `json:"constraints,omitempty"`
-	Outcome     common.OutcomeType  `json:"outcome,omitempty"`
-	Lifespan    common.LifespanType `json:"lifespan,omitempty"`
-	Duration    string              `json:"duration,omitempty"`
-}
-
+// GetRules returns all rules for the user with the given user ID and,
+// optionally, only those for the given snap and/or interface.
 func (p *Prompting) GetRules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error) {
-	if !PromptingEnabled() {
-		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
-	}
 	if snap != "" {
 		if iface != "" {
 			rules := p.rules.RulesForSnapInterface(userID, snap, iface)
@@ -326,75 +337,51 @@ func (p *Prompting) GetRules(userID uint32, snap string, iface string) ([]*reque
 	return rules, nil
 }
 
-func (p *Prompting) PostRulesAdd(userID uint32, ruleContents *AddRuleContents) (*requestrules.Rule, error) {
-	if !PromptingEnabled() {
-		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
-	}
-	snap := ruleContents.Snap
-	iface := ruleContents.Interface
-	constraints := ruleContents.Constraints
-	outcome := ruleContents.Outcome
-	lifespan := ruleContents.Lifespan
-	duration := ruleContents.Duration
+// AddRule creates a new rule with the given contents and then checks it against
+// outstanding prompts, resolving any prompts which it satisfies.
+func (p *Prompting) AddRule(userID uint32, snap string, iface string, constraints *common.Constraints, outcome common.OutcomeType, lifespan common.LifespanType, duration string) (*requestrules.Rule, error) {
 	newRule, err := p.rules.AddRule(userID, snap, iface, constraints, outcome, lifespan, duration)
 	if err != nil {
 		return nil, err
 	}
 	// Apply new rule to outstanding prompts.
 	if _, err = p.prompts.HandleNewRule(userID, newRule.Snap, newRule.Interface, newRule.Constraints, newRule.Outcome); err != nil {
-		return nil, err
+		// Should not occur, as outcome and constraints have already been
+		// validated. However, it's possible an error could occur if the prompt
+		// DB was already closed. This should be an internal error. However,
+		// this should only be the case if the prompting system is shutting
+		// down, so don't actually return an error.
+		logger.Noticef("WARNING: error when handling new rule as a result of reply: %v", err)
 	}
 	return newRule, nil
 }
 
-func (p *Prompting) PostRulesRemove(userID uint32, selector *RemoveRulesSelector) ([]*requestrules.Rule, error) {
-	if !PromptingEnabled() {
-		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
-	}
-	snap := selector.Snap
-	iface := selector.Interface
-	var rulesToRemove []*requestrules.Rule
+// RemoveRules removes all rules for the user with the given user ID and the
+// given snap and, optionally, only those for the given interface.
+func (p *Prompting) RemoveRules(userID uint32, snap string, iface string) []*requestrules.Rule {
+	var removedRules []*requestrules.Rule
 	// Already checked that snap != ""
 	if iface != "" {
-		rulesToRemove = p.rules.RulesForSnapInterface(userID, snap, iface)
+		removedRules = p.rules.RemoveRulesForSnapInterface(userID, snap, iface)
 	} else {
-		rulesToRemove = p.rules.RulesForSnap(userID, snap)
+		removedRules = p.rules.RemoveRulesForSnap(userID, snap)
 	}
-	removedRules := make([]*requestrules.Rule, 0, len(rulesToRemove))
-	for _, rule := range rulesToRemove {
-		removedRule, err := p.rules.RemoveRule(userID, rule.ID)
-		if err != nil {
-			continue
-		}
-		removedRules = append(removedRules, removedRule)
-	}
-	return removedRules, nil
+	return removedRules
 }
 
+// GetRule returns the rule with the given ID for the given user.
 func (p *Prompting) GetRule(userID uint32, ruleID string) (*requestrules.Rule, error) {
-	if !PromptingEnabled() {
-		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
-	}
 	rule, err := p.rules.RuleWithID(userID, ruleID)
 	return rule, err
 }
 
-func (p *Prompting) PostRulePatch(userID uint32, ruleID string, contents *PatchRuleContents) (*requestrules.Rule, error) {
-	if !PromptingEnabled() {
-		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
-	}
-	constraints := contents.Constraints
-	outcome := contents.Outcome
-	lifespan := contents.Lifespan
-	duration := contents.Duration
-	rule, err := p.rules.PatchRule(userID, ruleID, constraints, outcome, lifespan, duration)
-	return rule, err
+// PatchRule updates the rule with the given ID using the provided contents.
+// Any of the given fields which are empty/nil are not updated in the rule.
+func (p *Prompting) PatchRule(userID uint32, ruleID string, constraints *common.Constraints, outcome common.OutcomeType, lifespan common.LifespanType, duration string) (*requestrules.Rule, error) {
+	return p.rules.PatchRule(userID, ruleID, constraints, outcome, lifespan, duration)
 }
 
-func (p *Prompting) PostRuleRemove(userID uint32, ruleID string) (*requestrules.Rule, error) {
-	if !PromptingEnabled() {
-		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
-	}
+func (p *Prompting) RemoveRule(userID uint32, ruleID string) (*requestrules.Rule, error) {
 	rule, err := p.rules.RemoveRule(userID, ruleID)
 	return rule, err
 }

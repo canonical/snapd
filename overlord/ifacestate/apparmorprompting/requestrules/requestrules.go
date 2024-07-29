@@ -15,10 +15,13 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-var ErrRuleIDNotFound = errors.New("rule ID is not found")
-var ErrPathPatternConflict = errors.New("a rule with the same path pattern already exists in the tree")
-var ErrNoMatchingRule = errors.New("no rules match the given path")
-var ErrUserNotAllowed = errors.New("the given user is not allowed to request the rule with the given ID")
+var (
+	ErrInternalInconsistency = errors.New("internal error: prompting rules database left inconsistent")
+	ErrRuleIDNotFound        = errors.New("rule ID is not found")
+	ErrPathPatternConflict   = errors.New("a rule with conflicting path pattern and permission already exists in the rules database")
+	ErrNoMatchingRule        = errors.New("no rules match the given path")
+	ErrUserNotAllowed        = errors.New("the given user is not allowed to request the rule with the given ID")
+)
 
 type Rule struct {
 	ID               string              `json:"id"`
@@ -158,31 +161,25 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) (error
 // permission. If an expanded pattern is not found or maps to a different rule
 // ID than that of the given rule, continue to remove all other expanded paths
 // from the permission map (unless they map to a different rule ID), and return
-// an error.
-func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) (err error) {
+// a slice of all errors which occurred.
+func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) []error {
 	permPaths := rdb.permissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
+	var errs []error
 	for _, pathPattern := range rule.expandedPatterns {
 		id, exists := permPaths.PathRules[pathPattern]
 		if !exists {
 			// Database was left inconsistent, should not occur
-			err = appendError(err, fmt.Errorf(`expanded path pattern not found in the rule tree: %q`, pathPattern))
+			errs = append(errs, fmt.Errorf(`expanded path pattern not found in the rule tree: %q`, pathPattern))
 			continue
 		}
 		if id != rule.ID {
 			// Database was left inconsistent, should not occur
-			err = appendError(err, fmt.Errorf(`expanded path pattern maps to different rule ID: %q: %s`, pathPattern, id))
+			errs = append(errs, fmt.Errorf(`expanded path pattern maps to different rule ID: %q: %s`, pathPattern, id))
 			continue
 		}
 		delete(permPaths.PathRules, pathPattern)
 	}
-	return err
-}
-
-func appendError(prev, newest error) error {
-	if prev == nil {
-		return newest
-	}
-	return fmt.Errorf(`%v; %v`, prev, newest)
+	return errs
 }
 
 func (rdb *RuleDB) addRuleToTree(rule *Rule) (error, string, string) {
@@ -204,13 +201,44 @@ func (rdb *RuleDB) addRuleToTree(rule *Rule) (error, string, string) {
 
 func (rdb *RuleDB) removeRuleFromTree(rule *Rule) error {
 	// Fully removes the rule from the tree, even if an error occurs
-	var err error
+	var errs []error
 	for _, permission := range rule.Constraints.Permissions {
-		if e := rdb.removeRulePermissionFromTree(rule, permission); e != nil {
+		if es := rdb.removeRulePermissionFromTree(rule, permission); len(es) > 0 {
 			// Database was left inconsistent, should not occur.
-			// Store the error, but keep removing.
-			err = appendError(err, e)
+			// Store the errors, but keep removing.
+			errs = append(errs, es...)
 		}
+	}
+	return joinInternalErrors(errs)
+}
+
+func joinInternalErrors(errs []error) error {
+	joinedErr := errorsJoin(errs...)
+	if joinedErr == nil {
+		return nil
+	}
+	// TODO: wrap joinedErr as well once we're on golang v1.20+
+	return fmt.Errorf("%w\n%v", ErrInternalInconsistency, joinedErr)
+}
+
+// errorsJoin returns an error that wraps the given errors.
+// Any nil error values are discarded.
+// errorsJoin returns nil if every value in errs is nil.
+//
+// TODO: replace with errors.Join() once we're on golang v1.20+
+func errorsJoin(errs ...error) error {
+	var nonNilErrs []error
+	for _, e := range errs {
+		if e != nil {
+			nonNilErrs = append(nonNilErrs, e)
+		}
+	}
+	if len(nonNilErrs) == 0 {
+		return nil
+	}
+	err := nonNilErrs[0]
+	for _, e := range nonNilErrs[1:] {
+		err = fmt.Errorf("%w\n%v", err, e)
 	}
 	return err
 }
@@ -396,7 +424,7 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 		matchingRule, exists := rdb.ByID[id]
 		if !exists {
 			// Database was left inconsistent, should not occur
-			delete(pathMap, id)
+			delete(pathMap, pathPattern)
 			// Issue a notice for the offending rule, just in case
 			rdb.notifyRule(user, id, nil)
 			continue
@@ -477,7 +505,7 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 		return nil, err
 	}
 	if err, conflictingID, conflictingPermission := rdb.addRuleToTree(newRule); err != nil {
-		return nil, fmt.Errorf("%s: ID: '%s', Permission: '%s'", err, conflictingID, conflictingPermission)
+		return nil, fmt.Errorf("%w: ID: '%s', Permission: '%s'", err, conflictingID, conflictingPermission)
 	}
 	rdb.ByID[newRule.ID] = newRule
 	rdb.save()
@@ -485,7 +513,7 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 	return newRule, nil
 }
 
-// Removes the rule with the given ID from the rules database. If the rule
+// RemoveRule the rule with the given ID from the rules database. If the rule
 // does not apply to the given user, returns ErrUserNotAllowed. If successful,
 // saves the database to disk.
 func (rdb *RuleDB) RemoveRule(user uint32, id string) (*Rule, error) {
@@ -501,6 +529,42 @@ func (rdb *RuleDB) RemoveRule(user uint32, id string) (*Rule, error) {
 	rdb.save()
 	rdb.notifyRule(user, id, nil)
 	return rule, err
+}
+
+// RemoveRulesForSnap removes all rules pertaining to the given snap for the
+// user with the given user ID.
+func (rdb *RuleDB) RemoveRulesForSnap(user uint32, snap string) []*Rule {
+	rdb.mutex.Lock()
+	defer rdb.mutex.Unlock()
+	ruleFilter := func(rule *Rule) bool {
+		return rule.User == user && rule.Snap == snap
+	}
+	rules := rdb.rulesInternal(ruleFilter)
+	rdb.removeRulesInternal(user, rules)
+	return rules
+}
+
+func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) {
+	for _, rule := range rules {
+		rdb.removeRuleFromTree(rule)
+		// If error occurs, rule was still fully removed from tree
+		delete(rdb.ByID, rule.ID)
+		rdb.notifyRule(user, rule.ID, nil)
+	}
+	rdb.save()
+}
+
+// RemoveRulesForSnapInterface removes all rules pertaining to the given snap
+// and interface for the user with the given user ID.
+func (rdb *RuleDB) RemoveRulesForSnapInterface(user uint32, snap string, iface string) []*Rule {
+	rdb.mutex.Lock()
+	defer rdb.mutex.Unlock()
+	ruleFilter := func(rule *Rule) bool {
+		return rule.User == user && rule.Snap == snap && rule.Interface == iface
+	}
+	rules := rdb.rulesInternal(ruleFilter)
+	rdb.removeRulesInternal(user, rules)
+	return rules
 }
 
 // Patches the rule with the given ID. The rule is modified by constructing a
@@ -542,7 +606,7 @@ func (rdb *RuleDB) PatchRule(user uint32, id string, constraints *common.Constra
 	}
 	newRule, err := rdb.PopulateNewRule(user, origRule.Snap, origRule.Interface, constraints, outcome, lifespan, duration)
 	if err != nil {
-		rdb.addRuleToTree(origRule) // ignore any new error
+		rdb.addRuleToTree(origRule) // ignore any new error, should not occur
 		// origRule was successfully removed before, so it should now be able
 		// to be successfully re-added without error, and all is unchanged.
 		changeOccurred = false
@@ -555,7 +619,7 @@ func (rdb *RuleDB) PatchRule(user uint32, id string, constraints *common.Constra
 		// origRule was successfully removed before, so it should now be able
 		// to be successfully re-added without error, and all is unchanged.
 		changeOccurred = false
-		return nil, fmt.Errorf("%s: ID: '%s', Permission: '%s'", err, conflictingID, conflictingPermission)
+		return nil, fmt.Errorf("%w: ID: '%s', Permission: '%s'", err, conflictingID, conflictingPermission)
 	}
 	rdb.ByID[newRule.ID] = newRule
 	changeOccurred = true
