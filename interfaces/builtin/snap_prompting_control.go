@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2023 Canonical Ltd
+ * Copyright (C) 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,25 +19,15 @@
 
 package builtin
 
-const snapPromptingSummary = `allows use of snapd's prompting API`
+const snapPromptingControlSummary = `allows use of snapd's prompting API and access to prompting-related notice types`
 
-// XXX: TODO: Reset snapPromptingBaseDeclarationPlugs to the following:
-/*
-const snapPromptingBaseDeclarationPlugs = `
+const snapPromptingControlBaseDeclarationPlugs = `
   snap-prompting-control:
     allow-installation: false
     deny-auto-connection: true
 `
-*/
-const snapPromptingBaseDeclarationPlugs = `
-  snap-prompting-control:
-    allow-installation:
-      plug-snap-id:
-        - IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu
-    allow-auto-connection: true
-`
 
-const snapPromptingBaseDeclarationSlots = `
+const snapPromptingControlBaseDeclarationSlots = `
   snap-prompting-control:
     allow-installation:
       slot-snap-type:
@@ -48,10 +38,10 @@ const snapPromptingBaseDeclarationSlots = `
 func init() {
 	registerIface(&commonInterface{
 		name:                 "snap-prompting-control",
-		summary:              snapPromptingSummary,
+		summary:              snapPromptingControlSummary,
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
-		baseDeclarationPlugs: snapPromptingBaseDeclarationPlugs,
-		baseDeclarationSlots: snapPromptingBaseDeclarationSlots,
+		baseDeclarationPlugs: snapPromptingControlBaseDeclarationPlugs,
+		baseDeclarationSlots: snapPromptingControlBaseDeclarationSlots,
 	})
 }

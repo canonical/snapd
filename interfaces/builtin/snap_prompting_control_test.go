@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2023 Canonical Ltd
+ * Copyright (C) 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type SnapPromptingInterfaceSuite struct {
+type SnapPromptingControlInterfaceSuite struct {
 	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
@@ -37,11 +37,11 @@ type SnapPromptingInterfaceSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&SnapPromptingInterfaceSuite{
+var _ = Suite(&SnapPromptingControlInterfaceSuite{
 	iface: builtin.MustInterface("snap-prompting-control"),
 })
 
-func (s *SnapPromptingInterfaceSuite) SetUpTest(c *C) {
+func (s *SnapPromptingControlInterfaceSuite) SetUpTest(c *C) {
 	const coreSlotYaml = `
 name: core
 type: os
@@ -55,26 +55,26 @@ slots:
 name: other
 version: 0
 apps:
- app:
+  app:
     command: foo
     plugs: [snap-prompting-control]
 `
 	s.plug, s.plugInfo = MockConnectedPlug(c, appPlugYaml, nil, "snap-prompting-control")
 }
 
-func (s *SnapPromptingInterfaceSuite) TestName(c *C) {
+func (s *SnapPromptingControlInterfaceSuite) TestName(c *C) {
 	c.Check(s.iface.Name(), Equals, "snap-prompting-control")
 }
 
-func (s *SnapPromptingInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *SnapPromptingControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
-func (s *SnapPromptingInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *SnapPromptingControlInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Check(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *SnapPromptingInterfaceSuite) TestAppArmor(c *C) {
+func (s *SnapPromptingControlInterfaceSuite) TestAppArmor(c *C) {
 	// The interface generates no AppArmor rules
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
@@ -101,6 +101,6 @@ func (s *SnapPromptingInterfaceSuite) TestAppArmor(c *C) {
 	c.Check(spec.SecurityTags(), HasLen, 0)
 }
 
-func (s *SnapPromptingInterfaceSuite) TestInterfaces(c *C) {
+func (s *SnapPromptingControlInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

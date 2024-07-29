@@ -174,7 +174,6 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"optical-drive":           true,
 		"ros-opt-data":            true,
 		"screen-inhibit-control":  true,
-		"snap-prompting-control":  true, // XXX: TODO: remove this once snap-declaration updated for snapd-desktop-integration
 		"ubuntu-download-manager": true,
 		"unity7":                  true,
 		"unity8":                  true,
