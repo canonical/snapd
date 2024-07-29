@@ -1,18 +1,26 @@
-summary: verify kernel modules components work as expected
+summary: Verify kernel modules components work as expected
 details: |
   Install a kernel-modules component and verify that the shipped
   kernel module is installed.
 
-systems: [ubuntu-24.04-64]
+systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
 environment:
+  # Test both encrypted and unencrypted cases
+  NESTED_ENABLE_TPM/encrypted: true
+  NESTED_ENABLE_SECURE_BOOT/encrypted: true
+
+  # unencrypted case
+  NESTED_ENABLE_TPM/plain: false
+  NESTED_ENABLE_SECURE_BOOT/plain: false
+
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
   NESTED_REPACK_KERNEL_SNAP: false
-  # TODO No FDE test for the moment (we would need to sign the built kernel)
-  NESTED_ENABLE_SECURE_BOOT: false
-  NESTED_ENABLE_TPM: false
+  NESTED_ENABLE_OVMF: true
 
 prepare: |
   # Modify kernel and create a component
-  snap download --channel=24 pc-kernel
+  VERSION="$(tests.nested show version)"
+  snap download --channel="$VERSION"/beta pc-kernel
   unsquashfs -d kernel pc-kernel_*.snap
   kern_ver=$(find kernel/modules/* -maxdepth 0 -printf "%f\n")
   comp_ko_dir=wifi-comp/modules/"$kern_ver"/wireless/
@@ -62,7 +70,13 @@ execute: |
   comp_dir=/snap/pc-kernel/components/mnt/wifi-comp/x1/modules/"$kern_ver"
   test "$(remote.exec readlink -f "$comp_install_dir")" = "$comp_dir"
 
-  # TODO check that module can be loaded
-  # This can be done uncommented changes in initramfs are in the kernel snap
-  # remote.exec modprobe mac80211_hwsim
+  # check that module can be loaded/unloaded
+  remote.exec sudo modprobe mac80211_hwsim
+  remote.exec ip link show wlan0
+  remote.exec sudo rmmod mac80211_hwsim
+  not remote.exec ip link show wlan0
 
+  # remove the component
+  remote.exec sudo snap remove pc-kernel+wifi-comp
+  not remote.exec grep mac80211_hwsim /lib/modules/*/modules.dep
+  not remote.exec sudo modprobe mac80211_hwsim
