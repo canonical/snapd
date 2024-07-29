@@ -3293,10 +3293,12 @@ func (m *SnapManager) doKillSnapApps(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 
-	pb := NewTaskProgressAdapterUnlocked(t)
-
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
+
+	st.Unlock()
+	defer st.Lock()
+	pb := NewTaskProgressAdapterUnlocked(t)
 
 	if err := m.backend.KillSnapApps(snapName, reason, pb, perfTimings); err != nil {
 		return err
