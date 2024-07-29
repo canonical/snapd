@@ -109,3 +109,7 @@ func MockRestartRequest(f func(st *state.State, t restart.RestartType, rebootInf
 	restartRequest = f
 	return r
 }
+
+func MockSupportedConfigurations(mock map[string]bool) func() {
+	return testutil.Mock(&supportedConfigurations, mock)
+}

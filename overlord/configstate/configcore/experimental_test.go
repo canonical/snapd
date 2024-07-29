@@ -107,20 +107,23 @@ func (s *experimentalSuite) TestCleanExperimentalFlags(c *C) {
 	hookMgr, err := hookstate.Manager(s.state, o.TaskRunner())
 	c.Assert(err, IsNil)
 
+	restore := configcore.MockSupportedConfigurations(map[string]bool{"core.experimental.existing-flag": true})
+	defer restore()
+
 	s.state.Lock()
 	t := config.NewTransaction(s.state)
 	// Mock an old feature that got out of experimental but still has the config set
 	c.Assert(t.Set("core", "experimental.old-stale-flag", true), IsNil)
-	// Example of an existing experimental flag
-	c.Assert(t.Set("core", "experimental.parallel-instances", true), IsNil)
+	// Mock an existing experimental flag
+	c.Assert(t.Set("core", "experimental.existing-flag", true), IsNil)
 	t.Commit()
 	s.state.Unlock()
 
 	experimentalFlags := make(map[string]bool, 1)
 	c.Assert(t.Get("core", "experimental", &experimentalFlags), IsNil)
 	c.Check(experimentalFlags, DeepEquals, map[string]bool{
-		"old-stale-flag":     true,
-		"parallel-instances": true,
+		"old-stale-flag": true,
+		"existing-flag":  true,
 	})
 
 	err = configstate.Init(s.state, hookMgr)
@@ -133,6 +136,6 @@ func (s *experimentalSuite) TestCleanExperimentalFlags(c *C) {
 	experimentalFlags = nil
 	c.Assert(t.Get("core", "experimental", &experimentalFlags), IsNil)
 	c.Check(experimentalFlags, DeepEquals, map[string]bool{
-		"parallel-instances": true,
+		"existing-flag": true,
 	})
 }
