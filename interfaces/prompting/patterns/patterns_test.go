@@ -879,6 +879,14 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 			"/foo",
 		},
 		{
+			"/foo",
+			[]string{
+				"/f?o",
+				"/fo?",
+			},
+			"/fo?",
+		},
+		{
 			"/foo/bar/baz",
 			[]string{
 				"/foo/bar/baz",

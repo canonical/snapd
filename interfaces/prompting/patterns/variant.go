@@ -184,8 +184,10 @@ func ParsePatternVariant(variant string) (PatternVariant, error) {
 
 	// reducePrevDoublestar checks if the most recent component was a
 	// doublestar, and if it was, replaces it with a globstar '*'.
+	// This is necessary because a doublestar followed by anything except a
+	// separator is treated as a globstar '*' instead.
 	reducePrevDoublestar := func() {
-		if components[len(components)-1].compType == compSeparatorDoublestar {
+		if prevComponentsAre([]componentType{compSeparatorDoublestar}) {
 			// SeparatorDoublestar followed by anything except separator should
 			// replaced by a separator '/' and globstar '*'.
 			components[len(components)-1] = component{compType: compSeparator}
