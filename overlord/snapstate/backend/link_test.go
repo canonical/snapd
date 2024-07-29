@@ -1136,7 +1136,7 @@ func (s *linkSuite) TestKillSnapApps(c *C) {
 	restore := mockUserSessionAgent(handler, c)
 	defer restore()
 
-	err := s.be.KillSnapApps("foo", snap.KillReasonRemove, nil)
+	err := s.be.KillSnapApps("foo", snap.KillReasonRemove, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	// called for two users 1000 and 42
@@ -1166,7 +1166,7 @@ func (s *linkSuite) TestKillSnapAppsFailure(c *C) {
 	restore := mockUserSessionAgent(handler, c)
 	defer restore()
 
-	err := s.be.KillSnapApps("foo", snap.KillReasonRemove, progress.Null)
+	err := s.be.KillSnapApps("foo", snap.KillReasonRemove, progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed to kill running apps")
 
 	// called for two users 1000 and 42

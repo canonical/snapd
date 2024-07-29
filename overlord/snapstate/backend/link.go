@@ -411,15 +411,21 @@ func (b Backend) UnlinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revis
 	return nil
 }
 
-func (b Backend) KillSnapApps(snapName string, reason snap.AppKillReason, meter progress.Meter) error {
+func (b Backend) KillSnapApps(snapName string, reason snap.AppKillReason, meter progress.Meter, tm timings.Measurer) error {
 	cli := client.New()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
 
-	failures, err := cli.AppsKill(ctx, []string{snapName}, syscall.SIGKILL, reason)
+	var err error
+	var failures []client.AppFailure
+	timings.Run(tm, "kill-snap-apps", fmt.Sprintf("kill running apps for snap %s", snapName), func(timings.Measurer) {
+		failures, err = cli.AppsKill(ctx, []string{snapName}, syscall.SIGKILL, reason)
+	})
+
 	for _, f := range failures {
 		meter.Notify(fmt.Sprintf("Could not kill transient unit %q for uid %d: %s", f.Unit, f.Uid, f.Error))
 	}
+
 	return err
 }
