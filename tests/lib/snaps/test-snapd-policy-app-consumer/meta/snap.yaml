@@ -71,9 +71,6 @@ apps:
   gconf:
     command: bin/run
     plugs: [ gconf ]
-  gpio-control:
-    command: bin/run
-    plugs: [ gpio-control ]
   greengrass-support:
     command: bin/run
     plugs: [ greengrass-support ]
