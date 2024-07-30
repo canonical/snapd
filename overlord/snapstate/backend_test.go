@@ -535,6 +535,14 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 				Type: snap.KernelModulesComponent,
 				Name: "kernel-modules-component",
 			},
+			"test-component-extra": {
+				Type: snap.TestComponent,
+				Name: "test-component-extra",
+			},
+			"test-component-present-in-sequence": {
+				Type: snap.TestComponent,
+				Name: "test-component-present-in-sequence",
+			},
 		}
 	}
 	if name == "some-snap-now-classic" {
