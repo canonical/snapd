@@ -1016,6 +1016,19 @@ func (f *fakeSnappyBackend) SetupKernelModulesComponents(compsToInstall, current
 	return nil
 }
 
+func (f *fakeSnappyBackend) SetupKernelModulesComponentsMany(currentComps, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) error {
+	meter.Notify("prepare-kernel-modules-components-many")
+	f.appendOp(&fakeOp{
+		op:           "prepare-kernel-modules-components-many",
+		currentComps: currentComps,
+		finalComps:   finalComps,
+	})
+	if strings.HasSuffix(ksnapName, "+broken") {
+		return fmt.Errorf("cannot set-up kernel-modules for %s", ksnapName)
+	}
+	return nil
+}
+
 func (f *fakeSnappyBackend) RemoveKernelModulesComponentsSetup(compsToRemove, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error) {
 	meter.Notify("remove-kernel-modules-components-setup")
 	f.appendOp(&fakeOp{

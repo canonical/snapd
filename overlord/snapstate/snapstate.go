@@ -588,6 +588,14 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		addTask(t)
 	}
 
+	// check if either the snap currently has kernel module components or any of
+	// the new components are kernel module components
+	if requiresKmodSetup(snapst, compsups) {
+		setupKmodComponents := st.NewTask("prepare-kernel-modules-components-many", fmt.Sprintf(i18n.G("Prepare kernel-modules components for %q%s"), snapsup.InstanceName(), revisionStr))
+		setupKmodComponents.Set("current-kernel-modules-components", snapst.Sequence.ComponentsWithTypeForRev(snapst.Current, snap.KernelModulesComponent))
+		addTask(setupKmodComponents)
+	}
+
 	if snapsup.QuotaGroupName != "" {
 		quotaAddSnapTask, err := AddSnapToQuotaGroup(st, snapsup.InstanceName(), snapsup.QuotaGroupName)
 		if err != nil {
@@ -719,6 +727,20 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	installSet.MarkEdge(healthCheck, EndEdge)
 
 	return installSet, nil
+}
+
+func requiresKmodSetup(snapst *SnapState, compsups []ComponentSetup) bool {
+	current := snapst.Sequence.ComponentsWithTypeForRev(snapst.Current, snap.KernelModulesComponent)
+	if len(current) > 0 {
+		return true
+	}
+
+	for _, compsup := range compsups {
+		if compsup.CompType == snap.KernelModulesComponent {
+			return true
+		}
+	}
+	return false
 }
 
 func splitComponentTasksForInstall(

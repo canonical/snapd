@@ -116,8 +116,9 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 
 				// since target is always used to setup components and snaps at
 				// the same time, individual components should not be create
-				// setup-profiles tasks.
-				SkipProfiles: true,
+				// setup-profiles and kernel-modules tasks.
+				SkipProfiles:           true,
+				SkipKernelModulesSetup: true,
 			},
 		})
 	}

@@ -315,6 +315,12 @@ func (b Backend) SetupKernelModulesComponents(compsToInstall, currentComps []*sn
 		"after failure to set-up kernel modules components")
 }
 
+func (b Backend) SetupKernelModulesComponentsMany(currentComps, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error) {
+	return moveKModsComponentsState(
+		currentComps, finalComps, ksnapName, ksnapRev,
+		"after failure to set-up kernel modules components")
+}
+
 // RemoveKernelModulesComponentsSetup changes kernel-modules configuration by
 // removing compsToRemove and making the final state consider only finalComps.
 func (b Backend) RemoveKernelModulesComponentsSetup(compsToRemove, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error) {

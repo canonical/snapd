@@ -110,7 +110,7 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 
 	var tasksBeforeCurrentUnlink, tasksAfterLinkSnap, tasksAfterPostOpHook []string
 	for range components {
-		compOpts := compOptSkipSecurity
+		compOpts := compOptSkipSecurity | compOptSkipKernelModulesSetup
 		if opts&localSnap != 0 {
 			compOpts |= compOptIsLocal
 		}
@@ -6276,20 +6276,10 @@ func (s *snapmgrTestSuite) TestInstallInstanceManyComponentsUndoRunThrough(c *C)
 	s.testInstallComponentsRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo)
 }
 
-func undoOps(instanceName string, snapRevision, prevRev snap.Revision, components []string) []fakeOp {
+func undoOps(instanceName string, snapRevision, prevRev snap.Revision, newComponents, prevComponents []string) []fakeOp {
 	snapName, _ := snap.SplitInstanceName(instanceName)
 
-	snapMount := filepath.Join(dirs.SnapMountDir, filepath.Join(instanceName, snapRevision.String()))
-	ops := []fakeOp{{
-		op: "update-aliases",
-	}, {
-		op:    "auto-connect:Undoing",
-		name:  instanceName,
-		revno: snapRevision,
-	}}
-
 	forRefresh := !prevRev.Unset()
-
 	compRev := func(i int) snap.Revision {
 		if forRefresh {
 			return snap.R(i + 2)
@@ -6297,10 +6287,52 @@ func undoOps(instanceName string, snapRevision, prevRev snap.Revision, component
 		return snap.R(i + 1)
 	}
 
-	for i := len(components) - 1; i >= 0; i-- {
+	var ops fakeOps
+
+	installedKmods := make([]*snap.ComponentSideInfo, 0, len(newComponents))
+	for i, compName := range newComponents {
+		csi := snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, compName),
+			Revision:  compRev(i),
+		}
+		if strings.HasPrefix(newComponents[i], string(snap.KernelModulesComponent)) {
+			installedKmods = append(installedKmods, &csi)
+		}
+	}
+
+	prevInstalledKmods := make([]*snap.ComponentSideInfo, 0, len(prevComponents))
+	for i, compName := range prevComponents {
+		csi := snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, compName),
+			Revision:  snap.R(i + 1),
+		}
+
+		if strings.HasPrefix(prevComponents[i], string(snap.KernelModulesComponent)) {
+			prevInstalledKmods = append(prevInstalledKmods, &csi)
+		}
+	}
+
+	if len(installedKmods) > 0 || len(prevInstalledKmods) > 0 {
+		ops = append(ops, fakeOp{
+			op:           "prepare-kernel-modules-components-many",
+			currentComps: installedKmods,
+			finalComps:   prevInstalledKmods,
+		})
+	}
+
+	snapMount := filepath.Join(dirs.SnapMountDir, filepath.Join(instanceName, snapRevision.String()))
+	ops = append(ops, []fakeOp{{
+		op: "update-aliases",
+	}, {
+		op:    "auto-connect:Undoing",
+		name:  instanceName,
+		revno: snapRevision,
+	}}...)
+
+	for i := len(newComponents) - 1; i >= 0; i-- {
 		ops = append(ops, fakeOp{
 			op:   "unlink-component",
-			path: snap.ComponentMountDir(components[i], compRev(i), instanceName),
+			path: snap.ComponentMountDir(newComponents[i], compRev(i), instanceName),
 		})
 	}
 
@@ -6349,22 +6381,14 @@ func undoOps(instanceName string, snapRevision, prevRev snap.Revision, component
 		})
 	}
 
-	for i := len(components) - 1; i >= 0; i-- {
+	for i := len(newComponents) - 1; i >= 0; i-- {
 		csi := &snap.ComponentSideInfo{
-			Component: naming.NewComponentRef(snapName, components[i]),
+			Component: naming.NewComponentRef(snapName, newComponents[i]),
 			Revision:  compRev(i),
 		}
 
-		containerName := fmt.Sprintf("%s+%s", instanceName, components[i])
+		containerName := fmt.Sprintf("%s+%s", instanceName, newComponents[i])
 		filename := fmt.Sprintf("%s_%v.comp", containerName, csi.Revision)
-
-		if strings.HasPrefix(components[i], string(snap.KernelModulesComponent)) {
-			ops = append(ops, fakeOp{
-				op:            "remove-kernel-modules-components-setup",
-				compsToRemove: []*snap.ComponentSideInfo{csi},
-				finalComps:    []*snap.ComponentSideInfo{},
-			})
-		}
 
 		ops = append(ops, []fakeOp{{
 			op:                "undo-setup-component",
@@ -6573,17 +6597,6 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, insta
 			containerName:     containerName,
 			containerFileName: filename,
 		}}...)
-
-		if strings.HasPrefix(compName, string(snap.KernelModulesComponent)) {
-			expected = append(expected, fakeOp{
-				op:           "setup-kernel-modules-components",
-				currentComps: nil,
-				compsToInstall: []*snap.ComponentSideInfo{{
-					Component: naming.NewComponentRef(snapName, compName),
-					Revision:  snap.R(i + 1),
-				}},
-			})
-		}
 	}
 
 	expected = append(expected, []fakeOp{{
@@ -6627,8 +6640,27 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, insta
 		op: "update-aliases",
 	}}...)
 
+	kmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
+	for i, compName := range components {
+		csi := snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, compName),
+			Revision:  snap.R(i + 1),
+		}
+		if strings.HasPrefix(components[i], string(snap.KernelModulesComponent)) {
+			kmodComps = append(kmodComps, &csi)
+		}
+	}
+
+	if len(kmodComps) > 0 {
+		expected = append(expected, fakeOp{
+			op:           "prepare-kernel-modules-components-many",
+			currentComps: []*snap.ComponentSideInfo{},
+			finalComps:   kmodComps,
+		})
+	}
+
 	if undo {
-		expected = append(expected, undoOps(instanceName, snapRevision, snap.Revision{}, components)...)
+		expected = append(expected, undoOps(instanceName, snapRevision, snap.Revision{}, components, nil)...)
 	} else {
 		expected = append(expected, fakeOp{
 			op:    "cleanup-trash",
@@ -6860,17 +6892,6 @@ components:
 			containerName:     containerName,
 			containerFileName: filename,
 		})
-
-		if strings.HasPrefix(compName, string(snap.KernelModulesComponent)) {
-			expected = append(expected, fakeOp{
-				op:           "setup-kernel-modules-components",
-				currentComps: nil,
-				compsToInstall: []*snap.ComponentSideInfo{{
-					Component: naming.NewComponentRef(snapName, compName),
-					Revision:  snap.R(i + 1),
-				}},
-			})
-		}
 	}
 
 	expected = append(expected, []fakeOp{{
@@ -6907,8 +6928,26 @@ components:
 		op: "update-aliases",
 	}}...)
 
+	kmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
+	for i, compName := range compNames {
+		if strings.HasPrefix(compName, string(snap.KernelModulesComponent)) {
+			kmodComps = append(kmodComps, &snap.ComponentSideInfo{
+				Component: naming.NewComponentRef(snapName, compName),
+				Revision:  snap.R(i + 1),
+			})
+		}
+	}
+
+	if len(kmodComps) > 0 {
+		expected = append(expected, fakeOp{
+			op:           "prepare-kernel-modules-components-many",
+			currentComps: []*snap.ComponentSideInfo{},
+			finalComps:   kmodComps,
+		})
+	}
+
 	if undo {
-		expected = append(expected, undoOps(instanceName, snapRevision, snap.Revision{}, compNames)...)
+		expected = append(expected, undoOps(instanceName, snapRevision, snap.Revision{}, compNames, nil)...)
 	} else {
 		expected = append(expected, fakeOp{
 			op:    "cleanup-trash",

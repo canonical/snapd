@@ -647,6 +647,78 @@ func (m *SnapManager) relinkComponent(t *state.Task, snapSt *SnapState, instance
 	return nil
 }
 
+func (m *SnapManager) doSetupKernelModulesMany(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var current []*snap.ComponentSideInfo
+	if err := t.Get("current-kernel-modules-components", &current); err != nil {
+		return err
+	}
+
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	// this task should only run after link-snap, so we we should use the
+	// current snap revision
+	newComps := snapst.Sequence.ComponentsWithTypeForRev(snapst.Current, snap.KernelModulesComponent)
+
+	// Set-up the new kernel modules component - called with unlocked state
+	// as it can take a couple of seconds.
+	st.Unlock()
+	pm := NewTaskProgressAdapterUnlocked(t)
+	err = m.backend.SetupKernelModulesComponentsMany(
+		current, newComps, snapsup.InstanceName(), snapsup.Revision(), pm,
+	)
+	st.Lock()
+	if err != nil {
+		return err
+	}
+
+	// Make sure we won't be rerun
+	t.SetStatus(state.DoneStatus)
+	return nil
+}
+
+func (m *SnapManager) undoSetupKernelModulesMany(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var previousComps []*snap.ComponentSideInfo
+	if err := t.Get("current-kernel-modules-components", &previousComps); err != nil {
+		return err
+	}
+
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	// this task should only run after link-snap, so we we should use the
+	// current snap revision
+	justSetupComps := snapst.Sequence.ComponentsWithTypeForRev(snapst.Current, snap.KernelModulesComponent)
+
+	// Set-up the new kernel modules component - called with unlocked state
+	// as it can take a couple of seconds.
+	st.Unlock()
+	pm := NewTaskProgressAdapterUnlocked(t)
+	err = m.backend.SetupKernelModulesComponentsMany(
+		justSetupComps, previousComps, snapsup.InstanceName(), snapsup.Revision(), pm,
+	)
+	st.Lock()
+	if err != nil {
+		return err
+	}
+
+	// Make sure we won't be rerun
+	t.SetStatus(state.UndoneStatus)
+	return nil
+}
+
 func (m *SnapManager) doSetupKernelModules(t *state.Task, finalStatus state.Status) error {
 	// invariant: component not linked yet
 	st := t.State()

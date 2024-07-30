@@ -831,6 +831,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 		return m.doRemoveKernelModulesSetup(t, state.DoneStatus)
 	}
 	runner.AddHandler("prepare-kernel-modules-components", setupKModsInDo, removeKModsInUndo)
+	runner.AddHandler("prepare-kernel-modules-components-many", m.doSetupKernelModulesMany, m.undoSetupKernelModulesMany)
 	runner.AddHandler("clear-kernel-modules-components", removeKModsInDo, setupKModsInUndo)
 
 	// control serialisation

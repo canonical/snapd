@@ -77,6 +77,7 @@ type managerBackend interface {
 	SetupKernelSnap(instanceName string, rev snap.Revision, meter progress.Meter) (err error)
 	SetupComponent(compFilePath string, compPi snap.ContainerPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *backend.InstallRecord, err error)
 	SetupKernelModulesComponents(compsToInstall, currentComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error)
+	SetupKernelModulesComponentsMany(currentComps, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error)
 	CopySnapData(newSnap, oldSnap *snap.Info, opts *dirs.SnapDirOptions, meter progress.Meter) error
 	SetupSnapSaveData(info *snap.Info, dev snap.Device, meter progress.Meter) error
 	LinkSnap(info *snap.Info, dev snap.Device, linkCtx backend.LinkContext, tm timings.Measurer) (rebootInfo boot.RebootInfo, err error)

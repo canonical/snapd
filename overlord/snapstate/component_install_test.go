@@ -49,6 +49,8 @@ const (
 	compOptSkipSecurity
 	// Component is being installed with a snap that is being refreshed
 	compOptDuringSnapRefresh
+	// Component is being installed with a snap, so skip prepare-kernel-modules-components-many
+	compOptSkipKernelModulesSetup
 )
 
 // opts is a bitset with compOpt* as possible values.
@@ -73,9 +75,6 @@ func expectedComponentInstallTasksSplit(opts int) (beforeLink []string, linkToHo
 		beforeLink = append(beforeLink, "run-hook[pre-refresh]")
 	}
 
-	if opts&compTypeIsKernMods != 0 {
-		beforeLink = append(beforeLink, "prepare-kernel-modules-components")
-	}
 	// Component is installed (implicit if compOptRevisionPresent is set)
 	if opts&compOptIsActive != 0 && opts&compOptDuringSnapRefresh == 0 {
 		beforeLink = append(beforeLink, "unlink-current-component")
@@ -87,15 +86,20 @@ func expectedComponentInstallTasksSplit(opts int) (beforeLink []string, linkToHo
 
 	// link-component is always present
 	linkToHook = []string{"link-component"}
-	if opts&compCurrentIsDiscarded != 0 {
-		linkToHook = append(linkToHook, "discard-component")
-	}
 
 	// expect the install hook if the snap wasn't already installed
 	if opts&compOptIsActive == 0 {
 		postOpHooksAndAfter = []string{"run-hook[install]"}
 	} else {
 		postOpHooksAndAfter = []string{"run-hook[post-refresh]"}
+	}
+
+	if opts&compTypeIsKernMods != 0 && opts&compOptSkipKernelModulesSetup == 0 {
+		postOpHooksAndAfter = append(postOpHooksAndAfter, "prepare-kernel-modules-components-many")
+	}
+
+	if opts&compCurrentIsDiscarded != 0 {
+		postOpHooksAndAfter = append(postOpHooksAndAfter, "discard-component")
 	}
 
 	return beforeLink, linkToHook, postOpHooksAndAfter

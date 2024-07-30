@@ -13750,24 +13750,34 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 
 	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&prevSI, &currentSI})
 
+	prevKmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
+	currentKmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
 	for i, comp := range components {
+		prevCsi := snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, comp),
+			Revision:  snap.R(i + 1),
+		}
+
 		err := seq.AddComponentForRevision(prevSnapRev, &sequence.ComponentState{
-			SideInfo: &snap.ComponentSideInfo{
-				Component: naming.NewComponentRef(snapName, comp),
-				Revision:  snap.R(i + 1),
-			},
+			SideInfo: &prevCsi,
 			CompType: compNameToType(comp),
 		})
 		c.Assert(err, IsNil)
 
+		currentCsi := snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, comp),
+			Revision:  snap.R(i + 2),
+		}
 		err = seq.AddComponentForRevision(currentSnapRev, &sequence.ComponentState{
-			SideInfo: &snap.ComponentSideInfo{
-				Component: naming.NewComponentRef(snapName, comp),
-				Revision:  snap.R(i + 2),
-			},
+			SideInfo: &currentCsi,
 			CompType: compNameToType(comp),
 		})
 		c.Assert(err, IsNil)
+
+		if strings.HasPrefix(comp, string(snap.KernelModulesComponent)) {
+			prevKmodComps = append(prevKmodComps, &prevCsi)
+			currentKmodComps = append(currentKmodComps, &currentCsi)
+		}
 	}
 
 	s.AddCleanup(snapstate.MockReadComponentInfo(func(
@@ -13814,35 +13824,11 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 
 	c.Assert(chg.Err(), IsNil, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
 
-	var expected fakeOps
-	for i, compName := range components {
-		csi := snap.ComponentSideInfo{
-			Component: naming.NewComponentRef(snapName, compName),
-			Revision:  snap.R(i + 1),
-		}
-
-		if strings.HasPrefix(compName, string(snap.KernelModulesComponent)) {
-			expected = append(expected, fakeOp{
-				op: "setup-kernel-modules-components",
-				// note that currentComps is empty here. this test ensures that
-				// we don't accidentally consider components that were already
-				// installed with a previous revision of a snap, when refreshing
-				// to that revision
-				currentComps: nil,
-				compsToInstall: []*snap.ComponentSideInfo{{
-					Component: naming.NewComponentRef(snapName, compName),
-					Revision:  csi.Revision,
-				}},
-			})
-		}
-	}
-
-	expected = append(expected, fakeOp{
-		op:   "remove-snap-aliases",
-		name: instanceName,
-	})
-
-	expected = append(expected, fakeOps{
+	expected := fakeOps{
+		{
+			op:   "remove-snap-aliases",
+			name: instanceName,
+		},
 		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        instanceName,
@@ -13861,9 +13847,6 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 			op:   "setup-snap-save-data",
 			path: filepath.Join(dirs.SnapDataSaveDir, instanceName),
 		},
-	}...)
-
-	expected = append(expected, fakeOps{
 		{
 			op:    "setup-profiles:Doing",
 			name:  instanceName,
@@ -13882,7 +13865,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, instanceName, prevSnapRev.String()),
 		},
-	}...)
+	}
 
 	for i, compName := range components {
 		expected = append(expected, fakeOp{
@@ -13900,12 +13883,21 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 		{
 			op: "update-aliases",
 		},
-		{
-			op:    "cleanup-trash",
-			name:  instanceName,
-			revno: prevSnapRev,
-		},
 	}...)
+
+	if len(prevKmodComps) > 0 || len(currentKmodComps) > 0 {
+		expected = append(expected, fakeOp{
+			op:           "prepare-kernel-modules-components-many",
+			currentComps: currentKmodComps,
+			finalComps:   prevKmodComps,
+		})
+	}
+
+	expected = append(expected, fakeOp{
+		op:    "cleanup-trash",
+		name:  instanceName,
+		revno: prevSnapRev,
+	})
 
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
@@ -14228,16 +14220,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, instanceKey 
 			containerName:     containerName,
 			containerFileName: filename,
 		}}...)
-
-		if strings.HasPrefix(compName, string(snap.KernelModulesComponent)) {
-			expected = append(expected, fakeOp{
-				op: "setup-kernel-modules-components",
-				compsToInstall: []*snap.ComponentSideInfo{{
-					Component: naming.NewComponentRef(snapName, compName),
-					Revision:  csi.Revision,
-				}},
-			})
-		}
 	}
 
 	if !refreshAppAwarenessUX {
@@ -14308,8 +14290,31 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, instanceKey 
 		},
 	}...)
 
+	currentKmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
+	newKmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
+	for i, compName := range components {
+		if strings.HasPrefix(components[i], string(snap.KernelModulesComponent)) {
+			currentKmodComps = append(currentKmodComps, &snap.ComponentSideInfo{
+				Component: naming.NewComponentRef(snapName, compName),
+				Revision:  snap.R(i + 1),
+			})
+			newKmodComps = append(newKmodComps, &snap.ComponentSideInfo{
+				Component: naming.NewComponentRef(snapName, compName),
+				Revision:  snap.R(i + 2),
+			})
+		}
+	}
+
+	if len(currentKmodComps) > 0 || len(newKmodComps) > 0 {
+		expected = append(expected, fakeOp{
+			op:           "prepare-kernel-modules-components-many",
+			currentComps: currentKmodComps,
+			finalComps:   newKmodComps,
+		})
+	}
+
 	if undo {
-		expected = append(expected, undoOps(instanceName, newSnapRev, currentSnapRev, components)...)
+		expected = append(expected, undoOps(instanceName, newSnapRev, currentSnapRev, components, components)...)
 	} else {
 		expected = append(expected, fakeOp{
 			op:    "cleanup-trash",
