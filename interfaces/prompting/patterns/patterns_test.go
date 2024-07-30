@@ -275,17 +275,20 @@ func (s *patternsSuite) TestPathPatternMatch(c *C) {
 	}
 }
 
-func (s *patternsSuite) TestPathPatternMarshalJSON(c *C) {
+func (s *patternsSuite) TestPathPatternMarshalUnmarshalJSON(c *C) {
 	for _, pattern := range []string{
 		"/foo",
-		"/foo/ba{r,s}/**",
+		"/f?o/ba{r,s}/**",
 		"/{a,b}{c,d}{e,f}{g,h}",
 	} {
 		pathPattern, err := patterns.ParsePathPattern(pattern)
 		c.Check(err, IsNil)
 		marshalled, err := pathPattern.MarshalJSON()
 		c.Check(err, IsNil)
-		c.Check(marshalled, DeepEquals, []byte(pattern))
+		c.Check(marshalled, DeepEquals, []byte(`"`+pattern+`"`))
+		unmarshalled := patterns.PathPattern{}
+		err = unmarshalled.UnmarshalJSON(marshalled)
+		c.Check(err, IsNil)
 	}
 }
 
@@ -300,8 +303,7 @@ func (s *patternsSuite) TestPathPatternUnmarshalJSONHappy(c *C) {
 		c.Check(err, IsNil)
 		marshalled, err := pathPattern.MarshalJSON()
 		c.Check(err, IsNil)
-		// Marshalled pattern excludes surrounding '"' for some reason
-		c.Check(marshalled, DeepEquals, pattern[1:len(pattern)-1])
+		c.Check(marshalled, DeepEquals, pattern)
 	}
 }
 

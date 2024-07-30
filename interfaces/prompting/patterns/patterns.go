@@ -78,7 +78,7 @@ func (p *PathPattern) Match(path string) (bool, error) {
 
 // MarshalJSON implements json.Marshaller for PathPattern.
 func (p *PathPattern) MarshalJSON() ([]byte, error) {
-	return []byte(p.original), nil
+	return json.Marshal(p.original)
 }
 
 // UnmarshalJSON implements json.Unmarshaller for PathPattern.
