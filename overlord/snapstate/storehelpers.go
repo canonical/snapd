@@ -748,12 +748,15 @@ func storeUpdatePlanCore(
 			return updatePlan{}, err
 		}
 
-		revOpts.setChannelIfUnset(snapst.TrackingChannel)
-
 		compsups, err := componentSetupsForInstall(ctx, st, compsToInstall, *snapst, si.Revision, revOpts.Channel, opts)
 		if err != nil {
 			return updatePlan{}, err
 		}
+
+		// this must happen after the call to componentSetupsForInstall, since
+		// we can't set the channel to the tracking channel if we don't know
+		// that the requested revision is part of this channel
+		revOpts.setChannelIfUnset(snapst.TrackingChannel)
 
 		// make sure that we switch the current channel of the snap that we're
 		// switching to

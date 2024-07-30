@@ -13978,8 +13978,11 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 				InstanceName:    instanceName,
 				Revision:        prevSnapRev,
 				SnapID:          snapID,
-				Channel:         channel,
 				ResourceInstall: true,
+				// note that channel is empty here since we can't provide a
+				// channel in this case, since we don't can't know if the
+				// revision is a part of the channel
+				Channel: "",
 			},
 			revno:  prevSnapRev,
 			userID: 1,
