@@ -323,6 +323,10 @@ parts:
       # systemd package will those, they have to continue to match our
       # paths. We force the value here in case we change the default.
       make -C data install DESTDIR="${CRAFT_PART_INSTALL}" SYSTEMDUSERUNITDIR=/usr/lib/systemd/user SYSTEMDSYSTEMUNITDIR=/lib/systemd/system
+
+      # We do not pack snap-bootstrap. We should not pack its service files.
+      rm "${CRAFT_PART_INSTALL}/lib/systemd/system/snapd.recovery-chooser-trigger.service"
+
       # UC depends on this name (symlink)
       mv "${CRAFT_PART_INSTALL}/etc/profile.d/snapd.sh" "${CRAFT_PART_INSTALL}/etc/profile.d/apps-bin-path.sh"
 
