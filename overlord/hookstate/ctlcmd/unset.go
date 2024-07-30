@@ -20,7 +20,9 @@
 package ctlcmd
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/configstate"
@@ -28,6 +30,7 @@ import (
 
 type unsetCommand struct {
 	baseCommand
+	View bool `long:"view" description:"unset registry values in the view declared in the plug"`
 
 	Positional struct {
 		ConfKeys []string
@@ -66,9 +69,32 @@ func (s *unsetCommand) Execute(args []string) error {
 	tr := configstate.ContextTransaction(context)
 	context.Unlock()
 
-	for _, confKey := range s.Positional.ConfKeys {
-		tr.Set(context.InstanceName(), confKey, nil)
+	if !s.View {
+		// unsetting options
+		for _, confKey := range s.Positional.ConfKeys {
+			tr.Set(context.InstanceName(), confKey, nil)
+		}
+		return nil
 	}
 
-	return nil
+	// unsetting registry data
+	if !strings.HasPrefix(s.Positional.ConfKeys[0], ":") {
+		return fmt.Errorf(i18n.G("cannot unset registry: plug must conform to format \":<plug-name>\": %s"), s.Positional.ConfKeys[0])
+	}
+
+	plugName := strings.TrimPrefix(s.Positional.ConfKeys[0], ":")
+	if plugName == "" {
+		return errors.New(i18n.G("cannot unset registry: plug name was not provided"))
+	}
+
+	if len(s.Positional.ConfKeys) == 1 {
+		return errors.New(i18n.G("cannot unset registry: no paths provided to unset"))
+	}
+
+	confs := make(map[string]interface{}, len(s.Positional.ConfKeys)-1)
+	for _, key := range s.Positional.ConfKeys[1:] {
+		confs[key] = nil
+	}
+
+	return setRegistryValues(context, plugName, confs)
 }
