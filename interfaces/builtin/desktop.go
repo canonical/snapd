@@ -39,9 +39,6 @@ const desktopSummary = `allows access to basic graphical desktop resources`
 // intended to prevent app snaps from the store that provide this slot
 // from installing without an override, while allowing an unpublished
 // snap to still be installed.
-//
-// The deny-connection and deny-auto-connection rules should ideally
-// use a slot-snap-type constraint when that is supported.
 const desktopBaseDeclarationSlots = `
   desktop:
     allow-installation:
@@ -51,6 +48,16 @@ const desktopBaseDeclarationSlots = `
     deny-installation:
       slot-snap-type:
         - app
+`
+
+// The deny-auto-connection and deny-connection constructs must be placed
+// under plug base declaration because it takes precedence over slot base
+// declaration.
+const desktopBaseDeclarationPlugs = `
+  desktop:
+    allow-installation:
+      plug-attributes:
+        desktop-file-ids: $MISSING
     deny-auto-connection:
       slot-snap-type:
         - app
@@ -609,9 +616,37 @@ func (iface *desktopInterface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 	return nil
 }
 
+func (iface *desktopInterface) validateDesktopFileIDs(attribs interfaces.Attrer) error {
+	attrVal, exists := attribs.Lookup("desktop-file-ids")
+	if !exists {
+		// desktop-file-ids attribute is optional
+		return nil
+	}
+
+	// desktop-file-ids must be a list of strings.
+	desktopFileIDs, ok := attrVal.([]interface{})
+	if !ok {
+		return fmt.Errorf(`cannot add %s plug: "desktop-file-ids" must be a list of strings`, iface.name)
+	}
+	for _, desktopFileID := range desktopFileIDs {
+		if _, ok := desktopFileID.(string); !ok {
+			return fmt.Errorf(`cannot add %s plug: "desktop-file-ids" must be a list of strings`, iface.name)
+		}
+	}
+
+	return nil
+}
+
 func (iface *desktopInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
-	_, err := iface.shouldMountHostFontCache(plug)
-	return err
+	if _, err := iface.shouldMountHostFontCache(plug); err != nil {
+		return err
+	}
+
+	if err := iface.validateDesktopFileIDs(plug); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func init() {
@@ -621,6 +656,7 @@ func init() {
 			summary:              desktopSummary,
 			implicitOnClassic:    true,
 			baseDeclarationSlots: desktopBaseDeclarationSlots,
+			baseDeclarationPlugs: desktopBaseDeclarationPlugs,
 			// affects the plug snap because of mount backend
 			affectsPlugOnRefresh: true,
 		},

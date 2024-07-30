@@ -1082,6 +1082,27 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 			}
 		}
 	}
+
+	// test desktop specially
+	ic := s.installPlugCand(c, "desktop", snap.TypeApp, `name: desktop
+version: 0
+type: app
+plugs:
+  desktop:
+`)
+	err := ic.Check()
+	c.Assert(err, IsNil)
+	// desktop-file-ids can only be set by the store
+	ic = s.installPlugCand(c, "desktop", snap.TypeApp, `name: desktop
+version: 0
+type: app
+plugs:
+  desktop:
+    desktop-file-ids: [org.example]
+`)
+	err = ic.Check()
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, "installation not allowed by \"desktop\" plug rule of interface \"desktop\"")
 }
 
 func (s *baseDeclSuite) TestConnection(c *C) {
@@ -1347,6 +1368,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"wayland":                 true,
 		"xilinx-dma":              true,
 		"registry":                true,
+		"desktop":                 true,
 	}
 
 	for _, iface := range all {

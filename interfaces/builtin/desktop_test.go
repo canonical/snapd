@@ -336,3 +336,44 @@ plugs:
 		c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches, "desktop plug requires bool with 'mount-host-font-cache'", Commentf(value))
 	}
 }
+
+func (s *DesktopInterfaceSuite) TestDesktopFileIDsValidation(c *C) {
+	const mockSnapYaml = `name: desktop-snap
+version: 1.0
+plugs:
+  desktop:
+    desktop-file-ids:
+      - org.example
+      - org.example.Foo
+`
+	_, plugInfo := MockConnectedPlug(c, mockSnapYaml, nil, "desktop")
+	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), IsNil)
+
+	const mockSnapYamlEmpty = `name: desktop-snap
+version: 1.0
+plugs:
+  desktop:
+`
+	_, plugInfo = MockConnectedPlug(c, mockSnapYaml, nil, "desktop")
+	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), IsNil)
+}
+
+func (s *DesktopInterfaceSuite) TestDesktopFileIDsValidationError(c *C) {
+	for _, tc := range []string{
+		"not-a-list-of-strings",
+		"1",
+		"true",
+		"[[string],1]",
+	} {
+		const mockSnapYaml = `name: desktop-snap
+version: 1.0
+plugs:
+  desktop:
+    desktop-file-ids: %s
+`
+		_, plugInfo := MockConnectedPlug(c, fmt.Sprintf(mockSnapYaml, tc), nil, "desktop")
+
+		err := interfaces.BeforePreparePlug(s.iface, plugInfo)
+		c.Check(err, ErrorMatches, "cannot add desktop plug: \"desktop-file-ids\" must be a list of strings", Commentf(tc))
+	}
+}
