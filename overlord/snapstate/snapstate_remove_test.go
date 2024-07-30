@@ -20,9 +20,11 @@
 package snapstate_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -34,9 +36,11 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -2058,6 +2062,264 @@ func (s *snapmgrTestSuite) TestRemoveManyWithPurge(c *C) {
 		})
 	}
 
+}
+
+func (s *snapmgrTestSuite) TestRemoveWithCompsTasks(c *C) {
+	const snapName = "snap1"
+	const comp1name = "comp1"
+	const comp2name = "comp2"
+
+	cref1 := naming.NewComponentRef(snapName, comp1name)
+	cref2 := naming.NewComponentRef(snapName, comp2name)
+
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(compMntDir string,
+		snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		switch csi.Component.ComponentName {
+		case comp1name:
+			return &snap.ComponentInfo{
+				Component:         cref1,
+				Type:              snap.TestComponent,
+				ComponentSideInfo: *csi,
+			}, nil
+		case comp2name:
+			return &snap.ComponentInfo{
+				Component:         cref2,
+				Type:              snap.TestComponent,
+				ComponentSideInfo: *csi,
+			}, nil
+		}
+		return nil, errors.New("unexpected component")
+	}))
+
+	s.AddCleanup(snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		info := &snap.Info{
+			SuggestedName: name,
+			SideInfo:      *si,
+			SnapType:      snap.TypeApp,
+			Components: map[string]*snap.Component{
+				comp1name: {Name: comp1name, Type: snap.TestComponent},
+				comp2name: {Name: comp2name, Type: snap.TestComponent},
+			},
+		}
+		info.Apps = map[string]*snap.AppInfo{
+			"app": {Snap: info, Name: "app"},
+		}
+		return info, nil
+	}))
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	siRev1 := &snap.SideInfo{RealName: snapName, Revision: snap.R(1)}
+	siRev2 := &snap.SideInfo{RealName: snapName, Revision: snap.R(2)}
+	comp1si := snap.NewComponentSideInfo(cref1, snap.R(11))
+	comp11si := snap.NewComponentSideInfo(cref1, snap.R(111))
+	comp2si := snap.NewComponentSideInfo(cref2, snap.R(22))
+	comp22si := snap.NewComponentSideInfo(cref2, snap.R(222))
+	seq := snapstatetest.NewSequenceFromRevisionSideInfos(
+		[]*sequence.RevisionSideState{
+			sequence.NewRevisionSideState(siRev1,
+				[]*sequence.ComponentState{
+					sequence.NewComponentState(
+						comp1si, snap.TestComponent),
+					sequence.NewComponentState(
+						comp2si, snap.TestComponent),
+				}),
+			sequence.NewRevisionSideState(siRev2,
+				[]*sequence.ComponentState{
+					sequence.NewComponentState(
+						comp11si, snap.TestComponent),
+					sequence.NewComponentState(
+						comp22si, snap.TestComponent),
+				}),
+		})
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active:   true,
+		Sequence: seq,
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	ts, err := snapstate.Remove(s.state, snapName, snap.R(0), nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"stop-snap-services",
+		"run-hook[remove]",
+		"auto-disconnect",
+		"save-snapshot",
+		"remove-aliases",
+		"unlink-snap",
+		"remove-profiles",
+		"clear-snap",
+		"unlink-component",
+		"discard-component",
+		"unlink-component",
+		"discard-component",
+		"discard-snap",
+		"clear-snap",
+		"unlink-component",
+		"discard-component",
+		"unlink-component",
+		"discard-component",
+		"discard-snap",
+	})
+	verifyStopReason(c, ts, "remove")
+
+	// Run the created tasks
+	chg := s.state.NewChange("remove", "remove a snap")
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.settle(c)
+
+	expected := fakeOps{
+		{
+			op:    "auto-disconnect:Doing",
+			name:  "snap1",
+			revno: snap.R(1),
+		},
+		{
+			op:   "remove-snap-aliases",
+			name: "snap1",
+		},
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "snap1/1"),
+		},
+		{
+			op:    "remove-profiles:Doing",
+			name:  "snap1",
+			revno: snap.R(1),
+		},
+		{
+			op:   "remove-snap-data",
+			path: filepath.Join(dirs.SnapMountDir, "snap1/2"),
+		},
+		{
+			op:   "unlink-component",
+			path: filepath.Join(dirs.SnapMountDir, "snap1/components/mnt/comp1/111"),
+		},
+		{
+			op:                "undo-setup-component",
+			containerName:     "snap1+comp1",
+			containerFileName: "snap1+comp1_111.comp",
+		},
+		{
+			op:                "remove-component-dir",
+			containerName:     "snap1+comp1",
+			containerFileName: "snap1+comp1_111.comp",
+		},
+		{
+			op:   "unlink-component",
+			path: filepath.Join(dirs.SnapMountDir, "snap1/components/mnt/comp2/222"),
+		},
+		{
+			op:                "undo-setup-component",
+			containerName:     "snap1+comp2",
+			containerFileName: "snap1+comp2_222.comp",
+		},
+		{
+			op:                "remove-component-dir",
+			containerName:     "snap1+comp2",
+			containerFileName: "snap1+comp2_222.comp",
+		},
+		{
+			op:    "remove-snap-files",
+			path:  filepath.Join(dirs.SnapMountDir, "snap1/2"),
+			stype: "app",
+		},
+		{
+			op:   "remove-snap-data",
+			path: filepath.Join(dirs.SnapMountDir, "snap1/1"),
+		},
+		{
+			op:   "remove-snap-common-data",
+			path: filepath.Join(dirs.SnapMountDir, "snap1/1"),
+		},
+		{
+			op:   "remove-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "snap1"),
+		},
+		{
+			op:   "remove-snap-data-dir",
+			name: "snap1",
+			path: filepath.Join(dirs.SnapDataDir, "snap1"),
+		},
+		{
+			op:   "unlink-component",
+			path: filepath.Join(dirs.SnapMountDir, "snap1/components/mnt/comp1/11"),
+		},
+		{
+			op:                "undo-setup-component",
+			containerName:     "snap1+comp1",
+			containerFileName: "snap1+comp1_11.comp",
+		},
+		{
+			containerName:     "snap1+comp1",
+			containerFileName: "snap1+comp1_11.comp",
+			op:                "remove-component-dir",
+		},
+		{
+			op:   "unlink-component",
+			path: filepath.Join(dirs.SnapMountDir, "snap1/components/mnt/comp2/22"),
+		},
+		{
+			op:                "undo-setup-component",
+			containerName:     "snap1+comp2",
+			containerFileName: "snap1+comp2_22.comp",
+		},
+		{
+			op:                "remove-component-dir",
+			containerName:     "snap1+comp2",
+			containerFileName: "snap1+comp2_22.comp",
+		},
+		{
+			op:    "remove-snap-files",
+			path:  filepath.Join(dirs.SnapMountDir, "snap1/1"),
+			stype: "app",
+		},
+		{
+			op:   "remove-snap-mount-units",
+			name: "snap1",
+		},
+		{
+			op:   "discard-namespace",
+			name: "snap1",
+		},
+		{
+			op:   "remove-inhibit-lock",
+			name: "snap1",
+		},
+		{
+			op:   "remove-snap-dir",
+			name: "snap1",
+			path: filepath.Join(dirs.SnapMountDir, "snap1"),
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Check(len(s.fakeBackend.ops), Equals, len(expected))
+	c.Check(s.fakeBackend.ops[0:5], DeepEquals, expected[0:5])
+	c.Check(s.fakeBackend.ops[11:16], DeepEquals, expected[11:16])
+	c.Check(s.fakeBackend.ops[22:], DeepEquals, expected[22:])
+	// Check component tasks, that can run in parallel so the order is not
+	// deterministic, but still needs to follow an order per component.
+	checkComps := func(ops, exp1, exp2 fakeOps) {
+		var op1idx, op2idx int
+		for _, op := range ops {
+			switch {
+			case op1idx < 3 && reflect.DeepEqual(exp1[op1idx], op):
+				op1idx++
+			case op2idx < 3 && reflect.DeepEqual(exp2[op2idx], op):
+				op2idx++
+			default:
+				c.Error("expected op not found", op)
+			}
+		}
+	}
+	checkComps(s.fakeBackend.ops[5:11], expected[5:8], expected[8:11])
+	checkComps(s.fakeBackend.ops[16:22], expected[16:19], expected[19:22])
 }
 
 func (s *snapmgrTestSuite) TestRemoveWithTerminate(c *C) {

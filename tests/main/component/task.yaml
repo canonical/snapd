@@ -78,5 +78,13 @@ execute: |
   snap remove snap-with-comps+comp1
   check_removed x3
 
-  # Finally, remove the snap
+  # Remove the snap
   snap remove snap-with-comps
+
+  # Reinstall, install component, remove all in one change and check
+  snap install --dangerous snap-with-comps_1.0_all.snap
+  install_comp x1
+  snap remove snap-with-comps
+  check_removed x1
+  not test -d "$SNAP_MOUNT_DIR"/snap-with-comps/
+  snap list | NOMATCH snap-with-comps

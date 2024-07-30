@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2022-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -424,6 +424,17 @@ func FetchStore(f asserts.Fetcher, storeID string) error {
 	ref := &asserts.Ref{
 		Type:       asserts.StoreType,
 		PrimaryKey: []string{storeID},
+	}
+
+	return f.Fetch(ref)
+}
+
+// FetchRegistry fetches a registry assertion described by account and registry
+// name using the given fetcher.
+func FetchRegistry(f asserts.Fetcher, account, registryName string) error {
+	ref := &asserts.Ref{
+		Type:       asserts.RegistryType,
+		PrimaryKey: []string{account, registryName},
 	}
 
 	return f.Fetch(ref)

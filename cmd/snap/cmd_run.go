@@ -206,6 +206,8 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 		// the user or what do we do if we know snapd is down for maintenance?
 		if _, err := cli.SysInfo(); err == nil {
 			return nil
+		} else {
+			logger.Debugf("cannot obtain system info: %v", err)
 		}
 		// sleep a little bit for good measure
 		time.Sleep(1 * time.Second)

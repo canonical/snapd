@@ -658,7 +658,7 @@ jobs:
             tests: 'tests/...'
           - group: opensuse
             backend: google-distro-2
-            systems: 'opensuse-15.5-64 opensuse-tumbleweed-64'
+            systems: 'opensuse-15.5-64 opensuse-15.6-64 opensuse-tumbleweed-64'
             tests: 'tests/...'
           - group: ubuntu-trusty
             backend: google
@@ -843,13 +843,13 @@ jobs:
 
           case "${{ matrix.systems }}" in
             *-arm-*)
-              TESTS_USE_PREBUILT_SNAPD_SNAP=false
+              SPREAD_USE_PREBUILT_SNAPD_SNAP=false
               ;;
             *)
-              TESTS_USE_PREBUILT_SNAPD_SNAP=true
+              SPREAD_USE_PREBUILT_SNAPD_SNAP=true
               ;;
           esac
-          export TESTS_USE_PREBUILT_SNAPD_SNAP
+          export SPREAD_USE_PREBUILT_SNAPD_SNAP
 
           if [[ "${{ matrix.systems }}" =~ amazon-linux-2023 ]]; then
               # Amazon Linux 2023 has no xdelta, however we cannot disable

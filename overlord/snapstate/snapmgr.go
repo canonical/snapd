@@ -154,6 +154,18 @@ type SnapSetup struct {
 	// process, even if the snap is already at the correct revision. Has an
 	// effect on which tasks get created to update the snap.
 	AlwaysUpdate bool `json:"-"`
+
+	// Registries is the set of registries that the snap plugs, identified by
+	// account and registry name pairs.
+	Registries []RegistryID `json:"registries,omitempty"`
+}
+
+// RegistryID identifies a registry.
+type RegistryID struct {
+	// Account is the name of the account that publishes the registry.
+	Account string
+	// Registry is the name of the registry within the account namespace.
+	Registry string
 }
 
 func (snapsup *SnapSetup) InstanceName() string {
@@ -815,6 +827,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("mount-component", m.doMountComponent, m.undoMountComponent)
 	runner.AddHandler("unlink-current-component", m.doUnlinkCurrentComponent, m.undoUnlinkCurrentComponent)
 	runner.AddHandler("link-component", m.doLinkComponent, m.undoLinkComponent)
+	runner.AddHandler("unlink-component", m.doUnlinkComponent, m.undoUnlinkComponent)
 	// We cannot undo much after a component file is removed. And it is the
 	// last task anyway.
 	runner.AddHandler("discard-component", m.doDiscardComponent, nil)

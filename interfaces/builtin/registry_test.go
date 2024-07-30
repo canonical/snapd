@@ -97,7 +97,6 @@ func (s *registrySuite) TestRegistrySanitizePlug(c *C) {
 		{
 			account: "my-acc",
 			view:    "network/wifi",
-			role:    "observer",
 		},
 		{
 			err: `registry plug must have an "account" attribute`,
@@ -109,9 +108,9 @@ func (s *registrySuite) TestRegistrySanitizePlug(c *C) {
 		{
 			account: "my-acc",
 			view:    "reg/view",
-			err:     `registry plug "role" attribute must be "observer" or "manager"`,
+			role:    "observer",
+			err:     `optional registry plug "role" attribute must be "manager"`,
 		},
-
 		{
 			account: "my-acc",
 			view:    "foobar",
@@ -126,12 +125,6 @@ func (s *registrySuite) TestRegistrySanitizePlug(c *C) {
 			account: "my-acc",
 			view:    "foo/0-bar",
 			err:     `registry plug must have a valid "view" attribute: invalid view name: 0-bar does not match '^[a-z](?:-?[a-z0-9])*$'`,
-		},
-		{
-			account: "my-acc",
-			view:    "foo/bar",
-			role:    "other-role",
-			err:     `registry plug "role" attribute must be "observer" or "manager"`,
 		},
 		{
 			account: "_my-acc",

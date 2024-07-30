@@ -112,7 +112,7 @@ static void setup_private_tmp(const char *snap_instance)
 		die("%s has unexpected ownership / permissions",
 		    SNAP_PRIVATE_TMP_ROOT_DIR);
 	}
-	// Create /tmp/snap-private-tmp/snap.$SNAP_INSTANCE_NAME/ 0700 root.root.
+	// Create /tmp/snap-private-tmp/snap.$SNAP_INSTANCE_NAME/ 0700 root:root.
 	sc_must_snprintf(base, sizeof(base), "snap.%s", snap_instance);
 	if (mkdirat(private_tmp_root_fd, base, 0700) < 0 && errno != EEXIST) {
 		die("cannot create base directory: %s", base);
@@ -130,7 +130,7 @@ static void setup_private_tmp(const char *snap_instance)
 		die("%s/%s has unexpected ownership / permissions",
 		    SNAP_PRIVATE_TMP_ROOT_DIR, base);
 	}
-	// Create /tmp/$PRIVATE/snap.$SNAP_NAME/tmp 01777 root.root Ignore EEXIST since we
+	// Create /tmp/$PRIVATE/snap.$SNAP_NAME/tmp 01777 root:root Ignore EEXIST since we
 	// want to reuse and we will open with O_NOFOLLOW, below.
 	if (mkdirat(base_dir_fd, "tmp", 01777) < 0 && errno != EEXIST) {
 		die("cannot create private tmp directory %s/tmp", base);
@@ -322,7 +322,7 @@ static void sc_initialize_ns_fstab(const char *snap_instance_name)
 		die("cannot open %s", info_path);
 	}
 	if (fchown(fd, 0, 0) < 0) {
-		die("cannot chown %s to root.root", info_path);
+		die("cannot chown %s to root:root", info_path);
 	}
 	// The stream now owns the file descriptor.
 	stream = fdopen(fd, "w");

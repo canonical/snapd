@@ -13625,6 +13625,35 @@ func (s *snapmgrTestSuite) TestAutoRefreshSplitRefresh(c *C) {
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
 
+func (s *snapmgrTestSuite) TestRefreshWithRegistry(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/edge",
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}}),
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+
+	chg := s.state.NewChange("test", "test change")
+	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-registry"}, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	checkSnapsupHasRegistry(ts, c)
+}
+
+func checkSnapsupHasRegistry(ts *state.TaskSet, c *C) {
+	tasks := tasksWithKind(ts, "validate-snap")
+	c.Assert(tasks, HasLen, 1)
+
+	snapsup, err := snapstate.TaskSnapSetup(tasks[0])
+	c.Assert(err, IsNil)
+	c.Assert(snapsup.Registries, DeepEquals, []snapstate.RegistryID{{Account: "my-publisher", Registry: "my-reg"}})
+}
+
 func findTaskForSnap(c *C, chg *state.Change, kind, snap string) *state.Task {
 	for _, t := range chg.Tasks() {
 		if t.Kind() != kind {
@@ -14445,4 +14474,138 @@ func (s *snapmgrTestSuite) TestRefreshCandidates(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(candidates, HasLen, 1)
 	c.Check(candidates[0].InstanceName(), Equals, "some-snap")
+}
+
+func (s *snapmgrTestSuite) TestUpdateTasksWithComponentsRemoved(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	si1 := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
+	si2 := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)}
+	si3 := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(3)}
+	si4 := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(4)}
+	si5 := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(5)}
+	cref1 := naming.NewComponentRef("some-snap", "comp1")
+	cref2 := naming.NewComponentRef("some-snap", "comp2")
+	comp1si := snap.NewComponentSideInfo(cref1, snap.R(11))
+	comp2si := snap.NewComponentSideInfo(cref2, snap.R(22))
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(compMntDir string,
+		snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		switch csi.Component.ComponentName {
+		case "comp1":
+			return &snap.ComponentInfo{
+				Component:         cref1,
+				Type:              snap.TestComponent,
+				ComponentSideInfo: *csi,
+			}, nil
+		case "comp2":
+			return &snap.ComponentInfo{
+				Component:         cref2,
+				Type:              snap.TestComponent,
+				ComponentSideInfo: *csi,
+			}, nil
+		}
+		return nil, errors.New("unexpected component")
+	}))
+	seq := snapstatetest.NewSequenceFromRevisionSideInfos(
+		[]*sequence.RevisionSideState{
+			sequence.NewRevisionSideState(si1,
+				[]*sequence.ComponentState{
+					sequence.NewComponentState(
+						comp1si, snap.TestComponent),
+					sequence.NewComponentState(
+						comp2si, snap.TestComponent),
+				}),
+			sequence.NewRevisionSideState(si2, nil),
+			sequence.NewRevisionSideState(si3, nil),
+			sequence.NewRevisionSideState(si4,
+				[]*sequence.ComponentState{
+					sequence.NewComponentState(
+						comp1si, snap.TestComponent),
+					sequence.NewComponentState(
+						comp2si, snap.TestComponent),
+				}),
+			sequence.NewRevisionSideState(si5, nil),
+		})
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/edge",
+		Sequence:        seq,
+		Current:         snap.R(3),
+		SnapType:        "app",
+	})
+
+	// run the update
+	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"prerequisites",
+		"download-snap",
+		"validate-snap",
+		"mount-snap",
+		"run-hook[pre-refresh]",
+		"stop-snap-services",
+		"remove-aliases",
+		"unlink-current-snap",
+		"copy-snap-data",
+		"setup-profiles",
+		"link-snap",
+		"auto-connect",
+		"set-auto-aliases",
+		"setup-aliases",
+		"run-hook[post-refresh]",
+		"start-snap-services",
+		"clear-snap",
+		"unlink-component",
+		"discard-component",
+		"unlink-component",
+		"discard-component",
+		"discard-snap",
+		"clear-snap",
+		"discard-snap",
+		"clear-snap",
+		"unlink-component",
+		"discard-component",
+		"unlink-component",
+		"discard-component",
+		"discard-snap",
+		"cleanup",
+		"run-hook[configure]",
+		"run-hook[check-health]",
+		"check-rerefresh",
+	})
+
+	// and ensure that it will remove the components - si1 is cleaned
+	// because of garbage collection and si4 and si5 because they are after
+	// current.
+	var compSup snapstate.ComponentSetup
+	tasks := ts.Tasks()
+
+	i := len(tasks) - 17
+	c.Check(tasks[i].Kind(), Equals, "unlink-component")
+	err = tasks[i].Get("component-setup", &compSup)
+	c.Assert(err, IsNil)
+	c.Check(compSup.CompSideInfo.Component, Equals, cref1)
+
+	i = len(tasks) - 15
+	c.Check(tasks[i].Kind(), Equals, "unlink-component")
+	err = tasks[i].Get("component-setup", &compSup)
+	c.Assert(err, IsNil)
+	c.Check(compSup.CompSideInfo.Component, Equals, cref2)
+
+	i = len(tasks) - 9
+	c.Check(tasks[i].Kind(), Equals, "unlink-component")
+	err = tasks[i].Get("component-setup", &compSup)
+	c.Assert(err, IsNil)
+	c.Check(compSup.CompSideInfo.Component, Equals, cref1)
+
+	i = len(tasks) - 7
+	c.Check(tasks[i].Kind(), Equals, "unlink-component")
+	err = tasks[i].Get("component-setup", &compSup)
+	c.Assert(err, IsNil)
+	c.Check(compSup.CompSideInfo.Component, Equals, cref2)
 }
