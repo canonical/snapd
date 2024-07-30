@@ -52,6 +52,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
@@ -273,6 +274,62 @@ func isCoreSnap(snapName string) bool {
 	return snapName == defaultCoreSnapName
 }
 
+// removeExtraComponentsTasks generates tasks that will remove components that
+// are installed along with the snap revision that is being installed. If the
+// revision is not in the sequence, then we don't have anything to do. If the
+// revision is in the sequence, then we generate tasks that will unlink
+// components that are not in compsups.
+func removeExtraComponentsTasks(st *state.State, snapsupID string, snapst *SnapState, snapsup SnapSetup, compsups []ComponentSetup) (
+	unlinkTasks, discardTasks []*state.Task, err error,
+) {
+	if snapst.LastIndex(snapsup.Revision()) < 0 {
+		return nil, nil, nil
+	}
+
+	keep := make(map[naming.ComponentRef]bool, len(compsups))
+	for _, compsup := range compsups {
+		keep[compsup.CompSideInfo.Component] = true
+	}
+
+	current, err := snapst.ComponentInfosForRevision(snapsup.Revision())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, ci := range current {
+		if keep[ci.Component] {
+			continue
+		}
+
+		var unlink *state.Task
+		if snapst.Current == snapsup.Revision() {
+			unlink = st.NewTask("unlink-current-component", fmt.Sprintf(
+				i18n.G("Make current revision for component %q unavailable"), ci.Component,
+			))
+		} else {
+			unlink = st.NewTask("unlink-component", fmt.Sprintf(
+				i18n.G("Unlink component %q for snap revision %s"), ci.Component, snapsup.Revision(),
+			))
+		}
+
+		unlink.Set("snap-setup-task", snapsupID)
+		unlink.Set("component-setup", ComponentSetup{
+			CompSideInfo: &ci.ComponentSideInfo,
+			CompType:     ci.Type,
+		})
+		unlinkTasks = append(unlinkTasks, unlink)
+
+		discard := st.NewTask("discard-component", fmt.Sprintf(
+			i18n.G("Discard previous revision for component %q"), ci.Component,
+		))
+		discard.Set("snap-setup-task", snapsupID)
+		discard.Set("component-setup-task", unlink.ID())
+		discardTasks = append(discardTasks, discard)
+	}
+
+	return unlinkTasks, discardTasks, nil
+}
+
 func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups []ComponentSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
 	tr := config.NewTransaction(st)
 	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
@@ -442,12 +499,23 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		}
 	}
 
+	removeExtraComps, discardExtraComps, err := removeExtraComponentsTasks(st, prepare.ID(), snapst, snapsup, compsups)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, t := range removeExtraComps {
+		addTask(t)
+	}
+
 	tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard, compSetupIDs, err := splitComponentTasksForInstall(
 		compsups, st, snapst, snapsup, prepare.ID(), fromChange,
 	)
 	if err != nil {
 		return nil, err
 	}
+
+	tasksBeforeDiscard = append(tasksBeforeDiscard, discardExtraComps...)
 
 	for _, t := range tasksBeforePreRefreshHook {
 		addTask(t)
