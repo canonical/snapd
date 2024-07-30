@@ -39,8 +39,12 @@ type Metadata struct {
 
 type IDType uint64
 
+func (i IDType) String() string {
+	return fmt.Sprintf("%016X", uint64(i))
+}
+
 func (i *IDType) MarshalJSON() ([]byte, error) {
-	return json.Marshal(fmt.Sprintf("%016X", *i))
+	return json.Marshal(i.String())
 }
 
 func (i *IDType) UnmarshalJSON(b []byte) error {
