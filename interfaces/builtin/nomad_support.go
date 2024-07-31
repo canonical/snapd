@@ -19,12 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/seccomp"
-)
-
 // The nomad-support interface enables running Hashicorp Nomad within
 // a strictly confined snap
 // https://www.nomadproject.io/
@@ -96,24 +90,17 @@ func (iface *nomadSupportInterface) Name() string {
 	return "nomad-support"
 }
 
-func (iface *nomadSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(nomadSupportConnectedPlugAppArmor)
-	return nil
-}
-
-func (iface *nomadSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(nomadSupportConnectedPlugSecComp)
-	return nil
-}
-
 func init() {
 	registerIface(&nomadSupportInterface{commonInterface{
-		name:                 "nomad-support",
-		summary:              nomadSupportSummary,
-		implicitOnClassic:    true,
-		implicitOnCore:       true,
-		baseDeclarationPlugs: nomadSupportBaseDeclarationPlugs,
-		baseDeclarationSlots: nomadSupportBaseDeclarationSlots,
-		serviceSnippets:      []string{`Delegate=true`},
+		name:                  "nomad-support",
+		summary:               nomadSupportSummary,
+		implicitOnClassic:     true,
+		implicitOnCore:        true,
+		controlsDeviceCgroup:  true,
+		baseDeclarationPlugs:  nomadSupportBaseDeclarationPlugs,
+		baseDeclarationSlots:  nomadSupportBaseDeclarationSlots,
+		connectedPlugAppArmor: nomadSupportConnectedPlugAppArmor,
+		connectedPlugSecComp:  nomadSupportConnectedPlugSecComp,
+		serviceSnippets:       []string{`Delegate=true`},
 	}})
 }

@@ -95,7 +95,7 @@ func (s *NomadSupportInterfaceSuite) TestUdevSpec(c *C) {
 	c.Assert(err, IsNil)
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
+	c.Assert(spec.ControlsDeviceCgroup(), Equals, true)
 }
 
 func (s *NomadSupportInterfaceSuite) TestStaticInfo(c *C) {
