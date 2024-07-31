@@ -2096,7 +2096,7 @@ func (s *diskSuite) TestDiskFromMountPointIsVerityDeviceVolumeHappy(c *C) {
 	err = os.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644)
 	c.Assert(err, IsNil)
 
-	opts := &disks.Options{IsDecryptedDevice: true}
+	opts := &disks.Options{IsVerityDevice: true}
 
 	// when the handler is not available, we can't handle the mapper
 	disks.UnregisterDeviceMapperBackResolver("crypt-verity")
