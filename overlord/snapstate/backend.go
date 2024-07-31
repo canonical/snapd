@@ -76,7 +76,6 @@ type managerBackend interface {
 	SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, dev snap.Device, opts *backend.SetupSnapOptions, meter progress.Meter) (snap.Type, *backend.InstallRecord, error)
 	SetupKernelSnap(instanceName string, rev snap.Revision, meter progress.Meter) (err error)
 	SetupComponent(compFilePath string, compPi snap.ContainerPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *backend.InstallRecord, err error)
-	SetupKernelModulesComponents(compsToInstall, currentComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error)
 	SetupKernelModulesComponentsMany(currentComps, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error)
 	CopySnapData(newSnap, oldSnap *snap.Info, opts *dirs.SnapDirOptions, meter progress.Meter) error
 	SetupSnapSaveData(info *snap.Info, dev snap.Device, meter progress.Meter) error
@@ -109,7 +108,6 @@ type managerBackend interface {
 	RemoveSnapInhibitLock(snapName string) error
 	RemoveAllSnapAppArmorProfiles() error
 	RemoveKernelSnapSetup(instanceName string, rev snap.Revision, meter progress.Meter) error
-	RemoveKernelModulesComponentsSetup(compsToRemove, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error)
 
 	// alias related
 	UpdateAliases(add []*backend.Alias, remove []*backend.Alias) error

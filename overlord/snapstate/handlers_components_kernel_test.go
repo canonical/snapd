@@ -20,6 +20,8 @@
 package snapstate_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -46,13 +48,22 @@ func (s *setupKernelComponentsSuite) TestSetupKernelModules(c *C) {
 }
 
 func (s *setupKernelComponentsSuite) TestSetupKernelModulesFails(c *C) {
-	s.testSetupKernelModules(c, "mykernel+broken",
-		"cannot perform the following tasks:\n- test kernel modules (cannot set-up kernel-modules for mykernel+broken)")
+	s.testSetupKernelModules(c, "mykernel",
+		"cannot perform the following tasks:\n- test kernel modules (cannot set-up kernel-modules for mykernel)")
 }
 
 func (s *setupKernelComponentsSuite) testSetupKernelModules(c *C, snapName, errStr string) {
 	snapRev := snap.R(77)
 	const compName = "kcomp"
+
+	if errStr != "" {
+		s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+			if op.op == "prepare-kernel-modules-components-many" {
+				return fmt.Errorf("cannot set-up kernel-modules for %s", snapName)
+			}
+			return nil
+		}
+	}
 
 	s.state.Lock()
 
@@ -61,20 +72,26 @@ func (s *setupKernelComponentsSuite) testSetupKernelModules(c *C, snapName, errS
 	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, "other-comp"), snap.R(33))
 	cs1 := sequence.NewComponentState(csi1, snap.KernelModulesComponent)
 	cs2 := sequence.NewComponentState(csi2, snap.KernelModulesComponent)
-	setStateWithComponents(s.state, snapName, snapRev, []*sequence.ComponentState{cs1, cs2})
 
-	t := s.state.NewTask("prepare-kernel-modules-components", "test kernel modules")
+	t := s.state.NewTask("prepare-kernel-modules-components-many", "test kernel modules")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapName,
 			Revision: snapRev,
 		},
+		PreUpdateKernelModuleComponents: []*snap.ComponentSideInfo{cs1.SideInfo, cs2.SideInfo},
 	})
 	compRev := snap.R(7)
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
 	t.Set("component-setup",
 		snapstate.NewComponentSetup(csi, snap.KernelModulesComponent, ""))
+
+	// set the state to include the new component, since this task will run
+	// after the component has been linked
+	cs := sequence.NewComponentState(csi, snap.KernelModulesComponent)
+	setStateWithComponents(s.state, snapName, snapRev, []*sequence.ComponentState{cs1, cs2, cs})
+
 	chg := s.state.NewChange("test change", "change desc")
 	chg.AddTask(t)
 
@@ -95,9 +112,9 @@ func (s *setupKernelComponentsSuite) testSetupKernelModules(c *C, snapName, errS
 
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op:             "setup-kernel-modules-components",
-			compsToInstall: []*snap.ComponentSideInfo{csi},
-			currentComps:   []*snap.ComponentSideInfo{csi1, csi2},
+			op:           "prepare-kernel-modules-components-many",
+			finalComps:   []*snap.ComponentSideInfo{cs1.SideInfo, cs2.SideInfo, csi},
+			currentComps: []*snap.ComponentSideInfo{csi1, csi2},
 		},
 	})
 }
@@ -107,13 +124,26 @@ func (s *setupKernelComponentsSuite) TestRemoveKernelModulesSetup(c *C) {
 }
 
 func (s *setupKernelComponentsSuite) TestRemoveKernelModulesSetupFails(c *C) {
-	s.testRemoveKernelModulesSetup(c, "mykernel+reverterr",
-		"(?s).*cannot remove set-up of kernel-modules for mykernel\\+reverterr.*")
+	s.testRemoveKernelModulesSetup(c, "mykernel",
+		"(?s).*cannot set-up kernel-modules for mykernel.*")
 }
 
 func (s *setupKernelComponentsSuite) testRemoveKernelModulesSetup(c *C, snapName, errStr string) {
 	snapRev := snap.R(77)
 	const compName = "kcomp"
+
+	if errStr != "" {
+		var count int
+		s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+			if op.op == "prepare-kernel-modules-components-many" {
+				count++
+				if count == 2 {
+					return fmt.Errorf("cannot set-up kernel-modules for %s", snapName)
+				}
+			}
+			return nil
+		}
+	}
 
 	s.state.Lock()
 
@@ -122,20 +152,25 @@ func (s *setupKernelComponentsSuite) testRemoveKernelModulesSetup(c *C, snapName
 	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, "other-comp"), snap.R(33))
 	cs1 := sequence.NewComponentState(csi1, snap.KernelModulesComponent)
 	cs2 := sequence.NewComponentState(csi2, snap.KernelModulesComponent)
-	setStateWithComponents(s.state, snapName, snapRev, []*sequence.ComponentState{cs1, cs2})
 
-	t := s.state.NewTask("prepare-kernel-modules-components", "test kernel modules")
+	t := s.state.NewTask("prepare-kernel-modules-components-many", "test kernel modules")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapName,
 			Revision: snapRev,
 		},
+		PreUpdateKernelModuleComponents: []*snap.ComponentSideInfo{cs1.SideInfo, cs2.SideInfo},
 	})
+
 	compRev := snap.R(7)
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
 	t.Set("component-setup",
 		snapstate.NewComponentSetup(csi, snap.KernelModulesComponent, ""))
+
+	cs := sequence.NewComponentState(csi, snap.KernelModulesComponent)
+	setStateWithComponents(s.state, snapName, snapRev, []*sequence.ComponentState{cs1, cs2, cs})
+
 	chg := s.state.NewChange("test change", "change desc")
 	chg.AddTask(t)
 
@@ -166,14 +201,14 @@ func (s *setupKernelComponentsSuite) testRemoveKernelModulesSetup(c *C, snapName
 
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op:             "setup-kernel-modules-components",
-			compsToInstall: []*snap.ComponentSideInfo{csi},
-			currentComps:   []*snap.ComponentSideInfo{csi1, csi2},
+			op:           "prepare-kernel-modules-components-many",
+			currentComps: []*snap.ComponentSideInfo{csi1, csi2},
+			finalComps:   []*snap.ComponentSideInfo{csi1, csi2, csi},
 		},
 		{
-			op:            "remove-kernel-modules-components-setup",
-			compsToRemove: []*snap.ComponentSideInfo{csi},
-			finalComps:    []*snap.ComponentSideInfo{csi1, csi2},
+			op:           "prepare-kernel-modules-components-many",
+			finalComps:   []*snap.ComponentSideInfo{csi1, csi2},
+			currentComps: []*snap.ComponentSideInfo{csi1, csi2, csi},
 		},
 	})
 }

@@ -377,7 +377,7 @@ func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.C
 	// For kernel-modules, regenerate drivers tree
 	revisionStr := fmt.Sprintf(" (%s)", compst.SideInfo.Revision)
 	if compst.CompType == snap.KernelModulesComponent {
-		kmodSetup := st.NewTask("clear-kernel-modules-components",
+		kmodSetup := st.NewTask("prepare-kernel-modules-components-many",
 			fmt.Sprintf(i18n.G("Clear kernel-modules component %q%s"),
 				compst.SideInfo.Component, revisionStr))
 		addTask(kmodSetup)
