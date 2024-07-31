@@ -243,7 +243,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 	addTask(postOpHook)
 
 	if !compSetup.SkipKernelModulesSetup && compSetup.CompType == snap.KernelModulesComponent {
-		kmodSetup := st.NewTask("prepare-kernel-modules-components-many",
+		kmodSetup := st.NewTask("prepare-kernel-modules-components",
 			fmt.Sprintf(i18n.G("Prepare kernel-modules component %q%s"),
 				compSi.Component, revisionStr))
 		componentTS.postOpHookAndAfter = append(componentTS.postOpHookAndAfter, kmodSetup)
@@ -377,7 +377,7 @@ func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.C
 	// For kernel-modules, regenerate drivers tree
 	revisionStr := fmt.Sprintf(" (%s)", compst.SideInfo.Revision)
 	if compst.CompType == snap.KernelModulesComponent {
-		kmodSetup := st.NewTask("prepare-kernel-modules-components-many",
+		kmodSetup := st.NewTask("prepare-kernel-modules-components",
 			fmt.Sprintf(i18n.G("Clear kernel-modules component %q%s"),
 				compst.SideInfo.Component, revisionStr))
 		addTask(kmodSetup)

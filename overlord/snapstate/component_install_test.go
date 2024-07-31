@@ -49,7 +49,7 @@ const (
 	compOptSkipSecurity
 	// Component is being installed with a snap that is being refreshed
 	compOptDuringSnapRefresh
-	// Component is being installed with a snap, so skip prepare-kernel-modules-components-many
+	// Component is being installed with a snap, so skip prepare-kernel-modules-components
 	compOptSkipKernelModulesSetup
 )
 
@@ -95,7 +95,7 @@ func expectedComponentInstallTasksSplit(opts int) (beforeLink []string, linkToHo
 	}
 
 	if opts&compTypeIsKernMods != 0 && opts&compOptSkipKernelModulesSetup == 0 {
-		postOpHooksAndAfter = append(postOpHooksAndAfter, "prepare-kernel-modules-components-many")
+		postOpHooksAndAfter = append(postOpHooksAndAfter, "prepare-kernel-modules-components")
 	}
 
 	if opts&compCurrentIsDiscarded != 0 {

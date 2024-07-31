@@ -6314,7 +6314,7 @@ func undoOps(instanceName string, snapRevision, prevRev snap.Revision, newCompon
 
 	if len(installedKmods) > 0 || len(prevInstalledKmods) > 0 {
 		ops = append(ops, fakeOp{
-			op:           "prepare-kernel-modules-components-many",
+			op:           "prepare-kernel-modules-components",
 			currentComps: installedKmods,
 			finalComps:   prevInstalledKmods,
 		})
@@ -6653,7 +6653,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, insta
 
 	if len(kmodComps) > 0 {
 		expected = append(expected, fakeOp{
-			op:           "prepare-kernel-modules-components-many",
+			op:           "prepare-kernel-modules-components",
 			currentComps: nil,
 			finalComps:   kmodComps,
 		})
@@ -6940,7 +6940,7 @@ components:
 
 	if len(kmodComps) > 0 {
 		expected = append(expected, fakeOp{
-			op:           "prepare-kernel-modules-components-many",
+			op:           "prepare-kernel-modules-components",
 			currentComps: nil,
 			finalComps:   kmodComps,
 		})

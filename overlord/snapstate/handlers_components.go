@@ -665,7 +665,7 @@ func (m *SnapManager) doSetupKernelModulesMany(t *state.Task, _ *tomb.Tomb) erro
 	// as it can take a couple of seconds.
 	st.Unlock()
 	pm := NewTaskProgressAdapterUnlocked(t)
-	err = m.backend.SetupKernelModulesComponentsMany(
+	err = m.backend.SetupKernelModulesComponents(
 		snapsup.PreUpdateKernelModuleComponents, newComps, snapsup.InstanceName(), snapsup.Revision(), pm,
 	)
 	st.Lock()
@@ -696,7 +696,7 @@ func (m *SnapManager) undoSetupKernelModulesMany(t *state.Task, _ *tomb.Tomb) er
 	// as it can take a couple of seconds.
 	st.Unlock()
 	pm := NewTaskProgressAdapterUnlocked(t)
-	err = m.backend.SetupKernelModulesComponentsMany(
+	err = m.backend.SetupKernelModulesComponents(
 		justSetupComps, snapsup.PreUpdateKernelModuleComponents, snapsup.InstanceName(), snapsup.Revision(), pm,
 	)
 	st.Lock()

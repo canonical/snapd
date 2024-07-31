@@ -13886,7 +13886,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 
 	if len(prevKmodComps) > 0 || len(currentKmodComps) > 0 {
 		expected = append(expected, fakeOp{
-			op:           "prepare-kernel-modules-components-many",
+			op:           "prepare-kernel-modules-components",
 			currentComps: currentKmodComps,
 			finalComps:   prevKmodComps,
 		})
@@ -14306,7 +14306,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, instanceKey 
 
 	if len(currentKmodComps) > 0 || len(newKmodComps) > 0 {
 		expected = append(expected, fakeOp{
-			op:           "prepare-kernel-modules-components-many",
+			op:           "prepare-kernel-modules-components",
 			currentComps: currentKmodComps,
 			finalComps:   newKmodComps,
 		})

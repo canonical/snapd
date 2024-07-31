@@ -58,7 +58,7 @@ func (s *setupKernelComponentsSuite) testSetupKernelModules(c *C, snapName, errS
 
 	if errStr != "" {
 		s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
-			if op.op == "prepare-kernel-modules-components-many" {
+			if op.op == "prepare-kernel-modules-components" {
 				return fmt.Errorf("cannot set-up kernel-modules for %s", snapName)
 			}
 			return nil
@@ -73,7 +73,7 @@ func (s *setupKernelComponentsSuite) testSetupKernelModules(c *C, snapName, errS
 	cs1 := sequence.NewComponentState(csi1, snap.KernelModulesComponent)
 	cs2 := sequence.NewComponentState(csi2, snap.KernelModulesComponent)
 
-	t := s.state.NewTask("prepare-kernel-modules-components-many", "test kernel modules")
+	t := s.state.NewTask("prepare-kernel-modules-components", "test kernel modules")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapName,
@@ -112,7 +112,7 @@ func (s *setupKernelComponentsSuite) testSetupKernelModules(c *C, snapName, errS
 
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op:           "prepare-kernel-modules-components-many",
+			op:           "prepare-kernel-modules-components",
 			finalComps:   []*snap.ComponentSideInfo{cs1.SideInfo, cs2.SideInfo, csi},
 			currentComps: []*snap.ComponentSideInfo{csi1, csi2},
 		},
@@ -135,7 +135,7 @@ func (s *setupKernelComponentsSuite) testRemoveKernelModulesSetup(c *C, snapName
 	if errStr != "" {
 		var count int
 		s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
-			if op.op == "prepare-kernel-modules-components-many" {
+			if op.op == "prepare-kernel-modules-components" {
 				count++
 				if count == 2 {
 					return fmt.Errorf("cannot set-up kernel-modules for %s", snapName)
@@ -153,7 +153,7 @@ func (s *setupKernelComponentsSuite) testRemoveKernelModulesSetup(c *C, snapName
 	cs1 := sequence.NewComponentState(csi1, snap.KernelModulesComponent)
 	cs2 := sequence.NewComponentState(csi2, snap.KernelModulesComponent)
 
-	t := s.state.NewTask("prepare-kernel-modules-components-many", "test kernel modules")
+	t := s.state.NewTask("prepare-kernel-modules-components", "test kernel modules")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapName,
@@ -201,12 +201,12 @@ func (s *setupKernelComponentsSuite) testRemoveKernelModulesSetup(c *C, snapName
 
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op:           "prepare-kernel-modules-components-many",
+			op:           "prepare-kernel-modules-components",
 			currentComps: []*snap.ComponentSideInfo{csi1, csi2},
 			finalComps:   []*snap.ComponentSideInfo{csi1, csi2, csi},
 		},
 		{
-			op:           "prepare-kernel-modules-components-many",
+			op:           "prepare-kernel-modules-components",
 			finalComps:   []*snap.ComponentSideInfo{csi1, csi2},
 			currentComps: []*snap.ComponentSideInfo{csi1, csi2, csi},
 		},

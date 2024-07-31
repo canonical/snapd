@@ -1003,10 +1003,10 @@ func (f *fakeSnappyBackend) SetupComponent(compFilePath string, compPi snap.Cont
 	return &backend.InstallRecord{}, nil
 }
 
-func (f *fakeSnappyBackend) SetupKernelModulesComponentsMany(currentComps, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) error {
-	meter.Notify("prepare-kernel-modules-components-many")
+func (f *fakeSnappyBackend) SetupKernelModulesComponents(currentComps, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) error {
+	meter.Notify("prepare-kernel-modules-components")
 	f.appendOp(&fakeOp{
-		op:           "prepare-kernel-modules-components-many",
+		op:           "prepare-kernel-modules-components",
 		currentComps: currentComps,
 		finalComps:   finalComps,
 	})
