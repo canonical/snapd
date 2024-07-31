@@ -1,0 +1,90 @@
+summary: Verify that snap-prompting-control grants read-access to relevant endpoints
+details: |
+    The snap-prompting-control interface grants access to prompting clients
+    (e.g. prompting-client) to a subset of snapd's API endpoints needed
+    to view and manage request prompts and request rules.
+
+    Specifically:
+      - /v2/notices: to read change-update and refresh-inhibit notices
+      - /v2/system-info: to check whether prompting is supported/enabled
+      # TODO: - /v2/interfaces/requests/prompts: to receive and reply to request prompts
+      # TODO: - /v2/interfaces/requests/rules: to view and manage request rules
+
+environment:
+    # not all terminals support UTF-8, but Python tries to be smart and attempts
+    # to guess the encoding as if the output would go to the terminal, but in
+    # fact all the test does is pipe the output to jq
+    PYTHONIOENCODING: utf-8
+
+prepare: |
+    snap install --edge jq
+
+execute: |
+    "$TESTSTOOLS"/snaps-state install-local api-client
+    echo "The snap-prompting-control plug on the api-client snap is initially disconnected"
+    snap connections api-client | MATCH "snap-prompting-control +api-client:snap-prompting-control +- +-"
+    echo "Connect the snap-prompting-control plug"
+    snap connect api-client:snap-prompting-control
+
+    echo "Check snap can access interfaces-requests-prompt and interfaces-requests-rule-update notices under /v2/notices"
+    api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-prompt" | jq '."status-code"' | MATCH '^200$'
+    api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-rule-update" | jq '."status-code"' | MATCH '^200$'
+    api-client --socket /run/snapd-snap.socket "/v2/notices" | jq '."status-code"' | MATCH '^200$'
+    echo "But not other notice types"
+    api-client --socket /run/snapd-snap.socket "/v2/notices?types=change-update,warning" | jq '."status-code"' | MATCH '^403$'
+
+    echo "Check snap can access system info via /v2/system-info"
+    api-client --socket /run/snapd-snap.socket "/v2/system-info" | jq '."status-code"' | MATCH '^200$'
+
+    echo "Ensure AppArmor Prompting experimental feature is marked as enabled"
+    snap set system experimental.apparmor-prompting=true
+
+    echo 'Check "apparmor-prompting" is shown as enabled in /v2/system-info'
+    api-client --socket /run/snapd-snap.socket "/v2/system-info" | jq '."result"."features"."apparmor-prompting"."enabled"' | MATCH '^true$'
+
+    # TODO: remove shellcheck exception
+    #shellcheck disable=SC2034
+    EXPECTED_HTTP_CODE="200"
+    if api-client --socket /run/snapd-snap.socket "/v2/system-info" | jq '."result"."features"."apparmor-prompting"."supported"' | MATCH '^false$' ; then
+        # AppArmor prompting isn't supported, so rules and prompts backends are
+        # not active, and will return InternalError (500). We can at least check
+        # that we receive an InternalError instead of Forbidden (403).
+        echo "Prompting is not supported, so check that we get InternalError (500) instead of Forbidden (403)"
+        # TODO: remove shellcheck exception
+        #shellcheck disable=SC2034
+        EXPECTED_HTTP_CODE="500"
+    fi
+
+    # TODO: update once the prompting API is landed in snapd master
+    # echo "Check snap can access prompts via /v2/interfaces/requests/prompts"
+    # api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts" | jq '."status-code"' | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
+    # echo "Check snap can access a single prompt via /v2/interfaces/requests/prompts/<ID>"
+    # TODO: include the "home" interface and create a request prompt by attempting to list contents of $HOME
+    # PROMPT_ID=FIXME
+    # api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts/$PROMPT_ID" | jq '."status-code"' | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
+    # echo "Check snap can reply to a prompt via /v2/interfaces/requests/prompts/<ID>
+    # api-client --socket /run/snapd-snap.socket --method=POST '{"action":"allow","lifespan":"forever","constraints":{"path-pattern":"/**","permissions":["read"]}}' "/v2/interfaces/requests/prompts/$PROMPT_ID" | jq '."status-code"' | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
+    # TODO: check that thread which triggered request completed successfully
+
+    # TODO: update once the prompting API is landed in snapd master
+    # echo "Check snap can access rules via /v2/interfaces/requests/rules"
+    # api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules" | jq '."status-code"' | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
+    # echo "Check snap can create rule via /v2/interfaces/requests/rules"
+    # api-client --socket /run/snapd-snap.socket --method=POST '{"action":"add","rule":{"snap":"api-client","interface":"home","constraints":{"path-pattern":"/path/to/file","permissions":["read","write","execute"]},"outcome":"allow","lifespan":"session"}}' "/v2/interfaces/requests/prompts" | jq '."status-code"' | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
+    # RULE_ID=TODO
+    # echo "Check snap can view a single rule via /v2/interfaces/requests/rules/<ID>"
+    # api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts/$RULE_ID" | jq '."status-code"' | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
+    # echo "Check snap can modify a single rule via /v2/interfaces/requests/rules/<ID>"
+    # api-client --socket /run/snapd-snap.socket --method=POST '{"action":"remove"}' "/v2/interfaces/requests/prompts/$RULE_ID" | jq '."status-code"' | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
+
+    echo "Without snap-prompting-control the snap cannot access those API endpoints"
+    snap disconnect api-client:snap-prompting-control
+
+    api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-prompt" | jq '."status-code"' | MATCH '^403$'
+    api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-rule-update" | jq '."status-code"' | MATCH '^403$'
+    api-client --socket /run/snapd-snap.socket "/v2/system-info" | jq '."status-code"' | MATCH '^403$'
+    # TODO: update once the prompting API is landed in snapd master
+    # api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts" | jq '."status-code"' | MATCH '^403$'
+    # api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts/$PROMPT_ID" | jq '."status-code"' | MATCH '^403$'
+    # api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules" | jq '."status-code"' | MATCH '^403$'
+    # api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules/$RULE_ID" | jq '."status-code"' | MATCH '^403$'
