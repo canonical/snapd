@@ -240,6 +240,10 @@ parts:
 
       CMDS=(bin/snap
             lib/snapd/snapd
+            # core-initrd for UC20 still depends on snap-bootstrap
+            # being started from snap because of broken re-execution
+            # and fixes that were not yet backported
+            lib/snapd/snap-bootstrap
             lib/snapd/snap-exec
             lib/snapd/snap-failure
             lib/snapd/snap-fde-keymgr
@@ -299,9 +303,8 @@ parts:
         if [ -f fips-build ]; then
           case "${cmd}" in
             # per snapd FIPS spec, FIPS build tags are only relevant for snapd,
-            # snap, snap-repair and snap-bootstrap (where snap-bootstrap isn't
-            # part of the snapd snap)
-            bin/snap|lib/snapd/snapd|lib/snapd/snap-repair)
+            # snap, snap-repair and snap-bootstrap
+            bin/snap|lib/snapd/snapd|lib/snapd/snap-repair|lib/snapd/snap-bootstrap)
               TAGS+=(goexperiment.opensslcrypto)
               ;;
           esac
