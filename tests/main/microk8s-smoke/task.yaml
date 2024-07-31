@@ -44,12 +44,14 @@ prepare: |
     if [ -n "${http_proxy:-}" ] || [ -n "${https_proxy:-}" ] ; then
         # Configuration done following https://microk8s.io/docs/install-proxy
         cp /etc/environment /etc/environment.bak
-        echo "http_proxy=$http_proxy" >> /etc/environment
-        echo "HTTP_PROXY=$https_proxy" >> /etc/environment
-        echo "https_proxy=$https_proxy" >> /etc/environment
-        echo "HTTPS_PROXY=$https_proxy" >> /etc/environment
-        echo "NO_PROXY=10.0.0.0/8,192.168.0.0/16,127.0.0.1,172.16.0.0/16,.svc,localhost"  >> /etc/environment
-        echo "no_proxy=10.0.0.0/8,192.168.0.0/16,127.0.0.1,172.16.0.0/16,.svc,localhost"  >> /etc/environment
+        {
+        echo "http_proxy=$http_proxy"
+        echo "HTTP_PROXY=$https_proxy"
+        echo "https_proxy=$https_proxy"
+        echo "HTTPS_PROXY=$https_proxy"
+        echo "NO_PROXY=10.0.0.0/8,192.168.0.0/16,127.0.0.1,172.16.0.0/16,.svc,localhost"
+        echo "no_proxy=10.0.0.0/8,192.168.0.0/16,127.0.0.1,172.16.0.0/16,.svc,localhost"
+        } >> /etc/environment
         tests.cleanup defer mv /etc/environment.bak /etc/environment
     fi
 
