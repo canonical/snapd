@@ -282,7 +282,7 @@ func (s *noticesSuite) TestNoticesFilterType(c *C) {
 
 	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.RequestsPromptNotice, "443", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "443", nil)
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
 	time.Sleep(time.Microsecond)
@@ -331,7 +331,7 @@ func (s *noticesSuite) TestNoticesFilterType(c *C) {
 	// Multiple types
 	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{
 		state.ChangeUpdateNotice,
-		state.RequestsPromptNotice,
+		state.InterfacesRequestsPromptNotice,
 	}})
 	c.Assert(notices, HasLen, 2)
 	n = noticeToMap(c, notices[0])
