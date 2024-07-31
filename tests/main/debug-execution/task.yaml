@@ -1,0 +1,163 @@
+summary: Verify snap debug execution command
+
+details: |
+    This test checks that the command `snap debug execution` shows right
+    outputs, but also verifies their correctness on the target systems
+
+debug: |
+    grep -n '' snap-*.out || true
+
+execute: |
+    snap debug execution snap > snap-default.out
+    SNAP_REEXEC=0 snap debug execution snap > snap-no-reexec.out
+    SNAP_REEXEC=1 snap debug execution snap > snap-yes-reexec.out
+
+    # this may fail when apparmor isn't found at all
+    (snap debug execution apparmor || true) > snap-apparmor-default.out
+    (SNAP_REEXEC=0 snap debug execution apparmor || true) > snap-apparmor-no-reexec.out
+
+    snap debug execution internal-tool --tool snap-update-ns > snap-uns-default.out
+
+    case "$SPREAD_SYSTEM" in
+        ubuntu-core-*)
+            echo "Checking Ubuntu Core default scenario"
+            MATCH 'distro-supports-reexec: false' < snap-default.out
+            MATCH 'is-reexec-enabled: true' < snap-default.out
+            MATCH 'is-reexec-explicitly-enabled: false' < snap-default.out
+            if os.query is-core16; then
+                # snap is part of the core snap
+                MATCH 'is-reexecd: false' < snap-default.out
+                MATCH 'self-exe: /usr/bin/snap' < snap-default.out
+            else
+                # UC18+ with snapd snap
+                MATCH 'is-reexecd: true' < snap-default.out
+                MATCH 'self-exe: /snap/snapd/.*/usr/bin/snap' < snap-default.out
+            fi
+
+            echo "Checking Ubuntu Core with reexec scenario"
+            MATCH 'distro-supports-reexec: false' < snap-yes-reexec.out
+            MATCH 'is-reexec-enabled: true' < snap-yes-reexec.out
+            MATCH 'is-reexec-explicitly-enabled: true' < snap-yes-reexec.out
+            MATCH 'is-reexecd: true' < snap-yes-reexec.out
+            if os.query is-core16; then
+                MATCH 'self-exe: /snap/core/.*/usr/bin/snap' < snap-yes-reexec.out
+            else
+                MATCH 'self-exe: /snap/snapd/.*/usr/bin/snap' < snap-yes-reexec.out
+            fi
+
+            echo "Checking Ubuntu Core without reexec scenario"
+            MATCH 'distro-supports-reexec: false' < snap-no-reexec.out
+            MATCH 'is-reexec-explicitly-enabled: false' < snap-no-reexec.out
+            if os.query is-core16; then
+                MATCH 'is-reexec-enabled: false' < snap-no-reexec.out
+                MATCH 'is-reexecd: false' < snap-no-reexec.out
+                MATCH 'self-exe: /usr/bin/snap' < snap-no-reexec.out
+            else
+                MATCH 'is-reexec-enabled: true' < snap-no-reexec.out
+                MATCH 'is-reexecd: true' < snap-no-reexec.out
+                MATCH 'self-exe: /snap/snapd/.*/usr/bin/snap' < snap-no-reexec.out
+            fi
+
+            echo "Checking Ubuntu Core AppArmor"
+            if os.query is-core16; then
+                MATCH 'apparmor-parser: /sbin/apparmor_parser' < snap-apparmor-default.out
+                MATCH 'internal: false' < snap-apparmor-default.out
+            else
+                MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-default.out
+                MATCH 'internal: true' < snap-apparmor-default.out
+            fi
+            ;;
+        ubuntu-*|debian-*)
+            echo "Checking default scenario"
+            MATCH 'distro-supports-reexec: true' < snap-default.out
+            MATCH 'is-reexec-enabled: true' < snap-default.out
+            MATCH 'is-reexec-explicitly-enabled: false' < snap-default.out
+            MATCH 'is-reexecd: true' < snap-default.out
+            # TODO: once snapd snap lands the output wlll be different:
+            # MATCH 'self-exe: /snap/snapd/.*/usr/bin/snap' < snap-default.out
+            MATCH 'self-exe: /snap/core/.*/usr/bin/snap' < snap-default.out
+
+            echo "Checking without reeexec scenario"
+            MATCH 'distro-supports-reexec: true' < snap-no-reexec.out
+            MATCH 'is-reexec-enabled: false' < snap-no-reexec.out
+            MATCH 'is-reexec-explicitly-enabled: false' < snap-no-reexec.out
+            MATCH 'is-reexecd: false' < snap-no-reexec.out
+            MATCH 'self-exe: /usr/bin/snap' < snap-no-reexec.out
+
+            echo "Checking AppArmor"
+            # TODO: once snapd snap lands, this will use internal parser
+            # MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-default.out
+            # MATCH 'internal: true' < snap-apparmor-default.out
+            if os.query is-xenial || os.query is-bionic; then
+                # Ubuntu < 20.04 does not have usr-merge
+                MATCH 'apparmor-parser: /sbin/apparmor_parser' < snap-apparmor-default.out
+                MATCH 'internal: false' < snap-apparmor-default.out
+                MATCH 'apparmor-parser: /sbin/apparmor_parser' < snap-apparmor-no-reexec.out
+                MATCH 'internal: false' < snap-apparmor-no-reexec.out
+            else
+                MATCH 'apparmor-parser: /usr/sbin/apparmor_parser' < snap-apparmor-default.out
+                MATCH 'internal: false' < snap-apparmor-default.out
+                MATCH 'apparmor-parser: /usr/sbin/apparmor_parser' < snap-apparmor-no-reexec.out
+                MATCH 'internal: false' < snap-apparmor-no-reexec.out
+            fi
+
+            # TODO: once snapd snap lands, this will use snap-update-ns from
+            # snapd snap
+            MATCH 'snap-update-ns: /snap/core/.*/usr/lib/snapd/snap-update-ns' < snap-uns-default.out
+            ;;
+        *)
+            echo "Checking default scenario"
+            MATCH 'distro-supports-reexec: false' < snap-default.out
+            MATCH 'is-reexec-enabled: true' < snap-default.out
+            MATCH 'is-reexec-explicitly-enabled: false' < snap-default.out
+            MATCH 'is-reexecd: false' < snap-default.out
+            MATCH 'self-exe: /usr/bin/snap' < snap-default.out
+
+            echo "Checking with reexec scenario"
+            MATCH 'distro-supports-reexec: false' < snap-yes-reexec.out
+            MATCH 'is-reexec-enabled: true' < snap-yes-reexec.out
+            MATCH 'is-reexec-explicitly-enabled: true' < snap-yes-reexec.out
+            # actual outcome depends on whether there is a /snap ->
+            # /var/lib/snapd/snap symlink on systems where snaps are not mounted
+            # under /snap
+
+            # TODO: once snapd snap lands the output wlll be different:
+            # MATCH 'is-reexecd: false' < snap-yes-reexec.out
+            # MATCH 'self-exe: /snap/snapd/.*/usr/bin/snap' < snap-yes-reexec.out
+            case "$SPREAD_SYSTEM" in
+                arch-linux-*|fedora-*|centos-*)
+                    # no /snap -> /var/lib/snapd/snap symlink by default
+                    MATCH 'is-reexecd: false' < snap-yes-reexec.out
+                    MATCH 'self-exe: /usr/bin/snap' < snap-yes-reexec.out
+                    ;;
+                opensuse-*)
+                    # snap mount dir is /snap
+                    MATCH 'is-reexecd: true' < snap-yes-reexec.out
+                    MATCH 'self-exe: /snap/core/.*/usr/bin/snap' < snap-yes-reexec.out
+                    ;;
+                amazon-linux-*)
+                    # has /snap -> /var/lib/snapd symlink
+                    MATCH 'is-reexecd: true' < snap-yes-reexec.out
+                    MATCH 'self-exe: /var/lib/snapd/snap/core/.*/usr/bin/snap' < snap-yes-reexec.out
+                    ;;
+                *)
+                    echo "unexpected distro $SPREAD_SYSTEM"
+                    exit 1
+                    ;;
+            esac
+
+            echo "Checking AppArmor"
+            case "$SPREAD_SYSTEM" in
+                fedora-*|centos-*|amazon-linux-*)
+                    MATCH 'apparmor-parser: error:file does not exist' < snap-apparmor-default.out
+                    ;;
+                *)
+                    MATCH 'apparmor-parser: (/usr)?/sbin/apparmor_parser' < snap-apparmor-default.out
+                    ;;
+            esac
+            MATCH 'internal: false' < snap-apparmor-default.out
+
+            MATCH 'snap-update-ns: /usr/lib(exec)?/snapd/snap-update-ns' < snap-uns-default.out
+            ;;
+    esac
+
