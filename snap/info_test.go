@@ -2445,3 +2445,60 @@ apps:
 		SecurityTag: "snap.test-snap+comp.hook.install",
 	})
 }
+
+func (s *infoSuite) TestRegistryPlugAttrs(c *C) {
+	plug := &snap.PlugInfo{
+		Snap:      &snap.Info{SuggestedName: "test-snap"},
+		Name:      "test-plug",
+		Interface: "registry",
+		Attrs: map[string]interface{}{
+			"account": "foo",
+			"view":    "bar/baz",
+			"role":    "manager",
+		},
+	}
+
+	account, registry, view, err := snap.RegistryPlugAttrs(plug)
+	c.Assert(err, IsNil)
+	c.Assert(account, Equals, "foo")
+	c.Assert(registry, Equals, "bar")
+	c.Assert(view, Equals, "baz")
+}
+
+func (s *infoSuite) TestRegistryPlugAttrsInvalid(c *C) {
+	type testcase struct {
+		iface   string
+		account string
+		view    string
+		err     string
+	}
+
+	tcs := []testcase{
+		{
+			iface: "other-thing",
+			err:   "must be registry plug: other-thing",
+		},
+
+		{
+			iface:   "registry",
+			account: "my-acc",
+			view:    "reg",
+			err:     "\"view\" must conform to <registry>/<view>: reg",
+		},
+	}
+
+	for _, tc := range tcs {
+		plug := &snap.PlugInfo{
+			Snap:      &snap.Info{SuggestedName: "test-snap"},
+			Name:      "test-plug",
+			Interface: tc.iface,
+			Attrs: map[string]interface{}{
+				"account": tc.account,
+				"view":    tc.view,
+			},
+		}
+
+		_, _, _, err := snap.RegistryPlugAttrs(plug)
+		c.Assert(err, ErrorMatches, tc.err)
+	}
+}

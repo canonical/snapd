@@ -38,16 +38,27 @@ const gpioControlBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
+// TODO extend apparmor pattern to allow /sys/devices/platform/gpio-sim.[0-9]*
+// for better spread testing
 const gpioControlConnectedPlugAppArmor = `
 # Description: Allow controlling all aspects of GPIO pins. This can potentially
 # impact the system and other snaps, and allows privileged access to hardware.
 
+# Access through legacy sysfs interface
 /sys/class/gpio/{,un}export rw,
 /sys/class/gpio/gpio[0-9]*/{active_low,direction,value,edge} rw,
 # apparmor needs the symlink targets which on most platforms the path
 # below (see also PR#12816)
 /sys/devices/platform/**/gpio/gpio[0-9]*/{active_low,direction,value,edge} rw,
+
+# Access through gpiod interface
+# see https://www.kernel.org/doc/html/latest/userspace-api/gpio/chardev.html
+/dev/gpiochip[0-9]* rw,
 `
+
+var gpioControlConnectedPlugUDev = []string{
+	`SUBSYSTEM=="gpio", KERNEL=="gpiochip[0-9]*"`,
+}
 
 func init() {
 	registerIface(&commonInterface{
@@ -58,5 +69,6 @@ func init() {
 		baseDeclarationPlugs:  gpioControlBaseDeclarationPlugs,
 		baseDeclarationSlots:  gpioControlBaseDeclarationSlots,
 		connectedPlugAppArmor: gpioControlConnectedPlugAppArmor,
+		connectedPlugUDev:     gpioControlConnectedPlugUDev,
 	})
 }

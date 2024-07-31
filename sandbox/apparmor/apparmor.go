@@ -395,6 +395,8 @@ func ParserMtime() int64 {
 		if fi, err := os.Stat(cmd.Path); err == nil {
 			mtime = fi.ModTime().Unix()
 		}
+	} else {
+		logger.Debugf("apparmor parser err: %v", err)
 	}
 	return mtime
 }
@@ -790,6 +792,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	// installed snapd-apparmor support re-exec
 	if path, err := snapdtool.InternalToolPath("apparmor_parser"); err == nil {
 		if osutil.IsExecutable(path) && snapdAppArmorSupportsReexec() && !systemAppArmorLoadsSnapPolicy() {
+			logger.Debugf("checking internal apparmor_parser candidate at %v", path)
 			prefix := strings.TrimSuffix(path, "apparmor_parser")
 			snapdAbi30File := filepath.Join(prefix, "/apparmor.d/abi/3.0")
 			snapdAbi40File := filepath.Join(prefix, "/apparmor.d/abi/4.0")
@@ -828,6 +831,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	for _, dir := range filepath.SplitList(parserSearchPath) {
 		path := filepath.Join(dir, "apparmor_parser")
 		if _, err := os.Stat(path); err == nil {
+			logger.Debugf("checking distro apparmor_parser at %v", path)
 			// Detect but ignore apparmor 4.0 ABI support.
 			//
 			// At present this causes some bugs with mqueue mediation that can
