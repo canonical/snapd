@@ -225,6 +225,9 @@ func (snapSeq *SnapSequence) ComponentsWithTypeForRev(rev snap.Revision, compTyp
 		}
 		kmodComps = append(kmodComps, comp.SideInfo)
 	}
+	if len(kmodComps) == 0 {
+		return nil
+	}
 	return kmodComps
 }
 
