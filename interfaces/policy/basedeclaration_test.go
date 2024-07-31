@@ -999,9 +999,9 @@ slots:
   udisks2:
     udev-file: some/file
 `)
-	err = ic.Check()
-	c.Assert(err, Not(IsNil))
-	c.Assert(err, ErrorMatches, "installation not allowed by \"udisks2\" slot rule of interface \"udisks2\"")
+err = ic.Check()
+c.Assert(err, Not(IsNil))
+c.Assert(err, ErrorMatches, "installation not allowed by \"udisks2\" slot rule of interface \"udisks2\"")
 }
 
 func (s *baseDeclSuite) TestPlugInstallation(c *C) {
@@ -1025,6 +1025,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"microstack-support":               true,
 		"mount-control":                    true,
 		"multipass-support":                true,
+		"nomad-support":                    true,
 		"nvidia-drivers-support":           true,
 		"packagekit-control":               true,
 		"personal-files":                   true,
@@ -1322,6 +1323,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"microstack-support":               true,
 		"mount-control":                    true,
 		"multipass-support":                true,
+		"nomad-support":                    true,
 		"nvidia-drivers-support":           true,
 		"packagekit-control":               true,
 		"personal-files":                   true,
