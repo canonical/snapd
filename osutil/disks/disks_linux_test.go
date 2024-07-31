@@ -760,7 +760,7 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedLUKSDeviceVolumeHappy(c *C)
 	}()
 
 	_, err = disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, `cannot process properties of /dev/mapper/something parent device: internal error: no back resolver supports decrypted device mapper with UUID "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something" and name "something"`)
+	c.Assert(err, ErrorMatches, `cannot process properties of /dev/mapper/something parent device: internal error: no back resolver supports device mapper with UUID "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something" and name "something"`)
 
 	// but when it is available it works
 	disks.RegisterDeviceMapperBackResolver("crypt-luks2", disks.CryptLuks2DeviceMapperBackResolver)
@@ -2106,7 +2106,7 @@ func (s *diskSuite) TestDiskFromMountPointIsVerityDeviceVolumeHappy(c *C) {
 	}()
 
 	_, err = disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, `cannot process properties of /dev/mapper/something parent device: internal error: no back resolver supports decrypted device mapper with UUID "CRYPT-VERITY-5a522809c87e4dfa81a88dc5667d1304-something" and name "something"`)
+	c.Assert(err, ErrorMatches, `cannot process properties of /dev/mapper/something parent device: internal error: no back resolver supports device mapper with UUID "CRYPT-VERITY-5a522809c87e4dfa81a88dc5667d1304-something" and name "something"`)
 
 	// but when it is available it works
 	disks.RegisterDeviceMapperBackResolver("crypt-verity", disks.CryptVerityDeviceMapperBackResolver)
