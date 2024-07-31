@@ -516,7 +516,7 @@ func parentPartitionPropsForOptions(props map[string]string) (map[string]string,
 		if dev, ok := resolver(opts); ok {
 			props, err = udevPropertiesForName(dev)
 			if err != nil {
-				return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", dev, err)
+				return nil, fmt.Errorf("cannot get udev properties for partition %s: %v", dev, err)
 			}
 			return props, nil
 		}

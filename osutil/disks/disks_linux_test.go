@@ -2117,3 +2117,47 @@ func (s *diskSuite) TestDiskFromMountPointIsVerityDeviceVolumeHappy(c *C) {
 	c.Assert(d.HasPartitions(), Equals, true)
 	c.Assert(d.Schema(), Equals, "dos")
 }
+
+func (s *diskSuite) TestDiskFromMountPointUnhappyMissingFSUUIDFieldInVerityBackendDeviceUdevProperties(c *C) {
+	restore := osutil.MockMountInfo(`130 30 242:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/mapper/something rw
+`)
+	defer restore()
+
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		switch dev {
+		case "/dev/mapper/something":
+			return map[string]string{
+				"DEVTYPE": "disk",
+				"MAJOR":   "252",
+				"MINOR":   "1",
+			}, nil
+		case "/dev/disk/by-uuid":
+			return nil, fmt.Errorf(`Unknown device "/dev/disk/by-uuid": No such device`)
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
+	})
+	defer restore()
+
+	// mock the sysfs dm uuid and name files
+	dmDir := filepath.Join(filepath.Join(dirs.SysfsDir, "dev", "block"), "252:1", "dm")
+	err := os.MkdirAll(dmDir, 0755)
+	c.Assert(err, IsNil)
+
+	b := []byte("something")
+	err = os.WriteFile(filepath.Join(dmDir, "name"), b, 0644)
+	c.Assert(err, IsNil)
+
+	b = []byte("CRYPT-VERITY-5a522809c87e4dfa81a88dc5667d1304-something")
+	err = os.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644)
+	c.Assert(err, IsNil)
+
+	opts := &disks.Options{IsVerityDevice: true}
+
+	disks.RegisterDeviceMapperBackResolver("crypt-verity", disks.CryptVerityDeviceMapperBackResolver)
+
+	_, err = disks.DiskFromMountPoint("/run/mnt/point", opts)
+	c.Assert(err, ErrorMatches, `cannot process properties of /dev/mapper/something parent device: cannot get udev properties for partition /dev/disk/by-uuid: Unknown device "/dev/disk/by-uuid": No such device`)
+}
