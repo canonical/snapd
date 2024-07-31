@@ -710,7 +710,7 @@ func (s *setupSuite) TestSetupAndRemoveKernelModulesComponentsWithInstalled(c *C
 	firstInstalled := createKModsComps(c, 1, 2, ksnap, kernRev)
 	s.testSetupKernelModulesComponents(c, firstInstalled, nil, ksnap, kernRev, "")
 	// Add components, with some overlap (comp2/3 - new rev for comp2 though, 22)
-	newComps := createKModsComps(c, 2, 2, ksnap, kernRev)
+	newComps := createKModsComps(c, 1, 3, ksnap, kernRev)
 	s.testSetupKernelModulesComponents(c, newComps, firstInstalled, ksnap, kernRev, "")
 	// twice to check it is idempotent
 	s.testSetupKernelModulesComponents(c, newComps, firstInstalled, ksnap, kernRev, "")
@@ -743,7 +743,7 @@ func (s *setupSuite) testSetupKernelModulesComponents(c *C, toInstall, installed
 	c.Assert(err, IsNil)
 
 	// Run modules set-up
-	err = s.be.SetupKernelModulesComponents(toInstall, installed, ksnap, kernRev, progress.Null)
+	err = s.be.SetupKernelModulesComponents(installed, toInstall, ksnap, kernRev, progress.Null)
 	if errRegex == "" {
 		c.Assert(err, IsNil)
 		// ensure new units and files are around
@@ -792,17 +792,29 @@ func checkRemoved(c *C, removed []*snap.ComponentSideInfo, ksnap string, kernRev
 	}
 }
 
-func (s *setupSuite) testRemoveKernelModulesComponents(c *C, toRemove, finalComps []*snap.ComponentSideInfo, ksnap string, kernRev snap.Revision, errRegex string) {
-	err := s.be.RemoveKernelModulesComponentsSetup(toRemove, finalComps, ksnap, kernRev, progress.Null)
+func (s *setupSuite) testRemoveKernelModulesComponents(c *C, currentComps, finalComps []*snap.ComponentSideInfo, ksnap string, kernRev snap.Revision, errRegex string) {
+	final := make(map[snap.ComponentSideInfo]bool)
+	for _, csi := range finalComps {
+		final[*csi] = true
+	}
+
+	var removed []*snap.ComponentSideInfo
+	for _, csi := range currentComps {
+		if _, ok := final[*csi]; !ok {
+			removed = append(removed, csi)
+		}
+	}
+
+	err := s.be.SetupKernelModulesComponents(currentComps, finalComps, ksnap, kernRev, progress.Null)
 	if err == nil {
 		// No left-overs
-		checkRemoved(c, toRemove, ksnap, kernRev)
+		checkRemoved(c, removed, ksnap, kernRev)
 		// finalComps are installed
 		checkInstalled(c, finalComps, ksnap, kernRev)
 	} else {
 		c.Assert(err, ErrorMatches, errRegex)
 		// Not removed
-		checkInstalled(c, toRemove, ksnap, kernRev)
+		checkInstalled(c, currentComps, ksnap, kernRev)
 	}
 }
 
