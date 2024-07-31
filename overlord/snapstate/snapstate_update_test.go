@@ -13750,8 +13750,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 
 	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&prevSI, &currentSI})
 
-	prevKmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
-	currentKmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
+	var currentKmodComps, prevKmodComps []*snap.ComponentSideInfo
 	for i, comp := range components {
 		prevCsi := snap.ComponentSideInfo{
 			Component: naming.NewComponentRef(snapName, comp),
@@ -13921,7 +13920,8 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 		Flags: snapstate.Flags{
 			Transaction: client.TransactionPerSnap,
 		},
-		InstanceKey: instanceKey,
+		InstanceKey:                     instanceKey,
+		PreUpdateKernelModuleComponents: currentKmodComps,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: snapName,
@@ -14290,8 +14290,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, instanceKey 
 		},
 	}...)
 
-	currentKmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
-	newKmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
+	var currentKmodComps, newKmodComps []*snap.ComponentSideInfo
 	for i, compName := range components {
 		if strings.HasPrefix(components[i], string(snap.KernelModulesComponent)) {
 			currentKmodComps = append(currentKmodComps, &snap.ComponentSideInfo{
@@ -14368,7 +14367,8 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, instanceKey 
 		Flags: snapstate.Flags{
 			Transaction: client.TransactionPerSnap,
 		},
-		InstanceKey: instanceKey,
+		InstanceKey:                     instanceKey,
+		PreUpdateKernelModuleComponents: currentKmodComps,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: snapName,

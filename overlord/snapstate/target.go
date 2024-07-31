@@ -123,7 +123,9 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		})
 	}
 
+	currentKModsComps := t.snapst.Sequence.ComponentsWithTypeForRev(t.snapst.Current, snap.KernelModulesComponent)
 	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)
+
 	return SnapSetup{
 		Channel:      t.setup.Channel,
 		CohortKey:    t.setup.CohortKey,
@@ -131,17 +133,18 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		SnapPath:     t.setup.SnapPath,
 		AlwaysUpdate: t.setup.AlwaysUpdate,
 
-		Base:               t.info.Base,
-		Prereq:             getKeys(providerContentAttrs),
-		PrereqContentAttrs: providerContentAttrs,
-		UserID:             snapUserID,
-		Flags:              flags.ForSnapSetup(),
-		SideInfo:           &t.info.SideInfo,
-		Type:               t.info.Type(),
-		Version:            t.info.Version,
-		PlugsOnly:          len(t.info.Slots) == 0,
-		InstanceKey:        t.info.InstanceKey,
-		ExpectedProvenance: t.info.SnapProvenance,
+		Base:                            t.info.Base,
+		Prereq:                          getKeys(providerContentAttrs),
+		PrereqContentAttrs:              providerContentAttrs,
+		UserID:                          snapUserID,
+		Flags:                           flags.ForSnapSetup(),
+		SideInfo:                        &t.info.SideInfo,
+		Type:                            t.info.Type(),
+		Version:                         t.info.Version,
+		PlugsOnly:                       len(t.info.Slots) == 0,
+		InstanceKey:                     t.info.InstanceKey,
+		ExpectedProvenance:              t.info.SnapProvenance,
+		PreUpdateKernelModuleComponents: currentKModsComps,
 	}, compsups, nil
 }
 

@@ -6289,7 +6289,7 @@ func undoOps(instanceName string, snapRevision, prevRev snap.Revision, newCompon
 
 	var ops fakeOps
 
-	installedKmods := make([]*snap.ComponentSideInfo, 0, len(newComponents))
+	var installedKmods []*snap.ComponentSideInfo
 	for i, compName := range newComponents {
 		csi := snap.ComponentSideInfo{
 			Component: naming.NewComponentRef(snapName, compName),
@@ -6300,7 +6300,7 @@ func undoOps(instanceName string, snapRevision, prevRev snap.Revision, newCompon
 		}
 	}
 
-	prevInstalledKmods := make([]*snap.ComponentSideInfo, 0, len(prevComponents))
+	var prevInstalledKmods []*snap.ComponentSideInfo
 	for i, compName := range prevComponents {
 		csi := snap.ComponentSideInfo{
 			Component: naming.NewComponentRef(snapName, compName),
@@ -6654,7 +6654,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, insta
 	if len(kmodComps) > 0 {
 		expected = append(expected, fakeOp{
 			op:           "prepare-kernel-modules-components-many",
-			currentComps: []*snap.ComponentSideInfo{},
+			currentComps: nil,
 			finalComps:   kmodComps,
 		})
 	}
@@ -6941,7 +6941,7 @@ components:
 	if len(kmodComps) > 0 {
 		expected = append(expected, fakeOp{
 			op:           "prepare-kernel-modules-components-many",
-			currentComps: []*snap.ComponentSideInfo{},
+			currentComps: nil,
 			finalComps:   kmodComps,
 		})
 	}

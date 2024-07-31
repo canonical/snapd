@@ -592,7 +592,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	// the new components are kernel module components
 	if requiresKmodSetup(snapst, compsups) {
 		setupKmodComponents := st.NewTask("prepare-kernel-modules-components-many", fmt.Sprintf(i18n.G("Prepare kernel-modules components for %q%s"), snapsup.InstanceName(), revisionStr))
-		setupKmodComponents.Set("current-kernel-modules-components", snapst.Sequence.ComponentsWithTypeForRev(snapst.Current, snap.KernelModulesComponent))
 		addTask(setupKmodComponents)
 	}
 

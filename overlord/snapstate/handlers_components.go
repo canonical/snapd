@@ -652,18 +652,13 @@ func (m *SnapManager) doSetupKernelModulesMany(t *state.Task, _ *tomb.Tomb) erro
 	st.Lock()
 	defer st.Unlock()
 
-	var current []*snap.ComponentSideInfo
-	if err := t.Get("current-kernel-modules-components", &current); err != nil {
-		return err
-	}
-
 	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
 		return err
 	}
 
-	// this task should only run after link-snap, so we we should use the
-	// current snap revision
+	// this task either run after link-snap or when installing a component
+	// individually, so we we should use the current snap revision
 	newComps := snapst.Sequence.ComponentsWithTypeForRev(snapst.Current, snap.KernelModulesComponent)
 
 	// Set-up the new kernel modules component - called with unlocked state
@@ -671,7 +666,7 @@ func (m *SnapManager) doSetupKernelModulesMany(t *state.Task, _ *tomb.Tomb) erro
 	st.Unlock()
 	pm := NewTaskProgressAdapterUnlocked(t)
 	err = m.backend.SetupKernelModulesComponentsMany(
-		current, newComps, snapsup.InstanceName(), snapsup.Revision(), pm,
+		snapsup.PreUpdateKernelModuleComponents, newComps, snapsup.InstanceName(), snapsup.Revision(), pm,
 	)
 	st.Lock()
 	if err != nil {
@@ -688,11 +683,6 @@ func (m *SnapManager) undoSetupKernelModulesMany(t *state.Task, _ *tomb.Tomb) er
 	st.Lock()
 	defer st.Unlock()
 
-	var previousComps []*snap.ComponentSideInfo
-	if err := t.Get("current-kernel-modules-components", &previousComps); err != nil {
-		return err
-	}
-
 	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
 		return err
@@ -707,7 +697,7 @@ func (m *SnapManager) undoSetupKernelModulesMany(t *state.Task, _ *tomb.Tomb) er
 	st.Unlock()
 	pm := NewTaskProgressAdapterUnlocked(t)
 	err = m.backend.SetupKernelModulesComponentsMany(
-		justSetupComps, previousComps, snapsup.InstanceName(), snapsup.Revision(), pm,
+		justSetupComps, snapsup.PreUpdateKernelModuleComponents, snapsup.InstanceName(), snapsup.Revision(), pm,
 	)
 	st.Lock()
 	if err != nil {

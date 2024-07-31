@@ -58,15 +58,17 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		return nil, err
 	}
 
+	kmodComps := snapst.Sequence.ComponentsWithTypeForRev(snapst.Current, snap.KernelModulesComponent)
 	snapsup := SnapSetup{
-		Base:        info.Base,
-		SideInfo:    &info.SideInfo,
-		Channel:     info.Channel,
-		Flags:       flags.ForSnapSetup(),
-		Type:        info.Type(),
-		Version:     info.Version,
-		PlugsOnly:   len(info.Slots) == 0,
-		InstanceKey: info.InstanceKey,
+		Base:                            info.Base,
+		SideInfo:                        &info.SideInfo,
+		Channel:                         info.Channel,
+		Flags:                           flags.ForSnapSetup(),
+		Type:                            info.Type(),
+		Version:                         info.Version,
+		PlugsOnly:                       len(info.Slots) == 0,
+		InstanceKey:                     info.InstanceKey,
+		PreUpdateKernelModuleComponents: kmodComps,
 	}
 	compSetup := ComponentSetup{
 		CompSideInfo: csi,
@@ -244,7 +246,6 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 		kmodSetup := st.NewTask("prepare-kernel-modules-components-many",
 			fmt.Sprintf(i18n.G("Prepare kernel-modules component %q%s"),
 				compSi.Component, revisionStr))
-		kmodSetup.Set("current-kernel-modules-components", snapst.Sequence.ComponentsWithTypeForRev(snapst.Current, snap.KernelModulesComponent))
 		componentTS.postOpHookAndAfter = append(componentTS.postOpHookAndAfter, kmodSetup)
 		addTask(kmodSetup)
 	}
@@ -335,14 +336,16 @@ func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.C
 
 	// TODO:COMPS: check if component is enforced by validation set (see snapstate.canRemove)
 
+	kmodComps := snapst.Sequence.ComponentsWithTypeForRev(snapst.Current, snap.KernelModulesComponent)
 	snapSup := &SnapSetup{
-		Base:        info.Base,
-		SideInfo:    &info.SideInfo,
-		Channel:     info.Channel,
-		Type:        info.Type(),
-		Version:     info.Version,
-		PlugsOnly:   len(info.Slots) == 0,
-		InstanceKey: info.InstanceKey,
+		Base:                            info.Base,
+		SideInfo:                        &info.SideInfo,
+		Channel:                         info.Channel,
+		Type:                            info.Type(),
+		Version:                         info.Version,
+		PlugsOnly:                       len(info.Slots) == 0,
+		InstanceKey:                     info.InstanceKey,
+		PreUpdateKernelModuleComponents: kmodComps,
 	}
 	compSetup := &ComponentSetup{
 		CompSideInfo: compst.SideInfo,
