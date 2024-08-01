@@ -1084,13 +1084,13 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 	})
 
 	assetBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)), bootloader.RoleRunMode)
-	runKernelBf := bootloader.NewBootFile(filepath.Join(s.kern1.Filename()), "kernel.efi", bootloader.RoleRunMode)
+
+	tab.KernelBootFileBuilder = func(kernelPath string) bootloader.BootFile {
+		return bootloader.NewBootFile(kernelPath, "kernel.efi", bootloader.RoleRunMode)
+	}
 
 	tab.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
-		// TODO:UC20: fix mocked trusted assets bootloader to actually
-		// geenerate kernel boot files
-		runKernelBf,
 	}
 
 	coreDev := boottest.MockUC20Device("", nil)
@@ -1121,6 +1121,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 	)
 	defer r()
 
+	runKernelBf := bootloader.NewBootFile(filepath.Join(s.kern1.MountFile()), "kernel.efi", bootloader.RoleRunMode)
+	runKernelBf2 := bootloader.NewBootFile(filepath.Join(s.kern2.MountFile()), "kernel.efi", bootloader.RoleRunMode)
+
 	resealCalls := 0
 	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
@@ -1135,10 +1138,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 			secboot.NewLoadChain(assetBf,
 				secboot.NewLoadChain(runKernelBf)),
 			secboot.NewLoadChain(assetBf,
-				// TODO:UC20: once mock trusted assets
-				// bootloader can generated boot files for the
-				// kernel this will use candidate kernel
-				secboot.NewLoadChain(runKernelBf)),
+				secboot.NewLoadChain(runKernelBf2)),
 		})
 		// actual paths are seen only here
 		c.Check(tab.BootChainKernelPath, DeepEquals, []string{
@@ -1204,13 +1204,12 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewUnassertedKernelSnapWith
 	})
 
 	assetBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)), bootloader.RoleRunMode)
-	runKernelBf := bootloader.NewBootFile(filepath.Join(s.ukern1.Filename()), "kernel.efi", bootloader.RoleRunMode)
 
+	tab.KernelBootFileBuilder = func(kernelPath string) bootloader.BootFile {
+		return bootloader.NewBootFile(kernelPath, "kernel.efi", bootloader.RoleRunMode)
+	}
 	tab.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
-		// TODO:UC20: fix mocked trusted assets bootloader to actually
-		// geenerate kernel boot files
-		runKernelBf,
 	}
 
 	uc20Model := boottest.MakeMockUC20Model()
@@ -1241,6 +1240,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewUnassertedKernelSnapWith
 	)
 	defer r()
 
+	runKernelBf := bootloader.NewBootFile(filepath.Join(s.ukern1.MountFile()), "kernel.efi", bootloader.RoleRunMode)
+	runKernelBf2 := bootloader.NewBootFile(filepath.Join(s.ukern2.MountFile()), "kernel.efi", bootloader.RoleRunMode)
+
 	resealCalls := 0
 	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
@@ -1255,10 +1257,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewUnassertedKernelSnapWith
 			secboot.NewLoadChain(assetBf,
 				secboot.NewLoadChain(runKernelBf)),
 			secboot.NewLoadChain(assetBf,
-				// TODO:UC20: once mock trusted assets
-				// bootloader can generated boot files for the
-				// kernel this will use candidate kernel
-				secboot.NewLoadChain(runKernelBf)),
+				secboot.NewLoadChain(runKernelBf2)),
 		})
 		// actual paths are seen only here
 		c.Check(tab.BootChainKernelPath, DeepEquals, []string{
@@ -2408,18 +2407,21 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 
 	shimBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("shim-%s", shimHash)), bootloader.RoleRecovery)
 	assetBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)), bootloader.RoleRecovery)
-	runKernelBf := bootloader.NewBootFile(filepath.Join(s.kern1.Filename()), "kernel.efi", bootloader.RoleRunMode)
-	recoveryKernelBf := bootloader.NewBootFile("pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
 
 	tab.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "shim", bootloader.RoleRecovery),
 		bootloader.NewBootFile("", "asset", bootloader.RoleRecovery),
-		runKernelBf,
 	}
 	tab.RecoveryBootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "shim", bootloader.RoleRecovery),
 		bootloader.NewBootFile("", "asset", bootloader.RoleRecovery),
-		recoveryKernelBf,
+	}
+
+	tab.KernelBootFileBuilder = func(kernelPath string) bootloader.BootFile {
+		return bootloader.NewBootFile(kernelPath, "kernel.efi", bootloader.RoleRunMode)
+	}
+	tab.RecoveryKernelBootFileBuilder = func(kernelPath string) bootloader.BootFile {
+		return bootloader.NewBootFile(kernelPath, "kernel.efi", bootloader.RoleRecovery)
 	}
 
 	uc20Model := boottest.MakeMockUC20Model()
@@ -2461,6 +2463,9 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 
 	coreDev := boottest.MockUC20Device("", uc20Model)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	runKernelBf := bootloader.NewBootFile(filepath.Join(s.kern1.MountFile()), "kernel.efi", bootloader.RoleRunMode)
+	recoveryKernelBf := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
 
 	resealCalls := 0
 	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
@@ -4827,14 +4832,12 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallNewWithReseal
 
 	assetBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir,
 		"trusted", fmt.Sprintf("asset-%s", dataHash)), bootloader.RoleRunMode)
-	runKernelBf := bootloader.NewBootFile(filepath.Join(s.kern2.Filename()),
-		"kernel.efi", bootloader.RoleRunMode)
 
+	tab.KernelBootFileBuilder = func(kernelPath string) bootloader.BootFile {
+		return bootloader.NewBootFile(kernelPath, "kernel.efi", bootloader.RoleRunMode)
+	}
 	tab.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
-		// TODO:UC20: fix mocked trusted assets bootloader to actually
-		// geenerate kernel boot files
-		runKernelBf,
 	}
 
 	coreDev := boottest.MockUC20Device("", nil)
@@ -4865,6 +4868,9 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallNewWithReseal
 	)
 	defer r()
 
+	runKernelBf2 := bootloader.NewBootFile(filepath.Join(s.kern2.MountFile()),
+		"kernel.efi", bootloader.RoleRunMode)
+
 	resealCalls := 0
 	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
@@ -4877,7 +4883,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallNewWithReseal
 		}
 		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
 			secboot.NewLoadChain(assetBf,
-				secboot.NewLoadChain(runKernelBf)),
+				secboot.NewLoadChain(runKernelBf2)),
 		})
 		// actual paths are seen only here
 		c.Check(tab.BootChainKernelPath, DeepEquals, []string{
@@ -4942,13 +4948,12 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallNew
 	})
 
 	assetBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)), bootloader.RoleRunMode)
-	runKernelBf := bootloader.NewBootFile(filepath.Join(s.ukern2.Filename()), "kernel.efi", bootloader.RoleRunMode)
 
+	tab.KernelBootFileBuilder = func(kernelPath string) bootloader.BootFile {
+		return bootloader.NewBootFile(kernelPath, "kernel.efi", bootloader.RoleRunMode)
+	}
 	tab.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
-		// TODO:UC20: fix mocked trusted assets bootloader to actually
-		// geenerate kernel boot files
-		runKernelBf,
 	}
 
 	uc20Model := boottest.MakeMockUC20Model()
@@ -4979,6 +4984,8 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallNew
 	)
 	defer r()
 
+	runKernelBf2 := bootloader.NewBootFile(filepath.Join(s.ukern2.MountFile()), "kernel.efi", bootloader.RoleRunMode)
+
 	resealCalls := 0
 	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
@@ -4991,7 +4998,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallNew
 		}
 		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
 			secboot.NewLoadChain(assetBf,
-				secboot.NewLoadChain(runKernelBf)),
+				secboot.NewLoadChain(runKernelBf2)),
 		})
 		// actual paths are seen only here
 		c.Check(tab.BootChainKernelPath, DeepEquals, []string{
