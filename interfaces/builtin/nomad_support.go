@@ -62,6 +62,10 @@ capability chown,
 /sys/fs/cgroup/nomad.slice/*.slice/{,**} rw,
 /sys/fs/cgroup/nomad.slice/*.scope/{,**} rw,
 
+# setting docker cpuset.cpus
+# https://github.com/hashicorp/nomad/blob/v1.8.2/drivers/docker/cpuset.go#L21-L24
+/sys/fs/cgroup/system.slice/docker-*.scope/cpuset.cpus rw,
+
 # NVIDIA device plugin
 # https://developer.hashicorp.com/nomad/plugins/devices/nvidia
 @{PROC}/driver/nvidia/capabilities/mig/config r,
