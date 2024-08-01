@@ -20,7 +20,6 @@
 package requestprompts
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -48,27 +47,12 @@ var (
 // Prompt contains information about a request for which a user should be
 // prompted.
 type Prompt struct {
-	ID           prompting.IDType   `json:"id"`
-	Timestamp    time.Time          `json:"timestamp"`
-	Snap         string             `json:"snap"`
-	Interface    string             `json:"interface"`
-	Constraints  *promptConstraints `json:"constraints"`
+	ID           prompting.IDType
+	Timestamp    time.Time
+	Snap         string
+	Interface    string
+	Constraints  *promptConstraints
 	listenerReqs []*listener.Request
-}
-
-// promptConstraintsJSON are like prompting.Constraints, but have a "path" field
-// instead of a "path-pattern", and include the available permissions for the
-// interface corresponding to the prompt, so that the client has the ability to
-// reply with a broader list of permissions than was originally requested.
-type promptConstraintsJSON struct {
-	// Path is the path to which the application is requesting access.
-	Path string `json:"path"`
-	// Permissions are the remaining unsatisfied permissions for which the
-	// application is requesting access.
-	Permissions []string `json:"permissions"`
-	// AvailablePermissions are the permissions which are supported by the
-	// interface associated with the prompt to which the constraints apply.
-	AvailablePermissions []string `json:"available-permissions"`
 }
 
 // promptConstraints store the path which was requested, along with three
@@ -94,15 +78,6 @@ type promptConstraints struct {
 	// kernel with all of the permissions which were included in the request
 	// from the kernel (aside from any which we didn't recognize).
 	originalPermissions []string
-}
-
-func (pc *promptConstraints) MarshalJSON() ([]byte, error) {
-	externalPromptConstraints := &promptConstraintsJSON{
-		Path:                 pc.path,
-		Permissions:          pc.remainingPermissions,
-		AvailablePermissions: pc.availablePermissions,
-	}
-	return json.Marshal(externalPromptConstraints)
 }
 
 // equals returns true if the two prompt constraints apply to the same path and

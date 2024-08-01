@@ -20,7 +20,6 @@
 package requestprompts_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -73,24 +72,6 @@ func (s *requestpromptsSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.tmpdir)
 	s.maxIDPath = filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
 	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0700), IsNil)
-}
-
-func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
-	id := prompting.IDType(0x0123456789ABCDEF)
-	timestamp := time.Now()
-	snap := "mysnap"
-	iface := "special-access"
-	path := "/home/me/myfile.txt"
-	remainingPermissions := []string{"foo", "bar"}
-	availablePermissions := []string{"baz", "qux"}
-	originalPermissions := []string{"fizz", "buzz"}
-
-	prompt := requestprompts.NewPrompt(id, timestamp, snap, iface, path, remainingPermissions, availablePermissions, originalPermissions)
-
-	marshalled, err := json.Marshal(prompt)
-	c.Assert(err, IsNil)
-	expected := fmt.Sprintf(`{"id":"0123456789ABCDEF","timestamp":"%s","snap":"mysnap","interface":"special-access","constraints":{"path":"/home/me/myfile.txt","permissions":["foo","bar"],"available-permissions":["baz","qux"]}}`, timestamp.Format(time.RFC3339Nano))
-	c.Assert(marshalled, DeepEquals, []byte(expected), Commentf("\nexpected: %s\nreceived: %s", expected, string(marshalled)))
 }
 
 func (s *requestpromptsSuite) TestNew(c *C) {
