@@ -426,6 +426,9 @@ type MockTrustedAssetsMixin struct {
 	BootChainRunBl         []bootloader.Bootloader
 	BootChainKernelPath    []string
 
+	KernelBootFileBuilder         func(kernelPath string) bootloader.BootFile
+	RecoveryKernelBootFileBuilder func(kernelPath string) bootloader.BootFile
+
 	UpdateErr                  error
 	UpdateCalls                int
 	Updated                    bool
@@ -538,13 +541,25 @@ func (b *MockTrustedAssetsMixin) TrustedAssets() (map[string]string, error) {
 
 func (b *MockTrustedAssetsMixin) RecoveryBootChains(kernelPath string) ([][]bootloader.BootFile, error) {
 	b.RecoveryBootChainCalls = append(b.RecoveryBootChainCalls, kernelPath)
-	return [][]bootloader.BootFile{b.RecoveryBootChainList}, b.RecoveryBootChainErr
+
+	bootchain := b.RecoveryBootChainList
+	if b.RecoveryKernelBootFileBuilder != nil {
+		bootchain = append(bootchain, b.RecoveryKernelBootFileBuilder(kernelPath))
+	}
+
+	return [][]bootloader.BootFile{bootchain}, b.RecoveryBootChainErr
 }
 
 func (b *MockTrustedAssetsMixin) BootChains(runBl bootloader.Bootloader, kernelPath string) ([][]bootloader.BootFile, error) {
 	b.BootChainRunBl = append(b.BootChainRunBl, runBl)
 	b.BootChainKernelPath = append(b.BootChainKernelPath, kernelPath)
-	return [][]bootloader.BootFile{b.BootChainList}, b.BootChainErr
+
+	bootchain := b.BootChainList
+	if b.KernelBootFileBuilder != nil {
+		bootchain = append(bootchain, b.KernelBootFileBuilder(kernelPath))
+	}
+
+	return [][]bootloader.BootFile{bootchain}, b.BootChainErr
 }
 
 // MockRecoveryAwareTrustedAssetsBootloader implements the
