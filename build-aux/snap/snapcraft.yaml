@@ -226,7 +226,16 @@ parts:
       cd "${CRAFT_PART_BUILD}/cmd"
 
       autoreconf -fvi
-      ./configure --prefix=/usr --libexec=/usr/lib/snapd --without-unit-tests --enable-static-libapparmor --disable-host-binaries
+      ./configure \
+        --prefix=/usr \
+        --libexec=/usr/lib/snapd \
+        --without-unit-tests \
+        --enable-static-libapparmor \
+        --disable-host-binaries \
+        --enable-nvidia-multiarch \
+        --with-host-arch-triplet=$(dpkg-architecture -qDEB_HOST_MULTIARCH) \
+        $(test "$(uname -m)" = x86_64 && echo --with-host-arch-32bit-triplet=$(dpkg-architecture -ai386 -qDEB_HOST_MULTIARCH))
+
       make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
       make DESTDIR="${CRAFT_PART_INSTALL}" install
 
