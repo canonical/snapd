@@ -873,6 +873,7 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 		patterns          []string
 		highestPrecedence string
 	}{
+		// A single pattern
 		{
 			"/foo",
 			[]string{
@@ -880,6 +881,166 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 			},
 			"/foo",
 		},
+		// Test cases from componentType documentation
+		// Literal
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/bar",
+				"/foo/?ar",
+				"/foo/ba?",
+				"/foo/*",
+			},
+			"/foo/bar",
+		},
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/b*r",
+				"/foo/b*",
+				"/foo/b*/",
+			},
+			"/foo/b*r",
+		},
+		{
+			"/foo/bar",
+			[]string{
+				"/f*o/bar",
+				"/f*/bar",
+			},
+			"/f*o/bar",
+		},
+		// Wildcard '?'
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/ba*?",
+				"/foo/ba*/",
+			},
+			"/foo/ba?*",
+		},
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/?ar",
+				"/foo/*bar",
+			},
+			"/foo/?ar",
+		},
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/*a?",
+				"/foo/*r/**",
+			},
+			"/foo/*a?",
+		},
+		// Separator '/'
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/bar/",
+				"/foo/bar",
+				"/foo/bar*",
+				"/foo/bar/**",
+				"/foo/bar/**/",
+			},
+			"/foo/bar/",
+		},
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/bar",
+				"/foo/**/bar",
+			},
+			"/foo/bar",
+		},
+		// Terminal
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/bar",
+				"/foo/bar/**",
+				"/foo/bar/**/",
+				"/foo/bar*",
+			},
+			"/foo/bar",
+		},
+		// Non-terminal "/**"
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/**/bar",
+				"/foo/**/",
+				"/foo/**",
+				"/foo*/bar",
+			},
+			"/foo/**/bar",
+		},
+		// Terminal "/**/"
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/**/",
+				"/foo/**",
+			},
+			"/foo/**/",
+		},
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/bar/**/",
+				"/foo/bar*",
+			},
+			"/foo/bar/**/",
+		},
+		// Terminal "/**"
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/bar/**",
+				"/foo/bar*",
+			},
+			"/foo/bar/**",
+		},
+		// Test cases from Compare documentation
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/*b*",
+				"/foo/*a*",
+				"/foo/*r*",
+			},
+			"/foo/*b*",
+		},
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/bar*",
+				"/foo/ba*",
+				"/foo/b*",
+			},
+			"/foo/bar*",
+		},
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/*bar",
+				"/foo/*ar",
+				"/foo/*r",
+			},
+			"/foo/*bar",
+		},
+		{
+			"/foo/bar/bazz/quxxx",
+			[]string{
+				"/foo/**/bar/bazz/quxxx",
+				"/foo/**/bazz/quxxx",
+				"/foo/**/quxxx",
+			},
+			"/foo/**/bar/bazz/quxxx",
+		},
+		// Related test cases
 		{
 			"/foo",
 			[]string{
@@ -888,6 +1049,32 @@ func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
 			},
 			"/fo?",
 		},
+		{
+			"/foo/aaa",
+			[]string{
+				"/foo/*a?",
+				"/foo/*a??",
+			},
+			"/foo/*a??",
+		},
+		{
+			"/foo/aaa",
+			[]string{
+				"/foo/*?a",
+				"/foo/*??a",
+			},
+			"/foo/??*a",
+		},
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/bar",
+				"/foo/ba?",
+				"/foo/b??",
+			},
+			"/foo/bar",
+		},
+		// Other test cases
 		{
 			"/foo/bar/baz",
 			[]string{

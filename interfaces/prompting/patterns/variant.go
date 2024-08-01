@@ -31,47 +31,78 @@ type componentType int
 
 // Component types in order from lowest to highest precedence.
 //
-// A literal exactly matches the next non-zero number of characters, so it has
-// the highest precedence.
+// A literal exactly matches the next characters in the path, so it has the
+// highest precedence.
+// - `/foo/bar` has precedence over `/foo/ba?`, `/foo/?ar`, and `/foo/*`
+// - `/foo/b*r` has precedence over `/foo/b*` and `/foo/b*/` (though this is caught by match length of '*')
+// - `/f*o/bar` has precedence over `/f*/bar` (though this is caught by match length of '*')
 //
 // A wildcard '?' character matches exactly one non-separator character, so it
-// has precedence over globstars; the only way a '?' can match a path at the
-// same component position as another lower-precedence component is if the '?'
-// were to occur after a '*' (and zero or more '?'s), and if this were the case,
-// then the '?' would give additional information about the length of the path
-// component matched by the '*', so it is higher precedence than the separator
-// or terminal following the '*'.
+// has precedence over variable-width components such as globstars and double-
+// stars. The parser ensures that all '?'s are moved before any adjacent '*',
+// so a '?' can never match at the same position as a separator or terminal,
+// without precedence having decided by a previous component. Thus, it doesn't
+// actually matter whether '?' has precedence over '/' or terminal.
+// - `/foo/ba*?` (parsed to `/foo/ba?*`) has precedence over `/foo/ba*/`
+// - `/foo/?ar` has precedence over `/foo/*bar`
+// - `/foo/*a?` has precedence over `/foo/*r/**` (though this is caught by match length of '*')
 //
-// A separator ('/') is like a literal, except that when following a '*', it
-// precludes any more information being given about the length or content of the
-// path prior to the separator (e.g. "/foo*bar/baz" clearly has precedence over
-// "/foo*/baz"), so '/' has lower precedence than literals or '?' but higher
-// than the rest.
+// A separator '/' character is like a literal, except that when following a
+// '*', it precludes any more information being given about the length or
+// content of the path prior to the separator. Thus, '/' has lower precedence
+// than literals, though in practice, any situation where '/' would be compared
+// against a literal must follow a variable-length component (e.g. '*' or "/**")
+// where the component prior to the literal would match fewer characters in the
+// path than the component prior to the '/', and thus precedence would already
+// be given to the component prior to the literal. Patterns with trailing '/'
+// match only directories, while patterns without match both files and
+// directories, so '/' has precedence over terminals.
+// - `/foo/bar/` has precedence over `/foo/bar` and `/foo/bar*`
+// - `/foo/bar/` has precedence over `/foo/bar/**` and `/foo/bar/**/`
+// - `/foo/bar` has precedence over `/foo/**/bar`
 //
 // Terminals match when there is no path left, so they have precedence over all
 // the variable-length component types, which may match zero or more characters.
+// - `/foo/bar` has precedence over `/foo/bar/**/`, `/foo/bar/**`
+// - `/foo/bar` has precedence over `/foo/bar*`
+//
+// The remaining component types are variable-width, as they may match zero or
+// more characters in the path. When two variable-width components of the same
+// type are compared, the one which matches fewer characters in the path has
+// precedence, since that means that the next component matches earlier in the
+// path, and thus provides greater specificity earlier.
 //
 // The next three component types relate to doublestars, which always follow a
 // '/' character, and may match zero or more characters; in order to know
 // whether a '/' is followed by a "**" or not without looking ahead in the list
 // of components, we group these components together, along with their suffix
-// when relevant:
+// when relevant. Since "/**" components match zero or more characters,
+// including the terminal in the component allows us to know whether there are
+// more non-terminal components to come without needing to look ahead.
 //
 // The non-terminal "/**" must be followed by a component which gives more
 // information about the matching path, so it has the highest precedence of the
 // three doublestar component types.
+// - `/foo/**/bar` has precedence over `/foo/**/` and `/foo/**`
+// - `/foo/**/bar` has precedence over `/foo*/bar
 //
 // The terminal "/**/" component means that the variant only matches
 // directories, while the terminal "/**" component can match files or
 // directories, so the former has precedence over the latter.
+// - `/foo/**/` has precedence over `/foo/**`
+// - `/foo/bar/**/` has precedence over `/foo/bar*`
 //
 // The terminal "/**" has lower precedence than "/**/", as discussed above.
+// However, it still has higher precedence than '*', since the leading separator
+// which is built into the "/**" puts a constraint on the length/content of the
+// path segment preceding it, while '*' does not.
+// - `/foo/bar/**` has precedence over `/foo/bar*`
 //
 // The globstar '*' has the lowest precedence, since all other component
 // types begin with more information about the length or content of the next
-// characters in the path: "/foo/**" has precedence over "/foo*" since the
-// former matches "/foo" exactly or a path in the "/foo" directory, while
-// "/foo*" matches any path which happens to begin with "/foo".
+// characters in the path: as discussed above, "/foo/**" has precedence over
+// "/foo*" since the former matches "/foo" exactly or a path in the "/foo"
+// directory, while "/foo*" matches any path which happens to begin with "/foo".
 const (
 	compUnset componentType = iota
 	compGlobstar
@@ -426,6 +457,32 @@ loop:
 			// provides greater specificity. Given equality up to the current
 			// position in the patterns, whichever pattern matches with greater
 			// specificity earlier in the path has precedence.
+			//
+			// For example, when computing precedence after matching `/foo/bar`:
+			// - `/foo/*b*` has precedence over
+			// - `/foo/*a*`, which has precedence over
+			// - `/foo/*r*`.
+			// All these patterns are {separator, literal, separator, globstar,
+			// literal, globstar, terminal}, but the distinction is that the
+			// globstar which matches fewer characters in the pattern implies
+			// that the next literal in the pattern matches earlier in the path,
+			// and so that pattern has precedence.
+			//
+			// Note: similar logic applies to:
+			// - `/foo/bar*` vs `/foo/ba*` vs `/foo/b*` and
+			// - `/foo/*bar` vs `/foo/*ar` vs `/foo/*r`.
+			// In these cases, however, the relative lengths of the literals
+			// would be sufficient to determine precedence.
+			//
+			// Likewise, all of the following match `/foo/bar/bazz/quxxx`:
+			// - `/foo/**/bar/bazz/quxxx` has precedence over
+			// - `/foo/**/bazz/quxxx`, which has precedence over
+			// - `/foo/**/quxxx`.
+			// If not for the precedence for fewest characters matched by the
+			// `/**`, the longest literal after the next separator, `quxxx`,
+			// would take precedence incorrectly. By prioritizing the doublestar
+			// which matches the fewest characters, the next component matches
+			// the earliest position in the path, and thus indicates precedence.
 			if len(selfSubmatch) > len(otherSubmatch) {
 				return -1, nil
 			} else if len(selfSubmatch) < len(otherSubmatch) {
