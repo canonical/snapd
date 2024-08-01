@@ -20,6 +20,7 @@
 package requestprompts
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -51,29 +52,65 @@ type Prompt struct {
 	Timestamp    time.Time          `json:"timestamp"`
 	Snap         string             `json:"snap"`
 	Interface    string             `json:"interface"`
-	Constraints  *PromptConstraints `json:"constraints"`
+	Constraints  *promptConstraints `json:"constraints"`
 	listenerReqs []*listener.Request
 }
 
-// PromptConstraints are like prompting.Constraints, but have a "path" field
+// promptConstraintsJSON are like prompting.Constraints, but have a "path" field
 // instead of a "path-pattern", and include the available permissions for the
-// interface corresponding to the prompt.
-type PromptConstraints struct {
-	Path                 string   `json:"path"`
-	Permissions          []string `json:"permissions"`
+// interface corresponding to the prompt, so that the client has the ability to
+// reply with a broader list of permissions than was originally requested.
+type promptConstraintsJSON struct {
+	// Path is the path to which the application is requesting access.
+	Path string `json:"path"`
+	// Permissions are the remaining unsatisfied permissions for which the
+	// application is requesting access.
+	Permissions []string `json:"permissions"`
+	// AvailablePermissions are the permissions which are supported by the
+	// interface associated with the prompt to which the constraints apply.
 	AvailablePermissions []string `json:"available-permissions"`
-	// Preserve originally-requested permissions. A prompt's permissions may be
-	// partially satisfied over time as new rules are added, but we need to
-	// keep track of the originally-requested permissions so that we can still
-	// send back a response to the kernel with all of the permissions which
-	// were included in the request from the kernel (aside from any which we
-	// didn't recognize).
+}
+
+// promptConstraints store the path which was requested, along with three
+// lists of permissions: the original permissions associated with the request,
+// the remaining unsatisfied permissions (as rules may satisfy some of the
+// permissions from a prompt before the prompt is fully resolved), and the
+// available permissions for the interface associated with the prompt, so that
+// the client may reply with a broader set of permissions than was originally
+// requested.
+type promptConstraints struct {
+	// path is the path to which the application is requesting access.
+	path string
+	// remainingPermissions are the remaining unsatisfied permissions for which
+	// the application is requesting access.
+	remainingPermissions []string
+	// availablePermissions are the permissions which are supported by the
+	// interface associated with the prompt to which the constraints apply.
+	availablePermissions []string
+	// originalPermissions preserve the permissions corresponding to the
+	// original request. A prompt's permissions may be partially satisfied over
+	// time as new rules are added, but we need to keep track of the originally
+	// requested permissions so that we can still send back a response to the
+	// kernel with all of the permissions which were included in the request
+	// from the kernel (aside from any which we didn't recognize).
 	originalPermissions []string
 }
 
-// equals returns true if the two prompt constraints are identical.
-func (pc *PromptConstraints) equals(other *PromptConstraints) bool {
-	if pc.Path != other.Path || len(pc.originalPermissions) != len(other.originalPermissions) {
+func (pc *promptConstraints) MarshalJSON() ([]byte, error) {
+	externalPromptConstraints := &promptConstraintsJSON{
+		Path:                 pc.path,
+		Permissions:          pc.remainingPermissions,
+		AvailablePermissions: pc.availablePermissions,
+	}
+	return json.Marshal(externalPromptConstraints)
+}
+
+// equals returns true if the two prompt constraints apply to the same path and
+// were created with the same originally requested permissions. That implies
+// that the request which triggered the creation of the two prompts were
+// duplicates, the application attempting to do the same action multiple times.
+func (pc *promptConstraints) equals(other *promptConstraints) bool {
+	if pc.path != other.path || len(pc.originalPermissions) != len(other.originalPermissions) {
 		return false
 	}
 	// Avoid using reflect.DeepEquals to compare []string contents
@@ -87,15 +124,15 @@ func (pc *PromptConstraints) equals(other *PromptConstraints) bool {
 
 // subtractPermissions removes all of the given permissions from the list of
 // permissions in the constraints.
-func (pc *PromptConstraints) subtractPermissions(permissions []string) (modified bool) {
-	newPermissions := make([]string, 0, len(pc.Permissions))
-	for _, perm := range pc.Permissions {
+func (pc *promptConstraints) subtractPermissions(permissions []string) (modified bool) {
+	newPermissions := make([]string, 0, len(pc.remainingPermissions))
+	for _, perm := range pc.remainingPermissions {
 		if !strutil.ListContains(permissions, perm) {
 			newPermissions = append(newPermissions, perm)
 		}
 	}
-	if len(newPermissions) != len(pc.Permissions) {
-		pc.Permissions = newPermissions
+	if len(newPermissions) != len(pc.remainingPermissions) {
+		pc.remainingPermissions = newPermissions
 		return true
 	}
 	return false
@@ -288,10 +325,10 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 		userEntry = pdb.perUser[metadata.User]
 	}
 
-	constraints := &PromptConstraints{
-		Path:                 path,
-		Permissions:          permissions,
-		AvailablePermissions: availablePermissions,
+	constraints := &promptConstraints{
+		path:                 path,
+		remainingPermissions: permissions,
+		availablePermissions: availablePermissions,
 		originalPermissions:  permissions,
 	}
 
@@ -331,7 +368,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 	return prompt, false, nil
 }
 
-func responseForInterfaceConstraintsOutcome(iface string, constraints *PromptConstraints, outcome prompting.OutcomeType) *listener.Response {
+func responseForInterfaceConstraintsOutcome(iface string, constraints *promptConstraints, outcome prompting.OutcomeType) *listener.Response {
 	allow, err := outcome.AsBool()
 	if err != nil {
 		// This should not occur, but if so, default to deny
@@ -466,7 +503,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 		if !(prompt.Snap == metadata.Snap && prompt.Interface == metadata.Interface) {
 			continue
 		}
-		matched, err := constraints.Match(prompt.Constraints.Path)
+		matched, err := constraints.Match(prompt.Constraints.path)
 		if err != nil {
 			return nil, err
 		}
@@ -478,7 +515,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 			continue
 		}
 		id := prompt.ID
-		if len(prompt.Constraints.Permissions) > 0 && allow == true {
+		if len(prompt.Constraints.remainingPermissions) > 0 && allow == true {
 			pdb.notifyPrompt(metadata.User, id, nil)
 			continue
 		}

@@ -20,6 +20,7 @@
 package requestprompts_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -74,7 +75,31 @@ func (s *requestpromptsSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0700), IsNil)
 }
 
+func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
+	id := prompting.IDType(0x0123456789ABCDEF)
+	timestamp := time.Now()
+	snap := "mysnap"
+	iface := "special-access"
+	path := "/home/me/myfile.txt"
+	remainingPermissions := []string{"foo", "bar"}
+	availablePermissions := []string{"baz", "qux"}
+	originalPermissions := []string{"fizz", "buzz"}
+
+	prompt := requestprompts.NewPrompt(id, timestamp, snap, iface, path, remainingPermissions, availablePermissions, originalPermissions)
+
+	marshalled, err := json.Marshal(prompt)
+	c.Assert(err, IsNil)
+	expected := fmt.Sprintf(`{"id":"0123456789ABCDEF","timestamp":"%s","snap":"mysnap","interface":"special-access","constraints":{"path":"/home/me/myfile.txt","permissions":["foo","bar"],"available-permissions":["baz","qux"]}}`, timestamp.Format(time.RFC3339Nano))
+	c.Assert(marshalled, DeepEquals, []byte(expected), Commentf("\nexpected: %s\nreceived: %s", expected, string(marshalled)))
+}
+
 func (s *requestpromptsSuite) TestNew(c *C) {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, reply *listener.Response) error {
+		c.Fatalf("should not have called sendReply")
+		return nil
+	})
+	defer restore()
+
 	notifyPrompt := func(userID uint32, promptID prompting.IDType, data map[string]string) error {
 		c.Fatalf("unexpected notice with userID %d and ID %016X", userID, promptID)
 		return nil
@@ -89,6 +114,12 @@ func (s *requestpromptsSuite) TestNew(c *C) {
 }
 
 func (s *requestpromptsSuite) TestNewValidMaxID(c *C) {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, reply *listener.Response) error {
+		c.Fatalf("should not have called sendReply")
+		return nil
+	})
+	defer restore()
+
 	notifyPrompt := func(userID uint32, promptID prompting.IDType, data map[string]string) error {
 		c.Fatalf("unexpected notice with userID %d and ID %016X", userID, promptID)
 		return nil
@@ -133,6 +164,12 @@ func (s *requestpromptsSuite) TestNewValidMaxID(c *C) {
 }
 
 func (s *requestpromptsSuite) TestNewInvalidMaxID(c *C) {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, reply *listener.Response) error {
+		c.Fatalf("should not have called sendReply")
+		return nil
+	})
+	defer restore()
+
 	notifyPrompt := func(userID uint32, promptID prompting.IDType, data map[string]string) error {
 		c.Fatalf("unexpected notice with userID %d and ID %016X", userID, promptID)
 		return nil
@@ -281,8 +318,8 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 
 	c.Check(prompt1.Snap, Equals, metadata.Snap)
 	c.Check(prompt1.Interface, Equals, metadata.Interface)
-	c.Check(prompt1.Constraints.Path, Equals, path)
-	c.Check(prompt1.Constraints.Permissions, DeepEquals, permissions)
+	c.Check(prompt1.Constraints.Path(), Equals, path)
+	c.Check(prompt1.Constraints.RemainingPermissions(), DeepEquals, permissions)
 
 	stored, err = pdb.Prompts(metadata.User)
 	c.Assert(err, IsNil)
@@ -511,9 +548,9 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 			// Check that permissions in response map to prompt's permissions
 			abstractPermissions, err := prompting.AbstractPermissionsFromAppArmorPermissions(prompt1.Interface, response.Permission)
 			c.Check(err, IsNil)
-			c.Check(abstractPermissions, DeepEquals, prompt1.Constraints.Permissions)
+			c.Check(abstractPermissions, DeepEquals, prompt1.Constraints.RemainingPermissions())
 			// Check that prompt's permissions map to response's permissions
-			expectedPerm, err := prompting.AbstractPermissionsToAppArmorPermissions(prompt1.Interface, prompt1.Constraints.Permissions)
+			expectedPerm, err := prompting.AbstractPermissionsToAppArmorPermissions(prompt1.Interface, prompt1.Constraints.RemainingPermissions())
 			c.Check(err, IsNil)
 			c.Check(response.Permission, DeepEquals, expectedPerm)
 		}
