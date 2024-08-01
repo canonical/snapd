@@ -363,7 +363,7 @@ func (s *variantSuite) TestParsePatternVariant(c *C) {
 		},
 	} {
 		c.Check(prepareVariantForParsing(testCase.pattern), Equals, testCase.preparedPattern, Commentf("testCase: %+v", testCase))
-		variant, err := ParsePatternVariant(testCase.pattern)
+		variant, err := parsePatternVariant(testCase.pattern)
 		c.Assert(err, IsNil, Commentf("testCase: %+v", testCase))
 		c.Check(variant.components, DeepEquals, testCase.components, Commentf("testCase: %+v", testCase))
 		c.Check(variant.String(), DeepEquals, testCase.variantStr, Commentf("testCase: %+v", testCase))

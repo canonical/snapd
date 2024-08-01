@@ -76,7 +76,7 @@ func renderAllVariants(n renderNode, observe func(index int, variant PatternVari
 		buf.Truncate(lengthUnchanged)
 		buf.Grow(length - lengthUnchanged)
 		v.Render(&buf, lengthUnchanged)
-		variant, err := ParsePatternVariant(buf.String())
+		variant, err := parsePatternVariant(buf.String())
 		if err != nil {
 			// This should never occur
 			logger.Noticef("patterns: cannot parse pattern variant '%s': %v", variant, err)

@@ -32,29 +32,42 @@ type componentType int
 // Component types in order from lowest to highest precedence.
 //
 // A literal exactly matches the next non-zero number of characters, so it has
-// the highest precedence. The '?' character matches exactly one non-separator
-// character, so it has precedence over globstars; the only way a '?' can match
-// a path at the same component position as another lower-precedence component
-// is if the '?' were to occur after a '*' (and zero or more '?'s), and if this
-// were the case, then the '?' would give additional information about the
-// length of the path component matched by the '*', so it is higher precedence
-// than the separator or terminal following the '*'. Next, a separator ('/') is
-// like a literal, except that when following a '*', it precludes any more
-// information being given about the length or content of the path prior to the
-// separator (e.g. "/foo*bar/baz" clearly has precedence over "/foo*/baz"), so
-// '/' has lower precedence than literals or '?' but higher than the rest. Next,
-// terminals match when there is no path left, so they have precedence over all
+// the highest precedence.
+//
+// A wildcard '?' character matches exactly one non-separator character, so it
+// has precedence over globstars; the only way a '?' can match a path at the
+// same component position as another lower-precedence component is if the '?'
+// were to occur after a '*' (and zero or more '?'s), and if this were the case,
+// then the '?' would give additional information about the length of the path
+// component matched by the '*', so it is higher precedence than the separator
+// or terminal following the '*'.
+//
+// A separator ('/') is like a literal, except that when following a '*', it
+// precludes any more information being given about the length or content of the
+// path prior to the separator (e.g. "/foo*bar/baz" clearly has precedence over
+// "/foo*/baz"), so '/' has lower precedence than literals or '?' but higher
+// than the rest.
+//
+// Terminals match when there is no path left, so they have precedence over all
 // the variable-length component types, which may match zero or more characters.
+//
 // The next three component types relate to doublestars, which always follow a
 // '/' character, and may match zero or more characters; in order to know
 // whether a '/' is followed by a "**" or not without looking ahead in the list
 // of components, we group these components together, along with their suffix
-// when relevant: the non-terminal "/**" must be followed by a component which
-// gives more information about the matching path, so it has the highest
-// precedence of the three doublestar components; the terminal "/**/" component
-// means that the variant only matches directories, while the terminal "/**"
-// component can match files or directories, so the former has precedence over
-// the latter. Lastly, '*' has the lowest precedence, since all other component
+// when relevant:
+//
+// The non-terminal "/**" must be followed by a component which gives more
+// information about the matching path, so it has the highest precedence of the
+// three doublestar component types.
+//
+// The terminal "/**/" component means that the variant only matches
+// directories, while the terminal "/**" component can match files or
+// directories, so the former has precedence over the latter.
+//
+// The terminal "/**" has lower precedence than "/**/", as discussed above.
+//
+// The globstar '*' has the lowest precedence, since all other component
 // types begin with more information about the length or content of the next
 // characters in the path: "/foo/**" has precedence over "/foo*" since the
 // former matches "/foo" exactly or a path in the "/foo" directory, while
@@ -97,7 +110,7 @@ func (c component) String() string {
 	case compLiteral:
 		return c.compText
 	}
-	return "###ERR_UNKNOWN_COMPONENT_TYPE###" // Should not occur
+	panic(fmt.Sprintf("unknown component type: %d", int(c.compType)))
 }
 
 // componentRegex returns a regular expression corresponding to the bash-style
@@ -154,14 +167,14 @@ func (v PatternVariant) String() string {
 	return v.variant
 }
 
-// ParsePatternVariant parses a rendered variant string into a PatternVariant
+// parsePatternVariant parses a rendered variant string into a PatternVariant
 // whose precedence can be compared against others.
-func ParsePatternVariant(variant string) (PatternVariant, error) {
+func parsePatternVariant(variant string) (PatternVariant, error) {
 	var components []component
 	var runes []rune
 
 	// prevComponentsAre returns true if the most recent components have types
-	// matching the given target.
+	// matching the given target types from least recent to most recent.
 	prevComponentsAre := func(target []componentType) bool {
 		if len(components) < len(target) {
 			return false
@@ -405,7 +418,14 @@ loop:
 		}
 		switch selfComp.compType {
 		case compGlobstar, compSeparatorDoublestar:
-			// Prioritize shorter matches for variable-width non-terminal components
+			// Prioritize shorter matches for variable-width non-terminal
+			// components. We do this because the fewer characters are matched
+			// by a variable-width component (i.e. "*" or "/**", as terminal
+			// doublestar characters always match to the end of the path), the
+			// earlier in the path the next component matches, and thus provides
+			// provides greater specificity. Given equality up to the current
+			// position in the patterns, whichever pattern matches with greater
+			// specificity earlier in the path has precedence.
 			if len(selfSubmatch) > len(otherSubmatch) {
 				return -1, nil
 			} else if len(selfSubmatch) < len(otherSubmatch) {
