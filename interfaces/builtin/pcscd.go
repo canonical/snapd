@@ -33,6 +33,8 @@ const pcscdBaseDeclarationSlots = `
 const pcscdConnectedPlugAppArmor = `
 # Socket for communication between PCSCD and PS/SC API library
 /{var/,}run/pcscd/pcscd.comm rw,
+# Configuration file for OPENSC
+/etc/{opensc/,}opensc.conf r,
 `
 
 func init() {
