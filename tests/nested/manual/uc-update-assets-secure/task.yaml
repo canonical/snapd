@@ -34,6 +34,11 @@ prepare: |
   cp pc/shim.efi.signed shim.efi
   tests.nested secboot-remove-signature shim.efi
 
+  if os.query is-ubuntu-ge 24.04; then
+     tests.nested secboot-remove-signature pc/fb.efi
+     tests.nested secboot-sign file pc/fb.efi "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
+  fi
+
   # Use a new key to sign grub instead of snakeoil key
   openssl req -new -x509 -newkey rsa:2048 -subj "/CN=old vendor certificate/" -keyout old-cert.key -out old-cert.crt -days 3650 -nodes -sha256
   openssl x509 -outform der -in old-cert.crt -out old-cert
