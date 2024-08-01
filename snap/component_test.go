@@ -489,7 +489,7 @@ components:
 
 func (s *componentSuite) TestReadComponentInfoInconsistentTypes(c *C) {
 	const componentYaml = `component: snap+component
-type: test
+type: kernel-modules
 version: 1.0
 summary: short description
 description: long description
@@ -504,14 +504,27 @@ description: long description
 name: snap
 components:
   component:
-    type: kernel-modules
+    type: test
 `
 
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadComponentInfoFromContainer(compf, snapInfo, nil)
-	c.Assert(err, ErrorMatches, `inconsistent component type \("kernel-modules" in snap, "test" in component\)`)
+	c.Assert(err, ErrorMatches, `inconsistent component type \("test" in snap, "kernel-modules" in component\)`)
+}
+
+func (s *componentSuite) TestReadComponentInfoKernelModulesInNonKernelSnap(c *C) {
+	const snapYaml = `
+name: snap
+components:
+  component:
+    type: kernel-modules
+`
+
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	c.Assert(snapInfo, IsNil)
+	c.Assert(err, ErrorMatches, "kernel-modules components can exist only for kernel snaps")
 }
 
 func (s *componentSuite) TestHooksForPlug(c *C) {
