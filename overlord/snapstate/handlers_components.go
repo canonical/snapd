@@ -689,7 +689,8 @@ func (m *SnapManager) doSetupKernelModulesMany(t *state.Task, _ *tomb.Tomb) erro
 	}
 
 	// this task either run after link-snap or when installing a component
-	// individually, so we we should use the current snap revision
+	// individually, so we we should use the current snap revision. note that
+	// the kernel module components will already be linked, too.
 	newComps := snapst.Sequence.ComponentsWithTypeForRev(snapst.Current, snap.KernelModulesComponent)
 
 	// Set-up the new kernel modules component - called with unlocked state
@@ -719,8 +720,9 @@ func (m *SnapManager) undoSetupKernelModulesMany(t *state.Task, _ *tomb.Tomb) er
 		return err
 	}
 
-	// this task should only run after link-snap, so we we should use the
-	// current snap revision
+	// this undo task should only run after link-snap (and before link-snap is
+	// undone), so we we should use the current snap revision. note that the
+	// kernel module components will still be linked, too.
 	justSetupComps := snapst.Sequence.ComponentsWithTypeForRev(snapst.Current, snap.KernelModulesComponent)
 
 	// Set-up the new kernel modules component - called with unlocked state
