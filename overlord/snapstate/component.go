@@ -92,20 +92,28 @@ type componentInstallFlags struct {
 }
 
 type componentInstallTaskSet struct {
-	compSetupTask      *state.Task
+	compSetupTaskID    string
 	beforeLink         []*state.Task
-	linkToHook         []*state.Task
+	linkTask           *state.Task
 	postOpHookAndAfter []*state.Task
+	discardTask        *state.Task
 }
 
 func (c *componentInstallTaskSet) taskSet() *state.TaskSet {
-	tasks := make([]*state.Task, 0, len(c.beforeLink)+len(c.linkToHook)+len(c.postOpHookAndAfter))
+	tasks := make([]*state.Task, 0, len(c.beforeLink)+1+len(c.postOpHookAndAfter)+1)
 	tasks = append(tasks, c.beforeLink...)
-	tasks = append(tasks, c.linkToHook...)
+	tasks = append(tasks, c.linkTask)
 	tasks = append(tasks, c.postOpHookAndAfter...)
+	if c.discardTask != nil {
+		tasks = append(tasks, c.discardTask)
+	}
 
 	ts := state.NewTaskSet(tasks...)
-	ts.MarkEdge(c.compSetupTask, BeginEdge)
+	for _, t := range ts.Tasks() {
+		if t.ID() == c.compSetupTaskID {
+			ts.MarkEdge(t, BeginEdge)
+		}
+	}
 
 	return ts
 }
@@ -163,7 +171,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 	}
 
 	componentTS := componentInstallTaskSet{
-		compSetupTask: prepare,
+		compSetupTaskID: prepare.ID(),
 	}
 
 	componentTS.beforeLink = append(componentTS.beforeLink, prepare)
@@ -232,7 +240,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 	linkSnap := st.NewTask("link-component",
 		fmt.Sprintf(i18n.G("Make component %q%s available to the system"),
 			compSi.Component, revisionStr))
-	componentTS.linkToHook = append(componentTS.linkToHook, linkSnap)
+	componentTS.linkTask = linkSnap
 	addTask(linkSnap)
 
 	var postOpHook *state.Task
@@ -261,7 +269,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 		discardComp := st.NewTask("discard-component", fmt.Sprintf(i18n.G(
 			"Discard previous revision for component %q"),
 			compSi.Component))
-		componentTS.postOpHookAndAfter = append(componentTS.postOpHookAndAfter, discardComp)
+		componentTS.discardTask = discardComp
 		addTask(discardComp)
 	}
 
