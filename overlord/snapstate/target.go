@@ -112,13 +112,8 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 			componentInstallFlags: componentInstallFlags{
 				// if we're removing the snap, then we should remove the
 				// components too
-				RemoveComponentPath: flags.RemoveSnapPath,
-
-				// since target is always used to setup components and snaps at
-				// the same time, individual components should not be create
-				// setup-profiles and kernel-modules tasks.
-				SkipProfiles:           true,
-				SkipKernelModulesSetup: true,
+				RemoveComponentPath:        flags.RemoveSnapPath,
+				JointSnapComponentsInstall: true,
 			},
 		})
 	}

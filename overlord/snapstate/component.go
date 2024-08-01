@@ -87,9 +87,8 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 }
 
 type componentInstallFlags struct {
-	RemoveComponentPath    bool `json:"remove-component-path,omitempty"`
-	SkipProfiles           bool `json:"skip-profiles,omitempty"`
-	SkipKernelModulesSetup bool `json:"skip-kernel-modules,omitempty"`
+	RemoveComponentPath        bool `json:"remove-component-path,omitempty"`
+	JointSnapComponentsInstall bool `json:"joint-snap-components-install,omitempty"`
 }
 
 type componentInstallTaskSet struct {
@@ -223,7 +222,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 	}
 
 	// security
-	if !compSetup.SkipProfiles {
+	if !compSetup.JointSnapComponentsInstall {
 		setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup component %q%s security profiles"), compSi.Component, revisionStr))
 		componentTS.beforeLink = append(componentTS.beforeLink, setupSecurity)
 		addTask(setupSecurity)
@@ -245,7 +244,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 	componentTS.postOpHookAndAfter = append(componentTS.postOpHookAndAfter, postOpHook)
 	addTask(postOpHook)
 
-	if !compSetup.SkipKernelModulesSetup && compSetup.CompType == snap.KernelModulesComponent {
+	if !compSetup.JointSnapComponentsInstall && compSetup.CompType == snap.KernelModulesComponent {
 		kmodSetup := st.NewTask("prepare-kernel-modules-components",
 			fmt.Sprintf(i18n.G("Prepare kernel-modules component %q%s"),
 				compSi.Component, revisionStr))
