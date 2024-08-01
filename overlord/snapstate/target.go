@@ -137,7 +137,6 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		registries = append(registries, RegistryID{Account: account, Registry: registry})
 	}
 
-	currentKModsComps := t.snapst.Sequence.ComponentsWithTypeForRev(t.snapst.Current, snap.KernelModulesComponent)
 	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)
 
 	return SnapSetup{
@@ -147,19 +146,18 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		SnapPath:     t.setup.SnapPath,
 		AlwaysUpdate: t.setup.AlwaysUpdate,
 
-		Base:                            t.info.Base,
-		Prereq:                          getKeys(providerContentAttrs),
-		PrereqContentAttrs:              providerContentAttrs,
-		UserID:                          snapUserID,
-		Flags:                           flags.ForSnapSetup(),
-		SideInfo:                        &t.info.SideInfo,
-		Type:                            t.info.Type(),
-		Version:                         t.info.Version,
-		PlugsOnly:                       len(t.info.Slots) == 0,
-		InstanceKey:                     t.info.InstanceKey,
-		ExpectedProvenance:              t.info.SnapProvenance,
-		Registries:                      registries,
-		PreUpdateKernelModuleComponents: currentKModsComps,
+		Base:               t.info.Base,
+		Prereq:             getKeys(providerContentAttrs),
+		PrereqContentAttrs: providerContentAttrs,
+		UserID:             snapUserID,
+		Flags:              flags.ForSnapSetup(),
+		SideInfo:           &t.info.SideInfo,
+		Type:               t.info.Type(),
+		Version:            t.info.Version,
+		PlugsOnly:          len(t.info.Slots) == 0,
+		InstanceKey:        t.info.InstanceKey,
+		ExpectedProvenance: t.info.SnapProvenance,
+		Registries:         registries,
 	}, compsups, nil
 }
 

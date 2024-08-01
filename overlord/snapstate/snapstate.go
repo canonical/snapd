@@ -437,7 +437,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	}
 
 	tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, compSetupIDs, err := splitComponentTasksForInstall(
-		compsups, st, snapst, snapsup, fromChange,
+		compsups, st, snapst, snapsup, prepare.ID(), fromChange,
 	)
 	if err != nil {
 		return nil, err
@@ -747,6 +747,7 @@ func splitComponentTasksForInstall(
 	st *state.State,
 	snapst *SnapState,
 	snapsup SnapSetup,
+	snapSetupTaskID string,
 	fromChange string,
 ) (
 	tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook []*state.Task,
@@ -754,7 +755,7 @@ func splitComponentTasksForInstall(
 	err error,
 ) {
 	for _, compsup := range compsups {
-		componentTS, err := doInstallComponent(st, snapst, compsup, snapsup, fromChange)
+		componentTS, err := doInstallComponent(st, snapst, compsup, snapsup, snapSetupTaskID, fromChange)
 		if err != nil {
 			return nil, nil, nil, nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
 		}

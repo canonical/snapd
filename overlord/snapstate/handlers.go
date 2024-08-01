@@ -1432,6 +1432,10 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 		return err
 	}
 
+	if err := saveCurrentKernelModuleComponents(t, snapsup, snapst); err != nil {
+		return err
+	}
+
 	oldInfo, err := snapst.CurrentInfo()
 	if err != nil {
 		return err

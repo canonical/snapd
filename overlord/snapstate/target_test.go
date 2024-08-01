@@ -62,9 +62,6 @@ func (s *TargetTestSuite) TestInstallWithComponents(c *C) {
 	verifyInstallTasksWithComponents(c, snap.TypeApp, 0, 0, []string{compName}, ts)
 
 	setupTask := ts.Tasks()[1]
-	// link to a change so that TaskComponentSetups works properly
-	chg := setupTask.State().NewChange("install", "...")
-	chg.AddAll(ts)
 
 	compsups, err := snapstate.TaskComponentSetups(setupTask)
 	c.Assert(err, IsNil)

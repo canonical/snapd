@@ -58,17 +58,15 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		return nil, err
 	}
 
-	kmodComps := snapst.Sequence.ComponentsWithTypeForRev(snapst.Current, snap.KernelModulesComponent)
 	snapsup := SnapSetup{
-		Base:                            info.Base,
-		SideInfo:                        &info.SideInfo,
-		Channel:                         info.Channel,
-		Flags:                           flags.ForSnapSetup(),
-		Type:                            info.Type(),
-		Version:                         info.Version,
-		PlugsOnly:                       len(info.Slots) == 0,
-		InstanceKey:                     info.InstanceKey,
-		PreUpdateKernelModuleComponents: kmodComps,
+		Base:        info.Base,
+		SideInfo:    &info.SideInfo,
+		Channel:     info.Channel,
+		Flags:       flags.ForSnapSetup(),
+		Type:        info.Type(),
+		Version:     info.Version,
+		PlugsOnly:   len(info.Slots) == 0,
+		InstanceKey: info.InstanceKey,
 	}
 	compSetup := ComponentSetup{
 		CompSideInfo: csi,
@@ -80,7 +78,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		},
 	}
 
-	componentTS, err := doInstallComponent(st, &snapst, compSetup, snapsup, "")
+	componentTS, err := doInstallComponent(st, &snapst, compSetup, snapsup, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +113,7 @@ func (c *componentInstallTaskSet) taskSet() *state.TaskSet {
 
 // doInstallComponent might be called with the owner snap installed or not.
 func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentSetup,
-	snapsup SnapSetup, fromChange string) (componentInstallTaskSet, error) {
+	snapsup SnapSetup, snapSetupTaskID string, fromChange string) (componentInstallTaskSet, error) {
 
 	// TODO check for experimental flag that will hide temporarily components
 
@@ -150,7 +148,12 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 	}
 
 	prepare.Set("component-setup", compSetup)
-	prepare.Set("snap-setup", snapsup)
+
+	if snapSetupTaskID != "" {
+		prepare.Set("snap-setup-task", snapSetupTaskID)
+	} else {
+		prepare.Set("snap-setup", snapsup)
+	}
 
 	prev := prepare
 	addTask := func(t *state.Task) {
@@ -336,16 +339,14 @@ func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.C
 
 	// TODO:COMPS: check if component is enforced by validation set (see snapstate.canRemove)
 
-	kmodComps := snapst.Sequence.ComponentsWithTypeForRev(snapst.Current, snap.KernelModulesComponent)
 	snapSup := &SnapSetup{
-		Base:                            info.Base,
-		SideInfo:                        &info.SideInfo,
-		Channel:                         info.Channel,
-		Type:                            info.Type(),
-		Version:                         info.Version,
-		PlugsOnly:                       len(info.Slots) == 0,
-		InstanceKey:                     info.InstanceKey,
-		PreUpdateKernelModuleComponents: kmodComps,
+		Base:        info.Base,
+		SideInfo:    &info.SideInfo,
+		Channel:     info.Channel,
+		Type:        info.Type(),
+		Version:     info.Version,
+		PlugsOnly:   len(info.Slots) == 0,
+		InstanceKey: info.InstanceKey,
 	}
 	compSetup := &ComponentSetup{
 		CompSideInfo: compst.SideInfo,

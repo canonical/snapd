@@ -380,6 +380,29 @@ func (m *SnapManager) undoSetupComponent(t *state.Task, csi *snap.ComponentSideI
 	return m.backend.RemoveComponentDir(cpi)
 }
 
+func saveCurrentKernelModuleComponents(t *state.Task, snapsup *SnapSetup, snapst *SnapState) error {
+	if snapsup.PreUpdateKernelModuleComponents != nil {
+		return nil
+	}
+
+	setupTask, err := snapSetupTask(t)
+	if err != nil {
+		return err
+	}
+
+	snapsup.PreUpdateKernelModuleComponents = snapst.Sequence.ComponentsWithTypeForRev(snapst.Current, snap.KernelModulesComponent)
+
+	// sinde we distinguish between nil and an empty slice, make sure to
+	// initialize this field
+	if snapsup.PreUpdateKernelModuleComponents == nil {
+		snapsup.PreUpdateKernelModuleComponents = []*snap.ComponentSideInfo{}
+	}
+
+	setupTask.Set("snap-setup", snapsup)
+
+	return nil
+}
+
 func (m *SnapManager) doLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 	// invariant: component is not in the state (unlink happens previously if necessary)
 	st := t.State()
@@ -389,6 +412,10 @@ func (m *SnapManager) doLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 	// snapSt is a copy of the current state
 	compSetup, snapsup, snapSt, err := compSetupAndState(t)
 	if err != nil {
+		return err
+	}
+
+	if err := saveCurrentKernelModuleComponents(t, snapsup, snapSt); err != nil {
 		return err
 	}
 
@@ -524,8 +551,12 @@ func (m *SnapManager) doUnlinkComponent(t *state.Task, _ *tomb.Tomb) (err error)
 	if err != nil {
 		return err
 	}
-	cref := compSetup.CompSideInfo.Component
 
+	if err := saveCurrentKernelModuleComponents(t, snapSup, snapSt); err != nil {
+		return err
+	}
+
+	cref := compSetup.CompSideInfo.Component
 	// Remove component for the specified revision
 	if err := m.unlinkComponent(
 		t, snapSt, snapSup.InstanceName(), snapSup.Revision(), cref); err != nil {

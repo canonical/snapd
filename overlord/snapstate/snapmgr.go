@@ -161,8 +161,9 @@ type SnapSetup struct {
 
 	// PreUpdateKernelModuleComponents is set if the kernel-modules component
 	// that are set up, prior to any changes to the state. This is used in the
-	// case of an undo.
-	PreUpdateKernelModuleComponents []*snap.ComponentSideInfo `json:"pre-update-kernel-module-components,omitempty"`
+	// case of an undo. Note that this cannot be tagged as omitempty, since we
+	// need to distinguish between empty and nil.
+	PreUpdateKernelModuleComponents []*snap.ComponentSideInfo `json:"pre-update-kernel-module-components"`
 }
 
 // RegistryID identifies a registry.

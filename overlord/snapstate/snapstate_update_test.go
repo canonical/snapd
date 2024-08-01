@@ -844,6 +844,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 			Amend:       true,
 			Transaction: client.TransactionPerSnap,
 		},
+		PreUpdateKernelModuleComponents: []*snap.ComponentSideInfo{},
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
@@ -1105,6 +1106,7 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 		Flags: snapstate.Flags{
 			Transaction: client.TransactionPerSnap,
 		},
+		PreUpdateKernelModuleComponents: []*snap.ComponentSideInfo{},
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "services-snap",
@@ -1478,6 +1480,7 @@ func (s *snapmgrTestSuite) testParallelInstanceUpdateRunThrough(c *C, refreshApp
 		Flags: snapstate.Flags{
 			Transaction: client.TransactionPerSnap,
 		},
+		PreUpdateKernelModuleComponents: []*snap.ComponentSideInfo{},
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "services-snap",
@@ -1829,6 +1832,7 @@ func (s *snapmgrTestSuite) TestUpdateModelKernelSwitchTrackRunThrough(c *C) {
 		Flags: snapstate.Flags{
 			Transaction: client.TransactionPerSnap,
 		},
+		PreUpdateKernelModuleComponents: []*snap.ComponentSideInfo{},
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "kernel",
@@ -13779,7 +13783,8 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 
 	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&prevSI, &currentSI})
 
-	var currentKmodComps, prevKmodComps []*snap.ComponentSideInfo
+	currentKmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
+	prevKmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
 	for i, comp := range components {
 		prevCsi := snap.ComponentSideInfo{
 			Component: naming.NewComponentRef(snapName, comp),
@@ -14319,7 +14324,8 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, instanceKey 
 		},
 	}...)
 
-	var currentKmodComps, newKmodComps []*snap.ComponentSideInfo
+	currentKmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
+	newKmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
 	for i, compName := range components {
 		if strings.HasPrefix(components[i], string(snap.KernelModulesComponent)) {
 			currentKmodComps = append(currentKmodComps, &snap.ComponentSideInfo{

@@ -154,6 +154,7 @@ backends:
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
         location: snapd-spread/europe-west1-b
         halt-timeout: 2h
+        kill-timeout: 2h
         systems:
             - ubuntu-core-16-64:
                   image: ubuntu-16.04-64

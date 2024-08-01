@@ -225,6 +225,12 @@ func verifyInstallTasksWithComponents(c *C, typ snap.Type, opts, discards int, c
 	for _, t := range ts.Tasks() {
 		switch t.Kind() {
 		case "prepare-component", "download-component":
+			if t.Change() == nil {
+				// Add to a change so we can call snapstate.TaskComponentSetup
+				chg := t.State().NewChange("install", "install...")
+				chg.AddAll(ts)
+			}
+
 			compsup, _, err := snapstate.TaskComponentSetup(t)
 			c.Assert(err, IsNil)
 			c.Check(compsup.CompSideInfo.Component.ComponentName, Equals, components[count])
@@ -2467,11 +2473,12 @@ epoch: 1*
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		SnapPath:  mockSnap,
-		SideInfo:  snapsup.SideInfo,
-		Type:      snap.TypeApp,
-		Version:   "1.0",
-		PlugsOnly: true,
+		SnapPath:                        mockSnap,
+		SideInfo:                        snapsup.SideInfo,
+		Type:                            snap.TypeApp,
+		Version:                         "1.0",
+		PlugsOnly:                       true,
+		PreUpdateKernelModuleComponents: []*snap.ComponentSideInfo{},
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "mock",
@@ -6289,7 +6296,7 @@ func undoOps(instanceName string, snapRevision, prevRev snap.Revision, newCompon
 
 	var ops fakeOps
 
-	var installedKmods []*snap.ComponentSideInfo
+	installedKmods := make([]*snap.ComponentSideInfo, 0, len(newComponents))
 	for i, compName := range newComponents {
 		csi := snap.ComponentSideInfo{
 			Component: naming.NewComponentRef(snapName, compName),
@@ -6300,7 +6307,7 @@ func undoOps(instanceName string, snapRevision, prevRev snap.Revision, newCompon
 		}
 	}
 
-	var prevInstalledKmods []*snap.ComponentSideInfo
+	prevInstalledKmods := make([]*snap.ComponentSideInfo, 0, len(prevComponents))
 	for i, compName := range prevComponents {
 		csi := snap.ComponentSideInfo{
 			Component: naming.NewComponentRef(snapName, compName),
@@ -6654,7 +6661,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, insta
 	if len(kmodComps) > 0 {
 		expected = append(expected, fakeOp{
 			op:           "prepare-kernel-modules-components",
-			currentComps: nil,
+			currentComps: []*snap.ComponentSideInfo{},
 			finalComps:   kmodComps,
 		})
 	}
@@ -6941,7 +6948,7 @@ components:
 	if len(kmodComps) > 0 {
 		expected = append(expected, fakeOp{
 			op:           "prepare-kernel-modules-components",
-			currentComps: nil,
+			currentComps: []*snap.ComponentSideInfo{},
 			finalComps:   kmodComps,
 		})
 	}
