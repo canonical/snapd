@@ -36,6 +36,8 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
+var kernelEnsureKernelDriversTree = kernel.EnsureKernelDriversTree
+
 // InstallRecord keeps a record of what installation effectively did as hints
 // about what needs to be undone in case of failure.
 type InstallRecord struct {
@@ -128,7 +130,7 @@ func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, meter p
 	cpi := snap.MinimalSnapContainerPlaceInfo(instanceName, rev)
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, instanceName, rev)
 
-	return kernel.EnsureKernelDriversTree(
+	return kernelEnsureKernelDriversTree(
 		kernel.MountPoints{
 			Current: cpi.MountDir(),
 			Target:  cpi.MountDir()},
@@ -357,28 +359,14 @@ func moveKModsComponentsState(currentComps, finalComps []*snap.ComponentSideInfo
 		Target:  cpi.MountDir(),
 	}
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, ksnapName, ksnapRev)
-	finalCompsMntPts := make([]kernel.ModulesCompMountPoints, len(finalComps))
-	for i, csi := range finalComps {
-		compPlaceInfo := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
-			csi.Revision, ksnapName)
-		finalCompsMntPts[i] = kernel.ModulesCompMountPoints{
-			Name: csi.Component.ComponentName,
-			MountPoints: kernel.MountPoints{
-				Current: compPlaceInfo.MountDir(),
-				Target:  compPlaceInfo.MountDir(),
-			},
-		}
-	}
+	finalCompsMntPts := compsMountPoints(finalComps, ksnapName)
 
-	if err := kernel.EnsureKernelDriversTree(kMntPts, finalCompsMntPts, destDir,
+	if err := kernelEnsureKernelDriversTree(kMntPts, finalCompsMntPts, destDir,
 		&kernel.KernelDriversTreeOptions{KernelInstall: false}); err != nil {
 
-		currentCompsConts := make([]snap.ContainerPlaceInfo, len(currentComps))
-		for i, csi := range currentComps {
-			currentCompsConts[i] = snap.MinimalComponentContainerPlaceInfo(
-				csi.Component.ComponentName, csi.Revision, ksnapName)
-		}
-		if e := kernel.EnsureKernelDriversTree(kMntPts, finalCompsMntPts, destDir,
+		// Revert change on error
+		currentCompsMntPts := compsMountPoints(currentComps, ksnapName)
+		if e := kernelEnsureKernelDriversTree(kMntPts, currentCompsMntPts, destDir,
 			&kernel.KernelDriversTreeOptions{KernelInstall: false}); e != nil {
 			logger.Noticef("while restoring kernel tree %s: %v", cleanErrMsg, e)
 		}
@@ -387,6 +375,21 @@ func moveKModsComponentsState(currentComps, finalComps []*snap.ComponentSideInfo
 	}
 
 	return nil
+}
+
+func compsMountPoints(comps []*snap.ComponentSideInfo, kSnapName string) []kernel.ModulesCompMountPoints {
+	compsMntPts := make([]kernel.ModulesCompMountPoints, 0, len(comps))
+	for _, csi := range comps {
+		compPlaceInfo := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
+			csi.Revision, kSnapName)
+		compsMntPts = append(compsMntPts, kernel.ModulesCompMountPoints{
+			Name: csi.Component.ComponentName,
+			MountPoints: kernel.MountPoints{
+				Current: compPlaceInfo.MountDir(),
+				Target:  compPlaceInfo.MountDir(),
+			}})
+	}
+	return compsMntPts
 }
 
 func newSystemd(preseed bool, meter progress.Meter) systemd.Systemd {
