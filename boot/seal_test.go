@@ -1624,7 +1624,7 @@ func (s *sealSuite) TestRunModeBootChains(c *C) {
 				c.Assert(chain.Kernel, Equals, "pc-kernel")
 				expectedKernelRev := tc.expectedKernelRevs[i]
 				c.Assert(chain.KernelRevision, Equals, fmt.Sprintf("%d", expectedKernelRev))
-				c.Assert(chain.KernelBootFile(), DeepEquals, bootloader.BootFile{
+				c.Assert(chain.KernelBootFile, DeepEquals, bootloader.BootFile{
 					Snap: fmt.Sprintf("/snaps/pc-kernel_%d.snap", expectedKernelRev),
 					Path: "kernel.efi",
 					Role: bootloader.RoleRunMode,
@@ -1918,7 +1918,7 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 				c.Assert(chain.Kernel, Equals, "pc-kernel")
 				expectedKernelRev := tc.expectedKernelRevs[i]
 				c.Assert(chain.KernelRevision, Equals, fmt.Sprintf("%d", expectedKernelRev))
-				c.Assert(chain.KernelBootFile(), DeepEquals, bootloader.BootFile{
+				c.Assert(chain.KernelBootFile, DeepEquals, bootloader.BootFile{
 					Snap: fmt.Sprintf("/var/lib/snapd/seed/snaps/pc-kernel_%d.snap", expectedKernelRev),
 					Path: "kernel.efi",
 					Role: bootloader.RoleRecovery,

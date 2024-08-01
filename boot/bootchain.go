@@ -35,23 +35,23 @@ import (
 )
 
 // TODO:UC20 add a doc comment when this is stabilized
-type bootChain struct {
+type BootChain struct {
 	BrandID        string             `json:"brand-id"`
 	Model          string             `json:"model"`
 	Classic        bool               `json:"classic,omitempty"`
 	Grade          asserts.ModelGrade `json:"grade"`
 	ModelSignKeyID string             `json:"model-sign-key-id"`
-	AssetChain     []bootAsset        `json:"asset-chain"`
+	AssetChain     []BootAsset        `json:"asset-chain"`
 	Kernel         string             `json:"kernel"`
 	// KernelRevision is the revision of the kernel snap. It is empty if
 	// kernel is unasserted, in which case always reseal.
 	KernelRevision string   `json:"kernel-revision"`
 	KernelCmdlines []string `json:"kernel-cmdlines"`
 
-	kernelBootFile bootloader.BootFile
+	KernelBootFile bootloader.BootFile `json:"-"`
 }
 
-func (b *bootChain) modelForSealing() *modelForSealing {
+func (b *BootChain) modelForSealing() *modelForSealing {
 	return &modelForSealing{
 		brandID:        b.BrandID,
 		model:          b.Model,
@@ -61,14 +61,24 @@ func (b *bootChain) modelForSealing() *modelForSealing {
 	}
 }
 
-// TODO:UC20 add a doc comment when this is stabilized
-type bootAsset struct {
-	Role   bootloader.Role `json:"role"`
-	Name   string          `json:"name"`
-	Hashes []string        `json:"hashes"`
+// BootAsset represents all possible expected file for a boot asset in
+// a boot chain.
+type BootAsset struct {
+	// Role is the bootloader role for the asset
+	Role bootloader.Role `json:"role"`
+	// Name is the identifier of the boot asset. Typically of the
+	// form chain:basename
+	Name string `json:"name"`
+	// Hashes are the possible hashes for the asset. They are
+	// expected to be computed by osutil.FileDigest. There can be
+	// 1 or 2 and order is such than the second version of a
+	// previous asset in a chain should be able to chain both
+	// versions, but then first version of the previous asset
+	// needs only to be able to chain the first version
+	Hashes []string `json:"hashes"`
 }
 
-func bootAssetLess(b, other *bootAsset) bool {
+func bootAssetLess(b, other *BootAsset) bool {
 	byRole := b.Role < other.Role
 	byName := b.Name < other.Name
 	// sort order: role -> name -> hash list (len -> lexical)
@@ -105,7 +115,7 @@ func stringListsLess(sl1, sl2 []string) bool {
 	return false
 }
 
-func toPredictableBootChain(b *bootChain) *bootChain {
+func toPredictableBootChain(b *BootChain) *BootChain {
 	if b == nil {
 		return nil
 	}
@@ -122,7 +132,7 @@ func toPredictableBootChain(b *bootChain) *bootChain {
 	return &newB
 }
 
-func predictableBootAssetsEqual(b1, b2 []bootAsset) bool {
+func predictableBootAssetsEqual(b1, b2 []BootAsset) bool {
 	b1JSON, err := json.Marshal(b1)
 	if err != nil {
 		return false
@@ -134,7 +144,7 @@ func predictableBootAssetsEqual(b1, b2 []bootAsset) bool {
 	return bytes.Equal(b1JSON, b2JSON)
 }
 
-func predictableBootAssetsLess(b1, b2 []bootAsset) bool {
+func predictableBootAssetsLess(b1, b2 []BootAsset) bool {
 	if len(b1) != len(b2) {
 		return len(b1) < len(b2)
 	}
@@ -146,7 +156,7 @@ func predictableBootAssetsLess(b1, b2 []bootAsset) bool {
 	return false
 }
 
-type byBootChainOrder []bootChain
+type byBootChainOrder []BootChain
 
 func (b byBootChainOrder) Len() int      { return len(b) }
 func (b byBootChainOrder) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
@@ -182,7 +192,7 @@ func (b byBootChainOrder) Less(i, j int) bool {
 	return false
 }
 
-type PredictableBootChains []bootChain
+type PredictableBootChains []BootChain
 
 // hasUnrevisionedKernels returns true if any of the chains have an
 // unrevisioned kernel. Revisions will not be set for unasserted
@@ -196,11 +206,11 @@ func (pbc PredictableBootChains) hasUnrevisionedKernels() bool {
 	return false
 }
 
-func ToPredictableBootChains(chains []bootChain) PredictableBootChains {
+func ToPredictableBootChains(chains []BootChain) PredictableBootChains {
 	if chains == nil {
 		return nil
 	}
-	predictableChains := make([]bootChain, len(chains))
+	predictableChains := make([]BootChain, len(chains))
 	for i := range chains {
 		predictableChains[i] = *toPredictableBootChain(&chains[i])
 	}
@@ -248,7 +258,7 @@ func predictableBootChainsEqualForReseal(pb1, pb2 PredictableBootChains) bootCha
 // copied first to the disk, so booting from the new shim to the old
 // grub is not possible. This is controlled by expectNew, that tells
 // us that the previous step in the chain is from a new asset.
-func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFile, roleToBlName map[bootloader.Role]string, expectNew bool) ([]*secboot.LoadChain, error) {
+func bootAssetsToLoadChains(assets []BootAsset, kernelBootFile bootloader.BootFile, roleToBlName map[bootloader.Role]string, expectNew bool) ([]*secboot.LoadChain, error) {
 	// kernel is added after all the assets
 	addKernelBootFile := len(assets) == 0
 	if addKernelBootFile {
@@ -311,7 +321,7 @@ type predictableBootChainsWrapperForStorage struct {
 	BootChains  PredictableBootChains `json:"boot-chains"`
 }
 
-func readBootChains(path string) (pbc PredictableBootChains, resealCount int, err error) {
+func ReadBootChains(path string) (pbc PredictableBootChains, resealCount int, err error) {
 	inf, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
