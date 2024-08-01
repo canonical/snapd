@@ -430,10 +430,15 @@ func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool,
 }
 
 type ResealKeyForBootChainsParams struct {
-	RunModeBootChains           []bootChain
+	// RunModeBootChains are the boot chains run for key role
+	RunModeBootChains []bootChain
+	// RecoveryBootChainsForRunKey are the extra boot chains for
+	// run+recover key role
 	RecoveryBootChainsForRunKey []bootChain
-	RecoveryBootChains          []bootChain
-	RoleToBlName                map[bootloader.Role]string
+	// RecoveryBootChains are the boot chains for recover key role
+	RecoveryBootChains []bootChain
+	// RoleToBlName maps bootloader role to the name of its bootloader
+	RoleToBlName map[bootloader.Role]string
 }
 
 // TODO:UC20: allow more than one model to accommodate the remodel scenario
