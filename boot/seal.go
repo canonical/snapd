@@ -431,12 +431,12 @@ func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool,
 
 type ResealKeyForBootChainsParams struct {
 	// RunModeBootChains are the boot chains run for key role
-	RunModeBootChains []bootChain
+	RunModeBootChains []BootChain
 	// RecoveryBootChainsForRunKey are the extra boot chains for
 	// run+recover key role
-	RecoveryBootChainsForRunKey []bootChain
+	RecoveryBootChainsForRunKey []BootChain
 	// RecoveryBootChains are the boot chains for recover key role
-	RecoveryBootChains []bootChain
+	RecoveryBootChains []BootChain
 	// RoleToBlName maps bootloader role to the name of its bootloader
 	RoleToBlName map[bootloader.Role]string
 }
@@ -558,7 +558,7 @@ func modesForSystems(modeenv *Modeenv) map[string][]string {
 
 // TODO:UC20: this needs to take more than one model to accommodate the remodel
 // scenario
-func recoveryBootChainsForSystems(systems []string, modesForSystems map[string][]string, trbl bootloader.TrustedAssetsBootloader, modeenv *Modeenv, includeTryModel bool, seedDir string) (chains []bootChain, err error) {
+func recoveryBootChainsForSystems(systems []string, modesForSystems map[string][]string, trbl bootloader.TrustedAssetsBootloader, modeenv *Modeenv, includeTryModel bool, seedDir string) (chains []BootChain, err error) {
 	trustedAssets, err := trbl.TrustedAssets()
 	if err != nil {
 		return nil, err
@@ -632,7 +632,7 @@ func recoveryBootChainsForSystems(systems []string, modesForSystems map[string][
 					continue
 				}
 
-				chains = append(chains, bootChain{
+				chains = append(chains, BootChain{
 					BrandID: model.BrandID(),
 					Model:   model.Model(),
 					// TODO: test this
@@ -643,7 +643,7 @@ func recoveryBootChainsForSystems(systems []string, modesForSystems map[string][
 					Kernel:         seedKernel.SnapName(),
 					KernelRevision: kernelRev,
 					KernelCmdlines: cmdlines,
-					kernelBootFile: kbf,
+					KernelBootFile: kbf,
 				})
 
 				foundChain = true
@@ -669,12 +669,12 @@ func recoveryBootChainsForSystems(systems []string, modesForSystems map[string][
 	return chains, nil
 }
 
-func runModeBootChains(rbl, bl bootloader.Bootloader, modeenv *Modeenv, cmdlines []string, runSnapsDir string) ([]bootChain, error) {
+func runModeBootChains(rbl, bl bootloader.Bootloader, modeenv *Modeenv, cmdlines []string, runSnapsDir string) ([]BootChain, error) {
 	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
 	if !ok {
 		return nil, fmt.Errorf("recovery bootloader doesn't support trusted assets")
 	}
-	chains := make([]bootChain, 0, len(modeenv.CurrentKernels))
+	chains := make([]BootChain, 0, len(modeenv.CurrentKernels))
 
 	trustedAssets, err := tbl.TrustedAssets()
 	if err != nil {
@@ -717,7 +717,7 @@ func runModeBootChains(rbl, bl bootloader.Bootloader, modeenv *Modeenv, cmdlines
 				if info.SnapRevision().Store() {
 					kernelRev = info.SnapRevision().String()
 				}
-				chains = append(chains, bootChain{
+				chains = append(chains, BootChain{
 					BrandID: model.BrandID(),
 					Model:   model.Model(),
 					// TODO: test this
@@ -728,7 +728,7 @@ func runModeBootChains(rbl, bl bootloader.Bootloader, modeenv *Modeenv, cmdlines
 					Kernel:         info.SnapName(),
 					KernelRevision: kernelRev,
 					KernelCmdlines: cmdlines,
-					kernelBootFile: kbf,
+					KernelBootFile: kbf,
 				})
 				foundChain = true
 			}
@@ -755,12 +755,12 @@ func runModeBootChains(rbl, bl bootloader.Bootloader, modeenv *Modeenv, cmdlines
 // produces corresponding bootAssets with the matching current asset
 // hashes from modeenv plus it returns separately the last BootFile
 // which is for the kernel.
-func buildBootAssets(bootFiles []bootloader.BootFile, modeenv *Modeenv, trustedAssets map[string]string) (assets []bootAsset, kernel bootloader.BootFile, err error) {
+func buildBootAssets(bootFiles []bootloader.BootFile, modeenv *Modeenv, trustedAssets map[string]string) (assets []BootAsset, kernel bootloader.BootFile, err error) {
 	if len(bootFiles) == 0 {
 		// useful in testing, when mocking is insufficient
 		return nil, bootloader.BootFile{}, fmt.Errorf("internal error: cannot build boot assets without boot files")
 	}
-	assets = make([]bootAsset, len(bootFiles)-1)
+	assets = make([]BootAsset, len(bootFiles)-1)
 
 	// the last element is the kernel which is not a boot asset
 	for i, bf := range bootFiles[:len(bootFiles)-1] {
@@ -784,7 +784,7 @@ func buildBootAssets(bootFiles []bootloader.BootFile, modeenv *Modeenv, trustedA
 			// found
 			return nil, kernel, nil
 		}
-		assets[i] = bootAsset{
+		assets[i] = BootAsset{
 			Role:   bf.Role,
 			Name:   name,
 			Hashes: hashes,
@@ -803,7 +803,7 @@ func SealKeyModelParams(pbc PredictableBootChains, roleToBlName map[bootloader.R
 		modelForSealing := bc.modelForSealing()
 		modelID := modelUniqueID(modelForSealing)
 		const expectNew = false
-		loadChains, err := bootAssetsToLoadChains(bc.AssetChain, bc.kernelBootFile, roleToBlName, expectNew)
+		loadChains, err := bootAssetsToLoadChains(bc.AssetChain, bc.KernelBootFile, roleToBlName, expectNew)
 		if err != nil {
 			return nil, fmt.Errorf("cannot build load chains with current boot assets: %s", err)
 		}
@@ -834,7 +834,7 @@ func SealKeyModelParams(pbc PredictableBootChains, roleToBlName map[bootloader.R
 // A hint expectReseal can be provided, it is used when the matching
 // is ambigous because the boot chains contain unrevisioned kernels.
 func IsResealNeeded(pbc PredictableBootChains, bootChainsFile string, expectReseal bool) (ok bool, nextCount int, err error) {
-	previousPbc, c, err := readBootChains(bootChainsFile)
+	previousPbc, c, err := ReadBootChains(bootChainsFile)
 	if err != nil {
 		return false, 0, err
 	}
