@@ -3373,6 +3373,10 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 // removeTasks provides the task set to remove snap name after taking a snapshot
 // if flags.Purge is not true, it also computes an estimate of the latter size.
 func removeTasks(st *state.State, name string, revision snap.Revision, flags *RemoveFlags) (removeTs *state.TaskSet, snapshotSize uint64, err error) {
+	if flags == nil {
+		flags = &RemoveFlags{}
+	}
+
 	var snapst SnapState
 	err = Get(st, name, &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -3480,8 +3484,25 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 		prev = disconnect
 	}
 
+	if flags.Terminate {
+		// This check is needed to avoid having the snap stuck in inhibition since
+		// "kill-snap-apps" inhibits the snap from running and "discard-snap" only
+		// removes the inhibition file when removing last revision.
+		if !removeAll {
+			return nil, 0, fmt.Errorf("cannot terminate running apps unless all revisions are removed")
+		}
+		stopSnapApps := st.NewTask("kill-snap-apps", fmt.Sprintf(i18n.G("Kill running snap %q apps"), name))
+		stopSnapApps.Set("snap-setup", snapsup)
+		stopSnapApps.Set("kill-reason", snap.KillReasonRemove)
+		if prev != nil {
+			stopSnapApps.WaitFor(prev)
+		}
+		addNext(state.NewTaskSet(stopSnapApps))
+		prev = stopSnapApps
+	}
+
 	// 'purge' flag disables automatic snapshot for given remove op
-	if flags == nil || !flags.Purge {
+	if !flags.Purge {
 		if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
 			ts, err := AutomaticSnapshot(st, name)
 			if err == nil {

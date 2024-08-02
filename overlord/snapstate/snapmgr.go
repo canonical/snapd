@@ -796,6 +796,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 
 	// remove related
 	runner.AddHandler("stop-snap-services", m.stopSnapServices, m.undoStopSnapServices)
+	runner.AddHandler("kill-snap-apps", m.doKillSnapApps, m.undoKillSnapApps)
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, m.undoUnlinkSnap)
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)

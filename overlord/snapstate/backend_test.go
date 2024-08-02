@@ -1301,6 +1301,17 @@ func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.Servi
 	return f.maybeErrForLastOp()
 }
 
+func (f *fakeSnappyBackend) KillSnapApps(snapName string, reason snap.AppKillReason, meter progress.Meter, tm timings.Measurer) error {
+	// This ensures we are using the right variant between NewTaskProgressAdapter{Locked,Unlocked}
+	meter.Notify("kill-snap-apps")
+
+	f.appendOp(&fakeOp{
+		op:   fmt.Sprintf("kill-snap-apps:%s", reason),
+		name: snapName,
+	})
+	return f.maybeErrForLastOp()
+}
+
 func (f *fakeSnappyBackend) QueryDisabledServices(info *snap.Info, meter progress.Meter) (*wrappers.DisabledServices, error) {
 	var l []string
 
