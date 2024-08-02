@@ -37,6 +37,7 @@ func TestAllLibrariesMatchSomePattern(t *testing.T) {
 
 	// Globs do not contain the common prefix which is specific to distribution packaging structure.
 	prefix := strutil.CommonPrefix(paths)
+	t.Logf("common prefix: %v", prefix)
 
 	for _, path := range paths {
 		shortPath := strings.TrimPrefix(path, prefix)
@@ -114,6 +115,10 @@ func loadPathsFromFiles(fileNames []string) (paths []string, err error) {
 			sc := bufio.NewScanner(f)
 			for sc.Scan() {
 				path := string(bytes.TrimSpace(sc.Bytes()))
+				// filter out a known packaging bug in 18.04 515 package
+				if strings.HasPrefix(path, "/NVIDIA-Linux/") {
+					continue
+				}
 				paths = append(paths, path)
 			}
 
