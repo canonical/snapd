@@ -78,6 +78,20 @@ static const size_t egl_vendor_globs_len =
 // FIXME: this doesn't yet work with libGLX and libglvnd redirector
 // FIXME: this still doesn't work with the 361 driver
 static const char *nvidia_globs[] = {
+	"gbm/nvidia-drm_gbm.so*",
+	"libnvidia-allocator.so*",
+	"libnvidia-api.so*",
+	"libnvidia-cbl.so*",
+	"libnvidia-cfg.so*",
+	"libnvidia-compiler-next.so*",
+	"libnvidia-egl-gbm.so*",
+	"libnvidia-ngx.so*",
+	"libnvidia-nscq.so*",
+	"libnvidia-nvvm.so*",
+	"libnvidia-pkcs11-openssl3.so*",
+	"libnvidia-pkcs11.so*",
+	"libnvidia-vulkan-producer.so*",
+
 	"libEGL_nvidia.so*",
 	"libGLESv1_CM_nvidia.so*",
 	"libGLESv2_nvidia.so*",
