@@ -84,7 +84,7 @@ const (
         "size": 20000021,
         "url": "https://api.snapcraft.io/api/v1/snaps/download/ABCEfjn4WJYnm0FzDKwqqRZZI77awQEV_21.snap"
       },
-      "type": "component/kernel-modules",
+      "type": "component/test",
       "name": "some-component",
       "revision": 1,
       "version": "1.0",
@@ -171,7 +171,7 @@ const (
   },
   "revision": 21,
   "snap-id": "XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV",
-  "snap-yaml": "name: test-snapd-content-plug\nversion: 1.0\nassumes: [snapd2.49]\napps:\n    user-svc:\n        command: bin/user-svc\n        daemon-scope: user\n        daemon: simple\n    content-plug:\n        command: bin/content-plug\n        plugs: [shared-content-plug]\nplugs:\n    shared-content-plug:\n        interface: content\n        target: import\n        content: mylib\n        default-provider: test-snapd-content-slot\nslots:\n    shared-content-slot:\n        interface: content\n        content: mylib\n        read:\n            - /\nprovenance: prov\ncomponents:\n  some-component:\n    type: kernel-modules\n    name: some-component\n    description: Some component\n    summary: Component summary\n    hooks:\n      install:",
+  "snap-yaml": "name: test-snapd-content-plug\nversion: 1.0\nassumes: [snapd2.49]\napps:\n    user-svc:\n        command: bin/user-svc\n        daemon-scope: user\n        daemon: simple\n    content-plug:\n        command: bin/content-plug\n        plugs: [shared-content-plug]\nplugs:\n    shared-content-plug:\n        interface: content\n        target: import\n        content: mylib\n        default-provider: test-snapd-content-slot\nslots:\n    shared-content-slot:\n        interface: content\n        content: mylib\n        read:\n            - /\nprovenance: prov\ncomponents:\n  some-component:\n    type: test\n    name: some-component\n    description: Some component\n    summary: Component summary\n    hooks:\n      install:",
   "store-url": "https://snapcraft.io/thingy",
   "summary": "useful thingy",
   "title": "This Is The Most Fantastical Snap of Thingy",
@@ -190,7 +190,7 @@ const (
           "size": 20000021,
           "url": "https://api.snapcraft.io/api/v1/snaps/download/ABCEfjn4WJYnm0FzDKwqqRZZI77awQEV_21.snap"
       },
-      "type": "component/kernel-modules",
+      "type": "component/test",
       "name": "some-component",
       "revision": 1,
       "version": "1.0",
@@ -269,7 +269,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnapSimpleAndLegacy(c *C) {
 		Components: map[string]*snap.Component{
 			"some-component": {
 				Name:        "some-component",
-				Type:        snap.KernelModulesComponent,
+				Type:        snap.TestComponent,
 				Description: "Some component",
 			},
 		},
@@ -396,7 +396,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 
 	c.Check(someComponent, DeepEquals, snap.Component{
 		Name:        "some-component",
-		Type:        snap.KernelModulesComponent,
+		Type:        snap.TestComponent,
 		Description: "Some component",
 		Summary:     "Component summary",
 	})
@@ -520,7 +520,7 @@ func fillStruct(a interface{}, c *C) {
 			}
 		case []storeResource:
 			x = []storeResource{{
-				Type: "component/kernel-modules",
+				Type: "component/test",
 				Download: storeDownload{
 					URL:      "http://example.com/resource",
 					Size:     42,
