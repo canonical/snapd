@@ -241,19 +241,23 @@ populate_image() {
     KERNEL_SNAP="$(find_snap "$CACHE" pc-kernel)"
 
     mkdir -p "$MNT"
-    local loop loop_boot loop_save loop_data
+    local loop loop_esp loop_boot loop_save loop_data
     loop=$(sudo kpartx -asv "$IMG" | head -n1 | cut -d' ' -f3)
     loop=${loop%p*}
-    loop_boot="${loop}"p2
-    loop_save="${loop}"p3
-    loop_data="${loop}"p4
+    loop_esp="${loop}"p2
+    loop_boot="${loop}"p3
+    loop_save="${loop}"p4
+    loop_data="${loop}"p5
 
+    # XXX: on a real UC device this the ESP is "ubuntu-seed"
+    sudo mkfs.fat -n ubuntu-seed /dev/mapper/"$loop_esp"
     sudo mkfs.ext4 -L ubuntu-boot -q /dev/mapper/"$loop_boot"
     sudo mkfs.ext4 -L ubuntu-save -q /dev/mapper/"$loop_save"
     sudo mkfs.ext4 -L ubuntu-data -q /dev/mapper/"$loop_data"
     for name in esp ubuntu-boot ubuntu-save ubuntu-data; do
         mkdir -p "$MNT"/"$name"
     done
+    sudo mount /dev/mapper/"$loop_esp" "$MNT"/esp
     sudo mount /dev/mapper/"$loop_boot" "$MNT"/ubuntu-boot
     sudo mount /dev/mapper/"$loop_save" "$MNT"/ubuntu-save
     sudo mount /dev/mapper/"$loop_data" "$MNT"/ubuntu-data
@@ -264,7 +268,7 @@ populate_image() {
     # ESP partition just chainloads into ubuntu-boot
     # XXX: do we want this given that we don't have recovery systems?
     sudo mkdir -p "$MNT"/esp/EFI/boot
-    sudo cp "$CACHE"/snap-pc/grubx64.efi "$MNT"/esp/EFI/boot
+    sudo cp "$CACHE"/snap-pc/grubx64.efi "$MNT"/esp/EFI/ubuntu
     sudo cp "$CACHE"/snap-pc/shim.efi.signed "$MNT"/esp/EFI/boot/bootx64.efi
     cat > "$CACHE"/esp-grub.cfg <<'EOF'
 set default=0
@@ -549,6 +553,7 @@ main() {
     replace_images_files "$BOOT_IMG" "$CACHE_DIR" "$MNT_DIR" "$SNAPD_DEB" "$SNAPD_BINPATH"
 
     show_how_to_run_qemu "$BOOT_IMG"
+    # TODO: show how to mount/chroot into the dir to test seeding
 }
 
 main "$@"
