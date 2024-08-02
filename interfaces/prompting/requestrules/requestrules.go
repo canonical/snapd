@@ -19,6 +19,7 @@ import (
 var (
 	ErrInternalInconsistency = errors.New("internal error: prompting rules database left inconsistent")
 	ErrRuleIDNotFound        = errors.New("rule ID is not found")
+	ErrRuleIDConflict        = errors.New("rule with matching ID already exists in rules database")
 	ErrPathPatternConflict   = errors.New("a rule with conflicting path pattern and permission already exists in the rules database")
 	ErrNoMatchingRule        = errors.New("no rules match the given path")
 	ErrUserNotAllowed        = errors.New("the given user is not allowed to request the rule with the given ID")
@@ -115,8 +116,9 @@ type userDB struct {
 // searchable by user, snap, interface, permission, and pattern variant.
 type RuleDB struct {
 	mutex   sync.Mutex
-	ByID    map[prompting.IDType]*Rule
-	PerUser map[uint32]*userDB
+	ids     map[prompting.IDType]int
+	rules   []*Rule
+	perUser map[uint32]*userDB
 	// notifyRule is a closure which will be called to record a notice when a
 	// rule is added, patched, or removed.
 	notifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error
@@ -126,8 +128,9 @@ type RuleDB struct {
 // and returns the populated database.
 func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error) (*RuleDB, error) {
 	rdb := &RuleDB{
-		ByID:       make(map[prompting.IDType]*Rule),
-		PerUser:    make(map[uint32]*userDB),
+		ids:        make(map[prompting.IDType]int),
+		rules:      make([]*Rule, 0),
+		perUser:    make(map[uint32]*userDB),
 		notifyRule: notifyRule,
 	}
 	return rdb, rdb.load()
@@ -153,9 +156,10 @@ func (rdb *RuleDB) load() error {
 		return fmt.Errorf("cannot read stored prompting rules: %w", err)
 	}
 
-	rdb.ByID = make(map[prompting.IDType]*Rule) // clear out any existing rules in ByID
-	for _, rule := range ruleList {
-		rdb.ByID[rule.ID] = rule
+	rdb.rules = ruleList
+	rdb.ids = make(map[prompting.IDType]int) // clear out any existing rules in ids
+	for index, rule := range rdb.rules {
+		rdb.ids[rule.ID] = index
 	}
 
 	notifyEveryRule := true
@@ -166,12 +170,7 @@ func (rdb *RuleDB) load() error {
 
 // save writes the current state of the rule database to the database file.
 func (rdb *RuleDB) save() error {
-	// TODO: store rules in slice so this is wayyy faster
-	ruleList := make([]*Rule, 0, len(rdb.ByID))
-	for _, rule := range rdb.ByID {
-		ruleList = append(ruleList, rule)
-	}
-	b, err := json.Marshal(ruleList)
+	b, err := json.Marshal(rdb.rules)
 	if err != nil {
 		logger.Noticef("cannot marshal rule DB: %v", err)
 		return fmt.Errorf("cannot marshal rule DB: %w", err)
@@ -185,15 +184,62 @@ func (rdb *RuleDB) dbpath() string {
 	return filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "request-rules.json")
 }
 
+// addRule adds the given rule to the rule DB.
+func (rdb *RuleDB) addRule(rule *Rule) error {
+	_, exists := rdb.ids[rule.ID]
+	if exists {
+		return ErrRuleIDConflict
+	}
+	rdb.rules = append(rdb.rules, rule)
+	rdb.ids[rule.ID] = len(rdb.rules) - 1
+	return nil
+}
+
+// ruleWithID returns the rule with the given ID from the rule DB.
+func (rdb *RuleDB) ruleWithID(id prompting.IDType) (*Rule, error) {
+	index, exists := rdb.ids[id]
+	if !exists {
+		return nil, ErrRuleIDNotFound
+	}
+	if index >= len(rdb.rules) {
+		return nil, ErrInternalInconsistency
+	}
+	return rdb.rules[index], nil
+}
+
+// removeRuleWithID removes the rule with the given ID from the rule DB.
+func (rdb *RuleDB) removeRuleWithID(id prompting.IDType) (*Rule, error) {
+	index, exists := rdb.ids[id]
+	if !exists {
+		return nil, ErrRuleIDNotFound
+	}
+	if index >= len(rdb.rules) {
+		return nil, ErrInternalInconsistency
+	}
+	rule := rdb.rules[index]
+	// Remove the rule with the given ID by copying the final rule in rdb.rules
+	// to its index.
+	rdb.rules[index] = rdb.rules[len(rdb.rules)-1]
+	// Record the ID of the moved rule now before truncating, in case the rule
+	// to remove is the moved rule (so nothing was moved).
+	movedID := rdb.rules[index].ID
+	// Truncate rules to remove the final element, which was just copied.
+	rdb.rules = rdb.rules[:len(rdb.rules)-1]
+	// Update the ID-index mapping of the moved rule.
+	rdb.ids[movedID] = index
+	delete(rdb.ids, id)
+	return rule, nil
+}
+
 // permissionDBForUserSnapInterfacePermission returns the permission DB for the
 // given user, snap, interface, and permission.
 func (rdb *RuleDB) permissionDBForUserSnapInterfacePermission(user uint32, snap string, iface string, permission string) *permissionDB {
-	userSnaps := rdb.PerUser[user]
+	userSnaps := rdb.perUser[user]
 	if userSnaps == nil {
 		userSnaps = &userDB{
 			PerSnap: make(map[string]*snapDB),
 		}
-		rdb.PerUser[user] = userSnaps
+		rdb.perUser[user] = userSnaps
 	}
 	snapInterfaces := userSnaps.PerSnap[snap]
 	if snapInterfaces == nil {
@@ -370,7 +416,7 @@ func errorsJoin(errs ...error) error {
 // a notice for every rule which was in the database prior to the beginning of
 // the function. In either case, at most one notice is issued for each rule.
 //
-// Discards the current rule tree, then iterates through the rules in rdb.ByID
+// Discards the current rule tree, then iterates through the rules in rdb.rules
 // and re-populates the tree. If there are any conflicts between rules (that
 // is, rules share the same path pattern and one or more of the same
 // permissions), the conflicting permission is removed from the rule with the
@@ -396,20 +442,22 @@ func (rdb *RuleDB) RefreshTreeEnforceConsistency(notifyEveryRule bool) {
 		}
 	}()
 	currTime := time.Now()
-	newByID := make(map[prompting.IDType]*Rule)
-	rdb.PerUser = make(map[uint32]*userDB)
-	for id, rule := range rdb.ByID {
+	origRules := rdb.rules
+	rdb.ids = make(map[prompting.IDType]int)
+	rdb.rules = make([]*Rule, 0, len(rdb.rules))
+	rdb.perUser = make(map[uint32]*userDB)
+	for _, rule := range origRules {
 		_, exists := modifiedUserRuleIDs[rule.User]
 		if !exists {
 			modifiedUserRuleIDs[rule.User] = make(map[prompting.IDType]bool)
 		}
 		if notifyEveryRule {
-			modifiedUserRuleIDs[rule.User][id] = true
+			modifiedUserRuleIDs[rule.User][rule.ID] = true
 		}
 		if rule.Constraints.ValidateForInterface(rule.Interface) != nil || rule.Lifespan.ValidateExpiration(rule.Expiration, currTime) != nil {
 			// Invalid rule, discard it
 			needToSave = true
-			modifiedUserRuleIDs[rule.User][id] = true
+			modifiedUserRuleIDs[rule.User][rule.ID] = true
 			continue
 		}
 		for {
@@ -428,29 +476,28 @@ func (rdb *RuleDB) RefreshTreeEnforceConsistency(notifyEveryRule bool) {
 			// groups, and there's no way to remove only a single variant.
 			for _, conflict := range conflicts {
 				conflictingID := conflict.ConflictingID
-				conflictingRule := rdb.ByID[conflictingID] // must exist
+				conflictingRule, _ := rdb.ruleWithID(conflictingID) // must exist
 				if rule.Timestamp.After(conflictingRule.Timestamp) {
 					rdb.removeRulePermissionFromTree(conflictingRule, conflictingPermission) // must return nil
 					if conflictingRule.removePermission(conflictingPermission) == prompting.ErrPermissionsListEmpty {
-						delete(newByID, conflictingID)
+						rdb.removeRuleWithID(conflictingID)
 					}
 					modifiedUserRuleIDs[conflictingRule.User][conflictingID] = true
 				} else {
 					rule.removePermission(conflictingPermission) // ignore error
-					modifiedUserRuleIDs[rule.User][id] = true
+					modifiedUserRuleIDs[rule.User][rule.ID] = true
 				}
 				needToSave = true
 			}
 		}
 		if len(rule.Constraints.Permissions) > 0 {
-			newByID[id] = rule
+			rdb.addRule(rule)
 		} else {
 			// TODO: record status of the rule ("removed") in modifiedUserRuleIDs
 			needToSave = true
-			modifiedUserRuleIDs[rule.User][id] = true
+			modifiedUserRuleIDs[rule.User][rule.ID] = true
 		}
 	}
-	rdb.ByID = newByID
 }
 
 // PopulateNewRule creates a new Rule with the given contents.
@@ -519,8 +566,8 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 	// an earlier expiration cannot outlive another rule with a later one.
 	currTime := time.Now()
 	for variantStr, variantEntry := range variantMap {
-		matchingRule, exists := rdb.ByID[variantEntry.RuleID]
-		if !exists {
+		matchingRule, err := rdb.ruleWithID(variantEntry.RuleID)
+		if err != nil {
 			// Database was left inconsistent, should not occur
 			delete(variantMap, variantStr)
 			// Record a notice for the offending rule, just in case
@@ -536,7 +583,7 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 		case expired:
 			needToSave = true
 			rdb.removeRuleFromTree(matchingRule)
-			delete(rdb.ByID, variantEntry.RuleID)
+			rdb.removeRuleWithID(variantEntry.RuleID)
 			// TODO: include removed reason in notice data
 			rdb.notifyRule(user, variantEntry.RuleID, nil)
 			continue
@@ -562,15 +609,15 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 	}
 	matchingEntry := variantMap[highestPrecedenceVariant.String()]
 	matchingID := matchingEntry.RuleID
-	matchingRule, exists := rdb.ByID[matchingID]
-	if !exists {
+	matchingRule, err := rdb.ruleWithID(matchingID)
+	if err != nil {
 		// Database was left inconsistent, should not occur
 		return false, ErrRuleIDNotFound
 	}
 	if matchingRule.Lifespan == prompting.LifespanSingle {
 		// XXX: we should never add rules with lifespan single to the rule DB
 		rdb.removeRuleFromTree(matchingRule)
-		delete(rdb.ByID, matchingID)
+		rdb.removeRuleWithID(matchingID)
 		// TODO: include removed reason in notice data
 		rdb.notifyRule(user, matchingID, nil)
 		needToSave = true
@@ -578,12 +625,12 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 	return matchingRule.Outcome.AsBool()
 }
 
-// ruleWithIDInternal returns the rule with the given ID, if it exists, for the
+// ruleWithIDForUser returns the rule with the given ID, if it exists, for the
 // given user. Otherwise, returns an error.
-func (rdb *RuleDB) ruleWithIDInternal(user uint32, id prompting.IDType) (*Rule, error) {
-	rule, exists := rdb.ByID[id]
-	if !exists {
-		return nil, ErrRuleIDNotFound
+func (rdb *RuleDB) ruleWithIDForUser(user uint32, id prompting.IDType) (*Rule, error) {
+	rule, err := rdb.ruleWithID(id)
+	if err != nil {
+		return nil, err
 	}
 	if rule.User != user {
 		return nil, ErrUserNotAllowed
@@ -597,7 +644,7 @@ func (rdb *RuleDB) ruleWithIDInternal(user uint32, id prompting.IDType) (*Rule, 
 func (rdb *RuleDB) RuleWithID(user uint32, id prompting.IDType) (*Rule, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
-	return rdb.ruleWithIDInternal(user, id)
+	return rdb.ruleWithIDForUser(user, id)
 }
 
 // Creates a rule with the given information and adds it to the rule database.
@@ -613,7 +660,7 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 	if err, conflicts, conflictingPermission := rdb.addRuleToTree(newRule); err != nil {
 		return nil, fmt.Errorf("%w: conflicts: %+v, Permission: '%s'", err, conflicts, conflictingPermission)
 	}
-	rdb.ByID[newRule.ID] = newRule
+	rdb.addRule(newRule)
 	rdb.save()
 	rdb.notifyRule(user, newRule.ID, nil)
 	return newRule, nil
@@ -625,13 +672,13 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 func (rdb *RuleDB) RemoveRule(user uint32, id prompting.IDType) (*Rule, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
-	rule, err := rdb.ruleWithIDInternal(user, id)
+	rule, err := rdb.ruleWithIDForUser(user, id)
 	if err != nil {
 		return nil, err
 	}
 	err = rdb.removeRuleFromTree(rule)
 	// If error occurs, rule was still fully removed from tree
-	delete(rdb.ByID, id)
+	rdb.removeRuleWithID(id)
 	rdb.save()
 	// TODO: include removed reason in the notice data
 	rdb.notifyRule(user, id, nil)
@@ -657,7 +704,7 @@ func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) {
 	for _, rule := range rules {
 		rdb.removeRuleFromTree(rule)
 		// If error occurs, rule was still fully removed from tree
-		delete(rdb.ByID, rule.ID)
+		rdb.removeRuleWithID(rule.ID)
 		// TODO: include removed reason in notice data
 		rdb.notifyRule(user, rule.ID, nil)
 	}
@@ -696,7 +743,7 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraints *prom
 			rdb.notifyRule(user, id, nil)
 		}
 	}()
-	origRule, err := rdb.ruleWithIDInternal(user, id)
+	origRule, err := rdb.ruleWithIDForUser(user, id)
 	if err != nil {
 		return nil, err
 	}
@@ -731,7 +778,11 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraints *prom
 		changeOccurred = false
 		return nil, fmt.Errorf("%w: conflicts: %+v, Permission: '%s'", err, conflicts, conflictingPermission)
 	}
-	rdb.ByID[newRule.ID] = newRule
+	rdb.removeRuleWithID(origRule.ID) // no error can occur, we just confirmed the rule exists
+	if err := rdb.addRule(newRule); err != nil {
+		// Should not occur
+		return nil, fmt.Errorf("internal error: %v", err)
+	}
 	changeOccurred = true
 	return newRule, nil
 }
@@ -761,7 +812,7 @@ func (rdb *RuleDB) rulesInternal(ruleFilter func(rule *Rule) bool) []*Rule {
 			rdb.save()
 		}
 	}()
-	for id, rule := range rdb.ByID {
+	for _, rule := range rdb.rules {
 		expired, err := rule.Expired(currTime)
 		if err != nil {
 			// Issue with expiration, this should not occur
@@ -769,9 +820,9 @@ func (rdb *RuleDB) rulesInternal(ruleFilter func(rule *Rule) bool) []*Rule {
 		if expired {
 			needToSave = true
 			rdb.removeRuleFromTree(rule)
-			delete(rdb.ByID, id)
+			rdb.removeRuleWithID(rule.ID)
 			// TODO: include reason rule was removed ("expired")
-			rdb.notifyRule(rule.User, id, nil)
+			rdb.notifyRule(rule.User, rule.ID, nil)
 			continue
 		}
 		if ruleFilter(rule) {

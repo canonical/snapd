@@ -20,3 +20,12 @@
 package requestrules
 
 var JoinInternalErrors = joinInternalErrors
+
+func (rdb *RuleDB) InjectRule(rule *Rule) {
+	rdb.rules = append(rdb.rules, rule)
+	rdb.ids[rule.ID] = len(rdb.rules) - 1
+}
+
+func (rdb *RuleDB) PerUser() map[uint32]*userDB {
+	return rdb.perUser
+}

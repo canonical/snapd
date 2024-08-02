@@ -159,40 +159,9 @@ func (s *requestrulesSuite) TestAddRemoveRuleSimple(c *C) {
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{rule.ID}, nil)
 
-	c.Assert(rdb.ByID, HasLen, 1)
-	storedRule, exists := rdb.ByID[rule.ID]
-	c.Assert(exists, Equals, true)
+	storedRule, err := rdb.RuleWithID(s.defaultUser, rule.ID)
+	c.Assert(err, IsNil)
 	c.Assert(storedRule, DeepEquals, rule)
-
-	c.Assert(rdb.PerUser, HasLen, 1)
-
-	userEntry, exists := rdb.PerUser[s.defaultUser]
-	c.Assert(exists, Equals, true)
-	c.Assert(userEntry.PerSnap, HasLen, 1)
-
-	snapEntry, exists := userEntry.PerSnap[snap]
-	c.Assert(exists, Equals, true)
-	c.Assert(snapEntry.PerInterface, HasLen, 1)
-
-	interfaceEntry, exists := snapEntry.PerInterface[iface]
-	c.Assert(exists, Equals, true)
-	c.Assert(interfaceEntry.PerPermission, HasLen, 3)
-
-	var variantStr string
-	c.Assert(pathPattern.NumVariants(), Equals, 1)
-	pathPattern.RenderAllVariants(func(index int, variant patterns.PatternVariant) {
-		variantStr = variant.String()
-	})
-
-	for _, permission := range permissions {
-		permissionEntry, exists := interfaceEntry.PerPermission[permission]
-		c.Assert(exists, Equals, true)
-		c.Assert(permissionEntry.VariantEntries, HasLen, 1)
-
-		variantEntry, exists := permissionEntry.VariantEntries[variantStr]
-		c.Assert(exists, Equals, true)
-		c.Assert(variantEntry.RuleID, Equals, rule.ID)
-	}
 
 	removedRule, err := rdb.RemoveRule(s.defaultUser, rule.ID)
 	c.Assert(err, IsNil)
@@ -200,26 +169,7 @@ func (s *requestrulesSuite) TestAddRemoveRuleSimple(c *C) {
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{removedRule.ID}, nil)
 
-	c.Assert(rdb.ByID, HasLen, 0)
-	c.Assert(rdb.PerUser, HasLen, 1)
-
-	userEntry, exists = rdb.PerUser[s.defaultUser]
-	c.Assert(exists, Equals, true)
-	c.Assert(userEntry.PerSnap, HasLen, 1)
-
-	snapEntry, exists = userEntry.PerSnap[snap]
-	c.Assert(exists, Equals, true)
-	c.Assert(snapEntry.PerInterface, HasLen, 1)
-
-	interfaceEntry, exists = snapEntry.PerInterface[iface]
-	c.Assert(exists, Equals, true)
-	c.Assert(interfaceEntry.PerPermission, HasLen, 3)
-
-	for _, permission := range permissions {
-		permissionEntry, exists := interfaceEntry.PerPermission[permission]
-		c.Assert(exists, Equals, true)
-		c.Assert(permissionEntry.VariantEntries, HasLen, 0)
-	}
+	c.Assert(rdb.Rules(s.defaultUser), HasLen, 0)
 }
 
 func (s *requestrulesSuite) checkNewNoticesSimple(c *C, expectedRuleIDs []prompting.IDType, expectedData map[string]string) {
@@ -304,14 +254,17 @@ func (s *requestrulesSuite) TestAddRuleUnhappy(c *C) {
 
 	badOutcome := prompting.OutcomeType("secret third thing")
 	_, err = rdb.AddRule(s.defaultUser, snap, iface, constraints, badOutcome, lifespan, duration)
-	c.Assert(err, ErrorMatches, `internal error: invalid outcome.*`, Commentf("rules: %+v", func() string {
-		rules := rdb.Rules(s.defaultUser)
-		marshalled, _ := json.Marshal(rules)
-		return string(marshalled)
-	}()))
+	c.Assert(err, ErrorMatches, `internal error: invalid outcome.*`, Commentf("rdb.Rules(): %+v", s.marshalRules(c, rdb)))
 
 	// Error while adding rule should cause no notice to be issued
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+}
+
+func (s *requestrulesSuite) marshalRules(c *C, rdb *requestrules.RuleDB) string {
+	rules := rdb.Rules(s.defaultUser)
+	marshalled, err := json.Marshal(rules)
+	c.Assert(err, IsNil)
+	return string(marshalled)
 }
 
 func (s *requestrulesSuite) TestPatchRule(c *C) {
@@ -331,7 +284,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 
 	storedRule, err := rdb.AddRule(s.defaultUser, snap, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
-	c.Assert(rdb.ByID, HasLen, 1)
+	c.Assert(rdb.Rules(s.defaultUser), HasLen, 1)
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{storedRule.ID}, nil)
 
@@ -347,7 +300,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	}
 	otherRule, err := rdb.AddRule(s.defaultUser, snap, iface, otherConstraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
-	c.Assert(rdb.ByID, HasLen, 2)
+	c.Assert(rdb.Rules(s.defaultUser), HasLen, 2)
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{otherRule.ID}, nil)
 
@@ -357,7 +310,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	// Timestamp should be different, the rest should be the same
 	unchangedRule1.Timestamp = storedRule.Timestamp
 	c.Assert(unchangedRule1, DeepEquals, storedRule)
-	c.Assert(rdb.ByID, HasLen, 2)
+	c.Assert(rdb.Rules(s.defaultUser), HasLen, 2, Commentf("rdb.Rules(): %+v", s.marshalRules(c, rdb)))
 
 	// Though rule was patched with the same values as it originally had, the
 	// timestamp was changed, and thus a notice should be issued for it.
@@ -369,7 +322,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	// Timestamp should be different, the rest should be the same
 	unchangedRule2.Timestamp = storedRule.Timestamp
 	c.Assert(unchangedRule2, DeepEquals, storedRule)
-	c.Assert(rdb.ByID, HasLen, 2)
+	c.Assert(rdb.Rules(s.defaultUser), HasLen, 2)
 
 	// Though rule was patched with unset values, and thus was unchanged aside
 	// from the timestamp, a notice should be issued for it.
@@ -386,7 +339,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	}
 	patchedRule, err := rdb.PatchRule(s.defaultUser, storedRule.ID, newConstraints, newOutcome, newLifespan, newDuration)
 	c.Assert(err, IsNil)
-	c.Assert(rdb.ByID, HasLen, 2)
+	c.Assert(rdb.Rules(s.defaultUser), HasLen, 2)
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{patchedRule.ID}, nil)
 
@@ -397,13 +350,13 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	output, err := rdb.PatchRule(s.defaultUser, storedRule.ID, badConstraints, outcome, lifespan, duration)
 	c.Assert(err, ErrorMatches, "invalid constraints: unsupported permission.*")
 	c.Assert(output, IsNil)
-	c.Assert(rdb.ByID, HasLen, 2)
+	c.Assert(rdb.Rules(s.defaultUser), HasLen, 2, Commentf("rdb.Rules(): %+v", s.marshalRules(c, rdb)))
 
 	// Error while patching rule should cause no notice to be issued
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
-	currentRule, exists := rdb.ByID[storedRule.ID]
-	c.Assert(exists, Equals, true)
+	currentRule, err := rdb.RuleWithID(s.defaultUser, storedRule.ID)
+	c.Assert(err, IsNil)
 	c.Assert(currentRule, DeepEquals, patchedRule)
 
 	conflictingPermissions := append(newPermissions, conflictingPermission)
@@ -414,13 +367,13 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	output, err = rdb.PatchRule(s.defaultUser, storedRule.ID, conflictingConstraints, newOutcome, newLifespan, newDuration)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("^%s.*%s.*%s.*", requestrules.ErrPathPatternConflict, otherRule.ID.String(), conflictingPermission))
 	c.Assert(output, IsNil)
-	c.Assert(rdb.ByID, HasLen, 2)
+	c.Assert(rdb.Rules(s.defaultUser), HasLen, 2)
 
 	// Permission conflicts while patching rule should cause no notice to be issued
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
-	currentRule, exists = rdb.ByID[storedRule.ID]
-	c.Assert(exists, Equals, true)
+	currentRule, err = rdb.RuleWithID(s.defaultUser, storedRule.ID)
+	c.Assert(err, IsNil)
 	c.Assert(currentRule, DeepEquals, patchedRule)
 }
 
@@ -567,16 +520,14 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 
 	rule, err := rdb.PopulateNewRule(s.defaultUser, snap, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
-	rdb.ByID[rule.ID] = rule
+	rdb.InjectRule(rule)
 	notifyEveryRule := true
 	rdb.RefreshTreeEnforceConsistency(notifyEveryRule)
 
 	// Test that RefreshTreeEnforceConsistency results in a single notice
 	s.checkNewNoticesSimple(c, []prompting.IDType{rule.ID}, nil)
 
-	c.Assert(rdb.PerUser, HasLen, 1)
-
-	userEntry, exists := rdb.PerUser[s.defaultUser]
+	userEntry, exists := rdb.PerUser()[s.defaultUser]
 	c.Assert(exists, Equals, true)
 	c.Assert(userEntry.PerSnap, HasLen, 1)
 
@@ -630,17 +581,17 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	badTsRule2, err := rdb.PopulateNewRule(s.defaultUser, snap, iface, constraints2, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 	badTsRule2.Timestamp = timeZero.Add(time.Second)
-	rdb.ByID[badTsRule1.ID] = badTsRule1
-	rdb.ByID[badTsRule2.ID] = badTsRule2
+	rdb.InjectRule(badTsRule1)
+	rdb.InjectRule(badTsRule2)
 
 	c.Assert(badTsRule1, Not(Equals), badTsRule2)
 
 	// The former should be overwritten by RefreshTreeEnforceConsistency
 	notifyEveryRule := false
 	rdb.RefreshTreeEnforceConsistency(notifyEveryRule)
-	c.Assert(rdb.ByID, HasLen, 1, Commentf("rdb.ByID: %+v", rdb.ByID))
-	_, exists := rdb.ByID[badTsRule2.ID]
-	c.Assert(exists, Equals, true)
+	c.Assert(rdb.Rules(s.defaultUser), HasLen, 1, Commentf("rdb.Rules(): %+v", rdb.Rules(s.defaultUser)))
+	_, err = rdb.RuleWithID(s.defaultUser, badTsRule2.ID)
+	c.Assert(err, IsNil)
 	// The latter should be overwritten by any conflicting rule which has a later timestamp
 
 	// Since notifyEveryRule = false, only one notice should be issued, for the overwritten rule
@@ -662,16 +613,16 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	}
 	initialRule, err := rdb.PopulateNewRule(s.defaultUser, snap, iface, initialConstraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
-	rdb.ByID[initialRule.ID] = initialRule
+	rdb.InjectRule(initialRule)
 	rdb.RefreshTreeEnforceConsistency(notifyEveryRule)
 
 	// Expect notice for rule with bad timestamp, not initialRule
 	s.checkNewNoticesSimple(c, []prompting.IDType{badTsRule2.ID}, nil)
 
 	// Check that rule with bad timestamp was overwritten
-	c.Assert(rdb.ByID, HasLen, 1, Commentf("rdb.ByID: %+v", rdb.ByID))
-	initialRuleRet, exists := rdb.ByID[initialRule.ID]
-	c.Assert(exists, Equals, true)
+	c.Assert(rdb.Rules(s.defaultUser), HasLen, 1, Commentf("rdb.Rules(): %+v", rdb.Rules(s.defaultUser)))
+	initialRuleRet, err := rdb.RuleWithID(s.defaultUser, initialRule.ID)
+	c.Assert(err, IsNil)
 	c.Assert(initialRuleRet.Constraints.Permissions, DeepEquals, permissions)
 
 	// Create rule with expiration in the past, which will be immediately be discarded without conflicting with other rules
@@ -683,19 +634,19 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	c.Assert(err, IsNil)
 	expiredRule.Expiration = time.Now().Add(-10 * time.Second)
 
-	rdb.ByID[expiredRule.ID] = expiredRule
+	rdb.InjectRule(expiredRule)
 	rdb.RefreshTreeEnforceConsistency(notifyEveryRule)
 
 	// Expect notice for only expiredRule
 	s.checkNewNoticesSimple(c, []prompting.IDType{expiredRule.ID}, nil)
 
-	c.Assert(rdb.ByID, HasLen, 1, Commentf("rdb.ByID: %+v", rdb.ByID))
+	c.Assert(rdb.Rules(s.defaultUser), HasLen, 1, Commentf("rdb.Rules(): %+v", rdb.Rules(s.defaultUser)))
 
-	_, exists = rdb.ByID[expiredRule.ID]
-	c.Assert(exists, Equals, false)
+	_, err = rdb.RuleWithID(s.defaultUser, expiredRule.ID)
+	c.Assert(err, Equals, requestrules.ErrRuleIDNotFound)
 
-	initialRuleRet, exists = rdb.ByID[initialRule.ID]
-	c.Assert(exists, Equals, true)
+	initialRuleRet, err = rdb.RuleWithID(s.defaultUser, initialRule.ID)
+	c.Assert(err, IsNil)
 	c.Assert(initialRuleRet.Constraints.Permissions, DeepEquals, permissions)
 
 	// Create rule with invalid permissions, which will be immediately be discarded without conflicting with other rules
@@ -707,19 +658,19 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	c.Assert(err, IsNil)
 	invalidRule.Constraints.Permissions = []string{"fly"}
 
-	rdb.ByID[invalidRule.ID] = invalidRule
+	rdb.InjectRule(invalidRule)
 	rdb.RefreshTreeEnforceConsistency(notifyEveryRule)
 
 	// Expect notice for only invalidRule
 	s.checkNewNoticesSimple(c, []prompting.IDType{invalidRule.ID}, nil)
 
-	c.Assert(rdb.ByID, HasLen, 1, Commentf("rdb.ByID: %+v", rdb.ByID))
+	c.Assert(rdb.Rules(s.defaultUser), HasLen, 1, Commentf("rdb.Rules(): %+v", rdb.Rules(s.defaultUser)))
 
-	_, exists = rdb.ByID[invalidRule.ID]
-	c.Assert(exists, Equals, false)
+	_, err = rdb.RuleWithID(s.defaultUser, invalidRule.ID)
+	c.Assert(err, Equals, requestrules.ErrRuleIDNotFound)
 
-	initialRuleRet, exists = rdb.ByID[initialRule.ID]
-	c.Assert(exists, Equals, true)
+	initialRuleRet, err = rdb.RuleWithID(s.defaultUser, initialRule.ID)
+	c.Assert(err, IsNil)
 	c.Assert(initialRuleRet.Constraints.Permissions, DeepEquals, permissions)
 
 	// Create newer rule which will overwrite all but the first permission of initialRule
@@ -732,29 +683,29 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	newRule, err := rdb.PopulateNewRule(s.defaultUser, snap, iface, newConstraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
-	rdb.ByID[newRule.ID] = newRule
-	rdb.ByID[earliestRule.ID] = earliestRule
+	rdb.InjectRule(newRule)
+	rdb.InjectRule(earliestRule)
 	rdb.RefreshTreeEnforceConsistency(notifyEveryRule)
 
 	// Expect notice for initialRule and earliestRule, not newRule
 	s.checkNewNoticesUnorderedSimple(c, []prompting.IDType{initialRule.ID, earliestRule.ID}, nil)
 
-	c.Assert(rdb.ByID, HasLen, 2, Commentf("rdb.ByID: %+v", rdb.ByID))
+	c.Assert(rdb.Rules(s.defaultUser), HasLen, 2, Commentf("rdb.Rules(): %+v", rdb.Rules(s.defaultUser)))
 
-	_, exists = rdb.ByID[earliestRule.ID]
-	c.Assert(exists, Equals, false)
+	_, err = rdb.RuleWithID(s.defaultUser, earliestRule.ID)
+	c.Assert(err, Equals, requestrules.ErrRuleIDNotFound)
 
-	initialRuleRet, exists = rdb.ByID[initialRule.ID]
-	c.Assert(exists, Equals, true)
+	initialRuleRet, err = rdb.RuleWithID(s.defaultUser, initialRule.ID)
+	c.Assert(err, IsNil)
 	c.Assert(initialRuleRet.Constraints.Permissions, DeepEquals, permissions[:1])
 
-	newRuleRet, exists := rdb.ByID[newRule.ID]
-	c.Assert(exists, Equals, true)
+	newRuleRet, err := rdb.RuleWithID(s.defaultUser, newRule.ID)
+	c.Assert(err, IsNil)
 	c.Assert(newRuleRet.Constraints.Permissions, DeepEquals, newRulePermissions, Commentf("newRulePermissions: %+v", newRulePermissions))
 
-	c.Assert(rdb.PerUser, HasLen, 1)
+	c.Assert(rdb.PerUser(), HasLen, 1)
 
-	userEntry, exists := rdb.PerUser[s.defaultUser]
+	userEntry, exists := rdb.PerUser()[s.defaultUser]
 	c.Assert(exists, Equals, true)
 	c.Assert(userEntry.PerSnap, HasLen, 1)
 
@@ -835,15 +786,15 @@ func (s *requestrulesSuite) TestNewSaveLoad(c *C) {
 
 	// DeepEquals does not treat time.Time well, so manually validate them and
 	// set them to be explicitly equal so the DeepEquals check succeeds.
-	c.Check(loadedRdb.ByID, HasLen, len(rdb.ByID))
-	for id, rule := range rdb.ByID {
-		loadedRule, exists := loadedRdb.ByID[id]
-		c.Assert(exists, Equals, true, Commentf("missing rule after loading: %+v", rule))
+	c.Check(loadedRdb.Rules(s.defaultUser), HasLen, len(rdb.Rules(s.defaultUser)))
+	for _, rule := range rdb.Rules(s.defaultUser) {
+		loadedRule, err := loadedRdb.RuleWithID(s.defaultUser, rule.ID)
+		c.Assert(err, IsNil, Commentf("missing rule after loading: %+v", rule))
 		c.Check(rule.Timestamp.Equal(loadedRule.Timestamp), Equals, true, Commentf("%s != %s", rule.Timestamp, loadedRule.Timestamp))
 		rule.Timestamp = loadedRule.Timestamp
 	}
-	c.Check(rdb.ByID, DeepEquals, loadedRdb.ByID)
-	c.Check(rdb.PerUser, DeepEquals, loadedRdb.PerUser)
+	c.Check(rdb.Rules(s.defaultUser), DeepEquals, loadedRdb.Rules(s.defaultUser))
+	c.Check(rdb.PerUser(), DeepEquals, loadedRdb.PerUser())
 }
 
 func (s *requestrulesSuite) TestIsPathAllowed(c *C) {
@@ -915,8 +866,8 @@ func (s *requestrulesSuite) TestIsPathAllowed(c *C) {
 
 	for path, expected := range cases {
 		result, err := rdb.IsPathAllowed(s.defaultUser, snap, iface, path, permissions[0])
-		c.Assert(err, IsNil, Commentf("path: %s: error: %v\nrdb.ByID: %+v", path, err, rdb.ByID))
-		c.Assert(result, Equals, expected, Commentf("path: %s: expected %b but got %b\nrdb.ByID: %+v", path, expected, result, rdb.ByID))
+		c.Assert(err, IsNil, Commentf("path: %s: error: %v\nrdb.Rules(): %+v", path, err, rdb.Rules(s.defaultUser)))
+		c.Assert(result, Equals, expected, Commentf("path: %s: expected %b but got %b\nrdb.Rules(): %+v", path, expected, result, rdb.Rules(s.defaultUser)))
 
 		// Matching against rules should not cause any notices
 		s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
@@ -974,7 +925,7 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 
 	allowed, err := rdb.IsPathAllowed(s.defaultUser, snap, iface, path1, "read")
 	c.Assert(err, IsNil)
-	c.Assert(allowed, Equals, true, Commentf("rdb.ByID: %+v", rdb.ByID))
+	c.Assert(allowed, Equals, true, Commentf("rdb.Rules(): %+v", rdb.Rules(s.defaultUser)))
 	allowed, err = rdb.IsPathAllowed(s.defaultUser, snap, iface, path2, "read")
 	c.Assert(err, IsNil)
 	c.Assert(allowed, Equals, false)
