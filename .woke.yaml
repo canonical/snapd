@@ -9,3 +9,4 @@ ignore_files:
   - cmd/libsnap-confine-private/string-utils-test.c
   - cmd/libsnap-confine-private/string-utils-test.c
   - cmd/libsnap-confine-private/snap.c
+  - build-aux/snap/local/apparmor/parser-add-support-for-prompting.patch
