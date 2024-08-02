@@ -111,7 +111,7 @@ func (s *setCommand) Execute(args []string) error {
 			return fmt.Errorf(i18n.G("cannot set %s plug: %w"), s.Positional.PlugOrSlotSpec, err)
 		}
 
-		return s.setRegistryValues(context, name, requests)
+		return setRegistryValues(context, name, requests)
 	}
 
 	return s.setInterfaceSetting(context, name)
@@ -225,7 +225,7 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	return nil
 }
 
-func (s *setCommand) setRegistryValues(ctx *hookstate.Context, plugName string, requests map[string]interface{}) error {
+func setRegistryValues(ctx *hookstate.Context, plugName string, requests map[string]interface{}) error {
 	ctx.Lock()
 	defer ctx.Unlock()
 
