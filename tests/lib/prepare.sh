@@ -386,6 +386,22 @@ prepare_classic() {
         fi
     done
 
+    # Install snapd snap to ensure re-exec to snapd snap instead of snapd in core.
+    # This also prevents snapd from automatically installing snapd snap
+    # as prerequisite for installing any non-base snap
+    if snap list snapd ; then
+	    snap snap info snapd
+	    echo "Error: not expecting snapd snap to be installed"
+	    exit 1
+    else
+	    build_dir="$WORK_DIR/snapd_snap_for_classic"
+	    rm -rf "$build_dir"
+	    mkdir -p "$build_dir"
+	    build_snapd_snap "$build_dir"
+	    snap install --dangerous "$build_dir/"snapd_*.snap
+    fi
+    snap list | grep snapd
+
     setup_systemd_snapd_overrides
 
     if [ "$REMOTE_STORE" = staging ]; then
@@ -502,10 +518,13 @@ build_snapd_snap() {
                     cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "${snapd_snap_cache}/snapd_from_ci.snap"
                 fi
             else
-                [ -d "${TARGET}" ] || mkdir -p "${TARGET}"
-                chmod -R go+r "${PROJECT_PATH}/tests"
-                run_snapcraft --use-lxd --verbosity quiet --output="snapd_from_snapcraft.snap"
-                mv "${PROJECT_PATH}"/snapd_from_snapcraft.snap "${snapd_snap_cache}"
+		# This is not reliable across classic releases
+		exit 1
+		#[ -d "${TARGET}" ] || mkdir -p "${TARGET}"
+                #chmod -R go+r "${PROJECT_PATH}/tests"
+                # TODO: run_snapcraft does not currently guarantee or check the required version for building snapd
+		#run_snapcraft --use-lxd --verbosity quiet --output="snapd_from_snapcraft.snap"
+                #mv "${PROJECT_PATH}"/snapd_from_snapcraft.snap "${snapd_snap_cache}"
             fi
         fi
         break
