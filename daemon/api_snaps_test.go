@@ -3971,7 +3971,7 @@ func (s *snapsSuite) TestInstallManyWithComponents(c *check.C) {
 	c.Check(chg.Summary(), check.Equals, `Install snaps "some-snap" (with components "some-comp1", "some-comp2"), "other-snap" (with component "other-comp1")`)
 }
 
-func (s *snapsSuite) TestInstallWithComponentsAlreadyInstalled(c *check.C) {
+func (s *snapsSuite) TestInstallWithComponentsSnapAlreadyInstalled(c *check.C) {
 	defer daemon.MockSnapstateInstallComponents(func(ctx context.Context, st *state.State, names []string, info *snap.Info, opts snapstate.Options) ([]*state.TaskSet, error) {
 		c.Check(names, check.DeepEquals, []string{"comp1", "comp2"})
 		c.Check(info.InstanceName(), check.Equals, "some-snap")
@@ -4026,7 +4026,7 @@ func (s *snapsSuite) TestInstallWithComponentsAlreadyInstalled(c *check.C) {
 	c.Check(chg.Summary(), check.Equals, `Install "some-snap" snap with components "comp1", "comp2"`)
 }
 
-func (s *snapsSuite) TestManyInstallWithComponentsAlreadyInstalled(c *check.C) {
+func (s *snapsSuite) TestManyInstallWithComponentsSnapAlreadyInstalled(c *check.C) {
 	defer daemon.MockSnapstateInstallComponents(func(ctx context.Context, st *state.State, names []string, info *snap.Info, opts snapstate.Options) ([]*state.TaskSet, error) {
 		c.Check(names, check.DeepEquals, []string{"comp1", "comp2"})
 		c.Check(info.InstanceName(), check.Equals, "some-snap-with-components")
