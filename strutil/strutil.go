@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2024 Canonical Ltd
+ * Copyright (C) 2014-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -379,26 +379,4 @@ func JoinNonEmpty(strs []string, sep string) string {
 		}
 	}
 	return strings.Join(nonEmpty, sep)
-}
-
-// CommonPrefix returns the prefix common to a slice of strings.
-//
-// The prefix for an empty slice is an empty string.
-// The prefix for a slice with one element is the element itself.
-func CommonPrefix(elems []string) string {
-	if len(elems) == 0 {
-		return ""
-	}
-
-	prefix := elems[0]
-	for _, s := range elems {
-		for !strings.HasPrefix(s, prefix) {
-			prefix = prefix[:len(prefix)-1]
-			if prefix == "" {
-				return prefix
-			}
-		}
-	}
-
-	return prefix
 }

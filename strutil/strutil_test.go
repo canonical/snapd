@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2024 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -377,11 +377,4 @@ func (strutilSuite) TestJoinNonEmpty(c *check.C) {
 	} {
 		c.Check(strutil.JoinNonEmpty(t.in, " "), check.Equals, t.out)
 	}
-}
-
-func (strutilSuite) TestCommonPrefix(c *check.C) {
-	c.Check(strutil.CommonPrefix(nil), check.Equals, "")
-	c.Check(strutil.CommonPrefix([]string{"foo"}), check.Equals, "foo")
-	c.Check(strutil.CommonPrefix([]string{"foo", "fo", "f"}), check.Equals, "f")
-	c.Check(strutil.CommonPrefix([]string{"foo", "fo", "f", "bar"}), check.Equals, "")
 }
