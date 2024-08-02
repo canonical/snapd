@@ -698,6 +698,16 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			}
 			rrev := snap.R(res.Snap.Revision)
 
+			// here we check a few things to decide if the snap truly has no
+			// updates.
+			// * if the action is defined as a resource install, then the
+			//   caller is just interested in the list of components so we
+			//   do not return an error
+			// * then, we check if the snap exactly matches the snap that is
+			//   currently installed. this considers the revision of the snap and
+			//   its resources that are currently installed. if that isn't true,
+			//   then we check if the snap's revision is in the list of blocked
+			//   revisions.
 			if !refreshes[res.InstanceKey].ResourceInstall && (currentSnapMatchesStoreSnap(cur, res.Snap) || findRev(rrev, cur.Block)) {
 				refreshErrors[cur.InstanceName] = ErrNoUpdateAvailable
 				continue
