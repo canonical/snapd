@@ -62,6 +62,13 @@ func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int,
 	return fallbackUserID, nil
 }
 
+func fallbackUserID(user *auth.UserState) int {
+	if !user.HasStoreAuth() {
+		return 0
+	}
+	return user.ID
+}
+
 // userFromUserID returns the first valid user from a series of userIDs
 // used as successive fallbacks.
 func userFromUserID(st *state.State, userIDs ...int) (*auth.UserState, error) {
@@ -768,13 +775,6 @@ func componentTargetsFromLocalRevision(snapst *SnapState, snapRev snap.Revision)
 		})
 	}
 	return components, nil
-}
-
-func fallbackUserID(user *auth.UserState) int {
-	if !user.HasStoreAuth() {
-		return 0
-	}
-	return user.ID
 }
 
 func collectCurrentSnapsAndActions(
