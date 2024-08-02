@@ -34,9 +34,9 @@ prepare: |
   # create an image that looks like a classic image
   # Note that "mk-image" is left as a script so that it can also be
   # run outside of spread easily for quick interactive testing
-  ./mk-image.sh ./boot.img "$CACHE_D" "./mnt" ./pc_x1.snap
-  # replaces snap-bootstrap in initramfs and snapd in rootfs
-  ./replace-image-files.sh ./boot.img "$CACHE_D"
+  # shellcheck disable=SC2086
+  "$TESTSTOOLS"/mkimage-uc"$VERSION" --boot-img ./boot.img --cache-dir ./cache --mnt-dir ./mnt --base-dir "$PWD" --snap pc_x1.snap "$TESTSLIB"/assertions/classic-model-${VERSION}.assert
+
   # We will need yq
   snap install yq
 
@@ -60,10 +60,12 @@ execute: |
   # validate that the image boots and seeds
   remote.exec "sudo snap wait system seed.loaded"
 
-  remote.exec 'cat /etc/os-release | MATCH VERSION_ID=\"22.04\"'
+  VERSION="$(tests.nested show version)"
+
+  remote.exec "cat /etc/os-release" | MATCH "VERSION_ID=\"${VERSION}.04\""
   remote.exec "snap list pc-kernel"
   remote.exec "snap list pc"
-  remote.exec "snap list core22"
+  remote.exec "snap list core${VERSION}"
   remote.exec "snap list snapd"
 
   # no reboot required
@@ -72,8 +74,8 @@ execute: |
   # Check for the generic serial assertion
   retry -n 100 sh -c 'remote.exec "snap changes" | MATCH "Done.*Initialize device"'
   remote.exec "snap model --serial --assertion" | MATCH "authority-id: generic"
-  remote.exec "snap model --serial --assertion" | MATCH "brand-id: tcMZ22pMaY5EVwoLozfjM4fR31bko4yj"
-  remote.exec "snap model --serial --assertion" | MATCH "model: ubuntu-core-22-pc-amd64"
+  remote.exec "snap model --serial --assertion" | MATCH "brand-id: test-snapd"
+  remote.exec "snap model --serial --assertion" | MATCH "model: ubuntu-core-${VERSION}-pc-amd64"
 
   # refresh kernel snap
   # $1: path to snap file
@@ -156,22 +158,22 @@ execute: |
   # Test that installing a different base and a reboot cause no reverts
   # (regression test for SNAPDENG-4975)
 
-  # precondition, the core22 is not a local version
-  remote.exec snap list core22 | NOMATCH " x1 "
-  # create modified core22
-  unsquashfs -d core22 "$CACHE_D"/core22_*.snap
-  touch core22/empty-file
-  snap pack --filename=core22-new.snap core22
-  remote.push "core22-new.snap"
+  # precondition, the coreXX is not a local version
+  remote.exec snap list core${VERSION} | NOMATCH " x1 "
+  # create modified coreXX
+  unsquashfs -d corebase "$CACHE_D"/core${VERSION}_*.snap
+  touch corebase/empty-file
+  snap pack --filename=corebase-new.snap corebase
+  remote.push "corebase-new.snap"
   # install and validate it is now a local version
-  remote.exec sudo snap install --dangerous "core22-new.snap"
-  remote.exec sudo snap list core22 | MATCH " x1 "
+  remote.exec sudo snap install --dangerous "corebase-new.snap"
+  remote.exec sudo snap list core${VERSION} | MATCH " x1 "
   # wait for reboot
   boot_id=$(tests.nested boot-id)
   remote.exec sudo reboot || true
   tests.nested wait-for reboot "$boot_id"
-  # ensure that no revert of core22 happened after the reboot
+  # ensure that no revert of coreXX happened after the reboot
   remote.exec sudo snap changes | NOMATCH "Update kernel and core snap revisions"
-  remote.exec sudo snap list core22 | MATCH " x1 "
+  remote.exec sudo snap list core${VERSION} | MATCH " x1 "
 
   rm -rf "$CACHE_D"
