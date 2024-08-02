@@ -43,7 +43,7 @@ const systemPackagesDocConnectedPlugAppArmor = `
 /usr/share/cups/doc-root/{,**} r,
 /usr/share/gimp/2.0/help/{,**} r,
 /usr/share/gtk-doc/{,**} r,
-/usr/share/javascript/{jquery,sphinxdoc}/{,**} r,
+/usr/share/javascript/{jquery,jquery-ui,sphinxdoc}/{,**} r,
 /usr/share/libreoffice/help/{,**} r,
 /usr/share/sphinx_rtd_theme/{,**} r,
 /usr/share/xubuntu-docs/{,**} r,
@@ -75,6 +75,9 @@ func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/javascript/jquery/ -> /usr/share/javascript/jquery/,\n")
 	emit("  remount options=(bind, ro) /usr/share/javascript/jquery/,\n")
 	emit("  umount /usr/share/javascript/jquery/,\n")
+	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/javascript/jquery-ui/ -> /usr/share/javascript/jquery-ui/,\n")
+	emit("  remount options=(bind, ro) /usr/share/javascript/jquery-ui/,\n")
+	emit("  umount /usr/share/javascript/jquery-ui/,\n")
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/javascript/sphinxdoc/ -> /usr/share/javascript/sphinxdoc/,\n")
 	emit("  remount options=(bind, ro) /usr/share/javascript/sphinxdoc/,\n")
 	emit("  umount /usr/share/javascript/sphinxdoc/,\n")
@@ -92,6 +95,7 @@ func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	apparmor.GenWritableProfile(emit, "/usr/share/cups/", 3)
 	apparmor.GenWritableProfile(emit, "/usr/share/gimp/2.0/", 3)
 	apparmor.GenWritableProfile(emit, "/usr/share/javascript/jquery/", 3)
+	apparmor.GenWritableProfile(emit, "/usr/share/javascript/jquery-ui/", 3)
 	apparmor.GenWritableProfile(emit, "/usr/share/javascript/sphinxdoc/", 3)
 	apparmor.GenWritableProfile(emit, "/usr/share/libreoffice/", 3)
 	apparmor.GenWritableProfile(emit, "/usr/share/sphinx_rtd_theme/", 3)
@@ -149,6 +153,11 @@ func (iface *systemPackagesDocInterface) MountConnectedPlug(spec *mount.Specific
 	spec.AddMountEntry(osutil.MountEntry{
 		Name:    "/var/lib/snapd/hostfs/usr/share/javascript/jquery",
 		Dir:     "/usr/share/javascript/jquery",
+		Options: []string{"bind", "ro"},
+	})
+	spec.AddMountEntry(osutil.MountEntry{
+		Name:    "/var/lib/snapd/hostfs/usr/share/javascript/jquery-ui",
+		Dir:     "/usr/share/javascript/jquery-ui",
 		Options: []string{"bind", "ro"},
 	})
 	spec.AddMountEntry(osutil.MountEntry{
