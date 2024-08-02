@@ -2321,3 +2321,96 @@ func (s *snapmgrTestSuite) TestRemoveWithCompsTasks(c *C) {
 	checkComps(s.fakeBackend.ops[5:11], expected[5:8], expected[8:11])
 	checkComps(s.fakeBackend.ops[16:22], expected[16:19], expected[19:22])
 }
+
+func (s *snapmgrTestSuite) TestRemoveWithTerminate(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(11)},
+		}),
+		Current:  snap.R(11),
+		SnapType: "app",
+	})
+
+	ts, err := snapstate.Remove(s.state, "foo", snap.R(0), &snapstate.RemoveFlags{Terminate: true})
+	c.Assert(err, IsNil)
+
+	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"stop-snap-services",
+		"run-hook[remove]",
+		"auto-disconnect",
+		"kill-snap-apps",
+		"save-snapshot",
+		"remove-aliases",
+		"unlink-snap",
+		"remove-profiles",
+		"clear-snap",
+		"discard-snap",
+	})
+}
+
+func (s *snapmgrTestSuite) TestRemoveWithTerminateAndRevisionSet(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(11)},
+			{RealName: "foo", Revision: snap.R(10)},
+		}),
+		Current:  snap.R(11),
+		SnapType: "app",
+	})
+
+	_, err := snapstate.Remove(s.state, "foo", snap.R(10), &snapstate.RemoveFlags{Terminate: true})
+	c.Assert(err, ErrorMatches, "cannot terminate running apps unless all revisions are removed")
+}
+
+func (s *snapmgrTestSuite) TestRemoveManyWithTerminate(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: "app",
+		Active:   true,
+	})
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "foo", SnapID: "foo-id", Revision: snap.R(11)},
+		}),
+		Current:  snap.R(11),
+		SnapType: "app",
+		Active:   true,
+	})
+
+	removed, tss, err := snapstate.RemoveMany(s.state, []string{"some-snap", "foo"}, &snapstate.RemoveFlags{Terminate: true})
+	c.Check(removed, DeepEquals, []string{"some-snap", "foo"})
+	c.Check(tss, NotNil)
+	c.Check(err, IsNil)
+
+	// tasks to take snapshot aren't generated
+	for _, ts := range tss {
+		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+			"stop-snap-services",
+			"run-hook[remove]",
+			"auto-disconnect",
+			"kill-snap-apps",
+			"save-snapshot",
+			"remove-aliases",
+			"unlink-snap",
+			"remove-profiles",
+			"clear-snap",
+			"discard-snap",
+		})
+	}
+
+}

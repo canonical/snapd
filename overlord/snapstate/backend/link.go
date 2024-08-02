@@ -20,11 +20,14 @@
 package backend
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"syscall"
+	"time"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
@@ -32,7 +35,9 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/timings"
+	"github.com/snapcore/snapd/usersession/client"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -404,4 +409,23 @@ func (b Backend) UnlinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revis
 	os.Remove(filepath.Dir(linkPath))
 
 	return nil
+}
+
+func (b Backend) KillSnapApps(snapName string, reason snap.AppKillReason, meter progress.Meter, tm timings.Measurer) error {
+	cli := client.New()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
+	defer cancel()
+
+	var err error
+	var failures []client.AppFailure
+	timings.Run(tm, "kill-snap-apps", fmt.Sprintf("kill running apps for snap %s", snapName), func(timings.Measurer) {
+		failures, err = cli.AppsKill(ctx, []string{snapName}, syscall.SIGKILL, reason)
+	})
+
+	for _, f := range failures {
+		meter.Notify(fmt.Sprintf("Could not kill transient unit %q for uid %d: %s", f.Unit, f.Uid, f.Error))
+	}
+
+	return err
 }
