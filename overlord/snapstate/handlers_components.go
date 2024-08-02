@@ -392,7 +392,7 @@ func saveCurrentKernelModuleComponents(t *state.Task, snapsup *SnapSetup, snapst
 
 	snapsup.PreUpdateKernelModuleComponents = snapst.Sequence.ComponentsWithTypeForRev(snapst.Current, snap.KernelModulesComponent)
 
-	// sinde we distinguish between nil and an empty slice, make sure to
+	// since we distinguish between nil and an empty slice, make sure to
 	// initialize this field
 	if snapsup.PreUpdateKernelModuleComponents == nil {
 		snapsup.PreUpdateKernelModuleComponents = []*snap.ComponentSideInfo{}
