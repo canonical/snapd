@@ -854,6 +854,11 @@ func installationTaskSets(ctx context.Context, st *state.State, inst *snapInstru
 		opts.Flags.Transaction = inst.Transaction
 	}
 
+	revOpts := snapstate.RevisionOptions{}
+	if expectOneSnap {
+		revOpts = *inst.revnoOpts()
+	}
+
 	var (
 		tss   []*state.TaskSet
 		snaps []snapstate.StoreSnap
@@ -882,11 +887,6 @@ func installationTaskSets(ctx context.Context, st *state.State, inst *snapInstru
 			tss = append(tss, ts...)
 
 			continue
-		}
-
-		revOpts := snapstate.RevisionOptions{}
-		if expectOneSnap {
-			revOpts = *inst.revnoOpts()
 		}
 
 		snaps = append(snaps, snapstate.StoreSnap{
