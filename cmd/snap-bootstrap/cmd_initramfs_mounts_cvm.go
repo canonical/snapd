@@ -48,13 +48,13 @@ func (*genericCVMModel) Grade() asserts.ModelGrade {
 }
 
 type partitionMount struct {
-	FsLabel string
-	Where   string
-	Opts    *systemdMountOptions
+	GptLabel string
+	Where    string
+	Opts     *systemdMountOptions
 }
 
 type ImageManifestPartition struct {
-	FsLabel  string `json:"label"`
+	GptLabel string `json:"label"`
 	RootHash string `json:"root_hash"`
 	Overlay  string `json:"overlay"`
 }
@@ -104,17 +104,17 @@ func generateMountsFromManifest(im ImageManifest, disk disks.Disk) ([]partitionM
 			Opts: &systemdMountOptions{},
 		}
 
-		pm.FsLabel = p.FsLabel
+		pm.GptLabel = p.GptLabel
 
-		// All detected partitions are mounted by default under /run/mnt/<FsLabel of partition>
-		pm.Where = filepath.Join(boot.InitramfsRunMntDir, p.FsLabel)
+		// All detected partitions are mounted by default under /run/mnt/<GptLabel of partition>
+		pm.Where = filepath.Join(boot.InitramfsRunMntDir, p.GptLabel)
 
 		if p.Overlay == "lowerdir" {
 			// XXX: currently only one lower layer is permitted. The rest, if found, are ignored.
 			if foundReadOnlyPartition != "" {
 				continue
 			}
-			foundReadOnlyPartition = pm.FsLabel
+			foundReadOnlyPartition = pm.GptLabel
 
 			// systemd-mount will run fsck by default when attempting to mount the partition and potentially corrupt it.
 			// This will cause dm-verity to fail when attempting to set up the dm-verity mount.
@@ -123,7 +123,7 @@ func generateMountsFromManifest(im ImageManifest, disk disks.Disk) ([]partitionM
 			pm.Opts.VerityRootHash = p.RootHash
 
 			// Auto-discover verity device from disk for partition types meant to be used as lowerdir
-			verityPartition, err := disk.FindMatchingPartitionWithPartLabel(p.FsLabel + "-verity")
+			verityPartition, err := disk.FindMatchingPartitionWithPartLabel(p.GptLabel + "-verity")
 			if err != nil {
 				return []partitionMount{}, err
 			}
@@ -135,7 +135,7 @@ func generateMountsFromManifest(im ImageManifest, disk disks.Disk) ([]partitionM
 			}
 			// Manifest contains a partition meant to be used as a writable overlay for the non-ephemeral vm case.
 			// If it is encrypted, its key will be autodiscovered based on its FsLabel later.
-			foundWritablePartition = p.FsLabel
+			foundWritablePartition = p.GptLabel
 			pm.Opts.NeedsFsck = true
 		}
 
@@ -152,8 +152,8 @@ func generateMountsFromManifest(im ImageManifest, disk disks.Disk) ([]partitionM
 		foundWritablePartition = "cloudimg-rootfs-writable"
 
 		pm := partitionMount{
-			Where:   filepath.Join(boot.InitramfsRunMntDir, "cloudimg-rootfs-writable"),
-			FsLabel: "cloudimg-rootfs-writable",
+			Where:    filepath.Join(boot.InitramfsRunMntDir, "cloudimg-rootfs-writable"),
+			GptLabel: "cloudimg-rootfs-writable",
 			Opts: &systemdMountOptions{
 				Tmpfs: true,
 			},
@@ -164,11 +164,11 @@ func generateMountsFromManifest(im ImageManifest, disk disks.Disk) ([]partitionM
 
 	// Configure the merged overlay filesystem mount.
 	pm := partitionMount{
-		Where:   boot.InitramfsDataDir,
-		FsLabel: "cloudimg-rootfs",
+		Where:    boot.InitramfsDataDir,
+		GptLabel: "cloudimg-rootfs",
 		Opts: &systemdMountOptions{
 			Overlayfs: true,
-			LowerDirs: []string{filepath.Join(boot.InitramfsRunMntDir, partitionMounts[0].FsLabel)},
+			LowerDirs: []string{filepath.Join(boot.InitramfsRunMntDir, partitionMounts[0].GptLabel)},
 		},
 	}
 
@@ -206,8 +206,8 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 			// XXX: if a manifest file is not found fall-back to CVM v1 behaviour
 			partitionMounts = []partitionMount{
 				{
-					Where:   boot.InitramfsDataDir,
-					FsLabel: "cloudimg-rootfs",
+					Where:    boot.InitramfsDataDir,
+					GptLabel: "cloudimg-rootfs",
 					Opts: &systemdMountOptions{
 						NeedsFsck: true,
 					},
@@ -234,7 +234,7 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 		var unlockRes secboot.UnlockResult
 
 		if !pm.Opts.Tmpfs {
-			runModeCVMKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, pm.FsLabel+".sealed-key")
+			runModeCVMKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, pm.GptLabel+".sealed-key")
 			opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
 				AllowRecoveryKey: true,
 			}
@@ -242,7 +242,7 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 			// not the GPT label. Images that are created for CVM mode set both to the same label. The GPT label
 			// is used for partition discovery and the filesystem label for auto-discovery of a potentially encrypted
 			// partition.
-			unlockRes, err = secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, pm.FsLabel, runModeCVMKey, opts)
+			unlockRes, err = secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, pm.GptLabel, runModeCVMKey, opts)
 			if err != nil {
 				return err
 			}
@@ -255,7 +255,7 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 		}
 
 		// Create overlayfs' upperdir and workdir in the writable layer (tmpfs or not).
-		if pm.FsLabel == "cloudimg-rootfs-writable" {
+		if pm.GptLabel == "cloudimg-rootfs-writable" {
 			fi, err := os.Stat(pm.Where)
 			if err != nil {
 				return err
@@ -284,7 +284,7 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 			if !matches {
 				// failed to verify that manifest partition mountpoint
 				// comes from the same disk as ESP
-				return fmt.Errorf("cannot validate boot: %s mountpoint is expected to be from disk %s but is not", pm.FsLabel, disk.Dev())
+				return fmt.Errorf("cannot validate boot: %s mountpoint is expected to be from disk %s but is not", pm.GptLabel, disk.Dev())
 			}
 		}
 	}
