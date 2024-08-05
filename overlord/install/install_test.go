@@ -45,7 +45,6 @@ import (
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/seed/seedwriter"
@@ -873,11 +872,6 @@ func (s *installSuite) TestBuildInstallObserver(c *C) {
 	}
 }
 
-var (
-	dataEncryptionKey = keys.EncryptionKey{'d', 'a', 't', 'a', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-	saveKey           = keys.EncryptionKey{'s', 'a', 'v', 'e', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-)
-
 func (s *installSuite) TestPrepareEncryptedSystemData(c *C) {
 	_, gadgetDir := s.mountedGadget(c)
 	mockModel := s.mockModel(nil)
@@ -895,13 +889,12 @@ func (s *installSuite) TestPrepareEncryptedSystemData(c *C) {
 	c.Assert(err, IsNil)
 
 	installKeyForRole := map[string]secboot.BootstrappedContainer{
-		gadget.SystemData: secboot.CreateBootstrappedContainer(dataEncryptionKey, ""),
-		gadget.SystemSave: secboot.CreateBootstrappedContainer(saveKey, ""),
+		gadget.SystemData: secboot.CreateMockBootstrappedContainer(),
+		gadget.SystemSave: secboot.CreateMockBootstrappedContainer(),
 	}
 	err = install.PrepareEncryptedSystemData(mockModel, installKeyForRole, to)
 	c.Assert(err, IsNil)
 
-	c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
 	marker, err := os.ReadFile(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker"))
 	c.Assert(err, IsNil)
 	c.Check(marker, HasLen, 32)

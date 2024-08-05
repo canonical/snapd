@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
@@ -227,17 +228,17 @@ type encTestCase struct {
 	bypass            bool
 	encrypt           bool
 	trustedBootloader bool
+	dataContainer     *secboot.MockBootstrappedContainer
+	saveContainer     *secboot.MockBootstrappedContainer
 }
 
-var (
-	dataEncryptionKey = keys.EncryptionKey{'d', 'a', 't', 'a', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-	saveKey           = keys.EncryptionKey{'s', 'a', 'v', 'e', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-)
-
-func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade string, tc encTestCase) error {
+func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade string, tc *encTestCase) error {
 	restore := release.MockOnClassic(false)
 	defer restore()
 	bootloaderRootdir := c.MkDir()
+
+	tc.dataContainer = secboot.CreateMockBootstrappedContainer()
+	tc.saveContainer = secboot.CreateMockBootstrappedContainer()
 
 	var brGadgetRoot, brDevice string
 	var brOpts install.Options
@@ -258,8 +259,8 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		var installKeyForRole map[string]secboot.BootstrappedContainer
 		if tc.encrypt {
 			installKeyForRole = map[string]secboot.BootstrappedContainer{
-				gadget.SystemData: secboot.CreateBootstrappedContainer(dataEncryptionKey, ""),
-				gadget.SystemSave: secboot.CreateBootstrappedContainer(saveKey, ""),
+				gadget.SystemData: tc.dataContainer,
+				gadget.SystemSave: tc.saveContainer,
 			}
 		}
 		return &install.InstalledSystemSideData{
@@ -1044,76 +1045,79 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNotClassic(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallDangerous(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{tpm: false, bypass: false, encrypt: false})
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", &encTestCase{tpm: false, bypass: false, encrypt: false})
 	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallDangerousWithTPM(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", &encTestCase{
 		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
 	})
 	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallDangerousBypassEncryption(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{tpm: false, bypass: true, encrypt: false})
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", &encTestCase{tpm: false, bypass: true, encrypt: false})
 	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallDangerousWithTPMBypassEncryption(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{tpm: true, bypass: true, encrypt: false})
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", &encTestCase{tpm: true, bypass: true, encrypt: false})
 	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSigned(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "signed", encTestCase{tpm: false, bypass: false, encrypt: false})
+	err := s.doRunChangeTestWithEncryption(c, "signed", &encTestCase{tpm: false, bypass: false, encrypt: false})
 	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSignedWithTPM(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "signed", encTestCase{
+	err := s.doRunChangeTestWithEncryption(c, "signed", &encTestCase{
 		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
 	})
 	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSignedBypassEncryption(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "signed", encTestCase{tpm: false, bypass: true, encrypt: false})
+	err := s.doRunChangeTestWithEncryption(c, "signed", &encTestCase{tpm: false, bypass: true, encrypt: false})
 	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecured(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{tpm: false, bypass: false, encrypt: false})
+	err := s.doRunChangeTestWithEncryption(c, "secured", &encTestCase{tpm: false, bypass: false, encrypt: false})
 	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt device storage as mandated by model grade secured:.*TPM not available.*")
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPM(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{
+	err := s.doRunChangeTestWithEncryption(c, "secured", &encTestCase{
 		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
 	})
 	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallDangerousEncryptionWithTPMNoTrustedAssets(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", &encTestCase{
 		tpm: true, bypass: false, encrypt: true, trustedBootloader: false,
 	})
 	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallDangerousNoEncryptionWithTrustedAssets(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", &encTestCase{
 		tpm: false, bypass: false, encrypt: false, trustedBootloader: true,
 	})
 	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPMAndSave(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{
+	tc := &encTestCase{
 		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
-	})
+	}
+	err := s.doRunChangeTestWithEncryption(c, "secured", tc)
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
+	saveKey, hasSaveKey := tc.saveContainer.Slots["default"]
+	c.Assert(hasSaveKey, Equals, true)
+	c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, saveKey)
 	marker, err := os.ReadFile(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker"))
 	c.Assert(err, IsNil)
 	c.Check(marker, HasLen, 32)
@@ -1121,7 +1125,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPMAndSave(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecuredBypassEncryption(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{tpm: false, bypass: true, encrypt: false})
+	err := s.doRunChangeTestWithEncryption(c, "secured", &encTestCase{tpm: false, bypass: true, encrypt: false})
 	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt device storage as mandated by model grade secured:.*TPM not available.*")
 }
 
@@ -1571,8 +1575,8 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		var installKeyForRole map[string]secboot.BootstrappedContainer
 		if tc.encrypt {
 			installKeyForRole = map[string]secboot.BootstrappedContainer{
-				gadget.SystemData: secboot.CreateBootstrappedContainer(dataEncryptionKey, ""),
-				gadget.SystemSave: secboot.CreateBootstrappedContainer(saveKey, ""),
+				gadget.SystemData: secboot.CreateMockBootstrappedContainer(),
+				gadget.SystemSave: secboot.CreateMockBootstrappedContainer(),
 			}
 		}
 		devForRole := map[string]string{
@@ -1614,34 +1618,62 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	s.makeMockInstalledPcKernelAndGadget(c, "", "")
 	s.state.Unlock()
 
-	var saveKey keys.EncryptionKey
 	restore = devicestate.MockSecbootTransitionEncryptionKeyChange(func(node string, key keys.EncryptionKey) error {
 		c.Errorf("unexpected call")
 		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
 	restore = devicestate.MockSecbootStageEncryptionKeyChange(func(node string, key keys.EncryptionKey) error {
-		if tc.encrypt {
-			c.Check(node, Equals, "/dev/foo-save")
-			saveKey = key
-			return nil
-		}
-		c.Fail()
+		c.Errorf("unexpected call")
 		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
 
-	var recoveryKeyRemoved bool
+	var recoveryKeysRemoved bool
 	defer devicestate.MockSecbootRemoveRecoveryKeys(func(r2k map[secboot.RecoveryKeyDevice]string) error {
 		if tc.encrypt {
-			recoveryKeyRemoved = true
-			c.Check(r2k, DeepEquals, map[secboot.RecoveryKeyDevice]string{
-				{Mountpoint: boot.InitramfsUbuntuSaveDir}: filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "recovery.key"),
+			c.Check(recoveryKeysRemoved, Equals, false)
+			recoveryKeysRemoved = true
+			return nil
+		}
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})()
+
+	var chosenBootstrapKey []byte
+	defer devicestate.MockSecbootAddBootstrapKeyOnExistingDisk(func(node string, newKey keys.EncryptionKey) error {
+		if tc.encrypt {
+			c.Check(node, Equals, "/dev/disk/by-partuuid/fbbb94fb-46ea-4e00-b830-afc72d202449")
+			chosenBootstrapKey = newKey
+			return nil
+		}
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})()
+
+	defer devicestate.MockSecbootRenameOrDeleteKeys(func(node string, renames map[string]string) error {
+		if tc.encrypt {
+			c.Check(node, Equals, "/dev/disk/by-partuuid/fbbb94fb-46ea-4e00-b830-afc72d202449")
+			c.Check(renames, DeepEquals, map[string]string{
+				"default":          "factory-reset-old",
+				"default-fallback": "factory-reset-old-fallback",
 			})
 			return nil
 		}
 		c.Errorf("unexpected call")
 		return fmt.Errorf("unexpected call")
+	})()
+
+	var bootstrapContainer *secboot.MockBootstrappedContainer
+	defer devicestate.MockSecbootCreateBootstrappedContainer(func(key secboot.DiskUnlockKey, devicePath string) secboot.BootstrappedContainer {
+		if tc.encrypt {
+			c.Check([]byte(key), DeepEquals, chosenBootstrapKey)
+			c.Assert(bootstrapContainer, IsNil)
+			bootstrapContainer = secboot.CreateMockBootstrappedContainer()
+			return bootstrapContainer
+		}
+		c.Errorf("unexpected call")
+		return nil
 	})()
 
 	bootMakeBootableCalled := 0
@@ -1749,8 +1781,10 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	c.Assert(bootMakeBootableCalled, Equals, 1)
 	c.Assert(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	if tc.encrypt {
-		c.Assert(saveKey, NotNil)
-		c.Check(recoveryKeyRemoved, Equals, true)
+		c.Check(recoveryKeysRemoved, Equals, true)
+		c.Assert(bootstrapContainer, NotNil)
+		saveKey, hasSaveKey := bootstrapContainer.Slots["default"]
+		c.Check(hasSaveKey, Equals, true)
 		c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
 		c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"), testutil.FileEquals, "new-data")
 		// sha3-384 of the mocked ubuntu-save sealed key
@@ -1904,6 +1938,12 @@ echo "mock output of: $(basename "$0") $*"
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
+	defer disks.MockUdevPropertiesForDevice(func(string, string) (map[string]string, error) {
+		return map[string]string{
+			"ID_PART_ENTRY_UUID": "fbbb94fb-46ea-4e00-b830-afc72d202449",
+		}, nil
+	})()
+
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{
 		tpm: true, encrypt: true, trustedBootloader: true,
 	})
@@ -1967,6 +2007,12 @@ echo "mock output of: $(basename "$0") $*"
 
 	logbuf, restore := logger.MockLogger()
 	defer restore()
+
+	defer disks.MockUdevPropertiesForDevice(func(string, string) (map[string]string, error) {
+		return map[string]string{
+			"ID_PART_ENTRY_UUID": "fbbb94fb-46ea-4e00-b830-afc72d202449",
+		}, nil
+	})()
 
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{
 		tpm: true, encrypt: true, trustedBootloader: true,

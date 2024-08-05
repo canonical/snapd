@@ -21,13 +21,9 @@
 package install
 
 import (
-	"bytes"
 	"fmt"
-	"os/exec"
 
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 )
 
 var (
@@ -52,7 +48,7 @@ var _ = encryptedDevice(&encryptedDeviceLUKS{})
 
 // newEncryptedDeviceLUKS creates an encrypted device in the existing
 // partition using the specified key with the LUKS backend.
-func newEncryptedDeviceLUKS(devNode string, encType secboot.EncryptionType, key keys.EncryptionKey, label, name string) (encryptedDevice, error) {
+func newEncryptedDeviceLUKS(devNode string, encType secboot.EncryptionType, key secboot.DiskUnlockKey, label, name string) (encryptedDevice, error) {
 	encLabel := label + "-enc"
 	if err := secbootFormatEncryptedDevice(key, encType, encLabel, devNode); err != nil {
 		return nil, fmt.Errorf("cannot format encrypted device: %v", err)
@@ -81,18 +77,14 @@ func (dev *encryptedDeviceLUKS) Close() error {
 	return cryptsetupClose(dev.name)
 }
 
-func cryptsetupOpen(key keys.EncryptionKey, node, name string) error {
-	cmd := exec.Command("cryptsetup", "open", "--key-file", "-", node, name)
-	cmd.Stdin = bytes.NewReader(key[:])
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, err)
-	}
-	return nil
+func cryptsetupOpenImpl(key secboot.DiskUnlockKey, node, name string) error {
+	return secboot.ActivateVolumeWithKey(name, node, key, nil)
 }
 
-func cryptsetupClose(name string) error {
-	if output, err := exec.Command("cryptsetup", "close", name).CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, err)
-	}
-	return nil
+var cryptsetupOpen = cryptsetupOpenImpl
+
+func cryptsetupCloseImpl(name string) error {
+	return secboot.DeactivateVolume(name)
 }
+
+var cryptsetupClose = cryptsetupCloseImpl

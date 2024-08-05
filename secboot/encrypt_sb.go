@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
@@ -38,7 +39,12 @@ import (
 )
 
 var (
-	sbInitializeLUKS2Container = sb.InitializeLUKS2Container
+	sbInitializeLUKS2Container           = sb.InitializeLUKS2Container
+	sbGetDiskUnlockKeyFromKernel         = sb.GetDiskUnlockKeyFromKernel
+	sbAddLUKS2ContainerRecoveryKey       = sb.AddLUKS2ContainerRecoveryKey
+	sbListLUKS2ContainerUnlockKeyNames   = sb.ListLUKS2ContainerUnlockKeyNames
+	sbDeleteLUKS2ContainerKey            = sb.DeleteLUKS2ContainerKey
+	sbListLUKS2ContainerRecoveryKeyNames = sb.ListLUKS2ContainerRecoveryKeyNames
 )
 
 const keyslotsAreaKiBSize = 2560 // 2.5MB
@@ -47,7 +53,7 @@ const metadataKiBSize = 2048     // 2MB
 // FormatEncryptedDevice initializes an encrypted volume on the block device
 // given by node, setting the specified label. The key used to unlock the volume
 // is provided using the key argument.
-func FormatEncryptedDevice(key keys.EncryptionKey, encType EncryptionType, label, node string) error {
+func FormatEncryptedDevice(key []byte, encType EncryptionType, label, node string) error {
 	if !encType.IsLUKS() {
 		return fmt.Errorf("internal error: FormatEncryptedDevice for %q expects a LUKS encryption type, not %q", node, encType)
 	}
@@ -60,15 +66,8 @@ func FormatEncryptedDevice(key keys.EncryptionKey, encType EncryptionType, label
 		// enough room
 		MetadataKiBSize:     metadataKiBSize,
 		KeyslotsAreaKiBSize: keyslotsAreaKiBSize,
-
-		// Use fixed parameters for the KDF to avoid the
-		// benchmark. This is okay because we have a high
-		// entropy key and the KDF does not gain us much.
-		KDFOptions: &sb.KDFOptions{
-			MemoryKiB:       32,
-			ForceIterations: 4,
-		},
-		InlineCryptoEngine: useICE,
+		InlineCryptoEngine:  useICE,
+		InitialKeyslotName:  "bootstrap-key",
 	}
 	return sbInitializeLUKS2Container(node, label, sb.DiskUnlockKey(key), opts)
 }
@@ -102,36 +101,122 @@ func runSnapFDEKeymgr(args []string, stdin io.Reader) error {
 // EnsureRecoveryKey makes sure the encrypted block devices have a recovery key.
 // It takes the path where to store the key and encrypted devices to operate on.
 func EnsureRecoveryKey(keyFile string, rkeyDevs []RecoveryKeyDevice) (keys.RecoveryKey, error) {
-	// support multiple devices with the same key
-	command := []string{
-		"add-recovery-key",
-		"--key-file", keyFile,
+	var legacyFDEKeymgrCmdline []string
+	var newDevices []struct {
+		node    string
+		keyFile string
 	}
 	for _, rkeyDev := range rkeyDevs {
 		dev, err := devByPartUUIDFromMount(rkeyDev.Mountpoint)
 		if err != nil {
 			return keys.RecoveryKey{}, fmt.Errorf("cannot find matching device for: %v", err)
 		}
-		logger.Debugf("ensuring recovery key on device: %v", dev)
-		authzMethod := "keyring"
-		if rkeyDev.AuthorizingKeyFile != "" {
-			authzMethod = "file:" + rkeyDev.AuthorizingKeyFile
+		slots, err := sbListLUKS2ContainerUnlockKeyNames(dev)
+		if err != nil {
+			return keys.RecoveryKey{}, fmt.Errorf("cannot find list keys for: %v", err)
 		}
-		command = append(command, []string{
-			"--devices", dev,
-			"--authorizations", authzMethod,
-		}...)
+		// LUKS2 containers created with older snapd have no
+		// tokens, thus no named key slots.
+		hasOnlyLegacyKeys := len(slots) == 0
+		if hasOnlyLegacyKeys {
+			authzMethod := "keyring"
+			if rkeyDev.AuthorizingKeyFile != "" {
+				authzMethod = "file:" + rkeyDev.AuthorizingKeyFile
+			}
+			legacyFDEKeymgrCmdline = append(legacyFDEKeymgrCmdline, []string{
+				"--devices", dev,
+				"--authorizations", authzMethod,
+			}...)
+		} else {
+			newDevices = append(newDevices, struct {
+				node    string
+				keyFile string
+			}{dev, rkeyDev.AuthorizingKeyFile})
+		}
 	}
+	if len(legacyFDEKeymgrCmdline) != 0 && len(newDevices) != 0 {
+		return keys.RecoveryKey{}, fmt.Errorf("some encrypted partitions use new slots, whereas other use legacy slots")
+	}
+	if len(legacyFDEKeymgrCmdline) == 0 {
+		var recoveryKey keys.RecoveryKey
 
-	if err := runSnapFDEKeymgr(command, nil); err != nil {
-		return keys.RecoveryKey{}, fmt.Errorf("cannot run keymgr tool: %v", err)
-	}
+		f, err := os.OpenFile(keyFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		if err != nil {
+			if os.IsExist(err) {
+				readKey, err := keys.RecoveryKeyFromFile(keyFile)
+				if err != nil {
+					return keys.RecoveryKey{}, fmt.Errorf("cannot read recovery key file %s: %v", keyFile, err)
+				}
+				recoveryKey = *readKey
+			} else {
+				return keys.RecoveryKey{}, fmt.Errorf("cannot open recovery key file %s: %v", keyFile, err)
+			}
+		} else {
+			defer f.Close()
+			newKey, err := keys.NewRecoveryKey()
+			if err != nil {
+				return keys.RecoveryKey{}, fmt.Errorf("cannot create new recovery key: %v", err)
+			}
+			recoveryKey = newKey
+			if _, err := f.Write(recoveryKey[:]); err != nil {
+				return keys.RecoveryKey{}, fmt.Errorf("cannot create write recovery key %s: %v", keyFile, err)
+			}
+		}
 
-	rk, err := keys.RecoveryKeyFromFile(keyFile)
-	if err != nil {
-		return keys.RecoveryKey{}, fmt.Errorf("cannot read recovery key: %v", err)
+		for _, device := range newDevices {
+			var unlockKey []byte
+			if device.keyFile != "" {
+				key, err := os.ReadFile(device.keyFile)
+				if err != nil {
+					return keys.RecoveryKey{}, fmt.Errorf("cannot get key from '%s': %v", device.keyFile, err)
+				}
+				unlockKey = key
+			} else {
+				const defaultPrefix = "ubuntu-fde"
+				key, err := sbGetDiskUnlockKeyFromKernel(defaultPrefix, device.node, false)
+				if err != nil {
+					return keys.RecoveryKey{}, fmt.Errorf("cannot get key for unlocked disk: %v", err)
+				}
+				unlockKey = key
+			}
+
+			// FIXME: we should try to enroll the key and check the error instead of verifying the key is there
+			slots, err := sbListLUKS2ContainerRecoveryKeyNames(device.node)
+			if err != nil {
+				return keys.RecoveryKey{}, fmt.Errorf("cannot list keys on disk %s: %v", device.node, err)
+			}
+			keyExists := false
+			for _, slot := range slots {
+				if slot == "default-recovery" {
+					keyExists = true
+					break
+				}
+			}
+			if !keyExists {
+				if err := sbAddLUKS2ContainerRecoveryKey(device.node, "default-recovery", sb.DiskUnlockKey(unlockKey), sb.RecoveryKey(recoveryKey)); err != nil {
+					return keys.RecoveryKey{}, fmt.Errorf("cannot enroll new recovery key for %s: %v", device.node, err)
+				}
+			}
+		}
+
+		return recoveryKey, nil
+	} else {
+		command := []string{
+			"add-recovery-key",
+			"--key-file", keyFile,
+		}
+		command = append(command, legacyFDEKeymgrCmdline...)
+
+		if err := runSnapFDEKeymgr(command, nil); err != nil {
+			return keys.RecoveryKey{}, fmt.Errorf("cannot run keymgr tool: %v", err)
+		}
+
+		rk, err := keys.RecoveryKeyFromFile(keyFile)
+		if err != nil {
+			return keys.RecoveryKey{}, fmt.Errorf("cannot read recovery key: %v", err)
+		}
+		return *rk, nil
 	}
-	return *rk, nil
 }
 
 func devByPartUUIDFromMount(mp string) (string, error) {
@@ -149,31 +234,65 @@ func devByPartUUIDFromMount(mp string) (string, error) {
 // It takes a map from the recovery key device to where their recovery key is
 // stored, mount points might share the latter.
 func RemoveRecoveryKeys(rkeyDevToKey map[RecoveryKeyDevice]string) error {
-	// support multiple devices and key files
-	command := []string{
-		"remove-recovery-key",
-	}
+	var legacyFDEKeymgrCmdline []string
+	var newDevices []string
+	var keyFiles []string
+
 	for rkeyDev, keyFile := range rkeyDevToKey {
 		dev, err := devByPartUUIDFromMount(rkeyDev.Mountpoint)
 		if err != nil {
 			return fmt.Errorf("cannot find matching device for: %v", err)
 		}
-		logger.Debugf("removing recovery key from device: %v", dev)
-		authzMethod := "keyring"
-		if rkeyDev.AuthorizingKeyFile != "" {
-			authzMethod = "file:" + rkeyDev.AuthorizingKeyFile
+		slots, err := sbListLUKS2ContainerRecoveryKeyNames(dev)
+		if err != nil {
+			return fmt.Errorf("cannot find list keys for: %v", err)
 		}
-		command = append(command, []string{
-			"--devices", dev,
-			"--authorizations", authzMethod,
-			"--key-files", keyFile,
-		}...)
+		if len(slots) == 0 {
+			logger.Debugf("removing recovery key from device: %v", dev)
+			authzMethod := "keyring"
+			if rkeyDev.AuthorizingKeyFile != "" {
+				authzMethod = "file:" + rkeyDev.AuthorizingKeyFile
+			}
+			legacyFDEKeymgrCmdline = append(legacyFDEKeymgrCmdline, []string{
+				"--devices", dev,
+				"--authorizations", authzMethod,
+				"--key-files", keyFile,
+			}...)
+		} else {
+			newDevices = append(newDevices, dev)
+			keyFiles = append(keyFiles, keyFile)
+		}
 	}
 
-	if err := runSnapFDEKeymgr(command, nil); err != nil {
-		return fmt.Errorf("cannot run keymgr tool: %v", err)
+	if len(legacyFDEKeymgrCmdline) != 0 && len(newDevices) != 0 {
+		return fmt.Errorf("some encrypted partitions use new slots, whereas other use legacy slots")
 	}
-	return nil
+	if len(legacyFDEKeymgrCmdline) == 0 {
+		for _, device := range newDevices {
+			if err := sbDeleteLUKS2ContainerKey(device, "default-recovery"); err != nil {
+				return fmt.Errorf("cannot remove recovery key: %v", err)
+			}
+		}
+		for _, keyFile := range keyFiles {
+			if err := os.Remove(keyFile); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("cannot remove key file %s: %v", keyFile, err)
+			}
+		}
+
+		return nil
+
+	} else {
+		// support multiple devices and key files
+		command := []string{
+			"remove-recovery-key",
+		}
+		command = append(command, legacyFDEKeymgrCmdline...)
+
+		if err := runSnapFDEKeymgr(command, nil); err != nil {
+			return fmt.Errorf("cannot run keymgr tool: %v", err)
+		}
+		return nil
+	}
 }
 
 // StageEncryptionKeyChange stages a new encryption key for a given encrypted
