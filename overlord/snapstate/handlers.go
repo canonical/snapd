@@ -5011,7 +5011,7 @@ var getDirMigrationOpts = func(st *state.State, snapst *SnapState, snapsup *Snap
 	return opts, nil
 }
 
-func (m *SnapManager) doSetupKernelSnap(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doPrepareKernelSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -5050,7 +5050,7 @@ func (m *SnapManager) doSetupKernelSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) undoSetupKernelSnap(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) undoPrepareKernelSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
