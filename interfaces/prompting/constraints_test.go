@@ -320,12 +320,12 @@ func (s *constraintsSuite) TestConstraintsContainPermissions(c *C) {
 	}
 }
 
-func constructPermissionsMaps() []map[string]map[string]interface{} {
-	var permissionsMaps []map[string]map[string]interface{}
+func constructPermissionsMaps() []map[string]map[string]any {
+	var permissionsMaps []map[string]map[string]any
 	// interfaceFilePermissionsMaps
-	filePermissionsMaps := make(map[string]map[string]interface{})
+	filePermissionsMaps := make(map[string]map[string]any)
 	for iface, permsMap := range prompting.InterfaceFilePermissionsMaps {
-		filePermissionsMaps[iface] = make(map[string]interface{}, len(permsMap))
+		filePermissionsMaps[iface] = make(map[string]any, len(permsMap))
 		for perm, val := range permsMap {
 			filePermissionsMaps[iface][perm] = val
 		}
@@ -396,7 +396,7 @@ func (s *constraintsSuite) TestAvailablePermissions(c *C) {
 func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsHappy(c *C) {
 	cases := []struct {
 		iface string
-		perms interface{}
+		perms any
 		list  []string
 	}{
 		{
@@ -440,7 +440,7 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsHappy(c
 func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy(c *C) {
 	cases := []struct {
 		iface  string
-		perms  interface{}
+		perms  any
 		errStr string
 	}{
 		{
@@ -480,7 +480,7 @@ func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsHappy(c *
 	cases := []struct {
 		iface string
 		list  []string
-		perms interface{}
+		perms any
 	}{
 		{
 			"home",

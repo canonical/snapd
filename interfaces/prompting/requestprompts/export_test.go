@@ -20,6 +20,8 @@
 package requestprompts
 
 import (
+	"time"
+
 	"github.com/snapcore/snapd/interfaces/prompting"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/testutil"
@@ -27,10 +29,35 @@ import (
 
 const MaxOutstandingPromptsPerUser = maxOutstandingPromptsPerUser
 
-func MockSendReply(f func(listenerReq *listener.Request, reply interface{}) error) (restore func()) {
+func MockSendReply(f func(listenerReq *listener.Request, reply *listener.Response) error) (restore func()) {
 	restore = testutil.Backup(&sendReply)
 	sendReply = f
 	return restore
+}
+
+func (pc *promptConstraints) Path() string {
+	return pc.path
+}
+
+func (pc *promptConstraints) RemainingPermissions() []string {
+	return pc.remainingPermissions
+}
+
+func NewPrompt(id prompting.IDType, timestamp time.Time, snap string, iface string, path string, remainingPermissions []string, availablePermissions []string, originalPermissions []string) *Prompt {
+	constraints := &promptConstraints{
+		path:                 path,
+		remainingPermissions: remainingPermissions,
+		availablePermissions: availablePermissions,
+		originalPermissions:  originalPermissions,
+	}
+	return &Prompt{
+		ID:           id,
+		Timestamp:    timestamp,
+		Snap:         snap,
+		Interface:    iface,
+		Constraints:  constraints,
+		listenerReqs: nil,
+	}
 }
 
 func (pdb *PromptDB) PerUser() map[uint32]*userPromptDB {

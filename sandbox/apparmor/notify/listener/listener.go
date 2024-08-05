@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2023 Canonical Ltd
+ * Copyright (C) 2023-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -57,6 +57,13 @@ var (
 	notifyIoctl = notify.Ioctl
 )
 
+// Response includes whether the request is allowed or denied, along with the
+// permissions for which the decision should apply.
+type Response struct {
+	Allow      bool
+	Permission any
+}
+
 // Request is a high-level representation of an apparmor prompting message.
 //
 // Each request must be replied to by writing a boolean to the YesNo channel.
@@ -73,15 +80,15 @@ type Request struct {
 	// class is the mediation class corresponding to this request.
 	class notify.MediationClass
 	// permission is the opaque permission that is being requested.
-	permission interface{}
+	permission any
 	// replyChan is a channel for writing the response.
-	replyChan chan interface{}
+	replyChan chan *Response
 	// replied indicates whether a reply has already been sent for this request.
 	replied uint32
 }
 
 func newRequest(msg *notify.MsgNotificationFile) (*Request, error) {
-	var perm interface{}
+	var perm any
 	switch msg.Class {
 	case notify.AA_CLASS_FILE:
 		_, missingPerms, err := msg.DecodeFilePermissions()
@@ -101,7 +108,7 @@ func newRequest(msg *notify.MsgNotificationFile) (*Request, error) {
 		class:      msg.Class,
 		permission: perm,
 
-		replyChan: make(chan interface{}, 1),
+		replyChan: make(chan *Response, 1),
 	}, nil
 }
 
@@ -131,26 +138,26 @@ func (r *Request) Class() notify.MediationClass {
 }
 
 // Permission returns the opaque permission that is being requested.
-func (r *Request) Permission() interface{} {
+func (r *Request) Permission() any {
 	return r.permission
 }
 
 // Reply sends the given response back to the kernel.
-func (r *Request) Reply(response interface{}) error {
+func (r *Request) Reply(response *Response) error {
 	if !atomic.CompareAndSwapUint32(&r.replied, 0, 1) {
 		return ErrAlreadyReplied
 	}
 	var ok bool
 	switch r.Class() {
 	case notify.AA_CLASS_FILE:
-		_, ok = response.(bool)
+		_, ok = response.Permission.(notify.FilePermission)
 	default:
 		// should not occur, since the request was created in this package
 		return fmt.Errorf("internal error: unsupported mediation class: %v", r.Class())
 	}
 	if !ok {
 		expectedType := expectedResponseTypeForClass(r.Class())
-		return fmt.Errorf("invalid reply: response must be of type %s", expectedType)
+		return fmt.Errorf("invalid reply: response permission must be of type %s", expectedType)
 	}
 	r.replyChan <- response
 	return nil
@@ -159,7 +166,7 @@ func (r *Request) Reply(response interface{}) error {
 func expectedResponseTypeForClass(class notify.MediationClass) string {
 	switch class {
 	case notify.AA_CLASS_FILE:
-		return "bool"
+		return "notify.FilePermission"
 	default:
 		// This should never occur, as caller should return an error before
 		// calling this if the class is unsupported.
@@ -433,23 +440,25 @@ func (l *Listener) waitAndRespondAaClassFile(req *Request, msg *notify.MsgNotifi
 	resp := notify.ResponseForRequest(&msg.MsgNotification)
 	resp.MsgNotification.Error = 0 // ignored in responses
 	resp.MsgNotification.NoCache = 1
-	var allow bool
+	var response *Response
 	select {
-	case reply := <-req.replyChan:
-		var ok bool
-		allow, ok = reply.(bool)
-		if !ok {
-			// should not occur, Reply() checks that type is correct
-			logger.Debugf("invalid reply from client: %v; denying request", reply)
-			allow = false
-		}
+	case response = <-req.replyChan:
+		break
 	case <-l.tomb.Dying():
 		// don't bother sending deny response, kernel will handle this
 		return nil
 	}
+	allow := response.Allow
+	perms, ok := response.Permission.(notify.FilePermission)
+	if !ok {
+		// should not occur, Reply() checks that type is correct
+		logger.Debugf("invalid reply from client: %+v; denying request", response)
+		allow = false
+	}
 	if allow {
-		// allow permissions which kernel initially denied, along with those which were already allowed
-		resp.Allow = msg.Allow | msg.Deny
+		// allow permissions which kernel initially allowed, along with those
+		// which the were initially denied but the user explicitly allowed.
+		resp.Allow = msg.Allow | (uint32(perms) & msg.Deny)
 		resp.Deny = 0
 		resp.Error = 0
 	} else {
