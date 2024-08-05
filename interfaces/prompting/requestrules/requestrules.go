@@ -433,11 +433,11 @@ func (rdb *RuleDB) RefreshTreeEnforceConsistency(notifyEveryRule bool) {
 			rdb.save()
 		}
 	}()
-	modifiedUserRuleIDs := make(map[uint32]map[prompting.IDType]bool)
+	modifiedUserRuleIDs := make(map[uint32]map[prompting.IDType]map[string]string)
 	defer func() {
 		for user, ruleIDs := range modifiedUserRuleIDs {
-			for ruleID := range ruleIDs {
-				rdb.notifyRule(user, ruleID, nil)
+			for ruleID, data := range ruleIDs {
+				rdb.notifyRule(user, ruleID, data)
 			}
 		}
 	}()
@@ -449,15 +449,20 @@ func (rdb *RuleDB) RefreshTreeEnforceConsistency(notifyEveryRule bool) {
 	for _, rule := range origRules {
 		_, exists := modifiedUserRuleIDs[rule.User]
 		if !exists {
-			modifiedUserRuleIDs[rule.User] = make(map[prompting.IDType]bool)
+			modifiedUserRuleIDs[rule.User] = make(map[prompting.IDType]map[string]string)
 		}
 		if notifyEveryRule {
-			modifiedUserRuleIDs[rule.User][rule.ID] = true
+			modifiedUserRuleIDs[rule.User][rule.ID] = nil
 		}
-		if rule.Constraints.ValidateForInterface(rule.Interface) != nil || rule.Lifespan.ValidateExpiration(rule.Expiration, currTime) != nil {
+		if err := rule.Lifespan.ValidateExpiration(rule.Expiration, currTime); err != nil || rule.Constraints.ValidateForInterface(rule.Interface) != nil {
 			// Invalid rule, discard it
 			needToSave = true
-			modifiedUserRuleIDs[rule.User][rule.ID] = true
+			data := map[string]string{"removed": "invalid"}
+			if errors.Is(err, prompting.ErrExpirationInThePast) {
+				// Not actually invalid, just expired
+				data["removed"] = "expired"
+			}
+			modifiedUserRuleIDs[rule.User][rule.ID] = data
 			continue
 		}
 		for {
@@ -472,20 +477,21 @@ func (rdb *RuleDB) RefreshTreeEnforceConsistency(notifyEveryRule bool) {
 			// variants of the older rule.
 			// TODO: split older rule into two rules, preserving all except the
 			// directly conflicting variant/permission combination.
-			// XXX: there's no way to do this, since patterns can have sequential
-			// groups, and there's no way to remove only a single variant.
 			for _, conflict := range conflicts {
 				conflictingID := conflict.ConflictingID
 				conflictingRule, _ := rdb.ruleWithID(conflictingID) // must exist
 				if rule.Timestamp.After(conflictingRule.Timestamp) {
 					rdb.removeRulePermissionFromTree(conflictingRule, conflictingPermission) // must return nil
+					var data map[string]string
 					if conflictingRule.removePermission(conflictingPermission) == prompting.ErrPermissionsListEmpty {
 						rdb.removeRuleWithID(conflictingID)
+						data = map[string]string{"removed": "conflict"}
 					}
-					modifiedUserRuleIDs[conflictingRule.User][conflictingID] = true
+					modifiedUserRuleIDs[conflictingRule.User][conflictingID] = data
 				} else {
 					rule.removePermission(conflictingPermission) // ignore error
-					modifiedUserRuleIDs[rule.User][rule.ID] = true
+					var data map[string]string
+					modifiedUserRuleIDs[rule.User][rule.ID] = data
 				}
 				needToSave = true
 			}
@@ -495,7 +501,8 @@ func (rdb *RuleDB) RefreshTreeEnforceConsistency(notifyEveryRule bool) {
 		} else {
 			// TODO: record status of the rule ("removed") in modifiedUserRuleIDs
 			needToSave = true
-			modifiedUserRuleIDs[rule.User][rule.ID] = true
+			data := map[string]string{"removed": "conflict"}
+			modifiedUserRuleIDs[rule.User][rule.ID] = data
 		}
 	}
 }
@@ -584,8 +591,8 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 			needToSave = true
 			rdb.removeRuleFromTree(matchingRule)
 			rdb.removeRuleWithID(variantEntry.RuleID)
-			// TODO: include removed reason in notice data
-			rdb.notifyRule(user, variantEntry.RuleID, nil)
+			data := map[string]string{"removed": "expired"}
+			rdb.notifyRule(user, variantEntry.RuleID, data)
 			continue
 		}
 		// Need to compare the path pattern variant, not the rule's path
@@ -618,8 +625,8 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 		// XXX: we should never add rules with lifespan single to the rule DB
 		rdb.removeRuleFromTree(matchingRule)
 		rdb.removeRuleWithID(matchingID)
-		// TODO: include removed reason in notice data
-		rdb.notifyRule(user, matchingID, nil)
+		data := map[string]string{"removed": "expired"}
+		rdb.notifyRule(user, matchingID, data)
 		needToSave = true
 	}
 	return matchingRule.Outcome.AsBool()
@@ -680,8 +687,8 @@ func (rdb *RuleDB) RemoveRule(user uint32, id prompting.IDType) (*Rule, error) {
 	// If error occurs, rule was still fully removed from tree
 	rdb.removeRuleWithID(id)
 	rdb.save()
-	// TODO: include removed reason in the notice data
-	rdb.notifyRule(user, id, nil)
+	data := map[string]string{"removed": "removed"}
+	rdb.notifyRule(user, id, data)
 	return rule, err
 }
 
@@ -705,8 +712,8 @@ func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) {
 		rdb.removeRuleFromTree(rule)
 		// If error occurs, rule was still fully removed from tree
 		rdb.removeRuleWithID(rule.ID)
-		// TODO: include removed reason in notice data
-		rdb.notifyRule(user, rule.ID, nil)
+		data := map[string]string{"removed": "removed"}
+		rdb.notifyRule(user, rule.ID, data)
 	}
 	rdb.save()
 }
@@ -821,8 +828,8 @@ func (rdb *RuleDB) rulesInternal(ruleFilter func(rule *Rule) bool) []*Rule {
 			needToSave = true
 			rdb.removeRuleFromTree(rule)
 			rdb.removeRuleWithID(rule.ID)
-			// TODO: include reason rule was removed ("expired")
-			rdb.notifyRule(rule.User, rule.ID, nil)
+			data := map[string]string{"removed": "expired"}
+			rdb.notifyRule(rule.User, rule.ID, data)
 			continue
 		}
 		if ruleFilter(rule) {

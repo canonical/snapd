@@ -26,6 +26,10 @@ import (
 	"time"
 )
 
+var (
+	ErrExpirationInThePast = fmt.Errorf("cannot have expiration time in the past")
+)
+
 // Metadata stores information about the origin or applicability of a prompt or
 // rule.
 type Metadata struct {
@@ -152,7 +156,7 @@ func (lifespan LifespanType) ValidateExpiration(expiration time.Time, currTime t
 			return fmt.Errorf(`cannot have unspecified expiration when lifespan is %q`, lifespan)
 		}
 		if currTime.After(expiration) {
-			return fmt.Errorf("cannot have expiration time in the past: %q", expiration)
+			return fmt.Errorf("%w: %q", ErrExpirationInThePast, expiration)
 		}
 	default:
 		// Should not occur, since lifespan is validated when unmarshalled
