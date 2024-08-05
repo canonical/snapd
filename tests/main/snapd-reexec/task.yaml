@@ -1,12 +1,12 @@
-summary: Test that snapd reexecs itself into core
+summary: Test that snapd reexecs itself into core/snapd
 
 details: |
     This test ensures that snapd and the snap cli reexecs themselves into the
-    core snap under the right conditions. This includes ensuring that snapd
+    core/snapd snap under the right conditions. This includes ensuring that snapd
     reexecs itself when SNAP_REEXEC is set, that it does not reexec into older
     versions of snapd, and that it does not reexec when SNAP_REEXEC is set to 0.
 
-    The test also ensures that snapd restarts itself when the core snap is
+    The test also ensures that snapd restarts itself when the core/snapd snap is
     refreshed, and that the right snapd is running after the refresh.
 
 # Disable for Fedora, openSUSE and Arch as re-exec is not support there yet
@@ -15,51 +15,82 @@ systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 environment:
     # uploading the core snap triggers OOM
     SNAPD_NO_MEMORY_LIMIT: 1
+    SNAPD_SRC/core: "core"
+    SNAPD_SRC/snapd: "snapd"
+
+prepare: |
+    #  when testing core remove snapd snap as option for re-exec
+    if [ $SNAPD_SRC == "core" ]; then
+        systemctl stop snapd.service snapd.socket
+        # without /snap/snapd/current re-exec to snapd is disabled
+        mv /snap/snapd/current /snap/snapd/backup
+        # without .data.snaps.snapd.sequence and .data.snaps.snapd.current="unset"
+        # snapd is not considered installed and core install will request restart
+        cp -a /var/lib/snapd/state.json /tmp/backup_state.json
+        jq 'del(.data.snaps.snapd)' /tmp/backup_state.json > /tmp/modified_state.json
+        cp /tmp/modified_state.json /var/lib/snapd/state.json && rm /tmp/modified_state.json
+        systemctl start snapd.service
+    fi
 
 restore: |
-    # Remove the locale revision of core, if we installed one.
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    if [ "$(readlink "$SNAP_MOUNT_DIR/core/current")" = x1 ]; then
-        snap revert core
-        snap remove --revision=x1 core
+    SNAPD_MOUNT_DIR="$SNAP_MOUNT_DIR/$SNAPD_SRC"
+    # remove the locale revision of the snapd source snap, if we installed one
+    if [ "$(readlink "$SNAPD_MOUNT_DIR/current")" = x1 ]; then
+        snap revert $SNAPD_SRC
+        snap remove --revision=x1 $SNAPD_SRC
     fi
+
+    systemctl stop snapd.service snapd.socket
+
     # extra cleanup in case something in this test went wrong
     rm -f /etc/systemd/system/snapd.service.d/no-reexec.conf
-    systemctl stop snapd.service snapd.socket
-    if mount|grep "/snap/core/.*/usr/lib/snapd/info"; then
-        umount "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/info"
+    if mount|grep "/snap/$SNAPD_SRC/.*/usr/lib/snapd/info"; then
+        umount "$SNAPD_MOUNT_DIR/current/usr/lib/snapd/info"
     fi
-    if mount|grep "/snap/core/.*/usr/lib/snapd/snapd"; then
-        umount "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snapd"
+    if mount|grep "/snap/$SNAPD_SRC/.*/usr/lib/snapd/snapd"; then
+        umount "SNAPD_MOUNT_DIR/current/usr/lib/snapd/snapd"
     fi
     rm -f /tmp/old-info
+
+    # restore snapd when done testing core
+    if [ $SNAPD_SRC == "core" ]; then
+       mv /snap/snapd/backup /snap/snapd/current
+       rm -f /snap/snapd/backup
+       cp -a /tmp/backup_state.json /var/lib/snapd/state.json
+       rm -f /tmp/backup_state.json /tmp/modified_state.json
+    fi
+
+    systemctl start snapd.service
 
 debug: |
     ls /etc/systemd/system/snapd.service.d
     cat /etc/systemd/system/snapd.service.d/*
 
 execute: |
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    SNAPD_MOUNT_DIR="$SNAP_MOUNT_DIR/$SNAPD_SRC"
+
     if [ "${SNAP_REEXEC:-}" = "0" ]; then
         echo "skipping test when SNAP_REEXEC is disabled"
         exit 0
     fi
 
     echo "Ensure we re-exec by default"
-    /usr/bin/env SNAPD_DEBUG=1 snap list 2>&1 | MATCH "DEBUG: restarting into"
+    /usr/bin/env SNAPD_DEBUG=1 snap list 2>&1 | MATCH "DEBUG: restarting into \"$SNAPD_MOUNT_DIR/current/usr/bin/snap\""
 
     echo "Ensure that we do not re-exec into older versions"
     systemctl stop snapd.service snapd.socket
     echo "mount something older than our freshly build snapd"
     echo "VERSION=1.0">/tmp/old-info
-    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    mount --bind /tmp/old-info "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/info"
+    mount --bind /tmp/old-info "$SNAPD_MOUNT_DIR/current/usr/lib/snapd/info"
     systemctl start snapd.service snapd.socket
     snap list
     "$TESTSTOOLS"/journal-state match-log 'snap \(at .*\) is older \(.*\) than distribution package'
 
     echo "Revert back to normal"
     systemctl stop snapd.service snapd.socket
-    umount "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/info"
+    umount "$SNAPD_MOUNT_DIR/current/usr/lib/snapd/info"
 
     echo "Ensure SNAP_REEXEC=0 is honored for snapd"
     cat > /etc/systemd/system/snapd.service.d/reexec.conf <<EOF
@@ -69,43 +100,43 @@ execute: |
     echo "Breaking snapd, copy to tmp to ensure mtime is newer"
     cat > /tmp/broken-snapd <<EOF
     #!/bin/sh
-    echo "from the core snap"
+    echo "from the $SNAPD_SRC snap"
     exit 1
     EOF
     chmod +x /tmp/broken-snapd
-    mount --bind /tmp/broken-snapd "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snapd"
+    mount --bind /tmp/broken-snapd "$SNAPD_MOUNT_DIR/current/usr/lib/snapd/snapd"
     systemctl daemon-reload
     systemctl start snapd.service snapd.socket
     echo "Ensure that snap list works normally"
     echo "(i.e. the snapd from the core image is not run)"
-    snap list | MATCH core
+    snap list | MATCH $SNAPD_SRC
 
     echo "Revert back to normal"
     systemctl stop snapd.service snapd.socket
-    umount "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snapd"
+    umount "$SNAPD_MOUNT_DIR/current/usr/lib/snapd/snapd"
     rm -f /etc/systemd/system/snapd.service.d/reexec.conf
     systemctl daemon-reload
     systemctl start snapd.service snapd.socket
 
     echo "Ensure SNAP_REEXEC=0 is honored for snap"
-    mount --bind /tmp/broken-snapd "$SNAP_MOUNT_DIR/core/current/usr/bin/snap"
-    snap list|MATCH "from the core snap"
-    SNAP_REEXEC=0 snap list|MATCH "core"
-    umount "$SNAP_MOUNT_DIR/core/current/usr/bin/snap"
+    mount --bind /tmp/broken-snapd "$SNAPD_MOUNT_DIR/current/usr/bin/snap"
+    snap list|MATCH "from the $SNAPD_SRC snap"
+    SNAP_REEXEC=0 SNAPD_DEBUG=1 snap list 2>&1 |MATCH "DEBUG: re-exec disabled by user"
+    umount "$SNAPD_MOUNT_DIR/current/usr/bin/snap"
 
-    echo "Ensure a core refresh restart snapd"
-    prev_core=$(snap list | awk "/^core / {print(\$3)}")
-    snap install --dangerous "/var/lib/snapd/snaps/core_${prev_core}.snap"
+    echo "Ensure a snapd source refresh restarts snapd"
+    prev_src=$(snap list | awk "/^$SNAPD_SRC / {print(\$3)}")
+    snap install --dangerous "/var/lib/snapd/snaps/${SNAPD_SRC}_${prev_src}.snap"
     snap change --last=install | MATCH "Requested daemon restart"
 
-    echo "Ensure the right snapd (from the new core) is running"
-    now_core=$(snap list | awk "/^core / {print(\$3)}")
-    if [ "$now_core" = "$prev_core" ]; then
-        echo "Test broken $now_core and $prev_core are the same"
+    echo "Ensure the right snapd (from the new snapd source snap) is running"
+    now_src=$(snap list | awk "/^$SNAPD_SRC / {print(\$3)}")
+    if [ "$now_src" = "$prev_src" ]; then
+        echo "Test broken $now_src and $prev_src are the same"
         exit 1
     fi
     SNAPD_PATH=$(readlink -f "/proc/$(pidof snapd)/exe")
-    if [ "$SNAPD_PATH" != "/snap/core/${now_core}/usr/lib/snapd/snapd" ]; then
-        echo "unexpected $SNAPD_PATH for $now_core snap (previous $prev_core)"
+    if [ "$SNAPD_PATH" != "/snap/$SNAPD_SRC/${now_src}/usr/lib/snapd/snapd" ]; then
+        echo "unexpected $SNAPD_PATH for $now_src snap (previous $prev_src)"
         exit 1
     fi
