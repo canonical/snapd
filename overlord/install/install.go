@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
@@ -313,8 +314,19 @@ func PrepareEncryptedSystemData(model *asserts.Model, installKeyForRole map[stri
 	// make note of the encryption keys
 	trustedInstallObserver.SetBootstrappedContainers(dataBootstrappedContainer, saveBootstrappedContainer)
 
-	if err := saveKeys(model, installKeyForRole); err != nil {
-		return err
+	if saveBootstrappedContainer != nil {
+		// TODO: use plainkey from secboot
+		saveKey, err := keys.NewEncryptionKey()
+		if err != nil {
+			return err
+		}
+		const token = false
+		if _, err := saveBootstrappedContainer.AddKey("default", saveKey, token); err != nil {
+			return err
+		}
+		if err := saveKeys(model, saveKey); err != nil {
+			return err
+		}
 	}
 	// write markers containing a secret to pair data and save
 	if err := writeMarkers(model); err != nil {
@@ -342,26 +354,14 @@ func writeMarkers(model *asserts.Model) error {
 	return device.WriteEncryptionMarkers(boot.InstallHostFDEDataDir(model), boot.InstallHostFDESaveDir, markerSecret)
 }
 
-func saveKeys(model *asserts.Model, installKeyForRole map[string]secboot.BootstrappedContainer) error {
-	saveBootstrappedContainer := installKeyForRole[gadget.SystemSave]
-	if saveBootstrappedContainer == nil {
-		// no system-save support
-		return nil
-	}
-
+func saveKeys(model *asserts.Model, saveKey keys.EncryptionKey) error {
 	saveKeyPath := device.SaveKeyUnder(boot.InstallHostFDEDataDir(model))
 
 	if err := os.MkdirAll(filepath.Dir(saveKeyPath), 0755); err != nil {
 		return err
 	}
-	// TODO: once we have key slots, we will create a different
-	// key stored in saveKeyPath. This key will be added using
-	// saveBootstrappedContainer.AddKey. For now, we just write the
-	// bootstrap key for the save disk.
-	if err := osutil.AtomicWriteFile(saveKeyPath, saveBootstrappedContainer.LegacyKeptKey()[:], 0600, 0); err != nil {
-		return fmt.Errorf("cannot store system save key: %v", err)
-	}
-	return nil
+
+	return saveKey.Save(saveKeyPath)
 }
 
 // PrepareRunSystemData prepares the run system:
