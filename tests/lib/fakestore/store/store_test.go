@@ -430,7 +430,7 @@ func (s *storeTestSuite) TestMakeTestSnap(c *C) {
 func (s *storeTestSuite) TestCollectSnaps(c *C) {
 	s.makeTestSnap(c, "name: foo\nversion: 1")
 
-	snaps, err := s.store.collectSnaps()
+	snaps, err := s.store.collectSnaps(s.store.channelRepository)
 	c.Assert(err, IsNil)
 	c.Assert(snaps, DeepEquals, map[string]string{
 		"foo": filepath.Join(s.store.blobDir, "foo_1_all.snap"),
