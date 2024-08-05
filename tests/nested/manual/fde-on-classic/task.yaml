@@ -35,7 +35,7 @@ prepare: |
   # Note that "mk-image" is left as a script so that it can also be
   # run outside of spread easily for quick interactive testing
   # shellcheck disable=SC2086
-  "$TESTSTOOLS"/mkimage-uc"$VERSION" --boot-img ./boot.img --cache-dir ./cache --mnt-dir ./mnt --base-dir "$PWD" --snap pc_x1.snap "$TESTSLIB"/assertions/classic-model-${VERSION}.assert
+  "$TESTSTOOLS"/mkimage-uc"$VERSION" --boot-img ./boot.img --cache-dir ./cache --mnt-dir ./mnt --base-dir "$PWD" --snap pc_x1.snap "$TESTSLIB"/assertions/classic-model-"${VERSION}".assert
 
   # We will need yq
   snap install yq
@@ -159,21 +159,21 @@ execute: |
   # (regression test for SNAPDENG-4975)
 
   # precondition, the coreXX is not a local version
-  remote.exec snap list core${VERSION} | NOMATCH " x1 "
+  remote.exec snap list "core${VERSION}" | NOMATCH " x1 "
   # create modified coreXX
-  unsquashfs -d corebase "$CACHE_D"/core${VERSION}_*.snap
+  unsquashfs -d corebase "$CACHE_D"/core"${VERSION}"_*.snap
   touch corebase/empty-file
   snap pack --filename=corebase-new.snap corebase
   remote.push "corebase-new.snap"
   # install and validate it is now a local version
   remote.exec sudo snap install --dangerous "corebase-new.snap"
-  remote.exec sudo snap list core${VERSION} | MATCH " x1 "
+  remote.exec sudo snap list "core${VERSION}" | MATCH " x1 "
   # wait for reboot
   boot_id=$(tests.nested boot-id)
   remote.exec sudo reboot || true
   tests.nested wait-for reboot "$boot_id"
   # ensure that no revert of coreXX happened after the reboot
   remote.exec sudo snap changes | NOMATCH "Update kernel and core snap revisions"
-  remote.exec sudo snap list core${VERSION} | MATCH " x1 "
+  remote.exec sudo snap list "core${VERSION}" | MATCH " x1 "
 
   rm -rf "$CACHE_D"

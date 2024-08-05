@@ -48,7 +48,7 @@ execute: |
   remote.exec snap watch "${change_id}"
   remote.exec 'snap changes' | MATCH "${change_id}\s+Done.+Refresh model assertion from revision 0 to 1"
 
-  remote.exec "snap list" | MATCH jq-core${VERSION}"
+  remote.exec "snap list" | MATCH "jq-core${VERSION}"
   remote.exec 'snap list pc-kernel' | awk 'NR != 1 { print $4 }' | MATCH "${VERSION}-hwe/stable"
 
   # TODO: once we support installing recovery systems during the hybrid install,
