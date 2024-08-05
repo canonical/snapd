@@ -847,13 +847,13 @@ func (s *setupSuite) TestSetupKernelModulesComponentsRevert(c *C) {
 
 	// Some initial modules, no failures
 	firstInstalled := createKModsComps(c, 1, 2, ksnap, kernRev)
-	err = s.be.SetupKernelModulesComponents(firstInstalled, nil, ksnap, kernRev, progress.Null)
+	err = s.be.SetupKernelModulesComponents(nil, firstInstalled, ksnap, kernRev, progress.Null)
 	c.Assert(err, IsNil)
 
 	// Add components, with some overlap (comp2/3 - new rev for comp2
 	// though, 22), and fail
-	newComps := createKModsComps(c, 2, 2, ksnap, kernRev)
-	err = s.be.SetupKernelModulesComponents(newComps, firstInstalled, ksnap, kernRev, progress.Null)
+	newFinalComps := append(createKModsComps(c, 2, 2, ksnap, kernRev), firstInstalled[0])
+	err = s.be.SetupKernelModulesComponents(firstInstalled, newFinalComps, ksnap, kernRev, progress.Null)
 	c.Assert(err, ErrorMatches, "depmod error")
 }
 
