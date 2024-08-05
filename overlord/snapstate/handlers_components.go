@@ -680,7 +680,7 @@ func (m *SnapManager) relinkComponent(t *state.Task, snapSt *SnapState, instance
 	return nil
 }
 
-func (m *SnapManager) doSetupKernelModulesMany(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doPrepareKernelModulesComponents(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -712,7 +712,7 @@ func (m *SnapManager) doSetupKernelModulesMany(t *state.Task, _ *tomb.Tomb) erro
 	return nil
 }
 
-func (m *SnapManager) undoSetupKernelModulesMany(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) undoPrepareKernelModulesComponents(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()

@@ -837,7 +837,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	// We cannot undo much after a component file is removed. And it is the
 	// last task anyway.
 	runner.AddHandler("discard-component", m.doDiscardComponent, nil)
-	runner.AddHandler("prepare-kernel-modules-components", m.doSetupKernelModulesMany, m.undoSetupKernelModulesMany)
+	runner.AddHandler("prepare-kernel-modules-components", m.doPrepareKernelModulesComponents, m.undoPrepareKernelModulesComponents)
 
 	// control serialisation
 	runner.AddBlocked(m.blockedTask)
