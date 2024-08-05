@@ -451,7 +451,7 @@ func postSystemActionCreateOffline(c *Command, form *Form) Response {
 		return BadRequest("cannot parse validation sets: %v", err)
 	}
 
-	var snapFiles []*uploadedSnap
+	var snapFiles []*uploadedContainer
 	if len(form.FileRefs["snap"]) > 0 {
 		snaps, errRsp := form.GetSnapFiles()
 		if errRsp != nil {
@@ -488,15 +488,12 @@ func postSystemActionCreateOffline(c *Command, form *Form) Response {
 		return apiErr
 	}
 
-	if len(slInfo.sideInfos) != len(slInfo.tmpPaths) {
-		return InternalError("mismatch between number of snap side infos and temporary paths")
-	}
-
-	localSnaps := make([]devicestate.LocalSnap, 0, len(slInfo.sideInfos))
-	for i := range slInfo.sideInfos {
+	// TODO:COMPS: support adding components to a recovery system
+	localSnaps := make([]devicestate.LocalSnap, 0, len(slInfo.snaps))
+	for _, sn := range slInfo.snaps {
 		localSnaps = append(localSnaps, devicestate.LocalSnap{
-			SideInfo: slInfo.sideInfos[i],
-			Path:     slInfo.tmpPaths[i],
+			SideInfo: sn.sideInfo,
+			Path:     sn.tmpPath,
 		})
 	}
 

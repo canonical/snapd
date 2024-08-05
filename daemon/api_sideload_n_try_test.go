@@ -941,21 +941,25 @@ func (s *sideloadSuite) TestSideloadCleanUpUnusedTempSnapFiles(c *check.C) {
 func (s *sideloadSuite) TestSideloadManySnaps(c *check.C) {
 	d := s.daemonWithFakeSnapManager(c)
 	s.markSeeded(d)
-	expectedFlags := &snapstate.Flags{RemoveSnapPath: true, DevMode: true, Transaction: client.TransactionAllSnaps}
+	expectedFlags := snapstate.Flags{RemoveSnapPath: true, DevMode: true, Transaction: client.TransactionAllSnaps, Lane: 1}
 
-	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, tmpPaths []string, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
-		c.Check(flags, check.DeepEquals, expectedFlags)
-		c.Check(userID, check.Not(check.Equals), 0)
+	restore := daemon.MockSnapstateUpdateWithGoal(func(ctx context.Context, st *state.State, g snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) ([]string, *snapstate.UpdateTaskSets, error) {
+		goal := g.(*pathUpdateGoalRecorder)
+
+		c.Check(opts.Flags, check.DeepEquals, expectedFlags)
+		c.Check(opts.UserID, check.Not(check.Equals), 0)
 
 		var tss []*state.TaskSet
-		for i, si := range infos {
-			c.Check(tmpPaths[i], testutil.FileEquals, si.RealName)
+		var names []string
+		for _, sn := range goal.snaps {
+			c.Check(sn.Path, testutil.FileEquals, sn.SideInfo.RealName)
 
-			ts := state.NewTaskSet(s.NewTask("fake-install-snap", fmt.Sprintf("Doing a fake install of %q", si.RealName)))
+			ts := state.NewTaskSet(st.NewTask("fake-install-snap", fmt.Sprintf("Doing a fake install of %q", sn.SideInfo.RealName)))
 			tss = append(tss, ts)
+			names = append(names, sn.InstanceName)
 		}
 
-		return tss, nil
+		return names, &snapstate.UpdateTaskSets{Refresh: tss}, nil
 	})
 	defer restore()
 
@@ -1005,10 +1009,278 @@ func (s *sideloadSuite) TestSideloadManySnaps(c *check.C) {
 	c.Check(data["snap-names"], check.DeepEquals, snaps)
 }
 
+type sideloadSnapsAndComponentsOpts struct {
+	missingSnap bool
+}
+
+func (s *sideloadSuite) TestSideloadManySnapsAndComponentsMissingSnap(c *check.C) {
+	s.testSideloadManySnapsAndComponents(c, sideloadSnapsAndComponentsOpts{missingSnap: true})
+}
+
+func (s *sideloadSuite) TestSideloadManySnapsAndComponents(c *check.C) {
+	s.testSideloadManySnapsAndComponents(c, sideloadSnapsAndComponentsOpts{})
+}
+
+func (s *sideloadSuite) testSideloadManySnapsAndComponents(c *check.C, opts sideloadSnapsAndComponentsOpts) {
+	d := s.daemonWithFakeSnapManager(c)
+	s.markSeeded(d)
+	expectedFlags := snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionAllSnaps, Lane: 1}
+
+	restore := daemon.MockSnapstateInstallComponentPath(func(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info,
+		path string, opts snapstate.Options) (*state.TaskSet, error) {
+		c.Check(csi.Component.SnapName, check.Equals, "three")
+		c.Check(csi.Component.ComponentName, check.Equals, "comp-four")
+		c.Check(opts.Flags, check.DeepEquals, expectedFlags)
+		c.Check(path, testutil.FileEquals, "comp-four")
+
+		t := st.NewTask("fake-install-component", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	})
+	defer restore()
+
+	snaps := []string{"one", "two"}
+	expectedSnapsToComps := map[string][]string{
+		"one": {"comp-one"},
+		"two": {"comp-two", "comp-three"},
+	}
+	components := []string{"comp-one", "comp-two", "comp-three", "comp-four"}
+
+	st := d.Overlord().State()
+
+	if !opts.missingSnap {
+		ssi := &snap.SideInfo{
+			RealName: "three",
+			Revision: snap.R(1),
+			SnapID:   "three-snap-id",
+		}
+		st.Lock()
+		snapstate.Set(d.Overlord().State(), "three", &snapstate.SnapState{
+			Active: true,
+			Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(ssi, nil),
+			}),
+			Current: snap.R(1),
+		})
+		st.Unlock()
+	}
+
+	restore = daemon.MockSnapstateUpdateWithGoal(func(ctx context.Context, st *state.State, g snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) ([]string, *snapstate.UpdateTaskSets, error) {
+		goal := g.(*pathUpdateGoalRecorder)
+
+		c.Check(opts.Flags, check.DeepEquals, expectedFlags)
+		c.Check(opts.UserID, check.Not(check.Equals), 0)
+
+		var tss []*state.TaskSet
+		var names []string
+		for _, sn := range goal.snaps {
+			comps, ok := expectedSnapsToComps[sn.SideInfo.RealName]
+			c.Assert(ok, check.Equals, true, check.Commentf("unexpected snap name %q", sn.SideInfo.RealName))
+			foundComps := make([]string, 0, len(comps))
+			for csi := range sn.Components {
+				foundComps = append(foundComps, csi.Component.ComponentName)
+			}
+			c.Check(foundComps, testutil.DeepUnsortedMatches, comps)
+
+			c.Check(sn.Path, testutil.FileEquals, sn.SideInfo.RealName)
+
+			ts := state.NewTaskSet(st.NewTask("fake-install-snap", fmt.Sprintf("Doing a fake install of %q", sn.SideInfo.RealName)))
+			tss = append(tss, ts)
+			names = append(names, sn.InstanceName)
+		}
+
+		return names, &snapstate.UpdateTaskSets{Refresh: tss}, nil
+	})
+	defer restore()
+
+	readComponentInfoCalled := -1
+	restore = daemon.MockReadComponentInfoFromCont(func(p string, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		readComponentInfoCalled++
+		var snapName string
+		switch readComponentInfoCalled {
+		case 0:
+			snapName = "one"
+		case 1, 2:
+			snapName = "two"
+		case 3:
+			snapName = "three"
+		}
+		return &snap.ComponentInfo{
+			Component:   naming.NewComponentRef(snapName, components[readComponentInfoCalled]),
+			Type:        snap.TestComponent,
+			CompVersion: "1.0",
+		}, nil
+	})
+	defer restore()
+
+	readSnapInfoCalled := -1
+	restore = daemon.MockUnsafeReadSnapInfo(func(p string) (*snap.Info, error) {
+		readSnapInfoCalled++
+		switch readSnapInfoCalled {
+		case 0, 1:
+			return &snap.Info{SuggestedName: snaps[readSnapInfoCalled]}, nil
+		default:
+			return nil, errors.New("no more snaps")
+		}
+	})
+	defer restore()
+
+	body := "----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"dangerous\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n"
+	body += "Content-Disposition: form-data; name=\"transaction\"\r\n" +
+		"\r\n" +
+		"all-snaps\r\n" +
+		"----hello--\r\n"
+
+	containers := make([]string, len(snaps)+len(components))
+	copy(containers, snaps)
+	copy(containers[len(snaps):], components)
+	for _, c := range containers {
+		body += "Content-Disposition: form-data; name=\"snap\"; filename=\"file-" + c + "\"\r\n" +
+			"\r\n" +
+			c + "\r\n" +
+			"----hello--\r\n"
+	}
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+	s.asUserAuth(c, req)
+
+	if opts.missingSnap {
+		rsp := s.errorReq(c, req, s.authUser)
+		c.Check(rsp.Message, check.Equals, `snap owning "three+comp-four" not installed`)
+
+		return
+	}
+
+	rsp := s.asyncReq(c, req, s.authUser)
+
+	st.Lock()
+	defer st.Unlock()
+
+	expectedFileNames := []string{"file-one", "file-comp-one", "file-two", "file-comp-two", "file-comp-three", "file-comp-four"}
+
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+	c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Install snaps "one" (with component "comp-one"), "two" (with components "comp-two", "comp-three") and component "three+comp-four" from files %s`, strutil.Quoted(expectedFileNames)))
+
+	var data map[string]interface{}
+	c.Assert(chg.Get("api-data", &data), check.IsNil)
+	c.Check(data, check.DeepEquals, map[string]interface{}{
+		"snap-names": []interface{}{"one", "two"},
+		"components": map[string]interface{}{
+			"one":   []interface{}{"comp-one"},
+			"two":   []interface{}{"comp-two", "comp-three"},
+			"three": []interface{}{"comp-four"},
+		},
+	})
+}
+
+func (s *sideloadSuite) TestSideloadManyOnlyComponents(c *check.C) {
+	d := s.daemonWithFakeSnapManager(c)
+	s.markSeeded(d)
+	expectedFlags := snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionAllSnaps, Lane: 1}
+
+	components := []string{"comp-one", "comp-two", "comp-three", "comp-four"}
+	restore := daemon.MockSnapstateInstallComponentPath(func(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info,
+		path string, opts snapstate.Options) (*state.TaskSet, error) {
+		c.Check(csi.Component.SnapName, check.Equals, "one")
+		c.Check(components, testutil.Contains, csi.Component.ComponentName)
+		c.Check(opts.Flags, check.DeepEquals, expectedFlags)
+		c.Check(path, testutil.FileEquals, csi.Component.ComponentName)
+
+		t := st.NewTask("fake-install-component", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	})
+	defer restore()
+
+	st := d.Overlord().State()
+
+	ssi := &snap.SideInfo{
+		RealName: "one",
+		Revision: snap.R(1),
+		SnapID:   "one-snap-id",
+	}
+	st.Lock()
+	snapstate.Set(d.Overlord().State(), "one", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+			sequence.NewRevisionSideState(ssi, nil),
+		}),
+		Current: snap.R(1),
+	})
+	st.Unlock()
+
+	readComponentInfoCalled := -1
+	restore = daemon.MockReadComponentInfoFromCont(func(p string, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		readComponentInfoCalled++
+		return &snap.ComponentInfo{
+			Component:   naming.NewComponentRef("one", components[readComponentInfoCalled]),
+			Type:        snap.TestComponent,
+			CompVersion: "1.0",
+		}, nil
+	})
+	defer restore()
+
+	restore = daemon.MockUnsafeReadSnapInfo(func(p string) (*snap.Info, error) {
+		return nil, errors.New("no more snaps")
+	})
+	defer restore()
+
+	body := "----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"dangerous\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n"
+	body += "Content-Disposition: form-data; name=\"transaction\"\r\n" +
+		"\r\n" +
+		"all-snaps\r\n" +
+		"----hello--\r\n"
+
+	for _, c := range components {
+		body += "Content-Disposition: form-data; name=\"snap\"; filename=\"file-" + c + "\"\r\n" +
+			"\r\n" +
+			c + "\r\n" +
+			"----hello--\r\n"
+	}
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+	s.asUserAuth(c, req)
+
+	rsp := s.asyncReq(c, req, s.authUser)
+
+	st.Lock()
+	defer st.Unlock()
+
+	expectedFileNames := []string{"file-comp-one", "file-comp-two", "file-comp-three", "file-comp-four"}
+
+	fullComponentNames := make([]string, len(components))
+	for i, c := range components {
+		fullComponentNames[i] = "one+" + c
+	}
+
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+	c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Install components %s from files %s`, strutil.Quoted(fullComponentNames), strutil.Quoted(expectedFileNames)))
+
+	var data map[string]interface{}
+	c.Assert(chg.Get("api-data", &data), check.IsNil)
+	c.Check(data, check.DeepEquals, map[string]interface{}{
+		"components": map[string]interface{}{
+			"one": []interface{}{"comp-one", "comp-two", "comp-three", "comp-four"},
+		},
+	})
+}
+
 func (s *sideloadSuite) TestSideloadManyFailInstallPathMany(c *check.C) {
 	s.daemon(c)
-	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, paths []string, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
-		return nil, errors.New("expected")
+	restore := daemon.MockSnapstateUpdateWithGoal(func(ctx context.Context, st *state.State, g snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) ([]string, *snapstate.UpdateTaskSets, error) {
+		return nil, nil, errors.New("expected")
 	})
 	defer restore()
 
@@ -1035,7 +1307,7 @@ func (s *sideloadSuite) TestSideloadManyFailInstallPathMany(c *check.C) {
 	apiErr := s.errorReq(c, req, nil)
 
 	c.Check(apiErr.JSON().Status, check.Equals, 500)
-	c.Check(apiErr.Message, check.Equals, `cannot install snap files: expected`)
+	c.Check(apiErr.Message, check.Equals, `cannot install snap/component files: expected`)
 }
 
 func (s *sideloadSuite) TestSideloadManyFailUnsafeReadInfo(c *check.C) {
@@ -1115,22 +1387,26 @@ func (s *sideloadSuite) TestSideloadManySnapsAsserted(c *check.C) {
 
 	expectedFlags := snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap}
 
-	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, paths []string, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
-		c.Check(*flags, check.DeepEquals, expectedFlags)
+	restore := daemon.MockSnapstateUpdateWithGoal(func(ctx context.Context, st *state.State, g snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) ([]string, *snapstate.UpdateTaskSets, error) {
+		goal := g.(*pathUpdateGoalRecorder)
+
+		c.Check(opts.Flags, check.DeepEquals, expectedFlags)
 
 		var tss []*state.TaskSet
-		for i, si := range infos {
-			c.Check(*si, check.DeepEquals, snap.SideInfo{
+		var names []string
+		for i, sn := range goal.snaps {
+			c.Check(*sn.SideInfo, check.DeepEquals, snap.SideInfo{
 				RealName: snaps[i],
 				SnapID:   snaps[i] + "-id",
 				Revision: snap.R(41),
 			})
 
-			ts := state.NewTaskSet(s.NewTask("fake-install-snap", fmt.Sprintf("Doing a fake install of %q", si.RealName)))
+			ts := state.NewTaskSet(st.NewTask("fake-install-snap", fmt.Sprintf("Doing a fake install of %q", sn.SideInfo.RealName)))
 			tss = append(tss, ts)
+			names = append(names, sn.InstanceName)
 		}
 
-		return tss, nil
+		return names, &snapstate.UpdateTaskSets{Refresh: tss}, nil
 	})
 	defer restore()
 

@@ -28,6 +28,7 @@ import (
 	"mime/multipart"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -79,10 +80,10 @@ func (f *Form) RemoveAllExcept(paths []string) {
 	}
 }
 
-type uploadedSnap struct {
-	// filename is the original name/path of the snap file.
+type uploadedContainer struct {
+	// filename is the original name/path of the container file.
 	filename string
-	// tmpPath is the location where the temp snap file is stored.
+	// tmpPath is the location where the temp container file is stored.
 	tmpPath string
 	// instanceName is optional and can only be set if only one snap was uploaded.
 	instanceName string
@@ -91,14 +92,14 @@ type uploadedSnap struct {
 // GetSnapFiles returns the original name and temp path for each snap file in
 // the form. Optionally, it might include a requested instance name, but only
 // if the was only one file in the form.
-func (f *Form) GetSnapFiles() ([]*uploadedSnap, *apiError) {
+func (f *Form) GetSnapFiles() ([]*uploadedContainer, *apiError) {
 	if len(f.FileRefs["snap"]) == 0 {
 		return nil, BadRequest(`cannot find "snap" file field in provided multipart/form-data payload`)
 	}
 
 	refs := f.FileRefs["snap"]
 	if len(refs) == 1 && len(f.Values["snap-path"]) > 0 {
-		uploaded := &uploadedSnap{
+		uploaded := &uploadedContainer{
 			filename: f.Values["snap-path"][0],
 			tmpPath:  refs[0].TmpPath,
 		}
@@ -106,12 +107,12 @@ func (f *Form) GetSnapFiles() ([]*uploadedSnap, *apiError) {
 		if len(f.Values["name"]) > 0 {
 			uploaded.instanceName = f.Values["name"][0]
 		}
-		return []*uploadedSnap{uploaded}, nil
+		return []*uploadedContainer{uploaded}, nil
 	}
 
-	snapFiles := make([]*uploadedSnap, len(refs))
+	snapFiles := make([]*uploadedContainer, len(refs))
 	for i, ref := range refs {
-		snapFiles[i] = &uploadedSnap{
+		snapFiles[i] = &uploadedContainer{
 			filename: ref.Filename,
 			tmpPath:  ref.TmpPath,
 		}
@@ -218,39 +219,153 @@ func sideloadOrTrySnap(ctx context.Context, c *Command, body io.ReadCloser, boun
 
 // sideloadedInfo contains information from a bunch of sideloaded snaps
 type sideloadedInfo struct {
-	sideInfos                  []*snap.SideInfo
-	names, origPaths, tmpPaths []string
+	snaps      []sideloadSnapInfo
+	components []sideloadComponentInfo
 }
 
-func sideloadInfo(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags) (*sideloadedInfo, *apiError) {
+type sideloadSnapInfo struct {
+	sideInfo   *snap.SideInfo
+	components []sideloadComponentInfo
+	origPath   string
+	tmpPath    string
+}
+
+type sideloadComponentInfo struct {
+	sideInfo *snap.ComponentSideInfo
+	origPath string
+	tmpPath  string
+}
+
+func sideloadInfo(st *state.State, uploads []*uploadedContainer, flags sideloadFlags) (*sideloadedInfo, *apiError) {
 	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
 	if err != nil {
 		return nil, InternalError(err.Error())
 	}
 
-	names := make([]string, len(snapFiles))
-	origPaths := make([]string, len(snapFiles))
-	tmpPaths := make([]string, len(snapFiles))
-	sideInfos := make([]*snap.SideInfo, len(snapFiles))
+	var components []sideloadComponentInfo
+	var snaps []sideloadSnapInfo
+	for _, upload := range uploads {
+		si, snapErr := readSideInfo(st, upload.tmpPath, upload.filename, flags, deviceCtx.Model())
+		if snapErr != nil {
+			if !flags.dangerousOK {
+				// TODO:COMPS: read assertions for components
+				return nil, snapErr
+			}
 
-	for i, snapFile := range snapFiles {
-		si, apiError := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags, deviceCtx.Model())
-		if apiError != nil {
-			return nil, apiError
+			ci, err := readComponentInfoFromCont(upload.tmpPath, nil)
+			if err != nil {
+				logger.Noticef("cannot sideload as a snap: %v", snapErr)
+				logger.Noticef("cannot sideload as a component: %v", err)
+
+				// note that here we forward the error from reading the snap
+				// file, rather than the component file. this is consistent with
+				// what we do when installing one component from file. maybe
+				// something to change?
+				return nil, snapErr
+			}
+
+			components = append(components, sideloadComponentInfo{
+				sideInfo: &snap.ComponentSideInfo{
+					Component: ci.Component,
+					Revision:  snap.Revision{},
+				},
+				origPath: upload.filename,
+				tmpPath:  upload.tmpPath,
+			})
+			continue
 		}
 
-		sideInfos[i] = si
-		names[i] = si.RealName
-		origPaths[i] = snapFile.filename
-		tmpPaths[i] = snapFile.tmpPath
+		snaps = append(snaps, sideloadSnapInfo{
+			sideInfo: si,
+			origPath: upload.filename,
+			tmpPath:  upload.tmpPath,
+		})
 	}
 
-	return &sideloadedInfo{sideInfos: sideInfos, names: names,
-		origPaths: origPaths, tmpPaths: tmpPaths}, nil
+	snapByName := func(name string) (*sideloadSnapInfo, bool) {
+		for i := range snaps {
+			if snaps[i].sideInfo.RealName == name {
+				return &snaps[i], true
+			}
+		}
+		return nil, false
+	}
+
+	onlyComponents := make([]sideloadComponentInfo, 0)
+	for _, ci := range components {
+		snapName := ci.sideInfo.Component.SnapName
+
+		ssi, ok := snapByName(snapName)
+		if !ok {
+			onlyComponents = append(onlyComponents, ci)
+			continue
+		}
+
+		ssi.components = append(ssi.components, ci)
+	}
+
+	return &sideloadedInfo{
+		components: onlyComponents,
+		snaps:      snaps,
+	}, nil
 }
 
-func sideloadManySnaps(ctx context.Context, st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags, user *auth.UserState) (*state.Change, *apiError) {
-	slInfo, apiErr := sideloadInfo(st, snapFiles, flags)
+func sideloadTaskSets(ctx context.Context, st *state.State, sideload *sideloadedInfo, userID int, flags snapstate.Flags) ([]*state.TaskSet, *apiError) {
+	if flags.Transaction == client.TransactionAllSnaps && flags.Lane == 0 {
+		flags.Lane = st.NewLane()
+	}
+
+	var tss []*state.TaskSet
+
+	// handle all of the components whose snaps are not present in the set of
+	// files that are being sideloaded
+	for _, comp := range sideload.components {
+		snapName := comp.sideInfo.Component.SnapName
+		snapInfo, err := installedSnapInfo(st, snapName)
+		if err != nil {
+			if errors.Is(err, state.ErrNoState) {
+				return nil, SnapNotInstalled(snapName, fmt.Errorf("snap owning %q not installed", comp.sideInfo.Component))
+			}
+			return nil, BadRequest("cannot retrieve information for %q: %v", snapName, err)
+		}
+
+		ts, err := snapstateInstallComponentPath(st, comp.sideInfo, snapInfo, comp.tmpPath, snapstate.Options{
+			Flags: flags,
+		})
+		if err != nil {
+			return nil, errToResponse(err, nil, InternalError, "cannot install component %q for snap %q: %v", comp.sideInfo.Component, snapName, err)
+		}
+		tss = append(tss, ts)
+	}
+
+	// handle everything else
+	var pathSnaps []snapstate.PathSnap
+	for _, sn := range sideload.snaps {
+		comps := make(map[*snap.ComponentSideInfo]string, len(sn.components))
+		for _, ci := range sn.components {
+			comps[ci.sideInfo] = ci.tmpPath
+		}
+
+		pathSnaps = append(pathSnaps, snapstate.PathSnap{
+			Path:       sn.tmpPath,
+			SideInfo:   sn.sideInfo,
+			Components: comps,
+		})
+	}
+
+	_, uts, err := snapstateUpdateWithGoal(ctx, st, snapstatePathUpdateGoal(pathSnaps...), nil, snapstate.Options{
+		UserID: userID,
+		Flags:  flags,
+	})
+	if err != nil {
+		return nil, errToResponse(err, nil, InternalError, "cannot install snap/component files: %v")
+	}
+
+	return append(tss, uts.Refresh...), nil
+}
+
+func sideloadManySnaps(ctx context.Context, st *state.State, uploads []*uploadedContainer, flags sideloadFlags, user *auth.UserState) (*state.Change, *apiError) {
+	slInfo, apiErr := sideloadInfo(st, uploads, flags)
 	if apiErr != nil {
 		return nil, apiErr
 	}
@@ -260,19 +375,109 @@ func sideloadManySnaps(ctx context.Context, st *state.State, snapFiles []*upload
 		userID = user.ID
 	}
 
-	tss, err := snapstateInstallPathMany(ctx, st, slInfo.sideInfos, slInfo.tmpPaths, userID, &flags.Flags)
+	tss, err := sideloadTaskSets(ctx, st, slInfo, userID, flags.Flags)
 	if err != nil {
-		return nil, errToResponse(err, slInfo.names, InternalError, "cannot install snap files: %v")
+		return nil, err
 	}
 
-	msg := fmt.Sprintf(i18n.G("Install snaps %s from files %s"), strutil.Quoted(slInfo.names), strutil.Quoted(slInfo.origPaths))
-	chg := newChange(st, "install-snap", msg, tss, slInfo.names)
-	chg.Set("api-data", map[string][]string{"snap-names": slInfo.names})
+	snapNames := make([]string, 0, len(slInfo.snaps))
+	snapToComps := make(map[string][]string, len(slInfo.components))
+	for _, sn := range slInfo.snaps {
+		snapName := sn.sideInfo.RealName
+		snapNames = append(snapNames, snapName)
+
+		if len(sn.components) == 0 {
+			continue
+		}
+
+		snapToComps[snapName] = make([]string, 0, len(sn.components))
+		for _, c := range sn.components {
+			snapToComps[snapName] = append(snapToComps[snapName], c.sideInfo.Component.ComponentName)
+		}
+	}
+
+	for _, ci := range slInfo.components {
+		snapToComps[ci.sideInfo.Component.SnapName] = append(snapToComps[ci.sideInfo.Component.SnapName], ci.sideInfo.Component.ComponentName)
+	}
+
+	msg := multiPathInstallMessage(slInfo)
+
+	chg := newChange(st, "install-snap", msg, tss, snapNames)
+	apiData := make(map[string]interface{}, 0)
+
+	if len(snapNames) > 0 {
+		apiData["snap-names"] = snapNames
+	}
+
+	if len(snapToComps) > 0 {
+		apiData["components"] = snapToComps
+	}
+	chg.Set("api-data", apiData)
 
 	return chg, nil
 }
 
-func sideloadSnap(_ context.Context, st *state.State, snapFile *uploadedSnap, flags sideloadFlags) (*state.Change, *apiError) {
+func multiPathInstallMessage(sli *sideloadedInfo) string {
+	var b strings.Builder
+	switch len(sli.snaps) {
+	case 0:
+		b.WriteString(i18n.G("Install"))
+	case 1:
+		b.WriteString(i18n.G("Install snap"))
+	default:
+		b.WriteString(i18n.G("Install snaps"))
+	}
+
+	var paths []string
+	for i, sn := range sli.snaps {
+		fmt.Fprintf(&b, " %q", sn.sideInfo.RealName)
+		paths = append(paths, sn.origPath)
+
+		comps := make([]string, 0, len(sn.components))
+		for _, c := range sn.components {
+			comps = append(comps, c.sideInfo.Component.ComponentName)
+			paths = append(paths, c.origPath)
+		}
+
+		if len(comps) > 0 {
+			b.WriteString(" (")
+			if len(sn.components) > 1 {
+				fmt.Fprintf(&b, i18n.G("with components %s"), strutil.Quoted(comps))
+			} else {
+				fmt.Fprintf(&b, i18n.G("with component %s"), strutil.Quoted(comps))
+			}
+			b.WriteRune(')')
+		}
+
+		if i < len(sli.snaps)-1 {
+			b.WriteRune(',')
+		}
+	}
+
+	compNames := make([]string, 0, len(sli.components))
+	for _, c := range sli.components {
+		compNames = append(compNames, c.sideInfo.Component.String())
+		paths = append(paths, c.origPath)
+	}
+
+	if len(sli.snaps) != 0 && len(sli.components) != 0 {
+		b.WriteString(i18n.G(" and"))
+	}
+
+	switch len(sli.components) {
+	case 0:
+	case 1:
+		fmt.Fprintf(&b, i18n.G(" component %s"), strutil.Quoted(compNames))
+	default:
+		fmt.Fprintf(&b, i18n.G(" components %s"), strutil.Quoted(compNames))
+	}
+
+	fmt.Fprintf(&b, " from files %s", strutil.Quoted(paths))
+
+	return b.String()
+}
+
+func sideloadSnap(_ context.Context, st *state.State, snapFile *uploadedContainer, flags sideloadFlags) (*state.Change, *apiError) {
 	var instanceName string
 	if snapFile.instanceName != "" {
 		// caller has specified desired instance name
