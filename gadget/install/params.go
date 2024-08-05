@@ -23,7 +23,6 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 )
 
 type Options struct {
@@ -91,7 +90,7 @@ func MockEncryptionSetupData(labelToEncDevice map[string]*MockEncryptedDeviceAnd
 		//called to write the save key to a file in
 		//overlord/install/install.go. Once we have removed that call,
 		// we can use mock object instead.
-		bootstrapKey := secboot.CreateBootstrappedContainer(keys.EncryptionKey{1, 2, 3}, encryptData.EncryptedDevice)
+		bootstrapKey := secboot.CreateMockBootstrappedContainer()
 		esd.parts[label] = partEncryptionData{
 			role:                encryptData.Role,
 			encryptedDevice:     encryptData.EncryptedDevice,

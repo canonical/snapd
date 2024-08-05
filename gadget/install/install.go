@@ -99,7 +99,7 @@ func saveStorageTraits(mod gadget.Model, allVols map[string]*gadget.Volume, opts
 	return nil
 }
 
-func maybeEncryptPartition(dgpair *gadget.OnDiskAndGadgetStructurePair, encryptionType secboot.EncryptionType, sectorSize quantity.Size, perfTimings timings.Measurer) (fsParams *mkfsParams, encryptionKey keys.EncryptionKey, err error) {
+func maybeEncryptPartition(dgpair *gadget.OnDiskAndGadgetStructurePair, encryptionType secboot.EncryptionType, sectorSize quantity.Size, perfTimings timings.Measurer) (fsParams *mkfsParams, diskEncryptionKey secboot.DiskUnlockKey, err error) {
 	diskPart := dgpair.DiskStructure
 	volStruct := dgpair.GadgetStructure
 	mustEncrypt := (encryptionType != secboot.EncryptionTypeNone)
@@ -121,10 +121,12 @@ func maybeEncryptPartition(dgpair *gadget.OnDiskAndGadgetStructurePair, encrypti
 		timings.Run(perfTimings, fmt.Sprintf("make-key-set[%s]", volStruct.Role),
 			fmt.Sprintf("Create encryption key set for %s", volStruct.Role),
 			func(timings.Measurer) {
-				encryptionKey, err = keys.NewEncryptionKey()
-				if err != nil {
-					err = fmt.Errorf("cannot create encryption key: %v", err)
+				encryptionKey, errk := keys.NewEncryptionKey()
+				if errk != nil {
+					err = fmt.Errorf("cannot create encryption key: %v", errk)
+					return
 				}
+				diskEncryptionKey = secboot.DiskUnlockKey(encryptionKey)
 			})
 		if err != nil {
 			return nil, nil, err
@@ -136,7 +138,7 @@ func maybeEncryptPartition(dgpair *gadget.OnDiskAndGadgetStructurePair, encrypti
 			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s] (%v)", volStruct.Role, encryptionType),
 				fmt.Sprintf("Create encryption device for %s (%s)", volStruct.Role, encryptionType),
 				func(timings.Measurer) {
-					dataPart, err = newEncryptedDeviceLUKS(diskPart.Node, encryptionType, encryptionKey, volStruct.Label, volStruct.Name)
+					dataPart, err = newEncryptedDeviceLUKS(diskPart.Node, encryptionType, diskEncryptionKey, volStruct.Label, volStruct.Name)
 					// TODO close device???
 				})
 			if err != nil {
@@ -157,7 +159,7 @@ func maybeEncryptPartition(dgpair *gadget.OnDiskAndGadgetStructurePair, encrypti
 		fsParams.SectorSize = quantity.Size(fsSectorSizeInt)
 	}
 
-	return fsParams, encryptionKey, nil
+	return fsParams, diskEncryptionKey, nil
 }
 
 // TODO probably we won't need to pass partDisp when we include storage in laidOut
@@ -192,7 +194,7 @@ func installOnePartition(dgpair *gadget.OnDiskAndGadgetStructurePair,
 	kernelInfo *kernel.Info, kernelSnapInfo *KernelSnapInfo, gadgetRoot string,
 	encryptionType secboot.EncryptionType, sectorSize quantity.Size,
 	observer gadget.ContentObserver, perfTimings timings.Measurer,
-) (fsDevice string, encryptionKey keys.EncryptionKey, err error) {
+) (fsDevice string, encryptionKey secboot.DiskUnlockKey, err error) {
 	// 1. Encrypt
 	diskPart := dgpair.DiskStructure
 	vs := dgpair.GadgetStructure
@@ -771,6 +773,11 @@ func FactoryReset(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelS
 		// device) for each role
 		deviceForRole[vs.Role] = onDiskStruct.Node
 
+		// TODO: when save partition does not have slots, then
+		// we need to create new partition the old fashion
+		// way.  Or, we should upgrade the save partition
+		// (which should be safe since the seed should not be
+		// considered safe to downgrade).
 		fsDevice, encryptionKey, err := installOnePartition(
 			&gadget.OnDiskAndGadgetStructurePair{
 				DiskStructure: onDiskStruct, GadgetStructure: vs},

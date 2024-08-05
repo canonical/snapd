@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
@@ -99,22 +100,48 @@ func main() {
 		if installSideData == nil || len(installSideData.BootstrappedContainerForRole) == 0 {
 			panic("expected encryption keys")
 		}
-		dataKey := installSideData.BootstrappedContainerForRole[gadget.SystemData]
-		if dataKey == nil {
+		dataBootstrapKey := installSideData.BootstrappedContainerForRole[gadget.SystemData]
+		if dataBootstrapKey == nil {
 			panic("ubuntu-data encryption key is unset")
 		}
-		saveKey := installSideData.BootstrappedContainerForRole[gadget.SystemSave]
-		if saveKey == nil {
+
+		dataKey, err := keys.NewEncryptionKey()
+		if err != nil {
+			panic("cannot create data key")
+		}
+		const token = false
+		if _, err := dataBootstrapKey.AddKey("", secboot.DiskUnlockKey(dataKey), token); err != nil {
+			panic("cannot reset data key")
+		}
+
+		saveBootstrapKey := installSideData.BootstrappedContainerForRole[gadget.SystemSave]
+		if saveBootstrapKey == nil {
 			panic("ubuntu-save encryption key is unset")
 		}
+
+		saveKey, err := keys.NewEncryptionKey()
+		if err != nil {
+			panic("cannot create save key")
+		}
+		if _, err := saveBootstrapKey.AddKey("", secboot.DiskUnlockKey(saveKey), token); err != nil {
+			panic("cannot reset save key")
+		}
+
 		toWrite := map[string][]byte{
-			"unsealed-key": dataKey.LegacyKeptKey()[:],
-			"save-key":     saveKey.LegacyKeptKey()[:],
+			"unsealed-key": dataKey[:],
+			"save-key":     saveKey[:],
 		}
 		for keyFileName, keyData := range toWrite {
 			if err := os.WriteFile(keyFileName, keyData, 0644); err != nil {
 				panic(err)
 			}
+		}
+
+		if err := dataBootstrapKey.RemoveBootstrapKey(); err != nil {
+			panic(err)
+		}
+		if err := saveBootstrapKey.RemoveBootstrapKey(); err != nil {
+			panic(err)
 		}
 	}
 }

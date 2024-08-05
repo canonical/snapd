@@ -21,6 +21,7 @@
 package secboot
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 var (
@@ -37,11 +39,16 @@ var (
 	sbActivateVolumeWithKeyData     = sb.ActivateVolumeWithKeyData
 	sbActivateVolumeWithRecoveryKey = sb.ActivateVolumeWithRecoveryKey
 	sbDeactivateVolume              = sb.DeactivateVolume
+	sbAddLUKS2ContainerUnlockKey    = sb.AddLUKS2ContainerUnlockKey
+	sbRenameLUKS2ContainerKey       = sb.RenameLUKS2ContainerKey
 )
 
 func init() {
 	WithSecbootSupport = true
 }
+
+type DiskUnlockKey sb.DiskUnlockKey
+type ActivateVolumeOptions sb.ActivateVolumeOptions
 
 // LockSealedKeys manually locks access to the sealed keys. Meant to be
 // called in place of passing lockKeysOnFinish as true to
@@ -184,6 +191,100 @@ func UnlockEncryptedVolumeWithRecoveryKey(name, device string) error {
 
 	if err := sbActivateVolumeWithRecoveryKey(name, device, authRequestor, &options); err != nil {
 		return fmt.Errorf("cannot unlock encrypted device %q: %v", device, err)
+	}
+
+	return nil
+}
+
+// ActivateVolumeWithKey is a wrapper for secboot.ActivateVolumeWithKey
+func ActivateVolumeWithKey(volumeName, sourceDevicePath string, key []byte, options *ActivateVolumeOptions) error {
+	return sb.ActivateVolumeWithKey(volumeName, sourceDevicePath, key, (*sb.ActivateVolumeOptions)(options))
+}
+
+// DeactivateVolume is a wrapper for secboot.DeactivateVolume
+func DeactivateVolume(volumeName string) error {
+	return sb.DeactivateVolume(volumeName)
+}
+
+// AddBootstrapKeyOnExistingDisk will add a new bootstrap key to on an
+// existing encrypted disk. The disk is expected to be unlocked and
+// they key is available on the keyring. The bootstrap key is
+// temporary and is expected to be used with a BootstrappedContainer,
+// and removed by calling RemoveBootstrapKey.
+func AddBootstrapKeyOnExistingDisk(node string, newKey keys.EncryptionKey) error {
+	const defaultPrefix = "ubuntu-fde"
+	unlockKey, err := sbGetDiskUnlockKeyFromKernel(defaultPrefix, node, false)
+	if err != nil {
+		return fmt.Errorf("cannot get key for unlocked disk %s: %v", node, err)
+	}
+
+	if err := sbAddLUKS2ContainerUnlockKey(node, "bootstrap-key", sb.DiskUnlockKey(unlockKey), sb.DiskUnlockKey(newKey)); err != nil {
+		return fmt.Errorf("cannot enroll new installation key: %v", err)
+	}
+
+	return nil
+}
+
+// Rename key slots on LUKS2 container. If the key slot does not
+// exist, it is ignored. If cryptsetup does not support renaming, then
+// the key slots are instead removed.
+func RenameOrDeleteKeys(node string, renames map[string]string) error {
+	targets := make(map[string]bool)
+
+	for _, renameTo := range renames {
+		_, found := renames[renameTo]
+		if found {
+			return fmt.Errorf("internal error: keyslot name %s used as source and target of a rename", renameTo)
+		}
+		targets[renameTo] = true
+	}
+
+	// FIXME: listing keys, then modifying could be a TOCTOU issue.
+	// we expect here nothing else is messing with the key slots.
+	slots, err := sbListLUKS2ContainerUnlockKeyNames(node)
+	if err != nil {
+		return fmt.Errorf("cannot list slots in partition save partition: %v", err)
+	}
+
+	for _, slot := range slots {
+		_, found := targets[slot]
+		if found {
+			return fmt.Errorf("slot name %s is already in use", slot)
+		}
+	}
+
+	for _, slot := range slots {
+		renameTo, found := renames[slot]
+		if found {
+			if err := sbRenameLUKS2ContainerKey(node, slot, renameTo); err != nil {
+				if errors.Is(err, sb.ErrMissingCryptsetupFeature) {
+					if err := sbDeleteLUKS2ContainerKey(node, slot); err != nil {
+						return fmt.Errorf("cannot remove old container key: %v", err)
+					}
+				} else {
+					return fmt.Errorf("cannot rename container key: %v", err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// DeleteKeys delete key slots on a LUKS2 container. Slots that do not
+// exist are ignored.
+func DeleteKeys(node string, matches map[string]bool) error {
+	slots, err := sbListLUKS2ContainerUnlockKeyNames(node)
+	if err != nil {
+		return fmt.Errorf("cannot list slots in partition save partition: %v", err)
+	}
+
+	for _, slot := range slots {
+		if matches[slot] {
+			if err := sbDeleteLUKS2ContainerKey(node, slot); err != nil {
+				return fmt.Errorf("cannot remove old container key: %v", err)
+			}
+		}
 	}
 
 	return nil
