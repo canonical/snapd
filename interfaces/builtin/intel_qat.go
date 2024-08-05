@@ -21,6 +21,10 @@ package builtin
 
 const intelQatSummary = `allows access to Intel QuickAssist Technology (QAT)`
 
+// Support for Intel QAT, see:
+// - kernel support: https://elixir.bootlin.com/linux/v6.10.3/source/drivers/crypto/intel/qat
+// - userspace manager: https://github.com/intel/qatlib
+
 const intelQatBaseDeclarationSlots = `
   intel-qat:
     allow-installation:
@@ -51,6 +55,10 @@ const intelQatConnectedPlugAppArmor = `
 
 # QAT Manager Unix socket used for inter-process communication
 # between qatmgr and applications (e.g. libqat)
+#
+# For reference:
+# https://github.com/intel/qatlib/blob/6117838/quickassist/lookaside/access_layer/src/qat_direct/vfio/qat_mgr.h#L59
+#
 /run/qat/qatmgr.sock rw,
 `
 
