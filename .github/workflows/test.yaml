@@ -466,7 +466,7 @@ jobs:
             systems: 'ubuntu-23.10-64'
           - group: ubuntu-daily
             backend: google
-            systems: 'ubuntu-24.04-64'
+            systems: 'ubuntu-24.10-64'
           - group: ubuntu-core-16
             backend: google
             systems: 'ubuntu-core-16-64'
