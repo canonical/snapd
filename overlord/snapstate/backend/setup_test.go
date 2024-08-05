@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
@@ -755,6 +756,105 @@ func (s *setupSuite) testSetupKernelModulesComponents(c *C, toInstall, installed
 		// New units have been cleaned up
 		checkRemoved(c, toInstall, ksnap, kernRev)
 	}
+}
+
+func (s *setupSuite) TestSetupKernelModulesComponentsRevert(c *C) {
+	ksnap := "mykernel"
+	kernRev := snap.R(33)
+
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+
+	// Files from the kernel snap
+	revStr := kernRev.String()
+	snapdir := filepath.Join(dirs.SnapMountDir, ksnap, revStr)
+	fwdir := filepath.Join(snapdir, "firmware")
+	c.Assert(os.MkdirAll(fwdir, 0755), IsNil)
+	modsdir := filepath.Join(snapdir, "modules/6.5.4-3-generic")
+	c.Assert(os.MkdirAll(modsdir, 0755), IsNil)
+
+	// Run kernel set-up
+	err := s.be.SetupKernelSnap(ksnap, kernRev, progress.Null)
+	c.Assert(err, IsNil)
+
+	// First call to EnsureKernelDriversTree will fail
+	n := 0
+	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (err error) {
+		n++
+		driversTree := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir),
+			"kernel", ksnap, kernRev.String())
+		c.Check(destDir, Equals, driversTree)
+		kernSnapDir := filepath.Join(dirs.SnapMountDir, ksnap, kernRev.String())
+		c.Check(kMntPts, DeepEquals, kernel.MountPoints{
+			Current: kernSnapDir,
+			Target:  kernSnapDir,
+		})
+		c.Check(opts, DeepEquals, &kernel.KernelDriversTreeOptions{KernelInstall: false})
+		compsMnt := filepath.Join(dirs.SnapMountDir, ksnap, "components/mnt")
+		switch n {
+		case 1, 3:
+			// Call in first call to SetupKernelModulesComponents
+			// and in the second call when restoring firstly
+			// installed components
+			c.Check(compsMntPts, DeepEquals, []kernel.ModulesCompMountPoints{
+				{
+					Name: "comp1",
+					MountPoints: kernel.MountPoints{
+						Current: filepath.Join(compsMnt, "comp1/11"),
+						Target:  filepath.Join(compsMnt, "comp1/11"),
+					},
+				},
+				{
+					Name: "comp2",
+					MountPoints: kernel.MountPoints{
+						Current: filepath.Join(compsMnt, "comp2/21"),
+						Target:  filepath.Join(compsMnt, "comp2/21"),
+					},
+				},
+			})
+			return nil
+		case 2:
+			c.Check(compsMntPts, DeepEquals, []kernel.ModulesCompMountPoints{
+				{
+					Name: "comp2",
+					MountPoints: kernel.MountPoints{
+						Current: filepath.Join(compsMnt, "comp2/22"),
+						Target:  filepath.Join(compsMnt, "comp2/22"),
+					},
+				},
+				{
+					Name: "comp3",
+					MountPoints: kernel.MountPoints{
+						Current: filepath.Join(compsMnt, "comp3/32"),
+						Target:  filepath.Join(compsMnt, "comp3/32"),
+					},
+				},
+				{
+					Name: "comp1",
+					MountPoints: kernel.MountPoints{
+						Current: filepath.Join(compsMnt, "comp1/11"),
+						Target:  filepath.Join(compsMnt, "comp1/11"),
+					},
+				},
+			})
+			return fmt.Errorf("depmod error")
+		default:
+			c.Error("unexpected call to EnsureKernelDriversTree")
+			return nil
+		}
+	})
+	defer r()
+
+	// Some initial modules, no failures
+	firstInstalled := createKModsComps(c, 1, 2, ksnap, kernRev)
+	err = s.be.SetupKernelModulesComponents(firstInstalled, nil, ksnap, kernRev, progress.Null)
+	c.Assert(err, IsNil)
+
+	// Add components, with some overlap (comp2/3 - new rev for comp2
+	// though, 22), and fail
+	newComps := createKModsComps(c, 2, 2, ksnap, kernRev)
+	err = s.be.SetupKernelModulesComponents(newComps, firstInstalled, ksnap, kernRev, progress.Null)
+	c.Assert(err, ErrorMatches, "depmod error")
 }
 
 func checkInstalled(c *C, installed []*snap.ComponentSideInfo, ksnap string, kernRev snap.Revision) {

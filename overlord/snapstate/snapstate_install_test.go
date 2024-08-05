@@ -6755,7 +6755,7 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathManyInstanceRunThrough(c
 	const (
 		undo        = false
 		snapName    = "test-snap"
-		instanceKey = "key"
+		instanceKey = ""
 		removePaths = false
 	)
 	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo, removePaths)
@@ -6764,8 +6764,8 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathManyInstanceRunThrough(c
 func (s *snapmgrTestSuite) TestInstallComponentsFromPathInstanceRunThroughUndo(c *C) {
 	const (
 		undo        = true
-		snapName    = "test-snap"
-		instanceKey = "key"
+		snapName    = "some-kernel"
+		instanceKey = ""
 		removePaths = false
 	)
 	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo, removePaths)
@@ -6836,6 +6836,7 @@ version: 1.0
 
 	snapPath := makeTestSnap(c, `name: test-snap
 version: 1.0
+type: kernel
 components:
   test-component:
     type: test
@@ -6902,6 +6903,10 @@ components:
 	}
 
 	expected = append(expected, []fakeOp{{
+		op:    "update-gadget-assets:Doing",
+		name:  instanceName,
+		revno: snapRevision,
+	}, {
 		op:   "copy-data",
 		path: filepath.Join(dirs.SnapMountDir, filepath.Join(instanceName, snapRevision.String())),
 		old:  "<no-old>",

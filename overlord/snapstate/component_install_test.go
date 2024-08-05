@@ -170,14 +170,18 @@ func createTestSnapInfoForComponent(c *C, snapName string, snapRev snap.Revision
 	return createTestSnapInfoForComponentWithType(c, snapName, snapRev, compName, "test")
 }
 
-func createTestSnapInfoForComponentWithType(c *C, snapName string, snapRev snap.Revision, compName, typ string) *snap.Info {
+func createTestSnapInfoForComponentWithType(c *C, snapName string, snapRev snap.Revision, compName, compType string) *snap.Info {
+	snapType := "app"
+	if compType == "kernel-modules" {
+		snapType = "kernel"
+	}
 	snapYaml := fmt.Sprintf(`name: %s
-type: app
+type: %s
 version: 1.1
 components:
   %s:
     type: %s
-`, snapName, compName, typ)
+`, snapName, snapType, compName, compType)
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 	info.SideInfo = snap.SideInfo{RealName: snapName, Revision: snapRev}
