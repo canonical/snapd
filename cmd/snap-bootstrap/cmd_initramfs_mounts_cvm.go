@@ -254,8 +254,8 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 			return err
 		}
 
-		// Create overlayfs' upperdir and workdir in the writable layer (tmpfs or not).
-		if pm.GptLabel == "cloudimg-rootfs-writable" {
+		// Create overlayfs' upperdir and workdir in the writable tmpfs layer.
+		if pm.Opts.Tmpfs {
 			fi, err := os.Stat(pm.Where)
 			if err != nil {
 				return err
