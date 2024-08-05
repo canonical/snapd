@@ -1005,11 +1005,6 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 }
 
-type userAndID struct {
-	userID uint32
-	ruleID prompting.IDType
-}
-
 func (s *requestrulesSuite) TestRulesLookup(c *C) {
 	rdb, _ := requestrules.New(s.defaultNotifyRule)
 
