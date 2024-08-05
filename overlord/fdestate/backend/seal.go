@@ -20,9 +20,6 @@
 package backend
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"fmt"
 	"path/filepath"
 
@@ -32,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 )
 
 var (
@@ -56,6 +52,7 @@ func runKeySealRequests(key secboot.BootstrappedContainer) []secboot.SealKeyRequ
 		{
 			BootstrappedContainer: key,
 			KeyName:               "ubuntu-data",
+			SlotName:              "default",
 			KeyFile:               device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir),
 		},
 	}
@@ -74,25 +71,27 @@ func fallbackKeySealRequests(key, saveKey secboot.BootstrappedContainer, factory
 		{
 			BootstrappedContainer: key,
 			KeyName:               "ubuntu-data",
+			SlotName:              "default-fallback",
 			KeyFile:               device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
 		},
 		{
 			BootstrappedContainer: saveKey,
 			KeyName:               "ubuntu-save",
+			SlotName:              "default-fallback",
 			KeyFile:               saveFallbackKey,
 		},
 	}
 }
 
-func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string, pcrHandle uint32) error {
+func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBootChains, roleToBlName map[bootloader.Role]string, pcrHandle uint32) ([]byte, error) {
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
-		return fmt.Errorf("cannot prepare for key sealing: %v", err)
+		return nil, fmt.Errorf("cannot prepare for key sealing: %v", err)
 	}
 
 	sealKeyParams := &secboot.SealKeysParams{
 		ModelParams:            modelParams,
-		TPMPolicyAuthKey:       authKey,
+		PrimaryKey:             nil,
 		TPMPolicyAuthKeyFile:   filepath.Join(boot.InstallHostFDESaveDir, "tpm-policy-auth-key"),
 		PCRPolicyCounterHandle: pcrHandle,
 	}
@@ -103,14 +102,15 @@ func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBo
 	// path only unseals one object because unsealing is expensive.
 	// Furthermore, the run object key is stored on ubuntu-boot so that we do not
 	// need to continually write/read keys from ubuntu-seed.
-	if err := secbootSealKeys(runKeySealRequests(key), sealKeyParams); err != nil {
-		return fmt.Errorf("cannot seal the encryption keys: %v", err)
+	primaryKey, err := secbootSealKeys(runKeySealRequests(key), sealKeyParams)
+	if err != nil {
+		return nil, fmt.Errorf("cannot seal the encryption keys: %v", err)
 	}
 
-	return nil
+	return primaryKey, nil
 }
 
-func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot.PredictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string, factoryReset bool, pcrHandle uint32) error {
+func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot.PredictableBootChains, primaryKey []byte, roleToBlName map[bootloader.Role]string, factoryReset bool, pcrHandle uint32) error {
 	// also seal the keys to the recovery bootchains as a fallback
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
@@ -118,7 +118,7 @@ func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot
 	}
 	sealKeyParams := &secboot.SealKeysParams{
 		ModelParams:            modelParams,
-		TPMPolicyAuthKey:       authKey,
+		PrimaryKey:             primaryKey,
 		PCRPolicyCounterHandle: pcrHandle,
 	}
 	logger.Debugf("sealing fallback key with PCR handle: %#x", sealKeyParams.PCRPolicyCounterHandle)
@@ -126,7 +126,7 @@ func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot
 	// key files are stored on ubuntu-seed, separate from ubuntu-data so they
 	// can be used if ubuntu-data and ubuntu-boot are corrupted or unavailable.
 
-	if err := secbootSealKeys(fallbackKeySealRequests(key, saveKey, factoryReset), sealKeyParams); err != nil {
+	if _, err := secbootSealKeys(fallbackKeySealRequests(key, saveKey, factoryReset), sealKeyParams); err != nil {
 		return fmt.Errorf("cannot seal the fallback encryption keys: %v", err)
 	}
 
@@ -134,19 +134,7 @@ func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot
 }
 
 func sealKeyForBootChainsHook(key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams) error {
-	// XXX: Move the auxKey creation to a more generic place, see
-	// PR#10123 for a possible way of doing this. However given
-	// that the equivalent key for the TPM case is also created in
-	// sealKeyToModeenvUsingTPM more symetric to create the auxKey
-	// here and when we also move TPM to use the auxKey to move
-	// the creation of it.
-	auxKey, err := keys.NewAuxKey()
-	if err != nil {
-		return fmt.Errorf("cannot create aux key: %v", err)
-	}
-
 	sealingParams := secboot.SealKeysWithFDESetupHookParams{
-		AuxKey:     auxKey,
 		AuxKeyFile: filepath.Join(boot.InstallHostFDESaveDir, "aux-key"),
 	}
 
@@ -164,6 +152,18 @@ func sealKeyForBootChainsHook(key, saveKey secboot.BootstrappedContainer, params
 		return err
 	}
 
+	for _, container := range []secboot.BootstrappedContainer{
+		key,
+		saveKey,
+	} {
+		if container != nil {
+			if err := container.RemoveBootstrapKey(); err != nil {
+				// This could be a warning
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -175,12 +175,6 @@ func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secbo
 	pbc := boot.ToPredictableBootChains(append(params.RunModeBootChains, params.RecoveryBootChains...))
 	// the boot chains we seal the fallback object to
 	rpbc := boot.ToPredictableBootChains(params.RecoveryBootChains)
-
-	// gets written to a file by sealRunObjectKeys()
-	authKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return fmt.Errorf("cannot generate key for signing dynamic authorization policies: %v", err)
-	}
 
 	runObjectKeyPCRHandle := uint32(secboot.RunObjectPCRPolicyCounterHandle)
 	fallbackObjectKeyPCRHandle := uint32(secboot.FallbackObjectPCRPolicyCounterHandle)
@@ -226,15 +220,27 @@ func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secbo
 
 	// TODO: refactor sealing functions to take a struct instead of so many
 	// parameters
-	err = sealRunObjectKeys(key, pbc, authKey, params.RoleToBlName, runObjectKeyPCRHandle)
+	primaryKey, err := sealRunObjectKeys(key, pbc, params.RoleToBlName, runObjectKeyPCRHandle)
 	if err != nil {
 		return err
 	}
 
-	err = sealFallbackObjectKeys(key, saveKey, rpbc, authKey, params.RoleToBlName, params.FactoryReset,
+	err = sealFallbackObjectKeys(key, saveKey, rpbc, primaryKey, params.RoleToBlName, params.FactoryReset,
 		fallbackObjectKeyPCRHandle)
 	if err != nil {
 		return err
+	}
+
+	for _, container := range []secboot.BootstrappedContainer{
+		key,
+		saveKey,
+	} {
+		if container != nil {
+			if err := container.RemoveBootstrapKey(); err != nil {
+				// This could be a warning
+				return err
+			}
+		}
 	}
 
 	if err := device.StampSealedKeys(params.InstallHostWritableDir, device.SealingMethodTPM); err != nil {
@@ -267,7 +273,7 @@ func MockSecbootProvisionTPM(f func(mode secboot.TPMProvisionMode, lockoutAuthFi
 	}
 }
 
-func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error) (restore func()) {
+func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) ([]byte, error)) (restore func()) {
 	old := secbootSealKeys
 	secbootSealKeys = f
 	return func() {

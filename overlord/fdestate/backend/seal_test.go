@@ -173,7 +173,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 
 		// set mock key sealing
 		sealKeysCalls := 0
-		restore = fdeBackend.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
+		restore = fdeBackend.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) ([]byte, error) {
 			c.Assert(provisionCalls, Equals, 1, Commentf("TPM must have been provisioned before"))
 			sealKeysCalls++
 			switch sealKeysCalls {
@@ -182,7 +182,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 				c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-policy-auth-key"))
 
 				dataKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key")
-				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{BootstrappedContainer: myKey, KeyName: "ubuntu-data", KeyFile: dataKeyFile}})
+				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{BootstrappedContainer: myKey, KeyName: "ubuntu-data", SlotName: "default", KeyFile: dataKeyFile}})
 				if tc.pcrHandleOfKey == secboot.FallbackObjectPCRPolicyCounterHandle {
 					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltRunObjectPCRPolicyCounterHandle)
 				} else {
@@ -198,7 +198,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 					// during factory reset we use a different key location
 					saveKeyFile = filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory-reset")
 				}
-				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{BootstrappedContainer: myKey, KeyName: "ubuntu-data", KeyFile: dataKeyFile}, {BootstrappedContainer: myKey2, KeyName: "ubuntu-save", KeyFile: saveKeyFile}})
+				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{BootstrappedContainer: myKey, KeyName: "ubuntu-data", SlotName: "default-fallback", KeyFile: dataKeyFile}, {BootstrappedContainer: myKey2, KeyName: "ubuntu-save", SlotName: "default-fallback", KeyFile: saveKeyFile}})
 				if tc.pcrHandleOfKey == secboot.FallbackObjectPCRPolicyCounterHandle {
 					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltFallbackObjectPCRPolicyCounterHandle)
 				} else {
@@ -246,7 +246,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 			}
 			c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 
-			return tc.sealErr
+			return nil, tc.sealErr
 		})
 		defer restore()
 

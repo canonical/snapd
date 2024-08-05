@@ -25,8 +25,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-type DiskUnlockKey = []byte
-
 type KeyDataWriter interface {
 	// TODO: this will typically have a function that takes a key
 	// data as input
@@ -37,8 +35,6 @@ type KeyDataWriter interface {
 // meant to be an initial key that is removed after all required keys
 // are enrolled, by calling RemoveBootstrapKey.
 type BootstrappedContainer interface {
-	//LegacyKeptKey is only temporary until we have moved to using multiple keys
-	LegacyKeptKey() DiskUnlockKey
 	//AddKey adds a key "newKey" to "slotName"
 	//If "token", the a KeyDataWriter is returned to write key data to the token of the new key slot
 	AddKey(slotName string, newKey []byte, token bool) (KeyDataWriter, error)
@@ -46,60 +42,40 @@ type BootstrappedContainer interface {
 	RemoveBootstrapKey() error
 }
 
-type legacyBootstrappedContainer struct {
-	key      DiskUnlockKey
-	finished bool
+func createBootstrappedContainerMockImpl(key DiskUnlockKey, devicePath string) BootstrappedContainer {
+	panic("trying to create a bootstrapped container in a non-secboot build")
 }
 
-func (l *legacyBootstrappedContainer) LegacyKeptKey() DiskUnlockKey {
-	if l.finished {
-		panic("internal error: trying to access installation key after being removed")
-	}
-	return l.key
+var CreateBootstrappedContainer = createBootstrappedContainerMockImpl
+
+type MockBootstrappedContainer struct {
+	BootstrapKeyRemoved bool
+	Slots               map[string][]byte
 }
 
-func (l *legacyBootstrappedContainer) AddKey(slotName string, newKey []byte, token bool) (KeyDataWriter, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-func (l *legacyBootstrappedContainer) RemoveBootstrapKey() error {
-	l.finished = true
-	return nil
-}
-
-// CreateBootstrappedContainer creates a new BootstrappedContainer for a given device
-// path and bootstrap unlock key. The unlock key must be valid to
-// unlock the device.
-// TODO: devicePath might use an abstraction for key slot container,
-// instead of a path
-// TODO: key should probably be optional and generated instead
-func CreateBootstrappedContainer(key DiskUnlockKey, devicePath string) BootstrappedContainer {
-	return &legacyBootstrappedContainer{
-		key:      key,
-		finished: false,
-	}
-}
-
-type mockBootstrappedContainer struct {
-	finished bool
-}
-
-func (l *mockBootstrappedContainer) LegacyKeptKey() DiskUnlockKey {
-	panic("not implemented")
-}
-
-func (l *mockBootstrappedContainer) AddKey(slotName string, newKey []byte, token bool) (KeyDataWriter, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-func (l *mockBootstrappedContainer) RemoveBootstrapKey() error {
-	l.finished = true
-	return nil
-}
-
-func CreateMockBootstrappedContainer() BootstrappedContainer {
+func CreateMockBootstrappedContainer() *MockBootstrappedContainer {
 	osutil.MustBeTestBinary("CreateMockBootstrappedContainer can be only called from tests")
-	return &mockBootstrappedContainer{
-		finished: false,
+	return &MockBootstrappedContainer{Slots: make(map[string][]byte)}
+}
+
+func (m *MockBootstrappedContainer) AddKey(slotName string, newKey []byte, token bool) (KeyDataWriter, error) {
+	if m.BootstrapKeyRemoved {
+		return nil, fmt.Errorf("internal error: key resetter was a already finished")
 	}
+
+	if token {
+		return nil, fmt.Errorf("not implemented")
+	} else {
+		_, ok := m.Slots[slotName]
+		if ok {
+			return nil, fmt.Errorf("slot already taken")
+		}
+		m.Slots[slotName] = newKey
+		return nil, nil
+	}
+}
+
+func (l *MockBootstrappedContainer) RemoveBootstrapKey() error {
+	l.BootstrapKeyRemoved = true
+	return nil
 }

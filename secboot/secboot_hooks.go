@@ -22,13 +22,15 @@ package secboot
 
 import (
 	"bytes"
-	"crypto"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 
 	sb "github.com/snapcore/secboot"
+	sb_scope "github.com/snapcore/secboot/bootscope"
+	sb_hooks "github.com/snapcore/secboot/hooks"
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/kernel/fde"
@@ -37,63 +39,83 @@ import (
 )
 
 var fdeHasRevealKey = fde.HasRevealKey
+var sbSetModel = sb_scope.SetModel
+var sbSetBootMode = sb_scope.SetBootMode
+var sbSetKeyRevealer = sb_hooks.SetKeyRevealer
 
-const fdeHooksPlatformName = "fde-hook-v2"
+const legacyFdeHooksPlatformName = "fde-hook-v2"
 
 func init() {
 	handler := &fdeHookV2DataHandler{}
-	sb.RegisterPlatformKeyDataHandler(fdeHooksPlatformName, handler)
+	sb.RegisterPlatformKeyDataHandler(legacyFdeHooksPlatformName, handler)
 }
 
-// SealKeysWithFDESetupHook protects the given keys through using the
-// fde-setup hook and saves each protected key to the KeyFile
-// indicated in the key SealKeyRequest.
+type hookKeyProtector struct {
+	runHook fde.RunSetupHookFunc
+	keyName string
+}
+
+func (h *hookKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
+	keyParams := &fde.InitialSetupParams{
+		Key:     cleartext,
+		KeyName: h.keyName,
+	}
+	res, err := fde.InitialSetup(h.runHook, keyParams)
+	if err != nil {
+		return nil, nil, err
+	}
+	if res.Handle == nil {
+		return res.EncryptedKey, nil, nil
+	} else {
+		return res.EncryptedKey, *res.Handle, nil
+	}
+}
+
 func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
-	auxKey := params.AuxKey[:]
+	var primaryKey sb.PrimaryKey
+
 	for _, skr := range keys {
-		// TODO: enroll a new keyslot instead of reusing the bootstrap key
-		key := skr.BootstrappedContainer.LegacyKeptKey()
-		payload := sb.MarshalKeys([]byte(key), auxKey)
-		keyParams := &fde.InitialSetupParams{
-			Key:     payload,
-			KeyName: skr.KeyName,
+		protector := &hookKeyProtector{
+			runHook: runHook,
+			keyName: skr.KeyName,
 		}
-		res, err := fde.InitialSetup(runHook, keyParams)
+		// TODO: add support for AEAD
+		flags := sb_hooks.KeyProtectorNoAEAD
+		sb_hooks.SetKeyProtector(protector, flags)
+		defer sb_hooks.SetKeyProtector(nil, 0)
+
+		params := &sb_hooks.KeyParams{
+			PrimaryKey: primaryKey,
+			Role:       skr.KeyName,
+			AuthorizedSnapModels: []sb.SnapModel{
+				params.Model,
+			},
+			// TODO: add boot modes
+		}
+
+		protectedKey, primaryKeyOut, unlockKey, err := sb_hooks.NewProtectedKey(rand.Reader, params)
 		if err != nil {
 			return err
 		}
-		if err := writeKeyData(skr.KeyFile, res, auxKey, params.Model); err != nil {
-			return fmt.Errorf("cannot store key: %v", err)
+
+		if primaryKey == nil {
+			primaryKey = primaryKeyOut
+		}
+		const token = false
+		if _, err := skr.BootstrappedContainer.AddKey(skr.SlotName, unlockKey, token); err != nil {
+			return err
+		}
+		writer := sb.NewFileKeyDataWriter(skr.KeyFile)
+		if err := protectedKey.WriteAtomic(writer); err != nil {
+			return err
 		}
 	}
-	if params.AuxKeyFile != "" {
-		if err := osutil.AtomicWriteFile(params.AuxKeyFile, auxKey, 0600, 0); err != nil {
-			return fmt.Errorf("cannot write the aux key file: %v", err)
+	if primaryKey != nil && params.AuxKeyFile != "" {
+		if err := osutil.AtomicWriteFile(params.AuxKeyFile, primaryKey, 0600, 0); err != nil {
+			return fmt.Errorf("cannot write the policy auth key file: %v", err)
 		}
 	}
 
-	return nil
-}
-
-func writeKeyData(path string, keySetup *fde.InitialSetupResult, auxKey []byte, model sb.SnapModel) error {
-	kd, err := sb.NewKeyData(&sb.KeyParams{
-		EncryptedPayload: keySetup.EncryptedKey,
-		Handle:           keySetup.Handle,
-
-		PlatformName:      fdeHooksPlatformName,
-		AuxiliaryKey:      auxKey,
-		SnapModelAuthHash: crypto.SHA256,
-	})
-	if err != nil {
-		return fmt.Errorf("cannot create key data: %v", err)
-	}
-	if err := kd.SetAuthorizedSnapModels(auxKey, model); err != nil {
-		return fmt.Errorf("cannot set model %s/%s as authorized: %v", model.BrandID(), model.Model(), err)
-	}
-	f := sb.NewFileKeyDataWriter(path)
-	if err := kd.WriteAtomic(f); err != nil {
-		return fmt.Errorf("cannot write key data: %v", err)
-	}
 	return nil
 }
 
@@ -179,12 +201,21 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(sealedEncryptionKeyFile, sourceDev
 	// data generation 1.
 	options.Model = model
 
+	sbSetModel(model)
+	// This does not seem to work:
+	//defer sbSetModel(nil)
+	// TODO: set boot mode
+	//sbSetBootMode("run")
+	//defer sbSetBootMode("")
+	sbSetKeyRevealer(&keyRevealerV3{})
+	defer sbSetKeyRevealer(nil)
+
 	authRequestor, err := newAuthRequestor()
 	if err != nil {
 		return res, fmt.Errorf("internal error: cannot build an auth requestor: %v", err)
 	}
 
-	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, authRequestor, sb.Argon2iKDF(), options, keyData)
+	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, authRequestor, options, keyData)
 	if err == sb.ErrRecoveryKeyUsed {
 		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
 		res.FsDevice = targetDevice
@@ -203,24 +234,42 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(sealedEncryptionKeyFile, sourceDev
 
 type fdeHookV2DataHandler struct{}
 
-func (fh *fdeHookV2DataHandler) RecoverKeys(data *sb.PlatformKeyData) (sb.KeyPayload, error) {
+func (fh *fdeHookV2DataHandler) RecoverKeys(data *sb.PlatformKeyData, encryptedPayload []byte) ([]byte, error) {
 	var handle *json.RawMessage
 	if len(data.EncodedHandle) != 0 {
 		rawHandle := json.RawMessage(data.EncodedHandle)
 		handle = &rawHandle
 	}
 	p := fde.RevealParams{
-		SealedKey: data.EncryptedPayload,
+		SealedKey: encryptedPayload,
 		Handle:    handle,
 		V2Payload: true,
 	}
 	return fde.Reveal(&p)
 }
 
-func (fh *fdeHookV2DataHandler) ChangeAuthKey(handle, old, new []byte) ([]byte, error) {
+func (fh *fdeHookV2DataHandler) ChangeAuthKey(data *sb.PlatformKeyData, old, new []byte) ([]byte, error) {
 	return nil, fmt.Errorf("cannot change auth key yet")
 }
 
-func (fh *fdeHookV2DataHandler) RecoverKeysWithAuthKey(data *sb.PlatformKeyData, key []byte) (sb.KeyPayload, error) {
+func (fh *fdeHookV2DataHandler) RecoverKeysWithAuthKey(data *sb.PlatformKeyData, encryptedPayload, key []byte) ([]byte, error) {
 	return nil, fmt.Errorf("cannot recover keys with auth keys yet")
+}
+
+type keyRevealerV3 struct {
+}
+
+func (kr *keyRevealerV3) RevealKey(data, ciphertext, aad []byte) (plaintext []byte, err error) {
+	logger.Noticef("Called reveal key")
+	var handle *json.RawMessage
+	if len(data) != 0 {
+		rawHandle := json.RawMessage(data)
+		handle = &rawHandle
+	}
+	p := fde.RevealParams{
+		SealedKey: ciphertext,
+		Handle:    handle,
+		V2Payload: true,
+	}
+	return fde.Reveal(&p)
 }
