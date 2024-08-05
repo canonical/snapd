@@ -149,11 +149,11 @@ func generateMountsFromManifest(im ImageManifest, disk disks.Disk) ([]partitionM
 	// If no writable partitions were found in the manifest, Configure a tmpfs filesystem for the upper and workdir layers
 	// of the final rootfs mount.
 	if foundWritablePartition == "" {
-		foundWritablePartition = "cloudimg-rootfs-writable"
+		foundWritablePartition = "writable-tmp"
 
 		pm := partitionMount{
-			Where:    filepath.Join(boot.InitramfsRunMntDir, "cloudimg-rootfs-writable"),
-			GptLabel: "cloudimg-rootfs-writable",
+			Where:    filepath.Join(boot.InitramfsRunMntDir, "writable-tmp"),
+			GptLabel: "writable-tmp",
 			Opts: &systemdMountOptions{
 				Tmpfs: true,
 			},
