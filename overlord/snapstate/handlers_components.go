@@ -552,6 +552,8 @@ func (m *SnapManager) doUnlinkComponent(t *state.Task, _ *tomb.Tomb) (err error)
 		return err
 	}
 
+	// TODO:COMPS: test taking this branch when unlinking components during a
+	// refresh where we lose components
 	if err := saveCurrentKernelModuleComponents(t, snapSup, snapSt); err != nil {
 		return err
 	}
