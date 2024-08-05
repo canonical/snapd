@@ -228,7 +228,7 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 		return err
 	}
 
-	// Mount rootfs
+	// Mount partitions
 	for _, pm := range partitionMounts {
 		var what string
 		var unlockRes secboot.UnlockResult
