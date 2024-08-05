@@ -223,7 +223,7 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 		}
 	}
 
-	// Provision TPM TODO: should become "try and provision TPM" to support the unencrypted root fs case
+	// Provision TPM
 	if err := secbootProvisionForCVM(boot.InitramfsUbuntuSeedDir); err != nil {
 		return err
 	}
