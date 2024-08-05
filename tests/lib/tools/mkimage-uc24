@@ -268,7 +268,7 @@ populate_image() {
     # ESP partition just chainloads into ubuntu-boot
     # XXX: do we want this given that we don't have recovery systems?
     sudo mkdir -p "$MNT"/esp/EFI/boot
-    sudo cp "$CACHE"/snap-pc/grubx64.efi "$MNT"/esp/EFI/ubuntu
+    sudo cp "$CACHE"/snap-pc/grubx64.efi "$MNT"/esp/EFI/boot
     sudo cp "$CACHE"/snap-pc/shim.efi.signed "$MNT"/esp/EFI/boot/bootx64.efi
     cat > "$CACHE"/esp-grub.cfg <<'EOF'
 set default=0
