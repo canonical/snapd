@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -374,6 +374,7 @@ func probeParserFeatures() ([]string, error) {
 		feature string
 		flags   []string
 		probe   string
+		minVer  string
 	}{
 		{
 			feature: "unsafe",
@@ -390,6 +391,16 @@ func probeParserFeatures() ([]string, error) {
 		{
 			feature: "mqueue",
 			probe:   "mqueue,",
+			minVer:  "4.0.1",
+		},
+		{
+			feature: "allow-all",
+			probe:   "allow all,",
+			minVer:  "4.0.2",
+		},
+		{
+			feature: "io-uring",
+			probe:   "allow io_uring,",
 		},
 		{
 			feature: "cap-bpf",
@@ -417,11 +428,29 @@ func probeParserFeatures() ([]string, error) {
 	if err != nil {
 		return []string{}, err
 	}
+
+	aaVer := appArmorParserVersion()
+	logger.Debugf("apparmor parser version: %q", aaVer)
+
 	features := make([]string, 0, len(featureProbes)+1)
 	for _, fp := range featureProbes {
+		if minVer := fp.minVer; minVer != "" {
+			res, err := strutil.VersionCompare(aaVer, minVer)
+			if err != nil {
+				logger.Noticef("cannot compare versions: %s", err)
+				continue
+			}
+			if res < 0 {
+				logger.Debugf("skipping apparmor feature check for %s due to insufficient version %s", fp.feature, aaVer)
+				continue
+			}
+		}
 		// recreate the Cmd each time so we can exec it each time
 		cmd, _, _ := AppArmorParser()
-		if tryAppArmorParserFeature(cmd, fp.flags, fp.probe) {
+		err := tryAppArmorParserFeature(cmd, fp.flags, fp.probe)
+		if err != nil {
+			logger.Debugf("cannot probe apparmor feature %q: %v", fp.feature, err)
+		} else {
 			features = append(features, fp.feature)
 		}
 	}
@@ -429,6 +458,7 @@ func probeParserFeatures() ([]string, error) {
 		features = append(features, "snapd-internal")
 	}
 	sort.Strings(features)
+	logger.Debugf("probed apparmor parser features for version %s (internal=%v): %v", aaVer, internal, features)
 	return features, nil
 }
 
@@ -495,6 +525,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	for _, dir := range filepath.SplitList(parserSearchPath) {
 		path := filepath.Join(dir, "apparmor_parser")
 		if _, err := os.Stat(path); err == nil {
+			logger.Debugf("checking distro apparmor_parser at %v", path)
 			// Detect but ignore apparmor 4.0 ABI support.
 			//
 			// At present this causes some bugs with mqueue mediation that can
@@ -519,8 +550,23 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	return nil, false, os.ErrNotExist
 }
 
+func appArmorParserVersion() string {
+	cmd, _, _ := AppArmorParser()
+	cmd.Args = append(cmd.Args, "--version")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return ""
+	}
+	logger.Debugf("apparmor_parser --version\n%s", output)
+	// output is like "AppArmor parser version 2.13.4\n"
+	// "Copyright ..."
+	// get the version number from the first line
+	parts := strings.Split(strings.Split(string(output), "\n")[0], " ")
+	return parts[len(parts)-1]
+}
+
 // tryAppArmorParserFeature attempts to pre-process a bit of apparmor syntax with a given parser.
-func tryAppArmorParserFeature(cmd *exec.Cmd, flags []string, rule string) bool {
+func tryAppArmorParserFeature(cmd *exec.Cmd, flags []string, rule string) error {
 	cmd.Args = append(cmd.Args, "--preprocess")
 	flagSnippet := ""
 	if len(flags) > 0 {
@@ -532,9 +578,9 @@ func tryAppArmorParserFeature(cmd *exec.Cmd, flags []string, rule string) bool {
 	// older versions of apparmor_parser can exit with success even
 	// though they fail to parse
 	if err != nil || strings.Contains(string(output), "parser error") {
-		return false
+		return fmt.Errorf("apparmor_parser failed: %v: %s", err, output)
 	}
-	return true
+	return nil
 }
 
 // UpdateHomedirsTunable sets the AppArmor HOMEDIRS tunable to the list of the
@@ -632,7 +678,6 @@ func MockFeatures(kernelFeatures []string, kernelError error, parserFeatures []s
 	return func() {
 		appArmorAssessment = oldAppArmorAssessment
 	}
-
 }
 
 func MockParserSearchPath(new string) (restore func()) {
