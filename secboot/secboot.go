@@ -25,13 +25,10 @@ package secboot
 // Debian does run "go list" without any support for passing -tags.
 
 import (
-	"crypto/ecdsa"
-
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
-	"github.com/snapcore/snapd/secboot/keys"
 )
 
 const (
@@ -70,6 +67,8 @@ type SealKeyRequest struct {
 	BootstrappedContainer BootstrappedContainer
 	// The key name; identical keys should have identical names
 	KeyName string
+
+	SlotName string
 	// The path to store the sealed key file. The same Key/KeyName
 	// can be stored under multiple KeyFile names for safety.
 	KeyFile string
@@ -116,20 +115,18 @@ const (
 type SealKeysParams struct {
 	// The parameters we're sealing the key to
 	ModelParams []*SealKeyModelParams
-	// The authorization policy update key file (only relevant for TPM)
-	TPMPolicyAuthKey *ecdsa.PrivateKey
+	// The primary key to use, nil if needs to be generated
+	PrimaryKey []byte
+	// The handle at which to create a NV index for dynamic authorization policy revocation support
+	PCRPolicyCounterHandle uint32
 	// The path to the authorization policy update key file (only relevant for TPM,
 	// if empty the key will not be saved)
 	TPMPolicyAuthKeyFile string
-	// The handle at which to create a NV index for dynamic authorization policy revocation support
-	PCRPolicyCounterHandle uint32
 }
 
 type SealKeysWithFDESetupHookParams struct {
 	// Initial model to bind sealed keys to.
 	Model ModelForSealing
-	// AuxKey is the auxiliary key used to bind models.
-	AuxKey keys.AuxKey
 	// The path to the aux key file (if empty the key will not be
 	// saved)
 	AuxKeyFile string

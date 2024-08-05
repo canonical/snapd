@@ -24,16 +24,19 @@ import (
 	"errors"
 
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 var errBuildWithoutSecboot = errors.New("build without secboot support")
+
+type DiskUnlockKey []byte
 
 func CheckTPMKeySealingSupported(mode TPMProvisionMode) error {
 	return errBuildWithoutSecboot
 }
 
-func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
-	return errBuildWithoutSecboot
+func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
+	return nil, errBuildWithoutSecboot
 }
 
 func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
@@ -57,5 +60,28 @@ func ReleasePCRResourceHandles(handles ...uint32) error {
 }
 
 func resetLockoutCounter(lockoutAuthFile string) error {
+	return errBuildWithoutSecboot
+}
+
+type ActivateVolumeOptions struct {
+}
+
+func ActivateVolumeWithKey(volumeName, sourceDevicePath string, key []byte, options *ActivateVolumeOptions) error {
+	return errBuildWithoutSecboot
+}
+
+func DeactivateVolume(volumeName string) error {
+	return errBuildWithoutSecboot
+}
+
+func AddBootstrapKeyOnExistingDisk(node string, newKey keys.EncryptionKey) error {
+	return errBuildWithoutSecboot
+}
+
+func RenameOrDeleteKeys(node string, renames map[string]string) error {
+	return errBuildWithoutSecboot
+}
+
+func DeleteKeys(node string, matches map[string]bool) error {
 	return errBuildWithoutSecboot
 }

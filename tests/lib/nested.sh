@@ -1290,7 +1290,7 @@ nested_start_core_vm_unit() {
 
         if nested_is_secure_boot_enabled; then
             OVMF_CODE=".secboot"
-            if [ "$NESTED_FORCE_MS_KEYS" != "true" ] && [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
+            if [ "$NESTED_FORCE_MS_KEYS" != "true" ] && { [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ] || [ "${NESTED_FORCE_SNAKEOIL_KEYS:-false}" = "true" ] ; }; then
                 OVMF_VARS=".snakeoil"
             else
                 OVMF_VARS=".ms"
