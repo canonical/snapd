@@ -34,7 +34,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-func elfInterp(cmd string) (string, error) {
+var elfInterp = func(cmd string) (string, error) {
 	el, err := elf.Open(cmd)
 	if err != nil {
 		return "", err
@@ -112,9 +112,32 @@ func CommandFromSystemSnap(name string, cmdArgs ...string) (*exec.Cmd, error) {
 	cmdPath := filepath.Join(root, name)
 
 	if from == "snapd" {
-		// We do not need to specify the linker or library
-		// path from files coming from the snapd snap.
-		return exec.Command(cmdPath, cmdArgs...), nil
+		// check if the elf interpreter invoked by the binary will work
+		// without any tweaks, which is true if the snps are mounted at
+		// /snap, or do we need to invoke it directly,
+		// TODO perhaps check the symlink right away
+		slashSnapPrefix := filepath.Join(dirs.GlobalRootDir, "snap") + "/"
+		if strings.HasPrefix(root, slashSnapPrefix) {
+			// snap mount dir is "/snap" which matches the
+			// interpreter locations and otherwise works without any
+			// further tweaks
+			return exec.Command(cmdPath, cmdArgs...), nil
+		} else {
+			// when the snap mount dir isn't using /snap, then we
+			// need to invoke the interpreter directly and pass the library path
+			interp, err := elfInterp(cmdPath)
+			if err != nil {
+				return nil, err
+			}
+
+			interp = filepath.Join(dirs.SnapMountDir, strings.TrimPrefix(interp, slashSnapPrefix))
+			// all libraries are at the same path as the interpreter
+			ldLibraryPathForSnapd := filepath.Dir(interp)
+
+			ldSoArgs := []string{"--library-path", ldLibraryPathForSnapd, cmdPath}
+			allArgs := append(ldSoArgs, cmdArgs...)
+			return exec.Command(interp, allArgs...), nil
+		}
 	}
 
 	// We are trying to execute files from core snap. They need

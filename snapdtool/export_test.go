@@ -19,6 +19,10 @@
 
 package snapdtool
 
+import (
+	"github.com/snapcore/snapd/testutil"
+)
+
 var (
 	SystemSnapSupportsReExec = systemSnapSupportsReExec
 	ExeAndRoot               = exeAndRoot
@@ -49,4 +53,8 @@ func MockSyscallExec(f func(argv0 string, argv []string, envv []string) (err err
 	return func() {
 		syscallExec = oldSyscallExec
 	}
+}
+
+func MockElfInterp(f func(string) (string, error)) (restore func()) {
+	return testutil.Mock(&elfInterp, f)
 }
