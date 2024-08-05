@@ -95,9 +95,6 @@ func CheckEncryptionSetupData(encryptSetup *EncryptionSetupData, labelToEncDevic
 			return fmt.Errorf("encrypted device in EncryptionSetupData (%q) different to expected (%q)",
 				encryptSetup.parts[label].encryptedDevice, labelToEncDevice[label])
 		}
-		if len(part.installKey.LegacyKeptKey()) == 0 {
-			return fmt.Errorf("encryption key for %q is empty", label)
-		}
 	}
 
 	return nil
