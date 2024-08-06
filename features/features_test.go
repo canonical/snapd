@@ -212,11 +212,8 @@ func (*featureSuite) TestAppArmorPromptingSupportedCallback(c *C) {
 	restore := apparmor.MockFeatures(kernelFeatures, nil, parserFeatures, nil)
 	defer restore()
 	supported, reason := callback()
-	//c.Check(supported, Equals, true)
-	//c.Check(reason, Equals, "")
-	// TODO: change once prompting is fully supported
-	c.Check(supported, Equals, false)
-	c.Check(reason, Equals, "requires newer version of snapd")
+	c.Check(supported, Equals, true)
+	c.Check(reason, Equals, "")
 }
 
 func (*featureSuite) TestIsSupported(c *C) {
