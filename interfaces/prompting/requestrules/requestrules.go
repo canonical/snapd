@@ -115,10 +115,11 @@ type userDB struct {
 // RuleDB stores a mapping from rule ID to rule, and a tree of rule IDs
 // searchable by user, snap, interface, permission, and pattern variant.
 type RuleDB struct {
-	mutex   sync.Mutex
-	ids     map[prompting.IDType]int
-	rules   []*Rule
-	perUser map[uint32]*userDB
+	mutex     sync.Mutex
+	maxIDMmap prompting.MaxIDMmap
+	ids       map[prompting.IDType]int
+	rules     []*Rule
+	perUser   map[uint32]*userDB
 	// notifyRule is a closure which will be called to record a notice when a
 	// rule is added, patched, or removed.
 	notifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error
@@ -126,8 +127,19 @@ type RuleDB struct {
 
 // New creates a new rule database, loads existing rules from the database file,
 // and returns the populated database.
+//
+// The given notifyRule closure will be called when a rule is added, modified,
+// expired, or removed. In order to guarantee the order of notices, notifyRule
+// is called with the prompt DB lock held, so it should not block for a
+// substantial amount of time (such as to lock and modify snapd state).
 func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error) (*RuleDB, error) {
+	maxIDFilepath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "request-rule-max-id")
+	maxIDMmap, err := prompting.OpenMaxIDMmap(maxIDFilepath)
+	if err != nil {
+		return nil, err
+	}
 	rdb := &RuleDB{
+		maxIDMmap:  maxIDMmap,
 		ids:        make(map[prompting.IDType]int),
 		rules:      make([]*Rule, 0),
 		perUser:    make(map[uint32]*userDB),
@@ -528,7 +540,7 @@ func (rdb *RuleDB) PopulateNewRule(user uint32, snap string, iface string, const
 		// on values which were validated while unmarshalling
 		return nil, err
 	}
-	id, _ := rdb.nextID()
+	id, _ := rdb.maxIDMmap.NextID()
 	currTime := time.Now()
 	expiration, err := lifespan.ParseDuration(duration, currTime)
 	if err != nil {
@@ -546,13 +558,6 @@ func (rdb *RuleDB) PopulateNewRule(user uint32, snap string, iface string, const
 		Expiration:  expiration,
 	}
 	return &newRule, nil
-}
-
-func (rdb *RuleDB) nextID() (prompting.IDType, error) {
-	// XXX: this is not guaranteed to be be unique!
-	// TODO: persist max ID to disk and monotonically increase, as with requestprompts.
-	currTime := time.Now()
-	return prompting.IDType(uint64(currTime.UnixNano())), nil
 }
 
 // IsPathAllowed checks whether the given path with the given permission is
