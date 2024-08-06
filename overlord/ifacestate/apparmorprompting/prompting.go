@@ -464,6 +464,7 @@ func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface st
 // given snap and/or interface. Snap and iface can't both be unspecified.
 func (m *InterfacesRequestsManager) RemoveRules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error) {
 	if snap == "" && iface == "" {
+		// The caller should ensure that this is not the case.
 		return nil, fmt.Errorf("cannot remove rules for unspecified snap and interface")
 	}
 	if snap != "" {
