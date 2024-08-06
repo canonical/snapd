@@ -21,15 +21,9 @@ package requestprompts
 
 import (
 	"errors"
-	"fmt"
-	"os"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"time"
-	"unsafe"
-
-	"golang.org/x/sys/unix"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
@@ -172,8 +166,8 @@ type PromptDB struct {
 	mutex sync.RWMutex
 	// maxIDMmap is the byte slice which is memory mapped to the max ID file in
 	// order to avoid unnecessary syscalls.
-	// If maxIDMmap is nil, then the prompt DB has already been closed.
-	maxIDMmap []byte
+	// If maxIDMmap is closed, then the prompt DB has already been closed.
+	maxIDMmap prompting.MaxIDMmap
 	// perUser maps UID to the DB of prompts for that user.
 	perUser map[uint32]*userPromptDB
 	// notifyPrompt is a closure which will be called to record a notice when a
@@ -182,8 +176,6 @@ type PromptDB struct {
 }
 
 const (
-	// maxIDFileSize should be enough bytes to encode the maximum prompt ID.
-	maxIDFileSize int = 8
 	// maxOutstandingPromptsPerUser is an arbitrary limit.
 	// TODO: review this limit after some usage.
 	maxOutstandingPromptsPerUser int = 1000
@@ -196,72 +188,17 @@ const (
 // notifyPrompt is called with the prompt DB lock held, so it should not block
 // for a substantial amount of time (such as to lock and modify snapd state).
 func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error) (*PromptDB, error) {
+	maxIDFilepath := filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
+	maxIDMmap, err := prompting.OpenMaxIDMmap(maxIDFilepath)
+	if err != nil {
+		return nil, err
+	}
 	pdb := PromptDB{
 		perUser:      make(map[uint32]*userPromptDB),
 		notifyPrompt: notifyPrompt,
-	}
-	maxIDFilepath := filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
-	maxIDFile, err := os.OpenFile(maxIDFilepath, os.O_RDWR|os.O_CREATE, 0600)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open max ID file: %w", err)
-	}
-	// The file/FD can be safely closed once the mmap is created. See mmap(2).
-	defer maxIDFile.Close()
-	fileInfo, err := maxIDFile.Stat()
-	if err != nil {
-		return nil, fmt.Errorf("cannot stat max ID file: %w", err)
-	}
-	if fileInfo.Size() != int64(maxIDFileSize) {
-		if fileInfo.Size() != 0 {
-			// Max ID file malformed, best to reset it
-			logger.Debugf("requestprompts: max ID file malformed; re-initializing")
-		}
-		if err = initializeMaxIDFile(maxIDFile); err != nil {
-			return nil, err
-		}
-	}
-	conn, err := maxIDFile.SyscallConn()
-	if err != nil {
-		return nil, fmt.Errorf("cannot get raw file for maxIDFile: %w", err)
-	}
-	var controlErr error
-	err = conn.Control(func(fd uintptr) {
-		// Use Control() so that the file/fd is not garbage collected during
-		// the syscall.
-		pdb.maxIDMmap, controlErr = unix.Mmap(int(fd), 0, maxIDFileSize, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("cannot call control function on maxIDFile conn: %w", err)
-	}
-	if controlErr != nil {
-		return nil, fmt.Errorf("cannot mmap max ID file: %w", controlErr)
+		maxIDMmap:    maxIDMmap,
 	}
 	return &pdb, nil
-}
-
-// initializeMaxIDFile truncates the given file to maxIDFileSize bytes of zeros.
-func initializeMaxIDFile(maxIDFile *os.File) (err error) {
-	initial := [maxIDFileSize]byte{}
-	if err = maxIDFile.Truncate(int64(len(initial))); err != nil {
-		return fmt.Errorf("cannot truncate max ID file: %w", err)
-	}
-	if _, err = maxIDFile.WriteAt(initial[:], 0); err != nil {
-		return fmt.Errorf("cannot initialize max ID file: %w", err)
-	}
-	return nil
-}
-
-// nextID increments the internal monotonic maxID integer and returns the
-// corresponding ID.
-//
-// The caller must ensure that the prompt DB mutex is locked.
-func (pdb *PromptDB) nextID() (prompting.IDType, error) {
-	if pdb.maxIDMmap == nil {
-		return 0, ErrClosed
-	}
-	// Byte order will be consistent, and want an atomic increment.
-	id := atomic.AddUint64((*uint64)(unsafe.Pointer(&pdb.maxIDMmap[0])), 1)
-	return prompting.IDType(id), nil
 }
 
 // AddOrMerge checks if the given prompt contents are identical to an existing
@@ -288,7 +225,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 
-	if pdb.maxIDMmap == nil {
+	if pdb.maxIDMmap.IsClosed() {
 		return nil, false, ErrClosed
 	}
 
@@ -328,7 +265,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 		return nil, false, ErrTooManyPrompts
 	}
 
-	id, _ := pdb.nextID() // err must be nil because maxIDMmap is not nil and lock is held
+	id, _ := pdb.maxIDMmap.NextID() // err must be nil because maxIDMmap is not nil and lock is held
 	timestamp := time.Now()
 	prompt := &Prompt{
 		ID:           id,
@@ -368,7 +305,7 @@ func responseForInterfaceConstraintsOutcome(iface string, constraints *promptCon
 func (pdb *PromptDB) Prompts(user uint32) ([]*Prompt, error) {
 	pdb.mutex.RLock()
 	defer pdb.mutex.RUnlock()
-	if pdb.maxIDMmap == nil {
+	if pdb.maxIDMmap.IsClosed() {
 		return nil, ErrClosed
 	}
 	userEntry, ok := pdb.perUser[user]
@@ -394,7 +331,7 @@ func (pdb *PromptDB) PromptWithID(user uint32, id prompting.IDType) (*Prompt, er
 //
 // The caller should hold a read lock on the prompt DB mutex.
 func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType) (*userPromptDB, *Prompt, error) {
-	if pdb.maxIDMmap == nil {
+	if pdb.maxIDMmap.IsClosed() {
 		return nil, nil, ErrClosed
 	}
 	userEntry, ok := pdb.perUser[user]
@@ -465,7 +402,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 
-	if pdb.maxIDMmap == nil {
+	if pdb.maxIDMmap.IsClosed() {
 		return nil, ErrClosed
 	}
 
@@ -515,7 +452,7 @@ func (pdb *PromptDB) Close() error {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 
-	if pdb.maxIDMmap == nil {
+	if pdb.maxIDMmap.IsClosed() {
 		return ErrClosed
 	}
 
@@ -530,7 +467,6 @@ func (pdb *PromptDB) Close() error {
 
 	// Clear all outstanding prompts
 	pdb.perUser = nil
-	unix.Munmap(pdb.maxIDMmap)
-	pdb.maxIDMmap = nil // reset maxIDMmap to nil so we know pdb has been closed
+	pdb.maxIDMmap.Munmap()
 	return nil
 }

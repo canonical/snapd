@@ -22,19 +22,31 @@ package prompting_test
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
+	"unsafe"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces/prompting"
+	"github.com/snapcore/snapd/osutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
 
-type promptingSuite struct{}
+type promptingSuite struct {
+	tmpdir    string
+	maxIDPath string
+}
 
 var _ = Suite(&promptingSuite{})
+
+func (s *promptingSuite) SetUpTest(c *C) {
+	s.tmpdir = c.MkDir()
+	s.maxIDPath = filepath.Join(s.tmpdir, "max-id")
+}
 
 func (s *promptingSuite) TestIDTypeStringMarshalUnmarshalJSON(c *C) {
 	for _, testCase := range []struct {
@@ -57,6 +69,101 @@ func (s *promptingSuite) TestIDTypeStringMarshalUnmarshalJSON(c *C) {
 		c.Check(err, IsNil)
 		c.Check(id, Equals, testCase.id)
 	}
+}
+
+func (s *promptingSuite) TestMaxIDMmapOpenNextIDMunmapInvalid(c *C) {
+	// First try with no existin max ID file
+	maxIDMmap, err := prompting.OpenMaxIDMmap(s.maxIDPath)
+	c.Check(err, IsNil)
+	c.Check(maxIDMmap, NotNil)
+	s.checkWrittenMaxID(c, 0)
+	id, err := maxIDMmap.NextID()
+	c.Check(err, IsNil)
+	c.Check(id, Equals, prompting.IDType(1))
+	s.checkWrittenMaxID(c, 1)
+
+	maxIDMmap.Munmap()
+
+	// Now try with various invalid max ID files
+	for _, initial := range [][]byte{
+		[]byte(""),
+		[]byte("foo"),
+		[]byte("1234"),
+		[]byte("1234567"),
+		[]byte("123456789"),
+	} {
+		osutil.AtomicWriteFile(s.maxIDPath, initial, 0600, 0)
+		maxIDMmap, err = prompting.OpenMaxIDMmap(s.maxIDPath)
+		c.Check(err, IsNil)
+		c.Check(maxIDMmap, NotNil)
+		s.checkWrittenMaxID(c, 0)
+		id, err := maxIDMmap.NextID()
+		c.Check(err, IsNil)
+		c.Check(id, Equals, prompting.IDType(1))
+		s.checkWrittenMaxID(c, 1)
+		maxIDMmap.Munmap()
+	}
+}
+
+func (s *promptingSuite) TestMaxIDMmapOpenNextIDMunmapValid(c *C) {
+	for _, testCase := range []struct {
+		initial uint64
+		nextID  prompting.IDType
+	}{
+		{
+			0,
+			1,
+		},
+		{
+			1,
+			2,
+		},
+		{
+			0x1000000000000001,
+			0x1000000000000002,
+		},
+		{
+			0x0123456789ABCDEF,
+			0x0123456789ABCDF0,
+		},
+		{
+			0xDEADBEEFDEADBEEF,
+			0xDEADBEEFDEADBEF0,
+		},
+	} {
+		var initialData [8]byte
+		*(*uint64)(unsafe.Pointer(&initialData[0])) = testCase.initial
+		osutil.AtomicWriteFile(s.maxIDPath, initialData[:], 0600, 0)
+		maxIDMmap, err := prompting.OpenMaxIDMmap(s.maxIDPath)
+		c.Check(err, IsNil)
+		c.Check(maxIDMmap, NotNil)
+		s.checkWrittenMaxID(c, testCase.initial)
+		id, err := maxIDMmap.NextID()
+		c.Check(err, IsNil)
+		c.Check(id, Equals, testCase.nextID)
+		s.checkWrittenMaxID(c, uint64(testCase.nextID))
+		maxIDMmap.Munmap()
+	}
+}
+
+func (s *promptingSuite) checkWrittenMaxID(c *C, id uint64) {
+	data, err := os.ReadFile(s.maxIDPath)
+	c.Assert(err, IsNil)
+	c.Assert(data, HasLen, 8)
+	writtenID := *(*uint64)(unsafe.Pointer(&data[0]))
+	c.Assert(writtenID, Equals, id)
+}
+
+func (s *promptingSuite) TestMaxIDMmapMunmap(c *C) {
+	maxIDMmap, err := prompting.OpenMaxIDMmap(s.maxIDPath)
+	c.Check(err, IsNil)
+	c.Check(maxIDMmap, NotNil)
+	c.Check(maxIDMmap.IsClosed(), Equals, false)
+	maxIDMmap.Munmap()
+	c.Check(maxIDMmap.IsClosed(), Equals, true)
+	_, err = maxIDMmap.NextID()
+	c.Check(err, Equals, prompting.ErrMaxIDMmapClosed)
+	maxIDMmap.Munmap() // Munmap should be idempotent
 }
 
 func (s *promptingSuite) TestOutcomeAsBool(c *C) {
