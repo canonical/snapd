@@ -230,6 +230,12 @@ update_core_snap_for_classic_reexec() {
     chmod --reference="${snap}.orig" "$snap"
     rm -rf squashfs-root
 
+    # make a copy for later use
+    if [ -n "${1-}" ]; then
+        mkdir -p "$1"
+        cp -av "$snap" "$1/"
+    fi
+
     # Now mount the new core snap, first discarding the old mount namespace
     snapd.tool exec snap-discard-ns core
     mount "$snap" "$core"
@@ -440,7 +446,8 @@ prepare_classic() {
         snap list | grep core
 
         systemctl stop snapd.{service,socket}
-        update_core_snap_for_classic_reexec
+        # repack and also make a side copy of the core snap
+        update_core_snap_for_classic_reexec "$WORK_DIR/core_snap"
         systemctl start snapd.{service,socket}
 
         prepare_reexec_override
