@@ -506,6 +506,7 @@ func (m *InterfacesRequestsManager) RemoveRules(userID uint32, snap string, ifac
 	defer m.lock.RUnlock()
 
 	if snap == "" && iface == "" {
+		// The caller should ensure that this is not the case.
 		return nil, fmt.Errorf("cannot remove rules for unspecified snap and interface")
 	}
 	if snap != "" {

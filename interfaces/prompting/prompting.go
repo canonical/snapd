@@ -46,6 +46,14 @@ type Metadata struct {
 
 type IDType uint64
 
+func IDFromString(idStr string) (IDType, error) {
+	value, err := strconv.ParseUint(idStr, 16, 64)
+	if err != nil {
+		return IDType(0), fmt.Errorf("cannot parse ID as uint64: %w", err)
+	}
+	return IDType(value), nil
+}
+
 func (i IDType) String() string {
 	return fmt.Sprintf("%016X", uint64(i))
 }
@@ -59,11 +67,11 @@ func (i *IDType) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &s); err != nil {
 		return fmt.Errorf("cannot read ID into string: %w", err)
 	}
-	value, err := strconv.ParseUint(s, 16, 64)
+	id, err := IDFromString(s)
 	if err != nil {
-		return fmt.Errorf("cannot parse ID as uint64: %w", err)
+		return err
 	}
-	*i = IDType(value)
+	*i = id
 	return nil
 }
 
