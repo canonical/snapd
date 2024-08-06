@@ -144,6 +144,7 @@ capability net_admin,
 capability net_raw,
 capability setuid, # ping
 capability net_broadcast, # openvswitchd
+capability dac_read_search, # wpa_cli needs to place the client socket a different directory
 
 # Allow protocols except those that we blacklist in
 # /etc/modprobe.d/blacklist-rare-network.conf
