@@ -1027,30 +1027,14 @@ func (f *fakeSnappyBackend) SetupComponent(compFilePath string, compPi snap.Cont
 	return &backend.InstallRecord{}, nil
 }
 
-func (f *fakeSnappyBackend) SetupKernelModulesComponents(compsToInstall, currentComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error) {
-	meter.Notify("setup-kernel-modules-components")
+func (f *fakeSnappyBackend) SetupKernelModulesComponents(currentComps, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) error {
+	meter.Notify("prepare-kernel-modules-components")
 	f.appendOp(&fakeOp{
-		op:             "setup-kernel-modules-components",
-		compsToInstall: compsToInstall,
-		currentComps:   currentComps,
+		op:           "prepare-kernel-modules-components",
+		currentComps: currentComps,
+		finalComps:   finalComps,
 	})
-	if strings.HasSuffix(ksnapName, "+broken") {
-		return fmt.Errorf("cannot set-up kernel-modules for %s", ksnapName)
-	}
-	return nil
-}
-
-func (f *fakeSnappyBackend) RemoveKernelModulesComponentsSetup(compsToRemove, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error) {
-	meter.Notify("remove-kernel-modules-components-setup")
-	f.appendOp(&fakeOp{
-		op:            "remove-kernel-modules-components-setup",
-		compsToRemove: compsToRemove,
-		finalComps:    finalComps,
-	})
-	if strings.HasSuffix(ksnapName, "+reverterr") {
-		return fmt.Errorf("cannot remove set-up of kernel-modules for %s", ksnapName)
-	}
-	return nil
+	return f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) UndoSetupComponent(cpi snap.ContainerPlaceInfo, installRecord *backend.InstallRecord, dev snap.Device, meter progress.Meter) error {

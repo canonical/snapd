@@ -58,7 +58,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		return nil, err
 	}
 
-	snapsup := &SnapSetup{
+	snapsup := SnapSetup{
 		Base:        info.Base,
 		SideInfo:    &info.SideInfo,
 		Channel:     info.Channel,
@@ -68,7 +68,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: info.InstanceKey,
 	}
-	compSetup := &ComponentSetup{
+	compSetup := ComponentSetup{
 		CompSideInfo: csi,
 		CompType:     compInfo.Type,
 		CompPath:     path,
@@ -78,17 +78,41 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		},
 	}
 
-	return doInstallComponent(st, &snapst, compSetup, snapsup, "")
+	componentTS, err := doInstallComponent(st, &snapst, compSetup, snapsup, "", "")
+	if err != nil {
+		return nil, err
+	}
+
+	return componentTS.taskSet(), nil
 }
 
 type componentInstallFlags struct {
-	RemoveComponentPath bool `json:"remove-component-path,omitempty"`
-	SkipProfiles        bool `json:"skip-profiles,omitempty"`
+	RemoveComponentPath        bool `json:"remove-component-path,omitempty"`
+	JointSnapComponentsInstall bool `json:"joint-snap-components-install,omitempty"`
+}
+
+type componentInstallTaskSet struct {
+	compSetupTask      *state.Task
+	beforeLink         []*state.Task
+	linkToHook         []*state.Task
+	postOpHookAndAfter []*state.Task
+}
+
+func (c *componentInstallTaskSet) taskSet() *state.TaskSet {
+	tasks := make([]*state.Task, 0, len(c.beforeLink)+len(c.linkToHook)+len(c.postOpHookAndAfter))
+	tasks = append(tasks, c.beforeLink...)
+	tasks = append(tasks, c.linkToHook...)
+	tasks = append(tasks, c.postOpHookAndAfter...)
+
+	ts := state.NewTaskSet(tasks...)
+	ts.MarkEdge(c.compSetupTask, BeginEdge)
+
+	return ts
 }
 
 // doInstallComponent might be called with the owner snap installed or not.
-func doInstallComponent(st *state.State, snapst *SnapState, compSetup *ComponentSetup,
-	snapsup *SnapSetup, fromChange string) (*state.TaskSet, error) {
+func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentSetup,
+	snapsup SnapSetup, snapSetupTaskID string, fromChange string) (componentInstallTaskSet, error) {
 
 	// TODO check for experimental flag that will hide temporarily components
 
@@ -96,7 +120,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 	compSi := compSetup.CompSideInfo
 
 	if snapst.IsInstalled() && !snapst.Active {
-		return nil, fmt.Errorf("cannot install component %q for disabled snap %q",
+		return componentInstallTaskSet{}, fmt.Errorf("cannot install component %q for disabled snap %q",
 			compSi.Component, snapSi.RealName)
 	}
 
@@ -104,7 +128,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 	// was actually the snap.
 	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(),
 		snapst, fromChange); err != nil {
-		return nil, err
+		return componentInstallTaskSet{}, err
 	}
 
 	// Check if we already have the revision in the snaps folder (alters tasks).
@@ -121,24 +145,34 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 	} else {
 		prepare = st.NewTask("prepare-component", fmt.Sprintf(i18n.G("Prepare component %q%s"), compSetup.CompPath, revisionStr))
 	}
+
 	prepare.Set("component-setup", compSetup)
-	prepare.Set("snap-setup", snapsup)
 
-	tasks := []*state.Task{prepare}
+	if snapSetupTaskID != "" {
+		prepare.Set("snap-setup-task", snapSetupTaskID)
+	} else {
+		prepare.Set("snap-setup", snapsup)
+	}
+
 	prev := prepare
-
 	addTask := func(t *state.Task) {
 		t.Set("component-setup-task", prepare.ID())
 		t.Set("snap-setup-task", prepare.ID())
 		t.WaitFor(prev)
-		tasks = append(tasks, t)
 		prev = t
 	}
+
+	componentTS := componentInstallTaskSet{
+		compSetupTask: prepare,
+	}
+
+	componentTS.beforeLink = append(componentTS.beforeLink, prepare)
 
 	if fromStore {
 		validate := st.NewTask("validate-component", fmt.Sprintf(
 			i18n.G("Fetch and check assertions for component %q%s"), compSetup.ComponentName(), revisionStr),
 		)
+		componentTS.beforeLink = append(componentTS.beforeLink, validate)
 		addTask(validate)
 	}
 
@@ -147,6 +181,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 		mount := st.NewTask("mount-component",
 			fmt.Sprintf(i18n.G("Mount component %q%s"),
 				compSi.Component, revisionStr))
+		componentTS.beforeLink = append(componentTS.beforeLink, mount)
 		addTask(mount)
 	} else {
 		if compSetup.RemoveComponentPath {
@@ -156,41 +191,40 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 			// only needed in the "mount-snap" handler and that is
 			// skipped for local revisions.
 			if err := os.Remove(compSetup.CompPath); err != nil {
-				return nil, err
+				return componentInstallTaskSet{}, err
 			}
 		}
 	}
 
-	// TODO hooks for components
+	compInstalled := snapst.IsComponentInCurrentSeq(compSi.Component)
 
-	if compSetup.CompType == snap.KernelModulesComponent {
-		kmodSetup := st.NewTask("prepare-kernel-modules-components",
-			fmt.Sprintf(i18n.G("Prepare kernel-modules component %q%s"),
-				compSi.Component, revisionStr))
-		addTask(kmodSetup)
+	if !snapsup.Revert && compInstalled {
+		preRefreshHook := SetupPreRefreshComponentHook(st, snapsup.InstanceName(), compSi.Component.ComponentName)
+		componentTS.beforeLink = append(componentTS.beforeLink, preRefreshHook)
+		addTask(preRefreshHook)
 	}
 
 	changingSnapRev := snapst.IsInstalled() && snapst.Current != snapSi.Revision
-
-	// We might be replacing a component
-	compInstalled := snapst.IsComponentInCurrentSeq(compSi.Component)
 
 	// note that we don't unlink the currect component if we're also changing
 	// snap revisions while installing this component. that is because we don't
 	// want to remove the component from the state of the previous snap revision
 	// (for the purpose of something like a revert). additionally, this is
 	// consistent with us keeping previous snap revisions mounted after changing
-	// their revision.
+	// their revision. so we really only want to create this task if we are
+	// replacing a component in the current snap revision
 	if !changingSnapRev && compInstalled {
 		unlink := st.NewTask("unlink-current-component", fmt.Sprintf(i18n.G(
 			"Make current revision for component %q unavailable"),
 			compSi.Component))
+		componentTS.beforeLink = append(componentTS.beforeLink, unlink)
 		addTask(unlink)
 	}
 
 	// security
-	if !compSetup.SkipProfiles {
+	if !compSetup.JointSnapComponentsInstall {
 		setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup component %q%s security profiles"), compSi.Component, revisionStr))
+		componentTS.beforeLink = append(componentTS.beforeLink, setupSecurity)
 		addTask(setupSecurity)
 	}
 
@@ -198,7 +232,25 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 	linkSnap := st.NewTask("link-component",
 		fmt.Sprintf(i18n.G("Make component %q%s available to the system"),
 			compSi.Component, revisionStr))
+	componentTS.linkToHook = append(componentTS.linkToHook, linkSnap)
 	addTask(linkSnap)
+
+	var postOpHook *state.Task
+	if !compInstalled {
+		postOpHook = SetupInstallComponentHook(st, snapsup.InstanceName(), compSi.Component.ComponentName)
+	} else {
+		postOpHook = SetupPostRefreshComponentHook(st, snapsup.InstanceName(), compSi.Component.ComponentName)
+	}
+	componentTS.postOpHookAndAfter = append(componentTS.postOpHookAndAfter, postOpHook)
+	addTask(postOpHook)
+
+	if !compSetup.JointSnapComponentsInstall && compSetup.CompType == snap.KernelModulesComponent {
+		kmodSetup := st.NewTask("prepare-kernel-modules-components",
+			fmt.Sprintf(i18n.G("Prepare kernel-modules component %q%s"),
+				compSi.Component, revisionStr))
+		componentTS.postOpHookAndAfter = append(componentTS.postOpHookAndAfter, kmodSetup)
+		addTask(kmodSetup)
+	}
 
 	// clean-up previous revision of the component if present, not used in
 	// previous sequence points, and the snap is not being updated (it will soon
@@ -209,17 +261,14 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 		discardComp := st.NewTask("discard-component", fmt.Sprintf(i18n.G(
 			"Discard previous revision for component %q"),
 			compSi.Component))
+		componentTS.postOpHookAndAfter = append(componentTS.postOpHookAndAfter, discardComp)
 		addTask(discardComp)
 	}
 
-	installSet := state.NewTaskSet(tasks...)
-	installSet.MarkEdge(prepare, BeginEdge)
-	installSet.MarkEdge(linkSnap, MaybeRebootEdge)
+	// TODO:COMPS: do we need to set restart boundaries here? (probably for
+	// kernel-modules components if installed along the kernel)
 
-	// TODO do we need to set restart boundaries here? (probably
-	// for kernel-modules components if installed along the kernel)
-
-	return installSet, nil
+	return componentTS, nil
 }
 
 type RemoveComponentsOpts struct {
@@ -328,7 +377,7 @@ func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.C
 	// For kernel-modules, regenerate drivers tree
 	revisionStr := fmt.Sprintf(" (%s)", compst.SideInfo.Revision)
 	if compst.CompType == snap.KernelModulesComponent {
-		kmodSetup := st.NewTask("clear-kernel-modules-components",
+		kmodSetup := st.NewTask("prepare-kernel-modules-components",
 			fmt.Sprintf(i18n.G("Clear kernel-modules component %q%s"),
 				compst.SideInfo.Component, revisionStr))
 		addTask(kmodSetup)

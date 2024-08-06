@@ -35,7 +35,7 @@ func expectedComponentRemoveTasks(opts int) []string {
 	var removeTasks []string
 	removeTasks = append(removeTasks, "unlink-current-component")
 	if opts&compTypeIsKernMods != 0 {
-		removeTasks = append(removeTasks, "clear-kernel-modules-components")
+		removeTasks = append(removeTasks, "prepare-kernel-modules-components")
 	}
 	if opts&compCurrentIsDiscarded != 0 {
 		removeTasks = append(removeTasks, "discard-component")

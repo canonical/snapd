@@ -47,41 +47,62 @@ const (
 	compCurrentIsDiscarded
 	// Component is being installed with a snap, so skip setup-profiles
 	compOptSkipSecurity
+	// Component is being installed with a snap that is being refreshed
+	compOptDuringSnapRefresh
+	// Component is being installed with a snap, so skip prepare-kernel-modules-components
+	compOptSkipKernelModulesSetup
 )
 
 // opts is a bitset with compOpt* as possible values.
 func expectedComponentInstallTasks(opts int) []string {
-	var startTasks []string
-	// Installation of a local component container
+	beforeLink, linkToHook, postOpHooksAndAfter := expectedComponentInstallTasksSplit(opts)
+	return append(append(beforeLink, linkToHook...), postOpHooksAndAfter...)
+}
+
+func expectedComponentInstallTasksSplit(opts int) (beforeLink []string, linkToHook []string, postOpHooksAndAfter []string) {
 	if opts&compOptIsLocal != 0 {
-		startTasks = []string{"prepare-component"}
+		beforeLink = []string{"prepare-component"}
 	} else {
-		startTasks = []string{"download-component", "validate-component"}
+		beforeLink = []string{"download-component", "validate-component"}
 	}
 
 	// Revision is not the same as the current one installed
 	if opts&compOptRevisionPresent == 0 {
-		startTasks = append(startTasks, "mount-component")
+		beforeLink = append(beforeLink, "mount-component")
 	}
-	if opts&compTypeIsKernMods != 0 {
-		startTasks = append(startTasks, "prepare-kernel-modules-components")
-	}
-	// Component is installed (implicit if compOptRevisionPresent is set)
+
 	if opts&compOptIsActive != 0 {
-		startTasks = append(startTasks, "unlink-current-component")
+		beforeLink = append(beforeLink, "run-hook[pre-refresh]")
+	}
+
+	// Component is installed (implicit if compOptRevisionPresent is set)
+	if opts&compOptIsActive != 0 && opts&compOptDuringSnapRefresh == 0 {
+		beforeLink = append(beforeLink, "unlink-current-component")
 	}
 
 	if opts&compOptSkipSecurity == 0 {
-		startTasks = append(startTasks, "setup-profiles")
+		beforeLink = append(beforeLink, "setup-profiles")
 	}
 
 	// link-component is always present
-	startTasks = append(startTasks, "link-component")
-	if opts&compCurrentIsDiscarded != 0 {
-		startTasks = append(startTasks, "discard-component")
+	linkToHook = []string{"link-component"}
+
+	// expect the install hook if the snap wasn't already installed
+	if opts&compOptIsActive == 0 {
+		postOpHooksAndAfter = []string{"run-hook[install]"}
+	} else {
+		postOpHooksAndAfter = []string{"run-hook[post-refresh]"}
 	}
 
-	return startTasks
+	if opts&compTypeIsKernMods != 0 && opts&compOptSkipKernelModulesSetup == 0 {
+		postOpHooksAndAfter = append(postOpHooksAndAfter, "prepare-kernel-modules-components")
+	}
+
+	if opts&compCurrentIsDiscarded != 0 {
+		postOpHooksAndAfter = append(postOpHooksAndAfter, "discard-component")
+	}
+
+	return beforeLink, linkToHook, postOpHooksAndAfter
 }
 
 func checkSetupTasks(c *C, ts *state.TaskSet) {

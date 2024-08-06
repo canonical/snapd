@@ -112,12 +112,8 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 			componentInstallFlags: componentInstallFlags{
 				// if we're removing the snap, then we should remove the
 				// components too
-				RemoveComponentPath: flags.RemoveSnapPath,
-
-				// since target is always used to setup components and snaps at
-				// the same time, individual components should not be create
-				// setup-profiles tasks.
-				SkipProfiles: true,
+				RemoveComponentPath:        flags.RemoveSnapPath,
+				JointSnapComponentsInstall: true,
 			},
 		})
 	}
@@ -137,6 +133,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 	}
 
 	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)
+
 	return SnapSetup{
 		Channel:      t.setup.Channel,
 		CohortKey:    t.setup.CohortKey,
