@@ -5081,7 +5081,7 @@ func (m *SnapManager) undoPrepareKernelSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doCleanupOldKernelSnap(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doDiscardOldKernelSnapSetup(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -5131,7 +5131,7 @@ func (m *SnapManager) doCleanupOldKernelSnap(t *state.Task, _ *tomb.Tomb) error 
 	return nil
 }
 
-func (m *SnapManager) undoCleanupOldKernelSnap(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) undoDiscardOldKernelSnapSetup(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()

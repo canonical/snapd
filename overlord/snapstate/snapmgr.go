@@ -794,7 +794,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 
 	// specific set-up for the kernel snap
 	runner.AddHandler("prepare-kernel-snap", m.doPrepareKernelSnap, m.undoPrepareKernelSnap)
-	runner.AddHandler("discard-old-kernel-snap-setup", m.doCleanupOldKernelSnap, m.undoCleanupOldKernelSnap)
+	runner.AddHandler("discard-old-kernel-snap-setup", m.doDiscardOldKernelSnapSetup, m.undoDiscardOldKernelSnapSetup)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
