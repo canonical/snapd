@@ -35,14 +35,6 @@ func MockSendReply(f func(listenerReq *listener.Request, reply *listener.Respons
 	return restore
 }
 
-func (pc *promptConstraints) Path() string {
-	return pc.path
-}
-
-func (pc *promptConstraints) RemainingPermissions() []string {
-	return pc.remainingPermissions
-}
-
 func NewPrompt(id prompting.IDType, timestamp time.Time, snap string, iface string, path string, remainingPermissions []string, availablePermissions []string, originalPermissions []string) *Prompt {
 	constraints := &promptConstraints{
 		path:                 path,

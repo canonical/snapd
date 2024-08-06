@@ -25,27 +25,19 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/interfaces/prompting"
+	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
+	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/common"
-	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/requestprompts"
-	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/requestrules"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 var (
 	ErrPromptingNotEnabled = errors.New("AppArmor Prompting is not enabled")
 )
-
-// TODO: replace with the following in ifacemgr.go:
-//func (m *InterfaceManager) AppArmorPromptingRunning() bool {
-//	return m.useAppArmorPrompting()
-//}
-var PromptingEnabled = func() bool {
-	return features.AppArmorPrompting.IsEnabled() && notify.SupportAvailable()
-}
 
 type Interface interface {
 	Connect() error
@@ -59,21 +51,31 @@ type Prompting struct {
 	prompts  *requestprompts.PromptDB
 	rules    *requestrules.RuleDB
 
-	notifyPrompt func(userID uint32, promptID string, options *state.AddNoticeOptions) error
-	notifyRule   func(userID uint32, ruleID string, options *state.AddNoticeOptions) error
+	notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
+	notifyRule   func(userID uint32, ruleID prompting.IDType, data map[string]string) error
 }
 
 func New(s *state.State) Interface {
-	notifyPrompt := func(userID uint32, promptID string, options *state.AddNoticeOptions) error {
+	notifyPrompt := func(userID uint32, promptID prompting.IDType, data map[string]string) error {
+		// TODO: add some sort of queue so that notifyPrompt function can return
+		// quickly without waiting for state lock and AddNotice() to return.
 		s.Lock()
 		defer s.Unlock()
-		_, err := s.AddNotice(&userID, state.RequestsPromptNotice, promptID, options)
+		options := state.AddNoticeOptions{
+			Data: data,
+		}
+		_, err := s.AddNotice(&userID, state.InterfacesRequestsPromptNotice, promptID.String(), &options)
 		return err
 	}
-	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
+	notifyRule := func(userID uint32, ruleID prompting.IDType, data map[string]string) error {
+		// TODO: add some sort of queue so that notifyPrompt function can return
+		// quickly without waiting for state lock and AddNotice() to return.
 		s.Lock()
 		defer s.Unlock()
-		_, err := s.AddNotice(&userID, state.RequestsRuleUpdateNotice, ruleID, options)
+		options := state.AddNoticeOptions{
+			Data: data,
+		}
+		_, err := s.AddNotice(&userID, state.InterfacesRequestsRuleUpdateNotice, ruleID.String(), &options)
 		return err
 	}
 	p := &Prompting{
@@ -83,20 +85,35 @@ func New(s *state.State) Interface {
 	return p
 }
 
-func (p *Prompting) Connect() error {
-	if !PromptingEnabled() {
-		return nil
-	}
+func (p *Prompting) Connect() (retErr error) {
 	if p.prompts != nil {
 		return fmt.Errorf("cannot connect: listener is already registered")
 	}
-	l, err := listenerRegister()
+	listenerBackend, err := listenerRegister()
 	if err != nil {
-		return fmt.Errorf("cannot register prompting listener: %v", err)
+		return fmt.Errorf("cannot register prompting listener: %w", err)
 	}
-	p.listener = l
-	p.prompts = requestprompts.New(p.notifyPrompt)
-	p.rules, _ = requestrules.New(p.notifyRule) // ignore error (failed to load existing rules)
+	defer func() {
+		if retErr != nil {
+			listenerBackend.Close()
+		}
+	}()
+	promptsBackend, err := requestprompts.New(p.notifyPrompt)
+	if err != nil {
+		return fmt.Errorf("cannot open request prompts backend: %w", err)
+	}
+	defer func() {
+		if retErr != nil {
+			promptsBackend.Close()
+		}
+	}()
+	rulesBackend, err := requestrules.New(p.notifyRule)
+	if err != nil {
+		return fmt.Errorf("cannot open request rules backend: %w", err)
+	}
+	p.listener = listenerBackend
+	p.prompts = promptsBackend
+	p.rules = rulesBackend
 	return nil
 }
 
@@ -123,9 +140,6 @@ var listenerClose = func(l *listener.Listener) error {
 }
 
 func (p *Prompting) Run() error {
-	if !PromptingEnabled() {
-		return nil
-	}
 	p.tomb.Go(func() error {
 		if p.listener == nil {
 			logger.Noticef("listener is nil, exiting Prompting.Run() early")
@@ -152,8 +166,10 @@ func (p *Prompting) Run() error {
 					logger.Noticef("listener closed requests channel")
 					return p.disconnect()
 				}
-				logger.Noticef("Got from kernel req chan: %v", req)
+				// XXX: this debug log leaks information about internal activity
+				logger.Debugf("Got from kernel req chan: %v", req)
 				if err := p.handleListenerReq(req); err != nil { // no use multithreading, since IsPathAllowed locks
+					// XXX: this log leaks information about internal activity
 					logger.Noticef("Error while handling request: %+v", err)
 				}
 			case <-p.tomb.Dying():
@@ -162,7 +178,7 @@ func (p *Prompting) Run() error {
 			}
 		}
 	})
-	return nil // TODO: finish this function (is it finished??)
+	return nil
 }
 
 var (
@@ -176,31 +192,45 @@ var (
 
 func (p *Prompting) handleListenerReq(req *listener.Request) error {
 	userID := uint32(req.SubjectUID())
-	snap, err := common.LabelToSnap(req.Label())
+	var snap string
+	tag, err := naming.ParseSecurityTag(req.Label())
 	if err != nil {
 		// the triggering process is not a snap, so treat apparmor label as snap field
+		snap = req.Label()
+	} else {
+		snap = tag.InstanceName()
 	}
 
-	iface := common.SelectSingleInterface(req.Interfaces())
+	// TODO: when we support interfaces beyond "home", do a proper selection here
+	iface := "home"
 
 	path := req.Path()
 
-	permissions, err := common.AbstractPermissionsFromAppArmorPermissions(iface, req.Permission())
+	permissions, err := prompting.AbstractPermissionsFromAppArmorPermissions(iface, req.Permission())
 	if err != nil {
+		// XXX: this log leaks information about internal activity
 		logger.Noticef("error while parsing AppArmor permissions: %v", err)
-		// XXX: is it better to auto-deny here or auto-allow?
-		return req.Reply(false)
+		response := listener.Response{
+			Allow:      false,
+			Permission: req.Permission(),
+		}
+		return req.Reply(&response)
 	}
 
 	remainingPerms := make([]string, 0, len(permissions))
+	satisfiedPerms := make([]string, 0, len(permissions))
 	for _, perm := range permissions {
 		if yesNo, err := p.rules.IsPathAllowed(userID, snap, iface, path, perm); err == nil {
 			if !yesNo {
-				logger.Noticef("request denied by existing rule: %+v", req)
-				// TODO: the response puts all original permissions in the
-				// Deny field, do we want to differentiate the denied bits from
-				// the others?
-				return req.Reply(false)
+				// XXX: this debug log leaks information about internal activity
+				logger.Debugf("request denied by existing rule: %+v", req)
+				response := listener.Response{
+					Allow:      false,
+					Permission: req.Permission(),
+				}
+				return req.Reply(&response)
+			} else {
+				satisfiedPerms = append(satisfiedPerms, perm)
 			}
 		} else {
 			// No matching rule found
@@ -208,35 +238,63 @@ func (p *Prompting) handleListenerReq(req *listener.Request) error {
 		}
 	}
 	if len(remainingPerms) == 0 {
-		logger.Noticef("request allowed by existing rule: %+v", req)
-		return req.Reply(true)
+		// XXX: this debug log leaks information about internal activity
+		logger.Debugf("request allowed by existing rule: %+v", req)
+		responsePermissions, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, satisfiedPerms)
+		// Error should not occur, but if it does, responsePermissions are set
+		// to none, leaving it to AppArmor to default deny
+		response := listener.Response{
+			Allow:      true,
+			Permission: responsePermissions,
+		}
+		return req.Reply(&response)
 	}
 
-	newPrompt, merged := p.prompts.AddOrMerge(userID, snap, iface, path, remainingPerms, req)
+	metadata := &prompting.Metadata{
+		User:      userID,
+		Snap:      snap,
+		Interface: iface,
+	}
+
+	newPrompt, merged, err := p.prompts.AddOrMerge(metadata, path, permissions, remainingPerms, req)
+	if err != nil {
+		// XXX: this debug log leaks information about internal activity
+		logger.Debugf("error while adding prompt to prompt DB: %+v: %v", req, err)
+		// Allow any satisfied permissions, AppArmor will auto-deny the rest
+		responsePermissions, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, satisfiedPerms)
+		// Error should not occur, but if it does, responsePermissions are set
+		// to none, leaving it to AppArmor to default deny
+		response := listener.Response{
+			Allow:      true,
+			Permission: responsePermissions,
+		}
+		return req.Reply(&response)
+	}
 	if merged {
-		logger.Noticef("new prompt merged with identical existing prompt: %+v", newPrompt)
+		// XXX: this debug log leaks information about internal activity
+		logger.Debugf("new prompt merged with identical existing prompt: %+v", newPrompt)
 		return nil
 	}
 
-	logger.Noticef("adding prompt to internal storage: %+v", newPrompt)
+	// XXX: this debug log leaks information about internal activity
+	logger.Debugf("adding prompt to internal storage: %+v", newPrompt)
 
 	return nil
 }
 
 func (p *Prompting) Stop() error {
 	p.tomb.Kill(nil)
+	p.prompts.Close()
 	return p.tomb.Wait()
 }
 
 // GetPrompts returns all prompts for the user with the given user ID.
 func (p *Prompting) GetPrompts(userID uint32) ([]*requestprompts.Prompt, error) {
-	// TODO: when we switch from o/i/a/requestprompts to i/p/requestprompts,
-	// return error from Prompts() instead of nil
-	return p.prompts.Prompts(userID), nil
+	return p.prompts.Prompts(userID)
 }
 
 // GetPromptWithID returns the prompt with the given ID for the given user.
-func (p *Prompting) GetPromptWithID(userID uint32, promptID string) (*requestprompts.Prompt, error) {
+func (p *Prompting) GetPromptWithID(userID uint32, promptID prompting.IDType) (*requestprompts.Prompt, error) {
 	return p.prompts.PromptWithID(userID, promptID)
 }
 
@@ -245,19 +303,16 @@ func (p *Prompting) GetPromptWithID(userID uint32, promptID string) (*requestpro
 // is not "single"). If all of these are true, sends a reply for the prompt with
 // the given ID, and both creates a new rule and checks any outstanding prompts
 // against it, if the lifespan is not "single".
-func (p *Prompting) HandleReply(userID uint32, promptID string, constraints *common.Constraints, outcome common.OutcomeType, lifespan common.LifespanType, duration string) (satisfiedPromptIDs []string, retErr error) {
+func (p *Prompting) HandleReply(userID uint32, promptID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (satisfiedPromptIDs []prompting.IDType, retErr error) {
 	prompt, err := p.prompts.PromptWithID(userID, promptID)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: when we switch from o/i/a/common to i/prompting, no need to
-	// validate outcome and lifespan, as OutcomeType and LifespanType are both
-	// validated while unmarshalling, and duration is validated when the rule
-	// is being added. Path pattern (within constraints) is also validated, so
-	// the only manual validation required is permissions, which can be done
-	// via constraints.ValidateForInterface()
-	if _, err := common.ValidateConstraintsOutcomeLifespanDuration(prompt.Interface, constraints, outcome, lifespan, duration); err != nil {
+	// Outcome and lifesnap are validated while unmarshalling, and duration is
+	// validated when the rule is being added. So only need to validate
+	// constraints.
+	if err := constraints.ValidateForInterface(prompt.Interface); err != nil {
 		return nil, err
 	}
 
@@ -268,7 +323,7 @@ func (p *Prompting) HandleReply(userID uint32, promptID string, constraints *com
 	// constraints, such as check that the path pattern does not match
 	// any paths not granted by the interface.
 	// TODO: Should this be reconsidered?
-	matches, err := constraints.Match(prompt.Constraints.Path)
+	matches, err := constraints.Match(prompt.Constraints.Path())
 	if err != nil {
 		return nil, err
 	}
@@ -279,9 +334,9 @@ func (p *Prompting) HandleReply(userID uint32, promptID string, constraints *com
 	// TODO: once support for sending back bitmask of allowed permissions lands,
 	// do we want to allow only replying to a select subset of permissions, and
 	// auto-deny the rest?
-	contained := constraints.ContainPermissions(prompt.Constraints.Permissions)
+	contained := constraints.ContainPermissions(prompt.Constraints.RemainingPermissions())
 	if !contained {
-		return nil, fmt.Errorf("replied permissions do not include all requested permissions: requested %v, replied %v; please try again", prompt.Constraints.Permissions, constraints.Permissions)
+		return nil, fmt.Errorf("replied permissions do not include all requested permissions: requested %v, replied %v; please try again", prompt.Constraints.RemainingPermissions(), constraints.Permissions)
 	}
 
 	// TODO: a lock should be held while checking for conflicts with other rules
@@ -290,7 +345,7 @@ func (p *Prompting) HandleReply(userID uint32, promptID string, constraints *com
 	// A RWMutex over prompts and rules should work well, and could potentially
 	// replace the internal mutexes in those packages.
 	var newRule *requestrules.Rule
-	if lifespan != common.LifespanSingle {
+	if lifespan != prompting.LifespanSingle {
 		// Check that adding the rule doesn't conflict with other rules
 		newRule, err = p.rules.AddRule(userID, prompt.Snap, prompt.Interface, constraints, outcome, lifespan, duration)
 		if err != nil {
@@ -308,7 +363,7 @@ func (p *Prompting) HandleReply(userID uint32, promptID string, constraints *com
 		}
 
 		defer func() {
-			if retErr != nil || lifespan == common.LifespanSingle {
+			if retErr != nil || lifespan == prompting.LifespanSingle {
 				p.rules.RemoveRule(userID, newRule.ID)
 			}
 		}()
@@ -319,18 +374,25 @@ func (p *Prompting) HandleReply(userID uint32, promptID string, constraints *com
 		return nil, retErr
 	}
 
-	if lifespan == common.LifespanSingle {
-		return []string{}, nil
+	if lifespan == prompting.LifespanSingle {
+		return []prompting.IDType{}, nil
 	}
 
 	// Apply new rule to outstanding prompts.
-	satisfiedPromptIDs, err = p.prompts.HandleNewRule(userID, newRule.Snap, newRule.Interface, newRule.Constraints, newRule.Outcome)
+	metadata := &prompting.Metadata{
+		User:      userID,
+		Snap:      newRule.Snap,
+		Interface: newRule.Interface,
+	}
+	satisfiedPromptIDs, err = p.prompts.HandleNewRule(metadata, newRule.Constraints, newRule.Outcome)
 	if err != nil {
 		// Should not occur, as outcome and constraints have already been
 		// validated. However, it's possible an error could occur if the prompt
 		// DB was already closed. This should be an internal error. However, we
 		// can't un-send the reply, and this should only be the case if the
 		// prompting system is shutting down, so don't actually return an error.
+
+		// XXX: this log leaks information about internal activity
 		logger.Noticef("WARNING: error when handling new rule as a result of reply: %v", err)
 	}
 
@@ -358,49 +420,59 @@ func (p *Prompting) GetRules(userID uint32, snap string, iface string) ([]*reque
 
 // AddRule creates a new rule with the given contents and then checks it against
 // outstanding prompts, resolving any prompts which it satisfies.
-func (p *Prompting) AddRule(userID uint32, snap string, iface string, constraints *common.Constraints, outcome common.OutcomeType, lifespan common.LifespanType, duration string) (*requestrules.Rule, error) {
+func (p *Prompting) AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error) {
 	newRule, err := p.rules.AddRule(userID, snap, iface, constraints, outcome, lifespan, duration)
 	if err != nil {
 		return nil, err
 	}
 	// Apply new rule to outstanding prompts.
-	if _, err = p.prompts.HandleNewRule(userID, newRule.Snap, newRule.Interface, newRule.Constraints, newRule.Outcome); err != nil {
+	metadata := &prompting.Metadata{
+		User:      userID,
+		Snap:      newRule.Snap,
+		Interface: newRule.Interface,
+	}
+	if _, err = p.prompts.HandleNewRule(metadata, newRule.Constraints, newRule.Outcome); err != nil {
 		// Should not occur, as outcome and constraints have already been
 		// validated. However, it's possible an error could occur if the prompt
 		// DB was already closed. This should be an internal error. However,
 		// this should only be the case if the prompting system is shutting
 		// down, so don't actually return an error.
+
+		// XXX: this log leaks information about internal activity
 		logger.Noticef("WARNING: error when handling new rule as a result of reply: %v", err)
 	}
 	return newRule, nil
 }
 
 // RemoveRules removes all rules for the user with the given user ID and the
-// given snap and, optionally, only those for the given interface.
-func (p *Prompting) RemoveRules(userID uint32, snap string, iface string) []*requestrules.Rule {
-	var removedRules []*requestrules.Rule
-	// Already checked that snap != ""
-	if iface != "" {
-		removedRules = p.rules.RemoveRulesForSnapInterface(userID, snap, iface)
-	} else {
-		removedRules = p.rules.RemoveRulesForSnap(userID, snap)
+// given snap and/or interface. Snap and iface can't both be unspecified.
+func (p *Prompting) RemoveRules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error) {
+	if snap == "" && iface == "" {
+		return nil, fmt.Errorf("cannot remove rules for unspecified snap and interface")
 	}
-	return removedRules
+	if snap != "" {
+		if iface != "" {
+			return p.rules.RemoveRulesForSnapInterface(userID, snap, iface)
+		} else {
+			return p.rules.RemoveRulesForSnap(userID, snap)
+		}
+	}
+	return p.rules.RemoveRulesForInterface(userID, iface)
 }
 
 // GetRule returns the rule with the given ID for the given user.
-func (p *Prompting) GetRule(userID uint32, ruleID string) (*requestrules.Rule, error) {
+func (p *Prompting) GetRule(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error) {
 	rule, err := p.rules.RuleWithID(userID, ruleID)
 	return rule, err
 }
 
 // PatchRule updates the rule with the given ID using the provided contents.
 // Any of the given fields which are empty/nil are not updated in the rule.
-func (p *Prompting) PatchRule(userID uint32, ruleID string, constraints *common.Constraints, outcome common.OutcomeType, lifespan common.LifespanType, duration string) (*requestrules.Rule, error) {
+func (p *Prompting) PatchRule(userID uint32, ruleID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error) {
 	return p.rules.PatchRule(userID, ruleID, constraints, outcome, lifespan, duration)
 }
 
-func (p *Prompting) RemoveRule(userID uint32, ruleID string) (*requestrules.Rule, error) {
+func (p *Prompting) RemoveRule(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error) {
 	rule, err := p.rules.RemoveRule(userID, ruleID)
 	return rule, err
 }

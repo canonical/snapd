@@ -24,18 +24,6 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-func MockPromptingEnabled(f func() bool) (restore func()) {
-	restore = testutil.Backup(&PromptingEnabled)
-	PromptingEnabled = f
-	return restore
-}
-
-func MockNotifySupportAvailable(f func() bool) (restore func()) {
-	restore = testutil.Backup(&notifySupportAvailable)
-	notifySupportAvailable = f
-	return restore
-}
-
 func MockListenerRegister(f func() (*listener.Listener, error)) (restore func()) {
 	restore = testutil.Backup(&listenerRegister)
 	listenerRegister = f
@@ -61,9 +49,6 @@ func MockListenerClose(f func(l *listener.Listener) error) (restore func()) {
 }
 
 func MockListener() (restore func()) {
-	restoreSupport := MockNotifySupportAvailable(func() bool {
-		return true
-	})
 	closeChan := make(chan *listener.Request)
 	restoreRegister := MockListenerRegister(func() (*listener.Listener, error) {
 		return &listener.Listener{}, nil
@@ -85,7 +70,6 @@ func MockListener() (restore func()) {
 		return nil
 	})
 	return func() {
-		restoreSupport()
 		restoreRegister()
 		restoreRun()
 		restoreReqs()

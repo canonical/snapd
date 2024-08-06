@@ -337,8 +337,8 @@ func constructPermissionsMaps() []map[string]map[string]any {
 
 func (s *constraintsSuite) TestInterfacesAndPermissionsCompleteness(c *C) {
 	permissionsMaps := constructPermissionsMaps()
-	// Check that every interface in interfacePriorities is also in
-	// interfacePermissionsAvailable and exactly one of the permissions maps.
+	// Check that every interface in interfacePermissionsAvailable is in
+	// exactly one of the permissions maps.
 	// Also, check that the permissions for a given interface in
 	// interfacePermissionsAvailable are identical to the permissions in the
 	// interface's permissions map.

@@ -141,6 +141,11 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	return m, nil
 }
 
+// AppArmorPromptingRunning returns true if prompting is running.
+func (m *InterfaceManager) AppArmorPromptingRunning() bool {
+	return m.useAppArmorPrompting()
+}
+
 func (m *InterfaceManager) Prompting() *apparmorprompting.Prompting {
 	return (m.prompting).(*apparmorprompting.Prompting)
 }
@@ -252,7 +257,7 @@ func (m *InterfaceManager) ensureUDevMon() error {
 }
 
 func (m *InterfaceManager) ensurePrompting() error {
-	if !apparmorprompting.PromptingEnabled() {
+	if !m.AppArmorPromptingRunning() {
 		m.stopPrompting()
 		return nil
 	}
@@ -264,12 +269,20 @@ func (m *InterfaceManager) ensurePrompting() error {
 		// has occurred, which we have no way of checking since we can only
 		// define/use methods which match the apparmorprompting.Interface type.
 		prompting.Stop()
-		// XXX: this throws away pending prompting requests, so we probably want
+		// XXX: this throws away pending request prompts, so we probably want
 		// to figure out a way to either:
 		// 1. tell whether the prompting instance has actually encountered an
 		// error, and let it happily continue if not; or
 		// 2. gracefully transfer pending prompting requests from the old
 		// listener to the new one, likely by writing to and reading from disk.
+
+		// TODO: I think this is the source of the disappearing prompts. With
+		// changes in overlord/ifacestate/apparmorprompting/prompting.go, we
+		// should now successfully call requestprompts.Close() when stopping
+		// the prompting InterfaceManager, so at least we'll get the notices
+		// now. But this whole section should be rewritten so we're not using
+		// Ensure() to start prompting -- prompting should be started once on
+		// snapd startup, or throw an error if this fails.
 	}
 	return m.initPrompting()
 }

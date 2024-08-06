@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2023 Canonical Ltd
+ * Copyright (C) 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,8 +25,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -43,19 +41,4 @@ func (s *apparmorPromptingSuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
-}
-
-func (s *apparmorPromptingSuite) TestSmoke(c *C) {
-	restorePromptingEnabled := apparmorprompting.MockPromptingEnabled(func() bool {
-		return true
-	})
-	defer restorePromptingEnabled()
-	restoreListener := apparmorprompting.MockListener()
-	defer restoreListener()
-	st := state.New(nil)
-	p := apparmorprompting.New(st)
-	c.Assert(p, NotNil)
-	c.Assert(p.Connect(), IsNil)
-	c.Assert(p.Run(), IsNil)
-	c.Assert(p.Stop(), IsNil)
 }
