@@ -111,6 +111,18 @@ func (pc *promptConstraints) subtractPermissions(permissions []string) (modified
 	return false
 }
 
+// Path returns the path associated with the request to which the receiving
+// prompt constraints apply.
+func (pc *promptConstraints) Path() string {
+	return pc.path
+}
+
+// Permissions returns the remaining unsatisfied permissions associated with
+// the prompt.
+func (pc *promptConstraints) RemainingPermissions() []string {
+	return pc.remainingPermissions
+}
+
 // userPromptDB maps prompt IDs to prompts for a single user.
 type userPromptDB struct {
 	// ids maps from id to the corresponding prompt's index in the prompts list.
@@ -217,7 +229,7 @@ func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data map[st
 //
 // The caller must ensure that the given permissions are in the order in which
 // they appear in the available permissions list for the given interface.
-func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permissions []string, listenerReq *listener.Request) (*Prompt, bool, error) {
+func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, requestedPermissions []string, remainingPermissions []string, listenerReq *listener.Request) (*Prompt, bool, error) {
 	availablePermissions, err := prompting.AvailablePermissions(metadata.Interface)
 	if err != nil {
 		// Error should be impossible, since caller has already validated that
@@ -243,9 +255,9 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 
 	constraints := &promptConstraints{
 		path:                 path,
-		remainingPermissions: permissions,
+		remainingPermissions: remainingPermissions,
 		availablePermissions: availablePermissions,
-		originalPermissions:  permissions,
+		originalPermissions:  requestedPermissions,
 	}
 
 	// Search for an identical existing prompt, merge if found
