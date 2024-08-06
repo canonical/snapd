@@ -97,7 +97,8 @@ func (s *intelQatSuite) TestConnectedPlugSnippet(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.qat.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.qat.app"), testutil.Contains, "/dev/vfio/* rw,\n")
 	c.Assert(apparmorSpec.SnippetForTag("snap.qat.app"), testutil.Contains, "/sys/kernel/iommu_groups/{,**} r,\n")
-	c.Assert(apparmorSpec.SnippetForTag("snap.qat.app"), testutil.Contains, "/sys/devices/pci*/**/device r,\n")
+	c.Assert(apparmorSpec.SnippetForTag("snap.qat.app"), testutil.Contains, "/sys/devices/pci*/**/{device,vendor} r,\n")
+	c.Assert(apparmorSpec.SnippetForTag("snap.qat.app"), testutil.Contains, "/sys/bus/pci/drivers/4xxx/{,**} r,\n")
 	c.Assert(apparmorSpec.SnippetForTag("snap.qat.app"), testutil.Contains, "/dev/qat_adf_ctl rw,\n")
 	c.Assert(apparmorSpec.SnippetForTag("snap.qat.app"), testutil.Contains, "/run/qat/qatmgr.sock rw,\n")
 

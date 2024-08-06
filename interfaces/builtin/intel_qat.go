@@ -46,7 +46,8 @@ const intelQatConnectedPlugAppArmor = `
 
 # IOMMU group information needed by VFIO.
 /sys/kernel/iommu_groups/{,**} r,
-/sys/devices/pci*/**/device r,
+/sys/devices/pci*/**/{device,vendor} r,
+/sys/bus/pci/drivers/4xxx/{,**} r,
 
 # Acceleration driver framework
 # Character device providing a number of ioctls for
