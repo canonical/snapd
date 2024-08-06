@@ -96,8 +96,8 @@ func parseLdSoConf(root string, confPath string) []string {
 // CommandFromSystemSnap runs a command from the snapd/core snap
 // using the proper interpreter and library paths if needed.
 //
-// Only files from core need this hack. Files from snapd are executed
-// normally.
+// Files from core need this hack. Files from snapd are executed normally unless
+// the snapd snap is not mounted under /snap.
 //
 // At the moment it can only run ELF files, expects a standard ld.so
 // interpreter, and can't handle RPATH.
@@ -113,8 +113,9 @@ func CommandFromSystemSnap(name string, cmdArgs ...string) (*exec.Cmd, error) {
 
 	if from == "snapd" {
 		// check if the elf interpreter invoked by the binary will work
-		// without any tweaks, which is true if the snps are mounted at
-		// /snap, or do we need to invoke it directly,
+		// without any tweaks, which is true if the snaps are mounted at
+		// /snap, otherwise we need to set up a command to invoke it
+		// directly
 		// TODO perhaps check the symlink right away
 		slashSnapPrefix := filepath.Join(dirs.GlobalRootDir, "snap") + "/"
 		if strings.HasPrefix(root, slashSnapPrefix) {
