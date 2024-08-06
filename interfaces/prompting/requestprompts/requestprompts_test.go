@@ -1007,7 +1007,7 @@ func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
 	c.Assert(err, IsNil)
 
 	nextID, err := pdb.NextID()
-	c.Check(err, Equals, requestprompts.ErrClosed)
+	c.Check(err, Equals, prompting.ErrMaxIDMmapClosed)
 	c.Check(nextID, Equals, prompting.IDType(0))
 
 	metadata := prompting.Metadata{Interface: "home"}
