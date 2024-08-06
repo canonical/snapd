@@ -51,16 +51,16 @@ save_snapd_state() {
         done
         snapd_env="/etc/environment"
         snapd_service_env=$(ls -d /etc/systemd/system/snapd.*.d || true)
-        snap_confine_profiles="$(ls /etc/apparmor.d/snap.core.* || true)"
+        snap_confine_profiles="$(ls /etc/apparmor.d/snap.snapd.* || true)"
 
         # shellcheck disable=SC2086
         tar cf "$SNAPD_STATE_FILE" \
             /var/lib/snapd \
             /var/cache/snapd \
             "$SNAP_MOUNT_DIR" \
-            /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount \
-            /etc/systemd/system/snapd.mounts.target.wants/"$escaped_snap_mount_dir"-*core*.mount \
-            /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount \
+            /etc/systemd/system/"$escaped_snap_mount_dir"-*snapd*.mount \
+            /etc/systemd/system/snapd.mounts.target.wants/"$escaped_snap_mount_dir"-*snapd*.mount \
+            /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*snapd*.mount \
             $snap_confine_profiles \
             $snapd_env \
             $snapd_service_env
