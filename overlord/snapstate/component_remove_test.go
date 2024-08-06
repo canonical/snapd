@@ -32,8 +32,7 @@ import (
 )
 
 func expectedComponentRemoveTasks(opts int) []string {
-	var removeTasks []string
-	removeTasks = append(removeTasks, "unlink-current-component")
+	removeTasks := []string{"run-hook[remove]", "unlink-current-component"}
 	if opts&compTypeIsKernMods != 0 {
 		removeTasks = append(removeTasks, "prepare-kernel-modules-components")
 	}
@@ -292,9 +291,10 @@ func (s *snapmgrTestSuite) TestRemoveComponentsPathRunWithError(c *C) {
 	// component tasks are undone/hold
 	for i := 0; i < 2; i++ {
 		ts := tss[i].Tasks()
-		c.Check(ts[0].Status(), Equals, state.UndoneStatus)
 		c.Check(ts[1].Status(), Equals, state.UndoneStatus)
-		c.Check(ts[2].Status(), Equals, state.HoldStatus)
+		c.Check(ts[1].Status(), Equals, state.UndoneStatus)
+		c.Check(ts[2].Status(), Equals, state.UndoneStatus)
+		c.Check(ts[3].Status(), Equals, state.HoldStatus)
 	}
 	// update profile is hold
 	c.Check(updateProfTask.Status(), Equals, state.HoldStatus)

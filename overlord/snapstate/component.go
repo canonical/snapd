@@ -554,27 +554,25 @@ func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.C
 		CompType:     compst.CompType,
 	}
 
-	// TODO:COMPS: Run component remove hook. This will change the first task run,
-	// changing uses of unlink below to the new task.
+	removeHook := SetupRemoveComponentHook(st, instName, compst.SideInfo.Component.ComponentName)
+	removeHook.Set("component-setup", compSetup)
+	removeHook.Set("snap-setup", snapSup)
+
+	prev := removeHook
+	tasks := []*state.Task{removeHook}
+	addTask := func(t *state.Task) {
+		t.Set("component-setup-task", removeHook.ID())
+		t.Set("snap-setup-task", removeHook.ID())
+		t.WaitFor(prev)
+		tasks = append(tasks, t)
+		prev = t
+	}
 
 	// Unlink component
 	unlink := st.NewTask("unlink-current-component", fmt.Sprintf(i18n.G(
 		"Make current revision for component %q unavailable"),
 		compst.SideInfo.Component))
-	unlink.Set("component-setup", compSetup)
-	unlink.Set("snap-setup", snapSup)
-
-	var prev *state.Task
-	tasks := []*state.Task{unlink}
-	prev = unlink
-
-	addTask := func(t *state.Task) {
-		t.Set("component-setup-task", unlink.ID())
-		t.Set("snap-setup-task", unlink.ID())
-		t.WaitFor(prev)
-		tasks = append(tasks, t)
-		prev = t
-	}
+	addTask(unlink)
 
 	// For kernel-modules, regenerate drivers tree
 	revisionStr := fmt.Sprintf(" (%s)", compst.SideInfo.Revision)

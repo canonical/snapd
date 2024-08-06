@@ -945,6 +945,10 @@ var SetupPostRefreshComponentHook = func(st *state.State, snap, component string
 	panic("internal error: snapstate.SetupPostRefreshComponentHook is unset")
 }
 
+var SetupRemoveComponentHook = func(st *state.State, snap, component string) *state.Task {
+	panic("internal error: snapstate.SetupRemoveComponentHook is unset")
+}
+
 var SetupPreRefreshHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupPreRefreshHook is unset")
 }
