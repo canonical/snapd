@@ -381,7 +381,8 @@ type SnapState struct {
 type PendingSecurityState struct {
 	// SideInfo of the revision for which security profiles are or
 	// should be set up if any.
-	SideInfo *snap.SideInfo `json:"side-info,omitempty"`
+	SideInfo   *snap.SideInfo            `json:"side-info,omitempty"`
+	Components []*snap.ComponentSideInfo `json:"components,omitempty"`
 }
 
 func (snapst *SnapState) SetTrackingChannel(s string) error {

@@ -2336,6 +2336,18 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	var csis []*snap.ComponentSideInfo
+	for _, comp := range opts.components {
+		csis = append(csis, comp.CompSideInfo)
+	}
+
+	if !opts.install {
+		var snapst snapstate.SnapState
+		err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+		c.Assert(err, IsNil)
+		csis = append(csis, snapst.CurrentComponentSideInfos()...)
+	}
+
 	s.o.TaskRunner().AddHandler("mock-link-snap-n-witness", func(task *state.Task, tomb *tomb.Tomb) error { // do handler
 		s.state.Lock()
 		defer s.state.Unlock()
@@ -2351,7 +2363,8 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 			snapst.Sequence = snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{snapsup.SideInfo})
 		} else {
 			c.Check(snapst.PendingSecurity, DeepEquals, &snapstate.PendingSecurityState{
-				SideInfo: snapsup.SideInfo,
+				SideInfo:   snapsup.SideInfo,
+				Components: csis,
 			})
 		}
 		snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
