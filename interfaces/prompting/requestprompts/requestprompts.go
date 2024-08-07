@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
+	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/strutil"
@@ -167,7 +168,7 @@ type PromptDB struct {
 	// maxIDMmap is the byte slice which is memory mapped to the max ID file in
 	// order to avoid unnecessary syscalls.
 	// If maxIDMmap is closed, then the prompt DB has already been closed.
-	maxIDMmap prompting.MaxIDMmap
+	maxIDMmap maxidmmap.MaxIDMmap
 	// perUser maps UID to the DB of prompts for that user.
 	perUser map[uint32]*userPromptDB
 	// notifyPrompt is a closure which will be called to record a notice when a
@@ -189,7 +190,7 @@ const (
 // for a substantial amount of time (such as to lock and modify snapd state).
 func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error) (*PromptDB, error) {
 	maxIDFilepath := filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
-	maxIDMmap, err := prompting.OpenMaxIDMmap(maxIDFilepath)
+	maxIDMmap, err := maxidmmap.OpenMaxIDMmap(maxIDFilepath)
 	if err != nil {
 		return nil, err
 	}

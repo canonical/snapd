@@ -32,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
+	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/osutil"
@@ -1007,7 +1008,7 @@ func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
 	c.Assert(err, IsNil)
 
 	nextID, err := pdb.NextID()
-	c.Check(err, Equals, prompting.ErrMaxIDMmapClosed)
+	c.Check(err, Equals, maxidmmap.ErrMaxIDMmapClosed)
 	c.Check(nextID, Equals, prompting.IDType(0))
 
 	metadata := prompting.Metadata{Interface: "home"}
