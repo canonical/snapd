@@ -292,7 +292,7 @@ snap_confine_snap_confine_LDADD += $(snap_confine_snap_confine_extra_libs)
 snap_confine_snap_confine_STATIC =
 # use a separate variable instead of snap_confine_snap_confine_LDADD to collect
 # all external libraries, this way it can be reused in
-# snap_confine_snap_confine_debug_LDADD withouth applying any text
+# snap_confine_snap_confine_debug_LDADD without applying any text
 # transformations
 snap_confine_snap_confine_extra_libs = $(LIBUDEV_LIBS) -ldl
 
