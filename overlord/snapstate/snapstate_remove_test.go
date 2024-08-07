@@ -2148,7 +2148,9 @@ func (s *snapmgrTestSuite) TestRemoveWithCompsTasks(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"stop-snap-services",
-		"run-hook[remove]",
+		"run-hook[remove]", // component remove hook
+		"run-hook[remove]", // component remove hook
+		"run-hook[remove]", // snap remove hook
 		"auto-disconnect",
 		"save-snapshot",
 		"remove-aliases",
