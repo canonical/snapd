@@ -11,7 +11,10 @@ execute: |
     echo "Ensure no snapd snap is installed"
     # remove all snaps to remove snapd
     snap remove core
+    # this is only possible when snapd is the only installed snap
     snap remove snapd
+    # we should now be running from the distro package
+    systemctl restart snapd.service
 
     # TODO the test should install the snapd snap we built
     snap install --dangerous /tmp/work-dir/core_snap/core_*.snap
