@@ -365,26 +365,28 @@ func (s *noticesSuite) TestNoticesFilterTypesForSnapForbidden(c *C) {
 	rsp = s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
 
-	// snap-prompting-control doesn't give access to change-update notices.
-	req, err = http.NewRequest("GET", "/v2/notices?types=change-update", nil)
-	c.Assert(err, IsNil)
-	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-prompting-control;", dirs.SnapSocket)
-	rsp = s.errorReq(c, req, nil)
-	c.Check(rsp.Status, Equals, 403)
+	for _, iface := range []string{"snap-themes-control", "snap-prompting-control"} {
+		// neither interface gives access to change-update notices.
+		req, err = http.NewRequest("GET", "/v2/notices?types=change-update", nil)
+		c.Assert(err, IsNil)
+		req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=%s;", dirs.SnapSocket, iface)
+		rsp = s.errorReq(c, req, nil)
+		c.Check(rsp.Status, Equals, 403)
 
-	// snap-prompting-control doesn't give access to refresh-inhibit notices.
-	req, err = http.NewRequest("GET", "/v2/notices?types=refresh-inhibit", nil)
-	c.Assert(err, IsNil)
-	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-prompting-control;", dirs.SnapSocket)
-	rsp = s.errorReq(c, req, nil)
-	c.Check(rsp.Status, Equals, 403)
+		// neither interface gives access to refresh-inhibit notices.
+		req, err = http.NewRequest("GET", "/v2/notices?types=refresh-inhibit", nil)
+		c.Assert(err, IsNil)
+		req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=%s;", dirs.SnapSocket, iface)
+		rsp = s.errorReq(c, req, nil)
+		c.Check(rsp.Status, Equals, 403)
 
-	// snap-themes-control doesn't give access to snap-run-inhibit notices.
-	req, err = http.NewRequest("GET", "/v2/notices?types=snap-run-inhibit", nil)
-	c.Assert(err, IsNil)
-	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-themes-control;", dirs.SnapSocket)
-	rsp = s.errorReq(c, req, nil)
-	c.Check(rsp.Status, Equals, 403)
+		// neither interface access to snap-run-inhibit notices.
+		req, err = http.NewRequest("GET", "/v2/notices?types=snap-run-inhibit", nil)
+		c.Assert(err, IsNil)
+		req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=%s;", dirs.SnapSocket, iface)
+		rsp = s.errorReq(c, req, nil)
+		c.Check(rsp.Status, Equals, 403)
+	}
 
 	// No interfaces connected.
 	req, err = http.NewRequest("GET", "/v2/notices?types=change-update,refresh-inhibit,snap-run-inhibit", nil)
