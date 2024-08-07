@@ -260,6 +260,19 @@ endif
 EXTRA_DIST += snap-confine/snap-confine.rst
 EXTRA_DIST += snap-confine/snap-confine.apparmor.in
 
+BUILT_SOURCES = snap-confine/nvidia-globs.h
+CLEANFILES += snap-confine/nvidia-globs.h
+
+# This mkdir is tricky. We cannot depend on the snap-confine directory in any
+# way, as that's an existing directory in the source tree. Make, especially
+# with VPATH, is pretty sensitive (read: broken) to this sort of arrangement
+# and the extra automake layer does not help.
+snap-confine/nvidia-globs.h: snap-confine/gen-nvidia-globs/main.go snap-confine/gen-nvidia-globs/globs.h.tmpl | snap-confine
+	mkdir -p $(dir $@)
+	go run $< >$@
+
+nodist_snap_confine_snap_confine_SOURCES = snap-confine/nvidia-globs.h
+
 snap_confine_snap_confine_SOURCES = \
 	snap-confine/cookie-support.c \
 	snap-confine/cookie-support.h \
@@ -344,6 +357,7 @@ snap_confine_snap_confine_debug_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
 snap_confine_snap_confine_debug_LDADD = libsnap-confine-private-debug.a $(snap_confine_snap_confine_extra_libs)
 snap_confine_snap_confine_debug_CFLAGS += -DSNAP_CONFINE_DEBUG_BUILD=1
 snap_confine_snap_confine_debug_STATIC = $(snap_confine_snap_confine_STATIC)
+nodist_snap_confine_snap_confine_debug_SOURCES = $(nodist_snap_confine_snap_confine_SOURCES)
 
 # Use a hacked rule if we're doing static build. This allows us to inject the LIBS += .. rule below.
 snap-confine/snap-confine-debug$(EXEEXT): $(snap_confine_snap_confine_debug_OBJECTS) $(snap_confine_snap_confine_debug_DEPENDENCIES) $(EXTRA_snap_confine_snap_confine_debug_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
