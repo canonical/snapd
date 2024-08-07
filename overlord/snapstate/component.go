@@ -393,11 +393,14 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 	// security
 	if !compSetup.MultiComponentInstall && setupSecurity == nil {
 		setupSecurity = st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup component %q%s security profiles"), compSi.Component, revisionStr))
+		setupSecurity.Set("component-setup-task", prepare.ID())
+		setupSecurity.Set("snap-setup-task", snapSetupTaskID)
 		componentTS.beforeLink = append(componentTS.beforeLink, setupSecurity)
 	}
 
 	if setupSecurity != nil {
-		addTask(setupSecurity)
+		setupSecurity.WaitFor(prev)
+		prev = setupSecurity
 	}
 
 	// finalize (sets SnapState)
@@ -420,10 +423,13 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 		kmodSetup = st.NewTask("prepare-kernel-modules-components",
 			fmt.Sprintf(i18n.G("Prepare kernel-modules component %q%s"),
 				compSi.Component, revisionStr))
+		kmodSetup.Set("component-setup-task", prepare.ID())
+		kmodSetup.Set("snap-setup-task", snapSetupTaskID)
 		componentTS.postOpHookAndAfter = append(componentTS.postOpHookAndAfter, kmodSetup)
 	}
 	if kmodSetup != nil {
-		addTask(kmodSetup)
+		kmodSetup.WaitFor(prev)
+		prev = kmodSetup
 	}
 
 	// clean-up previous revision of the component if present, not used in
