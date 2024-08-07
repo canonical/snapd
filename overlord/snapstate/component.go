@@ -118,9 +118,11 @@ func InstallComponents(ctx context.Context, st *state.State, names []string, inf
 
 	setupSecurity.Set("component-setup-tasks", compSetupIDs)
 
-	tss = append(tss, state.NewTaskSet(setupSecurity, kmodSetup))
-
-	return tss, nil
+	ts := state.NewTaskSet(setupSecurity)
+	if kmodSetup != nil {
+		ts.AddTask(kmodSetup)
+	}
+	return append(tss, ts), nil
 }
 
 func componentSetupsForInstall(ctx context.Context, st *state.State, names []string, info *snap.Info, opts Options) ([]ComponentSetup, error) {
