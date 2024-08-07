@@ -46,7 +46,7 @@ func (s *maxidmmapSuite) SetUpTest(c *C) {
 	s.maxIDPath = filepath.Join(s.tmpdir, "max-id")
 }
 
-func (s *maxidmmapSuite) TestMaxIDMmapOpenNextIDMunmapInvalid(c *C) {
+func (s *maxidmmapSuite) TestMaxIDMmapOpenNextIDCloseInvalid(c *C) {
 	// First try with no existin max ID file
 	maxIDMmap, err := maxidmmap.OpenMaxIDMmap(s.maxIDPath)
 	c.Check(err, IsNil)
@@ -57,7 +57,7 @@ func (s *maxidmmapSuite) TestMaxIDMmapOpenNextIDMunmapInvalid(c *C) {
 	c.Check(id, Equals, prompting.IDType(1))
 	s.checkWrittenMaxID(c, 1)
 
-	maxIDMmap.Munmap()
+	maxIDMmap.Close()
 
 	// Now try with various invalid max ID files
 	for _, initial := range [][]byte{
@@ -76,11 +76,11 @@ func (s *maxidmmapSuite) TestMaxIDMmapOpenNextIDMunmapInvalid(c *C) {
 		c.Check(err, IsNil)
 		c.Check(id, Equals, prompting.IDType(1))
 		s.checkWrittenMaxID(c, 1)
-		maxIDMmap.Munmap()
+		maxIDMmap.Close()
 	}
 }
 
-func (s *maxidmmapSuite) TestMaxIDMmapOpenNextIDMunmapValid(c *C) {
+func (s *maxidmmapSuite) TestMaxIDMmapOpenNextIDCloseValid(c *C) {
 	for _, testCase := range []struct {
 		initial uint64
 		nextID  prompting.IDType
@@ -117,7 +117,7 @@ func (s *maxidmmapSuite) TestMaxIDMmapOpenNextIDMunmapValid(c *C) {
 		c.Check(err, IsNil)
 		c.Check(id, Equals, testCase.nextID)
 		s.checkWrittenMaxID(c, uint64(testCase.nextID))
-		maxIDMmap.Munmap()
+		maxIDMmap.Close()
 	}
 }
 
@@ -129,14 +129,14 @@ func (s *maxidmmapSuite) checkWrittenMaxID(c *C, id uint64) {
 	c.Assert(writtenID, Equals, id)
 }
 
-func (s *maxidmmapSuite) TestMaxIDMmapMunmap(c *C) {
+func (s *maxidmmapSuite) TestMaxIDMmapClose(c *C) {
 	maxIDMmap, err := maxidmmap.OpenMaxIDMmap(s.maxIDPath)
 	c.Check(err, IsNil)
 	c.Check(maxIDMmap, NotNil)
 	c.Check(maxIDMmap.IsClosed(), Equals, false)
-	maxIDMmap.Munmap()
+	maxIDMmap.Close()
 	c.Check(maxIDMmap.IsClosed(), Equals, true)
 	_, err = maxIDMmap.NextID()
 	c.Check(err, Equals, maxidmmap.ErrMaxIDMmapClosed)
-	maxIDMmap.Munmap() // Munmap should be idempotent
+	maxIDMmap.Close() // Close should be idempotent
 }

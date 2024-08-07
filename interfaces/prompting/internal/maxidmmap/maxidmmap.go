@@ -113,16 +113,19 @@ func (mim MaxIDMmap) NextID() (prompting.IDType, error) {
 	return prompting.IDType(id), nil
 }
 
-// Munmap unmaps the underlying byte slice corresponding to the receiving
+// Close unmaps the underlying byte slice corresponding to the receiving
 // max ID mmap, if it has not already been unmapped.
 //
 // The caller must ensure that any relevant lock is held.
-func (mim *MaxIDMmap) Munmap() {
+func (mim *MaxIDMmap) Close() error {
 	if *mim == nil {
-		return
+		return nil
 	}
-	unix.Munmap(*mim)
+	if err := unix.Munmap(*mim); err != nil {
+		return err
+	}
 	*mim = nil
+	return nil
 }
 
 // IsClosed returns whether the receiving max ID mmap has been unmapped and

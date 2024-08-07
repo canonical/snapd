@@ -21,6 +21,7 @@ package requestprompts
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"sync"
 	"time"
@@ -457,6 +458,10 @@ func (pdb *PromptDB) Close() error {
 		return ErrClosed
 	}
 
+	if err := pdb.maxIDMmap.Close(); err != nil {
+		return fmt.Errorf("error while closing max ID mmap: %w", err)
+	}
+
 	// TODO: if in the future we persist prompts across snapd restarts, we do
 	// not want to send {"resolved": "cancelled"} in the notice data.
 	data := map[string]string{"resolved": "cancelled"}
@@ -468,6 +473,5 @@ func (pdb *PromptDB) Close() error {
 
 	// Clear all outstanding prompts
 	pdb.perUser = nil
-	pdb.maxIDMmap.Munmap()
 	return nil
 }
