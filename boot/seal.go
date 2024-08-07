@@ -20,9 +20,6 @@
 package boot
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -31,11 +28,9 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
-	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -43,9 +38,6 @@ import (
 )
 
 var (
-	secbootProvisionTPM              = secboot.ProvisionTPM
-	secbootSealKeys                  = secboot.SealKeys
-	secbootSealKeysWithFDESetupHook  = secboot.SealKeysWithFDESetupHook
 	secbootPCRHandleOfSealedKey      = secboot.PCRHandleOfSealedKey
 	secbootReleasePCRResourceHandles = secboot.ReleasePCRResourceHandles
 
@@ -61,9 +53,6 @@ var (
 	// assuming it is representative` of the target one.
 	HasFDESetupHook = func(kernelInfo *snap.Info) (bool, error) {
 		return false, nil
-	}
-	RunFDESetupHook fde.RunSetupHookFunc = func(req *fde.SetupRequest) ([]byte, error) {
-		return nil, fmt.Errorf("internal error: RunFDESetupHook not set yet")
 	}
 )
 
@@ -134,91 +123,72 @@ func sealKeyToModeenvImpl(key, saveKey secboot.BootstrappedContainer, model *ass
 		}
 	}
 
+	method := device.SealingMethodTPM
 	if flags.HasFDESetupHook {
-		return sealKeyToModeenvUsingFDESetupHook(key, saveKey, model, modeenv, flags)
+		method = device.SealingMethodFDESetupHook
+	} else {
+		if flags.StateUnlocker != nil {
+			relock := flags.StateUnlocker()
+			defer relock()
+		}
 	}
 
-	if flags.StateUnlocker != nil {
-		relock := flags.StateUnlocker()
-		defer relock()
-	}
-	return sealKeyToModeenvUsingSecboot(key, saveKey, model, modeenv, flags)
+	return sealKeyToModeenvForMethod(method, key, saveKey, model, modeenv, flags)
 }
 
-func runKeySealRequests(key secboot.BootstrappedContainer) []secboot.SealKeyRequest {
-	return []secboot.SealKeyRequest{
-		{
-			BootstrappedContainer: key,
-			KeyName:               "ubuntu-data",
-			KeyFile:               device.DataSealedKeyUnder(InitramfsBootEncryptionKeyDir),
-		},
-	}
+type SealKeyForBootChainsParams struct {
+	// RunModeBootChains are the boot chains run key role
+	RunModeBootChains []BootChain
+	// RecoveryBootChainsForRunKey are the extra boot chains for
+	// run+recover key role.
+	RecoveryBootChainsForRunKey []BootChain
+	// RecoveryBootChains are the boot chains for recover key role
+	RecoveryBootChains []BootChain
+	// RoleToBlName maps bootloader role to the name of its bootloader
+	RoleToBlName map[bootloader.Role]string
+	// FactoryReset...
+	FactoryReset bool
+	// InstallHostWritableDir...
+	InstallHostWritableDir string
 }
 
-func fallbackKeySealRequests(key, saveKey secboot.BootstrappedContainer, factoryReset bool) []secboot.SealKeyRequest {
-	saveFallbackKey := device.FallbackSaveSealedKeyUnder(InitramfsSeedEncryptionKeyDir)
-
-	if factoryReset {
-		// factory reset uses alternative sealed key location, such that
-		// until we boot into the run mode, both sealed keys are present
-		// on disk
-		saveFallbackKey = device.FactoryResetFallbackSaveSealedKeyUnder(InitramfsSeedEncryptionKeyDir)
-	}
-	return []secboot.SealKeyRequest{
-		{
-			BootstrappedContainer: key,
-			KeyName:               "ubuntu-data",
-			KeyFile:               device.FallbackDataSealedKeyUnder(InitramfsSeedEncryptionKeyDir),
-		},
-		{
-			BootstrappedContainer: saveKey,
-			KeyName:               "ubuntu-save",
-			KeyFile:               saveFallbackKey,
-		},
-	}
+func sealKeyForBootChainsImpl(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *SealKeyForBootChainsParams) error {
+	return fmt.Errorf("FDE manager backend was not built in")
 }
 
-func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.BootstrappedContainer, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
-	// XXX: Move the auxKey creation to a more generic place, see
-	// PR#10123 for a possible way of doing this. However given
-	// that the equivalent key for the TPM case is also created in
-	// sealKeyToModeenvUsingTPM more symetric to create the auxKey
-	// here and when we also move TPM to use the auxKey to move
-	// the creation of it.
-	auxKey, err := keys.NewAuxKey()
-	if err != nil {
-		return fmt.Errorf("cannot create aux key: %v", err)
-	}
-	params := secboot.SealKeysWithFDESetupHookParams{
-		Model:      modeenv.ModelForSealing(),
-		AuxKey:     auxKey,
-		AuxKeyFile: filepath.Join(InstallHostFDESaveDir, "aux-key"),
-	}
-	factoryReset := flags.FactoryReset
-	skrs := append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey, factoryReset)...)
-	if err := secbootSealKeysWithFDESetupHook(RunFDESetupHook, skrs, &params); err != nil {
-		return err
+var SealKeyForBootChains = sealKeyForBootChainsImpl
+
+func sealKeyToModeenvForMethod(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
+	params := &SealKeyForBootChainsParams{
+		FactoryReset:           flags.FactoryReset,
+		InstallHostWritableDir: InstallHostWritableDir(model),
 	}
 
-	if err := device.StampSealedKeys(InstallHostWritableDir(model), "fde-setup-hook"); err != nil {
-		return err
-	}
+	var tbl bootloader.TrustedAssetsBootloader
+	var bl bootloader.Bootloader
+	if method != device.SealingMethodFDESetupHook {
+		// build the recovery mode boot chain
+		rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
+			Role: bootloader.RoleRecovery,
+		})
+		if err != nil {
+			return fmt.Errorf("cannot find the recovery bootloader: %v", err)
+		}
+		var ok bool
+		tbl, ok = rbl.(bootloader.TrustedAssetsBootloader)
+		if !ok {
+			// TODO:UC20: later the exact kind of bootloaders we expect here might change
+			return fmt.Errorf("internal error: cannot seal keys without a trusted assets bootloader")
+		}
 
-	return nil
-}
-
-func sealKeyToModeenvUsingSecboot(key, saveKey secboot.BootstrappedContainer, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
-	// build the recovery mode boot chain
-	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
-		Role: bootloader.RoleRecovery,
-	})
-	if err != nil {
-		return fmt.Errorf("cannot find the recovery bootloader: %v", err)
-	}
-	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
-	if !ok {
-		// TODO:UC20: later the exact kind of bootloaders we expect here might change
-		return fmt.Errorf("internal error: cannot seal keys without a trusted assets bootloader")
+		// build the run mode boot chains
+		bl, err = bootloader.Find(InitramfsUbuntuBootDir, &bootloader.Options{
+			Role:        bootloader.RoleRunMode,
+			NoSlashBoot: true,
+		})
+		if err != nil {
+			return fmt.Errorf("cannot find the bootloader: %v", err)
+		}
 	}
 
 	includeTryModel := false
@@ -228,118 +198,33 @@ func sealKeyToModeenvUsingSecboot(key, saveKey secboot.BootstrappedContainer, mo
 		// tested, hence allow both recover and factory reset modes
 		modeenv.RecoverySystem: {ModeRecover, ModeFactoryReset},
 	}
-	recoveryBootChains, err := recoveryBootChainsForSystems(systems, modes, tbl, modeenv, includeTryModel, flags.SeedDir)
+	var err error
+	params.RecoveryBootChains, err = recoveryBootChainsForSystems(systems, modes, tbl, modeenv, includeTryModel, flags.SeedDir)
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains: %v", err)
 	}
-	logger.Debugf("recovery bootchain:\n%+v", recoveryBootChains)
-
-	// build the run mode boot chains
-	bl, err := bootloader.Find(InitramfsUbuntuBootDir, &bootloader.Options{
-		Role:        bootloader.RoleRunMode,
-		NoSlashBoot: true,
-	})
-	if err != nil {
-		return fmt.Errorf("cannot find the bootloader: %v", err)
-	}
+	logger.Debugf("recovery bootchain:\n%+v", params.RecoveryBootChains)
 
 	// kernel command lines are filled during install
 	cmdlines := modeenv.CurrentKernelCommandLines
-	runModeBootChains, err := runModeBootChains(rbl, bl, modeenv, cmdlines, flags.SnapsDir)
+	params.RunModeBootChains, err = runModeBootChains(tbl, bl, modeenv, cmdlines, flags.SnapsDir)
 	if err != nil {
 		return fmt.Errorf("cannot compose run mode boot chains: %v", err)
 	}
-	logger.Debugf("run mode bootchain:\n%+v", runModeBootChains)
+	logger.Debugf("run mode bootchain:\n%+v", params.RunModeBootChains)
 
-	pbc := ToPredictableBootChains(append(runModeBootChains, recoveryBootChains...))
-
-	roleToBlName := map[bootloader.Role]string{
-		bootloader.RoleRecovery: rbl.Name(),
-		bootloader.RoleRunMode:  bl.Name(),
+	params.RoleToBlName = make(map[bootloader.Role]string)
+	if tbl != nil {
+		params.RoleToBlName[bootloader.RoleRecovery] = tbl.Name()
+	}
+	if bl != nil {
+		params.RoleToBlName[bootloader.RoleRunMode] = bl.Name()
 	}
 
-	// the boot chains we seal the fallback object to
-	rpbc := ToPredictableBootChains(recoveryBootChains)
-
-	// gets written to a file by sealRunObjectKeys()
-	authKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return fmt.Errorf("cannot generate key for signing dynamic authorization policies: %v", err)
-	}
-
-	runObjectKeyPCRHandle := uint32(secboot.RunObjectPCRPolicyCounterHandle)
-	fallbackObjectKeyPCRHandle := uint32(secboot.FallbackObjectPCRPolicyCounterHandle)
-	if flags.FactoryReset {
-		// during factory reset we may need to rotate the PCR handles,
-		// seal the new keys using a new set of handles such that the
-		// old sealed ubuntu-save key is still usable, for this we
-		// switch between two sets of handles in a round robin fashion,
-		// first looking at the PCR handle used by the current fallback
-		// key and then using the other set when sealing the new keys;
-		// the currently used handles will be released during the first
-		// boot of a new run system
-		usesAlt, err := usesAltPCRHandles()
-		if err != nil {
-			return err
-		}
-		if !usesAlt {
-			logger.Noticef("using alternative PCR handles")
-			runObjectKeyPCRHandle = secboot.AltRunObjectPCRPolicyCounterHandle
-			fallbackObjectKeyPCRHandle = secboot.AltFallbackObjectPCRPolicyCounterHandle
-		}
-	}
-
-	// we are preparing a new system, hence the TPM needs to be provisioned
-	lockoutAuthFile := device.TpmLockoutAuthUnder(InstallHostFDESaveDir)
-	tpmProvisionMode := secboot.TPMProvisionFull
-	if flags.FactoryReset {
-		tpmProvisionMode = secboot.TPMPartialReprovision
-	}
-	if err := secbootProvisionTPM(tpmProvisionMode, lockoutAuthFile); err != nil {
-		return err
-	}
-
-	if flags.FactoryReset {
-		// it is possible that we are sealing the keys again, after a
-		// previously running factory reset was interrupted by a reboot,
-		// in which case the PCR handles of the new sealed keys might
-		// have already been used
-		if err := secbootReleasePCRResourceHandles(runObjectKeyPCRHandle, fallbackObjectKeyPCRHandle); err != nil {
-			return err
-		}
-	}
-
-	// TODO: refactor sealing functions to take a struct instead of so many
-	// parameters
-	err = sealRunObjectKeys(key, pbc, authKey, roleToBlName, runObjectKeyPCRHandle)
-	if err != nil {
-		return err
-	}
-
-	err = sealFallbackObjectKeys(key, saveKey, rpbc, authKey, roleToBlName, flags.FactoryReset,
-		fallbackObjectKeyPCRHandle)
-	if err != nil {
-		return err
-	}
-
-	if err := device.StampSealedKeys(InstallHostWritableDir(model), device.SealingMethodTPM); err != nil {
-		return err
-	}
-
-	installBootChainsPath := BootChainsFileUnder(InstallHostWritableDir(model))
-	if err := WriteBootChains(pbc, installBootChainsPath, 0); err != nil {
-		return err
-	}
-
-	installRecoveryBootChainsPath := RecoveryBootChainsFileUnder(InstallHostWritableDir(model))
-	if err := WriteBootChains(rpbc, installRecoveryBootChainsPath, 0); err != nil {
-		return err
-	}
-
-	return nil
+	return SealKeyForBootChains(method, key, saveKey, params)
 }
 
-func usesAltPCRHandles() (bool, error) {
+func UsesAltPCRHandles() (bool, error) {
 	saveFallbackKey := device.FallbackSaveSealedKeyUnder(InitramfsSeedEncryptionKeyDir)
 	// inspect the PCR handle of the ubuntu-save fallback key
 	handle, err := secbootPCRHandleOfSealedKey(saveFallbackKey)
@@ -348,55 +233,6 @@ func usesAltPCRHandles() (bool, error) {
 	}
 	logger.Noticef("fallback sealed key %v PCR handle: %#x", saveFallbackKey, handle)
 	return handle == secboot.AltFallbackObjectPCRPolicyCounterHandle, nil
-}
-
-func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc PredictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string, pcrHandle uint32) error {
-	modelParams, err := SealKeyModelParams(pbc, roleToBlName)
-	if err != nil {
-		return fmt.Errorf("cannot prepare for key sealing: %v", err)
-	}
-
-	sealKeyParams := &secboot.SealKeysParams{
-		ModelParams:            modelParams,
-		TPMPolicyAuthKey:       authKey,
-		TPMPolicyAuthKeyFile:   filepath.Join(InstallHostFDESaveDir, "tpm-policy-auth-key"),
-		PCRPolicyCounterHandle: pcrHandle,
-	}
-
-	logger.Debugf("sealing run key with PCR handle: %#x", sealKeyParams.PCRPolicyCounterHandle)
-	// The run object contains only the ubuntu-data key; the ubuntu-save key
-	// is then stored inside the encrypted data partition, so that the normal run
-	// path only unseals one object because unsealing is expensive.
-	// Furthermore, the run object key is stored on ubuntu-boot so that we do not
-	// need to continually write/read keys from ubuntu-seed.
-	if err := secbootSealKeys(runKeySealRequests(key), sealKeyParams); err != nil {
-		return fmt.Errorf("cannot seal the encryption keys: %v", err)
-	}
-
-	return nil
-}
-
-func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc PredictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string, factoryReset bool, pcrHandle uint32) error {
-	// also seal the keys to the recovery bootchains as a fallback
-	modelParams, err := SealKeyModelParams(pbc, roleToBlName)
-	if err != nil {
-		return fmt.Errorf("cannot prepare for fallback key sealing: %v", err)
-	}
-	sealKeyParams := &secboot.SealKeysParams{
-		ModelParams:            modelParams,
-		TPMPolicyAuthKey:       authKey,
-		PCRPolicyCounterHandle: pcrHandle,
-	}
-	logger.Debugf("sealing fallback key with PCR handle: %#x", sealKeyParams.PCRPolicyCounterHandle)
-	// The fallback object contains the ubuntu-data and ubuntu-save keys. The
-	// key files are stored on ubuntu-seed, separate from ubuntu-data so they
-	// can be used if ubuntu-data and ubuntu-boot are corrupted or unavailable.
-
-	if err := secbootSealKeys(fallbackKeySealRequests(key, saveKey, factoryReset), sealKeyParams); err != nil {
-		return fmt.Errorf("cannot seal the fallback encryption keys: %v", err)
-	}
-
-	return nil
 }
 
 var resealKeyToModeenv = resealKeyToModeenvImpl
@@ -509,7 +345,7 @@ func resealKeyToModeenvForMethod(method device.SealingMethod, rootdir string, mo
 		if err != nil {
 			return err
 		}
-		params.RunModeBootChains, err = runModeBootChains(rbl, bl, modeenv, cmdlines, "")
+		params.RunModeBootChains, err = runModeBootChains(tbl, bl, modeenv, cmdlines, "")
 		if err != nil {
 			return fmt.Errorf("cannot compose run mode boot chains: %v", err)
 		}
@@ -556,9 +392,66 @@ func modesForSystems(modeenv *Modeenv) map[string][]string {
 	return systemToModes
 }
 
+func recoveryBootChainsForSystems(systems []string, modesForSystems map[string][]string, trbl bootloader.TrustedAssetsBootloader, modeenv *Modeenv, includeTryModel bool, seedDir string) (chains []BootChain, err error) {
+	if trbl == nil {
+		return recoveryBootChainsForSystemsWithoutTrustedAssets(systems, modesForSystems, modeenv, includeTryModel, seedDir)
+	}
+
+	return recoveryBootChainsForSystemsWithTrustedAssets(systems, modesForSystems, trbl, modeenv, includeTryModel, seedDir)
+}
+
+func recoveryBootChainsForSystemsWithoutTrustedAssets(systems []string, modesForSystems map[string][]string, modeenv *Modeenv, includeTryModel bool, seedDir string) (chains []BootChain, err error) {
+	chainsForModel := func(model secboot.ModelForSealing) error {
+		for _, system := range systems {
+			var cmdlines []string
+			modes, ok := modesForSystems[system]
+			if !ok {
+				return fmt.Errorf("internal error: no modes for system %q", system)
+			}
+
+			for _, mode := range modes {
+				// FIXME: we do not really know the
+				// command line. But we do know the
+				// mode and system we should give that
+				// to the fde manager.
+				switch mode {
+				case ModeRun:
+					cmdlines = append(cmdlines, "snapd_recovery_mode=run")
+				case ModeRecover:
+					cmdlines = append(cmdlines, fmt.Sprintf("snapd_recovery_system=%v snapd_recovery_mode=recover", system))
+				case ModeFactoryReset:
+					cmdlines = append(cmdlines, fmt.Sprintf("snapd_recovery_system=%v snapd_recovery_mode=factory-reset", system))
+				}
+			}
+
+			chains = append(chains, BootChain{
+				BrandID:        model.BrandID(),
+				Model:          model.Model(),
+				Classic:        model.Classic(),
+				Grade:          model.Grade(),
+				ModelSignKeyID: model.SignKeyID(),
+				KernelCmdlines: cmdlines,
+			})
+		}
+		return nil
+	}
+
+	if err := chainsForModel(modeenv.ModelForSealing()); err != nil {
+		return nil, err
+	}
+
+	if modeenv.TryModel != "" && includeTryModel {
+		if err := chainsForModel(modeenv.TryModelForSealing()); err != nil {
+			return nil, err
+		}
+	}
+
+	return chains, nil
+}
+
 // TODO:UC20: this needs to take more than one model to accommodate the remodel
 // scenario
-func recoveryBootChainsForSystems(systems []string, modesForSystems map[string][]string, trbl bootloader.TrustedAssetsBootloader, modeenv *Modeenv, includeTryModel bool, seedDir string) (chains []BootChain, err error) {
+func recoveryBootChainsForSystemsWithTrustedAssets(systems []string, modesForSystems map[string][]string, trbl bootloader.TrustedAssetsBootloader, modeenv *Modeenv, includeTryModel bool, seedDir string) (chains []BootChain, err error) {
 	trustedAssets, err := trbl.TrustedAssets()
 	if err != nil {
 		return nil, err
@@ -669,11 +562,38 @@ func recoveryBootChainsForSystems(systems []string, modesForSystems map[string][
 	return chains, nil
 }
 
-func runModeBootChains(rbl, bl bootloader.Bootloader, modeenv *Modeenv, cmdlines []string, runSnapsDir string) ([]BootChain, error) {
-	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
-	if !ok {
-		return nil, fmt.Errorf("recovery bootloader doesn't support trusted assets")
+func runModeBootChains(rbl bootloader.TrustedAssetsBootloader, bl bootloader.Bootloader, modeenv *Modeenv, cmdlines []string, runSnapsDir string) ([]BootChain, error) {
+	if rbl == nil {
+		return runModeBootChainsWithoutTrustedAssets(modeenv, runSnapsDir)
+	} else {
+		return runModeBootChainsWithTrustedAssets(rbl, bl, modeenv, cmdlines, runSnapsDir)
 	}
+}
+
+func runModeBootChainsWithoutTrustedAssets(modeenv *Modeenv, runSnapsDir string) ([]BootChain, error) {
+	var chains []BootChain
+
+	chainsForModel := func(model secboot.ModelForSealing) {
+		chains = append(chains, BootChain{
+			BrandID:        model.BrandID(),
+			Model:          model.Model(),
+			Classic:        model.Classic(),
+			Grade:          model.Grade(),
+			ModelSignKeyID: model.SignKeyID(),
+			// FIXME: the fde manager will need the run mode. Not the kernel command line.
+			KernelCmdlines: []string{"snapd_recovery_mode=run"},
+		})
+	}
+	chainsForModel(modeenv.ModelForSealing())
+
+	if modeenv.TryModel != "" {
+		chainsForModel(modeenv.TryModelForSealing())
+	}
+
+	return chains, nil
+}
+
+func runModeBootChainsWithTrustedAssets(tbl bootloader.TrustedAssetsBootloader, bl bootloader.Bootloader, modeenv *Modeenv, cmdlines []string, runSnapsDir string) ([]BootChain, error) {
 	chains := make([]BootChain, 0, len(modeenv.CurrentKernels))
 
 	trustedAssets, err := tbl.TrustedAssets()
@@ -800,7 +720,7 @@ func SealKeyModelParams(pbc PredictableBootChains, roleToBlName map[bootloader.R
 	modelParams := make([]*secboot.SealKeyModelParams, 0, len(pbc))
 
 	for _, bc := range pbc {
-		modelForSealing := bc.modelForSealing()
+		modelForSealing := bc.ModelForSealing()
 		modelID := modelUniqueID(modelForSealing)
 		const expectNew = false
 		loadChains, err := bootAssetsToLoadChains(bc.AssetChain, bc.KernelBootFile, roleToBlName, expectNew)
@@ -855,7 +775,7 @@ func postFactoryResetCleanupSecboot() error {
 	// handles, while the current key uses alt handles, hence we need to
 	// release the main handles corresponding to the old key
 	handles := []uint32{secboot.RunObjectPCRPolicyCounterHandle, secboot.FallbackObjectPCRPolicyCounterHandle}
-	usesAlt, err := usesAltPCRHandles()
+	usesAlt, err := UsesAltPCRHandles()
 	if err != nil {
 		return fmt.Errorf("cannot inspect fallback key: %v", err)
 	}
