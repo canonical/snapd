@@ -5,4 +5,4 @@ apps:
   api-client:
     command: bin/api-client.py
     plugs:
-      - snap-prompting-control
+      - snap-interfaces-requests-control

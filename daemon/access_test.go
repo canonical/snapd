@@ -325,7 +325,7 @@ plugs:
 }
 
 func (s *accessSuite) TestInterfaceOpenAccess(c *C) {
-	var ac daemon.AccessChecker = daemon.InterfaceOpenAccess{Interfaces: []string{"snap-themes-control", "snap-prompting-control"}}
+	var ac daemon.AccessChecker = daemon.InterfaceOpenAccess{Interfaces: []string{"snap-themes-control", "snap-interfaces-requests-control"}}
 
 	s.daemon(c)
 	// interfaceOpenAccess allows access if requireInterfaceApiAccess() succeeds

@@ -1,6 +1,6 @@
-summary: Verify that snap-prompting-control grants read-access to relevant endpoints
+summary: Verify that snap-interfaces-requests-control grants read-access to relevant endpoints
 details: |
-    The snap-prompting-control interface grants access to prompting clients
+    The snap-interfaces-requests-control interface grants access to prompting clients
     (e.g. prompting-client) to a subset of snapd's API endpoints needed
     to view and manage request prompts and request rules.
 
@@ -21,10 +21,10 @@ prepare: |
 
 execute: |
     "$TESTSTOOLS"/snaps-state install-local api-client
-    echo "The snap-prompting-control plug on the api-client snap is initially disconnected"
-    snap connections api-client | MATCH "snap-prompting-control +api-client:snap-prompting-control +- +-"
-    echo "Connect the snap-prompting-control plug"
-    snap connect api-client:snap-prompting-control
+    echo "The snap-interfaces-requests-control plug on the api-client snap is initially disconnected"
+    snap connections api-client | MATCH "snap-interfaces-requests-control +api-client:snap-interfaces-requests-control +- +-"
+    echo "Connect the snap-interfaces-requests-control plug"
+    snap connect api-client:snap-interfaces-requests-control
 
     echo "Check snap can access interfaces-requests-prompt and interfaces-requests-rule-update notices under /v2/notices"
     api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-prompt" | jq '."status-code"' | MATCH '^200$'
@@ -77,8 +77,8 @@ execute: |
     # echo "Check snap can modify a single rule via /v2/interfaces/requests/rules/<ID>"
     # api-client --socket /run/snapd-snap.socket --method=POST '{"action":"remove"}' "/v2/interfaces/requests/prompts/$RULE_ID" | jq '."status-code"' | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
 
-    echo "Without snap-prompting-control the snap cannot access those API endpoints"
-    snap disconnect api-client:snap-prompting-control
+    echo "Without snap-interfaces-requests-control the snap cannot access those API endpoints"
+    snap disconnect api-client:snap-interfaces-requests-control
 
     api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-prompt" | jq '."status-code"' | MATCH '^403$'
     api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-rule-update" | jq '."status-code"' | MATCH '^403$'

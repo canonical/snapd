@@ -52,7 +52,7 @@ type generalSuite struct {
 }
 
 func (s *generalSuite) expectSystemInfoReadAccess() {
-	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-prompting-control"}})
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}})
 }
 
 func (s *generalSuite) expectChangesReadAccess() {

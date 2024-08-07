@@ -38,7 +38,7 @@ type SnapPromptingControlInterfaceSuite struct {
 }
 
 var _ = Suite(&SnapPromptingControlInterfaceSuite{
-	iface: builtin.MustInterface("snap-prompting-control"),
+	iface: builtin.MustInterface("snap-interfaces-requests-control"),
 })
 
 func (s *SnapPromptingControlInterfaceSuite) SetUpTest(c *C) {
@@ -47,9 +47,9 @@ name: core
 type: os
 version: 1.0
 slots:
-  snap-prompting-control:
+  snap-interfaces-requests-control:
 `
-	s.slot, s.slotInfo = MockConnectedSlot(c, coreSlotYaml, nil, "snap-prompting-control")
+	s.slot, s.slotInfo = MockConnectedSlot(c, coreSlotYaml, nil, "snap-interfaces-requests-control")
 
 	const appPlugYaml = `
 name: other
@@ -57,13 +57,13 @@ version: 0
 apps:
   app:
     command: foo
-    plugs: [snap-prompting-control]
+    plugs: [snap-interfaces-requests-control]
 `
-	s.plug, s.plugInfo = MockConnectedPlug(c, appPlugYaml, nil, "snap-prompting-control")
+	s.plug, s.plugInfo = MockConnectedPlug(c, appPlugYaml, nil, "snap-interfaces-requests-control")
 }
 
 func (s *SnapPromptingControlInterfaceSuite) TestName(c *C) {
-	c.Check(s.iface.Name(), Equals, "snap-prompting-control")
+	c.Check(s.iface.Name(), Equals, "snap-interfaces-requests-control")
 }
 
 func (s *SnapPromptingControlInterfaceSuite) TestSanitizeSlot(c *C) {

@@ -22,13 +22,13 @@ package builtin
 const snapPromptingControlSummary = `allows use of snapd's prompting API and access to prompting-related notice types`
 
 const snapPromptingControlBaseDeclarationPlugs = `
-  snap-prompting-control:
+  snap-interfaces-requests-control:
     allow-installation: false
     deny-auto-connection: true
 `
 
 const snapPromptingControlBaseDeclarationSlots = `
-  snap-prompting-control:
+  snap-interfaces-requests-control:
     allow-installation:
       slot-snap-type:
         - core
@@ -37,7 +37,7 @@ const snapPromptingControlBaseDeclarationSlots = `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                 "snap-prompting-control",
+		name:                 "snap-interfaces-requests-control",
 		summary:              snapPromptingControlSummary,
 		implicitOnCore:       true,
 		implicitOnClassic:    true,

@@ -46,7 +46,7 @@ type noticesSuite struct {
 func (s *noticesSuite) SetUpTest(c *C) {
 	s.apiBaseSuite.SetUpTest(c)
 
-	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "snap-prompting-control"}})
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "snap-interfaces-requests-control"}})
 	s.expectWriteAccess(daemon.OpenAccess{})
 }
 
@@ -282,7 +282,7 @@ func (s *noticesSuite) TestNoticesShowsTypesAllowedForSnap(c *C) {
 	// any of the connected interfaces
 	req, err = http.NewRequest("GET", "/v2/notices", nil)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-refresh-observe&snap-prompting-control;", dirs.SnapSocket)
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-refresh-observe&snap-interfaces-requests-control;", dirs.SnapSocket)
 	rsp = s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 	notices, ok = rsp.Result.([]*state.Notice)
@@ -365,7 +365,7 @@ func (s *noticesSuite) TestNoticesFilterTypesForSnapForbidden(c *C) {
 	rsp = s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
 
-	for _, iface := range []string{"snap-themes-control", "snap-prompting-control"} {
+	for _, iface := range []string{"snap-themes-control", "snap-interfaces-requests-control"} {
 		// neither interface gives access to change-update notices.
 		req, err = http.NewRequest("GET", "/v2/notices?types=change-update", nil)
 		c.Assert(err, IsNil)
