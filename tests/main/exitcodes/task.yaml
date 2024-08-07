@@ -26,9 +26,11 @@ execute: |
     test "$RET" -eq 64
 
     echo "snap command with broken mksquashfs returns exit code 20"
-    for b in /usr/bin/mksquashfs /snap/core/current/usr/bin/mksquashfs; do
-        mount -o bind /bin/false "$b"
-        tests.cleanup defer umount "$b"
+    for b in /usr/bin/mksquashfs /snap/core/current/usr/bin/mksquashfs /snap/snapd/current/usr/bin/mksquashfs; do
+        if [ -f "$b" ]; then
+            mount -o bind /bin/false "$b"
+            tests.cleanup defer umount "$b"
+        fi
     done
     set +e
     snap pack "$TESTSLIB/snaps/test-snapd-sh"
