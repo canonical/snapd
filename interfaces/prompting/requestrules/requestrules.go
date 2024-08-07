@@ -193,7 +193,7 @@ func (rdb *RuleDB) save() error {
 		return fmt.Errorf("cannot marshal rule DB: %w", err)
 	}
 	target := rdb.dbpath()
-	return osutil.AtomicWriteFile(target, b, 0600, 0)
+	return osutil.AtomicWriteFile(target, b, 0o600, 0)
 }
 
 // dbpath returns the path of the database file.
@@ -292,7 +292,7 @@ type RuleConflict struct {
 // addRulePermissionToTree adds all the path pattern variants for the given
 // rule to the map for the given permission.
 //
-// If there are conflicting pattern variant froms other rules, all variants
+// If there are conflicting pattern variants from other rules, all variants
 // which were previously added during this function call are removed
 // from the path map, and an error is returned along with a list of the
 // conflicting variants and the IDs of the conflicting rules.

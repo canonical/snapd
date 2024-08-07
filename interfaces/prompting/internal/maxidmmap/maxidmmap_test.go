@@ -109,15 +109,18 @@ func (s *maxidmmapSuite) TestMaxIDMmapOpenNextIDCloseValid(c *C) {
 		var initialData [8]byte
 		*(*uint64)(unsafe.Pointer(&initialData[0])) = testCase.initial
 		osutil.AtomicWriteFile(s.maxIDPath, initialData[:], 0600, 0)
-		maxIDMmap, err := maxidmmap.OpenMaxIDMmap(s.maxIDPath)
-		c.Check(err, IsNil)
-		c.Check(maxIDMmap, NotNil)
-		s.checkWrittenMaxID(c, testCase.initial)
-		id, err := maxIDMmap.NextID()
-		c.Check(err, IsNil)
-		c.Check(id, Equals, testCase.nextID)
-		s.checkWrittenMaxID(c, uint64(testCase.nextID))
-		maxIDMmap.Close()
+		func() {
+			maxIDMmap, err := maxidmmap.OpenMaxIDMmap(s.maxIDPath)
+			c.Check(err, IsNil)
+			c.Check(maxIDMmap, NotNil)
+			defer maxIDMmap.Close()
+
+			s.checkWrittenMaxID(c, testCase.initial)
+			id, err := maxIDMmap.NextID()
+			c.Check(err, IsNil)
+			c.Check(id, Equals, testCase.nextID)
+			s.checkWrittenMaxID(c, uint64(testCase.nextID))
+		}()
 	}
 }
 
@@ -131,8 +134,8 @@ func (s *maxidmmapSuite) checkWrittenMaxID(c *C, id uint64) {
 
 func (s *maxidmmapSuite) TestMaxIDMmapClose(c *C) {
 	maxIDMmap, err := maxidmmap.OpenMaxIDMmap(s.maxIDPath)
-	c.Check(err, IsNil)
-	c.Check(maxIDMmap, NotNil)
+	c.Assert(err, IsNil)
+	c.Assert(maxIDMmap, NotNil)
 	c.Check(maxIDMmap.IsClosed(), Equals, false)
 	maxIDMmap.Close()
 	c.Check(maxIDMmap.IsClosed(), Equals, true)
