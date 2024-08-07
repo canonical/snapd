@@ -770,3 +770,44 @@ func (s *snapmgrTestSuite) TestInstallComponents(c *C) {
 		c.Assert(prepareKmodComps.WaitTasks(), testutil.DeepContains, installHook[0])
 	}
 }
+
+func (s *snapmgrTestSuite) TestInstallComponentsAlreadyInstalledError(c *C) {
+	const snapName = "some-snap"
+	snapRev := snap.R(1)
+
+	compNamesToType := map[string]string{
+		"one": "test",
+		"two": "test",
+	}
+
+	info := createTestSnapInfoForComponents(c, snapName, snapRev, compNamesToType)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: snapName,
+		Revision: snapRev,
+		SnapID:   "some-snap-id",
+	}
+
+	seq := snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+		sequence.NewRevisionSideState(si, nil),
+	})
+
+	seq.AddComponentForRevision(snapRev, sequence.NewComponentState(&snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, "one"),
+		Revision:  snap.R(1),
+	}, snap.TestComponent))
+
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active:          true,
+		Sequence:        seq,
+		Current:         snapRev,
+		TrackingChannel: "channel-for-components",
+	})
+
+	_, err := snapstate.InstallComponents(context.TODO(), s.state, []string{"one", "two"}, info, snapstate.Options{})
+
+	c.Assert(err, testutil.ErrorIs, snap.AlreadyInstalledComponentError{Component: "one"})
+}

@@ -32,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // InstallComponents installs all of the components in the given names list. The
@@ -50,14 +49,9 @@ func InstallComponents(ctx context.Context, st *state.State, names []string, inf
 		return nil, err
 	}
 
-	currentComps, err := snapst.CurrentComponentInfos()
-	if err != nil {
-		return nil, err
-	}
-
-	for _, comp := range currentComps {
-		if strutil.ListContains(names, comp.Component.ComponentName) {
-			return nil, fmt.Errorf("cannot install already installed component: %q", comp.Component)
+	for _, comp := range names {
+		if snapst.CurrentComponentSideInfo(naming.NewComponentRef(info.SnapName(), comp)) != nil {
+			return nil, snap.AlreadyInstalledComponentError{Component: comp}
 		}
 	}
 
