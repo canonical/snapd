@@ -240,10 +240,6 @@ type Writer struct {
 	availableByMode map[string]*naming.SnapSet
 	byModeSnaps     map[string][]*SeedSnap
 
-	// map of paths to ComponentInfo, it is used after we know the snap
-	// Info data so we can find out where the component belongs to.
-	byPathLocalComps map[string]*snap.ComponentInfo
-
 	// toDownload tracks which set of snaps SnapsToDownload should compute
 	// next
 	toDownload              snapsToDownloadSet
@@ -443,12 +439,10 @@ func validateComponent(optComp *OptionsComponent) error {
 }
 
 // SetOptionsSnaps accepts options-referred snaps represented as OptionsSnap.
-func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap, pathToLocalComp map[string]*snap.ComponentInfo) error {
+func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap) error {
 	if err := w.checkStep(setOptionsSnapsStep); err != nil {
 		return err
 	}
-
-	w.byPathLocalComps = pathToLocalComp
 
 	if len(optSnaps) == 0 {
 		return nil
@@ -673,22 +667,6 @@ func (w *Writer) InfoDerived() error {
 		return err
 	}
 
-	// Check first if there are local components that did not belong to one
-	// of the local snaps
-	errMsg := ""
-compsLoop:
-	for path, cinfo := range w.byPathLocalComps {
-		for _, sn := range w.localSnaps {
-			if cinfo.Component.SnapName == sn.SnapName() {
-				continue compsLoop
-			}
-		}
-		errMsg += fmt.Sprintf("\n%q local component does not have a matching local snap", path)
-	}
-	if errMsg != "" {
-		return fmt.Errorf("missing local snaps:%s", errMsg)
-	}
-
 	// loop this way to process for consistency in the same order
 	// as LocalSnaps result
 	for _, optSnap := range w.optionsSnaps {
@@ -738,11 +716,11 @@ compsLoop:
 	return nil
 }
 
-// SetInfo sets Info and ComponentInfos of the SeedSnap and possibly computes
-// its destination Path. For local snaps the components information will come
-// from data previously read and stored in w.byPathLocalComps, while for snaps
-// downloaded from the store it is expected in cinfos argument.
-func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info, cinfos map[string]*snap.ComponentInfo) error {
+// SetInfo sets info and seedComps (which is a map of component names
+// to SeedComponent) in the SeedSnap sn and computes destination paths
+// for all if coming from the store. If the components do not come
+// from the store, some additional checks are performed.
+func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info, seedComps map[string]*SeedComponent) error {
 	if info.NeedsDevMode() {
 		if err := w.policy.allowsDangerousFeatures(); err != nil {
 			return err
@@ -752,16 +730,17 @@ func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info, cinfos map[string]*snap.
 
 	if sn.local {
 		sn.SnapRef = info
-		return w.assignLocalComponents(sn)
+		return w.assignLocalComponents(sn, seedComps)
 	}
 
 	for i := range sn.Components {
-		cinfo, ok := cinfos[sn.Components[i].ComponentName]
+		seedComp, ok := seedComps[sn.Components[i].ComponentName]
 		if !ok {
 			return fmt.Errorf("store did not return information about %s",
 				sn.Components[i].ComponentName)
 		}
-		sn.Components[i].Info = cinfo
+		sn.Components[i] = *seedComp
+		// Fill the path as this is a non-local component
 		compPath, err := w.tree.componentPath(sn, &sn.Components[i])
 		if err != nil {
 			return err
@@ -784,32 +763,23 @@ func (c byCompName) Len() int           { return len(c) }
 func (c byCompName) Less(i, j int) bool { return c[i].ComponentName < c[j].ComponentName }
 func (c byCompName) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
 
-func (w *Writer) assignLocalComponents(sn *SeedSnap) error {
-	// Add matching local components now that we know the snap name
-	for path, compInfo := range w.byPathLocalComps {
-		if compInfo.Component.SnapName != sn.SnapName() {
-			continue
-		}
-
+func (w *Writer) assignLocalComponents(sn *SeedSnap, seedComps map[string]*SeedComponent) error {
+	for _, seedComp := range seedComps {
 		// Check if the component is defined by the snap
-		compInSnap, ok := sn.Info.Components[compInfo.Component.ComponentName]
+		compInSnap, ok := sn.Info.Components[seedComp.ComponentName]
 		if !ok {
 			return fmt.Errorf("component %s is not defined by snap %s",
-				compInfo.Component.ComponentName, sn.SnapName())
+				seedComp.ComponentName, sn.SnapName())
 		}
 		// and if types match
-		if compInSnap.Type != compInfo.Type {
+		if compInSnap.Type != seedComp.Info.Type {
 			return fmt.Errorf("component %s has type %s while snap %s defines type %s for it",
-				compInfo.Component.ComponentName, compInfo.Type,
+				seedComp.ComponentName, seedComp.Info.Type,
 				sn.SnapName(), compInSnap.Type)
 		}
 
 		// now we can add to the snap
-		sn.Components = append(sn.Components, SeedComponent{
-			ComponentRef: compInfo.Component,
-			Path:         path,
-			Info:         compInfo,
-		})
+		sn.Components = append(sn.Components, *seedComp)
 	}
 
 	// Sort for deterministic download order and tests
