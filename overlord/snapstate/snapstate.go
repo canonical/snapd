@@ -761,7 +761,7 @@ func splitComponentTasksForInstall(
 	err error,
 ) {
 	for _, compsup := range compsups {
-		componentTS, err := doInstallComponent(st, snapst, compsup, snapsup, snapSetupTaskID, fromChange)
+		componentTS, err := doInstallComponent(st, snapst, compsup, snapsup, snapSetupTaskID, nil, nil, fromChange)
 		if err != nil {
 			return nil, nil, nil, nil, nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
 		}

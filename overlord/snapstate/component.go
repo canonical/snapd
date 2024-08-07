@@ -89,27 +89,9 @@ func InstallComponents(ctx context.Context, st *state.State, names []string, inf
 		// the security profiles until the end
 		compsup.MultiComponentInstall = true
 
-		componentTS, err := doInstallComponent(st, &snapst, compsup, snapsup, setupSecurity.ID(), opts.FromChange)
+		componentTS, err := doInstallComponent(st, &snapst, compsup, snapsup, setupSecurity.ID(), setupSecurity, kmodSetup, opts.FromChange)
 		if err != nil {
 			return nil, err
-		}
-
-		if len(componentTS.beforeLink) == 0 && len(componentTS.postOpHookAndAfter) != 1 {
-			return nil, fmt.Errorf("internal error: missing expected tasks in component task set")
-		}
-
-		// splice the setup security task into chain of tasks, right before we
-		// link the component. this means that all tasks for all components will
-		// run up until the link-component task. then one setup-security task
-		// will run, allowing all of the link-component tasks to run.
-		setupSecurity.WaitFor(componentTS.beforeLink[len(componentTS.beforeLink)-1])
-		componentTS.linkTask.WaitFor(setupSecurity)
-
-		if kmodSetup != nil {
-			kmodSetup.WaitFor(componentTS.postOpHookAndAfter[0])
-			if componentTS.discardTask != nil {
-				componentTS.discardTask.WaitFor(kmodSetup)
-			}
 		}
 
 		compSetupIDs = append(compSetupIDs, componentTS.compSetupTaskID)
@@ -256,7 +238,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		},
 	}
 
-	componentTS, err := doInstallComponent(st, &snapst, compSetup, snapsup, "", "")
+	componentTS, err := doInstallComponent(st, &snapst, compSetup, snapsup, "", nil, nil, "")
 	if err != nil {
 		return nil, err
 	}
@@ -298,7 +280,7 @@ func (c *componentInstallTaskSet) taskSet() *state.TaskSet {
 
 // doInstallComponent might be called with the owner snap installed or not.
 func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentSetup,
-	snapsup SnapSetup, snapSetupTaskID string, fromChange string) (componentInstallTaskSet, error) {
+	snapsup SnapSetup, snapSetupTaskID string, setupSecurity, kmodSetup *state.Task, fromChange string) (componentInstallTaskSet, error) {
 
 	// TODO check for experimental flag that will hide temporarily components
 
@@ -409,9 +391,12 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 	}
 
 	// security
-	if !compSetup.MultiComponentInstall {
-		setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup component %q%s security profiles"), compSi.Component, revisionStr))
+	if !compSetup.MultiComponentInstall && setupSecurity == nil {
+		setupSecurity = st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup component %q%s security profiles"), compSi.Component, revisionStr))
 		componentTS.beforeLink = append(componentTS.beforeLink, setupSecurity)
+	}
+
+	if setupSecurity != nil {
 		addTask(setupSecurity)
 	}
 
@@ -431,11 +416,13 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 	componentTS.postOpHookAndAfter = append(componentTS.postOpHookAndAfter, postOpHook)
 	addTask(postOpHook)
 
-	if !compSetup.MultiComponentInstall && compSetup.CompType == snap.KernelModulesComponent {
-		kmodSetup := st.NewTask("prepare-kernel-modules-components",
+	if !compSetup.MultiComponentInstall && kmodSetup == nil && compSetup.CompType == snap.KernelModulesComponent {
+		kmodSetup = st.NewTask("prepare-kernel-modules-components",
 			fmt.Sprintf(i18n.G("Prepare kernel-modules component %q%s"),
 				compSi.Component, revisionStr))
 		componentTS.postOpHookAndAfter = append(componentTS.postOpHookAndAfter, kmodSetup)
+	}
+	if kmodSetup != nil {
 		addTask(kmodSetup)
 	}
 
