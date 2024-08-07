@@ -91,7 +91,7 @@ func InstallComponents(ctx context.Context, st *state.State, names []string, inf
 
 		// here we share the setupSecurity and kmodSetup tasks between all of
 		// the component task chains. this results in multiple parallel tasks
-		// (one per copmonent) that have syncronization points at the
+		// (one per copmonent) that have synchronization points at the
 		// setupSecurity and kmodSetup tasks.
 		componentTS, err := doInstallComponent(st, &snapst, compsup, snapsup, setupSecurity.ID(), setupSecurity, kmodSetup, opts.FromChange)
 		if err != nil {
