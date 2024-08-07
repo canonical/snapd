@@ -465,6 +465,23 @@ func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
 	panic("cannot find snapst.Current in the snapst.Sequence.Revisions")
 }
 
+// CurrentComponentSideInfos returns the component side infos for the revision
+// indicated by snapst.Current in the snap revision sequence, if there is one.
+func (snapst *SnapState) CurrentComponentSideInfos() []*snap.ComponentSideInfo {
+	if !snapst.IsInstalled() {
+		return nil
+	}
+	if idx := snapst.LastIndex(snapst.Current); idx >= 0 {
+		comps := snapst.Sequence.Revisions[idx].Components
+		csis := make([]*snap.ComponentSideInfo, 0, len(comps))
+		for _, comp := range comps {
+			csis = append(csis, comp.SideInfo)
+		}
+		return csis
+	}
+	panic("cannot find snapst.Current in the snapst.Sequence.Revisions")
+}
+
 // CurrentComponentSideInfo returns the component side info for the revision indicated by
 // snapst.Current in the snap revision sequence if there is one.
 func (snapst *SnapState) CurrentComponentSideInfo(cref naming.ComponentRef) *snap.ComponentSideInfo {
