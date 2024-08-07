@@ -147,7 +147,10 @@ func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string
 		perUser:    make(map[uint32]*userDB),
 		notifyRule: notifyRule,
 	}
-	return rdb, rdb.load()
+	if err = rdb.load(); err != nil {
+		logger.Noticef("%v; using new empty rule database", err)
+	}
+	return rdb, nil
 }
 
 // load reads the stored rules from the database file and populates the
