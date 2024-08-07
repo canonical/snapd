@@ -95,6 +95,28 @@ func (s *renderSuite) TestRenderAllVariants(c *C) {
 	c.Check(variants, HasLen, parsed.NumVariants())
 }
 
+func (s *renderSuite) TestRenderAllVariantsConflicts(c *C) {
+	// all variants are the exact same path
+	pattern := "/{fo{obar},foo{b{ar,ar},bar,{ba}r}}"
+	scanned, err := scan(pattern)
+	c.Assert(err, IsNil)
+	parsed, err := parse(scanned)
+	c.Assert(err, IsNil)
+
+	expectedVariants := []string{
+		"/foobar",
+	}
+
+	variants := make([]string, 0, len(expectedVariants))
+	renderAllVariants(parsed, func(index int, variant PatternVariant) {
+		variants = append(variants, variant.String())
+	})
+
+	c.Check(variants, DeepEquals, expectedVariants)
+	c.Check(variants, HasLen, parsed.NumVariants())
+	c.Check(variants, HasLen, 1)
+}
+
 func (s *renderSuite) TestNextVariant(c *C) {
 	pattern := "/{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld{-*,64}.so*"
 	scanned, err := scan(pattern)
