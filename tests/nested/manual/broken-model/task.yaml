@@ -1,0 +1,68 @@
+summary: Verifies that changing the model prevents unlocking of encrypted disks
+details: |
+  Verifies that changing the model prevents unlocking of encrypted
+  disks.  However, recovery keys can still unlock them.
+
+systems: [ubuntu-2*]
+
+environment:
+  NESTED_ENABLE_TPM/tpm: true
+  NESTED_ENABLE_SECURE_BOOT/tpm: true
+  BUILD_FDE_HOOK/tpm: '0'
+  NESTED_ENABLE_TPM/hook: false
+  NESTED_ENABLE_SECURE_BOOT/hook: false
+  BUILD_FDE_HOOK/hook: '1'
+  # FIXME: we should not need that once
+  NESTED_SNAPD_DEBUG_TO_SERIAL/hook: true
+
+prepare: |
+  if [ "${BUILD_FDE_HOOK-}" = 1 ]; then
+    mkdir -p ./extra-initrd/usr/bin/
+    go build -o ./extra-initrd/usr/bin/fde-reveal-key "${TESTSLIB}/fde-setup-hook/fde-setup.go"
+    mkdir -p ./extra-kernel-snap/meta/hooks
+    go build -o ./extra-kernel-snap/meta/hooks/fde-setup "${TESTSLIB}/fde-setup-hook/fde-setup.go"
+  fi
+
+  tests.nested build-image core
+  tests.nested create-vm core
+
+execute: |
+  remote.exec "sudo sed -i 's/^brand-id: .*/brand-id: foobar/;s/^authority-id: .*/authority-id: foobar/' /run/mnt/ubuntu-boot/device/model"
+  recovery_key=$(remote.exec "sudo snap recovery --show-keys" | sed 's/^recovery: *//')
+
+  boot_id="$(tests.nested boot-id)"
+  remote.exec "sudo reboot" || true
+
+  if [ "${BUILD_FDE_HOOK-}" = 1 ]; then
+    # FIXME: we should allow recovery key in case of hook. But we do not.
+    for (( i=0 ; i < 100 ; i++ )); do
+      if tests.nested get serial-log | grep "execution error: cannot unlock volume: model .* not authorized"; then
+        break
+      fi
+      sleep 10
+    done
+    tests.nested get serial-log | MATCH "execution error: cannot unlock volume: model .* not authorized"
+  else
+    sent_recovery=0
+    for (( i=0 ; i < 100 ; i++ )); do
+      if [ "${sent_recovery}" -lt "$(tests.nested get serial-log | grep -c "Please enter the recovery key for disk")" ]; then
+        sent_recovery=$((sent_recovery+1))
+        echo "${recovery_key}" | nc -q 0 127.0.0.1 7777
+        break
+      fi
+      sleep 10
+    done
+
+    test "${sent_recovery}" -gt 0
+
+    remote.wait-for reboot "$boot_id"
+
+    # TODO: also test degraded.json when we report what key was used.
+
+    if os.query is-ubuntu-ge 22.04; then
+      snap_bootstrap_service=snap-initramfs-mounts.service
+    else
+      snap_bootstrap_service=the-tool.service
+    fi
+    remote.exec "sudo journalctl -b0 -u ${snap_bootstrap_service}" | MATCH "successfully activated encrypted device .* using a fallback activation method"
+  fi
