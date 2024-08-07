@@ -25,7 +25,7 @@ subdirs = \
 		  system-shutdown
 
 # Run check-syntax when checking
-# TODO: conver those to autotools-style tests later
+# TODO: convert those to autotools-style tests later
 check: check-unit-tests
 
 # Force particular coding style on all source and header files.
