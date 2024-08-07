@@ -263,6 +263,10 @@ func (s *requestrulesSuite) TestAddRuleUnhappy(c *C) {
 
 	// Error while adding rule should cause no notice to be issued
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+
+	badLifespan := prompting.LifespanSingle
+	_, err = rdb.AddRule(s.defaultUser, snap, iface, constraints, outcome, badLifespan, duration)
+	c.Assert(err, Equals, requestrules.ErrLifespanSingle, Commentf("rdb.Rules(): %+v", s.marshalRules(c, rdb)))
 }
 
 func (s *requestrulesSuite) marshalRules(c *C, rdb *requestrules.RuleDB) string {
@@ -905,7 +909,7 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 
 	pathPattern := mustParsePathPattern(c, "/home/test/**")
 	outcome := prompting.OutcomeAllow
-	lifespan := prompting.LifespanSingle
+	lifespan := prompting.LifespanForever
 	duration := ""
 	constraints1 := &prompting.Constraints{
 		PathPattern: pathPattern,
@@ -946,11 +950,11 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 	path2 := "/home/test/Pictures/img.jpg"
 
 	allowed, err := rdb.IsPathAllowed(s.defaultUser, snap, iface, path1, "read")
-	c.Assert(err, IsNil)
-	c.Assert(allowed, Equals, true, Commentf("rdb.Rules(): %+v", rdb.Rules(s.defaultUser)))
+	c.Check(err, IsNil)
+	c.Check(allowed, Equals, true, Commentf("rdb.Rules(): %+v", rdb.Rules(s.defaultUser)))
 	allowed, err = rdb.IsPathAllowed(s.defaultUser, snap, iface, path2, "read")
-	c.Assert(err, IsNil)
-	c.Assert(allowed, Equals, false)
+	c.Check(err, IsNil)
+	c.Check(allowed, Equals, false)
 
 	// No rules expired, so should not cause a notice
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
@@ -965,41 +969,38 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 	c.Check(rules[0] != rules[1], Equals, true, Commentf("Rules returned duplicate rules: %+v", rules))
 
 	allowed, err = rdb.IsPathAllowed(s.defaultUser, snap, iface, path1, "read")
-	c.Assert(err, IsNil)
-	c.Assert(allowed, Equals, false)
+	c.Check(err, IsNil)
+	c.Check(allowed, Equals, false)
 
 	// rule3 expiration should have recorded a notice
 	expectedData := map[string]string{"removed": "expired"}
 	s.checkNewNoticesSimple(c, []prompting.IDType{rule3.ID}, expectedData)
 
 	allowed, err = rdb.IsPathAllowed(s.defaultUser, snap, iface, path2, "read")
-	c.Assert(err, IsNil)
-	c.Assert(allowed, Equals, false)
+	c.Check(err, IsNil)
+	c.Check(allowed, Equals, false)
 
 	// No rules newly expired, so should not cause a notice
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
 	time.Sleep(time.Second)
 
-	// Matches rule1, which has lifetime single, which thus expires.
-	// Meanwhile, rule2 also expires.
+	// Matches rule1.
+	// Meanwhile, rule2 expires.
 	allowed, err = rdb.IsPathAllowed(s.defaultUser, snap, iface, path1, "read")
-	c.Assert(err, Equals, nil)
-	c.Assert(allowed, Equals, true)
+	c.Check(err, Equals, nil)
+	c.Check(allowed, Equals, true)
 
 	expectedData = map[string]string{"removed": "expired"}
-	s.checkNewNoticesUnorderedSimple(c, []prompting.IDType{rule1.ID, rule2.ID}, expectedData)
+	s.checkNewNoticesSimple(c, []prompting.IDType{rule2.ID}, expectedData)
 
 	allowed, err = rdb.IsPathAllowed(s.defaultUser, snap, iface, path2, "read")
-	c.Assert(err, Equals, requestrules.ErrNoMatchingRule)
-	c.Assert(allowed, Equals, false)
+	c.Check(err, IsNil)
+	c.Check(allowed, Equals, true)
 
 	allowed, err = rdb.IsPathAllowed(s.defaultUser, snap, iface, path1, "read")
-	c.Assert(err, Equals, requestrules.ErrNoMatchingRule)
-	c.Assert(allowed, Equals, false)
-	allowed, err = rdb.IsPathAllowed(s.defaultUser, snap, iface, path2, "read")
-	c.Assert(err, Equals, requestrules.ErrNoMatchingRule)
-	c.Assert(allowed, Equals, false)
+	c.Check(err, IsNil)
+	c.Check(allowed, Equals, true)
 
 	// No rules newly expired, so should not cause a notice
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)

@@ -18,6 +18,7 @@ import (
 
 var (
 	ErrInternalInconsistency = errors.New("internal error: prompting rules database left inconsistent")
+	ErrLifespanSingle        = errors.New(`cannot create rule with lifespan "single"`)
 	ErrRuleIDNotFound        = errors.New("rule ID is not found")
 	ErrRuleIDConflict        = errors.New("rule with matching ID already exists in rules database")
 	ErrPathPatternConflict   = errors.New("a rule with conflicting path pattern and permission already exists in the rules database")
@@ -419,6 +420,7 @@ func errorsJoin(errs ...error) error {
 
 // RefreshTreeEnforceConsistency rebuilds the rule tree, resolving any
 // conflicting pattern variants and permissions by pruning the offending
+// permission from the older of any two conflicting rules.
 //
 // This function is only required if database is left inconsistent (should not
 // occur) or when loading, in case the stored rules on disk were corrupted.
@@ -540,6 +542,10 @@ func (rdb *RuleDB) PopulateNewRule(user uint32, snap string, iface string, const
 		// on values which were validated while unmarshalling
 		return nil, err
 	}
+	if lifespan == prompting.LifespanSingle {
+		// We don't allow creating rules with a lifespan of "single"
+		return nil, ErrLifespanSingle
+	}
 	id, _ := rdb.maxIDMmap.NextID()
 	currTime := time.Now()
 	expiration, err := lifespan.ParseDuration(duration, currTime)
@@ -625,14 +631,6 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 	if err != nil {
 		// Database was left inconsistent, should not occur
 		return false, ErrRuleIDNotFound
-	}
-	if matchingRule.Lifespan == prompting.LifespanSingle {
-		// XXX: we should never add rules with lifespan single to the rule DB
-		rdb.removeRuleFromTree(matchingRule)
-		rdb.removeRuleWithID(matchingID)
-		data := map[string]string{"removed": "expired"}
-		rdb.notifyRule(user, matchingID, data)
-		needToSave = true
 	}
 	return matchingRule.Outcome.AsBool()
 }
