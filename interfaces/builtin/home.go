@@ -92,13 +92,13 @@ capability dac_read_search,
 # TODO: use GenerateAAREExclusionPatterns for this - though the first
 # rule here complicates using it slightly from the inclusion of the "." to 
 # prevent reading dotfiles
-###PROMPT### @{HOME}/               r,
-###PROMPT### @{HOME}/[^s.]**        r,
-###PROMPT### @{HOME}/s[^n]**        r,
-###PROMPT### @{HOME}/sn[^a]**       r,
-###PROMPT### @{HOME}/sna[^p]**      r,
-###PROMPT### @{HOME}/snap[^/]**     r,
-###PROMPT### @{HOME}/{s,sn,sna}{,/} r,
+@{HOME}/               r,
+@{HOME}/[^s.]**        r,
+@{HOME}/s[^n]**        r,
+@{HOME}/sn[^a]**       r,
+@{HOME}/sna[^p]**      r,
+@{HOME}/snap[^/]**     r,
+@{HOME}/{s,sn,sna}{,/} r,
 `
 
 type homeInterface struct {
