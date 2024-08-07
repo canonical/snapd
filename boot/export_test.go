@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/gadget/device"
-	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -111,28 +110,6 @@ func (o *trustedAssetsInstallObserverImpl) CurrentSaveBootstrappedContainer() se
 	return o.saveBootstrappedContainer
 }
 
-func MockSecbootProvisionTPM(f func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error) (restore func()) {
-	restore = testutil.Backup(&secbootProvisionTPM)
-	secbootProvisionTPM = f
-	return restore
-}
-
-func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error) (restore func()) {
-	old := secbootSealKeys
-	secbootSealKeys = f
-	return func() {
-		secbootSealKeys = old
-	}
-}
-
-func MockSecbootSealKeysWithFDESetupHook(f func(runHook fde.RunSetupHookFunc, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error) (restore func()) {
-	old := secbootSealKeysWithFDESetupHook
-	secbootSealKeysWithFDESetupHook = f
-	return func() {
-		secbootSealKeysWithFDESetupHook = old
-	}
-}
-
 func MockSeedReadSystemEssential(f func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error)) (restore func()) {
 	old := seedReadSystemEssential
 	seedReadSystemEssential = f
@@ -206,7 +183,7 @@ func SetBootFlagsInBootloader(flags []string, rootDir string) error {
 }
 
 func (b *BootChain) SecbootModelForSealing() secboot.ModelForSealing {
-	return b.modelForSealing()
+	return b.ModelForSealing()
 }
 
 func (b *BootChain) SetKernelBootFile(kbf bootloader.BootFile) {
@@ -231,12 +208,6 @@ func MockHasFDESetupHook(f func(*snap.Info) (bool, error)) (restore func()) {
 	return func() {
 		HasFDESetupHook = oldHasFDESetupHook
 	}
-}
-
-func MockRunFDESetupHook(f fde.RunSetupHookFunc) (restore func()) {
-	oldRunFDESetupHook := RunFDESetupHook
-	RunFDESetupHook = f
-	return func() { RunFDESetupHook = oldRunFDESetupHook }
 }
 
 func MockModeenvLocked() (restore func()) {

@@ -51,7 +51,7 @@ type BootChain struct {
 	KernelBootFile bootloader.BootFile `json:"-"`
 }
 
-func (b *BootChain) modelForSealing() *modelForSealing {
+func (b *BootChain) ModelForSealing() *modelForSealing {
 	return &modelForSealing{
 		brandID:        b.BrandID,
 		model:          b.Model,

@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
+	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -229,7 +230,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		defer restore()
 
 		provisionCalls := 0
-		restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
+		restore = fdeBackend.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
 			provisionCalls++
 			c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
 			if tc.factoryReset {
@@ -251,7 +252,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		defer restore()
 
 		releasePCRHandleCalls := 0
-		restore = boot.MockSecbootReleasePCRResourceHandles(func(handles ...uint32) error {
+		releaseResourceFunc := func(handles ...uint32) error {
 			c.Check(tc.factoryReset, Equals, true)
 			releasePCRHandleCalls++
 			if tc.pcrHandleOfKey == secboot.FallbackObjectPCRPolicyCounterHandle {
@@ -266,12 +267,15 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 				})
 			}
 			return nil
-		})
+		}
+		restore = boot.MockSecbootReleasePCRResourceHandles(releaseResourceFunc)
+		defer restore()
+		restore = fdeBackend.MockSecbootReleasePCRResourceHandles(releaseResourceFunc)
 		defer restore()
 
 		// set mock key sealing
 		sealKeysCalls := 0
-		restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
+		restore = fdeBackend.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
 			c.Assert(provisionCalls, Equals, 1, Commentf("TPM must have been provisioned before"))
 			sealKeysCalls++
 			switch sealKeysCalls {
@@ -1266,7 +1270,10 @@ func (s *sealSuite) TestRunModeBootChains(c *C) {
 		})
 		c.Assert(err, IsNil)
 
-		bootChains, err := boot.RunModeBootChains(rbl, bl, modeenv, tc.cmdlines, "/snaps")
+		tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
+		c.Assert(ok, Equals, true)
+
+		bootChains, err := boot.RunModeBootChains(tbl, bl, modeenv, tc.cmdlines, "/snaps")
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
 
@@ -1806,7 +1813,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 
 	n := 0
 	var runFDESetupHookReqs []*fde.SetupRequest
-	restore := boot.MockRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
+	restore := fdeBackend.MockRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
 		n++
 		runFDESetupHookReqs = append(runFDESetupHookReqs, req)
 
@@ -1817,7 +1824,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	key := secboot.CreateMockBootstrappedContainer()
 	saveKey := secboot.CreateMockBootstrappedContainer()
 	keyToSave := make(map[string][]byte)
-	restore = boot.MockSecbootSealKeysWithFDESetupHook(func(runHook fde.RunSetupHookFunc, skrs []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error {
+	restore = fdeBackend.MockSecbootSealKeysWithFDESetupHook(func(runHook fde.RunSetupHookFunc, skrs []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error {
 		c.Check(params.Model.Model(), Equals, model.Model())
 		c.Check(params.Model.Model(), Equals, model.Model())
 		c.Check(params.AuxKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "aux-key"))
@@ -1838,6 +1845,11 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 			keyToSave[skr.KeyFile] = out
 		}
 		return nil
+	})
+	defer restore()
+
+	restore = boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+		return model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 
@@ -1879,8 +1891,15 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	dirs.SetRootDir(rootdir)
 	defer dirs.SetRootDir("")
 
-	restore := boot.MockSecbootSealKeysWithFDESetupHook(func(fde.RunSetupHookFunc, []secboot.SealKeyRequest, *secboot.SealKeysWithFDESetupHookParams) error {
+	model := boottest.MakeMockUC20Model()
+
+	restore := fdeBackend.MockSecbootSealKeysWithFDESetupHook(func(fde.RunSetupHookFunc, []secboot.SealKeyRequest, *secboot.SealKeysWithFDESetupHookParams) error {
 		return fmt.Errorf("hook failed")
+	})
+	defer restore()
+
+	restore = boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+		return model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 
@@ -1892,7 +1911,6 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 
 	defer boot.MockModeenvLocked()()
 
-	model := boottest.MakeMockUC20Model()
 	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDESetupHook: true})
 	c.Assert(err, ErrorMatches, "hook failed")
 	marker := filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "sealed-keys")
@@ -2277,7 +2295,7 @@ func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
 		defer restore()
 
 		releasePCRHandleCalls := 0
-		restore = boot.MockSecbootReleasePCRResourceHandles(func(handles ...uint32) error {
+		releaseResourceFunc := func(handles ...uint32) error {
 			releasePCRHandleCalls++
 			if tc.pcrHandleOfKey == secboot.FallbackObjectPCRPolicyCounterHandle {
 				c.Check(handles, DeepEquals, []uint32{
@@ -2291,7 +2309,10 @@ func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
 				})
 			}
 			return tc.releasePCRHandlesErr
-		})
+		}
+		restore = boot.MockSecbootReleasePCRResourceHandles(releaseResourceFunc)
+		defer restore()
+		restore = fdeBackend.MockSecbootReleasePCRResourceHandles(releaseResourceFunc)
 		defer restore()
 
 		err := boot.MarkFactoryResetComplete(tc.encrypted)
