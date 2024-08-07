@@ -11,6 +11,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
+	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -117,7 +118,7 @@ type userDB struct {
 // searchable by user, snap, interface, permission, and pattern variant.
 type RuleDB struct {
 	mutex     sync.Mutex
-	maxIDMmap prompting.MaxIDMmap
+	maxIDMmap maxidmmap.MaxIDMmap
 	ids       map[prompting.IDType]int
 	rules     []*Rule
 	perUser   map[uint32]*userDB
@@ -135,7 +136,7 @@ type RuleDB struct {
 // substantial amount of time (such as to lock and modify snapd state).
 func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error) (*RuleDB, error) {
 	maxIDFilepath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "request-rule-max-id")
-	maxIDMmap, err := prompting.OpenMaxIDMmap(maxIDFilepath)
+	maxIDMmap, err := maxidmmap.OpenMaxIDMmap(maxIDFilepath)
 	if err != nil {
 		return nil, err
 	}
