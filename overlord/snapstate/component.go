@@ -89,6 +89,10 @@ func InstallComponents(ctx context.Context, st *state.State, names []string, inf
 		// the security profiles until the end
 		compsup.MultiComponentInstall = true
 
+		// here we share the setupSecurity and kmodSetup tasks between all of
+		// the component task chains. this results in multiple parallel tasks
+		// (one per copmonent) that have syncronization points at the
+		// setupSecurity and kmodSetup tasks.
 		componentTS, err := doInstallComponent(st, &snapst, compsup, snapsup, setupSecurity.ID(), setupSecurity, kmodSetup, opts.FromChange)
 		if err != nil {
 			return nil, err
@@ -397,8 +401,10 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 		setupSecurity.Set("snap-setup-task", snapSetupTaskID)
 		componentTS.beforeLink = append(componentTS.beforeLink, setupSecurity)
 	}
-
 	if setupSecurity != nil {
+		// note that we don't use addTask here because this task is shared and
+		// we don't want to add "component-setup-task" or "snap-setup-task" to
+		// it
 		setupSecurity.WaitFor(prev)
 		prev = setupSecurity
 	}
@@ -428,6 +434,9 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 		componentTS.postOpHookAndAfter = append(componentTS.postOpHookAndAfter, kmodSetup)
 	}
 	if kmodSetup != nil {
+		// note that we don't use addTask here because this task is shared and
+		// we don't want to add "component-setup-task" or "snap-setup-task" to
+		// it
 		kmodSetup.WaitFor(prev)
 		prev = kmodSetup
 	}
