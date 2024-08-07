@@ -299,6 +299,10 @@ func (l *Listener) Reqs() <-chan *Request {
 	return l.reqs
 }
 
+// Allow tests to kill the listener instead of logging errors so that tests
+// don't have race condition failures.
+var exitOnError = false
+
 // Run reads and dispatches kernel requests until the listener is closed.
 //
 // Run should only be called once per listener object. If called more than once,
@@ -323,18 +327,20 @@ func (l *Listener) Run() error {
 	// is called) return and close the tomb's dead channel, as it is the last
 	// and only tracked goroutine.
 	l.tomb.Go(func() error {
-		var err error
 		for {
-			err = l.tomb.Err()
-			if err != tomb.ErrStillAlive {
+			if l.tomb.Err() != tomb.ErrStillAlive {
 				break
 			}
-			err = l.runOnce()
+			err := l.runOnce()
 			if err != nil {
-				break
+				if exitOnError {
+					return err
+				} else {
+					logger.Noticef("error in listener run loop: %v", err)
+				}
 			}
 		}
-		return err
+		return nil
 	})
 	// Wait for an error to occur or the listener to be explicitly closed.
 	<-l.tomb.Dying()
@@ -431,7 +437,11 @@ func (l *Listener) handleRequestAaClassFile(buf []byte) error {
 		return l.tomb.Err()
 	}
 	l.tomb.Go(func() error {
-		return l.waitAndRespondAaClassFile(req, &fmsg)
+		err := l.waitAndRespondAaClassFile(req, &fmsg)
+		if err != nil {
+			logger.Noticef("error while responding to kernel: %v", err)
+		}
+		return nil
 	})
 	return nil
 }
@@ -445,7 +455,7 @@ func (l *Listener) waitAndRespondAaClassFile(req *Request, msg *notify.MsgNotifi
 	case response = <-req.replyChan:
 		break
 	case <-l.tomb.Dying():
-		// don't bother sending deny response, kernel will handle this
+		// don't bother sending deny response, kernel will auto-deny if needed
 		return nil
 	}
 	allow := response.Allow

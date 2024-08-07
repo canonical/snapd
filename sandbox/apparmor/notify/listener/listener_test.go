@@ -638,6 +638,8 @@ func newMsgNotificationResponse(id uint64, allow, deny uint32) *notify.MsgNotifi
 }
 
 func (*listenerSuite) TestRunErrors(c *C) {
+	listener.ExitOnError()
+
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
@@ -701,6 +703,8 @@ func (*listenerSuite) TestRunErrors(c *C) {
 		select {
 		case r := <-l.Reqs():
 			c.Check(r, IsNil, Commentf("should not have received non-nil request; expected error: %v", testCase.err))
+		case <-time.NewTimer(time.Second).C:
+			c.Error("done waiting for expected error", testCase.err)
 		case <-t.Dying():
 		}
 		err = t.Wait()

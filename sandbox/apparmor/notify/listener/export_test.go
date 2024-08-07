@@ -29,6 +29,12 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+func ExitOnError() (restore func()) {
+	restore = testutil.Backup(&exitOnError)
+	exitOnError = true
+	return restore
+}
+
 func FakeRequestWithClassAndReplyChan(class notify.MediationClass, replyChan chan *Response) *Request {
 	return &Request{
 		class:     class,
