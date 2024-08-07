@@ -1065,8 +1065,8 @@ func (s *requestrulesSuite) TestRulesLookup(c *C) {
 	c.Check(userRules, HasLen, 3)
 OUTER_LOOP_USER:
 	for _, rule := range []*requestrules.Rule{rule2, rule3, rule4} {
-		for _, userRule := range userRules {
-			if reflect.DeepEqual(rule, userRule) {
+		for _, expected := range userRules {
+			if reflect.DeepEqual(rule, expected) {
 				continue OUTER_LOOP_USER
 			}
 		}
@@ -1077,8 +1077,8 @@ OUTER_LOOP_USER:
 	c.Check(userSnapRules, HasLen, 2)
 OUTER_LOOP_USER_SNAP:
 	for _, rule := range []*requestrules.Rule{rule3, rule4} {
-		for _, userRule := range userSnapRules {
-			if reflect.DeepEqual(rule, userRule) {
+		for _, expected := range userSnapRules {
+			if reflect.DeepEqual(rule, expected) {
 				continue OUTER_LOOP_USER_SNAP
 			}
 		}
@@ -1093,8 +1093,8 @@ OUTER_LOOP_USER_INTERFACE:
 	// TODO: remove rule4 when rule4 is for another interface
 	// for _, rule := range []*requestrules.Rule{rule2, rule3} {
 	for _, rule := range []*requestrules.Rule{rule2, rule3, rule4} {
-		for _, userRule := range userInterfaceRules {
-			if reflect.DeepEqual(rule, userRule) {
+		for _, expected := range userInterfaceRules {
+			if reflect.DeepEqual(rule, expected) {
 				continue OUTER_LOOP_USER_INTERFACE
 			}
 		}
@@ -1105,6 +1105,19 @@ OUTER_LOOP_USER_INTERFACE:
 	// userInterfaceRules = rdb.RulesForInterface(user, iface)
 	// c.Check(userInterfaceRules, HasLen, 1)
 	// c.Check(userInterfaceRules[0], DeepEquals, rule4)
+
+	userSnapInterfaceRules := rdb.RulesForSnapInterface(user, snap, origIface)
+	// TODO: make this 1 when rule4 is for another interface
+	c.Check(userSnapRules, HasLen, 2)
+OUTER_LOOP_USER_SNAP_INTERFACE:
+	for _, rule := range []*requestrules.Rule{rule3, rule4} {
+		for _, expected := range userSnapInterfaceRules {
+			if reflect.DeepEqual(rule, expected) {
+				continue OUTER_LOOP_USER_SNAP_INTERFACE
+			}
+		}
+		c.Errorf("rule not found in userRules:\nrule: %+v\nuserSnapRules: %+v", rule, userRules)
+	}
 
 	// userSnapInterfaceRules := rdb.RulesForSnapInterface(user, snap, iface)
 	// c.Check(userSnapInterfaceRules, HasLen, 1)
