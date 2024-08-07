@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/snap/naming"
 )
@@ -118,8 +117,7 @@ func (p *Prompting) Connect() (retErr error) {
 }
 
 var (
-	notifySupportAvailable = notify.SupportAvailable
-	listenerRegister       = listener.Register
+	listenerRegister = listener.Register
 )
 
 func (p *Prompting) disconnect() error {
