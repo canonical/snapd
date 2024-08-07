@@ -180,7 +180,7 @@ func (rdb *RuleDB) load() error {
 	}
 
 	notifyEveryRule := true
-	rdb.RefreshTreeEnforceConsistency(notifyEveryRule)
+	rdb.refreshTreeEnforceConsistency(notifyEveryRule)
 
 	return nil
 }
@@ -422,7 +422,7 @@ func errorsJoin(errs ...error) error {
 	return err
 }
 
-// RefreshTreeEnforceConsistency rebuilds the rule tree, resolving any
+// refreshTreeEnforceConsistency rebuilds the rule tree, resolving any
 // conflicting pattern variants and permissions by pruning the offending
 // permission from the older of any two conflicting rules.
 //
@@ -440,9 +440,7 @@ func errorsJoin(errs ...error) error {
 // permissions), the conflicting permission is removed from the rule with the
 // earlier timestamp. When the function returns, the database should be fully
 // internally consistent and without conflicting rules.
-//
-// TODO: unexport (probably)
-func (rdb *RuleDB) RefreshTreeEnforceConsistency(notifyEveryRule bool) {
+func (rdb *RuleDB) refreshTreeEnforceConsistency(notifyEveryRule bool) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 	needToSave := false
@@ -525,7 +523,7 @@ func (rdb *RuleDB) RefreshTreeEnforceConsistency(notifyEveryRule bool) {
 	}
 }
 
-// PopulateNewRule creates a new Rule with the given contents.
+// populateNewRule creates a new Rule with the given contents.
 //
 // Users of requestrules should probably autofill rules from JSON and never call
 // this function directly.
@@ -535,14 +533,12 @@ func (rdb *RuleDB) RefreshTreeEnforceConsistency(notifyEveryRule bool) {
 // time, to compute the expiration time for the rule, and stores that as part
 // of the rule which is returned. If any of the given parameters are invalid,
 // returns a corresponding error.
-//
-// TODO: unexport (probably, avoid confusion with AddRule)
-func (rdb *RuleDB) PopulateNewRule(user uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*Rule, error) {
+func (rdb *RuleDB) populateNewRule(user uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*Rule, error) {
 	if err := constraints.ValidateForInterface(iface); err != nil {
 		return nil, err
 	}
 	if _, err := outcome.AsBool(); err != nil {
-		// This should not occur, since PopulateNewRule should only be called
+		// This should not occur, since populateNewRule should only be called
 		// on values which were validated while unmarshalling
 		return nil, err
 	}
@@ -667,7 +663,7 @@ func (rdb *RuleDB) RuleWithID(user uint32, id prompting.IDType) (*Rule, error) {
 func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*Rule, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
-	newRule, err := rdb.PopulateNewRule(user, snap, iface, constraints, outcome, lifespan, duration)
+	newRule, err := rdb.populateNewRule(user, snap, iface, constraints, outcome, lifespan, duration)
 	if err != nil {
 		return nil, err
 	}
@@ -775,7 +771,7 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraints *prom
 		changeOccurred = true
 		return nil, err
 	}
-	newRule, err := rdb.PopulateNewRule(user, origRule.Snap, origRule.Interface, constraints, outcome, lifespan, duration)
+	newRule, err := rdb.populateNewRule(user, origRule.Snap, origRule.Interface, constraints, outcome, lifespan, duration)
 	if err != nil {
 		rdb.addRuleToTree(origRule) // ignore any new error, should not occur
 		// origRule was successfully removed before, so it should now be able
