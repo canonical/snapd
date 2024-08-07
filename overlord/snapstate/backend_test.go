@@ -92,8 +92,8 @@ type fakeOp struct {
 	dirOpts  *dirs.SnapDirOptions
 	undoInfo *backend.UndoInfo
 
-	compsToInstall, currentComps []*snap.ComponentSideInfo
-	compsToRemove, finalComps    []*snap.ComponentSideInfo
+	currentComps []*snap.ComponentSideInfo
+	finalComps   []*snap.ComponentSideInfo
 
 	containerName     string
 	containerFileName string
