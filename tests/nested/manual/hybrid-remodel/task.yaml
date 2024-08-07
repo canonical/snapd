@@ -15,14 +15,16 @@ environment:
   STORE_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
-  # shellcheck source=tests/lib/prepare.sh
-  . "$TESTSLIB/prepare.sh"
-  # shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB"/nested.sh
-  
   VERSION="$(tests.nested show version)"
+  snap download --basename=pc-kernel --channel="$VERSION/stable" pc-kernel
+  snap download --basename=pc --channel="classic-${VERSION}.04/stable" pc
+
   "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
-     --model "${TESTSLIB}/assertions/classic-model-${VERSION}.assert"
+     --model "${TESTSLIB}/assertions/classic-model-${VERSION}.assert" \
+     --gadget pc.snap \
+     --gadget-assertion pc.assert \
+     --kernel pc-kernel.snap \
+     --kernel-assertion pc-kernel.assert
 
 restore: |
   tests.systemd stop-unit --remove "nested-vm"
