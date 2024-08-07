@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
+	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
@@ -664,7 +665,7 @@ version: 5.0
 	defer restore()
 
 	provisionCalls := 0
-	restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
+	restore = fdeBackend.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
 		provisionCalls++
 		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
 		if opts.factoryReset {
@@ -692,7 +693,7 @@ version: 5.0
 	defer restore()
 
 	releasePCRHandleCalls := 0
-	restore = boot.MockSecbootReleasePCRResourceHandles(func(handles ...uint32) error {
+	releaseResourceFunc := func(handles ...uint32) error {
 		c.Check(opts.factoryReset, Equals, true)
 		releasePCRHandleCalls++
 		c.Check(handles, DeepEquals, []uint32{
@@ -700,7 +701,10 @@ version: 5.0
 			secboot.AltFallbackObjectPCRPolicyCounterHandle,
 		})
 		return nil
-	})
+	}
+	restore = boot.MockSecbootReleasePCRResourceHandles(releaseResourceFunc)
+	defer restore()
+	restore = fdeBackend.MockSecbootReleasePCRResourceHandles(releaseResourceFunc)
 	defer restore()
 
 	hasFDESetupHookCalled := false
@@ -713,7 +717,7 @@ version: 5.0
 
 	// set mock key sealing
 	sealKeysCalls := 0
-	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
+	restore = fdeBackend.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
 		c.Assert(provisionCalls, Equals, 1, Commentf("TPM must have been provisioned before"))
 		sealKeysCalls++
 		switch sealKeysCalls {
@@ -1207,7 +1211,7 @@ version: 5.0
 	defer restore()
 
 	provisionCalls := 0
-	restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
+	restore = fdeBackend.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
 		provisionCalls++
 		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
 		c.Check(mode, Equals, secboot.TPMProvisionFull)
@@ -1216,7 +1220,7 @@ version: 5.0
 	defer restore()
 	// set mock key sealing
 	sealKeysCalls := 0
-	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
+	restore = fdeBackend.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
 		sealKeysCalls++
 		switch sealKeysCalls {
 		case 1:
@@ -1397,7 +1401,7 @@ version: 5.0
 	defer restore()
 
 	provisionCalls := 0
-	restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
+	restore = fdeBackend.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
 		provisionCalls++
 		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
 		c.Check(mode, Equals, secboot.TPMProvisionFull)
@@ -1406,7 +1410,7 @@ version: 5.0
 	defer restore()
 	// set mock key sealing
 	sealKeysCalls := 0
-	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
+	restore = fdeBackend.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
 		sealKeysCalls++
 		switch sealKeysCalls {
 		case 1, 2:
