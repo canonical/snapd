@@ -135,7 +135,7 @@ func DeriveSideInfo(snapPath string, model *asserts.Model, sf SeedAssertionFetch
 // component using its digest to fetch the relevant assertions. It will fail
 // with an asserts.NotFoundError if it cannot find them. model is used to cross
 // check that the found snap-resource-revision is applicable on the device.
-func DeriveComponentSideInfo(compPath string, compInfo *snap.ComponentInfo, info *snap.Info, sf SeedAssertionFetcher, db asserts.RODatabase) (*snap.ComponentSideInfo, []*asserts.Ref, error) {
+func DeriveComponentSideInfo(compPath string, compInfo *snap.ComponentInfo, info *snap.Info, model *asserts.Model, sf SeedAssertionFetcher, db asserts.RODatabase) (*snap.ComponentSideInfo, []*asserts.Ref, error) {
 	// We assume provenance cross-checks for the snap-revision already
 	// happened, and here we just check that provenance is consistent
 	// between snap and component.
@@ -157,7 +157,7 @@ func DeriveComponentSideInfo(compPath string, compInfo *snap.ComponentInfo, info
 
 	csi, err := snapasserts.DeriveComponentSideInfoFromDigestAndSize(
 		compInfo.Component.ComponentName, compInfo.Component.SnapName,
-		info.ID(), compPath, digest, size, db)
+		info.ID(), compPath, digest, size, model, db)
 	if err != nil {
 		return nil, nil, err
 	}

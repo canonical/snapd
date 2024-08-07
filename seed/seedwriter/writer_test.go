@@ -3855,7 +3855,7 @@ func (s *writerSuite) testSeedSnapsWriteMetaCore20SignedLocalAssertedSnaps(c *C,
 					"1.0", "", "", "", nil)
 				pathComp := s.AssertedSnap(cref.String())
 				csi, _, err := seedwriter.DeriveComponentSideInfo(
-					pathComp, cinfo, info, s.rf, s.db)
+					pathComp, cinfo, info, model, s.rf, s.db)
 				c.Assert(err, IsNil)
 				cinfo.ComponentSideInfo = *csi
 				seedComps[comp] = &seedwriter.SeedComponent{
