@@ -1,0 +1,223 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import re
+import sys
+import yaml
+
+
+class ExecutionRule:
+    def __init__(self, from_list: list[str], to: list[str]):
+        self.regex_list = []
+        self.to = to
+        for regex in from_list:
+            self.regex_list.append(re.compile(regex))
+
+    def match(self, path: str) -> list[str]:
+        for regex in self.regex_list:
+            if regex.match(path):
+                return self.to
+
+        return []
+
+
+class ExecutionRules:
+    def __init__(self, rules: list[ExecutionRule]):
+        self.rules = []
+        self.rules = rules
+
+    def calc_executions(self, change: str) -> list[str]:
+        for rule in self.rules:
+            match = rule.match(change)
+            if match != []:
+                return match
+
+        return []
+
+
+class ExecutionManager:
+
+    TASK = "task.yaml"
+    SELF = "$SELF"
+    NONE = "$NONE"
+
+    def __init__(self, rules_file: str, system: str, backend: str, verbose: bool):
+        self.verbose = verbose
+        self.system = system
+        self.backend = backend
+        with open(rules_file) as f:
+            rules_map = yaml.safe_load(f)
+        self.rules = ExecutionRules(self.from_rules_map(rules_map))
+
+    @classmethod
+    def from_rules_map(
+        cls, rules_map: dict[str, dict[str, dict[str, list[str]]]]
+    ) -> list[ExecutionRule]:
+        return [
+            ExecutionRule(r.get("from", []), r.get("to", []))
+            for r in rules_map["rules"].values()
+        ]
+
+    def _is_test_dir(self, change_dir: str) -> bool:
+        return os.path.isfile(os.path.join(change_dir, self.TASK))
+
+    def _is_task_file(self, change_path: str) -> bool:
+        return os.path.isfile(change_path) and change_path.endswith("task.yaml")
+
+    def _get_test_exec_dir(self, change_dir: str) -> str:
+        test_dir = change_dir
+        if change_dir.endswith("/") and self._is_test_dir(change_dir):
+            test_dir = change_dir[:-1]
+        return test_dir
+
+    def _get_execution_param(self, exec_paths: list[str]) -> list[str]:
+        all_params = []
+        for exec_path in exec_paths:
+            all_params.append(self.backend + ":" + self.system + ":" + exec_path)
+        return all_params
+
+    def _calc_self(self, change_path: str) -> str:
+        if self.verbose:
+            print("calculating self for {}".format(change_path))
+
+        # if the change is a directory which has changed
+        if os.path.isdir(change_path):
+            if self._is_test_dir(change_path):
+                return self._get_test_exec_dir(change_path)
+            else:
+                test_dir = self._get_parent_with_task(change_path)
+                return self._get_test_exec_dir(test_dir)
+        # if the change is a file which has changed
+        elif os.path.isfile(change_path):
+            # if the change is a task.yaml
+            if self._is_task_file(change_path):
+                return self._get_test_exec_dir(os.path.dirname(change_path))
+
+            # if the change is a file in the same dir than a task.yaml
+            change_dir = os.path.dirname(change_path)
+            if self._is_test_dir(change_dir):
+                return self._get_test_exec_dir(change_dir)
+            # if the change is a file which is not in the same dir than a task.yaml
+            else:
+                test_dir = self._get_parent_with_task(change_path)
+                return self._get_test_exec_dir(test_dir)
+        # if the change is deleted file/dir
+        else:
+            # if a task.yaml has been deleted
+            if self._is_task_file(change_path):
+                return ""
+            else:
+                test_dir = self._get_parent_with_task(change_path)
+                return test_dir
+
+    def _get_parent_with_task(self, change_path: str) -> str:
+        if self.verbose:
+            print("calculating parent with task {}".format(change_path))
+        parent_path = os.path.dirname(change_path)
+        while parent_path != "":
+            if os.path.isfile(os.path.join(parent_path, self.TASK)):
+                return parent_path
+            parent_path = os.path.dirname(parent_path)
+        return ""
+
+    def _clean_executions(self, executions: list[str]) -> list[str]:
+        if self.verbose:
+            print("cleaning executions for {}".format(executions))
+
+        final_executions = []
+        # Get the execution paths ordered starting from the longest one
+        sorted_executions = sorted(executions, key=len, reverse=True)
+        for i in range(len(sorted_executions)):
+            discard_execution = False
+            long_execution = sorted_executions[i]
+            if self.verbose:
+                print("  checking repeated executions for {}".format(long_execution))
+
+            for j in range(i + 1, len(sorted_executions)):
+                short_execution = sorted_executions[j]
+                if self.verbose:
+                    print(
+                        "    comparing repeated executions for {}".format(
+                            short_execution
+                        )
+                    )
+
+                # if the shorter executions is a test, we continue
+                if not short_execution.endswith("/"):
+                    if long_execution == short_execution:
+                        discard_execution = True
+                        break
+                # if the shorter execution is a either suite or group of suites
+                else:
+                    # if the long executions starts with short execution means
+                    # the long execution is included in the short one and it can
+                    # be discarded
+                    if long_execution.startswith(short_execution):
+                        discard_execution = True
+                        break
+
+            # take decision after all shorter executions have been compared
+            if not discard_execution:
+                final_executions.append(long_execution)
+
+        return final_executions
+
+    # Retrieves the list of tests to execute
+    def get_executions(self, changes: list[str]) -> list[str]:
+        all_executions = []
+        for change in changes:
+            executions = self.rules.calc_executions(change)
+            # When the tests to run as tagged as SELF means the current test
+            # has to be executed
+            for execution in executions:
+                if execution == self.SELF:
+                    self_execution = self._calc_self(change)
+                    if self_execution != "":
+                        all_executions.append(self_execution)
+                # When the tests to run as tagged as NONE means that no tests
+                # have to be executed
+                elif execution == self.NONE:
+                    continue
+                # Otherwise, it is executed what is defined in to (literal)
+                else:
+                    all_executions.append(self._get_test_exec_dir(execution))
+
+        cleaned_executions = self._clean_executions(all_executions)
+        return self._get_execution_param(cleaned_executions)
+
+
+def _make_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="spread shellcheck helper")
+    parser.add_argument("-r", "--rules-file", required=True, help="Rules file")
+    parser.add_argument(
+        "-s", "--system", required=True, help="System used for executing the tests"
+    )
+    parser.add_argument(
+        "-b", "--backend", required=True, help="Backend used for executing the tests"
+    )
+    parser.add_argument(
+        "-c", "--change", action="append", default=[], help="File that changed"
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Be more verbose")
+
+    return parser
+
+
+if __name__ == "__main__":
+    parser = _make_parser()
+    args = parser.parse_args()
+
+    if not args.change:
+        print("spread-filter: no file changes set")
+        sys.exit(1)
+
+    if not os.path.isfile(args.rules_file):
+        print("spread-filter: rules file '{}' does not exist".format(args.rules_file))
+        sys.exit(1)
+
+    execution_manager = ExecutionManager(
+        args.rules_file, args.system, args.backend, args.verbose
+    )
+    execution_list = execution_manager.get_executions(args.change)
+    print(" ".join(map(str, execution_list)))
