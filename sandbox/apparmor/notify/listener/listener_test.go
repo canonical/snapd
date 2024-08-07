@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,6 +37,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/epoll"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
@@ -650,26 +652,26 @@ func (*listenerSuite) TestRunErrors(c *C) {
 	}{
 		{
 			msgNotificationFile{},
-			`cannot extract first message: cannot parse message header: invalid length \(must be >= 4\): 0`,
+			`.*cannot extract first message: cannot parse message header: invalid length \(must be >= 4\): 0`,
 		},
 		{
 			msgNotificationFile{
 				Length: 1234,
 			},
-			`cannot extract first message: length in header exceeds data length: 1234 > 52`,
+			`.*cannot extract first message: length in header exceeds data length: 1234 > 52`,
 		},
 		{
 			msgNotificationFile{
 				Length: 13,
 			},
-			`cannot unmarshal apparmor message header: unsupported version: 0`,
+			`.*cannot unmarshal apparmor message header: unsupported version: 0`,
 		},
 		{
 			msgNotificationFile{
 				Version: 3,
 				Length:  13,
 			},
-			`cannot unmarshal apparmor notification message: cannot unpack: unexpected EOF`,
+			`.*cannot unmarshal apparmor notification message: cannot unpack: unexpected EOF`,
 		},
 		{
 			msgNotificationFile{
@@ -677,7 +679,7 @@ func (*listenerSuite) TestRunErrors(c *C) {
 				Version:          3,
 				NotificationType: notify.APPARMOR_NOTIF_CANCEL,
 			},
-			`unsupported notification type: APPARMOR_NOTIF_CANCEL`,
+			`.*unsupported notification type: APPARMOR_NOTIF_CANCEL`,
 		},
 		{
 			msgNotificationFile{
@@ -686,9 +688,12 @@ func (*listenerSuite) TestRunErrors(c *C) {
 				NotificationType: notify.APPARMOR_NOTIF_OP,
 				Class:            uint16(notify.AA_CLASS_DBUS),
 			},
-			`unsupported mediation class: AA_CLASS_DBUS`,
+			`.*unsupported mediation class: AA_CLASS_DBUS`,
 		},
 	} {
+		logbuf, restore := logger.MockLogger()
+		defer restore()
+
 		l, err := listener.Register()
 		c.Assert(err, IsNil)
 
@@ -701,13 +706,15 @@ func (*listenerSuite) TestRunErrors(c *C) {
 		select {
 		case r := <-l.Reqs():
 			c.Check(r, IsNil, Commentf("should not have received non-nil request; expected error: %v", testCase.err))
-		case <-t.Dying():
+		case <-time.NewTimer(100 * time.Millisecond).C:
+			// No errors
 		}
-		err = t.Wait()
-		c.Check(err, ErrorMatches, testCase.err)
+
+		logErr := fmt.Errorf("%s", strings.TrimSpace(logbuf.String()))
+		c.Check(logErr, ErrorMatches, testCase.err)
 
 		err = l.Close()
-		c.Check(err, Equals, listener.ErrAlreadyClosed)
+		c.Check(err, IsNil)
 	}
 }
 
