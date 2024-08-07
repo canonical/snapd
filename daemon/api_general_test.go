@@ -51,6 +51,10 @@ type generalSuite struct {
 	apiBaseSuite
 }
 
+func (s *generalSuite) expectSystemInfoReadAccess() {
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}})
+}
+
 func (s *generalSuite) expectChangesReadAccess() {
 	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}})
 }
@@ -77,6 +81,7 @@ func (s *generalSuite) TestRoot(c *check.C) {
 }
 
 func (s *generalSuite) TestSysInfo(c *check.C) {
+	s.expectSystemInfoReadAccess()
 	req, err := http.NewRequest("GET", "/v2/system-info", nil)
 	c.Assert(err, check.IsNil)
 
@@ -197,6 +202,7 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 }
 
 func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
+	s.expectSystemInfoReadAccess()
 	req, err := http.NewRequest("GET", "/v2/system-info", nil)
 	c.Assert(err, check.IsNil)
 
@@ -278,6 +284,7 @@ func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
 }
 
 func (s *generalSuite) testSysInfoSystemMode(c *check.C, mode string) {
+	s.expectSystemInfoReadAccess()
 	req, err := http.NewRequest("GET", "/v2/system-info", nil)
 	c.Assert(err, check.IsNil)
 
@@ -369,6 +376,7 @@ func (s *generalSuite) TestSysInfoSystemModeInstall(c *check.C) {
 	s.testSysInfoSystemMode(c, "install")
 }
 func (s *generalSuite) TestSysInfoIsManaged(c *check.C) {
+	s.expectSystemInfoReadAccess()
 	d := s.daemon(c)
 
 	st := d.Overlord().State()
@@ -390,6 +398,7 @@ func (s *generalSuite) TestSysInfoIsManaged(c *check.C) {
 }
 
 func (s *generalSuite) TestSysInfoWorksDegraded(c *check.C) {
+	s.expectSystemInfoReadAccess()
 	d := s.daemon(c)
 
 	d.SetDegradedMode(fmt.Errorf("some error"))
