@@ -107,14 +107,18 @@ const (
 )
 
 type SnapAction struct {
-	Action          string
-	InstanceName    string
-	SnapID          string
-	Channel         string
-	Revision        snap.Revision
-	CohortKey       string
-	Flags           SnapActionFlags
-	Epoch           snap.Epoch
+	Action       string
+	InstanceName string
+	SnapID       string
+	Channel      string
+	Revision     snap.Revision
+	CohortKey    string
+	Flags        SnapActionFlags
+	Epoch        snap.Epoch
+	// ResourceInstall is a flag that indicates that this action is being used
+	// to fetch the list of resources that are available for a snap. This flag
+	// impacts how we decide to report an error if the snap has no updates
+	// available.
 	ResourceInstall bool
 	// ValidationSets is an optional array of validation set primary keys
 	// (relevant for install and refresh actions).
