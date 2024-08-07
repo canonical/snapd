@@ -1,0 +1,51 @@
+summary: Verify that all shared libraries exposed by the host can be loaded.
+details: |
+  We want to ensure that all of the libraries exposed through
+  /var/lib/snapd/lib/gl{,32} can be loaded with dlopen without errors.
+
+  While not perfect, it shows the extent of the contract that snapd promises to
+  upkeep - that the libraries exist and may be loaded. This test does not
+  verify if the opengl interface provides permissions required to access device
+  nodes, and the complex interaction of device nodes with special Nvidia
+  support code in snap-confine as this would require really loading the driver
+  and having matching hardware exposed to the test machine.
+systems:
+  - ubuntu-18.04-64
+  - ubuntu-20.04-64
+  - ubuntu-22.04-64
+  - ubuntu-24.04-64
+environment:
+  # WARNING: Not all combinations of system and variant do something.
+  # Some are skipped in task.sh, in ways that spread does not support natively.
+  PACKAGE_VERSION/390: 390
+  PACKAGE_VERSION/470: 470
+  PACKAGE_VERSION/510: 510
+  PACKAGE_VERSION/515: 515
+  PACKAGE_VERSION/525: 525
+  PACKAGE_VERSION/530: 530
+  PACKAGE_VERSION/535: 535
+  PACKAGE_VERSION/550: 550
+  # All the -server versions.
+  PACKAGE_SUFFIX/418_server: -server
+  PACKAGE_SUFFIX/450_server: -server
+  PACKAGE_SUFFIX/470_server: -server
+  PACKAGE_SUFFIX/515_server: -server
+  PACKAGE_SUFFIX/535_server: -server
+  PACKAGE_SUFFIX/550_server: -server
+  PACKAGE_VERSION/418_server: 418
+  PACKAGE_VERSION/450_server: 450
+  PACKAGE_VERSION/470_server: 470
+  PACKAGE_VERSION/515_server: 515
+  PACKAGE_VERSION/535_server: 535
+  PACKAGE_VERSION/550_server: 550
+  # NOTE: -open versions are excluded, as the only difference is in the kernel
+  # module which we are not testing here, the userspace binary is exactly the
+  # same in all the cases.
+prepare: |
+  ./task.sh prepare
+restore: |
+  ./task.sh restore
+debug: |
+  ./task.sh debug
+execute: |
+  ./task.sh execute
