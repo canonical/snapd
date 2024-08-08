@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -18,7 +17,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -800,15 +798,11 @@ func copyPermissions(permissions []string) []string {
 }
 
 func (s *requestrulesSuite) TestNewSaveLoad(c *C) {
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
 	doNotNotifyRule := func(userID uint32, ruleID prompting.IDType, data map[string]string) error {
 		return nil
 	}
 	rdb, err := requestrules.New(doNotNotifyRule)
 	c.Assert(err, IsNil)
-	c.Assert(fmt.Errorf("%s", strings.TrimSpace(logbuf.String())), ErrorMatches, ".*cannot open rules database file:.*")
 
 	snap := "lxd"
 	iface := "home"

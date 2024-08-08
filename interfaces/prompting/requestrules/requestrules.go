@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
@@ -178,6 +179,9 @@ func (rdb *RuleDB) load() error {
 	target := rdb.dbpath()
 	f, err := os.Open(target)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
 		return fmt.Errorf("cannot open rules database file: %w", err)
 	}
 	defer f.Close()
