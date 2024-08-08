@@ -386,6 +386,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) (err e
 
 	for ruleID := range expiredRules {
 		removedRule, err := rdb.removeRuleWithID(ruleID)
+		// Error shouldn't occur. If it does, the rule was already removed.
 		if err == nil {
 			rdb.removeRuleFromTree(removedRule)
 			rdb.notifyRule(removedRule.User, removedRule.ID,
@@ -835,22 +836,30 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 func (rdb *RuleDB) RemoveRule(user uint32, id prompting.IDType) (*Rule, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
+
 	rule, err := rdb.ruleWithIDForUser(user, id)
 	if err != nil {
+		// The rule doesn't exist or the user doesn't have access
 		return nil, err
 	}
-	err = rdb.removeRuleFromTree(rule)
-	// If error occurs, rule was still fully removed from tree
-	rdb.removeRuleWithID(id)
 
+	rdb.removeRuleWithID(id) // We know the rule exists, so this should not error
+
+	// Now that rule is removed from rules list, can try to save
 	if err := rdb.save(); err != nil {
-		// TODO rollback the change to remove rule?
+		// Roll back the change by re-adding the removed rule
+		rdb.addRule(rule)
 		return nil, err
 	}
+
+	// Rule removed, and saved, so remove it from the tree as well
+	rdb.removeRuleFromTree(rule)
+	// If error occurs, rule was still fully removed from tree, and no other
+	// rule was affected. We want the rule fully removed, so this is fine.
 
 	data := map[string]string{"removed": "removed"}
 	rdb.notifyRule(user, id, data)
-	return rule, err
+	return rule, nil
 }
 
 // RemoveRulesForSnap removes all rules pertaining to the given snap for the
@@ -872,11 +881,29 @@ func (rdb *RuleDB) RemoveRulesForSnap(user uint32, snap string) []*Rule {
 // The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) error {
 	for _, rule := range rules {
-		rdb.removeExistingRuleNoError(rule)
-		data := map[string]string{"removed": "removed"}
+		// Remove rule from the rules list. Caller should ensure that
+		// the rule exists, and thus this should not error.
+		rdb.removeRuleWithID(rule.ID)
+	}
+
+	// Now that rules have been removed from rules list, attempt to save
+	if err := rdb.save(); err != nil {
+		// Roll back the change by re-adding all removed rules
+		for _, rule := range rules {
+			rdb.addRule(rule)
+		}
+		return err
+	}
+
+	// Save successful, now remove rules' variants from tree
+	data := map[string]string{"removed": "removed"}
+	for _, rule := range rules {
+		rdb.removeRuleFromTree(rule)
+		// If error occurs, rule was still fully removed from tree, and no other
+		// rule was affected. We want the rule fully removed, so this is fine.
 		rdb.notifyRule(user, rule.ID, data)
 	}
-	return rdb.save()
+	return nil
 }
 
 // RemoveRulesForSnapInterface removes all rules pertaining to the given snap
@@ -906,19 +933,6 @@ func (rdb *RuleDB) RemoveRulesForSnapInterface(user uint32, snap string, iface s
 func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (r *Rule, err error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
-	needToSave := false
-	changeOccurred := false
-
-	defer func() {
-		switch {
-		case changeOccurred:
-			rdb.notifyRule(user, id, nil)
-			fallthrough
-		case needToSave:
-			saveErr := rdb.save()
-			err = errorsJoin(err, saveErr)
-		}
-	}()
 
 	origRule, err := rdb.ruleWithIDForUser(user, id)
 	if err != nil {
@@ -933,37 +947,49 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraints *prom
 	if lifespan == prompting.LifespanUnset {
 		lifespan = origRule.Lifespan
 	}
-	if err = rdb.removeRuleFromTree(origRule); err != nil {
-		// If error occurs, rule is fully removed from tree
-		changeOccurred = true
-		return nil, err
-	}
+
 	newRule, err := rdb.populateNewRule(user, origRule.Snap, origRule.Interface, constraints, outcome, lifespan, duration)
 	if err != nil {
-		rdb.addRuleToTree(origRule) // ignore any new error, should not occur
-		// origRule was successfully removed before, so it should now be able
-		// to be successfully re-added without error, and all is unchanged.
-		changeOccurred = false
+		return nil, err
+	}
+	newRule.ID = origRule.ID
+
+	// Remove the existing rule from the tree. An error should not occur, but
+	// if it does, carry on, hopefully the new rule won't have a conflict
+	rdb.removeRuleFromTree(origRule)
+
+	if err, conflicts, conflictingPermission := rdb.addRuleToTree(newRule); err != nil {
+		err = fmt.Errorf("cannot patch rule: %w: conflicts: %+v, permission: '%s'", err, conflicts, conflictingPermission)
+		// Try to re-add original rule so all is unchanged.
+		if origErr, _, _ := rdb.addRuleToTree(origRule); origErr != nil {
+			// Error should not occur, but if it does, wrap it in the other error
+			err = errorsJoin(err, fmt.Errorf("cannot re-add original rule: %w", origErr))
+			// XXX: should origRule be removed from the rules list if it's no
+			// longer in the tree?
+		}
 		return nil, err
 	}
 
-	newRule.ID = origRule.ID
-	if err, conflicts, conflictingPermission := rdb.addRuleToTree(newRule); err != nil {
-		rdb.addRuleToTree(origRule) // ignore any new error, conflicts, expiration
-		// origRule was successfully removed before, so it should now be able
-		// to be successfully re-added without error, and all is unchanged.
-		changeOccurred = false
-		return nil, fmt.Errorf("%w: conflicts: %+v, Permission: '%s'", err, conflicts, conflictingPermission)
-	}
-
-	rdb.removeRuleWithID(origRule.ID) // no error can occur, we just confirmed the rule exists
+	rdb.removeRuleWithID(origRule.ID) // no error should occur, we just confirmed the rule exists
 
 	if err := rdb.addRule(newRule); err != nil {
-		// Should not occur
+		// Should not occur, but if so, re-add the original rule
+		rdb.addRule(origRule)
 		return nil, fmt.Errorf("internal error: %v", err)
 	}
 
-	changeOccurred = true
+	if err := rdb.save(); err != nil {
+		// Should not occur, but if it does, roll back to the original state.
+		// All of the following should succeed, since we're reversing what we
+		// just successfully completed.
+		rdb.removeRuleWithID(newRule.ID)
+		rdb.addRule(origRule)
+		rdb.removeRuleFromTree(newRule)
+		rdb.addRuleToTree(origRule)
+		return nil, err
+	}
+
+	rdb.notifyRule(newRule.User, newRule.ID, nil)
 	return newRule, nil
 }
 

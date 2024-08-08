@@ -389,7 +389,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 		Permissions: conflictingPermissions,
 	}
 	output, err = rdb.PatchRule(s.defaultUser, storedRule.ID, conflictingConstraints, newOutcome, newLifespan, newDuration)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("^%s.*%s.*%s.*", requestrules.ErrPathPatternConflict, otherRule.ID.String(), conflictingPermission))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("^cannot patch rule: %s.*%s.*%s.*", requestrules.ErrPathPatternConflict, otherRule.ID.String(), conflictingPermission))
 	c.Assert(output, IsNil)
 	c.Assert(rdb.Rules(s.defaultUser), HasLen, 2)
 
