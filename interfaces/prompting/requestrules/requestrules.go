@@ -156,7 +156,7 @@ func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string
 		notifyRule: notifyRule,
 	}
 	if err = rdb.load(); err != nil {
-		logger.Noticef("%v; using new empty rule database", err)
+		logger.Noticef("cannot load rules DB: %v; using new empty rule database", err)
 	}
 	return rdb, nil
 }
