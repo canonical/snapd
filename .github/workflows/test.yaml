@@ -631,108 +631,108 @@ jobs:
           - group: amazon-linux
             backend: google-distro-1
             systems: 'amazon-linux-2-64 amazon-linux-2023-64'
-            tests: 'tests/...'
+            rules: 'main'
           - group: arch-linux
             backend: google-distro-2
             systems: 'arch-linux-64'
-            tests: 'tests/...'
+            rules: 'main'
           - group: centos
             backend: google-distro-2
             systems: 'centos-9-64'
-            tests: 'tests/...'
+            rules: 'main'
           - group: debian-req
             backend: google-distro-1
             systems: 'debian-11-64'
-            tests: 'tests/...'
+            rules: 'main'
           - group: debian-not-req
             backend: google-distro-1
             systems: 'debian-12-64 debian-sid-64'
-            tests: 'tests/...'
+            rules: 'main'
           - group: fedora
             backend: google-distro-1
             systems: 'fedora-38-64 fedora-39-64'
-            tests: 'tests/...'
+            rules: 'main'
           - group: fedora-os
             backend: openstack
             systems: 'fedora-40-64'
-            tests: 'tests/...'
+            rules: 'main'
           - group: opensuse
             backend: google-distro-2
             systems: 'opensuse-15.5-64 opensuse-15.6-64 opensuse-tumbleweed-64'
-            tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-trusty
             backend: google
             systems: 'ubuntu-14.04-64'
-            tests: 'tests/smoke/ tests/main/canonical-livepatch tests/main/canonical-livepatch-14.04'
+            rules: 'trusty'
           - group: ubuntu-xenial-bionic
             backend: google
             systems: 'ubuntu-16.04-64 ubuntu-18.04-32 ubuntu-18.04-64'
-            tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-focal-jammy
             backend: google
             systems: 'ubuntu-20.04-64 ubuntu-22.04-64'
-            tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-noble
             backend: google
             systems: 'ubuntu-24.04-64'
-            tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-no-lts
             backend: google
             systems: 'ubuntu-23.10-64'
-            tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-daily
             backend: google
             systems: 'ubuntu-24.10-64'
-            tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-core-16
             backend: google-core
             systems: 'ubuntu-core-16-64'
-            tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-core-18
             backend: google-core
             systems: 'ubuntu-core-18-64'
-            tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-core-20
             backend: google-core
             systems: 'ubuntu-core-20-64'
-            tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-core-22
             backend: google-core
             systems: 'ubuntu-core-22-64'
-            tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-core-24
             backend: google-core
             systems: 'ubuntu-core-24-64'
-            tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-arm
             backend: google-arm
             systems: 'ubuntu-20.04-arm-64 ubuntu-core-22-arm-64'
-            tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-secboot
             backend: google
             systems: 'ubuntu-secboot-20.04-64'
-            tests: 'tests/...'
+            rules: 'main'
 
           - group: nested-ubuntu-16.04
             backend: google-nested
             systems: 'ubuntu-16.04-64'
-            tests: 'tests/nested/...'
+            rules: 'nested'
           - group: nested-ubuntu-18.04
             backend: google-nested
             systems: 'ubuntu-18.04-64'
-            tests: 'tests/nested/...'
+            rules: 'nested'
           - group: nested-ubuntu-20.04
             backend: google-nested
             systems: 'ubuntu-20.04-64'
-            tests: 'tests/nested/...'
+            rules: 'nested'
           - group: nested-ubuntu-22.04
             backend: google-nested
             systems: 'ubuntu-22.04-64'
-            tests: 'tests/nested/...'
+            rules: 'nested'
           - group: nested-ubuntu-24.04
             backend: google-nested
             systems: 'ubuntu-24.04-64'
-            tests: 'tests/nested/...'
+            rules: 'nested'
     steps:
     - name: Cleanup job workspace
       id: cleanup-job-workspace
@@ -758,6 +758,7 @@ jobs:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.group }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
 
+
     - name: Prepare test results env and vars
       id: prepare-test-results-env
       run: |
@@ -771,6 +772,16 @@ jobs:
           # Make sure the test results dirs are created
           # This step has to be after the cache is restored
           mkdir -p "$TEST_RESULTS_DIR"        
+
+    - name: Get changed files
+      id: changed-files
+      uses: tj-actions/changed-files@v41.0.0
+
+    - name: Save changes files
+      run: |
+          CHANGED_FILES="${{ steps.changed-files.outputs.all_changed_files }}"
+          echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
+          echo "The changed files found are: $CHANGED_FILES"
 
     - name: Check failed tests to run
       if: "!contains(github.event.pull_request.labels.*.name, 'Run all')"
@@ -795,9 +806,12 @@ jobs:
               RUN_TESTS="$FAILED_TESTS"
           else
               for SYSTEM in ${{ matrix.systems }}; do
-                  for TESTS in ${{ matrix.tests }}; do
-                      RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:$TESTS"
+                  CHANGES_PARAM=""
+                  for CHANGE in $CHANGED_FILES; do
+                    CHANGES_PARAM="$CHANGES_PARAM -c $CHANGE"
                   done
+                  RUN_TESTS="$RUN_TESTS $(./tests/lib/external/snapd-testing-tools/utils/spread-filter -r ./tests/lib/spread/rules/${{ matrix.rules }}.yaml -s "$SYSTEM" -b ${{ matrix.backend }} $CHANGES_PARAM)"
+                fi
               done
           fi
           echo RUN_TESTS="$RUN_TESTS"  >> $GITHUB_ENV

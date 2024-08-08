@@ -1,0 +1,9 @@
+rules:
+  rule_nested:
+    from:
+      - tests/nested/.*
+    to: [$SELF]
+
+  rule_rest:
+    from: [.*]
+    to: [tests/nested/]
