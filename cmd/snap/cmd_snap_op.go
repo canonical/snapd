@@ -200,6 +200,9 @@ func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 	arg := string(x.Positional.Snaps[0])
 
 	name, comps := snap.SplitSnapInstanceAndComponents(arg)
+	if name == "" {
+		return errors.New(i18n.G("no snap for the component(s) was specified"))
+	}
 	// If there are components, only the components will be removed,
 	// otherwise the full snap with its components will be removed.
 	changeID, err := x.client.Remove(name, comps, opts)
@@ -241,11 +244,14 @@ func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 // snapInstancesAndComponentsFromNames splits a slice of names of the form
 // <snap_instance>+<comp1>...+<compN> into a slice of snap instances and a map
 // from these instances to components.
-func snapInstancesAndComponentsFromNames(names []string, forInstall bool) ([]string, map[string][]string) {
+func snapInstancesAndComponentsFromNames(names []string, forInstall bool) ([]string, map[string][]string, error) {
 	snaps := make([]string, 0, len(names))
 	allComps := make(map[string][]string, len(names))
 	for _, name := range names {
 		snap, comps := snap.SplitSnapInstanceAndComponents(name)
+		if snap == "" {
+			return nil, nil, errors.New(i18n.G("no snap for the component(s) was specified"))
+		}
 		// When installing we implicitly want to install the snap when
 		// we have specified also components, but when removing we
 		// actually want to remove only components if any of them have
@@ -257,14 +263,17 @@ func snapInstancesAndComponentsFromNames(names []string, forInstall bool) ([]str
 			allComps[snap] = comps
 		}
 	}
-	return snaps, allComps
+	return snaps, allComps, nil
 }
 
 func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
 	names := installedSnapNames(x.Positional.Snaps)
 
 	const forInstall = false
-	names, comps := snapInstancesAndComponentsFromNames(names, forInstall)
+	names, comps, err := snapInstancesAndComponentsFromNames(names, forInstall)
+	if err != nil {
+		return err
+	}
 	changeID, err := x.client.RemoveMany(names, comps, opts)
 	if err != nil {
 		var name string
@@ -719,6 +728,9 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 		}
 
 		name, comps := snap.SplitSnapInstanceAndComponents(snapName)
+		if name == "" {
+			return errors.New(i18n.G("no snap for the component(s) was specified"))
+		}
 
 		changeID, err = x.client.Install(name, comps, opts)
 	}
@@ -779,8 +791,11 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 		}
 
 		const forInstall = true
-		names, comps := snapInstancesAndComponentsFromNames(names, forInstall)
-		changeID, err = x.client.InstallMany(names, comps, opts)
+		names, compsBySnap, e := snapInstancesAndComponentsFromNames(names, forInstall)
+		if e != nil {
+			return e
+		}
+		changeID, err = x.client.InstallMany(names, compsBySnap, opts)
 	}
 
 	if err != nil {
