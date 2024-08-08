@@ -130,6 +130,9 @@ type RuleDB struct {
 // New creates a new rule database, loads existing rules from the database file,
 // and returns the populated database.
 //
+// The given notifyRule closure may be called before `New()` returns, if a
+// previously-saved rule has expired or if there are conflicts between rules.
+//
 // The given notifyRule closure will be called when a rule is added, modified,
 // expired, or removed. In order to guarantee the order of notices, notifyRule
 // is called with the prompt DB lock held, so it should not block for a
