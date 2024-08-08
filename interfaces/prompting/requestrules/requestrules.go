@@ -301,37 +301,40 @@ type RuleConflict struct {
 // immediately removed, and the new rule can continue to be added.
 func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) (needToSave bool, err error, conflicts []RuleConflict) {
 	permVariants := rdb.permissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
+
+	newVariantEntries := make(map[string]variantEntry, rule.Constraints.PathPattern.NumVariants())
 	addVariant := func(index int, variant patterns.PatternVariant) {
-		conflictingVariantEntry, exists := permVariants.VariantEntries[variant.String()]
-		if exists && !rdb.removeIfExpired(conflictingVariantEntry.RuleID, rule.Timestamp) {
-			// Not expired, so there's a conflict
-			conflicts = append(conflicts, RuleConflict{
-				Variant:       variant.String(),
-				ConflictingID: conflictingVariantEntry.RuleID,
-			})
-			return
-		}
-		permVariants.VariantEntries[variant.String()] = variantEntry{
+		newEntry := variantEntry{
 			Variant: variant,
 			RuleID:  rule.ID,
 		}
-		needToSave = true
-	}
-	rule.Constraints.PathPattern.RenderAllVariants(addVariant)
-	if len(conflicts) == 0 {
-		return needToSave, nil, nil
-	}
-	// There were conflicts, so remove any variants which were added to the tree
-	nextMatchIndex := 0
-	removeVariant := func(index int, variant patterns.PatternVariant) {
-		if nextMatchIndex < len(conflicts) && conflicts[nextMatchIndex].Variant == variant.String() {
-			nextMatchIndex++
-		} else {
-			delete(permVariants.VariantEntries, variant.String())
+		variantStr := variant.String()
+		conflictingVariantEntry, exists := permVariants.VariantEntries[variantStr]
+		switch {
+		case !exists:
+			newVariantEntries[variantStr] = newEntry
+		case rdb.removeIfExpired(conflictingVariantEntry.RuleID, rule.Timestamp):
+			needToSave = true // removed expired rule, or was inconsistency
+			newVariantEntries[variantStr] = newEntry
+		default:
+			// Exists and is not expired, so there's a conflict
+			conflicts = append(conflicts, RuleConflict{
+				Variant:       variantStr,
+				ConflictingID: conflictingVariantEntry.RuleID,
+			})
 		}
 	}
-	rule.Constraints.PathPattern.RenderAllVariants(removeVariant)
-	return needToSave, ErrPathPatternConflict, conflicts
+	rule.Constraints.PathPattern.RenderAllVariants(addVariant)
+
+	if len(conflicts) > 0 {
+		return needToSave, ErrPathPatternConflict, conflicts
+	}
+
+	for variantStr, entry := range newVariantEntries {
+		permVariants.VariantEntries[variantStr] = entry
+	}
+
+	return true, nil, nil
 }
 
 // removeIfExpired removes the rule with the given ID from the database if it
