@@ -61,7 +61,7 @@ func (rule *Rule) Expired(currentTime time.Time) (bool, error) {
 	case prompting.LifespanTimespan:
 		if rule.Expiration.IsZero() {
 			// Should not occur
-			return false, fmt.Errorf("encountered rule with lifespan timespan but no expiration")
+			return false, fmt.Errorf("internal error: encountered rule with lifespan timespan but no expiration")
 		}
 		if currentTime.After(rule.Expiration) {
 			return true, nil
@@ -380,7 +380,7 @@ func (rdb *RuleDB) removeIfExpired(id prompting.IDType, currTime time.Time) bool
 	switch {
 	case err != nil:
 		// Issue with expiration, this should not occur
-		logger.Noticef("error while checking whether rule had expired: %v", err)
+		logger.Noticef("internal error: while checking whether rule had expired: %v", err)
 		fallthrough
 	case expired:
 		// Remove expired conflicting rule from DB
@@ -409,10 +409,10 @@ func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) [
 		variantEntry, exists := permVariants.VariantEntries[variant.String()]
 		if !exists {
 			// Database was left inconsistent, should not occur
-			errs = append(errs, fmt.Errorf(`path pattern variant not found in the rule tree: %q`, variant))
+			errs = append(errs, fmt.Errorf(`internal error: path pattern variant not found in the rule tree: %q`, variant))
 		} else if variantEntry.RuleID != rule.ID {
 			// Database was left inconsistent, should not occur
-			errs = append(errs, fmt.Errorf(`path pattern variant maps to different rule ID: %q: %s`, variant, variantEntry.RuleID.String()))
+			errs = append(errs, fmt.Errorf(`internal error: path pattern variant maps to different rule ID: %q: %s`, variant, variantEntry.RuleID.String()))
 		} else {
 			delete(permVariants.VariantEntries, variant.String())
 		}
@@ -567,6 +567,7 @@ func (rdb *RuleDB) refreshTreeEnforceConsistency(rules []*Rule, currTime time.Ti
 		if err == nil && rule.Timestamp.After(existingRule.Timestamp) {
 			// Duplicate rules with the same ID, this should not occur
 			// Keep the newer rule
+			logger.Noticef("internal error: duplicate rules with same ID %v", rule.ID)
 			rdb.removeRuleFromTree(existingRule)  // ignore any new error
 			rdb.removeRuleWithID(existingRule.ID) // ignore any new error
 			modifiedUserRuleIDs[rule.User][rule.ID] = nil
@@ -681,6 +682,7 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 	for variantStr, variantEntry := range variantMap {
 		matchingRule, err := rdb.ruleWithID(variantEntry.RuleID)
 		if err != nil {
+			logger.Noticef("internal error: inconsistent DB when fetching rule %v", variantEntry.RuleID)
 			// Database was left inconsistent, should not occur
 			delete(variantMap, variantStr)
 			// Record a notice for the offending rule, just in case
@@ -691,7 +693,7 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 		switch {
 		case err != nil:
 			// Issue with expiration, this should not occur
-			logger.Noticef("error while checking whether rule had expired: %v", err)
+			logger.Noticef("internal error: while checking whether rule had expired: %v", err)
 			fallthrough
 		case expired:
 			continue
@@ -702,7 +704,7 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 		matched, err := patterns.PathPatternMatches(variantStr, path)
 		if err != nil {
 			// Only possible error is ErrBadPattern, which should not occur
-			return false, err
+			return false, fmt.Errorf("internal error: while matching path pattern: %w", err)
 		}
 		if matched {
 			matchingVariants = append(matchingVariants, variantEntry.Variant)
@@ -720,7 +722,7 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 	matchingRule, err := rdb.ruleWithID(matchingID)
 	if err != nil {
 		// Database was left inconsistent, should not occur
-		return false, ErrRuleIDNotFound
+		return false, fmt.Errorf("internal error: while looking for rule %v: %w", matchingID, ErrRuleIDNotFound)
 	}
 	return matchingRule.Outcome.AsBool()
 }
@@ -925,7 +927,7 @@ func (rdb *RuleDB) rulesInternal(ruleFilter func(rule *Rule) bool) []*Rule {
 		switch {
 		case err != nil:
 			// Issue with expiration, this should not occur
-			logger.Noticef("error while checking whether rule had expired: %v", err)
+			logger.Noticef("internal error: while checking whether rule had expired: %v", err)
 			fallthrough
 		case expired:
 			continue
