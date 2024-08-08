@@ -459,7 +459,7 @@ func (pdb *PromptDB) Close() error {
 	}
 
 	if err := pdb.maxIDMmap.Close(); err != nil {
-		return fmt.Errorf("error while closing max ID mmap: %w", err)
+		return fmt.Errorf("cannot close max ID mmap: %w", err)
 	}
 
 	// TODO: if in the future we persist prompts across snapd restarts, we do
