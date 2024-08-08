@@ -156,7 +156,11 @@ func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string
 // load reads the stored rules from the database file and populates the
 // receiving rule database.
 //
-// If an error occurs, does not modify the rule database.
+// Returns an error if an existing prompt DB cannot be loaded. An expired rule
+// or rule conflict does not cause an error. If saving the DB is required but
+// the save fails, returns an error.
+//
+// If an error is returned, the rule database is not modified.
 func (rdb *RuleDB) load() error {
 	target := rdb.dbpath()
 	f, err := os.Open(target)
@@ -173,16 +177,9 @@ func (rdb *RuleDB) load() error {
 		return fmt.Errorf("cannot read stored prompting rules: %w", err)
 	}
 
-	rdb.rules = ruleList
-	rdb.ids = make(map[prompting.IDType]int) // clear out any existing rules in ids
-	for index, rule := range rdb.rules {
-		rdb.ids[rule.ID] = index
-	}
-
+	currTime := time.Now()
 	notifyEveryRule := true
-	rdb.refreshTreeEnforceConsistency(notifyEveryRule)
-
-	return nil
+	return rdb.refreshTreeEnforceConsistency(ruleList, currTime, notifyEveryRule)
 }
 
 // save writes the current state of the rule database to the database file.
@@ -292,29 +289,37 @@ type RuleConflict struct {
 // addRulePermissionToTree adds all the path pattern variants for the given
 // rule to the map for the given permission.
 //
-// If there are conflicting pattern variants from other rules, all variants
-// which were previously added during this function call are removed
-// from the path map, and an error is returned along with a list of the
-// conflicting variants and the IDs of the conflicting rules.
-func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) (error, []RuleConflict) {
+// Returns whether the DB needs to be saved, either because the rule was
+// successfully added or because an expired rule was removed.
+//
+// If there are conflicting pattern variants from other non-expired rules,
+// all variants which were previously added during this function call are
+// removed from the path map, and an error is returned along with a list of
+// the conflicting variants and the IDs of the conflicting rules.
+//
+// Conflicts with expired rules, however, result in the expired rule being
+// immediately removed, and the new rule can continue to be added.
+func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) (needToSave bool, err error, conflicts []RuleConflict) {
 	permVariants := rdb.permissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
-	conflicts := make([]RuleConflict, 0, rule.Constraints.PathPattern.NumVariants())
 	addVariant := func(index int, variant patterns.PatternVariant) {
-		if conflictingVariantEntry, exists := permVariants.VariantEntries[variant.String()]; exists {
+		conflictingVariantEntry, exists := permVariants.VariantEntries[variant.String()]
+		if exists && !rdb.removeIfExpired(conflictingVariantEntry.RuleID, rule.Timestamp) {
+			// Not expired, so there's a conflict
 			conflicts = append(conflicts, RuleConflict{
 				Variant:       variant.String(),
 				ConflictingID: conflictingVariantEntry.RuleID,
 			})
-		} else {
-			permVariants.VariantEntries[variant.String()] = variantEntry{
-				Variant: variant,
-				RuleID:  rule.ID,
-			}
+			return
 		}
+		permVariants.VariantEntries[variant.String()] = variantEntry{
+			Variant: variant,
+			RuleID:  rule.ID,
+		}
+		needToSave = true
 	}
 	rule.Constraints.PathPattern.RenderAllVariants(addVariant)
 	if len(conflicts) == 0 {
-		return nil, nil
+		return needToSave, nil, nil
 	}
 	// There were conflicts, so remove any variants which were added to the tree
 	nextMatchIndex := 0
@@ -326,7 +331,32 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) (error
 		}
 	}
 	rule.Constraints.PathPattern.RenderAllVariants(removeVariant)
-	return ErrPathPatternConflict, conflicts
+	return needToSave, ErrPathPatternConflict, conflicts
+}
+
+// removeIfExpired removes the rule with the given ID from the database if it
+// is expired. Returns true if the rule was removed, couldn't be found, or had
+// some sort of internal inconsistency.
+func (rdb *RuleDB) removeIfExpired(id prompting.IDType, currTime time.Time) bool {
+	rule, err := rdb.ruleWithID(id)
+	if err != nil {
+		return true
+	}
+	expired, err := rule.Expired(currTime)
+	switch {
+	case err != nil:
+		// Issue with expiration, this should not occur
+		logger.Noticef("error while checking whether rule had expired: %v", err)
+		fallthrough
+	case expired:
+		// Remove expired conflicting rule from DB
+		rdb.removeRuleFromTree(rule) // if error occurs, rule still fully removed
+		rdb.removeRuleWithID(rule.ID)
+		data := map[string]string{"removed": "expired"}
+		rdb.notifyRule(rule.User, rule.ID, data)
+		return true
+	}
+	return false
 }
 
 // removeRulePermissionFromTree removes all the path patterns variants for the
@@ -357,21 +387,27 @@ func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) [
 
 // addRuleToTree adds the given rule to the rule tree.
 //
+// Returns whether the DB needs to be saved, either because the rule was
+// successfully added or because an expired rule was removed.
+//
 // If there is a conflicting path pattern from another rule, returns an
-// error along with the ID of the conflicting rule and the permission for
-// which the conflict occurred
-func (rdb *RuleDB) addRuleToTree(rule *Rule) (error, []RuleConflict, string) {
+// error along with the conflicting rules info and the permission for which
+// the conflict occurred.
+func (rdb *RuleDB) addRuleToTree(rule *Rule) (bool, error, []RuleConflict, string) {
 	addedPermissions := make([]string, 0, len(rule.Constraints.Permissions))
+	needToSave := false
 	for _, permission := range rule.Constraints.Permissions {
-		if err, conflicts := rdb.addRulePermissionToTree(rule, permission); err != nil {
+		permNeedToSave, err, conflicts := rdb.addRulePermissionToTree(rule, permission)
+		needToSave = needToSave || permNeedToSave
+		if err != nil {
 			for _, prevPerm := range addedPermissions {
 				rdb.removeRulePermissionFromTree(rule, prevPerm)
 			}
-			return err, conflicts, permission
+			return needToSave, err, conflicts, permission
 		}
 		addedPermissions = append(addedPermissions, permission)
 	}
-	return nil, nil, ""
+	return needToSave, nil, nil, ""
 }
 
 // removeRuleFromTree fully removes the given rule from the tree, even if an
@@ -422,33 +458,36 @@ func errorsJoin(errs ...error) error {
 	return err
 }
 
-// refreshTreeEnforceConsistency rebuilds the rule tree, resolving any
-// conflicting pattern variants and permissions by pruning the offending
-// permission from the older of any two conflicting rules.
+// refreshTreeEnforceConsistency rebuilds the rule DB from the given list of
+// rules, resolving any conflicting pattern variants and permissions by pruning
+// all expired rules as well as the offending permission from the older of any
+// two conflicting rules.
 //
-// This function is only required if database is left inconsistent (should not
-// occur) or when loading, in case the stored rules on disk were corrupted.
+// If changes are made to the prompt DB, the DB is saved to disk. If an error
+// occurs while saving the new DB state, returns an error and reverts the DB to
+// its original state.
+//
+// This function is only required when loading or if the database is left
+// inconsistent (should not occur), in case the stored rules on disk were
+// corrupted.
 //
 // By default, issues a notice for each rule which is modified or removed as a
-// result of a conflict with another rule. If notifyEveryRule is true, issues
-// a notice for every rule which was in the database prior to the beginning of
-// the function. In either case, at most one notice is issued for each rule.
+// result of being expired or in conflict with another rule. If notifyEveryRule
+// is true, records a notice for every rule which was in the database prior to
+// the beginning of the function. In either case, at most one notice is issued
+// for each rule.
 //
-// Discards the current rule tree, then iterates through the rules in rdb.rules
-// and re-populates the tree. If there are any conflicts between rules (that
-// is, rules share the same path pattern and one or more of the same
-// permissions), the conflicting permission is removed from the rule with the
-// earlier timestamp. When the function returns, the database should be fully
-// internally consistent and without conflicting rules.
-func (rdb *RuleDB) refreshTreeEnforceConsistency(notifyEveryRule bool) {
+// Backs up the current rule tree, then iterates through the given rules and
+// re-populates the tree the rules list, IDs map, and per-user rule tree. If
+// there are any conflicts between rules (that is, rules share the same path
+// pattern and one or more of the same permissions), the conflicting permission
+// is removed from the rule with the earlier timestamp. When the function
+// returns, the database should be fully internally consistent and without
+// conflicting or expired rules, as of the given time.
+func (rdb *RuleDB) refreshTreeEnforceConsistency(rules []*Rule, currTime time.Time, notifyEveryRule bool) error {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 	needToSave := false
-	defer func() {
-		if needToSave {
-			rdb.save()
-		}
-	}()
 	modifiedUserRuleIDs := make(map[uint32]map[prompting.IDType]map[string]string)
 	defer func() {
 		for user, ruleIDs := range modifiedUserRuleIDs {
@@ -457,12 +496,15 @@ func (rdb *RuleDB) refreshTreeEnforceConsistency(notifyEveryRule bool) {
 			}
 		}
 	}()
-	currTime := time.Now()
+
 	origRules := rdb.rules
+	origIDs := rdb.ids
+	origPerUser := rdb.perUser
+
+	rdb.rules = make([]*Rule, 0, len(rules))
 	rdb.ids = make(map[prompting.IDType]int)
-	rdb.rules = make([]*Rule, 0, len(rdb.rules))
 	rdb.perUser = make(map[uint32]*userDB)
-	for _, rule := range origRules {
+	for _, rule := range rules {
 		_, exists := modifiedUserRuleIDs[rule.User]
 		if !exists {
 			modifiedUserRuleIDs[rule.User] = make(map[prompting.IDType]map[string]string)
@@ -481,8 +523,17 @@ func (rdb *RuleDB) refreshTreeEnforceConsistency(notifyEveryRule bool) {
 			modifiedUserRuleIDs[rule.User][rule.ID] = data
 			continue
 		}
+		existingRule, err := rdb.ruleWithID(rule.ID)
+		if err == nil && rule.Timestamp.After(existingRule.Timestamp) {
+			// Duplicate rules with the same ID, this should not occur
+			// Keep the newer rule
+			rdb.removeRuleFromTree(existingRule)  // ignore any new error
+			rdb.removeRuleWithID(existingRule.ID) // ignore any new error
+			modifiedUserRuleIDs[rule.User][rule.ID] = nil
+		}
 		for {
-			err, conflicts, conflictingPermission := rdb.addRuleToTree(rule)
+			permNeedToSave, err, conflicts, conflictingPermission := rdb.addRuleToTree(rule)
+			needToSave = needToSave || permNeedToSave
 			if err == nil {
 				break
 			}
@@ -515,12 +566,22 @@ func (rdb *RuleDB) refreshTreeEnforceConsistency(notifyEveryRule bool) {
 		if len(rule.Constraints.Permissions) > 0 {
 			rdb.addRule(rule)
 		} else {
-			// TODO: record status of the rule ("removed") in modifiedUserRuleIDs
 			needToSave = true
 			data := map[string]string{"removed": "conflict"}
 			modifiedUserRuleIDs[rule.User][rule.ID] = data
 		}
 	}
+
+	if !needToSave {
+		return nil
+	}
+	err := rdb.save()
+	if err != nil {
+		rdb.rules = origRules
+		rdb.ids = origIDs
+		rdb.perUser = origPerUser
+	}
+	return err
 }
 
 // populateNewRule creates a new Rule with the given contents.
@@ -572,12 +633,6 @@ func (rdb *RuleDB) populateNewRule(user uint32, snap string, iface string, const
 func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path string, permission string) (bool, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
-	needToSave := false
-	defer func() {
-		if needToSave {
-			rdb.save()
-		}
-	}()
 	variantMap := rdb.permissionDBForUserSnapInterfacePermission(user, snap, iface, permission).VariantEntries
 	matchingVariants := make([]patterns.PatternVariant, 0)
 	// Make sure all rules use the same expiration timestamp, so a rule with
@@ -595,15 +650,10 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 		expired, err := matchingRule.Expired(currTime)
 		switch {
 		case err != nil:
-			// Should not occur
+			// Issue with expiration, this should not occur
 			logger.Noticef("error while checking whether rule had expired: %v", err)
 			fallthrough
 		case expired:
-			needToSave = true
-			rdb.removeRuleFromTree(matchingRule)
-			rdb.removeRuleWithID(variantEntry.RuleID)
-			data := map[string]string{"removed": "expired"}
-			rdb.notifyRule(user, variantEntry.RuleID, data)
 			continue
 		}
 		// Need to compare the path pattern variant, not the rule's path
@@ -667,7 +717,10 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 	if err != nil {
 		return nil, err
 	}
-	if err, conflicts, conflictingPermission := rdb.addRuleToTree(newRule); err != nil {
+	if needToSave, err, conflicts, conflictingPermission := rdb.addRuleToTree(newRule); err != nil {
+		if needToSave {
+			rdb.save() // discard any new error, which should not occur
+		}
 		return nil, fmt.Errorf("%w: conflicts: %+v, Permission: '%s'", err, conflicts, conflictingPermission)
 	}
 	rdb.addRule(newRule)
@@ -746,11 +799,15 @@ func (rdb *RuleDB) RemoveRulesForSnapInterface(user uint32, snap string, iface s
 func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*Rule, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
+	needToSave := false
 	changeOccurred := false
 	defer func() {
-		if changeOccurred {
-			rdb.save()
+		switch {
+		case changeOccurred:
 			rdb.notifyRule(user, id, nil)
+			fallthrough
+		case needToSave:
+			rdb.save()
 		}
 	}()
 	origRule, err := rdb.ruleWithIDForUser(user, id)
@@ -780,14 +837,15 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraints *prom
 		return nil, err
 	}
 	newRule.ID = origRule.ID
-	err, conflicts, conflictingPermission := rdb.addRuleToTree(newRule)
+	needToSave, err, conflicts, conflictingPermission := rdb.addRuleToTree(newRule)
 	if err != nil {
-		rdb.addRuleToTree(origRule) // ignore any new error
+		rdb.addRuleToTree(origRule) // ignore any new error, conflicts, expiration
 		// origRule was successfully removed before, so it should now be able
 		// to be successfully re-added without error, and all is unchanged.
 		changeOccurred = false
 		return nil, fmt.Errorf("%w: conflicts: %+v, Permission: '%s'", err, conflicts, conflictingPermission)
 	}
+	changeOccurred = changeOccurred || needToSave
 	rdb.removeRuleWithID(origRule.ID) // no error can occur, we just confirmed the rule exists
 	if err := rdb.addRule(newRule); err != nil {
 		// Should not occur
@@ -816,23 +874,14 @@ func (rdb *RuleDB) Rules(user uint32) []*Rule {
 func (rdb *RuleDB) rulesInternal(ruleFilter func(rule *Rule) bool) []*Rule {
 	rules := make([]*Rule, 0)
 	currTime := time.Now()
-	needToSave := false
-	defer func() {
-		if needToSave {
-			rdb.save()
-		}
-	}()
 	for _, rule := range rdb.rules {
 		expired, err := rule.Expired(currTime)
-		if err != nil {
+		switch {
+		case err != nil:
 			// Issue with expiration, this should not occur
-		}
-		if expired {
-			needToSave = true
-			rdb.removeRuleFromTree(rule)
-			rdb.removeRuleWithID(rule.ID)
-			data := map[string]string{"removed": "expired"}
-			rdb.notifyRule(rule.User, rule.ID, data)
+			logger.Noticef("error while checking whether rule had expired: %v", err)
+			fallthrough
+		case expired:
 			continue
 		}
 		if ruleFilter(rule) {
