@@ -60,7 +60,7 @@ const loginSessionObserveConnectedPlugAppArmor = `
 # do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
     bus=system
-    path=/org/freedesktop/login1
+    path=/org/freedesktop/login1{,/seat/*,/session/*,/user/*}
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect,
 
