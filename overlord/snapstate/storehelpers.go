@@ -62,6 +62,13 @@ func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int,
 	return fallbackUserID, nil
 }
 
+func fallbackUserID(user *auth.UserState) int {
+	if !user.HasStoreAuth() {
+		return 0
+	}
+	return user.ID
+}
+
 // userFromUserID returns the first valid user from a series of userIDs
 // used as successive fallbacks.
 func userFromUserID(st *state.State, userIDs ...int) (*auth.UserState, error) {
@@ -611,13 +618,7 @@ func storeUpdatePlanCore(
 
 	enforcedSetsFunc := cachedEnforcedValidationSets(st)
 
-	var fallbackID int
-	// normalize fallback user
-	if !user.HasStoreAuth() {
-		user = nil
-	} else {
-		fallbackID = user.ID
-	}
+	fallbackID := fallbackUserID(user)
 
 	// hasLocalRevision keeps track of snaps that already have a local revision
 	// matching the requested revision. there are two distinct cases here:
@@ -686,7 +687,7 @@ func storeUpdatePlanCore(
 
 		// TODO:COMPS: handle components losing a resource that is currently
 		// installed
-		compTargets, err := componentTargetsFromActionResult(sar, compNames)
+		compTargets, err := componentTargetsFromActionResult("refresh", sar, compNames)
 		if err != nil {
 			return updatePlan{}, fmt.Errorf("cannot extract components from snap resources: %w", err)
 		}

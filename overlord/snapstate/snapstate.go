@@ -436,7 +436,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		}
 	}
 
-	tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, compSetupIDs, err := splitComponentTasksForInstall(
+	tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard, compSetupIDs, err := splitComponentTasksForInstall(
 		compsups, st, snapst, snapsup, prepare.ID(), fromChange,
 	)
 	if err != nil {
@@ -614,6 +614,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q%s services"), snapsup.InstanceName(), revisionStr))
 	addTask(startSnapServices)
 
+	// TODO:COMPS: test discarding components during a snap refresh (coming
+	// soon!)
+	for _, t := range tasksBeforeDiscard {
+		addTask(t)
+	}
+
 	// Do not do that if we are reverting to a local revision
 	var cleanupTask *state.Task
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {
@@ -750,23 +756,26 @@ func splitComponentTasksForInstall(
 	snapSetupTaskID string,
 	fromChange string,
 ) (
-	tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook []*state.Task,
+	tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard []*state.Task,
 	compSetupIDs []string,
 	err error,
 ) {
 	for _, compsup := range compsups {
-		componentTS, err := doInstallComponent(st, snapst, compsup, snapsup, snapSetupTaskID, fromChange)
+		componentTS, err := doInstallComponent(st, snapst, compsup, snapsup, snapSetupTaskID, nil, nil, fromChange)
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
+			return nil, nil, nil, nil, nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
 		}
 
-		compSetupIDs = append(compSetupIDs, componentTS.compSetupTask.ID())
+		compSetupIDs = append(compSetupIDs, componentTS.compSetupTaskID)
 
 		tasksBeforePreRefreshHook = append(tasksBeforePreRefreshHook, componentTS.beforeLink...)
-		tasksAfterLinkSnap = append(tasksAfterLinkSnap, componentTS.linkToHook...)
+		tasksAfterLinkSnap = append(tasksAfterLinkSnap, componentTS.linkTask)
 		tasksAfterPostOpHook = append(tasksAfterPostOpHook, componentTS.postOpHookAndAfter...)
+		if componentTS.discardTask != nil {
+			tasksBeforeDiscard = append(tasksBeforeDiscard, componentTS.discardTask)
+		}
 	}
-	return tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, compSetupIDs, nil
+	return tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard, compSetupIDs, nil
 }
 
 func NeedsKernelSetup(model *asserts.Model) bool {
@@ -3626,7 +3635,7 @@ func removeInactiveRevision(st *state.State, snapst *SnapState, name, snapID str
 			CompSideInfo: &cinfo.ComponentSideInfo,
 			CompType:     cinfo.Type,
 			componentInstallFlags: componentInstallFlags{
-				JointSnapComponentsInstall: true,
+				MultiComponentInstall: true,
 			},
 		}
 

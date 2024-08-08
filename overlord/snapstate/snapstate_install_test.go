@@ -110,7 +110,7 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 
 	var tasksBeforeCurrentUnlink, tasksAfterLinkSnap, tasksAfterPostOpHook []string
 	for range components {
-		compOpts := compOptSkipSecurity | compOptSkipKernelModulesSetup
+		compOpts := compOptMultiCompInstall
 		if opts&localSnap != 0 {
 			compOpts |= compOptIsLocal
 		}

@@ -20,7 +20,10 @@
 package snapstate_test
 
 import (
+	"bytes"
+	"context"
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -31,6 +34,8 @@ import (
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 	. "gopkg.in/check.v1"
 )
 
@@ -45,12 +50,11 @@ const (
 	compTypeIsKernMods
 	// Current component is discarded at the end
 	compCurrentIsDiscarded
-	// Component is being installed with a snap, so skip setup-profiles
-	compOptSkipSecurity
+	// Component is being installed with a snap, so skip setup-profiles and
+	// prepare-kernel-modules-components
+	compOptMultiCompInstall
 	// Component is being installed with a snap that is being refreshed
 	compOptDuringSnapRefresh
-	// Component is being installed with a snap, so skip prepare-kernel-modules-components
-	compOptSkipKernelModulesSetup
 )
 
 // opts is a bitset with compOpt* as possible values.
@@ -80,7 +84,7 @@ func expectedComponentInstallTasksSplit(opts int) (beforeLink []string, linkToHo
 		beforeLink = append(beforeLink, "unlink-current-component")
 	}
 
-	if opts&compOptSkipSecurity == 0 {
+	if opts&compOptMultiCompInstall == 0 {
 		beforeLink = append(beforeLink, "setup-profiles")
 	}
 
@@ -94,7 +98,7 @@ func expectedComponentInstallTasksSplit(opts int) (beforeLink []string, linkToHo
 		postOpHooksAndAfter = []string{"run-hook[post-refresh]"}
 	}
 
-	if opts&compTypeIsKernMods != 0 && opts&compOptSkipKernelModulesSetup == 0 {
+	if opts&compTypeIsKernMods != 0 && opts&compOptMultiCompInstall == 0 {
 		postOpHooksAndAfter = append(postOpHooksAndAfter, "prepare-kernel-modules-components")
 	}
 
@@ -107,7 +111,7 @@ func expectedComponentInstallTasksSplit(opts int) (beforeLink []string, linkToHo
 
 func checkSetupTasks(c *C, ts *state.TaskSet) {
 	// Check presence of snap setup / component setup in the tasks
-	var firstTaskID string
+	var firstTaskID, snapSetupTaskID string
 	var compSetup snapstate.ComponentSetup
 	var snapsup snapstate.SnapSetup
 	for i, t := range ts.Tasks() {
@@ -119,14 +123,21 @@ func checkSetupTasks(c *C, ts *state.TaskSet) {
 				chg.AddAll(ts)
 			}
 			c.Assert(t.Get("component-setup", &compSetup), IsNil)
-			c.Assert(t.Get("snap-setup", &snapsup), IsNil)
+			sn, err := snapstate.TaskSnapSetup(t)
+			c.Assert(err, IsNil)
+			snapsup = *sn
 			firstTaskID = t.ID()
+			if t.Has("snap-setup") {
+				snapSetupTaskID = t.ID()
+			} else {
+				t.Get("snap-setup-task", &snapSetupTaskID)
+			}
 		default:
 			var storedTaskID string
 			c.Assert(t.Get("component-setup-task", &storedTaskID), IsNil)
 			c.Assert(storedTaskID, Equals, firstTaskID)
 			c.Assert(t.Get("snap-setup-task", &storedTaskID), IsNil)
-			c.Assert(storedTaskID, Equals, firstTaskID)
+			c.Assert(storedTaskID, Equals, snapSetupTaskID)
 		}
 		// ComponentSetup/SnapSetup found must match the ones from the first task
 		csup, ssup, err := snapstate.TaskComponentSetup(t)
@@ -167,22 +178,29 @@ version: 1.0
 }
 
 func createTestSnapInfoForComponent(c *C, snapName string, snapRev snap.Revision, compName string) *snap.Info {
-	return createTestSnapInfoForComponentWithType(c, snapName, snapRev, compName, "test")
+	return createTestSnapInfoForComponents(c, snapName, snapRev, map[string]string{compName: "test"})
 }
 
-func createTestSnapInfoForComponentWithType(c *C, snapName string, snapRev snap.Revision, compName, compType string) *snap.Info {
+func createTestSnapInfoForComponents(c *C, snapName string, snapRev snap.Revision, compNamesToType map[string]string) *snap.Info {
 	snapType := "app"
-	if compType == "kernel-modules" {
-		snapType = "kernel"
+	for _, typ := range compNamesToType {
+		if typ == "kernel-modules" {
+			snapType = "kernel"
+		}
 	}
-	snapYaml := fmt.Sprintf(`name: %s
+
+	var b bytes.Buffer
+	fmt.Fprintf(&b, `name: %s
 type: %s
 version: 1.1
 components:
-  %s:
-    type: %s
-`, snapName, snapType, compName, compType)
-	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+`, snapName, snapType)
+
+	for compName, typ := range compNamesToType {
+		fmt.Fprintf(&b, "  %s:\n    type: %s\n", compName, typ)
+	}
+
+	info, err := snap.InfoFromSnapYaml(b.Bytes())
 	c.Assert(err, IsNil)
 	info.SideInfo = snap.SideInfo{RealName: snapName, Revision: snapRev}
 
@@ -210,7 +228,8 @@ func setStateWithOneSnap(st *state.State, snapName string, snapRev snap.Revision
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
 				sequence.NewRevisionSideState(ssi, nil)}),
-		Current: snapRev,
+		Current:         snapRev,
+		TrackingChannel: "channel-for-components",
 	})
 }
 
@@ -494,7 +513,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathSnapNotActive(c *C) {
 	c.Assert(osutil.FileExists(compPath), Equals, true)
 }
 
-func (s *snapmgrTestSuite) TestInstallComponentRemodelConflict(c *C) {
+func (s *snapmgrTestSuite) TestInstallComponentPathRemodelConflict(c *C) {
 	const snapName = "mysnap"
 	const compName = "mycomp"
 	snapRev := snap.R(1)
@@ -519,7 +538,7 @@ func (s *snapmgrTestSuite) TestInstallComponentRemodelConflict(c *C) {
 		`remodeling in progress, no other changes allowed until this is done`)
 }
 
-func (s *snapmgrTestSuite) TestInstallComponentUpdateConflict(c *C) {
+func (s *snapmgrTestSuite) TestInstallComponentPathUpdateConflict(c *C) {
 	const snapName = "some-snap"
 	const compName = "mycomp"
 	snapRev := snap.R(1)
@@ -547,11 +566,131 @@ func (s *snapmgrTestSuite) TestInstallComponentUpdateConflict(c *C) {
 		`snap "some-snap" has "update" change in progress`)
 }
 
+func (s *snapmgrTestSuite) TestInstallComponentUpdateConflict(c *C) {
+	const snapName = "some-snap"
+	const compName = "test-component"
+	snapRev := snap.R(1)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	setStateWithOneSnap(s.state, snapName, snapRev)
+
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		return []store.SnapResourceResult{{
+			DownloadInfo: snap.DownloadInfo{
+				DownloadURL: "http://example.com/" + compName,
+			},
+			Name:      compName,
+			Revision:  3,
+			Type:      "component/test",
+			Version:   "1.0",
+			CreatedAt: "2024-01-01T00:00:00Z",
+		}}
+	}
+
+	tupd, err := snapstate.Update(s.state, snapName,
+		&snapstate.RevisionOptions{Channel: ""}, s.user.ID,
+		snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := s.state.NewChange("update", "update a snap")
+	chg.AddAll(tupd)
+
+	_, err = snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, info, snapstate.Options{})
+	c.Assert(err.Error(), Equals, `snap "some-snap" has "update" change in progress`)
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentConflictsWithSelf(c *C) {
+	const (
+		snapName              = "some-snap"
+		compName              = "test-component"
+		conflictComponentName = "kernel-modules-component"
+	)
+
+	typeMapping := map[string]string{
+		compName:              "test",
+		conflictComponentName: "kernel-modules",
+	}
+
+	snapRev := snap.R(1)
+	info := createTestSnapInfoForComponents(c, snapName, snapRev, typeMapping)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	setStateWithOneSnap(s.state, snapName, snapRev)
+
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		results := make([]store.SnapResourceResult, 0, 2)
+		for _, name := range []string{compName, conflictComponentName} {
+			results = append(results, store.SnapResourceResult{
+				DownloadInfo: snap.DownloadInfo{
+					DownloadURL: "http://example.com/" + name,
+				},
+				Name:     name,
+				Revision: 3,
+				Type:     "component/" + typeMapping[name],
+				Version:  "1.0",
+			})
+		}
+		return results
+	}
+
+	tss, err := snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, info, snapstate.Options{})
+	c.Assert(err, IsNil)
+	chg := s.state.NewChange("install-component", "install a component")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	_, err = snapstate.InstallComponents(context.TODO(), s.state, []string{conflictComponentName}, info, snapstate.Options{})
+	c.Assert(err.Error(), Equals, `snap "some-snap" has "install-component" change in progress`)
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentCausesConflict(c *C) {
+	const (
+		snapName = "some-snap"
+		compName = "test-component"
+	)
+
+	snapRev := snap.R(1)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	setStateWithOneSnap(s.state, snapName, snapRev)
+
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		return []store.SnapResourceResult{{
+			DownloadInfo: snap.DownloadInfo{
+				DownloadURL: "http://example.com/" + compName,
+			},
+			Name:      compName,
+			Revision:  3,
+			Type:      "component/test",
+			Version:   "1.0",
+			CreatedAt: "2024-01-01T00:00:00Z",
+		}}
+	}
+
+	tss, err := snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, info, snapstate.Options{})
+	c.Assert(err, IsNil)
+	chg := s.state.NewChange("install-component", "install a component")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	_, err = snapstate.Update(s.state, snapName, nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err.Error(), Equals, `snap "some-snap" has "install-component" change in progress`)
+}
+
 func (s *snapmgrTestSuite) TestInstallKernelModulesComponentPath(c *C) {
 	const snapName = "mysnap"
 	const compName = "mycomp"
 	snapRev := snap.R(1)
-	info := createTestSnapInfoForComponentWithType(c, snapName, snapRev, compName, "kernel-modules")
+	info := createTestSnapInfoForComponents(c, snapName, snapRev, map[string]string{compName: "kernel-modules"})
 	_, compPath := createTestComponentWithType(c, snapName, compName, "kernel-modules", info)
 
 	s.state.Lock()
@@ -653,4 +792,145 @@ func (s *snapmgrTestSuite) TestInstallComponentPathRun(c *C) {
 	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
 
 	c.Assert(snapst.IsComponentInCurrentSeq(cref), Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestInstallComponents(c *C) {
+	const snapName = "some-snap"
+	snapRev := snap.R(1)
+
+	compNamesToType := map[string]string{
+		"one": "test",
+		"two": "test",
+	}
+
+	info := createTestSnapInfoForComponents(c, snapName, snapRev, compNamesToType)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: snapName,
+		Revision: snapRev,
+		SnapID:   "some-snap-id",
+	}
+
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+			sequence.NewRevisionSideState(si, nil),
+		}),
+		Current:         snapRev,
+		TrackingChannel: "channel-for-components",
+	})
+
+	components := []string{"test-component", "kernel-modules-component"}
+
+	compNameToType := func(name string) snap.ComponentType {
+		typ := strings.TrimSuffix(name, "-component")
+		if typ == name {
+			c.Fatalf("unexpected component name %q", name)
+		}
+		return snap.ComponentType(typ)
+	}
+
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		c.Assert(info.InstanceName(), DeepEquals, snapName)
+		var results []store.SnapResourceResult
+		for _, compName := range components {
+			results = append(results, store.SnapResourceResult{
+				DownloadInfo: snap.DownloadInfo{
+					DownloadURL: "http://example.com/" + compName,
+				},
+				Name:      compName,
+				Revision:  snap.R(3).N,
+				Type:      fmt.Sprintf("component/%s", compNameToType(compName)),
+				Version:   "1.0",
+				CreatedAt: "2024-01-01T00:00:00Z",
+			})
+		}
+		return results
+	}
+
+	tss, err := snapstate.InstallComponents(context.Background(), s.state, components, info, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	setupProfiles := tss[len(tss)-1].Tasks()[0]
+	c.Assert(setupProfiles.Kind(), Equals, "setup-profiles")
+
+	prepareKmodComps := tss[len(tss)-1].Tasks()[1]
+	c.Assert(prepareKmodComps.Kind(), Equals, "prepare-kernel-modules-components")
+
+	// add to change so that we can use TaskComponentSetup
+	chg := s.state.NewChange("install", "...")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	for _, ts := range tss[0 : len(tss)-1] {
+		task := ts.Tasks()[0]
+		compsup, _, err := snapstate.TaskComponentSetup(task)
+		c.Assert(err, IsNil)
+
+		opts := compOptMultiCompInstall
+		if compNameToType(compsup.ComponentName()) == snap.KernelModulesComponent {
+			opts |= compTypeIsKernMods
+		}
+
+		verifyComponentInstallTasks(c, opts, ts)
+
+		linkTasks := tasksWithKind(ts, "link-component")
+		c.Assert(linkTasks, HasLen, 1)
+
+		// make sure that the link-component tasks wait on the all-inclusive
+		// setup-profiles task
+		c.Assert(linkTasks[0].WaitTasks(), testutil.DeepContains, setupProfiles)
+
+		installHook := tasksWithKind(ts, "run-hook")
+		c.Assert(installHook, HasLen, 1)
+
+		// make sure that the run-hook[install] tasks wait on the all-inclusive
+		// prepare-kernel-modules-components task
+		c.Assert(prepareKmodComps.WaitTasks(), testutil.DeepContains, installHook[0])
+	}
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentsAlreadyInstalledError(c *C) {
+	const snapName = "some-snap"
+	snapRev := snap.R(1)
+
+	compNamesToType := map[string]string{
+		"one": "test",
+		"two": "test",
+	}
+
+	info := createTestSnapInfoForComponents(c, snapName, snapRev, compNamesToType)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: snapName,
+		Revision: snapRev,
+		SnapID:   "some-snap-id",
+	}
+
+	seq := snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+		sequence.NewRevisionSideState(si, nil),
+	})
+
+	seq.AddComponentForRevision(snapRev, sequence.NewComponentState(&snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, "one"),
+		Revision:  snap.R(1),
+	}, snap.TestComponent))
+
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active:          true,
+		Sequence:        seq,
+		Current:         snapRev,
+		TrackingChannel: "channel-for-components",
+	})
+
+	_, err := snapstate.InstallComponents(context.TODO(), s.state, []string{"one", "two"}, info, snapstate.Options{})
+
+	c.Assert(err, testutil.ErrorIs, snap.AlreadyInstalledComponentError{Component: "one"})
 }
