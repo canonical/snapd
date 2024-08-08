@@ -618,7 +618,6 @@ func (rdb *RuleDB) refreshTreeEnforceConsistency(rules []*Rule, currTime time.Ti
 		for {
 			err, conflicts, conflictingPermission := rdb.addRuleToTree(rule)
 			if err == nil {
-				needToSave = true
 				break
 			}
 			// err must be ErrPathPatternConflict.
