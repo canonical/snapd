@@ -149,7 +149,7 @@ repack_snapd_deb_into_snap() {
         snapd)
             # use snapd from edge as a recent snap that should be close to what we will
             # have in the snapd deb
-            snap download snapd --basename=snapd --edge
+            snap download snapd --basename=snapd --stable
             unsquashfs -d ./snapd-unpacked snapd.snap
             rm snapd.snap
 
@@ -201,7 +201,7 @@ repack_core_snap_into_snapd_snap() {
         fi
     fi
 
-    snap download snapd --basename=snapd-upstream --edge
+    snap download snapd --basename=snapd-upstream --stable
     unsquashfs -d ./snapd-upstream snapd-upstream.snap
     rm snapd-upstream.snap
     (
