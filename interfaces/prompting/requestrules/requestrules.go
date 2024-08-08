@@ -332,11 +332,31 @@ func (rdb *RuleDB) ensurePermissionDBForUserSnapInterfacePermission(user uint32,
 	return permVariants
 }
 
-// RuleConflict stores the rendered variant which conflicted with that of
+// ruleConflict stores the rendered variant which conflicted with that of
 // another rule, along with the ID of that conflicting rule.
-type RuleConflict struct {
-	Variant       string           `json:"pattern-variant"`
-	ConflictingID prompting.IDType `json:"conflicting-rule-id"`
+type ruleConflict struct {
+	Variant       string           `json:"variant"`
+	ConflictingID prompting.IDType `json:"conflicting-id"`
+}
+
+// ruleConflictError stores a list of rule conflicts that occurred for a
+// particular permission.
+type ruleConflictError struct {
+	conflicts  []ruleConflict
+	permission string
+}
+
+func (e *ruleConflictError) Error() string {
+	marshalled, err := json.Marshal(e.conflicts)
+	if err != nil {
+		// marshalling a string and ID, error should not occur
+		return fmt.Sprintf("%v: permission: '%s'", ErrPathPatternConflict, e.permission)
+	}
+	return fmt.Sprintf("%v: conflicts: %+v, permission: '%s'", ErrPathPatternConflict, string(marshalled), e.permission)
+}
+
+func (e *ruleConflictError) Unwrap() error {
+	return ErrPathPatternConflict
 }
 
 // addRulePermissionToTree adds all the path pattern variants for the given
@@ -351,11 +371,12 @@ type RuleConflict struct {
 // immediately removed, and the new rule can continue to be added.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) (err error, conflicts []RuleConflict) {
+func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) *ruleConflictError {
 	permVariants := rdb.ensurePermissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
 
 	newVariantEntries := make(map[string]variantEntry, rule.Constraints.PathPattern.NumVariants())
 	expiredRules := make(map[prompting.IDType]bool)
+	var conflicts []ruleConflict
 
 	addVariant := func(index int, variant patterns.PatternVariant) {
 		newEntry := variantEntry{
@@ -372,7 +393,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) (err e
 			newVariantEntries[variantStr] = newEntry
 		default:
 			// Exists and is not expired, so there's a conflict
-			conflicts = append(conflicts, RuleConflict{
+			conflicts = append(conflicts, ruleConflict{
 				Variant:       variantStr,
 				ConflictingID: conflictingVariantEntry.RuleID,
 			})
@@ -381,7 +402,11 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) (err e
 	rule.Constraints.PathPattern.RenderAllVariants(addVariant)
 
 	if len(conflicts) > 0 {
-		return ErrPathPatternConflict, conflicts
+		err := &ruleConflictError{
+			conflicts:  conflicts,
+			permission: permission,
+		}
+		return err
 	}
 
 	for ruleID := range expiredRules {
@@ -398,7 +423,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) (err e
 		permVariants.VariantEntries[variantStr] = entry
 	}
 
-	return nil, nil
+	return nil
 }
 
 // isRuleExpired returns true if the rule with given ID is expired with respect
@@ -465,17 +490,13 @@ func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) [
 // the conflict occurred.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) addRuleToTree(rule *Rule) (error, []RuleConflict, string) {
+func (rdb *RuleDB) addRuleToTree(rule *Rule) *ruleConflictError {
 	addedPermissions := make([]string, 0, len(rule.Constraints.Permissions))
 
-	var err error
-	var conflicts []RuleConflict
-	var errPermission string
-
+	var err *ruleConflictError
 	for _, permission := range rule.Constraints.Permissions {
-		err, conflicts = rdb.addRulePermissionToTree(rule, permission)
+		err = rdb.addRulePermissionToTree(rule, permission)
 		if err != nil {
-			errPermission = permission
 			break
 		}
 		addedPermissions = append(addedPermissions, permission)
@@ -486,10 +507,10 @@ func (rdb *RuleDB) addRuleToTree(rule *Rule) (error, []RuleConflict, string) {
 		for _, prevPerm := range addedPermissions {
 			rdb.removeRulePermissionFromTree(rule, prevPerm)
 		}
-		return err, conflicts, errPermission
+		return err
 	}
 
-	return nil, nil, ""
+	return nil
 }
 
 // removeRuleFromTree fully removes the given rule from the tree, even if an
@@ -616,11 +637,13 @@ func (rdb *RuleDB) refreshTreeEnforceConsistency(rules []*Rule, currTime time.Ti
 			modifiedUserRuleIDs[rule.User][rule.ID] = nil
 		}
 		for {
-			err, conflicts, conflictingPermission := rdb.addRuleToTree(rule)
+			err := rdb.addRuleToTree(rule)
 			if err == nil {
 				break
 			}
-			// err must be ErrPathPatternConflict.
+			// err because of conflict with existing rule
+			conflicts := err.conflicts
+			conflictingPermission := err.permission
 			// Prioritize newer rules by pruning permission from old rule until
 			// no conflicts remain.
 			// XXX: this results in the permission being dropped for all other
@@ -815,8 +838,8 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 	if err != nil {
 		return nil, err
 	}
-	if err, conflicts, conflictingPermission := rdb.addRuleToTree(newRule); err != nil {
-		return nil, fmt.Errorf("cannot add rule: %w: conflicts: %+v, permission: '%s'", err, conflicts, conflictingPermission)
+	if err := rdb.addRuleToTree(newRule); err != nil {
+		return nil, fmt.Errorf("cannot add rule: %w", err)
 	}
 	rdb.addRule(newRule)
 
@@ -957,10 +980,10 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraints *prom
 	// if it does, carry on, hopefully the new rule won't have a conflict
 	rdb.removeRuleFromTree(origRule)
 
-	if err, conflicts, conflictingPermission := rdb.addRuleToTree(newRule); err != nil {
-		err = fmt.Errorf("cannot patch rule: %w: conflicts: %+v, permission: '%s'", err, conflicts, conflictingPermission)
+	if addErr := rdb.addRuleToTree(newRule); addErr != nil {
+		err := fmt.Errorf("cannot patch rule: %w", addErr)
 		// Try to re-add original rule so all is unchanged.
-		if origErr, _, _ := rdb.addRuleToTree(origRule); origErr != nil {
+		if origErr := rdb.addRuleToTree(origRule); origErr != nil {
 			// Error should not occur, but if it does, wrap it in the other error
 			err = errorsJoin(err, fmt.Errorf("cannot re-add original rule: %w", origErr))
 			// XXX: should origRule be removed from the rules list if it's no
