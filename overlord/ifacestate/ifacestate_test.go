@@ -7295,19 +7295,34 @@ func (s *interfaceManagerSuite) TestSnapsWithSecurityProfilesUsesPendingSecurity
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si0}),
 		Current:  si0.Revision,
 	})
-	si1 := &snap.SideInfo{
-		RealName: "snap1",
+	si := &snap.SideInfo{
+		RealName: "snap",
 		Revision: snap.R(1),
 	}
-	snaptest.MockSnap(c, `name: snap1`, si1)
-	snapstate.Set(s.state, "snap1", &snapstate.SnapState{
+
+	snapInfo := snaptest.MockSnap(c, sampleSnapWithComponentsYaml, si)
+	comps := []*snap.ComponentSideInfo{
+		{
+			Component: naming.NewComponentRef("snap", "comp1"),
+			Revision:  snap.R(7),
+		},
+		{
+			Component: naming.NewComponentRef("snap", "comp2"),
+			Revision:  snap.R(8),
+		},
+	}
+	snaptest.MockComponent(c, sampleComponentYaml, snapInfo, *comps[0])
+	snaptest.MockComponent(c, sampleOtherComponentYaml, snapInfo, *comps[1])
+	snapstate.Set(s.state, "snap", &snapstate.SnapState{
 		Active:   false,
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
-		Current:  si1.Revision,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
 		PendingSecurity: &snapstate.PendingSecurityState{
-			SideInfo: si1,
+			SideInfo:   si,
+			Components: comps,
 		},
 	})
+
 	si2 := &snap.SideInfo{
 		RealName: "snap2",
 		Revision: snap.R(2),
@@ -7328,10 +7343,15 @@ func (s *interfaceManagerSuite) TestSnapsWithSecurityProfilesUsesPendingSecurity
 	got := make(map[string]snap.Revision)
 	for _, set := range appSets {
 		got[set.InstanceName()] = set.Info().Revision
+		for _, comp := range set.Components() {
+			got[comp.Component.String()] = comp.Revision
+		}
 	}
 	c.Check(got, DeepEquals, map[string]snap.Revision{
-		"snap0": snap.R(10),
-		"snap1": snap.R(1),
+		"snap0":      snap.R(10),
+		"snap":       snap.R(1),
+		"snap+comp1": snap.R(7),
+		"snap+comp2": snap.R(8),
 	})
 }
 
