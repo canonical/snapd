@@ -1003,6 +1003,14 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 		return nil, nil, err
 	}
 
+	for _, t := range plan.targets {
+		// sort the components by name to ensure we always install components in the
+		// same order
+		sort.Slice(t.components, func(i, j int) bool {
+			return t.components[i].ComponentName() < t.components[j].ComponentName()
+		})
+	}
+
 	if opts.ExpectOneSnap && len(plan.targets) != 1 {
 		return nil, nil, ErrExpectedOneSnap
 	}

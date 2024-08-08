@@ -100,15 +100,8 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 		}
 	}
 	expected := startTasks
-	if opts&unlinkBefore != 0 {
-		expected = append(expected,
-			"run-hook[pre-refresh]",
-			"stop-snap-services",
-			"remove-aliases",
-		)
-	}
 
-	var tasksBeforeCurrentUnlink, tasksAfterLinkSnap, tasksAfterPostOpHook []string
+	var tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard []string
 	for range components {
 		compOpts := compOptMultiCompInstall
 		if opts&localSnap != 0 {
@@ -118,14 +111,23 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 			compOpts |= compOptIsActive | compOptDuringSnapRefresh
 		}
 
-		beforeLink, linkToHooks, hooksAndAfter := expectedComponentInstallTasksSplit(compOpts)
+		beforeLink, link, hooksAndAfter, discard := expectedComponentInstallTasksSplit(compOpts)
 
-		tasksBeforeCurrentUnlink = append(tasksBeforeCurrentUnlink, beforeLink...)
-		tasksAfterLinkSnap = append(tasksAfterLinkSnap, linkToHooks...)
+		tasksBeforePreRefreshHook = append(tasksBeforePreRefreshHook, beforeLink...)
+		tasksAfterLinkSnap = append(tasksAfterLinkSnap, link...)
 		tasksAfterPostOpHook = append(tasksAfterPostOpHook, hooksAndAfter...)
+		tasksBeforeDiscard = append(tasksBeforeDiscard, discard...)
 	}
 
-	expected = append(expected, tasksBeforeCurrentUnlink...)
+	expected = append(expected, tasksBeforePreRefreshHook...)
+
+	if opts&unlinkBefore != 0 {
+		expected = append(expected,
+			"run-hook[pre-refresh]",
+			"stop-snap-services",
+			"remove-aliases",
+		)
+	}
 
 	if opts&unlinkBefore != 0 {
 		expected = append(expected, "unlink-current-snap")

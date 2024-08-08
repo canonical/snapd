@@ -59,11 +59,11 @@ const (
 
 // opts is a bitset with compOpt* as possible values.
 func expectedComponentInstallTasks(opts int) []string {
-	beforeLink, linkToHook, postOpHooksAndAfter := expectedComponentInstallTasksSplit(opts)
-	return append(append(beforeLink, linkToHook...), postOpHooksAndAfter...)
+	beforeLink, link, postOpHooksAndAfter, discard := expectedComponentInstallTasksSplit(opts)
+	return append(append(append(beforeLink, link...), postOpHooksAndAfter...), discard...)
 }
 
-func expectedComponentInstallTasksSplit(opts int) (beforeLink []string, linkToHook []string, postOpHooksAndAfter []string) {
+func expectedComponentInstallTasksSplit(opts int) (beforeLink, link, postOpHooksAndAfter, discard []string) {
 	if opts&compOptIsLocal != 0 {
 		beforeLink = []string{"prepare-component"}
 	} else {
@@ -89,7 +89,7 @@ func expectedComponentInstallTasksSplit(opts int) (beforeLink []string, linkToHo
 	}
 
 	// link-component is always present
-	linkToHook = []string{"link-component"}
+	link = []string{"link-component"}
 
 	// expect the install hook if the snap wasn't already installed
 	if opts&compOptIsActive == 0 {
@@ -103,10 +103,10 @@ func expectedComponentInstallTasksSplit(opts int) (beforeLink []string, linkToHo
 	}
 
 	if opts&compCurrentIsDiscarded != 0 {
-		postOpHooksAndAfter = append(postOpHooksAndAfter, "discard-component")
+		discard = append(discard, "discard-component")
 	}
 
-	return beforeLink, linkToHook, postOpHooksAndAfter
+	return beforeLink, link, postOpHooksAndAfter, discard
 }
 
 func checkSetupTasks(c *C, ts *state.TaskSet) {
