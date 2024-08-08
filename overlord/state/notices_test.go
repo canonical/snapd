@@ -282,6 +282,8 @@ func (s *noticesSuite) TestNoticesFilterType(c *C) {
 
 	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
 	time.Sleep(time.Microsecond)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "443", nil)
+	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.WarningNotice, "Warning 1!", nil)
@@ -292,11 +294,11 @@ func (s *noticesSuite) TestNoticesFilterType(c *C) {
 
 	// No filter
 	notices := st.Notices(nil)
-	c.Assert(notices, HasLen, 5)
+	c.Assert(notices, HasLen, 6)
 
 	// No types
 	notices = st.Notices(&state.NoticeFilter{})
-	c.Assert(notices, HasLen, 5)
+	c.Assert(notices, HasLen, 6)
 
 	// One type
 	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}})
@@ -309,14 +311,6 @@ func (s *noticesSuite) TestNoticesFilterType(c *C) {
 	c.Check(n["user-id"], Equals, nil)
 	c.Check(n["type"], Equals, "warning")
 	c.Check(n["key"], Equals, "Warning 2!")
-
-	// Another type
-	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.ChangeUpdateNotice}})
-	c.Assert(notices, HasLen, 1)
-	n = noticeToMap(c, notices[0])
-	c.Check(n["user-id"], Equals, nil)
-	c.Check(n["type"], Equals, "change-update")
-	c.Check(n["key"], Equals, "123")
 
 	// Another type
 	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.RefreshInhibitNotice}})
@@ -337,13 +331,13 @@ func (s *noticesSuite) TestNoticesFilterType(c *C) {
 	// Multiple types
 	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{
 		state.ChangeUpdateNotice,
-		state.RefreshInhibitNotice,
+		state.InterfacesRequestsPromptNotice,
 	}})
 	c.Assert(notices, HasLen, 2)
 	n = noticeToMap(c, notices[0])
 	c.Check(n["user-id"], Equals, nil)
-	c.Check(n["type"], Equals, "refresh-inhibit")
-	c.Check(n["key"], Equals, "-")
+	c.Check(n["type"], Equals, "interfaces-requests-prompt")
+	c.Check(n["key"], Equals, "443")
 	n = noticeToMap(c, notices[1])
 	c.Check(n["user-id"], Equals, nil)
 	c.Check(n["type"], Equals, "change-update")

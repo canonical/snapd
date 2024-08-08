@@ -32,9 +32,10 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/systemd"
 )
+
+var kernelEnsureKernelDriversTree = kernel.EnsureKernelDriversTree
 
 // InstallRecord keeps a record of what installation effectively did as hints
 // about what needs to be undone in case of failure.
@@ -128,7 +129,7 @@ func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, meter p
 	cpi := snap.MinimalSnapContainerPlaceInfo(instanceName, rev)
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, instanceName, rev)
 
-	return kernel.EnsureKernelDriversTree(
+	return kernelEnsureKernelDriversTree(
 		kernel.MountPoints{
 			Current: cpi.MountDir(),
 			Target:  cpi.MountDir()},
@@ -303,49 +304,13 @@ func (b Backend) RemoveSnapInhibitLock(instanceName string) error {
 	return runinhibit.RemoveLockFile(instanceName)
 }
 
-// SetupKernelModulesComponents changes kernel-modules configuration by adding
-// compsToInstall. The components currently active are currentComps, while
-// ksnapName and ksnapRev identify the currently active kernel.
-func (b Backend) SetupKernelModulesComponents(compsToInstall, currentComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error) {
-	// newActiveComps will contain the new revisions of components, taken from compsToInstall
-	newActiveComps := mergeCompSideInfosUpdatingRev(currentComps, compsToInstall)
-
+// SetupKernelModulesComponents changes kernel-modules configuration by
+// installing currentComps. The components currently active are currentComps,
+// while ksnapName and ksnapRev identify the currently active kernel.
+func (b Backend) SetupKernelModulesComponents(currentComps, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error) {
 	return moveKModsComponentsState(
-		currentComps, newActiveComps, ksnapName, ksnapRev,
+		currentComps, finalComps, ksnapName, ksnapRev,
 		"after failure to set-up kernel modules components")
-}
-
-// RemoveKernelModulesComponentsSetup changes kernel-modules configuration by
-// removing compsToRemove and making the final state consider only finalComps.
-func (b Backend) RemoveKernelModulesComponentsSetup(compsToRemove, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error) {
-	// currentActiveComps will contain the current revision, taken from compsToRemove
-	currentActiveComps := mergeCompSideInfosUpdatingRev(finalComps, compsToRemove)
-
-	return moveKModsComponentsState(
-		currentActiveComps, finalComps, ksnapName, ksnapRev,
-		"after failure to remove set-up of kernel modules components")
-}
-
-// mergeCompSideInfosUpdatingRev returns a merged list from two lists
-// of ComponentSideInfo, using the criteria of the elements having the
-// same ComponentRef. The rest of the data for an element will come
-// from comps2 if ComponentRef is the same in comps1 and comps2, that
-// is, the revision is updated in that case.
-func mergeCompSideInfosUpdatingRev(comps1, comps2 []*snap.ComponentSideInfo) (merged []*snap.ComponentSideInfo) {
-	numInComps2 := len(comps2)
-	comps2Map := make(map[naming.ComponentRef]*snap.ComponentSideInfo, numInComps2)
-	for _, cti := range comps2 {
-		comps2Map[cti.Component] = cti
-	}
-	merged = append(merged, comps2...)
-	for _, instComp := range comps1 {
-		if _, ok := comps2Map[instComp.Component]; !ok {
-			// Component not in comps2, add
-			merged = append(merged, instComp)
-		}
-	}
-
-	return merged
 }
 
 // moveKModsComponentsState changes kernel-modules set-up from currentComps to
@@ -357,28 +322,14 @@ func moveKModsComponentsState(currentComps, finalComps []*snap.ComponentSideInfo
 		Target:  cpi.MountDir(),
 	}
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, ksnapName, ksnapRev)
-	finalCompsMntPts := make([]kernel.ModulesCompMountPoints, len(finalComps))
-	for i, csi := range finalComps {
-		compPlaceInfo := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
-			csi.Revision, ksnapName)
-		finalCompsMntPts[i] = kernel.ModulesCompMountPoints{
-			Name: csi.Component.ComponentName,
-			MountPoints: kernel.MountPoints{
-				Current: compPlaceInfo.MountDir(),
-				Target:  compPlaceInfo.MountDir(),
-			},
-		}
-	}
+	finalCompsMntPts := compsMountPoints(finalComps, ksnapName)
 
-	if err := kernel.EnsureKernelDriversTree(kMntPts, finalCompsMntPts, destDir,
+	if err := kernelEnsureKernelDriversTree(kMntPts, finalCompsMntPts, destDir,
 		&kernel.KernelDriversTreeOptions{KernelInstall: false}); err != nil {
 
-		currentCompsConts := make([]snap.ContainerPlaceInfo, len(currentComps))
-		for i, csi := range currentComps {
-			currentCompsConts[i] = snap.MinimalComponentContainerPlaceInfo(
-				csi.Component.ComponentName, csi.Revision, ksnapName)
-		}
-		if e := kernel.EnsureKernelDriversTree(kMntPts, finalCompsMntPts, destDir,
+		// Revert change on error
+		currentCompsMntPts := compsMountPoints(currentComps, ksnapName)
+		if e := kernelEnsureKernelDriversTree(kMntPts, currentCompsMntPts, destDir,
 			&kernel.KernelDriversTreeOptions{KernelInstall: false}); e != nil {
 			logger.Noticef("while restoring kernel tree %s: %v", cleanErrMsg, e)
 		}
@@ -387,6 +338,21 @@ func moveKModsComponentsState(currentComps, finalComps []*snap.ComponentSideInfo
 	}
 
 	return nil
+}
+
+func compsMountPoints(comps []*snap.ComponentSideInfo, kSnapName string) []kernel.ModulesCompMountPoints {
+	compsMntPts := make([]kernel.ModulesCompMountPoints, 0, len(comps))
+	for _, csi := range comps {
+		compPlaceInfo := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
+			csi.Revision, kSnapName)
+		compsMntPts = append(compsMntPts, kernel.ModulesCompMountPoints{
+			Name: csi.Component.ComponentName,
+			MountPoints: kernel.MountPoints{
+				Current: compPlaceInfo.MountDir(),
+				Target:  compPlaceInfo.MountDir(),
+			}})
+	}
+	return compsMntPts
 }
 
 func newSystemd(preseed bool, meter progress.Meter) systemd.Systemd {

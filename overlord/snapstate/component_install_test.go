@@ -47,41 +47,62 @@ const (
 	compCurrentIsDiscarded
 	// Component is being installed with a snap, so skip setup-profiles
 	compOptSkipSecurity
+	// Component is being installed with a snap that is being refreshed
+	compOptDuringSnapRefresh
+	// Component is being installed with a snap, so skip prepare-kernel-modules-components
+	compOptSkipKernelModulesSetup
 )
 
 // opts is a bitset with compOpt* as possible values.
 func expectedComponentInstallTasks(opts int) []string {
-	var startTasks []string
-	// Installation of a local component container
+	beforeLink, linkToHook, postOpHooksAndAfter := expectedComponentInstallTasksSplit(opts)
+	return append(append(beforeLink, linkToHook...), postOpHooksAndAfter...)
+}
+
+func expectedComponentInstallTasksSplit(opts int) (beforeLink []string, linkToHook []string, postOpHooksAndAfter []string) {
 	if opts&compOptIsLocal != 0 {
-		startTasks = []string{"prepare-component"}
+		beforeLink = []string{"prepare-component"}
 	} else {
-		startTasks = []string{"download-component", "validate-component"}
+		beforeLink = []string{"download-component", "validate-component"}
 	}
 
 	// Revision is not the same as the current one installed
 	if opts&compOptRevisionPresent == 0 {
-		startTasks = append(startTasks, "mount-component")
+		beforeLink = append(beforeLink, "mount-component")
 	}
-	if opts&compTypeIsKernMods != 0 {
-		startTasks = append(startTasks, "prepare-kernel-modules-components")
-	}
-	// Component is installed (implicit if compOptRevisionPresent is set)
+
 	if opts&compOptIsActive != 0 {
-		startTasks = append(startTasks, "unlink-current-component")
+		beforeLink = append(beforeLink, "run-hook[pre-refresh]")
+	}
+
+	// Component is installed (implicit if compOptRevisionPresent is set)
+	if opts&compOptIsActive != 0 && opts&compOptDuringSnapRefresh == 0 {
+		beforeLink = append(beforeLink, "unlink-current-component")
 	}
 
 	if opts&compOptSkipSecurity == 0 {
-		startTasks = append(startTasks, "setup-profiles")
+		beforeLink = append(beforeLink, "setup-profiles")
 	}
 
 	// link-component is always present
-	startTasks = append(startTasks, "link-component")
-	if opts&compCurrentIsDiscarded != 0 {
-		startTasks = append(startTasks, "discard-component")
+	linkToHook = []string{"link-component"}
+
+	// expect the install hook if the snap wasn't already installed
+	if opts&compOptIsActive == 0 {
+		postOpHooksAndAfter = []string{"run-hook[install]"}
+	} else {
+		postOpHooksAndAfter = []string{"run-hook[post-refresh]"}
 	}
 
-	return startTasks
+	if opts&compTypeIsKernMods != 0 && opts&compOptSkipKernelModulesSetup == 0 {
+		postOpHooksAndAfter = append(postOpHooksAndAfter, "prepare-kernel-modules-components")
+	}
+
+	if opts&compCurrentIsDiscarded != 0 {
+		postOpHooksAndAfter = append(postOpHooksAndAfter, "discard-component")
+	}
+
+	return beforeLink, linkToHook, postOpHooksAndAfter
 }
 
 func checkSetupTasks(c *C, ts *state.TaskSet) {
@@ -149,14 +170,18 @@ func createTestSnapInfoForComponent(c *C, snapName string, snapRev snap.Revision
 	return createTestSnapInfoForComponentWithType(c, snapName, snapRev, compName, "test")
 }
 
-func createTestSnapInfoForComponentWithType(c *C, snapName string, snapRev snap.Revision, compName, typ string) *snap.Info {
+func createTestSnapInfoForComponentWithType(c *C, snapName string, snapRev snap.Revision, compName, compType string) *snap.Info {
+	snapType := "app"
+	if compType == "kernel-modules" {
+		snapType = "kernel"
+	}
 	snapYaml := fmt.Sprintf(`name: %s
-type: app
+type: %s
 version: 1.1
 components:
   %s:
     type: %s
-`, snapName, compName, typ)
+`, snapName, snapType, compName, compType)
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 	info.SideInfo = snap.SideInfo{RealName: snapName, Revision: snapRev}
@@ -365,7 +390,9 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresent(c *C) {
 		snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyComponentInstallTasks(c, compOptIsLocal|compOptRevisionPresent|compOptIsActive|compCurrentIsDiscarded, ts)
+	// note that we don't discard the component here, since the component
+	// revision is the same as the one we install
+	verifyComponentInstallTasks(c, compOptIsLocal|compOptRevisionPresent|compOptIsActive, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	// Temporary file is deleted as component file is already in the system
 	c.Assert(osutil.FileExists(compPath), Equals, false)

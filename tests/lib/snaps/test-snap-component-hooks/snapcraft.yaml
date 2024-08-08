@@ -1,0 +1,40 @@
+name: test-snap-component-hooks
+summary: A snap with components
+description: |
+  A snap with components used for testing snapd. Uploaded under the
+  snapd-test-brand-store@canonical.com account.
+version: 1.1
+grade: stable
+confinement: strict
+base: core24
+components:
+  one:
+    summary: Component 1
+    description: First component for test-snap-component-hooks
+    version: 1.1
+    type: test
+    hooks:
+      post-refresh:
+        plugs: [network-bind]
+      pre-refresh:
+        plugs: [network-bind]
+      install:
+        plugs: [network-bind]
+  two:
+    summary: Component 2
+    description: Second component for test-snap-component-hooks, with some implicit hooks
+    version: 1.1
+    type: test
+plugs:
+  network:
+    interface: network
+apps:
+  test-snap-component-hooks:
+    command: test
+parts:
+  copy:
+    plugin: dump
+    source: .
+    organize:
+      one-hooks: (component/one)/meta/hooks
+      two-hooks: (component/two)/meta/hooks

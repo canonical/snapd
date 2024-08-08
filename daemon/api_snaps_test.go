@@ -2118,6 +2118,27 @@ func (s *snapsSuite) TestPostSnapTerminateWrongAction(c *check.C) {
 	}
 }
 
+func (s *snapsSuite) TestPostSnapTerminateWithRevisionSet(c *check.C) {
+	s.daemonWithOverlordMock()
+
+	defer daemon.MockSnapstateRemove(func(st *state.State, name string, revision snap.Revision, flags *snapstate.RemoveFlags) (*state.TaskSet, error) {
+		c.Check(name, check.Equals, "some-snap")
+		c.Check(flags.Terminate, check.Equals, true)
+		t := st.NewTask("fake-remove", "Remove one")
+		return state.NewTaskSet(t), nil
+	})()
+
+	const expectedErr = `terminate can only be specified when revision is unset`
+
+	buf := strings.NewReader(`{"action": "remove", "terminate": true, "revision": "42"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Equals, expectedErr)
+}
+
 func (s *snapsSuite) TestPostSnapCohortIncompat(c *check.C) {
 	s.daemonWithOverlordMock()
 	type T struct {

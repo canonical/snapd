@@ -282,8 +282,12 @@ func addAndBindImplicitComponentHook(componentInfo *ComponentInfo, snapInfo *Inf
 		}
 	}
 
-	// TODO: if hooks ever get slots, then unscoped slots will need to be
+	// TODO:COMPS: if hooks ever get slots, then unscoped slots will need to be
 	// bound here
+
+	if componentInfo.Hooks == nil {
+		componentInfo.Hooks = make(map[string]*HookInfo)
+	}
 
 	componentInfo.Hooks[hook] = &HookInfo{
 		Snap:      snapInfo,

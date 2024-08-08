@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2023 Canonical Ltd
+ * Copyright (C) 2023-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -58,33 +58,42 @@ func (s *listenerSuite) SetUpTest(c *C) {
 }
 
 func (*listenerSuite) TestReply(c *C) {
-	rc := make(chan interface{}, 1)
+	rc := make(chan *listener.Response, 1)
 	req := listener.FakeRequestWithClassAndReplyChan(notify.AA_CLASS_FILE, rc)
-	reply := true
-	req.Reply(reply)
+	response := &listener.Response{
+		Allow:      true,
+		Permission: notify.FilePermission(1234),
+	}
+	req.Reply(response)
 	resp := <-rc
-	c.Assert(resp, Equals, reply)
+	c.Assert(resp, Equals, response)
 }
 
 func (*listenerSuite) TestBadReply(c *C) {
-	rc := make(chan interface{}, 1)
+	rc := make(chan *listener.Response, 1)
 	req := listener.FakeRequestWithClassAndReplyChan(notify.AA_CLASS_FILE, rc)
-	reply := 1
-	err := req.Reply(reply)
-	c.Assert(err, ErrorMatches, "invalid reply: response must be of type bool")
+	response := &listener.Response{
+		Allow:      true,
+		Permission: "read",
+	}
+	err := req.Reply(response)
+	c.Assert(err, ErrorMatches, "invalid reply: response permission must be of type notify.FilePermission")
 }
 
 func (*listenerSuite) TestReplyTwice(c *C) {
-	rc := make(chan interface{}, 1)
+	rc := make(chan *listener.Response, 1)
 	req := listener.FakeRequestWithClassAndReplyChan(notify.AA_CLASS_FILE, rc)
-	reply := false
-	err := req.Reply(reply)
+	response := &listener.Response{
+		Allow:      false,
+		Permission: notify.FilePermission(1234),
+	}
+	err := req.Reply(response)
 	c.Assert(err, IsNil)
 	resp := <-rc
-	c.Assert(resp, Equals, reply)
+	c.Assert(resp, Equals, response)
 
-	reply = true
-	err = req.Reply(reply)
+	response.Allow = true
+	err = req.Reply(response)
 	c.Assert(err, Equals, listener.ErrAlreadyReplied)
 }
 
@@ -266,6 +275,8 @@ func (*listenerSuite) TestRunSimple(c *C) {
 	path := "/home/Documents/foo"
 	aBits := uint32(0b1010)
 	dBits := uint32(0b0101)
+	// simulate user only explicitly giving permission for final two bits
+	respBits := dBits & 0b0011
 
 	for _, id := range ids {
 		msg := newMsgNotificationFile(id, label, path, aBits, dBits)
@@ -290,15 +301,17 @@ func (*listenerSuite) TestRunSimple(c *C) {
 	}
 
 	for i, id := range ids {
+		response := &listener.Response{Permission: notify.FilePermission(respBits)}
 		switch i % 2 {
 		case 0:
-			err = requests[i].Reply(false)
+			response.Allow = false
 		case 1:
-			err = requests[i].Reply(true)
+			response.Allow = true
 		}
+		err = requests[i].Reply(response)
 		c.Assert(err, IsNil)
 
-		allow := aBits | (dBits * uint32(i))
+		allow := aBits | ((dBits & respBits) * uint32(i))
 		deny := dBits * uint32(1-i)
 		resp := newMsgNotificationResponse(id, allow, deny)
 		desiredBuf, err := resp.MarshalBinary()
@@ -586,7 +599,8 @@ func (*listenerSuite) TestRunNoReply(c *C) {
 
 	c.Check(l.Close(), IsNil)
 
-	req.Reply(true)
+	response := &listener.Response{} // doesn't matter if it's invalid
+	req.Reply(response)
 
 	c.Check(t.Wait(), Equals, listener.ErrClosed)
 }
@@ -825,8 +839,12 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 	replyCount := 0
 	go func() {
 		// reply to all requests as they are received, until l.Reqs() closes
+		response := &listener.Response{
+			Allow:      true,
+			Permission: notify.FilePermission(1234),
+		}
 		for req := range l.Reqs() {
-			err := req.Reply(true)
+			err := req.Reply(response)
 			c.Check(err, IsNil)
 			replyCount += 1
 		}

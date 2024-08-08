@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -60,6 +61,13 @@ func (s *TargetTestSuite) TestInstallWithComponents(c *C) {
 	c.Check(info.Components[compName].Name, Equals, compName)
 
 	verifyInstallTasksWithComponents(c, snap.TypeApp, 0, 0, []string{compName}, ts)
+
+	setupTask := ts.Tasks()[1]
+
+	compsups, err := snapstate.TaskComponentSetups(setupTask)
+	c.Assert(err, IsNil)
+	c.Assert(compsups, HasLen, 1)
+	c.Check(compsups[0].CompSideInfo.Component.ComponentName, Equals, compName)
 }
 
 func (s *TargetTestSuite) TestInstallWithComponentsMissingResource(c *C) {
@@ -227,6 +235,7 @@ func (s *TargetTestSuite) TestInstallWithComponentsFromPath(c *C) {
 		compName = "test-component"
 		snapYaml = `name: some-snap
 version: 1.0
+type: kernel
 components:
   test-component:
     type: test
@@ -262,8 +271,9 @@ version: 1.0
 
 	c.Check(info.InstanceName(), Equals, snapName)
 	c.Check(info.Components[compName].Name, Equals, compName)
+	release.OnClassic = false
 
-	verifyInstallTasksWithComponents(c, snap.TypeApp, localSnap, 0, []string{compName}, ts)
+	verifyInstallTasksWithComponents(c, snap.TypeKernel, localSnap, 0, []string{compName}, ts)
 }
 
 func (s *TargetTestSuite) TestUpdateSnapNotInstalled(c *C) {
