@@ -32,6 +32,11 @@ func (a *SnapAppSet) Info() *snap.Info {
 	return a.info
 }
 
+// Components returns the components that this SnapAppSet was created with.
+func (a *SnapAppSet) Components() []*snap.ComponentInfo {
+	return a.components
+}
+
 // InstanceName returns the instance name of the snap that this SnapAppSet is
 // based on.
 func (a *SnapAppSet) InstanceName() string {

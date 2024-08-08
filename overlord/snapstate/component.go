@@ -462,9 +462,6 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 		addTask(discardComp)
 	}
 
-	// TODO:COMPS: do we need to set restart boundaries here? (probably for
-	// kernel-modules components if installed along the kernel)
-
 	return componentTS, nil
 }
 
