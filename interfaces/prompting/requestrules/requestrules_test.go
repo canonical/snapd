@@ -484,7 +484,8 @@ func (s *requestrulesSuite) TestRemoveRulesForSnapInterface(c *C) {
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{rule1.ID, rule2.ID, rule3.ID}, nil)
 
-	removed := rdb.RemoveRulesForSnapInterface(s.defaultUser, snap, iface)
+	removed, err := rdb.RemoveRulesForSnapInterface(s.defaultUser, snap, iface)
+	c.Assert(err, IsNil)
 	c.Check(removed, HasLen, 1, Commentf("expected to remove 2 rules but instead removed: %+v", removed))
 	c.Check(removed[0] == rule1, Equals, true, Commentf("unexpected rule: %+v", removed[0]))
 
