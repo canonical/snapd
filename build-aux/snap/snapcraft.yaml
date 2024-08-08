@@ -148,6 +148,9 @@ parts:
       # apply prompting patch from the build-aux folder - this is the same as
       # what is used in the Ubuntu 24.10 (oracular) version
       patch -p1 < "${LOCAL_APPARMOR_DIR}"/parser-add-support-for-prompting.patch
+      # apply compatibility fix for older kernels
+      patch -p1 < "${LOCAL_APPARMOR_DIR}"/apparmor-parser-fix-protocol-error-on-older-kernels-caused-by.patch
+
       cd "${CRAFT_PART_BUILD}"/libraries/libapparmor
       ./autogen.sh
       ./configure --prefix=/usr --libdir="/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" --disable-man-pages --disable-perl --disable-python --disable-ruby
