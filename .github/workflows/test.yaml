@@ -343,7 +343,7 @@ jobs:
 
     - name: Test C
       run: |
-          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make distcheck
 
     - name: Reset code coverage data
       run: |
@@ -445,7 +445,7 @@ jobs:
 
     - name: Test C
       run: |
-          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make distcheck
 
     - name: Reset code coverage data
       run: |
@@ -563,7 +563,7 @@ jobs:
 
     - name: Unit tests (C)
       run: |
-        su test-user sh -c "./mkversion.sh 1337-git && cd ./cmd && ./autogen.sh && make -j && make check"
+        su test-user sh -c "./mkversion.sh 1337-git && cd ./cmd && ./autogen.sh && make -j && make distcheck"
 
 
   code-coverage:
