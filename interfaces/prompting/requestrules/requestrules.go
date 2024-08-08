@@ -272,10 +272,35 @@ func (rdb *RuleDB) removeRuleWithID(id prompting.IDType) (*Rule, error) {
 }
 
 // permissionDBForUserSnapInterfacePermission returns the permission DB for the
-// given user, snap, interface, and permission.
+// given user, snap, interface, and permission, if it exists.
 //
 // The caller must ensure that the database lock is held.
-func (rdb *RuleDB) permissionDBForUserSnapInterfacePermission(user uint32, snap string, iface string, permission string) *permissionDB {
+func (rdb *RuleDB) permissionDBForUserSnapInterfacePermission(user uint32, snap string, iface string, permission string) (*permissionDB, bool) {
+	userSnaps := rdb.perUser[user]
+	if userSnaps == nil {
+		return nil, false
+	}
+	snapInterfaces := userSnaps.PerSnap[snap]
+	if snapInterfaces == nil {
+		return nil, false
+	}
+	interfacePerms := snapInterfaces.PerInterface[iface]
+	if interfacePerms == nil {
+		return nil, false
+	}
+	permVariants := interfacePerms.PerPermission[permission]
+	if permVariants == nil {
+		return nil, false
+	}
+	return permVariants, true
+}
+
+// ensurePermissionDBForUserSnapInterfacePermission returns the permission DB
+// for the given user, snap, interface, and permission, or creates it if it
+// does not yet exist.
+//
+// The caller must ensure that the database lock is held for writing.
+func (rdb *RuleDB) ensurePermissionDBForUserSnapInterfacePermission(user uint32, snap string, iface string, permission string) *permissionDB {
 	userSnaps := rdb.perUser[user]
 	if userSnaps == nil {
 		userSnaps = &userDB{
@@ -327,7 +352,7 @@ type RuleConflict struct {
 //
 // The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) (err error, conflicts []RuleConflict) {
-	permVariants := rdb.permissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
+	permVariants := rdb.ensurePermissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
 
 	newVariantEntries := make(map[string]variantEntry, rule.Constraints.PathPattern.NumVariants())
 	expiredRules := make(map[prompting.IDType]bool)
@@ -410,7 +435,11 @@ func (rdb *RuleDB) removeExistingRuleNoError(rule *Rule) {
 //
 // The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) []error {
-	permVariants := rdb.permissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
+	permVariants, ok := rdb.permissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
+	if !ok || permVariants == nil {
+		err := fmt.Errorf("internal error: no rules in the rule tree for user %d, snap %q, interface %q, permission %q", rule.User, rule.Snap, rule.Interface, permission)
+		return []error{err}
+	}
 	var errs []error
 	removeVariant := func(index int, variant patterns.PatternVariant) {
 		variantEntry, exists := permVariants.VariantEntries[variant.String()]
@@ -695,7 +724,11 @@ func (rdb *RuleDB) populateNewRule(user uint32, snap string, iface string, const
 func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path string, permission string) (bool, error) {
 	rdb.mutex.RLock()
 	defer rdb.mutex.RUnlock()
-	variantMap := rdb.permissionDBForUserSnapInterfacePermission(user, snap, iface, permission).VariantEntries
+	permissionMap, ok := rdb.permissionDBForUserSnapInterfacePermission(user, snap, iface, permission)
+	if !ok || permissionMap == nil {
+		return false, ErrNoMatchingRule
+	}
+	variantMap := permissionMap.VariantEntries
 	matchingVariants := make([]patterns.PatternVariant, 0)
 	// Make sure all rules use the same expiration timestamp, so a rule with
 	// an earlier expiration cannot outlive another rule with a later one.
