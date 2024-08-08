@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -146,7 +148,15 @@ func mustParsePathPattern(c *C, patternStr string) *patterns.PathPattern {
 }
 
 func (s *requestrulesSuite) TestAddRemoveRuleSimple(c *C) {
+	c.Check(filepath.Join(prompting.StateDir(), "request-rule-max-id"), testutil.FileAbsent)
+
 	rdb, _ := requestrules.New(s.defaultNotifyRule)
+
+	// ID file initialized
+	c.Check(filepath.Join(prompting.StateDir(), "request-rule-max-id"), testutil.FileEquals,
+		[]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
+	// no rules yet
+	c.Check(filepath.Join(prompting.StateDir(), "request-rules.json"), testutil.FileAbsent)
 
 	snap := "lxd"
 	iface := "home"
@@ -165,6 +175,8 @@ func (s *requestrulesSuite) TestAddRemoveRuleSimple(c *C) {
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{rule.ID}, nil)
 
+	c.Check(filepath.Join(prompting.StateDir(), "request-rules.json"), testutil.FilePresent)
+
 	storedRule, err := rdb.RuleWithID(s.defaultUser, rule.ID)
 	c.Assert(err, IsNil)
 	c.Assert(storedRule, DeepEquals, rule)
@@ -172,6 +184,9 @@ func (s *requestrulesSuite) TestAddRemoveRuleSimple(c *C) {
 	removedRule, err := rdb.RemoveRule(s.defaultUser, rule.ID)
 	c.Assert(err, IsNil)
 	c.Assert(removedRule, DeepEquals, rule)
+
+	// no rules, so only a top level JSON serialization artifact
+	c.Check(filepath.Join(prompting.StateDir(), "request-rules.json"), testutil.FileEquals, `{"rules":[]}`)
 
 	expectedData := map[string]string{"removed": "removed"}
 	s.checkNewNoticesSimple(c, []prompting.IDType{removedRule.ID}, expectedData)
