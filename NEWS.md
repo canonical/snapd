@@ -1,3 +1,5 @@
+# Test reference for 2.63.1
+
 # New in snapd 2.63:
 * Support for snap services to show the current status of user services (experimental)
 * Refresh app awareness: record snap-run-inhibit notice when starting app from snap that is busy with refresh (experimental)
