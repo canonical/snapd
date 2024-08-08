@@ -40,6 +40,7 @@ var (
 	ErrMaxIDMmapClosed = fmt.Errorf("cannot compute next ID on max ID mmap which has already been closed")
 )
 
+// MaxIDMmap is a wrapper for ID tracked backed by a mmap'ed file.
 type MaxIDMmap []byte
 
 // OpenMaxIDMmap opens and mmaps the given maxIDFilepath, returning the
