@@ -49,7 +49,7 @@ type MaxIDMmap []byte
 // reset to an 8-byte file with a max ID of 0. If the file cannot be created,
 // opened, or mmaped, returns an error and a nil MaxIDMmap.
 func OpenMaxIDMmap(maxIDFilepath string) (MaxIDMmap, error) {
-	maxIDFile, err := os.OpenFile(maxIDFilepath, os.O_RDWR|os.O_CREATE, 0600)
+	maxIDFile, err := os.OpenFile(maxIDFilepath, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open max ID file: %w", err)
 	}
