@@ -40,18 +40,6 @@ type Rule struct {
 	Expiration  time.Time              `json:"expiration,omitempty"`
 }
 
-// removePermission removes the given permission from the rule's list of
-// permissions.
-func (rule *Rule) removePermission(permission string) error {
-	if err := rule.Constraints.RemovePermission(permission); err != nil {
-		return err
-	}
-	if len(rule.Constraints.Permissions) == 0 {
-		return prompting.ErrPermissionsListEmpty
-	}
-	return nil
-}
-
 // Expired returns true if the receiving rule has a lifespan of timespan and
 // the current time is after the rule's expiration time.
 //
@@ -151,9 +139,6 @@ func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string
 
 	rdb := &RuleDB{
 		maxIDMmap:  maxIDMmap,
-		ids:        make(map[prompting.IDType]int),
-		rules:      make([]*Rule, 0),
-		perUser:    make(map[uint32]*userDB),
 		notifyRule: notifyRule,
 	}
 	if err = rdb.load(); err != nil {
@@ -168,15 +153,35 @@ type rulesDBJSON struct {
 	Rules []*Rule `json:"rules"`
 }
 
-// load reads the stored rules from the database file and populates the
-// receiving rule database.
+// load resets the receiving rule database to empty and then reads the stored
+// rules from the database file and populates the database.
 //
-// Returns an error if an existing prompt DB cannot be loaded. An expired rule
-// or rule conflict does not cause an error. If saving the DB is required but
-// the save fails, returns an error.
+// Removes any expired rules while loading the database. If any rules expired,
+// saves the database to disk.
 //
-// If an error is returned, the rule database is not modified.
-func (rdb *RuleDB) load() error {
+// Returns an error if an existing rule DB cannot be loaded, if any rules are
+// invalid or in conflict, or if there is an error while saving the database to
+// disk.
+//
+// If an error occurs after, the rule database is reset to empty and saved to
+// disk.
+func (rdb *RuleDB) load() (retErr error) {
+	rdb.ids = make(map[prompting.IDType]int)
+	rdb.rules = make([]*Rule, 0)
+	rdb.perUser = make(map[uint32]*userDB)
+
+	expiredRules := make(map[*Rule]bool)
+
+	defer func() {
+		// If an error occurred or any rules expired, the state of the rule
+		// database changed, so save it to disk.
+		if retErr != nil || len(expiredRules) > 0 {
+			if saveErr := rdb.save(); rdb != nil {
+				retErr = errorsJoin(retErr, saveErr)
+			}
+		}
+	}()
+
 	target := rdb.dbpath()
 	f, err := os.Open(target)
 	if err != nil {
@@ -196,8 +201,53 @@ func (rdb *RuleDB) load() error {
 	}
 
 	currTime := time.Now()
-	notifyEveryRule := true
-	return rdb.refreshTreeEnforceConsistency(wrapped.Rules, currTime, notifyEveryRule)
+
+	var errInvalid error
+	for _, rule := range wrapped.Rules {
+		expired, err := rule.Expired(currTime)
+		if err != nil {
+			// Invalid rule on disk, should not occur
+			errInvalid = err
+			break
+		}
+		if expired {
+			expiredRules[rule] = true
+			continue
+		}
+		if err = rdb.addRule(rule); err != nil {
+			// Duplicate rules on disk, should not occur
+			errInvalid = err
+			break
+		}
+		if conflictErr := rdb.addRuleToTree(rule); conflictErr != nil {
+			// Conflicting rules on disk, should not occur
+			errInvalid = fmt.Errorf("cannot add rule: %w", conflictErr)
+			break
+		}
+	}
+
+	if errInvalid != nil {
+		// The DB on disk was invalid, so drop every rule and start over
+		data := map[string]string{"removed": "dropped"}
+		for _, rule := range wrapped.Rules {
+			rdb.notifyRule(rule.User, rule.ID, data)
+		}
+		rdb.ids = make(map[prompting.IDType]int)
+		rdb.rules = make([]*Rule, 0)
+		rdb.perUser = make(map[uint32]*userDB)
+		return errInvalid
+	}
+
+	expiredData := map[string]string{"removed": "expired"}
+	for _, rule := range wrapped.Rules {
+		var data map[string]string
+		if expiredRules[rule] {
+			data = expiredData
+		}
+		rdb.notifyRule(rule.User, rule.ID, data)
+	}
+
+	return nil
 }
 
 // save writes the current state of the rule database to the database file.
@@ -559,141 +609,6 @@ func errorsJoin(errs ...error) error {
 	err := nonNilErrs[0]
 	for _, e := range nonNilErrs[1:] {
 		err = fmt.Errorf("%w\n%v", err, e)
-	}
-	return err
-}
-
-// refreshTreeEnforceConsistency rebuilds the rule DB from the given list of
-// rules, resolving any conflicting pattern variants and permissions by pruning
-// all expired rules as well as the offending permission from the older of any
-// two conflicting rules.
-//
-// If changes are made to the prompt DB, the DB is saved to disk. If an error
-// occurs while saving the new DB state, returns an error and reverts the DB to
-// its original state.
-//
-// This function is only required when loading or if the database is left
-// inconsistent (should not occur), in case the stored rules on disk were
-// corrupted.
-//
-// By default, issues a notice for each rule which is modified or removed as a
-// result of being expired or in conflict with another rule. If notifyEveryRule
-// is true, records a notice for every rule which was in the database prior to
-// the beginning of the function. In either case, at most one notice is issued
-// for each rule.
-//
-// Backs up the current rule tree, then iterates through the given rules and
-// re-populates the tree the rules list, IDs map, and per-user rule tree. If
-// there are any conflicts between rules (that is, rules share the same path
-// pattern and one or more of the same permissions), the conflicting permission
-// is removed from the rule with the earlier timestamp. When the function
-// returns, the database should be fully internally consistent and without
-// conflicting or expired rules, as of the given time.
-func (rdb *RuleDB) refreshTreeEnforceConsistency(rules []*Rule, currTime time.Time, notifyEveryRule bool) error {
-	rdb.mutex.Lock()
-	defer rdb.mutex.Unlock()
-	needToSave := false
-	modifiedUserRuleIDs := make(map[uint32]map[prompting.IDType]map[string]string)
-	defer func() {
-		for user, ruleIDs := range modifiedUserRuleIDs {
-			for ruleID, data := range ruleIDs {
-				rdb.notifyRule(user, ruleID, data)
-			}
-		}
-	}()
-
-	origRules := rdb.rules
-	origIDs := rdb.ids
-	origPerUser := rdb.perUser
-
-	rdb.rules = make([]*Rule, 0, len(rules))
-	rdb.ids = make(map[prompting.IDType]int)
-	rdb.perUser = make(map[uint32]*userDB)
-	for _, rule := range rules {
-		_, exists := modifiedUserRuleIDs[rule.User]
-		if !exists {
-			modifiedUserRuleIDs[rule.User] = make(map[prompting.IDType]map[string]string)
-		}
-		if notifyEveryRule {
-			modifiedUserRuleIDs[rule.User][rule.ID] = nil
-		}
-		if err := rule.Lifespan.ValidateExpiration(rule.Expiration, currTime); err != nil || rule.Constraints.ValidateForInterface(rule.Interface) != nil {
-			// Invalid rule, discard it
-			needToSave = true
-			data := map[string]string{"removed": "invalid"}
-			if errors.Is(err, prompting.ErrExpirationInThePast) {
-				// Not actually invalid, just expired
-				data["removed"] = "expired"
-			}
-			modifiedUserRuleIDs[rule.User][rule.ID] = data
-			continue
-		}
-		existingRule, err := rdb.ruleWithID(rule.ID)
-		if err == nil && rule.Timestamp.After(existingRule.Timestamp) {
-			// Duplicate rules with the same ID, this should not occur
-			// Keep the newer rule
-			logger.Noticef("internal error: duplicate rules with same ID %v", rule.ID)
-			rdb.removeExistingRuleNoError(existingRule)
-			modifiedUserRuleIDs[rule.User][rule.ID] = nil
-		}
-		for {
-			err := rdb.addRuleToTree(rule)
-			if err == nil {
-				break
-			}
-			// err because of conflict with existing rule
-			conflicts := err.conflicts
-			conflictingPermission := err.permission
-			// Prioritize newer rules by pruning permission from old rule until
-			// no conflicts remain.
-			// XXX: this results in the permission being dropped for all other
-			// variants of the older rule.
-			// TODO: split older rule into two rules, preserving all except the
-			// directly conflicting variant/permission combination.
-			for _, conflict := range conflicts {
-				conflictingID := conflict.ConflictingID
-				conflictingRule, _ := rdb.ruleWithID(conflictingID) // must exist
-				if rule.Timestamp.After(conflictingRule.Timestamp) {
-					// New rule is newer than conflicting rule, so prune the
-					// conflicting permission from the conflicting rule.
-					rdb.removeRulePermissionFromTree(conflictingRule, conflictingPermission) // must return nil
-					var data map[string]string
-					if conflictingRule.removePermission(conflictingPermission) == prompting.ErrPermissionsListEmpty {
-						// Conflicting rule has no permissions left, so remove it entirely
-						rdb.removeRuleWithID(conflictingID)
-						data = map[string]string{"removed": "conflict"}
-					}
-					modifiedUserRuleIDs[conflictingRule.User][conflictingID] = data
-				} else {
-					// Conflicting rule is newer than new rule, so prune the
-					// conflicting permission from the new rule.
-					// We just had a conflict with this permission, so it should
-					// be removed successfully. If this is the final permission,
-					// the rule will not be added to the DB later. Therefore,
-					// ignore any error returned by removePermission.
-					rule.removePermission(conflictingPermission)
-					modifiedUserRuleIDs[rule.User][rule.ID] = nil
-				}
-				needToSave = true
-			}
-		}
-		if len(rule.Constraints.Permissions) > 0 {
-			rdb.addRule(rule)
-		} else {
-			needToSave = true
-			data := map[string]string{"removed": "conflict"}
-			modifiedUserRuleIDs[rule.User][rule.ID] = data
-		}
-	}
-
-	if !needToSave {
-		return nil
-	}
-	err := rdb.save()
-	if err != nil {
-		rdb.rules = origRules
-		rdb.ids = origIDs
-		rdb.perUser = origPerUser
 	}
 	return err
 }

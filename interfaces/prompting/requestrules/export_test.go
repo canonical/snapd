@@ -20,24 +20,17 @@
 package requestrules
 
 import (
-	"time"
-
 	"github.com/snapcore/snapd/interfaces/prompting"
 )
 
 var JoinInternalErrors = joinInternalErrors
 
-func (rdb *RuleDB) InjectRule(rule *Rule) {
-	rdb.rules = append(rdb.rules, rule)
-	rdb.ids[rule.ID] = len(rdb.rules) - 1
+func (rdb *RuleDB) Load() error {
+	return rdb.load()
 }
 
 func (rdb *RuleDB) PerUser() map[uint32]*userDB {
 	return rdb.perUser
-}
-
-func (rdb *RuleDB) RefreshTreeEnforceConsistency(rules []*Rule, currTime time.Time, notifyEveryRule bool) {
-	rdb.refreshTreeEnforceConsistency(rules, currTime, notifyEveryRule)
 }
 
 func (rdb *RuleDB) PopulateNewRule(user uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*Rule, error) {
