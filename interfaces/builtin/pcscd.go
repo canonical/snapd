@@ -19,8 +19,7 @@
 
 package builtin
 
-const pcscdSummary = `allows interacting with PCSD daemon
-(e.g. for the PS/SC API library).`
+const pcscdSummary = `allows interacting with PCSD daemon (e.g. for the PS/SC API library).`
 
 const pcscdBaseDeclarationSlots = `
   pcscd:
