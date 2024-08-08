@@ -21,6 +21,7 @@ package builtin
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
@@ -616,6 +617,16 @@ func (iface *desktopInterface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 	return nil
 }
 
+// https://specifications.freedesktop.org/desktop-entry-spec/latest/file-naming.html
+// Desktop file id must be a valid D-Bus name:
+//  - A sequence of non-empty elements separated by dots
+//  - None of which starts with a digit
+//  - Each of which contains only characters from the set [A-Za-z0-9-_]
+//
+// XXX: dashes "-" are not recommended but supported, should they be removed?
+// https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names
+var desktopFileIDRegexp = regexp.MustCompile("^([A-Za-z-_][\\w-]*)(\\.[A-Za-z-_][\\w-]*)*$")
+
 func (iface *desktopInterface) validateDesktopFileIDs(attribs interfaces.Attrer) error {
 	attrVal, exists := attribs.Lookup("desktop-file-ids")
 	if !exists {
@@ -628,9 +639,13 @@ func (iface *desktopInterface) validateDesktopFileIDs(attribs interfaces.Attrer)
 	if !ok {
 		return fmt.Errorf(`cannot add %s plug: "desktop-file-ids" must be a list of strings`, iface.name)
 	}
-	for _, desktopFileID := range desktopFileIDs {
-		if _, ok := desktopFileID.(string); !ok {
+	for _, entry := range desktopFileIDs {
+		desktopFileID, ok := entry.(string)
+		if !ok {
 			return fmt.Errorf(`cannot add %s plug: "desktop-file-ids" must be a list of strings`, iface.name)
+		}
+		if !desktopFileIDRegexp.MatchString(desktopFileID) {
+			return fmt.Errorf("desktop-file-ids entry %q is not a valid D-Bus well-known name", desktopFileID)
 		}
 	}
 
