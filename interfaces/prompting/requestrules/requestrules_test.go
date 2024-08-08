@@ -530,268 +530,6 @@ func (s *requestrulesSuite) TestRuleWithID(c *C) {
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 }
 
-func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
-	rdb, _ := requestrules.New(s.defaultNotifyRule)
-
-	snap := "lxd"
-	iface := "home"
-	pathPattern := mustParsePathPattern(c, "/home/test/{Documents,Downloads}/**")
-	outcome := prompting.OutcomeAllow
-	lifespan := prompting.LifespanForever
-	duration := ""
-	permissions := []string{"read", "write", "execute"}
-	constraints := &prompting.Constraints{
-		PathPattern: pathPattern,
-		Permissions: permissions,
-	}
-
-	var rules []*requestrules.Rule
-	currTime := time.Now()
-
-	rule, err := rdb.PopulateNewRule(s.defaultUser, snap, iface, constraints, outcome, lifespan, duration)
-	c.Assert(err, IsNil)
-	rules = append(rules, rule)
-	notifyEveryRule := true
-	rdb.RefreshTreeEnforceConsistency(rules, currTime, notifyEveryRule)
-
-	// Test that RefreshTreeEnforceConsistency results in a single notice
-	s.checkNewNoticesSimple(c, []prompting.IDType{rule.ID}, nil)
-
-	userEntry, exists := rdb.PerUser()[s.defaultUser]
-	c.Assert(exists, Equals, true)
-	c.Assert(userEntry.PerSnap, HasLen, 1)
-
-	snapEntry, exists := userEntry.PerSnap[snap]
-	c.Assert(exists, Equals, true)
-	c.Assert(snapEntry.PerInterface, HasLen, 1)
-
-	interfaceEntry, exists := snapEntry.PerInterface[iface]
-	c.Assert(exists, Equals, true)
-	c.Assert(interfaceEntry.PerPermission, HasLen, 3)
-
-	for _, permission := range permissions {
-		permissionEntry, exists := interfaceEntry.PerPermission[permission]
-		c.Assert(exists, Equals, true)
-		c.Assert(permissionEntry.VariantEntries, HasLen, 2)
-
-		checkVariants := func(index int, variant patterns.PatternVariant) {
-			entry, exists := permissionEntry.VariantEntries[variant.String()]
-			c.Check(exists, Equals, true)
-			c.Check(entry.RuleID, Equals, rule.ID)
-		}
-		pathPattern.RenderAllVariants(checkVariants)
-	}
-}
-
-func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
-	rdb, _ := requestrules.New(s.defaultNotifyRule)
-
-	snap := "lxd"
-	iface := "home"
-	// Make sure all pattern variants include "/home/test/Documents/**/foo.txt"
-	outcome := prompting.OutcomeAllow
-	lifespan := prompting.LifespanForever
-	duration := ""
-	permissions := []string{"read", "write", "execute"}
-
-	// Create two rules with early timestamps
-	constraints1 := &prompting.Constraints{
-		PathPattern: mustParsePathPattern(c, "/home/test/{Documents,Downloads}/**/foo.txt"),
-		Permissions: copyPermissions(permissions[:1]),
-	}
-	earlyTsRule1, err := rdb.PopulateNewRule(s.defaultUser, snap, iface, constraints1, outcome, lifespan, duration)
-	c.Assert(err, IsNil)
-	var timeZero time.Time
-	earlyTsRule1.Timestamp = timeZero
-	time.Sleep(time.Millisecond)
-	constraints2 := &prompting.Constraints{
-		PathPattern: mustParsePathPattern(c, "/home/test/{Downloads,Documents/**}/foo.txt"),
-		Permissions: copyPermissions(permissions[:1]),
-	}
-	earlyTsRule2, err := rdb.PopulateNewRule(s.defaultUser, snap, iface, constraints2, outcome, lifespan, duration)
-	c.Assert(err, IsNil)
-	earlyTsRule2.Timestamp = timeZero.Add(time.Second)
-
-	var rules []*requestrules.Rule
-	currTime := time.Now()
-
-	rules = append(rules, earlyTsRule1)
-	rules = append(rules, earlyTsRule2)
-
-	c.Assert(earlyTsRule1, Not(Equals), earlyTsRule2)
-
-	// The former should be overwritten by the latter during RefreshTreeEnforceConsistency
-	notifyEveryRule := false
-	rdb.RefreshTreeEnforceConsistency(rules, currTime, notifyEveryRule)
-	c.Assert(rdb.Rules(s.defaultUser), HasLen, 1, Commentf("rdb.Rules(): %s", s.marshalRules(c, rdb)))
-	_, err = rdb.RuleWithID(s.defaultUser, earlyTsRule2.ID)
-	c.Assert(err, IsNil)
-	rules = rdb.Rules(s.defaultUser)
-	// The latter should be overwritten by any conflicting rule which has a later timestamp
-
-	// Since notifyEveryRule = false, only one notice should be issued, for the overwritten rule
-	expectedData := map[string]string{"removed": "conflict"}
-	s.checkNewNoticesSimple(c, []prompting.IDType{earlyTsRule1.ID}, expectedData)
-
-	// Create a rule with the earliest timestamp (aside from earlyTsRule[12]),
-	// which will be totally overwritten when attempting to add later
-	earliestConstraints := &prompting.Constraints{
-		PathPattern: mustParsePathPattern(c, "/home/test/Documents/**/{foo,bar,baz}.txt"),
-		Permissions: copyPermissions(permissions),
-	}
-	earliestRule, err := rdb.PopulateNewRule(s.defaultUser, snap, iface, earliestConstraints, outcome, lifespan, duration)
-	c.Assert(err, IsNil)
-
-	// Create and add a rule which will overwrite the rule with the timestamp 1s after zero
-	initialPathPattern := mustParsePathPattern(c, "/home/test/{Music,Pictures,Videos,Documents}/**/foo.txt")
-	initialConstraints := &prompting.Constraints{
-		PathPattern: initialPathPattern,
-		Permissions: copyPermissions(permissions),
-	}
-	initialRule, err := rdb.PopulateNewRule(s.defaultUser, snap, iface, initialConstraints, outcome, lifespan, duration)
-	c.Assert(err, IsNil)
-
-	rules = append(rules, initialRule)
-	rdb.RefreshTreeEnforceConsistency(rules, currTime, notifyEveryRule)
-
-	// Expect notice for rule with timestamp of 1s after zero, not initialRule
-	expectedData = map[string]string{"removed": "conflict"}
-	s.checkNewNoticesSimple(c, []prompting.IDType{earlyTsRule2.ID}, expectedData)
-
-	// Check that rule with bad timestamp was overwritten
-	c.Assert(rdb.Rules(s.defaultUser), HasLen, 1, Commentf("rdb.Rules(): %s", s.marshalRules(c, rdb)))
-	initialRuleRet, err := rdb.RuleWithID(s.defaultUser, initialRule.ID)
-	c.Assert(err, IsNil)
-	c.Assert(initialRuleRet.Constraints.Permissions, DeepEquals, permissions)
-	rules = rdb.Rules(s.defaultUser)
-
-	// Create rule with expiration in the past, which will be immediately be discarded without conflicting with other rules
-	expiredConstraints := &prompting.Constraints{
-		PathPattern: mustParsePathPattern(c, "/home/test/Documents/**/foo.txt"),
-		Permissions: copyPermissions(permissions),
-	}
-	expiredRule, err := rdb.PopulateNewRule(s.defaultUser, snap, iface, expiredConstraints, outcome, prompting.LifespanTimespan, "1s")
-	c.Assert(err, IsNil)
-	expiredRule.Expiration = currTime.Add(-10 * time.Second)
-
-	rules = append(rules, expiredRule)
-	rdb.RefreshTreeEnforceConsistency(rules, currTime, notifyEveryRule)
-
-	// Expect notice for only expiredRule
-	expectedData = map[string]string{"removed": "expired"}
-	s.checkNewNoticesSimple(c, []prompting.IDType{expiredRule.ID}, expectedData)
-
-	c.Assert(rdb.Rules(s.defaultUser), HasLen, 1, Commentf("rdb.Rules(): %s", s.marshalRules(c, rdb)))
-	rules = rdb.Rules(s.defaultUser)
-
-	_, err = rdb.RuleWithID(s.defaultUser, expiredRule.ID)
-	c.Assert(err, Equals, requestrules.ErrRuleIDNotFound)
-
-	initialRuleRet, err = rdb.RuleWithID(s.defaultUser, initialRule.ID)
-	c.Assert(err, IsNil)
-	c.Assert(initialRuleRet.Constraints.Permissions, DeepEquals, permissions)
-
-	// Create rule with invalid permissions, which will be immediately be discarded without conflicting with other rules
-	invalidConstraints := &prompting.Constraints{
-		PathPattern: mustParsePathPattern(c, "/home/test/Documents/**/foo.txt"),
-		Permissions: copyPermissions(permissions),
-	}
-	invalidRule, err := rdb.PopulateNewRule(s.defaultUser, snap, iface, invalidConstraints, outcome, prompting.LifespanTimespan, "1s")
-	c.Assert(err, IsNil)
-	invalidRule.Constraints.Permissions = []string{"fly"}
-
-	rules = append(rules, invalidRule)
-	rdb.RefreshTreeEnforceConsistency(rules, currTime, notifyEveryRule)
-
-	// Expect notice for only invalidRule
-	expectedData = map[string]string{"removed": "invalid"}
-	s.checkNewNoticesSimple(c, []prompting.IDType{invalidRule.ID}, expectedData)
-
-	c.Assert(rdb.Rules(s.defaultUser), HasLen, 1, Commentf("rdb.Rules(): %s", s.marshalRules(c, rdb)))
-	rules = rdb.Rules(s.defaultUser)
-
-	_, err = rdb.RuleWithID(s.defaultUser, invalidRule.ID)
-	c.Assert(err, Equals, requestrules.ErrRuleIDNotFound)
-
-	initialRuleRet, err = rdb.RuleWithID(s.defaultUser, initialRule.ID)
-	c.Assert(err, IsNil)
-	c.Assert(initialRuleRet.Constraints.Permissions, DeepEquals, permissions)
-
-	// Create newer rule which will overwrite all but the first permission of initialRule
-	newPathPattern := mustParsePathPattern(c, "/home/test/Documents{,/,/**/foo.{txt,md,pdf}}")
-	newRulePermissions := permissions[1:]
-	newConstraints := &prompting.Constraints{
-		PathPattern: newPathPattern,
-		Permissions: copyPermissions(newRulePermissions),
-	}
-	newRule, err := rdb.PopulateNewRule(s.defaultUser, snap, iface, newConstraints, outcome, lifespan, duration)
-	c.Assert(err, IsNil)
-
-	rules = append(rules, newRule, earliestRule)
-	rdb.RefreshTreeEnforceConsistency(rules, currTime, notifyEveryRule)
-
-	// Expect notice for initialRule and earliestRule, not newRule
-	expectedNotices := []*noticeInfo{
-		{
-			ruleID: initialRule.ID,
-			data:   nil,
-		},
-		{
-			ruleID: earliestRule.ID,
-			data:   map[string]string{"removed": "conflict"},
-		},
-	}
-	s.checkNewNoticesUnordered(c, expectedNotices)
-
-	c.Assert(rdb.Rules(s.defaultUser), HasLen, 2, Commentf("rdb.Rules(): %s", s.marshalRules(c, rdb)))
-
-	_, err = rdb.RuleWithID(s.defaultUser, earliestRule.ID)
-	c.Assert(err, Equals, requestrules.ErrRuleIDNotFound)
-
-	initialRuleRet, err = rdb.RuleWithID(s.defaultUser, initialRule.ID)
-	c.Assert(err, IsNil)
-	c.Assert(initialRuleRet.Constraints.Permissions, DeepEquals, permissions[:1])
-
-	newRuleRet, err := rdb.RuleWithID(s.defaultUser, newRule.ID)
-	c.Assert(err, IsNil)
-	c.Assert(newRuleRet.Constraints.Permissions, DeepEquals, newRulePermissions, Commentf("newRulePermissions: %+v", newRulePermissions))
-
-	c.Assert(rdb.PerUser(), HasLen, 1)
-
-	userEntry, exists := rdb.PerUser()[s.defaultUser]
-	c.Assert(exists, Equals, true)
-	c.Assert(userEntry.PerSnap, HasLen, 1)
-
-	snapEntry, exists := userEntry.PerSnap[snap]
-	c.Assert(exists, Equals, true)
-	c.Assert(snapEntry.PerInterface, HasLen, 1)
-
-	interfaceEntry, exists := snapEntry.PerInterface[iface]
-	c.Assert(exists, Equals, true)
-	c.Assert(interfaceEntry.PerPermission, HasLen, 3)
-
-	for i, permission := range permissions {
-		permissionEntry, exists := interfaceEntry.PerPermission[permission]
-		c.Assert(exists, Equals, true)
-		var pathPattern *patterns.PathPattern
-		var ruleID prompting.IDType
-		if i == 0 {
-			ruleID = initialRule.ID
-			pathPattern = initialPathPattern
-		} else {
-			ruleID = newRule.ID
-			pathPattern = newPathPattern
-		}
-		c.Assert(permissionEntry.VariantEntries, HasLen, pathPattern.NumVariants())
-		checkVariants := func(index int, variant patterns.PatternVariant) {
-			variantEntry, exists := permissionEntry.VariantEntries[variant.String()]
-			c.Check(exists, Equals, true)
-			c.Check(variantEntry.RuleID, Equals, ruleID)
-		}
-		pathPattern.RenderAllVariants(checkVariants)
-	}
-}
-
 func copyPermissions(permissions []string) []string {
 	newPermissions := make([]string, len(permissions))
 	copy(newPermissions, permissions)
@@ -1011,9 +749,6 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 
 	time.Sleep(time.Millisecond)
 
-	// Keep track of current rules so we can refresh against them later
-	currRules := rdb.Rules(s.defaultUser)
-
 	// rule3 expiration should have recorded a notice
 	expectedNotices := []*noticeInfo{
 		{
@@ -1023,6 +758,26 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 		{
 			ruleID: rule4.ID,
 			data:   nil,
+		},
+	}
+	s.checkNewNoticesUnordered(c, expectedNotices)
+
+	// Re-load DB from disk to force expired rule4 to be pruned
+	err = rdb.Load()
+	c.Assert(err, IsNil)
+
+	expectedNotices = []*noticeInfo{
+		{
+			ruleID: rule1.ID,
+			data:   nil,
+		},
+		{
+			ruleID: rule2.ID,
+			data:   nil,
+		},
+		{
+			ruleID: rule4.ID,
+			data:   map[string]string{"removed": "expired"},
 		},
 	}
 	s.checkNewNoticesUnordered(c, expectedNotices)
@@ -1042,12 +797,22 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 	c.Check(err, Equals, nil)
 	c.Check(allowed, Equals, true)
 
-	// RefreshTreeEnforceConsistency to force expired rule2 to be pruned
-	notifyAllRules := false
-	rdb.RefreshTreeEnforceConsistency(currRules, time.Now(), notifyAllRules)
+	// Re-load DB from disk to force expired rule2 to be pruned
+	err = rdb.Load()
+	c.Assert(err, IsNil)
 
-	expectedData := map[string]string{"removed": "expired"}
-	s.checkNewNoticesSimple(c, []prompting.IDType{rule2.ID}, expectedData)
+	// As a result, get notices for rule1 and rule4 again, plus rule2 expiration
+	expectedNotices = []*noticeInfo{
+		{
+			ruleID: rule1.ID,
+			data:   nil,
+		},
+		{
+			ruleID: rule2.ID,
+			data:   map[string]string{"removed": "expired"},
+		},
+	}
+	s.checkNewNotices(c, expectedNotices)
 
 	allowed, err = rdb.IsPathAllowed(s.defaultUser, snap, iface, path2, "read")
 	c.Check(err, IsNil)
