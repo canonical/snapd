@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
 	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
@@ -138,11 +137,17 @@ type RuleDB struct {
 // is called with the prompt DB lock held, so it should not block for a
 // substantial amount of time (such as to lock and modify snapd state).
 func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error) (*RuleDB, error) {
-	maxIDFilepath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "request-rule-max-id")
+	maxIDFilepath := filepath.Join(prompting.StateDir(), "request-rule-max-id")
+
+	if err := prompting.EnsureStateDir(); err != nil {
+		return nil, err
+	}
+
 	maxIDMmap, err := maxidmmap.OpenMaxIDMmap(maxIDFilepath)
 	if err != nil {
 		return nil, err
 	}
+
 	rdb := &RuleDB{
 		maxIDMmap:  maxIDMmap,
 		ids:        make(map[prompting.IDType]int),
@@ -205,7 +210,7 @@ func (rdb *RuleDB) save() error {
 
 // dbpath returns the path of the database file.
 func (rdb *RuleDB) dbpath() string {
-	return filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "request-rules.json")
+	return filepath.Join(prompting.StateDir(), "request-rules.json")
 }
 
 // addRule adds the given rule to the rule DB.
