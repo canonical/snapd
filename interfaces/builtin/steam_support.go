@@ -28,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-const steamSupportSummary = `allow Steam to configure pressure-vessel containers`
+const steamSupportSummary = `allows Steam to configure pressure-vessel containers`
 
 const steamSupportBaseDeclarationPlugs = `
   steam-support:
