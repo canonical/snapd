@@ -252,8 +252,16 @@ execute: |
     done
 
     echo "Ensure we support posix mqueue and userns in the internal apparmor_parser"
-    snap debug sandbox-features --required apparmor:parser:mqueue
-    snap debug sandbox-features --required apparmor:parser:userns
+    log_bookmark=$(journalctl -u snapd -n 0 --show-cursor | tail -n 1 | awk '{print $3}')
+    # restart to capture AppArmor probe debug information
+    systemctl restart snapd
+    if ! snap debug sandbox-features --required apparmor:parser:mqueue; then
+        journalctl --after-cursor "$log_bookmark" | MATCH "skipping apparmor feature check for mqueue due to insufficient version"
+    fi
+
+    if ! snap debug sandbox-features --required apparmor:parser:userns; then
+        journalctl --cursor "$log_bookmark" | MATCH "skipping apparmor feature check for userns due to insufficient version"
+    fi
     
     echo "Then we should be able to compile policy using the internal apparmor_parser"
     /snap/snapd/current/usr/lib/snapd/apparmor_parser \
