@@ -156,6 +156,11 @@ func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string
 	return rdb, nil
 }
 
+// rulesDBJSON is a helper type for wrapping request rules DB for serialization
+type rulesDBJSON struct {
+	Rules []*Rule `json:"rules"`
+}
+
 // load reads the stored rules from the database file and populates the
 // receiving rule database.
 //
@@ -172,8 +177,8 @@ func (rdb *RuleDB) load() error {
 	}
 	defer f.Close()
 
-	var ruleList []*Rule
-	err = json.NewDecoder(f).Decode(&ruleList)
+	var wrapped rulesDBJSON
+	err = json.NewDecoder(f).Decode(&wrapped)
 	if err != nil {
 		// TODO: store rules separately per-user, so a corrupted rule for one
 		// user can't impact rules for another user.
@@ -182,14 +187,14 @@ func (rdb *RuleDB) load() error {
 
 	currTime := time.Now()
 	notifyEveryRule := true
-	return rdb.refreshTreeEnforceConsistency(ruleList, currTime, notifyEveryRule)
+	return rdb.refreshTreeEnforceConsistency(wrapped.Rules, currTime, notifyEveryRule)
 }
 
 // save writes the current state of the rule database to the database file.
 //
 // The caller must ensure that the database lock is held.
 func (rdb *RuleDB) save() error {
-	b, err := json.Marshal(rdb.rules)
+	b, err := json.Marshal(rulesDBJSON{Rules: rdb.rules})
 	if err != nil {
 		logger.Noticef("cannot marshal rule DB: %v", err)
 		return fmt.Errorf("cannot marshal rule DB: %w", err)
