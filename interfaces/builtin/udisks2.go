@@ -404,6 +404,7 @@ func (iface *udisks2Interface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
 		Summary:              udisks2Summary,
 		ImplicitOnClassic:    true,
+		ImplicitOnCore:       true,
 		BaseDeclarationSlots: udisks2BaseDeclarationSlots,
 	}
 }
