@@ -163,6 +163,7 @@ func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string
 }
 
 // rulesDBJSON is a helper type for wrapping request rules DB for serialization
+// when storing to disk. Should not used in contexts relating to the API.
 type rulesDBJSON struct {
 	Rules []*Rule `json:"rules"`
 }
@@ -364,7 +365,6 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) (err e
 			rdb.removeRuleFromTree(removedRule)
 			rdb.notifyRule(removedRule.User, removedRule.ID,
 				map[string]string{"removed": "expired"})
-
 		}
 	}
 
@@ -376,7 +376,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) (err e
 }
 
 // isRuleExpired returns true if the rule with given ID is expired with respect
-// to the provided timestamp.
+// to the provided timestamp, or if it otherwise no longer exists.
 //
 // The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) isRuleExpired(id prompting.IDType, currTime time.Time) bool {
@@ -587,11 +587,11 @@ func (rdb *RuleDB) refreshTreeEnforceConsistency(rules []*Rule, currTime time.Ti
 		}
 		for {
 			err, conflicts, conflictingPermission := rdb.addRuleToTree(rule)
-			needToSave = needToSave || err == nil
 			if err == nil {
+				needToSave = true
 				break
 			}
-			// Err must be ErrPathPatternConflict.
+			// err must be ErrPathPatternConflict.
 			// Prioritize newer rules by pruning permission from old rule until
 			// no conflicts remain.
 			// XXX: this results in the permission being dropped for all other
@@ -602,17 +602,25 @@ func (rdb *RuleDB) refreshTreeEnforceConsistency(rules []*Rule, currTime time.Ti
 				conflictingID := conflict.ConflictingID
 				conflictingRule, _ := rdb.ruleWithID(conflictingID) // must exist
 				if rule.Timestamp.After(conflictingRule.Timestamp) {
+					// New rule is newer than conflicting rule, so prune the
+					// conflicting permission from the conflicting rule.
 					rdb.removeRulePermissionFromTree(conflictingRule, conflictingPermission) // must return nil
 					var data map[string]string
 					if conflictingRule.removePermission(conflictingPermission) == prompting.ErrPermissionsListEmpty {
+						// Conflicting rule has no permissions left, so remove it entirely
 						rdb.removeRuleWithID(conflictingID)
 						data = map[string]string{"removed": "conflict"}
 					}
 					modifiedUserRuleIDs[conflictingRule.User][conflictingID] = data
 				} else {
-					rule.removePermission(conflictingPermission) // ignore error
-					var data map[string]string
-					modifiedUserRuleIDs[rule.User][rule.ID] = data
+					// Conflicting rule is newer than new rule, so prune the
+					// conflicting permission from the new rule.
+					// We just had a conflict with this permission, so it should
+					// be removed successfully. If this is the final permission,
+					// the rule will not be added to the DB later. Therefore,
+					// ignore any error returned by removePermission.
+					rule.removePermission(conflictingPermission)
+					modifiedUserRuleIDs[rule.User][rule.ID] = nil
 				}
 				needToSave = true
 			}
@@ -775,7 +783,7 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 		return nil, err
 	}
 	if err, conflicts, conflictingPermission := rdb.addRuleToTree(newRule); err != nil {
-		return nil, fmt.Errorf("%w: conflicts: %+v, Permission: '%s'", err, conflicts, conflictingPermission)
+		return nil, fmt.Errorf("cannot add rule: %w: conflicts: %+v, permission: '%s'", err, conflicts, conflictingPermission)
 	}
 	rdb.addRule(newRule)
 

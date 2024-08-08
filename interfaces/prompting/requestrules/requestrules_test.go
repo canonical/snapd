@@ -256,7 +256,7 @@ func (s *requestrulesSuite) TestAddRuleUnhappy(c *C) {
 		Permissions: conflictingPermissions,
 	}
 	_, err = rdb.AddRule(s.defaultUser, snap, iface, conflictingConstraints, outcome, lifespan, duration)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("^%s.*%s.*%s.*", requestrules.ErrPathPatternConflict, storedRule.ID.String(), conflictingPermissions[0]))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("^cannot add rule: %s.*%s.*%s.*", requestrules.ErrPathPatternConflict, storedRule.ID.String(), conflictingPermissions[0]))
 
 	// Error while adding rule should cause no notice to be issued
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
