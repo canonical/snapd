@@ -117,7 +117,7 @@ type userDB struct {
 // RuleDB stores a mapping from rule ID to rule, and a tree of rule IDs
 // searchable by user, snap, interface, permission, and pattern variant.
 type RuleDB struct {
-	mutex     sync.Mutex
+	mutex     sync.RWMutex
 	maxIDMmap maxidmmap.MaxIDMmap
 	ids       map[prompting.IDType]int
 	rules     []*Rule
@@ -183,6 +183,8 @@ func (rdb *RuleDB) load() error {
 }
 
 // save writes the current state of the rule database to the database file.
+//
+// The caller must ensure that the database lock is held.
 func (rdb *RuleDB) save() error {
 	b, err := json.Marshal(rdb.rules)
 	if err != nil {
@@ -199,6 +201,8 @@ func (rdb *RuleDB) dbpath() string {
 }
 
 // addRule adds the given rule to the rule DB.
+//
+// The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) addRule(rule *Rule) error {
 	_, exists := rdb.ids[rule.ID]
 	if exists {
@@ -210,6 +214,8 @@ func (rdb *RuleDB) addRule(rule *Rule) error {
 }
 
 // ruleWithID returns the rule with the given ID from the rule DB.
+//
+// The caller must ensure that the database lock is held.
 func (rdb *RuleDB) ruleWithID(id prompting.IDType) (*Rule, error) {
 	index, exists := rdb.ids[id]
 	if !exists {
@@ -222,6 +228,8 @@ func (rdb *RuleDB) ruleWithID(id prompting.IDType) (*Rule, error) {
 }
 
 // removeRuleWithID removes the rule with the given ID from the rule DB.
+//
+// The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) removeRuleWithID(id prompting.IDType) (*Rule, error) {
 	index, exists := rdb.ids[id]
 	if !exists {
@@ -247,6 +255,8 @@ func (rdb *RuleDB) removeRuleWithID(id prompting.IDType) (*Rule, error) {
 
 // permissionDBForUserSnapInterfacePermission returns the permission DB for the
 // given user, snap, interface, and permission.
+//
+// The caller must ensure that the database lock is held.
 func (rdb *RuleDB) permissionDBForUserSnapInterfacePermission(user uint32, snap string, iface string, permission string) *permissionDB {
 	userSnaps := rdb.perUser[user]
 	if userSnaps == nil {
@@ -299,6 +309,8 @@ type RuleConflict struct {
 //
 // Conflicts with expired rules, however, result in the expired rule being
 // immediately removed, and the new rule can continue to be added.
+//
+// The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) (needToSave bool, err error, conflicts []RuleConflict) {
 	permVariants := rdb.permissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
 
@@ -340,6 +352,8 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) (needT
 // removeIfExpired removes the rule with the given ID from the database if it
 // is expired. Returns true if the rule was removed, couldn't be found, or had
 // some sort of internal inconsistency.
+//
+// The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) removeIfExpired(id prompting.IDType, currTime time.Time) bool {
 	rule, err := rdb.ruleWithID(id)
 	if err != nil {
@@ -369,6 +383,8 @@ func (rdb *RuleDB) removeIfExpired(id prompting.IDType, currTime time.Time) bool
 // of the given rule, continue to remove all other variants from the permission
 // map (unless they map to a different rule ID), and return a slice of all
 // errors which occurred.
+//
+// The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) []error {
 	permVariants := rdb.permissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
 	var errs []error
@@ -396,6 +412,8 @@ func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) [
 // If there is a conflicting path pattern from another rule, returns an
 // error along with the conflicting rules info and the permission for which
 // the conflict occurred.
+//
+// The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) addRuleToTree(rule *Rule) (bool, error, []RuleConflict, string) {
 	addedPermissions := make([]string, 0, len(rule.Constraints.Permissions))
 	needToSave := false
@@ -415,6 +433,8 @@ func (rdb *RuleDB) addRuleToTree(rule *Rule) (bool, error, []RuleConflict, strin
 
 // removeRuleFromTree fully removes the given rule from the tree, even if an
 // error occurs.
+//
+// The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) removeRuleFromTree(rule *Rule) error {
 	var errs []error
 	for _, permission := range rule.Constraints.Permissions {
@@ -634,8 +654,8 @@ func (rdb *RuleDB) populateNewRule(user uint32, snap string, iface string, const
 // allowed or denied by existing rules for the given user, snap, and interface.
 // If no rule applies, returns ErrNoMatchingRule.
 func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path string, permission string) (bool, error) {
-	rdb.mutex.Lock()
-	defer rdb.mutex.Unlock()
+	rdb.mutex.RLock()
+	defer rdb.mutex.RUnlock()
 	variantMap := rdb.permissionDBForUserSnapInterfacePermission(user, snap, iface, permission).VariantEntries
 	matchingVariants := make([]patterns.PatternVariant, 0)
 	// Make sure all rules use the same expiration timestamp, so a rule with
@@ -690,6 +710,8 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 
 // ruleWithIDForUser returns the rule with the given ID, if it exists, for the
 // given user. Otherwise, returns an error.
+//
+// The caller must ensure that the database lock is held.
 func (rdb *RuleDB) ruleWithIDForUser(user uint32, id prompting.IDType) (*Rule, error) {
 	rule, err := rdb.ruleWithID(id)
 	if err != nil {
@@ -705,8 +727,8 @@ func (rdb *RuleDB) ruleWithIDForUser(user uint32, id prompting.IDType) (*Rule, e
 // If the rule is not found, returns ErrRuleNotFound.
 // If the rule does not apply to the given user, returns ErrUserNotAllowed.
 func (rdb *RuleDB) RuleWithID(user uint32, id prompting.IDType) (*Rule, error) {
-	rdb.mutex.Lock()
-	defer rdb.mutex.Unlock()
+	rdb.mutex.RLock()
+	defer rdb.mutex.RUnlock()
 	return rdb.ruleWithIDForUser(user, id)
 }
 
@@ -766,6 +788,8 @@ func (rdb *RuleDB) RemoveRulesForSnap(user uint32, snap string) []*Rule {
 
 // removeRulesInternal removes all of the given rules from the rule DB and
 // records a notice for each one.
+//
+// The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) {
 	for _, rule := range rules {
 		rdb.removeRuleFromTree(rule)
@@ -860,8 +884,8 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraints *prom
 
 // Rules returns all rules which apply to the given user.
 func (rdb *RuleDB) Rules(user uint32) []*Rule {
-	rdb.mutex.Lock()
-	defer rdb.mutex.Unlock()
+	rdb.mutex.RLock()
+	defer rdb.mutex.RUnlock()
 	ruleFilter := func(rule *Rule) bool {
 		return rule.User == user
 	}
@@ -869,6 +893,8 @@ func (rdb *RuleDB) Rules(user uint32) []*Rule {
 }
 
 // rulesInternal returns all rules matching the given filter.
+//
+// The caller must ensure that the database lock is held.
 //
 // TODO: store rules separately per user, snap, and interface, so actions which
 // look up or delete all rules for a given user/snap/interface are much faster.
@@ -896,8 +922,8 @@ func (rdb *RuleDB) rulesInternal(ruleFilter func(rule *Rule) bool) []*Rule {
 
 // RulesForSnap returns all rules which apply to the given user and snap.
 func (rdb *RuleDB) RulesForSnap(user uint32, snap string) []*Rule {
-	rdb.mutex.Lock()
-	defer rdb.mutex.Unlock()
+	rdb.mutex.RLock()
+	defer rdb.mutex.RUnlock()
 	ruleFilter := func(rule *Rule) bool {
 		return rule.User == user && rule.Snap == snap
 	}
@@ -907,8 +933,8 @@ func (rdb *RuleDB) RulesForSnap(user uint32, snap string) []*Rule {
 // RulesForInterface returns all rules which apply to the given user and
 // interface.
 func (rdb *RuleDB) RulesForInterface(user uint32, iface string) []*Rule {
-	rdb.mutex.Lock()
-	defer rdb.mutex.Unlock()
+	rdb.mutex.RLock()
+	defer rdb.mutex.RUnlock()
 	ruleFilter := func(rule *Rule) bool {
 		return rule.User == user && rule.Interface == iface
 	}
@@ -918,8 +944,8 @@ func (rdb *RuleDB) RulesForInterface(user uint32, iface string) []*Rule {
 // RulesForSnapInterface returns all rules which apply to the given user, snap,
 // and interface.
 func (rdb *RuleDB) RulesForSnapInterface(user uint32, snap string, iface string) []*Rule {
-	rdb.mutex.Lock()
-	defer rdb.mutex.Unlock()
+	rdb.mutex.RLock()
+	defer rdb.mutex.RUnlock()
 	ruleFilter := func(rule *Rule) bool {
 		return rule.User == user && rule.Snap == snap && rule.Interface == iface
 	}
