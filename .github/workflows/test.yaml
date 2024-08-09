@@ -811,7 +811,6 @@ jobs:
                     CHANGES_PARAM="$CHANGES_PARAM -c $CHANGE"
                   done
                   RUN_TESTS="$RUN_TESTS $(./tests/lib/external/snapd-testing-tools/utils/spread-filter -r ./tests/lib/spread/rules/${{ matrix.rules }}.yaml -s "$SYSTEM" -b ${{ matrix.backend }} $CHANGES_PARAM)"
-                fi
               done
           fi
           echo RUN_TESTS="$RUN_TESTS"  >> $GITHUB_ENV
