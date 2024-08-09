@@ -112,10 +112,18 @@ type userDB struct {
 type RuleDB struct {
 	mutex     sync.RWMutex
 	maxIDMmap maxidmmap.MaxIDMmap
-	ids       map[prompting.IDType]int
+
+	// index to the rules by their rule IR
+	indexByID map[prompting.IDType]int
 	rules     []*Rule
-	perUser   map[uint32]*userDB
-	dbPath    string
+
+	// the incoming request queries are made in the context of a user, snap,
+	// snap interface, path, so this is essential a secondary compound index
+	// made of all those properties for being able to identify a rule
+	// matching given query
+	perUser map[uint32]*userDB
+
+	dbPath string
 	// notifyRule is a closure which will be called to record a notice when a
 	// rule is added, patched, or removed.
 	notifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error
@@ -173,7 +181,7 @@ type rulesDBJSON struct {
 // If an error occurs after, the rule database is reset to empty and saved to
 // disk.
 func (rdb *RuleDB) load() (retErr error) {
-	rdb.ids = make(map[prompting.IDType]int)
+	rdb.indexByID = make(map[prompting.IDType]int)
 	rdb.rules = make([]*Rule, 0)
 	rdb.perUser = make(map[uint32]*userDB)
 
@@ -229,7 +237,7 @@ func (rdb *RuleDB) load() (retErr error) {
 		for _, rule := range wrapped.Rules {
 			rdb.notifyRule(rule.User, rule.ID, data)
 		}
-		rdb.ids = make(map[prompting.IDType]int)
+		rdb.indexByID = make(map[prompting.IDType]int)
 		rdb.rules = make([]*Rule, 0)
 		rdb.perUser = make(map[uint32]*userDB)
 
@@ -268,20 +276,20 @@ func (rdb *RuleDB) save() error {
 //
 // The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) addRule(rule *Rule) error {
-	_, exists := rdb.ids[rule.ID]
+	_, exists := rdb.indexByID[rule.ID]
 	if exists {
 		return ErrRuleIDConflict
 	}
 	rdb.rules = append(rdb.rules, rule)
-	rdb.ids[rule.ID] = len(rdb.rules) - 1
+	rdb.indexByID[rule.ID] = len(rdb.rules) - 1
 	return nil
 }
 
-// ruleWithID returns the rule with the given ID from the rule DB.
+// lookupRuleByID returns the rule with the given ID from the rule DB.
 //
 // The caller must ensure that the database lock is held.
-func (rdb *RuleDB) ruleWithID(id prompting.IDType) (*Rule, error) {
-	index, exists := rdb.ids[id]
+func (rdb *RuleDB) lookupRuleByID(id prompting.IDType) (*Rule, error) {
+	index, exists := rdb.indexByID[id]
 	if !exists {
 		return nil, ErrRuleIDNotFound
 	}
@@ -291,11 +299,11 @@ func (rdb *RuleDB) ruleWithID(id prompting.IDType) (*Rule, error) {
 	return rdb.rules[index], nil
 }
 
-// removeRuleWithID removes the rule with the given ID from the rule DB.
+// removeRuleByID removes the rule with the given ID from the rule DB.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) removeRuleWithID(id prompting.IDType) (*Rule, error) {
-	index, exists := rdb.ids[id]
+func (rdb *RuleDB) removeRuleByID(id prompting.IDType) (*Rule, error) {
+	index, exists := rdb.indexByID[id]
 	if !exists {
 		return nil, ErrRuleIDNotFound
 	}
@@ -312,8 +320,8 @@ func (rdb *RuleDB) removeRuleWithID(id prompting.IDType) (*Rule, error) {
 	// Truncate rules to remove the final element, which was just copied.
 	rdb.rules = rdb.rules[:len(rdb.rules)-1]
 	// Update the ID-index mapping of the moved rule.
-	rdb.ids[movedID] = index
-	delete(rdb.ids, id)
+	rdb.indexByID[movedID] = index
+	delete(rdb.indexByID, id)
 	return rule, nil
 }
 
@@ -456,7 +464,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) *ruleC
 	}
 
 	for ruleID := range expiredRules {
-		removedRule, err := rdb.removeRuleWithID(ruleID)
+		removedRule, err := rdb.removeRuleByID(ruleID)
 		// Error shouldn't occur. If it does, the rule was already removed.
 		if err == nil {
 			rdb.removeRuleFromTree(removedRule)
@@ -477,7 +485,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) *ruleC
 //
 // The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) isRuleWithIDExpired(id prompting.IDType, currTime time.Time) bool {
-	rule, err := rdb.ruleWithID(id)
+	rule, err := rdb.lookupRuleByID(id)
 	if err != nil {
 		return true
 	}
@@ -489,7 +497,7 @@ func (rdb *RuleDB) isRuleWithIDExpired(id prompting.IDType, currTime time.Time) 
 // exists as errors are ignored.
 func (rdb *RuleDB) removeExistingRule(rule *Rule) {
 	rdb.removeRuleFromTree(rule) // if error occurs, rule still fully removed
-	rdb.removeRuleWithID(rule.ID)
+	rdb.removeRuleByID(rule.ID)
 }
 
 // removeRulePermissionFromTree removes all the path patterns variants for the
@@ -669,7 +677,7 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 	// an earlier expiration cannot outlive another rule with a later one.
 	currTime := time.Now()
 	for variantStr, variantEntry := range variantMap {
-		matchingRule, err := rdb.ruleWithID(variantEntry.RuleID)
+		matchingRule, err := rdb.lookupRuleByID(variantEntry.RuleID)
 		if err != nil {
 			logger.Noticef("internal error: inconsistent DB when fetching rule %v", variantEntry.RuleID)
 			// Database was left inconsistent, should not occur
@@ -704,7 +712,7 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 	}
 	matchingEntry := variantMap[highestPrecedenceVariant.String()]
 	matchingID := matchingEntry.RuleID
-	matchingRule, err := rdb.ruleWithID(matchingID)
+	matchingRule, err := rdb.lookupRuleByID(matchingID)
 	if err != nil {
 		// Database was left inconsistent, should not occur
 		return false, fmt.Errorf("internal error: while looking for rule %v: %w", matchingID, ErrRuleIDNotFound)
@@ -712,12 +720,12 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 	return matchingRule.Outcome.AsBool()
 }
 
-// ruleWithIDForUser returns the rule with the given ID, if it exists, for the
+// lookupRuleByIDForUser returns the rule with the given ID, if it exists, for the
 // given user. Otherwise, returns an error.
 //
 // The caller must ensure that the database lock is held.
-func (rdb *RuleDB) ruleWithIDForUser(user uint32, id prompting.IDType) (*Rule, error) {
-	rule, err := rdb.ruleWithID(id)
+func (rdb *RuleDB) lookupRuleByIDForUser(user uint32, id prompting.IDType) (*Rule, error) {
+	rule, err := rdb.lookupRuleByID(id)
 	if err != nil {
 		return nil, err
 	}
@@ -733,7 +741,7 @@ func (rdb *RuleDB) ruleWithIDForUser(user uint32, id prompting.IDType) (*Rule, e
 func (rdb *RuleDB) RuleWithID(user uint32, id prompting.IDType) (*Rule, error) {
 	rdb.mutex.RLock()
 	defer rdb.mutex.RUnlock()
-	return rdb.ruleWithIDForUser(user, id)
+	return rdb.lookupRuleByIDForUser(user, id)
 }
 
 // Creates a rule with the given information and adds it to the rule database.
@@ -767,13 +775,13 @@ func (rdb *RuleDB) RemoveRule(user uint32, id prompting.IDType) (*Rule, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 
-	rule, err := rdb.ruleWithIDForUser(user, id)
+	rule, err := rdb.lookupRuleByIDForUser(user, id)
 	if err != nil {
 		// The rule doesn't exist or the user doesn't have access
 		return nil, err
 	}
 
-	rdb.removeRuleWithID(id) // We know the rule exists, so this should not error
+	rdb.removeRuleByID(id) // We know the rule exists, so this should not error
 
 	// Now that rule is removed from rules list, can try to save
 	if err := rdb.save(); err != nil {
@@ -813,7 +821,7 @@ func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) error {
 	for _, rule := range rules {
 		// Remove rule from the rules list. Caller should ensure that
 		// the rule exists, and thus this should not error.
-		rdb.removeRuleWithID(rule.ID)
+		rdb.removeRuleByID(rule.ID)
 	}
 
 	// Now that rules have been removed from rules list, attempt to save
@@ -864,7 +872,7 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraints *prom
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 
-	origRule, err := rdb.ruleWithIDForUser(user, id)
+	origRule, err := rdb.lookupRuleByIDForUser(user, id)
 	if err != nil {
 		return nil, err
 	}
@@ -900,7 +908,7 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraints *prom
 		return nil, err
 	}
 
-	rdb.removeRuleWithID(origRule.ID) // no error should occur, we just confirmed the rule exists
+	rdb.removeRuleByID(origRule.ID) // no error should occur, we just confirmed the rule exists
 
 	if err := rdb.addRule(newRule); err != nil {
 		// Should not occur, but if so, re-add the original rule
@@ -912,8 +920,9 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraints *prom
 		// Should not occur, but if it does, roll back to the original state.
 		// All of the following should succeed, since we're reversing what we
 		// just successfully completed.
-		rdb.removeRuleWithID(newRule.ID)
+		rdb.removeRuleByID(newRule.ID)
 		rdb.addRule(origRule)
+
 		rdb.removeRuleFromTree(newRule)
 		rdb.addRuleToTree(origRule)
 		return nil, err
