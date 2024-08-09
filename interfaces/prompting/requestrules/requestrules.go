@@ -484,10 +484,10 @@ func (rdb *RuleDB) isRuleWithIDExpired(id prompting.IDType, currTime time.Time) 
 	return rule.Expired(currTime)
 }
 
-// removeExistingRuleNoError removes provided rule from permissions tree and
+// removeExistingRule removes provided rule from permissions tree and
 // from rules DB. As a precodition the called must have confirmed that the rule
 // exists as errors are ignored.
-func (rdb *RuleDB) removeExistingRuleNoError(rule *Rule) {
+func (rdb *RuleDB) removeExistingRule(rule *Rule) {
 	rdb.removeRuleFromTree(rule) // if error occurs, rule still fully removed
 	rdb.removeRuleWithID(rule.ID)
 }
@@ -752,7 +752,7 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 	rdb.addRule(newRule)
 
 	if err := rdb.save(); err != nil {
-		rdb.removeExistingRuleNoError(newRule)
+		rdb.removeExistingRule(newRule)
 		return nil, err
 	}
 
