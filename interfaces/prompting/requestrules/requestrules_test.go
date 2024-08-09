@@ -530,12 +530,6 @@ func (s *requestrulesSuite) TestRuleWithID(c *C) {
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 }
 
-func copyPermissions(permissions []string) []string {
-	newPermissions := make([]string, len(permissions))
-	copy(newPermissions, permissions)
-	return newPermissions
-}
-
 func (s *requestrulesSuite) TestNewSaveLoad(c *C) {
 	doNotNotifyRule := func(userID uint32, ruleID prompting.IDType, data map[string]string) error {
 		return nil
