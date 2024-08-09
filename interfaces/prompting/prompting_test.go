@@ -157,12 +157,6 @@ func (s *promptingSuite) TestUnmarshalLifespanUnhappy(c *C) {
 		err = json.Unmarshal(data, &flw2)
 		c.Check(err, ErrorMatches, `cannot have lifespan other than.*`, Commentf("data: %v", string(data)))
 	}
-
-	// TODO: remove this when lifespan "session" is supported
-	var flw fakeLifespanWrapper
-	data := []byte(fmt.Sprintf(`{"field1": "%s"}`, prompting.LifespanSession))
-	err := json.Unmarshal(data, &flw)
-	c.Check(err, ErrorMatches, `cannot have lifespan "session": not yet supported`, Commentf("data: %v", string(data)))
 }
 
 func (s *promptingSuite) TestValidateExpiration(c *C) {
@@ -174,7 +168,6 @@ func (s *promptingSuite) TestValidateExpiration(c *C) {
 	for _, lifespan := range []prompting.LifespanType{
 		prompting.LifespanForever,
 		prompting.LifespanSingle,
-		prompting.LifespanSession,
 	} {
 		err := lifespan.ValidateExpiration(unsetExpiration, currTime)
 		c.Check(err, IsNil)
@@ -206,7 +199,6 @@ func (s *promptingSuite) TestParseDuration(c *C) {
 	for _, lifespan := range []prompting.LifespanType{
 		prompting.LifespanForever,
 		prompting.LifespanSingle,
-		prompting.LifespanSession,
 	} {
 		expiration, err := lifespan.ParseDuration(unsetDuration, currTime)
 		c.Check(expiration.IsZero(), Equals, true)
