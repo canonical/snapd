@@ -18,11 +18,11 @@ prepare: |
     useradd -b /remote/users -m -U "$USERNAME"
 
     # Download current snapd edge
-    snap download --edge snapd --basename=snapd_edge
+    snap download --stable snapd --basename=snapd_stable
 
     # Repack it with currently built snapd
     unpackdir=/tmp/snapd-current-snap
-    unsquashfs -no-progress -d "${unpackdir}" snapd_edge.snap
+    unsquashfs -no-progress -d "${unpackdir}" snapd_stable.snap
     dpkg-deb -x "${GOHOME}"/snapd_*.deb "${unpackdir}"
     snap pack "${unpackdir}" --filename snapd_modified.snap
     rm -rf "${unpackdir}"
