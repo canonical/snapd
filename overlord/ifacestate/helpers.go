@@ -168,8 +168,9 @@ func (m *InterfaceManager) useAppArmorPrompting() bool {
 	m.useAppArmorPromptingChecker.Do(func() {
 		tr := config.NewTransaction(m.state)
 		if promptingEnabled, err := features.Flag(tr, features.AppArmorPrompting); err == nil {
+			supported, _ := features.AppArmorPrompting.IsSupported()
 			// If error while getting AppArmorPrompting flag, don't include it
-			m.useAppArmorPromptingValue = promptingEnabled && features.AppArmorPrompting.IsSupported()
+			m.useAppArmorPromptingValue = promptingEnabled && supported
 		}
 	})
 	return m.useAppArmorPromptingValue
