@@ -115,6 +115,7 @@ type RuleDB struct {
 	ids       map[prompting.IDType]int
 	rules     []*Rule
 	perUser   map[uint32]*userDB
+	dbPath    string
 	// notifyRule is a closure which will be called to record a notice when a
 	// rule is added, patched, or removed.
 	notifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error
@@ -145,6 +146,7 @@ func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string
 	rdb := &RuleDB{
 		maxIDMmap:  maxIDMmap,
 		notifyRule: notifyRule,
+		dbPath:     filepath.Join(prompting.StateDir(), "request-rules.json"),
 	}
 	if err = rdb.load(); err != nil {
 		logger.Noticef("cannot load rules DB: %v; using new empty rule database", err)
@@ -177,8 +179,7 @@ func (rdb *RuleDB) load() (retErr error) {
 
 	expiredRules := make(map[*Rule]bool)
 
-	target := rdb.dbpath()
-	f, err := os.Open(target)
+	f, err := os.Open(rdb.dbPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil
@@ -260,13 +261,7 @@ func (rdb *RuleDB) save() error {
 		logger.Noticef("cannot marshal rule DB: %v", err)
 		return fmt.Errorf("cannot marshal rule DB: %w", err)
 	}
-	target := rdb.dbpath()
-	return osutil.AtomicWriteFile(target, b, 0o600, 0)
-}
-
-// dbpath returns the path of the database file.
-func (rdb *RuleDB) dbpath() string {
-	return filepath.Join(prompting.StateDir(), "request-rules.json")
+	return osutil.AtomicWriteFile(rdb.dbPath, b, 0o600, 0)
 }
 
 // addRule adds the given rule to the rule DB.
