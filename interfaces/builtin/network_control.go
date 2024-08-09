@@ -138,6 +138,18 @@ dbus (receive)
      member=PropertiesChanged
      peer=(label=unconfined),
 
+# Allow access to wpa-supplicant for managing WiFi networks
+dbus (receive, send)
+    bus=system
+    path=/fi/w1/wpa_supplicant1{,/**}
+    interface=fi.w1.wpa_supplicant1*
+    peer=(label=unconfined),
+dbus (receive, send)
+    bus=system
+    path=/fi/w1/wpa_supplicant1{,/**}
+    interface=org.freedesktop.DBus.*
+    peer=(label=unconfined),
+
 #include <abstractions/ssl_certs>
 
 capability net_admin,
