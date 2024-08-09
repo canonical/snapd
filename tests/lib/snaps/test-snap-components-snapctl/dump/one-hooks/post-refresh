@@ -1,0 +1,5 @@
+#!/bin/bash -ex
+
+exec > "$SNAP_DATA"/one-post-refresh.log 2>&1
+
+printf "post-refresh hook for comp one run\n"

@@ -1801,6 +1801,9 @@ func (s *infoSuite) TestComponentFromSnapComponentInstance(c *C) {
 		{"snap_instance", "snap_instance", ""},
 		{"snap+component", "snap", "component"},
 		{"snap_instance+component", "snap_instance", "component"},
+		{"", "", ""},
+		// We allow empty snap in some cases (snapctl)
+		{"+comp1", "", "comp1"},
 	}
 
 	for _, t := range tests {
@@ -2500,5 +2503,24 @@ func (s *infoSuite) TestRegistryPlugAttrsInvalid(c *C) {
 
 		_, _, _, err := snap.RegistryPlugAttrs(plug)
 		c.Assert(err, ErrorMatches, tc.err)
+	}
+}
+
+func (s *infoSuite) TestSplitSnapInstanceAndComponents(c *C) {
+	for _, tc := range []struct {
+		input string
+		snap  string
+		comps []string
+	}{
+		{"", "", []string{}},
+		{"snap", "snap", []string{}},
+		{"snap+comp1", "snap", []string{"comp1"}},
+		{"snap+comp-1+comp-2", "snap", []string{"comp-1", "comp-2"}},
+		{"+comp1", "", []string{"comp1"}},
+		{"+comp-1+comp-2", "", []string{"comp-1", "comp-2"}},
+	} {
+		snap, comps := snap.SplitSnapInstanceAndComponents(tc.input)
+		c.Check(snap, Equals, tc.snap, Commentf("%v", tc.input))
+		c.Check(comps, DeepEquals, tc.comps, Commentf("%v", tc.input))
 	}
 }
