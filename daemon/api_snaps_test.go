@@ -3912,6 +3912,16 @@ func (s *snapsSuite) TestInstallWithComponents(c *check.C) {
 
 	c.Check(chg.Tasks(), check.HasLen, 1)
 
+	var data map[string]interface{}
+	err = chg.Get("api-data", &data)
+	c.Assert(err, check.IsNil)
+	c.Check(data, check.DeepEquals, map[string]interface{}{
+		"snap-names": []interface{}{"some-snap"},
+		"components": map[string]interface{}{
+			"some-snap": []interface{}{"comp1", "comp2"},
+		},
+	})
+
 	st.Unlock()
 	s.waitTrivialChange(c, chg)
 	st.Lock()

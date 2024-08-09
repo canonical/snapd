@@ -166,12 +166,11 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	apiData := map[string]interface{}{}
-	if len(inst.CompsForSnaps) > 0 {
-		apiData["components"] = inst.CompsForSnaps
-		// TODO:COMPS: in install case we might want "snap-names" set
-		// if we installed the snap too
-	} else {
-		apiData["snap-names"] = inst.Snaps
+	if len(res.Affected) > 0 {
+		apiData["snap-names"] = res.Affected
+	}
+	if len(res.AffectedComponents) > 0 {
+		apiData["components"] = res.AffectedComponents
 	}
 
 	chg.Set("api-data", apiData)
