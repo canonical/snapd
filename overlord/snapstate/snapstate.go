@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2023 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -81,10 +81,16 @@ const (
 	EndEdge                          = state.TaskSetEdge("end")
 )
 
-const (
-	firmwareUpdaterSnapID         = "EI0D1KHjP8XiwMZKqSjuh6W8zvcowUVP"
-	snapdDesktopIntegrationSnapID = "IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu"
-)
+// userDaemonsOverrides lists by snap-id a set of well-known snaps for which we
+// allow user-daemons directly until we make the feature generally available,
+// and not experimental anymore.
+//
+// TODO: remove this once that is the case
+var userDaemonsOverrides = []string{
+	"EI0D1KHjP8XiwMZKqSjuh6W8zvcowUVP", // firmware-updater snap-id
+	"IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu", // snapd-desktop-integration snap-id
+	"aoc5lfC8aUd2VL8VpvynUJJhGXp5K6Dj", // prompting-client snap-id
+}
 
 var ErrNothingToDo = errors.New("nothing to do")
 
@@ -1195,13 +1201,12 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		if err != nil {
 			return err
 		}
-		// The firmware-updater and snapd-desktop-integration
-		// snaps are allowed to use user daemons, irrespective
-		// of the feature flag state.
+		// Some well-known snaps are allowed to use user daemons,
+		// irrespective of the feature flag state.
 		//
 		// TODO: remove the special case once
 		// experimental.user-daemons is the default
-		if !flag && info.SnapID != firmwareUpdaterSnapID && info.SnapID != snapdDesktopIntegrationSnapID {
+		if !flag && !strutil.ListContains(userDaemonsOverrides, info.SnapID) {
 			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
 		}
 		if !release.SystemctlSupportsUserUnits() {
