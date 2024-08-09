@@ -223,7 +223,9 @@ func (*featureSuite) TestIsSupported(c *C) {
 	fakeFeature := features.SnapdFeature(len(features.KnownFeatures()))
 
 	// Check that feature without callback always returns true
-	c.Check(fakeFeature.IsSupported(), Equals, true)
+	is, why := fakeFeature.IsSupported()
+	c.Check(is, Equals, true)
+	c.Check(why, Equals, "")
 
 	var fakeSupported bool
 	var fakeReason string
@@ -237,21 +239,29 @@ func (*featureSuite) TestIsSupported(c *C) {
 
 	fakeSupported = true
 	fakeReason = ""
-	c.Check(fakeFeature.IsSupported(), Equals, true)
+	is, why = fakeFeature.IsSupported()
+	c.Check(is, Equals, true)
+	c.Check(why, Equals, "")
 
 	// Check that a non-empty reason is ignored
 	fakeSupported = true
 	fakeReason = "foo"
-	c.Check(fakeFeature.IsSupported(), Equals, true)
+	is, why = fakeFeature.IsSupported()
+	c.Check(is, Equals, true)
+	c.Check(why, Equals, "")
 
 	fakeSupported = false
 	fakeReason = "foo"
-	c.Check(fakeFeature.IsSupported(), Equals, false)
+	is, why = fakeFeature.IsSupported()
+	c.Check(is, Equals, false)
+	c.Check(why, Equals, "foo")
 
 	// Check that unsupported value does not require reason
 	fakeSupported = false
 	fakeReason = ""
-	c.Check(fakeFeature.IsSupported(), Equals, false)
+	is, why = fakeFeature.IsSupported()
+	c.Check(is, Equals, false)
+	c.Check(why, Equals, "")
 }
 
 func (*featureSuite) TestIsEnabled(c *C) {
