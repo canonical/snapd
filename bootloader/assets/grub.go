@@ -36,7 +36,7 @@ var cmdlineForArch = map[string][]ForEditions{
 		{FirstEdition: 3, Snippet: []byte("console=ttyS0,115200n8 console=tty1 panic=-1")},
 	},
 	"riscv64": {
-		{FirstEdition: 1, Snippet: []byte("console=ttyS0,115200n8 earlycon panic=-1")},
+		{FirstEdition: 1, Snippet: []byte("panic=-1")},
 	},
 }
 
