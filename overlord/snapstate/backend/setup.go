@@ -129,6 +129,7 @@ func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, meter p
 	cpi := snap.MinimalSnapContainerPlaceInfo(instanceName, rev)
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, instanceName, rev)
 
+	// TODO:COMPS: consider components when installed jointly
 	return kernelEnsureKernelDriversTree(
 		kernel.MountPoints{
 			Current: cpi.MountDir(),
@@ -322,13 +323,13 @@ func moveKModsComponentsState(currentComps, finalComps []*snap.ComponentSideInfo
 		Target:  cpi.MountDir(),
 	}
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, ksnapName, ksnapRev)
-	finalCompsMntPts := compsMountPoints(finalComps, ksnapName)
+	finalCompsMntPts := compsMountPoints(finalComps, ksnapName, ksnapRev)
 
 	if err := kernelEnsureKernelDriversTree(kMntPts, finalCompsMntPts, destDir,
 		&kernel.KernelDriversTreeOptions{KernelInstall: false}); err != nil {
 
 		// Revert change on error
-		currentCompsMntPts := compsMountPoints(currentComps, ksnapName)
+		currentCompsMntPts := compsMountPoints(currentComps, ksnapName, ksnapRev)
 		if e := kernelEnsureKernelDriversTree(kMntPts, currentCompsMntPts, destDir,
 			&kernel.KernelDriversTreeOptions{KernelInstall: false}); e != nil {
 			logger.Noticef("while restoring kernel tree %s: %v", cleanErrMsg, e)
@@ -340,19 +341,40 @@ func moveKModsComponentsState(currentComps, finalComps []*snap.ComponentSideInfo
 	return nil
 }
 
-func compsMountPoints(comps []*snap.ComponentSideInfo, kSnapName string) []kernel.ModulesCompMountPoints {
-	compsMntPts := make([]kernel.ModulesCompMountPoints, 0, len(comps))
+func compsMountPoints(comps []*snap.ComponentSideInfo, kSnapName string, ksnapRev snap.Revision) []kernel.ModulesCompMountPoints {
+	compsMntPts := make([]kernel.ModulesCompMountPoints, 0, len(comps)+1)
 	for _, csi := range comps {
 		compPlaceInfo := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
 			csi.Revision, kSnapName)
+		if dirHasDrivers(compPlaceInfo.MountDir()) {
+			compsMntPts = append(compsMntPts, kernel.ModulesCompMountPoints{
+				LinkName: csi.Component.ComponentName,
+				MountPoints: kernel.MountPoints{
+					Current: compPlaceInfo.MountDir(),
+					Target:  compPlaceInfo.MountDir(),
+				}})
+		}
+	}
+
+	// Add folders in SNAP_DATA if $SNAP_DATA/{modules,firmware} exist.
+	dataDir := snap.DataDir(kSnapName, ksnapRev)
+	if dirHasDrivers(dataDir) {
+		logger.Noticef("setup: modules for %s", dataDir)
 		compsMntPts = append(compsMntPts, kernel.ModulesCompMountPoints{
-			Name: csi.Component.ComponentName,
+			LinkName: kSnapName + "_dyn",
 			MountPoints: kernel.MountPoints{
-				Current: compPlaceInfo.MountDir(),
-				Target:  compPlaceInfo.MountDir(),
+				Current: dataDir,
+				Target:  dataDir,
 			}})
 	}
+
 	return compsMntPts
+}
+
+func dirHasDrivers(dir string) bool {
+	modExists, modIsDir, _ := osutil.DirExists(filepath.Join(dir, "modules"))
+	fwExists, fwIsDir, _ := osutil.DirExists(filepath.Join(dir, "firmware"))
+	return (modExists && modIsDir) || (fwExists && fwIsDir)
 }
 
 func newSystemd(preseed bool, meter progress.Meter) systemd.Systemd {
