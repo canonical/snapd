@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 )
 
 type promptingSuite struct {
@@ -38,6 +39,11 @@ var _ = Suite(&promptingSuite{})
 
 func (s *promptingSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
+	// mock minimum set of features for apparmor prompting
+	s.AddCleanup(apparmor.MockFeatures(
+		[]string{"policy:permstable32:prompt"}, nil,
+		[]string{"prompt"}, nil,
+	))
 }
 
 func (s *promptingSuite) TestDoExperimentalApparmorPromptingDaemonRestartNoPristine(c *C) {
@@ -177,4 +183,38 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingDaemonRestartErrors(
 
 	err = configcore.DoExperimentalApparmorPromptingDaemonRestart(rt, nil)
 	c.Check(err, Not(IsNil))
+}
+
+func (s *promptingSuite) TestDoExperimentalApparmorPromptingUnsupported(c *C) {
+	restore := apparmor.MockFeatures(
+		[]string{"policy:permstable32:prompt-is-not-supported"}, nil,
+		[]string{"prompt-is-not-supported"}, nil,
+	)
+	defer restore()
+
+	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo) {
+		c.Errorf("unexpected restart requested")
+	})
+	defer restore()
+
+	snap, confName := features.AppArmorPrompting.ConfigOption()
+
+	// one cannot enable prompting if it's not supported
+	s.state.Lock()
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
+	rt.Set(snap, confName, true)
+	s.state.Unlock()
+
+	err := configcore.DoExperimentalApparmorPromptingDaemonRestart(rt, nil)
+	c.Check(err, ErrorMatches, "prompting feature is not supported by the system, reason: apparmor kernel features do not support prompting")
+
+	// but disabling it will not error out
+	s.state.Lock()
+	rt = configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
+	rt.Set(snap, confName, false)
+	rt.Commit()
+	s.state.Unlock()
+
+	err = configcore.DoExperimentalApparmorPromptingDaemonRestart(rt, nil)
+	c.Check(err, IsNil)
 }

@@ -21,6 +21,8 @@
 package configcore
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -47,6 +49,16 @@ func doExperimentalApparmorPromptingDaemonRestart(c RunTransaction, opts *fsOnly
 	}
 	if prompting == prevPrompting {
 		return nil
+	}
+
+	if prompting {
+		if is, whyNot := features.AppArmorPrompting.IsSupported(); !is {
+			if whyNot == "" {
+				// we don't have details as to why
+				return fmt.Errorf("prompting feature is not supported by the system")
+			}
+			return fmt.Errorf("prompting feature is not supported by the system, reason: %s", whyNot)
+		}
 	}
 
 	// No matter whether prompting is supported or not, request a restart of
