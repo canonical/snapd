@@ -53,6 +53,8 @@ func doExperimentalApparmorPromptingDaemonRestart(c RunTransaction, opts *fsOnly
 	}
 
 	if prompting {
+		// TODO support for preseeding
+
 		if !release.OnClassic && !release.OnCoreDesktop {
 			return fmt.Errorf("cannot enable prompting feature as it is not supported on Ubuntu Core systems")
 		}
