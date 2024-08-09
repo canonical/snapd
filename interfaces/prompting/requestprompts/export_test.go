@@ -65,5 +65,5 @@ func (pdb *PromptDB) PerUser() map[uint32]*userPromptDB {
 }
 
 func (pdb *PromptDB) NextID() (prompting.IDType, error) {
-	return pdb.nextID()
+	return pdb.maxIDMmap.NextID()
 }

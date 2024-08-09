@@ -26,6 +26,11 @@ import (
 	"time"
 )
 
+var (
+	// ErrExpirationInThePast may be wrapped with the invalid expiration.
+	ErrExpirationInThePast = fmt.Errorf("cannot have expiration time in the past")
+)
+
 // Metadata stores information about the origin or applicability of a prompt or
 // rule.
 type Metadata struct {
@@ -39,8 +44,12 @@ type Metadata struct {
 
 type IDType uint64
 
+func (i IDType) String() string {
+	return fmt.Sprintf("%016X", uint64(i))
+}
+
 func (i *IDType) MarshalJSON() ([]byte, error) {
-	return json.Marshal(fmt.Sprintf("%016X", *i))
+	return json.Marshal(i.String())
 }
 
 func (i *IDType) UnmarshalJSON(b []byte) error {
@@ -112,8 +121,10 @@ const (
 	// LifespanTimespan indicates that a reply/rule should apply for a given
 	// duration or until a given expiration timestamp.
 	LifespanTimespan LifespanType = "timespan"
-	// TODO: add LifespanSession which expires after the user logs out
-	// LifespanSession  LifespanType = "session"
+	// LifespanSession indicates that a reply/rule should apply for the duration
+	// of the application session.
+	// XXX: application session or user session?
+	LifespanSession LifespanType = "session"
 )
 
 func (lifespan *LifespanType) UnmarshalJSON(data []byte) error {
@@ -125,6 +136,8 @@ func (lifespan *LifespanType) UnmarshalJSON(data []byte) error {
 	switch value {
 	case LifespanForever, LifespanSingle, LifespanTimespan:
 		*lifespan = value
+	case LifespanSession:
+		return fmt.Errorf(`cannot have lifespan "session": not yet supported`)
 	default:
 		return fmt.Errorf(`cannot have lifespan other than %q, %q, or %q: %q`, LifespanForever, LifespanSingle, LifespanTimespan, value)
 	}
@@ -139,7 +152,7 @@ func (lifespan *LifespanType) UnmarshalJSON(data []byte) error {
 // any of the above are invalid.
 func (lifespan LifespanType) ValidateExpiration(expiration time.Time, currTime time.Time) error {
 	switch lifespan {
-	case LifespanForever, LifespanSingle:
+	case LifespanForever, LifespanSingle, LifespanSession:
 		if !expiration.IsZero() {
 			return fmt.Errorf(`cannot have specified expiration when lifespan is %q: %q`, lifespan, expiration)
 		}
@@ -148,7 +161,7 @@ func (lifespan LifespanType) ValidateExpiration(expiration time.Time, currTime t
 			return fmt.Errorf(`cannot have unspecified expiration when lifespan is %q`, lifespan)
 		}
 		if currTime.After(expiration) {
-			return fmt.Errorf("cannot have expiration time in the past: %q", expiration)
+			return fmt.Errorf("%w: %q", ErrExpirationInThePast, expiration)
 		}
 	default:
 		// Should not occur, since lifespan is validated when unmarshalled
@@ -168,7 +181,7 @@ func (lifespan LifespanType) ValidateExpiration(expiration time.Time, currTime t
 func (lifespan LifespanType) ParseDuration(duration string, currTime time.Time) (time.Time, error) {
 	var expiration time.Time
 	switch lifespan {
-	case LifespanForever, LifespanSingle:
+	case LifespanForever, LifespanSingle, LifespanSession:
 		if duration != "" {
 			return expiration, fmt.Errorf(`cannot have specified duration when lifespan is %q: %q`, lifespan, duration)
 		}

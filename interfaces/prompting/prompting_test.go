@@ -36,17 +36,19 @@ type promptingSuite struct{}
 
 var _ = Suite(&promptingSuite{})
 
-func (s *promptingSuite) TestIDTypeMarshalUnmarshalJSON(c *C) {
+func (s *promptingSuite) TestIDTypeStringMarshalUnmarshalJSON(c *C) {
 	for _, testCase := range []struct {
 		id         prompting.IDType
+		str        string
 		marshalled []byte
 	}{
-		{0, []byte(`"0000000000000000"`)},
-		{1, []byte(`"0000000000000001"`)},
-		{0x1000000000000000, []byte(`"1000000000000000"`)},
-		{0xDEADBEEFDEADBEEF, []byte(`"DEADBEEFDEADBEEF"`)},
-		{0xFFFFFFFFFFFFFFFF, []byte(`"FFFFFFFFFFFFFFFF"`)},
+		{0, "0000000000000000", []byte(`"0000000000000000"`)},
+		{1, "0000000000000001", []byte(`"0000000000000001"`)},
+		{0x1000000000000000, "1000000000000000", []byte(`"1000000000000000"`)},
+		{0xDEADBEEFDEADBEEF, "DEADBEEFDEADBEEF", []byte(`"DEADBEEFDEADBEEF"`)},
+		{0xFFFFFFFFFFFFFFFF, "FFFFFFFFFFFFFFFF", []byte(`"FFFFFFFFFFFFFFFF"`)},
 	} {
+		c.Check(testCase.id.String(), Equals, testCase.str)
 		marshalled, err := testCase.id.MarshalJSON()
 		c.Check(err, IsNil)
 		c.Check(marshalled, DeepEquals, testCase.marshalled)
@@ -155,6 +157,12 @@ func (s *promptingSuite) TestUnmarshalLifespanUnhappy(c *C) {
 		err = json.Unmarshal(data, &flw2)
 		c.Check(err, ErrorMatches, `cannot have lifespan other than.*`, Commentf("data: %v", string(data)))
 	}
+
+	// TODO: remove this when lifespan "session" is supported
+	var flw fakeLifespanWrapper
+	data := []byte(fmt.Sprintf(`{"field1": "%s"}`, prompting.LifespanSession))
+	err := json.Unmarshal(data, &flw)
+	c.Check(err, ErrorMatches, `cannot have lifespan "session": not yet supported`, Commentf("data: %v", string(data)))
 }
 
 func (s *promptingSuite) TestValidateExpiration(c *C) {
@@ -166,6 +174,7 @@ func (s *promptingSuite) TestValidateExpiration(c *C) {
 	for _, lifespan := range []prompting.LifespanType{
 		prompting.LifespanForever,
 		prompting.LifespanSingle,
+		prompting.LifespanSession,
 	} {
 		err := lifespan.ValidateExpiration(unsetExpiration, currTime)
 		c.Check(err, IsNil)
@@ -197,6 +206,7 @@ func (s *promptingSuite) TestParseDuration(c *C) {
 	for _, lifespan := range []prompting.LifespanType{
 		prompting.LifespanForever,
 		prompting.LifespanSingle,
+		prompting.LifespanSession,
 	} {
 		expiration, err := lifespan.ParseDuration(unsetDuration, currTime)
 		c.Check(expiration.IsZero(), Equals, true)
