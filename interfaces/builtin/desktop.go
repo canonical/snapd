@@ -625,7 +625,7 @@ func (iface *desktopInterface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 //
 // XXX: dashes "-" are not recommended but supported, should they be removed?
 // https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names
-var desktopFileIDRegexp = regexp.MustCompile("^([A-Za-z-_][\\w-]*)(\\.[A-Za-z-_][\\w-]*)*$")
+var desktopFileIDRegexp = regexp.MustCompile(`^([A-Za-z_-][\w-]*)(\.[A-Za-z_-][\w-]*)*$`)
 
 func (iface *desktopInterface) validateDesktopFileIDs(attribs interfaces.Attrer) error {
 	attrVal, exists := attribs.Lookup("desktop-file-ids")
