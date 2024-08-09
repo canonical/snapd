@@ -70,8 +70,91 @@ func (s *SnapPromptingControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
-func (s *SnapPromptingControlInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *SnapPromptingControlInterfaceSuite) TestSanitizePlugTrivial(c *C) {
 	c.Check(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
+}
+
+func (s *SnapPromptingControlInterfaceSuite) TestSanitizePlugWithUserHandler(c *C) {
+	const appPlugYaml = `
+name: other
+version: 0
+apps:
+  app:
+    command: foo
+    daemon: simple
+    daemon-scope: user
+
+plugs:
+  snap-interfaces-requests-control:
+    handler-service: app
+`
+	_, plugInfo := MockConnectedPlug(c, appPlugYaml, nil, "snap-interfaces-requests-control")
+	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), IsNil)
+}
+
+func (s *SnapPromptingControlInterfaceSuite) TestSanitizePlugWBadHandlerNotDaemon(c *C) {
+	const appPlugYaml = `
+name: other
+version: 0
+apps:
+  app:
+    command: foo
+
+plugs:
+  snap-interfaces-requests-control:
+    handler-service: app
+`
+	_, plugInfo := MockConnectedPlug(c, appPlugYaml, nil, "snap-interfaces-requests-control")
+	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches, `declared handler service \"app\" is not a user service`)
+}
+
+func (s *SnapPromptingControlInterfaceSuite) TestSanitizePlugWBadHandlerNotUserDaemon(c *C) {
+	const appPlugYaml = `
+name: other
+version: 0
+apps:
+  app:
+    command: foo
+    daemon: simple
+
+plugs:
+  snap-interfaces-requests-control:
+    handler-service: app
+`
+	_, plugInfo := MockConnectedPlug(c, appPlugYaml, nil, "snap-interfaces-requests-control")
+	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches, `declared handler service \"app\" is not a user service`)
+}
+
+func (s *SnapPromptingControlInterfaceSuite) TestSanitizePlugWBadHandlerNotFound(c *C) {
+	const appPlugYaml = `
+name: other
+version: 0
+apps:
+  app:
+    command: foo
+
+plugs:
+  snap-interfaces-requests-control:
+    handler-service: app-not-found
+`
+	_, plugInfo := MockConnectedPlug(c, appPlugYaml, nil, "snap-interfaces-requests-control")
+	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches, `declared handler service \"app-not-found\" not found in snap`)
+}
+
+func (s *SnapPromptingControlInterfaceSuite) TestSanitizePlugWBadHandlerBadType(c *C) {
+	const appPlugYaml = `
+name: other
+version: 0
+apps:
+  app:
+    command: foo
+
+plugs:
+  snap-interfaces-requests-control:
+    handler-service: 123.2
+`
+	_, plugInfo := MockConnectedPlug(c, appPlugYaml, nil, "snap-interfaces-requests-control")
+	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches, `snap-interfaces-requests-control \"handler-service\" attribute must be a string, not float64 123.2`)
 }
 
 func (s *SnapPromptingControlInterfaceSuite) TestAppArmor(c *C) {

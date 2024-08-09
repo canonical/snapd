@@ -19,6 +19,12 @@
 
 package builtin
 
+import (
+	"fmt"
+
+	"github.com/snapcore/snapd/snap"
+)
+
 const snapPromptingControlSummary = `allows use of snapd's prompting API and access to prompting-related notice types`
 
 const snapPromptingControlBaseDeclarationPlugs = `
@@ -35,13 +41,46 @@ const snapPromptingControlBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
+type requestsControlInterface struct {
+	commonInterface
+}
+
+func (iface *requestsControlInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	// snaps can declare "handler-service" attribute on the plug, which
+	// indicates which user service will be handling prompt requests
+
+	handlerServiceAttr, isSet := plug.Attrs["handler-service"]
+	handlerService, ok := handlerServiceAttr.(string)
+	if isSet && !ok {
+		return fmt.Errorf(`snap-interfaces-requests-control "handler-service" attribute must be a string, not %T %v`,
+			handlerServiceAttr, handlerServiceAttr)
+	}
+
+	if handlerService == "" {
+		return nil
+	}
+
+	svc := plug.Snap.Apps[handlerService]
+	if svc == nil {
+		return fmt.Errorf("declared handler service %q not found in snap", handlerService)
+	}
+
+	if !svc.IsService() || svc.DaemonScope != snap.UserDaemon {
+		return fmt.Errorf("declared handler service %q is not a user service", handlerService)
+	}
+
+	return nil
+}
+
 func init() {
-	registerIface(&commonInterface{
-		name:                 "snap-interfaces-requests-control",
-		summary:              snapPromptingControlSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
-		baseDeclarationPlugs: snapPromptingControlBaseDeclarationPlugs,
-		baseDeclarationSlots: snapPromptingControlBaseDeclarationSlots,
+	registerIface(&requestsControlInterface{
+		commonInterface{
+			name:                 "snap-interfaces-requests-control",
+			summary:              snapPromptingControlSummary,
+			implicitOnCore:       true,
+			implicitOnClassic:    true,
+			baseDeclarationPlugs: snapPromptingControlBaseDeclarationPlugs,
+			baseDeclarationSlots: snapPromptingControlBaseDeclarationSlots,
+		},
 	})
 }
