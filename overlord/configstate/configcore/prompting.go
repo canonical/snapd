@@ -24,12 +24,62 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 var restartRequest = restart.Request
+
+func findPromptingRequestsHandlers(st *state.State) ([]*snap.AppInfo, error) {
+	st.Lock()
+	defer st.Unlock()
+
+	conns, err := ifacestate.ConnectionStates(st)
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot get connections: %w", err)
+	}
+
+	var handlers []*snap.AppInfo
+
+	for connId, connState := range conns {
+		if connState.Interface != "snap-interfaces-requests-control" || !connState.Active() {
+			continue
+		}
+
+		connRef, err := interfaces.ParseConnRef(connId)
+		if err != nil {
+			return nil, err
+		}
+
+		handler, ok := connState.StaticPlugAttrs["handler-service"].(string)
+		if !ok {
+			// does not have a handler service
+			continue
+		}
+
+		sn := connRef.PlugRef.Snap
+		si, err := snapstate.CurrentInfo(st, sn)
+		if err != nil {
+			return nil, err
+		}
+
+		// this should not fail as plug's before prepare should have validated that such app exists
+		app := si.Apps[handler]
+		if app == nil {
+			return nil, fmt.Errorf("internal error: cannot find app %q in snap %q", app, sn)
+		}
+
+		handlers = append(handlers, app)
+	}
+
+	return handlers, nil
+}
 
 // Trigger a security profile regeneration by restarting snapd if the
 // experimental apparmor-prompting flag changed.
@@ -66,6 +116,17 @@ func doExperimentalApparmorPromptingDaemonRestart(c RunTransaction, opts *fsOnly
 			}
 			return fmt.Errorf("cannot enable prompting feature as it is not supported by the system: %s", whyNot)
 		}
+
+		handlers, err := findPromptingRequestsHandlers(st)
+		if err != nil {
+			return err
+		}
+
+		if len(handlers) == 0 {
+			return fmt.Errorf("cannot enable prompting feature no interfaces requests handlers are installed")
+		}
+
+		// TODO start handlers as a change and wait for completion
 	}
 
 	// No matter whether prompting is supported or not, request a restart of

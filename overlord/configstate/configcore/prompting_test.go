@@ -20,20 +20,31 @@
 package configcore_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type promptingSuite struct {
 	configcoreSuite
+
+	repo *interfaces.Repository
 }
 
 var _ = Suite(&promptingSuite{})
@@ -45,6 +56,15 @@ func (s *promptingSuite) SetUpTest(c *C) {
 		[]string{"policy:permstable32:prompt"}, nil,
 		[]string{"prompt"}, nil,
 	))
+
+	s.repo = interfaces.NewRepository()
+	for _, iface := range builtin.Interfaces() {
+		c.Assert(s.repo.AddInterface(iface), IsNil)
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	ifacerepo.Replace(s.state, s.repo)
 }
 
 func (s *promptingSuite) TestDoExperimentalApparmorPromptingDaemonRestartNoPristine(c *C) {
@@ -56,6 +76,9 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingDaemonRestartNoPrist
 		doRestartChan <- true
 	})
 	defer restore()
+
+	s.mockSnapd(c)
+	s.mockPromptingHandler(c, mockPromptingHandlerOpts{snapName: "test-snap", hasHandler: true})
 
 	snap, confName := features.AppArmorPrompting.ConfigOption()
 
@@ -97,6 +120,9 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingDaemonRestartWithPri
 		doRestartChan <- true
 	})
 	defer restore()
+
+	s.mockSnapd(c)
+	s.mockPromptingHandler(c, mockPromptingHandlerOpts{snapName: "test-snap", hasHandler: true})
 
 	snap, confName := features.AppArmorPrompting.ConfigOption()
 
@@ -261,6 +287,9 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingOnCoreDesktop(c *C) 
 	release.MockOnCoreDesktop(true)
 	defer restore()
 
+	s.mockSnapd(c)
+	s.mockPromptingHandler(c, mockPromptingHandlerOpts{snapName: "test-snap", hasHandler: true})
+
 	restartCalled := 0
 	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo) {
 		restartCalled++
@@ -279,4 +308,152 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingOnCoreDesktop(c *C) 
 	c.Check(err, IsNil)
 
 	c.Check(restartCalled, Equals, 1)
+}
+
+func (s *promptingSuite) TestDoExperimentalApparmorPromptingChecksHandlersNone(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.mockSnapd(c)
+
+	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo) {
+		c.Errorf("unexpected restart requested")
+	})
+	defer restore()
+
+	s.testDoExperimentalApparmorPromptingUnsupported(c,
+		"cannot enable prompting feature no interfaces requests handlers are installed")
+}
+
+func (s *promptingSuite) TestDoExperimentalApparmorPromptingChecksHandlersManyButNoHandlerApp(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.mockSnapd(c)
+	s.mockPromptingHandler(c, mockPromptingHandlerOpts{snapName: "test-snap1", hasHandler: false})
+	s.mockPromptingHandler(c, mockPromptingHandlerOpts{snapName: "test-snap2", hasHandler: false})
+
+	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo) {
+		c.Errorf("unexpected restart requested")
+	})
+	defer restore()
+
+	s.testDoExperimentalApparmorPromptingUnsupported(c,
+		"cannot enable prompting feature no interfaces requests handlers are installed")
+}
+
+func (s *promptingSuite) TestDoExperimentalApparmorPromptingChecksHandlersDisconnected(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.mockSnapd(c)
+	s.mockPromptingHandler(c, mockPromptingHandlerOpts{snapName: "test-snap", hasHandler: true})
+
+	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo) {
+		c.Errorf("unexpected restart requested")
+	})
+	defer restore()
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"test-snap:snap-interfaces-requests-control core:snap-interfaces-requests-control": map[string]interface{}{
+			"interface": "snap-interfaces-requests-control",
+			"plug-static": map[string]interface{}{
+				"handler-service": "prompts-handler",
+			},
+			// manually disconnected
+			"undesired": true,
+		},
+	})
+	s.state.Unlock()
+
+	s.testDoExperimentalApparmorPromptingUnsupported(c,
+		"cannot enable prompting feature no interfaces requests handlers are installed")
+}
+
+func (s *promptingSuite) mockSnapd(c *C) {
+	const snapdSnapYaml = `
+name: snapd
+version: 1
+type: snapd
+`
+
+	si := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)}
+	snapdSnap := snaptest.MockSnap(c, snapdSnapYaml, si)
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "snapd",
+	})
+
+	for _, iface := range builtin.Interfaces() {
+		if name := iface.Name(); name == "snap-interfaces-requests-control" {
+			// add implicit slot
+			// XXX copied from implicit.go
+			snapdSnap.Slots[name] = &snap.SlotInfo{
+				Name:      name,
+				Snap:      snapdSnap,
+				Interface: name,
+			}
+		}
+	}
+	snapdAppSet, err := interfaces.NewSnapAppSet(snapdSnap, nil)
+	c.Assert(err, IsNil)
+	c.Assert(s.repo.AddAppSet(snapdAppSet), IsNil)
+}
+
+type mockPromptingHandlerOpts struct {
+	snapName   string
+	hasHandler bool
+}
+
+func (s *promptingSuite) mockPromptingHandler(c *C, opts mockPromptingHandlerOpts) {
+	name := opts.snapName
+
+	var mockSnapWithPromptshandlerFmt = `name: %s
+version: 1.0
+apps:
+
+plugs:
+ snap-interfaces-requests-control:
+`
+
+	if opts.hasHandler {
+		mockSnapWithPromptshandlerFmt = `name: %s
+version: 1.0
+apps:
+ prompts-handler:
+  daemon: simple
+
+plugs:
+ snap-interfaces-requests-control:
+  handler: prompts-handler
+`
+	}
+	si := &snap.SideInfo{RealName: name, Revision: snap.R(1)}
+	snaptest.MockSnap(c, fmt.Sprintf(mockSnapWithPromptshandlerFmt, name), si)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, name, &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "app",
+	})
+
+	plugStatic := map[string]interface{}{}
+	if opts.hasHandler {
+		plugStatic["handler-service"] = "prompts-handler"
+	}
+
+	s.state.Set("conns", map[string]interface{}{
+		fmt.Sprintf("%s:snap-interfaces-requests-control core:snap-interfaces-requests-control", name): map[string]interface{}{
+			"interface":   "snap-interfaces-requests-control",
+			"plug-static": plugStatic,
+		},
+	})
 }
