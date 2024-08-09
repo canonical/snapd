@@ -121,10 +121,8 @@ const (
 	// LifespanTimespan indicates that a reply/rule should apply for a given
 	// duration or until a given expiration timestamp.
 	LifespanTimespan LifespanType = "timespan"
-	// LifespanSession indicates that a reply/rule should apply for the duration
-	// of the application session.
-	// XXX: application session or user session?
-	LifespanSession LifespanType = "session"
+	// TODO: add LifespanSession which expires after the user logs out
+	// LifespanSession  LifespanType = "session"
 )
 
 func (lifespan *LifespanType) UnmarshalJSON(data []byte) error {
@@ -136,8 +134,6 @@ func (lifespan *LifespanType) UnmarshalJSON(data []byte) error {
 	switch value {
 	case LifespanForever, LifespanSingle, LifespanTimespan:
 		*lifespan = value
-	case LifespanSession:
-		return fmt.Errorf(`cannot have lifespan "session": not yet supported`)
 	default:
 		return fmt.Errorf(`cannot have lifespan other than %q, %q, or %q: %q`, LifespanForever, LifespanSingle, LifespanTimespan, value)
 	}
@@ -152,7 +148,7 @@ func (lifespan *LifespanType) UnmarshalJSON(data []byte) error {
 // any of the above are invalid.
 func (lifespan LifespanType) ValidateExpiration(expiration time.Time, currTime time.Time) error {
 	switch lifespan {
-	case LifespanForever, LifespanSingle, LifespanSession:
+	case LifespanForever, LifespanSingle:
 		if !expiration.IsZero() {
 			return fmt.Errorf(`cannot have specified expiration when lifespan is %q: %q`, lifespan, expiration)
 		}
@@ -181,7 +177,7 @@ func (lifespan LifespanType) ValidateExpiration(expiration time.Time, currTime t
 func (lifespan LifespanType) ParseDuration(duration string, currTime time.Time) (time.Time, error) {
 	var expiration time.Time
 	switch lifespan {
-	case LifespanForever, LifespanSingle, LifespanSession:
+	case LifespanForever, LifespanSingle:
 		if duration != "" {
 			return expiration, fmt.Errorf(`cannot have specified duration when lifespan is %q: %q`, lifespan, duration)
 		}
