@@ -219,13 +219,8 @@ func (rdb *RuleDB) load() (retErr error) {
 			continue
 		}
 
-		if err = rdb.addRule(rule); err != nil {
-			// Duplicate rules on disk, should not occur
-			errInvalid = err
-			break
-		}
-		if conflictErr := rdb.addRuleToTree(rule); conflictErr != nil {
-			// Conflicting rules on disk, should not occur
+		if conflictErr := rdb.addRule(rule); conflictErr != nil {
+			// Duplicate rules on disk or conflicting rule, should not occur
 			errInvalid = fmt.Errorf("cannot add rule: %w", conflictErr)
 			break
 		}
@@ -272,10 +267,15 @@ func (rdb *RuleDB) save() error {
 	return osutil.AtomicWriteFile(rdb.dbPath, b, 0o600, 0)
 }
 
-// addRule adds the given rule to the rule DB.
+// addRuleToRulesList adds the given rule to the rules list of the rule DB.
+// Whenever possible, it is preferred to use `addRule` directly instead, since
+// it ensures consistency between the rules list and the per-user rules tree.
+//
+// However, to allow for simpler error handling and safer rollback when saving
+// the DB to disk after removing a rule, this method is necessary.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) addRule(rule *Rule) error {
+func (rdb *RuleDB) addRuleToRulesList(rule *Rule) error {
 	_, exists := rdb.indexByID[rule.ID]
 	if exists {
 		return ErrRuleIDConflict
@@ -283,6 +283,22 @@ func (rdb *RuleDB) addRule(rule *Rule) error {
 	rdb.rules = append(rdb.rules, rule)
 	rdb.indexByID[rule.ID] = len(rdb.rules) - 1
 	return nil
+}
+
+// addRule adds the given rule to the rule DB. If there is a conflicting rule,
+// returns an error, and the rule DB is left unchanged.
+//
+// The caller must ensure that the database lock is held for writing.
+func (rdb *RuleDB) addRule(rule *Rule) error {
+	rdb.addRuleToRulesList(rule)
+	err := rdb.addRuleToTree(rule)
+	if err == nil {
+		return nil
+	}
+	// remove just-added rule from rules list and IDs
+	rdb.rules = rdb.rules[:len(rdb.rules)-1]
+	delete(rdb.indexByID, rule.ID)
+	return err
 }
 
 // lookupRuleByID returns the rule with the given ID from the rule DB.
@@ -299,10 +315,16 @@ func (rdb *RuleDB) lookupRuleByID(id prompting.IDType) (*Rule, error) {
 	return rdb.rules[index], nil
 }
 
-// removeRuleByID removes the rule with the given ID from the rule DB.
+// removeRuleByIDFromRulesList removes the rule with the given ID from the rules
+// list in the rule DB, but not from the rules tree. Whenever possible, it is
+// preferred to use `removeRuleByID` directly instead, since it ensures
+// consistency between the rules list and the per-user rules tree.
+//
+// However, to allow for simpler error handling with safer rollback when saving
+// the DB to disk after removing a rule, this method is necessary.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) removeRuleByID(id prompting.IDType) (*Rule, error) {
+func (rdb *RuleDB) removeRuleByIDFromRulesList(id prompting.IDType) (*Rule, error) {
 	index, exists := rdb.indexByID[id]
 	if !exists {
 		return nil, ErrRuleIDNotFound
@@ -322,6 +344,27 @@ func (rdb *RuleDB) removeRuleByID(id prompting.IDType) (*Rule, error) {
 	// Update the ID-index mapping of the moved rule.
 	rdb.indexByID[movedID] = index
 	delete(rdb.indexByID, id)
+
+	return rule, nil
+}
+
+// removeRuleByID removes the rule with the given ID from the rule DB.
+//
+// If an error occurs, the rule DB is left unchanged. Otherwise, the rule is
+// fully removed from the rule list and corresponding variant tree.
+//
+// The caller must ensure that the database lock is held for writing.
+func (rdb *RuleDB) removeRuleByID(id prompting.IDType) (*Rule, error) {
+	rule, err := rdb.removeRuleByIDFromRulesList(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Remove the rule from the rule tree. If an error occurs, the rule is
+	// fully removed from the DB, and we have no guarantee that the removed
+	// rule will be able to be re-added again cleanly, so don't even try.
+	rdb.removeRuleFromTree(rule)
+
 	return rule, nil
 }
 
@@ -467,7 +510,6 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) *ruleC
 		removedRule, err := rdb.removeRuleByID(ruleID)
 		// Error shouldn't occur. If it does, the rule was already removed.
 		if err == nil {
-			rdb.removeRuleFromTree(removedRule)
 			rdb.notifyRule(removedRule.User, removedRule.ID,
 				map[string]string{"removed": "expired"})
 		}
@@ -490,14 +532,6 @@ func (rdb *RuleDB) isRuleWithIDExpired(id prompting.IDType, currTime time.Time) 
 		return true
 	}
 	return rule.Expired(currTime)
-}
-
-// removeExistingRule removes provided rule from permissions tree and
-// from rules DB. As a precodition the called must have confirmed that the rule
-// exists as errors are ignored.
-func (rdb *RuleDB) removeExistingRule(rule *Rule) {
-	rdb.removeRuleFromTree(rule) // if error occurs, rule still fully removed
-	rdb.removeRuleByID(rule.ID)
 }
 
 // removeRulePermissionFromTree removes all the path patterns variants for the
@@ -562,8 +596,10 @@ func (rdb *RuleDB) addRuleToTree(rule *Rule) *ruleConflictError {
 	return nil
 }
 
-// removeRuleFromTree fully removes the given rule from the tree, even if an
-// error occurs.
+// removeRuleFromTree fully removes the given rule from the rules tree, even if
+// an error occurs. Whenever possible, it is preferred to use `removeRuleByID`
+// directly instead, since it ensures consistency between the rules list and the
+// per-user rules tree.
 //
 // The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) removeRuleFromTree(rule *Rule) error {
@@ -754,13 +790,14 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 	if err != nil {
 		return nil, err
 	}
-	if err := rdb.addRuleToTree(newRule); err != nil {
+	if err := rdb.addRule(newRule); err != nil {
 		return nil, fmt.Errorf("cannot add rule: %w", err)
 	}
-	rdb.addRule(newRule)
 
 	if err := rdb.save(); err != nil {
-		rdb.removeExistingRule(newRule)
+		rdb.removeRuleByID(newRule.ID)
+		// We know that this rule exists, since we just added it, so no error
+		// can occur.
 		return nil, err
 	}
 
@@ -781,12 +818,13 @@ func (rdb *RuleDB) RemoveRule(user uint32, id prompting.IDType) (*Rule, error) {
 		return nil, err
 	}
 
-	rdb.removeRuleByID(id) // We know the rule exists, so this should not error
+	rdb.removeRuleByIDFromRulesList(id)
+	// We know the rule exists, so this should not error
 
 	// Now that rule is removed from rules list, can try to save
 	if err := rdb.save(); err != nil {
-		// Roll back the change by re-adding the removed rule
-		rdb.addRule(rule)
+		// Roll back the change by re-adding the removed rule to the rules list
+		rdb.addRuleToRulesList(rule)
 		return nil, err
 	}
 
@@ -819,16 +857,18 @@ func (rdb *RuleDB) RemoveRulesForSnap(user uint32, snap string) []*Rule {
 // The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) error {
 	for _, rule := range rules {
-		// Remove rule from the rules list. Caller should ensure that
-		// the rule exists, and thus this should not error.
-		rdb.removeRuleByID(rule.ID)
+		// Remove rule from the rules list. Caller should ensure that the rule
+		// exists, and thus this should not error. We don't want to return any
+		// error here, because that would leave some of the given rules removed
+		// and others not, and the caller can ensure that this will not happen.
+		rdb.removeRuleByIDFromRulesList(rule.ID)
 	}
 
 	// Now that rules have been removed from rules list, attempt to save
 	if err := rdb.save(); err != nil {
 		// Roll back the change by re-adding all removed rules
 		for _, rule := range rules {
-			rdb.addRule(rule)
+			rdb.addRuleToRulesList(rule)
 		}
 		return err
 	}
@@ -892,28 +932,18 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraints *prom
 	}
 	newRule.ID = origRule.ID
 
-	// Remove the existing rule from the tree. An error should not occur, but
-	// if it does, carry on, hopefully the new rule won't have a conflict
-	rdb.removeRuleFromTree(origRule)
+	// Remove the existing rule from the tree. An error should not occur, since
+	// we just looked up the rule and know it exists.
+	rdb.removeRuleByID(origRule.ID)
 
-	if addErr := rdb.addRuleToTree(newRule); addErr != nil {
+	if addErr := rdb.addRule(newRule); addErr != nil {
 		err := fmt.Errorf("cannot patch rule: %w", addErr)
 		// Try to re-add original rule so all is unchanged.
-		if origErr := rdb.addRuleToTree(origRule); origErr != nil {
+		if origErr := rdb.addRule(origRule); origErr != nil {
 			// Error should not occur, but if it does, wrap it in the other error
 			err = errorsJoin(err, fmt.Errorf("cannot re-add original rule: %w", origErr))
-			// XXX: should origRule be removed from the rules list if it's no
-			// longer in the tree?
 		}
 		return nil, err
-	}
-
-	rdb.removeRuleByID(origRule.ID) // no error should occur, we just confirmed the rule exists
-
-	if err := rdb.addRule(newRule); err != nil {
-		// Should not occur, but if so, re-add the original rule
-		rdb.addRule(origRule)
-		return nil, fmt.Errorf("internal error: %v", err)
 	}
 
 	if err := rdb.save(); err != nil {
@@ -922,9 +952,6 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraints *prom
 		// just successfully completed.
 		rdb.removeRuleByID(newRule.ID)
 		rdb.addRule(origRule)
-
-		rdb.removeRuleFromTree(newRule)
-		rdb.addRuleToTree(origRule)
 		return nil, err
 	}
 
