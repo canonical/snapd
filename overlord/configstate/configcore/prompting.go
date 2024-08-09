@@ -62,7 +62,7 @@ func doExperimentalApparmorPromptingDaemonRestart(c RunTransaction, opts *fsOnly
 				// we don't have details as to why
 				return fmt.Errorf("cannot enable prompting feature as it is not supported by the system")
 			}
-			return fmt.Errorf("cannot enable prompting feature as it is not supported by the system, reason: %s", whyNot)
+			return fmt.Errorf("cannot enable prompting feature as it is not supported by the system: %s", whyNot)
 		}
 	}
 

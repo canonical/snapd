@@ -221,7 +221,7 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingUnsupportedKernel(c 
 	})
 	defer restore()
 	s.testDoExperimentalApparmorPromptingUnsupported(c,
-		"cannot enable prompting feature as it is not supported by the system, reason: apparmor kernel features do not support prompting")
+		"cannot enable prompting feature as it is not supported by the system: apparmor kernel features do not support prompting")
 }
 
 func (s *promptingSuite) TestDoExperimentalApparmorPromptingUnsupportedParser(c *C) {
@@ -236,7 +236,7 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingUnsupportedParser(c 
 	})
 	defer restore()
 	s.testDoExperimentalApparmorPromptingUnsupported(c,
-		"cannot enable prompting feature as it is not supported by the system, reason: apparmor parser does not support the prompt qualifier")
+		"cannot enable prompting feature as it is not supported by the system: apparmor parser does not support the prompt qualifier")
 }
 
 func (s *promptingSuite) TestDoExperimentalApparmorPromptingOnCoreUnsupported(c *C) {
