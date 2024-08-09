@@ -101,7 +101,7 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, remoteFSHome, overlay
 	restore = cgroup.MockVersion(1, nil)
 	defer restore()
 
-	promptingSupported := features.AppArmorPrompting.IsSupported()
+	promptingSupported, _ := features.AppArmorPrompting.IsSupported()
 	promptingEnabled := true
 	extraData := interfaces.SystemKeyExtraData{
 		AppArmorPrompting: promptingEnabled,
