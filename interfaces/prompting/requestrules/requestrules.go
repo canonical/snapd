@@ -40,26 +40,31 @@ type Rule struct {
 	Expiration  time.Time              `json:"expiration,omitempty"`
 }
 
-// Expired returns true if the receiving rule has a lifespan of timespan and
-// the current time is after the rule's expiration time.
-//
-// Returns an error if the rule's expiration time is invalid.
-func (rule *Rule) Expired(currentTime time.Time) (bool, error) {
+// Validate verifies internal correctness of the rule
+func (rule *Rule) validate() error {
 	switch rule.Lifespan {
 	case prompting.LifespanTimespan:
+		// rules with limited timespan should have the expiration time set
 		if rule.Expiration.IsZero() {
-			// Should not occur
-			return false, fmt.Errorf("internal error: encountered rule with lifespan timespan but no expiration")
+			return fmt.Errorf("rule has limited timespan but no expiration time")
 		}
+	}
+	return nil
+}
+
+// Expired returns true if the receiving rule has a lifespan of timespan and
+// the current time is after the rule's expiration time.
+func (rule *Rule) Expired(currentTime time.Time) bool {
+	switch rule.Lifespan {
+	case prompting.LifespanTimespan:
 		if currentTime.After(rule.Expiration) {
-			return true, nil
+			return true
 		}
-		return false, nil
 		// TODO: add lifespan session
 		//case prompting.LifespanSession:
 		// TODO: return true if the user session has changed
 	}
-	return false, nil
+	return false
 }
 
 // variantEntry stores the variant struct and the ID of its corresponding rule.
@@ -172,16 +177,6 @@ func (rdb *RuleDB) load() (retErr error) {
 
 	expiredRules := make(map[*Rule]bool)
 
-	defer func() {
-		// If an error occurred or any rules expired, the state of the rule
-		// database changed, so save it to disk.
-		if retErr != nil || len(expiredRules) > 0 {
-			if saveErr := rdb.save(); rdb != nil {
-				retErr = errorsJoin(retErr, saveErr)
-			}
-		}
-	}()
-
 	target := rdb.dbpath()
 	f, err := os.Open(target)
 	if err != nil {
@@ -204,16 +199,17 @@ func (rdb *RuleDB) load() (retErr error) {
 
 	var errInvalid error
 	for _, rule := range wrapped.Rules {
-		expired, err := rule.Expired(currTime)
-		if err != nil {
-			// Invalid rule on disk, should not occur
-			errInvalid = err
+		if err := rule.validate(); err != nil {
+			// we're loading previously saved rules, so this should not happen
+			errInvalid = fmt.Errorf("internal error: %w", err)
 			break
 		}
-		if expired {
+
+		if rule.Expired(currTime) {
 			expiredRules[rule] = true
 			continue
 		}
+
 		if err = rdb.addRule(rule); err != nil {
 			// Duplicate rules on disk, should not occur
 			errInvalid = err
@@ -235,7 +231,8 @@ func (rdb *RuleDB) load() (retErr error) {
 		rdb.ids = make(map[prompting.IDType]int)
 		rdb.rules = make([]*Rule, 0)
 		rdb.perUser = make(map[uint32]*userDB)
-		return errInvalid
+
+		return errorsJoin(errInvalid, rdb.save())
 	}
 
 	expiredData := map[string]string{"removed": "expired"}
@@ -245,6 +242,10 @@ func (rdb *RuleDB) load() (retErr error) {
 			data = expiredData
 		}
 		rdb.notifyRule(rule.User, rule.ID, data)
+	}
+
+	if len(expiredRules) > 0 {
+		return rdb.save()
 	}
 
 	return nil
@@ -438,7 +439,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) *ruleC
 		switch {
 		case !exists:
 			newVariantEntries[variantStr] = newEntry
-		case rdb.isRuleExpired(conflictingVariantEntry.RuleID, rule.Timestamp):
+		case rdb.isRuleWithIDExpired(conflictingVariantEntry.RuleID, rule.Timestamp):
 			expiredRules[conflictingVariantEntry.RuleID] = true
 			newVariantEntries[variantStr] = newEntry
 		default:
@@ -476,21 +477,16 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) *ruleC
 	return nil
 }
 
-// isRuleExpired returns true if the rule with given ID is expired with respect
+// isRuleWithIDExpired returns true if the rule with given ID is expired with respect
 // to the provided timestamp, or if it otherwise no longer exists.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) isRuleExpired(id prompting.IDType, currTime time.Time) bool {
+func (rdb *RuleDB) isRuleWithIDExpired(id prompting.IDType, currTime time.Time) bool {
 	rule, err := rdb.ruleWithID(id)
 	if err != nil {
 		return true
 	}
-	expired, err := rule.Expired(currTime)
-	if err != nil {
-		// Issue with expiration, this should not occur
-		logger.Noticef("internal error: while checking whether rule had expired: %v", err)
-	}
-	return expired
+	return rule.Expired(currTime)
 }
 
 // removeExistingRuleNoError removes provided rule from permissions tree and
@@ -613,7 +609,7 @@ func errorsJoin(errs ...error) error {
 	return err
 }
 
-// populateNewRule creates a new Rule with the given contents.
+// makeNewRule creates a new Rule with the given contents.
 //
 // Users of requestrules should probably autofill rules from JSON and never call
 // this function directly.
@@ -623,7 +619,7 @@ func errorsJoin(errs ...error) error {
 // time, to compute the expiration time for the rule, and stores that as part
 // of the rule which is returned. If any of the given parameters are invalid,
 // returns a corresponding error.
-func (rdb *RuleDB) populateNewRule(user uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*Rule, error) {
+func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*Rule, error) {
 	if err := constraints.ValidateForInterface(iface); err != nil {
 		return nil, err
 	}
@@ -642,6 +638,7 @@ func (rdb *RuleDB) populateNewRule(user uint32, snap string, iface string, const
 	if err != nil {
 		return nil, err
 	}
+
 	newRule := Rule{
 		ID:          id,
 		Timestamp:   currTime,
@@ -653,6 +650,11 @@ func (rdb *RuleDB) populateNewRule(user uint32, snap string, iface string, const
 		Lifespan:    lifespan,
 		Expiration:  expiration,
 	}
+
+	if err := newRule.validate(); err != nil {
+		return nil, err
+	}
+
 	return &newRule, nil
 }
 
@@ -681,15 +683,11 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 			rdb.notifyRule(user, variantEntry.RuleID, nil)
 			continue
 		}
-		expired, err := matchingRule.Expired(currTime)
-		switch {
-		case err != nil:
-			// Issue with expiration, this should not occur
-			logger.Noticef("internal error: while checking whether rule had expired: %v", err)
-			fallthrough
-		case expired:
+
+		if matchingRule.Expired(currTime) {
 			continue
 		}
+
 		// Need to compare the path pattern variant, not the rule's path
 		// pattern, so that only variants which match are included,
 		// and the highest precedence variant can be computed.
@@ -749,7 +747,7 @@ func (rdb *RuleDB) RuleWithID(user uint32, id prompting.IDType) (*Rule, error) {
 func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*Rule, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
-	newRule, err := rdb.populateNewRule(user, snap, iface, constraints, outcome, lifespan, duration)
+	newRule, err := rdb.makeNewRule(user, snap, iface, constraints, outcome, lifespan, duration)
 	if err != nil {
 		return nil, err
 	}
@@ -885,7 +883,7 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraints *prom
 		lifespan = origRule.Lifespan
 	}
 
-	newRule, err := rdb.populateNewRule(user, origRule.Snap, origRule.Interface, constraints, outcome, lifespan, duration)
+	newRule, err := rdb.makeNewRule(user, origRule.Snap, origRule.Interface, constraints, outcome, lifespan, duration)
 	if err != nil {
 		return nil, err
 	}
@@ -952,15 +950,10 @@ func (rdb *RuleDB) rulesInternal(ruleFilter func(rule *Rule) bool) []*Rule {
 	rules := make([]*Rule, 0)
 	currTime := time.Now()
 	for _, rule := range rdb.rules {
-		expired, err := rule.Expired(currTime)
-		switch {
-		case err != nil:
-			// Issue with expiration, this should not occur
-			logger.Noticef("internal error: while checking whether rule had expired: %v", err)
-			fallthrough
-		case expired:
+		if rule.Expired(currTime) {
 			continue
 		}
+
 		if ruleFilter(rule) {
 			rules = append(rules, rule)
 		}

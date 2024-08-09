@@ -34,5 +34,5 @@ func (rdb *RuleDB) PerUser() map[uint32]*userDB {
 }
 
 func (rdb *RuleDB) PopulateNewRule(user uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*Rule, error) {
-	return rdb.populateNewRule(user, snap, iface, constraints, outcome, lifespan, duration)
+	return rdb.makeNewRule(user, snap, iface, constraints, outcome, lifespan, duration)
 }
