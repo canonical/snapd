@@ -17,7 +17,12 @@ environment:
 prepare: |
   VERSION="$(tests.nested show version)"
   snap download --basename=pc-kernel --channel="$VERSION/stable" pc-kernel
-  snap download --basename=pc --channel="classic-${VERSION}.04/stable" pc
+  if [ "$VERSION" == 22 ]; then
+    PC_VERSION="23.10"
+  else
+    PC_VERSION="${VERSION}.04"
+  fi
+  snap download --basename=pc --channel="classic-${PC_VERSION}/stable" pc
 
   "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
      --model "${TESTSLIB}/assertions/classic-model-${VERSION}.assert" \
