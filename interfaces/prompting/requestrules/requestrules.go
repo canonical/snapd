@@ -275,6 +275,20 @@ func (rdb *RuleDB) save() error {
 	return osutil.AtomicWriteFile(rdb.dbPath, b, 0o600, 0)
 }
 
+// lookupRuleByID returns the rule with the given ID from the rule DB.
+//
+// The caller must ensure that the database lock is held.
+func (rdb *RuleDB) lookupRuleByID(id prompting.IDType) (*Rule, error) {
+	index, exists := rdb.indexByID[id]
+	if !exists {
+		return nil, ErrRuleIDNotFound
+	}
+	if index >= len(rdb.rules) {
+		return nil, ErrInternalInconsistency
+	}
+	return rdb.rules[index], nil
+}
+
 // addRuleToRulesList adds the given rule to the rules list of the rule DB.
 // Whenever possible, it is preferred to use `addRule` directly instead, since
 // it ensures consistency between the rules list and the per-user rules tree.
@@ -307,20 +321,6 @@ func (rdb *RuleDB) addRule(rule *Rule) error {
 	rdb.rules = rdb.rules[:len(rdb.rules)-1]
 	delete(rdb.indexByID, rule.ID)
 	return err
-}
-
-// lookupRuleByID returns the rule with the given ID from the rule DB.
-//
-// The caller must ensure that the database lock is held.
-func (rdb *RuleDB) lookupRuleByID(id prompting.IDType) (*Rule, error) {
-	index, exists := rdb.indexByID[id]
-	if !exists {
-		return nil, ErrRuleIDNotFound
-	}
-	if index >= len(rdb.rules) {
-		return nil, ErrInternalInconsistency
-	}
-	return rdb.rules[index], nil
 }
 
 // removeRuleByIDFromRulesList removes the rule with the given ID from the rules
@@ -376,65 +376,34 @@ func (rdb *RuleDB) removeRuleByID(id prompting.IDType) (*Rule, error) {
 	return rule, nil
 }
 
-// permissionDBForUserSnapInterfacePermission returns the permission DB for the
-// given user, snap, interface, and permission, if it exists.
+// addRuleToTree adds the given rule to the rule tree.
 //
-// The caller must ensure that the database lock is held.
-func (rdb *RuleDB) permissionDBForUserSnapInterfacePermission(user uint32, snap string, iface string, permission string) (*permissionDB, bool) {
-	userSnaps := rdb.perUser[user]
-	if userSnaps == nil {
-		return nil, false
-	}
-	snapInterfaces := userSnaps.PerSnap[snap]
-	if snapInterfaces == nil {
-		return nil, false
-	}
-	interfacePerms := snapInterfaces.PerInterface[iface]
-	if interfacePerms == nil {
-		return nil, false
-	}
-	permVariants := interfacePerms.PerPermission[permission]
-	if permVariants == nil {
-		return nil, false
-	}
-	return permVariants, true
-}
-
-// ensurePermissionDBForUserSnapInterfacePermission returns the permission DB
-// for the given user, snap, interface, and permission, or creates it if it
-// does not yet exist.
+// If there is a conflicting path pattern from another rule, returns an
+// error along with the conflicting rules info and the permission for which
+// the conflict occurred.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) ensurePermissionDBForUserSnapInterfacePermission(user uint32, snap string, iface string, permission string) *permissionDB {
-	userSnaps := rdb.perUser[user]
-	if userSnaps == nil {
-		userSnaps = &userDB{
-			PerSnap: make(map[string]*snapDB),
+func (rdb *RuleDB) addRuleToTree(rule *Rule) *ruleConflictError {
+	addedPermissions := make([]string, 0, len(rule.Constraints.Permissions))
+
+	var err *ruleConflictError
+	for _, permission := range rule.Constraints.Permissions {
+		err = rdb.addRulePermissionToTree(rule, permission)
+		if err != nil {
+			break
 		}
-		rdb.perUser[user] = userSnaps
+		addedPermissions = append(addedPermissions, permission)
 	}
-	snapInterfaces := userSnaps.PerSnap[snap]
-	if snapInterfaces == nil {
-		snapInterfaces = &snapDB{
-			PerInterface: make(map[string]*interfaceDB),
+
+	if err != nil {
+		// remove the rule permissions we just added
+		for _, prevPerm := range addedPermissions {
+			rdb.removeRulePermissionFromTree(rule, prevPerm)
 		}
-		userSnaps.PerSnap[snap] = snapInterfaces
+		return err
 	}
-	interfacePerms := snapInterfaces.PerInterface[iface]
-	if interfacePerms == nil {
-		interfacePerms = &interfaceDB{
-			PerPermission: make(map[string]*permissionDB),
-		}
-		snapInterfaces.PerInterface[iface] = interfacePerms
-	}
-	permVariants := interfacePerms.PerPermission[permission]
-	if permVariants == nil {
-		permVariants = &permissionDB{
-			VariantEntries: make(map[string]variantEntry),
-		}
-		interfacePerms.PerPermission[permission] = permVariants
-	}
-	return permVariants
+
+	return nil
 }
 
 // ruleConflict stores the rendered variant which conflicted with that of
@@ -542,6 +511,24 @@ func (rdb *RuleDB) isRuleWithIDExpired(id prompting.IDType, currTime time.Time) 
 	return rule.Expired(currTime)
 }
 
+// removeRuleFromTree fully removes the given rule from the rules tree, even if
+// an error occurs. Whenever possible, it is preferred to use `removeRuleByID`
+// directly instead, since it ensures consistency between the rules list and the
+// per-user rules tree.
+//
+// The caller must ensure that the database lock is held for writing.
+func (rdb *RuleDB) removeRuleFromTree(rule *Rule) error {
+	var errs []error
+	for _, permission := range rule.Constraints.Permissions {
+		if es := rdb.removeRulePermissionFromTree(rule, permission); len(es) > 0 {
+			// Database was left inconsistent, should not occur.
+			// Store the errors, but keep removing.
+			errs = append(errs, es...)
+		}
+	}
+	return joinInternalErrors(errs)
+}
+
 // removeRulePermissionFromTree removes all the path patterns variants for the
 // given rule from the map for the given permission.
 //
@@ -572,54 +559,6 @@ func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) [
 	}
 	rule.Constraints.PathPattern.RenderAllVariants(removeVariant)
 	return errs
-}
-
-// addRuleToTree adds the given rule to the rule tree.
-//
-// If there is a conflicting path pattern from another rule, returns an
-// error along with the conflicting rules info and the permission for which
-// the conflict occurred.
-//
-// The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) addRuleToTree(rule *Rule) *ruleConflictError {
-	addedPermissions := make([]string, 0, len(rule.Constraints.Permissions))
-
-	var err *ruleConflictError
-	for _, permission := range rule.Constraints.Permissions {
-		err = rdb.addRulePermissionToTree(rule, permission)
-		if err != nil {
-			break
-		}
-		addedPermissions = append(addedPermissions, permission)
-	}
-
-	if err != nil {
-		// remove the rule permissions we just added
-		for _, prevPerm := range addedPermissions {
-			rdb.removeRulePermissionFromTree(rule, prevPerm)
-		}
-		return err
-	}
-
-	return nil
-}
-
-// removeRuleFromTree fully removes the given rule from the rules tree, even if
-// an error occurs. Whenever possible, it is preferred to use `removeRuleByID`
-// directly instead, since it ensures consistency between the rules list and the
-// per-user rules tree.
-//
-// The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) removeRuleFromTree(rule *Rule) error {
-	var errs []error
-	for _, permission := range rule.Constraints.Permissions {
-		if es := rdb.removeRulePermissionFromTree(rule, permission); len(es) > 0 {
-			// Database was left inconsistent, should not occur.
-			// Store the errors, but keep removing.
-			errs = append(errs, es...)
-		}
-	}
-	return joinInternalErrors(errs)
 }
 
 // joinInternalErrors wraps an ErrInternalInconsistency with the given errors.
@@ -656,43 +595,65 @@ func errorsJoin(errs ...error) error {
 	return err
 }
 
-// makeNewRule creates a new Rule with the given contents.
+// permissionDBForUserSnapInterfacePermission returns the permission DB for the
+// given user, snap, interface, and permission, if it exists.
 //
-// Users of requestrules should probably autofill rules from JSON and never call
-// this function directly.
+// The caller must ensure that the database lock is held.
+func (rdb *RuleDB) permissionDBForUserSnapInterfacePermission(user uint32, snap string, iface string, permission string) (*permissionDB, bool) {
+	userSnaps := rdb.perUser[user]
+	if userSnaps == nil {
+		return nil, false
+	}
+	snapInterfaces := userSnaps.PerSnap[snap]
+	if snapInterfaces == nil {
+		return nil, false
+	}
+	interfacePerms := snapInterfaces.PerInterface[iface]
+	if interfacePerms == nil {
+		return nil, false
+	}
+	permVariants := interfacePerms.PerPermission[permission]
+	if permVariants == nil {
+		return nil, false
+	}
+	return permVariants, true
+}
+
+// ensurePermissionDBForUserSnapInterfacePermission returns the permission DB
+// for the given user, snap, interface, and permission, or creates it if it
+// does not yet exist.
 //
-// Constructs a new rule with the given parameters as values, with the
-// exception of duration. Uses the given duration, in addition to the current
-// time, to compute the expiration time for the rule, and stores that as part
-// of the rule which is returned. If any of the given parameters are invalid,
-// returns a corresponding error.
-func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*Rule, error) {
-	currTime := time.Now()
-	expiration, err := lifespan.ParseDuration(duration, currTime)
-	if err != nil {
-		return nil, err
+// The caller must ensure that the database lock is held for writing.
+func (rdb *RuleDB) ensurePermissionDBForUserSnapInterfacePermission(user uint32, snap string, iface string, permission string) *permissionDB {
+	userSnaps := rdb.perUser[user]
+	if userSnaps == nil {
+		userSnaps = &userDB{
+			PerSnap: make(map[string]*snapDB),
+		}
+		rdb.perUser[user] = userSnaps
 	}
-
-	newRule := Rule{
-		Timestamp:   currTime,
-		User:        user,
-		Snap:        snap,
-		Interface:   iface,
-		Constraints: constraints,
-		Outcome:     outcome,
-		Lifespan:    lifespan,
-		Expiration:  expiration,
+	snapInterfaces := userSnaps.PerSnap[snap]
+	if snapInterfaces == nil {
+		snapInterfaces = &snapDB{
+			PerInterface: make(map[string]*interfaceDB),
+		}
+		userSnaps.PerSnap[snap] = snapInterfaces
 	}
-
-	if err := newRule.validate(currTime); err != nil {
-		return nil, err
+	interfacePerms := snapInterfaces.PerInterface[iface]
+	if interfacePerms == nil {
+		interfacePerms = &interfaceDB{
+			PerPermission: make(map[string]*permissionDB),
+		}
+		snapInterfaces.PerInterface[iface] = interfacePerms
 	}
-
-	// Don't consume an ID until now, when we know the rule is valid
-	id, _ := rdb.maxIDMmap.NextID()
-	newRule.ID = id
-
-	return &newRule, nil
+	permVariants := interfacePerms.PerPermission[permission]
+	if permVariants == nil {
+		permVariants = &permissionDB{
+			VariantEntries: make(map[string]variantEntry),
+		}
+		interfacePerms.PerPermission[permission] = permVariants
+	}
+	return permVariants
 }
 
 // IsPathAllowed checks whether the given path with the given permission is
@@ -754,6 +715,15 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 	return matchingRule.Outcome.AsBool()
 }
 
+// RuleWithID returns the rule with the given ID.
+// If the rule is not found, returns ErrRuleNotFound.
+// If the rule does not apply to the given user, returns ErrUserNotAllowed.
+func (rdb *RuleDB) RuleWithID(user uint32, id prompting.IDType) (*Rule, error) {
+	rdb.mutex.RLock()
+	defer rdb.mutex.RUnlock()
+	return rdb.lookupRuleByIDForUser(user, id)
+}
+
 // lookupRuleByIDForUser returns the rule with the given ID, if it exists, for the
 // given user. Otherwise, returns an error.
 //
@@ -767,15 +737,6 @@ func (rdb *RuleDB) lookupRuleByIDForUser(user uint32, id prompting.IDType) (*Rul
 		return nil, ErrUserNotAllowed
 	}
 	return rule, nil
-}
-
-// RuleWithID returns the rule with the given ID.
-// If the rule is not found, returns ErrRuleNotFound.
-// If the rule does not apply to the given user, returns ErrUserNotAllowed.
-func (rdb *RuleDB) RuleWithID(user uint32, id prompting.IDType) (*Rule, error) {
-	rdb.mutex.RLock()
-	defer rdb.mutex.RUnlock()
-	return rdb.lookupRuleByIDForUser(user, id)
 }
 
 // Creates a rule with the given information and adds it to the rule database.
@@ -801,6 +762,45 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 
 	rdb.notifyRule(user, newRule.ID, nil)
 	return newRule, nil
+}
+
+// makeNewRule creates a new Rule with the given contents.
+//
+// Users of requestrules should probably autofill rules from JSON and never call
+// this function directly.
+//
+// Constructs a new rule with the given parameters as values, with the
+// exception of duration. Uses the given duration, in addition to the current
+// time, to compute the expiration time for the rule, and stores that as part
+// of the rule which is returned. If any of the given parameters are invalid,
+// returns a corresponding error.
+func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*Rule, error) {
+	currTime := time.Now()
+	expiration, err := lifespan.ParseDuration(duration, currTime)
+	if err != nil {
+		return nil, err
+	}
+
+	newRule := Rule{
+		Timestamp:   currTime,
+		User:        user,
+		Snap:        snap,
+		Interface:   iface,
+		Constraints: constraints,
+		Outcome:     outcome,
+		Lifespan:    lifespan,
+		Expiration:  expiration,
+	}
+
+	if err := newRule.validate(currTime); err != nil {
+		return nil, err
+	}
+
+	// Don't consume an ID until now, when we know the rule is valid
+	id, _ := rdb.maxIDMmap.NextID()
+	newRule.ID = id
+
+	return &newRule, nil
 }
 
 // RemoveRule the rule with the given ID from the rules database. If the rule
