@@ -459,11 +459,8 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]st
 			return nil, err
 		}
 
-		var resources map[string]snap.Revision
+		resources := make(map[string]snap.Revision, len(comps))
 		for _, comp := range comps {
-			if resources == nil {
-				resources = make(map[string]snap.Revision, len(comps))
-			}
 			resources[comp.Component.ComponentName] = comp.Revision
 		}
 

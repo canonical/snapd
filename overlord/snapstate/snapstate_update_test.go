@@ -951,6 +951,7 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 				RefreshedDate:   refreshedDate,
 				Epoch:           snap.E("0"),
 				CohortKey:       "embattled",
+				Resources:       make(map[string]snap.Revision),
 			}},
 			userID: 1,
 		},
@@ -1326,6 +1327,7 @@ func (s *snapmgrTestSuite) testParallelInstanceUpdateRunThrough(c *C, refreshApp
 				TrackingChannel: "latest/stable",
 				RefreshedDate:   refreshedDate,
 				Epoch:           snap.E("0"),
+				Resources:       make(map[string]snap.Revision),
 			}},
 			userID: 1,
 		},
@@ -1791,6 +1793,7 @@ func (s *snapmgrTestSuite) TestUpdateModelKernelSwitchTrackRunThrough(c *C) {
 				TrackingChannel: "18/stable",
 				RefreshedDate:   refreshedDate,
 				Epoch:           snap.E("1*"),
+				Resources:       make(map[string]snap.Revision),
 			}},
 			userID: 1,
 		}, {
@@ -1928,6 +1931,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 					Revision:      snap.R(1),
 					RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1),
 					Epoch:         snap.E("1*"),
+					Resources:     make(map[string]snap.Revision),
 				},
 				{
 					InstanceName:  "services-snap",
@@ -1935,6 +1939,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 					Revision:      snap.R(2),
 					RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 2),
 					Epoch:         snap.E("0"),
+					Resources:     make(map[string]snap.Revision),
 				},
 				{
 					InstanceName:  "some-snap",
@@ -1942,6 +1947,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 					Revision:      snap.R(5),
 					RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 5),
 					Epoch:         snap.E("1*"),
+					Resources:     make(map[string]snap.Revision),
 				},
 			})
 		case "storesvc-snap-action:action":
@@ -2037,6 +2043,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 					Revision:      snap.R(1),
 					RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1),
 					Epoch:         snap.E("1*"),
+					Resources:     make(map[string]snap.Revision),
 				},
 				{
 					InstanceName:  "services-snap",
@@ -2044,6 +2051,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 					Revision:      snap.R(2),
 					RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 2),
 					Epoch:         snap.E("0"),
+					Resources:     make(map[string]snap.Revision),
 				},
 				{
 					InstanceName:  "some-snap",
@@ -2051,6 +2059,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 					Revision:      snap.R(5),
 					RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 5),
 					Epoch:         snap.E("1*"),
+					Resources:     make(map[string]snap.Revision),
 				},
 			})
 		case "storesvc-snap-action:action":
@@ -2157,6 +2166,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThro
 					Revision:      snap.R(1),
 					RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1),
 					Epoch:         snap.E("1*"),
+					Resources:     make(map[string]snap.Revision),
 				},
 				{
 					InstanceName:  "services-snap",
@@ -2164,6 +2174,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThro
 					Revision:      snap.R(2),
 					RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 2),
 					Epoch:         snap.E("0"),
+					Resources:     make(map[string]snap.Revision),
 				},
 				{
 					InstanceName:  "some-snap",
@@ -2171,6 +2182,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThro
 					Revision:      snap.R(5),
 					RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 5),
 					Epoch:         snap.E("1*"),
+					Resources:     make(map[string]snap.Revision),
 				},
 			})
 		case "storesvc-snap-action:action":
@@ -2234,6 +2246,7 @@ func (s *snapmgrTestSuite) testUpdateUndoRunThrough(c *C, refreshAppAwarenessUX 
 				Revision:      snap.R(7),
 				RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
 				Epoch:         snap.E("1*"),
+				Resources:     make(map[string]snap.Revision),
 			}},
 			userID: 1,
 		},
@@ -2572,6 +2585,7 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 				TrackingChannel: "latest/stable",
 				RefreshedDate:   fakeRevDateEpoch.AddDate(0, 0, 7),
 				Epoch:           snap.E("1*"),
+				Resources:       make(map[string]snap.Revision),
 			}},
 			userID: 1,
 		},
@@ -2983,6 +2997,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 				TrackingChannel: "other-channel/stable",
 				RefreshedDate:   fakeRevDateEpoch.AddDate(0, 0, 7),
 				Epoch:           snap.E("1*"),
+				Resources:       make(map[string]snap.Revision),
 			}},
 			userID: 1,
 		},
@@ -3269,6 +3284,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			IgnoreValidation: false,
 			RefreshedDate:    fakeRevDateEpoch.AddDate(0, 0, 7),
 			Epoch:            snap.E("1*"),
+			Resources:        make(map[string]snap.Revision),
 		}},
 		userID: 1,
 	})
@@ -3316,6 +3332,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			IgnoreValidation: true,
 			RefreshedDate:    fakeRevDateEpoch.AddDate(0, 0, 11),
 			Epoch:            snap.E("1*"),
+			Resources:        make(map[string]snap.Revision),
 		}},
 		userID: 1,
 	})
@@ -3367,6 +3384,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			IgnoreValidation: true,
 			RefreshedDate:    fakeRevDateEpoch.AddDate(0, 0, 12),
 			Epoch:            snap.E("1*"),
+			Resources:        make(map[string]snap.Revision),
 		}},
 		userID: 1,
 	})
@@ -3450,6 +3468,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateIgnoreValidationSticky(c *C
 			IgnoreValidation: false,
 			RefreshedDate:    fakeRevDateEpoch.AddDate(0, 0, 7),
 			Epoch:            snap.E("1*"),
+			Resources:        make(map[string]snap.Revision),
 		}, {
 			InstanceName:     "some-snap_instance",
 			SnapID:           "some-snap-id",
@@ -3457,6 +3476,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateIgnoreValidationSticky(c *C
 			IgnoreValidation: false,
 			RefreshedDate:    fakeRevDateEpoch.AddDate(0, 0, 7),
 			Epoch:            snap.E("1*"),
+			Resources:        make(map[string]snap.Revision),
 		}},
 		userID: 1,
 	})
@@ -3540,6 +3560,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateIgnoreValidationSticky(c *C
 					IgnoreValidation: false,
 					RefreshedDate:    fakeRevDateEpoch.AddDate(0, 0, 7),
 					Epoch:            snap.E("1*"),
+					Resources:        make(map[string]snap.Revision),
 				}, {
 					InstanceName:     "some-snap_instance",
 					SnapID:           "some-snap-id",
@@ -3548,6 +3569,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateIgnoreValidationSticky(c *C
 					IgnoreValidation: true,
 					RefreshedDate:    fakeRevDateEpoch.AddDate(0, 0, 11),
 					Epoch:            snap.E("1*"),
+					Resources:        make(map[string]snap.Revision),
 				}},
 				userID: 1,
 			})
@@ -3731,6 +3753,7 @@ func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {
 			Revision:      snap.R(7),
 			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
 			Epoch:         snap.E("1*"),
+			Resources:     make(map[string]snap.Revision),
 		}},
 		userID: 1,
 	})
@@ -3772,6 +3795,7 @@ func (s *snapmgrTestSuite) TestMultiUpdateBlockedRevision(c *C) {
 			Revision:      snap.R(7),
 			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
 			Epoch:         snap.E("1*"),
+			Resources:     make(map[string]snap.Revision),
 		}},
 		userID: 1,
 	})
@@ -3813,6 +3837,7 @@ func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
 			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
 			Block:         []snap.Revision{snap.R(11)},
 			Epoch:         snap.E("1*"),
+			Resources:     make(map[string]snap.Revision),
 		}},
 		userID: 1,
 	})
@@ -3857,6 +3882,7 @@ func (s *snapmgrTestSuite) TestAllUpdateRevisionNotBlocked(c *C) {
 			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
 			Block:         []snap.Revision{snap.R(11)},
 			Epoch:         snap.E("1*"),
+			Resources:     make(map[string]snap.Revision),
 		}},
 		userID: 1,
 	})
@@ -6955,6 +6981,7 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationRefreshToRequire
 			Revision:      snap.R(1),
 			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
+			Resources:     make(map[string]snap.Revision),
 		}}}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
@@ -7025,6 +7052,7 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAnyRevision(c
 			Revision:      snap.R(1),
 			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
+			Resources:     make(map[string]snap.Revision),
 		}}}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
@@ -7095,6 +7123,7 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationSetAny
 			Revision:      snap.R(1),
 			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
+			Resources:     make(map[string]snap.Revision),
 		}}}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
@@ -7161,6 +7190,7 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWithMa
 			Revision:      snap.R(1),
 			Epoch:         snap.E("1*"),
 			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1),
+			Resources:     make(map[string]snap.Revision),
 		}},
 	}, {
 		op: "storesvc-snap-action:action",
@@ -7323,6 +7353,7 @@ func (s *validationSetsSuite) TestUpdateToWrongRevisionIgnoreValidation(c *C) {
 			Epoch:            snap.E("1*"),
 			RefreshedDate:    refreshedDate,
 			IgnoreValidation: true,
+			Resources:        make(map[string]snap.Revision),
 		}},
 	}, {
 		op: "storesvc-snap-action:action",
@@ -7429,6 +7460,7 @@ func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetsCohortIgnore
 			Revision:      snap.R(1),
 			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
+			Resources:     make(map[string]snap.Revision),
 		}},
 	}, {
 		op: "storesvc-snap-action:action",
@@ -7497,6 +7529,7 @@ func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetIgnoreValidat
 			Epoch:            snap.E("1*"),
 			RefreshedDate:    refreshedDate,
 			IgnoreValidation: true,
+			Resources:        make(map[string]snap.Revision),
 		}},
 	}, {
 		op: "storesvc-snap-action:action",
@@ -7603,6 +7636,7 @@ func (s *validationSetsSuite) TestUpdateToRevisionWithValidationSets(c *C) {
 			Revision:      snap.R(1),
 			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
+			Resources:     make(map[string]snap.Revision),
 		}}}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
@@ -14179,7 +14213,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 
 	currentSeq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si})
 
-	var currentResources map[string]snap.Revision
+	currentResources := make(map[string]snap.Revision, len(opts.components))
 	for _, comp := range opts.components {
 		err := currentSeq.AddComponentForRevision(currentSnapRev, &sequence.ComponentState{
 			SideInfo: &snap.ComponentSideInfo{
