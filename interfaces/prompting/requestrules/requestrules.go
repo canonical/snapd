@@ -41,13 +41,19 @@ type Rule struct {
 }
 
 // Validate verifies internal correctness of the rule
-func (rule *Rule) validate() error {
-	switch rule.Lifespan {
-	case prompting.LifespanTimespan:
-		// rules with limited timespan should have the expiration time set
-		if rule.Expiration.IsZero() {
-			return fmt.Errorf("rule has limited timespan but no expiration time")
-		}
+func (rule *Rule) validate(currTime time.Time) error {
+	if err := rule.Constraints.ValidateForInterface(rule.Interface); err != nil {
+		return err
+	}
+	if _, err := rule.Outcome.AsBool(); err != nil {
+		return err
+	}
+	if rule.Lifespan == prompting.LifespanSingle {
+		// We don't allow rules with lifespan "single"
+		return ErrLifespanSingle
+	}
+	if err := rule.Lifespan.ValidateExpiration(rule.Expiration, currTime); err != nil {
+		return err
 	}
 	return nil
 }
@@ -208,15 +214,17 @@ func (rdb *RuleDB) load() (retErr error) {
 
 	var errInvalid error
 	for _, rule := range wrapped.Rules {
-		if err := rule.validate(); err != nil {
-			// we're loading previously saved rules, so this should not happen
-			errInvalid = fmt.Errorf("internal error: %w", err)
-			break
-		}
-
 		if rule.Expired(currTime) {
 			expiredRules[rule] = true
 			continue
+		}
+		// If an expired rule happens to be invalid, it's fine, since we remove
+		// it anyway.
+
+		if err := rule.validate(currTime); err != nil {
+			// we're loading previously saved rules, so this should not happen
+			errInvalid = fmt.Errorf("internal error: %w", err)
+			break
 		}
 
 		if conflictErr := rdb.addRule(rule); conflictErr != nil {
@@ -659,19 +667,6 @@ func errorsJoin(errs ...error) error {
 // of the rule which is returned. If any of the given parameters are invalid,
 // returns a corresponding error.
 func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*Rule, error) {
-	if err := constraints.ValidateForInterface(iface); err != nil {
-		return nil, err
-	}
-	if _, err := outcome.AsBool(); err != nil {
-		// This should not occur, since populateNewRule should only be called
-		// on values which were validated while unmarshalling
-		return nil, err
-	}
-	if lifespan == prompting.LifespanSingle {
-		// We don't allow creating rules with a lifespan of "single"
-		return nil, ErrLifespanSingle
-	}
-	id, _ := rdb.maxIDMmap.NextID()
 	currTime := time.Now()
 	expiration, err := lifespan.ParseDuration(duration, currTime)
 	if err != nil {
@@ -679,7 +674,6 @@ func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constrain
 	}
 
 	newRule := Rule{
-		ID:          id,
 		Timestamp:   currTime,
 		User:        user,
 		Snap:        snap,
@@ -690,9 +684,13 @@ func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constrain
 		Expiration:  expiration,
 	}
 
-	if err := newRule.validate(); err != nil {
+	if err := newRule.validate(currTime); err != nil {
 		return nil, err
 	}
+
+	// Don't consume an ID until now, when we know the rule is valid
+	id, _ := rdb.maxIDMmap.NextID()
+	newRule.ID = id
 
 	return &newRule, nil
 }
