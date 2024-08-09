@@ -305,7 +305,7 @@ if [ "$STATIC" = 1 ]; then
         # exportfs is used in the nfs-support test
         # becuase because of misspell in upstream steam rules (PR#12657)
         MISSPELL_IGNORE="auther,PROCES,PROCESSS,proces,processs,exportfs,becuase"
-        git ls-files -z -- . ':!:./po' ':!:./vendor' ':!:./c-vendor' ':!:./cmd/libsnap-confine-private/bpf/vendor' |
+        git ls-files -z -- . ':!:./po' ':!:./vendor' ':!:./c-vendor' ':!:./cmd/libsnap-confine-private/bpf/vendor' ':!:./build-aux/snap/local/apparmor'|
             xargs -0 misspell -error -i "$MISSPELL_IGNORE"
     fi
 
