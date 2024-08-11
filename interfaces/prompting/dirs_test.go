@@ -53,3 +53,17 @@ func (s *promptingDirsSuite) TestStateDir(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(fi.IsDir(), Equals, true)
 }
+
+func (s *promptingDirsSuite) TestEnsureStateDirError(c *C) {
+	_, err := os.Stat(prompting.StateDir())
+	c.Assert(err, ErrorMatches, "stat .*var/lib/snapd/interfaces-requests: no such file or directory")
+
+	parent := filepath.Dir(prompting.StateDir())
+	c.Assert(os.MkdirAll(parent, 0o755), IsNil)
+	f, err := os.Create(prompting.StateDir())
+	c.Assert(err, IsNil)
+	f.Close()
+
+	err = prompting.EnsureStateDir()
+	c.Assert(err, ErrorMatches, "cannot create interfaces requests state directory.*")
+}

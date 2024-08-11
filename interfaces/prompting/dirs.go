@@ -19,6 +19,7 @@
 package prompting
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -32,5 +33,10 @@ func StateDir() string {
 
 // EnsureStateDir creates the state directory with appropriate permissions.
 func EnsureStateDir() error {
-	return os.MkdirAll(StateDir(), 0o755)
+	stateDir := StateDir()
+	err := os.MkdirAll(stateDir, 0o755)
+	if err != nil {
+		return fmt.Errorf("cannot create interfaces requests state directory '%s': %w", stateDir, err)
+	}
+	return nil
 }
