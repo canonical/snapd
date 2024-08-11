@@ -20,19 +20,13 @@
 package requestrules
 
 import (
-	"github.com/snapcore/snapd/interfaces/prompting"
+	"time"
 )
 
 var JoinInternalErrors = joinInternalErrors
 
-func (rdb *RuleDB) Load() error {
-	return rdb.load()
-}
+type RulesDBJSON rulesDBJSON
 
-func (rdb *RuleDB) PerUser() map[uint32]*userDB {
-	return rdb.perUser
-}
-
-func (rdb *RuleDB) PopulateNewRule(user uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*Rule, error) {
-	return rdb.makeNewRule(user, snap, iface, constraints, outcome, lifespan, duration)
+func (rule *Rule) Validate(currTime time.Time) error {
+	return rule.validate(currTime)
 }

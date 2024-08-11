@@ -18,11 +18,11 @@ import (
 )
 
 var (
-	ErrInternalInconsistency = errors.New("internal error: prompting rules database left inconsistent")
+	ErrInternalInconsistency = errors.New("internal error: prompting rule database left inconsistent")
 	ErrLifespanSingle        = errors.New(`cannot create rule with lifespan "single"`)
 	ErrRuleIDNotFound        = errors.New("rule ID is not found")
-	ErrRuleIDConflict        = errors.New("rule with matching ID already exists in rules database")
-	ErrPathPatternConflict   = errors.New("a rule with conflicting path pattern and permission already exists in the rules database")
+	ErrRuleIDConflict        = errors.New("rule with matching ID already exists in rule database")
+	ErrPathPatternConflict   = errors.New("a rule with conflicting path pattern and permission already exists in the rule database")
 	ErrNoMatchingRule        = errors.New("no rules match the given path")
 	ErrUserNotAllowed        = errors.New("the given user is not allowed to request the rule with the given ID")
 )
@@ -163,12 +163,12 @@ func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string
 		dbPath:     filepath.Join(prompting.StateDir(), "request-rules.json"),
 	}
 	if err = rdb.load(); err != nil {
-		logger.Noticef("cannot load rules DB: %v; using new empty rule database", err)
+		logger.Noticef("cannot load rule database: %v; using new empty rule database", err)
 	}
 	return rdb, nil
 }
 
-// rulesDBJSON is a helper type for wrapping request rules DB for serialization
+// rulesDBJSON is a helper type for wrapping request rule DB for serialization
 // when storing to disk. Should not used in contexts relating to the API.
 type rulesDBJSON struct {
 	Rules []*Rule `json:"rules"`
@@ -198,16 +198,17 @@ func (rdb *RuleDB) load() (retErr error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
-		return fmt.Errorf("cannot open rules database file: %w", err)
+		return fmt.Errorf("cannot open rule database file: %w", err)
 	}
-	defer f.Close()
 
 	var wrapped rulesDBJSON
 	err = json.NewDecoder(f).Decode(&wrapped)
+	f.Close() // Close now since we're done reading and might need to save later
 	if err != nil {
 		// TODO: store rules separately per-user, so a corrupted rule for one
 		// user can't impact rules for another user.
-		return fmt.Errorf("cannot read stored prompting rules: %w", err)
+		loadErr := fmt.Errorf("cannot read stored request rules: %w", err)
+		return errorsJoin(loadErr, rdb.save())
 	}
 
 	currTime := time.Now()
@@ -269,6 +270,7 @@ func (rdb *RuleDB) load() (retErr error) {
 func (rdb *RuleDB) save() error {
 	b, err := json.Marshal(rulesDBJSON{Rules: rdb.rules})
 	if err != nil {
+		// Should not occur, marshalling should always succeed
 		logger.Noticef("cannot marshal rule DB: %v", err)
 		return fmt.Errorf("cannot marshal rule DB: %w", err)
 	}
@@ -284,6 +286,7 @@ func (rdb *RuleDB) lookupRuleByID(id prompting.IDType) (*Rule, error) {
 		return nil, ErrRuleIDNotFound
 	}
 	if index >= len(rdb.rules) {
+		// Internal inconsistency between rules list and IDs map, should not occur
 		return nil, ErrInternalInconsistency
 	}
 	return rdb.rules[index], nil
@@ -312,7 +315,9 @@ func (rdb *RuleDB) addRuleToRulesList(rule *Rule) error {
 //
 // The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) addRule(rule *Rule) error {
-	rdb.addRuleToRulesList(rule)
+	if err := rdb.addRuleToRulesList(rule); err != nil {
+		return err
+	}
 	err := rdb.addRuleToTree(rule)
 	if err == nil {
 		return nil
@@ -656,6 +661,70 @@ func (rdb *RuleDB) ensurePermissionDBForUserSnapInterfacePermission(user uint32,
 	return permVariants
 }
 
+// Creates a rule with the given information and adds it to the rule database.
+// If any of the given parameters are invalid, returns an error. Otherwise,
+// returns the newly-added rule, and saves the database to disk.
+func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*Rule, error) {
+	rdb.mutex.Lock()
+	defer rdb.mutex.Unlock()
+	newRule, err := rdb.makeNewRule(user, snap, iface, constraints, outcome, lifespan, duration)
+	if err != nil {
+		return nil, err
+	}
+	if err := rdb.addRule(newRule); err != nil {
+		return nil, fmt.Errorf("cannot add rule: %w", err)
+	}
+
+	if err := rdb.save(); err != nil {
+		rdb.removeRuleByID(newRule.ID)
+		// We know that this rule exists, since we just added it, so no error
+		// can occur.
+		return nil, err
+	}
+
+	rdb.notifyRule(user, newRule.ID, nil)
+	return newRule, nil
+}
+
+// makeNewRule creates a new Rule with the given contents.
+//
+// Users of requestrules should probably autofill rules from JSON and never call
+// this function directly.
+//
+// Constructs a new rule with the given parameters as values, with the
+// exception of duration. Uses the given duration, in addition to the current
+// time, to compute the expiration time for the rule, and stores that as part
+// of the rule which is returned. If any of the given parameters are invalid,
+// returns a corresponding error.
+func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*Rule, error) {
+	currTime := time.Now()
+	expiration, err := lifespan.ParseDuration(duration, currTime)
+	if err != nil {
+		return nil, err
+	}
+
+	newRule := Rule{
+		Timestamp:   currTime,
+		User:        user,
+		Snap:        snap,
+		Interface:   iface,
+		Constraints: constraints,
+		Outcome:     outcome,
+		Lifespan:    lifespan,
+		Expiration:  expiration,
+	}
+
+	if err := newRule.validate(currTime); err != nil {
+		return nil, err
+	}
+
+	// Don't consume an ID until now, when we know the rule is valid
+	id, _ := rdb.maxIDMmap.NextID()
+	newRule.ID = id
+
+	return &newRule, nil
+}
+
 // IsPathAllowed checks whether the given path with the given permission is
 // allowed or denied by existing rules for the given user, snap, and interface.
 // If no rule applies, returns ErrNoMatchingRule.
@@ -724,6 +793,71 @@ func (rdb *RuleDB) RuleWithID(user uint32, id prompting.IDType) (*Rule, error) {
 	return rdb.lookupRuleByIDForUser(user, id)
 }
 
+// Rules returns all rules which apply to the given user.
+func (rdb *RuleDB) Rules(user uint32) []*Rule {
+	rdb.mutex.RLock()
+	defer rdb.mutex.RUnlock()
+	ruleFilter := func(rule *Rule) bool {
+		return rule.User == user
+	}
+	return rdb.rulesInternal(ruleFilter)
+}
+
+// rulesInternal returns all rules matching the given filter.
+//
+// The caller must ensure that the database lock is held.
+//
+// TODO: store rules separately per user, snap, and interface, so actions which
+// look up or delete all rules for a given user/snap/interface are much faster.
+// This is safe, since rules must each apply to exactly one user, snap and
+// interface, but may apply to multiple permissions.
+func (rdb *RuleDB) rulesInternal(ruleFilter func(rule *Rule) bool) []*Rule {
+	rules := make([]*Rule, 0)
+	currTime := time.Now()
+	for _, rule := range rdb.rules {
+		if rule.Expired(currTime) {
+			continue
+		}
+
+		if ruleFilter(rule) {
+			rules = append(rules, rule)
+		}
+	}
+	return rules
+}
+
+// RulesForSnap returns all rules which apply to the given user and snap.
+func (rdb *RuleDB) RulesForSnap(user uint32, snap string) []*Rule {
+	rdb.mutex.RLock()
+	defer rdb.mutex.RUnlock()
+	ruleFilter := func(rule *Rule) bool {
+		return rule.User == user && rule.Snap == snap
+	}
+	return rdb.rulesInternal(ruleFilter)
+}
+
+// RulesForInterface returns all rules which apply to the given user and
+// interface.
+func (rdb *RuleDB) RulesForInterface(user uint32, iface string) []*Rule {
+	rdb.mutex.RLock()
+	defer rdb.mutex.RUnlock()
+	ruleFilter := func(rule *Rule) bool {
+		return rule.User == user && rule.Interface == iface
+	}
+	return rdb.rulesInternal(ruleFilter)
+}
+
+// RulesForSnapInterface returns all rules which apply to the given user, snap,
+// and interface.
+func (rdb *RuleDB) RulesForSnapInterface(user uint32, snap string, iface string) []*Rule {
+	rdb.mutex.RLock()
+	defer rdb.mutex.RUnlock()
+	ruleFilter := func(rule *Rule) bool {
+		return rule.User == user && rule.Snap == snap && rule.Interface == iface
+	}
+	return rdb.rulesInternal(ruleFilter)
+}
+
 // lookupRuleByIDForUser returns the rule with the given ID, if it exists, for the
 // given user. Otherwise, returns an error.
 //
@@ -739,71 +873,7 @@ func (rdb *RuleDB) lookupRuleByIDForUser(user uint32, id prompting.IDType) (*Rul
 	return rule, nil
 }
 
-// Creates a rule with the given information and adds it to the rule database.
-// If any of the given parameters are invalid, returns an error. Otherwise,
-// returns the newly-added rule, and saves the database to disk.
-func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*Rule, error) {
-	rdb.mutex.Lock()
-	defer rdb.mutex.Unlock()
-	newRule, err := rdb.makeNewRule(user, snap, iface, constraints, outcome, lifespan, duration)
-	if err != nil {
-		return nil, err
-	}
-	if err := rdb.addRule(newRule); err != nil {
-		return nil, fmt.Errorf("cannot add rule: %w", err)
-	}
-
-	if err := rdb.save(); err != nil {
-		rdb.removeRuleByID(newRule.ID)
-		// We know that this rule exists, since we just added it, so no error
-		// can occur.
-		return nil, err
-	}
-
-	rdb.notifyRule(user, newRule.ID, nil)
-	return newRule, nil
-}
-
-// makeNewRule creates a new Rule with the given contents.
-//
-// Users of requestrules should probably autofill rules from JSON and never call
-// this function directly.
-//
-// Constructs a new rule with the given parameters as values, with the
-// exception of duration. Uses the given duration, in addition to the current
-// time, to compute the expiration time for the rule, and stores that as part
-// of the rule which is returned. If any of the given parameters are invalid,
-// returns a corresponding error.
-func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*Rule, error) {
-	currTime := time.Now()
-	expiration, err := lifespan.ParseDuration(duration, currTime)
-	if err != nil {
-		return nil, err
-	}
-
-	newRule := Rule{
-		Timestamp:   currTime,
-		User:        user,
-		Snap:        snap,
-		Interface:   iface,
-		Constraints: constraints,
-		Outcome:     outcome,
-		Lifespan:    lifespan,
-		Expiration:  expiration,
-	}
-
-	if err := newRule.validate(currTime); err != nil {
-		return nil, err
-	}
-
-	// Don't consume an ID until now, when we know the rule is valid
-	id, _ := rdb.maxIDMmap.NextID()
-	newRule.ID = id
-
-	return &newRule, nil
-}
-
-// RemoveRule the rule with the given ID from the rules database. If the rule
+// RemoveRule the rule with the given ID from the rule database. If the rule
 // does not apply to the given user, returns ErrUserNotAllowed. If successful,
 // saves the database to disk.
 func (rdb *RuleDB) RemoveRule(user uint32, id prompting.IDType) (*Rule, error) {
@@ -838,15 +908,17 @@ func (rdb *RuleDB) RemoveRule(user uint32, id prompting.IDType) (*Rule, error) {
 
 // RemoveRulesForSnap removes all rules pertaining to the given snap for the
 // user with the given user ID.
-func (rdb *RuleDB) RemoveRulesForSnap(user uint32, snap string) []*Rule {
+func (rdb *RuleDB) RemoveRulesForSnap(user uint32, snap string) ([]*Rule, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 	ruleFilter := func(rule *Rule) bool {
 		return rule.User == user && rule.Snap == snap
 	}
 	rules := rdb.rulesInternal(ruleFilter)
-	rdb.removeRulesInternal(user, rules)
-	return rules
+	if err := rdb.removeRulesInternal(user, rules); err != nil {
+		return nil, err
+	}
+	return rules, nil
 }
 
 // removeRulesInternal removes all of the given rules from the rule DB and
@@ -880,6 +952,21 @@ func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) error {
 		rdb.notifyRule(user, rule.ID, data)
 	}
 	return nil
+}
+
+// RemoveRulesForInterface removes all rules pertaining to the given interface
+// for the user with the given user ID.
+func (rdb *RuleDB) RemoveRulesForInterface(user uint32, iface string) ([]*Rule, error) {
+	rdb.mutex.Lock()
+	defer rdb.mutex.Unlock()
+	ruleFilter := func(rule *Rule) bool {
+		return rule.User == user && rule.Interface == iface
+	}
+	rules := rdb.rulesInternal(ruleFilter)
+	if err := rdb.removeRulesInternal(user, rules); err != nil {
+		return nil, err
+	}
+	return rules, nil
 }
 
 // RemoveRulesForSnapInterface removes all rules pertaining to the given snap
@@ -955,69 +1042,4 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraints *prom
 
 	rdb.notifyRule(newRule.User, newRule.ID, nil)
 	return newRule, nil
-}
-
-// Rules returns all rules which apply to the given user.
-func (rdb *RuleDB) Rules(user uint32) []*Rule {
-	rdb.mutex.RLock()
-	defer rdb.mutex.RUnlock()
-	ruleFilter := func(rule *Rule) bool {
-		return rule.User == user
-	}
-	return rdb.rulesInternal(ruleFilter)
-}
-
-// rulesInternal returns all rules matching the given filter.
-//
-// The caller must ensure that the database lock is held.
-//
-// TODO: store rules separately per user, snap, and interface, so actions which
-// look up or delete all rules for a given user/snap/interface are much faster.
-// This is safe, since rules must each apply to exactly one user, snap and
-// interface, but may apply to multiple permissions.
-func (rdb *RuleDB) rulesInternal(ruleFilter func(rule *Rule) bool) []*Rule {
-	rules := make([]*Rule, 0)
-	currTime := time.Now()
-	for _, rule := range rdb.rules {
-		if rule.Expired(currTime) {
-			continue
-		}
-
-		if ruleFilter(rule) {
-			rules = append(rules, rule)
-		}
-	}
-	return rules
-}
-
-// RulesForSnap returns all rules which apply to the given user and snap.
-func (rdb *RuleDB) RulesForSnap(user uint32, snap string) []*Rule {
-	rdb.mutex.RLock()
-	defer rdb.mutex.RUnlock()
-	ruleFilter := func(rule *Rule) bool {
-		return rule.User == user && rule.Snap == snap
-	}
-	return rdb.rulesInternal(ruleFilter)
-}
-
-// RulesForInterface returns all rules which apply to the given user and
-// interface.
-func (rdb *RuleDB) RulesForInterface(user uint32, iface string) []*Rule {
-	rdb.mutex.RLock()
-	defer rdb.mutex.RUnlock()
-	ruleFilter := func(rule *Rule) bool {
-		return rule.User == user && rule.Interface == iface
-	}
-	return rdb.rulesInternal(ruleFilter)
-}
-
-// RulesForSnapInterface returns all rules which apply to the given user, snap,
-// and interface.
-func (rdb *RuleDB) RulesForSnapInterface(user uint32, snap string, iface string) []*Rule {
-	rdb.mutex.RLock()
-	defer rdb.mutex.RUnlock()
-	ruleFilter := func(rule *Rule) bool {
-		return rule.User == user && rule.Snap == snap && rule.Interface == iface
-	}
-	return rdb.rulesInternal(ruleFilter)
 }
