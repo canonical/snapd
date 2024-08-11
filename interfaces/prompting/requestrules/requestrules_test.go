@@ -23,12 +23,13 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type noticeInfo struct {
+	userID uint32
 	ruleID prompting.IDType
 	data   map[string]string
 }
 
 func (ni *noticeInfo) String() string {
-	return fmt.Sprintf("{\n\truleID: %s\n\tdata:   %#v\n}", ni.ruleID, ni.data)
+	return fmt.Sprintf("{\n\tuserID: %x\n\truleID: %s\n\tdata:   %#v\n}", ni.userID, ni.ruleID, ni.data)
 }
 
 type requestrulesSuite struct {
@@ -44,8 +45,8 @@ var _ = Suite(&requestrulesSuite{})
 func (s *requestrulesSuite) SetUpTest(c *C) {
 	s.defaultUser = 1000
 	s.defaultNotifyRule = func(userID uint32, ruleID prompting.IDType, data map[string]string) error {
-		c.Check(userID, Equals, s.defaultUser)
 		info := &noticeInfo{
+			userID: userID,
 			ruleID: ruleID,
 			data:   data,
 		}
@@ -166,7 +167,7 @@ func (s *requestrulesSuite) prepDBPath(c *C) string {
 	return dbPath
 }
 
-func (s *requestrulesSuite) testLoadError(c *C, expectedErr string, expectedNoticeRuleIDs []prompting.IDType, checkWritten bool) {
+func (s *requestrulesSuite) testLoadError(c *C, expectedErr string, rules []*requestrules.Rule, checkWritten bool) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 	rdb, err := requestrules.New(s.defaultNotifyRule)
@@ -177,8 +178,7 @@ func (s *requestrulesSuite) testLoadError(c *C, expectedErr string, expectedNoti
 	if checkWritten {
 		s.checkWrittenRuleDB(c, nil)
 	}
-	data := map[string]string{"removed": "dropped"}
-	s.checkNewNoticesSimple(c, expectedNoticeRuleIDs, data)
+	s.checkNewNoticesSimple(c, map[string]string{"removed": "dropped"}, rules...)
 }
 
 func (s *requestrulesSuite) checkWrittenRuleDB(c *C, expectedRules []*requestrules.Rule) {
@@ -196,23 +196,23 @@ func (s *requestrulesSuite) checkWrittenRuleDB(c *C, expectedRules []*requestrul
 	c.Check(string(writtenData), Equals, string(marshalled))
 }
 
-func (s *requestrulesSuite) checkNewNoticesSimple(c *C, expectedRuleIDs []prompting.IDType, expectedData map[string]string) {
-	s.checkNewNotices(c, applyNotices(expectedRuleIDs, expectedData))
-}
-
-func applyNotices(expectedRuleIDs []prompting.IDType, expectedData map[string]string) []*noticeInfo {
-	expectedNotices := make([]*noticeInfo, len(expectedRuleIDs))
-	for i, id := range expectedRuleIDs {
+func (s *requestrulesSuite) checkNewNoticesSimple(c *C, data map[string]string, rules ...*requestrules.Rule) {
+	expectedNotices := make([]*noticeInfo, len(rules))
+	for i, rule := range rules {
 		info := &noticeInfo{
-			ruleID: id,
-			data:   expectedData,
+			userID: rule.User,
+			ruleID: rule.ID,
+			data:   data,
 		}
 		expectedNotices[i] = info
 	}
-	return expectedNotices
+	s.checkNewNotices(c, expectedNotices)
 }
 
 func (s *requestrulesSuite) checkNewNotices(c *C, expectedNotices []*noticeInfo) {
+	if len(expectedNotices) == 0 {
+		expectedNotices = []*noticeInfo{}
+	}
 	c.Check(s.ruleNotices, DeepEquals, expectedNotices, Commentf("\nReceived: %s\nExpected: %s", s.ruleNotices, expectedNotices))
 	s.ruleNotices = s.ruleNotices[:0]
 }
@@ -248,7 +248,7 @@ func (s *requestrulesSuite) TestLoadErrorValidate(c *C) {
 	s.writeRules(c, dbPath, rules)
 
 	checkWritten := true
-	s.testLoadError(c, "internal error: invalid constraints: unsupported interface: foo.*", []prompting.IDType{good1.ID, bad.ID, good2.ID}, checkWritten)
+	s.testLoadError(c, "internal error: invalid constraints: unsupported interface: foo.*", rules, checkWritten)
 }
 
 // ruleTemplate returns a rule with valid contents, intended to be customized.
@@ -296,7 +296,7 @@ func (s *requestrulesSuite) TestLoadErrorConflictingID(c *C) {
 	s.writeRules(c, dbPath, rules)
 
 	checkWritten := true
-	s.testLoadError(c, fmt.Sprintf("cannot add rule: %v.*", requestrules.ErrRuleIDConflict), []prompting.IDType{good.ID, expired.ID, conflicting.ID}, checkWritten)
+	s.testLoadError(c, fmt.Sprintf("cannot add rule: %v.*", requestrules.ErrRuleIDConflict), rules, checkWritten)
 }
 
 func setPathPatternAndExpiration(c *C, rule *requestrules.Rule, pathPattern string, expiration time.Time) {
@@ -321,7 +321,7 @@ func (s *requestrulesSuite) TestLoadErrorConflictingPattern(c *C) {
 	s.writeRules(c, dbPath, rules)
 
 	checkWritten := true
-	s.testLoadError(c, fmt.Sprintf("cannot add rule: %v.*", requestrules.ErrPathPatternConflict), []prompting.IDType{good.ID, expired.ID, conflicting.ID}, checkWritten)
+	s.testLoadError(c, fmt.Sprintf("cannot add rule: %v.*", requestrules.ErrPathPatternConflict), rules, checkWritten)
 }
 
 func (s *requestrulesSuite) TestLoadExpiredRules(c *C) {
@@ -363,22 +363,27 @@ func (s *requestrulesSuite) TestLoadExpiredRules(c *C) {
 
 	expectedNoticeInfo := []*noticeInfo{
 		{
+			userID: good1.User,
 			ruleID: good1.ID,
 			data:   nil,
 		},
 		{
+			userID: expired1.User,
 			ruleID: expired1.ID,
 			data:   map[string]string{"removed": "expired"},
 		},
 		{
+			userID: good2.User,
 			ruleID: good2.ID,
 			data:   nil,
 		},
 		{
+			userID: expired2.User,
 			ruleID: expired2.ID,
 			data:   map[string]string{"removed": "expired"},
 		},
 		{
+			userID: good3.User,
 			ruleID: good3.ID,
 			data:   nil,
 		},
@@ -411,15 +416,7 @@ func (s *requestrulesSuite) TestLoadHappy(c *C) {
 	c.Check(logbuf.String(), HasLen, 0)
 
 	s.checkWrittenRuleDB(c, rules)
-	s.checkNewNoticesSimple(c, rulesToIDs(rules), nil)
-}
-
-func rulesToIDs(rules []*requestrules.Rule) []prompting.IDType {
-	ids := make([]prompting.IDType, len(rules))
-	for i, rule := range rules {
-		ids[i] = rule.ID
-	}
-	return ids
+	s.checkNewNoticesSimple(c, nil, rules...)
 }
 
 func (s *requestrulesSuite) TestJoinInternalErrors(c *C) {
@@ -503,7 +500,7 @@ func (s *requestrulesSuite) TestAddRuleHappy(c *C) {
 		c.Check(rule, NotNil)
 		addedRules = append(addedRules, rule)
 		s.checkWrittenRuleDB(c, addedRules)
-		s.checkNewNoticesSimple(c, []prompting.IDType{rule.ID}, nil)
+		s.checkNewNoticesSimple(c, nil, rule)
 	}
 }
 
@@ -564,7 +561,7 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(good, NotNil)
 	s.checkWrittenRuleDB(c, []*requestrules.Rule{good})
-	s.checkNewNoticesSimple(c, []prompting.IDType{good.ID}, nil)
+	s.checkNewNoticesSimple(c, nil, good)
 
 	// Preserve final error so it can be checked later
 	var finalErr error
@@ -614,7 +611,7 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 		c.Check(result, IsNil)
 		// Check that rule DB was unchanged and no notices were recorded
 		s.checkWrittenRuleDB(c, []*requestrules.Rule{good})
-		s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+		s.checkNewNoticesSimple(c, nil)
 		finalErr = err
 	}
 
@@ -630,7 +627,7 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 	c.Check(result, IsNil)
 	// Failure should result in no changes to written rules and no notices
 	s.checkWrittenRuleDB(c, []*requestrules.Rule{good})
-	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+	s.checkNewNoticesSimple(c, nil)
 }
 
 func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
@@ -664,7 +661,7 @@ func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 
 	// Both rules should be on disk and have notices
 	s.checkWrittenRuleDB(c, []*requestrules.Rule{good, prev})
-	s.checkNewNoticesSimple(c, []prompting.IDType{good.ID, prev.ID}, nil)
+	s.checkNewNoticesSimple(c, nil, good, prev)
 
 	// Add rules which all conflict but each expire before the next is added,
 	// thus causing the prior one to be removed and not causing a conflict error.
@@ -682,10 +679,12 @@ func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 		s.checkWrittenRuleDB(c, []*requestrules.Rule{good, newRule})
 		expectedNoticeInfo := []*noticeInfo{
 			{
+				userID: prev.User,
 				ruleID: prev.ID,
 				data:   map[string]string{"removed": "expired"},
 			},
 			{
+				userID: newRule.User,
 				ruleID: newRule.ID,
 				data:   nil,
 			},
@@ -704,10 +703,12 @@ func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 	s.checkWrittenRuleDB(c, []*requestrules.Rule{good, final})
 	expectedNoticeInfo := []*noticeInfo{
 		{
+			userID: prev.User,
 			ruleID: prev.ID,
 			data:   map[string]string{"removed": "expired"},
 		},
 		{
+			userID: final.User,
 			ruleID: final.ID,
 			data:   nil,
 		},
@@ -793,14 +794,16 @@ func (s *requestrulesSuite) TestIsPathAllowedSimple(c *C) {
 			c.Assert(err, IsNil)
 			c.Assert(rule, NotNil)
 			s.checkWrittenRuleDB(c, []*requestrules.Rule{rule})
-			s.checkNewNoticesSimple(c, []prompting.IDType{rule.ID}, nil)
+			s.checkNewNoticesSimple(c, nil, rule)
+		} else {
+			s.checkNewNoticesSimple(c, nil)
 		}
 
 		allowed, err := rdb.IsPathAllowed(user, snap, iface, path, permission)
 		c.Check(err, Equals, testCase.err)
 		c.Check(allowed, Equals, testCase.allowed)
 		// Check that no notices were recorded when checking
-		s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+		s.checkNewNoticesSimple(c, nil)
 
 		if testCase.ruleContents != nil {
 			// Clean up the rules DB so the next rdb has a clean slate
@@ -862,7 +865,7 @@ func (s *requestrulesSuite) TestIsPathAllowedPrecedence(c *C) {
 		c.Assert(rule, NotNil)
 		addedRules = append(addedRules, rule)
 		s.checkWrittenRuleDB(c, addedRules)
-		s.checkNewNoticesSimple(c, []prompting.IDType{rule.ID}, nil)
+		s.checkNewNoticesSimple(c, nil, rule)
 
 		mostRecentOutcome, err := ruleContents.Outcome.AsBool()
 		c.Check(err, IsNil)
@@ -927,7 +930,7 @@ func (s *requestrulesSuite) TestIsPathAllowedExpiration(c *C) {
 		c.Assert(rule, NotNil)
 		addedRules = append(addedRules, rule)
 		s.checkWrittenRuleDB(c, addedRules)
-		s.checkNewNoticesSimple(c, []prompting.IDType{rule.ID}, nil)
+		s.checkNewNoticesSimple(c, nil, rule)
 	}
 
 	for i := len(addedRules) - 1; i >= 0; i-- {
@@ -941,7 +944,7 @@ func (s *requestrulesSuite) TestIsPathAllowedExpiration(c *C) {
 		c.Check(allowed, Equals, expectedOutcome, Commentf("last unexpired: %+v", rule))
 
 		// Check that no new notices are recorded from lookup or expiration
-		s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+		s.checkNewNoticesSimple(c, nil)
 
 		// Expire the highest precedence rule
 		rule.Expiration = time.Now()
@@ -966,7 +969,7 @@ func (s *requestrulesSuite) TestRuleWithID(c *C) {
 	c.Assert(rule, NotNil)
 
 	s.checkWrittenRuleDB(c, []*requestrules.Rule{rule})
-	s.checkNewNoticesSimple(c, []prompting.IDType{rule.ID}, nil)
+	s.checkNewNoticesSimple(c, nil, rule)
 
 	// Should find correct rule for user and ID
 	accessedRule, err := rdb.RuleWithID(s.defaultUser, rule.ID)
@@ -984,7 +987,7 @@ func (s *requestrulesSuite) TestRuleWithID(c *C) {
 	c.Check(accessedRule, IsNil)
 
 	// Reading (or failing to read) a notice should not record a notice
-	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+	s.checkNewNoticesSimple(c, nil)
 }
 
 func (s *requestrulesSuite) TestRules(c *C) {
@@ -1000,7 +1003,7 @@ func (s *requestrulesSuite) TestRules(c *C) {
 	c.Check(rdb.Rules(s.defaultUser), DeepEquals, rules[:4])
 
 	// Getting rules should cause no notices
-	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+	s.checkNewNoticesSimple(c, nil)
 }
 
 func (s *requestrulesSuite) prepRuleDBForRulesForSnapInterface(c *C, rdb *requestrules.RuleDB) []*requestrules.Rule {
@@ -1029,7 +1032,7 @@ func (s *requestrulesSuite) prepRuleDBForRulesForSnapInterface(c *C, rdb *reques
 		c.Check(rule, NotNil)
 		addedRules = append(addedRules, rule)
 		s.checkWrittenRuleDB(c, addedRules)
-		s.checkNewNoticesSimple(c, []prompting.IDType{rule.ID}, nil)
+		s.checkNewNoticesSimple(c, nil, rule)
 	}
 
 	// Change final rule interface
@@ -1059,7 +1062,7 @@ func (s *requestrulesSuite) TestRulesExpired(c *C) {
 	c.Check(rdb.Rules(s.defaultUser), DeepEquals, []*requestrules.Rule{rules[1], rules[3]})
 
 	// Getting rules should cause no notices
-	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+	s.checkNewNoticesSimple(c, nil)
 }
 
 func (s *requestrulesSuite) TestRulesForSnap(c *C) {
@@ -1074,7 +1077,7 @@ func (s *requestrulesSuite) TestRulesForSnap(c *C) {
 	c.Check(rdb.RulesForSnap(s.defaultUser, "amberol"), DeepEquals, rules[2:4])
 
 	// Getting rules should cause no notices
-	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+	s.checkNewNoticesSimple(c, nil)
 }
 
 func (s *requestrulesSuite) TestRulesForInterface(c *C) {
@@ -1089,7 +1092,7 @@ func (s *requestrulesSuite) TestRulesForInterface(c *C) {
 	c.Check(rdb.RulesForInterface(s.defaultUser, "home"), DeepEquals, rules[:3])
 
 	// Getting rules should cause no notices
-	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+	s.checkNewNoticesSimple(c, nil)
 }
 
 func (s *requestrulesSuite) TestRulesForSnapInterface(c *C) {
@@ -1104,7 +1107,7 @@ func (s *requestrulesSuite) TestRulesForSnapInterface(c *C) {
 	c.Check(rdb.RulesForSnapInterface(s.defaultUser, "amberol", "audio-playback"), DeepEquals, []*requestrules.Rule{rules[3]})
 
 	// Getting rules should cause no notices
-	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+	s.checkNewNoticesSimple(c, nil)
 }
 
 func (s *requestrulesSuite) TestRemoveRuleForward(c *C) {
@@ -1142,7 +1145,7 @@ func (s *requestrulesSuite) testRemoveRule(c *C, rdb *requestrules.RuleDB, rule 
 	c.Check(removed, DeepEquals, rule)
 
 	// Notice should be recorded immediately
-	s.checkNewNoticesSimple(c, []prompting.IDType{removed.ID}, map[string]string{"removed": "removed"})
+	s.checkNewNoticesSimple(c, map[string]string{"removed": "removed"}, removed)
 
 	// Post-check that rule no longer exists
 	missing, err := rdb.RuleWithID(rule.User, rule.ID)
@@ -1179,7 +1182,7 @@ func (s *requestrulesSuite) TestRemoveRuleErrors(c *C) {
 	accessed, err := rdb.RuleWithID(rule.User, rule.ID)
 	c.Check(err, IsNil)
 	c.Check(accessed, DeepEquals, rule)
-	s.checkNewNoticesSimple(c, nil, nil)
+	s.checkNewNoticesSimple(c, nil)
 
 	// Corrupt rules to trigger internal errors, which aren't returned.
 	// Internal errors while removing are ignored and the rule is still removed.
@@ -1201,7 +1204,7 @@ func (s *requestrulesSuite) TestRemoveRuleErrors(c *C) {
 
 	// Since removal succeeded for all corrupted rules (despite internal errors),
 	// should get "removed" notices for each removed rule.
-	s.checkNewNoticesSimple(c, rulesToIDs(addedRules[1:4]), map[string]string{"removed": "removed"})
+	s.checkNewNoticesSimple(c, map[string]string{"removed": "removed"}, addedRules[1:4]...)
 }
 
 func (s *requestrulesSuite) TestRemoveRulesForSnap(c *C) {
@@ -1217,7 +1220,7 @@ func (s *requestrulesSuite) TestRemoveRulesForSnap(c *C) {
 	c.Check(removed, DeepEquals, rules[2:4])
 
 	s.checkWrittenRuleDB(c, append(rules[:2], rules[4]))
-	s.checkNewNoticesSimple(c, rulesToIDs(removed), map[string]string{"removed": "removed"})
+	s.checkNewNoticesSimple(c, map[string]string{"removed": "removed"}, removed...)
 }
 
 func (s *requestrulesSuite) TestRemoveRulesForInterface(c *C) {
@@ -1233,7 +1236,7 @@ func (s *requestrulesSuite) TestRemoveRulesForInterface(c *C) {
 	c.Check(removed, DeepEquals, rules[:3])
 
 	s.checkWrittenRuleDB(c, []*requestrules.Rule{rules[4], rules[3]}) // removal reorders
-	s.checkNewNoticesSimple(c, rulesToIDs(removed), map[string]string{"removed": "removed"})
+	s.checkNewNoticesSimple(c, map[string]string{"removed": "removed"}, removed...)
 }
 
 func (s *requestrulesSuite) TestRemoveRulesForSnapInterface(c *C) {
@@ -1249,7 +1252,7 @@ func (s *requestrulesSuite) TestRemoveRulesForSnapInterface(c *C) {
 	c.Check(removed, DeepEquals, []*requestrules.Rule{rules[3]})
 
 	s.checkWrittenRuleDB(c, append(rules[:3], rules[4]))
-	s.checkNewNoticesSimple(c, rulesToIDs(removed), map[string]string{"removed": "removed"})
+	s.checkNewNoticesSimple(c, map[string]string{"removed": "removed"}, removed...)
 }
 
 func (s *requestrulesSuite) TestRemoveRulesForSnapInterfaceErrors(c *C) {
@@ -1297,7 +1300,7 @@ func (s *requestrulesSuite) TestRemoveRulesForSnapInterfaceErrors(c *C) {
 	// still has "home" interface on disk.
 	rules[3].Interface = "home"
 	s.checkWrittenRuleDB(c, rules)
-	s.checkNewNoticesSimple(c, rulesToIDs(removed), map[string]string{"removed": "removed"})
+	s.checkNewNoticesSimple(c, map[string]string{"removed": "removed"}, removed...)
 }
 
 func (s *requestrulesSuite) TestPatchRule(c *C) {
@@ -1326,7 +1329,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 		c.Check(rule, NotNil)
 		rules = append(rules, rule)
 		s.checkWrittenRuleDB(c, rules)
-		s.checkNewNoticesSimple(c, []prompting.IDType{rule.ID}, nil)
+		s.checkNewNoticesSimple(c, nil, rule)
 	}
 
 	// Patch last rule in various ways, then patch it back to its original state
@@ -1337,7 +1340,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	patched, err := rdb.PatchRule(rule.User, rule.ID, nil, prompting.OutcomeUnset, prompting.LifespanUnset, "")
 	c.Assert(err, IsNil)
 	s.checkWrittenRuleDB(c, append(rules[:len(rules)-1], patched))
-	s.checkNewNoticesSimple(c, []prompting.IDType{rule.ID}, nil)
+	s.checkNewNoticesSimple(c, nil, rule)
 	// Check that timestamp has changed
 	c.Check(patched.Timestamp.Equal(rule.Timestamp), Equals, false)
 	// After making timestamp the same again, check that the rules are identical
@@ -1350,7 +1353,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	patched, err = rdb.PatchRule(rule.User, rule.ID, rule.Constraints, rule.Outcome, rule.Lifespan, "")
 	c.Assert(err, IsNil)
 	s.checkWrittenRuleDB(c, append(rules[:len(rules)-1], patched))
-	s.checkNewNoticesSimple(c, []prompting.IDType{rule.ID}, nil)
+	s.checkNewNoticesSimple(c, nil, rule)
 	// Check that timestamp has changed
 	c.Check(patched.Timestamp.Equal(rule.Timestamp), Equals, false)
 	// After making timestamp the same again, check that the rules are identical
@@ -1366,7 +1369,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	patched, err = rdb.PatchRule(rule.User, rule.ID, newConstraints, prompting.OutcomeUnset, prompting.LifespanUnset, "")
 	c.Assert(err, IsNil)
 	s.checkWrittenRuleDB(c, append(rules[:len(rules)-1], patched))
-	s.checkNewNoticesSimple(c, []prompting.IDType{rule.ID}, nil)
+	s.checkNewNoticesSimple(c, nil, rule)
 	// Check that timestamp has changed
 	c.Check(patched.Timestamp.Equal(rule.Timestamp), Equals, false)
 	// After making timestamp the same again, check that the rules are identical
@@ -1379,7 +1382,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	patched, err = rdb.PatchRule(rule.User, rule.ID, nil, prompting.OutcomeDeny, prompting.LifespanUnset, "")
 	c.Assert(err, IsNil)
 	s.checkWrittenRuleDB(c, append(rules[:len(rules)-1], patched))
-	s.checkNewNoticesSimple(c, []prompting.IDType{rule.ID}, nil)
+	s.checkNewNoticesSimple(c, nil, rule)
 	// Check that timestamp has changed
 	c.Check(patched.Timestamp.Equal(rule.Timestamp), Equals, false)
 	// After making timestamp the same again, check that the rules are identical
@@ -1392,7 +1395,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	patched, err = rdb.PatchRule(rule.User, rule.ID, nil, prompting.OutcomeUnset, prompting.LifespanTimespan, "10s")
 	c.Assert(err, IsNil)
 	s.checkWrittenRuleDB(c, append(rules[:len(rules)-1], patched))
-	s.checkNewNoticesSimple(c, []prompting.IDType{rule.ID}, nil)
+	s.checkNewNoticesSimple(c, nil, rule)
 	// Check that timestamp has changed
 	c.Check(patched.Timestamp.Equal(rule.Timestamp), Equals, false)
 	// After making timestamp the same again, check that the rules are identical
@@ -1406,7 +1409,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	patched, err = rdb.PatchRule(rule.User, rule.ID, origRule.Constraints, origRule.Outcome, origRule.Lifespan, "")
 	c.Assert(err, IsNil)
 	s.checkWrittenRuleDB(c, append(rules[:len(rules)-1], patched))
-	s.checkNewNoticesSimple(c, []prompting.IDType{rule.ID}, nil)
+	s.checkNewNoticesSimple(c, nil, rule)
 	// Check that timestamp has changed
 	c.Check(patched.Timestamp.Equal(rule.Timestamp), Equals, false)
 	// After making timestamp the same again, check that the rules are identical
@@ -1440,7 +1443,7 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 		c.Check(rule, NotNil)
 		rules = append(rules, rule)
 		s.checkWrittenRuleDB(c, rules)
-		s.checkNewNoticesSimple(c, []prompting.IDType{rule.ID}, nil)
+		s.checkNewNoticesSimple(c, nil, rule)
 	}
 
 	// Patch last rule in various ways, then patch it back to its original state
@@ -1451,21 +1454,21 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 	c.Check(err, Equals, requestrules.ErrUserNotAllowed)
 	c.Check(result, IsNil)
 	s.checkWrittenRuleDB(c, rules)
-	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+	s.checkNewNoticesSimple(c, nil)
 
 	// Wrong ID
 	result, err = rdb.PatchRule(rule.User, prompting.IDType(1234), nil, prompting.OutcomeUnset, prompting.LifespanUnset, "")
 	c.Check(err, Equals, requestrules.ErrRuleIDNotFound)
 	c.Check(result, IsNil)
 	s.checkWrittenRuleDB(c, rules)
-	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+	s.checkNewNoticesSimple(c, nil)
 
 	// Invalid lifespan
 	result, err = rdb.PatchRule(rule.User, rule.ID, nil, prompting.OutcomeUnset, prompting.LifespanSingle, "")
 	c.Check(err, Equals, requestrules.ErrLifespanSingle)
 	c.Check(result, IsNil)
 	s.checkWrittenRuleDB(c, rules)
-	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+	s.checkNewNoticesSimple(c, nil)
 
 	// Conflicting rule
 	conflictingConstraints := &prompting.Constraints{
@@ -1476,7 +1479,7 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 	c.Check(err, ErrorMatches, fmt.Sprintf("cannot patch rule: %v: conflicts:.* permission: 'write'", requestrules.ErrPathPatternConflict))
 	c.Check(result, IsNil)
 	s.checkWrittenRuleDB(c, rules)
-	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+	s.checkNewNoticesSimple(c, nil)
 
 	// Save fails
 	c.Assert(os.Chmod(prompting.StateDir(), 0o500), IsNil)
@@ -1485,7 +1488,7 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 	c.Check(err, NotNil)
 	c.Check(result, IsNil)
 	s.checkWrittenRuleDB(c, rules)
-	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+	s.checkNewNoticesSimple(c, nil)
 }
 
 func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
@@ -1515,7 +1518,7 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 		c.Check(rule, NotNil)
 		rules = append(rules, rule)
 		s.checkWrittenRuleDB(c, rules)
-		s.checkNewNoticesSimple(c, []prompting.IDType{rule.ID}, nil)
+		s.checkNewNoticesSimple(c, nil, rule)
 	}
 
 	time.Sleep(time.Millisecond)
@@ -1531,14 +1534,17 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 	s.checkWrittenRuleDB(c, []*requestrules.Rule{patched})
 	expectedNotices := []*noticeInfo{
 		{
+			userID: rules[1].User,
 			ruleID: rules[1].ID,
 			data:   map[string]string{"removed": "expired"},
 		},
 		{
+			userID: rules[0].User,
 			ruleID: rules[0].ID,
 			data:   map[string]string{"removed": "expired"},
 		},
 		{
+			userID: rules[2].User,
 			ruleID: rules[2].ID,
 			data:   nil,
 		},
