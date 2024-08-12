@@ -120,7 +120,7 @@ type Seed interface {
 	// handling at the same time as digest computation.
 	// No caching of essential snaps across Load*Meta* methods is
 	// performed if a handler is provided.
-	LoadEssentialMetaWithSnapHandler(essentialTypes []snap.Type, handler SnapHandler, tm timings.Measurer) error
+	LoadEssentialMetaWithSnapHandler(essentialTypes []snap.Type, handler ContainerHandler, tm timings.Measurer) error
 
 	// LoadMeta loads the seed and seed's snaps metadata while
 	// verifying the underlying snaps against assertions. It can
@@ -135,7 +135,7 @@ type Seed interface {
 	// seed snap handling at the same time as digest computation.
 	// No caching of essential snaps across Load*Meta* methods is
 	// performed if a handler is provided.
-	LoadMeta(mode string, handler SnapHandler, tm timings.Measurer) error
+	LoadMeta(mode string, handler ContainerHandler, tm timings.Measurer) error
 
 	// UsesSnapdSnap returns whether the system as defined by the
 	// seed will use the snapd snap, after LoadMeta.
@@ -160,26 +160,22 @@ type Seed interface {
 	Iter(f func(sn *Snap) error) error
 }
 
-// A SnapHandler can be used to perform any dedicated handling of seed
-// snaps and their digest computation while seed snap metadata loading
-// and verification is being performed.
-type SnapHandler interface {
-	// HandleAndDigestAssertedSnap should compute the digest of
-	// the given snap and perform any dedicated
-	// handling. essentialType is provided only for essential
-	// snaps.
-	// snapRev is provided by UC20+ seeds.
-	// deriveRev is provided by UC16/18 seeds, it can be used
-	// to get early access to the snap revision based on the digest.
-	// A different path can be returned if the snap has been copied
-	// elsewhere.
-	HandleAndDigestAssertedSnap(name, path string, essentialType snap.Type, snapRev *asserts.SnapRevision, deriveRev func(snapSHA3_384 string, snapSize uint64) (snap.Revision, error), tm timings.Measurer) (newPath, snapSHA3_384 string, snapSize uint64, err error)
+// A ContainerHandler can be used to perform any dedicated handling of seed
+// snaps/components and their digest computation while seed snap/component
+// metadata loading and verification is being performed.
+type ContainerHandler interface {
+	// HandleAndDigestAssertedContainer should compute the digest of the
+	// given container and perform any dedicated handling. A different path
+	// can be returned if the container has been copied elsewhere.
+	// NOTE: for uc16/18 the revision in cpi will be not correct.
+	HandleAndDigestAssertedContainer(cpi snap.ContainerPlaceInfo, path string,
+		tm timings.Measurer) (newPath, snapSHA3_384 string, snapSize uint64, err error)
 
-	// HandleUnassertedSnap should perfrom any dedicated handling
-	// for the given unasserted snap.
-	// A different path can be returned if the snap has been copied
-	// elsewhere.
-	HandleUnassertedSnap(name, path string, tm timings.Measurer) (newPath string, err error)
+	// HandleUnassertedContainer should perform any dedicated handling for
+	// the given unasserted snap/component. A different path can be
+	// returned if the container has been copied elsewhere.
+	HandleUnassertedContainer(cpi snap.ContainerPlaceInfo, path string,
+		tm timings.Measurer) (newPath string, err error)
 }
 
 // A AutoImportAssertionsLoaderSeed can be used to import all auto import assertions

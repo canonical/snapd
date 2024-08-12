@@ -1541,11 +1541,11 @@ func (*fakeSeed) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measur
 	return nil
 }
 
-func (*fakeSeed) LoadEssentialMetaWithSnapHandler([]snap.Type, seed.SnapHandler, timings.Measurer) error {
+func (*fakeSeed) LoadEssentialMetaWithSnapHandler([]snap.Type, seed.ContainerHandler, timings.Measurer) error {
 	return nil
 }
 
-func (*fakeSeed) LoadMeta(string, seed.SnapHandler, timings.Measurer) error {
+func (*fakeSeed) LoadMeta(string, seed.ContainerHandler, timings.Measurer) error {
 	return nil
 }
 
