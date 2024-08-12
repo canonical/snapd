@@ -454,6 +454,62 @@ func (s *requestrulesSuite) TestJoinInternalErrors(c *C) {
 	c.Check(fmt.Sprintf("%v", err), Equals, fmt.Sprintf("%v\n%v\n%v\n%v", requestrules.ErrInternalInconsistency, errFoo, errBar, errBaz))
 }
 
+func (s *requestrulesSuite) TestClose(c *C) {
+	rdb, err := requestrules.New(s.defaultNotifyRule)
+	c.Assert(err, IsNil)
+
+	c.Check(rdb.Close(), IsNil)
+}
+
+func (s *requestrulesSuite) TestCloseSaves(c *C) {
+	rdb, err := requestrules.New(s.defaultNotifyRule)
+	c.Assert(err, IsNil)
+
+	// Add a rule, then mutate it in memory, then check that it is saved to
+	// disk when DB is closed.
+	constraints := &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/home/test/foo"),
+		Permissions: []string{"read"},
+	}
+	rule, err := rdb.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	c.Assert(err, IsNil)
+
+	// Check that new rule is on disk
+	s.checkWrittenRuleDB(c, []*requestrules.Rule{rule})
+
+	// Mutate rule in memory
+	rule.Outcome = prompting.OutcomeDeny
+
+	// Close DB
+	c.Check(rdb.Close(), IsNil)
+
+	// Check that modified rule was written to disk
+	s.checkWrittenRuleDB(c, []*requestrules.Rule{rule})
+}
+
+func (s *requestrulesSuite) TestCloseRepeatedly(c *C) {
+	rdb, err := requestrules.New(s.defaultNotifyRule)
+	c.Assert(err, IsNil)
+
+	c.Check(rdb.Close(), IsNil)
+
+	// Check that closing repeatedly results in ErrClosed
+	c.Check(rdb.Close(), Equals, requestrules.ErrClosed)
+	c.Check(rdb.Close(), Equals, requestrules.ErrClosed)
+	c.Check(rdb.Close(), Equals, requestrules.ErrClosed)
+}
+
+func (s *requestrulesSuite) TestCloseErrors(c *C) {
+	rdb, err := requestrules.New(s.defaultNotifyRule)
+	c.Assert(err, IsNil)
+
+	// Mark state dir as non-writeable so save fails
+	c.Assert(os.Chmod(prompting.StateDir(), 0o500), IsNil)
+	defer os.Chmod(prompting.StateDir(), 0o700)
+
+	c.Check(rdb.Close(), NotNil)
+}
+
 type addRuleContents struct {
 	User        uint32
 	Snap        string
@@ -621,9 +677,20 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 	// Failure to save rule DB should roll-back adding the rule and leave the
 	// DB unchanged. Set DB parent directory as read-only.
 	c.Assert(os.Chmod(prompting.StateDir(), 0o500), IsNil)
-	defer os.Chmod(prompting.StateDir(), 0o700)
 	result, err := addRuleFromTemplate(c, rdb, template, &addRuleContents{Permissions: []string{"execute"}})
+	c.Assert(os.Chmod(prompting.StateDir(), 0o700), IsNil)
 	c.Check(err, NotNil)
+	c.Check(result, IsNil)
+	// Failure should result in no changes to written rules and no notices
+	s.checkWrittenRuleDB(c, []*requestrules.Rule{good})
+	s.checkNewNoticesSimple(c, nil)
+	// Remove read-only so we can continue
+
+	// Adding rule after the rule DB has been closed should return an error
+	// immediately.
+	c.Assert(rdb.Close(), IsNil)
+	result, err = addRuleFromTemplate(c, rdb, template, &addRuleContents{Permissions: []string{"execute"}})
+	c.Check(err, Equals, requestrules.ErrClosed)
 	c.Check(result, IsNil)
 	// Failure should result in no changes to written rules and no notices
 	s.checkWrittenRuleDB(c, []*requestrules.Rule{good})
@@ -1028,14 +1095,14 @@ func (s *requestrulesSuite) prepRuleDBForRulesForSnapInterface(c *C, rdb *reques
 		{User: s.defaultUser + 1},
 	} {
 		rule, err := addRuleFromTemplate(c, rdb, template, ruleContents)
-		c.Check(err, IsNil)
-		c.Check(rule, NotNil)
+		c.Assert(err, IsNil)
+		c.Assert(rule, NotNil)
 		addedRules = append(addedRules, rule)
 		s.checkWrittenRuleDB(c, addedRules)
 		s.checkNewNoticesSimple(c, nil, rule)
 	}
 
-	// Change final rule interface
+	// Change interface of rules[3]
 	addedRules[3].Interface = "audio-playback"
 
 	return addedRules
@@ -1205,6 +1272,21 @@ func (s *requestrulesSuite) TestRemoveRuleErrors(c *C) {
 	// Since removal succeeded for all corrupted rules (despite internal errors),
 	// should get "removed" notices for each removed rule.
 	s.checkNewNoticesSimple(c, map[string]string{"removed": "removed"}, addedRules[1:4]...)
+
+	// Removing a rule after the rule DB has been closed should return an error
+	// immediately.
+	c.Assert(rdb.Close(), IsNil)
+	result, err = rdb.RemoveRule(rule.User, rule.ID)
+	c.Check(err, NotNil)
+	c.Check(result, IsNil)
+
+	// Check that rule remains and no notices have been recorded.
+	// RuleWithID still works after the rule DB has been closed, so we can
+	// still check that the rule remains. XXX: don't rely on this.
+	accessed, err = rdb.RuleWithID(rule.User, rule.ID)
+	c.Check(err, IsNil)
+	c.Check(accessed, DeepEquals, rule)
+	s.checkNewNoticesSimple(c, nil)
 }
 
 func (s *requestrulesSuite) TestRemoveRulesForSnap(c *C) {
@@ -1256,6 +1338,8 @@ func (s *requestrulesSuite) TestRemoveRulesForSnapInterface(c *C) {
 }
 
 func (s *requestrulesSuite) TestRemoveRulesForSnapInterfaceErrors(c *C) {
+	dbPath := filepath.Join(prompting.StateDir(), "request-rules.json")
+
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Assert(err, IsNil)
 	c.Assert(rdb, NotNil)
@@ -1275,32 +1359,87 @@ func (s *requestrulesSuite) TestRemoveRulesForSnapInterfaceErrors(c *C) {
 	rules := s.prepRuleDBForRulesForSnapInterface(c, rdb)
 	c.Assert(rules, HasLen, 5)
 
-	// Failure to save rule DB should roll-back removing the rules and leave the
-	// DB unchanged. Set DB parent directory as read-only.
-	c.Assert(os.Chmod(prompting.StateDir(), 0o500), IsNil)
-	defer os.Chmod(prompting.StateDir(), 0o700)
-
-	removed, err = rdb.RemoveRulesForSnap(s.defaultUser, "amberol")
-	c.Check(err, NotNil)
-	c.Check(removed, IsNil)
-	c.Check(rdb.Rules(s.defaultUser), DeepEquals, rules[:4])
-
-	removed, err = rdb.RemoveRulesForInterface(s.defaultUser, "audio-playback")
-	c.Check(err, NotNil)
-	c.Check(removed, IsNil)
-	c.Check(rdb.Rules(s.defaultUser), DeepEquals, rules[:4])
-
-	removed, err = rdb.RemoveRulesForSnapInterface(s.defaultUser, "amberol", "audio-playback")
-	c.Check(err, NotNil)
-	c.Check(removed, IsNil)
-	c.Check(rdb.Rules(s.defaultUser), DeepEquals, rules[:4])
+	// Removing when rules exist but none match should not be an error
+	removed, err = rdb.RemoveRulesForSnap(s.defaultUser, "foo")
+	c.Check(err, IsNil)
+	c.Check(removed, HasLen, 0)
+	removed, err = rdb.RemoveRulesForInterface(s.defaultUser, "foo")
+	c.Check(err, IsNil)
+	c.Check(removed, HasLen, 0)
+	removed, err = rdb.RemoveRulesForSnapInterface(s.defaultUser, "foo", "bar")
+	c.Check(err, IsNil)
+	c.Check(removed, HasLen, 0)
 
 	// Check that original rules are still on disk, and no notices were recorded.
 	// Be careful, since no write has occurred, the manually-edited rules[3]
 	// still has "home" interface on disk.
+	c.Assert(rdb.Rules(s.defaultUser), DeepEquals, rules[:4])
 	rules[3].Interface = "home"
 	s.checkWrittenRuleDB(c, rules)
-	s.checkNewNoticesSimple(c, map[string]string{"removed": "removed"}, removed...)
+	rules[3].Interface = "audio-playback"
+	s.checkNewNoticesSimple(c, nil)
+
+	// Failure to save rule DB should roll-back removing the rules and leave the
+	// DB unchanged. Set DB parent directory as read-only.
+	func() {
+		c.Assert(os.Chmod(prompting.StateDir(), 0o500), IsNil)
+		defer os.Chmod(prompting.StateDir(), 0o700)
+
+		removed, err := rdb.RemoveRulesForSnap(s.defaultUser, "amberol")
+		c.Check(err, ErrorMatches, ".*permission denied")
+		c.Check(removed, IsNil)
+		c.Check(rdb.Rules(s.defaultUser), DeepEquals, rules[:4])
+
+		removed, err = rdb.RemoveRulesForInterface(s.defaultUser, "audio-playback")
+		c.Check(err, ErrorMatches, ".*permission denied")
+		c.Check(removed, IsNil)
+		c.Check(rdb.Rules(s.defaultUser), DeepEquals, rules[:4])
+
+		removed, err = rdb.RemoveRulesForSnapInterface(s.defaultUser, "amberol", "audio-playback")
+		c.Check(err, ErrorMatches, ".*permission denied")
+		c.Check(removed, IsNil)
+		c.Check(rdb.Rules(s.defaultUser), DeepEquals, rules[:4])
+
+		// Check that original rules are still on disk, and no notices were recorded.
+		// Be careful, since no write has occurred, the manually-edited rules[3]
+		// still has "home" interface on disk.
+		rules[3].Interface = "home"
+		defer func() { rules[3].Interface = "audio-playback" }()
+		s.checkWrittenRuleDB(c, rules)
+		s.checkNewNoticesSimple(c, nil)
+	}()
+
+	// Removing rules after the DB has been closed should return an error
+	// immediately.
+	c.Assert(rdb.Close(), IsNil)
+	c.Assert(rdb.Rules(s.defaultUser), DeepEquals, rules[:4])
+	// For some reason, Close() calling save() causes the rules to be reordered
+	// on disk, but not in memory. Preserve current written DB so we can check
+	// that it hasn't changed after trying to remove rules.
+	currentWrittenData, err := os.ReadFile(dbPath)
+	c.Assert(err, IsNil)
+
+	removed, err = rdb.RemoveRulesForSnap(s.defaultUser, "amberol")
+	c.Check(err, Equals, requestrules.ErrClosed)
+	c.Check(removed, IsNil)
+	c.Check(rdb.Rules(s.defaultUser), DeepEquals, rules[:4])
+
+	removed, err = rdb.RemoveRulesForInterface(s.defaultUser, "audio-playback")
+	c.Check(err, Equals, requestrules.ErrClosed)
+	c.Check(removed, IsNil)
+	c.Check(rdb.Rules(s.defaultUser), DeepEquals, rules[:4])
+
+	removed, err = rdb.RemoveRulesForSnapInterface(s.defaultUser, "amberol", "audio-playback")
+	c.Check(err, Equals, requestrules.ErrClosed)
+	c.Check(removed, IsNil)
+	c.Check(rdb.Rules(s.defaultUser), DeepEquals, rules[:4])
+
+	// Check that the data on disk has not changed
+	finalWrittenData, err := os.ReadFile(dbPath)
+	c.Assert(err, IsNil)
+	c.Assert(string(finalWrittenData), Equals, string(currentWrittenData))
+	// Check that no notices have been recorded
+	s.checkNewNoticesSimple(c, nil)
 }
 
 func (s *requestrulesSuite) TestPatchRule(c *C) {
@@ -1482,10 +1621,20 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 	s.checkNewNoticesSimple(c, nil)
 
 	// Save fails
-	c.Assert(os.Chmod(prompting.StateDir(), 0o500), IsNil)
-	defer os.Chmod(prompting.StateDir(), 0o700)
+	func() {
+		c.Assert(os.Chmod(prompting.StateDir(), 0o500), IsNil)
+		defer os.Chmod(prompting.StateDir(), 0o700)
+		result, err = rdb.PatchRule(rule.User, rule.ID, nil, prompting.OutcomeUnset, prompting.LifespanUnset, "")
+		c.Check(err, NotNil)
+		c.Check(result, IsNil)
+		s.checkWrittenRuleDB(c, rules)
+		s.checkNewNoticesSimple(c, nil)
+	}()
+
+	// DB Closed
+	c.Assert(rdb.Close(), IsNil)
 	result, err = rdb.PatchRule(rule.User, rule.ID, nil, prompting.OutcomeUnset, prompting.LifespanUnset, "")
-	c.Check(err, NotNil)
+	c.Check(err, Equals, requestrules.ErrClosed)
 	c.Check(result, IsNil)
 	s.checkWrittenRuleDB(c, rules)
 	s.checkNewNoticesSimple(c, nil)
