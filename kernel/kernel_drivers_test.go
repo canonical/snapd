@@ -30,7 +30,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/kernel"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -228,14 +227,12 @@ func testBuildKernelDriversTree(c *C, opts createKernelSnapFilesOpts) {
 }
 
 func (s *kernelDriversTestSuite) TestBuildKernelDriversNoModsOrFw(c *C) {
-	buf, restore := logger.MockLogger()
-	defer restore()
-
+	kversion := "5.15.0-78-generic"
 	mountDir := filepath.Join(dirs.SnapMountDir, "pc-kernel/11")
-	c.Assert(os.MkdirAll(mountDir, 0755), IsNil)
+	createKernelSnapFilesOnlyModules(c, kversion, mountDir)
 
 	// Build the tree should not fail
-	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(11))
 	err := kernel.EnsureKernelDriversTree(
 		kernel.MountPoints{
 			Current: mountDir,
@@ -243,9 +240,13 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversNoModsOrFw(c *C) {
 		&kernel.KernelDriversTreeOptions{KernelInstall: true})
 	c.Assert(err, IsNil)
 
-	// but log should warn about this
-	c.Assert(buf.String(), testutil.Contains, `no modules found in "`+mountDir+`"`)
-	c.Assert(buf.String(), testutil.Contains, `no firmware found in "`+mountDir+`/firmware"`)
+	// check kernel dep file is still copied
+	modPath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir),
+		"kernel", "pc-kernel", "11", "lib", "modules", kversion, "modules.dep.bin")
+	exists, isReg, err := osutil.RegularFileExists(modPath)
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, true)
+	c.Check(isReg, Equals, true)
 }
 
 func createKernelSnapFilesOnlyModules(c *C, kversion, kdir string) {
@@ -258,9 +259,6 @@ func createKernelSnapFilesOnlyModules(c *C, kversion, kdir string) {
 }
 
 func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyMods(c *C) {
-	buf, restore := logger.MockLogger()
-	defer restore()
-
 	mountDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
 	kversion := "5.15.0-78-generic"
 	createKernelSnapFilesOnlyModules(c, kversion, mountDir)
@@ -280,15 +278,9 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyMods(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, true)
 	c.Check(isReg, Equals, true)
-
-	// but log should warn about this
-	c.Assert(buf.String(), testutil.Contains, `no firmware found in "`+mountDir+`/firmware"`)
 }
 
 func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyModsWithTargetDir(c *C) {
-	buf, restore := logger.MockLogger()
-	defer restore()
-
 	mountDir := filepath.Join(dirs.RunDir, "mnt/tmp-mount")
 	kTargetDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
 	kversion := "5.15.0-78-generic"
@@ -315,9 +307,6 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyModsWithTargetDir(c *
 	modsTarget, err := os.Readlink(modsPath)
 	c.Assert(err, IsNil)
 	c.Check(modsTarget, Equals, filepath.Join(kTargetDir, "modules", kversion, "kernel"))
-
-	// but log should warn about this
-	c.Assert(buf.String(), testutil.Contains, `no firmware found in "`+mountDir+`/firmware"`)
 }
 
 func createKernelSnapFilesOnlyFw(c *C, kdir string) {
@@ -330,9 +319,6 @@ func createKernelSnapFilesOnlyFw(c *C, kdir string) {
 }
 
 func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyFw(c *C) {
-	buf, restore := logger.MockLogger()
-	defer restore()
-
 	mountDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
 	createKernelSnapFilesOnlyFw(c, mountDir)
 
@@ -348,15 +334,9 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyFw(c *C) {
 	// check link
 	fwPath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1", "lib", "firmware", "wifi_fw.bin")
 	c.Assert(osutil.IsSymlink(fwPath), Equals, true)
-
-	// but log should warn about this
-	c.Assert(buf.String(), testutil.Contains, `no modules found in "`+mountDir+`"`)
 }
 
 func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyFwWithTargetDir(c *C) {
-	buf, restore := logger.MockLogger()
-	defer restore()
-
 	mountDir := filepath.Join(dirs.RunDir, "mnt/tmp-mount")
 	kTargetDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
 	createKernelSnapFilesOnlyFw(c, mountDir)
@@ -375,9 +355,6 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyFwWithTargetDir(c *C)
 	fwPathTarget, err := os.Readlink(fwPath)
 	c.Assert(err, IsNil)
 	c.Check(fwPathTarget, Equals, filepath.Join(kTargetDir, "firmware", "wifi_fw.bin"))
-
-	// but log should warn about this
-	c.Assert(buf.String(), testutil.Contains, `no modules found in "`+mountDir+`"`)
 }
 
 func (s *kernelDriversTestSuite) TestBuildKernelDriversAbsFwSymlink(c *C) {

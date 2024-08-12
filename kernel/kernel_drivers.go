@@ -84,8 +84,7 @@ func createFirmwareSymlinks(fwMount MountPoints, fwDest string) error {
 	entries, err := os.ReadDir(fwOrig)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// Bit of a corner case, but maybe possible. Log anyway.
-			logger.Noticef("no firmware found in %q", fwOrig)
+			logger.Debugf("no firmware found in %q", fwOrig)
 			return nil
 		}
 		return err
@@ -349,10 +348,7 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 			return err
 		}
 	} else {
-		// Bit of a corner case, but maybe possible. Log anyway.
-		// TODO detect this issue in snap pack, should be enforced
-		// if the snap declares kernel-modules components.
-		logger.Noticef("no modules found in %q", kMntPts.Current)
+		logger.Debugf("no modules found in %q", kMntPts.Current)
 	}
 
 	fwDir := filepath.Join(targetDir, "lib", "firmware")
