@@ -2645,7 +2645,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 		return nil, nil, err
 	}
 
-	hints, err := refreshHintsFromCandidates(st, plan, deviceCtx)
+	hints, err := refreshHintsFromUpdatePlan(st, plan, deviceCtx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -2799,8 +2799,9 @@ func autoRefreshPhase2(st *state.State, candidates []*refreshCandidate, flags *F
 		}
 
 		updates = append(updates, update{
-			Setup:     *snapsup,
-			SnapState: *snapst,
+			Setup:      *snapsup,
+			SnapState:  *snapst,
+			Components: up.Components,
 		})
 		installInfos = append(installInfos, up)
 	}

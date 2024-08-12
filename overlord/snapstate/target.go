@@ -1015,7 +1015,7 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 	// save the candidates so the auto-refresh can be continued if it's inhibited
 	// by a running snap.
 	if opts.Flags.IsAutoRefresh {
-		hints, err := refreshHintsFromCandidates(st, plan, opts.DeviceCtx)
+		hints, err := refreshHintsFromUpdatePlan(st, plan, opts.DeviceCtx)
 		if err != nil {
 			return nil, nil, err
 		}
