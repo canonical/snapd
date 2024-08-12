@@ -17,8 +17,8 @@
  *
  */
 
-// Package requestrules provides the manager for request rules related to
-// AppArmor prompting.
+// Package requestrules provides support for storing request rules for AppArmor
+// prompting.
 package requestrules
 
 import (
