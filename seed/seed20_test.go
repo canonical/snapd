@@ -68,14 +68,14 @@ func (h *testSnapHandler) rel(path string) string {
 	return p
 }
 
-func (h *testSnapHandler) HandleUnassertedSnap(name, path string, _ timings.Measurer) (string, error) {
+func (h *testSnapHandler) HandleUnassertedContainer(cpi snap.ContainerPlaceInfo, path string, _ timings.Measurer) (string, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.unasserted[name] = h.rel(path)
+	h.unasserted[cpi.ContainerName()] = h.rel(path)
 	return h.pathPrefix + path, nil
 }
 
-func (h *testSnapHandler) HandleAndDigestAssertedSnap(name, path string, essType snap.Type, snapRev *asserts.SnapRevision, deriveRev func(string, uint64) (snap.Revision, error), _ timings.Measurer) (string, string, uint64, error) {
+func (h *testSnapHandler) HandleAndDigestAssertedContainer(cpi snap.ContainerPlaceInfo, path string, _ timings.Measurer) (string, string, uint64, error) {
 	snapSHA3_384, sz, err := asserts.SnapFileSHA3_384(path)
 	if err != nil {
 		return "", "", 0, err
@@ -83,18 +83,10 @@ func (h *testSnapHandler) HandleAndDigestAssertedSnap(name, path string, essType
 	func() {
 		h.mu.Lock()
 		defer h.mu.Unlock()
-		revno := ""
-		if snapRev != nil {
-			revno = fmt.Sprintf("%d", snapRev.SnapRevision())
-		} else {
-			var rev snap.Revision
-			rev, err = deriveRev(snapSHA3_384, sz)
-			revno = rev.String()
-		}
-		h.asserted[name] = fmt.Sprintf("%s:%s:%s", h.rel(path), essType, revno)
+		h.asserted[cpi.ContainerName()] = fmt.Sprintf("%s", h.rel(path))
 	}()
-	if essType != "gadget" {
-		// XXX seed logic actually reads the gadget, leave it alone
+	// XXX seed logic actually reads the gadget, leave it alone
+	if cpi.ContainerName() != "pc" {
 		path = h.pathPrefix + path
 	}
 	return path, snapSHA3_384, sz, err
@@ -1210,10 +1202,10 @@ func (s *seed20Suite) TestLoadEssentialMetaWithSnapHandlerCore20(c *C) {
 	c.Check(essSnaps, DeepEquals, expected)
 
 	c.Check(h.asserted, DeepEquals, map[string]string{
-		"snapd":     "snaps/snapd_1.snap:snapd:1",
-		"pc-kernel": "snaps/pc-kernel_1.snap:kernel:1",
-		"core20":    "snaps/core20_1.snap:base:1",
-		"pc":        "snaps/pc_1.snap:gadget:1",
+		"snapd":     "snaps/snapd_1.snap",
+		"pc-kernel": "snaps/pc-kernel_1.snap",
+		"core20":    "snaps/core20_1.snap",
+		"pc":        "snaps/pc_1.snap",
 	})
 }
 
@@ -1652,10 +1644,10 @@ func (s *seed20Suite) TestLoadMetaCore20SnapHandler(c *C) {
 	})
 
 	c.Check(h.asserted, DeepEquals, map[string]string{
-		"snapd":     "snaps/snapd_1.snap:snapd:1",
-		"pc-kernel": "snaps/pc-kernel_1.snap:kernel:1",
-		"core20":    "snaps/core20_1.snap:base:1",
-		"pc":        "snaps/pc_1.snap:gadget:1",
+		"snapd":     "snaps/snapd_1.snap",
+		"pc-kernel": "snaps/pc-kernel_1.snap",
+		"core20":    "snaps/core20_1.snap",
+		"pc":        "snaps/pc_1.snap",
 	})
 	c.Check(h.unasserted, DeepEquals, map[string]string{
 		"required20": filepath.Join("systems", sysLabel, "snaps", "required20_1.0.snap"),
@@ -1758,10 +1750,10 @@ func (s *seed20Suite) TestLoadMetaCore20SnapHandlerChangePath(c *C) {
 	})
 
 	c.Check(h.asserted, DeepEquals, map[string]string{
-		"snapd":     "snaps/snapd_1.snap:snapd:1",
-		"pc-kernel": "snaps/pc-kernel_1.snap:kernel:1",
-		"core20":    "snaps/core20_1.snap:base:1",
-		"pc":        "snaps/pc_1.snap:gadget:1",
+		"snapd":     "snaps/snapd_1.snap",
+		"pc-kernel": "snaps/pc-kernel_1.snap",
+		"core20":    "snaps/core20_1.snap",
+		"pc":        "snaps/pc_1.snap",
 	})
 	c.Check(h.unasserted, DeepEquals, map[string]string{
 		"required20": filepath.Join("systems", sysLabel, "snaps", "required20_1.0.snap"),
@@ -2588,7 +2580,7 @@ func (s *seed20Suite) TestLoadMetaCore20PreciseNotRunSnapsSnapHandler(c *C) {
 	runH := newTestSnapHandler(s.SeedDir)
 	installH := newTestSnapHandler(s.SeedDir)
 	recoverH := newTestSnapHandler(s.SeedDir)
-	handlers := map[string]seed.SnapHandler{
+	handlers := map[string]seed.ContainerHandler{
 		"install": installH,
 		"run":     runH,
 		"recover": recoverH,
@@ -2597,32 +2589,32 @@ func (s *seed20Suite) TestLoadMetaCore20PreciseNotRunSnapsSnapHandler(c *C) {
 	s.testLoadMetaCore20PreciseNotRunSnapsWithParallelism(c, 1, handlers)
 
 	c.Check(installH.asserted, DeepEquals, map[string]string{
-		"snapd":        "snaps/snapd_1.snap:snapd:1",
-		"pc-kernel":    "snaps/pc-kernel_1.snap:kernel:1",
-		"core20":       "snaps/core20_1.snap:base:1",
-		"pc":           "snaps/pc_1.snap:gadget:1",
-		"required20":   "snaps/required20_1.snap::1",
-		"optional20-a": "snaps/optional20-a_1.snap::1",
-		"optional20-b": "snaps/optional20-b_1.snap::1",
+		"snapd":        "snaps/snapd_1.snap",
+		"pc-kernel":    "snaps/pc-kernel_1.snap",
+		"core20":       "snaps/core20_1.snap",
+		"pc":           "snaps/pc_1.snap",
+		"required20":   "snaps/required20_1.snap",
+		"optional20-a": "snaps/optional20-a_1.snap",
+		"optional20-b": "snaps/optional20-b_1.snap",
 	})
 	c.Check(runH.asserted, DeepEquals, map[string]string{
-		"snapd":      "snaps/snapd_1.snap:snapd:1",
-		"pc-kernel":  "snaps/pc-kernel_1.snap:kernel:1",
-		"core20":     "snaps/core20_1.snap:base:1",
-		"pc":         "snaps/pc_1.snap:gadget:1",
-		"required20": "snaps/required20_1.snap::1",
+		"snapd":      "snaps/snapd_1.snap",
+		"pc-kernel":  "snaps/pc-kernel_1.snap",
+		"core20":     "snaps/core20_1.snap",
+		"pc":         "snaps/pc_1.snap",
+		"required20": "snaps/required20_1.snap",
 	})
 	c.Check(recoverH.asserted, DeepEquals, map[string]string{
-		"snapd":        "snaps/snapd_1.snap:snapd:1",
-		"pc-kernel":    "snaps/pc-kernel_1.snap:kernel:1",
-		"core20":       "snaps/core20_1.snap:base:1",
-		"pc":           "snaps/pc_1.snap:gadget:1",
-		"required20":   "snaps/required20_1.snap::1",
-		"optional20-a": "snaps/optional20-a_1.snap::1",
+		"snapd":        "snaps/snapd_1.snap",
+		"pc-kernel":    "snaps/pc-kernel_1.snap",
+		"core20":       "snaps/core20_1.snap",
+		"pc":           "snaps/pc_1.snap",
+		"required20":   "snaps/required20_1.snap",
+		"optional20-a": "snaps/optional20-a_1.snap",
 	})
 }
 
-func (s *seed20Suite) testLoadMetaCore20PreciseNotRunSnapsWithParallelism(c *C, parallelism int, handlers map[string]seed.SnapHandler) {
+func (s *seed20Suite) testLoadMetaCore20PreciseNotRunSnapsWithParallelism(c *C, parallelism int, handlers map[string]seed.ContainerHandler) {
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core20", "")
 	s.makeSnap(c, "pc-kernel=20", "")
@@ -2800,7 +2792,7 @@ func (s *seed20Suite) TestLoadMetaCore20PreciseNotRunSnapsParallelism2SnapHandle
 	runH := newTestSnapHandler(s.SeedDir)
 	installH := newTestSnapHandler(s.SeedDir)
 	recoverH := newTestSnapHandler(s.SeedDir)
-	handlers := map[string]seed.SnapHandler{
+	handlers := map[string]seed.ContainerHandler{
 		"install": installH,
 		"run":     runH,
 		"recover": recoverH,
@@ -2808,28 +2800,28 @@ func (s *seed20Suite) TestLoadMetaCore20PreciseNotRunSnapsParallelism2SnapHandle
 	s.testLoadMetaCore20PreciseNotRunSnapsWithParallelism(c, 2, handlers)
 
 	c.Check(installH.asserted, DeepEquals, map[string]string{
-		"snapd":        "snaps/snapd_1.snap:snapd:1",
-		"pc-kernel":    "snaps/pc-kernel_1.snap:kernel:1",
-		"core20":       "snaps/core20_1.snap:base:1",
-		"pc":           "snaps/pc_1.snap:gadget:1",
-		"required20":   "snaps/required20_1.snap::1",
-		"optional20-a": "snaps/optional20-a_1.snap::1",
-		"optional20-b": "snaps/optional20-b_1.snap::1",
+		"snapd":        "snaps/snapd_1.snap",
+		"pc-kernel":    "snaps/pc-kernel_1.snap",
+		"core20":       "snaps/core20_1.snap",
+		"pc":           "snaps/pc_1.snap",
+		"required20":   "snaps/required20_1.snap",
+		"optional20-a": "snaps/optional20-a_1.snap",
+		"optional20-b": "snaps/optional20-b_1.snap",
 	})
 	c.Check(runH.asserted, DeepEquals, map[string]string{
-		"snapd":      "snaps/snapd_1.snap:snapd:1",
-		"pc-kernel":  "snaps/pc-kernel_1.snap:kernel:1",
-		"core20":     "snaps/core20_1.snap:base:1",
-		"pc":         "snaps/pc_1.snap:gadget:1",
-		"required20": "snaps/required20_1.snap::1",
+		"snapd":      "snaps/snapd_1.snap",
+		"pc-kernel":  "snaps/pc-kernel_1.snap",
+		"core20":     "snaps/core20_1.snap",
+		"pc":         "snaps/pc_1.snap",
+		"required20": "snaps/required20_1.snap",
 	})
 	c.Check(recoverH.asserted, DeepEquals, map[string]string{
-		"snapd":        "snaps/snapd_1.snap:snapd:1",
-		"pc-kernel":    "snaps/pc-kernel_1.snap:kernel:1",
-		"core20":       "snaps/core20_1.snap:base:1",
-		"pc":           "snaps/pc_1.snap:gadget:1",
-		"required20":   "snaps/required20_1.snap::1",
-		"optional20-a": "snaps/optional20-a_1.snap::1",
+		"snapd":        "snaps/snapd_1.snap",
+		"pc-kernel":    "snaps/pc-kernel_1.snap",
+		"core20":       "snaps/core20_1.snap",
+		"pc":           "snaps/pc_1.snap",
+		"required20":   "snaps/required20_1.snap",
+		"optional20-a": "snaps/optional20-a_1.snap",
 	})
 }
 

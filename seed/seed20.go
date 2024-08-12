@@ -353,7 +353,7 @@ func (e *noSnapDeclarationError) Error() string {
 	return fmt.Sprintf("cannot find snap-declaration for snap name: %s", e.snapRef.SnapName())
 }
 
-func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, essType snap.Type, handler SnapHandler, snapsDir string, tm timings.Measurer) (snapPath string, snapRev *asserts.SnapRevision, snapDecl *asserts.SnapDeclaration, err error) {
+func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, handler ContainerHandler, snapsDir string, tm timings.Measurer) (snapPath string, snapRev *asserts.SnapRevision, snapDecl *asserts.SnapDeclaration, err error) {
 	snapID := snapRef.ID()
 	if snapID != "" {
 		snapDecl = s.snapDeclsByID[snapID]
@@ -389,7 +389,8 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, essType snap.Typ
 		return "", nil, nil, fmt.Errorf("cannot validate %q for snap %q (snap-id %q), wrong size", snapPath, snapName, snapID)
 	}
 
-	newPath, snapSHA3_384, _, err := handler.HandleAndDigestAssertedSnap(snapName, snapPath, essType, snapRev, nil, tm)
+	cpi := snap.MinimalSnapContainerPlaceInfo(snapName, snap.R(snapRev.SnapRevision()))
+	newPath, snapSHA3_384, _, err := handler.HandleAndDigestAssertedContainer(cpi, snapPath, tm)
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -417,7 +418,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, essType snap.Typ
 	return snapPath, snapRev, snapDecl, nil
 }
 
-func (s *seed20) lookupSnap(snapRef naming.SnapRef, essType snap.Type, optSnap *internal.Snap20, channel string, handler SnapHandler, snapsDir string, tm timings.Measurer) (*Snap, error) {
+func (s *seed20) lookupSnap(snapRef naming.SnapRef, optSnap *internal.Snap20, channel string, handler ContainerHandler, snapsDir string, tm timings.Measurer) (*Snap, error) {
 	if optSnap != nil && optSnap.Channel != "" {
 		channel = optSnap.Channel
 	}
@@ -430,7 +431,9 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, essType snap.Type, optSnap *
 		if err != nil {
 			return nil, fmt.Errorf("cannot read unasserted snap: %v", err)
 		}
-		newPath, err := handler.HandleUnassertedSnap(info.SnapName(), path, tm)
+
+		pinfo := snap.MinimalSnapContainerPlaceInfo(info.SnapName(), snap.Revision{N: -1})
+		newPath, err := handler.HandleUnassertedContainer(pinfo, path, tm)
 		if err != nil {
 			return nil, err
 		}
@@ -445,7 +448,7 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, essType snap.Type, optSnap *
 		timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", snapRef.SnapName()), func(nested timings.Measurer) {
 			var snapRev *asserts.SnapRevision
 			var snapDecl *asserts.SnapDeclaration
-			path, snapRev, snapDecl, err = s.lookupVerifiedRevision(snapRef, essType, handler, snapsDir, tm)
+			path, snapRev, snapDecl, err = s.lookupVerifiedRevision(snapRef, handler, snapsDir, tm)
 			if err == nil {
 				sideInfo = snapasserts.SideInfoFromSnapAssertions(snapDecl, snapRev)
 			}
@@ -484,7 +487,7 @@ type snapToConsider struct {
 
 var errSkipped = errors.New("skipped optional snap")
 
-func (s *seed20) doLoadMetaOne(sntoc *snapToConsider, handler SnapHandler, tm timings.Measurer) (*Snap, error) {
+func (s *seed20) doLoadMetaOne(sntoc *snapToConsider, handler ContainerHandler, tm timings.Measurer) (*Snap, error) {
 	var snapRef naming.SnapRef
 	var channel string
 	var snapsDir string
@@ -507,7 +510,7 @@ func (s *seed20) doLoadMetaOne(sntoc *snapToConsider, handler SnapHandler, tm ti
 		channel = "latest/stable"
 		snapsDir = "snaps"
 	}
-	seedSnap, err := s.lookupSnap(snapRef, essType, sntoc.optSnap, channel, handler, snapsDir, tm)
+	seedSnap, err := s.lookupSnap(snapRef, sntoc.optSnap, channel, handler, snapsDir, tm)
 	if err != nil {
 		if _, ok := err.(*noSnapDeclarationError); ok && !required {
 			// skipped optional snap is ok
@@ -537,7 +540,7 @@ func (s *seed20) doLoadMetaOne(sntoc *snapToConsider, handler SnapHandler, tm ti
 	return seedSnap, nil
 }
 
-func (s *seed20) doLoadMeta(handler SnapHandler, tm timings.Measurer) error {
+func (s *seed20) doLoadMeta(handler ContainerHandler, tm timings.Measurer) error {
 	var cacheEssential func(snType string, essSnap *Snap)
 	var cachedEssential func(snType string) *Snap
 	if handler != nil {
@@ -678,7 +681,7 @@ func (s *seed20) considerModelSnap(modelSnap *asserts.ModelSnap, essential bool,
 	}
 }
 
-func (s *seed20) LoadMeta(mode string, handler SnapHandler, tm timings.Measurer) error {
+func (s *seed20) LoadMeta(mode string, handler ContainerHandler, tm timings.Measurer) error {
 	const otherSnapsFollow = true
 	if err := s.queueEssentialMeta(nil, otherSnapsFollow, tm); err != nil {
 		return err
@@ -710,7 +713,7 @@ func (s *seed20) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measur
 	return s.LoadEssentialMetaWithSnapHandler(essentialTypes, nil, tm)
 }
 
-func (s *seed20) LoadEssentialMetaWithSnapHandler(essentialTypes []snap.Type, handler SnapHandler, tm timings.Measurer) error {
+func (s *seed20) LoadEssentialMetaWithSnapHandler(essentialTypes []snap.Type, handler ContainerHandler, tm timings.Measurer) error {
 	var filterEssential func(*asserts.ModelSnap) bool
 	if len(essentialTypes) != 0 {
 		filterEssential = essentialSnapTypesToModelFilter(essentialTypes)
