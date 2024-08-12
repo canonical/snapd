@@ -305,13 +305,13 @@ func (m *InterfacesRequestsManager) Stop() error {
 	return m.tomb.Wait()
 }
 
-// GetPrompts returns all prompts for the user with the given user ID.
-func (m *InterfacesRequestsManager) GetPrompts(userID uint32) ([]*requestprompts.Prompt, error) {
+// Prompts returns all prompts for the user with the given user ID.
+func (m *InterfacesRequestsManager) Prompts(userID uint32) ([]*requestprompts.Prompt, error) {
 	return m.prompts.Prompts(userID)
 }
 
-// GetPromptWithID returns the prompt with the given ID for the given user.
-func (m *InterfacesRequestsManager) GetPromptWithID(userID uint32, promptID prompting.IDType) (*requestprompts.Prompt, error) {
+// PromptWithID returns the prompt with the given ID for the given user.
+func (m *InterfacesRequestsManager) PromptWithID(userID uint32, promptID prompting.IDType) (*requestprompts.Prompt, error) {
 	return m.prompts.PromptWithID(userID, promptID)
 }
 
@@ -415,9 +415,9 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 	return satisfiedPromptIDs, nil
 }
 
-// GetRules returns all rules for the user with the given user ID and,
+// Rules returns all rules for the user with the given user ID and,
 // optionally, only those for the given snap and/or interface.
-func (m *InterfacesRequestsManager) GetRules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error) {
+func (m *InterfacesRequestsManager) Rules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error) {
 	if snap != "" {
 		if iface != "" {
 			rules := m.rules.RulesForSnapInterface(userID, snap, iface)
@@ -476,8 +476,8 @@ func (m *InterfacesRequestsManager) RemoveRules(userID uint32, snap string, ifac
 	return m.rules.RemoveRulesForInterface(userID, iface)
 }
 
-// GetRule returns the rule with the given ID for the given user.
-func (m *InterfacesRequestsManager) GetRule(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error) {
+// RuleWithID returns the rule with the given ID for the given user.
+func (m *InterfacesRequestsManager) RuleWithID(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error) {
 	rule, err := m.rules.RuleWithID(userID, ruleID)
 	return rule, err
 }
