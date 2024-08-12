@@ -17,6 +17,8 @@
  *
  */
 
+// Package requestrules provides the manager for request rules related to
+// AppArmor prompting.
 package requestrules
 
 import (
@@ -228,6 +230,8 @@ func (rdb *RuleDB) load() (retErr error) {
 		// TODO: store rules separately per-user, so a corrupted rule for one
 		// user can't impact rules for another user.
 		loadErr := fmt.Errorf("cannot read stored request rules: %w", err)
+		// Save the empty rule DB to disk to overwrite the previous one which
+		// could not be decoded.
 		return errorsJoin(loadErr, rdb.save())
 	}
 
@@ -265,6 +269,8 @@ func (rdb *RuleDB) load() (retErr error) {
 		rdb.rules = make([]*Rule, 0)
 		rdb.perUser = make(map[uint32]*userDB)
 
+		// Save the empty rule DB to disk to overwrite the previous one which
+		// was invalid.
 		return errorsJoin(errInvalid, rdb.save())
 	}
 
@@ -717,6 +723,8 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 	}
 
 	if err := rdb.save(); err != nil {
+		// Failed to save, so revert the rule addition so no change occurred
+		// and the rule DB state matches that preserved on disk.
 		rdb.removeRuleByID(newRule.ID)
 		// We know that this rule exists, since we just added it, so no error
 		// can occur.

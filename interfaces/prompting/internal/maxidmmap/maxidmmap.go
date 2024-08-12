@@ -17,6 +17,8 @@
  *
  */
 
+// Package maxidmmap provides a type for working with atomically unique
+// prompting-related IDs, backed by a memory mapped file.
 package maxidmmap
 
 import (

@@ -17,6 +17,8 @@
  *
  */
 
+// Package prompting provides common types and functions related to AppArmor
+// prompting.
 package prompting
 
 import (
