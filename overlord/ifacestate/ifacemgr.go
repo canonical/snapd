@@ -143,6 +143,11 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 // AppArmorPromptingRunning returns true if prompting is running.
 func (m *InterfaceManager) AppArmorPromptingRunning() bool {
+	return useAppArmorPrompting(m)
+}
+
+// Allow m.UseAppArmorPrompting to be mocked in tests
+var useAppArmorPrompting = func(m *InterfaceManager) bool {
 	return m.useAppArmorPrompting()
 }
 
@@ -187,8 +192,14 @@ func (m *InterfaceManager) StartUp() error {
 	if _, err := m.reloadConnections(""); err != nil {
 		return err
 	}
-	if m.useAppArmorPrompting() {
+	if useAppArmorPrompting(m) {
 		if err := m.initInterfacesRequestsManager(); err != nil {
+			// TODO: if this fails, set useAppArmorPromptingValue to false ?
+			// If this is done before profilesNeedRegeneration, then profiles will only
+			// be regenerated if prompting is newly supported and the backends were
+			// successfully created.
+			// TODO: also set "apparmor-prompting" flag to false?
+			// XXX: should this log an error, rather than returning error?
 			return err
 		}
 	}
@@ -269,6 +280,10 @@ func (m *InterfaceManager) stopUDevMon() {
 	m.udevMon = nil
 }
 
+var interfacesRequestsManagerStop = func(interfacesRequestsManager *apparmorprompting.InterfacesRequestsManager) error {
+	return interfacesRequestsManager.Stop()
+}
+
 func (m *InterfaceManager) stopInterfacesRequestsManager() {
 	m.interfacesRequestsManagerMu.Lock()
 	defer m.interfacesRequestsManagerMu.Unlock()
@@ -276,13 +291,13 @@ func (m *InterfaceManager) stopInterfacesRequestsManager() {
 	// we don't try to use or overwrite this prompting instance while it is
 	// stopping.
 	interfacesRequestsManager := m.interfacesRequestsManager
+	m.interfacesRequestsManager = nil
 	if interfacesRequestsManager == nil {
 		return
 	}
-	if err := interfacesRequestsManager.Stop(); err != nil {
+	if err := interfacesRequestsManagerStop(interfacesRequestsManager); err != nil {
 		logger.Noticef("Cannot stop prompting: %s", err)
 	}
-	m.interfacesRequestsManager = nil
 }
 
 // Repository returns the interface repository used internally by the manager.

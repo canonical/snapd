@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
 	"github.com/snapcore/snapd/overlord/ifacestate/schema"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -125,6 +126,30 @@ func MockCreateUDevMonitor(new func(udevmonitor.DeviceAddedFunc, udevmonitor.Dev
 	createUDevMonitor = new
 	return func() {
 		createUDevMonitor = old
+	}
+}
+
+func MockCreateInterfacesRequestsManager(new func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error)) (restore func()) {
+	old := createInterfacesRequestsManager
+	createInterfacesRequestsManager = new
+	return func() {
+		createInterfacesRequestsManager = old
+	}
+}
+
+func MockInterfacesRequestsManagerStop(new func(m *apparmorprompting.InterfacesRequestsManager) error) (restore func()) {
+	old := interfacesRequestsManagerStop
+	interfacesRequestsManagerStop = new
+	return func() {
+		interfacesRequestsManagerStop = old
+	}
+}
+
+func MockUseAppArmorPrompting(new func(m *InterfaceManager) bool) (restore func()) {
+	old := useAppArmorPrompting
+	useAppArmorPrompting = new
+	return func() {
+		useAppArmorPrompting = old
 	}
 }
 
