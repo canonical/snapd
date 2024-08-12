@@ -220,6 +220,8 @@ import (
 
 	seccomp "github.com/seccomp/libseccomp-golang"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -476,6 +478,19 @@ var seccompResolver = map[string]uint64{
 	"KCMP_IO":        C.KCMP_IO,
 	"KCMP_SYSVSEM":   C.KCMP_SYSVSEM,
 	"KCMP_EPOLL_TFD": C.KCMP_EPOLL_TFD,
+
+	// man 2 syslog
+	"SYSLOG_ACTION_CLOSE":         unix.SYSLOG_ACTION_CLOSE,
+	"SYSLOG_ACTION_OPEN":          unix.SYSLOG_ACTION_OPEN,
+	"SYSLOG_ACTION_READ":          unix.SYSLOG_ACTION_READ,
+	"SYSLOG_ACTION_READ_ALL":      unix.SYSLOG_ACTION_READ_ALL,
+	"SYSLOG_ACTION_READ_CLEAR":    unix.SYSLOG_ACTION_READ_CLEAR,
+	"SYSLOG_ACTION_CLEAR":         unix.SYSLOG_ACTION_CLEAR,
+	"SYSLOG_ACTION_CONSOLE_OFF":   unix.SYSLOG_ACTION_CONSOLE_OFF,
+	"SYSLOG_ACTION_CONSOLE_ON":    unix.SYSLOG_ACTION_CONSOLE_ON,
+	"SYSLOG_ACTION_CONSOLE_LEVEL": unix.SYSLOG_ACTION_CONSOLE_LEVEL,
+	"SYSLOG_ACTION_SIZE_UNREAD":   unix.SYSLOG_ACTION_SIZE_UNREAD,
+	"SYSLOG_ACTION_SIZE_BUFFER":   unix.SYSLOG_ACTION_SIZE_BUFFER,
 }
 
 // DpkgArchToScmpArch takes a dpkg architecture and converts it to

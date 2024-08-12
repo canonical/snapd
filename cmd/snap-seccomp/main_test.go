@@ -847,6 +847,42 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsTermios(c *C) {
 	}
 }
 
+func (s *snapSeccompSuite) TestRestrictionsWorkingArgsSyslog(c *C) {
+	for _, t := range []struct {
+		seccompAllowlist string
+		bpfInput         string
+		expected         int
+	}{
+		// good input
+		{"syslog SYSLOG_ACTION_SIZE_UNREAD", "syslog;native;SYSLOG_ACTION_SIZE_UNREAD", Allow},
+		{"syslog SYSLOG_ACTION_CLOSE", "syslog;native;0", Allow},
+		{"syslog SYSLOG_ACTION_OPEN", "syslog;native;1", Allow},
+		{"syslog SYSLOG_ACTION_READ", "syslog;native;2", Allow},
+		{"syslog SYSLOG_ACTION_READ_ALL", "syslog;native;3", Allow},
+		{"syslog SYSLOG_ACTION_READ_CLEAR", "syslog;native;4", Allow},
+		{"syslog SYSLOG_ACTION_CLEAR", "syslog;native;5", Allow},
+		{"syslog SYSLOG_ACTION_CONSOLE_OFF", "syslog;native;6", Allow},
+		{"syslog SYSLOG_ACTION_CONSOLE_ON", "syslog;native;7", Allow},
+		{"syslog SYSLOG_ACTION_CONSOLE_LEVEL", "syslog;native;8", Allow},
+		{"syslog SYSLOG_ACTION_SIZE_UNREAD", "syslog;native;9", Allow},
+		{"syslog SYSLOG_ACTION_SIZE_BUFFER", "syslog;native;10", Allow},
+		// bad input
+		{"syslog SYSLOG_ACTION_CLOSE", "syslog;native;99", Deny},
+		{"syslog SYSLOG_ACTION_OPEN", "syslog;native;99", Deny},
+		{"syslog SYSLOG_ACTION_READ", "syslog;native;99", Deny},
+		{"syslog SYSLOG_ACTION_READ_ALL", "syslog;native;99", Deny},
+		{"syslog SYSLOG_ACTION_READ_CLEAR", "syslog;native;99", Deny},
+		{"syslog SYSLOG_ACTION_CLEAR", "syslog;native;99", Deny},
+		{"syslog SYSLOG_ACTION_CONSOLE_OFF", "syslog;native;99", Deny},
+		{"syslog SYSLOG_ACTION_CONSOLE_ON", "syslog;native;99", Deny},
+		{"syslog SYSLOG_ACTION_CONSOLE_LEVEL", "syslog;native;99", Deny},
+		{"syslog SYSLOG_ACTION_SIZE_UNREAD", "syslog;native;99", Deny},
+		{"syslog SYSLOG_ACTION_SIZE_BUFFER", "syslog;native;99", Deny},
+	} {
+		s.runBpf(c, t.seccompAllowlist, t.bpfInput, t.expected)
+	}
+}
+
 func (s *snapSeccompSuite) TestRestrictionsWorkingArgsUidGid(c *C) {
 	// while 'root' user usually has uid 0, 'daemon' user uid may vary
 	// across distributions, best lookup the uid directly
