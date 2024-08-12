@@ -21,6 +21,7 @@ package snapstate_test
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -34,10 +35,12 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
@@ -77,7 +80,19 @@ func (r *recordingStore) SnapAction(ctx context.Context, currentSnaps []*store.C
 
 	res := []store.SnapActionResult{}
 	for _, rs := range r.refreshedSnaps {
-		res = append(res, store.SnapActionResult{Info: rs})
+		result := store.SnapActionResult{Info: rs}
+		for _, comp := range rs.Components {
+			result.Resources = append(result.Resources, store.SnapResourceResult{
+				Name:      comp.Name,
+				Type:      fmt.Sprintf("component/%s", string(comp.Type)),
+				Version:   "1.0",
+				CreatedAt: "2024-01-01T00:00:00Z",
+				// just using the snap revision here, this should be fine for
+				// most testing
+				Revision: rs.Revision.N,
+			})
+		}
+		res = append(res, result)
 	}
 	return res, nil, nil
 }
@@ -231,11 +246,21 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	}
 	ifacerepo.Replace(s.state, repo)
 
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+		{RealName: "other-snap", Revision: snap.R(1), SnapID: "other-snap-id"},
+	})
+
+	seq.AddComponentForRevision(snap.R(1), &sequence.ComponentState{
+		SideInfo: &snap.ComponentSideInfo{
+			Component: naming.NewComponentRef("other-snap", "comp1"),
+			Revision:  snap.R(1),
+		},
+		CompType: snap.TestComponent,
+	})
+
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
-		Active: true,
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-			{RealName: "other-snap", Revision: snap.R(1), SnapID: "other-snap-id"},
-		}),
+		Active:          true,
+		Sequence:        seq,
 		Current:         snap.R(1),
 		SnapType:        "app",
 		TrackingChannel: "devel",
@@ -254,6 +279,12 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 		DownloadInfo: snap.DownloadInfo{
 			Size: int64(88),
 		},
+		Components: map[string]*snap.Component{
+			"comp1": {
+				Type: snap.TestComponent,
+				Name: "comp1",
+			},
+		},
 	}
 	plugs := map[string]*snap.PlugInfo{
 		"plug": {
@@ -265,7 +296,8 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 				"content":          "some-content",
 			},
 			Apps: map[string]*snap.AppInfo{},
-		}}
+		},
+	}
 	info2.Plugs = plugs
 
 	s.store.refreshedSnaps = []*snap.Info{{
@@ -281,6 +313,18 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 			Size: int64(99),
 		},
 	}, info2}
+
+	restore := snapstate.MockReadComponentInfo(func(compMntDir string, info *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		c.Check(csi.Component.ComponentName, Equals, "comp1")
+		c.Check(csi.Component.SnapName, Equals, "other-snap")
+		return &snap.ComponentInfo{
+			Component:         csi.Component,
+			Type:              snap.TestComponent,
+			Version:           "1.0",
+			ComponentSideInfo: *csi,
+		}, nil
+	})
+	defer restore()
 
 	rh := snapstate.NewRefreshHints(s.state)
 	err := rh.Ensure()
@@ -309,6 +353,9 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	c.Check(cand2.Type(), Equals, snap.TypeApp)
 	c.Check(cand2.DownloadSize(), Equals, int64(88))
 	c.Check(cand2.Version, Equals, "v1")
+	c.Check(cand2.Components, HasLen, 1)
+	c.Check(cand2.Components[0].CompSideInfo.Component, Equals, naming.NewComponentRef("other-snap", "comp1"))
+	c.Check(cand2.Components[0].CompSideInfo.Revision, Equals, snap.R(2))
 
 	var snapst1 snapstate.SnapState
 	err = snapstate.Get(s.state, "some-snap", &snapst1)
