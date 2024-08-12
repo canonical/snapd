@@ -543,7 +543,22 @@ fdatasync
 fsync
 syncfs
 sysinfo
+
+# At one point, we relied on AppArmor denying CAP_SYSLOG to prevent privileged
+# syslog() access. However, as of Jammy, the kernel.dmesg_restrict sysctl has
+# been set to 1 by default, which requires CAP_SYSLOG for access to /dev/kmesg.
+# Thus, we have to grant CAP_SYSLOG to the log_observe interface, so we must
+# explicitly deny the non-"observe" type privileged accesses here. The following
+# only allows SYSLOG_ACTION_READ{_ALL}, SYSLOG_ACTION_SIZE_{UNREAD,BUFFER}
+~syslog SYSLOG_ACTION_CLOSE
+~syslog SYSLOG_ACTION_OPEN
+~syslog SYSLOG_ACTION_READ_CLEAR
+~syslog SYSLOG_ACTION_CLEAR
+~syslog SYSLOG_ACTION_CONSOLE_OFF
+~syslog SYSLOG_ACTION_CONSOLE_ON
+~syslog SYSLOG_ACTION_CONSOLE_LEVEL
 syslog
+
 tee
 tgkill
 time
