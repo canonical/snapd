@@ -3328,6 +3328,22 @@ func (s *SnapOpSuite) TestWaitServerError(c *check.C) {
 	}
 }
 
+func (s *SnapOpSuite) TestInstallCompsNoSnap(c *check.C) {
+
+	cmds := [][]string{
+		{"remove", "+comp1"},
+		{"remove", "+comp1", "+comp2"},
+		{"install", "+comp1"},
+		{"install", "+comp1", "+comp2"},
+	}
+
+	for _, cmd := range cmds {
+		_, err := snap.Parser(snap.Client()).ParseArgs(cmd)
+		c.Assert(err, check.ErrorMatches, `no snap for the component\(s\) was specified`,
+			check.Commentf("%v", cmd))
+	}
+}
+
 func (s *SnapOpSuite) TestSwitchHappy(c *check.C) {
 	s.srv.total = 4
 	s.srv.checker = func(r *http.Request) {
@@ -3507,4 +3523,45 @@ func (s *SnapOpSuite) TestWaitReportsInfoStatus(c *check.C) {
 	c.Assert(chg, check.NotNil)
 	c.Check(meter.Notices, testutil.Contains, "INFO: Task set to wait until a manual system restart allows to continue")
 	c.Check(n, check.Equals, 2)
+}
+
+func (s *infoSuite) TestSnapInstancesAndComponentsFromNames(c *check.C) {
+	type testcase struct {
+		input       []string
+		instances   []string
+		instToComps map[string][]string
+		err         string
+	}
+
+	tests := []testcase{
+		{[]string{"snap"}, []string{"snap"}, map[string][]string{}, ""},
+		{[]string{"snap_instance"}, []string{"snap_instance"}, map[string][]string{}, ""},
+		{[]string{"snap+comp1+comp2"}, []string{"snap"},
+			map[string][]string{"snap": {"comp1", "comp2"}}, ""},
+		{[]string{"snap1+comp1+comp2", "snap2+comp3+comp4"}, []string{"snap1", "snap2"},
+			map[string][]string{"snap1": {"comp1", "comp2"}, "snap2": {"comp3", "comp4"}},
+			""},
+		{[]string{""}, []string{""}, map[string][]string{},
+			"no snap for the component(s) was specified"},
+		{[]string{"+comp1"}, []string{""}, map[string][]string{"": {"comp1"}},
+			"no snap for the component(s) was specified"},
+		{[]string{"+comp1+comp2"}, []string{""}, map[string][]string{"": {"comp1", "comp2"}},
+			"no snap for the component(s) was specified"},
+	}
+
+	for _, t := range tests {
+		const forInstall = true
+		c.Log("input", t.input)
+		instances, component, err :=
+			snap.SnapInstancesAndComponentsFromNames(t.input, forInstall)
+		if t.err == "" {
+			c.Check(err, check.IsNil)
+			c.Check(instances, check.DeepEquals, t.instances)
+			c.Check(component, check.DeepEquals, t.instToComps)
+		} else {
+			c.Check(err.Error(), check.Equals, t.err)
+			c.Check(instances, check.IsNil)
+			c.Check(component, check.IsNil)
+		}
+	}
 }

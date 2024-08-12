@@ -267,32 +267,6 @@ func isCoreSnap(snapName string) bool {
 	return snapName == defaultCoreSnapName
 }
 
-func componentTasksForInstallWithSnap(ts *state.TaskSet) (beforeLink []*state.Task, linkAndAfter []*state.Task, err error) {
-	link, err := ts.Edge(MaybeRebootEdge)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	isBeforeLink := true
-
-	// this depends on the order of the tasks in the set, but if we want to
-	// maintain a logical ordering of the snaps in the task set returned by
-	// doInstall, then requiring this order simplifies the code a lot
-	for _, t := range ts.Tasks() {
-		if t.ID() == link.ID() {
-			isBeforeLink = false
-		}
-
-		if isBeforeLink {
-			beforeLink = append(beforeLink, t)
-		} else {
-			linkAndAfter = append(linkAndAfter, t)
-		}
-	}
-
-	return beforeLink, linkAndAfter, nil
-}
-
 func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups []ComponentSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
 	tr := config.NewTransaction(st)
 	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
@@ -462,33 +436,24 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		}
 	}
 
+	tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard, compSetupIDs, err := splitComponentTasksForInstall(
+		compsups, st, snapst, snapsup, prepare.ID(), fromChange,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, t := range tasksBeforePreRefreshHook {
+		addTask(t)
+	}
+
 	// run refresh hooks when updating existing snap, otherwise run install hook further down.
 	runRefreshHooks := snapst.IsInstalled() && !snapsup.Flags.Revert
 	if runRefreshHooks {
 		preRefreshHook := SetupPreRefreshHook(st, snapsup.InstanceName())
 		addTask(preRefreshHook)
 	}
-
-	var tasksAfterLinkSnap []*state.Task
-	var tasksBeforeCurrentUnlink []*state.Task
-	for _, compsup := range compsups {
-		compTaskSet, err := doInstallComponent(st, snapst, &compsup, &snapsup, fromChange)
-		if err != nil {
-			return nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
-		}
-
-		beforeLink, afterLink, err := componentTasksForInstallWithSnap(compTaskSet)
-		if err != nil {
-			return nil, err
-		}
-
-		tasksBeforeCurrentUnlink = append(tasksBeforeCurrentUnlink, beforeLink...)
-		tasksAfterLinkSnap = append(tasksAfterLinkSnap, afterLink...)
-
-		// TODO:COMPS: once component hooks are fully merged, we will need to
-		// take care to correctly order the tasks that are created for running
-		// component and snap hooks
-	}
+	prepare.Set("component-setup-tasks", compSetupIDs)
 
 	if snapst.IsInstalled() {
 		// unlink-current-snap (will stop services for copy-data)
@@ -500,21 +465,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		removeAliases.Set("remove-reason", removeAliasesReasonRefresh)
 		addTask(removeAliases)
 
-		// if we're replacing an already installed snaps, make sure that we do
-		// some of the component tasks, up to unlinking the current components,
-		// before we unlink the current snap. this makes sure that undos happen
-		// in the right order
-		for _, t := range tasksBeforeCurrentUnlink {
-			addTask(t)
-		}
-
 		unlink := st.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), snapsup.InstanceName()))
 		unlink.Set("unlink-reason", unlinkReasonRefresh)
 		addTask(unlink)
-	} else {
-		for _, t := range tasksBeforeCurrentUnlink {
-			addTask(t)
-		}
 	}
 
 	// we need to know some of the characteristics of the device - it is
@@ -631,6 +584,17 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		addTask(installHook)
 	}
 
+	for _, t := range tasksAfterPostOpHook {
+		addTask(t)
+	}
+
+	// check if either the snap currently has kernel module components or any of
+	// the new components are kernel module components
+	if requiresKmodSetup(snapst, compsups) {
+		setupKmodComponents := st.NewTask("prepare-kernel-modules-components", fmt.Sprintf(i18n.G("Prepare kernel-modules components for %q%s"), snapsup.InstanceName(), revisionStr))
+		addTask(setupKmodComponents)
+	}
+
 	if snapsup.QuotaGroupName != "" {
 		quotaAddSnapTask, err := AddSnapToQuotaGroup(st, snapsup.InstanceName(), snapsup.QuotaGroupName)
 		if err != nil {
@@ -649,6 +613,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	// run new services
 	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q%s services"), snapsup.InstanceName(), revisionStr))
 	addTask(startSnapServices)
+
+	// TODO:COMPS: test discarding components during a snap refresh (coming
+	// soon!)
+	for _, t := range tasksBeforeDiscard {
+		addTask(t)
+	}
 
 	// Do not do that if we are reverting to a local revision
 	var cleanupTask *state.Task
@@ -764,6 +734,50 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	return installSet, nil
 }
 
+func requiresKmodSetup(snapst *SnapState, compsups []ComponentSetup) bool {
+	current := snapst.Sequence.ComponentsWithTypeForRev(snapst.Current, snap.KernelModulesComponent)
+	if len(current) > 0 {
+		return true
+	}
+
+	for _, compsup := range compsups {
+		if compsup.CompType == snap.KernelModulesComponent {
+			return true
+		}
+	}
+	return false
+}
+
+func splitComponentTasksForInstall(
+	compsups []ComponentSetup,
+	st *state.State,
+	snapst *SnapState,
+	snapsup SnapSetup,
+	snapSetupTaskID string,
+	fromChange string,
+) (
+	tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard []*state.Task,
+	compSetupIDs []string,
+	err error,
+) {
+	for _, compsup := range compsups {
+		componentTS, err := doInstallComponent(st, snapst, compsup, snapsup, snapSetupTaskID, nil, nil, fromChange)
+		if err != nil {
+			return nil, nil, nil, nil, nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
+		}
+
+		compSetupIDs = append(compSetupIDs, componentTS.compSetupTaskID)
+
+		tasksBeforePreRefreshHook = append(tasksBeforePreRefreshHook, componentTS.beforeLink...)
+		tasksAfterLinkSnap = append(tasksAfterLinkSnap, componentTS.linkTask)
+		tasksAfterPostOpHook = append(tasksAfterPostOpHook, componentTS.postOpHookAndAfter...)
+		if componentTS.discardTask != nil {
+			tasksBeforeDiscard = append(tasksBeforeDiscard, componentTS.discardTask)
+		}
+	}
+	return tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard, compSetupIDs, nil
+}
+
 func NeedsKernelSetup(model *asserts.Model) bool {
 	// Checkinf if it has modeenv - it must be UC20+ or hybrid
 	if model.Grade() == asserts.ModelGradeUnset {
@@ -827,6 +841,14 @@ var SetupInstallHook = func(st *state.State, snapName string) *state.Task {
 
 var SetupInstallComponentHook = func(st *state.State, snap, component string) *state.Task {
 	panic("internal error: snapstate.SetupInstallComponentHook is unset")
+}
+
+var SetupPreRefreshComponentHook = func(st *state.State, snap, component string) *state.Task {
+	panic("internal error: snapstate.SetupPreRefreshComponentHook is unset")
+}
+
+var SetupPostRefreshComponentHook = func(st *state.State, snap, component string) *state.Task {
+	panic("internal error: snapstate.SetupPostRefreshComponentHook is unset")
 }
 
 var SetupPreRefreshHook = func(st *state.State, snapName string) *state.Task {
@@ -3373,6 +3395,10 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 // removeTasks provides the task set to remove snap name after taking a snapshot
 // if flags.Purge is not true, it also computes an estimate of the latter size.
 func removeTasks(st *state.State, name string, revision snap.Revision, flags *RemoveFlags) (removeTs *state.TaskSet, snapshotSize uint64, err error) {
+	if flags == nil {
+		flags = &RemoveFlags{}
+	}
+
 	var snapst SnapState
 	err = Get(st, name, &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -3480,8 +3506,25 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 		prev = disconnect
 	}
 
+	if flags.Terminate {
+		// This check is needed to avoid having the snap stuck in inhibition since
+		// "kill-snap-apps" inhibits the snap from running and "discard-snap" only
+		// removes the inhibition file when removing last revision.
+		if !removeAll {
+			return nil, 0, fmt.Errorf("cannot terminate running apps unless all revisions are removed")
+		}
+		stopSnapApps := st.NewTask("kill-snap-apps", fmt.Sprintf(i18n.G("Kill running snap %q apps"), name))
+		stopSnapApps.Set("snap-setup", snapsup)
+		stopSnapApps.Set("kill-reason", snap.KillReasonRemove)
+		if prev != nil {
+			stopSnapApps.WaitFor(prev)
+		}
+		addNext(state.NewTaskSet(stopSnapApps))
+		prev = stopSnapApps
+	}
+
 	// 'purge' flag disables automatic snapshot for given remove op
-	if flags == nil || !flags.Purge {
+	if !flags.Purge {
 		if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
 			ts, err := AutomaticSnapshot(st, name)
 			if err == nil {
@@ -3592,7 +3635,7 @@ func removeInactiveRevision(st *state.State, snapst *SnapState, name, snapID str
 			CompSideInfo: &cinfo.ComponentSideInfo,
 			CompType:     cinfo.Type,
 			componentInstallFlags: componentInstallFlags{
-				SkipProfiles: true,
+				MultiComponentInstall: true,
 			},
 		}
 

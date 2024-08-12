@@ -433,6 +433,68 @@ plugs:
 	c.Check(removeHook.Plugs["network-client"], NotNil)
 }
 
+func (s *componentSuite) TestReadComponentInfoAllImplicitHooks(c *C) {
+	const componentYaml = `component: snap+component
+type: test
+version: 1.0
+summary: short description
+description: long description
+`
+	const compName = "snap+component"
+	testComp := snaptest.MakeTestComponentWithFiles(c, compName+".comp", componentYaml, [][]string{
+		{"meta/hooks/install", "echo 'implicit hook'"},
+		{"meta/hooks/pre-refresh", "echo 'implicit hook'"},
+	})
+
+	compf, err := snapfile.Open(testComp)
+	c.Assert(err, IsNil)
+
+	const snapYaml = `
+name: snap
+components:
+  component:
+    type: test
+plugs:
+  network-client:
+`
+
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	c.Assert(err, IsNil)
+
+	ci, err := snap.ReadComponentInfoFromContainer(compf, snapInfo, &snap.ComponentSideInfo{
+		Component: naming.NewComponentRef("snap", "component"),
+		Revision:  snap.R(1),
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(ci.Component.ComponentName, Equals, "component")
+	c.Check(ci.Component.SnapName, Equals, "snap")
+	c.Check(ci.Type, Equals, snap.TestComponent)
+	c.Check(ci.Version, Equals, "1.0")
+	c.Check(ci.Summary, Equals, "short description")
+	c.Check(ci.Description, Equals, "long description")
+	c.Check(ci.FullName(), Equals, compName)
+	c.Check(ci.ComponentSideInfo.Component.ComponentName, Equals, "component")
+	c.Check(ci.ComponentSideInfo.Component.SnapName, Equals, "snap")
+	c.Check(ci.Revision, Equals, snap.R(1))
+
+	c.Check(ci.Hooks, HasLen, 2)
+
+	installHook := ci.Hooks["install"]
+	c.Assert(installHook, NotNil)
+	c.Check(installHook.Name, Equals, "install")
+	c.Check(installHook.Explicit, Equals, false)
+	c.Check(installHook.Plugs, HasLen, 1)
+	c.Check(installHook.Plugs["network-client"], NotNil)
+
+	preRefreshHook := ci.Hooks["pre-refresh"]
+	c.Assert(preRefreshHook, NotNil)
+	c.Check(preRefreshHook.Name, Equals, "pre-refresh")
+	c.Check(preRefreshHook.Explicit, Equals, false)
+	c.Check(preRefreshHook.Plugs, HasLen, 1)
+	c.Check(preRefreshHook.Plugs["network-client"], NotNil)
+}
+
 func (s *componentSuite) TestReadComponentInfoFinishedWithSnapInfoMissingComponentError(c *C) {
 	const componentYaml = `component: snap+component
 type: test
@@ -489,7 +551,7 @@ components:
 
 func (s *componentSuite) TestReadComponentInfoInconsistentTypes(c *C) {
 	const componentYaml = `component: snap+component
-type: test
+type: kernel-modules
 version: 1.0
 summary: short description
 description: long description
@@ -504,14 +566,27 @@ description: long description
 name: snap
 components:
   component:
-    type: kernel-modules
+    type: test
 `
 
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadComponentInfoFromContainer(compf, snapInfo, nil)
-	c.Assert(err, ErrorMatches, `inconsistent component type \("kernel-modules" in snap, "test" in component\)`)
+	c.Assert(err, ErrorMatches, `inconsistent component type \("test" in snap, "kernel-modules" in component\)`)
+}
+
+func (s *componentSuite) TestReadComponentInfoKernelModulesInNonKernelSnap(c *C) {
+	const snapYaml = `
+name: snap
+components:
+  component:
+    type: kernel-modules
+`
+
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	c.Assert(snapInfo, IsNil)
+	c.Assert(err, ErrorMatches, "kernel-modules components can exist only for kernel snaps")
 }
 
 func (s *componentSuite) TestHooksForPlug(c *C) {

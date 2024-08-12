@@ -34,6 +34,10 @@ var (
 	ErrUnrecognizedFilePermission = errors.New("file permissions mask contains unrecognized permission")
 )
 
+// Constraints hold information about the applicability of a rule to particular
+// paths or permissions. A request matches the constraints if the requested path
+// is matched by the path pattern (according to bash's globstar matching) and
+// the requested permissions are contained in the constraints' permissions.
 type Constraints struct {
 	PathPattern *patterns.PathPattern `json:"path-pattern,omitempty"`
 	Permissions []string              `json:"permissions,omitempty"`
@@ -156,7 +160,7 @@ func AvailablePermissions(iface string) ([]string, error) {
 
 // AbstractPermissionsFromAppArmorPermissions returns the list of permissions
 // corresponding to the given AppArmor permissions for the given interface.
-func AbstractPermissionsFromAppArmorPermissions(iface string, permissions interface{}) ([]string, error) {
+func AbstractPermissionsFromAppArmorPermissions(iface string, permissions any) ([]string, error) {
 	filePerms, ok := permissions.(notify.FilePermission)
 	if !ok {
 		return nil, fmt.Errorf("cannot parse the given permissions as file permissions: %v", permissions)
@@ -201,7 +205,7 @@ func AbstractPermissionsFromAppArmorPermissions(iface string, permissions interf
 
 // AbstractPermissionsToAppArmorPermissions returns AppArmor permissions
 // corresponding to the given permissions for the given interface.
-func AbstractPermissionsToAppArmorPermissions(iface string, permissions []string) (interface{}, error) {
+func AbstractPermissionsToAppArmorPermissions(iface string, permissions []string) (any, error) {
 	if len(permissions) == 0 {
 		return notify.FilePermission(0), ErrPermissionsListEmpty
 	}

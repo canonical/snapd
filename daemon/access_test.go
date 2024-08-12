@@ -286,6 +286,7 @@ plugs:
 		},
 	})
 	st.Unlock()
+
 	// Access is allowed now that the snap has the plug connected
 	req = http.Request{RemoteAddr: ucred.String()}
 	c.Check(ac.CheckAccess(s.d, &req, ucred, nil), IsNil)
@@ -324,7 +325,7 @@ plugs:
 }
 
 func (s *accessSuite) TestInterfaceOpenAccess(c *C) {
-	var ac daemon.AccessChecker = daemon.InterfaceOpenAccess{Interfaces: []string{"snap-themes-control"}}
+	var ac daemon.AccessChecker = daemon.InterfaceOpenAccess{Interfaces: []string{"snap-themes-control", "snap-interfaces-requests-control"}}
 
 	s.daemon(c)
 	// interfaceOpenAccess allows access if requireInterfaceApiAccess() succeeds
@@ -359,7 +360,7 @@ func (s *accessSuite) TestInterfaceAuthenticatedAccess(c *C) {
 	user := &auth.UserState{}
 	s.daemon(c)
 
-	// themesAuthenticatedAccess denies access if requireInterfaceApiAccess fails
+	// interfaceAuthenticatedAccess denies access if requireInterfaceApiAccess fails
 	ucred := &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapSocket}
 	restore = daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, interfaceNames []string) *daemon.APIError {
 		c.Check(d, Equals, s.d)

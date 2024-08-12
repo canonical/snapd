@@ -87,7 +87,6 @@ func (s *pcscdInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows interacting with PCSD daemon
-(e.g. for the PS/SC API library).`)
+	c.Assert(si.Summary, Equals, `allows interacting with PCSD daemon (e.g. for the PS/SC API library).`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "pcscd")
 }

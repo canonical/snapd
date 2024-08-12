@@ -112,12 +112,8 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 			componentInstallFlags: componentInstallFlags{
 				// if we're removing the snap, then we should remove the
 				// components too
-				RemoveComponentPath: flags.RemoveSnapPath,
-
-				// since target is always used to setup components and snaps at
-				// the same time, individual components should not be create
-				// setup-profiles tasks.
-				SkipProfiles: true,
+				RemoveComponentPath:   flags.RemoveSnapPath,
+				MultiComponentInstall: true,
 			},
 		})
 	}
@@ -137,6 +133,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 	}
 
 	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)
+
 	return SnapSetup{
 		Channel:      t.setup.Channel,
 		CohortKey:    t.setup.CohortKey,
@@ -324,7 +321,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			channel = "stable"
 		}
 
-		comps, err := componentTargetsFromActionResult(r, sn.Components)
+		comps, err := componentTargetsFromActionResult("install", r, sn.Components)
 		if err != nil {
 			return nil, fmt.Errorf("cannot extract components from snap resources: %w", err)
 		}
@@ -363,7 +360,7 @@ func cachedEnforcedValidationSets(st *state.State) func() (*snapasserts.Validati
 	}
 }
 
-func componentTargetsFromActionResult(sar store.SnapActionResult, requested []string) ([]ComponentSetup, error) {
+func componentTargetsFromActionResult(action string, sar store.SnapActionResult, requested []string) ([]ComponentSetup, error) {
 	mapping := make(map[string]store.SnapResourceResult, len(sar.Resources))
 	for _, res := range sar.Resources {
 		mapping[res.Name] = res
@@ -373,6 +370,14 @@ func componentTargetsFromActionResult(sar store.SnapActionResult, requested []st
 	for _, comp := range requested {
 		res, ok := mapping[comp]
 		if !ok {
+			// TODO:COMPS: make sure this branch is tested when we add support for
+			// losing components during a refresh
+			// during a refresh, we will not install components that don't exist
+			// in the new revision
+			if action == "refresh" {
+				continue
+			}
+
 			return nil, fmt.Errorf("cannot find component %q in snap resources", comp)
 		}
 

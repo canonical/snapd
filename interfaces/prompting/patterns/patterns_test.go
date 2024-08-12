@@ -275,17 +275,20 @@ func (s *patternsSuite) TestPathPatternMatch(c *C) {
 	}
 }
 
-func (s *patternsSuite) TestPathPatternMarshalJSON(c *C) {
+func (s *patternsSuite) TestPathPatternMarshalUnmarshalJSON(c *C) {
 	for _, pattern := range []string{
 		"/foo",
-		"/foo/ba{r,s}/**",
+		"/f?o/ba{r,s}/**",
 		"/{a,b}{c,d}{e,f}{g,h}",
 	} {
 		pathPattern, err := patterns.ParsePathPattern(pattern)
 		c.Check(err, IsNil)
 		marshalled, err := pathPattern.MarshalJSON()
 		c.Check(err, IsNil)
-		c.Check(marshalled, DeepEquals, []byte(pattern))
+		c.Check(marshalled, DeepEquals, []byte(`"`+pattern+`"`))
+		unmarshalled := patterns.PathPattern{}
+		err = unmarshalled.UnmarshalJSON(marshalled)
+		c.Check(err, IsNil)
 	}
 }
 
@@ -300,8 +303,7 @@ func (s *patternsSuite) TestPathPatternUnmarshalJSONHappy(c *C) {
 		c.Check(err, IsNil)
 		marshalled, err := pathPattern.MarshalJSON()
 		c.Check(err, IsNil)
-		// Marshalled pattern excludes surrounding '"' for some reason
-		c.Check(marshalled, DeepEquals, pattern[1:len(pattern)-1])
+		c.Check(marshalled, DeepEquals, pattern)
 	}
 }
 
@@ -473,8 +475,8 @@ func (s *patternsSuite) TestPathPatternRenderAllVariants(c *C) {
 		pathPattern, err := patterns.ParsePathPattern(testCase.pattern)
 		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
 		expanded := make([]string, 0, pathPattern.NumVariants())
-		pathPattern.RenderAllVariants(func(i int, str string) {
-			expanded = append(expanded, str)
+		pathPattern.RenderAllVariants(func(i int, variant patterns.PatternVariant) {
+			expanded = append(expanded, variant.String())
 		})
 		c.Check(expanded, DeepEquals, testCase.expanded, Commentf("test case: %+v", testCase))
 	}
@@ -863,4 +865,844 @@ func (s *patternsSuite) TestPathPatternMatchesErrors(c *C) {
 	matches, err := patterns.PathPatternMatches(badPattern, "foo")
 	c.Check(err, Equals, doublestar.ErrBadPattern)
 	c.Check(matches, Equals, false)
+}
+
+func (s *patternsSuite) TestHighestPrecedencePattern(c *C) {
+	for i, testCase := range []struct {
+		matchingPath      string
+		patterns          []string
+		highestPrecedence string
+	}{
+		// A single pattern
+		{
+			"/foo",
+			[]string{
+				"/foo",
+			},
+			"/foo",
+		},
+		// Test cases from componentType documentation
+		// Literal
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/bar",
+				"/foo/?ar",
+				"/foo/ba?",
+				"/foo/*",
+			},
+			"/foo/bar",
+		},
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/b*r",
+				"/foo/b*",
+				"/foo/b*/",
+			},
+			"/foo/b*r",
+		},
+		{
+			"/foo/bar",
+			[]string{
+				"/f*o/bar",
+				"/f*/bar",
+			},
+			"/f*o/bar",
+		},
+		// Wildcard '?'
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/ba*?",
+				"/foo/ba*/",
+			},
+			"/foo/ba?*",
+		},
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/?ar",
+				"/foo/*bar",
+			},
+			"/foo/?ar",
+		},
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/*a?",
+				"/foo/*r/**",
+			},
+			"/foo/*a?",
+		},
+		// Separator '/'
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/bar/",
+				"/foo/bar",
+				"/foo/bar*",
+				"/foo/bar/**",
+				"/foo/bar/**/",
+			},
+			"/foo/bar/",
+		},
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/bar",
+				"/foo/**/bar",
+			},
+			"/foo/bar",
+		},
+		// Terminal
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/bar",
+				"/foo/bar/**",
+				"/foo/bar/**/",
+				"/foo/bar*",
+			},
+			"/foo/bar",
+		},
+		// Non-terminal "/**"
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/**/bar",
+				"/foo/**/",
+				"/foo/**",
+				"/foo*/bar",
+			},
+			"/foo/**/bar",
+		},
+		// Terminal "/**/"
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/**/",
+				"/foo/**",
+			},
+			"/foo/**/",
+		},
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/bar/**/",
+				"/foo/bar*",
+			},
+			"/foo/bar/**/",
+		},
+		// Terminal "/**"
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/bar/**",
+				"/foo/bar*",
+			},
+			"/foo/bar/**",
+		},
+		// Test cases from Compare documentation
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/*b*",
+				"/foo/*a*",
+				"/foo/*r*",
+			},
+			"/foo/*b*",
+		},
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/bar*",
+				"/foo/ba*",
+				"/foo/b*",
+			},
+			"/foo/bar*",
+		},
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/*bar",
+				"/foo/*ar",
+				"/foo/*r",
+			},
+			"/foo/*bar",
+		},
+		{
+			"/foo/bar/bazz/quxxx",
+			[]string{
+				"/foo/**/bar/bazz/quxxx",
+				"/foo/**/bazz/quxxx",
+				"/foo/**/quxxx",
+			},
+			"/foo/**/bar/bazz/quxxx",
+		},
+		// Related test cases
+		{
+			"/foo",
+			[]string{
+				"/f?o",
+				"/fo?",
+			},
+			"/fo?",
+		},
+		{
+			"/foo/aaa",
+			[]string{
+				"/foo/*a?",
+				"/foo/*a??",
+			},
+			"/foo/*a??",
+		},
+		{
+			"/foo/aaa",
+			[]string{
+				"/foo/*?a",
+				"/foo/*??a",
+			},
+			"/foo/??*a",
+		},
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/bar",
+				"/foo/ba?",
+				"/foo/b??",
+			},
+			"/foo/bar",
+		},
+		// Other test cases
+		{
+			"/foo/bar/baz",
+			[]string{
+				"/foo/bar/baz",
+				"/foo/bar/ba?",
+			},
+			"/foo/bar/baz",
+		},
+		{
+			"/foo/bar/baz",
+			[]string{
+				"/foo/bar/b?z",
+				"/foo/bar/baz",
+			},
+			"/foo/bar/baz",
+		},
+		{
+			"/foo/bar/baz",
+			[]string{
+				"/foo/bar/baz*",
+				"/foo/bar/baz",
+			},
+			"/foo/bar/baz",
+		},
+		{
+			"/foo/bar/baz",
+			[]string{
+				"/foo/b?r/baz",
+				"/foo/bar/**",
+			},
+			"/foo/bar/**",
+		},
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/bar/",
+				"/foo/bar",
+			},
+			"/foo/bar/",
+		},
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/bar/",
+				"/foo/bar/*",
+			},
+			"/foo/bar/",
+		},
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/bar/",
+				"/foo/bar/**",
+			},
+			"/foo/bar/",
+		},
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/bar/",
+				"/foo/bar/**/",
+			},
+			"/foo/bar/",
+		},
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/bar",
+				"/foo/bar/**",
+			},
+			"/foo/bar",
+		},
+		{
+			"/foo/barxbaz",
+			[]string{
+				"/foo/bar?baz",
+				"/foo/bar*baz",
+			},
+			"/foo/bar?baz",
+		},
+		{
+			"/foo/barxbaz",
+			[]string{
+				"/foo/bar?baz",
+				"/foo/bar**baz",
+			},
+			"/foo/bar?baz",
+		},
+		{
+			"/foo/bar/baz/",
+			[]string{
+				"/foo/bar/baz",
+				"/foo/b*r/baz/",
+			},
+			"/foo/bar/baz",
+		},
+		{
+			"/foo/bar/x/baz",
+			[]string{
+				"/foo/bar/*/baz",
+				"/foo/bar/*/*baz",
+			},
+			"/foo/bar/*/baz",
+		},
+		{
+			"/foo/bar/x/baz",
+			[]string{
+				"/foo/bar/*/baz",
+				"/foo/bar/*/*",
+			},
+			"/foo/bar/*/baz",
+		},
+		{
+			"/foo/bar/baz/",
+			[]string{
+				"/foo/bar/*/",
+				"/foo/bar/*",
+			},
+			"/foo/bar/*/",
+		},
+		{
+			"/foo/bar/baz/",
+			[]string{
+				"/foo/bar/*/",
+				"/foo/bar/*/**/",
+			},
+			"/foo/bar/*/",
+		},
+		{
+			"/foo/bar/baz/",
+			[]string{
+				"/foo/bar/*/",
+				"/foo/bar/*/**",
+			},
+			"/foo/bar/*/",
+		},
+		{
+			"/foo/bar/x/baz",
+			[]string{
+				"/foo/bar/*/*baz",
+				"/foo/bar/*/*",
+			},
+			"/foo/bar/*/*baz",
+		},
+		{
+			"/foo/bar/x/baz",
+			[]string{
+				"/foo/bar/*/*baz",
+				"/foo/bar/*/**",
+			},
+			"/foo/bar/*/*baz",
+		},
+		{
+			"/foo/bar/x/baz",
+			[]string{
+				"/foo/bar/*/*",
+				"/foo/bar/*/**",
+			},
+			"/foo/bar/*/*",
+		},
+		{
+			"/foo/bar/baz",
+			[]string{
+				"/foo/bar/*",
+				"/foo/bar/*/**",
+			},
+			"/foo/bar/*",
+		},
+		{
+			"/foo/bar/baz",
+			[]string{
+				"/foo/bar/*",
+				"/foo/bar/**/baz",
+			},
+			"/foo/bar/*",
+		},
+		{
+			"/foo/bar/baz",
+			[]string{
+				"/foo/bar/*/**",
+				"/foo/bar/**/baz",
+			},
+			"/foo/bar/*/**",
+		},
+		{
+			"/foo/barxbaz",
+			[]string{
+				"/foo/bar*baz",
+				"/foo/bar*",
+			},
+			"/foo/bar*baz",
+		},
+		{
+			"/foo/bar/baz",
+			[]string{
+				"/foo/bar*/baz",
+				"/foo/bar*/*",
+			},
+			"/foo/bar*/baz",
+		},
+		{
+			"/foo/bar/baz",
+			[]string{
+				"/foo/bar*/baz",
+				"/foo/bar*/baz/**",
+			},
+			"/foo/bar*/baz",
+		},
+		{
+			"/foo/bar/baz",
+			[]string{
+				"/foo/bar*/baz",
+				"/foo/bar/**",
+			},
+			"/foo/bar/**",
+		},
+		{
+			"/foo/barxxx/xxxbaz",
+			[]string{
+				"/foo/bar*/*",
+				"/foo/bar*/*baz",
+			},
+			"/foo/bar*/*baz",
+		},
+		{
+			"/foo/barxxx",
+			[]string{
+				"/foo/bar*/**",
+				"/foo/bar*",
+			},
+			"/foo/bar*",
+		},
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/bar*/",
+				"/foo/bar*/**",
+			},
+			"/foo/bar*/",
+		},
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/bar*/",
+				"/foo/bar*/**/",
+			},
+			"/foo/bar*/",
+		},
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/bar*/",
+				"/foo/bar/**/",
+			},
+			"/foo/bar/**/",
+		},
+		{
+			"/foo/bar/baz/",
+			[]string{
+				"/foo/bar*/*baz",
+				"/foo/bar/**/baz",
+			},
+			"/foo/bar/**/baz",
+		},
+		{
+			"/foo/bar/baz/",
+			[]string{
+				"/foo/bar*/*baz",
+				"/foo/bar*/**/baz",
+			},
+			"/foo/bar*/*baz",
+		},
+		{
+			"/foo/bar/x/baz/",
+			[]string{
+				"/foo/bar*/*/baz",
+				"/foo/bar*/*/*",
+			},
+			"/foo/bar*/*/baz",
+		},
+		{
+			"/foo/bar/x/baz/",
+			[]string{
+				"/foo/bar*/*/baz",
+				"/foo/bar/**/baz",
+			},
+			"/foo/bar/**/baz",
+		},
+		{
+			"/foo/bar/baz/",
+			[]string{
+				"/foo/bar*/*/",
+				"/foo/bar*/*",
+			},
+			"/foo/bar*/*/",
+		},
+		{
+			"/foo/bar/baz/",
+			[]string{
+				"/foo/bar/**/baz",
+				"/foo/bar/**/*baz",
+			},
+			"/foo/bar/**/baz",
+		},
+		{
+			"/foo/bar/baz/",
+			[]string{
+				"/foo/bar/**/baz",
+				"/foo/bar/**",
+			},
+			"/foo/bar/**/baz",
+		},
+		// Prioritize earlier matches after /**/
+		{
+			"/foo/bar/fizz/buzz/file.txt",
+			[]string{
+				"/foo/bar/**/fizz/**",
+				"/foo/bar/**/buzz/**",
+			},
+			"/foo/bar/**/fizz/**",
+		},
+		{
+			"/foo/bar/buzz/fizz/file.txt",
+			[]string{
+				"/foo/bar/**/fizz/**",
+				"/foo/bar/**/buzz/**",
+			},
+			"/foo/bar/**/buzz/**",
+		},
+		{
+			"/foo/bar/baz/",
+			[]string{
+				"/foo/bar/**/*baz/",
+				"/foo/bar/**/*baz",
+			},
+			"/foo/bar/**/*baz/",
+		},
+		{
+			"/foo/bar/baz/",
+			[]string{
+				"/foo/bar/**/*baz/",
+				"/foo/bar/**/",
+			},
+			"/foo/bar/**/*baz/",
+		},
+		{
+			"/foo/bar/baz/",
+			[]string{
+				"/foo/bar/**/*baz",
+				"/foo/bar/**/",
+			},
+			"/foo/bar/**/*baz",
+		},
+		{
+			"/foo/bar/x/baz",
+			[]string{
+				"/foo/bar/**/*baz",
+				"/foo/bar/**",
+			},
+			"/foo/bar/**/*baz",
+		},
+		{
+			"/foo/bar/fizz/buzz/baz",
+			[]string{
+				"/foo/bar/**/*baz",
+				"/foo/bar*/**/baz",
+			},
+			"/foo/bar/**/*baz",
+		},
+		{
+			"/foo/bar/fizz/buzz/baz/",
+			[]string{
+				"/foo/bar/**/",
+				"/foo/bar/**",
+			},
+			"/foo/bar/**/",
+		},
+		{
+			"/foo/bar/fizz/buzz/baz/",
+			[]string{
+				"/foo/bar/**/",
+				"/foo/bar*/**/baz/",
+			},
+			"/foo/bar/**/",
+		},
+		{
+			"/foo/bar/fizz/buzz/baz/",
+			[]string{
+				"/foo/bar/**",
+				"/foo/bar*/**/baz/",
+			},
+			"/foo/bar/**",
+		},
+		{
+			"/foo/bar/fizz/buzz/baz/",
+			[]string{
+				"/foo/bar*/**/baz",
+				"/foo/bar*/**/",
+			},
+			"/foo/bar*/**/baz",
+		},
+		{
+			"/foo/barfizz/buzz/baz/",
+			[]string{
+				"/foo/bar*/**/",
+				"/foo/bar*/**",
+			},
+			"/foo/bar*/**/",
+		},
+		{
+			"/foo/bar/file.tar.gz",
+			[]string{
+				"/foo/bar/*.gz",
+				"/foo/bar/*.tar.gz",
+			},
+			"/foo/bar/*.tar.gz",
+		},
+		{
+			"/foo/bar/file.tar.gz",
+			[]string{
+				"/foo/bar/**/*.gz",
+				"/foo/**/*.tar.gz",
+			},
+			"/foo/bar/**/*.gz",
+		},
+		{
+			"/foo/bar/x/y/z/file.tar.gz",
+			[]string{
+				"/foo/bar/x/**/*.gz",
+				"/foo/bar/**/*.tar.gz",
+			},
+			"/foo/bar/x/**/*.gz",
+		},
+		{
+			"/foo/bar/file.tar.gz",
+			[]string{
+				"/foo/bar/**/*.tar.gz",
+				"/foo/bar/*",
+			},
+			"/foo/bar/*",
+		},
+		{
+			"/foo/bar/baz/x/y/z/file.txt",
+			[]string{
+				"/foo/bar/**",
+				"/foo/bar/baz/**",
+				"/foo/bar/baz/**/*.txt",
+			},
+			"/foo/bar/baz/**/*.txt",
+		},
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/bar*",
+				"/foo/bar/**",
+			},
+			"/foo/bar/**",
+		},
+		{
+			`/foo/\`,
+			[]string{
+				`/foo/\\`,
+				`/foo/*/**`,
+			},
+			`/foo/\\`,
+		},
+		{
+			`/foo/*fizz/bar/x*`,
+			[]string{
+				`/foo/\**/b\ar/*\*`,
+				`/foo/*/bar/x\*`,
+			},
+			`/foo/\**/bar/*\*`,
+		},
+		{
+			"/foo/barxxxbaz",
+			[]string{
+				"/foo/bar**",
+				"/foo/bar**baz",
+			},
+			"/foo/bar*baz",
+		},
+		{
+			"/foo/xxxbar",
+			[]string{
+				"/foo/**",
+				"/foo/**bar",
+			},
+			"/foo/*bar",
+		},
+		{
+			"/foo/x/y/z/bar/baz/",
+			[]string{
+				"/foo/**/bar/*/",
+				"/foo/**/b?r/baz/",
+			},
+			"/foo/**/bar/*/",
+		},
+		{
+			"/foo/x/y/z/bar/fizz",
+			[]string{
+				"/foo/**/fizz",
+				"/foo/**/bar/fizz",
+			},
+			"/foo/**/bar/fizz",
+		},
+		{
+			"/foo/x/y/z/bar",
+			[]string{
+				"/foo/**/*/bar",
+				"/foo/**/*",
+			},
+			"/foo/*/**/bar",
+		},
+		{
+			"/foo/bar",
+			[]string{
+				"/foo/**/*",
+				"/**",
+			},
+			"/foo/**",
+		},
+		// Duplicate patterns should never be passed into HighestPrecedencePattern,
+		// but if they are, handle them correctly.
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/bar/",
+				"/foo/bar/",
+			},
+			"/foo/bar/",
+		},
+		{
+			"/foo/bar/",
+			[]string{
+				"/foo/bar/",
+				"/foo/bar/",
+				"/foo/bar",
+			},
+			"/foo/bar/",
+		},
+		{
+			"/foo/bar/baz/",
+			[]string{
+				"/foo/bar/**",
+				"/foo/bar/**",
+				"/foo/bar/*",
+			},
+			"/foo/bar/*",
+		},
+	} {
+		variants := make([]patterns.PatternVariant, len(testCase.patterns))
+		variantsReversed := make([]patterns.PatternVariant, len(testCase.patterns))
+		for i, pattern := range testCase.patterns {
+			variant, err := patterns.ParsePatternVariant(pattern)
+			c.Assert(err, IsNil, Commentf("pattern: %s", pattern))
+			variants[i] = variant
+			variantsReversed[len(variantsReversed)-1-i] = variant
+			// Check that the rendered variant actually matches the path
+			matches, err := patterns.PathPatternMatches(variant.String(), testCase.matchingPath)
+			c.Check(err, IsNil, Commentf("testCase: %+v\npath: %s\nvariant: %s", testCase, testCase.matchingPath, variant.String()))
+			c.Check(matches, Equals, true, Commentf("testCase: %+v\npath: %s\nvariant: %s", testCase, testCase.matchingPath, variant.String()))
+		}
+		highestPrecedence, err := patterns.HighestPrecedencePattern(variants, testCase.matchingPath)
+		c.Check(err, IsNil, Commentf("Error occurred during test case %d:\n%+v\nerror: %v", i, testCase, err))
+		if err != nil {
+			continue
+		}
+		c.Check(highestPrecedence.String(), Equals, testCase.highestPrecedence, Commentf("Highest precedence pattern incorrect for test case %d:\n%+v", i, testCase))
+		highestPrecedence, err = patterns.HighestPrecedencePattern(variantsReversed, testCase.matchingPath)
+		c.Check(err, IsNil, Commentf("Error occurred during test case %d:\n%+v\nerror: %v", i, testCase, err))
+		if err != nil {
+			continue
+		}
+		c.Check(highestPrecedence.String(), Equals, testCase.highestPrecedence, Commentf("Highest precedence pattern incorrect for reversed test case %d:\n%+v", i, testCase))
+	}
+}
+
+func (s *patternsSuite) TestHighestPrecedencePatternOrdered(c *C) {
+	matchingPath := "/foo/bar/baz/myfile.txt"
+	orderedPatterns := []string{
+		"/foo/bar/baz/myfile.txt",
+		"/foo/bar/baz/m?file.*",
+		"/foo/bar/baz/m*file.txt",
+		"/foo/bar/baz/m*file*",
+		"/foo/bar/baz/*",
+		"/foo/bar/*/myfile.txt",
+		"/foo/bar/*/myfile*",
+		"/foo/bar/*/*.txt",
+		"/foo/bar/*/*",
+		"/foo/bar/**/baz/myfile.txt",
+		"/foo/bar/**/baz/*.txt",
+		"/foo/bar/**/baz/*",
+		"/foo/bar/**/myfile.txt",
+		"/foo/bar/**",
+		"/foo/ba*r/baz/myfile.txt",
+		"/foo/b?r/baz/myfile.txt",
+		"/foo/b*r/baz/myfile.txt",
+		"/foo/?*/baz/myfile.txt",
+		"/foo/?*/**",
+		"/foo/*/baz/myfile.txt",
+		"/foo/*/baz/*",
+		"/foo/*/*/*",
+		"/foo/*/**/baz/myfile.txt",
+		"/foo/**/bar/baz/myfile.txt",
+		"/foo/**/baz/myfile.txt",
+		"/foo/**/baz/**",
+		"/foo/**/myfile.txt",
+		"/**/foo/bar/baz/myfile.txt",
+		"/**/myfile.txt",
+		"/**",
+	}
+	for i := 0; i < len(orderedPatterns); i++ {
+		window := orderedPatterns[i:]
+		variants := make([]patterns.PatternVariant, 0, len(window))
+		for _, pattern := range window {
+			variant, err := patterns.ParsePatternVariant(pattern)
+			c.Assert(err, IsNil, Commentf("pattern: %s", pattern))
+			variants = append(variants, variant)
+		}
+		result, err := patterns.HighestPrecedencePattern(variants, matchingPath)
+		c.Assert(err, IsNil, Commentf("Error occurred while computing precedence between %v: %v", window, err))
+		c.Check(result.String(), Equals, window[0], Commentf("patterns: %+v", window))
+	}
+}
+
+func (s *patternsSuite) TestHighestPrecedencePatternUnhappy(c *C) {
+	result, err := patterns.HighestPrecedencePattern([]patterns.PatternVariant{}, "")
+	c.Check(err, Equals, patterns.ErrNoPatterns)
+	c.Check(result, DeepEquals, patterns.PatternVariant{})
 }

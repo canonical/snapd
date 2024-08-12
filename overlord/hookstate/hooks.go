@@ -35,6 +35,8 @@ import (
 func init() {
 	snapstate.SetupInstallHook = SetupInstallHook
 	snapstate.SetupInstallComponentHook = SetupInstallComponentHook
+	snapstate.SetupPreRefreshComponentHook = SetupPreRefreshComponentHook
+	snapstate.SetupPostRefreshComponentHook = SetupPostRefreshComponentHook
 	snapstate.SetupPreRefreshHook = SetupPreRefreshHook
 	snapstate.SetupPostRefreshHook = SetupPostRefreshHook
 	snapstate.SetupRemoveHook = SetupRemoveHook
@@ -63,6 +65,34 @@ func SetupInstallComponentHook(st *state.State, snap, component string) *state.T
 	}
 
 	summary := fmt.Sprintf(i18n.G(`Run install hook of "%s+%s" component if present`), hooksup.Snap, hooksup.Component)
+	task := HookTask(st, summary, hooksup, nil)
+
+	return task
+}
+
+func SetupPreRefreshComponentHook(st *state.State, snap, component string) *state.Task {
+	hooksup := &HookSetup{
+		Snap:      snap,
+		Component: component,
+		Hook:      "pre-refresh",
+		Optional:  true,
+	}
+
+	summary := fmt.Sprintf(i18n.G(`Run pre-refresh hook of "%s+%s" component if present`), hooksup.Snap, hooksup.Component)
+	task := HookTask(st, summary, hooksup, nil)
+
+	return task
+}
+
+func SetupPostRefreshComponentHook(st *state.State, snap, component string) *state.Task {
+	hooksup := &HookSetup{
+		Snap:      snap,
+		Component: component,
+		Hook:      "post-refresh",
+		Optional:  true,
+	}
+
+	summary := fmt.Sprintf(i18n.G(`Run post-refresh hook of "%s+%s" component if present`), hooksup.Snap, hooksup.Component)
 	task := HookTask(st, summary, hooksup, nil)
 
 	return task

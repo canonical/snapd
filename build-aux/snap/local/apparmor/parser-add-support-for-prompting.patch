@@ -1,0 +1,3265 @@
+From ef0fa7eb705fefbf4e44738a7fa6f43ed3a94305 Mon Sep 17 00:00:00 2001
+From: John Johansen <john.johansen@canonical.com>
+Date: Mon, 3 Apr 2023 21:39:03 -0700
+Subject: [PATCH] parser: add support for prompting
+
+This adds base support for prompting and extended permission tables.
+
+Signed-off-by: John Johansen <john.johansen@canonical.com>
+---
+ parser/af_unix.cc                      |   28 ++--
+ parser/af_unix.h                       |    4 
+ parser/dbus.cc                         |   10 -
+ parser/dbus.h                          |    6 
+ parser/io_uring.cc                     |    6 
+ parser/io_uring.h                      |    2 
+ parser/libapparmor_re/Makefile         |    6 
+ parser/libapparmor_re/aare_rules.cc    |  148 ++++++++++++++++++++--
+ parser/libapparmor_re/aare_rules.h     |   45 ++++--
+ parser/libapparmor_re/chfa.cc          |  167 +++++++++++++++++++++++--
+ parser/libapparmor_re/chfa.h           |   12 +
+ parser/libapparmor_re/expr-tree.h      |   19 +-
+ parser/libapparmor_re/hfa.cc           |   85 ++++++++++--
+ parser/libapparmor_re/hfa.h            |   36 ++++-
+ parser/libapparmor_re/policy_compat.cc |  218 +++++++++++++++++++++++++++++++++
+ parser/libapparmor_re/policy_compat.h  |   25 +++
+ parser/mount.cc                        |   26 +--
+ parser/mount.h                         |    4 
+ parser/mqueue.cc                       |   12 -
+ parser/mqueue.h                        |    4 
+ parser/network.cc                      |   22 +--
+ parser/network.h                       |    9 -
+ parser/parser.h                        |   17 +-
+ parser/parser_common.c                 |   66 +++++++++
+ parser/parser_interface.c              |  106 ++++++++++++++--
+ parser/parser_main.c                   |   42 ++++++
+ parser/parser_misc.c                   |   19 +-
+ parser/parser_policy.c                 |    7 +
+ parser/parser_regex.c                  |  181 +++++++++++++++++++++++----
+ parser/parser_yacc.y                   |   39 +++--
+ parser/perms.h                         |  117 +++++++++++++++++
+ parser/profile.cc                      |    6 
+ parser/profile.h                       |   15 +-
+ parser/ptrace.cc                       |    9 -
+ parser/ptrace.h                        |    6 
+ parser/rule.h                          |   58 +++++++-
+ parser/signal.cc                       |    9 -
+ parser/signal.h                        |    6 
+ parser/userns.cc                       |    8 -
+ parser/userns.h                        |    2 
+ 40 files changed, 1366 insertions(+), 241 deletions(-)
+ create mode 100644 parser/libapparmor_re/policy_compat.cc
+ create mode 100644 parser/libapparmor_re/policy_compat.h
+ create mode 100644 parser/perms.h
+
+--- apparmor-4.0.2.orig/parser/af_unix.cc
++++ apparmor-4.0.2/parser/af_unix.cc
+@@ -33,7 +33,7 @@
+ /* See unix(7) for autobind address definition */
+ #define autobind_address_pattern "\\x00[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]";
+ 
+-int parse_unix_perms(const char *str_perms, perms_t *perms, int fail)
++int parse_unix_perms(const char *str_perms, perm32_t *perms, int fail)
+ {
+ 	return parse_X_perms("unix", AA_VALID_NET_PERMS, str_perms, perms, fail);
+ }
+@@ -113,7 +113,7 @@
+ 	downgrade = false;
+ }
+ 
+-unix_rule::unix_rule(perms_t perms_p, struct cond_entry *conds,
++unix_rule::unix_rule(perm32_t perms_p, struct cond_entry *conds,
+ 		     struct cond_entry *peer_conds):
+ 	af_rule(AF_UNIX), addr(NULL), peer_addr(NULL)
+ {
+@@ -191,7 +191,7 @@
+ #define CMD_OPT		4
+ 
+ void unix_rule::downgrade_rule(Profile &prof) {
+-	perms_t mask = (perms_t) -1;
++	perm32_t mask = (perm32_t) -1;
+ 
+ 	if (!prof.net.allow && !prof.net.alloc_net_table())
+ 		yyerror(_("Memory allocation error."));
+@@ -318,7 +318,7 @@
+ 	std::ostringstream buffer;
+ 	std::string buf;
+ 
+-	perms_t mask = perms;
++	perm32_t mask = perms;
+ 
+ 	/* always generate a downgraded rule. This doesn't change generated
+ 	 * policy size and allows the binary policy to be loaded against
+@@ -344,7 +344,7 @@
+ 	write_to_prot(buffer);
+ 	if ((mask & AA_NET_CREATE) && !has_peer_conds()) {
+ 		buf = buffer.str();
+-		if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode == RULE_DENY,
++		if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode,
+ 						 map_perms(AA_NET_CREATE),
+ 						 map_perms(audit == AUDIT_FORCE ? AA_NET_CREATE : 0),
+ 						 parseopts))
+@@ -369,7 +369,7 @@
+ 		tmp << "\\x00";
+ 
+ 		buf = tmp.str();
+-		if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode == RULE_DENY,
++		if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode,
+ 						 map_perms(AA_NET_BIND),
+ 						 map_perms(audit == AUDIT_FORCE ? AA_NET_BIND : 0),
+ 						 parseopts))
+@@ -394,7 +394,7 @@
+ 					AA_LOCAL_NET_PERMS & ~AA_LOCAL_NET_CMD;
+ 		if (mask & local_mask) {
+ 			buf = buffer.str();
+-			if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode == RULE_DENY,
++			if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode,
+ 							 map_perms(mask & local_mask),
+ 							 map_perms(audit == AUDIT_FORCE ? mask & local_mask : 0),
+ 							 parseopts))
+@@ -408,7 +408,7 @@
+ 			/* TODO: backlog conditional: for now match anything*/
+ 			tmp << "..";
+ 			buf = tmp.str();
+-			if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode == RULE_DENY,
++			if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode,
+ 							 map_perms(AA_NET_LISTEN),
+ 							 map_perms(audit == AUDIT_FORCE ? AA_NET_LISTEN : 0),
+ 							 parseopts))
+@@ -421,10 +421,12 @@
+ 			/* TODO: sockopt conditional: for now match anything */
+ 			tmp << "..";
+ 			buf = tmp.str();
+-			if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode == RULE_DENY,
+-							 map_perms(mask & AA_NET_OPT),
+-							 map_perms(audit == AUDIT_FORCE ? AA_NET_OPT : 0),
+-							 parseopts))
++			if (!prof.policy.rules->add_rule(buf.c_str(),
++						rule_mode,
++						map_perms(mask & AA_NET_OPT),
++						map_perms(audit == AUDIT_FORCE ?
++							  AA_NET_OPT : 0),
++						parseopts))
+ 				goto fail;
+ 		}
+ 		mask &= ~AA_LOCAL_NET_PERMS | AA_NET_ACCEPT;
+@@ -442,7 +444,7 @@
+ 			goto fail;
+ 
+ 		buf = buffer.str();
+-		if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode == RULE_DENY, map_perms(perms & AA_PEER_NET_PERMS), map_perms(audit == AUDIT_FORCE ? perms & AA_PEER_NET_PERMS : 0), parseopts))
++		if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode, map_perms(perms & AA_PEER_NET_PERMS), map_perms(audit == AUDIT_FORCE ? perms & AA_PEER_NET_PERMS : 0), parseopts))
+ 			goto fail;
+ 	}
+ 
+--- apparmor-4.0.2.orig/parser/af_unix.h
++++ apparmor-4.0.2/parser/af_unix.h
+@@ -24,7 +24,7 @@
+ #include "profile.h"
+ #include "af_rule.h"
+ 
+-int parse_unix_perms(const char *str_mode, perms_t *perms, int fail);
++int parse_unix_perms(const char *str_mode, perm32_t *perms, int fail);
+ 
+ class unix_rule: public af_rule {
+ 	void write_to_prot(std::ostringstream &buffer);
+@@ -39,7 +39,7 @@
+ 	bool downgrade = true;
+ 
+ 	unix_rule(unsigned int type_p, audit_t audit_p, rule_mode_t rule_mode_p);
+-	unix_rule(perms_t perms, struct cond_entry *conds,
++	unix_rule(perm32_t perms, struct cond_entry *conds,
+ 		  struct cond_entry *peer_conds);
+ 	virtual ~unix_rule()
+ 	{
+--- apparmor-4.0.2.orig/parser/dbus.cc
++++ apparmor-4.0.2/parser/dbus.cc
+@@ -30,7 +30,7 @@
+ #include "dbus.h"
+ 
+ 
+-int parse_dbus_perms(const char *str_perms, perms_t *perms, int fail)
++int parse_dbus_perms(const char *str_perms, perm32_t *perms, int fail)
+ {
+ 	return parse_X_perms("DBus", AA_VALID_DBUS_PERMS, str_perms, perms, fail);
+ }
+@@ -66,7 +66,7 @@
+ 	}
+ }
+ 
+-dbus_rule::dbus_rule(perms_t perms_p, struct cond_entry *conds,
++dbus_rule::dbus_rule(perm32_t perms_p, struct cond_entry *conds,
+ 		     struct cond_entry *peer_conds):
+ 	perms_rule_t(AA_CLASS_DBUS), bus(NULL), name(NULL), peer_label(NULL), path(NULL), interface(NULL), member(NULL)
+ {
+@@ -274,20 +274,20 @@
+ 	}
+ 
+ 	if (perms & AA_DBUS_BIND) {
+-		if (!prof.policy.rules->add_rule_vec(rule_mode == RULE_DENY, perms & AA_DBUS_BIND,
++		if (!prof.policy.rules->add_rule_vec(rule_mode, perms & AA_DBUS_BIND,
+ 						     audit == AUDIT_FORCE ? perms & AA_DBUS_BIND : 0,
+ 						    2, vec, parseopts, false))
+ 			goto fail;
+ 	}
+ 	if (perms & (AA_DBUS_SEND | AA_DBUS_RECEIVE)) {
+-		if (!prof.policy.rules->add_rule_vec(rule_mode == RULE_DENY,
++		if (!prof.policy.rules->add_rule_vec(rule_mode,
+ 				       perms & (AA_DBUS_SEND | AA_DBUS_RECEIVE),
+ 						     audit == AUDIT_FORCE ? perms & (AA_DBUS_SEND | AA_DBUS_RECEIVE) : 0,
+ 				       6, vec, parseopts, false))
+ 			goto fail;
+ 	}
+ 	if (perms & AA_DBUS_EAVESDROP) {
+-		if (!prof.policy.rules->add_rule_vec(rule_mode == RULE_DENY,
++		if (!prof.policy.rules->add_rule_vec(rule_mode,
+ 						    perms & AA_DBUS_EAVESDROP,
+ 						     audit == AUDIT_FORCE ? perms & AA_DBUS_EAVESDROP : 0,
+ 						    1, vec, parseopts, false))
+--- apparmor-4.0.2.orig/parser/dbus.h
++++ apparmor-4.0.2/parser/dbus.h
+@@ -23,7 +23,7 @@
+ #include "rule.h"
+ #include "profile.h"
+ 
+-extern int parse_dbus_perms(const char *str_mode, perms_t *mode, int fail);
++extern int parse_dbus_perms(const char *str_mode, perm32_t *mode, int fail);
+ 
+ class dbus_rule: public perms_rule_t {
+ 	void move_conditionals(struct cond_entry *conds);
+@@ -40,7 +40,7 @@
+ 	char *interface;
+ 	char *member;
+ 
+-	dbus_rule(perms_t perms_p, struct cond_entry *conds,
++	dbus_rule(perm32_t perms_p, struct cond_entry *conds,
+ 		  struct cond_entry *peer_conds);
+ 	virtual ~dbus_rule() {
+ 		free(bus);
+@@ -51,7 +51,7 @@
+ 		free(member);
+ 	};
+ 	virtual bool valid_prefix(const prefixes &p, const char *&error) {
+-		if (p.owner) {
++		if (p.owner != OWNER_UNSPECIFIED) {
+ 			error = "owner prefix not allowed on dbus rules";
+ 			return false;
+ 		}
+--- apparmor-4.0.2.orig/parser/io_uring.cc
++++ apparmor-4.0.2/parser/io_uring.cc
+@@ -47,7 +47,7 @@
+ 	}
+ }
+ 
+-io_uring_rule::io_uring_rule(perms_t perms_p, struct cond_entry *conds, struct cond_entry *ring_conds):
++io_uring_rule::io_uring_rule(perm32_t perms_p, struct cond_entry *conds, struct cond_entry *ring_conds):
+ 	perms_rule_t(AA_CLASS_IO_URING), label(NULL)
+ {
+ 	if (perms_p) {
+@@ -122,14 +122,14 @@
+ 	}
+ 
+ 	if (perms & AA_VALID_IO_URING_PERMS) {
+-		if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode == RULE_DENY, perms,
++		if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode, perms,
+ 						 audit == AUDIT_FORCE ? perms : 0,
+ 						 parseopts))
+ 			goto fail;
+ 
+ 		if (perms & AA_IO_URING_OVERRIDE_CREDS) {
+ 			buf = buffer.str(); /* update buf to have label */
+-			if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode == RULE_DENY,
++			if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode,
+ 							 perms, audit == AUDIT_FORCE ? perms : 0,
+ 							 parseopts))
+ 				goto fail;
+--- apparmor-4.0.2.orig/parser/io_uring.h
++++ apparmor-4.0.2/parser/io_uring.h
+@@ -31,7 +31,7 @@
+ public:
+ 	char *label;
+ 
+-	io_uring_rule(perms_t perms, struct cond_entry *conds, struct cond_entry *ring_conds);
++	io_uring_rule(perm32_t perms, struct cond_entry *conds, struct cond_entry *ring_conds);
+ 	virtual ~io_uring_rule()
+ 	{
+ 		free(label);
+--- apparmor-4.0.2.orig/parser/libapparmor_re/Makefile
++++ apparmor-4.0.2/parser/libapparmor_re/Makefile
+@@ -22,17 +22,19 @@
+ 
+ UNITTESTS = tst_parse
+ 
+-libapparmor_re.a: parse.o expr-tree.o hfa.o chfa.o aare_rules.o
++libapparmor_re.a: parse.o expr-tree.o hfa.o chfa.o aare_rules.o policy_compat.o
+ 	${AR} ${ARFLAGS} $@ $^
+ 
+ expr-tree.o: expr-tree.cc expr-tree.h
+ 
+-hfa.o: hfa.cc apparmor_re.h hfa.h ../immunix.h
++hfa.o: hfa.cc apparmor_re.h hfa.h ../immunix.h  policy_compat.h
+ 
+ aare_rules.o: aare_rules.cc aare_rules.h apparmor_re.h expr-tree.h hfa.h chfa.h parse.h ../immunix.h
+ 
+ chfa.o: chfa.cc chfa.h ../immunix.h
+ 
++policy_compat.o: policy_compat.cc policy_compat.h ../perms.h ../immunix.h
++
+ parse.o : parse.cc apparmor_re.h expr-tree.h
+ 
+ parse.cc : parse.y parse.h flex-tables.h ../immunix.h
+--- apparmor-4.0.2.orig/parser/libapparmor_re/aare_rules.cc
++++ apparmor-4.0.2/parser/libapparmor_re/aare_rules.cc
+@@ -44,10 +44,10 @@
+ 	expr_map.clear();
+ }
+ 
+-bool aare_rules::add_rule(const char *rule, int deny, uint32_t perms,
+-			  uint32_t audit, optflags const &opts)
++bool aare_rules::add_rule(const char *rule, rule_mode_t mode, perm32_t perms,
++			  perm32_t audit, optflags const &opts)
+ {
+-	return add_rule_vec(deny, perms, audit, 1, &rule, opts, false);
++	return add_rule_vec(mode, perms, audit, 1, &rule, opts, false);
+ }
+ 
+ void aare_rules::add_to_rules(Node *tree, Node *perms)
+@@ -71,7 +71,7 @@
+ 	return new CatNode(new CatNode(l, new CharNode(transchar(-1, true))), r);
+ }
+ 
+-bool aare_rules::add_rule_vec(int deny, uint32_t perms, uint32_t audit,
++bool aare_rules::add_rule_vec(rule_mode_t mode, perm32_t perms, perm32_t audit,
+ 			      int count, const char **rulev, optflags const &opts,
+ 			      bool oob)
+ {
+@@ -107,7 +107,7 @@
+ 	if (reverse)
+ 		flip_tree(tree);
+ 
+-	accept = unique_perms.insert(deny, perms, audit, exact_match);
++	accept = unique_perms.insert(mode, perms, audit, exact_match);
+ 
+ 	if (opts.dump & DUMP_DFA_RULE_EXPR) {
+ 		const char *separator;
+@@ -123,8 +123,11 @@
+ 		}
+ 		cerr << "  ->  ";
+ 		tree->dump(cerr);
+-		if (deny)
++		// TODO: split out from prefixes class
++		if (mode == RULE_DENY)
+ 			cerr << " deny";
++		else if (mode == RULE_PROMPT)
++			cerr << " prompt";
+ 		cerr << " (0x" << hex << perms <<"/" << audit << dec << ")";
+ 		accept->dump(cerr);
+  		cerr << "\n\n";
+@@ -189,16 +192,16 @@
+ 	return true;
+ }
+ 
+-/* create a dfa from the ruleset
++/* create a chfa from the ruleset
+  * returns: buffer contain dfa tables, @size set to the size of the tables
+  *          else NULL on failure, @min_match_len set to the shortest string
+  *          that can match the dfa for determining xmatch priority.
+  */
+-void *aare_rules::create_dfa(size_t *size, int *min_match_len, optflags const &opts,
+-			     bool filedfa)
++CHFA *aare_rules::create_chfa(int *min_match_len,
++			      vector <aa_perms> &perms_table,
++			      optflags const &opts, bool filedfa,
++			      bool extended_perms, bool prompt)
+ {
+-	char *buffer = NULL;
+-
+ 	/* finish constructing the expr tree from the different permission
+ 	 * set nodes */
+ 	PermExprMap::iterator i = expr_map.begin();
+@@ -247,7 +250,7 @@
+ 		}
+ 	}
+ 
+-	stringstream stream;
++	CHFA *chfa = NULL;
+ 	try {
+ 		DFA dfa(root, opts, filedfa);
+ 		if (opts.dump & DUMP_DFA_UNIQ_PERMS)
+@@ -304,10 +307,45 @@
+ 				dfa.dump_diff_encode(cerr);
+ 		}
+ 
+-		CHFA chfa(dfa, eq, opts);
++		//cerr << "Checking extended perms " << extended_perms << "\n";
++		if (extended_perms) {
++			//cerr << "creating permstable\n";
++		  dfa.compute_perms_table(perms_table, prompt);
++		}
++		chfa = new CHFA(dfa, eq, opts, extended_perms, prompt);
+ 		if (opts.dump & DUMP_DFA_TRANS_TABLE)
+-			chfa.dump(cerr);
+-		chfa.flex_table(stream, "");
++			chfa->dump(cerr);
++	}
++	catch(int error) {
++		return NULL;
++	}
++
++	return chfa;
++}
++
++/* create a dfa from the ruleset
++ * returns: buffer contain dfa tables, @size set to the size of the tables
++ *          else NULL on failure, @min_match_len set to the shortest string
++ *          that can match the dfa for determining xmatch priority.
++ */
++void *aare_rules::create_dfablob(size_t *size, int *min_match_len,
++				 vector <aa_perms> &perms_table,
++				 optflags const &opts, bool filedfa,
++				 bool extended_perms, bool prompt)
++{
++	char *buffer = NULL;
++	stringstream stream;
++
++	try {
++		CHFA *chfa = create_chfa(min_match_len, perms_table,
++					 opts, filedfa, extended_perms,
++					 prompt);
++		if (!chfa) {
++			*size = 0;
++			return NULL;
++		}
++		chfa->flex_table(stream, "");
++		delete (chfa);
+ 	}
+ 	catch(int error) {
+ 		*size = 0;
+@@ -323,5 +361,85 @@
+ 	if (!buffer)
+ 		return NULL;
+ 	buf->sgetn(buffer, *size);
++
++	return buffer;
++}
++
++
++/* create a dfa from the ruleset
++ * returns: buffer contain dfa tables, @size set to the size of the tables
++ *          else NULL on failure, @min_match_len set to the shortest string
++ *          that can match the dfa for determining xmatch priority.
++ */
++void *aare_rules::create_welded_dfablob(aare_rules *file_rules,
++					size_t *size, int *min_match_len,
++					size_t *new_start,
++					vector <aa_perms> &perms_table,
++					optflags const &opts,
++					bool extended_perms, bool prompt)
++{
++	int file_min_len;
++	vector <aa_perms> file_perms;
++	CHFA *file_chfa;
++	try {
++		file_chfa = file_rules->create_chfa(&file_min_len,
++						    file_perms, opts,
++						    true, extended_perms, prompt);
++		if (!file_chfa) {
++			*size = 0;
++			return NULL;
++		}
++	}
++	catch(int error) {
++		*size = 0;
++		return NULL;
++	}
++
++	CHFA *policy_chfa;
++	try {
++		policy_chfa = create_chfa(min_match_len,
++					  perms_table, opts,
++					  false, extended_perms, prompt);
++		if (!policy_chfa) {
++			delete file_chfa;
++			*size = 0;
++			return NULL;
++		}
++	}
++	catch(int error) {
++		delete file_chfa;
++		*size = 0;
++		return NULL;
++	}
++
++	stringstream stream;
++	try {
++		policy_chfa->weld_file_to_policy(*file_chfa, *new_start,
++						 extended_perms, prompt,
++						 perms_table, file_perms);
++		policy_chfa->flex_table(stream, "");
++	}
++	catch(int error) {
++		delete (file_chfa);
++		delete (policy_chfa);
++		*size = 0;
++		return NULL;
++	}
++	delete file_chfa;
++	delete policy_chfa;
++
++	/* write blob to buffer */
++	stringbuf *buf = stream.rdbuf();
++
++	buf->pubseekpos(0);
++	*size = buf->in_avail();
++	if (file_min_len < *min_match_len)
++		*min_match_len = file_min_len;
++
++	char *buffer = (char *)malloc(*size);
++	if (!buffer)
++		return NULL;
++	buf->sgetn(buffer, *size);
++
+ 	return buffer;
+ }
+--- apparmor-4.0.2.orig/parser/libapparmor_re/aare_rules.h
++++ apparmor-4.0.2/parser/libapparmor_re/aare_rules.h
+@@ -21,22 +21,28 @@
+ #ifndef __LIBAA_RE_RULES_H
+ #define __LIBAA_RE_RULES_H
+ 
++#include <vector>
++
+ #include <stdint.h>
+ 
+ #include "../common_optarg.h"
+ #include "apparmor_re.h"
++#include "chfa.h"
+ #include "expr-tree.h"
++#include "../immunix.h"
++#include "../perms.h"
++#include "../rule.h"
+ 
+ class UniquePerm {
+ public:
+-	bool deny;
++	rule_mode_t mode;
+ 	bool exact_match;
+ 	uint32_t perms;
+ 	uint32_t audit;
+ 
+ 	bool operator<(UniquePerm const &rhs)const
+ 	{
+-		if (deny == rhs.deny) {
++		if (mode >= rhs.mode) {
+ 			if (exact_match == rhs.exact_match) {
+ 				if (perms == rhs.perms)
+ 					return audit < rhs.audit;
+@@ -44,7 +50,7 @@
+ 			}
+ 			return exact_match;
+ 		}
+-		return deny;
++		return true;  // mode < rhs.mode
+ 	}
+ };
+ 
+@@ -65,15 +71,17 @@
+ 		nodes.clear();
+ 	}
+ 
+-	Node *insert(bool deny, uint32_t perms, uint32_t audit,
++	Node *insert(rule_mode_t mode, uint32_t perms, uint32_t audit,
+ 		     bool exact_match)
+ 	{
+-		UniquePerm tmp = { deny, exact_match, perms, audit };
++		UniquePerm tmp = { mode, exact_match, perms, audit };
+ 		iterator res = nodes.find(tmp);
+ 		if (res == nodes.end()) {
+ 			Node *node;
+-			if (deny)
++			if (mode == RULE_DENY)
+ 				node = new DenyMatchFlag(perms, audit);
++			else if (mode == RULE_PROMPT)
++				node = new PromptMatchFlag(perms, audit);
+ 			else if (exact_match)
+ 				node = new ExactMatchFlag(perms, audit);
+ 			else
+@@ -101,13 +109,26 @@
+ 	aare_rules(int reverse): root(NULL), unique_perms(), expr_map(), reverse(reverse), rule_count(0) { };
+ 	~aare_rules();
+ 
+-	bool add_rule(const char *rule, int deny, uint32_t perms,
+-		      uint32_t audit, optflags const &opts);
+-	bool add_rule_vec(int deny, uint32_t perms, uint32_t audit, int count,
+-			  const char **rulev, optflags const &opts, bool oob);
++	bool add_rule(const char *rule, rule_mode_t mode, perm32_t perms,
++		      perm32_t audit, optflags const &opts);
++	bool add_rule_vec(rule_mode_t mode, perm32_t perms, perm32_t audit,
++			  int count, const char **rulev, optflags const &opts,
++			  bool oob);
+ 	bool append_rule(const char *rule, bool oob, bool with_perm, optflags const &opts);
+-	void *create_dfa(size_t *size, int *min_match_len, optflags const &opts,
+-			 bool filedfa);
++	CHFA *create_chfa(int *min_match_len,
++			  vector <aa_perms> &perms_table,
++			  optflags const &opts, bool filedfa,
++			  bool extended_perms, bool prompt);
++	void *create_dfablob(size_t *size, int *min_match_len,
++			 vector <aa_perms> &perms_table,
++			 optflags const &opts,
++			 bool filedfa, bool extended_perms, bool prompt);
++	void *create_welded_dfablob(aare_rules *file_rules,
++				    size_t *size, int *min_match_len,
++				    size_t *new_start,
++				    vector <aa_perms> &perms_table,
++				    optflags const &opts,
++				    bool extended_perms, bool prompt);
+ };
+ 
+ #endif				/* __LIBAA_RE_RULES_H */
+--- apparmor-4.0.2.orig/parser/libapparmor_re/chfa.cc
++++ apparmor-4.0.2/parser/libapparmor_re/chfa.cc
+@@ -32,6 +32,7 @@
+ #include "hfa.h"
+ #include "chfa.h"
+ #include "../immunix.h"
++#include "../policydb.h"
+ #include "flex-tables.h"
+ 
+ void CHFA::init_free_list(vector<pair<size_t, size_t> > &free_list,
+@@ -46,11 +47,15 @@
+ 	free_list[free_list.size() - 1].second = 0;
+ }
+ 
++
+ /**
+  * new Construct the transition table.
++ *
++ * TODO: split dfaflags into separate control and dump so we can fold in
++ *       permtable index flag
+  */
+-CHFA::CHFA(DFA &dfa, map<transchar, transchar> &eq, optflags const &opts):
+-	eq(eq)
++CHFA::CHFA(DFA &dfa, map<transchar, transchar> &eq, optflags const &opts,
++	   bool permindex, bool prompt): eq(eq)
+ {
+ 	if (opts.dump & DUMP_DFA_TRANS_PROGRESS)
+ 		fprintf(stderr, "Compressing HFA:\r");
+@@ -101,18 +106,29 @@
+ 	num.insert(make_pair(dfa.nonmatching, num.size()));
+ 
+ 	accept.resize(max(dfa.states.size(), (size_t) 2));
+-	accept2.resize(max(dfa.states.size(), (size_t) 2));
++	if (permindex) {
++		accept[0] = dfa.nonmatching->idx;
++		accept[1] = dfa.start->idx;
++	} else {
++		uint32_t accept3;
++		accept2.resize(max(dfa.states.size(), (size_t) 2));
++		dfa.nonmatching->map_perms_to_accept(accept[0],
++						     accept2[0],
++						     accept3,
++						     prompt);
++		dfa.start->map_perms_to_accept(accept[1],
++					       accept2[1],
++					       accept3,
++					       prompt);
++	}
+ 	next_check.resize(max(optimal, (size_t) dfa.max_range));
+ 	free_list.resize(next_check.size());
+ 
+-	accept[0] = 0;
+-	accept2[0] = 0;
+ 	first_free = 1;
+ 	init_free_list(free_list, 0, 1);
+ 
++	start = dfa.start;
+ 	insert_state(free_list, dfa.start, dfa);
+-	accept[1] = 0;
+-	accept2[1] = 0;
+ 	num.insert(make_pair(dfa.start, num.size()));
+ 
+ 	int count = 2;
+@@ -120,9 +136,15 @@
+ 	if (!(opts.control & CONTROL_DFA_TRANS_HIGH)) {
+ 		for (Partition::iterator i = dfa.states.begin(); i != dfa.states.end(); i++) {
+ 			if (*i != dfa.nonmatching && *i != dfa.start) {
++				uint32_t accept3;
+ 				insert_state(free_list, *i, dfa);
+-				accept[num.size()] = (*i)->perms.allow;
+-				accept2[num.size()] = PACK_AUDIT_CTL((*i)->perms.audit, (*i)->perms.quiet & (*i)->perms.deny);
++				if (permindex)
++					accept[num.size()] = (*i)->idx;
++				else
++					(*i)->map_perms_to_accept(accept[num.size()],
++								  accept2[num.size()],
++								  accept3,
++								  prompt);
+ 				num.insert(make_pair(*i, num.size()));
+ 			}
+ 			if (opts.dump & (DUMP_DFA_TRANS_PROGRESS)) {
+@@ -137,9 +159,15 @@
+ 		     i != order.end(); i++) {
+ 			if (i->second != dfa.nonmatching &&
+ 			    i->second != dfa.start) {
++				uint32_t accept3;
+ 				insert_state(free_list, i->second, dfa);
+-				accept[num.size()] = i->second->perms.allow;
+-				accept2[num.size()] = PACK_AUDIT_CTL(i->second->perms.audit, i->second->perms.quiet & i->second->perms.deny);
++				if (permindex)
++					accept[num.size()] = i->second->idx;
++				else
++					i->second->map_perms_to_accept(accept[num.size()],
++								       accept2[num.size()],
++								       accept3,
++								       prompt);
+ 				num.insert(make_pair(i->second, num.size()));
+ 			}
+ 			if (opts.dump & (DUMP_DFA_TRANS_PROGRESS)) {
+@@ -425,7 +453,7 @@
+ 	th.th_hsize = htonl(hsize);
+ 	th.th_ssize = htonl(hsize +
+ 			    flex_table_size(accept.begin(), accept.end()) +
+-			    flex_table_size(accept2.begin(), accept2.end()) +
++			    (accept2.size() ? flex_table_size(accept2.begin(), accept2.end()) : 0) +
+ 			    (eq.size() ? flex_table_size(equiv_vec.begin(), equiv_vec.end()) : 0) +
+ 			    flex_table_size(base_vec.begin(), base_vec.end()) +
+ 			    flex_table_size(default_vec.begin(), default_vec.end()) +
+@@ -436,7 +464,9 @@
+ 	os << fill64(sizeof(th) + sizeof(th_version) + strlen(name) + 1);
+ 
+ 	write_flex_table(os, YYTD_ID_ACCEPT, accept.begin(), accept.end());
+-	write_flex_table(os, YYTD_ID_ACCEPT2, accept2.begin(), accept2.end());
++	if (accept2.size())
++		write_flex_table(os, YYTD_ID_ACCEPT2, accept2.begin(),
++				 accept2.end());
+ 	if (eq.size())
+ 		write_flex_table(os, YYTD_ID_EC, equiv_vec.begin(),
+ 				 equiv_vec.end());
+@@ -445,3 +475,114 @@
+ 	write_flex_table(os, YYTD_ID_NXT, next_vec.begin(), next_vec.end());
+ 	write_flex_table(os, YYTD_ID_CHK, check_vec.begin(), check_vec.end());
+ }
++
++/*
++ * @file_chfa: chfa to add on to the policy chfa
++ * @new_start: new start state for where the @file_dfa is in the new chfa
++ *
++ * Make a new chfa that is a combination of policy and file chfas. It
++ * assumes policy is built with AA_CLASS_FILE support transition. The
++ * resultant chfa will have file states and indexes offset except for
++ * start and null states.
++ *
++ * NOTE:
++ * - modifies chfa
++ * requires:
++ * - no ec
++ * - policy chfa has transitions state[start].next[AA_CLASS_FILE]
++ * - policy perms table is build if using permstable
++
++ */
++void CHFA::weld_file_to_policy(CHFA &file_chfa, size_t &new_start,
++			       bool accept_idx, bool prompt,
++			       vector <aa_perms>  &policy_perms,
++			       vector <aa_perms> &file_perms)
++{
++	// doesn't support remapping eq classes yet
++	if (eq.size() > 0 || file_chfa.eq.size() > 0)
++		throw 1;
++
++	size_t old_base_size = default_base.size();
++	size_t old_next_size = next_check.size();
++
++	const State *nonmatching = default_base[0].first;
++	//const State *start = default_base[1].first;
++	const State *file_nonmatching = file_chfa.default_base[0].first;
++
++	// renumber states from file_dfa by appending to policy dfa
++	num.insert(make_pair(file_nonmatching, 0));	// remap to policy nonmatching
++	for (map<const State *, size_t>::iterator i = file_chfa.num.begin(); i != file_chfa.num.end() ; i++) {
++		if (i->first == file_nonmatching)
++			continue;
++		num.insert(make_pair(i->first, i->second + old_base_size));
++	}
++
++	// handle default and base table expansion, and setup renumbering
++	// while we remap file_nonmatch within the table, we still keep its
++	// slot.
++	bool first = true;
++	for (DefaultBase::iterator i = file_chfa.default_base.begin(); i != file_chfa.default_base.end(); i++) {
++		const State *def;
++		size_t base;
++		if (first) {
++			first = false;
++			// remap file_nonmatch to nonmatch
++			def = nonmatching;
++			base = 0;
++		} else {
++			def = i->first;
++			base = i->second + old_next_size;
++		}
++		default_base.push_back(make_pair(def, base));
++	}
++
++	// mapping for these are handled by num[]
++	for (NextCheck::iterator i = file_chfa.next_check.begin(); i != file_chfa.next_check.end(); i++) {
++		next_check.push_back(*i);
++	}
++
++	// append file perms to policy perms, and rework permsidx if needed
++	if (accept_idx) {
++		// policy idx double
++		// file + doubled offset
++		// Requires: policy perms table, so we can double and
++		//           update indexes
++		//         * file perm idx to start on even idx
++		//         * policy perms table size to double and entries
++		//           to repeat
++		assert(accept.size() == old_base_size);
++		accept.resize(accept.size() + file_chfa.accept.size());
++		size_t size = policy_perms.size();
++		policy_perms.resize(size*2 + file_perms.size());
++		// shift and double the policy perms
++		for (size_t i = size - 1; size >= 0; i--) {
++			policy_perms[i*2] = policy_perms[i];
++			policy_perms[i*2 + 1] = policy_perms[i];
++		}
++		// update policy accept idx for the new shifted perms table
++		for (size_t i = 0; i < old_base_size; i++) {
++			accept[i] = accept[i]*2;
++		}
++		// copy over file perms
++		for (size_t i = 0; i < file_perms.size(); i++) {
++			policy_perms[size*2 + i] = file_perms[i];
++		}
++		// shift file accept indexs
++		for (size_t i = 0; i < file_chfa.accept.size(); i++) {
++			accept[old_base_size + i] = file_chfa.accept[i] + size*2;
++		}
++	} else {
++		// perms are stored in accept just append the perms
++		size_t size = accept.size();
++		accept.resize(size + file_chfa.accept.size());
++		for (size_t i = 0; i < file_chfa.accept.size(); i++) {
++			accept[size + i] = file_chfa.accept[i];
++			accept2[size + i] = file_chfa.accept2[i];
++		}
++	}
++
++	// Rework transition state[start].next[AA_CLASS_FILE]
++	next_check[default_base[1].second + AA_CLASS_FILE].first = file_chfa.start;
++
++	new_start = num[file_chfa.start];
++}
+--- apparmor-4.0.2.orig/parser/libapparmor_re/chfa.h
++++ apparmor-4.0.2/parser/libapparmor_re/chfa.h
+@@ -16,7 +16,7 @@
+  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+  *
+  *
+- * Create a compressed hfa (chfa) from and hfa
++ * Create a compressed hfa (chfa) from an hfa
+  */
+ #ifndef __LIBAA_RE_CHFA_H
+ #define __LIBAA_RE_CHFA_H
+@@ -25,6 +25,7 @@
+ #include <vector>
+ 
+ #include "hfa.h"
++#include "../perms.h"
+ 
+ #define BASE32_FLAGS 0xff000000
+ #define DiffEncodeBit32 0x80000000
+@@ -37,7 +38,9 @@
+ 	typedef vector<pair<const State *, size_t> > DefaultBase;
+ 	typedef vector<pair<const State *, const State *> > NextCheck;
+       public:
+-	CHFA(DFA &dfa, map<transchar, transchar> &eq, optflags const &opts);
++	CHFA(void);
++	CHFA(DFA &dfa, map<transchar, transchar> &eq, optflags const &opts,
++	     bool permindex, bool prompt);
+ 	void dump(ostream & os);
+ 	void flex_table(ostream &os, const char *name);
+ 	void init_free_list(vector<pair<size_t, size_t> > &free_list,
+@@ -46,12 +49,17 @@
+ 		     StateTrans &cases);
+ 	void insert_state(vector<pair<size_t, size_t> > &free_list,
+ 			  State *state, DFA &dfa);
++	void weld_file_to_policy(CHFA &file_chfa, size_t &new_start,
++				 bool accept_idx, bool prompt,
++				 vector <aa_perms>  &policy_perms,
++				 vector <aa_perms> &file_perms);
+ 
+       private:
+ 	vector<uint32_t> accept;
+ 	vector<uint32_t> accept2;
+ 	DefaultBase default_base;
+ 	NextCheck next_check;
++	const State *start;
+ 	map<const State *, size_t> num;
+ 	map<transchar, transchar> eq;
+ 	transchar max_eq;
+--- apparmor-4.0.2.orig/parser/libapparmor_re/expr-tree.h
++++ apparmor-4.0.2/parser/libapparmor_re/expr-tree.h
+@@ -41,6 +41,7 @@
+ 
+ #include <stdint.h>
+ 
++#include "../perms.h"
+ #include "apparmor_re.h"
+ 
+ using namespace std;
+@@ -885,19 +886,19 @@
+ 
+ class MatchFlag: public AcceptNode {
+ public:
+-	MatchFlag(uint32_t flag, uint32_t audit): flag(flag), audit(audit)
++	MatchFlag(perm32_t perms, perm32_t audit): perms(perms), audit(audit)
+ 	{
+ 		type_flags |= NODE_TYPE_MATCHFLAG;
+ 	}
+-	ostream &dump(ostream &os) { return os << "< 0x" << hex << flag << '>'; }
++	ostream &dump(ostream &os) { return os << "< 0x" << hex << perms << '>'; }
+ 
+-	uint32_t flag;
+-	uint32_t audit;
++	perm32_t perms;
++	perm32_t audit;
+ };
+ 
+ class ExactMatchFlag: public MatchFlag {
+ public:
+-	ExactMatchFlag(uint32_t flag, uint32_t audit): MatchFlag(flag, audit)
++	ExactMatchFlag(perm32_t perms, perm32_t audit): MatchFlag(perms, audit)
+ 	{
+ 		type_flags |= NODE_TYPE_EXACTMATCHFLAG;
+ 	}
+@@ -905,12 +906,18 @@
+ 
+ class DenyMatchFlag: public MatchFlag {
+ public:
+-	DenyMatchFlag(uint32_t flag, uint32_t quiet): MatchFlag(flag, quiet)
++	DenyMatchFlag(perm32_t perms, perm32_t quiet): MatchFlag(perms, quiet)
+ 	{
+ 		type_flags |= NODE_TYPE_DENYMATCHFLAG;
+ 	}
+ };
+ 
++class PromptMatchFlag: public MatchFlag {
++public:
++	PromptMatchFlag(perm32_t prompt, perm32_t audit): MatchFlag(prompt, audit) {}
++};
++
++
+ /* Traverse the syntax tree depth-first in an iterator-like manner. */
+ class depth_first_traversal {
+ 	stack<Node *>pos;
+--- apparmor-4.0.2.orig/parser/libapparmor_re/hfa.cc
++++ apparmor-4.0.2/parser/libapparmor_re/hfa.cc
+@@ -31,11 +31,12 @@
+ #include <iostream>
+ #include <fstream>
+ #include <string.h>
+-
++#include <stdint.h>
+ #include "expr-tree.h"
+ #include "hfa.h"
++#include "policy_compat.h"
+ #include "../immunix.h"
+-
++#include "../perms.h"
+ 
+ ostream &operator<<(ostream &os, const CacheStats &cache)
+ {
+@@ -537,6 +538,7 @@
+ 		     << i->deny << " audit:" << i->audit
+ 		     << " quiet:" << i->quiet << dec << "\n";
+ 	}
++	//TODO: add prompt
+ }
+ 
+ /* Remove dead or unreachable states */
+@@ -644,10 +646,13 @@
+ 	return c;
+ }
+ 
++
++typedef pair<uint64_t,uint64_t> uint128_t;
++
+ /* minimize the number of dfa states */
+ void DFA::minimize(optflags const &opts)
+ {
+-	map<pair<uint64_t, size_t>, Partition *> perm_map;
++	map<pair<uint128_t, size_t>, Partition *> perm_map;
+ 	list<Partition *> partitions;
+ 
+ 	/* Set up the initial partitions
+@@ -664,16 +669,18 @@
+ 	int final_accept = 0;
+ 	for (Partition::iterator i = states.begin(); i != states.end(); i++) {
+ 		size_t hash = 0;
+-		uint64_t permtype = ((uint64_t) (PACK_AUDIT_CTL((*i)->perms.audit, (*i)->perms.quiet & (*i)->perms.deny)) << 32) | (uint64_t) (*i)->perms.allow;
+-		pair<uint64_t, size_t> group = make_pair(permtype, hash);
+-		map<pair<uint64_t, size_t>, Partition *>::iterator p = perm_map.find(group);
++		uint128_t permtype;
++		permtype.first = ((uint64_t) (PACK_AUDIT_CTL((*i)->perms.audit, (*i)->perms.quiet & (*i)->perms.deny)) << 32);
++		permtype.second = (uint64_t) (*i)->perms.allow | ((uint64_t) (*i)->perms.prompt << 32);
++		pair<uint128_t, size_t> group = make_pair(permtype, hash);
++		map<pair<uint128_t, size_t>, Partition *>::iterator p = perm_map.find(group);
+ 		if (p == perm_map.end()) {
+ 			Partition *part = new Partition();
+ 			part->push_back(*i);
+ 			perm_map.insert(make_pair(group, part));
+ 			partitions.push_back(part);
+ 			(*i)->partition = part;
+-			if (permtype)
++			if (permtype.first || permtype.second)
+ 				accept_count++;
+ 		} else {
+ 			(*i)->partition = p->second;
+@@ -1300,6 +1307,46 @@
+ 	}
+ }
+ 
++void DFA::compute_perms_table_ent(State *state, size_t pos,
++				  vector <aa_perms> &perms_table,
++				  bool prompt)
++{
++	uint32_t accept1, accept2, accept3;
++
++	// until front end doesn't map the way it does
++	state->map_perms_to_accept(accept1, accept2, accept3, prompt);
++	if (filedfa) {
++		state->idx = pos * 2;
++		perms_table[pos*2] = compute_fperms_user(accept1, accept2, accept3);
++		perms_table[pos*2 + 1] = compute_fperms_other(accept1, accept2, accept3);
++	} else {
++		state->idx = pos;
++		perms_table[pos] = compute_perms_entry(accept1, accept2, accept3);
++	}
++}
++
++void DFA::compute_perms_table(vector <aa_perms> &perms_table, bool prompt)
++{
++	size_t mult = filedfa ? 2 : 1;
++	size_t pos = 2;
++
++	assert(states.size() >= 2);
++	perms_table.resize(states.size() * mult);
++
++	// nonmatching and start need to be 0 and 1 so handle outside of loop
++	if (filedfa)
++	  compute_perms_table_ent(nonmatching, 0, perms_table, prompt);
++	compute_perms_table_ent(start, 1, perms_table, prompt);
++
++	for (Partition::iterator i = states.begin(); i != states.end(); i++) {
++		if (*i == nonmatching || *i == start)
++			continue;
++		compute_perms_table_ent(*i, pos, perms_table, prompt);
++		pos++;
++	}
++}
++
++
+ #if 0
+ typedef set <ImportantNode *>AcceptNodes;
+ map<ImportantNode *, AcceptNodes> dominance(DFA & dfa)
+@@ -1329,7 +1376,7 @@
+ }
+ #endif
+ 
+-static inline int diff_qualifiers(uint32_t perm1, uint32_t perm2)
++static inline int diff_qualifiers(perm32_t perm1, perm32_t perm2)
+ {
+ 	return ((perm1 & AA_EXEC_TYPE) && (perm2 & AA_EXEC_TYPE) &&
+ 		(perm1 & AA_EXEC_TYPE) != (perm2 & AA_EXEC_TYPE));
+@@ -1343,8 +1390,9 @@
+ int accept_perms(NodeVec *state, perms_t &perms, bool filedfa)
+ {
+ 	int error = 0;
+-	uint32_t exact_match_allow = 0;
+-	uint32_t exact_audit = 0;
++	perm32_t exact_match_allow = 0;
++	perm32_t exact_match_prompt = 0;
++	perm32_t exact_audit = 0;
+ 
+ 	perms.clear();
+ 
+@@ -1359,26 +1407,31 @@
+ 		if (match->is_type(NODE_TYPE_EXACTMATCHFLAG)) {
+ 			/* exact match only ever happens with x */
+ 			if (filedfa && !is_merged_x_consistent(exact_match_allow,
+-						    match->flag))
++						    match->perms))
+ 				error = 1;;
+-			exact_match_allow |= match->flag;
++			exact_match_allow |= match->perms;
+ 			exact_audit |= match->audit;
+ 		} else if (match->is_type(NODE_TYPE_DENYMATCHFLAG)) {
+-			perms.deny |= match->flag;
++			perms.deny |= match->perms;
+ 			perms.quiet |= match->audit;
++		} else if (dynamic_cast<PromptMatchFlag *>(match)) {
++			perms.prompt |= match->perms;
++			perms.audit |= match->audit;
+ 		} else {
+-			if (filedfa && !is_merged_x_consistent(perms.allow, match->flag))
++			if (filedfa && !is_merged_x_consistent(perms.allow, match->perms))
+ 				error = 1;
+-			perms.allow |= match->flag;
++			perms.allow |= match->perms;
+ 			perms.audit |= match->audit;
+ 		}
+ 	}
+ 
+ 	if (filedfa) {
+ 		perms.allow |= exact_match_allow & ~(ALL_AA_EXEC_TYPE);
++		perms.prompt |= exact_match_prompt & ~(ALL_AA_EXEC_TYPE);
+ 		perms.audit |= exact_audit & ~(ALL_AA_EXEC_TYPE);
+ 	} else {
+ 		perms.allow |= exact_match_allow;
++		perms.prompt |= exact_match_prompt;
+ 		perms.audit |= exact_audit;
+ 	}
+ 	if (exact_match_allow & AA_USER_EXEC) {
+@@ -1399,6 +1452,8 @@
+ 
+ 	perms.allow &= ~perms.deny;
+ 	perms.quiet &= perms.deny;
++	perms.prompt &= ~perms.deny;
++	perms.prompt &= ~perms.allow;
+ 
+ 	if (error)
+ 		fprintf(stderr, "profile has merged rule with conflicting x modifiers\n");
+--- apparmor-4.0.2.orig/parser/libapparmor_re/hfa.h
++++ apparmor-4.0.2/parser/libapparmor_re/hfa.h
+@@ -27,11 +27,15 @@
+ #include <list>
+ #include <map>
+ #include <vector>
++#include <iostream>
+ 
+ #include <assert.h>
+ #include <stdint.h>
+ 
+ #include "expr-tree.h"
++#include "policy_compat.h"
++#include "../rule.h"
++extern int prompt_compat_mode;
+ 
+ #define DiffEncodeFlag 1
+ 
+@@ -49,16 +53,16 @@
+ public:
+ 	perms_t(void): allow(0), deny(0), audit(0), quiet(0), exact(0) { };
+ 
+-	bool is_accept(void) { return (allow | audit | quiet); }
++	bool is_accept(void) { return (allow | prompt | audit | quiet); }
+ 
+ 	void dump(ostream &os)
+ 	{
+ 		os << " (0x " << hex
+-		   << allow << "/" << deny << "/" << audit << "/" << quiet
++		   << allow << "/" << deny << "/" << "/" << prompt << "/" << audit << "/" << quiet
+ 		   << ')' << dec;
+ 	}
+ 
+-	void clear(void) { allow = deny = audit = quiet = 0; }
++	void clear(void) { allow = deny = prompt = audit = quiet = 0; }
+ 	void add(perms_t &rhs, bool filedfa)
+ 	{
+ 		deny |= rhs.deny;
+@@ -95,6 +99,7 @@
+ 			allow = (allow | (rhs.allow & ~ALL_AA_EXEC_TYPE));
+ 		else
+ 			allow |= rhs.allow;
++		prompt |= rhs.prompt;
+ 		audit |= rhs.audit;
+ 		quiet = (quiet | rhs.quiet);
+ 
+@@ -112,6 +117,7 @@
+ 	{
+ 		if (deny) {
+ 			allow &= ~deny;
++			prompt &= ~deny;
+ 			quiet &= deny;
+ 			deny = 0;
+ 			return !is_accept();
+@@ -125,12 +131,14 @@
+ 			return allow < rhs.allow;
+ 		if (deny < rhs.deny)
+ 			return deny < rhs.deny;
++		if (prompt < rhs.prompt)
++			return prompt < rhs.prompt;
+ 		if (audit < rhs.audit)
+ 			return audit < rhs.audit;
+ 		return quiet < rhs.quiet;
+ 	}
+ 
+-	uint32_t allow, deny, audit, quiet, exact;
++	perm32_t allow, deny, prompt, audit, quiet, exact;
+ };
+ 
+ int accept_perms(NodeVec *state, perms_t &perms, bool filedfa);
+@@ -198,7 +206,7 @@
+ class State {
+ public:
+ 	State(int l, ProtoState &n, State *other, bool filedfa):
+-		label(l), flags(0), perms(), trans()
++		label(l), flags(0), idx(0), perms(), trans()
+ 	{
+ 		int error;
+ 
+@@ -248,9 +256,20 @@
+ 	void flatten_relative(State *, int upper_bound);
+ 
+ 	int apply_and_clear_deny(void) { return perms.apply_and_clear_deny(); }
++	void map_perms_to_accept(perm32_t &accept1, perm32_t &accept2,
++				 perm32_t &accept3, bool prompt)
++	{
++		accept1 = perms.allow;
++		if (prompt && prompt_compat_mode == PROMPT_COMPAT_DEV)
++		  accept2 = PACK_AUDIT_CTL(perms.prompt, perms.quiet & perms.deny);
++		else
++		accept2 = PACK_AUDIT_CTL(perms.audit, perms.quiet & perms.deny);
++		accept3 = perms.prompt;
++	}
+ 
+ 	int label;
+ 	int flags;
++	int idx;
+ 	perms_t perms;
+ 	StateTrans trans;
+ 	State *otherwise;
+@@ -298,7 +317,6 @@
+ 	}
+ };
+ 
+-
+ /* Transitions in the DFA. */
+ class DFA {
+ 	void dump_node_to_dfa(void);
+@@ -341,6 +359,12 @@
+ 	map<transchar, transchar> equivalence_classes(optflags const &flags);
+ 	void apply_equivalence_classes(map<transchar, transchar> &eq);
+ 
++	void compute_perms_table_ent(State *state, size_t pos,
++				     vector <aa_perms> &perms_table,
++				     bool prompt);
++	void compute_perms_table(vector <aa_perms> &perms_table,
++				 bool prompt);
++
+ 	unsigned int diffcount;
+ 	int oob_range;
+ 	int max_range;
+--- /dev/null
++++ apparmor-4.0.2/parser/libapparmor_re/policy_compat.cc
+@@ -0,0 +1,218 @@
++/*
++ *   Copyright (c) 2022
++ *   Canonical, Ltd. (All rights reserved)
++ *
++ *   This program is free software; you can redistribute it and/or
++ *   modify it under the terms of version 2 of the GNU General Public
++ *   License published by the Free Software Foundation.
++ *
++ *   This program is distributed in the hope that it will be useful,
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *   GNU General Public License for more details.
++ *
++ *   You should have received a copy of the GNU General Public License
++ *   along with this program; if not, contact Novell, Inc. or Canonical
++ *   Ltd.
++ */
++/*
++ * This is a set of functions to provide convertion from old style permission
++ * mappings, to new style kernel mappings. It is based on the kernel to
++ * as the kernel needs this for backwards compatibility. This allows the
++ * userspace to convert to the new permission mapping without reworking
++ * the internal dfa permission tracking.
++ *
++ * In the future this code will be converted to go the reverse direction
++ * i.e. new mappings into old, which the parser will need for backwards
++ * compat with old kernels.
++ */
++
++#include <stdint.h>
++#include <iostream>
++
++#include "policy_compat.h"
++#include "../perms.h"
++#include "../rule.h"
++extern int prompt_compat_mode;
++
++
++/* remap old accept table embedded permissions to separate permission table */
++static uint32_t dfa_map_xindex(uint16_t mask)
++{
++	uint16_t old_index = (mask >> 10) & 0xf;
++	uint32_t index = 0;
++
++	if (mask & 0x100)
++		index |= AA_X_UNSAFE;
++	if (mask & 0x200)
++		index |= AA_X_INHERIT;
++	if (mask & 0x80)
++		index |= AA_X_UNCONFINED;
++
++	if (old_index == 1) {
++		index |= AA_X_UNCONFINED;
++	} else if (old_index == 2) {
++		index |= AA_X_NAME;
++	} else if (old_index == 3) {
++		index |= AA_X_NAME | AA_X_CHILD;
++	} else if (old_index) {
++		index |= AA_X_TABLE;
++		index |= old_index - 4;
++	}
++
++	return index;
++}
++
++/*
++ * map old dfa inline permissions to new format
++ */
++#define dfa_user_allow(accept1) (((accept1) & 0x7f) | \
++				    ((accept1) & 0x80000000))
++#define dfa_user_xbits(accept1) (((accept1) >> 7) & 0x7f)
++#define dfa_user_audit(accept1, accept2) ((accept2) & 0x7f)
++#define dfa_user_quiet(accept1, accept2) (((accept2) >> 7) & 0x7f)
++#define dfa_user_xindex(accept1) \
++	(dfa_map_xindex(accept1 & 0x3fff))
++
++#define dfa_other_allow(accept1) ((((accept1) >> 14) & \
++				      0x7f) |				\
++				     ((accept1) & 0x80000000))
++#define dfa_other_xbits(accept1) \
++	((((accept1) >> 7) >> 14) & 0x7f)
++#define dfa_other_audit(accept1, accept2) (((accept2) >> 14) & 0x7f)
++#define dfa_other_quiet(accept1, accept2) \
++	((((accept2) >> 7) >> 14) & 0x7f)
++#define dfa_other_xindex(accept1) \
++	dfa_map_xindex((accept1 >> 14) & 0x3fff)
++
++/**
++ * map_old_perms - map old file perms layout to the new layout
++ * @old: permission set in old mapping
++ *
++ * Returns: new permission mapping
++ */
++static uint32_t map_old_perms(uint32_t old)
++{
++	uint32_t perm = old & 0xf;
++
++	if (old & AA_MAY_READ)
++		perm |= AA_MAY_GETATTR | AA_MAY_OPEN;
++	if (old & AA_MAY_WRITE)
++		perm |= AA_MAY_SETATTR | AA_MAY_CREATE | AA_MAY_DELETE |
++		       AA_MAY_CHMOD | AA_MAY_CHOWN | AA_MAY_OPEN;
++	if (old & 0x10)
++		perm |= AA_MAY_LINK;
++	/* the old mapping lock and link_subset flags where overlaid
++	 * and use was determined by part of a pair that they were in
++	 */
++	if (old & 0x20)
++		perm |= AA_MAY_LOCK | AA_LINK_SUBSET;
++	if (old & 0x40)	/* AA_EXEC_MMAP */
++		perm |= AA_EXEC_MMAP;
++
++	return perm;
++}
++
++static void compute_fperms_allow(struct aa_perms *perms, uint32_t accept1)
++{
++	perms->allow |= AA_MAY_GETATTR;
++
++	/* change_profile wasn't determined by ownership in old mapping */
++	if (accept1 & 0x80000000)
++		perms->allow |= AA_MAY_CHANGE_PROFILE;
++	if (accept1 & 0x40000000)
++		perms->allow |= AA_MAY_ONEXEC;
++}
++
++struct aa_perms compute_fperms_user(uint32_t accept1, uint32_t accept2,
++				    uint32_t accept3)
++{
++	struct aa_perms perms = { };
++
++	perms.allow = map_old_perms(dfa_user_allow(accept1));
++	perms.prompt = map_old_perms(dfa_user_allow(accept3));
++	perms.audit = map_old_perms(dfa_user_audit(accept1, accept2));
++	perms.quiet = map_old_perms(dfa_user_quiet(accept1, accept2));
++	if (prompt_compat_mode != PROMPT_COMPAT_PERMSV1)
++		perms.xindex = dfa_user_xindex(accept1);
++
++	compute_fperms_allow(&perms, accept1);
++	perms.prompt &= ~(perms.allow | perms.deny);
++	return perms;
++}
++
++struct aa_perms compute_fperms_other(uint32_t accept1, uint32_t accept2,
++				     uint32_t accept3)
++{
++	struct aa_perms perms = { };
++
++	perms.allow = map_old_perms(dfa_other_allow(accept1));
++	perms.prompt = map_old_perms(dfa_other_allow(accept3));
++	perms.audit = map_old_perms(dfa_other_audit(accept1, accept2));
++	perms.quiet = map_old_perms(dfa_other_quiet(accept1, accept2));
++	if (prompt_compat_mode != PROMPT_COMPAT_PERMSV1)
++		perms.xindex = dfa_other_xindex(accept1);
++
++	compute_fperms_allow(&perms, accept1);
++	perms.prompt &= ~(perms.allow | perms.deny);
++	return perms;
++}
++
++static uint32_t map_other(uint32_t x)
++{
++	return ((x & 0x3) << 8) |	/* SETATTR/GETATTR */
++		((x & 0x1c) << 18) |	/* ACCEPT/BIND/LISTEN */
++		((x & 0x60) << 19);	/* SETOPT/GETOPT */
++}
++
++static uint32_t map_xbits(uint32_t x)
++{
++	return ((x & 0x1) << 7) |
++		((x & 0x7e) << 9);
++}
++
++struct aa_perms compute_perms_entry(uint32_t accept1, uint32_t accept2,
++				    uint32_t accept3)
++// don't need to worry about version internally within the parser
++//					   uint32_t version)
++{
++	struct aa_perms perms = { };
++
++	perms.allow = dfa_user_allow(accept1);
++	perms.prompt = dfa_user_allow(accept3);
++	perms.audit = dfa_user_audit(accept1, accept2);
++	perms.quiet = dfa_user_quiet(accept1, accept2);
++
++	/*
++	 * This mapping is convulated due to history.
++	 * v1-v4: only file perms, which are handled by compute_fperms
++	 * v5: added policydb which dropped user conditional to gain new
++	 *     perm bits, but had to map around the xbits because the
++	 *     userspace compiler was still munging them.
++	 * v9: adds using the xbits in policydb because the compiler now
++	 *     supports treating policydb permission bits different.
++	 *     Unfortunately there is no way to force auditing on the
++	 *     perms represented by the xbits
++	 */
++	perms.allow |= map_other(dfa_other_allow(accept1));
++	// v9 encoding never rolled out. AA_MAY_LOCK needed to fix
++	// non fs unix locking see kernel commit
++	// 1cf26c3d2c4c apparmor: fix apparmor mediating locking non-fs unix sockets
++	//if (VERSION_LE(version, v8))
++		perms.allow |= AA_MAY_LOCK;
++	//else
++	//	perms.allow |= map_xbits(dfa_user_xbits(dfa, state));
++
++	/*
++	 * for v5-v9 perm mapping in the policydb, the other set is used
++	 * to extend the general perm set
++	 */
++	perms.prompt |= map_other(dfa_other_allow(accept3));
++	perms.audit |= map_other(dfa_other_audit(accept1, accept2));
++	perms.quiet |= map_other(dfa_other_quiet(accept1, accept2));
++	//if (VERSION_GT(version, v8))
++	//	perms.quiet |= map_xbits(dfa_other_xbits(dfa, state));
++
++	return perms;
++}
++
+--- /dev/null
++++ apparmor-4.0.2/parser/libapparmor_re/policy_compat.h
+@@ -0,0 +1,25 @@
++/*
++ *   Copyright (c) 2022
++ *   Canonical, Ltd. (All rights reserved)
++ *
++ *   This program is free software; you can redistribute it and/or
++ *   modify it under the terms of version 2 of the GNU General Public
++ *   License published by the Free Software Foundation.
++ *
++ *   This program is distributed in the hope that it will be useful,
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *   GNU General Public License for more details.
++ *
++ *   You should have received a copy of the GNU General Public License
++ *   along with this program; if not, contact Novell, Inc. or Canonical
++ *   Ltd.
++ */
++#ifndef __AA_POLICY_COMPAT_H
++#define __AA_POLICY_COMPAT_H
++
++struct aa_perms compute_fperms_user(uint32_t accept1, uint32_t accept2, uint32_t accept3);
++struct aa_perms compute_fperms_other(uint32_t accept1, uint32_t accept2, uint32_t accept3);
++struct aa_perms compute_perms_entry(uint32_t accept1, uint32_t accept2, uint32_t accept3);
++
++#endif /* __AA_POLICY_COMPAT_H */
+--- apparmor-4.0.2.orig/parser/mount.cc
++++ apparmor-4.0.2/parser/mount.cc
+@@ -478,7 +478,7 @@
+ 
+ mnt_rule::mnt_rule(struct cond_entry *src_conds, char *device_p,
+ 		   struct cond_entry *dst_conds unused, char *mnt_point_p,
+-		   perms_t perms_p):
++		   perm32_t perms_p):
+ 	perms_rule_t(AA_CLASS_MOUNT),
+ 	mnt_point(mnt_point_p), device(device_p), trans(NULL), opts(NULL),
+ 	flagsv(0), opt_flagsv(0)
+@@ -784,7 +784,7 @@
+ 
+ 	vec[3] = flagsbuf;
+ 
+-	perms_t tmpperms, tmpaudit;
++	perm32_t tmpperms, tmpaudit;
+ 	if (opts) {
+ 		tmpperms = AA_MATCH_CONT;
+ 		tmpaudit = 0;
+@@ -797,7 +797,7 @@
+ 	 * if a data match is required this only has AA_MATCH_CONT perms
+ 	 * else it has full perms
+ 	 */
+-	if (!prof.policy.rules->add_rule_vec(rule_mode == RULE_DENY, tmpperms, tmpaudit, 4,
++	if (!prof.policy.rules->add_rule_vec(rule_mode, tmpperms, tmpaudit, 4,
+ 					     vec, parseopts, false))
+ 		goto fail;
+ 	count++;
+@@ -808,7 +808,7 @@
+ 		if (!build_mnt_opts(optsbuf, opts))
+ 			goto fail;
+ 		vec[4] = optsbuf.c_str();
+-		if (!prof.policy.rules->add_rule_vec(rule_mode == RULE_DENY, perms,
++		if (!prof.policy.rules->add_rule_vec(rule_mode, perms,
+ 						     (audit == AUDIT_FORCE ? perms : 0),
+ 						     5, vec, parseopts, false))
+ 			goto fail;
+@@ -850,7 +850,7 @@
+ 			     opt_flags & MS_BIND_FLAGS))
+ 		goto fail;
+ 	vec[3] = flagsbuf;
+-	if (!prof.policy.rules->add_rule_vec(rule_mode == RULE_DENY, perms, audit == AUDIT_FORCE ? perms : 0,
++	if (!prof.policy.rules->add_rule_vec(rule_mode, perms, audit == AUDIT_FORCE ? perms : 0,
+ 					     4, vec,
+ 					     parseopts, false))
+ 		goto fail;
+@@ -907,7 +907,7 @@
+ 			     opt_flags & MS_MAKE_FLAGS))
+ 		goto fail;
+ 	vec[3] = flagsbuf;
+-	if (!prof.policy.rules->add_rule_vec(rule_mode == RULE_DENY, perms, audit == AUDIT_FORCE ? perms : 0,
++	if (!prof.policy.rules->add_rule_vec(rule_mode, perms, audit == AUDIT_FORCE ? perms : 0,
+ 					     4, vec,
+ 					     parseopts, false))
+ 		goto fail;
+@@ -950,7 +950,7 @@
+ 			     opt_flags & MS_MOVE_FLAGS))
+ 		goto fail;
+ 	vec[3] = flagsbuf;
+-	if (!prof.policy.rules->add_rule_vec(rule_mode == RULE_DENY, perms, audit == AUDIT_FORCE ? perms : 0,
++	if (!prof.policy.rules->add_rule_vec(rule_mode, perms, audit == AUDIT_FORCE ? perms : 0,
+ 					     4, vec,
+ 					     parseopts, false))
+ 		goto fail;
+@@ -993,7 +993,7 @@
+ 		goto fail;
+ 	vec[3] = flagsbuf;
+ 
+-	perms_t tmpperms, tmpaudit;
++	perm32_t tmpperms, tmpaudit;
+ 	if (opts) {
+ 		tmpperms = AA_MATCH_CONT;
+ 		tmpaudit = 0;
+@@ -1002,7 +1002,7 @@
+ 		tmpaudit = audit == AUDIT_FORCE ? perms : 0;
+ 	}
+ 	/* rule for match without required data || data MATCH_CONT */
+-	if (!prof.policy.rules->add_rule_vec(rule_mode == RULE_DENY, tmpperms, tmpaudit, 4,
++	if (!prof.policy.rules->add_rule_vec(rule_mode, tmpperms, tmpaudit, 4,
+ 					     vec, parseopts, false))
+ 		goto fail;
+ 	count++;
+@@ -1013,7 +1013,7 @@
+ 		if (!build_mnt_opts(optsbuf, opts))
+ 			goto fail;
+ 		vec[4] = optsbuf.c_str();
+-		if (!prof.policy.rules->add_rule_vec(rule_mode == RULE_DENY, perms,
++		if (!prof.policy.rules->add_rule_vec(rule_mode, perms,
+ 						     audit == AUDIT_FORCE ? perms : 0,
+ 						     5, vec, parseopts, false))
+ 			goto fail;
+@@ -1105,7 +1105,7 @@
+ 		if (!convert_entry(mntbuf, mnt_point))
+ 			goto fail;
+ 		vec[0] = mntbuf.c_str();
+-		if (!prof.policy.rules->add_rule_vec(rule_mode == RULE_DENY, perms,
++		if (!prof.policy.rules->add_rule_vec(rule_mode, perms,
+ 					(audit == AUDIT_FORCE ? perms : 0), 1, vec,
+ 					parseopts, false))
+ 			goto fail;
+@@ -1120,7 +1120,7 @@
+ 		if (!clear_and_convert_entry(devbuf, device))
+ 			goto fail;
+ 		vec[1] = devbuf.c_str();
+-		if (!prof.policy.rules->add_rule_vec(rule_mode == RULE_DENY, perms,
++		if (!prof.policy.rules->add_rule_vec(rule_mode, perms,
+ 					(audit == AUDIT_FORCE ? perms : 0), 2, vec,
+ 					parseopts, false))
+ 			goto fail;
+@@ -1141,7 +1141,7 @@
+ void mnt_rule::post_parse_profile(Profile &prof)
+ {
+ 	if (trans) {
+-		perms_t perms = 0;
++		perm32_t perms = 0;
+ 		int n = add_entry_to_x_table(&prof, trans);
+ 		if (!n) {
+ 			PERROR("Profile %s has too many specified profile transitions.\n", prof.name);
+--- apparmor-4.0.2.orig/parser/mount.h
++++ apparmor-4.0.2/parser/mount.h
+@@ -152,7 +152,7 @@
+ 
+ 	mnt_rule(struct cond_entry *src_conds, char *device_p,
+ 		   struct cond_entry *dst_conds unused, char *mnt_point_p,
+-		   perms_t perms_p);
++		   perm32_t perms_p);
+ 	virtual ~mnt_rule()
+ 	{
+ 		free_value_list(opts);
+@@ -163,7 +163,7 @@
+ 	}
+ 
+ 	virtual bool valid_prefix(const prefixes &p, const char *&error) {
+-		if (p.owner) {
++		if (p.owner != OWNER_UNSPECIFIED) {
+ 			error = "owner prefix not allowed on mount rules";
+ 			return false;
+ 		}
+--- apparmor-4.0.2.orig/parser/mqueue.cc
++++ apparmor-4.0.2/parser/mqueue.cc
+@@ -25,7 +25,7 @@
+ #include <iostream>
+ #include <sstream>
+ 
+-int parse_mqueue_perms(const char *str_perms, perms_t *perms, int fail)
++int parse_mqueue_perms(const char *str_perms, perm32_t *perms, int fail)
+ {
+ 	return parse_X_perms("mqueue", AA_VALID_MQUEUE_PERMS, str_perms, perms, fail);
+ }
+@@ -86,7 +86,7 @@
+ 	}
+ }
+ 
+-mqueue_rule::mqueue_rule(perms_t perms_p, struct cond_entry *conds, char *qname_p):
++mqueue_rule::mqueue_rule(perm32_t perms_p, struct cond_entry *conds, char *qname_p):
+ 	// mqueue uses multiple classes, arbitrary choice to represent group
+ 	// withing the AST
+ 	perms_rule_t(AA_CLASS_POSIX_MQUEUE),
+@@ -231,10 +231,10 @@
+ 			/* store perms at name match so label doesn't need
+ 			 * to be checked
+ 			 */
+-			if (!label && !prof.policy.rules->add_rule_vec(rule_mode == RULE_DENY, map_mqueue_perms(perms), audit == AUDIT_FORCE ? map_mqueue_perms(perms) : 0, 1, vec, parseopts, false))
++			if (!label && !prof.policy.rules->add_rule_vec(rule_mode, map_mqueue_perms(perms), audit == AUDIT_FORCE ? map_mqueue_perms(perms) : 0, 1, vec, parseopts, false))
+ 				goto fail;
+ 			/* also provide label match with perm */
+-			if (!prof.policy.rules->add_rule_vec(rule_mode == RULE_DENY, map_mqueue_perms(perms), audit == AUDIT_FORCE ? map_mqueue_perms(perms) : 0, size, vec, parseopts, false))
++			if (!prof.policy.rules->add_rule_vec(rule_mode, map_mqueue_perms(perms), audit == AUDIT_FORCE ? map_mqueue_perms(perms) : 0, size, vec, parseopts, false))
+ 				goto fail;
+ 		}
+ 	}
+@@ -266,10 +266,10 @@
+ 		}
+ 
+ 		if (perms & AA_VALID_SYSV_MQ_PERMS) {
+-			if (!label && !prof.policy.rules->add_rule_vec(rule_mode == RULE_DENY, map_mqueue_perms(perms), audit == AUDIT_FORCE ? map_mqueue_perms(perms) : 0, 1, vec, parseopts, false))
++			if (!label && !prof.policy.rules->add_rule_vec(rule_mode, map_mqueue_perms(perms), audit == AUDIT_FORCE ? map_mqueue_perms(perms) : 0, 1, vec, parseopts, false))
+ 				goto fail;
+ 			/* also provide label match with perm */
+-			if (!prof.policy.rules->add_rule_vec(rule_mode == RULE_DENY, map_mqueue_perms(perms), audit == AUDIT_FORCE ? map_mqueue_perms(perms) : 0, size, vec, parseopts, false))
++			if (!prof.policy.rules->add_rule_vec(rule_mode, map_mqueue_perms(perms), audit == AUDIT_FORCE ? map_mqueue_perms(perms) : 0, size, vec, parseopts, false))
+ 				goto fail;
+ 		}
+ 	}
+--- apparmor-4.0.2.orig/parser/mqueue.h
++++ apparmor-4.0.2/parser/mqueue.h
+@@ -84,7 +84,7 @@
+ 		((mask & (AA_MQUEUE_GETATTR | AA_MQUEUE_SETATTR)) << (AA_OTHER_SHIFT - 8));
+ }
+ 
+-int parse_mqueue_perms(const char *str_perms, perms_t *perms, int fail);
++int parse_mqueue_perms(const char *str_perms, perm32_t *perms, int fail);
+ 
+ class mqueue_rule: public perms_rule_t {
+ 	void move_conditionals(struct cond_entry *conds);
+@@ -93,7 +93,7 @@
+ 	char *qname;
+ 	char *label;
+ 
+-	mqueue_rule(perms_t perms, struct cond_entry *conds, char *qname = NULL);
++	mqueue_rule(perm32_t perms, struct cond_entry *conds, char *qname = NULL);
+ 	virtual ~mqueue_rule()
+ 	{
+ 		free(qname);
+--- apparmor-4.0.2.orig/parser/network.cc
++++ apparmor-4.0.2/parser/network.cc
+@@ -29,7 +29,7 @@
+ 
+ #define ALL_TYPES 0x43e
+ 
+-int parse_net_perms(const char *str_mode, perms_t *mode, int fail)
++int parse_net_perms(const char *str_mode, perm32_t *mode, int fail)
+ {
+ 	return parse_X_perms("net", AA_VALID_NET_PERMS, str_mode, mode, fail);
+ }
+@@ -401,7 +401,7 @@
+ 	network_perms[family].second |= protocol;
+ }
+ 
+-network_rule::network_rule(perms_t perms_p, struct cond_entry *conds,
++network_rule::network_rule(perm32_t perms_p, struct cond_entry *conds,
+ 			   struct cond_entry *peer_conds):
+ 	dedup_perms_rule_t(AA_CLASS_NETV8), label(NULL)
+ {
+@@ -441,7 +441,7 @@
+ 	}
+ }
+ 
+-network_rule::network_rule(perms_t perms_p, const char *family, const char *type,
++network_rule::network_rule(perm32_t perms_p, const char *family, const char *type,
+ 			   const char *protocol, struct cond_entry *conds,
+ 			   struct cond_entry *peer_conds):
+ 	dedup_perms_rule_t(AA_CLASS_NETV8), label(NULL)
+@@ -494,7 +494,7 @@
+ 	}
+ }
+ 
+-network_rule::network_rule(perms_t perms_p, unsigned int family, unsigned int type):
++network_rule::network_rule(perm32_t perms_p, unsigned int family, unsigned int type):
+ 	dedup_perms_rule_t(AA_CLASS_NETV8), label(NULL)
+ {
+ 	network_map[family].push_back({ family, type, 0xFFFFFFFF });
+@@ -653,7 +653,7 @@
+ bool network_rule::gen_ip_conds(Profile &prof, std::list<std::ostringstream> &streams, ip_conds &entry, bool is_peer, bool is_cmd)
+ {
+ 	std::string buf;
+-	perms_t cond_perms;
++	perm32_t cond_perms;
+ 	std::list<std::ostringstream> ip_streams;
+ 
+ 	for (auto &oss : streams) {
+@@ -697,7 +697,7 @@
+ 
+ 		buf = oss.str();
+ 		/* AA_CONT_MATCH mapping (cond_perms) only applies to perms, not audit */
+-		if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode == RULE_DENY, cond_perms,
++		if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode, cond_perms,
+ 						 dedup_perms_rule_t::audit == AUDIT_FORCE ? map_perms(perms) : 0,
+ 						 parseopts))
+ 			return false;
+@@ -710,7 +710,7 @@
+ 			oss << "\\x00"; /* null transition */
+ 
+ 			buf = oss.str();
+-			if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode == RULE_DENY, cond_perms,
++			if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode, cond_perms,
+ 							 dedup_perms_rule_t::audit == AUDIT_FORCE ? map_perms(perms) : 0,
+ 							 parseopts))
+ 				return false;
+@@ -735,7 +735,7 @@
+ 
+ 	if (!features_supports_inet || (family != AF_INET && family != AF_INET6)) {
+ 		buf = buffer.str();
+-		if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode == RULE_DENY, map_perms(perms),
++		if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode, map_perms(perms),
+ 						 dedup_perms_rule_t::audit == AUDIT_FORCE ? map_perms(perms) : 0,
+ 						 parseopts))
+ 			return false;
+@@ -745,7 +745,7 @@
+ 	buf = buffer.str();
+ 	/* create perms need to be generated excluding the rest of the perms */
+ 	if (perms & AA_NET_CREATE) {
+-		if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode == RULE_DENY, map_perms(perms & AA_NET_CREATE) | (AA_CONT_MATCH << 1),
++		if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode, map_perms(perms & AA_NET_CREATE) | (AA_CONT_MATCH << 1),
+ 						 dedup_perms_rule_t::audit == AUDIT_FORCE ? map_perms(perms & AA_NET_CREATE) : 0,
+ 						 parseopts))
+ 			return false;
+@@ -797,7 +797,7 @@
+ 			/* length of queue allowed - not used for now */
+ 			listen_buffer << "..";
+ 			buf = listen_buffer.str();
+-			if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode == RULE_DENY, map_perms(perms),
++			if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode, map_perms(perms),
+ 							 dedup_perms_rule_t::audit == AUDIT_FORCE ? map_perms(perms) : 0,
+ 							 parseopts))
+ 				return false;
+@@ -816,7 +816,7 @@
+ 			/* socket mapping - not used for now */
+ 			opt_buffer << "..";
+ 			buf = opt_buffer.str();
+-			if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode == RULE_DENY, map_perms(perms),
++			if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode, map_perms(perms),
+ 							 dedup_perms_rule_t::audit == AUDIT_FORCE ? map_perms(perms) : 0,
+ 							 parseopts))
+ 				return false;
+--- apparmor-4.0.2.orig/parser/network.h
++++ apparmor-4.0.2/parser/network.h
+@@ -107,8 +107,9 @@
+ 		((mask & (AA_NET_SETOPT | AA_NET_GETOPT)) >> 5); /* 5 + (AA_OTHER_SHIFT - 24) */
+ };
+ 
+-int parse_net_perms(const char *str_mode, perms_t *perms, int fail);
++
+ size_t get_af_max();
++int parse_net_perms(const char *str_mode, perm32_t *perms, int fail);
+ int net_find_type_val(const char *type);
+ const char *net_find_type_name(int type);
+ const char *net_find_af_name(unsigned int af);
+@@ -158,12 +159,12 @@
+ 	 * static elements to maintain compatibility with
+ 	 * AA_CLASS_NET */
+ 	network_rule(): dedup_perms_rule_t(AA_CLASS_NETV8), label(NULL) { }
+-	network_rule(perms_t perms_p, struct cond_entry *conds,
++	network_rule(perm32_t perms_p, struct cond_entry *conds,
+ 		     struct cond_entry *peer_conds);
+-	network_rule(perms_t perms_p, const char *family, const char *type,
++	network_rule(perm32_t perms_p, const char *family, const char *type,
+ 		     const char *protocol, struct cond_entry *conds,
+ 		     struct cond_entry *peer_conds);
+-	network_rule(perms_t perms_p, unsigned int family, unsigned int type);
++	network_rule(perm32_t perms_p, unsigned int family, unsigned int type);
+ 	virtual ~network_rule()
+ 	{
+ 		peer.free_conds();
+--- apparmor-4.0.2.orig/parser/parser.h
++++ apparmor-4.0.2/parser/parser.h
+@@ -122,7 +122,7 @@
+ 	char *nt_name;
+ 	Profile *prof;		 	/* Special profile defined
+ 					 * just for this executable */
+-	perms_t perms;			/* perms is 'or' of AA_* bits */
++	perm32_t perms;			/* perms is 'or' of AA_* bits */
+ 	audit_t audit;
+ 	rule_mode_t rule_mode;
+ 
+@@ -324,6 +324,7 @@
+ /* The parser fills this variable in automatically */
+ #define PROFILE_NAME_VARIABLE "profile_name"
+ 
++
+ /* from parser_common.c */
+ extern uint32_t policy_version;
+ extern uint32_t parser_abi_version;
+@@ -358,6 +359,10 @@
+ extern int features_supports_flag_interruptible;
+ extern int features_supports_flag_signal;
+ extern int kernel_supports_oob;
++extern int kernel_supports_promptdev;
++extern int kernel_supports_permstable32;
++extern int kernel_supports_permstable32_v1;
++extern int prompt_compat_mode;
+ extern int conf_verbose;
+ extern int conf_quiet;
+ extern int names_only;
+@@ -373,6 +378,10 @@
+ 
+ extern void pwarnf(bool werr, const char *fmt, ...) __attribute__((__format__(__printf__, 2, 3)));
+ extern void common_warn_once(const char *name, const char *msg, const char **warned_name);
++bool prompt_compat_mode_supported(int mode);
++int default_prompt_compat_mode();
++void print_prompt_compat_mode(FILE *f);
++
+ 
+ #define pwarn(F, args...) do { if (parseopts.warn & (F)) pwarnf((parseopts.Werror & (F)), ## args); } while (0)
+ 
+@@ -448,12 +457,12 @@
+ extern int get_keyword_token(const char *keyword);
+ extern int get_rlimit(const char *name);
+ extern char *process_var(const char *var);
+-extern perms_t parse_perms(const char *permstr);
+-extern int parse_X_perms(const char *X, int valid, const char *str_perms, perms_t *perms, int fail);
++extern perm32_t parse_perms(const char *permstr);
++extern int parse_X_perms(const char *X, int valid, const char *str_perms, perm32_t *perms, int fail);
+ bool label_contains_ns(const char *label);
+ bool parse_label(bool *_stack, char **_ns, char **_name,
+ 		 const char *label, bool yyerr);
+-extern struct cod_entry *new_entry(char *id, perms_t perms, char *link_id);
++extern struct cod_entry *new_entry(char *id, perm32_t perms, char *link_id);
+ 
+ /* returns -1 if value != true or false, otherwise 0 == false, 1 == true */
+ extern int str_to_boolean(const char* str);
+--- apparmor-4.0.2.orig/parser/parser_common.c
++++ apparmor-4.0.2/parser/parser_common.c
+@@ -86,6 +86,10 @@
+ int features_supports_flag_interruptible = 0;
+ int features_supports_flag_signal = 0;
+ int kernel_supports_oob = 0;		/* out of band transitions */
++int kernel_supports_promptdev = 0;	/* prompt via audit perms */
++int kernel_supports_permstable32 = 0;	/* extended permissions */
++int kernel_supports_permstable32_v1 = 0;	/* extended permissions */
++int prompt_compat_mode = PROMPT_COMPAT_UNKNOWN;
+ int conf_verbose = 0;
+ int conf_quiet = 0;
+ int names_only = 0;
+@@ -165,3 +169,65 @@
+ 	if (parseopts.Werror & WARN_RULE_NOT_ENFORCED)
+ 		exit(1);
+ }
++
++bool prompt_compat_mode_supported(int mode)
++{
++	if (mode == PROMPT_COMPAT_PERMSV2 &&
++	    (kernel_supports_permstable32 && !kernel_supports_permstable32_v1))
++		return true;
++	/*
++	else if (mode == PROMPT_COMPAT_DEV &&
++		 kernel_supports_promptdev)
++		return true;
++	*/
++	else if (mode == PROMPT_COMPAT_FLAG &&
++		 kernel_supports_permstable32)
++		return true;
++	/*
++	else if (mode == PROMPT_COMPAT_PERMSV1 &&
++		 (kernel_supports_permstable32_v1))
++		return true;
++	*/
++	else if (mode == PROMPT_COMPAT_IGNORE)
++		return true;
++
++	return false;
++}
++
++int default_prompt_compat_mode()
++{
++	if (prompt_compat_mode_supported(PROMPT_COMPAT_PERMSV2))
++		return PROMPT_COMPAT_PERMSV2;
++	if (prompt_compat_mode_supported(PROMPT_COMPAT_DEV))
++		return PROMPT_COMPAT_DEV;
++	if (prompt_compat_mode_supported(PROMPT_COMPAT_FLAG))
++		return PROMPT_COMPAT_FLAG;
++	if (prompt_compat_mode_supported(PROMPT_COMPAT_PERMSV1))
++		return PROMPT_COMPAT_PERMSV1;
++	if (prompt_compat_mode_supported(PROMPT_COMPAT_IGNORE))
++		return PROMPT_COMPAT_IGNORE;
++	return PROMPT_COMPAT_IGNORE;
++}
++
++void print_prompt_compat_mode(FILE *f)
++{
++	switch (prompt_compat_mode) {
++	case PROMPT_COMPAT_IGNORE:
++		fprintf(f, "ignore");
++		break;
++	case PROMPT_COMPAT_FLAG:
++		fprintf(f, "flag");
++		break;
++	case PROMPT_COMPAT_PERMSV2:
++		fprintf(f, "permsv2");
++		break;
++	case PROMPT_COMPAT_PERMSV1:
++		fprintf(f, "permsv1");
++		break;
++	case PROMPT_COMPAT_DEV:
++		fprintf(stderr, "dev");
++		break;
++	default:
++		fprintf(f, "Unknown prompt compat mode '%d'", prompt_compat_mode);
++	}
++}
+--- apparmor-4.0.2.orig/parser/parser_interface.c
++++ apparmor-4.0.2/parser/parser_interface.c
+@@ -323,10 +323,49 @@
+ 	sd_write8(buf, SD_LISTEND);
+ }
+ 
+-void sd_serialize_dfa(std::ostringstream &buf, void *dfa, size_t size)
++void sd_serialize_perm(std::ostringstream &buf, aa_perms &perms)
+ {
+-	if (dfa)
++	sd_write_uint32(buf, 0);	/* reserved */
++	sd_write_uint32(buf, perms.allow);
++	sd_write_uint32(buf, perms.deny);
++	sd_write_uint32(buf, perms.subtree);
++	sd_write_uint32(buf, perms.cond);
++	sd_write_uint32(buf, perms.kill);
++	sd_write_uint32(buf, perms.complain);
++	sd_write_uint32(buf, perms.prompt);
++	sd_write_uint32(buf, perms.audit);
++	sd_write_uint32(buf, perms.quiet);
++	sd_write_uint32(buf, perms.hide);
++	sd_write_uint32(buf, perms.xindex);
++	sd_write_uint32(buf, perms.tag);
++	sd_write_uint32(buf, perms.label);
++}
++
++void sd_serialize_permstable(std::ostringstream &buf, vector <aa_perms> &perms_table)
++{
++	sd_write_struct(buf, "perms");
++	sd_write_name(buf, "version");
++	sd_write_uint32(buf, 1);
++	sd_write_array(buf, NULL, perms_table.size());
++	for (size_t i = 0; i < perms_table.size(); i++) {
++		sd_serialize_perm(buf, perms_table[i]);
++	}
++	sd_write_arrayend(buf);
++	sd_write_structend(buf);
++}
++
++void sd_serialize_dfa(std::ostringstream &buf, void *dfa, size_t size,
++	vector <aa_perms> &perms_table)
++{
++	if (dfa) {
++		if (kernel_supports_permstable32 && perms_table.size() > 0) {
++			//fprintf(stderr, "writing perms table %d\n", size);
++			sd_serialize_permstable(buf, perms_table);
++		} else {
++			//fprintf(stderr, "skipping permtable32 %d, size %d\n", kernel_supports_permstable32, perms_table.size());
++		}
+ 		sd_write_aligned_blob(buf, dfa, size, "aadfa");
++	}
+ }
+ 
+ void sd_serialize_rlimits(std::ostringstream &buf, struct aa_rlimits *limits)
+@@ -344,10 +383,13 @@
+ 	sd_write_structend(buf);
+ }
+ 
+-void sd_serialize_xtable(std::ostringstream &buf, char **table)
++void sd_serialize_xtable(std::ostringstream &buf, char **table,
++			 size_t min_size)
+ {
+-	int count;
+-	if (!table[4])
++	size_t count;
++	size_t size;
++
++	if (!table[4] && min_size == 0)
+ 		return;
+ 	sd_write_struct(buf, "xtable");
+ 	count = 0;
+@@ -356,9 +398,11 @@
+ 			count++;
+ 	}
+ 
+-	sd_write_array(buf, NULL, count);
+-	for (int i = 4; i < count + 4; i++) {
+-		int len = strlen(table[i]) + 1;
++	size = max(min_size, count);
++
++	sd_write_array(buf, NULL, size);
++	for (size_t i = 4; i < count + 4; i++) {
++		size_t len = strlen(table[i]) + 1;
+ 
+ 		/* if its a namespace make sure the second : is overwritten
+ 		 * with 0, so that the namespace and name are \0 separated
+@@ -369,6 +413,14 @@
+ 		}
+ 		sd_write_strn(buf, table[i], len, NULL);
+ 	}
++	if (min_size > count) {
++		//fprintf(stderr, "Adding padding to xtable count %lu, min %lu\n", count, min_size);
++		for (; count < min_size; count++) {
++			/* fill with null strings */
++			sd_write_strn(buf, "\000", 1, NULL);
++		}
++	}
++
+ 	sd_write_arrayend(buf);
+ 	sd_write_structend(buf);
+ }
+@@ -411,7 +463,7 @@
+ 	/* only emit this if current kernel at least supports "create" */
+ 	if (perms_create) {
+ 		if (profile->xmatch) {
+-			sd_serialize_dfa(buf, profile->xmatch, profile->xmatch_size);
++			sd_serialize_dfa(buf, profile->xmatch, profile->xmatch_size, profile->xmatch_perms_table);
+ 			sd_write_uint32(buf, profile->xmatch_len);
+ 		}
+ 	}
+@@ -485,14 +537,42 @@
+ 
+ 	if (profile->policy.dfa) {
+ 		sd_write_struct(buf, "policydb");
+-		sd_serialize_dfa(buf, profile->policy.dfa, profile->policy.size);
++		sd_serialize_dfa(buf, profile->policy.dfa, profile->policy.size,
++				 profile->policy.perms_table);
++	if (profile->policy.dfa) {
++		// fprintf(stderr, "profile %s: policy xtable\n", profile->name);
++		// TODO: this is dummy exec make dependent on V1
++		sd_serialize_xtable(buf, profile->exec_table,
++				    profile->uses_prompt_rules && prompt_compat_mode == PROMPT_COMPAT_PERMSV1 ?
++				    profile->policy.perms_table.size() : 0);
++	}
+ 		sd_write_structend(buf);
+ 	}
+ 
+ 	/* either have a single dfa or lists of different entry types */
+-	sd_serialize_dfa(buf, profile->dfa.dfa, profile->dfa.size);
+-	sd_serialize_xtable(buf, profile->exec_table);
+-
++	if (profile->uses_prompt_rules && prompt_compat_mode == PROMPT_COMPAT_PERMSV1) {
++		/* special compat mode to work around verification problem */
++		sd_serialize_dfa(buf, profile->policy.dfa, profile->policy.size,
++				 profile->policy.perms_table);
++		sd_write_name(buf,  "dfa_start");
++		sd_write_uint32(buf, profile->policy.file_start);
++		if (profile->policy.dfa) {
++			// fprintf(stderr, "profile %s: policy xtable\n", profile->name);
++			// TODO: this is dummy exec make dependent on V1
++			sd_serialize_xtable(buf, profile->exec_table,
++					    //permstable32_v1 workaround
++					    profile->policy.perms_table.size());
++		}
++	} else {
++		sd_serialize_dfa(buf, profile->dfa.dfa, profile->dfa.size,
++				 profile->dfa.perms_table);
++		if (profile->dfa.dfa) {
++			// fprintf(stderr, "profile %s: dfa xtable\n", profile->name);
++			sd_serialize_xtable(buf, profile->exec_table,
++					    //??? work around
++					    profile->dfa.perms_table.size());
++		}
++	}
+ 	sd_write_structend(buf);
+ }
+ 
+--- apparmor-4.0.2.orig/parser/parser_main.c
++++ apparmor-4.0.2/parser/parser_main.c
+@@ -137,6 +137,8 @@
+ #define EARLY_ARG_CONFIG_FILE		142
+ #define ARG_WERROR			143
+ #define ARG_ESTIMATED_COMPILE_SIZE	144
++#define ARG_PROMPT_COMPAT		145
++#define ARG_PRINT_PROMPT_COMPAT		146
+ 
+ /* Make sure to update BOTH the short and long_options */
+ static const char *short_options = "ad::f:h::rRVvI:b:BCD:NSm:M:qQn:XKTWkL:O:po:j:";
+@@ -192,6 +194,8 @@
+ 	{"override-policy-abi",	1, 0, ARG_OVERRIDE_POLICY_ABI},	/* no short option */
+ 	{"config-file",		1, 0, EARLY_ARG_CONFIG_FILE},	/* early option, no short option */
+ 	{"estimated-compile-size", 1, 0, ARG_ESTIMATED_COMPILE_SIZE}, /* no short option, not in help */
++	{"prompt-compat",	1, 0, ARG_PROMPT_COMPAT},	/* no short option */
++	{"print-prompt-compat",	1, 0, ARG_PRINT_PROMPT_COMPAT},	/* no short option */
+ 
+ 	{NULL, 0, 0, 0},
+ };
+@@ -789,6 +793,30 @@
+ 			estimated_job_size = tmp * mult;
+ 		}
+ 		break;
++	case ARG_PROMPT_COMPAT:
++		if (strcmp(optarg, "permsv2") == 0) {
++			prompt_compat_mode = PROMPT_COMPAT_PERMSV2;
++		} else if (strcmp(optarg, "permsv1") == 0) {
++			prompt_compat_mode = PROMPT_COMPAT_PERMSV1;
++		} else if (strcmp(optarg, "default") == 0) {
++			prompt_compat_mode = default_prompt_compat_mode();
++		} else if (strcmp(optarg, "dev") == 0) {
++			prompt_compat_mode = PROMPT_COMPAT_DEV;
++		} else if (strcmp(optarg, "ignore") == 0) {
++			prompt_compat_mode = PROMPT_COMPAT_IGNORE;
++		} else if (strcmp(optarg, "flag") == 0) {
++			prompt_compat_mode = PROMPT_COMPAT_FLAG;
++		} else {
++			PERROR("%s: Invalid --prompt-compat option '%s'\n",
++			       progname, optarg);
++			exit(1);
++		}
++		break;
++	case ARG_PRINT_PROMPT_COMPAT:
++		fprintf(stderr, "Prompt compat mode: ");
++		print_prompt_compat_mode(stderr);
++		fprintf(stderr, "\n");
++		break;
+ 	default:
+ 		/* 'unrecognized option' error message gets printed by getopt_long() */
+ 		exit(1);
+@@ -1541,6 +1569,20 @@
+ 	else if (aa_features_supports(*features, "policy/versions/v6"))
+ 		kernel_abi_version = 6;
+ 
++	kernel_supports_promptdev = aa_features_supports(*features, "policy/perms_compatprompt");
++	kernel_supports_permstable32 = aa_features_supports(*features, "policy/permstable32");
++	if (kernel_supports_permstable32) {
++		//fprintf(stderr, "kernel supports prompt\n");
++	}
++	kernel_supports_permstable32_v1 = aa_features_supports(*features, "policy/permstable32_version/0x000001");
++	if (kernel_supports_permstable32_v1) {
++		//fprintf(stderr, "kernel supports prompt_v1\n");
++	}
++
++	/* set default prompt_compat_mode to the best that is supported */
++	if (prompt_compat_mode == PROMPT_COMPAT_UNKNOWN) {
++		prompt_compat_mode = default_prompt_compat_mode();
++	}
+ 	if (!kernel_supports_diff_encode)
+ 		/* clear diff_encode because it is not supported */
+ 		parseopts.control &= ~CONTROL_DFA_DIFF_ENCODE;
+--- apparmor-4.0.2.orig/parser/parser_misc.c
++++ apparmor-4.0.2/parser/parser_misc.c
+@@ -97,6 +97,7 @@
+ 	{"audit",		TOK_AUDIT},
+ 	{"deny",		TOK_DENY},
+ 	{"allow",		TOK_ALLOW},
++	{"prompt",		TOK_PROMPT},
+ 	{"set",			TOK_SET},
+ 	{"rlimit",		TOK_RLIMIT},
+ 	{"alias",		TOK_ALIAS},
+@@ -565,12 +566,12 @@
+ 	}
+ }
+ 
+-static perms_t parse_sub_perms(const char *str_perms, const char *perms_desc unused)
++static perm32_t parse_sub_perms(const char *str_perms, const char *perms_desc unused)
+ {
+ 
+ #define IS_DIFF_QUAL(perms, q) (((perms) & AA_MAY_EXEC) && (((perms) & AA_EXEC_TYPE) != ((q) & AA_EXEC_TYPE)))
+ 
+-	perms_t perms = 0;
++	perm32_t perms = 0;
+ 	const char *p;
+ 
+ 	PDEBUG("Parsing perms: %s\n", str_perms);
+@@ -583,7 +584,7 @@
+ 		char thisc = *p;
+ 		char next = *(p + 1);
+ 		char lower;
+-		perms_t tperms = 0;
++		perm32_t tperms = 0;
+ 
+ reeval:
+ 		switch (thisc) {
+@@ -741,9 +742,9 @@
+ 	return perms;
+ }
+ 
+-perms_t parse_perms(const char *str_perms)
++perm32_t parse_perms(const char *str_perms)
+ {
+-	perms_t tmp, perms = 0;
++	perm32_t tmp, perms = 0;
+ 	tmp = parse_sub_perms(str_perms, "");
+ 	perms = SHIFT_PERMS(tmp, AA_USER_SHIFT);
+ 	perms |= SHIFT_PERMS(tmp, AA_OTHER_SHIFT);
+@@ -752,9 +753,9 @@
+ 	return perms;
+ }
+ 
+-static int parse_X_sub_perms(const char *X, const char *str_perms, perms_t *result, int fail, const char *perms_desc unused)
++static int parse_X_sub_perms(const char *X, const char *str_perms, perm32_t *result, int fail, const char *perms_desc unused)
+ {
+-	perms_t perms = 0;
++	perm32_t perms = 0;
+ 	const char *p;
+ 
+ 	PDEBUG("Parsing %s perms: %s\n", X, str_perms);
+@@ -812,7 +813,7 @@
+ 	return 1;
+ }
+ 
+-int parse_X_perms(const char *X, int valid, const char *str_perms, perms_t *perms, int fail)
++int parse_X_perms(const char *X, int valid, const char *str_perms, perm32_t *perms, int fail)
+ {
+ 	*perms = 0;
+ 	if (!parse_X_sub_perms(X, str_perms, perms, fail, ""))
+@@ -975,7 +976,7 @@
+ 	return false;
+ }
+ 
+-struct cod_entry *new_entry(char *id, perms_t perms, char *link_id)
++struct cod_entry *new_entry(char *id, perm32_t perms, char *link_id)
+ {
+ 	struct cod_entry *entry = NULL;
+ 
+--- apparmor-4.0.2.orig/parser/parser_policy.c
++++ apparmor-4.0.2/parser/parser_policy.c
+@@ -240,6 +240,13 @@
+ 	}
+ 
+ 	error = post_process_policy_list(profile->hat_table, debug_only);
++
++	if (prompt_compat_mode == PROMPT_COMPAT_DEV && profile->uses_prompt_rules)
++		profile->flags.flags |= FLAG_PROMPT_COMPAT;
++
++	else if (prompt_compat_mode == PROMPT_COMPAT_FLAG && profile->uses_prompt_rules)
++		profile->flags.mode = MODE_PROMPT;
++
+ 	return error;
+ }
+ 
+--- apparmor-4.0.2.orig/parser/parser_regex.c
++++ apparmor-4.0.2/parser/parser_regex.c
+@@ -507,7 +507,8 @@
+ 		aare_rules *rules = new aare_rules();
+ 		if (!rules)
+ 			return FALSE;
+-		if (!rules->add_rule(tbuf.c_str(), 0, AA_MAY_EXEC, 0, parseopts)) {
++		if (!rules->add_rule(tbuf.c_str(), RULE_ALLOW,
++				     AA_MAY_EXEC, 0, parseopts)) {
+ 			delete rules;
+ 			return FALSE;
+ 		}
+@@ -520,7 +521,9 @@
+ 				ptype = convert_aaregex_to_pcre(alt->name, 0,
+ 								glob_default,
+ 								tbuf, &len);
+-				if (!rules->add_rule(tbuf.c_str(), 0, AA_MAY_EXEC, 0, parseopts)) {
++				if (!rules->add_rule(tbuf.c_str(),
++						RULE_ALLOW, AA_MAY_EXEC,
++						0, parseopts)) {
+ 					delete rules;
+ 					return FALSE;
+ 				}
+@@ -569,7 +572,13 @@
+ 			}
+ 		}
+ build:
+-		prof->xmatch = rules->create_dfa(&prof->xmatch_size, &prof->xmatch_len, parseopts, true);
++		/* xmatch doesn't use file dfa exec mode bits NOT the owner
++		 * conditional and for just MAY_EXEC can be processed as
++		 * none file perms
++		 *
++		 * we don't need to build xmatch for permstable32, so don't
++		 */
++		prof->xmatch = rules->create_dfablob(&prof->xmatch_size, &prof->xmatch_len, prof->xmatch_perms_table, parseopts, false, false, false);
+ 		delete rules;
+ 		if (!prof->xmatch)
+ 			return FALSE;
+@@ -580,7 +589,7 @@
+ 
+ static int warn_change_profile = 1;
+ 
+-static bool is_change_profile_perms(perms_t perms)
++static bool is_change_profile_perms(perm32_t perms)
+ {
+ 	/**
+ 	 * A change_profile entry will have the AA_CHANGE_PROFILE bit set.
+@@ -635,14 +644,14 @@
+ 	if (entry->rule_mode == RULE_DENY) {
+ 		if ((entry->perms & ~AA_LINK_BITS) &&
+ 		    !is_change_profile_perms(entry->perms) &&
+-		    !dfarules->add_rule(tbuf.c_str(), entry->rule_mode == RULE_DENY,
++		    !dfarules->add_rule(tbuf.c_str(), entry->rule_mode,
+ 					entry->perms & ~(AA_LINK_BITS | AA_CHANGE_PROFILE),
+ 					entry->audit == AUDIT_FORCE ? entry->perms & ~(AA_LINK_BITS | AA_CHANGE_PROFILE) : 0,
+ 					parseopts))
+ 			return FALSE;
+ 	} else if (!is_change_profile_perms(entry->perms)) {
+ 		if (!dfarules->add_rule(tbuf.c_str(),
+-				entry->rule_mode == RULE_DENY, entry->perms,
++				entry->rule_mode, entry->perms,
+ 				entry->audit == AUDIT_FORCE ? entry->perms : 0,
+ 				parseopts))
+ 			return FALSE;
+@@ -667,7 +676,7 @@
+ 			perms |= LINK_TO_LINK_SUBSET(perms);
+ 			vec[1] = "/[^/].*";
+ 		}
+-		if (!dfarules->add_rule_vec(entry->rule_mode == RULE_DENY, perms, entry->audit == AUDIT_FORCE ? perms & AA_LINK_BITS : 0, 2, vec, parseopts, false))
++		if (!dfarules->add_rule_vec(entry->rule_mode, perms, entry->audit == AUDIT_FORCE ? perms & AA_LINK_BITS : 0, 2, vec, parseopts, false))
+ 			return FALSE;
+ 	}
+ 	if (is_change_profile_perms(entry->perms)) {
+@@ -718,13 +727,13 @@
+ 		}
+ 
+ 		/* regular change_profile rule */
+-		if (!dfarules->add_rule_vec(entry->rule_mode == RULE_DENY,
++		if (!dfarules->add_rule_vec(entry->rule_mode,
+ 					    AA_CHANGE_PROFILE | onexec_perms,
+ 					    0, index - 1, &vec[1], parseopts, false))
+ 			return FALSE;
+ 
+ 		/* onexec rules - both rules are needed for onexec */
+-		if (!dfarules->add_rule_vec(entry->rule_mode == RULE_DENY, onexec_perms,
++		if (!dfarules->add_rule_vec(entry->rule_mode, onexec_perms,
+ 					    0, 1, vec, parseopts, false))
+ 			return FALSE;
+ 
+@@ -733,7 +742,7 @@
+ 		 * unsafe exec transitions
+ 		 */
+ 		onexec_perms |= (entry->perms & (AA_EXEC_BITS | ALL_AA_EXEC_UNSAFE));
+-		if (!dfarules->add_rule_vec(entry->rule_mode == RULE_DENY, onexec_perms,
++		if (!dfarules->add_rule_vec(entry->rule_mode, onexec_perms,
+ 					    0, index, vec, parseopts, false))
+ 			return FALSE;
+ 	}
+@@ -767,10 +776,17 @@
+ 	if (!post_process_entries(prof))
+ 		goto out;
+ 
+-	if (prof->dfa.rules->rule_count > 0) {
++	/* under permstable32_v1 we weld file and policydb together, so
++	 * don't create the file blob here
++	 */
++	if (prof->dfa.rules->rule_count > 0 && prompt_compat_mode != PROMPT_COMPAT_PERMSV1) {
+ 		int xmatch_len = 0;
+-		prof->dfa.dfa = prof->dfa.rules->create_dfa(&prof->dfa.size,
+-							    &xmatch_len, parseopts, true);
++		//fprintf(stderr, "Creating file DFA %d\n", kernel_supports_permstable32);
++		prof->dfa.dfa = prof->dfa.rules->create_dfablob(&prof->dfa.size,
++					&xmatch_len, prof->dfa.perms_table,
++					parseopts, true,
++					prof->uses_prompt_rules && (prompt_compat_mode == PROMPT_COMPAT_PERMSV2),
++					prof->uses_prompt_rules);
+ 		delete prof->dfa.rules;
+ 		prof->dfa.rules = NULL;
+ 		if (!prof->dfa.dfa)
+@@ -967,6 +983,80 @@
+ 	return TRUE;
+ }
+ 
++
++static bool gen_net_rule(Profile *prof, u16 family, unsigned int type_mask,
++			 bool audit, rule_mode_t rmode) {
++	std::ostringstream buffer;
++	std::string buf;
++
++	buffer << "\\x" << std::setfill('0') << std::setw(2) << std::hex << AA_CLASS_NETV8;
++	buffer << "\\x" << std::setfill('0') << std::setw(2) << std::hex << ((family & 0xff00) >> 8);
++	buffer << "\\x" << std::setfill('0') << std::setw(2) << std::hex << (family & 0xff);
++	if (type_mask > 0xffff) {
++		buffer << "..";
++	} else {
++		buffer << "\\x" << std::setfill('0') << std::setw(2) << std::hex << ((type_mask & 0xff00) >> 8);
++		buffer << "\\x" << std::setfill('0') << std::setw(2) << std::hex << (type_mask & 0xff);
++	}
++	buf = buffer.str();
++	if (!prof->policy.rules->add_rule(buf.c_str(), rmode, map_perms(AA_VALID_NET_PERMS),
++					  audit ? map_perms(AA_VALID_NET_PERMS) : 0,
++					  parseopts))
++		return false;
++
++	return true;
++}
++
++static bool gen_af_rules(Profile *prof, u16 family, unsigned int type_mask,
++			  unsigned int audit_mask, rule_mode_t rmode)
++{
++	if (type_mask > 0xffff && audit_mask > 0xffff) {
++		/* instead of generating multiple rules wild card type */
++		return gen_net_rule(prof, family, type_mask, audit_mask, rmode);
++	} else {
++		int t;
++		/* generate rules for types that are set */
++		for (t = 0; t < 16; t++) {
++			if (type_mask & (1 << t)) {
++				if (!gen_net_rule(prof, family, t,
++						  audit_mask & (1 << t),
++						  rmode))
++					return false;
++			}
++		}
++	}
++
++	return true;
++}
++
++bool post_process_policydb_net(Profile *prof)
++{
++	u16 af;
++
++	/* no network rules defined so we don't have generate them */
++	if (!prof->net.allow)
++		return true;
++
++	/* generate rules if the af has something set */
++	for (af = AF_UNSPEC; af < get_af_max(); af++) {
++		if (prof->net.allow[af] ||
++		    prof->net.deny[af] ||
++		    prof->net.audit[af] ||
++		    prof->net.quiet[af]) {
++			if (!gen_af_rules(prof, af, prof->net.allow[af],
++					  prof->net.audit[af],
++					  { RULE_ALLOW}))
++				return false;
++			if (!gen_af_rules(prof, af, prof->net.deny[af],
++					  prof->net.quiet[af],
++					  { RULE_DENY}))
++				return false;
++		}
++	}
++
++	return true;
++}
++
+ #define MAKE_STR(X) #X
+ #define CLASS_STR(X) "\\d" MAKE_STR(X)
+ #define MAKE_SUB_STR(X) "\\000" MAKE_STR(X)
+@@ -984,6 +1074,7 @@
+ static const char *mediates_posix_mqueue = CLASS_STR(AA_CLASS_POSIX_MQUEUE);
+ static const char *mediates_sysv_mqueue = CLASS_STR(AA_CLASS_SYSV_MQUEUE);
+ static const char *mediates_io_uring = CLASS_STR(AA_CLASS_IO_URING);
++static const char *deny_file = ".*";
+ 
+ int process_profile_policydb(Profile *prof)
+ {
+@@ -1001,7 +1092,7 @@
+ 	 */
+ 
+ 	if (features_supports_userns &&
+-	    !prof->policy.rules->add_rule(mediates_ns, 0, AA_MAY_READ, 0, parseopts))
++	    !prof->policy.rules->add_rule(mediates_ns, RULE_ALLOW, AA_MAY_READ, 0, parseopts))
+ 		goto out;
+ 
+ 	/* don't add mediated classes to unconfined profiles */
+@@ -1009,42 +1100,76 @@
+ 	    prof->flags.mode != MODE_DEFAULT_ALLOW) {
+ 		/* note: this activates fs based unix domain sockets mediation on connect */
+ 		if (kernel_abi_version > 5 &&
+-		    !prof->policy.rules->add_rule(mediates_file, 0, AA_MAY_READ, 0, parseopts))
++		    !prof->policy.rules->add_rule(mediates_file, RULE_ALLOW, AA_MAY_READ, 0, parseopts))
+ 			goto out;
+ 		if (features_supports_mount &&
+-		    !prof->policy.rules->add_rule(mediates_mount, 0, AA_MAY_READ, 0, parseopts))
++		    !prof->policy.rules->add_rule(mediates_mount, RULE_ALLOW, AA_MAY_READ, 0, parseopts))
+ 			goto out;
+ 		if (features_supports_dbus &&
+-		    !prof->policy.rules->add_rule(mediates_dbus, 0, AA_MAY_READ, 0, parseopts))
++		    !prof->policy.rules->add_rule(mediates_dbus, RULE_ALLOW, AA_MAY_READ, 0, parseopts))
+ 			goto out;
+ 		if (features_supports_signal &&
+-		    !prof->policy.rules->add_rule(mediates_signal, 0, AA_MAY_READ, 0, parseopts))
++		    !prof->policy.rules->add_rule(mediates_signal, RULE_ALLOW, AA_MAY_READ, 0, parseopts))
+ 			goto out;
+ 		if (features_supports_ptrace &&
+-		    !prof->policy.rules->add_rule(mediates_ptrace, 0, AA_MAY_READ, 0, parseopts))
++		    !prof->policy.rules->add_rule(mediates_ptrace, RULE_ALLOW, AA_MAY_READ, 0, parseopts))
+ 			goto out;
+ 		if (features_supports_networkv8 &&
+-		    !prof->policy.rules->add_rule(mediates_netv8, 0, AA_MAY_READ, 0, parseopts))
++		    !prof->policy.rules->add_rule(mediates_netv8, RULE_ALLOW, AA_MAY_READ, 0, parseopts))
+ 			goto out;
+ 		if (features_supports_unix &&
+-		    (!prof->policy.rules->add_rule(mediates_extended_net, 0, AA_MAY_READ, 0, parseopts) ||
+-		     !prof->policy.rules->add_rule(mediates_net_unix, 0, AA_MAY_READ, 0, parseopts)))
++		    (!prof->policy.rules->add_rule(mediates_extended_net, RULE_ALLOW, AA_MAY_READ, 0, parseopts) ||
++		     !prof->policy.rules->add_rule(mediates_net_unix, RULE_ALLOW, AA_MAY_READ, 0, parseopts)))
+ 			goto out;
+ 		if (features_supports_posix_mqueue &&
+-		    !prof->policy.rules->add_rule(mediates_posix_mqueue, 0, AA_MAY_READ, 0, parseopts))
++		    !prof->policy.rules->add_rule(mediates_posix_mqueue, RULE_ALLOW, AA_MAY_READ, 0, parseopts))
+ 			goto out;
+ 		if (features_supports_sysv_mqueue &&
+-		    !prof->policy.rules->add_rule(mediates_sysv_mqueue, 0, AA_MAY_READ, 0, parseopts))
++		    !prof->policy.rules->add_rule(mediates_sysv_mqueue, RULE_ALLOW, AA_MAY_READ, 0, parseopts))
+ 			goto out;
+ 		if (features_supports_io_uring &&
+-		    !prof->policy.rules->add_rule(mediates_io_uring, 0, AA_MAY_READ, 0, parseopts))
++		    !prof->policy.rules->add_rule(mediates_io_uring, RULE_ALLOW, AA_MAY_READ, 0, parseopts))
+ 			goto out;
+ 	}
+ 
+-	if (prof->policy.rules->rule_count > 0) {
++	if (prompt_compat_mode == PROMPT_COMPAT_PERMSV1) {
++		// MUST have file and policy
++		// This requires file rule processing happen first
++		if (!prof->dfa.rules->rule_count) {
++			// add null dfa
++			if (!prof->dfa.rules->add_rule(deny_file, RULE_DENY, AA_MAY_READ, 0, parseopts))
++				goto out;
++		}
++		if (!prof->policy.rules->rule_count) {
++			if (!prof->policy.rules->add_rule(mediates_file, RULE_DENY, AA_MAY_READ, 0, parseopts))
++				goto out;
++		}
++		int xmatch_len = 0;
++		prof->policy.dfa = prof->policy.rules->create_welded_dfablob(
++					prof->dfa.rules,
++					&prof->policy.size,
++					&xmatch_len,
++					&prof->policy.file_start,
++					prof->policy.perms_table, parseopts,
++					kernel_supports_permstable32_v1,
++					prof->uses_prompt_rules);
++		delete prof->policy.rules;
++		delete prof->dfa.rules;
++		prof->policy.rules = NULL;
++		prof->dfa.rules = NULL;
++		if (!prof->policy.dfa)
++			goto out;
++	} else if (prof->policy.rules->rule_count > 0 &&
++		   // yes not needed as covered above, just making sure
++		   // this doesn't get messed up in the future
++		   prompt_compat_mode != PROMPT_COMPAT_PERMSV1) {
+ 		int xmatch_len = 0;
+-		prof->policy.dfa = prof->policy.rules->create_dfa(&prof->policy.size,
+-								  &xmatch_len, parseopts, false);
++		prof->policy.dfa = prof->policy.rules->create_dfablob(&prof->policy.size,
++						&xmatch_len,
++						prof->policy.perms_table,
++						parseopts, false,
++						prof->uses_prompt_rules && (prompt_compat_mode == PROMPT_COMPAT_PERMSV2),
++						prof->uses_prompt_rules);
+ 		delete prof->policy.rules;
+ 
+ 		prof->policy.rules = NULL;
+--- apparmor-4.0.2.orig/parser/parser_yacc.y
++++ apparmor-4.0.2/parser/parser_yacc.y
+@@ -63,10 +63,10 @@
+ 
+ int parser_token = 0;
+ 
+-struct cod_entry *do_file_rule(char *id, perms_t perms, char *link_id, char *nt);
++struct cod_entry *do_file_rule(char *id, perm32_t perms, char *link_id, char *nt);
+ mnt_rule *do_mnt_rule(struct cond_entry *src_conds, char *src,
+ 		      struct cond_entry *dst_conds, char *dst,
+-		      perms_t perms);
++		      perm32_t perms);
+ mnt_rule *do_pivot_rule(struct cond_entry *old, char *root,
+ 			char *transition);
+ static void abi_features(char *filename, bool search);
+@@ -115,6 +115,7 @@
+ %token TOK_AUDIT
+ %token TOK_DENY
+ %token TOK_ALLOW
++%token TOK_PROMPT
+ %token TOK_PROFILE
+ %token TOK_SET
+ %token TOK_ALIAS
+@@ -211,7 +212,7 @@
+ 	prefix_rule_t *prefix_entry;
+ 
+ 	flagvals flags;
+-	perms_t fperms;
++	perm32_t fperms;
+ 	uint64_t cap;
+ 	unsigned int allowed_protocol;
+ 	char *set_var;
+@@ -221,6 +222,7 @@
+ 	struct cond_entry *cond_entry;
+ 	struct cond_entry_list cond_entry_list;
+ 	int boolean;
++	owner_t owner;
+ 	struct prefixes prefix;
+ 	IncludeCache_t *includecache;
+ 	audit_t audit;
+@@ -265,7 +267,7 @@
+ %type <id>	opt_id_or_var
+ %type <boolean> opt_subset_flag
+ %type <audit>	opt_audit_flag
+-%type <boolean> opt_owner_flag
++%type <owner> opt_owner_flag
+ %type <boolean> opt_profile_flag
+ %type <boolean> opt_flags
+ %type <rule_mode> opt_rule_mode
+@@ -625,13 +627,14 @@
+ opt_audit_flag: { /* nothing */ $$ = AUDIT_UNSPECIFIED; }
+ 	| TOK_AUDIT { $$ = AUDIT_FORCE; };
+ 
+-opt_owner_flag: { /* nothing */ $$ = 0; }
+-	| TOK_OWNER { $$ = 1; };
+-	| TOK_OTHER { $$ = 2; };
++opt_owner_flag: { /* nothing */ $$ = OWNER_UNSPECIFIED; }
++	| TOK_OWNER { $$ = OWNER_SPECIFIED; };
++	| TOK_OTHER { $$ = OWNER_NOT; };
+ 
+ opt_rule_mode: { /* nothing */ $$ = RULE_UNSPECIFIED; }
+ 	| TOK_ALLOW { $$ = RULE_ALLOW; }
+ 	| TOK_DENY { $$ = RULE_DENY; }
++	| TOK_PROMPT { $$ = RULE_PROMPT; }
+ 
+ opt_prefix: opt_audit_flag opt_rule_mode opt_owner_flag
+ 	{
+@@ -674,8 +677,11 @@
+ 	{
+ 		struct cod_entry *entry, *tmp;
+ 
+-		PDEBUG("matched: %s%s%sblock\n", $2.audit == AUDIT_FORCE ? "audit " : "",
+-		       $2.rule_mode == RULE_DENY ? "deny " : "", $2.owner ? "owner " : "");
++		PDEBUG("matched: %s%s%sblock\n",
++		       $2.audit == AUDIT_FORCE ? "audit " : "",
++		       $2.rule_mode == RULE_DENY ? "deny " : "",
++		       $2.rule_mode == RULE_PROMPT ? "prompt " : "",
++		       $2.owner == OWNER_SPECIFIED ? "owner " : "");
+ 		list_for_each_safe($3->entries, entry, tmp) {
+ 			const char *error;
+ 			entry->next = NULL;
+@@ -741,8 +747,8 @@
+ 		PDEBUG("rules change_profile: (%s)\n", $3->name);
+ 		if (!$3)
+ 			yyerror(_("Assert: `change_profile' returned NULL."));
+-		if ($2.owner)
+-			yyerror(_("owner prefix not allowed on unix rules"));
++		if ($2.owner != OWNER_UNSPECIFIED)
++			yyerror(_("owner conditional not allowed on unix rules"));
+ 		if (($2.rule_mode == RULE_DENY) && $2.audit == AUDIT_FORCE) {
+ 			$3->rule_mode = RULE_DENY;
+ 		} else if ($2.rule_mode == RULE_DENY) {
+@@ -757,8 +763,8 @@
+ 
+ rules:  rules opt_prefix capability
+ 	{
+-		if ($2.owner)
+-			yyerror(_("owner prefix not allowed on capability rules"));
++		if ($2.owner != OWNER_UNSPECIFIED)
++			yyerror(_("owner conditional not allowed on capability rules"));
+ 
+ 		if ($2.rule_mode == RULE_DENY && $2.audit == AUDIT_FORCE) {
+ 			$1->caps.deny |= $3;
+@@ -1557,7 +1563,7 @@
+ change_profile: TOK_CHANGE_PROFILE opt_exec_mode opt_id opt_named_transition TOK_END_OF_RULE
+ 	{
+ 		struct cod_entry *entry;
+-		perms_t perms = AA_CHANGE_PROFILE;
++		perm32_t perms = AA_CHANGE_PROFILE;
+ 		int exec_mode = $2;
+ 		char *exec = $3;
+ 		char *target = $4;
+@@ -1665,7 +1671,7 @@
+ 	exit(1);
+ }
+ 
+-struct cod_entry *do_file_rule(char *id, perms_t perms, char *link_id, char *nt)
++struct cod_entry *do_file_rule(char *id, perm32_t perms, char *link_id, char *nt)
+ {
+ 		struct cod_entry *entry;
+ 		PDEBUG("Matched: tok_id (%s) tok_perms (0x%x)\n", id, perms);
+@@ -1706,7 +1712,7 @@
+ 
+ mnt_rule *do_mnt_rule(struct cond_entry *src_conds, char *src,
+ 		      struct cond_entry *dst_conds, char *dst,
+-		      perms_t perms)
++		      perm32_t perms)
+ {
+ 	if (verify_mnt_conds(src_conds, MNT_SRC_OPT) != 0)
+ 		yyerror(_("bad mount rule"));
+@@ -1804,4 +1810,3 @@
+ 	}
+ 
+ };
+-
+--- /dev/null
++++ apparmor-4.0.2/parser/perms.h
+@@ -0,0 +1,117 @@
++/*
++ *   Copyright (c) 2022
++ *   Canonical, Ltd. (All rights reserved)
++ *
++ *   This program is free software; you can redistribute it and/or
++ *   modify it under the terms of version 2 of the GNU General Public
++ *   License published by the Free Software Foundation.
++ *
++ *   This program is distributed in the hope that it will be useful,
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *   GNU General Public License for more details.
++ *
++ *   You should have received a copy of the GNU General Public License
++ *   along with this program; if not, contact Novell, Inc. or Canonical
++ *   Ltd.
++ */
++#ifndef __AA_PERM_H
++#define __AA_PERM_H
++
++/* this represents permissions as used as part of the state machine in
++ * the kernel.
++ * It is possible this will get further mapped for compatibility with
++ * older versions
++ */
++
++#include <stdint.h>
++#include <sys/apparmor.h>
++
++/* same as in immunix.h - make it so they can both be included or used alone */
++#ifndef AA_MAY_EXEC
++#define AA_MAY_EXEC		1
++#define AA_MAY_WRITE		2
++#define AA_MAY_READ		4
++#define AA_MAY_APPEND		8
++#endif
++
++#ifndef AA_MAY_CREATE
++// these are in apparmor.h
++#define AA_MAY_CREATE		0x0010
++#define AA_MAY_DELETE		0x0020
++#define AA_MAY_OPEN		0x0040
++#define AA_MAY_RENAME		0x0080		/* pair */
++
++#define AA_MAY_SETATTR		0x0100		/* meta write */
++#define AA_MAY_GETATTR		0x0200		/* meta read */
++#define AA_MAY_SETCRED		0x0400		/* security cred/attr */
++#define AA_MAY_GETCRED		0x0800
++
++#define AA_MAY_CHMOD		0x1000		/* pair */
++#define AA_MAY_CHOWN		0x2000		/* pair */
++#endif
++#define AA_MAY_CHGRP		0x4000		/* pair */
++#ifndef AA_MAY_CREATE
++#define AA_MAY_LOCK		0x8000		/* LINK_SUBSET overlaid */
++
++#define AA_EXEC_MMAP		0x00010000
++#endif
++#define AA_MAY_MPROT		0x00020000	/* extend conditions */
++#ifndef AA_MAY_CREATE
++#define AA_MAY_LINK		0x00040000	/* pair */
++#endif
++#define AA_MAY_SNAPSHOT		0x00080000	/* pair */
++
++#define AA_MAY_DELEGATE
++#define AA_CONT_MATCH		0x08000000
++
++#define AA_MAY_STACK		0x10000000
++#define AA_MAY_ONEXEC		0x20000000 /* either stack or change_profile */
++#define AA_MAY_CHANGE_PROFILE	0x40000000
++#define AA_MAY_CHANGEHAT	0x80000000
++
++#define AA_LINK_SUBSET		AA_MAY_LOCK	/* overlaid */
++
++
++/*
++ * The xindex is broken into 3 parts
++ * - index - an index into either the exec name table or the variable table
++ * - exec type - which determines how the executable name and index are used
++ * - flags - which modify how the destination name is applied
++ */
++#define AA_X_INDEX_MASK		AA_INDEX_MASK
++
++#define AA_X_TYPE_MASK		0x0c000000
++#define AA_X_NONE		AA_INDEX_NONE
++#define AA_X_NAME		0x04000000 /* use executable name px */
++#define AA_X_TABLE		0x08000000 /* use a specified name ->n# */
++
++#define AA_X_UNSAFE		0x10000000
++#define AA_X_CHILD		0x20000000
++#define AA_X_INHERIT		0x40000000
++#define AA_X_UNCONFINED		0x80000000
++
++typedef uint32_t perm32_t;
++
++struct aa_perms {
++	perm32_t allow;
++	perm32_t deny;	/* explicit deny, or conflict if allow also set */
++
++	perm32_t subtree;	/* allow perm on full subtree only when allow is set */
++	perm32_t cond;	/* set only when ~allow and ~deny */
++
++	perm32_t kill;	/* set only when ~allow | deny */
++	perm32_t complain;	/* accumulates only used when ~allow & ~deny */
++	perm32_t prompt;	/* accumulates only used when ~allow & ~deny */
++
++	perm32_t audit;	/* set only when allow is set */
++	perm32_t quiet;	/* set only when ~allow | deny */
++	perm32_t hide;	/* set only when  ~allow | deny */
++
++
++	uint32_t xindex;
++	uint32_t tag;	/* tag string index, if present */
++	uint32_t label;	/* label string index, if present */
++};
++
++#endif /* __AA_PERM_H */
+--- apparmor-4.0.2.orig/parser/profile.cc
++++ apparmor-4.0.2/parser/profile.cc
+@@ -161,6 +161,8 @@
+ {
+ 	entry->next = prof->entries;
+ 	prof->entries = entry;
++	if (entry->rule_mode == RULE_PROMPT)
++		prof->uses_prompt_rules = true;
+ }
+ 
+ static int add_named_transition(Profile *prof, struct cod_entry *entry)
+@@ -269,11 +271,11 @@
+ void post_process_file_entries(Profile *prof)
+ {
+ 	struct cod_entry *entry;
+-	perms_t cp_perms = 0;
++	perm32_t cp_perms = 0;
+ 
+ 	list_for_each(prof->entries, entry) {
+ 		if (entry->nt_name) {
+-			perms_t perms = 0;
++			perm32_t perms = 0;
+ 			int n = add_named_transition(prof, entry);
+ 			if (!n) {
+ 				PERROR("Profile %s has too many specified profile transitions.\n", prof->name);
+--- apparmor-4.0.2.orig/parser/profile.h
++++ apparmor-4.0.2/parser/profile.h
+@@ -15,6 +15,7 @@
+ #define __AA_PROFILE_H
+ 
+ #include <set>
++#include <vector>
+ #include <string>
+ #include <iostream>
+ 
+@@ -24,6 +25,8 @@
+ #include "libapparmor_re/aare_rules.h"
+ #include "network.h"
+ #include "signal.h"
++#include "immunix.h"
++#include "perms.h"
+ 
+ class Profile;
+ 
+@@ -120,6 +123,7 @@
+ #define FLAG_DEBUG1 2
+ #define FLAG_DEBUG2 4
+ #define FLAG_INTERRUPTIBLE 8
++#define FLAG_PROMPT_COMPAT 0x10
+ 
+ /* sigh, used in parse union so needs trivial constructors. */
+ class flagvals {
+@@ -199,6 +203,10 @@
+ 			os << ", attach_disconnected.path=" << disconnected_path;
+ 		if (signal)
+ 			os << ", kill.signal=" << signal;
++
++		if (flags & FLAG_PROMPT_COMPAT)
++			os << ", prompt_dev";
++
+ 		os << "\n";
+ 
+ 		return os;
+@@ -291,12 +299,14 @@
+ 	aare_rules *rules;
+ 	void *dfa;
+ 	size_t size;
+-
++	size_t file_start;		/* special start in welded dfa */
++	vector <aa_perms> perms_table;
+ 	dfa_stuff(void): rules(NULL), dfa(NULL), size(0) { }
+ };
+ 
+ class Profile {
+ public:
++	bool uses_prompt_rules;
+ 	char *ns;
+ 	char *name;
+ 	char *attachment;
+@@ -304,7 +314,7 @@
+ 	void *xmatch;
+ 	size_t xmatch_size;
+ 	int xmatch_len;
+-
++	vector <aa_perms> xmatch_perms_table;
+ 	struct cond_entry_list xattrs;
+ 
+ 	/* char *sub_name; */			/* subdomain name or NULL */
+@@ -330,6 +340,7 @@
+ 
+ 	Profile(void)
+ 	{
++		uses_prompt_rules = false;
+ 		ns = name = attachment = NULL;
+ 		altnames = NULL;
+ 		xmatch = NULL;
+--- apparmor-4.0.2.orig/parser/ptrace.cc
++++ apparmor-4.0.2/parser/ptrace.cc
+@@ -24,7 +24,7 @@
+ #include <string>
+ #include <sstream>
+ 
+-int parse_ptrace_perms(const char *str_perms, perms_t *perms, int fail)
++int parse_ptrace_perms(const char *str_perms, perm32_t *perms, int fail)
+ {
+ 	return parse_X_perms("ptrace", AA_VALID_PTRACE_PERMS, str_perms, perms, fail);
+ }
+@@ -47,7 +47,7 @@
+ 	}
+ }
+ 
+-ptrace_rule::ptrace_rule(perms_t perms_p, struct cond_entry *conds):
++ptrace_rule::ptrace_rule(perm32_t perms_p, struct cond_entry *conds):
+ 	perms_rule_t(AA_CLASS_PTRACE), peer_label(NULL)
+ {
+ 	if (perms_p) {
+@@ -133,8 +133,9 @@
+ 
+ 	buf = buffer.str();
+ 	if (perms & AA_VALID_PTRACE_PERMS) {
+-		if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode == RULE_DENY, perms, audit == AUDIT_FORCE ? perms : 0,
+-						 parseopts))
++		if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode, perms,
++					 audit == AUDIT_FORCE ? perms : 0,
++					 parseopts))
+ 			goto fail;
+ 	}
+ 
+--- apparmor-4.0.2.orig/parser/ptrace.h
++++ apparmor-4.0.2/parser/ptrace.h
+@@ -27,14 +27,14 @@
+ #define AA_VALID_PTRACE_PERMS (AA_MAY_READ | AA_MAY_TRACE | AA_MAY_READBY | \
+ 			       AA_MAY_TRACEDBY)
+ 
+-int parse_ptrace_perms(const char *str_perms, perms_t *perms, int fail);
++int parse_ptrace_perms(const char *str_perms, perm32_t *perms, int fail);
+ 
+ class ptrace_rule: public perms_rule_t {
+ 	void move_conditionals(struct cond_entry *conds);
+ public:
+ 	char *peer_label;
+ 
+-	ptrace_rule(perms_t perms, struct cond_entry *conds);
++	ptrace_rule(perm32_t perms, struct cond_entry *conds);
+ 	virtual ~ptrace_rule()
+ 	{
+ 		free(peer_label);
+@@ -45,7 +45,7 @@
+ 	virtual int gen_policy_re(Profile &prof);
+ 
+ 	virtual bool valid_prefix(const prefixes &p, const char *&error) {
+-		if (p.owner) {
++		if (p.owner != OWNER_UNSPECIFIED) {
+ 			error = "owner prefix not allowed on ptrace rules";
+ 			return false;
+ 		}
+--- apparmor-4.0.2.orig/parser/rule.h
++++ apparmor-4.0.2/parser/rule.h
+@@ -22,10 +22,19 @@
+ #include <list>
+ #include <ostream>
+ 
++#include "perms.h"
+ #include "policydb.h"
+ 
+ using namespace std;
+ 
++#define PROMPT_COMPAT_UNKNOWN  0
++#define PROMPT_COMPAT_IGNORE  1
++#define PROMPT_COMPAT_PERMSV2 2
++#define PROMPT_COMPAT_DEV 3
++#define PROMPT_COMPAT_FLAG 4
++#define PROMPT_COMPAT_PERMSV1 5
++
++
+ class Profile;
+ 
+ #define RULE_NOT_SUPPORTED 0
+@@ -151,9 +160,10 @@
+ typedef std::list<rule_t *> RuleList;
+ 
+ /* Not classes so they can be used in the bison front end */
+-typedef uint32_t perms_t;
+ typedef enum { AUDIT_UNSPECIFIED, AUDIT_FORCE, AUDIT_QUIET } audit_t;
+-typedef enum { RULE_UNSPECIFIED, RULE_ALLOW, RULE_DENY } rule_mode_t;
++typedef enum { RULE_UNSPECIFIED, RULE_ALLOW, RULE_DENY, RULE_PROMPT } rule_mode_t;
++typedef enum { OWNER_UNSPECIFIED, OWNER_SPECIFIED, OWNER_NOT } owner_t;
++
+ 
+ /* NOTE: we can not have a constructor for class prefixes. This is
+  * because it will break bison, and we would need to transition to
+@@ -165,7 +175,7 @@
+ public:
+ 	audit_t audit;
+ 	rule_mode_t rule_mode;
+-	int owner;
++	owner_t owner;
+ 
+ 	ostream &dump(ostream &os)
+ 	{
+@@ -183,6 +193,13 @@
+ 		}
+ 
+ 		switch (rule_mode) {
++		case RULE_ALLOW:
++			if (output)
++				os << " ";
++
++			os << "allow";
++			output = true;
++			break;
+ 		case RULE_DENY:
+ 			if (output)
+ 				os << " ";
+@@ -190,15 +207,32 @@
+ 			os << "deny";
+ 			output = true;
+ 			break;
++		case RULE_PROMPT:
++			if (output)
++				os << " ";
++
++			os << "prompt";
++			output = true;
++			break;
+ 		default:
+ 			break;
+ 		}
+ 
+-		if (owner) {
++		switch (owner) {
++		case OWNER_SPECIFIED:
+ 			if (output)
+ 				os << " ";
+ 			os << "owner";
+ 			output = true;
++			break;
++		case OWNER_NOT:
++			if (output)
++				os << " ";
++			os << "!owner";
++			output = true;
++			break;
++		default:
++			break;
+ 		}
+ 
+ 		if (output)
+@@ -216,9 +250,9 @@
+ 			return -1;
+ 		if ((uint) rule_mode > (uint) rhs.rule_mode)
+ 			return 1;
+-		if (owner < rhs.owner)
++		if ((uint) owner < (uint) rhs.owner)
+ 			return -1;
+-		if (owner > rhs.owner)
++		if ((uint) owner > (uint) rhs.owner)
+ 			return 1;
+ 		return 0;
+ 	}
+@@ -228,7 +262,7 @@
+ 			return true;
+ 		if ((uint) rule_mode < (uint) rhs.rule_mode)
+ 			return true;
+-		if (owner < rhs.owner)
++		if ((uint) owner < (uint) rhs.owner)
+ 			return true;
+ 		return false;
+ 	}
+@@ -241,7 +275,7 @@
+ 		/* Must construct prefix here see note on prefixes */
+ 		audit = AUDIT_UNSPECIFIED;
+ 		rule_mode = RULE_UNSPECIFIED;
+-		owner = 0;
++		owner = OWNER_UNSPECIFIED;
+ 	};
+ 
+ 	virtual bool valid_prefix(const prefixes &p, const char *&error) = 0;
+@@ -271,13 +305,15 @@
+ 
+ 		/* owner !owner conflicts */
+ 		if (p.owner) {
+-			if (owner && owner != p.owner) {
++			if (owner != OWNER_UNSPECIFIED &&
++			    owner != p.owner) {
+ 				error = "conflicting owner prefix";
+ 				return false;
+ 			}
+ 			owner = p.owner;
+ 		}
+ 
++		/* TODO: MOVE this ! */
+ 		/* does the prefix imply a modifier */
+ 		if (p.rule_mode == RULE_DENY && p.audit == AUDIT_FORCE) {
+ 			rule_mode = RULE_DENY;
+@@ -393,7 +429,7 @@
+ 		return os;
+ 	}
+ 
+-	perms_t perms, saved;
++	perm32_t perms, saved;
+ };
+ 
+ // alternate perms rule class that only does dedup instead of perms merging
+@@ -418,7 +454,7 @@
+ 		return os;
+ 	}
+ 
+-	perms_t perms;
++	perm32_t perms;
+ };
+ 
+ 
+--- apparmor-4.0.2.orig/parser/signal.cc
++++ apparmor-4.0.2/parser/signal.cc
+@@ -116,7 +116,7 @@
+ };
+ 
+ 
+-int parse_signal_perms(const char *str_perms, perms_t *perms, int fail)
++int parse_signal_perms(const char *str_perms, perm32_t *perms, int fail)
+ {
+ 	return parse_X_perms("signal", AA_VALID_SIGNAL_PERMS, str_perms, perms, fail);
+ }
+@@ -173,7 +173,7 @@
+ 	}
+ }
+ 
+-signal_rule::signal_rule(perms_t perms_p, struct cond_entry *conds):
++signal_rule::signal_rule(perm32_t perms_p, struct cond_entry *conds):
+ 	perms_rule_t(AA_CLASS_SIGNAL), signals(), peer_label(NULL)
+ {
+ 	if (perms_p) {
+@@ -316,8 +316,9 @@
+ 
+ 	buf = buffer.str();
+ 	if (perms & (AA_MAY_SEND | AA_MAY_RECEIVE)) {
+-		if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode == RULE_DENY, perms, audit == AUDIT_FORCE ? perms : 0,
+-						 parseopts))
++		if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode,
++					perms, audit == AUDIT_FORCE ? perms : 0,
++					parseopts))
+ 			goto fail;
+ 	}
+ 
+--- apparmor-4.0.2.orig/parser/signal.h
++++ apparmor-4.0.2/parser/signal.h
+@@ -32,7 +32,7 @@
+ typedef set<int> Signals;
+ 
+ int find_signal_mapping(const char *sig);
+-int parse_signal_perms(const char *str_perms, perms_t *perms, int fail);
++int parse_signal_perms(const char *str_perms, perm32_t *perms, int fail);
+ 
+ class signal_rule: public perms_rule_t {
+ 	void extract_sigs(struct value_list **list);
+@@ -41,13 +41,13 @@
+ 	Signals signals;
+ 	char *peer_label;
+ 
+-	signal_rule(perms_t perms, struct cond_entry *conds);
++	signal_rule(perm32_t perms, struct cond_entry *conds);
+ 	virtual ~signal_rule() {
+ 		signals.clear();
+ 		free(peer_label);
+ 	};
+ 	virtual bool valid_prefix(const prefixes &p, const char *&error) {
+-		if (p.owner) {
++		if (p.owner != OWNER_UNSPECIFIED) {
+ 			error = "owner prefix not allowed on signal rules";
+ 			return false;
+ 		}
+--- apparmor-4.0.2.orig/parser/userns.cc
++++ apparmor-4.0.2/parser/userns.cc
+@@ -40,7 +40,7 @@
+ 	}
+ }
+ 
+-userns_rule::userns_rule(perms_t perms_p, struct cond_entry *conds):
++userns_rule::userns_rule(perm32_t perms_p, struct cond_entry *conds):
+ 	perms_rule_t(AA_CLASS_NS)
+ {
+ 	if (perms_p) {
+@@ -95,9 +95,9 @@
+ 	buffer << "\\x" << std::setfill('0') << std::setw(2) << std::hex << AA_CLASS_NS;
+ 	buf = buffer.str();
+ 	if (perms & AA_VALID_USERNS_PERMS) {
+-		if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode == RULE_DENY, perms,
+-						 audit == AUDIT_FORCE ? perms : 0,
+-						 parseopts))
++		if (!prof.policy.rules->add_rule(buf.c_str(), rule_mode, perms,
++					audit == AUDIT_FORCE ? perms : 0,
++					parseopts))
+ 			goto fail;
+ 	}
+ 
+--- apparmor-4.0.2.orig/parser/userns.h
++++ apparmor-4.0.2/parser/userns.h
+@@ -26,7 +26,7 @@
+ class userns_rule: public perms_rule_t {
+ 	void move_conditionals(struct cond_entry *conds);
+ public:
+-	userns_rule(perms_t perms, struct cond_entry *conds);
++	userns_rule(perm32_t perms, struct cond_entry *conds);
+ 	virtual ~userns_rule()
+ 	{
+ 	};

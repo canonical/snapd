@@ -1,0 +1,41 @@
+From 111eec7de230b51e71020a565a099d3e5491692e Mon Sep 17 00:00:00 2001
+From: John Johansen <john.johansen@canonical.com>
+Date: Thu, 8 Aug 2024 01:44:05 -0700
+Subject: [PATCH] parser: fix protocol error on older kernels caused by
+ additional xtable
+
+Older kernels do not support an xtable grouped with the policy dfa.
+The presence of a policy.dfa does not indicate whether we should create
+an xtable with the policy dfa.
+
+Instead the check should be if the kernel supports the extended
+permstable32 format.
+
+Signed-off-by: John Johansen <john.johansen@canonical.com>
+---
+ parser/parser_interface.c |   14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+--- apparmor-4.0.2~0ubuntu4.orig/parser/parser_interface.c
++++ apparmor-4.0.2~0ubuntu4/parser/parser_interface.c
+@@ -539,13 +539,13 @@
+ 		sd_write_struct(buf, "policydb");
+ 		sd_serialize_dfa(buf, profile->policy.dfa, profile->policy.size,
+ 				 profile->policy.perms_table);
+-	if (profile->policy.dfa) {
+-		// fprintf(stderr, "profile %s: policy xtable\n", profile->name);
+-		// TODO: this is dummy exec make dependent on V1
+-		sd_serialize_xtable(buf, profile->exec_table,
+-				    profile->uses_prompt_rules && prompt_compat_mode == PROMPT_COMPAT_PERMSV1 ?
+-				    profile->policy.perms_table.size() : 0);
+-	}
++		if (kernel_supports_permstable32) {
++			sd_serialize_xtable(buf, profile->exec_table,
++				profile->uses_prompt_rules &&
++				prompt_compat_mode == PROMPT_COMPAT_PERMSV1 ?
++					profile->policy.perms_table.size() : 0);
++
++		}
+ 		sd_write_structend(buf);
+ 	}
+ 

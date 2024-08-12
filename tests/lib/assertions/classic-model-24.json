@@ -3,10 +3,10 @@
     "series": "16",
     "authority-id": "<YOUR_ID_HERE>",
     "brand-id": "<YOUR_ID_HERE>",
-    "model": "ubuntu-core-22-pc-amd64",
+    "model": "ubuntu-core-24-pc-amd64",
     "architecture": "amd64",
-    "timestamp": "2022-03-31T12:00:00.0Z",
-    "base": "core22",
+    "timestamp": "2024-08-02T00:00:00+00:00",
+    "base": "core24",
     "grade": "dangerous",
     "classic": "true",
     "distribution": "ubuntu",
@@ -17,18 +17,18 @@
         {
             "name": "pc",
             "type": "gadget",
-            "default-channel": "22/edge"
+            "default-channel": "24/edge"
         },
         {
             "name": "pc-kernel",
             "type": "kernel",
-            "default-channel": "22/edge"
+            "default-channel": "24/beta"
         },
         {
-            "name": "core22",
+            "name": "core24",
             "type": "base",
             "default-channel": "latest/edge",
-            "id": "amcUKQILKXHHTlmSa7NMdnXSx02dNeeT"
+            "id": "dwTAh7MZZ01zyriOZErqd1JynQLiOGvM"
         },
         {
             "name": "snapd",

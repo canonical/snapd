@@ -1,0 +1,59 @@
+summary: Ensure that the GPIO control interface works.
+
+details: |
+    The gpio-control interface allows read/write access to GPIO devices.
+
+# TODO: extend to support ubuntu-core VM, but gpio-sim module is not included in the pc-kernel
+# TODO: extend to support ubuntu-core-arm
+# TODO: extend the test to cover PI
+systems: [ubuntu-24.04-*]
+
+prepare: |
+    # set up a simulated GPIO device, see
+    # https://www.kernel.org/doc/html/latest/admin-guide/gpio/gpio-sim.html
+    apt install -y "linux-modules-extra-$(uname -r)"
+    modprobe gpio-sim
+    mkdir /sys/kernel/config/gpio-sim/snaptest
+    mkdir /sys/kernel/config/gpio-sim/snaptest/gpio-bank0
+    mkdir /sys/kernel/config/gpio-sim/snaptest/gpio-bank0/line0
+    echo snap-test > /sys/kernel/config/gpio-sim/snaptest/gpio-bank0/line0/name
+    echo 1 > /sys/kernel/config/gpio-sim/snaptest/live
+
+    echo "Given the test-snapd-gpio-control snap is installed"
+    snap install test-snapd-gpio-control
+
+restore: |
+    echo 0 > /sys/kernel/config/gpio-sim/snaptest/live || true
+    rmdir /sys/kernel/config/gpio-sim/snaptest/gpio-bank0/line0 || true
+    rmdir /sys/kernel/config/gpio-sim/snaptest/gpio-bank0 || true
+    rmdir /sys/kernel/config/gpio-sim/snaptest || true
+    rmmod gpio-sim || true
+
+execute: |
+    echo "The interface is not connected by default"
+    #shellcheck disable=SC1117
+    snap connections test-snapd-gpio-control | MATCH '^gpio-control +test-snapd-gpio-control:gpio-control +-'
+
+    echo "When the interface is connected"
+    snap connect test-snapd-gpio-control:gpio-control
+
+    echo "Then the snap is able list GPIO devices"
+    # example gpiodetect output:
+    # gpiochip0 [pinctrl-bcm2711] (58 lines)
+    # gpiochip1 [raspberrypi-exp-gpio] (8 lines)
+    # there could be additional devices already present
+    test-snapd-gpio-control.gpiodetect | MATCH 'gpiochip[0-9]+ .* \(.* lines\)'
+    # and our gpio sim device
+    test-snapd-gpio-control.gpiodetect | MATCH 'gpiochip[0-9]+ .*gpio-sim.* \(1 lines\)'
+    # and we can list lines
+    test-snapd-gpio-control.gpioinfo | MATCH 'line\s+0:\s+"snap-test"'
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-gpio-control:gpio-control
+
+    echo "Then the snap is not able to access the GPIO devices"
+    if test-snapd-gpio-control.gpiodetect 2> call.error; then
+        echo "Expected permission error with disconnected plug"
+        exit 1
+    fi
+    MATCH "unable to open chip '/dev/gpiochip[0-9]+': Operation not permitted" < call.error

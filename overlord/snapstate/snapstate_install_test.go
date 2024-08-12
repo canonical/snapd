@@ -108,24 +108,24 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 		)
 	}
 
-	afterLinkSnap := make([]string, 0, len(components))
+	var tasksBeforeCurrentUnlink, tasksAfterLinkSnap, tasksAfterPostOpHook []string
 	for range components {
-		compOpts := compOptSkipSecurity
+		compOpts := compOptMultiCompInstall
 		if opts&localSnap != 0 {
 			compOpts |= compOptIsLocal
 		}
 		if opts&unlinkBefore != 0 {
-			compOpts |= compOptIsActive
+			compOpts |= compOptIsActive | compOptDuringSnapRefresh
 		}
-		compTasks := expectedComponentInstallTasks(compOpts)
-		for i, t := range compTasks {
-			if t == "link-component" {
-				afterLinkSnap = append(afterLinkSnap, compTasks[i:]...)
-				break
-			}
-			expected = append(expected, t)
-		}
+
+		beforeLink, linkToHooks, hooksAndAfter := expectedComponentInstallTasksSplit(compOpts)
+
+		tasksBeforeCurrentUnlink = append(tasksBeforeCurrentUnlink, beforeLink...)
+		tasksAfterLinkSnap = append(tasksAfterLinkSnap, linkToHooks...)
+		tasksAfterPostOpHook = append(tasksAfterPostOpHook, hooksAndAfter...)
 	}
+
+	expected = append(expected, tasksBeforeCurrentUnlink...)
 
 	if opts&unlinkBefore != 0 {
 		expected = append(expected, "unlink-current-snap")
@@ -143,7 +143,7 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 	expected = append(expected, "copy-snap-data")
 
 	expected = append(expected, "setup-profiles", "link-snap")
-	expected = append(expected, afterLinkSnap...)
+	expected = append(expected, tasksAfterLinkSnap...)
 	expected = append(expected, "auto-connect")
 	if opts&updatesGadgetAssets != 0 && opts&needsKernelSetup != 0 {
 		expected = append(expected, "discard-old-kernel-snap-setup")
@@ -161,10 +161,14 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 		expected = append(expected, "run-hook[post-refresh]")
 	} else {
 		expected = append(expected, "run-hook[install]")
-		if opts&(noConfigure|runCoreConfigure) == 0 {
-			expected = append(expected, "run-hook[default-configure]")
-		}
 	}
+
+	expected = append(expected, tasksAfterPostOpHook...)
+
+	if opts&unlinkBefore == 0 && opts&(noConfigure|runCoreConfigure) == 0 {
+		expected = append(expected, "run-hook[default-configure]")
+	}
+
 	expected = append(expected, "start-snap-services")
 	for i := 0; i < discards; i++ {
 		expected = append(expected,
@@ -221,6 +225,12 @@ func verifyInstallTasksWithComponents(c *C, typ snap.Type, opts, discards int, c
 	for _, t := range ts.Tasks() {
 		switch t.Kind() {
 		case "prepare-component", "download-component":
+			if t.Change() == nil {
+				// Add to a change so we can call snapstate.TaskComponentSetup
+				chg := t.State().NewChange("install", "install...")
+				chg.AddAll(ts)
+			}
+
 			compsup, _, err := snapstate.TaskComponentSetup(t)
 			c.Assert(err, IsNil)
 			c.Check(compsup.CompSideInfo.Component.ComponentName, Equals, components[count])
@@ -2463,11 +2473,12 @@ epoch: 1*
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		SnapPath:  mockSnap,
-		SideInfo:  snapsup.SideInfo,
-		Type:      snap.TypeApp,
-		Version:   "1.0",
-		PlugsOnly: true,
+		SnapPath:                        mockSnap,
+		SideInfo:                        snapsup.SideInfo,
+		Type:                            snap.TypeApp,
+		Version:                         "1.0",
+		PlugsOnly:                       true,
+		PreUpdateKernelModuleComponents: []*snap.ComponentSideInfo{},
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "mock",
@@ -6272,20 +6283,10 @@ func (s *snapmgrTestSuite) TestInstallInstanceManyComponentsUndoRunThrough(c *C)
 	s.testInstallComponentsRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo)
 }
 
-func undoOps(instanceName string, snapRevision, prevRev snap.Revision, components []string) []fakeOp {
+func undoOps(instanceName string, snapRevision, prevRev snap.Revision, newComponents, prevComponents []string) []fakeOp {
 	snapName, _ := snap.SplitInstanceName(instanceName)
 
-	snapMount := filepath.Join(dirs.SnapMountDir, filepath.Join(instanceName, snapRevision.String()))
-	ops := []fakeOp{{
-		op: "update-aliases",
-	}, {
-		op:    "auto-connect:Undoing",
-		name:  instanceName,
-		revno: snapRevision,
-	}}
-
 	forRefresh := !prevRev.Unset()
-
 	compRev := func(i int) snap.Revision {
 		if forRefresh {
 			return snap.R(i + 2)
@@ -6293,10 +6294,52 @@ func undoOps(instanceName string, snapRevision, prevRev snap.Revision, component
 		return snap.R(i + 1)
 	}
 
-	for i := len(components) - 1; i >= 0; i-- {
+	var ops fakeOps
+
+	installedKmods := make([]*snap.ComponentSideInfo, 0, len(newComponents))
+	for i, compName := range newComponents {
+		csi := snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, compName),
+			Revision:  compRev(i),
+		}
+		if strings.HasPrefix(newComponents[i], string(snap.KernelModulesComponent)) {
+			installedKmods = append(installedKmods, &csi)
+		}
+	}
+
+	prevInstalledKmods := make([]*snap.ComponentSideInfo, 0, len(prevComponents))
+	for i, compName := range prevComponents {
+		csi := snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, compName),
+			Revision:  snap.R(i + 1),
+		}
+
+		if strings.HasPrefix(prevComponents[i], string(snap.KernelModulesComponent)) {
+			prevInstalledKmods = append(prevInstalledKmods, &csi)
+		}
+	}
+
+	if len(installedKmods) > 0 || len(prevInstalledKmods) > 0 {
+		ops = append(ops, fakeOp{
+			op:           "prepare-kernel-modules-components",
+			currentComps: installedKmods,
+			finalComps:   prevInstalledKmods,
+		})
+	}
+
+	snapMount := filepath.Join(dirs.SnapMountDir, filepath.Join(instanceName, snapRevision.String()))
+	ops = append(ops, []fakeOp{{
+		op: "update-aliases",
+	}, {
+		op:    "auto-connect:Undoing",
+		name:  instanceName,
+		revno: snapRevision,
+	}}...)
+
+	for i := len(newComponents) - 1; i >= 0; i-- {
 		ops = append(ops, fakeOp{
 			op:   "unlink-component",
-			path: snap.ComponentMountDir(components[i], compRev(i), instanceName),
+			path: snap.ComponentMountDir(newComponents[i], compRev(i), instanceName),
 		})
 	}
 
@@ -6345,22 +6388,14 @@ func undoOps(instanceName string, snapRevision, prevRev snap.Revision, component
 		})
 	}
 
-	for i := len(components) - 1; i >= 0; i-- {
+	for i := len(newComponents) - 1; i >= 0; i-- {
 		csi := &snap.ComponentSideInfo{
-			Component: naming.NewComponentRef(snapName, components[i]),
+			Component: naming.NewComponentRef(snapName, newComponents[i]),
 			Revision:  compRev(i),
 		}
 
-		containerName := fmt.Sprintf("%s+%s", instanceName, components[i])
+		containerName := fmt.Sprintf("%s+%s", instanceName, newComponents[i])
 		filename := fmt.Sprintf("%s_%v.comp", containerName, csi.Revision)
-
-		if strings.HasPrefix(components[i], string(snap.KernelModulesComponent)) {
-			ops = append(ops, fakeOp{
-				op:            "remove-kernel-modules-components-setup",
-				compsToRemove: []*snap.ComponentSideInfo{csi},
-				finalComps:    []*snap.ComponentSideInfo{},
-			})
-		}
 
 		ops = append(ops, []fakeOp{{
 			op:                "undo-setup-component",
@@ -6569,17 +6604,6 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, insta
 			containerName:     containerName,
 			containerFileName: filename,
 		}}...)
-
-		if strings.HasPrefix(compName, string(snap.KernelModulesComponent)) {
-			expected = append(expected, fakeOp{
-				op:           "setup-kernel-modules-components",
-				currentComps: nil,
-				compsToInstall: []*snap.ComponentSideInfo{{
-					Component: naming.NewComponentRef(snapName, compName),
-					Revision:  snap.R(i + 1),
-				}},
-			})
-		}
 	}
 
 	expected = append(expected, []fakeOp{{
@@ -6623,8 +6647,27 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, insta
 		op: "update-aliases",
 	}}...)
 
+	kmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
+	for i, compName := range components {
+		csi := snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, compName),
+			Revision:  snap.R(i + 1),
+		}
+		if strings.HasPrefix(components[i], string(snap.KernelModulesComponent)) {
+			kmodComps = append(kmodComps, &csi)
+		}
+	}
+
+	if len(kmodComps) > 0 {
+		expected = append(expected, fakeOp{
+			op:           "prepare-kernel-modules-components",
+			currentComps: []*snap.ComponentSideInfo{},
+			finalComps:   kmodComps,
+		})
+	}
+
 	if undo {
-		expected = append(expected, undoOps(instanceName, snapRevision, snap.Revision{}, components)...)
+		expected = append(expected, undoOps(instanceName, snapRevision, snap.Revision{}, components, nil)...)
 	} else {
 		expected = append(expected, fakeOp{
 			op:    "cleanup-trash",
@@ -6712,7 +6755,7 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathManyInstanceRunThrough(c
 	const (
 		undo        = false
 		snapName    = "test-snap"
-		instanceKey = "key"
+		instanceKey = ""
 		removePaths = false
 	)
 	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo, removePaths)
@@ -6721,8 +6764,8 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathManyInstanceRunThrough(c
 func (s *snapmgrTestSuite) TestInstallComponentsFromPathInstanceRunThroughUndo(c *C) {
 	const (
 		undo        = true
-		snapName    = "test-snap"
-		instanceKey = "key"
+		snapName    = "some-kernel"
+		instanceKey = ""
 		removePaths = false
 	)
 	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo, removePaths)
@@ -6793,6 +6836,7 @@ version: 1.0
 
 	snapPath := makeTestSnap(c, `name: test-snap
 version: 1.0
+type: kernel
 components:
   test-component:
     type: test
@@ -6856,20 +6900,13 @@ components:
 			containerName:     containerName,
 			containerFileName: filename,
 		})
-
-		if strings.HasPrefix(compName, string(snap.KernelModulesComponent)) {
-			expected = append(expected, fakeOp{
-				op:           "setup-kernel-modules-components",
-				currentComps: nil,
-				compsToInstall: []*snap.ComponentSideInfo{{
-					Component: naming.NewComponentRef(snapName, compName),
-					Revision:  snap.R(i + 1),
-				}},
-			})
-		}
 	}
 
 	expected = append(expected, []fakeOp{{
+		op:    "update-gadget-assets:Doing",
+		name:  instanceName,
+		revno: snapRevision,
+	}, {
 		op:   "copy-data",
 		path: filepath.Join(dirs.SnapMountDir, filepath.Join(instanceName, snapRevision.String())),
 		old:  "<no-old>",
@@ -6903,8 +6940,26 @@ components:
 		op: "update-aliases",
 	}}...)
 
+	kmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
+	for i, compName := range compNames {
+		if strings.HasPrefix(compName, string(snap.KernelModulesComponent)) {
+			kmodComps = append(kmodComps, &snap.ComponentSideInfo{
+				Component: naming.NewComponentRef(snapName, compName),
+				Revision:  snap.R(i + 1),
+			})
+		}
+	}
+
+	if len(kmodComps) > 0 {
+		expected = append(expected, fakeOp{
+			op:           "prepare-kernel-modules-components",
+			currentComps: []*snap.ComponentSideInfo{},
+			finalComps:   kmodComps,
+		})
+	}
+
 	if undo {
-		expected = append(expected, undoOps(instanceName, snapRevision, snap.Revision{}, compNames)...)
+		expected = append(expected, undoOps(instanceName, snapRevision, snap.Revision{}, compNames, nil)...)
 	} else {
 		expected = append(expected, fakeOp{
 			op:    "cleanup-trash",

@@ -1,0 +1,50 @@
+type: model
+authority-id: test-snapd
+revision: 1
+series: 16
+brand-id: test-snapd
+model: ubuntu-core-24-pc-amd64
+architecture: amd64
+base: core24
+classic: true
+distribution: ubuntu
+grade: dangerous
+serial-authority:
+  - generic
+snaps:
+  -
+    default-channel: 24/edge
+    name: pc
+    type: gadget
+  -
+    default-channel: 24-hwe/stable
+    name: pc-kernel
+    type: kernel
+  -
+    default-channel: latest/stable
+    id: dwTAh7MZZ01zyriOZErqd1JynQLiOGvM
+    name: core24
+    type: base
+  -
+    default-channel: latest/edge
+    id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+    name: snapd
+    type: snapd
+  -
+    default-channel: latest/edge
+    id: zBAzEImJzOAoGxmoG5o6Tl6ELZXMeUlt
+    name: test-snapd-jq-core24
+    type: app
+timestamp: 2024-08-02T00:00:00+00:00
+sign-key-sha3-384: 7qWG-Uwck6Dji43a3Z8ZZrm7rAziZAch3xf76iFvqe4GaD0LI7U9lYPWMSJAsEgu
+
+AcLBcwQAAQoAHRYhBGESvKlz1RXG1IBOC0MdJKf2hr9ABQJmrOmQAAoJEEMdJKf2hr9A5l0P/iJF
+deI0WrNF6njZqlaFMGGO1yKlqpZGedZI7M4qV3y0nFMCrFILxvlNevY2YYEFdtODvz5ZfEJZmg9w
+J+ddyLeHb0Igd30u/DUxjBrxEW4coFNImVkJAqpNp1w3E/YNUBFwiMg2eadEBM6rkKEf+E3hkPql
+UivLKoaXZ2CMHlqFHW34bFMDhj1NdE9AUx077lTyy8Qc+Q/XNOy1Ybq3ldqgTvTdT6yxBXpQvHNH
+4nC5J/B3l/NXGVBdPYmvncZcHsNpREzTMmhu4rADqpPtweXtAV7r0Hqc9TcrvRb/VOwYerIOTIA+
+N0GQ5bxGUnRng900aOAtHIiAqME6LvTDCZVcfC3HBKtIFgM7b254eFslvLRLFJCELDen3+kEXBj0
+PVp1bKOd+ZExM8vKj18h+pfn/Ahy7PkzSqJLI4PvDOdiSx6GbbVoZCVgSrX3cgK2XQu181vJPlu+
+m55JaYAgHYwM0am6Fn+VyQfqPu471X7z3g0+kCCCN7Vb46VsZ6JRhqP/L2nkcyZhHrBtU4a1q8GN
+Qj3GpsnqCzGbLgCbzg/XjSJ6QsneLtWxdXHS6ozDNis3QsCCttkKiFo4tQh2wBRlnsMauoo91TQn
+a5TuoLKppJPcbTZHFvsApQHSwGalogt7x/oYhJrH5493Ta66XivTixFf9prjS3o0HOwnMhEV

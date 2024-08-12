@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -70,6 +71,18 @@ func MockServicestateControlFunc(f func(*state.State, []*snap.AppInfo, *services
 	old := servicestateControl
 	servicestateControl = f
 	return func() { servicestateControl = old }
+}
+
+func MockSnapstateInstallComponentsFunc(f func(ctx context.Context, st *state.State, names []string, info *snap.Info, opts snapstate.Options) ([]*state.TaskSet, error)) (restore func()) {
+	old := snapstateInstallComponents
+	snapstateInstallComponents = f
+	return func() { snapstateInstallComponents = old }
+}
+
+func MockSnapstateRemoveComponentsFunc(f func(st *state.State, snapName string, compName []string, opts snapstate.RemoveComponentsOpts) ([]*state.TaskSet, error)) (restore func()) {
+	old := snapstateRemoveComponents
+	snapstateRemoveComponents = f
+	return func() { snapstateRemoveComponents = old }
 }
 
 func MockDevicestateSystemModeInfoFromState(f func(*state.State) (*devicestate.SystemModeInfo, error)) (restore func()) {

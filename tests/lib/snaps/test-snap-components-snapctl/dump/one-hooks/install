@@ -1,0 +1,5 @@
+#!/bin/bash -ex
+
+exec > "$SNAP_DATA"/one-install.log 2>&1
+
+printf "install hook for comp one run\n"

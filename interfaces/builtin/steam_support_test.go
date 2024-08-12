@@ -126,6 +126,6 @@ func (s *SteamSupportInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, release.OnCoreDesktop)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allow Steam to configure pressure-vessel containers`)
+	c.Assert(si.Summary, Equals, `allows Steam to configure pressure-vessel containers`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "steam-support")
 }
