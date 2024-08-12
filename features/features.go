@@ -226,7 +226,7 @@ func (f SnapdFeature) ConfigOption() (snapName, confName string) {
 // string details as to why.
 func (f SnapdFeature) IsSupported() (supported bool, whyNot string) {
 	if callback, exists := featuresSupportedCallbacks[f]; exists {
-		supported, whyNot = callback() // discard unsupported reason
+		supported, whyNot = callback()
 		if !supported {
 			return false, whyNot
 		}
