@@ -18,6 +18,7 @@ import (
 )
 
 var (
+	ErrClosed                = errors.New("rule DB has already been closed")
 	ErrInternalInconsistency = errors.New("internal error: prompting rule database left inconsistent")
 	ErrLifespanSingle        = errors.New(`cannot create rule with lifespan "single"`)
 	ErrRuleIDNotFound        = errors.New("rule ID is not found")
@@ -661,12 +662,33 @@ func (rdb *RuleDB) ensurePermissionDBForUserSnapInterfacePermission(user uint32,
 	return permVariants
 }
 
+// Close closes the max ID mmap and prevents the rule DB from being modified.
+func (rdb *RuleDB) Close() error {
+	rdb.mutex.Lock()
+	defer rdb.mutex.Unlock()
+
+	if rdb.maxIDMmap.IsClosed() {
+		return ErrClosed
+	}
+
+	if err := rdb.maxIDMmap.Close(); err != nil {
+		return fmt.Errorf("cannot close max ID mmap: %w", err)
+	}
+
+	return rdb.save()
+}
+
 // Creates a rule with the given information and adds it to the rule database.
 // If any of the given parameters are invalid, returns an error. Otherwise,
 // returns the newly-added rule, and saves the database to disk.
 func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*Rule, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
+
+	if rdb.maxIDMmap.IsClosed() {
+		return nil, ErrClosed
+	}
+
 	newRule, err := rdb.makeNewRule(user, snap, iface, constraints, outcome, lifespan, duration)
 	if err != nil {
 		return nil, err
@@ -880,6 +902,10 @@ func (rdb *RuleDB) RemoveRule(user uint32, id prompting.IDType) (*Rule, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 
+	if rdb.maxIDMmap.IsClosed() {
+		return nil, ErrClosed
+	}
+
 	rule, err := rdb.lookupRuleByIDForUser(user, id)
 	if err != nil {
 		// The rule doesn't exist or the user doesn't have access
@@ -926,6 +952,14 @@ func (rdb *RuleDB) RemoveRulesForSnap(user uint32, snap string) ([]*Rule, error)
 //
 // The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) error {
+	if rdb.maxIDMmap.IsClosed() {
+		return ErrClosed
+	}
+
+	if len(rules) == 0 {
+		return nil
+	}
+
 	for _, rule := range rules {
 		// Remove rule from the rules list. Caller should ensure that the rule
 		// exists, and thus this should not error. We don't want to return any
@@ -996,6 +1030,10 @@ func (rdb *RuleDB) RemoveRulesForSnapInterface(user uint32, snap string, iface s
 func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (r *Rule, err error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
+
+	if rdb.maxIDMmap.IsClosed() {
+		return nil, ErrClosed
+	}
 
 	origRule, err := rdb.lookupRuleByIDForUser(user, id)
 	if err != nil {
