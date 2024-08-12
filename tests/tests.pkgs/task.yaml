@@ -51,3 +51,11 @@ execute: |
     tests.pkgs noexist test-snapd-pkg-1 2>&1 | MATCH 'tests.pkgs: unknown command noexist'
     tests.pkgs -install test-snapd-pkg-1 2>&1 | MATCH 'tests.pkgs: unknown option -install'
 
+    # Install the test pkg and check it is installed and query it
+    # run this just on amd64 architecture and skip trusty
+    if ( os.query is-debian || os.query is-ubuntu-ge 1604 ) && os.query is-pc-amd64 ; then
+      dpkg --add-architecture i386
+      tests.pkgs install test-snapd-pkg-3
+      tests.pkgs is-installed test-snapd-pkg-3
+      tests.pkgs remove test-snapd-pkg-3
+    fi
