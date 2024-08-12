@@ -1,0 +1,12 @@
+name: test-snapd-prompt-handler
+version: 1.0
+base: core24
+apps:
+    prompt-handler:
+        command: bin/start
+        daemon: simple
+        daemon-scope: user
+
+plugs:
+    snap-interfaces-requests-control:
+      handler-service: prompt-handler
