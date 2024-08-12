@@ -248,6 +248,12 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) (err error) 
 	// TODO we might want a checkComponents doing checks for some
 	// component types (see checkSnap and checkSnapCallbacks slice)
 
+	if err := ensureSnapAndComponentsAssertionStatus(
+		*snapsup.SideInfo, []snap.ComponentSideInfo{*compSetup.CompSideInfo},
+	); err != nil {
+		return err
+	}
+
 	csi := compSetup.CompSideInfo
 	cpi := snap.MinimalComponentContainerPlaceInfo(compSetup.ComponentName(),
 		csi.Revision, snapsup.InstanceName())

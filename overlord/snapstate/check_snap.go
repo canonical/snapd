@@ -469,16 +469,34 @@ func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
 	return checkEpochs(nil, info, cur, nil, Flags{}, nil)
 }
 
-func earlyChecks(st *state.State, snapst *SnapState, update *snap.Info, flags Flags) (Flags, error) {
+func earlyChecks(st *state.State, snapst *SnapState, update *snap.Info, comps []snap.ComponentSideInfo, flags Flags) (Flags, error) {
 	flags, err := ensureInstallPreconditions(st, update, flags, snapst)
 	if err != nil {
 		return flags, err
+	}
+
+	if err := ensureSnapAndComponentsAssertionStatus(update.SideInfo, comps); err != nil {
+		return Flags{}, err
 	}
 
 	if err := earlyEpochCheck(update, snapst); err != nil {
 		return flags, err
 	}
 	return flags, nil
+}
+
+func ensureSnapAndComponentsAssertionStatus(si snap.SideInfo, comps []snap.ComponentSideInfo) error {
+	snapAsserted := !si.Revision.Local() && !si.Revision.Unset()
+	for _, comp := range comps {
+		compAsserted := !comp.Revision.Local() && !comp.Revision.Unset()
+		if snapAsserted && !compAsserted {
+			return errors.New("cannot mix asserted snap and unasserted components")
+		}
+		if !snapAsserted && compAsserted {
+			return errors.New("cannot mix unasserted snap and asserted components")
+		}
+	}
+	return nil
 }
 
 // check that the listed system users are valid
