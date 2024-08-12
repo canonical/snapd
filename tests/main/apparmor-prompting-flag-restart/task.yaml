@@ -19,6 +19,10 @@ prepare: |
         snap install --devmode --edge test-snapd-curl
         snap alias test-snapd-curl.curl curl
     fi
+    # prerequisite for having a prompts handler service
+    snap set system experimental.user-daemons=true
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-prompt-handler
+    snap connect test-snapd-prompt-handler:snap-interfaces-requests-control
 
 restore: |
     echo "Restore: Reset start limit so that other queries can succeed"
