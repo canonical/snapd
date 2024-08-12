@@ -119,7 +119,7 @@ func (s *experimentalSuite) TestCleanExperimentalFlags(c *C) {
 	t.Commit()
 	s.state.Unlock()
 
-	experimentalFlags := make(map[string]bool, 1)
+	var experimentalFlags map[string]bool
 	c.Assert(t.Get("core", "experimental", &experimentalFlags), IsNil)
 	c.Check(experimentalFlags, DeepEquals, map[string]bool{
 		"old-stale-flag": true,
