@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -237,7 +238,10 @@ func (s *apparmorpromptingSuite) TestHandleReplySimple(c *C) {
 	reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
-	mgr, req, prompt := s.prepManagerWithSinglePrompt(c, reqChan)
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	req, prompt := s.simulateRequest(c, reqChan, mgr, &listener.Request{}, false)
 
 	// Reply to the request
 	constraints := prompting.Constraints{
@@ -261,32 +265,30 @@ func (s *apparmorpromptingSuite) TestHandleReplySimple(c *C) {
 	c.Assert(mgr.Stop(), IsNil)
 }
 
-func (s *apparmorpromptingSuite) prepManagerWithSinglePrompt(c *C, reqChan chan *listener.Request) (*apparmorprompting.InterfacesRequestsManager, *listener.Request, *requestprompts.Prompt) {
-	mgr, err := apparmorprompting.New(s.st)
-	c.Assert(err, IsNil)
-
+func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *listener.Request, mgr *apparmorprompting.InterfacesRequestsManager, req *listener.Request, shouldMerge bool) (*listener.Request, *requestprompts.Prompt) {
 	prompts, err := mgr.Prompts(s.defaultUser)
 	c.Check(err, IsNil)
-	c.Check(prompts, HasLen, 0)
+	origPromptIDs := make(map[prompting.IDType]bool)
+	for _, p := range prompts {
+		origPromptIDs[p.ID] = true
+	}
 
-	path := "/home/test/foo"
-
-	whenSent := time.Now()
+	logbuf, restore := logger.MockLogger()
+	defer restore()
 
 	// Simulate request from the kernel
-	req := &listener.Request{
-		Label:      "snap.firefox.firefox",
-		SubjectUID: s.defaultUser,
-		Path:       path,
-		Class:      notify.AA_CLASS_FILE,
-		Permission: notify.AA_MAY_READ,
-	}
+	s.fillInPartialRequest(req)
+	whenSent := time.Now()
 	// push a request
 	reqChan <- req
 
+	// Check that no error occurred
+	time.Sleep(10 * time.Millisecond)
+	logger.WithLoggerLock(func() { c.Assert(logbuf.String(), Equals, "") })
+
 	// which should generate a notice
 	s.st.Lock()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	n, err := s.st.WaitNotices(ctx, &state.NoticeFilter{
 		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
@@ -295,15 +297,35 @@ func (s *apparmorpromptingSuite) prepManagerWithSinglePrompt(c *C, reqChan chan 
 	s.st.Unlock()
 	c.Check(err, IsNil)
 	c.Check(n, HasLen, 1)
-	// Check that prompt exists
+
+	// Check prompts now
 	prompts, err = mgr.Prompts(s.defaultUser)
 	c.Assert(err, IsNil)
-	c.Assert(prompts, HasLen, 1)
-	prompt := prompts[0]
-	c.Check(prompt.Snap, Equals, "firefox")
+
+	if shouldMerge {
+		c.Assert(prompts, HasLen, len(origPromptIDs))
+		return req, nil
+	}
+
+	c.Assert(prompts, HasLen, len(origPromptIDs)+1)
+	var prompt *requestprompts.Prompt
+	for _, p := range prompts {
+		if origPromptIDs[p.ID] {
+			continue
+		}
+		prompt = p
+		break
+	}
+	c.Assert(prompt, NotNil)
+	expectedSnap := req.Label
+	labelComponents := strings.Split(req.Label, ".")
+	if len(labelComponents) == 3 {
+		expectedSnap = labelComponents[1]
+	}
+
+	c.Check(prompt.Snap, Equals, expectedSnap)
 	c.Check(prompt.Interface, Equals, "home")
-	c.Check(prompt.Constraints.Path(), Equals, path)
-	c.Check(prompt.Constraints.RemainingPermissions(), DeepEquals, []string{"read"})
+	c.Check(prompt.Constraints.Path(), Equals, req.Path)
 
 	// Check that we can query that prompt by ID
 	promptByID, err := mgr.PromptWithID(s.defaultUser, prompt.ID)
@@ -311,7 +333,27 @@ func (s *apparmorpromptingSuite) prepManagerWithSinglePrompt(c *C, reqChan chan 
 	c.Check(promptByID, Equals, prompt)
 
 	// Return manager, request, and prompt
-	return mgr, req, prompt
+	return req, prompt
+}
+
+// fillInPartialRequest fills in any blank fields from the given request
+// with default non-empty values.
+func (s *apparmorpromptingSuite) fillInPartialRequest(req *listener.Request) {
+	if req.Label == "" {
+		req.Label = "snap.firefox.firefox"
+	}
+	if req.SubjectUID == uint32(0) {
+		req.SubjectUID = s.defaultUser
+	}
+	if req.Path == "" {
+		req.Path = "/home/test/foo"
+	}
+	if req.Class == notify.MediationClass(0) {
+		req.Class = notify.AA_CLASS_FILE
+	}
+	if req.Permission == nil {
+		req.Permission = notify.AA_MAY_READ
+	}
 }
 
 func mustParsePathPattern(c *C, pattern string) *patterns.PathPattern {
@@ -335,7 +377,10 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 	reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
-	mgr, _, prompt := s.prepManagerWithSinglePrompt(c, reqChan)
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	_, prompt := s.simulateRequest(c, reqChan, mgr, &listener.Request{}, false)
 
 	// Wrong user ID
 	result, err := mgr.HandleReply(s.defaultUser+1, prompt.ID, nil, prompting.OutcomeAllow, prompting.LifespanSingle, "")
@@ -395,48 +440,292 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 	c.Assert(mgr.Stop(), IsNil)
 }
 
-func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
-	// Requests with identical *original* abstract permissions are merged into
-	// the existing prompt
-	c.Fatalf("TODO")
-}
-
 func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
-	// If rules allow all of a request's permissions, that request is auto-allowed
-	c.Fatalf("TODO")
+	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	// Add allow rule to match read permission
+	constraints := &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/home/test/**"),
+		Permissions: []string{"read"},
+	}
+	_, err = mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	c.Assert(err, IsNil)
+
+	// Add allow rule to match write permission
+	constraints = &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/home/test/**"),
+		Permissions: []string{"write"},
+	}
+	_, err = mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	c.Assert(err, IsNil)
+
+	// Create request for read and write
+	req := &listener.Request{
+		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	}
+	s.fillInPartialRequest(req)
+	whenSent := time.Now()
+	reqChan <- req
+	time.Sleep(10 * time.Millisecond)
+
+	// Check that no prompts were created
+	prompts, err := mgr.Prompts(s.defaultUser)
+	c.Check(err, IsNil)
+	c.Check(prompts, HasLen, 0)
+
+	// Check that no notices were recorded
+	s.st.Lock()
+	n := s.st.Notices(&state.NoticeFilter{
+		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
+		After: whenSent,
+	})
+	s.st.Unlock()
+	c.Check(n, HasLen, 0)
+
+	// Check that kernel received a reply
+	resp, err := waitForReply(replyChan)
+	c.Assert(err, IsNil)
+	c.Check(resp.Request, Equals, req)
+	c.Check(resp.Response.Allow, Equals, true)
+	expectedPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read", "write"})
+	c.Assert(err, IsNil)
+	c.Check(resp.Response.Permission, DeepEquals, expectedPermissions)
+
+	c.Assert(mgr.Stop(), IsNil)
 }
 
 func (s *apparmorpromptingSuite) TestExistingRulePartiallyAllowsNewPrompt(c *C) {
-	// If rules allow some of a request's permissions, a prompt should be
-	// created for the remaining permissions, but the full list of original
-	// permissions (including those satisfied by existing rules) should be
-	// preserved in the prompt, and replying to the prompt should result in a
-	// response to the kernel with all (recognized) permissions from the
-	// original request.
-	c.Fatalf("TODO")
+	reqChan, _, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	// Add rule to match read permission
+	constraints := &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/home/test/**"),
+		Permissions: []string{"read"},
+	}
+	_, err = mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	c.Assert(err, IsNil)
+
+	// Do NOT add rule to match write permission
+
+	// Create request for read and write
+	partialReq := &listener.Request{
+		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	}
+	_, prompt := s.simulateRequest(c, reqChan, mgr, partialReq, false)
+
+	// Check that prompt was created for remaining "write" permission
+	c.Check(prompt.Constraints.RemainingPermissions(), DeepEquals, []string{"write"})
+
+	c.Assert(mgr.Stop(), IsNil)
 }
 
 func (s *apparmorpromptingSuite) TestExistingRulePartiallyDeniesNewPrompt(c *C) {
-	// Partial denial should result in immediate request denial
-	c.Fatalf("TODO")
+	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	// Add deny rule to match read permission
+	constraints := &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/home/test/**"),
+		Permissions: []string{"read"},
+	}
+	_, err = mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeDeny, prompting.LifespanForever, "")
+	c.Assert(err, IsNil)
+
+	// Add no rule for write permissions
+
+	// Create request for read and write
+	req := &listener.Request{
+		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	}
+	s.fillInPartialRequest(req)
+	whenSent := time.Now()
+	reqChan <- req
+	time.Sleep(10 * time.Millisecond)
+
+	// Check that no prompts were created
+	prompts, err := mgr.Prompts(s.defaultUser)
+	c.Check(err, IsNil)
+	c.Check(prompts, HasLen, 0)
+
+	// Check that no notices were recorded
+	s.st.Lock()
+	n := s.st.Notices(&state.NoticeFilter{
+		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
+		After: whenSent,
+	})
+	s.st.Unlock()
+	c.Check(n, HasLen, 0)
+
+	// Check that kernel received a reply
+	resp, err := waitForReply(replyChan)
+	c.Assert(err, IsNil)
+	c.Check(resp.Request, Equals, req)
+	c.Check(resp.Response.Allow, Equals, true)
+	c.Check(resp.Response.Permission, DeepEquals, notify.FilePermission(0))
+
+	c.Assert(mgr.Stop(), IsNil)
+}
+
+func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C) {
+	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	// Add deny rule to match read permission
+	constraints := &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/home/test/**"),
+		Permissions: []string{"read"},
+	}
+	_, err = mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeDeny, prompting.LifespanForever, "")
+	c.Assert(err, IsNil)
+
+	// Add allow rule for write permissions
+	constraints = &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/home/test/**"),
+		Permissions: []string{"write"},
+	}
+	_, err = mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	c.Assert(err, IsNil)
+
+	// Create request for read and write
+	req := &listener.Request{
+		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	}
+	s.fillInPartialRequest(req)
+	whenSent := time.Now()
+	reqChan <- req
+	time.Sleep(10 * time.Millisecond)
+
+	// Check that no prompts were created
+	prompts, err := mgr.Prompts(s.defaultUser)
+	c.Check(err, IsNil)
+	c.Check(prompts, HasLen, 0)
+
+	// Check that no notices were recorded
+	s.st.Lock()
+	n := s.st.Notices(&state.NoticeFilter{
+		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
+		After: whenSent,
+	})
+	s.st.Unlock()
+	c.Check(n, HasLen, 0)
+
+	// If there is an allow rule for some permissions and a deny rule for other
+	// permissions, an allow response should be sent immediately for only the
+	// previously-allowed permissions, and all denied permissions should be
+	// automatically denied by the kernel.
+
+	// Check that kernel received a reply
+	resp, err := waitForReply(replyChan)
+	c.Assert(err, IsNil)
+	c.Check(resp.Request, Equals, req)
+	c.Check(resp.Response.Allow, Equals, true)
+	expectedPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"write"})
+	c.Assert(err, IsNil)
+	c.Check(resp.Response.Permission, DeepEquals, expectedPermissions)
+
+	c.Assert(mgr.Stop(), IsNil)
 }
 
 func (s *apparmorpromptingSuite) TestNewRuleHandlesExistingPrompt(c *C) {
+	//reqChan, replyChan, restore := apparmorprompting.MockListener()
+	//defer restore()
+
+	//mgr, err := apparmorprompting.New(s.st)
+	//c.Assert(err, IsNil)
 	c.Fatalf("TODO")
 }
 
 func (s *apparmorpromptingSuite) TestReplyNewRuleHandlesExistingPrompt(c *C) {
+	//reqChan, replyChan, restore := apparmorprompting.MockListener()
+	//defer restore()
+
+	//mgr, err := apparmorprompting.New(s.st)
+	//c.Assert(err, IsNil)
 	c.Fatalf("TODO")
 }
 
+func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
+	reqChan, _, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	// Requests with identical *original* abstract permissions are merged into
+	// the existing prompt
+
+	// Create request for read and write
+	partialReq := &listener.Request{
+		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	}
+	_, prompt := s.simulateRequest(c, reqChan, mgr, partialReq, false)
+
+	// Create identical request, it should merge
+	identicalReq := &listener.Request{
+		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	}
+	s.simulateRequest(c, reqChan, mgr, identicalReq, true)
+
+	// Add rule to satisfy the read permission
+	constraints := &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/home/test/**"),
+		Permissions: []string{"read"},
+	}
+	_, err = mgr.AddRule(s.defaultUser, prompt.Snap, prompt.Interface, constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	c.Assert(err, IsNil)
+
+	// Create identical request again, it should merge even though some
+	// permissions have been satisfied
+	identicalReqAgain := &listener.Request{
+		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	}
+	s.simulateRequest(c, reqChan, mgr, identicalReqAgain, true)
+
+	// Now new requests for just write access will have identical remaining
+	// permissions, but not identical original permissions, so should not merge
+	readReq := &listener.Request{
+		Permission: notify.AA_MAY_WRITE,
+	}
+	s.simulateRequest(c, reqChan, mgr, readReq, false)
+}
+
 func (s *apparmorpromptingSuite) TestRules(c *C) {
+	//reqChan, replyChan, restore := apparmorprompting.MockListener()
+	//defer restore()
+
+	//mgr, err := apparmorprompting.New(s.st)
+	//c.Assert(err, IsNil)
 	c.Fatalf("TODO")
 }
 
 func (s *apparmorpromptingSuite) TestRemoveRules(c *C) {
+	//reqChan, replyChan, restore := apparmorprompting.MockListener()
+	//defer restore()
+
+	//mgr, err := apparmorprompting.New(s.st)
+	//c.Assert(err, IsNil)
 	c.Fatalf("TODO")
 }
 
 func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
+	//reqChan, replyChan, restore := apparmorprompting.MockListener()
+	//defer restore()
+
+	//mgr, err := apparmorprompting.New(s.st)
+	//c.Assert(err, IsNil)
 	c.Fatalf("TODO")
 }

@@ -207,16 +207,11 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
+	matchedDenyRule := false
 	for _, perm := range permissions {
 		if yesNo, err := m.rules.IsPathAllowed(userID, snap, iface, path, perm); err == nil {
 			if !yesNo {
-				// XXX: this debug log leaks information about internal activity
-				logger.Debugf("request denied by existing rule: %+v", req)
-				response := listener.Response{
-					Allow:      false,
-					Permission: req.Permission,
-				}
-				return requestReply(req, &response)
+				matchedDenyRule = true
 			} else {
 				satisfiedPerms = append(satisfiedPerms, perm)
 			}
@@ -227,6 +222,23 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 			// No matching rule found
 			remainingPerms = append(remainingPerms, perm)
 		}
+	}
+	if matchedDenyRule {
+		// XXX: this debug log leaks information about internal activity
+		logger.Debugf("request denied by existing rule: %+v", req)
+
+		// At least some permissions were allowed, but others were denied.
+		// Respond with this information by allowing all the permissions which
+		// were explicitly allowed, and let the kernel auto-deny the denied
+		// permissions, and any which not matched by allow rules.
+		responsePermissions, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, satisfiedPerms)
+		// Error should not occur, but if it does, responsePermissions are set
+		// to none, leaving it to AppArmor to default deny.
+		response := listener.Response{
+			Allow:      true,
+			Permission: responsePermissions,
+		}
+		return requestReply(req, &response)
 	}
 
 	if len(remainingPerms) == 0 {
