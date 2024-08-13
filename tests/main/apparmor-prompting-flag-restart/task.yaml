@@ -100,7 +100,22 @@ execute: |
         check_prompting_setting "false"
     fi
 
-    echo "Enable prompting via snap client"
+    echo "Enable prompting via snap client where possible"
+    if os.query is-core || os.query is-ubuntu-lt 24.04; then
+        # prompting is disabled on Ubuntu Core
+        # TODO on releases < 24.04 we need the snapd snap for testing
+        not snap set system experimental.apparmor-prompting=true >& err.out
+        if os.query is-core ; then
+            MATCH "cannot enable prompting feature as it is not supported on Ubuntu Core systems" < err.out
+        else
+            MATCH "cannot enable prompting feature as it is not supported by the system" < err.out
+        fi
+
+        # even if unsupported setting it to false should succeed
+        snap set system experimental.apparmor-prompting=false
+        exit 0
+    fi
+
     snap set system experimental.apparmor-prompting=true || reset_start_limit
 
     echo "Check that snapd restarted after prompting set to true via snap client"

@@ -21,9 +21,12 @@
 package configcore
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/release"
 )
 
 var restartRequest = restart.Request
@@ -47,6 +50,22 @@ func doExperimentalApparmorPromptingDaemonRestart(c RunTransaction, opts *fsOnly
 	}
 	if prompting == prevPrompting {
 		return nil
+	}
+
+	if prompting {
+		// TODO support for preseeding
+
+		if !release.OnClassic && !release.OnCoreDesktop {
+			return fmt.Errorf("cannot enable prompting feature as it is not supported on Ubuntu Core systems")
+		}
+
+		if is, whyNot := features.AppArmorPrompting.IsSupported(); !is {
+			if whyNot == "" {
+				// we don't have details as to why
+				return fmt.Errorf("cannot enable prompting feature as it is not supported by the system")
+			}
+			return fmt.Errorf("cannot enable prompting feature as it is not supported by the system: %s", whyNot)
+		}
 	}
 
 	// No matter whether prompting is supported or not, request a restart of

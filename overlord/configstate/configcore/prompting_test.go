@@ -28,6 +28,8 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 )
 
 type promptingSuite struct {
@@ -38,6 +40,11 @@ var _ = Suite(&promptingSuite{})
 
 func (s *promptingSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
+	// mock minimum set of features for apparmor prompting
+	s.AddCleanup(apparmor.MockFeatures(
+		[]string{"policy:permstable32:prompt"}, nil,
+		[]string{"prompt"}, nil,
+	))
 }
 
 func (s *promptingSuite) TestDoExperimentalApparmorPromptingDaemonRestartNoPristine(c *C) {
@@ -177,4 +184,99 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingDaemonRestartErrors(
 
 	err = configcore.DoExperimentalApparmorPromptingDaemonRestart(rt, nil)
 	c.Check(err, Not(IsNil))
+}
+
+func (s *promptingSuite) testDoExperimentalApparmorPromptingUnsupported(c *C, expectedError string) {
+	snap, confName := features.AppArmorPrompting.ConfigOption()
+
+	// one cannot enable prompting if it's not supported
+	s.state.Lock()
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
+	rt.Set(snap, confName, true)
+	s.state.Unlock()
+
+	err := configcore.DoExperimentalApparmorPromptingDaemonRestart(rt, nil)
+	c.Check(err, ErrorMatches, expectedError)
+
+	// but disabling it will not error out
+	s.state.Lock()
+	rt = configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
+	rt.Set(snap, confName, false)
+	rt.Commit()
+	s.state.Unlock()
+
+	err = configcore.DoExperimentalApparmorPromptingDaemonRestart(rt, nil)
+	c.Check(err, IsNil)
+}
+
+func (s *promptingSuite) TestDoExperimentalApparmorPromptingUnsupportedKernel(c *C) {
+	restore := apparmor.MockFeatures(
+		[]string{"policy:permstable32:prompt-is-not-supported"}, nil,
+		[]string{"prompt-is-not-supported"}, nil,
+	)
+	defer restore()
+
+	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo) {
+		c.Errorf("unexpected restart requested")
+	})
+	defer restore()
+	s.testDoExperimentalApparmorPromptingUnsupported(c,
+		"cannot enable prompting feature as it is not supported by the system: apparmor kernel features do not support prompting")
+}
+
+func (s *promptingSuite) TestDoExperimentalApparmorPromptingUnsupportedParser(c *C) {
+	restore := apparmor.MockFeatures(
+		[]string{"policy:permstable32:prompt"}, nil,
+		[]string{"prompt-is-not-supported"}, nil,
+	)
+	defer restore()
+
+	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo) {
+		c.Errorf("unexpected restart requested")
+	})
+	defer restore()
+	s.testDoExperimentalApparmorPromptingUnsupported(c,
+		"cannot enable prompting feature as it is not supported by the system: apparmor parser does not support the prompt qualifier")
+}
+
+func (s *promptingSuite) TestDoExperimentalApparmorPromptingOnCoreUnsupported(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	release.MockOnCoreDesktop(false)
+	defer restore()
+
+	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo) {
+		c.Errorf("unexpected restart requested")
+	})
+	defer restore()
+
+	s.testDoExperimentalApparmorPromptingUnsupported(c,
+		"cannot enable prompting feature as it is not supported on Ubuntu Core systems")
+}
+
+func (s *promptingSuite) TestDoExperimentalApparmorPromptingOnCoreDesktop(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	release.MockOnCoreDesktop(true)
+	defer restore()
+
+	restartCalled := 0
+	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo) {
+		restartCalled++
+	})
+	defer restore()
+
+	snap, confName := features.AppArmorPrompting.ConfigOption()
+
+	// one cannot enable prompting if it's not supported
+	s.state.Lock()
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
+	rt.Set(snap, confName, true)
+	s.state.Unlock()
+
+	err := configcore.DoExperimentalApparmorPromptingDaemonRestart(rt, nil)
+	c.Check(err, IsNil)
+
+	c.Check(restartCalled, Equals, 1)
 }
