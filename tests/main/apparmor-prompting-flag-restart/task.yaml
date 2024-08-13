@@ -9,7 +9,8 @@ details: |
 
 systems:
   - ubuntu-16.04-*
-  - ubuntu-18.04-*
+  # skip 18.04-32 as one of the test snaps uses core24 which has no i386 build
+  - ubuntu-18.04-64
   - ubuntu-2*
   - ubuntu-core-*
 
