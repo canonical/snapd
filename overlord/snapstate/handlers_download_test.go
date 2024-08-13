@@ -334,7 +334,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatibilityValidationSetsWrongRe
 	s.se.Ensure()
 	s.se.Wait()
 	s.state.Lock()
-	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot install snap "foo" at requested revision 14 without --ignore-validation, revision 15 required by validation sets: 16/foo/bar/3.*`)
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot install snap "foo" at revision 14 without --ignore-validation, revision 15 is required by validation sets: 16/foo/bar/3.*`)
 }
 
 func (s *downloadSnapSuite) TestDoDownloadSnapNormal(c *C) {
