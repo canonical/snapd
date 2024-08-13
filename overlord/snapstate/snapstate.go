@@ -3980,11 +3980,17 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		return nil, err
 	}
 	if !newSnapst.IsInstalled() {
-		var userID int
-		newInfo, err := installInfo(context.TODO(), st, newName, &RevisionOptions{Channel: oldSnapst.TrackingChannel}, userID, Flags{}, nil)
+		result, err := sendOneInstallAction(context.TODO(), st, StoreSnap{
+			InstanceName: newName,
+			RevOpts: RevisionOptions{
+				Channel: oldSnapst.TrackingChannel,
+			},
+		}, Options{})
 		if err != nil {
 			return nil, err
 		}
+
+		newInfo := result.Info
 
 		// start by installing the new snap
 		tsInst, err := doInstall(st, &newSnapst, SnapSetup{

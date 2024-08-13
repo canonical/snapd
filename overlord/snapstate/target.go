@@ -250,54 +250,8 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 		return nil, err
 	}
 
-	enforcedSetsFunc := cachedEnforcedValidationSets(st)
-
-	includeResources := false
-	actions := make([]*store.SnapAction, 0, len(s.snaps))
-	for _, sn := range s.snaps {
-		action := &store.SnapAction{
-			Action:       "install",
-			InstanceName: sn.InstanceName,
-		}
-
-		if err := completeStoreAction(action, sn.RevOpts, opts.Flags.IgnoreValidation, enforcedSetsFunc); err != nil {
-			return nil, err
-		}
-
-		if len(sn.Components) > 0 {
-			includeResources = true
-		}
-
-		actions = append(actions, action)
-	}
-
-	curSnaps, err := currentSnaps(st)
+	results, err := sendInstallActions(ctx, st, s.snaps, opts)
 	if err != nil {
-		return nil, err
-	}
-
-	refreshOpts, err := refreshOptions(st, &store.RefreshOptions{
-		IncludeResources: includeResources,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	user, err := userFromUserID(st, opts.UserID)
-	if err != nil {
-		return nil, err
-	}
-
-	str := Store(st, opts.DeviceCtx)
-
-	st.Unlock() // calls to the store should be done without holding the state lock
-	results, _, err := str.SnapAction(context.TODO(), curSnaps, actions, nil, user, refreshOpts)
-	st.Lock()
-
-	if err != nil {
-		if opts.ExpectOneSnap {
-			return nil, singleActionResultErr(actions[0].InstanceName, actions[0].Action, err)
-		}
 		return nil, err
 	}
 
