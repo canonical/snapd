@@ -21,11 +21,13 @@ package prompting_test
 
 import (
 	"fmt"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces/prompting"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 )
 
@@ -438,7 +440,7 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsHappy(c
 }
 
 func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy(c *C) {
-	cases := []struct {
+	for _, testCase := range []struct {
 		iface  string
 		perms  any
 		errStr string
@@ -458,21 +460,36 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy
 			notify.AA_MAY_READ,
 			"cannot map the given interface to list of available permissions.*",
 		},
+	} {
+		perms, err := prompting.AbstractPermissionsFromAppArmorPermissions(testCase.iface, testCase.perms)
+		c.Check(perms, IsNil, Commentf("received unexpected non-nil permissions list for test case: %+v", testCase))
+		c.Check(err, ErrorMatches, testCase.errStr)
+	}
+	for _, testCase := range []struct {
+		iface    string
+		perms    any
+		abstract []string
+		errStr   string
+	}{
 		{
 			"home",
 			notify.FilePermission(1 << 17),
-			"cannot map AppArmor permission to abstract permission for the home interface.*",
+			[]string{},
+			`.*cannot map AppArmor permission to abstract permission for the home interface: "0x20000"`,
 		},
 		{
 			"home",
 			notify.AA_MAY_GETCRED | notify.AA_MAY_READ,
-			"cannot map AppArmor permission to abstract permission for the home interface.*",
+			[]string{"read"},
+			`.*cannot map AppArmor permission to abstract permission for the home interface: "get-cred"`,
 		},
-	}
-	for _, testCase := range cases {
+	} {
+		logbuf, restore := logger.MockLogger()
+		defer restore()
 		perms, err := prompting.AbstractPermissionsFromAppArmorPermissions(testCase.iface, testCase.perms)
-		c.Check(perms, IsNil, Commentf("received unexpected non-nil permissions list for test case: %+v", testCase))
-		c.Check(err, ErrorMatches, testCase.errStr)
+		c.Check(err, IsNil)
+		c.Check(perms, DeepEquals, testCase.abstract)
+		c.Check(fmt.Errorf("%s", strings.TrimSpace(logbuf.String())), ErrorMatches, testCase.errStr)
 	}
 }
 
