@@ -202,7 +202,17 @@ components:
 
 	info, err := snap.InfoFromSnapYaml(b.Bytes())
 	c.Assert(err, IsNil)
-	info.SideInfo = snap.SideInfo{RealName: snapName, Revision: snapRev}
+
+	var snapID string
+	if !snapRev.Unset() && !snapRev.Local() {
+		snapID = snapName + "-id"
+	}
+
+	info.SideInfo = snap.SideInfo{
+		RealName: snapName,
+		Revision: snapRev,
+		SnapID:   snapID,
+	}
 
 	return info
 }

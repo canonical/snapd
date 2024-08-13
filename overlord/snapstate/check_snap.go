@@ -486,7 +486,7 @@ func earlyChecks(st *state.State, snapst *SnapState, update *snap.Info, comps []
 }
 
 func ensureSnapAndComponentsAssertionStatus(si snap.SideInfo, comps []snap.ComponentSideInfo) error {
-	snapAsserted := !si.Revision.Local() && !si.Revision.Unset()
+	snapAsserted := si.SnapID != ""
 	for _, comp := range comps {
 		compAsserted := !comp.Revision.Local() && !comp.Revision.Unset()
 		if snapAsserted && !compAsserted {
