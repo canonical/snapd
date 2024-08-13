@@ -6982,6 +6982,7 @@ func (s *interfaceManagerSuite) TestInitInterfacesRequestsManagerError(c *C) {
 		return true
 	})
 	defer restore()
+
 	createError := fmt.Errorf("custom error")
 	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
 		return nil, createError
@@ -6990,8 +6991,16 @@ func (s *interfaceManagerSuite) TestInitInterfacesRequestsManagerError(c *C) {
 
 	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
 	err = mgr.StartUp()
-	c.Check(err, Equals, createError)
+	c.Check(err, IsNil)
+
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("%v", createError))
+	})
 }
 
 func (s *interfaceManagerSuite) TestStopInterfacesRequestsManagerError(c *C) {

@@ -199,8 +199,7 @@ func (m *InterfaceManager) StartUp() error {
 			// be regenerated if prompting is newly supported and the backends were
 			// successfully created.
 			// TODO: also set "apparmor-prompting" flag to false?
-			// XXX: should this log an error, rather than returning error?
-			return err
+			logger.Noticef("failed to start interfaces requests manager: %v", err)
 		}
 	}
 	if m.profilesNeedRegeneration() {
