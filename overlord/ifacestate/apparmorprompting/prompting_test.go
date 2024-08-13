@@ -503,13 +503,7 @@ func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
 	c.Check(prompts, HasLen, 0)
 
 	// Check that no notices were recorded
-	s.st.Lock()
-	n := s.st.Notices(&state.NoticeFilter{
-		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
-		After: whenSent,
-	})
-	s.st.Unlock()
-	c.Check(n, HasLen, 0)
+	s.checkRecordedPromptNotices(c, whenSent, 0)
 
 	// Check that kernel received a reply
 	resp, err := waitForReply(replyChan)
@@ -521,6 +515,26 @@ func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
 	c.Check(resp.Response.Permission, DeepEquals, expectedPermissions)
 
 	c.Assert(mgr.Stop(), IsNil)
+}
+
+func (s *apparmorpromptingSuite) checkRecordedPromptNotices(c *C, since time.Time, count int) {
+	s.st.Lock()
+	n := s.st.Notices(&state.NoticeFilter{
+		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
+		After: since,
+	})
+	s.st.Unlock()
+	c.Check(n, HasLen, count)
+}
+
+func (s *apparmorpromptingSuite) checkRecordedRuleUpdateNotices(c *C, since time.Time, count int) {
+	s.st.Lock()
+	n := s.st.Notices(&state.NoticeFilter{
+		Types: []state.NoticeType{state.InterfacesRequestsRuleUpdateNotice},
+		After: since,
+	})
+	s.st.Unlock()
+	c.Check(n, HasLen, count)
 }
 
 func (s *apparmorpromptingSuite) TestExistingRulePartiallyAllowsNewPrompt(c *C) {
@@ -584,13 +598,7 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyDeniesNewPrompt(c *C) 
 	c.Check(prompts, HasLen, 0)
 
 	// Check that no notices were recorded
-	s.st.Lock()
-	n := s.st.Notices(&state.NoticeFilter{
-		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
-		After: whenSent,
-	})
-	s.st.Unlock()
-	c.Check(n, HasLen, 0)
+	s.checkRecordedPromptNotices(c, whenSent, 0)
 
 	// Check that kernel received a reply
 	resp, err := waitForReply(replyChan)
@@ -640,13 +648,7 @@ func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C
 	c.Check(prompts, HasLen, 0)
 
 	// Check that no notices were recorded
-	s.st.Lock()
-	n := s.st.Notices(&state.NoticeFilter{
-		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
-		After: whenSent,
-	})
-	s.st.Unlock()
-	c.Check(n, HasLen, 0)
+	s.checkRecordedPromptNotices(c, whenSent, 0)
 
 	// If there is an allow rule for some permissions and a deny rule for other
 	// permissions, an allow response should be sent immediately for only the
@@ -733,16 +735,8 @@ func (s *apparmorpromptingSuite) TestNewRuleAllowExistingPrompt(c *C) {
 
 	// Check that notices were recorded for read prompt and rw prompt,
 	// and for the rule
-	s.st.Lock()
-	c.Check(s.st.Notices(&state.NoticeFilter{
-		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
-		After: whenSent,
-	}), HasLen, 2)
-	c.Check(s.st.Notices(&state.NoticeFilter{
-		Types: []state.NoticeType{state.InterfacesRequestsRuleUpdateNotice},
-		After: whenSent,
-	}), HasLen, 1)
-	s.st.Unlock()
+	s.checkRecordedPromptNotices(c, whenSent, 2)
+	s.checkRecordedRuleUpdateNotices(c, whenSent, 1)
 
 	c.Assert(mgr.Stop(), IsNil)
 }
@@ -817,16 +811,8 @@ func (s *apparmorpromptingSuite) TestNewRuleDenyExistingPrompt(c *C) {
 
 	// Check that notices were recorded for read prompt and rw prompt,
 	// and for the rule
-	s.st.Lock()
-	c.Check(s.st.Notices(&state.NoticeFilter{
-		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
-		After: whenSent,
-	}), HasLen, 2)
-	c.Check(s.st.Notices(&state.NoticeFilter{
-		Types: []state.NoticeType{state.InterfacesRequestsRuleUpdateNotice},
-		After: whenSent,
-	}), HasLen, 1)
-	s.st.Unlock()
+	s.checkRecordedPromptNotices(c, whenSent, 2)
+	s.checkRecordedRuleUpdateNotices(c, whenSent, 1)
 
 	c.Assert(mgr.Stop(), IsNil)
 }
@@ -908,16 +894,8 @@ func (s *apparmorpromptingSuite) TestReplyNewRuleHandlesExistingPrompt(c *C) {
 
 	// Check that notices were recorded for read prompt and rw prompt,
 	// and for the rule
-	s.st.Lock()
-	c.Check(s.st.Notices(&state.NoticeFilter{
-		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
-		After: whenSent,
-	}), HasLen, 2)
-	c.Check(s.st.Notices(&state.NoticeFilter{
-		Types: []state.NoticeType{state.InterfacesRequestsRuleUpdateNotice},
-		After: whenSent,
-	}), HasLen, 1)
-	s.st.Unlock()
+	s.checkRecordedPromptNotices(c, whenSent, 2)
+	s.checkRecordedRuleUpdateNotices(c, whenSent, 1)
 
 	c.Assert(mgr.Stop(), IsNil)
 }
@@ -1050,19 +1028,6 @@ func (s *apparmorpromptingSuite) prepManagerWithRules(c *C) (mgr *apparmorprompt
 	return mgr, rules
 }
 
-func (s *apparmorpromptingSuite) checkRecordedRuleUpdateNotices(c *C, since time.Time, count int) {
-	s.st.Lock()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	n, err := s.st.WaitNotices(ctx, &state.NoticeFilter{
-		Types: []state.NoticeType{state.InterfacesRequestsRuleUpdateNotice},
-		After: since,
-	})
-	s.st.Unlock()
-	c.Check(err, IsNil)
-	c.Check(n, HasLen, count)
-}
-
 func (s *apparmorpromptingSuite) TestRemoveRulesInterface(c *C) {
 	_, _, restore := apparmorprompting.MockListener()
 	defer restore()
@@ -1133,12 +1098,78 @@ func (s *apparmorpromptingSuite) TestRemoveRulesSnapInterface(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
-	//reqChan, replyChan, restore := apparmorprompting.MockListener()
-	//defer restore()
+	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	defer restore()
 
-	//mgr, err := apparmorprompting.New(s.st)
-	//c.Assert(err, IsNil)
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
 
-	//c.Assert(mgr.Stop(), IsNil)
-	c.Fatalf("TODO")
+	// Add read request
+	req := &listener.Request{
+		Permission: notify.AA_MAY_READ,
+	}
+	_, prompt := s.simulateRequest(c, reqChan, mgr, req, false)
+
+	// Add write rule
+	whenAdded := time.Now()
+	constraints := &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/home/test/**"),
+		Permissions: []string{"write"},
+	}
+	rule, err := mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	c.Assert(err, IsNil)
+	s.checkRecordedRuleUpdateNotices(c, whenAdded, 1)
+
+	// Test RuleWithID
+	retrieved, err := mgr.RuleWithID(rule.User, rule.ID)
+	c.Assert(err, IsNil)
+	c.Assert(retrieved, Equals, rule)
+
+	// Check prompt still exists and no prompt notices recorded since before
+	// the rule was added
+	retrievedPrompt, err := mgr.PromptWithID(s.defaultUser, prompt.ID)
+	c.Assert(err, IsNil)
+	c.Assert(retrievedPrompt, Equals, prompt)
+	s.checkRecordedPromptNotices(c, whenAdded, 0)
+
+	// Patch rule to now cover the outstanding prompt
+	whenPatched := time.Now()
+	newConstraints := &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/home/test/{foo,bar,baz}"),
+		Permissions: []string{"read", "write"},
+	}
+	patched, err := mgr.PatchRule(s.defaultUser, rule.ID, newConstraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	c.Assert(err, IsNil)
+	s.checkRecordedRuleUpdateNotices(c, whenPatched, 1)
+
+	// Check that RuleWithID with original ID returns patched rule
+	retrieved, err = mgr.RuleWithID(rule.User, rule.ID)
+	c.Assert(err, IsNil)
+	c.Assert(retrieved, Equals, patched)
+
+	// Check that prompt has been satisfied
+	retrievedPrompt, err = mgr.PromptWithID(s.defaultUser, prompt.ID)
+	c.Assert(err, Equals, requestprompts.ErrNotFound)
+	s.checkRecordedPromptNotices(c, whenPatched, 1)
+
+	// Check that a reply has been received
+	resp, err := waitForReply(replyChan)
+	c.Assert(err, IsNil)
+	c.Assert(resp.Request, Equals, req)
+
+	// Remove the rule
+	whenRemoved := time.Now()
+	removed, err := mgr.RemoveRule(rule.User, rule.ID)
+	c.Assert(err, IsNil)
+	c.Assert(removed, Equals, patched)
+	s.checkRecordedRuleUpdateNotices(c, whenRemoved, 1)
+
+	// Check that it can no longer be found
+	_, err = mgr.RuleWithID(rule.User, rule.ID)
+	c.Assert(err, Equals, requestrules.ErrRuleIDNotFound)
+	rules, err := mgr.Rules(rule.User, "", "")
+	c.Assert(err, IsNil)
+	c.Assert(rules, HasLen, 0)
+
+	c.Assert(mgr.Stop(), IsNil)
 }
