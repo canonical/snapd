@@ -185,7 +185,7 @@ func (s *apparmorpromptingSuite) TestHandleListenerErrors(c *C) {
 		Permission: notify.FilePermission(0),
 	}
 	reqChan <- req
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	c.Check(fmt.Errorf("%#v", logbuf.String()), ErrorMatches, ".*error while parsing AppArmor permissions: cannot get abstract permissions from empty AppArmor permissions.*")
 
 	// Fill the requestprompts backend until we hit its outstanding prompt
@@ -201,6 +201,7 @@ func (s *apparmorpromptingSuite) TestHandleListenerErrors(c *C) {
 		}
 		reqChan <- req
 	}
+	time.Sleep(10 * time.Millisecond)
 	prompts, err = mgr.Prompts(s.defaultUser)
 	c.Assert(err, IsNil)
 	c.Assert(len(prompts), Equals, maxOutstandingPromptsPerUser)
@@ -215,7 +216,7 @@ func (s *apparmorpromptingSuite) TestHandleListenerErrors(c *C) {
 		Permission: notify.AA_MAY_APPEND,
 	}
 	reqChan <- req
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	c.Check(fmt.Errorf("%#v", logbuf.String()), ErrorMatches, ".*Error while handling request: cannot get abstract permissions from empty AppArmor permissions.*")
 }
 

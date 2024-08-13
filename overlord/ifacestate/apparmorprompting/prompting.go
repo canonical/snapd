@@ -22,6 +22,7 @@ package apparmorprompting
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	"gopkg.in/tomb.v2"
 
@@ -47,7 +48,12 @@ var (
 )
 
 type InterfacesRequestsManager struct {
-	tomb     tomb.Tomb
+	tomb tomb.Tomb
+	// The lock should be held for writing when acting on the manager in a way
+	// which requires synchronization between the prompts and rules databases,
+	// or when removing those databases. The lock can be held for reading when
+	// acting on just one or the other, as each has an internal mutex as well.
+	lock     sync.RWMutex
 	listener *listener.Listener
 	prompts  *requestprompts.PromptDB
 	rules    *requestrules.RuleDB
@@ -162,6 +168,9 @@ run_loop:
 }
 
 func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
 	userID := uint32(req.SubjectUID)
 	// TODO: immediately deny if req.SubjectUID() == 0 (root)
 	snap := req.Label // Default to apparmor label, in case process is not a snap
@@ -263,6 +272,9 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 }
 
 func (m *InterfacesRequestsManager) disconnect() error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
 	var errs []error
 	if m.listener != nil {
 		errs = append(errs, listenerClose(m.listener))
@@ -312,11 +324,15 @@ func (m *InterfacesRequestsManager) Stop() error {
 
 // Prompts returns all prompts for the user with the given user ID.
 func (m *InterfacesRequestsManager) Prompts(userID uint32) ([]*requestprompts.Prompt, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
 	return m.prompts.Prompts(userID)
 }
 
 // PromptWithID returns the prompt with the given ID for the given user.
 func (m *InterfacesRequestsManager) PromptWithID(userID uint32, promptID prompting.IDType) (*requestprompts.Prompt, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
 	return m.prompts.PromptWithID(userID, promptID)
 }
 
@@ -326,6 +342,9 @@ func (m *InterfacesRequestsManager) PromptWithID(userID uint32, promptID prompti
 // the given ID, and both creates a new rule and checks any outstanding prompts
 // against it, if the lifespan is not "single".
 func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (satisfiedPromptIDs []prompting.IDType, retErr error) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
 	prompt, err := m.prompts.PromptWithID(userID, promptID)
 	if err != nil {
 		return nil, err
@@ -360,11 +379,9 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 		return nil, fmt.Errorf("replied permissions do not include all requested permissions: requested %v, replied %v; please try again", prompt.Constraints.RemainingPermissions(), constraints.Permissions)
 	}
 
-	// TODO: a lock should be held while checking for conflicts with other rules
-	// so that if the rule is eventually removed due to an error, no prompts can
-	// have been matched against it in the meantime.
-	// A RWMutex over prompts and rules should work well, and could potentially
-	// replace the internal mutexes in those packages.
+	// It is important that a lock is held while checking for conflicts with
+	// other rules so that if the rule is eventually removed due to an error,
+	// no prompts can have been matched against it in the meantime.
 	var newRule *requestrules.Rule
 	if lifespan != prompting.LifespanSingle {
 		// Check that adding the rule doesn't conflict with other rules
@@ -374,12 +391,6 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 			// variant and permission). This should be considered a bad reply,
 			// since the user should only be prompted for permissions and paths
 			// which are not already covered.
-
-			// TODO: there are scenarios where this could reasonably happen, so
-			// better to retry adding the new rule after removing any conflicts
-			// with existing rules. Likely, the new rule should replace the old.
-			// A new requestrules.ForceAddRule() might be the best way.
-
 			return nil, err
 		}
 
@@ -401,18 +412,14 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 	}
 
 	// Apply new rule to outstanding prompts.
-	metadata := &prompting.Metadata{
-		User:      userID,
-		Snap:      newRule.Snap,
-		Interface: newRule.Interface,
-	}
-	satisfiedPromptIDs, err = m.prompts.HandleNewRule(metadata, newRule.Constraints, newRule.Outcome)
+	satisfiedPromptIDs, err = m.applyRuleToOutstandingPrompts(newRule)
 	if err != nil {
 		// Should not occur, as outcome and constraints have already been
 		// validated. However, it's possible an error could occur if the prompt
 		// DB was already closed. This should be an internal error. However, we
-		// can't un-send the reply, and this should only be the case if the
-		// prompting system is shutting down, so don't actually return an error.
+		// can't un-send any reply which might have been sent, and this should
+		// only fail if the prompting system is shutting down, so don't actually
+		// return an error.
 
 		// XXX: this log leaks information about internal activity
 		logger.Noticef("WARNING: error when handling new rule as a result of reply: %v", err)
@@ -421,9 +428,22 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 	return satisfiedPromptIDs, nil
 }
 
+func (m *InterfacesRequestsManager) applyRuleToOutstandingPrompts(rule *requestrules.Rule) (satisfiedPromptIDs []prompting.IDType, err error) {
+	metadata := &prompting.Metadata{
+		User:      rule.User,
+		Snap:      rule.Snap,
+		Interface: rule.Interface,
+	}
+	satisfiedPromptIDs, err = m.prompts.HandleNewRule(metadata, rule.Constraints, rule.Outcome)
+	return satisfiedPromptIDs, err
+}
+
 // Rules returns all rules for the user with the given user ID and,
 // optionally, only those for the given snap and/or interface.
 func (m *InterfacesRequestsManager) Rules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
 	if snap != "" {
 		if iface != "" {
 			rules := m.rules.RulesForSnapInterface(userID, snap, iface)
@@ -443,17 +463,15 @@ func (m *InterfacesRequestsManager) Rules(userID uint32, snap string, iface stri
 // AddRule creates a new rule with the given contents and then checks it against
 // outstanding prompts, resolving any prompts which it satisfies.
 func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
 	newRule, err := m.rules.AddRule(userID, snap, iface, constraints, outcome, lifespan, duration)
 	if err != nil {
 		return nil, err
 	}
 	// Apply new rule to outstanding prompts.
-	metadata := &prompting.Metadata{
-		User:      userID,
-		Snap:      newRule.Snap,
-		Interface: newRule.Interface,
-	}
-	if _, err = m.prompts.HandleNewRule(metadata, newRule.Constraints, newRule.Outcome); err != nil {
+	if _, err := m.applyRuleToOutstandingPrompts(newRule); err != nil {
 		// Should not occur, as outcome and constraints have already been
 		// validated. However, it's possible an error could occur if the prompt
 		// DB was already closed. This should be an internal error. However,
@@ -461,7 +479,7 @@ func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface st
 		// down, so don't actually return an error.
 
 		// XXX: this log leaks information about internal activity
-		logger.Noticef("WARNING: error when handling new rule as a result of reply: %v", err)
+		logger.Noticef("WARNING: error when handling new rule as a result of AddRule: %v", err)
 	}
 	return newRule, nil
 }
@@ -469,6 +487,12 @@ func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface st
 // RemoveRules removes all rules for the user with the given user ID and the
 // given snap and/or interface. Snap and iface can't both be unspecified.
 func (m *InterfacesRequestsManager) RemoveRules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error) {
+	// The lock need only be held for reading, since no synchronization is
+	// required between the rules and prompts backends, and the rules backend
+	// has an internal mutex.
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
 	if snap == "" && iface == "" {
 		return nil, fmt.Errorf("cannot remove rules for unspecified snap and interface")
 	}
@@ -484,6 +508,9 @@ func (m *InterfacesRequestsManager) RemoveRules(userID uint32, snap string, ifac
 
 // RuleWithID returns the rule with the given ID for the given user.
 func (m *InterfacesRequestsManager) RuleWithID(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
 	rule, err := m.rules.RuleWithID(userID, ruleID)
 	return rule, err
 }
@@ -491,10 +518,34 @@ func (m *InterfacesRequestsManager) RuleWithID(userID uint32, ruleID prompting.I
 // PatchRule updates the rule with the given ID using the provided contents.
 // Any of the given fields which are empty/nil are not updated in the rule.
 func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error) {
-	return m.rules.PatchRule(userID, ruleID, constraints, outcome, lifespan, duration)
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	patchedRule, err := m.rules.PatchRule(userID, ruleID, constraints, outcome, lifespan, duration)
+	if err != nil {
+		return nil, err
+	}
+	// Apply patched rule to outstanding prompts.
+	if _, err := m.applyRuleToOutstandingPrompts(patchedRule); err != nil {
+		// Should not occur, as outcome and constraints have already been
+		// validated. However, it's possible an error could occur if the prompt
+		// DB was already closed. This should be an internal error. However,
+		// this should only be the case if the prompting system is shutting
+		// down, so don't actually return an error.
+
+		// XXX: this log leaks information about internal activity
+		logger.Noticef("WARNING: error when handling new rule as a result of PatchRule: %v", err)
+	}
+	return patchedRule, nil
 }
 
 func (m *InterfacesRequestsManager) RemoveRule(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error) {
+	// The lock need only be held for reading, since no synchronization is
+	// required between the rules and prompts backends, and the rules backend
+	// has an internal mutex.
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
 	rule, err := m.rules.RemoveRule(userID, ruleID)
 	return rule, err
 }
