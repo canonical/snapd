@@ -36,6 +36,22 @@ func Test(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&viewSuite{})
 
+type failingSchema struct {
+	err error
+}
+
+func (f *failingSchema) Validate([]byte) error {
+	return f.err
+}
+
+func (f *failingSchema) SchemaAt(path []string) ([]registry.Schema, error) {
+	return []registry.Schema{f}, nil
+}
+
+func (f *failingSchema) Type() registry.SchemaType {
+	return registry.Any
+}
+
 func (*viewSuite) TestNewRegistry(c *C) {
 	type testcase struct {
 		registry map[string]interface{}
