@@ -609,6 +609,9 @@ prepare_project() {
     # and the U20 create partitions wrapper
     go install ./tests/lib/uc20-create-partitions
 
+    # Build binary used for log-observe test (extremely difficult to migrate
+    # this to python or some interpreted language)
+    go build -o ./tests/lib/snaps/log-observe-consumer/bin ./tests/lib/snaps/log-observe-consumer/src/klogctl
     # On core systems, the journal service is configured once the final core system
     # is created and booted what is done during the first test suite preparation
     if os.query is-classic; then

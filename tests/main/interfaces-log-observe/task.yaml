@@ -8,11 +8,22 @@ details: |
     list. The plug must not be auto-connected on install and, as usual, must be
     able to be reconnected.
 
+    A snap which defines log-observe (without some additional to-be-defined
+    interface) must not be allowed "control"-type log syslog(2) accesses (i.e.
+    SYSLOG_ACTION{,_READ}_CLEAR, SYSLOG_ACTION_CONSOLE_{ON,OFF,LEVEL})
+
 environment:
     SNAP_NAME: log-observe-consumer
     PLUG: log-observe
 
 prepare: |
+    if os.query is-jammy || os.query is-noble ; then
+        echo "Ensure that on Jammy+, sysctl kernel.dmesg_restrict == 1"
+        # This should be the default, but we write it out just to be doubly sure
+        # On systems before Jammy, leave it as whatever the default is.
+        sysctl -w kernel.dmesg_restrict=1
+    fi
+
     echo "Given a snap declaring the $PLUG plug is installed"
     "$TESTSTOOLS"/snaps-state install-local log-observe-consumer
 
@@ -32,8 +43,79 @@ execute: |
     echo "Then the snap is able to access the system logs"
     log-observe-consumer | MATCH 'ok$'
 
+    echo "And make safe syslog(2) calls"
+
+    # Launch a background thread generating klogs
+    # Otherwise the read commands will hang waiting for kernel output
+    gen_kernel_messages(){
+        while true; do
+            echo "0123456789abcdef" > /dev/kmsg
+            sleep 5
+        done
+    }
+    gen_kernel_messages &
+    pid_gen_kernel_messages=$!
+    #shellcheck disable=SC2064
+    trap "kill -9 $pid_gen_kernel_messages" EXIT
+
+    if ! log-observe-consumer.klogctl SYSLOG_ACTION_READ; then
+        echo "Should allow call klogctl(SYSLOG_ACTION_READ, ...)"
+        exit 1
+    fi
+
+    if ! log-observe-consumer.klogctl SYSLOG_ACTION_READ_ALL; then
+        echo "Should allow call klogctl(SYSLOG_ACTION_READ, ...)"
+        exit 1
+    fi
+
+    if ! log-observe-consumer.klogctl SYSLOG_ACTION_SIZE_UNREAD; then
+        echo "Should allow call klogctl(SYSLOG_ACTION_SIZE_UNREAD, ...)"
+        exit 1
+    fi
+
+    if ! log-observe-consumer.klogctl SYSLOG_ACTION_SIZE_BUFFER; then
+        echo "Should allow call klogctl(SYSLOG_ACTION_SIZE_BUFFER, ...)"
+        exit 1
+    fi
+
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
+    fi
+
+    echo "But can't make unsafe syslog(2) calls"
+    if log-observe-consumer.klogctl SYSLOG_ACTION_CLOSE; then
+        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_CLOSE, ...)"
+        exit 1
+    fi
+
+    if log-observe-consumer.klogctl SYSLOG_ACTION_OPEN; then
+        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_OPEN, ...)"
+        exit 1
+    fi
+
+    if log-observe-consumer.klogctl SYSLOG_ACTION_READ_CLEAR; then
+        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_READ_CLEAR, ...)"
+        exit 1
+    fi
+
+    if log-observe-consumer.klogctl SYSLOG_ACTION_CLEAR; then
+        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_CLEAR, ...)"
+        exit 1
+    fi
+
+    if log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_OFF; then
+        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_CONSOLE_OFF, ...)"
+        exit 1
+    fi
+
+    if log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_ON; then
+        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_CONSOLE_ON, ...)"
+        exit 1
+    fi
+
+    if log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_LEVEL; then
+        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_CONSOLE_LEVEL, ...)"
+        exit 1
     fi
 
     echo "When the plug is disconnected"
@@ -42,5 +124,71 @@ execute: |
     echo "Then snap can't access the system logs"
     if log-observe-consumer; then
         echo "System log shouldn't be accessible"
+        exit 1
+    fi
+
+    echo "Or make ANY privileged syslog(2) calls"
+    if log-observe-consumer.klogctl SYSLOG_ACTION_CLOSE; then
+        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_CLOSE, ...)"
+        exit 1
+    fi
+
+    if log-observe-consumer.klogctl SYSLOG_ACTION_OPEN; then
+        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_OPEN, ...)"
+        exit 1
+    fi
+
+    if log-observe-consumer.klogctl SYSLOG_ACTION_READ; then
+        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_READ, ...)"
+        exit 1
+    fi
+
+    if log-observe-consumer.klogctl SYSLOG_ACTION_READ_CLEAR; then
+        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_READ_CLEAR, ...)"
+        exit 1
+    fi
+
+    if log-observe-consumer.klogctl SYSLOG_ACTION_CLEAR; then
+        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_CLEAR, ...)"
+        exit 1
+    fi
+
+    if log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_OFF; then
+        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_CONSOLE_OFF, ...)"
+        exit 1
+    fi
+
+    if log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_ON; then
+        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_CONSOLE_ON, ...)"
+        exit 1
+    fi
+
+    if log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_LEVEL; then
+        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_CONSOLE_LEVEL, ...)"
+        exit 1
+    fi
+
+    if log-observe-consumer.klogctl SYSLOG_SIZE_UNREAD; then
+        echo "Should allow call klogctl(SYSLOG_ACTION_SIZE_UNREAD, ...)"
+        exit 1
+    fi
+
+    # On systems with kernel.dmesg_restrict == 0, SYSLOG_ACTION_READ_ALL
+    # and SYSLOG_ACTION_SIZE_BUFFER are available to anyone regardless of
+    # privilege. Since we allow syslog(2) in the seccomp base template, these
+    # are available regardless of interface connection. On systems with
+    # kernel.dmesg_restrict == 1, they should only be available to snaps with
+    # log-observe connected
+    if [ "$(sysctl -n kernel.dmesg_restrict)" -eq 0 ] ; then
+        exit 0
+    fi
+
+    if log-observe-consumer.klogctl SYSLOG_ACTION_READ_ALL; then
+        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_READ, ...)"
+        exit 1
+    fi
+
+    if log-observe-consumer.klogctl SYSLOG_ACTION_SIZE_BUFFER; then
+        echo "Should allow call klogctl(SYSLOG_ACTION_SIZE_BUFFER, ...)"
         exit 1
     fi
