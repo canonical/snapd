@@ -1290,10 +1290,7 @@ func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.Servi
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) KillSnapApps(snapName string, reason snap.AppKillReason, meter progress.Meter, tm timings.Measurer) error {
-	// This ensures we are using the right variant between NewTaskProgressAdapter{Locked,Unlocked}
-	meter.Notify("kill-snap-apps")
-
+func (f *fakeSnappyBackend) KillSnapApps(snapName string, reason snap.AppKillReason, tm timings.Measurer) error {
 	f.appendOp(&fakeOp{
 		op:   fmt.Sprintf("kill-snap-apps:%s", reason),
 		name: snapName,

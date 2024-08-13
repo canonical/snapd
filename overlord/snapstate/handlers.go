@@ -3276,11 +3276,12 @@ func (m *SnapManager) doKillSnapApps(t *state.Task, _ *tomb.Tomb) (err error) {
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
+	// State lock is not needed for killing apps or stopping services and since those
+	// can take some time, let's unlock the state
 	st.Unlock()
 	defer st.Lock()
-	pb := NewTaskProgressAdapterUnlocked(t)
 
-	if err := m.backend.KillSnapApps(snapName, reason, pb, perfTimings); err != nil {
+	if err := m.backend.KillSnapApps(snapName, reason, perfTimings); err != nil {
 		return err
 	}
 
@@ -3292,6 +3293,8 @@ func (m *SnapManager) doKillSnapApps(t *state.Task, _ *tomb.Tomb) (err error) {
 	if len(svcs) == 0 {
 		return nil
 	}
+
+	pb := NewTaskProgressAdapterUnlocked(t)
 
 	// Make sure snap services are stopped because they may have started through snapctl
 	err = m.backend.StopServices(svcs, snap.ServiceStopReason(reason), pb, perfTimings)
