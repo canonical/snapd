@@ -299,7 +299,8 @@ func (l *Listener) Run() error {
 	// and only tracked goroutine.
 	l.tomb.Go(func() error {
 		for {
-			if l.tomb.Err() != tomb.ErrStillAlive {
+			if err := l.tomb.Err(); err != tomb.ErrStillAlive {
+				logger.Noticef("exiting listener run loop: %v", err)
 				break
 			}
 			err := l.runOnce()
