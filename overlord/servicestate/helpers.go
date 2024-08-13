@@ -55,7 +55,7 @@ func usernamesToUids(usernames []string) ([]int, error) {
 // This is primarily used to determine which users are going to be affected
 // by user service changes. This is inherently racy, i. e this can easily become
 // out of sync by the time we actually invoke the user-session agents, where
-// a user may have logged out, or one come online (i. e worst case we may miss
+// a user may have logged out, or one logged in (i. e worst case we may miss
 // a user, if someone logged out the user is ignored).
 func affectedUids(users []string) (map[int]bool, error) {
 	var uids []int
@@ -90,6 +90,10 @@ func splitServicesIntoSystemAndUser(apps []*snap.AppInfo) (sys, usr []*snap.AppI
 	return sys, usr
 }
 
+// updateSnapstateUserServices keeps track of service changes during hooks for
+// system services. It does so by keeping track of which services where previously
+// enabled/disabled in the snap state. Then based on the current action for the provided
+// list of services, will update the list of services in the snap state.
 func updateSnapstateSystemServices(snapst *snapstate.SnapState, apps []*snap.AppInfo, enable bool) (changed bool) {
 	// populate helper lookups of already enabled/disabled services from
 	// snapst.

@@ -3030,11 +3030,6 @@ func installModeDisabledUserServices(snapst *SnapState, currentInfo *snap.Info, 
 // "install-mode: disabled" should be disabled. Only services
 // seen for the first time are considered.
 func installModeDisabledServices(st *state.State, snapst *SnapState, currentInfo *snap.Info) (sysSvcsToDisable []string, usrSvcsToDisable map[int][]string, err error) {
-	enabledByHookSvcs := map[string]bool{}
-	for _, svcName := range snapst.ServicesEnabledByHooks {
-		enabledByHookSvcs[svcName] = true
-	}
-
 	// find what services the previous snap had
 	prevCurrentSvcs := map[string]bool{}
 	if psi := snapst.previousSideInfo(); psi != nil {

@@ -320,7 +320,9 @@ type SnapState struct {
 	// in the snap are removed from this list on link-snap, so that we can
 	// remember services that were disabled in another revision and then renamed
 	// or otherwise removed from the snap in a future refresh.
-	LastActiveDisabledServices     []string         `json:"last-active-disabled-services,omitempty"`
+	LastActiveDisabledServices []string `json:"last-active-disabled-services,omitempty"`
+	// LastActiveDisabledUserServices, like LastActiveDisabledServices is a map of user-services
+	// that were disabled in the snap when it was last active. The same rules apply.
 	LastActiveDisabledUserServices map[int][]string `json:"last-active-disabled-user-services,omitempty"`
 
 	// tracking services enabled and disabled by hooks
