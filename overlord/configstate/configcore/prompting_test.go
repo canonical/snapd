@@ -322,7 +322,7 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingChecksHandlersNone(c
 	defer restore()
 
 	s.testDoExperimentalApparmorPromptingUnsupported(c,
-		"cannot enable prompting feature no interfaces requests handlers are installed")
+		"cannot enable prompting feature no interfaces requests handler services are installed")
 }
 
 func (s *promptingSuite) TestDoExperimentalApparmorPromptingChecksHandlersManyButNoHandlerApp(c *C) {
@@ -339,7 +339,7 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingChecksHandlersManyBu
 	defer restore()
 
 	s.testDoExperimentalApparmorPromptingUnsupported(c,
-		"cannot enable prompting feature no interfaces requests handlers are installed")
+		"cannot enable prompting feature no interfaces requests handler services are installed")
 }
 
 func (s *promptingSuite) TestDoExperimentalApparmorPromptingChecksHandlersDisconnected(c *C) {
@@ -368,7 +368,7 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingChecksHandlersDiscon
 	s.state.Unlock()
 
 	s.testDoExperimentalApparmorPromptingUnsupported(c,
-		"cannot enable prompting feature no interfaces requests handlers are installed")
+		"cannot enable prompting feature no interfaces requests handler services are installed")
 }
 
 func (s *promptingSuite) mockSnapd(c *C) {

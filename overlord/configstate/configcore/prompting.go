@@ -123,7 +123,7 @@ func doExperimentalApparmorPromptingDaemonRestart(c RunTransaction, opts *fsOnly
 		}
 
 		if len(handlers) == 0 {
-			return fmt.Errorf("cannot enable prompting feature no interfaces requests handlers are installed")
+			return fmt.Errorf("cannot enable prompting feature no interfaces requests handler services are installed")
 		}
 
 		// TODO start handlers as a change and wait for completion
