@@ -300,7 +300,9 @@ func (l *Listener) Run() error {
 	l.tomb.Go(func() error {
 		for {
 			if err := l.tomb.Err(); err != tomb.ErrStillAlive {
-				logger.Noticef("exiting listener run loop: %v", err)
+				// Do not log error here, as the only error from outside of
+				// runOnce should be when listener was deliberately closed,
+				// and we don't want a log message for that.
 				break
 			}
 			err := l.runOnce()
