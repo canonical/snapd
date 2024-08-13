@@ -138,14 +138,13 @@ func (m *InterfacesRequestsManager) run() error {
 	m.lock.Unlock()
 
 	m.tomb.Go(func() error {
-		logger.Noticef("starting listener")
+		logger.Debugf("starting listener")
 		if err := listenerRun(currentListener); err != listener.ErrClosed {
 			return err
 		}
 		return nil
 	})
 
-	logger.Noticef("ready for prompts")
 run_loop:
 	for {
 		logger.Debugf("waiting prompt loop")
@@ -156,13 +155,13 @@ run_loop:
 				// In either case, the listener Close() method has already
 				// been called, and the tomb error will be set to the return
 				// value of the Run() call from the previous tracked goroutine.
-				logger.Noticef("listener closed requests channel")
+				logger.Debugf("listener closed requests channel")
 				break run_loop
 			}
 
 			// XXX: this debug log leaks information about internal activity
 			logger.Debugf("Got from kernel req chan: %v", req)
-			if err := m.handleListenerReq(req); err != nil { // no use multithreading, since IsPathAllowed locks
+			if err := m.handleListenerReq(req); err != nil {
 				// XXX: this log leaks information about internal activity
 				logger.Noticef("Error while handling request: %+v", err)
 			}
@@ -223,7 +222,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 			}
 		} else {
 			if !errors.Is(err, requestrules.ErrNoMatchingRule) {
-				logger.Noticef("cannot check path permissions: %v", err)
+				logger.Noticef("error while checking request against existing rules: %v", err)
 			}
 			// No matching rule found
 			remainingPerms = append(remainingPerms, perm)
@@ -438,7 +437,7 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 		// return an error.
 
 		// XXX: this log leaks information about internal activity
-		logger.Noticef("WARNING: error when handling new rule as a result of reply: %v", err)
+		logger.Noticef("error when handling new rule as a result of reply: %v", err)
 	}
 
 	return satisfiedPromptIDs, nil
@@ -495,7 +494,7 @@ func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface st
 		// down, so don't actually return an error.
 
 		// XXX: this log leaks information about internal activity
-		logger.Noticef("WARNING: error when handling new rule as a result of AddRule: %v", err)
+		logger.Noticef("error when handling new rule as a result of AddRule: %v", err)
 	}
 	return newRule, nil
 }
@@ -550,7 +549,7 @@ func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.ID
 		// down, so don't actually return an error.
 
 		// XXX: this log leaks information about internal activity
-		logger.Noticef("WARNING: error when handling new rule as a result of PatchRule: %v", err)
+		logger.Noticef("error when handling new rule as a result of PatchRule: %v", err)
 	}
 	return patchedRule, nil
 }
