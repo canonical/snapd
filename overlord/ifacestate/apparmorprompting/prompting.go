@@ -131,9 +131,15 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 
 // Run is the main run loop for the manager, and must be called using tomb.Go.
 func (m *InterfacesRequestsManager) run() error {
+	m.lock.Lock()
+	// disconnect replaces the listener so keep track of the one we have
+	// right now
+	currentListener := m.listener
+	m.lock.Unlock()
+
 	m.tomb.Go(func() error {
 		logger.Noticef("starting listener")
-		if err := listenerRun(m.listener); err != listener.ErrClosed {
+		if err := listenerRun(currentListener); err != listener.ErrClosed {
 			return err
 		}
 		return nil
@@ -144,7 +150,7 @@ run_loop:
 	for {
 		logger.Debugf("waiting prompt loop")
 		select {
-		case req, ok := <-listenerReqs(m.listener):
+		case req, ok := <-listenerReqs(currentListener):
 			if !ok {
 				// Reqs() closed, so either errored or Stop() was called.
 				// In either case, the listener Close() method has already

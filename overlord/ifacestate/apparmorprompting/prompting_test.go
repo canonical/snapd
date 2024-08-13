@@ -20,6 +20,7 @@
 package apparmorprompting_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -170,6 +171,10 @@ func (s *apparmorpromptingSuite) TestHandleListenerErrors(c *C) {
 	reqChan, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
+	// Send request with invalid permissions
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
 
@@ -177,16 +182,16 @@ func (s *apparmorpromptingSuite) TestHandleListenerErrors(c *C) {
 	c.Check(err, IsNil)
 	c.Check(prompts, HasLen, 0)
 
-	// Send request with invalid permissions
-	logbuf, restore := logger.MockLogger()
-	defer restore()
 	req := &listener.Request{
 		// Most fields don't matter here
 		Permission: notify.FilePermission(0),
 	}
 	reqChan <- req
 	time.Sleep(10 * time.Millisecond)
-	c.Check(fmt.Errorf("%#v", logbuf.String()), ErrorMatches, ".*error while parsing AppArmor permissions: cannot get abstract permissions from empty AppArmor permissions.*")
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), testutil.Contains,
+			` error while parsing AppArmor permissions: cannot get abstract permissions from empty AppArmor permissions: "none"`)
+	})
 
 	// Fill the requestprompts backend until we hit its outstanding prompt
 	// count limit
@@ -205,9 +210,12 @@ func (s *apparmorpromptingSuite) TestHandleListenerErrors(c *C) {
 	prompts, err = mgr.Prompts(s.defaultUser)
 	c.Assert(err, IsNil)
 	c.Assert(len(prompts), Equals, maxOutstandingPromptsPerUser)
+
 	// Now try to add one more request, it should fail
-	logbuf, restore = logger.MockLogger()
-	defer restore()
+	logger.WithLoggerLock(func() {
+		logbuf.Reset()
+	})
+
 	req = &listener.Request{
 		Label:      "snap.firefox.firefox",
 		SubjectUID: s.defaultUser,
@@ -217,7 +225,12 @@ func (s *apparmorpromptingSuite) TestHandleListenerErrors(c *C) {
 	}
 	reqChan <- req
 	time.Sleep(10 * time.Millisecond)
-	c.Check(fmt.Errorf("%#v", logbuf.String()), ErrorMatches, ".*Error while handling request: cannot get abstract permissions from empty AppArmor permissions.*")
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), testutil.Contains,
+			" WARNING: too many outstanding prompts for user 1000; auto-denying new one\n")
+	})
+
+	c.Assert(mgr.Stop(), IsNil)
 }
 
 func (s *apparmorpromptingSuite) TestHandleReplySimple(c *C) {
@@ -244,6 +257,8 @@ func (s *apparmorpromptingSuite) TestHandleReplySimple(c *C) {
 	aaPerms, err := prompting.AbstractPermissionsToAppArmorPermissions("home", constraints.Permissions)
 	c.Check(err, IsNil)
 	c.Check(resp.Response.Permission, Equals, aaPerms)
+
+	c.Assert(mgr.Stop(), IsNil)
 }
 
 func (s *apparmorpromptingSuite) prepManagerWithSinglePrompt(c *C, reqChan chan *listener.Request) (*apparmorprompting.InterfacesRequestsManager, *listener.Request, *requestprompts.Prompt) {
@@ -256,6 +271,8 @@ func (s *apparmorpromptingSuite) prepManagerWithSinglePrompt(c *C, reqChan chan 
 
 	path := "/home/test/foo"
 
+	whenSent := time.Now()
+
 	// Simulate request from the kernel
 	req := &listener.Request{
 		Label:      "snap.firefox.firefox",
@@ -264,8 +281,20 @@ func (s *apparmorpromptingSuite) prepManagerWithSinglePrompt(c *C, reqChan chan 
 		Class:      notify.AA_CLASS_FILE,
 		Permission: notify.AA_MAY_READ,
 	}
+	// push a request
 	reqChan <- req
 
+	// which should generate a notice
+	s.st.Lock()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	n, err := s.st.WaitNotices(ctx, &state.NoticeFilter{
+		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
+		After: whenSent,
+	})
+	s.st.Unlock()
+	c.Check(err, IsNil)
+	c.Check(n, HasLen, 1)
 	// Check that prompt exists
 	prompts, err = mgr.Prompts(s.defaultUser)
 	c.Assert(err, IsNil)
@@ -362,6 +391,8 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 	// Should not have received a reply
 	_, err = waitForReply(replyChan)
 	c.Assert(err, NotNil)
+
+	c.Assert(mgr.Stop(), IsNil)
 }
 
 func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {

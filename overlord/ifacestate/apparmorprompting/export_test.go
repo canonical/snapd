@@ -62,11 +62,13 @@ func MockListener() (reqChan chan *listener.Request, replyChan chan RequestRespo
 	// mocked to be synchronous, so we need a non-zero buffer here.
 	replyChan = make(chan RequestResponse, 5)
 
+	closeChan := make(chan struct{})
+
 	restoreRegister := MockListenerRegister(func() (*listener.Listener, error) {
 		return &listener.Listener{}, nil
 	})
 	restoreRun := MockListenerRun(func(l *listener.Listener) error {
-		<-reqChan
+		<-closeChan
 		return listener.ErrClosed
 	})
 	restoreReqs := MockListenerReqs(func(l *listener.Listener) <-chan *listener.Request {
@@ -74,11 +76,12 @@ func MockListener() (reqChan chan *listener.Request, replyChan chan RequestRespo
 	})
 	restoreClose := MockListenerClose(func(l *listener.Listener) error {
 		select {
-		case <-reqChan:
+		case <-closeChan:
 			return listener.ErrAlreadyClosed
 		default:
 			close(reqChan)
 			close(replyChan)
+			close(closeChan)
 		}
 		return nil
 	})
