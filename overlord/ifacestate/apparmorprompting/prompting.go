@@ -175,7 +175,14 @@ run_loop:
 
 func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) error {
 	userID := uint32(req.SubjectUID)
-	// TODO: immediately deny if req.SubjectUID() == 0 (root)
+	if userID == 0 {
+		// Deny any request for the root user
+		response := listener.Response{
+			Allow:      false,
+			Permission: req.Permission,
+		}
+		return requestReply(req, &response)
+	}
 	snap := req.Label // Default to apparmor label, in case process is not a snap
 	tag, err := naming.ParseSecurityTag(req.Label)
 	if err == nil {

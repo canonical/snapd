@@ -168,11 +168,32 @@ func (s *apparmorpromptingSuite) TestStop(c *C) {
 	c.Check(mgr.RuleDB(), IsNil)
 }
 
-func (s *apparmorpromptingSuite) TestHandleListenerErrors(c *C) {
-	reqChan, _, restore := apparmorprompting.MockListener()
+func (s *apparmorpromptingSuite) TestHandleListenerRequestDenyRoot(c *C) {
+	reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
-	// Send request with invalid permissions
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	// Send request for root
+	req := &listener.Request{
+		// Most fields don't matter here
+		SubjectUID: 0,
+	}
+	reqChan <- req
+	// Should get immediate denial
+	resp, err := waitForReply(replyChan)
+	c.Assert(err, IsNil)
+	c.Check(resp.Request, Equals, req)
+	c.Check(resp.Response.Allow, Equals, false)
+
+	c.Assert(mgr.Stop(), IsNil)
+}
+
+func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
+	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	defer restore()
+
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
@@ -183,12 +204,16 @@ func (s *apparmorpromptingSuite) TestHandleListenerErrors(c *C) {
 	c.Check(err, IsNil)
 	c.Check(prompts, HasLen, 0)
 
+	// Send request with invalid permissions
 	req := &listener.Request{
 		// Most fields don't matter here
+		SubjectUID: s.defaultUser,
 		Permission: notify.FilePermission(0),
 	}
 	reqChan <- req
-	time.Sleep(10 * time.Millisecond)
+	resp, err := waitForReply(replyChan)
+	c.Assert(err, IsNil)
+	c.Check(resp.Request, Equals, req)
 	logger.WithLoggerLock(func() {
 		c.Check(logbuf.String(), testutil.Contains,
 			` error while parsing AppArmor permissions: cannot get abstract permissions from empty AppArmor permissions: "none"`)
@@ -640,22 +665,261 @@ func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C
 	c.Assert(mgr.Stop(), IsNil)
 }
 
-func (s *apparmorpromptingSuite) TestNewRuleHandlesExistingPrompt(c *C) {
-	//reqChan, replyChan, restore := apparmorprompting.MockListener()
-	//defer restore()
+func (s *apparmorpromptingSuite) TestNewRuleAllowExistingPrompt(c *C) {
+	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	defer restore()
 
-	//mgr, err := apparmorprompting.New(s.st)
-	//c.Assert(err, IsNil)
-	c.Fatalf("TODO")
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	// Add read request
+	readReq := &listener.Request{
+		Permission: notify.AA_MAY_READ,
+	}
+	_, readPrompt := s.simulateRequest(c, reqChan, mgr, readReq, false)
+
+	// Add request for write
+	writeReq := &listener.Request{
+		Permission: notify.AA_MAY_WRITE,
+	}
+	_, writePrompt := s.simulateRequest(c, reqChan, mgr, writeReq, false)
+
+	// Add request for read and write
+	rwReq := &listener.Request{
+		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	}
+	_, rwPrompt := s.simulateRequest(c, reqChan, mgr, rwReq, false)
+
+	// Add rule to allow read request
+	whenSent := time.Now()
+	constraints := &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/home/test/**"),
+		Permissions: []string{"read"},
+	}
+	rule, err := mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	c.Assert(err, IsNil)
+
+	// Check that kernel received a reply
+	resp, err := waitForReply(replyChan)
+	c.Assert(err, IsNil)
+	c.Check(resp.Request, Equals, readReq)
+	c.Check(resp.Response.Allow, Equals, true)
+	expectedPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read"})
+	c.Assert(err, IsNil)
+	c.Check(resp.Response.Permission, DeepEquals, expectedPermissions)
+
+	// Check that read request prompt was satisfied
+	_, err = mgr.PromptWithID(s.defaultUser, readPrompt.ID)
+	c.Check(err, NotNil)
+
+	// Check that rwPrompt only has write permission left
+	c.Check(rwPrompt.Constraints.RemainingPermissions(), DeepEquals, []string{"write"})
+
+	// Check that two prompts still exist
+	prompts, err := mgr.Prompts(s.defaultUser)
+	c.Assert(err, IsNil)
+	c.Assert(prompts, HasLen, 2)
+	if !(writePrompt == prompts[0] || writePrompt == prompts[1]) {
+		c.Errorf("write prompt not found")
+	}
+	if !(rwPrompt == prompts[0] || rwPrompt == prompts[1]) {
+		c.Errorf("rw prompt not found")
+	}
+
+	// Check that new rule exists
+	rules, err := mgr.Rules(s.defaultUser, "", "")
+	c.Assert(err, IsNil)
+	c.Check(rules, DeepEquals, []*requestrules.Rule{rule})
+
+	// Check that notices were recorded for read prompt and rw prompt,
+	// and for the rule
+	s.st.Lock()
+	c.Check(s.st.Notices(&state.NoticeFilter{
+		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
+		After: whenSent,
+	}), HasLen, 2)
+	c.Check(s.st.Notices(&state.NoticeFilter{
+		Types: []state.NoticeType{state.InterfacesRequestsRuleUpdateNotice},
+		After: whenSent,
+	}), HasLen, 1)
+	s.st.Unlock()
+
+	c.Assert(mgr.Stop(), IsNil)
+}
+
+func (s *apparmorpromptingSuite) TestNewRuleDenyExistingPrompt(c *C) {
+	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	// Add read request
+	readReq := &listener.Request{
+		Permission: notify.AA_MAY_READ,
+	}
+	_, readPrompt := s.simulateRequest(c, reqChan, mgr, readReq, false)
+
+	// Add request for write
+	writeReq := &listener.Request{
+		Permission: notify.AA_MAY_WRITE,
+	}
+	_, writePrompt := s.simulateRequest(c, reqChan, mgr, writeReq, false)
+
+	// Add request for read and write
+	rwReq := &listener.Request{
+		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	}
+	_, rwPrompt := s.simulateRequest(c, reqChan, mgr, rwReq, false)
+
+	// Add rule to deny read request
+	whenSent := time.Now()
+	constraints := &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/home/test/**"),
+		Permissions: []string{"read"},
+	}
+	rule, err := mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeDeny, prompting.LifespanForever, "")
+	c.Assert(err, IsNil)
+
+	// Check that kernel received two replies
+	for i := 0; i < 2; i++ {
+		resp, err := waitForReply(replyChan)
+		c.Assert(err, IsNil)
+		switch resp.Request {
+		case readReq:
+			c.Check(resp.Response.Allow, Equals, false)
+			expectedPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read"})
+			c.Assert(err, IsNil)
+			c.Check(resp.Response.Permission, DeepEquals, expectedPermissions)
+		case rwReq:
+			c.Check(resp.Response.Allow, Equals, false)
+			expectedPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read", "write"})
+			c.Assert(err, IsNil)
+			c.Check(resp.Response.Permission, DeepEquals, expectedPermissions)
+		}
+	}
+
+	// Check that read and rw prompts were satisfied
+	_, err = mgr.PromptWithID(s.defaultUser, readPrompt.ID)
+	c.Check(err, NotNil)
+	_, err = mgr.PromptWithID(s.defaultUser, rwPrompt.ID)
+	c.Check(err, NotNil)
+
+	// Check that one prompt still exists
+	prompts, err := mgr.Prompts(s.defaultUser)
+	c.Assert(err, IsNil)
+	c.Check(prompts, DeepEquals, []*requestprompts.Prompt{writePrompt})
+
+	// Check that new rule exists
+	rules, err := mgr.Rules(s.defaultUser, "", "")
+	c.Assert(err, IsNil)
+	c.Check(rules, DeepEquals, []*requestrules.Rule{rule})
+
+	// Check that notices were recorded for read prompt and rw prompt,
+	// and for the rule
+	s.st.Lock()
+	c.Check(s.st.Notices(&state.NoticeFilter{
+		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
+		After: whenSent,
+	}), HasLen, 2)
+	c.Check(s.st.Notices(&state.NoticeFilter{
+		Types: []state.NoticeType{state.InterfacesRequestsRuleUpdateNotice},
+		After: whenSent,
+	}), HasLen, 1)
+	s.st.Unlock()
+
+	c.Assert(mgr.Stop(), IsNil)
 }
 
 func (s *apparmorpromptingSuite) TestReplyNewRuleHandlesExistingPrompt(c *C) {
-	//reqChan, replyChan, restore := apparmorprompting.MockListener()
-	//defer restore()
+	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	defer restore()
 
-	//mgr, err := apparmorprompting.New(s.st)
-	//c.Assert(err, IsNil)
-	c.Fatalf("TODO")
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	// Already tested HandleReply errors, and that applyRuleToOutstandingPrompts
+	// works correctly, so now just need to test that if reply creates a rule,
+	// that rule applies to existing prompts.
+
+	// Add read request
+	readReq := &listener.Request{
+		Permission: notify.AA_MAY_READ,
+	}
+	_, readPrompt := s.simulateRequest(c, reqChan, mgr, readReq, false)
+
+	// Add request for write
+	writeReq := &listener.Request{
+		Permission: notify.AA_MAY_WRITE,
+	}
+	_, writePrompt := s.simulateRequest(c, reqChan, mgr, writeReq, false)
+
+	// Add request for read and write
+	rwReq := &listener.Request{
+		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	}
+	_, rwPrompt := s.simulateRequest(c, reqChan, mgr, rwReq, false)
+
+	// Reply to read prompt with denial
+	whenSent := time.Now()
+	constraints := &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/home/test/**"),
+		Permissions: []string{"read"},
+	}
+	satisfiedPromptIDs, err := mgr.HandleReply(s.defaultUser, readPrompt.ID, constraints, prompting.OutcomeDeny, prompting.LifespanTimespan, "10s")
+	c.Check(err, IsNil)
+
+	// Check that rw prompt was also satisfied
+	c.Check(satisfiedPromptIDs, DeepEquals, []prompting.IDType{rwPrompt.ID})
+
+	// Check that kernel received two replies
+	for i := 0; i < 2; i++ {
+		resp, err := waitForReply(replyChan)
+		c.Assert(err, IsNil)
+		switch resp.Request {
+		case readReq:
+			c.Check(resp.Response.Allow, Equals, false)
+			expectedPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read"})
+			c.Assert(err, IsNil)
+			c.Check(resp.Response.Permission, DeepEquals, expectedPermissions)
+		case rwReq:
+			c.Check(resp.Response.Allow, Equals, false)
+			expectedPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read", "write"})
+			c.Assert(err, IsNil)
+			c.Check(resp.Response.Permission, DeepEquals, expectedPermissions)
+		}
+	}
+
+	// Check that read and rw prompts no longer exist
+	_, err = mgr.PromptWithID(s.defaultUser, readPrompt.ID)
+	c.Check(err, NotNil)
+	_, err = mgr.PromptWithID(s.defaultUser, rwPrompt.ID)
+	c.Check(err, NotNil)
+
+	// Check that one prompt still exists
+	prompts, err := mgr.Prompts(s.defaultUser)
+	c.Assert(err, IsNil)
+	c.Check(prompts, DeepEquals, []*requestprompts.Prompt{writePrompt})
+
+	// Check that new rule exists
+	rules, err := mgr.Rules(s.defaultUser, "", "")
+	c.Assert(err, IsNil)
+	c.Check(rules, HasLen, 1)
+
+	// Check that notices were recorded for read prompt and rw prompt,
+	// and for the rule
+	s.st.Lock()
+	c.Check(s.st.Notices(&state.NoticeFilter{
+		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
+		After: whenSent,
+	}), HasLen, 2)
+	c.Check(s.st.Notices(&state.NoticeFilter{
+		Types: []state.NoticeType{state.InterfacesRequestsRuleUpdateNotice},
+		After: whenSent,
+	}), HasLen, 1)
+	s.st.Unlock()
+
+	c.Assert(mgr.Stop(), IsNil)
 }
 
 func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
@@ -701,6 +965,8 @@ func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
 		Permission: notify.AA_MAY_WRITE,
 	}
 	s.simulateRequest(c, reqChan, mgr, readReq, false)
+
+	c.Assert(mgr.Stop(), IsNil)
 }
 
 func (s *apparmorpromptingSuite) TestRules(c *C) {
