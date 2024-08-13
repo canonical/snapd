@@ -18,6 +18,8 @@ environment:
 
 prepare: |
     snap install --edge jq
+    # prerequisite for having a prompts handler service
+    snap set system experimental.user-daemons=true
 
 execute: |
     "$TESTSTOOLS"/snaps-state install-local api-client
