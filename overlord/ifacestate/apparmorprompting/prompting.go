@@ -157,8 +157,9 @@ run_loop:
 				// been called, and the tomb error will be set to the return
 				// value of the Run() call from the previous tracked goroutine.
 				logger.Noticef("listener closed requests channel")
-				return m.disconnect()
+				break run_loop
 			}
+
 			// XXX: this debug log leaks information about internal activity
 			logger.Debugf("Got from kernel req chan: %v", req)
 			if err := m.handleListenerReq(req); err != nil { // no use multithreading, since IsPathAllowed locks
@@ -174,9 +175,6 @@ run_loop:
 }
 
 func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) error {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-
 	userID := uint32(req.SubjectUID)
 	// TODO: immediately deny if req.SubjectUID() == 0 (root)
 	snap := req.Label // Default to apparmor label, in case process is not a snap
@@ -204,6 +202,12 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 
 	remainingPerms := make([]string, 0, len(permissions))
 	satisfiedPerms := make([]string, 0, len(permissions))
+
+	// we're done with early checks, serious business starts now, and we can
+	// take the lock
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
 	for _, perm := range permissions {
 		if yesNo, err := m.rules.IsPathAllowed(userID, snap, iface, path, perm); err == nil {
 			if !yesNo {
@@ -218,10 +222,14 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 				satisfiedPerms = append(satisfiedPerms, perm)
 			}
 		} else {
+			if !errors.Is(err, requestrules.ErrNoMatchingRule) {
+				logger.Noticef("cannot check path permissions: %v", err)
+			}
 			// No matching rule found
 			remainingPerms = append(remainingPerms, perm)
 		}
 	}
+
 	if len(remainingPerms) == 0 {
 		// XXX: this debug log leaks information about internal activity
 		logger.Debugf("request allowed by existing rule: %+v", req)
@@ -241,6 +249,8 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		}
 		return requestReply(req, &response)
 	}
+
+	// request not satisfied by any of existing rules, record a prompt for the user
 
 	metadata := &prompting.Metadata{
 		User:      userID,
