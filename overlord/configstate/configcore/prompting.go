@@ -22,12 +22,15 @@ package configcore
 
 import (
 	"fmt"
+	"time"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -35,6 +38,51 @@ import (
 )
 
 var restartRequest = restart.Request
+
+var servicestateControl = servicestate.Control
+var serviceStartChangeTimeout = time.Minute
+
+func startHandlers(st *state.State, handlers []*snap.AppInfo) error {
+	var affectedSnaps []string
+	for _, h := range handlers {
+		affectedSnaps = append(affectedSnaps, h.Snap.InstanceName())
+	}
+
+	// start and enable prompt handlers
+	inst := &servicestate.Instruction{
+		Action: "start",
+		StartOptions: client.StartOptions{
+			Enable: true,
+		},
+
+		Scope: []string{"user"},
+	}
+
+	st.Lock()
+	// TODO hookstate? how to resolve conflicts
+	tts, err := servicestateControl(st, handlers, inst, nil, &servicestate.Flags{}, nil)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	st.Lock()
+	chg := st.NewChange("service-control", fmt.Sprintf("Enable and start prompt handler services from snaps: %v", affectedSnaps))
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+	st.EnsureBefore(0)
+	st.Unlock()
+
+	select {
+	case <-chg.Ready():
+		st.Lock()
+		defer st.Unlock()
+		return chg.Err()
+	case <-time.After(serviceStartChangeTimeout):
+		return fmt.Errorf("timeout waiting for handler services start to complete")
+	}
+}
 
 func findPromptingRequestsHandlers(st *state.State) ([]*snap.AppInfo, error) {
 	st.Lock()
@@ -126,7 +174,10 @@ func doExperimentalApparmorPromptingDaemonRestart(c RunTransaction, opts *fsOnly
 			return fmt.Errorf("cannot enable prompting feature no interfaces requests handler services are installed")
 		}
 
-		// TODO start handlers as a change and wait for completion
+		// try to start all the handlers for all active users
+		if err := startHandlers(st, handlers); err != nil {
+			return fmt.Errorf("cannot enable prompting, unable to start prompting handlers: %w", err)
+		}
 	}
 
 	// No matter whether prompting is supported or not, request a restart of

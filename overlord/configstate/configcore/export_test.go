@@ -20,12 +20,18 @@
 package configcore
 
 import (
+	"os/user"
+	"time"
+
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -86,4 +92,12 @@ func MockLoggerSimpleSetup(f func(opts *logger.LoggerOptions) error) func() {
 
 func MockRestartRequest(f func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo)) func() {
 	return testutil.Mock(&restartRequest, f)
+}
+
+func MockServicestateControl(f func(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction, cu *user.User, flags *servicestate.Flags, context *hookstate.Context) ([]*state.TaskSet, error)) func() {
+	return testutil.Mock(&servicestateControl, f)
+}
+
+func MockServicestateChangeTimeout(v time.Duration) func() {
+	return testutil.Mock(&serviceStartChangeTimeout, v)
 }
