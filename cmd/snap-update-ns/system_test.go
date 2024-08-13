@@ -21,6 +21,7 @@ package main_test
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 
@@ -46,7 +47,7 @@ func (s *systemSuite) TestLockCgroup(c *C) {
 
 	var frozen []string
 	var thawed []string
-	happyFreeze := func(snapName string) error {
+	happyFreeze := func(ctx context.Context, snapName string) error {
 		frozen = append(frozen, snapName)
 		return nil
 	}
