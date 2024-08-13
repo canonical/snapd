@@ -357,7 +357,7 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *listener.Re
 	c.Check(err, IsNil)
 	c.Check(promptByID, Equals, prompt)
 
-	// Return manager, request, and prompt
+	// Return request and prompt
 	return req, prompt
 }
 
@@ -970,21 +970,166 @@ func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestRules(c *C) {
-	//reqChan, replyChan, restore := apparmorprompting.MockListener()
-	//defer restore()
+	_, _, restore := apparmorprompting.MockListener()
+	defer restore()
 
-	//mgr, err := apparmorprompting.New(s.st)
-	//c.Assert(err, IsNil)
-	c.Fatalf("TODO")
+	mgr, rules := s.prepManagerWithRules(c)
+
+	// Assume returned rules are in the order in which they were added.
+	// This is true now but may not remain true in the future
+
+	userRules, err := mgr.Rules(s.defaultUser, "", "")
+	c.Check(err, IsNil)
+	c.Check(userRules, DeepEquals, rules[:3])
+
+	ifaceRules, err := mgr.Rules(s.defaultUser, "", "home")
+	c.Check(err, IsNil)
+	c.Check(ifaceRules, DeepEquals, rules[:2])
+
+	snapRules, err := mgr.Rules(s.defaultUser, "firefox", "")
+	c.Check(err, IsNil)
+	c.Check(snapRules, DeepEquals, []*requestrules.Rule{rules[0], rules[2]})
+
+	snapIfaceRules, err := mgr.Rules(s.defaultUser, "firefox", "home")
+	c.Check(err, IsNil)
+	c.Check(snapIfaceRules, DeepEquals, []*requestrules.Rule{rules[0]})
+
+	c.Assert(mgr.Stop(), IsNil)
 }
 
-func (s *apparmorpromptingSuite) TestRemoveRules(c *C) {
-	//reqChan, replyChan, restore := apparmorprompting.MockListener()
-	//defer restore()
+func (s *apparmorpromptingSuite) prepManagerWithRules(c *C) (mgr *apparmorprompting.InterfacesRequestsManager, rules []*requestrules.Rule) {
+	var err error
+	mgr, err = apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
 
-	//mgr, err := apparmorprompting.New(s.st)
-	//c.Assert(err, IsNil)
-	c.Fatalf("TODO")
+	whenAdded := time.Now()
+
+	// Add rule for firefox and home
+	constraints := &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/home/test/1"),
+		Permissions: []string{"read"},
+	}
+	rule1, err := mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	c.Assert(err, IsNil)
+	rules = append(rules, rule1)
+
+	// Add rule for thunderbird and home
+	constraints = &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/home/test/2"),
+		Permissions: []string{"read"},
+	}
+	rule2, err := mgr.AddRule(s.defaultUser, "thunderbird", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	c.Assert(err, IsNil)
+	rules = append(rules, rule2)
+
+	// Add rule for firefox and camera
+	constraints = &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/home/test/3"),
+		Permissions: []string{"read"},
+	}
+	rule3, err := mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	c.Assert(err, IsNil)
+	// Since camera interface isn't supported yet, must adjust the interface
+	// after the rule has been created. This abuses implementation details of
+	// the requestrules backend.
+	rule3.Interface = "camera"
+	rules = append(rules, rule3)
+
+	// Add rule for firefox and home, but for a different user
+	constraints = &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/home/test/4"),
+		Permissions: []string{"read"},
+	}
+	rule4, err := mgr.AddRule(s.defaultUser+1, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	c.Assert(err, IsNil)
+	rules = append(rules, rule4)
+
+	// Check that four notices were recorded
+	s.checkRecordedRuleUpdateNotices(c, whenAdded, 4)
+
+	return mgr, rules
+}
+
+func (s *apparmorpromptingSuite) checkRecordedRuleUpdateNotices(c *C, since time.Time, count int) {
+	s.st.Lock()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	n, err := s.st.WaitNotices(ctx, &state.NoticeFilter{
+		Types: []state.NoticeType{state.InterfacesRequestsRuleUpdateNotice},
+		After: since,
+	})
+	s.st.Unlock()
+	c.Check(err, IsNil)
+	c.Check(n, HasLen, count)
+}
+
+func (s *apparmorpromptingSuite) TestRemoveRulesInterface(c *C) {
+	_, _, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	mgr, rules := s.prepManagerWithRules(c)
+
+	// Assume returned rules are in the order in which they were added.
+	// This is true now but may not remain true in the future
+
+	whenRemoved := time.Now()
+
+	ifaceRules, err := mgr.RemoveRules(s.defaultUser, "", "home")
+	c.Check(err, IsNil)
+	c.Check(ifaceRules, DeepEquals, rules[:2])
+
+	userRules, err := mgr.Rules(s.defaultUser, "", "")
+	c.Check(err, IsNil)
+	c.Check(userRules, DeepEquals, rules[2:3])
+
+	s.checkRecordedRuleUpdateNotices(c, whenRemoved, 2)
+	c.Assert(mgr.Stop(), IsNil)
+}
+
+func (s *apparmorpromptingSuite) TestRemoveRulesSnap(c *C) {
+	_, _, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	mgr, rules := s.prepManagerWithRules(c)
+
+	// Assume returned rules are in the order in which they were added.
+	// This is true now but may not remain true in the future
+
+	whenRemoved := time.Now()
+
+	snapRules, err := mgr.RemoveRules(s.defaultUser, "firefox", "")
+	c.Check(err, IsNil)
+	c.Check(snapRules, DeepEquals, []*requestrules.Rule{rules[0], rules[2]})
+
+	userRules, err := mgr.Rules(s.defaultUser, "", "")
+	c.Check(err, IsNil)
+	c.Check(userRules, DeepEquals, rules[1:2])
+
+	s.checkRecordedRuleUpdateNotices(c, whenRemoved, 2)
+	c.Assert(mgr.Stop(), IsNil)
+}
+
+func (s *apparmorpromptingSuite) TestRemoveRulesSnapInterface(c *C) {
+	_, _, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	mgr, rules := s.prepManagerWithRules(c)
+
+	// Assume returned rules are in the order in which they were added.
+	// This is true now but may not remain true in the future
+
+	whenRemoved := time.Now()
+
+	snapRules, err := mgr.RemoveRules(s.defaultUser, "firefox", "home")
+	c.Check(err, IsNil)
+	c.Check(snapRules, DeepEquals, []*requestrules.Rule{rules[0]})
+
+	userRules, err := mgr.Rules(s.defaultUser, "", "")
+	c.Check(err, IsNil)
+	c.Check(userRules, DeepEquals, rules[1:3])
+
+	s.checkRecordedRuleUpdateNotices(c, whenRemoved, 1)
+	c.Assert(mgr.Stop(), IsNil)
 }
 
 func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
@@ -993,5 +1138,7 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 
 	//mgr, err := apparmorprompting.New(s.st)
 	//c.Assert(err, IsNil)
+
+	//c.Assert(mgr.Stop(), IsNil)
 	c.Fatalf("TODO")
 }
