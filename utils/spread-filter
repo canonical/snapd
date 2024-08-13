@@ -42,10 +42,9 @@ class ExecutionManager:
     SELF = "$SELF"
     NONE = "$NONE"
 
-    def __init__(self, rules_file: str, system: str, backend: str, verbose: bool):
+    def __init__(self, rules_file: str, prefix: str, verbose: bool):
         self.verbose = verbose
-        self.system = system
-        self.backend = backend
+        self.prefix = prefix
         with open(rules_file) as f:
             rules_map = yaml.safe_load(f)
         self.rules = ExecutionRules(self.from_rules_map(rules_map))
@@ -74,37 +73,37 @@ class ExecutionManager:
     def _get_execution_param(self, exec_paths: list[str]) -> list[str]:
         all_params = []
         for exec_path in exec_paths:
-            all_params.append(self.backend + ":" + self.system + ":" + exec_path)
+            all_params.append(self.prefix + ":" + exec_path)
         return all_params
 
     def _calc_self(self, change_path: str) -> str:
         if self.verbose:
             print("calculating self for {}".format(change_path))
 
-        # if the change is a directory which has changed
+        # If the change is a directory which has changed
         if os.path.isdir(change_path):
             if self._is_test_dir(change_path):
                 return self._get_test_exec_dir(change_path)
             else:
                 test_dir = self._get_parent_with_task(change_path)
                 return self._get_test_exec_dir(test_dir)
-        # if the change is a file which has changed
+        # If the change is a file which has changed
         elif os.path.isfile(change_path):
-            # if the change is a task.yaml
+            # If the change is a task.yaml
             if self._is_task_file(change_path):
                 return self._get_test_exec_dir(os.path.dirname(change_path))
 
-            # if the change is a file in the same dir than a task.yaml
+            # If the change is a file in the same dir than a task.yaml
             change_dir = os.path.dirname(change_path)
             if self._is_test_dir(change_dir):
                 return self._get_test_exec_dir(change_dir)
-            # if the change is a file which is not in the same dir than a task.yaml
+            # If the change is a file which is not in the same dir than a task.yaml
             else:
                 test_dir = self._get_parent_with_task(change_path)
                 return self._get_test_exec_dir(test_dir)
-        # if the change is deleted file/dir
+        # If the change is deleted file/dir
         else:
-            # if a task.yaml has been deleted
+            # If a task.yaml has been deleted
             if self._is_task_file(change_path):
                 return ""
             else:
@@ -143,21 +142,21 @@ class ExecutionManager:
                         )
                     )
 
-                # if the shorter executions is a test, we continue
+                # If the shorter executions is a test, we continue
                 if not short_execution.endswith("/"):
                     if long_execution == short_execution:
                         discard_execution = True
                         break
-                # if the shorter execution is a either suite or group of suites
+                # If the shorter execution is a either suite or group of suites
                 else:
-                    # if the long executions starts with short execution means
+                    # If the long executions starts with short execution means
                     # the long execution is included in the short one and it can
                     # be discarded
                     if long_execution.startswith(short_execution):
                         discard_execution = True
                         break
 
-            # take decision after all shorter executions have been compared
+            # Take decision after all shorter executions have been compared
             if not discard_execution:
                 final_executions.append(long_execution)
 
@@ -175,11 +174,11 @@ class ExecutionManager:
                     self_execution = self._calc_self(change)
                     if self_execution != "":
                         all_executions.append(self_execution)
-                # When the tests to run as tagged as NONE means that no tests
+                # When the tests to run are tagged as NONE means that no tests
                 # have to be executed
                 elif execution == self.NONE:
                     continue
-                # Otherwise, it is executed what is defined in to (literal)
+                # Otherwise, what is defined in to (literal) is executed.
                 else:
                     all_executions.append(self._get_test_exec_dir(execution))
 
@@ -188,13 +187,13 @@ class ExecutionManager:
 
 
 def _make_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="spread shellcheck helper")
+    parser = argparse.ArgumentParser(description="spread filter helper")
     parser.add_argument("-r", "--rules-file", required=True, help="Rules file")
     parser.add_argument(
-        "-s", "--system", required=True, help="System used for executing the tests"
-    )
-    parser.add_argument(
-        "-b", "--backend", required=True, help="Backend used for executing the tests"
+        "-p",
+        "--prefix",
+        required=True,
+        help="Backend and system (BACKEND:SYSTEM) used as prefix in the output",
     )
     parser.add_argument(
         "-c", "--change", action="append", default=[], help="File that changed"
@@ -216,8 +215,6 @@ if __name__ == "__main__":
         print("spread-filter: rules file '{}' does not exist".format(args.rules_file))
         sys.exit(1)
 
-    execution_manager = ExecutionManager(
-        args.rules_file, args.system, args.backend, args.verbose
-    )
+    execution_manager = ExecutionManager(args.rules_file, args.prefix, args.verbose)
     execution_list = execution_manager.get_executions(args.change)
     print(" ".join(map(str, execution_list)))
