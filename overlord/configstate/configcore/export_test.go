@@ -53,59 +53,37 @@ func FilesystemOnlyRun(dev sysconfig.Device, cfg ConfGetter) error {
 }
 
 func MockFindGid(f func(string) (uint64, error)) func() {
-	old := osutilFindGid
-	osutilFindGid = f
-	return func() {
-		osutilFindGid = old
-	}
+	return testutil.Mock(&osutilFindGid, f)
 }
 
 func MockChownPath(f func(string, sys.UserID, sys.GroupID) error) func() {
-	old := sysChownPath
-	sysChownPath = f
-	return func() {
-		sysChownPath = old
-	}
+	return testutil.Mock(&sysChownPath, f)
 }
 
 func MockEnsureFileState(f func(string, osutil.FileState) error) func() {
-	r := testutil.Backup(&osutilEnsureFileState)
-	osutilEnsureFileState = f
-	return r
+	return testutil.Mock(&osutilEnsureFileState, f)
 }
 
 func MockDirExists(f func(string) (bool, bool, error)) func() {
-	r := testutil.Backup(&osutilDirExists)
-	osutilDirExists = f
-	return r
+	return testutil.Mock(&osutilDirExists, f)
 }
 
 func MockApparmorUpdateHomedirsTunable(f func([]string) error) func() {
-	r := testutil.Backup(&apparmorUpdateHomedirsTunable)
-	apparmorUpdateHomedirsTunable = f
-	return r
+	return testutil.Mock(&apparmorUpdateHomedirsTunable, f)
 }
 
 func MockApparmorSetupSnapConfineSnippets(f func() (bool, error)) func() {
-	r := testutil.Backup(&apparmorSetupSnapConfineSnippets)
-	apparmorSetupSnapConfineSnippets = f
-	return r
+	return testutil.Mock(&apparmorSetupSnapConfineSnippets, f)
 }
 
 func MockApparmorReloadAllSnapProfiles(f func() error) func() {
-	r := testutil.Backup(&apparmorReloadAllSnapProfiles)
-	apparmorReloadAllSnapProfiles = f
-	return r
+	return testutil.Mock(&apparmorReloadAllSnapProfiles, f)
 }
 
 func MockLoggerSimpleSetup(f func(opts *logger.LoggerOptions) error) func() {
-	r := testutil.Backup(&loggerSimpleSetup)
-	loggerSimpleSetup = f
-	return r
+	return testutil.Mock(&loggerSimpleSetup, f)
 }
 
 func MockRestartRequest(f func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo)) func() {
-	r := testutil.Backup(&restartRequest)
-	restartRequest = f
-	return r
+	return testutil.Mock(&restartRequest, f)
 }
