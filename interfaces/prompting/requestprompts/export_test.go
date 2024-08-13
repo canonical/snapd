@@ -23,17 +23,9 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/interfaces/prompting"
-	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
-	"github.com/snapcore/snapd/testutil"
 )
 
 const MaxOutstandingPromptsPerUser = maxOutstandingPromptsPerUser
-
-func MockSendReply(f func(listenerReq *listener.Request, reply *listener.Response) error) (restore func()) {
-	restore = testutil.Backup(&sendReply)
-	sendReply = f
-	return restore
-}
 
 func NewPrompt(id prompting.IDType, timestamp time.Time, snap string, iface string, path string, remainingPermissions []string, availablePermissions []string, originalPermissions []string) *Prompt {
 	constraints := &promptConstraints{

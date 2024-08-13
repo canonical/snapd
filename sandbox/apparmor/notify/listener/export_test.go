@@ -37,7 +37,7 @@ func ExitOnError() (restore func()) {
 
 func FakeRequestWithClassAndReplyChan(class notify.MediationClass, replyChan chan *Response) *Request {
 	return &Request{
-		class:     class,
+		Class:     class,
 		replyChan: replyChan,
 	}
 }

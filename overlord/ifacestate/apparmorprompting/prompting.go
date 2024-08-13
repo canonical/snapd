@@ -42,6 +42,8 @@ var (
 	listenerClose    = func(l *listener.Listener) error { return l.Close() }
 	listenerRun      = func(l *listener.Listener) error { return l.Run() }
 	listenerReqs     = func(l *listener.Listener) <-chan *listener.Request { return l.Reqs() }
+
+	requestReply = func(req *listener.Request, resp *listener.Response) error { return req.Reply(resp) }
 )
 
 type InterfacesRequestsManager struct {
@@ -56,7 +58,7 @@ type InterfacesRequestsManager struct {
 
 func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 	notifyPrompt := func(userID uint32, promptID prompting.IDType, data map[string]string) error {
-		// TODO: add some sort of queue so that notifyPrompt function can return
+		// TODO: add some sort of queue so that notifyPrompt calls can return
 		// quickly without waiting for state lock and AddNotice() to return.
 		s.Lock()
 		defer s.Unlock()
@@ -67,7 +69,7 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 		return err
 	}
 	notifyRule := func(userID uint32, ruleID prompting.IDType, data map[string]string) error {
-		// TODO: add some sort of queue so that notifyPrompt function can return
+		// TODO: add some sort of queue so that notifyRule calls can return
 		// quickly without waiting for state lock and AddNotice() to return.
 		s.Lock()
 		defer s.Unlock()
@@ -84,11 +86,11 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 	}
 	defer func() {
 		if retErr != nil {
-			listenerBackend.Close()
+			listenerClose(listenerBackend)
 		}
 	}()
 
-	promptsBackend, err := requestprompts.New(m.notifyPrompt)
+	promptsBackend, err := requestprompts.New(notifyPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open request prompts backend: %w", err)
 	}
@@ -98,7 +100,7 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 		}
 	}()
 
-	rulesBackend, err := requestrules.New(m.notifyRule)
+	rulesBackend, err := requestrules.New(notifyRule)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open request rules backend: %w", err)
 	}
@@ -121,6 +123,7 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 	return m, nil
 }
 
+// Run is the main run loop for the manager, and must be called using tomb.Go.
 func (m *InterfacesRequestsManager) run() error {
 	m.tomb.Go(func() error {
 		logger.Noticef("starting listener")
@@ -159,10 +162,10 @@ run_loop:
 }
 
 func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) error {
-	userID := uint32(req.SubjectUID())
+	userID := uint32(req.SubjectUID)
 	// TODO: immediately deny if req.SubjectUID() == 0 (root)
-	snap := req.Label() // Default to apparmor label, in case process is not a snap
-	tag, err := naming.ParseSecurityTag(req.Label())
+	snap := req.Label // Default to apparmor label, in case process is not a snap
+	tag, err := naming.ParseSecurityTag(req.Label)
 	if err == nil {
 		// the triggering process is not a snap, so treat apparmor label as snap field
 		snap = tag.InstanceName()
@@ -171,17 +174,17 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 	// TODO: when we support interfaces beyond "home", do a proper selection here
 	iface := "home"
 
-	path := req.Path()
+	path := req.Path
 
-	permissions, err := prompting.AbstractPermissionsFromAppArmorPermissions(iface, req.Permission())
+	permissions, err := prompting.AbstractPermissionsFromAppArmorPermissions(iface, req.Permission)
 	if err != nil {
 		// XXX: this log leaks information about internal activity
 		logger.Noticef("error while parsing AppArmor permissions: %v", err)
 		response := listener.Response{
 			Allow:      false,
-			Permission: req.Permission(),
+			Permission: req.Permission,
 		}
-		return req.Reply(&response)
+		return requestReply(req, &response)
 	}
 
 	remainingPerms := make([]string, 0, len(permissions))
@@ -193,9 +196,9 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 				logger.Debugf("request denied by existing rule: %+v", req)
 				response := listener.Response{
 					Allow:      false,
-					Permission: req.Permission(),
+					Permission: req.Permission,
 				}
-				return req.Reply(&response)
+				return requestReply(req, &response)
 			} else {
 				satisfiedPerms = append(satisfiedPerms, perm)
 			}
@@ -221,7 +224,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 			Allow:      true,
 			Permission: responsePermissions,
 		}
-		return req.Reply(&response)
+		return requestReply(req, &response)
 	}
 
 	metadata := &prompting.Metadata{
@@ -233,7 +236,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 	newPrompt, merged, err := m.prompts.AddOrMerge(metadata, path, permissions, remainingPerms, req)
 	if err != nil {
 		// XXX: this debug log leaks information about internal activity
-		logger.Debugf("error while adding prompt to prompt DB: %+v: %v", req, err)
+		logger.Noticef("error while adding prompt to prompt DB: %+v: %v", req, err)
 
 		// We weren't able to create a new prompt, so respond with the best
 		// information we have, which is to allow any permissions which were
@@ -245,7 +248,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 			Allow:      true,
 			Permission: responsePermissions,
 		}
-		return req.Reply(&response)
+		return requestReply(req, &response)
 	}
 	if merged {
 		// XXX: this debug log leaks information about internal activity
@@ -299,9 +302,11 @@ func errorsJoin(errs ...error) error {
 	return err
 }
 
+// Stop closes the listener, prompt DB, and rule DB. Stop is idempotent, and
+// the receiver cannot be started or used after it has been stopped.
 func (m *InterfacesRequestsManager) Stop() error {
 	m.tomb.Kill(nil)
-	m.prompts.Close()
+	// Kill causes the run loop to exit and call disconnect()
 	return m.tomb.Wait()
 }
 
@@ -387,6 +392,7 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 
 	prompt, retErr = m.prompts.Reply(userID, promptID, outcome)
 	if retErr != nil {
+		// Error should not occur unless the listener has closed
 		return nil, retErr
 	}
 

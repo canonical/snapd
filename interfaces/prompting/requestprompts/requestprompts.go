@@ -489,3 +489,14 @@ func (pdb *PromptDB) Close() error {
 	pdb.perUser = nil
 	return nil
 }
+
+// MockSendReply mocks the function to send a reply back to the listener so
+// tests, both for this package and for consumers of this package, can mock
+// the listener.
+func MockSendReply(f func(listenerReq *listener.Request, response *listener.Response) error) (restore func()) {
+	orig := sendReply
+	sendReply = f
+	return func() {
+		sendReply = orig
+	}
+}

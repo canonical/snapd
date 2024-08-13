@@ -20,6 +20,8 @@
 package apparmorprompting
 
 import (
+	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
+	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -48,31 +50,70 @@ func MockListenerClose(f func(l *listener.Listener) error) (restore func()) {
 	return restore
 }
 
-func MockListener() (restore func()) {
-	closeChan := make(chan *listener.Request)
+type RequestResponse struct {
+	Request  *listener.Request
+	Response *listener.Response
+}
+
+func MockListener() (reqChan chan *listener.Request, replyChan chan RequestResponse, restore func()) {
+	// Since the manager run loop is in a tracked goroutine, shouldn't block.
+	reqChan = make(chan *listener.Request)
+	// Replies would be sent synchronously to an async listener, but it's
+	// mocked to be synchronous, so we need a non-zero buffer here.
+	replyChan = make(chan RequestResponse, 5)
+
 	restoreRegister := MockListenerRegister(func() (*listener.Listener, error) {
 		return &listener.Listener{}, nil
 	})
 	restoreRun := MockListenerRun(func(l *listener.Listener) error {
-		<-closeChan
+		<-reqChan
 		return listener.ErrClosed
 	})
 	restoreReqs := MockListenerReqs(func(l *listener.Listener) <-chan *listener.Request {
-		return closeChan
+		return reqChan
 	})
 	restoreClose := MockListenerClose(func(l *listener.Listener) error {
 		select {
-		case <-closeChan:
+		case <-reqChan:
 			return listener.ErrAlreadyClosed
 		default:
-			close(closeChan)
+			close(reqChan)
+			close(replyChan)
 		}
 		return nil
 	})
-	return func() {
-		restoreRegister()
-		restoreRun()
-		restoreReqs()
+	restoreReply := MockRequestReply(func(req *listener.Request, resp *listener.Response) error {
+		reqResp := RequestResponse{
+			Request:  req,
+			Response: resp,
+		}
+		replyChan <- reqResp
+		return nil
+	})
+	restore = func() {
+		restoreReply()
 		restoreClose()
+		restoreReqs()
+		restoreRun()
+		restoreRegister()
 	}
+	return reqChan, replyChan, restore
+}
+
+func MockRequestReply(f func(req *listener.Request, resp *listener.Response) error) (restore func()) {
+	restoreRequestReply := testutil.Backup(&requestReply)
+	requestReply = f
+	restoreRequestpromptsSendReply := requestprompts.MockSendReply(f)
+	return func() {
+		restoreRequestpromptsSendReply()
+		restoreRequestReply()
+	}
+}
+
+func (m *InterfacesRequestsManager) PromptDB() *requestprompts.PromptDB {
+	return m.prompts
+}
+
+func (m *InterfacesRequestsManager) RuleDB() *requestrules.RuleDB {
+	return m.rules
 }

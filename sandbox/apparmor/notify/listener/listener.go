@@ -68,19 +68,20 @@ type Response struct {
 //
 // Each request must be replied to by writing a boolean to the YesNo channel.
 type Request struct {
-	// pid is the identifier of the process which triggered the request.
-	pid uint32
-	// label is the apparmor label on the process which triggered the request.
-	label string
-	// subjectUID is the UID of the subject which triggered the request.
-	subjectUID uint32
+	// PID is the identifier of the process which triggered the request.
+	PID uint32
+	// Label is the apparmor label on the process which triggered the request.
+	Label string
+	// SubjectUID is the UID of the subject which triggered the request.
+	SubjectUID uint32
 
-	// path is the path of the file, as seen by the process triggering the request.
-	path string
-	// class is the mediation class corresponding to this request.
-	class notify.MediationClass
-	// permission is the opaque permission that is being requested.
-	permission any
+	// Path is the path of the file, as seen by the process triggering the request.
+	Path string
+	// Class is the mediation class corresponding to this request.
+	Class notify.MediationClass
+	// Permission is the opaque permission that is being requested.
+	Permission any
+
 	// replyChan is a channel for writing the response.
 	replyChan chan *Response
 	// replied indicates whether a reply has already been sent for this request.
@@ -100,46 +101,16 @@ func newRequest(msg *notify.MsgNotificationFile) (*Request, error) {
 		return nil, fmt.Errorf("unsupported mediation class: %v", msg.Class)
 	}
 	return &Request{
-		pid:        msg.Pid,
-		label:      msg.Label,
-		subjectUID: msg.SUID,
+		PID:        msg.Pid,
+		Label:      msg.Label,
+		SubjectUID: msg.SUID,
 
-		path:       msg.Name,
-		class:      msg.Class,
-		permission: perm,
+		Path:       msg.Name,
+		Class:      msg.Class,
+		Permission: perm,
 
 		replyChan: make(chan *Response, 1),
 	}, nil
-}
-
-// PID returns the PID of the process which triggered the request.
-func (r *Request) PID() uint32 {
-	return r.pid
-}
-
-// Label returns the apparmor label on the process which triggered the request.
-func (r *Request) Label() string {
-	return r.label
-}
-
-// SubjectUID returns the UID of the subject which triggered the request.
-func (r *Request) SubjectUID() uint32 {
-	return r.subjectUID
-}
-
-// Path is the path of the file, as seen by the process which triggered the request.
-func (r *Request) Path() string {
-	return r.path
-}
-
-// Class is the mediation class corresponding to this request.
-func (r *Request) Class() notify.MediationClass {
-	return r.class
-}
-
-// Permission returns the opaque permission that is being requested.
-func (r *Request) Permission() any {
-	return r.permission
 }
 
 // Reply sends the given response back to the kernel.
@@ -148,15 +119,15 @@ func (r *Request) Reply(response *Response) error {
 		return ErrAlreadyReplied
 	}
 	var ok bool
-	switch r.Class() {
+	switch r.Class {
 	case notify.AA_CLASS_FILE:
 		_, ok = response.Permission.(notify.FilePermission)
 	default:
 		// should not occur, since the request was created in this package
-		return fmt.Errorf("internal error: unsupported mediation class: %v", r.Class())
+		return fmt.Errorf("internal error: unsupported mediation class: %v", r.Class)
 	}
 	if !ok {
-		expectedType := expectedResponseTypeForClass(r.Class())
+		expectedType := expectedResponseTypeForClass(r.Class)
 		return fmt.Errorf("invalid reply: response permission must be of type %s", expectedType)
 	}
 	r.replyChan <- response
