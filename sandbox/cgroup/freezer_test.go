@@ -20,6 +20,7 @@
 package cgroup_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -35,6 +36,7 @@ import (
 
 type freezerV1Suite struct{}
 
+// TODO: Add SetUpTest for common setup
 var _ = Suite(&freezerV1Suite{})
 
 func (s *freezerV1Suite) TestFreezeSnapProcessesV1(c *C) {
@@ -47,20 +49,26 @@ func (s *freezerV1Suite) TestFreezeSnapProcessesV1(c *C) {
 	f := filepath.Join(p, "freezer.state")                                     // freezer.state file of the cgroup
 
 	// When the freezer cgroup filesystem doesn't exist we do nothing at all.
-	c.Assert(cgroup.FreezeSnapProcesses(n), IsNil)
+	c.Assert(cgroup.FreezeSnapProcesses(context.TODO(), n), IsNil)
 	_, err := os.Stat(f)
 	c.Assert(os.IsNotExist(err), Equals, true)
 
 	// When the freezer cgroup filesystem exists but the particular cgroup
 	// doesn't exist we don nothing at all.
 	c.Assert(os.MkdirAll(cgroup.FreezerCgroupV1Dir(), 0755), IsNil)
-	c.Assert(cgroup.FreezeSnapProcesses(n), IsNil)
+	c.Assert(cgroup.FreezeSnapProcesses(context.TODO(), n), IsNil)
 	_, err = os.Stat(f)
 	c.Assert(os.IsNotExist(err), Equals, true)
 
+	restore := cgroup.MockOsReadFile(func(name string) ([]byte, error) {
+		// Test that whitespace is trimmed when parsing freezer.state
+		return []byte("FROZEN\n"), nil
+	})
+	defer restore()
+
 	// When the cgroup exists we write FROZEN the freezer.state file.
 	c.Assert(os.MkdirAll(p, 0755), IsNil)
-	c.Assert(cgroup.FreezeSnapProcesses(n), IsNil)
+	c.Assert(cgroup.FreezeSnapProcesses(context.TODO(), n), IsNil)
 	_, err = os.Stat(f)
 	c.Assert(err, IsNil)
 	c.Assert(f, testutil.FileEquals, `FROZEN`)
@@ -129,7 +137,7 @@ func (s *freezerV2Suite) TestFreezeSnapProcessesV2OtherGroups(c *C) {
 
 	// freezing needs to inspect our own cgroup, which will fail without
 	// proper mocking
-	err := cgroup.FreezeSnapProcesses("foo")
+	err := cgroup.FreezeSnapProcesses(context.TODO(), "foo")
 	c.Check(err, ErrorMatches, fmt.Sprintf("open %s/proc/%v/cgroup: no such file or directory", dirs.GlobalRootDir, pid))
 
 	procPidCgroup := filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("proc/%v/cgroup", pid))
@@ -137,7 +145,7 @@ func (s *freezerV2Suite) TestFreezeSnapProcessesV2OtherGroups(c *C) {
 	c.Assert(os.WriteFile(procPidCgroup, []byte("0::/foo/bar"), 0755), IsNil)
 
 	// When the freezer cgroup filesystem doesn't exist we do nothing at all.
-	c.Assert(cgroup.FreezeSnapProcesses("foo"), IsNil)
+	c.Assert(cgroup.FreezeSnapProcesses(context.TODO(), "foo"), IsNil)
 
 	for _, p := range []string{
 		g1, g2, g3, g4,
@@ -156,7 +164,7 @@ func (s *freezerV2Suite) TestFreezeSnapProcessesV2OtherGroups(c *C) {
 		c.Assert(os.WriteFile(p, []byte("0"), 0644), IsNil)
 	}
 
-	c.Assert(cgroup.FreezeSnapProcesses("foo"), IsNil)
+	c.Assert(cgroup.FreezeSnapProcesses(context.TODO(), "foo"), IsNil)
 	for _, p := range []string{g1, g2, g3, g4} {
 		c.Check(p, testutil.FileEquals, "1")
 	}
@@ -168,7 +176,7 @@ func (s *freezerV2Suite) TestFreezeSnapProcessesV2OtherGroups(c *C) {
 	}
 
 	// all groups are 'frozen', repeating the action does not break anything
-	c.Assert(cgroup.FreezeSnapProcesses("foo"), IsNil)
+	c.Assert(cgroup.FreezeSnapProcesses(context.TODO(), "foo"), IsNil)
 	for _, p := range []string{g1, g2, g3, g4} {
 		c.Check(p, testutil.FileEquals, "1")
 	}
@@ -183,7 +191,7 @@ func (s *freezerV2Suite) TestFreezeSnapProcessesV2OtherGroups(c *C) {
 	for _, p := range []string{g2, g3} {
 		c.Assert(os.WriteFile(p, []byte("0"), 0644), IsNil)
 	}
-	c.Assert(cgroup.FreezeSnapProcesses("foo"), IsNil)
+	c.Assert(cgroup.FreezeSnapProcesses(context.TODO(), "foo"), IsNil)
 	// all are frozen again
 	for _, p := range []string{g1, g2, g3, g4} {
 		c.Check(p, testutil.FileEquals, "1")
@@ -211,7 +219,7 @@ func (s *freezerV2Suite) TestFreezeSnapProcessesV2OwnGroup(c *C) {
 
 	// freezing needs to inspect our own cgroup, which will fail without
 	// proper mocking
-	err := cgroup.FreezeSnapProcesses("foo")
+	err := cgroup.FreezeSnapProcesses(context.TODO(), "foo")
 	c.Check(err, ErrorMatches, fmt.Sprintf("open %s/proc/%v/cgroup: no such file or directory", dirs.GlobalRootDir, pid))
 
 	procPidCgroup := filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("proc/%v/cgroup", pid))
@@ -224,7 +232,7 @@ func (s *freezerV2Suite) TestFreezeSnapProcessesV2OwnGroup(c *C) {
 		c.Assert(os.WriteFile(p, []byte("0"), 0644), IsNil)
 	}
 
-	c.Assert(cgroup.FreezeSnapProcesses("foo"), IsNil)
+	c.Assert(cgroup.FreezeSnapProcesses(context.TODO(), "foo"), IsNil)
 	// our own group is not frozen
 	c.Assert(gOwn, testutil.FileEquals, "0")
 	// canaries have not been changed
@@ -346,7 +354,7 @@ func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrWalking(c *C) {
 	defer os.Chmod(filepath.Dir(g), 0755)
 
 	// freeze tries thawing on errors, so we'll observe both errors
-	err := cgroup.FreezeSnapProcesses("foo")
+	err := cgroup.FreezeSnapProcesses(context.TODO(), "foo")
 	// go 1.10+ slightly changed the order of calls in filepath.Walk(), make
 	// sure the error check matches both
 	c.Check(err, ErrorMatches, `cannot finish freezing processes of snap "foo":( cannot freeze processes of snap "foo",)? open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234.1234.1234.scope(/cgroup.freeze)?: permission denied`)
@@ -358,8 +366,8 @@ func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrWalking(c *C) {
 	c.Assert(os.Chmod(filepath.Dir(g), 0755), IsNil)
 	c.Assert(os.Chmod(g, 0000), IsNil)
 	// other group was unfrozen
-	err = cgroup.FreezeSnapProcesses("foo")
-	c.Check(err, ErrorMatches, `cannot finish freezing processes of snap "foo": cannot freeze processes of snap "foo", open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234.1234.1234.scope/cgroup.freeze: permission denied`)
+	err = cgroup.FreezeSnapProcesses(context.TODO(), "foo")
+	c.Check(err, ErrorMatches, `cannot finish freezing processes of snap "foo": cannot freeze processes in group "snap.foo.app.1234-1234-1234.scope": open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234.1234.1234.scope/cgroup.freeze: permission denied`)
 	// other group was unfrozen
 	c.Check(gUnfreeze, testutil.FileEquals, "0")
 
@@ -374,9 +382,9 @@ func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrWalking(c *C) {
 	c.Assert(os.Chmod(filepath.Dir(gUnfreeze), 0000), IsNil)
 	defer os.Chmod(filepath.Dir(gUnfreeze), 0755)
 
-	err = cgroup.FreezeSnapProcesses("foo")
+	err = cgroup.FreezeSnapProcesses(context.TODO(), "foo")
 	// but the unfreeze errors are ignored anyuway
-	c.Check(err, ErrorMatches, `cannot finish freezing processes of snap "foo": cannot freeze processes of snap "foo", open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234.1234.1234.scope/cgroup.freeze: permission denied`)
+	c.Check(err, ErrorMatches, `cannot finish freezing processes of snap "foo": cannot freeze processes in group "snap.foo.app.1234-1234-1234.scope": open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234.1234.1234.scope/cgroup.freeze: permission denied`)
 	// the other group is unmodified
 	os.Chmod(filepath.Dir(gUnfreeze), 0755)
 	c.Check(gUnfreeze, testutil.FileEquals, "1")
@@ -400,7 +408,7 @@ func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrNotFound(c *C) {
 	c.Assert(os.MkdirAll(filepath.Dir(g1), 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Dir(g2), 0755), IsNil)
 
-	err := cgroup.FreezeSnapProcesses("foo")
+	err := cgroup.FreezeSnapProcesses(context.TODO(), "foo")
 	c.Assert(err, IsNil)
 
 	c.Check(g1, testutil.FileAbsent)
