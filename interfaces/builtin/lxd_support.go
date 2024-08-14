@@ -47,19 +47,43 @@ const lxdSupportBaseDeclarationSlots = `
 `
 
 const lxdSupportConnectedPlugAppArmor = `
+# Mimic allow all with a base set of AppArmor rules, of supported
+# mediation classes before "allow all," was fully supported
+allow capability,
+# file includes ix for x transitions
+allow file,
+allow network,
+allow unix,
+allow ptrace,
+allow signal,
+allow mount,
+allow umount,
+allow pivot_root,
+allow dbus,
+# rlimit is implicitly allowed in the abi version unless an rlimit
+# rule is specified
+
 # Description: Can change to any apparmor profile (including unconfined) thus
 # giving access to all resources of the system so LXD may manage what to give
 # to its containers. This gives device ownership to connected snaps.
-@{PROC}/**/attr/{,apparmor/}current r,
 /{,usr/}{,s}bin/aa-exec ux,
+`
 
-# Allow discovering the os-release of the host
-/var/lib/snapd/hostfs/{etc,usr/lib}/os-release r,
+const lxdSupportConnectedPlugAppArmorWithIoUring = `
+allow io_uring,
+`
+
+const lxdSupportConnectedPlugAppArmorWithMqueue = `
+allow mqueue,
 `
 
 const lxdSupportConnectedPlugAppArmorWithUserNS = `
 # allow use of user namespaces
 userns,
+`
+
+const lxdSupportConnectedPlugAppArmorAllowAll = `
+allow all,
 `
 
 const lxdSupportConnectedPlugSecComp = `
@@ -91,15 +115,27 @@ func (iface *lxdSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 }
 
 func (iface *lxdSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(lxdSupportConnectedPlugAppArmor)
 	// if apparmor supports userns mediation then add this too
 	if apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
 		features, err := apparmor_sandbox.ParserFeatures()
 		if err != nil {
 			return err
 		}
-		if strutil.ListContains(features, "userns") {
-			spec.AddSnippet(lxdSupportConnectedPlugAppArmorWithUserNS)
+		// when allow-all is available, use this, otherwise mimic it as
+		// closely as possible through the available parser features
+		if strutil.ListContains(features, "allow-all") {
+			spec.AddSnippet(lxdSupportConnectedPlugAppArmorAllowAll)
+		} else {
+			spec.AddSnippet(lxdSupportConnectedPlugAppArmor)
+			if strutil.ListContains(features, "mqueue") {
+				spec.AddSnippet(lxdSupportConnectedPlugAppArmorWithMqueue)
+			}
+			if strutil.ListContains(features, "userns") {
+				spec.AddSnippet(lxdSupportConnectedPlugAppArmorWithUserNS)
+			}
+			if strutil.ListContains(features, "io_uring") {
+				spec.AddSnippet(lxdSupportConnectedPlugAppArmorWithIoUring)
+			}
 		}
 	}
 	var enableUnconfinedMode bool
