@@ -21,7 +21,6 @@ package prompting_test
 
 import (
 	"fmt"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -29,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type constraintsSuite struct{}
@@ -475,13 +475,13 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy
 			"home",
 			notify.FilePermission(1 << 17),
 			[]string{},
-			`.*cannot map AppArmor permission to abstract permission for the home interface: "0x20000"`,
+			` cannot map AppArmor permission to abstract permission for the home interface: "0x20000"`,
 		},
 		{
 			"home",
 			notify.AA_MAY_GETCRED | notify.AA_MAY_READ,
 			[]string{"read"},
-			`.*cannot map AppArmor permission to abstract permission for the home interface: "get-cred"`,
+			` cannot map AppArmor permission to abstract permission for the home interface: "get-cred"`,
 		},
 	} {
 		logbuf, restore := logger.MockLogger()
@@ -489,7 +489,7 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy
 		perms, err := prompting.AbstractPermissionsFromAppArmorPermissions(testCase.iface, testCase.perms)
 		c.Check(err, IsNil)
 		c.Check(perms, DeepEquals, testCase.abstract)
-		c.Check(fmt.Errorf("%s", strings.TrimSpace(logbuf.String())), ErrorMatches, testCase.errStr)
+		c.Check(logbuf.String(), testutil.Contains, testCase.errStr)
 	}
 }
 
