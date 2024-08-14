@@ -47,6 +47,18 @@ var (
 	requestReply = func(req *listener.Request, resp *listener.Response) error { return req.Reply(resp) }
 )
 
+type Interface interface {
+	Prompts(userID uint32) ([]*requestprompts.Prompt, error)
+	PromptWithID(userID uint32, promptID prompting.IDType) (*requestprompts.Prompt, error)
+	HandleReply(userID uint32, promptID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) ([]prompting.IDType, error)
+	Rules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error)
+	AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error)
+	RemoveRules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error)
+	RuleWithID(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error)
+	PatchRule(userID uint32, ruleID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error)
+	RemoveRule(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error)
+}
+
 type InterfacesRequestsManager struct {
 	tomb tomb.Tomb
 	// The lock should be held for writing when acting on the manager in a way
