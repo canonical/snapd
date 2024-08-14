@@ -607,7 +607,7 @@ exclude:
     - "*.a"
     - "*.pyc"
     - ./vendor
-    - "*.snap"
+    - "snapd_*.snap"
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" != 1 ]; then
