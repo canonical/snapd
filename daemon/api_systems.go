@@ -325,10 +325,15 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 		ensureStateSoon(st)
 		return AsyncResponse(nil, chg.ID())
 	case client.InstallStepFinish:
-		chg, err := devicestateInstallFinish(st, systemLabel, req.OnVolumes, devicestate.OptionalInstall{
-			Snaps:      req.OptionalInstall.Snaps,
-			Components: req.OptionalInstall.Components,
-		})
+		var optional *devicestate.OptionalInstall
+		if req.OptionalInstall != nil {
+			optional = &devicestate.OptionalInstall{
+				Snaps:      req.OptionalInstall.Snaps,
+				Components: req.OptionalInstall.Components,
+			}
+		}
+
+		chg, err := devicestateInstallFinish(st, systemLabel, req.OnVolumes, optional)
 		if err != nil {
 			return BadRequest("cannot finish install for %q: %v", systemLabel, err)
 		}

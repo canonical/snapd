@@ -185,12 +185,20 @@ type SystemDetails struct {
 	// Volumes contains the volumes defined from the gadget snap
 	Volumes map[string]*gadget.Volume `json:"volumes,omitempty"`
 
-	StorageEncryption *StorageEncryption  `json:"storage-encryption,omitempty"`
-	AvailableOptional availableForInstall `json:"available-optional,omitempty"`
+	StorageEncryption *StorageEncryption `json:"storage-encryption,omitempty"`
+
+	// AvailableOptional contains the optional snaps and components that are
+	// available in this system.
+	AvailableOptional AvailableForInstall `json:"available-optional"`
 }
 
-type availableForInstall struct {
-	Snaps      []string            `json:"snaps,omitempty"`
+// AvailableForInstall contains information about snaps and components that are
+// optional in the system's model, but are available for installation.
+type AvailableForInstall struct {
+	// Snaps contains the names of optional snaps that are available for installation.
+	Snaps []string `json:"snaps,omitempty"`
+	// Components contains a mapping of snap names to lists of the names of
+	// optional components that are available for installation.
 	Components map[string][]string `json:"components,omitempty"`
 }
 
@@ -226,8 +234,11 @@ type InstallSystemOptions struct {
 
 	// OnVolumes is the volume description of the volumes that the
 	// given step should operate on.
-	OnVolumes       map[string]*gadget.Volume `json:"on-volumes,omitempty"`
-	OptionalInstall availableForInstall       `json:"optional-install,omitempty"`
+	OnVolumes map[string]*gadget.Volume `json:"on-volumes,omitempty"`
+	// OptionalInstall contains the optional snaps and components that should be
+	// installed on the system. Omitting this field will result in all optional
+	// snaps and components being installed.
+	OptionalInstall *AvailableForInstall `json:"optional-install,omitempty"`
 }
 
 // InstallSystem will perform the given install step for the given volumes

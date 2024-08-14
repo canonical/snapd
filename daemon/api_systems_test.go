@@ -1081,7 +1081,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 	c.Assert(sys, check.DeepEquals, sd)
 }
 
-func (s *systemsSuite) TestSystemInstallActionFinishCallsDevicestate2(c *check.C) {
+func (s *systemsSuite) TestSystemInstallActionFinishCallsDevicestate(c *check.C) {
 	d := s.daemon(c)
 	st := d.Overlord().State()
 
@@ -1095,10 +1095,10 @@ func (s *systemsSuite) TestSystemInstallActionFinishCallsDevicestate2(c *check.C
 	var gotOnVolumes map[string]*gadget.Volume
 	var gotLabel string
 	var gotOptionalInstall devicestate.OptionalInstall
-	r := daemon.MockDevicestateInstallFinish(func(st *state.State, label string, onVolumes map[string]*gadget.Volume, optionalInstall devicestate.OptionalInstall) (*state.Change, error) {
+	r := daemon.MockDevicestateInstallFinish(func(st *state.State, label string, onVolumes map[string]*gadget.Volume, optionalInstall *devicestate.OptionalInstall) (*state.Change, error) {
 		gotLabel = label
 		gotOnVolumes = onVolumes
-		gotOptionalInstall = optionalInstall
+		gotOptionalInstall = *optionalInstall
 		nCalls++
 		return st.NewChange("foo", "..."), nil
 	})

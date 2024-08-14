@@ -1909,7 +1909,7 @@ func extractSnapSetupTaskIDs(tss []*state.TaskSet) ([]string, error) {
 // InstallFinish creates a change that will finish the install for the given
 // label and volumes. This includes writing missing volume content, seting
 // up the bootloader and installing the kernel.
-func InstallFinish(st *state.State, label string, onVolumes map[string]*gadget.Volume, optionalInstall OptionalInstall) (*state.Change, error) {
+func InstallFinish(st *state.State, label string, onVolumes map[string]*gadget.Volume, optionalInstall *OptionalInstall) (*state.Change, error) {
 	if label == "" {
 		return nil, fmt.Errorf("cannot finish install with an empty system label")
 	}

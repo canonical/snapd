@@ -412,6 +412,5 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 				},
 			},
 		},
-		"optional-install": map[string]interface{}{},
 	})
 }
