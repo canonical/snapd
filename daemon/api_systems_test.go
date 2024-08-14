@@ -1115,8 +1115,8 @@ func (s *systemsSuite) TestSystemInstallActionFinishCallsDevicestate(c *check.C)
 		"optional-install": map[string]interface{}{
 			"snaps": []string{"snap1", "snap2"},
 			"components": map[string][]string{
-				"snap1": []string{"comp1"},
-				"snap2": []string{"comp2"},
+				"snap1": {"comp1"},
+				"snap2": {"comp2"},
 			},
 		},
 	}
@@ -1143,8 +1143,8 @@ func (s *systemsSuite) TestSystemInstallActionFinishCallsDevicestate(c *check.C)
 	c.Check(gotOptionalInstall, check.DeepEquals, devicestate.OptionalInstall{
 		Snaps: []string{"snap1", "snap2"},
 		Components: map[string][]string{
-			"snap1": []string{"comp1"},
-			"snap2": []string{"comp2"},
+			"snap1": {"comp1"},
+			"snap2": {"comp2"},
 		},
 	})
 

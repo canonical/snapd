@@ -2480,8 +2480,8 @@ func (s *installStepSuite) TestDeviceManagerInstallFinishTasksAndChange(c *C) {
 	optionalInstall := &devicestate.OptionalInstall{
 		Snaps: []string{"snap1", "snap2"},
 		Components: map[string][]string{
-			"snap1": []string{"component1"},
-			"snap2": []string{"component2"},
+			"snap1": {"component1"},
+			"snap2": {"component2"},
 		},
 	}
 
