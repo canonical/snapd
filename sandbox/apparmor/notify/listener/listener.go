@@ -440,10 +440,12 @@ func (l *Listener) waitAndRespondAaClassFile(req *Request, msg *notify.MsgNotifi
 		allow = false
 	}
 	if allow {
-		// allow permissions which kernel initially allowed, along with those
+		// Allow permissions which AppArmor initially allowed, along with those
 		// which the were initially denied but the user explicitly allowed.
+		// Any permissions which are omitted from both the allow and deny
+		// fields will be automatically denied by the kernel.
 		resp.Allow = msg.Allow | (uint32(perms) & msg.Deny)
-		resp.Deny = 0
+		resp.Deny = 0 // TODO: switch to equivalent but clearer ~uint32(perms) & msg.Deny
 		resp.Error = 0
 	} else {
 		resp.Allow = msg.Allow
