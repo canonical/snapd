@@ -844,7 +844,8 @@ jobs:
               done
           fi
           echo RUN_TESTS="$RUN_TESTS"  >> $GITHUB_ENV
-          echo SUGGESTED_TESTS="$SUGGESTED_TESTS"
+          echo "Suggested tests by spread-filter tool"
+          echo "$SUGGESTED_TESTS"
 
     - name: Setup grafana parameters
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
