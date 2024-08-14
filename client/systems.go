@@ -185,7 +185,13 @@ type SystemDetails struct {
 	// Volumes contains the volumes defined from the gadget snap
 	Volumes map[string]*gadget.Volume `json:"volumes,omitempty"`
 
-	StorageEncryption *StorageEncryption `json:"storage-encryption,omitempty"`
+	StorageEncryption *StorageEncryption  `json:"storage-encryption,omitempty"`
+	AvailableOptional availableForInstall `json:"available-optional,omitempty"`
+}
+
+type availableForInstall struct {
+	Snaps      []string            `json:"snaps,omitempty"`
+	Components map[string][]string `json:"components,omitempty"`
 }
 
 func (client *Client) SystemDetails(systemLabel string) (*SystemDetails, error) {
@@ -220,7 +226,8 @@ type InstallSystemOptions struct {
 
 	// OnVolumes is the volume description of the volumes that the
 	// given step should operate on.
-	OnVolumes map[string]*gadget.Volume `json:"on-volumes,omitempty"`
+	OnVolumes       map[string]*gadget.Volume `json:"on-volumes,omitempty"`
+	OptionalInstall availableForInstall       `json:"optional-install,omitempty"`
 }
 
 // InstallSystem will perform the given install step for the given volumes

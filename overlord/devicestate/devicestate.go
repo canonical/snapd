@@ -1909,7 +1909,7 @@ func extractSnapSetupTaskIDs(tss []*state.TaskSet) ([]string, error) {
 // InstallFinish creates a change that will finish the install for the given
 // label and volumes. This includes writing missing volume content, seting
 // up the bootloader and installing the kernel.
-func InstallFinish(st *state.State, label string, onVolumes map[string]*gadget.Volume) (*state.Change, error) {
+func InstallFinish(st *state.State, label string, onVolumes map[string]*gadget.Volume, optionalInstall OptionalInstall) (*state.Change, error) {
 	if label == "" {
 		return nil, fmt.Errorf("cannot finish install with an empty system label")
 	}
@@ -1921,9 +1921,15 @@ func InstallFinish(st *state.State, label string, onVolumes map[string]*gadget.V
 	finishTask := st.NewTask("install-finish", fmt.Sprintf("Finish setup of run system for %q", label))
 	finishTask.Set("system-label", label)
 	finishTask.Set("on-volumes", onVolumes)
+	finishTask.Set("optional-install", optionalInstall)
 	chg.AddTask(finishTask)
 
 	return chg, nil
+}
+
+type OptionalInstall struct {
+	Snaps      []string            `json:"snaps,omitempty"`
+	Components map[string][]string `json:"components,omitempty"`
 }
 
 // InstallSetupStorageEncryption creates a change that will setup the
