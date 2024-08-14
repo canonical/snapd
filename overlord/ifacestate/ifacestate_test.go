@@ -370,7 +370,7 @@ func (s *interfaceManagerSuite) TestSmoke(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingEnabled(c *C) {
-	restore := ifacestate.MockUseAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
+	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
 		return true
 	})
 	defer restore()
@@ -399,7 +399,7 @@ func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingEnabled(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingDisabled(c *C) {
-	restore := ifacestate.MockUseAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
+	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
 		return false
 	})
 	defer restore()
@@ -6978,7 +6978,7 @@ func (s *interfaceManagerSuite) TestConnectHandlesAutoconnect(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestInitInterfacesRequestsManagerError(c *C) {
-	restore := ifacestate.MockUseAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
+	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
 		return true
 	})
 	defer restore()
@@ -7004,7 +7004,7 @@ func (s *interfaceManagerSuite) TestInitInterfacesRequestsManagerError(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestStopInterfacesRequestsManagerError(c *C) {
-	restore := ifacestate.MockUseAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
+	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
 		return true
 	})
 	defer restore()
@@ -7027,7 +7027,7 @@ func (s *interfaceManagerSuite) TestStopInterfacesRequestsManagerError(c *C) {
 
 	mgr.Stop()
 
-	c.Check(fmt.Errorf("%v", strings.TrimSpace(logbuf.String())), ErrorMatches, fmt.Sprintf(".*%v", fakeError))
+	c.Check(logbuf.String(), testutil.Contains, " Cannot stop prompting: custom error")
 
 	c.Assert(mgr.InterfacesRequestsManager(), IsNil)
 }

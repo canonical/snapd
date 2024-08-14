@@ -27,27 +27,19 @@ import (
 )
 
 func MockListenerRegister(f func() (*listener.Listener, error)) (restore func()) {
-	restore = testutil.Backup(&listenerRegister)
-	listenerRegister = f
-	return restore
+	return testutil.Mock(&listenerRegister, f)
 }
 
 func MockListenerRun(f func(l *listener.Listener) error) (restore func()) {
-	restore = testutil.Backup(&listenerRun)
-	listenerRun = f
-	return restore
+	return testutil.Mock(&listenerRun, f)
 }
 
 func MockListenerReqs(f func(l *listener.Listener) <-chan *listener.Request) (restore func()) {
-	restore = testutil.Backup(&listenerRun)
-	listenerReqs = f
-	return restore
+	return testutil.Mock(&listenerReqs, f)
 }
 
 func MockListenerClose(f func(l *listener.Listener) error) (restore func()) {
-	restore = testutil.Backup(&listenerClose)
-	listenerClose = f
-	return restore
+	return testutil.Mock(&listenerClose, f)
 }
 
 type RequestResponse struct {

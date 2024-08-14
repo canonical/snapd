@@ -130,27 +130,15 @@ func MockCreateUDevMonitor(new func(udevmonitor.DeviceAddedFunc, udevmonitor.Dev
 }
 
 func MockCreateInterfacesRequestsManager(new func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error)) (restore func()) {
-	old := createInterfacesRequestsManager
-	createInterfacesRequestsManager = new
-	return func() {
-		createInterfacesRequestsManager = old
-	}
+	return testutil.Mock(&createInterfacesRequestsManager, new)
 }
 
 func MockInterfacesRequestsManagerStop(new func(m *apparmorprompting.InterfacesRequestsManager) error) (restore func()) {
-	old := interfacesRequestsManagerStop
-	interfacesRequestsManagerStop = new
-	return func() {
-		interfacesRequestsManagerStop = old
-	}
+	return testutil.Mock(&interfacesRequestsManagerStop, new)
 }
 
 func MockUseAppArmorPrompting(new func(m *InterfaceManager) bool) (restore func()) {
-	old := useAppArmorPrompting
-	useAppArmorPrompting = new
-	return func() {
-		useAppArmorPrompting = old
-	}
+	return testutil.Mock(&useAppArmorPrompting, new)
 }
 
 func MockUDevInitRetryTimeout(t time.Duration) (restore func()) {
