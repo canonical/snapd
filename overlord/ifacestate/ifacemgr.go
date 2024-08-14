@@ -139,6 +139,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 }
 
 // AppArmorPromptingRunning returns true if prompting is running.
+// This method may only be called after StartUp has been called on the manager.
 func (m *InterfaceManager) AppArmorPromptingRunning() bool {
 	return m.useAppArmorPrompting
 }
@@ -148,6 +149,9 @@ var assessAppArmorPrompting = func(m *InterfaceManager) bool {
 	return m.assesAppArmorPrompting()
 }
 
+// InterfacesRequestsManager returns the interfaces requests manager associated
+// with the receiver. This method may only be called after StartUp has been
+// called, and will return nil if AppArmor prompting is not running.
 func (m *InterfaceManager) InterfacesRequestsManager() *apparmorprompting.InterfacesRequestsManager {
 	return m.interfacesRequestsManager
 }
@@ -159,6 +163,12 @@ func (m *InterfaceManager) StartUp() error {
 
 	s.Lock()
 	defer s.Unlock()
+
+	// Check whether AppArmor prompting is supported and enabled. It is fine to
+	// do this once, as toggling the feature imposes a restart of snapd.
+	if assessAppArmorPrompting(m) {
+		m.useAppArmorPrompting = true
+	}
 
 	appSets, err := snapsWithSecurityProfiles(m.state)
 	if err != nil {
@@ -190,11 +200,7 @@ func (m *InterfaceManager) StartUp() error {
 		return err
 	}
 
-	// check whether AppArmor prompting is supported, it is fine to do it
-	// once as toggling the feature imposes a restart of snapd
-	if assessAppArmorPrompting(m) {
-		m.useAppArmorPrompting = true
-
+	if m.useAppArmorPrompting {
 		if err := m.initInterfacesRequestsManager(); err != nil {
 			// TODO: if this fails, set useAppArmorPromptingValue to false ?
 			// If this is done before profilesNeedRegeneration, then profiles will only
