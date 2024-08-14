@@ -1,0 +1,42 @@
+summary: Ensure that the remove --terminate flag kills running snap apps.
+
+details: |
+    This test spawns a snap app background process and checks that it
+    gets terminated when removing with the --terminate flag.
+
+systems:
+    # Ubuntu 14.04's special version of systemd doesn't have StartTransientUnit API.
+    - -ubuntu-14.04-*
+
+prepare: |
+    snap install test-snapd-sh
+
+    # TODO: Discard api-client when --terminate flag is added to remove command
+    "$TESTSTOOLS"/snaps-state install-local api-client
+    snap connect api-client:snapd-control
+
+restore: |
+    snap remove --purge api-client
+
+    systemctl stop test-kill.service || true
+    systemctl reset-failed test-kill.service || true
+
+execute: |
+    echo "Start a long running process"
+    lockfile="$(pwd)/lockfile"
+    touch "$lockfile"
+    sh_snap_bin="$(command -v test-snapd-sh.sh)"
+    systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c "sleep 100000"
+    # Wait for service to be up
+    retry -n 10 systemctl is-active test-kill.service
+
+    echo "Lock is held"
+    not flock --timeout 0 "$lockfile" --command "true"
+
+    echo "Remove snap with --terminate flag"
+    # TODO: Replace with "snap remove --terminate test-snapd-sh" when cli flag is added
+    api_client_bin="$(command -v api-client)"
+    sudo "$api_client_bin" --method=POST /v2/snaps/test-snapd-sh '{"action":"remove","terminate":true}'
+
+    echo "Running process should be terminated after remove change is complete and lockfile should be unlocked"
+    flock --timeout 60 "$lockfile" --command "true"
