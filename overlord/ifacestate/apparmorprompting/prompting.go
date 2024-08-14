@@ -230,13 +230,13 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 	if matchedDenyRule {
 		logger.Debugf("request denied by existing rule: %+v", req)
 
-		// At least some permissions were allowed, but others were denied.
-		// Respond with this information by allowing all the permissions which
-		// were explicitly allowed, and let the kernel auto-deny the denied
-		// permissions, and any which not matched by allow rules.
+		// Respond with this information by allowing any requested permissions
+		// which were explicitly allowed by existing rules (there may be no
+		// such permissions) and let the listener deny all permissions which
+		// were not explicitly included in the allowed permissions.
 		responsePermissions, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, satisfiedPerms)
 		// Error should not occur, but if it does, responsePermissions are set
-		// to none, leaving it to AppArmor to default deny.
+		// to none, leaving it to the listener to default deny all permissions.
 		response := listener.Response{
 			Allow:      true,
 			Permission: responsePermissions,
@@ -250,11 +250,12 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		// We don't want to just send back req.Permission() here, since that
 		// could include unrecognized permissions which were discarded, and
 		// were not matched by an existing rule. So only respond with the
-		// permissions which were matched and allowed, the kernel will
-		// auto-deny any which are not included.
+		// permissions which were matched and allowed, the listener will
+		// deny any permissions which were not explicitly included in the
+		// allowed permissions.
 		responsePermissions, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, satisfiedPerms)
 		// Error should not occur, but if it does, responsePermissions are set
-		// to none, leaving it to AppArmor to default deny.
+		// to none, leaving it to the listener to default deny all permissions.
 
 		response := listener.Response{
 			Allow:      true,
@@ -277,10 +278,10 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 
 		// We weren't able to create a new prompt, so respond with the best
 		// information we have, which is to allow any permissions which were
-		// automatically allowed by existing rules, and auto-deny the rest.
+		// allowed by existing rules, and let the listener deny the rest.
 		responsePermissions, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, satisfiedPerms)
 		// Error should not occur, but if it does, responsePermissions are set
-		// to none, leaving it to AppArmor to default deny.
+		// to none, leaving it to the listener to default deny all permissions.
 		response := listener.Response{
 			Allow:      true,
 			Permission: responsePermissions,
