@@ -38,31 +38,31 @@ var (
 	requestsPromptsCmd = &Command{
 		Path:       "/v2/interfaces/requests/prompts",
 		GET:        getPrompts,
-		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-prompting-control"}},
+		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
 	}
 
 	requestsPromptCmd = &Command{
 		Path:        "/v2/interfaces/requests/prompts/{id}",
 		GET:         getPrompt,
 		POST:        postPrompt,
-		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-prompting-control"}},
-		WriteAccess: interfaceOpenAccess{Interfaces: []string{"snap-prompting-control"}},
+		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
+		WriteAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
 	}
 
 	requestsRulesCmd = &Command{
 		Path:        "/v2/interfaces/requests/rules",
 		GET:         getRules,
 		POST:        postRules,
-		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-prompting-control"}},
-		WriteAccess: interfaceAuthenticatedAccess{Interfaces: []string{"snap-prompting-control"}, Polkit: polkitActionManage},
+		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
+		WriteAccess: interfaceAuthenticatedAccess{Interfaces: []string{"snap-interfaces-requests-control"}, Polkit: polkitActionManage},
 	}
 
 	requestsRuleCmd = &Command{
 		Path:        "/v2/interfaces/requests/rules/{id}",
 		GET:         getRule,
 		POST:        postRule,
-		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-prompting-control"}},
-		WriteAccess: interfaceAuthenticatedAccess{Interfaces: []string{"snap-prompting-control"}, Polkit: polkitActionManage},
+		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
+		WriteAccess: interfaceAuthenticatedAccess{Interfaces: []string{"snap-interfaces-requests-control"}, Polkit: polkitActionManage},
 	}
 )
 
