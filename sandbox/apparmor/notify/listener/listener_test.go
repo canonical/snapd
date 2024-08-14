@@ -286,12 +286,12 @@ func (*listenerSuite) TestRunSimple(c *C) {
 
 		select {
 		case req := <-l.Reqs():
-			c.Assert(req.PID(), Equals, msg.Pid)
-			c.Assert(req.Label(), Equals, label)
-			c.Assert(req.SubjectUID(), Equals, msg.SUID)
-			c.Assert(req.Path(), Equals, path)
-			c.Assert(req.Class(), Equals, notify.AA_CLASS_FILE)
-			perm, ok := req.Permission().(notify.FilePermission)
+			c.Assert(req.PID, Equals, msg.Pid)
+			c.Assert(req.Label, Equals, label)
+			c.Assert(req.SubjectUID, Equals, msg.SUID)
+			c.Assert(req.Path, Equals, path)
+			c.Assert(req.Class, Equals, notify.AA_CLASS_FILE)
+			perm, ok := req.Permission.(notify.FilePermission)
 			c.Assert(ok, Equals, true)
 			c.Assert(perm, Equals, notify.FilePermission(dBits))
 			requests = append(requests, req)
@@ -374,7 +374,7 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 	select {
 	case req, ok := <-l.Reqs():
 		c.Assert(ok, Equals, true)
-		c.Assert(req.Path(), Equals, path)
+		c.Assert(req.Path, Equals, path)
 	case <-l.Dying():
 		c.Fatalf("listener encountered unexpected error: %v", l.Err())
 	case <-timer.C:
@@ -421,7 +421,7 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 		timer := time.NewTimer(100 * time.Millisecond)
 		select {
 		case req := <-l.Reqs():
-			c.Assert(req.Path(), DeepEquals, path)
+			c.Assert(req.Path, DeepEquals, path)
 		case <-l.Dying():
 			c.Fatalf("listener encountered unexpected error during request %d: %v", i, l.Err())
 		case <-timer.C:
@@ -482,7 +482,7 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 	requestTimer := time.NewTimer(time.Second)
 	select {
 	case req := <-l.Reqs():
-		c.Assert(req.Path(), Equals, path)
+		c.Assert(req.Path, Equals, path)
 	case <-l.Dying():
 		c.Fatalf("listener encountered unexpected error: %v", l.Err())
 	case <-requestTimer.C:
@@ -638,6 +638,8 @@ func newMsgNotificationResponse(id uint64, allow, deny uint32) *notify.MsgNotifi
 }
 
 func (*listenerSuite) TestRunErrors(c *C) {
+	listener.ExitOnError()
+
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
@@ -701,6 +703,8 @@ func (*listenerSuite) TestRunErrors(c *C) {
 		select {
 		case r := <-l.Reqs():
 			c.Check(r, IsNil, Commentf("should not have received non-nil request; expected error: %v", testCase.err))
+		case <-time.NewTimer(time.Second).C:
+			c.Error("done waiting for expected error", testCase.err)
 		case <-t.Dying():
 		}
 		err = t.Wait()

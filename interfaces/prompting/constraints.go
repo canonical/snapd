@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -198,7 +199,7 @@ func AbstractPermissionsFromAppArmorPermissions(iface string, permissions any) (
 		}
 	}
 	if filePerms != notify.FilePermission(0) {
-		return nil, fmt.Errorf("cannot map AppArmor permission to abstract permission for the %s interface: %q", iface, filePerms)
+		logger.Noticef("cannot map AppArmor permission to abstract permission for the %s interface: %q", iface, filePerms)
 	}
 	return abstractPerms, nil
 }

@@ -68,19 +68,20 @@ type Response struct {
 //
 // Each request must be replied to by writing a boolean to the YesNo channel.
 type Request struct {
-	// pid is the identifier of the process which triggered the request.
-	pid uint32
-	// label is the apparmor label on the process which triggered the request.
-	label string
-	// subjectUID is the UID of the subject which triggered the request.
-	subjectUID uint32
+	// PID is the identifier of the process which triggered the request.
+	PID uint32
+	// Label is the apparmor label on the process which triggered the request.
+	Label string
+	// SubjectUID is the UID of the subject which triggered the request.
+	SubjectUID uint32
 
-	// path is the path of the file, as seen by the process triggering the request.
-	path string
-	// class is the mediation class corresponding to this request.
-	class notify.MediationClass
-	// permission is the opaque permission that is being requested.
-	permission any
+	// Path is the path of the file, as seen by the process triggering the request.
+	Path string
+	// Class is the mediation class corresponding to this request.
+	Class notify.MediationClass
+	// Permission is the opaque permission that is being requested.
+	Permission any
+
 	// replyChan is a channel for writing the response.
 	replyChan chan *Response
 	// replied indicates whether a reply has already been sent for this request.
@@ -100,46 +101,16 @@ func newRequest(msg *notify.MsgNotificationFile) (*Request, error) {
 		return nil, fmt.Errorf("unsupported mediation class: %v", msg.Class)
 	}
 	return &Request{
-		pid:        msg.Pid,
-		label:      msg.Label,
-		subjectUID: msg.SUID,
+		PID:        msg.Pid,
+		Label:      msg.Label,
+		SubjectUID: msg.SUID,
 
-		path:       msg.Name,
-		class:      msg.Class,
-		permission: perm,
+		Path:       msg.Name,
+		Class:      msg.Class,
+		Permission: perm,
 
 		replyChan: make(chan *Response, 1),
 	}, nil
-}
-
-// PID returns the PID of the process which triggered the request.
-func (r *Request) PID() uint32 {
-	return r.pid
-}
-
-// Label returns the apparmor label on the process which triggered the request.
-func (r *Request) Label() string {
-	return r.label
-}
-
-// SubjectUID returns the UID of the subject which triggered the request.
-func (r *Request) SubjectUID() uint32 {
-	return r.subjectUID
-}
-
-// Path is the path of the file, as seen by the process which triggered the request.
-func (r *Request) Path() string {
-	return r.path
-}
-
-// Class is the mediation class corresponding to this request.
-func (r *Request) Class() notify.MediationClass {
-	return r.class
-}
-
-// Permission returns the opaque permission that is being requested.
-func (r *Request) Permission() any {
-	return r.permission
 }
 
 // Reply sends the given response back to the kernel.
@@ -148,15 +119,15 @@ func (r *Request) Reply(response *Response) error {
 		return ErrAlreadyReplied
 	}
 	var ok bool
-	switch r.Class() {
+	switch r.Class {
 	case notify.AA_CLASS_FILE:
 		_, ok = response.Permission.(notify.FilePermission)
 	default:
 		// should not occur, since the request was created in this package
-		return fmt.Errorf("internal error: unsupported mediation class: %v", r.Class())
+		return fmt.Errorf("internal error: unsupported mediation class: %v", r.Class)
 	}
 	if !ok {
-		expectedType := expectedResponseTypeForClass(r.Class())
+		expectedType := expectedResponseTypeForClass(r.Class)
 		return fmt.Errorf("invalid reply: response permission must be of type %s", expectedType)
 	}
 	r.replyChan <- response
@@ -299,6 +270,10 @@ func (l *Listener) Reqs() <-chan *Request {
 	return l.reqs
 }
 
+// Allow tests to kill the listener instead of logging errors so that tests
+// don't have race condition failures.
+var exitOnError = false
+
 // Run reads and dispatches kernel requests until the listener is closed.
 //
 // Run should only be called once per listener object. If called more than once,
@@ -323,18 +298,23 @@ func (l *Listener) Run() error {
 	// is called) return and close the tomb's dead channel, as it is the last
 	// and only tracked goroutine.
 	l.tomb.Go(func() error {
-		var err error
 		for {
-			err = l.tomb.Err()
-			if err != tomb.ErrStillAlive {
+			if err := l.tomb.Err(); err != tomb.ErrStillAlive {
+				// Do not log error here, as the only error from outside of
+				// runOnce should be when listener was deliberately closed,
+				// and we don't want a log message for that.
 				break
 			}
-			err = l.runOnce()
+			err := l.runOnce()
 			if err != nil {
-				break
+				if exitOnError {
+					return err
+				} else {
+					logger.Noticef("error in prompting listener run loop: %v", err)
+				}
 			}
 		}
-		return err
+		return nil
 	})
 	// Wait for an error to occur or the listener to be explicitly closed.
 	<-l.tomb.Dying()
@@ -419,7 +399,7 @@ func (l *Listener) handleRequestAaClassFile(buf []byte) error {
 	if err := fmsg.UnmarshalBinary(buf); err != nil {
 		return err
 	}
-	logger.Debugf("Received access request from the kernel: %+v", fmsg)
+	logger.Debugf("received prompt request from the kernel: %+v", fmsg)
 	req, err := newRequest(&fmsg)
 	if err != nil {
 		return err
@@ -431,7 +411,11 @@ func (l *Listener) handleRequestAaClassFile(buf []byte) error {
 		return l.tomb.Err()
 	}
 	l.tomb.Go(func() error {
-		return l.waitAndRespondAaClassFile(req, &fmsg)
+		err := l.waitAndRespondAaClassFile(req, &fmsg)
+		if err != nil {
+			logger.Noticef("error while responding to kernel: %v", err)
+		}
+		return nil
 	})
 	return nil
 }
@@ -445,7 +429,7 @@ func (l *Listener) waitAndRespondAaClassFile(req *Request, msg *notify.MsgNotifi
 	case response = <-req.replyChan:
 		break
 	case <-l.tomb.Dying():
-		// don't bother sending deny response, kernel will handle this
+		// don't bother sending deny response, kernel will auto-deny if needed
 		return nil
 	}
 	allow := response.Allow
@@ -456,10 +440,12 @@ func (l *Listener) waitAndRespondAaClassFile(req *Request, msg *notify.MsgNotifi
 		allow = false
 	}
 	if allow {
-		// allow permissions which kernel initially allowed, along with those
+		// Allow permissions which AppArmor initially allowed, along with those
 		// which the were initially denied but the user explicitly allowed.
+		// Any permissions which are omitted from both the allow and deny
+		// fields will be automatically denied by the kernel.
 		resp.Allow = msg.Allow | (uint32(perms) & msg.Deny)
-		resp.Deny = 0
+		resp.Deny = 0 // TODO: switch to equivalent but clearer ~uint32(perms) & msg.Deny
 		resp.Error = 0
 	} else {
 		resp.Allow = msg.Allow
@@ -468,7 +454,7 @@ func (l *Listener) waitAndRespondAaClassFile(req *Request, msg *notify.MsgNotifi
 		// msg.Error is field from MsgNotificationResponse, and is unused.
 		// msg.MsgNotification.Error is also ignored in responses.
 	}
-	logger.Debugf("Sending access response back to the kernel: %+v", resp)
+	logger.Debugf("sending request response back to the kernel: %+v", resp)
 	return l.encodeAndSendResponse(&resp)
 }
 

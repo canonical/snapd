@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -295,6 +296,17 @@ slots:
 		// pretend the snapd.apparmor.service is enabled
 		return false
 	}))
+
+	s.BaseTest.AddCleanup(ifacestate.MockCreateInterfacesRequestsManager(fakeCreateInterfacesRequestsManager))
+	s.BaseTest.AddCleanup(ifacestate.MockInterfacesRequestsManagerStop(fakeInterfacesRequestsManagerStop))
+}
+
+var fakeCreateInterfacesRequestsManager = func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+	return nil, nil
+}
+
+var fakeInterfacesRequestsManagerStop = func(m *apparmorprompting.InterfacesRequestsManager) error {
+	return nil
 }
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
@@ -355,6 +367,62 @@ func (s *interfaceManagerSuite) TestSmoke(c *C) {
 	s.manager(c)
 	s.se.Ensure()
 	s.se.Wait()
+}
+
+func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingEnabled(c *C) {
+	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
+		return true
+	})
+	defer restore()
+	createCount := 0
+	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+		createCount++
+		return fakeManager, nil
+	})
+	defer restore()
+	stopCount := 0
+	restore = ifacestate.MockInterfacesRequestsManagerStop(func(m *apparmorprompting.InterfacesRequestsManager) error {
+		stopCount++
+		return nil
+	})
+	defer restore()
+
+	mgr := s.manager(c)
+	c.Check(createCount, Equals, 1)
+	c.Check(mgr.AppArmorPromptingRunning(), Equals, true)
+	c.Check(mgr.InterfacesRequestsManager(), Equals, fakeManager)
+	c.Check(stopCount, Equals, 0)
+	mgr.Stop()
+	c.Check(stopCount, Equals, 1)
+	c.Check(mgr.InterfacesRequestsManager(), IsNil)
+}
+
+func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingDisabled(c *C) {
+	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
+		return false
+	})
+	defer restore()
+	createCount := 0
+	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+		createCount++
+		return fakeManager, fmt.Errorf("should not have been called")
+	})
+	defer restore()
+	stopCount := 0
+	restore = ifacestate.MockInterfacesRequestsManagerStop(func(m *apparmorprompting.InterfacesRequestsManager) error {
+		stopCount++
+		return nil
+	})
+	defer restore()
+
+	mgr := s.manager(c)
+	c.Check(createCount, Equals, 0)
+	c.Check(mgr.AppArmorPromptingRunning(), Equals, false)
+	c.Check(mgr.InterfacesRequestsManager(), IsNil)
+	mgr.Stop()
+	c.Check(stopCount, Equals, 0)
 }
 
 func (s *interfaceManagerSuite) TestRepoAvailable(c *C) {
@@ -6907,6 +6975,61 @@ func (s *interfaceManagerSuite) TestConnectHandlesAutoconnect(c *C) {
 			},
 		},
 	})
+}
+
+func (s *interfaceManagerSuite) TestInitInterfacesRequestsManagerError(c *C) {
+	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
+		return true
+	})
+	defer restore()
+
+	createError := fmt.Errorf("custom error")
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+		return nil, createError
+	})
+	defer restore()
+
+	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	err = mgr.StartUp()
+	c.Check(err, IsNil)
+
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("%v", createError))
+	})
+}
+
+func (s *interfaceManagerSuite) TestStopInterfacesRequestsManagerError(c *C) {
+	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
+		return true
+	})
+	defer restore()
+	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+		return fakeManager, nil
+	})
+	defer restore()
+	fakeError := fmt.Errorf("custom error")
+	restore = ifacestate.MockInterfacesRequestsManagerStop(func(m *apparmorprompting.InterfacesRequestsManager) error {
+		return fakeError
+	})
+	defer restore()
+
+	mgr := s.manager(c)
+	c.Check(mgr.InterfacesRequestsManager(), Equals, fakeManager)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	mgr.Stop()
+
+	c.Check(logbuf.String(), testutil.Contains, " Cannot stop prompting: custom error")
+
+	c.Assert(mgr.InterfacesRequestsManager(), IsNil)
 }
 
 func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKeyFile(c *C) {

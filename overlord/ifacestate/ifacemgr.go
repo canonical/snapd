@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -63,10 +64,10 @@ type InterfaceManager struct {
 	extraInterfaces []interfaces.Interface
 	extraBackends   []interfaces.SecurityBackend
 
-	// AppArmor Prompting -- these values should never be used directly.
-	// Always check useAppArmorPrompting().
-	useAppArmorPromptingValue   bool
-	useAppArmorPromptingChecker sync.Once
+	// AppArmor Prompting
+	useAppArmorPrompting        bool
+	interfacesRequestsManagerMu sync.Mutex
+	interfacesRequestsManager   *apparmorprompting.InterfacesRequestsManager
 
 	preseed bool
 }
@@ -137,6 +138,24 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	return m, nil
 }
 
+// AppArmorPromptingRunning returns true if prompting is running.
+// This method may only be called after StartUp has been called on the manager.
+func (m *InterfaceManager) AppArmorPromptingRunning() bool {
+	return m.useAppArmorPrompting
+}
+
+// Allow m.UseAppArmorPrompting to be mocked in tests
+var assessAppArmorPrompting = func(m *InterfaceManager) bool {
+	return m.assesAppArmorPrompting()
+}
+
+// InterfacesRequestsManager returns the interfaces requests manager associated
+// with the receiver. This method may only be called after StartUp has been
+// called, and will return nil if AppArmor prompting is not running.
+func (m *InterfaceManager) InterfacesRequestsManager() *apparmorprompting.InterfacesRequestsManager {
+	return m.interfacesRequestsManager
+}
+
 // StartUp implements StateStarterUp.Startup.
 func (m *InterfaceManager) StartUp() error {
 	s := m.state
@@ -144,6 +163,12 @@ func (m *InterfaceManager) StartUp() error {
 
 	s.Lock()
 	defer s.Unlock()
+
+	// Check whether AppArmor prompting is supported and enabled. It is fine to
+	// do this once, as toggling the feature imposes a restart of snapd.
+	if assessAppArmorPrompting(m) {
+		m.useAppArmorPrompting = true
+	}
 
 	appSets, err := snapsWithSecurityProfiles(m.state)
 	if err != nil {
@@ -173,6 +198,17 @@ func (m *InterfaceManager) StartUp() error {
 	}
 	if _, err := m.reloadConnections(""); err != nil {
 		return err
+	}
+
+	if m.useAppArmorPrompting {
+		if err := m.initInterfacesRequestsManager(); err != nil {
+			// TODO: if this fails, set useAppArmorPromptingValue to false ?
+			// If this is done before profilesNeedRegeneration, then profiles will only
+			// be regenerated if prompting is newly supported and the backends were
+			// successfully created.
+			// TODO: also set "apparmor-prompting" flag to false?
+			logger.Noticef("failed to start interfaces requests manager: %v", err)
+		}
 	}
 	if m.profilesNeedRegeneration() {
 		if err := m.regenerateAllSecurityProfiles(perfTimings); err != nil {
@@ -229,9 +265,14 @@ func (m *InterfaceManager) Ensure() error {
 	return nil
 }
 
-// Stop implements StateStopper. It stops the udev monitor,
+// Stop implements StateStopper. It stops the udev monitor and prompting,
 // if running.
 func (m *InterfaceManager) Stop() {
+	m.stopUDevMon()
+	m.stopInterfacesRequestsManager()
+}
+
+func (m *InterfaceManager) stopUDevMon() {
 	m.udevMonMu.Lock()
 	udevMon := m.udevMon
 	m.udevMonMu.Unlock()
@@ -244,6 +285,26 @@ func (m *InterfaceManager) Stop() {
 	m.udevMonMu.Lock()
 	defer m.udevMonMu.Unlock()
 	m.udevMon = nil
+}
+
+var interfacesRequestsManagerStop = func(interfacesRequestsManager *apparmorprompting.InterfacesRequestsManager) error {
+	return interfacesRequestsManager.Stop()
+}
+
+func (m *InterfaceManager) stopInterfacesRequestsManager() {
+	m.interfacesRequestsManagerMu.Lock()
+	defer m.interfacesRequestsManagerMu.Unlock()
+	// May as well hold the interfacesRequestsManager lock while stopping prompting, so that
+	// we don't try to use or overwrite this prompting instance while it is
+	// stopping.
+	interfacesRequestsManager := m.interfacesRequestsManager
+	m.interfacesRequestsManager = nil
+	if interfacesRequestsManager == nil {
+		return
+	}
+	if err := interfacesRequestsManagerStop(interfacesRequestsManager); err != nil {
+		logger.Noticef("Cannot stop prompting: %s", err)
+	}
 }
 
 // Repository returns the interface repository used internally by the manager.
@@ -453,8 +514,9 @@ func (m *InterfaceManager) DisableUDevMonitor() {
 }
 
 var (
-	udevInitRetryTimeout = time.Minute * 5
-	createUDevMonitor    = udevmonitor.New
+	udevInitRetryTimeout            = time.Minute * 5
+	createUDevMonitor               = udevmonitor.New
+	createInterfacesRequestsManager = apparmorprompting.New
 )
 
 func (m *InterfaceManager) initUDevMonitor() error {
@@ -469,6 +531,19 @@ func (m *InterfaceManager) initUDevMonitor() error {
 	m.udevMonMu.Lock()
 	defer m.udevMonMu.Unlock()
 	m.udevMon = mon
+	return nil
+}
+
+// initInterfacesRequestsManager should only be called if prompting is
+// supported and enabled.
+func (m *InterfaceManager) initInterfacesRequestsManager() error {
+	m.interfacesRequestsManagerMu.Lock()
+	defer m.interfacesRequestsManagerMu.Unlock()
+	interfacesRequestsManager, err := createInterfacesRequestsManager(m.state)
+	if err != nil {
+		return err
+	}
+	m.interfacesRequestsManager = interfacesRequestsManager
 	return nil
 }
 
