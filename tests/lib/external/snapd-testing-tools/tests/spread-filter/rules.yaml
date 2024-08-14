@@ -1,0 +1,33 @@
+rules:
+  tests:
+    from:
+      - tests/main/.*
+      - tests/core/.*
+      - tests/nested/.*
+      - tests/completion/.*
+      - tests/cross/.*
+      - tests/perf/.*
+      - tests/regression/.*
+      - tests/smoke/.
+      - tests/unit/.*
+      - tests/upgrade/.*
+    to: [$SELF]
+
+  nested:
+    from: [tests/lib/nested.sh]
+    to: [tests/nested/]
+
+  unit:
+    from: [.*_test.go]
+    to:
+     - tests/unit/go
+     - tests/unit/c-unit-tests-clang
+     - tests/unit/c-unit-tests-gcc
+
+  docs:
+    from: [.*.md]
+    to: [$NONE]
+
+  rest:
+    from: [.*]
+    to: [tests/]

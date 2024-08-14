@@ -1,0 +1,91 @@
+summary: test for the spread-filter utility
+
+details: |
+    Check that the spread-filter utility properly retrieves the list of tests
+    to execute, following the rules defined for the project and based on a
+    set of changes.
+
+backends: [google]
+
+systems: [ubuntu-22.04-64]
+
+execute: |
+    spread-filter --help | MATCH 'usage: spread-filter'
+    spread-filter -h | MATCH 'usage: spread-filter'
+
+    # Scenario: 1 test changed
+    spread-filter -r rules.yaml -p google:ubuntu-22.04-64 -c tests/main/test1/task.yaml > res
+    MATCH "^google:ubuntu-22.04-64:tests/main/test1$" < res
+
+    # Scenario: 2 tests changed
+    spread-filter -r rules.yaml -p google:ubuntu -c tests/main/test1/task.yaml -c tests/core/test1/task.yaml > res
+    MATCH "^google:ubuntu:tests/main/test1 google:ubuntu:tests/core/test1$" < res
+
+    # Scenario: 2 files on the same test dir
+    spread-filter -r rules.yaml -p google:ubuntu -c tests/core/test2/task.yaml -c tests/core/test2/otherfile.py > res
+    MATCH "^google:ubuntu:tests/core/test2$" < res
+
+    # Scenario: 2 files on the same test dir but 1 file does not exist (deleted)
+    spread-filter -r rules.yaml -p google:ubuntu -c tests/core/test2/task.yaml -c tests/core/test2/noexist > res
+    MATCH "^google:ubuntu:tests/core/test2$" < res
+
+    # Scenario: 3 files on the same test dir but 2 files are in subdir and 1 file does not exist (deleted)
+    spread-filter -r rules.yaml -p google:ubuntu -c tests/main/test2/otherfile -c tests/main/test2/snap/bin/sh -c tests/main/test2/snap/meta/noexist > res
+    MATCH "^google:ubuntu:tests/main/test2$" < res
+
+    # Scenario: 1 file and 1 subdirectory changed
+    spread-filter -r rules.yaml -p google:ubuntu -c tests/main/test2/otherfile -c tests/main/test2/snap > res
+    MATCH "^google:ubuntu:tests/main/test2$" < res
+
+    # Scenario: 1 test and other file changed (check just the big run survives)
+    spread-filter -r rules.yaml -p google:ubuntu -c tests/main/test2/task.yaml -c source/lib1/lib1 > res
+    MATCH "^google:ubuntu:tests/$" < res
+
+    # Scenario: 2 unit tests changed
+    spread-filter -r rules.yaml -p google:ubuntu -c source/lib1/lib1_test.go -c source/lib2/lib2_test.go > res
+    MATCH "^google:ubuntu:tests/unit/c-unit-tests-clang google:ubuntu:tests/unit/c-unit-tests-gcc google:ubuntu:tests/unit/go$" < res
+
+    # Scenario: 1 unit tests and 1 test changed
+    spread-filter -r rules.yaml -p google:ubuntu -c source/lib1/lib1_test.go -c tests/main/test1/noexist.go > res
+    MATCH "^google:ubuntu:tests/unit/c-unit-tests-clang google:ubuntu:tests/unit/c-unit-tests-gcc google:ubuntu:tests/main/test1 google:ubuntu:tests/unit/go$" < res
+
+    # Scenario: a doc file changed
+    spread-filter -r rules.yaml -p google:ubuntu -c README.md > res
+    test "$(wc -w < res)" -eq 0
+
+    # Scenario: a doc file which does not exist changed (deleted)
+    spread-filter -r rules.yaml -p google:ubuntu -c DELETED.md > res
+    test "$(wc -w < res)" -eq 0
+
+    # Scenario: a doc file and a the nested library changed
+    spread-filter -r rules.yaml -p google:ubuntu -c README.md -c tests/lib/nested.sh > res
+    MATCH "^google:ubuntu:tests/nested/$" < res
+    
+    # Scenario: 1 test and also another which is substring of previous one changed
+    spread-filter -r rules.yaml -p google:ubuntu -c README.md -c tests/main/test1/task.yaml -c tests/main/test1b/task.yaml > res
+    MATCH "^google:ubuntu:tests/main/test1b google:ubuntu:tests/main/test1$" < res
+
+    # Scenario: a file in the test suite but not in a test dir changed
+    spread-filter -r rules.yaml -p google:ubuntu -c tests/core/other/lib1 > res
+    test "$(wc -w < res)" -eq 0
+
+    # Scenario: the nested lib and a nested test are changed (check the test is cleaned)
+    spread-filter -r rules.yaml -p google:ubuntu -c tests/lib/nested.sh -c tests/nested/test1/task.yaml > res
+    MATCH "^google:ubuntu:tests/nested/$" < res
+
+    # Scenario: the nested lib, a source file and a nested test are changed (check just tests/ survives)
+    spread-filter -r rules.yaml -p google:ubuntu -c tests/lib/nested.sh -c source/lib1/lib1 -c tests/nested/test1/task.yaml > res
+    MATCH "^google:ubuntu:tests/$" < res
+
+    # Scenario: check -v parameter works
+    spread-filter -r rules.yaml -p google:ubuntu -c tests/lib/nested.sh -v > res
+    MATCH "cleaning executions" < res
+
+    # Scenario: check mandatory parameters
+    ARG_TEXT="spread-filter: error: the following arguments are required"
+    spread-filter -r rules.yaml -c tests/lib/nested.sh 2>&1 | MATCH "$ARG_TEXT"
+    spread-filter -p google:ubuntu -c tests/lib/nested.sh 2>&1 | MATCH "$ARG_TEXT"
+
+    # Scenario: check the rules file
+    FILE_TEXT="spread-filter: rules file 'noexist.yaml' does not exist"
+    spread-filter -r noexist.yaml -p google:ubuntu -c tests/lib/nested.sh 2>&1 | MATCH "$FILE_TEXT"
