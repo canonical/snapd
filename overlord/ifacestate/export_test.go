@@ -68,10 +68,9 @@ var (
 )
 
 func NewInterfaceManagerWithAppArmorPrompting(useAppArmorPrompting bool) *InterfaceManager {
-	m := &InterfaceManager{}
-	m.useAppArmorPromptingChecker.Do(func() {
-		m.useAppArmorPromptingValue = useAppArmorPrompting
-	})
+	m := &InterfaceManager{
+		useAppArmorPrompting: useAppArmorPrompting,
+	}
 	return m
 }
 
@@ -137,8 +136,8 @@ func MockInterfacesRequestsManagerStop(new func(m *apparmorprompting.InterfacesR
 	return testutil.Mock(&interfacesRequestsManagerStop, new)
 }
 
-func MockUseAppArmorPrompting(new func(m *InterfaceManager) bool) (restore func()) {
-	return testutil.Mock(&useAppArmorPrompting, new)
+func MockAssessAppArmorPrompting(new func(m *InterfaceManager) bool) (restore func()) {
+	return testutil.Mock(&assessAppArmorPrompting, new)
 }
 
 func MockUDevInitRetryTimeout(t time.Duration) (restore func()) {

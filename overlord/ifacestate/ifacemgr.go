@@ -65,10 +65,7 @@ type InterfaceManager struct {
 	extraBackends   []interfaces.SecurityBackend
 
 	// AppArmor Prompting
-	// These values should never be used directly.
-	// Always check useAppArmorPrompting().
-	useAppArmorPromptingValue   bool
-	useAppArmorPromptingChecker sync.Once
+	useAppArmorPrompting        bool
 	interfacesRequestsManagerMu sync.Mutex
 	interfacesRequestsManager   *apparmorprompting.InterfacesRequestsManager
 
@@ -143,12 +140,12 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 // AppArmorPromptingRunning returns true if prompting is running.
 func (m *InterfaceManager) AppArmorPromptingRunning() bool {
-	return useAppArmorPrompting(m)
+	return m.useAppArmorPrompting
 }
 
 // Allow m.UseAppArmorPrompting to be mocked in tests
-var useAppArmorPrompting = func(m *InterfaceManager) bool {
-	return m.useAppArmorPrompting()
+var assessAppArmorPrompting = func(m *InterfaceManager) bool {
+	return m.assesAppArmorPrompting()
 }
 
 func (m *InterfaceManager) InterfacesRequestsManager() *apparmorprompting.InterfacesRequestsManager {
@@ -192,7 +189,12 @@ func (m *InterfaceManager) StartUp() error {
 	if _, err := m.reloadConnections(""); err != nil {
 		return err
 	}
-	if useAppArmorPrompting(m) {
+
+	// check whether AppArmor prompting is supported, it is fine to do it
+	// once as toggling the feature imposes a restart of snapd
+	if assessAppArmorPrompting(m) {
+		m.useAppArmorPrompting = true
+
 		if err := m.initInterfacesRequestsManager(); err != nil {
 			// TODO: if this fails, set useAppArmorPromptingValue to false ?
 			// If this is done before profilesNeedRegeneration, then profiles will only
