@@ -32,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -275,7 +276,7 @@ func (s *keymgrSuite) TestTransitionEncryptionKeyHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/block/259:8"},
 	})
 	c.Check(s.systemdRunCmd.Calls(), DeepEquals, [][]string{
 		{
@@ -321,10 +322,10 @@ while [ "$#" -gt 1 ]; do
                     echo "MAJOR=600"
                     echo "MINOR=4"
                     ;;
-                /dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304)
+                /dev/block/259:8)
                     echo "ID_PART_ENTRY_UUID=foo-uuid"
                     ;;
-                /dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1305)
+                /dev/block/259:9)
                     echo "ID_PART_ENTRY_UUID=bar-uuid"
                     ;;
             esac
@@ -337,12 +338,26 @@ done
 `)
 	s.AddCleanup(udevadmCmd.Restore)
 
-	snaptest.PopulateDir(s.rootDir, [][]string{
-		{"/sys/dev/block/600:3/dm/uuid", "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-foo"},
-		{"/sys/dev/block/600:3/dm/name", "foo"},
-		{"/sys/dev/block/600:4/dm/uuid", "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1305-bar"},
-		{"/sys/dev/block/600:4/dm/name", "bar"},
+	restore = disks.MockDmIoctlTableStatus(func(major uint32, minor uint32) ([]osutil.TargetInfo, error) {
+		if (major == 600) && (minor == 3) {
+			return []osutil.TargetInfo{
+				{
+					TargetType: "crypt",
+					Params:     "some-algo some-id 0 259:8 32768 1 allow_discards",
+				},
+			}, nil
+		} else if (major == 600) && (minor == 4) {
+			return []osutil.TargetInfo{
+				{
+					TargetType: "crypt",
+					Params:     "some-algo some-id 0 259:9 32768 1 allow_discards",
+				},
+			}, nil
+		}
+		return nil, fmt.Errorf("unknown")
 	})
+	s.AddCleanup(restore)
+
 	return udevadmCmd
 }
 
@@ -356,9 +371,9 @@ func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/block/259:8"},
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/bar"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1305"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/block/259:9"},
 	})
 	c.Check(s.systemdRunCmd.Calls(), DeepEquals, [][]string{
 		{
@@ -400,9 +415,9 @@ func (s *keymgrSuite) TestRemoveRecoveryKey(c *C) {
 	expectedUdevCalls := [][]string{
 		// order can change depending on map iteration
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/block/259:8"},
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/bar"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1305"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/block/259:9"},
 	}
 	expectedSystemdRunCalls := [][]string{
 		{

@@ -246,3 +246,9 @@ func ParseRawExpandableEnv(entries []string) (ExpandableEnv, error) {
 	}
 	return ExpandableEnv{OrderedMap: om}, nil
 }
+
+func MockRuntimeGOARCH(arch string) (restore func()) {
+	restore = testutil.Backup(&runtimeGOARCH)
+	runtimeGOARCH = arch
+	return restore
+}

@@ -37,6 +37,10 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+var (
+	osutilDmIoctlTableStatus = osutil.DmIoctlTableStatus
+)
+
 var _ = Disk(&disk{})
 
 // diskFromMountPoint is exposed for mocking from other tests via
@@ -453,6 +457,20 @@ func (d *disk) Schema() string {
 	return d.schema
 }
 
+// deviceNode returns the path of device node from the device path
+// found in device mapper. It can either be <major>:<minor>, or a path
+// starting with /dev.
+//
+// https://docs.kernel.org/admin-guide/device-mapper/verity.html
+// and See https://docs.kernel.org/admin-guide/device-mapper/dm-crypt.html
+func deviceNode(devicePath string) string {
+	if strings.HasPrefix(devicePath, "/dev/") {
+		return devicePath
+	} else {
+		return fmt.Sprintf("/dev/block/%s", devicePath)
+	}
+}
+
 func parentPartitionPropsForOptions(props map[string]string) (map[string]string, error) {
 	// verify that the mount point is indeed a mapper device, it should:
 	// 1. have DEVTYPE == disk from udev
@@ -492,32 +510,58 @@ func parentPartitionPropsForOptions(props map[string]string) (map[string]string,
 		return nil, fmt.Errorf("incomplete udev output missing required property \"MAJOR\"")
 	}
 
-	majmin := props["MAJOR"] + ":" + props["MINOR"]
-
-	dmDir := filepath.Join(dirs.SysfsDir, "dev", "block", majmin, "dm")
-	dmUUID, err := os.ReadFile(filepath.Join(dmDir, "uuid"))
+	major, err := strconv.Atoi(props["MAJOR"])
 	if err != nil {
 		return nil, fmt.Errorf(errFmt, err)
 	}
-	dmUUID = bytes.TrimSpace(dmUUID)
-
-	dmName, err := os.ReadFile(filepath.Join(dmDir, "name"))
+	minor, err := strconv.Atoi(props["MINOR"])
 	if err != nil {
 		return nil, fmt.Errorf(errFmt, err)
 	}
-	dmName = bytes.TrimSpace(dmName)
 
-	for _, resolver := range deviceMapperBackResolvers {
-		if dev, ok := resolver(dmUUID, dmName); ok {
-			props, err = udevPropertiesForName(dev)
-			if err != nil {
-				return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", dev, err)
-			}
-			return props, nil
+	targets, err := osutilDmIoctlTableStatus(uint32(major), uint32(minor))
+	if err != nil {
+		return nil, fmt.Errorf(errFmt, err)
+	}
+	if len(targets) != 1 {
+		return nil, fmt.Errorf("unexpected number of targets for device mapper: got %d", len(targets))
+	}
+	params := strings.Split(targets[0].Params, " ")
+	var dataDevice string
+	if targets[0].TargetType == "verity" {
+		// Parameters:
+		//   <version> <dev> <hash_dev>
+		//   <data_block_size> <hash_block_size>
+		//   <num_data_blocks> <hash_start_block>
+		//   <algorithm> <digest> <salt>
+		//   [<#opt_params> <opt_params>]
+		//
+		// See https://docs.kernel.org/admin-guide/device-mapper/verity.html
+		if len(params) < 3 {
+			return nil, fmt.Errorf("cannot find needed device mapper parameters")
 		}
+		dataDevice = deviceNode(params[1])
+		//hashDevice := deviceNode(table[2])
+	} else if targets[0].TargetType == "crypt" {
+		// Parameters:
+		//   <cipher> <key> <iv_offset> <device path> \
+		//   <offset> [<#opt_params> <opt_params>]
+		//
+		// See https://docs.kernel.org/admin-guide/device-mapper/dm-crypt.html
+		if len(params) < 4 {
+			return nil, fmt.Errorf("cannot find needed device mapper parameters")
+		}
+		dataDevice = deviceNode(params[3])
+	} else {
+		return nil, fmt.Errorf("unknown device mapper type")
 	}
 
-	return nil, fmt.Errorf("internal error: no back resolver supports decrypted device mapper with UUID %q and name %q", dmUUID, dmName)
+	props, err = udevPropertiesForName(dataDevice)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", dataDevice, err)
+	}
+
+	return props, nil
 }
 
 func diskFromPartUDevProps(props map[string]string) (*disk, error) {
@@ -1014,4 +1058,13 @@ func filesystemTypeForPartition(devname string) (string, error) {
 	}
 
 	return props["ID_FS_TYPE"], nil
+}
+
+func MockDmIoctlTableStatus(f func(major uint32, minor uint32) ([]osutil.TargetInfo, error)) func() {
+	osutil.MustBeTestBinary("cannot mock dm-ioctl of tests")
+	old := osutilDmIoctlTableStatus
+	osutilDmIoctlTableStatus = f
+	return func() {
+		osutilDmIoctlTableStatus = old
+	}
 }
