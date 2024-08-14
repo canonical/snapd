@@ -23,8 +23,11 @@ import (
 
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/registry"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var assertstateRegistry = assertstate.Registry
@@ -221,4 +224,43 @@ func RegistryTransaction(ctx *hookstate.Context, reg *registry.Registry) (*Trans
 
 	ctx.Cache(key, tx)
 	return tx, nil
+}
+
+func getPlugsAffectedByPaths(st *state.State, registry *registry.Registry, storagePaths []string) (map[string][]*snap.PlugInfo, error) {
+	var viewNames []string
+	for _, path := range storagePaths {
+		views := registry.GetViewsAffectedByPath(path)
+		for _, view := range views {
+			viewNames = append(viewNames, view.Name)
+		}
+	}
+
+	repo := ifacerepo.Get(st)
+	plugs := repo.AllPlugs("registry")
+
+	affectedPlugs := make(map[string][]*snap.PlugInfo)
+	for _, plug := range plugs {
+		conns, err := repo.Connected(plug.Snap.InstanceName(), plug.Name)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(conns) == 0 {
+			continue
+		}
+
+		account, registryName, viewName, err := snap.RegistryPlugAttrs(plug)
+		if err != nil {
+			return nil, err
+		}
+
+		if account != registry.Account || registryName != registry.Name || !strutil.ListContains(viewNames, viewName) {
+			continue
+		}
+
+		snapPlugs := affectedPlugs[plug.Snap.InstanceName()]
+		affectedPlugs[plug.Snap.InstanceName()] = append(snapPlugs, plug)
+	}
+
+	return affectedPlugs, nil
 }

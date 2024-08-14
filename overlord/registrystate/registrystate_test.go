@@ -26,15 +26,23 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/registrystate"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/registry"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type registryTestSuite struct {
@@ -48,6 +56,7 @@ var _ = Suite(&registryTestSuite{})
 func Test(t *testing.T) { TestingT(t) }
 
 func (s *registryTestSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
 	s.state = overlord.Mock().State()
 
 	s.state.Lock()
@@ -365,4 +374,122 @@ func (s *registryTestSuite) TestRegistryTransaction(c *C) {
 		}
 		ctx.Unlock()
 	}
+}
+func mockInstalledSnap(c *C, st *state.State, snapYaml, cohortKey string) *snap.Info {
+	info := snaptest.MockSnapCurrent(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{
+				RealName: info.SnapName(),
+				Revision: info.Revision,
+				SnapID:   info.InstanceName() + "-id",
+			},
+		}),
+		Current:         info.Revision,
+		TrackingChannel: "stable",
+		CohortKey:       cohortKey,
+	})
+	return info
+}
+
+func (s *registryTestSuite) TestPlugsAffectedByPaths(c *C) {
+	reg, err := registry.New(s.devAccID, "reg", map[string]interface{}{
+		// exact match
+		"view-1": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{"request": "foo.bar", "storage": "foo.bar"},
+			},
+		},
+		// unrelated
+		"view-2": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{"request": "bar", "storage": "bar"},
+			},
+		},
+		// more specific
+		"view-3": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{"request": "foo.bar.baz", "storage": "foo.bar.baz"},
+			},
+		},
+		// more generic but we won't connect a plug for this view
+		"view-4": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{"request": "foo", "storage": "foo"},
+			},
+		},
+	}, registry.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	repo := interfaces.NewRepository()
+	s.state.Lock()
+	defer s.state.Unlock()
+	ifacerepo.Replace(s.state, repo)
+
+	regIface := &ifacetest.TestInterface{InterfaceName: "registry"}
+	err = repo.AddInterface(regIface)
+	c.Assert(err, IsNil)
+
+	snapYaml := fmt.Sprintf(`name: test-snap
+version: 1
+type: app
+plugs:
+  view-1:
+    interface: registry
+    account: %[1]s
+    view: reg/view-1
+  view-2:
+    interface: registry
+    account: %[1]s
+    view: reg/view-2
+  view-3:
+    interface: registry
+    account: %[1]s
+    view: reg/view-3
+  view-4:
+    interface: registry
+    account: %[1]s
+    view: reg/view-4
+`, s.devAccID)
+	info := mockInstalledSnap(c, s.state, snapYaml, "")
+
+	appSet, err := interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, IsNil)
+	err = repo.AddAppSet(appSet)
+	c.Assert(err, IsNil)
+
+	const coreYaml = `name: core
+version: 1
+type: os
+slots:
+ registry-slot:
+  interface: registry
+`
+	info = mockInstalledSnap(c, s.state, coreYaml, "")
+
+	coreSet, err := interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, IsNil)
+
+	err = repo.AddAppSet(coreSet)
+	c.Assert(err, IsNil)
+
+	for _, n := range []string{"view-1", "view-2", "view-3"} {
+		ref := &interfaces.ConnRef{
+			PlugRef: interfaces.PlugRef{Snap: "test-snap", Name: n},
+			SlotRef: interfaces.SlotRef{Snap: "core", Name: "registry-slot"},
+		}
+		_, err = repo.Connect(ref, nil, nil, nil, nil, nil)
+		c.Assert(err, IsNil)
+	}
+
+	snapPlugs, err := registrystate.GetPlugsAffectedByPaths(s.state, reg, []string{"foo"})
+	c.Assert(err, IsNil)
+	c.Assert(snapPlugs, HasLen, 1)
+
+	plugNames := make([]string, 0, len(snapPlugs["test-snap"]))
+	for _, plug := range snapPlugs["test-snap"] {
+		plugNames = append(plugNames, plug.Name)
+	}
+	c.Assert(plugNames, testutil.DeepUnsortedMatches, []string{"view-1", "view-3"})
 }

@@ -24,8 +24,9 @@ import (
 )
 
 var (
-	ReadDatabag  = readDatabag
-	WriteDatabag = writeDatabag
+	ReadDatabag             = readDatabag
+	WriteDatabag            = writeDatabag
+	GetPlugsAffectedByPaths = getPlugsAffectedByPaths
 )
 
 func MockReadDatabag(f func(st *state.State, account, registryName string) (registry.JSONDataBag, error)) func() {
