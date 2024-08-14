@@ -86,7 +86,7 @@ func (s *apparmorpromptingSuite) TestNewErrorListener(c *C) {
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot register request listener: %v", registerFailure))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot register prompting listener: %v", registerFailure))
 	c.Assert(mgr, IsNil)
 }
 
@@ -1148,7 +1148,7 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 	c.Assert(retrieved, Equals, patched)
 
 	// Check that prompt has been satisfied
-	retrievedPrompt, err = mgr.PromptWithID(s.defaultUser, prompt.ID)
+	_, err = mgr.PromptWithID(s.defaultUser, prompt.ID)
 	c.Assert(err, Equals, requestprompts.ErrNotFound)
 	s.checkRecordedPromptNotices(c, whenPatched, 1)
 

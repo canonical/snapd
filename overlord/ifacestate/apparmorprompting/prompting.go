@@ -88,7 +88,7 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 
 	listenerBackend, err := listenerRegister()
 	if err != nil {
-		return nil, fmt.Errorf("cannot register request listener: %w", err)
+		return nil, fmt.Errorf("cannot register prompting listener: %w", err)
 	}
 	defer func() {
 		if retErr != nil {
@@ -138,7 +138,7 @@ func (m *InterfacesRequestsManager) run() error {
 	m.lock.Unlock()
 
 	m.tomb.Go(func() error {
-		logger.Debugf("starting listener")
+		logger.Debugf("starting prompting listener")
 		if err := listenerRun(currentListener); err != listener.ErrClosed {
 			return err
 		}
@@ -155,15 +155,13 @@ run_loop:
 				// In either case, the listener Close() method has already
 				// been called, and the tomb error will be set to the return
 				// value of the Run() call from the previous tracked goroutine.
-				logger.Debugf("listener closed requests channel")
+				logger.Debugf("prompting listener closed requests channel")
 				break run_loop
 			}
 
-			// XXX: this debug log leaks information about internal activity
-			logger.Debugf("Got from kernel req chan: %v", req)
+			logger.Debugf("received from kernel requests channel: %v", req)
 			if err := m.handleListenerReq(req); err != nil {
-				// XXX: this log leaks information about internal activity
-				logger.Noticef("Error while handling request: %+v", err)
+				logger.Noticef("error while handling request: %+v", err)
 			}
 		case <-m.tomb.Dying():
 			logger.Noticef("InterfacesRequestsManager tomb is dying, disconnecting")
@@ -197,7 +195,6 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 
 	permissions, err := prompting.AbstractPermissionsFromAppArmorPermissions(iface, req.Permission)
 	if err != nil {
-		// XXX: this log leaks information about internal activity
 		logger.Noticef("error while parsing AppArmor permissions: %v", err)
 		response := listener.Response{
 			Allow:      false,
@@ -231,7 +228,6 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		}
 	}
 	if matchedDenyRule {
-		// XXX: this debug log leaks information about internal activity
 		logger.Debugf("request denied by existing rule: %+v", req)
 
 		// At least some permissions were allowed, but others were denied.
@@ -249,7 +245,6 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 	}
 
 	if len(remainingPerms) == 0 {
-		// XXX: this debug log leaks information about internal activity
 		logger.Debugf("request allowed by existing rule: %+v", req)
 
 		// We don't want to just send back req.Permission() here, since that
@@ -278,8 +273,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 
 	newPrompt, merged, err := m.prompts.AddOrMerge(metadata, path, permissions, remainingPerms, req)
 	if err != nil {
-		// XXX: this debug log leaks information about internal activity
-		logger.Noticef("error while adding prompt to prompt DB: %+v: %v", req, err)
+		logger.Noticef("error while checking request against prompt DB: %v", err)
 
 		// We weren't able to create a new prompt, so respond with the best
 		// information we have, which is to allow any permissions which were
@@ -294,12 +288,10 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		return requestReply(req, &response)
 	}
 	if merged {
-		// XXX: this debug log leaks information about internal activity
 		logger.Debugf("new prompt merged with identical existing prompt: %+v", newPrompt)
 		return nil
 	}
 
-	// XXX: this debug log leaks information about internal activity
 	logger.Debugf("adding prompt to internal storage: %+v", newPrompt)
 
 	return nil
@@ -446,30 +438,24 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 	}
 
 	// Apply new rule to outstanding prompts.
-	satisfiedPromptIDs, err = m.applyRuleToOutstandingPrompts(newRule)
-	if err != nil {
-		// Should not occur, as outcome and constraints have already been
-		// validated. However, it's possible an error could occur if the prompt
-		// DB was already closed. This should be an internal error. However, we
-		// can't un-send any reply which might have been sent, and this should
-		// only fail if the prompting system is shutting down, so don't actually
-		// return an error.
-
-		// XXX: this log leaks information about internal activity
-		logger.Noticef("error when handling new rule as a result of reply: %v", err)
-	}
+	satisfiedPromptIDs = m.applyRuleToOutstandingPrompts(newRule)
 
 	return satisfiedPromptIDs, nil
 }
 
-func (m *InterfacesRequestsManager) applyRuleToOutstandingPrompts(rule *requestrules.Rule) (satisfiedPromptIDs []prompting.IDType, err error) {
+func (m *InterfacesRequestsManager) applyRuleToOutstandingPrompts(rule *requestrules.Rule) []prompting.IDType {
 	metadata := &prompting.Metadata{
 		User:      rule.User,
 		Snap:      rule.Snap,
 		Interface: rule.Interface,
 	}
-	satisfiedPromptIDs, err = m.prompts.HandleNewRule(metadata, rule.Constraints, rule.Outcome)
-	return satisfiedPromptIDs, err
+	satisfiedPromptIDs, err := m.prompts.HandleNewRule(metadata, rule.Constraints, rule.Outcome)
+	if err != nil {
+		// The rule's constraints and outcome were already validated, so an
+		// error should not occur here unless the prompt DB was already closed.
+		logger.Noticef("error when handling new rule: %v", err)
+	}
+	return satisfiedPromptIDs
 }
 
 // Rules returns all rules for the user with the given user ID and,
@@ -505,16 +491,7 @@ func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface st
 		return nil, err
 	}
 	// Apply new rule to outstanding prompts.
-	if _, err := m.applyRuleToOutstandingPrompts(newRule); err != nil {
-		// Should not occur, as outcome and constraints have already been
-		// validated. However, it's possible an error could occur if the prompt
-		// DB was already closed. This should be an internal error. However,
-		// this should only be the case if the prompting system is shutting
-		// down, so don't actually return an error.
-
-		// XXX: this log leaks information about internal activity
-		logger.Noticef("error when handling new rule as a result of AddRule: %v", err)
-	}
+	m.applyRuleToOutstandingPrompts(newRule)
 	return newRule, nil
 }
 
@@ -560,16 +537,7 @@ func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.ID
 		return nil, err
 	}
 	// Apply patched rule to outstanding prompts.
-	if _, err := m.applyRuleToOutstandingPrompts(patchedRule); err != nil {
-		// Should not occur, as outcome and constraints have already been
-		// validated. However, it's possible an error could occur if the prompt
-		// DB was already closed. This should be an internal error. However,
-		// this should only be the case if the prompting system is shutting
-		// down, so don't actually return an error.
-
-		// XXX: this log leaks information about internal activity
-		logger.Noticef("error when handling new rule as a result of PatchRule: %v", err)
-	}
+	m.applyRuleToOutstandingPrompts(patchedRule)
 	return patchedRule, nil
 }
 
