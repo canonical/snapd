@@ -22,7 +22,7 @@
         {
             "name": "pc-kernel",
             "type": "kernel",
-            "default-channel": "22/edge"
+            "default-channel": "22/beta"
         },
         {
             "name": "core22",

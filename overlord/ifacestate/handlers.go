@@ -189,13 +189,13 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	if err := m.setupProfilesForAppSet(task, appSet, opts, perfTimings); err != nil {
 		return err
 	}
-	return setPendingProfilesSideInfo(task.State(), snapsup.InstanceName(), snapsup.SideInfo)
+	return setPendingProfilesSideInfo(task.State(), snapsup.InstanceName(), appSet)
 }
 
 // setupPendingProfilesSideInfo helps updating information about any
 // revision for which security profiles are set up while the snap is
 // not yet active.
-func setPendingProfilesSideInfo(st *state.State, instanceName string, si *snap.SideInfo) error {
+func setPendingProfilesSideInfo(st *state.State, instanceName string, appSet *interfaces.SnapAppSet) error {
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, instanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
@@ -208,9 +208,21 @@ func setPendingProfilesSideInfo(st *state.State, instanceName string, si *snap.S
 		// nothing is pending
 		return nil
 	}
-	snapst.PendingSecurity = &snapstate.PendingSecurityState{
-		SideInfo: si,
+
+	if appSet != nil {
+		csis := make([]*snap.ComponentSideInfo, 0, len(appSet.Components()))
+		for _, ci := range appSet.Components() {
+			csis = append(csis, &ci.ComponentSideInfo)
+		}
+
+		snapst.PendingSecurity = &snapstate.PendingSecurityState{
+			SideInfo:   &appSet.Info().SideInfo,
+			Components: csis,
+		}
+	} else {
+		snapst.PendingSecurity = &snapstate.PendingSecurityState{}
 	}
+
 	snapstate.Set(st, instanceName, &snapst)
 	return nil
 }
@@ -428,7 +440,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		if err := m.setupProfilesForAppSet(task, appSet, opts, perfTimings); err != nil {
 			return err
 		}
-		return setPendingProfilesSideInfo(task.State(), snapName, sideInfo)
+		return setPendingProfilesSideInfo(task.State(), snapName, appSet)
 	}
 }
 

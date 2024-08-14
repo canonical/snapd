@@ -1,8 +1,8 @@
 /*
-  this file was generated on a Ubuntu mantic install from the upstream
-  apparmor-4.0.1 release tarball as follows:
+  this file was generated on a Ubuntu noble install from the upstream
+  apparmor-4.0.2 release tarball as follows:
 
-  AA_VER=4.0.1
+  AA_VER=4.0.2
   TARBALL_NAME="apparmor-v${AA_VER}"
   wget \
   "https://gitlab.com/apparmor/apparmor/-/archive/v${AA_VER}/${TARBALL_NAME}.tar.gz"

@@ -10,6 +10,11 @@ for entry in data['volumes']['pc']['structure']:
         entry['name'] = 'EFI System partition'
         # TODO make this realistically smaller?
         entry['size'] = '99M'
+        content = [{'source': 'grubx64.efi',
+                    'target': 'EFI/boot/grubx64.efi'},
+                   {'source': 'shim.efi.signed',
+                    'target': 'EFI/boot/bootx64.efi'}]
+        entry['content'] = content
     if entry.get('role') == 'system-boot':
         # Such that potentially there is space to later slot-in 1200M
         # large ubuntu-seed partition

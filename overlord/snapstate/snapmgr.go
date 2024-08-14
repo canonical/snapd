@@ -258,9 +258,6 @@ func (compsu *ComponentSetup) Revision() snap.Revision {
 // * Installing/refreshing a snap with components
 // * Installing/refreshing a snap without any components
 func ComponentSetupsForTask(t *state.Task) ([]*ComponentSetup, error) {
-	// TODO:COMPS: handle remaining cases in this switch:
-	// * installing multiple components for an already installed snap
-	// * installing/refreshing a snap with components
 	switch {
 	case t.Has("component-setup") || t.Has("component-setup-task"):
 		// task comes from a singular component installation for an already
@@ -381,7 +378,8 @@ type SnapState struct {
 type PendingSecurityState struct {
 	// SideInfo of the revision for which security profiles are or
 	// should be set up if any.
-	SideInfo *snap.SideInfo `json:"side-info,omitempty"`
+	SideInfo   *snap.SideInfo            `json:"side-info,omitempty"`
+	Components []*snap.ComponentSideInfo `json:"components,omitempty"`
 }
 
 func (snapst *SnapState) SetTrackingChannel(s string) error {
@@ -463,6 +461,21 @@ func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
 		return snapst.Sequence.Revisions[idx].Snap
 	}
 	panic("cannot find snapst.Current in the snapst.Sequence.Revisions")
+}
+
+// CurrentComponentSideInfos returns the component side infos for the revision
+// indicated by snapst.Current in the snap revision sequence, if there is one.
+func (snapst *SnapState) CurrentComponentSideInfos() []*snap.ComponentSideInfo {
+	if !snapst.IsInstalled() {
+		return nil
+	}
+
+	compStates := snapst.Sequence.ComponentsForRevision(snapst.Current)
+	comps := make([]*snap.ComponentSideInfo, 0, len(compStates))
+	for _, comp := range compStates {
+		comps = append(comps, comp.SideInfo)
+	}
+	return comps
 }
 
 // CurrentComponentSideInfo returns the component side info for the revision indicated by

@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
 )
@@ -167,8 +168,9 @@ func (m *InterfaceManager) useAppArmorPrompting() bool {
 	m.useAppArmorPromptingChecker.Do(func() {
 		tr := config.NewTransaction(m.state)
 		if promptingEnabled, err := features.Flag(tr, features.AppArmorPrompting); err == nil {
+			supported, _ := features.AppArmorPrompting.IsSupported()
 			// If error while getting AppArmorPrompting flag, don't include it
-			m.useAppArmorPromptingValue = promptingEnabled && features.AppArmorPrompting.IsSupported()
+			m.useAppArmorPromptingValue = promptingEnabled && supported
 		}
 	})
 	return m.useAppArmorPromptingValue
@@ -1102,8 +1104,23 @@ func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error
 				continue
 			}
 
-			// TODO:COMPS: add components to SnapState.PendingSecurity
-			set, err := interfaces.NewSnapAppSet(snapInfo, nil)
+			components := make([]*snap.ComponentInfo, 0, len(snapst.PendingSecurity.Components))
+			for _, csi := range snapst.PendingSecurity.Components {
+				cpi := snap.MinimalComponentContainerPlaceInfo(
+					csi.Component.ComponentName,
+					csi.Revision,
+					instanceName,
+				)
+				container := snapdir.New(cpi.MountDir())
+				ci, err := snap.ReadComponentInfoFromContainer(container, snapInfo, csi)
+				if err != nil {
+					logger.Noticef("cannot read component info for snap %q: %s", instanceName, err)
+					continue
+				}
+				components = append(components, ci)
+			}
+
+			set, err := interfaces.NewSnapAppSet(snapInfo, components)
 			if err != nil {
 				logger.Noticef("cannot build app set for snap %q: %s", instanceName, err)
 				continue

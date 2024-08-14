@@ -135,8 +135,22 @@ parts:
       - g++
       - pkg-config
       - wget
-    source: https://gitlab.com/apparmor/apparmor/-/archive/v4.0.1/apparmor-v4.0.1.tar.gz
+    source: https://gitlab.com/apparmor/apparmor/-/archive/v4.0.2/apparmor-v4.0.2.tar.gz
+    source-checksum: sha256/0b847751b8c0e2344169ec2065cad6251063c5c5ff311953e194bbf25686d981
     override-build: |
+      # For some reason, some snapcraft version remove the "build-aux" folder
+      # and move the contents up when the data is uploaded; this conditional
+      # manages it.
+      LOCAL_APPARMOR_DIR="${CRAFT_PROJECT_DIR}"/build-aux/snap/local/apparmor/
+      if [ ! -d $LOCAL_APPARMOR_DIR ]; then
+        LOCAL_APPARMOR_DIR="${CRAFT_PROJECT_DIR}"/snap/local/apparmor/
+      fi
+      # apply prompting patch from the build-aux folder - this is the same as
+      # what is used in the Ubuntu 24.10 (oracular) version
+      patch -p1 < "${LOCAL_APPARMOR_DIR}"/parser-add-support-for-prompting.patch
+      # apply compatibility fix for older kernels
+      patch -p1 < "${LOCAL_APPARMOR_DIR}"/apparmor-parser-fix-protocol-error-on-older-kernels-caused-by.patch
+
       cd "${CRAFT_PART_BUILD}"/libraries/libapparmor
       ./autogen.sh
       ./configure --prefix=/usr --libdir="/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" --disable-man-pages --disable-perl --disable-python --disable-ruby
@@ -147,14 +161,7 @@ parts:
       # copy in a pregenerated list of network address families so that the
       # parser gets built to support as many as possible even if glibc in
       # the current build environment does not support them
-      # For some reason, some snapcraft version remove the "build-aux" folder
-      # and move the contents up when the data is uploaded; this conditional
-      # manages it.
-      if [ -d "${CRAFT_PROJECT_DIR}/build-aux" ]; then
-        cp "${CRAFT_PROJECT_DIR}"/build-aux/snap/local/apparmor/af_names.h .
-      else
-        cp "${CRAFT_PROJECT_DIR}"/snap/local/apparmor/af_names.h .
-      fi
+      cp "${LOCAL_APPARMOR_DIR}"/af_names.h .
       make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
       install -Dm755 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd" apparmor_parser
       install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor" parser.conf

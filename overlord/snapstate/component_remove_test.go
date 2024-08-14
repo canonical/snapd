@@ -353,3 +353,70 @@ func (s *snapmgrTestSuite) TestRemoveComponentsRevInTwoSeqPts(c *C) {
 
 	c.Assert(s.state.TaskCount(), Equals, totalTasks)
 }
+
+func (s *snapmgrTestSuite) TestRemoveComponentUpdateConflict(c *C) {
+	const snapName = "some-snap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	ci, _ := createTestComponent(c, snapName, compName, info)
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(compMntDir string,
+		snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		return ci, nil
+	}))
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	csi1 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), snap.R(1))
+	cs1 := sequence.NewComponentState(csi1, snap.KernelModulesComponent)
+	setStateWithComponents(s.state, snapName, snapRev, []*sequence.ComponentState{cs1})
+
+	tupd, err := snapstate.Update(s.state, snapName,
+		&snapstate.RevisionOptions{Channel: ""}, s.user.ID,
+		snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := s.state.NewChange("update", "update a snap")
+	chg.AddAll(tupd)
+
+	tss, err := snapstate.RemoveComponents(s.state, snapName, []string{compName},
+		snapstate.RemoveComponentsOpts{})
+
+	c.Assert(tss, IsNil)
+	c.Assert(err.Error(), Equals,
+		`snap "some-snap" has "update" change in progress`)
+}
+
+func (s *snapmgrTestSuite) TestRemoveComponentUpdateNoConflict(c *C) {
+	const snapName = "some-snap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	ci, _ := createTestComponent(c, snapName, compName, info)
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(compMntDir string,
+		snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		return ci, nil
+	}))
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	csi1 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), snap.R(1))
+	cs1 := sequence.NewComponentState(csi1, snap.KernelModulesComponent)
+	setStateWithComponents(s.state, snapName, snapRev, []*sequence.ComponentState{cs1})
+
+	tupd, err := snapstate.Update(s.state, snapName,
+		&snapstate.RevisionOptions{Channel: ""}, s.user.ID,
+		snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := s.state.NewChange("update", "update a snap")
+	chg.AddAll(tupd)
+
+	// No conflict as this remove would be part of the change
+	tss, err := snapstate.RemoveComponents(s.state, snapName, []string{compName},
+		snapstate.RemoveComponentsOpts{FromChange: chg.ID()})
+
+	c.Assert(err, IsNil)
+	c.Assert(len(tss), Equals, 1)
+	verifyComponentRemoveTasks(c, compTypeIsKernMods|compCurrentIsDiscarded, tss[0])
+}

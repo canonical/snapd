@@ -36,17 +36,19 @@ type promptingSuite struct{}
 
 var _ = Suite(&promptingSuite{})
 
-func (s *promptingSuite) TestIDTypeMarshalUnmarshalJSON(c *C) {
+func (s *promptingSuite) TestIDTypeStringMarshalUnmarshalJSON(c *C) {
 	for _, testCase := range []struct {
 		id         prompting.IDType
+		str        string
 		marshalled []byte
 	}{
-		{0, []byte(`"0000000000000000"`)},
-		{1, []byte(`"0000000000000001"`)},
-		{0x1000000000000000, []byte(`"1000000000000000"`)},
-		{0xDEADBEEFDEADBEEF, []byte(`"DEADBEEFDEADBEEF"`)},
-		{0xFFFFFFFFFFFFFFFF, []byte(`"FFFFFFFFFFFFFFFF"`)},
+		{0, "0000000000000000", []byte(`"0000000000000000"`)},
+		{1, "0000000000000001", []byte(`"0000000000000001"`)},
+		{0x1000000000000000, "1000000000000000", []byte(`"1000000000000000"`)},
+		{0xDEADBEEFDEADBEEF, "DEADBEEFDEADBEEF", []byte(`"DEADBEEFDEADBEEF"`)},
+		{0xFFFFFFFFFFFFFFFF, "FFFFFFFFFFFFFFFF", []byte(`"FFFFFFFFFFFFFFFF"`)},
 	} {
+		c.Check(testCase.id.String(), Equals, testCase.str)
 		marshalled, err := testCase.id.MarshalJSON()
 		c.Check(err, IsNil)
 		c.Check(marshalled, DeepEquals, testCase.marshalled)

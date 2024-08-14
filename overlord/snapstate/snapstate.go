@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2023 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -81,10 +81,16 @@ const (
 	EndEdge                          = state.TaskSetEdge("end")
 )
 
-const (
-	firmwareUpdaterSnapID         = "EI0D1KHjP8XiwMZKqSjuh6W8zvcowUVP"
-	snapdDesktopIntegrationSnapID = "IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu"
-)
+// userDaemonsOverrides lists by snap-id a set of well-known snaps for which we
+// allow user-daemons directly until we make the feature generally available,
+// and not experimental anymore.
+//
+// TODO: remove this once that is the case
+var userDaemonsOverrides = []string{
+	"EI0D1KHjP8XiwMZKqSjuh6W8zvcowUVP", // firmware-updater snap-id
+	"IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu", // snapd-desktop-integration snap-id
+	"aoc5lfC8aUd2VL8VpvynUJJhGXp5K6Dj", // prompting-client snap-id
+}
 
 var ErrNothingToDo = errors.New("nothing to do")
 
@@ -436,7 +442,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		}
 	}
 
-	tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, compSetupIDs, err := splitComponentTasksForInstall(
+	tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard, compSetupIDs, err := splitComponentTasksForInstall(
 		compsups, st, snapst, snapsup, prepare.ID(), fromChange,
 	)
 	if err != nil {
@@ -614,6 +620,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q%s services"), snapsup.InstanceName(), revisionStr))
 	addTask(startSnapServices)
 
+	// TODO:COMPS: test discarding components during a snap refresh (coming
+	// soon!)
+	for _, t := range tasksBeforeDiscard {
+		addTask(t)
+	}
+
 	// Do not do that if we are reverting to a local revision
 	var cleanupTask *state.Task
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {
@@ -750,23 +762,26 @@ func splitComponentTasksForInstall(
 	snapSetupTaskID string,
 	fromChange string,
 ) (
-	tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook []*state.Task,
+	tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard []*state.Task,
 	compSetupIDs []string,
 	err error,
 ) {
 	for _, compsup := range compsups {
-		componentTS, err := doInstallComponent(st, snapst, compsup, snapsup, snapSetupTaskID, fromChange)
+		componentTS, err := doInstallComponent(st, snapst, compsup, snapsup, snapSetupTaskID, nil, nil, fromChange)
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
+			return nil, nil, nil, nil, nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
 		}
 
-		compSetupIDs = append(compSetupIDs, componentTS.compSetupTask.ID())
+		compSetupIDs = append(compSetupIDs, componentTS.compSetupTaskID)
 
 		tasksBeforePreRefreshHook = append(tasksBeforePreRefreshHook, componentTS.beforeLink...)
-		tasksAfterLinkSnap = append(tasksAfterLinkSnap, componentTS.linkToHook...)
+		tasksAfterLinkSnap = append(tasksAfterLinkSnap, componentTS.linkTask)
 		tasksAfterPostOpHook = append(tasksAfterPostOpHook, componentTS.postOpHookAndAfter...)
+		if componentTS.discardTask != nil {
+			tasksBeforeDiscard = append(tasksBeforeDiscard, componentTS.discardTask)
+		}
 	}
-	return tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, compSetupIDs, nil
+	return tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard, compSetupIDs, nil
 }
 
 func NeedsKernelSetup(model *asserts.Model) bool {
@@ -1186,13 +1201,12 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		if err != nil {
 			return err
 		}
-		// The firmware-updater and snapd-desktop-integration
-		// snaps are allowed to use user daemons, irrespective
-		// of the feature flag state.
+		// Some well-known snaps are allowed to use user daemons,
+		// irrespective of the feature flag state.
 		//
 		// TODO: remove the special case once
 		// experimental.user-daemons is the default
-		if !flag && info.SnapID != firmwareUpdaterSnapID && info.SnapID != snapdDesktopIntegrationSnapID {
+		if !flag && !strutil.ListContains(userDaemonsOverrides, info.SnapID) {
 			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
 		}
 		if !release.SystemctlSupportsUserUnits() {
@@ -3626,7 +3640,7 @@ func removeInactiveRevision(st *state.State, snapst *SnapState, name, snapID str
 			CompSideInfo: &cinfo.ComponentSideInfo,
 			CompType:     cinfo.Type,
 			componentInstallFlags: componentInstallFlags{
-				JointSnapComponentsInstall: true,
+				MultiComponentInstall: true,
 			},
 		}
 

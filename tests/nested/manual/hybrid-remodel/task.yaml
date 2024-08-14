@@ -15,13 +15,21 @@ environment:
   STORE_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
-  # shellcheck source=tests/lib/prepare.sh
-  . "$TESTSLIB/prepare.sh"
-  # shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB"/nested.sh
+  VERSION="$(tests.nested show version)"
+  snap download --basename=pc-kernel --channel="$VERSION/stable" pc-kernel
+  if [ "$VERSION" == 22 ]; then
+    PC_VERSION="23.10"
+  else
+    PC_VERSION="${VERSION}.04"
+  fi
+  snap download --basename=pc --channel="classic-${PC_VERSION}/stable" pc
 
   "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
-     --model "${TESTSLIB}/assertions/classic-model.assert"
+     --model "${TESTSLIB}/assertions/classic-model-${VERSION}.assert" \
+     --gadget pc.snap \
+     --gadget-assertion pc.assert \
+     --kernel pc-kernel.snap \
+     --kernel-assertion pc-kernel.assert
 
 restore: |
   tests.systemd stop-unit --remove "nested-vm"
@@ -32,10 +40,12 @@ execute: |
   # install this so that we get reboot notifications
   remote.exec "sudo apt install -y update-notifier-common"
 
-  remote.push "${TESTSLIB}/assertions/classic-model-rev1.assert"
+  VERSION="$(tests.nested show version)"
+
+  remote.push "${TESTSLIB}/assertions/classic-model-rev1-${VERSION}.assert"
 
   # remodel and reboot. we need to reboot because we swapped the kernel snap
-  change_id=$(remote.exec 'sudo snap remodel --no-wait classic-model-rev1.assert')
+  change_id=$(remote.exec "sudo snap remodel --no-wait classic-model-rev1-${VERSION}.assert")
   retry -n 100 --wait 5 remote.exec "snap tasks ${change_id} | grep 'INFO Task set to wait until a system restart allows to continue'"
   remote.exec 'test -f /run/reboot-required'
 
@@ -45,8 +55,8 @@ execute: |
   remote.exec snap watch "${change_id}"
   remote.exec 'snap changes' | MATCH "${change_id}\s+Done.+Refresh model assertion from revision 0 to 1"
 
-  remote.exec 'snap list jq-core22'
-  remote.exec 'snap list pc-kernel' | awk 'NR != 1 { print $4 }' | MATCH '22-hwe/stable'
+  remote.exec "snap list" | MATCH "jq-core${VERSION}"
+  remote.exec 'snap list pc-kernel' | awk 'NR != 1 { print $4 }' | MATCH "${VERSION}-hwe/stable"
 
   # TODO: once we support installing recovery systems during the hybrid install,
   # we should switch this test to use a gadget that does not use "system-seed-null"

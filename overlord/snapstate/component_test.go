@@ -118,6 +118,7 @@ components:
 	foundCi2, err := snapSt.CurrentComponentInfo(cref2)
 	c.Check(err, IsNil)
 	c.Check(foundCi2, NotNil)
+	c.Check(snapSt.CurrentComponentSideInfos(), DeepEquals, []*snap.ComponentSideInfo{csi2, csi})
 
 	comps, err := snapSt.CurrentComponentInfos()
 	c.Assert(err, IsNil)
@@ -147,6 +148,7 @@ components:
 	comps, err = snapSt.CurrentComponentInfos()
 	c.Assert(err, IsNil)
 	c.Check(comps, HasLen, 0)
+	c.Check(snapSt.CurrentComponentSideInfos(), HasLen, 0)
 
 	comps, err = snapSt.ComponentInfosForRevision(ssi2.Revision)
 	c.Assert(err, IsNil)
@@ -173,6 +175,7 @@ components:
 	comps, err = snapSt.CurrentComponentInfos()
 	c.Assert(err, IsNil)
 	c.Check(comps, HasLen, 0)
+	c.Check(snapSt.CurrentComponentSideInfos(), HasLen, 0)
 
 	snapSt = &snapstate.SnapState{
 		Active: true,
@@ -199,6 +202,7 @@ components:
 	comps, err = snapSt.CurrentComponentInfos()
 	c.Assert(err, IsNil)
 	c.Check(comps, testutil.DeepUnsortedMatches, []*snap.ComponentInfo{foundCi})
+	c.Check(snapSt.CurrentComponentSideInfos(), DeepEquals, []*snap.ComponentSideInfo{csi})
 
 	comps, err = snapSt.ComponentInfosForRevision(snapRev2)
 	c.Assert(err, IsNil)

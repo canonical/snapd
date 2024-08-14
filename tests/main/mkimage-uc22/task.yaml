@@ -32,7 +32,7 @@ prepare: |
       SNAP_DEB_PARAM="--snapd-deb $PROJECT_PATH/../$SNAPD_DEB"
   fi
   # shellcheck disable=SC2086
-  "$TESTSTOOLS"/mkimage-uc22 --base-dir "$PWD" --snap pc_x1.snap $SNAP_DEB_PARAM "$TESTSLIB"/assertions/classic-model.assert
+  "$TESTSTOOLS"/mkimage-uc22 --base-dir "$PWD" --snap pc_x1.snap $SNAP_DEB_PARAM "$TESTSLIB"/assertions/classic-model-22.assert
 
   tests.pkgs install qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx cpu-checker
 

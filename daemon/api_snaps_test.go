@@ -1981,7 +1981,7 @@ func (s *snapsSuite) testPostSnap(c *check.C, extraJSON string, checkOpts func(o
 	defer restore()
 
 	checked := false
-	defer daemon.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
 		goal, ok := g.(*storeInstallGoalRecorder)
 		c.Assert(ok, check.Equals, true, check.Commentf("unexpected InstallGoal type %T", g))
 		c.Assert(goal.snaps, check.HasLen, 1)
@@ -1991,7 +1991,7 @@ func (s *snapsSuite) testPostSnap(c *check.C, extraJSON string, checkOpts func(o
 		}
 		checked = true
 		t := st.NewTask("fake-install-snap", "Doing a fake install")
-		return &snap.Info{}, state.NewTaskSet(t), nil
+		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	var buf *bytes.Buffer
@@ -2168,11 +2168,11 @@ func (s *snapsSuite) TestPostSnapSetsUser(c *check.C) {
 	defer restore()
 
 	checked := false
-	defer daemon.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
 		c.Check(opts.UserID, check.Equals, 1)
 		checked = true
 		t := st.NewTask("fake-install-snap", "Doing a fake install")
-		return &snap.Info{}, state.NewTaskSet(t), nil
+		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	state := d.Overlord().State()
@@ -2233,7 +2233,7 @@ func (s *snapsSuite) TestPostSnapOptionsUnsupportedAction(c *check.C) {
 func (s *snapsSuite) TestInstall(c *check.C) {
 	var calledName string
 
-	defer daemon.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
 		goal, ok := g.(*storeInstallGoalRecorder)
 		c.Assert(ok, check.Equals, true, check.Commentf("unexpected InstallGoal type %T", g))
 		c.Assert(goal.snaps, check.HasLen, 1)
@@ -2241,7 +2241,7 @@ func (s *snapsSuite) TestInstall(c *check.C) {
 		calledName = goal.snaps[0].InstanceName
 
 		t := st.NewTask("fake-install-snap", "Doing a fake install")
-		return &snap.Info{}, state.NewTaskSet(t), nil
+		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemon(c)
@@ -2263,11 +2263,11 @@ func (s *snapsSuite) TestInstall(c *check.C) {
 func (s *snapsSuite) TestInstallWithQuotaGroup(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	defer daemon.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
 		calledFlags = opts.Flags
 
 		t := st.NewTask("fake-install-snap", "Doing a fake install")
-		return &snap.Info{}, state.NewTaskSet(t), nil
+		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemon(c)
@@ -2288,11 +2288,11 @@ func (s *snapsSuite) TestInstallWithQuotaGroup(c *check.C) {
 func (s *snapsSuite) TestInstallDevMode(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	defer daemon.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
 		calledFlags = opts.Flags
 
 		t := st.NewTask("fake-install-snap", "Doing a fake install")
-		return &snap.Info{}, state.NewTaskSet(t), nil
+		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemon(c)
@@ -2315,11 +2315,11 @@ func (s *snapsSuite) TestInstallDevMode(c *check.C) {
 func (s *snapsSuite) TestInstallJailMode(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	defer daemon.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
 		calledFlags = opts.Flags
 
 		t := st.NewTask("fake-install-snap", "Doing a fake install")
-		return &snap.Info{}, state.NewTaskSet(t), nil
+		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemon(c)
@@ -2376,7 +2376,7 @@ func (s *snapsSuite) TestInstallCohort(c *check.C) {
 	var calledName string
 	var calledCohort string
 
-	defer daemon.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
 		goal, ok := g.(*storeInstallGoalRecorder)
 		c.Assert(ok, check.Equals, true, check.Commentf("unexpected InstallGoal type %T", g))
 		c.Assert(goal.snaps, check.HasLen, 1)
@@ -2385,7 +2385,7 @@ func (s *snapsSuite) TestInstallCohort(c *check.C) {
 		calledCohort = goal.snaps[0].RevOpts.CohortKey
 
 		t := st.NewTask("fake-install-snap", "Doing a fake install")
-		return &snap.Info{}, state.NewTaskSet(t), nil
+		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemon(c)
@@ -2409,7 +2409,7 @@ func (s *snapsSuite) TestInstallIgnoreValidation(c *check.C) {
 	var calledFlags snapstate.Flags
 	installQueue := []string{}
 
-	defer daemon.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
 		goal, ok := g.(*storeInstallGoalRecorder)
 		c.Assert(ok, check.Equals, true, check.Commentf("unexpected InstallGoal type %T", g))
 		c.Assert(goal.snaps, check.HasLen, 1)
@@ -2418,7 +2418,7 @@ func (s *snapsSuite) TestInstallIgnoreValidation(c *check.C) {
 		calledFlags = opts.Flags
 
 		t := st.NewTask("fake-install-snap", "Doing a fake install")
-		return &snap.Info{}, state.NewTaskSet(t), nil
+		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
 		return nil
@@ -2447,7 +2447,7 @@ func (s *snapsSuite) TestInstallIgnoreValidation(c *check.C) {
 }
 
 func (s *snapsSuite) TestInstallEmptyName(c *check.C) {
-	defer daemon.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
 		return nil, nil, errors.New("should not be called")
 	})()
 
@@ -2480,7 +2480,7 @@ func (s *snapsSuite) testInstall(c *check.C, forcedDevmode bool, flags snapstate
 	restore := sandbox.MockForceDevMode(forcedDevmode)
 	defer restore()
 
-	defer daemon.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
 		goal, ok := g.(*storeInstallGoalRecorder)
 		c.Assert(ok, check.Equals, true, check.Commentf("unexpected InstallGoal type %T", g))
 		c.Assert(goal.snaps, check.HasLen, 1)
@@ -2490,7 +2490,7 @@ func (s *snapsSuite) testInstall(c *check.C, forcedDevmode bool, flags snapstate
 		c.Check(revision, check.Equals, goal.snaps[0].RevOpts.Revision)
 
 		t := st.NewTask("fake-install-snap", "Doing a fake install")
-		return &snap.Info{}, state.NewTaskSet(t), nil
+		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemonWithFakeSnapManager(c)
@@ -2527,10 +2527,10 @@ func (s *snapsSuite) testInstall(c *check.C, forcedDevmode bool, flags snapstate
 }
 
 func (s *snapsSuite) TestInstallUserAgentContextCreated(c *check.C) {
-	defer daemon.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
 		s.ctx = ctx
 		t := st.NewTask("fake-install-snap", "Doing a fake install")
-		return &snap.Info{}, state.NewTaskSet(t), nil
+		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	s.daemonWithFakeSnapManager(c)
@@ -2549,9 +2549,9 @@ func (s *snapsSuite) TestInstallUserAgentContextCreated(c *check.C) {
 }
 
 func (s *snapsSuite) TestInstallFails(c *check.C) {
-	defer daemon.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
 		t := st.NewTask("fake-install-snap-error", "Install task")
-		return &snap.Info{}, state.NewTaskSet(t), nil
+		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemonWithFakeSnapManager(c)
@@ -3883,7 +3883,7 @@ func (s *snapsSuite) TestPostComponentsManyRemoveCompsAndSnap(c *check.C) {
 }
 
 func (s *snapsSuite) TestInstallWithComponents(c *check.C) {
-	defer daemon.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
 		goal, ok := g.(*storeInstallGoalRecorder)
 		c.Assert(ok, check.Equals, true, check.Commentf("unexpected InstallGoal type %T", g))
 		c.Assert(goal.snaps, check.HasLen, 1)
@@ -3892,7 +3892,7 @@ func (s *snapsSuite) TestInstallWithComponents(c *check.C) {
 		c.Check(goal.snaps[0].Components, check.DeepEquals, []string{"comp1", "comp2"})
 
 		t := st.NewTask("fake-install-snap", "Doing a fake install")
-		return &snap.Info{}, state.NewTaskSet(t), nil
+		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemonWithFakeSnapManager(c)
@@ -3969,4 +3969,126 @@ func (s *snapsSuite) TestInstallManyWithComponents(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(chg.Kind(), check.Equals, "install-snap")
 	c.Check(chg.Summary(), check.Equals, `Install snaps "some-snap" (with components "some-comp1", "some-comp2"), "other-snap" (with component "other-comp1")`)
+}
+
+func (s *snapsSuite) TestInstallWithComponentsSnapAlreadyInstalled(c *check.C) {
+	defer daemon.MockSnapstateInstallComponents(func(ctx context.Context, st *state.State, names []string, info *snap.Info, opts snapstate.Options) ([]*state.TaskSet, error) {
+		c.Check(names, check.DeepEquals, []string{"comp1", "comp2"})
+		c.Check(info.InstanceName(), check.Equals, "some-snap")
+		t := st.NewTask("fake-install-component", "Doing a fake components install")
+		return []*state.TaskSet{state.NewTaskSet(t)}, nil
+	})()
+
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		c.Fatal("unexpected call to snapstateInstallWithGoal")
+		return nil, nil, nil
+	})()
+
+	d := s.daemonWithFakeSnapManager(c)
+
+	r := strings.NewReader(`{"action": "install", "components": ["comp1", "comp2"]}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", r)
+	c.Assert(err, check.IsNil)
+
+	st := d.Overlord().State()
+	st.Lock()
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+	}
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{sequence.NewRevisionSideState(si, nil)},
+		),
+		Current: snap.R(1),
+	})
+	st.Unlock()
+
+	rsp := s.asyncReq(c, req, nil)
+
+	st.Lock()
+
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+
+	c.Check(chg.Tasks(), check.HasLen, 1)
+
+	st.Unlock()
+	s.waitTrivialChange(c, chg)
+	st.Lock()
+
+	c.Check(chg.Status(), check.Equals, state.DoneStatus)
+	c.Check(err, check.IsNil)
+	c.Check(chg.Kind(), check.Equals, "install-snap")
+	c.Check(chg.Summary(), check.Equals, `Install "some-snap" snap with components "comp1", "comp2"`)
+}
+
+func (s *snapsSuite) TestManyInstallWithComponentsSnapAlreadyInstalled(c *check.C) {
+	defer daemon.MockSnapstateInstallComponents(func(ctx context.Context, st *state.State, names []string, info *snap.Info, opts snapstate.Options) ([]*state.TaskSet, error) {
+		c.Check(names, check.DeepEquals, []string{"comp1", "comp2"})
+		c.Check(info.InstanceName(), check.Equals, "some-snap-with-components")
+		t := st.NewTask("fake-install-component", "Doing a fake components install")
+		return []*state.TaskSet{state.NewTaskSet(t)}, nil
+	})()
+
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		goal, ok := g.(*storeInstallGoalRecorder)
+		c.Assert(ok, check.Equals, true, check.Commentf("unexpected InstallGoal type %T", g))
+		c.Assert(goal.snaps, check.HasLen, 1)
+
+		c.Check(goal.snaps[0].InstanceName, check.Equals, "some-snap")
+		c.Check(goal.snaps[0].Components, check.HasLen, 0)
+
+		t := st.NewTask("fake-install-snap", "Doing a fake install")
+		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	})()
+
+	d := s.daemonWithFakeSnapManager(c)
+
+	r := strings.NewReader(`{"action": "install", "snaps": ["some-snap", "some-snap-with-components"], "components": {"some-snap-with-components": ["comp1", "comp2"]}}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", r)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	st := d.Overlord().State()
+	st.Lock()
+	si := &snap.SideInfo{
+		RealName: "some-snap-with-components",
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+	}
+
+	snapstate.Set(st, "some-snap-with-components", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{sequence.NewRevisionSideState(si, nil)},
+		),
+		Current: snap.R(1),
+	})
+	st.Unlock()
+
+	rsp := s.asyncReq(c, req, nil)
+
+	st.Lock()
+
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+
+	c.Check(chg.Tasks(), check.HasLen, 2)
+
+	st.Unlock()
+	s.waitTrivialChange(c, chg)
+	st.Lock()
+
+	c.Check(chg.Status(), check.Equals, state.DoneStatus)
+	c.Check(err, check.IsNil)
+	c.Check(chg.Kind(), check.Equals, "install-snap")
+
+	// TODO: decide if we want to have a better summary that indicates that
+	// the component was installed for an already installed snap. more
+	// complicated code, but it could be nice to have.
+	c.Check(chg.Summary(), check.Equals, `Install snaps "some-snap", "some-snap-with-components" (with components "comp1", "comp2")`)
 }
