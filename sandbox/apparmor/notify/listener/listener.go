@@ -310,7 +310,7 @@ func (l *Listener) Run() error {
 				if exitOnError {
 					return err
 				} else {
-					logger.Noticef("error in listener run loop: %v", err)
+					logger.Noticef("error in prompting listener run loop: %v", err)
 				}
 			}
 		}
@@ -399,7 +399,7 @@ func (l *Listener) handleRequestAaClassFile(buf []byte) error {
 	if err := fmsg.UnmarshalBinary(buf); err != nil {
 		return err
 	}
-	logger.Debugf("Received access request from the kernel: %+v", fmsg)
+	logger.Debugf("received prompt request from the kernel: %+v", fmsg)
 	req, err := newRequest(&fmsg)
 	if err != nil {
 		return err
@@ -452,7 +452,7 @@ func (l *Listener) waitAndRespondAaClassFile(req *Request, msg *notify.MsgNotifi
 		// msg.Error is field from MsgNotificationResponse, and is unused.
 		// msg.MsgNotification.Error is also ignored in responses.
 	}
-	logger.Debugf("Sending access response back to the kernel: %+v", resp)
+	logger.Debugf("sending request response back to the kernel: %+v", resp)
 	return l.encodeAndSendResponse(&resp)
 }
 
