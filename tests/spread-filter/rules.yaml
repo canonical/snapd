@@ -1,6 +1,6 @@
 rules:
-  rule_tests:
-    from: 
+  tests:
+    from:
       - tests/main/.*
       - tests/core/.*
       - tests/nested/.*
@@ -12,22 +12,22 @@ rules:
       - tests/unit/.*
       - tests/upgrade/.*
     to: [$SELF]
-  
-  rule_nested:
+
+  nested:
     from: [tests/lib/nested.sh]
     to: [tests/nested/]
 
-  rule_unit:
+  unit:
     from: [.*_test.go]
-    to: 
+    to:
      - tests/unit/go
      - tests/unit/c-unit-tests-clang
      - tests/unit/c-unit-tests-gcc
 
-  rule_docs:
+  docs:
     from: [.*.md]
     to: [$NONE]
 
-  rule_rest: 
+  rest:
     from: [.*]
     to: [tests/]
