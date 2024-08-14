@@ -6,6 +6,7 @@ apps:
         command: bin/start
         daemon: simple
         daemon-scope: user
+        install-mode: disable
 
 plugs:
     snap-interfaces-requests-control:
