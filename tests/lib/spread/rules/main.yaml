@@ -1,5 +1,5 @@
 rules:
-  rule_tests:
+  tests:
     from:
       - tests/main/.*
       - tests/core/.*
@@ -11,13 +11,13 @@ rules:
       - tests/upgrade/.*
     to: [$SELF]
 
-  rule_unit:
+  unit:
     from: [.*_test.go]
     to:
      - tests/unit/go
      - tests/unit/c-unit-tests-clang
      - tests/unit/c-unit-tests-gcc
 
-  rule_rest:
+  rest:
     from: [.*]
     to: [tests/]
