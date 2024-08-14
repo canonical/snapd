@@ -66,17 +66,6 @@ var (
 	}
 )
 
-func userAllowedPromptingClient(user *auth.UserState) bool {
-	// Check that the user is authorized to be a prompting client
-	return true // TODO: actually check
-}
-
-func userNotAllowedPromptingClientResponse(user *auth.UserState) Response {
-	// The user is not authorized to be a prompt UI client
-	// TODO: fix this
-	return Forbidden("user not allowed")
-}
-
 // getUserID returns the UID specified by the user-id parameter of the query,
 // otherwise the UID of the connection.
 //
@@ -161,10 +150,6 @@ type postRuleRequestBody struct {
 }
 
 func getPrompts(c *Command, r *http.Request, user *auth.UserState) Response {
-	if !userAllowedPromptingClient(user) {
-		return userNotAllowedPromptingClientResponse(user)
-	}
-
 	userID, errorResp := getUserID(r)
 	if errorResp != nil {
 		return errorResp
@@ -188,10 +173,6 @@ func getPrompts(c *Command, r *http.Request, user *auth.UserState) Response {
 func getPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	id := vars["id"]
-
-	if !userAllowedPromptingClient(user) {
-		return userNotAllowedPromptingClientResponse(user)
-	}
 
 	userID, errorResp := getUserID(r)
 	if errorResp != nil {
@@ -220,10 +201,6 @@ func getPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 func postPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	id := vars["id"]
-
-	if !userAllowedPromptingClient(user) {
-		return userNotAllowedPromptingClientResponse(user)
-	}
 
 	userID, errorResp := getUserID(r)
 	if errorResp != nil {
@@ -260,10 +237,6 @@ func postPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getRules(c *Command, r *http.Request, user *auth.UserState) Response {
-	if !userAllowedPromptingClient(user) {
-		return userNotAllowedPromptingClientResponse(user)
-	}
-
 	userID, errorResp := getUserID(r)
 	if errorResp != nil {
 		return errorResp
@@ -286,10 +259,6 @@ func getRules(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
-	if !userAllowedPromptingClient(user) {
-		return userNotAllowedPromptingClientResponse(user)
-	}
-
 	userID, errorResp := getUserID(r)
 	if errorResp != nil {
 		return errorResp
@@ -338,10 +307,6 @@ func getRule(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	id := vars["id"]
 
-	if !userAllowedPromptingClient(user) {
-		return userNotAllowedPromptingClientResponse(user)
-	}
-
 	userID, errorResp := getUserID(r)
 	if errorResp != nil {
 		return errorResp
@@ -367,10 +332,6 @@ func getRule(c *Command, r *http.Request, user *auth.UserState) Response {
 func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	id := vars["id"]
-
-	if !userAllowedPromptingClient(user) {
-		return userNotAllowedPromptingClientResponse(user)
-	}
 
 	ruleID, err := prompting.IDFromString(id)
 	if err != nil {
