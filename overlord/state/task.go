@@ -429,7 +429,7 @@ func (t *Task) addLog(kind, format string, args []interface{}) {
 	tstr := timeNow().Format(time.RFC3339)
 	msg := tstr + " " + kind + " " + fmt.Sprintf(format, args...)
 	t.log = append(t.log, msg)
-	logger.Debugf(msg)
+	logger.Debug(msg)
 }
 
 // Log returns the most recent messages logged into the task.

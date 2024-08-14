@@ -569,7 +569,7 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	copy(unsortedCurrent, current)
 
 	dumpMountEntries := func(entries []osutil.MountEntry, pfx string) {
-		logger.Debugf(pfx)
+		logger.Debug(pfx)
 		for _, en := range entries {
 			logger.Debugf("- %v", en)
 		}

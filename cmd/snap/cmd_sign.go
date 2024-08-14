@@ -139,7 +139,7 @@ func (x *cmdSign) Execute(args []string) error {
 		}
 	} else {
 		if accountKey == nil {
-			fmt.Fprintf(Stderr, i18n.G("WARNING: could not fetch account-key to cross-check signed assertion with key constraints.\n"))
+			fmt.Fprint(Stderr, i18n.G("WARNING: could not fetch account-key to cross-check signed assertion with key constraints.\n"))
 		}
 	}
 

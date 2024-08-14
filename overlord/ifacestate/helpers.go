@@ -235,7 +235,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 		if errors := interfaces.SetupMany(m.repo, backend, appSets, confinementOpts, tm); len(errors) > 0 {
 			logger.Noticef("cannot regenerate %s profiles", backend.Name())
 			for _, err := range errors {
-				logger.Noticef(err.Error())
+				logger.Notice(err.Error())
 			}
 			shouldWriteSystemKey = false
 		}

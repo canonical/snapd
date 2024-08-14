@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -662,7 +663,7 @@ func (x *infoCmd) Execute([]string) error {
 				return fmt.Errorf("no snap found for %q", snapName)
 			}
 
-			fmt.Fprintf(w, fmt.Sprintf(i18n.G("warning:\tno snap found for %q\n"), snapName))
+			fmt.Fprintf(w, i18n.G("warning:\tno snap found for %q\n"), snapName)
 			continue
 		}
 		noneOK = false
@@ -696,7 +697,7 @@ func (x *infoCmd) Execute([]string) error {
 	w.Flush()
 
 	if noneOK {
-		return fmt.Errorf(i18n.G("no valid snaps given"))
+		return errors.New(i18n.G("no valid snaps given"))
 	}
 
 	return nil

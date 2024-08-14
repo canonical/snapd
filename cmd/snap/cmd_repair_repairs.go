@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -36,7 +37,7 @@ func runSnapRepair(cmdStr string, args []string) error {
 	// do not even try to run snap-repair on classic, some distros
 	// may not even package it
 	if release.OnClassic {
-		return fmt.Errorf(i18n.G("repairs are not available on a classic system"))
+		return errors.New(i18n.G("repairs are not available on a classic system"))
 	}
 
 	snapRepairPath := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir, "snap-repair")
