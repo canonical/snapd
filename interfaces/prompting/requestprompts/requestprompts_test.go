@@ -20,6 +20,7 @@
 package requestprompts_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -1035,4 +1036,41 @@ func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
 
 	err = pdb.Close()
 	c.Check(err, Equals, requestprompts.ErrClosed)
+}
+
+func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, reply *listener.Response) error {
+		c.Fatalf("should not have called sendReply")
+		return nil
+	})
+	defer restore()
+
+	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+	defer pdb.Close()
+
+	metadata := &prompting.Metadata{
+		User:      s.defaultUser,
+		Snap:      "firefox",
+		Interface: "home",
+	}
+	path := "/home/test/foo"
+	requestedPermissions := []string{"read", "write", "execute"}
+	remainingPermissions := []string{"write", "execute"}
+
+	prompt, merged, err := pdb.AddOrMerge(metadata, path, requestedPermissions, remainingPermissions, nil)
+	c.Assert(err, IsNil)
+	c.Assert(merged, Equals, false)
+
+	// Set timestamp to a known time
+	timeStr := "2024-08-14T09:47:03.350324989-05:00"
+	prompt.Timestamp, err = time.Parse(time.RFC3339Nano, timeStr)
+	c.Assert(err, IsNil)
+
+	expectedJSON := `{"id":"0000000000000001","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"firefox","interface":"home","constraints":{"path":"/home/test/foo","requested-permissions":["write","execute"],"available-permissions":["read","write","execute"]}}`
+
+	marshalled, err := json.Marshal(prompt)
+	c.Assert(err, IsNil)
+
+	c.Assert(string(marshalled), Equals, string(expectedJSON))
 }

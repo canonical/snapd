@@ -22,6 +22,7 @@
 package requestprompts
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -51,6 +52,38 @@ type Prompt struct {
 	Interface    string
 	Constraints  *promptConstraints
 	listenerReqs []*listener.Request
+}
+
+// jsonPrompt defines the marshalled json structure of a Prompt.
+type jsonPrompt struct {
+	ID          prompting.IDType       `json:"id"`
+	Timestamp   time.Time              `json:"timestamp"`
+	Snap        string                 `json:"snap"`
+	Interface   string                 `json:"interface"`
+	Constraints *jsonPromptConstraints `json:"constraints"`
+}
+
+// jsonPromptConstraints defines the marshalled json structure of promptConstraints.
+type jsonPromptConstraints struct {
+	Path                 string   `json:"path"`
+	RequestedPermissions []string `json:"requested-permissions"`
+	AvailablePermissions []string `json:"available-permissions"`
+}
+
+func (p *Prompt) MarshalJSON() ([]byte, error) {
+	constraints := &jsonPromptConstraints{
+		Path:                 p.Constraints.path,
+		RequestedPermissions: p.Constraints.remainingPermissions,
+		AvailablePermissions: p.Constraints.availablePermissions,
+	}
+	toMarshal := &jsonPrompt{
+		ID:          p.ID,
+		Timestamp:   p.Timestamp,
+		Snap:        p.Snap,
+		Interface:   p.Interface,
+		Constraints: constraints,
+	}
+	return json.Marshal(toMarshal)
 }
 
 // promptConstraints store the path which was requested, along with three
