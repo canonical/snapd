@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type NomadSupportInterfaceSuite struct {
+type nomadSupportInterfaceSuite struct {
 	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
@@ -39,7 +39,7 @@ type NomadSupportInterfaceSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&NomadSupportInterfaceSuite{
+var _ = Suite(&nomadSupportInterfaceSuite{
 	iface: builtin.MustInterface("nomad-support"),
 })
 
@@ -57,24 +57,24 @@ slots:
   nomad-support:
 `
 
-func (s *NomadSupportInterfaceSuite) SetUpTest(c *C) {
+func (s *nomadSupportInterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, nomadSupportConsumerYaml, nil, "nomad-support")
 	s.slot, s.slotInfo = MockConnectedSlot(c, nomadSupportCoreYaml, nil, "nomad-support")
 }
 
-func (s *NomadSupportInterfaceSuite) TestName(c *C) {
+func (s *nomadSupportInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "nomad-support")
 }
 
-func (s *NomadSupportInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *nomadSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
-func (s *NomadSupportInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *nomadSupportInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *NomadSupportInterfaceSuite) TestAppArmorSpec(c *C) {
+func (s *nomadSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
 	spec := apparmor.NewSpecification(appSet)
@@ -83,14 +83,14 @@ func (s *NomadSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/sys/fs/cgroup/nomad.slice/* rw,\n")
 }
 
-func (s *NomadSupportInterfaceSuite) TestSecCompSpec(c *C) {
+func (s *nomadSupportInterfaceSuite) TestSecCompSpec(c *C) {
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
 	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 }
 
-func (s *NomadSupportInterfaceSuite) TestUdevSpec(c *C) {
+func (s *nomadSupportInterfaceSuite) TestUdevSpec(c *C) {
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
 	spec := udev.NewSpecification(appSet)
@@ -98,7 +98,7 @@ func (s *NomadSupportInterfaceSuite) TestUdevSpec(c *C) {
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, true)
 }
 
-func (s *NomadSupportInterfaceSuite) TestStaticInfo(c *C) {
+func (s *nomadSupportInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
@@ -107,10 +107,10 @@ func (s *NomadSupportInterfaceSuite) TestStaticInfo(c *C) {
 	c.Assert(si.BaseDeclarationPlugs, testutil.Contains, "nomad-support")
 }
 
-func (s *NomadSupportInterfaceSuite) TestAutoConnect(c *C) {
+func (s *nomadSupportInterfaceSuite) TestAutoConnect(c *C) {
 	c.Check(s.iface.AutoConnect(nil, nil), Equals, true)
 }
 
-func (s *NomadSupportInterfaceSuite) TestInterfaces(c *C) {
+func (s *nomadSupportInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

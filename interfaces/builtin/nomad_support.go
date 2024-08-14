@@ -90,10 +90,6 @@ type nomadSupportInterface struct {
 	commonInterface
 }
 
-func (iface *nomadSupportInterface) Name() string {
-	return "nomad-support"
-}
-
 func init() {
 	registerIface(&nomadSupportInterface{commonInterface{
 		name:                  "nomad-support",
