@@ -36,8 +36,6 @@ import (
 )
 
 var (
-	ErrPromptingNotEnabled = errors.New("AppArmor Prompting is not enabled")
-
 	// Allow mocking the listener for tests
 	listenerRegister = listener.Register
 	listenerClose    = func(l *listener.Listener) error { return l.Close() }
