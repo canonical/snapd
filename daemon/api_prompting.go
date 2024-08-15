@@ -103,7 +103,7 @@ func getUserID(r *http.Request) (uint32, Response) {
 
 type interfaceManager interface {
 	AppArmorPromptingRunning() bool
-	InterfacesRequestsManager() apparmorprompting.Interface
+	InterfacesRequestsManager() apparmorprompting.Manager
 }
 
 var getInterfaceManager = func(c *Command) interfaceManager {

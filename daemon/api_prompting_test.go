@@ -135,7 +135,10 @@ func (s *promptingSuite) AppArmorPromptingRunning() bool {
 	return s.appArmorPromptingRunning
 }
 
-func (s *promptingSuite) InterfacesRequestsManager() apparmorprompting.Interface {
+func (s *promptingSuite) InterfacesRequestsManager() apparmorprompting.Manager {
+	if s.manager == nil {
+		return nil
+	}
 	return s.manager
 }
 

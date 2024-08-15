@@ -47,7 +47,9 @@ var (
 	requestReply = func(req *listener.Request, resp *listener.Response) error { return req.Reply(resp) }
 )
 
-type Interface interface {
+// A Manager holds outstanding prompts and mediates their replies, further it
+// stores and applies persistent rules.
+type Manager interface {
 	Prompts(userID uint32) ([]*requestprompts.Prompt, error)
 	PromptWithID(userID uint32, promptID prompting.IDType) (*requestprompts.Prompt, error)
 	HandleReply(userID uint32, promptID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) ([]prompting.IDType, error)
@@ -58,6 +60,9 @@ type Interface interface {
 	PatchRule(userID uint32, ruleID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error)
 	RemoveRule(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error)
 }
+
+// verify that InterfacesRequestsManager implements Manager
+var _ Manager = (*InterfacesRequestsManager)(nil)
 
 type InterfacesRequestsManager struct {
 	tomb tomb.Tomb

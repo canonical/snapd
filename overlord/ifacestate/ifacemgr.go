@@ -152,7 +152,7 @@ var assessAppArmorPrompting = func(m *InterfaceManager) bool {
 // InterfacesRequestsManager returns the interfaces requests manager associated
 // with the receiver. This method may only be called after StartUp has been
 // called, and will return nil if AppArmor prompting is not running.
-func (m *InterfaceManager) InterfacesRequestsManager() apparmorprompting.Interface {
+func (m *InterfaceManager) InterfacesRequestsManager() apparmorprompting.Manager {
 	irm := m.interfacesRequestsManager
 	if irm == nil {
 		return nil
