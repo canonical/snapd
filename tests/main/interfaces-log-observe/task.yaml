@@ -9,7 +9,7 @@ details: |
     able to be reconnected.
 
     A snap which defines log-observe (without some additional to-be-defined
-    interface) must not be allowed "control"-type log syslog(2) accesses (i.e.
+    interface) must not be allowed "control"-type syslog(2) accesses (i.e.
     SYSLOG_ACTION{,_READ}_CLEAR, SYSLOG_ACTION_CONSOLE_{ON,OFF,LEVEL})
 
 environment:
@@ -21,7 +21,9 @@ prepare: |
         echo "Ensure that on Jammy+, sysctl kernel.dmesg_restrict == 1"
         # This should be the default, but we write it out just to be doubly sure
         # On systems before Jammy, leave it as whatever the default is.
+        orig_dmesg_restrict=$(sysctl -n kernel.dmesg_restrict)
         sysctl -w kernel.dmesg_restrict=1
+        tests.cleanup defer sysctl -w kernel.dmesg_restrict="$orig_dmesg_restrict"
     fi
 
     echo "Given a snap declaring the $PLUG plug is installed"
