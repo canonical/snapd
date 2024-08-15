@@ -302,19 +302,24 @@ func (*listenerSuite) TestRunSimple(c *C) {
 
 	for i, id := range ids {
 		response := &listener.Response{Permission: notify.FilePermission(respBits)}
+		var desiredBuf []byte
 		switch i % 2 {
 		case 0:
 			response.Allow = false
+			allow := aBits
+			deny := dBits
+			resp := newMsgNotificationResponse(id, allow, deny)
+			desiredBuf, err = resp.MarshalBinary()
+			c.Assert(err, IsNil)
 		case 1:
 			response.Allow = true
+			allow := aBits | (respBits & dBits)
+			deny := (^respBits) & dBits
+			resp := newMsgNotificationResponse(id, allow, deny)
+			desiredBuf, err = resp.MarshalBinary()
+			c.Assert(err, IsNil)
 		}
 		err = requests[i].Reply(response)
-		c.Assert(err, IsNil)
-
-		allow := aBits | ((dBits & respBits) * uint32(i))
-		deny := dBits * uint32(1-i)
-		resp := newMsgNotificationResponse(id, allow, deny)
-		desiredBuf, err := resp.MarshalBinary()
 		c.Assert(err, IsNil)
 
 		received := <-sendChan
