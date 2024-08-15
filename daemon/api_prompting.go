@@ -22,7 +22,6 @@ package daemon
 import (
 	"encoding/json"
 	"errors"
-	"math"
 	"net/http"
 	"strconv"
 
@@ -86,17 +85,14 @@ func getUserID(r *http.Request) (uint32, Response) {
 	if reqUID != 0 {
 		return 0, Forbidden(`only admins may use the "user-id" parameter`)
 	}
-	prefix := `invalid "user-id" parameter`
+	const prefix = `invalid "user-id" parameter`
 	queryUserIDs := strutil.MultiCommaSeparatedList(query["user-id"])
 	if len(queryUserIDs) != 1 {
-		return 0, BadRequest(`%v: must only include one "user-id"`, prefix)
+		return 0, BadRequest(`%s: must only include one "user-id"`, prefix)
 	}
-	userIDInt, err := strconv.ParseInt(queryUserIDs[0], 10, 64)
+	userIDInt, err := strconv.ParseUint(queryUserIDs[0], 10, 32)
 	if err != nil {
-		return 0, BadRequest("%v: %v", prefix, err)
-	}
-	if userIDInt < 0 || userIDInt > math.MaxUint32 {
-		return 0, BadRequest("%v: user ID is not a valid uint32: %d", prefix, userIDInt)
+		return 0, BadRequest("%s: user ID is not a valid uint32: %d", prefix, userIDInt)
 	}
 	return uint32(userIDInt), nil
 }
