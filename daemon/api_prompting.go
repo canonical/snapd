@@ -185,10 +185,10 @@ func getPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	prompt, err := getInterfaceManager(c).InterfacesRequestsManager().PromptWithID(userID, promptID)
-	if errors.Is(err, apparmorprompting.ErrPromptingNotEnabled) {
-		return InternalError("%v", err)
-	} else if err != nil {
+	if errors.Is(err, requestprompts.ErrNotFound) {
 		return NotFound("%v", err)
+	} else if err != nil {
+		return InternalError("%v", err)
 	}
 
 	return SyncResponse(prompt)
@@ -219,7 +219,7 @@ func postPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	satisfiedPromptIDs, err := getInterfaceManager(c).InterfacesRequestsManager().HandleReply(userID, promptID, reply.Constraints, reply.Outcome, reply.Lifespan, reply.Duration)
-	if errors.Is(err, requestprompts.ErrClosed) {
+	if errors.Is(err, requestprompts.ErrClosed) || errors.Is(err, requestrules.ErrInternalInconsistency) {
 		return InternalError("%v", err)
 	} else if errors.Is(err, requestprompts.ErrNotFound) {
 		return NotFound("%v", err)
@@ -327,6 +327,10 @@ func getRule(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	rule, err := getInterfaceManager(c).InterfacesRequestsManager().RuleWithID(userID, ruleID)
 	if err != nil {
+		// Even if the error is ErrUserNotAllowed, reply with NotFound response
+		// to match the behavior of prompts, and so if we switch to storing
+		// rules by ID (and don't want to check whether a rule with that ID
+		// exists for some other user), this error will remain unchanged.
 		return NotFound("%v", err)
 	}
 
@@ -365,7 +369,7 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 		patchedRule, err := getInterfaceManager(c).InterfacesRequestsManager().PatchRule(userID, ruleID, postBody.PatchRule.Constraints, postBody.PatchRule.Outcome, postBody.PatchRule.Lifespan, postBody.PatchRule.Duration)
 		if errors.Is(err, requestrules.ErrRuleIDNotFound) || errors.Is(err, requestrules.ErrUserNotAllowed) {
 			return NotFound("%v", err)
-		} else if errors.Is(err, requestrules.ErrInternalInconsistency) {
+		} else if errors.Is(err, requestrules.ErrInternalInconsistency) || errors.Is(err, requestrules.ErrClosed) {
 			return InternalError("%v", err)
 		} else if err != nil {
 			return BadRequest("%v", err)
