@@ -92,10 +92,16 @@ func newRequest(msg *notify.MsgNotificationFile) (*Request, error) {
 	var perm any
 	switch msg.Class {
 	case notify.AA_CLASS_FILE:
+		// DecodeFilePermissions returns:
+		// 1. allow: the permissions which were already allowed by AppArmor profile
+		// 2. deny:  the permissions which were not already allowed by AppArmor profile
+		// 3. err:   an error if the message was not a file permission request
 		_, missingPerms, err := msg.DecodeFilePermissions()
 		if err != nil {
 			return nil, err
 		}
+		// Treat denied permissions as the remaining permissions to request
+		// from the user.
 		perm = missingPerms
 	default:
 		return nil, fmt.Errorf("unsupported mediation class: %v", msg.Class)
@@ -440,14 +446,20 @@ func (l *Listener) waitAndRespondAaClassFile(req *Request, msg *notify.MsgNotifi
 		allow = false
 	}
 	if allow {
+		// XXX: If the kernel sends a permission in both the allow and deny
+		// fields, treat it as initially denied.
+		apparmorAllowed := (msg.Allow ^ msg.Deny) & msg.Allow
+		// Response contained the permissions the user explicitly allowed
+		explicitlyAllowed := uint32(perms)
 		// Allow permissions which AppArmor initially allowed, along with those
 		// which the were initially denied but the user explicitly allowed.
 		// Any permissions which are omitted from both the allow and deny
 		// fields will be automatically denied by the kernel.
-		resp.Allow = msg.Allow | (uint32(perms) & msg.Deny)
-		resp.Deny = 0 // TODO: switch to equivalent but clearer ~uint32(perms) & msg.Deny
+		resp.Allow = apparmorAllowed | (explicitlyAllowed & msg.Deny)
+		resp.Deny = (^explicitlyAllowed) & msg.Deny
 		resp.Error = 0
 	} else {
+		// Deny every permission which was not originally granted
 		resp.Allow = msg.Allow
 		resp.Deny = msg.Deny
 		resp.Error = msg.Error
