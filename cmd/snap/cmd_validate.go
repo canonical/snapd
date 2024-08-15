@@ -210,7 +210,7 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(Stdout, fmtValid(vset))
+		fmt.Fprint(Stdout, fmtValid(vset))
 		// XXX: exit status 1 if invalid?
 	}
 

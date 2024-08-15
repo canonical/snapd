@@ -645,7 +645,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 
 	msg := autoRefreshSummary(updated)
 	if msg == "" {
-		logger.Noticef(i18n.G("auto-refresh: all snaps are up-to-date"))
+		logger.Notice(i18n.G("auto-refresh: all snaps are up-to-date"))
 		return nil
 	}
 

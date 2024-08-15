@@ -75,6 +75,6 @@ func (x *cmdMigrateHome) Execute(args []string) error {
 		msg = fmt.Sprintf(i18n.G("%s migrated their home directories to ~/Snap\n"), strutil.Quoted(snaps))
 	}
 
-	fmt.Fprintf(Stdout, msg)
+	fmt.Fprint(Stdout, msg)
 	return nil
 }

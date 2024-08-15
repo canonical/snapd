@@ -219,7 +219,7 @@ func (x *cmdGet) outputDefault(conf map[string]interface{}, snapName string, con
 
 		// TODO: remove this conditional and the warning below
 		// after a transition period.
-		fmt.Fprintf(Stderr, i18n.G(`WARNING: The output of 'snap get' will become a list with columns - use -d or -l to force the output format.\n`))
+		fmt.Fprint(Stderr, i18n.G(`WARNING: The output of 'snap get' will become a list with columns - use -d or -l to force the output format.\n`))
 		return x.outputJson(confToPrint)
 	}
 

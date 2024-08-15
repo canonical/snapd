@@ -43,6 +43,6 @@ func (x *cmdGetStacktraces) Execute(args []string) error {
 	if err := x.client.Debug("stacktraces", nil, &stacktraces); err != nil {
 		return err
 	}
-	fmt.Fprintf(Stdout, stacktraces)
+	fmt.Fprint(Stdout, stacktraces)
 	return nil
 }
