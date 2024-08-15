@@ -73,9 +73,17 @@ execute: |
   # the group is double escaped
   systemctl show --property=ControlGroup snap.test-snapd-stressd.spawner.service | MATCH 'ControlGroup=/snap.group(.*)one.slice/snap.test-snapd-stressd.spawner.service'
 
-  # verify that 'snap quota' is reporting the correct usage
+  # verify that 'snap quota' is reporting the correct new usage
   echo "Verify the number of threads is correct (=16)"
-  threadUsage="$(snap quota group-one | awk '/current:/,/threads:/{printf "%s",$2} END {print ""}')"
+  n=0
+  until [ "$n" -ge 10 ]; do
+      threadUsage="$(snap quota group-one | awk '/current:/,/threads:/{printf "%s",$2} END {print ""}')"
+      if [ "$threadUsage" -ge 16 ]; then
+          break
+      fi
+      sleep 1
+      (( n++ ))
+  done
   if ! [ "$threadUsage" -eq 16 ]; then
     echo "thread usage reported does not equal the expected quota usage $threadUsage"
     exit 1
@@ -89,10 +97,11 @@ execute: |
   n=0
   until [ "$n" -ge 10 ]; do
       threadUsage="$(snap quota group-one | awk '/current:/,/threads:/{printf "%s",$2} END {print ""}')"
-      if [ "$threadUsage" -eq 24 ]; then
+      if [ "$threadUsage" -ge 24 ]; then
           break
       fi
       sleep 1
+      (( n++ ))
   done
   if ! [ "$threadUsage" -eq 24 ]; then
     echo "thread usage reported does not equal the expected quota usage $threadUsage"
