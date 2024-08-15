@@ -17,14 +17,24 @@
  *
  */
 
-package arch
+package osutil
 
 import (
-	"github.com/snapcore/snapd/testutil"
+	"encoding/binary"
+	"fmt"
+	"runtime"
 )
 
-func MockRuntimeGOARCH(arch string) (restore func()) {
-	restore = testutil.Backup(&runtimeGOARCH)
-	runtimeGOARCH = arch
-	return restore
+var runtimeGOARCH = runtime.GOARCH
+
+// Endian will return the native endianness of the system
+func Endian() binary.ByteOrder {
+	switch runtimeGOARCH {
+	case "ppc", "ppc64", "s390x":
+		return binary.BigEndian
+	case "386", "amd64", "arm", "arm64", "ppc64le", "riscv64":
+		return binary.LittleEndian
+	default:
+		panic(fmt.Sprintf("unknown architecture %s", runtimeGOARCH))
+	}
 }
