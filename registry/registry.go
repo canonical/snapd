@@ -121,14 +121,14 @@ func (e *BadRequestError) Is(err error) bool {
 	return ok
 }
 
-func badRequestErrorFrom(v *View, operation, request, errMsg string, args ...interface{}) *BadRequestError {
+func badRequestErrorFrom(v *View, operation, request, msg string) *BadRequestError {
 	return &BadRequestError{
 		Account:      v.registry.Account,
 		RegistryName: v.registry.Name,
 		View:         v.Name,
 		Operation:    operation,
 		Request:      request,
-		Cause:        fmt.Sprintf(errMsg, args...),
+		Cause:        msg,
 	}
 }
 

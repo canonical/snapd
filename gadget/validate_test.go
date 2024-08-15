@@ -244,7 +244,7 @@ func (s *validateGadgetTestSuite) TestValidateConsistencyWithoutModelCharacteris
 		c.Logf("tc: %v %v %v", i, tc.role, tc.label)
 		b := &bytes.Buffer{}
 
-		fmt.Fprintf(b, `
+		fmt.Fprint(b, `
 volumes:
   pc:
     bootloader: grub
@@ -252,7 +252,7 @@ volumes:
     structure:`)
 
 		if tc.role == "system-seed" {
-			fmt.Fprintf(b, `
+			fmt.Fprint(b, `
       - name: Recovery
         size: 10M
         type: 83
@@ -328,16 +328,16 @@ volumes:
 		c.Logf("tc: %v %v %v %v", i, tc.addSeed, tc.dataLabel, tc.hasModes)
 		b := &bytes.Buffer{}
 
-		fmt.Fprintf(b, bloader)
+		fmt.Fprint(b, bloader)
 		if tc.addSeed {
-			fmt.Fprintf(b, `
+			fmt.Fprint(b, `
       - name: Recovery
         size: 10M
         type: 83
         role: system-seed`)
 		}
 		if tc.addBoot {
-			fmt.Fprintf(b, `
+			fmt.Fprint(b, `
       - name: Boot
         size: 10M
         type: 83
@@ -354,7 +354,7 @@ volumes:
 		}
 
 		if tc.addSave {
-			fmt.Fprintf(b, `
+			fmt.Fprint(b, `
       - name: Save
         size: 10M
         type: 83

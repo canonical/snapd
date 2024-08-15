@@ -682,7 +682,7 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	isLocal := isLocalContainer(names[0])
 	for _, name := range names {
 		if isLocalContainer(name) != isLocal {
-			return fmt.Errorf(i18n.G("cannot install local and store snaps at the same time"))
+			return errors.New(i18n.G("cannot install local and store snaps at the same time"))
 		}
 	}
 
@@ -1116,7 +1116,7 @@ func (x *cmdRefresh) unholdRefreshes() (err error) {
 	}
 
 	if len(names) == 0 {
-		fmt.Fprintf(Stdout, i18n.G("Removed auto-refresh hold on all snaps\n"))
+		fmt.Fprint(Stdout, i18n.G("Removed auto-refresh hold on all snaps\n"))
 	} else {
 		fmt.Fprintf(Stdout, i18n.G("Removed general refresh hold of %s\n"), strutil.Quoted(names))
 	}
@@ -1164,7 +1164,7 @@ func (x *cmdTry) Execute([]string) error {
 			}
 		}
 		if name == "" {
-			return fmt.Errorf(i18n.G("error: the `<snap-dir>` argument was not provided and couldn't be inferred"))
+			return errors.New(i18n.G("error: the `<snap-dir>` argument was not provided and couldn't be inferred"))
 		}
 	}
 
@@ -1199,7 +1199,7 @@ func (x *cmdTry) Execute([]string) error {
 		return fmt.Errorf(i18n.G("cannot extract the snap-name from local file %q: %v"), name, err)
 	}
 	if len(changedSnaps.names) != 1 {
-		return fmt.Errorf(i18n.G("internal error, wrong number of snaps in change"))
+		return errors.New(i18n.G("internal error, wrong number of snaps in change"))
 	}
 
 	name = changedSnaps.names[0]
@@ -1361,10 +1361,10 @@ func (x cmdSwitch) Execute(args []string) error {
 	// the 5 valid cases are handled by showDone.
 	if switchCohort && x.LeaveCohort {
 		// this one counts as two (no channel filter)
-		return fmt.Errorf(i18n.G("cannot specify both --cohort and --leave-cohort"))
+		return errors.New(i18n.G("cannot specify both --cohort and --leave-cohort"))
 	}
 	if !switchCohort && !x.LeaveCohort && !switchChannel {
-		return fmt.Errorf(i18n.G("nothing to switch; specify --channel (and/or one of --cohort/--leave-cohort)"))
+		return errors.New(i18n.G("nothing to switch; specify --channel (and/or one of --cohort/--leave-cohort)"))
 	}
 
 	opts := &client.SnapOptions{

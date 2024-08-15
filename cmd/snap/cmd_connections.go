@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -144,7 +145,7 @@ func (x *cmdConnections) Execute(args []string) error {
 		if x.All {
 			// passing a snap name already implies --all, error out
 			// when it was passed explicitly
-			return fmt.Errorf(i18n.G("cannot use --all with snap name"))
+			return errors.New(i18n.G("cannot use --all with snap name"))
 		}
 		// when asking for a single snap, include its disconnected plugs
 		// and slots

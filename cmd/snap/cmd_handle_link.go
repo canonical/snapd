@@ -20,7 +20,7 @@
 package main
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"syscall"
 	"time"
@@ -67,7 +67,7 @@ func (x *cmdHandleLink) ensureSnapStoreInstalled() error {
 			Footer:  i18n.G("This dialog will close automatically after 5 minutes of inactivity."),
 		})
 	if !answeredYes {
-		return fmt.Errorf(i18n.G("Snap Store required"))
+		return errors.New(i18n.G("Snap Store required"))
 	}
 
 	changeID, err := x.client.Install("snap-store", nil)

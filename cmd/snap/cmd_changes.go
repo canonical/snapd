@@ -115,7 +115,7 @@ func (c *cmdChanges) Execute(args []string) error {
 
 	w := tabWriter()
 
-	fmt.Fprintf(w, i18n.G("ID\tStatus\tSpawn\tReady\tSummary\n"))
+	fmt.Fprint(w, i18n.G("ID\tStatus\tSpawn\tReady\tSummary\n"))
 	for _, chg := range changes {
 		spawnTime := c.fmtTime(chg.SpawnTime)
 		readyTime := c.fmtTime(chg.ReadyTime)
@@ -162,7 +162,7 @@ func (c *cmdTasks) showChange(chid string) error {
 
 	w := tabWriter()
 
-	fmt.Fprintf(w, i18n.G("Status\tSpawn\tReady\tSummary\n"))
+	fmt.Fprint(w, i18n.G("Status\tSpawn\tReady\tSummary\n"))
 	for _, t := range chg.Tasks {
 		spawnTime := c.fmtTime(t.SpawnTime)
 		readyTime := c.fmtTime(t.ReadyTime)

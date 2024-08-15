@@ -21,6 +21,7 @@ package ctlcmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -71,7 +72,7 @@ func init() {
 
 func (s *setCommand) Execute(args []string) error {
 	if s.Positional.PlugOrSlotSpec == "" && len(s.Positional.ConfValues) == 0 {
-		return fmt.Errorf(i18n.G("set which option?"))
+		return errors.New(i18n.G("set which option?"))
 	}
 
 	context, err := s.ensureContext()
@@ -175,7 +176,7 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	// Make sure set :<plug|slot> is only supported during the execution of prepare-[plug|slot] hooks
 	hookType, _ := interfaceHookType(context.HookName())
 	if hookType != preparePlugHook && hookType != prepareSlotHook {
-		return fmt.Errorf(i18n.G("interface attributes can only be set during the execution of prepare hooks"))
+		return errors.New(i18n.G("interface attributes can only be set during the execution of prepare hooks"))
 	}
 
 	attrsTask, err := attributesTask(context)

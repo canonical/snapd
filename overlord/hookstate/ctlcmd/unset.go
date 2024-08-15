@@ -20,7 +20,7 @@
 package ctlcmd
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/configstate"
@@ -54,7 +54,7 @@ func init() {
 
 func (s *unsetCommand) Execute(args []string) error {
 	if len(s.Positional.ConfKeys) == 0 {
-		return fmt.Errorf(i18n.G("unset which option?"))
+		return errors.New(i18n.G("unset which option?"))
 	}
 
 	context, err := s.ensureContext()

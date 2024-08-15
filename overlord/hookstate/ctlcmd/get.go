@@ -146,7 +146,7 @@ func (c *getCommand) printPatch(patch interface{}) error {
 
 func (c *getCommand) Execute(args []string) error {
 	if len(c.Positional.Keys) == 0 && c.Positional.PlugOrSlotSpec == "" {
-		return fmt.Errorf(i18n.G("get which option?"))
+		return errors.New(i18n.G("get which option?"))
 	}
 
 	context, err := c.ensureContext()
@@ -169,7 +169,7 @@ func (c *getCommand) Execute(args []string) error {
 		}
 		// registry views can be read without fields
 		if !c.View && len(c.Positional.Keys) == 0 {
-			return fmt.Errorf(i18n.G("get which attribute?"))
+			return errors.New(i18n.G("get which attribute?"))
 		}
 
 		if c.View {
@@ -266,7 +266,7 @@ func validatePlugOrSlot(attrsTask *state.Task, plugSide bool, plugOrSlot string)
 		}
 	}
 	if err != nil {
-		return fmt.Errorf(i18n.G("internal error: cannot find plug or slot data in the appropriate task"))
+		return errors.New(i18n.G("internal error: cannot find plug or slot data in the appropriate task"))
 	}
 	if name != plugOrSlot {
 		return fmt.Errorf(i18n.G("unknown plug or slot %q"), plugOrSlot)
@@ -287,7 +287,7 @@ func attributesTask(context *hookstate.Context) (*state.Task, error) {
 
 	attrsTask := st.Task(attrsTaskID)
 	if attrsTask == nil {
-		return nil, fmt.Errorf(i18n.G("internal error: cannot find attrs task"))
+		return nil, errors.New(i18n.G("internal error: cannot find attrs task"))
 	}
 
 	return attrsTask, nil
@@ -297,7 +297,7 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	// Make sure get :<plug|slot> is only supported during the execution of interface hooks
 	hookType, err := interfaceHookType(context.HookName())
 	if err != nil {
-		return fmt.Errorf(i18n.G("interface attributes can only be read during the execution of interface hooks"))
+		return errors.New(i18n.G("interface attributes can only be read during the execution of interface hooks"))
 	}
 
 	attrsTask, err := attributesTask(context)
@@ -356,7 +356,7 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 
 func (c *getCommand) getRegistryView(ctx *hookstate.Context, plugName string) error {
 	if c.ForcePlugSide || c.ForceSlotSide {
-		return fmt.Errorf(i18n.G("cannot use --plug or --slot with --view"))
+		return errors.New(i18n.G("cannot use --plug or --slot with --view"))
 	}
 
 	ctx.Lock()

@@ -141,11 +141,11 @@ func showSections(cli *client.Client) error {
 	}
 	sort.Strings(sections)
 
-	fmt.Fprintf(Stdout, i18n.G("No section specified. Available sections:\n"))
+	fmt.Fprint(Stdout, i18n.G("No section specified. Available sections:\n"))
 	for _, sec := range sections {
 		fmt.Fprintf(Stdout, " * %s\n", sec)
 	}
-	fmt.Fprintf(Stdout, i18n.G("Please try 'snap find --section=<selected section>'\n"))
+	fmt.Fprint(Stdout, i18n.G("Please try 'snap find --section=<selected section>'\n"))
 	return nil
 }
 
