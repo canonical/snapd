@@ -108,8 +108,9 @@ type promptConstraints struct {
 	// original request. A prompt's permissions may be partially satisfied over
 	// time as new rules are added, but we need to keep track of the originally
 	// requested permissions so that we can still send back a response to the
-	// kernel with all of the permissions which were included in the request
-	// from the kernel (aside from any which we didn't recognize).
+	// kernel with all of the originally requested permissions which were
+	// explicitly allowed by the user, even if some of those permissions were
+	// allowed by rules instead of by the direct reply to the prompt.
 	originalPermissions []string
 }
 
@@ -311,8 +312,8 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 
 	if len(userEntry.prompts) >= maxOutstandingPromptsPerUser {
 		logger.Noticef("WARNING: too many outstanding prompts for user %d; auto-denying new one", metadata.User)
-		response := responseForInterfaceConstraintsOutcome(metadata.Interface, constraints, prompting.OutcomeDeny)
-		sendReply(listenerReq, response)
+		allowedPermission := responseForInterfaceConstraintsOutcome(metadata.Interface, constraints, prompting.OutcomeDeny)
+		sendReply(listenerReq, allowedPermission)
 		return nil, false, ErrTooManyPrompts
 	}
 
@@ -331,25 +332,32 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 	return prompt, false, nil
 }
 
-func responseForInterfaceConstraintsOutcome(iface string, constraints *promptConstraints, outcome prompting.OutcomeType) *listener.Response {
+func responseForInterfaceConstraintsOutcome(iface string, constraints *promptConstraints, outcome prompting.OutcomeType) any {
 	allow, err := outcome.AsBool()
 	if err != nil {
 		// This should not occur, but if so, default to deny
 		allow = false
 		logger.Debugf("%v", err)
 	}
-	permission, err := prompting.AbstractPermissionsToAppArmorPermissions(iface, constraints.originalPermissions)
+	allowedPerms := constraints.originalPermissions
+	if !allow {
+		// Remaining permissions were denied, so allow permissions which were
+		// previously allowed by prompt rules
+		allowedPerms = make([]string, 0, len(constraints.originalPermissions)-len(constraints.remainingPermissions))
+		for _, perm := range constraints.originalPermissions {
+			// Exclude any permissions which were remaining at time of denial
+			if !strutil.ListContains(constraints.remainingPermissions, perm) {
+				allowedPerms = append(allowedPerms, perm)
+			}
+		}
+	}
+	allowedPermission, err := prompting.AbstractPermissionsToAppArmorPermissions(iface, allowedPerms)
 	if err != nil {
-		// This should not occur, but if so, default to denying the request,
-		// which denies all requested permissions.
-		allow = false
+		// This should not occur, but if so, permission should be set to the
+		// empty value for its corresponding permission type.
 		logger.Debugf("internal error: cannot convert abstract permissions to AppArmor permissions: %v", err)
 	}
-	response := &listener.Response{
-		Allow:      allow,
-		Permission: permission,
-	}
-	return response
+	return allowedPermission
 }
 
 // Prompts returns a slice of all outstanding prompts for the given user.
@@ -408,9 +416,9 @@ func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.O
 	if err != nil {
 		return nil, err
 	}
-	response := responseForInterfaceConstraintsOutcome(prompt.Interface, prompt.Constraints, outcome)
+	allowedPermission := responseForInterfaceConstraintsOutcome(prompt.Interface, prompt.Constraints, outcome)
 	for _, listenerReq := range prompt.listenerReqs {
-		if err := sendReply(listenerReq, response); err != nil {
+		if err := sendReply(listenerReq, allowedPermission); err != nil {
 			// Error should only occur if reply is malformed, and since these
 			// listener requests should be identical, if a reply is malformed
 			// for one, it should be malformed for all. Malformed replies should
@@ -424,8 +432,8 @@ func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.O
 	return prompt, nil
 }
 
-var sendReply = func(listenerReq *listener.Request, response *listener.Response) error {
-	return listenerReq.Reply(response)
+var sendReply = func(listenerReq *listener.Request, allowedPermission any) error {
+	return listenerReq.Reply(allowedPermission)
 }
 
 // HandleNewRule checks if any existing prompts are satisfied by the given rule
@@ -473,8 +481,15 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 		if !matched {
 			continue
 		}
+
+		// Record all allowed permissions at the time of match, in case a
+		// permission is denied and we need to send back a response.
+		allowedPermission := responseForInterfaceConstraintsOutcome(metadata.Interface, prompt.Constraints, outcome)
+
+		// See if the permission matches any of the prompt's remaining permissions
 		modified := prompt.Constraints.subtractPermissions(constraints.Permissions)
 		if !modified {
+			// No permission was matched
 			continue
 		}
 		id := prompt.ID
@@ -483,9 +498,10 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 			continue
 		}
 		// All permissions of prompt satisfied, or any permission denied
-		response := responseForInterfaceConstraintsOutcome(metadata.Interface, prompt.Constraints, outcome)
 		for _, listenerReq := range prompt.listenerReqs {
-			sendReply(listenerReq, response)
+			// Reply with any permissions which were allowed, either by this
+			// new rule or by previous rules.
+			sendReply(listenerReq, allowedPermission)
 		}
 		userEntry.remove(id)
 		satisfiedPromptIDs = append(satisfiedPromptIDs, id)
@@ -528,7 +544,7 @@ func (pdb *PromptDB) Close() error {
 // MockSendReply mocks the function to send a reply back to the listener so
 // tests, both for this package and for consumers of this package, can mock
 // the listener.
-func MockSendReply(f func(listenerReq *listener.Request, response *listener.Response) error) (restore func()) {
+func MockSendReply(f func(listenerReq *listener.Request, allowedPermission any) error) (restore func()) {
 	orig := sendReply
 	sendReply = f
 	return func() {

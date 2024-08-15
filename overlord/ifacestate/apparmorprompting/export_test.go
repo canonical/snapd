@@ -43,8 +43,8 @@ func MockListenerClose(f func(l *listener.Listener) error) (restore func()) {
 }
 
 type RequestResponse struct {
-	Request  *listener.Request
-	Response *listener.Response
+	Request           *listener.Request
+	AllowedPermission any
 }
 
 func MockListener() (reqChan chan *listener.Request, replyChan chan RequestResponse, restore func()) {
@@ -77,10 +77,10 @@ func MockListener() (reqChan chan *listener.Request, replyChan chan RequestRespo
 		}
 		return nil
 	})
-	restoreReply := MockRequestReply(func(req *listener.Request, resp *listener.Response) error {
+	restoreReply := MockRequestReply(func(req *listener.Request, allowedPermission any) error {
 		reqResp := RequestResponse{
-			Request:  req,
-			Response: resp,
+			Request:           req,
+			AllowedPermission: allowedPermission,
 		}
 		replyChan <- reqResp
 		return nil
@@ -95,7 +95,7 @@ func MockListener() (reqChan chan *listener.Request, replyChan chan RequestRespo
 	return reqChan, replyChan, restore
 }
 
-func MockRequestReply(f func(req *listener.Request, resp *listener.Response) error) (restore func()) {
+func MockRequestReply(f func(req *listener.Request, allowedPermission any) error) (restore func()) {
 	restoreRequestReply := testutil.Backup(&requestReply)
 	requestReply = f
 	restoreRequestpromptsSendReply := requestprompts.MockSendReply(f)
