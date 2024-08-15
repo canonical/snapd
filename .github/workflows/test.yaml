@@ -3,17 +3,7 @@ on:
   pull_request:
     branches: [ "master", "release/**", "core-snap-security-release/**", "security-release/**" ]
   push:
-    # we trigger runs on master branch, but we do not run spread on master 
-    # branch, the master branch runs are just for unit tests + codecov.io
     branches: [ "master", "release/**", "core-snap-security-release/**", "security-release/**" ]
-
-  # XXX we suspect that the whenever the labeler workflow executes successfully
-  # it will trigger another workflow of tests on master, temporarily disable to
-  # see if that improves the situation
-  # workflow_run:
-  #   workflows: ["Pull Request Labeler"]
-  #   types:
-  #     - completed
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
@@ -614,9 +604,6 @@ jobs:
 
   spread:
     needs: [unit-tests, snap-builds]
-    # have spread jobs run on master on PRs only, but on both PRs and pushes to
-    # release branches
-    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
     name: ${{ matrix.group }}
     runs-on: [self-hosted, spread-enabled]
     strategy:
