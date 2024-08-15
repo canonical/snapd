@@ -191,7 +191,7 @@ type ValidationSets struct {
 	// sets maps sequence keys to validation-set in the combination
 	sets map[string]*asserts.ValidationSet
 	// snaps maps snap-ids to snap constraints
-	snaps map[string]*snapContraints
+	snaps map[string]*snapConstraints
 }
 
 const presConflict asserts.Presence = "conflict"
@@ -199,7 +199,7 @@ const presConflict asserts.Presence = "conflict"
 var unspecifiedRevision = snap.R(0)
 var invalidPresRevision = snap.R(-1)
 
-type snapContraints struct {
+type snapConstraints struct {
 	name     string
 	presence asserts.Presence
 	// revisions maps revisions to pairing of ValidationSetSnap
@@ -216,7 +216,7 @@ type revConstraint struct {
 	asserts.ValidationSetSnap
 }
 
-func (c *snapContraints) conflict() *snapConflictsError {
+func (c *snapConstraints) conflict() *snapConflictsError {
 	if c.presence != presConflict {
 		return nil
 	}
@@ -319,7 +319,7 @@ func (e *snapConflictsError) Error() string {
 func NewValidationSets() *ValidationSets {
 	return &ValidationSets{
 		sets:  map[string]*asserts.ValidationSet{},
-		snaps: map[string]*snapContraints{},
+		snaps: map[string]*snapConstraints{},
 	}
 }
 
@@ -396,7 +396,7 @@ func (v *ValidationSets) addSnap(sn *asserts.ValidationSetSnap, validationSetKey
 
 	cs := v.snaps[sn.SnapID]
 	if cs == nil {
-		v.snaps[sn.SnapID] = &snapContraints{
+		v.snaps[sn.SnapID] = &snapConstraints{
 			name:     sn.Name,
 			presence: sn.Presence,
 			revisions: map[snap.Revision][]*revConstraint{
@@ -584,7 +584,7 @@ func (e *PresenceConstraintError) Error() string {
 	return fmt.Sprintf("unexpected presence %q for snap %q", e.Presence, e.SnapName)
 }
 
-func (v *ValidationSets) constraintsForSnap(snapRef naming.SnapRef) *snapContraints {
+func (v *ValidationSets) constraintsForSnap(snapRef naming.SnapRef) *snapConstraints {
 	if snapRef.ID() != "" {
 		return v.snaps[snapRef.ID()]
 	}
