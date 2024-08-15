@@ -900,6 +900,120 @@ func (s *apparmorpromptingSuite) TestReplyNewRuleHandlesExistingPrompt(c *C) {
 	c.Assert(mgr.Stop(), IsNil)
 }
 
+func (s *apparmorpromptingSuite) TestReplyNewRuleAllowsFuturePromptsForever(c *C) {
+	s.testReplyRuleHandlesFuturePrompts(c, prompting.OutcomeAllow, prompting.LifespanForever)
+}
+
+func (s *apparmorpromptingSuite) TestReplyNewRuleAllowsFuturePromptsTimespan(c *C) {
+	s.testReplyRuleHandlesFuturePrompts(c, prompting.OutcomeAllow, prompting.LifespanTimespan)
+}
+
+func (s *apparmorpromptingSuite) TestReplyNewRuleDeniesFuturePromptsForever(c *C) {
+	s.testReplyRuleHandlesFuturePrompts(c, prompting.OutcomeDeny, prompting.LifespanForever)
+}
+
+func (s *apparmorpromptingSuite) TestReplyNewRuleDeniesFuturePromptsTimespan(c *C) {
+	s.testReplyRuleHandlesFuturePrompts(c, prompting.OutcomeDeny, prompting.LifespanTimespan)
+}
+
+func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome prompting.OutcomeType, lifespan prompting.LifespanType) {
+	outcomeAsBool, err := outcome.AsBool()
+	c.Assert(err, IsNil)
+	duration := ""
+	if lifespan == prompting.LifespanTimespan {
+		duration = "10m"
+	}
+
+	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	// Already tested HandleReply errors, and that applyRuleToOutstandingPrompts
+	// works correctly, so now just need to test that if reply creates a rule,
+	// that rule applies to existing prompts.
+
+	// Add read request
+	readReq := &listener.Request{
+		Permission: notify.AA_MAY_READ,
+	}
+	_, readPrompt := s.simulateRequest(c, reqChan, mgr, readReq, false)
+
+	// Reply to read prompt with denial
+	whenSent := time.Now()
+	constraints := &prompting.Constraints{
+		PathPattern: mustParsePathPattern(c, "/home/test/**"),
+		Permissions: []string{"read", "write"},
+	}
+	satisfiedPromptIDs, err := mgr.HandleReply(s.defaultUser, readPrompt.ID, constraints, outcome, lifespan, duration)
+	c.Check(err, IsNil)
+
+	// Check that kernel received reply
+	resp, err := waitForReply(replyChan)
+	c.Assert(err, IsNil)
+	c.Check(resp.Request, Equals, readReq)
+	c.Check(resp.Response.Allow, Equals, outcomeAsBool)
+	expectedPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read"})
+	c.Assert(err, IsNil)
+	c.Check(resp.Response.Permission, DeepEquals, expectedPermissions)
+
+	// Check that no other prompts were satisfied
+	c.Check(satisfiedPromptIDs, HasLen, 0)
+
+	// Check that new rule exists
+	rules, err := mgr.Rules(s.defaultUser, "", "")
+	c.Assert(err, IsNil)
+	c.Check(rules, HasLen, 1)
+
+	// Check that read prompt no longer exists
+	_, err = mgr.PromptWithID(s.defaultUser, readPrompt.ID)
+	c.Check(err, NotNil)
+
+	// Check that notices were recorded for read prompt and new rule.
+	s.checkRecordedPromptNotices(c, whenSent, 1)
+	s.checkRecordedRuleUpdateNotices(c, whenSent, 1)
+
+	whenSent = time.Now()
+
+	// Add request for write
+	writeReq := &listener.Request{
+		Permission: notify.AA_MAY_WRITE,
+	}
+	s.fillInPartialRequest(writeReq)
+	reqChan <- writeReq
+
+	// Add request for read and write
+	rwReq := &listener.Request{
+		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	}
+	s.fillInPartialRequest(rwReq)
+	reqChan <- rwReq
+
+	// Check that kernel received replies
+	for i := 0; i < 2; i++ {
+		resp, err := waitForReply(replyChan)
+		c.Assert(err, IsNil)
+		c.Check(resp.Response.Allow, Equals, true)
+		// Round-trip to abstract permissions and back to get full permission mask
+		abstractPermissions, err := prompting.AbstractPermissionsFromAppArmorPermissions("home", resp.Request.Permission)
+		c.Assert(err, IsNil)
+		aaPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", abstractPermissions)
+		c.Assert(err, IsNil)
+		expectedPermission, ok := aaPermissions.(notify.FilePermission)
+		c.Assert(ok, Equals, true)
+		if outcome == prompting.OutcomeDeny {
+			expectedPermission = notify.FilePermission(0)
+		}
+		c.Check(resp.Response.Permission, DeepEquals, expectedPermission)
+	}
+
+	// Check that no notices were recorded
+	s.checkRecordedPromptNotices(c, whenSent, 0)
+
+	c.Assert(mgr.Stop(), IsNil)
+}
+
 func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
 	reqChan, _, restore := apparmorprompting.MockListener()
 	defer restore()
