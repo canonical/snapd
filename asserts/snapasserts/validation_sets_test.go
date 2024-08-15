@@ -693,6 +693,212 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 	}
 }
 
+func (s *validationSetsSuite) TestCheckInstalledSnapsWithComponents(c *C) {
+	sets := map[string][]interface{}{
+		"one": {
+			map[string]interface{}{
+				"name":     "snap-a",
+				"id":       snaptest.AssertedSnapID("snap-a"),
+				"presence": "optional",
+				"revision": "11",
+				"components": map[string]interface{}{
+					"comp-1": map[string]interface{}{
+						"presence": "required",
+						"revision": "2",
+					},
+					"comp-2": map[string]interface{}{
+						"presence": "optional",
+						"revision": "3",
+					},
+				},
+			},
+		},
+		"two": {
+			map[string]interface{}{
+				"name":     "snap-a",
+				"id":       snaptest.AssertedSnapID("snap-a"),
+				"presence": "optional",
+				"revision": "11",
+				"components": map[string]interface{}{
+					"comp-2": map[string]interface{}{
+						"presence": "required",
+						"revision": "3",
+					},
+				},
+			},
+		},
+		"three": {
+			map[string]interface{}{
+				"name":     "snap-a",
+				"id":       snaptest.AssertedSnapID("snap-a"),
+				"presence": "optional",
+				"components": map[string]interface{}{
+					"comp-2": map[string]interface{}{
+						"presence": "required",
+					},
+				},
+			},
+		},
+	}
+
+	assertions := make(map[string]*asserts.ValidationSet)
+	for name, set := range sets {
+		headers := map[string]interface{}{
+			"type":         "validation-set",
+			"authority-id": "acme",
+			"series":       "16",
+			"account-id":   "acme",
+			"name":         name,
+			"sequence":     "1",
+			"snaps":        set,
+		}
+		assertions[name] = assertstest.FakeAssertion(headers).(*asserts.ValidationSet)
+	}
+
+	type test struct {
+		summary          string
+		assertions       []string
+		installed        []*snapasserts.InstalledSnap
+		verr             *snapasserts.ValidationSetsValidationError
+		err              error
+		ignoreValidation map[string]bool
+	}
+
+	cases := []test{
+		{
+			summary:    "required component is installed for optional snap",
+			assertions: []string{"one"},
+			installed: []*snapasserts.InstalledSnap{
+				snapasserts.NewInstalledSnap("snap-a", snaptest.AssertedSnapID("snap-a"), snap.R(11), []snapasserts.InstalledComponent{
+					{
+						ComponentRef: naming.NewComponentRef("snap-a", "comp-1"),
+						Revision:     snap.R(2),
+					},
+				}),
+				snapasserts.NewInstalledSnap("snap-b", snaptest.AssertedSnapID("snap-b"), snap.R(4), nil),
+			},
+			verr: nil,
+		},
+		{
+			summary:    "required component is missing for optional snap that is installed",
+			assertions: []string{"one"},
+			installed: []*snapasserts.InstalledSnap{
+				snapasserts.NewInstalledSnap("snap-a", snaptest.AssertedSnapID("snap-a"), snap.R(11), nil),
+				snapasserts.NewInstalledSnap("snap-b", snaptest.AssertedSnapID("snap-b"), snap.R(4), nil),
+			},
+			verr: &snapasserts.ValidationSetsValidationError{
+				Sets: map[string]*asserts.ValidationSet{
+					"acme/one": assertions["one"],
+				},
+				ComponentErrors: map[string]*snapasserts.ValidationSetsComponentValidationError{
+					"snap-a": {
+						MissingComponents: map[string]map[snap.Revision][]string{
+							"comp-1": {
+								snap.R(2): {"acme/one"},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			summary:    "required component is missing for optional snap that is not installed",
+			assertions: []string{"one"},
+			installed: []*snapasserts.InstalledSnap{
+				snapasserts.NewInstalledSnap("snap-b", snaptest.AssertedSnapID("snap-b"), snap.R(4), nil),
+			},
+		},
+		{
+			summary:    "required component is missing for optional snap that is not installed",
+			assertions: []string{"one"},
+			installed: []*snapasserts.InstalledSnap{
+				snapasserts.NewInstalledSnap("snap-b", snaptest.AssertedSnapID("snap-b"), snap.R(4), nil),
+			},
+		},
+		{
+			summary:    "missing required component that is optional in one set and required in another",
+			assertions: []string{"one", "two"},
+			installed: []*snapasserts.InstalledSnap{
+				snapasserts.NewInstalledSnap("snap-a", snaptest.AssertedSnapID("snap-a"), snap.R(11), []snapasserts.InstalledComponent{
+					{
+						ComponentRef: naming.NewComponentRef("snap-a", "comp-1"),
+						Revision:     snap.R(2),
+					},
+				}),
+				snapasserts.NewInstalledSnap("snap-b", snaptest.AssertedSnapID("snap-b"), snap.R(4), nil),
+			},
+			verr: &snapasserts.ValidationSetsValidationError{
+				Sets: map[string]*asserts.ValidationSet{
+					"acme/one": assertions["one"],
+					"acme/two": assertions["two"],
+				},
+				ComponentErrors: map[string]*snapasserts.ValidationSetsComponentValidationError{
+					"snap-a": {
+						MissingComponents: map[string]map[snap.Revision][]string{
+							"comp-2": {
+								snap.R(3): {"acme/one", "acme/two"},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			summary:    "missing required component that is optional in one set and required in another (unspecified revision)",
+			assertions: []string{"one", "three"},
+			installed: []*snapasserts.InstalledSnap{
+				snapasserts.NewInstalledSnap("snap-a", snaptest.AssertedSnapID("snap-a"), snap.R(11), []snapasserts.InstalledComponent{
+					{
+						ComponentRef: naming.NewComponentRef("snap-a", "comp-1"),
+						Revision:     snap.R(2),
+					},
+				}),
+				snapasserts.NewInstalledSnap("snap-b", snaptest.AssertedSnapID("snap-b"), snap.R(4), nil),
+			},
+			verr: &snapasserts.ValidationSetsValidationError{
+				Sets: map[string]*asserts.ValidationSet{
+					"acme/one":   assertions["one"],
+					"acme/three": assertions["three"],
+				},
+				ComponentErrors: map[string]*snapasserts.ValidationSetsComponentValidationError{
+					"snap-a": {
+						MissingComponents: map[string]map[snap.Revision][]string{
+							"comp-2": {
+								{}:        {"acme/three"},
+								snap.R(3): {"acme/one"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		prefix := fmt.Sprintf("test case: %s", tc.summary)
+
+		valSets := snapasserts.NewValidationSets()
+		for _, set := range tc.assertions {
+			err := valSets.Add(assertions[set])
+			c.Assert(err, IsNil, Commentf("%s: %s", prefix, err))
+		}
+
+		c.Check(valSets.Conflict(), IsNil, Commentf(prefix))
+
+		err := valSets.CheckInstalledSnaps(tc.installed, tc.ignoreValidation)
+		switch {
+		case tc.err != nil:
+			c.Assert(err, testutil.ErrorIs, tc.err, Commentf("%s: unexpected error: %v", prefix, err))
+		case tc.verr != nil:
+			verr, ok := err.(*snapasserts.ValidationSetsValidationError)
+			c.Assert(ok, Equals, true, Commentf("%s: expected ValidationSetsValidationError, got: %v", prefix, err))
+			c.Check(verr, DeepEquals, tc.verr, Commentf(prefix))
+		default:
+			c.Assert(err, IsNil, Commentf("%s: unexpected error: %v", prefix, err))
+		}
+	}
+}
+
 func (s *validationSetsSuite) TestCheckInstalledSnapsIgnoreValidation(c *C) {
 	// require: snapB rev 3, snapC rev 2.
 	// invalid: snapA
