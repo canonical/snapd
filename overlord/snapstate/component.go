@@ -288,6 +288,12 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 
 	// TODO check for experimental flag that will hide temporarily components
 
+	if err := ensureSnapAndComponentsAssertionStatus(
+		*snapsup.SideInfo, []snap.ComponentSideInfo{*compSetup.CompSideInfo},
+	); err != nil {
+		return componentInstallTaskSet{}, err
+	}
+
 	snapSi := snapsup.SideInfo
 	compSi := compSetup.CompSideInfo
 
