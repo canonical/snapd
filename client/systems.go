@@ -238,7 +238,14 @@ type InstallSystemOptions struct {
 	// OptionalInstall contains the optional snaps and components that should be
 	// installed on the system. Omitting this field will result in all optional
 	// snaps and components being installed.
-	OptionalInstall *AvailableForInstall `json:"optional-install,omitempty"`
+	OptionalInstall *OptionalInstallRequest `json:"optional-install,omitempty"`
+}
+
+type OptionalInstallRequest struct {
+	AvailableForInstall
+	// All is true if all optional snaps and components should be installed. It
+	// is invalid to set both All and the individual fields in AvailableForInstall.
+	All bool `json:"all,omitempty"`
 }
 
 // InstallSystem will perform the given install step for the given volumes
