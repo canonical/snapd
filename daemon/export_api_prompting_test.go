@@ -19,6 +19,35 @@
 
 package daemon
 
+import (
+	"github.com/snapcore/snapd/testutil"
+)
+
 var (
 	GetUserID = getUserID
 )
+
+type PostPromptBody postPromptBody
+type AddRuleContents addRuleContents
+type RemoveRulesSelector removeRulesSelector
+type PatchRuleContents patchRuleContents
+
+// When the types have nested contents, must redefine with exported types.
+type PostRulesRequestBody struct {
+	Action         string               `json:"action"`
+	AddRule        *AddRuleContents     `json:"rule,omitempty"`
+	RemoveSelector *RemoveRulesSelector `json:"selector,omitempty"`
+}
+
+type PostRuleRequestBody struct {
+	Action    string             `json:"action"`
+	PatchRule *PatchRuleContents `json:"rule,omitempty"`
+}
+
+func MockInterfaceManager(manager interfaceManager) (restore func()) {
+	restore = testutil.Backup(&getInterfaceManager)
+	getInterfaceManager = func(c *Command) interfaceManager {
+		return manager
+	}
+	return restore
+}
