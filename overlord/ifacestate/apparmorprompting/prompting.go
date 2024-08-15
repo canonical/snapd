@@ -42,7 +42,7 @@ var (
 	listenerRun      = func(l *listener.Listener) error { return l.Run() }
 	listenerReqs     = func(l *listener.Listener) <-chan *listener.Request { return l.Reqs() }
 
-	requestReply = func(req *listener.Request, resp *listener.Response) error { return req.Reply(resp) }
+	requestReply = func(req *listener.Request, allowedPermission any) error { return req.Reply(allowedPermission) }
 )
 
 // A Manager holds outstanding prompts and mediates their replies, further it
@@ -190,11 +190,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 	userID := uint32(req.SubjectUID)
 	if userID == 0 {
 		// Deny any request for the root user
-		response := listener.Response{
-			Allow:      false,
-			Permission: req.Permission,
-		}
-		return requestReply(req, &response)
+		return requestReply(req, nil)
 	}
 	snap := req.Label // Default to apparmor label, in case process is not a snap
 	tag, err := naming.ParseSecurityTag(req.Label)
@@ -211,11 +207,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 	permissions, err := prompting.AbstractPermissionsFromAppArmorPermissions(iface, req.Permission)
 	if err != nil {
 		logger.Noticef("error while parsing AppArmor permissions: %v", err)
-		response := listener.Response{
-			Allow:      false,
-			Permission: req.Permission,
-		}
-		return requestReply(req, &response)
+		return requestReply(req, nil)
 	}
 
 	remainingPerms := make([]string, 0, len(permissions))
@@ -249,14 +241,10 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		// which were explicitly allowed by existing rules (there may be no
 		// such permissions) and let the listener deny all permissions which
 		// were not explicitly included in the allowed permissions.
-		responsePermissions, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, satisfiedPerms)
-		// Error should not occur, but if it does, responsePermissions are set
-		// to none, leaving it to the listener to default deny all permissions.
-		response := listener.Response{
-			Allow:      true,
-			Permission: responsePermissions,
-		}
-		return requestReply(req, &response)
+		allowedPermission, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, satisfiedPerms)
+		// Error should not occur, but if it does, allowedPermission is set to
+		// empty, leaving it to the listener to default deny all permissions.
+		return requestReply(req, allowedPermission)
 	}
 
 	if len(remainingPerms) == 0 {
@@ -268,18 +256,13 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		// permissions which were matched and allowed, the listener will
 		// deny any permissions which were not explicitly included in the
 		// allowed permissions.
-		responsePermissions, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, satisfiedPerms)
-		// Error should not occur, but if it does, responsePermissions are set
-		// to none, leaving it to the listener to default deny all permissions.
-
-		response := listener.Response{
-			Allow:      true,
-			Permission: responsePermissions,
-		}
-		return requestReply(req, &response)
+		allowedPermission, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, satisfiedPerms)
+		// Error should not occur, but if it does, allowedPermission is set to
+		// empty, leaving it to the listener to default deny all permissions.
+		return requestReply(req, allowedPermission)
 	}
 
-	// request not satisfied by any of existing rules, record a prompt for the user
+	// Request not satisfied by any of existing rules, record a prompt for the user
 
 	metadata := &prompting.Metadata{
 		User:      userID,
@@ -294,14 +277,10 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		// We weren't able to create a new prompt, so respond with the best
 		// information we have, which is to allow any permissions which were
 		// allowed by existing rules, and let the listener deny the rest.
-		responsePermissions, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, satisfiedPerms)
-		// Error should not occur, but if it does, responsePermissions are set
-		// to none, leaving it to the listener to default deny all permissions.
-		response := listener.Response{
-			Allow:      true,
-			Permission: responsePermissions,
-		}
-		return requestReply(req, &response)
+		allowedPermission, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, satisfiedPerms)
+		// Error should not occur, but if it does, allowedPermission is set to
+		// empty, leaving it to the listener to default deny all permissions.
+		return requestReply(req, allowedPermission)
 	}
 	if merged {
 		logger.Debugf("new prompt merged with identical existing prompt: %+v", newPrompt)

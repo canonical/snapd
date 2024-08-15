@@ -57,13 +57,6 @@ var (
 	notifyIoctl = notify.Ioctl
 )
 
-// Response includes whether the request is allowed or denied, along with the
-// permissions for which the decision should apply.
-type Response struct {
-	Allow      bool
-	Permission any
-}
-
 // Request is a high-level representation of an apparmor prompting message.
 //
 // Each request must be replied to by writing a boolean to the YesNo channel.
@@ -82,8 +75,8 @@ type Request struct {
 	// Permission is the opaque permission that is being requested.
 	Permission any
 
-	// replyChan is a channel for writing the response.
-	replyChan chan *Response
+	// replyChan is a channel for sending the explicitly allowed permissions.
+	replyChan chan any
 	// replied indicates whether a reply has already been sent for this request.
 	replied uint32
 }
@@ -115,28 +108,30 @@ func newRequest(msg *notify.MsgNotificationFile) (*Request, error) {
 		Class:      msg.Class,
 		Permission: perm,
 
-		replyChan: make(chan *Response, 1),
+		replyChan: make(chan any, 1),
 	}, nil
 }
 
-// Reply sends the given response back to the kernel.
-func (r *Request) Reply(response *Response) error {
-	if !atomic.CompareAndSwapUint32(&r.replied, 0, 1) {
-		return ErrAlreadyReplied
-	}
+// Reply tells the listener to send back a response to the kernel allowing any
+// of the given permissions which were originally requested.
+func (r *Request) Reply(allowedPermission any) error {
 	var ok bool
 	switch r.Class {
 	case notify.AA_CLASS_FILE:
-		_, ok = response.Permission.(notify.FilePermission)
+		_, ok = allowedPermission.(notify.FilePermission)
 	default:
 		// should not occur, since the request was created in this package
 		return fmt.Errorf("internal error: unsupported mediation class: %v", r.Class)
 	}
-	if !ok {
+	// Treat nil allowedPermission as allowing no permissions, which is valid
+	if !ok && allowedPermission != nil {
 		expectedType := expectedResponseTypeForClass(r.Class)
 		return fmt.Errorf("invalid reply: response permission must be of type %s", expectedType)
 	}
-	r.replyChan <- response
+	if !atomic.CompareAndSwapUint32(&r.replied, 0, 1) {
+		return ErrAlreadyReplied
+	}
+	r.replyChan <- allowedPermission
 	return nil
 }
 
@@ -430,44 +425,46 @@ func (l *Listener) waitAndRespondAaClassFile(req *Request, msg *notify.MsgNotifi
 	resp := notify.ResponseForRequest(&msg.MsgNotification)
 	resp.MsgNotification.Error = 0 // ignored in responses
 	resp.MsgNotification.NoCache = 1
-	var response *Response
+
+	var explicitlyAllowed uint32 = 0
 	select {
-	case response = <-req.replyChan:
-		break
+	case responsePermission := <-req.replyChan:
+		if responsePermission == nil {
+			// Treat nil as allowing no permission
+			break
+		}
+		perms, ok := responsePermission.(notify.FilePermission)
+		if !ok {
+			// should not occur, Reply() checks that type is correct
+			logger.Debugf("invalid reply from client: %+v; denying request", responsePermission)
+			break
+		}
+		explicitlyAllowed = uint32(perms)
 	case <-l.tomb.Dying():
 		// don't bother sending deny response, kernel will auto-deny if needed
 		return nil
 	}
-	allow := response.Allow
-	perms, ok := response.Permission.(notify.FilePermission)
-	if !ok {
-		// should not occur, Reply() checks that type is correct
-		logger.Debugf("invalid reply from client: %+v; denying request", response)
-		allow = false
-	}
-	if allow {
-		// XXX: If the kernel sends a permission in both the allow and deny
-		// fields, treat it as initially denied.
-		apparmorAllowed := (msg.Allow ^ msg.Deny) & msg.Allow
-		// Response contained the permissions the user explicitly allowed
-		explicitlyAllowed := uint32(perms)
-		// Allow permissions which AppArmor initially allowed, along with those
-		// which the were initially denied but the user explicitly allowed.
-		// Any permissions which are omitted from both the allow and deny
-		// fields will be automatically denied by the kernel.
-		resp.Allow = apparmorAllowed | (explicitlyAllowed & msg.Deny)
-		resp.Deny = (^explicitlyAllowed) & msg.Deny
-		resp.Error = 0
-	} else {
-		// Deny every permission which was not originally granted
-		resp.Allow = msg.Allow
-		resp.Deny = msg.Deny
-		resp.Error = msg.Error
-		// msg.Error is field from MsgNotificationResponse, and is unused.
-		// msg.MsgNotification.Error is also ignored in responses.
-	}
+
+	// If the same permission appears in both the allow and deny fields,
+	// treat it as initially denied.
+	apparmorAllowed := msg.Allow &^ msg.Deny
+
+	// Allow permissions which AppArmor initially allowed, along with those
+	// which the were initially denied but the user explicitly allowed.
+	resp.Allow = apparmorAllowed | (explicitlyAllowed & msg.Deny)
+	// Deny permissions which were initially denied and not explicitly allowed
+	// by the user.
+	resp.Deny = msg.Deny &^ explicitlyAllowed
+	// Any permissions which are omitted from both the allow and deny
+	// fields will be default denied by the kernel.
+	resp.Error = 0
+
 	logger.Debugf("sending request response back to the kernel: %+v", resp)
-	return l.encodeAndSendResponse(&resp)
+	return encodeAndSendResponse(l, &resp)
+}
+
+var encodeAndSendResponse = func(l *Listener, resp *notify.MsgNotificationResponse) error {
+	return l.encodeAndSendResponse(resp)
 }
 
 func (l *Listener) encodeAndSendResponse(resp *notify.MsgNotificationResponse) error {

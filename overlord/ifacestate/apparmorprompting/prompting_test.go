@@ -185,7 +185,7 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestDenyRoot(c *C) {
 	resp, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
 	c.Check(resp.Request, Equals, req)
-	c.Check(resp.Response.Allow, Equals, false)
+	c.Check(resp.AllowedPermission, Equals, nil)
 
 	c.Assert(mgr.Stop(), IsNil)
 }
@@ -282,10 +282,9 @@ func (s *apparmorpromptingSuite) TestHandleReplySimple(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(resp.Request, Equals, req)
-	c.Check(resp.Response.Allow, Equals, true)
 	aaPerms, err := prompting.AbstractPermissionsToAppArmorPermissions("home", constraints.Permissions)
 	c.Check(err, IsNil)
-	c.Check(resp.Response.Permission, Equals, aaPerms)
+	c.Check(resp.AllowedPermission, Equals, aaPerms)
 
 	c.Assert(mgr.Stop(), IsNil)
 }
@@ -509,10 +508,9 @@ func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
 	resp, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
 	c.Check(resp.Request, Equals, req)
-	c.Check(resp.Response.Allow, Equals, true)
 	expectedPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read", "write"})
 	c.Assert(err, IsNil)
-	c.Check(resp.Response.Permission, DeepEquals, expectedPermissions)
+	c.Check(resp.AllowedPermission, DeepEquals, expectedPermissions)
 
 	c.Assert(mgr.Stop(), IsNil)
 }
@@ -604,8 +602,7 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyDeniesNewPrompt(c *C) 
 	resp, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
 	c.Check(resp.Request, Equals, req)
-	c.Check(resp.Response.Allow, Equals, true)
-	c.Check(resp.Response.Permission, DeepEquals, notify.FilePermission(0))
+	c.Check(resp.AllowedPermission, DeepEquals, notify.FilePermission(0))
 
 	c.Assert(mgr.Stop(), IsNil)
 }
@@ -659,10 +656,9 @@ func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C
 	resp, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
 	c.Check(resp.Request, Equals, req)
-	c.Check(resp.Response.Allow, Equals, true)
 	expectedPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"write"})
 	c.Assert(err, IsNil)
-	c.Check(resp.Response.Permission, DeepEquals, expectedPermissions)
+	c.Check(resp.AllowedPermission, DeepEquals, expectedPermissions)
 
 	c.Assert(mgr.Stop(), IsNil)
 }
@@ -705,10 +701,9 @@ func (s *apparmorpromptingSuite) TestNewRuleAllowExistingPrompt(c *C) {
 	resp, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
 	c.Check(resp.Request, Equals, readReq)
-	c.Check(resp.Response.Allow, Equals, true)
 	expectedPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read"})
 	c.Assert(err, IsNil)
-	c.Check(resp.Response.Permission, DeepEquals, expectedPermissions)
+	c.Check(resp.AllowedPermission, DeepEquals, expectedPermissions)
 
 	// Check that read request prompt was satisfied
 	_, err = mgr.PromptWithID(s.defaultUser, readPrompt.ID)
@@ -779,18 +774,7 @@ func (s *apparmorpromptingSuite) TestNewRuleDenyExistingPrompt(c *C) {
 	for i := 0; i < 2; i++ {
 		resp, err := waitForReply(replyChan)
 		c.Assert(err, IsNil)
-		switch resp.Request {
-		case readReq:
-			c.Check(resp.Response.Allow, Equals, false)
-			expectedPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read"})
-			c.Assert(err, IsNil)
-			c.Check(resp.Response.Permission, DeepEquals, expectedPermissions)
-		case rwReq:
-			c.Check(resp.Response.Allow, Equals, false)
-			expectedPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read", "write"})
-			c.Assert(err, IsNil)
-			c.Check(resp.Response.Permission, DeepEquals, expectedPermissions)
-		}
+		c.Check(resp.AllowedPermission, DeepEquals, notify.FilePermission(0))
 	}
 
 	// Check that read and rw prompts were satisfied
@@ -862,18 +846,7 @@ func (s *apparmorpromptingSuite) TestReplyNewRuleHandlesExistingPrompt(c *C) {
 	for i := 0; i < 2; i++ {
 		resp, err := waitForReply(replyChan)
 		c.Assert(err, IsNil)
-		switch resp.Request {
-		case readReq:
-			c.Check(resp.Response.Allow, Equals, false)
-			expectedPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read"})
-			c.Assert(err, IsNil)
-			c.Check(resp.Response.Permission, DeepEquals, expectedPermissions)
-		case rwReq:
-			c.Check(resp.Response.Allow, Equals, false)
-			expectedPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read", "write"})
-			c.Assert(err, IsNil)
-			c.Check(resp.Response.Permission, DeepEquals, expectedPermissions)
-		}
+		c.Check(resp.AllowedPermission, DeepEquals, notify.FilePermission(0))
 	}
 
 	// Check that read and rw prompts no longer exist
@@ -917,8 +890,6 @@ func (s *apparmorpromptingSuite) TestReplyNewRuleDeniesFuturePromptsTimespan(c *
 }
 
 func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome prompting.OutcomeType, lifespan prompting.LifespanType) {
-	outcomeAsBool, err := outcome.AsBool()
-	c.Assert(err, IsNil)
 	duration := ""
 	if lifespan == prompting.LifespanTimespan {
 		duration = "10m"
@@ -953,10 +924,15 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 	resp, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
 	c.Check(resp.Request, Equals, readReq)
-	c.Check(resp.Response.Allow, Equals, outcomeAsBool)
-	expectedPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read"})
-	c.Assert(err, IsNil)
-	c.Check(resp.Response.Permission, DeepEquals, expectedPermissions)
+	var expectedPermission any
+	switch outcome {
+	case prompting.OutcomeAllow:
+		expectedPermission, err = prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read"})
+		c.Assert(err, IsNil)
+	case prompting.OutcomeDeny:
+		expectedPermission = notify.FilePermission(0)
+	}
+	c.Check(resp.AllowedPermission, DeepEquals, expectedPermission)
 
 	// Check that no other prompts were satisfied
 	c.Check(satisfiedPromptIDs, HasLen, 0)
@@ -994,18 +970,18 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 	for i := 0; i < 2; i++ {
 		resp, err := waitForReply(replyChan)
 		c.Assert(err, IsNil)
-		c.Check(resp.Response.Allow, Equals, true)
-		// Round-trip to abstract permissions and back to get full permission mask
-		abstractPermissions, err := prompting.AbstractPermissionsFromAppArmorPermissions("home", resp.Request.Permission)
-		c.Assert(err, IsNil)
-		aaPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", abstractPermissions)
-		c.Assert(err, IsNil)
-		expectedPermission, ok := aaPermissions.(notify.FilePermission)
-		c.Assert(ok, Equals, true)
-		if outcome == prompting.OutcomeDeny {
+		var expectedPermission any
+		switch outcome {
+		case prompting.OutcomeAllow:
+			// Round-trip to abstract permissions and back to get full permission mask
+			abstractPermissions, err := prompting.AbstractPermissionsFromAppArmorPermissions("home", resp.Request.Permission)
+			c.Assert(err, IsNil)
+			expectedPermission, err = prompting.AbstractPermissionsToAppArmorPermissions("home", abstractPermissions)
+			c.Assert(err, IsNil)
+		case prompting.OutcomeDeny:
 			expectedPermission = notify.FilePermission(0)
 		}
-		c.Check(resp.Response.Permission, DeepEquals, expectedPermission)
+		c.Check(resp.AllowedPermission, DeepEquals, expectedPermission)
 	}
 
 	// Check that no notices were recorded
