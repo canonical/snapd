@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"math"
 	"net/http"
 	"time"
 
@@ -215,7 +214,7 @@ func (s *promptingSuite) TestGetUserID(c *C) {
 			expectedErr:  `invalid "user-id" parameter: user ID is not a valid uint32: `,
 		},
 		{
-			path:         fmt.Sprintf("/v2/interfaces/requests/prompts?user-id=%v", math.MaxUint32+1),
+			path:         fmt.Sprintf("/v2/interfaces/requests/prompts?user-id=4294967296"), // math.MaxUint32 + 1
 			uid:          "0",
 			expectedUser: 0,
 			expectedCode: 400,
@@ -229,7 +228,7 @@ func (s *promptingSuite) TestGetUserID(c *C) {
 			expectedErr:  "",
 		},
 		{
-			path:         fmt.Sprintf("/v2/interfaces/requests/prompts?user-id=%v", math.MaxUint32),
+			path:         fmt.Sprintf("/v2/interfaces/requests/prompts?user-id=4294967295"), // math.MaxUint32
 			uid:          "0",
 			expectedUser: 0xffffffff,
 			expectedCode: 200,
