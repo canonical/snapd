@@ -488,7 +488,7 @@ func earlyChecks(st *state.State, snapst *SnapState, update *snap.Info, comps []
 func ensureSnapAndComponentsAssertionStatus(si snap.SideInfo, comps []snap.ComponentSideInfo) error {
 	snapAsserted := si.SnapID != ""
 	for _, comp := range comps {
-		compAsserted := !comp.Revision.Local() && !comp.Revision.Unset()
+		compAsserted := comp.Revision.Store()
 		if snapAsserted && !compAsserted {
 			return errors.New("cannot mix asserted snap and unasserted components")
 		}
