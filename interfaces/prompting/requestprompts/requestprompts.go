@@ -70,6 +70,8 @@ type jsonPromptConstraints struct {
 	AvailablePermissions []string `json:"available-permissions"`
 }
 
+// MarshalJSON marshals the Prompt to JSON.
+// TODO: consider having instead a MarshalForClient -> json.RawMessage method
 func (p *Prompt) MarshalJSON() ([]byte, error) {
 	constraints := &jsonPromptConstraints{
 		Path:                 p.Constraints.path,
