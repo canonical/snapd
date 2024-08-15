@@ -229,6 +229,10 @@ func postPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("%v", err)
 	}
 
+	if len(satisfiedPromptIDs) == 0 {
+		satisfiedPromptIDs = []prompting.IDType{}
+	}
+
 	return SyncResponse(satisfiedPromptIDs)
 }
 
@@ -249,6 +253,10 @@ func getRules(c *Command, r *http.Request, user *auth.UserState) Response {
 	rules, err := getInterfaceManager(c).InterfacesRequestsManager().Rules(userID, snap, iface)
 	if err != nil {
 		return InternalError("%v", err)
+	}
+
+	if len(rules) == 0 {
+		rules = []*requestrules.Rule{}
 	}
 
 	return SyncResponse(rules)
