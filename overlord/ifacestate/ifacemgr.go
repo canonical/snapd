@@ -153,7 +153,11 @@ var assessAppArmorPrompting = func(m *InterfaceManager) bool {
 // with the receiver. This method may only be called after StartUp has been
 // called, and will return nil if AppArmor prompting is not running.
 func (m *InterfaceManager) InterfacesRequestsManager() apparmorprompting.Interface {
-	return m.interfacesRequestsManager
+	irm := m.interfacesRequestsManager
+	if irm == nil {
+		return nil
+	}
+	return irm
 }
 
 // StartUp implements StateStarterUp.Startup.

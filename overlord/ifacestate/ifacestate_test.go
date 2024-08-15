@@ -395,7 +395,7 @@ func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingEnabled(c *C) {
 	c.Check(stopCount, Equals, 0)
 	mgr.Stop()
 	c.Check(stopCount, Equals, 1)
-	c.Check(mgr.InterfacesRequestsManager(), IsNil)
+	c.Check(mgr.InterfacesRequestsManager() == nil, Equals, true)
 }
 
 func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingDisabled(c *C) {
@@ -420,7 +420,7 @@ func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingDisabled(c *C) {
 	mgr := s.manager(c)
 	c.Check(createCount, Equals, 0)
 	c.Check(mgr.AppArmorPromptingRunning(), Equals, false)
-	c.Check(mgr.InterfacesRequestsManager(), IsNil)
+	c.Check(mgr.InterfacesRequestsManager() == nil, Equals, true)
 	mgr.Stop()
 	c.Check(stopCount, Equals, 0)
 }
@@ -7029,7 +7029,7 @@ func (s *interfaceManagerSuite) TestStopInterfacesRequestsManagerError(c *C) {
 
 	c.Check(logbuf.String(), testutil.Contains, " Cannot stop prompting: custom error")
 
-	c.Assert(mgr.InterfacesRequestsManager(), IsNil)
+	c.Assert(mgr.InterfacesRequestsManager() == nil, Equals, true)
 }
 
 func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKeyFile(c *C) {
