@@ -81,18 +81,28 @@ execute: |
 
     echo "Check snap can access rules via /v2/interfaces/requests/rules"
     api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules" | jq '."status-code"' | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
-    echo "Check snap can create rule via /v2/interfaces/requests/rules"
-    api-client --socket /run/snapd-snap.socket --method=POST '{"action":"add","rule":{"snap":"api-client","interface":"home","constraints":{"path-pattern":"/path/to/file","permissions":["read","write","execute"]},"outcome":"allow","lifespan":"session"}}' "/v2/interfaces/requests/rules" > result.json
-    jq '."status-code"' result.json | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
-    RULE_ID=$(jq '."result"."id"' result.json)
+
+    # XXX: creating rules requires polkit authentication, so for now, use curl
+    # XXX: should use `snap debug api` instead of curl, but should really just use api-client
+    # echo "Check snap can create rule via /v2/interfaces/requests/rules"
+    # api-client --socket /run/snapd-snap.socket --method=POST '{"action":"add","rule":{"snap":"api-client","interface":"home","constraints":{"path-pattern":"/path/to/file","permissions":["read","write","execute"]},"outcome":"allow","lifespan":"forever"}}' "/v2/interfaces/requests/rules" > result.json
+    apt install -y curl
+    curl -sS --unix-socket /run/snapd.socket -d '{"action":"add","rule":{"snap":"api-client","interface":"home","constraints":{"path-pattern":"/path/to/file","permissions":["read","write","execute"]},"outcome":"allow","lifespan":"forever"}}' "http://localhost/v2/interfaces/requests/rules" | tee result.json
+    jq '."status-code"' < result.json | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
+    RULE_ID=$(jq '."result"."id"' < result.json | tr -d '"')
     echo "Check snap can view a single rule via /v2/interfaces/requests/rules/<ID>"
     api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules/$RULE_ID" | jq '."status-code"' | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
-    echo "Check snap can modify a single rule via /v2/interfaces/requests/rules/<ID>"
-    api-client --socket /run/snapd-snap.socket --method=POST '{"action":"remove"}' "/v2/interfaces/requests/rules/$RULE_ID" | jq '."status-code"' | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
+    # XXX: modifying rules requires polkit authentication
+    # echo "Check snap can modify a single rule via /v2/interfaces/requests/rules/<ID>"
+    # api-client --socket /run/snapd-snap.socket --method=POST '{"action":"remove"}' "/v2/interfaces/requests/rules/$RULE_ID" | jq '."status-code"' | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
 
     echo "Without snap-interfaces-requests-control the snap cannot access those API endpoints"
     snap disconnect api-client:snap-interfaces-requests-control
 
+    # XXX: this relies on the fact that prompting remains enabled, even though
+    # the prerequisite of there being a snap with snap-interfaces-requests-control
+    # connected and a handler service running is no longer true. Otherwise, the error
+    # code would be 500 instead of 403.
     api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-prompt" | jq '."status-code"' | MATCH '^403$'
     api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-rule-update" | jq '."status-code"' | MATCH '^403$'
     api-client --socket /run/snapd-snap.socket "/v2/system-info" | jq '."status-code"' | MATCH '^403$'
