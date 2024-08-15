@@ -266,6 +266,7 @@ main() {
 		--pipe \
 		--service-type simple \
 		--setenv TERM=xterm-256color \
+		--setenv XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR \
 		--property "Environment=SNAPD_DEBUG=$SNAPD_DEBUG SNAP_CONFINE_DEBUG=$SNAP_CONFINE_DEBUG" \
 		$selinux_context_arg \
 		"$(command -v runuser)" -l "$user" - -c "exec $tmp_dir/exec" || true

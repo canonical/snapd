@@ -376,7 +376,7 @@ distro_install_build_snapd(){
         cp /etc/apt/sources.list sources.list.back
         echo "deb http://archive.ubuntu.com/ubuntu/ $(lsb_release -c -s)-proposed restricted main multiverse universe" | tee /etc/apt/sources.list -a
         apt update
-        if os.query is-ubuntu-ge 23.10; then
+        if os.query is-ubuntu-ge 24.04; then
             apt install -y --only-upgrade -t "$(lsb_release -c -s)-proposed" snapd
         else
             apt install -y --only-upgrade snapd
