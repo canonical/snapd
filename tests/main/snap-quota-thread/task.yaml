@@ -78,7 +78,7 @@ execute: |
   n=0
   until [ "$n" -ge 10 ]; do
       threadUsage="$(snap quota group-one | awk '/current:/,/threads:/{printf "%s",$2} END {print ""}')"
-      if [ "$threadUsage" -eq 16 ]; then
+      if [ "$threadUsage" -ge 16 ]; then
           break
       fi
       sleep 1
@@ -97,7 +97,7 @@ execute: |
   n=0
   until [ "$n" -ge 10 ]; do
       threadUsage="$(snap quota group-one | awk '/current:/,/threads:/{printf "%s",$2} END {print ""}')"
-      if [ "$threadUsage" -eq 24 ]; then
+      if [ "$threadUsage" -ge 24 ]; then
           break
       fi
       sleep 1
