@@ -36,7 +36,6 @@ import (
 
 var (
 	devicestateResetSession = devicestate.ResetSession
-	envFilePath             = "/etc/environment"
 )
 
 var proxyConfigKeys = map[string]bool{
@@ -56,7 +55,7 @@ func init() {
 }
 
 func etcEnvironment() string {
-	return filepath.Join(dirs.GlobalRootDir, envFilePath)
+	return filepath.Join(dirs.GlobalRootDir, "/etc/environment")
 }
 
 func updateEtcEnvironmentConfig(path string, config map[string]string) error {
