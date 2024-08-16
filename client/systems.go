@@ -237,7 +237,9 @@ type InstallSystemOptions struct {
 	OnVolumes map[string]*gadget.Volume `json:"on-volumes,omitempty"`
 	// OptionalInstall contains the optional snaps and components that should be
 	// installed on the system. Omitting this field will result in all optional
-	// snaps and components being installed.
+	// snaps and components being installed. To install none of the optional
+	// snaps and components, provide an empty OptionalInstallRequest with the
+	// All field set to false.
 	OptionalInstall *OptionalInstallRequest `json:"optional-install,omitempty"`
 }
 
