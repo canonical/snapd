@@ -598,6 +598,61 @@ func (s *seed20) lookupUnassertedComponent(comp20 internal.Component20, info *sn
 	}, nil
 }
 
+func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap, optSnap *internal.Snap20, handler ContainerHandler, snapsDir string, tm timings.Measurer) (path string, sideInfo *snap.SideInfo, seedComps []Component, err error) {
+	var snapRev *asserts.SnapRevision
+	var snapDecl *asserts.SnapDeclaration
+	path, snapRev, snapDecl, err = s.lookupVerifiedRevision(snapRef, handler, snapsDir, tm)
+	if err != nil {
+		return
+	}
+	sideInfo = snapasserts.SideInfoFromSnapAssertions(snapDecl, snapRev)
+
+	if modelSnap != nil {
+		seedComps = make([]Component, 0, len(modelSnap.Components))
+		for comp, modelComp := range modelSnap.Components {
+			var seedComp Component
+			seedComp, err = s.lookupVerifiedComponent(
+				naming.NewComponentRef(snapDecl.SnapName(), comp),
+				snap.R(snapRev.SnapRevision()), snapDecl.SnapID(),
+				snapRev.Provenance(), snapsDir, handler, tm)
+			if err != nil {
+				var notInSeed errorComponentNotInSeed
+				if errors.As(err, &notInSeed) {
+					// component not in seed
+					if modelComp.Presence == "required" {
+						err = fmt.Errorf("component %s required in the model but is not in the seed: %v", comp, err)
+						return "", nil, nil, err
+					}
+					// ignore if optional and not in seed
+					continue
+				}
+				return "", nil, nil, err
+			}
+			seedComps = append(seedComps, seedComp)
+		}
+		// Order for test reproducibility
+		sort.Slice(seedComps, func(i, j int) bool {
+			return seedComps[i].CompSideInfo.Component.ComponentName <
+				seedComps[j].CompSideInfo.Component.ComponentName
+		})
+	} else {
+		// Asserted option snap
+		for _, comp := range optSnap.Components {
+			var seedComp Component
+			seedComp, err = s.lookupVerifiedComponent(
+				naming.NewComponentRef(snapDecl.SnapName(), comp.Name),
+				snap.R(snapRev.SnapRevision()), snapDecl.SnapID(),
+				snapRev.Provenance(), snapsDir, handler, tm)
+			if err != nil {
+				return "", nil, nil, err
+			}
+			seedComps = append(seedComps, seedComp)
+		}
+	}
+
+	return path, sideInfo, seedComps, nil
+}
+
 func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap, optSnap *internal.Snap20, channel string, handler ContainerHandler, snapsDir string, tm timings.Measurer) (*Snap, error) {
 	if optSnap != nil && optSnap.Channel != "" {
 		channel = optSnap.Channel
@@ -636,58 +691,8 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap
 	} else {
 		var err error
 		timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", snapRef.SnapName()), func(nested timings.Measurer) {
-			var snapRev *asserts.SnapRevision
-			var snapDecl *asserts.SnapDeclaration
-			path, snapRev, snapDecl, err = s.lookupVerifiedRevision(
-				snapRef, handler, snapsDir, tm)
-			if err != nil {
-				return
-			}
-			sideInfo = snapasserts.SideInfoFromSnapAssertions(snapDecl, snapRev)
-
-			if modelSnap != nil {
-				seedComps = make([]Component, 0, len(modelSnap.Components))
-				for comp, modelComp := range modelSnap.Components {
-					var seedComp Component
-					seedComp, err = s.lookupVerifiedComponent(
-						naming.NewComponentRef(snapDecl.SnapName(), comp),
-						snap.R(snapRev.SnapRevision()), snapDecl.SnapID(),
-						snapRev.Provenance(), snapsDir, handler, tm)
-					if err != nil {
-						var notInSeed errorComponentNotInSeed
-						if errors.As(err, &notInSeed) {
-							// component not in seed
-							if modelComp.Presence == "required" {
-								err = fmt.Errorf("component %s required in the model but is not in the seed: %v", comp, err)
-								return
-							}
-							// ignore if optional and not in seed
-							err = nil
-							continue
-						}
-						return
-					}
-					seedComps = append(seedComps, seedComp)
-				}
-				// Order for test reproducibility
-				sort.Slice(seedComps, func(i, j int) bool {
-					return seedComps[i].CompSideInfo.Component.ComponentName <
-						seedComps[j].CompSideInfo.Component.ComponentName
-				})
-			} else {
-				// Asserted option snap
-				for _, comp := range optSnap.Components {
-					var seedComp Component
-					seedComp, err = s.lookupVerifiedComponent(
-						naming.NewComponentRef(snapDecl.SnapName(), comp.Name),
-						snap.R(snapRev.SnapRevision()), snapDecl.SnapID(),
-						snapRev.Provenance(), snapsDir, handler, tm)
-					if err != nil {
-						return
-					}
-					seedComps = append(seedComps, seedComp)
-				}
-			}
+			path, sideInfo, seedComps, err = s.deriveSideInfo(
+				snapRef, modelSnap, optSnap, handler, snapsDir, tm)
 		})
 		if err != nil {
 			return nil, err
