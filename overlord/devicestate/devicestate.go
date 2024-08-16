@@ -1906,6 +1906,16 @@ func extractSnapSetupTaskIDs(tss []*state.TaskSet) ([]string, error) {
 	return taskIDs, nil
 }
 
+// OptionalInstall is used to define the snaps and components that are optional
+// in a system's model, but should be installed when installing the system.
+type OptionalInstall struct {
+	// Snaps is a list of optional snap names that should be installed.
+	Snaps []string `json:"snaps,omitempty"`
+	// Components is a mapping of snap names to lists of optional components
+	// names that should be installed.
+	Components map[string][]string `json:"components,omitempty"`
+}
+
 // InstallFinish creates a change that will finish the install for the given
 // label and volumes. This includes writing missing volume content, seting
 // up the bootloader and installing the kernel.
@@ -1927,16 +1937,6 @@ func InstallFinish(st *state.State, label string, onVolumes map[string]*gadget.V
 	chg.AddTask(finishTask)
 
 	return chg, nil
-}
-
-// OptionalInstall is used to define the snaps and components that are optional
-// in a system's model, but should be installed when installing the system.
-type OptionalInstall struct {
-	// Snaps is a list of optional snap names that should be installed.
-	Snaps []string `json:"snaps,omitempty"`
-	// Components is a mapping of snap names to lists of optional components
-	// names that should be installed.
-	Components map[string][]string `json:"components,omitempty"`
 }
 
 // InstallSetupStorageEncryption creates a change that will setup the
