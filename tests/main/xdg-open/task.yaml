@@ -36,20 +36,22 @@ prepare: |
 
     # setup the handler
     tests.session -u test exec sh -c 'mkdir -p ~test/.local/share/applications'
-    tests.session -u test exec sh -c 'cat > ~test/.local/share/applications/test-handler.desktop' << EOF
+    cat <<EOF > ~test/.local/share/applications/test-handler.desktop
     [Desktop Entry]
     Type=Application
     Name=Test Web Browser
     Exec=/bin/true %u
     MimeType=x-scheme-handler/randomurl;
     EOF
+    chown test:test ~test/.local/share/applications/test-handler.desktop
 
     # setup xdg-mime
     tests.session -u test exec mkdir -p ~test/.config
-    tests.session -u test exec sh -c 'cat  > ~test/.config/mimeapps.list' << EOF
+    cat <<EOF > ~test/.config/mimeapps.list
     [Default Applications]
     x-scheme-handler/randomurl=test-handler.desktop
     EOF
+    chown test:test ~test/.config/mimeapps.list
 
     # double check that the handler is properly registered
     tests.session -u test exec sh -c 'xdg-mime query default x-scheme-handler/randomurl' | \
