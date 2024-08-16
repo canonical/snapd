@@ -7483,7 +7483,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 		{Path: coreInfo.MountFile()},
 		{Path: snapdInfo.MountFile()},
 		{Path: bazInfo.MountFile()},
-	})
+	}, nil)
 
 	// create a new model
 	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
@@ -7876,7 +7876,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystemSimpleSetUp(c *C, model
 		{Path: pcKernelInfo.MountFile()},
 		{Path: coreInfo.MountFile()},
 		{Path: snapdInfo.MountFile()},
-	})
+	}, map[string][]string{})
 
 	// mock the modeenv file
 	m := &boot.Modeenv{
