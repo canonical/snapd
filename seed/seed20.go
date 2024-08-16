@@ -676,6 +676,19 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap
 					return seedComps[i].CompSideInfo.Component.ComponentName <
 						seedComps[j].CompSideInfo.Component.ComponentName
 				})
+			} else {
+				// Asserted option snap
+				for _, comp := range optSnap.Components {
+					var seedComp Component
+					seedComp, err = s.lookupVerifiedComponent(
+						naming.NewComponentRef(snapDecl.SnapName(), comp.Name),
+						snap.R(snapRev.SnapRevision()), snapDecl.SnapID(),
+						snapRev.Provenance(), snapsDir, handler, tm)
+					if err != nil {
+						return
+					}
+					seedComps = append(seedComps, seedComp)
+				}
 			}
 		})
 		if err != nil {
