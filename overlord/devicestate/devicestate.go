@@ -1921,7 +1921,9 @@ func InstallFinish(st *state.State, label string, onVolumes map[string]*gadget.V
 	finishTask := st.NewTask("install-finish", fmt.Sprintf("Finish setup of run system for %q", label))
 	finishTask.Set("system-label", label)
 	finishTask.Set("on-volumes", onVolumes)
-	finishTask.Set("optional-install", optionalInstall)
+	if optionalInstall != nil {
+		finishTask.Set("optional-install", *optionalInstall)
+	}
 	chg.AddTask(finishTask)
 
 	return chg, nil
