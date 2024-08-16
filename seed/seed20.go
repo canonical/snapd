@@ -456,6 +456,26 @@ func (s *seed20) lookupVerifiedComponent(cref naming.ComponentRef, snapRev snap.
 	}
 
 	// Checks
+
+	// Note that the check for matching revisions in resource-revision /
+	// resource-pair is already done in LoadAssertions
+	if resPair.SnapRevision() != snapRev.N {
+		return Component{}, fmt.Errorf(
+			"resource %s pair revision does not match snap revision: %d != %d",
+			compName, resPair.SnapRevision(), snapRev.N)
+	}
+
+	if resRev.Provenance() != snapProvenance {
+		return Component{}, fmt.Errorf(
+			"resource revision provenance for %s does not match snap provenance: %s != %s",
+			compName, resRev.Provenance(), snapProvenance)
+	}
+	if resPair.Provenance() != snapProvenance {
+		return Component{}, fmt.Errorf(
+			"resource pair provenance for %s does not match snap provenance: %s != %s",
+			compName, resPair.Provenance(), snapProvenance)
+	}
+
 	cpi := snap.MinimalComponentContainerPlaceInfo(compName, snap.R(resRev.Revision()), snapName)
 	newPath, snapSHA3_384, resSize, err := handler.HandleAndDigestAssertedContainer(
 		cpi, compPath, tm)
@@ -474,28 +494,6 @@ func (s *seed20) lookupVerifiedComponent(cref naming.ComponentRef, snapRev snap.
 		return Component{}, fmt.Errorf(
 			"cannot validate resource %s, hash mismatch with snap-resource-revision",
 			compName)
-	}
-
-	if resRev.Revision() != resPair.Revision() {
-		return Component{}, fmt.Errorf(
-			"resource %s revision does not match revision in resource pair: %d != %d",
-			compName, resRev.Revision(), resPair.Revision())
-	}
-	if resPair.SnapRevision() != snapRev.N {
-		return Component{}, fmt.Errorf(
-			"resource %s pair revision does not match snap revision: %d != %d",
-			compName, resPair.SnapRevision(), snapRev.N)
-	}
-
-	if resRev.Provenance() != snapProvenance {
-		return Component{}, fmt.Errorf(
-			"resource revision provenance for %s does not match snap provenance: %s != %s",
-			compName, resRev.Provenance(), snapProvenance)
-	}
-	if resPair.Provenance() != snapProvenance {
-		return Component{}, fmt.Errorf(
-			"resource pair provenance for %s does not match snap provenance: %s != %s",
-			compName, resPair.Provenance(), snapProvenance)
 	}
 
 	if err := snapasserts.CheckComponentProvenanceWithVerifiedRevision(compPath, resRev); err != nil {
