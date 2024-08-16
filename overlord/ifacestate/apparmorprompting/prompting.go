@@ -36,8 +36,6 @@ import (
 )
 
 var (
-	ErrPromptingNotEnabled = errors.New("AppArmor Prompting is not enabled")
-
 	// Allow mocking the listener for tests
 	listenerRegister = listener.Register
 	listenerClose    = func(l *listener.Listener) error { return l.Close() }
@@ -46,6 +44,23 @@ var (
 
 	requestReply = func(req *listener.Request, resp *listener.Response) error { return req.Reply(resp) }
 )
+
+// A Manager holds outstanding prompts and mediates their replies, further it
+// stores and applies persistent rules.
+type Manager interface {
+	Prompts(userID uint32) ([]*requestprompts.Prompt, error)
+	PromptWithID(userID uint32, promptID prompting.IDType) (*requestprompts.Prompt, error)
+	HandleReply(userID uint32, promptID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) ([]prompting.IDType, error)
+	Rules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error)
+	AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error)
+	RemoveRules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error)
+	RuleWithID(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error)
+	PatchRule(userID uint32, ruleID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error)
+	RemoveRule(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error)
+}
+
+// verify that InterfacesRequestsManager implements Manager
+var _ Manager = (*InterfacesRequestsManager)(nil)
 
 type InterfacesRequestsManager struct {
 	tomb tomb.Tomb
@@ -506,6 +521,7 @@ func (m *InterfacesRequestsManager) RemoveRules(userID uint32, snap string, ifac
 	defer m.lock.RUnlock()
 
 	if snap == "" && iface == "" {
+		// The caller should ensure that this is not the case.
 		return nil, fmt.Errorf("cannot remove rules for unspecified snap and interface")
 	}
 	if snap != "" {
