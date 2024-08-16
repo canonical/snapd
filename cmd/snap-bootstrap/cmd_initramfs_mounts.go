@@ -775,7 +775,7 @@ func (m *recoverModeStateMachine) degraded() bool {
 func (m *recoverModeStateMachine) diskOpts() *disks.Options {
 	if m.isEncryptedDev {
 		return &disks.Options{
-			IsDecryptedDevice: true,
+			IsCryptsetupDevice: true,
 		}
 	}
 	return nil
@@ -1871,7 +1871,7 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 	if unlockRes.IsEncrypted {
 		// then we need to specify that the data mountpoint is
 		// expected to be a decrypted device
-		diskOpts.IsDecryptedDevice = true
+		diskOpts.IsCryptsetupDevice = true
 	}
 
 	matches, err := disk.MountPointIsFromDisk(boot.InitramfsDataDir, diskOpts)
@@ -2019,7 +2019,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	if unlockRes.IsEncrypted {
 		// then we need to specify that the data mountpoint is expected to be a
 		// decrypted device, applies to both ubuntu-data and ubuntu-save
-		diskOpts.IsDecryptedDevice = true
+		diskOpts.IsCryptsetupDevice = true
 	}
 
 	matches, err := disk.MountPointIsFromDisk(boot.InitramfsDataDir, diskOpts)

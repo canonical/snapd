@@ -477,7 +477,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyBadUdevPropsMountpointPartition
 	c.Assert(err, ErrorMatches, `cannot find disk from mountpoint source /dev/vda4 of /run/mnt/point: bad udev output: invalid device number format: \(expected <int>:<int>\)`)
 }
 
-func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNotDiskDevice(c *C) {
+func (s *diskSuite) TestDiskFromMountPointUnhappyIsCryptsetupDeviceNotDiskDevice(c *C) {
 	restore := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/vda4 rw
 `)
 	defer restore()
@@ -500,12 +500,12 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNotDiskDevice(
 	})
 	defer restore()
 
-	opts := &disks.Options{IsDecryptedDevice: true}
+	opts := &disks.Options{IsCryptsetupDevice: true}
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
 	c.Assert(err, ErrorMatches, `cannot process properties of /dev/vda4 parent device: not a decrypted device: devtype is not disk \(is partition\)`)
 }
 
-func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceDmError(c *C) {
+func (s *diskSuite) TestDiskFromMountPointUnhappyIsCryptsetupDeviceDmError(c *C) {
 	restore := osutil.MockMountInfo(`130 30 252:0 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/mapper/something rw
 `)
 	defer restore()
@@ -531,7 +531,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceDmError(c *C) 
 	})
 	defer restore()
 
-	opts := &disks.Options{IsDecryptedDevice: true}
+	opts := &disks.Options{IsCryptsetupDevice: true}
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot process properties of /dev/mapper/something parent device: not a decrypted device: could not read device mapper metadata: some-error`))
 }
@@ -707,7 +707,7 @@ fi
 	c.Assert(err, ErrorMatches, "cannot find disk from mountpoint source /dev/mapper/something of /run/mnt/point: incomplete udev output missing required property \"ID_PART_ENTRY_DISK\"")
 }
 
-func (s *diskSuite) TestDiskFromMountPointIsDecryptedLUKSDeviceVolumeHappy(c *C) {
+func (s *diskSuite) TestDiskFromMountPointCryptsetupLUKSDeviceVolumeHappy(c *C) {
 	restore := osutil.MockMountInfo(`130 30 242:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/mapper/something rw
 `)
 	defer restore()
@@ -740,7 +740,7 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedLUKSDeviceVolumeHappy(c *C)
 	})
 	defer restore()
 
-	opts := &disks.Options{IsDecryptedDevice: true}
+	opts := &disks.Options{IsCryptsetupDevice: true}
 
 	restore = disks.MockDmIoctlTableStatus(func(major uint32, minor uint32) ([]osutil.TargetInfo, error) {
 		return []osutil.TargetInfo{
@@ -805,7 +805,7 @@ func (s *diskSuite) TestDiskFromMountPointDmvVerityVolumeHappy(c *C) {
 	})
 	defer restore()
 
-	opts := &disks.Options{IsDecryptedDevice: true}
+	opts := &disks.Options{IsCryptsetupDevice: true}
 
 	restore = disks.MockDmIoctlTableStatus(func(major uint32, minor uint32) ([]osutil.TargetInfo, error) {
 		return []osutil.TargetInfo{
@@ -824,7 +824,7 @@ func (s *diskSuite) TestDiskFromMountPointDmvVerityVolumeHappy(c *C) {
 	c.Assert(d.Schema(), Equals, "dos")
 }
 
-func (s *diskSuite) TestDiskFromMountPointIsDecryptedLUKSDeviceVolumeHappyUseNodePath(c *C) {
+func (s *diskSuite) TestDiskFromMountPointCryptsetupLUKSDeviceVolumeHappyUseNodePath(c *C) {
 	restore := osutil.MockMountInfo(`130 30 242:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/mapper/something rw
 `)
 	defer restore()
@@ -857,7 +857,7 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedLUKSDeviceVolumeHappyUseNod
 	})
 	defer restore()
 
-	opts := &disks.Options{IsDecryptedDevice: true}
+	opts := &disks.Options{IsCryptsetupDevice: true}
 
 	restore = disks.MockDmIoctlTableStatus(func(major uint32, minor uint32) ([]osutil.TargetInfo, error) {
 		return []osutil.TargetInfo{
@@ -1126,7 +1126,7 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 	})
 }
 
-func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
+func (s *diskSuite) TestDiskFromMountPointCryptsetupDevicePartitionsHappy(c *C) {
 	// for udevadm trigger and udevadm settle which are called on the partitions
 	mockUdevadm := testutil.MockCommand(c, "udevadm", ``)
 	defer mockUdevadm.Restore()
@@ -1316,7 +1316,7 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 	})
 	defer restore()
 
-	opts := &disks.Options{IsDecryptedDevice: true}
+	opts := &disks.Options{IsCryptsetupDevice: true}
 	ubuntuDataDisk, err := disks.DiskFromMountPoint("/run/mnt/data", opts)
 	c.Assert(err, IsNil)
 	c.Assert(ubuntuDataDisk, Not(IsNil))
@@ -1994,7 +1994,7 @@ func (s *diskSuite) TestPartitionUUIDFromMountPointPlain(c *C) {
 	c.Assert(uuid, Equals, "foo-uuid")
 }
 
-func (s *diskSuite) TestPartitionUUIDFromMountPointDecrypted(c *C) {
+func (s *diskSuite) TestPartitionUUIDFromMountPointCryptsetup(c *C) {
 	restore := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/mapper/something rw
 `)
 	defer restore()
@@ -2029,7 +2029,7 @@ func (s *diskSuite) TestPartitionUUIDFromMountPointDecrypted(c *C) {
 	defer restore()
 
 	uuid, err := disks.PartitionUUIDFromMountPoint("/run/mnt/point", &disks.Options{
-		IsDecryptedDevice: true,
+		IsCryptsetupDevice: true,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(uuid, Equals, "foo-uuid")
@@ -2070,7 +2070,7 @@ func (s *diskSuite) TestPartitionUUIDFromMountPointVerity(c *C) {
 	defer restore()
 
 	uuid, err := disks.PartitionUUIDFromMountPoint("/run/mnt/point", &disks.Options{
-		IsDecryptedDevice: true,
+		IsCryptsetupDevice: true,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(uuid, Equals, "foo-uuid")

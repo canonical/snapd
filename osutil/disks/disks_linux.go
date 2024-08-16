@@ -289,7 +289,7 @@ func DiskFromMountPoint(mountpoint string, opts *Options) (Disk, error) {
 // DiskFromPartitionDeviceNode finds a matching Disk that the specified
 // partition node resides on.
 func DiskFromPartitionDeviceNode(node string) (Disk, error) {
-	// TODO: support options such as IsDecryptedDevice
+	// TODO: support options such as IsCryptsetupDevice
 	return diskFromPartitionDeviceNode(node)
 }
 
@@ -678,7 +678,7 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		return nil, err
 	}
 
-	if opts != nil && opts.IsDecryptedDevice {
+	if opts != nil && opts.IsCryptsetupDevice {
 		props, err = parentPartitionPropsForOptions(props)
 		if err != nil {
 			return nil, fmt.Errorf("cannot process properties of %v parent device: %v", source, err)
@@ -1015,7 +1015,7 @@ func PartitionUUIDFromMountPoint(mountpoint string, opts *Options) (string, erro
 		return "", err
 	}
 
-	if opts != nil && opts.IsDecryptedDevice {
+	if opts != nil && opts.IsCryptsetupDevice {
 		props, err = parentPartitionPropsForOptions(props)
 		if err != nil {
 			return "", err

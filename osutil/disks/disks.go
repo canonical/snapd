@@ -27,9 +27,9 @@ import (
 // Options is a set of options used when querying information about
 // partition and disk devices.
 type Options struct {
-	// IsDecryptedDevice indicates that the mountpoint is referring to a
-	// decrypted device.
-	IsDecryptedDevice bool
+	// IsCryptsetupDevice indicates that the mountpoint is referring to a
+	// device on a dm-crypt or dm-verity.
+	IsCryptsetupDevice bool
 }
 
 // Disk is a single physical disk device that contains partitions.
