@@ -114,16 +114,15 @@ func ReadOptions20(optionsFn string) (*Options20, error) {
 			return nil, fmt.Errorf("%s: %q must be a filename, not a path", errPrefix, sn.Unasserted)
 		}
 		if len(sn.Components) > 0 {
-			if sn.Unasserted == "" {
-				return nil, fmt.Errorf("%s: local components specified for non-local snap %q", errPrefix, sn.Name)
-			}
-
 			for _, comp := range sn.Components {
 				if err := naming.ValidateSnap(comp.Name); err != nil {
 					return nil, fmt.Errorf("%s: %v", errPrefix, err)
 				}
-				if comp.Unasserted == "" {
+				if comp.Unasserted == "" && sn.Unasserted != "" {
 					return nil, fmt.Errorf("%s: no file specified for unasserted component %q", errPrefix, comp.Name)
+				}
+				if comp.Unasserted != "" && sn.Unasserted == "" {
+					return nil, fmt.Errorf("%s: unasserted component specified for asserted snap %q", errPrefix, sn.Name)
 				}
 				if strings.Contains(comp.Unasserted, "/") {
 					return nil, fmt.Errorf("%s: %q must be a filename, not a path", errPrefix, comp.Unasserted)
