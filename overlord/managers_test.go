@@ -7876,7 +7876,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystemSimpleSetUp(c *C, model
 		{Path: pcKernelInfo.MountFile()},
 		{Path: coreInfo.MountFile()},
 		{Path: snapdInfo.MountFile()},
-	}, map[string][]string{})
+	}, nil)
 
 	// mock the modeenv file
 	m := &boot.Modeenv{

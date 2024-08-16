@@ -371,7 +371,7 @@ func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHead
 
 	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys(brandID)...)
 
-	s.MakeSeedWithModel(c, label, model, optSnaps, map[string][]string{})
+	s.MakeSeedWithModel(c, label, model, optSnaps, nil)
 	return model
 }
 
