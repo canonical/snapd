@@ -233,6 +233,18 @@ func (s *writerSuite) fetchAsserts(c *C) seedwriter.AssertsFetchFunc {
 			if err != nil {
 				return nil, err
 			}
+			for _, a := range s.AssertedResourceRevision(sn.SnapName()) {
+				err := s.rf.Fetch(a.Ref())
+				if err != nil {
+					return nil, err
+				}
+			}
+			for _, a := range s.AssertedResourcePair(sn.SnapName()) {
+				err := s.rf.Fetch(a.Ref())
+				if err != nil {
+					return nil, err
+				}
+			}
 			aRefs = s.rf.Refs()[prev:]
 			s.aRefs[sn.SnapName()] = aRefs
 		}
@@ -242,8 +254,17 @@ func (s *writerSuite) fetchAsserts(c *C) seedwriter.AssertsFetchFunc {
 
 func (s *writerSuite) doFillMetaDownloadedSnap(c *C, w *seedwriter.Writer, sn *seedwriter.SeedSnap) *snap.Info {
 	info := s.AssertedSnapInfo(sn.SnapName())
+	cinfos := s.AssertedComponentInfos(sn.SnapName())
+	seedComps := make(map[string]*seedwriter.SeedComponent, len(cinfos))
+	for _, cinfo := range cinfos {
+		cref := naming.NewComponentRef(sn.SnapName(), cinfo.Component.ComponentName)
+		seedComps[cinfo.Component.ComponentName] = &seedwriter.SeedComponent{
+			ComponentRef: cref,
+			Info:         cinfo,
+		}
+	}
 	c.Assert(info, NotNil, Commentf("%s not defined", sn.SnapName()))
-	err := w.SetInfo(sn, info, nil)
+	err := w.SetInfo(sn, info, seedComps)
 	c.Assert(err, IsNil)
 	return info
 }
@@ -254,6 +275,10 @@ func (s *writerSuite) fillDownloadedSnap(c *C, w *seedwriter.Writer, sn *seedwri
 	c.Assert(sn.Path, Equals, filepath.Join(s.opts.SeedDir, "snaps", info.Filename()))
 	err := os.Rename(s.AssertedSnap(sn.SnapName()), sn.Path)
 	c.Assert(err, IsNil)
+	for _, seedComp := range sn.Components {
+		err := os.Rename(s.AssertedSnap(seedComp.String()), seedComp.Path)
+		c.Assert(err, IsNil)
+	}
 }
 
 func (s *writerSuite) fillMetaDownloadedSnap(c *C, w *seedwriter.Writer, sn *seedwriter.SeedSnap) {
@@ -3506,12 +3531,21 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 	s.makeSnap(c, "core18", "")
 	s.makeSnap(c, "cont-producer", "developerid")
 	contConsumerFn := s.makeLocalSnap(c, "cont-consumer")
+	comRevs := map[string]snap.Revision{
+		"comp1": snap.R(22),
+		"comp2": snap.R(33),
+	}
+	s.SeedSnaps.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["required20"], nil,
+		snap.R(21), comRevs, "canonical", s.StoreSigning.Database)
 
 	s.opts.Label = "20191122"
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "cont-producer", Channel: "edge"}, {Name: "core18"}, {Path: contConsumerFn}})
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "cont-producer", Channel: "edge"},
+		{Name: "core18"}, {Path: contConsumerFn},
+		{Name: "required20", Components: []seedwriter.OptionsComponent{
+			{Name: "comp1"}, {Name: "comp2"}}}})
 	c.Assert(err, IsNil)
 
 	err = w.Start(s.db, s.rf)
@@ -3554,9 +3588,10 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 
 	snaps, err = w.SnapsToDownload()
 	c.Assert(err, IsNil)
-	c.Assert(snaps, HasLen, 2)
+	c.Assert(snaps, HasLen, 3)
 	c.Check(snaps[0].SnapName(), Equals, "cont-producer")
 	c.Check(snaps[1].SnapName(), Equals, "core18")
+	c.Check(snaps[2].SnapName(), Equals, "required20")
 
 	for _, sn := range snaps {
 		channel := "latest/stable"
@@ -3571,6 +3606,10 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 		c.Assert(sn.Path, Equals, filepath.Join(s.opts.SeedDir, "systems", s.opts.Label, "snaps", info.Filename()))
 		err := os.Rename(s.AssertedSnap(sn.SnapName()), sn.Path)
 		c.Assert(err, IsNil)
+		for _, seedComp := range sn.Components {
+			err := os.Rename(s.AssertedSnap(seedComp.String()), seedComp.Path)
+			c.Assert(err, IsNil)
+		}
 	}
 
 	complete, err = w.Downloaded(s.fetchAsserts(c))
@@ -3595,10 +3634,13 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 4)
 
-	// extra snaps were put in system snaps dir
+	// extra containers were put in system snaps dir
 	c.Check(filepath.Join(systemDir, "snaps", "core18_1.snap"), testutil.FilePresent)
 	c.Check(filepath.Join(systemDir, "snaps", "cont-producer_1.snap"), testutil.FilePresent)
 	c.Check(filepath.Join(systemDir, "snaps", "cont-consumer_1.0.snap"), testutil.FilePresent)
+	c.Check(filepath.Join(systemDir, "snaps", "required20_21.snap"), testutil.FilePresent)
+	c.Check(filepath.Join(systemDir, "snaps", "required20+comp1_22.comp"), testutil.FilePresent)
+	c.Check(filepath.Join(systemDir, "snaps", "required20+comp2_33.comp"), testutil.FilePresent)
 
 	// check extra-snaps in assertions
 	snapAsserts := seedtest.ReadAssertions(c, filepath.Join(systemDir, "assertions", "extra-snaps"))
@@ -3609,6 +3651,10 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 		if a.Type() == asserts.SnapRevisionType {
 			rev := a.(*asserts.SnapRevision)
 			uniq = fmt.Sprintf("%s@%d", rev.SnapID(), rev.SnapRevision())
+		} else if a.Type() == asserts.SnapResourceRevisionType {
+			rev := a.(*asserts.SnapResourceRevision)
+			uniq = fmt.Sprintf("%s+%s@%d", rev.SnapID(),
+				rev.ResourceName(), rev.ResourceRevision())
 		}
 		seen[uniq] = true
 	}
@@ -3616,16 +3662,25 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 	snapRevUniq := func(snapName string, revno int) string {
 		return fmt.Sprintf("%s@%d", s.AssertedSnapID(snapName), revno)
 	}
+	resRevUniq := func(snapName, compName string, resRev int) string {
+		return fmt.Sprintf("%s+%s@%d", s.AssertedSnapID(snapName), compName, resRev)
+	}
 	snapDeclUniq := func(snapName string) string {
 		return "snap-declaration/16/" + s.AssertedSnapID(snapName)
 	}
 
 	c.Check(seen, DeepEquals, map[string]bool{
-		"account/developerid":           true,
-		snapDeclUniq("core18"):          true,
-		snapDeclUniq("cont-producer"):   true,
-		snapRevUniq("core18", 1):        true,
-		snapRevUniq("cont-producer", 1): true,
+		"account/developerid":                                             true,
+		snapDeclUniq("core18"):                                            true,
+		snapDeclUniq("cont-producer"):                                     true,
+		snapDeclUniq("required20"):                                        true,
+		snapRevUniq("core18", 1):                                          true,
+		snapRevUniq("cont-producer", 1):                                   true,
+		snapRevUniq("required20", 21):                                     true,
+		resRevUniq("required20", "comp1", 22):                             true,
+		resRevUniq("required20", "comp2", 33):                             true,
+		"snap-resource-pair/required20ididididididididididid/comp1/22/21": true,
+		"snap-resource-pair/required20ididididididididididid/comp2/33/21": true,
 	})
 
 	options20, err := seedwriter.InternalReadOptions20(filepath.Join(systemDir, "options.yaml"))
@@ -3645,6 +3700,12 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 		{
 			Name:       "cont-consumer",
 			Unasserted: "cont-consumer_1.0.snap",
+		},
+		{
+			Name:       "required20",
+			SnapID:     s.AssertedSnapID("required20"),
+			Channel:    "latest/stable",
+			Components: []internal.Component20{{Name: "comp1"}, {Name: "comp2"}},
 		},
 	})
 }

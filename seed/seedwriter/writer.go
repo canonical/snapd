@@ -967,11 +967,18 @@ func (w *Writer) extraSnapToSeed(optSnap *OptionsSnap) (*SeedSnap, error) {
 	sn := w.localSnaps[optSnap]
 	if sn == nil {
 		// not local, to download
+		seedComps := make([]SeedComponent, 0, len(optSnap.Components))
+		for _, optComp := range optSnap.Components {
+			seedComps = append(seedComps, SeedComponent{
+				ComponentRef: naming.NewComponentRef(optSnap.Name, optComp.Name),
+			})
+		}
 		sn = &SeedSnap{
 			SnapRef: optSnap,
 
 			local:      false,
 			optionSnap: optSnap,
+			Components: seedComps,
 		}
 	}
 	if sn.SnapName() == "" {

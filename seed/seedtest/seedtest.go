@@ -267,6 +267,14 @@ func (ss *SeedSnaps) AssertedSnapRevision(snapName string) *asserts.SnapRevision
 	return ss.snapRevs[snapName]
 }
 
+func (ss *SeedSnaps) AssertedResourceRevision(snapName string) []*asserts.SnapResourceRevision {
+	return ss.resRevs[snapName]
+}
+
+func (ss *SeedSnaps) AssertedResourcePair(snapName string) []*asserts.SnapResourcePair {
+	return ss.resPairs[snapName]
+}
+
 func (ss *SeedSnaps) AssertedComponentInfos(snapName string) []*snap.ComponentInfo {
 	return ss.compInfos[snapName]
 }
