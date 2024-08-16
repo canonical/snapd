@@ -1260,7 +1260,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		msg := fmt.Sprintf("expected snap %q revision %v to be mounted but is not", snapsup.InstanceName(), snapsup.Revision())
 		readInfoErr = fmt.Errorf("cannot proceed, %s", msg)
 		if i == 0 {
-			logger.Noticef(msg)
+			logger.Notice(msg)
 		}
 		time.Sleep(mountPollInterval)
 	}

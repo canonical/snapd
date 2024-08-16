@@ -234,7 +234,7 @@ func (b Backend) UndoHideSnapData(snapName string) error {
 		if firstErr == nil {
 			firstErr = err
 		} else {
-			logger.Noticef(err.Error())
+			logger.Notice(err.Error())
 		}
 	}
 
@@ -399,7 +399,7 @@ func (b Backend) UndoInitExposedSnapHome(snapName string, undoInfo *UndoInfo) er
 		if firstErr == nil {
 			firstErr = err
 		} else {
-			logger.Noticef(err.Error())
+			logger.Notice(err.Error())
 		}
 	}
 

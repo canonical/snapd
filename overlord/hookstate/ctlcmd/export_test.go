@@ -21,7 +21,7 @@ package ctlcmd
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os/user"
 
 	"github.com/snapcore/snapd/asserts"
@@ -129,15 +129,15 @@ func (c *MockCommand) Execute(args []string) error {
 	c.Args = args
 
 	if c.FakeStdout != "" {
-		c.printf(c.FakeStdout)
+		c.print(c.FakeStdout)
 	}
 
 	if c.FakeStderr != "" {
-		c.errorf(c.FakeStderr)
+		c.error(c.FakeStderr)
 	}
 
 	if c.ExecuteError {
-		return fmt.Errorf("failed at user request")
+		return errors.New("failed at user request")
 	}
 
 	return nil

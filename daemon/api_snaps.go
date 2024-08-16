@@ -449,7 +449,7 @@ func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
 
 func snapInstall(ctx context.Context, inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	if len(inst.Snaps[0]) == 0 {
-		return "", nil, fmt.Errorf(i18n.G("cannot install snap with empty name"))
+		return "", nil, errors.New(i18n.G("cannot install snap with empty name"))
 	}
 
 	flags, err := inst.installFlags()

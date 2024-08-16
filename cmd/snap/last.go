@@ -53,12 +53,12 @@ var noChangeFoundOK = errors.New("no change found but that's ok")
 
 func (l *changeIDMixin) GetChangeID() (string, error) {
 	if l.Positional.ID == "" && l.LastChangeType == "" {
-		return "", fmt.Errorf(i18n.G("please provide change ID or type with --last=<type>"))
+		return "", errors.New(i18n.G("please provide change ID or type with --last=<type>"))
 	}
 
 	if l.Positional.ID != "" {
 		if l.LastChangeType != "" {
-			return "", fmt.Errorf(i18n.G("cannot use change ID and type together"))
+			return "", errors.New(i18n.G("cannot use change ID and type together"))
 		}
 
 		return string(l.Positional.ID), nil
@@ -94,7 +94,7 @@ func (l *changeIDMixin) GetChangeID() (string, error) {
 		if optional {
 			return "", noChangeFoundOK
 		}
-		return "", fmt.Errorf(i18n.G("no changes found"))
+		return "", errors.New(i18n.G("no changes found"))
 	}
 	chg := findLatestChangeByKind(changes, kind)
 	if chg == nil {

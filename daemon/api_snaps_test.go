@@ -531,7 +531,7 @@ func (s *snapsSuite) TestPostSnapsOptionsOtherErrors(c *check.C) {
 	}
 
 	for name, test := range testMap {
-		buf := strings.NewReader(fmt.Sprintf(test.post))
+		buf := strings.NewReader(fmt.Sprint(test.post))
 		req, err := http.NewRequest("POST", "/v2/snaps", buf)
 		c.Assert(err, check.IsNil)
 		req.Header.Set("Content-Type", "application/json")

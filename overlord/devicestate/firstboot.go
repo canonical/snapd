@@ -436,7 +436,7 @@ func (m *DeviceManager) importAssertionsFromSeed(isCoreBoot bool) (seed.Seed, er
 		} else {
 			msg = "cannot seed a classic system with an all-snaps model"
 		}
-		return nil, fmt.Errorf(msg)
+		return nil, errors.New(msg)
 	}
 
 	// set device,model from the model assertion

@@ -104,7 +104,7 @@ func (x *cmdRecovery) Execute(args []string) error {
 		return err
 	}
 	if len(systems) == 0 {
-		fmt.Fprintf(Stderr, i18n.G("No recovery systems available.\n"))
+		fmt.Fprint(Stderr, i18n.G("No recovery systems available.\n"))
 		return nil
 	}
 

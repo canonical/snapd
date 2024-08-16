@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -154,7 +155,7 @@ func (x *cmdDownload) downloadFromStore(snapName string, revision snap.Revision)
 
 func (x *cmdDownload) Execute(args []string) error {
 	if strings.ContainsRune(x.Basename, filepath.Separator) {
-		return fmt.Errorf(i18n.G("cannot specify a path in basename (use --target-dir for that)"))
+		return errors.New(i18n.G("cannot specify a path in basename (use --target-dir for that)"))
 	}
 	if err := x.setChannelFromCommandline(); err != nil {
 		return err
@@ -169,10 +170,10 @@ func (x *cmdDownload) Execute(args []string) error {
 		revision = snap.R(0)
 	} else {
 		if x.Channel != "" {
-			return fmt.Errorf(i18n.G("cannot specify both channel and revision"))
+			return errors.New(i18n.G("cannot specify both channel and revision"))
 		}
 		if x.CohortKey != "" {
-			return fmt.Errorf(i18n.G("cannot specify both cohort and revision"))
+			return errors.New(i18n.G("cannot specify both cohort and revision"))
 		}
 		var err error
 		revision, err = snap.ParseRevision(x.Revision)
