@@ -3825,7 +3825,7 @@ func (s *seed20Suite) TestLoadMetaWithComponents(c *C) {
 		case "comp1":
 			c.Check(comp, DeepEquals, seed.Component{
 				Path: filepath.Join(s.SeedDir, "snaps", "required20+comp1_22.comp"),
-				CompSideInfo: &snap.ComponentSideInfo{
+				CompSideInfo: snap.ComponentSideInfo{
 					Component: naming.NewComponentRef("required20", "comp1"),
 					Revision:  snap.R(22),
 				},
@@ -3834,7 +3834,7 @@ func (s *seed20Suite) TestLoadMetaWithComponents(c *C) {
 		case "comp2":
 			c.Check(comp, DeepEquals, seed.Component{
 				Path: filepath.Join(s.SeedDir, "snaps", "required20+comp2_33.comp"),
-				CompSideInfo: &snap.ComponentSideInfo{
+				CompSideInfo: snap.ComponentSideInfo{
 					Component: naming.NewComponentRef("required20", "comp2"),
 					Revision:  snap.R(33),
 				},
@@ -4205,7 +4205,7 @@ func (s *seed20Suite) TestLoadMetaWithLocalComponents(c *C) {
 			c.Check(comp, DeepEquals, seed.Component{
 				Path: filepath.Join(s.SeedDir, "systems", sysLabel,
 					"snaps", "required20+comp1_1.0.comp"),
-				CompSideInfo: &snap.ComponentSideInfo{
+				CompSideInfo: snap.ComponentSideInfo{
 					Component: naming.NewComponentRef("required20", "comp1"),
 				},
 			})
@@ -4214,7 +4214,7 @@ func (s *seed20Suite) TestLoadMetaWithLocalComponents(c *C) {
 			c.Check(comp, DeepEquals, seed.Component{
 				Path: filepath.Join(s.SeedDir, "systems", sysLabel,
 					"snaps", "required20+comp2_2.0.comp"),
-				CompSideInfo: &snap.ComponentSideInfo{
+				CompSideInfo: snap.ComponentSideInfo{
 					Component: naming.NewComponentRef("required20", "comp2"),
 				},
 			})
@@ -4321,12 +4321,12 @@ func (s *seed20Suite) TestLoadMetaCore20ExtraSnapsWithComps(c *C) {
 			Components: []seed.Component{
 				{
 					Path: filepath.Join(sysSnapsDir, "required20+comp1_22.comp"),
-					CompSideInfo: snap.NewComponentSideInfo(
+					CompSideInfo: *snap.NewComponentSideInfo(
 						naming.NewComponentRef("required20", "comp1"), snap.R(22)),
 				},
 				{
 					Path: filepath.Join(sysSnapsDir, "required20+comp2_33.comp"),
-					CompSideInfo: snap.NewComponentSideInfo(
+					CompSideInfo: *snap.NewComponentSideInfo(
 						naming.NewComponentRef("required20", "comp2"), snap.R(33)),
 				},
 			},

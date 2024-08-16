@@ -42,7 +42,7 @@ var (
 // Component holds the details of a component in a seed.
 type Component struct {
 	Path         string
-	CompSideInfo *snap.ComponentSideInfo
+	CompSideInfo snap.ComponentSideInfo
 }
 
 // Snap holds the details of a snap in a seed.

@@ -3355,7 +3355,7 @@ func (s *imageSuite) testSetupSeedCore20Grub(c *C, kernelContent [][]string, exp
 		Components: []seed.Component{
 			{
 				Path:         filepath.Join(seedsnapsdir, "required20+comp1_22.comp"),
-				CompSideInfo: snap.NewComponentSideInfo(cref1, snap.R(22)),
+				CompSideInfo: *snap.NewComponentSideInfo(cref1, snap.R(22)),
 			},
 		},
 	})
@@ -4092,11 +4092,11 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadHappy(c *C) {
 		Components: []seed.Component{
 			{
 				Path:         filepath.Join(seedsnapsdir, "required20+comp1_22.comp"),
-				CompSideInfo: snap.NewComponentSideInfo(cref1, snap.R(22)),
+				CompSideInfo: *snap.NewComponentSideInfo(cref1, snap.R(22)),
 			},
 			{
 				Path:         filepath.Join(seedsnapsdir, "required20+comp2_33.comp"),
-				CompSideInfo: snap.NewComponentSideInfo(cref2, snap.R(33)),
+				CompSideInfo: *snap.NewComponentSideInfo(cref2, snap.R(33)),
 			},
 		},
 	})
@@ -4457,11 +4457,11 @@ func (s *imageSuite) TestLocalSnapWithCompsRevisionMatchingStoreRevision(c *C) {
 		Components: []seed.Component{
 			{
 				Path:         filepath.Join(seedsnapsdir, "required20+comp1_22.comp"),
-				CompSideInfo: snap.NewComponentSideInfo(cref1, snap.R(22)),
+				CompSideInfo: *snap.NewComponentSideInfo(cref1, snap.R(22)),
 			},
 			{
 				Path:         filepath.Join(seedsnapsdir, "required20+comp2_33.comp"),
-				CompSideInfo: snap.NewComponentSideInfo(cref2, snap.R(33)),
+				CompSideInfo: *snap.NewComponentSideInfo(cref2, snap.R(33)),
 			},
 		},
 	})
@@ -5183,11 +5183,11 @@ func (s *imageSuite) TestSetupSeedLocalComponents(c *C) {
 		Components: []seed.Component{
 			{
 				Path:         filepath.Join(extraSnapsDir, "required20+comp1_1.0.comp"),
-				CompSideInfo: snap.NewComponentSideInfo(cref1, snap.R(0)),
+				CompSideInfo: *snap.NewComponentSideInfo(cref1, snap.R(0)),
 			},
 			{
 				Path:         filepath.Join(extraSnapsDir, "required20+comp2_2.0.comp"),
-				CompSideInfo: snap.NewComponentSideInfo(cref2, snap.R(0)),
+				CompSideInfo: *snap.NewComponentSideInfo(cref2, snap.R(0)),
 			},
 		},
 	})
