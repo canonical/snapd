@@ -327,6 +327,10 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 	case client.InstallStepFinish:
 		var optional *devicestate.OptionalInstall
 		if req.OptionalInstall != nil {
+			// note that we provide a nil optional install here in the case that
+			// the request set the All field to true. the nil optional install
+			// indicates that all opitonal snaps and components should be
+			// installed.
 			if req.OptionalInstall.All {
 				if len(req.OptionalInstall.Components) > 0 || len(req.OptionalInstall.Snaps) > 0 {
 					return BadRequest("cannot specify both all and individual optional snaps and components to install")
