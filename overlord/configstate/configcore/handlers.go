@@ -118,9 +118,6 @@ func init() {
 	// store.access
 	addFSOnlyHandler(validateStoreAccess, handleStoreAccess, coreOnly)
 
-	// system.coredump
-	addFSOnlyHandler(validateCoredumpSettings, handleCoredumpConfiguration, coreOnly)
-
 	sysconfig.ApplyFilesystemOnlyDefaultsImpl = filesystemOnlyApply
 }
 
