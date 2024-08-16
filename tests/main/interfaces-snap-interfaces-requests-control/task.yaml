@@ -107,6 +107,7 @@ execute: |
     api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-rule-update" | jq '."status-code"' | MATCH '^403$'
     api-client --socket /run/snapd-snap.socket "/v2/system-info" | jq '."status-code"' | MATCH '^403$'
     api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts" | jq '."status-code"' | MATCH '^403$'
-    api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts/$PROMPT_ID" | jq '."status-code"' | MATCH '^403$'
+    # Try to access an arbitrary prompt ID, should fail with 403 rather than 404
+    api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts/1234123412341234" | jq '."status-code"' | MATCH '^403$'
     api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules" | jq '."status-code"' | MATCH '^403$'
     api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules/$RULE_ID" | jq '."status-code"' | MATCH '^403$'
