@@ -50,12 +50,12 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-// ResourceKey is used in maps of resource assertions.
-type ResourceKey struct {
-	// SnapID is the snap ID
-	SnapID string
-	// Name is the resource name
-	Name string
+// resourceKey is used in maps of resource assertions.
+type resourceKey struct {
+	// snapID is the snap ID
+	snapID string
+	// name is the resource name
+	name string
 }
 
 type seed20 struct {
@@ -71,8 +71,8 @@ type seed20 struct {
 
 	snapRevsByID map[string]*asserts.SnapRevision
 
-	resPairByResKey map[ResourceKey]*asserts.SnapResourcePair
-	resRevByResKey  map[ResourceKey]*asserts.SnapResourceRevision
+	resPairByResKey map[resourceKey]*asserts.SnapResourcePair
+	resRevByResKey  map[resourceKey]*asserts.SnapResourceRevision
 
 	nLoadMetaJobs int
 
@@ -280,7 +280,7 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 		}
 	}
 
-	s.resRevByResKey = make(map[ResourceKey]*asserts.SnapResourceRevision, len(resRevRefs))
+	s.resRevByResKey = make(map[resourceKey]*asserts.SnapResourceRevision, len(resRevRefs))
 	for _, resRevRef := range resRevRefs {
 		a, err := find(resRevRef)
 		if err != nil {
@@ -292,14 +292,14 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 			// Unidentified IDs are checked previously
 			return fmt.Errorf("internal error: snap ID %s in resource revision assertion for %s not in known snap declarations", snapID, resRev.ResourceName())
 		}
-		resKey := ResourceKey{SnapID: snapID, Name: resRev.ResourceName()}
+		resKey := resourceKey{snapID: snapID, name: resRev.ResourceName()}
 		if _, ok := s.resRevByResKey[resKey]; ok {
 			return fmt.Errorf("cannot have multiple resource revisions for the same component %s (snap %s)", resRev.ResourceName(), snapID)
 		}
 		s.resRevByResKey[resKey] = resRev
 	}
 
-	s.resPairByResKey = make(map[ResourceKey]*asserts.SnapResourcePair, len(resPairRefs))
+	s.resPairByResKey = make(map[resourceKey]*asserts.SnapResourcePair, len(resPairRefs))
 	for _, resPairRef := range resPairRefs {
 		a, err := find(resPairRef)
 		if err != nil {
@@ -307,7 +307,7 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 		}
 		resPair := a.(*asserts.SnapResourcePair)
 		snapID := resPair.SnapID()
-		resKey := ResourceKey{SnapID: snapID, Name: resPair.ResourceName()}
+		resKey := resourceKey{snapID: snapID, name: resPair.ResourceName()}
 		resRev, ok := s.resRevByResKey[resKey]
 		if !ok {
 			return fmt.Errorf("resource pair for %s (%s) does not have a matching resource revision", resPair.ResourceName(), resPair.SnapID())
@@ -433,7 +433,7 @@ func (s *seed20) lookupVerifiedComponent(cref naming.ComponentRef, snapRev snap.
 	snapName := cref.SnapName
 	compName := cref.ComponentName
 
-	resKey := ResourceKey{SnapID: snapID, Name: compName}
+	resKey := resourceKey{snapID: snapID, name: compName}
 	resRev, ok := s.resRevByResKey[resKey]
 	if !ok {
 		// No assertions might be ok if the component is optional, the
@@ -502,7 +502,7 @@ func (s *seed20) lookupVerifiedComponent(cref naming.ComponentRef, snapRev snap.
 		return Component{}, err
 	}
 
-	csi := &snap.ComponentSideInfo{
+	csi := snap.ComponentSideInfo{
 		Component: cref,
 		Revision:  snap.R(resRev.ResourceRevision()),
 	}
@@ -596,7 +596,7 @@ func (s *seed20) lookupUnassertedComponent(comp20 internal.Component20, info *sn
 	}
 	return Component{
 		Path:         compPath,
-		CompSideInfo: csi,
+		CompSideInfo: *csi,
 	}, nil
 }
 
