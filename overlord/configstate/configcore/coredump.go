@@ -72,7 +72,12 @@ func validateCoredumpSettings(tr ConfGetter) error {
 	return validMaxUseSize(maxUse)
 }
 
-func handleCoredumpConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
+func handleCoredumpConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
+	// Rule out UC16/18 as we will not backport systemd-coredump there
+	if !dev.HasModeenv() {
+		return nil
+	}
+
 	coreEnabled, err := coreCfg(tr, optionCoredumpEnable)
 	if err != nil {
 		return err

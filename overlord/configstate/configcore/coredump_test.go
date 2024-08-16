@@ -46,7 +46,7 @@ func (s *coredumpSuite) SetUpTest(c *C) {
 }
 
 func (s *coredumpSuite) TestConfigureCoredumpDefault(c *C) {
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(core20Dev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{},
 	})
@@ -57,7 +57,7 @@ func (s *coredumpSuite) TestConfigureCoredumpDefault(c *C) {
 }
 
 func (s *coredumpSuite) TestConfigureCoredumpDisable(c *C) {
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(core20Dev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.coredump.enable": false,
@@ -71,7 +71,7 @@ func (s *coredumpSuite) TestConfigureCoredumpDisable(c *C) {
 }
 
 func (s *coredumpSuite) TestConfigureCoredumpDefaultMaxUse(c *C) {
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(core20Dev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.coredump.enable": true,
@@ -86,7 +86,7 @@ func (s *coredumpSuite) TestConfigureCoredumpDefaultMaxUse(c *C) {
 func (s *coredumpSuite) TestConfigureCoredumpWithMaxUse(c *C) {
 	// Configure with different MaxUse valid values
 	for _, size := range []string{"104857600", "16M", "2G", "0"} {
-		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+		err := configcore.FilesystemOnlyRun(core20Dev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"system.coredump.enable": true,
@@ -105,7 +105,7 @@ func (s *coredumpSuite) TestConfigureCoredumpInvalidMaxUse(c *C) {
 	for _, size := range []string{"100p", "0x123", "10485f7600", "20%%",
 		"20%", "100m", "10k", "10K", "10g"} {
 
-		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+		err := configcore.FilesystemOnlyRun(core20Dev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"system.coredump.enable": true,
@@ -116,4 +116,16 @@ func (s *coredumpSuite) TestConfigureCoredumpInvalidMaxUse(c *C) {
 
 		c.Assert(s.coredumpCfgPath, testutil.FileAbsent)
 	}
+}
+
+func (s *coredumpSuite) TestConfigureCoredumpNoModeEnv(c *C) {
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"system.coredump.enable": true,
+		},
+	})
+	c.Assert(err, IsNil)
+	// No file is created for uc16/18
+	c.Check(s.coredumpCfgPath, testutil.FileAbsent)
 }
