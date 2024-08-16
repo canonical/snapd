@@ -949,6 +949,8 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// TODO:COMPS: handle the "optional-install" field on the task
+
 	var encryptSetupData *install.EncryptionSetupData
 	cached := st.Cached(encryptionSetupDataKey{systemLabel})
 	if cached != nil {
