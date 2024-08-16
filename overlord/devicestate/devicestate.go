@@ -1929,8 +1929,13 @@ func InstallFinish(st *state.State, label string, onVolumes map[string]*gadget.V
 	return chg, nil
 }
 
+// OptionalInstall is used to define the snapd and components that are optional
+// in a system's model, but should be installed when installing the system.
 type OptionalInstall struct {
-	Snaps      []string            `json:"snaps,omitempty"`
+	// Snaps is a list of optional snap names that should be installed.
+	Snaps []string `json:"snaps,omitempty"`
+	// Components is a mapping of snap names to lists of optional components
+	// names that should be installed.
 	Components map[string][]string `json:"components,omitempty"`
 }
 
