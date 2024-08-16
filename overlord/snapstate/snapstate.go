@@ -4127,8 +4127,9 @@ func InstalledSnaps(st *state.State) (snaps []*snapasserts.InstalledSnap, ignore
 		if err != nil {
 			return nil, nil, err
 		}
+		// TODO:COMPS: add components
 		snaps = append(snaps, snapasserts.NewInstalledSnap(snapState.InstanceName(),
-			snapState.CurrentSideInfo().SnapID, cur.Revision))
+			snapState.CurrentSideInfo().SnapID, cur.Revision, nil))
 		if snapState.IgnoreValidation {
 			ignoreValidation[snapState.InstanceName()] = true
 		}

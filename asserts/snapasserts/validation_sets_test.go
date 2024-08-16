@@ -275,7 +275,7 @@ func (s *validationSetsSuite) TestIntersections(c *C) {
 func (s *validationSetsSuite) TestCheckInstalledSnapsNoValidationSets(c *C) {
 	valsets := snapasserts.NewValidationSets()
 	snaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("snap-a", "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa", snap.R(1)),
+		snapasserts.NewInstalledSnap("snap-a", "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa", snap.R(1), nil),
 	}
 	err := valsets.CheckInstalledSnaps(snaps, nil)
 	c.Assert(err, IsNil)
@@ -430,20 +430,20 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 	c.Assert(valsets.Add(vs6), IsNil)
 	c.Assert(valsets.Add(vs7), IsNil)
 
-	snapA := snapasserts.NewInstalledSnap("snap-a", "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa", snap.R(1))
-	snapAlocal := snapasserts.NewInstalledSnap("snap-a", "", snap.R("x2"))
-	snapB := snapasserts.NewInstalledSnap("snap-b", "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb", snap.R(3))
-	snapBinvRev := snapasserts.NewInstalledSnap("snap-b", "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb", snap.R(8))
-	snapBlocal := snapasserts.NewInstalledSnap("snap-b", "", snap.R("x3"))
-	snapC := snapasserts.NewInstalledSnap("snap-c", "mysnapcccccccccccccccccccccccccc", snap.R(2))
-	snapCinvRev := snapasserts.NewInstalledSnap("snap-c", "mysnapcccccccccccccccccccccccccc", snap.R(99))
-	snapD := snapasserts.NewInstalledSnap("snap-d", "mysnapdddddddddddddddddddddddddd", snap.R(2))
-	snapDrev99 := snapasserts.NewInstalledSnap("snap-d", "mysnapdddddddddddddddddddddddddd", snap.R(99))
-	snapDlocal := snapasserts.NewInstalledSnap("snap-d", "", snap.R("x3"))
-	snapE := snapasserts.NewInstalledSnap("snap-e", "mysnapeeeeeeeeeeeeeeeeeeeeeeeeee", snap.R(2))
-	snapF := snapasserts.NewInstalledSnap("snap-f", "mysnapffffffffffffffffffffffffff", snap.R(4))
+	snapA := snapasserts.NewInstalledSnap("snap-a", "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa", snap.R(1), nil)
+	snapAlocal := snapasserts.NewInstalledSnap("snap-a", "", snap.R("x2"), nil)
+	snapB := snapasserts.NewInstalledSnap("snap-b", "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb", snap.R(3), nil)
+	snapBinvRev := snapasserts.NewInstalledSnap("snap-b", "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb", snap.R(8), nil)
+	snapBlocal := snapasserts.NewInstalledSnap("snap-b", "", snap.R("x3"), nil)
+	snapC := snapasserts.NewInstalledSnap("snap-c", "mysnapcccccccccccccccccccccccccc", snap.R(2), nil)
+	snapCinvRev := snapasserts.NewInstalledSnap("snap-c", "mysnapcccccccccccccccccccccccccc", snap.R(99), nil)
+	snapD := snapasserts.NewInstalledSnap("snap-d", "mysnapdddddddddddddddddddddddddd", snap.R(2), nil)
+	snapDrev99 := snapasserts.NewInstalledSnap("snap-d", "mysnapdddddddddddddddddddddddddd", snap.R(99), nil)
+	snapDlocal := snapasserts.NewInstalledSnap("snap-d", "", snap.R("x3"), nil)
+	snapE := snapasserts.NewInstalledSnap("snap-e", "mysnapeeeeeeeeeeeeeeeeeeeeeeeeee", snap.R(2), nil)
+	snapF := snapasserts.NewInstalledSnap("snap-f", "mysnapffffffffffffffffffffffffff", snap.R(4), nil)
 	// extra snap, not referenced by any validation set
-	snapZ := snapasserts.NewInstalledSnap("snap-z", "mysnapzzzzzzzzzzzzzzzzzzzzzzzzzz", snap.R(1))
+	snapZ := snapasserts.NewInstalledSnap("snap-z", "mysnapzzzzzzzzzzzzzzzzzzzzzzzzzz", snap.R(1), nil)
 
 	tests := []struct {
 		snaps            []*snapasserts.InstalledSnap
@@ -727,9 +727,9 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsIgnoreValidation(c *C) {
 	valsets := snapasserts.NewValidationSets()
 	c.Assert(valsets.Add(vs), IsNil)
 
-	snapA := snapasserts.NewInstalledSnap("snap-a", "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa", snap.R(1))
-	snapB := snapasserts.NewInstalledSnap("snap-b", "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb", snap.R(3))
-	snapBinvRev := snapasserts.NewInstalledSnap("snap-b", "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb", snap.R(8))
+	snapA := snapasserts.NewInstalledSnap("snap-a", "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa", snap.R(1), nil)
+	snapB := snapasserts.NewInstalledSnap("snap-b", "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb", snap.R(3), nil)
+	snapBinvRev := snapasserts.NewInstalledSnap("snap-b", "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb", snap.R(8), nil)
 
 	// validity check
 	c.Check(valsets.CheckInstalledSnaps([]*snapasserts.InstalledSnap{snapA, snapB}, nil), ErrorMatches, "validation sets assertions are not met:\n"+
@@ -791,8 +791,8 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsErrorFormat(c *C) {
 	// not strictly important, but ensures test data makes sense and avoids confusing results
 	c.Assert(valsets.Conflict(), IsNil)
 
-	snapA := snapasserts.NewInstalledSnap("snap-a", "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa", snap.R(1))
-	snapBlocal := snapasserts.NewInstalledSnap("snap-b", "", snap.R("x3"))
+	snapA := snapasserts.NewInstalledSnap("snap-a", "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa", snap.R(1), nil)
+	snapBlocal := snapasserts.NewInstalledSnap("snap-b", "", snap.R("x3"), nil)
 
 	tests := []struct {
 		snaps    []*snapasserts.InstalledSnap

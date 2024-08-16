@@ -46,10 +46,11 @@ type InstalledComponent struct {
 }
 
 // NewInstalledSnap creates InstalledSnap.
-func NewInstalledSnap(name, snapID string, revision snap.Revision) *InstalledSnap {
+func NewInstalledSnap(name, snapID string, revision snap.Revision, components []InstalledComponent) *InstalledSnap {
 	return &InstalledSnap{
-		SnapRef:  naming.NewSnapRef(name, snapID),
-		Revision: revision,
+		SnapRef:    naming.NewSnapRef(name, snapID),
+		Revision:   revision,
+		Components: components,
 	}
 }
 
