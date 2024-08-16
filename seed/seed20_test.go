@@ -3892,12 +3892,14 @@ func (s *seed20Suite) TestLoadMetaWithComponentsBadSize(c *C) {
 	sysLabel := "20240805"
 	sysDir := s.makeCore20SeedWithComps(c, sysLabel)
 
+	finfo, err := os.Stat(filepath.Join(s.SeedDir, "snaps", "required20+comp1_22.comp"))
+	c.Assert(err, IsNil)
 	spuriousRev, err := s.StoreSigning.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
 		"authority-id":      "canonical",
 		"snap-id":           s.AssertedSnapID("required20"),
 		"resource-name":     "comp1",
 		"resource-sha3-384": strings.Repeat("B", 64),
-		"resource-size":     "1024",
+		"resource-size":     fmt.Sprint(finfo.Size() + 4096),
 		"resource-revision": "22",
 		"snap-revision":     "11",
 		"developer-id":      "canonical",
@@ -3922,19 +3924,21 @@ func (s *seed20Suite) TestLoadMetaWithComponentsBadSize(c *C) {
 	c.Assert(err, IsNil)
 
 	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, ErrorMatches, `resource comp1 size does not match size in resource revision: 16384 != 1024`)
+	c.Assert(err, ErrorMatches, `resource comp1 size does not match size in resource revision: .*`)
 }
 
 func (s *seed20Suite) TestLoadMetaWithComponentsBadHash(c *C) {
 	sysLabel := "20240805"
 	sysDir := s.makeCore20SeedWithComps(c, sysLabel)
 
+	finfo, err := os.Stat(filepath.Join(s.SeedDir, "snaps", "required20+comp1_22.comp"))
+	c.Assert(err, IsNil)
 	spuriousRev, err := s.StoreSigning.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
 		"authority-id":      "canonical",
 		"snap-id":           s.AssertedSnapID("required20"),
 		"resource-name":     "comp1",
 		"resource-sha3-384": strings.Repeat("B", 64),
-		"resource-size":     "16384",
+		"resource-size":     fmt.Sprint(finfo.Size()),
 		"resource-revision": "22",
 		"snap-revision":     "11",
 		"developer-id":      "canonical",
