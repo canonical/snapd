@@ -33,4 +33,4 @@ execute: |
     tests.session -u test prepare
 
     echo "We can see the service running"
-    tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.test-snapd-user-service
+    tests.session -u test exec systemctl --user --machine=test@.host is-active snap.test-snapd-user-service.test-snapd-user-service
