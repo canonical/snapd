@@ -23,9 +23,6 @@ jobs:
           # are the build that should be installed by human users.
           - pristine
           - test
-    # only build the snap for pull requests, it's not needed on release branches
-    # or on master since we have launchpad build recipes which do this already
-    if: ${{ github.event_name == 'pull_request' }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
