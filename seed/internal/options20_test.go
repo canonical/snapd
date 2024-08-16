@@ -196,7 +196,7 @@ snaps:
 	c.Assert(options20.Snaps[0], DeepEquals, &internal.Snap20{
 		Name:       "foo",
 		Unasserted: "bar.snap",
-		Components: []internal.Component{
+		Components: []internal.Component20{
 			{Name: "comp1", Unasserted: "comp1_1.comp"},
 			{Name: "comp2", Unasserted: "file.comp"},
 		},

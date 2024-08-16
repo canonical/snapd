@@ -47,13 +47,16 @@ type SeedSnaps struct {
 	StoreSigning *assertstest.StoreStack
 	Brands       *assertstest.SigningAccounts
 
-	snaps map[string]string
-	infos map[string]*snap.Info
-	comps map[string][]store.SnapResourceResult
+	snaps     map[string]string
+	infos     map[string]*snap.Info
+	compInfos map[string][]*snap.ComponentInfo
+	comps     map[string][]store.SnapResourceResult
 
 	snapAssertNow time.Time
 
 	snapRevs map[string]*asserts.SnapRevision
+	resRevs  map[string][]*asserts.SnapResourceRevision
+	resPairs map[string][]*asserts.SnapResourcePair
 }
 
 // SetupAssertSigning initializes StoreSigning for storeBrandID and Brands.
@@ -143,8 +146,11 @@ func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	if ss.snaps == nil {
 		ss.snaps = make(map[string]string)
 		ss.infos = make(map[string]*snap.Info)
+		ss.compInfos = make(map[string][]*snap.ComponentInfo)
 		ss.comps = make(map[string][]store.SnapResourceResult)
 		ss.snapRevs = make(map[string]*asserts.SnapRevision)
+		ss.resRevs = make(map[string][]*asserts.SnapResourceRevision)
+		ss.resPairs = make(map[string][]*asserts.SnapResourcePair)
 	}
 
 	ss.snaps[snapName] = snapFile
@@ -164,6 +170,9 @@ func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	c.Assert(len(compRevisions), Equals, len(info.Components))
 
 	resResults := make([]store.SnapResourceResult, 0, len(info.Components))
+	cinfos := make([]*snap.ComponentInfo, 0, len(info.Components))
+	resRevs := make([]*asserts.SnapResourceRevision, 0, len(info.Components))
+	resPairs := make([]*asserts.SnapResourcePair, 0, len(info.Components))
 	for _, comp := range info.Components {
 		cref := naming.NewComponentRef(snapName, comp.Name)
 		compFile := snaptest.MakeTestComponent(c, SampleSnapYaml[cref.String()])
@@ -189,6 +198,7 @@ func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, r
 		}
 		resRev, err := revSigning.Sign(asserts.SnapResourceRevisionType, resRevHeads, nil, "")
 		c.Assert(err, IsNil)
+		resRevs = append(resRevs, resRev.(*asserts.SnapResourceRevision))
 
 		// and the resource pair revision
 		resPairHeads := map[string]interface{}{
@@ -205,6 +215,7 @@ func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, r
 		}
 		resPair, err := revSigning.Sign(asserts.SnapResourcePairType, resPairHeads, nil, "")
 		c.Assert(err, IsNil)
+		resPairs = append(resPairs, resPair.(*asserts.SnapResourcePair))
 
 		for _, db := range dbs {
 			err := db.Add(resRev)
@@ -222,8 +233,16 @@ func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, r
 			Name:     comp.Name,
 			Revision: compRev.N,
 		})
+
+		cinfo, err := snap.InfoFromComponentYaml([]byte(SampleSnapYaml[cref.String()]))
+		c.Assert(err, IsNil)
+		cinfo.ComponentSideInfo = *snap.NewComponentSideInfo(cref, compRev)
+		cinfos = append(cinfos, cinfo)
 	}
+	ss.compInfos[snapName] = cinfos
 	ss.comps[snapName] = resResults
+	ss.resRevs[snapName] = resRevs
+	ss.resPairs[snapName] = resPairs
 
 	return snapDecl, snapRev
 }
@@ -246,6 +265,10 @@ func (ss *SeedSnaps) AssertedSnapComponents(snapName string) []store.SnapResourc
 
 func (ss *SeedSnaps) AssertedSnapRevision(snapName string) *asserts.SnapRevision {
 	return ss.snapRevs[snapName]
+}
+
+func (ss *SeedSnaps) AssertedComponentInfos(snapName string) []*snap.ComponentInfo {
+	return ss.compInfos[snapName]
 }
 
 // TestingSeed16 helps setting up a populated Core 16/18 testing seed.
@@ -340,12 +363,12 @@ func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHead
 
 	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys(brandID)...)
 
-	s.MakeSeedWithModel(c, label, model, optSnaps)
+	s.MakeSeedWithModel(c, label, model, optSnaps, map[string][]string{})
 	return model
 }
 
 // MakeSeedWithModel creates the seed with given label for a given model
-func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Model, optSnaps []*seedwriter.OptionsSnap) {
+func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Model, optSnaps []*seedwriter.OptionsSnap, compPathsBySnap map[string][]string) {
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.StoreSigning.Trusted,
@@ -408,7 +431,34 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
-		w.SetInfo(sn, info, nil)
+
+		// Add components from option paths
+		compPaths := compPathsBySnap[info.SnapName()]
+		seedComps := make(map[string]*seedwriter.SeedComponent, len(compPaths))
+		for _, compPath := range compPaths {
+			compf, err := snapfile.Open(compPath)
+			c.Assert(err, IsNil)
+			cinfo, err := snap.ReadComponentInfoFromContainer(compf, nil, nil)
+			c.Assert(err, IsNil)
+			if si != nil {
+				// snap was asserted, components should be too
+				csi, cRefs, err := seedwriter.DeriveComponentSideInfo(
+					compPath, cinfo, info, model, sf, db)
+				if !errors.Is(err, &asserts.NotFoundError{}) {
+					c.Assert(err, IsNil)
+					cinfo.ComponentSideInfo = *csi
+				}
+				aRefs = append(aRefs, cRefs...)
+			}
+
+			seedComps[cinfo.Component.ComponentName] = &seedwriter.SeedComponent{
+				ComponentRef: cinfo.Component,
+				Path:         compPath,
+				Info:         cinfo,
+			}
+		}
+
+		w.SetInfo(sn, info, seedComps)
 		if aRefs != nil {
 			localARefs[sn] = aRefs
 		}
@@ -425,6 +475,17 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 		if err = sf.Save(s.snapRevs[sn.SnapName()]); err != nil {
 			return nil, err
 		}
+		// Components assertions
+		for _, resRev := range s.resRevs[sn.SnapName()] {
+			if err = sf.Save(resRev); err != nil {
+				return nil, err
+			}
+		}
+		for _, resPair := range s.resPairs[sn.SnapName()] {
+			if err = sf.Save(resPair); err != nil {
+				return nil, err
+			}
+		}
 		return sf.Refs()[prev:], nil
 	}
 
@@ -437,7 +498,22 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 
 			info := s.AssertedSnapInfo(name)
 			c.Assert(info, NotNil, Commentf("no snap info for %q", name))
-			err := w.SetInfo(sn, info, nil)
+			seedComps := make(map[string]*seedwriter.SeedComponent, len(sn.Components))
+			cinfos := s.AssertedComponentInfos(name)
+			for _, cc := range sn.Components {
+				comp := cc
+				found := false
+				for _, ci := range cinfos {
+					if ci.Component.ComponentName == comp.ComponentName {
+						comp.Info = ci
+						found = true
+						break
+					}
+				}
+				c.Assert(found, Equals, true)
+				seedComps[comp.ComponentName] = &comp
+			}
+			err := w.SetInfo(sn, info, seedComps)
 			c.Assert(err, IsNil)
 
 			if _, err := os.Stat(sn.Path); err == nil {
@@ -445,8 +521,13 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 				continue
 			}
 
+			// Put snaps/components containers in the seed
 			err = os.Rename(s.AssertedSnap(name), sn.Path)
 			c.Assert(err, IsNil)
+			for _, comp := range sn.Components {
+				err = os.Rename(s.AssertedSnap(comp.String()), comp.Path)
+				c.Assert(err, IsNil)
+			}
 		}
 
 		complete, err := w.Downloaded(fetchAsserts)

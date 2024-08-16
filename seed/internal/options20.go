@@ -31,8 +31,8 @@ import (
 	"github.com/snapcore/snapd/snap/naming"
 )
 
-// Component contains the options for components for grade: dangerous.
-type Component struct {
+// Component20 contains the options for components for grade: dangerous.
+type Component20 struct {
 	// Name is the component name
 	Name string `yaml:"name"`
 	// Unasserted has the filename for an unasserted local component
@@ -56,7 +56,7 @@ type Snap20 struct {
 	// Components is a list of component options. It is only valid to add a
 	// list of unasserted local components when we are using an unasserted
 	// local snap.
-	Components []Component `yaml:"components,omitempty"`
+	Components []Component20 `yaml:"components,omitempty"`
 }
 
 // SnapName implements naming.SnapRef.

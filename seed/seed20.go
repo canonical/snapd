@@ -36,6 +36,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
@@ -49,6 +50,14 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
+// ResourceKey is used in maps of resource assertions.
+type ResourceKey struct {
+	// SnapID is the snap ID
+	SnapID string
+	// Name is the resource name
+	Name string
+}
+
 type seed20 struct {
 	systemDir string
 
@@ -61,6 +70,9 @@ type seed20 struct {
 	snapDeclsByName map[string]*asserts.SnapDeclaration
 
 	snapRevsByID map[string]*asserts.SnapRevision
+
+	resPairByResKey map[ResourceKey]*asserts.SnapResourcePair
+	resRevByResKey  map[ResourceKey]*asserts.SnapResourceRevision
 
 	nLoadMetaJobs int
 
@@ -176,8 +188,8 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 
 	assertsDir := filepath.Join(s.systemDir, "assertions")
 	// collect assertions that are not the model
-	var declRefs []*asserts.Ref
-	var revRefs []*asserts.Ref
+	var declRefs, revRefs []*asserts.Ref
+	var resRevRefs, resPairRefs []*asserts.Ref
 	checkAssertion := func(ref *asserts.Ref) error {
 		switch ref.Type {
 		case asserts.ModelType:
@@ -186,6 +198,10 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 			declRefs = append(declRefs, ref)
 		case asserts.SnapRevisionType:
 			revRefs = append(revRefs, ref)
+		case asserts.SnapResourceRevisionType:
+			resRevRefs = append(resRevRefs, ref)
+		case asserts.SnapResourcePairType:
+			resPairRefs = append(resPairRefs, ref)
 		}
 		return nil
 	}
@@ -206,6 +222,9 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 
 	if len(declRefs) != len(revRefs) {
 		return fmt.Errorf("system unexpectedly holds a different number of snap-declaration than snap-revision assertions")
+	}
+	if len(resRevRefs) != len(resPairRefs) {
+		return fmt.Errorf("system unexpectedly holds a different number of snap-snap-resource-revision than snap-resource-pair assertions")
 	}
 
 	// this also verifies the consistency of all of them
@@ -236,10 +255,10 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 			return err
 		}
 		snapDecl := a.(*asserts.SnapDeclaration)
-		snapDeclsByID[snapDecl.SnapID()] = snapDecl
 		if snapDecl1 := snapDeclsByName[snapDecl.SnapName()]; snapDecl1 != nil {
 			return fmt.Errorf("cannot have multiple snap-declarations for the same snap-name: %s", snapDecl.SnapName())
 		}
+		snapDeclsByID[snapDecl.SnapID()] = snapDecl
 		snapDeclsByName[snapDecl.SnapName()] = snapDecl
 	}
 
@@ -259,6 +278,59 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 		} else {
 			snapRevsByID[snapRevision.SnapID()] = snapRevision
 		}
+	}
+
+	s.resRevByResKey = make(map[ResourceKey]*asserts.SnapResourceRevision, len(resRevRefs))
+	for _, resRevRef := range resRevRefs {
+		a, err := find(resRevRef)
+		if err != nil {
+			return err
+		}
+		resRev := a.(*asserts.SnapResourceRevision)
+		snapID := resRev.SnapID()
+		if _, ok := snapDeclsByID[snapID]; !ok {
+			// Unidentified IDs are checked previously
+			return fmt.Errorf("internal error: snap ID %s in resource revision assertion for %s not in known snap declarations", snapID, resRev.ResourceName())
+		}
+		resKey := ResourceKey{SnapID: snapID, Name: resRev.ResourceName()}
+		if _, ok := s.resRevByResKey[resKey]; ok {
+			return fmt.Errorf("cannot have multiple resource revisions for the same component %s (snap %s)", resRev.ResourceName(), snapID)
+		}
+		s.resRevByResKey[resKey] = resRev
+	}
+
+	s.resPairByResKey = make(map[ResourceKey]*asserts.SnapResourcePair, len(resPairRefs))
+	for _, resPairRef := range resPairRefs {
+		a, err := find(resPairRef)
+		if err != nil {
+			return err
+		}
+		resPair := a.(*asserts.SnapResourcePair)
+		snapID := resPair.SnapID()
+		resKey := ResourceKey{SnapID: snapID, Name: resPair.ResourceName()}
+		resRev, ok := s.resRevByResKey[resKey]
+		if !ok {
+			return fmt.Errorf("resource pair for %s (%s) does not have a matching resource revision", resPair.ResourceName(), resPair.SnapID())
+		}
+		snapRev, ok := snapRevsByID[snapID]
+		if !ok {
+			// This should have been detected by previous checks
+			return fmt.Errorf("internal error, no snap revision for %s",
+				snapID)
+		}
+		// Check that we have matching snap-resource revisions as specified
+		// by the resource pair.
+		if resRev.ResourceRevision() != resPair.ResourceRevision() ||
+			snapRev.SnapRevision() != resPair.SnapRevision() {
+			return fmt.Errorf("resource pair %s for %s does not match (snap revision, resource revision): (%d, %d)",
+				resPair.ResourceName(), snapRev.SnapID(), snapRev.SnapRevision(), resPair.ResourceRevision())
+		}
+
+		if _, ok := s.resPairByResKey[resKey]; ok {
+			// This should be detected in previous similar check for resource-revision
+			return fmt.Errorf("internal error: cannot have multiple resource pairs for the same component %s (snap %s)", resPair.ResourceName(), snapID)
+		}
+		s.resPairByResKey[resKey] = resPair
 	}
 
 	// remember db for later use
@@ -353,6 +425,93 @@ func (e *noSnapDeclarationError) Error() string {
 	return fmt.Sprintf("cannot find snap-declaration for snap name: %s", e.snapRef.SnapName())
 }
 
+type errorComponentNotInSeed struct {
+	error
+}
+
+func (s *seed20) lookupVerifiedComponent(cref naming.ComponentRef, snapRev snap.Revision, snapID, snapProvenance string, snapsDir string, handler ContainerHandler, tm timings.Measurer) (Component, error) {
+	snapName := cref.SnapName
+	compName := cref.ComponentName
+
+	resKey := ResourceKey{SnapID: snapID, Name: compName}
+	resRev, ok := s.resRevByResKey[resKey]
+	if !ok {
+		// No assertions might be ok if the component is optional, the
+		// caller should check for this error type in that case.
+		return Component{}, errorComponentNotInSeed{
+			fmt.Errorf("resource revision assertion not found for %s", compName)}
+	}
+	resPair, ok := s.resPairByResKey[resKey]
+	if !ok {
+		return Component{}, errorComponentNotInSeed{
+			fmt.Errorf("resource pair assertion not found for %s", compName)}
+	}
+
+	compPath := filepath.Join(s.systemDir, snapsDir,
+		fmt.Sprintf("%s_%d.comp", cref.String(), resRev.ResourceRevision()))
+	_, err := os.Stat(compPath)
+	if err != nil {
+		// error should be of type *PathError
+		return Component{}, errorComponentNotInSeed{err}
+	}
+
+	// Checks
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, snap.R(resRev.Revision()), snapName)
+	newPath, snapSHA3_384, resSize, err := handler.HandleAndDigestAssertedContainer(
+		cpi, compPath, tm)
+	if err != nil {
+		return Component{}, err
+	}
+	if newPath != "" {
+		compPath = newPath
+	}
+	if resRev.ResourceSize() != resSize {
+		return Component{}, fmt.Errorf(
+			"resource %s size does not match size in resource revision: %d != %d",
+			compName, resSize, resRev.ResourceSize())
+	}
+	if snapSHA3_384 != resRev.ResourceSHA3_384() {
+		return Component{}, fmt.Errorf(
+			"cannot validate resource %s, hash mismatch with snap-resource-revision",
+			compName)
+	}
+
+	if resRev.Revision() != resPair.Revision() {
+		return Component{}, fmt.Errorf(
+			"resource %s revision does not match revision in resource pair: %d != %d",
+			compName, resRev.Revision(), resPair.Revision())
+	}
+	if resPair.SnapRevision() != snapRev.N {
+		return Component{}, fmt.Errorf(
+			"resource %s pair revision does not match snap revision: %d != %d",
+			compName, resPair.SnapRevision(), snapRev.N)
+	}
+
+	if resRev.Provenance() != snapProvenance {
+		return Component{}, fmt.Errorf(
+			"resource revision provenance for %s does not match snap provenance: %s != %s",
+			compName, resRev.Provenance(), snapProvenance)
+	}
+	if resPair.Provenance() != snapProvenance {
+		return Component{}, fmt.Errorf(
+			"resource pair provenance for %s does not match snap provenance: %s != %s",
+			compName, resPair.Provenance(), snapProvenance)
+	}
+
+	if err := snapasserts.CheckComponentProvenanceWithVerifiedRevision(compPath, resRev); err != nil {
+		return Component{}, err
+	}
+
+	csi := &snap.ComponentSideInfo{
+		Component: cref,
+		Revision:  snap.R(resRev.ResourceRevision()),
+	}
+	return Component{
+		Path:         compPath,
+		CompSideInfo: csi,
+	}, nil
+}
+
 func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, handler ContainerHandler, snapsDir string, tm timings.Measurer) (snapPath string, snapRev *asserts.SnapRevision, snapDecl *asserts.SnapDeclaration, err error) {
 	snapID := snapRef.ID()
 	if snapID != "" {
@@ -397,7 +556,6 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, handler Containe
 
 	if snapSHA3_384 != snapRev.SnapSHA3_384() {
 		return "", nil, nil, fmt.Errorf("cannot validate %q for snap %q (snap-id %q), hash mismatch with snap-revision", snapPath, snapName, snapID)
-
 	}
 
 	if newPath != "" {
@@ -418,18 +576,52 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, handler Containe
 	return snapPath, snapRev, snapDecl, nil
 }
 
-func (s *seed20) lookupSnap(snapRef naming.SnapRef, optSnap *internal.Snap20, channel string, handler ContainerHandler, snapsDir string, tm timings.Measurer) (*Snap, error) {
+func (s *seed20) lookupUnassertedComponent(comp20 internal.Component20, info *snap.Info, handler ContainerHandler, tm timings.Measurer) (Component, error) {
+	compPath := filepath.Join(s.systemDir, "snaps", comp20.Unasserted)
+	cinfo, err := readComponentInfo(compPath, info, nil)
+	if err != nil {
+		return Component{}, fmt.Errorf("cannot read unasserted component: %v", err)
+	}
+	compName := cinfo.Component.ComponentName
+	cref := naming.NewComponentRef(info.SnapName(), compName)
+	csi := snap.NewComponentSideInfo(cref, snap.R(0))
+	cpi := snap.MinimalComponentContainerPlaceInfo(
+		compName, snap.R(-1), info.SnapName())
+	newCompPath, err := handler.HandleUnassertedContainer(cpi, compPath, tm)
+	if err != nil {
+		return Component{}, err
+	}
+	if newCompPath != "" {
+		compPath = newCompPath
+	}
+	return Component{
+		Path:         compPath,
+		CompSideInfo: csi,
+	}, nil
+}
+
+func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap, optSnap *internal.Snap20, channel string, handler ContainerHandler, snapsDir string, tm timings.Measurer) (*Snap, error) {
 	if optSnap != nil && optSnap.Channel != "" {
 		channel = optSnap.Channel
 	}
 
 	var path string
 	var sideInfo *snap.SideInfo
+	var seedComps []Component
 	if optSnap != nil && optSnap.Unasserted != "" {
 		path = filepath.Join(s.systemDir, "snaps", optSnap.Unasserted)
 		info, err := readInfo(path, nil)
 		if err != nil {
 			return nil, fmt.Errorf("cannot read unasserted snap: %v", err)
+		}
+		// Read unasserted components
+		seedComps = make([]Component, 0, len(optSnap.Components))
+		for _, comp20 := range optSnap.Components {
+			comp, err := s.lookupUnassertedComponent(comp20, info, handler, tm)
+			if err != nil {
+				return nil, err
+			}
+			seedComps = append(seedComps, comp)
 		}
 
 		pinfo := snap.MinimalSnapContainerPlaceInfo(info.SnapName(), snap.Revision{N: -1})
@@ -448,9 +640,42 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, optSnap *internal.Snap20, ch
 		timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", snapRef.SnapName()), func(nested timings.Measurer) {
 			var snapRev *asserts.SnapRevision
 			var snapDecl *asserts.SnapDeclaration
-			path, snapRev, snapDecl, err = s.lookupVerifiedRevision(snapRef, handler, snapsDir, tm)
-			if err == nil {
-				sideInfo = snapasserts.SideInfoFromSnapAssertions(snapDecl, snapRev)
+			path, snapRev, snapDecl, err = s.lookupVerifiedRevision(
+				snapRef, handler, snapsDir, tm)
+			if err != nil {
+				return
+			}
+			sideInfo = snapasserts.SideInfoFromSnapAssertions(snapDecl, snapRev)
+
+			if modelSnap != nil {
+				seedComps = make([]Component, 0, len(modelSnap.Components))
+				for comp, modelComp := range modelSnap.Components {
+					var seedComp Component
+					seedComp, err = s.lookupVerifiedComponent(
+						naming.NewComponentRef(snapDecl.SnapName(), comp),
+						snap.R(snapRev.SnapRevision()), snapDecl.SnapID(),
+						snapRev.Provenance(), snapsDir, handler, tm)
+					if err != nil {
+						var notInSeed errorComponentNotInSeed
+						if errors.As(err, &notInSeed) {
+							// component not in seed
+							if modelComp.Presence == "required" {
+								err = fmt.Errorf("component %s required in the model but is not in the seed: %v", comp, err)
+								return
+							}
+							// ignore if optional and not in seed
+							err = nil
+							continue
+						}
+						return
+					}
+					seedComps = append(seedComps, seedComp)
+				}
+				// Order for test reproducibility
+				sort.Slice(seedComps, func(i, j int) bool {
+					return seedComps[i].CompSideInfo.Component.ComponentName <
+						seedComps[j].CompSideInfo.Component.ComponentName
+				})
 			}
 		})
 		if err != nil {
@@ -466,12 +691,16 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, optSnap *internal.Snap20, ch
 		sideInfo.LegacyEditedContact = auxInfo.Contact
 	}
 
+	// TODO this is to avoid changing tests, fix tests instead
+	var comps []Component
+	if len(seedComps) > 0 {
+		comps = seedComps
+	}
 	return &Snap{
-		Path: path,
-
-		SideInfo: sideInfo,
-
-		Channel: channel,
+		Path:       path,
+		SideInfo:   sideInfo,
+		Channel:    channel,
+		Components: comps,
 	}, nil
 }
 
@@ -510,7 +739,7 @@ func (s *seed20) doLoadMetaOne(sntoc *snapToConsider, handler ContainerHandler, 
 		channel = "latest/stable"
 		snapsDir = "snaps"
 	}
-	seedSnap, err := s.lookupSnap(snapRef, sntoc.optSnap, channel, handler, snapsDir, tm)
+	seedSnap, err := s.lookupSnap(snapRef, sntoc.modelSnap, sntoc.optSnap, channel, handler, snapsDir, tm)
 	if err != nil {
 		if _, ok := err.(*noSnapDeclarationError); ok && !required {
 			// skipped optional snap is ok
