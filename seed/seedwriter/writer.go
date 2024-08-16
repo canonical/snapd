@@ -1618,7 +1618,7 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 					return err
 				}
 				// copy components
-				for _, comp := range sn.Components {
+				for i, comp := range sn.Components {
 					compDst, err := compPath(&comp)
 					if err != nil {
 						return err
@@ -1626,8 +1626,10 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 					if err := copySnap(comp.ComponentRef.String(), comp.Path, compDst); err != nil {
 						return err
 					}
+					// record final destination path (for correct options.yaml)
+					sn.Components[i].Path = compDst
 				}
-				// record final destination path
+				// record final destination path (for correct options.yaml)
 				sn.Path = dst
 			}
 			if !info.Revision.Unset() {

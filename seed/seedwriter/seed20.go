@@ -359,14 +359,14 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 	return nil
 }
 
-func (tr *tree20) seedSnapComponents(sn *SeedSnap) []internal.Component {
-	compOpts := make([]internal.Component, len(sn.Components))
+func (tr *tree20) seedSnapComponents(sn *SeedSnap) []internal.Component20 {
+	compOpts := make([]internal.Component20, len(sn.Components))
 	for i, comp := range sn.Components {
 		unassertedComp := ""
 		if sn.Info.ID() == "" {
 			unassertedComp = filepath.Base(comp.Path)
 		}
-		compOpts[i] = internal.Component{
+		compOpts[i] = internal.Component20{
 			Name:       comp.ComponentName,
 			Unasserted: unassertedComp,
 		}

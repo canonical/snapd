@@ -3079,16 +3079,16 @@ func (s *writerSuite) testSeedSnapsWriteMetaCore20LocalSnaps(c *C, withComps boo
 	options20, err := seedwriter.InternalReadOptions20(filepath.Join(systemDir, "options.yaml"))
 	c.Assert(err, IsNil)
 
-	var compOpts []internal.Component
+	var compOpts []internal.Component20
 	if withComps {
-		compOpts = []internal.Component{
+		compOpts = []internal.Component20{
 			{
 				Name:       "comp1",
-				Unasserted: filepath.Base(pathComp1),
+				Unasserted: "required20+comp1_1.0.comp",
 			},
 			{
 				Name:       "comp2",
-				Unasserted: filepath.Base(pathComp2),
+				Unasserted: "required20+comp2_2.0.comp",
 			},
 		}
 	}
