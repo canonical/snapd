@@ -275,6 +275,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 		SideInfo: snap.SideInfo{
 			RealName: "other-snap",
 			Revision: snap.R(2),
+			SnapID:   "other-snap-id",
 		},
 		DownloadInfo: snap.DownloadInfo{
 			Size: int64(88),
@@ -308,6 +309,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 		SideInfo: snap.SideInfo{
 			RealName: "some-snap",
 			Revision: snap.R(1),
+			SnapID:   "some-snap-id",
 		},
 		DownloadInfo: snap.DownloadInfo{
 			Size: int64(99),
@@ -370,6 +372,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 		SideInfo: &snap.SideInfo{
 			RealName: "some-snap",
 			Revision: snap.R(1),
+			SnapID:   "some-snap-id",
 		},
 		PlugsOnly: true,
 		CohortKey: "cohort",
@@ -395,6 +398,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 		SideInfo: &snap.SideInfo{
 			RealName: "other-snap",
 			Revision: snap.R(2),
+			SnapID:   "other-snap-id",
 		},
 		Prereq:             []string{"foo-snap"},
 		PrereqContentAttrs: map[string][]string{"foo-snap": {"some-content"}},
