@@ -94,6 +94,8 @@ apps:
 }
 
 func (s *LxdSupportInterfaceSuite) TestAppArmorSpec(c *C) {
+	r := apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
+	defer r()
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
 	spec := apparmor.NewSpecification(appSet)
