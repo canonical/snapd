@@ -112,25 +112,19 @@ func CommandFromSystemSnap(name string, cmdArgs ...string) (*exec.Cmd, error) {
 	cmdPath := filepath.Join(root, name)
 
 	if from == "snapd" {
-		// check if the elf interpreter invoked by the binary will work
-		// without any tweaks, which is true if the snaps are mounted at
-		// /snap, otherwise we need to set up a command to invoke it
-		// directly
-		// TODO perhaps check the symlink right away
-		slashSnapPrefix := filepath.Join(dirs.GlobalRootDir, "snap") + "/"
-		if strings.HasPrefix(root, slashSnapPrefix) {
-			// snap mount dir is "/snap" which matches the
-			// interpreter locations and otherwise works without any
-			// further tweaks
+		// the elf interpreter invoked by the binary will work if snaps are mounted at /snap
+		// or /snap/snapd/current resolves to <mount dir>/snapd/current so that the interpreter
+		// locations are correct, otherwise we need to set up a command to invoke it directly
+		snapdCurrentDir := filepath.Join(dirs.GlobalRootDir, "snap/snapd/current")
+		if match, err := osutil.ComparePathsByDeviceInode(root, snapdCurrentDir); err == nil && match {
 			return exec.Command(cmdPath, cmdArgs...), nil
 		} else {
-			// when the snap mount dir isn't using /snap, then we
-			// need to invoke the interpreter directly and pass the library path
 			interp, err := elfInterp(cmdPath)
 			if err != nil {
 				return nil, err
 			}
 
+			slashSnapPrefix := filepath.Join(dirs.GlobalRootDir, "snap") + "/"
 			interp = filepath.Join(dirs.SnapMountDir, strings.TrimPrefix(interp, slashSnapPrefix))
 			// all libraries are at the same path as the interpreter
 			ldLibraryPathForSnapd := filepath.Dir(interp)

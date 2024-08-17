@@ -91,12 +91,31 @@ func (s *cmdutilSuite) TestCommandFromSystemSnapOldTrick(c *C) {
 	})
 }
 
-func (s *cmdutilSuite) TestCommandFromSystemSnapNotrickNeeded(c *C) {
+func (s *cmdutilSuite) TestCommandFromSystemSnapNoTrickNeeded(c *C) {
 	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu"})()
 	dirs.SetRootDir(dirs.GlobalRootDir)
 
 	c.Logf("mount dir: %v", dirs.SnapMountDir)
 	root := filepath.Join(dirs.SnapMountDir, "snapd", "current")
+
+	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
+	osutil.CopyFile(truePath, filepath.Join(root, "/usr/bin/xdelta3"), 0)
+	cmd, err := snapdtool.CommandFromSystemSnap("/usr/bin/xdelta3", "--some-xdelta-arg")
+	c.Assert(err, IsNil)
+
+	c.Check(cmd.Args, DeepEquals, []string{
+		filepath.Join(root, "/usr/bin/xdelta3"),
+		"--some-xdelta-arg",
+	})
+}
+
+func (s *cmdutilSuite) TestCommandFromSystemSnapNoTrickNeededSymlink(c *C) {
+	defer release.MockReleaseInfo(&release.OS{ID: "fedora"})()
+	dirs.SetRootDir(dirs.GlobalRootDir)
+
+	c.Logf("mount dir: %v", dirs.SnapMountDir)
+	root := filepath.Join(dirs.SnapMountDir, "snapd", "current")
+	c.Assert(os.Symlink(filepath.Join(dirs.SnapMountDir), filepath.Join(dirs.GlobalRootDir, "snap")), IsNil)
 
 	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
 	osutil.CopyFile(truePath, filepath.Join(root, "/usr/bin/xdelta3"), 0)
