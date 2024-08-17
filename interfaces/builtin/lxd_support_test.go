@@ -94,8 +94,6 @@ apps:
 }
 
 func (s *LxdSupportInterfaceSuite) TestAppArmorSpec(c *C) {
-	r := apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
-	defer r()
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
 	spec := apparmor.NewSpecification(appSet)
@@ -115,19 +113,6 @@ func (s *LxdSupportInterfaceSuite) TestAppArmorSpecUserNS(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "userns,\n")
-}
-
-func (s *LxdSupportInterfaceSuite) TestAppArmorSpecAllowAll(c *C) {
-	r := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
-	defer r()
-	r = apparmor_sandbox.MockFeatures(nil, nil, []string{"allow-all"}, nil)
-	defer r()
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec := apparmor.NewSpecification(appSet)
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "allow all,\n")
 }
 
 func (s *LxdSupportInterfaceSuite) TestAppArmorSpecUnconfined(c *C) {
