@@ -1,0 +1,203 @@
+summary: Verify that all shared libraries exposed by the host can be loaded.
+
+details: |
+    We want to ensure that all of the libraries exposed through
+    /var/lib/snapd/lib/gl{,32} can be loaded with dlopen without errors.
+
+    While not perfect, it shows the extent of the contract that snapd promises to
+    upkeep - that the libraries exist and may be loaded. This test does not
+    verify if the opengl interface provides permissions required to access device
+    nodes, and the complex interaction of device nodes with special Nvidia
+    support code in snap-confine as this would require really loading the driver
+    and having matching hardware exposed to the test machine.
+
+systems:
+    - ubuntu-18.04-64
+    - ubuntu-2*.04-64
+
+environment:
+    # WARNING: Not all combinations of system and variant do something.
+    # Some are skipped in task.sh, in ways that spread does not support natively.
+    PACKAGE_VERSION/390: 390
+    PACKAGE_VERSION/470: 470
+    PACKAGE_VERSION/510: 510
+    PACKAGE_VERSION/515: 515
+    PACKAGE_VERSION/525: 525
+    PACKAGE_VERSION/530: 530
+    PACKAGE_VERSION/535: 535
+    PACKAGE_VERSION/550: 550
+    # All the -server versions.
+    PACKAGE_SUFFIX/418_server: -server
+    PACKAGE_SUFFIX/450_server: -server
+    PACKAGE_SUFFIX/470_server: -server
+    PACKAGE_SUFFIX/515_server: -server
+    PACKAGE_SUFFIX/535_server: -server
+    PACKAGE_SUFFIX/550_server: -server
+    PACKAGE_VERSION/418_server: 418
+    PACKAGE_VERSION/450_server: 450
+    PACKAGE_VERSION/470_server: 470
+    PACKAGE_VERSION/515_server: 515
+    PACKAGE_VERSION/535_server: 535
+    PACKAGE_VERSION/550_server: 550
+    # NOTE: -open versions are excluded, as the only difference is in the kernel
+    # module which we are not testing here, the userspace binary is exactly the
+    # same in all the cases.
+
+prepare: |
+    # Skip some permutations of system and driver version.
+    # This is done for three reasons explained below.
+    declare -A skip
+    skip["ubuntu-18.04-64/390"]="broken-driver"
+    skip["ubuntu-18.04-64/515"]="broken-driver"
+    skip["ubuntu-18.04-64/515-server"]="broken-driver"
+    skip["ubuntu-18.04-64/535"]="no-driver"
+    skip["ubuntu-18.04-64/535-server"]="no-driver"
+    skip["ubuntu-18.04-64/550"]="no-driver"
+    skip["ubuntu-18.04-64/550-server"]="no-driver"
+    skip["ubuntu-20.04-64/390"]="broken-driver"
+    skip["ubuntu-20.04-64/510"]="transitional-driver"
+    skip["ubuntu-20.04-64/515"]="transitional-driver"
+    skip["ubuntu-20.04-64/515-server"]="transitional-driver"
+    skip["ubuntu-20.04-64/525"]="transitional-driver"
+    skip["ubuntu-20.04-64/530"]="transitional-driver"
+    skip["ubuntu-20.04-64/550"]="no-driver"
+    skip["ubuntu-22.04-64/390"]="broken-driver"
+    skip["ubuntu-22.04-64/510"]="transitional-driver"
+    skip["ubuntu-22.04-64/515"]="transitional-driver"
+    skip["ubuntu-22.04-64/515-server"]="transitional-driver"
+    skip["ubuntu-22.04-64/525"]="transitional-driver"
+    skip["ubuntu-22.04-64/530"]="transitional-driver"
+    skip["ubuntu-24.04-64/390"]="no-driver"
+    skip["ubuntu-24.04-64/418-server"]="no-driver"
+    skip["ubuntu-24.04-64/450-server"]="no-driver"
+    skip["ubuntu-24.04-64/470"]="broken-driver"
+    skip["ubuntu-24.04-64/470-server"]="broken-driver"
+    skip["ubuntu-24.04-64/510"]="transitional-driver"
+    skip["ubuntu-24.04-64/515"]="transitional-driver"
+    skip["ubuntu-24.04-64/515-server"]="transitional-driver"
+    skip["ubuntu-24.04-64/525"]="transitional-driver"
+    skip["ubuntu-24.04-64/530"]="transitional-driver"
+
+    driver_suffix=$PACKAGE_VERSION${PACKAGE_SUFFIX:-}
+    combi_key=$SPREAD_SYSTEM/$driver_suffix
+
+    # First, we list all the driver versions in task.yaml, even though many of them
+    # are just non-existent on a given system - this is a limitation of the spread
+    # variant system where variant cannot be excluded only for a given system. Skip
+    # permutations that are not installable on a given system.
+    if [ "$(apt-cache show nvidia-driver-"$driver_suffix" | wc -l)" -eq 0 ]; then
+        echo "No driver is available, expecting: skip[\"$combi_key\"]=\"no-driver\""
+        test "${skip[$combi_key]}" = "no-driver"
+        exit 0
+    fi
+
+    # Second, some drivers are only transitional support packages that don't
+    # actually ship any files.
+    if apt-cache show nvidia-driver-"$driver_suffix" | grep -i transitional; then
+        echo "Transitional driver is in use, expecting: skip[\"$combi_key\"]=\"transitional-driver\""
+        test "${skip[$combi_key]}" = "transitional-driver"
+        exit 0
+    fi
+
+    # Third, some combinations are really buggy.
+    case "$combi_key" in
+    ubuntu-18.04-64/515* | ubuntu-18.04-64/390* | ubuntu-2[02].04-64/390*)
+        # This fails with:
+        # + exec /snap/test-snapd-nvidia/x1/bin/dlopen-tool.64
+        # /var/lib/snapd/lib/gl/libEGL_nvidia.so.0
+        # ...
+        # /var/lib/snapd/lib/gl/libnvidia-tls.so.390.157
+        # *** stack smashing detected ***: terminated
+        echo "Broken driver is in use, expecting: skip[\"$combi_key\"]=\"broken-driver\""
+        test "${skip[$combi_key]}" = "broken-driver"
+        exit 0
+        ;;
+    ubuntu-24.04-64/470*)
+        # This fails with:
+        # + exec /snap/test-snapd-nvidia/2/bin/dlopen-tool.64
+        # /var/lib/snapd/lib/gl/libEGL_nvidia.so.0
+        # ...
+        # /var/lib/snapd/lib/gl/libnvidia-vulkan-producer.so: undefined symbol: wlEglInitializeSurfaceExport: No such file or directory
+        echo "Broken driver is in use, expecting: skip[\"$combi_key\"]=\"broken-driver\""
+        test "${skip[$combi_key]}" = "broken-driver"
+        exit 0
+        ;;
+    esac
+
+    # At this step, we we expect this test to work, and no skip file to exist.
+    echo "Everything is good, expecting: skip[\"$combi_key\"] does not exist"
+    if [[ -v "skip[$combi_key]" ]]; then
+        exit 1
+    fi
+
+    # We will need to install i386 libraries. This is specifically done on an
+    # amd64 system as there are cases of 32bit programs running through
+    # otherwise 64bit snap, running on 64bit host.
+    dpkg --add-architecture i386
+    apt-get update
+
+    # Install Nvidia userspace libraries at the designated version.
+    apt-get install -y \
+        libnvidia-common-"$PACKAGE_VERSION${PACKAGE_SUFFIX:-}" \
+        libnvidia-compute-"$PACKAGE_VERSION${PACKAGE_SUFFIX:-}":amd64 \
+        libnvidia-compute-"$PACKAGE_VERSION${PACKAGE_SUFFIX:-}":i386 \
+        libnvidia-decode-"$PACKAGE_VERSION${PACKAGE_SUFFIX:-}":amd64 \
+        libnvidia-decode-"$PACKAGE_VERSION${PACKAGE_SUFFIX:-}":i386 \
+        libnvidia-encode-"$PACKAGE_VERSION${PACKAGE_SUFFIX:-}":amd64 \
+        libnvidia-encode-"$PACKAGE_VERSION${PACKAGE_SUFFIX:-}":i386 \
+        libnvidia-fbc1-"$PACKAGE_VERSION${PACKAGE_SUFFIX:-}":amd64 \
+        libnvidia-fbc1-"$PACKAGE_VERSION${PACKAGE_SUFFIX:-}":i386 \
+        libnvidia-gl-"$PACKAGE_VERSION${PACKAGE_SUFFIX:-}":amd64 \
+        libnvidia-gl-"$PACKAGE_VERSION${PACKAGE_SUFFIX:-}":i386
+
+    # Look at the canary file libnvidia-glcore.so.* to get the exact version of
+    # the driver. This file is also used by snap-confine, as a pre-condition
+    # that the libraries are installed.
+    DRIVER_VERSION="$(find /usr/lib/x86_64-linux-gnu/ -name 'libnvidia-glcore.so.*' | sed -e 's,.*/libnvidia-glcore\.so\.,,')"
+
+    # Pretend we have Nvidia kernel module loaded, so that snap-confine enables
+    # special logic. The actual version we pretend to have is set later, as it
+    # must match installed libraries so that the right canary file is detected by
+    # snap-confine.
+    mkdir -p /tmp/sys-module/nvidia
+    echo "$DRIVER_VERSION" >/tmp/sys-module/nvidia/version
+    if os.query is-xenial || os.query is-bionic; then
+        mount -o bind /tmp/sys-module/ /sys/module
+    else
+        mkdir -p /tmp/sys-module-work
+        LO="/sys/module/"
+        UP="/tmp/sys-module"
+        WORK="/tmp/sys-module-work"
+        mount -t overlay overlay \
+            -olowerdir="$LO",upperdir="$UP",workdir="$WORK" /sys/module
+    fi
+    tests.cleanup defer rm -rf /tmp/sys-module
+    tests.cleanup defer umount /sys/module
+
+    snap install test-snapd-nvidia
+
+    # Indicate that this permutation of system and driver version should be tested
+    tests.cleanup defer rm -f test-this-permutation
+    touch test-this-permutation
+
+restore: |
+    tests.cleanup restore
+
+debug: |
+    if [ -f log-32.txt ]; then cat log-32.txt; fi
+    if [ -f log-64.txt ]; then cat log-64.txt; fi
+
+execute: |
+    test -f test-this-permutation || exit 0
+
+    test-snapd-nvidia.64 >log-64.txt
+    MATCH 'dlopen /var/lib/snapd/lib/gl/libEGL_nvidia.so.*' <log-64.txt
+    MATCH 'dlopen /var/lib/snapd/lib/gl/libGLESv2_nvidia.so.*' <log-64.txt
+    MATCH 'dlopen /var/lib/snapd/lib/gl/libGLX_nvidia.so.*' <log-64.txt
+    MATCH 'dlopen /var/lib/snapd/lib/gl/libcuda.so*' <log-64.txt
+
+    test-snapd-nvidia.32 >log-32.txt
+    MATCH 'dlopen /var/lib/snapd/lib/gl32/libEGL_nvidia.so.*' <log-32.txt
+    MATCH 'dlopen /var/lib/snapd/lib/gl32/libGLESv2_nvidia.so.*' <log-32.txt
+    MATCH 'dlopen /var/lib/snapd/lib/gl32/libGLX_nvidia.so.*' <log-32.txt
+    MATCH 'dlopen /var/lib/snapd/lib/gl32/libcuda.so*' <log-32.txt
