@@ -210,18 +210,39 @@ type PreseedCapable interface {
 	LoadPreseedAssertion() (*asserts.Preseed, error)
 }
 
+// CopyOptions is the set of options that can be passed to a Copier's Copy
+// method.
+type CopyOptions struct {
+	// Label is the label of the recovery system to be copied. If empty, the
+	// label of the seed that implements Copier is used.
+	Label string
+	// OptionalContainers is the set of optional containers that should be
+	// copied to the new seed. If nil, all optional containers are copied.
+	OptionalContainers *OptionalContainers
+}
+
+// OptionalContainers contains information about which optional containers
+// should be copied to a new seed.
+type OptionalContainers struct {
+	// Snaps is a set of names of optional snaps that should be copied to the
+	// new seed.
+	Snaps []string
+	// Components is a mapping of snap names to optional component names that
+	// should be copied to the new seed.
+	Components map[string][]string
+}
+
 // Copier can be implemented by a seed that supports copying itself to a given
 // destination.
 type Copier interface {
 	Seed
-	// Copy copies the seed to the given seedDir with the label provided. If
-	// label is empty, then the label of the seed that implements Copier is
-	// used. This interface only makes sense to implement for UC20+ seeds. Copy
-	// requires you to call the LoadAssertions method first. Note that LoadMeta
-	// for all modes will be called by Copy. If LoadMeta was called previously
-	// on this Seed with a different mode, then that metadata will be
-	// overwritten by the metadata for all modes.
-	Copy(seedDir string, label string, tm timings.Measurer) error
+	// Copy copies the seed to the given seedDir. This interface only makes
+	// sense to implement for UC20+ seeds. Copy requires you to call the
+	// LoadAssertions method first. Note that LoadMeta for all modes will be
+	// called by Copy. If LoadMeta was called previously on this Seed with a
+	// different mode, then that metadata will be overwritten by the metadata
+	// for all modes.
+	Copy(seedDir string, tm timings.Measurer, opts CopyOptions) error
 }
 
 // Open returns a Seed implementation for the seed at seedDir.

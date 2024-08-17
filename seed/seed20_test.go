@@ -3517,7 +3517,16 @@ func (s *seed20Suite) testCopy(c *C, destLabel string) {
 	s.makeSnap(c, "core20", "")
 	s.makeSnap(c, "pc-kernel=20", "")
 	s.makeSnap(c, "pc=20", "")
-	requiredFn := s.makeLocalSnap(c, "required20")
+
+	assertCompRevs := map[string]snap.Revision{
+		"comp1": snap.R(22),
+		"comp2": snap.R(33),
+		"comp3": snap.R(44),
+	}
+	s.MakeAssertedSnapWithComps(c,
+		seedtest.SampleSnapYaml["component-test"], nil,
+		snap.R(11), assertCompRevs, "canonical", s.StoreSigning.Database,
+	)
 
 	const srcLabel = "20191030"
 	s.MakeSeed(c, srcLabel, "my-brand", "my-model", map[string]interface{}{
@@ -3539,12 +3548,17 @@ func (s *seed20Suite) testCopy(c *C, destLabel string) {
 				"default-channel": "20",
 			},
 			map[string]interface{}{
-				"name": "required20",
-				"id":   s.AssertedSnapID("required20"),
-			}},
-	}, []*seedwriter.OptionsSnap{
-		{Path: requiredFn},
-	})
+				"name": "component-test",
+				"id":   s.AssertedSnapID("component-test"),
+				"components": map[string]interface{}{
+					"comp1": "required",
+					"comp2": "required",
+				},
+			},
+		},
+	}, []*seedwriter.OptionsSnap{{
+		Path: s.makeLocalSnap(c, "required20"),
+	}})
 
 	seed20, err := seed.Open(s.SeedDir, srcLabel)
 	c.Assert(err, IsNil)
@@ -3557,7 +3571,9 @@ func (s *seed20Suite) testCopy(c *C, destLabel string) {
 
 	destSeedDir := c.MkDir()
 
-	err = copier.Copy(destSeedDir, destLabel, s.perfTimings)
+	err = copier.Copy(destSeedDir, s.perfTimings, seed.CopyOptions{
+		Label: destLabel,
+	})
 	c.Assert(err, IsNil)
 
 	checkDirContents(c, filepath.Join(destSeedDir, "snaps"), []string{
@@ -3565,6 +3581,9 @@ func (s *seed20Suite) testCopy(c *C, destLabel string) {
 		"pc_1.snap",
 		"pc-kernel_1.snap",
 		"snapd_1.snap",
+		"component-test+comp1_22.comp",
+		"component-test+comp2_33.comp",
+		"component-test_11.snap",
 	})
 
 	copiedLabel := destLabel
@@ -3582,6 +3601,7 @@ func (s *seed20Suite) testCopy(c *C, destLabel string) {
 	})
 
 	checkDirContents(c, filepath.Join(destSystemDir, "assertions"), []string{
+		"extra-snaps",
 		"model-etc",
 		"snaps",
 	})
@@ -3593,7 +3613,9 @@ func (s *seed20Suite) testCopy(c *C, destLabel string) {
 	compareDirs(c, filepath.Join(s.SeedDir, "snaps"), filepath.Join(destSeedDir, "snaps"))
 	compareDirs(c, filepath.Join(s.SeedDir, "systems", srcLabel), destSystemDir)
 
-	err = copier.Copy(destSeedDir, copiedLabel, s.perfTimings)
+	err = copier.Copy(destSeedDir, s.perfTimings, seed.CopyOptions{
+		Label: copiedLabel,
+	})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot create system: system %q already exists at %q`, copiedLabel, destSystemDir))
 }
 
@@ -3647,7 +3669,9 @@ func (s *seed20Suite) TestCopyCleanup(c *C) {
 	c.Assert(err, IsNil)
 
 	destSeedDir := c.MkDir()
-	err = copier.Copy(destSeedDir, label, s.perfTimings)
+	err = copier.Copy(destSeedDir, s.perfTimings, seed.CopyOptions{
+		Label: label,
+	})
 	c.Check(err, ErrorMatches, fmt.Sprintf("cannot stat snap: stat %s: no such file or directory", removedSnap))
 
 	// seed destination should have been cleaned up

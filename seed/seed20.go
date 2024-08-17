@@ -99,14 +99,14 @@ type seed20 struct {
 }
 
 // Copy implement Copier interface.
-func (s *seed20) Copy(seedDir string, label string, tm timings.Measurer) (err error) {
+func (s *seed20) Copy(seedDir string, tm timings.Measurer, opts CopyOptions) (err error) {
 	srcSystemDir, err := filepath.Abs(s.systemDir)
 	if err != nil {
 		return err
 	}
 
-	if label == "" {
-		label = filepath.Base(srcSystemDir)
+	if opts.Label == "" {
+		opts.Label = filepath.Base(srcSystemDir)
 	}
 
 	destSeedDir, err := filepath.Abs(seedDir)
@@ -118,12 +118,12 @@ func (s *seed20) Copy(seedDir string, label string, tm timings.Measurer) (err er
 		return err
 	}
 
-	destSystemDir := filepath.Join(destSeedDir, "systems", label)
+	destSystemDir := filepath.Join(destSeedDir, "systems", opts.Label)
 	if osutil.FileExists(destSystemDir) {
-		return fmt.Errorf("cannot create system: system %q already exists at %q", label, destSystemDir)
+		return fmt.Errorf("cannot create system: system %q already exists at %q", opts.Label, destSystemDir)
 	}
 
-	// note: we don't clean up asserted snaps that were copied over
+	// note: we don't clean up asserted snaps or components that were copied over
 	defer func() {
 		if err != nil {
 			os.RemoveAll(destSystemDir)
@@ -137,14 +137,19 @@ func (s *seed20) Copy(seedDir string, label string, tm timings.Measurer) (err er
 	span := tm.StartSpan("copy-recovery-system", fmt.Sprintf("copy recovery system from %s to %s", srcSystemDir, destSystemDir))
 	defer span.Stop()
 
-	// copy all files (including unasserted snaps) from the seed to the
-	// destination
+	// copy all files (including unasserted snaps and components) from the seed
+	// to the destination
 	err = filepath.Walk(srcSystemDir, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
-		destPath := filepath.Join(destSeedDir, "systems", label, strings.TrimPrefix(path, srcSystemDir))
+		// skip the snaps, since we will copy them separately
+		if info.IsDir() && path == filepath.Join(srcSystemDir, "snaps") {
+			return filepath.SkipDir
+		}
+
+		destPath := filepath.Join(destSeedDir, "systems", opts.Label, strings.TrimPrefix(path, srcSystemDir))
 		if info.IsDir() {
 			return os.Mkdir(destPath, info.Mode())
 		}
@@ -155,23 +160,54 @@ func (s *seed20) Copy(seedDir string, label string, tm timings.Measurer) (err er
 		return err
 	}
 
+	if err := os.Mkdir(filepath.Join(destSystemDir, "snaps"), 0755); err != nil {
+		return err
+	}
+
+	// explicitly copy aux-info.json, since we skip copying the entire unasserted
+	// snaps directory
+
+	auxInfoSrc := filepath.Join(srcSystemDir, "snaps", "aux-info.json")
+	if osutil.FileExists(auxInfoSrc) {
+		if err := osutil.CopyFile(
+			auxInfoSrc,
+			filepath.Join(destSeedDir, "systems", opts.Label, "snaps", "aux-info.json"),
+			osutil.CopyFlagDefault,
+		); err != nil {
+			return err
+		}
+	}
+
 	destAssertedSnapDir := filepath.Join(destSeedDir, "snaps")
 
 	if err := os.MkdirAll(destAssertedSnapDir, 0755); err != nil {
 		return err
 	}
 
-	// copy the asserted snaps that the seed needs
+	// copy the snaps and components that the seed needs
 	for _, sn := range s.snaps {
-		// unasserted snaps are already copied above, skip them
+		var destSnapPath string
 		if sn.ID() == "" {
-			continue
+			destSnapPath = filepath.Join(destSystemDir, "snaps", filepath.Base(sn.Path))
+		} else {
+			destSnapPath = filepath.Join(destAssertedSnapDir, filepath.Base(sn.Path))
 		}
-
-		destSnapPath := filepath.Join(destAssertedSnapDir, filepath.Base(sn.Path))
 
 		if err := osutil.CopyFile(sn.Path, destSnapPath, osutil.CopyFlagOverwrite); err != nil {
 			return fmt.Errorf("cannot copy asserted snap: %w", err)
+		}
+
+		for _, comp := range sn.Components {
+			var destCompPath string
+			if !comp.CompSideInfo.Revision.Store() {
+				destCompPath = filepath.Join(destSystemDir, "snaps", filepath.Base(comp.Path))
+			} else {
+				destCompPath = filepath.Join(destAssertedSnapDir, filepath.Base(comp.Path))
+			}
+
+			if err := osutil.CopyFile(comp.Path, destCompPath, osutil.CopyFlagOverwrite); err != nil {
+				return fmt.Errorf("cannot copy asserted component: %w", err)
+			}
 		}
 	}
 
