@@ -98,6 +98,48 @@ type seed20 struct {
 	essentialSnapsNum int
 }
 
+func shouldCopySnap(target *Snap, model *asserts.Model, oc *OptionalContainers) bool {
+	if oc == nil {
+		return true
+	}
+
+	if target.Essential {
+		return true
+	}
+
+	for _, sn := range model.AllSnaps() {
+		if sn.Name != target.SnapName() {
+			continue
+		}
+
+		if sn.Presence == "required" {
+			return true
+		}
+	}
+
+	return strutil.ListContains(oc.Snaps, target.SnapName())
+}
+
+func shouldCopyComponent(target Component, snapName string, model *asserts.Model, oc *OptionalContainers) bool {
+	if oc == nil {
+		return true
+	}
+
+	for _, sn := range model.AllSnaps() {
+		if sn.Name != snapName {
+			continue
+		}
+
+		for compName, comp := range sn.Components {
+			if compName == target.CompSideInfo.Component.ComponentName && comp.Presence == "required" {
+				return true
+			}
+		}
+	}
+
+	return strutil.ListContains(oc.Components[snapName], target.CompSideInfo.Component.ComponentName)
+}
+
 // Copy implement Copier interface.
 func (s *seed20) Copy(seedDir string, tm timings.Measurer, opts CopyOptions) (err error) {
 	srcSystemDir, err := filepath.Abs(s.systemDir)
@@ -186,6 +228,12 @@ func (s *seed20) Copy(seedDir string, tm timings.Measurer, opts CopyOptions) (er
 
 	// copy the snaps and components that the seed needs
 	for _, sn := range s.snaps {
+		// if we're not copying the snap, then we also don't need to copy the
+		// components for this snap
+		if !shouldCopySnap(sn, s.model, opts.OptionalContainers) {
+			continue
+		}
+
 		var destSnapPath string
 		if sn.ID() == "" {
 			destSnapPath = filepath.Join(destSystemDir, "snaps", filepath.Base(sn.Path))
@@ -198,6 +246,10 @@ func (s *seed20) Copy(seedDir string, tm timings.Measurer, opts CopyOptions) (er
 		}
 
 		for _, comp := range sn.Components {
+			if !shouldCopyComponent(comp, sn.SnapName(), s.model, opts.OptionalContainers) {
+				continue
+			}
+
 			var destCompPath string
 			if !comp.CompSideInfo.Revision.Store() {
 				destCompPath = filepath.Join(destSystemDir, "snaps", filepath.Base(comp.Path))

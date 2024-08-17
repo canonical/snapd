@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -3503,18 +3504,77 @@ func (s *seed20Suite) TestPreseedCapableSeedAlternateAuthority(c *C) {
 }
 
 func (s *seed20Suite) TestCopy(c *C) {
-	const label = "20240126"
-	s.testCopy(c, label)
+	s.testCopy(c, seed.CopyOptions{Label: "20240126"}, []string{
+		"core20_1.snap",
+		"pc_1.snap",
+		"pc-kernel_1.snap",
+		"snapd_1.snap",
+		"component-test+comp1_22.comp",
+		"component-test+comp2_33.comp",
+		"component-test_11.snap",
+		"optional20-a_1.snap",
+	}, []string{
+		"required20_1.0.snap",
+	})
 }
 
 func (s *seed20Suite) TestCopyEmptyLabel(c *C) {
-	const label = ""
-	s.testCopy(c, label)
+	s.testCopy(c, seed.CopyOptions{}, []string{
+		"core20_1.snap",
+		"pc_1.snap",
+		"pc-kernel_1.snap",
+		"snapd_1.snap",
+		"component-test+comp1_22.comp",
+		"component-test+comp2_33.comp",
+		"component-test_11.snap",
+		"optional20-a_1.snap",
+	}, []string{
+		"required20_1.0.snap",
+	})
 }
 
-func (s *seed20Suite) testCopy(c *C, destLabel string) {
+func (s *seed20Suite) TestCopyWithOptionalContainersIncludeEverything(c *C) {
+	s.testCopy(c, seed.CopyOptions{
+		Label: "20240126",
+		OptionalContainers: &seed.OptionalContainers{
+			Snaps: []string{"component-test", "required20"},
+			Components: map[string][]string{
+				"component-test": {"comp2"},
+			},
+		},
+	}, []string{
+		"core20_1.snap",
+		"pc_1.snap",
+		"pc-kernel_1.snap",
+		"snapd_1.snap",
+		"component-test+comp1_22.comp",
+		"component-test+comp2_33.comp",
+		"component-test_11.snap",
+	}, []string{
+		"required20_1.0.snap",
+	})
+}
+
+func (s *seed20Suite) TestCopyWithOptionalContainersExclude(c *C) {
+	s.testCopy(c, seed.CopyOptions{
+		Label: "20240126",
+		OptionalContainers: &seed.OptionalContainers{
+			Snaps: []string{"component-test"},
+		},
+	}, []string{
+		"core20_1.snap",
+		"pc_1.snap",
+		"pc-kernel_1.snap",
+		"snapd_1.snap",
+		"component-test+comp1_22.comp",
+		"component-test_11.snap",
+	}, []string{})
+}
+
+func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedContainers, expectedUnassertedContainers []string) {
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "optional20-a", "")
 	s.makeSnap(c, "pc-kernel=20", "")
 	s.makeSnap(c, "pc=20", "")
 
@@ -3548,17 +3608,36 @@ func (s *seed20Suite) testCopy(c *C, destLabel string) {
 				"default-channel": "20",
 			},
 			map[string]interface{}{
-				"name": "component-test",
-				"id":   s.AssertedSnapID("component-test"),
+				"name":     "optional20-a",
+				"id":       s.AssertedSnapID("optional20-a"),
+				"presence": "optional",
+			},
+			map[string]interface{}{
+				"name":     "component-test",
+				"id":       s.AssertedSnapID("component-test"),
+				"presence": "optional",
 				"components": map[string]interface{}{
 					"comp1": "required",
-					"comp2": "required",
+					"comp2": "optional",
 				},
 			},
 		},
-	}, []*seedwriter.OptionsSnap{{
-		Path: s.makeLocalSnap(c, "required20"),
-	}})
+	}, []*seedwriter.OptionsSnap{
+		{
+			Path: s.makeLocalSnap(c, "required20"),
+		},
+		{
+			Name: "component-test",
+			Components: []seedwriter.OptionsComponent{
+				{
+					Name: "comp2",
+				},
+			},
+		},
+		{
+			Name: "optional20-a",
+		},
+	})
 
 	seed20, err := seed.Open(s.SeedDir, srcLabel)
 	c.Assert(err, IsNil)
@@ -3571,22 +3650,12 @@ func (s *seed20Suite) testCopy(c *C, destLabel string) {
 
 	destSeedDir := c.MkDir()
 
-	err = copier.Copy(destSeedDir, s.perfTimings, seed.CopyOptions{
-		Label: destLabel,
-	})
+	err = copier.Copy(destSeedDir, s.perfTimings, opts)
 	c.Assert(err, IsNil)
 
-	checkDirContents(c, filepath.Join(destSeedDir, "snaps"), []string{
-		"core20_1.snap",
-		"pc_1.snap",
-		"pc-kernel_1.snap",
-		"snapd_1.snap",
-		"component-test+comp1_22.comp",
-		"component-test+comp2_33.comp",
-		"component-test_11.snap",
-	})
+	checkDirContents(c, filepath.Join(destSeedDir, "snaps"), expectedAssertedContainers)
 
-	copiedLabel := destLabel
+	copiedLabel := opts.Label
 	if copiedLabel == "" {
 		copiedLabel = srcLabel
 	}
@@ -3606,12 +3675,30 @@ func (s *seed20Suite) testCopy(c *C, destLabel string) {
 		"snaps",
 	})
 
-	checkDirContents(c, filepath.Join(destSystemDir, "snaps"), []string{
-		"required20_1.0.snap",
+	checkDirContents(c, filepath.Join(destSystemDir, "snaps"), expectedUnassertedContainers)
+
+	compareDirs(c, filepath.Join(s.SeedDir, "snaps"), filepath.Join(destSeedDir, "snaps"), func(path string, d fs.DirEntry) bool {
+		if d.IsDir() {
+			return false
+		}
+		// ignore anything that is in the snaps dir that we don't expect to be
+		// there in the copied seed
+		return !strutil.ListContains(expectedAssertedContainers, d.Name())
 	})
 
-	compareDirs(c, filepath.Join(s.SeedDir, "snaps"), filepath.Join(destSeedDir, "snaps"))
-	compareDirs(c, filepath.Join(s.SeedDir, "systems", srcLabel), destSystemDir)
+	srcSystemDir := filepath.Join(s.SeedDir, "systems", srcLabel)
+	compareDirs(c, srcSystemDir, destSystemDir, func(path string, d fs.DirEntry) bool {
+		if d.IsDir() {
+			return false
+		}
+
+		// ignore anything that is in the snaps dir that we don't expect to be
+		// there in the copied seed
+		if !strings.HasPrefix(path, filepath.Join(srcSystemDir, "snaps")) {
+			return false
+		}
+		return !strutil.ListContains(expectedUnassertedContainers, d.Name())
+	})
 
 	err = copier.Copy(destSeedDir, s.perfTimings, seed.CopyOptions{
 		Label: copiedLabel,
@@ -3692,7 +3779,7 @@ func checkDirContents(c *C, dir string, expected []string) {
 	c.Check(found, DeepEquals, expected)
 }
 
-func compareDirs(c *C, expected, got string) {
+func compareDirs(c *C, expected, got string, ignore func(string, fs.DirEntry) bool) {
 	expected, err := filepath.Abs(expected)
 	c.Assert(err, IsNil)
 
@@ -3703,6 +3790,10 @@ func compareDirs(c *C, expected, got string) {
 	err = filepath.WalkDir(expected, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+
+		if ignore != nil && ignore(path, d) {
+			return nil
 		}
 
 		expectedCount++
