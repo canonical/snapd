@@ -92,6 +92,10 @@ func (ss *SeedSnaps) MakeAssertedSnapWithComps(c *C, snapYaml string, files [][]
 	return ss.makeAssertedSnap(c, snapYaml, files, revision, compRevisions, developerID, ss.StoreSigning.SigningDB, "", nil, dbs...)
 }
 
+func (ss *SeedSnaps) MakeAssertedDelegatedSnapWithComps(c *C, snapYaml string, files [][]string, revision snap.Revision, compRevisions map[string]snap.Revision, developerID, delegateID, revProvenance string, revisionAuthority map[string]interface{}, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
+	return ss.makeAssertedSnap(c, snapYaml, files, revision, compRevisions, developerID, ss.Brands.Signing(delegateID), revProvenance, revisionAuthority, dbs...)
+}
+
 func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, compRevisions map[string]snap.Revision, developerID string, revSigning *assertstest.SigningDB, revProvenance string, revisionAuthority map[string]interface{}, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)

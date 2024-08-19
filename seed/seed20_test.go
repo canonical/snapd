@@ -3709,17 +3709,32 @@ func compareDirs(c *C, expected, got string) {
 	c.Check(gotCount, Equals, expectedCount)
 }
 
-func (s *seed20Suite) makeCore20SeedWithComps(c *C, sysLabel string) string {
+type seedOpts struct {
+	delegated bool
+}
+
+func (s *seed20Suite) makeCore20SeedWithComps(c *C, sysLabel string, opts seedOpts) string {
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core20", "")
 	s.makeSnap(c, "pc-kernel=20", "")
 	s.makeSnap(c, "pc=20", "")
-	comRevs := map[string]snap.Revision{
+	compRevs := map[string]snap.Revision{
 		"comp1": snap.R(22),
 		"comp2": snap.R(33),
 	}
-	s.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["required20"], nil,
-		snap.R(11), comRevs, "canonical", s.StoreSigning.Database)
+	if opts.delegated {
+		ra := map[string]interface{}{
+			"account-id": "my-brand",
+			"provenance": []interface{}{"delegated-prov", "other-prov"},
+		}
+		s.MakeAssertedDelegatedSnapWithComps(c,
+			snapYaml["required20"]+"\nprovenance: delegated-prov\n",
+			nil, snap.R(1), compRevs, "developerid", "my-brand",
+			"delegated-prov", ra, s.StoreSigning.Database)
+	} else {
+		s.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["required20"], nil,
+			snap.R(11), compRevs, "canonical", s.StoreSigning.Database)
+	}
 
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
@@ -3755,7 +3770,7 @@ func (s *seed20Suite) makeCore20SeedWithComps(c *C, sysLabel string) string {
 
 func (s *seed20Suite) TestLoadMetaWithComponents(c *C) {
 	sysLabel := "20240805"
-	s.makeCore20SeedWithComps(c, sysLabel)
+	s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
 
 	seed20, err := seed.Open(s.SeedDir, sysLabel)
 	c.Assert(err, IsNil)
@@ -3849,7 +3864,7 @@ func (s *seed20Suite) TestLoadMetaWithComponents(c *C) {
 
 func (s *seed20Suite) TestLoadMetaWithComponentsNoAssertForReqComp(c *C) {
 	sysLabel := "20240805"
-	sysDir := s.makeCore20SeedWithComps(c, sysLabel)
+	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
 
 	// Remove all assertions for comp2
 	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"),
@@ -3873,7 +3888,7 @@ func (s *seed20Suite) TestLoadMetaWithComponentsNoAssertForReqComp(c *C) {
 
 func (s *seed20Suite) TestLoadMetaWithComponentsReqNotPresent(c *C) {
 	sysLabel := "20240805"
-	s.makeCore20SeedWithComps(c, sysLabel)
+	s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
 
 	// sneakly remove one of the components from the seed
 	c.Assert(os.Remove(filepath.Join(s.SeedDir, "snaps", "required20+comp2_33.comp")), IsNil)
@@ -3890,7 +3905,7 @@ func (s *seed20Suite) TestLoadMetaWithComponentsReqNotPresent(c *C) {
 
 func (s *seed20Suite) TestLoadMetaWithComponentsBadSize(c *C) {
 	sysLabel := "20240805"
-	sysDir := s.makeCore20SeedWithComps(c, sysLabel)
+	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
 
 	finfo, err := os.Stat(filepath.Join(s.SeedDir, "snaps", "required20+comp1_22.comp"))
 	c.Assert(err, IsNil)
@@ -3929,7 +3944,7 @@ func (s *seed20Suite) TestLoadMetaWithComponentsBadSize(c *C) {
 
 func (s *seed20Suite) TestLoadMetaWithComponentsBadHash(c *C) {
 	sysLabel := "20240805"
-	sysDir := s.makeCore20SeedWithComps(c, sysLabel)
+	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
 
 	finfo, err := os.Stat(filepath.Join(s.SeedDir, "snaps", "required20+comp1_22.comp"))
 	c.Assert(err, IsNil)
@@ -3966,9 +3981,142 @@ func (s *seed20Suite) TestLoadMetaWithComponentsBadHash(c *C) {
 	c.Assert(err, ErrorMatches, `cannot validate resource comp1, hash mismatch with snap-resource-revision`)
 }
 
+func (s *seed20Suite) TestLoadMetaWithComponentsUnmatchedProvenanceInResRev(c *C) {
+	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
+
+	sysLabel := "20240805"
+	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: true})
+
+	myBrandSigner := s.Brands.Signing("my-brand")
+
+	snapSHA3_384_1, size1, err := asserts.SnapFileSHA3_384(
+		filepath.Join(s.SeedDir, "snaps", "required20+comp1_22.comp"))
+	c.Assert(err, IsNil)
+	resRev1, err := myBrandSigner.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+		"authority-id":      "my-brand",
+		"snap-id":           s.AssertedSnapID("required20"),
+		"resource-name":     "comp1",
+		"resource-sha3-384": snapSHA3_384_1,
+		"resource-size":     fmt.Sprint(size1),
+		"resource-revision": "22",
+		"snap-revision":     "11",
+		"developer-id":      "canonical",
+		"provenance":        "other-prov",
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	snapSHA3_384_2, size2, err := asserts.SnapFileSHA3_384(
+		filepath.Join(s.SeedDir, "snaps", "required20+comp2_33.comp"))
+	c.Assert(err, IsNil)
+	resRev2, err := myBrandSigner.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+		"authority-id":      "my-brand",
+		"snap-id":           s.AssertedSnapID("required20"),
+		"resource-name":     "comp2",
+		"resource-sha3-384": snapSHA3_384_2,
+		"resource-size":     fmt.Sprint(size2),
+		"resource-revision": "33",
+		"snap-revision":     "11",
+		"developer-id":      "canonical",
+		"provenance":        "other-prov",
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"),
+		func(a asserts.Assertion) []asserts.Assertion {
+			if a.Type() == asserts.SnapResourceRevisionType &&
+				a.HeaderString("snap-id") == s.AssertedSnapID("required20") {
+				if a.HeaderString("resource-name") == "comp1" {
+					return []asserts.Assertion{resRev1}
+				} else {
+					return []asserts.Assertion{resRev2}
+				}
+			}
+			return []asserts.Assertion{a}
+		})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Assert(err, ErrorMatches, `resource revision provenance for comp[12] does not match snap provenance: other-prov != delegated-prov`)
+}
+
+func (s *seed20Suite) TestLoadMetaWithComponentsUnmatchedProvenanceInResPair(c *C) {
+	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
+
+	sysLabel := "20240805"
+	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: true})
+
+	myBrandSigner := s.Brands.Signing("my-brand")
+	pairRev1, err := myBrandSigner.Sign(asserts.SnapResourcePairType, map[string]interface{}{
+		"authority-id":      "my-brand",
+		"snap-id":           s.AssertedSnapID("required20"),
+		"resource-name":     "comp1",
+		"resource-revision": "22",
+		"snap-revision":     "1",
+		"developer-id":      "canonical",
+		"provenance":        "other-prov",
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	pairRev2, err := myBrandSigner.Sign(asserts.SnapResourcePairType, map[string]interface{}{
+		"authority-id":      "my-brand",
+		"snap-id":           s.AssertedSnapID("required20"),
+		"resource-name":     "comp2",
+		"resource-revision": "33",
+		"snap-revision":     "1",
+		"developer-id":      "canonical",
+		"provenance":        "other-prov",
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"),
+		func(a asserts.Assertion) []asserts.Assertion {
+			if a.Type() == asserts.SnapResourcePairType &&
+				a.HeaderString("snap-id") == s.AssertedSnapID("required20") {
+				if a.HeaderString("resource-name") == "comp1" {
+					return []asserts.Assertion{pairRev1}
+				} else {
+					return []asserts.Assertion{pairRev2}
+				}
+			}
+			return []asserts.Assertion{a}
+		})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Assert(err, ErrorMatches, `resource pair provenance for comp[12] does not match snap provenance: other-prov != delegated-prov`)
+}
+
+func (s *seed20Suite) TestLoadMetaWithComponentsUnmatchedProvenanceInMetadata(c *C) {
+	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
+
+	sysLabel := "20240805"
+	s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: true})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Assert(err, ErrorMatches, `component ".*required20\+comp.*\.comp" has been signed under provenance "delegated-prov" different from the metadata one: "global-upload"`)
+}
+
 func (s *seed20Suite) TestLoadAssertionsUnbalancedResRevsAndPairs(c *C) {
 	sysLabel := "20241031"
-	sysDir := s.makeCore20SeedWithComps(c, sysLabel)
+	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
 
 	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"),
 		func(a asserts.Assertion) []asserts.Assertion {
@@ -3987,7 +4135,7 @@ func (s *seed20Suite) TestLoadAssertionsUnbalancedResRevsAndPairs(c *C) {
 
 func (s *seed20Suite) TestLoadAssertionsNoMatchingPair(c *C) {
 	sysLabel := "20241031"
-	sysDir := s.makeCore20SeedWithComps(c, sysLabel)
+	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
 
 	pairRev, err := s.StoreSigning.Sign(asserts.SnapResourcePairType, map[string]interface{}{
 		"authority-id":      "canonical",
@@ -4018,7 +4166,7 @@ func (s *seed20Suite) TestLoadAssertionsNoMatchingPair(c *C) {
 
 func (s *seed20Suite) TestLoadAssertionsMultipleResRevForComp(c *C) {
 	sysLabel := "20241031"
-	sysDir := s.makeCore20SeedWithComps(c, sysLabel)
+	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
 
 	resRev, err := s.StoreSigning.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
 		"authority-id":      "canonical",
@@ -4061,7 +4209,7 @@ func (s *seed20Suite) TestLoadAssertionsMultipleResRevForComp(c *C) {
 
 func (s *seed20Suite) TestLoadAssertionsNoMatchingResRevForResPair(c *C) {
 	sysLabel := "20241031"
-	sysDir := s.makeCore20SeedWithComps(c, sysLabel)
+	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
 
 	spuriousRev, err := s.StoreSigning.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
 		"authority-id":      "canonical",

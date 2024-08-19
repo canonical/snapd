@@ -443,8 +443,9 @@ func (s *seed20) lookupVerifiedComponent(cref naming.ComponentRef, snapRev snap.
 	}
 	resPair, ok := s.resPairByResKey[resKey]
 	if !ok {
+		// should actually be catched by the previous check
 		return Component{}, errorComponentNotInSeed{
-			fmt.Errorf("resource pair assertion not found for %s", compName)}
+			fmt.Errorf("internal error: resource pair assertion not found for %s", compName)}
 	}
 
 	compPath := filepath.Join(s.systemDir, snapsDir,
@@ -598,20 +599,19 @@ func (s *seed20) lookupUnassertedComponent(comp20 internal.Component20, info *sn
 	}, nil
 }
 
-func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap, optSnap *internal.Snap20, handler ContainerHandler, snapsDir string, tm timings.Measurer) (path string, sideInfo *snap.SideInfo, seedComps []Component, err error) {
+func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap, optSnap *internal.Snap20, handler ContainerHandler, snapsDir string, tm timings.Measurer) (snapPath string, sideInfo *snap.SideInfo, seedComps []Component, err error) {
 	var snapRev *asserts.SnapRevision
 	var snapDecl *asserts.SnapDeclaration
-	path, snapRev, snapDecl, err = s.lookupVerifiedRevision(snapRef, handler, snapsDir, tm)
+	snapPath, snapRev, snapDecl, err = s.lookupVerifiedRevision(snapRef, handler, snapsDir, tm)
 	if err != nil {
-		return
+		return "", nil, nil, err
 	}
 	sideInfo = snapasserts.SideInfoFromSnapAssertions(snapDecl, snapRev)
 
 	if modelSnap != nil {
 		seedComps = make([]Component, 0, len(modelSnap.Components))
 		for comp, modelComp := range modelSnap.Components {
-			var seedComp Component
-			seedComp, err = s.lookupVerifiedComponent(
+			seedComp, err := s.lookupVerifiedComponent(
 				naming.NewComponentRef(snapDecl.SnapName(), comp),
 				snap.R(snapRev.SnapRevision()), snapDecl.SnapID(),
 				snapRev.Provenance(), snapsDir, handler, tm)
@@ -638,8 +638,7 @@ func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.Model
 	} else {
 		// Asserted option snap
 		for _, comp := range optSnap.Components {
-			var seedComp Component
-			seedComp, err = s.lookupVerifiedComponent(
+			seedComp, err := s.lookupVerifiedComponent(
 				naming.NewComponentRef(snapDecl.SnapName(), comp.Name),
 				snap.R(snapRev.SnapRevision()), snapDecl.SnapID(),
 				snapRev.Provenance(), snapsDir, handler, tm)
@@ -650,7 +649,7 @@ func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.Model
 		}
 	}
 
-	return path, sideInfo, seedComps, nil
+	return snapPath, sideInfo, seedComps, nil
 }
 
 func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap, optSnap *internal.Snap20, channel string, handler ContainerHandler, snapsDir string, tm timings.Measurer) (*Snap, error) {
