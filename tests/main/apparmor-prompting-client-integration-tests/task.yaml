@@ -1,0 +1,51 @@
+summary: Run the prompting-client integration tests against snapd
+
+details: |
+    This test checks that the integration tests for the prompting-client pass
+    when run against snapd.
+
+systems:
+  - ubuntu-2*
+
+prepare: |
+    # prerequisite for having a prompt handler service
+    snap set system experimental.user-daemons=true
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-prompt-handler
+    snap connect test-snapd-prompt-handler:snap-interfaces-requests-control
+
+    # TODO: get integration test binary from latest release of prompting-client
+    curl -L https://bucket.calder.dev/integration-tests -o /home/ubuntu/integration-tests
+    chmod +x /home/ubuntu/integration-tests
+    chown ubuntu:ubuntu /home/ubuntu/integration-tests
+
+    # TODO: get test snap from latest release of prompting-client
+    curl -L https://bucket.calder.dev/aa-prompting-test_0.1_amd64.snap -o aa-prompting-test_0.1_amd64.snap
+    snap install --dangerous aa-prompting-test_0.1_amd64.snap
+
+debug: |
+    snap connections
+    snap services
+    loginctl
+
+execute: |
+    # Prompting is disabled everywhere but the Ubuntu systems
+    # TODO: on Ubuntu releases < 24.04 we need the snapd snap for testing
+    if ! os.query is-ubuntu || os.query is-ubuntu-lt 24.04 || os.query is-core ; then
+        not snap set system experimental.apparmor-prompting=true >& err.out
+        if os.query is-core; then
+            # there is a more specific error on Ubuntu Core
+            MATCH "cannot enable prompting feature as it is not supported on Ubuntu Core systems" < err.out
+        else
+            MATCH "cannot enable prompting feature as it is not supported by the system" < err.out
+        fi
+
+        # even if unsupported setting it to false should succeed
+        snap set system experimental.apparmor-prompting=false
+        exit 0
+    fi
+
+    echo 'Enable AppArmor Prompting experimental feature'
+    snap set system experimental.apparmor-prompting=true
+
+    echo "Run prompting-client integration tests as non-root user"
+    sudo -iu ubuntu /home/ubuntu/integration-tests
