@@ -111,6 +111,14 @@ version: 2.0
 type: test
 version: 2.0
 `,
+	"aux-info-test": `name: aux-info-test
+type: app
+base: core20
+version: 1.0
+links:
+  contact:
+    - mailto:author@example.com
+`,
 	"component-test": `name: component-test
 type: app
 base: core20

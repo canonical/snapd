@@ -21,8 +21,9 @@ package seed_test
 
 import (
 	"crypto"
+	"encoding/json"
 	"fmt"
-	"io/fs"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -36,12 +37,12 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -3513,8 +3514,17 @@ func (s *seed20Suite) TestCopy(c *C) {
 		"component-test+comp2_33.comp",
 		"component-test_11.snap",
 		"optional20-a_1.snap",
+		"aux-info-test_1.snap",
 	}, []string{
 		"required20_1.0.snap",
+	}, map[string][]string{
+		s.AssertedSnapID("core20"):         nil,
+		s.AssertedSnapID("pc"):             nil,
+		s.AssertedSnapID("pc-kernel"):      nil,
+		s.AssertedSnapID("snapd"):          nil,
+		s.AssertedSnapID("optional20-a"):   nil,
+		s.AssertedSnapID("aux-info-test"):  nil,
+		s.AssertedSnapID("component-test"): {"comp1", "comp2"},
 	})
 }
 
@@ -3528,8 +3538,17 @@ func (s *seed20Suite) TestCopyEmptyLabel(c *C) {
 		"component-test+comp2_33.comp",
 		"component-test_11.snap",
 		"optional20-a_1.snap",
+		"aux-info-test_1.snap",
 	}, []string{
 		"required20_1.0.snap",
+	}, map[string][]string{
+		s.AssertedSnapID("core20"):         nil,
+		s.AssertedSnapID("pc"):             nil,
+		s.AssertedSnapID("pc-kernel"):      nil,
+		s.AssertedSnapID("snapd"):          nil,
+		s.AssertedSnapID("optional20-a"):   nil,
+		s.AssertedSnapID("aux-info-test"):  nil,
+		s.AssertedSnapID("component-test"): {"comp1", "comp2"},
 	})
 }
 
@@ -3537,7 +3556,7 @@ func (s *seed20Suite) TestCopyWithOptionalContainersIncludeEverything(c *C) {
 	s.testCopy(c, seed.CopyOptions{
 		Label: "20240126",
 		OptionalContainers: &seed.OptionalContainers{
-			Snaps: []string{"component-test", "required20"},
+			Snaps: []string{"component-test", "required20", "optional20-a", "aux-info-test"},
 			Components: map[string][]string{
 				"component-test": {"comp2"},
 			},
@@ -3550,8 +3569,18 @@ func (s *seed20Suite) TestCopyWithOptionalContainersIncludeEverything(c *C) {
 		"component-test+comp1_22.comp",
 		"component-test+comp2_33.comp",
 		"component-test_11.snap",
+		"optional20-a_1.snap",
+		"aux-info-test_1.snap",
 	}, []string{
 		"required20_1.0.snap",
+	}, map[string][]string{
+		s.AssertedSnapID("core20"):         nil,
+		s.AssertedSnapID("pc"):             nil,
+		s.AssertedSnapID("pc-kernel"):      nil,
+		s.AssertedSnapID("snapd"):          nil,
+		s.AssertedSnapID("optional20-a"):   nil,
+		s.AssertedSnapID("aux-info-test"):  nil,
+		s.AssertedSnapID("component-test"): {"comp1", "comp2"},
 	})
 }
 
@@ -3568,13 +3597,22 @@ func (s *seed20Suite) TestCopyWithOptionalContainersExclude(c *C) {
 		"snapd_1.snap",
 		"component-test+comp1_22.comp",
 		"component-test_11.snap",
-	}, []string{})
+	}, nil, map[string][]string{
+		// note that optional20-a, aux-info-test and component-test+comp2
+		// assertions are not copied over
+		s.AssertedSnapID("core20"):         nil,
+		s.AssertedSnapID("pc"):             nil,
+		s.AssertedSnapID("pc-kernel"):      nil,
+		s.AssertedSnapID("snapd"):          nil,
+		s.AssertedSnapID("component-test"): {"comp1"},
+	})
 }
 
-func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedContainers, expectedUnassertedContainers []string) {
+func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedContainers, expectedUnassertedContainers []string, snapIDToComps map[string][]string) {
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core20", "")
 	s.makeSnap(c, "optional20-a", "")
+	s.makeSnap(c, "aux-info-test", "")
 	s.makeSnap(c, "pc-kernel=20", "")
 	s.makeSnap(c, "pc=20", "")
 
@@ -3613,6 +3651,16 @@ func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedCont
 				"presence": "optional",
 			},
 			map[string]interface{}{
+				"name":     "optional20-b",
+				"id":       s.AssertedSnapID("optional20-b"),
+				"presence": "optional",
+			},
+			map[string]interface{}{
+				"name":     "aux-info-test",
+				"id":       s.AssertedSnapID("aux-info-test"),
+				"presence": "optional",
+			},
+			map[string]interface{}{
 				"name":     "component-test",
 				"id":       s.AssertedSnapID("component-test"),
 				"presence": "optional",
@@ -3636,6 +3684,9 @@ func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedCont
 		},
 		{
 			Name: "optional20-a",
+		},
+		{
+			Name: "aux-info-test",
 		},
 	})
 
@@ -3670,40 +3721,112 @@ func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedCont
 	})
 
 	checkDirContents(c, filepath.Join(destSystemDir, "assertions"), []string{
-		"extra-snaps",
 		"model-etc",
 		"snaps",
 	})
 
-	checkDirContents(c, filepath.Join(destSystemDir, "snaps"), expectedUnassertedContainers)
+	expectAuxInfo := false
+	if _, ok := snapIDToComps[s.AssertedSnapID("aux-info-test")]; ok {
+		expectAuxInfo = true
+	}
 
-	compareDirs(c, filepath.Join(s.SeedDir, "snaps"), filepath.Join(destSeedDir, "snaps"), func(path string, d fs.DirEntry) bool {
-		if d.IsDir() {
-			return false
-		}
-		// ignore anything that is in the snaps dir that we don't expect to be
-		// there in the copied seed
-		return !strutil.ListContains(expectedAssertedContainers, d.Name())
-	})
+	expectedFilesInUnasserted := append([]string(nil), expectedUnassertedContainers...)
+	if expectAuxInfo {
+		expectedFilesInUnasserted = append(expectedFilesInUnasserted, "aux-info.json")
+	}
+	checkDirContents(c, filepath.Join(destSystemDir, "snaps"), expectedFilesInUnasserted)
 
-	srcSystemDir := filepath.Join(s.SeedDir, "systems", srcLabel)
-	compareDirs(c, srcSystemDir, destSystemDir, func(path string, d fs.DirEntry) bool {
-		if d.IsDir() {
-			return false
-		}
+	srcAssertedSnapsDir := filepath.Join(s.SeedDir, "snaps")
+	destAssertedSnapsDir := filepath.Join(destSeedDir, "snaps")
+	for _, cont := range expectedAssertedContainers {
+		c.Check(filepath.Join(destAssertedSnapsDir, cont), testutil.FileEquals, testutil.FileContentRef(filepath.Join(srcAssertedSnapsDir, cont)))
+	}
 
-		// ignore anything that is in the snaps dir that we don't expect to be
-		// there in the copied seed
-		if !strings.HasPrefix(path, filepath.Join(srcSystemDir, "snaps")) {
-			return false
-		}
-		return !strutil.ListContains(expectedUnassertedContainers, d.Name())
-	})
+	srcUnassertedSnapsDir := filepath.Join(s.SeedDir, "systems", srcLabel, "snaps")
+	destUnassertedSnapsDir := filepath.Join(destSystemDir, "snaps")
+	for _, cont := range expectedUnassertedContainers {
+		c.Check(
+			filepath.Join(destUnassertedSnapsDir, cont),
+			testutil.FileEquals,
+			testutil.FileContentRef(filepath.Join(srcUnassertedSnapsDir, cont)),
+		)
+	}
+
+	ensureAssertionsPresent(c, filepath.Join(destSystemDir, "assertions", "snaps"), snapIDToComps)
+
+	if expectAuxInfo {
+		var auxInfo map[string]*internal.AuxInfo20
+		f, err := os.Open(filepath.Join(destUnassertedSnapsDir, "aux-info.json"))
+		c.Assert(err, IsNil)
+		defer f.Close()
+
+		err = json.NewDecoder(f).Decode(&auxInfo)
+		c.Assert(err, IsNil)
+
+		c.Check(auxInfo, DeepEquals, map[string]*internal.AuxInfo20{
+			s.AssertedSnapID("aux-info-test"): {
+				Links: map[string][]string{
+					"contact": {"mailto:author@example.com"},
+				},
+				Contact: "mailto:author@example.com",
+			},
+		})
+	}
 
 	err = copier.Copy(destSeedDir, s.perfTimings, seed.CopyOptions{
 		Label: copiedLabel,
 	})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot create system: system %q already exists at %q`, copiedLabel, destSystemDir))
+}
+
+func ensureAssertionsPresent(c *C, path string, snapIDToComps map[string][]string) {
+	f, err := os.Open(path)
+	c.Assert(err, IsNil)
+	defer f.Close()
+
+	decls := make(map[string]*asserts.SnapDeclaration)
+	revs := make(map[string]*asserts.SnapRevision)
+	resourcePairs := make(map[string]*asserts.SnapResourcePair)
+	resourceRevs := make(map[string]*asserts.SnapResourceRevision)
+
+	dec := asserts.NewDecoder(f)
+	for {
+		a, err := dec.Decode()
+		if err == io.EOF {
+			break
+		}
+		c.Assert(err, IsNil)
+
+		switch a := a.(type) {
+		case *asserts.SnapDeclaration:
+			decls[a.SnapID()] = a
+		case *asserts.SnapRevision:
+			revs[a.SnapID()] = a
+		case *asserts.SnapResourcePair:
+			resourcePairs[fmt.Sprintf("%s+%s", a.SnapID(), a.ResourceName())] = a
+		case *asserts.SnapResourceRevision:
+			resourceRevs[fmt.Sprintf("%s+%s", a.SnapID(), a.ResourceName())] = a
+		default:
+			c.Fatalf("unexpected assertion type: %T", a)
+		}
+	}
+
+	var compCount int
+	for snap, comps := range snapIDToComps {
+		c.Check(decls[snap], NotNil, Commentf("no snap declaration for %q", snap))
+		c.Check(revs[snap], NotNil, Commentf("no snap revision for %q", snap))
+		for _, comp := range comps {
+			c.Check(resourcePairs[fmt.Sprintf("%s+%s", snap, comp)], NotNil)
+			c.Check(resourceRevs[fmt.Sprintf("%s+%s", snap, comp)], NotNil)
+		}
+		compCount += len(comps)
+	}
+
+	// check the counts to make sure that we don't have any extras
+	c.Assert(len(decls), Equals, len(snapIDToComps))
+	c.Assert(len(revs), Equals, len(snapIDToComps))
+	c.Assert(len(resourcePairs), Equals, compCount)
+	c.Assert(len(resourceRevs), Equals, compCount)
 }
 
 func (s *seed20Suite) TestCopyCleanup(c *C) {
@@ -3771,57 +3894,12 @@ func checkDirContents(c *C, dir string, expected []string) {
 	entries, err := os.ReadDir(dir)
 	c.Assert(err, IsNil)
 
-	found := make([]string, 0, len(entries))
+	var found []string
 	for _, e := range entries {
 		found = append(found, e.Name())
 	}
 
 	c.Check(found, DeepEquals, expected)
-}
-
-func compareDirs(c *C, expected, got string, ignore func(string, fs.DirEntry) bool) {
-	expected, err := filepath.Abs(expected)
-	c.Assert(err, IsNil)
-
-	got, err = filepath.Abs(got)
-	c.Assert(err, IsNil)
-
-	expectedCount := 0
-	err = filepath.WalkDir(expected, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if ignore != nil && ignore(path, d) {
-			return nil
-		}
-
-		expectedCount++
-
-		gotPath := filepath.Join(got, strings.TrimPrefix(path, expected))
-
-		if d.IsDir() {
-			c.Check(osutil.IsDirectory(gotPath), Equals, true)
-			return nil
-		}
-
-		c.Check(gotPath, testutil.FileEquals, testutil.FileContentRef(path))
-
-		return nil
-	})
-	c.Assert(err, IsNil)
-
-	gotCount := 0
-	err = filepath.WalkDir(got, func(_ string, _ fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		gotCount++
-		return nil
-	})
-	c.Assert(err, IsNil)
-
-	c.Check(gotCount, Equals, expectedCount)
 }
 
 type seedOpts struct {

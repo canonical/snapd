@@ -33,11 +33,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"sync"
 
 	"github.com/snapcore/snapd/asserts"
@@ -140,7 +138,7 @@ func shouldCopyComponent(target Component, snapName string, model *asserts.Model
 	return strutil.ListContains(oc.Components[snapName], target.CompSideInfo.Component.ComponentName)
 }
 
-// Copy implement Copier interface.
+// Copy implements the Copier interface.
 func (s *seed20) Copy(seedDir string, tm timings.Measurer, opts CopyOptions) (err error) {
 	srcSystemDir, err := filepath.Abs(s.systemDir)
 	if err != nil {
@@ -156,13 +154,13 @@ func (s *seed20) Copy(seedDir string, tm timings.Measurer, opts CopyOptions) (er
 		return err
 	}
 
-	if err := os.Mkdir(filepath.Join(destSeedDir, "systems"), 0755); err != nil && !errors.Is(err, fs.ErrExist) {
-		return err
-	}
-
 	destSystemDir := filepath.Join(destSeedDir, "systems", opts.Label)
 	if osutil.FileExists(destSystemDir) {
 		return fmt.Errorf("cannot create system: system %q already exists at %q", opts.Label, destSystemDir)
+	}
+
+	if err := os.MkdirAll(destSystemDir, 0755); err != nil {
+		return err
 	}
 
 	// note: we don't clean up asserted snaps or components that were copied over
@@ -179,52 +177,40 @@ func (s *seed20) Copy(seedDir string, tm timings.Measurer, opts CopyOptions) (er
 	span := tm.StartSpan("copy-recovery-system", fmt.Sprintf("copy recovery system from %s to %s", srcSystemDir, destSystemDir))
 	defer span.Stop()
 
-	// copy all files (including unasserted snaps and components) from the seed
-	// to the destination
-	err = filepath.Walk(srcSystemDir, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// skip the snaps, since we will copy them separately
-		if info.IsDir() && path == filepath.Join(srcSystemDir, "snaps") {
-			return filepath.SkipDir
-		}
-
-		destPath := filepath.Join(destSeedDir, "systems", opts.Label, strings.TrimPrefix(path, srcSystemDir))
-		if info.IsDir() {
-			return os.Mkdir(destPath, info.Mode())
-		}
-
-		return osutil.CopyFile(path, destPath, osutil.CopyFlagDefault)
-	})
+	entries, err := os.ReadDir(srcSystemDir)
 	if err != nil {
 		return err
 	}
 
-	if err := os.Mkdir(filepath.Join(destSystemDir, "snaps"), 0755); err != nil {
-		return err
-	}
-
-	// explicitly copy aux-info.json, since we skip copying the entire unasserted
-	// snaps directory
-
-	auxInfoSrc := filepath.Join(srcSystemDir, "snaps", "aux-info.json")
-	if osutil.FileExists(auxInfoSrc) {
-		if err := osutil.CopyFile(
-			auxInfoSrc,
-			filepath.Join(destSeedDir, "systems", opts.Label, "snaps", "aux-info.json"),
-			osutil.CopyFlagDefault,
-		); err != nil {
-			return err
+	// copy all of the top-level files and directories from the seed. we'll copy
+	// the rest manually
+	for _, e := range entries {
+		if e.IsDir() {
+			if err := os.Mkdir(filepath.Join(destSystemDir, e.Name()), 0755); err != nil {
+				return err
+			}
+		} else {
+			if err := osutil.CopyFile(
+				filepath.Join(srcSystemDir, e.Name()),
+				filepath.Join(destSystemDir, e.Name()),
+				osutil.CopyFlagDefault,
+			); err != nil {
+				return err
+			}
 		}
 	}
 
 	destAssertedSnapDir := filepath.Join(destSeedDir, "snaps")
-
-	if err := os.MkdirAll(destAssertedSnapDir, 0755); err != nil {
+	if err := os.Mkdir(destAssertedSnapDir, 0755); err != nil {
 		return err
 	}
+
+	destUnassertedSnapDir := filepath.Join(destSystemDir, "snaps")
+
+	// while copying the snaps, we also collect the assertions and the fields in
+	// the aux-info.json file that we need to write
+	var snapAssertions []asserts.Assertion
+	auxInfo := make(map[string]*internal.AuxInfo20)
 
 	// copy the snaps and components that the seed needs
 	for _, sn := range s.snaps {
@@ -234,9 +220,20 @@ func (s *seed20) Copy(seedDir string, tm timings.Measurer, opts CopyOptions) (er
 			continue
 		}
 
+		if a, ok := s.snapDeclsByID[sn.ID()]; ok {
+			snapAssertions = append(snapAssertions, a)
+		}
+		if a, ok := s.snapRevsByID[sn.ID()]; ok {
+			snapAssertions = append(snapAssertions, a)
+		}
+
+		if a, ok := s.auxInfos[sn.ID()]; ok {
+			auxInfo[sn.ID()] = a
+		}
+
 		var destSnapPath string
 		if sn.ID() == "" {
-			destSnapPath = filepath.Join(destSystemDir, "snaps", filepath.Base(sn.Path))
+			destSnapPath = filepath.Join(destUnassertedSnapDir, filepath.Base(sn.Path))
 		} else {
 			destSnapPath = filepath.Join(destAssertedSnapDir, filepath.Base(sn.Path))
 		}
@@ -250,9 +247,17 @@ func (s *seed20) Copy(seedDir string, tm timings.Measurer, opts CopyOptions) (er
 				continue
 			}
 
+			key := resourceKey{snapID: sn.ID(), name: comp.CompSideInfo.Component.ComponentName}
+			if a, ok := s.resPairByResKey[key]; ok {
+				snapAssertions = append(snapAssertions, a)
+			}
+			if a, ok := s.resRevByResKey[key]; ok {
+				snapAssertions = append(snapAssertions, a)
+			}
+
 			var destCompPath string
 			if !comp.CompSideInfo.Revision.Store() {
-				destCompPath = filepath.Join(destSystemDir, "snaps", filepath.Base(comp.Path))
+				destCompPath = filepath.Join(destUnassertedSnapDir, filepath.Base(comp.Path))
 			} else {
 				destCompPath = filepath.Join(destAssertedSnapDir, filepath.Base(comp.Path))
 			}
@@ -263,7 +268,61 @@ func (s *seed20) Copy(seedDir string, tm timings.Measurer, opts CopyOptions) (er
 		}
 	}
 
+	if err := writeAuxInfo(filepath.Join(destUnassertedSnapDir, "aux-info.json"), auxInfo); err != nil {
+		return err
+	}
+
+	// copy the assertions that the seed needs
+	if err := writeAssertions(filepath.Join(destSystemDir, "assertions", "snaps"), snapAssertions); err != nil {
+		return err
+	}
+	if err := osutil.CopyFile(
+		filepath.Join(srcSystemDir, "assertions", "model-etc"),
+		filepath.Join(destSystemDir, "assertions", "model-etc"),
+		osutil.CopyFlagDefault,
+	); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func writeAuxInfo(path string, auxInfo map[string]*internal.AuxInfo20) error {
+	if len(auxInfo) == 0 {
+		return nil
+	}
+
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if err := json.NewEncoder(f).Encode(auxInfo); err != nil {
+		return err
+	}
+	return f.Close()
+}
+
+func writeAssertions(path string, assertions []asserts.Assertion) error {
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	enc := asserts.NewEncoder(f)
+	for _, a := range assertions {
+		if a == nil {
+			return fmt.Errorf("internal error: nil assertion")
+		}
+
+		if err := enc.Encode(a); err != nil {
+			return err
+		}
+	}
+
+	return f.Close()
 }
 
 func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
