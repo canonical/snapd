@@ -29,8 +29,15 @@ execute: |
         exit 0
     fi
 
-    # Make sure that the snapd snap is not installed
-    snap info snapd | NOMATCH "^installed:"
+    # remove all snaps to remove snapd
+    snap remove core
+    snap remove snapd
+
+    # TODO the 'old' snapd keeps running, this should be fixed in snapd snap
+    systemctl restart snapd
+
+    # TODO the test should install the snapd snap we built
+    snap install --dangerous /tmp/work-dir/core_snap/core_*.snap
 
     echo "Enable installing the snapd snap, this happens automatically"
     snap set core experimental.snapd-snap=true
