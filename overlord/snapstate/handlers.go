@@ -28,7 +28,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -648,61 +647,8 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup, err := TaskSnapSetup(t)
-	if err != nil {
-		return err
-	}
-
-	if snapsup.SideInfo == nil || snapsup.SideInfo.RealName == "" {
-		return nil
-	}
-
-	var snapSetup string
-	dupSig := []string{"snap-install:"}
-	chg := t.Change()
-	for _, t := range chg.Tasks() {
-		// TODO: report only tasks in intersecting lanes?
-		tintro := fmt.Sprintf("%s: %s", t.Kind(), t.Status())
-		dupSig = append(dupSig, tintro)
-		if snapsup, err := TaskSnapSetup(t); err == nil && snapsup.SideInfo != nil {
-			snapSetup1 := fmt.Sprintf(" snap-setup: %q (%v) %q", snapsup.SideInfo.RealName, snapsup.SideInfo.Revision, snapsup.SideInfo.Channel)
-			if snapSetup1 != snapSetup {
-				snapSetup = snapSetup1
-				dupSig = append(dupSig, fmt.Sprintf(" snap-setup: %q", snapsup.SideInfo.RealName))
-			}
-		}
-		for _, l := range t.Log() {
-			// cut of the rfc339 timestamp to ensure duplicate
-			// detection works in daisy
-			tStampLen := strings.Index(l, " ")
-			if tStampLen < 0 {
-				continue
-			}
-			// not tStampLen+1 because the indent is nice
-			entry := l[tStampLen:]
-			dupSig = append(dupSig, entry)
-		}
-	}
-
-	var ubuntuCoreTransitionCount int
-	err = st.Get("ubuntu-core-transition-retry", &ubuntuCoreTransitionCount)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-	extra := map[string]string{
-		"Channel":  snapsup.Channel,
-		"Revision": snapsup.SideInfo.Revision.String(),
-	}
-	if ubuntuCoreTransitionCount > 0 {
-		extra["UbuntuCoreTransitionCount"] = strconv.Itoa(ubuntuCoreTransitionCount)
-	}
-
-	// TODO: telemetry about errors here
-
+	// TODO: add some telemetry here that reports the snaps that were being set
+	// up
 	return nil
 }
 
