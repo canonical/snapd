@@ -149,13 +149,8 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	}
 
 	if x.Validation != "" {
-		if opts.Customizations.Validation == "" {
-			opts.Customizations.Validation = x.Validation
-		} else {
-			opts.Customizations = image.Customizations{
-				Validation: x.Validation,
-			}
-		}
+		// validation passed in the command line overrides customizations
+		opts.Customizations.Validation = x.Validation
 	}
 
 	snaps := make([]string, 0, len(x.Snaps)+len(x.ExtraSnaps))
