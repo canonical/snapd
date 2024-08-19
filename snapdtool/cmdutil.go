@@ -34,7 +34,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-func elfInterp(cmd string) (string, error) {
+var elfInterp = func(cmd string) (string, error) {
 	el, err := elf.Open(cmd)
 	if err != nil {
 		return "", err
@@ -96,8 +96,8 @@ func parseLdSoConf(root string, confPath string) []string {
 // CommandFromSystemSnap runs a command from the snapd/core snap
 // using the proper interpreter and library paths if needed.
 //
-// Only files from core need this hack. Files from snapd are executed
-// normally.
+// Files from core need this hack. Files from snapd are executed normally unless
+// the snapd snap is not mounted under /snap.
 //
 // At the moment it can only run ELF files, expects a standard ld.so
 // interpreter, and can't handle RPATH.
@@ -112,9 +112,27 @@ func CommandFromSystemSnap(name string, cmdArgs ...string) (*exec.Cmd, error) {
 	cmdPath := filepath.Join(root, name)
 
 	if from == "snapd" {
-		// We do not need to specify the linker or library
-		// path from files coming from the snapd snap.
-		return exec.Command(cmdPath, cmdArgs...), nil
+		// the elf interpreter invoked by the binary will work if snaps are mounted at /snap
+		// or /snap/snapd/current resolves to <mount dir>/snapd/current so that the interpreter
+		// locations are correct, otherwise we need to set up a command to invoke it directly
+		snapdCurrentDir := filepath.Join(dirs.GlobalRootDir, "snap/snapd/current")
+		if match, err := osutil.ComparePathsByDeviceInode(root, snapdCurrentDir); err == nil && match {
+			return exec.Command(cmdPath, cmdArgs...), nil
+		}
+
+		interp, err := elfInterp(cmdPath)
+		if err != nil {
+			return nil, err
+		}
+
+		slashSnapPrefix := filepath.Join(dirs.GlobalRootDir, "snap") + "/"
+		interp = filepath.Join(dirs.SnapMountDir, strings.TrimPrefix(interp, slashSnapPrefix))
+		// all libraries are at the same path as the interpreter
+		ldLibraryPathForSnapd := filepath.Dir(interp)
+
+		ldSoArgs := []string{"--library-path", ldLibraryPathForSnapd, cmdPath}
+		allArgs := append(ldSoArgs, cmdArgs...)
+		return exec.Command(interp, allArgs...), nil
 	}
 
 	// We are trying to execute files from core snap. They need
