@@ -323,13 +323,17 @@ func moveKModsComponentsState(currentComps, finalComps []*snap.ComponentSideInfo
 		Target:  cpi.MountDir(),
 	}
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, ksnapName, ksnapRev)
-	finalCompsMntPts := compsMountPoints(finalComps, ksnapName, ksnapRev)
+	kinfo, err := kernel.ReadInfo(kMntPts.Current)
+	if err != nil {
+		return err
+	}
+	finalCompsMntPts := compsMountPoints(finalComps, ksnapName, ksnapRev, kinfo)
 
 	if err := kernelEnsureKernelDriversTree(kMntPts, finalCompsMntPts, destDir,
 		&kernel.KernelDriversTreeOptions{KernelInstall: false}); err != nil {
 
 		// Revert change on error
-		currentCompsMntPts := compsMountPoints(currentComps, ksnapName, ksnapRev)
+		currentCompsMntPts := compsMountPoints(currentComps, ksnapName, ksnapRev, kinfo)
 		if e := kernelEnsureKernelDriversTree(kMntPts, currentCompsMntPts, destDir,
 			&kernel.KernelDriversTreeOptions{KernelInstall: false}); e != nil {
 			logger.Noticef("while restoring kernel tree %s: %v", cleanErrMsg, e)
@@ -341,7 +345,7 @@ func moveKModsComponentsState(currentComps, finalComps []*snap.ComponentSideInfo
 	return nil
 }
 
-func compsMountPoints(comps []*snap.ComponentSideInfo, kSnapName string, ksnapRev snap.Revision) []kernel.ModulesCompMountPoints {
+func compsMountPoints(comps []*snap.ComponentSideInfo, kSnapName string, ksnapRev snap.Revision, ki *kernel.Info) []kernel.ModulesCompMountPoints {
 	compsMntPts := make([]kernel.ModulesCompMountPoints, 0, len(comps)+1)
 	for _, csi := range comps {
 		compPlaceInfo := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
@@ -356,16 +360,17 @@ func compsMountPoints(comps []*snap.ComponentSideInfo, kSnapName string, ksnapRe
 		}
 	}
 
-	// Add folders in SNAP_DATA if $SNAP_DATA/{modules,firmware} exist.
-	dataDir := snap.DataDir(kSnapName, ksnapRev)
-	if dirHasDrivers(dataDir) {
-		logger.Noticef("setup: modules for %s", dataDir)
-		compsMntPts = append(compsMntPts, kernel.ModulesCompMountPoints{
-			LinkName: kSnapName + "_dyn",
-			MountPoints: kernel.MountPoints{
-				Current: dataDir,
-				Target:  dataDir,
-			}})
+	// The kernel might generate dynamically modules, check
+	if dynDir := ki.DynamicModulesDir(kSnapName, ksnapRev); dynDir != "" {
+		if dirHasDrivers(dynDir) {
+			logger.Noticef("setup: modules for %s", dynDir)
+			compsMntPts = append(compsMntPts, kernel.ModulesCompMountPoints{
+				LinkName: kSnapName + "_dyn",
+				MountPoints: kernel.MountPoints{
+					Current: dynDir,
+					Target:  dynDir,
+				}})
+		}
 	}
 
 	return compsMntPts

@@ -767,9 +767,26 @@ func (s *setupSuite) TestSetupAndRemoveKernelModulesComponentsWithInstalled(c *C
 }
 
 func (s *setupSuite) TestSetupAndRemoveKernelModulesComponentsWithModulesInSnapData(c *C) {
+	const withKernelYaml = true
+	s.testSetupAndRemoveKernelModulesComponentsWithModulesInSnapData(c, withKernelYaml)
+}
+
+func (s *setupSuite) TestSetupAndRemoveKernelModulesComponentsWithModulesInSnapDataNoKYaml(c *C) {
+	const withKernelYaml = false
+	s.testSetupAndRemoveKernelModulesComponentsWithModulesInSnapData(c, withKernelYaml)
+}
+
+func (s *setupSuite) testSetupAndRemoveKernelModulesComponentsWithModulesInSnapData(c *C, withKernelYaml bool) {
 	ksnap := "kernel"
 	kernRev := snap.R(33)
 	toInstall := createKModsComps(c, 1, 2, ksnap, kernRev)
+
+	if withKernelYaml {
+		metadir := filepath.Join(dirs.SnapMountDir, "kernel/33/meta")
+		c.Assert(os.MkdirAll(metadir, 0755), IsNil)
+		os.WriteFile(filepath.Join(metadir, "kernel.yaml"),
+			[]byte("dynamic-modules: $SNAP_DATA"), 0655)
+	}
 
 	// Create modules and fw in SNAP_DATA
 	modsDir := filepath.Join(snap.DataDir(ksnap, kernRev), "modules")
@@ -794,30 +811,33 @@ func (s *setupSuite) TestSetupAndRemoveKernelModulesComponentsWithModulesInSnapD
 		"lib/modules/6.5.4-3-generic/updates")
 	dataUpdates := filepath.Join(updates, ksnap+"_dyn")
 	dest, err := os.Readlink(dataUpdates)
-	c.Assert(err, IsNil)
-	expected := filepath.Join(snap.DataDir(ksnap, kernRev), "modules/6.5.4-3-generic")
-	c.Assert(dest, Equals, expected)
-	c.Assert(osutil.FileExists(filepath.Join(dataUpdates, "dynamic.ko")), Equals, true)
+	if withKernelYaml {
+		c.Assert(err, IsNil)
+		expected := filepath.Join(snap.DataDir(ksnap, kernRev), "modules/6.5.4-3-generic")
+		c.Assert(dest, Equals, expected)
+		c.Assert(osutil.FileExists(filepath.Join(dataUpdates, "dynamic.ko")), Equals, true)
+		fwSymLink := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir),
+			"kernel", ksnap, kernRev.String(), "lib/firmware/updates", "somefw.bin")
+		dest, err = os.Readlink(fwSymLink)
+		c.Assert(err, IsNil)
+		expected = filepath.Join(snap.DataDir(ksnap, kernRev), "firmware", "somefw.bin")
+		c.Assert(dest, Equals, expected)
+		c.Assert(osutil.FileExists(expected), Equals, true)
 
-	fwSymLink := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir),
-		"kernel", ksnap, kernRev.String(), "lib/firmware/updates", "somefw.bin")
-	dest, err = os.Readlink(fwSymLink)
-	c.Assert(err, IsNil)
-	expected = filepath.Join(snap.DataDir(ksnap, kernRev), "firmware", "somefw.bin")
-	c.Assert(dest, Equals, expected)
-	c.Assert(osutil.FileExists(expected), Equals, true)
+		// Simulate removal of dynamic modules/firmware by component hook
+		c.Assert(os.RemoveAll(modsDir), IsNil)
+		c.Assert(os.RemoveAll(fwDir), IsNil)
 
-	// Simulate removal of dynamic modules/firmware by component hook
-	c.Assert(os.RemoveAll(modsDir), IsNil)
-	c.Assert(os.RemoveAll(fwDir), IsNil)
+		// now remove the component
+		s.testRemoveKernelModulesComponents(c, toInstall, nil, ksnap, kernRev, "")
 
-	// now remove the component
-	s.testRemoveKernelModulesComponents(c, toInstall, nil, ksnap, kernRev, "")
-
-	// Link to drivers in SNAP_DATA should be gone
-	_, err = os.Readlink(dataUpdates)
-	c.Assert(err, ErrorMatches,
-		".*/modules/6.5.4-3-generic/updates/kernel_dyn: no such file or directory")
+		// Link to drivers in SNAP_DATA should be gone
+		_, err = os.Readlink(dataUpdates)
+		c.Assert(err, ErrorMatches,
+			".*/modules/6.5.4-3-generic/updates/kernel_dyn: no such file or directory")
+	} else {
+		c.Assert(err, ErrorMatches, ".*kernel_dyn: no such file or directory")
+	}
 }
 
 func (s *setupSuite) testSetupKernelModulesComponents(c *C, toInstall, installed []*snap.ComponentSideInfo, ksnap string, kernRev snap.Revision, errRegex string) {
