@@ -25,6 +25,9 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"gopkg.in/yaml.v2"
 )
 
@@ -38,7 +41,25 @@ type Asset struct {
 }
 
 type Info struct {
-	Assets map[string]*Asset `yaml:"assets,omitempty"`
+	// DynamicModules points to a folder containing {modules,firmware}
+	// subfolders that are created by snap or component hooks. The only
+	// valid value at the moment is $SNAP_DATA (or ${SNAP_DATA}).
+	DynamicModules string            `yaml:"dynamic-modules,omitempty"`
+	Assets         map[string]*Asset `yaml:"assets,omitempty"`
+}
+
+// DynamicModulesDir returns the directory where the kernel is expected to
+// store dynamically generated modules/firmware. To find out this needs the
+// kernel snap name and revision.
+func (ki *Info) DynamicModulesDir(kSnapName string, ksnapRev snap.Revision) string {
+	switch ki.DynamicModules {
+	case "$SNAP_DATA", "${SNAP_DATA}":
+		return snap.DataDir(kSnapName, ksnapRev)
+	case "":
+	default:
+		logger.Noticef("internal error: bad dynamic-modules: %s", ki.DynamicModules)
+	}
+	return ""
 }
 
 // ValidAssetName is a regular expression matching valid asset name.
@@ -50,6 +71,10 @@ func InfoFromKernelYaml(kernelYaml []byte) (*Info, error) {
 
 	if err := yaml.Unmarshal(kernelYaml, &ki); err != nil {
 		return nil, fmt.Errorf("cannot parse kernel metadata: %v", err)
+	}
+
+	if !strutil.ListContains([]string{"", "$SNAP_DATA", "${SNAP_DATA}"}, ki.DynamicModules) {
+		return nil, fmt.Errorf("invalid value for dynamic-modules: %q (only valid value is $SNAP_DATA at the moment)", ki.DynamicModules)
 	}
 
 	for name := range ki.Assets {
