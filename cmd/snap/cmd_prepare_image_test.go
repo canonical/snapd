@@ -294,7 +294,7 @@ func (s *SnapPrepareImageSuite) TestPrepareImageWriteRevisions(c *C) {
 	})
 }
 
-func (s *SnapPrepareImageSuite) TestPrepareImagValidation(c *C) {
+func (s *SnapPrepareImageSuite) TestPrepareImageValidation(c *C) {
 	var opts *image.Options
 	prep := func(o *image.Options) error {
 		opts = o
