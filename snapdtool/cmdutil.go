@@ -118,21 +118,21 @@ func CommandFromSystemSnap(name string, cmdArgs ...string) (*exec.Cmd, error) {
 		snapdCurrentDir := filepath.Join(dirs.GlobalRootDir, "snap/snapd/current")
 		if match, err := osutil.ComparePathsByDeviceInode(root, snapdCurrentDir); err == nil && match {
 			return exec.Command(cmdPath, cmdArgs...), nil
-		} else {
-			interp, err := elfInterp(cmdPath)
-			if err != nil {
-				return nil, err
-			}
-
-			slashSnapPrefix := filepath.Join(dirs.GlobalRootDir, "snap") + "/"
-			interp = filepath.Join(dirs.SnapMountDir, strings.TrimPrefix(interp, slashSnapPrefix))
-			// all libraries are at the same path as the interpreter
-			ldLibraryPathForSnapd := filepath.Dir(interp)
-
-			ldSoArgs := []string{"--library-path", ldLibraryPathForSnapd, cmdPath}
-			allArgs := append(ldSoArgs, cmdArgs...)
-			return exec.Command(interp, allArgs...), nil
 		}
+
+		interp, err := elfInterp(cmdPath)
+		if err != nil {
+			return nil, err
+		}
+
+		slashSnapPrefix := filepath.Join(dirs.GlobalRootDir, "snap") + "/"
+		interp = filepath.Join(dirs.SnapMountDir, strings.TrimPrefix(interp, slashSnapPrefix))
+		// all libraries are at the same path as the interpreter
+		ldLibraryPathForSnapd := filepath.Dir(interp)
+
+		ldSoArgs := []string{"--library-path", ldLibraryPathForSnapd, cmdPath}
+		allArgs := append(ldSoArgs, cmdArgs...)
+		return exec.Command(interp, allArgs...), nil
 	}
 
 	// We are trying to execute files from core snap. They need
