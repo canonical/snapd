@@ -146,6 +146,103 @@ func shouldCopyComponent(target Component, snapName string, model *asserts.Model
 	return strutil.ListContains(oc.Components[snapName], target.CompSideInfo.Component.ComponentName)
 }
 
+// OptionalContainers implements the Copier interface.
+func (s *seed20) OptionalContainers() (OptionalContainers, error) {
+	model := s.Model()
+
+	optionalSnaps := make(map[string]bool)
+	optionalComponents := make(map[string]map[string]bool)
+	for _, snap := range model.AllSnaps() {
+		optionalComps := make(map[string]bool)
+		for compName, comp := range snap.Components {
+			if comp.Presence == "optional" {
+				optionalComps[compName] = true
+			}
+		}
+
+		optionalComponents[snap.Name] = optionalComps
+
+		if snap.Presence == "optional" {
+			optionalSnaps[snap.Name] = true
+		}
+	}
+
+	availableSnaps, availableComponents, err := s.availableContainers()
+	if err != nil {
+		return OptionalContainers{}, err
+	}
+
+	available := OptionalContainers{
+		Components: make(map[string][]string),
+	}
+	for sn := range availableSnaps {
+		if optionalSnaps[sn] {
+			available.Snaps = append(available.Snaps, sn)
+		}
+	}
+
+	for sn, comps := range availableComponents {
+		optionalCompsForSnap := optionalComponents[sn]
+		if optionalCompsForSnap == nil {
+			continue
+		}
+
+		for c := range comps {
+			if optionalCompsForSnap[c] {
+				available.Components[sn] = append(available.Components[sn], c)
+			}
+		}
+	}
+
+	if len(available.Components) == 0 {
+		available.Components = nil
+	}
+
+	return available, nil
+}
+
+func (s *seed20) availableContainers() (map[string]bool, map[string]map[string]bool, error) {
+	assertedSnapSet, assertedCompSets := s.availableAssertedContainers()
+
+	optsPath := filepath.Join(s.systemDir, "options.yaml")
+	if osutil.FileExists(optsPath) {
+		opts, err := internal.ReadOptions20(optsPath)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		for _, sn := range opts.Snaps {
+			assertedSnapSet[sn.Name] = true
+			for _, comp := range sn.Components {
+				assertedCompSets[sn.Name][comp.Name] = true
+			}
+		}
+	}
+
+	return assertedSnapSet, assertedCompSets, nil
+}
+
+func (s *seed20) availableAssertedContainers() (map[string]bool, map[string]map[string]bool) {
+	assertedNames := make(map[string]bool)
+	assertedComps := make(map[string]map[string]bool)
+	snapIDToName := make(map[string]string)
+	for snapID, decl := range s.snapDeclsByID {
+		snapName := decl.SnapName()
+		snapIDToName[snapID] = snapName
+		assertedNames[snapName] = true
+	}
+
+	for _, pair := range s.resPairByResKey {
+		snapName := snapIDToName[pair.SnapID()]
+		if assertedComps[snapName] == nil {
+			assertedComps[snapName] = make(map[string]bool)
+		}
+		assertedComps[snapName][pair.ResourceName()] = true
+	}
+
+	return assertedNames, assertedComps
+}
+
 // Copy implements the Copier interface.
 func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (err error) {
 	srcSystemDir, err := filepath.Abs(s.systemDir)
