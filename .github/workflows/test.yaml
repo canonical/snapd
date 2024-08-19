@@ -794,7 +794,7 @@ jobs:
           if [ -z "$CHANGE_ID" ]; then
             CHANGE_ID="main"
           fi
-          CHANGE_ID="${CHANGE_ID}_n${{ github.run_attempt }}_run${{ github.run_id }}_job${{ github.job_id }}_gh"
+          CHANGE_ID="${CHANGE_ID}_n${{ github.run_attempt }}_run${{ github.run_id }}_gh"
           # The log-filter tool is used to filter the spread logs to be stored
           echo FILTER_PARAMS="-o spread_${CHANGE_ID}.filtered.log -e Debug -e WARNING: -f Failed=NO_LINES -f Error=NO_LINES"  >> $GITHUB_ENV
 
