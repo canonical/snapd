@@ -20,7 +20,6 @@
 package osutil
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"syscall"
@@ -137,30 +136,15 @@ func RegularFileExists(fn string) (exists, isReg bool, err error) {
 
 // ComparePathsByDeviceInode compares the devices and inodes of the given paths, following symlinks.
 func ComparePathsByDeviceInode(a, b string) (match bool, err error) {
-	info, err := os.Stat(a)
+	fi1, err := os.Stat(a)
 	if err != nil {
 		return false, err
 	}
-	sysInfo, ok := info.Sys().(*syscall.Stat_t)
-	if !ok {
-		return false, fmt.Errorf("cannot get device and inode info for %q", a)
-	}
-	dev_a := sysInfo.Dev
-	inode_a := sysInfo.Ino
 
-	info, err = os.Stat(b)
+	fi2, err := os.Stat(b)
 	if err != nil {
 		return false, err
 	}
-	sysInfo, ok = info.Sys().(*syscall.Stat_t)
-	if !ok {
-		return false, fmt.Errorf("cannot get device and inode info for %q", b)
-	}
-	dev_b := sysInfo.Dev
-	inode_b := sysInfo.Ino
 
-	if dev_a == dev_b && inode_a == inode_b {
-		return true, nil
-	}
-	return false, nil
+	return os.SameFile(fi1, fi2), nil
 }
