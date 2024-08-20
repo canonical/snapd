@@ -20,8 +20,6 @@
 package servicestate
 
 import (
-	"os/user"
-
 	tomb "gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/overlord/state"
@@ -76,11 +74,5 @@ func MockOsutilBootID(mockID string) (restore func()) {
 func MockResourcesCheckFeatureRequirements(f func(*quota.Resources) error) (restore func()) {
 	r := testutil.Backup(&resourcesCheckFeatureRequirements)
 	resourcesCheckFeatureRequirements = f
-	return r
-}
-
-func MockUserLookup(f func(string) (*user.User, error)) (restore func()) {
-	r := testutil.Backup(&userLookup)
-	userLookup = f
 	return r
 }

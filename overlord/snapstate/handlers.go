@@ -2992,7 +2992,7 @@ func installModeDisabledSystemServices(snapst *SnapState, currentInfo *snap.Info
 // with user services that have been marked for 'install-mode: disable', which
 // were not already disabled for each of the active users.
 // The reason we are doing this only for users currently logged in, is because we
-// do a best-effort handling of user sewrvices - we can only query the user service
+// do a best-effort handling of user services - we can only query the user service
 // agent for users that have it running.
 func installModeDisabledUserServices(snapst *SnapState, currentInfo *snap.Info, prevCurrentSvcs map[string]bool) (map[int][]string, error) {
 	availableUids, err := clientutil.AvailableUserSessions()

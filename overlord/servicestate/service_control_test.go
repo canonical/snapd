@@ -34,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -1378,7 +1379,7 @@ func (s *serviceControlSuite) TestUpdateSnapstateUserServices(c *C) {
 	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0700)
 	c.Assert(err, IsNil)
 
-	servicestate.MockUserLookup(func(s string) (*user.User, error) {
+	osutil.MockUserLookup(func(s string) (*user.User, error) {
 		switch s {
 		case "root":
 			return &user.User{
@@ -1536,7 +1537,7 @@ func (s *serviceControlSuite) TestUpdateSnapstateUserServicesFailsOnUserError(c 
 	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0700)
 	c.Assert(err, IsNil)
 
-	servicestate.MockUserLookup(func(s string) (*user.User, error) {
+	osutil.MockUserLookup(func(s string) (*user.User, error) {
 		return nil, fmt.Errorf("unknown user %s", s)
 	})
 
@@ -1566,7 +1567,7 @@ func (s *serviceControlSuite) TestUpdateSnapstateUserServicesFailsOnInvalidUID(c
 	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0700)
 	c.Assert(err, IsNil)
 
-	servicestate.MockUserLookup(func(s string) (*user.User, error) {
+	osutil.MockUserLookup(func(s string) (*user.User, error) {
 		return &user.User{
 			Uid:      "wups",
 			Username: s,

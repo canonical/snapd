@@ -21,34 +21,27 @@ package servicestate
 
 import (
 	"fmt"
-	"os/user"
 	"sort"
-	"strconv"
 
 	"github.com/snapcore/snapd/client/clientutil"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/wrappers"
 )
 
-var userLookup = user.Lookup
-
 // usernamesToUids converts a list of usernames, to a list of uids by
 // looking up the usernames.
-func usernamesToUids(usernames []string) ([]int, error) {
-	uids := make([]int, 0, len(usernames))
-	for _, username := range usernames {
-		usr, err := userLookup(username)
-		if err != nil {
-			return nil, err
-		}
-		uid, err := strconv.Atoi(usr.Uid)
-		if err != nil {
-			return nil, err
-		}
-		uids = append(uids, uid)
+func usersToUids(usernames []string) ([]int, error) {
+	uids, err := osutil.UsernamesToUids(usernames)
+	if err != nil {
+		return nil, err
 	}
-	return uids, nil
+	var keys []int
+	for uid := range uids {
+		keys = append(keys, uid)
+	}
+	return keys, nil
 }
 
 // affectedUids is used to determine the currently active user-sessions.
@@ -63,7 +56,7 @@ func affectedUids(users []string) (map[int]bool, error) {
 	if len(users) == 0 {
 		uids, err = clientutil.AvailableUserSessions()
 	} else {
-		uids, err = usernamesToUids(users)
+		uids, err = usersToUids(users)
 	}
 	if err != nil {
 		return nil, err

@@ -23,10 +23,8 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -91,24 +89,6 @@ type userServiceClient struct {
 	inter Interacter
 }
 
-var userLookup = user.Lookup
-
-func usersToUids(users []string) (map[int]string, error) {
-	uids := make(map[int]string)
-	for _, username := range users {
-		usr, err := userLookup(username)
-		if err != nil {
-			return nil, err
-		}
-		uid, err := strconv.Atoi(usr.Uid)
-		if err != nil {
-			return nil, err
-		}
-		uids[uid] = username
-	}
-	return uids, nil
-}
-
 func newUserServiceClientUids(uids []int, inter Interacter) (*userServiceClient, error) {
 	return &userServiceClient{
 		cli:   client.NewForUids(uids...),
@@ -117,7 +97,7 @@ func newUserServiceClientUids(uids []int, inter Interacter) (*userServiceClient,
 }
 
 func newUserServiceClientNames(users []string, inter Interacter) (*userServiceClient, error) {
-	uids, err := usersToUids(users)
+	uids, err := osutil.UsernamesToUids(users)
 	if err != nil {
 		return nil, err
 	}
@@ -287,19 +267,22 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 			}
 		}
 
-		// always disable, as we do this pre-start
-		if len(systemServices) != 0 && opts.Enable {
-			if e := systemSysd.DisableNoReload(systemServices); e != nil {
-				inter.Notify(fmt.Sprintf("While trying to disable previously enabled services %q: %v", systemServices, e))
+		// always disable if enable was requested, as we do this pre-start
+		if opts.Enable {
+			if len(systemServices) != 0 {
+				if e := systemSysd.DisableNoReload(systemServices); e != nil {
+					inter.Notify(fmt.Sprintf("While trying to disable previously enabled services %q: %v", systemServices, e))
+				}
+				if e := systemSysd.DaemonReload(); e != nil {
+					inter.Notify(fmt.Sprintf("While trying to do daemon-reload: %v", e))
+				}
 			}
-			if e := systemSysd.DaemonReload(); e != nil {
-				inter.Notify(fmt.Sprintf("While trying to do daemon-reload: %v", e))
-			}
-		}
 
-		if len(userServices) > 0 {
-			if e := userGlobalSysd.DisableNoReload(userServices); e != nil {
-				inter.Notify(fmt.Sprintf("While trying to disable previously enabled user services %q: %v", userServices, e))
+			// Do a global disable for user services if the scope was all users
+			if len(userServices) > 0 && len(opts.Users) == 0 {
+				if e := userGlobalSysd.DisableNoReload(userServices); e != nil {
+					inter.Notify(fmt.Sprintf("While trying to disable previously enabled user services %q: %v", userServices, e))
+				}
 			}
 		}
 	}()
@@ -315,7 +298,9 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 				}
 				undoStart = true
 			}
-			if len(userServices) > 0 {
+
+			// Do a global enable for user services if the scope was all users
+			if len(userServices) != 0 && len(opts.Users) == 0 {
 				if err = userGlobalSysd.EnableNoReload(userServices); err == nil {
 					// make sure we atleast disable them again if we successfully enabled
 					// them
@@ -962,7 +947,6 @@ type StopServicesOptions struct {
 // StopServices stops and optionally disables service units for the applications
 // from the snap which are services.
 func StopServices(apps []*snap.AppInfo, opts *StopServicesOptions, reason snap.ServiceStopReason, inter Interacter, tm timings.Measurer) error {
-	sysd := systemd.New(systemd.SystemMode, inter)
 	if opts == nil {
 		opts = &StopServicesOptions{}
 	}
@@ -973,6 +957,8 @@ func StopServices(apps []*snap.AppInfo, opts *StopServicesOptions, reason snap.S
 		logger.Debugf("StopServices called for %q", apps)
 	}
 
+	sysd := systemd.New(systemd.SystemMode, inter)
+	userGlobalSysd := systemd.New(systemd.GlobalUserMode, inter)
 	cli, err := newUserServiceClientNames(opts.Users, inter)
 	if err != nil {
 		return err
@@ -1029,12 +1015,21 @@ func StopServices(apps []*snap.AppInfo, opts *StopServicesOptions, reason snap.S
 		return err
 	}
 
-	if opts.Disable && len(systemServices) != 0 {
-		if err := sysd.DisableNoReload(systemServices); err != nil {
-			return err
+	if opts.Disable {
+		if len(systemServices) > 0 {
+			if err := sysd.DisableNoReload(systemServices); err != nil {
+				return err
+			}
+			if err := sysd.DaemonReload(); err != nil {
+				return err
+			}
 		}
-		if err := sysd.DaemonReload(); err != nil {
-			return err
+
+		// Do a global disable for user services if the scope was all users
+		if len(userServices) > 0 && len(opts.Users) == 0 {
+			if e := userGlobalSysd.DisableNoReload(userServices); e != nil {
+				inter.Notify(fmt.Sprintf("While trying to disable previously enabled user services %q: %v", userServices, e))
+			}
 		}
 	}
 	return nil
@@ -1278,7 +1273,7 @@ func RestartServices(apps []*snap.AppInfo, explicitServices []string,
 	// Handle restart of the user services if scope was set
 	if opts.Scope != ServiceScopeSystem {
 		// Get a list of the uids that we are affecting
-		uids, err := usersToUids(opts.Users)
+		uids, err := osutil.UsernamesToUids(opts.Users)
 		if err != nil {
 			return err
 		}

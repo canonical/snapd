@@ -404,3 +404,29 @@ func UidGid(u *user.User) (sys.UserID, sys.GroupID, error) {
 
 	return sys.UserID(uid), sys.GroupID(gid), nil
 }
+
+// Allow other test suites to mock this functionality
+func MockUserLookup(mock func(name string) (*user.User, error)) func() {
+	MustBeTestBinary("MockUserLookup cannot be called outside of tests")
+
+	realUserLookup := userLookup
+	userLookup = mock
+
+	return func() { userLookup = realUserLookup }
+}
+
+func UsernamesToUids(users []string) (map[int]string, error) {
+	uids := make(map[int]string)
+	for _, username := range users {
+		usr, err := userLookup(username)
+		if err != nil {
+			return nil, err
+		}
+		uid, err := strconv.Atoi(usr.Uid)
+		if err != nil {
+			return nil, err
+		}
+		uids[uid] = username
+	}
+	return uids, nil
+}
