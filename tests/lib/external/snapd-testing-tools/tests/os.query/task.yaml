@@ -80,12 +80,6 @@ execute: |
             ! os.query is-core-le 24
             ! os.query is-core-ge 24
             ;;
-        ubuntu-23.10-64)
-            os.query is-classic
-            os.query is-ubuntu 23.10
-            ! os.query is-ubuntu 21.04
-            ! os.query is-core
-            ;;
         ubuntu-24.04-64)
             os.query is-classic
             os.query is-ubuntu 24.04
@@ -110,13 +104,7 @@ execute: |
             os.query is-classic
             ! os.query is-core
             ;;
-        fedora-38-64)
-            os.query is-fedora
-            os.query is-fedora 38
-            ! os.query is-fedora rawhide
-            os.query is-classic
-            ! os.query is-core
-            ;;
+
         fedora-39-64)
             os.query is-fedora
             os.query is-fedora 39
