@@ -1,4 +1,9 @@
-summary: smoke test for the remote.wait-for tool
+summary: smoke test for the remote.refresh tool
+
+details: |
+    Check the remote.refresh tool properly handles refreshes in
+    the remote instance including the refresh for several snaps
+    which trigger reboots
 
 backends: [google-nested]
 
@@ -10,14 +15,11 @@ environment:
     host: localhost
     port: 8022
     unit: nested-vm
-    TARGET/xenial: xenial
-    TARGET/bionic: bionic
+    TARGET: xenial
 
 prepare: |
     if [ "$TARGET" = xenial ]; then
         wget -O pc.img.xz https://storage.googleapis.com/snapd-spread-tests/images/booted/pc-amd64-16-stable-core_beta_2.56.2.img.xz
-    elif [ "$TARGET" = bionic ]; then
-        wget -O pc.img.xz https://storage.googleapis.com/snapd-spread-tests/images/booted/pc-amd64-18-stable-snapd_beta_2.56.2.img.xz
     fi
     unxz pc.img.xz
 
@@ -27,7 +29,7 @@ prepare: |
     remote.setup config --host "$host" --port "$port" --user "$user" --pass "$pass"
 
 restore: |
-    tests.systemd stop-and-remove-unit "$unit"    
+    tests.systemd stop-unit --remove "$unit"
     rm -f pc.img "$(remote.setup get-config-path)"
 
 execute: |

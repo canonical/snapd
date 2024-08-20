@@ -1,9 +1,14 @@
 summary: integration tests for log-analyzer tool
 
+details: |
+    This test checks the log-analyzer properly retrieves the tests-to-reexecute
+    based on the spread log analysis. Also checks it properly retrieves the
+    tests by result status and all the executed tasks.
+
 backends: [google]
 
-# Github actions agents are just running in bionic and focal
-systems: [ubuntu-18.04-64, ubuntu-20.04-64]
+# Github actions agents are just running ubuntu jammy
+systems: [ubuntu-22.04-64]
 
 prepare: |
     wget https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz
@@ -31,7 +36,7 @@ execute: |
     #   ubuntu-20.04 (F:0 P:0 A:5)
     #   ubuntu-22.04 (F:0 P:0 A:5)
     # all-success.json
-    #   When all the tests execute correctly, no aborted and no failed tests are listed
+    #   When all the tests execute correctly, no tests are listed for re-execution
     #   ubuntu-20.04 (F:0 P:5 A:0)
     #   ubuntu-22.04 (F:0 P:5 A:0)
     # all-success-failed-restore.json
@@ -62,6 +67,10 @@ execute: |
     #   Tasks which execute correctly and fail to restore are not counted as failed
     #   ubuntu-20.04 (F:0 P:1 A:4)
     #   ubuntu-22.04 (F:0 P:1 A:4)
+    # with-failed-and-failed-restore-suite.json
+    #   Just failed tasks are counted for re-execution
+    #   ubuntu-20.04 (F:0 P:0 A:0)
+    #   ubuntu-22.04 (F:1 P:1 A:0)
 
     ### CHECK HELP ###    
     log-analyzer | MATCH "usage: log-analyzer list-failed-tasks <EXEC-PARAM> <PARSED-LOG>"
@@ -74,13 +83,15 @@ execute: |
     log-analyzer list-reexecute-tasks google: data/all-aborted.json | MATCH "^google:$"
     log-analyzer list-reexecute-tasks google:ubuntu-20.04-64: data/all-aborted.json | MATCH "^google:ubuntu-20.04-64:$"
 
-    # When all the tests pass and then fail to restore, the execution expression is returned
-    log-analyzer list-reexecute-tasks google: data/all-success-failed-restore.json | MATCH "^google:$"
-    log-analyzer list-reexecute-tasks google:ubuntu-20.04-64: data/all-success-failed-restore.json | MATCH "^google:ubuntu-20.04-64:$"
+    # When all the tests pass and then fail to restore, no tests are listed for re-execution
+    log-analyzer list-reexecute-tasks google: data/all-success-failed-restore.json | NOMATCH "google:"
+    compare_tasks_count "$(log-analyzer list-reexecute-tasks google: data/all-success-failed-restore.json)" 0
+    log-analyzer list-reexecute-tasks google:ubuntu-20.04-64: data/all-success-failed-restore.json | NOMATCH "google:ubuntu-20.04-64:"
 
-    # When all the tests are successful, the execution expression is returned
-    log-analyzer list-reexecute-tasks google: data/all-success.json | MATCH "^google:$"
-    log-analyzer list-reexecute-tasks google:ubuntu-20.04-64: data/all-success.json | MATCH "^google:ubuntu-20.04-64:$"
+    # When all the tests are successful, no tests are listed for re-execution
+    log-analyzer list-reexecute-tasks google: data/all-success.json | NOMATCH "google:"
+    compare_tasks_count "$(log-analyzer list-reexecute-tasks google: data/all-success.json)" 0
+    log-analyzer list-reexecute-tasks google:ubuntu-20.04-64: data/all-success.json | NOMATCH "google:ubuntu-20.04-64:"
 
     # When all the tests are failed, the execution expression is returned
     log-analyzer list-reexecute-tasks google: data/all-failed.json | MATCH "^google:$"
@@ -117,6 +128,10 @@ execute: |
     log-analyzer list-reexecute-tasks google: data/aborted-and-failed-execute-and-restore.json | NOMATCH "google:ubuntu-22.04-64:tests/test-4"
     compare_tasks_count "$(log-analyzer list-reexecute-tasks google: data/aborted-and-failed-execute-and-restore.json)" 5
 
+    # When some tests failed to execute and the suite and project fails to restore, just the failed test is re-executed
+    log-analyzer list-reexecute-tasks google: data/with-failed-and-failed-restore-suite.json | MATCH "google:ubuntu-22.04-64:tests/test-2"
+    compare_tasks_count "$(log-analyzer list-reexecute-tasks google: data/with-failed-and-failed-restore-suite.json)" 1
+    
     ### CHECK ABORTED ###
 
     compare_tasks_count "$(log-analyzer list-aborted-tasks google: data/all-aborted.json)" 10
