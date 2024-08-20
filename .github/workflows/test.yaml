@@ -790,7 +790,7 @@ jobs:
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       run: |
           # Configure parameters to filter logs (these logs are sent read by grafana agent)
-          CHANGE_ID="pr${{ github.event.number }}"
+          CHANGE_ID="${{ github.event.number }}"
           if [ -z "$CHANGE_ID" ]; then
             CHANGE_ID="main"
           fi
@@ -876,7 +876,7 @@ jobs:
           spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done
 
-    - name: report spread errors
+    - name: Report spread errors
       if: always()
       run: |
         if [ -e spread.log ]; then
@@ -893,7 +893,7 @@ jobs:
             echo "No spread log found, skipping errors reporting"
         fi
 
-    - name: analyze spread test results
+    - name: Analyze spread test results
       if: always()
       run: |
           if [ -f spread.log ]; then
@@ -915,7 +915,7 @@ jobs:
               touch "$FAILED_TESTS_FILE"
           fi
 
-    - name: save spread test results to cache
+    - name: Save spread test results to cache
       if: always()
       uses: actions/cache/save@v3
       with:
