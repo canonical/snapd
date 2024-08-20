@@ -364,7 +364,15 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 			// overwrite a newly-set activity timeout with an initial timeout.
 			// With the lock held, no activity can occur, so no activity timeout
 			// can be set.
-			userEntry.expirationTimer.Reset(initialTimeout)
+			if userEntry.expirationTimer.Reset(initialTimeout) {
+				// Timer was active again, suggesting that some activity caused
+				// the timer to be reset at some point between the timer firing
+				// and the lock being released and subsequently acquired by this
+				// function. So reset the timer to activityTimeout, and do not
+				// purge prompts.
+				userEntry.expirationTimer.Reset(activityTimeout)
+				return
+			}
 			pdb.mutex.Unlock()
 			// Unlock now so we can record notices without holding the prompt DB lock
 			data := map[string]string{"resolved": "expired"}
