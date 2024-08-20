@@ -33,13 +33,13 @@ execute: |
     local expected=$2
 
     for _ in $(seq "${runs}"); do
-        threadCount="$(snap quota group-one | awk '/current:/,/threads:/{printf "%s",$2} END {print ""}')"
+        threadCount="$(snap quota group-one | awk '/current:/,/threads:/{if ($1 ~ "threads:") { print $2 }}')"
         if [ "$threadCount" -eq "$expected" ]; then
             break
         fi
         sleep 1
     done
-    echo threadCount
+    echo $threadCount
   }
 
   echo "Create a group with the spawner snap in it"
