@@ -21,7 +21,6 @@
 package devicestate_test
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -397,7 +396,8 @@ var mockFilledPartialDiskVolume = gadget.OnDiskVolume{
 
 type fakeSeedCopier struct {
 	fakeSeed
-	copyFn func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error
+	optionalContainers seed.OptionalContainers
+	copyFn             func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error
 }
 
 func (s *fakeSeedCopier) Copy(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
@@ -405,7 +405,7 @@ func (s *fakeSeedCopier) Copy(seedDir string, opts seed.CopyOptions, tm timings.
 }
 
 func (s *fakeSeedCopier) OptionalContainers() (seed.OptionalContainers, error) {
-	return seed.OptionalContainers{}, errors.New("not implemented")
+	return s.optionalContainers, nil
 }
 
 // TODO encryption case for the finish step is not tested yet, it needs more mocking
