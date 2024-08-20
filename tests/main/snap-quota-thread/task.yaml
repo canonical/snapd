@@ -39,7 +39,7 @@ execute: |
         fi
         sleep 1
     done
-    echo $threadCount
+    echo "$threadCount"
   }
 
   echo "Create a group with the spawner snap in it"
