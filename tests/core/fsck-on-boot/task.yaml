@@ -45,7 +45,7 @@ execute: |
         umount /run/mnt/snapd
       fi
       retry -n 20 --wait 2 sh -c 'umount /var/lib/snapd/seed'
-      umount /run/mnt/ubuntu-seed
+      retry -n 5 --wait 2 sh -c 'umount /run/mnt/ubuntu-seed'
 
       # Refer to the core 20 gadgets for details:
       # https://github.com/snapcore/pc-amd64-gadget/blob/20/gadget.yaml
@@ -103,7 +103,7 @@ execute: |
       dmesg -c > dmesg-on-boot.log
       NOMATCH "Volume was not properly unmounted. Some data may be corrupt. Please run fsck." < dmesg-on-boot.log
 
-      # Unmount vfat again and read the dirty flag manually. The kernel doesn't
+      # Unmount vfat again and read the dirty flag manually. The kernel does not
       # clean the dirty flag on unmount, if it was present on mount. This method is
       # less sensitive to kernel log messages being preserved in the early boot
       # chain.
