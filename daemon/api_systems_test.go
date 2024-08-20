@@ -864,6 +864,10 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 				Model: s.seedModelForLabel20191119,
 				Label: "20191119",
 				Brand: s.Brands.Account("my-brand"),
+				OptionalContainers: devicestate.OptionalContainers{
+					Snaps:      []string{"snap1", "snap2"},
+					Components: map[string][]string{"snap1": {"comp1"}, "snap2": {"comp2"}},
+				},
 			}
 			return sys, mockGadgetInfo, mockEncryptionSupportInfo, nil
 		})
@@ -890,6 +894,13 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 				UnavailableReason: tc.expectedUnavailableReason,
 			},
 			Volumes: mockGadgetInfo.Volumes,
+			AvailableOptional: client.AvailableForInstall{
+				Snaps: []string{"snap1", "snap2"},
+				Components: map[string][]string{
+					"snap1": {"comp1"},
+					"snap2": {"comp2"},
+				},
+			},
 		}, check.Commentf("%v", tc))
 	}
 }

@@ -171,7 +171,11 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 			Validation:  sys.Brand.Validation(),
 		},
 		// no body: we expect models to have empty bodies
-		Model:             sys.Model.Headers(),
+		Model: sys.Model.Headers(),
+		AvailableOptional: client.AvailableForInstall{
+			Snaps:      sys.OptionalContainers.Snaps,
+			Components: sys.OptionalContainers.Components,
+		},
 		Volumes:           gadgetInfo.Volumes,
 		StorageEncryption: storageEncryption(encryptionInfo),
 	}
