@@ -27,6 +27,21 @@ execute: |
   # count of threads expected is 33 including the main thread.
   SPAWNER_MAX_THREADS=33
 
+  function wait_for_thread_usage() {
+    local threadCount=0
+    local runs=$1
+    local expected=$2
+
+    for _ in $(seq ${runs}); do
+        threadCount="$(snap quota group-one | awk '/current:/,/threads:/{printf "%s",$2} END {print ""}')"
+        if [ "$threadCount" -eq "$expected" ]; then
+            break
+        fi
+        sleep 1
+    done
+    echo threadCount
+  }
+
   echo "Create a group with the spawner snap in it"
   snap set-quota group-one --threads=16 test-snapd-stressd
 
@@ -75,34 +90,25 @@ execute: |
 
   # verify that 'snap quota' is reporting the correct new usage
   echo "Verify the number of threads is correct (=16)"
-  threadUsage=0
-  for _ in $(seq 10); do
-      threadUsage="$(snap quota group-one | awk '/current:/,/threads:/{printf "%s",$2} END {print ""}')"
-      if [ "$threadUsage" -ge 16 ]; then
-          break
-      fi
-      sleep 1
-  done
+  threadUsage=$(wait_for_thread_usage 10 16)
   if ! [ "$threadUsage" -eq 16 ]; then
-    echo "thread usage reported does not equal the expected quota usage $threadUsage"
+    echo "thread usage reported does not equal the expected quota usage $threadUsage != 16"
     exit 1
   fi
 
-  echo "Increase the thread quota to 24"
+  echo "Increase the thread quota to 24 and restart the service"
   snap set-quota group-one --threads=24
+
+  # sometimes the cgroup change takes a while to kick in, avoid 
+  # waiting for the cgroup change to kick in and allow spawn
+  # to spawn additional threads
+  snap restart test-snapd-stressd.spawner
 
   # verify that 'snap quota' is reporting the correct new usage
   echo "Verify the number of threads is correct (=24)"
-  threadUsage=0
-  for _ in $(seq 10); do
-      threadUsage="$(snap quota group-one | awk '/current:/,/threads:/{printf "%s",$2} END {print ""}')"
-      if [ "$threadUsage" -ge 24 ]; then
-          break
-      fi
-      sleep 1
-  done
+  threadUsage=$(wait_for_thread_usage 10 24)
   if ! [ "$threadUsage" -eq 24 ]; then
-    echo "thread usage reported does not equal the expected quota usage $threadUsage"
+    echo "thread usage reported does not equal the expected quota usage $threadUsage != 24"
     exit 1
   fi
 
