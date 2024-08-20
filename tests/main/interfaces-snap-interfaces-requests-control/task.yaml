@@ -40,8 +40,8 @@ execute: |
 
     echo "Ensure AppArmor Prompting experimental feature can be enabled where possible"
     # prompting is disabled everywhere but the Ubuntu systems
-    # TODO on Ubuntu releases < 24.04 we need the snapd snap for testing
-    if ! os.query is-ubuntu || os.query is-ubuntu-lt 24.04 || os.query is-core ; then
+    # on Ubuntu releases < 22.04 the kernel does not support prompting
+    if ! os.query is-ubuntu || os.query is-ubuntu-lt 22.04 || os.query is-core ; then
         not snap set system experimental.apparmor-prompting=true >& err.out
         if os.query is-core; then
             # there is a more specific error on Ubuntu Core
