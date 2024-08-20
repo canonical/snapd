@@ -1,5 +1,9 @@
 summary: Ensure upgrades from snapd 2.15 work
 
+details: |
+    Verifies that when we upgrade snap from snapd 2.15 to the latest version,
+    snapd and the installed snaps still work.
+
 systems: [ubuntu-16.04-64]
 
 prepare: |
