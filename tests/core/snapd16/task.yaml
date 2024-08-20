@@ -1,5 +1,8 @@
 summary: Test snapd install on a UC16 system
 
+details: |
+  Test that snapd snap is installed by default on ubuntu-core 18 and onwards.
+
 # snapd snap is already installed by default on uc18+
 systems: [ubuntu-core-16-*]
 
