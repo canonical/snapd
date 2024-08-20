@@ -1,5 +1,9 @@
 summary: Check that root can control user instances of systemd via the session agent
 
+details: |
+    Check that the snapd session agent can start, stop and reload user-mode
+    services.
+
 systems:
     # Ubuntu 14.04 does not have a complete systemd implementation
     - -ubuntu-14.04-*

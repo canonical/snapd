@@ -1,5 +1,8 @@
 summary: Test that devmode snaps can be installed during seeding.
 
+details: |
+    Validates that a devmode snap is properly installed during seeding
+
 # testing with core16 (no snapd snap) and core18 (with snapd snap) is enough
 systems: [ubuntu-16.04-64, ubuntu-18.04-64]
 

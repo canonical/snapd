@@ -1,5 +1,15 @@
 summary: Check that snaps can use service-watchdog provided by systemd
 
+details: |
+    A snap service may define a watchdog timeout along with connecting
+    to the daemon-notify slot. In this case the service must regularly
+    notify systemd that it is still alive. If not, the service is
+    considered failed.
+
+    This test verifies that a service with watchdog that correctly
+    notifies systemd remains running. And it also verifies a service that
+    does not notify systemd is forcefully stopped.
+
 # skip autopkgtest as this test is timing dependent and ADT is often
 # very slow
 backends: [-autopkgtest]

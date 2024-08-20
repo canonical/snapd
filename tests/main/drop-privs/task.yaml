@@ -1,5 +1,10 @@
 summary: Test that we can run go-code as effectively another user. 
 
+details: |
+  Check that a Go program can use RunAsUidGid to setuid/gid after locking the
+  OS thread (so no other code can run), run some code and then restore the
+  uid/gid. This is important so we can write auth.json as non-root.
+
 # exclude core as there is no go
 systems: [-ubuntu-core-*]
 

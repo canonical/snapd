@@ -1,5 +1,24 @@
 summary: Ensure `snap validate` commands work with local assertions.
 
+details: |
+  A validation set is an assertion that lists specific snaps that are either
+  required to be installed together or are permitted to be installed together
+  on a device or system.
+
+  The validate command lists or applies validation sets that state which snaps
+  are required or permitted to be installed together, optionally constrained to
+  fixed revisions.
+
+  This test uses a local assertion to acknowledge a validation set and verifies
+  the following points:
+  . `snap validate` command required arguments are required
+  . monitor mode is supported with a pinned sequence and local validation-set
+  . a validation set is valid or invalid depending on presence of the snap
+  . the presence of an optional snap (validation set remains valid)
+  . a validation set can be forgotten
+  . monitor mode is supported with a local validation-set (non-pinned)
+  . monitor mode report valid status when enabled
+
 # This test uses a local validation set assertion (vs1.json) signed upfront
 # with my (stolowski) private store key (account-id: xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f,
 # public-key-sha3: o_x83A3wpIvJznIHBJIK7jRmRZKLlqx5jOr30HUsloFfBseXNF0ztoj18EvNualy);

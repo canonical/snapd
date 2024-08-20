@@ -1,5 +1,8 @@
 summary: integration tests for str-tool
 
+details: |
+    Check the to-one-line tool retrieves a multi line text into one line
+
 execute: |
     # Check help
     "$TESTSTOOLS"/to-one-line | MATCH "usage: to-one-line \[string\]"

@@ -1,5 +1,10 @@
 summary: Check that the setting proxy.store config works
 
+details: |
+    Check that through the proxy.store config it is possible to
+    point snapd to a different store. Also verify that it is allowed
+    to point to the main store.
+
 # ubuntu-14.04: systemd-run not supported
 systems: [-ubuntu-core-*, -ubuntu-14.04*]
 

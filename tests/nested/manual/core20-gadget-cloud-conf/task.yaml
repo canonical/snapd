@@ -1,5 +1,10 @@
 summary: Test that UC2* can boot with gadget provided cloud.conf for all grades
 
+details: |
+  Check that it is possible to create a user through the gadget provided cloud.conf.
+  Verify that initial cloud-init user was created and we can run things as the normal
+  user
+
 # TODO: enable similar test for UC18 and UC16 gadgets that use cloud.conf?
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 

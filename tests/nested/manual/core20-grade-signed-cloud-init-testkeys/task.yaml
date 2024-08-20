@@ -1,5 +1,8 @@
 summary: Test that UC2* with testkeys can boot a grade signed model with cloud-init.
 
+details: |
+    Check that Ubuntu Core can boot a grade signed model with cloud-init using testkeys.
+
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:

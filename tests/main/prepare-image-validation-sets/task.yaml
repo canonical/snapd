@@ -1,5 +1,18 @@
 summary: Verify that we are able to use validation sets with the model assertion through prepare-image 
 
+details: |
+    The `snap prepare-image` command performs some of the steps necessary for
+    creating device images.
+
+    This test verifies that in classic and Ubuntu Core systems, the prepare-image
+    command prepares properly an ubuntu-core 20 image using a model with
+    validation sets in enforce mode.
+
+    It is checked that the generated seed.manifest is created in working directory
+    and the expected revisions for the fundamental snaps are retrieved. Also it
+    is verified that snaps in the validation set are retrieved and the revisions
+    are correct.
+
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
 backends: [-autopkgtest]

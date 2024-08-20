@@ -1,5 +1,10 @@
 summary: Ensure security profile re-generation works with system-key
 
+details: |
+    Check that security profile are re-generated when a system-key
+    version mismatch is detected. Also check that `snap run` waits
+    for system-key updates unless when it can talk to snapd.
+
 prepare: |
     echo "Make backup of fstab"
     cp /etc/fstab /tmp/fstab.save

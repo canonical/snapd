@@ -1,5 +1,18 @@
 summary: Ensure that the content interface default provider deals with circular
 
+details: |
+    The content interface allows two or more snaps to access the same location
+    under different names by creating a bind mount visible to the snap
+    application process.
+
+    On top of that, the content interface servers as weak dependency link
+    between snaps, thanks to the default-provider attribute, which instructs
+    snapd to install a default provider of the content if no such provider
+    already exists in the system.
+
+    The test checks a particular edge case where one snap is marked as a default
+    provider of another, and vice-versa.
+
 execute: |
     echo "When a snap declaring a content sharing plug is installed"
     snap install test-snapd-content-circular1

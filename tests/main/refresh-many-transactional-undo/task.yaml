@@ -1,5 +1,10 @@
 summary: Check that undo for transactional snaps refresh works
 
+details: |
+    Check that a refresh can be run transactionally so that all refresh
+    tasksets are undone when a snap fails to refresh instead of only that
+    snap's tasks being undone.
+
 # ubuntu-14.04: systemd-run not supported
 systems: [-ubuntu-core-*, -ubuntu-14.04*]
 

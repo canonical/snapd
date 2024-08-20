@@ -2,6 +2,25 @@ summary: Check that disabled snap services stay disabled across happy refreshes,
   reverts, and disable/enable cycles (there is a separate tests for unhappy
   undos, etc.)
 
+details: |
+  Snapd allows to disable snap services though the `snap stop --disable` command.
+
+  This test is for the "happy" paths for disabled services, where nothing goes
+  wrong. The following list shows she scenarios validated as part of this test:
+
+  1. install snap
+  2. install snap, disable services, refresh snap
+  3. install snap, disable services, disable snap
+  4. install snap, disable services, refresh snap, revert snap
+  5. install snap, disable services, refresh with service renamed
+  6. install snap, disable services, refresh snap with service renamed, disable services, revert snap
+  7. install snap, disable services, refresh with service renamed, revert snap, re-revert snap
+  8. install snap, disable services, refresh snap with service renamed, disable services, revert snap, re-revert snap
+  9. install snap, disable services, refresh snap with service changed to an app
+  10. install snap, disable services, refresh snap with service changed to an app, revert snap
+  11. install snap, disable services, refresh snap with service renamed, disable services, refresh snap with service renamed again
+  12. install snap, disable services, refresh snap with service renamed, disable services, revert snap, re-revert snap
+
 # This test is for the "happy" paths for disabled services, where nothing goes
 # wrong and is undone, but there are still a lot of cases here for that. This
 # test covers the following cases:

@@ -1,7 +1,9 @@
 summary: Check that a broken kernel snap automatically rolls itself back
 
 details: |
-    Check that a broken kernel snap automatically rolls itself back
+  Check the trigger for a broken kernel installation (there are 7 different
+  kernel corruptions) adds an install change error and that the initial kernel revision
+  remains installed and we don't have leftover bootenv.
 
 # TODO:UC20: write equivalent test for base snap failover
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]

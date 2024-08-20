@@ -1,5 +1,10 @@
 summary: Check install, configure, remove and pre-refresh/post-refresh hooks.
 
+details: |
+    Check that the various snap hooks are called at the right times (e.g.,
+    refresh hooks are only called on refresh, the install hook is only called
+    on initial install, etc).
+
 # slow in autopkgtest (>1m)
 backends: [-autopkgtest]
 

@@ -1,5 +1,14 @@
 summary: Ensure snap userd allows opening a URL via xdg-open
 
+details: |
+    Snapd contains a system where XDG utility programs, that applications may
+    commonly call, are replaced with programs that communicate the request back
+    to snapd user session daemon, to present a question to the user.
+
+    The test exercises the xdg-open' program ability to open a class of URLs and
+    ensures that in absence of the portal system, the older snapcraft-specific
+    helper is invoked.
+
 # Not supposed to work on Ubuntu Core systems as we don't have
 # a user session environment there
 systems:

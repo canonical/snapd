@@ -1,4 +1,5 @@
 summary: create and remove a recovery system using the offline API
+
 details: |
   This test creates a recovery system using the offline version of the recovery
   system creation API.

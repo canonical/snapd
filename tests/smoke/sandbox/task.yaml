@@ -1,5 +1,13 @@
 summary: Sandboxing of the snaps works
 
+details: |
+    Snapd pioneered an universal confinement/sandbox for all installed
+    applications. This test captures two oldest features of the confinement
+    system: that on apparmor-capable systems the $HOME directory is protected
+    for both root and non-root users, and that the seccomp (system call filter)
+    works for both the main architecture, and for the 32-bit sub-architecture if
+    the CPU supports one.
+
 restore: |
     rm -f /home/test/foo
     # requied! in autopkgtest no suite restore is run at all

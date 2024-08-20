@@ -1,5 +1,9 @@
 summary: Check that fde-setup with feature "inline-cryto-engine" works
 
+details: |
+  Check that Ubuntu Core image boots properly and the system is encrypted
+  when using fde-setup with feature "inline-cryto-engine"
+
 systems: [ubuntu-22.04-64]
 
 environment:

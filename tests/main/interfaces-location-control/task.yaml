@@ -1,12 +1,15 @@
 summary: Ensure that the location-control interface works.
 
 details: |
-    The location-control interface allows a snap to operate as the location service.
+    The location-control interface allows a snap to operate as the location
+    service.
 
-    A snap which defines the location-control plug must be shown in the interfaces list.
-    The plug must not be autoconnected on install and, as usual, must be able to be
-    reconnected.
-    The snap is also declaring a plug on this interface must be able to ask for its properties.
+    A snap which defines the location-control plug must be shown in the
+    interfaces list. The plug must not be auto-connected on install and, as
+    usual, must be able to be reconnected.
+
+    The snap is also declaring a plug on this interface must be able to ask for
+    its properties.
 
 # s390x does not support locationd
 systems:

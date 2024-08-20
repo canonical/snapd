@@ -1,5 +1,21 @@
 summary: regression test for https://bugs.launchpad.net/snapd/+bug/1803535
 
+details: |
+    Snapd attempts to satisfy layout declarations by poking writable holes over
+    read-only substrate, such as squashfs snap file systems, by using the
+    so-called writable mimic, which is a in-memory temporary file system mounted
+    over the same location, with place-holder files and directories that are
+    used as bind-mount targets that re-create the original location. This
+    writable mimic then allows snap-update-ns to create additional files or
+    directories at will.
+
+    Historically snap-update-ns would not clean one of the paths that was used
+    during this transformation, leading to a difference over the trailing slash,
+    which caused issue due to a needless re-construction of the writable mimic.
+
+    This test captures the conditions of the problem, ensuring that we don't
+    re-introduce it by accident.
+
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-lp-1803535
 

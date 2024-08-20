@@ -1,5 +1,10 @@
 summary: |
-  Check that `snapctl stop --disable` actually stops services on post-refresh
+    Check that `snapctl stop --disable` actually stops services on post-refresh
+
+details: |
+    Install a snap with both simple and forking services running and a refresh
+    hook which includes `snapctl stop --disable`, then check that the refresh
+    hook successfully stops those services when the snap is refreshed.
 
 execute: |
     echo "Installing snap first time starts services"

@@ -1,5 +1,10 @@
 summary: Ensure that the dbus interface works on the system bus.
 
+details: |
+   Check that the dbus interface can be used to access the system
+   bus for specific methods and that they cannot be accessed if the
+   interface is disconnected.
+
 prepare: |
     echo "Install dbus system test snaps"
     snap install --edge test-snapd-dbus-provider

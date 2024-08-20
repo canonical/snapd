@@ -1,5 +1,13 @@
 summary: Checks for snap exit codes
 
+details: |
+    Snap command return different exit codes on error.
+
+    This test verifies the exit codes in the following scenarios:
+    1. snap command with unknown command return exit code 64
+    2. snap command with unknown flag return exit code 64
+    3. snap command with broken mksquashfs returns exit code 20
+
 systems: [ubuntu-1*, ubuntu-2*]
 
 execute: |

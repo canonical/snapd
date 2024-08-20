@@ -1,7 +1,9 @@
 summary: Ensure snapd builds as a snap
 
 details: |
-    Ensure snapd builds as a snap
+  This test verifies that snapd can be built with snapcraft with lxd
+  backend as well as host backend on matching version of the
+  build-base (currently 22.04)
 
 # TODO: we don't need to build the snapd snap in this test on as many systems
 # when we have a way to dynamically download the snapd snap that was built for a

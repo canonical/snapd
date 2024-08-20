@@ -1,4 +1,5 @@
 summary: create a recovery system and reboot into it
+
 details: |
   This test creates a recovery system and validates that the newly created
   system can be rebooted into.

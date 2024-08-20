@@ -1,5 +1,14 @@
 summary: regression test for https://bugs.launchpad.net/snappy/+bug/1812973
 
+details: |
+    Snapd has built-in deny-list that prevents any application from using a
+    specific ioctl from injecting keystrokes into the tty, which could be used
+    by a confined snap to tell the terminal to execute arbitrary commands.
+
+    The test snap attempts to execute that ioctl, and observe that it is
+    blocked. The test has two variants, for low and high bits present in the
+    ioctl, to ensure that the deny list is accurate.
+
 # Skip core as we don't have a compiler there.
 # Skip -32 bit arches as the blacklist is not useful there.
 systems: [-ubuntu-core-*, -*-32]

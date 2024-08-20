@@ -1,5 +1,13 @@
 summary: Checks for local install with metadata from assertions
 
+details: |
+    Snapd couples each snap package with an assertion document that provides
+    trusted properties, such as revision number. A typical installation request
+    downloads both files from the store, but the files may be equally well
+    downloaded and installed separately. The resulting installation is
+    indistinguishable from an online installation. Crucially, the user is no
+    longer required to use the "--dangerous" flag.
+
 # XXX we would need to bother with curl there atm
 systems: [-ubuntu-core-*]
 

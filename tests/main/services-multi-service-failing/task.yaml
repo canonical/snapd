@@ -1,6 +1,15 @@
 summary: |
   Check that `snap install` doesn't leave a service running when the install fails.
 
+details: |
+  When installation fails for a snap which starts services, those services
+  should not be left running.
+
+  This attempts to install a snap with two services, one of which should run
+  without trouble and the other of which is a notify service which returns
+  false, and thus causes the installation to fail. The test then verifies that
+  the trouble-free service is not left running after the install fails.
+
 execute: |
   echo "when a snap install fails"
   not "$TESTSTOOLS"/snaps-state install-local test-snapd-multi-service

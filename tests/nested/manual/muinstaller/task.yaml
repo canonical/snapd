@@ -1,5 +1,9 @@
 summary: Check that the /system/<label> API works via fake installer
 
+details: |
+  Check that the fake installed works properly using the /system/<label> API
+  Verify the instance created is a classic ubuntu with the kernel snap installed
+
 # this is a UC20+ specific test
 # TODO this currently fails on ubuntu-20.04-64 timing out
 systems: [ubuntu-22.04-64]

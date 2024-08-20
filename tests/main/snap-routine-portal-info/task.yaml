@@ -1,5 +1,21 @@
 summary: The portal-info command provides information about a confined process
 
+details: |
+    The "snap routine portal-info" command is intended to be a helper for
+    xdg-desktop-portal. When xdg-desktop-portal needs to know some of the
+    information about a process, possibly a flatpak or a snap, it performs some
+    set of checks and may choose to call the "snap routine portal-info" with the
+    ID of the process being investigated.
+
+    This allows XDG portals to support unconfined and confined apps, and equally
+    support confinement systems other than flatpak alone, without having to
+    maintain complex knowledge about how snapd sandbox works on a given day.
+
+    The test runs a snap command which has a matching desktop entry, records the
+    PID number and uses the "portal-info" routine to show that snapd correctly
+    accounts the PID to the snap and displays specific meta-data in ini format
+    expected by the XDG portal logic.
+
 systems:
     - -ubuntu-14.04-*
     - -amazon-linux-*

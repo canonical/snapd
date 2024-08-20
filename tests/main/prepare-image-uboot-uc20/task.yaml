@@ -1,5 +1,15 @@
 summary: Check that prepare-image works for uc20 uboot systems
 
+details: |
+    The `snap prepare-image` command performs some of the steps necessary for
+    creating device images.
+
+    This test verifies that in classic and Ubuntu Core systems, the prepare-image
+    command prepares properly an ubuntu-core 20 image with uboot as boot loader.
+    It  is checked that the boot.sel file contains the proper snapd recovery system,
+    the kernel is available unpacked, and core base, gadget and snapd snaps are in
+    the ubuntu-seed partition.
+
 # running this on one machine is enough
 systems: [ubuntu-18.04-64]
 

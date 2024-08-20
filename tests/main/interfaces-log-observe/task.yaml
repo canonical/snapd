@@ -4,9 +4,9 @@ details: |
     The log-observe interface allows a snap to read system logs and set kernel
     log rate-limiting.
 
-    A snap which defines the log-observe plug must be shown in the interfaces list.
-    The plug must not be autoconnected on install and, as usual, must be able to be
-    reconnected.
+    A snap which defines the log-observe plug must be shown in the interfaces
+    list. The plug must not be auto-connected on install and, as usual, must be
+    able to be reconnected.
 
 environment:
     SNAP_NAME: log-observe-consumer

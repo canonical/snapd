@@ -1,5 +1,15 @@
 summary: Ensure that ECONNRESET is handled
 
+details: |
+    ECONNRESET occurs when the server side closes the TCP connection and your request to the
+    server is not fulfilled. The server responds with the message that the connection,
+    you are referring to a invalid connection.
+
+    This tests checks the snap download retrying mechanism. It uses iptables
+    to insert a OUTPUT chain rule that drops outgoing TCP packets and triggers
+    retries. It also checks that a '.partial' file is created for the snap
+    being downloaded.
+
 # no iptables on core18+
 systems: [-ubuntu-core-18-*, -ubuntu-core-2*]
 

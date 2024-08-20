@@ -1,5 +1,12 @@
 summary: Check that `snapctl` can be run from the snap
 
+details: |
+    This test verifies that `snapctl` can be run from snap applications. When
+    running `snapctl` from an app, the caller must provide a cookie to
+    authenticate the request. This test also verifies that the cookie file is
+    created with the correct permissions, and follows the expected lifecycle
+    when installing, refreshing, and removing snaps.
+
 environment:
     SNAP/nobase: snapctl-from-snap
     SNAP/wcore18: snapctl-from-snap-core18

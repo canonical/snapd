@@ -1,4 +1,8 @@
-summary: Check that core refresh will create the userd dbus serivce file
+summary: Check that core refresh will create the userd dbus service file
+
+details: |
+    Check that snapd will create the userd dbus service file if
+    it is missing when the core snap is refreshed.
 
 # only run on systems that re-exec
 systems: [ubuntu-1*, ubuntu-2*, debian-*]

@@ -1,5 +1,19 @@
 summary: Create ubuntu classic image, install snapd and test hotplug feature
 
+details: |
+    Snapd contains a little-used subsystem for reacting to dynamic device
+    reconfiguration events, and in response, maintains a set of system-provided
+    slots for certain snapd interfaces.
+
+    One of the first interfaces to support this feature was the serial-port
+    interface. Using this, snapd was able to detect serial ports that were not declared
+    statically in the gadget snap, but instead were enumerated on startup or
+    discovered dynamically when attached to the system over the USB bus.
+
+    Simulating and testing this sort of interaction requires a nested virtual machine, where
+    qemu can be scripted to dynamically attach devices to the running virtual
+    machine.
+
 prepare: |
     echo "Install snapd.deb in the nested vm"
     remote.push "${GOHOME}"/snapd_*.deb

@@ -1,5 +1,9 @@
 summary: Check that the fde-setup hooks work
 
+details: |
+  Check that Ubuntu Core image boots properly and the system is encrypted
+  when using the fde-setup hook
+
 # this is a UC20 specific test
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 

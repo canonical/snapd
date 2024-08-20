@@ -1,5 +1,11 @@
 summary: Check the basic static snapshot data exclusion functionality
 
+details: |
+    Check that snaps can declare (at build time) files and directories in their
+    data directories to be excluded from snapshots, optionally using * and
+    */* patterns. Check that snapshots with statically excluded data can be
+    exported and restored.
+
 environment:
     # tar invoked when creating snapshots triggers OOM
     SNAPD_NO_MEMORY_LIMIT: 1

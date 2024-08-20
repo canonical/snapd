@@ -1,4 +1,8 @@
-summary: Checks for parallel installation of sideloaded snaps containing services
+summary: Check parallel installation of sideloaded snaps containing services
+
+details: |
+    Check that snaps with services can have parallel installations and that
+    removing one instance does not affect the others.
 
 # takes >3min to run
 backends: [-autopkgtest]

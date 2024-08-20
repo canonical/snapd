@@ -1,5 +1,10 @@
 summary: Test that snap-confine errors in the right way
 
+details: |
+    Check that snap-confine and snap-update-ns are compatible with a filesystem
+    based on a tmpfs, as part of the work to support homedirs in arbitrary
+    locations.
+
 # Skip 32-bit architectures because the core20 snap is not available there
 systems: [-*-32]
 
