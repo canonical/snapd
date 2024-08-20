@@ -1,3 +1,13 @@
+snapd (2.63.1) xenial; urgency=medium
+
+  * New upstream release, LP: #2061179
+    - Improve snap-confine compatibility with nvidia drivers
+    - steam-support interface: remove all AppArmor and seccomp
+      restrictions to improve user experience
+    - opengl interface: improve compatibility with nvidia drivers
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Wed, 21 Aug 2024 00:39:59 +0200
+
 snapd (2.63) xenial; urgency=medium
 
   * New upstream release, LP: #2061179

@@ -104,7 +104,7 @@
 %endif
 
 Name:           snapd
-Version:        2.63
+Version:        2.63.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -1004,6 +1004,13 @@ fi
 
 
 %changelog
+* Wed Aug 21 2024 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.63.1
+ - Improve snap-confine compatibility with nvidia drivers
+ - steam-support interface: remove all AppArmor and seccomp
+   restrictions to improve user experience
+ - opengl interface: improve compatibility with nvidia drivers
+
 * Wed Apr 24 2024 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.63
  - Support for snap services to show the current status of user
