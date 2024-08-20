@@ -32,7 +32,7 @@ execute: |
     local runs=$1
     local expected=$2
 
-    for _ in $(seq ${runs}); do
+    for _ in $(seq "${runs}"); do
         threadCount="$(snap quota group-one | awk '/current:/,/threads:/{printf "%s",$2} END {print ""}')"
         if [ "$threadCount" -eq "$expected" ]; then
             break
