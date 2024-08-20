@@ -1,5 +1,9 @@
 summary: Disable and enable back core services via snap set with reboot.
 
+details: |
+  Verifies it is possible to disable and re-enable systemd-resolved service
+  via `snap set` with reboot.
+
 systems: [ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
 
 execute: |

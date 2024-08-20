@@ -1,5 +1,10 @@
 summary: Ensure that the security rules for private tmp are in place.
 
+details: |
+    This test verifies that when a snap creates a temporary file in /tmp,
+    then that file is accessible from other calls of commands from the same
+    snap and that file is not accessible by other snaps.
+
 # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
 # ubuntu-14.04: the test sets up a user session, which requires more recent systemd
 systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -ubuntu-14.04-*]

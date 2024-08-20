@@ -1,5 +1,12 @@
 summary: Check that cross-revision snapshot functionality is ok
 
+details: |
+    This test checks that the snapshot functionality works as expected when the
+    snap is refreshed to a different revision. The test creates a snapshot of the
+    snap's data at a specific revision, then refreshes the snap to a different
+    revision. The test then restores the snapshot and checks that the snap's data
+    is as it was before the refresh.
+
 prepare: |
     # clean up just in case
     for d in {/root,/home/test}/snap/test-snapd-tools/; do

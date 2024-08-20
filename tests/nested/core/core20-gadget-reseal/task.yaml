@@ -1,5 +1,9 @@
 summary: Check that a gadget refresh reseals
 
+details: |
+    Check that when a new gadget without changes is installed, then no reseal is needed. Then
+    verifies that when a gadget with changes is installed, resealing is performed.
+
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 execute: |

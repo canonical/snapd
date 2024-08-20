@@ -1,5 +1,11 @@
 summary: Check that snap apps and services can write to writable areas.
 
+details: |
+    The confinement system allows snap applications to write to four locations:
+    snap data specific to the current revision, snap data common across
+    revisions, snap user data specific to the current revision and lastly snap
+    user data common across revisions.
+
 environment:
     # Ensure that running purely from the deb (without re-exec) works
     # correctly

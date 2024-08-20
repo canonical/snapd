@@ -1,14 +1,16 @@
 summary: Ensure that the network-observe interface works
 
 details: |
-    The network-observe interface allows a snap to query the network status information.
+    The network-observe interface allows a snap to query the network status
+    information, using a dedicated unprivileged interface.
 
-    A snap which defines the network-observe plug must be shown in the interfaces list.
-    The plug must not be autoconnected on install and, as usual, must be able to be
-    reconnected.
+    A snap which defines the network-observe plug must be shown in the
+    interfaces list. The plug must not be auto-connected on install and, as
+    usual, must be able to be reconnected.
 
-    A snap declaring a plug on this interface must be able to access read the network status,
-    the test sets up a network service to establish a known state in the network to be queried.
+    A snap declaring a plug on this interface must be able to access read the
+    network status, the test sets up a network service to establish a known
+    state in the network to be queried.
 
 # ubuntu-14.04: systemd-run not supported
 systems: [-fedora-*, -opensuse-*, -ubuntu-14.04*]

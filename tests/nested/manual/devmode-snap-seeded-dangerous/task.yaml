@@ -1,5 +1,9 @@
 summary: Check that devmode snaps can be seeded with a dangerous uc20 model
 
+details: |
+  Check that devmode snaps are seeded properly when using a dangerous model in
+  Ubuntu Core. Verify that the devmode snap can be executed
+
 # this is a UC20 specific test
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 

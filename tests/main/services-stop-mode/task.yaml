@@ -1,5 +1,9 @@
 summary: "Check that stop-modes works"
 
+details: |
+    Check that a snap service can configure which signal it receives when it's
+    stopped and that it's stopped when it's re-installed or removed.
+
 # takes >1.5min to run
 backends: [-autopkgtest]
 

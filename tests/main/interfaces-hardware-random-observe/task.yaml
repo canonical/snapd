@@ -1,11 +1,12 @@
 summary: Ensure that the hardware-random-observe interface works.
 
 details: |
-    The hardware-observe interface allows a snap to access hardware-random information.
+    The hardware-observe interface allows a snap to access hardware-random
+    information.
 
-    A snap which access to the hardware-random information must be shown in the interfaces list.
-    The plug must not be connected on install and, as usual, must be able to be
-    reconnected.
+    A snap which access to the hardware-random information must be shown in the
+    interfaces list. The plug must not be connected on install and, as usual,
+    must be able to be reconnected.
 
     A snap declaring a plug on this interface must be able to read files in
     /sys/class/misc/hw_random/{rng_available,rng_current} and /dev/hwrng

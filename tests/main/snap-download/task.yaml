@@ -1,5 +1,13 @@
 summary: Check that snap download works
 
+details: |
+    `snap download` is a command to download snaps from the store.
+    This test verifies that snaps are downloaded along with correct
+    assertions. It verifies some command line options such as
+    `--edge`, `--beta`, `--target-directory`, `--basename` and
+    `--cohort`.  It makes sure that normal users (non-root) can also
+    download snaps.
+
 restore: |
     rm -f ~test/*.snap
     rm -f ~test/*.assert

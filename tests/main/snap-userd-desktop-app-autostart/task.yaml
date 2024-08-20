@@ -1,5 +1,10 @@
 summary: Check that snap userd can autostart user session applications
 
+details: |
+    Check that `snap userd --autostart` detects and starts snap user
+    session applications which have the `autostart` property if the specified
+    desktop files exist under $SNAP_USER_DATA/.config/autostart/.
+
 restore: |
     rm -f ~/snap/test-snapd-xdg-autostart/current/foo-autostarted
     rm -f ~/snap/test-snapd-xdg-autostart/current/.config/autostart/foo.desktop

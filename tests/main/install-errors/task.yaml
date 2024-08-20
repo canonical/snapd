@@ -1,4 +1,8 @@
-summary: Checks for cli errors installing snaps
+summary: Check for cli errors installing snaps
+
+details: |
+    Check error messages and exit codes returned by various failing snap
+    commands (e.g., unauthenticated installs, unknown snap names, etc).
 
 systems: [-ubuntu-core-*]
 

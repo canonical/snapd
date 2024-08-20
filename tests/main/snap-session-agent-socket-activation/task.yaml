@@ -1,5 +1,14 @@
 summary: Check that root can activate the session agent via socket activation
 
+details: |
+    This test demonstrates that the session-agent service unit is activated
+    when we issue a query to the /run/user/<UID>/snapd-session-agent.socket
+    socket as root.
+
+    It is also checks that if we manually stop the session-agent, it can be
+    restarted via socket activation and the user running the session agent
+    can also communicate with it.    
+
 systems:
     # Ubuntu 14.04 does not have a complete systemd implementation
     - -ubuntu-14.04-*

@@ -1,5 +1,14 @@
 summary: Simple snap prefer test
 
+details: |
+    Snapd allows selection of preferred source of aliases for snap applications.
+    The "snap prefer" command can override manually created aliases as well as
+    default aliases of other snaps.
+
+    The test installs a snap with automatically enabled aliases, uses the "snap
+    unalias" command to remove them, then uses "snap prefer" to re-install
+    automatic aliases and ensures the expected aliases are re-instated.
+
 execute: |
     echo "Install the snap with auto-aliases"
     snap install test-snapd-auto-aliases

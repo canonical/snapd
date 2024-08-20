@@ -1,15 +1,11 @@
 summary: Ensures that the mount-observe interface works
 
 details: |
-    A snap declaring the mount-observe plug is defined, its command
-    just read the /proc/<pid>/mounts file.
-
-    The test itself checks for the lack of autoconnect and then tries
-    to execute the snap command with the plug connected (it must succeed)
-    and disconnected (it must fail).
-
-    The test also checks that a new mount created after the snap is installed
-    is also shown when the plug is connected.
+    The mount-observe interface allows a snap to read information about the
+    mount table from /proc/<pid>/mounts file. The interface is not connected
+    automatically. The test shows that mount propagation allows the snap,
+    running in a distinct mount namespace, to observe the new mount point made
+    on the host mount namespace.
 
 prepare: |
     echo "Given a snap declaring a plug on the mount-observe interface is installed"

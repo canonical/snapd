@@ -1,5 +1,10 @@
 summary: Test that time moves forward when the RTC is broken/unavailable in UC20
 
+details: |
+  Check that when the RTC is broken/unavailable, the time afeer tUbuntu Core is booted
+  is newer than the model assertion sign time. Also verify that the timestamp from
+  after snap-bootstrap ran is greater than the time from the model assertion.
+
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:

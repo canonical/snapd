@@ -1,5 +1,10 @@
 summary: Ensure `snap debug stacktraces` command works
 
+details: |
+    The command `snap debug stacktraces` should properly report stack traces for
+    the currently running snapd daemon. It should not be callable from
+    a non-root user.
+
 execute: |
   snap debug stacktraces | MATCH 'goroutine'
   snap debug stacktraces | MATCH 'github.com/snapcore/snapd/daemon'

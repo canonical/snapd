@@ -1,5 +1,16 @@
 summary: Verify that we validate the architectures of snaps against the model
 
+details: |
+    Snapd contains intricate implementation details needed for the first-boot
+    process, also known as seeding. It is only natural that it also carries
+    logic for validating and preparing seed directories.
+
+    The test prepares the environment to run "snap prepare-image", checking that
+    the command validates if the architecture of the model and of the given
+    snaps is compatible. Finally a correct set of arguments is used to show that
+    the seed can be created successfully. Once the seed is created the test
+    looks that certain key pieces, such as snaps and assertions, are in place.
+
 # running this on one machine is enough
 systems: [ubuntu-20.04-64]
 

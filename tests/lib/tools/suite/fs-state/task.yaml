@@ -1,5 +1,8 @@
 summary: smoke test for the fs-state tool
 
+details: |
+    Check the fs-state tool allows mocking and restoring files and directories    
+
 execute: |
     # Check help
     "$TESTSTOOLS"/fs-state -h | MATCH "usage: fs-state mock-dir"

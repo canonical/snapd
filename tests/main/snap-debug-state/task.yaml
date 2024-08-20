@@ -1,5 +1,11 @@
 summary: Ensure `snap debug changes|tasks|task` commands work
 
+details: |
+    The command `snap debug state` should report change state from a given
+    "state.json" file. It should be able to list changes, show changes,
+    tasks. It should be able to provide a Graphviz output. This test
+    verifies the command line for all these operations.
+
 prepare: |
     snap install hello-world
     # The debug commands access state.json directly, snapd should be stopped

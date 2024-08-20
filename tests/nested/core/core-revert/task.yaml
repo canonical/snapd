@@ -1,5 +1,13 @@
 summary: core revert test
 
+details: |
+    Older versions of snapd used to change the way seccomp profiles are handled, which could cause
+    problems when future snapd was reverted to old snapd, causing old profiles to
+    fail to parse and load. This was addressed with the introduction of a system
+    key and eventually with the switch to pre-compiled seccomp profiles. This
+    test uses a virtual machine to ensure that the core snap can be safely
+    reverted in case this is required for another reason.
+
 systems: [ubuntu-18.04-64]
 
 kill-timeout: 30m

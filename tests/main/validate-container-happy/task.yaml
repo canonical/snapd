@@ -1,5 +1,12 @@
 summary: check the symlinks following the right track
 
+details: |
+    Snapd contains logic to validate the contents of a snap to ensure that
+    symbolic links follow certain restrictions. The test mounts a snap with
+    crafted symbolic link names and targets, containing spaces and the character
+    sequence ->, to check that snapd is not confused by that structure, and that
+    after mounting, the symlinks retain their properties.
+
 environment:
     SNAP: test-snapd-validate-container-happy
 

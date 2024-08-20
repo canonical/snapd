@@ -1,4 +1,10 @@
-summary: Check that snap try can be used for snaps in /tmp 
+summary: Check that snap try can be used for snaps in /tmp
+
+details: |
+    When snapd installs a snap from a local directory, the actual file is
+    streamed from the snap client to snapd, and snapd writes the file to a
+    temporary location in /tmp. We want to make sure that still stays true
+    even if the snap itself is in /tmp.
 
 prepare: |
     cp -a "$TESTSLIB"/snaps/test-snapd-sh /tmp

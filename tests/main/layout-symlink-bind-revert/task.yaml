@@ -1,5 +1,10 @@
 summary: Demonstrate that the layout is updated
 
+details: |
+    Check that it is possible to refresh a snap that as per
+    a layout has a symlink to a snap that per the layout
+    has a bind mount.
+
 systems:
   # unshare or nsenter are not available on 14.04
   - -ubuntu-14.04-*

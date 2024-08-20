@@ -1,5 +1,10 @@
 summary: Ensure that the snap-seccomp blocks tty command injection
 
+details: |
+    Check it is not allowed to make tty command injection. Verify snap-seccomp
+    generated a profile which results in  "Operation not permitted" message when 
+    attempt to inject a tty command is denied.
+
 # ubuntu-core: excluded because there is no gcc there
 systems: [-ubuntu-core-*]
 

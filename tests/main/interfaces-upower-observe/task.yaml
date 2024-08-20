@@ -1,14 +1,15 @@
 summary: Ensure that the upower-observe interface works.
 
 details: |
-    The upower-observe interface allows a snap to query UPower for power devices, history
-    and statistics.
+    The upower-observe interface allows a snap to query UPower for power
+    devices, history and statistics.
 
-    A snap which defines the upower-observe plug must be shown in the interfaces list.
-    The plug must be autoconnected on install and, as usual, must be able to be reconnected.
+    A snap which defines the upower-observe plug must be shown in the interfaces
+    list. The plug must be auto-connected on install and, as usual, must be able
+    to be reconnected.
 
-    The test uses a snap wrapping the upower command line utility, and checks that it can query
-    it without error while the plug is connected.
+    The test uses a snap wrapping the upower command line utility, and checks
+    that it can query it without error while the plug is connected.
 
 # ppc64el disabled because of https://github.com/snapcore/snapd/issues/2504
 systems:

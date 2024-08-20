@@ -1,5 +1,10 @@
 summary: Verify paths are correctly reported
 
+details: |
+    This test checks that the command `snap debug paths` shows
+    the correct paths for the SNAPD_MOUNT, SNAPD_BIN and SNAPD_LIBEXEC
+    environment variables. 
+
 execute: |
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     LIBEXEC_DIR="$(os.paths libexec-dir)"

@@ -1,5 +1,11 @@
 summary: Check the basic dynamic snapshot data exclusion functionality
 
+details: |
+    Check that the snapd snapshot API endpoint can be used to take snapshots
+    while specifying data to ignore dynamically (i.e., not limited to files
+    specified at snap build time). Check that snapshots with dynamically
+    excluded data can be exported and restored.
+
 systems: [-ubuntu-14.04-*]
 
 environment:

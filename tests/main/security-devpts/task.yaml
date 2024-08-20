@@ -1,5 +1,10 @@
 summary: Ensure that the basic devpts security rules are in place.
 
+details: |
+    Test that a snap which has a plug for the physical-memory-observe interface
+    can read /dev/pts, can openpty, and can access the PTY via /dev/ptmx, both
+    with and without the physical-memory-observe interface connected.
+
 execute: |
     if [ "$(snap debug confinement)" = none ] ; then
         exit 0

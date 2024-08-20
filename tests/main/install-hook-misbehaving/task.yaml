@@ -1,5 +1,9 @@
 summary: Check that the output of noisy install hook is truncated.
 
+details: |
+    Check that the long output of a failed install hook is truncated from the
+    `snap change` output.
+
 execute: |
     if snap try "$TESTSLIB"/snaps/snap-hooks-bad-install; then
         echo "Expected snap try to fail"

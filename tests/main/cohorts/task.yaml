@@ -1,5 +1,10 @@
 summary: Check that cohorts work
 
+details: |
+    Create a cohort and install a snap from it. Check that the snap is in the
+    cohort and that it can be refreshed without leaving the cohort. Finally, leave
+    the cohort and check that the snap is no longer in the cohort.
+
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 

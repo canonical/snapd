@@ -1,5 +1,10 @@
 summary: smoke test for the snaps.name tool
 
+details: |
+    Check the snaps.name tool properly retrieves the names of the
+    gadget and kernel snaps installed in the system. Also verifies
+    the snap-suffix command works properly.
+
 backends: [google]
 
 execute: |

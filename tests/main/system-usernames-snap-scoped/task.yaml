@@ -1,5 +1,14 @@
 summary: ensure only approved snaps can use snap-scoped system user
 
+details: |
+    Snapd has limited capability to create a non-root accounts, so that certain
+    services that would normally run as root, perform initial configuration as
+    root but then drop to a less privileged user.
+
+    Some of the user names are special, in that they are allowed to be used only
+    by specific snap IDs. The test checks that microk8s, azureiotedge, and
+    azuredeviceupdate user names can be used with their corresponding snap IDs.
+
 # - not running on 14.04 as we have no real systemd here
 # - also exclude centos 7 because of old libseccomp (the
 #   system-usernames test is already checking which distributions have the

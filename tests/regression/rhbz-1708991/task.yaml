@@ -1,5 +1,16 @@
 summary: Check that snapd SELinux policy does not break systemd services with private mount ns
 
+details: |
+    Over time, systemd has introduced gradual confinement to many essential
+    system services. Snapd has a separate SELinux policy module which interacts
+    with the rest of the SELinux policy in non-trivial ways. One particular case
+    was the ability to re-mount /var/lib/snapd/snap into a new mount namespace
+    created by systemd.
+
+    Ensure that snapd policy does not break systemd-resolved and
+    systemd-hostnamed by switching on SELinux enforcement and restarting the two
+    systemd services.
+
 systems: [fedora-*, centos-*]
 
 prepare: |
