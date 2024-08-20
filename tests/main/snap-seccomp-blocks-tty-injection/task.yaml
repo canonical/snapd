@@ -26,6 +26,7 @@ execute: |
     # through AppArmor
     if [ "$(snap debug confinement)" = strict ]; then
         sed -i 's|^}$|  /dev/tty1  rw,\n}|' /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.sh
+        # TODO this needs to call appropriate apparmor_parser
         apparmor_parser -r /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.sh
     fi
 
