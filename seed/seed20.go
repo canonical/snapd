@@ -444,8 +444,8 @@ func (s *seed20) lookupVerifiedComponent(cref naming.ComponentRef, snapRev snap.
 	resPair, ok := s.resPairByResKey[resKey]
 	if !ok {
 		// should actually be catched by the previous check
-		return Component{}, errorComponentNotInSeed{
-			fmt.Errorf("internal error: resource pair assertion not found for %s", compName)}
+		return Component{},
+			fmt.Errorf("internal error: resource pair assertion not found for %s", compName)
 	}
 
 	compPath := filepath.Join(s.systemDir, snapsDir,
