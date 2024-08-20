@@ -356,6 +356,9 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		userEntry = pdb.perUser[metadata.User]
 		userEntry.expirationTimer = time.AfterFunc(initialTimeout, func() {
 			pdb.mutex.Lock()
+			if pdb.maxIDMmap.IsClosed() {
+				return
+			}
 			expiredPrompts := userEntry.prompts
 			// Clear all outstanding prompts for the user
 			userEntry.prompts = nil
@@ -584,6 +587,7 @@ func (pdb *PromptDB) Close() error {
 	// not want to send {"resolved": "cancelled"} in the notice data.
 	data := map[string]string{"resolved": "cancelled"}
 	for user, userEntry := range pdb.perUser {
+		userEntry.expirationTimer.Stop()
 		for id := range userEntry.ids {
 			pdb.notifyPrompt(user, id, data)
 		}

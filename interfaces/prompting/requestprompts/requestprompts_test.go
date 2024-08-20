@@ -1109,6 +1109,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 		return nil
 	})
 	c.Assert(err, IsNil)
+	defer pdb.Close()
 
 	// Add prompt
 	listenerReq := &listener.Request{}
