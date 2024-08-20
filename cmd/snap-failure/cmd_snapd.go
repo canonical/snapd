@@ -214,9 +214,14 @@ func (c *cmdSnapd) Execute(args []string) error {
 		}
 	}
 
-	restartCmd := runCmd("systemctl", []string{"restart", "snapd.socket"}, nil)
+	// snap-failure is invoked after the snapd.service fails, which means
+	// that the service was active in the first place and we should try to
+	// restore the same state, i.e. have the service running, note that due
+	// to systemd dependencies, the socket should be restarted as well, but
+	// this isn't true for all systemd versions
+	restartCmd := runCmd("systemctl", []string{"restart", "snapd.socket", "snapd.service"}, nil)
 	if err := restartCmd.Run(); err != nil {
-		logger.Noticef("failed to restart snapd.socket: %v", err)
+		logger.Noticef("failed to restart snapd.service: %v", err)
 		// fallback to try snapd itself
 		// wait more than DefaultStartLimitIntervalSec
 		//
@@ -225,8 +230,8 @@ func (c *cmdSnapd) Execute(args []string) error {
 		// might need system-analyze timespan which is relatively new
 		// for the general case
 		time.Sleep(restartSnapdCoolOffWait)
-		logger.Noticef("fallback, restarting snapd itself")
-		restartCmd := runCmd("systemctl", []string{"restart", "snapd.service"}, nil)
+		logger.Noticef("restarting snapd again")
+		restartCmd := runCmd("systemctl", []string{"restart", "snapd.socket", "snapd.service"}, nil)
 		if err := restartCmd.Run(); err != nil {
 			logger.Noticef("failed to restart snapd: %v", err)
 		}

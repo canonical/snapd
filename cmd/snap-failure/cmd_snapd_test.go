@@ -98,7 +98,7 @@ set -eu
 		{"systemctl", "stop", "snapd.socket"},
 		{"systemctl", "is-failed", "snapd.socket", "snapd.service"},
 		{"systemctl", "reset-failed", "snapd.socket", "snapd.service"},
-		{"systemctl", "restart", "snapd.socket"},
+		{"systemctl", "restart", "snapd.socket", "snapd.service"},
 	})
 }
 
@@ -119,11 +119,15 @@ func (r *failureSuite) TestCallPrevSnapdFromSnapRestartSnapdFallback(c *C) {
 		`test "$SNAPD_REVERT_TO_REV" = "100"`)
 	defer snapdCmd.Restore()
 
-	systemctlCmd := testutil.MockCommand(c, "systemctl", `
-if [ "$1" = restart ] && [ "$2" == snapd.socket ] ; then
+	mockCmdStateDir := c.MkDir()
+
+	systemctlCmd := testutil.MockCommand(c, "systemctl", fmt.Sprintf(`
+statedir="%s"
+if [ "$1 $2 $3" = "restart snapd.socket snapd.service" ] && [ ! -f "$statedir/stamp" ]; then
+    touch "$statedir/stamp"
     exit 1
 fi
-`)
+`, mockCmdStateDir))
 	defer systemctlCmd.Restore()
 
 	os.Args = []string{"snap-failure", "snapd"}
@@ -138,8 +142,8 @@ fi
 		{"systemctl", "stop", "snapd.socket"},
 		{"systemctl", "is-failed", "snapd.socket", "snapd.service"},
 		{"systemctl", "reset-failed", "snapd.socket", "snapd.service"},
-		{"systemctl", "restart", "snapd.socket"},
-		{"systemctl", "restart", "snapd.service"},
+		{"systemctl", "restart", "snapd.socket", "snapd.service"},
+		{"systemctl", "restart", "snapd.socket", "snapd.service"},
 	})
 }
 
@@ -233,7 +237,7 @@ fi
 		{"systemctl", "is-active", "snapd.socket", "snapd.service"},
 		{"systemctl", "is-active", "snapd.socket", "snapd.service"},
 		{"systemctl", "reset-failed", "snapd.socket", "snapd.service"},
-		{"systemctl", "restart", "snapd.socket"},
+		{"systemctl", "restart", "snapd.socket", "snapd.service"},
 	})
 }
 
@@ -263,7 +267,7 @@ func (r *failureSuite) TestCallPrevSnapdFromCore(c *C) {
 		{"systemctl", "stop", "snapd.socket"},
 		{"systemctl", "is-failed", "snapd.socket", "snapd.service"},
 		{"systemctl", "reset-failed", "snapd.socket", "snapd.service"},
-		{"systemctl", "restart", "snapd.socket"},
+		{"systemctl", "restart", "snapd.socket", "snapd.service"},
 	})
 }
 
@@ -295,7 +299,7 @@ func (r *failureSuite) TestCallPrevSnapdFromSnapdWhenNoCore(c *C) {
 		{"systemctl", "stop", "snapd.socket"},
 		{"systemctl", "is-failed", "snapd.socket", "snapd.service"},
 		{"systemctl", "reset-failed", "snapd.socket", "snapd.service"},
-		{"systemctl", "restart", "snapd.socket"},
+		{"systemctl", "restart", "snapd.socket", "snapd.service"},
 	})
 }
 
@@ -433,7 +437,7 @@ func (r *failureSuite) TestStickySnapdSocket(c *C) {
 		{"systemctl", "stop", "snapd.socket"},
 		{"systemctl", "is-failed", "snapd.socket", "snapd.service"},
 		{"systemctl", "reset-failed", "snapd.socket", "snapd.service"},
-		{"systemctl", "restart", "snapd.socket"},
+		{"systemctl", "restart", "snapd.socket", "snapd.service"},
 	})
 
 	// make sure the socket file was deleted
