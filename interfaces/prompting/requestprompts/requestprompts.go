@@ -95,6 +95,61 @@ func (p *Prompt) MarshalJSON() ([]byte, error) {
 	return json.Marshal(toMarshal)
 }
 
+func (p *Prompt) sendReply(outcome prompting.OutcomeType) error {
+	// Reply with any permissions which were previously allowed
+	// If outcome is allow, then reply by allowing all originally-requested
+	// permissions. If outcome is deny, only allow permissions which were
+	// originally requested but have since been allowed by rules, and deny any
+	// remaining permissions.
+	allowedPermission := responseForInterfaceConstraintsOutcome(p.Interface, p.Constraints, outcome)
+	return p.sendReplyWithPermission(allowedPermission)
+}
+
+func responseForInterfaceConstraintsOutcome(iface string, constraints *promptConstraints, outcome prompting.OutcomeType) any {
+	allow, err := outcome.AsBool()
+	if err != nil {
+		// This should not occur, but if so, default to deny
+		allow = false
+		logger.Debugf("%v", err)
+	}
+	allowedPerms := constraints.originalPermissions
+	if !allow {
+		// Remaining permissions were denied, so allow permissions which were
+		// previously allowed by prompt rules
+		allowedPerms = make([]string, 0, len(constraints.originalPermissions)-len(constraints.remainingPermissions))
+		for _, perm := range constraints.originalPermissions {
+			// Exclude any permissions which were remaining at time of denial
+			if !strutil.ListContains(constraints.remainingPermissions, perm) {
+				allowedPerms = append(allowedPerms, perm)
+			}
+		}
+	}
+	allowedPermission, err := prompting.AbstractPermissionsToAppArmorPermissions(iface, allowedPerms)
+	if err != nil {
+		// This should not occur, but if so, permission should be set to the
+		// empty value for its corresponding permission type.
+		logger.Debugf("internal error: cannot convert abstract permissions to AppArmor permissions: %v", err)
+	}
+	return allowedPermission
+}
+
+func (p *Prompt) sendReplyWithPermission(allowedPermission any) error {
+	for _, listenerReq := range p.listenerReqs {
+		if err := sendReply(listenerReq, allowedPermission); err != nil {
+			// Error should only occur if reply is malformed, and since these
+			// listener requests should be identical, if a reply is malformed
+			// for one, it should be malformed for all. Malformed replies should
+			// leave the listener request unchanged. Thus, return early.
+			return err
+		}
+	}
+	return nil
+}
+
+var sendReply = func(listenerReq *listener.Request, allowedPermission any) error {
+	return listenerReq.Reply(allowedPermission)
+}
+
 // promptConstraints store the path which was requested, along with three
 // lists of permissions: the original permissions associated with the request,
 // the remaining unsatisfied permissions (as rules may satisfy some of the
@@ -315,11 +370,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 			data := map[string]string{"resolved": "expired"}
 			for _, p := range expiredPrompts {
 				pdb.notifyPrompt(metadata.User, p.ID, data)
-				allowedPermission := responseForInterfaceConstraintsOutcome(p.Interface, p.Constraints, prompting.OutcomeDeny)
-				for _, listenerReq := range p.listenerReqs {
-					// Reply with any permissions which were allowed by rules.
-					sendReply(listenerReq, allowedPermission)
-				}
+				p.sendReply(prompting.OutcomeDeny) // ignore any error, should not occur
 			}
 		})
 	}
@@ -365,34 +416,6 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 	userEntry.add(prompt)
 	pdb.notifyPrompt(metadata.User, id, nil)
 	return prompt, false, nil
-}
-
-func responseForInterfaceConstraintsOutcome(iface string, constraints *promptConstraints, outcome prompting.OutcomeType) any {
-	allow, err := outcome.AsBool()
-	if err != nil {
-		// This should not occur, but if so, default to deny
-		allow = false
-		logger.Debugf("%v", err)
-	}
-	allowedPerms := constraints.originalPermissions
-	if !allow {
-		// Remaining permissions were denied, so allow permissions which were
-		// previously allowed by prompt rules
-		allowedPerms = make([]string, 0, len(constraints.originalPermissions)-len(constraints.remainingPermissions))
-		for _, perm := range constraints.originalPermissions {
-			// Exclude any permissions which were remaining at time of denial
-			if !strutil.ListContains(constraints.remainingPermissions, perm) {
-				allowedPerms = append(allowedPerms, perm)
-			}
-		}
-	}
-	allowedPermission, err := prompting.AbstractPermissionsToAppArmorPermissions(iface, allowedPerms)
-	if err != nil {
-		// This should not occur, but if so, permission should be set to the
-		// empty value for its corresponding permission type.
-		logger.Debugf("internal error: cannot convert abstract permissions to AppArmor permissions: %v", err)
-	}
-	return allowedPermission
 }
 
 // Prompts returns a slice of all outstanding prompts for the given user.
@@ -453,24 +476,13 @@ func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.O
 	if err != nil {
 		return nil, err
 	}
-	allowedPermission := responseForInterfaceConstraintsOutcome(prompt.Interface, prompt.Constraints, outcome)
-	for _, listenerReq := range prompt.listenerReqs {
-		if err := sendReply(listenerReq, allowedPermission); err != nil {
-			// Error should only occur if reply is malformed, and since these
-			// listener requests should be identical, if a reply is malformed
-			// for one, it should be malformed for all. Malformed replies should
-			// leave the listener request unchanged. Thus, return early.
-			return nil, err
-		}
+	if err = prompt.sendReply(outcome); err != nil {
+		return nil, err
 	}
 	userEntry.remove(id)
 	data := map[string]string{"resolved": "replied"}
 	pdb.notifyPrompt(user, id, data)
 	return prompt, nil
-}
-
-var sendReply = func(listenerReq *listener.Request, allowedPermission any) error {
-	return listenerReq.Reply(allowedPermission)
 }
 
 // HandleNewRule checks if any existing prompts are satisfied by the given rule
@@ -535,11 +547,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 			continue
 		}
 		// All permissions of prompt satisfied, or any permission denied
-		for _, listenerReq := range prompt.listenerReqs {
-			// Reply with any permissions which were allowed, either by this
-			// new rule or by previous rules.
-			sendReply(listenerReq, allowedPermission)
-		}
+		prompt.sendReplyWithPermission(allowedPermission)
 		userEntry.remove(id)
 		satisfiedPromptIDs = append(satisfiedPromptIDs, id)
 		data := map[string]string{"resolved": "satisfied"}
