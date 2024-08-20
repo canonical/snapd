@@ -662,7 +662,7 @@ jobs:
             tests: 'tests/...'
           - group: ubuntu-no-lts
             backend: google
-            systems: 'ubuntu-23.10-64'
+            systems: ''
             tests: 'tests/...'
           - group: ubuntu-daily
             backend: google
@@ -847,6 +847,13 @@ jobs:
           # Add openstack backend definition to spread.yaml
           if [ "${{ matrix.backend }}" = openstack ]; then
               ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
+          fi
+
+          # This coud be the case when either there are not systems for a group or 
+          # the list of tests to run is empty
+          if [ -z "$RUN_TESTS" ]; then
+            echo "No tests to run, skiping..."
+            exit 0
           fi
 
           # Run spread tests

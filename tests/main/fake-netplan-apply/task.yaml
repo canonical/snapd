@@ -52,7 +52,7 @@ prepare: |
                 > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
         snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-20.snap
         snap install --dangerous netplan-snap-20.snap
-    elif os.query is-jammy || os.query is-ubuntu 23.10; then
+    elif os.query is-jammy; then
         # use base: core22
         sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" \
             -e "s/base: %BASESNAP%/base: core22/" \
