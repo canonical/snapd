@@ -772,26 +772,6 @@ func (m *recoverModeStateMachine) degraded() bool {
 	return false
 }
 
-func (m *recoverModeStateMachine) diskOpts() *disks.Options {
-	if m.isEncryptedDev {
-		return &disks.Options{
-			IsDecryptedDevice: true,
-		}
-	}
-	return nil
-}
-
-func (m *recoverModeStateMachine) verifyMountPoint(dir, name string) error {
-	matches, err := m.disk.MountPointIsFromDisk(dir, m.diskOpts())
-	if err != nil {
-		return err
-	}
-	if !matches {
-		return fmt.Errorf("cannot validate mount: %s mountpoint target %s is expected to be from disk %s but is not", name, dir, m.disk.Dev())
-	}
-	return nil
-}
-
 func (m *recoverModeStateMachine) setFindState(partName, partUUID string, err error, optionalPartition bool) error {
 	part := m.degradedState.partition(partName)
 	if err != nil {
@@ -828,10 +808,6 @@ func (m *recoverModeStateMachine) setMountState(part, where string, err error) e
 	m.degradedState.partition(part).MountState = partitionMounted
 	m.degradedState.partition(part).MountLocation = where
 
-	if err := m.verifyMountPoint(where, part); err != nil {
-		m.degradedState.LogErrorf("cannot verify %s mount point at %v: %v", part, where, err)
-		return err
-	}
 	return nil
 }
 
@@ -1866,24 +1842,6 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 		return err
 	}
 
-	// Verify that cloudimg-rootfs comes from where we expect it to
-	diskOpts := &disks.Options{}
-	if unlockRes.IsEncrypted {
-		// then we need to specify that the data mountpoint is
-		// expected to be a decrypted device
-		diskOpts.IsDecryptedDevice = true
-	}
-
-	matches, err := disk.MountPointIsFromDisk(boot.InitramfsDataDir, diskOpts)
-	if err != nil {
-		return err
-	}
-	if !matches {
-		// failed to verify that cloudimg-rootfs mountpoint
-		// comes from the same disk as ESP
-		return fmt.Errorf("cannot validate boot: cloudimg-rootfs mountpoint is expected to be from disk %s but is not", disk.Dev())
-	}
-
 	// Unmount ESP because otherwise unmounting is racy and results in booted systems without ESP
 	if err := doSystemdMount("", boot.InitramfsUbuntuSeedDir, &systemdMountOptions{Umount: true, Ephemeral: true}); err != nil {
 		return err
@@ -2014,33 +1972,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
-	// 4.1 verify that ubuntu-data comes from where we expect it to
-	diskOpts := &disks.Options{}
-	if unlockRes.IsEncrypted {
-		// then we need to specify that the data mountpoint is expected to be a
-		// decrypted device, applies to both ubuntu-data and ubuntu-save
-		diskOpts.IsDecryptedDevice = true
-	}
-
-	matches, err := disk.MountPointIsFromDisk(boot.InitramfsDataDir, diskOpts)
-	if err != nil {
-		return err
-	}
-	if !matches {
-		// failed to verify that ubuntu-data mountpoint comes from the same disk
-		// as ubuntu-boot
-		return fmt.Errorf("cannot validate boot: ubuntu-data mountpoint is expected to be from disk %s but is not", disk.Dev())
-	}
 	if haveSave {
-		// 4.1a we have ubuntu-save, verify it as well
-		matches, err = disk.MountPointIsFromDisk(boot.InitramfsUbuntuSaveDir, diskOpts)
-		if err != nil {
-			return err
-		}
-		if !matches {
-			return fmt.Errorf("cannot validate boot: ubuntu-save mountpoint is expected to be from disk %s but is not", disk.Dev())
-		}
-
 		if isEncryptedDev {
 			// in run mode the path to open an encrypted save is for
 			// data to be encrypted and the save key in it
