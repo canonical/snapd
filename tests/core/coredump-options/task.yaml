@@ -1,0 +1,37 @@
+summary: Enable and use coredump options on UC
+
+details: |
+  Use coredump options and ensure that systemd-coredump can generate
+  core files when configured to do so.
+
+systems: [-ubuntu-core-1*, -ubuntu-core-20*, -ubuntu-core-22*]
+
+execute: |
+  cfg_path=/etc/systemd/coredump.conf.d/ubuntu-core.conf
+
+  # coredumps should be initially disabled
+  expect=$(printf "[Coredump]\nStorage=none\nProcessSizeMax=0\n")
+  test "$expect" = "$(cat $cfg_path)"
+
+  # TODO no coredumps are dropped, but we get a journal entry. Depends
+  # on https://github.com/snapcore/core-base/pull/227 being in the
+  # installed core24 channel already.
+
+  # enable coredump with a max use size
+  max_use=10M
+  snap set system system.coredump.enable=true
+  snap set system system.coredump.maxuse="$max_use"
+
+  expect=$(printf "[Coredump]\nStorage=external\nMaxUse=%s\n" "$max_use")
+  test "$expect" = "$(cat $cfg_path)"
+
+  # TODO Generate a core dump. Depends on
+  # https://github.com/snapcore/core-base/pull/227 too.
+
+  # Finally, disable again
+  snap set system system.coredump.enable=false
+  expect=$(printf "[Coredump]\nStorage=none\nProcessSizeMax=0\n")
+  test "$expect" = "$(cat $cfg_path)"
+
+  # TODO no coredumps are dropped, but we get a journal entry
+  # Depends on https://github.com/snapcore/core-base/pull/227 too.
