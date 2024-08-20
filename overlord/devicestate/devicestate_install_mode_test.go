@@ -2474,7 +2474,7 @@ func (s *installStepSuite) TestDeviceManagerInstallFinishNoVolumesError(c *C) {
 }
 
 func (s *installStepSuite) TestDeviceManagerInstallFinishTasksAndChange(c *C) {
-	s.testDeviceManagerInstallFinishTasksAndChange(c, &devicestate.OptionalInstall{
+	s.testDeviceManagerInstallFinishTasksAndChange(c, &devicestate.OptionalContainers{
 		Snaps: []string{"snap1", "snap2"},
 		Components: map[string][]string{
 			"snap1": {"component1"},
@@ -2487,7 +2487,7 @@ func (s *installStepSuite) TestDeviceManagerInstallFinishTasksAndChangeNilOption
 	s.testDeviceManagerInstallFinishTasksAndChange(c, nil)
 }
 
-func (s *installStepSuite) testDeviceManagerInstallFinishTasksAndChange(c *C, optionalInstall *devicestate.OptionalInstall) {
+func (s *installStepSuite) testDeviceManagerInstallFinishTasksAndChange(c *C, optionalInstall *devicestate.OptionalContainers) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2510,7 +2510,7 @@ func (s *installStepSuite) testDeviceManagerInstallFinishTasksAndChange(c *C, op
 	c.Assert(err, IsNil)
 	c.Assert(onVols, DeepEquals, mockOnVolumes)
 
-	var gotOptionalInstall devicestate.OptionalInstall
+	var gotOptionalInstall devicestate.OptionalContainers
 	err = tskInstallFinish.Get("optional-install", &gotOptionalInstall)
 	if optionalInstall == nil {
 		c.Assert(err, testutil.ErrorIs, &state.NoStateError{Key: "optional-install"})
@@ -2526,7 +2526,7 @@ func (s *installStepSuite) TestDeviceManagerInstallFinishRunthrough(c *C) {
 	defer st.Unlock()
 
 	s.state.Set("seeded", true)
-	chg, err := devicestate.InstallFinish(s.state, "1234", mockOnVolumes, &devicestate.OptionalInstall{})
+	chg, err := devicestate.InstallFinish(s.state, "1234", mockOnVolumes, &devicestate.OptionalContainers{})
 	c.Assert(err, IsNil)
 
 	st.Unlock()
