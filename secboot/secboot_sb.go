@@ -100,23 +100,12 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 		return res, nil
 	}
 
-	uuid, err := randutilRandomKernelUUID()
-	if err != nil {
-		// We failed before we could generate the filsystem device path for
-		// the encrypted partition device, so we return FsDevice empty.
-		res.PartDevice = partDevice
-		return res, err
-	}
-
-	// make up a new name for the mapped device
-	mapperName := name + "-" + uuid
-	sourceDevice := partDevice
-	targetDevice := filepath.Join("/dev/mapper", mapperName)
+	targetDevice := filepath.Join("/dev/mapper", name)
 
 	if fdeHasRevealKey() {
-		return unlockVolumeUsingSealedKeyFDERevealKey(sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
+		return unlockVolumeUsingSealedKeyFDERevealKey(sealedEncryptionKeyFile, partDevice, targetDevice, name, opts)
 	} else {
-		return unlockVolumeUsingSealedKeyTPM(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
+		return unlockVolumeUsingSealedKeyTPM(name, sealedEncryptionKeyFile, partDevice, targetDevice, name, opts)
 	}
 }
 
@@ -139,20 +128,12 @@ func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (Un
 	encdev := filepath.Join("/dev/disk/by-partuuid", partUUID)
 	unlockRes.PartDevice = encdev
 
-	uuid, err := randutilRandomKernelUUID()
-	if err != nil {
-		// We failed before we could generate the filsystem device path for
-		// the encrypted partition device, so we return FsDevice empty.
-		return unlockRes, err
-	}
-
 	// make up a new name for the mapped device
-	mapperName := name + "-" + uuid
-	if err := unlockEncryptedPartitionWithKey(mapperName, encdev, key); err != nil {
+	if err := unlockEncryptedPartitionWithKey(name, encdev, key); err != nil {
 		return unlockRes, err
 	}
 
-	unlockRes.FsDevice = filepath.Join("/dev/mapper/", mapperName)
+	unlockRes.FsDevice = filepath.Join("/dev/mapper/", name)
 	unlockRes.UnlockMethod = UnlockedWithKey
 	return unlockRes, nil
 }

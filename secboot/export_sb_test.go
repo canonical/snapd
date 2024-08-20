@@ -168,14 +168,6 @@ func MockSbMeasureSnapModelToTPM(f func(tpm *sb_tpm2.Connection, pcrIndex int, m
 	}
 }
 
-func MockRandomKernelUUID(f func() (string, error)) (restore func()) {
-	old := randutilRandomKernelUUID
-	randutilRandomKernelUUID = f
-	return func() {
-		randutilRandomKernelUUID = old
-	}
-}
-
 func MockSbInitializeLUKS2Container(f func(devicePath, label string, key []byte,
 	opts *sb.InitializeLUKS2ContainerOptions) error) (restore func()) {
 	old := sbInitializeLUKS2Container

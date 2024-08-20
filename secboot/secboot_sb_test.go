@@ -449,7 +449,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		rkErr               error // recovery key unlock error, only relevant if TPM not available
 		activated           bool  // the activation operation succeeded
 		activateErr         error // the activation error
-		uuidFailure         bool  // failure to get valid uuid
 		err                 string
 		skipDiskEnsureCheck bool // whether to check to ensure the mock disk contains the device label
 		expUnlockMethod     secboot.UnlockMethod
@@ -461,11 +460,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			activated:       true,
 			disk:            mockDiskWithEncDev,
 			expUnlockMethod: secboot.UnlockedWithSealedKey,
-		}, {
-			// encrypted device: failure to generate uuid based target device name
-			tpmEnabled: true, hasEncdev: true, activated: true, uuidFailure: true,
-			disk: mockDiskWithEncDev,
-			err:  "mocked uuid error",
 		}, {
 			// device activation fails
 			tpmEnabled: true, hasEncdev: true,
@@ -545,19 +539,10 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 	} {
 		c.Logf("tc %v: %+v", idx, tc)
 
-		randomUUID := fmt.Sprintf("random-uuid-for-test-%d", idx)
-		restore := secboot.MockRandomKernelUUID(func() (string, error) {
-			if tc.uuidFailure {
-				return "", errors.New("mocked uuid error")
-			}
-			return randomUUID, nil
-		})
-		defer restore()
-
 		_, restoreConnect := mockSbTPMConnection(c, tc.tpmErr)
 		defer restoreConnect()
 
-		restore = secboot.MockIsTPMEnabled(func(tpm *sb_tpm2.Connection) bool {
+		restore := secboot.MockIsTPMEnabled(func(tpm *sb_tpm2.Connection) bool {
 			return tc.tpmEnabled
 		})
 		defer restore()
@@ -589,7 +574,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		c.Assert(err, IsNil)
 
 		restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
-			c.Assert(volumeName, Equals, "name-"+randomUUID)
+			c.Assert(volumeName, Equals, "name")
 			c.Assert(sourceDevicePath, Equals, devicePath)
 			c.Assert(keyData, NotNil)
 			uID, err := keyData.UniqueID()
@@ -635,7 +620,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			c.Assert(unlockRes.IsEncrypted, Equals, tc.hasEncdev)
 			c.Assert(unlockRes.PartDevice, Equals, devicePath)
 			if tc.hasEncdev {
-				c.Assert(unlockRes.FsDevice, Equals, filepath.Join("/dev/mapper", defaultDevice+"-"+randomUUID))
+				c.Assert(unlockRes.FsDevice, Equals, filepath.Join("/dev/mapper", defaultDevice))
 			} else {
 				c.Assert(unlockRes.FsDevice, Equals, devicePath)
 			}
@@ -1306,28 +1291,6 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyBadDisk(c *C) {
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{})
 }
 
-func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyUUIDError(c *C) {
-	disk := &disks.MockDiskMapping{
-		Structure: []disks.Partition{
-			{
-				FilesystemLabel: "ubuntu-save-enc",
-				PartitionUUID:   "123-123-123",
-			},
-		},
-	}
-	restore := secboot.MockRandomKernelUUID(func() (string, error) {
-		return "", errors.New("mocked uuid error")
-	})
-	defer restore()
-
-	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
-	c.Assert(err, ErrorMatches, "mocked uuid error")
-	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
-		PartDevice:  "/dev/disk/by-partuuid/123-123-123",
-		IsEncrypted: true,
-	})
-}
-
 func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
 	disk := &disks.MockDiskMapping{
 		Structure: []disks.Partition{
@@ -1337,15 +1300,11 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
 			},
 		},
 	}
-	restore := secboot.MockRandomKernelUUID(func() (string, error) {
-		return "random-uuid-123-123", nil
-	})
-	defer restore()
-	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte,
+	restore := secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte,
 		options *sb.ActivateVolumeOptions) error {
 		c.Check(options, DeepEquals, &sb.ActivateVolumeOptions{})
 		c.Check(key, DeepEquals, []byte("fooo"))
-		c.Check(volumeName, Matches, "ubuntu-save-random-uuid-123-123")
+		c.Check(volumeName, Matches, "ubuntu-save")
 		c.Check(sourceDevicePath, Equals, "/dev/disk/by-partuuid/123-123-123")
 		return nil
 	})
@@ -1354,7 +1313,7 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
 		PartDevice:   "/dev/disk/by-partuuid/123-123-123",
-		FsDevice:     "/dev/mapper/ubuntu-save-random-uuid-123-123",
+		FsDevice:     "/dev/mapper/ubuntu-save",
 		IsEncrypted:  true,
 		UnlockMethod: secboot.UnlockedWithKey,
 	})
@@ -1369,11 +1328,7 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
 			},
 		},
 	}
-	restore := secboot.MockRandomKernelUUID(func() (string, error) {
-		return "random-uuid-123-123", nil
-	})
-	defer restore()
-	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte,
+	restore := secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte,
 		options *sb.ActivateVolumeOptions) error {
 		return fmt.Errorf("failed")
 	})
@@ -1444,11 +1399,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1An
 	})
 	defer restore()
 
-	restore = secboot.MockRandomKernelUUID(func() (string, error) {
-		return "random-uuid-for-test", nil
-	})
-	defer restore()
-
 	mockDiskWithEncDev := &disks.MockDiskMapping{
 		Structure: []disks.Partition{
 			{
@@ -1481,7 +1431,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1An
 		UnlockMethod: secboot.UnlockedWithSealedKey,
 		IsEncrypted:  true,
 		PartDevice:   "/dev/disk/by-partuuid/enc-dev-partuuid",
-		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
+		FsDevice:     "/dev/mapper/device-name",
 	})
 	c.Check(activated, Equals, 1)
 	c.Check(reqs, HasLen, 1)
@@ -1681,11 +1631,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 	})
 	defer restore()
 
-	restore = secboot.MockRandomKernelUUID(func() (string, error) {
-		return "random-uuid-for-test", nil
-	})
-	defer restore()
-
 	mockDiskWithEncDev := &disks.MockDiskMapping{
 		Structure: []disks.Partition{
 			{
@@ -1727,7 +1672,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 		UnlockMethod: secboot.UnlockedWithSealedKey,
 		IsEncrypted:  true,
 		PartDevice:   "/dev/disk/by-partuuid/enc-dev-partuuid",
-		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
+		FsDevice:     "/dev/mapper/device-name",
 	})
 	c.Check(activated, Equals, 1)
 	c.Check(reqs, HasLen, 1)
@@ -1739,11 +1684,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2ModelUnauthorized(c *C) {
 	restore := secboot.MockFDEHasRevealKey(func() bool {
 		return true
-	})
-	defer restore()
-
-	restore = secboot.MockRandomKernelUUID(func() (string, error) {
-		return "random-uuid-for-test", nil
 	})
 	defer restore()
 
@@ -1767,7 +1707,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Mo
 	deactivated := 0
 	restore = secboot.MockSbDeactivateVolume(func(volumeName string) error {
 		deactivated++
-		c.Check(volumeName, Equals, "device-name-random-uuid-for-test")
+		c.Check(volumeName, Equals, "device-name")
 		return nil
 	})
 	defer restore()
@@ -1794,11 +1734,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Mo
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2ModelCheckerError(c *C) {
 	restore := secboot.MockFDEHasRevealKey(func() bool {
 		return true
-	})
-	defer restore()
-
-	restore = secboot.MockRandomKernelUUID(func() (string, error) {
-		return "random-uuid-for-test", nil
 	})
 	defer restore()
 
@@ -1850,11 +1785,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Al
 	})
 	defer restore()
 
-	restore = secboot.MockRandomKernelUUID(func() (string, error) {
-		return "random-uuid-for-test", nil
-	})
-	defer restore()
-
 	mockDiskWithEncDev := &disks.MockDiskMapping{
 		Structure: []disks.Partition{
 			{
@@ -1887,7 +1817,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Al
 		UnlockMethod: secboot.UnlockedWithRecoveryKey,
 		IsEncrypted:  true,
 		PartDevice:   "/dev/disk/by-partuuid/enc-dev-partuuid",
-		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
+		FsDevice:     "/dev/mapper/device-name",
 	})
 	c.Check(activated, Equals, 1)
 	c.Check(reqs, HasLen, 1)
@@ -1907,11 +1837,6 @@ func (s *secbootSuite) checkV2Key(c *C, keyFn string, prefixToDrop, expectedKey,
 
 	restore = secboot.MockFDEHasRevealKey(func() bool {
 		return true
-	})
-	defer restore()
-
-	restore = secboot.MockRandomKernelUUID(func() (string, error) {
-		return "random-uuid-for-test", nil
 	})
 	defer restore()
 
@@ -1954,7 +1879,7 @@ func (s *secbootSuite) checkV2Key(c *C, keyFn string, prefixToDrop, expectedKey,
 		UnlockMethod: secboot.UnlockedWithSealedKey,
 		IsEncrypted:  true,
 		PartDevice:   "/dev/disk/by-partuuid/enc-dev-partuuid",
-		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
+		FsDevice:     "/dev/mapper/device-name",
 	})
 	c.Check(activated, Equals, 1)
 }
@@ -1975,11 +1900,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c
 
 	restore = secboot.MockFDEHasRevealKey(func() bool {
 		return true
-	})
-	defer restore()
-
-	restore = secboot.MockRandomKernelUUID(func() (string, error) {
-		return "random-uuid-for-test", nil
 	})
 	defer restore()
 
@@ -2015,7 +1935,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c
 		UnlockMethod: secboot.UnlockedWithSealedKey,
 		IsEncrypted:  true,
 		PartDevice:   "/dev/disk/by-partuuid/enc-dev-partuuid",
-		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
+		FsDevice:     "/dev/mapper/device-name",
 	})
 	c.Check(activated, Equals, 1)
 	c.Check(reqs, HasLen, 1)
@@ -2032,11 +1952,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 
 	restore = secboot.MockFDEHasRevealKey(func() bool {
 		return true
-	})
-	defer restore()
-
-	restore = secboot.MockRandomKernelUUID(func() (string, error) {
-		return "random-uuid-for-test", nil
 	})
 	defer restore()
 
