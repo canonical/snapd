@@ -800,7 +800,7 @@ jobs:
           echo FILTERED_LOG_FILE="$FILTERED_LOG_FILE"  >> $GITHUB_ENV
 
           # Add start line to filtered log
-          echo "GRAFANA START: pr ${CHANGE_ID} attempt ${{ github.run_attempt }} run ${{ github.run_id }}" > "$FILTERED_LOG_FILE"
+          echo "GRAFANA START: pr ${CHANGE_ID} attempt ${{ github.run_attempt }} run ${{ github.run_id }} group ${{ matrix.group }}" > "$FILTERED_LOG_FILE"
 
     - name: Download built snap
       uses: actions/download-artifact@v3
