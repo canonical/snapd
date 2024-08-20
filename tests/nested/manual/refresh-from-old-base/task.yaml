@@ -32,6 +32,7 @@ prepare: |
     # https://github.com/snapcore/core-base/pull/185
     snap download --revision=1033 core22 --basename=core22-old
     # We need to repack to avoid auto refresh
+    touch core22-old/some-stamp-to-make-it-different
     unsquashfs -d core22-old core22-old.snap
     rm core22-old.snap
     snap pack core22-old/ "$(tests.nested get extra-snaps-path)"
