@@ -886,7 +886,7 @@ jobs:
             while IFS= read -r line; do
                 if [ ! -z "$line" ]; then
                     echo "Adding summary list to filtered log..."
-                    echo "GRAFANA FAILED: $line $ACTIONS_URL" >> FILTERED_LOG_FILE
+                    echo "GRAFANA FAILED: $line $ACTIONS_URL" >> "$FILTERED_LOG_FILE"
                 fi
             done <<< $(jq -r '.[] | select( .type == "info" ) | select( .info_type == "Error" ) | "\(.verb) \(.task)"' spread-results.json)
         else
