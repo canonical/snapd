@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
@@ -238,7 +239,7 @@ func (s *keymgrSuite) TestStageTransitionEncryptionKeyBadKeymgr(c *C) {
 	keymgrCmd.ForgetCalls()
 
 	s.mocksForDeviceMounts(c)
-	err = secboot.TransitionEncryptionKeyChange("/foo", key)
+	err = secboot.TransitionEncryptionKeyChange("foo-enc", key)
 	c.Assert(err, ErrorMatches, "cannot run FDE key manager tool: cannot run .*: keymgr very unhappy")
 
 	c.Check(s.systemdRunCmd.Calls(), DeepEquals, [][]string{
@@ -256,26 +257,35 @@ func (s *keymgrSuite) TestStageTransitionEncryptionKeyBadKeymgr(c *C) {
 }
 
 func (s *keymgrSuite) TestTransitionEncryptionKeyNoMountDev(c *C) {
-	restore := osutil.MockMountInfo(`
-27 27 600:3 / /foo rw,relatime shared:7 - vfat /dev/mapper/foo rw
-`[1:])
+	restore := osutil.MockMountInfo(fmt.Sprintf(`
+27 27 600:3 / %[1]s/var/lib/snapd/seed rw,relatime shared:7 - vfat /dev/vda1 rw
+`, s.rootDir)[1:])
 	s.AddCleanup(restore)
 
 	udevadmCmd := testutil.MockCommand(c, "udevadm", `echo nope; exit 1`)
 	defer udevadmCmd.Restore()
 
-	err := secboot.TransitionEncryptionKeyChange("/foo", key)
-	c.Assert(err, ErrorMatches, "cannot find matching device: cannot partition for mount /foo: cannot process udev properties of /dev/mapper/foo: nope")
+	err := secboot.TransitionEncryptionKeyChange("foo-enc", key)
+	c.Assert(err, ErrorMatches, "cannot find matching device: cannot find disk for seed dir: cannot process udev properties of /dev/vda1: nope")
 }
 
 func (s *keymgrSuite) TestTransitionEncryptionKeyHappy(c *C) {
 	udevadmCmd := s.mocksForDeviceMounts(c)
 
-	err := secboot.TransitionEncryptionKeyChange("/foo", key)
+	err := secboot.TransitionEncryptionKeyChange("foo-enc", key)
 	c.Assert(err, IsNil)
 	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
-		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/vda1"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/block/500:1"},
+		{"udevadm", "trigger", "--name-match=vda1"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "info", "--query", "property", "--name", "vda1"},
+		{"udevadm", "trigger", "--name-match=vda2"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "info", "--query", "property", "--name", "vda2"},
+		{"udevadm", "trigger", "--name-match=vda3"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "info", "--query", "property", "--name", "vda3"},
 	})
 	c.Check(s.systemdRunCmd.Calls(), DeepEquals, [][]string{
 		{
@@ -299,11 +309,19 @@ func (s *keymgrSuite) TestTransitionEncryptionKeyHappy(c *C) {
 }
 
 func (s *keymgrSuite) mocksForDeviceMounts(c *C) (udevadmCmd *testutil.MockCmd) {
-	restore := osutil.MockMountInfo(`
+	restore := osutil.MockMountInfo(fmt.Sprintf(`
+27 27 500:2 / %[1]s/var/lib/snapd/seed rw,relatime shared:7 - vfat /dev/vda1 rw
 27 27 600:3 / /foo rw,relatime shared:7 - vfat /dev/mapper/foo rw
 27 27 600:4 / /bar rw,relatime shared:7 - vfat /dev/mapper/bar rw
-`[1:])
+`, s.rootDir)[1:])
 	s.AddCleanup(restore)
+
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SysfsDir, "devices/somepath/to/vda/vda1"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SysfsDir, "devices/somepath/to/vda/vda2"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SysfsDir, "devices/somepath/to/vda/vda3"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SysfsDir, "devices/somepath/to/vda/vda1/partition"), []byte("1"), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SysfsDir, "devices/somepath/to/vda/vda2/partition"), []byte("1"), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SysfsDir, "devices/somepath/to/vda/vda3/partition"), []byte("1"), 0644), IsNil)
 
 	udevadmCmd = testutil.MockCommand(c, "udevadm", `
 while [ "$#" -gt 1 ]; do
@@ -311,21 +329,57 @@ while [ "$#" -gt 1 ]; do
         --name)
             shift
             case "$1" in
-                /dev/mapper/foo)
+                /dev/block/500:1)
                     echo "DEVTYPE=disk"
-                    echo "MAJOR=600"
-                    echo "MINOR=3"
+                    echo "DEVNAME=/dev/vda"
+                    echo "DEVPATH=/devices/somepath/to/vda"
+                    echo "ID_PART_TABLE_UUID=1234"
+                    echo "ID_PART_TABLE_TYPE=gpt"
                     ;;
-                /dev/mapper/bar)
-                    echo "DEVTYPE=disk"
-                    echo "MAJOR=600"
-                    echo "MINOR=4"
+                /dev/vda1|vda1)
+                    echo "DEVTYPE=partition"
+                    echo "DEVPATH=/devices/somepath/to/vda/vda1"
+                    echo "DEVNAME=/dev/vda1"
+                    echo "ID_PART_ENTRY_DISK=500:1"
+                    echo "ID_PART_ENTRY_TYPE=1234"
+                    echo "ID_PART_ENTRY_OFFSET=1"
+                    echo "ID_PART_ENTRY_SIZE=1"
+                    echo "ID_PART_ENTRY_NUMBER=1"
+                    echo "ID_PART_ENTRY_UUID=abcd"
+                    echo "MAJOR=500"
+                    echo "MINOR=2"
+                    echo "PARTNAME=seed"
+                    echo "ID_PART_ENTRY_NAME=seed"
                     ;;
-                /dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304)
+                vda2)
+                    echo "DEVTYPE=partition"
+                    echo "DEVPATH=/devices/somepath/to/vda/vda2"
+                    echo "DEVNAME=/dev/vda2"
+                    echo "ID_PART_ENTRY_DISK=500:1"
+                    echo "ID_PART_ENTRY_TYPE=5678"
+                    echo "ID_PART_ENTRY_OFFSET=2"
+                    echo "ID_PART_ENTRY_SIZE=2"
+                    echo "ID_PART_ENTRY_NUMBER=2"
                     echo "ID_PART_ENTRY_UUID=foo-uuid"
+                    echo "MAJOR=500"
+                    echo "MINOR=3"
+                    echo "PARTNAME=foo-enc"
+                    echo "ID_PART_ENTRY_NAME=foo-enc"
                     ;;
-                /dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1305)
+                vda3)
+                    echo "DEVTYPE=partition"
+                    echo "DEVPATH=/devices/somepath/to/vda/vda3"
+                    echo "DEVNAME=/dev/vda3"
+                    echo "ID_PART_ENTRY_DISK=500:1"
+                    echo "ID_PART_ENTRY_TYPE=9999"
+                    echo "ID_PART_ENTRY_OFFSET=3"
+                    echo "ID_PART_ENTRY_SIZE=3"
+                    echo "ID_PART_ENTRY_NUMBER=3"
                     echo "ID_PART_ENTRY_UUID=bar-uuid"
+                    echo "MAJOR=500"
+                    echo "MINOR=4"
+                    echo "PARTNAME=bar-enc"
+                    echo "ID_PART_ENTRY_NAME=bar-enc"
                     ;;
             esac
             ;;
@@ -337,12 +391,6 @@ done
 `)
 	s.AddCleanup(udevadmCmd.Restore)
 
-	snaptest.PopulateDir(s.rootDir, [][]string{
-		{"/sys/dev/block/600:3/dm/uuid", "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-foo"},
-		{"/sys/dev/block/600:3/dm/name", "foo"},
-		{"/sys/dev/block/600:4/dm/uuid", "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1305-bar"},
-		{"/sys/dev/block/600:4/dm/name", "bar"},
-	})
 	return udevadmCmd
 }
 
@@ -350,15 +398,33 @@ func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
 	udevadmCmd := s.mocksForDeviceMounts(c)
 
 	rkey, err := secboot.EnsureRecoveryKey(filepath.Join(s.d, "recovery.key"), []secboot.RecoveryKeyDevice{
-		{Mountpoint: "/foo"},
-		{Mountpoint: "/bar", AuthorizingKeyFile: "/authz/key.file"},
+		{PartLabel: "foo-enc"},
+		{PartLabel: "bar-enc", AuthorizingKeyFile: "/authz/key.file"},
 	})
 	c.Assert(err, IsNil)
 	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
-		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/bar"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1305"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/vda1"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/block/500:1"},
+		{"udevadm", "trigger", "--name-match=vda1"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "info", "--query", "property", "--name", "vda1"},
+		{"udevadm", "trigger", "--name-match=vda2"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "info", "--query", "property", "--name", "vda2"},
+		{"udevadm", "trigger", "--name-match=vda3"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "info", "--query", "property", "--name", "vda3"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/vda1"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/block/500:1"},
+		{"udevadm", "trigger", "--name-match=vda1"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "info", "--query", "property", "--name", "vda1"},
+		{"udevadm", "trigger", "--name-match=vda2"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "info", "--query", "property", "--name", "vda2"},
+		{"udevadm", "trigger", "--name-match=vda3"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "info", "--query", "property", "--name", "vda3"},
 	})
 	c.Check(s.systemdRunCmd.Calls(), DeepEquals, [][]string{
 		{
@@ -385,25 +451,18 @@ func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
 }
 
 func (s *keymgrSuite) TestRemoveRecoveryKey(c *C) {
-	udevadmCmd := s.mocksForDeviceMounts(c)
+	s.mocksForDeviceMounts(c)
 
 	snaptest.PopulateDir(s.d, [][]string{
 		{"recovery.key", "foobar"},
 	})
 	// only one of the key files exists
 	err := secboot.RemoveRecoveryKeys(map[secboot.RecoveryKeyDevice]string{
-		{Mountpoint: "/foo"}: filepath.Join(s.d, "recovery.key"),
-		{Mountpoint: "/bar", AuthorizingKeyFile: "/authz/key.file"}: filepath.Join(s.d, "missing-recovery.key"),
+		{PartLabel: "foo-enc"}: filepath.Join(s.d, "recovery.key"),
+		{PartLabel: "bar-enc", AuthorizingKeyFile: "/authz/key.file"}: filepath.Join(s.d, "missing-recovery.key"),
 	})
 	c.Assert(err, IsNil)
 
-	expectedUdevCalls := [][]string{
-		// order can change depending on map iteration
-		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/bar"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1305"},
-	}
 	expectedSystemdRunCalls := [][]string{
 		{
 			"systemd-run",
@@ -428,15 +487,13 @@ func (s *keymgrSuite) TestRemoveRecoveryKey(c *C) {
 		},
 	}
 
-	udevCalls := udevadmCmd.Calls()
-	c.Assert(udevCalls, HasLen, len(expectedUdevCalls))
-	// iteration order can be different though
-	c.Assert(udevCalls[0], HasLen, 6)
-	firstFoo := udevCalls[0][5] == "/dev/mapper/foo"
+	keyMgrCalls := s.keymgrCmd.Calls()
+	c.Assert(keyMgrCalls, HasLen, 1)
+	c.Assert(keyMgrCalls[0], HasLen, 14)
+	firstFoo := keyMgrCalls[0][3] == "/dev/disk/by-partuuid/foo-uuid"
 
 	if !firstFoo {
 		// flip the order of foo and bar
-		expectedUdevCalls = append(expectedUdevCalls[2:], expectedUdevCalls[0:2]...)
 		expectedSystemdRunCalls[0] = append(expectedSystemdRunCalls[0][0:10],
 			append(expectedSystemdRunCalls[0][16:], expectedSystemdRunCalls[0][10:16]...)...)
 		expectedKeymgrCalls[0] = append(expectedKeymgrCalls[0][0:2],

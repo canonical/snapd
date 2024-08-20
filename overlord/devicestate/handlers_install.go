@@ -598,7 +598,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		// ubuntu-save was opened during boot, so the removal operation
 		// can be authorized with a key from the keyring
 		err = secbootRemoveRecoveryKeys(map[secboot.RecoveryKeyDevice]string{
-			{Mountpoint: boot.InitramfsUbuntuSaveDir}: device.RecoveryKeyUnder(boot.InstallHostFDEDataDir(model)),
+			{PartLabel: "ubuntu-save-enc"}: device.RecoveryKeyUnder(boot.InstallHostFDEDataDir(model)),
 		})
 		if err != nil {
 			return fmt.Errorf("cannot remove recovery key: %v", err)

@@ -29,6 +29,7 @@ import (
 
 	sb "github.com/snapcore/secboot"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot/keymgr"
@@ -109,7 +110,7 @@ func EnsureRecoveryKey(keyFile string, rkeyDevs []RecoveryKeyDevice) (keys.Recov
 		"--key-file", keyFile,
 	}
 	for _, rkeyDev := range rkeyDevs {
-		dev, err := devByPartUUIDFromMount(rkeyDev.Mountpoint)
+		dev, err := devByPartUUIDFromPartLabel(rkeyDev.PartLabel)
 		if err != nil {
 			return keys.RecoveryKey{}, fmt.Errorf("cannot find matching device for: %v", err)
 		}
@@ -135,12 +136,15 @@ func EnsureRecoveryKey(keyFile string, rkeyDevs []RecoveryKeyDevice) (keys.Recov
 	return *rk, nil
 }
 
-func devByPartUUIDFromMount(mp string) (string, error) {
-	partUUID, err := disks.PartitionUUIDFromMountPoint(mp, &disks.Options{
-		IsDecryptedDevice: true,
-	})
+func devByPartUUIDFromPartLabel(label string) (string, error) {
+	disk, err := disks.DiskFromMountPoint(dirs.SnapSeedDir, nil)
 	if err != nil {
-		return "", fmt.Errorf("cannot partition for mount %v: %v", mp, err)
+		return "", fmt.Errorf("cannot find disk for seed dir: %v", err)
+	}
+	// TODO: Because of keyring identifier, we still need to use the UUID symlink.
+	partUUID, err := disk.FindMatchingPartitionUUIDWithPartLabel(label)
+	if err != nil {
+		return "", fmt.Errorf("cannot partition %s: %v", label, err)
 	}
 	dev := filepath.Join("/dev/disk/by-partuuid", partUUID)
 	return dev, nil
@@ -155,7 +159,7 @@ func RemoveRecoveryKeys(rkeyDevToKey map[RecoveryKeyDevice]string) error {
 		"remove-recovery-key",
 	}
 	for rkeyDev, keyFile := range rkeyDevToKey {
-		dev, err := devByPartUUIDFromMount(rkeyDev.Mountpoint)
+		dev, err := devByPartUUIDFromPartLabel(rkeyDev.PartLabel)
 		if err != nil {
 			return fmt.Errorf("cannot find matching device for: %v", err)
 		}
@@ -215,8 +219,8 @@ func StageEncryptionKeyChange(node string, key keys.EncryptionKey) error {
 // TransitionEncryptionKeyChange transitions the encryption key on an encrypted
 // device corresponding to the given mount point. The change is authorized using
 // the new key, thus a prior call to StageEncryptionKeyChange must be done.
-func TransitionEncryptionKeyChange(mountpoint string, key keys.EncryptionKey) error {
-	dev, err := devByPartUUIDFromMount(mountpoint)
+func TransitionEncryptionKeyChange(partLabel string, key keys.EncryptionKey) error {
+	dev, err := devByPartUUIDFromPartLabel(partLabel)
 	if err != nil {
 		return fmt.Errorf("cannot find matching device: %v", err)
 	}

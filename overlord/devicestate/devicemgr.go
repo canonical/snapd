@@ -2720,12 +2720,12 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 	}
 	recoveryKeyDevices := []secboot.RecoveryKeyDevice{
 		{
-			Mountpoint: dataMountPoints[0],
+			PartLabel: "ubuntu-data-enc",
 			// TODO ubuntu-data key in install mode? key isn't
 			// available in the keyring nor exists on disk
 		},
 		{
-			Mountpoint:         boot.InitramfsUbuntuSaveDir,
+			PartLabel:          "ubuntu-save-enc",
 			AuthorizingKeyFile: device.SaveKeyUnder(dirs.SnapFDEDirUnder(authKeyDir)),
 		},
 	}
@@ -2759,7 +2759,7 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 	recoveryKeyDevices := make(map[secboot.RecoveryKeyDevice]string, 2)
 	rkey := device.RecoveryKeyUnder(dirs.SnapFDEDir)
 	recoveryKeyDevices[secboot.RecoveryKeyDevice{
-		Mountpoint: dataMountPoints[0],
+		PartLabel: "ubuntu-data-enc",
 		// authorization from keyring
 	}] = rkey
 	// reinstall.key is deprecated, there is no path helper for it
@@ -2772,7 +2772,7 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 		authKeyDir = filepath.Join(authKeyDir, "system-data")
 	}
 	recoveryKeyDevices[secboot.RecoveryKeyDevice{
-		Mountpoint:         boot.InitramfsUbuntuSaveDir,
+		PartLabel:          "ubuntu-save-enc",
 		AuthorizingKeyFile: device.SaveKeyUnder(dirs.SnapFDEDirUnder(authKeyDir)),
 	}] = reinstallKeyFile
 

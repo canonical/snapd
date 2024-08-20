@@ -140,9 +140,9 @@ func (s *deviceMgrRecoveryKeysSuite) testEnsureRecoveryKey(c *C, classic bool) {
 			keyFilePath = filepath.Join("system-data", keyFilePath)
 		}
 		c.Check(rkeyDevs, DeepEquals, []secboot.RecoveryKeyDevice{
-			{Mountpoint: boot.InitramfsDataDir},
+			{PartLabel: "ubuntu-data-enc"},
 			{
-				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				PartLabel:          "ubuntu-save-enc",
 				AuthorizingKeyFile: filepath.Join(boot.InitramfsDataDir, keyFilePath),
 			},
 		})
@@ -183,10 +183,10 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyInstallMode(c *C) {
 		c.Check(keyFile, Equals, filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "recovery.key"))
 		c.Check(rkeyDevs, DeepEquals, []secboot.RecoveryKeyDevice{
 			{
-				Mountpoint: filepath.Dir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")),
+				PartLabel: "ubuntu-data-enc",
 			},
 			{
-				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				PartLabel:          "ubuntu-save-enc",
 				AuthorizingKeyFile: filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"),
 			},
 		})
@@ -239,9 +239,9 @@ func (s *deviceMgrRecoveryKeysSuite) testRemoveRecoveryKeys(c *C, classic bool) 
 			keyFilePath = filepath.Join("system-data", keyFilePath)
 		}
 		c.Check(r2k, DeepEquals, map[secboot.RecoveryKeyDevice]string{
-			{Mountpoint: boot.InitramfsDataDir}: rkey,
+			{PartLabel: "ubuntu-data-enc"}: rkey,
 			{
-				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				PartLabel:          "ubuntu-save-enc",
 				AuthorizingKeyFile: filepath.Join(boot.InitramfsDataDir, keyFilePath),
 			}: rkey,
 		})
@@ -273,9 +273,9 @@ func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeysBackwardCompat(c *C) 
 	defer devicestate.MockSecbootRemoveRecoveryKeys(func(r2k map[secboot.RecoveryKeyDevice]string) error {
 		called = true
 		c.Check(r2k, DeepEquals, map[secboot.RecoveryKeyDevice]string{
-			{Mountpoint: boot.InitramfsDataDir}: rkey,
+			{PartLabel: "ubuntu-data-enc"}: rkey,
 			{
-				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				PartLabel:          "ubuntu-save-enc",
 				AuthorizingKeyFile: filepath.Join(boot.InitramfsDataDir, "system-data/var/lib/snapd/device/fde/ubuntu-save.key"),
 			}: filepath.Join(dirs.SnapFDEDir, "reinstall.key"),
 		})
