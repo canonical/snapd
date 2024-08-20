@@ -38,6 +38,18 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+var (
+	// initialTimeout is the duration before which prompts for a given user
+	// will expire if there has been no retrieval of prompt details for that
+	// user since the previous timeout, or if the user prompt DB was just
+	// created.
+	initialTimeout = 10 * time.Second
+	// initialTimeout is the duration before which prompts for a given user
+	// will expire after the most recent retrieval of prompt details for that
+	// user.
+	activityTimeout = 10 * time.Minute
+)
+
 // Prompt contains information about a request for which a user should be
 // prompted.
 type Prompt struct {
@@ -160,6 +172,8 @@ type userPromptDB struct {
 	ids map[prompting.IDType]int
 	// prompts is the list of prompts which apply to the given user.
 	prompts []*Prompt
+	// expirationTimer clears the prompts for the given user when it expires.
+	expirationTimer *time.Timer
 }
 
 // get returns the prompt with the given ID from the user prompt DB.
@@ -285,6 +299,29 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 			ids: make(map[prompting.IDType]int),
 		}
 		userEntry = pdb.perUser[metadata.User]
+		userEntry.expirationTimer = time.AfterFunc(initialTimeout, func() {
+			pdb.mutex.Lock()
+			expiredPrompts := userEntry.prompts
+			// Clear all outstanding prompts for the user
+			userEntry.prompts = nil
+			userEntry.ids = make(map[prompting.IDType]int)
+			// Restart expiration timer while holding the lock, so we don't
+			// overwrite a newly-set activity timeout with an initial timeout.
+			// With the lock held, no activity can occur, so no activity timeout
+			// can be set.
+			userEntry.expirationTimer.Reset(initialTimeout)
+			pdb.mutex.Unlock()
+			// Unlock now so we can record notices without holding the prompt DB lock
+			data := map[string]string{"resolved": "expired"}
+			for _, p := range expiredPrompts {
+				pdb.notifyPrompt(metadata.User, p.ID, data)
+				allowedPermission := responseForInterfaceConstraintsOutcome(p.Interface, p.Constraints, prompting.OutcomeDeny)
+				for _, listenerReq := range p.listenerReqs {
+					// Reply with any permissions which were allowed by rules.
+					sendReply(listenerReq, allowedPermission)
+				}
+			}
+		})
 	}
 
 	constraints := &promptConstraints{
@@ -370,6 +407,7 @@ func (pdb *PromptDB) Prompts(user uint32) ([]*Prompt, error) {
 		// No prompts for user, but no error
 		return nil, nil
 	}
+	userEntry.expirationTimer.Reset(activityTimeout)
 	promptsCopy := make([]*Prompt, len(userEntry.prompts))
 	copy(promptsCopy, userEntry.prompts)
 	return promptsCopy, nil
@@ -386,7 +424,7 @@ func (pdb *PromptDB) PromptWithID(user uint32, id prompting.IDType) (*Prompt, er
 // promptWithID returns the user entry for the given user and the prompt with
 // the given ID for the that user.
 //
-// The caller should hold a read lock on the prompt DB mutex.
+// The caller should hold a read (or write) lock on the prompt DB mutex.
 func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType) (*userPromptDB, *Prompt, error) {
 	if pdb.maxIDMmap.IsClosed() {
 		return nil, nil, prompting_errors.ErrPromptsClosed
@@ -395,6 +433,7 @@ func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType) (*userPrompt
 	if !ok {
 		return nil, nil, prompting_errors.ErrPromptNotFound
 	}
+	userEntry.expirationTimer.Reset(activityTimeout)
 	prompt, err := userEntry.get(id)
 	if err != nil {
 		return nil, nil, err

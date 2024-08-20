@@ -1070,3 +1070,154 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 
 	c.Assert(string(marshalled), Equals, string(expectedJSON))
 }
+
+func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
+	initialTimeout := 25 * time.Millisecond
+	activityTimeout := 50 * time.Millisecond
+	restore := requestprompts.MockInitialTimeout(initialTimeout)
+	defer restore()
+	restore = requestprompts.MockActivityTimeout(activityTimeout)
+	defer restore()
+
+	replyChan := make(chan notify.FilePermission, 1)
+	restore = requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+		allowedFilePermission, ok := allowedPermission.(notify.FilePermission)
+		c.Assert(ok, Equals, true)
+		replyChan <- allowedFilePermission
+		return nil
+	})
+	defer restore()
+
+	metadata := &prompting.Metadata{
+		User:      s.defaultUser,
+		Snap:      "firefox",
+		Interface: "home",
+	}
+	path := "/home/test/foo"
+	requestedPermissions := []string{"read", "write", "execute"}
+	remainingPermissions := []string{"write", "execute"}
+
+	// Should only have one at a time, but leave space for 2 in case expiration
+	// happens early before creation notice has been received.
+	noticeChan := make(chan noticeInfo, 2)
+	pdb, err := requestprompts.New(func(userID uint32, promptID prompting.IDType, data map[string]string) error {
+		c.Assert(userID, Equals, s.defaultUser)
+		noticeChan <- noticeInfo{
+			promptID: promptID,
+			data:     data,
+		}
+		return nil
+	})
+	c.Assert(err, IsNil)
+
+	// Add prompt
+	listenerReq := &listener.Request{}
+	prompt, merged, err := pdb.AddOrMerge(metadata, path, requestedPermissions, remainingPermissions, listenerReq)
+	c.Assert(err, IsNil)
+	c.Assert(merged, Equals, false)
+	checkCurrentNotices(c, noticeChan, prompt.ID, nil)
+
+	// Check that prompt has not immediately expired
+	checkNoNotices(c, noticeChan)
+	checkNoReply(c, replyChan)
+
+	// Prompt should expire after initialTimeout
+	time.Sleep(initialTimeout)
+	checkCurrentNotices(c, noticeChan, prompt.ID, map[string]string{"resolved": "expired"})
+	waitForReply(c, replyChan)
+
+	// Add prompt again
+	listenerReq = &listener.Request{}
+	prompt, merged, err = pdb.AddOrMerge(metadata, path, requestedPermissions, remainingPermissions, listenerReq)
+	c.Assert(err, IsNil)
+	c.Assert(merged, Equals, false)
+	checkCurrentNotices(c, noticeChan, prompt.ID, nil)
+
+	// Retrieve prompts for s.defaultUser, which bumps timeout
+	prompts, err := pdb.Prompts(s.defaultUser)
+	c.Check(err, IsNil)
+	c.Check(prompts, DeepEquals, []*requestprompts.Prompt{prompt})
+
+	// Prompt should *not* expire after initialTimeout
+	time.Sleep(initialTimeout)
+	checkNoNotices(c, noticeChan)
+	checkNoReply(c, replyChan)
+
+	// Retrieve prompt by ID, which bumps timeout
+	p, err := pdb.PromptWithID(s.defaultUser, prompt.ID)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, prompt)
+
+	// Prompt should *not* expire after initialTimeout
+	time.Sleep(initialTimeout)
+	checkNoNotices(c, noticeChan)
+	checkNoReply(c, replyChan)
+
+	// Reply to fake prompt (and get error, but still bump timeout)
+	_, err = pdb.Reply(s.defaultUser, prompt.ID+1, prompting.OutcomeAllow)
+	c.Check(err, NotNil)
+
+	// Prompt should *not* expire after initialTimeout
+	time.Sleep(initialTimeout)
+	checkNoNotices(c, noticeChan)
+	checkNoReply(c, replyChan)
+
+	// Prompt should expire after activityTimeout
+	time.Sleep(activityTimeout - initialTimeout)
+	checkCurrentNotices(c, noticeChan, prompt.ID, map[string]string{"resolved": "expired"})
+	waitForReply(c, replyChan)
+
+	// Add prompt again
+	listenerReq = &listener.Request{}
+	prompt, merged, err = pdb.AddOrMerge(metadata, path, requestedPermissions, remainingPermissions, listenerReq)
+	c.Assert(err, IsNil)
+	c.Assert(merged, Equals, false)
+	checkCurrentNotices(c, noticeChan, prompt.ID, nil)
+
+	// Check that prompt has not immediately expired
+	checkNoNotices(c, noticeChan)
+	checkNoReply(c, replyChan)
+
+	// After timing out, timer should be reset to initialTimeout, rater than
+	// activity timeout, so prompt should expire after initialTimeout.
+	time.Sleep(initialTimeout)
+	checkCurrentNotices(c, noticeChan, prompt.ID, map[string]string{"resolved": "expired"})
+	waitForReply(c, replyChan)
+}
+
+func checkNoNotices(c *C, noticeChan chan noticeInfo) {
+	select {
+	case info := <-noticeChan:
+		c.Fatalf("unexpected notice: ID: %s; data: %+v", info.promptID, info.data)
+	default:
+	}
+}
+
+func checkCurrentNotices(c *C, noticeChan chan noticeInfo, expectedID prompting.IDType, expectedData map[string]string) {
+	select {
+	case info := <-noticeChan:
+		c.Assert(info.promptID, Equals, expectedID)
+		c.Assert(info.data, DeepEquals, expectedData)
+	case <-time.NewTimer(10 * time.Millisecond).C:
+		c.Fatal("no notices")
+	}
+}
+
+func checkNoReply(c *C, replyChan chan notify.FilePermission) {
+	select {
+	case allowedPermission := <-replyChan:
+		c.Fatalf("unexpected reply: %v", allowedPermission)
+	default:
+	}
+}
+
+func waitForReply(c *C, replyChan chan notify.FilePermission) {
+	select {
+	case allowedPermission := <-replyChan:
+		// Allow all permissions mapping to "read" for the "home" interface,
+		// which are read|getattr|getattr.
+		c.Assert(allowedPermission, Equals, notify.AA_MAY_READ|notify.AA_MAY_OPEN|notify.AA_MAY_GETATTR)
+	case <-time.NewTimer(10 * time.Millisecond).C:
+		c.Fatalf("timed out waiting for reply")
+	}
+}
