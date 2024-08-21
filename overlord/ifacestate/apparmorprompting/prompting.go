@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -79,26 +80,32 @@ type InterfacesRequestsManager struct {
 
 func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 	notifyPrompt := func(userID uint32, promptID prompting.IDType, data map[string]string) error {
-		// TODO: add some sort of queue so that notifyPrompt calls can return
-		// quickly without waiting for state lock and AddNotice() to return.
-		s.Lock()
-		defer s.Unlock()
+		currTime := time.Now()
 		options := state.AddNoticeOptions{
 			Data: data,
+			// TODO: Make explicitly setting time guarantee order
+			Time: currTime,
 		}
-		_, err := s.AddNotice(&userID, state.InterfacesRequestsPromptNotice, promptID.String(), &options)
-		return err
+		go func() {
+			s.Lock()
+			defer s.Unlock()
+			s.AddNotice(&userID, state.InterfacesRequestsPromptNotice, promptID.String(), &options)
+		}()
+		return nil
 	}
 	notifyRule := func(userID uint32, ruleID prompting.IDType, data map[string]string) error {
-		// TODO: add some sort of queue so that notifyRule calls can return
-		// quickly without waiting for state lock and AddNotice() to return.
-		s.Lock()
-		defer s.Unlock()
+		currTime := time.Now()
 		options := state.AddNoticeOptions{
 			Data: data,
+			// TODO: Make explicitly setting time guarantee order
+			Time: currTime,
 		}
-		_, err := s.AddNotice(&userID, state.InterfacesRequestsRuleUpdateNotice, ruleID.String(), &options)
-		return err
+		go func() {
+			s.Lock()
+			defer s.Unlock()
+			s.AddNotice(&userID, state.InterfacesRequestsRuleUpdateNotice, ruleID.String(), &options)
+		}()
+		return nil
 	}
 
 	listenerBackend, err := listenerRegister()
