@@ -36,11 +36,12 @@
 -2:+0 /snap /snap rw,relatime master:-15 - ext4 /dev/sda1 rw
 +2:+0 / /snap/core/1 ro,nodev,relatime master:+15 - squashfs /dev/loop0 ro
 +0:+1 / /snap/core18/1 ro,nodev,relatime master:+1 - squashfs /dev/loop1 ro
-+0:+1 / /snap/test-snapd-mountinfo-classic/1 ro,nodev,relatime master:+1 - squashfs /dev/loop2 ro
-+0:+1 / /snap/test-snapd-mountinfo-core16/1 ro,nodev,relatime master:+1 - squashfs /dev/loop3 ro
-+0:+1 / /snap/test-snapd-mountinfo-core18/1 ro,nodev,relatime master:+1 - squashfs /dev/loop4 ro
-+0:-4 /srv /srv ro,nodev,relatime master:-4 - squashfs /dev/loop0 ro
--1:+13 / /sys rw,nosuid,nodev,noexec,relatime master:+5 - sysfs sysfs rw
++0:+1 / /snap/snapd/1 ro,nodev,relatime master:+1 - squashfs /dev/loop2 ro
++0:+1 / /snap/test-snapd-mountinfo-classic/1 ro,nodev,relatime master:+1 - squashfs /dev/loop3 ro
++0:+1 / /snap/test-snapd-mountinfo-core16/1 ro,nodev,relatime master:+1 - squashfs /dev/loop4 ro
++0:+1 / /snap/test-snapd-mountinfo-core18/1 ro,nodev,relatime master:+1 - squashfs /dev/loop5 ro
++0:-5 /srv /srv ro,nodev,relatime master:-5 - squashfs /dev/loop0 ro
+-1:+13 / /sys rw,nosuid,nodev,noexec,relatime master:+6 - sysfs sysfs rw
 +0:+1 / /sys/firmware/efi/efivars rw,nosuid,nodev,noexec,relatime master:+1 - efivarfs efivarfs rw
 +0:+1 / /sys/fs/cgroup ro,nosuid,nodev,noexec master:+1 - tmpfs tmpfs ro,mode=755
 +0:+1 / /sys/fs/cgroup/blkio rw,nosuid,nodev,noexec,relatime master:+1 - cgroup cgroup rw,blkio
@@ -61,7 +62,7 @@
 +0:+1 / /sys/kernel/config rw,relatime master:+1 - configfs configfs rw
 +0:+1 / /sys/kernel/debug rw,relatime master:+1 - debugfs debugfs rw
 +0:+1 / /sys/kernel/security rw,nosuid,nodev,noexec,relatime master:+1 - securityfs securityfs rw
--1:-33 /tmp /tmp rw,relatime master:-40 - ext4 /dev/sda1 rw
+-1:-33 /tmp /tmp rw,relatime master:-41 - ext4 /dev/sda1 rw
 +0:+0 /tmp/snap-private-tmp/snap.test-snapd-mountinfo-core16/tmp /tmp rw,relatime - ext4 /dev/sda1 rw
 +2:+0 /usr /usr ro,nodev,relatime master:16 - squashfs /dev/loop0 ro
 -1:+36 / /usr/share/gdb rw,relatime - tmpfs tmpfs rw,mode=755
@@ -80,10 +81,11 @@
 +0:+3 / /var/lib/snapd/hostfs/run/user/0 rw,nosuid,nodev,relatime master:15 - tmpfs tmpfs rw,size=VARIABLE,mode=700
 +1:-12 / /var/lib/snapd/hostfs/snap/core/1 ro,nodev,relatime master:+1 - squashfs /dev/loop0 ro
 +0:+1 / /var/lib/snapd/hostfs/snap/core18/1 ro,nodev,relatime master:+1 - squashfs /dev/loop1 ro
-+0:+1 / /var/lib/snapd/hostfs/snap/test-snapd-mountinfo-classic/1 ro,nodev,relatime master:+1 - squashfs /dev/loop2 ro
-+0:+1 / /var/lib/snapd/hostfs/snap/test-snapd-mountinfo-core16/1 ro,nodev,relatime master:+1 - squashfs /dev/loop3 ro
-+0:+1 / /var/lib/snapd/hostfs/snap/test-snapd-mountinfo-core18/1 ro,nodev,relatime master:+1 - squashfs /dev/loop4 ro
--2:-4 /var/log /var/log rw,relatime master:-19 - ext4 /dev/sda1 rw
++0:+1 / /var/lib/snapd/hostfs/snap/snapd/1 ro,nodev,relatime master:+1 - squashfs /dev/loop2 ro
++0:+1 / /var/lib/snapd/hostfs/snap/test-snapd-mountinfo-classic/1 ro,nodev,relatime master:+1 - squashfs /dev/loop3 ro
++0:+1 / /var/lib/snapd/hostfs/snap/test-snapd-mountinfo-core16/1 ro,nodev,relatime master:+1 - squashfs /dev/loop4 ro
++0:+1 / /var/lib/snapd/hostfs/snap/test-snapd-mountinfo-core18/1 ro,nodev,relatime master:+1 - squashfs /dev/loop5 ro
+-2:-5 /var/log /var/log rw,relatime master:-20 - ext4 /dev/sda1 rw
 +0:+0 /var/snap /var/snap rw,relatime master:+0 - ext4 /dev/sda1 rw
 +0:+0 /var/tmp /var/tmp rw,relatime master:+0 - ext4 /dev/sda1 rw
 +2:+0 /writable /writable ro,nodev,relatime master:+15 - squashfs /dev/loop0 ro
