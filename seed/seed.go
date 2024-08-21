@@ -244,9 +244,10 @@ type Copier interface {
 	// for all modes.
 	Copy(seedDir string, opts CopyOptions, tm timings.Measurer) error
 	// OptionalContainers returns the set of snaps and components that are
-	// consider optional in the seed's model, but are available in the seed and
-	// can be copied to a new seed location. Use this in conjunction with
-	// Copier.Copy specific optional snaps and components.
+	// considered optional in the seed's model, but are available in the seed
+	// and can be copied to a new seed location. Use this in conjunction with
+	// Copier.Copy to pick specific optional snaps and components that should be
+	// copied to the new seed.
 	OptionalContainers() (OptionalContainers, error)
 }
 
