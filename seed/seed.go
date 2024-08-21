@@ -236,7 +236,7 @@ type OptionalContainers struct {
 // destination.
 type Copier interface {
 	Seed
-	// Copy copies the seed to the given seedDir. This interface only makes
+	// Copy copies the seed under the given seedDir. This interface only makes
 	// sense to implement for UC20+ seeds. Copy requires you to call the
 	// LoadAssertions method first. Note that LoadMeta for all modes will be
 	// called by Copy. If LoadMeta was called previously on this Seed with a
