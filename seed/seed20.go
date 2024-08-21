@@ -150,55 +150,54 @@ func shouldCopyComponent(target Component, snapName string, model *asserts.Model
 func (s *seed20) OptionalContainers() (OptionalContainers, error) {
 	model := s.Model()
 
-	optionalSnaps := make(map[string]bool)
-	optionalComponents := make(map[string]map[string]bool)
+	requiredSnapsInModel := make(map[string]bool)
+	requiredComponentsInModel := make(map[string]map[string]bool)
 	for _, snap := range model.AllSnaps() {
-		optionalComps := make(map[string]bool)
+		if snap.Presence == "required" || snap.Presence == "" {
+			requiredSnapsInModel[snap.Name] = true
+		}
+
+		requiredComps := make(map[string]bool)
 		for compName, comp := range snap.Components {
-			if comp.Presence == "optional" {
-				optionalComps[compName] = true
+			if comp.Presence == "required" {
+				requiredComps[compName] = true
 			}
 		}
-
-		optionalComponents[snap.Name] = optionalComps
-
-		if snap.Presence == "optional" {
-			optionalSnaps[snap.Name] = true
-		}
+		requiredComponentsInModel[snap.Name] = requiredComps
 	}
+
+	// snapd is always required, but it might not be explicitly listed in the
+	// model
+	requiredSnapsInModel["snapd"] = true
 
 	availableSnaps, availableComponents, err := s.availableContainers()
 	if err != nil {
 		return OptionalContainers{}, err
 	}
 
-	available := OptionalContainers{
+	optionalAndAvailable := OptionalContainers{
 		Components: make(map[string][]string),
 	}
 	for sn := range availableSnaps {
-		if optionalSnaps[sn] {
-			available.Snaps = append(available.Snaps, sn)
+		if !requiredSnapsInModel[sn] {
+			optionalAndAvailable.Snaps = append(optionalAndAvailable.Snaps, sn)
 		}
 	}
 
 	for sn, comps := range availableComponents {
-		optionalCompsForSnap := optionalComponents[sn]
-		if optionalCompsForSnap == nil {
-			continue
-		}
-
+		requiredCompsForSnap := requiredComponentsInModel[sn]
 		for c := range comps {
-			if optionalCompsForSnap[c] {
-				available.Components[sn] = append(available.Components[sn], c)
+			if requiredCompsForSnap == nil || !requiredCompsForSnap[c] {
+				optionalAndAvailable.Components[sn] = append(optionalAndAvailable.Components[sn], c)
 			}
 		}
 	}
 
-	if len(available.Components) == 0 {
-		available.Components = nil
+	if len(optionalAndAvailable.Components) == 0 {
+		optionalAndAvailable.Components = nil
 	}
 
-	return available, nil
+	return optionalAndAvailable, nil
 }
 
 func (s *seed20) availableContainers() (map[string]bool, map[string]map[string]bool, error) {
@@ -214,6 +213,9 @@ func (s *seed20) availableContainers() (map[string]bool, map[string]map[string]b
 		for _, sn := range opts.Snaps {
 			availableSnapSet[sn.Name] = true
 			for _, comp := range sn.Components {
+				if availableCompSets[sn.Name] == nil {
+					availableCompSets[sn.Name] = make(map[string]bool)
+				}
 				availableCompSets[sn.Name][comp.Name] = true
 			}
 		}

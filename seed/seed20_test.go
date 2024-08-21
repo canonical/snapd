@@ -3984,7 +3984,7 @@ func (s *seed20Suite) TestOptionalContainers(c *C) {
 	)
 
 	const srcLabel = "20191030"
-	s.MakeSeed(c, srcLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeedWithLocalComponents(c, srcLabel, "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
@@ -4019,6 +4019,7 @@ func (s *seed20Suite) TestOptionalContainers(c *C) {
 				"components": map[string]interface{}{
 					"comp1": "required",
 					"comp2": "optional",
+					"comp3": "optional",
 				},
 			},
 		},
@@ -4037,6 +4038,13 @@ func (s *seed20Suite) TestOptionalContainers(c *C) {
 		{
 			Name: "optional20-a",
 		},
+		{
+			Path: s.makeLocalSnap(c, "local-component-test"),
+		},
+	}, map[string][]string{
+		"local-component-test": {
+			snaptest.MakeTestComponent(c, seedtest.SampleSnapYaml["local-component-test+comp4"]),
+		},
 	})
 
 	seed20, err := seed.Open(s.SeedDir, srcLabel)
@@ -4050,9 +4058,14 @@ func (s *seed20Suite) TestOptionalContainers(c *C) {
 	optional, err := copier.OptionalContainers()
 	c.Assert(err, IsNil)
 
-	c.Assert(optional.Snaps, testutil.DeepUnsortedMatches, []string{"optional20-a", "component-test"})
+	// note that the optional snap, optional20-b, is missing since it is not
+	// available in the seed
+	c.Assert(optional.Snaps, testutil.DeepUnsortedMatches, []string{"optional20-a", "component-test", "local-component-test", "required20"})
 	c.Assert(optional.Components, testutil.DeepUnsortedMatches, map[string][]string{
-		"component-test": {"comp2"},
+		// note that the optional components, comp3, is missing, since it is not
+		// available in the seed
+		"component-test":       {"comp2"},
+		"local-component-test": {"comp4"},
 	})
 }
 
