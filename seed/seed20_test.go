@@ -3514,15 +3514,17 @@ func (s *seed20Suite) TestCopy(c *C) {
 		"component-test+comp2_33.comp",
 		"component-test_11.snap",
 		"optional20-a_1.snap",
+		"required20_1.snap",
 		"aux-info-test_1.snap",
 	}, []string{
-		"required20_1.0.snap",
+		"optional20-b_1.0.snap",
 	}, map[string][]string{
 		s.AssertedSnapID("core20"):         nil,
 		s.AssertedSnapID("pc"):             nil,
 		s.AssertedSnapID("pc-kernel"):      nil,
 		s.AssertedSnapID("snapd"):          nil,
 		s.AssertedSnapID("optional20-a"):   nil,
+		s.AssertedSnapID("required20"):     nil,
 		s.AssertedSnapID("aux-info-test"):  nil,
 		s.AssertedSnapID("component-test"): {"comp1", "comp2"},
 	})
@@ -3538,15 +3540,17 @@ func (s *seed20Suite) TestCopyEmptyLabel(c *C) {
 		"component-test+comp2_33.comp",
 		"component-test_11.snap",
 		"optional20-a_1.snap",
+		"required20_1.snap",
 		"aux-info-test_1.snap",
 	}, []string{
-		"required20_1.0.snap",
+		"optional20-b_1.0.snap",
 	}, map[string][]string{
 		s.AssertedSnapID("core20"):         nil,
 		s.AssertedSnapID("pc"):             nil,
 		s.AssertedSnapID("pc-kernel"):      nil,
 		s.AssertedSnapID("snapd"):          nil,
 		s.AssertedSnapID("optional20-a"):   nil,
+		s.AssertedSnapID("required20"):     nil,
 		s.AssertedSnapID("aux-info-test"):  nil,
 		s.AssertedSnapID("component-test"): {"comp1", "comp2"},
 	})
@@ -3556,7 +3560,7 @@ func (s *seed20Suite) TestCopyWithOptionalContainersIncludeEverything(c *C) {
 	s.testCopy(c, seed.CopyOptions{
 		Label: "20240126",
 		OptionalContainers: &seed.OptionalContainers{
-			Snaps: []string{"component-test", "required20", "optional20-a", "aux-info-test"},
+			Snaps: []string{"component-test", "optional20-a", "optional20-b", "aux-info-test"},
 			Components: map[string][]string{
 				"component-test": {"comp2"},
 			},
@@ -3570,15 +3574,17 @@ func (s *seed20Suite) TestCopyWithOptionalContainersIncludeEverything(c *C) {
 		"component-test+comp2_33.comp",
 		"component-test_11.snap",
 		"optional20-a_1.snap",
+		"required20_1.snap",
 		"aux-info-test_1.snap",
 	}, []string{
-		"required20_1.0.snap",
+		"optional20-b_1.0.snap",
 	}, map[string][]string{
 		s.AssertedSnapID("core20"):         nil,
 		s.AssertedSnapID("pc"):             nil,
 		s.AssertedSnapID("pc-kernel"):      nil,
 		s.AssertedSnapID("snapd"):          nil,
 		s.AssertedSnapID("optional20-a"):   nil,
+		s.AssertedSnapID("required20"):     nil,
 		s.AssertedSnapID("aux-info-test"):  nil,
 		s.AssertedSnapID("component-test"): {"comp1", "comp2"},
 	})
@@ -3597,6 +3603,7 @@ func (s *seed20Suite) TestCopyWithOptionalContainersExclude(c *C) {
 		"snapd_1.snap",
 		"component-test+comp1_22.comp",
 		"component-test_11.snap",
+		"required20_1.snap",
 	}, nil, map[string][]string{
 		// note that optional20-a, aux-info-test and component-test+comp2
 		// assertions are not copied over
@@ -3605,6 +3612,7 @@ func (s *seed20Suite) TestCopyWithOptionalContainersExclude(c *C) {
 		s.AssertedSnapID("pc-kernel"):      nil,
 		s.AssertedSnapID("snapd"):          nil,
 		s.AssertedSnapID("component-test"): {"comp1"},
+		s.AssertedSnapID("required20"):     nil,
 	})
 }
 
@@ -3612,6 +3620,7 @@ func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedCont
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core20", "")
 	s.makeSnap(c, "optional20-a", "")
+	s.makeSnap(c, "required20", "")
 	s.makeSnap(c, "aux-info-test", "")
 	s.makeSnap(c, "pc-kernel=20", "")
 	s.makeSnap(c, "pc=20", "")
@@ -3651,9 +3660,9 @@ func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedCont
 				"presence": "optional",
 			},
 			map[string]interface{}{
-				"name":     "optional20-b",
-				"id":       s.AssertedSnapID("optional20-b"),
-				"presence": "optional",
+				"name":     "required20",
+				"id":       s.AssertedSnapID("required20"),
+				"presence": "required",
 			},
 			map[string]interface{}{
 				"name":     "aux-info-test",
@@ -3672,7 +3681,7 @@ func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedCont
 		},
 	}, []*seedwriter.OptionsSnap{
 		{
-			Path: s.makeLocalSnap(c, "required20"),
+			Path: s.makeLocalSnap(c, "optional20-b"),
 		},
 		{
 			Name: "component-test",
