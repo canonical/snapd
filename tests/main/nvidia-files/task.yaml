@@ -160,19 +160,19 @@ prepare: |
     # must match installed libraries so that the right canary file is detected by
     # snap-confine.
     mkdir -p /tmp/sys-module/nvidia
-    echo "$DRIVER_VERSION" >/tmp/sys-module/nvidia/version
-    if os.query is-xenial || os.query is-bionic; then
-        mount -o bind /tmp/sys-module/ /sys/module
-    else
-        mkdir -p /tmp/sys-module-work
-        LO="/sys/module/"
-        UP="/tmp/sys-module"
-        WORK="/tmp/sys-module-work"
-        mount -t overlay overlay \
-            -olowerdir="$LO",upperdir="$UP",workdir="$WORK" /sys/module
-    fi
     tests.cleanup defer rm -rf /tmp/sys-module
-    tests.cleanup defer umount /sys/module
+    echo "$DRIVER_VERSION" >/tmp/sys-module/nvidia/version
+    # mock /sys/module we need to recreate /sys/module/apparmor
+    mkdir -p /tmp/sys-module-apparmor
+    tests.cleanup defer rmdir /tmp/sys-module-apparmor
+    mount -o bind /sys/module/apparmor /tmp/sys-module-apparmor
+    tests.cleanup defer umount /tmp/sys-module-apparmor
+    mkdir -p /tmp/sys-module/apparmor
+
+    mount -o bind /tmp/sys-module/ /sys/module
+    # and recreate apparmor directory
+    mount -o bind /tmp/sys-module-apparmor /sys/module/apparmor
+    tests.cleanup defer umount -R /sys/module
 
     snap install test-snapd-nvidia
 
