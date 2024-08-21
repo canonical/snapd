@@ -2,17 +2,25 @@
 
 set -e
 
-need_rebuild=0
+need_rebuild=1
 
-if [ -d built-snap ]; then
-    echo "-- $(date) -- prebuilt snap directory found"
-else
-    need_rebuild=1
-fi
+shopt -s nullglob
 
-if [ "$FORCE_REBUILD" = "1" ]; then
-    echo "-- $(date) -- force snapd snap rebuild"
-    need_rebuild=1
+if [ "$NO_REBUILD" = "1" ]; then
+    echo "-- $(date) -- requested no snap rebuild"
+    need_rebuild=0
+
+    # check if we have any snaps built at all
+    built_snaps=(built-snap/snapd_*.snap.keep)
+    if (( "${#built_snaps[@]}" > 0 )); then
+        echo "-- $(date) -- found prebuilt snapd snaps:"
+        for s in "${built_snaps[@]}"; do
+            echo "--   $s"
+        done
+    else
+        echo "-- $(date) -- no prebuilt snaps found"
+        need_rebuild=1
+    fi
 fi
 
 if [ "$need_rebuild" = 1 ]; then
