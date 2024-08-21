@@ -213,8 +213,8 @@ type PreseedCapable interface {
 // CopyOptions is the set of options that can be passed to a Copier's Copy
 // method.
 type CopyOptions struct {
-	// Label is the label of the recovery system to be copied. If empty, the
-	// label of the seed that implements Copier is used.
+	// Label is the label that will be used for the new seed produced by the
+	// copy. If empty, the label of the seed that implements Copier is used.
 	Label string
 	// OptionalContainers is the set of optional containers that should be
 	// copied to the new seed. If nil, all optional containers are copied.
