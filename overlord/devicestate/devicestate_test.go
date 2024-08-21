@@ -44,7 +44,6 @@ import (
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
@@ -2199,7 +2198,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	})
 	defer restore()
 
-	restore = devicestate.MockDisksPartitionUUIDFromMountPoint(func(mountpoint string, opts *disks.Options) (string, error) {
+	restore = devicestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
 		c.Check(mountpoint, Equals, boot.InitramfsUbuntuSaveDir)
 		return "FOOUUID", nil
 	})
@@ -2207,7 +2206,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 
 	deleteOldSaveKey := 0
 	restore = devicestate.MockSecbootDeleteKeys(func(node string, matches map[string]bool) error {
-		c.Check(node, Equals, "/dev/disk/by-partuuid/FOOUUID")
+		c.Check(node, Equals, "/dev/disk/by-uuid/FOOUUID")
 		c.Check(matches, DeepEquals, map[string]bool{
 			"factory-reset-old":          true,
 			"factory-reset-old-fallback": true,

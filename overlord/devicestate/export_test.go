@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
@@ -628,10 +627,10 @@ func MockSecbootDeleteKeys(f func(node string, matches map[string]bool) error) (
 	}
 }
 
-func MockDisksPartitionUUIDFromMountPoint(f func(mountpoint string, opts *disks.Options) (string, error)) (restore func()) {
-	old := disksPartitionUUIDFromMountPoint
-	disksPartitionUUIDFromMountPoint = f
+func MockDisksDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error)) (restore func()) {
+	old := disksDMCryptUUIDFromMountPoint
+	disksDMCryptUUIDFromMountPoint = f
 	return func() {
-		disksPartitionUUIDFromMountPoint = old
+		disksDMCryptUUIDFromMountPoint = old
 	}
 }
