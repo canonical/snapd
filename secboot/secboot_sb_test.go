@@ -433,6 +433,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			{
 				FilesystemLabel: "name-enc",
 				PartitionUUID:   "enc-dev-partuuid",
+				FilesystemUUID:  "enc-dev-uuid",
 			},
 		},
 	}
@@ -444,6 +445,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			{
 				FilesystemLabel: "name",
 				PartitionUUID:   "unenc-dev-partuuid",
+				FilesystemUUID:  "unenc-dev-uuid",
 			},
 		},
 	}
@@ -526,7 +528,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			hasEncdev: true, rkErr: errors.New("cannot unlock with recovery key"),
 			rkAllow: true,
 			disk:    mockDiskWithEncDev,
-			err:     `cannot unlock encrypted device ".*/enc-dev-partuuid": cannot unlock with recovery key`,
+			err:     `cannot unlock encrypted device "/dev/disk/by-uuid/enc-dev-uuid": cannot unlock with recovery key`,
 		}, {
 			// no tpm, has encrypted device, unlocked using the recovery key
 			tpmErr: sb_tpm2.ErrNoTPM2Device, hasEncdev: true,
@@ -537,14 +539,14 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			// no tpm, has encrypted device, unlocking with recovery key not allowed
 			tpmErr: sb_tpm2.ErrNoTPM2Device, hasEncdev: true,
 			disk: mockDiskWithEncDev,
-			err:  `cannot activate encrypted device ".*/enc-dev-partuuid": activation error`,
+			err:  `cannot activate encrypted device "/dev/disk/by-uuid/enc-dev-uuid": activation error`,
 		}, {
 			// no tpm, has encrypted device, recovery key unlocking fails
 			rkErr:  errors.New("cannot unlock with recovery key"),
 			tpmErr: sb_tpm2.ErrNoTPM2Device, hasEncdev: true,
 			rkAllow: true,
 			disk:    mockDiskWithEncDev,
-			err:     `cannot unlock encrypted device ".*/enc-dev-partuuid": cannot unlock with recovery key`,
+			err:     `cannot unlock encrypted device "/dev/disk/by-uuid/enc-dev-uuid": cannot unlock with recovery key`,
 		}, {
 			// no tpm, no encrypted device
 			tpmErr: sb_tpm2.ErrNoTPM2Device,
@@ -585,18 +587,22 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			fsLabel += "-enc"
 		}
 
-		partuuid := ""
+		uuid := ""
+		partUUID := ""
 		if !tc.skipDiskEnsureCheck {
 			for _, p := range tc.disk.Structure {
 				if p.FilesystemLabel == fsLabel {
-					partuuid = p.PartitionUUID
+					uuid = p.FilesystemUUID
+					partUUID = p.PartitionUUID
 					break
 				}
 			}
-			c.Assert(partuuid, Not(Equals), "", Commentf("didn't find fs label %s in disk", fsLabel))
+			c.Assert(uuid, Not(Equals), "", Commentf("didn't find fs label %s in disk", fsLabel))
+			c.Assert(partUUID, Not(Equals), "", Commentf("didn't find fs label %s in disk", fsLabel))
 		}
 
-		devicePath := filepath.Join("/dev/disk/by-partuuid", partuuid)
+		devicePath := filepath.Join("/dev/disk/by-partuuid", partUUID)
+		devicePathUUID := fmt.Sprintf("/dev/disk/by-uuid/%s", uuid)
 
 		var keyPath string
 		if tc.oldKeyFormat {
@@ -673,7 +679,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
 
 			c.Assert(volumeName, Equals, "name-"+randomUUID)
-			c.Assert(sourceDevicePath, Equals, devicePath)
+			c.Assert(sourceDevicePath, Equals, devicePathUUID)
 			c.Assert(keys, HasLen, 1)
 			c.Assert(keys[0], Equals, expectedKeyData)
 
@@ -1362,6 +1368,7 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyUUIDError(c *C) {
 		Structure: []disks.Partition{
 			{
 				FilesystemLabel: "ubuntu-save-enc",
+				FilesystemUUID:  "321-321-321",
 				PartitionUUID:   "123-123-123",
 			},
 		},
@@ -1374,7 +1381,7 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyUUIDError(c *C) {
 	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, ErrorMatches, "mocked uuid error")
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
-		PartDevice:  "/dev/disk/by-partuuid/123-123-123",
+		PartDevice:  "/dev/disk/by-uuid/321-321-321",
 		IsEncrypted: true,
 	})
 }
@@ -1384,6 +1391,7 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
 		Structure: []disks.Partition{
 			{
 				FilesystemLabel: "ubuntu-save-enc",
+				FilesystemUUID:  "321-321-321",
 				PartitionUUID:   "123-123-123",
 			},
 		},
@@ -1400,14 +1408,14 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
 		c.Check(options, DeepEquals, &sb.ActivateVolumeOptions{})
 		c.Check(key, DeepEquals, []byte("fooo"))
 		c.Check(volumeName, Matches, "ubuntu-save-random-uuid-123-123")
-		c.Check(sourceDevicePath, Equals, "/dev/disk/by-partuuid/123-123-123")
+		c.Check(sourceDevicePath, Equals, "/dev/disk/by-uuid/321-321-321")
 		return nil
 	})
 	defer restore()
 	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, IsNil)
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
-		PartDevice:   "/dev/disk/by-partuuid/123-123-123",
+		PartDevice:   "/dev/disk/by-uuid/321-321-321",
 		FsDevice:     "/dev/mapper/ubuntu-save-random-uuid-123-123",
 		IsEncrypted:  true,
 		UnlockMethod: secboot.UnlockedWithKey,
@@ -1419,6 +1427,7 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
 		Structure: []disks.Partition{
 			{
 				FilesystemLabel: "ubuntu-save-enc",
+				FilesystemUUID:  "321-321-321",
 				PartitionUUID:   "123-123-123",
 			},
 		},
@@ -1440,7 +1449,7 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
 	// we would have at least identified that the device is a decrypted one
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
 		IsEncrypted: true,
-		PartDevice:  "/dev/disk/by-partuuid/123-123-123",
+		PartDevice:  "/dev/disk/by-uuid/321-321-321",
 		FsDevice:    "",
 	})
 }
@@ -1460,6 +1469,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(
 		Structure: []disks.Partition{
 			{
 				FilesystemLabel: "name-enc",
+				FilesystemUUID:  "enc-dev-uuid",
 				PartitionUUID:   "enc-dev-partuuid",
 			},
 		},
@@ -1516,6 +1526,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1An
 		Structure: []disks.Partition{
 			{
 				FilesystemLabel: "device-name-enc",
+				FilesystemUUID:  "enc-dev-uuid",
 				PartitionUUID:   "enc-dev-partuuid",
 			},
 		},
@@ -1702,6 +1713,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 		Structure: []disks.Partition{
 			{
 				FilesystemLabel: "device-name-enc",
+				FilesystemUUID:  "enc-dev-uuid",
 				PartitionUUID:   "enc-dev-partuuid",
 			},
 		},
@@ -1765,6 +1777,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Ac
 		Structure: []disks.Partition{
 			{
 				FilesystemLabel: "device-name-enc",
+				FilesystemUUID:  "enc-dev-uuid",
 				PartitionUUID:   "enc-dev-partuuid",
 			},
 		},
@@ -1817,6 +1830,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Al
 		Structure: []disks.Partition{
 			{
 				FilesystemLabel: "device-name-enc",
+				FilesystemUUID:  "enc-dev-uuid",
 				PartitionUUID:   "enc-dev-partuuid",
 			},
 		},
@@ -1885,6 +1899,7 @@ func (s *secbootSuite) checkV2Key(c *C, keyFn string, prefixToDrop, expectedKey,
 		Structure: []disks.Partition{
 			{
 				FilesystemLabel: "device-name-enc",
+				FilesystemUUID:  "enc-dev-uuid",
 				PartitionUUID:   "enc-dev-partuuid",
 			},
 		},
@@ -1955,6 +1970,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c
 		Structure: []disks.Partition{
 			{
 				FilesystemLabel: "device-name-enc",
+				FilesystemUUID:  "enc-dev-uuid",
 				PartitionUUID:   "enc-dev-partuuid",
 			},
 		},
@@ -2012,6 +2028,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 		Structure: []disks.Partition{
 			{
 				FilesystemLabel: "device-name-enc",
+				FilesystemUUID:  "enc-dev-uuid",
 				PartitionUUID:   "enc-dev-partuuid",
 			},
 		},
