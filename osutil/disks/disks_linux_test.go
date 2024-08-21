@@ -552,8 +552,6 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 			c.Assert(dev, Equals, "/dev/vda4")
 			// this is the partition that was mounted that we initially inspect
 			// to get the disk
-			// this is also called again when we call MountPointIsFromDisk to
-			// verify that the /run/mnt/point is from the same disk
 			return map[string]string{
 				"ID_PART_ENTRY_DISK": "42:0",
 				"DEVTYPE":            "disk",
@@ -628,10 +626,6 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 			StartInBytes:     2500 * 512,
 		},
 	})
-
-	matches, err := disk.MountPointIsFromDisk("/run/mnt/point", nil)
-	c.Assert(err, IsNil)
-	c.Assert(matches, Equals, true)
 
 	// trying to search for any other labels though will fail
 	_, err = disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-boot")
@@ -872,51 +866,31 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 			// same for the fourth partition
 			return ubuntuDataUdevPropMap, nil
 		case 7:
-			// next request is for the MountPointIsFromDisk for ubuntu-boot in
-			// this test
-			c.Assert(dev, Equals, "/dev/vda3")
-			return diskUdevPropMap, nil
-		case 8:
-			// next request is also in MountPointIsFromDisk to get devpath for
-			// the physical backing disk
-			c.Assert(dev, Equals, "/dev/block/42:0")
-			return diskUdevPropMap, nil
-		case 9:
 			// next request is for the another DiskFromMountPoint build set of methods we
 			// call in this test
 			c.Assert(dev, Equals, "/dev/vda3")
 			return diskUdevPropMap, nil
-		case 10:
-			// next request is also in MountPointIsFromDisk to get devpath and
-			// the devname for the physical backing disk
+		case 8:
+			// getting the udev props for the disk itself
 			c.Assert(dev, Equals, "/dev/block/42:0")
 			return diskUdevPropMap, nil
-		case 11:
+		case 9:
 			c.Assert(dev, Equals, "vda1")
 			// this is the sysfs entry for the first partition of the disk
 			// previously found under the DEVPATH for /dev/block/42:0
 			return biosBootUdevPropMap, nil
-		case 12:
+		case 10:
 			c.Assert(dev, Equals, "vda2")
 			// the second partition of the disk from sysfs has a fs label
 			return ubuntuSeedUdevPropMap, nil
-		case 13:
+		case 11:
 			c.Assert(dev, Equals, "vda3")
 			// same for the third partition
 			return ubuntuBootUdevPropMap, nil
-		case 14:
+		case 12:
 			c.Assert(dev, Equals, "vda4")
 			// same for the fourth partition
 			return ubuntuDataUdevPropMap, nil
-		case 15:
-			// next request is for the MountPointIsFromDisk for ubuntu-data
-			c.Assert(dev, Equals, "/dev/vda4")
-			return diskUdevPropMap, nil
-		case 16:
-			// next request is also in MountPointIsFromDisk to get devpath for
-			// the physical backing disk
-			c.Assert(dev, Equals, "/dev/block/42:0")
-			return diskUdevPropMap, nil
 		default:
 			c.Errorf("unexpected udev device properties requested (request %d): %s", n, dev)
 			return nil, fmt.Errorf("unexpected udev device (request %d): %s", n, dev)
@@ -944,12 +918,6 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 		c.Assert(id, Equals, label+"-partuuid")
 	}
 
-	// and the mountpoint for ubuntu-boot at /run/mnt/ubuntu-boot matches the
-	// same disk
-	matches, err := ubuntuDataDisk.MountPointIsFromDisk("/run/mnt/ubuntu-boot", nil)
-	c.Assert(err, IsNil)
-	c.Assert(matches, Equals, true)
-
 	// and we can find the partition for ubuntu-boot first and then match
 	// that with ubuntu-data too
 	ubuntuBootDisk, err := disks.DiskFromMountPoint("/run/mnt/ubuntu-boot", nil)
@@ -963,12 +931,6 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(id, Equals, label+"-partuuid")
 	}
-
-	// and the mountpoint for ubuntu-boot at /run/mnt/ubuntu-boot matches the
-	// same disk
-	matches, err = ubuntuBootDisk.MountPointIsFromDisk("/run/mnt/data", nil)
-	c.Assert(err, IsNil)
-	c.Assert(matches, Equals, true)
 
 	// finally we can't find the bios-boot partition because it has no fs label
 	_, err = ubuntuBootDisk.FindMatchingPartitionUUIDWithFsLabel("bios-boot")
@@ -1139,36 +1101,27 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			c.Assert(dev, Equals, "vda4")
 			return ubuntuDataEncUdevPropMap, nil
 		case 8:
-			// next we will find the disk for a different mount point via
-			// MountPointIsFromDisk for ubuntu-boot
-			c.Assert(dev, Equals, "/dev/vda3")
-			return diskUdevPropMap, nil
-		case 9:
-			// getting the udev props for the disk itself
-			c.Assert(dev, Equals, "/dev/block/42:0")
-			return diskUdevPropMap, nil
-		case 10:
 			// next we will build up a disk from the ubuntu-boot mount point
 			c.Assert(dev, Equals, "/dev/vda3")
 			return diskUdevPropMap, nil
-		case 11:
+		case 9:
 			// same as step 4
 			c.Assert(dev, Equals, "/dev/block/42:0")
 			return diskUdevPropMap, nil
-		case 12:
+		case 10:
 			// next find each partition in turn again, same as steps 5-8
 			c.Assert(dev, Equals, "vda1")
 			return biosBootUdevPropMap, nil
-		case 13:
+		case 11:
 			c.Assert(dev, Equals, "vda2")
 			return ubuntuSeedUdevPropMap, nil
-		case 14:
+		case 12:
 			c.Assert(dev, Equals, "vda3")
 			return ubuntuBootUdevPropMap, nil
-		case 15:
+		case 13:
 			c.Assert(dev, Equals, "vda4")
 			return ubuntuDataEncUdevPropMap, nil
-		case 16:
+		case 14:
 			// then we will find the disk for ubuntu-data mapper volume to
 			// verify it comes from the same disk as the second disk we just
 			// finished finding
@@ -1179,11 +1132,11 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 				"MAJOR":   "252",
 				"MINOR":   "0",
 			}, nil
-		case 17:
+		case 15:
 			// then we find the physical disk by the dm uuid
 			c.Assert(dev, Equals, "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304")
 			return diskUdevPropMap, nil
-		case 18:
+		case 16:
 			// and again we search for the physical backing disk to get devpath
 			c.Assert(dev, Equals, "/dev/block/42:0")
 			return diskUdevPropMap, nil
@@ -1240,12 +1193,6 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 		c.Assert(part, DeepEquals, partsOnDisk[label])
 	}
 
-	// and the mountpoint for ubuntu-boot at /run/mnt/ubuntu-boot matches the
-	// same disk
-	matches, err := ubuntuDataDisk.MountPointIsFromDisk("/run/mnt/ubuntu-boot", nil)
-	c.Assert(err, IsNil)
-	c.Assert(matches, Equals, true)
-
 	// and we can find the partition for ubuntu-boot first and then match
 	// that with ubuntu-data too
 	ubuntuBootDisk, err := disks.DiskFromMountPoint("/run/mnt/ubuntu-boot", nil)
@@ -1259,12 +1206,6 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(id, Equals, label+"-partuuid")
 	}
-
-	// and the mountpoint for ubuntu-boot at /run/mnt/ubuntu-boot matches the
-	// same disk
-	matches, err = ubuntuBootDisk.MountPointIsFromDisk("/run/mnt/data", opts)
-	c.Assert(err, IsNil)
-	c.Assert(matches, Equals, true)
 
 	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
 		{"udevadm", "trigger", "--name-match=vda1"},

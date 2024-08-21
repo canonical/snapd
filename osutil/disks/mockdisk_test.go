@@ -402,21 +402,6 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 		{PartitionLabel: "part-label1", FilesystemLabel: "label1", PartitionUUID: "part1"},
 	})
 
-	// the same mount point is always from the same disk
-	matches, err := foundDisk.MountPointIsFromDisk("mount1", nil)
-	c.Assert(err, IsNil)
-	c.Assert(matches, Equals, true)
-
-	// mount2 goes to the same disk, as per the mapping above
-	matches, err = foundDisk.MountPointIsFromDisk("mount2", nil)
-	c.Assert(err, IsNil)
-	c.Assert(matches, Equals, true)
-
-	// mount3 does not however
-	matches, err = foundDisk.MountPointIsFromDisk("mount3", nil)
-	c.Assert(err, IsNil)
-	c.Assert(matches, Equals, false)
-
 	// a disk from mount3 is also able to be found
 	foundDisk2, err := disks.DiskFromMountPoint("mount3", nil)
 	c.Assert(err, IsNil)
@@ -468,14 +453,6 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 		SearchType:  "partition-label",
 		SearchQuery: "part-label1",
 	})
-
-	// mount1 and mount2 do not match mount3 disk
-	matches, err = foundDisk2.MountPointIsFromDisk("mount1", nil)
-	c.Assert(err, IsNil)
-	c.Assert(matches, Equals, false)
-	matches, err = foundDisk2.MountPointIsFromDisk("mount2", nil)
-	c.Assert(err, IsNil)
-	c.Assert(matches, Equals, false)
 }
 
 func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingDecryptedDevices(c *C) {
@@ -523,11 +500,4 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingDecryptedDevice
 	label, err = d.FindMatchingPartitionUUIDWithFsLabel("ubuntu-data-enc")
 	c.Assert(err, IsNil)
 	c.Assert(label, Equals, "ubuntu-data-enc-part")
-
-	// and then finally ubuntu-data enc is from the same disk as ubuntu-boot
-	// with IsDecryptedDevice = true
-	opts := &disks.Options{IsDecryptedDevice: true}
-	matches, err := d.MountPointIsFromDisk("/run/mnt/ubuntu-data", opts)
-	c.Assert(err, IsNil)
-	c.Assert(matches, Equals, true)
 }

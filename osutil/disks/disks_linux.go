@@ -905,20 +905,6 @@ func (d *disk) FindMatchingPartitionUUIDWithPartLabel(label string) (string, err
 	return p.PartitionUUID, nil
 }
 
-func (d *disk) MountPointIsFromDisk(mountpoint string, opts *Options) (bool, error) {
-	d2, err := diskFromMountPointImpl(mountpoint, opts)
-	if err != nil {
-		return false, err
-	}
-
-	// compare if the major/minor devices are the same and if both devices have
-	// partitions
-	return d.major == d2.major &&
-			d.minor == d2.minor &&
-			d.hasPartitions == d2.hasPartitions,
-		nil
-}
-
 func (d *disk) Dev() string {
 	return fmt.Sprintf("%d:%d", d.major, d.minor)
 }

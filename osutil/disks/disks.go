@@ -62,15 +62,6 @@ type Disk interface {
 	// generically useful.
 	FindMatchingPartitionUUIDWithPartLabel(string) (string, error)
 
-	// MountPointIsFromDisk returns whether the specified mountpoint corresponds
-	// to a partition on the disk. Note that this only considers partitions
-	// and mountpoints found when the disk was identified with
-	// DiskFromMountPoint.
-	// TODO: make this function return what a Disk of where the mount point
-	//       is actually from if it is not from the same disk for better
-	//       error reporting
-	MountPointIsFromDisk(string, *Options) (bool, error)
-
 	// Dev returns the string "major:minor" number for the disk device.
 	Dev() string
 
