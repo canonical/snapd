@@ -124,8 +124,6 @@ backends:
             - ubuntu-16.04-64:
                   workers: 8
                   storage: 12G
-            - ubuntu-18.04-32:
-                  workers: 6
             - ubuntu-18.04-64:
                   storage: 15G
                   workers: 8
