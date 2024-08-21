@@ -232,23 +232,28 @@ func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (er
 			continue
 		}
 
-		// note that assertions should always be present if we have a snap ID
-		if a, ok := s.snapDeclsByID[sn.ID()]; ok {
-			snapAssertions = append(snapAssertions, a)
-		}
-		if a, ok := s.snapRevsByID[sn.ID()]; ok {
-			snapAssertions = append(snapAssertions, a)
-		}
-
-		if a, ok := s.auxInfos[sn.ID()]; ok {
-			auxInfo[sn.ID()] = a
-		}
-
 		var destSnapPath string
 		if sn.ID() == "" {
 			destSnapPath = filepath.Join(destUnassertedSnapDir, filepath.Base(sn.Path))
 		} else {
 			destSnapPath = filepath.Join(destAssertedSnapDir, filepath.Base(sn.Path))
+
+			// assertions should always be present if we have a snap ID
+			decl, ok := s.snapDeclsByID[sn.ID()]
+			if !ok {
+				return fmt.Errorf("internal error: missing snap-declaration for asserted snap: %s", sn.SnapName())
+			}
+			snapAssertions = append(snapAssertions, decl)
+
+			rev, ok := s.snapRevsByID[sn.ID()]
+			if !ok {
+				return fmt.Errorf("internal error: missing snap-revision for asserted snap: %s", sn.SnapName())
+			}
+			snapAssertions = append(snapAssertions, rev)
+
+			if a, ok := s.auxInfos[sn.ID()]; ok {
+				auxInfo[sn.ID()] = a
+			}
 		}
 
 		if err := osutil.CopyFile(sn.Path, destSnapPath, osutil.CopyFlagOverwrite); err != nil {
@@ -260,19 +265,28 @@ func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (er
 				continue
 			}
 
-			key := resourceKey{snapID: sn.ID(), name: comp.CompSideInfo.Component.ComponentName}
-			if a, ok := s.resPairByResKey[key]; ok {
-				snapAssertions = append(snapAssertions, a)
-			}
-			if a, ok := s.resRevByResKey[key]; ok {
-				snapAssertions = append(snapAssertions, a)
-			}
-
 			var destCompPath string
-			if !comp.CompSideInfo.Revision.Store() {
+			// an unasserted snap implies that all components should also be
+			// unasserted
+			if sn.ID() == "" {
 				destCompPath = filepath.Join(destUnassertedSnapDir, filepath.Base(comp.Path))
 			} else {
 				destCompPath = filepath.Join(destAssertedSnapDir, filepath.Base(comp.Path))
+
+				// assertions should always be present if we have a snap ID
+
+				key := resourceKey{snapID: sn.ID(), name: comp.CompSideInfo.Component.ComponentName}
+				resPair, ok := s.resPairByResKey[key]
+				if !ok {
+					return fmt.Errorf("internal error: missing resource-pair for component of asserted snap: %s", comp.CompSideInfo.Component.String())
+				}
+				snapAssertions = append(snapAssertions, resPair)
+
+				resRev, ok := s.resRevByResKey[key]
+				if !ok {
+					return fmt.Errorf("internal error: missing resource-revision for component of asserted snap: %s", comp.CompSideInfo.Component.String())
+				}
+				snapAssertions = append(snapAssertions, resRev)
 			}
 
 			if err := osutil.CopyFile(comp.Path, destCompPath, osutil.CopyFlagOverwrite); err != nil {
