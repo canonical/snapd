@@ -367,7 +367,7 @@ func (r *failureSuite) testCallPrevSnapdWhenDistroInfoDriven(c *C, tc distroVers
 		{"systemctl", "stop", "snapd.socket"},
 		{"systemctl", "is-failed", "snapd.socket", "snapd.service"},
 		{"systemctl", "reset-failed", "snapd.socket", "snapd.service"},
-		{"systemctl", "restart", "snapd.socket"},
+		{"systemctl", "restart", "snapd.socket", "snapd.service"},
 	})
 }
 
