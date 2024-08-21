@@ -3553,16 +3553,20 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	pb := NewTaskProgressAdapterLocked(t)
+	pb := NewTaskProgressAdapterUnlocked(t)
 	typ, err := snapst.Type()
 	if err != nil {
 		return err
 	}
+
+	st.Unlock()
 	err = m.backend.RemoveSnapFiles(snapsup.placeInfo(), typ, nil, deviceCtx, pb)
+	st.Lock()
 	if err != nil {
 		t.Errorf("cannot remove snap file %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
 		return &state.Retry{After: 3 * time.Minute}
 	}
+
 	if len(snapst.Sequence.Revisions) == 0 {
 		if err = m.backend.RemoveContainerMountUnits(snapsup.containerInfo(), nil); err != nil {
 			return err
