@@ -359,10 +359,6 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 			if pdb.maxIDMmap.IsClosed() {
 				return
 			}
-			expiredPrompts := userEntry.prompts
-			// Clear all outstanding prompts for the user
-			userEntry.prompts = nil
-			userEntry.ids = make(map[prompting.IDType]int)
 			// Restart expiration timer while holding the lock, so we don't
 			// overwrite a newly-set activity timeout with an initial timeout.
 			// With the lock held, no activity can occur, so no activity timeout
@@ -376,8 +372,12 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 				userEntry.expirationTimer.Reset(activityTimeout)
 				return
 			}
-			pdb.mutex.Unlock()
+			expiredPrompts := userEntry.prompts
+			// Clear all outstanding prompts for the user
+			userEntry.prompts = nil
+			userEntry.ids = make(map[prompting.IDType]int)
 			// Unlock now so we can record notices without holding the prompt DB lock
+			pdb.mutex.Unlock()
 			data := map[string]string{"resolved": "expired"}
 			for _, p := range expiredPrompts {
 				pdb.notifyPrompt(metadata.User, p.ID, data)
