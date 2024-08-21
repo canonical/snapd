@@ -17,7 +17,7 @@ execute: |
     systemctl restart snapd.service
 
     # TODO the test should install the snapd snap we built
-    snap install --dangerous /tmp/work-dir/core_snap/core_*.snap
+    snap install --dangerous "$TESTSTMP"/core_snap/core_*.snap
 
     echo "Enable the snapd snap"
     snap set core experimental.snapd-snap=true

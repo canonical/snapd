@@ -447,7 +447,7 @@ prepare_classic() {
 
         systemctl stop snapd.{service,socket}
         # repack and also make a side copy of the core snap
-        update_core_snap_for_classic_reexec "$WORK_DIR/core_snap"
+        update_core_snap_for_classic_reexec "$TESTSTMP/core_snap"
         systemctl start snapd.{service,socket}
 
         prepare_reexec_override

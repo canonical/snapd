@@ -29,7 +29,7 @@ execute: |
     systemctl restart snapd
 
     # now install core
-    snap install --dangerous /tmp/work-dir/core_snap/core_*.snap
+    snap install --dangerous "$TESTSTMP"/core_snap/core_*.snap
 
     # we should be not able to remove the core snap, since only core snap is
     # installed now
