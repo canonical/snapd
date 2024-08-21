@@ -205,7 +205,7 @@ func (s *seed20) availableContainers() (map[string]bool, map[string]map[string]b
 	availableSnapSet, availableCompSets := s.availableAssertedContainers()
 
 	optsPath := filepath.Join(s.systemDir, "options.yaml")
-	if osutil.FileExists(optsPath) {
+	if s.model.Grade() == asserts.ModelDangerous && osutil.FileExists(optsPath) {
 		opts, err := internal.ReadOptions20(optsPath)
 		if err != nil {
 			return nil, nil, err
