@@ -29,6 +29,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -963,41 +964,44 @@ func AllPhysicalDisks() ([]Disk, error) {
 	return disks, nil
 }
 
-// PartitionUUIDFromMountPoint returns the UUID of the partition which is a
-// source of a given mount point.
-func PartitionUUIDFromMountPoint(mountpoint string, opts *Options) (string, error) {
+var dmUUIDRe = regexp.MustCompile(`^CRYPT-(?P<type>.*)-(?P<uuid1>[0-9a-f]{8})(?P<uuid2>[0-9a-f]{4})(?P<uuid3>[0-9a-f]{4})(?P<uuid4>[0-9a-f]{4})(?P<uuid5>[0-9a-f]{12})-(?P<name>.*)$`)
+
+// DMCryptUUIDFromMountPoint finds the UUID of a device mapper device
+// mounted at mountpoint.
+func DMCryptUUIDFromMountPoint(mountpoint string) (string, error) {
 	_, props, err := partitionPropsFromMountPoint(mountpoint)
 	if err != nil {
 		return "", err
 	}
 
-	if opts != nil && opts.IsDecryptedDevice {
-		props, err = parentPartitionPropsForOptions(props)
-		if err != nil {
-			return "", err
-		}
+	dmUUID, hasDmUUID := props["DM_UUID"]
+	if !hasDmUUID {
+		return "", fmt.Errorf("device has no DM_UUID")
 	}
-	partUUID := props["ID_PART_ENTRY_UUID"]
-	if partUUID == "" {
-		partDev := filepath.Join("/dev", props["DEVNAME"])
-		return "", fmt.Errorf("cannot get required partition UUID udev property for device %s", partDev)
+	match := dmUUIDRe.FindStringSubmatchIndex(dmUUID)
+	if match == nil {
+		return "", fmt.Errorf("value of DM_UUID is not recognized")
 	}
-	return partUUID, nil
+
+	result := []byte{}
+	result = dmUUIDRe.ExpandString(result, "${uuid1}-${uuid2}-${uuid3}-${uuid4}-${uuid5}", dmUUID, match)
+	return string(result), nil
 }
 
-// PartitionUUID returns the UUID of a given partition
-func PartitionUUID(node string) (string, error) {
+// FilesystemUUID retrieves the UUID of the filesystem for a give node
+// path
+func FilesystemUUID(node string) (string, error) {
 	props, err := udevPropertiesForName(node)
 	if err != nil && props == nil {
 		// only fail here if props is nil, if it's available we validate it
 		// below
 		return "", fmt.Errorf("cannot process udev properties: %v", err)
 	}
-	partUUID := props["ID_PART_ENTRY_UUID"]
-	if partUUID == "" {
-		return "", fmt.Errorf("cannot get required udev partition UUID property")
+	uuid := props["ID_FS_UUID"]
+	if uuid == "" {
+		return "", fmt.Errorf("cannot get required udev ID_FS_UUID property")
 	}
-	return partUUID, nil
+	return uuid, nil
 }
 
 func SectorSize(devname string) (uint64, error) {

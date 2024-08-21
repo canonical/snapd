@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
 
@@ -107,7 +106,7 @@ func EnsureRecoveryKey(keyFile string, rkeyDevs []RecoveryKeyDevice) (keys.Recov
 		keyFile string
 	}
 	for _, rkeyDev := range rkeyDevs {
-		dev, err := devByPartUUIDFromMount(rkeyDev.Mountpoint)
+		dev, err := devFromMount(rkeyDev.Mountpoint)
 		if err != nil {
 			return keys.RecoveryKey{}, fmt.Errorf("cannot find matching device for: %v", err)
 		}
@@ -219,15 +218,13 @@ func EnsureRecoveryKey(keyFile string, rkeyDevs []RecoveryKeyDevice) (keys.Recov
 	}
 }
 
-func devByPartUUIDFromMount(mp string) (string, error) {
-	partUUID, err := disks.PartitionUUIDFromMountPoint(mp, &disks.Options{
-		IsDecryptedDevice: true,
-	})
+func devFromMount(mp string) (string, error) {
+	uuid, err := disks.DMCryptUUIDFromMountPoint(mp)
 	if err != nil {
 		return "", fmt.Errorf("cannot partition for mount %v: %v", mp, err)
 	}
-	dev := filepath.Join("/dev/disk/by-partuuid", partUUID)
-	return dev, nil
+	// TODO: make secboot accept UUID= and use that
+	return fmt.Sprintf("/dev/disk/by-uuid/%s", uuid), nil
 }
 
 // RemoveRecoveryKeys removes any recovery key from all encrypted block devices.
@@ -239,7 +236,7 @@ func RemoveRecoveryKeys(rkeyDevToKey map[RecoveryKeyDevice]string) error {
 	var keyFiles []string
 
 	for rkeyDev, keyFile := range rkeyDevToKey {
-		dev, err := devByPartUUIDFromMount(rkeyDev.Mountpoint)
+		dev, err := devFromMount(rkeyDev.Mountpoint)
 		if err != nil {
 			return fmt.Errorf("cannot find matching device for: %v", err)
 		}
@@ -300,12 +297,13 @@ func RemoveRecoveryKeys(rkeyDevToKey map[RecoveryKeyDevice]string) error {
 // encryption key change process, a call to TransitionEncryptionKeyChange is
 // needed.
 func StageEncryptionKeyChange(node string, key keys.EncryptionKey) error {
-	partitionUUID, err := disks.PartitionUUID(node)
+	uuid, err := disks.FilesystemUUID(node)
 	if err != nil {
-		return fmt.Errorf("cannot get UUID of partition %v: %v", node, err)
+		return fmt.Errorf("cannot get UUID of %v: %v", node, err)
 	}
 
-	dev := filepath.Join("/dev/disk/by-partuuid", partitionUUID)
+	// TODO: make secboot accept UUID= and use that
+	dev := fmt.Sprintf("/dev/disk/by-uuid/%s", uuid)
 	logger.Debugf("stage encryption key change on device: %v", dev)
 
 	var buf bytes.Buffer
@@ -334,7 +332,7 @@ func StageEncryptionKeyChange(node string, key keys.EncryptionKey) error {
 // device corresponding to the given mount point. The change is authorized using
 // the new key, thus a prior call to StageEncryptionKeyChange must be done.
 func TransitionEncryptionKeyChange(mountpoint string, key keys.EncryptionKey) error {
-	dev, err := devByPartUUIDFromMount(mountpoint)
+	dev, err := devFromMount(mountpoint)
 	if err != nil {
 		return fmt.Errorf("cannot find matching device: %v", err)
 	}
