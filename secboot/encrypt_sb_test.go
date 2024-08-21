@@ -148,6 +148,7 @@ fi
 
 	s.udevadmCmd = testutil.MockCommand(c, "udevadm", `
 	echo "ID_PART_ENTRY_UUID=something"
+        echo "ID_FS_UUID=someuuid"
 `)
 	s.AddCleanup(s.udevadmCmd.Restore)
 
@@ -172,12 +173,12 @@ func (s *keymgrSuite) TestStageEncryptionKeyHappy(c *C) {
 			"systemd-run",
 			"--wait", "--pipe", "--collect", "--service-type=exec", "--quiet",
 			"--property=KeyringMode=inherit", "--",
-			s.keymgrCmd.Exe(), "change-encryption-key", "--device", "/dev/disk/by-partuuid/something",
+			s.keymgrCmd.Exe(), "change-encryption-key", "--device", "/dev/disk/by-uuid/someuuid",
 			"--stage",
 		},
 	})
 	c.Check(s.keymgrCmd.Calls(), DeepEquals, [][]string{
-		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-partuuid/something", "--stage"},
+		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-uuid/someuuid", "--stage"},
 	})
 	var b bytes.Buffer
 	json.NewEncoder(&b).Encode(struct {
@@ -194,7 +195,7 @@ func (s *keymgrSuite) TestStageEncryptionKeyBadUdev(c *C) {
 `)
 	defer udevadmCmd.Restore()
 	err := secboot.StageEncryptionKeyChange("/dev/foo/bar", key)
-	c.Assert(err, ErrorMatches, "cannot get UUID of partition /dev/foo/bar: cannot get required udev partition UUID property")
+	c.Assert(err, ErrorMatches, "cannot get UUID of /dev/foo/bar: cannot get required udev ID_FS_UUID property")
 	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/foo/bar"},
 	})
@@ -219,12 +220,12 @@ func (s *keymgrSuite) TestStageTransitionEncryptionKeyBadKeymgr(c *C) {
 			"systemd-run",
 			"--wait", "--pipe", "--collect", "--service-type=exec", "--quiet",
 			"--property=KeyringMode=inherit", "--",
-			keymgrCmd.Exe(), "change-encryption-key", "--device", "/dev/disk/by-partuuid/something",
+			keymgrCmd.Exe(), "change-encryption-key", "--device", "/dev/disk/by-uuid/someuuid",
 			"--stage",
 		},
 	})
 	c.Check(keymgrCmd.Calls(), DeepEquals, [][]string{
-		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-partuuid/something", "--stage"},
+		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-uuid/someuuid", "--stage"},
 	})
 
 	s.systemdRunCmd.ForgetCalls()
@@ -239,12 +240,12 @@ func (s *keymgrSuite) TestStageTransitionEncryptionKeyBadKeymgr(c *C) {
 			"systemd-run",
 			"--wait", "--pipe", "--collect", "--service-type=exec", "--quiet",
 			"--property=KeyringMode=inherit", "--",
-			keymgrCmd.Exe(), "change-encryption-key", "--device", "/dev/disk/by-partuuid/foo-uuid",
+			keymgrCmd.Exe(), "change-encryption-key", "--device", "/dev/disk/by-uuid/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
 			"--transition",
 		},
 	})
 	c.Check(keymgrCmd.Calls(), DeepEquals, [][]string{
-		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-partuuid/foo-uuid", "--transition"},
+		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-uuid/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "--transition"},
 	})
 }
 
@@ -268,19 +269,18 @@ func (s *keymgrSuite) TestTransitionEncryptionKeyHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
 	})
 	c.Check(s.systemdRunCmd.Calls(), DeepEquals, [][]string{
 		{
 			"systemd-run",
 			"--wait", "--pipe", "--collect", "--service-type=exec", "--quiet",
 			"--property=KeyringMode=inherit", "--",
-			s.keymgrCmd.Exe(), "change-encryption-key", "--device", "/dev/disk/by-partuuid/foo-uuid",
+			s.keymgrCmd.Exe(), "change-encryption-key", "--device", "/dev/disk/by-uuid/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
 			"--transition",
 		},
 	})
 	c.Check(s.keymgrCmd.Calls(), DeepEquals, [][]string{
-		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-partuuid/foo-uuid", "--transition"},
+		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-uuid/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "--transition"},
 	})
 	var b bytes.Buffer
 	json.NewEncoder(&b).Encode(struct {
@@ -308,11 +308,13 @@ while [ "$#" -gt 1 ]; do
                     echo "DEVTYPE=disk"
                     echo "MAJOR=600"
                     echo "MINOR=3"
+                    echo "DM_UUID=CRYPT-LUKS2-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-foo"
                     ;;
                 /dev/mapper/bar)
                     echo "DEVTYPE=disk"
                     echo "MAJOR=600"
                     echo "MINOR=4"
+                    echo "DM_UUID=CRYPT-LUKS2-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-bar"
                     ;;
                 /dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304)
                     echo "ID_PART_ENTRY_UUID=foo-uuid"
@@ -333,12 +335,6 @@ done
 	s.AddCleanup(func() { dirs.SetRootDir(dirs.GlobalRootDir) })
 	dirs.SetRootDir(s.d)
 
-	snaptest.PopulateDir(s.d, [][]string{
-		{"/sys/dev/block/600:3/dm/uuid", "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-foo"},
-		{"/sys/dev/block/600:3/dm/name", "foo"},
-		{"/sys/dev/block/600:4/dm/uuid", "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1305-bar"},
-		{"/sys/dev/block/600:4/dm/name", "bar"},
-	})
 	return udevadmCmd
 }
 
@@ -368,9 +364,7 @@ func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/bar"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1305"},
 	})
 
 	// A second call should not do much
@@ -419,9 +413,7 @@ func (s *keymgrSuite) TestEnsureRecoveryKeyLegacy(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/bar"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1305"},
 	})
 	c.Check(s.systemdRunCmd.Calls(), DeepEquals, [][]string{
 		{
@@ -430,9 +422,9 @@ func (s *keymgrSuite) TestEnsureRecoveryKeyLegacy(c *C) {
 			"--property=KeyringMode=inherit", "--",
 			s.keymgrCmd.Exe(), "add-recovery-key",
 			"--key-file", filepath.Join(s.d, "recovery.key"),
-			"--devices", "/dev/disk/by-partuuid/foo-uuid",
+			"--devices", "/dev/disk/by-uuid/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
 			"--authorizations", "keyring",
-			"--devices", "/dev/disk/by-partuuid/bar-uuid",
+			"--devices", "/dev/disk/by-uuid/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
 			"--authorizations", "file:/authz/key.file",
 		},
 	})
@@ -440,8 +432,8 @@ func (s *keymgrSuite) TestEnsureRecoveryKeyLegacy(c *C) {
 		{
 			"snap-fde-keymgr", "add-recovery-key",
 			"--key-file", filepath.Join(s.d, "recovery.key"),
-			"--devices", "/dev/disk/by-partuuid/foo-uuid", "--authorizations", "keyring",
-			"--devices", "/dev/disk/by-partuuid/bar-uuid", "--authorizations", "file:/authz/key.file",
+			"--devices", "/dev/disk/by-uuid/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "--authorizations", "keyring",
+			"--devices", "/dev/disk/by-uuid/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "--authorizations", "file:/authz/key.file",
 		},
 	})
 	c.Check(rkey, DeepEquals, keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '1', '1', '1', '1', '1', '1', '1', '1'})
@@ -471,9 +463,7 @@ func (s *keymgrSuite) TestRemoveRecoveryKey(c *C) {
 	expectedUdevCalls := [][]string{
 		// order can change depending on map iteration
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/bar"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1305"},
 	}
 
 	udevCalls := udevadmCmd.Calls()
@@ -506,9 +496,7 @@ func (s *keymgrSuite) TestRemoveRecoveryKeyLegacy(c *C) {
 	expectedUdevCalls := [][]string{
 		// order can change depending on map iteration
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/bar"},
-		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1305"},
 	}
 	expectedSystemdRunCalls := [][]string{
 		{
@@ -517,9 +505,9 @@ func (s *keymgrSuite) TestRemoveRecoveryKeyLegacy(c *C) {
 			"--property=KeyringMode=inherit", "--",
 			s.keymgrCmd.Exe(), "remove-recovery-key",
 			// order can change depending on map iteration
-			"--devices", "/dev/disk/by-partuuid/foo-uuid", "--authorizations", "keyring",
+			"--devices", "/dev/disk/by-uuid/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "--authorizations", "keyring",
 			"--key-files", filepath.Join(s.d, "recovery.key"),
-			"--devices", "/dev/disk/by-partuuid/bar-uuid", "--authorizations", "file:/authz/key.file",
+			"--devices", "/dev/disk/by-uuid/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "--authorizations", "file:/authz/key.file",
 			"--key-files", filepath.Join(s.d, "missing-recovery.key"),
 		},
 	}
@@ -527,9 +515,9 @@ func (s *keymgrSuite) TestRemoveRecoveryKeyLegacy(c *C) {
 		{
 			"snap-fde-keymgr", "remove-recovery-key",
 			// order can change depending on map iteration
-			"--devices", "/dev/disk/by-partuuid/foo-uuid", "--authorizations", "keyring",
+			"--devices", "/dev/disk/by-uuid/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "--authorizations", "keyring",
 			"--key-files", filepath.Join(s.d, "recovery.key"),
-			"--devices", "/dev/disk/by-partuuid/bar-uuid", "--authorizations", "file:/authz/key.file",
+			"--devices", "/dev/disk/by-uuid/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "--authorizations", "file:/authz/key.file",
 			"--key-files", filepath.Join(s.d, "missing-recovery.key"),
 		},
 	}
