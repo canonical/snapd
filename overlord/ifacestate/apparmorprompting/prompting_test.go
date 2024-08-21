@@ -545,10 +545,15 @@ func (s *apparmorpromptingSuite) checkRecordedRuleUpdateNotices(c *C, since time
 }
 
 func (s *apparmorpromptingSuite) checkRecordedNotices(c *C, noticeType state.NoticeType, since time.Time, count int) {
+	timeout := time.Second
+	if count == 0 {
+		// Don't wait so long if we don't expect any notices
+		timeout = 100 * time.Millisecond
+	}
 	receivedCount := 0
 	for receivedCount < count {
 		s.st.Lock()
-		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		n, err := s.st.WaitNotices(ctx, &state.NoticeFilter{
 			Types: []state.NoticeType{noticeType},
