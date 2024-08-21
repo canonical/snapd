@@ -60,65 +60,26 @@ execute: |
     #shellcheck disable=SC2064
     trap "kill -9 $pid_gen_kernel_messages" EXIT
 
-    if ! log-observe-consumer.klogctl SYSLOG_ACTION_READ; then
-        echo "Should allow call klogctl(SYSLOG_ACTION_READ, ...)"
-        exit 1
-    fi
-
-    if ! log-observe-consumer.klogctl SYSLOG_ACTION_READ_ALL; then
-        echo "Should allow call klogctl(SYSLOG_ACTION_READ, ...)"
-        exit 1
-    fi
-
-    if ! log-observe-consumer.klogctl SYSLOG_ACTION_SIZE_UNREAD; then
-        echo "Should allow call klogctl(SYSLOG_ACTION_SIZE_UNREAD, ...)"
-        exit 1
-    fi
-
-    if ! log-observe-consumer.klogctl SYSLOG_ACTION_SIZE_BUFFER; then
-        echo "Should allow call klogctl(SYSLOG_ACTION_SIZE_BUFFER, ...)"
-        exit 1
-    fi
+    log-observe-consumer.klogctl SYSLOG_ACTION_READ | MATCH 'SUCCESS'
+    log-observe-consumer.klogctl SYSLOG_ACTION_READ_ALL | MATCH 'SUCCESS'
+    log-observe-consumer.klogctl SYSLOG_ACTION_SIZE_UNREAD | MATCH 'SUCCESS'
+    log-observe-consumer.klogctl SYSLOG_ACTION_SIZE_BUFFER | MATCH 'SUCCESS'
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
 
     echo "But can't make unsafe syslog(2) calls"
-    if log-observe-consumer.klogctl SYSLOG_ACTION_CLOSE; then
-        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_CLOSE, ...)"
-        exit 1
-    fi
-
-    if log-observe-consumer.klogctl SYSLOG_ACTION_OPEN; then
-        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_OPEN, ...)"
-        exit 1
-    fi
-
-    if log-observe-consumer.klogctl SYSLOG_ACTION_READ_CLEAR; then
-        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_READ_CLEAR, ...)"
-        exit 1
-    fi
-
-    if log-observe-consumer.klogctl SYSLOG_ACTION_CLEAR; then
-        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_CLEAR, ...)"
-        exit 1
-    fi
-
-    if log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_OFF; then
-        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_CONSOLE_OFF, ...)"
-        exit 1
-    fi
-
-    if log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_ON; then
-        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_CONSOLE_ON, ...)"
-        exit 1
-    fi
-
-    if log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_LEVEL; then
-        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_CONSOLE_LEVEL, ...)"
-        exit 1
-    fi
+    log-observe-consumer.klogctl SYSLOG_ACTION_CLOSE | MATCH 'ERROR (operation not permitted|permission denied)'
+    log-observe-consumer.klogctl SYSLOG_ACTION_OPEN | MATCH 'ERROR (operation not permitted|permission denied)'
+    log-observe-consumer.klogctl SYSLOG_ACTION_READ_CLEAR | MATCH 'ERROR (operation not permitted|permission denied)'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CLEAR | MATCH 'ERROR (operation not permitted|permission denied)'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_OFF | MATCH 'ERROR (operation not permitted|permission denied)'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_ON | MATCH 'ERROR (operation not permitted|permission denied)'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_LEVEL | MATCH 'ERROR (operation not permitted|permission denied)'
+    # It is important that the following matches EPERM/EACCES, not EINVAL, as it
+    # is a stand-in for potential future SYSLOG_ACTIONs
+    log-observe-consumer.klogctl SYSLOG_ACTION_BAD | MATCH 'ERROR (operation not permitted|permission denied)'
 
     echo "When the plug is disconnected"
     snap disconnect "$SNAP_NAME:$PLUG"
@@ -130,50 +91,18 @@ execute: |
     fi
 
     echo "Or make ANY privileged syslog(2) calls"
-    if log-observe-consumer.klogctl SYSLOG_ACTION_CLOSE; then
-        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_CLOSE, ...)"
-        exit 1
-    fi
-
-    if log-observe-consumer.klogctl SYSLOG_ACTION_OPEN; then
-        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_OPEN, ...)"
-        exit 1
-    fi
-
-    if log-observe-consumer.klogctl SYSLOG_ACTION_READ; then
-        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_READ, ...)"
-        exit 1
-    fi
-
-    if log-observe-consumer.klogctl SYSLOG_ACTION_READ_CLEAR; then
-        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_READ_CLEAR, ...)"
-        exit 1
-    fi
-
-    if log-observe-consumer.klogctl SYSLOG_ACTION_CLEAR; then
-        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_CLEAR, ...)"
-        exit 1
-    fi
-
-    if log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_OFF; then
-        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_CONSOLE_OFF, ...)"
-        exit 1
-    fi
-
-    if log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_ON; then
-        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_CONSOLE_ON, ...)"
-        exit 1
-    fi
-
-    if log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_LEVEL; then
-        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_CONSOLE_LEVEL, ...)"
-        exit 1
-    fi
-
-    if log-observe-consumer.klogctl SYSLOG_SIZE_UNREAD; then
-        echo "Should allow call klogctl(SYSLOG_ACTION_SIZE_UNREAD, ...)"
-        exit 1
-    fi
+    log-observe-consumer.klogctl SYSLOG_ACTION_CLOSE | MATCH 'ERROR (operation not permitted|permission denied)'
+    log-observe-consumer.klogctl SYSLOG_ACTION_OPEN | MATCH 'ERROR (operation not permitted|permission denied)'
+    log-observe-consumer.klogctl SYSLOG_ACTION_READ | MATCH 'ERROR (operation not permitted|permission denied)'
+    log-observe-consumer.klogctl SYSLOG_ACTION_READ_CLEAR | MATCH 'ERROR (operation not permitted|permission denied)'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CLEAR | MATCH 'ERROR (operation not permitted|permission denied)'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_OFF | MATCH 'ERROR (operation not permitted|permission denied)'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_ON | MATCH 'ERROR (operation not permitted|permission denied)'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_LEVEL | MATCH 'ERROR (operation not permitted|permission denied)'
+    log-observe-consumer.klogctl SYSLOG_ACTION_SIZE_UNREAD | MATCH 'ERROR (operation not permitted|permission denied)'
+    # It is important that the following matches EPERM/EACCES, not EINVAL, as it
+    # is a stand-in for potential future SYSLOG_ACTIONs
+    log-observe-consumer.klogctl SYSLOG_ACTION_BAD | MATCH 'ERROR (operation not permitted|permission denied)'
 
     # On systems with kernel.dmesg_restrict == 0, SYSLOG_ACTION_READ_ALL
     # and SYSLOG_ACTION_SIZE_BUFFER are available to anyone regardless of
@@ -185,12 +114,5 @@ execute: |
         exit 0
     fi
 
-    if log-observe-consumer.klogctl SYSLOG_ACTION_READ_ALL; then
-        echo "Shouldn't allow call klogctl(SYSLOG_ACTION_READ, ...)"
-        exit 1
-    fi
-
-    if log-observe-consumer.klogctl SYSLOG_ACTION_SIZE_BUFFER; then
-        echo "Should allow call klogctl(SYSLOG_ACTION_SIZE_BUFFER, ...)"
-        exit 1
-    fi
+    log-observe-consumer.klogctl SYSLOG_ACTION_READ_ALL | MATCH 'ERROR (operation not permitted|permission denied)'
+    log-observe-consumer.klogctl SYSLOG_ACTION_SIZE_BUFFER | MATCH 'ERROR (operation not permitted|permission denied)'

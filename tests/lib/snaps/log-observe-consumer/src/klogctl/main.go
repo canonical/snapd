@@ -20,7 +20,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
@@ -69,16 +68,10 @@ func main() {
 	_, err := unix.Klogctl(cmdNo, buf)
 
 	if err == nil {
-		os.Exit(0)
+		fmt.Println("SUCCESS")
+	} else {
+		fmt.Printf("ERROR %s\n", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "error: %v\n", err)
-
-	var errno unix.Errno
-	ok = errors.As(err, &errno)
-	if !ok {
-		panic("klogctl: unexpected error format")
-	}
-
-	os.Exit(int(errno))
+	os.Exit(0)
 }
