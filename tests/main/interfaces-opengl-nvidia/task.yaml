@@ -16,17 +16,19 @@ prepare: |
     # mock nvidia driver, we need to user overlayfs because on 22.04+
     # /sys/module/apparmor is used by apparmor to communicate
     mkdir -p /tmp/sys-module/nvidia
+    tests.cleanup defer rm -rf /tmp/sys-module
     echo "$NV_VERSION" > /tmp/sys-module/nvidia/version
-    if os.query is-xenial || os.query is-bionic; then
-        mount -o bind /tmp/sys-module/ /sys/module
-    else
-        mkdir -p /tmp/sys-module-work
-        LO="/sys/module/"
-        UP="/tmp/sys-module"
-        WORK="/tmp/sys-module-work"
-        mount -t overlay overlay \
-            -olowerdir="$LO",upperdir="$UP",workdir="$WORK" /sys/module
-    fi
+    # mock /sys/module we need to recreate /sys/module/apparmor
+    mkdir -p /tmp/sys-module-apparmor
+    tests.cleanup defer rmdir /tmp/sys-module-apparmor
+    mount -o bind /sys/module/apparmor /tmp/sys-module-apparmor
+    tests.cleanup defer umount /tmp/sys-module-apparmor
+    mkdir -p /tmp/sys-module/apparmor
+
+    mount -o bind /tmp/sys-module/ /sys/module
+    # and recreate apparmor directory
+    mount -o bind /tmp/sys-module-apparmor /sys/module/apparmor
+    tests.cleanup defer umount -R /sys/module
 
     # mock nvidia icd file
     test ! -d /usr/share/vulkan
@@ -87,7 +89,8 @@ prepare: |
     echo "documentation" > /usr/share/nvidia/nvidia-application-profiles-535.54.03-key-documentation
 
 restore: |
-    umount /sys/module
+    tests.cleanup restore
+
     rm -rf /usr/share/vulkan
 
     if ! os.query is-xenial; then
