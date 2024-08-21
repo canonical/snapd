@@ -551,7 +551,7 @@ func (s *apparmorpromptingSuite) checkRecordedNotices(c *C, noticeType state.Not
 		timeout = 100 * time.Millisecond
 	}
 	receivedCount := 0
-	for receivedCount < count {
+	for count == 0 || receivedCount < count {
 		s.st.Lock()
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
