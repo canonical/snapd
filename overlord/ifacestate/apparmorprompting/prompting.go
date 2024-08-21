@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -80,11 +79,12 @@ type InterfacesRequestsManager struct {
 
 func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 	notifyPrompt := func(userID uint32, promptID prompting.IDType, data map[string]string) error {
-		currTime := time.Now()
 		options := state.AddNoticeOptions{
 			Data: data,
-			// TODO: Make explicitly setting time guarantee order
-			Time: currTime,
+			// TODO: guarantee order by passing in the current time and ensuring
+			// that the notices backend keeps notice data from the AddNotice
+			// call with the most recent Time field.
+			// Time: time.Now(),
 		}
 		go func() {
 			s.Lock()
@@ -94,11 +94,12 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 		return nil
 	}
 	notifyRule := func(userID uint32, ruleID prompting.IDType, data map[string]string) error {
-		currTime := time.Now()
 		options := state.AddNoticeOptions{
 			Data: data,
-			// TODO: Make explicitly setting time guarantee order
-			Time: currTime,
+			// TODO: guarantee order by passing in the current time and ensuring
+			// that the notices backend keeps notice data from the AddNotice
+			// call with the most recent Time field.
+			// Time: time.Now(),
 		}
 		go func() {
 			s.Lock()
