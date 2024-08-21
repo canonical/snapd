@@ -96,7 +96,7 @@ type seed20 struct {
 	essentialSnapsNum int
 }
 
-func shouldCopySnap(target *Snap, model *asserts.Model, oc *OptionalContainers) bool {
+func shouldCopySnap(target *Snap, model *asserts.Model, modelSnaps map[string]*asserts.ModelSnap, oc *OptionalContainers) bool {
 	if oc == nil {
 		return true
 	}
@@ -105,34 +105,46 @@ func shouldCopySnap(target *Snap, model *asserts.Model, oc *OptionalContainers) 
 		return true
 	}
 
-	for _, sn := range model.AllSnaps() {
-		if sn.Name != target.SnapName() {
-			continue
-		}
+	modelSnap, ok := modelSnaps[target.SnapName()]
+	if ok && modelSnap.Presence == "required" {
+		return true
+	}
 
-		if sn.Presence == "required" {
-			return true
-		}
+	// if the snap isn't in the model and the model isn't grade dangerous, then
+	// we shouldn't copy the snap. this situation should only happen if someone
+	// has tampered with the seed.
+	if !ok && model.Grade() != asserts.ModelDangerous {
+		return false
 	}
 
 	return strutil.ListContains(oc.Snaps, target.SnapName())
 }
 
-func shouldCopyComponent(target Component, snapName string, model *asserts.Model, oc *OptionalContainers) bool {
+func shouldCopyComponent(target Component, snapName string, model *asserts.Model, modelSnaps map[string]*asserts.ModelSnap, oc *OptionalContainers) bool {
 	if oc == nil {
 		return true
 	}
 
-	for _, sn := range model.AllSnaps() {
-		if sn.Name != snapName {
-			continue
-		}
+	var componentInModel bool
+	modelSnap, ok := modelSnaps[snapName]
+	if ok {
+		for compName, comp := range modelSnap.Components {
+			if compName != target.CompSideInfo.Component.ComponentName {
+				continue
+			}
 
-		for compName, comp := range sn.Components {
-			if compName == target.CompSideInfo.Component.ComponentName && comp.Presence == "required" {
+			componentInModel = true
+			if comp.Presence == "required" {
 				return true
 			}
 		}
+	}
+
+	// if the component isn't in the model and the model isn't grade dangerous,
+	// then we shouldn't ever copy the component. this situation should only
+	// happen if someone has tampered with the seed.
+	if !componentInModel && model.Grade() != asserts.ModelDangerous {
+		return false
 	}
 
 	return strutil.ListContains(oc.Components[snapName], target.CompSideInfo.Component.ComponentName)
@@ -216,7 +228,7 @@ func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (er
 	for _, sn := range s.snaps {
 		// if we're not copying the snap, then we also don't need to copy the
 		// components for this snap
-		if !shouldCopySnap(sn, s.model, opts.OptionalContainers) {
+		if !shouldCopySnap(sn, s.model, s.modelSnaps, opts.OptionalContainers) {
 			continue
 		}
 
@@ -244,7 +256,7 @@ func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (er
 		}
 
 		for _, comp := range sn.Components {
-			if !shouldCopyComponent(comp, sn.SnapName(), s.model, opts.OptionalContainers) {
+			if !shouldCopyComponent(comp, sn.SnapName(), s.model, s.modelSnaps, opts.OptionalContainers) {
 				continue
 			}
 
