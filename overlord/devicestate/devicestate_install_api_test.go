@@ -162,7 +162,7 @@ type finishStepOpts struct {
 	hasPartial     bool
 }
 
-func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, isClassic, hasPartial bool, seedCopyFn func(string, timings.Measurer, seed.CopyOptions) error) (gadgetSnapPath, kernelSnapPath string, ginfo *gadget.Info, mountCmd *testutil.MockCmd) {
+func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, isClassic, hasPartial bool, seedCopyFn func(string, seed.CopyOptions, timings.Measurer) error) (gadgetSnapPath, kernelSnapPath string, ginfo *gadget.Info, mountCmd *testutil.MockCmd) {
 	// Mock partitioned disk
 	gadgetYaml := gadgettest.SingleVolumeUC20GadgetYaml
 	if isClassic {
@@ -396,11 +396,11 @@ var mockFilledPartialDiskVolume = gadget.OnDiskVolume{
 
 type fakeSeedCopier struct {
 	fakeSeed
-	copyFn func(seedDir string, tm timings.Measurer, opts seed.CopyOptions) error
+	copyFn func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error
 }
 
-func (s *fakeSeedCopier) Copy(seedDir string, tm timings.Measurer, opts seed.CopyOptions) error {
-	return s.copyFn(seedDir, tm, opts)
+func (s *fakeSeedCopier) Copy(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+	return s.copyFn(seedDir, opts, tm)
 }
 
 // TODO encryption case for the finish step is not tested yet, it needs more mocking
@@ -420,12 +420,12 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		label = "classic"
 	}
 
-	seedCopyFn := func(seedDir string, tm timings.Measurer, opts seed.CopyOptions) error {
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
 		return fmt.Errorf("unexpected copy call")
 	}
 	seedCopyCalled := false
 	if !opts.installClassic {
-		seedCopyFn = func(seedDir string, tm timings.Measurer, opts seed.CopyOptions) error {
+		seedCopyFn = func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
 			c.Check(seedDir, Equals, filepath.Join(dirs.RunDir, "mnt/ubuntu-seed"))
 			c.Check(opts.Label, Equals, label)
 			seedCopyCalled = true
@@ -696,7 +696,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 	// Mock label
 	label := "classic"
 	isClassic := true
-	seedCopyFn := func(seedDir string, tm timings.Measurer, opts seed.CopyOptions) error {
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
 		return fmt.Errorf("unexpected copy call")
 	}
 	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockSystemSeedWithLabel(c, label, isClassic, false, seedCopyFn)

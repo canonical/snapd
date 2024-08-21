@@ -139,7 +139,7 @@ func shouldCopyComponent(target Component, snapName string, model *asserts.Model
 }
 
 // Copy implements the Copier interface.
-func (s *seed20) Copy(seedDir string, tm timings.Measurer, opts CopyOptions) (err error) {
+func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (err error) {
 	srcSystemDir, err := filepath.Abs(s.systemDir)
 	if err != nil {
 		return err

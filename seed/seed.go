@@ -242,7 +242,7 @@ type Copier interface {
 	// called by Copy. If LoadMeta was called previously on this Seed with a
 	// different mode, then that metadata will be overwritten by the metadata
 	// for all modes.
-	Copy(seedDir string, tm timings.Measurer, opts CopyOptions) error
+	Copy(seedDir string, opts CopyOptions, tm timings.Measurer) error
 }
 
 // Open returns a Seed implementation for the seed at seedDir.

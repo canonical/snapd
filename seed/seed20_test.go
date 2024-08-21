@@ -3701,7 +3701,7 @@ func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedCont
 
 	destSeedDir := c.MkDir()
 
-	err = copier.Copy(destSeedDir, s.perfTimings, opts)
+	err = copier.Copy(destSeedDir, opts, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkDirContents(c, filepath.Join(destSeedDir, "snaps"), expectedAssertedContainers)
@@ -3773,9 +3773,9 @@ func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedCont
 		})
 	}
 
-	err = copier.Copy(destSeedDir, s.perfTimings, seed.CopyOptions{
+	err = copier.Copy(destSeedDir, seed.CopyOptions{
 		Label: copiedLabel,
-	})
+	}, s.perfTimings)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot create system: system %q already exists at %q`, copiedLabel, destSystemDir))
 }
 
@@ -3879,9 +3879,9 @@ func (s *seed20Suite) TestCopyCleanup(c *C) {
 	c.Assert(err, IsNil)
 
 	destSeedDir := c.MkDir()
-	err = copier.Copy(destSeedDir, s.perfTimings, seed.CopyOptions{
+	err = copier.Copy(destSeedDir, seed.CopyOptions{
 		Label: label,
-	})
+	}, s.perfTimings)
 	c.Check(err, ErrorMatches, fmt.Sprintf("cannot stat snap: stat %s: no such file or directory", removedSnap))
 
 	// seed destination should have been cleaned up
