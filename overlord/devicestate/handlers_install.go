@@ -67,6 +67,7 @@ var (
 	bootMakeRunnableAfterDataReset       = boot.MakeRunnableSystemAfterDataReset
 	bootEnsureNextBootToRunMode          = boot.EnsureNextBootToRunMode
 	bootMakeRecoverySystemBootable       = boot.MakeRecoverySystemBootable
+	disksDMCryptUUIDFromMountPoint       = disks.DMCryptUUIDFromMountPoint
 	installRun                           = install.Run
 	installFactoryReset                  = install.FactoryReset
 	installMountVolumes                  = install.MountVolumes
@@ -622,11 +623,11 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 			return fmt.Errorf("internal error: no system-save device")
 		}
 
-		uuid, err := disks.PartitionUUID(saveNode)
+		uuid, err := disks.FilesystemUUID(saveNode)
 		if err != nil {
 			return fmt.Errorf("cannot find uuid for partition %s: %v", saveNode, err)
 		}
-		saveNode = fmt.Sprintf("/dev/disk/by-partuuid/%s", uuid)
+		saveNode = fmt.Sprintf("/dev/disk/by-uuid/%s", uuid)
 
 		saveBoostrapContainer, err := createSaveBootstrappedContainer(saveNode)
 		if err != nil {
@@ -1301,7 +1302,6 @@ var (
 	secbootRenameOrDeleteKeys            = secboot.RenameOrDeleteKeys
 	secbootCreateBootstrappedContainer   = secboot.CreateBootstrappedContainer
 	secbootDeleteKeys                    = secboot.DeleteKeys
-	disksPartitionUUIDFromMountPoint     = disks.PartitionUUIDFromMountPoint
 )
 
 func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedContainer, error) {
@@ -1352,14 +1352,12 @@ func deleteOldSaveKey(saveMntPnt string) error {
 	// keys.
 
 	// FIXME: maybe there is better if we had a function returning the devname instead.
-	partUUID, err := disksPartitionUUIDFromMountPoint(saveMntPnt, &disks.Options{
-		IsDecryptedDevice: true,
-	})
+	uuid, err := disksDMCryptUUIDFromMountPoint(saveMntPnt)
 	if err != nil {
-		return fmt.Errorf("cannot partition save partition: %v", err)
+		return fmt.Errorf("cannot find save partition: %v", err)
 	}
 
-	diskPath := filepath.Join("/dev/disk/by-partuuid", partUUID)
+	diskPath := filepath.Join("/dev/disk/by-uuid", uuid)
 
 	toDelete := map[string]bool{
 		"factory-reset-old":          true,

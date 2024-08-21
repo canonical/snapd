@@ -2335,7 +2335,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	var chosenBootstrapKey []byte
 	defer devicestate.MockSecbootAddBootstrapKeyOnExistingDisk(func(node string, newKey keys.EncryptionKey) error {
 		if tc.encrypt {
-			c.Check(node, Equals, "/dev/disk/by-partuuid/fbbb94fb-46ea-4e00-b830-afc72d202449")
+			c.Check(node, Equals, "/dev/disk/by-uuid/570faa3d-e3bc-49db-979b-e7814b6bd390")
 			chosenBootstrapKey = newKey
 			return nil
 		}
@@ -2345,7 +2345,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 
 	defer devicestate.MockSecbootRenameOrDeleteKeys(func(node string, renames map[string]string) error {
 		if tc.encrypt {
-			c.Check(node, Equals, "/dev/disk/by-partuuid/fbbb94fb-46ea-4e00-b830-afc72d202449")
+			c.Check(node, Equals, "/dev/disk/by-uuid/570faa3d-e3bc-49db-979b-e7814b6bd390")
 			c.Check(renames, DeepEquals, map[string]string{
 				"default":          "factory-reset-old",
 				"default-fallback": "factory-reset-old-fallback",
@@ -2700,7 +2700,7 @@ echo "mock output of: $(basename "$0") $*"
 
 	defer disks.MockUdevPropertiesForDevice(func(string, string) (map[string]string, error) {
 		return map[string]string{
-			"ID_PART_ENTRY_UUID": "fbbb94fb-46ea-4e00-b830-afc72d202449",
+			"ID_FS_UUID": "570faa3d-e3bc-49db-979b-e7814b6bd390",
 		}, nil
 	})()
 
@@ -2782,7 +2782,7 @@ echo "mock output of: $(basename "$0") $*"
 
 	defer disks.MockUdevPropertiesForDevice(func(string, string) (map[string]string, error) {
 		return map[string]string{
-			"ID_PART_ENTRY_UUID": "fbbb94fb-46ea-4e00-b830-afc72d202449",
+			"ID_FS_UUID": "570faa3d-e3bc-49db-979b-e7814b6bd390",
 		}, nil
 	})()
 
