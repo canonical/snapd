@@ -220,6 +220,7 @@ func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (er
 			continue
 		}
 
+		// note that assertions should always be present if we have a snap ID
 		if a, ok := s.snapDeclsByID[sn.ID()]; ok {
 			snapAssertions = append(snapAssertions, a)
 		}
