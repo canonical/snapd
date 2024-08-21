@@ -202,7 +202,7 @@ func (s *seed20) OptionalContainers() (OptionalContainers, error) {
 }
 
 func (s *seed20) availableContainers() (map[string]bool, map[string]map[string]bool, error) {
-	assertedSnapSet, assertedCompSets := s.availableAssertedContainers()
+	availableSnapSet, availableCompSets := s.availableAssertedContainers()
 
 	optsPath := filepath.Join(s.systemDir, "options.yaml")
 	if osutil.FileExists(optsPath) {
@@ -212,14 +212,14 @@ func (s *seed20) availableContainers() (map[string]bool, map[string]map[string]b
 		}
 
 		for _, sn := range opts.Snaps {
-			assertedSnapSet[sn.Name] = true
+			availableSnapSet[sn.Name] = true
 			for _, comp := range sn.Components {
-				assertedCompSets[sn.Name][comp.Name] = true
+				availableCompSets[sn.Name][comp.Name] = true
 			}
 		}
 	}
 
-	return assertedSnapSet, assertedCompSets, nil
+	return availableSnapSet, availableCompSets, nil
 }
 
 func (s *seed20) availableAssertedContainers() (map[string]bool, map[string]map[string]bool) {
