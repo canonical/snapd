@@ -252,7 +252,7 @@ func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (er
 		}
 
 		if err := osutil.CopyFile(sn.Path, destSnapPath, osutil.CopyFlagOverwrite); err != nil {
-			return fmt.Errorf("cannot copy asserted snap: %w", err)
+			return fmt.Errorf("cannot copy snap: %w", err)
 		}
 
 		for _, comp := range sn.Components {
@@ -276,7 +276,7 @@ func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (er
 			}
 
 			if err := osutil.CopyFile(comp.Path, destCompPath, osutil.CopyFlagOverwrite); err != nil {
-				return fmt.Errorf("cannot copy asserted component: %w", err)
+				return fmt.Errorf("cannot copy component: %w", err)
 			}
 		}
 	}
