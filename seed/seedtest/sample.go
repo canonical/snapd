@@ -143,6 +143,18 @@ version: 2.0
 type: test
 version: 2.0
 `,
+	"local-component-test": `name: local-component-test
+type: app
+base: core20
+version: 1.0
+components:
+  comp4:
+    type: test
+`,
+	"local-component-test+comp4": `component: local-component-test+comp4
+type: test
+version: 1.0
+`,
 	"optional20-a": `name: optional20-a
 type: app
 base: core20

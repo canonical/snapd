@@ -3518,6 +3518,8 @@ func (s *seed20Suite) TestCopy(c *C) {
 		"aux-info-test_1.snap",
 	}, []string{
 		"optional20-b_1.0.snap",
+		"local-component-test_1.0.snap",
+		"local-component-test+comp4_1.0.comp",
 	}, map[string][]string{
 		s.AssertedSnapID("core20"):         nil,
 		s.AssertedSnapID("pc"):             nil,
@@ -3544,6 +3546,8 @@ func (s *seed20Suite) TestCopyEmptyLabel(c *C) {
 		"aux-info-test_1.snap",
 	}, []string{
 		"optional20-b_1.0.snap",
+		"local-component-test_1.0.snap",
+		"local-component-test+comp4_1.0.comp",
 	}, map[string][]string{
 		s.AssertedSnapID("core20"):         nil,
 		s.AssertedSnapID("pc"):             nil,
@@ -3560,9 +3564,10 @@ func (s *seed20Suite) TestCopyWithOptionalContainersIncludeEverything(c *C) {
 	s.testCopy(c, seed.CopyOptions{
 		Label: "20240126",
 		OptionalContainers: &seed.OptionalContainers{
-			Snaps: []string{"component-test", "optional20-a", "optional20-b", "aux-info-test"},
+			Snaps: []string{"component-test", "optional20-a", "optional20-b", "aux-info-test", "local-component-test"},
 			Components: map[string][]string{
-				"component-test": {"comp2"},
+				"component-test":       {"comp2"},
+				"local-component-test": {"comp4"},
 			},
 		},
 	}, []string{
@@ -3578,6 +3583,8 @@ func (s *seed20Suite) TestCopyWithOptionalContainersIncludeEverything(c *C) {
 		"aux-info-test_1.snap",
 	}, []string{
 		"optional20-b_1.0.snap",
+		"local-component-test_1.0.snap",
+		"local-component-test+comp4_1.0.comp",
 	}, map[string][]string{
 		s.AssertedSnapID("core20"):         nil,
 		s.AssertedSnapID("pc"):             nil,
@@ -3616,6 +3623,42 @@ func (s *seed20Suite) TestCopyWithOptionalContainersExclude(c *C) {
 	})
 }
 
+func (s *seed20Suite) TestCopyWithOptionalContainersExcludeUnassertedComponent(c *C) {
+	s.testCopy(c, seed.CopyOptions{
+		Label: "20240126",
+		OptionalContainers: &seed.OptionalContainers{
+			Snaps: []string{"component-test", "optional20-a", "optional20-b", "aux-info-test", "local-component-test"},
+			Components: map[string][]string{
+				"component-test":       {"comp2"},
+				"local-component-test": nil,
+			},
+		},
+	}, []string{
+		"core20_1.snap",
+		"pc_1.snap",
+		"pc-kernel_1.snap",
+		"snapd_1.snap",
+		"component-test+comp1_22.comp",
+		"component-test+comp2_33.comp",
+		"component-test_11.snap",
+		"optional20-a_1.snap",
+		"required20_1.snap",
+		"aux-info-test_1.snap",
+	}, []string{
+		"optional20-b_1.0.snap",
+		"local-component-test_1.0.snap",
+	}, map[string][]string{
+		s.AssertedSnapID("core20"):         nil,
+		s.AssertedSnapID("pc"):             nil,
+		s.AssertedSnapID("pc-kernel"):      nil,
+		s.AssertedSnapID("snapd"):          nil,
+		s.AssertedSnapID("optional20-a"):   nil,
+		s.AssertedSnapID("required20"):     nil,
+		s.AssertedSnapID("aux-info-test"):  nil,
+		s.AssertedSnapID("component-test"): {"comp1", "comp2"},
+	})
+}
+
 func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedContainers, expectedUnassertedContainers []string, snapIDToComps map[string][]string) {
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core20", "")
@@ -3636,7 +3679,7 @@ func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedCont
 	)
 
 	const srcLabel = "20191030"
-	s.MakeSeed(c, srcLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeedWithLocalComponents(c, srcLabel, "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
@@ -3696,6 +3739,13 @@ func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedCont
 		},
 		{
 			Name: "aux-info-test",
+		},
+		{
+			Path: s.makeLocalSnap(c, "local-component-test"),
+		},
+	}, map[string][]string{
+		"local-component-test": {
+			snaptest.MakeTestComponent(c, seedtest.SampleSnapYaml["local-component-test+comp4"]),
 		},
 	})
 
