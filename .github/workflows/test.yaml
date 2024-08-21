@@ -650,7 +650,7 @@ jobs:
             tests: 'tests/smoke/ tests/main/canonical-livepatch tests/main/canonical-livepatch-14.04'
           - group: ubuntu-xenial-bionic
             backend: google
-            systems: 'ubuntu-16.04-64 ubuntu-18.04-32 ubuntu-18.04-64'
+            systems: 'ubuntu-16.04-64 ubuntu-18.04-64'
             tests: 'tests/...'
           - group: ubuntu-focal-jammy
             backend: google
