@@ -296,7 +296,14 @@ func setupLocalUser(state *state.State, username, email string, expiration time.
 		return err
 	}
 	authDataFn := filepath.Join(user.HomeDir, ".snap", "auth.json")
-	if err := osutil.MkdirAllChown(filepath.Dir(authDataFn), 0700, uid, gid); err != nil {
+	if err := osutil.Mkdir(filepath.Dir(authDataFn), 0700, &osutil.MkdirOptions{
+		MakeParents: true,
+		ExistOK:     true,
+		Chmod:       true,
+		Chown:       true,
+		UserID:      uid,
+		GroupID:     gid,
+	}); err != nil {
 		return err
 	}
 

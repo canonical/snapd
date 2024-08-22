@@ -50,7 +50,14 @@ func ensureGPGHomeDirectory() (string, error) {
 		homedir = filepath.Join(real.HomeDir, ".snap", "gnupg")
 	}
 
-	if err := osutil.MkdirAllChown(homedir, 0700, uid, gid); err != nil {
+	if err := osutil.Mkdir(homedir, 0700, &osutil.MkdirOptions{
+		MakeParents: true,
+		ExistOK:     true,
+		Chmod:       true,
+		Chown:       true,
+		UserID:      uid,
+		GroupID:     gid,
+	}); err != nil {
 		return "", err
 	}
 	return homedir, nil

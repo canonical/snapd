@@ -35,7 +35,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require go.etcd.io/bbolt v1.3.9
+require go.etcd.io/bbolt v1.3.6
 
 require (
 	github.com/canonical/go-sp800.108-kdf v0.0.0-20210314145419-a3359f2d21b9 // indirect

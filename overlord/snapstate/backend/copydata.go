@@ -35,8 +35,8 @@ import (
 )
 
 var (
-	allUsers      = snap.AllUsers
-	mkdirAllChown = osutil.MkdirAllChown
+	allUsers = snap.AllUsers
+	mkdir    = osutil.Mkdir
 )
 
 // MockAllUsers allows tests to mock snap.AllUsers. Panics if called outside of
@@ -191,7 +191,14 @@ func (b Backend) HideSnapData(snapName string) error {
 
 		// create the new hidden snap dir
 		hiddenSnapDir := snap.SnapDir(usr.HomeDir, hiddenDirOpts)
-		if err := osutil.MkdirAllChown(hiddenSnapDir, 0700, uid, gid); err != nil {
+		if err := osutil.Mkdir(hiddenSnapDir, 0700, &osutil.MkdirOptions{
+			MakeParents: true,
+			ExistOK:     true,
+			Chmod:       true,
+			Chown:       true,
+			UserID:      uid,
+			GroupID:     gid,
+		}); err != nil {
 			return fmt.Errorf("cannot create snap dir %q: %w", hiddenSnapDir, err)
 		}
 
@@ -256,7 +263,14 @@ func (b Backend) UndoHideSnapData(snapName string) error {
 
 		// ensure parent dirs exist
 		exposedDir := snap.SnapDir(usr.HomeDir, nil)
-		if err := osutil.MkdirAllChown(exposedDir, 0700, uid, gid); err != nil {
+		if err := osutil.Mkdir(exposedDir, 0700, &osutil.MkdirOptions{
+			MakeParents: true,
+			ExistOK:     true,
+			Chmod:       true,
+			Chown:       true,
+			UserID:      uid,
+			GroupID:     gid,
+		}); err != nil {
 			handle(fmt.Errorf("cannot create snap dir %q: %w", exposedDir, err))
 			continue
 		}
@@ -343,7 +357,14 @@ func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision, opts *d
 			continue
 		}
 
-		if err := mkdirAllChown(newUserHome, 0700, uid, gid); err != nil {
+		if err := mkdir(newUserHome, 0700, &osutil.MkdirOptions{
+			MakeParents: true,
+			ExistOK:     true,
+			Chmod:       true,
+			Chown:       true,
+			UserID:      uid,
+			GroupID:     gid,
+		}); err != nil {
 			return undoInfo, fmt.Errorf("cannot create %q: %v", newUserHome, err)
 		}
 
@@ -469,7 +490,14 @@ func (b Backend) InitXDGDirs(info *snap.Info) error {
 				}
 
 			} else {
-				if err := mkdirAllChown(dst, 0700, uid, gid); err != nil {
+				if err := mkdir(dst, 0700, &osutil.MkdirOptions{
+					MakeParents: true,
+					ExistOK:     true,
+					Chmod:       true,
+					Chown:       true,
+					UserID:      uid,
+					GroupID:     gid,
+				}); err != nil {
 					return err
 				}
 			}

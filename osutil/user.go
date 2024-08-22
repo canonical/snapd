@@ -285,7 +285,14 @@ func AddUser(name string, opts *AddUserOptions) error {
 	}
 
 	sshDir := filepath.Join(u.HomeDir, ".ssh")
-	if err := MkdirAllChown(sshDir, 0700, uid, gid); err != nil {
+	if err := Mkdir(sshDir, 0700, &MkdirOptions{
+		MakeParents: true,
+		ExistOK:     true,
+		Chmod:       true,
+		Chown:       true,
+		UserID:      uid,
+		GroupID:     gid,
+	}); err != nil {
 		return fmt.Errorf("cannot create %s: %s", sshDir, err)
 	}
 	authKeys := filepath.Join(sshDir, "authorized_keys")

@@ -169,7 +169,14 @@ func writeWarningTimestamp(t time.Time) error {
 	}
 
 	filename := warnFilename(user.HomeDir)
-	if err := osutil.MkdirAllChown(filepath.Dir(filename), 0700, uid, gid); err != nil {
+	if err := osutil.Mkdir(filepath.Dir(filename), 0700, &osutil.MkdirOptions{
+		MakeParents: true,
+		ExistOK:     true,
+		Chmod:       true,
+		Chown:       true,
+		UserID:      uid,
+		GroupID:     gid,
+	}); err != nil {
 		return err
 	}
 

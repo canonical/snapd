@@ -284,7 +284,14 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 			// for the system path, and we won't be creating the
 			// user's home (as we skip restore in that case).
 			// Also no chown happens for root/root.
-			if err := osutil.MkdirAllChown(parent, 0755, uid, gid); err != nil {
+			if err := osutil.Mkdir(parent, 0755, &osutil.MkdirOptions{
+				MakeParents: true,
+				ExistOK:     true,
+				Chmod:       true,
+				Chown:       true,
+				UserID:      uid,
+				GroupID:     gid,
+			}); err != nil {
 				return rs, err
 			}
 			rs.Created = append(rs.Created, parent)

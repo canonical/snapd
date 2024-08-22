@@ -23,7 +23,7 @@ import (
 	"os"
 
 	"github.com/snapcore/snapd/kernel"
-	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/wrappers"
@@ -53,11 +53,11 @@ func MockRemoveIfEmpty(f func(dir string) error) func() {
 	}
 }
 
-func MockMkdirAllChown(f func(string, os.FileMode, sys.UserID, sys.GroupID) error) func() {
-	old := mkdirAllChown
-	mkdirAllChown = f
+func MockMkdir(f func(string, os.FileMode, *osutil.MkdirOptions) error) func() {
+	old := mkdir
+	mkdir = f
 	return func() {
-		mkdirAllChown = old
+		mkdir = old
 	}
 }
 
