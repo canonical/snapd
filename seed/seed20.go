@@ -658,9 +658,16 @@ func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.Model
 			return seedComps[i].CompSideInfo.Component.ComponentName <
 				seedComps[j].CompSideInfo.Component.ComponentName
 		})
-	} else {
-		// Asserted option snap
+	}
+
+	// if we have an options snap for this asserted snap, then it should only
+	// contain asserted components that are not present in the model
+	if optSnap != nil {
 		for _, comp := range optSnap.Components {
+			if comp.Unasserted != "" {
+				return "", nil, nil, fmt.Errorf("internal error: unasserted component in options.yaml for asserted snap: %s", comp.Unasserted)
+			}
+
 			seedComp, err := s.lookupVerifiedComponent(
 				naming.NewComponentRef(snapDecl.SnapName(), comp.Name),
 				snap.R(snapRev.SnapRevision()), snapDecl.SnapID(),

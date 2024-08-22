@@ -372,17 +372,26 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 	return nil
 }
 
-func (tr *tree20) seedSnapComponents(sn *SeedSnap) []internal.Component20 {
-	compOpts := make([]internal.Component20, len(sn.Components))
-	for i, comp := range sn.Components {
+func seedSnapComponentsForOptions(sn *SeedSnap) []internal.Component20 {
+	compOpts := make([]internal.Component20, 0, len(sn.Components))
+	for _, comp := range sn.Components {
+		if sn.modelSnap != nil {
+			// if the component is in the model and asserted, then we don't want to write it
+			// to the options.yaml file
+			if _, ok := sn.modelSnap.Components[comp.ComponentName]; ok && sn.Info.ID() != "" {
+				continue
+			}
+		}
+
 		unassertedComp := ""
 		if sn.Info.ID() == "" {
 			unassertedComp = filepath.Base(comp.Path)
 		}
-		compOpts[i] = internal.Component20{
+
+		compOpts = append(compOpts, internal.Component20{
 			Name:       comp.ComponentName,
 			Unasserted: unassertedComp,
-		}
+		})
 	}
 	return compOpts
 }
@@ -395,7 +404,16 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 		if sn.Channel != sn.modelSnap.DefaultChannel {
 			channelOverride = sn.Channel
 		}
-		if sn.Info.ID() != "" && channelOverride == "" {
+
+		extraComponents := false
+		for _, comp := range sn.Components {
+			if _, ok := sn.modelSnap.Components[comp.ComponentName]; !ok {
+				extraComponents = true
+				break
+			}
+		}
+
+		if sn.Info.ID() != "" && channelOverride == "" && !extraComponents {
 			continue
 		}
 		unasserted := ""
@@ -410,7 +428,7 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 			SnapID:     sn.modelSnap.ID(),
 			Unasserted: unasserted,
 			Channel:    channelOverride,
-			Components: tr.seedSnapComponents(sn),
+			Components: seedSnapComponentsForOptions(sn),
 		})
 	}
 
@@ -427,7 +445,7 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 			SnapID:     sn.Info.ID(),
 			Unasserted: unasserted,
 			Channel:    channel,
-			Components: tr.seedSnapComponents(sn),
+			Components: seedSnapComponentsForOptions(sn),
 		})
 	}
 

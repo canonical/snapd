@@ -379,6 +379,15 @@ func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHead
 	return model
 }
 
+func (s *TestingSeed20) MakeSeedWithLocalComponents(c *C, label, brandID, modelID string, modelHeaders map[string]interface{}, optSnaps []*seedwriter.OptionsSnap, compPathsBySnap map[string][]string) *asserts.Model {
+	model := s.Brands.Model(brandID, modelID, modelHeaders)
+
+	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys(brandID)...)
+
+	s.MakeSeedWithModel(c, label, model, optSnaps, compPathsBySnap)
+	return model
+}
+
 // MakeSeedWithModel creates the seed with given label for a given model
 func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Model, optSnaps []*seedwriter.OptionsSnap, compPathsBySnap map[string][]string) {
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
@@ -487,17 +496,32 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 		if err = sf.Save(s.snapRevs[sn.SnapName()]); err != nil {
 			return nil, err
 		}
+
+		seededResources := make(map[string]bool)
+		for _, comp := range sn.Components {
+			seededResources[comp.ComponentName] = true
+		}
+
 		// Components assertions
 		for _, resRev := range s.resRevs[sn.SnapName()] {
+			if _, ok := seededResources[resRev.ResourceName()]; !ok {
+				continue
+			}
+
 			if err = sf.Save(resRev); err != nil {
 				return nil, err
 			}
 		}
 		for _, resPair := range s.resPairs[sn.SnapName()] {
+			if _, ok := seededResources[resPair.ResourceName()]; !ok {
+				continue
+			}
+
 			if err = sf.Save(resPair); err != nil {
 				return nil, err
 			}
 		}
+
 		return sf.Refs()[prev:], nil
 	}
 

@@ -4485,3 +4485,113 @@ func (s *seed20Suite) TestLoadMetaCore20ExtraSnapsWithComps(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(recoverSnaps, HasLen, 0)
 }
+
+func (s *seed20Suite) TestSeedWithComponentsInModelAndOptions(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	assertCompRevs := map[string]snap.Revision{
+		"comp1": snap.R(22),
+		"comp2": snap.R(33),
+		"comp3": snap.R(44),
+	}
+	s.MakeAssertedSnapWithComps(c,
+		seedtest.SampleSnapYaml["component-test"], nil,
+		snap.R(11), assertCompRevs, "canonical", s.StoreSigning.Database,
+	)
+
+	const srcLabel = "20191030"
+	s.MakeSeedWithLocalComponents(c, srcLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":     "component-test",
+				"id":       s.AssertedSnapID("component-test"),
+				"presence": "required",
+				"components": map[string]interface{}{
+					"comp1": "required",
+					"comp2": "required",
+				},
+			},
+		},
+	}, []*seedwriter.OptionsSnap{
+		{
+			Name:   "component-test",
+			SnapID: s.AssertedSnapID("component-test"),
+			Components: []seedwriter.OptionsComponent{
+				{
+					Name: "comp3",
+				},
+			},
+		},
+	}, nil)
+
+	seed20, err := seed.Open(s.SeedDir, srcLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	var compSnap *seed.Snap
+	err = seed20.Iter(func(sn *seed.Snap) error {
+		if sn.SnapName() == "component-test" {
+			compSnap = sn
+		}
+		return nil
+	})
+	c.Assert(err, IsNil)
+	c.Assert(compSnap, NotNil)
+
+	assertedSnapsDir := filepath.Join(s.SeedDir, "snaps")
+	extraSnapsDir := filepath.Join(s.SeedDir, "systems", srcLabel, "snaps")
+
+	c.Check(compSnap, DeepEquals, &seed.Snap{
+		Path:     filepath.Join(assertedSnapsDir, "component-test_11.snap"),
+		SideInfo: &s.AssertedSnapInfo("component-test").SideInfo,
+		Required: true,
+		Channel:  "latest/stable",
+		Components: []seed.Component{
+			{
+				Path: filepath.Join(assertedSnapsDir, "component-test+comp1_22.comp"),
+				CompSideInfo: snap.ComponentSideInfo{
+					Component: naming.NewComponentRef("component-test", "comp1"),
+					Revision:  snap.R(22),
+				},
+			},
+			{
+				Path: filepath.Join(assertedSnapsDir, "component-test+comp2_33.comp"),
+				CompSideInfo: snap.ComponentSideInfo{
+					Component: naming.NewComponentRef("component-test", "comp2"),
+					Revision:  snap.R(33),
+				},
+			},
+			{
+				Path: filepath.Join(extraSnapsDir, "component-test+comp3_44.comp"),
+				CompSideInfo: snap.ComponentSideInfo{
+					Component: naming.NewComponentRef("component-test", "comp3"),
+					Revision:  snap.R(44),
+				},
+			},
+		},
+	})
+}
