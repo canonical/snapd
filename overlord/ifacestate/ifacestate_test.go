@@ -378,12 +378,20 @@ func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingEnabled(c *C) {
 	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
 	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
 		createCount++
+		// InterfacesRequestsManager may record notices during creation, so
+		// simulate it acquiring the state lock to do so.
+		s.Lock()
+		defer s.Unlock()
 		return fakeManager, nil
 	})
 	defer restore()
 	stopCount := 0
 	restore = ifacestate.MockInterfacesRequestsManagerStop(func(m *apparmorprompting.InterfacesRequestsManager) error {
 		stopCount++
+		// InterfacesRequestsManager may record notices while stopping, so
+		// simulate it acquiring the state lock to do so.
+		s.state.Lock()
+		defer s.state.Unlock()
 		return nil
 	})
 	defer restore()
