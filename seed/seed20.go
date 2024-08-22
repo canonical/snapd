@@ -153,7 +153,7 @@ func (s *seed20) OptionalContainers() (OptionalContainers, error) {
 	requiredSnapsInModel := make(map[string]bool)
 	requiredComponentsInModel := make(map[string]map[string]bool)
 	for _, snap := range model.AllSnaps() {
-		if snap.Presence == "required" || snap.Presence == "" {
+		if snap.Presence == "required" {
 			requiredSnapsInModel[snap.Name] = true
 		}
 
