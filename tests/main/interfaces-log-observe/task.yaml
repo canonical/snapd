@@ -70,16 +70,17 @@ execute: |
     fi
 
     echo "But can't make unsafe syslog(2) calls"
-    log-observe-consumer.klogctl SYSLOG_ACTION_CLOSE | MATCH 'ERROR (operation not permitted|permission denied)'
-    log-observe-consumer.klogctl SYSLOG_ACTION_OPEN | MATCH 'ERROR (operation not permitted|permission denied)'
-    log-observe-consumer.klogctl SYSLOG_ACTION_READ_CLEAR | MATCH 'ERROR (operation not permitted|permission denied)'
-    log-observe-consumer.klogctl SYSLOG_ACTION_CLEAR | MATCH 'ERROR (operation not permitted|permission denied)'
-    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_OFF | MATCH 'ERROR (operation not permitted|permission denied)'
-    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_ON | MATCH 'ERROR (operation not permitted|permission denied)'
-    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_LEVEL | MATCH 'ERROR (operation not permitted|permission denied)'
-    # It is important that the following matches EPERM/EACCES, not EINVAL, as it
-    # is a stand-in for potential future SYSLOG_ACTIONs
-    log-observe-consumer.klogctl SYSLOG_ACTION_BAD | MATCH 'ERROR (operation not permitted|permission denied)'
+    # Check for EACCES for all these, because they are explicitly denied by seccomp
+    log-observe-consumer.klogctl SYSLOG_ACTION_CLOSE | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_OPEN | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_READ_CLEAR | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CLEAR | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_OFF | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_ON | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_LEVEL | MATCH 'ERROR permission denied'
+    # It is important that the following matches EACCES, not EINVAL, as it
+    # is a stand-in for potential future SYSLOG_ACTIONs, which should be denied by default
+    log-observe-consumer.klogctl SYSLOG_ACTION_BAD | MATCH 'ERROR permission denied'
 
     echo "When the plug is disconnected"
     snap disconnect "$SNAP_NAME:$PLUG"
@@ -91,18 +92,22 @@ execute: |
     fi
 
     echo "Or make ANY privileged syslog(2) calls"
-    log-observe-consumer.klogctl SYSLOG_ACTION_CLOSE | MATCH 'ERROR (operation not permitted|permission denied)'
-    log-observe-consumer.klogctl SYSLOG_ACTION_OPEN | MATCH 'ERROR (operation not permitted|permission denied)'
-    log-observe-consumer.klogctl SYSLOG_ACTION_READ | MATCH 'ERROR (operation not permitted|permission denied)'
-    log-observe-consumer.klogctl SYSLOG_ACTION_READ_CLEAR | MATCH 'ERROR (operation not permitted|permission denied)'
-    log-observe-consumer.klogctl SYSLOG_ACTION_CLEAR | MATCH 'ERROR (operation not permitted|permission denied)'
-    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_OFF | MATCH 'ERROR (operation not permitted|permission denied)'
-    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_ON | MATCH 'ERROR (operation not permitted|permission denied)'
-    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_LEVEL | MATCH 'ERROR (operation not permitted|permission denied)'
-    log-observe-consumer.klogctl SYSLOG_ACTION_SIZE_UNREAD | MATCH 'ERROR (operation not permitted|permission denied)'
-    # It is important that the following matches EPERM/EACCES, not EINVAL, as it
-    # is a stand-in for potential future SYSLOG_ACTIONs
-    log-observe-consumer.klogctl SYSLOG_ACTION_BAD | MATCH 'ERROR (operation not permitted|permission denied)'
+    # Check for EACCES for all these, because they are explicitly denied by seccomp
+    log-observe-consumer.klogctl SYSLOG_ACTION_CLOSE | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_OPEN | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_READ_CLEAR | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CLEAR | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_OFF | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_ON | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_LEVEL | MATCH 'ERROR permission denied'
+    # It is important that the following matches EACCES, not EINVAL, as it
+    # is a stand-in for potential future SYSLOG_ACTIONs, which should be denied by default
+    log-observe-consumer.klogctl SYSLOG_ACTION_BAD | MATCH 'ERROR permission denied'
+
+    # Check for EPERM for the rest, because these are allowed by seccomp but denied
+    # because without log-observe the snap lacks CAP_SYSLOG
+    log-observe-consumer.klogctl SYSLOG_ACTION_READ | MATCH 'ERROR operation not permitted'
+    log-observe-consumer.klogctl SYSLOG_ACTION_SIZE_UNREAD | MATCH 'ERROR operation not permitted'
 
     # On systems with kernel.dmesg_restrict == 0, SYSLOG_ACTION_READ_ALL
     # and SYSLOG_ACTION_SIZE_BUFFER are available to anyone regardless of
@@ -114,5 +119,5 @@ execute: |
         exit 0
     fi
 
-    log-observe-consumer.klogctl SYSLOG_ACTION_READ_ALL | MATCH 'ERROR (operation not permitted|permission denied)'
-    log-observe-consumer.klogctl SYSLOG_ACTION_SIZE_BUFFER | MATCH 'ERROR (operation not permitted|permission denied)'
+    log-observe-consumer.klogctl SYSLOG_ACTION_READ_ALL | MATCH 'ERROR operation not permitted'
+    log-observe-consumer.klogctl SYSLOG_ACTION_SIZE_BUFFER | MATCH 'ERROR operation not permitted'

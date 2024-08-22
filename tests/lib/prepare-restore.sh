@@ -610,7 +610,9 @@ prepare_project() {
     go install ./tests/lib/uc20-create-partitions
 
     # Build binary used for log-observe test (extremely difficult to migrate
-    # this to python or some other interpreted language, as we need to make direct syscalls)
+    # this to python or some other interpreted language, as we need to make
+    # direct syscalls). We build this here instead of in the test prepare
+    # because go isn't available when running the test on core platforms
     go build -o ./tests/lib/snaps/log-observe-consumer/bin ./tests/lib/snaps/log-observe-consumer/src/klogctl
     # On core systems, the journal service is configured once the final core system
     # is created and booted what is done during the first test suite preparation
