@@ -71,7 +71,7 @@ execute: |
 
     echo "Check that only the former rule is still valid (must be done with UID 1000)"
     sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result | length' | MATCH 1
-    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result.[0].id' | MATCH "0000000000000002"
+    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result[0].id' | MATCH "0000000000000002"
 
     echo "Stop snapd and ensure it is not in failure mode"
     systemctl stop snapd.service snapd.socket
@@ -95,8 +95,8 @@ execute: |
     echo "Check that we received one notices for the non-expired rule"
     snap debug api --fail "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | jq
     snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | jq '.result | length' | MATCH 1
-    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | jq '.result.[0].key' | MATCH "0000000000000002"
+    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | jq '.result[0].key' | MATCH "0000000000000002"
 
     echo "Check that only the non-expired rule is still valid (must be done with UID 1000)"
     sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result | length' | MATCH 1
-    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result.[0].id' | MATCH "0000000000000002"
+    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result[0].id' | MATCH "0000000000000002"
