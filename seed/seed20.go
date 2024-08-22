@@ -429,7 +429,25 @@ type errorComponentNotInSeed struct {
 	error
 }
 
-func (s *seed20) lookupVerifiedComponent(cref naming.ComponentRef, snapRev snap.Revision, snapID, snapProvenance string, snapsDir string, handler ContainerHandler, tm timings.Measurer) (Component, error) {
+func modelContainsComponent(model *asserts.Model, cref naming.ComponentRef) bool {
+	for _, sn := range model.AllSnaps() {
+		if sn.SnapName() != cref.SnapName {
+			continue
+		}
+		_, ok := sn.Components[cref.ComponentName]
+		return ok
+	}
+	return false
+}
+
+func assertedComponentDir(systemDir string, model *asserts.Model, cref naming.ComponentRef) string {
+	if modelContainsComponent(model, cref) {
+		return filepath.Join(systemDir, "../../snaps")
+	}
+	return filepath.Join(systemDir, "snaps")
+}
+
+func (s *seed20) lookupVerifiedComponent(cref naming.ComponentRef, snapRev snap.Revision, snapID, snapProvenance string, handler ContainerHandler, tm timings.Measurer) (Component, error) {
 	snapName := cref.SnapName
 	compName := cref.ComponentName
 
@@ -448,8 +466,13 @@ func (s *seed20) lookupVerifiedComponent(cref naming.ComponentRef, snapRev snap.
 			fmt.Errorf("internal error: resource pair assertion not found for %s", compName)
 	}
 
-	compPath := filepath.Join(s.systemDir, snapsDir,
+	// we know the component is asserted, but it might not be in the model. if
+	// it isn't in the model, then it could be in this system's snaps dir
+	compDir := assertedComponentDir(s.systemDir, s.model, cref)
+
+	compPath := filepath.Join(compDir,
 		fmt.Sprintf("%s_%d.comp", cref.String(), resRev.ResourceRevision()))
+
 	_, err := os.Stat(compPath)
 	if err != nil {
 		// error should be of type *PathError
@@ -614,7 +637,7 @@ func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.Model
 			seedComp, err := s.lookupVerifiedComponent(
 				naming.NewComponentRef(snapDecl.SnapName(), comp),
 				snap.R(snapRev.SnapRevision()), snapDecl.SnapID(),
-				snapRev.Provenance(), snapsDir, handler, tm)
+				snapRev.Provenance(), handler, tm)
 			if err != nil {
 				var notInSeed errorComponentNotInSeed
 				if errors.As(err, &notInSeed) {
@@ -641,7 +664,7 @@ func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.Model
 			seedComp, err := s.lookupVerifiedComponent(
 				naming.NewComponentRef(snapDecl.SnapName(), comp.Name),
 				snap.R(snapRev.SnapRevision()), snapDecl.SnapID(),
-				snapRev.Provenance(), snapsDir, handler, tm)
+				snapRev.Provenance(), handler, tm)
 			if err != nil {
 				return "", nil, nil, err
 			}

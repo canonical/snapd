@@ -222,6 +222,16 @@ func (tr *tree20) snapDir(sn *SeedSnap) (string, error) {
 	return snapsDir, nil
 }
 
+func (tr *tree20) componentDir(sn *SeedSnap, sc *SeedComponent) (string, error) {
+	if ms := sn.modelSnap; ms != nil {
+		if _, ok := ms.Components[sc.ComponentName]; ok {
+			return tr.snapsDirPath, nil
+		}
+	}
+
+	return tr.ensureSystemSnapsDir()
+}
+
 func (tr *tree20) snapPath(sn *SeedSnap) (string, error) {
 	snapsDir, err := tr.snapDir(sn)
 	if err != nil {
@@ -231,7 +241,7 @@ func (tr *tree20) snapPath(sn *SeedSnap) (string, error) {
 }
 
 func (tr *tree20) componentPath(sn *SeedSnap, sc *SeedComponent) (string, error) {
-	snapsDir, err := tr.snapDir(sn)
+	snapsDir, err := tr.componentDir(sn, sc)
 	if err != nil {
 		return "", err
 	}
@@ -346,6 +356,9 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 		}
 	}
 
+	// TODO: assertions for components that are not in the model (but their snap
+	// is in the model) still end up here, rather than extra-snaps. to be more
+	// consistent, they should go in extra-snaps
 	if err := writeByRefs("snaps", snapsRefGen(snapsFromModel)); err != nil {
 		return err
 	}
