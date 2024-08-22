@@ -3912,6 +3912,10 @@ func (s *writerSuite) testSeedSnapsWriteMetaCore20SignedLocalAssertedSnaps(c *C,
 			map[string]interface{}{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
+				"components": map[string]interface{}{
+					"comp1": "optional",
+					"comp2": "optional",
+				},
 			},
 		},
 	})
