@@ -185,14 +185,6 @@ func MockSbInitializeLUKS2Container(f func(devicePath, label string, key []byte,
 	}
 }
 
-func MockSbAddRecoveryKeyToLUKS2Container(f func(devicePath string, key []byte, recoveryKey sb.RecoveryKey, opts *sb.KDFOptions) error) (restore func()) {
-	old := sbAddRecoveryKeyToLUKS2Container
-	sbAddRecoveryKeyToLUKS2Container = f
-	return func() {
-		sbAddRecoveryKeyToLUKS2Container = old
-	}
-}
-
 func MockIsTPMEnabled(f func(tpm *sb_tpm2.Connection) bool) (restore func()) {
 	old := isTPMEnabled
 	isTPMEnabled = f
