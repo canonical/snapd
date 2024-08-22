@@ -91,8 +91,7 @@ type seed20 struct {
 	mode string
 
 	snaps []*Snap
-	// modes holds a matching applicable modes set for each snap in snaps
-	modes             [][]string
+
 	essentialSnapsNum int
 }
 
@@ -1220,14 +1219,12 @@ func (s *seed20) doLoadMeta(handler ContainerHandler, tm timings.Measurer) error
 			return s.essCache[snType]
 		}
 	}
-	runMode := []string{"run"}
 
 	// relevant snaps have now been queued in the channel
 	n := len(s.snapsToConsiderCh)
 	close(s.snapsToConsiderCh)
 	if n > 0 {
 		s.snaps = make([]*Snap, n)
-		s.modes = make([][]string, n)
 	}
 
 	njobs := s.nLoadMetaJobs
@@ -1253,10 +1250,8 @@ func (s *seed20) doLoadMeta(handler ContainerHandler, tm timings.Measurer) error
 				default:
 				}
 				var seedSnap *Snap
-				modes := runMode
 				essential := false
 				if sntoc.modelSnap != nil {
-					modes = sntoc.modelSnap.Modes
 					essential = sntoc.essential
 				}
 				if essential {
@@ -1278,7 +1273,6 @@ func (s *seed20) doLoadMeta(handler ContainerHandler, tm timings.Measurer) error
 				}
 				i := sntoc.index
 				s.snaps[i] = seedSnap
-				s.modes[i] = modes
 			}
 		}()
 	}
@@ -1300,13 +1294,10 @@ func (s *seed20) doLoadMeta(handler ContainerHandler, tm timings.Measurer) error
 	}
 	// filter out nil values from skipped snaps
 	osnaps := s.snaps
-	omodes := s.modes
 	s.snaps = s.snaps[:0]
-	s.modes = s.modes[:0]
-	for i, sn := range osnaps {
+	for _, sn := range osnaps {
 		if sn != nil {
 			s.snaps = append(s.snaps, sn)
-			s.modes = append(s.modes, omodes[i])
 		}
 	}
 	return nil
@@ -1412,7 +1403,6 @@ func (s *seed20) resetSnaps() {
 	s.optSnapsIdx = 0
 	s.mode = AllModes
 	s.snaps = nil
-	s.modes = nil
 	s.essentialSnapsNum = 0
 }
 
@@ -1493,20 +1483,49 @@ func (s *seed20) ModeSnaps(mode string) ([]*Snap, error) {
 	if s.mode != AllModes && mode != s.mode {
 		return nil, fmt.Errorf("metadata was loaded only for snaps for mode %s not %s", s.mode, mode)
 	}
-	snaps := s.snaps[s.essentialSnapsNum:]
-	modes := s.modes[s.essentialSnapsNum:]
-	nGuess := len(snaps)
-	ephemeral := mode != "run"
-	if ephemeral {
-		nGuess /= 2
-	}
-	res := make([]*Snap, 0, nGuess)
-	for i, snap := range snaps {
-		if snapModesInclude(modes[i], mode) {
-			res = append(res, snap)
+
+	snapsWithMode := make([]*Snap, 0)
+	for _, sn := range s.snaps[s.essentialSnapsNum:] {
+		// since we're handing out pointers here (and we might need to modify
+		// the slice of components it holds), we need to make a copy of the snap
+		copied := *sn
+		copied.Components = append([]Component(nil), sn.Components...)
+
+		ms, ok := s.modelSnaps[sn.SnapName()]
+		if !ok {
+			// snaps not in the model will be considered as run mode, and so
+			// will all of its components
+			if mode == "run" {
+				snapsWithMode = append(snapsWithMode, &copied)
+			}
+			continue
 		}
+
+		copied.Components = nil
+
+		if !snapModesInclude(ms.Modes, mode) {
+			continue
+		}
+
+		for _, comp := range sn.Components {
+			modelComp, ok := ms.Components[comp.CompSideInfo.Component.ComponentName]
+			if !ok {
+				// components not in the model will be considered as run mode
+				if mode == "run" {
+					copied.Components = append(copied.Components, comp)
+				}
+				continue
+			}
+
+			if snapModesInclude(modelComp.Modes, mode) {
+				copied.Components = append(copied.Components, comp)
+			}
+		}
+
+		snapsWithMode = append(snapsWithMode, &copied)
 	}
-	return res, nil
+
+	return snapsWithMode, nil
 }
 
 func (s *seed20) NumSnaps() int {
