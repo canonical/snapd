@@ -205,14 +205,20 @@ func (m *InterfaceManager) StartUp() error {
 	}
 
 	if m.useAppArmorPrompting {
-		if err := m.initInterfacesRequestsManager(); err != nil {
-			// TODO: if this fails, set useAppArmorPromptingValue to false ?
-			// If this is done before profilesNeedRegeneration, then profiles will only
-			// be regenerated if prompting is newly supported and the backends were
-			// successfully created.
-			// TODO: also set "apparmor-prompting" flag to false?
-			logger.Noticef("failed to start interfaces requests manager: %v", err)
-		}
+		func() {
+			// Must not hold state lock while starting interfaces requests
+			// manager, so that notices can be recorded if needed.
+			m.state.Unlock()
+			defer m.state.Lock()
+			if err := m.initInterfacesRequestsManager(); err != nil {
+				// TODO: if this fails, set useAppArmorPromptingValue to false ?
+				// If this is done before profilesNeedRegeneration, then profiles will only
+				// be regenerated if prompting is newly supported and the backends were
+				// successfully created.
+				// TODO: also set "apparmor-prompting" flag to false?
+				logger.Noticef("failed to start interfaces requests manager: %v", err)
+			}
+		}()
 	}
 	if m.profilesNeedRegeneration() {
 		if err := m.regenerateAllSecurityProfiles(perfTimings); err != nil {
@@ -273,6 +279,9 @@ func (m *InterfaceManager) Ensure() error {
 // if running.
 func (m *InterfaceManager) Stop() {
 	m.stopUDevMon()
+	// The state lock is not held when calling any of the manager methods
+	// driven by StateEngine. Thus, it is okay for stopInterfacesRequestsManager
+	// to acquire the state lock in order to record notices, if needed.
 	m.stopInterfacesRequestsManager()
 }
 
@@ -291,6 +300,9 @@ func (m *InterfaceManager) stopUDevMon() {
 	m.udevMon = nil
 }
 
+// interfacesRequestsManagerStop calls stop on the given manager. The state lock
+// must not be held while this function is called, as the manager may need to
+// record notices while it is stopping.
 var interfacesRequestsManagerStop = func(interfacesRequestsManager *apparmorprompting.InterfacesRequestsManager) error {
 	return interfacesRequestsManager.Stop()
 }
