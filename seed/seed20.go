@@ -249,7 +249,9 @@ func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (er
 		return err
 	}
 
-	// copy the assertions that the seed needs
+	// copy the assertions that the seed needs. since we don't make any
+	// distinction between the assertions in "extra-snaps" and "snaps" files, we
+	// just write them all to the same "snaps" file.
 	if err := writeAssertions(filepath.Join(destSystemDir, "assertions", "snaps"), assertions); err != nil {
 		return err
 	}
