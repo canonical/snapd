@@ -47,3 +47,26 @@ func InternalToolPath(tool string) (string, error) {
 func IsReexecd() (bool, error) {
 	return false, errUnsupported
 }
+
+// DistroSupportsReExec returns true if the distribution we are running on can use re-exec.
+//
+// On this OS this is a stub and always returns false.
+func DistroSupportsReExec() bool {
+	return false
+}
+
+// IsReexecEnabled checks the environment and configuration to assert whether
+// reexec has been explicitly enabled/disabled.
+//
+// On this OS this is a stub and always returns false.
+func IsReexecEnabled() bool {
+	return false
+}
+
+// IsReexecExplicitlyEnabled is a stronger check than IsReexecEnabled as it
+// really expects the relevant environment variable to be set.
+//
+// On this OS this is a stub and always returns false.
+func IsReexecExplicitlyEnabled() bool {
+	return false
+}
