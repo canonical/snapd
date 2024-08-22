@@ -79,34 +79,26 @@ type InterfacesRequestsManager struct {
 
 func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 	notifyPrompt := func(userID uint32, promptID prompting.IDType, data map[string]string) error {
+		// TODO: add some sort of queue so that notifyPrompt calls can return
+		// quickly without waiting for state lock and AddNotice() to return.
+		s.Lock()
+		defer s.Unlock()
 		options := state.AddNoticeOptions{
 			Data: data,
-			// TODO: guarantee order by passing in the current time and ensuring
-			// that the notices backend keeps notice data from the AddNotice
-			// call with the most recent Time field.
-			// Time: time.Now(),
 		}
-		go func() {
-			s.Lock()
-			defer s.Unlock()
-			s.AddNotice(&userID, state.InterfacesRequestsPromptNotice, promptID.String(), &options)
-		}()
-		return nil
+		_, err := s.AddNotice(&userID, state.InterfacesRequestsPromptNotice, promptID.String(), &options)
+		return err
 	}
 	notifyRule := func(userID uint32, ruleID prompting.IDType, data map[string]string) error {
+		// TODO: add some sort of queue so that notifyRule calls can return
+		// quickly without waiting for state lock and AddNotice() to return.
+		s.Lock()
+		defer s.Unlock()
 		options := state.AddNoticeOptions{
 			Data: data,
-			// TODO: guarantee order by passing in the current time and ensuring
-			// that the notices backend keeps notice data from the AddNotice
-			// call with the most recent Time field.
-			// Time: time.Now(),
 		}
-		go func() {
-			s.Lock()
-			defer s.Unlock()
-			s.AddNotice(&userID, state.InterfacesRequestsRuleUpdateNotice, ruleID.String(), &options)
-		}()
-		return nil
+		_, err := s.AddNotice(&userID, state.InterfacesRequestsRuleUpdateNotice, ruleID.String(), &options)
+		return err
 	}
 
 	listenerBackend, err := listenerRegister()
