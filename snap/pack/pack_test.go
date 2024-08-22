@@ -354,7 +354,7 @@ func (s *packSuite) TestDebArchitecture(c *C) {
 
 func (s *packSuite) TestPackComponentSimple(c *C) {
 	sourceDir := makeExampleComponentSourceDir(c, `component: hello+test
-type: test
+type: standard
 version: 1.0.1
 `)
 
@@ -403,7 +403,7 @@ version: 1.0.1
 
 func (s *packSuite) TestPackComponentProvenance(c *C) {
 	sourceDir := makeExampleComponentSourceDir(c, `component: hello+test
-type: test
+type: standard
 version: 1.0.1
 provenance: prov
 `)

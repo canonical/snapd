@@ -296,6 +296,10 @@ func (s *typeSuite) TestComponentTypeFromString(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(t, Equals, TestComponent)
 
+	t, err = ComponentTypeFromString("standard")
+	c.Assert(err, IsNil)
+	c.Check(t, Equals, StandardComponent)
+
 	t, err = ComponentTypeFromString("kernel-modules")
 	c.Assert(err, IsNil)
 	c.Check(t, Equals, KernelModulesComponent)

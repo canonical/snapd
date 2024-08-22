@@ -10834,10 +10834,10 @@ func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedOnPreDownl
 	})
 	seq.AddComponentForRevision(snap.R(1), &sequence.ComponentState{
 		SideInfo: &snap.ComponentSideInfo{
-			Component: naming.NewComponentRef("some-snap", "test-component"),
+			Component: naming.NewComponentRef("some-snap", "standard-component"),
 			Revision:  snap.R(1),
 		},
-		CompType: snap.TestComponent,
+		CompType: snap.StandardComponent,
 	})
 
 	s.state.Lock()
@@ -10854,8 +10854,8 @@ func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedOnPreDownl
 		c.Assert(info.InstanceName(), Equals, "some-snap")
 		return []store.SnapResourceResult{
 			{
-				Name:      "test-component",
-				Type:      "component/test",
+				Name:      "standard-component",
+				Type:      "component/standard",
 				Version:   "1.0",
 				CreatedAt: "2024-01-01T00:00:00Z",
 				Revision:  5,
@@ -10868,7 +10868,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedOnPreDownl
 	) (*snap.ComponentInfo, error) {
 		return &snap.ComponentInfo{
 			Component:         csi.Component,
-			Type:              "test",
+			Type:              "standard",
 			Version:           "1.0",
 			ComponentSideInfo: *csi,
 		}, nil
@@ -10923,7 +10923,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedOnPreDownl
 	c.Assert(err, IsNil)
 	c.Check(snapst.Current, Equals, snap.R(11))
 
-	csi := snapst.CurrentComponentSideInfo(naming.NewComponentRef("some-snap", "test-component"))
+	csi := snapst.CurrentComponentSideInfo(naming.NewComponentRef("some-snap", "standard-component"))
 	c.Check(csi, NotNil)
 	c.Check(csi.Revision, Equals, snap.R(5))
 }
@@ -14106,7 +14106,7 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 		channel     = "channel-for-components"
 	)
 
-	components := []string{"test-component", "kernel-modules-component"}
+	components := []string{"standard-component", "kernel-modules-component"}
 
 	currentSnapRev := snap.R(11)
 	prevSnapRev := snap.R(7)
@@ -14351,7 +14351,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 		channel     = "channel-for-components-only-component-refresh"
 	)
 
-	components := []string{"test-component", "kernel-modules-component"}
+	components := []string{"standard-component", "kernel-modules-component"}
 
 	currentSnapRev := snap.R(11)
 	prevSnapRev := snap.R(7)
@@ -14442,12 +14442,12 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 
 	availableComponents := make([]string, len(components))
 	copy(availableComponents, components)
-	availableComponents = append(availableComponents, "test-component-extra", "test-component-present-in-sequence")
+	availableComponents = append(availableComponents, "standard-component-extra", "standard-component-present-in-sequence")
 
-	// test-component-extra is installed for just the revision we're moving to,
+	// standard-component-extra is installed for just the revision we're moving to,
 	// it should be unlinked and discarded
 	extraCsi := snap.ComponentSideInfo{
-		Component: naming.NewComponentRef(snapName, "test-component-extra"),
+		Component: naming.NewComponentRef(snapName, "standard-component-extra"),
 		Revision:  snap.R(len(availableComponents) + 1),
 	}
 	err := seq.AddComponentForRevision(prevSnapRev, &sequence.ComponentState{
@@ -14456,10 +14456,10 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	// test-component-present-in-sequence is installed for the revision we're
+	// standard-component-present-in-sequence is installed for the revision we're
 	// moving to and another revision. it should be unlinked, but not discarded.
 	presentInSeqCsi := snap.ComponentSideInfo{
-		Component: naming.NewComponentRef(snapName, "test-component-present-in-sequence"),
+		Component: naming.NewComponentRef(snapName, "standard-component-present-in-sequence"),
 		Revision:  snap.R(len(availableComponents) + 1),
 	}
 	for _, si := range []*snap.SideInfo{&prevSI, &otherSI} {
@@ -14758,7 +14758,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 
 func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThrough(c *C) {
 	s.testUpdateWithComponentsRunThrough(c, updateWithComponentsOpts{
-		components: []string{"test-component", "kernel-modules-component"},
+		components: []string{"standard-component", "kernel-modules-component"},
 	})
 }
 
@@ -14783,7 +14783,7 @@ func (s *snapmgrTestSuite) TestUpdateExplicitlyToSameRevisionRunThroughUndo(c *C
 
 func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughUndo(c *C) {
 	s.testUpdateWithComponentsRunThrough(c, updateWithComponentsOpts{
-		components:            []string{"test-component", "kernel-modules-component"},
+		components:            []string{"standard-component", "kernel-modules-component"},
 		refreshAppAwarenessUX: true,
 		undo:                  true,
 	})
@@ -14792,7 +14792,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughUndo(c *C) {
 func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughInstanceKey(c *C) {
 	s.testUpdateWithComponentsRunThrough(c, updateWithComponentsOpts{
 		instanceKey:           "key",
-		components:            []string{"test-component", "kernel-modules-component"},
+		components:            []string{"standard-component", "kernel-modules-component"},
 		refreshAppAwarenessUX: true,
 	})
 }
@@ -14800,7 +14800,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughInstanceKey(c *C) {
 func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughInstanceKeyUndo(c *C) {
 	s.testUpdateWithComponentsRunThrough(c, updateWithComponentsOpts{
 		instanceKey:           "key",
-		components:            []string{"test-component", "kernel-modules-component"},
+		components:            []string{"standard-component", "kernel-modules-component"},
 		refreshAppAwarenessUX: true,
 		undo:                  true,
 	})
@@ -14809,8 +14809,8 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughInstanceKeyUndo(c *
 func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughLoseComponents(c *C) {
 	s.testUpdateWithComponentsRunThrough(c, updateWithComponentsOpts{
 		instanceKey:           "key",
-		components:            []string{"test-component", "kernel-modules-component"},
-		postRefreshComponents: []string{"test-component"},
+		components:            []string{"standard-component", "kernel-modules-component"},
+		postRefreshComponents: []string{"standard-component"},
 		refreshAppAwarenessUX: true,
 	})
 }
@@ -14818,8 +14818,8 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughLoseComponents(c *C
 func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughLoseComponentsUndo(c *C) {
 	s.testUpdateWithComponentsRunThrough(c, updateWithComponentsOpts{
 		instanceKey:           "key",
-		components:            []string{"test-component", "kernel-modules-component"},
-		postRefreshComponents: []string{"test-component"},
+		components:            []string{"standard-component", "kernel-modules-component"},
+		postRefreshComponents: []string{"standard-component"},
 		refreshAppAwarenessUX: true,
 		undo:                  true,
 	})
@@ -15410,13 +15410,13 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithComponentsRemoved(c *C) {
 		case "comp1":
 			return &snap.ComponentInfo{
 				Component:         cref1,
-				Type:              snap.TestComponent,
+				Type:              snap.StandardComponent,
 				ComponentSideInfo: *csi,
 			}, nil
 		case "comp2":
 			return &snap.ComponentInfo{
 				Component:         cref2,
-				Type:              snap.TestComponent,
+				Type:              snap.StandardComponent,
 				ComponentSideInfo: *csi,
 			}, nil
 		}
@@ -15427,18 +15427,18 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithComponentsRemoved(c *C) {
 			sequence.NewRevisionSideState(si1,
 				[]*sequence.ComponentState{
 					sequence.NewComponentState(
-						comp1si, snap.TestComponent),
+						comp1si, snap.StandardComponent),
 					sequence.NewComponentState(
-						comp2si, snap.TestComponent),
+						comp2si, snap.StandardComponent),
 				}),
 			sequence.NewRevisionSideState(si2, nil),
 			sequence.NewRevisionSideState(si3, nil),
 			sequence.NewRevisionSideState(si4,
 				[]*sequence.ComponentState{
 					sequence.NewComponentState(
-						comp1si, snap.TestComponent),
+						comp1si, snap.StandardComponent),
 					sequence.NewComponentState(
-						comp2si, snap.TestComponent),
+						comp2si, snap.StandardComponent),
 				}),
 			sequence.NewRevisionSideState(si5, nil),
 		})
@@ -15529,7 +15529,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsFromPathRunThrough(c *C) {
 		refreshAppAwarenessUX = true
 		undo                  = false
 	)
-	s.testUpdateWithComponentsFromPathRunThrough(c, instanceKey, []string{"test-component", "kernel-modules-component"}, refreshAppAwarenessUX, undo)
+	s.testUpdateWithComponentsFromPathRunThrough(c, instanceKey, []string{"standard-component", "kernel-modules-component"}, refreshAppAwarenessUX, undo)
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithComponentsFromPathRunThroughUndo(c *C) {
@@ -15538,7 +15538,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsFromPathRunThroughUndo(c *C) 
 		refreshAppAwarenessUX = true
 		undo                  = true
 	)
-	s.testUpdateWithComponentsFromPathRunThrough(c, instanceKey, []string{"test-component", "kernel-modules-component"}, refreshAppAwarenessUX, undo)
+	s.testUpdateWithComponentsFromPathRunThrough(c, instanceKey, []string{"standard-component", "kernel-modules-component"}, refreshAppAwarenessUX, undo)
 }
 
 func (s *snapmgrTestSuite) testUpdateWithComponentsFromPathRunThrough(c *C, instanceKey string, compNames []string, refreshAppAwarenessUX, undo bool) {
@@ -15674,8 +15674,8 @@ version: some-snapVer
 type: kernel
 epoch: 1*
 components:
-  test-component:
-    type: test
+  standard-component:
+    type: standard
   kernel-modules-component:
     type: kernel-modules
     `, snapName))
@@ -15954,7 +15954,7 @@ components:
 func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughOnlyComponentUpdate(c *C) {
 	s.testUpdateWithComponentsRunThroughOnlyComponentUpdate(c, updateWithComponentsOpts{
 		instanceKey:           "key",
-		components:            []string{"test-component", "kernel-modules-component"},
+		components:            []string{"standard-component", "kernel-modules-component"},
 		refreshAppAwarenessUX: true,
 	})
 }
@@ -15962,7 +15962,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughOnlyComponentUpdate
 func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughOnlyComponentUpdateUndo(c *C) {
 	s.testUpdateWithComponentsRunThroughOnlyComponentUpdate(c, updateWithComponentsOpts{
 		instanceKey:           "key",
-		components:            []string{"test-component", "kernel-modules-component"},
+		components:            []string{"standard-component", "kernel-modules-component"},
 		refreshAppAwarenessUX: true,
 		undo:                  true,
 	})

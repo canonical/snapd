@@ -250,7 +250,7 @@ func setStateWithOneComponent(st *state.State, snapName string,
 	snapRev snap.Revision, compName string, compRev snap.Revision) {
 	csi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), compRev)
 	setStateWithComponents(st, snapName, snapRev,
-		[]*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)})
+		[]*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)})
 }
 
 func setStateWithComponents(st *state.State, snapName string,
@@ -493,7 +493,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresentDiffSnapRe
 			[]*sequence.RevisionSideState{
 				sequence.NewRevisionSideState(ssi1, nil),
 				sequence.NewRevisionSideState(ssi2,
-					[]*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)}),
+					[]*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)}),
 			}),
 		Current: snapRev1,
 	})
@@ -553,7 +553,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathSnapNotActive(c *C) {
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
 				sequence.NewRevisionSideState(ssi,
-					[]*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)})}),
+					[]*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)})}),
 		Current: snapRev,
 	})
 
@@ -619,7 +619,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathUpdateConflict(c *C) {
 
 func (s *snapmgrTestSuite) TestInstallComponentUpdateConflict(c *C) {
 	const snapName = "some-snap"
-	const compName = "test-component"
+	const compName = "standard-component"
 	snapRev := snap.R(1)
 	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
 
@@ -635,7 +635,7 @@ func (s *snapmgrTestSuite) TestInstallComponentUpdateConflict(c *C) {
 			},
 			Name:      compName,
 			Revision:  3,
-			Type:      "component/test",
+			Type:      "component/standard",
 			Version:   "1.0",
 			CreatedAt: "2024-01-01T00:00:00Z",
 		}}
@@ -655,12 +655,12 @@ func (s *snapmgrTestSuite) TestInstallComponentUpdateConflict(c *C) {
 func (s *snapmgrTestSuite) TestInstallComponentConflictsWithSelf(c *C) {
 	const (
 		snapName              = "some-snap"
-		compName              = "test-component"
+		compName              = "standard-component"
 		conflictComponentName = "kernel-modules-component"
 	)
 
 	typeMapping := map[string]string{
-		compName:              "test",
+		compName:              "standard",
 		conflictComponentName: "kernel-modules",
 	}
 
@@ -702,7 +702,7 @@ func (s *snapmgrTestSuite) TestInstallComponentConflictsWithSelf(c *C) {
 func (s *snapmgrTestSuite) TestInstallComponentCausesConflict(c *C) {
 	const (
 		snapName = "some-snap"
-		compName = "test-component"
+		compName = "standard-component"
 	)
 
 	snapRev := snap.R(1)
@@ -720,7 +720,7 @@ func (s *snapmgrTestSuite) TestInstallComponentCausesConflict(c *C) {
 			},
 			Name:      compName,
 			Revision:  3,
-			Type:      "component/test",
+			Type:      "component/standard",
 			Version:   "1.0",
 			CreatedAt: "2024-01-01T00:00:00Z",
 		}}
@@ -779,7 +779,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresentInTwoSeqPt
 		SnapID: "some-snap-id"}
 	currentCsi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), snap.R(3))
 	compsSi := []*sequence.ComponentState{
-		sequence.NewComponentState(currentCsi, snap.TestComponent),
+		sequence.NewComponentState(currentCsi, snap.StandardComponent),
 	}
 	snapst := &snapstate.SnapState{
 		Active: true,
@@ -874,7 +874,7 @@ func (s *snapmgrTestSuite) TestInstallComponents(c *C) {
 		TrackingChannel: "channel-for-components",
 	})
 
-	components := []string{"test-component", "kernel-modules-component"}
+	components := []string{"standard-component", "kernel-modules-component"}
 
 	compNameToType := func(name string) snap.ComponentType {
 		typ := strings.TrimSuffix(name, "-component")
@@ -972,7 +972,7 @@ func (s *snapmgrTestSuite) TestInstallComponentsAlreadyInstalledError(c *C) {
 	seq.AddComponentForRevision(snapRev, sequence.NewComponentState(&snap.ComponentSideInfo{
 		Component: naming.NewComponentRef(snapName, "one"),
 		Revision:  snap.R(1),
-	}, snap.TestComponent))
+	}, snap.StandardComponent))
 
 	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active:          true,

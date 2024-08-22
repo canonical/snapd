@@ -29,7 +29,7 @@ func (s *targetTestSuite) TestInstallWithComponents(c *C) {
 
 	const (
 		snapName = "some-snap"
-		compName = "test-component"
+		compName = "standard-component"
 		channel  = "channel-for-components"
 	)
 	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
@@ -42,7 +42,7 @@ func (s *targetTestSuite) TestInstallWithComponents(c *C) {
 				},
 				Name:      compName,
 				Revision:  1,
-				Type:      fmt.Sprintf("component/%s", snap.TestComponent),
+				Type:      fmt.Sprintf("component/%s", snap.StandardComponent),
 				Version:   "1.0",
 				CreatedAt: "2024-01-01T00:00:00Z",
 			},
@@ -80,7 +80,7 @@ func (s *targetTestSuite) TestInstallWithComponentsMissingResource(c *C) {
 
 	const (
 		snapName = "some-snap"
-		compName = "test-component"
+		compName = "standard-component"
 		channel  = "channel-for-components"
 	)
 	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
@@ -93,7 +93,7 @@ func (s *targetTestSuite) TestInstallWithComponentsMissingResource(c *C) {
 				},
 				Name:      "missing-component",
 				Revision:  1,
-				Type:      fmt.Sprintf("component/%s", snap.TestComponent),
+				Type:      fmt.Sprintf("component/%s", snap.StandardComponent),
 				Version:   "1.0",
 				CreatedAt: "2024-01-01T00:00:00Z",
 			},
@@ -118,7 +118,7 @@ func (s *targetTestSuite) TestInstallWithComponentsWrongType(c *C) {
 
 	const (
 		snapName = "some-snap"
-		compName = "test-component"
+		compName = "standard-component"
 		channel  = "channel-for-components"
 	)
 	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
@@ -148,7 +148,7 @@ func (s *targetTestSuite) TestInstallWithComponentsWrongType(c *C) {
 
 	_, _, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(
-		`.*inconsistent component type \("%s" in snap, "%s" in component\)`, snap.TestComponent, snap.KernelModulesComponent,
+		`.*inconsistent component type \("%s" in snap, "%s" in component\)`, snap.StandardComponent, snap.KernelModulesComponent,
 	))
 }
 
@@ -158,7 +158,7 @@ func (s *targetTestSuite) TestInstallWithComponentsOtherResource(c *C) {
 
 	const (
 		snapName = "test-snap"
-		compName = "test-component"
+		compName = "standard-component"
 		channel  = "channel-for-components"
 	)
 	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
@@ -210,7 +210,7 @@ func (s *targetTestSuite) TestInstallWithComponentsMissingInInfo(c *C) {
 				},
 				Name:      compName,
 				Revision:  1,
-				Type:      fmt.Sprintf("component/%s", snap.TestComponent),
+				Type:      fmt.Sprintf("component/%s", snap.StandardComponent),
 				Version:   "1.0",
 				CreatedAt: "2024-01-01T00:00:00Z",
 			},
@@ -236,18 +236,18 @@ func (s *targetTestSuite) TestInstallWithComponentsFromPath(c *C) {
 	const (
 		snapName = "some-snap"
 		snapID   = "some-snap-id"
-		compName = "test-component"
+		compName = "standard-component"
 		snapYaml = `name: some-snap
 type: kernel
 version: 1.0
 components:
-  test-component:
-    type: test
+  standard-component:
+    type: standard
   kernel-modules-component:
     type: kernel-modules
 `
-		componentYaml = `component: some-snap+test-component
-type: test
+		componentYaml = `component: some-snap+standard-component
+type: standard
 version: 1.0
 `
 	)
@@ -285,18 +285,18 @@ func (s *targetTestSuite) TestInstallWithComponentsMixedAssertedCompsAndUnassert
 
 	const (
 		snapName = "some-snap"
-		compName = "test-component"
+		compName = "standard-component"
 		snapYaml = `name: some-snap
 version: 1.0
 type: kernel
 components:
-  test-component:
-    type: test
+  standard-component:
+    type: standard
   kernel-modules-component:
     type: kernel-modules
 `
-		componentYaml = `component: some-snap+test-component
-type: test
+		componentYaml = `component: some-snap+standard-component
+type: standard
 version: 1.0
 `
 	)
@@ -329,18 +329,18 @@ func (s *targetTestSuite) TestInstallWithComponentsMixedUnassertedCompsAndAssert
 	const (
 		snapName = "some-snap"
 		snapID   = "some-snap-id"
-		compName = "test-component"
+		compName = "standard-component"
 		snapYaml = `name: some-snap
 version: 1.0
 type: kernel
 components:
-  test-component:
-    type: test
+  standard-component:
+    type: standard
   kernel-modules-component:
     type: kernel-modules
 `
-		componentYaml = `component: some-snap+test-component
-type: test
+		componentYaml = `component: some-snap+standard-component
+type: standard
 version: 1.0
 `
 	)
@@ -468,8 +468,8 @@ func (s *targetTestSuite) TestInstallFromPathDefaultChannel(c *C) {
 	snapPath := makeTestSnap(c, `name: some-snap
 version: 1.0
 components:
-  test-component:
-    type: test
+  standard-component:
+    type: standard
 `)
 	si := &snap.SideInfo{
 		RealName: "some-snap",
@@ -500,7 +500,7 @@ func (s *targetTestSuite) TestInstallComponentsFromPathInvalidComponentFile(c *C
 	const (
 		snapID        = "test-snap-id"
 		snapName      = "test-snap"
-		componentName = "test-component"
+		componentName = "standard-component"
 	)
 	snapRevision := snap.R(11)
 
@@ -520,8 +520,8 @@ func (s *targetTestSuite) TestInstallComponentsFromPathInvalidComponentFile(c *C
 	snapPath := makeTestSnap(c, `name: test-snap
 version: 1.0
 components:
-  test-component:
-    type: test
+  standard-component:
+    type: standard
 `)
 	si := &snap.SideInfo{
 		RealName: snapName,
@@ -541,8 +541,8 @@ func (s *targetTestSuite) TestInstallFromPathSideInfoChannel(c *C) {
 	snapPath := makeTestSnap(c, `name: some-snap
 version: 1.0
 components:
-  test-component:
-    type: test
+  standard-component:
+    type: standard
 `)
 	si := &snap.SideInfo{
 		RealName: "some-snap",
@@ -571,8 +571,8 @@ func (s *targetTestSuite) TestInstallFromPathRevOptsChannel(c *C) {
 	snapPath := makeTestSnap(c, `name: some-snap
 version: 1.0
 components:
-  test-component:
-    type: test
+  standard-component:
+    type: standard
 `)
 	si := &snap.SideInfo{
 		RealName: "some-snap",
@@ -605,8 +605,8 @@ func (s *targetTestSuite) TestInstallFromPathRevOptsSideInfoChannelMismatch(c *C
 	snapPath := makeTestSnap(c, `name: some-snap
 version: 1.0
 components:
-  test-component:
-    type: test
+  standard-component:
+    type: standard
 `)
 	si := &snap.SideInfo{
 		RealName: "some-snap",
@@ -682,7 +682,7 @@ func (s *targetTestSuite) TestUpdateComponents(c *C) {
 	const (
 		snapName = "some-snap"
 		snapID   = "some-snap-id"
-		compName = "test-component"
+		compName = "standard-component"
 		channel  = "channel-for-components"
 	)
 
@@ -697,7 +697,7 @@ func (s *targetTestSuite) TestUpdateComponents(c *C) {
 			Component: naming.NewComponentRef(snapName, compName),
 			Revision:  snap.R(1),
 		},
-		CompType: snap.TestComponent,
+		CompType: snap.StandardComponent,
 	})
 
 	s.AddCleanup(snapstate.MockReadComponentInfo(func(
@@ -705,7 +705,7 @@ func (s *targetTestSuite) TestUpdateComponents(c *C) {
 	) (*snap.ComponentInfo, error) {
 		return &snap.ComponentInfo{
 			Component:         naming.NewComponentRef(info.SnapName(), compName),
-			Type:              snap.TestComponent,
+			Type:              snap.StandardComponent,
 			Version:           "1.0",
 			ComponentSideInfo: *csi,
 		}, nil
@@ -729,7 +729,7 @@ func (s *targetTestSuite) TestUpdateComponents(c *C) {
 				},
 				Name:      compName,
 				Revision:  2,
-				Type:      fmt.Sprintf("component/%s", snap.TestComponent),
+				Type:      fmt.Sprintf("component/%s", snap.StandardComponent),
 				Version:   "1.0",
 				CreatedAt: "2024-01-01T00:00:00Z",
 			},
@@ -753,20 +753,20 @@ func (s *targetTestSuite) TestUpdateComponentsFromPath(c *C) {
 	const (
 		snapName = "some-snap"
 		snapID   = "some-snap-id"
-		compName = "test-component"
+		compName = "standard-component"
 		channel  = "channel-for-components"
 		snapYaml = `name: some-snap
 type: kernel
 version: 1.0
 components:
-  test-component:
-    type: test
+  standard-component:
+    type: standard
   kernel-modules-component:
     type: kernel-modules
 epoch: 1
 `
-		componentYaml = `component: some-snap+test-component
-type: test
+		componentYaml = `component: some-snap+standard-component
+type: standard
 version: 1.0
 `
 	)
@@ -782,7 +782,7 @@ version: 1.0
 			Component: naming.NewComponentRef(snapName, compName),
 			Revision:  snap.R(1),
 		},
-		CompType: snap.TestComponent,
+		CompType: snap.StandardComponent,
 	})
 
 	snapstate.Set(s.state, snapName, &snapstate.SnapState{
@@ -828,20 +828,20 @@ func (s *targetTestSuite) TestUpdateComponentsFromPathInvalidComponentFile(c *C)
 	const (
 		snapName = "some-snap"
 		snapID   = "some-snap-id"
-		compName = "test-component"
+		compName = "standard-component"
 		channel  = "channel-for-components"
 		snapYaml = `name: some-snap
 type: kernel
 version: 1.0
 components:
-  test-component:
-    type: test
+  standard-component:
+    type: standard
   kernel-modules-component:
     type: kernel-modules
 epoch: 1
 `
-		componentYaml = `component: some-snap+test-component
-type: test
+		componentYaml = `component: some-snap+standard-component
+type: standard
 version: 1.0
 `
 	)
@@ -857,7 +857,7 @@ version: 1.0
 			Component: naming.NewComponentRef(snapName, compName),
 			Revision:  snap.R(1),
 		},
-		CompType: snap.TestComponent,
+		CompType: snap.StandardComponent,
 	})
 
 	snapstate.Set(s.state, snapName, &snapstate.SnapState{
@@ -906,19 +906,19 @@ func (s *targetTestSuite) TestUpdateComponentsFromPathInvalidComponentName(c *C)
 	const (
 		snapName = "some-snap"
 		snapID   = "some-snap-id"
-		compName = "test-component"
+		compName = "standard-component"
 		snapYaml = `name: some-snap
 type: kernel
 version: 1.0
 components:
-  test-component:
-    type: test
+  standard-component:
+    type: standard
   kernel-modules-component:
     type: kernel-modules
 epoch: 1
 `
-		componentYaml = `component: some-snap+test-component
-type: test
+		componentYaml = `component: some-snap+standard-component
+type: standard
 version: 1.0
 `
 	)
@@ -934,7 +934,7 @@ version: 1.0
 			Component: naming.NewComponentRef(snapName, compName),
 			Revision:  snap.R(1),
 		},
-		CompType: snap.TestComponent,
+		CompType: snap.StandardComponent,
 	})
 
 	snapstate.Set(s.state, snapName, &snapstate.SnapState{
@@ -988,14 +988,14 @@ func (s *targetTestSuite) TestUpdateComponentsFromPathInvalidMissingInInfo(c *C)
 type: kernel
 version: 1.0
 components:
-  test-component:
-    type: test
+  standard-component:
+    type: standard
   kernel-modules-component:
     type: kernel-modules
 epoch: 1
 `
 		componentYaml = `component: some-snap+other-component
-type: test
+type: standard
 version: 1.0
 `
 	)

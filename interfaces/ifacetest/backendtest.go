@@ -196,7 +196,7 @@ apps:
   app:
 components:
   comp:
-    type: test
+    type: standard
     hooks:
       install:
 plugs:
@@ -205,7 +205,7 @@ plugs:
 
 var ComponentYaml = `
 component: snap+comp
-type: test
+type: standard
 version: 1
 `
 

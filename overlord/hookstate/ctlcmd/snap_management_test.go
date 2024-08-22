@@ -54,9 +54,9 @@ version: 1.0
 summary: test-snap
 components:
   comp1:
-    type: test
+    type: standard
   comp2:
-    type: test
+    type: standard
 `
 
 func (s *installSuite) SetUpTest(c *C) {

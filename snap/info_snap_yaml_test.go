@@ -2180,11 +2180,11 @@ func (s *YamlSuite) TestUnmarshalComponents(c *C) {
 name: snap
 components:
   test1:
-    type: test
+    type: standard
     summary: test component
     description: long component description
   test2:
-    type: test
+    type: standard
     summary: test component 2
     description: long component description 2
 `))
@@ -2192,13 +2192,13 @@ components:
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Components, DeepEquals, map[string]*snap.Component{
 		"test1": {
-			Type:        "test",
+			Type:        "standard",
 			Summary:     "test component",
 			Description: "long component description",
 			Name:        "test1",
 		},
 		"test2": {
-			Type:        "test",
+			Type:        "standard",
 			Summary:     "test component 2",
 			Description: "long component description 2",
 			Name:        "test2",
@@ -2211,7 +2211,7 @@ func (s *YamlSuite) TestUnmarshalComponentsHook(c *C) {
 name: snap
 components:
   test1:
-    type: test
+    type: standard
     summary: test component
     description: long component description
     hooks:
@@ -2239,7 +2239,7 @@ func (s *YamlSuite) TestUnmarshalComponentsHooksWithPlugs(c *C) {
 name: snap
 components:
   test1:
-    type: test
+    type: standard
     summary: test component
     description: long component description
     hooks:
@@ -2324,7 +2324,7 @@ func (s *YamlSuite) TestUnmarshalComponentsHooksUnsupported(c *C) {
 name: snap
 components:
   test1:
-    type: test
+    type: standard
     summary: test component
     description: long component description
     hooks:
@@ -2352,7 +2352,7 @@ func (s *YamlSuite) TestUnmarshalComponentsHookSlotsError(c *C) {
 name: snap
 components:
   test1:
-    type: test
+    type: standard
     hooks:
       install:
         slots: [slot-for-install]
