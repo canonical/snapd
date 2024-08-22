@@ -185,26 +185,58 @@ func serviceIsSlotActivated(app *snap.AppInfo) bool {
 	return len(app.ActivatesOn) > 0
 }
 
-func filterServicesForStart(apps []*snap.AppInfo, disabledSvcs *DisabledServices, scope ServiceScope) []*snap.AppInfo {
+func filterServicesForStart(apps []*snap.AppInfo, disabledSvcs *DisabledServices, scope ServiceScope) (sys []*snap.AppInfo, usr []*snap.AppInfo) {
 	isSystemSvcDisabled := func(name string) bool {
 		return disabledSvcs != nil && strutil.ListContains(disabledSvcs.SystemServices, name)
 	}
 
-	var filteredApps []*snap.AppInfo
 	for _, app := range apps {
 		if !app.IsService() {
 			continue
 		}
+
 		// Verify that scope covers this service
 		if !scope.matches(app.DaemonScope) {
 			continue
 		}
-		if isSystemSvcDisabled(app.Name) {
+
+		if app.DaemonScope == snap.SystemDaemon {
+			// For system-services we can just filter on the name
+			// and disable it if it matches
+			if isSystemSvcDisabled(app.Name) {
+				continue
+			}
+			sys = append(sys, app)
+		} else if app.DaemonScope == snap.UserDaemon {
+			usr = append(usr, app)
+		}
+	}
+	return sys, usr
+}
+
+// filterUserServicesNotInDisabledMap filters the given list of user services
+// against the map of disabled services. The goal is to get a list of all services
+// that do not have a current state of disabled.
+func filterUserServicesNotInDisabledMap(disabledSvcs *DisabledServices, originalSvcs []*snap.AppInfo) []*snap.AppInfo {
+	if disabledSvcs == nil {
+		return originalSvcs
+	}
+
+	combined := make(map[string]bool)
+	for _, svcs := range disabledSvcs.UserServices {
+		for _, svc := range svcs {
+			combined[svc] = true
+		}
+	}
+
+	var filtered []*snap.AppInfo
+	for _, svc := range originalSvcs {
+		if ok := combined[svc.Name]; ok {
 			continue
 		}
-		filteredApps = append(filteredApps, app)
+		filtered = append(filtered, svc)
 	}
-	return filteredApps
+	return filtered
 }
 
 // StartServicesOptions carries additional parameters for StartService.
@@ -233,8 +265,10 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 	// not need to be enabled, we can save that.
 	const includeActivatedServices = false
 
-	filteredApps := filterServicesForStart(apps, disabledSvcs, opts.Scope)
-	systemServices, userServices := categorizeServices(filteredApps, includeActivatedServices)
+	sysApps, userApps := filterServicesForStart(apps, disabledSvcs, opts.Scope)
+	systemServices := serviceUnitsFromApps(sysApps, includeActivatedServices)
+	userAppsForGlobalEnable := filterUserServicesNotInDisabledMap(disabledSvcs, userApps)
+	userServicesForGlobalEnable := serviceUnitsFromApps(userAppsForGlobalEnable, includeActivatedServices)
 	var undoStart bool
 	defer func() {
 		if err == nil {
@@ -243,20 +277,16 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 
 		// Undo logic for user services is handled by user session agent,
 		// we only handle undo logic for system services in this function
-		if undoStart && len(systemServices) > 0 {
+		if undoStart && len(sysApps) > 0 {
 			// filteredApps could have been sorted according to their startup
 			// ordering, stop them in reverse order
-			for i, j := 0, len(filteredApps)-1; i < j; i, j = i+1, j-1 {
-				filteredApps[i], filteredApps[j] = filteredApps[j], filteredApps[i]
+			for i, j := 0, len(sysApps)-1; i < j; i, j = i+1, j-1 {
+				sysApps[i], sysApps[j] = sysApps[j], sysApps[i]
 			}
 
 			// Stop them one-by-one to maintain order, the issue is if we just send all of them down
 			// to systemd, it will spawn a process for each stop anyway, just simultaneously.
-			for _, app := range filteredApps {
-				if app.DaemonScope != snap.SystemDaemon {
-					continue
-				}
-
+			for _, app := range sysApps {
 				// when collecting service units again here, for stopping, we want to ensure
 				// we include activated service units this time, as they might have been started
 				// in the mean time.
@@ -279,9 +309,9 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 			}
 
 			// Do a global disable for user services if the scope was all users
-			if len(userServices) > 0 && len(opts.Users) == 0 {
-				if e := userGlobalSysd.DisableNoReload(userServices); e != nil {
-					inter.Notify(fmt.Sprintf("While trying to disable previously enabled user services %q: %v", userServices, e))
+			if len(userServicesForGlobalEnable) > 0 && len(opts.Users) == 0 {
+				if e := userGlobalSysd.DisableNoReload(userServicesForGlobalEnable); e != nil {
+					inter.Notify(fmt.Sprintf("While trying to disable previously enabled user services %q: %v", userServicesForGlobalEnable, e))
 				}
 			}
 		}
@@ -300,8 +330,10 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 			}
 
 			// Do a global enable for user services if the scope was all users
-			if len(userServices) != 0 && len(opts.Users) == 0 {
-				if err = userGlobalSysd.EnableNoReload(userServices); err == nil {
+			// and the service is new (i.e it does not appear in the disabled
+			// service list)
+			if len(userServicesForGlobalEnable) != 0 && len(opts.Users) == 0 {
+				if err = userGlobalSysd.EnableNoReload(userServicesForGlobalEnable); err == nil {
 					// make sure we atleast disable them again if we successfully enabled
 					// them
 					undoStart = true
@@ -337,6 +369,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 		return err
 	}
 
+	userServices := serviceUnitsFromApps(userApps, includeActivatedServices)
 	if len(userServices) != 0 {
 		var disabledUserSvcs map[int][]string
 		if disabledSvcs != nil {
@@ -860,20 +893,13 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 	return context.reloadModified()
 }
 
-// categorizeServices returns a list of system and user services
-// ordered by the same order that 'app' is passed into.
-func categorizeServices(apps []*snap.AppInfo, includeActivatedServices bool) (systemServices []string, userServices []string) {
+// serviceUnitsFromApps returns a list of service units ordered by
+// the same order that 'app' is passed into.
+func serviceUnitsFromApps(apps []*snap.AppInfo, includeActivatedServices bool) []string {
 	// process all services of the snap in the order specified by the
 	// caller; before batched calls were introduced, the sockets and timers
 	// were started first, followed by other non-activated services
-	markServices := func(svcs []string, scope snap.DaemonScope) {
-		switch scope {
-		case snap.SystemDaemon:
-			systemServices = append(systemServices, svcs...)
-		case snap.UserDaemon:
-			userServices = append(userServices, svcs...)
-		}
-	}
+	var markedServices []string
 	// first, gather all socket and timer units
 	for _, app := range apps {
 		// Get all units for the service, but we only deal with
@@ -883,7 +909,7 @@ func categorizeServices(apps []*snap.AppInfo, includeActivatedServices bool) (sy
 			// just skip if there are no activated units
 			continue
 		}
-		markServices(activators, app.DaemonScope)
+		markedServices = append(markedServices, activators...)
 	}
 
 	// now collect all services
@@ -891,10 +917,9 @@ func categorizeServices(apps []*snap.AppInfo, includeActivatedServices bool) (sy
 		if serviceIsActivated(app) && !includeActivatedServices {
 			continue
 		}
-		svcName := app.ServiceName()
-		markServices([]string{svcName}, app.DaemonScope)
+		markedServices = append(markedServices, app.ServiceName())
 	}
-	return systemServices, userServices
+	return markedServices
 }
 
 // filterAppsForStop filters a list of a snap apps based on the following criteria
@@ -905,9 +930,9 @@ func categorizeServices(apps []*snap.AppInfo, includeActivatedServices bool) (sy
 //  4. The services must match the provided scope in flags.Scope
 //     (i. e) whether we are restarting user or system services (or both)
 //
-// The result is then a list of snap service apps that are valid for being stopped.
-func filterAppsForStop(apps []*snap.AppInfo, reason snap.ServiceStopReason, opts *StopServicesOptions) []*snap.AppInfo {
-	var filteredApps []*snap.AppInfo
+// The result is then two lists of snap service apps, separated by system/user type
+// that are valid for being stopped.
+func filterAppsForStop(apps []*snap.AppInfo, reason snap.ServiceStopReason, opts *StopServicesOptions) (sys []*snap.AppInfo, usr []*snap.AppInfo) {
 	for _, app := range apps {
 		// Handle the case where service file doesn't exist and don't try to stop it as it will fail.
 		// This can happen with snap try when snap.yaml is modified on the fly and a daemon line is added.
@@ -933,9 +958,13 @@ func filterAppsForStop(apps []*snap.AppInfo, reason snap.ServiceStopReason, opts
 		if opts.Disable && serviceIsSlotActivated(app) {
 			logger.Noticef("Disabling %s may not have the intended effect as the service is currently always activated by a slot", app.Name)
 		}
-		filteredApps = append(filteredApps, app)
+		if app.DaemonScope == snap.SystemDaemon {
+			sys = append(sys, app)
+		} else if app.DaemonScope == snap.UserDaemon {
+			usr = append(usr, app)
+		}
 	}
-	return filteredApps
+	return sys, usr
 }
 
 // StopServicesOptions carries additional parameters for StopServices.
@@ -969,8 +998,9 @@ func StopServices(apps []*snap.AppInfo, opts *StopServicesOptions, reason snap.S
 	// doing this on a 'static' service is a no-op anyway, so no harm here.
 	const includeActivatedServices = true
 
-	filteredApps := filterAppsForStop(apps, reason, opts)
-	systemServices, userServices := categorizeServices(filteredApps, includeActivatedServices)
+	sysApps, userApps := filterAppsForStop(apps, reason, opts)
+	systemServices := serviceUnitsFromApps(sysApps, includeActivatedServices)
+	userServices := serviceUnitsFromApps(userApps, includeActivatedServices)
 
 	// Save any potentionally expensive calls if there is no need
 	if len(userServices) != 0 {
