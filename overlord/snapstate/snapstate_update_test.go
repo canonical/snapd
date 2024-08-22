@@ -14146,8 +14146,8 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 	}
 
 	updatedCompRevisions := make(map[string]snap.Revision)
-	for i, compName := range opts.components {
-		updatedCompRevisions[compName] = snap.R(i + 2)
+	for _, compName := range opts.postRefreshComponents {
+		updatedCompRevisions[compName] = snap.R(originalCompRevisions[compName].N + 1)
 	}
 
 	compNameToType := func(name string) snap.ComponentType {
