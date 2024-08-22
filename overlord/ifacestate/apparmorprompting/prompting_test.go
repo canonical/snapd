@@ -71,8 +71,6 @@ func (s *apparmorpromptingSuite) TestNew(c *C) {
 	_, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
-	s.st.Lock()
-	defer s.st.Unlock()
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
 
@@ -87,8 +85,6 @@ func (s *apparmorpromptingSuite) TestNewErrorListener(c *C) {
 	})
 	defer restore()
 
-	s.st.Lock()
-	defer s.st.Unlock()
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot register prompting listener: %v", registerFailure))
 	c.Assert(mgr, IsNil)
@@ -106,8 +102,6 @@ func (s *apparmorpromptingSuite) TestNewErrorPromptDB(c *C) {
 	c.Assert(f.Chmod(0o400), IsNil)
 	defer f.Chmod(0o600)
 
-	s.st.Lock()
-	defer s.st.Unlock()
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, ErrorMatches, "cannot open request prompts backend:.*")
 	c.Assert(mgr, IsNil)
@@ -137,8 +131,6 @@ func (s *apparmorpromptingSuite) TestNewErrorRuleDB(c *C) {
 	c.Assert(f.Chmod(0o400), IsNil)
 	defer f.Chmod(0o600)
 
-	s.st.Lock()
-	defer s.st.Unlock()
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, ErrorMatches, "cannot open request rules backend:.*")
 	c.Assert(mgr, IsNil)
@@ -155,8 +147,6 @@ func (s *apparmorpromptingSuite) TestStop(c *C) {
 	reqChan, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
-	s.st.Lock()
-	defer s.st.Unlock()
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
 
@@ -182,10 +172,8 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestDenyRoot(c *C) {
 	reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
-	s.st.Lock()
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-	s.st.Unlock()
 
 	// Send request for root
 	req := &listener.Request{
@@ -199,8 +187,6 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestDenyRoot(c *C) {
 	c.Check(resp.Request, Equals, req)
 	c.Check(resp.AllowedPermission, Equals, nil)
 
-	s.st.Lock()
-	defer s.st.Unlock()
 	c.Assert(mgr.Stop(), IsNil)
 }
 
@@ -211,10 +197,8 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	s.st.Lock()
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-	s.st.Unlock()
 
 	prompts, err := mgr.Prompts(s.defaultUser)
 	c.Check(err, IsNil)
@@ -272,8 +256,6 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 			" WARNING: too many outstanding prompts for user 1000; auto-denying new one\n")
 	})
 
-	s.st.Lock()
-	defer s.st.Unlock()
 	c.Assert(mgr.Stop(), IsNil)
 }
 
@@ -281,10 +263,8 @@ func (s *apparmorpromptingSuite) TestHandleReplySimple(c *C) {
 	reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
-	s.st.Lock()
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-	s.st.Unlock()
 
 	req, prompt := s.simulateRequest(c, reqChan, mgr, &listener.Request{}, false)
 
@@ -306,8 +286,6 @@ func (s *apparmorpromptingSuite) TestHandleReplySimple(c *C) {
 	c.Check(err, IsNil)
 	c.Check(resp.AllowedPermission, Equals, aaPerms)
 
-	s.st.Lock()
-	defer s.st.Unlock()
 	c.Assert(mgr.Stop(), IsNil)
 }
 
@@ -333,7 +311,16 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *listener.Re
 	logger.WithLoggerLock(func() { c.Assert(logbuf.String(), Equals, "") })
 
 	// which should generate a notice
-	s.checkRecordedPromptNotices(c, whenSent, 1)
+	s.st.Lock()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	n, err := s.st.WaitNotices(ctx, &state.NoticeFilter{
+		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
+		After: whenSent,
+	})
+	s.st.Unlock()
+	c.Check(err, IsNil)
+	c.Check(n, HasLen, 1)
 
 	// Check prompts now
 	prompts, err = mgr.Prompts(s.defaultUser)
@@ -414,10 +401,8 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 	reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
-	s.st.Lock()
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-	s.st.Unlock()
 
 	_, prompt := s.simulateRequest(c, reqChan, mgr, &listener.Request{}, false)
 
@@ -476,8 +461,6 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 	_, err = waitForReply(replyChan)
 	c.Assert(err, NotNil)
 
-	s.st.Lock()
-	defer s.st.Unlock()
 	c.Assert(mgr.Stop(), IsNil)
 }
 
@@ -485,10 +468,8 @@ func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
 	reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
-	s.st.Lock()
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-	s.st.Unlock()
 
 	// Add allow rule to match read permission
 	constraints := &prompting.Constraints{
@@ -531,54 +512,35 @@ func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(resp.AllowedPermission, DeepEquals, expectedPermissions)
 
-	s.st.Lock()
-	defer s.st.Unlock()
 	c.Assert(mgr.Stop(), IsNil)
 }
 
 func (s *apparmorpromptingSuite) checkRecordedPromptNotices(c *C, since time.Time, count int) {
-	s.checkRecordedNotices(c, state.InterfacesRequestsPromptNotice, since, count)
+	s.st.Lock()
+	n := s.st.Notices(&state.NoticeFilter{
+		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
+		After: since,
+	})
+	s.st.Unlock()
+	c.Check(n, HasLen, count)
 }
 
 func (s *apparmorpromptingSuite) checkRecordedRuleUpdateNotices(c *C, since time.Time, count int) {
-	s.checkRecordedNotices(c, state.InterfacesRequestsRuleUpdateNotice, since, count)
-}
-
-func (s *apparmorpromptingSuite) checkRecordedNotices(c *C, noticeType state.NoticeType, since time.Time, count int) {
-	timeout := time.Second
-	if count == 0 {
-		// Don't wait so long if we don't expect any notices
-		timeout = 100 * time.Millisecond
-	}
-	receivedCount := 0
-	for count == 0 || receivedCount < count {
-		s.st.Lock()
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
-		n, err := s.st.WaitNotices(ctx, &state.NoticeFilter{
-			Types: []state.NoticeType{noticeType},
-			After: since,
-		})
-		s.st.Unlock()
-		if count == 0 {
-			c.Assert(err, NotNil)
-			c.Assert(n, HasLen, 0)
-			return
-		}
-		c.Assert(err, IsNil)
-		c.Assert(n, Not(HasLen), 0)
-		receivedCount += len(n)
-	}
+	s.st.Lock()
+	n := s.st.Notices(&state.NoticeFilter{
+		Types: []state.NoticeType{state.InterfacesRequestsRuleUpdateNotice},
+		After: since,
+	})
+	s.st.Unlock()
+	c.Check(n, HasLen, count)
 }
 
 func (s *apparmorpromptingSuite) TestExistingRulePartiallyAllowsNewPrompt(c *C) {
 	reqChan, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
-	s.st.Lock()
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-	s.st.Unlock()
 
 	// Add rule to match read permission
 	constraints := &prompting.Constraints{
@@ -599,8 +561,6 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyAllowsNewPrompt(c *C) 
 	// Check that prompt was created for remaining "write" permission
 	c.Check(prompt.Constraints.RemainingPermissions(), DeepEquals, []string{"write"})
 
-	s.st.Lock()
-	defer s.st.Unlock()
 	c.Assert(mgr.Stop(), IsNil)
 }
 
@@ -608,10 +568,8 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyDeniesNewPrompt(c *C) 
 	reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
-	s.st.Lock()
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-	s.st.Unlock()
 
 	// Add deny rule to match read permission
 	constraints := &prompting.Constraints{
@@ -646,8 +604,6 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyDeniesNewPrompt(c *C) 
 	c.Check(resp.Request, Equals, req)
 	c.Check(resp.AllowedPermission, DeepEquals, notify.FilePermission(0))
 
-	s.st.Lock()
-	defer s.st.Unlock()
 	c.Assert(mgr.Stop(), IsNil)
 }
 
@@ -655,10 +611,8 @@ func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C
 	reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
-	s.st.Lock()
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-	s.st.Unlock()
 
 	// Add deny rule to match read permission
 	constraints := &prompting.Constraints{
@@ -706,8 +660,6 @@ func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C
 	c.Assert(err, IsNil)
 	c.Check(resp.AllowedPermission, DeepEquals, expectedPermissions)
 
-	s.st.Lock()
-	defer s.st.Unlock()
 	c.Assert(mgr.Stop(), IsNil)
 }
 
@@ -715,10 +667,8 @@ func (s *apparmorpromptingSuite) TestNewRuleAllowExistingPrompt(c *C) {
 	reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
-	s.st.Lock()
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-	s.st.Unlock()
 
 	// Add read request
 	readReq := &listener.Request{
@@ -783,8 +733,6 @@ func (s *apparmorpromptingSuite) TestNewRuleAllowExistingPrompt(c *C) {
 	s.checkRecordedPromptNotices(c, whenSent, 2)
 	s.checkRecordedRuleUpdateNotices(c, whenSent, 1)
 
-	s.st.Lock()
-	defer s.st.Unlock()
 	c.Assert(mgr.Stop(), IsNil)
 }
 
@@ -792,10 +740,8 @@ func (s *apparmorpromptingSuite) TestNewRuleDenyExistingPrompt(c *C) {
 	reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
-	s.st.Lock()
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-	s.st.Unlock()
 
 	// Add read request
 	readReq := &listener.Request{
@@ -852,8 +798,6 @@ func (s *apparmorpromptingSuite) TestNewRuleDenyExistingPrompt(c *C) {
 	s.checkRecordedPromptNotices(c, whenSent, 2)
 	s.checkRecordedRuleUpdateNotices(c, whenSent, 1)
 
-	s.st.Lock()
-	defer s.st.Unlock()
 	c.Assert(mgr.Stop(), IsNil)
 }
 
@@ -861,10 +805,8 @@ func (s *apparmorpromptingSuite) TestReplyNewRuleHandlesExistingPrompt(c *C) {
 	reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
-	s.st.Lock()
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-	s.st.Unlock()
 
 	// Already tested HandleReply errors, and that applyRuleToOutstandingPrompts
 	// works correctly, so now just need to test that if reply creates a rule,
@@ -928,8 +870,6 @@ func (s *apparmorpromptingSuite) TestReplyNewRuleHandlesExistingPrompt(c *C) {
 	s.checkRecordedPromptNotices(c, whenSent, 2)
 	s.checkRecordedRuleUpdateNotices(c, whenSent, 1)
 
-	s.st.Lock()
-	defer s.st.Unlock()
 	c.Assert(mgr.Stop(), IsNil)
 }
 
@@ -958,10 +898,8 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 	reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
-	s.st.Lock()
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-	s.st.Unlock()
 
 	// Already tested HandleReply errors, and that applyRuleToOutstandingPrompts
 	// works correctly, so now just need to test that if reply creates a rule,
@@ -1049,8 +987,6 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 	// Check that no notices were recorded
 	s.checkRecordedPromptNotices(c, whenSent, 0)
 
-	s.st.Lock()
-	defer s.st.Unlock()
 	c.Assert(mgr.Stop(), IsNil)
 }
 
@@ -1058,10 +994,8 @@ func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
 	reqChan, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
-	s.st.Lock()
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-	s.st.Unlock()
 
 	// Requests with identical *original* abstract permissions are merged into
 	// the existing prompt
@@ -1100,8 +1034,6 @@ func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
 	}
 	s.simulateRequest(c, reqChan, mgr, readReq, false)
 
-	s.st.Lock()
-	defer s.st.Unlock()
 	c.Assert(mgr.Stop(), IsNil)
 }
 
@@ -1130,17 +1062,13 @@ func (s *apparmorpromptingSuite) TestRules(c *C) {
 	c.Check(err, IsNil)
 	c.Check(snapIfaceRules, DeepEquals, []*requestrules.Rule{rules[0]})
 
-	s.st.Lock()
-	defer s.st.Unlock()
 	c.Assert(mgr.Stop(), IsNil)
 }
 
 func (s *apparmorpromptingSuite) prepManagerWithRules(c *C) (mgr *apparmorprompting.InterfacesRequestsManager, rules []*requestrules.Rule) {
 	var err error
-	s.st.Lock()
 	mgr, err = apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-	s.st.Unlock()
 
 	whenAdded := time.Now()
 
@@ -1210,8 +1138,6 @@ func (s *apparmorpromptingSuite) TestRemoveRulesInterface(c *C) {
 	c.Check(userRules, DeepEquals, rules[2:3])
 
 	s.checkRecordedRuleUpdateNotices(c, whenRemoved, 2)
-	s.st.Lock()
-	defer s.st.Unlock()
 	c.Assert(mgr.Stop(), IsNil)
 }
 
@@ -1235,8 +1161,6 @@ func (s *apparmorpromptingSuite) TestRemoveRulesSnap(c *C) {
 	c.Check(userRules, DeepEquals, rules[1:2])
 
 	s.checkRecordedRuleUpdateNotices(c, whenRemoved, 2)
-	s.st.Lock()
-	defer s.st.Unlock()
 	c.Assert(mgr.Stop(), IsNil)
 }
 
@@ -1260,8 +1184,6 @@ func (s *apparmorpromptingSuite) TestRemoveRulesSnapInterface(c *C) {
 	c.Check(userRules, DeepEquals, rules[1:3])
 
 	s.checkRecordedRuleUpdateNotices(c, whenRemoved, 1)
-	s.st.Lock()
-	defer s.st.Unlock()
 	c.Assert(mgr.Stop(), IsNil)
 }
 
@@ -1269,10 +1191,8 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 	reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
-	s.st.Lock()
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-	s.st.Unlock()
 
 	// Add read request
 	req := &listener.Request{
@@ -1341,7 +1261,5 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rules, HasLen, 0)
 
-	s.st.Lock()
-	defer s.st.Unlock()
 	c.Assert(mgr.Stop(), IsNil)
 }
