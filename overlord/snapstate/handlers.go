@@ -1163,7 +1163,10 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 			return
 		}
 
-		// remove snap dir is idempotent so it's ok to always call it in the cleanup path
+		// remove snap dir is idempotent so it's ok to always call it in
+		// the cleanup path; make sure to hold a state lock to prevent
+		// conflicts when snaps sharing the same snap name are being
+		// installed/removed,
 		if err := m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances); err != nil {
 			t.Errorf("cannot cleanup partial setup snap %q: %v", snapsup.InstanceName(), err)
 		}
@@ -1289,6 +1292,8 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// make sure to hold a state lock to prevent conflicts when snaps
+	// sharing the same snap name are being installed/removed,
 	return m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances)
 }
 
@@ -3494,16 +3499,20 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	pb := NewTaskProgressAdapterLocked(t)
+	pb := NewTaskProgressAdapterUnlocked(t)
 	typ, err := snapst.Type()
 	if err != nil {
 		return err
 	}
+
+	st.Unlock()
 	err = m.backend.RemoveSnapFiles(snapsup.placeInfo(), typ, nil, deviceCtx, pb)
+	st.Lock()
 	if err != nil {
 		t.Errorf("cannot remove snap file %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
 		return &state.Retry{After: 3 * time.Minute}
 	}
+
 	if len(snapst.Sequence.Revisions) == 0 {
 		if err = m.backend.RemoveContainerMountUnits(snapsup.containerInfo(), nil); err != nil {
 			return err
@@ -3539,6 +3548,8 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 
+		// make sure to hold a state lock to prevent conflicts when
+		// snaps sharing the same snap name are being installed/removed,
 		if err := m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances); err != nil {
 			return fmt.Errorf("cannot remove snap directory: %v", err)
 		}
