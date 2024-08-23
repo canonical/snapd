@@ -3505,164 +3505,202 @@ func (s *seed20Suite) TestPreseedCapableSeedAlternateAuthority(c *C) {
 }
 
 func (s *seed20Suite) TestCopy(c *C) {
-	s.testCopy(c, seed.CopyOptions{Label: "20240126"}, []string{
-		"core20_1.snap",
-		"pc_1.snap",
-		"pc-kernel_1.snap",
-		"snapd_1.snap",
-		"component-test+comp1_22.comp",
-		"component-test+comp2_33.comp",
-		"component-test_11.snap",
-		"optional20-a_1.snap",
-		"required20_1.snap",
-		"aux-info-test_1.snap",
-	}, []string{
-		"optional20-b_1.0.snap",
-		"local-component-test_1.0.snap",
-		"local-component-test+comp4_1.0.comp",
-		"component-test+comp3_44.comp",
-	}, map[string][]string{
-		s.AssertedSnapID("core20"):         nil,
-		s.AssertedSnapID("pc"):             nil,
-		s.AssertedSnapID("pc-kernel"):      nil,
-		s.AssertedSnapID("snapd"):          nil,
-		s.AssertedSnapID("optional20-a"):   nil,
-		s.AssertedSnapID("required20"):     nil,
-		s.AssertedSnapID("aux-info-test"):  nil,
-		s.AssertedSnapID("component-test"): {"comp1", "comp2", "comp3"},
+	s.testCopy(c, testCopyOpts{
+		copyOpts: seed.CopyOptions{
+			Label: "20240126",
+		},
+		expectedAssertedContainers: []string{
+			"core20_1.snap",
+			"pc_1.snap",
+			"pc-kernel_1.snap",
+			"snapd_1.snap",
+			"component-test+comp1_22.comp",
+			"component-test+comp2_33.comp",
+			"component-test_11.snap",
+			"optional20-a_1.snap",
+			"required20_1.snap",
+			"aux-info-test_1.snap",
+		},
+		expectedUnassertedContainers: []string{
+			"optional20-b_1.0.snap",
+			"local-component-test_1.0.snap",
+			"local-component-test+comp4_1.0.comp",
+			"component-test+comp3_44.comp",
+		},
+		snapIDToComps: map[string][]string{
+			s.AssertedSnapID("core20"):         nil,
+			s.AssertedSnapID("pc"):             nil,
+			s.AssertedSnapID("pc-kernel"):      nil,
+			s.AssertedSnapID("snapd"):          nil,
+			s.AssertedSnapID("optional20-a"):   nil,
+			s.AssertedSnapID("required20"):     nil,
+			s.AssertedSnapID("aux-info-test"):  nil,
+			s.AssertedSnapID("component-test"): {"comp1", "comp2", "comp3"},
+		},
+		expectOptionsYaml: true,
 	})
 }
 
 func (s *seed20Suite) TestCopyEmptyLabel(c *C) {
-	s.testCopy(c, seed.CopyOptions{}, []string{
-		"core20_1.snap",
-		"pc_1.snap",
-		"pc-kernel_1.snap",
-		"snapd_1.snap",
-		"component-test+comp1_22.comp",
-		"component-test+comp2_33.comp",
-		"component-test_11.snap",
-		"optional20-a_1.snap",
-		"required20_1.snap",
-		"aux-info-test_1.snap",
-	}, []string{
-		"optional20-b_1.0.snap",
-		"local-component-test_1.0.snap",
-		"local-component-test+comp4_1.0.comp",
-		"component-test+comp3_44.comp",
-	}, map[string][]string{
-		s.AssertedSnapID("core20"):         nil,
-		s.AssertedSnapID("pc"):             nil,
-		s.AssertedSnapID("pc-kernel"):      nil,
-		s.AssertedSnapID("snapd"):          nil,
-		s.AssertedSnapID("optional20-a"):   nil,
-		s.AssertedSnapID("required20"):     nil,
-		s.AssertedSnapID("aux-info-test"):  nil,
-		s.AssertedSnapID("component-test"): {"comp1", "comp2", "comp3"},
+	s.testCopy(c, testCopyOpts{
+		copyOpts: seed.CopyOptions{},
+		expectedAssertedContainers: []string{
+			"core20_1.snap",
+			"pc_1.snap",
+			"pc-kernel_1.snap",
+			"snapd_1.snap",
+			"component-test+comp1_22.comp",
+			"component-test+comp2_33.comp",
+			"component-test_11.snap",
+			"optional20-a_1.snap",
+			"required20_1.snap",
+			"aux-info-test_1.snap",
+		},
+		expectedUnassertedContainers: []string{
+			"optional20-b_1.0.snap",
+			"local-component-test_1.0.snap",
+			"local-component-test+comp4_1.0.comp",
+			"component-test+comp3_44.comp",
+		},
+		snapIDToComps: map[string][]string{
+			s.AssertedSnapID("core20"):         nil,
+			s.AssertedSnapID("pc"):             nil,
+			s.AssertedSnapID("pc-kernel"):      nil,
+			s.AssertedSnapID("snapd"):          nil,
+			s.AssertedSnapID("optional20-a"):   nil,
+			s.AssertedSnapID("required20"):     nil,
+			s.AssertedSnapID("aux-info-test"):  nil,
+			s.AssertedSnapID("component-test"): {"comp1", "comp2", "comp3"},
+		},
+		expectOptionsYaml: true,
 	})
 }
 
 func (s *seed20Suite) TestCopyWithOptionalContainersIncludeEverything(c *C) {
-	s.testCopy(c, seed.CopyOptions{
-		Label: "20240126",
-		OptionalContainers: &seed.OptionalContainers{
-			Snaps: []string{"component-test", "optional20-a", "optional20-b", "aux-info-test", "local-component-test"},
-			Components: map[string][]string{
-				"component-test":       {"comp2", "comp3"},
-				"local-component-test": {"comp4"},
+	s.testCopy(c, testCopyOpts{
+		copyOpts: seed.CopyOptions{
+			Label: "20240126",
+			OptionalContainers: &seed.OptionalContainers{
+				Snaps: []string{"component-test", "optional20-a", "optional20-b", "aux-info-test", "local-component-test"},
+				Components: map[string][]string{
+					"component-test":       {"comp2", "comp3"},
+					"local-component-test": {"comp4"},
+				},
 			},
 		},
-	}, []string{
-		"core20_1.snap",
-		"pc_1.snap",
-		"pc-kernel_1.snap",
-		"snapd_1.snap",
-		"component-test+comp1_22.comp",
-		"component-test+comp2_33.comp",
-		"component-test_11.snap",
-		"optional20-a_1.snap",
-		"required20_1.snap",
-		"aux-info-test_1.snap",
-	}, []string{
-		"optional20-b_1.0.snap",
-		"local-component-test_1.0.snap",
-		"local-component-test+comp4_1.0.comp",
-		"component-test+comp3_44.comp",
-	}, map[string][]string{
-		s.AssertedSnapID("core20"):         nil,
-		s.AssertedSnapID("pc"):             nil,
-		s.AssertedSnapID("pc-kernel"):      nil,
-		s.AssertedSnapID("snapd"):          nil,
-		s.AssertedSnapID("optional20-a"):   nil,
-		s.AssertedSnapID("required20"):     nil,
-		s.AssertedSnapID("aux-info-test"):  nil,
-		s.AssertedSnapID("component-test"): {"comp1", "comp2", "comp3"},
+		expectedAssertedContainers: []string{
+			"core20_1.snap",
+			"pc_1.snap",
+			"pc-kernel_1.snap",
+			"snapd_1.snap",
+			"component-test+comp1_22.comp",
+			"component-test+comp2_33.comp",
+			"component-test_11.snap",
+			"optional20-a_1.snap",
+			"required20_1.snap",
+			"aux-info-test_1.snap",
+		},
+		expectedUnassertedContainers: []string{
+			"optional20-b_1.0.snap",
+			"local-component-test_1.0.snap",
+			"local-component-test+comp4_1.0.comp",
+			"component-test+comp3_44.comp",
+		},
+		snapIDToComps: map[string][]string{
+			s.AssertedSnapID("core20"):         nil,
+			s.AssertedSnapID("pc"):             nil,
+			s.AssertedSnapID("pc-kernel"):      nil,
+			s.AssertedSnapID("snapd"):          nil,
+			s.AssertedSnapID("optional20-a"):   nil,
+			s.AssertedSnapID("required20"):     nil,
+			s.AssertedSnapID("aux-info-test"):  nil,
+			s.AssertedSnapID("component-test"): {"comp1", "comp2", "comp3"},
+		},
+		expectOptionsYaml: true,
 	})
 }
 
 func (s *seed20Suite) TestCopyWithOptionalContainersExclude(c *C) {
-	s.testCopy(c, seed.CopyOptions{
-		Label: "20240126",
-		OptionalContainers: &seed.OptionalContainers{
-			Snaps: []string{"component-test"},
-		},
-	}, []string{
-		"core20_1.snap",
-		"pc_1.snap",
-		"pc-kernel_1.snap",
-		"snapd_1.snap",
-		"component-test+comp1_22.comp",
-		"component-test_11.snap",
-		"required20_1.snap",
-	}, nil, map[string][]string{
-		// note that optional20-a, aux-info-test and component-test+comp2
-		// assertions are not copied over
-		s.AssertedSnapID("core20"):         nil,
-		s.AssertedSnapID("pc"):             nil,
-		s.AssertedSnapID("pc-kernel"):      nil,
-		s.AssertedSnapID("snapd"):          nil,
-		s.AssertedSnapID("component-test"): {"comp1"},
-		s.AssertedSnapID("required20"):     nil,
-	})
-}
-
-func (s *seed20Suite) TestCopyWithOptionalContainersExcludeSomeComponent(c *C) {
-	s.testCopy(c, seed.CopyOptions{
-		Label: "20240126",
-		OptionalContainers: &seed.OptionalContainers{
-			Snaps: []string{"component-test", "optional20-a", "optional20-b", "aux-info-test", "local-component-test"},
-			Components: map[string][]string{
-				"component-test":       {"comp2"},
-				"local-component-test": nil,
+	s.testCopy(c, testCopyOpts{
+		copyOpts: seed.CopyOptions{
+			Label: "20240126",
+			OptionalContainers: &seed.OptionalContainers{
+				Snaps: []string{"component-test"},
 			},
 		},
-	}, []string{
-		"core20_1.snap",
-		"pc_1.snap",
-		"pc-kernel_1.snap",
-		"snapd_1.snap",
-		"component-test+comp1_22.comp",
-		"component-test+comp2_33.comp",
-		"component-test_11.snap",
-		"optional20-a_1.snap",
-		"required20_1.snap",
-		"aux-info-test_1.snap",
-	}, []string{
-		"optional20-b_1.0.snap",
-		"local-component-test_1.0.snap",
-	}, map[string][]string{
-		s.AssertedSnapID("core20"):         nil,
-		s.AssertedSnapID("pc"):             nil,
-		s.AssertedSnapID("pc-kernel"):      nil,
-		s.AssertedSnapID("snapd"):          nil,
-		s.AssertedSnapID("optional20-a"):   nil,
-		s.AssertedSnapID("required20"):     nil,
-		s.AssertedSnapID("aux-info-test"):  nil,
-		s.AssertedSnapID("component-test"): {"comp1", "comp2"},
+		expectedAssertedContainers: []string{
+			"core20_1.snap",
+			"pc_1.snap",
+			"pc-kernel_1.snap",
+			"snapd_1.snap",
+			"component-test+comp1_22.comp",
+			"component-test_11.snap",
+			"required20_1.snap",
+		},
+		expectedUnassertedContainers: nil,
+		snapIDToComps: map[string][]string{
+			s.AssertedSnapID("core20"):         nil,
+			s.AssertedSnapID("pc"):             nil,
+			s.AssertedSnapID("pc-kernel"):      nil,
+			s.AssertedSnapID("snapd"):          nil,
+			s.AssertedSnapID("component-test"): {"comp1"},
+			s.AssertedSnapID("required20"):     nil,
+		},
+		expectOptionsYaml: false,
 	})
 }
 
-func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedContainers, expectedUnassertedContainers []string, snapIDToComps map[string][]string) {
+func (s *seed20Suite) TestCopyWithOptionalContainersExcludeSomeComponents(c *C) {
+	s.testCopy(c, testCopyOpts{
+		copyOpts: seed.CopyOptions{
+			Label: "20240126",
+			OptionalContainers: &seed.OptionalContainers{
+				Snaps: []string{"component-test", "optional20-a", "optional20-b", "aux-info-test", "local-component-test"},
+				Components: map[string][]string{
+					"component-test":       {"comp2"},
+					"local-component-test": nil,
+				},
+			},
+		},
+		expectedAssertedContainers: []string{
+			"core20_1.snap",
+			"pc_1.snap",
+			"pc-kernel_1.snap",
+			"snapd_1.snap",
+			"component-test+comp1_22.comp",
+			"component-test+comp2_33.comp",
+			"component-test_11.snap",
+			"optional20-a_1.snap",
+			"required20_1.snap",
+			"aux-info-test_1.snap",
+		},
+		expectedUnassertedContainers: []string{
+			"optional20-b_1.0.snap",
+			"local-component-test_1.0.snap",
+		},
+		snapIDToComps: map[string][]string{
+			s.AssertedSnapID("core20"):         nil,
+			s.AssertedSnapID("pc"):             nil,
+			s.AssertedSnapID("pc-kernel"):      nil,
+			s.AssertedSnapID("snapd"):          nil,
+			s.AssertedSnapID("optional20-a"):   nil,
+			s.AssertedSnapID("required20"):     nil,
+			s.AssertedSnapID("aux-info-test"):  nil,
+			s.AssertedSnapID("component-test"): {"comp1", "comp2"},
+		},
+		expectOptionsYaml: true,
+	})
+}
+
+type testCopyOpts struct {
+	copyOpts                     seed.CopyOptions
+	expectedAssertedContainers   []string
+	expectedUnassertedContainers []string
+	snapIDToComps                map[string][]string
+	expectOptionsYaml            bool
+}
+
+func (s *seed20Suite) testCopy(c *C, opts testCopyOpts) {
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core20", "")
 	s.makeSnap(c, "optional20-a", "")
@@ -3766,24 +3804,23 @@ func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedCont
 
 	destSeedDir := c.MkDir()
 
-	err = copier.Copy(destSeedDir, opts, s.perfTimings)
+	err = copier.Copy(destSeedDir, opts.copyOpts, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	checkDirContents(c, filepath.Join(destSeedDir, "snaps"), expectedAssertedContainers)
+	checkDirContents(c, filepath.Join(destSeedDir, "snaps"), opts.expectedAssertedContainers)
 
-	copiedLabel := opts.Label
+	copiedLabel := opts.copyOpts.Label
 	if copiedLabel == "" {
 		copiedLabel = srcLabel
 	}
 
 	destSystemDir := filepath.Join(destSeedDir, "systems", copiedLabel)
 
-	checkDirContents(c, destSystemDir, []string{
-		"assertions",
-		"model",
-		"options.yaml",
-		"snaps",
-	})
+	expectedSystemDirContents := []string{"assertions", "model", "snaps"}
+	if opts.expectOptionsYaml {
+		expectedSystemDirContents = append(expectedSystemDirContents, "options.yaml")
+	}
+	checkDirContents(c, destSystemDir, expectedSystemDirContents)
 
 	checkDirContents(c, filepath.Join(destSystemDir, "assertions"), []string{
 		"model-etc",
@@ -3791,11 +3828,11 @@ func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedCont
 	})
 
 	expectAuxInfo := false
-	if _, ok := snapIDToComps[s.AssertedSnapID("aux-info-test")]; ok {
+	if _, ok := opts.snapIDToComps[s.AssertedSnapID("aux-info-test")]; ok {
 		expectAuxInfo = true
 	}
 
-	expectedFilesInUnasserted := append([]string(nil), expectedUnassertedContainers...)
+	expectedFilesInUnasserted := append([]string(nil), opts.expectedUnassertedContainers...)
 	if expectAuxInfo {
 		expectedFilesInUnasserted = append(expectedFilesInUnasserted, "aux-info.json")
 	}
@@ -3803,13 +3840,13 @@ func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedCont
 
 	srcAssertedSnapsDir := filepath.Join(s.SeedDir, "snaps")
 	destAssertedSnapsDir := filepath.Join(destSeedDir, "snaps")
-	for _, cont := range expectedAssertedContainers {
+	for _, cont := range opts.expectedAssertedContainers {
 		c.Check(filepath.Join(destAssertedSnapsDir, cont), testutil.FileEquals, testutil.FileContentRef(filepath.Join(srcAssertedSnapsDir, cont)))
 	}
 
 	srcUnassertedSnapsDir := filepath.Join(s.SeedDir, "systems", srcLabel, "snaps")
 	destUnassertedSnapsDir := filepath.Join(destSystemDir, "snaps")
-	for _, cont := range expectedUnassertedContainers {
+	for _, cont := range opts.expectedUnassertedContainers {
 		c.Check(
 			filepath.Join(destUnassertedSnapsDir, cont),
 			testutil.FileEquals,
@@ -3817,7 +3854,7 @@ func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedCont
 		)
 	}
 
-	ensureAssertionsPresent(c, filepath.Join(destSystemDir, "assertions", "snaps"), snapIDToComps)
+	ensureAssertionsPresent(c, filepath.Join(destSystemDir, "assertions", "snaps"), opts.snapIDToComps)
 
 	if expectAuxInfo {
 		var auxInfo map[string]*internal.AuxInfo20
@@ -3842,6 +3879,32 @@ func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedCont
 		Label: copiedLabel,
 	}, s.perfTimings)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot create system: system %q already exists at %q`, copiedLabel, destSystemDir))
+
+	seed20, err = seed.Open(destSeedDir, copiedLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	foundContainers := make([]string, 0)
+	err = seed20.Iter(func(sn *seed.Snap) error {
+		foundContainers = append(foundContainers, filepath.Base(sn.Path))
+		for _, comp := range sn.Components {
+			foundContainers = append(foundContainers, filepath.Base(comp.Path))
+		}
+		return nil
+	})
+	c.Assert(err, IsNil)
+
+	allExpectedContainers := append(append([]string(nil), opts.expectedAssertedContainers...), opts.expectedUnassertedContainers...)
+
+	sort.Strings(foundContainers)
+	sort.Strings(allExpectedContainers)
+
+	c.Check(foundContainers, DeepEquals, allExpectedContainers)
 }
 
 func ensureAssertionsPresent(c *C, path string, snapIDToComps map[string][]string) {
