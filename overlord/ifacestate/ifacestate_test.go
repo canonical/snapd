@@ -7006,6 +7006,10 @@ func (s *interfaceManagerSuite) TestInitInterfacesRequestsManagerError(c *C) {
 	err = mgr.StartUp()
 	c.Check(err, IsNil)
 
+	// Check that error caused AppArmorPromptingRunning() to now return false
+	running := mgr.AppArmorPromptingRunning()
+	c.Check(running, Equals, false)
+
 	logger.WithLoggerLock(func() {
 		c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("%v", createError))
 	})
