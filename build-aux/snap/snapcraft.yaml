@@ -287,7 +287,16 @@ parts:
              ;;
            *)
              export CGO_ENABLED=1
-             GO_LD_FLAGS=()
+             case "${CRAFT_ARCH_BUILD_FOR}" in
+               armhf)
+                 # https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/1822738
+                 BUILDMODE=()
+                 ;;
+               *)
+                 BUILDMODE=(-buildmode=pie)
+                 ;;
+             esac
+             GO_LD_FLAGS=("${BUILDMODE[@]}")
              unset CHECK_STATIC
              ;;
         esac
