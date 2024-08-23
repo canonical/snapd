@@ -69,6 +69,16 @@ func (mkdirSuite) TestExistNotOK(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `.*: file exists`)
 }
 
+func (mkdirSuite) TestExistsButNotDir(c *check.C) {
+	tmpDir := c.MkDir()
+
+	_, err := os.Create(tmpDir + "/foo")
+	c.Assert(err, check.IsNil)
+
+	err = osutil.Mkdir(tmpDir+"/foo", 0o755, nil)
+	c.Assert(err, check.ErrorMatches, `.*: not a directory`)
+}
+
 func (mkdirSuite) TestDirEndWithSlash(c *check.C) {
 	tmpDir := c.MkDir()
 
@@ -115,6 +125,18 @@ func (mkdirSuite) TestMakeParentsAndExistNotOK(c *check.C) {
 
 	err = osutil.Mkdir(tmpDir+"/foo/bar", 0o755, nil)
 	c.Assert(err, check.ErrorMatches, `.*: file exists`)
+}
+
+func (mkdirSuite) TestParentExistsButNotDir(c *check.C) {
+	tmpDir := c.MkDir()
+
+	_, err := os.Create(tmpDir + "/foo")
+	c.Assert(err, check.IsNil)
+
+	err = osutil.Mkdir(tmpDir+"/foo/bar/", 0o755, &osutil.MkdirOptions{
+		MakeParents: true,
+	})
+	c.Assert(err, check.ErrorMatches, `.*: not a directory`)
 }
 
 func (mkdirSuite) TestChmod(c *check.C) {
