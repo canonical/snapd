@@ -64,7 +64,8 @@ type seed20 struct {
 	db       asserts.RODatabase
 	commitTo func(*asserts.Batch) error
 
-	model *asserts.Model
+	model      *asserts.Model
+	modelSnaps map[string]*asserts.ModelSnap
 
 	snapDeclsByID   map[string]*asserts.SnapDeclaration
 	snapDeclsByName map[string]*asserts.SnapDeclaration
@@ -333,12 +334,18 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 		s.resPairByResKey[resKey] = resPair
 	}
 
+	modelSnaps := make(map[string]*asserts.ModelSnap, len(modelAssertion.AllSnaps()))
+	for _, sn := range modelAssertion.AllSnaps() {
+		modelSnaps[sn.SnapName()] = sn
+	}
+
 	// remember db for later use
 	s.db = db
 	// remember commitTo for LoadPreseedAssertion
 	s.commitTo = commitTo
 	// remember
 	s.model = modelAssertion
+	s.modelSnaps = modelSnaps
 	s.snapDeclsByID = snapDeclsByID
 	s.snapDeclsByName = snapDeclsByName
 	s.snapRevsByID = snapRevsByID
@@ -429,19 +436,18 @@ type errorComponentNotInSeed struct {
 	error
 }
 
-func modelContainsComponent(model *asserts.Model, cref naming.ComponentRef) bool {
-	for _, sn := range model.AllSnaps() {
-		if sn.SnapName() != cref.SnapName {
-			continue
-		}
-		_, ok := sn.Components[cref.ComponentName]
-		return ok
+func modelContainsComponent(modelSnaps map[string]*asserts.ModelSnap, cref naming.ComponentRef) bool {
+	sn, ok := modelSnaps[cref.SnapName]
+	if !ok {
+		return false
 	}
-	return false
+
+	_, ok = sn.Components[cref.ComponentName]
+	return ok
 }
 
-func assertedComponentDir(systemDir string, model *asserts.Model, cref naming.ComponentRef) string {
-	if modelContainsComponent(model, cref) {
+func assertedComponentDir(systemDir string, modelSnaps map[string]*asserts.ModelSnap, cref naming.ComponentRef) string {
+	if modelContainsComponent(modelSnaps, cref) {
 		return filepath.Join(systemDir, "../../snaps")
 	}
 	return filepath.Join(systemDir, "snaps")
@@ -468,7 +474,7 @@ func (s *seed20) lookupVerifiedComponent(cref naming.ComponentRef, snapRev snap.
 
 	// we know the component is asserted, but it might not be in the model. if
 	// it isn't in the model, then it could be in this system's snaps dir
-	compDir := assertedComponentDir(s.systemDir, s.model, cref)
+	compDir := assertedComponentDir(s.systemDir, s.modelSnaps, cref)
 
 	compPath := filepath.Join(compDir,
 		fmt.Sprintf("%s_%d.comp", cref.String(), resRev.ResourceRevision()))
