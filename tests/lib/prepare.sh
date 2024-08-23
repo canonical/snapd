@@ -1451,7 +1451,12 @@ EOF
     umount /mnt
     kpartx -d "$IMAGE_HOME/$IMAGE"
 
-    gzip "${IMAGE_HOME}/${IMAGE}"
+    if command -v pigz 2>/dev/null; then
+        pigz "${IMAGE_HOME}/${IMAGE}"
+    else
+        gzip "${IMAGE_HOME}/${IMAGE}"
+    fi
+
     if is_test_target_core 16; then
         "${TESTSLIB}/uc16-reflash.sh" "${IMAGE_HOME}/${IMAGE}.gz"
     else
