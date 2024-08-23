@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -241,6 +242,9 @@ const (
 // for a substantial amount of time (such as to lock and modify snapd state).
 func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error) (*PromptDB, error) {
 	maxIDFilepath := filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
+	if err := os.MkdirAll(dirs.SnapRunDir, 0o755); err != nil {
+		return nil, err
+	}
 	maxIDMmap, err := maxidmmap.OpenMaxIDMmap(maxIDFilepath)
 	if err != nil {
 		return nil, err
