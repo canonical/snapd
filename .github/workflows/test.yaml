@@ -790,13 +790,17 @@ jobs:
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       run: |
           # Configure parameters to filter logs (these logs are sent read by grafana agent)
-          CHANGE_ID="pr${{ github.event.number }}"
+          CHANGE_ID="${{ github.event.number }}"
           if [ -z "$CHANGE_ID" ]; then
             CHANGE_ID="main"
           fi
-          CHANGE_ID="${CHANGE_ID}_n${{ github.run_attempt }}_run${{ github.run_id }}_gh"
+          FILTERED_LOG_FILE="spread_${CHANGE_ID}_n${{ github.run_attempt }}.filtered.log"
           # The log-filter tool is used to filter the spread logs to be stored
-          echo FILTER_PARAMS="-o spread_${CHANGE_ID}.filtered.log -e Debug -e WARNING: -f Failed=NO_LINES -f Error=NO_LINES"  >> $GITHUB_ENV
+          echo FILTER_PARAMS="-o $FILTERED_LOG_FILE -e Debug -e WARNING: -f Failed=NO_LINES -f Error=NO_LINES"  >> $GITHUB_ENV
+          echo FILTERED_LOG_FILE="$FILTERED_LOG_FILE"  >> $GITHUB_ENV
+
+          # Add start line to filtered log
+          echo "GRAFANA START: pr ${CHANGE_ID} attempt ${{ github.run_attempt }} run ${{ github.run_id }} group ${{ matrix.group }}" > "$FILTERED_LOG_FILE"
 
     - name: Download built snap
       uses: actions/download-artifact@v3
@@ -879,24 +883,24 @@ jobs:
           spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done
 
-    - name: report spread errors
+    - name: Report spread errors
       if: always()
       run: |
         if [ -e spread.log ]; then
             echo "Running spread log analyzer"
-            issues_metadata='{"source_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}'
-            PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json --cut 100
+            ACTIONS_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"
+            PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json --cut 1 >/dev/null
             while IFS= read -r line; do
                 if [ ! -z "$line" ]; then
-                    echo "Reporting spread error..."
-                    ./tests/lib/tools/report-mongodb --db-name snapd --db-collection spread_errors --metadata "$issues_metadata" "$line"
+                    echo "Adding failed test line to filtered log"
+                    echo "GRAFANA FAILED: $line $ACTIONS_URL" | tee -a "$FILTERED_LOG_FILE"
                 fi
-            done <<< $(jq -cr '.[] | select( .type == "info") | select( (.info_type == "Error") or (.info_type == "Debug"))' spread-results.json)
+            done <<< $(jq -r '.[] | select( .type == "info" ) | select( .info_type == "Error" ) | "\(.verb) \(.task)"' spread-results.json)
         else
             echo "No spread log found, skipping errors reporting"
         fi
 
-    - name: analyze spread test results
+    - name: Analyze spread test results
       if: always()
       run: |
           if [ -f spread.log ]; then
@@ -918,7 +922,7 @@ jobs:
               touch "$FAILED_TESTS_FILE"
           fi
 
-    - name: save spread test results to cache
+    - name: Save spread test results to cache
       if: always()
       uses: actions/cache/save@v3
       with:

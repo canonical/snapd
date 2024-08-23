@@ -196,7 +196,7 @@ snaps:
 	c.Assert(options20.Snaps[0], DeepEquals, &internal.Snap20{
 		Name:       "foo",
 		Unasserted: "bar.snap",
-		Components: []internal.Component{
+		Components: []internal.Component20{
 			{Name: "comp1", Unasserted: "comp1_1.comp"},
 			{Name: "comp2", Unasserted: "file.comp"},
 		},
@@ -217,7 +217,30 @@ snaps:
 	c.Assert(err, IsNil)
 	options20, err := internal.ReadOptions20(fn)
 	c.Assert(options20, IsNil)
-	c.Assert(err, ErrorMatches, `cannot read grade dangerous options yaml: local components specified for non-local snap "foo"`)
+	c.Assert(err, ErrorMatches, `cannot read grade dangerous options yaml: unasserted component specified for asserted snap "foo"`)
+}
+
+func (s *options20Suite) TestWithComponentsAssertedSnapAssertedComp(c *C) {
+	fn := filepath.Join(c.MkDir(), "options.yaml")
+	err := os.WriteFile(fn, []byte(`
+snaps:
+ - name: foo
+   id: snapidsnapidsnapidsnapidsnapidsn
+   components:
+     - name: comp1
+`), 0644)
+
+	c.Assert(err, IsNil)
+	options20, err := internal.ReadOptions20(fn)
+	c.Assert(err, IsNil)
+	c.Assert(options20.Snaps, HasLen, 1)
+	c.Assert(options20.Snaps[0], DeepEquals, &internal.Snap20{
+		Name:   "foo",
+		SnapID: "snapidsnapidsnapidsnapidsnapidsn",
+		Components: []internal.Component20{
+			{Name: "comp1"},
+		},
+	})
 }
 
 func (s *options20Suite) TestWithComponentsBadCompName(c *C) {

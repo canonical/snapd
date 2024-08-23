@@ -39,6 +39,12 @@ var (
 	open = Open
 )
 
+// Component holds the details of a component in a seed.
+type Component struct {
+	Path         string
+	CompSideInfo snap.ComponentSideInfo
+}
+
 // Snap holds the details of a snap in a seed.
 type Snap struct {
 	Path string
@@ -56,6 +62,9 @@ type Snap struct {
 	Channel string
 	DevMode bool
 	Classic bool
+
+	// Components for the snap
+	Components []Component
 }
 
 func (s *Snap) SnapName() string {

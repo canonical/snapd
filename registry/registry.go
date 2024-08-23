@@ -195,6 +195,46 @@ type Registry struct {
 	views   map[string]*View
 }
 
+// GetViewsAffectedByPath returns all the views in the registry that have visibility
+// into a storage path.
+func (r *Registry) GetViewsAffectedByPath(path string) []*View {
+	var views []*View
+	for _, view := range r.views {
+		for _, rule := range view.rules {
+			if pathChangeAffects(path, rule.originalStorage) {
+				views = append(views, view)
+				break
+			}
+		}
+	}
+
+	return views
+}
+
+func pathChangeAffects(modified, affected string) bool {
+	moddedPathKeys, affectedPathKeys := strings.Split(modified, "."), strings.Split(affected, ".")
+
+	for i, affectedKey := range affectedPathKeys {
+		if isPlaceholder(affectedKey) {
+			continue
+		}
+
+		if len(moddedPathKeys) <= i {
+			// 'affected' is a sub-path of 'modified' so changes to the latter may
+			// affect the former (they also may not but we need to play it safe)
+			return true
+		}
+
+		if moddedPathKeys[i] != affectedKey {
+			return false
+		}
+	}
+
+	// 'modified' is a sub-path of 'affected' so changes to the former are visible
+	// to the latter
+	return true
+}
+
 // New returns a new registry with the specified views and their rules.
 func New(account string, registryName string, views map[string]interface{}, schema Schema) (*Registry, error) {
 	if len(views) == 0 {

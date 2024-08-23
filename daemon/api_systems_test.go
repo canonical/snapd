@@ -1081,15 +1081,25 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 	c.Assert(sys, check.DeepEquals, sd)
 }
 
-func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevicestate(c *check.C) {
-	s.testSystemInstallActionCallsDevicestate(c, "setup-storage-encryption", daemon.MockDevicestateInstallSetupStorageEncryption)
-}
-
 func (s *systemsSuite) TestSystemInstallActionFinishCallsDevicestate(c *check.C) {
-	s.testSystemInstallActionCallsDevicestate(c, "finish", daemon.MockDevicestateInstallFinish)
+	s.testSystemInstallActionFinishCallsDevicestate(c, client.OptionalInstallRequest{
+		AvailableForInstall: client.AvailableForInstall{
+			Snaps: []string{"snap1", "snap2"},
+			Components: map[string][]string{
+				"snap1": {"comp1"},
+				"snap2": {"comp2"},
+			},
+		},
+	})
 }
 
-func (s *systemsSuite) testSystemInstallActionCallsDevicestate(c *check.C, step string, mocker func(func(st *state.State, label string, onVolumes map[string]*gadget.Volume) (*state.Change, error)) (restore func())) {
+func (s *systemsSuite) TestSystemInstallActionFinishCallsDevicestateAll(c *check.C) {
+	s.testSystemInstallActionFinishCallsDevicestate(c, client.OptionalInstallRequest{
+		All: true,
+	})
+}
+
+func (s *systemsSuite) testSystemInstallActionFinishCallsDevicestate(c *check.C, optionalInstall client.OptionalInstallRequest) {
 	d := s.daemon(c)
 	st := d.Overlord().State()
 
@@ -1102,7 +1112,105 @@ func (s *systemsSuite) testSystemInstallActionCallsDevicestate(c *check.C, step 
 	nCalls := 0
 	var gotOnVolumes map[string]*gadget.Volume
 	var gotLabel string
-	r := mocker(func(st *state.State, label string, onVolumes map[string]*gadget.Volume) (*state.Change, error) {
+	var gotOptionalInstall *devicestate.OptionalInstall
+	r := daemon.MockDevicestateInstallFinish(func(st *state.State, label string, onVolumes map[string]*gadget.Volume, optionalInstall *devicestate.OptionalInstall) (*state.Change, error) {
+		gotLabel = label
+		gotOnVolumes = onVolumes
+		gotOptionalInstall = optionalInstall
+		nCalls++
+		return st.NewChange("foo", "..."), nil
+	})
+	defer r()
+
+	body := map[string]interface{}{
+		"action": "install",
+		"step":   "finish",
+		"on-volumes": map[string]interface{}{
+			"pc": map[string]interface{}{
+				"bootloader": "grub",
+			},
+		},
+		"optional-install": map[string]interface{}{
+			"snaps":      optionalInstall.Snaps,
+			"components": optionalInstall.Components,
+			"all":        optionalInstall.All,
+		},
+	}
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.asyncReq(c, req, nil)
+
+	st.Lock()
+	chg := st.Change(rsp.Change)
+	st.Unlock()
+	c.Check(chg, check.NotNil)
+	c.Check(chg.ID(), check.Equals, "1")
+	c.Check(nCalls, check.Equals, 1)
+	c.Check(gotLabel, check.Equals, "20191119")
+	c.Check(gotOnVolumes, check.DeepEquals, map[string]*gadget.Volume{
+		"pc": {
+			Bootloader: "grub",
+		},
+	})
+
+	if optionalInstall.All {
+		c.Check(gotOptionalInstall, check.IsNil)
+	} else {
+		c.Check(gotOptionalInstall, check.DeepEquals, &devicestate.OptionalInstall{
+			Snaps:      optionalInstall.Snaps,
+			Components: optionalInstall.Components,
+		})
+	}
+
+	c.Check(soon, check.Equals, 1)
+}
+
+func (s *systemsSuite) TestSystemInstallActionFinishCallsDevicestateAllAndSpecificInstallsFails(c *check.C) {
+	s.daemon(c)
+
+	body := map[string]interface{}{
+		"action": "install",
+		"step":   "finish",
+		"on-volumes": map[string]interface{}{
+			"pc": map[string]interface{}{
+				"bootloader": "grub",
+			},
+		},
+		"optional-install": map[string]interface{}{
+			"snaps":      []string{"snap1", "snap2"},
+			"components": map[string][]string{"snap1": {"comp1"}, "snap2": {"comp2"}},
+			"all":        true,
+		},
+	}
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.errorReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Message, check.Equals, "cannot specify both all and individual optional snaps and components to install")
+}
+
+func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevicestate(c *check.C) {
+	d := s.daemon(c)
+	st := d.Overlord().State()
+
+	soon := 0
+	_, restore := daemon.MockEnsureStateSoon(func(st *state.State) {
+		soon++
+	})
+	defer restore()
+
+	nCalls := 0
+	var gotOnVolumes map[string]*gadget.Volume
+	var gotLabel string
+	r := daemon.MockDevicestateInstallSetupStorageEncryption(func(st *state.State, label string, onVolumes map[string]*gadget.Volume) (*state.Change, error) {
 		gotLabel = label
 		gotOnVolumes = onVolumes
 		nCalls++
@@ -1112,7 +1220,7 @@ func (s *systemsSuite) testSystemInstallActionCallsDevicestate(c *check.C, step 
 
 	body := map[string]interface{}{
 		"action": "install",
-		"step":   step,
+		"step":   "setup-storage-encryption",
 		"on-volumes": map[string]interface{}{
 			"pc": map[string]interface{}{
 				"bootloader": "grub",
