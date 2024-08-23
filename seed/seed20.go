@@ -60,6 +60,7 @@ type resourceKey struct {
 
 type seed20 struct {
 	systemDir string
+	seedDir   string
 
 	db       asserts.RODatabase
 	commitTo func(*asserts.Batch) error
@@ -446,11 +447,11 @@ func modelContainsComponent(modelSnaps map[string]*asserts.ModelSnap, cref namin
 	return ok
 }
 
-func assertedComponentDir(systemDir string, modelSnaps map[string]*asserts.ModelSnap, cref naming.ComponentRef) string {
-	if modelContainsComponent(modelSnaps, cref) {
-		return filepath.Join(systemDir, "../../snaps")
+func (s *seed20) assertedComponentDir(cref naming.ComponentRef) string {
+	if modelContainsComponent(s.modelSnaps, cref) {
+		return filepath.Join(s.seedDir, "snaps")
 	}
-	return filepath.Join(systemDir, "snaps")
+	return filepath.Join(s.systemDir, "snaps")
 }
 
 func (s *seed20) lookupVerifiedComponent(cref naming.ComponentRef, snapRev snap.Revision, snapID, snapProvenance string, handler ContainerHandler, tm timings.Measurer) (Component, error) {
@@ -474,7 +475,7 @@ func (s *seed20) lookupVerifiedComponent(cref naming.ComponentRef, snapRev snap.
 
 	// we know the component is asserted, but it might not be in the model. if
 	// it isn't in the model, then it could be in this system's snaps dir
-	compDir := assertedComponentDir(s.systemDir, s.modelSnaps, cref)
+	compDir := s.assertedComponentDir(cref)
 
 	compPath := filepath.Join(compDir,
 		fmt.Sprintf("%s_%d.comp", cref.String(), resRev.ResourceRevision()))
@@ -565,7 +566,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, handler Containe
 	}
 
 	snapName := snapDecl.SnapName()
-	snapPath = filepath.Join(s.systemDir, snapsDir, fmt.Sprintf("%s_%d.snap", snapName, snapRev.SnapRevision()))
+	snapPath = filepath.Join(snapsDir, fmt.Sprintf("%s_%d.snap", snapName, snapRev.SnapRevision()))
 
 	fi, err := os.Stat(snapPath)
 	if err != nil {
@@ -784,11 +785,11 @@ func (s *seed20) doLoadMetaOne(sntoc *snapToConsider, handler ContainerHandler, 
 		required = essential || sntoc.modelSnap.Presence == "required"
 		channel = sntoc.modelSnap.DefaultChannel
 		classic = sntoc.modelSnap.Classic
-		snapsDir = "../../snaps"
+		snapsDir = filepath.Join(s.seedDir, "snaps")
 	} else {
 		snapRef = sntoc.optSnap
 		channel = "latest/stable"
-		snapsDir = "snaps"
+		snapsDir = filepath.Join(s.systemDir, "snaps")
 	}
 	seedSnap, err := s.lookupSnap(snapRef, sntoc.modelSnap, sntoc.optSnap, channel, handler, snapsDir, tm)
 	if err != nil {

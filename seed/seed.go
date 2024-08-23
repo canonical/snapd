@@ -231,7 +231,7 @@ func Open(seedDir, label string) (Seed, error) {
 		if err := asserts.IsValidSystemLabel(label); err != nil {
 			return nil, err
 		}
-		return &seed20{systemDir: filepath.Join(seedDir, "systems", label)}, nil
+		return &seed20{seedDir: seedDir, systemDir: filepath.Join(seedDir, "systems", label)}, nil
 	}
 	return &seed16{seedDir: seedDir}, nil
 }
