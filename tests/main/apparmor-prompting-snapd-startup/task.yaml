@@ -71,13 +71,13 @@ execute: |
 
     echo "Check that only the former rule is still valid (must be done with UID 1000)"
     sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result | length' | MATCH 1
-    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result.[0].id' | MATCH "0000000000000002"
+    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result[0].id' | MATCH "0000000000000002"
 
     echo "Stop snapd and ensure it is not in failure mode"
     systemctl stop snapd.service snapd.socket
     # Try for a while to make sure it's not in failure mode
     echo "Check that systemctl is-failed is never true after a while"
-    retry --wait 1 -n 30 systemctl is-failed snapd.service snapd.socket && exit 1
+    not retry --wait 1 -n 30 systemctl is-failed snapd.service snapd.socket
 
     CURRTIME="$(date --rfc-3339=ns --utc | tr ' ' 'T' | sed 's/\+00:00/Z/')"
 
@@ -95,8 +95,72 @@ execute: |
     echo "Check that we received one notices for the non-expired rule"
     snap debug api --fail "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | jq
     snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | jq '.result | length' | MATCH 1
-    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | jq '.result.[0].key' | MATCH "0000000000000002"
+    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | jq '.result[0].key' | MATCH "0000000000000002"
 
     echo "Check that only the non-expired rule is still valid (must be done with UID 1000)"
     sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result | length' | MATCH 1
-    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result.[0].id' | MATCH "0000000000000002"
+    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result[0].id' | MATCH "0000000000000002"
+
+    echo '### Simulate failure to open interfaces requests manager ###'
+
+    echo "Stop snapd and ensure it is not in failure mode"
+    systemctl stop snapd.service snapd.socket
+    # Try for a while to make sure it's not in failure mode
+    echo "Check that systemctl is-failed is never true after a while"
+    not retry --wait 1 -n 30 systemctl is-failed snapd.service snapd.socket
+
+    echo "Corrupt the max prompt ID file (by making it a dir) so it will fail to start up next time"
+    # This simulates what would happen on system restart, if e.g. /run/snapd did not yet exist during StartUp
+    MAX_ID_FILEPATH="/run/snapd/request-prompt-max-id"
+    rm -f "$MAX_ID_FILEPATH"
+    mkdir -p "$MAX_ID_FILEPATH"
+
+    echo "Restart snapd and ensure it starts properly"
+    systemctl start snapd.service snapd.socket
+    retry --wait 1 -n 60 systemctl is-active snapd.service snapd.socket
+
+    echo "Check that apparmor prompting is supported and enabled"
+    # XXX: in the future, we should set enabled to be false if m.AppArmorPromptingRunning() is false,
+    # such as because creating the interfaces requests manager failed.
+    snap debug api "/v2/system-info" | jq '.result.features."apparmor-prompting".supported' | MATCH true
+    snap debug api "/v2/system-info" | jq '.result.features."apparmor-prompting".enabled' | MATCH true
+
+    echo "Check that rules on disk still match what is expected"
+    diff expected.json current.json
+
+    echo "Check that accessing a prompting endpoint results in an expected error"
+    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '."status-code"' | MATCH 500
+    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result.message' | MATCH -i "Apparmor Prompting is not running"
+
+    echo '### Remove the corrupted max prompt ID file and check that prompting backends can start again ###'
+
+    echo "Stop snapd and ensure it is not in failure mode"
+    systemctl stop snapd.service snapd.socket
+    # Try for a while to make sure it's not in failure mode
+    echo "Check that systemctl is-failed is never true after a while"
+    not retry --wait 1 -n 30 systemctl is-failed snapd.service snapd.socket
+
+    echo "Remove corrupted max prompt ID file"
+    rm -rf "$MAX_ID_FILEPATH"
+
+    CURRTIME="$(date --rfc-3339=ns --utc | tr ' ' 'T' | sed 's/\+00:00/Z/')"
+
+    echo "Restart snapd and ensure it starts properly"
+    systemctl start snapd.service snapd.socket
+    retry --wait 1 -n 60 systemctl is-active snapd.service snapd.socket
+
+    echo "Check that apparmor prompting is supported and enabled"
+    snap debug api "/v2/system-info" | jq '.result.features."apparmor-prompting".supported' | MATCH true
+    snap debug api "/v2/system-info" | jq '.result.features."apparmor-prompting".enabled' | MATCH true
+
+    echo "Check that rules on disk still match what is expected"
+    diff expected.json current.json
+
+    echo "Check that we received one notices for the non-expired rule"
+    snap debug api --fail "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | jq
+    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | jq '.result | length' | MATCH 1
+    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | jq '.result[0].key' | MATCH "0000000000000002"
+
+    echo "Check that the non-expired rule is still valid (must be done with UID 1000)"
+    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result | length' | MATCH 1
+    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result[0].id' | MATCH "0000000000000002"
