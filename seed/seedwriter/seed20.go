@@ -241,13 +241,13 @@ func (tr *tree20) snapPath(sn *SeedSnap) (string, error) {
 }
 
 func (tr *tree20) componentPath(sn *SeedSnap, sc *SeedComponent) (string, error) {
-	snapsDir, err := tr.componentDir(sn, sc)
+	componentsDir, err := tr.componentDir(sn, sc)
 	if err != nil {
 		return "", err
 	}
 
 	cpi := snap.MinimalComponentContainerPlaceInfo(sc.ComponentName, sc.Info.Revision, sc.SnapName)
-	return filepath.Join(snapsDir, cpi.Filename()), nil
+	return filepath.Join(componentsDir, cpi.Filename()), nil
 }
 
 func (tr *tree20) localSnapPath(sn *SeedSnap) (string, error) {
