@@ -128,13 +128,10 @@ func shouldCopyComponent(target Component, snapName string, model *asserts.Model
 	var componentInModel bool
 	modelSnap, ok := modelSnaps[snapName]
 	if ok {
-		for compName, comp := range modelSnap.Components {
-			if compName != target.CompSideInfo.Component.ComponentName {
-				continue
-			}
-
+		modelComp, ok := modelSnap.Components[target.CompSideInfo.Component.ComponentName]
+		if ok {
 			componentInModel = true
-			if comp.Presence == "required" {
+			if modelComp.Presence == "required" {
 				return true
 			}
 		}
@@ -266,16 +263,38 @@ func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (er
 	return nil
 }
 
-func (s *seed20) copySnapAndComponents(sn *Snap, destSeedDir string, opts CopyOptions) ([]asserts.Assertion, error) {
-	var destinationDir string
-	if sn.ID() == "" {
-		destinationDir = filepath.Join(destSeedDir, "systems", opts.Label, "snaps")
-	} else {
-		destinationDir = filepath.Join(destSeedDir, "snaps")
+func snapInModel(cref naming.SnapRef, modelSnaps map[string]*asserts.ModelSnap) bool {
+	// snapd is implicitly in the model
+	if cref.SnapName() == "snapd" {
+		return true
 	}
 
+	_, ok := modelSnaps[cref.SnapName()]
+	return ok
+}
+
+func componentInModel(cref naming.ComponentRef, modelSnaps map[string]*asserts.ModelSnap) bool {
+	sn, ok := modelSnaps[cref.SnapName]
+	if !ok {
+		return false
+	}
+
+	_, ok = sn.Components[cref.ComponentName]
+	return ok
+}
+
+func (s *seed20) copySnapAndComponents(sn *Snap, destSeedDir string, opts CopyOptions) ([]asserts.Assertion, error) {
+	destination := func(asserted, inModel bool, filename string) string {
+		if asserted && inModel {
+			return filepath.Join(destSeedDir, "snaps", filename)
+		}
+		return filepath.Join(destSeedDir, "systems", opts.Label, "snaps", filename)
+	}
+
+	snapAsserted := sn.ID() != ""
+
 	var assertions []asserts.Assertion
-	if sn.ID() != "" {
+	if snapAsserted {
 		decl, ok := s.snapDeclsByID[sn.ID()]
 		if !ok {
 			return nil, fmt.Errorf("internal error: missing snap-declaration for asserted snap: %s", sn.SnapName())
@@ -289,7 +308,9 @@ func (s *seed20) copySnapAndComponents(sn *Snap, destSeedDir string, opts CopyOp
 		assertions = append(assertions, rev)
 	}
 
-	snapDest := filepath.Join(destinationDir, filepath.Base(sn.Path))
+	inModel := snapInModel(sn, s.modelSnaps)
+
+	snapDest := destination(snapAsserted, inModel, filepath.Base(sn.Path))
 	if err := osutil.CopyFile(sn.Path, snapDest, osutil.CopyFlagOverwrite); err != nil {
 		return nil, fmt.Errorf("cannot copy snap: %w", err)
 	}
@@ -300,7 +321,7 @@ func (s *seed20) copySnapAndComponents(sn *Snap, destSeedDir string, opts CopyOp
 		}
 
 		// an asserted snap implies that all components should also be asserted
-		if sn.ID() != "" {
+		if snapAsserted {
 			key := resourceKey{snapID: sn.ID(), name: comp.CompSideInfo.Component.ComponentName}
 			resPair, ok := s.resPairByResKey[key]
 			if !ok {
@@ -315,7 +336,8 @@ func (s *seed20) copySnapAndComponents(sn *Snap, destSeedDir string, opts CopyOp
 			assertions = append(assertions, resRev)
 		}
 
-		destCompPath := filepath.Join(destinationDir, filepath.Base(comp.Path))
+		inModel := componentInModel(comp.CompSideInfo.Component, s.modelSnaps)
+		destCompPath := destination(snapAsserted, inModel, filepath.Base(comp.Path))
 		if err := osutil.CopyFile(comp.Path, destCompPath, osutil.CopyFlagOverwrite); err != nil {
 			return nil, fmt.Errorf("cannot copy component: %w", err)
 		}

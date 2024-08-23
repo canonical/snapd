@@ -3520,6 +3520,7 @@ func (s *seed20Suite) TestCopy(c *C) {
 		"optional20-b_1.0.snap",
 		"local-component-test_1.0.snap",
 		"local-component-test+comp4_1.0.comp",
+		"component-test+comp3_44.comp",
 	}, map[string][]string{
 		s.AssertedSnapID("core20"):         nil,
 		s.AssertedSnapID("pc"):             nil,
@@ -3528,7 +3529,7 @@ func (s *seed20Suite) TestCopy(c *C) {
 		s.AssertedSnapID("optional20-a"):   nil,
 		s.AssertedSnapID("required20"):     nil,
 		s.AssertedSnapID("aux-info-test"):  nil,
-		s.AssertedSnapID("component-test"): {"comp1", "comp2"},
+		s.AssertedSnapID("component-test"): {"comp1", "comp2", "comp3"},
 	})
 }
 
@@ -3548,6 +3549,7 @@ func (s *seed20Suite) TestCopyEmptyLabel(c *C) {
 		"optional20-b_1.0.snap",
 		"local-component-test_1.0.snap",
 		"local-component-test+comp4_1.0.comp",
+		"component-test+comp3_44.comp",
 	}, map[string][]string{
 		s.AssertedSnapID("core20"):         nil,
 		s.AssertedSnapID("pc"):             nil,
@@ -3556,7 +3558,7 @@ func (s *seed20Suite) TestCopyEmptyLabel(c *C) {
 		s.AssertedSnapID("optional20-a"):   nil,
 		s.AssertedSnapID("required20"):     nil,
 		s.AssertedSnapID("aux-info-test"):  nil,
-		s.AssertedSnapID("component-test"): {"comp1", "comp2"},
+		s.AssertedSnapID("component-test"): {"comp1", "comp2", "comp3"},
 	})
 }
 
@@ -3566,7 +3568,7 @@ func (s *seed20Suite) TestCopyWithOptionalContainersIncludeEverything(c *C) {
 		OptionalContainers: &seed.OptionalContainers{
 			Snaps: []string{"component-test", "optional20-a", "optional20-b", "aux-info-test", "local-component-test"},
 			Components: map[string][]string{
-				"component-test":       {"comp2"},
+				"component-test":       {"comp2", "comp3"},
 				"local-component-test": {"comp4"},
 			},
 		},
@@ -3585,6 +3587,7 @@ func (s *seed20Suite) TestCopyWithOptionalContainersIncludeEverything(c *C) {
 		"optional20-b_1.0.snap",
 		"local-component-test_1.0.snap",
 		"local-component-test+comp4_1.0.comp",
+		"component-test+comp3_44.comp",
 	}, map[string][]string{
 		s.AssertedSnapID("core20"):         nil,
 		s.AssertedSnapID("pc"):             nil,
@@ -3593,7 +3596,7 @@ func (s *seed20Suite) TestCopyWithOptionalContainersIncludeEverything(c *C) {
 		s.AssertedSnapID("optional20-a"):   nil,
 		s.AssertedSnapID("required20"):     nil,
 		s.AssertedSnapID("aux-info-test"):  nil,
-		s.AssertedSnapID("component-test"): {"comp1", "comp2"},
+		s.AssertedSnapID("component-test"): {"comp1", "comp2", "comp3"},
 	})
 }
 
@@ -3623,7 +3626,7 @@ func (s *seed20Suite) TestCopyWithOptionalContainersExclude(c *C) {
 	})
 }
 
-func (s *seed20Suite) TestCopyWithOptionalContainersExcludeUnassertedComponent(c *C) {
+func (s *seed20Suite) TestCopyWithOptionalContainersExcludeSomeComponent(c *C) {
 	s.testCopy(c, seed.CopyOptions{
 		Label: "20240126",
 		OptionalContainers: &seed.OptionalContainers{
@@ -3731,6 +3734,9 @@ func (s *seed20Suite) testCopy(c *C, opts seed.CopyOptions, expectedAssertedCont
 			Components: []seedwriter.OptionsComponent{
 				{
 					Name: "comp2",
+				},
+				{
+					Name: "comp3",
 				},
 			},
 		},
