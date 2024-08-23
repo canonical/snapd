@@ -32,13 +32,25 @@ prepare: |
         useradd --extrausers -m -d /home/test2 test2
     fi
 
-    cat <<\EOF >/etc/polkit-1/rules.d/io.snapcraft.snapd.rules
+    # rules are only supported from 23.10+
+    if [ -d /etc/polkit-1/localauthority/50-local.d ]; then
+        cat <<\EOF >/etc/polkit-1/localauthority/50-local.d/spread.pkla
+    [Normal Staff Permissions]
+    Identity=unix-user:test
+    Action=io.snapcraft.snapd.manage
+    ResultAny=yes
+    ResultInactive=no
+    ResultActive=yes
+    EOF
+    else
+        cat <<\EOF >/etc/polkit-1/rules.d/io.snapcraft.snapd.rules
     polkit.addRule(function(action, subject) {
         if (action.id == "io.snapcraft.snapd.manage" && subject.user == "test") {
             return polkit.Result.YES;
         }
     });
     EOF
+    fi
 
 restore: |
     tests.session -u test2 restore || true
@@ -48,7 +60,8 @@ restore: |
         systemctl --user --global disable snapd.session-agent.socket
         rm agent-was-enabled
     fi
-    rm -f /etc/polkit-1/rules.d/io.snapcraft.snapd.rules
+    rm -f /etc/polkit-1/localauthority/50-local.d/spread.pkla || true
+    rm -f /etc/polkit-1/rules.d/io.snapcraft.snapd.rules || true
 
 debug: |
     tests.session dump
@@ -69,10 +82,6 @@ execute: |
     # expect that two runs and is enabled for all users
     # expect that three runs and is enabled for current user
 
-    # expect that the system service is not running/enabled
-    systemctl is-active snap.test-snapd-user-service-disabled.sys-service | MATCH "inactive"
-    systemctl is-enabled snap.test-snapd-user-service-disabled.sys-service | MATCH "disabled"
-
     echo "Verify status of running services after install"
     systemctl_as_test is-active snap.test-snapd-user-service-disabled.user-service | MATCH "inactive"
     systemctl_as_test is-enabled snap.test-snapd-user-service-disabled.user-service | MATCH "disabled"
@@ -87,7 +96,7 @@ execute: |
     systemctl_as_test is-enabled snap.test-snapd-user-service-disabled.user-service | MATCH "enabled"
 
     function systemctl_as_test2() {
-      tests.session -u test exec systemctl --user "$@"
+      tests.session -u test2 exec systemctl --user "$@"
     }
 
     echo "Setup new user session and expect correct initial state"

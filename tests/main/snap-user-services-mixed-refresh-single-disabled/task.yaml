@@ -33,13 +33,25 @@ prepare: |
     fi
     tests.session -u test2 prepare
 
-    cat <<\EOF >/etc/polkit-1/rules.d/io.snapcraft.snapd.rules
+    # rules are only supported from 23.10+
+    if [ -d /etc/polkit-1/localauthority/50-local.d ]; then
+        cat <<\EOF >/etc/polkit-1/localauthority/50-local.d/spread.pkla
+    [Normal Staff Permissions]
+    Identity=unix-user:test
+    Action=io.snapcraft.snapd.manage
+    ResultAny=yes
+    ResultInactive=no
+    ResultActive=yes
+    EOF
+    else
+        cat <<\EOF >/etc/polkit-1/rules.d/io.snapcraft.snapd.rules
     polkit.addRule(function(action, subject) {
         if (action.id == "io.snapcraft.snapd.manage" && subject.user == "test") {
             return polkit.Result.YES;
         }
     });
     EOF
+    fi
 
 restore: |
     tests.session -u test2 restore
@@ -49,7 +61,8 @@ restore: |
         systemctl --user --global disable snapd.session-agent.socket
         rm agent-was-enabled
     fi
-    rm -f /etc/polkit-1/rules.d/io.snapcraft.snapd.rules
+    rm -f /etc/polkit-1/localauthority/50-local.d/spread.pkla || true
+    rm -f /etc/polkit-1/rules.d/io.snapcraft.snapd.rules || true
 
 execute: |
     function systemctl_as_test() {
