@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -331,13 +332,13 @@ func (s *seed20Suite) TestLoadAssertionsInvalidModelAssertFile(c *C) {
 	c.Check(err, ErrorMatches, `system model assertion file must contain exactly the model assertion`)
 }
 
-func (s *seed20Suite) massageAssertions(c *C, fn string, filter func(asserts.Assertion) asserts.Assertion) {
+func (s *seed20Suite) massageAssertions(c *C, fn string, filter func(asserts.Assertion) []asserts.Assertion) {
 	assertions := seedtest.ReadAssertions(c, fn)
 	filtered := make([]asserts.Assertion, 0, len(assertions))
 	for _, a := range assertions {
 		a1 := filter(a)
 		if a1 != nil {
-			filtered = append(filtered, a1)
+			filtered = append(filtered, a1...)
 		}
 	}
 	seedtest.WriteAssertions(fn, filtered...)
@@ -347,11 +348,11 @@ func (s *seed20Suite) TestLoadAssertionsUnbalancedDeclsAndRevs(c *C) {
 	sysLabel := "20191031"
 	sysDir := s.makeCore20MinimalSeed(c, sysLabel)
 
-	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) asserts.Assertion {
+	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) []asserts.Assertion {
 		if a.Type() == asserts.SnapRevisionType && a.HeaderString("snap-id") == s.AssertedSnapID("core20") {
 			return nil
 		}
-		return a
+		return []asserts.Assertion{a}
 	})
 
 	seed20, err := seed.Open(s.SeedDir, sysLabel)
@@ -374,11 +375,11 @@ func (s *seed20Suite) TestLoadAssertionsMultiSnapRev(c *C) {
 	}, nil, "")
 	c.Assert(err, IsNil)
 
-	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) asserts.Assertion {
+	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) []asserts.Assertion {
 		if a.Type() == asserts.SnapRevisionType && a.HeaderString("snap-id") == s.AssertedSnapID("snapd") {
-			return spuriousRev
+			return []asserts.Assertion{spuriousRev}
 		}
-		return a
+		return []asserts.Assertion{a}
 	})
 
 	seed20, err := seed.Open(s.SeedDir, sysLabel)
@@ -410,14 +411,14 @@ func (s *seed20Suite) TestLoadAssertionsMultiSnapDecl(c *C) {
 	}, nil, "")
 	c.Assert(err, IsNil)
 
-	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) asserts.Assertion {
+	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) []asserts.Assertion {
 		if a.Type() == asserts.SnapDeclarationType && a.HeaderString("snap-name") == "snapd" {
-			return spuriousDecl
+			return []asserts.Assertion{spuriousDecl}
 		}
 		if a.Type() == asserts.SnapRevisionType && a.HeaderString("snap-id") == s.AssertedSnapID("snapd") {
-			return spuriousRev
+			return []asserts.Assertion{spuriousRev}
 		}
-		return a
+		return []asserts.Assertion{a}
 	})
 
 	seed20, err := seed.Open(s.SeedDir, sysLabel)
@@ -480,14 +481,14 @@ func (s *seed20Suite) TestLoadMetaMissingSnapDeclByName(c *C) {
 	}, nil, "")
 	c.Assert(err, IsNil)
 
-	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) asserts.Assertion {
+	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) []asserts.Assertion {
 		if a.Type() == asserts.SnapDeclarationType && a.HeaderString("snap-name") == "core20" {
-			return wrongDecl
+			return []asserts.Assertion{wrongDecl}
 		}
 		if a.Type() == asserts.SnapRevisionType && a.HeaderString("snap-id") == s.AssertedSnapID("core20") {
-			return wrongRev
+			return []asserts.Assertion{wrongRev}
 		}
-		return a
+		return []asserts.Assertion{a}
 	})
 
 	seed20, err := seed.Open(s.SeedDir, sysLabel)
@@ -523,14 +524,14 @@ func (s *seed20Suite) TestLoadMetaMissingSnapDeclByID(c *C) {
 	}, nil, "")
 	c.Assert(err, IsNil)
 
-	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) asserts.Assertion {
+	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) []asserts.Assertion {
 		if a.Type() == asserts.SnapDeclarationType && a.HeaderString("snap-name") == "pc" {
-			return wrongDecl
+			return []asserts.Assertion{wrongDecl}
 		}
 		if a.Type() == asserts.SnapRevisionType && a.HeaderString("snap-id") == s.AssertedSnapID("pc") {
-			return wrongRev
+			return []asserts.Assertion{wrongRev}
 		}
-		return a
+		return []asserts.Assertion{a}
 	})
 
 	seed20, err := seed.Open(s.SeedDir, sysLabel)
@@ -592,11 +593,11 @@ func (s *seed20Suite) TestLoadMetaWrongHashSnap(c *C) {
 	}, nil, "")
 	c.Assert(err, IsNil)
 
-	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) asserts.Assertion {
+	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) []asserts.Assertion {
 		if a.Type() == asserts.SnapRevisionType && a.HeaderString("snap-id") == s.AssertedSnapID("pc") {
-			return wrongRev
+			return []asserts.Assertion{wrongRev}
 		}
-		return a
+		return []asserts.Assertion{a}
 	})
 
 	seed20, err := seed.Open(s.SeedDir, sysLabel)
@@ -617,14 +618,14 @@ func (s *seed20Suite) TestLoadMetaWrongGadgetBase(c *C) {
 	pc18Decl, pc18Rev := s.MakeAssertedSnap(c, snapYaml["pc=18"], nil, snap.R(2), "canonical")
 	err := os.Rename(s.AssertedSnap("pc"), filepath.Join(s.SeedDir, "snaps", "pc_2.snap"))
 	c.Assert(err, IsNil)
-	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) asserts.Assertion {
+	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) []asserts.Assertion {
 		if a.Type() == asserts.SnapDeclarationType && a.HeaderString("snap-name") == "pc" {
-			return pc18Decl
+			return []asserts.Assertion{pc18Decl}
 		}
 		if a.Type() == asserts.SnapRevisionType && a.HeaderString("snap-id") == s.AssertedSnapID("pc") {
-			return pc18Rev
+			return []asserts.Assertion{pc18Rev}
 		}
-		return a
+		return []asserts.Assertion{a}
 	})
 
 	seed20, err := seed.Open(s.SeedDir, sysLabel)
@@ -3015,11 +3016,11 @@ func (s *seed20Suite) TestLoadMetaWrongHashSnapParallelism2(c *C) {
 	}, nil, "")
 	c.Assert(err, IsNil)
 
-	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) asserts.Assertion {
+	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) []asserts.Assertion {
 		if a.Type() == asserts.SnapRevisionType && a.HeaderString("snap-id") == s.AssertedSnapID("pc-kernel") {
-			return wrongRev
+			return []asserts.Assertion{wrongRev}
 		}
-		return a
+		return []asserts.Assertion{a}
 	})
 
 	seed20, err := seed.Open(s.SeedDir, sysLabel)
@@ -3706,4 +3707,781 @@ func compareDirs(c *C, expected, got string) {
 	c.Assert(err, IsNil)
 
 	c.Check(gotCount, Equals, expectedCount)
+}
+
+type seedOpts struct {
+	delegated bool
+}
+
+func (s *seed20Suite) makeCore20SeedWithComps(c *C, sysLabel string, opts seedOpts) string {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	compRevs := map[string]snap.Revision{
+		"comp1": snap.R(22),
+		"comp2": snap.R(33),
+	}
+	if opts.delegated {
+		ra := map[string]interface{}{
+			"account-id": "my-brand",
+			"provenance": []interface{}{"delegated-prov", "other-prov"},
+		}
+		s.MakeAssertedDelegatedSnapWithComps(c,
+			snapYaml["required20"]+"\nprovenance: delegated-prov\n",
+			nil, snap.R(1), compRevs, "developerid", "my-brand",
+			"delegated-prov", ra, s.StoreSigning.Database)
+	} else {
+		s.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["required20"], nil,
+			snap.R(11), compRevs, "canonical", s.StoreSigning.Database)
+	}
+
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+				"type": "app",
+				"components": map[string]interface{}{
+					"comp1": "required",
+					"comp2": "required",
+				},
+			},
+		},
+	}, nil)
+
+	return filepath.Join(s.SeedDir, "systems", sysLabel)
+}
+
+func (s *seed20Suite) TestLoadMetaWithComponents(c *C) {
+	sysLabel := "20240805"
+	s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed20.UsesSnapdSnap(), Equals, true)
+
+	essSnaps := seed20.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:          s.expectedPath("snapd"),
+			SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
+			EssentialType: snap.TypeSnapd,
+			Essential:     true,
+			Required:      true,
+			Channel:       "latest/stable",
+		}, {
+			Path:          s.expectedPath("pc-kernel"),
+			SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			EssentialType: snap.TypeKernel,
+			Essential:     true,
+			Required:      true,
+			Channel:       "20",
+		}, {
+			Path:          s.expectedPath("core20"),
+			SideInfo:      &s.AssertedSnapInfo("core20").SideInfo,
+			EssentialType: snap.TypeBase,
+			Essential:     true,
+			Required:      true,
+			Channel:       "latest/stable",
+		}, {
+			Path:          s.expectedPath("pc"),
+			SideInfo:      &s.AssertedSnapInfo("pc").SideInfo,
+			EssentialType: snap.TypeGadget,
+			Essential:     true,
+			Required:      true,
+			Channel:       "20",
+		},
+	})
+
+	// check that PlaceInfo method works
+	pi := essSnaps[0].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "snapd_1.snap")
+	pi = essSnaps[1].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "pc-kernel_1.snap")
+	pi = essSnaps[2].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "core20_1.snap")
+	pi = essSnaps[3].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "pc_1.snap")
+
+	runSnaps, err := seed20.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 1)
+	req20sn := runSnaps[0]
+	c.Check(req20sn.SnapName(), Equals, "required20")
+	c.Check(len(req20sn.Components), Equals, 2)
+	checked := make([]bool, 2)
+	for _, comp := range req20sn.Components {
+		switch comp.CompSideInfo.Component.ComponentName {
+		case "comp1":
+			c.Check(comp, DeepEquals, seed.Component{
+				Path: filepath.Join(s.SeedDir, "snaps", "required20+comp1_22.comp"),
+				CompSideInfo: snap.ComponentSideInfo{
+					Component: naming.NewComponentRef("required20", "comp1"),
+					Revision:  snap.R(22),
+				},
+			})
+			checked[0] = true
+		case "comp2":
+			c.Check(comp, DeepEquals, seed.Component{
+				Path: filepath.Join(s.SeedDir, "snaps", "required20+comp2_33.comp"),
+				CompSideInfo: snap.ComponentSideInfo{
+					Component: naming.NewComponentRef("required20", "comp2"),
+					Revision:  snap.R(33),
+				},
+			})
+			checked[1] = true
+		}
+	}
+	c.Check(checked, DeepEquals, []bool{true, true})
+
+	c.Check(seed20.NumSnaps(), Equals, 5)
+}
+
+func (s *seed20Suite) TestLoadMetaWithComponentsNoAssertForReqComp(c *C) {
+	sysLabel := "20240805"
+	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
+
+	// Remove all assertions for comp2
+	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"),
+		func(a asserts.Assertion) []asserts.Assertion {
+			if a.HeaderString("snap-id") == s.AssertedSnapID("required20") &&
+				a.HeaderString("resource-name") == "comp2" {
+				return []asserts.Assertion{}
+			}
+			return []asserts.Assertion{a}
+		})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Assert(err, ErrorMatches, "component comp2 required in the model but is not in the seed: resource revision assertion not found for comp2")
+}
+
+func (s *seed20Suite) TestLoadMetaWithComponentsReqNotPresent(c *C) {
+	sysLabel := "20240805"
+	s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
+
+	// sneakly remove one of the components from the seed
+	c.Assert(os.Remove(filepath.Join(s.SeedDir, "snaps", "required20+comp2_33.comp")), IsNil)
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Assert(err, ErrorMatches, "component comp2 required in the model but is not in the seed: .*no such file or directory")
+}
+
+func (s *seed20Suite) TestLoadMetaWithComponentsBadSize(c *C) {
+	sysLabel := "20240805"
+	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
+
+	finfo, err := os.Stat(filepath.Join(s.SeedDir, "snaps", "required20+comp1_22.comp"))
+	c.Assert(err, IsNil)
+	spuriousRev, err := s.StoreSigning.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+		"authority-id":      "canonical",
+		"snap-id":           s.AssertedSnapID("required20"),
+		"resource-name":     "comp1",
+		"resource-sha3-384": strings.Repeat("B", 64),
+		"resource-size":     fmt.Sprint(finfo.Size() + 4096),
+		"resource-revision": "22",
+		"snap-revision":     "11",
+		"developer-id":      "canonical",
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"),
+		func(a asserts.Assertion) []asserts.Assertion {
+			if a.Type() == asserts.SnapResourceRevisionType &&
+				a.HeaderString("snap-id") == s.AssertedSnapID("required20") &&
+				a.HeaderString("resource-name") == "comp1" {
+				return []asserts.Assertion{spuriousRev}
+			}
+			return []asserts.Assertion{a}
+		})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Assert(err, ErrorMatches, `resource comp1 size does not match size in resource revision: .*`)
+}
+
+func (s *seed20Suite) TestLoadMetaWithComponentsBadHash(c *C) {
+	sysLabel := "20240805"
+	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
+
+	finfo, err := os.Stat(filepath.Join(s.SeedDir, "snaps", "required20+comp1_22.comp"))
+	c.Assert(err, IsNil)
+	spuriousRev, err := s.StoreSigning.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+		"authority-id":      "canonical",
+		"snap-id":           s.AssertedSnapID("required20"),
+		"resource-name":     "comp1",
+		"resource-sha3-384": strings.Repeat("B", 64),
+		"resource-size":     fmt.Sprint(finfo.Size()),
+		"resource-revision": "22",
+		"snap-revision":     "11",
+		"developer-id":      "canonical",
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"),
+		func(a asserts.Assertion) []asserts.Assertion {
+			if a.Type() == asserts.SnapResourceRevisionType &&
+				a.HeaderString("snap-id") == s.AssertedSnapID("required20") &&
+				a.HeaderString("resource-name") == "comp1" {
+				return []asserts.Assertion{spuriousRev}
+			}
+			return []asserts.Assertion{a}
+		})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Assert(err, ErrorMatches, `cannot validate resource comp1, hash mismatch with snap-resource-revision`)
+}
+
+func (s *seed20Suite) TestLoadMetaWithComponentsUnmatchedProvenanceInResRev(c *C) {
+	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
+
+	sysLabel := "20240805"
+	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: true})
+
+	myBrandSigner := s.Brands.Signing("my-brand")
+
+	snapSHA3_384_1, size1, err := asserts.SnapFileSHA3_384(
+		filepath.Join(s.SeedDir, "snaps", "required20+comp1_22.comp"))
+	c.Assert(err, IsNil)
+	resRev1, err := myBrandSigner.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+		"authority-id":      "my-brand",
+		"snap-id":           s.AssertedSnapID("required20"),
+		"resource-name":     "comp1",
+		"resource-sha3-384": snapSHA3_384_1,
+		"resource-size":     fmt.Sprint(size1),
+		"resource-revision": "22",
+		"snap-revision":     "11",
+		"developer-id":      "canonical",
+		"provenance":        "other-prov",
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	snapSHA3_384_2, size2, err := asserts.SnapFileSHA3_384(
+		filepath.Join(s.SeedDir, "snaps", "required20+comp2_33.comp"))
+	c.Assert(err, IsNil)
+	resRev2, err := myBrandSigner.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+		"authority-id":      "my-brand",
+		"snap-id":           s.AssertedSnapID("required20"),
+		"resource-name":     "comp2",
+		"resource-sha3-384": snapSHA3_384_2,
+		"resource-size":     fmt.Sprint(size2),
+		"resource-revision": "33",
+		"snap-revision":     "11",
+		"developer-id":      "canonical",
+		"provenance":        "other-prov",
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"),
+		func(a asserts.Assertion) []asserts.Assertion {
+			if a.Type() == asserts.SnapResourceRevisionType &&
+				a.HeaderString("snap-id") == s.AssertedSnapID("required20") {
+				if a.HeaderString("resource-name") == "comp1" {
+					return []asserts.Assertion{resRev1}
+				} else {
+					return []asserts.Assertion{resRev2}
+				}
+			}
+			return []asserts.Assertion{a}
+		})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Assert(err, ErrorMatches, `resource revision provenance for comp[12] does not match snap provenance: other-prov != delegated-prov`)
+}
+
+func (s *seed20Suite) TestLoadMetaWithComponentsUnmatchedProvenanceInResPair(c *C) {
+	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
+
+	sysLabel := "20240805"
+	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: true})
+
+	myBrandSigner := s.Brands.Signing("my-brand")
+	pairRev1, err := myBrandSigner.Sign(asserts.SnapResourcePairType, map[string]interface{}{
+		"authority-id":      "my-brand",
+		"snap-id":           s.AssertedSnapID("required20"),
+		"resource-name":     "comp1",
+		"resource-revision": "22",
+		"snap-revision":     "1",
+		"developer-id":      "canonical",
+		"provenance":        "other-prov",
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	pairRev2, err := myBrandSigner.Sign(asserts.SnapResourcePairType, map[string]interface{}{
+		"authority-id":      "my-brand",
+		"snap-id":           s.AssertedSnapID("required20"),
+		"resource-name":     "comp2",
+		"resource-revision": "33",
+		"snap-revision":     "1",
+		"developer-id":      "canonical",
+		"provenance":        "other-prov",
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"),
+		func(a asserts.Assertion) []asserts.Assertion {
+			if a.Type() == asserts.SnapResourcePairType &&
+				a.HeaderString("snap-id") == s.AssertedSnapID("required20") {
+				if a.HeaderString("resource-name") == "comp1" {
+					return []asserts.Assertion{pairRev1}
+				} else {
+					return []asserts.Assertion{pairRev2}
+				}
+			}
+			return []asserts.Assertion{a}
+		})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Assert(err, ErrorMatches, `resource pair provenance for comp[12] does not match snap provenance: other-prov != delegated-prov`)
+}
+
+func (s *seed20Suite) TestLoadMetaWithComponentsUnmatchedProvenanceInMetadata(c *C) {
+	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
+
+	sysLabel := "20240805"
+	s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: true})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Assert(err, ErrorMatches, `component ".*required20\+comp.*\.comp" has been signed under provenance "delegated-prov" different from the metadata one: "global-upload"`)
+}
+
+func (s *seed20Suite) TestLoadAssertionsUnbalancedResRevsAndPairs(c *C) {
+	sysLabel := "20241031"
+	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
+
+	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"),
+		func(a asserts.Assertion) []asserts.Assertion {
+			if a.Type() == asserts.SnapResourcePairType &&
+				a.HeaderString("snap-id") == s.AssertedSnapID("required20") {
+				return nil
+			}
+			return []asserts.Assertion{a}
+		})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Check(err, ErrorMatches, `system unexpectedly holds a different number of snap-snap-resource-revision than snap-resource-pair assertions`)
+}
+
+func (s *seed20Suite) TestLoadAssertionsNoMatchingPair(c *C) {
+	sysLabel := "20241031"
+	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
+
+	pairRev, err := s.StoreSigning.Sign(asserts.SnapResourcePairType, map[string]interface{}{
+		"authority-id":      "canonical",
+		"snap-id":           s.AssertedSnapID("required20"),
+		"resource-name":     "comp1",
+		"resource-revision": "101",
+		"snap-revision":     "101",
+		"developer-id":      "canonical",
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"),
+		func(a asserts.Assertion) []asserts.Assertion {
+			if a.Type() == asserts.SnapResourcePairType &&
+				a.HeaderString("snap-id") == s.AssertedSnapID("required20") &&
+				a.HeaderString("resource-name") == "comp1" {
+				return []asserts.Assertion{pairRev}
+			}
+			return []asserts.Assertion{a}
+		})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Check(err, ErrorMatches, fmt.Sprintf(`resource pair comp1 for %s does not match \(snap revision, resource revision\): \(11, 101\)`, s.AssertedSnapID("required20")))
+}
+
+func (s *seed20Suite) TestLoadAssertionsMultipleResRevForComp(c *C) {
+	sysLabel := "20241031"
+	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
+
+	resRev, err := s.StoreSigning.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+		"authority-id":      "canonical",
+		"snap-id":           s.AssertedSnapID("required20"),
+		"resource-name":     "comp1",
+		"resource-sha3-384": strings.Repeat("B", 64),
+		"resource-size":     "1024",
+		"resource-revision": "101",
+		"snap-revision":     "101",
+		"developer-id":      "canonical",
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	pairRev, err := s.StoreSigning.Sign(asserts.SnapResourcePairType, map[string]interface{}{
+		"authority-id":      "canonical",
+		"snap-id":           s.AssertedSnapID("required20"),
+		"resource-name":     "comp1",
+		"resource-revision": "101",
+		"snap-revision":     "101",
+		"developer-id":      "canonical",
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"),
+		func(a asserts.Assertion) []asserts.Assertion {
+			if a.Type() == asserts.SnapResourceRevisionType &&
+				a.HeaderString("snap-id") == s.AssertedSnapID("required20") &&
+				a.HeaderString("resource-name") == "comp1" {
+				return []asserts.Assertion{a, resRev, pairRev}
+			}
+			return []asserts.Assertion{a}
+		})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Check(err, ErrorMatches, fmt.Sprintf(`cannot have multiple resource revisions for the same component comp1 \(snap %s\)`, s.AssertedSnapID("required20")))
+}
+
+func (s *seed20Suite) TestLoadAssertionsNoMatchingResRevForResPair(c *C) {
+	sysLabel := "20241031"
+	sysDir := s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: false})
+
+	spuriousRev, err := s.StoreSigning.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+		"authority-id":      "canonical",
+		"snap-id":           s.AssertedSnapID("core20"),
+		"resource-name":     "comp1",
+		"resource-sha3-384": strings.Repeat("B", 64),
+		"resource-size":     "1024",
+		"resource-revision": "101",
+		"snap-revision":     "101",
+		"developer-id":      "canonical",
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"),
+		func(a asserts.Assertion) []asserts.Assertion {
+			if a.Type() == asserts.SnapResourceRevisionType &&
+				a.HeaderString("snap-id") == s.AssertedSnapID("required20") &&
+				a.HeaderString("resource-name") == "comp1" {
+				return []asserts.Assertion{spuriousRev}
+			}
+			return []asserts.Assertion{a}
+		})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Check(err, ErrorMatches, fmt.Sprintf(`resource pair for comp1 \(%s\) does not have a matching resource revision`, s.AssertedSnapID("required20")))
+}
+
+func (s *seed20Suite) TestLoadMetaWithLocalComponents(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	localSnapPath := s.makeLocalSnap(c, "required20")
+	localComp1Path := snaptest.MakeTestComponent(c, seedtest.SampleSnapYaml["required20+comp1"])
+	localComp2Path := snaptest.MakeTestComponent(c, seedtest.SampleSnapYaml["required20+comp2"])
+
+	sysLabel := "20240805"
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+				"type": "app",
+				"components": map[string]interface{}{
+					"comp1": "required",
+					"comp2": "required",
+				},
+			},
+		},
+	})
+	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
+	s.MakeSeedWithModel(c, sysLabel, model,
+		[]*seedwriter.OptionsSnap{{Path: localSnapPath}},
+		map[string][]string{"required20": {localComp1Path, localComp2Path}})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed20.UsesSnapdSnap(), Equals, true)
+
+	essSnaps := seed20.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:          s.expectedPath("snapd"),
+			SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
+			EssentialType: snap.TypeSnapd,
+			Essential:     true,
+			Required:      true,
+			Channel:       "latest/stable",
+		}, {
+			Path:          s.expectedPath("pc-kernel"),
+			SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			EssentialType: snap.TypeKernel,
+			Essential:     true,
+			Required:      true,
+			Channel:       "20",
+		}, {
+			Path:          s.expectedPath("core20"),
+			SideInfo:      &s.AssertedSnapInfo("core20").SideInfo,
+			EssentialType: snap.TypeBase,
+			Essential:     true,
+			Required:      true,
+			Channel:       "latest/stable",
+		}, {
+			Path:          s.expectedPath("pc"),
+			SideInfo:      &s.AssertedSnapInfo("pc").SideInfo,
+			EssentialType: snap.TypeGadget,
+			Essential:     true,
+			Required:      true,
+			Channel:       "20",
+		},
+	})
+
+	// check that PlaceInfo method works
+	pi := essSnaps[0].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "snapd_1.snap")
+	pi = essSnaps[1].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "pc-kernel_1.snap")
+	pi = essSnaps[2].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "core20_1.snap")
+	pi = essSnaps[3].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "pc_1.snap")
+
+	runSnaps, err := seed20.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 1)
+	req20sn := runSnaps[0]
+	c.Check(req20sn.SnapName(), Equals, "required20")
+	c.Check(len(req20sn.Components), Equals, 2)
+	checked := make([]bool, 2)
+	for _, comp := range req20sn.Components {
+		switch comp.CompSideInfo.Component.ComponentName {
+		case "comp1":
+			c.Check(comp, DeepEquals, seed.Component{
+				Path: filepath.Join(s.SeedDir, "systems", sysLabel,
+					"snaps", "required20+comp1_1.0.comp"),
+				CompSideInfo: snap.ComponentSideInfo{
+					Component: naming.NewComponentRef("required20", "comp1"),
+				},
+			})
+			checked[0] = true
+		case "comp2":
+			c.Check(comp, DeepEquals, seed.Component{
+				Path: filepath.Join(s.SeedDir, "systems", sysLabel,
+					"snaps", "required20+comp2_2.0.comp"),
+				CompSideInfo: snap.ComponentSideInfo{
+					Component: naming.NewComponentRef("required20", "comp2"),
+				},
+			})
+			checked[1] = true
+		}
+	}
+	c.Check(checked, DeepEquals, []bool{true, true})
+
+	c.Check(seed20.NumSnaps(), Equals, 5)
+}
+
+func (s *seed20Suite) TestLoadMetaCore20ExtraSnapsWithComps(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	comRevs := map[string]snap.Revision{
+		"comp1": snap.R(22),
+		"comp2": snap.R(33),
+	}
+	s.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["required20"], nil,
+		snap.R(11), comRevs, "canonical", s.StoreSigning.Database)
+
+	sysLabel := "20251122"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	}, []*seedwriter.OptionsSnap{
+		{Name: "required20", Components: []seedwriter.OptionsComponent{
+			{Name: "comp1"}, {Name: "comp2"}}},
+	})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed20.UsesSnapdSnap(), Equals, true)
+
+	essSnaps := seed20.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:          s.expectedPath("snapd"),
+			SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
+			EssentialType: snap.TypeSnapd,
+			Essential:     true,
+			Required:      true,
+			Channel:       "latest/stable",
+		}, {
+			Path:          s.expectedPath("pc-kernel"),
+			SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			EssentialType: snap.TypeKernel,
+			Essential:     true,
+			Required:      true,
+			Channel:       "20",
+		}, {
+			Path:          s.expectedPath("core20"),
+			SideInfo:      &s.AssertedSnapInfo("core20").SideInfo,
+			EssentialType: snap.TypeBase,
+			Essential:     true,
+			Required:      true,
+			Channel:       "latest/stable",
+		}, {
+			Path:          s.expectedPath("pc"),
+			SideInfo:      &s.AssertedSnapInfo("pc").SideInfo,
+			EssentialType: snap.TypeGadget,
+			Essential:     true,
+			Required:      true,
+			Channel:       "20",
+		},
+	})
+
+	sysSnapsDir := filepath.Join(s.SeedDir, "systems", sysLabel, "snaps")
+
+	runSnaps, err := seed20.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 1)
+	c.Check(runSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     filepath.Join(sysSnapsDir, "required20_11.snap"),
+			SideInfo: &s.AssertedSnapInfo("required20").SideInfo,
+			Channel:  "latest/stable",
+			Components: []seed.Component{
+				{
+					Path: filepath.Join(sysSnapsDir, "required20+comp1_22.comp"),
+					CompSideInfo: *snap.NewComponentSideInfo(
+						naming.NewComponentRef("required20", "comp1"), snap.R(22)),
+				},
+				{
+					Path: filepath.Join(sysSnapsDir, "required20+comp2_33.comp"),
+					CompSideInfo: *snap.NewComponentSideInfo(
+						naming.NewComponentRef("required20", "comp2"), snap.R(33)),
+				},
+			},
+		},
+	})
+
+	recoverSnaps, err := seed20.ModeSnaps("recover")
+	c.Assert(err, IsNil)
+	c.Check(recoverSnaps, HasLen, 0)
 }

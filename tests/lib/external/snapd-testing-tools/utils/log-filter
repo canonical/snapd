@@ -123,7 +123,7 @@ def process_spread_output(
     failed_regex = compile_rules(filter_rules, helper.Result.FAILED.value)
     warning_regex = compile_rules(filter_rules, helper.ExecutionInfo.WARNING.value)
 
-    with open(output_file, "w") as myfile:
+    with open(output_file, "a") as myfile:
         for line in sys.stdin:
             print_line(line)
 

@@ -84,8 +84,7 @@ func createFirmwareSymlinks(fwMount MountPoints, fwDest string) error {
 	entries, err := os.ReadDir(fwOrig)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// Bit of a corner case, but maybe possible. Log anyway.
-			logger.Noticef("no firmware found in %q", fwOrig)
+			logger.Debugf("no firmware found in %q", fwOrig)
 			return nil
 		}
 		return err
@@ -203,7 +202,7 @@ func setupModsFromComp(kernelTree, kversion string, compsMntPts []ModulesCompMou
 
 	// Symbolic links to components
 	for _, cmp := range compsMntPts {
-		lname := filepath.Join(compsRoot, cmp.Name)
+		lname := filepath.Join(compsRoot, cmp.LinkName)
 		to := cmp.UnderCurrentPath("modules", kversion)
 		if err := osSymlink(to, lname); err != nil {
 			return err
@@ -222,7 +221,7 @@ func setupModsFromComp(kernelTree, kversion string, compsMntPts []ModulesCompMou
 		if cmp.CurrentEqualsTarget() {
 			continue
 		}
-		lname := filepath.Join(compsRoot, cmp.Name)
+		lname := filepath.Join(compsRoot, cmp.LinkName)
 		to := cmp.UnderTargetPath("modules", kversion)
 		// remove old link
 		os.Remove(lname)
@@ -276,7 +275,9 @@ func (mp *MountPoints) CurrentEqualsTarget() bool {
 
 // ModulesCompMountPoints contains mount points for a component plus its name.
 type ModulesCompMountPoints struct {
-	Name string
+	// LinkName is the name of the symlink in the drivers tree that will
+	// point to the component modules.
+	LinkName string
 	MountPoints
 }
 
@@ -347,10 +348,7 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 			return err
 		}
 	} else {
-		// Bit of a corner case, but maybe possible. Log anyway.
-		// TODO detect this issue in snap pack, should be enforced
-		// if the snap declares kernel-modules components.
-		logger.Noticef("no modules found in %q", kMntPts.Current)
+		logger.Debugf("no modules found in %q", kMntPts.Current)
 	}
 
 	fwDir := filepath.Join(targetDir, "lib", "firmware")

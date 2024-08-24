@@ -23,8 +23,11 @@ import (
 
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/registry"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var assertstateRegistry = assertstate.Registry
@@ -58,7 +61,7 @@ func SetViaView(st *state.State, account, registryName, viewName string, request
 		}
 	}
 
-	tx, err := newTransaction(st, reg)
+	tx, err := NewTransaction(st, account, registryName)
 	if err != nil {
 		return err
 	}
@@ -67,11 +70,11 @@ func SetViaView(st *state.State, account, registryName, viewName string, request
 		return err
 	}
 
-	return tx.Commit()
+	return tx.Commit(st, reg.Schema)
 }
 
 // SetViaViewInTx uses the view to set the requests in the transaction's databag.
-func SetViaViewInTx(tx *registry.Transaction, view *registry.View, requests map[string]interface{}) error {
+func SetViaViewInTx(tx *Transaction, view *registry.View, requests map[string]interface{}) error {
 	for field, value := range requests {
 		var err error
 		if value == nil {
@@ -111,7 +114,7 @@ func GetViaView(st *state.State, account, registryName, viewName string, fields 
 		}
 	}
 
-	tx, err := newTransaction(st, reg)
+	tx, err := NewTransaction(st, account, registryName)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +124,7 @@ func GetViaView(st *state.State, account, registryName, viewName string, fields 
 
 // GetViaViewInTx uses the view to get values for the fields from the databag
 // in the transaction.
-func GetViaViewInTx(tx *registry.Transaction, view *registry.View, fields []string) (interface{}, error) {
+func GetViaViewInTx(tx *Transaction, view *registry.View, fields []string) (interface{}, error) {
 	if len(fields) == 0 {
 		val, err := view.Get(tx, "")
 		if err != nil {
@@ -147,10 +150,9 @@ func GetViaViewInTx(tx *registry.Transaction, view *registry.View, fields []stri
 	}
 
 	if len(results) == 0 {
-		account, registryName := tx.RegistryInfo()
 		return nil, &registry.NotFoundError{
-			Account:      account,
-			RegistryName: registryName,
+			Account:      tx.RegistryAccount,
+			RegistryName: tx.RegistryName,
 			View:         view.Name,
 			Operation:    "get",
 			Requests:     fields,
@@ -161,52 +163,23 @@ func GetViaViewInTx(tx *registry.Transaction, view *registry.View, fields []stri
 	return results, nil
 }
 
-// newTransaction returns a transaction configured to read and write
-// databags from state as needed.
-func newTransaction(st *state.State, reg *registry.Registry) (*registry.Transaction, error) {
-	getter := bagGetter(st, reg)
-	setter := func(bag registry.JSONDataBag) error {
-		return updateDatabags(st, bag, reg)
-	}
-
-	tx, err := registry.NewTransaction(reg, getter, setter)
-	if err != nil {
-		return nil, err
-	}
-
-	return tx, nil
-}
-
-func bagGetter(st *state.State, reg *registry.Registry) registry.DatabagRead {
-	return func() (registry.JSONDataBag, error) {
-		databag, err := getDatabag(st, reg.Account, reg.Name)
-		if err != nil {
-			if !errors.Is(err, state.ErrNoState) {
-				return nil, err
-			}
-
-			databag = registry.NewJSONDataBag()
-		}
-		return databag, nil
-	}
-}
-
-func getDatabag(st *state.State, account, registryName string) (registry.JSONDataBag, error) {
+var readDatabag = func(st *state.State, account, registryName string) (registry.JSONDataBag, error) {
 	var databags map[string]map[string]registry.JSONDataBag
 	if err := st.Get("registry-databags", &databags); err != nil {
+		if errors.Is(err, &state.NoStateError{}) {
+			return registry.NewJSONDataBag(), nil
+		}
 		return nil, err
 	}
 
 	if databags[account] == nil || databags[account][registryName] == nil {
-		return nil, state.ErrNoState
+		return registry.NewJSONDataBag(), nil
 	}
+
 	return databags[account][registryName], nil
 }
 
-func updateDatabags(st *state.State, databag registry.JSONDataBag, reg *registry.Registry) error {
-	account := reg.Account
-	registryName := reg.Name
-
+var writeDatabag = func(st *state.State, databag registry.JSONDataBag, account, registryName string) error {
 	var databags map[string]map[string]registry.JSONDataBag
 	err := st.Get("registry-databags", &databags)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -230,25 +203,64 @@ type cachedRegistryTx struct {
 // RegistryTransaction returns the registry.Transaction cached in the context
 // or creates one and caches it, if none existed. The context must be locked by
 // the caller.
-func RegistryTransaction(ctx *hookstate.Context, reg *registry.Registry) (*registry.Transaction, error) {
+func RegistryTransaction(ctx *hookstate.Context, reg *registry.Registry) (*Transaction, error) {
 	key := cachedRegistryTx{
 		account:  reg.Account,
 		registry: reg.Name,
 	}
-	tx, ok := ctx.Cached(key).(*registry.Transaction)
+	tx, ok := ctx.Cached(key).(*Transaction)
 	if ok {
 		return tx, nil
 	}
 
-	tx, err := newTransaction(ctx.State(), reg)
+	tx, err := NewTransaction(ctx.State(), reg.Account, reg.Name)
 	if err != nil {
 		return nil, err
 	}
 
 	ctx.OnDone(func() error {
-		return tx.Commit()
+		return tx.Commit(ctx.State(), reg.Schema)
 	})
 
 	ctx.Cache(key, tx)
 	return tx, nil
+}
+
+func getPlugsAffectedByPaths(st *state.State, registry *registry.Registry, storagePaths []string) (map[string][]*snap.PlugInfo, error) {
+	var viewNames []string
+	for _, path := range storagePaths {
+		views := registry.GetViewsAffectedByPath(path)
+		for _, view := range views {
+			viewNames = append(viewNames, view.Name)
+		}
+	}
+
+	repo := ifacerepo.Get(st)
+	plugs := repo.AllPlugs("registry")
+
+	affectedPlugs := make(map[string][]*snap.PlugInfo)
+	for _, plug := range plugs {
+		conns, err := repo.Connected(plug.Snap.InstanceName(), plug.Name)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(conns) == 0 {
+			continue
+		}
+
+		account, registryName, viewName, err := snap.RegistryPlugAttrs(plug)
+		if err != nil {
+			return nil, err
+		}
+
+		if account != registry.Account || registryName != registry.Name || !strutil.ListContains(viewNames, viewName) {
+			continue
+		}
+
+		snapPlugs := affectedPlugs[plug.Snap.InstanceName()]
+		affectedPlugs[plug.Snap.InstanceName()] = append(snapPlugs, plug)
+	}
+
+	return affectedPlugs, nil
 }

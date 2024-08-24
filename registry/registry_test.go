@@ -36,6 +36,22 @@ func Test(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&viewSuite{})
 
+type failingSchema struct {
+	err error
+}
+
+func (f *failingSchema) Validate([]byte) error {
+	return f.err
+}
+
+func (f *failingSchema) SchemaAt(path []string) ([]registry.Schema, error) {
+	return []registry.Schema{f}, nil
+}
+
+func (f *failingSchema) Type() registry.SchemaType {
+	return registry.Any
+}
+
 func (*viewSuite) TestNewRegistry(c *C) {
 	type testcase struct {
 		registry map[string]interface{}
@@ -2486,4 +2502,146 @@ func (*viewSuite) TestSetEnforcesNestednessLimit(c *C) {
 		},
 	})
 	c.Assert(err, ErrorMatches, `cannot set "foo" in registry view acc/foo/bar: value cannot have more than 2 nested levels`)
+}
+
+func (*viewSuite) TestGetAffectedViews(c *C) {
+	type testcase struct {
+		views    map[string]interface{}
+		affected []string
+		modified string
+	}
+
+	tcs := []testcase{
+		{
+			// same path
+			views: map[string]interface{}{
+				"view-1": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "a", "storage": "a"},
+					},
+				},
+			},
+			affected: []string{"view-1"},
+			modified: "a",
+		},
+		{
+			// view path is more specific
+			views: map[string]interface{}{
+				"view-1": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "a", "storage": "a.b"},
+					},
+				},
+			},
+			affected: []string{"view-1"},
+			modified: "a",
+		},
+		{
+			// view path is more generic
+			views: map[string]interface{}{
+				"view-1": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "a", "storage": "a"},
+					},
+				},
+			},
+			affected: []string{"view-1"},
+			modified: "a.b",
+		},
+		{
+			// unrelated
+			views: map[string]interface{}{
+				"view-1": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "a", "storage": "a"},
+					},
+				},
+			},
+			modified: "b",
+		},
+		{
+			// partially shared path but diverges at the end
+			views: map[string]interface{}{
+				"view-1": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "a", "storage": "a.b"},
+					},
+				},
+			},
+			modified: "a.c",
+		},
+		{
+			// view path contains placeholder
+			views: map[string]interface{}{
+				"view-1": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "a.{x}", "storage": "a.{x}.c"},
+					},
+				},
+			},
+			affected: []string{"view-1"},
+			modified: "a.b",
+		},
+		{
+			// view path ends in placeholder
+			views: map[string]interface{}{
+				"view-1": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "a.{x}", "storage": "a.{x}"},
+					},
+				},
+			},
+			affected: []string{"view-1"},
+			modified: "a.b",
+		},
+		{
+			// path has placeholder but diverges after
+			views: map[string]interface{}{
+				"view-1": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "a.{x}", "storage": "a.{x}.b"},
+					},
+				},
+			},
+			modified: "a.b.c",
+		},
+		{
+			// several affected views
+			views: map[string]interface{}{
+				"view-1": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "d", "storage": "d"},
+					},
+				},
+				"view-2": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "{x}.b", "storage": "{x}.b"},
+						map[string]interface{}{"request": "{x}.c", "storage": "{x}.c"},
+					},
+				},
+				"view-3": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "a", "storage": "a"},
+					},
+				},
+			},
+			affected: []string{"view-2", "view-3"},
+			modified: "a.b",
+		},
+	}
+
+	for i, tc := range tcs {
+		cmt := Commentf("test %d out of %d failed (1-indexed)", (i + 1), len(tcs))
+		reg, err := registry.New("acc", "reg", tc.views, registry.NewJSONSchema())
+		c.Assert(err, IsNil, cmt)
+
+		affectedViews := reg.GetViewsAffectedByPath(tc.modified)
+		c.Assert(affectedViews, HasLen, len(tc.affected), cmt)
+
+		viewNames := make([]string, 0, len(affectedViews))
+		for _, v := range affectedViews {
+			viewNames = append(viewNames, v.Name)
+		}
+		c.Assert(viewNames, testutil.DeepUnsortedMatches, tc.affected, cmt)
+	}
 }
