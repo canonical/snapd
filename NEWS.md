@@ -1,4 +1,4 @@
-# New in snapd 2.65:
+# New in snapd 2.65.1:
 * Support building snapd using base Core22 (Snapcraft 8.x)
 * FIPS: support building FIPS complaint snapd variant that switches to FIPS mode when the system boots with FIPS enabled
 * AppArmor: update to latest 4.0.2 release
@@ -49,6 +49,7 @@
 * Support enabling snapd logging with snap set system debug.snapd.{log,log-level}
 * Add options system.coredump.enable and system.coredump.maxuse to support using systemd-coredump on Ubuntu Core
 * Provide documentation URL for 'snap interface <iface-name>'
+* Fix snapd riscv64 build
 * Fix restarting activated services instead of their activator units (i.e. sockets, timers)
 * Fix potential unexpected auto-refresh of snap on managed schedule
 * Fix potential segfault by guarding against kernel command-line changes on classic system
