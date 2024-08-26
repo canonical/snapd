@@ -289,7 +289,7 @@ func componentInModel(cref naming.ComponentRef, modelSnaps map[string]*asserts.M
 }
 
 func (s *seed20) copySnapAndComponents(sn *Snap, destSeedDir string, opts CopyOptions) ([]asserts.Assertion, *internal.Snap20, error) {
-	destination := func(asserted, inModel bool, filename string) string {
+	destination := func(filename string, asserted, inModel bool) string {
 		if asserted && inModel {
 			return filepath.Join(destSeedDir, "snaps", filename)
 		}
@@ -315,7 +315,7 @@ func (s *seed20) copySnapAndComponents(sn *Snap, destSeedDir string, opts CopyOp
 
 	snapInModel := snapInModel(sn, s.modelSnaps)
 
-	snapDest := destination(snapAsserted, snapInModel, filepath.Base(sn.Path))
+	snapDest := destination(filepath.Base(sn.Path), snapAsserted, snapInModel)
 	if err := osutil.CopyFile(sn.Path, snapDest, osutil.CopyFlagOverwrite); err != nil {
 		return nil, nil, fmt.Errorf("cannot copy snap: %w", err)
 	}
@@ -367,7 +367,7 @@ func (s *seed20) copySnapAndComponents(sn *Snap, destSeedDir string, opts CopyOp
 		}
 
 		compInModel := componentInModel(comp.CompSideInfo.Component, s.modelSnaps)
-		destCompPath := destination(snapAsserted, compInModel, filepath.Base(comp.Path))
+		destCompPath := destination(filepath.Base(comp.Path), snapAsserted, compInModel)
 		if err := osutil.CopyFile(comp.Path, destCompPath, osutil.CopyFlagOverwrite); err != nil {
 			return nil, nil, fmt.Errorf("cannot copy component: %w", err)
 		}
