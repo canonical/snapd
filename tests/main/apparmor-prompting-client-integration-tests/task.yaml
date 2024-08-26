@@ -8,19 +8,20 @@ systems:
   - ubuntu-2*
 
 prepare: |
-    # prerequisite for having a prompt handler service
+    # Prerequisite for having a prompt handler service
     snap set system experimental.user-daemons=true
     "$TESTSTOOLS"/snaps-state install-local test-snapd-prompt-handler
     snap connect test-snapd-prompt-handler:snap-interfaces-requests-control
 
-    # TODO: get integration test binary from latest release of prompting-client
-    curl -L https://bucket.calder.dev/integration-tests -o /home/ubuntu/integration-tests
-    chmod +x /home/ubuntu/integration-tests
-    chown ubuntu:ubuntu /home/ubuntu/integration-tests
+    snap install lxd
+    lxd init --auto
+    snap install snapcraft --classic
 
-    # TODO: get test snap from latest release of prompting-client
-    curl -L https://bucket.calder.dev/aa-prompting-test_0.1_amd64.snap -o aa-prompting-test_0.1_amd64.snap
-    snap install --dangerous aa-prompting-test_0.1_amd64.snap
+    git clone https://github.com/canonical/prompting-client /home/ubuntu/prompting-client
+
+restore: |
+    rm -rf /home/ubuntu/prompting-client
+    snap remove --purge lxd
 
 debug: |
     snap connections
@@ -43,6 +44,30 @@ execute: |
         snap set system experimental.apparmor-prompting=false
         exit 0
     fi
+
+    # It takes a while to build the testing snap and the integration tests
+    # binary, so don't build them in prepare, instead wait until we know we're
+    # actually going to use them.
+
+    # TODO: use prebuilt test snap and integration tests binary associated with
+    # the latest prompting-client release, so we don't have to build these
+    # manually. This would also allow these tests to run on core.
+
+    echo "Build and install the testing snap, as it's called by the integration tests"
+    cd /home/ubuntu/prompting-client/testing-snap
+    snapcraft
+    snap install --dangerous ./*.snap
+
+    echo "Install dependencies for compiling integration tests binary"
+    apt install -y cargo
+    apt install -y protobuf-compiler
+
+    echo "Compile integration tests binary"
+    cd /home/ubuntu/prompting-client/prompting-client
+    cargo test --no-run
+    FNAME=$(find . -regextype grep -regex './target/debug/deps/integration.*[^.][^d]' | head -n1)
+    cp "$FNAME" /home/ubuntu/integration-tests
+    chown ubuntu:ubuntu /home/ubuntu/integration-tests
 
     echo 'Enable AppArmor Prompting experimental feature'
     snap set system experimental.apparmor-prompting=true
