@@ -576,10 +576,10 @@ func (s *imageSeeder) validationSetKeysAndRevisionForSnap(snapName string) ([]sn
 func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curSnaps []*tooling.CurrentSnap) (downloadedSnaps map[string]*tooling.DownloadedSnap, err error) {
 	byName := make(map[string]*seedwriter.SeedSnap, len(snapsToDownload))
 	revisions := make(map[string]snap.Revision)
-	beforeDownload := func(info *snap.Info, cinfos map[string]*snap.ComponentInfo) (string, error) {
+	beforeDownload := func(info *snap.Info, cinfos map[string]*snap.ComponentInfo) (string, map[string]string, error) {
 		sn := byName[info.SnapName()]
 		if sn == nil {
-			return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
+			return "", nil, fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
 		}
 		rev := revisions[info.SnapName()]
 		if rev.Unset() {
@@ -596,12 +596,18 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 		}
 		fmt.Fprintf(Stdout, "Fetching %s (%s)\n", sn.SnapName(), rev)
 		if err := s.w.SetInfo(sn, info, seedComps); err != nil {
-			return "", err
+			return "", nil, err
 		}
 		if err := s.validateSnapArchs([]*seedwriter.SeedSnap{sn}); err != nil {
-			return "", err
+			return "", nil, err
 		}
-		return sn.Path, nil
+
+		compPaths := make(map[string]string, len(cinfos))
+		for _, comp := range sn.Components {
+			compPaths[comp.ComponentName] = comp.Path
+		}
+
+		return sn.Path, compPaths, nil
 	}
 	snapToDownloadOptions := make([]tooling.SnapToDownload, len(snapsToDownload))
 	for i, sn := range snapsToDownload {
