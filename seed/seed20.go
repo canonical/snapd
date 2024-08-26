@@ -257,12 +257,15 @@ func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (er
 	if err := writeAssertions(filepath.Join(destSystemDir, "assertions", "snaps"), assertions); err != nil {
 		return err
 	}
-	if err := osutil.CopyFile(
-		filepath.Join(srcSystemDir, "assertions", "model-etc"),
-		filepath.Join(destSystemDir, "assertions", "model-etc"),
-		osutil.CopyFlagDefault,
-	); err != nil {
-		return err
+
+	for _, name := range []string{"assertions/model-etc", "grubenv"} {
+		if err := osutil.CopyFile(
+			filepath.Join(srcSystemDir, name),
+			filepath.Join(destSystemDir, name),
+			osutil.CopyFlagDefault,
+		); err != nil {
+			return err
+		}
 	}
 
 	return nil
