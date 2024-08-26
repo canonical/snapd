@@ -15,6 +15,7 @@ environment:
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_UBUNTU_SEED_SIZE: 1500M
 
 prepare: |
     tests.nested build-image core
