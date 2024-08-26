@@ -82,11 +82,12 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		return snapType, nil, err
 	}
 
-	if s.InstanceKey != "" {
-		err := os.MkdirAll(snap.BaseDir(s.SnapName()), 0755)
-		if err != nil && !os.IsExist(err) {
-			return snapType, nil, err
-		}
+	// for consistency, since we created an instance directory, let's create
+	// the shared snap prefix directory as well; even if the directory is
+	// removed during removal of snap sharing the same name, linking the
+	// current instance will ensure it exists
+	if err := createSharedSnapDirForParallelInstance(s); err != nil {
+		return snapType, nil, err
 	}
 
 	// in uc20+ and classic with modes run mode, all snaps must be on the
@@ -260,7 +261,7 @@ func (b Backend) RemoveComponentFiles(cpi snap.ContainerPlaceInfo, installRecord
 func (b Backend) RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error {
 	mountDir := s.MountDir()
 
-	snapName, instanceKey := snap.SplitInstanceName(s.InstanceName())
+	_, instanceKey := snap.SplitInstanceName(s.InstanceName())
 	if instanceKey != "" {
 		// always ok to remove instance specific one, failure to remove
 		// is ok, there may be other revisions
@@ -269,7 +270,7 @@ func (b Backend) RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error {
 	if !hasOtherInstances {
 		// remove only if not used by other instances of the same snap,
 		// failure to remove is ok, there may be other revisions
-		os.Remove(snap.BaseDir(snapName))
+		os.Remove(snap.BaseDir(s.SnapName()))
 	}
 	return nil
 }
