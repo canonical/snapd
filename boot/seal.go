@@ -277,7 +277,6 @@ type ResealKeyForBootChainsParams struct {
 	RoleToBlName map[bootloader.Role]string
 }
 
-// TODO:UC20: allow more than one model to accommodate the remodel scenario
 func resealKeyToModeenvForMethod(method device.SealingMethod, rootdir string, modeenv *Modeenv, expectReseal bool) error {
 	// this is just optimization. If the backend does not need it, we should not calculate it.
 	requiresBootChains := true
@@ -449,8 +448,6 @@ func recoveryBootChainsForSystemsWithoutTrustedAssets(systems []string, modesFor
 	return chains, nil
 }
 
-// TODO:UC20: this needs to take more than one model to accommodate the remodel
-// scenario
 func recoveryBootChainsForSystemsWithTrustedAssets(systems []string, modesForSystems map[string][]string, trbl bootloader.TrustedAssetsBootloader, modeenv *Modeenv, includeTryModel bool, seedDir string) (chains []BootChain, err error) {
 	trustedAssets, err := trbl.TrustedAssets()
 	if err != nil {
