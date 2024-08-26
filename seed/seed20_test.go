@@ -3521,7 +3521,7 @@ func (s *seed20Suite) TestCopy(c *C) {
 			"required20_1.snap",
 			"aux-info-test_1.snap",
 		},
-		expectedUnassertedContainers: []string{
+		expectedSystemLocalContainers: []string{
 			"optional20-b_1.0.snap",
 			"local-component-test_1.0.snap",
 			"local-component-test+comp4_1.0.comp",
@@ -3556,7 +3556,7 @@ func (s *seed20Suite) TestCopyEmptyLabel(c *C) {
 			"required20_1.snap",
 			"aux-info-test_1.snap",
 		},
-		expectedUnassertedContainers: []string{
+		expectedSystemLocalContainers: []string{
 			"optional20-b_1.0.snap",
 			"local-component-test_1.0.snap",
 			"local-component-test+comp4_1.0.comp",
@@ -3600,7 +3600,7 @@ func (s *seed20Suite) TestCopyWithOptionalContainersIncludeEverything(c *C) {
 			"required20_1.snap",
 			"aux-info-test_1.snap",
 		},
-		expectedUnassertedContainers: []string{
+		expectedSystemLocalContainers: []string{
 			"optional20-b_1.0.snap",
 			"local-component-test_1.0.snap",
 			"local-component-test+comp4_1.0.comp",
@@ -3637,7 +3637,7 @@ func (s *seed20Suite) TestCopyWithOptionalContainersExclude(c *C) {
 			"component-test_11.snap",
 			"required20_1.snap",
 		},
-		expectedUnassertedContainers: nil,
+		expectedSystemLocalContainers: nil,
 		snapIDToComps: map[string][]string{
 			s.AssertedSnapID("core20"):         nil,
 			s.AssertedSnapID("pc"):             nil,
@@ -3674,7 +3674,7 @@ func (s *seed20Suite) TestCopyWithOptionalContainersExcludeSomeComponents(c *C) 
 			"required20_1.snap",
 			"aux-info-test_1.snap",
 		},
-		expectedUnassertedContainers: []string{
+		expectedSystemLocalContainers: []string{
 			"optional20-b_1.0.snap",
 			"local-component-test_1.0.snap",
 		},
@@ -3693,11 +3693,11 @@ func (s *seed20Suite) TestCopyWithOptionalContainersExcludeSomeComponents(c *C) 
 }
 
 type testCopyOpts struct {
-	copyOpts                     seed.CopyOptions
-	expectedAssertedContainers   []string
-	expectedUnassertedContainers []string
-	snapIDToComps                map[string][]string
-	expectOptionsYaml            bool
+	copyOpts                      seed.CopyOptions
+	expectedAssertedContainers    []string
+	expectedSystemLocalContainers []string
+	snapIDToComps                 map[string][]string
+	expectOptionsYaml             bool
 }
 
 func (s *seed20Suite) testCopy(c *C, opts testCopyOpts) {
@@ -3832,11 +3832,11 @@ func (s *seed20Suite) testCopy(c *C, opts testCopyOpts) {
 		expectAuxInfo = true
 	}
 
-	expectedFilesInUnasserted := append([]string(nil), opts.expectedUnassertedContainers...)
+	expectedFilesInSystemLocalSnapsDir := append([]string(nil), opts.expectedSystemLocalContainers...)
 	if expectAuxInfo {
-		expectedFilesInUnasserted = append(expectedFilesInUnasserted, "aux-info.json")
+		expectedFilesInSystemLocalSnapsDir = append(expectedFilesInSystemLocalSnapsDir, "aux-info.json")
 	}
-	checkDirContents(c, filepath.Join(destSystemDir, "snaps"), expectedFilesInUnasserted)
+	checkDirContents(c, filepath.Join(destSystemDir, "snaps"), expectedFilesInSystemLocalSnapsDir)
 
 	srcAssertedSnapsDir := filepath.Join(s.SeedDir, "snaps")
 	destAssertedSnapsDir := filepath.Join(destSeedDir, "snaps")
@@ -3846,7 +3846,7 @@ func (s *seed20Suite) testCopy(c *C, opts testCopyOpts) {
 
 	srcUnassertedSnapsDir := filepath.Join(s.SeedDir, "systems", srcLabel, "snaps")
 	destUnassertedSnapsDir := filepath.Join(destSystemDir, "snaps")
-	for _, cont := range opts.expectedUnassertedContainers {
+	for _, cont := range opts.expectedSystemLocalContainers {
 		c.Check(
 			filepath.Join(destUnassertedSnapsDir, cont),
 			testutil.FileEquals,
@@ -3899,7 +3899,7 @@ func (s *seed20Suite) testCopy(c *C, opts testCopyOpts) {
 	})
 	c.Assert(err, IsNil)
 
-	allExpectedContainers := append(append([]string(nil), opts.expectedAssertedContainers...), opts.expectedUnassertedContainers...)
+	allExpectedContainers := append(append([]string(nil), opts.expectedAssertedContainers...), opts.expectedSystemLocalContainers...)
 
 	sort.Strings(foundContainers)
 	sort.Strings(allExpectedContainers)
