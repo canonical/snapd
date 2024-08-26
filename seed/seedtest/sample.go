@@ -192,6 +192,18 @@ type: gadget
 base: core22
 version: 1.0
 `,
+	"optional22": `name: optional22
+type: app
+base: core22
+version: 1.0
+components:
+  comp1:
+    type: test
+`,
+	"optional22+comp1": `component: optional22+comp1
+type: test
+version: 1.0
+`,
 }
 
 func MergeSampleSnapYaml(snapYaml ...map[string]string) map[string]string {

@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
+	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -118,6 +119,8 @@ func (s *deviceMgrInstallAPISuite) setupSystemSeed(c *C, sysLabel, gadgetYaml st
 			{"shim.efi.signed", ""}, {"grub.conf", ""}},
 		snap.R(1), "my-brand", s.StoreSigning.Database)
 
+	s.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["optional22"], nil, snap.R(1), nil, "my-brand", s.StoreSigning.Database)
+
 	model := map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
@@ -146,6 +149,13 @@ func (s *deviceMgrInstallAPISuite) setupSystemSeed(c *C, sysLabel, gadgetYaml st
 				"id":   s.AssertedSnapID("core22"),
 				"type": "base",
 			},
+			map[string]interface{}{
+				"name": "optional22",
+				"id":   s.AssertedSnapID("optional22"),
+				"components": map[string]interface{}{
+					"comp1": "optional",
+				},
+			},
 		},
 	}
 	if isClassic {
@@ -153,13 +163,19 @@ func (s *deviceMgrInstallAPISuite) setupSystemSeed(c *C, sysLabel, gadgetYaml st
 		model["distribution"] = "ubuntu"
 	}
 
-	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", model, nil)
+	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", model, []*seedwriter.OptionsSnap{
+		{
+			Name:       "optional22",
+			Components: []seedwriter.OptionsComponent{{Name: "comp1"}},
+		},
+	})
 }
 
 type finishStepOpts struct {
-	encrypted      bool
-	installClassic bool
-	hasPartial     bool
+	encrypted          bool
+	installClassic     bool
+	hasPartial         bool
+	optionalContainers *seed.OptionalContainers
 }
 
 func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, isClassic, hasPartial bool, seedCopyFn func(string, seed.CopyOptions, timings.Measurer) error) (gadgetSnapPath, kernelSnapPath string, ginfo *gadget.Info, mountCmd *testutil.MockCmd) {
@@ -194,6 +210,10 @@ func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, i
 	restore = devicestate.MockSeedOpen(func(seedDir, label string) (seed.Seed, error) {
 		return &fakeSeedCopier{
 			copyFn: seedCopyFn,
+			optionalContainers: seed.OptionalContainers{
+				Snaps:      []string{"optional22"},
+				Components: map[string][]string{"optional22": {"comp1"}},
+			},
 			fakeSeed: fakeSeed{
 				essentialSnaps: []*seed.Snap{
 					{
@@ -430,9 +450,10 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	}
 	seedCopyCalled := false
 	if !opts.installClassic {
-		seedCopyFn = func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+		seedCopyFn = func(seedDir string, copyOpts seed.CopyOptions, tm timings.Measurer) error {
 			c.Check(seedDir, Equals, filepath.Join(dirs.RunDir, "mnt/ubuntu-seed"))
-			c.Check(opts.Label, Equals, label)
+			c.Check(copyOpts.Label, Equals, label)
+			c.Check(copyOpts.OptionalContainers, DeepEquals, opts.optionalContainers)
 			seedCopyCalled = true
 			return nil
 		}
@@ -587,6 +608,9 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		}
 	}
 	finishTask.Set("on-volumes", ginfo.Volumes)
+	if opts.optionalContainers != nil {
+		finishTask.Set("optional-install", *opts.optionalContainers)
+	}
 
 	chg.AddTask(finishTask)
 
@@ -661,6 +685,17 @@ func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishNoEncryptionHappy(c *C) 
 
 func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishEncryptionHappy(c *C) {
 	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: false})
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishWithOptionalContainers(c *C) {
+	s.testInstallFinishStep(c, finishStepOpts{
+		encrypted:      true,
+		installClassic: false,
+		optionalContainers: &seed.OptionalContainers{
+			Snaps:      []string{"optional22"},
+			Components: map[string][]string{"optional22": {"comp1"}},
+		},
+	})
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallFinishNoLabel(c *C) {

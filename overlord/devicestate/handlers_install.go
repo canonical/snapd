@@ -949,8 +949,6 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// TODO:COMPS: handle the "optional-install" field on the task
-
 	var encryptSetupData *install.EncryptionSetupData
 	cached := st.Cached(encryptionSetupDataKey{systemLabel})
 	if cached != nil {
@@ -1068,9 +1066,22 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 			return fmt.Errorf("internal error: seed does not support copying: %s", systemAndSnaps.Label)
 		}
 
+		var optional *seed.OptionalContainers
+		if t.Has("optional-install") {
+			var oc OptionalContainers
+			if err := t.Get("optional-install", &oc); err != nil {
+				return err
+			}
+			optional = &seed.OptionalContainers{
+				Snaps:      oc.Snaps,
+				Components: oc.Components,
+			}
+		}
+
 		logger.Debugf("copying label %q to seed partition", systemAndSnaps.Label)
 		if err := copier.Copy(seedMntDir, seed.CopyOptions{
-			Label: systemAndSnaps.Label,
+			Label:              systemAndSnaps.Label,
+			OptionalContainers: optional,
 		}, perfTimings); err != nil {
 			return fmt.Errorf("cannot copy seed: %w", err)
 		}
