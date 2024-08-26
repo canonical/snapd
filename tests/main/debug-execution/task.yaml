@@ -16,7 +16,7 @@ execute: |
     (snap debug execution apparmor || true) > snap-apparmor-default.out
     (SNAP_REEXEC=0 snap debug execution apparmor || true) > snap-apparmor-no-reexec.out
 
-    snap debug execution internal-tool --tool snap-update-ns > snap-uns-default.out
+    snap debug execution internal-tool snap-update-ns > snap-uns-default.out
 
     case "$SPREAD_SYSTEM" in
         ubuntu-core-*)
@@ -64,6 +64,7 @@ execute: |
                 MATCH 'internal: false' < snap-apparmor-default.out
             else
                 MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-default.out
+                MATCH 'apparmor-parser-command: /snap/snapd/.*/apparmor_parser --config-file /snap/snapd/.*/usr/lib/snapd/apparmor/parser.conf --base /snap/snapd/.*/usr/lib/snapd/apparmor\.d --policy-features /snap/snapd/.*/usr/lib/snapd/apparmor\.d/abi/4\.0' < snap-apparmor-default.out
                 MATCH 'internal: true' < snap-apparmor-default.out
             fi
             ;;
