@@ -26,11 +26,11 @@ environment:
   NEW_GADGET_NAME: test-snapd-remodel-pc-min-size
 
 prepare: |
-  variant=$(tests.nested show version)
+  version=$(tests.nested show version)
 
   # Modify gadget so it sends the suggested serial
   GADGET_D=$GADGET_NAME
-  cp -av "$TESTSLIB/snaps/$GADGET_NAME-$variant" "$GADGET_D"
+  cp -av "$TESTSLIB/snaps/$GADGET_NAME-$version" "$GADGET_D"
   test -n "$SERIAL"
   echo "$SERIAL" > "$GADGET_D"/serial
   snap pack "$GADGET_D"
@@ -43,12 +43,12 @@ prepare: |
   # snapcraft 6.x and running the command 'snapcraft export-login <filename>'
   # Every 12 months (in January) the auth file needs to be regenerated.
   export UBUNTU_STORE_AUTH_DATA_FILENAME="$TESTSLIB/remodel-store-viewer.auth"
-  export NESTED_CUSTOM_MODEL="$TESTSLIB/assertions/test-snapd-remodel-pc-rev0-$variant.model"
+  export NESTED_CUSTOM_MODEL="$TESTSLIB/assertions/test-snapd-remodel-pc-rev0-$version.model"
   tests.nested build-image core
   tests.nested create-vm core
 
 execute: |
-  variant=$(tests.nested show version)
+  version=$(tests.nested show version)
   boot_id=$(tests.nested boot-id)
 
   # wait until device is initialized and has a serial
@@ -62,7 +62,7 @@ execute: |
   usaveSz=$(remote.exec "sudo blockdev --getsize64 /dev/disk/by-label/ubuntu-save")
   test "$usaveSz" -eq 16777216
 
-  new_model_rev=test-snapd-remodel-pc-rev1-$variant.model
+  new_model_rev=test-snapd-remodel-pc-rev1-$version.model
   remote.push "$TESTSLIB/assertions/$new_model_rev"
   CHANGE_ID=$(remote.exec "sudo snap remodel --no-wait $new_model_rev")
   test -n "$CHANGE_ID"
