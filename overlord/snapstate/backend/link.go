@@ -68,6 +68,32 @@ type LinkContext struct {
 	// SkipBinaries indicates that we should skip removing snap binaries,
 	// icons and desktop files in UnlinkSnap
 	SkipBinaries bool
+
+	// HasOtherInstances indicates that other instances of the snap are
+	// already installed in the system.
+	HasOtherInstances bool
+}
+
+func createSharedSnapDirForParallelInstance(s snap.PlaceInfo) error {
+	_, key := snap.SplitInstanceName(s.InstanceName())
+
+	if key != "" {
+		err := os.MkdirAll(snap.BaseDir(s.SnapName()), 0755)
+		if err != nil && !os.IsExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+func removeSharedSnapDirForParallelInstance(s snap.PlaceInfo) {
+	_, instanceKey := snap.SplitInstanceName(s.InstanceName())
+
+	if instanceKey != "" {
+		// failure to remove is ok, there may be revisions of the
+		// instance-less snap installed in the system
+		os.Remove(snap.BaseDir(s.SnapName()))
+	}
 }
 
 func updateCurrentSymlinks(info *snap.Info) (revert func(), e error) {
@@ -164,8 +190,21 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 		}
 	}
 
+	// only after link snap it will be possible to execute snap
+	// applications, so ensure that the shared snap directory exists for
+	// parallel installed snaps
+	if err := createSharedSnapDirForParallelInstance(info); err != nil {
+		return boot.RebootInfo{}, err
+	}
+	cleanupSharedParallelInstanceDir := func() {
+		if !linkCtx.HasOtherInstances {
+			removeSharedSnapDirForParallelInstance(info)
+		}
+	}
+
 	revertSymlinks, err := updateCurrentSymlinks(info)
 	if err != nil {
+		cleanupSharedParallelInstanceDir()
 		return boot.RebootInfo{}, err
 	}
 	// if anything below here could return error, you need to
@@ -175,6 +214,7 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 		if err := restart.Restart(); err != nil {
 			logger.Noticef("WARNING: cannot restart services: %v", err)
 			revertSymlinks()
+			cleanupSharedParallelInstanceDir()
 
 			return boot.RebootInfo{}, err
 		}
@@ -351,6 +391,10 @@ func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress
 
 	// and finally remove current symlinks
 	err2 := removeCurrentSymlinks(info)
+
+	// XXX intentional lack of symmetry with LinkSnap wrt. parallel installs
+	// handling, the directory cleanup is left to be executed during the
+	// last phase of snap removal
 
 	// FIXME: aggregate errors instead
 	return firstErr(err0, err1, err2)
