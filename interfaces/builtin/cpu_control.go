@@ -83,7 +83,7 @@ const cpuControlConnectedPlugAppArmor = `
 # Allow control CPU C-states switching see: https://docs.kernel.org/power/pm_qos_interface.html#pm-qos-framework
 /dev/cpu_dma_latency rw,
 
-# Allow interrupt affinity settings
+# Allow interrupt affinity settings, see https://www.kernel.org/doc/html/latest/core-api/irq/irq-affinity.html
 /proc/interrupts r,
 /proc/irq/[0-9]+/smp_affinity rw,
 /proc/irq/[0-9]+/smp_affinity_list rw,
