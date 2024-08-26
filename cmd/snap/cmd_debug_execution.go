@@ -23,6 +23,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/jessevdk/go-flags"
 	"github.com/snapcore/snapd/sandbox/apparmor"
@@ -61,6 +62,7 @@ func (x *cmdDebugExecAppArmor) Execute(args []string) error {
 		return err
 	} else {
 		fmt.Fprintf(Stdout, "apparmor-parser: %s\n", cmd.Path)
+		fmt.Fprintf(Stdout, "apparmor-parser-command: %s\n", strings.Join(cmd.Args, " "))
 		fmt.Fprintf(Stdout, "internal: %v\n", internal)
 	}
 	return nil
