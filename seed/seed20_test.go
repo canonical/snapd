@@ -3920,6 +3920,8 @@ func ensureAssertionsPresent(c *C, path string, snapIDToComps map[string][]strin
 	resourcePairs := make(map[string]*asserts.SnapResourcePair)
 	resourceRevs := make(map[string]*asserts.SnapResourceRevision)
 
+	foundAccountKey := false
+
 	dec := asserts.NewDecoder(f)
 	for {
 		a, err := dec.Decode()
@@ -3937,10 +3939,14 @@ func ensureAssertionsPresent(c *C, path string, snapIDToComps map[string][]strin
 			resourcePairs[fmt.Sprintf("%s+%s", a.SnapID(), a.ResourceName())] = a
 		case *asserts.SnapResourceRevision:
 			resourceRevs[fmt.Sprintf("%s+%s", a.SnapID(), a.ResourceName())] = a
+		case *asserts.AccountKey:
+			foundAccountKey = true
 		default:
 			c.Fatalf("unexpected assertion type: %T", a)
 		}
 	}
+
+	c.Check(foundAccountKey, Equals, true, Commentf("no account key found seed's assertions"))
 
 	var compCount int
 	for snap, comps := range snapIDToComps {

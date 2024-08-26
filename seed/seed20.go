@@ -254,7 +254,7 @@ func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (er
 	// copy the assertions that the seed needs. since we don't make any
 	// distinction between the assertions in "extra-snaps" and "snaps" files, we
 	// just write them all to the same "snaps" file.
-	if err := writeAssertions(filepath.Join(destSystemDir, "assertions", "snaps"), assertions); err != nil {
+	if err := resolveAndSaveAssertions(assertions, s.db, filepath.Join(destSystemDir, "assertions", "snaps")); err != nil {
 		return err
 	}
 
@@ -417,7 +417,32 @@ func writeAuxInfo(path string, auxInfo map[string]*internal.AuxInfo20) error {
 	return f.Close()
 }
 
-func writeAssertions(path string, assertions []asserts.Assertion) error {
+func resolveAndSaveAssertions(assertions []asserts.Assertion, db asserts.RODatabase, path string) error {
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		a, err := ref.Resolve(db.Find)
+		if err != nil {
+			return nil, fmt.Errorf("internal error: cannot resolve assertion from seed: %v", err)
+		}
+		return a, nil
+	}
+
+	fetched := make(map[string]asserts.Assertion, len(assertions))
+	save := func(a asserts.Assertion) error {
+		fetched[a.Ref().Unique()] = a
+		return nil
+	}
+
+	fetcher := asserts.NewFetcher(db, retrieve, save)
+	for _, a := range assertions {
+		if a == nil {
+			return fmt.Errorf("internal error: nil assertion")
+		}
+
+		if err := fetcher.Fetch(a.Ref()); err != nil {
+			return err
+		}
+	}
+
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 	if err != nil {
 		return err
@@ -425,11 +450,7 @@ func writeAssertions(path string, assertions []asserts.Assertion) error {
 	defer f.Close()
 
 	enc := asserts.NewEncoder(f)
-	for _, a := range assertions {
-		if a == nil {
-			return fmt.Errorf("internal error: nil assertion")
-		}
-
+	for _, a := range fetched {
 		if err := enc.Encode(a); err != nil {
 			return err
 		}
