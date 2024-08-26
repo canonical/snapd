@@ -320,35 +320,43 @@ func (s *seed20) copySnapAndComponents(sn *Snap, destSeedDir string, opts CopyOp
 		return nil, nil, fmt.Errorf("cannot copy snap: %w", err)
 	}
 
+	optComponentsByName := make(map[string]internal.Component20, len(s.optSnaps))
+
 	var optSnap *internal.Snap20
 	for _, os := range s.optSnaps {
 		if os.Name == sn.SnapName() {
 			cp := *os
-			// make a copy so we don't mess with the original options snap
 			optSnap = &cp
-			optSnap.Components = append([]internal.Component20(nil), cp.Components...)
+
+			for _, comp := range cp.Components {
+				optComponentsByName[comp.Name] = comp
+			}
+
+			// clear out the components, since we're going to add back only the
+			// ones that we're copying to the new seed
+			optSnap.Components = nil
 		}
 	}
 
-	removeOptionsComponent := func(name string) {
+	addOptionsComponent := func(name string) {
 		if optSnap == nil {
 			return
 		}
 
-		comps := make([]internal.Component20, 0, len(optSnap.Components))
-		for _, comp := range optSnap.Components {
-			if comp.Name != name {
-				comps = append(comps, comp)
-			}
+		oc, ok := optComponentsByName[name]
+		if !ok {
+			return
 		}
-		optSnap.Components = comps
+
+		optSnap.Components = append(optSnap.Components, oc)
 	}
 
 	for _, comp := range sn.Components {
 		if !shouldCopyComponent(comp, sn.SnapName(), s.model, s.modelSnaps, opts.OptionalContainers) {
-			removeOptionsComponent(comp.CompSideInfo.Component.ComponentName)
 			continue
 		}
+
+		addOptionsComponent(comp.CompSideInfo.Component.ComponentName)
 
 		// an asserted snap implies that all components should also be asserted
 		if snapAsserted {
