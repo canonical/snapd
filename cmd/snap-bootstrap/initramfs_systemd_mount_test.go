@@ -275,7 +275,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 					foundFsckNo = true
 				case arg == "--no-block":
 					foundNoBlock = true
-				case arg == "--property=Before=initrd-fs.target":
+				case arg == "--property=Before=initrd-switch-root.service":
 					foundBeforeInitrdfsTarget = true
 				case strings.HasPrefix(arg, "--options="):
 					for _, opt := range strings.Split(strings.TrimPrefix(arg, "--options="), ",") {
@@ -311,7 +311,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			// check that the overrides are present if opts.Ephemeral is false,
 			// or check the overrides are not present if opts.Ephemeral is true
 			for _, initrdUnit := range []string{
-				"initrd-fs.target",
+				"initrd-switch-root.service",
 				"local-fs.target",
 			} {
 				mountUnit := systemd.EscapeUnitNamePath(t.where)

@@ -1429,7 +1429,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyRealSystemdMou
 
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
-		"initrd-fs.target",
+		"initrd-switch-root.service",
 		"local-fs.target",
 	} {
 		for _, mountUnit := range []string{
@@ -1460,7 +1460,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.snapd.Filename()),
@@ -1469,7 +1469,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
@@ -1478,7 +1478,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
@@ -1487,7 +1487,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.gadget.Filename()),
@@ -1496,7 +1496,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			"tmpfs",
@@ -1506,7 +1506,7 @@ Wants=%[1]s
 			"--type=tmpfs",
 			"--fsck=no",
 			"--options=nosuid,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		},
 	})
 }
@@ -1609,7 +1609,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSyst
 
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
-		"initrd-fs.target",
+		"initrd-switch-root.service",
 		"local-fs.target",
 	} {
 		for _, mountUnit := range []string{
@@ -1641,7 +1641,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.snapd.Filename()),
@@ -1650,7 +1650,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
@@ -1659,7 +1659,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
@@ -1668,7 +1668,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.gadget.Filename()),
@@ -1677,7 +1677,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			"tmpfs",
@@ -1687,7 +1687,7 @@ Wants=%[1]s
 			"--type=tmpfs",
 			"--fsck=no",
 			"--options=nosuid,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
@@ -1696,7 +1696,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
@@ -1705,7 +1705,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=nosuid,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		},
 	})
 
@@ -1775,7 +1775,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeWithSaveHappyRealSy
 
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
-		"initrd-fs.target",
+		"initrd-switch-root.service",
 		"local-fs.target",
 	} {
 
@@ -1807,7 +1807,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.snapd.Filename()),
@@ -1816,7 +1816,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
@@ -1825,7 +1825,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
@@ -1834,7 +1834,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.gadget.Filename()),
@@ -1843,7 +1843,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			"tmpfs",
@@ -1853,7 +1853,7 @@ Wants=%[1]s
 			"--type=tmpfs",
 			"--fsck=no",
 			"--options=nosuid,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
@@ -1862,7 +1862,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
@@ -1871,7 +1871,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=nosuid,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
@@ -1880,7 +1880,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		},
 	})
 
@@ -1967,7 +1967,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
-		"initrd-fs.target",
+		"initrd-switch-root.service",
 		"local-fs.target",
 	} {
 		for _, mountUnit := range []string{
@@ -1998,7 +1998,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-seed-partuuid",
@@ -2007,7 +2007,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
@@ -2016,7 +2016,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=nosuid,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.core20.Filename()),
@@ -2025,7 +2025,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.gadget.Filename()),
@@ -2034,7 +2034,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.kernel.Filename()),
@@ -2043,7 +2043,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		},
 	})
 }
@@ -2103,7 +2103,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithSaveHappyRealSystem
 
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
-		"initrd-fs.target",
+		"initrd-switch-root.service",
 		"local-fs.target",
 	} {
 
@@ -2133,7 +2133,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-seed-partuuid",
@@ -2142,7 +2142,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
@@ -2151,7 +2151,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=nosuid,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
@@ -2160,7 +2160,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.core20.Filename()),
@@ -2169,7 +2169,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.gadget.Filename()),
@@ -2178,7 +2178,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		}, {
 			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.kernel.Filename()),
@@ -2187,7 +2187,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro,private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		},
 	})
 }
@@ -2518,7 +2518,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunCVMModeHappy(c *C) {
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=private",
-			"--property=Before=initrd-fs.target",
+			"--property=Before=initrd-switch-root.service",
 		},
 		{
 			"systemd-mount",

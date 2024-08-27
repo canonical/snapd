@@ -156,15 +156,18 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	// if it should survive pivot_root() then we need to add overrides for this
 	// unit to /run/systemd units
 	if !opts.Ephemeral {
-		// to survive the pivot_root, mounts need to be "wanted" by
-		// initrd-switch-root.target directly or indirectly. The
-		// proper target to place them in is initrd-fs.target
-		// note we could do this statically in the initramfs main filesystem
+		// To survive the pivot_root, mounts need to be "wanted" by
+		// initrd-switch-root.service, as only its dependencies will
+		// survive the switch root. We make the mount wanted also by
+		// local-fs.target to make sure the units are still part of an
+		// active target after switch root and are not stopped.
+		//
+		// Note we could do this statically in the initramfs main filesystem
 		// layout, but that means that changes to snap-bootstrap would block on
 		// waiting for those files to be added before things works here, this is
 		// a more flexible strategy that puts snap-bootstrap in control
 		overrideContent := []byte(fmt.Sprintf(unitFileDependOverride, unitName))
-		for _, initrdUnit := range []string{"initrd-fs.target", "local-fs.target"} {
+		for _, initrdUnit := range []string{"initrd-switch-root.service", "local-fs.target"} {
 			targetDir := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d")
 			err := os.MkdirAll(targetDir, 0755)
 			if err != nil {
@@ -180,8 +183,8 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 				return err
 			}
 		}
-		// local-fs.target is already automatically a depenency
-		args = append(args, "--property=Before=initrd-fs.target")
+		// local-fs.target is already automatically a dependency
+		args = append(args, "--property=Before=initrd-switch-root.service")
 	}
 
 	stdout, stderr, err := osutil.RunSplitOutput("systemd-mount", args...)
