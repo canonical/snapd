@@ -23,6 +23,10 @@ import "fmt"
 
 // MockHandler is a mock hookstate.Handler.
 type MockHandler struct {
+	PreconditionCalled bool
+	PreconditionResult bool
+	PreconditionError  bool
+
 	BeforeCalled bool
 	BeforeError  bool
 
@@ -35,13 +39,14 @@ type MockHandler struct {
 	Err               error
 
 	// callbacks useful for testing
-	BeforeCallback func()
-	DoneCallback   func()
+	PreconditionCallback func()
+	BeforeCallback       func()
+	DoneCallback         func()
 }
 
 // NewMockHandler returns a new MockHandler.
 func NewMockHandler() *MockHandler {
-	return &MockHandler{}
+	return &MockHandler{PreconditionResult: true}
 }
 
 // Before satisfies hookstate.Handler.Before
@@ -76,4 +81,15 @@ func (h *MockHandler) Error(err error) (bool, error) {
 		return false, fmt.Errorf("Error failed at user request")
 	}
 	return h.IgnoreOriginalErr, nil
+}
+
+func (h *MockHandler) Precondition() (bool, error) {
+	if h.PreconditionCallback != nil {
+		h.PreconditionCallback()
+	}
+	h.PreconditionCalled = true
+	if h.PreconditionError {
+		return false, fmt.Errorf("Precondition failed at user request")
+	}
+	return h.PreconditionResult, nil
 }
