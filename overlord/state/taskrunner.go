@@ -301,7 +301,8 @@ func (r *TaskRunner) run(t *Task) {
 			var next []*Task
 			switch t.Status() {
 			case DoingStatus:
-				unblocked, minCheckAfter, err := r.checkBlockingConditions(t)
+				// TODO: revisit this
+				unblocked, _, err := r.checkBlockingConditions(t)
 				if err != nil {
 					return err
 				}
@@ -311,9 +312,11 @@ func (r *TaskRunner) run(t *Task) {
 					// some new condition was set by the task. Ignore current run
 					t.SetStatus(DoStatus)
 
-					if minCheckAfter > 0 {
-						r.state.EnsureBefore(minCheckAfter)
-					}
+					// TODO; revisit
+					//if !recheckTime.IsZero() {
+					//	// check again before the requested time, if any was set
+					//	r.state.EnsureBefore(recheckTime)
+					//}
 					return nil
 				}
 
@@ -511,16 +514,15 @@ ConsiderTasks:
 			}
 		}
 
-		unblocked, minCheckAfter, err := r.checkBlockingConditions(t)
+		unblocked, recheckTime, err := r.checkBlockingConditions(t)
 		if err != nil {
 			return err
 		}
 
 		if !unblocked {
-			// check again before the requested time, if any was set
-			if minCheckAfter > 0 &&
-				(nextTaskTime.IsZero() || nextTaskTime.After(timeNow().Add(minCheckAfter))) {
-				r.state.EnsureBefore(minCheckAfter)
+			if !recheckTime.IsZero() && recheckTime.Before(nextTaskTime) {
+				// check again before the requested time, if any was set
+				nextTaskTime = recheckTime
 			}
 
 			continue
@@ -547,42 +549,32 @@ ConsiderTasks:
 // is set.
 // TODO: is it more useful to make it all or nothing? If one condition is not met,
 // we check all later w/o removing it?
-func (r *TaskRunner) checkBlockingConditions(t *Task) (bool, time.Duration, error) {
-	var removeIndexes []int
-	minCheckAfter := time.Duration(-1)
-	for i, blocker := range t.blockers {
-		ok, err := r.TestTaskBlocker(blocker)
+func (r *TaskRunner) checkBlockingConditions(t *Task) (bool, time.Time, error) {
+	var newBlockers []blocker
+	var minRecheckTime time.Time
+	for _, blocker := range t.blockers {
+		ok, err := r.testTaskBlocker(blocker)
 		if err != nil {
 			// maybe log and continue so we try again later?
-			return false, 0, err
+			return false, time.Time{}, err
 		}
 
-		if ok {
-			removeIndexes = append(removeIndexes, i)
-		} else {
-			if blocker.CheckAfter > 0 && (minCheckAfter == -1 || blocker.CheckAfter < minCheckAfter) {
-				minCheckAfter = blocker.CheckAfter
+		if !ok {
+			newBlockers = append(newBlockers, blocker)
+
+			if blocker.CheckAfter > 0 {
+				recheckTime := timeNow().Add(blocker.CheckAfter)
+				if minRecheckTime.IsZero() || recheckTime.Before(minRecheckTime) {
+					minRecheckTime = recheckTime
+				}
 			}
 		}
 	}
 
 	// remove blockers that no longer apply
-	if len(removeIndexes) == len(t.blockers) {
-		t.blockers = nil
-	} else {
-		for i, removeIndex := range removeIndexes {
-			// remove the blocker, accounting for the previously removed blockers
-			// when calculating the index
-			t.blockers = append(t.blockers[:removeIndex-i], t.blockers[removeIndex+1-i:]...)
-		}
-	}
+	t.blockers = newBlockers
 
-	if minCheckAfter < 0 {
-		// no check after was requested, ignore
-		minCheckAfter = 0
-	}
-
-	return len(t.blockers) == 0, minCheckAfter, nil
+	return len(t.blockers) == 0, minRecheckTime, nil
 }
 
 // mustWait returns whether task t must wait for other tasks to be done.
@@ -670,7 +662,7 @@ func (r *TaskRunner) StopKinds(kind ...string) {
 	}
 }
 
-func (r *TaskRunner) TestTaskBlocker(b blocker) (bool, error) {
+func (r *TaskRunner) testTaskBlocker(b blocker) (bool, error) {
 	switch b.Cond {
 	case TasksReadyCond:
 		return tasksReadyTester(r.state, b.Args)

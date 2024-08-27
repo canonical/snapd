@@ -81,7 +81,7 @@ type HandlerGenerator func(*Context) Handler
 
 type Preconditioner interface {
 	// Precondition is called before the Before method and should return true if
-	// the hook should run or false, if it should stop with erroring.
+	// the hook should run or false, if it should stop without erroring.
 	Precondition() (bool, error)
 }
 
