@@ -39,14 +39,7 @@ import (
 )
 
 var (
-	ErrClosed                = errors.New("rule DB has already been closed")
-	ErrInternalInconsistency = errors.New("internal error: prompting rule database left inconsistent")
-	ErrLifespanSingle        = errors.New(`cannot create rule with lifespan "single"`)
-	ErrRuleIDNotFound        = errors.New("rule ID is not found")
-	ErrRuleIDConflict        = errors.New("rule with matching ID already exists in rule database")
-	ErrPathPatternConflict   = errors.New("a rule with conflicting path pattern and permission already exists in the rule database")
-	ErrNoMatchingRule        = errors.New("no rules match the given path")
-	ErrUserNotAllowed        = errors.New("the given user is not allowed to request the rule with the given ID")
+	ErrUserNotAllowed = errors.New("the given user is not allowed to request the rule with the given ID")
 )
 
 // Rule stores the contents of a request rule.
@@ -72,7 +65,7 @@ func (rule *Rule) validate(currTime time.Time) error {
 	}
 	if rule.Lifespan == prompting.LifespanSingle {
 		// We don't allow rules with lifespan "single"
-		return ErrLifespanSingle
+		return prompting.ErrRuleLifespanSingle
 	}
 	if err := rule.Lifespan.ValidateExpiration(rule.Expiration, currTime); err != nil {
 		return err
@@ -309,11 +302,11 @@ func (rdb *RuleDB) save() error {
 func (rdb *RuleDB) lookupRuleByID(id prompting.IDType) (*Rule, error) {
 	index, exists := rdb.indexByID[id]
 	if !exists {
-		return nil, ErrRuleIDNotFound
+		return nil, prompting.ErrRuleNotFound
 	}
 	if index >= len(rdb.rules) {
 		// Internal inconsistency between rules list and IDs map, should not occur
-		return nil, ErrInternalInconsistency
+		return nil, prompting.ErrRuleDBInconsistent
 	}
 	return rdb.rules[index], nil
 }
@@ -329,7 +322,7 @@ func (rdb *RuleDB) lookupRuleByID(id prompting.IDType) (*Rule, error) {
 func (rdb *RuleDB) addRuleToRulesList(rule *Rule) error {
 	_, exists := rdb.indexByID[rule.ID]
 	if exists {
-		return ErrRuleIDConflict
+		return prompting.ErrRuleIDConflict
 	}
 	rdb.rules = append(rdb.rules, rule)
 	rdb.indexByID[rule.ID] = len(rdb.rules) - 1
@@ -366,10 +359,10 @@ func (rdb *RuleDB) addRule(rule *Rule) error {
 func (rdb *RuleDB) removeRuleByIDFromRulesList(id prompting.IDType) (*Rule, error) {
 	index, exists := rdb.indexByID[id]
 	if !exists {
-		return nil, ErrRuleIDNotFound
+		return nil, prompting.ErrRuleNotFound
 	}
 	if index >= len(rdb.rules) {
-		return nil, ErrInternalInconsistency
+		return nil, prompting.ErrRuleDBInconsistent
 	}
 	rule := rdb.rules[index]
 	// Remove the rule with the given ID by copying the final rule in rdb.rules
@@ -414,10 +407,10 @@ func (rdb *RuleDB) removeRuleByID(id prompting.IDType) (*Rule, error) {
 // the conflict occurred.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) addRuleToTree(rule *Rule) *ruleConflictError {
+func (rdb *RuleDB) addRuleToTree(rule *Rule) *RuleConflictError {
 	addedPermissions := make([]string, 0, len(rule.Constraints.Permissions))
 
-	var err *ruleConflictError
+	var err *RuleConflictError
 	for _, permission := range rule.Constraints.Permissions {
 		err = rdb.addRulePermissionToTree(rule, permission)
 		if err != nil {
@@ -444,24 +437,26 @@ type ruleConflict struct {
 	ConflictingID prompting.IDType `json:"conflicting-id"`
 }
 
-// ruleConflictError stores a list of rule conflicts that occurred for a
+// RuleConflictError stores a list of rule conflicts that occurred for a
 // particular permission.
-type ruleConflictError struct {
-	conflicts  []ruleConflict
-	permission string
+//
+// May be marshalled as a value in an API error.
+type RuleConflictError struct {
+	Conflicts  []ruleConflict `json:"conflicts"`
+	Permission string         `json:"permissions"`
 }
 
-func (e *ruleConflictError) Error() string {
-	marshalled, err := json.Marshal(e.conflicts)
+func (e *RuleConflictError) Error() string {
+	marshalled, err := json.Marshal(e.Conflicts)
 	if err != nil {
 		// marshalling a string and ID, error should not occur
-		return fmt.Sprintf("%v: permission: '%s'", ErrPathPatternConflict, e.permission)
+		return fmt.Sprintf("%v: permission: '%s'", prompting.ErrRuleConflict, e.Permission)
 	}
-	return fmt.Sprintf("%v: conflicts: %+v, permission: '%s'", ErrPathPatternConflict, string(marshalled), e.permission)
+	return fmt.Sprintf("%v: conflicts: %+v, permission: '%s'", prompting.ErrRuleConflict, string(marshalled), e.Permission)
 }
 
-func (e *ruleConflictError) Unwrap() error {
-	return ErrPathPatternConflict
+func (e *RuleConflictError) Unwrap() error {
+	return prompting.ErrRuleConflict
 }
 
 // addRulePermissionToTree adds all the path pattern variants for the given
@@ -476,7 +471,7 @@ func (e *ruleConflictError) Unwrap() error {
 // immediately removed, and the new rule can continue to be added.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) *ruleConflictError {
+func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) *RuleConflictError {
 	permVariants := rdb.ensurePermissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
 
 	newVariantEntries := make(map[string]variantEntry, rule.Constraints.PathPattern.NumVariants())
@@ -507,9 +502,9 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) *ruleC
 	rule.Constraints.PathPattern.RenderAllVariants(addVariant)
 
 	if len(conflicts) > 0 {
-		err := &ruleConflictError{
-			conflicts:  conflicts,
-			permission: permission,
+		err := &RuleConflictError{
+			Conflicts:  conflicts,
+			Permission: permission,
 		}
 		return err
 	}
@@ -592,7 +587,7 @@ func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) [
 	return errs
 }
 
-// joinInternalErrors wraps an ErrInternalInconsistency with the given errors.
+// joinInternalErrors wraps a prompting.ErrRuleDBInconsistent with the given errors.
 //
 // If there are no non-nil errors in the given errs list, return nil.
 func joinInternalErrors(errs []error) error {
@@ -601,7 +596,7 @@ func joinInternalErrors(errs []error) error {
 		return nil
 	}
 	// TODO: wrap joinedErr as well once we're on golang v1.20+
-	return fmt.Errorf("%w\n%v", ErrInternalInconsistency, joinedErr)
+	return fmt.Errorf("%w\n%v", prompting.ErrRuleDBInconsistent, joinedErr)
 }
 
 // errorsJoin returns an error that wraps the given errors.
@@ -693,7 +688,7 @@ func (rdb *RuleDB) Close() error {
 	defer rdb.mutex.Unlock()
 
 	if rdb.maxIDMmap.IsClosed() {
-		return ErrClosed
+		return prompting.ErrRulesClosed
 	}
 
 	if err := rdb.maxIDMmap.Close(); err != nil {
@@ -711,7 +706,7 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 	defer rdb.mutex.Unlock()
 
 	if rdb.maxIDMmap.IsClosed() {
-		return nil, ErrClosed
+		return nil, prompting.ErrRulesClosed
 	}
 
 	newRule, err := rdb.makeNewRule(user, snap, iface, constraints, outcome, lifespan, duration)
@@ -776,13 +771,13 @@ func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constrain
 
 // IsPathAllowed checks whether the given path with the given permission is
 // allowed or denied by existing rules for the given user, snap, and interface.
-// If no rule applies, returns ErrNoMatchingRule.
+// If no rule applies, returns prompting.ErrNoMatchingRule.
 func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path string, permission string) (bool, error) {
 	rdb.mutex.RLock()
 	defer rdb.mutex.RUnlock()
 	permissionMap, ok := rdb.permissionDBForUserSnapInterfacePermission(user, snap, iface, permission)
 	if !ok || permissionMap == nil {
-		return false, ErrNoMatchingRule
+		return false, prompting.ErrNoMatchingRule
 	}
 	variantMap := permissionMap.VariantEntries
 	matchingVariants := make([]patterns.PatternVariant, 0)
@@ -817,7 +812,7 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 		}
 	}
 	if len(matchingVariants) == 0 {
-		return false, ErrNoMatchingRule
+		return false, prompting.ErrNoMatchingRule
 	}
 	highestPrecedenceVariant, err := patterns.HighestPrecedencePattern(matchingVariants, path)
 	if err != nil {
@@ -828,14 +823,15 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 	matchingRule, err := rdb.lookupRuleByID(matchingID)
 	if err != nil {
 		// Database was left inconsistent, should not occur
-		return false, fmt.Errorf("internal error: while looking for rule %v: %w", matchingID, ErrRuleIDNotFound)
+		return false, fmt.Errorf("internal error: while looking for rule %v: %w", matchingID, prompting.ErrRuleNotFound)
 	}
 	return matchingRule.Outcome.AsBool()
 }
 
 // RuleWithID returns the rule with the given ID.
 // If the rule is not found, returns ErrRuleNotFound.
-// If the rule does not apply to the given user, returns ErrUserNotAllowed.
+// If the rule does not apply to the given user, returns
+// prompting.ErrRuleNotAllowed.
 func (rdb *RuleDB) RuleWithID(user uint32, id prompting.IDType) (*Rule, error) {
 	rdb.mutex.RLock()
 	defer rdb.mutex.RUnlock()
@@ -917,20 +913,20 @@ func (rdb *RuleDB) lookupRuleByIDForUser(user uint32, id prompting.IDType) (*Rul
 		return nil, err
 	}
 	if rule.User != user {
-		return nil, ErrUserNotAllowed
+		return nil, prompting.ErrRuleNotAllowed
 	}
 	return rule, nil
 }
 
 // RemoveRule the rule with the given ID from the rule database. If the rule
-// does not apply to the given user, returns ErrUserNotAllowed. If successful,
-// saves the database to disk.
+// does not apply to the given user, returns prompting.ErrRuleNotAllowed.
+// If successful, saves the database to disk.
 func (rdb *RuleDB) RemoveRule(user uint32, id prompting.IDType) (*Rule, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 
 	if rdb.maxIDMmap.IsClosed() {
-		return nil, ErrClosed
+		return nil, prompting.ErrRulesClosed
 	}
 
 	rule, err := rdb.lookupRuleByIDForUser(user, id)
@@ -980,7 +976,7 @@ func (rdb *RuleDB) RemoveRulesForSnap(user uint32, snap string) ([]*Rule, error)
 // The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) error {
 	if rdb.maxIDMmap.IsClosed() {
-		return ErrClosed
+		return prompting.ErrRulesClosed
 	}
 
 	if len(rules) == 0 {
@@ -1059,7 +1055,7 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraints *prom
 	defer rdb.mutex.Unlock()
 
 	if rdb.maxIDMmap.IsClosed() {
-		return nil, ErrClosed
+		return nil, prompting.ErrRulesClosed
 	}
 
 	origRule, err := rdb.lookupRuleByIDForUser(user, id)

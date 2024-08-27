@@ -22,9 +22,11 @@ package daemon
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/interfaces/prompting"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
@@ -97,6 +99,92 @@ func getUserID(r *http.Request) (uint32, Response) {
 	return uint32(userIDInt), nil
 }
 
+func promptingNotRunningError() *apiError {
+	return &apiError{
+		Status:  500, // Internal error
+		Message: "AppArmor Prompting is not running",
+		Kind:    client.ErrorKindAppArmorPromptingNotRunning,
+	}
+}
+
+func promptingError(err error) *apiError {
+	apiErr := &apiError{
+		Message: err.Error(),
+	}
+	switch {
+	case errorIsOneOf(err, prompting.ErrPromptsClosed, prompting.ErrRulesClosed):
+		apiErr.Status = 500
+		apiErr.Kind = client.ErrorKindInterfacesRequestsManagerClosed
+	case errors.Is(err, prompting.ErrInvalidID):
+		apiErr.Status = 400
+		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidID
+	case errors.Is(err, prompting.ErrPromptNotFound):
+		apiErr.Status = 404
+		apiErr.Kind = client.ErrorKindInterfacesRequestsPromptNotFound
+	case errorIsOneOf(err, prompting.ErrRuleNotFound, prompting.ErrRuleNotAllowed):
+		// Even if the error is ErrRuleNotAllowed, reply with 404 status
+		// to match the behavior of prompts, and so if we switch to storing
+		// rules by ID (and don't want to check whether a rule with that ID
+		// exists for some other user), this error will remain unchanged.
+		apiErr.Status = 404
+		apiErr.Kind = client.ErrorKindInterfacesRequestsRuleNotFound
+	case errors.Is(err, prompting.ErrInvalidOutcome):
+		apiErr.Status = 400
+		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidOutcome
+	case errors.Is(err, prompting.ErrInvalidLifespan):
+		apiErr.Status = 400
+		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidLifespan
+	case errors.Is(err, prompting.ErrInvalidDuration):
+		apiErr.Status = 400
+		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidDuration
+	case errors.Is(err, prompting.ErrInvalidExpiration):
+		apiErr.Status = 400
+		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidExpiration
+	case errors.Is(err, prompting.ErrInvalidConstraints):
+		apiErr.Status = 400
+		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidConstraints
+	case errors.Is(err, prompting.ErrRuleExpirationInThePast):
+		apiErr.Status = 400
+		apiErr.Kind = client.ErrorKindInterfacesRequestsRuleExpirationInThePast
+	case errors.Is(err, prompting.ErrRuleLifespanSingle):
+		apiErr.Status = 400
+		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidDuration
+	case errors.Is(err, prompting.ErrReplyNotMatchRequestedPath):
+		apiErr.Status = 400
+		apiErr.Kind = client.ErrorKindInterfacesRequestsReplyNotMatchRequestedPath
+	case errors.Is(err, prompting.ErrReplyNotMatchRequestedPermissions):
+		apiErr.Status = 400
+		apiErr.Kind = client.ErrorKindInterfacesRequestsReplyNotMatchRequestedPermissions
+	case errors.Is(err, prompting.ErrRuleConflict):
+		apiErr.Status = 409
+		apiErr.Kind = client.ErrorKindInterfacesRequestsRuleConflict
+		var conflictErr *requestrules.RuleConflictError
+		if errors.As(err, &conflictErr) {
+			// Only include RuleConflict message, as the Value can hold the
+			// conflict details
+			apiErr.Message = prompting.ErrRuleConflict.Error()
+			apiErr.Value = conflictErr
+		}
+	default:
+		// Treat errors without specific mapping as internal errors.
+		// These include:
+		// - ErrRuleIDConflict
+		// - ErrRuleDBInconsistent
+		// - listener errors
+		apiErr.Status = 500
+	}
+	return apiErr
+}
+
+func errorIsOneOf(err error, these ...error) bool {
+	for _, e := range these {
+		if errors.Is(err, e) {
+			return true
+		}
+	}
+	return false
+}
+
 type interfaceManager interface {
 	AppArmorPromptingRunning() bool
 	InterfacesRequestsManager() apparmorprompting.Manager
@@ -152,12 +240,12 @@ func getPrompts(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	if !getInterfaceManager(c).AppArmorPromptingRunning() {
-		return InternalError("Apparmor Prompting is not running")
+		return promptingNotRunningError()
 	}
 
 	prompts, err := getInterfaceManager(c).InterfacesRequestsManager().Prompts(userID)
 	if err != nil {
-		return InternalError("%v", err)
+		return promptingError(err)
 	}
 	if len(prompts) == 0 {
 		prompts = []*requestprompts.Prompt{}
@@ -177,18 +265,16 @@ func getPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	promptID, err := prompting.IDFromString(id)
 	if err != nil {
-		return BadRequest("%v", err)
+		return promptingError(err)
 	}
 
 	if !getInterfaceManager(c).AppArmorPromptingRunning() {
-		return InternalError("Apparmor Prompting is not running")
+		return promptingNotRunningError()
 	}
 
 	prompt, err := getInterfaceManager(c).InterfacesRequestsManager().PromptWithID(userID, promptID)
-	if errors.Is(err, requestprompts.ErrNotFound) {
-		return NotFound("%v", err)
-	} else if err != nil {
-		return InternalError("%v", err)
+	if err != nil {
+		return promptingError(err)
 	}
 
 	return SyncResponse(prompt)
@@ -205,28 +291,22 @@ func postPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	promptID, err := prompting.IDFromString(id)
 	if err != nil {
-		return BadRequest("%v", err)
+		return promptingError(err)
 	}
 
 	if !getInterfaceManager(c).AppArmorPromptingRunning() {
-		return InternalError("Apparmor Prompting is not running")
+		return promptingNotRunningError()
 	}
 
 	var reply postPromptBody
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&reply); err != nil {
-		return BadRequest("cannot decode request body into prompt reply: %v", err)
+		return promptingError(fmt.Errorf("cannot decode request body into prompt reply: %w", err))
 	}
 
 	satisfiedPromptIDs, err := getInterfaceManager(c).InterfacesRequestsManager().HandleReply(userID, promptID, reply.Constraints, reply.Outcome, reply.Lifespan, reply.Duration)
-	if errors.Is(err, requestprompts.ErrClosed) || errors.Is(err, requestrules.ErrInternalInconsistency) {
-		return InternalError("%v", err)
-	} else if errors.Is(err, requestprompts.ErrNotFound) {
-		return NotFound("%v", err)
-	} else if errors.Is(err, requestrules.ErrPathPatternConflict) {
-		return Conflict("%v", err)
-	} else if err != nil {
-		return BadRequest("%v", err)
+	if err != nil {
+		return promptingError(err)
 	}
 
 	if len(satisfiedPromptIDs) == 0 {
@@ -243,7 +323,7 @@ func getRules(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	if !getInterfaceManager(c).AppArmorPromptingRunning() {
-		return InternalError("Apparmor Prompting is not running")
+		return promptingNotRunningError()
 	}
 
 	query := r.URL.Query()
@@ -252,7 +332,8 @@ func getRules(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	rules, err := getInterfaceManager(c).InterfacesRequestsManager().Rules(userID, snap, iface)
 	if err != nil {
-		return InternalError("%v", err)
+		// Should be impossible, Rules() always returns nil error
+		return promptingError(err)
 	}
 
 	if len(rules) == 0 {
@@ -269,13 +350,13 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	if !getInterfaceManager(c).AppArmorPromptingRunning() {
-		return InternalError("Apparmor Prompting is not running")
+		return promptingNotRunningError()
 	}
 
 	var postBody postRulesRequestBody
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&postBody); err != nil {
-		return BadRequest("cannot decode request body for rules endpoint: %v", err)
+		return promptingError(fmt.Errorf("cannot decode request body for rules endpoint: %w", err))
 	}
 
 	switch postBody.Action {
@@ -284,10 +365,8 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 			return BadRequest(`must include "rule" field in request body when action is "add"`)
 		}
 		newRule, err := getInterfaceManager(c).InterfacesRequestsManager().AddRule(userID, postBody.AddRule.Snap, postBody.AddRule.Interface, postBody.AddRule.Constraints, postBody.AddRule.Outcome, postBody.AddRule.Lifespan, postBody.AddRule.Duration)
-		if errors.Is(err, requestrules.ErrPathPatternConflict) {
-			return Conflict("%v", err)
-		} else if err != nil {
-			return BadRequest("%v", err)
+		if err != nil {
+			return promptingError(err)
 		}
 		return SyncResponse(newRule)
 	case "remove":
@@ -299,7 +378,7 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		removedRules, err := getInterfaceManager(c).InterfacesRequestsManager().RemoveRules(userID, postBody.RemoveSelector.Snap, postBody.RemoveSelector.Interface)
 		if err != nil {
-			return InternalError("%v", err)
+			return promptingError(err)
 		}
 		return SyncResponse(removedRules)
 	default:
@@ -318,19 +397,15 @@ func getRule(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	ruleID, err := prompting.IDFromString(id)
 	if err != nil {
-		return BadRequest("%v", err)
+		return promptingError(err)
 	}
 
 	if !getInterfaceManager(c).AppArmorPromptingRunning() {
-		return InternalError("Apparmor Prompting is not running")
+		return promptingNotRunningError()
 	}
 
 	rule, err := getInterfaceManager(c).InterfacesRequestsManager().RuleWithID(userID, ruleID)
 	if err != nil {
-		// Even if the error is ErrUserNotAllowed, reply with NotFound response
-		// to match the behavior of prompts, and so if we switch to storing
-		// rules by ID (and don't want to check whether a rule with that ID
-		// exists for some other user), this error will remain unchanged.
 		return NotFound("%v", err)
 	}
 
@@ -341,24 +416,24 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	id := vars["id"]
 
+	userID, errorResp := getUserID(r)
+	if errorResp != nil {
+		return errorResp
+	}
+
 	ruleID, err := prompting.IDFromString(id)
 	if err != nil {
-		return BadRequest("%v", err)
+		return promptingError(err)
 	}
 
 	if !getInterfaceManager(c).AppArmorPromptingRunning() {
-		return InternalError("Apparmor Prompting is not running")
+		return promptingNotRunningError()
 	}
 
 	var postBody postRuleRequestBody
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&postBody); err != nil {
-		return BadRequest("cannot decode request body into request rule modification or deletion: %v", err)
-	}
-
-	userID, errorResp := getUserID(r)
-	if errorResp != nil {
-		return errorResp
+		return promptingError(fmt.Errorf("cannot decode request body into request rule modification or deletion: %w", err))
 	}
 
 	switch postBody.Action {
@@ -367,20 +442,14 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 			return BadRequest(`must include "rule" field in request body when action is "patch"`)
 		}
 		patchedRule, err := getInterfaceManager(c).InterfacesRequestsManager().PatchRule(userID, ruleID, postBody.PatchRule.Constraints, postBody.PatchRule.Outcome, postBody.PatchRule.Lifespan, postBody.PatchRule.Duration)
-		if errors.Is(err, requestrules.ErrRuleIDNotFound) || errors.Is(err, requestrules.ErrUserNotAllowed) {
-			return NotFound("%v", err)
-		} else if errors.Is(err, requestrules.ErrInternalInconsistency) || errors.Is(err, requestrules.ErrClosed) {
-			return InternalError("%v", err)
-		} else if err != nil {
-			return BadRequest("%v", err)
+		if err != nil {
+			return promptingError(err)
 		}
 		return SyncResponse(patchedRule)
 	case "remove":
 		removedRule, err := getInterfaceManager(c).InterfacesRequestsManager().RemoveRule(userID, ruleID)
-		if errors.Is(err, requestrules.ErrRuleIDNotFound) || errors.Is(err, requestrules.ErrUserNotAllowed) {
-			return NotFound("%v", err)
-		} else if err != nil {
-			return InternalError("%v", err)
+		if err != nil {
+			return promptingError(err)
 		}
 		return SyncResponse(removedRule)
 	default:

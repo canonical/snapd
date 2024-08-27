@@ -142,6 +142,51 @@ const (
 
 	// ErrorKindValidationSetNotFound: validation set cannot be found.
 	ErrorKindValidationSetNotFound ErrorKind = "validation-set-not-found"
+
+	// ErrorKindAppArmorPromptingNotRunning: AppArmor Prompting is not running.
+	ErrorKindAppArmorPromptingNotRunning ErrorKind = "apparmor-prompting-not-running"
+
+	// ErrorKindInterfacesRequestsManagerClosed: AppArmor Prompting interfaces requests manager has been closed.
+	ErrorKindInterfacesRequestsManagerClosed ErrorKind = "interfaces-requests-manager-closed"
+
+	// ErrorKindInterfacesRequestsInvalidID: cannot parse interfaces requests ID.
+	ErrorKindInterfacesRequestsInvalidID ErrorKind = "interfaces-requests-invalid-id"
+
+	// ErrorKindInterfacesRequestsPromptNotFound: interfaces requests prompt not found.
+	ErrorKindInterfacesRequestsPromptNotFound ErrorKind = "interfaces-requests-prompt-not-found"
+
+	// ErrorKindInterfacesRequestsRuleNotFound: interfaces requests rule not found.
+	ErrorKindInterfacesRequestsRuleNotFound ErrorKind = "interfaces-requests-rule-not-found"
+
+	// ErrorKindInterfacesRequestsInvalidOutcome: interfaces requests invalid outcome.
+	ErrorKindInterfacesRequestsInvalidOutcome ErrorKind = "interfaces-requests-invalid-outcome"
+
+	// ErrorKindInterfacesRequestsInvalidLifespan: interfaces requests invalid lifespan.
+	ErrorKindInterfacesRequestsInvalidLifespan ErrorKind = "interfaces-requests-invalid-lifespan"
+
+	// ErrorKindInterfacesRequestsInvalidDuration: interfaces requests invalid duration.
+	ErrorKindInterfacesRequestsInvalidDuration ErrorKind = "interfaces-requests-invalid-duration"
+
+	// ErrorKindInterfacesRequestsInvalidExpiration: interfaces requests invalid expiration.
+	ErrorKindInterfacesRequestsInvalidExpiration ErrorKind = "interfaces-requests-invalid-expiration"
+
+	// ErrorKindInterfacesRequestsInvalidConstraints: interfaces requests invalid constraints.
+	ErrorKindInterfacesRequestsInvalidConstraints ErrorKind = "interfaces-requests-invalid-constraints"
+
+	// ErrorKindInterfacesRequestsRuleExpirationInThePast: cannot add rule with expiration in the past.
+	ErrorKindInterfacesRequestsRuleExpirationInThePast ErrorKind = "interfaces-requests-rule-expiration-in-the-past"
+
+	// ErrorKindInterfacesRequestsRuleLifespanSingle: cannot create request rule with lifespan "single".
+	ErrorKindInterfacesRequestsRuleLifespanSingle ErrorKind = "interfaces-requests-rule-lifespan-single"
+
+	// ErrorKindInterfacesRequestsReplyNotMatchRequestedPath: path pattern in reply does not match originally-requested path.
+	ErrorKindInterfacesRequestsReplyNotMatchRequestedPath ErrorKind = "interfaces-requests-reply-not-match-requested-path"
+
+	// ErrorKindInterfacesRequestsReplyNotMatchRequestedPermissions: permissions in reply do not match originally-requested permissions.
+	ErrorKindInterfacesRequestsReplyNotMatchRequestedPermissions ErrorKind = "interfaces-requests-reply-not-match-requested-permissions"
+
+	// ErrorKindInterfacesRequestsRuleConflict: conflict with existing request rule.
+	ErrorKindInterfacesRequestsRuleConflict ErrorKind = "interfaces-requests-rule-conflict"
 )
 
 // Maintenance error kinds.

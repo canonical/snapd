@@ -411,7 +411,7 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 	// Check that adding a new unmerged prompt fails once limit is reached
 	for i := 0; i < 5; i++ {
 		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, lr)
-		c.Check(err, Equals, requestprompts.ErrTooManyPrompts)
+		c.Check(err, Equals, prompting.ErrTooManyPrompts)
 		c.Check(prompt, IsNil)
 		c.Check(merged, Equals, false)
 		stored, err := pdb.Prompts(metadata.User)
@@ -469,11 +469,11 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 	c.Check(result, Equals, prompt)
 
 	result, err = pdb.PromptWithID(metadata.User, 1234)
-	c.Check(err, Equals, requestprompts.ErrNotFound)
+	c.Check(err, Equals, prompting.ErrPromptNotFound)
 	c.Check(result, IsNil)
 
 	result, err = pdb.PromptWithID(metadata.User+1, prompt.ID)
-	c.Check(err, Equals, requestprompts.ErrNotFound)
+	c.Check(err, Equals, prompting.ErrPromptNotFound)
 	c.Check(result, IsNil)
 
 	// Looking up prompts (with or without errors) should not record notices
@@ -593,10 +593,10 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 	outcome := prompting.OutcomeAllow
 
 	_, err = pdb.Reply(metadata.User, 1234, outcome)
-	c.Check(err, Equals, requestprompts.ErrNotFound)
+	c.Check(err, Equals, prompting.ErrPromptNotFound)
 
 	_, err = pdb.Reply(metadata.User+1, prompt.ID, outcome)
-	c.Check(err, Equals, requestprompts.ErrNotFound)
+	c.Check(err, Equals, prompting.ErrPromptNotFound)
 
 	_, err = pdb.Reply(metadata.User, prompt.ID, outcome)
 	c.Check(err, Equals, fakeError)
@@ -1009,28 +1009,28 @@ func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
 
 	metadata := prompting.Metadata{Interface: "home"}
 	result, merged, err := pdb.AddOrMerge(&metadata, "", nil, nil, nil)
-	c.Check(err, Equals, requestprompts.ErrClosed)
+	c.Check(err, Equals, prompting.ErrPromptsClosed)
 	c.Check(result, IsNil)
 	c.Check(merged, Equals, false)
 
 	prompts, err := pdb.Prompts(1000)
-	c.Check(err, Equals, requestprompts.ErrClosed)
+	c.Check(err, Equals, prompting.ErrPromptsClosed)
 	c.Check(prompts, IsNil)
 
 	prompt, err := pdb.PromptWithID(1000, 1)
-	c.Check(err, Equals, requestprompts.ErrClosed)
+	c.Check(err, Equals, prompting.ErrPromptsClosed)
 	c.Check(prompt, IsNil)
 
 	result, err = pdb.Reply(1000, 1, prompting.OutcomeDeny)
-	c.Check(err, Equals, requestprompts.ErrClosed)
+	c.Check(err, Equals, prompting.ErrPromptsClosed)
 	c.Check(result, IsNil)
 
 	promptIDs, err := pdb.HandleNewRule(nil, nil, prompting.OutcomeDeny)
-	c.Check(err, Equals, requestprompts.ErrClosed)
+	c.Check(err, Equals, prompting.ErrPromptsClosed)
 	c.Check(promptIDs, IsNil)
 
 	err = pdb.Close()
-	c.Check(err, Equals, requestprompts.ErrClosed)
+	c.Check(err, Equals, prompting.ErrPromptsClosed)
 }
 
 func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {

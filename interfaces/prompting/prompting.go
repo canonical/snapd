@@ -28,11 +28,6 @@ import (
 	"time"
 )
 
-var (
-	// ErrExpirationInThePast may be wrapped with the invalid expiration.
-	ErrExpirationInThePast = fmt.Errorf("cannot have expiration time in the past")
-)
-
 // Metadata stores information about the origin or applicability of a prompt or
 // rule.
 type Metadata struct {
@@ -49,7 +44,7 @@ type IDType uint64
 func IDFromString(idStr string) (IDType, error) {
 	value, err := strconv.ParseUint(idStr, 16, 64)
 	if err != nil {
-		return IDType(0), fmt.Errorf("cannot parse ID as uint64: %w", err)
+		return IDType(0), fmt.Errorf("%w: %v", ErrInvalidID, err)
 	}
 	return IDType(value), nil
 }
@@ -98,7 +93,7 @@ func (outcome *OutcomeType) UnmarshalJSON(data []byte) error {
 	case OutcomeAllow, OutcomeDeny:
 		*outcome = value
 	default:
-		return fmt.Errorf(`cannot have outcome other than %q or %q: %q`, OutcomeAllow, OutcomeDeny, value)
+		return fmt.Errorf(`%w: cannot have outcome other than %q or %q: %q`, ErrInvalidOutcome, OutcomeAllow, OutcomeDeny, value)
 	}
 	return nil
 }
@@ -145,7 +140,7 @@ func (lifespan *LifespanType) UnmarshalJSON(data []byte) error {
 	case LifespanForever, LifespanSingle, LifespanTimespan:
 		*lifespan = value
 	default:
-		return fmt.Errorf(`cannot have lifespan other than %q, %q, or %q: %q`, LifespanForever, LifespanSingle, LifespanTimespan, value)
+		return fmt.Errorf(`%w: cannot have lifespan other than %q, %q, or %q: %q`, ErrInvalidLifespan, LifespanForever, LifespanSingle, LifespanTimespan, value)
 	}
 	return nil
 }
@@ -160,14 +155,14 @@ func (lifespan LifespanType) ValidateExpiration(expiration time.Time, currTime t
 	switch lifespan {
 	case LifespanForever, LifespanSingle:
 		if !expiration.IsZero() {
-			return fmt.Errorf(`cannot have specified expiration when lifespan is %q: %q`, lifespan, expiration)
+			return fmt.Errorf(`%w: cannot have specified expiration when lifespan is %q: %q`, ErrInvalidExpiration, lifespan, expiration)
 		}
 	case LifespanTimespan:
 		if expiration.IsZero() {
-			return fmt.Errorf(`cannot have unspecified expiration when lifespan is %q`, lifespan)
+			return fmt.Errorf(`%w: cannot have unspecified expiration when lifespan is %q`, ErrInvalidExpiration, lifespan)
 		}
 		if currTime.After(expiration) {
-			return fmt.Errorf("%w: %q", ErrExpirationInThePast, expiration)
+			return fmt.Errorf("%w: %q", ErrRuleExpirationInThePast, expiration)
 		}
 	default:
 		// Should not occur, since lifespan is validated when unmarshalled
@@ -189,23 +184,23 @@ func (lifespan LifespanType) ParseDuration(duration string, currTime time.Time) 
 	switch lifespan {
 	case LifespanForever, LifespanSingle:
 		if duration != "" {
-			return expiration, fmt.Errorf(`cannot have specified duration when lifespan is %q: %q`, lifespan, duration)
+			return expiration, fmt.Errorf(`%w: cannot have specified duration when lifespan is %q: %q`, ErrInvalidDuration, lifespan, duration)
 		}
 	case LifespanTimespan:
 		if duration == "" {
-			return expiration, fmt.Errorf(`cannot have unspecified duration when lifespan is %q`, lifespan)
+			return expiration, fmt.Errorf(`%w: cannot have unspecified duration when lifespan is %q`, ErrInvalidDuration, lifespan)
 		}
 		parsedDuration, err := time.ParseDuration(duration)
 		if err != nil {
-			return expiration, fmt.Errorf(`cannot parse duration: %w`, err)
+			return expiration, fmt.Errorf(`%w: cannot parse duration: %v`, ErrInvalidDuration, err)
 		}
 		if parsedDuration <= 0 {
-			return expiration, fmt.Errorf(`cannot have zero or negative duration: %q`, duration)
+			return expiration, fmt.Errorf(`%w: cannot have zero or negative duration: %q`, ErrInvalidDuration, duration)
 		}
 		expiration = currTime.Add(parsedDuration)
 	default:
 		// Should not occur, since lifespan is validated when unmarshalled
-		return expiration, fmt.Errorf(`internal error: invalid lifespan: %q`, lifespan)
+		return expiration, fmt.Errorf(`internal error: %w: %q`, ErrInvalidLifespan, lifespan)
 	}
 	return expiration, nil
 }

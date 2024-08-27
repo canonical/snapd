@@ -227,7 +227,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 				satisfiedPerms = append(satisfiedPerms, perm)
 			}
 		} else {
-			if !errors.Is(err, requestrules.ErrNoMatchingRule) {
+			if !errors.Is(err, prompting.ErrNoMatchingRule) {
 				logger.Noticef("error while checking request against existing rules: %v", err)
 			}
 			// No matching rule found
@@ -390,14 +390,14 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 		return nil, err
 	}
 	if !matches {
-		return nil, fmt.Errorf("constraints in reply do not match original request: '%v' does not match '%v'; please try again", constraints, prompt.Constraints)
+		return nil, fmt.Errorf("%w: '%s' does not match '%s'; please try again", prompting.ErrReplyNotMatchRequestedPath, constraints.PathPattern, prompt.Constraints.Path())
 	}
 
 	// XXX: do we want to allow only replying to a select subset of permissions, and
 	// auto-deny the rest?
 	contained := constraints.ContainPermissions(prompt.Constraints.RemainingPermissions())
 	if !contained {
-		return nil, fmt.Errorf("replied permissions do not include all requested permissions: requested %v, replied %v; please try again", prompt.Constraints.RemainingPermissions(), constraints.Permissions)
+		return nil, fmt.Errorf("%w: requested %v, replied %v; please try again", prompting.ErrReplyNotMatchRequestedPermissions, prompt.Constraints.RemainingPermissions(), constraints.Permissions)
 	}
 
 	// It is important that a lock is held while checking for conflicts with

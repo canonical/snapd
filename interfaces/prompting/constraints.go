@@ -48,10 +48,10 @@ type Constraints struct {
 // interface, otherwise returns an error.
 func (c *Constraints) ValidateForInterface(iface string) error {
 	if c.PathPattern == nil {
-		return fmt.Errorf("invalid constraints: no path pattern")
+		return fmt.Errorf("%w: no path pattern", ErrInvalidConstraints)
 	}
 	if err := c.validatePermissions(iface); err != nil {
-		return fmt.Errorf("invalid constraints: %w", err)
+		return fmt.Errorf("%w: %v", ErrInvalidConstraints, err)
 	}
 	return nil
 }
@@ -90,11 +90,11 @@ func (c *Constraints) validatePermissions(iface string) error {
 // If the constraints or path are invalid, returns an error.
 func (c *Constraints) Match(path string) (bool, error) {
 	if c.PathPattern == nil {
-		return false, fmt.Errorf("invalid constraints: no path pattern")
+		return false, fmt.Errorf("%w: no path pattern", ErrInvalidConstraints)
 	}
 	match, err := c.PathPattern.Match(path)
 	if err != nil {
-		return false, fmt.Errorf("invalid constraints: %w", err)
+		return false, fmt.Errorf("%w: %v", ErrInvalidConstraints, err)
 	}
 	return match, nil
 }
