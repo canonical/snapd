@@ -83,16 +83,25 @@ endif
 # build with "tpm" support on ubuntu by default
 # TAGS are the go build tags for all binaries, SNAP_TAGS are for snap and
 # snap-bootstrap build only.
-TAGS=
-SNAP_TAGS=
+_TAGS=
+_SNAP_TAGS=
 # check if we need to include the testkeys in the binary
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
   # if enabled also enable bootloader assets testing and fault injection
-	TAGS=-tags "withtestkeys withbootassetstesting faultinject"
-	SNAP_TAGS=-tags "nomanagers withtestkeys faultinject"
+	_TAGS := withtestkeys,withbootassetstesting,faultinject
+	_SNAP_TAGS := nomanagers,withtestkeys,faultinject
 else
-	SNAP_TAGS=-tags nomanagers
+	_SNAP_TAGS=-tags nomanagers
 endif
+
+ifneq (,$(filter fips,$(DEB_BUILD_OPTIONS)))
+  # if enabled also enable bootloader assets testing and fault injection
+	_TAGS := $(_TAGS),goexperiment.opensslcrypto
+	_SNAP_TAGS := $(_SNAP_TAGS),goexperiment.opensslcrypto
+endif
+
+TAGS=-tags "$(_TAGS)"
+SNAP_TAGS=-tags "$(_SNAP_TAGS)"
 
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 
