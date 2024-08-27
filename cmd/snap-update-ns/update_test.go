@@ -20,7 +20,6 @@
 package main_test
 
 import (
-	"bytes"
 	"fmt"
 	"path/filepath"
 	"syscall"
@@ -36,7 +35,7 @@ import (
 
 type updateSuite struct {
 	testutil.BaseTest
-	log *bytes.Buffer
+	log logger.MockedLogger
 }
 
 var _ = Suite(&updateSuite{})

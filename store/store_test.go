@@ -180,7 +180,7 @@ type baseStoreSuite struct {
 
 	ctx context.Context
 
-	logbuf *bytes.Buffer
+	logbuf logger.MockedLogger
 }
 
 const (

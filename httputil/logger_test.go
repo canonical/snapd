@@ -39,7 +39,7 @@ import (
 func TestHTTPUtil(t *testing.T) { check.TestingT(t) }
 
 type loggerSuite struct {
-	logbuf        *bytes.Buffer
+	logbuf        logger.MockedLogger
 	restoreLogger func()
 }
 

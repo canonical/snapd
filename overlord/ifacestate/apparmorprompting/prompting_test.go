@@ -214,10 +214,8 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 	resp, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
 	c.Check(resp.Request, Equals, req)
-	logger.WithLoggerLock(func() {
-		c.Check(logbuf.String(), testutil.Contains,
-			` error while parsing AppArmor permissions: cannot get abstract permissions from empty AppArmor permissions: "none"`)
-	})
+	c.Check(logbuf.String(), testutil.Contains,
+		` error while parsing AppArmor permissions: cannot get abstract permissions from empty AppArmor permissions: "none"`)
 
 	// Fill the requestprompts backend until we hit its outstanding prompt
 	// count limit
@@ -238,9 +236,7 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 	c.Assert(len(prompts), Equals, maxOutstandingPromptsPerUser)
 
 	// Now try to add one more request, it should fail
-	logger.WithLoggerLock(func() {
-		logbuf.Reset()
-	})
+	logbuf.Reset()
 
 	req = &listener.Request{
 		Label:      "snap.firefox.firefox",
@@ -251,10 +247,8 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 	}
 	reqChan <- req
 	time.Sleep(10 * time.Millisecond)
-	logger.WithLoggerLock(func() {
-		c.Check(logbuf.String(), testutil.Contains,
-			" WARNING: too many outstanding prompts for user 1000; auto-denying new one\n")
-	})
+	c.Check(logbuf.String(), testutil.Contains,
+		" WARNING: too many outstanding prompts for user 1000; auto-denying new one\n")
 
 	c.Assert(mgr.Stop(), IsNil)
 }
@@ -308,7 +302,7 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *listener.Re
 
 	// Check that no error occurred
 	time.Sleep(10 * time.Millisecond)
-	logger.WithLoggerLock(func() { c.Assert(logbuf.String(), Equals, "") })
+	c.Assert(logbuf.String(), Equals, "")
 
 	// which should generate a notice
 	s.st.Lock()

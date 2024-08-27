@@ -20,7 +20,6 @@
 package restart_test
 
 import (
-	"bytes"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -1183,7 +1182,7 @@ type notifyRebootRequiredSuite struct {
 
 	st          *state.State
 	mockNrrPath string
-	mockLog     *bytes.Buffer
+	mockLog     logger.MockedLogger
 	chg         *state.Change
 	t1          *state.Task
 }

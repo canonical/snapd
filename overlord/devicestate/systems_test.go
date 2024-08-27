@@ -20,7 +20,6 @@
 package devicestate_test
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -47,7 +46,7 @@ type createSystemSuite struct {
 
 	ss *seedtest.SeedSnaps
 
-	logbuf *bytes.Buffer
+	logbuf logger.MockedLogger
 }
 
 var _ = Suite(&createSystemSuite{})

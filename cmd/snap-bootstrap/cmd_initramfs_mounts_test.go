@@ -67,7 +67,7 @@ type baseInitramfsMountsSuite struct {
 	*seedtest.TestingSeed20
 
 	Stdout *bytes.Buffer
-	logs   *bytes.Buffer
+	logs   logger.MockedLogger
 
 	seedDir    string
 	byLabelDir string

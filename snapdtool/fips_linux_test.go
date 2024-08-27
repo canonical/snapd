@@ -1,7 +1,6 @@
 package snapdtool_test
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,7 +19,7 @@ import (
 type fipsSuite struct {
 	testutil.BaseTest
 
-	logbuf *bytes.Buffer
+	logbuf logger.MockedLogger
 }
 
 var _ = Suite(&fipsSuite{})
