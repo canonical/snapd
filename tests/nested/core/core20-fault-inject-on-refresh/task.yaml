@@ -1,0 +1,109 @@
+summary: Ensure that service and apparmor profiles work after a reboot
+
+details: |
+    The test checks that after a system reboot during a fundamental snap refresh can
+    be handled and the change steps can be undone properly.
+
+systems: [ubuntu-2*]
+
+environment: 
+    TAG/base_link_snap: link-snap
+    TAG/snapd_link_snap: link-snap
+    TAG/kernel_link_snap: link-snap
+    TAG/gadget_link_snap: link-snap
+
+    TAG/base_auto_connect: after-auto-connect
+    TAG/base_gadget_assets: refresh-gadget-assets
+    TAG/snapd_auto_connect: after-auto-connect
+    TAG/snapd_gadget_assets: refresh-gadget-assets
+    TAG/kernel_auto_connect: after-auto-connect
+    TAG/kernel_gadget_assets: refresh-gadget-assets
+    TAG/gadget_auto_connect: after-auto-connect
+    TAG/gadget_gadget_assets: refresh-gadget-assets
+    TAG/snapd_update_boot_assets: update-boot-assets
+
+prepare: |
+    # automatically cleaned up in restore
+    echo "Inject a panic on $TAG"
+    cat <<EOF > fault-inject.conf
+    [Service]
+    Environment=SNAPPY_TESTING=1
+    Environment=SNAPD_FAULT_INJECT=$TAG:reboot
+    EOF
+
+    echo "Wait for the system to be seeded first"
+    remote.exec "sudo snap wait system seed.loaded"
+
+    remote.push fault-inject.conf
+    remote.exec "sudo mkdir -p /etc/systemd/system/snapd.service.d"
+    remote.exec "sudo cp -v fault-inject.conf /etc/systemd/system/snapd.service.d/"
+    remote.exec "sudo systemctl daemon-reload"
+    remote.exec "sudo systemctl restart snapd.service"
+
+execute: |
+    VERSION="$(tests.nested show version)"
+    SNAP=
+    case "$SPREAD_VARIANT" in
+        base_*)
+            SNAP="core${VERSION}"
+            ;;    
+        gadget_*)
+            SNAP=pc
+            ;;
+        kernel_*)
+            SNAP=pc-kernel
+            ;;
+        snapd_*)
+            SNAP=snapd
+            ;;
+        *)
+            echo "scenario no supported: $SPREAD_VARIANT"
+            exit 1
+    esac
+        
+    fi
+
+    # Refresh and reboot before the process is completed
+    change_id="$(remote.exec "sudo snap refresh --amend --edge --no-wait $SNAP")"
+
+    exit 1
+
+    retry --wait 1 -n 30 --env "STATUS=$STATUS" --env "SNAP=$SNAP" sh -c 'remote.exec snap changes | MATCH "$STATUS.*Refresh \"$SNAP\" snap"'
+
+    echo "Ensure the panic was injected and triggered stamp file is present"
+    remote.exec sudo journalctl | grep panic > output
+    MATCH refresh-snap-unavailable:panic < output
+    MATCH src/runtime/panic.go < output
+    
+    echo "Ensure that stamp file is present"
+    remote.exec "test -e /var/lib/snapd/faults/$TAG:panic"
+    remote.exec "sudo rm /var/lib/snapd/faults/$TAG:panic"
+
+    if [ "$SPREAD_VARIANT" = kernel ]; then
+        #shellcheck source=tests/lib/prepare.sh
+        . "$TESTSLIB/prepare.sh"
+        #shellcheck source=tests/lib/nested.sh
+        . "$TESTSLIB/nested.sh"
+
+        export NESTED_REPACK_KERNEL_SNAP=true
+        nested_prepare_kernel
+        KERNEL_SNAP="$(ls "$(tests.nested get assets-path)"/pc-kernel*.snap)"
+        mv "$KERNEL_SNAP" new-pc-kernel.snap
+        remote.push new-pc-kernel.snap
+    else
+        snap download "$SNAP" --"$INSTALL_CHANNEL" --basename=new-"$SNAP"
+        remote.push new-"$SNAP".snap        
+    fi
+
+    # Install and reboot before the process is completed
+    remote.exec "sudo snap install --dangerous --no-wait new-${SNAP}.snap" || true
+
+    retry --wait 1 -n 60 --env "STATUS=$STATUS" --env "SNAP=$SNAP" sh -c 'remote.exec snap changes | MATCH "$STATUS.*Install \"$SNAP\" snap.*"'
+
+    echo "Ensure the panic was injected and triggered stamp file is present"
+    remote.exec sudo journalctl | grep panic > output
+    MATCH refresh-snap-unavailable:panic < output
+    MATCH src/runtime/panic.go < output
+    
+    echo "Ensure that stamp file is present"
+    remote.exec "test -e /var/lib/snapd/faults/$TAG:panic"
