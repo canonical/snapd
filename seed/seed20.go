@@ -128,8 +128,7 @@ func shouldCopyComponent(target Component, snapName string, model *asserts.Model
 	var componentInModel bool
 	modelSnap, ok := modelSnaps[snapName]
 	if ok {
-		modelComp, ok := modelSnap.Components[target.CompSideInfo.Component.ComponentName]
-		if ok {
+		if modelComp, ok := modelSnap.Components[target.CompSideInfo.Component.ComponentName]; ok {
 			componentInModel = true
 			if modelComp.Presence == "required" {
 				return true
