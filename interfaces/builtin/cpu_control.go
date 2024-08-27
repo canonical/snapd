@@ -87,6 +87,7 @@ const cpuControlConnectedPlugAppArmor = `
 /proc/interrupts r,
 /proc/irq/[0-9]+/smp_affinity rw,
 /proc/irq/[0-9]+/smp_affinity_list rw,
+/proc/irq/default_smp_affinity rw,
 `
 
 var cpuControlConnectedPlugUDev = []string{
