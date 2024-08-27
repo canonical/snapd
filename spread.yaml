@@ -153,7 +153,6 @@ backends:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
         location: snapd-spread/europe-west1-b
-        plan: n2-standard-4
         halt-timeout: 2h
         systems:
             - ubuntu-core-16-64:
