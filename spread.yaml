@@ -180,12 +180,12 @@ backends:
         halt-timeout: 2h
         systems:
             - ubuntu-pro-20.04-64:
-                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-focal-v20240614
+                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-lts
                   workers: 1
                   attach-service-account: true
 
             - ubuntu-pro-22.04-64:
-                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-focal-v20240614
+                  image: ubuntu-os-pro-cloud/ubuntu-pro-2204-lts
                   workers: 1
                   attach-service-account: true
 
