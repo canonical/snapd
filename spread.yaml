@@ -189,6 +189,16 @@ backends:
                   workers: 1
                   attach-service-account: true
 
+            - ubuntu-fips-20.04-64:
+                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-lts
+                  workers: 1
+                  attach-service-account: true
+
+            - ubuntu-fips-22.04-64:
+                  image: ubuntu-os-pro-cloud/ubuntu-pro-2204-lts
+                  workers: 1
+                  attach-service-account: true
+
     google-distro-1:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
