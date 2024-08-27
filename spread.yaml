@@ -796,6 +796,26 @@ prepare: |
         apt-get update && apt-get install -y eatmydata
     fi
 
+    if [[ "$SPREAD_SYSTEM" == ubuntu-fips-* ]]; then
+        pro status
+
+        if [[ "$SPREAD_REBOOT" = 0 ]]; then
+            echo "--- enabling FIPS"
+            pro enable fips-updates --assume-yes
+            REBOOT
+        fi
+
+        if ! [ "$(cat /proc/sys/crypto/fips_enabled)" = "1" ]; then
+            echo "FIPS not enabled"
+            exit 1
+        fi
+
+        # enable GO FIPS PPA
+        add-apt-repository --yes ppa:ubuntu-toolchain-r/golang-fips
+        # XXX pin priority?
+        apt update
+    fi
+
     # Enable EPEL see https://docs.fedoraproject.org/en-US/epel/
     case "$SPREAD_SYSTEM" in
         centos-9-*)
