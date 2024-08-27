@@ -1,0 +1,11 @@
+name: snap-with-comps
+version: 1.0
+summary: Snap with components
+description: A snap that defines components
+base: core22
+components:
+  comp1:
+    type: test
+apps:
+  test:
+    command: test

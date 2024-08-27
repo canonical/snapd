@@ -23,6 +23,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -284,8 +285,9 @@ func postSystemsInstallFinish(cli *client.Client,
 
 	// Finish steps does the writing of assets
 	opts := &client.InstallSystemOptions{
-		Step:      client.InstallStepFinish,
-		OnVolumes: vols,
+		Step:            client.InstallStepFinish,
+		OnVolumes:       vols,
+		OptionalInstall: maybeGetOptionalInstall(),
 	}
 	chgId, err := cli.InstallSystem(details.Label, opts)
 	if err != nil {
@@ -293,6 +295,21 @@ func postSystemsInstallFinish(cli *client.Client,
 	}
 	fmt.Printf("Change %s created\n", chgId)
 	return waitChange(chgId)
+}
+
+func maybeGetOptionalInstall() *client.OptionalInstallRequest {
+	f, err := os.Open("./optional-install.json")
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	var req client.OptionalInstallRequest
+	if err := json.NewDecoder(f).Decode(&req); err != nil {
+		return nil
+	}
+
+	return &req
 }
 
 // createAndMountFilesystems creates and mounts filesystems. It returns
