@@ -444,7 +444,7 @@ func main() {
 	snapdtool.ExecInSnapdOrCoreSnap()
 
 	if err := snapdtool.MaybeSetupFIPS(); err != nil {
-		fmt.Fprintf(os.Stderr, "cannot check or enable FIPS mode: %v", err)
+		fmt.Fprintf(os.Stderr, "cannot check or enable FIPS mode: %v\n", err)
 		os.Exit(1)
 	}
 
