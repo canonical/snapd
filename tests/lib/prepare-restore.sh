@@ -65,9 +65,11 @@ create_test_user(){
 
 build_deb(){
     newver="$(dpkg-parsechangelog --show-field Version)"
+
     case "$SPREAD_SYSTEM" in
         ubuntu-fips-*)
             newver="${newver}+fips"
+            FIPS_BUILD_OPTION=fips
             ;;
     esac
     # Use fake version to ensure we are always bigger than anything else
@@ -79,7 +81,7 @@ build_deb(){
     fi
 
     unshare -n -- \
-            su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip -uc -us" test
+            su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys ${FIPS_BUILD_OPTION}' dpkg-buildpackage -tc -b -Zgzip -uc -us" test
     # put our debs to a safe place
     cp ../*.deb "$GOHOME"
 
