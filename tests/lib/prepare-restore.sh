@@ -64,8 +64,14 @@ create_test_user(){
 }
 
 build_deb(){
+    newver="$(dpkg-parsechangelog --show-field Version)"
+    case "$SPREAD_SYSTEM" in
+        ubuntu-fips-*)
+            newver="${newver}+fips"
+            ;;
+    esac
     # Use fake version to ensure we are always bigger than anything else
-    dch --newversion "1337.$(dpkg-parsechangelog --show-field Version)" "testing build"
+    dch --newversion "1337.$newver" "testing build"
 
     if os.query is-debian sid; then
         # ensure we really build without vendored packages
