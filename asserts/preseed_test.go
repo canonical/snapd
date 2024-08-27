@@ -124,6 +124,57 @@ func (ps *preseedSuite) TestDecodeOK(c *C) {
 	c.Check(snaps[0].ID(), Equals, "bazlinuxidididididididididididid")
 }
 
+func (ps *preseedSuite) TestDecodeOKComponents(c *C) {
+	encoded := strings.Replace(preseedExample, "TSLINE", ps.tsLine, 1)
+	const compYaml = `    components:
+      -
+        name: comp1
+        revision: 1
+  -
+    name: foo-linux
+    components:
+      -
+        name: comp2
+`
+	encoded = strings.Replace(encoded, "OTHER", compYaml, 1)
+
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.PreseedType)
+	preseed := a.(*asserts.Preseed)
+	c.Check(preseed.AuthorityID(), Equals, "brand-id1")
+	c.Check(preseed.Timestamp(), Equals, ps.ts)
+	c.Check(preseed.Series(), Equals, "16")
+	c.Check(preseed.BrandID(), Equals, "brand-id1")
+	c.Check(preseed.Model(), Equals, "baz-3000")
+	c.Check(preseed.SystemLabel(), Equals, "20220210")
+	c.Check(preseed.ArtifactSHA3_384(), Equals, "KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABs1No7BtXj")
+	snaps := preseed.Snaps()
+	c.Assert(snaps, DeepEquals, []*asserts.PreseedSnap{
+		{
+			Name:     "baz-linux",
+			SnapID:   "bazlinuxidididididididididididid",
+			Revision: 99,
+			Components: []asserts.PreseedComponent{
+				{
+					Name:     "comp1",
+					Revision: 1,
+				},
+			},
+		},
+		{
+			Name: "foo-linux",
+			Components: []asserts.PreseedComponent{
+				{
+					Name: "comp2",
+				},
+			},
+		},
+	})
+	c.Check(snaps[0].SnapName(), Equals, "baz-linux")
+	c.Check(snaps[0].ID(), Equals, "bazlinuxidididididididididididid")
+}
+
 func (ps *preseedSuite) TestDecodeInvalid(c *C) {
 	const errPrefix = "assertion preseed: "
 
@@ -151,6 +202,12 @@ func (ps *preseedSuite) TestDecodeInvalid(c *C) {
 		{"id: bazlinuxidididididididididididid\n", "id: 2\n", `"id" of snap "baz-linux" contains invalid characters: "2"`},
 		{"OTHER", "  -\n    name: baz-linux\n    id: bazlinuxidididididididididididid\n    revision: 1\n", `cannot list the same snap "baz-linux" multiple times`},
 		{"OTHER", "  -\n    name: baz-linux2\n    id: bazlinuxidididididididididididid\n    revision: 1\n", `cannot specify the same snap id "bazlinuxidididididididididididid" multiple times, specified for snaps "baz-linux" and "baz-linux2"`},
+		{"OTHER", "    components:\n      -\n        name: comp1\n        revision: 1\n      -\n        name: comp1\n        revision: 1\n", `cannot list the same component "comp1" multiple times`},
+		{"OTHER", "    components:\n      - string\n      - string\n", `"components" header must be a list of maps`},
+		{"OTHER", "    components: 10\n", `"components" header must be a list of maps`},
+		{"OTHER", "    components:\n      -\n        name: comp1\n        revision: 10\n      -\n        revision: 10\n", `"name" of component is mandatory`},
+		{"OTHER", "    components:\n      -\n        name: comp1\n", `component "comp1" must have a revision since its snap has a revision`},
+		{"OTHER", "  -\n    name: bar-linux\n    components:\n      -\n        name: comp1\n        revision: 10\n", `component "comp1" cannot have a revision since its snap has no revision`},
 	}
 
 	for _, test := range invalidTests {
@@ -159,7 +216,6 @@ func (ps *preseedSuite) TestDecodeInvalid(c *C) {
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, errPrefix+test.expectedErr)
 	}
-
 }
 
 func (ps *preseedSuite) TestSnapRevisionImpliesSnapId(c *C) {
