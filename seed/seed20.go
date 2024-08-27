@@ -192,12 +192,15 @@ func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (er
 		}
 	}
 
-	if err := osutil.CopyFile(
-		filepath.Join(srcSystemDir, "model"),
-		filepath.Join(destSystemDir, "model"),
-		osutil.CopyFlagDefault,
-	); err != nil {
-		return err
+	// these files are the files we can safely copy without an modifications
+	for _, name := range []string{"assertions/model-etc", "grubenv", "model"} {
+		if err := osutil.CopyFile(
+			filepath.Join(srcSystemDir, name),
+			filepath.Join(destSystemDir, name),
+			osutil.CopyFlagDefault,
+		); err != nil {
+			return err
+		}
 	}
 
 	destAssertedSnapDir := filepath.Join(destSeedDir, "snaps")
@@ -255,16 +258,6 @@ func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (er
 	// just write them all to the same "snaps" file.
 	if err := resolveAndSaveAssertions(assertions, s.db, filepath.Join(destSystemDir, "assertions", "snaps")); err != nil {
 		return err
-	}
-
-	for _, name := range []string{"assertions/model-etc", "grubenv"} {
-		if err := osutil.CopyFile(
-			filepath.Join(srcSystemDir, name),
-			filepath.Join(destSystemDir, name),
-			osutil.CopyFlagDefault,
-		); err != nil {
-			return err
-		}
 	}
 
 	return nil
