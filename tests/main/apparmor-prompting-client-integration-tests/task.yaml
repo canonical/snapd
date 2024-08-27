@@ -21,7 +21,9 @@ prepare: |
 
 restore: |
     rm -rf /home/ubuntu/prompting-client
-    snap remove --purge lxd
+    rm -f /home/ubuntu/integration-tests
+    snap unset system experimental.apparmor-prompting
+    snap unset system experimental.user-daemons
 
 debug: |
     snap connections
