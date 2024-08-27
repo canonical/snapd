@@ -546,6 +546,17 @@ prepare_project() {
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
             best_golang=golang-1.18
+            case "$SPREAD_SYSTEM" in
+                ubuntu-fips-*)
+                    # we are limited by the FIPS variants of go toolchain
+                    # available from the PPA, and we need to match the Go
+                    # version expected by during FIPS build of the deb, which
+                    # currently expects 1.20, see:
+                    # https://launchpad.net/~ubuntu-toolchain-r/+archive/ubuntu/golang-fips
+                    best_golang=golang-1.20
+                    quiet apt install -y golang-1.20
+                    ;;
+            esac
             # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
             gdebi --quiet --apt-line ./debian/control >deps.txt
             quiet xargs -r eatmydata apt-get install -y < deps.txt
