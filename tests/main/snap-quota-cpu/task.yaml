@@ -121,6 +121,9 @@ execute: |
   echo "Update the quota to a lower percentage while running"
   snap set-quota group-one --cpu=1x20%
 
+  echo "Restart the snap to ensure the new limits are in effect"
+  snap restart test-snapd-stressd
+
   echo "Verifying quota cpu usage, expecting around 20% usage"
   # allow for up to 10% difference, this is necessary due to how we measure
   ensure_cpu_usage_lower_than "stress" 30
