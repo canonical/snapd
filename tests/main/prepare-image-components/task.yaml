@@ -33,6 +33,15 @@ execute: |
       MATCH "type: snap-resource-pair" < "$LABEL_D"/assertions/snaps
   }
 
+  check_comps_local_to_system() {
+      LABEL_D=$(find $TARGET_D/system-seed/systems/ -maxdepth 1 -mindepth 1)
+      SYSTEM_SNAPS_D=$LABEL_D/snaps
+      for comp in "$@"; do
+          stat "$SYSTEM_SNAPS_D"/test-snap-with-components+"$comp"_*.comp
+          MATCH "resource-name: $comp" < "$LABEL_D"/assertions/snaps
+      done
+  }
+
   ## dangerous model
 
   # component one is mandatory in model
@@ -49,7 +58,8 @@ execute: |
   rm -rf "$TARGET_D"
   snap prepare-image "$TESTSLIB"/assertions/pc24-with-comps-dangerous.model \
        --comp test-snap-with-components+two --comp test-snap-with-components+three "$TARGET_D"
-  check_files_and_assertions one two three
+  check_files_and_assertions one two
+  check_comps_local_to_system three
 
   ## signed model
 

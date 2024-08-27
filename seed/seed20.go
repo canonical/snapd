@@ -60,11 +60,13 @@ type resourceKey struct {
 
 type seed20 struct {
 	systemDir string
+	seedDir   string
 
 	db       asserts.RODatabase
 	commitTo func(*asserts.Batch) error
 
-	model *asserts.Model
+	model      *asserts.Model
+	modelSnaps map[string]*asserts.ModelSnap
 
 	snapDeclsByID   map[string]*asserts.SnapDeclaration
 	snapDeclsByName map[string]*asserts.SnapDeclaration
@@ -333,12 +335,18 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 		s.resPairByResKey[resKey] = resPair
 	}
 
+	modelSnaps := make(map[string]*asserts.ModelSnap, len(modelAssertion.AllSnaps()))
+	for _, sn := range modelAssertion.AllSnaps() {
+		modelSnaps[sn.SnapName()] = sn
+	}
+
 	// remember db for later use
 	s.db = db
 	// remember commitTo for LoadPreseedAssertion
 	s.commitTo = commitTo
 	// remember
 	s.model = modelAssertion
+	s.modelSnaps = modelSnaps
 	s.snapDeclsByID = snapDeclsByID
 	s.snapDeclsByName = snapDeclsByName
 	s.snapRevsByID = snapRevsByID
@@ -429,7 +437,24 @@ type errorComponentNotInSeed struct {
 	error
 }
 
-func (s *seed20) lookupVerifiedComponent(cref naming.ComponentRef, snapRev snap.Revision, snapID, snapProvenance string, snapsDir string, handler ContainerHandler, tm timings.Measurer) (Component, error) {
+func modelContainsComponent(modelSnaps map[string]*asserts.ModelSnap, cref naming.ComponentRef) bool {
+	sn, ok := modelSnaps[cref.SnapName]
+	if !ok {
+		return false
+	}
+
+	_, ok = sn.Components[cref.ComponentName]
+	return ok
+}
+
+func (s *seed20) assertedComponentDir(cref naming.ComponentRef) string {
+	if modelContainsComponent(s.modelSnaps, cref) {
+		return filepath.Join(s.seedDir, "snaps")
+	}
+	return filepath.Join(s.systemDir, "snaps")
+}
+
+func (s *seed20) lookupVerifiedComponent(cref naming.ComponentRef, snapRev snap.Revision, snapID, snapProvenance string, handler ContainerHandler, tm timings.Measurer) (Component, error) {
 	snapName := cref.SnapName
 	compName := cref.ComponentName
 
@@ -448,8 +473,13 @@ func (s *seed20) lookupVerifiedComponent(cref naming.ComponentRef, snapRev snap.
 			fmt.Errorf("internal error: resource pair assertion not found for %s", compName)
 	}
 
-	compPath := filepath.Join(s.systemDir, snapsDir,
+	// we know the component is asserted, but it might not be in the model. if
+	// it isn't in the model, then it could be in this system's snaps dir
+	compDir := s.assertedComponentDir(cref)
+
+	compPath := filepath.Join(compDir,
 		fmt.Sprintf("%s_%d.comp", cref.String(), resRev.ResourceRevision()))
+
 	_, err := os.Stat(compPath)
 	if err != nil {
 		// error should be of type *PathError
@@ -536,7 +566,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, handler Containe
 	}
 
 	snapName := snapDecl.SnapName()
-	snapPath = filepath.Join(s.systemDir, snapsDir, fmt.Sprintf("%s_%d.snap", snapName, snapRev.SnapRevision()))
+	snapPath = filepath.Join(snapsDir, fmt.Sprintf("%s_%d.snap", snapName, snapRev.SnapRevision()))
 
 	fi, err := os.Stat(snapPath)
 	if err != nil {
@@ -614,7 +644,7 @@ func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.Model
 			seedComp, err := s.lookupVerifiedComponent(
 				naming.NewComponentRef(snapDecl.SnapName(), comp),
 				snap.R(snapRev.SnapRevision()), snapDecl.SnapID(),
-				snapRev.Provenance(), snapsDir, handler, tm)
+				snapRev.Provenance(), handler, tm)
 			if err != nil {
 				var notInSeed errorComponentNotInSeed
 				if errors.As(err, &notInSeed) {
@@ -635,13 +665,20 @@ func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.Model
 			return seedComps[i].CompSideInfo.Component.ComponentName <
 				seedComps[j].CompSideInfo.Component.ComponentName
 		})
-	} else {
-		// Asserted option snap
+	}
+
+	// if we have an options snap for this asserted snap, then it should only
+	// contain asserted components that are not present in the model
+	if optSnap != nil {
 		for _, comp := range optSnap.Components {
+			if comp.Unasserted != "" {
+				return "", nil, nil, fmt.Errorf("internal error: unasserted component in options.yaml for asserted snap: %s", comp.Unasserted)
+			}
+
 			seedComp, err := s.lookupVerifiedComponent(
 				naming.NewComponentRef(snapDecl.SnapName(), comp.Name),
 				snap.R(snapRev.SnapRevision()), snapDecl.SnapID(),
-				snapRev.Provenance(), snapsDir, handler, tm)
+				snapRev.Provenance(), handler, tm)
 			if err != nil {
 				return "", nil, nil, err
 			}
@@ -748,11 +785,11 @@ func (s *seed20) doLoadMetaOne(sntoc *snapToConsider, handler ContainerHandler, 
 		required = essential || sntoc.modelSnap.Presence == "required"
 		channel = sntoc.modelSnap.DefaultChannel
 		classic = sntoc.modelSnap.Classic
-		snapsDir = "../../snaps"
+		snapsDir = filepath.Join(s.seedDir, "snaps")
 	} else {
 		snapRef = sntoc.optSnap
 		channel = "latest/stable"
-		snapsDir = "snaps"
+		snapsDir = filepath.Join(s.systemDir, "snaps")
 	}
 	seedSnap, err := s.lookupSnap(snapRef, sntoc.modelSnap, sntoc.optSnap, channel, handler, snapsDir, tm)
 	if err != nil {
