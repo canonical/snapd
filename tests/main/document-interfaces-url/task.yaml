@@ -10,51 +10,48 @@ systems: [ubuntu-24.04-64]
 execute: |
     # Checks to see if the url supplied as the first argument returns an OK HTML status code
     webpage_exists() {
-      local url=$1
-      local status_code
-      local num_retries=3
+        local url=$1
+        local status_code
+        local num_retries=3
 
-      for _ in $(seq $num_retries); do
-        # Make a HEAD request to the URL and capture the HTTP status code
-        status_code=$(curl -o /dev/null -s -w "%{http_code}\n" "$url")
+        for _ in $(seq $num_retries); do
+            # Make a HEAD request to the URL and capture the HTTP status code
+            status_code=$(curl -o /dev/null -s -w "%{http_code}\n" "$url")
 
-        # Check if the status code is in the 2xx range
-        if [[ "$status_code" -ge 200 && "$status_code" -lt 300 ]]; then
-            return 0
-        fi
-      done
-      return 1
+            # Check if the status code is in the 2xx range
+            if [[ "$status_code" -ge 200 && "$status_code" -lt 300 ]]; then
+                return 0
+            fi
+        done
+        return 1
     }
-
-    #---------------------------------------------------------------
-    #                       Exclusion list                               
-    #                                                                    
-    # The following entries are interfaces that are missing              
+     
+    # The exclusion_map contains interfaces that are missing              
     # documentation. Each key is the name of the interface, while its    
     # value is the date by which it should have a working URL.           
-    # The expiry date is <expiration year>:<expiration day of year>      
+    # The expiry date is <expiration year>/<expiration month>      
     
-    declare -A emap
-    emap["microceph"]="2025:50"
-    emap["microceph-support"]="2025:50"
-    emap["pkcs11"]="2025:50"
-    emap["registry"]="2025:50"
-    emap["snap-interfaces-requests-control"]="2025:50"
-    emap["system-packages-doc"]="2025:50"
-    emap["xilinx-dma"]="2025:50"
+    declare -A exclusion_map
+    exclusion_map["microceph"]="2025/02"
+    exclusion_map["microceph-support"]="2025/02"
+    exclusion_map["pkcs11"]="2025/02"
+    exclusion_map["registry"]="2025/02"
+    exclusion_map["snap-interfaces-requests-control"]="2025/02"
+    exclusion_map["system-packages-doc"]="2025/02"
+    exclusion_map["xilinx-dma"]="2025/02"
 
 
-    # If the interface is in the exclusion array (emap) and it is currently sooner
+    # If the interface is in the exclusion_map and it is currently sooner
     # than its specified expiration date, then return true
-    can_exclude() { 
-        if [[ -v "emap[$1]" ]]; then
-            local date="${emap[$1]}"
-            local year=${date%%:*}
-            local day=${date#*:}
+    exclude() { 
+        if [[ -v "exclusion_map[$1]" ]]; then
+            local date="${exclusion_map[$1]}"
+            local year=${date%%/*}
+            local month=${date#*/}
             if [[ $(date '+%Y') -lt $year ]]; then
                 return 0
             fi
-            if [[ $(date '+%Y') -eq $year ]] && [[ $(date '+%j') -le $day ]]; then
+            if [[ $(date '+%Y') -eq $year ]] && [[ $((10#$(date '+%m'))) -le $((10#$month)) ]]; then
                 return 0
             fi
         fi
@@ -68,7 +65,7 @@ execute: |
         url="https://snapcraft.io/docs/$iface-interface"
         actual="$( snap interface "$iface" )"
         if grep -q "documentation: $url" <<<"$actual"; then
-            if can_exclude "$iface" || webpage_exists "$url"; then
+            if exclude "$iface" || webpage_exists "$url"; then
                 echo "ok"
             else
                 bad=1
