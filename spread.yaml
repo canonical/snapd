@@ -931,7 +931,7 @@ suites:
     # environment on each platform. On autopkgtest we cannot run all tests
     # as this is very slow and we run into timeouts.
     #
-    # These tests are executed on all other plattforms as they
+    # These tests are executed on all other platforms as they
     # are designed to run on pristine systems
     tests/smoke/:
         summary: Essential system level tests for snapd
