@@ -1827,6 +1827,38 @@ plugs:
 	c.Check(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestConnectionDesktop(c *C) {
+	cand := s.connectCand(c, "desktop", "", "")
+	err := cand.Check()
+	c.Assert(err, ErrorMatches, `connection denied by plug rule of interface "desktop"`)
+
+	plugsSlots := `
+plugs:
+  desktop:
+    allow-connection: true
+`
+	snapDecl := s.mockSnapDecl(c, "some-snap", "some-snap-with-desktop-id", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.Check()
+	c.Assert(err, IsNil)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionDesktop(c *C) {
+	cand := s.connectCand(c, "desktop", "", "")
+	_, err := cand.CheckAutoConnect()
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"desktop\"")
+
+	plugsSlots := `
+plugs:
+  desktop:
+    allow-auto-connection: true
+`
+	snapDecl := s.mockSnapDecl(c, "some-snap", "some-snap-with-desktop-id", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestDesktopFileIDsOverride(c *C) {
 	ic := s.installPlugCand(c, "desktop", snap.TypeApp, `name: some-snap
 version: 0
