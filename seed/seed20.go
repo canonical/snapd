@@ -146,6 +146,105 @@ func shouldCopyComponent(target Component, snapName string, model *asserts.Model
 	return strutil.ListContains(oc.Components[snapName], target.CompSideInfo.Component.ComponentName)
 }
 
+// OptionalContainers implements the Copier interface.
+func (s *seed20) OptionalContainers() (OptionalContainers, error) {
+	model := s.Model()
+
+	requiredSnapsInModel := make(map[string]bool)
+	requiredComponentsInModel := make(map[string]map[string]bool)
+	for _, snap := range model.AllSnaps() {
+		if snap.Presence == "required" {
+			requiredSnapsInModel[snap.Name] = true
+		}
+
+		requiredComps := make(map[string]bool)
+		for compName, comp := range snap.Components {
+			if comp.Presence == "required" {
+				requiredComps[compName] = true
+			}
+		}
+		requiredComponentsInModel[snap.Name] = requiredComps
+	}
+
+	// snapd is always required, but it might not be explicitly listed in the
+	// model
+	requiredSnapsInModel["snapd"] = true
+
+	availableSnaps, availableComponents, err := s.availableContainers()
+	if err != nil {
+		return OptionalContainers{}, err
+	}
+
+	optionalAndAvailable := OptionalContainers{
+		Components: make(map[string][]string),
+	}
+	for sn := range availableSnaps {
+		if !requiredSnapsInModel[sn] {
+			optionalAndAvailable.Snaps = append(optionalAndAvailable.Snaps, sn)
+		}
+	}
+
+	for sn, comps := range availableComponents {
+		requiredCompsForSnap := requiredComponentsInModel[sn]
+		for c := range comps {
+			if requiredCompsForSnap == nil || !requiredCompsForSnap[c] {
+				optionalAndAvailable.Components[sn] = append(optionalAndAvailable.Components[sn], c)
+			}
+		}
+	}
+
+	if len(optionalAndAvailable.Components) == 0 {
+		optionalAndAvailable.Components = nil
+	}
+
+	return optionalAndAvailable, nil
+}
+
+func (s *seed20) availableContainers() (map[string]bool, map[string]map[string]bool, error) {
+	availableSnapSet, availableCompSets := s.availableAssertedContainers()
+
+	optsPath := filepath.Join(s.systemDir, "options.yaml")
+	if s.model.Grade() == asserts.ModelDangerous && osutil.FileExists(optsPath) {
+		opts, err := internal.ReadOptions20(optsPath)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		for _, sn := range opts.Snaps {
+			availableSnapSet[sn.Name] = true
+			for _, comp := range sn.Components {
+				if availableCompSets[sn.Name] == nil {
+					availableCompSets[sn.Name] = make(map[string]bool)
+				}
+				availableCompSets[sn.Name][comp.Name] = true
+			}
+		}
+	}
+
+	return availableSnapSet, availableCompSets, nil
+}
+
+func (s *seed20) availableAssertedContainers() (map[string]bool, map[string]map[string]bool) {
+	assertedNames := make(map[string]bool)
+	assertedComps := make(map[string]map[string]bool)
+	snapIDToName := make(map[string]string)
+	for snapID, decl := range s.snapDeclsByID {
+		snapName := decl.SnapName()
+		snapIDToName[snapID] = snapName
+		assertedNames[snapName] = true
+	}
+
+	for _, pair := range s.resPairByResKey {
+		snapName := snapIDToName[pair.SnapID()]
+		if assertedComps[snapName] == nil {
+			assertedComps[snapName] = make(map[string]bool)
+		}
+		assertedComps[snapName][pair.ResourceName()] = true
+	}
+
+	return assertedNames, assertedComps
+}
+
 // Copy implements the Copier interface.
 func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (err error) {
 	srcSystemDir, err := filepath.Abs(s.systemDir)

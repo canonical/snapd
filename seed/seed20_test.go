@@ -3966,6 +3966,173 @@ func ensureAssertionsPresent(c *C, path string, snapIDToComps map[string][]strin
 	c.Assert(len(resourceRevs), Equals, compCount)
 }
 
+func (s *seed20Suite) TestOptionalContainers(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "optional20-a", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	assertCompRevs := map[string]snap.Revision{
+		"comp1": snap.R(22),
+		"comp2": snap.R(33),
+		"comp3": snap.R(44),
+	}
+	s.MakeAssertedSnapWithComps(c,
+		seedtest.SampleSnapYaml["component-test"], nil,
+		snap.R(11), assertCompRevs, "canonical", s.StoreSigning.Database,
+	)
+
+	const srcLabel = "20191030"
+	s.MakeSeedWithLocalComponents(c, srcLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":     "optional20-a",
+				"id":       s.AssertedSnapID("optional20-a"),
+				"presence": "optional",
+			},
+			map[string]interface{}{
+				"name":     "optional20-b",
+				"id":       s.AssertedSnapID("optional20-b"),
+				"presence": "optional",
+			},
+			map[string]interface{}{
+				"name":     "component-test",
+				"id":       s.AssertedSnapID("component-test"),
+				"presence": "optional",
+				"components": map[string]interface{}{
+					"comp1": "required",
+					"comp2": "optional",
+					"comp3": "optional",
+				},
+			},
+		},
+	}, []*seedwriter.OptionsSnap{
+		{
+			Path: s.makeLocalSnap(c, "required20"),
+		},
+		{
+			Name: "component-test",
+			Components: []seedwriter.OptionsComponent{
+				{
+					Name: "comp2",
+				},
+			},
+		},
+		{
+			Name: "optional20-a",
+		},
+		{
+			Path: s.makeLocalSnap(c, "local-component-test"),
+		},
+	}, map[string][]string{
+		"local-component-test": {
+			snaptest.MakeTestComponent(c, seedtest.SampleSnapYaml["local-component-test+comp4"]),
+		},
+	})
+
+	seed20, err := seed.Open(s.SeedDir, srcLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	copier := seed20.(seed.Copier)
+
+	optional, err := copier.OptionalContainers()
+	c.Assert(err, IsNil)
+
+	// note that the optional snap, optional20-b, is missing since it is not
+	// available in the seed
+	c.Assert(optional.Snaps, testutil.DeepUnsortedMatches, []string{"optional20-a", "component-test", "local-component-test", "required20"})
+	c.Assert(optional.Components, testutil.DeepUnsortedMatches, map[string][]string{
+		// note that the optional components, comp3, is missing, since it is not
+		// available in the seed
+		"component-test":       {"comp2"},
+		"local-component-test": {"comp4"},
+	})
+}
+
+func (s *seed20Suite) TestOptionalContainersAllRequired(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "required20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	s.MakeAssertedSnapWithComps(c,
+		seedtest.SampleSnapYaml["component-test"], nil,
+		snap.R(11), nil, "canonical", s.StoreSigning.Database,
+	)
+
+	const srcLabel = "20191030"
+	s.MakeSeedWithLocalComponents(c, srcLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":     "required20",
+				"id":       s.AssertedSnapID("required20"),
+				"presence": "required",
+			},
+			map[string]interface{}{
+				"name":     "component-test",
+				"id":       s.AssertedSnapID("component-test"),
+				"presence": "required",
+				"components": map[string]interface{}{
+					"comp1": "required",
+					"comp2": "required",
+					"comp3": "required",
+				},
+			},
+		},
+	}, nil, nil)
+
+	seed20, err := seed.Open(s.SeedDir, srcLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	copier := seed20.(seed.Copier)
+
+	optional, err := copier.OptionalContainers()
+	c.Assert(err, IsNil)
+
+	c.Assert(optional.Snaps, IsNil)
+	c.Assert(optional.Components, IsNil)
+}
+
 func (s *seed20Suite) TestCopyCleanup(c *C) {
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core20", "")

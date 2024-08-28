@@ -21,6 +21,7 @@
 package devicestate_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -401,6 +402,10 @@ type fakeSeedCopier struct {
 
 func (s *fakeSeedCopier) Copy(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
 	return s.copyFn(seedDir, opts, tm)
+}
+
+func (s *fakeSeedCopier) OptionalContainers() (seed.OptionalContainers, error) {
+	return seed.OptionalContainers{}, errors.New("not implemented")
 }
 
 // TODO encryption case for the finish step is not tested yet, it needs more mocking
