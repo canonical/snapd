@@ -19,6 +19,11 @@ export DH_GOLANG_GO_GENERATE=1
 export PATH:=${PATH}:${CURDIR}
 # make sure that correct go version is found on xenial
 export PATH:=/usr/lib/go-1.18/bin:${PATH}
+ifneq (,$(filter fips,$(DEB_BUILD_OPTIONS)))
+	# when building with FIPS, use Go 1.20 which is also declared in build
+	# dependencies
+	export PATH:=/usr/lib/go-1.20/bin:${PATH}
+endif
 # GOCACHE is needed by go-1.13+
 export GOCACHE:=/tmp/go-build
 
@@ -91,7 +96,7 @@ ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 	_TAGS := withtestkeys,withbootassetstesting,faultinject
 	_SNAP_TAGS := nomanagers,withtestkeys,faultinject
 else
-	_SNAP_TAGS=-tags nomanagers
+	_SNAP_TAGS=nomanagers
 endif
 
 ifneq (,$(filter fips,$(DEB_BUILD_OPTIONS)))
