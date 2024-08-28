@@ -74,9 +74,7 @@ execute: |
             MATCH 'is-reexec-enabled: true' < snap-default.out
             MATCH 'is-reexec-explicitly-enabled: false' < snap-default.out
             MATCH 'is-reexecd: true' < snap-default.out
-            # TODO: once snapd snap lands the output wlll be different:
-            # MATCH 'self-exe: /snap/snapd/.*/usr/bin/snap' < snap-default.out
-            MATCH 'self-exe: /snap/core/.*/usr/bin/snap' < snap-default.out
+            MATCH 'self-exe: /snap/snapd/.*/usr/bin/snap' < snap-default.out
 
             echo "Checking without reeexec scenario"
             MATCH 'distro-supports-reexec: true' < snap-no-reexec.out
@@ -86,25 +84,20 @@ execute: |
             MATCH 'self-exe: /usr/bin/snap' < snap-no-reexec.out
 
             echo "Checking AppArmor"
-            # TODO: once snapd snap lands, this will use internal parser
-            # MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-default.out
-            # MATCH 'internal: true' < snap-apparmor-default.out
+            MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-default.out
+            MATCH 'apparmor-parser-command: /snap/snapd/.*/apparmor_parser --config-file /snap/snapd/.*/usr/lib/snapd/apparmor/parser.conf --base /snap/snapd/.*/usr/lib/snapd/apparmor\.d --policy-features /snap/snapd/.*/usr/lib/snapd/apparmor\.d/abi/4\.0' < snap-apparmor-default.out
+            MATCH 'internal: true' < snap-apparmor-default.out
+
             if os.query is-xenial || os.query is-bionic; then
                 # Ubuntu < 20.04 does not have usr-merge
-                MATCH 'apparmor-parser: /sbin/apparmor_parser' < snap-apparmor-default.out
-                MATCH 'internal: false' < snap-apparmor-default.out
                 MATCH 'apparmor-parser: /sbin/apparmor_parser' < snap-apparmor-no-reexec.out
                 MATCH 'internal: false' < snap-apparmor-no-reexec.out
             else
-                MATCH 'apparmor-parser: /usr/sbin/apparmor_parser' < snap-apparmor-default.out
-                MATCH 'internal: false' < snap-apparmor-default.out
                 MATCH 'apparmor-parser: /usr/sbin/apparmor_parser' < snap-apparmor-no-reexec.out
                 MATCH 'internal: false' < snap-apparmor-no-reexec.out
             fi
 
-            # TODO: once snapd snap lands, this will use snap-update-ns from
-            # snapd snap
-            MATCH 'snap-update-ns: /snap/core/.*/usr/lib/snapd/snap-update-ns' < snap-uns-default.out
+            MATCH 'snap-update-ns: /snap/snapd/.*/usr/lib/snapd/snap-update-ns' < snap-uns-default.out
             ;;
         *)
             echo "Checking default scenario"
@@ -134,12 +127,12 @@ execute: |
                 opensuse-*)
                     # snap mount dir is /snap
                     MATCH 'is-reexecd: true' < snap-yes-reexec.out
-                    MATCH 'self-exe: /snap/core/.*/usr/bin/snap' < snap-yes-reexec.out
+                    MATCH 'self-exe: /snap/snapd/.*/usr/bin/snap' < snap-yes-reexec.out
                     ;;
                 amazon-linux-*)
                     # has /snap -> /var/lib/snapd symlink
                     MATCH 'is-reexecd: true' < snap-yes-reexec.out
-                    MATCH 'self-exe: /var/lib/snapd/snap/core/.*/usr/bin/snap' < snap-yes-reexec.out
+                    MATCH 'self-exe: /var/lib/snapd/snap/snapd/.*/usr/bin/snap' < snap-yes-reexec.out
                     ;;
                 *)
                     echo "unexpected distro $SPREAD_SYSTEM"
