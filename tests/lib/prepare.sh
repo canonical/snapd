@@ -525,13 +525,22 @@ build_snapd_snap() {
                     cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "${snapd_snap_cache}/snapd_from_ci.snap"
                 fi
             else
-		# This is not reliable across classic releases
-		exit 1
-		#[ -d "${TARGET}" ] || mkdir -p "${TARGET}"
-                #chmod -R go+r "${PROJECT_PATH}/tests"
+                # This is not reliable across classic releases so only allow on
+                # ARM variants as a special case since we cannot cross build
+                # snapd snap for ARM right now
+                case "$SPREAD_SYSTEM" in
+                    *-arm-*)
+                        ;;
+                    *)
+                        echo "system $SPREAD_SYSTEM should use a prebuilt snapd snapd"
+                        exit 1
+                        ;;
+                esac
+                [ -d "${TARGET}" ] || mkdir -p "${TARGET}"
+                chmod -R go+r "${PROJECT_PATH}/tests"
                 # TODO: run_snapcraft does not currently guarantee or check the required version for building snapd
-		#run_snapcraft --use-lxd --verbosity quiet --output="snapd_from_snapcraft.snap"
-                #mv "${PROJECT_PATH}"/snapd_from_snapcraft.snap "${snapd_snap_cache}"
+                run_snapcraft --use-lxd --verbosity quiet --output="snapd_from_snapcraft.snap"
+                mv "${PROJECT_PATH}"/snapd_from_snapcraft.snap "${snapd_snap_cache}"
             fi
         fi
         break
