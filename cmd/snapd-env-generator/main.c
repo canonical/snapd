@@ -28,7 +28,7 @@
 // in Ubuntu 17.10+
 int main(int argc, char **argv)
 {
-	const char *snap_bin_dir = SNAP_MOUNT_DIR "/bin";
+	const char *snap_bin_dir = STATIC_SNAP_MOUNT_DIR "/bin";
 
 	char *path = getenv("PATH");
 	if (path == NULL || sc_streq(path, "")) {

@@ -260,8 +260,8 @@ static int ensure_root_fs_shared(const char *normal_dir)
 		"Description=Ensure that the snap directory "
 		"shares mount events.\n");
 	fprintf(f, "[Mount]\n");
-	fprintf(f, "What=" SNAP_MOUNT_DIR "\n");
-	fprintf(f, "Where=" SNAP_MOUNT_DIR "\n");
+	fprintf(f, "What=" STATIC_SNAP_MOUNT_DIR "\n");
+	fprintf(f, "Where=" STATIC_SNAP_MOUNT_DIR "\n");
 	fprintf(f, "Type=none\n");
 	fprintf(f, "Options=bind,shared\n");
 
