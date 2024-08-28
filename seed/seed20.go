@@ -33,11 +33,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"sync"
 
 	"github.com/snapcore/snapd/asserts"
@@ -98,15 +96,65 @@ type seed20 struct {
 	essentialSnapsNum int
 }
 
-// Copy implement Copier interface.
-func (s *seed20) Copy(seedDir string, label string, tm timings.Measurer) (err error) {
+func shouldCopySnap(target *Snap, model *asserts.Model, modelSnaps map[string]*asserts.ModelSnap, oc *OptionalContainers) bool {
+	if oc == nil {
+		return true
+	}
+
+	if target.Essential {
+		return true
+	}
+
+	modelSnap, ok := modelSnaps[target.SnapName()]
+	if ok && modelSnap.Presence == "required" {
+		return true
+	}
+
+	// if the snap isn't in the model and the model isn't grade dangerous, then
+	// we shouldn't copy the snap. this situation should only happen if someone
+	// has tampered with the seed.
+	if !ok && model.Grade() != asserts.ModelDangerous {
+		return false
+	}
+
+	return strutil.ListContains(oc.Snaps, target.SnapName())
+}
+
+func shouldCopyComponent(target Component, snapName string, model *asserts.Model, modelSnaps map[string]*asserts.ModelSnap, oc *OptionalContainers) bool {
+	if oc == nil {
+		return true
+	}
+
+	var componentInModel bool
+	modelSnap, ok := modelSnaps[snapName]
+	if ok {
+		if modelComp, ok := modelSnap.Components[target.CompSideInfo.Component.ComponentName]; ok {
+			componentInModel = true
+			if modelComp.Presence == "required" {
+				return true
+			}
+		}
+	}
+
+	// if the component isn't in the model and the model isn't grade dangerous,
+	// then we shouldn't ever copy the component. this situation should only
+	// happen if someone has tampered with the seed.
+	if !componentInModel && model.Grade() != asserts.ModelDangerous {
+		return false
+	}
+
+	return strutil.ListContains(oc.Components[snapName], target.CompSideInfo.Component.ComponentName)
+}
+
+// Copy implements the Copier interface.
+func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (err error) {
 	srcSystemDir, err := filepath.Abs(s.systemDir)
 	if err != nil {
 		return err
 	}
 
-	if label == "" {
-		label = filepath.Base(srcSystemDir)
+	if opts.Label == "" {
+		opts.Label = filepath.Base(srcSystemDir)
 	}
 
 	destSeedDir, err := filepath.Abs(seedDir)
@@ -114,16 +162,16 @@ func (s *seed20) Copy(seedDir string, label string, tm timings.Measurer) (err er
 		return err
 	}
 
-	if err := os.Mkdir(filepath.Join(destSeedDir, "systems"), 0755); err != nil && !errors.Is(err, fs.ErrExist) {
+	destSystemDir := filepath.Join(destSeedDir, "systems", opts.Label)
+	if osutil.FileExists(destSystemDir) {
+		return fmt.Errorf("cannot create system: system %q already exists at %q", opts.Label, destSystemDir)
+	}
+
+	if err := os.MkdirAll(destSystemDir, 0755); err != nil {
 		return err
 	}
 
-	destSystemDir := filepath.Join(destSeedDir, "systems", label)
-	if osutil.FileExists(destSystemDir) {
-		return fmt.Errorf("cannot create system: system %q already exists at %q", label, destSystemDir)
-	}
-
-	// note: we don't clean up asserted snaps that were copied over
+	// note: we don't clean up asserted snaps or components that were copied over
 	defer func() {
 		if err != nil {
 			os.RemoveAll(destSystemDir)
@@ -137,45 +185,270 @@ func (s *seed20) Copy(seedDir string, label string, tm timings.Measurer) (err er
 	span := tm.StartSpan("copy-recovery-system", fmt.Sprintf("copy recovery system from %s to %s", srcSystemDir, destSystemDir))
 	defer span.Stop()
 
-	// copy all files (including unasserted snaps) from the seed to the
-	// destination
-	err = filepath.Walk(srcSystemDir, func(path string, info fs.FileInfo, err error) error {
+	dirs := []string{"snaps", "assertions"}
+	for _, d := range dirs {
+		if err := os.Mkdir(filepath.Join(destSystemDir, d), 0755); err != nil {
+			return err
+		}
+	}
+
+	// these files are the files we can safely copy without an modifications
+	for _, name := range []string{"assertions/model-etc", "grubenv", "model"} {
+		if err := osutil.CopyFile(
+			filepath.Join(srcSystemDir, name),
+			filepath.Join(destSystemDir, name),
+			osutil.CopyFlagDefault,
+		); err != nil {
+			return err
+		}
+	}
+
+	destAssertedSnapDir := filepath.Join(destSeedDir, "snaps")
+	if err := os.Mkdir(destAssertedSnapDir, 0755); err != nil {
+		return err
+	}
+
+	destUnassertedSnapDir := filepath.Join(destSystemDir, "snaps")
+
+	// while copying the snaps, we also collect the assertions and the fields in
+	// the aux-info.json file that we need to write
+	var assertions []asserts.Assertion
+	auxInfo := make(map[string]*internal.AuxInfo20)
+	optSnaps := make([]*internal.Snap20, 0)
+
+	// copy the snaps and components that the seed needs
+	for _, sn := range s.snaps {
+		// if we're not copying the snap, then we also don't need to copy the
+		// components for this snap
+		if !shouldCopySnap(sn, s.model, s.modelSnaps, opts.OptionalContainers) {
+			continue
+		}
+
+		// optSnap might be nil if it shouldn't have an entry in options.yaml
+		as, optSnap, err := s.copySnapAndComponents(sn, destSeedDir, opts)
 		if err != nil {
 			return err
 		}
 
-		destPath := filepath.Join(destSeedDir, "systems", label, strings.TrimPrefix(path, srcSystemDir))
-		if info.IsDir() {
-			return os.Mkdir(destPath, info.Mode())
+		if optSnap != nil {
+			optSnaps = append(optSnaps, optSnap)
 		}
 
-		return osutil.CopyFile(path, destPath, osutil.CopyFlagDefault)
-	})
-	if err != nil {
+		assertions = append(assertions, as...)
+		if sn.ID() != "" {
+			if a, ok := s.auxInfos[sn.ID()]; ok {
+				auxInfo[sn.ID()] = a
+			}
+		}
+	}
+
+	if len(optSnaps) > 0 {
+		opts := internal.Options20{Snaps: optSnaps}
+		if err := opts.Write(filepath.Join(destSystemDir, "options.yaml")); err != nil {
+			return err
+		}
+	}
+
+	if err := writeAuxInfo(filepath.Join(destUnassertedSnapDir, "aux-info.json"), auxInfo); err != nil {
 		return err
 	}
 
-	destAssertedSnapDir := filepath.Join(destSeedDir, "snaps")
-
-	if err := os.MkdirAll(destAssertedSnapDir, 0755); err != nil {
+	// copy the assertions that the seed needs. since we don't make any
+	// distinction between the assertions in "extra-snaps" and "snaps" files, we
+	// just write them all to the same "snaps" file.
+	if err := resolveAndSaveAssertions(assertions, s.db, filepath.Join(destSystemDir, "assertions", "snaps")); err != nil {
 		return err
-	}
-
-	// copy the asserted snaps that the seed needs
-	for _, sn := range s.snaps {
-		// unasserted snaps are already copied above, skip them
-		if sn.ID() == "" {
-			continue
-		}
-
-		destSnapPath := filepath.Join(destAssertedSnapDir, filepath.Base(sn.Path))
-
-		if err := osutil.CopyFile(sn.Path, destSnapPath, osutil.CopyFlagOverwrite); err != nil {
-			return fmt.Errorf("cannot copy asserted snap: %w", err)
-		}
 	}
 
 	return nil
+}
+
+func snapInModel(cref naming.SnapRef, modelSnaps map[string]*asserts.ModelSnap) bool {
+	// snapd is implicitly in the model
+	if cref.SnapName() == "snapd" {
+		return true
+	}
+
+	_, ok := modelSnaps[cref.SnapName()]
+	return ok
+}
+
+func componentInModel(cref naming.ComponentRef, modelSnaps map[string]*asserts.ModelSnap) bool {
+	sn, ok := modelSnaps[cref.SnapName]
+	if !ok {
+		return false
+	}
+
+	_, ok = sn.Components[cref.ComponentName]
+	return ok
+}
+
+func (s *seed20) copySnapAndComponents(sn *Snap, destSeedDir string, opts CopyOptions) ([]asserts.Assertion, *internal.Snap20, error) {
+	destination := func(filename string, asserted, inModel bool) string {
+		if asserted && inModel {
+			return filepath.Join(destSeedDir, "snaps", filename)
+		}
+		return filepath.Join(destSeedDir, "systems", opts.Label, "snaps", filename)
+	}
+
+	snapAsserted := sn.ID() != ""
+
+	var assertions []asserts.Assertion
+	if snapAsserted {
+		decl, ok := s.snapDeclsByID[sn.ID()]
+		if !ok {
+			return nil, nil, fmt.Errorf("internal error: missing snap-declaration for asserted snap: %s", sn.SnapName())
+		}
+		assertions = append(assertions, decl)
+
+		rev, ok := s.snapRevsByID[sn.ID()]
+		if !ok {
+			return nil, nil, fmt.Errorf("internal error: missing snap-revision for asserted snap: %s", sn.SnapName())
+		}
+		assertions = append(assertions, rev)
+	}
+
+	snapInModel := snapInModel(sn, s.modelSnaps)
+
+	snapDest := destination(filepath.Base(sn.Path), snapAsserted, snapInModel)
+	if err := osutil.CopyFile(sn.Path, snapDest, osutil.CopyFlagOverwrite); err != nil {
+		return nil, nil, fmt.Errorf("cannot copy snap: %w", err)
+	}
+
+	optComponentsByName := make(map[string]internal.Component20, len(s.optSnaps))
+
+	var optSnap *internal.Snap20
+	for _, os := range s.optSnaps {
+		if os.Name == sn.SnapName() {
+			cp := *os
+			optSnap = &cp
+
+			for _, comp := range cp.Components {
+				optComponentsByName[comp.Name] = comp
+			}
+
+			// clear out the components, since we're going to add back only the
+			// ones that we're copying to the new seed
+			optSnap.Components = nil
+		}
+	}
+
+	addOptionsComponent := func(name string) {
+		if optSnap == nil {
+			return
+		}
+
+		oc, ok := optComponentsByName[name]
+		if !ok {
+			return
+		}
+
+		optSnap.Components = append(optSnap.Components, oc)
+	}
+
+	for _, comp := range sn.Components {
+		if !shouldCopyComponent(comp, sn.SnapName(), s.model, s.modelSnaps, opts.OptionalContainers) {
+			continue
+		}
+
+		addOptionsComponent(comp.CompSideInfo.Component.ComponentName)
+
+		// an asserted snap implies that all components should also be asserted
+		if snapAsserted {
+			key := resourceKey{snapID: sn.ID(), name: comp.CompSideInfo.Component.ComponentName}
+			resPair, ok := s.resPairByResKey[key]
+			if !ok {
+				return nil, nil, fmt.Errorf("internal error: missing resource-pair for component of asserted snap: %s", comp.CompSideInfo.Component.String())
+			}
+			assertions = append(assertions, resPair)
+
+			resRev, ok := s.resRevByResKey[key]
+			if !ok {
+				return nil, nil, fmt.Errorf("internal error: missing resource-revision for component of asserted snap: %s", comp.CompSideInfo.Component.String())
+			}
+			assertions = append(assertions, resRev)
+		}
+
+		compInModel := componentInModel(comp.CompSideInfo.Component, s.modelSnaps)
+		destCompPath := destination(filepath.Base(comp.Path), snapAsserted, compInModel)
+		if err := osutil.CopyFile(comp.Path, destCompPath, osutil.CopyFlagOverwrite); err != nil {
+			return nil, nil, fmt.Errorf("cannot copy component: %w", err)
+		}
+	}
+
+	// snaps can have an entry in options.yaml any of the following reasons:
+	// * they aren't in the model
+	// * they are overriding a channel
+	// * they are pointing to unasserted local snap
+	// * they are adding components to the snap that is already present in the
+	//   model
+	//
+	// since we're potentially not copying all of the components, we check here
+	// to make sure that we really need to write this entry to the new options.yaml
+	if snapInModel && optSnap != nil && optSnap.Channel == "" && optSnap.Unasserted == "" && len(optSnap.Components) == 0 {
+		optSnap = nil
+	}
+
+	return assertions, optSnap, nil
+}
+
+func writeAuxInfo(path string, auxInfo map[string]*internal.AuxInfo20) error {
+	if len(auxInfo) == 0 {
+		return nil
+	}
+
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if err := json.NewEncoder(f).Encode(auxInfo); err != nil {
+		return err
+	}
+	return f.Close()
+}
+
+func resolveAndSaveAssertions(assertions []asserts.Assertion, db asserts.RODatabase, path string) error {
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		a, err := ref.Resolve(db.Find)
+		if err != nil {
+			return nil, fmt.Errorf("internal error: cannot resolve assertion from seed: %v", err)
+		}
+		return a, nil
+	}
+
+	fetched := make(map[string]asserts.Assertion, len(assertions))
+	save := func(a asserts.Assertion) error {
+		fetched[a.Ref().Unique()] = a
+		return nil
+	}
+
+	fetcher := asserts.NewFetcher(db, retrieve, save)
+	for _, a := range assertions {
+		if a == nil {
+			return fmt.Errorf("internal error: nil assertion")
+		}
+
+		if err := fetcher.Fetch(a.Ref()); err != nil {
+			return err
+		}
+	}
+
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	enc := asserts.NewEncoder(f)
+	for _, a := range fetched {
+		if err := enc.Encode(a); err != nil {
+			return err
+		}
+	}
+
+	return f.Close()
 }
 
 func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {

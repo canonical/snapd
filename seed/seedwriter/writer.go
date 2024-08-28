@@ -70,7 +70,6 @@ func (opts *Options) manifest() *Manifest {
 // E.g. a component passed to ubuntu-image via --comp <snap_name>+<comp_name>.
 type OptionsComponent struct {
 	Name string
-	// Path is set when a file is passed around.
 	Path string
 }
 
