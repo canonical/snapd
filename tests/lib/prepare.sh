@@ -495,6 +495,10 @@ cleanup_snapcraft() {
     snap remove --purge lxd || true
     "$TESTSTOOLS"/lxd-state undo-mount-changes
     snap remove --purge snapcraft || true
+    # TODO there should be some smarter cleanup helper which removes all snaps
+    # in the right order
+    # base snap of both lxd and snapcraft
+    snap remove --purge core22 || true
 }
 
 run_snapcraft() {
