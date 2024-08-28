@@ -146,9 +146,6 @@ const (
 	// ErrorKindAppArmorPromptingNotRunning: AppArmor Prompting is not running.
 	ErrorKindAppArmorPromptingNotRunning ErrorKind = "apparmor-prompting-not-running"
 
-	// ErrorKindInterfacesRequestsManagerClosed: AppArmor Prompting interfaces requests manager has been closed.
-	ErrorKindInterfacesRequestsManagerClosed ErrorKind = "interfaces-requests-manager-closed"
-
 	// ErrorKindInterfacesRequestsInvalidID: cannot parse interfaces requests ID.
 	ErrorKindInterfacesRequestsInvalidID ErrorKind = "interfaces-requests-invalid-id"
 

@@ -112,16 +112,13 @@ func promptingError(err error) *apiError {
 		Message: err.Error(),
 	}
 	switch {
-	case errorIsOneOf(err, prompting.ErrPromptsClosed, prompting.ErrRulesClosed):
-		apiErr.Status = 500
-		apiErr.Kind = client.ErrorKindInterfacesRequestsManagerClosed
 	case errors.Is(err, prompting.ErrInvalidID):
 		apiErr.Status = 400
 		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidID
 	case errors.Is(err, prompting.ErrPromptNotFound):
 		apiErr.Status = 404
 		apiErr.Kind = client.ErrorKindInterfacesRequestsPromptNotFound
-	case errorIsOneOf(err, prompting.ErrRuleNotFound, prompting.ErrRuleNotAllowed):
+	case errors.Is(err, prompting.ErrRuleNotFound) || errors.Is(err, prompting.ErrRuleNotAllowed):
 		// Even if the error is ErrRuleNotAllowed, reply with 404 status
 		// to match the behavior of prompts, and so if we switch to storing
 		// rules by ID (and don't want to check whether a rule with that ID
@@ -168,6 +165,8 @@ func promptingError(err error) *apiError {
 	default:
 		// Treat errors without specific mapping as internal errors.
 		// These include:
+		// - ErrPromptsClosed
+		// - ErrRulesClosed
 		// - ErrRuleIDConflict
 		// - ErrRuleDBInconsistent
 		// - listener errors
