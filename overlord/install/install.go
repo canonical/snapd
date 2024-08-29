@@ -440,6 +440,47 @@ func writeTimesyncdClock(srcRootDir, dstRootDir string) error {
 	return nil
 }
 
+func comparePreseedAndSeedSnaps(seedSnap *seed.Snap, preseedSnap *asserts.PreseedSnap) error {
+	if preseedSnap.Revision != seedSnap.SideInfo.Revision.N {
+		rev := snap.Revision{N: preseedSnap.Revision}
+		return fmt.Errorf("snap %q has wrong revision %s (expected: %s)", seedSnap.SnapName(), seedSnap.SideInfo.Revision, rev)
+	}
+	if preseedSnap.SnapID != seedSnap.SideInfo.SnapID {
+		return fmt.Errorf("snap %q has wrong snap id %q (expected: %q)", seedSnap.SnapName(), seedSnap.SideInfo.SnapID, preseedSnap.SnapID)
+	}
+
+	expectedComps := make(map[string]asserts.PreseedComponent, len(preseedSnap.Components))
+	for _, c := range preseedSnap.Components {
+		expectedComps[c.Name] = c
+	}
+
+	for _, c := range seedSnap.Components {
+		preseedComp, ok := expectedComps[c.CompSideInfo.Component.ComponentName]
+		if !ok {
+			return fmt.Errorf("component %q not present in the preseed assertion", c.CompSideInfo.Component.ComponentName)
+		}
+
+		if preseedComp.Revision != c.CompSideInfo.Revision.N {
+			rev := snap.Revision{N: preseedComp.Revision}
+			return fmt.Errorf("component %q has wrong revision %s (expected: %s)", c.CompSideInfo.Component.ComponentName, c.CompSideInfo.Revision, rev)
+		}
+
+		// once we've seen the component, remove it from the expected
+		// components. anything left over is missing from the seed.
+		delete(expectedComps, c.CompSideInfo.Component.ComponentName)
+	}
+
+	if len(expectedComps) != 0 {
+		missing := make([]string, 0, len(expectedComps))
+		for name := range expectedComps {
+			missing = append(missing, name)
+		}
+		return fmt.Errorf("seed is missing components expected by preseed assertion: %s", strutil.Quoted(missing))
+	}
+
+	return nil
+}
+
 // ApplyPreseededData applies the preseed payload from the given seed, including
 // installing snaps, to the given target system filesystem.
 func ApplyPreseededData(preseedSeed seed.PreseedCapable, writableDir string) error {
@@ -492,14 +533,7 @@ func ApplyPreseededData(preseedSeed seed.PreseedCapable, writableDir string) err
 		if !ok {
 			return fmt.Errorf("snap %q not present in the preseed assertion", ssnap.SnapName())
 		}
-		if ps.Revision != ssnap.SideInfo.Revision.N {
-			rev := snap.Revision{N: ps.Revision}
-			return fmt.Errorf("snap %q has wrong revision %s (expected: %s)", ssnap.SnapName(), ssnap.SideInfo.Revision, rev)
-		}
-		if ps.SnapID != ssnap.SideInfo.SnapID {
-			return fmt.Errorf("snap %q has wrong snap id %q (expected: %q)", ssnap.SnapName(), ssnap.SideInfo.SnapID, ps.SnapID)
-		}
-		return nil
+		return comparePreseedAndSeedSnaps(ssnap, ps)
 	}
 
 	esnaps := preseedSeed.EssentialSnaps()
