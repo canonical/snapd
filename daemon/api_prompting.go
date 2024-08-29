@@ -99,6 +99,34 @@ func getUserID(r *http.Request) (uint32, Response) {
 	return uint32(userIDInt), nil
 }
 
+type RuleConflictJSON prompting.RuleConflict
+
+func (r *RuleConflictJSON) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&struct {
+		Permission    string           `json:"permission"`
+		Variant       string           `json:"variant"`
+		ConflictingID prompting.IDType `json:"conflicting-id"`
+	}{
+		Permission:    r.Permission,
+		Variant:       r.Variant,
+		ConflictingID: r.ConflictingID,
+	})
+}
+
+type RuleConflictErrorJSON prompting.RuleConflictError
+
+func (e *RuleConflictErrorJSON) MarshalJSON() ([]byte, error) {
+	conflictsJSON := make([]RuleConflictJSON, len(e.Conflicts))
+	for i, conflict := range e.Conflicts {
+		conflictsJSON[i] = RuleConflictJSON(conflict)
+	}
+	return json.Marshal(&struct {
+		Conflicts []RuleConflictJSON `json:"conflicts"`
+	}{
+		Conflicts: conflictsJSON,
+	})
+}
+
 func promptingNotRunningError() *apiError {
 	return &apiError{
 		Status:  500, // Internal error
@@ -155,12 +183,9 @@ func promptingError(err error) *apiError {
 	case errors.Is(err, prompting.ErrRuleConflict):
 		apiErr.Status = 409
 		apiErr.Kind = client.ErrorKindInterfacesRequestsRuleConflict
-		var conflictErr *requestrules.RuleConflictError
+		var conflictErr *prompting.RuleConflictError
 		if errors.As(err, &conflictErr) {
-			// Only include RuleConflict message, as the Value can hold the
-			// conflict details
-			apiErr.Message = prompting.ErrRuleConflict.Error()
-			apiErr.Value = conflictErr
+			apiErr.Value = (*RuleConflictErrorJSON)(conflictErr)
 		}
 	default:
 		// Treat errors without specific mapping as internal errors.

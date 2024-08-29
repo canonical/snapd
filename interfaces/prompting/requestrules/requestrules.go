@@ -402,61 +402,34 @@ func (rdb *RuleDB) removeRuleByID(id prompting.IDType) (*Rule, error) {
 
 // addRuleToTree adds the given rule to the rule tree.
 //
-// If there is a conflicting path pattern from another rule, returns an
-// error along with the conflicting rules info and the permission for which
-// the conflict occurred.
+// If there are other rules which have a conflicting path pattern and
+// permission, returns an error with information about the conflicting rules.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) addRuleToTree(rule *Rule) *RuleConflictError {
+func (rdb *RuleDB) addRuleToTree(rule *Rule) *prompting.RuleConflictError {
 	addedPermissions := make([]string, 0, len(rule.Constraints.Permissions))
 
-	var err *RuleConflictError
+	var conflicts []prompting.RuleConflict
 	for _, permission := range rule.Constraints.Permissions {
-		err = rdb.addRulePermissionToTree(rule, permission)
-		if err != nil {
-			break
+		permConflicts := rdb.addRulePermissionToTree(rule, permission)
+		if len(permConflicts) > 0 {
+			conflicts = append(conflicts, permConflicts...)
+			continue
 		}
 		addedPermissions = append(addedPermissions, permission)
 	}
 
-	if err != nil {
+	if len(conflicts) > 0 {
 		// remove the rule permissions we just added
 		for _, prevPerm := range addedPermissions {
 			rdb.removeRulePermissionFromTree(rule, prevPerm)
 		}
-		return err
+		return &prompting.RuleConflictError{
+			Conflicts: conflicts,
+		}
 	}
 
 	return nil
-}
-
-// ruleConflict stores the rendered variant which conflicted with that of
-// another rule, along with the ID of that conflicting rule.
-type ruleConflict struct {
-	Variant       string           `json:"variant"`
-	ConflictingID prompting.IDType `json:"conflicting-id"`
-}
-
-// RuleConflictError stores a list of rule conflicts that occurred for a
-// particular permission.
-//
-// May be marshalled as a value in an API error.
-type RuleConflictError struct {
-	Conflicts  []ruleConflict `json:"conflicts"`
-	Permission string         `json:"permissions"`
-}
-
-func (e *RuleConflictError) Error() string {
-	marshalled, err := json.Marshal(e.Conflicts)
-	if err != nil {
-		// marshalling a string and ID, error should not occur
-		return fmt.Sprintf("%v: permission: '%s'", prompting.ErrRuleConflict, e.Permission)
-	}
-	return fmt.Sprintf("%v: conflicts: %+v, permission: '%s'", prompting.ErrRuleConflict, string(marshalled), e.Permission)
-}
-
-func (e *RuleConflictError) Unwrap() error {
-	return prompting.ErrRuleConflict
 }
 
 // addRulePermissionToTree adds all the path pattern variants for the given
@@ -464,19 +437,19 @@ func (e *RuleConflictError) Unwrap() error {
 //
 // If there are conflicting pattern variants from other non-expired rules,
 // all variants which were previously added during this function call are
-// removed from the path map, and an error is returned along with a list of
-// the conflicting variants and the IDs of the conflicting rules.
+// removed from the path map, leaving it unchanged, and the list of conflicts
+// is returned. If there are no conflicts, returns nil.
 //
 // Conflicts with expired rules, however, result in the expired rule being
 // immediately removed, and the new rule can continue to be added.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) *RuleConflictError {
+func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) []prompting.RuleConflict {
 	permVariants := rdb.ensurePermissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
 
 	newVariantEntries := make(map[string]variantEntry, rule.Constraints.PathPattern.NumVariants())
 	expiredRules := make(map[prompting.IDType]bool)
-	var conflicts []ruleConflict
+	var conflicts []prompting.RuleConflict
 
 	addVariant := func(index int, variant patterns.PatternVariant) {
 		newEntry := variantEntry{
@@ -493,7 +466,8 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) *RuleC
 			newVariantEntries[variantStr] = newEntry
 		default:
 			// Exists and is not expired, so there's a conflict
-			conflicts = append(conflicts, ruleConflict{
+			conflicts = append(conflicts, prompting.RuleConflict{
+				Permission:    permission,
 				Variant:       variantStr,
 				ConflictingID: conflictingVariantEntry.RuleID,
 			})
@@ -502,11 +476,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) *RuleC
 	rule.Constraints.PathPattern.RenderAllVariants(addVariant)
 
 	if len(conflicts) > 0 {
-		err := &RuleConflictError{
-			Conflicts:  conflicts,
-			Permission: permission,
-		}
-		return err
+		return conflicts
 	}
 
 	for ruleID := range expiredRules {

@@ -54,9 +54,31 @@ var (
 	ErrRuleIDConflict     = errors.New("internal error: rule with conflicting ID already exists in the rule database")
 	ErrRuleDBInconsistent = errors.New("internal error: interfaces requests rule database left inconsistent")
 
-	// Conflict error with existing rule
+	// Conflict error with existing rule, which should be wrapped in a RuleConflictError
 	ErrRuleConflict = errors.New("a rule with conflicting path pattern and permission already exists in the rule database")
 
 	// Errors which are used internally and should never be returned over the API
 	ErrNoMatchingRule = errors.New("no rule matches the given path")
 )
+
+// RuleConflict stores the permission and rendered variant which conflicted
+// with that of another rule, along with the ID of that conflicting rule.
+type RuleConflict struct {
+	Permission    string
+	Variant       string
+	ConflictingID IDType
+}
+
+// RuleConflictError stores a list of conflicts with existing rules which
+// occurred when attempting to add or patch a rule.
+type RuleConflictError struct {
+	Conflicts []RuleConflict
+}
+
+func (e *RuleConflictError) Error() string {
+	return ErrRuleConflict.Error()
+}
+
+func (e *RuleConflictError) Unwrap() error {
+	return ErrRuleConflict
+}

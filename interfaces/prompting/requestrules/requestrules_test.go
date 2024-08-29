@@ -678,7 +678,7 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 				PathPattern: "/home/test/Pictures/**/*.{svg,jpg}",
 				Permissions: []string{"read", "write"},
 			},
-			fmt.Sprintf("cannot add rule: %v: conflicts:.* permission: 'write'", prompting.ErrRuleConflict),
+			fmt.Sprintf("cannot add rule: %v", prompting.ErrRuleConflict),
 		},
 	} {
 		result, err := addRuleFromTemplate(c, rdb, template, testCase.contents)
@@ -1634,7 +1634,7 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 		Permissions: []string{"read", "write", "execute"},
 	}
 	result, err = rdb.PatchRule(rule.User, rule.ID, conflictingConstraints, prompting.OutcomeUnset, prompting.LifespanUnset, "")
-	c.Check(err, ErrorMatches, fmt.Sprintf("cannot patch rule: %v: conflicts:.* permission: 'write'", prompting.ErrRuleConflict))
+	c.Check(err, ErrorMatches, fmt.Sprintf("cannot patch rule: %v", prompting.ErrRuleConflict))
 	c.Check(result, IsNil)
 	s.checkWrittenRuleDB(c, rules)
 	s.checkNewNoticesSimple(c, nil)
