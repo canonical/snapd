@@ -1452,6 +1452,51 @@ X-SnapdOrigin=bar
 	})
 }
 
+func (s *SystemdTestSuite) TestAddMountUnitInRootDir(c *C) {
+	rootDir := filepath.Join(dirs.GlobalRootDir, "rootfs")
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	addMountUnitOptions := &MountUnitOptions{
+		Lifetime:    Transient,
+		Description: "Mount unit for foo via bar",
+		What:        mockSnapPath,
+		Where:       "/snap/snapname/345",
+		Fstype:      "squashfs",
+		Options:     []string{"remount,ro"},
+		Origin:      "bar",
+		RootDir:     rootDir,
+	}
+	mountUnitName, modified, err := systemd.EnsureMountUnitFileContent(addMountUnitOptions)
+	c.Assert(err, IsNil)
+	c.Assert(modified, Equals, systemd.MountCreated)
+	defer os.Remove(mountUnitName)
+
+	c.Assert(filepath.Join(dirs.SnapRuntimeServicesDirUnder(rootDir), mountUnitName),
+		testutil.FileEquals, fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo via bar
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+
+[Mount]
+What=%s
+Where=/snap/snapname/345
+Type=squashfs
+Options=remount,ro
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+X-SnapdOrigin=bar
+`[1:], mockSnapPath))
+}
+
 func (s *SystemdTestSuite) TestAddKernelModulesMountUnit(c *C) {
 	rootDir := dirs.GlobalRootDir
 
