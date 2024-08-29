@@ -200,15 +200,6 @@ func promptingError(err error) *apiError {
 	return apiErr
 }
 
-func errorIsOneOf(err error, these ...error) bool {
-	for _, e := range these {
-		if errors.Is(err, e) {
-			return true
-		}
-	}
-	return false
-}
-
 type interfaceManager interface {
 	AppArmorPromptingRunning() bool
 	InterfacesRequestsManager() apparmorprompting.Manager
