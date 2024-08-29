@@ -180,7 +180,7 @@ func MockNewStatusDecorator(f func(ctx context.Context, isGlobal bool, uid strin
 	return restore
 }
 
-func MockGetTransaction(f func(*hookstate.Context, *state.State, *registry.View) (*registrystate.Transaction, string, error)) (restore func()) {
+func MockGetTransaction(f func(*hookstate.Context, *state.State, *registry.View) (*registrystate.Transaction, error)) (restore func()) {
 	restore = testutil.Backup(&registrystateGetTransaction)
 	registrystateGetTransaction = f
 	return restore

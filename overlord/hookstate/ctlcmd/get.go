@@ -369,7 +369,7 @@ func (c *getCommand) getRegistryValues(ctx *hookstate.Context, plugName string, 
 		return fmt.Errorf("cannot get registry: %v", err)
 	}
 
-	tx, _, err := registrystate.GetTransaction(ctx, ctx.State(), view)
+	tx, err := registrystate.GetTransaction(ctx, ctx.State(), view)
 	if err != nil {
 		// TODO: more info
 		return err

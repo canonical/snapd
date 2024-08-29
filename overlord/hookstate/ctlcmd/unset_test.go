@@ -182,36 +182,6 @@ func (s *registrySuite) TestRegistryUnsetManyViews(c *C) {
 	c.Assert(err, ErrorMatches, `cannot get "ssid", "password" .*: matching rules don't map to any values`)
 }
 
-func (s *registrySuite) TestRegistryUnsetHappensTransactionally(c *C) {
-	s.state.Lock()
-	err := registrystate.SetViaView(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{"ssid": "my-ssid"})
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"unset", "--view", ":write-wifi", "ssid"}, 0)
-	c.Assert(err, IsNil)
-	c.Check(stdout, IsNil)
-	c.Check(stderr, IsNil)
-
-	s.state.Lock()
-	val, err := registrystate.GetViaView(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-	c.Assert(val, DeepEquals, map[string]interface{}{
-		"ssid": "my-ssid",
-	})
-
-	// commit transaction
-	s.mockContext.Lock()
-	c.Assert(s.mockContext.Done(), IsNil)
-	s.mockContext.Unlock()
-
-	s.state.Lock()
-	_, err = registrystate.GetViaView(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
-	s.state.Unlock()
-	c.Assert(err, ErrorMatches, `cannot get "ssid" .*: matching rules don't map to any values`)
-}
-
 func (s *registrySuite) TestRegistryUnsetInvalid(c *C) {
 	type testcase struct {
 		args []string

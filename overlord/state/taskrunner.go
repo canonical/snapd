@@ -20,7 +20,6 @@
 package state
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -28,32 +27,6 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 )
-
-type ConditionFunc string
-
-const (
-	TasksReadyCond ConditionFunc = "tasks-ready"
-)
-
-func tasksReadyTester(st *State, args []interface{}) (bool, error) {
-	for _, arg := range args {
-		taskID, ok := arg.(string)
-		if !ok {
-			return false, fmt.Errorf("internal error: tasksReadyTester expected string param for condition: %T", arg)
-		}
-
-		task := st.Task(taskID)
-		if task == nil {
-			return false, fmt.Errorf("internal error: tasksReadyTester cannot find task %s", taskID)
-		}
-
-		if !task.Status().Ready() {
-			return false, nil
-		}
-	}
-
-	return true, nil
-}
 
 // HandlerFunc is the type of function for the handlers
 type HandlerFunc func(task *Task, tomb *tomb.Tomb) error
@@ -301,25 +274,6 @@ func (r *TaskRunner) run(t *Task) {
 			var next []*Task
 			switch t.Status() {
 			case DoingStatus:
-				// TODO: revisit this
-				unblocked, _, err := r.checkBlockingConditions(t)
-				if err != nil {
-					return err
-				}
-
-				if !unblocked {
-					// since for the task to run there could not be any unmet conditions,
-					// some new condition was set by the task. Ignore current run
-					t.SetStatus(DoStatus)
-
-					// TODO; revisit
-					//if !recheckTime.IsZero() {
-					//	// check again before the requested time, if any was set
-					//	r.state.EnsureBefore(recheckTime)
-					//}
-					return nil
-				}
-
 				t.SetStatus(DoneStatus)
 				fallthrough
 			case DoneStatus:
@@ -514,20 +468,6 @@ ConsiderTasks:
 			}
 		}
 
-		unblocked, recheckTime, err := r.checkBlockingConditions(t)
-		if err != nil {
-			return err
-		}
-
-		if !unblocked {
-			if !recheckTime.IsZero() && recheckTime.Before(nextTaskTime) {
-				// check again before the requested time, if any was set
-				nextTaskTime = recheckTime
-			}
-
-			continue
-		}
-
 		logger.Debugf("Running task %s on %s: %s", t.ID(), t.Status(), t.Summary())
 		r.run(t)
 
@@ -540,41 +480,6 @@ ConsiderTasks:
 	}
 
 	return nil
-}
-
-// checkBlockignConditions removes the blockers that no longer apply and returns
-// true if none remain. Blockers are removed even if not all conditions were met,
-// so a condition only needs to be met once for it to be disregarded. If some
-// condition isn't met, returns the shortest of all check request periods if any
-// is set.
-// TODO: is it more useful to make it all or nothing? If one condition is not met,
-// we check all later w/o removing it?
-func (r *TaskRunner) checkBlockingConditions(t *Task) (bool, time.Time, error) {
-	var newBlockers []blocker
-	var minRecheckTime time.Time
-	for _, blocker := range t.blockers {
-		ok, err := r.testTaskBlocker(blocker)
-		if err != nil {
-			// maybe log and continue so we try again later?
-			return false, time.Time{}, err
-		}
-
-		if !ok {
-			newBlockers = append(newBlockers, blocker)
-
-			if blocker.CheckAfter > 0 {
-				recheckTime := timeNow().Add(blocker.CheckAfter)
-				if minRecheckTime.IsZero() || recheckTime.Before(minRecheckTime) {
-					minRecheckTime = recheckTime
-				}
-			}
-		}
-	}
-
-	// remove blockers that no longer apply
-	t.blockers = newBlockers
-
-	return len(t.blockers) == 0, minRecheckTime, nil
 }
 
 // mustWait returns whether task t must wait for other tasks to be done.
@@ -659,16 +564,5 @@ func (r *TaskRunner) StopKinds(kind ...string) {
 		r.mu.Unlock()
 		tb.Wait()
 		r.mu.Lock()
-	}
-}
-
-func (r *TaskRunner) testTaskBlocker(b blocker) (bool, error) {
-	switch b.Cond {
-	case TasksReadyCond:
-		return tasksReadyTester(r.state, b.Args)
-	default:
-		// unknown condition (maybe we've reverted to an older snapd version) so
-		// we can't block forever
-		return true, nil
 	}
 }

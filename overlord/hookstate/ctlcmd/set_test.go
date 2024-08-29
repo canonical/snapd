@@ -439,32 +439,6 @@ func (s *registrySuite) TestRegistrySetManyViews(c *C) {
 	})
 }
 
-func (s *registrySuite) TestRegistrySetHappensTransactionally(c *C) {
-	// sets values in a transaction
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=my-ssid"}, 0)
-	c.Assert(err, IsNil)
-	c.Check(stdout, IsNil)
-	c.Check(stderr, IsNil)
-
-	s.state.Lock()
-	_, err = registrystate.GetViaView(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
-	s.state.Unlock()
-	c.Assert(err, ErrorMatches, ".*matching rules don't map to any values")
-
-	// commit transaction
-	s.mockContext.Lock()
-	c.Assert(s.mockContext.Done(), IsNil)
-	s.mockContext.Unlock()
-
-	s.state.Lock()
-	val, err := registrystate.GetViaView(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-	c.Assert(val, DeepEquals, map[string]interface{}{
-		"ssid": "my-ssid",
-	})
-}
-
 func (s *registrySuite) TestRegistrySetInvalid(c *C) {
 	type testcase struct {
 		args []string

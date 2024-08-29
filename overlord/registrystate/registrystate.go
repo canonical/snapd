@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -203,7 +204,7 @@ var writeDatabag = func(st *state.State, databag registry.JSONDataBag, account, 
 
 // GetTransaction retrieves or creates a transaction to access the view's registry,
 // ctx can be nil if not called from a hook context.
-func GetTransaction(ctx *hookstate.Context, st *state.State, view *registry.View) (tx *Transaction, blockingCommit string, err error) {
+func GetTransaction(ctx *hookstate.Context, st *state.State, view *registry.View) (tx *Transaction, err error) {
 	account, registryName := view.Registry().Account, view.Registry().Name
 
 	// check if we're already running in the context of a committing transaction
@@ -214,7 +215,7 @@ func GetTransaction(ctx *hookstate.Context, st *state.State, view *registry.View
 		var err error
 		tx, commitTask, err := GetStoredTransaction(t)
 		if err != nil {
-			return nil, "", fmt.Errorf("cannot modify registry view %s/%s/%s: cannot get transaction: %v", account, registryName, view.Name, err)
+			return nil, fmt.Errorf("cannot modify registry view %s/%s/%s: cannot get transaction: %v", account, registryName, view.Name, err)
 		}
 
 		if tx.RegistryAccount != account || tx.RegistryName != registryName {
@@ -223,10 +224,10 @@ func GetTransaction(ctx *hookstate.Context, st *state.State, view *registry.View
 			readOnly := true
 			tx, err := NewTransaction(st, readOnly, account, registryName)
 			if err != nil {
-				return nil, "", err
+				return nil, err
 			}
 
-			return tx, "", err
+			return tx, err
 		}
 
 		tx.OnDone(func() error {
@@ -234,25 +235,39 @@ func GetTransaction(ctx *hookstate.Context, st *state.State, view *registry.View
 			return nil
 		})
 
-		return tx, "", nil
+		return tx, nil
 	}
 
-	ongoingTxCommit, err := GetTransactionCommit(st, account, registryName)
+	// use the hook timeout if it's set since that is an upper bound on how much
+	// we have to wait (the hook is guaranteed to have been aborted by then)
+	timeout := 10 * time.Minute
+	if ctx != nil && !ctx.IsEphemeral() && ctx.Timeout() != 0 {
+		timeout = ctx.Timeout()
+	}
+
+	// if there's an ongoing transaction for this registry, wait for it to complete
+	err = registryMgr.waitForOngoingTransaction(st, account, registryName, timeout)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
-	if ongoingTxCommit != "" {
-		// there's an ongoing transaction for this registry, wait for it to complete
-		return nil, ongoingTxCommit, nil
-	}
+	// if we error after this point, unblock the next waiting writer (if any exists)
+	// TODO: right now, if setting a value (after this function) fails, then we don't
+	// unblock the next writer. The final version should have generic methods like
+	// the old Get/Set methods so we can unblock the waiting registry if we fail
+	// after we're unblocked (including if we fail at writing)
+	defer func() {
+		if err != nil {
+			registryMgr.unblockWaitingRegistryWriter(account, registryName)
+		}
+	}()
 
 	// not running in an existing registry hook context, so create a transaction
 	// and a change to verify its changes and commit
 	readOnly := false
 	tx, err = NewTransaction(st, readOnly, account, registryName)
 	if err != nil {
-		return nil, "", fmt.Errorf("cannot modify registry view %s/%s/%s: cannot create transaction: %v", account, registryName, view.Name, err)
+		return nil, fmt.Errorf("cannot modify registry view %s/%s/%s: cannot create transaction: %v", account, registryName, view.Name, err)
 	}
 
 	tx.OnDone(func() error {
@@ -281,10 +296,10 @@ func GetTransaction(ctx *hookstate.Context, st *state.State, view *registry.View
 		}
 
 		st.EnsureBefore(0)
-		return SetTransactionCommit(st, account, registryName, commitTask.ID())
+		return setOngoingTransaction(st, account, registryName, commitTask.ID())
 	})
 
-	return tx, "", nil
+	return tx, nil
 }
 
 func CreateModifyRegistryChange(st *state.State, chg *state.Change, tx *Transaction, view *registry.View, callingSnap string) error {
@@ -317,8 +332,8 @@ func CreateModifyRegistryChange(st *state.State, chg *state.Change, tx *Transact
 	}
 
 	// if the transaction errors, clear the tx from the state
-	clearTxTask := st.NewTask("clear-tx-on-error", "Clears the ongoing transaction from state (on error)")
-	linkTask(clearTxTask)
+	clearTxOnErrTask := st.NewTask("clear-tx-on-error", "Clears the ongoing transaction from state (on error)")
+	linkTask(clearTxOnErrTask)
 
 	// look for plugs that reference the relevant view and create run-hooks for
 	// them, if the snap has those hooks
@@ -349,15 +364,6 @@ func CreateModifyRegistryChange(st *state.State, chg *state.Change, tx *Transact
 		linkTask(saveViewTask)
 	}
 
-	// commit after managers save ephemeral data
-	commitTask := st.NewTask("commit-transaction", fmt.Sprintf("Commit changes to registry \"%s/%s\"", view.Registry().Account, view.Registry().Name))
-	commitTask.Set("registry-transaction", tx)
-	// link all previous tasks to the commit task that carries the transaction
-	for _, t := range tasks {
-		t.Set("commit-task", commitTask.ID())
-	}
-	linkTask(commitTask)
-
 	// run view-changed hooks for any plug that references a view that could have
 	// changed with this data modification
 	paths := tx.AlteredPaths()
@@ -373,14 +379,26 @@ func CreateModifyRegistryChange(st *state.State, chg *state.Change, tx *Transact
 		}
 
 		for _, plug := range plugs {
+			// TODO: run these concurrently or keep sequential for predictability?
 			ignoreError := true
 			task := setupRegistryHook(st, snapName, plug.Name+"-view-changed", ignoreError)
-			chg.AddTask(task)
-			// at this point, hook failure should not abort the change so run concurrently
-			task.WaitFor(commitTask)
-			task.Set("commit-task", commitTask.ID())
+			linkTask(task)
 		}
 	}
+
+	// commit after managers save ephemeral data
+	commitTask := st.NewTask("commit-transaction", fmt.Sprintf("Commit changes to registry \"%s/%s\"", view.Registry().Account, view.Registry().Name))
+	commitTask.Set("registry-transaction", tx)
+	// link all previous tasks to the commit task that carries the transaction
+	for _, t := range tasks {
+		t.Set("commit-task", commitTask.ID())
+	}
+	linkTask(commitTask)
+
+	// clear the ongoing tx from the state and unblock other writers waiting for it
+	clearTxTask := st.NewTask("clear-tx", "Clears the ongoing transaction from state")
+	linkTask(clearTxTask)
+	clearTxTask.Set("commit-task", commitTask.ID())
 
 	return nil
 }
@@ -451,61 +469,6 @@ func GetStoredTransaction(t *state.Task) (*Transaction, *state.Task, error) {
 
 func setTransaction(t *state.Task, tx *Transaction) {
 	t.Set("registry-transaction", tx)
-}
-
-func GetTransactionCommit(st *state.State, account, registryName string) (string, error) {
-	var txCommits map[string]string
-	err := st.Get("registry-tx-commits", &txCommits)
-	if err != nil {
-		if errors.Is(err, &state.NoStateError{}) {
-			return "", nil
-		}
-
-		return "", err
-	}
-
-	registryRef := account + "/" + registryName
-	return txCommits[registryRef], nil
-}
-
-func SetTransactionCommit(st *state.State, account, registryName string, commitTaskID string) error {
-	var txCommits map[string]string
-	err := st.Get("registry-tx-commits", &txCommits)
-	if err != nil {
-		if !errors.Is(err, &state.NoStateError{}) {
-			return err
-		}
-
-		txCommits = make(map[string]string, 1)
-	}
-
-	registryRef := account + "/" + registryName
-	txCommits[registryRef] = commitTaskID
-	st.Set("registry-tx-commits", txCommits)
-	return nil
-}
-
-func UnsetTransactionCommit(st *state.State, account, registryName string) error {
-	var txCommits map[string]string
-	err := st.Get("registry-tx-commits", &txCommits)
-	if err != nil {
-		if errors.Is(err, &state.NoStateError{}) {
-			// already unset, nothing to do
-			return nil
-		}
-		return err
-	}
-
-	registryRef := account + "/" + registryName
-	delete(txCommits, registryRef)
-
-	if len(txCommits) == 0 {
-		st.Set("registry-tx-commits", nil)
-	} else {
-		st.Set("registry-tx-commits", txCommits)
-	}
-
-	return nil
 }
 
 func getPlugsAffectedByPaths(st *state.State, registry *registry.Registry, storagePaths []string) (map[string][]*snap.PlugInfo, error) {

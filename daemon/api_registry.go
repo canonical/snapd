@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/features"
@@ -101,17 +100,10 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return NotFound(fmt.Sprintf("view %q not found in registry %s/%s", viewName, account, registryName))
 	}
 
-	tx, ongoingTxCommit, err := registrystate.GetTransaction(nil, st, view)
+	// TODO: refactor this so the waiting can be cancelled?
+	tx, err := registrystate.GetTransaction(nil, st, view)
 	if err != nil {
 		return toAPIError(err)
-	}
-
-	for i := 0; ongoingTxCommit != "" && i < 100; i++ {
-		<-time.After(3 * time.Second)
-		tx, ongoingTxCommit, err = registrystate.GetTransaction(nil, st, view)
-		if err != nil {
-			return toAPIError(err)
-		}
 	}
 
 	err = registrystate.SetViaViewInTx(tx, view, values)

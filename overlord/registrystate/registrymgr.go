@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -44,17 +45,25 @@ func init() {
 	}
 }
 
-type RegistryManager struct {
-}
-
 func Manager(st *state.State, runner *state.TaskRunner) *RegistryManager {
-	m := &RegistryManager{}
+	m := &RegistryManager{registryChans: make(map[string]chan struct{})}
+	registryMgr = m
 
 	// no undo since if we commit there's no rolling back
 	runner.AddHandler("commit-transaction", m.doCommitTransaction, nil)
+	// only activated on undo, to clear the ongoing transaction from state and
+	// unblock others who may be waiting for it
 	runner.AddHandler("clear-tx-on-error", m.noop, m.clearOngoingTransaction)
+	runner.AddHandler("clear-tx", m.clearOngoingTransaction, nil)
 
 	return m
+}
+
+var registryMgr *RegistryManager
+
+type RegistryManager struct {
+	// should only be written/read holding the state lock
+	registryChans map[string]chan struct{}
 }
 
 func (m *RegistryManager) Ensure() error { return nil }
@@ -68,15 +77,6 @@ func (m *RegistryManager) doCommitTransaction(t *state.Task, _ *tomb.Tomb) (err 
 	if err != nil {
 		return err
 	}
-
-	// unset the tracked transaction/task for this registry regardless of whether
-	// we successfully committed or not
-	defer func() {
-		unsetErr := UnsetTransactionCommit(st, tx.RegistryAccount, tx.RegistryName)
-		if err == nil && unsetErr != nil {
-			err = unsetErr
-		}
-	}()
 
 	registryAssert, err := assertstateRegistry(st, tx.RegistryAccount, tx.RegistryName)
 	if err != nil {
@@ -97,10 +97,129 @@ func (m *RegistryManager) clearOngoingTransaction(t *state.Task, _ *tomb.Tomb) e
 		return err
 	}
 
-	return UnsetTransactionCommit(st, tx.RegistryAccount, tx.RegistryName)
+	err = m.unsetOngoingTransaction(st, tx.RegistryAccount, tx.RegistryName)
+	if err != nil {
+		return err
+	}
+
+	m.unblockWaitingRegistryWriter(tx.RegistryAccount, tx.RegistryName)
+	return nil
 }
 
 func (m *RegistryManager) noop(*state.Task, *tomb.Tomb) error { return nil }
+
+// waitForOngoingTransaction blocks until the current transaction for the registry
+// is finished, if any exists. The state should be locked by the caller and is
+// released while waiting.
+func (m *RegistryManager) waitForOngoingTransaction(st *state.State, account, registryName string, timeout time.Duration) error {
+	var txCommits map[string]string
+	err := st.Get("registry-tx-commits", &txCommits)
+	if err != nil {
+		if errors.Is(err, &state.NoStateError{}) {
+			return nil
+		}
+
+		return err
+	}
+
+	registryRef := account + "/" + registryName
+	if taskID, ok := txCommits[registryRef]; !ok {
+		// no ongoing transaction for this registry
+		return nil
+	} else {
+		logger.Debugf("waiting for task %s to finish its transaction", taskID)
+	}
+
+	regChan, ok := registryMgr.registryChans[registryRef]
+	if !ok {
+		regChan = make(chan struct{}, 1)
+		registryMgr.registryChans[registryRef] = regChan
+	}
+
+	st.Unlock()
+	defer st.Lock()
+
+	select {
+	// NOTE: the spec (https://go.dev/ref/spec#Receive_operator) does not guarantee
+	// that readers are unblocked in order, although the implementation uses a
+	// queue (https://go.dev/src/runtime/chan.go, search for chanrecv). It's
+	// tough to guarantee this ourselves using a queue of channels because we
+	// may timeout which adds concurrency issues in the mgmt of that queue.
+	case <-regChan:
+	case <-time.After(timeout):
+		return fmt.Errorf("cannot wait for ongoing transaction for registry %s any longer: timing out", registryRef)
+	}
+
+	return nil
+}
+
+// the state lock must be held by the caller
+func (m *RegistryManager) unblockWaitingRegistryWriter(account, registryName string) {
+	registryRef := account + "/" + registryName
+	logger.Debugf("unblocking waiting writer for registry %s", registryRef)
+
+	regChan := m.registryChans[registryRef]
+	if regChan == nil {
+		return
+	}
+
+	if len(regChan) > 0 {
+		// shouldn't happen because we can only have one ongoing tx but if the
+		// channel has any buffered values then the any future reader is already unblocked
+		return
+	}
+
+	regChan <- struct{}{}
+}
+
+func setOngoingTransaction(st *state.State, account, registryName string, commitTaskID string) error {
+	var txCommits map[string]string
+	err := st.Get("registry-tx-commits", &txCommits)
+	if err != nil {
+		if !errors.Is(err, &state.NoStateError{}) {
+			return err
+		}
+
+		txCommits = make(map[string]string, 1)
+	}
+
+	registryRef := account + "/" + registryName
+	if taskID, ok := txCommits[registryRef]; ok {
+		return fmt.Errorf("internal error: task %s cannot set ongoing tx for registry %s: task %s already has ongoing tx", commitTaskID, registryRef, taskID)
+	}
+
+	txCommits[registryRef] = commitTaskID
+	st.Set("registry-tx-commits", txCommits)
+	return nil
+}
+
+func (m *RegistryManager) unsetOngoingTransaction(st *state.State, account, registryName string) error {
+	var txCommits map[string]string
+	err := st.Get("registry-tx-commits", &txCommits)
+	if err != nil {
+		if errors.Is(err, &state.NoStateError{}) {
+			// already unset, nothing to do
+			return nil
+		}
+		return err
+	}
+
+	registryRef := account + "/" + registryName
+	if _, ok := txCommits[registryRef]; !ok {
+		// already unset, nothing to do
+		return nil
+	}
+
+	delete(txCommits, registryRef)
+
+	if len(txCommits) == 0 {
+		st.Set("registry-tx-commits", nil)
+	} else {
+		st.Set("registry-tx-commits", txCommits)
+	}
+
+	return nil
+}
 
 func setupRegistryHook(st *state.State, snapName, hookName string, ignoreError bool) *state.Task {
 	hookSup := &hookstate.HookSetup{
