@@ -20,7 +20,7 @@ environment:
 
 prepare: |
     #  when testing core remove snapd snap as option for re-exec
-    if [ $SNAPD_SRC == "core" ]; then
+    if [ "$SNAPD_SRC" == "core" ]; then
         systemctl stop snapd.service snapd.socket
         # without /snap/snapd/current re-exec to snapd is disabled
         mv /snap/snapd/current /snap/snapd/backup
@@ -54,7 +54,7 @@ restore: |
     rm -f /tmp/old-info
 
     # restore snapd when done testing core
-    if [ $SNAPD_SRC == "core" ]; then
+    if [ "$SNAPD_SRC" == "core" ]; then
        mv /snap/snapd/backup /snap/snapd/current
        rm -f /snap/snapd/backup
        cp -a /tmp/backup_state.json /var/lib/snapd/state.json

@@ -154,7 +154,12 @@ setup_experimental_features() {
     fi
 }
 
+# update_core_snap_for_classic_reexec modifies the core snap for snapd re-exec
+# by injecting binaries from the installed snapd deb built from our modified code.
+# $1: directory where updated core snap should be copied (optional)
 update_core_snap_for_classic_reexec() {
+    local target_dir="${1-}"
+
     # it is possible to disable this to test that snapd (the deb) works
     # fine with whatever is in the core snap
     if [ "$MODIFY_CORE_SNAP_FOR_REEXEC" != "1" ]; then
@@ -231,9 +236,9 @@ update_core_snap_for_classic_reexec() {
     rm -rf squashfs-root
 
     # make a copy for later use
-    if [ -n "${1-}" ]; then
-        mkdir -p "$1"
-        cp -av "$snap" "$1/"
+    if [ -n "$target_dir" ]; then
+        mkdir -p "$target_dir"
+        cp -av "$snap" "$target_dir/"
     fi
 
     # Now mount the new core snap, first discarding the old mount namespace
@@ -393,8 +398,8 @@ prepare_classic() {
     done
 
     # Install snapd snap to ensure re-exec to snapd snap instead of snapd in core.
-    # This also prevents snapd from automatically installing snapd snap
-    # as prerequisite for installing any non-base snap
+    # This also prevents snapd from automatically installing snapd snap as
+    # prerequisite for installing any non-base snap introduced in PR#14173.
     if snap list snapd ; then
 	    snap snap info snapd
 	    echo "Error: not expecting snapd snap to be installed"
@@ -406,7 +411,7 @@ prepare_classic() {
 	    build_snapd_snap "$build_dir"
 	    snap install --dangerous "$build_dir/"snapd_*.snap
     fi
-    snap list | grep snapd
+    snap list snapd
 
     setup_systemd_snapd_overrides
 
