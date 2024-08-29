@@ -21,6 +21,7 @@ package builtin
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
@@ -39,9 +40,6 @@ const desktopSummary = `allows access to basic graphical desktop resources`
 // intended to prevent app snaps from the store that provide this slot
 // from installing without an override, while allowing an unpublished
 // snap to still be installed.
-//
-// The deny-connection and deny-auto-connection rules should ideally
-// use a slot-snap-type constraint when that is supported.
 const desktopBaseDeclarationSlots = `
   desktop:
     allow-installation:
@@ -51,6 +49,16 @@ const desktopBaseDeclarationSlots = `
     deny-installation:
       slot-snap-type:
         - app
+`
+
+// The deny-auto-connection and deny-connection constructs must be placed
+// under plug base declaration because it takes precedence over slot base
+// declaration.
+const desktopBaseDeclarationPlugs = `
+  desktop:
+    allow-installation:
+      plug-attributes:
+        desktop-file-ids: $MISSING
     deny-auto-connection:
       slot-snap-type:
         - app
@@ -612,9 +620,51 @@ func (iface *desktopInterface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 	return nil
 }
 
+// https://specifications.freedesktop.org/desktop-entry-spec/latest/file-naming.html
+// Desktop file id must be a valid D-Bus name:
+//  - A sequence of non-empty elements separated by dots
+//  - None of which starts with a digit
+//  - Each of which contains only characters from the set [A-Za-z0-9-_]
+//
+// XXX: dashes "-" are not recommended but supported, should they be removed?
+// https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names
+var desktopFileIDRegexp = regexp.MustCompile(`^([A-Za-z_-][\w-]*)(\.[A-Za-z_-][\w-]*)*$`)
+
+func (iface *desktopInterface) validateDesktopFileIDs(attribs interfaces.Attrer) error {
+	attrVal, exists := attribs.Lookup("desktop-file-ids")
+	if !exists {
+		// desktop-file-ids attribute is optional
+		return nil
+	}
+
+	// desktop-file-ids must be a list of strings.
+	desktopFileIDs, ok := attrVal.([]interface{})
+	if !ok {
+		return fmt.Errorf(`cannot add %s plug: "desktop-file-ids" must be a list of strings`, iface.name)
+	}
+	for _, entry := range desktopFileIDs {
+		desktopFileID, ok := entry.(string)
+		if !ok {
+			return fmt.Errorf(`cannot add %s plug: "desktop-file-ids" must be a list of strings`, iface.name)
+		}
+		if !desktopFileIDRegexp.MatchString(desktopFileID) {
+			return fmt.Errorf("desktop-file-ids entry %q is not a valid D-Bus well-known name", desktopFileID)
+		}
+	}
+
+	return nil
+}
+
 func (iface *desktopInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
-	_, err := iface.shouldMountHostFontCache(plug)
-	return err
+	if _, err := iface.shouldMountHostFontCache(plug); err != nil {
+		return err
+	}
+
+	if err := iface.validateDesktopFileIDs(plug); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func init() {
@@ -624,6 +674,7 @@ func init() {
 			summary:              desktopSummary,
 			implicitOnClassic:    true,
 			baseDeclarationSlots: desktopBaseDeclarationSlots,
+			baseDeclarationPlugs: desktopBaseDeclarationPlugs,
 			// affects the plug snap because of mount backend
 			affectsPlugOnRefresh: true,
 		},
