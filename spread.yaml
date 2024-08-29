@@ -946,7 +946,7 @@ suites:
     # All other tests run now and will heavily modify the system.
     tests/main/:
         summary: Full-system tests for snapd
-        systems: [-ubuntu-secboot-*]
+        systems: [-ubuntu-secboot-*, -ubuntu-fips-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -973,7 +973,7 @@ suites:
     tests/completion/:
         summary: completion tests
         # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
-        systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -ubuntu-secboot-*]
+        systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -ubuntu-secboot-*, -ubuntu-fips-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -1000,7 +1000,7 @@ suites:
 
     tests/regression/:
         summary: Regression tests for snapd
-        systems: [-ubuntu-secboot-*]
+        systems: [-ubuntu-secboot-*, -ubuntu-fips-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -1057,6 +1057,7 @@ suites:
                 -amazon-*,
                 -centos-*,
                 -ubuntu-secboot-*,
+                -ubuntu-fips-*,
             ]
         # unittests are run as part of the autopkgtest build already
         backends: [-autopkgtest]
@@ -1396,5 +1397,27 @@ suites:
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
+
+    # FIPS test suite
+    tests/fips/:
+        summary: FIPS enabled test suite
+        systems:
+          - ubuntu-fips-*
+        environment:
+          # TODO add snap variant
+          # disable reexec so that the tests run with deb
+          SNAP_REEXEC/deb: "0"
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+        debug: |
+            if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
+                systemctl status snapd.socket || true
+            fi
 
 # vim:ts=4:sw=4:et
