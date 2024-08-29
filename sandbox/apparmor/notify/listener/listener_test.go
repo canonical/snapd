@@ -58,41 +58,40 @@ func (s *listenerSuite) SetUpTest(c *C) {
 }
 
 func (*listenerSuite) TestReply(c *C) {
-	rc := make(chan *listener.Response, 1)
+	rc := make(chan any, 1)
 	req := listener.FakeRequestWithClassAndReplyChan(notify.AA_CLASS_FILE, rc)
-	response := &listener.Response{
-		Allow:      true,
-		Permission: notify.FilePermission(1234),
-	}
+	response := notify.FilePermission(1234)
 	req.Reply(response)
 	resp := <-rc
 	c.Assert(resp, Equals, response)
 }
 
-func (*listenerSuite) TestBadReply(c *C) {
-	rc := make(chan *listener.Response, 1)
+func (*listenerSuite) TestReplyNil(c *C) {
+	rc := make(chan any, 1)
 	req := listener.FakeRequestWithClassAndReplyChan(notify.AA_CLASS_FILE, rc)
-	response := &listener.Response{
-		Allow:      true,
-		Permission: "read",
-	}
+	req.Reply(nil)
+	resp := <-rc
+	var response any
+	c.Assert(resp, Equals, response)
+}
+
+func (*listenerSuite) TestBadReply(c *C) {
+	rc := make(chan any, 1)
+	req := listener.FakeRequestWithClassAndReplyChan(notify.AA_CLASS_FILE, rc)
+	response := "read"
 	err := req.Reply(response)
 	c.Assert(err, ErrorMatches, "invalid reply: response permission must be of type notify.FilePermission")
 }
 
 func (*listenerSuite) TestReplyTwice(c *C) {
-	rc := make(chan *listener.Response, 1)
+	rc := make(chan any, 1)
 	req := listener.FakeRequestWithClassAndReplyChan(notify.AA_CLASS_FILE, rc)
-	response := &listener.Response{
-		Allow:      false,
-		Permission: notify.FilePermission(1234),
-	}
+	response := notify.FilePermission(1234)
 	err := req.Reply(response)
 	c.Assert(err, IsNil)
 	resp := <-rc
 	c.Assert(resp, Equals, response)
 
-	response.Allow = true
 	err = req.Reply(response)
 	c.Assert(err, Equals, listener.ErrAlreadyReplied)
 }
@@ -286,12 +285,12 @@ func (*listenerSuite) TestRunSimple(c *C) {
 
 		select {
 		case req := <-l.Reqs():
-			c.Assert(req.PID(), Equals, msg.Pid)
-			c.Assert(req.Label(), Equals, label)
-			c.Assert(req.SubjectUID(), Equals, msg.SUID)
-			c.Assert(req.Path(), Equals, path)
-			c.Assert(req.Class(), Equals, notify.AA_CLASS_FILE)
-			perm, ok := req.Permission().(notify.FilePermission)
+			c.Assert(req.PID, Equals, msg.Pid)
+			c.Assert(req.Label, Equals, label)
+			c.Assert(req.SubjectUID, Equals, msg.SUID)
+			c.Assert(req.Path, Equals, path)
+			c.Assert(req.Class, Equals, notify.AA_CLASS_FILE)
+			perm, ok := req.Permission.(notify.FilePermission)
 			c.Assert(ok, Equals, true)
 			c.Assert(perm, Equals, notify.FilePermission(dBits))
 			requests = append(requests, req)
@@ -301,20 +300,15 @@ func (*listenerSuite) TestRunSimple(c *C) {
 	}
 
 	for i, id := range ids {
-		response := &listener.Response{Permission: notify.FilePermission(respBits)}
-		switch i % 2 {
-		case 0:
-			response.Allow = false
-		case 1:
-			response.Allow = true
-		}
-		err = requests[i].Reply(response)
-		c.Assert(err, IsNil)
+		response := notify.FilePermission(respBits)
 
-		allow := aBits | ((dBits & respBits) * uint32(i))
-		deny := dBits * uint32(1-i)
+		var desiredBuf []byte
+		allow := aBits | (respBits & dBits)
+		deny := (^respBits) & dBits
 		resp := newMsgNotificationResponse(id, allow, deny)
-		desiredBuf, err := resp.MarshalBinary()
+		desiredBuf, err = resp.MarshalBinary()
+		c.Assert(err, IsNil)
+		err = requests[i].Reply(response)
 		c.Assert(err, IsNil)
 
 		received := <-sendChan
@@ -374,7 +368,7 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 	select {
 	case req, ok := <-l.Reqs():
 		c.Assert(ok, Equals, true)
-		c.Assert(req.Path(), Equals, path)
+		c.Assert(req.Path, Equals, path)
 	case <-l.Dying():
 		c.Fatalf("listener encountered unexpected error: %v", l.Err())
 	case <-timer.C:
@@ -421,7 +415,7 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 		timer := time.NewTimer(100 * time.Millisecond)
 		select {
 		case req := <-l.Reqs():
-			c.Assert(req.Path(), DeepEquals, path)
+			c.Assert(req.Path, DeepEquals, path)
 		case <-l.Dying():
 			c.Fatalf("listener encountered unexpected error during request %d: %v", i, l.Err())
 		case <-timer.C:
@@ -482,7 +476,7 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 	requestTimer := time.NewTimer(time.Second)
 	select {
 	case req := <-l.Reqs():
-		c.Assert(req.Path(), Equals, path)
+		c.Assert(req.Path, Equals, path)
 	case <-l.Dying():
 		c.Fatalf("listener encountered unexpected error: %v", l.Err())
 	case <-requestTimer.C:
@@ -599,7 +593,7 @@ func (*listenerSuite) TestRunNoReply(c *C) {
 
 	c.Check(l.Close(), IsNil)
 
-	response := &listener.Response{} // doesn't matter if it's invalid
+	response := true // doesn't matter what the response is
 	req.Reply(response)
 
 	c.Check(t.Wait(), Equals, listener.ErrClosed)
@@ -638,6 +632,8 @@ func newMsgNotificationResponse(id uint64, allow, deny uint32) *notify.MsgNotifi
 }
 
 func (*listenerSuite) TestRunErrors(c *C) {
+	listener.ExitOnError()
+
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
@@ -701,6 +697,8 @@ func (*listenerSuite) TestRunErrors(c *C) {
 		select {
 		case r := <-l.Reqs():
 			c.Check(r, IsNil, Commentf("should not have received non-nil request; expected error: %v", testCase.err))
+		case <-time.NewTimer(time.Second).C:
+			c.Error("done waiting for expected error", testCase.err)
 		case <-t.Dying():
 		}
 		err = t.Wait()
@@ -839,10 +837,7 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 	replyCount := 0
 	go func() {
 		// reply to all requests as they are received, until l.Reqs() closes
-		response := &listener.Response{
-			Allow:      true,
-			Permission: notify.FilePermission(1234),
-		}
+		response := notify.FilePermission(1234)
 		for req := range l.Reqs() {
 			err := req.Reply(response)
 			c.Check(err, IsNil)
@@ -903,4 +898,139 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 	c.Check(requestsSent > 1, Equals, true, Commentf("should have sent more than one request"))
 	c.Check(replyCount > 1, Equals, true, Commentf("should have replied to more than one request"))
 	c.Check(responseCount > 1, Equals, true, Commentf("should have received more than one response"))
+}
+
+func (*listenerSuite) TestWaitAndRespondAaClassFile(c *C) {
+	respChan := make(chan *notify.MsgNotificationResponse, 1)
+	restore := listener.MockEncodeAndSendResponse(func(l *listener.Listener, resp *notify.MsgNotificationResponse) error {
+		respChan <- resp
+		return nil
+	})
+	defer restore()
+
+	fakeListener := &listener.Listener{}
+
+	// Define allow and deny permissions which explore all possibilities of
+	// omitted/included and disjoint/overlapping permissions.
+	msgAllow := uint32(0b0101)
+	msgDeny := uint32(0b0011)
+
+	for _, testCase := range []struct {
+		allowedPermission any
+		respAllow         uint32
+		respDeny          uint32
+	}{
+		{
+			nil,
+			0b0100,
+			0b0011,
+		},
+		{
+			notify.FilePermission(0b0000),
+			0b0100,
+			0b0011,
+		},
+		{
+			notify.FilePermission(0b0001),
+			0b0101,
+			0b0010,
+		},
+		{
+			notify.FilePermission(0b0010),
+			0b0110,
+			0b0001,
+		},
+		{
+			notify.FilePermission(0b0011),
+			0b0111,
+			0b0000,
+		},
+		{
+			notify.FilePermission(0b0100),
+			0b0100,
+			0b0011,
+		},
+		{
+			notify.FilePermission(0b0101),
+			0b0101,
+			0b0010,
+		},
+		{
+			notify.FilePermission(0b0110),
+			0b0110,
+			0b0001,
+		},
+		{
+			notify.FilePermission(0b0111),
+			0b0111,
+			0b0000,
+		},
+		{
+			notify.FilePermission(0b1000),
+			0b0100,
+			0b0011,
+		},
+		{
+			notify.FilePermission(0b1001),
+			0b0101,
+			0b0010,
+		},
+		{
+			notify.FilePermission(0b1010),
+			0b0110,
+			0b0001,
+		},
+		{
+			notify.FilePermission(0b1011),
+			0b0111,
+			0b0000,
+		},
+		{
+			notify.FilePermission(0b1100),
+			0b0100,
+			0b0011,
+		},
+		{
+			notify.FilePermission(0b1101),
+			0b0101,
+			0b0010,
+		},
+		{
+			notify.FilePermission(0b1110),
+			0b0110,
+			0b0001,
+		},
+		{
+			notify.FilePermission(0b1111),
+			0b0111,
+			0b0000,
+		},
+	} {
+		replyChan := make(chan any, 1)
+		req := listener.FakeRequestWithClassAndReplyChan(notify.AA_CLASS_FILE, replyChan)
+
+		msg := &notify.MsgNotificationFile{
+			MsgNotificationOp: notify.MsgNotificationOp{
+				Allow: msgAllow,
+				Deny:  msgDeny,
+			},
+			SUID: 0,
+			OUID: 0,
+			Name: "/home/test/foo",
+		}
+
+		// Send reply
+		replyChan <- testCase.allowedPermission
+
+		// Wait for and respond to reply we just sent
+		fakeListener.WaitAndRespondAaClassFile(req, msg)
+
+		select {
+		case resp := <-respChan:
+			c.Check(resp.Allow, Equals, testCase.respAllow, Commentf("test case: %+v", testCase))
+			c.Check(resp.Deny, Equals, testCase.respDeny, Commentf("test case: %+v", testCase))
+		case <-time.NewTimer(10 * time.Millisecond).C:
+			c.Errorf("failed to receive response for test case: %+v", testCase)
+		}
+	}
 }

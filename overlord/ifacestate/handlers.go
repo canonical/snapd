@@ -92,7 +92,7 @@ func (m *InterfaceManager) buildConfinementOptions(st *state.State, snapInfo *sn
 		JailMode:          flags.JailMode,
 		Classic:           flags.Classic,
 		ExtraLayouts:      extraLayouts,
-		AppArmorPrompting: m.useAppArmorPrompting(),
+		AppArmorPrompting: m.useAppArmorPrompting,
 	}, nil
 }
 

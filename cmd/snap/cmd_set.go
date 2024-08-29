@@ -20,7 +20,7 @@
 package main
 
 import (
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
@@ -90,7 +90,7 @@ func init() {
 
 func (x *cmdSet) Execute([]string) error {
 	if x.String && x.Typed {
-		return fmt.Errorf(i18n.G("cannot use -t and -s together"))
+		return errors.New(i18n.G("cannot use -t and -s together"))
 	}
 
 	opts := &clientutil.ParseConfigOptions{String: x.String, Typed: x.Typed}
@@ -139,7 +139,7 @@ func validateRegistryViewID(id string) error {
 	parts := strings.Split(id, "/")
 	for _, part := range parts {
 		if part == "" {
-			return fmt.Errorf(i18n.G("registry identifier must conform to format: <account-id>/<registry>/<view>"))
+			return errors.New(i18n.G("registry identifier must conform to format: <account-id>/<registry>/<view>"))
 		}
 	}
 

@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
 	"github.com/snapcore/snapd/overlord/ifacestate/schema"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -67,10 +68,9 @@ var (
 )
 
 func NewInterfaceManagerWithAppArmorPrompting(useAppArmorPrompting bool) *InterfaceManager {
-	m := &InterfaceManager{}
-	m.useAppArmorPromptingChecker.Do(func() {
-		m.useAppArmorPromptingValue = useAppArmorPrompting
-	})
+	m := &InterfaceManager{
+		useAppArmorPrompting: useAppArmorPrompting,
+	}
 	return m
 }
 
@@ -126,6 +126,18 @@ func MockCreateUDevMonitor(new func(udevmonitor.DeviceAddedFunc, udevmonitor.Dev
 	return func() {
 		createUDevMonitor = old
 	}
+}
+
+func MockCreateInterfacesRequestsManager(new func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error)) (restore func()) {
+	return testutil.Mock(&createInterfacesRequestsManager, new)
+}
+
+func MockInterfacesRequestsManagerStop(new func(m *apparmorprompting.InterfacesRequestsManager) error) (restore func()) {
+	return testutil.Mock(&interfacesRequestsManagerStop, new)
+}
+
+func MockAssessAppArmorPrompting(new func(m *InterfaceManager) bool) (restore func()) {
+	return testutil.Mock(&assessAppArmorPrompting, new)
 }
 
 func MockUDevInitRetryTimeout(t time.Duration) (restore func()) {

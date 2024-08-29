@@ -184,11 +184,9 @@ func (s *entrySuite) TestParseMountEntry3(c *C) {
 
 // Test that number of fields is checked
 func (s *entrySuite) TestParseMountEntry4(c *C) {
-	for _, s := range []string{
-		"", "1", "1 2" /* skip 3, 4, 5 and 6 fields (valid case) */, "1 2 3 4 5 6 7",
-	} {
+	for _, s := range []string{"", "1", "1 2"} {
 		_, err := osutil.ParseMountEntry(s)
-		c.Assert(err, ErrorMatches, "expected between 3 and 6 fields, found [01237]")
+		c.Assert(err, ErrorMatches, "expected at least 3 fields, found [012]")
 	}
 }
 
@@ -216,6 +214,30 @@ func (s *entrySuite) TestParseMountEntry6(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(e.DumpFrequency, Equals, 5)
 	c.Assert(e.CheckPassNumber, Equals, 7)
+}
+
+func (s *entrySuite) TestParseMountEntrySpacesInOptions(c *C) {
+	const p9DockerSpaces = `C:\134Program\040Files\134Docker\134Docker\134resources /Docker/host 9p rw,dirsync,noatime,aname=drvfs;path=C:\Program Files\Docker\Docker\resources;symlinkroot=/mnt/,mmap,access=client,msize=65536,trans=fd,rfd=4,wfd=4 0 0`
+	e, err := osutil.ParseMountEntry(p9DockerSpaces)
+	c.Assert(err, IsNil)
+
+	c.Assert(e.Name, Equals, "C:\\Program Files\\Docker\\Docker\\resources")
+	c.Assert(e.Dir, Equals, "/Docker/host")
+	c.Assert(e.Type, Equals, "9p")
+	c.Assert(e.Options, DeepEquals, []string{
+		"rw",
+		"dirsync",
+		"noatime",
+		"aname=drvfs;path=C:\\Program Files\\Docker\\Docker\\resources;symlinkroot=/mnt/",
+		"mmap",
+		"access=client",
+		"msize=65536",
+		"trans=fd",
+		"rfd=4",
+		"wfd=4",
+	})
+	c.Assert(e.DumpFrequency, Equals, 0)
+	c.Assert(e.CheckPassNumber, Equals, 0)
 }
 
 // Test that the typical ensure-dir fstab entry is parsed correctly.

@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -101,7 +100,7 @@ func (r *refreshHints) refresh() error {
 		return err
 	}
 
-	hints, err := refreshHintsFromCandidates(r.state, plan, deviceCtx)
+	hints, err := refreshHintsFromUpdatePlan(r.state, plan, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot get refresh-candidates: %v", err)
 	}
@@ -159,8 +158,7 @@ func (r *refreshHints) Ensure() error {
 	return r.refresh()
 }
 
-func refreshHintsFromCandidates(st *state.State, plan updatePlan, deviceCtx DeviceContext) (map[string]*refreshCandidate, error) {
-	updates := plan.targetInfos()
+func refreshHintsFromUpdatePlan(st *state.State, plan updatePlan, deviceCtx DeviceContext) (map[string]*refreshCandidate, error) {
 	if ValidateRefreshes != nil && len(plan.targets) != 0 {
 		ignoreValidation := make(map[string]bool, len(plan.targets))
 		for _, t := range plan.targets {
@@ -179,70 +177,36 @@ func refreshHintsFromCandidates(st *state.State, plan updatePlan, deviceCtx Devi
 		}
 	}
 
-	hints := make(map[string]*refreshCandidate, len(updates))
-	for _, update := range updates {
+	hints := make(map[string]*refreshCandidate, len(plan.targets))
+	for _, t := range plan.targets {
+		info := t.info
 		var snapst SnapState
-		if err := Get(st, update.InstanceName(), &snapst); err != nil {
+		if err := Get(st, info.InstanceName(), &snapst); err != nil {
 			return nil, err
 		}
 
 		// we don't need to handle potential channel switches here, since those
 		// shouldn't happen during a auto-refresh
-		if snapst.IsInstalled() && !update.Revision.Unset() && snapst.Current == update.Revision {
+		if snapst.IsInstalled() && !info.Revision.Unset() && snapst.Current == info.Revision {
 			continue
 		}
 
 		flags := snapst.Flags
 		flags.IsAutoRefresh = true
-		flags, err := earlyChecks(st, &snapst, update, flags)
+		snapsup, compsups, err := t.setups(st, Options{
+			DeviceCtx: deviceCtx,
+			Flags:     flags,
+		})
 		if err != nil {
-			logger.Debugf("update hint for %q is not applicable: %v", update.InstanceName(), err)
+			logger.Debugf("update hint for %q is not applicable: %v", info.InstanceName(), err)
 			continue
 		}
 
-		var registries []RegistryID
-		for _, plug := range update.Plugs {
-			if plug.Interface != "registry" {
-				continue
-			}
-
-			account, registry, _, err := snap.RegistryPlugAttrs(plug)
-			if err != nil {
-				return nil, err
-			}
-
-			registries = append(registries, RegistryID{Account: account, Registry: registry})
+		hints[info.InstanceName()] = &refreshCandidate{
+			SnapSetup:  snapsup,
+			Components: compsups,
+			Monitored:  IsSnapMonitored(st, info.InstanceName()),
 		}
-
-		monitoring := IsSnapMonitored(st, update.InstanceName())
-		providerContentAttrs := defaultProviderContentAttrs(st, update, nil)
-		snapsup := &refreshCandidate{
-			SnapSetup: SnapSetup{
-				Base:               update.Base,
-				Prereq:             getKeys(providerContentAttrs),
-				PrereqContentAttrs: providerContentAttrs,
-				Channel:            snapst.TrackingChannel,
-				CohortKey:          snapst.CohortKey,
-				// UserID not set
-				Flags:        flags.ForSnapSetup(),
-				DownloadInfo: &update.DownloadInfo,
-				SideInfo:     &update.SideInfo,
-				Type:         update.Type(),
-				Version:      update.Version,
-				PlugsOnly:    len(update.Slots) == 0,
-				InstanceKey:  update.InstanceKey,
-				auxStoreInfo: auxStoreInfo{
-					Media: update.Media,
-					// XXX we store this for the benefit of
-					// old snapd
-					Website: update.Website(),
-				},
-				Registries: registries,
-			},
-			// preserve fields not related to snap-setup
-			Monitored: monitoring,
-		}
-		hints[update.InstanceName()] = snapsup
 	}
 	return hints, nil
 }

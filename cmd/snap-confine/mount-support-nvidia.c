@@ -91,6 +91,7 @@ static const char *nvidia_globs[] = {
 	"libnvidia-pkcs11-openssl3.so*",
 	"libnvidia-pkcs11.so*",
 	"libnvidia-vulkan-producer.so*",
+	"libnvidia-vksc-core.so.*",
 
 	"libEGL_nvidia.so*",
 	"libGLESv1_CM_nvidia.so*",

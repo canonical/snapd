@@ -356,7 +356,7 @@ func (v *alternativesSchema) Validate(raw []byte) error {
 		sb.WriteString(err.Error())
 	}
 
-	return validationErrorf(sb.String())
+	return validationErrorFrom(errors.New(sb.String()))
 }
 
 // SchemaAt returns the list of schemas at the end of the path or an error if

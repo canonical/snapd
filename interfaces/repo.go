@@ -50,6 +50,10 @@ type Repository struct {
 	appSets map[string]*SnapAppSet
 }
 
+// defaultIfaceDocURLTemplate is used as template for generating the default interface
+// documentation URL by inserting the interface name
+const defaultIfaceDocURLTemplate = "https://snapcraft.io/docs/%s-interface"
+
 // NewRepository creates an empty plug repository.
 func NewRepository() *Repository {
 	repo := &Repository{
@@ -155,7 +159,11 @@ func (r *Repository) interfaceInfo(iface Interface, opts *InfoOptions) *Info {
 	}
 	if opts != nil && opts.Doc {
 		// Collect documentation URL
-		ii.DocURL = si.DocURL
+		if si.DocURL != "" {
+			ii.DocURL = si.DocURL
+		} else {
+			ii.DocURL = fmt.Sprintf(defaultIfaceDocURLTemplate, ifaceName)
+		}
 	}
 	if opts != nil && opts.Plugs {
 		// Collect all plugs of this interface type.

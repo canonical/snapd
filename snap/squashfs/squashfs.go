@@ -470,9 +470,7 @@ func (e *errPathsNotReadable) Error() string {
 
 	b.WriteString("cannot access the following locations in the snap source directory:\n")
 	for _, p := range e.paths {
-		fmt.Fprintf(&b, "- ")
-		fmt.Fprintf(&b, p)
-		fmt.Fprintf(&b, "\n")
+		fmt.Fprintf(&b, "- %s\n", p)
 	}
 	if len(e.paths) == maxErrPaths {
 		fmt.Fprintf(&b, "- too many errors, listing first %v entries\n", maxErrPaths)

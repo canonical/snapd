@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snapdtool"
 )
 
@@ -90,7 +91,11 @@ func (s *cmdutilSuite) TestCommandFromSystemSnapOldTrick(c *C) {
 	})
 }
 
-func (s *cmdutilSuite) TestCommandFromSystemSnapNotrick(c *C) {
+func (s *cmdutilSuite) TestCommandFromSystemSnapNoTrickNeeded(c *C) {
+	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu"})()
+	dirs.SetRootDir(dirs.GlobalRootDir)
+
+	c.Logf("mount dir: %v", dirs.SnapMountDir)
 	root := filepath.Join(dirs.SnapMountDir, "snapd", "current")
 
 	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
@@ -100,6 +105,50 @@ func (s *cmdutilSuite) TestCommandFromSystemSnapNotrick(c *C) {
 
 	c.Check(cmd.Args, DeepEquals, []string{
 		filepath.Join(root, "/usr/bin/xdelta3"),
+		"--some-xdelta-arg",
+	})
+}
+
+func (s *cmdutilSuite) TestCommandFromSystemSnapNoTrickNeededSymlink(c *C) {
+	defer release.MockReleaseInfo(&release.OS{ID: "fedora"})()
+	dirs.SetRootDir(dirs.GlobalRootDir)
+
+	c.Logf("mount dir: %v", dirs.SnapMountDir)
+	root := filepath.Join(dirs.SnapMountDir, "snapd", "current")
+	c.Assert(os.Symlink(filepath.Join(dirs.SnapMountDir), filepath.Join(dirs.GlobalRootDir, "snap")), IsNil)
+
+	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
+	osutil.CopyFile(truePath, filepath.Join(root, "/usr/bin/xdelta3"), 0)
+	cmd, err := snapdtool.CommandFromSystemSnap("/usr/bin/xdelta3", "--some-xdelta-arg")
+	c.Assert(err, IsNil)
+
+	c.Check(cmd.Args, DeepEquals, []string{
+		filepath.Join(root, "/usr/bin/xdelta3"),
+		"--some-xdelta-arg",
+	})
+}
+
+func (s *cmdutilSuite) TestCommandFromSystemSnapLDsoTrickNeeded(c *C) {
+	defer release.MockReleaseInfo(&release.OS{ID: "fedora"})()
+	dirs.SetRootDir(dirs.GlobalRootDir)
+
+	defer snapdtool.MockElfInterp(func(p string) (string, error) {
+		c.Assert(p, Equals, filepath.Join(dirs.SnapMountDir, "snapd/current/usr/bin/xdelta3"))
+		return filepath.Join(dirs.GlobalRootDir, "/snap/snapd/current/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2"), nil
+	})()
+
+	root := filepath.Join(dirs.SnapMountDir, "snapd", "current")
+
+	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
+	osutil.CopyFile(truePath, filepath.Join(root, "/usr/bin/xdelta3"), 0)
+	cmd, err := snapdtool.CommandFromSystemSnap("/usr/bin/xdelta3", "--some-xdelta-arg")
+	c.Assert(err, IsNil)
+
+	c.Check(cmd.Args, DeepEquals, []string{
+		filepath.Join(dirs.SnapMountDir, "snapd/current/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2"),
+		"--library-path",
+		filepath.Join(dirs.SnapMountDir, "snapd/current/usr/lib/x86_64-linux-gnu"),
+		filepath.Join(dirs.SnapMountDir, "snapd/current//usr/bin/xdelta3"),
 		"--some-xdelta-arg",
 	})
 }

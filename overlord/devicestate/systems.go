@@ -293,7 +293,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 			return "", err
 		}
 	}
-	if err := w.SetOptionsSnaps(optsSnaps, nil); err != nil {
+	if err := w.SetOptionsSnaps(optsSnaps); err != nil {
 		return "", err
 	}
 
@@ -322,6 +322,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 	}
 	// past this point the system directory is present
 
+	// TODO:COMPS: take into account local components
 	localSnaps, err := w.LocalSnaps()
 	if err != nil {
 		return recoverySystemDir, err

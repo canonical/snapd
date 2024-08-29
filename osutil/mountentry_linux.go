@@ -40,29 +40,60 @@ func ParseMountEntry(s string) (MountEntry, error) {
 		}
 	}
 	// Do all error checks before any assignments to `e'
-	if len(fields) < 3 || len(fields) > 6 {
-		return e, fmt.Errorf("expected between 3 and 6 fields, found %d", len(fields))
+	if len(fields) < 3 {
+		return e, fmt.Errorf("expected at least 3 fields, found %d", len(fields))
 	}
 	e.Name = unescape(fields[0])
 	e.Dir = unescape(fields[1])
 	e.Type = unescape(fields[2])
+	tailFieldIndex := 4
 	// Parse Options if we have at least 4 fields
 	if len(fields) > 3 {
-		e.Options = strings.Split(unescape(fields[3]), ",")
+		escapedOptions := fields[3]
+		if len(fields) > 6 {
+			// XXX: Because spaces in options were never expected, the problem
+			// of parsing an entry with space-unescaped options, while allowing
+			// the dump frequency and check pass number to be optional, is
+			// undecidable.
+			//
+			// An entry with the following text:
+			//      name dir type options 5
+			// May be then parsed as either (with quoting representing how things are parsed):
+			//      name dir type "options 5"
+			// Or as:
+			//      name dir type "options" 5
+			//
+			// The problem is further complicated by the 2nd optional field, so
+			// imagine seeing 5 6 instead of just 5 in the example above.
+			//
+			// We try to be pragmatic and observe the following properties:
+			//
+			// - The /proc/PID/mounts file does not hide optional fields.
+			// - The /etc/fstab file doesn't usually use unescaped spaces.
+			//
+			// As such, the ambiguous cases with five or six fields are handled
+			// as if mount options (fs_mntops in fstab(5)) had no spaces.
+			tailFieldIndex = len(fields) - 2
+			escapedOptions = strings.Join(fields[3:tailFieldIndex], " ")
+		}
+		e.Options = strings.Split(unescape(escapedOptions), ",")
 	}
-	// Parse DumpFrequency if we have at least 5 fields
-	if len(fields) > 4 {
-		df, err = strconv.Atoi(fields[4])
+
+	// Parse DumpFrequency if we have one tail field.
+	if len(fields) > tailFieldIndex {
+		f := fields[tailFieldIndex]
+		df, err = strconv.Atoi(f)
 		if err != nil {
-			return e, fmt.Errorf("cannot parse dump frequency: %q", fields[4])
+			return e, fmt.Errorf("cannot parse dump frequency: %q", f)
 		}
 	}
 	e.DumpFrequency = df
-	// Parse CheckPassNumber if we have at least 6 fields
-	if len(fields) > 5 {
-		cpn, err = strconv.Atoi(fields[5])
+	// Parse CheckPassNumber if we have two tail fields.
+	if len(fields) > tailFieldIndex+1 {
+		f := fields[tailFieldIndex+1]
+		cpn, err = strconv.Atoi(f)
 		if err != nil {
-			return e, fmt.Errorf("cannot parse check pass number: %q", fields[5])
+			return e, fmt.Errorf("cannot parse check pass number: %q", f)
 		}
 	}
 	e.CheckPassNumber = cpn

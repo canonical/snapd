@@ -129,20 +129,38 @@ func (c *cmdSnapd) Execute(args []string) error {
 	prevRev, err := prevRevision("snapd")
 	switch err {
 	case errNoSnapd:
+		logger.Noticef("no snapd snap in the system")
 		// the snapd snap is not installed
 		return nil
 	case errNoPrevious:
-		// this is the first revision of snapd to be installed on the
-		// system, either a remodel or a plain snapd installation, call
-		// the snapd from the core snap
-		snapdPath = filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd/snapd")
-		if !osutil.FileExists(snapdPath) {
-			// it is possible that the core snap is not installed at
-			// all, in which case we should try the snapd snap
-			snapdPath = filepath.Join(dirs.SnapMountDir, "snapd", "current", "/usr/lib/snapd/snapd")
+		logger.Noticef("no previous revision of snapd installed in the system")
+		// snapd is being installed for the first time, or there is simply a single
+		// revision of snapd in the system
+		snapdFromCurrentCorePath := filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd/snapd")
+		snapdFromCurrentSnapdPath := filepath.Join(dirs.SnapMountDir, "snapd", "current", "/usr/lib/snapd/snapd")
+
+		if !release.OnClassic {
+			// on a Core system check whether it's a UC16 where we
+			// can fall back to snapd from the core snap, or a newer
+			// release where we should only consider the snapd snap
+			if release.ReleaseInfo.VersionID == "16" {
+				logger.Noticef("on Ubuntu Core system with the core snap")
+				snapdPath = snapdFromCurrentCorePath
+			} else {
+				logger.Noticef("on Ubuntu Core system with the snapd snap")
+				snapdPath = snapdFromCurrentSnapdPath
+			}
+		} else {
+			// on a classic system allow falling back to snapd from
+			// core if it is present
+			snapdPath = snapdFromCurrentCorePath
+			if !osutil.FileExists(snapdPath) {
+				snapdPath = snapdFromCurrentSnapdPath
+			}
 		}
 		prevRev = "0"
 	case nil:
+		logger.Noticef("found previous revision of snapd snap: %v", prevRev)
 		// the snapd snap was installed before, use the previous revision
 		snapdPath = filepath.Join(dirs.SnapMountDir, "snapd", prevRev, "/usr/lib/snapd/snapd")
 	default:
@@ -214,9 +232,14 @@ func (c *cmdSnapd) Execute(args []string) error {
 		}
 	}
 
-	restartCmd := runCmd("systemctl", []string{"restart", "snapd.socket"}, nil)
+	// snap-failure is invoked after the snapd.service fails, which means
+	// that the service was active in the first place and we should try to
+	// restore the same state, i.e. have the service running, note that due
+	// to systemd dependencies, the socket should be restarted as well, but
+	// this isn't true for all systemd versions
+	restartCmd := runCmd("systemctl", []string{"restart", "snapd.socket", "snapd.service"}, nil)
 	if err := restartCmd.Run(); err != nil {
-		logger.Noticef("failed to restart snapd.socket: %v", err)
+		logger.Noticef("failed to restart snapd.service: %v", err)
 		// fallback to try snapd itself
 		// wait more than DefaultStartLimitIntervalSec
 		//
@@ -225,8 +248,8 @@ func (c *cmdSnapd) Execute(args []string) error {
 		// might need system-analyze timespan which is relatively new
 		// for the general case
 		time.Sleep(restartSnapdCoolOffWait)
-		logger.Noticef("fallback, restarting snapd itself")
-		restartCmd := runCmd("systemctl", []string{"restart", "snapd.service"}, nil)
+		logger.Noticef("restarting snapd again")
+		restartCmd := runCmd("systemctl", []string{"restart", "snapd.socket", "snapd.service"}, nil)
 		if err := restartCmd.Run(); err != nil {
 			logger.Noticef("failed to restart snapd: %v", err)
 		}

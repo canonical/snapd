@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -97,7 +98,7 @@ func (x *packCmd) Execute([]string) error {
 	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
 
 	if x.Positional.TargetDir != "" && x.Filename != "" && filepath.IsAbs(x.Filename) {
-		return fmt.Errorf(i18n.G("you can't specify an absolute filename while also specifying target dir."))
+		return errors.New(i18n.G("you can't specify an absolute filename while also specifying target dir."))
 	}
 
 	if x.Positional.SnapDir == "" {

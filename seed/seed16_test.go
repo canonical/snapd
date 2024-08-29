@@ -1022,10 +1022,10 @@ func (s *seed16Suite) TestLoadMetaCore18SnapHandler(c *C) {
 	})
 
 	c.Check(h.asserted, DeepEquals, map[string]string{
-		"snapd":     "snaps/snapd_1.0_all.snap:snapd:1",
-		"pc-kernel": "snaps/pc-kernel_1.0_all.snap:kernel:1",
-		"core18":    "snaps/core18_1.0_all.snap:base:1",
-		"pc":        "snaps/pc_1.0_all.snap:gadget:1",
+		"snapd":     "snaps/snapd_1.0_all.snap",
+		"pc-kernel": "snaps/pc-kernel_1.0_all.snap",
+		"core18":    "snaps/core18_1.0_all.snap",
+		"pc":        "snaps/pc_1.0_all.snap",
 	})
 	c.Check(h.unasserted, DeepEquals, map[string]string{
 		"required18": "snaps/required18_1.0_all.snap",
@@ -1103,10 +1103,10 @@ func (s *seed16Suite) TestLoadMetaCore18SnapHandlerChangePath(c *C) {
 	})
 
 	c.Check(h.asserted, DeepEquals, map[string]string{
-		"snapd":     "snaps/snapd_1.0_all.snap:snapd:1",
-		"pc-kernel": "snaps/pc-kernel_1.0_all.snap:kernel:1",
-		"core18":    "snaps/core18_1.0_all.snap:base:1",
-		"pc":        "snaps/pc_1.0_all.snap:gadget:1",
+		"snapd":     "snaps/snapd_1.0_all.snap",
+		"pc-kernel": "snaps/pc-kernel_1.0_all.snap",
+		"core18":    "snaps/core18_1.0_all.snap",
+		"pc":        "snaps/pc_1.0_all.snap",
 	})
 	c.Check(h.unasserted, DeepEquals, map[string]string{
 		"required18": "snaps/required18_1.0_all.snap",
@@ -1467,10 +1467,10 @@ func (s *seed16Suite) TestLoadEssentialMetaWithSnapHandlerCore18(c *C) {
 	c.Check(essSnaps, DeepEquals, expected)
 
 	c.Check(h.asserted, DeepEquals, map[string]string{
-		"snapd":     "snaps/snapd_1.0_all.snap:snapd:1",
-		"pc-kernel": "snaps/pc-kernel_1.0_all.snap:kernel:1",
-		"core18":    "snaps/core18_1.0_all.snap:base:1",
-		"pc":        "snaps/pc_1.0_all.snap:gadget:1",
+		"snapd":     "snaps/snapd_1.0_all.snap",
+		"pc-kernel": "snaps/pc-kernel_1.0_all.snap",
+		"core18":    "snaps/core18_1.0_all.snap",
+		"pc":        "snaps/pc_1.0_all.snap",
 	})
 }
 

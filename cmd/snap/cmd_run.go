@@ -222,7 +222,7 @@ func (x *cmdRun) Usage() string {
 
 func (x *cmdRun) Execute(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf(i18n.G("need the application to run as argument"))
+		return errors.New(i18n.G("need the application to run as argument"))
 	}
 	snapApp := args[0]
 	args = args[1:]
@@ -239,7 +239,7 @@ func (x *cmdRun) Execute(args []string) error {
 	}
 
 	if x.Revision != "unset" && x.Revision != "" && x.HookName == "" {
-		return fmt.Errorf(i18n.G("-r can only be used with --hook"))
+		return errors.New(i18n.G("-r can only be used with --hook"))
 	}
 	if x.HookName != "" && len(args) > 0 {
 		// TRANSLATORS: %q is the hook name; %s a space-separated list of extra arguments
@@ -973,7 +973,7 @@ func (x *cmdRun) runCmdUnderGdbserver(origCmd []string, envForExec envForExecFun
 	// XXX: should we provide a helper here instead? something like
 	//      `snap run --attach-debugger` or similar? The downside
 	//      is that attaching a gdb frontend is harder?
-	fmt.Fprintf(Stdout, fmt.Sprintf(gdbServerWelcomeFmt, addr))
+	fmt.Fprintf(Stdout, gdbServerWelcomeFmt, addr)
 	// note that only gdbserver needs to run as root, the application
 	// keeps running as the user
 	gdbSrvCmd := exec.Command("sudo", "-E", "gdbserver", "--attach", addr, strconv.Itoa(gcmd.Process.Pid))
@@ -1262,7 +1262,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 			logger.Noticef("WARNING: skipping running hook %q of %q: missing snap-confine", runner.Hook().Name, runner.Target())
 			return nil
 		}
-		return fmt.Errorf(i18n.G("missing snap-confine: try updating your core/snapd package"))
+		return errors.New(i18n.G("missing snap-confine: try updating your core/snapd package"))
 	}
 
 	logger.Debugf("executing snap-confine from %s", snapConfine)

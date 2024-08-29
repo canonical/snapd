@@ -202,7 +202,17 @@ components:
 
 	info, err := snap.InfoFromSnapYaml(b.Bytes())
 	c.Assert(err, IsNil)
-	info.SideInfo = snap.SideInfo{RealName: snapName, Revision: snapRev}
+
+	var snapID string
+	if !snapRev.Unset() && !snapRev.Local() {
+		snapID = snapName + "-id"
+	}
+
+	info.SideInfo = snap.SideInfo{
+		RealName: snapName,
+		Revision: snapRev,
+		SnapID:   snapID,
+	}
 
 	return info
 }
@@ -275,6 +285,44 @@ func (s *snapmgrTestSuite) TestInstallComponentPath(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	// File is not deleted
 	c.Assert(osutil.FileExists(compPath), Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestInstallUnassertedComponentFailsWithAssertedSnap(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	_, compPath := createTestComponent(c, snapName, compName, info)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	setStateWithOneSnap(s.state, snapName, snapRev)
+
+	csi := snap.NewComponentSideInfo(naming.ComponentRef{
+		SnapName: snapName, ComponentName: compName}, snap.Revision{})
+	_, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `cannot mix asserted snap and unasserted components`)
+}
+
+func (s *snapmgrTestSuite) TestInstallAssertedComponentFailsWithUnassertedSnap(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev := snap.R(-1)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	_, compPath := createTestComponent(c, snapName, compName, info)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	setStateWithOneSnap(s.state, snapName, snapRev)
+
+	csi := snap.NewComponentSideInfo(naming.ComponentRef{
+		SnapName: snapName, ComponentName: compName}, snap.R(1))
+	_, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `cannot mix unasserted snap and asserted components`)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentPathWrongComponent(c *C) {

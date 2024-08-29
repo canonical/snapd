@@ -45,7 +45,7 @@ func MockDeviceManagerSystemAndGadgetAndEncryptionInfo(f func(*devicestate.Devic
 	return restore
 }
 
-func MockDevicestateInstallFinish(f func(*state.State, string, map[string]*gadget.Volume) (*state.Change, error)) (restore func()) {
+func MockDevicestateInstallFinish(f func(*state.State, string, map[string]*gadget.Volume, *devicestate.OptionalInstall) (*state.Change, error)) (restore func()) {
 	restore = testutil.Backup(&devicestateInstallFinish)
 	devicestateInstallFinish = f
 	return restore

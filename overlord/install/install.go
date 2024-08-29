@@ -531,24 +531,22 @@ type preseedSnapHandler struct {
 	writableDir string
 }
 
-func (p *preseedSnapHandler) HandleUnassertedSnap(name, path string, _ timings.Measurer) (string, error) {
-	pinfo := snap.MinimalPlaceInfo(name, snap.Revision{N: -1})
-	targetPath := filepath.Join(p.writableDir, pinfo.MountFile())
-	mountDir := filepath.Join(p.writableDir, pinfo.MountDir())
+func (p *preseedSnapHandler) HandleUnassertedContainer(cpi snap.ContainerPlaceInfo, path string, _ timings.Measurer) (string, error) {
+	targetPath := filepath.Join(p.writableDir, cpi.MountFile())
+	mountDir := filepath.Join(p.writableDir, cpi.MountDir())
 
 	sq := squashfs.New(path)
 	opts := &snap.InstallOptions{MustNotCrossDevices: true}
 	if _, err := sq.Install(targetPath, mountDir, opts); err != nil {
-		return "", fmt.Errorf("cannot install snap %q: %v", name, err)
+		return "", fmt.Errorf("cannot install snap %q: %v", cpi.ContainerName(), err)
 	}
 
 	return targetPath, nil
 }
 
-func (p *preseedSnapHandler) HandleAndDigestAssertedSnap(name, path string, essType snap.Type, snapRev *asserts.SnapRevision, _ func(string, uint64) (snap.Revision, error), _ timings.Measurer) (string, string, uint64, error) {
-	pinfo := snap.MinimalPlaceInfo(name, snap.Revision{N: snapRev.SnapRevision()})
-	targetPath := filepath.Join(p.writableDir, pinfo.MountFile())
-	mountDir := filepath.Join(p.writableDir, pinfo.MountDir())
+func (p *preseedSnapHandler) HandleAndDigestAssertedContainer(cpi snap.ContainerPlaceInfo, path string, _ timings.Measurer) (string, string, uint64, error) {
+	targetPath := filepath.Join(p.writableDir, cpi.MountFile())
+	mountDir := filepath.Join(p.writableDir, cpi.MountDir())
 
 	logger.Debugf("copying: %q to %q; mount dir=%q", path, targetPath, mountDir)
 
@@ -579,7 +577,7 @@ func (p *preseedSnapHandler) HandleAndDigestAssertedSnap(name, path string, essT
 		return "", "", 0, err
 	}
 	if err := destFile.Commit(); err != nil {
-		return "", "", 0, fmt.Errorf("cannot copy snap %q: %v", name, err)
+		return "", "", 0, fmt.Errorf("cannot copy snap %q: %v", cpi.ContainerName(), err)
 	}
 
 	sq := squashfs.New(targetPath)
@@ -587,7 +585,7 @@ func (p *preseedSnapHandler) HandleAndDigestAssertedSnap(name, path string, essT
 	// since Install target path is the same as source path passed to squashfs.New,
 	// Install isn't going to copy the blob, but we call it to set up mount directory etc.
 	if _, err := sq.Install(targetPath, mountDir, opts); err != nil {
-		return "", "", 0, fmt.Errorf("cannot install snap %q: %v", name, err)
+		return "", "", 0, fmt.Errorf("cannot install snap %q: %v", cpi.ContainerName(), err)
 	}
 
 	sha3_384, err := asserts.EncodeDigest(crypto.SHA3_384, h.Sum(nil))

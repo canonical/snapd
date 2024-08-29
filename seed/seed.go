@@ -39,6 +39,12 @@ var (
 	open = Open
 )
 
+// Component holds the details of a component in a seed.
+type Component struct {
+	Path         string
+	CompSideInfo snap.ComponentSideInfo
+}
+
 // Snap holds the details of a snap in a seed.
 type Snap struct {
 	Path string
@@ -56,6 +62,9 @@ type Snap struct {
 	Channel string
 	DevMode bool
 	Classic bool
+
+	// Components for the snap
+	Components []Component
 }
 
 func (s *Snap) SnapName() string {
@@ -120,7 +129,7 @@ type Seed interface {
 	// handling at the same time as digest computation.
 	// No caching of essential snaps across Load*Meta* methods is
 	// performed if a handler is provided.
-	LoadEssentialMetaWithSnapHandler(essentialTypes []snap.Type, handler SnapHandler, tm timings.Measurer) error
+	LoadEssentialMetaWithSnapHandler(essentialTypes []snap.Type, handler ContainerHandler, tm timings.Measurer) error
 
 	// LoadMeta loads the seed and seed's snaps metadata while
 	// verifying the underlying snaps against assertions. It can
@@ -135,7 +144,7 @@ type Seed interface {
 	// seed snap handling at the same time as digest computation.
 	// No caching of essential snaps across Load*Meta* methods is
 	// performed if a handler is provided.
-	LoadMeta(mode string, handler SnapHandler, tm timings.Measurer) error
+	LoadMeta(mode string, handler ContainerHandler, tm timings.Measurer) error
 
 	// UsesSnapdSnap returns whether the system as defined by the
 	// seed will use the snapd snap, after LoadMeta.
@@ -160,26 +169,22 @@ type Seed interface {
 	Iter(f func(sn *Snap) error) error
 }
 
-// A SnapHandler can be used to perform any dedicated handling of seed
-// snaps and their digest computation while seed snap metadata loading
-// and verification is being performed.
-type SnapHandler interface {
-	// HandleAndDigestAssertedSnap should compute the digest of
-	// the given snap and perform any dedicated
-	// handling. essentialType is provided only for essential
-	// snaps.
-	// snapRev is provided by UC20+ seeds.
-	// deriveRev is provided by UC16/18 seeds, it can be used
-	// to get early access to the snap revision based on the digest.
-	// A different path can be returned if the snap has been copied
-	// elsewhere.
-	HandleAndDigestAssertedSnap(name, path string, essentialType snap.Type, snapRev *asserts.SnapRevision, deriveRev func(snapSHA3_384 string, snapSize uint64) (snap.Revision, error), tm timings.Measurer) (newPath, snapSHA3_384 string, snapSize uint64, err error)
+// A ContainerHandler can be used to perform any dedicated handling of seed
+// snaps/components and their digest computation while seed snap/component
+// metadata loading and verification is being performed.
+type ContainerHandler interface {
+	// HandleAndDigestAssertedContainer should compute the digest of the
+	// given container and perform any dedicated handling. A different path
+	// can be returned if the container has been copied elsewhere.
+	// NOTE: for uc16/18 the revision in cpi will be not correct.
+	HandleAndDigestAssertedContainer(cpi snap.ContainerPlaceInfo, path string,
+		tm timings.Measurer) (newPath, snapSHA3_384 string, snapSize uint64, err error)
 
-	// HandleUnassertedSnap should perfrom any dedicated handling
-	// for the given unasserted snap.
-	// A different path can be returned if the snap has been copied
-	// elsewhere.
-	HandleUnassertedSnap(name, path string, tm timings.Measurer) (newPath string, err error)
+	// HandleUnassertedContainer should perform any dedicated handling for
+	// the given unasserted snap/component. A different path can be
+	// returned if the container has been copied elsewhere.
+	HandleUnassertedContainer(cpi snap.ContainerPlaceInfo, path string,
+		tm timings.Measurer) (newPath string, err error)
 }
 
 // A AutoImportAssertionsLoaderSeed can be used to import all auto import assertions
@@ -205,18 +210,45 @@ type PreseedCapable interface {
 	LoadPreseedAssertion() (*asserts.Preseed, error)
 }
 
+// CopyOptions is the set of options that can be passed to a Copier's Copy
+// method.
+type CopyOptions struct {
+	// Label is the label that will be used for the new seed produced by the
+	// copy. If empty, the label of the seed that implements Copier is used.
+	Label string
+	// OptionalContainers is the set of optional containers that should be
+	// copied to the new seed. If nil, all optional containers are copied.
+	OptionalContainers *OptionalContainers
+}
+
+// OptionalContainers contains information about which optional containers
+// should be copied to a new seed.
+type OptionalContainers struct {
+	// Snaps is a set of names of optional snaps that should be copied to the
+	// new seed.
+	Snaps []string
+	// Components is a mapping of snap names to optional component names that
+	// should be copied to the new seed.
+	Components map[string][]string
+}
+
 // Copier can be implemented by a seed that supports copying itself to a given
 // destination.
 type Copier interface {
 	Seed
-	// Copy copies the seed to the given seedDir with the label provided. If
-	// label is empty, then the label of the seed that implements Copier is
-	// used. This interface only makes sense to implement for UC20+ seeds. Copy
-	// requires you to call the LoadAssertions method first. Note that LoadMeta
-	// for all modes will be called by Copy. If LoadMeta was called previously
-	// on this Seed with a different mode, then that metadata will be
-	// overwritten by the metadata for all modes.
-	Copy(seedDir string, label string, tm timings.Measurer) error
+	// Copy copies the seed under the given seedDir. This interface only makes
+	// sense to implement for UC20+ seeds. Copy requires you to call the
+	// LoadAssertions method first. Note that LoadMeta for all modes will be
+	// called by Copy. If LoadMeta was called previously on this Seed with a
+	// different mode, then that metadata will be overwritten by the metadata
+	// for all modes.
+	Copy(seedDir string, opts CopyOptions, tm timings.Measurer) error
+	// OptionalContainers returns the set of snaps and components that are
+	// considered optional in the seed's model, but are available in the seed
+	// and can be copied to a new seed location. Use this in conjunction with
+	// Copier.Copy to pick specific optional snaps and components that should be
+	// copied to the new seed.
+	OptionalContainers() (OptionalContainers, error)
 }
 
 // Open returns a Seed implementation for the seed at seedDir.
@@ -226,7 +258,7 @@ func Open(seedDir, label string) (Seed, error) {
 		if err := asserts.IsValidSystemLabel(label); err != nil {
 			return nil, err
 		}
-		return &seed20{systemDir: filepath.Join(seedDir, "systems", label)}, nil
+		return &seed20{seedDir: seedDir, systemDir: filepath.Join(seedDir, "systems", label)}, nil
 	}
 	return &seed16{seedDir: seedDir}, nil
 }

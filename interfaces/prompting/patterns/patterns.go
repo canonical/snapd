@@ -17,6 +17,8 @@
  *
  */
 
+// Package patterns provides types and functions for working with path patterns
+// for request rules related to AppArmor Prompting.
 package patterns
 
 import (

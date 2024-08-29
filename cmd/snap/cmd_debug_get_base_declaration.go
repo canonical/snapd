@@ -64,7 +64,7 @@ func (x *cmdGetBaseDeclaration) Execute(args []string) error {
 	}
 	fmt.Fprintf(Stdout, "%s\n", resp.BaseDeclaration)
 	if x.get {
-		fmt.Fprintf(Stderr, i18n.G("'snap debug get-base-declaration' is deprecated; use 'snap debug base-declaration'."))
+		fmt.Fprint(Stderr, i18n.G("'snap debug get-base-declaration' is deprecated; use 'snap debug base-declaration'."))
 	}
 	return nil
 }

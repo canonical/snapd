@@ -154,7 +154,7 @@ func (c *userServiceClient) startServices(enable bool, disabledServices map[int]
 		// If we manage to not receive a comm error, but still receive an error for failing to start one of
 		// the services, then propagate the first one instead of ignoring any start errors.
 		if err == nil {
-			err = fmt.Errorf(fmt.Sprintf("could not start service %q for uid %d: %s", f.Service, f.Uid, f.Error))
+			err = fmt.Errorf("could not start service %q for uid %d: %s", f.Service, f.Uid, f.Error)
 		}
 		c.inter.Notify(fmt.Sprintf("could not start service %q for uid %d: %s", f.Service, f.Uid, f.Error))
 	}

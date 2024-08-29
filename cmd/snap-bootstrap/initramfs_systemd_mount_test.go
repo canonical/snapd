@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -226,7 +227,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 				c.Errorf(e)
 				// we want the test to fail at some point and not run forever, so
 				// move time way forward to make it for sure time out
-				return false, fmt.Errorf(e)
+				return false, errors.New(e)
 			}
 			return t.isMountedReturns[isMountedCalls-1], nil
 		})

@@ -1255,6 +1255,55 @@ func (s *hookManagerSuite) TestEphemeralRunHookContextCanCancel(c *C) {
 	c.Check(tombDying, Equals, 1)
 }
 
+func (s *hookManagerSuite) TestHookRunsIfPreconditionMet(c *C) {
+	s.mockHandler.PreconditionResult = true
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(s.mockHandler.PreconditionCalled, Equals, true)
+	c.Check(s.mockHandler.BeforeCalled, Equals, true)
+	c.Check(s.mockHandler.DoneCalled, Equals, true)
+	c.Check(s.mockHandler.ErrorCalled, Equals, false)
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.DoneStatus)
+}
+
+func (s *hookManagerSuite) TestHookSkippedIfPreconditionNotMet(c *C) {
+	s.mockHandler.PreconditionResult = false
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(s.mockHandler.PreconditionCalled, Equals, true)
+	c.Check(s.mockHandler.BeforeCalled, Equals, false)
+	c.Check(s.mockHandler.DoneCalled, Equals, false)
+	c.Check(s.mockHandler.ErrorCalled, Equals, false)
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.DoneStatus)
+}
+
+func (s *hookManagerSuite) TestPreconditionCallErrors(c *C) {
+	s.mockHandler.PreconditionResult = true
+	s.mockHandler.PreconditionError = true
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(s.mockHandler.PreconditionCalled, Equals, true)
+	c.Check(s.mockHandler.BeforeCalled, Equals, false)
+	c.Check(s.mockHandler.DoneCalled, Equals, false)
+	c.Check(s.mockHandler.ErrorCalled, Equals, false)
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.ErrorStatus)
+}
+
 type parallelInstancesHookManagerSuite struct {
 	baseHookManagerSuite
 }

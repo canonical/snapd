@@ -104,6 +104,14 @@ func readInfo(snapPath string, si *snap.SideInfo) (*snap.Info, error) {
 	return snap.ReadInfoFromSnapFile(snapf, si)
 }
 
+func readComponentInfo(compPath string, info *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+	compf, err := snapfile.Open(compPath)
+	if err != nil {
+		return nil, err
+	}
+	return snap.ReadComponentInfoFromContainer(compf, info, csi)
+}
+
 func snapTypeFromModel(modSnap *asserts.ModelSnap) snap.Type {
 	switch modSnap.SnapType {
 	case "base":
@@ -155,11 +163,11 @@ func findBrand(seed Seed, db asserts.RODatabase) (*asserts.Account, error) {
 
 type defaultSnapHandler struct{}
 
-func (h defaultSnapHandler) HandleUnassertedSnap(name, path string, _ timings.Measurer) (string, error) {
+func (h defaultSnapHandler) HandleUnassertedContainer(_ snap.ContainerPlaceInfo, path string, _ timings.Measurer) (string, error) {
 	return path, nil
 }
 
-func (h defaultSnapHandler) HandleAndDigestAssertedSnap(name, path string, essType snap.Type, _ *asserts.SnapRevision, _ func(string, uint64) (snap.Revision, error), _ timings.Measurer) (string, string, uint64, error) {
+func (h defaultSnapHandler) HandleAndDigestAssertedContainer(_ snap.ContainerPlaceInfo, path string, _ timings.Measurer) (string, string, uint64, error) {
 	sha3_384, size, err := asserts.SnapFileSHA3_384(path)
 	if err != nil {
 		return "", "", 0, err

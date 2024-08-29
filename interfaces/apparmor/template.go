@@ -887,6 +887,9 @@ var classicJailmodeSnippet = `
 
   # For snappy reexec on 4.8+ kernels
   @{INSTALL_DIR}/core/*/usr/lib/snapd/snap-exec m,
+  # Same as above but accounting for the case when the
+  # snapd snap is installed and executes the snap application.
+  @{INSTALL_DIR}/snapd/*/usr/lib/snapd/snap-exec rm,
 `
 
 var ptraceTraceDenySnippet = `

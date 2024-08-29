@@ -674,7 +674,7 @@ func (r *recoverDegradedState) partition(part string) *partitionState {
 func (r *recoverDegradedState) LogErrorf(format string, v ...interface{}) {
 	msg := fmt.Sprintf(format, v...)
 	r.ErrorLog = append(r.ErrorLog, msg)
-	logger.Noticef(msg)
+	logger.Notice(msg)
 }
 
 func (r *recoverDegradedState) serializeTo(name string) error {

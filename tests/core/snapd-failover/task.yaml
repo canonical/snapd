@@ -96,10 +96,11 @@ execute: |
 
             # make sure that snapd is being executed within the cgroup assigned to snapd.service
             echo "Verify behavior on UC16, where snapd process eventually becomes"
-            # snap-failure only starts the socket unit, but we want to verify
-            # that the snapd runs
+            # snap-failure restarts the snapd service
             # shellcheck disable=SC2046,SC2002,SC2016
-            retry -n 60 --wait 1 sh -e -c 'snap list ; cat /proc/$(pidof snapd)/cgroup | MATCH /snapd.service'
+            retry -n 60 --wait 1 sh -e -c 'cat /proc/$(pidof snapd)/cgroup | MATCH /snapd.service'
+            # the socket access is still functional
+            snap list
         else
             # TODO this check is incorrect and is essentially racing with systemd
             # which could try to active the failure service, as we're essentially
@@ -150,6 +151,16 @@ execute: |
                 sleep 1
             done
 
+            # snapd.failure restarts the snapd service
+            echo "Await snapd service to become active"
+            retry --maxmins 5.5 systemctl is-active snapd.service
+
+            echo "Double check the status of snapd.socket"
+            systemctl is-active snapd.socket
+            echo ".. and both sockets exist"
+            test -S /run/snapd.socket
+            test -S /run/snapd-snap.socket
+
             # just because snapd.failure.service is active doesn't mean that we are 
             # fully ready; we should wait until the snap command shows up again
             echo "And verify that snap commands still work and snapd is reverted"
@@ -157,9 +168,6 @@ execute: |
 
             echo "Verify we got the expected error message"
             snap change --last=install|MATCH "there was a snapd rollback across the restart"
-
-            echo "Double check the status of snapd.socket"
-            systemctl is-active snapd.socket
 
             echo "Ensure snapd is running as part of the snapd.service unit"
             # shellcheck disable=SC2046,SC2002

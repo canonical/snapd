@@ -291,7 +291,7 @@ func advisePkg(pkgName string) error {
 	if match != nil {
 		fmt.Fprintf(Stdout, i18n.G("Packages matching %q:\n"), pkgName)
 		fmt.Fprintf(Stdout, " * %s - %s\n", match.Snap, match.Summary)
-		fmt.Fprintf(Stdout, i18n.G("Try: snap install <selected snap>\n"))
+		fmt.Fprint(Stdout, i18n.G("Try: snap install <selected snap>\n"))
 	}
 
 	// FIXME: find mispells

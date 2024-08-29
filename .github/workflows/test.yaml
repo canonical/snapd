@@ -3,17 +3,7 @@ on:
   pull_request:
     branches: [ "master", "release/**", "core-snap-security-release/**", "security-release/**" ]
   push:
-    # we trigger runs on master branch, but we do not run spread on master 
-    # branch, the master branch runs are just for unit tests + codecov.io
     branches: [ "master", "release/**", "core-snap-security-release/**", "security-release/**" ]
-
-  # XXX we suspect that the whenever the labeler workflow executes successfully
-  # it will trigger another workflow of tests on master, temporarily disable to
-  # see if that improves the situation
-  # workflow_run:
-  #   workflows: ["Pull Request Labeler"]
-  #   types:
-  #     - completed
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
@@ -33,9 +23,6 @@ jobs:
           # are the build that should be installed by human users.
           - pristine
           - test
-    # only build the snap for pull requests, it's not needed on release branches
-    # or on master since we have launchpad build recipes which do this already
-    if: ${{ github.event_name == 'pull_request' }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
@@ -205,7 +192,7 @@ jobs:
       with:
         # version of golangci-lint to use in form of v1.2 or v1.2.3 or `latest`
         # to use the latest version
-        version: v1.55.2
+        version: v1.60.1
         working-directory: ./src/github.com/snapcore/snapd
         # show only new issues
         # use empty path prefix to make annotations work
@@ -614,9 +601,6 @@ jobs:
 
   spread:
     needs: [unit-tests, snap-builds]
-    # have spread jobs run on master on PRs only, but on both PRs and pushes to
-    # release branches
-    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
     name: ${{ matrix.group }}
     runs-on: [self-hosted, spread-enabled]
     strategy:
@@ -666,7 +650,7 @@ jobs:
             tests: 'tests/smoke/ tests/main/canonical-livepatch tests/main/canonical-livepatch-14.04'
           - group: ubuntu-xenial-bionic
             backend: google
-            systems: 'ubuntu-16.04-64 ubuntu-18.04-32 ubuntu-18.04-64'
+            systems: 'ubuntu-16.04-64 ubuntu-18.04-64'
             tests: 'tests/...'
           - group: ubuntu-focal-jammy
             backend: google
@@ -678,7 +662,7 @@ jobs:
             tests: 'tests/...'
           - group: ubuntu-no-lts
             backend: google
-            systems: 'ubuntu-23.10-64'
+            systems: ''
             tests: 'tests/...'
           - group: ubuntu-daily
             backend: google
@@ -810,9 +794,13 @@ jobs:
           if [ -z "$CHANGE_ID" ]; then
             CHANGE_ID="main"
           fi
-          CHANGE_ID="${CHANGE_ID}_n${{ github.run_attempt }}"
+          FILTERED_LOG_FILE="spread_${CHANGE_ID}_n${{ github.run_attempt }}.filtered.log"
           # The log-filter tool is used to filter the spread logs to be stored
-          echo FILTER_PARAMS="-o spread_$CHANGE_ID.filtered.log -e Debug -e WARNING: -f Failed=NO_LINES -f Error=NO_LINES"  >> $GITHUB_ENV
+          echo FILTER_PARAMS="-o $FILTERED_LOG_FILE -e Debug -e WARNING: -f Failed=NO_LINES -f Error=NO_LINES"  >> $GITHUB_ENV
+          echo FILTERED_LOG_FILE="$FILTERED_LOG_FILE"  >> $GITHUB_ENV
+
+          # Add start line to filtered log
+          echo "GRAFANA START: pr ${CHANGE_ID} attempt ${{ github.run_attempt }} run ${{ github.run_id }} group ${{ matrix.group }}" > "$FILTERED_LOG_FILE"
 
     - name: Download built snap
       uses: actions/download-artifact@v3
@@ -865,6 +853,13 @@ jobs:
               ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
           fi
 
+          # This coud be the case when either there are not systems for a group or 
+          # the list of tests to run is empty
+          if [ -z "$RUN_TESTS" ]; then
+            echo "No tests to run, skiping..."
+            exit 0
+          fi
+
           # Run spread tests
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
@@ -888,24 +883,24 @@ jobs:
           spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done
 
-    - name: report spread errors
+    - name: Report spread errors
       if: always()
       run: |
         if [ -e spread.log ]; then
             echo "Running spread log analyzer"
-            issues_metadata='{"source_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}'
-            PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json --cut 100
+            ACTIONS_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"
+            PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json --cut 1 >/dev/null
             while IFS= read -r line; do
                 if [ ! -z "$line" ]; then
-                    echo "Reporting spread error..."
-                    ./tests/lib/tools/report-mongodb --db-name snapd --db-collection spread_errors --metadata "$issues_metadata" "$line"
+                    echo "Adding failed test line to filtered log"
+                    echo "GRAFANA FAILED: $line $ACTIONS_URL" | tee -a "$FILTERED_LOG_FILE"
                 fi
-            done <<< $(jq -cr '.[] | select( .type == "info") | select( (.info_type == "Error") or (.info_type == "Debug"))' spread-results.json)
+            done <<< $(jq -r '.[] | select( .type == "info" ) | select( .info_type == "Error" ) | "\(.verb) \(.task)"' spread-results.json)
         else
             echo "No spread log found, skipping errors reporting"
         fi
 
-    - name: analyze spread test results
+    - name: Analyze spread test results
       if: always()
       run: |
           if [ -f spread.log ]; then
@@ -927,7 +922,7 @@ jobs:
               touch "$FAILED_TESTS_FILE"
           fi
 
-    - name: save spread test results to cache
+    - name: Save spread test results to cache
       if: always()
       uses: actions/cache/save@v3
       with:

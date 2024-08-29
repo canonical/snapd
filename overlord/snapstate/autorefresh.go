@@ -79,6 +79,7 @@ var refreshRetryDelay = 20 * time.Minute
 // of auto-refresh.
 type refreshCandidate struct {
 	SnapSetup
+	Components []ComponentSetup `json:"components,omitempty"`
 	// Monitored signals whether this snap is currently being monitored for closure
 	// so its auto-refresh can be continued.
 	Monitored bool `json:"monitored,omitempty"`
@@ -645,7 +646,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 
 	msg := autoRefreshSummary(updated)
 	if msg == "" {
-		logger.Noticef(i18n.G("auto-refresh: all snaps are up-to-date"))
+		logger.Notice(i18n.G("auto-refresh: all snaps are up-to-date"))
 		return nil
 	}
 

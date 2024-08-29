@@ -151,7 +151,8 @@ main() {
             cmd_list_installed
             ;;
         remove)
-            cmd_remove "$(remap_many "$@")"
+            # shellcheck disable=SC2046
+            cmd_remove $(remap_many "$@")
             ;;
         *)
             echo "tests.pkgs: unknown action $action" >&2

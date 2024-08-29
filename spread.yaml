@@ -11,7 +11,7 @@ environment:
     GOPROXY: https://proxy.golang.org,direct
     REUSE_PROJECT: '$(HOST: echo "$REUSE_PROJECT")'
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
-    PATH: $GOHOME/bin:/snap/bin:$PATH:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/bin
+    PATH: $PROJECT_PATH/tests/bin:$GOHOME/bin:/snap/bin:$PATH:/var/lib/snapd/snap/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
     TESTSTOOLS: $PROJECT_PATH/tests/lib/tools
     TESTSTMP: /var/tmp/snapd-tools
@@ -124,8 +124,6 @@ backends:
             - ubuntu-16.04-64:
                   workers: 8
                   storage: 12G
-            - ubuntu-18.04-32:
-                  workers: 6
             - ubuntu-18.04-64:
                   storage: 15G
                   workers: 8
@@ -137,9 +135,6 @@ backends:
                   workers: 1
                   secure-boot: true
             - ubuntu-22.04-64:
-                  storage: 15G
-                  workers: 8
-            - ubuntu-23.10-64:
                   storage: 15G
                   workers: 8
             - ubuntu-24.04-64:
@@ -271,9 +266,6 @@ backends:
                   storage: 12G
                   workers: 8
             - ubuntu-22.04-64:
-                  storage: 12G
-                  workers: 8
-            - ubuntu-23.10-64:
                   storage: 12G
                   workers: 8
             - ubuntu-24.04-64:
@@ -420,9 +412,6 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-22.04-64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-23.10-64:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-24.04-64:

@@ -133,3 +133,18 @@ func RegularFileExists(fn string) (exists, isReg bool, err error) {
 	}
 	return true, fileStat.Mode().IsRegular(), nil
 }
+
+// ComparePathsByDeviceInode compares the devices and inodes of the given paths, following symlinks.
+func ComparePathsByDeviceInode(a, b string) (match bool, err error) {
+	fi1, err := os.Stat(a)
+	if err != nil {
+		return false, err
+	}
+
+	fi2, err := os.Stat(b)
+	if err != nil {
+		return false, err
+	}
+
+	return os.SameFile(fi1, fi2), nil
+}

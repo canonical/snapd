@@ -21,6 +21,7 @@ package ctlcmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"text/tabwriter"
@@ -80,7 +81,7 @@ func (c *servicesCommand) showGlobalEnablement() bool {
 func (c *servicesCommand) validateArguments() error {
 	// can't use --global and --user together
 	if c.Global && c.User {
-		return fmt.Errorf(i18n.G("cannot combine --global and --user switches."))
+		return errors.New(i18n.G("cannot combine --global and --user switches."))
 	}
 	return nil
 }

@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -63,11 +64,11 @@ func (x *cmdBuy) Execute(args []string) error {
 func buySnap(cli *client.Client, snapName string) error {
 	user := cli.LoggedInUser()
 	if user == nil {
-		return fmt.Errorf(i18n.G("You need to be logged in to purchase software. Please run 'snap login' and try again."))
+		return errors.New(i18n.G("You need to be logged in to purchase software. Please run 'snap login' and try again."))
 	}
 
 	if strings.ContainsAny(snapName, ":*") {
-		return fmt.Errorf(i18n.G("cannot buy snap: invalid characters in name"))
+		return errors.New(i18n.G("cannot buy snap: invalid characters in name"))
 	}
 
 	snap, resultInfo, err := cli.FindOne(snapName)
@@ -86,7 +87,7 @@ func buySnap(cli *client.Client, snapName string) error {
 	}
 
 	if snap.Status == "available" {
-		return fmt.Errorf(i18n.G("cannot buy snap: it has already been bought"))
+		return errors.New(i18n.G("cannot buy snap: it has already been bought"))
 	}
 
 	err = cli.ReadyToBuy()
@@ -121,7 +122,7 @@ for %s. Press ctrl-c to cancel.`), snap.Name, snap.Publisher.Username, formatPri
 		if e, ok := err.(*client.Error); ok {
 			switch e.Kind {
 			case client.ErrorKindPaymentDeclined:
-				return fmt.Errorf(i18n.G(`Sorry, your payment method has been declined by the issuer. Please review your
+				return errors.New(i18n.G(`Sorry, your payment method has been declined by the issuer. Please review your
 payment details at https://my.ubuntu.com/payment/edit and try again.`))
 			}
 		}

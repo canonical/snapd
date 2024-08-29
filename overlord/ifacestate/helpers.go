@@ -153,7 +153,7 @@ func (m *InterfaceManager) profilesNeedRegeneration() bool {
 
 var profilesNeedRegenerationImpl = func(m *InterfaceManager) bool {
 	extraData := interfaces.SystemKeyExtraData{
-		AppArmorPrompting: m.useAppArmorPrompting(),
+		AppArmorPrompting: m.useAppArmorPrompting,
 	}
 	mismatch, err := interfaces.SystemKeyMismatch(extraData)
 	if err != nil {
@@ -164,15 +164,14 @@ var profilesNeedRegenerationImpl = func(m *InterfaceManager) bool {
 }
 
 // Checks whether AppArmor Prompting should be used. Caller must lock m.state.
-func (m *InterfaceManager) useAppArmorPrompting() bool {
-	m.useAppArmorPromptingChecker.Do(func() {
-		tr := config.NewTransaction(m.state)
-		if promptingEnabled, err := features.Flag(tr, features.AppArmorPrompting); err == nil {
-			// If error while getting AppArmorPrompting flag, don't include it
-			m.useAppArmorPromptingValue = promptingEnabled && features.AppArmorPrompting.IsSupported()
-		}
-	})
-	return m.useAppArmorPromptingValue
+func (m *InterfaceManager) assesAppArmorPrompting() bool {
+	tr := config.NewTransaction(m.state)
+	if promptingEnabled, err := features.Flag(tr, features.AppArmorPrompting); err == nil {
+		supported, _ := features.AppArmorPrompting.IsSupported()
+		// If error while getting AppArmorPrompting flag, don't include it
+		return promptingEnabled && supported
+	}
+	return false
 }
 
 // snapdAppArmorServiceIsDisabledImpl returns true if the snapd.apparmor
@@ -236,7 +235,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 		if errors := interfaces.SetupMany(m.repo, backend, appSets, confinementOpts, tm); len(errors) > 0 {
 			logger.Noticef("cannot regenerate %s profiles", backend.Name())
 			for _, err := range errors {
-				logger.Noticef(err.Error())
+				logger.Notice(err.Error())
 			}
 			shouldWriteSystemKey = false
 		}
@@ -244,7 +243,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 
 	if shouldWriteSystemKey {
 		extraData := interfaces.SystemKeyExtraData{
-			AppArmorPrompting: m.useAppArmorPrompting(),
+			AppArmorPrompting: m.useAppArmorPrompting,
 		}
 		if err := writeSystemKey(extraData); err != nil {
 			logger.Noticef("cannot write system key: %v", err)

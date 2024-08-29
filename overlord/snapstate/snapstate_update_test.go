@@ -10690,16 +10690,50 @@ func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedOnPreDownl
 	})
 	defer restore()
 
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+		{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+	})
+	seq.AddComponentForRevision(snap.R(1), &sequence.ComponentState{
+		SideInfo: &snap.ComponentSideInfo{
+			Component: naming.NewComponentRef("some-snap", "test-component"),
+			Revision:  snap.R(1),
+		},
+		CompType: snap.TestComponent,
+	})
+
 	s.state.Lock()
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active: true,
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
-		}),
-		Current:  snap.R(1),
-		SnapType: string(snap.TypeApp),
+		Active:          true,
+		Sequence:        seq,
+		Current:         snap.R(1),
+		TrackingChannel: "channel-for-components",
+		SnapType:        string(snap.TypeApp),
 	})
 	s.state.Unlock()
+
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		c.Assert(info.InstanceName(), Equals, "some-snap")
+		return []store.SnapResourceResult{
+			{
+				Name:      "test-component",
+				Type:      "component/test",
+				Version:   "1.0",
+				CreatedAt: "2024-01-01T00:00:00Z",
+				Revision:  5,
+			},
+		}
+	}
+
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(
+		compMntDir string, info *snap.Info, csi *snap.ComponentSideInfo,
+	) (*snap.ComponentInfo, error) {
+		return &snap.ComponentInfo{
+			Component:         csi.Component,
+			Type:              "test",
+			Version:           "1.0",
+			ComponentSideInfo: *csi,
+		}, nil
+	}))
 
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
 	// Trigger autorefresh.Ensure().
@@ -10744,6 +10778,15 @@ func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedOnPreDownl
 	// No more snaps are marked as inhibited after the continued auto-refresh
 	// The set of inhibtied snaps changed to an empty set, so another notice is recorded.
 	checkRefreshInhibitNotice(c, s.state, 2)
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Current, Equals, snap.R(11))
+
+	csi := snapst.CurrentComponentSideInfo(naming.NewComponentRef("some-snap", "test-component"))
+	c.Check(csi, NotNil)
+	c.Check(csi.Revision, Equals, snap.R(5))
 }
 
 func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeNotRecorded(c *C) {

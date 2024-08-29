@@ -21,6 +21,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -83,7 +84,7 @@ func (x *cmdInterface) Execute(args []string) error {
 			return err
 		}
 		if len(ifaces) == 0 {
-			return fmt.Errorf(i18n.G("no such interface"))
+			return errors.New(i18n.G("no such interface"))
 		}
 		x.showOneInterface(ifaces[0])
 	} else {
@@ -96,9 +97,9 @@ func (x *cmdInterface) Execute(args []string) error {
 		}
 		if len(ifaces) == 0 {
 			if x.ShowAll {
-				return fmt.Errorf(i18n.G("no interfaces found"))
+				return errors.New(i18n.G("no interfaces found"))
 			}
-			return fmt.Errorf(i18n.G("no interfaces currently connected"))
+			return errors.New(i18n.G("no interfaces currently connected"))
 		}
 		x.showManyInterfaces(ifaces)
 	}

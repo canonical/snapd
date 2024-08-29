@@ -8,7 +8,7 @@ base: core24
 grade: dangerous
 snaps:
   -
-    default-channel: latest/edge
+    default-channel: 24/edge
     id: tTs9DVS01mt4L11PGqbrSiKcIxFHpUJq
     name: test-snapd-remodel-pc-min-size
     type: gadget
@@ -42,13 +42,13 @@ system-user-authority: *
 timestamp: 2024-04-24T00:00:00+00:00
 sign-key-sha3-384: z5UoZNBNRc6KXRIg96L6tZ723_CDbUu45bRC-wcINgigB2S9GGGe6DWJqlzI6p0S
 
-AcLBcwQAAQoAHRYhBJwYfdLgNpH0AbmOCVr7utGyRTi5BQJmKGN/AAoJEFr7utGyRTi57PMP/izp
-k6X8iSflQDc06niCh0L2dHb1rRDa4IAYFfLpw6jbevwqkEaL+9v/2aprt6EUDMG70Iukel29sbcA
-15x7k8GUEUNskHDG2cbDqBzQ8GJJ625g8KwBiKjxgsoB9sG3KeLKhTgb3DhgoLhT58NC8wg7NcGZ
-04NapWyeZ+BhI3kQ+kBUXlEQiwiimpweetG+wdWK4dqYQ91rtcLaYjvwM8Cfej3/OxCazKvKV0Cj
-Ppyjic0GdLN5l40tocwX4KqSpp9FBsflttquzxTpEbR/+vtc1pUcoIfY9Z+dg8mUIlKzatM6Tueo
-71ktVewr/naWsdlFz2u29P0OtbdIhClZCN30jlzAS2ExudKtNRTso1lnuxBpacddSQjKEaw8lmWE
-fMBQCZaIAG4Ygl5e30H/VK7Sqfot2TxCKVnwzVVVf9pynYaXgoAXrAH7AWlW8axB+xnu4WyAE3tx
-4DGq0rEQp01qF2n0PmWUPWW4uJ9U3c8ah0viwDX20muI6bQ0zhzLfm8YMC3h7/y6h7VCLOxruqRG
-LEyv29AJlSDlqaVD1HOsaP2x/Vsz9AvHTVJgmoukbQblW6vw3TqqXxNzLqHHm9HVLzRMSRrijOHN
-zD5BT+GnEHCZBcGKxiXftA/joQhc51PTpTgncY2O5ctJXkwh3bgoK0gXdC2q/qh0nG7WqmtU
+AcLBcwQAAQoAHRYhBJwYfdLgNpH0AbmOCVr7utGyRTi5BQJmvgsoAAoJEFr7utGyRTi5kYwP/juZ
+66qhb97JOhZ366m9FqDNgt3l4thGjZQS6WI8psd4gZHglflxTYTQW4Nse5xCgMElPhCNS1V/+JdW
+Z9mgFp4VYLFRW3juprP5wfoEMSxczIeQmNuMr0gsZHkNNHuiOUoBEEm1bV0Pyt+77nG5XxB5QwVO
+m+ZQZ/c1Eh684lnrhsDQZJpnQKJAmp35jIv2BS7jqWb2nE8i6FsEfWbCL2nhdLe/7487+BWi8SDk
+Sn+bewT54Nip83SOdJoJLOLWAq5ul4TNwlmkWXikT+EhQXKEphU+VKEEx1uoCjR9OWF3MhWZrvmQ
+rvx+PT0PCirGnQue47TenG5wiCNYQvuEvvWR5PTmq6mlezYFQc+aoXf0zY/cYBO8uViuDrshr8IB
+5mAwRJiUdG8/hNwx6Fh6rFsoW/Ry+W+VkvaQ7yAnOpPDUVGN0fzOuMkr15bo9XX4J98W3p6Pi6lb
+Y40awPbPdEAAyZPZ2gmDJmJmppyW/MuL1DGbhnTP606WF9gc4uP9apcXNp/2V6HmOfVEuLxNru4b
+g/wGeRB2kg3wkYIo9sn3eaWbESlUZAJPggMplQ1Q2bzKjLe1xhTJ6yg3hv3uTAL1y8GVvncjdfF3
+KFYl5anVN9jcmJRT4QdzAGFEdaO06A66C4c7C+1G1q3rURtns4HguHdiXZOSnQpLoB2ceKIN

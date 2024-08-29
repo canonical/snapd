@@ -17,6 +17,8 @@
  *
  */
 
+// Package prompting provides common types and functions related to AppArmor
+// prompting.
 package prompting
 
 import (
@@ -24,6 +26,11 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+)
+
+var (
+	// ErrExpirationInThePast may be wrapped with the invalid expiration.
+	ErrExpirationInThePast = fmt.Errorf("cannot have expiration time in the past")
 )
 
 // Metadata stores information about the origin or applicability of a prompt or
@@ -39,8 +46,20 @@ type Metadata struct {
 
 type IDType uint64
 
+func IDFromString(idStr string) (IDType, error) {
+	value, err := strconv.ParseUint(idStr, 16, 64)
+	if err != nil {
+		return IDType(0), fmt.Errorf("cannot parse ID as uint64: %w", err)
+	}
+	return IDType(value), nil
+}
+
+func (i IDType) String() string {
+	return fmt.Sprintf("%016X", uint64(i))
+}
+
 func (i *IDType) MarshalJSON() ([]byte, error) {
-	return json.Marshal(fmt.Sprintf("%016X", *i))
+	return json.Marshal(i.String())
 }
 
 func (i *IDType) UnmarshalJSON(b []byte) error {
@@ -48,11 +67,11 @@ func (i *IDType) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &s); err != nil {
 		return fmt.Errorf("cannot read ID into string: %w", err)
 	}
-	value, err := strconv.ParseUint(s, 16, 64)
+	id, err := IDFromString(s)
 	if err != nil {
-		return fmt.Errorf("cannot parse ID as uint64: %w", err)
+		return err
 	}
-	*i = IDType(value)
+	*i = id
 	return nil
 }
 
@@ -148,7 +167,7 @@ func (lifespan LifespanType) ValidateExpiration(expiration time.Time, currTime t
 			return fmt.Errorf(`cannot have unspecified expiration when lifespan is %q`, lifespan)
 		}
 		if currTime.After(expiration) {
-			return fmt.Errorf("cannot have expiration time in the past: %q", expiration)
+			return fmt.Errorf("%w: %q", ErrExpirationInThePast, expiration)
 		}
 	default:
 		// Should not occur, since lifespan is validated when unmarshalled

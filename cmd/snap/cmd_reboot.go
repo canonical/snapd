@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/jessevdk/go-flags"
@@ -92,7 +93,7 @@ func (x *cmdReboot) modeFromCommandline() (string, error) {
 			continue
 		}
 		if mode != "" {
-			return "", fmt.Errorf(i18n.G("Please specify a single mode"))
+			return "", errors.New(i18n.G("Please specify a single mode"))
 		}
 		mode = arg.mode
 	}
@@ -122,7 +123,7 @@ func (x *cmdReboot) Execute(args []string) error {
 	case mode != "":
 		fmt.Fprintf(Stdout, i18n.G("Reboot into %q mode.\n"), mode)
 	default:
-		fmt.Fprintf(Stdout, i18n.G("Reboot\n"))
+		fmt.Fprint(Stdout, i18n.G("Reboot\n"))
 	}
 
 	return nil

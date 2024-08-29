@@ -60,7 +60,7 @@ func serverWithChange(chgRsp string, c *C) func(w http.ResponseWriter, r *http.R
 		case 1:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/changes/12")
-			fmt.Fprintf(w, chgRsp)
+			fmt.Fprint(w, chgRsp)
 
 		default:
 			failRequest(fmt.Sprintf("server expected to get 2 requests, now on %d", n+1), w, c)

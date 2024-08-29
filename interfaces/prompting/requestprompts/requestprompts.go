@@ -17,22 +17,22 @@
  *
  */
 
+// Package requestrules provides support for holding outstanding request
+// prompts for AppArmor prompting.
 package requestprompts
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"time"
-	"unsafe"
-
-	"golang.org/x/sys/unix"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
+	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/strutil"
@@ -55,6 +55,40 @@ type Prompt struct {
 	listenerReqs []*listener.Request
 }
 
+// jsonPrompt defines the marshalled json structure of a Prompt.
+type jsonPrompt struct {
+	ID          prompting.IDType       `json:"id"`
+	Timestamp   time.Time              `json:"timestamp"`
+	Snap        string                 `json:"snap"`
+	Interface   string                 `json:"interface"`
+	Constraints *jsonPromptConstraints `json:"constraints"`
+}
+
+// jsonPromptConstraints defines the marshalled json structure of promptConstraints.
+type jsonPromptConstraints struct {
+	Path                 string   `json:"path"`
+	RequestedPermissions []string `json:"requested-permissions"`
+	AvailablePermissions []string `json:"available-permissions"`
+}
+
+// MarshalJSON marshals the Prompt to JSON.
+// TODO: consider having instead a MarshalForClient -> json.RawMessage method
+func (p *Prompt) MarshalJSON() ([]byte, error) {
+	constraints := &jsonPromptConstraints{
+		Path:                 p.Constraints.path,
+		RequestedPermissions: p.Constraints.remainingPermissions,
+		AvailablePermissions: p.Constraints.availablePermissions,
+	}
+	toMarshal := &jsonPrompt{
+		ID:          p.ID,
+		Timestamp:   p.Timestamp,
+		Snap:        p.Snap,
+		Interface:   p.Interface,
+		Constraints: constraints,
+	}
+	return json.Marshal(toMarshal)
+}
+
 // promptConstraints store the path which was requested, along with three
 // lists of permissions: the original permissions associated with the request,
 // the remaining unsatisfied permissions (as rules may satisfy some of the
@@ -75,8 +109,9 @@ type promptConstraints struct {
 	// original request. A prompt's permissions may be partially satisfied over
 	// time as new rules are added, but we need to keep track of the originally
 	// requested permissions so that we can still send back a response to the
-	// kernel with all of the permissions which were included in the request
-	// from the kernel (aside from any which we didn't recognize).
+	// kernel with all of the originally requested permissions which were
+	// explicitly allowed by the user, even if some of those permissions were
+	// allowed by rules instead of by the direct reply to the prompt.
 	originalPermissions []string
 }
 
@@ -111,6 +146,18 @@ func (pc *promptConstraints) subtractPermissions(permissions []string) (modified
 		return true
 	}
 	return false
+}
+
+// Path returns the path associated with the request to which the receiving
+// prompt constraints apply.
+func (pc *promptConstraints) Path() string {
+	return pc.path
+}
+
+// Permissions returns the remaining unsatisfied permissions associated with
+// the prompt.
+func (pc *promptConstraints) RemainingPermissions() []string {
+	return pc.remainingPermissions
 }
 
 // userPromptDB maps prompt IDs to prompts for a single user.
@@ -172,8 +219,8 @@ type PromptDB struct {
 	mutex sync.RWMutex
 	// maxIDMmap is the byte slice which is memory mapped to the max ID file in
 	// order to avoid unnecessary syscalls.
-	// If maxIDMmap is nil, then the prompt DB has already been closed.
-	maxIDMmap []byte
+	// If maxIDMmap is closed, then the prompt DB has already been closed.
+	maxIDMmap maxidmmap.MaxIDMmap
 	// perUser maps UID to the DB of prompts for that user.
 	perUser map[uint32]*userPromptDB
 	// notifyPrompt is a closure which will be called to record a notice when a
@@ -182,8 +229,6 @@ type PromptDB struct {
 }
 
 const (
-	// maxIDFileSize should be enough bytes to encode the maximum prompt ID.
-	maxIDFileSize int = 8
 	// maxOutstandingPromptsPerUser is an arbitrary limit.
 	// TODO: review this limit after some usage.
 	maxOutstandingPromptsPerUser int = 1000
@@ -196,72 +241,20 @@ const (
 // notifyPrompt is called with the prompt DB lock held, so it should not block
 // for a substantial amount of time (such as to lock and modify snapd state).
 func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error) (*PromptDB, error) {
+	maxIDFilepath := filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
+	if err := os.MkdirAll(dirs.SnapRunDir, 0o755); err != nil {
+		return nil, err
+	}
+	maxIDMmap, err := maxidmmap.OpenMaxIDMmap(maxIDFilepath)
+	if err != nil {
+		return nil, err
+	}
 	pdb := PromptDB{
 		perUser:      make(map[uint32]*userPromptDB),
 		notifyPrompt: notifyPrompt,
-	}
-	maxIDFilepath := filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
-	maxIDFile, err := os.OpenFile(maxIDFilepath, os.O_RDWR|os.O_CREATE, 0600)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open max ID file: %w", err)
-	}
-	// The file/FD can be safely closed once the mmap is created. See mmap(2).
-	defer maxIDFile.Close()
-	fileInfo, err := maxIDFile.Stat()
-	if err != nil {
-		return nil, fmt.Errorf("cannot stat max ID file: %w", err)
-	}
-	if fileInfo.Size() != int64(maxIDFileSize) {
-		if fileInfo.Size() != 0 {
-			// Max ID file malformed, best to reset it
-			logger.Debugf("requestprompts: max ID file malformed; re-initializing")
-		}
-		if err = initializeMaxIDFile(maxIDFile); err != nil {
-			return nil, err
-		}
-	}
-	conn, err := maxIDFile.SyscallConn()
-	if err != nil {
-		return nil, fmt.Errorf("cannot get raw file for maxIDFile: %w", err)
-	}
-	var controlErr error
-	err = conn.Control(func(fd uintptr) {
-		// Use Control() so that the file/fd is not garbage collected during
-		// the syscall.
-		pdb.maxIDMmap, controlErr = unix.Mmap(int(fd), 0, maxIDFileSize, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("cannot call control function on maxIDFile conn: %w", err)
-	}
-	if controlErr != nil {
-		return nil, fmt.Errorf("cannot mmap max ID file: %w", controlErr)
+		maxIDMmap:    maxIDMmap,
 	}
 	return &pdb, nil
-}
-
-// initializeMaxIDFile truncates the given file to maxIDFileSize bytes of zeros.
-func initializeMaxIDFile(maxIDFile *os.File) (err error) {
-	initial := [maxIDFileSize]byte{}
-	if err = maxIDFile.Truncate(int64(len(initial))); err != nil {
-		return fmt.Errorf("cannot truncate max ID file: %w", err)
-	}
-	if _, err = maxIDFile.WriteAt(initial[:], 0); err != nil {
-		return fmt.Errorf("cannot initialize max ID file: %w", err)
-	}
-	return nil
-}
-
-// nextID increments the internal monotonic maxID integer and returns the
-// corresponding ID.
-//
-// The caller must ensure that the prompt DB mutex is locked.
-func (pdb *PromptDB) nextID() (prompting.IDType, error) {
-	if pdb.maxIDMmap == nil {
-		return 0, ErrClosed
-	}
-	// Byte order will be consistent, and want an atomic increment.
-	id := atomic.AddUint64((*uint64)(unsafe.Pointer(&pdb.maxIDMmap[0])), 1)
-	return prompting.IDType(id), nil
 }
 
 // AddOrMerge checks if the given prompt contents are identical to an existing
@@ -276,7 +269,7 @@ func (pdb *PromptDB) nextID() (prompting.IDType, error) {
 //
 // The caller must ensure that the given permissions are in the order in which
 // they appear in the available permissions list for the given interface.
-func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permissions []string, listenerReq *listener.Request) (*Prompt, bool, error) {
+func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, requestedPermissions []string, remainingPermissions []string, listenerReq *listener.Request) (*Prompt, bool, error) {
 	availablePermissions, err := prompting.AvailablePermissions(metadata.Interface)
 	if err != nil {
 		// Error should be impossible, since caller has already validated that
@@ -288,7 +281,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 
-	if pdb.maxIDMmap == nil {
+	if pdb.maxIDMmap.IsClosed() {
 		return nil, false, ErrClosed
 	}
 
@@ -302,9 +295,9 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 
 	constraints := &promptConstraints{
 		path:                 path,
-		remainingPermissions: permissions,
+		remainingPermissions: remainingPermissions,
 		availablePermissions: availablePermissions,
-		originalPermissions:  permissions,
+		originalPermissions:  requestedPermissions,
 	}
 
 	// Search for an identical existing prompt, merge if found
@@ -323,12 +316,12 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 
 	if len(userEntry.prompts) >= maxOutstandingPromptsPerUser {
 		logger.Noticef("WARNING: too many outstanding prompts for user %d; auto-denying new one", metadata.User)
-		response := responseForInterfaceConstraintsOutcome(metadata.Interface, constraints, prompting.OutcomeDeny)
-		sendReply(listenerReq, response)
+		allowedPermission := responseForInterfaceConstraintsOutcome(metadata.Interface, constraints, prompting.OutcomeDeny)
+		sendReply(listenerReq, allowedPermission)
 		return nil, false, ErrTooManyPrompts
 	}
 
-	id, _ := pdb.nextID() // err must be nil because maxIDMmap is not nil and lock is held
+	id, _ := pdb.maxIDMmap.NextID() // err must be nil because maxIDMmap is not nil and lock is held
 	timestamp := time.Now()
 	prompt := &Prompt{
 		ID:           id,
@@ -343,32 +336,39 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 	return prompt, false, nil
 }
 
-func responseForInterfaceConstraintsOutcome(iface string, constraints *promptConstraints, outcome prompting.OutcomeType) *listener.Response {
+func responseForInterfaceConstraintsOutcome(iface string, constraints *promptConstraints, outcome prompting.OutcomeType) any {
 	allow, err := outcome.AsBool()
 	if err != nil {
 		// This should not occur, but if so, default to deny
 		allow = false
 		logger.Debugf("%v", err)
 	}
-	permission, err := prompting.AbstractPermissionsToAppArmorPermissions(iface, constraints.originalPermissions)
+	allowedPerms := constraints.originalPermissions
+	if !allow {
+		// Remaining permissions were denied, so allow permissions which were
+		// previously allowed by prompt rules
+		allowedPerms = make([]string, 0, len(constraints.originalPermissions)-len(constraints.remainingPermissions))
+		for _, perm := range constraints.originalPermissions {
+			// Exclude any permissions which were remaining at time of denial
+			if !strutil.ListContains(constraints.remainingPermissions, perm) {
+				allowedPerms = append(allowedPerms, perm)
+			}
+		}
+	}
+	allowedPermission, err := prompting.AbstractPermissionsToAppArmorPermissions(iface, allowedPerms)
 	if err != nil {
-		// This should not occur, but if so, default to denying the request,
-		// which denies all requested permissions.
-		allow = false
+		// This should not occur, but if so, permission should be set to the
+		// empty value for its corresponding permission type.
 		logger.Debugf("internal error: cannot convert abstract permissions to AppArmor permissions: %v", err)
 	}
-	response := &listener.Response{
-		Allow:      allow,
-		Permission: permission,
-	}
-	return response
+	return allowedPermission
 }
 
 // Prompts returns a slice of all outstanding prompts for the given user.
 func (pdb *PromptDB) Prompts(user uint32) ([]*Prompt, error) {
 	pdb.mutex.RLock()
 	defer pdb.mutex.RUnlock()
-	if pdb.maxIDMmap == nil {
+	if pdb.maxIDMmap.IsClosed() {
 		return nil, ErrClosed
 	}
 	userEntry, ok := pdb.perUser[user]
@@ -394,7 +394,7 @@ func (pdb *PromptDB) PromptWithID(user uint32, id prompting.IDType) (*Prompt, er
 //
 // The caller should hold a read lock on the prompt DB mutex.
 func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType) (*userPromptDB, *Prompt, error) {
-	if pdb.maxIDMmap == nil {
+	if pdb.maxIDMmap.IsClosed() {
 		return nil, nil, ErrClosed
 	}
 	userEntry, ok := pdb.perUser[user]
@@ -420,9 +420,9 @@ func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.O
 	if err != nil {
 		return nil, err
 	}
-	response := responseForInterfaceConstraintsOutcome(prompt.Interface, prompt.Constraints, outcome)
+	allowedPermission := responseForInterfaceConstraintsOutcome(prompt.Interface, prompt.Constraints, outcome)
 	for _, listenerReq := range prompt.listenerReqs {
-		if err := sendReply(listenerReq, response); err != nil {
+		if err := sendReply(listenerReq, allowedPermission); err != nil {
 			// Error should only occur if reply is malformed, and since these
 			// listener requests should be identical, if a reply is malformed
 			// for one, it should be malformed for all. Malformed replies should
@@ -436,8 +436,8 @@ func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.O
 	return prompt, nil
 }
 
-var sendReply = func(listenerReq *listener.Request, response *listener.Response) error {
-	return listenerReq.Reply(response)
+var sendReply = func(listenerReq *listener.Request, allowedPermission any) error {
+	return listenerReq.Reply(allowedPermission)
 }
 
 // HandleNewRule checks if any existing prompts are satisfied by the given rule
@@ -465,7 +465,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 
-	if pdb.maxIDMmap == nil {
+	if pdb.maxIDMmap.IsClosed() {
 		return nil, ErrClosed
 	}
 
@@ -485,8 +485,15 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 		if !matched {
 			continue
 		}
+
+		// Record all allowed permissions at the time of match, in case a
+		// permission is denied and we need to send back a response.
+		allowedPermission := responseForInterfaceConstraintsOutcome(metadata.Interface, prompt.Constraints, outcome)
+
+		// See if the permission matches any of the prompt's remaining permissions
 		modified := prompt.Constraints.subtractPermissions(constraints.Permissions)
 		if !modified {
+			// No permission was matched
 			continue
 		}
 		id := prompt.ID
@@ -495,9 +502,10 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 			continue
 		}
 		// All permissions of prompt satisfied, or any permission denied
-		response := responseForInterfaceConstraintsOutcome(metadata.Interface, prompt.Constraints, outcome)
 		for _, listenerReq := range prompt.listenerReqs {
-			sendReply(listenerReq, response)
+			// Reply with any permissions which were allowed, either by this
+			// new rule or by previous rules.
+			sendReply(listenerReq, allowedPermission)
 		}
 		userEntry.remove(id)
 		satisfiedPromptIDs = append(satisfiedPromptIDs, id)
@@ -515,8 +523,12 @@ func (pdb *PromptDB) Close() error {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 
-	if pdb.maxIDMmap == nil {
+	if pdb.maxIDMmap.IsClosed() {
 		return ErrClosed
+	}
+
+	if err := pdb.maxIDMmap.Close(); err != nil {
+		return fmt.Errorf("cannot close max ID mmap: %w", err)
 	}
 
 	// TODO: if in the future we persist prompts across snapd restarts, we do
@@ -530,7 +542,16 @@ func (pdb *PromptDB) Close() error {
 
 	// Clear all outstanding prompts
 	pdb.perUser = nil
-	unix.Munmap(pdb.maxIDMmap)
-	pdb.maxIDMmap = nil // reset maxIDMmap to nil so we know pdb has been closed
 	return nil
+}
+
+// MockSendReply mocks the function to send a reply back to the listener so
+// tests, both for this package and for consumers of this package, can mock
+// the listener.
+func MockSendReply(f func(listenerReq *listener.Request, allowedPermission any) error) (restore func()) {
+	orig := sendReply
+	sendReply = f
+	return func() {
+		sendReply = orig
+	}
 }

@@ -1,0 +1,67 @@
+summary: Check that enabling prompting requests will activate handler services
+
+details: |
+    The test verifies that activation of apparmor prompting feature will
+    activate handler services.
+
+systems:
+  - ubuntu-2*
+
+prepare: |
+    # prerequisite for having a prompts handler service
+    snap set system experimental.user-daemons=true
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-prompt-handler
+    snap connect test-snapd-prompt-handler:snap-interfaces-requests-control
+    tests.session -u test prepare
+
+restore: |
+    tests.session -u test restore
+
+execute: |
+    echo "Enable prompting via snap client where possible"
+    if os.query is-core || os.query is-ubuntu-lt 24.04; then
+        # prompting is disabled on Ubuntu Core
+        # TODO on releases < 24.04 we need the snapd snap for testing
+        not snap set system experimental.apparmor-prompting=true >& err.out
+        if os.query is-core ; then
+            MATCH "cannot enable prompting feature as it is not supported on Ubuntu Core systems" < err.out
+        else
+            MATCH "cannot enable prompting feature as it is not supported by the system" < err.out
+        fi
+
+        # even if unsupported setting it to false should succeed
+        snap set system experimental.apparmor-prompting=false
+        exit 0
+    fi
+
+    not tests.session -u test exec systemctl --user is-active \
+        snap.test-snapd-prompt-handler.prompt-handler.service
+    not tests.session -u test exec systemctl --user is-enabled \
+        snap.test-snapd-prompt-handler.prompt-handler.service
+
+    echo "Check status of user session service"
+    tests.session -u test exec systemctl --user is-active snapd.session-agent.socket
+
+    echo "...and ensure it is stopped"
+    tests.session -u test exec systemctl --user stop snapd.session-agent.socket
+
+    echo "Check that the prompting feature cannot be enabled"
+    # due to failure starting the handler service
+    if ! snap set system experimental.apparmor-prompting=true 2> err.out ; then
+        MATCH "unable to start prompting handlers" < err.out
+    else
+        echo "unexpected success enabling apparmor prompting"
+        exit 1
+    fi
+
+    echo "Start user session agent socket again"
+    tests.session -u test exec systemctl --user start snapd.session-agent.socket
+
+    echo "Check that the prompting feature can be successfully enabled now"
+    snap set system experimental.apparmor-prompting=true
+
+    echo "And handler services have been started"
+    tests.session -u test exec systemctl --user is-active \
+        snap.test-snapd-prompt-handler.prompt-handler.service
+    tests.session -u test exec systemctl --user is-enabled \
+        snap.test-snapd-prompt-handler.prompt-handler.service

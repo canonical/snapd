@@ -20,6 +20,7 @@
 package boot_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -820,7 +821,7 @@ func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVarsErrOnGetBootVar
 	defer bootloader.Force(nil)
 
 	errMsg := "cannot get boot environment"
-	bloader.GetErr = fmt.Errorf(errMsg)
+	bloader.GetErr = errors.New(errMsg)
 
 	cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
 	err := os.WriteFile(cmdlineFile, []byte("kernel_status=trying"), 0644)

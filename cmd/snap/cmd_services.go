@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os/user"
 	"strconv"
@@ -144,7 +145,7 @@ func (s *svcStatus) showGlobalEnablement(u *user.User) bool {
 func (s *svcStatus) validateArguments() error {
 	// can't use --global and --user together
 	if s.Global && s.User {
-		return fmt.Errorf(i18n.G("cannot combine --global and --user switches."))
+		return errors.New(i18n.G("cannot combine --global and --user switches."))
 	}
 	return nil
 }
@@ -196,7 +197,7 @@ func (s *svcLogs) Execute(args []string) error {
 	if s.N != "all" {
 		n, err := strconv.ParseInt(s.N, 0, 32)
 		if n < 0 || err != nil {
-			return fmt.Errorf(i18n.G("invalid argument for flag ‘-n’: expected a non-negative integer argument, or “all”."))
+			return errors.New(i18n.G("invalid argument for flag ‘-n’: expected a non-negative integer argument, or “all”."))
 		}
 		sN = int(n)
 	}

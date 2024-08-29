@@ -20,6 +20,7 @@
 package osutil
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -181,7 +182,7 @@ func EnsureSnapUserGroup(name string, id uint32, extraUsers bool) error {
 - %s
 - %s`, name, useraddErrStr, groupdelErrStr)
 		}
-		return fmt.Errorf(useraddErrStr)
+		return errors.New(useraddErrStr)
 	}
 
 	return nil

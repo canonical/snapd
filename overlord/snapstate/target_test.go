@@ -276,6 +276,94 @@ version: 1.0
 	verifyInstallTasksWithComponents(c, snap.TypeKernel, localSnap, 0, []string{compName}, ts)
 }
 
+func (s *TargetTestSuite) TestInstallWithComponentsMixedAssertedCompsAndUnassertedSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const (
+		snapName = "some-snap"
+		compName = "test-component"
+		snapYaml = `name: some-snap
+version: 1.0
+type: kernel
+components:
+  test-component:
+    type: test
+  kernel-modules-component:
+    type: kernel-modules
+`
+		componentYaml = `component: some-snap+test-component
+type: test
+version: 1.0
+`
+	)
+
+	snapRevision := snap.Revision{}
+	si := &snap.SideInfo{
+		RealName: snapName,
+		Revision: snapRevision,
+	}
+	snapPath := makeTestSnap(c, snapYaml)
+
+	csi := &snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, compName),
+		Revision:  snap.R(3),
+	}
+	components := map[*snap.ComponentSideInfo]string{
+		csi: snaptest.MakeTestComponent(c, componentYaml),
+	}
+
+	goal := snapstate.PathInstallGoal(snapName, snapPath, si, components, snapstate.RevisionOptions{})
+
+	_, _, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
+	c.Assert(err, ErrorMatches, "cannot mix unasserted snap and asserted components")
+}
+
+func (s *TargetTestSuite) TestInstallWithComponentsMixedUnassertedCompsAndAssertedSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const (
+		snapName = "some-snap"
+		snapID   = "some-snap-id"
+		compName = "test-component"
+		snapYaml = `name: some-snap
+version: 1.0
+type: kernel
+components:
+  test-component:
+    type: test
+  kernel-modules-component:
+    type: kernel-modules
+`
+		componentYaml = `component: some-snap+test-component
+type: test
+version: 1.0
+`
+	)
+
+	snapRevision := snap.R(2)
+	si := &snap.SideInfo{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snapRevision,
+	}
+	snapPath := makeTestSnap(c, snapYaml)
+
+	csi := &snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, compName),
+		Revision:  snap.Revision{},
+	}
+	components := map[*snap.ComponentSideInfo]string{
+		csi: snaptest.MakeTestComponent(c, componentYaml),
+	}
+
+	goal := snapstate.PathInstallGoal(snapName, snapPath, si, components, snapstate.RevisionOptions{})
+
+	_, _, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
+	c.Assert(err, ErrorMatches, "cannot mix asserted snap and unasserted components")
+}
+
 func (s *TargetTestSuite) TestUpdateSnapNotInstalled(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

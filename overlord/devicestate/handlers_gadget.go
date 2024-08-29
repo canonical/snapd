@@ -286,7 +286,7 @@ func buildAppendedKernelCommandLine(t *state.Task, gd *gadget.GadgetData, device
 	cmdlineAppend, forbidden := gadget.FilterKernelCmdline(rawCmdlineAppend, gd.Info.KernelCmdline.Allow)
 	if forbidden != "" {
 		warnMsg := fmt.Sprintf("%q is not allowed by the gadget and has been filtered out from the kernel command line", forbidden)
-		logger.Noticef(warnMsg)
+		logger.Notice(warnMsg)
 		t.Logf(warnMsg)
 	}
 
