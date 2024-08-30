@@ -11,8 +11,8 @@ fi
 # Clean the snaps created in previous runs
 rm -rfv built-snap
 
-find . -name 'snapd_1337.*.snap' -print0 | xargs -0 -- rm -fv
-find . -name 'snapd_1337.*.snap.keep' -print0 | xargs -0 -- rm -fv
+find . -name 'snapd_1337.*.snap' -delete -print
+find . -name 'snapd_1337.*.snap.keep' -delete -print
 
 touch test-build
 mkdir -p built-snap
