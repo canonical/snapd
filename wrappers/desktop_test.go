@@ -104,6 +104,24 @@ func (s *desktopSuite) TestEnsurePackageDesktopFiles(c *C) {
 	c.Assert(osutil.FileExists(oldDesktopFilePath), Equals, false)
 }
 
+func (s *desktopSuite) TestEnsurePackageDesktopFilesMangledDuplicateError(c *C) {
+	expectedDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar._.desktop")
+	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
+
+	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
+	baseDir := info.MountDir()
+	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755), IsNil)
+	// When mangled, both files will be foo_foobar._.desktop and should error
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.*.desktop"), mockDesktopFile, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.$.desktop"), mockDesktopFile, 0644), IsNil)
+
+	err := wrappers.EnsureSnapDesktopFiles([]*snap.Info{info})
+	c.Assert(err, ErrorMatches, "duplicate desktop file name after mangling")
+
+	// Nothing shoul dhave been created
+	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
+}
+
 func (s *desktopSuite) testEnsurePackageDesktopFilesWithDesktopInterface(c *C, hasDesktopFileIDs bool) {
 	var desktopAppYaml = `
 name: foo

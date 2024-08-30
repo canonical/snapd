@@ -24,9 +24,12 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -76,61 +79,107 @@ func verifySlotPathAttribute(slotRef *interfaces.SlotRef, attrs interfaces.Attre
 	return cleanPath, nil
 }
 
-// aareExclusivePatterns takes a string and generates deny alternations. Eg,
-// aareExclusivePatterns("foo") returns:
-//
-//	[]string{
-//	  "[^f]*",
-//	  "f[^o]*",
-//	  "fo[^o]*",
-//	}
-//
-// For a more generic version of this see GenerateAAREExclusionPatterns
-// TODO: can this be rewritten to use/share code with that function instead?
-func aareExclusivePatterns(orig string) []string {
-	// This function currently is only intended to be used with desktop
-	// prefixes as calculated by info.DesktopPrefix (the snap name and
-	// instance name, if present). To avoid having to worry about aare
-	// special characters, etc, perform ValidateDesktopPrefix() and return
-	// an empty list if invalid. If this function is modified for other
-	// input, aare/quoting/etc will have to be considered.
-	if !snap.ValidateDesktopPrefix(orig) {
-		return nil
+func getDesktopFileRulesFallback() []string {
+	return []string{
+		"# Support applications which use the unity messaging menu, xdg-mime, etc",
+		"# This leaks the names of snaps with desktop files",
+		fmt.Sprintf("%s/ r,", dirs.SnapDesktopFilesDir),
+		"# Allowing reading only our desktop files (required by (at least) the unity",
+		"# messaging menu).",
+		"# parallel-installs: this leaks read access to desktop files owned by keyed",
+		"# instances of @{SNAP_NAME} to @{SNAP_NAME} snap",
+		fmt.Sprintf("%s/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,", dirs.SnapDesktopFilesDir),
+		"# Explicitly deny access to other snap's desktop files",
+		fmt.Sprintf("deny %s/@{SNAP_INSTANCE_DESKTOP}[^_.]*.desktop r,", dirs.SnapDesktopFilesDir),
+		// XXX: Do we need to generate extensive deny rules for the fallback too?
 	}
-
-	s := make([]string, len(orig))
-
-	prefix := ""
-	for i, letter := range orig {
-		prefix = orig[:i]
-		s[i] = fmt.Sprintf("%s[^%c]*", prefix, letter)
-	}
-	return s
 }
 
-// getDesktopFileRules(<snap instance name>) generates snippet rules for
-// allowing access to the specified snap's desktop files in
-// dirs.SnapDesktopFilesDir, but explicitly denies access to all other snaps'
-// desktop files since xdg libraries may try to read all the desktop files
-// in the dir, causing excessive noise. (LP: #1868051)
-func getDesktopFileRules(snapInstanceName string) []string {
+var apparmorGenerateAAREExclusionPatterns = apparmor.GenerateAAREExclusionPatterns
+var desktopFilesFromMount = func(s *snap.Info) ([]string, error) {
+	opts := snap.DesktopFilesFromMountOptions{MangleFileNames: true}
+	return s.DesktopFilesFromMount(opts)
+}
+
+// getDesktopFileRules generates snippet rules for allowing access to the
+// specified snap's desktop files in dirs.SnapDesktopFilesDir, but explicitly
+// denies access to all other snaps' desktop files since xdg libraries may try
+// to read all the desktop files in the dir, causing excessive noise. (LP: #1868051)
+//
+// The snap must be mounted.
+func getDesktopFileRules(s *snap.Info) []string {
 	baseDir := dirs.SnapDesktopFilesDir
 
 	rules := []string{
 		"# Support applications which use the unity messaging menu, xdg-mime, etc",
 		"# This leaks the names of snaps with desktop files",
 		fmt.Sprintf("%s/ r,", baseDir),
+	}
+
+	// Generate allow rules
+	rules = append(rules,
 		"# Allowing reading only our desktop files (required by (at least) the unity",
 		"# messaging menu).",
 		"# parallel-installs: this leaks read access to desktop files owned by keyed",
 		"# instances of @{SNAP_NAME} to @{SNAP_NAME} snap",
-		fmt.Sprintf("%s/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,", baseDir),
-		"# Explicitly deny access to other snap's desktop files",
-		fmt.Sprintf("deny %s/@{SNAP_INSTANCE_DESKTOP}[^_.]*.desktop r,", baseDir),
+		fmt.Sprintf("%s/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,", dirs.SnapDesktopFilesDir),
+	)
+	// For allow rules let's be more defensive and not depend on desktop files
+	// shipped by the snap like what is done below in the deny rules so that if
+	// a snap figured out a way to trick the checks below it can only shoot
+	// itself in the foot and deny more stuff.
+	// Although, given the extensive use of ValidateNoAppArmorRegexp below this
+	// should never, but still it is better to play it safe with allow rules
+	desktopFileIDs, err := s.DesktopPlugFileIDs()
+	if err != nil {
+		logger.Noticef("error: %v", err)
+		return getDesktopFileRulesFallback()
 	}
-	for _, t := range aareExclusivePatterns(snapInstanceName) {
-		rules = append(rules, fmt.Sprintf("deny %s/%s r,", baseDir, t))
+	for _, desktopFileID := range desktopFileIDs {
+		// Validate IDs, This check should never be triggered because
+		// desktop-file-ids are already validated during install.
+		// But still it is better to play it safe and check AARE characters anyway.
+		if err := apparmor.ValidateNoAppArmorRegexp(desktopFileID); err != nil {
+			logger.Noticef("error: %v", err)
+			return getDesktopFileRulesFallback()
+		}
+		rules = append(rules, fmt.Sprintf("%s/%s r,", baseDir, desktopFileID+".desktop"))
 	}
+
+	// Generate deny rules to suppress apparmor warnings
+	desktopFiles, err := desktopFilesFromMount(s)
+	if err != nil {
+		logger.Noticef("error: %v", err)
+		return getDesktopFileRulesFallback()
+	}
+	if len(desktopFiles) == 0 {
+		// Nothing to do
+		return getDesktopFileRulesFallback()
+	}
+	excludeOpts := &apparmor.AAREExclusionPatternsOptions{
+		Prefix: fmt.Sprintf("deny %s", baseDir),
+		Suffix: ".desktop r,",
+	}
+	excludePatterns := make([]string, 0, len(desktopFiles))
+	for _, desktopFile := range desktopFiles {
+		// Check that desktop files found don't contain AARE characters.
+		// This check should never be triggered because:
+		// - Prefixed desktop files are sanitized to only contain non-AARE characters
+		// - Desktop file ids are validated to only contain non-AARE characters
+		// But still it is better to play it safe and check AARE characters anyway.
+		if err := apparmor.ValidateNoAppArmorRegexp(desktopFile); err != nil {
+			logger.Noticef("error: %v", err)
+			return getDesktopFileRulesFallback()
+		}
+		excludePatterns = append(excludePatterns, "/"+strings.TrimSuffix(filepath.Base(desktopFile), ".desktop"))
+	}
+	excludeRules, err := apparmorGenerateAAREExclusionPatterns(excludePatterns, excludeOpts)
+	if err != nil {
+		logger.Noticef("error: %v", err)
+		return getDesktopFileRulesFallback()
+	}
+	rules = append(rules, "# Explicitly deny access to other snap's desktop files")
+	rules = append(rules, excludeRules)
 
 	return rules
 }

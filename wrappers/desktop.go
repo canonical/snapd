@@ -260,6 +260,9 @@ func deriveDesktopFilesContent(s *snap.Info) (map[string]osutil.FileState, error
 		if err != nil {
 			return nil, err
 		}
+		if _, exists := content[base]; exists {
+			return nil, fmt.Errorf("duplicate desktop file name after mangling")
+		}
 		fileContent, err := os.ReadFile(df)
 		if err != nil {
 			return nil, err

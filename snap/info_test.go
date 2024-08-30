@@ -2625,6 +2625,9 @@ plugs:
 		{"org.example.Foo.desktop", "foo_org.example.Foo.desktop"},
 		{"org.desktop", "foo_org.desktop"},
 		{"test.desktop", "foo_test.desktop"},
+		// character not in [A-Za-z0-9-_.] are replaced by '_'
+		{"test**.desktop", "foo_test__.desktop"},
+		{`AaZz09. -,._?**[]{}^"\$#` + "\x00" + "\000" + ".desktop", "foo_AaZz09._-_._______________.desktop"},
 	} {
 		mangled, err := info.MangleDesktopFileName(tc.fname)
 		c.Assert(err, IsNil, Commentf(tc.fname))
