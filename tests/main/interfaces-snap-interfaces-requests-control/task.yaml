@@ -10,6 +10,10 @@ details: |
       # TODO: - /v2/interfaces/requests/prompts: to receive and reply to request prompts
       # TODO: - /v2/interfaces/requests/rules: to view and manage request rules
 
+systems:
+    # debian-sid: prompting is supposedly supported by the kernel, but doesn't work
+    - -debian-sid-*
+
 environment:
     # not all terminals support UTF-8, but Python tries to be smart and attempts
     # to guess the encoding as if the output would go to the terminal, but in
