@@ -22,6 +22,7 @@ package configcore_test
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/user"
 	"time"
 
@@ -45,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -65,6 +67,8 @@ func (s *promptingSuite) SetUpTest(c *C) {
 		[]string{"policy:permstable32:prompt"}, nil,
 		[]string{"prompt"}, nil,
 	))
+	// mock the presence of the notification socket
+	os.MkdirAll(notify.SysPath, 0o755)
 
 	s.overlord = overlord.MockWithState(nil)
 	// override state set up by configcoreSuite
