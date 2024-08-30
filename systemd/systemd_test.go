@@ -1384,6 +1384,7 @@ Description=Mount unit for foo, revision x1
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
 Before=systemd-udevd.service systemd-modules-load.service
+Before=usr-lib-modules.mount usr-lib-firmware.mount
 
 [Mount]
 What=%s
@@ -1525,6 +1526,7 @@ Description=Mount unit for wifi kernel modules component
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
 Before=systemd-udevd.service systemd-modules-load.service
+Before=usr-lib-modules.mount usr-lib-firmware.mount
 
 [Mount]
 What=%s
@@ -1572,6 +1574,7 @@ Description=Mount unit for kernel modules in kernel tree
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
 Before=systemd-udevd.service systemd-modules-load.service
+Before=usr-lib-modules.mount usr-lib-firmware.mount
 
 [Mount]
 What=/run/mnt/kernel-modules/5.15.0-91-generic/mykmod/modules/5.15.0-91-generic
@@ -2143,6 +2146,7 @@ Description=Early mount unit for kernel snap
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
 Before=systemd-udevd.service systemd-modules-load.service
+Before=usr-lib-modules.mount usr-lib-firmware.mount
 
 [Mount]
 What=%s
