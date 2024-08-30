@@ -6,8 +6,16 @@ details: |
 
 systems: [ubuntu-2*]
 
+environment:
+    NESTED_ENABLE_TPM: true
+    NESTED_ENABLE_SECURE_BOOT: true
+    NESTED_BUILD_SNAPD_FROM_CURRENT: true
+    NESTED_UBUNTU_SEED_SIZE: 1500M
+
 prepare: |
-    remote.exec sudo snap install test-snapd-curl --edge --devmode
+    tests.nested build-image core
+    tests.nested create-vm core
+    remote.exec sudo snap install test-snapd-curl --edge --devmode    
 
 execute: |
     echo "Create a recovery system with a typical recovery system label"

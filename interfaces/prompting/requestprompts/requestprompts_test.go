@@ -74,7 +74,6 @@ func (s *requestpromptsSuite) SetUpTest(c *C) {
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
 	s.maxIDPath = filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
-	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0700), IsNil)
 }
 
 func (s *requestpromptsSuite) TestNew(c *C) {
@@ -195,6 +194,8 @@ func (s *requestpromptsSuite) TestNewNextIDUniqueIDs(c *C) {
 		return nil
 	})
 	defer restore()
+
+	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0o755), IsNil)
 
 	var initialMaxID uint64 = 42
 	var initialData [8]byte

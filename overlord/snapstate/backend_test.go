@@ -1224,6 +1224,8 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx b
 
 		vitalityRank:        vitalityRank,
 		requireSnapdTooling: linkCtx.RequireMountedSnapdSnap,
+
+		otherInstances: linkCtx.HasOtherInstances,
 	}
 
 	if info.MountDir() == f.linkSnapFailTrigger {
@@ -1372,6 +1374,7 @@ func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, linkCtx backend.LinkCont
 
 		unlinkFirstInstallUndo: linkCtx.FirstInstall,
 		unlinkSkipBinaries:     linkCtx.SkipBinaries,
+		otherInstances:         linkCtx.HasOtherInstances,
 	})
 	return f.maybeErrForLastOp()
 }

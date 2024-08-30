@@ -211,12 +211,14 @@ func (m *InterfaceManager) StartUp() error {
 			m.state.Unlock()
 			defer m.state.Lock()
 			if err := m.initInterfacesRequestsManager(); err != nil {
-				// TODO: if this fails, set useAppArmorPromptingValue to false ?
-				// If this is done before profilesNeedRegeneration, then profiles will only
-				// be regenerated if prompting is newly supported and the backends were
-				// successfully created.
-				// TODO: also set "apparmor-prompting" flag to false?
 				logger.Noticef("failed to start interfaces requests manager: %v", err)
+				// Set m.useAppArmorPrompting to false so external callers
+				// don't try to access nil backends.
+				m.useAppArmorPrompting = false
+				// This is done before profilesNeedRegeneration, so profiles
+				// will only be regenerated if prompting is newly enabled and
+				// the backends were successfully created.
+				// TODO: also set "apparmor-prompting" flag to false?
 			}
 		}()
 	}

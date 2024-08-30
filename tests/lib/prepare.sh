@@ -563,7 +563,7 @@ EOF
     # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
     cat > "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh <<'EOF'
 #!/bin/sh
-set -e
+set -ex
 # ensure we don't enable ssh in install mode or spread will get confused
 if ! grep -E 'snapd_recovery_mode=(run|recover)' /proc/cmdline; then
     echo "not in run or recovery mode - script not running"
@@ -607,7 +607,9 @@ echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers.d/99-ubuntu-user
 sed -i 's/\#\?\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /etc/ssh/sshd_config
 echo "MaxAuthTries 120" >> /etc/ssh/sshd_config
 grep '^PermitRootLogin yes' /etc/ssh/sshd_config
-systemctl reload ssh
+if systemctl is-active ssh; then
+   systemctl reload ssh
+fi
 
 touch /root/spread-setup-done
 EOF
@@ -1451,7 +1453,12 @@ EOF
     umount /mnt
     kpartx -d "$IMAGE_HOME/$IMAGE"
 
-    gzip "${IMAGE_HOME}/${IMAGE}"
+    if command -v pigz 2>/dev/null; then
+        pigz "${IMAGE_HOME}/${IMAGE}"
+    else
+        gzip "${IMAGE_HOME}/${IMAGE}"
+    fi
+
     if is_test_target_core 16; then
         "${TESTSLIB}/uc16-reflash.sh" "${IMAGE_HOME}/${IMAGE}.gz"
     else

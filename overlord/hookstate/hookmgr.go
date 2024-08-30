@@ -62,7 +62,7 @@ type HookManager struct {
 	runner       *state.TaskRunner
 }
 
-// Handler is the interface a client must satify to handle hooks.
+// Handler is the interface a client must satisfy to handle hooks.
 type Handler interface {
 	// Before is called right before the hook is to be run.
 	Before() error
@@ -79,9 +79,9 @@ type Handler interface {
 // HandlerGenerator is the function signature required to register for hooks.
 type HandlerGenerator func(*Context) Handler
 
-type Preconditioner interface {
-	// Precondition is called before the Before method and should return true if
-	// the hook should run or false, if it should stop without erroring.
+type Precondition interface {
+	// Precondition is called prior to the Before method and should return true
+	// if the hook should run or false, if it should be skipped without erroring.
 	Precondition() (bool, error)
 }
 
@@ -429,7 +429,7 @@ func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hoo
 		m.contextsMutex.Unlock()
 	}()
 
-	if ph, ok := context.Handler().(Preconditioner); ok {
+	if ph, ok := context.Handler().(Precondition); ok {
 		precond, err := ph.Precondition()
 		if err != nil {
 			return err
