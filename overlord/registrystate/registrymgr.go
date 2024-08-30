@@ -19,29 +19,21 @@
 package registrystate
 
 import (
+	"fmt"
+
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/registry"
 )
 
-var (
-	ReadDatabag               = readDatabag
-	WriteDatabag              = writeDatabag
-	GetPlugsAffectedByPaths   = getPlugsAffectedByPaths
-	CreateChangeRegistryTasks = createChangeRegistryTasks
-)
-
-func MockReadDatabag(f func(st *state.State, account, registryName string) (registry.JSONDataBag, error)) func() {
-	old := readDatabag
-	readDatabag = f
-	return func() {
-		readDatabag = old
+func setupRegistryHook(st *state.State, snapName, hookName string, ignoreError bool) *state.Task {
+	hookSup := &hookstate.HookSetup{
+		Snap:        snapName,
+		Hook:        hookName,
+		Optional:    true,
+		IgnoreError: ignoreError,
 	}
-}
-
-func MockWriteDatabag(f func(st *state.State, databag registry.JSONDataBag, account, registryName string) error) func() {
-	old := writeDatabag
-	writeDatabag = f
-	return func() {
-		writeDatabag = old
-	}
+	summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), hookName, snapName)
+	task := hookstate.HookTask(st, summary, hookSup, nil)
+	return task
 }

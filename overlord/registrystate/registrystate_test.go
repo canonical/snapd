@@ -48,7 +48,10 @@ import (
 type registryTestSuite struct {
 	state *state.State
 
+	registry *registry.Registry
 	devAccID string
+
+	repo *interfaces.Repository
 }
 
 var _ = Suite(&registryTestSuite{})
@@ -89,7 +92,7 @@ func (s *registryTestSuite) SetUpTest(c *C) {
 		"account-id":   devAccKey.AccountID(),
 		"name":         "network",
 		"views": map[string]interface{}{
-			"wifi-setup": map[string]interface{}{
+			"setup-wifi": map[string]interface{}{
 				"rules": []interface{}{
 					map[string]interface{}{"request": "ssids", "storage": "wifi.ssids"},
 					map[string]interface{}{"request": "ssid", "storage": "wifi.ssid", "access": "read-write"},
@@ -127,6 +130,7 @@ func (s *registryTestSuite) SetUpTest(c *C) {
 	c.Assert(assertstate.Add(s.state, as), IsNil)
 
 	s.devAccID = devAccKey.AccountID()
+	s.registry = as.(*asserts.Registry).Registry()
 }
 
 func (s *registryTestSuite) TestGetView(c *C) {
@@ -138,7 +142,7 @@ func (s *registryTestSuite) TestGetView(c *C) {
 	c.Assert(err, IsNil)
 	s.state.Set("registry-databags", map[string]map[string]registry.JSONDataBag{s.devAccID: {"network": databag}})
 
-	res, err := registrystate.GetViaView(s.state, s.devAccID, "network", "wifi-setup", []string{"ssid"})
+	res, err := registrystate.GetViaView(s.state, s.devAccID, "network", "setup-wifi", []string{"ssid"})
 	c.Assert(err, IsNil)
 	c.Assert(res, DeepEquals, map[string]interface{}{"ssid": "foo"})
 }
@@ -152,14 +156,14 @@ func (s *registryTestSuite) TestGetNotFound(c *C) {
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid" in registry view %s/network/other-view: not found`, s.devAccID))
 	c.Check(res, IsNil)
 
-	res, err = registrystate.GetViaView(s.state, s.devAccID, "network", "wifi-setup", []string{"ssid"})
+	res, err = registrystate.GetViaView(s.state, s.devAccID, "network", "setup-wifi", []string{"ssid"})
 	c.Assert(err, FitsTypeOf, &registry.NotFoundError{})
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid" in registry view %s/network/wifi-setup: matching rules don't map to any values`, s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid" in registry view %s/network/setup-wifi: matching rules don't map to any values`, s.devAccID))
 	c.Check(res, IsNil)
 
-	res, err = registrystate.GetViaView(s.state, s.devAccID, "network", "wifi-setup", []string{"other-field"})
+	res, err = registrystate.GetViaView(s.state, s.devAccID, "network", "setup-wifi", []string{"other-field"})
 	c.Assert(err, FitsTypeOf, &registry.NotFoundError{})
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "other-field" in registry view %s/network/wifi-setup: no matching read rule`, s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "other-field" in registry view %s/network/setup-wifi: no matching read rule`, s.devAccID))
 	c.Check(res, IsNil)
 }
 
@@ -167,7 +171,7 @@ func (s *registryTestSuite) TestSetView(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	err := registrystate.SetViaView(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "foo"})
+	err := registrystate.SetViaView(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{"ssid": "foo"})
 	c.Assert(err, IsNil)
 
 	var databags map[string]map[string]registry.JSONDataBag
@@ -183,9 +187,9 @@ func (s *registryTestSuite) TestSetNotFound(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	err := registrystate.SetViaView(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"foo": "bar"})
+	err := registrystate.SetViaView(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{"foo": "bar"})
 	c.Assert(err, FitsTypeOf, &registry.NotFoundError{})
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot set "foo" in registry view %s/network/wifi-setup: no matching write rule`, s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot set "foo" in registry view %s/network/setup-wifi: no matching write rule`, s.devAccID))
 
 	err = registrystate.SetViaView(s.state, s.devAccID, "network", "other-view", map[string]interface{}{"foo": "bar"})
 	c.Assert(err, FitsTypeOf, &registry.NotFoundError{})
@@ -197,10 +201,10 @@ func (s *registryTestSuite) TestUnsetView(c *C) {
 	defer s.state.Unlock()
 
 	databag := registry.NewJSONDataBag()
-	err := registrystate.SetViaView(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "foo"})
+	err := registrystate.SetViaView(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{"ssid": "foo"})
 	c.Assert(err, IsNil)
 
-	err = registrystate.SetViaView(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": nil})
+	err = registrystate.SetViaView(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{"ssid": nil})
 	c.Assert(err, IsNil)
 
 	val, err := databag.Get("wifi.ssid")
@@ -221,13 +225,13 @@ func (s *registryTestSuite) TestRegistrystateSetWithExistingState(c *C) {
 
 	s.state.Set("registry-databags", databags)
 
-	results, err := registrystate.GetViaView(s.state, s.devAccID, "network", "wifi-setup", []string{"ssid"})
+	results, err := registrystate.GetViaView(s.state, s.devAccID, "network", "setup-wifi", []string{"ssid"})
 	c.Assert(err, IsNil)
 	resultsMap, ok := results.(map[string]interface{})
 	c.Assert(ok, Equals, true)
 	c.Assert(resultsMap["ssid"], Equals, "bar")
 
-	err = registrystate.SetViaView(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "baz"})
+	err = registrystate.SetViaView(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{"ssid": "baz"})
 	c.Assert(err, IsNil)
 
 	err = s.state.Get("registry-databags", &databags)
@@ -266,7 +270,7 @@ func (s *registryTestSuite) TestRegistrystateSetWithNoState(c *C) {
 	for _, tc := range testcases {
 		s.state.Set("registry-databags", tc.state)
 
-		err := registrystate.SetViaView(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "bar"})
+		err := registrystate.SetViaView(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{"ssid": "bar"})
 		c.Assert(err, IsNil)
 
 		var databags map[string]map[string]registry.JSONDataBag
@@ -283,7 +287,7 @@ func (s *registryTestSuite) TestRegistrystateGetEntireView(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	err := registrystate.SetViaView(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{
+	err := registrystate.SetViaView(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{
 		"ssids":    []interface{}{"foo", "bar"},
 		"password": "pass",
 		"private": map[string]interface{}{
@@ -293,7 +297,7 @@ func (s *registryTestSuite) TestRegistrystateGetEntireView(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	res, err := registrystate.GetViaView(s.state, s.devAccID, "network", "wifi-setup", nil)
+	res, err := registrystate.GetViaView(s.state, s.devAccID, "network", "setup-wifi", nil)
 	c.Assert(err, IsNil)
 	c.Assert(res, DeepEquals, map[string]interface{}{
 		"ssids": []interface{}{"foo", "bar"},
@@ -375,6 +379,7 @@ func (s *registryTestSuite) TestRegistryTransaction(c *C) {
 		ctx.Unlock()
 	}
 }
+
 func mockInstalledSnap(c *C, st *state.State, snapYaml, cohortKey string) *snap.Info {
 	info := snaptest.MockSnapCurrent(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
 	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
@@ -492,4 +497,337 @@ slots:
 		plugNames = append(plugNames, plug.Name)
 	}
 	c.Assert(plugNames, testutil.DeepUnsortedMatches, []string{"view-1", "view-3"})
+}
+
+func (s *registryTestSuite) TestRegistryTasksUserSetWithManagerInstalled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// only one manager snap is installed
+	s.setupRegistryModificationScenario(c, []string{"manager-snap"}, nil)
+
+	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	err = tx.Set("wifi.ssid", "my-ssid")
+	c.Assert(err, IsNil)
+
+	view := s.registry.View("setup-wifi")
+	chg := s.state.NewChange("modify-registry", "")
+
+	// a user (not a snap) changes a registry
+	err = registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "")
+	c.Assert(err, IsNil)
+
+	// the manager snap's hooks are run
+	tasks := []string{"clear-transaction-on-error", "run-hook", "run-hook", "run-hook", "commit-transaction", "clear-transaction-state"}
+	hooks := []*hookstate.HookSetup{
+		{
+			Snap:        "manager-snap",
+			Hook:        "change-view-setup",
+			Optional:    true,
+			IgnoreError: false,
+		},
+		{
+			Snap:        "manager-snap",
+			Hook:        "save-view-setup",
+			Optional:    true,
+			IgnoreError: false,
+		},
+		{
+			Snap:        "manager-snap",
+			Hook:        "setup-view-changed",
+			Optional:    true,
+			IgnoreError: true,
+		},
+	}
+
+	checkModifyRegistryTasks(c, chg, tasks, hooks)
+}
+
+func (s *registryTestSuite) TestRegistryTasksManagerSnapSet(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// only one manager snap is installed
+	s.setupRegistryModificationScenario(c, []string{"manager-snap"}, nil)
+
+	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	err = tx.Set("wifi.ssid", "my-ssid")
+	c.Assert(err, IsNil)
+
+	view := s.registry.View("setup-wifi")
+	chg := s.state.NewChange("modify-registry", "")
+
+	// a user (not a snap) changes a registry
+	err = registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "manager-snap")
+	c.Assert(err, IsNil)
+
+	// the manager snap's hooks are run
+	tasks := []string{"clear-transaction-on-error", "run-hook", "run-hook", "commit-transaction", "clear-transaction-state"}
+	hooks := []*hookstate.HookSetup{
+		{
+			Snap:        "manager-snap",
+			Hook:        "change-view-setup",
+			Optional:    true,
+			IgnoreError: false,
+		},
+		{
+			Snap:        "manager-snap",
+			Hook:        "save-view-setup",
+			Optional:    true,
+			IgnoreError: false,
+		},
+	}
+
+	checkModifyRegistryTasks(c, chg, tasks, hooks)
+}
+
+func (s *registryTestSuite) TestRegistryTasksObserverSnapSetWithManagerInstalled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// one manager and several non-managers are installed
+	s.setupRegistryModificationScenario(c, []string{"manager-snap"}, []string{"test-snap-1", "test-snap-2"})
+
+	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	err = tx.Set("wifi.ssid", "my-ssid")
+	c.Assert(err, IsNil)
+
+	view := s.registry.View("setup-wifi")
+	chg := s.state.NewChange("modify-registry", "")
+
+	// a non-manager snap modifies a registry
+	err = registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "test-snap-1")
+	c.Assert(err, IsNil)
+
+	// we trigger hooks for the manager snap and for the -view-changed for the
+	// observer snap that didn't trigger the change
+	tasks := []string{"clear-transaction-on-error", "run-hook", "run-hook", "run-hook", "run-hook", "commit-transaction", "clear-transaction-state"}
+	hooks := []*hookstate.HookSetup{
+		{
+			Snap:        "manager-snap",
+			Hook:        "change-view-setup",
+			Optional:    true,
+			IgnoreError: false,
+		},
+		{
+			Snap:        "manager-snap",
+			Hook:        "save-view-setup",
+			Optional:    true,
+			IgnoreError: false,
+		},
+		{
+			Snap:        "manager-snap",
+			Hook:        "setup-view-changed",
+			Optional:    true,
+			IgnoreError: true,
+		},
+		{
+			Snap:        "test-snap-2",
+			Hook:        "setup-view-changed",
+			Optional:    true,
+			IgnoreError: true,
+		},
+	}
+
+	checkModifyRegistryTasks(c, chg, tasks, hooks)
+}
+
+func (s *registryTestSuite) TestRegistryTasksDisconnectedManagerSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// mock and installed manager-snap but disconnect it
+	s.setupRegistryModificationScenario(c, []string{"test-manager-snap"}, []string{"test-snap"})
+	s.repo.Disconnect("test-manager-snap", "setup", "core", "registry-slot")
+	s.testRegistryTasksNoManager(c)
+}
+
+func (s *registryTestSuite) TestRegistryTasksNoManagerSnapInstalled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// no manager snap is installed
+	s.setupRegistryModificationScenario(c, nil, []string{"test-snap"})
+	s.testRegistryTasksNoManager(c)
+}
+
+func (s *registryTestSuite) testRegistryTasksNoManager(c *C) {
+	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	err = tx.Set("wifi.ssid", "my-ssid")
+	c.Assert(err, IsNil)
+
+	view := s.registry.View("setup-wifi")
+	chg := s.state.NewChange("modify-registry", "")
+
+	// a non-manager snap modifies a registry
+	err = registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "test-snap-1")
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot commit changes to registry %s/network: no manager snap installed", s.devAccID))
+}
+
+func (s *registryTestSuite) setupRegistryModificationScenario(c *C, managers, nonManagers []string) {
+	s.repo = interfaces.NewRepository()
+	ifacerepo.Replace(s.state, s.repo)
+
+	regIface := &ifacetest.TestInterface{InterfaceName: "registry"}
+	err := s.repo.AddInterface(regIface)
+	c.Assert(err, IsNil)
+
+	// mock the registry slot
+	const coreYaml = `name: core
+version: 1
+type: os
+slots:
+  registry-slot:
+    interface: registry
+`
+	info := mockInstalledSnap(c, s.state, coreYaml, "")
+
+	coreSet, err := interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, IsNil)
+
+	err = s.repo.AddAppSet(coreSet)
+	c.Assert(err, IsNil)
+
+	mockSnap := func(snapName string, isManager bool) {
+		snapYaml := fmt.Sprintf(`name: %s
+version: 1
+type: app
+plugs:
+  setup:
+    interface: registry
+    account: %s
+    view: network/setup-wifi
+`, snapName, s.devAccID)
+
+		if isManager {
+			snapYaml +=
+				`    role: manager`
+		}
+
+		info := mockInstalledSnap(c, s.state, snapYaml, "")
+
+		// by default, mock all the hooks a managers can have
+		for _, hookName := range []string{"change-view-setup", "save-view-setup", "setup-view-changed"} {
+			info.Hooks[hookName] = &snap.HookInfo{
+				Name: hookName,
+				Snap: info,
+			}
+		}
+
+		appSet, err := interfaces.NewSnapAppSet(info, nil)
+		c.Assert(err, IsNil)
+		err = s.repo.AddAppSet(appSet)
+		c.Assert(err, IsNil)
+
+		ref := &interfaces.ConnRef{
+			PlugRef: interfaces.PlugRef{Snap: snapName, Name: "setup"},
+			SlotRef: interfaces.SlotRef{Snap: "core", Name: "registry-slot"},
+		}
+		_, err = s.repo.Connect(ref, nil, nil, nil, nil, nil)
+		c.Assert(err, IsNil)
+	}
+
+	// mock managers
+	for _, snap := range managers {
+		isManager := true
+		mockSnap(snap, isManager)
+	}
+
+	// mock non-managers
+	for _, snap := range nonManagers {
+		isManager := false
+		mockSnap(snap, isManager)
+	}
+}
+
+func checkModifyRegistryTasks(c *C, chg *state.Change, taskKinds []string, hooksups []*hookstate.HookSetup) {
+	c.Assert(chg.Tasks(), HasLen, len(taskKinds))
+	commitTask := findTask(chg, "commit-transaction")
+
+	// commit task carries the transaction
+	var tx *registrystate.Transaction
+	err := commitTask.Get("registry-transaction", &tx)
+	c.Assert(err, IsNil)
+	c.Assert(tx, NotNil)
+
+	t := findTask(chg, "clear-transaction-on-error")
+	var hookIndex int
+	var i int
+loop:
+	for ; t != nil; i++ {
+		c.Assert(t.Kind(), Equals, taskKinds[i])
+		if t.Kind() == "run-hook" {
+			c.Assert(getHookSetup(c, t), DeepEquals, hooksups[hookIndex])
+			hookIndex++
+		}
+
+		if t.Kind() != "commit-transaction" {
+			// all tasks (other than the commit) are linked to the commit task
+			var id string
+			err := t.Get("commit-task", &id)
+			c.Assert(err, IsNil)
+			c.Assert(id, Equals, commitTask.ID())
+		}
+
+		switch len(t.HaltTasks()) {
+		case 0:
+			break loop
+		case 1:
+			t = t.HaltTasks()[0]
+		}
+	}
+
+	c.Assert(i, Equals, len(taskKinds)-1)
+}
+
+func getHookSetup(c *C, t *state.Task) *hookstate.HookSetup {
+	var sup *hookstate.HookSetup
+	err := t.Get("hook-setup", &sup)
+	c.Assert(err, IsNil)
+	return sup
+}
+
+func findTask(chg *state.Change, kind string) *state.Task {
+	for _, t := range chg.Tasks() {
+		if t.Kind() == kind {
+			return t
+		}
+	}
+
+	return nil
+}
+
+func (s *registryTestSuite) TestGetStoredTransaction(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("some-change", "")
+	commitTask := s.state.NewTask("commit", "")
+	chg.AddTask(commitTask)
+	commitTask.Set("registry-transaction", tx)
+
+	refTask := s.state.NewTask("links-to-commit", "")
+	chg.AddTask(refTask)
+	refTask.Set("commit-task", commitTask.ID())
+
+	for _, t := range []*state.Task{commitTask, refTask} {
+		storedTx, carryingTask, err := registrystate.GetStoredTransaction(t)
+		c.Assert(err, IsNil)
+
+		c.Assert(storedTx.RegistryAccount, Equals, tx.RegistryAccount)
+		c.Assert(storedTx.RegistryName, Equals, tx.RegistryName)
+		c.Assert(storedTx.AlteredPaths(), DeepEquals, tx.AlteredPaths())
+		c.Assert(carryingTask, Equals, commitTask)
+	}
 }
