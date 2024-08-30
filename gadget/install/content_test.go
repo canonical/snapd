@@ -324,6 +324,7 @@ Description=Mount unit for pc-kernel, revision 111
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
 Before=systemd-udevd.service systemd-modules-load.service
+Before=usr-lib-modules.mount usr-lib-firmware.mount
 
 [Mount]
 What=/var/lib/snapd/snaps/pc-kernel_111.snap

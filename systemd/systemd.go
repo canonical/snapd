@@ -1422,7 +1422,8 @@ const snapMountUnitTmpl = `[Unit]
 Description={{.Description}}
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target{{if isBeforeDrivers .MountUnitType}}
-Before=systemd-udevd.service systemd-modules-load.service{{end}}
+Before=systemd-udevd.service systemd-modules-load.service
+Before=usr-lib-modules.mount usr-lib-firmware.mount{{end}}
 
 [Mount]
 What={{.What}}
