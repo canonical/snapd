@@ -29,6 +29,10 @@ var (
 	GetPlugsAffectedByPaths = getPlugsAffectedByPaths
 )
 
+type (
+	ViewChangedHandler = viewChangedHandler
+)
+
 func MockReadDatabag(f func(st *state.State, account, registryName string) (registry.JSONDataBag, error)) func() {
 	old := readDatabag
 	readDatabag = f
