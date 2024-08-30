@@ -20,15 +20,23 @@
 package builtin_test
 
 import (
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
+	apparmorutils "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type utilsSuite struct {
@@ -72,112 +80,6 @@ func (s *utilsSuite) TestImplicitSystemConnectedSlot(c *C) {
 	c.Assert(builtin.ImplicitSystemConnectedSlot(s.conSlotApp), Equals, false)
 	c.Assert(builtin.ImplicitSystemConnectedSlot(s.conSlotOS), Equals, true)
 	c.Assert(builtin.ImplicitSystemConnectedSlot(s.conSlotSnapd), Equals, true)
-}
-
-func (s *utilsSuite) TestAareExclusivePatterns(c *C) {
-	res := builtin.AareExclusivePatterns("foo-bar")
-	c.Check(res, DeepEquals, []string{
-		"[^f]*",
-		"f[^o]*",
-		"fo[^o]*",
-		"foo[^-]*",
-		"foo-[^b]*",
-		"foo-b[^a]*",
-		"foo-ba[^r]*",
-	})
-}
-
-func (s *utilsSuite) TestAareExclusivePatternsInstance(c *C) {
-	res := builtin.AareExclusivePatterns("foo-bar+baz")
-	c.Check(res, DeepEquals, []string{
-		"[^f]*",
-		"f[^o]*",
-		"fo[^o]*",
-		"foo[^-]*",
-		"foo-[^b]*",
-		"foo-b[^a]*",
-		"foo-ba[^r]*",
-		"foo-bar[^+]*",
-		"foo-bar+[^b]*",
-		"foo-bar+b[^a]*",
-		"foo-bar+ba[^z]*",
-	})
-}
-
-func (s *utilsSuite) TestAareExclusivePatternsInvalid(c *C) {
-	bad := []string{
-		// AARE in name (man apparmor.d: AARE = ?*[]{}^)
-		"bad{",
-		"ba}d",
-		"b[ad",
-		"]bad",
-		"b^d",
-		"b*d",
-		"b?d",
-		"bad{+good",
-		"ba}d+good",
-		"b[ad+good",
-		"]bad+good",
-		"b^d+good",
-		"b*d+good",
-		"b?d+good",
-		// AARE in instance (man apparmor.d: AARE = ?*[]{}^)
-		"good+bad{",
-		"good+ba}d",
-		"good+b[ad",
-		"good+]bad",
-		"good+b^d",
-		"good+b*d",
-		"good+b?d",
-		// various other unexpected in name
-		"+good",
-		"/bad",
-		"bad,",
-		".bad.",
-		"ba'd",
-		"b\"ad",
-		"=bad",
-		"b\\0d",
-		"b\ad",
-		"(bad",
-		"bad)",
-		"b<ad",
-		"b>ad",
-		"bad!",
-		"b#d",
-		":bad",
-		"b@d",
-		"@{BAD}",
-		"b**d",
-		"bad -> evil",
-		"b a d",
-		// various other unexpected in instance
-		"good+",
-		"good+/bad",
-		"good+bad,",
-		"good+.bad.",
-		"good+ba'd",
-		"good+b\"ad",
-		"good+=bad",
-		"good+b\\0d",
-		"good+b\ad",
-		"good+(bad",
-		"good+bad)",
-		"good+b<ad",
-		"good+b>ad",
-		"good+bad!",
-		"good+b#d",
-		"good+:bad",
-		"good+b@d",
-		"good+@{BAD}",
-		"good+b**d",
-		"good+bad -> evil",
-	}
-
-	for _, s := range bad {
-		res := builtin.AareExclusivePatterns(s)
-		c.Check(res, IsNil)
-	}
 }
 
 func MockPlug(c *C, yaml string, si *snap.SideInfo, plugName string) *snap.PlugInfo {
@@ -260,4 +162,200 @@ plugs:
 	list, err := builtin.StringListAttribute(plug, "write")
 	c.Assert(list, IsNil)
 	c.Assert(err, ErrorMatches, `"write" attribute must be a list of strings, not "\[1 two\]"`)
+}
+
+// desktopFileRulesBaseSuite should be extended by interfaces that use getDesktopFileRules()
+// like unity7 and desktop-legacy
+//
+// TODO: Add a way to detect interfaces that use getDesktopFileRules() and don't have an
+// instance of this test suite.
+type desktopFileRulesBaseSuite struct {
+	iface    string
+	slotYaml string
+
+	rootDir       string
+	fallbackRules []string
+}
+
+func (s *desktopFileRulesBaseSuite) SetUpTest(c *C) {
+	s.rootDir = c.MkDir()
+	dirs.SetRootDir(s.rootDir)
+
+	s.fallbackRules = []string{
+		// generic fallback snap desktop rules are generated
+		fmt.Sprintf("%s/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,", dirs.SnapDesktopFilesDir),
+		"# Explicitly deny access to other snap's desktop files",
+		fmt.Sprintf("deny %s/@{SNAP_INSTANCE_DESKTOP}[^_.]*.desktop r,", dirs.SnapDesktopFilesDir),
+	}
+}
+
+func (s *desktopFileRulesBaseSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
+}
+
+type testDesktopFileRulesOptions struct {
+	snapName       string
+	desktopFiles   []string
+	desktopFileIDs []string
+	isInstance     bool
+	expectedRules  []string
+}
+
+func (s *desktopFileRulesBaseSuite) testDesktopFileRules(c *C, opts testDesktopFileRulesOptions) {
+	iface := builtin.MustInterface(s.iface)
+
+	const mockPlugSnapInfoYamlTemplate = `name: %s
+version: 1.0
+apps:
+ app2:
+  command: foo
+  plugs:
+    - %s
+    - desktop
+`
+	mockPlugSnapInfoYaml := fmt.Sprintf(mockPlugSnapInfoYamlTemplate, opts.snapName, iface.Name())
+
+	if len(opts.desktopFileIDs) > 0 {
+		mockPlugSnapInfoYaml += `
+plugs:
+  desktop:
+    desktop-file-ids: [` + strings.Join(opts.desktopFileIDs, ",") + `]
+`
+	}
+
+	slot, _ := MockConnectedSlot(c, s.slotYaml, nil, iface.Name())
+	plug, _ := MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, iface.Name())
+	securityTag := "snap." + opts.snapName + ".app2"
+	if opts.isInstance {
+		plug.AppSet().Info().InstanceKey = "instance"
+		securityTag = "snap." + opts.snapName + "_instance.app2"
+	}
+
+	// mock snap desktop files under snap mount
+	guiDir := filepath.Join(plug.AppSet().Info().MountDir(), "meta", "gui")
+	c.Assert(os.MkdirAll(guiDir, 0755), IsNil)
+	for _, desktopFile := range opts.desktopFiles {
+		c.Assert(os.WriteFile(filepath.Join(guiDir, desktopFile), nil, 0644), IsNil)
+	}
+
+	// connected plugs have a non-nil security snippet for apparmor
+	apparmorSpec := apparmor.NewSpecification(plug.AppSet())
+	err := apparmorSpec.AddConnectedPlug(iface, plug, slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SnippetForTag(securityTag), testutil.Contains, `# This leaks the names of snaps with desktop files`)
+	c.Assert(apparmorSpec.SnippetForTag(securityTag), testutil.Contains, `/var/lib/snapd/desktop/applications/ r,`)
+	// check generated rules against expected rules
+	for _, rule := range opts.expectedRules {
+		// early exit on error for less confusing debugigng
+		c.Assert(apparmorSpec.SnippetForTag(securityTag), testutil.Contains, rule)
+	}
+}
+
+func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesHappy(c *C) {
+	opts := testDesktopFileRulesOptions{
+		snapName:       "some-snap",
+		desktopFiles:   []string{"org.example.desktop", "org.example.Foo.desktop", "org.example.Bar.desktop", "bar.desktop"},
+		desktopFileIDs: []string{"org.example", "org.example.Foo"},
+		isInstance:     false,
+		expectedRules: []string{
+			// explicit allow rules for snap's desktop files
+			fmt.Sprintf("%s r,", filepath.Join(dirs.SnapDesktopFilesDir, "org.example.desktop")),               // desktop-file-ids, unchanged
+			fmt.Sprintf("%s r,", filepath.Join(dirs.SnapDesktopFilesDir, "org.example.Foo.desktop")),           // desktop-file-ids, unchanged
+			fmt.Sprintf("%s r,", filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_org.example.Bar.desktop")), // prefixed with DesktopPrefix()
+			fmt.Sprintf("%s r,", filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_bar.desktop")),             // prefixed with DesktopPrefix()
+			// check all deny patterns are generated
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "[^so]**.desktop")), // ^s from some-snap and ^o from org
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "{o[^r],s[^o]}**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "{or[^g],so[^m]}**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "{org[^.],som[^e]}**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "{org.[^e],some[^-]}**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "{org.e[^x],some-[^s]}**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "{org.ex[^a],some-s[^n]}**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "{org.exa[^m],some-sn[^a]}**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "{org.exam[^p],some-sna[^p]}**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "{org.examp[^l],some-snap[^_]}**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "{org.exampl[^e],some-snap_[^bo]}**.desktop")), // some-snap_ common prefix then diverging
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "{org.example[^.],some-snap_b[^a],some-snap_o[^r]}**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "{org.example.[^F],some-snap_ba[^r],some-snap_or[^g]}**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "{org.example.F[^o],some-snap_org[^.]}**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "{org.example.Fo[^o],some-snap_org.[^e]}**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_org.e[^x]**.desktop")), // org.example.Foo.desktop ended
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_org.ex[^a]**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_org.exa[^m]**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_org.exam[^p]**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_org.examp[^l]**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_org.exampl[^e]**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_org.example[^.]**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_org.example.[^B]**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_org.example.B[^a]**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_org.example.Ba[^r]**.desktop")), // longest pattern
+		},
+	}
+	s.testDesktopFileRules(c, opts)
+}
+
+func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesNoDesktopFilesFallback(c *C) {
+	opts := testDesktopFileRulesOptions{
+		snapName:       "some-snap",
+		desktopFiles:   []string{},
+		desktopFileIDs: []string{"org.example"},
+		isInstance:     false,
+		expectedRules:  s.fallbackRules,
+	}
+	s.testDesktopFileRules(c, opts)
+}
+
+func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesSnapMountErrorFallback(c *C) {
+	restore := builtin.MockDesktopFilesFromMount(func(s *snap.Info) ([]string, error) {
+		return nil, errors.New("boom")
+	})
+	defer restore()
+
+	opts := testDesktopFileRulesOptions{
+		snapName:       "some-snap",
+		desktopFiles:   []string{"org.example.desktop", "org.example.Foo.desktop", "org.example.Bar.desktop", "bar.desktop"},
+		desktopFileIDs: []string{"org.example"},
+		isInstance:     false,
+		expectedRules:  s.fallbackRules,
+	}
+	s.testDesktopFileRules(c, opts)
+}
+
+func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesAAREExclusionPatternsErrorFallback(c *C) {
+	restore := builtin.MockApparmorGenerateAAREExclusionPatterns(func(excludePatterns []string, opts *apparmorutils.AAREExclusionPatternsOptions) (string, error) {
+		return "", errors.New("boom")
+	})
+	defer restore()
+
+	opts := testDesktopFileRulesOptions{
+		snapName:       "some-snap",
+		desktopFiles:   []string{"org.example.desktop", "org.example.Foo.desktop", "org.example.Bar.desktop", "bar.desktop"},
+		desktopFileIDs: []string{"org.example"},
+		isInstance:     false,
+		expectedRules:  s.fallbackRules,
+	}
+	s.testDesktopFileRules(c, opts)
+}
+
+func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesCommonSnapNameAndDesktopFileID(c *C) {
+	opts := testDesktopFileRulesOptions{
+		snapName:       "some-snap",
+		desktopFiles:   []string{"some-snap.example.desktop", "foo.desktop"},
+		desktopFileIDs: []string{"some-snap.example"},
+		isInstance:     false,
+		expectedRules: []string{
+			// explicit allow rules for snap's desktop files
+			fmt.Sprintf("%s r,", filepath.Join(dirs.SnapDesktopFilesDir, "some-snap.example.desktop")), // desktop-file-ids, unchanged
+			fmt.Sprintf("%s r,", filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_foo.desktop")),     // prefixed with DesktopPrefix()
+			// check all deny patterns are generated
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "[^s]**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "s[^o]**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "so[^m]**.desktop")),
+			// ... skip some patterns
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "some-sna[^p]**.desktop")),
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "some-snap[^_.]**.desktop")), // some-snap common prefix then diverging
+			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "some-snap{.[^e],_[^f]}**.desktop")),
+		},
+	}
+	s.testDesktopFileRules(c, opts)
 }
