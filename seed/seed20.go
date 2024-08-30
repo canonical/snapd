@@ -291,7 +291,7 @@ func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (er
 	}
 
 	// these files are the files we can safely copy without an modifications
-	for _, name := range []string{"assertions/model-etc", "grubenv", "model"} {
+	for _, name := range []string{"assertions/model-etc", "model"} {
 		if err := osutil.CopyFile(
 			filepath.Join(srcSystemDir, name),
 			filepath.Join(destSystemDir, name),
