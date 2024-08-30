@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -428,7 +429,8 @@ func PromptingSupported() (bool, string) {
 }
 
 // PromptingSupportedByFeatures returns whether prompting is supported by the
-// given AppArmor kernel and parser features.
+// given AppArmor kernel and parser features, and by the presence of the kernel
+// notification socket.
 func PromptingSupportedByFeatures(apparmorFeatures *FeaturesSupported) (bool, string) {
 	if apparmorFeatures == nil {
 		return false, "no apparmor features provided"
@@ -438,6 +440,31 @@ func PromptingSupportedByFeatures(apparmorFeatures *FeaturesSupported) (bool, st
 	}
 	if !strutil.ListContains(apparmorFeatures.ParserFeatures, "prompt") {
 		return false, "apparmor parser does not support the prompt qualifier"
+	}
+	// In the future, the complain redirect will be added to apparmor in the
+	// kernel, and it will share the same notify framework as the listener, so
+	// the presence of the notification socket will no longer be sufficient to
+	// indicate that the system supports prompting (assuming the kernel and
+	// parser features checks above pass). When this lands, an additional
+	// directory will be added at featuresSysPath/policy/notify. At this point,
+	// there will be a file at featuresSysPath/policy/notify/user which contains
+	// a list of mediation classes for which prompting is supported. Thus:
+	// - If featuresSysPath/policy/notify does not exist, and the above checks
+	//   pass, then prompting is supported.
+	// - If featuresSysPath/policy/notify exists, but does not contain a file
+	//   called user, then prompting is not supported.
+	// - If featuresSysPath/policy/notify exists and includes a file called
+	//   user, then prompting is supported.
+	// The user file should contain a list of mediation classes which are
+	// supported, and this should at the bare minimum include "file", so check
+	// for its presence among the kernel features.
+	if strutil.ListContains(apparmorFeatures.KernelFeatures, "policy:notify") {
+		if !strutil.ListContains(apparmorFeatures.KernelFeatures, "policy:notify:user:file") {
+			return false, "the kernel does not support prompting for file access"
+		}
+	}
+	if !notify.SupportAvailable() {
+		return false, "kernel notification socket required by listener is not present"
 	}
 	return true, ""
 }
@@ -481,6 +508,7 @@ var (
 
 	// Filesystem root defined locally to avoid dependency on the
 	// 'dirs' package
+	// XXX: is this still useful/relevant? The 'dirs' package is used here already.
 	rootPath = "/"
 
 	// hostAbi30File is the path to the apparmor "3.0" ABI file and is typically
@@ -617,35 +645,49 @@ func (aap *appArmorProbe) ParserFeatures() ([]string, error) {
 }
 
 func probeKernelFeatures() ([]string, error) {
-	// note that os.ReadDir() is already sorted
-	dentries, err := os.ReadDir(filepath.Join(rootPath, featuresSysPath))
+	features, err := probeKernelFeaturesInDirRecursively(filepath.Join(rootPath, featuresSysPath), "")
+	if err != nil {
+		return []string{}, err
+	}
+	if data, err := os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "permstable32")); err == nil {
+		permstableFeatures := strings.Fields(string(data))
+		for _, feat := range permstableFeatures {
+			features = append(features, "policy:permstable32:"+feat)
+		}
+	}
+	if data, err := os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "notify", "user")); err != nil {
+		// XXX: there's no feature added for policy:notify:user, since user is
+		// a file rather than a directory.
+		notifyUserFeatures := strings.Fields(string(data))
+		for _, feat := range notifyUserFeatures {
+			features = append(features, "policy:notify:user:"+feat)
+		}
+	}
+	// Features must be sorted
+	sort.Strings(features)
+	return features, nil
+}
+
+func probeKernelFeaturesInDirRecursively(dir string, prefix string) ([]string, error) {
+	dentries, err := os.ReadDir(dir)
 	if err != nil {
 		return []string{}, err
 	}
 	features := make([]string, 0, len(dentries))
 	for _, fi := range dentries {
 		if fi.IsDir() {
-			features = append(features, fi.Name())
-			// also read any sub-features
-			subdenties, err := os.ReadDir(filepath.Join(rootPath, featuresSysPath, fi.Name()))
+			featureName := fi.Name()
+			if prefix != "" {
+				featureName = prefix + ":" + fi.Name()
+			}
+			features = append(features, featureName)
+			subFeatures, err := probeKernelFeaturesInDirRecursively(filepath.Join(dir, fi.Name()), featureName)
 			if err != nil {
 				return []string{}, err
 			}
-			for _, subfi := range subdenties {
-				if subfi.IsDir() {
-					features = append(features, fi.Name()+":"+subfi.Name())
-				}
-			}
+			features = append(features, subFeatures...)
 		}
 	}
-	if data, err := os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "permstable32")); err == nil {
-		permstableFeatures := strings.Fields(string(data))
-		for _, feat := range permstableFeatures {
-			features = append(features, fmt.Sprintf("policy:permstable32:%s", feat))
-		}
-	}
-	// Features must be sorted
-	sort.Strings(features)
 	return features, nil
 }
 

@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -596,6 +597,7 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 
 func (s *apparmorSuite) TestPromptingSupported(c *C) {
 	goodKernelFeatures := []string{"policy:permstable32:prompt"}
+	goodKernelFeaturesWithNotify := []string{"policy:permstable32:prompt", "policy:notify:user:file"}
 	goodParserFeatures := []string{"prompt"}
 
 	for _, testCase := range []struct {
@@ -633,6 +635,27 @@ func (s *apparmorSuite) TestPromptingSupported(c *C) {
 			parserError:    nil,
 			expectedReason: "apparmor parser does not support the prompt qualifier",
 		},
+		{
+			kernelFeatures: []string{"policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt", "policy:notify"},
+			kernelError:    nil,
+			parserFeatures: []string{"mqueue", "prompt"},
+			parserError:    nil,
+			expectedReason: "the kernel does not support prompting for file access",
+		},
+		{
+			kernelFeatures: []string{"policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt", "policy:notify", "policy:notify:user:file"},
+			kernelError:    nil,
+			parserFeatures: []string{"mqueue", "prompt"},
+			parserError:    nil,
+			expectedReason: "kernel notification socket required by listener is not present",
+		},
+		{
+			kernelFeatures: []string{"policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt"},
+			kernelError:    nil,
+			parserFeatures: []string{"mqueue", "prompt"},
+			parserError:    nil,
+			expectedReason: "kernel notification socket required by listener is not present",
+		},
 	} {
 		restore := apparmor.MockFeatures(testCase.kernelFeatures, testCase.kernelError, testCase.parserFeatures, testCase.parserError)
 		supported, reason := apparmor.PromptingSupported()
@@ -641,12 +664,18 @@ func (s *apparmorSuite) TestPromptingSupported(c *C) {
 		restore()
 	}
 
-	restore := apparmor.MockFeatures(goodKernelFeatures, nil, goodParserFeatures, nil)
-	defer restore()
+	// Create a file at the notify path, doesn't matter what kind of file.
+	// The actual file is a socket, but a directory will do here for convenience.
+	c.Assert(os.MkdirAll(notify.SysPath, 0o755), IsNil)
 
-	supported, reason := apparmor.PromptingSupported()
-	c.Check(supported, Equals, true)
-	c.Check(reason, Equals, "")
+	for _, kernelFeatures := range [][]string{goodKernelFeatures, goodKernelFeaturesWithNotify} {
+		restore := apparmor.MockFeatures(kernelFeatures, nil, goodParserFeatures, nil)
+		defer restore()
+
+		supported, reason := apparmor.PromptingSupported()
+		c.Check(supported, Equals, true)
+		c.Check(reason, Equals, "")
+	}
 }
 
 func (s *apparmorSuite) TestValidateFreeFromAAREUnhappy(c *C) {
