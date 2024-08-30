@@ -18,6 +18,10 @@ environment:
   NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
 
 prepare: |
+  wget https://github.com/andrewphelpsj/ubuntu-image/releases/download/testing/ubuntu-image
+  chmod +x ./ubuntu-image
+  cp ./ubuntu-image $(which ubuntu-image)
+
   "$TESTSTOOLS"/store-state setup-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
 
   echo "Expose the needed assertions through the fakestore"
