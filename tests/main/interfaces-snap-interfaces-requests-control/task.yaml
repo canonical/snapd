@@ -5,11 +5,11 @@ details: |
     to view and manage request prompts and request rules.
 
     Specifically:
-      - /v2/notices: to read change-update and refresh-inhibit notices
+      - /v2/notices: to read interfaces-requests-prompt and interfaces-requests-rule-update notices
+      - /v2/interfaces/requests/prompts: to receive and reply to request prompts
+      - /v2/interfaces/requests/rules: to view and manage request rules
       - /v2/system-info: to check whether prompting is supported/enabled
       - /v2/snaps/{name}: to get details about installed snaps
-      # TODO: - /v2/interfaces/requests/prompts: to receive and reply to request prompts
-      # TODO: - /v2/interfaces/requests/rules: to view and manage request rules
 
 environment:
     # not all terminals support UTF-8, but Python tries to be smart and attempts
@@ -48,8 +48,7 @@ execute: |
     api-client --socket /run/snapd-snap.socket "/v2/snaps/$SNAP_NAME" | jq '."status-code"' | MATCH '^200$'
 
     echo "Ensure AppArmor Prompting experimental feature can be enabled where possible"
-    # prompting is disabled everywhere but the Ubuntu systems
-    # TODO on Ubuntu releases < 24.04 we need the snapd snap for testing
+    # Prompting is unsupported everywhere but the Ubuntu non-core systems >= 24.04
     if ! os.query is-ubuntu || os.query is-ubuntu-lt 24.04 || os.query is-core ; then
         not snap set system experimental.apparmor-prompting=true >& err.out
         if os.query is-core; then
