@@ -597,7 +597,7 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 
 func (s *apparmorSuite) TestPromptingSupported(c *C) {
 	goodKernelFeatures := []string{"policy:permstable32:prompt"}
-	goodKernelFeaturesWithNotify := []string{"policy:permstable32:prompt", "policy:notify:user:file"}
+	goodKernelFeaturesWithNotify := []string{"policy:permstable32:prompt", "policy:notify", "policy:notify:user:file"}
 	goodParserFeatures := []string{"prompt"}
 
 	for _, testCase := range []struct {
