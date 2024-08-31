@@ -461,6 +461,7 @@ func PromptingSupportedByFeatures(apparmorFeatures *FeaturesSupported) (bool, st
 	if strutil.ListContains(apparmorFeatures.KernelFeatures, "policy:notify") {
 		if !strutil.ListContains(apparmorFeatures.KernelFeatures, "policy:notify:user:file") {
 			return false, "the kernel does not support prompting for file access"
+			// XXX: should this error message be "apparmor kernel features do not support prompting" as well?
 		}
 	}
 	if !notify.SupportAvailable() {
