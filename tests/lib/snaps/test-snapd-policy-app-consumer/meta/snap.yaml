@@ -83,6 +83,9 @@ apps:
   intel-mei:
     command: bin/run
     plugs: [ intel-mei ]
+  intel-qat:
+    command: bin/run
+    plugs: [ intel-qat ]
   io-ports-control:
     command: bin/run
     plugs: [ io-ports-control ]
