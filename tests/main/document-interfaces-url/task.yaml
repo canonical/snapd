@@ -45,9 +45,9 @@ execute: |
     # than its specified expiration date, then return true
     exclude() { 
         if [[ -v "exclusion_map[$1]" ]]; then
-            local date="${exclusion_map[$1]}"
-            local year=${date%%/*}
-            local month=${date#*/}
+            local expire_date="${exclusion_map[$1]}"
+            local year=${expire_date%%/*}
+            local month=${expire_date#*/}
             if [[ $(date '+%Y') -lt $year ]]; then
                 return 0
             fi
