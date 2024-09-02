@@ -1,0 +1,19 @@
+diff --git b/cmd/snap-update-ns/testdata/content-layout-4-initially-disconnected-then-connected.current.fstab a/cmd/snap-update-ns/testdata/content-layout-4-initially-disconnected-then-connected.current.fstab
+index f005f3ee63..e1c8e1bc91 100644
+--- b/cmd/snap-update-ns/testdata/content-layout-4-initially-disconnected-then-connected.current.fstab
++++ a/cmd/snap-update-ns/testdata/content-layout-4-initially-disconnected-then-connected.current.fstab
+@@ -1,3 +1,6 @@
++# This file ought to be exactly the same as content-layout-1-initially-connected.current.fstab but is,
++# in fact, entirely different and wrong due to the ordering bug
++# https://warthogs.atlassian.net/browse/SNAPDENG-31644
+ /snap/test-snapd-content-layout/x2/attached-content /usr/share/secureboot/potato none rbind,rw,x-snapd.origin=layout 0 0
+ /usr/share/secureboot/updates /usr/share/secureboot/updates none rbind,x-snapd.synthetic,x-snapd.needed-by=/usr/share/secureboot/potato,x-snapd.detach 0 0
+ tmpfs /usr/share/secureboot tmpfs x-snapd.synthetic,x-snapd.needed-by=/usr/share/secureboot/potato,mode=0755,uid=0,gid=0 0 0
+diff --git b/cmd/snap-update-ns/testdata/content-layout-4-initially-disconnected-then-connected.desired.fstab a/cmd/snap-update-ns/testdata/content-layout-4-initially-disconnected-then-connected.desired.fstab
+index 7e92c4709a..9ea4953ad5 100644
+--- b/cmd/snap-update-ns/testdata/content-layout-4-initially-disconnected-then-connected.desired.fstab
++++ a/cmd/snap-update-ns/testdata/content-layout-4-initially-disconnected-then-connected.desired.fstab
+@@ -1,2 +1,3 @@
++# This file is identical to content-layout-1-initially-connected.desired.fstab.
+ /snap/test-snapd-content-layout/x2/attached-content /usr/share/secureboot/potato none rbind,rw,x-snapd.origin=layout 0 0
+ /snap/test-snapd-content/x1 /snap/test-snapd-content-layout/x2/attached-content none bind,ro 0 0

@@ -1,0 +1,12 @@
+name: test-snapd-content
+version: a
+
+confinement: strict
+base: core24
+architecture: all
+
+slots:
+  just-content:
+    interface: content
+    read:
+    - /
