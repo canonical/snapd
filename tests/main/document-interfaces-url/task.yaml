@@ -32,6 +32,7 @@ execute: |
     # The expiry date is <expiration year>/<expiration month>      
     
     declare -A exclusion_map
+    exclusion_map["intel-qat"]="2025/02"
     exclusion_map["microceph"]="2025/02"
     exclusion_map["microceph-support"]="2025/02"
     exclusion_map["pkcs11"]="2025/02"
