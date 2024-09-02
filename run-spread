@@ -30,4 +30,4 @@ if [ "$need_rebuild" = 1 ]; then
 fi
 
 # Run spread
-SPREAD_USE_PREBUILT_SNAPD_SNAP=true spread "$@"
+SPREAD_USE_PREBUILT_SNAPD_SNAP=true exec spread "$@"
