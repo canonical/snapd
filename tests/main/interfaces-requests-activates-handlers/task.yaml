@@ -19,9 +19,9 @@ restore: |
 
 execute: |
     echo "Enable prompting via snap client where possible"
-    if os.query is-core || os.query is-ubuntu-lt 24.04; then
+    if os.query is-core || os.query is-ubuntu-lt 22.04; then
         # prompting is disabled on Ubuntu Core
-        # TODO on releases < 24.04 we need the snapd snap for testing
+        # on releases < 22.04 we need the kernel does not support prompting
         not snap set system experimental.apparmor-prompting=true >& err.out
         if os.query is-core ; then
             MATCH "cannot enable prompting feature as it is not supported on Ubuntu Core systems" < err.out

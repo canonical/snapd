@@ -154,7 +154,12 @@ setup_experimental_features() {
     fi
 }
 
+# update_core_snap_for_classic_reexec modifies the core snap for snapd re-exec
+# by injecting binaries from the installed snapd deb built from our modified code.
+# $1: directory where updated core snap should be copied (optional)
 update_core_snap_for_classic_reexec() {
+    local target_dir="${1-}"
+
     # it is possible to disable this to test that snapd (the deb) works
     # fine with whatever is in the core snap
     if [ "$MODIFY_CORE_SNAP_FOR_REEXEC" != "1" ]; then
@@ -229,6 +234,12 @@ update_core_snap_for_classic_reexec() {
     mksnap_fast "squashfs-root" "$snap"
     chmod --reference="${snap}.orig" "$snap"
     rm -rf squashfs-root
+
+    # make a copy for later use
+    if [ -n "$target_dir" ]; then
+        mkdir -p "$target_dir"
+        cp -av "$snap" "$target_dir/"
+    fi
 
     # Now mount the new core snap, first discarding the old mount namespace
     snapd.tool exec snap-discard-ns core
@@ -386,6 +397,22 @@ prepare_classic() {
         fi
     done
 
+    # Install snapd snap to ensure re-exec to snapd snap instead of snapd in core.
+    # This also prevents snapd from automatically installing snapd snap as
+    # prerequisite for installing any non-base snap introduced in PR#14173.
+    if snap list snapd ; then
+	    snap snap info snapd
+	    echo "Error: not expecting snapd snap to be installed"
+	    exit 1
+    else
+	    build_dir="$WORK_DIR/snapd_snap_for_classic"
+	    rm -rf "$build_dir"
+	    mkdir -p "$build_dir"
+	    build_snapd_snap "$build_dir"
+	    snap install --dangerous "$build_dir/"snapd_*.snap
+    fi
+    snap list snapd
+
     setup_systemd_snapd_overrides
 
     if [ "$REMOTE_STORE" = staging ]; then
@@ -424,7 +451,8 @@ prepare_classic() {
         snap list | grep core
 
         systemctl stop snapd.{service,socket}
-        update_core_snap_for_classic_reexec
+        # repack and also make a side copy of the core snap
+        update_core_snap_for_classic_reexec "$TESTSTMP/core_snap"
         systemctl start snapd.{service,socket}
 
         prepare_reexec_override
@@ -472,6 +500,10 @@ cleanup_snapcraft() {
     snap remove --purge lxd || true
     "$TESTSTOOLS"/lxd-state undo-mount-changes
     snap remove --purge snapcraft || true
+    # TODO there should be some smarter cleanup helper which removes all snaps
+    # in the right order
+    # base snap of both lxd and snapcraft
+    snap remove --purge core22 || true
 }
 
 run_snapcraft() {
@@ -502,8 +534,20 @@ build_snapd_snap() {
                     cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "${snapd_snap_cache}/snapd_from_ci.snap"
                 fi
             else
+                # This is not reliable across classic releases so only allow on
+                # ARM variants as a special case since we cannot cross build
+                # snapd snap for ARM right now
+                case "$SPREAD_SYSTEM" in
+                    *-arm-*)
+                        ;;
+                    *)
+                        echo "system $SPREAD_SYSTEM should use a prebuilt snapd snapd"
+                        exit 1
+                        ;;
+                esac
                 [ -d "${TARGET}" ] || mkdir -p "${TARGET}"
                 chmod -R go+r "${PROJECT_PATH}/tests"
+                # TODO: run_snapcraft does not currently guarantee or check the required version for building snapd
                 run_snapcraft --use-lxd --verbosity quiet --output="snapd_from_snapcraft.snap"
                 mv "${PROJECT_PATH}"/snapd_from_snapcraft.snap "${snapd_snap_cache}"
             fi

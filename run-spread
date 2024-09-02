@@ -1,25 +1,33 @@
 #!/bin/bash
 
-# check dependencies
-if ! snap list snapcraft &>/dev/null; then
-    echo "snapcraft is not installed"
-    exit 1
+set -e
+
+need_rebuild=1
+
+shopt -s nullglob
+
+if [ "$NO_REBUILD" = "1" ]; then
+    echo "-- $(date) -- requested no snap rebuild"
+    need_rebuild=0
+
+    # check if we have any snaps built at all
+    built_snaps=(built-snap/snapd_*.snap.keep)
+    if (( "${#built_snaps[@]}" > 0 )); then
+        echo "-- $(date) -- found prebuilt snapd snaps:"
+        for s in "${built_snaps[@]}"; do
+            echo "--   $s"
+        done
+    else
+        echo "-- $(date) -- no prebuilt snaps found"
+        need_rebuild=1
+    fi
 fi
 
-# Clean the snaps created in previous runs
-rm -rf built-snap test-build
-touch test-build
-mkdir built-snap
-
-rm -f snapd_1337.*.snap 
-rm -f snapd_1337.*.snap.keep
-
-# Build snapd snap
-snapcraft clean
-snapcraft --use-lxd
-for snap in snapd_1337.*.snap; do
-    mv "${snap}" built-snap/"${snap}.keep"
-done
+if [ "$need_rebuild" = 1 ]; then
+    echo "-- $(date) -- rebuilding snapd snap"
+    ./tests/build-test-snapd-snap
+    echo "-- $(date) -- snapd snap rebuild complete"
+fi
 
 # Run spread
 SPREAD_USE_PREBUILT_SNAPD_SNAP=true spread "$@"

@@ -123,7 +123,7 @@ backends:
                   workers: 6
             - ubuntu-16.04-64:
                   workers: 8
-                  storage: 12G
+                  storage: 15G
             - ubuntu-18.04-64:
                   storage: 15G
                   workers: 8

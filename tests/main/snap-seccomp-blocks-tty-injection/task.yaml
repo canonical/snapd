@@ -26,7 +26,7 @@ execute: |
     # through AppArmor
     if [ "$(snap debug confinement)" = strict ]; then
         sed -i 's|^}$|  /dev/tty1  rw,\n}|' /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.sh
-        apparmor_parser -r /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.sh
+        systemctl restart snapd.apparmor.service
     fi
 
     # For 64bit systems TIOC{STI,LINUX} gets a EPERM because of the

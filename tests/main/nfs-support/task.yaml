@@ -106,14 +106,16 @@ execute: |
     }
     ensure_extra_perms() {
         if [ "$(snap debug confinement)" = strict ]; then
-            MATCH 'network inet,' < /var/lib/snapd/apparmor/snap-confine/nfs-support
+            # we're using the internal apparmor parser
+            MATCH 'network inet,' < /var/lib/snapd/apparmor/snap-confine.internal/nfs-support
             MATCH 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
         fi
     }
 
     ensure_normal_perms() {
         if [ "$(snap debug confinement)" = strict ]; then
-            test ! -e /var/lib/snapd/apparmor/snap-confine/nfs-support
+            # we're using the internal apparmor parser
+            test ! -e /var/lib/snapd/apparmor/snap-confine.internal/nfs-support
             NOMATCH 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
         fi
     }
