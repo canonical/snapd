@@ -12,6 +12,8 @@ details: |
 
 systems:
     # debian-sid: prompting is supposedly supported by the kernel, but doesn't work
+    # TODO: remove exclusion of debian-sid once we correctly detect that
+    # notifications are not running
     - -debian-sid-*
 
 environment:
