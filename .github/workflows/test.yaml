@@ -131,6 +131,7 @@ jobs:
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
       GOROOT: ""
       GITHUB_PULL_REQUEST_TITLE: ${{ github.event.pull_request.title }}
+      GITHUB_BASE_REF: ${{ github.base_ref }}
 
     strategy:
       # we cache successful runs so it's fine to keep going
@@ -186,22 +187,10 @@ jobs:
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd/c-vendor && ./vendor.sh
 
-    - name: golangci-lint
+    - name: Install golangci-lint snap
       if: ${{ matrix.gochannel == 'latest/stable' }}
-      uses: golangci/golangci-lint-action@v3
-      with:
-        # version of golangci-lint to use in form of v1.2 or v1.2.3 or `latest`
-        # to use the latest version
-        version: v1.60.1
-        working-directory: ./src/github.com/snapcore/snapd
-        # show only new issues
-        # use empty path prefix to make annotations work
-        args: --new-from-rev=${{ github.base_ref }} --path-prefix=
-        # skip all additional steps
-        skip-pkg-cache: true
-        skip-build-cache: true
-        # XXX: does no work with working-directory
-        # only-new-issues: true
+      run: |
+          sudo snap install --classic golangci-lint
 
     - name: Get changed files
       id: changed-files
@@ -222,6 +211,10 @@ jobs:
           if [ "${{ matrix.gochannel }}" != "1.18" ]; then
               export SKIP_GOFMT=1
               echo "Formatting checks will be skipped due to the use of Go version ${{ matrix.gochannel }}"
+          fi
+          if [ "${{ matrix.gochannel }}" != "latest/stable" ]; then
+              export SKIP_GOLANG_CI_LINT=1
+              echo "Will skip golangci_lint checks on all but the latest/stable version"
           fi
           sudo apt-get install -y python3-yamlordereddictloader
           ./run-checks --static
