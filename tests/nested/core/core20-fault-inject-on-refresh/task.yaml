@@ -1,37 +1,64 @@
-summary: Ensure that service and apparmor profiles work after a reboot
+summary: Ensure that a fundamental snap can be refresh when a panic occurs during the process
 
 details: |
-    The test checks that after a system reboot during a fundamental snap refresh can
-    be handled and the change steps can be undone properly.
+    The test checks that if a panic is triggered during a fundamental snap refresh,
+    then the change continues an is completed successfully
 
 systems: [ubuntu-2*]
 
 environment: 
-    TAG/base_update_link_snap: link-snap
-    TAG/snapd_update_link_snap: link-snap
-    TAG/kernel_update_link_snap: link-snap
-    TAG/gadget_update_link_snap: link-snap
-    TAG/base_refresh_auto_connect: after-auto-connect
-    TAG/kernel_auto_connect: after-auto-connect
-    TAG/base_auto_connect: after-auto-connect
-    TAG/gadget_auto_connect: after-auto-connect
-    TAG/snapd_auto_connect: after-auto-connect
+    TAG/base_panic_link_snap: link-snap
+    FAULT/base_panic_link_snap: panic
+    TAG/snapd_panic_link_snap: link-snap
+    FAULT/snapd_panic_link_snap: panic
+    TAG/kernel_panic_link_snap: link-snap
+    FAULT/kernel_panic_link_snap: panic
+    TAG/gadget_panic_link_snap: link-snap
+    FAULT/gadget_panic_link_snap: panic
+    TAG/kernel_panic_auto_connect: after-auto-connect
+    FAULT/kernel_panic_auto_connect: panic
+    TAG/base_panic_auto_connect: after-auto-connect
+    FAULT/base_panic_auto_connect: panic
+    TAG/gadget_panic_auto_connect: after-auto-connect
+    FAULT/gadget_panic_auto_connect: panic
+    TAG/kernel_panic_refresh_gadget_assets: refresh-gadget-assets
+    FAULT/kernel_panic_refresh_gadget_assets: panic
+    TAG/gadget_panic_refresh_gadget_assets: refresh-gadget-assets
+    FAULT/gadget_panic_refresh_gadget_assets: panic
 
-    # still not checked
-    TAG/gadget_update_config_bootloader: update-config-bootloader
-    TAG/gadget_update_command_line_gadget: update-command-line-gadget
-    TAG/kernel_prepare_kernel_components: prepare-kernel-components
-    TAG/gadget_refresh_gadget_assets: refresh-gadget-assets
-    TAG/snapd_refresh_gadget_assets: refresh-gadget-assets
-    TAG/kernel_refresh_gadget_assets: refresh-gadget-assets
+    TAG/base_reboot_link_snap: link-snap
+    FAULT/base_reboot_link_snap: reboot
+    TAG/snapd_reboot_link_snap: link-snap
+    FAULT/snapd_reboot_link_snap: reboot
+    TAG/kernel_reboot_link_snap: link-snap
+    FAULT/kernel_reboot_link_snap: reboot
+    TAG/gadget_reboot_link_snap: link-snap
+    FAULT/gadget_reboot_link_snap: reboot
+    TAG/kernel_reboot_auto_connect: after-auto-connect
+    FAULT/kernel_reboot_auto_connect: reboot
+    TAG/base_reboot_auto_connect: after-auto-connect
+    FAULT/base_reboot_auto_connect: reboot
+    TAG/gadget_reboot_auto_connect: after-auto-connect
+    FAULT/gadget_reboot_auto_connect: reboot
+    TAG/kernel_reboot_refresh_gadget_assets: refresh-gadget-assets
+    FAULT/kernel_reboot_refresh_gadget_assets: reboot
+    TAG/gadget_reboot_refresh_gadget_assets: refresh-gadget-assets
+    FAULT/gadget_reboot_refresh_gadget_assets: reboot
     
+    # tag not reached
+    TAG/kernel_panic_prepare_kernel_components: prepare-kernel-components
+    FAULT/kernel_panic_prepare_kernel_components: panic
+    TAG/snapd_panic_auto_connect: after-auto-connect
+    FAULT/snapd_panic_auto_connect: panic
 
-
+    # TODO: Add the following scenarios in a different test
     # These should go in a remodel test
     #TAG/gadget_remodel_boot_assets: remodel-boot-assets
     #TAG/kernel_remodel_boot_assets: remodel-boot-assets
 
-    FAULT: panic
+    # This needs a change in the gadget yaml like in cmdline-option test
+    # TAG/gadget_update_command_line_gadget: update-command-line-gadget
+    # TAG/gadget_update_config_bootloader: update-config-bootloader
 
 prepare: |
     # automatically cleaned up in restore
@@ -56,6 +83,7 @@ execute: |
     SNAP=
     CHANNEL=edge
     REBOOT=false
+    SECOND_REBOOT=false
 
     if [ "$FAULT" = reboot ]; then
         REBOOT=true
@@ -64,7 +92,11 @@ execute: |
     case "$SPREAD_VARIANT" in
         base_*)
             SNAP="core${VERSION}"
-            REBOOT=true
+            if [ "$FAULT" = reboot ]; then
+                SECOND_REBOOT=true
+            else
+                REBOOT=true
+            fi
             ;;    
         gadget_*)
             SNAP=pc
@@ -73,7 +105,11 @@ execute: |
         kernel_*)
             SNAP=pc-kernel
             CHANNEL="$VERSION/beta"
-            REBOOT=true
+            if [ "$FAULT" = reboot ]; then
+                SECOND_REBOOT=true
+            else
+                REBOOT=true
+            fi
             ;;
         snapd_*)
             SNAP=snapd
@@ -90,16 +126,26 @@ execute: |
 
     if [ "$REBOOT" = true ]; then
         remote.wait-for reboot "$boot_id"
+        boot_id="$(tests.nested boot-id)"
     fi
 
-    if [ "$FAULT" = panic ]; then
-        echo "And snap install completes"
-        remote.exec "snap watch $change_id"
+    if [ "$SECOND_REBOOT" = true ]; then
+        remote.wait-for reboot "$boot_id"
+    fi
 
+    echo "And snap refresh is completed"
+    remote.exec "snap watch $change_id"
+    retry --wait 1 -n 30 --env "CHANGE_ID=$change_id" --env "SNAP=$SNAP" sh -c 'remote.exec snap changes | MATCH "${CHANGE_ID} .* Done .*"'
+
+    # Check if the fault was injected
+    remote.exec "test -e /var/lib/snapd/faults/$TAG:$FAULT"
+
+    if [ "$FAULT" = panic ]; then
         echo "Ensure the panic was injected and triggered stamp file is present"
-        remote.exec sudo journalctl -u snapd | grep panic > output
-        MATCH "$TAG":panic < output
+        remote.exec "sudo journalctl -u snapd | grep -A 3 panic" > output
+        MATCH "$TAG":$FAULT < output
         MATCH "osutil.injectFault" < output
     fi
 
-    retry --wait 1 -n 30 --env "CHANGE_ID=$change_id" --env "SNAP=$SNAP" sh -c 'remote.exec snap changes | MATCH "${CHANGE_ID} .* Done .*"'
+    echo "Ensure the change has not steps with Error"
+    remote.exec "snap change $change_id" | NOMATCH "^Error .*"
