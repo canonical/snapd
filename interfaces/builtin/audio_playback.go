@@ -116,14 +116,7 @@ owner /{,var/}run/pulse/** rwk,
 
 owner /run/user/[0-9]*/ r,
 owner /run/user/[0-9]*/pulse/ rw,
-
-# This allows to share screen in Core Desktop
-owner /run/user/[0-9]*/pipewire-[0-9] rwk,
-
-# This allows wireplumber to read the pulseaudio
-# configuration if pipewire runs inside a container
-/etc/pulse/ r,
-/etc/pulse/** r,
+owner /run/user/[0-9]*/pulse/** rw,
 `
 
 const audioPlaybackPermanentSlotSecComp = `
