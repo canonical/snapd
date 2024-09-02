@@ -757,7 +757,7 @@ jobs:
           - group: nested-ubuntu-24.04
             backend: google-nested
             systems: 'ubuntu-24.04-64'
-            tests: 'tests/...'
+            tests: 'tests/nested/...'
             rules: 'nested'
     steps:
     - name: Cleanup job workspace
