@@ -1,0 +1,23 @@
+diff --git b/cmd/snap-update-ns/testdata/content-layout-6-initially-connected-then-app-refreshed.current.fstab a/cmd/snap-update-ns/testdata/content-layout-6-initially-connected-then-app-refreshed.current.fstab
+index 01a129094b..a9ae9cb91c 100644
+--- b/cmd/snap-update-ns/testdata/content-layout-6-initially-connected-then-app-refreshed.current.fstab
++++ a/cmd/snap-update-ns/testdata/content-layout-6-initially-connected-then-app-refreshed.current.fstab
+@@ -1,5 +1,10 @@
++# This file ought to be almost the same as
++# content-layout-1-initially-connected.current.fstab, but due to the ordering
++# bug it is more similar to the -3- file with the ordering being messed up,
++# again, as it flips back and forth.
+ /usr/share/secureboot/updates /usr/share/secureboot/updates none rbind,x-snapd.synthetic,x-snapd.needed-by=/usr/share/secureboot/potato,x-snapd.detach 0 0
+ tmpfs /usr/share/secureboot tmpfs x-snapd.synthetic,x-snapd.needed-by=/usr/share/secureboot/potato,mode=0755,uid=0,gid=0 0 0
++# This ought to be the initial entry.
+ tmpfs / tmpfs x-snapd.origin=rootfs 0 0
+ /snap/test-snapd-content/x1 /snap/test-snapd-content-layout/x3/attached-content none bind,ro 0 0
+ /snap/test-snapd-content-layout/x3/attached-content /usr/share/secureboot/potato none rbind,rw,x-snapd.origin=layout 0 0
+diff --git b/cmd/snap-update-ns/testdata/content-layout-6-initially-connected-then-app-refreshed.desired.fstab a/cmd/snap-update-ns/testdata/content-layout-6-initially-connected-then-app-refreshed.desired.fstab
+index b49b4096d7..f4d4734242 100644
+--- b/cmd/snap-update-ns/testdata/content-layout-6-initially-connected-then-app-refreshed.desired.fstab
++++ a/cmd/snap-update-ns/testdata/content-layout-6-initially-connected-then-app-refreshed.desired.fstab
+@@ -1,2 +1,3 @@
++# The desired file is the same as -1-, apart from revision numbers, and correct.
+ /snap/test-snapd-content-layout/x3/attached-content /usr/share/secureboot/potato none rbind,rw,x-snapd.origin=layout 0 0
+ /snap/test-snapd-content/x1 /snap/test-snapd-content-layout/x3/attached-content none bind,ro 0 0
