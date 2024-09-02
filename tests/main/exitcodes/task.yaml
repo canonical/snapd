@@ -34,7 +34,7 @@ execute: |
             tests.cleanup defer umount "$b"
         fi
     done
-    # make sure we found at least one of the commands
+    # make sure we found at least two of the commands
     if (( command_found < 2 )); then
         echo "should have mocked at least 2 commands"
         exit 1
