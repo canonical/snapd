@@ -23,7 +23,7 @@ execute: |
     fi
 
     if os.query is-arm; then
-        echo "there is no content for arm64 in repo http://archive.ubuntu.com/ubuntu (just amd64 and i386)"
+        echo "there is no content for arm64 in repo http://archive.ubuntu.com/ubuntu (just amd64)"
         exit
     fi
 

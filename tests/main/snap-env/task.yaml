@@ -39,7 +39,7 @@ execute: |
     "$NAME".env | grep -E '^(SNAP|PATH|HOME)=' | sort > misc-vars.txt
 
     echo "Ensure that SNAP environment variables are what we expect"
-    MATCH '^SNAP_ARCH=(amd64|i386|arm64|armhf|ppc64el|s390x)$'            < snap-vars.txt
+    MATCH '^SNAP_ARCH=(amd64|arm64|armhf|ppc64el|s390x)$'                 < snap-vars.txt
     # parallel-installs: global snap directories are remapped to $SNAP_NAME
     MATCH '^SNAP_COMMON=/var/snap/test-snapd-tools/common$'               < snap-vars.txt
     MATCH '^SNAP_DATA=/var/snap/test-snapd-tools/x1$'                     < snap-vars.txt

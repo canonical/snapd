@@ -33,7 +33,7 @@ environment:
     SNAP_ID_core20: DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
     SNAP_ID_core18: CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6
     SNAP_ID_core: 99T7MUlRhtI3U0QFgl5mXXESAiSwt776
-    # pc-kernel snap is specific to i386/x86-64
+    # pc-kernel snap is specific to x86-64
     SNAP_ID_pc_kernel: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
 
 prepare: |
