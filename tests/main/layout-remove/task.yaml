@@ -5,9 +5,6 @@ details: |
   then refreshes it with a new version that removes one of the
   layouts.
 
-# No core22 snap for i386
-systems: [-ubuntu-*-32]
-
 prepare: |
   "$TESTSTOOLS"/snaps-state install-local test-snapd-layout
 

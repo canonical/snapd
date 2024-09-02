@@ -365,13 +365,7 @@ backends:
     qemu:
         memory: 4G
         systems:
-            - ubuntu-14.04-32:
-                  username: ubuntu
-                  password: ubuntu
             - ubuntu-14.04-64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-16.04-32:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-16.04-64:
@@ -402,13 +396,7 @@ backends:
             - ubuntu-18.04-64:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-18.04-32:
-                  username: ubuntu
-                  password: ubuntu
             - ubuntu-20.04-64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-20.04-32:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-22.04-64:
@@ -449,14 +437,8 @@ backends:
             - ubuntu-14.04-amd64:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-14.04-i386:
-                  username: ubuntu
-                  password: ubuntu
             # Xenial
             - ubuntu-16.04-amd64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-16.04-i386:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-16.04-ppc64el:
@@ -470,9 +452,6 @@ backends:
                   password: ubuntu
             # Bionic
             - ubuntu-18.04-amd64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-18.04-i386:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-18.04-ppc64el:
@@ -491,9 +470,6 @@ backends:
             - ubuntu-20.04-amd64:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-20.04-i386:
-                  username: ubuntu
-                  password: ubuntu
             - ubuntu-20.04-ppc64el:
                   username: ubuntu
                   password: ubuntu
@@ -508,9 +484,6 @@ backends:
                   password: ubuntu
             # Jammy
             - ubuntu-22.04-amd64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-22.04-i386:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-22.04-ppc64el:

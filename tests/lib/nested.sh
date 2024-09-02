@@ -282,8 +282,6 @@ nested_create_assertions_disk() {
 nested_qemu_name() {
     if os.query is-arm; then
         command -v qemu-system-aarch64
-    elif [ "$NESTED_ARCHITECTURE" = "i386" ]; then
-        command -v qemu-system-i386
     else
         command -v qemu-system-x86_64
     fi
