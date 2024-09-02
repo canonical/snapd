@@ -19,7 +19,7 @@ execute: |
             status_code=$(curl -o /dev/null -s -w "%{http_code}\n" "$url")
 
             # Check if the status code is in the 2xx range
-            if [[ "$status_code" -ge 200 && "$status_code" -lt 300 ]]; then
+            if [ "$status_code" -ge 200 ] && [ "$status_code" -lt 300 ]; then
                 return 0
             fi
         done
@@ -44,7 +44,7 @@ execute: |
     # If the interface is in the exclusion_map and it is currently sooner
     # than its specified expiration date, then return true
     exclude() { 
-        if [[ -v "exclusion_map[$1]" ]]; then
+        if [ -v "exclusion_map[$1]" ]; then
             local expire_date="${exclusion_map[$1]}"
             local year=${expire_date%%/*}
             local month=${expire_date#*/}
@@ -64,7 +64,7 @@ execute: |
         printf "Checking presence of documentation url for interface %s\n" "'$iface':"
         url="https://snapcraft.io/docs/$iface-interface"
         actual="$( snap interface "$iface" )"
-        if grep -q "documentation: $url" <<<"$actual"; then
+        if MATCH "documentation: $url" <<<"$actual"; then
             if exclude "$iface" || webpage_exists "$url"; then
                 echo "ok"
             else
@@ -81,4 +81,4 @@ execute: |
         fi
     done
 
-    test ! "$bad"
+    test -z "$bad"
