@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -620,6 +621,12 @@ func (s *toolingSuite) SnapAction(_ context.Context, curSnaps []*store.CurrentSn
 			Resources:       comps,
 		})
 	}
+
+	// TODO: we can remove this source once we move to go >=1.20
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	// caller of SnapAction shouldn't depend on the order of the results
+	r.Shuffle(len(sars), func(i, j int) { sars[i], sars[j] = sars[j], sars[i] })
 
 	return sars, nil, nil
 }

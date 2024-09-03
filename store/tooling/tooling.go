@@ -383,7 +383,6 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 		actionFlag = store.SnapActionEnforceValidation
 	}
 
-	downloadedSnaps = make(map[string]*DownloadedSnap, len(toDownload))
 	current := make([]*store.CurrentSnap, 0, len(curSnaps))
 	for _, csnap := range curSnaps {
 		ch := "stable"
@@ -400,6 +399,7 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 		})
 	}
 
+	toDownloadByName := make(map[string]SnapToDownload, len(toDownload))
 	actions := make([]*store.SnapAction, 0, len(toDownload))
 	for _, sn := range toDownload {
 		actions = append(actions, &store.SnapAction{
@@ -411,6 +411,7 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 			Flags:          actionFlag,
 			ValidationSets: sn.ValidationSets,
 		})
+		toDownloadByName[sn.Snap.SnapName()] = sn
 	}
 
 	sars, _, err := tsto.sto.SnapAction(context.TODO(), current, actions, nil, nil,
@@ -420,11 +421,17 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 		return nil, err
 	}
 
-	for i, sar := range sars {
+	downloadedSnaps = make(map[string]*DownloadedSnap, len(toDownload))
+	for _, sar := range sars {
+		snapToDownload, ok := toDownloadByName[sar.SnapName()]
+		if !ok {
+			return nil, fmt.Errorf("store returned unsolicited snap action: %s", sar.SnapName())
+		}
+
 		// Create component infos from resource data for the components we will download
 		cinfos := make(map[string]*snap.ComponentInfo, len(sar.Resources))
 		for _, res := range sar.Resources {
-			if !strutil.ListContains(toDownload[i].CompsToDownload, res.Name) {
+			if !strutil.ListContains(snapToDownload.CompsToDownload, res.Name) {
 				continue
 			}
 
@@ -456,7 +463,7 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 
 		// Download components
 		downloadedSnapComps, err := tsto.downloadComponents(
-			toDownload[i].CompsToDownload, &sar, downloadDirs,
+			snapToDownload.CompsToDownload, &sar, downloadDirs,
 			DownloadSnapOptions{TargetDir: filepath.Dir(targetPath)})
 		if err != nil {
 			return nil, err
