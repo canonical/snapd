@@ -9,17 +9,14 @@ details: |
 systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
-  # Test both encrypted and unencrypted install using the muinstaller
-  NESTED_ENABLE_TPM/encrypted: true
-  NESTED_ENABLE_SECURE_BOOT/encrypted: true
+  # default (encrypted) case. all of the install_optional_* variants exercise
+  # the encrypted case
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
 
   # unencrypted case
   NESTED_ENABLE_TPM/plain: false
   NESTED_ENABLE_SECURE_BOOT/plain: false
-
-  # default (unencrypted) case
-  NESTED_ENABLE_TPM: false
-  NESTED_ENABLE_SECURE_BOOT: false
 
   # ensure we use our latest code
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
