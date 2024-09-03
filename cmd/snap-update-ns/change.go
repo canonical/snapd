@@ -656,6 +656,37 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		skipDir = strings.TrimSuffix(dir, "/") + "/"
 	}
 
+	// Do not reuse layout entries when they are may be used to distribute a
+	// content connection that were not kept. This is done so that we correctly
+	// re-create them to point to the disconnected location. This is needed
+	// because mount entries that are not reused are detached with private
+	// propagation, so the unmount does not propagate to the layout.
+	var dropped []string
+	for _, e := range current {
+		if !reuse[mountEntryId{dir: e.Dir, fsType: e.Type}] {
+			dropped = append(dropped, e.Dir)
+		}
+	}
+	for _, droppedPath := range dropped {
+		// For any layout that is not a symlink (so for any bind mount)
+		// we are trying not to reuse it if the any of the base directories
+		// belong to a dropped path.
+		//
+		// For example, if a layout attaches from
+		// /snap/foo/42/share/foo (e.Name) to /usr/share/foo (e.Dir)
+		// but /snap/foo/42/share is not reused then we don't want to
+		// reuse the layout.
+		for _, e := range current {
+			if e.XSnapdOrigin() == "layout" && e.XSnapdKind() != "symlink" {
+				if strings.HasPrefix(e.Name, droppedPath) {
+					logger.Debugf("not reusing layout entry %q due to changed content entry %s",
+						e.Dir, droppedPath)
+					delete(reuse, mountEntryId{dir: e.Dir, fsType: e.Type})
+				}
+			}
+		}
+	}
+
 	logger.Debugf("desiredIDs: %v", desiredIDs)
 	logger.Debugf("reuse: %v", reuse)
 
