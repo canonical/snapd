@@ -407,9 +407,9 @@ if [ "$STATIC" = 1 ]; then
 
         echo "Running golangci-lint"
         if [ -n "${GITHUB_BASE_REF:-}" ]; then
-            golangci-lint --new-from-rev="$GITHUB_BASE_REF" --path-prefix= run || exit 1
+            golangci-lint --new-from-rev="$GITHUB_BASE_REF" --path-prefix= run
         else
-            golangci-lint --path-prefix= run || exit 1
+            golangci-lint --path-prefix= run
         fi
     fi
 fi
