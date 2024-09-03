@@ -14,7 +14,8 @@ backends: [-autopkgtest]
 #                 labels, labels can only be exported for NFSv4.2+ with security_label option
 # ubuntu-14.04-64: group 'systemd-journal' does not exist
 # amazon-linux-2023: nfs service unit does not exist
-systems: [-ubuntu-core-*, -opensuse-*, -fedora-*, -centos-*, -ubuntu-14.04-64, -amazon-linux-2023-*]
+# debian-sid: sg is broken and not shipped with 'login' https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1078122
+systems: [-ubuntu-core-*, -opensuse-*, -fedora-*, -centos-*, -ubuntu-14.04-64, -amazon-linux-2023-*, -debian-sid-*]
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
