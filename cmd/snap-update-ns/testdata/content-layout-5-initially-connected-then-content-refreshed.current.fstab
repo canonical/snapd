@@ -1,10 +1,6 @@
-# This file ought to be almost the same as
-# content-layout-1-initially-connected.current.fstab, but due to the ordering
-# bug it is more similar to the -3- file with the ordering being messed up,
-# again, as it flips back and forth.
-/snap/test-snapd-content-layout/x2/attached-content /usr/share/secureboot/potato none rbind,rw,x-snapd.origin=layout 0 0
-/usr/share/secureboot/updates /usr/share/secureboot/updates none rbind,x-snapd.synthetic,x-snapd.needed-by=/usr/share/secureboot/potato,x-snapd.detach 0 0
-tmpfs /usr/share/secureboot tmpfs x-snapd.synthetic,x-snapd.needed-by=/usr/share/secureboot/potato,mode=0755,uid=0,gid=0 0 0
-# This ought to be the initial entry.
+# This file is similar to -1-, except that attached content has different revision.
 tmpfs / tmpfs x-snapd.origin=rootfs 0 0
+tmpfs /usr/share/secureboot tmpfs x-snapd.synthetic,x-snapd.needed-by=/usr/share/secureboot/potato,mode=0755,uid=0,gid=0 0 0
+/usr/share/secureboot/updates /usr/share/secureboot/updates none rbind,x-snapd.synthetic,x-snapd.needed-by=/usr/share/secureboot/potato,x-snapd.detach 0 0
+/snap/test-snapd-content-layout/x2/attached-content /usr/share/secureboot/potato none rbind,rw,x-snapd.origin=layout 0 0
 /snap/test-snapd-content/x2 /snap/test-snapd-content-layout/x2/attached-content none bind,ro 0 0
