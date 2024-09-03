@@ -363,14 +363,12 @@ func (s *updateSuite) TestKeepSyntheticMountsLP2043993(c *C) {
 
 	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
 	c.Assert(saved.Entries, HasLen, 2)
-	// TODO: the change of order is a bit unexpected, but that is a larger issue
-	// synth mount kept because it is needed by a desired mount
-	c.Check(saved.Entries[1].Type, Equals, "tmpfs")
-	c.Check(saved.Entries[1].Name, Equals, "tmpfs")
-	c.Check(saved.Entries[1].Dir, Equals, filepath.Join(baseSourceDir, "rofs"))
-	c.Check(saved.Entries[1].XSnapdSynthetic(), Equals, true)
-	c.Check(saved.Entries[1].XSnapdNeededBy(), Equals, "test-id")
-	c.Check(saved.Entries[0], DeepEquals, desiredMountEntry)
+	c.Check(saved.Entries[0].Type, Equals, "tmpfs")
+	c.Check(saved.Entries[0].Name, Equals, "tmpfs")
+	c.Check(saved.Entries[0].Dir, Equals, filepath.Join(baseSourceDir, "rofs"))
+	c.Check(saved.Entries[0].XSnapdSynthetic(), Equals, true)
+	c.Check(saved.Entries[0].XSnapdNeededBy(), Equals, "test-id")
+	c.Check(saved.Entries[1], DeepEquals, desiredMountEntry)
 }
 
 // testProfileUpdateContext implements MountProfileUpdateContext and is suitable for testing.

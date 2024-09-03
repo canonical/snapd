@@ -93,8 +93,14 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 	// Compute the new current profile so that it contains only changes that were made
 	// and save it back for next runs.
 	var currentAfter osutil.MountProfile
+	for i := len(changesMade) - 1; i >= 0; i-- {
+		change := changesMade[i]
+		if change.Action == Keep {
+			currentAfter.Entries = append(currentAfter.Entries, change.Entry)
+		}
+	}
 	for _, change := range changesMade {
-		if change.Action == Mount || change.Action == Keep {
+		if change.Action == Mount {
 			currentAfter.Entries = append(currentAfter.Entries, change.Entry)
 		}
 	}
