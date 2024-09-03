@@ -46,8 +46,6 @@ environment:
     FAULT/gadget_reboot_refresh_gadget_assets: reboot
     
     # tag not reached
-    TAG/kernel_panic_prepare_kernel_components: prepare-kernel-components
-    FAULT/kernel_panic_prepare_kernel_components: panic
     TAG/snapd_panic_auto_connect: after-auto-connect
     FAULT/snapd_panic_auto_connect: panic
 
@@ -59,6 +57,12 @@ environment:
     # This needs a change in the gadget yaml like in cmdline-option test
     # TAG/gadget_update_command_line_gadget: update-command-line-gadget
     # TAG/gadget_update_config_bootloader: update-config-bootloader
+
+    # For this scenario we need to refresh to a kernel with components
+    # See this test nested/manual/kernel-modules-components
+    # TAG/kernel_panic_prepare_kernel_components: prepare-kernel-components
+    # FAULT/kernel_panic_prepare_kernel_components: panic
+
 
 prepare: |
     # automatically cleaned up in restore
