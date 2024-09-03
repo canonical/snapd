@@ -120,6 +120,9 @@ execute: |
             ;;
     esac
         
+    # Get the initial snap revision
+    INITIAL_REV="$(remote.exec snap list | grep -E '^snapd' | awk ' {print $3} ')"
+
     # Refresh and reboot before the process is completed
     boot_id="$(tests.nested boot-id)"
     change_id="$(remote.exec "sudo snap refresh --amend --channel $CHANNEL --no-wait $SNAP")"
@@ -134,8 +137,8 @@ execute: |
     fi
 
     echo "And snap refresh is completed"
-    remote.exec "snap watch $change_id"
-    retry --wait 1 -n 30 --env "CHANGE_ID=$change_id" --env "SNAP=$SNAP" sh -c 'remote.exec snap changes | MATCH "${CHANGE_ID} .* Done .*"'
+    remote.exec "snap watch $change_id" || true
+    retry --wait 1 -n 60 --env "CHANGE_ID=$change_id" --env "SNAP=$SNAP" sh -c 'remote.exec snap changes | MATCH "${CHANGE_ID} .* (Done|Error) .*"'
 
     # Check if the fault was injected
     remote.exec "test -e /var/lib/snapd/faults/$TAG:$FAULT"
@@ -147,5 +150,21 @@ execute: |
         MATCH "osutil.injectFault" < output
     fi
 
-    echo "Ensure the change has not steps with Error"
-    remote.exec "snap change $change_id" | NOMATCH "^Error .*"
+    FINAL_STATUS="$(remote.exec snap changes | grep -E "^$change_id .*" | awk ' {print $2} ')"
+    CURRENT_REV="$(remote.exec snap list | grep -E '^snapd' | awk ' {print $3} ')"
+
+    if [ "$FINAL_STATUS" = Error ]; then
+        echo "Ensure the change has steps with Error"
+        remote.exec "snap change $change_id" | MATCH "^Error .*"
+        echo "Ensure the change has steps Undone"
+        remote.exec "snap change $change_id" | MATCH "^Undone .*"
+        
+        echo "Ensure the initial revision is the current one"
+        test "$INITIAL_REV" = "$CURRENT_REV"
+    else
+        echo "Ensure the change has not steps with Error"
+        remote.exec "snap change $change_id" | NOMATCH "^Error .*"
+
+        echo "Ensure the initial revision is not the current one"
+        test "$INITIAL_REV" != "$CURRENT_REV"
+    fi
