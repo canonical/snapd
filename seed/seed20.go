@@ -1486,13 +1486,16 @@ func (s *seed20) ModeSnaps(mode string) ([]*Snap, error) {
 
 	snapsWithMode := make([]*Snap, 0)
 	for _, sn := range s.snaps[s.essentialSnapsNum:] {
-		// since we're handing out pointers here (and we might need to modify
-		// the slice of components it holds), we need to make a copy of the snap
+		// since we're handing out pointers here, we need to make a copy of the
+		// snap
 		copied := *sn
-		copied.Components = append([]Component(nil), sn.Components...)
 
 		ms, ok := s.modelSnaps[sn.SnapName()]
 		if !ok {
+			// make a copy of the slice so that the caller can't mess with our
+			// internal state
+			copied.Components = append([]Component(nil), sn.Components...)
+
 			// snaps not in the model will be considered as run mode, and so
 			// will all of its components
 			if mode == "run" {
@@ -1501,6 +1504,8 @@ func (s *seed20) ModeSnaps(mode string) ([]*Snap, error) {
 			continue
 		}
 
+		// we'll rebuild the slice of components with only the components that
+		// are applicable to the requested mode
 		copied.Components = nil
 
 		if !snapModesInclude(ms.Modes, mode) {
