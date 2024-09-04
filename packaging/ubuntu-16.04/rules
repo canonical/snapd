@@ -16,10 +16,19 @@ export DH_GOPKG := github.com/snapcore/snapd
 export DH_GOLANG_EXCLUDES=tests
 export DH_GOLANG_GO_GENERATE=1
 
+VERSION := $(shell dpkg-parsechangelog -S Version)
+
+ifneq (,$(findstring +fips,$(VERSION))))
+	# the version has +fips tag, we're building a FIPS variant
+	FIPSBUILD = 1
+else
+	FIPSBUILD = 0
+endif
+
 export PATH:=${PATH}:${CURDIR}
 # make sure that correct go version is found on xenial
 export PATH:=/usr/lib/go-1.18/bin:${PATH}
-ifneq (,$(filter fips,$(DEB_BUILD_OPTIONS)))
+ifeq (${FIPSBUILD},1)
 	# when building with FIPS, use Go 1.20 which is also declared in build
 	# dependencies
 	export PATH:=/usr/lib/go-1.20/bin:${PATH}
@@ -99,7 +108,7 @@ else
 	_SNAP_TAGS=nomanagers
 endif
 
-ifneq (,$(filter fips,$(DEB_BUILD_OPTIONS)))
+ifeq (${FIPSBUILD},1)
   # if enabled also enable bootloader assets testing and fault injection
 	_TAGS := $(_TAGS),goexperiment.opensslcrypto
 	_SNAP_TAGS := $(_SNAP_TAGS),goexperiment.opensslcrypto
