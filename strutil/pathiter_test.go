@@ -97,8 +97,8 @@ func (s *pathIterSuite) TestPathIteratorRelative(c *C) {
 
 func (s *pathIterSuite) TestPathIteratorAbsoluteNotClean(c *C) {
 	iter, err := strutil.NewPathIterator("/foo/bar/")
-	c.Assert(err, ErrorMatches, `cannot iterate over unclean path "/foo/bar/"`)
-	c.Assert(iter, IsNil)
+	c.Assert(err, IsNil)
+	c.Assert(iter.Path(), Equals, "/foo/bar/")
 }
 
 func (s *pathIterSuite) TestPathIteratorAbsoluteClean(c *C) {

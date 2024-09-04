@@ -52,7 +52,7 @@ type PathIterator struct {
 // The path is passed through filepath.Clean automatically.
 func NewPathIterator(path string) (*PathIterator, error) {
 	cleanPath := filepath.Clean(path)
-	if cleanPath != path {
+	if cleanPath != path && cleanPath+"/" != path {
 		return nil, fmt.Errorf("cannot iterate over unclean path %q", path)
 	}
 	return &PathIterator{path: path}, nil
@@ -84,14 +84,6 @@ func (iter *PathIterator) CurrentBase() string {
 func (iter *PathIterator) CurrentPath() string {
 	// Only remove ending slash if the iterator is not pointing to the base of the filesystem
 	if iter.right > 2 && iter.path[iter.right-1:iter.right] == "/" {
-		return iter.path[:iter.right-1]
-	}
-	return iter.path[:iter.right]
-}
-
-// CurrentPathNoSlash returns the same value as CurrentPath with the right slash trimmed.
-func (iter *PathIterator) CurrentPathNoSlash() string {
-	if iter.right > 0 && iter.path[iter.right-1:iter.right] == "/" && iter.path[:iter.right] != "/" {
 		return iter.path[:iter.right-1]
 	}
 	return iter.path[:iter.right]
