@@ -122,10 +122,10 @@ func (s *requestrulesSuite) TestRuleValidate(c *C) {
 	c.Check(rule.Validate(currTime), Equals, prompting.ErrRuleLifespanSingle)
 
 	rule.Outcome = invalidOutcome
-	c.Check(rule.Validate(currTime), ErrorMatches, "internal error: invalid outcome:.*")
+	c.Check(rule.Validate(currTime), ErrorMatches, `invalid outcome: ""`)
 
 	rule.Constraints = invalidConstraints
-	c.Check(rule.Validate(currTime), ErrorMatches, "invalid constraints:.*")
+	c.Check(rule.Validate(currTime), ErrorMatches, "invalid permissions for home interface:.*")
 }
 
 func mustParsePathPattern(c *C, patternStr string) *patterns.PathPattern {
@@ -267,7 +267,7 @@ func (s *requestrulesSuite) TestLoadErrorValidate(c *C) {
 	s.writeRules(c, dbPath, rules)
 
 	checkWritten := true
-	s.testLoadError(c, "internal error: invalid constraints: unsupported interface: foo.*", rules, checkWritten)
+	s.testLoadError(c, `internal error: invalid interface: "foo".*`, rules, checkWritten)
 }
 
 // ruleTemplate returns a rule with valid contents, intended to be customized.
@@ -663,11 +663,11 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 		},
 		{ // Invalid lifespan
 			&addRuleContents{Lifespan: prompting.LifespanType("invalid")},
-			"internal error: invalid lifespan:.*",
+			`invalid lifespan: "invalid"`,
 		},
 		{ // Invalid outcome
 			&addRuleContents{Outcome: prompting.OutcomeType("invalid")},
-			"internal error: invalid outcome:.*",
+			`invalid outcome: "invalid"`,
 		},
 		{ // Invalid lifespan (for rules)
 			&addRuleContents{Lifespan: prompting.LifespanSingle},

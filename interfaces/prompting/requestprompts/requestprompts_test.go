@@ -876,7 +876,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	c.Assert(stored[0], Equals, prompt)
 
 	satisfied, err := pdb.HandleNewRule(metadata, constraints, badOutcome)
-	c.Check(err, ErrorMatches, `internal error: invalid outcome.*`)
+	c.Check(err, ErrorMatches, `invalid outcome: "foo"`)
 	c.Check(satisfied, IsNil)
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)

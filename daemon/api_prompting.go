@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/interfaces/prompting"
+	"github.com/snapcore/snapd/interfaces/prompting/errortypes"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -99,6 +100,109 @@ func getUserID(r *http.Request) (uint32, Response) {
 	return uint32(userIDInt), nil
 }
 
+type invalidReason string
+
+const (
+	unsupportedValueReason invalidReason = "unsupported-value"
+	parseErrorReason       invalidReason = "parse-error"
+	validationErrorReason  invalidReason = "validation-error"
+)
+
+type invalidFieldValue struct {
+	Reason   invalidReason `json:"invalid-reason"`
+	Metadata interface{}   `json:"metadata,omitempty"`
+}
+
+type UnsupportedValueValue struct {
+	err *errortypes.UnsupportedValueError
+}
+
+func (v *UnsupportedValueValue) MarshalJSON() ([]byte, error) {
+	value := make(map[string]invalidFieldValue, 1)
+	value[v.err.Field] = invalidFieldValue{
+		Reason: unsupportedValueReason,
+		Metadata: &struct {
+			Received  interface{} `json:"received-invalid"`
+			Supported []string    `json:"supported"`
+		}{
+			Received:  v.err.Unsupported,
+			Supported: v.err.Supported,
+		},
+	}
+	return json.Marshal(value)
+}
+
+type ParseErrorValue struct {
+	err *errortypes.ParseError
+}
+
+func (v *ParseErrorValue) MarshalJSON() ([]byte, error) {
+	value := make(map[string]invalidFieldValue, 1)
+	value[v.err.Field] = invalidFieldValue{
+		Reason: parseErrorReason,
+		Metadata: &struct {
+			Received string `json:"received-invalid"`
+			// TODO: once documentation exists for user-defined fields
+			// DocumentationURL string `json:"documentation"`
+		}{
+			Received: v.err.Invalid,
+			// TODO: once documentation exists for user-defined fields
+			// DocumentationURL: <url>,
+		},
+	}
+	return json.Marshal(value)
+}
+
+type validationErrorType string
+
+var (
+	requestedPathNotMatched        validationErrorType = "requested-path-not-matched"
+	requestedPermissionsNotMatched validationErrorType = "requested-permissions-not-matched"
+	ruleConflict                   validationErrorType = "conflict-with-existing-rule"
+)
+
+type RequestedPathNotMatchedErrorValue struct {
+	err *prompting.RequestedPathNotMatchedError
+}
+
+func (v *RequestedPathNotMatchedErrorValue) MarshalJSON() ([]byte, error) {
+	value := make(map[string]invalidFieldValue, 1)
+	value["path-pattern"] = invalidFieldValue{
+		Reason: validationErrorReason,
+		Metadata: &struct {
+			ErrorType validationErrorType `json:"error-type"`
+			Received  string              `json:"received"`
+			Requested string              `json:"requested"`
+		}{
+			ErrorType: requestedPathNotMatched,
+			Received:  v.err.Received,
+			Requested: v.err.Requested,
+		},
+	}
+	return json.Marshal(value)
+}
+
+type RequestedPermissionsNotMatchedErrorValue struct {
+	err *prompting.RequestedPermissionsNotMatchedError
+}
+
+func (v *RequestedPermissionsNotMatchedErrorValue) MarshalJSON() ([]byte, error) {
+	value := make(map[string]invalidFieldValue, 1)
+	value["permissions"] = invalidFieldValue{
+		Reason: validationErrorReason,
+		Metadata: &struct {
+			ErrorType validationErrorType `json:"error-type"`
+			Received  []string            `json:"received"`
+			Requested []string            `json:"requested"`
+		}{
+			ErrorType: requestedPermissionsNotMatched,
+			Received:  v.err.Received,
+			Requested: v.err.Requested,
+		},
+	}
+	return json.Marshal(value)
+}
+
 type RuleConflictJSON prompting.RuleConflict
 
 func (r *RuleConflictJSON) MarshalJSON() ([]byte, error) {
@@ -113,18 +217,27 @@ func (r *RuleConflictJSON) MarshalJSON() ([]byte, error) {
 	})
 }
 
-type RuleConflictErrorJSON prompting.RuleConflictError
+type RuleConflictErrorValue struct {
+	err *prompting.RuleConflictError
+}
 
-func (e *RuleConflictErrorJSON) MarshalJSON() ([]byte, error) {
-	conflictsJSON := make([]RuleConflictJSON, len(e.Conflicts))
-	for i, conflict := range e.Conflicts {
+func (v *RuleConflictErrorValue) MarshalJSON() ([]byte, error) {
+	conflictsJSON := make([]RuleConflictJSON, len(v.err.Conflicts))
+	for i, conflict := range v.err.Conflicts {
 		conflictsJSON[i] = RuleConflictJSON(conflict)
 	}
-	return json.Marshal(&struct {
-		Conflicts []RuleConflictJSON `json:"conflicts"`
-	}{
-		Conflicts: conflictsJSON,
-	})
+	value := make(map[string]invalidFieldValue, 1)
+	value["path-pattern"] = invalidFieldValue{
+		Reason: validationErrorReason,
+		Metadata: &struct {
+			ErrorType validationErrorType `json:"error-type"`
+			Conflicts []RuleConflictJSON  `json:"conflicts"`
+		}{
+			ErrorType: ruleConflict,
+			Conflicts: conflictsJSON,
+		},
+	}
+	return json.Marshal(value)
 }
 
 func promptingNotRunningError() *apiError {
@@ -140,9 +253,6 @@ func promptingError(err error) *apiError {
 		Message: err.Error(),
 	}
 	switch {
-	case errors.Is(err, prompting.ErrInvalidID):
-		apiErr.Status = 400
-		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidID
 	case errors.Is(err, prompting.ErrPromptNotFound):
 		apiErr.Status = 404
 		apiErr.Kind = client.ErrorKindInterfacesRequestsPromptNotFound
@@ -153,45 +263,57 @@ func promptingError(err error) *apiError {
 		// exists for some other user), this error will remain unchanged.
 		apiErr.Status = 404
 		apiErr.Kind = client.ErrorKindInterfacesRequestsRuleNotFound
-	case errors.Is(err, prompting.ErrInvalidOutcome):
+	case errors.Is(err, errortypes.ErrUnsupportedValue):
 		apiErr.Status = 400
-		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidOutcome
-	case errors.Is(err, prompting.ErrInvalidLifespan):
+		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidFields
+		var unsupportedValueErr *errortypes.UnsupportedValueError
+		if errors.As(err, &unsupportedValueErr) {
+			apiErr.Value = UnsupportedValueValue{
+				err: unsupportedValueErr,
+			}
+		}
+	case errors.Is(err, errortypes.ErrParseError):
 		apiErr.Status = 400
-		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidLifespan
-	case errors.Is(err, prompting.ErrInvalidDuration):
-		apiErr.Status = 400
-		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidDuration
-	case errors.Is(err, prompting.ErrInvalidExpiration):
-		apiErr.Status = 400
-		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidExpiration
-	case errors.Is(err, prompting.ErrInvalidConstraints):
-		apiErr.Status = 400
-		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidConstraints
-	case errors.Is(err, prompting.ErrRuleExpirationInThePast):
-		apiErr.Status = 400
-		apiErr.Kind = client.ErrorKindInterfacesRequestsRuleExpirationInThePast
-	case errors.Is(err, prompting.ErrRuleLifespanSingle):
-		apiErr.Status = 400
-		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidDuration
+		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidFields
+		var parseErr *errortypes.ParseError
+		if errors.As(err, &parseErr) {
+			apiErr.Value = ParseErrorValue{
+				err: parseErr,
+			}
+		}
 	case errors.Is(err, prompting.ErrReplyNotMatchRequestedPath):
 		apiErr.Status = 400
-		apiErr.Kind = client.ErrorKindInterfacesRequestsReplyNotMatchRequestedPath
+		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidFields
+		var patternErr *prompting.RequestedPathNotMatchedError
+		if errors.As(err, &patternErr) {
+			apiErr.Value = &RequestedPathNotMatchedErrorValue{
+				err: patternErr,
+			}
+		}
 	case errors.Is(err, prompting.ErrReplyNotMatchRequestedPermissions):
 		apiErr.Status = 400
-		apiErr.Kind = client.ErrorKindInterfacesRequestsReplyNotMatchRequestedPermissions
+		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidFields
+		var permissionsErr *prompting.RequestedPermissionsNotMatchedError
+		if errors.As(err, &permissionsErr) {
+			apiErr.Value = &RequestedPermissionsNotMatchedErrorValue{
+				err: permissionsErr,
+			}
+		}
 	case errors.Is(err, prompting.ErrRuleConflict):
 		apiErr.Status = 409
-		apiErr.Kind = client.ErrorKindInterfacesRequestsRuleConflict
+		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidFields
 		var conflictErr *prompting.RuleConflictError
 		if errors.As(err, &conflictErr) {
-			apiErr.Value = (*RuleConflictErrorJSON)(conflictErr)
+			apiErr.Value = &RuleConflictErrorValue{
+				err: conflictErr,
+			}
 		}
 	default:
 		// Treat errors without specific mapping as internal errors.
 		// These include:
 		// - ErrPromptsClosed
 		// - ErrRulesClosed
+		// - ErrTooManyPrompts
 		// - ErrRuleIDConflict
 		// - ErrRuleDBInconsistent
 		// - listener errors
@@ -280,7 +402,7 @@ func getPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	promptID, err := prompting.IDFromString(id)
 	if err != nil {
-		return promptingError(err)
+		return promptingError(prompting.ErrPromptNotFound)
 	}
 
 	if !getInterfaceManager(c).AppArmorPromptingRunning() {
@@ -306,7 +428,7 @@ func postPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	promptID, err := prompting.IDFromString(id)
 	if err != nil {
-		return promptingError(err)
+		return promptingError(prompting.ErrPromptNotFound)
 	}
 
 	if !getInterfaceManager(c).AppArmorPromptingRunning() {
@@ -412,7 +534,7 @@ func getRule(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	ruleID, err := prompting.IDFromString(id)
 	if err != nil {
-		return promptingError(err)
+		return promptingError(prompting.ErrRuleNotFound)
 	}
 
 	if !getInterfaceManager(c).AppArmorPromptingRunning() {
@@ -438,7 +560,7 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	ruleID, err := prompting.IDFromString(id)
 	if err != nil {
-		return promptingError(err)
+		return promptingError(prompting.ErrRuleNotFound)
 	}
 
 	if !getInterfaceManager(c).AppArmorPromptingRunning() {

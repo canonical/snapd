@@ -93,7 +93,7 @@ func (outcome *OutcomeType) UnmarshalJSON(data []byte) error {
 	case OutcomeAllow, OutcomeDeny:
 		*outcome = value
 	default:
-		return fmt.Errorf(`%w: cannot have outcome other than %q or %q: %q`, ErrInvalidOutcome, OutcomeAllow, OutcomeDeny, value)
+		return ErrInvalidOutcome(value)
 	}
 	return nil
 }
@@ -107,7 +107,7 @@ func (outcome OutcomeType) AsBool() (bool, error) {
 	case OutcomeDeny:
 		return false, nil
 	default:
-		return false, fmt.Errorf(`internal error: invalid outcome: %q`, outcome)
+		return false, ErrInvalidOutcome(outcome)
 	}
 }
 
@@ -140,7 +140,7 @@ func (lifespan *LifespanType) UnmarshalJSON(data []byte) error {
 	case LifespanForever, LifespanSingle, LifespanTimespan:
 		*lifespan = value
 	default:
-		return fmt.Errorf(`%w: cannot have lifespan other than %q, %q, or %q: %q`, ErrInvalidLifespan, LifespanForever, LifespanSingle, LifespanTimespan, value)
+		return ErrInvalidLifespan(value)
 	}
 	return nil
 }
@@ -155,11 +155,11 @@ func (lifespan LifespanType) ValidateExpiration(expiration time.Time, currTime t
 	switch lifespan {
 	case LifespanForever, LifespanSingle:
 		if !expiration.IsZero() {
-			return fmt.Errorf(`%w: cannot have specified expiration when lifespan is %q: %q`, ErrInvalidExpiration, lifespan, expiration)
+			return ErrInvalidExpiration(expiration, fmt.Sprintf("cannot have specified expiration when lifespan is %q", lifespan))
 		}
 	case LifespanTimespan:
 		if expiration.IsZero() {
-			return fmt.Errorf(`%w: cannot have unspecified expiration when lifespan is %q`, ErrInvalidExpiration, lifespan)
+			return ErrInvalidExpiration(expiration, fmt.Sprintf("cannot have unspecified expiration when lifespan is %q", lifespan))
 		}
 		if currTime.After(expiration) {
 			return fmt.Errorf("%w: %q", ErrRuleExpirationInThePast, expiration)
@@ -184,23 +184,23 @@ func (lifespan LifespanType) ParseDuration(duration string, currTime time.Time) 
 	switch lifespan {
 	case LifespanForever, LifespanSingle:
 		if duration != "" {
-			return expiration, fmt.Errorf(`%w: cannot have specified duration when lifespan is %q: %q`, ErrInvalidDuration, lifespan, duration)
+			return expiration, ErrInvalidDuration(duration, fmt.Sprintf("cannot have specified duration when lifespan is %q", lifespan))
 		}
 	case LifespanTimespan:
 		if duration == "" {
-			return expiration, fmt.Errorf(`%w: cannot have unspecified duration when lifespan is %q`, ErrInvalidDuration, lifespan)
+			return expiration, ErrInvalidDuration(duration, fmt.Sprintf("cannot have unspecified duration when lifespan is %q", lifespan))
 		}
 		parsedDuration, err := time.ParseDuration(duration)
 		if err != nil {
-			return expiration, fmt.Errorf(`%w: cannot parse duration: %v`, ErrInvalidDuration, err)
+			return expiration, ErrInvalidDuration(duration, fmt.Sprintf("cannot parse duration: %v", err))
 		}
 		if parsedDuration <= 0 {
-			return expiration, fmt.Errorf(`%w: cannot have zero or negative duration: %q`, ErrInvalidDuration, duration)
+			return expiration, ErrInvalidDuration(duration, fmt.Sprintf("cannot have zero or negative duration: %q", duration))
 		}
 		expiration = currTime.Add(parsedDuration)
 	default:
 		// Should not occur, since lifespan is validated when unmarshalled
-		return expiration, fmt.Errorf(`internal error: %w: %q`, ErrInvalidLifespan, lifespan)
+		return expiration, ErrInvalidLifespan(lifespan)
 	}
 	return expiration, nil
 }

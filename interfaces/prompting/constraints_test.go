@@ -20,8 +20,6 @@
 package prompting_test
 
 import (
-	"fmt"
-
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces/prompting"
@@ -56,17 +54,17 @@ func (s *constraintsSuite) TestConstraintsValidateForInterface(c *C) {
 		{
 			"foo",
 			[]string{"read"},
-			"invalid constraints: unsupported interface.*",
+			`invalid interface: "foo"`,
 		},
 		{
 			"home",
 			[]string{},
-			fmt.Sprintf("invalid constraints: %v", prompting.ErrPermissionsListEmpty),
+			"invalid permissions for home interface: permissions list empty",
 		},
 		{
 			"home",
 			[]string{"access"},
-			fmt.Sprintf("invalid constraints: unsupported permission for home interface.*"),
+			"invalid permissions for home interface.*",
 		},
 	}
 	for _, testCase := range cases {
@@ -83,7 +81,7 @@ func (s *constraintsSuite) TestConstraintsValidateForInterface(c *C) {
 		Permissions: []string{"read"},
 	}
 	err = constraints.ValidateForInterface("home")
-	c.Check(err, ErrorMatches, "invalid constraints: no path pattern")
+	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
 }
 
 func (s *constraintsSuite) TestValidatePermissionsHappy(c *C) {
@@ -127,22 +125,22 @@ func (s *constraintsSuite) TestValidatePermissionsUnhappy(c *C) {
 		{
 			"foo",
 			[]string{"read"},
-			"unsupported interface.*",
+			`invalid interface: "foo"`,
 		},
 		{
 			"home",
 			[]string{"access"},
-			"unsupported permission.*",
+			`invalid permissions for home interface: \[access\].*`,
 		},
 		{
 			"home",
 			[]string{"read", "write", "access"},
-			"unsupported permission.*",
+			`invalid permissions for home interface: \[access\].*`,
 		},
 		{
 			"home",
 			[]string{},
-			fmt.Sprintf("%v", prompting.ErrPermissionsListEmpty),
+			"invalid permissions for home interface: permissions list empty",
 		},
 	}
 	for _, testCase := range cases {
@@ -190,77 +188,8 @@ func (s *constraintsSuite) TestConstraintsMatchUnhappy(c *C) {
 		Permissions: []string{"read"},
 	}
 	matches, err := badConstraints.Match(badPath)
-	c.Check(err, ErrorMatches, "invalid constraints: no path pattern")
+	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
 	c.Check(matches, Equals, false)
-}
-
-func (s *constraintsSuite) TestConstraintsRemovePermission(c *C) {
-	cases := []struct {
-		initial []string
-		remove  string
-		final   []string
-		err     error
-	}{
-		{
-			[]string{"read", "write", "execute"},
-			"read",
-			[]string{"write", "execute"},
-			nil,
-		},
-		{
-			[]string{"read", "write", "execute"},
-			"write",
-			[]string{"read", "execute"},
-			nil,
-		},
-		{
-			[]string{"read", "write", "execute"},
-			"execute",
-			[]string{"read", "write"},
-			nil,
-		},
-		{
-			[]string{"read", "write", "read"},
-			"read",
-			[]string{"write"},
-			nil,
-		},
-		{
-			[]string{"read"},
-			"read",
-			[]string{},
-			nil,
-		},
-		{
-			[]string{"read", "read"},
-			"read",
-			[]string{},
-			nil,
-		},
-		{
-			[]string{"read", "write", "execute"},
-			"append",
-			[]string{"read", "write", "execute"},
-			prompting.ErrPermissionNotInList,
-		},
-		{
-			[]string{},
-			"read",
-			[]string{},
-			prompting.ErrPermissionNotInList,
-		},
-	}
-	for _, testCase := range cases {
-		pathPattern, err := patterns.ParsePathPattern("/path/to/foo")
-		c.Check(err, IsNil)
-		constraints := &prompting.Constraints{
-			PathPattern: pathPattern,
-			Permissions: testCase.initial,
-		}
-		err = constraints.RemovePermission(testCase.remove)
-		c.Check(err, Equals, testCase.err)
-		c.Check(constraints.Permissions, DeepEquals, testCase.final)
-	}
 }
 
 func (s *constraintsSuite) TestConstraintsContainPermissions(c *C) {
@@ -543,7 +472,7 @@ func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsUnhappy(c
 		{
 			"home",
 			[]string{},
-			fmt.Sprintf("%v", prompting.ErrPermissionsListEmpty),
+			"invalid permissions for home interface: permissions list empty",
 		},
 		{
 			"foo",

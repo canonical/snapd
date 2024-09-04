@@ -67,9 +67,9 @@ func (s *promptingSuite) TestOutcomeAsBool(c *C) {
 	c.Check(err, IsNil)
 	c.Check(result, Equals, false)
 	_, err = prompting.OutcomeUnset.AsBool()
-	c.Check(err, ErrorMatches, `internal error: invalid outcome.*`)
+	c.Check(err, ErrorMatches, `invalid outcome: ""`)
 	_, err = prompting.OutcomeType("foo").AsBool()
-	c.Check(err, ErrorMatches, `internal error: invalid outcome.*`)
+	c.Check(err, ErrorMatches, `invalid outcome: "foo"`)
 }
 
 type fakeOutcomeWrapper struct {
@@ -106,12 +106,12 @@ func (s *promptingSuite) TestUnmarshalOutcomeUnhappy(c *C) {
 		var fow1 fakeOutcomeWrapper
 		data := []byte(fmt.Sprintf(`{"field1": "%s", "field2": "%s"}`, outcome, outcome))
 		err := json.Unmarshal(data, &fow1)
-		c.Check(err, ErrorMatches, `invalid outcome: cannot have outcome other than.*`, Commentf("data: %v", string(data)))
+		c.Check(err, ErrorMatches, fmt.Sprintf(`invalid outcome: %q`, outcome), Commentf("data: %v", string(data)))
 
 		var fow2 fakeOutcomeWrapper
 		data = []byte(fmt.Sprintf(`{"field1": "%s", "field2": "%s"}`, prompting.OutcomeAllow, outcome))
 		err = json.Unmarshal(data, &fow2)
-		c.Check(err, ErrorMatches, `invalid outcome: cannot have outcome other than.*`, Commentf("data: %v", string(data)))
+		c.Check(err, ErrorMatches, fmt.Sprintf(`invalid outcome: %q`, outcome), Commentf("data: %v", string(data)))
 	}
 }
 
@@ -150,12 +150,12 @@ func (s *promptingSuite) TestUnmarshalLifespanUnhappy(c *C) {
 		var flw1 fakeLifespanWrapper
 		data := []byte(fmt.Sprintf(`{"field1": "%s", "field2": "%s"}`, lifespan, lifespan))
 		err := json.Unmarshal(data, &flw1)
-		c.Check(err, ErrorMatches, `invalid lifespan: cannot have lifespan other than.*`, Commentf("data: %v", string(data)))
+		c.Check(err, ErrorMatches, fmt.Sprintf(`invalid lifespan: %q`, lifespan), Commentf("data: %v", string(data)))
 
 		var flw2 fakeLifespanWrapper
 		data = []byte(fmt.Sprintf(`{"field1": "%s", "field2": "%s"}`, prompting.LifespanForever, lifespan))
 		err = json.Unmarshal(data, &flw2)
-		c.Check(err, ErrorMatches, `invalid lifespan: cannot have lifespan other than.*`, Commentf("data: %v", string(data)))
+		c.Check(err, ErrorMatches, fmt.Sprintf(`invalid lifespan: %q`, lifespan), Commentf("data: %v", string(data)))
 	}
 }
 

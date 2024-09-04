@@ -390,14 +390,20 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 		return nil, err
 	}
 	if !matches {
-		return nil, fmt.Errorf("%w: '%s' does not match '%s'; please try again", prompting.ErrReplyNotMatchRequestedPath, constraints.PathPattern, prompt.Constraints.Path())
+		return nil, &prompting.RequestedPathNotMatchedError{
+			Received:  constraints.PathPattern.String(),
+			Requested: prompt.Constraints.Path(),
+		}
 	}
 
 	// XXX: do we want to allow only replying to a select subset of permissions, and
 	// auto-deny the rest?
 	contained := constraints.ContainPermissions(prompt.Constraints.RemainingPermissions())
 	if !contained {
-		return nil, fmt.Errorf("%w: requested %v, replied %v; please try again", prompting.ErrReplyNotMatchRequestedPermissions, prompt.Constraints.RemainingPermissions(), constraints.Permissions)
+		return nil, &prompting.RequestedPermissionsNotMatchedError{
+			Received:  constraints.Permissions,
+			Requested: prompt.Constraints.RemainingPermissions(),
+		}
 	}
 
 	// It is important that a lock is held while checking for conflicts with

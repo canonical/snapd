@@ -38,10 +38,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-var (
-	ErrUserNotAllowed = errors.New("the given user is not allowed to request the rule with the given ID")
-)
-
 // Rule stores the contents of a request rule.
 type Rule struct {
 	ID          prompting.IDType       `json:"id"`
@@ -68,6 +64,9 @@ func (rule *Rule) validate(currTime time.Time) error {
 		return prompting.ErrRuleLifespanSingle
 	}
 	if err := rule.Lifespan.ValidateExpiration(rule.Expiration, currTime); err != nil {
+		// Should never error due to an API request, since rules are always
+		// added via the API using duration, rather than expiration.
+		// Error may occur when validating a rule loaded from disk.
 		return err
 	}
 	return nil

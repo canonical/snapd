@@ -422,7 +422,7 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 		Permissions: []string{"foo"},
 	}
 	result, err = mgr.HandleReply(s.defaultUser, prompt.ID, &invalidConstraints, prompting.OutcomeAllow, prompting.LifespanSingle, "")
-	c.Check(err, ErrorMatches, "invalid constraints.*")
+	c.Check(err, ErrorMatches, "invalid permissions for home interface:.*")
 	c.Check(result, IsNil)
 
 	// Path not matched
@@ -431,7 +431,7 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 		Permissions: []string{"read"},
 	}
 	result, err = mgr.HandleReply(s.defaultUser, prompt.ID, &badPatternConstraints, prompting.OutcomeAllow, prompting.LifespanSingle, "")
-	c.Check(err, ErrorMatches, "constraints in reply do not match originally requested path.*")
+	c.Check(err, ErrorMatches, "path pattern in reply constraints does not match originally requested path.*")
 	c.Check(result, IsNil)
 
 	// Permissions not matched
@@ -440,7 +440,7 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 		Permissions: []string{"write"},
 	}
 	result, err = mgr.HandleReply(s.defaultUser, prompt.ID, &badPermissionConstraints, prompting.OutcomeAllow, prompting.LifespanSingle, "")
-	c.Check(err, ErrorMatches, "constraints in reply do not include all originally requested permissions.*")
+	c.Check(err, ErrorMatches, "permissions in reply constraints do not include all requested permissions.*")
 	c.Check(result, IsNil)
 
 	// Conflicting rule
