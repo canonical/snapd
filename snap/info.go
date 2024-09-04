@@ -951,13 +951,13 @@ func (s *Info) DesktopPrefix() string {
 	return fmt.Sprintf("%s+%s", s.SnapName(), s.InstanceKey)
 }
 
-// DesktopFileIDs returns desktop-file-ids desktop plug attribute entries.
+// DesktopPlugFileIDs returns desktop-file-ids desktop plug attribute entries.
 // The desktop-file-ids attribute is optional so an empty list is returned if
 // the it is not found.
 //
-// Note: DesktopFileIDs doesn't check if the desktop plug is connected because
+// Note: DesktopPlugFileIDs doesn't check if the desktop plug is connected because
 // the desktop-file-ids attribute is controlled by an allow-installation rule.
-func (s *Info) DesktopFileIDs() ([]string, error) {
+func (s *Info) DesktopPlugFileIDs() ([]string, error) {
 	var desktopPlug *PlugInfo
 	for _, plug := range s.Plugs {
 		if plug.Interface == "desktop" {
@@ -1000,7 +1000,7 @@ func (s *Info) DesktopFileIDs() ([]string, error) {
 // unless its name (without the .desktop extension) is listed under the
 // desktop-file-ids desktop interface attribute.
 func (s *Info) MangleDesktopFileName(desktopFile string) (string, error) {
-	desktopFileIDs, err := s.DesktopFileIDs()
+	desktopFileIDs, err := s.DesktopPlugFileIDs()
 	if err != nil {
 		return "", err
 	}
@@ -1027,11 +1027,7 @@ type DesktopFilesFromMountOptions struct {
 }
 
 // DesktopFilesFromMount returns the desktop files found under <snap-mount>/meta/gui.
-func (s *Info) DesktopFilesFromMount(opts *DesktopFilesFromMountOptions) ([]string, error) {
-	if opts == nil {
-		opts = &DesktopFilesFromMountOptions{}
-	}
-
+func (s *Info) DesktopFilesFromMount(opts DesktopFilesFromMountOptions) ([]string, error) {
 	rootDir := filepath.Join(s.MountDir(), "meta", "gui")
 	if !osutil.IsDirectory(rootDir) {
 		return nil, nil

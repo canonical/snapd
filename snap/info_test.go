@@ -2546,7 +2546,7 @@ version: 1.0
 		c.Assert(info.Plugs["desktop"], NotNil)
 	}
 
-	desktopFileIDs, err := info.DesktopFileIDs()
+	desktopFileIDs, err := info.DesktopPlugFileIDs()
 	c.Assert(err, IsNil)
 
 	if hasDesktopFileIDs {
@@ -2594,7 +2594,7 @@ plugs:
 		c.Assert(err, IsNil)
 		c.Assert(info.Plugs["desktop"], NotNil)
 
-		_, err = info.DesktopFileIDs()
+		_, err = info.DesktopPlugFileIDs()
 		c.Assert(err, ErrorMatches, `internal error: "desktop-file-ids" must be a list of strings`)
 	}
 }
@@ -2657,7 +2657,7 @@ version: 1.0
 	info, err := snap.InfoFromSnapYaml([]byte(desktopAppYaml))
 	c.Assert(err, IsNil)
 
-	desktopFiles, err := info.DesktopFilesFromMount(nil)
+	desktopFiles, err := info.DesktopFilesFromMount(snap.DesktopFilesFromMountOptions{})
 	c.Assert(err, IsNil)
 	c.Assert(desktopFiles, IsNil)
 }
@@ -2684,7 +2684,7 @@ plugs:
 		c.Assert(err, IsNil)
 	}
 
-	opts := &snap.DesktopFilesFromMountOptions{MangleFileNames: mangle}
+	opts := snap.DesktopFilesFromMountOptions{MangleFileNames: mangle}
 	desktopFilesFound, err := info.DesktopFilesFromMount(opts)
 	c.Assert(err, IsNil)
 	c.Assert(desktopFilesFound, HasLen, len(testDesktopFiles))

@@ -248,7 +248,7 @@ func findDesktopFiles(rootDir string) ([]string, error) {
 }
 
 func deriveDesktopFilesContent(s *snap.Info) (map[string]osutil.FileState, error) {
-	desktopFiles, err := s.DesktopFilesFromMount(nil)
+	desktopFiles, err := s.DesktopFilesFromMount(snap.DesktopFilesFromMountOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -343,7 +343,7 @@ func EnsureSnapDesktopFiles(snaps []*snap.Info) error {
 			return fmt.Errorf("internal error: snap info cannot be nil")
 		}
 
-		desktopFileIDs, err := info.DesktopFileIDs()
+		desktopFileIDs, err := info.DesktopPlugFileIDs()
 		if err != nil {
 			return err
 		}
