@@ -401,14 +401,18 @@ if [ "$STATIC" = 1 ]; then
             echo "ERROR: Cannot find golangci-lint. You need to first install the golangci-lint snap"
             exit 1
         fi
-        if snap refresh --list | grep golangci-lint; then
+        if snap refresh --list | grep -q golangci-lint; then
             echo "WARNING: your golangci-lint snap is out of date. The CI will install a fresh version, which may differ from yours."
+        fi
+        if ! snap list golangci-lint | grep -q latest; then
+            echo "WARNING: your golangci-lint snap is not installed from the latest/* channel."
         fi
 
         echo "Running golangci-lint"
-        if [ -n "${GITHUB_BASE_REF:-}" ]; then
-            golangci-lint --new-from-rev="$GITHUB_BASE_REF" --path-prefix= run
+        if [ -n "${BASE_REF:-}" ]; then
+            golangci-lint --new-from-rev="$BASE_REF" --path-prefix= run
         else
+            echo "Running golangci-lint without the --new-from-rev option. If you would rather use that option, specify the branch in the BASE_REF environment variable."
             golangci-lint --path-prefix= run
         fi
     fi

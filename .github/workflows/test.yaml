@@ -131,7 +131,7 @@ jobs:
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
       GOROOT: ""
       GITHUB_PULL_REQUEST_TITLE: ${{ github.event.pull_request.title }}
-      GITHUB_BASE_REF: ${{ github.base_ref }}
+      BASE_REF: ${{ github.base_ref }}
 
     strategy:
       # we cache successful runs so it's fine to keep going
