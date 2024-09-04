@@ -1,0 +1,23 @@
+rules:
+  tests:
+    from:
+      - tests/main/.*
+      - tests/core/.*
+      - tests/completion/.*
+      - tests/cross/.*
+      - tests/regression/.*
+      - tests/smoke/.
+      - tests/unit/.*
+      - tests/upgrade/.*
+    to: [$SELF]
+
+  unit:
+    from: [.*_test.go]
+    to:
+     - tests/unit/go
+     - tests/unit/c-unit-tests-clang
+     - tests/unit/c-unit-tests-gcc
+
+  rest:
+    from: [.*]
+    to: [tests/]
