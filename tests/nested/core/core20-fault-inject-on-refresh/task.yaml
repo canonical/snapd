@@ -45,10 +45,6 @@ environment:
     TAG/gadget_reboot_refresh_gadget_assets: refresh-gadget-assets
     FAULT/gadget_reboot_refresh_gadget_assets: reboot
     
-    # tag not reached
-    TAG/snapd_panic_auto_connect: after-auto-connect
-    FAULT/snapd_panic_auto_connect: panic
-
     # TODO: Add the following scenarios in a different test
     # These should go in a remodel test
     #TAG/gadget_remodel_boot_assets: remodel-boot-assets
@@ -63,6 +59,10 @@ environment:
     # TAG/kernel_panic_prepare_kernel_components: prepare-kernel-components
     # FAULT/kernel_panic_prepare_kernel_components: panic
 
+    # This scenario need to install a new snapd with --dangerous instead of
+    # refresh from the store
+    # TAG/snapd_panic_auto_connect: after-auto-connect
+    # FAULT/snapd_panic_auto_connect: panic
 
 prepare: |
     # automatically cleaned up in restore
