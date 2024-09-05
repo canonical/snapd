@@ -70,7 +70,7 @@ const desktopFilesConnectedPlugAppArmor = `
 /var/lib/snapd/desktop/icons/{,**} r,
 
 # Allow access to all snap metadata
-/snap/*/*/** r,
+/{,var/lib/snapd/}snap/*/*/** r,
 `
 
 func (iface *desktopFilesInterface) Name() string {

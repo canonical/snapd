@@ -84,7 +84,7 @@ func (s *desktopFilesSuite) TestConnectedPlugSnippet(c *C) {
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `Can identify other snaps.`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/var/lib/snapd/desktop/applications/{,*} r`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/var/lib/snapd/desktop/icons/{,**} r`)
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/snap/*/*/** r`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/{,var/lib/snapd/}snap/*/*/** r`)
 }
 
 func (s *desktopFilesSuite) TestInterfaces(c *C) {
