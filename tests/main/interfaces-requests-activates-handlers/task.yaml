@@ -17,6 +17,18 @@ prepare: |
 restore: |
     tests.session -u test restore
 
+debug: |
+    echo "Check kernel version"
+    uname -a
+    echo "Check kernel notification socket presence"
+    if ls /sys/kernel/security/apparmor/.notify ; then
+        echo "kernel notification socket exists"
+    else
+        echo "kernel notification socket does not exist"
+    fi
+    echo "Check system info"
+    snap debug api /v2/system-info
+
 execute: |
     echo "Enable prompting via snap client where possible"
     if os.query is-core || os.query is-ubuntu-lt 24.04; then

@@ -16,6 +16,18 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-prompt-handler
     snap connect test-snapd-prompt-handler:snap-interfaces-requests-control
 
+debug: |
+    echo "Check kernel version"
+    uname -a
+    echo "Check kernel notification socket presence"
+    if ls /sys/kernel/security/apparmor/.notify ; then
+        echo "kernel notification socket exists"
+    else
+        echo "kernel notification socket does not exist"
+    fi
+    echo "Check system info"
+    snap debug api /v2/system-info
+
 execute: |
     RULES_PATH="/var/lib/snapd/interfaces-requests/request-rules.json"
 
