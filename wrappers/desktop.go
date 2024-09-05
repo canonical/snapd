@@ -22,7 +22,6 @@ package wrappers
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -248,67 +247,22 @@ func findDesktopFiles(rootDir string) ([]string, error) {
 	return desktopFiles, nil
 }
 
-// Note: explicitSnapDesktopFileIDs doesn't check if the desktop plug
-// is connected because the desktop-file-ids attribute is controlled
-// by an allow-installation rule.
-func explicitSnapDesktopFileIDs(s *snap.Info) (map[string]bool, error) {
-	var desktopPlug *snap.PlugInfo
-	for _, plug := range s.Plugs {
-		if plug.Interface == "desktop" {
-			desktopPlug = plug
-			break
-		}
-	}
-	if desktopPlug == nil {
-		return nil, nil
-	}
-
-	attrVal, exists := desktopPlug.Lookup("desktop-file-ids")
-	if !exists {
-		// desktop-file-ids attribute is optional
-		return nil, nil
-	}
-
-	// desktop-file-ids must be a list of strings
-	desktopFileIDs, ok := attrVal.([]interface{})
-	if !ok {
-		return nil, errors.New(`internal error: "desktop-file-ids" must be a list of strings`)
-	}
-
-	desktopFileIDsMap := make(map[string]bool, len(desktopFileIDs))
-	for _, val := range desktopFileIDs {
-		desktopFileID, ok := val.(string)
-		if !ok {
-			return nil, errors.New(`internal error: "desktop-file-ids" must be a list of strings`)
-		}
-		desktopFileIDsMap[desktopFileID] = true
-	}
-	return desktopFileIDsMap, nil
-}
-
-func deriveDesktopFilesContent(s *snap.Info, desktopFileIDs map[string]bool) (map[string]osutil.FileState, error) {
-	rootDir := filepath.Join(s.MountDir(), "meta", "gui")
-	desktopFiles, err := findDesktopFiles(rootDir)
+func deriveDesktopFilesContent(s *snap.Info) (map[string]osutil.FileState, error) {
+	desktopFiles, err := s.DesktopFilesFromMount(snap.DesktopFilesFromMountOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	content := make(map[string]osutil.FileState)
+	content := make(map[string]osutil.FileState, len(desktopFiles))
 	for _, df := range desktopFiles {
 		base := filepath.Base(df)
-		fileContent, err := os.ReadFile(df)
+		base, err := s.MangleDesktopFileName(base)
 		if err != nil {
 			return nil, err
 		}
-		// Don't mangle desktop files if listed under desktop-file-ids attribute
-		// XXX: Do we want to fail if a desktop-file-ids entry doesn't
-		// have a corresponding file?
-		if !desktopFileIDs[strings.TrimSuffix(base, ".desktop")] {
-			// FIXME: don't blindly use the snap desktop filename, mangle it
-			// but we can't just use the app name because a desktop file
-			// may call the same app with multiple parameters, e.g.
-			// --create-new, --open-existing etc
-			base = fmt.Sprintf("%s_%s", s.DesktopPrefix(), base)
+		fileContent, err := os.ReadFile(df)
+		if err != nil {
+			return nil, err
 		}
 		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, base)
 		fileContent = sanitizeDesktopFile(s, installedDesktopFileName, fileContent)
@@ -389,15 +343,15 @@ func EnsureSnapDesktopFiles(snaps []*snap.Info) error {
 			return fmt.Errorf("internal error: snap info cannot be nil")
 		}
 
-		desktopFileIDs, err := explicitSnapDesktopFileIDs(info)
+		desktopFileIDs, err := info.DesktopPlugFileIDs()
 		if err != nil {
 			return err
 		}
 		desktopFilesGlobs := []string{fmt.Sprintf("%s_*.desktop", info.DesktopPrefix())}
-		for desktopFileID := range desktopFileIDs {
+		for _, desktopFileID := range desktopFileIDs {
 			desktopFilesGlobs = append(desktopFilesGlobs, desktopFileID+".desktop")
 		}
-		content, err := deriveDesktopFilesContent(info, desktopFileIDs)
+		content, err := deriveDesktopFilesContent(info)
 		if err != nil {
 			return err
 		}
