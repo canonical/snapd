@@ -46,8 +46,17 @@ debug: |
     systemctl start snapd.service || systemctl status snapd.service || true
     retry --wait 1 -n 100 sh -x -c 'systemctl is-active snapd.service snapd.socket'
 
+    echo "Debug: Check kernel version"
+    uname -a
+    echo "Debug: Check kernel notification socket presence"
+    if ls /sys/kernel/security/apparmor/.notify ; then
+        echo "kernel notification socket exists"
+    else
+        echo "kernel notification socket does not exist"
+    fi
     echo "Debug: Report system info"
-    curl -sS --unix-socket /run/snapd.socket http://localhost/v2/system-info | jq
+    snap debug api /v2/system-info
+
 
 execute: |
     . /etc/os-release

@@ -22,6 +22,18 @@ prepare: |
     # prerequisite for having a prompts handler service
     snap set system experimental.user-daemons=true
 
+debug: |
+    echo "Check kernel version"
+    uname -a
+    echo "Check kernel notification socket presence"
+    if ls /sys/kernel/security/apparmor/.notify ; then
+        echo "kernel notification socket exists"
+    else
+        echo "kernel notification socket does not exist"
+    fi
+    echo "Check system info"
+    snap debug api /v2/system-info
+
 execute: |
     "$TESTSTOOLS"/snaps-state install-local api-client
     echo "The snap-interfaces-requests-control plug on the api-client snap is initially disconnected"
