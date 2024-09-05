@@ -14,6 +14,8 @@
 
 # Please submit bugfixes or comments via http://bugs.opensuse.org/
 
+%define _missing_build_ids_terminate_build 1
+
 # takes an absolute path with slashes and turns it into an AppArmor profile path
 %define as_apparmor_path() %(echo "%1" | tr / . | cut -c2-)
 
@@ -80,6 +82,13 @@
 %global with_multilib 1
 %endif
 
+%ifarch %arm
+# libsnap-confine-private/unit-tests fails on ARM under valgrind
+%bcond_with valgrind
+%else
+%bcond_without valgrind
+%endif
+
 
 Name:           snapd
 Version:        2.67.1
@@ -90,45 +99,42 @@ Group:          System/Packages
 Url:            https://%{import_path}
 Source0:        https://github.com/snapcore/snapd/releases/download/%{version}/%{name}_%{version}.vendor.tar.xz
 Source1:        snapd-rpmlintrc
+Patch0:         0001-packaging-snapd.mk-drop-randomized-build-ID-generati.patch
+
+Source100:      pie.patch
 BuildRequires:  autoconf
 BuildRequires:  autoconf-archive
 BuildRequires:  automake
+# /usr/libexec/snapd/snap-mgmt: line 46: /etc/os-release: No such file or directory
+BuildRequires:  distribution-release
 BuildRequires:  fakeroot
-BuildRequires:  glib2-devel
 BuildRequires:  glibc-devel-static
 BuildRequires:  go >= 1.18
 BuildRequires:  gpg2
-BuildRequires:  indent
 BuildRequires:  libcap-devel
-BuildRequires:  libseccomp-devel
-BuildRequires:  libtool
-BuildRequires:  libudev-devel
-BuildRequires:  libuuid-devel
-BuildRequires:  make
-BuildRequires:  openssh
-BuildRequires:  pkg-config
+BuildRequires:  openssh-common
 BuildRequires:  python3-docutils
 BuildRequires:  squashfs
-# Due to: rpm -q --whatprovides /usr/share/pkgconfig/systemd.pc
-BuildRequires:  systemd
+BuildRequires:  pkgconfig(glib-2.0)
+BuildRequires:  pkgconfig(libseccomp)
+BuildRequires:  pkgconfig(libudev)
+BuildRequires:  pkgconfig(systemd)
+BuildRequires:  pkgconfig(udev)
 BuildRequires:  systemd-rpm-macros
-BuildRequires:  timezone
-BuildRequires:  udev
+%if %{with valgrind}
+BuildRequires:  valgrind
+%endif
 BuildRequires:  xfsprogs-devel
-BuildRequires:  xz
-%ifarch x86_64
+%ifarch x86_64 %x86_64
 # This is needed for seccomp tests
 BuildRequires:  glibc-devel-32bit
 BuildRequires:  glibc-devel-static-32bit
 BuildRequires:  gcc-32bit
 %endif
-BuildRequires:  ca-certificates
-BuildRequires:  ca-certificates-mozilla
 
 %if %{with apparmor}
-BuildRequires:  libapparmor-devel
+BuildRequires:  pkgconfig(libapparmor)
 BuildRequires:  apparmor-rpm-macros
-BuildRequires:  apparmor-parser
 %endif
 
 PreReq:         permissions
@@ -139,7 +145,6 @@ Requires:       apparmor-parser
 Requires:       apparmor-profiles
 %endif
 Requires:       gpg2
-Requires:       openssh
 Requires:       squashfs
 Requires:       system-user-daemon
 
@@ -180,6 +185,13 @@ tar -axf %{_sourcedir}/%{name}_%{version}.vendor.tar.xz --strip-components=1 -C 
 pushd %{indigo_srcdir}
 # Add patch0 -p1 ... as appropriate here.
 %autopatch -p1
+
+# PIE static binaries are not supported on all architectures. We detect the
+# availability of the runtime object here, and GCC's support for such binaries.
+if test -e %{_libdir}/rcrt1.o && cc -static-pie -xc /dev/null -o /dev/null -S; then
+patch -p1 < %SOURCE100
+fi
+
 popd
 
 # Generate snapd.defines.mk, this file is included by snapd.mk. It contains a
@@ -204,8 +216,9 @@ with_core_bits = 0
 with_alt_snap_mount_dir = %{!?with_alt_snap_mount_dir:0}%{?with_alt_snap_mount_dir:1}
 with_apparmor = %{with apparmor}
 with_testkeys = %{with_testkeys}
-# Disable DWARF and symbol table
-EXTRA_GO_LDFLAGS = -w -s
+EXTRA_GO_BUILD_FLAGS = -v -x
+# fix broken debuginfo bsc#1215402
+EXTRA_GO_LDFLAGS = -compressdwarf=false
 __DEFINES__
 
 # Set the version that is compiled into the various executables/
@@ -219,23 +232,16 @@ if [ "$(pkg-config --variable=systemdsystemgeneratordir systemd)" != "%{_systemd
   exit 1
 fi
 
+%build
+
 # Enable hardening; Also see https://bugzilla.redhat.com/show_bug.cgi?id=1343892
-CFLAGS="$RPM_OPT_FLAGS -fPIC -Wl,-z,relro -Wl,-z,now"
-CXXFLAGS="$RPM_OPT_FLAGS -fPIC -Wl,-z,relro -Wl,-z,now"
-LDFLAGS=""
+export CFLAGS="$RPM_OPT_FLAGS -fpie"
+export CXXFLAGS="$RPM_OPT_FLAGS -fpie"
+export LDFLAGS="%{?build_ldflags} -zrelro -znow"
 
-# On openSUSE Leap 15 or more recent build position independent executables.
-# For a helpful guide about the versions and macros used below, please see:
-# https://en.opensuse.org/openSUSE:Build_Service_cross_distribution_howto
-%if 0%{?suse_version} >= 1500
-CFLAGS="$CFLAGS -fPIE"
-CXXFLAGS="$CXXFLAGS -fPIE"
-LDFLAGS="$LDFLAGS -pie"
-%endif
-
-export CFLAGS
-export CXXFLAGS
-export LDFLAGS
+export CGO_CFLAGS="$CFLAGS"
+export CGO_CXXFLAGS="$CXXFLAGS"
+export CGO_LDFLAGS="$LDFLAGS"
 
 # Generate autotools build system files.
 pushd %{indigo_srcdir}/cmd
@@ -252,7 +258,6 @@ autoreconf -i -f
 
 popd
 
-%build
 %make_build -C %{indigo_srcdir}/cmd
 # Use the common packaging helper for building.
 #
@@ -263,13 +268,30 @@ popd
             all
 
 %check
-for binary in snap-exec snap-update-ns snapctl; do
-    ldd $binary 2>&1 | grep 'not a dynamic executable'
+# These binaries execute inside the mount namespace thus they must be built statically
+pushd %{buildroot}/%{_libexecdir}/snapd/
+for binary in snap-exec snap-update-ns snapctl snap-gdb{,server}-shim; do
+    ldd $binary 2>&1 | grep 'statically linked\|not a dynamic executable'
 done
+
+if test -e %{_libdir}/rcrt1.o && cc -static-pie -xc /dev/null -o /dev/null -S; then
+for binary in snap-exec snap-update-ns snapctl snap-gdb{,server}-shim; do
+    file $binary | grep -F pie
+done
+fi
+popd
+
+export CFLAGS="$RPM_OPT_FLAGS -fpie"
+export CXXFLAGS="$RPM_OPT_FLAGS -fpie"
+export LDFLAGS="%{?build_ldflags} -zrelro -znow"
+export CGO_CFLAGS="$CFLAGS"
+export CGO_CXXFLAGS="$CXXFLAGS"
+export CGO_LDFLAGS="$LDFLAGS"
 
 %make_build -C %{indigo_srcdir}/cmd -k check
 %make_build -C %{indigo_srcdir}/data -k check
 # Use the common packaging helper for testing.
+export SNAPD_SKIP_SLOW_TESTS=1
 %make_build -C %{indigo_srcdir} -f %{indigo_srcdir}/packaging/snapd.mk \
             GOPATH=%{indigo_gopath}:$GOPATH SNAPD_DEFINES_DIR=%{_builddir} \
             check
@@ -298,8 +320,8 @@ chmod 755 %{buildroot}%{_localstatedir}/lib/snapd/void
 # once snap-confine is added to the permissions package. This is done following
 # the recommendations on
 # https://en.opensuse.org/openSUSE:Package_security_guidelines
-install -m 644 -D %{indigo_srcdir}/packaging/opensuse/permissions %{buildroot}%{_sysconfdir}/permissions.d/snapd
-install -m 644 -D %{indigo_srcdir}/packaging/opensuse/permissions.paranoid %{buildroot}%{_sysconfdir}/permissions.d/snapd.paranoid
+install -pm 644 -D %{indigo_srcdir}/packaging/opensuse/permissions %{buildroot}%{_sysconfdir}/permissions.d/snapd
+install -pm 644 -D %{indigo_srcdir}/packaging/opensuse/permissions.paranoid %{buildroot}%{_sysconfdir}/permissions.d/snapd.paranoid
 
 # See https://en.opensuse.org/openSUSE:Packaging_checks#suse-missing-rclink for details
 install -d %{buildroot}%{_sbindir}
@@ -309,18 +331,19 @@ ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd.seeded
 ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd.apparmor
 %endif
 
+
 # Install the "info" data file with snapd version
 # TODO: This should be handled by data makefile.
-install -m 644 -D %{indigo_srcdir}/data/info %{buildroot}%{_libexecdir}/snapd/info
+install -pm 644 -D %{indigo_srcdir}/data/info %{buildroot}%{_libexecdir}/snapd/info
 
 # Install bash completion for "snap"
 # TODO: This should be handled by data makefile.
-install -m 644 -D %{indigo_srcdir}/data/completion/bash/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
-install -m 644 -D %{indigo_srcdir}/data/completion/bash/complete.sh %{buildroot}%{_libexecdir}/snapd
-install -m 644 -D %{indigo_srcdir}/data/completion/bash/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
+install -pm 644 -D %{indigo_srcdir}/data/completion/bash/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
+install -pm 644 -D %{indigo_srcdir}/data/completion/bash/complete.sh %{buildroot}%{_libexecdir}/snapd
+install -pm 644 -D %{indigo_srcdir}/data/completion/bash/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
 # Install zsh completion for "snap"
 install -d -p %{buildroot}%{_datadir}/zsh/site-functions
-install -m 644 -D %{indigo_srcdir}/data/completion/zsh/_snap %{buildroot}%{_datadir}/zsh/site-functions/_snap
+install -pm 644 -D %{indigo_srcdir}/data/completion/zsh/_snap %{buildroot}%{_datadir}/zsh/site-functions/_snap
 
 %verifyscript
 %verify_permissions -e %{_libexecdir}/snapd/snap-confine
@@ -385,6 +408,7 @@ fi
 %dir %{_datadir}/dbus-1/system.d
 %dir %{_datadir}/polkit-1
 %dir %{_datadir}/polkit-1/actions
+%dir %{_datadir}/snapd
 %dir %{_environmentdir}
 %dir %{_libexecdir}/snapd
 %dir %{_localstatedir}/cache/snapd
@@ -402,7 +426,6 @@ fi
 %dir %{_sharedstatedir}/snapd/desktop
 %dir %{_sharedstatedir}/snapd/desktop/applications
 %dir %{_sharedstatedir}/snapd/device
-%dir %{_sharedstatedir}/snapd/environment
 %dir %{_sharedstatedir}/snapd/hostfs
 %dir %{_sharedstatedir}/snapd/inhibit
 %dir %{_sharedstatedir}/snapd/lib
