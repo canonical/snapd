@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -ex
 
 # uncomment for better debug messages
 #set -x
@@ -101,11 +101,17 @@ else
     BASETAR=ubuntu-base.tar.gz
     # important to use "-q" to avoid journalctl suppressing  log output
     release=$(lsb_release -r -s)
-    if [ "$release" = 22.04 ]; then
-        pointrel=.4
-    else
-        pointrel=
-    fi
+    case "$release" in
+        22.04)
+            pointrel=.4
+            ;;
+        24.04)
+            pointrel=.1
+            ;;
+        *)
+            pointrel=
+            ;;
+    esac
     wget -q -c http://cdimage.ubuntu.com/ubuntu-base/releases/"$release"/release/ubuntu-base-"$release""$pointrel"-base-amd64.tar.gz -O "$BASETAR"
     sudo tar -C "$DST" -xf "$BASETAR"
     ROLE=spread
