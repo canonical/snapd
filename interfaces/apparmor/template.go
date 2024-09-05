@@ -203,6 +203,7 @@ var templateCommon = `
   /run/systemd/journal{,.snap-*}/socket w,
   /run/systemd/journal{,.snap-*}/stdout rw, # 'r' shouldn't be needed, but journald
                                             # doesn't leak anything so allow
+  /run/systemd/journal{,.snap-*}/dev-log w,
 
   # snapctl and its requirements
   /usr/bin/snapctl ixr,
