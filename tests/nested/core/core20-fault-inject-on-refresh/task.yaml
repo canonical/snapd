@@ -1,8 +1,8 @@
 summary: Ensure that a fundamental snap can be refresh when a panic occurs during the process
 
 details: |
-    The test checks that if a panic is triggered during a fundamental snap refresh,
-    then the change continues an is completed successfully
+    The test checks that if a fault is injected during a fundamental snap refresh,
+    then the change continues an is completed with a predictable outcome.
 
 systems: [ubuntu-2*]
 
@@ -125,7 +125,7 @@ execute: |
     esac
         
     # Get the initial snap revision
-    INITIAL_REV="$(remote.exec snap list | grep -E '^snapd' | awk ' {print $3} ')"
+    INITIAL_REV="$(remote.exec snap list | grep -E "^$SNAP .*" | awk ' {print $3} ')"
 
     # Refresh and reboot before the process is completed
     boot_id="$(tests.nested boot-id)"
@@ -156,7 +156,7 @@ execute: |
     fi
 
     FINAL_STATUS="$(remote.exec snap changes | grep -E "^$change_id .*" | awk ' {print $2} ')"
-    CURRENT_REV="$(remote.exec snap list | grep -E '^snapd' | awk ' {print $3} ')"
+    CURRENT_REV="$(remote.exec snap list | grep -E "^$SNAP .*" | awk ' {print $3} ')"
 
     if [ "$FINAL_STATUS" = Error ]; then
         echo "Ensure the change has steps with Error"
@@ -167,7 +167,7 @@ execute: |
         echo "Ensure the initial revision is the current one"
         test "$INITIAL_REV" = "$CURRENT_REV"
     else
-        echo "Ensure the change has not steps with Error"
+        echo "Ensure the change has no steps with Error"
         remote.exec "snap change $change_id" | NOMATCH "^Error .*"
 
         echo "Ensure the initial revision is not the current one"
