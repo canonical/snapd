@@ -112,6 +112,9 @@ func DeviceChange(from snap.Device, to snap.Device, unlocker Unlocker) error {
 		return err
 	}
 
+	// Inject fault during resealing
+	osutil.MaybeInjectFault("remodel-boot-assets")
+
 	// past a successful reseal, the old recovery systems become unusable and will
 	// not be able to access the data anymore
 	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, unlocker); err != nil {
