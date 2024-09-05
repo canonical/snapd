@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"golang.org/x/sys/unix"
@@ -38,21 +39,20 @@ var cmdResolver = map[string]int{
 	"SYSLOG_ACTION_CONSOLE_LEVEL": unix.SYSLOG_ACTION_CONSOLE_LEVEL,
 	"SYSLOG_ACTION_SIZE_UNREAD":   unix.SYSLOG_ACTION_SIZE_UNREAD,
 	"SYSLOG_ACTION_SIZE_BUFFER":   unix.SYSLOG_ACTION_SIZE_BUFFER,
-	// A fake action for testing bad arguments
+	// A fake action for testing bad/future arguments
 	"SYSLOG_ACTION_BAD": 99,
 }
 
 func main() {
-
 	if len(os.Args) != 2 {
-		panic("usage: klogctl SYSLOG_ACTION_*")
+		log.Fatal("usage: klogctl SYSLOG_ACTION_*")
 	}
 
 	cmd := os.Args[1]
 
 	cmdNo, ok := cmdResolver[cmd]
 	if !ok {
-		panic("klogctl: unknown SYSLOG_ACTION_* (see `man 2 syslog`)")
+		log.Fatal("klogctl: unknown SYSLOG_ACTION_* (see `man 2 syslog`)")
 	}
 
 	len := 64
@@ -66,12 +66,11 @@ func main() {
 	// This is just what glibc and go call syslog(2) to avoid
 	// confusion with syslog(3)
 	_, err := unix.Klogctl(cmdNo, buf)
-
-	if err == nil {
-		fmt.Println("SUCCESS")
-	} else {
+	if err != nil {
 		fmt.Printf("ERROR %s\n", err)
+		os.Exit(1)
 	}
 
+	fmt.Println("SUCCESS")
 	os.Exit(0)
 }
