@@ -208,6 +208,8 @@ func (ps *preseedSuite) TestDecodeInvalid(c *C) {
 		{"OTHER", "    components:\n      -\n        name: comp1\n        revision: 10\n      -\n        revision: 10\n", `"name" of component is mandatory`},
 		{"OTHER", "    components:\n      -\n        name: comp1\n", `component "comp1" must have a revision since its snap has a revision`},
 		{"OTHER", "  -\n    name: bar-linux\n    components:\n      -\n        name: comp1\n        revision: 10\n", `component "comp1" cannot have a revision since its snap has no revision`},
+		{"OTHER", "    components:\n      -\n        name: -invalid\n        revision: 1\n", `invalid snap name: "-invalid"`},
+		{"OTHER", "    components:\n      -\n        name: comp1\n        revision: invalid\n", `"revision" of component "comp1" is not an integer: invalid`},
 	}
 
 	for _, test := range invalidTests {
