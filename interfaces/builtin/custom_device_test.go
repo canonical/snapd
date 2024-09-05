@@ -68,6 +68,7 @@ slots:
   devices:
     - /dev/input/event[0-9]
     - /dev/input/mice
+    - /dev/cpu/[0-9]*/msr
   read-devices:
     - /dev/js*
   files:
@@ -83,6 +84,9 @@ slots:
       environment:
         env1: first
         env2: second|other
+    - kernel: msr[0-9]*
+      subsystem: msr
+      for-device: /dev/cpu/[0-9]*/msr
 apps:
  app:
   slots: [hwdev]
@@ -327,6 +331,10 @@ apps:
 		{
 			"devices: [/dev/null]\n  udev-tagging:\n    - environment: {key: \"va{ue}\"}",
 			`custom-device "udev-tagging" invalid "environment" tag: value "va{ue}" contains invalid characters`,
+		},
+		{
+			"devices: [/dev/null]\n  udev-tagging:\n    - kernel: foo\n      for-device: /dev/bar",
+			`custom-device "udev-tagging" invalid "for-device" tag: cannot find matching device "/dev/bar"`,
 		},
 	}
 
@@ -671,6 +679,40 @@ apps:
 			fmt.Sprintf(`^TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN\+="%s/snap-device-helper .*`, dirs.DistroLibExecDir),
 			testLabel)
 	}
+}
+
+func (s *CustomDeviceInterfaceSuite) TestOverrideKernelExplicitDeviceName(c *C) {
+	const slotYaml = `name: provider
+version: 0
+slots:
+ hwdev:
+  interface: custom-device
+  custom-device: msr
+  devices:
+    - /dev/cpu/[0-9]*/msr
+  udev-tagging:
+    - kernel: msr[0-9]*
+      subsystem: msr
+      for-device: /dev/cpu/[0-9]*/msr
+apps:
+ app:
+  slots: [hwdev]
+`
+
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
+	slot, _ := MockConnectedSlot(c, slotYaml, nil, "hwdev")
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot), IsNil)
+	snippets := spec.Snippets()
+
+	all := strings.Join(snippets, "\n")
+	c.Logf("---all:\n%s", all)
+
+	c.Check(all, Equals, fmt.Sprintf(`
+# custom-device
+KERNEL=="msr[0-9]*", SUBSYSTEM=="msr", TAG+="snap_consumer_app"
+TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%s/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`[1:], dirs.DistroLibExecDir))
 }
 
 func (s *CustomDeviceInterfaceSuite) TestAutoConnect(c *C) {
