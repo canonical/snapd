@@ -42,8 +42,9 @@ debug: |
     snap debug api /v2/system-info
 
 execute: |
-    # Prompting is unsupported everywhere but the Ubuntu non-core systems >= 24.04
-    if ! os.query is-ubuntu || os.query is-ubuntu-lt 24.04 || os.query is-core ; then
+    # Prompting is unsupported everywhere but the Ubuntu non-core systems with
+    # kernels which support apparmor prompting
+    if ! os.query is-ubuntu || os.query is-core || ! grep 'prompt' /sys/kernel/security/apparmor/features/policy/permstable32 ; then
         not snap set system experimental.apparmor-prompting=true >& err.out
         if os.query is-core; then
             # there is a more specific error on Ubuntu Core
