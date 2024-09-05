@@ -30,9 +30,19 @@ debug: |
     snap services
     loginctl
 
+    echo "Check kernel version"
+    uname -a
+    echo "Check kernel notification socket presence"
+    if ls /sys/kernel/security/apparmor/.notify ; then
+        echo "kernel notification socket exists"
+    else
+        echo "kernel notification socket does not exist"
+    fi
+    echo "Check system info"
+    snap debug api /v2/system-info
+
 execute: |
-    # Prompting is disabled everywhere but the Ubuntu systems
-    # TODO: on Ubuntu releases < 24.04 we need the snapd snap for testing
+    # Prompting is unsupported everywhere but the Ubuntu non-core systems >= 24.04
     if ! os.query is-ubuntu || os.query is-ubuntu-lt 24.04 || os.query is-core ; then
         not snap set system experimental.apparmor-prompting=true >& err.out
         if os.query is-core; then
