@@ -100,6 +100,7 @@ execute: |
   fi
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
 
+  sed -i "s/\$BASE/core${version}/" ./snap-with-comps/meta/snap.yaml
   snap pack ./snap-with-comps --filename=snap-with-comps.snap
   snap pack ./comp1 --filename=snap-with-comps+comp1.comp
 
