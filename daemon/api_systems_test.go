@@ -864,6 +864,10 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 				Model: s.seedModelForLabel20191119,
 				Label: "20191119",
 				Brand: s.Brands.Account("my-brand"),
+				OptionalContainers: devicestate.OptionalContainers{
+					Snaps:      []string{"snap1", "snap2"},
+					Components: map[string][]string{"snap1": {"comp1"}, "snap2": {"comp2"}},
+				},
 			}
 			return sys, mockGadgetInfo, mockEncryptionSupportInfo, nil
 		})
@@ -890,6 +894,13 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 				UnavailableReason: tc.expectedUnavailableReason,
 			},
 			Volumes: mockGadgetInfo.Volumes,
+			AvailableOptional: client.AvailableForInstall{
+				Snaps: []string{"snap1", "snap2"},
+				Components: map[string][]string{
+					"snap1": {"comp1"},
+					"snap2": {"comp2"},
+				},
+			},
 		}, check.Commentf("%v", tc))
 	}
 }
@@ -1112,8 +1123,8 @@ func (s *systemsSuite) testSystemInstallActionFinishCallsDevicestate(c *check.C,
 	nCalls := 0
 	var gotOnVolumes map[string]*gadget.Volume
 	var gotLabel string
-	var gotOptionalInstall *devicestate.OptionalInstall
-	r := daemon.MockDevicestateInstallFinish(func(st *state.State, label string, onVolumes map[string]*gadget.Volume, optionalInstall *devicestate.OptionalInstall) (*state.Change, error) {
+	var gotOptionalInstall *devicestate.OptionalContainers
+	r := daemon.MockDevicestateInstallFinish(func(st *state.State, label string, onVolumes map[string]*gadget.Volume, optionalInstall *devicestate.OptionalContainers) (*state.Change, error) {
 		gotLabel = label
 		gotOnVolumes = onVolumes
 		gotOptionalInstall = optionalInstall
@@ -1160,7 +1171,7 @@ func (s *systemsSuite) testSystemInstallActionFinishCallsDevicestate(c *check.C,
 	if optionalInstall.All {
 		c.Check(gotOptionalInstall, check.IsNil)
 	} else {
-		c.Check(gotOptionalInstall, check.DeepEquals, &devicestate.OptionalInstall{
+		c.Check(gotOptionalInstall, check.DeepEquals, &devicestate.OptionalContainers{
 			Snaps:      optionalInstall.Snaps,
 			Components: optionalInstall.Components,
 		})

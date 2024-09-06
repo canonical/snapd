@@ -2,10 +2,10 @@ module github.com/snapcore/snapd/tests/lib/muinstaller
 
 go 1.18
 
-require github.com/snapcore/snapd v0.0.0-20240528091028-dc3b51bb4c9e
+require github.com/snapcore/snapd v0.0.0-20240822132116-0bf8d83f4586
 
 require (
-	github.com/canonical/go-efilib v0.3.1-0.20220815143333-7e5151412e93 // indirect
+	github.com/canonical/go-efilib v0.4.0 // indirect
 	github.com/canonical/go-sp800.108-kdf v0.0.0-20210314145419-a3359f2d21b9 // indirect
 	github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 // indirect
 	github.com/canonical/go-tpm2 v0.0.0-20210827151749-f80ff5afff61 // indirect

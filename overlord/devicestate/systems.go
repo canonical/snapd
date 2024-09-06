@@ -96,12 +96,27 @@ func loadSeedAndSystem(label string, current *currentSystem, defaultRecoverySyst
 		return nil, nil, fmt.Errorf("cannot obtain brand: %v", err)
 	}
 
+	var optionalContainers OptionalContainers
+	if copier, ok := s.(seed.Copier); ok {
+		oc, err := copier.OptionalContainers()
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot list optional containers: %v", err)
+		}
+		optionalContainers = OptionalContainers{
+			Snaps:      oc.Snaps,
+			Components: oc.Components,
+		}
+	} else {
+		logger.Debugf("seed %q does not support copying", label)
+	}
+
 	system := &System{
-		Current: false,
-		Label:   label,
-		Model:   model,
-		Brand:   brand,
-		Actions: defaultSystemActions,
+		Current:            false,
+		Label:              label,
+		Model:              model,
+		Brand:              brand,
+		Actions:            defaultSystemActions,
+		OptionalContainers: optionalContainers,
 	}
 	system.DefaultRecoverySystem = defaultRecoverySystem.sameAs(system)
 	if current.sameAs(system) {
