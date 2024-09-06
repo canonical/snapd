@@ -188,6 +188,9 @@ apps:
   physical-memory-control:
     command: bin/run
     plugs: [ physical-memory-control ]
+  pipewire:
+    command: bin/run
+    plugs: [ pipewire ]
   pkcs11:
     command: bin/run
     plugs: [ pkcs11 ]
