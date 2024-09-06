@@ -342,6 +342,8 @@ func errToResponse(err error, snaps []string, fallback errorResponder, format st
 			snapName = err.Snap
 		case *snapstate.InsufficientSpaceError:
 			return InsufficientSpace(err)
+		case *snapstate.BusySnapError:
+			kind = client.ErrorKindBusySnap
 		case net.Error:
 			if err.Timeout() {
 				kind = client.ErrorKindNetworkTimeout

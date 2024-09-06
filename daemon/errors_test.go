@@ -127,6 +127,7 @@ func (s *errorsSuite) TestErrToResponse(c *C) {
 	nc := &snapstate.SnapNotClassicError{Snap: "foo"}
 	nce := &snapstate.SnapNeedsClassicError{Snap: "foo"}
 	ncse := &snapstate.SnapNeedsClassicSystemError{Snap: "foo"}
+	bse := &snapstate.BusySnapError{SnapInfo: &snap.Info{}}
 	netoe := fakeNetError{message: "other"}
 	nettoute := fakeNetError{message: "timeout", timeout: true}
 	nettmpe := fakeNetError{message: "temp", temporary: true}
@@ -165,6 +166,7 @@ func (s *errorsSuite) TestErrToResponse(c *C) {
 		{nc, makeErrorRsp(client.ErrorKindSnapNotClassic, nc, "foo"), false},
 		{nce, makeErrorRsp(client.ErrorKindSnapNeedsClassic, nce, "foo"), false},
 		{ncse, makeErrorRsp(client.ErrorKindSnapNeedsClassicSystem, ncse, "foo"), false},
+		{bse, makeErrorRsp(client.ErrorKindBusySnap, bse, ""), false},
 		{cce, daemon.SnapChangeConflict(cce), false},
 		{nettoute, makeErrorRsp(client.ErrorKindNetworkTimeout, nettoute, ""), false},
 		{netoe, daemon.BadRequest("ERR: %v", netoe), false},
