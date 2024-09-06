@@ -340,3 +340,102 @@ func (s *configHelpersSuite) TestPatch(c *C) {
 		"b2": map[string]interface{}{"c": "C"},
 	})
 }
+
+func (s *configHelpersSuite) TestValidateKeyHappy(c *C) {
+	validKeys := []string{
+		"42-the-answer",
+		"dashes-between-are-ok",
+		"abcdefghijklmnopqrstuvwxyz",
+		"foo",
+		"test-foo",
+		"a",
+		"ab",
+		"abc",
+		"a1",
+		"a1b2c3",
+		"a-b",
+		"abc-123",
+		"abc-123-def",
+		"a0",
+		"abc-123-xyz",
+	}
+	for _, key := range validKeys {
+		c.Check(config.ValidateKey(key), IsNil)
+	}
+}
+
+func (s *configHelpersSuite) TestValidateKeyUnhappy(c *C) {
+
+	invalidKeys := []string{
+		"NOUPPERCASE",
+		"NO_SCREM_SNACK_CASE",
+		"no0nesingleUppercase",
+		"no spaces",
+		"?no-special-chars",
+		"no-specia!-chars",
+		"42",
+		"-42-",
+		"-abc",
+		"abc-",
+		"abc--123",
+		"ABC",
+		"abc_123",
+		"a!@#",
+		"@",
+		"!",
+		"#",
+	}
+
+	for _, key := range invalidKeys {
+		c.Check(config.ValidateKey(key), NotNil)
+	}
+}
+
+func (s *configHelpersSuite) TestParseKeyHappy(c *C) {
+	validkeys := []string{
+		"",
+		"one",
+		"one.two",
+		"one.two.three",
+		"one.two.three.four",
+		"one.two.three.four.five",
+		"one.two.three.four.five.six",
+		"one.two.three.four.five.six.seven",
+		"one.two.three.four.five.six.seven.eight",
+		"one.two.three.four.five.six.seven.eight.nine",
+		"one.two.three.four.five.six.seven.eight.nine.ten",
+		"42theanswer.one.two.three",
+		"42-one-two-three.one123",
+		"42-one-two-three.one123.123two",
+	}
+
+	for _, key := range validkeys {
+		_, err := config.ParseKey(key)
+		c.Check(err, IsNil)
+	}
+
+}
+
+func (s *configHelpersSuite) TestParseKeyUnhappy(c *C) {
+	invalidKeys := []string{
+		".",
+		"one.",
+		".one",
+		"one..two",
+		"one.two.",
+		"one.two..three",
+		"one.two.three.",
+		"one.two.three..four",
+		"one.two.three.four.",
+		"four.42.two",
+		"four.two.42",
+		"four.ONE.42",
+		"four. .42",
+		"four. . ",
+	}
+
+	for _, key := range invalidKeys {
+		_, err := config.ParseKey(key)
+		c.Check(err, NotNil)
+	}
+}
