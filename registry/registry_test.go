@@ -142,7 +142,7 @@ func (*viewSuite) TestNewRegistry(c *C) {
 			c.Assert(err.Error(), Equals, tc.err, cmt)
 		} else {
 			c.Assert(err, IsNil, cmt)
-			c.Check(registry, Not(IsNil), cmt)
+			c.Check(registry, NotNil, cmt)
 		}
 	}
 }
@@ -234,7 +234,7 @@ func (s *viewSuite) TestAccessTypes(c *C) {
 			c.Check(registry, IsNil, cmt)
 		} else {
 			c.Assert(err, IsNil, cmt)
-			c.Check(registry, Not(IsNil), cmt)
+			c.Check(registry, NotNil, cmt)
 		}
 	}
 }
@@ -605,7 +605,7 @@ func (s *viewSuite) TestViewRequestAndStorageValidation(c *C) {
 		}, registry.NewJSONSchema())
 
 		cmt := Commentf("sub-test %q failed", tc.testName)
-		c.Assert(err, Not(IsNil), cmt)
+		c.Assert(err, NotNil, cmt)
 		c.Assert(err.Error(), Equals, `cannot define view "foo": `+tc.err, cmt)
 	}
 }

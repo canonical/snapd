@@ -476,7 +476,7 @@ func getPlaceholders(viewStr string) map[string]bool {
 	return placeholders
 }
 
-// View returns an view from the registry.
+// View returns a view from the registry.
 func (d *Registry) View(view string) *View {
 	return d.views[view]
 }

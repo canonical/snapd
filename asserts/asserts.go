@@ -153,6 +153,7 @@ var (
 	DeviceSessionRequestType = &AssertionType{"device-session-request", []string{"brand-id", "model", "serial"}, nil, assembleDeviceSessionRequest, noAuthority}
 	SerialRequestType        = &AssertionType{"serial-request", nil, nil, assembleSerialRequest, noAuthority}
 	AccountKeyRequestType    = &AssertionType{"account-key-request", []string{"public-key-sha3-384"}, nil, assembleAccountKeyRequest, noAuthority}
+	RegistryControlType      = &AssertionType{"registry-control", []string{"brand-id", "model", "serial"}, nil, assembleRegistryControl, noAuthority}
 )
 
 var typeRegistry = map[string]*AssertionType{
@@ -178,6 +179,7 @@ var typeRegistry = map[string]*AssertionType{
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,
 	AccountKeyRequestType.Name:    AccountKeyRequestType,
+	RegistryControlType.Name:      RegistryControlType,
 }
 
 // Type returns the AssertionType with name or nil

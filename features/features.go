@@ -75,6 +75,8 @@ const (
 	RefreshAppAwarenessUX
 	// Registries enables experimental configuration based on registries and views.
 	Registries
+	// RegistryControl enables experimental remote management of registries
+	RegistryControl
 	// AppArmorPrompting enables AppArmor to prompt the user for permission when apps perform certain operations.
 	AppArmorPrompting
 
@@ -123,7 +125,9 @@ var featureNames = map[SnapdFeature]string{
 	QuotaGroups: "quota-groups",
 
 	RefreshAppAwarenessUX: "refresh-app-awareness-ux",
-	Registries:            "registries",
+
+	Registries:      "registries",
+	RegistryControl: "registry-control",
 
 	AppArmorPrompting: "apparmor-prompting",
 }
@@ -150,6 +154,7 @@ var featuresExported = map[SnapdFeature]bool{
 
 	RefreshAppAwarenessUX: true,
 	Registries:            true,
+	RegistryControl:       true,
 	AppArmorPrompting:     true,
 }
 
