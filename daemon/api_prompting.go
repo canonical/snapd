@@ -122,7 +122,7 @@ func (v *promptingUnsupportedValueError) MarshalJSON() ([]byte, error) {
 			Received  interface{} `json:"received-invalid"`
 			Supported []string    `json:"supported"`
 		}{
-			Received:  v.Unsupported,
+			Received:  v.Value,
 			Supported: v.Supported,
 		},
 	}
