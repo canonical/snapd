@@ -42,7 +42,7 @@ type failureSuite struct {
 
 	stderr *bytes.Buffer
 	stdout *bytes.Buffer
-	log    *bytes.Buffer
+	log    logger.MockedLogger
 
 	systemctlCmd *testutil.MockCmd
 }

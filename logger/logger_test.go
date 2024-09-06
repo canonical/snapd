@@ -32,6 +32,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"gopkg.in/tomb.v2"
+
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/testutil"
@@ -44,7 +46,7 @@ var _ = Suite(&LogSuite{})
 
 type LogSuite struct {
 	testutil.BaseTest
-	logbuf        *bytes.Buffer
+	logbuf        logger.MockedLogger
 	restoreLogger func()
 }
 
@@ -163,15 +165,20 @@ func (s *LogSuite) TestPanicf(c *C) {
 	c.Check(s.logbuf.String(), Matches, `(?m).*logger_test\.go:\d+: PANIC xyzzy`)
 }
 
-func (s *LogSuite) TestWithLoggerLock(c *C) {
-	logger.Noticef("xyzzy")
-
-	called := false
-	logger.WithLoggerLock(func() {
-		called = true
-		c.Check(s.logbuf.String(), Matches, `(?m).*logger_test\.go:\d+: xyzzy`)
+func (s *LogSuite) TestMockLoggerReadWriteThreadsafe(c *C) {
+	var t tomb.Tomb
+	t.Go(func() error {
+		for i := 0; i < 100; i++ {
+			logger.Noticef("foo")
+			logger.Noticef("bar")
+		}
+		return nil
 	})
-	c.Check(called, Equals, true)
+	for i := 0; i < 10; i++ {
+		logger.Noticef(s.logbuf.String())
+	}
+	err := t.Wait()
+	c.Check(err, IsNil)
 }
 
 func (s *LogSuite) TestNoGuardDebug(c *C) {

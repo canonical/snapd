@@ -72,7 +72,7 @@ type mockedSystemSeed struct {
 type deviceMgrSystemsBaseSuite struct {
 	deviceMgrBaseSuite
 
-	logbuf            *bytes.Buffer
+	logbuf            logger.MockedLogger
 	mockedSystemSeeds []mockedSystemSeed
 	ss                *seedtest.SeedSnaps
 	model             *asserts.Model

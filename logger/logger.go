@@ -117,10 +117,39 @@ func NoGuardDebugf(format string, v ...interface{}) {
 	logger.NoGuardDebug(msg)
 }
 
+type mockedLogger struct {
+	buffer bytes.Buffer
+	mutex  sync.Mutex
+}
+
+func (b *mockedLogger) Write(p []byte) (int, error) {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+	return b.buffer.Write(p)
+}
+
+func (b *mockedLogger) String() string {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+	return b.buffer.String()
+}
+
+func (b *mockedLogger) Reset() {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+	b.buffer.Reset()
+}
+
+type MockedLogger interface {
+	fmt.Stringer
+
+	Reset()
+}
+
 // MockLogger replaces the existing logger with a buffer and returns
-// the log buffer and a restore function.
-func MockLogger() (buf *bytes.Buffer, restore func()) {
-	buf = &bytes.Buffer{}
+// a MockedLogger (with String() and Reset()) and a restore function.
+func MockLogger() (MockedLogger, func()) {
+	buf := &mockedLogger{}
 	oldLogger := logger
 	l, err := New(buf, DefaultFlags, &LoggerOptions{})
 	if err != nil {
@@ -130,15 +159,6 @@ func MockLogger() (buf *bytes.Buffer, restore func()) {
 	return buf, func() {
 		SetLogger(oldLogger)
 	}
-}
-
-// WithLoggerLock invokes f with the global logger lock, useful for
-// tests involving goroutines with MockLogger.
-func WithLoggerLock(f func()) {
-	lock.Lock()
-	defer lock.Unlock()
-
-	f()
 }
 
 // SetLogger sets the global logger to the given one
