@@ -15,7 +15,6 @@ slots:
   mpris:
     name: test-policy-app-provider-classic
   online-accounts-service: null
-  pipewire: null
   storage-framework-service: null
   thumbnailer-service: null
   ubuntu-download-manager: null
@@ -57,9 +56,6 @@ apps:
   online-accounts-service:
     command: bin/run
     slots: [ online-accounts-service ]
-  pipewire:
-    command: bin/run
-    slots: [ pipewire ]
   storage-framework-service:
     command: bin/run
     slots: [ storage-framework-service ]
