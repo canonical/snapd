@@ -36,7 +36,9 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -251,11 +253,13 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 func (s *contentTestSuite) testWriteFilesystemContentDriversTree(c *C, kMntPoint string, isCore bool) {
 	defer dirs.SetRootDir(dirs.GlobalRootDir)
 	dirs.SetRootDir(c.MkDir())
+	restore := osutil.MockMountInfo(``)
+	defer restore()
 
 	kMntPoint = filepath.Join(dirs.GlobalRootDir, kMntPoint)
 
 	dataMntPoint := filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2")
-	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+	restore = install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
 		c.Check(source, Equals, "/dev/node2")
 		c.Check(fstype, Equals, "ext4")
 		c.Check(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2"))
@@ -291,18 +295,17 @@ func (s *contentTestSuite) testWriteFilesystemContentDriversTree(c *C, kMntPoint
 		IsCore:           isCore,
 	}
 
+	dataDir := ""
+	if isCore {
+		dataDir = "system-data/_writable_defaults"
+	}
 	restore = install.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (err error) {
 		c.Check(kMntPts, Equals,
 			kernel.MountPoints{
 				Current: kMntPoint,
 				Target:  filepath.Join(dirs.SnapMountDir, "/pc-kernel/111")})
-		if isCore {
-			c.Check(destDir, Equals, filepath.Join(dataMntPoint,
-				"system-data/var/lib/snapd/kernel/pc-kernel/111"))
-		} else {
-			c.Check(destDir, Equals, filepath.Join(dataMntPoint,
-				"var/lib/snapd/kernel/pc-kernel/111"))
-		}
+		c.Check(destDir, Equals, filepath.Join(dataMntPoint, dataDir,
+			"var/lib/snapd/kernel/pc-kernel/111"))
 		return nil
 	})
 	defer restore()
@@ -310,6 +313,37 @@ func (s *contentTestSuite) testWriteFilesystemContentDriversTree(c *C, kMntPoint
 	err := install.WriteFilesystemContent(m, kInfo, "/dev/node2", obs)
 	c.Assert(err, IsNil)
 
+	// Check content of kernel mount unit / links
+	cpi := snap.MinimalSnapContainerPlaceInfo("pc-kernel", snap.R(111))
+	whereDir := dirs.StripRootDir(cpi.MountDir())
+	unitFileName := systemd.EscapeUnitNamePath(whereDir) + ".mount"
+	c.Check(filepath.Join(dataMntPoint, dataDir, "etc/systemd/system", unitFileName),
+		testutil.FileEquals, fmt.Sprintf(
+			`[Unit]
+Description=Mount unit for pc-kernel, revision 111
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=systemd-udevd.service systemd-modules-load.service
+Before=usr-lib-modules.mount usr-lib-firmware.mount
+
+[Mount]
+What=/var/lib/snapd/snaps/pc-kernel_111.snap
+Where=%s
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`, whereDir))
+
+	for _, target := range []string{"multi-user.target.wants", "snapd.mounts.target.wants"} {
+		path, err := os.Readlink(filepath.Join(dataMntPoint, dataDir,
+			"etc/systemd/system", target, unitFileName))
+		c.Check(err, IsNil)
+		c.Check(path, Equals, filepath.Join(dirs.SnapServicesDir, unitFileName))
+	}
 }
 
 func (s *contentTestSuite) TestWriteFilesystemContentDriversTreeCore(c *C) {

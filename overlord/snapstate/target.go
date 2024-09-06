@@ -1189,7 +1189,7 @@ type PathSnap struct {
 	// SideInfo contains extra information about the snap.
 	SideInfo *snap.SideInfo
 	// Components is a mapping of component side infos to paths that should be
-	// intsalled alongside this snap.
+	// installed alongside this snap.
 	Components map[*snap.ComponentSideInfo]string
 }
 

@@ -123,9 +123,7 @@ backends:
                   workers: 6
             - ubuntu-16.04-64:
                   workers: 8
-                  storage: 12G
-            - ubuntu-18.04-32:
-                  workers: 6
+                  storage: 15G
             - ubuntu-18.04-64:
                   storage: 15G
                   workers: 8
@@ -182,12 +180,12 @@ backends:
         halt-timeout: 2h
         systems:
             - ubuntu-pro-20.04-64:
-                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-focal-v20240614
+                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-lts
                   workers: 1
                   attach-service-account: true
 
             - ubuntu-pro-22.04-64:
-                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-focal-v20240614
+                  image: ubuntu-os-pro-cloud/ubuntu-pro-2204-lts
                   workers: 1
                   attach-service-account: true
 
@@ -367,13 +365,7 @@ backends:
     qemu:
         memory: 4G
         systems:
-            - ubuntu-14.04-32:
-                  username: ubuntu
-                  password: ubuntu
             - ubuntu-14.04-64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-16.04-32:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-16.04-64:
@@ -404,13 +396,7 @@ backends:
             - ubuntu-18.04-64:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-18.04-32:
-                  username: ubuntu
-                  password: ubuntu
             - ubuntu-20.04-64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-20.04-32:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-22.04-64:
@@ -451,14 +437,8 @@ backends:
             - ubuntu-14.04-amd64:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-14.04-i386:
-                  username: ubuntu
-                  password: ubuntu
             # Xenial
             - ubuntu-16.04-amd64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-16.04-i386:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-16.04-ppc64el:
@@ -472,9 +452,6 @@ backends:
                   password: ubuntu
             # Bionic
             - ubuntu-18.04-amd64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-18.04-i386:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-18.04-ppc64el:
@@ -493,9 +470,6 @@ backends:
             - ubuntu-20.04-amd64:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-20.04-i386:
-                  username: ubuntu
-                  password: ubuntu
             - ubuntu-20.04-ppc64el:
                   username: ubuntu
                   password: ubuntu
@@ -510,9 +484,6 @@ backends:
                   password: ubuntu
             # Jammy
             - ubuntu-22.04-amd64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-22.04-i386:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-22.04-ppc64el:

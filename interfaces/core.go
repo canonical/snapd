@@ -208,13 +208,13 @@ type SlotSanitizer interface {
 // The DocURL can point to website (e.g. a forum thread) that goes into more
 // depth and documents the interface in detail.
 type StaticInfo struct {
-	Summary string `json:"summary,omitempty"`
-	DocURL  string `json:"doc-url,omitempty"`
+	Summary string
+	DocURL  string
 
 	// ImplicitOnCore controls if a slot is automatically added to core (non-classic) systems.
-	ImplicitOnCore bool `json:"implicit-on-core,omitempty"`
+	ImplicitOnCore bool
 	// ImplicitOnClassic controls if a slot is automatically added to classic systems.
-	ImplicitOnClassic bool `json:"implicit-on-classic,omitempty"`
+	ImplicitOnClassic bool
 
 	// AffectsPlugOnRefresh tells if refreshing of a snap with a slot of this interface
 	// is disruptive for the snap on the plug side (when the interface is connected),
@@ -225,7 +225,7 @@ type StaticInfo struct {
 	// TODO: if we change the snap-update-ns logic to avoid the freezeing/thawing
 	// if there are no changes, there are interfaces like appstream-metadata or
 	// system-packages-doc that could get the flag set back to false.
-	AffectsPlugOnRefresh bool `json:"affects-plug-on-refresh,omitempty"`
+	AffectsPlugOnRefresh bool
 
 	// BaseDeclarationPlugs defines optional plug-side rules in the
 	// base-declaration assertion relevant for this interface. See
@@ -240,10 +240,10 @@ type StaticInfo struct {
 
 	// AppArmorUnconfinedPlugs results in the snap that plugs this interface
 	// being granted the AppArmor unconfined profile mode
-	AppArmorUnconfinedPlugs bool `json:"apparmor-unconfined-plugs,omitempty"`
+	AppArmorUnconfinedPlugs bool
 	// Similarly, AppArmorUnconfinedSlots results in the snap that slots this interface
 	// being granted the AppArmor unconfined profile mode
-	AppArmorUnconfinedSlots bool `json:"apparmor-unconfined-slots,omitempty"`
+	AppArmorUnconfinedSlots bool
 }
 
 // PermanentPlugServiceSnippets will return the set of snippets for the systemd

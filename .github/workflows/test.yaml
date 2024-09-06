@@ -616,107 +616,133 @@ jobs:
             backend: google-distro-1
             systems: 'amazon-linux-2-64 amazon-linux-2023-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: arch-linux
             backend: google-distro-2
             systems: 'arch-linux-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: centos
             backend: google-distro-2
             systems: 'centos-9-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: debian-req
             backend: google-distro-1
             systems: 'debian-11-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: debian-not-req
             backend: google-distro-1
             systems: 'debian-12-64 debian-sid-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: fedora
             backend: google-distro-1
             systems: 'fedora-38-64 fedora-39-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: fedora-os
             backend: openstack
             systems: 'fedora-40-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: opensuse
             backend: google-distro-2
             systems: 'opensuse-15.5-64 opensuse-15.6-64 opensuse-tumbleweed-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-trusty
             backend: google
             systems: 'ubuntu-14.04-64'
             tests: 'tests/smoke/ tests/main/canonical-livepatch tests/main/canonical-livepatch-14.04'
+            rules: 'trusty'
           - group: ubuntu-xenial-bionic
             backend: google
-            systems: 'ubuntu-16.04-64 ubuntu-18.04-32 ubuntu-18.04-64'
+            systems: 'ubuntu-16.04-64 ubuntu-18.04-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-focal-jammy
             backend: google
             systems: 'ubuntu-20.04-64 ubuntu-22.04-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-noble
             backend: google
             systems: 'ubuntu-24.04-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-no-lts
             backend: google
             systems: ''
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-daily
             backend: google
             systems: 'ubuntu-24.10-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-core-16
             backend: google-core
             systems: 'ubuntu-core-16-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-core-18
             backend: google-core
             systems: 'ubuntu-core-18-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-core-20
             backend: google-core
             systems: 'ubuntu-core-20-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-core-22
             backend: google-core
             systems: 'ubuntu-core-22-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-core-24
             backend: google-core
             systems: 'ubuntu-core-24-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-arm
             backend: google-arm
             systems: 'ubuntu-20.04-arm-64 ubuntu-core-22-arm-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-secboot
             backend: google
             systems: 'ubuntu-secboot-20.04-64'
             tests: 'tests/...'
+            rules: 'main'
 
           - group: nested-ubuntu-16.04
             backend: google-nested
             systems: 'ubuntu-16.04-64'
             tests: 'tests/nested/...'
+            rules: 'nested'
           - group: nested-ubuntu-18.04
             backend: google-nested
             systems: 'ubuntu-18.04-64'
             tests: 'tests/nested/...'
+            rules: 'nested'
           - group: nested-ubuntu-20.04
             backend: google-nested
             systems: 'ubuntu-20.04-64'
             tests: 'tests/nested/...'
+            rules: 'nested'
           - group: nested-ubuntu-22.04
             backend: google-nested
             systems: 'ubuntu-22.04-64'
             tests: 'tests/nested/...'
+            rules: 'nested'
           - group: nested-ubuntu-24.04
             backend: google-nested
             systems: 'ubuntu-24.04-64'
             tests: 'tests/nested/...'
+            rules: 'nested'
     steps:
     - name: Cleanup job workspace
       id: cleanup-job-workspace
@@ -742,6 +768,7 @@ jobs:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.group }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
 
+
     - name: Prepare test results env and vars
       id: prepare-test-results-env
       run: |
@@ -755,6 +782,16 @@ jobs:
           # Make sure the test results dirs are created
           # This step has to be after the cache is restored
           mkdir -p "$TEST_RESULTS_DIR"        
+
+    - name: Get changed files
+      id: changed-files
+      uses: tj-actions/changed-files@v41.0.0
+
+    - name: Save changes files
+      run: |
+          CHANGED_FILES="${{ steps.changed-files.outputs.all_changed_files }}"
+          echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
+          echo "The changed files found are: $CHANGED_FILES"
 
     - name: Check failed tests to run
       if: "!contains(github.event.pull_request.labels.*.name, 'Run all')"
@@ -774,29 +811,41 @@ jobs:
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       run: |
           RUN_TESTS=""
+          SUGGESTED_TESTS=""
           # Save previous failed test results in FAILED_TESTS env var
           if [ -n "$FAILED_TESTS" ]; then
               RUN_TESTS="$FAILED_TESTS"
           else
               for SYSTEM in ${{ matrix.systems }}; do
                   for TESTS in ${{ matrix.tests }}; do
-                      RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:$TESTS"
+                    RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:$TESTS"
                   done
+                  CHANGES_PARAM=""
+                  for CHANGE in $CHANGED_FILES; do
+                    CHANGES_PARAM="$CHANGES_PARAM -c $CHANGE"
+                  done
+                  SUGGESTED_TESTS="$SUGGESTED_TESTS $(./tests/lib/external/snapd-testing-tools/utils/spread-filter -r ./tests/lib/spread/rules/${{ matrix.rules }}.yaml -p "${{ matrix.backend }}:$SYSTEM" $CHANGES_PARAM)"
               done
           fi
           echo RUN_TESTS="$RUN_TESTS"  >> $GITHUB_ENV
+          echo "Suggested tests by spread-filter tool"
+          echo "$SUGGESTED_TESTS"
 
     - name: Setup grafana parameters
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       run: |
           # Configure parameters to filter logs (these logs are sent read by grafana agent)
-          CHANGE_ID="pr${{ github.event.number }}"
+          CHANGE_ID="${{ github.event.number }}"
           if [ -z "$CHANGE_ID" ]; then
             CHANGE_ID="main"
           fi
-          CHANGE_ID="${CHANGE_ID}_n${{ github.run_attempt }}_run${{ github.run_id }}_gh"
+          FILTERED_LOG_FILE="spread_${CHANGE_ID}_n${{ github.run_attempt }}.filtered.log"
           # The log-filter tool is used to filter the spread logs to be stored
-          echo FILTER_PARAMS="-o spread_${CHANGE_ID}.filtered.log -e Debug -e WARNING: -f Failed=NO_LINES -f Error=NO_LINES"  >> $GITHUB_ENV
+          echo FILTER_PARAMS="-o $FILTERED_LOG_FILE -e Debug -e WARNING: -f Failed=NO_LINES -f Error=NO_LINES"  >> $GITHUB_ENV
+          echo FILTERED_LOG_FILE="$FILTERED_LOG_FILE"  >> $GITHUB_ENV
+
+          # Add start line to filtered log
+          echo "GRAFANA START: pr ${CHANGE_ID} attempt ${{ github.run_attempt }} run ${{ github.run_id }} group ${{ matrix.group }}" > "$FILTERED_LOG_FILE"
 
     - name: Download built snap
       uses: actions/download-artifact@v3
@@ -879,24 +928,24 @@ jobs:
           spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done
 
-    - name: report spread errors
+    - name: Report spread errors
       if: always()
       run: |
         if [ -e spread.log ]; then
             echo "Running spread log analyzer"
-            issues_metadata='{"source_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}'
-            PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json --cut 100
+            ACTIONS_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"
+            PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json --cut 1 >/dev/null
             while IFS= read -r line; do
                 if [ ! -z "$line" ]; then
-                    echo "Reporting spread error..."
-                    ./tests/lib/tools/report-mongodb --db-name snapd --db-collection spread_errors --metadata "$issues_metadata" "$line"
+                    echo "Adding failed test line to filtered log"
+                    echo "GRAFANA FAILED: $line $ACTIONS_URL" | tee -a "$FILTERED_LOG_FILE"
                 fi
-            done <<< $(jq -cr '.[] | select( .type == "info") | select( (.info_type == "Error") or (.info_type == "Debug"))' spread-results.json)
+            done <<< $(jq -r '.[] | select( .type == "info" ) | select( .info_type == "Error" ) | "\(.verb) \(.task)"' spread-results.json)
         else
             echo "No spread log found, skipping errors reporting"
         fi
 
-    - name: analyze spread test results
+    - name: Analyze spread test results
       if: always()
       run: |
           if [ -f spread.log ]; then
@@ -918,7 +967,7 @@ jobs:
               touch "$FAILED_TESTS_FILE"
           fi
 
-    - name: save spread test results to cache
+    - name: Save spread test results to cache
       if: always()
       uses: actions/cache/save@v3
       with:

@@ -8,7 +8,7 @@ details: |
 backends: [-autopkgtest]
 
 # The hello-fedora snap is just available for amd64 architecture
-systems: [-*-32, -*-arm*, -*-ppc64el, -*-s390x]
+systems: [-*-arm*, -*-ppc64el, -*-s390x]
 
 execute: |
   # This is explicit because fedora29 snap is still in edge.

@@ -83,6 +83,9 @@ apps:
   intel-mei:
     command: bin/run
     plugs: [ intel-mei ]
+  intel-qat:
+    command: bin/run
+    plugs: [ intel-qat ]
   io-ports-control:
     command: bin/run
     plugs: [ io-ports-control ]
@@ -158,6 +161,9 @@ apps:
   nfs-mount:
     command: bin/run
     plugs: [ nfs-mount ]
+  nomad-support:
+    command: bin/run
+    plugs: [ nomad-support ]
   ofono:
     command: bin/run
     plugs: [ ofono ]

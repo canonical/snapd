@@ -28,7 +28,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -648,66 +647,8 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup, err := TaskSnapSetup(t)
-	if err != nil {
-		return err
-	}
-
-	if snapsup.SideInfo == nil || snapsup.SideInfo.RealName == "" {
-		return nil
-	}
-
-	var logMsg []string
-	var snapSetup string
-	dupSig := []string{"snap-install:"}
-	chg := t.Change()
-	logMsg = append(logMsg, fmt.Sprintf("change %q: %q", chg.Kind(), chg.Summary()))
-	for _, t := range chg.Tasks() {
-		// TODO: report only tasks in intersecting lanes?
-		tintro := fmt.Sprintf("%s: %s", t.Kind(), t.Status())
-		logMsg = append(logMsg, tintro)
-		dupSig = append(dupSig, tintro)
-		if snapsup, err := TaskSnapSetup(t); err == nil && snapsup.SideInfo != nil {
-			snapSetup1 := fmt.Sprintf(" snap-setup: %q (%v) %q", snapsup.SideInfo.RealName, snapsup.SideInfo.Revision, snapsup.SideInfo.Channel)
-			if snapSetup1 != snapSetup {
-				snapSetup = snapSetup1
-				logMsg = append(logMsg, snapSetup)
-				dupSig = append(dupSig, fmt.Sprintf(" snap-setup: %q", snapsup.SideInfo.RealName))
-			}
-		}
-		for _, l := range t.Log() {
-			// cut of the rfc339 timestamp to ensure duplicate
-			// detection works in daisy
-			tStampLen := strings.Index(l, " ")
-			if tStampLen < 0 {
-				continue
-			}
-			// not tStampLen+1 because the indent is nice
-			entry := l[tStampLen:]
-			logMsg = append(logMsg, entry)
-			dupSig = append(dupSig, entry)
-		}
-	}
-
-	var ubuntuCoreTransitionCount int
-	err = st.Get("ubuntu-core-transition-retry", &ubuntuCoreTransitionCount)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-	extra := map[string]string{
-		"Channel":  snapsup.Channel,
-		"Revision": snapsup.SideInfo.Revision.String(),
-	}
-	if ubuntuCoreTransitionCount > 0 {
-		extra["UbuntuCoreTransitionCount"] = strconv.Itoa(ubuntuCoreTransitionCount)
-	}
-
-	// TODO: telemetry about errors here
-
+	// TODO: add some telemetry here that reports the snaps that were being set
+	// up
 	return nil
 }
 
@@ -1222,7 +1163,10 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 			return
 		}
 
-		// remove snap dir is idempotent so it's ok to always call it in the cleanup path
+		// remove snap dir is idempotent so it's ok to always call it in
+		// the cleanup path; make sure to hold a state lock to prevent
+		// conflicts when snaps sharing the same snap name are being
+		// installed/removed,
 		if err := m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances); err != nil {
 			t.Errorf("cannot cleanup partial setup snap %q: %v", snapsup.InstanceName(), err)
 		}
@@ -1348,6 +1292,8 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// make sure to hold a state lock to prevent conflicts when snaps
+	// sharing the same snap name are being installed/removed,
 	return m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances)
 }
 
@@ -1368,7 +1314,7 @@ const (
 )
 
 // restoreUnlinkOnError assumes that state is locked.
-func (m *SnapManager) restoreUnlinkOnError(t *state.Task, info *snap.Info, tm timings.Measurer) error {
+func (m *SnapManager) restoreUnlinkOnError(t *state.Task, info *snap.Info, otherInstances bool, tm timings.Measurer) error {
 	st := t.State()
 
 	deviceCtx, err := DeviceCtx(st, t, nil)
@@ -1381,9 +1327,10 @@ func (m *SnapManager) restoreUnlinkOnError(t *state.Task, info *snap.Info, tm ti
 		return err
 	}
 	linkCtx := backend.LinkContext{
-		FirstInstall:   false,
-		IsUndo:         true,
-		ServiceOptions: opts,
+		FirstInstall:      false,
+		IsUndo:            true,
+		ServiceOptions:    opts,
+		HasOtherInstances: otherInstances,
 	}
 	_, err = m.backend.LinkSnap(info, deviceCtx, linkCtx, tm)
 	return err
@@ -1489,17 +1436,24 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 			return err
 		}
 		skipBinaries := reason == unlinkReasonRefresh && refreshAppAwarenessEnabled && experimentalRefreshAppAwarenessUX
+
+		otherInstances, err := hasOtherInstances(st, oldInfo.InstanceName())
+		if err != nil {
+			return err
+		}
+
 		// do the final unlink
 		linkCtx := backend.LinkContext{
 			FirstInstall: false,
 			// This task is only used for unlinking a snap during refreshes so we
 			// can safely hard-code this condition here.
-			RunInhibitHint: runinhibit.HintInhibitedForRefresh,
-			SkipBinaries:   skipBinaries,
+			RunInhibitHint:    runinhibit.HintInhibitedForRefresh,
+			SkipBinaries:      skipBinaries,
+			HasOtherInstances: otherInstances,
 		}
 		err = m.backend.UnlinkSnap(oldInfo, linkCtx, NewTaskProgressAdapterLocked(t))
 		if err != nil {
-			if relinkErr := m.restoreUnlinkOnError(t, oldInfo, perfTimings); relinkErr != nil {
+			if relinkErr := m.restoreUnlinkOnError(t, oldInfo, otherInstances, perfTimings); relinkErr != nil {
 				t.Errorf("cannot restore unlinked snap: %v", relinkErr)
 			}
 			return err
@@ -1586,6 +1540,11 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
+	if err != nil {
+		return err
+	}
+
 	// in a revert, the migration actions were done in doUnlinkCurrentSnap so we
 	// revert them here and set SnapSetup flags (which will be used to set the
 	// state below)
@@ -1631,9 +1590,10 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	linkCtx := backend.LinkContext{
-		FirstInstall:   false,
-		IsUndo:         true,
-		ServiceOptions: opts,
+		FirstInstall:      false,
+		IsUndo:            true,
+		ServiceOptions:    opts,
+		HasOtherInstances: otherInstances,
 	}
 	reboot, err := m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
 	if err != nil {
@@ -2209,10 +2169,17 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	if err != nil {
 		return err
 	}
+
+	otherInstances, err := hasOtherInstances(st, newInfo.InstanceName())
+	if err != nil {
+		return err
+	}
+
 	firstInstall := oldCurrent.Unset()
 	linkCtx := backend.LinkContext{
-		FirstInstall:   firstInstall,
-		ServiceOptions: opts,
+		FirstInstall:      firstInstall,
+		ServiceOptions:    opts,
+		HasOtherInstances: otherInstances,
 	}
 	// on UC18+, snap tooling comes from the snapd snap so we need generated
 	// mount units to depend on the snapd snap mount units
@@ -2245,6 +2212,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		return fmt.Errorf("cannot discard apparmor profiles: %v", err)
 	}
 
+	// links the new revision to current and ensures a shared base prefix
+	// directory for parallel installed snaps
 	rebootInfo, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
@@ -2826,12 +2795,19 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	otherInstances, err := hasOtherInstances(st, newInfo.InstanceName())
+	if err != nil {
+		return err
+	}
+
 	pb := NewTaskProgressAdapterLocked(t)
 	firstInstall := oldCurrent.Unset()
 	linkCtx := backend.LinkContext{
-		FirstInstall: firstInstall,
-		IsUndo:       true,
+		FirstInstall:      firstInstall,
+		IsUndo:            true,
+		HasOtherInstances: otherInstances,
 	}
+
 	var backendErr error
 	if newInfo.Type() == snap.TypeSnapd && !firstInstall {
 		// snapst has been updated and now is the old revision, since
@@ -3364,9 +3340,15 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	otherInstances, err := hasOtherInstances(st, info.InstanceName())
+	if err != nil {
+		return err
+	}
+
 	// do the final unlink
 	unlinkCtx := backend.LinkContext{
-		FirstInstall: false,
+		FirstInstall:      false,
+		HasOtherInstances: otherInstances,
 	}
 	err = m.backend.UnlinkSnap(info, unlinkCtx, NewTaskProgressAdapterLocked(t))
 	if err != nil {
@@ -3429,14 +3411,20 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = true
 	Set(st, snapsup.InstanceName(), snapst)
 
+	otherInstances, err := hasOtherInstances(st, info.InstanceName())
+	if err != nil {
+		return err
+	}
+
 	opts, err := SnapServiceOptions(st, info, nil)
 	if err != nil {
 		return err
 	}
 	linkCtx := backend.LinkContext{
-		FirstInstall:   false,
-		IsUndo:         true,
-		ServiceOptions: opts,
+		FirstInstall:      false,
+		IsUndo:            true,
+		ServiceOptions:    opts,
+		HasOtherInstances: otherInstances,
 	}
 	reboot, err := m.backend.LinkSnap(info, deviceCtx, linkCtx, perfTimings)
 	if err != nil {
@@ -3553,16 +3541,20 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	pb := NewTaskProgressAdapterLocked(t)
+	pb := NewTaskProgressAdapterUnlocked(t)
 	typ, err := snapst.Type()
 	if err != nil {
 		return err
 	}
+
+	st.Unlock()
 	err = m.backend.RemoveSnapFiles(snapsup.placeInfo(), typ, nil, deviceCtx, pb)
+	st.Lock()
 	if err != nil {
 		t.Errorf("cannot remove snap file %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
 		return &state.Retry{After: 3 * time.Minute}
 	}
+
 	if len(snapst.Sequence.Revisions) == 0 {
 		if err = m.backend.RemoveContainerMountUnits(snapsup.containerInfo(), nil); err != nil {
 			return err
@@ -3598,6 +3590,8 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 
+		// make sure to hold a state lock to prevent conflicts when
+		// snaps sharing the same snap name are being installed/removed,
 		if err := m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances); err != nil {
 			return fmt.Errorf("cannot remove snap directory: %v", err)
 		}

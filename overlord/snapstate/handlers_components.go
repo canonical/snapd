@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/state"
@@ -714,6 +715,9 @@ func (m *SnapManager) doPrepareKernelModulesComponents(t *state.Task, _ *tomb.To
 	if err != nil {
 		return err
 	}
+
+	// Inject fault during the kernel components setup
+	osutil.MaybeInjectFault("prepare-kernel-components")
 
 	// Make sure we won't be rerun
 	t.SetStatus(state.DoneStatus)

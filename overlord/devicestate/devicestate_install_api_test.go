@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
+	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -118,6 +119,8 @@ func (s *deviceMgrInstallAPISuite) setupSystemSeed(c *C, sysLabel, gadgetYaml st
 			{"shim.efi.signed", ""}, {"grub.conf", ""}},
 		snap.R(1), "my-brand", s.StoreSigning.Database)
 
+	s.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["optional22"], nil, snap.R(1), nil, "my-brand", s.StoreSigning.Database)
+
 	model := map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
@@ -146,6 +149,13 @@ func (s *deviceMgrInstallAPISuite) setupSystemSeed(c *C, sysLabel, gadgetYaml st
 				"id":   s.AssertedSnapID("core22"),
 				"type": "base",
 			},
+			map[string]interface{}{
+				"name": "optional22",
+				"id":   s.AssertedSnapID("optional22"),
+				"components": map[string]interface{}{
+					"comp1": "optional",
+				},
+			},
 		},
 	}
 	if isClassic {
@@ -153,16 +163,22 @@ func (s *deviceMgrInstallAPISuite) setupSystemSeed(c *C, sysLabel, gadgetYaml st
 		model["distribution"] = "ubuntu"
 	}
 
-	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", model, nil)
+	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", model, []*seedwriter.OptionsSnap{
+		{
+			Name:       "optional22",
+			Components: []seedwriter.OptionsComponent{{Name: "comp1"}},
+		},
+	})
 }
 
 type finishStepOpts struct {
-	encrypted      bool
-	installClassic bool
-	hasPartial     bool
+	encrypted          bool
+	installClassic     bool
+	hasPartial         bool
+	optionalContainers *seed.OptionalContainers
 }
 
-func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, isClassic, hasPartial bool, seedCopyFn func(string, string, timings.Measurer) error) (gadgetSnapPath, kernelSnapPath string, ginfo *gadget.Info, mountCmd *testutil.MockCmd) {
+func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, isClassic, hasPartial bool, seedCopyFn func(string, seed.CopyOptions, timings.Measurer) error) (gadgetSnapPath, kernelSnapPath string, ginfo *gadget.Info, mountCmd *testutil.MockCmd) {
 	// Mock partitioned disk
 	gadgetYaml := gadgettest.SingleVolumeUC20GadgetYaml
 	if isClassic {
@@ -194,6 +210,10 @@ func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, i
 	restore = devicestate.MockSeedOpen(func(seedDir, label string) (seed.Seed, error) {
 		return &fakeSeedCopier{
 			copyFn: seedCopyFn,
+			optionalContainers: seed.OptionalContainers{
+				Snaps:      []string{"optional22"},
+				Components: map[string][]string{"optional22": {"comp1"}},
+			},
 			fakeSeed: fakeSeed{
 				essentialSnaps: []*seed.Snap{
 					{
@@ -396,11 +416,16 @@ var mockFilledPartialDiskVolume = gadget.OnDiskVolume{
 
 type fakeSeedCopier struct {
 	fakeSeed
-	copyFn func(seedDir string, label string, tm timings.Measurer) error
+	optionalContainers seed.OptionalContainers
+	copyFn             func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error
 }
 
-func (s *fakeSeedCopier) Copy(seedDir string, label string, tm timings.Measurer) error {
-	return s.copyFn(seedDir, label, tm)
+func (s *fakeSeedCopier) Copy(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+	return s.copyFn(seedDir, opts, tm)
+}
+
+func (s *fakeSeedCopier) OptionalContainers() (seed.OptionalContainers, error) {
+	return s.optionalContainers, nil
 }
 
 // TODO encryption case for the finish step is not tested yet, it needs more mocking
@@ -420,12 +445,15 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		label = "classic"
 	}
 
-	seedCopyFn := func(seedDir, newLabel string, tm timings.Measurer) error { return fmt.Errorf("unexpected copy call") }
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+		return fmt.Errorf("unexpected copy call")
+	}
 	seedCopyCalled := false
 	if !opts.installClassic {
-		seedCopyFn = func(seedDir, newLabel string, tm timings.Measurer) error {
+		seedCopyFn = func(seedDir string, copyOpts seed.CopyOptions, tm timings.Measurer) error {
 			c.Check(seedDir, Equals, filepath.Join(dirs.RunDir, "mnt/ubuntu-seed"))
-			c.Check(newLabel, Equals, label)
+			c.Check(copyOpts.Label, Equals, label)
+			c.Check(copyOpts.OptionalContainers, DeepEquals, opts.optionalContainers)
 			seedCopyCalled = true
 			return nil
 		}
@@ -580,6 +608,9 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		}
 	}
 	finishTask.Set("on-volumes", ginfo.Volumes)
+	if opts.optionalContainers != nil {
+		finishTask.Set("optional-install", *opts.optionalContainers)
+	}
 
 	chg.AddTask(finishTask)
 
@@ -656,6 +687,17 @@ func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishEncryptionHappy(c *C) {
 	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: false})
 }
 
+func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishWithOptionalContainers(c *C) {
+	s.testInstallFinishStep(c, finishStepOpts{
+		encrypted:      true,
+		installClassic: false,
+		optionalContainers: &seed.OptionalContainers{
+			Snaps:      []string{"optional22"},
+			Components: map[string][]string{"optional22": {"comp1"}},
+		},
+	})
+}
+
 func (s *deviceMgrInstallAPISuite) TestInstallFinishNoLabel(c *C) {
 	// Mock partitioned disk, but there will be no label in the system
 	gadgetYaml := gadgettest.SingleVolumeClassicWithModesGadgetYaml
@@ -694,7 +736,9 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 	// Mock label
 	label := "classic"
 	isClassic := true
-	seedCopyFn := func(seedDir, newLabel string, tm timings.Measurer) error { return fmt.Errorf("unexpected copy call") }
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+		return fmt.Errorf("unexpected copy call")
+	}
 	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockSystemSeedWithLabel(c, label, isClassic, false, seedCopyFn)
 
 	// Simulate system with TPM

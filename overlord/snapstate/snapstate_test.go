@@ -1928,8 +1928,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 			inhibitHint: "refresh",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+			op:             "unlink-snap",
+			path:           filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+			otherInstances: true,
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -1944,8 +1945,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 			},
 		},
 		{
-			op:   "link-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/2"),
+			op:             "link-snap",
+			path:           filepath.Join(dirs.SnapMountDir, "some-snap_instance/2"),
+			otherInstances: true,
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -3140,8 +3142,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceEnableRunThrough(c *C) {
 			sinfo: si,
 		},
 		{
-			op:   "link-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+			op:             "link-snap",
+			path:           filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+			otherInstances: true,
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -3213,8 +3216,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceDisableRunThrough(c *C) {
 			name: "some-snap_instance",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+			op:             "unlink-snap",
+			path:           filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+			otherInstances: true,
 		},
 		{
 			op:    "remove-profiles:Doing",
@@ -9121,11 +9125,15 @@ Name=test
 Exec=test-snap
 `[1:]), 0o644), IsNil)
 
+	var mockOldDesktopFile = []byte(`
+[Desktop Entry]
+Name=old-content
+X-SnapInstanceName=test-snap`)
 	desktopFile := filepath.Join(dirs.SnapDesktopFilesDir, "test-snap_test-snap.desktop")
 	otherDesktopFile := filepath.Join(dirs.SnapDesktopFilesDir, "test-snap_other.desktop")
 	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0o755), IsNil)
-	c.Assert(os.WriteFile(desktopFile, []byte("old content"), 0o644), IsNil)
-	c.Assert(os.WriteFile(otherDesktopFile, []byte("other old content"), 0o644), IsNil)
+	c.Assert(os.WriteFile(desktopFile, mockOldDesktopFile, 0o644), IsNil)
+	c.Assert(os.WriteFile(otherDesktopFile, mockOldDesktopFile, 0o644), IsNil)
 
 	err := s.snapmgr.Ensure()
 	c.Assert(err, IsNil)

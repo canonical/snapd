@@ -153,14 +153,15 @@ AS_IF([test "x$enable_merged_usr" = "xyes"], [
     AC_DEFINE([MERGED_USR], [1],
         [Support for merged /usr directory])])
 
-SNAP_MOUNT_DIR="/snap"
+# Keep the --with-snap-mount-dir= option name the same for ease of transition.
+STATIC_SNAP_MOUNT_DIR="/snap"
 AC_ARG_WITH([snap-mount-dir],
-    AS_HELP_STRING([--with-snap-mount-dir=DIR], [Use an alternate snap mount directory]),
-    [SNAP_MOUNT_DIR="$withval"])
-AC_SUBST(SNAP_MOUNT_DIR)
-AC_DEFINE_UNQUOTED([SNAP_MOUNT_DIR], "${SNAP_MOUNT_DIR}", [Location of the snap mount points])
+    AS_HELP_STRING([--with-snap-mount-dir=DIR], [Use an alternate static snap mount directory]),
+    [STATIC_SNAP_MOUNT_DIR="$withval"])
+AC_SUBST(STATIC_SNAP_MOUNT_DIR)
+AC_DEFINE_UNQUOTED([STATIC_SNAP_MOUNT_DIR], "${STATIC_SNAP_MOUNT_DIR}", [Static location of the snap mount points])
 
-SNAP_MOUNT_DIR_SYSTEMD_UNIT="$(systemd-escape -p "$SNAP_MOUNT_DIR")"
+SNAP_MOUNT_DIR_SYSTEMD_UNIT="$(systemd-escape -p "$STATIC_SNAP_MOUNT_DIR")"
 AC_SUBST([SNAP_MOUNT_DIR_SYSTEMD_UNIT])
 AC_DEFINE_UNQUOTED([SNAP_MOUNT_DIR_SYSTEMD_UNIT], "${SNAP_MOUNT_DIR_SYSTEMD_UNIT}", [Systemd unit name for snap mount points location])
 
