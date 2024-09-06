@@ -11,7 +11,7 @@ description: |
 adopt-info: snapd
 # build-base is needed here for snapcraft to build this snap as with "modern"
 # snapcraft
-build-base: core22
+build-base: core24
 package-repositories:
   - type: apt
     ppa: snappy-dev/image
@@ -39,7 +39,7 @@ parts:
       - quilt
       - python3-pyelftools
     source: https://git.launchpad.net/ubuntu/+source/glibc
-    source-branch: ubuntu/jammy-updates
+    source-branch: ubuntu/noble-updates
     source-type: git
     <<:
       - &dynamic-linker
