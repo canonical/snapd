@@ -112,39 +112,35 @@ type invalidFieldValue struct {
 	Metadata interface{}   `json:"metadata,omitempty"`
 }
 
-type UnsupportedValueValue struct {
-	err *prompting_errors.UnsupportedValueError
-}
+type promptingUnsupportedValueError prompting_errors.UnsupportedValueError
 
-func (v *UnsupportedValueValue) MarshalJSON() ([]byte, error) {
+func (v *promptingUnsupportedValueError) MarshalJSON() ([]byte, error) {
 	value := make(map[string]invalidFieldValue, 1)
-	value[v.err.Field] = invalidFieldValue{
+	value[v.Field] = invalidFieldValue{
 		Reason: unsupportedValueReason,
 		Metadata: &struct {
 			Received  interface{} `json:"received-invalid"`
 			Supported []string    `json:"supported"`
 		}{
-			Received:  v.err.Unsupported,
-			Supported: v.err.Supported,
+			Received:  v.Unsupported,
+			Supported: v.Supported,
 		},
 	}
 	return json.Marshal(value)
 }
 
-type ParseErrorValue struct {
-	err *prompting_errors.ParseError
-}
+type promptingParseError prompting_errors.ParseError
 
-func (v *ParseErrorValue) MarshalJSON() ([]byte, error) {
+func (v *promptingParseError) MarshalJSON() ([]byte, error) {
 	value := make(map[string]invalidFieldValue, 1)
-	value[v.err.Field] = invalidFieldValue{
+	value[v.Field] = invalidFieldValue{
 		Reason: parseErrorReason,
 		Metadata: &struct {
 			Received string `json:"received-invalid"`
 			// TODO: once documentation exists for user-defined fields
 			// DocumentationURL string `json:"documentation"`
 		}{
-			Received: v.err.Invalid,
+			Received: v.Invalid,
 			// TODO: once documentation exists for user-defined fields
 			// DocumentationURL: <url>,
 		},
@@ -152,9 +148,9 @@ func (v *ParseErrorValue) MarshalJSON() ([]byte, error) {
 	return json.Marshal(value)
 }
 
-type RequestedPathNotMatchedErrorJSON prompting_errors.RequestedPathNotMatchedError
+type requestedPathNotMatchedError prompting_errors.RequestedPathNotMatchedError
 
-func (v *RequestedPathNotMatchedErrorJSON) MarshalJSON() ([]byte, error) {
+func (v *requestedPathNotMatchedError) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
 		Received  string `json:"received-pattern"`
 		Requested string `json:"requested-path"`
@@ -164,9 +160,9 @@ func (v *RequestedPathNotMatchedErrorJSON) MarshalJSON() ([]byte, error) {
 	})
 }
 
-type RequestedPermissionsNotMatchedErrorJSON prompting_errors.RequestedPermissionsNotMatchedError
+type requestedPermissionsNotMatchedError prompting_errors.RequestedPermissionsNotMatchedError
 
-func (v *RequestedPermissionsNotMatchedErrorJSON) MarshalJSON() ([]byte, error) {
+func (v *requestedPermissionsNotMatchedError) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
 		Received  []string `json:"received-permissions"`
 		Requested []string `json:"requested-permissions"`
@@ -176,9 +172,9 @@ func (v *RequestedPermissionsNotMatchedErrorJSON) MarshalJSON() ([]byte, error) 
 	})
 }
 
-type RuleConflictJSON prompting_errors.RuleConflict
+type promptingRuleConflict prompting_errors.RuleConflict
 
-func (r *RuleConflictJSON) MarshalJSON() ([]byte, error) {
+func (r *promptingRuleConflict) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
 		Permission    string `json:"permission"`
 		Variant       string `json:"variant"`
@@ -190,15 +186,15 @@ func (r *RuleConflictJSON) MarshalJSON() ([]byte, error) {
 	})
 }
 
-type RuleConflictErrorJSON prompting_errors.RuleConflictError
+type promptingRuleConflictError prompting_errors.RuleConflictError
 
-func (v *RuleConflictErrorJSON) MarshalJSON() ([]byte, error) {
-	conflictsJSON := make([]RuleConflictJSON, len(v.Conflicts))
+func (v *promptingRuleConflictError) MarshalJSON() ([]byte, error) {
+	conflictsJSON := make([]promptingRuleConflict, len(v.Conflicts))
 	for i, conflict := range v.Conflicts {
-		conflictsJSON[i] = RuleConflictJSON(conflict)
+		conflictsJSON[i] = promptingRuleConflict(conflict)
 	}
 	return json.Marshal(&struct {
-		Conflicts []RuleConflictJSON `json:"conflicts"`
+		Conflicts []promptingRuleConflict `json:"conflicts"`
 	}{
 		Conflicts: conflictsJSON,
 	})
@@ -232,39 +228,35 @@ func promptingError(err error) *apiError {
 		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidFields
 		var unsupportedValueErr *prompting_errors.UnsupportedValueError
 		if errors.As(err, &unsupportedValueErr) {
-			apiErr.Value = UnsupportedValueValue{
-				err: unsupportedValueErr,
-			}
+			apiErr.Value = (*promptingUnsupportedValueError)(unsupportedValueErr)
 		}
 	case errors.Is(err, prompting_errors.ErrParseError):
 		apiErr.Status = 400
 		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidFields
 		var parseErr *prompting_errors.ParseError
 		if errors.As(err, &parseErr) {
-			apiErr.Value = ParseErrorValue{
-				err: parseErr,
-			}
+			apiErr.Value = (*promptingParseError)(parseErr)
 		}
 	case errors.Is(err, prompting_errors.ErrReplyNotMatchRequestedPath):
 		apiErr.Status = 400
 		apiErr.Kind = client.ErrorKindInterfacesRequestsReplyNotMatchRequestedPath
 		var patternErr *prompting_errors.RequestedPathNotMatchedError
 		if errors.As(err, &patternErr) {
-			apiErr.Value = (*RequestedPathNotMatchedErrorJSON)(patternErr)
+			apiErr.Value = (*requestedPathNotMatchedError)(patternErr)
 		}
 	case errors.Is(err, prompting_errors.ErrReplyNotMatchRequestedPermissions):
 		apiErr.Status = 400
 		apiErr.Kind = client.ErrorKindInterfacesRequestsReplyNotMatchRequestedPermissions
 		var permissionsErr *prompting_errors.RequestedPermissionsNotMatchedError
 		if errors.As(err, &permissionsErr) {
-			apiErr.Value = (*RequestedPermissionsNotMatchedErrorJSON)(permissionsErr)
+			apiErr.Value = (*requestedPermissionsNotMatchedError)(permissionsErr)
 		}
 	case errors.Is(err, prompting_errors.ErrRuleConflict):
 		apiErr.Status = 409
 		apiErr.Kind = client.ErrorKindInterfacesRequestsRuleConflict
 		var conflictErr *prompting_errors.RuleConflictError
 		if errors.As(err, &conflictErr) {
-			apiErr.Value = (*RuleConflictErrorJSON)(conflictErr)
+			apiErr.Value = (*promptingRuleConflictError)(conflictErr)
 		}
 	default:
 		// Treat errors without specific mapping as internal errors.
