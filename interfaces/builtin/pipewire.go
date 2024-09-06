@@ -28,20 +28,13 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// The audio-playback interface is the companion interface to the audio-record
-// interface. The design of this interface is based on the idea that the slot
-// implementation (eg pulseaudio) is expected to query snapd on if the
-// audio-record slot is connected or not and the audio service will mediate
-// recording (ie, the rules below allow connecting to the audio service, but do
-// not implement enforcement rules; it is up to the audio service to provide
-// enforcement). If other audio recording servers require different security
-// policy for record and playback (eg, a different socket path), then those
-// accesses will be added to this interface.
-
 const pipewireSummary = `allows access to the pipewire sockets, and offer them`
 
 const pipewireBaseDeclarationSlots = `
   pipewire:
+    slot-snap-type:
+      - app
+      - core
     deny-auto-connection: true
 `
 
