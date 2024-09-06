@@ -60,14 +60,14 @@ func ParsePathPattern(pattern string) (*PathPattern, error) {
 func (p *PathPattern) parse(pattern string) error {
 	tokens, err := scan(pattern)
 	if err != nil {
-		return prompting_errors.ErrInvalidPathPattern(pattern, err.Error())
+		return prompting_errors.NewInvalidPathPatternError(pattern, err.Error())
 	}
 	tree, err := parse(tokens)
 	if err != nil {
-		return prompting_errors.ErrInvalidPathPattern(pattern, err.Error())
+		return prompting_errors.NewInvalidPathPatternError(pattern, err.Error())
 	}
 	if count := tree.NumVariants(); count > maxExpandedPatterns {
-		return prompting_errors.ErrInvalidPathPattern(pattern, fmt.Sprintf("exceeded maximum number of expanded path patterns (%d): %d", maxExpandedPatterns, count))
+		return prompting_errors.NewInvalidPathPatternError(pattern, fmt.Sprintf("exceeded maximum number of expanded path patterns (%d): %d", maxExpandedPatterns, count))
 	}
 	p.original = pattern
 	p.renderTree = tree

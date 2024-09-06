@@ -120,7 +120,7 @@ func (s *requestrulesSuite) TestRuleValidate(c *C) {
 	c.Check(rule.Validate(currTime), ErrorMatches, fmt.Sprintf("%v:.*", prompting_errors.ErrRuleExpirationInThePast))
 
 	rule.Lifespan = invalidLifespan
-	c.Check(rule.Validate(currTime), ErrorMatches, prompting_errors.ErrRuleLifespanSingle(prompting.SupportedRuleLifespans).Error())
+	c.Check(rule.Validate(currTime), ErrorMatches, prompting_errors.NewRuleLifespanSingleError(prompting.SupportedRuleLifespans).Error())
 
 	rule.Outcome = invalidOutcome
 	c.Check(rule.Validate(currTime), ErrorMatches, `invalid outcome: ""`)
@@ -672,7 +672,7 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 		},
 		{ // Invalid lifespan (for rules)
 			&addRuleContents{Lifespan: prompting.LifespanSingle},
-			prompting_errors.ErrRuleLifespanSingle(prompting.SupportedRuleLifespans).Error(),
+			prompting_errors.NewRuleLifespanSingleError(prompting.SupportedRuleLifespans).Error(),
 		},
 		{ // Conflicting rule
 			&addRuleContents{
@@ -1624,7 +1624,7 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 
 	// Invalid lifespan
 	result, err = rdb.PatchRule(rule.User, rule.ID, nil, prompting.OutcomeUnset, prompting.LifespanSingle, "")
-	c.Check(err, ErrorMatches, prompting_errors.ErrRuleLifespanSingle(prompting.SupportedRuleLifespans).Error())
+	c.Check(err, ErrorMatches, prompting_errors.NewRuleLifespanSingleError(prompting.SupportedRuleLifespans).Error())
 	c.Check(result, IsNil)
 	s.checkWrittenRuleDB(c, rules)
 	s.checkNewNoticesSimple(c, nil)

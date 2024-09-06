@@ -97,7 +97,7 @@ func (outcome *OutcomeType) UnmarshalJSON(data []byte) error {
 	case OutcomeAllow, OutcomeDeny:
 		*outcome = value
 	default:
-		return prompting_errors.ErrInvalidOutcome(s, supportedOutcomes)
+		return prompting_errors.NewInvalidOutcomeError(s, supportedOutcomes)
 	}
 	return nil
 }
@@ -111,7 +111,7 @@ func (outcome OutcomeType) AsBool() (bool, error) {
 	case OutcomeDeny:
 		return false, nil
 	default:
-		return false, prompting_errors.ErrInvalidOutcome(string(outcome), supportedOutcomes)
+		return false, prompting_errors.NewInvalidOutcomeError(string(outcome), supportedOutcomes)
 	}
 }
 
@@ -151,7 +151,7 @@ func (lifespan *LifespanType) UnmarshalJSON(data []byte) error {
 	case LifespanForever, LifespanSingle, LifespanTimespan:
 		*lifespan = value
 	default:
-		return prompting_errors.ErrInvalidLifespan(lifespanStr, supportedLifespans)
+		return prompting_errors.NewInvalidLifespanError(lifespanStr, supportedLifespans)
 	}
 	return nil
 }
@@ -166,18 +166,18 @@ func (lifespan LifespanType) ValidateExpiration(expiration time.Time, currTime t
 	switch lifespan {
 	case LifespanForever, LifespanSingle:
 		if !expiration.IsZero() {
-			return prompting_errors.ErrInvalidExpiration(expiration, fmt.Sprintf("cannot have specified expiration when lifespan is %q", lifespan))
+			return prompting_errors.NewInvalidExpirationError(expiration, fmt.Sprintf("cannot have specified expiration when lifespan is %q", lifespan))
 		}
 	case LifespanTimespan:
 		if expiration.IsZero() {
-			return prompting_errors.ErrInvalidExpiration(expiration, fmt.Sprintf("cannot have unspecified expiration when lifespan is %q", lifespan))
+			return prompting_errors.NewInvalidExpirationError(expiration, fmt.Sprintf("cannot have unspecified expiration when lifespan is %q", lifespan))
 		}
 		if currTime.After(expiration) {
 			return fmt.Errorf("%w: %q", prompting_errors.ErrRuleExpirationInThePast, expiration)
 		}
 	default:
 		// Should not occur, since lifespan is validated when unmarshalled
-		return prompting_errors.ErrInvalidLifespan(string(lifespan), supportedLifespans)
+		return prompting_errors.NewInvalidLifespanError(string(lifespan), supportedLifespans)
 	}
 	return nil
 }
@@ -195,23 +195,23 @@ func (lifespan LifespanType) ParseDuration(duration string, currTime time.Time) 
 	switch lifespan {
 	case LifespanForever, LifespanSingle:
 		if duration != "" {
-			return expiration, prompting_errors.ErrInvalidDuration(duration, fmt.Sprintf("cannot have specified duration when lifespan is %q", lifespan))
+			return expiration, prompting_errors.NewInvalidDurationError(duration, fmt.Sprintf("cannot have specified duration when lifespan is %q", lifespan))
 		}
 	case LifespanTimespan:
 		if duration == "" {
-			return expiration, prompting_errors.ErrInvalidDuration(duration, fmt.Sprintf("cannot have unspecified duration when lifespan is %q", lifespan))
+			return expiration, prompting_errors.NewInvalidDurationError(duration, fmt.Sprintf("cannot have unspecified duration when lifespan is %q", lifespan))
 		}
 		parsedDuration, err := time.ParseDuration(duration)
 		if err != nil {
-			return expiration, prompting_errors.ErrInvalidDuration(duration, fmt.Sprintf("cannot parse duration: %v", err))
+			return expiration, prompting_errors.NewInvalidDurationError(duration, fmt.Sprintf("cannot parse duration: %v", err))
 		}
 		if parsedDuration <= 0 {
-			return expiration, prompting_errors.ErrInvalidDuration(duration, fmt.Sprintf("cannot have zero or negative duration: %q", duration))
+			return expiration, prompting_errors.NewInvalidDurationError(duration, fmt.Sprintf("cannot have zero or negative duration: %q", duration))
 		}
 		expiration = currTime.Add(parsedDuration)
 	default:
 		// Should not occur, since lifespan is validated when unmarshalled
-		return expiration, prompting_errors.ErrInvalidLifespan(string(lifespan), supportedLifespans)
+		return expiration, prompting_errors.NewInvalidLifespanError(string(lifespan), supportedLifespans)
 	}
 	return expiration, nil
 }

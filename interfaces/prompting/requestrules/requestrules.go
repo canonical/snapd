@@ -62,7 +62,7 @@ func (rule *Rule) validate(currTime time.Time) error {
 	}
 	if rule.Lifespan == prompting.LifespanSingle {
 		// We don't allow rules with lifespan "single"
-		return prompting_errors.ErrRuleLifespanSingle(prompting.SupportedRuleLifespans)
+		return prompting_errors.NewRuleLifespanSingleError(prompting.SupportedRuleLifespans)
 	}
 	if err := rule.Lifespan.ValidateExpiration(rule.Expiration, currTime); err != nil {
 		// Should never error due to an API request, since rules are always
