@@ -6748,7 +6748,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, insta
 			},
 		})
 	}
-	checkComponentSetupTasks(c, ts, compsups)
+	checkComponentSetupTasks(c, ts, compsups, "download-component")
 
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
@@ -7061,7 +7061,7 @@ components:
 			},
 		})
 	}
-	checkComponentSetupTasks(c, ts, compsups)
+	checkComponentSetupTasks(c, ts, compsups, "prepare-component")
 
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)

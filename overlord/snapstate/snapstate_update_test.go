@@ -14552,7 +14552,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 			},
 		})
 	}
-	checkComponentSetupTasks(c, ts, compsups)
+	checkComponentSetupTasks(c, ts, compsups, "download-component")
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
@@ -15137,7 +15137,7 @@ components:
 			},
 		})
 	}
-	checkComponentSetupTasks(c, ts, compsups)
+	checkComponentSetupTasks(c, ts, compsups, "prepare-component")
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
@@ -15175,11 +15175,15 @@ components:
 	}
 }
 
-func checkComponentSetupTasks(c *C, ts *state.TaskSet, expected []snapstate.ComponentSetup) {
+func checkComponentSetupTasks(c *C, ts *state.TaskSet, expected []snapstate.ComponentSetup, taskKind string) {
 	found := make([]snapstate.ComponentSetup, 0, len(expected))
 	for _, t := range ts.Tasks() {
 		if !t.Has("component-setup") {
 			continue
+		}
+
+		if t.Kind() != taskKind {
+			c.Errorf("component-setup found on unexpected task kind %q", t.Kind())
 		}
 
 		var compsup snapstate.ComponentSetup
