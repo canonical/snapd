@@ -1,3 +1,6 @@
+# New in snapd 2.65.2:
+* Bump squashfuse from version 0.5.0 to 0.5.2 (used in snapd deb only)
+
 # New in snapd 2.65.1:
 * Support building snapd using base Core22 (Snapcraft 8.x)
 * FIPS: support building FIPS complaint snapd variant that switches to FIPS mode when the system boots with FIPS enabled
