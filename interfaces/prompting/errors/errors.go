@@ -35,16 +35,16 @@ var (
 	ErrRuleNotAllowed = errors.New("user not allowed to request the rule with the given ID")
 
 	// Unsupported value errors, which are defined as functions below
-	ErrInvalidOutcome       = errInvalidOutcome
-	ErrInvalidLifespan      = errInvalidLifespan
-	ErrRuleLifespanSingle   = errRuleLifespanSingle
-	ErrInvalidInterface     = errInvalidInterface
-	ErrInvalidPermissions   = errInvalidPermissions
-	ErrPermissionsListEmpty = errPermissionsListEmpty
+	ErrInvalidOutcome       = invalidOutcomeError
+	ErrInvalidLifespan      = invalidLifespanError
+	ErrRuleLifespanSingle   = ruleLifespanSingleError
+	ErrInvalidInterface     = invalidInterfaceError
+	ErrInvalidPermissions   = invalidPermissionsError
+	ErrPermissionsListEmpty = permissionsListEmptyError
 	// Parse errors, which are defined as functions below
-	ErrInvalidDuration    = errInvalidDuration
-	ErrInvalidExpiration  = errInvalidExpiration
-	ErrInvalidPathPattern = errInvalidPathPattern
+	ErrInvalidDuration    = invalidDurationError
+	ErrInvalidExpiration  = invalidExpirationError
+	ErrInvalidPathPattern = invalidPathPatternError
 	// Validation errors, which should never be used directly apart from
 	// checking errors.Is(), and should otherwise always be wrapped in
 	// dedicated error types defined below.
@@ -67,7 +67,7 @@ var (
 
 // Unsupported value errors, which are built from the UnsupportedValueError struct
 
-func errInvalidOutcome(unsupported string, supported []string) *UnsupportedValueError {
+func invalidOutcomeError(unsupported string, supported []string) *UnsupportedValueError {
 	return &UnsupportedValueError{
 		Field:       "outcome",
 		Msg:         fmt.Sprintf("invalid outcome: %q", unsupported),
@@ -76,7 +76,7 @@ func errInvalidOutcome(unsupported string, supported []string) *UnsupportedValue
 	}
 }
 
-func errInvalidLifespan(unsupported string, supported []string) *UnsupportedValueError {
+func invalidLifespanError(unsupported string, supported []string) *UnsupportedValueError {
 	return &UnsupportedValueError{
 		Field:       "lifespan",
 		Msg:         fmt.Sprintf("invalid lifespan: %q", unsupported),
@@ -85,7 +85,7 @@ func errInvalidLifespan(unsupported string, supported []string) *UnsupportedValu
 	}
 }
 
-func errRuleLifespanSingle(supported []string) *UnsupportedValueError {
+func ruleLifespanSingleError(supported []string) *UnsupportedValueError {
 	return &UnsupportedValueError{
 		Field:       "lifespan",
 		Msg:         `cannot create rule with lifespan "single"`,
@@ -94,7 +94,7 @@ func errRuleLifespanSingle(supported []string) *UnsupportedValueError {
 	}
 }
 
-func errInvalidInterface(unsupported string, supported []string) *UnsupportedValueError {
+func invalidInterfaceError(unsupported string, supported []string) *UnsupportedValueError {
 	return &UnsupportedValueError{
 		Field:       "interface",
 		Msg:         fmt.Sprintf("invalid interface: %q", unsupported),
@@ -103,7 +103,7 @@ func errInvalidInterface(unsupported string, supported []string) *UnsupportedVal
 	}
 }
 
-func errInvalidPermissions(iface string, unsupported []string, supported []string) *UnsupportedValueError {
+func invalidPermissionsError(iface string, unsupported []string, supported []string) *UnsupportedValueError {
 	return &UnsupportedValueError{
 		Field:       "permissions",
 		Msg:         fmt.Sprintf("invalid permissions for %s interface: %v", iface, unsupported),
@@ -112,7 +112,7 @@ func errInvalidPermissions(iface string, unsupported []string, supported []strin
 	}
 }
 
-func errPermissionsListEmpty(iface string, supported []string) *UnsupportedValueError {
+func permissionsListEmptyError(iface string, supported []string) *UnsupportedValueError {
 	return &UnsupportedValueError{
 		Field:       "permissions",
 		Msg:         fmt.Sprintf("invalid permissions for %s interface: permissions list empty", iface),
@@ -144,7 +144,7 @@ func (e *UnsupportedValueError) Is(target error) bool {
 
 // Parse errors, which are built from the ParseError struct
 
-func errInvalidDuration(invalid string, reason string) *ParseError {
+func invalidDurationError(invalid string, reason string) *ParseError {
 	return &ParseError{
 		Field:   "duration",
 		Msg:     fmt.Sprintf("invalid duration: %s: %q", reason, invalid),
@@ -152,7 +152,7 @@ func errInvalidDuration(invalid string, reason string) *ParseError {
 	}
 }
 
-func errInvalidExpiration(invalid time.Time, reason string) *ParseError {
+func invalidExpirationError(invalid time.Time, reason string) *ParseError {
 	timeStr := invalid.Format(time.RFC3339Nano)
 	return &ParseError{
 		Field:   "expiration",
@@ -161,7 +161,7 @@ func errInvalidExpiration(invalid time.Time, reason string) *ParseError {
 	}
 }
 
-func errInvalidPathPattern(invalid string, reason string) *ParseError {
+func invalidPathPatternError(invalid string, reason string) *ParseError {
 	return &ParseError{
 		Field:   "path-pattern",
 		Msg:     fmt.Sprintf("invalid path pattern: %s: %q", reason, invalid),
