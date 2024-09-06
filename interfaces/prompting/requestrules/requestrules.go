@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/interfaces/prompting"
+	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/logger"
@@ -61,7 +62,7 @@ func (rule *Rule) validate(currTime time.Time) error {
 	}
 	if rule.Lifespan == prompting.LifespanSingle {
 		// We don't allow rules with lifespan "single"
-		return prompting.ErrRuleLifespanSingle
+		return prompting_errors.ErrRuleLifespanSingle(prompting.SupportedRuleLifespans)
 	}
 	if err := rule.Lifespan.ValidateExpiration(rule.Expiration, currTime); err != nil {
 		// Should never error due to an API request, since rules are always
@@ -301,11 +302,11 @@ func (rdb *RuleDB) save() error {
 func (rdb *RuleDB) lookupRuleByID(id prompting.IDType) (*Rule, error) {
 	index, exists := rdb.indexByID[id]
 	if !exists {
-		return nil, prompting.ErrRuleNotFound
+		return nil, prompting_errors.ErrRuleNotFound
 	}
 	if index >= len(rdb.rules) {
 		// Internal inconsistency between rules list and IDs map, should not occur
-		return nil, prompting.ErrRuleDBInconsistent
+		return nil, prompting_errors.ErrRuleDBInconsistent
 	}
 	return rdb.rules[index], nil
 }
@@ -321,7 +322,7 @@ func (rdb *RuleDB) lookupRuleByID(id prompting.IDType) (*Rule, error) {
 func (rdb *RuleDB) addRuleToRulesList(rule *Rule) error {
 	_, exists := rdb.indexByID[rule.ID]
 	if exists {
-		return prompting.ErrRuleIDConflict
+		return prompting_errors.ErrRuleIDConflict
 	}
 	rdb.rules = append(rdb.rules, rule)
 	rdb.indexByID[rule.ID] = len(rdb.rules) - 1
@@ -358,10 +359,10 @@ func (rdb *RuleDB) addRule(rule *Rule) error {
 func (rdb *RuleDB) removeRuleByIDFromRulesList(id prompting.IDType) (*Rule, error) {
 	index, exists := rdb.indexByID[id]
 	if !exists {
-		return nil, prompting.ErrRuleNotFound
+		return nil, prompting_errors.ErrRuleNotFound
 	}
 	if index >= len(rdb.rules) {
-		return nil, prompting.ErrRuleDBInconsistent
+		return nil, prompting_errors.ErrRuleDBInconsistent
 	}
 	rule := rdb.rules[index]
 	// Remove the rule with the given ID by copying the final rule in rdb.rules
@@ -405,10 +406,10 @@ func (rdb *RuleDB) removeRuleByID(id prompting.IDType) (*Rule, error) {
 // permission, returns an error with information about the conflicting rules.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) addRuleToTree(rule *Rule) *prompting.RuleConflictError {
+func (rdb *RuleDB) addRuleToTree(rule *Rule) *prompting_errors.RuleConflictError {
 	addedPermissions := make([]string, 0, len(rule.Constraints.Permissions))
 
-	var conflicts []prompting.RuleConflict
+	var conflicts []prompting_errors.RuleConflict
 	for _, permission := range rule.Constraints.Permissions {
 		permConflicts := rdb.addRulePermissionToTree(rule, permission)
 		if len(permConflicts) > 0 {
@@ -423,7 +424,7 @@ func (rdb *RuleDB) addRuleToTree(rule *Rule) *prompting.RuleConflictError {
 		for _, prevPerm := range addedPermissions {
 			rdb.removeRulePermissionFromTree(rule, prevPerm)
 		}
-		return &prompting.RuleConflictError{
+		return &prompting_errors.RuleConflictError{
 			Conflicts: conflicts,
 		}
 	}
@@ -443,12 +444,12 @@ func (rdb *RuleDB) addRuleToTree(rule *Rule) *prompting.RuleConflictError {
 // immediately removed, and the new rule can continue to be added.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) []prompting.RuleConflict {
+func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) []prompting_errors.RuleConflict {
 	permVariants := rdb.ensurePermissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
 
 	newVariantEntries := make(map[string]variantEntry, rule.Constraints.PathPattern.NumVariants())
 	expiredRules := make(map[prompting.IDType]bool)
-	var conflicts []prompting.RuleConflict
+	var conflicts []prompting_errors.RuleConflict
 
 	addVariant := func(index int, variant patterns.PatternVariant) {
 		newEntry := variantEntry{
@@ -465,10 +466,10 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) []prom
 			newVariantEntries[variantStr] = newEntry
 		default:
 			// Exists and is not expired, so there's a conflict
-			conflicts = append(conflicts, prompting.RuleConflict{
+			conflicts = append(conflicts, prompting_errors.RuleConflict{
 				Permission:    permission,
 				Variant:       variantStr,
-				ConflictingID: conflictingVariantEntry.RuleID,
+				ConflictingID: conflictingVariantEntry.RuleID.String(),
 			})
 		}
 	}
@@ -556,7 +557,7 @@ func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) [
 	return errs
 }
 
-// joinInternalErrors wraps a prompting.ErrRuleDBInconsistent with the given errors.
+// joinInternalErrors wraps a prompting_errors.ErrRuleDBInconsistent with the given errors.
 //
 // If there are no non-nil errors in the given errs list, return nil.
 func joinInternalErrors(errs []error) error {
@@ -565,7 +566,7 @@ func joinInternalErrors(errs []error) error {
 		return nil
 	}
 	// TODO: wrap joinedErr as well once we're on golang v1.20+
-	return fmt.Errorf("%w\n%v", prompting.ErrRuleDBInconsistent, joinedErr)
+	return fmt.Errorf("%w\n%v", prompting_errors.ErrRuleDBInconsistent, joinedErr)
 }
 
 // errorsJoin returns an error that wraps the given errors.
@@ -657,7 +658,7 @@ func (rdb *RuleDB) Close() error {
 	defer rdb.mutex.Unlock()
 
 	if rdb.maxIDMmap.IsClosed() {
-		return prompting.ErrRulesClosed
+		return prompting_errors.ErrRulesClosed
 	}
 
 	if err := rdb.maxIDMmap.Close(); err != nil {
@@ -675,7 +676,7 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 	defer rdb.mutex.Unlock()
 
 	if rdb.maxIDMmap.IsClosed() {
-		return nil, prompting.ErrRulesClosed
+		return nil, prompting_errors.ErrRulesClosed
 	}
 
 	newRule, err := rdb.makeNewRule(user, snap, iface, constraints, outcome, lifespan, duration)
@@ -740,13 +741,13 @@ func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constrain
 
 // IsPathAllowed checks whether the given path with the given permission is
 // allowed or denied by existing rules for the given user, snap, and interface.
-// If no rule applies, returns prompting.ErrNoMatchingRule.
+// If no rule applies, returns prompting_errors.ErrNoMatchingRule.
 func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path string, permission string) (bool, error) {
 	rdb.mutex.RLock()
 	defer rdb.mutex.RUnlock()
 	permissionMap, ok := rdb.permissionDBForUserSnapInterfacePermission(user, snap, iface, permission)
 	if !ok || permissionMap == nil {
-		return false, prompting.ErrNoMatchingRule
+		return false, prompting_errors.ErrNoMatchingRule
 	}
 	variantMap := permissionMap.VariantEntries
 	matchingVariants := make([]patterns.PatternVariant, 0)
@@ -781,7 +782,7 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 		}
 	}
 	if len(matchingVariants) == 0 {
-		return false, prompting.ErrNoMatchingRule
+		return false, prompting_errors.ErrNoMatchingRule
 	}
 	highestPrecedenceVariant, err := patterns.HighestPrecedencePattern(matchingVariants, path)
 	if err != nil {
@@ -792,7 +793,7 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 	matchingRule, err := rdb.lookupRuleByID(matchingID)
 	if err != nil {
 		// Database was left inconsistent, should not occur
-		return false, fmt.Errorf("internal error: while looking for rule %v: %w", matchingID, prompting.ErrRuleNotFound)
+		return false, fmt.Errorf("internal error: while looking for rule %v: %w", matchingID, prompting_errors.ErrRuleNotFound)
 	}
 	return matchingRule.Outcome.AsBool()
 }
@@ -800,7 +801,7 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 // RuleWithID returns the rule with the given ID.
 // If the rule is not found, returns ErrRuleNotFound.
 // If the rule does not apply to the given user, returns
-// prompting.ErrRuleNotAllowed.
+// prompting_errors.ErrRuleNotAllowed.
 func (rdb *RuleDB) RuleWithID(user uint32, id prompting.IDType) (*Rule, error) {
 	rdb.mutex.RLock()
 	defer rdb.mutex.RUnlock()
@@ -882,20 +883,20 @@ func (rdb *RuleDB) lookupRuleByIDForUser(user uint32, id prompting.IDType) (*Rul
 		return nil, err
 	}
 	if rule.User != user {
-		return nil, prompting.ErrRuleNotAllowed
+		return nil, prompting_errors.ErrRuleNotAllowed
 	}
 	return rule, nil
 }
 
 // RemoveRule the rule with the given ID from the rule database. If the rule
-// does not apply to the given user, returns prompting.ErrRuleNotAllowed.
+// does not apply to the given user, returns prompting_errors.ErrRuleNotAllowed.
 // If successful, saves the database to disk.
 func (rdb *RuleDB) RemoveRule(user uint32, id prompting.IDType) (*Rule, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 
 	if rdb.maxIDMmap.IsClosed() {
-		return nil, prompting.ErrRulesClosed
+		return nil, prompting_errors.ErrRulesClosed
 	}
 
 	rule, err := rdb.lookupRuleByIDForUser(user, id)
@@ -945,7 +946,7 @@ func (rdb *RuleDB) RemoveRulesForSnap(user uint32, snap string) ([]*Rule, error)
 // The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) error {
 	if rdb.maxIDMmap.IsClosed() {
-		return prompting.ErrRulesClosed
+		return prompting_errors.ErrRulesClosed
 	}
 
 	if len(rules) == 0 {
@@ -1024,7 +1025,7 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraints *prom
 	defer rdb.mutex.Unlock()
 
 	if rdb.maxIDMmap.IsClosed() {
-		return nil, prompting.ErrRulesClosed
+		return nil, prompting_errors.ErrRulesClosed
 	}
 
 	origRule, err := rdb.lookupRuleByIDForUser(user, id)

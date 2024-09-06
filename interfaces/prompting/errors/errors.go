@@ -17,14 +17,15 @@
  *
  */
 
-package prompting
+// The errors package defines common error types which are used across the
+// prompting subsystems, along with constructors for specific errors based on
+// those broader types.
+package errors
 
 import (
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/snapcore/snapd/interfaces/prompting/errortypes"
 )
 
 var (
@@ -43,7 +44,7 @@ var (
 	// Parse errors, which are defined as functions below
 	ErrInvalidDuration    = errInvalidDuration
 	ErrInvalidExpiration  = errInvalidExpiration
-	ErrInvalidPathPattern = errortypes.ErrInvalidPathPattern // avoid circular import in patterns package
+	ErrInvalidPathPattern = errInvalidPathPattern
 	// Validation errors, which should never be used directly apart from
 	// checking errors.Is(), and should otherwise always be wrapped in
 	// dedicated error types defined below.
@@ -64,83 +65,126 @@ var (
 	ErrRuleExpirationInThePast = errors.New("cannot have expiration time in the past")
 )
 
-// Unsupported value errors, which are variants of errortypes.UnsupportedValueError
+// Unsupported value errors, which are built from the UnsupportedValueError struct
 
-func errInvalidOutcome(invalid OutcomeType) *errortypes.UnsupportedValueError {
-	return &errortypes.UnsupportedValueError{
+func errInvalidOutcome(unsupported string, supported []string) *UnsupportedValueError {
+	return &UnsupportedValueError{
 		Field:       "outcome",
-		Msg:         fmt.Sprintf("invalid outcome: %q", invalid),
-		Unsupported: string(invalid),
-		Supported:   []string{string(OutcomeAllow), string(OutcomeDeny)},
+		Msg:         fmt.Sprintf("invalid outcome: %q", unsupported),
+		Unsupported: unsupported,
+		Supported:   supported,
 	}
 }
 
-func errInvalidLifespan(invalid LifespanType) *errortypes.UnsupportedValueError {
-	return &errortypes.UnsupportedValueError{
+func errInvalidLifespan(unsupported string, supported []string) *UnsupportedValueError {
+	return &UnsupportedValueError{
 		Field:       "lifespan",
-		Msg:         fmt.Sprintf("invalid lifespan: %q", invalid),
-		Unsupported: string(invalid),
-		Supported:   []string{string(LifespanForever), string(LifespanSingle), string(LifespanTimespan)},
+		Msg:         fmt.Sprintf("invalid lifespan: %q", unsupported),
+		Unsupported: unsupported,
+		Supported:   supported,
 	}
 }
 
-var errRuleLifespanSingle = &errortypes.UnsupportedValueError{
-	Field:       "lifespan",
-	Msg:         `cannot create rule with lifespan "single"`,
-	Unsupported: "single",
-	Supported:   []string{string(LifespanForever), string(LifespanTimespan)},
+func errRuleLifespanSingle(supported []string) *UnsupportedValueError {
+	return &UnsupportedValueError{
+		Field:       "lifespan",
+		Msg:         `cannot create rule with lifespan "single"`,
+		Unsupported: "string",
+		Supported:   supported,
+	}
 }
 
-func errInvalidInterface(invalid string) *errortypes.UnsupportedValueError {
-	return &errortypes.UnsupportedValueError{
+func errInvalidInterface(unsupported string, supported []string) *UnsupportedValueError {
+	return &UnsupportedValueError{
 		Field:       "interface",
-		Msg:         fmt.Sprintf("invalid interface: %q", invalid),
-		Unsupported: invalid,
-		Supported:   availableInterfaces(),
+		Msg:         fmt.Sprintf("invalid interface: %q", unsupported),
+		Unsupported: unsupported,
+		Supported:   supported,
 	}
 }
 
-func errInvalidPermissions(iface string, invalid []string) *errortypes.UnsupportedValueError {
-	// If we're returning an invalid permissions error, interface is valid, so
-	// no error can occur when getting available permissions for that interface.
-	availablePermissions, _ := AvailablePermissions(iface)
-	return &errortypes.UnsupportedValueError{
+func errInvalidPermissions(iface string, unsupported []string, supported []string) *UnsupportedValueError {
+	return &UnsupportedValueError{
 		Field:       "permissions",
-		Msg:         fmt.Sprintf("invalid permissions for %s interface: %v", iface, invalid),
-		Unsupported: invalid,
-		Supported:   availablePermissions,
+		Msg:         fmt.Sprintf("invalid permissions for %s interface: %v", iface, unsupported),
+		Unsupported: unsupported,
+		Supported:   supported,
 	}
 }
 
-func errPermissionsListEmpty(iface string) *errortypes.UnsupportedValueError {
-	// If we're returning an invalid permissions error, interface is valid, so
-	// no error can occur when getting available permissions for that interface.
-	availablePermissions, _ := AvailablePermissions(iface)
-	return &errortypes.UnsupportedValueError{
+func errPermissionsListEmpty(iface string, supported []string) *UnsupportedValueError {
+	return &UnsupportedValueError{
 		Field:       "permissions",
 		Msg:         fmt.Sprintf("invalid permissions for %s interface: permissions list empty", iface),
 		Unsupported: []string{},
-		Supported:   availablePermissions,
+		Supported:   supported,
 	}
 }
 
-// Parse errors, which are variants of errortypes.ParseError
+// Marker for UnsupportedValueError, should never be returned as an actual
+// error value.
+var ErrUnsupportedValue = errors.New("unsupported value")
 
-func errInvalidDuration(invalid string, reason string) *errortypes.ParseError {
-	return &errortypes.ParseError{
+// UnsupportedValueError is a wrapper for errors about a field having an
+// unsupported value when there is a fixed set of supported values.
+type UnsupportedValueError struct {
+	Field       string
+	Msg         string
+	Unsupported interface{} // either string or []string
+	Supported   []string
+}
+
+func (e *UnsupportedValueError) Error() string {
+	return e.Msg
+}
+
+func (e *UnsupportedValueError) Is(target error) bool {
+	return target == ErrUnsupportedValue
+}
+
+// Parse errors, which are built from the ParseError struct
+
+func errInvalidDuration(invalid string, reason string) *ParseError {
+	return &ParseError{
 		Field:   "duration",
 		Msg:     fmt.Sprintf("invalid duration: %s: %q", reason, invalid),
 		Invalid: invalid,
 	}
 }
 
-func errInvalidExpiration(invalid time.Time, reason string) *errortypes.ParseError {
+func errInvalidExpiration(invalid time.Time, reason string) *ParseError {
 	timeStr := invalid.Format(time.RFC3339Nano)
-	return &errortypes.ParseError{
+	return &ParseError{
 		Field:   "expiration",
 		Msg:     fmt.Sprintf("invalid expiration: %s: %q", reason, timeStr),
 		Invalid: timeStr,
 	}
+}
+
+func errInvalidPathPattern(invalid string, reason string) *ParseError {
+	return &ParseError{
+		Field:   "path-pattern",
+		Msg:     fmt.Sprintf("invalid path pattern: %s: %q", reason, invalid),
+		Invalid: invalid,
+	}
+}
+
+// Marker for ParseError, should never be returned as an actual error value.
+var ErrParseError = errors.New("parse error")
+
+// ParseError is a wrapper for errors about a field whose value is malformed.
+type ParseError struct {
+	Field   string
+	Msg     string
+	Invalid string
+}
+
+func (e *ParseError) Error() string {
+	return e.Msg
+}
+
+func (e *ParseError) Is(target error) bool {
+	return target == ErrParseError
 }
 
 // Validation errors, which are all uniquely defined here
@@ -180,7 +224,7 @@ func (e *RequestedPermissionsNotMatchedError) Unwrap() error {
 type RuleConflict struct {
 	Permission    string
 	Variant       string
-	ConflictingID IDType
+	ConflictingID string
 }
 
 // RuleConflictError stores a list of conflicts with existing rules which

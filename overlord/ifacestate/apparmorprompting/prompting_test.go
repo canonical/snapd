@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
+	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
@@ -160,8 +161,8 @@ func (s *apparmorpromptingSuite) TestStop(c *C) {
 
 	// Check that the listener and prompt and rule backends were closed
 	checkListenerClosed(c, reqChan)
-	c.Check(promptDB.Close(), Equals, prompting.ErrPromptsClosed)
-	c.Check(ruleDB.Close(), Equals, prompting.ErrRulesClosed)
+	c.Check(promptDB.Close(), Equals, prompting_errors.ErrPromptsClosed)
+	c.Check(ruleDB.Close(), Equals, prompting_errors.ErrRulesClosed)
 
 	// Check that current backends are nil
 	c.Check(mgr.PromptDB(), IsNil)
@@ -408,12 +409,12 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 
 	// Wrong user ID
 	result, err := mgr.HandleReply(s.defaultUser+1, prompt.ID, nil, prompting.OutcomeAllow, prompting.LifespanSingle, "")
-	c.Check(err, Equals, prompting.ErrPromptNotFound)
+	c.Check(err, Equals, prompting_errors.ErrPromptNotFound)
 	c.Check(result, IsNil)
 
 	// Wrong prompt ID
 	result, err = mgr.HandleReply(s.defaultUser, prompt.ID+1, nil, prompting.OutcomeAllow, prompting.LifespanSingle, "")
-	c.Check(err, Equals, prompting.ErrPromptNotFound)
+	c.Check(err, Equals, prompting_errors.ErrPromptNotFound)
 	c.Check(result, IsNil)
 
 	// Invalid constraints
@@ -1239,7 +1240,7 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 
 	// Check that prompt has been satisfied
 	_, err = mgr.PromptWithID(s.defaultUser, prompt.ID)
-	c.Assert(err, Equals, prompting.ErrPromptNotFound)
+	c.Assert(err, Equals, prompting_errors.ErrPromptNotFound)
 	s.checkRecordedPromptNotices(c, whenPatched, 1)
 
 	// Check that a reply has been received
@@ -1256,7 +1257,7 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 
 	// Check that it can no longer be found
 	_, err = mgr.RuleWithID(rule.User, rule.ID)
-	c.Assert(err, Equals, prompting.ErrRuleNotFound)
+	c.Assert(err, Equals, prompting_errors.ErrRuleNotFound)
 	rules, err := mgr.Rules(rule.User, "", "")
 	c.Assert(err, IsNil)
 	c.Assert(rules, HasLen, 0)

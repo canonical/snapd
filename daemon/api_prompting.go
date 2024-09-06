@@ -28,7 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/interfaces/prompting"
-	"github.com/snapcore/snapd/interfaces/prompting/errortypes"
+	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -114,7 +114,7 @@ type invalidFieldValue struct {
 }
 
 type UnsupportedValueValue struct {
-	err *errortypes.UnsupportedValueError
+	err *prompting_errors.UnsupportedValueError
 }
 
 func (v *UnsupportedValueValue) MarshalJSON() ([]byte, error) {
@@ -133,7 +133,7 @@ func (v *UnsupportedValueValue) MarshalJSON() ([]byte, error) {
 }
 
 type ParseErrorValue struct {
-	err *errortypes.ParseError
+	err *prompting_errors.ParseError
 }
 
 func (v *ParseErrorValue) MarshalJSON() ([]byte, error) {
@@ -162,7 +162,7 @@ var (
 )
 
 type RequestedPathNotMatchedErrorValue struct {
-	err *prompting.RequestedPathNotMatchedError
+	err *prompting_errors.RequestedPathNotMatchedError
 }
 
 func (v *RequestedPathNotMatchedErrorValue) MarshalJSON() ([]byte, error) {
@@ -183,7 +183,7 @@ func (v *RequestedPathNotMatchedErrorValue) MarshalJSON() ([]byte, error) {
 }
 
 type RequestedPermissionsNotMatchedErrorValue struct {
-	err *prompting.RequestedPermissionsNotMatchedError
+	err *prompting_errors.RequestedPermissionsNotMatchedError
 }
 
 func (v *RequestedPermissionsNotMatchedErrorValue) MarshalJSON() ([]byte, error) {
@@ -203,13 +203,13 @@ func (v *RequestedPermissionsNotMatchedErrorValue) MarshalJSON() ([]byte, error)
 	return json.Marshal(value)
 }
 
-type RuleConflictJSON prompting.RuleConflict
+type RuleConflictJSON prompting_errors.RuleConflict
 
 func (r *RuleConflictJSON) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
-		Permission    string           `json:"permission"`
-		Variant       string           `json:"variant"`
-		ConflictingID prompting.IDType `json:"conflicting-id"`
+		Permission    string `json:"permission"`
+		Variant       string `json:"variant"`
+		ConflictingID string `json:"conflicting-id"`
 	}{
 		Permission:    r.Permission,
 		Variant:       r.Variant,
@@ -218,7 +218,7 @@ func (r *RuleConflictJSON) MarshalJSON() ([]byte, error) {
 }
 
 type RuleConflictErrorValue struct {
-	err *prompting.RuleConflictError
+	err *prompting_errors.RuleConflictError
 }
 
 func (v *RuleConflictErrorValue) MarshalJSON() ([]byte, error) {
@@ -253,56 +253,56 @@ func promptingError(err error) *apiError {
 		Message: err.Error(),
 	}
 	switch {
-	case errors.Is(err, prompting.ErrPromptNotFound):
+	case errors.Is(err, prompting_errors.ErrPromptNotFound):
 		apiErr.Status = 404
 		apiErr.Kind = client.ErrorKindInterfacesRequestsPromptNotFound
-	case errors.Is(err, prompting.ErrRuleNotFound) || errors.Is(err, prompting.ErrRuleNotAllowed):
+	case errors.Is(err, prompting_errors.ErrRuleNotFound) || errors.Is(err, prompting_errors.ErrRuleNotAllowed):
 		// Even if the error is ErrRuleNotAllowed, reply with 404 status
 		// to match the behavior of prompts, and so if we switch to storing
 		// rules by ID (and don't want to check whether a rule with that ID
 		// exists for some other user), this error will remain unchanged.
 		apiErr.Status = 404
 		apiErr.Kind = client.ErrorKindInterfacesRequestsRuleNotFound
-	case errors.Is(err, errortypes.ErrUnsupportedValue):
+	case errors.Is(err, prompting_errors.ErrUnsupportedValue):
 		apiErr.Status = 400
 		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidFields
-		var unsupportedValueErr *errortypes.UnsupportedValueError
+		var unsupportedValueErr *prompting_errors.UnsupportedValueError
 		if errors.As(err, &unsupportedValueErr) {
 			apiErr.Value = UnsupportedValueValue{
 				err: unsupportedValueErr,
 			}
 		}
-	case errors.Is(err, errortypes.ErrParseError):
+	case errors.Is(err, prompting_errors.ErrParseError):
 		apiErr.Status = 400
 		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidFields
-		var parseErr *errortypes.ParseError
+		var parseErr *prompting_errors.ParseError
 		if errors.As(err, &parseErr) {
 			apiErr.Value = ParseErrorValue{
 				err: parseErr,
 			}
 		}
-	case errors.Is(err, prompting.ErrReplyNotMatchRequestedPath):
+	case errors.Is(err, prompting_errors.ErrReplyNotMatchRequestedPath):
 		apiErr.Status = 400
 		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidFields
-		var patternErr *prompting.RequestedPathNotMatchedError
+		var patternErr *prompting_errors.RequestedPathNotMatchedError
 		if errors.As(err, &patternErr) {
 			apiErr.Value = &RequestedPathNotMatchedErrorValue{
 				err: patternErr,
 			}
 		}
-	case errors.Is(err, prompting.ErrReplyNotMatchRequestedPermissions):
+	case errors.Is(err, prompting_errors.ErrReplyNotMatchRequestedPermissions):
 		apiErr.Status = 400
 		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidFields
-		var permissionsErr *prompting.RequestedPermissionsNotMatchedError
+		var permissionsErr *prompting_errors.RequestedPermissionsNotMatchedError
 		if errors.As(err, &permissionsErr) {
 			apiErr.Value = &RequestedPermissionsNotMatchedErrorValue{
 				err: permissionsErr,
 			}
 		}
-	case errors.Is(err, prompting.ErrRuleConflict):
+	case errors.Is(err, prompting_errors.ErrRuleConflict):
 		apiErr.Status = 409
 		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidFields
-		var conflictErr *prompting.RuleConflictError
+		var conflictErr *prompting_errors.RuleConflictError
 		if errors.As(err, &conflictErr) {
 			apiErr.Value = &RuleConflictErrorValue{
 				err: conflictErr,
@@ -402,7 +402,7 @@ func getPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	promptID, err := prompting.IDFromString(id)
 	if err != nil {
-		return promptingError(prompting.ErrPromptNotFound)
+		return promptingError(prompting_errors.ErrPromptNotFound)
 	}
 
 	if !getInterfaceManager(c).AppArmorPromptingRunning() {
@@ -428,7 +428,7 @@ func postPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	promptID, err := prompting.IDFromString(id)
 	if err != nil {
-		return promptingError(prompting.ErrPromptNotFound)
+		return promptingError(prompting_errors.ErrPromptNotFound)
 	}
 
 	if !getInterfaceManager(c).AppArmorPromptingRunning() {
@@ -534,7 +534,7 @@ func getRule(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	ruleID, err := prompting.IDFromString(id)
 	if err != nil {
-		return promptingError(prompting.ErrRuleNotFound)
+		return promptingError(prompting_errors.ErrRuleNotFound)
 	}
 
 	if !getInterfaceManager(c).AppArmorPromptingRunning() {
@@ -560,7 +560,7 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	ruleID, err := prompting.IDFromString(id)
 	if err != nil {
-		return promptingError(prompting.ErrRuleNotFound)
+		return promptingError(prompting_errors.ErrRuleNotFound)
 	}
 
 	if !getInterfaceManager(c).AppArmorPromptingRunning() {

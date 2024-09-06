@@ -27,6 +27,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/interfaces/prompting"
+	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/logger"
@@ -227,7 +228,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 				satisfiedPerms = append(satisfiedPerms, perm)
 			}
 		} else {
-			if !errors.Is(err, prompting.ErrNoMatchingRule) {
+			if !errors.Is(err, prompting_errors.ErrNoMatchingRule) {
 				logger.Noticef("error while checking request against existing rules: %v", err)
 			}
 			// No matching rule found
@@ -390,7 +391,7 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 		return nil, err
 	}
 	if !matches {
-		return nil, &prompting.RequestedPathNotMatchedError{
+		return nil, &prompting_errors.RequestedPathNotMatchedError{
 			Received:  constraints.PathPattern.String(),
 			Requested: prompt.Constraints.Path(),
 		}
@@ -400,7 +401,7 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 	// auto-deny the rest?
 	contained := constraints.ContainPermissions(prompt.Constraints.RemainingPermissions())
 	if !contained {
-		return nil, &prompting.RequestedPermissionsNotMatchedError{
+		return nil, &prompting_errors.RequestedPermissionsNotMatchedError{
 			Received:  constraints.Permissions,
 			Requested: prompt.Constraints.RemainingPermissions(),
 		}

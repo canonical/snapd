@@ -31,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
+	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
@@ -165,7 +166,7 @@ type userPromptDB struct {
 func (udb *userPromptDB) get(id prompting.IDType) (*Prompt, error) {
 	index, ok := udb.ids[id]
 	if !ok {
-		return nil, prompting.ErrPromptNotFound
+		return nil, prompting_errors.ErrPromptNotFound
 	}
 	return udb.prompts[index], nil
 }
@@ -188,7 +189,7 @@ func (udb *userPromptDB) add(prompt *Prompt) {
 func (udb *userPromptDB) remove(id prompting.IDType) (*Prompt, error) {
 	index, ok := udb.ids[id]
 	if !ok {
-		return nil, prompting.ErrPromptNotFound
+		return nil, prompting_errors.ErrPromptNotFound
 	}
 	prompt := udb.prompts[index]
 	// Remove the prompt with the given ID by copying the final prompt in
@@ -275,7 +276,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 	defer pdb.mutex.Unlock()
 
 	if pdb.maxIDMmap.IsClosed() {
-		return nil, false, prompting.ErrPromptsClosed
+		return nil, false, prompting_errors.ErrPromptsClosed
 	}
 
 	userEntry, ok := pdb.perUser[metadata.User]
@@ -311,7 +312,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		logger.Noticef("WARNING: too many outstanding prompts for user %d; auto-denying new one", metadata.User)
 		allowedPermission := responseForInterfaceConstraintsOutcome(metadata.Interface, constraints, prompting.OutcomeDeny)
 		sendReply(listenerReq, allowedPermission)
-		return nil, false, prompting.ErrTooManyPrompts
+		return nil, false, prompting_errors.ErrTooManyPrompts
 	}
 
 	id, _ := pdb.maxIDMmap.NextID() // err must be nil because maxIDMmap is not nil and lock is held
@@ -362,7 +363,7 @@ func (pdb *PromptDB) Prompts(user uint32) ([]*Prompt, error) {
 	pdb.mutex.RLock()
 	defer pdb.mutex.RUnlock()
 	if pdb.maxIDMmap.IsClosed() {
-		return nil, prompting.ErrPromptsClosed
+		return nil, prompting_errors.ErrPromptsClosed
 	}
 	userEntry, ok := pdb.perUser[user]
 	if !ok || len(userEntry.prompts) == 0 {
@@ -388,11 +389,11 @@ func (pdb *PromptDB) PromptWithID(user uint32, id prompting.IDType) (*Prompt, er
 // The caller should hold a read lock on the prompt DB mutex.
 func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType) (*userPromptDB, *Prompt, error) {
 	if pdb.maxIDMmap.IsClosed() {
-		return nil, nil, prompting.ErrPromptsClosed
+		return nil, nil, prompting_errors.ErrPromptsClosed
 	}
 	userEntry, ok := pdb.perUser[user]
 	if !ok {
-		return nil, nil, prompting.ErrPromptNotFound
+		return nil, nil, prompting_errors.ErrPromptNotFound
 	}
 	prompt, err := userEntry.get(id)
 	if err != nil {
@@ -459,7 +460,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 	defer pdb.mutex.Unlock()
 
 	if pdb.maxIDMmap.IsClosed() {
-		return nil, prompting.ErrPromptsClosed
+		return nil, prompting_errors.ErrPromptsClosed
 	}
 
 	userEntry, ok := pdb.perUser[metadata.User]
@@ -517,7 +518,7 @@ func (pdb *PromptDB) Close() error {
 	defer pdb.mutex.Unlock()
 
 	if pdb.maxIDMmap.IsClosed() {
-		return prompting.ErrPromptsClosed
+		return prompting_errors.ErrPromptsClosed
 	}
 
 	if err := pdb.maxIDMmap.Close(); err != nil {

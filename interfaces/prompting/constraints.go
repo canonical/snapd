@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"sort"
 
+	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
@@ -42,7 +43,7 @@ type Constraints struct {
 // interface, otherwise returns an error.
 func (c *Constraints) ValidateForInterface(iface string) error {
 	if c.PathPattern == nil {
-		return ErrInvalidPathPattern("", "no path pattern")
+		return prompting_errors.ErrInvalidPathPattern("", "no path pattern")
 	}
 	return c.validatePermissions(iface)
 }
@@ -54,7 +55,7 @@ func (c *Constraints) ValidateForInterface(iface string) error {
 func (c *Constraints) validatePermissions(iface string) error {
 	availablePerms, ok := interfacePermissionsAvailable[iface]
 	if !ok {
-		return ErrInvalidInterface(iface)
+		return prompting_errors.ErrInvalidInterface(iface, availableInterfaces())
 	}
 	permsSet := make(map[string]bool, len(c.Permissions))
 	var invalidPerms []string
@@ -66,10 +67,10 @@ func (c *Constraints) validatePermissions(iface string) error {
 		permsSet[perm] = true
 	}
 	if len(invalidPerms) > 0 {
-		return ErrInvalidPermissions(iface, invalidPerms)
+		return prompting_errors.ErrInvalidPermissions(iface, invalidPerms, availablePerms)
 	}
 	if len(permsSet) == 0 {
-		return ErrPermissionsListEmpty(iface)
+		return prompting_errors.ErrPermissionsListEmpty(iface, availablePerms)
 	}
 	newPermissions := make([]string, 0, len(permsSet))
 	for _, perm := range availablePerms {
@@ -86,12 +87,12 @@ func (c *Constraints) validatePermissions(iface string) error {
 // If the constraints or path are invalid, returns an error.
 func (c *Constraints) Match(path string) (bool, error) {
 	if c.PathPattern == nil {
-		return false, ErrInvalidPathPattern("", "no path pattern")
+		return false, prompting_errors.ErrInvalidPathPattern("", "no path pattern")
 	}
 	match, err := c.PathPattern.Match(path)
 	if err != nil {
 		// Error should not occur, since it was parsed internally
-		return false, ErrInvalidPathPattern(c.PathPattern.String(), err.Error())
+		return false, prompting_errors.ErrInvalidPathPattern(c.PathPattern.String(), err.Error())
 	}
 	return match, nil
 }
@@ -198,7 +199,9 @@ func AbstractPermissionsFromAppArmorPermissions(iface string, permissions any) (
 // corresponding to the given permissions for the given interface.
 func AbstractPermissionsToAppArmorPermissions(iface string, permissions []string) (any, error) {
 	if len(permissions) == 0 {
-		return notify.FilePermission(0), ErrPermissionsListEmpty(iface)
+		availablePerms, _ := AvailablePermissions(iface)
+		// Caller should have already validated iface, so no error can occur
+		return notify.FilePermission(0), prompting_errors.ErrPermissionsListEmpty(iface, availablePerms)
 	}
 	filePermsMap, exists := interfaceFilePermissionsMaps[iface]
 	if !exists {

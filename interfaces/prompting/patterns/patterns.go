@@ -29,7 +29,7 @@ import (
 
 	doublestar "github.com/bmatcuk/doublestar/v4"
 
-	"github.com/snapcore/snapd/interfaces/prompting/errortypes"
+	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 )
 
 var ErrNoPatterns = errors.New("cannot establish precedence: no patterns given")
@@ -60,14 +60,14 @@ func ParsePathPattern(pattern string) (*PathPattern, error) {
 func (p *PathPattern) parse(pattern string) error {
 	tokens, err := scan(pattern)
 	if err != nil {
-		return errortypes.ErrInvalidPathPattern(pattern, err.Error())
+		return prompting_errors.ErrInvalidPathPattern(pattern, err.Error())
 	}
 	tree, err := parse(tokens)
 	if err != nil {
-		return errortypes.ErrInvalidPathPattern(pattern, err.Error())
+		return prompting_errors.ErrInvalidPathPattern(pattern, err.Error())
 	}
 	if count := tree.NumVariants(); count > maxExpandedPatterns {
-		return errortypes.ErrInvalidPathPattern(pattern, fmt.Sprintf("exceeded maximum number of expanded path patterns (%d): %d", maxExpandedPatterns, count))
+		return prompting_errors.ErrInvalidPathPattern(pattern, fmt.Sprintf("exceeded maximum number of expanded path patterns (%d): %d", maxExpandedPatterns, count))
 	}
 	p.original = pattern
 	p.renderTree = tree
