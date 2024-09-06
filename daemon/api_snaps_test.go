@@ -75,6 +75,10 @@ func (s *snapsSuite) expectSnapsReadAccess() {
 	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}})
 }
 
+func (s *snapsSuite) expectSnapsNameReadAccess() {
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control", "snap-refresh-observe"}})
+}
+
 func (s *snapsSuite) TestSnapsInfoIntegration(c *check.C) {
 	s.checkSnapsInfoIntegration(c, false, nil)
 }
@@ -1050,7 +1054,7 @@ func (s *snapsSuite) TestRemoveManyWithPurge(c *check.C) {
 	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 }
 func (s *snapsSuite) TestSnapInfoOneIntegration(c *check.C) {
-	s.expectSnapsReadAccess()
+	s.expectSnapsNameReadAccess()
 	d := s.daemon(c)
 
 	// we have v0 [r5] installed
@@ -1307,7 +1311,7 @@ UnitFileState=enabled
 }
 
 func (s *snapsSuite) TestSnapInfoNotFound(c *check.C) {
-	s.expectSnapsReadAccess()
+	s.expectSnapsNameReadAccess()
 	s.daemon(c)
 
 	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
@@ -1316,7 +1320,7 @@ func (s *snapsSuite) TestSnapInfoNotFound(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapInfoNoneFound(c *check.C) {
-	s.expectSnapsReadAccess()
+	s.expectSnapsNameReadAccess()
 	s.daemon(c)
 
 	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
@@ -1325,7 +1329,7 @@ func (s *snapsSuite) TestSnapInfoNoneFound(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
-	s.expectSnapsReadAccess()
+	s.expectSnapsNameReadAccess()
 	s.daemon(c)
 	s.err = errors.New("weird")
 
@@ -1337,7 +1341,7 @@ func (s *snapsSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapInfoReturnsHolds(c *check.C) {
-	s.expectSnapsReadAccess()
+	s.expectSnapsNameReadAccess()
 	d := s.daemon(c)
 	s.mkInstalledInState(c, d, "foo", "bar", "v0", snap.R(5), true, "")
 
@@ -1416,7 +1420,7 @@ func (s *snapsSuite) TestSnapManyInfosReturnsHolds(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapInfoReturnsRefreshInhibitProceedTime(c *check.C) {
-	s.expectSnapsReadAccess()
+	s.expectSnapsNameReadAccess()
 	d := s.daemon(c)
 	s.mkInstalledInState(c, d, "foo", "bar", "v0", snap.R(5), true, "")
 
