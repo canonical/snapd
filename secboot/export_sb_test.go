@@ -2,7 +2,7 @@
 //go:build !nosecboot
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2021, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,11 +21,10 @@
 package secboot
 
 import (
-	"io"
-
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
+	sb_hooks "github.com/snapcore/secboot/hooks"
 	sb_tpm2 "github.com/snapcore/secboot/tpm2"
 
 	"github.com/snapcore/snapd/testutil"
@@ -62,23 +61,15 @@ func MockTPMReleaseResources(f func(tpm *sb_tpm2.Connection, handle tpm2.Handle)
 	return restore
 }
 
-func MockSbEfiAddSecureBootPolicyProfile(f func(profile *sb_tpm2.PCRProtectionProfile, params *sb_efi.SecureBootPolicyProfileParams) error) (restore func()) {
-	old := sbefiAddSecureBootPolicyProfile
-	sbefiAddSecureBootPolicyProfile = f
+func MockSbEfiAddPCRProfile(f func(pcrAlg tpm2.HashAlgorithmId, branch *sb_tpm2.PCRProtectionProfileBranch, loadSequences *sb_efi.ImageLoadSequences, options ...sb_efi.PCRProfileOption) error) (restore func()) {
+	old := sbefiAddPCRProfile
+	sbefiAddPCRProfile = f
 	return func() {
-		sbefiAddSecureBootPolicyProfile = old
+		sbefiAddPCRProfile = old
 	}
 }
 
-func MockSbEfiAddBootManagerProfile(f func(profile *sb_tpm2.PCRProtectionProfile, params *sb_efi.BootManagerProfileParams) error) (restore func()) {
-	old := sbefiAddBootManagerProfile
-	sbefiAddBootManagerProfile = f
-	return func() {
-		sbefiAddBootManagerProfile = old
-	}
-}
-
-func MockSbEfiAddSystemdStubProfile(f func(profile *sb_tpm2.PCRProtectionProfile, params *sb_efi.SystemdStubProfileParams) error) (restore func()) {
+func MockSbEfiAddSystemdStubProfile(f func(profile *sb_tpm2.PCRProtectionProfileBranch, params *sb_efi.SystemdStubProfileParams) error) (restore func()) {
 	old := sbefiAddSystemdStubProfile
 	sbefiAddSystemdStubProfile = f
 	return func() {
@@ -86,7 +77,7 @@ func MockSbEfiAddSystemdStubProfile(f func(profile *sb_tpm2.PCRProtectionProfile
 	}
 }
 
-func MockSbAddSnapModelProfile(f func(profile *sb_tpm2.PCRProtectionProfile, params *sb_tpm2.SnapModelProfileParams) error) (restore func()) {
+func MockSbAddSnapModelProfile(f func(profile *sb_tpm2.PCRProtectionProfileBranch, params *sb_tpm2.SnapModelProfileParams) error) (restore func()) {
 	old := sbAddSnapModelProfile
 	sbAddSnapModelProfile = f
 	return func() {
@@ -94,15 +85,7 @@ func MockSbAddSnapModelProfile(f func(profile *sb_tpm2.PCRProtectionProfile, par
 	}
 }
 
-func MockSbSealKeyToTPMMultiple(f func(tpm *sb_tpm2.Connection, keys []*sb_tpm2.SealKeyRequest, params *sb_tpm2.KeyCreationParams) (sb_tpm2.PolicyAuthKey, error)) (restore func()) {
-	old := sbSealKeyToTPMMultiple
-	sbSealKeyToTPMMultiple = f
-	return func() {
-		sbSealKeyToTPMMultiple = old
-	}
-}
-
-func MockSbUpdateKeyPCRProtectionPolicyMultiple(f func(tpm *sb_tpm2.Connection, keys []*sb_tpm2.SealedKeyObject, authKey sb_tpm2.PolicyAuthKey, pcrProfile *sb_tpm2.PCRProtectionProfile) error) (restore func()) {
+func MockSbUpdateKeyPCRProtectionPolicyMultiple(f func(tpm *sb_tpm2.Connection, keys []*sb_tpm2.SealedKeyObject, authKey sb.PrimaryKey, pcrProfile *sb_tpm2.PCRProtectionProfile) error) (restore func()) {
 	old := sbUpdateKeyPCRProtectionPolicyMultiple
 	sbUpdateKeyPCRProtectionPolicyMultiple = f
 	return func() {
@@ -110,7 +93,7 @@ func MockSbUpdateKeyPCRProtectionPolicyMultiple(f func(tpm *sb_tpm2.Connection, 
 	}
 }
 
-func MockSbSealedKeyObjectRevokeOldPCRProtectionPolicies(f func(sko *sb_tpm2.SealedKeyObject, tpm *sb_tpm2.Connection, authKey sb_tpm2.PolicyAuthKey) error) (restore func()) {
+func MockSbSealedKeyObjectRevokeOldPCRProtectionPolicies(f func(sko *sb_tpm2.SealedKeyObject, tpm *sb_tpm2.Connection, authKey sb.PrimaryKey) error) (restore func()) {
 	old := sbSealedKeyObjectRevokeOldPCRProtectionPolicies
 	sbSealedKeyObjectRevokeOldPCRProtectionPolicies = f
 	return func() {
@@ -127,7 +110,7 @@ func MockSbBlockPCRProtectionPolicies(f func(tpm *sb_tpm2.Connection, pcrs []int
 }
 
 func MockSbActivateVolumeWithRecoveryKey(f func(volumeName, sourceDevicePath string,
-	keyReader io.Reader, options *sb.ActivateVolumeOptions) error) (restore func()) {
+	authRequester sb.AuthRequestor, options *sb.ActivateVolumeOptions) error) (restore func()) {
 	old := sbActivateVolumeWithRecoveryKey
 	sbActivateVolumeWithRecoveryKey = f
 	return func() {
@@ -144,7 +127,7 @@ func MockSbActivateVolumeWithKey(f func(volumeName, sourceDevicePath string, key
 	}
 }
 
-func MockSbActivateVolumeWithKeyData(f func(volumeName, sourceDevicePath string, key *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error)) (restore func()) {
+func MockSbActivateVolumeWithKeyData(f func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error) (restore func()) {
 	oldSbActivateVolumeWithKeyData := sbActivateVolumeWithKeyData
 	sbActivateVolumeWithKeyData = f
 	return func() {
@@ -176,20 +159,12 @@ func MockRandomKernelUUID(f func() (string, error)) (restore func()) {
 	}
 }
 
-func MockSbInitializeLUKS2Container(f func(devicePath, label string, key []byte,
+func MockSbInitializeLUKS2Container(f func(devicePath, label string, key sb.DiskUnlockKey,
 	opts *sb.InitializeLUKS2ContainerOptions) error) (restore func()) {
 	old := sbInitializeLUKS2Container
 	sbInitializeLUKS2Container = f
 	return func() {
 		sbInitializeLUKS2Container = old
-	}
-}
-
-func MockSbAddRecoveryKeyToLUKS2Container(f func(devicePath string, key []byte, recoveryKey sb.RecoveryKey, opts *sb.KDFOptions) error) (restore func()) {
-	old := sbAddRecoveryKeyToLUKS2Container
-	sbAddRecoveryKeyToLUKS2Container = f
-	return func() {
-		sbAddRecoveryKeyToLUKS2Container = old
 	}
 }
 
@@ -235,4 +210,84 @@ func MockSbLockoutAuthSet(f func(tpm *sb_tpm2.Connection) bool) (restore func())
 	restore = testutil.Backup(&lockoutAuthSet)
 	lockoutAuthSet = f
 	return restore
+}
+
+func MockSbNewTPMProtectedKey(f func(tpm *sb_tpm2.Connection, params *sb_tpm2.ProtectKeyParams) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error)) (restore func()) {
+	old := sbNewTPMProtectedKey
+	sbNewTPMProtectedKey = f
+	return func() {
+		sbNewTPMProtectedKey = old
+	}
+}
+
+func MockSbSetModel(f func(model sb.SnapModel)) (restore func()) {
+	old := sbSetModel
+	sbSetModel = f
+	return func() {
+		sbSetModel = old
+	}
+}
+
+func MockSbSetBootMode(f func(mode string)) (restore func()) {
+	old := sbSetBootMode
+	sbSetBootMode = f
+	return func() {
+		sbSetBootMode = old
+	}
+}
+
+func MockSbSetKeyRevealer(f func(kr sb_hooks.KeyRevealer)) (restore func()) {
+	old := sbSetKeyRevealer
+	sbSetKeyRevealer = f
+	return func() {
+		sbSetKeyRevealer = old
+	}
+}
+
+func MockReadKeyFile(f func(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, error)) (restore func()) {
+	old := readKeyFile
+	readKeyFile = f
+	return func() {
+		readKeyFile = old
+	}
+}
+
+func MockListLUKS2ContainerUnlockKeyNames(f func(devicePath string) ([]string, error)) (restore func()) {
+	old := sbListLUKS2ContainerUnlockKeyNames
+	sbListLUKS2ContainerUnlockKeyNames = f
+	return func() {
+		sbListLUKS2ContainerUnlockKeyNames = old
+	}
+}
+
+func MockListLUKS2ContainerRecoveryKeyNames(f func(devicePath string) ([]string, error)) (restore func()) {
+	old := sbListLUKS2ContainerRecoveryKeyNames
+	sbListLUKS2ContainerRecoveryKeyNames = f
+	return func() {
+		sbListLUKS2ContainerRecoveryKeyNames = old
+	}
+}
+
+func MockGetDiskUnlockKeyFromKernel(f func(prefix string, devicePath string, remove bool) (sb.DiskUnlockKey, error)) (restore func()) {
+	old := sbGetDiskUnlockKeyFromKernel
+	sbGetDiskUnlockKeyFromKernel = f
+	return func() {
+		sbGetDiskUnlockKeyFromKernel = old
+	}
+}
+
+func MockAddLUKS2ContainerRecoveryKey(f func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, recoveryKey sb.RecoveryKey) error) (restore func()) {
+	old := sbAddLUKS2ContainerRecoveryKey
+	sbAddLUKS2ContainerRecoveryKey = f
+	return func() {
+		sbAddLUKS2ContainerRecoveryKey = old
+	}
+}
+
+func MockRemoveLUKS2ContainerKey(f func(devicePath string, keyslotName string) error) (restore func()) {
+	old := sbDeleteLUKS2ContainerKey
+	sbDeleteLUKS2ContainerKey = f
+	return func() {
+		sbDeleteLUKS2ContainerKey = old
+	}
 }

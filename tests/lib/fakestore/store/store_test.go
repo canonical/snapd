@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2014-2018, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -430,7 +430,7 @@ func (s *storeTestSuite) TestMakeTestSnap(c *C) {
 func (s *storeTestSuite) TestCollectSnaps(c *C) {
 	s.makeTestSnap(c, "name: foo\nversion: 1")
 
-	snaps, err := s.store.collectSnaps()
+	snaps, err := s.store.collectSnaps(s.store.channelRepository)
 	c.Assert(err, IsNil)
 	c.Assert(snaps, DeepEquals, map[string]string{
 		"foo": filepath.Join(s.store.blobDir, "foo_1_all.snap"),

@@ -44,13 +44,13 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -299,7 +299,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if useEncryption {
-		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.KeyForRole, trustedInstallObserver); err != nil {
+		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.ResetterForRole, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
@@ -594,34 +594,24 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 			return fmt.Errorf("cannot cleanup obsolete key file: %v", err)
 		}
 
-		// it is ok if the recovery key file on disk does not exist;
-		// ubuntu-save was opened during boot, so the removal operation
-		// can be authorized with a key from the keyring
-		err = secbootRemoveRecoveryKeys(map[secboot.RecoveryKeyDevice]string{
-			{Mountpoint: boot.InitramfsUbuntuSaveDir}: device.RecoveryKeyUnder(boot.InstallHostFDEDataDir(model)),
-		})
-		if err != nil {
-			return fmt.Errorf("cannot remove recovery key: %v", err)
-		}
-
-		// new encryption key for save
-		saveEncryptionKey, err := keys.NewEncryptionKey()
-		if err != nil {
-			return fmt.Errorf("cannot create encryption key: %v", err)
-		}
-
 		saveNode := installedSystem.DeviceForRole[gadget.SystemSave]
 		if saveNode == "" {
 			return fmt.Errorf("internal error: no system-save device")
 		}
-
-		if err := secbootStageEncryptionKeyChange(saveNode, saveEncryptionKey); err != nil {
-			return fmt.Errorf("cannot change encryption keys: %v", err)
+		uuid, err := disks.PartitionUUID(saveNode)
+		if err != nil {
+			return fmt.Errorf("cannot find uuid for partition %s: %v", saveNode, err)
 		}
-		// keep track of the new ubuntu-save encryption key
-		installedSystem.KeyForRole[gadget.SystemSave] = saveEncryptionKey
+		saveNode = fmt.Sprintf("/dev/disk/by-partuuid/%s", uuid)
 
-		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.KeyForRole, trustedInstallObserver); err != nil {
+		saveResetter, err := createSaveResetter(saveNode)
+		if err != nil {
+			return err
+		}
+
+		installedSystem.ResetterForRole[gadget.SystemSave] = saveResetter
+
+		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.ResetterForRole, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
@@ -844,18 +834,6 @@ func verifyFactoryResetMarkerInRun(marker string, hasEncryption bool) error {
 		if frm.FallbackSaveKeyHash != "" {
 			return fmt.Errorf("unexpected non-empty fallback key digest")
 		}
-	}
-	return nil
-}
-
-func rotateEncryptionKeys() error {
-	kd, err := os.ReadFile(filepath.Join(dirs.SnapFDEDir, "ubuntu-save.key"))
-	if err != nil {
-		return fmt.Errorf("cannot open encryption key file: %v", err)
-	}
-	// does the right thing if the key has already been transitioned
-	if err := secbootTransitionEncryptionKeyChange(boot.InitramfsUbuntuSaveDir, keys.EncryptionKey(kd)); err != nil {
-		return fmt.Errorf("cannot transition the encryption key: %v", err)
 	}
 	return nil
 }
@@ -1089,7 +1067,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 
 	if useEncryption {
 		if trustedInstallObserver != nil {
-			if err := installLogic.PrepareEncryptedSystemData(systemAndSnaps.Model, install.KeysForRole(encryptSetupData), trustedInstallObserver); err != nil {
+			if err := installLogic.PrepareEncryptedSystemData(systemAndSnaps.Model, install.ResetterForRole(encryptSetupData), trustedInstallObserver); err != nil {
 				return err
 			}
 		}

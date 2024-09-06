@@ -29,6 +29,6 @@ func init() {
 	secbootMeasureSnapSystemEpochWhenPossible = secboot.MeasureSnapSystemEpochWhenPossible
 	secbootMeasureSnapModelWhenPossible = secboot.MeasureSnapModelWhenPossible
 	secbootUnlockVolumeUsingSealedKeyIfEncrypted = secboot.UnlockVolumeUsingSealedKeyIfEncrypted
-	secbootUnlockEncryptedVolumeUsingKey = secboot.UnlockEncryptedVolumeUsingKey
+	secbootUnlockEncryptedVolumeUsingPlatformKey = secboot.UnlockEncryptedVolumeUsingPlatformKey
 	secbootLockSealedKeys = secboot.LockSealedKeys
 }

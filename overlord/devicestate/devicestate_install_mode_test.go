@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
@@ -255,15 +256,15 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		brOpts = options
 		installSealingObserver = obs
 		installRunCalled++
-		var keyForRole map[string]keys.EncryptionKey
+		var resetterForRole map[string]secboot.KeyResetter
 		if tc.encrypt {
-			keyForRole = map[string]keys.EncryptionKey{
-				gadget.SystemData: dataEncryptionKey,
-				gadget.SystemSave: saveKey,
+			resetterForRole = map[string]secboot.KeyResetter{
+				gadget.SystemData: &secboot.MockKeyResetter{},
+				gadget.SystemSave: &secboot.MockKeyResetter{},
 			}
 		}
 		return &install.InstalledSystemSideData{
-			KeyForRole: keyForRole,
+			ResetterForRole: resetterForRole,
 		}, nil
 	})
 	defer restore()
@@ -1113,7 +1114,6 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPMAndSave(c *C) {
 		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
 	})
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
 	marker, err := os.ReadFile(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker"))
 	c.Assert(err, IsNil)
 	c.Check(marker, HasLen, 32)
@@ -1210,7 +1210,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallEncryptionValidityChecksNoSystemD
 		// no keys set
 		return &install.InstalledSystemSideData{
 			// empty map
-			KeyForRole: map[string]keys.EncryptionKey{},
+			ResetterForRole: map[string]secboot.KeyResetter{},
 		}, nil
 	})
 	defer restore()
@@ -1568,11 +1568,11 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		brOpts = options
 		installSealingObserver = obs
 		installFactoryResetCalled++
-		var keyForRole map[string]keys.EncryptionKey
+		var resetterForRole map[string]secboot.KeyResetter
 		if tc.encrypt {
-			keyForRole = map[string]keys.EncryptionKey{
-				gadget.SystemData: dataEncryptionKey,
-				gadget.SystemSave: saveKey,
+			resetterForRole = map[string]secboot.KeyResetter{
+				gadget.SystemData: &secboot.MockKeyResetter{},
+				gadget.SystemSave: &secboot.MockKeyResetter{},
 			}
 		}
 		devForRole := map[string]string{
@@ -1583,8 +1583,8 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		}
 		c.Assert(os.MkdirAll(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), 0755), IsNil)
 		return &install.InstalledSystemSideData{
-			KeyForRole:    keyForRole,
-			DeviceForRole: devForRole,
+			ResetterForRole: resetterForRole,
+			DeviceForRole:   devForRole,
 		}, nil
 	})
 	defer restore()
@@ -1614,32 +1614,19 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	s.makeMockInstalledPcKernelAndGadget(c, "", "")
 	s.state.Unlock()
 
-	var saveKey keys.EncryptionKey
 	restore = devicestate.MockSecbootTransitionEncryptionKeyChange(func(node string, key keys.EncryptionKey) error {
 		c.Errorf("unexpected call")
 		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
 	restore = devicestate.MockSecbootStageEncryptionKeyChange(func(node string, key keys.EncryptionKey) error {
-		if tc.encrypt {
-			c.Check(node, Equals, "/dev/foo-save")
-			saveKey = key
-			return nil
-		}
-		c.Fail()
+		c.Errorf("unexpected call")
 		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
 
-	var recoveryKeyRemoved bool
+	//var recoveryKeyRemoved bool
 	defer devicestate.MockSecbootRemoveRecoveryKeys(func(r2k map[secboot.RecoveryKeyDevice]string) error {
-		if tc.encrypt {
-			recoveryKeyRemoved = true
-			c.Check(r2k, DeepEquals, map[secboot.RecoveryKeyDevice]string{
-				{Mountpoint: boot.InitramfsUbuntuSaveDir}: filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "recovery.key"),
-			})
-			return nil
-		}
 		c.Errorf("unexpected call")
 		return fmt.Errorf("unexpected call")
 	})()
@@ -1749,9 +1736,8 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	c.Assert(bootMakeBootableCalled, Equals, 1)
 	c.Assert(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	if tc.encrypt {
-		c.Assert(saveKey, NotNil)
-		c.Check(recoveryKeyRemoved, Equals, true)
-		c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
+		// TODO: verify keys are removed
+		//c.Check(recoveryKeyRemoved, Equals, true)
 		c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"), testutil.FileEquals, "new-data")
 		// sha3-384 of the mocked ubuntu-save sealed key
 		c.Check(filepath.Join(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "factory-reset"),
@@ -1904,6 +1890,18 @@ echo "mock output of: $(basename "$0") $*"
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
+	defer devicestate.MockCreateSaveResetter(func(saveNode string) (secboot.KeyResetter, error) {
+		return &secboot.MockKeyResetter{}, nil
+	})()
+	defer devicestate.MockDeleteOldSaveKey(func(saveMntPnt string) error {
+		return nil
+	})()
+	defer disks.MockUdevPropertiesForDevice(func(string, string) (map[string]string, error) {
+		return map[string]string{
+			"ID_PART_ENTRY_UUID": "fbbb94fb-46ea-4e00-b830-afc72d202449",
+		}, nil
+	})()
+
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{
 		tpm: true, encrypt: true, trustedBootloader: true,
 	})
@@ -1967,6 +1965,18 @@ echo "mock output of: $(basename "$0") $*"
 
 	logbuf, restore := logger.MockLogger()
 	defer restore()
+
+	defer devicestate.MockCreateSaveResetter(func(saveNode string) (secboot.KeyResetter, error) {
+		return &secboot.MockKeyResetter{}, nil
+	})()
+	defer devicestate.MockDeleteOldSaveKey(func(saveMntPnt string) error {
+		return nil
+	})()
+	defer disks.MockUdevPropertiesForDevice(func(string, string) (map[string]string, error) {
+		return map[string]string{
+			"ID_PART_ENTRY_UUID": "fbbb94fb-46ea-4e00-b830-afc72d202449",
+		}, nil
+	})()
 
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{
 		tpm: true, encrypt: true, trustedBootloader: true,

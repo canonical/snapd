@@ -37,7 +37,6 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -474,13 +473,16 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
-	obs.ChosenEncryptionKeys(keys.EncryptionKey{1, 2, 3, 4}, keys.EncryptionKey{5, 6, 7, 8})
+
+	dataResetter := &secboot.MockKeyResetter{}
+	saveResetter := &secboot.MockKeyResetter{}
+	obs.ChosenEncryptionKeys(dataResetter, saveResetter)
 
 	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
 	c.Assert(ok, Equals, true)
 
-	c.Check(observerImpl.CurrentDataEncryptionKey(), DeepEquals, keys.EncryptionKey{1, 2, 3, 4})
-	c.Check(observerImpl.CurrentSaveEncryptionKey(), DeepEquals, keys.EncryptionKey{5, 6, 7, 8})
+	c.Check(observerImpl.CurrentDataKeyResetter(), Equals, dataResetter)
+	c.Check(observerImpl.CurrentSaveKeyResetter(), Equals, saveResetter)
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
@@ -499,13 +501,16 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
-	obs.ChosenEncryptionKeys(keys.EncryptionKey{1, 2, 3, 4}, keys.EncryptionKey{5, 6, 7, 8})
+
+	dataResetter := &secboot.MockKeyResetter{}
+	saveResetter := &secboot.MockKeyResetter{}
+	obs.ChosenEncryptionKeys(dataResetter, saveResetter)
 
 	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
 	c.Assert(ok, Equals, true)
 
-	c.Check(observerImpl.CurrentDataEncryptionKey(), DeepEquals, keys.EncryptionKey{1, 2, 3, 4})
-	c.Check(observerImpl.CurrentSaveEncryptionKey(), DeepEquals, keys.EncryptionKey{5, 6, 7, 8})
+	c.Check(observerImpl.CurrentDataKeyResetter(), Equals, dataResetter)
+	c.Check(observerImpl.CurrentSaveKeyResetter(), Equals, saveResetter)
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {

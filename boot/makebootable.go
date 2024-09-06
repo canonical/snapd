@@ -554,7 +554,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 			flags.SnapsDir = snapBlobDir
 		}
 		// seal the encryption key to the parameters specified in modeenv
-		if err := sealKeyToModeenv(observerImpl.dataEncryptionKey, observerImpl.saveEncryptionKey, model, modeenv, flags); err != nil {
+		if err := sealKeyToModeenv(observerImpl.dataKeyResetter, observerImpl.saveKeyResetter, model, modeenv, flags); err != nil {
 			return err
 		}
 	}

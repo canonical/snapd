@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2022 Canonical Ltd
+ * Copyright (C) 2014-2022, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -40,7 +40,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -627,14 +626,10 @@ version: 5.0
 	err = obs.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir)
 	c.Assert(err, IsNil)
 
-	// set encryption key
-	myKey := keys.EncryptionKey{}
-	myKey2 := keys.EncryptionKey{}
-	for i := range myKey {
-		myKey[i] = byte(i)
-		myKey2[i] = byte(128 + i)
-	}
-	obs.ChosenEncryptionKeys(myKey, myKey2)
+	// set key resetter
+	dataResetter := &secboot.MockKeyResetter{}
+	saveResetter := &secboot.MockKeyResetter{}
+	obs.ChosenEncryptionKeys(dataResetter, saveResetter)
 
 	// set a mock recovery kernel
 	readSystemEssentialCalls := 0
@@ -699,13 +694,13 @@ version: 5.0
 
 	// set mock key sealing
 	sealKeysCalls := 0
-	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
+	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) ([]byte, error) {
 		c.Assert(provisionCalls, Equals, 1, Commentf("TPM must have been provisioned before"))
 		sealKeysCalls++
 		switch sealKeysCalls {
 		case 1:
 			c.Check(keys, HasLen, 1)
-			c.Check(keys[0].Key, DeepEquals, myKey)
+			c.Check(keys[0].Resetter, Equals, dataResetter)
 			c.Check(keys[0].KeyFile, Equals,
 				filepath.Join(s.rootdir, "/run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
 			if factoryReset {
@@ -715,17 +710,17 @@ version: 5.0
 			}
 		case 2:
 			c.Check(keys, HasLen, 2)
-			c.Check(keys[0].Key, DeepEquals, myKey)
-			c.Check(keys[1].Key, DeepEquals, myKey2)
+			c.Check(keys[0].Resetter, Equals, dataResetter)
 			c.Check(keys[0].KeyFile, Equals,
 				filepath.Join(s.rootdir,
 					"/run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"))
+
+			c.Check(keys[1].Resetter, Equals, saveResetter)
 			if factoryReset {
 				c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltFallbackObjectPCRPolicyCounterHandle)
 				c.Check(keys[1].KeyFile, Equals,
 					filepath.Join(s.rootdir,
 						"/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory-reset"))
-
 			} else {
 				c.Check(params.PCRPolicyCounterHandle, Equals, secboot.FallbackObjectPCRPolicyCounterHandle)
 				c.Check(keys[1].KeyFile, Equals,
@@ -783,7 +778,7 @@ version: 5.0
 
 		c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 
-		return nil
+		return nil, nil
 	})
 	defer restore()
 
@@ -1152,14 +1147,10 @@ version: 5.0
 	err = obs.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir)
 	c.Assert(err, IsNil)
 
-	// set encryption key
-	myKey := keys.EncryptionKey{}
-	myKey2 := keys.EncryptionKey{}
-	for i := range myKey {
-		myKey[i] = byte(i)
-		myKey2[i] = byte(128 + i)
-	}
-	obs.ChosenEncryptionKeys(myKey, myKey2)
+	// set key resetter
+	dataResetter := &secboot.MockKeyResetter{}
+	saveResetter := &secboot.MockKeyResetter{}
+	obs.ChosenEncryptionKeys(dataResetter, saveResetter)
 
 	// set a mock recovery kernel
 	readSystemEssentialCalls := 0
@@ -1179,16 +1170,15 @@ version: 5.0
 	defer restore()
 	// set mock key sealing
 	sealKeysCalls := 0
-	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
+	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) ([]byte, error) {
 		sealKeysCalls++
 		switch sealKeysCalls {
 		case 1:
 			c.Check(keys, HasLen, 1)
-			c.Check(keys[0].Key, DeepEquals, myKey)
+			c.Check(keys[0].Resetter, Equals, dataResetter)
 		case 2:
-			c.Check(keys, HasLen, 2)
-			c.Check(keys[0].Key, DeepEquals, myKey)
-			c.Check(keys[1].Key, DeepEquals, myKey2)
+			c.Check(keys, HasLen, 1)
+			c.Check(keys[0].Resetter, Equals, saveResetter)
 		default:
 			c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 		}
@@ -1217,7 +1207,7 @@ version: 5.0
 		})
 		c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 
-		return fmt.Errorf("seal error")
+		return nil, fmt.Errorf("seal error")
 	})
 	defer restore()
 
@@ -1350,7 +1340,9 @@ version: 5.0
 	err = obs.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir)
 	c.Assert(err, IsNil)
 
-	obs.ChosenEncryptionKeys(keys.EncryptionKey{}, keys.EncryptionKey{})
+	dataResetter := &secboot.MockKeyResetter{}
+	saveResetter := &secboot.MockKeyResetter{}
+	obs.ChosenEncryptionKeys(dataResetter, saveResetter)
 
 	// set a mock recovery kernel
 	readSystemEssentialCalls := 0
@@ -1370,7 +1362,7 @@ version: 5.0
 	defer restore()
 	// set mock key sealing
 	sealKeysCalls := 0
-	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
+	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) ([]byte, error) {
 		sealKeysCalls++
 		switch sealKeysCalls {
 		case 1, 2:
@@ -1394,7 +1386,7 @@ version: 5.0
 
 		c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 
-		return nil
+		return nil, nil
 	})
 	defer restore()
 

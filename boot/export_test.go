@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -104,12 +103,12 @@ func (o *trustedAssetsInstallObserverImpl) CurrentTrustedRecoveryBootAssetsMap()
 	return o.currentTrustedRecoveryBootAssetsMap()
 }
 
-func (o *trustedAssetsInstallObserverImpl) CurrentDataEncryptionKey() keys.EncryptionKey {
-	return o.dataEncryptionKey
+func (o *TrustedAssetsInstallObserverImpl) CurrentDataKeyResetter() secboot.KeyResetter {
+	return o.dataKeyResetter
 }
 
-func (o *trustedAssetsInstallObserverImpl) CurrentSaveEncryptionKey() keys.EncryptionKey {
-	return o.saveEncryptionKey
+func (o *TrustedAssetsInstallObserverImpl) CurrentSaveKeyResetter() secboot.KeyResetter {
+	return o.saveKeyResetter
 }
 
 func MockSecbootProvisionTPM(f func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error) (restore func()) {
@@ -118,7 +117,7 @@ func MockSecbootProvisionTPM(f func(mode secboot.TPMProvisionMode, lockoutAuthFi
 	return restore
 }
 
-func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error) (restore func()) {
+func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) ([]byte, error)) (restore func()) {
 	old := secbootSealKeys
 	secbootSealKeys = f
 	return func() {

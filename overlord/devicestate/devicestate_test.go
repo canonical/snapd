@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -2194,8 +2194,13 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	transitionCalls := 0
 	restore = devicestate.MockSecbootTransitionEncryptionKeyChange(func(mountpoint string, key keys.EncryptionKey) error {
 		transitionCalls++
-		c.Check(mountpoint, Equals, boot.InitramfsUbuntuSaveDir)
-		c.Check(key, DeepEquals, keys.EncryptionKey([]byte("save-key")))
+		return nil
+	})
+	defer restore()
+	deleteOldSaveKey := 0
+	restore = devicestate.MockDeleteOldSaveKey(func(saveMntPnt string) error {
+		c.Check(saveMntPnt, Equals, boot.InitramfsUbuntuSaveDir)
+		deleteOldSaveKey++
 		return nil
 	})
 	defer restore()
@@ -2204,13 +2209,15 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	c.Assert(err, IsNil)
 
 	c.Check(completeCalls, Equals, 1)
-	c.Check(transitionCalls, Equals, 1)
+	c.Check(transitionCalls, Equals, 0)
+	c.Check(deleteOldSaveKey, Equals, 1)
 	// factory reset marker is gone, the key was verified successfully
 	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FileAbsent)
 	c.Check(filepath.Join(dirs.SnapFDEDir, "marker"), testutil.FilePresent)
 
 	completeCalls = 0
 	transitionCalls = 0
+	deleteOldSaveKey = 0
 	// try again, no marker, nothing should happen
 	devicestate.SetPostFactoryResetRan(s.mgr, false)
 	err = s.mgr.Ensure()
@@ -2218,6 +2225,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	// nothing was called
 	c.Check(completeCalls, Equals, 0)
 	c.Check(transitionCalls, Equals, 0)
+	c.Check(deleteOldSaveKey, Equals, 0)
 
 	// have the marker, but migrate the key as if boot code would do it and
 	// try again, in this setup the marker hash matches the migrated key
@@ -2230,7 +2238,8 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	err = s.mgr.Ensure()
 	c.Assert(err, IsNil)
 	c.Check(completeCalls, Equals, 1)
-	c.Check(transitionCalls, Equals, 1)
+	c.Check(transitionCalls, Equals, 0)
+	c.Check(deleteOldSaveKey, Equals, 1)
 	// the marker was again removed
 	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FileAbsent)
 }

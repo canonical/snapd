@@ -893,14 +893,13 @@ func (s *installSuite) TestPrepareEncryptedSystemData(c *C) {
 	err = to.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir)
 	c.Assert(err, IsNil)
 
-	keyForRole := map[string]keys.EncryptionKey{
-		gadget.SystemData: dataEncryptionKey,
-		gadget.SystemSave: saveKey,
+	keyForRole := map[string]secboot.KeyResetter{
+		gadget.SystemData: &secboot.MockKeyResetter{},
+		gadget.SystemSave: &secboot.MockKeyResetter{},
 	}
 	err = install.PrepareEncryptedSystemData(mockModel, keyForRole, to)
 	c.Assert(err, IsNil)
 
-	c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
 	marker, err := os.ReadFile(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker"))
 	c.Assert(err, IsNil)
 	c.Check(marker, HasLen, 32)

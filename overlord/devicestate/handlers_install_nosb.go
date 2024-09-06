@@ -1,7 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build nosecboot
 
 /*
- * Copyright (C) 2022, 2024 Canonical Ltd
+ * Copyright (C) 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -16,18 +17,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-package keymgr
+
+package devicestate
 
 import (
-	sb "github.com/snapcore/secboot"
+	"fmt"
 
-	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/secboot"
 )
 
-func MockGetDiskUnlockKeyFromKernel(f func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error)) (restore func()) {
-	restore = testutil.Backup(&sbGetDiskUnlockKeyFromKernel)
-	sbGetDiskUnlockKeyFromKernel = f
-	return restore
+func createSaveResetterImpl(saveNode string) (secboot.KeyResetter, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
-var RecoveryKDF = recoveryKDF
+var createSaveResetter = createSaveResetterImpl
+
+func deleteOldSaveKeyImpl(saveMntPt string) error {
+	return fmt.Errorf("not implemented")
+}
+
+var deleteOldSaveKey = deleteOldSaveKeyImpl
