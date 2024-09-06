@@ -460,12 +460,11 @@ func PromptingSupportedByFeatures(apparmorFeatures *FeaturesSupported) (bool, st
 	// for its presence among the kernel features.
 	if strutil.ListContains(apparmorFeatures.KernelFeatures, "policy:notify") {
 		if !strutil.ListContains(apparmorFeatures.KernelFeatures, "policy:notify:user:file") {
-			return false, "the kernel does not support prompting for file access"
-			// XXX: should this error message be "apparmor kernel features do not support prompting" as well?
+			return false, "apparmor kernel features do not support prompting for file access"
 		}
 	}
 	if !notify.SupportAvailable() {
-		return false, "kernel notification socket required by listener is not present"
+		return false, "apparmor kernel notification socket required by prompting listener is not present"
 	}
 	return true, ""
 }
