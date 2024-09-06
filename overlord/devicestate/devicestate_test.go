@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -88,6 +89,7 @@ type deviceMgrBaseSuite struct {
 	hookMgr *hookstate.HookManager
 	mgr     *devicestate.DeviceManager
 	db      *asserts.Database
+	fdeMgr  *fdestate.FDEManager
 
 	bootloader *bootloadertest.MockBootloader
 
@@ -240,6 +242,9 @@ func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	err = db.Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
+	fdeMgr := fdestate.Manager(s.state, s.o.TaskRunner())
+	c.Assert(err, IsNil)
+
 	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 
@@ -255,6 +260,7 @@ func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.hookMgr = hookMgr
 	s.o.AddManager(s.hookMgr)
 	s.mgr = mgr
+	s.fdeMgr = fdeMgr
 	s.o.AddManager(s.mgr)
 	s.o.AddManager(s.o.TaskRunner())
 
