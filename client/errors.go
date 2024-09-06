@@ -155,11 +155,8 @@ const (
 	// ErrorKindInterfacesRequestsInvalidFields: POST body to prompting API contains invalid fields.
 	ErrorKindInterfacesRequestsInvalidFields ErrorKind = "interfaces-requests-invalid-fields"
 
-	// ErrorKindInterfacesRequestsReplyNotMatchRequestedPath: the path pattern in the prompt reply does not match the requested path.
-	ErrorKindInterfacesRequestsReplyNotMatchRequestedPath ErrorKind = "interfaces-requests-reply-not-match-requested-path"
-
-	// ErrorKindInterfacesRequestsReplyNotMatchRequestedPermissions: the permissions in the prompt reply do not match the requested permissions.
-	ErrorKindInterfacesRequestsReplyNotMatchRequestedPermissions ErrorKind = "interfaces-requests-reply-not-match-requested-permissions"
+	// ErrorKindInterfacesRequestsReplyNotMatchRequest: the prompt reply does not match the path and/or permissions which were requested.
+	ErrorKindInterfacesRequestsReplyNotMatchRequest ErrorKind = "interfaces-requests-reply-not-match-request"
 
 	// ErrorKindInterfacesRequestsRuleConflict: a rule with conflicting path pattern and permissions already exists.
 	ErrorKindInterfacesRequestsRuleConflict ErrorKind = "interfaces-requests-rule-conflict"

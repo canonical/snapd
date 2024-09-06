@@ -178,12 +178,12 @@ func NewInvalidPathPatternError(invalid string, reason string) *ParseError {
 // RequestedPathNotMatchedError stores a path pattern from a reply which doesn't
 // match the requested path.
 type RequestedPathNotMatchedError struct {
-	Received  string
 	Requested string
+	Replied   string
 }
 
 func (e *RequestedPathNotMatchedError) Error() string {
-	return fmt.Sprintf("%v %q: %q", ErrReplyNotMatchRequestedPath.Error(), e.Requested, e.Received)
+	return fmt.Sprintf("%v %q: %q", ErrReplyNotMatchRequestedPath.Error(), e.Requested, e.Replied)
 }
 
 func (e *RequestedPathNotMatchedError) Unwrap() error {
@@ -193,12 +193,12 @@ func (e *RequestedPathNotMatchedError) Unwrap() error {
 // RequestedPermissionsNotMatchedError stores the list of permissions from a
 // reply which doesn't include all the requested permissions.
 type RequestedPermissionsNotMatchedError struct {
-	Received  []string
 	Requested []string
+	Replied   []string
 }
 
 func (e *RequestedPermissionsNotMatchedError) Error() string {
-	return fmt.Sprintf("%v %v: %v", ErrReplyNotMatchRequestedPermissions.Error(), e.Requested, e.Received)
+	return fmt.Sprintf("%v %v: %v", ErrReplyNotMatchRequestedPermissions.Error(), e.Requested, e.Replied)
 }
 
 func (e *RequestedPermissionsNotMatchedError) Unwrap() error {

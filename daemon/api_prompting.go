@@ -140,28 +140,36 @@ func (v *promptingParseError) MarshalJSON() ([]byte, error) {
 	return json.Marshal(value)
 }
 
+type pathNotMatchedValue struct {
+	Requested string `json:"requested-path"`
+	Replied   string `json:"replied-pattern"`
+}
+
 type requestedPathNotMatchedError prompting_errors.RequestedPathNotMatchedError
 
 func (v *requestedPathNotMatchedError) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		Received  string `json:"received-pattern"`
-		Requested string `json:"requested-path"`
-	}{
-		Received:  v.Received,
+	value := make(map[string]pathNotMatchedValue, 1)
+	value["path-pattern"] = pathNotMatchedValue{
 		Requested: v.Requested,
-	})
+		Replied:   v.Replied,
+	}
+	return json.Marshal(value)
+}
+
+type permissionsNotMatchedValue struct {
+	Requested []string `json:"requested-permissions"`
+	Replied   []string `json:"replied-permissions"`
 }
 
 type requestedPermissionsNotMatchedError prompting_errors.RequestedPermissionsNotMatchedError
 
 func (v *requestedPermissionsNotMatchedError) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		Received  []string `json:"received-permissions"`
-		Requested []string `json:"requested-permissions"`
-	}{
-		Received:  v.Received,
+	value := make(map[string]permissionsNotMatchedValue, 1)
+	value["permissions"] = permissionsNotMatchedValue{
 		Requested: v.Requested,
-	})
+		Replied:   v.Replied,
+	}
+	return json.Marshal(value)
 }
 
 type promptingRuleConflict prompting_errors.RuleConflict
@@ -231,14 +239,14 @@ func promptingError(err error) *apiError {
 		}
 	case errors.Is(err, prompting_errors.ErrReplyNotMatchRequestedPath):
 		apiErr.Status = 400
-		apiErr.Kind = client.ErrorKindInterfacesRequestsReplyNotMatchRequestedPath
+		apiErr.Kind = client.ErrorKindInterfacesRequestsReplyNotMatchRequest
 		var patternErr *prompting_errors.RequestedPathNotMatchedError
 		if errors.As(err, &patternErr) {
 			apiErr.Value = (*requestedPathNotMatchedError)(patternErr)
 		}
 	case errors.Is(err, prompting_errors.ErrReplyNotMatchRequestedPermissions):
 		apiErr.Status = 400
-		apiErr.Kind = client.ErrorKindInterfacesRequestsReplyNotMatchRequestedPermissions
+		apiErr.Kind = client.ErrorKindInterfacesRequestsReplyNotMatchRequest
 		var permissionsErr *prompting_errors.RequestedPermissionsNotMatchedError
 		if errors.As(err, &permissionsErr) {
 			apiErr.Value = (*requestedPermissionsNotMatchedError)(permissionsErr)

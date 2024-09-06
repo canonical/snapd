@@ -392,8 +392,8 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 	}
 	if !matches {
 		return nil, &prompting_errors.RequestedPathNotMatchedError{
-			Received:  constraints.PathPattern.String(),
 			Requested: prompt.Constraints.Path(),
+			Replied:   constraints.PathPattern.String(),
 		}
 	}
 
@@ -402,8 +402,8 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 	contained := constraints.ContainPermissions(prompt.Constraints.RemainingPermissions())
 	if !contained {
 		return nil, &prompting_errors.RequestedPermissionsNotMatchedError{
-			Received:  constraints.Permissions,
 			Requested: prompt.Constraints.RemainingPermissions(),
+			Replied:   constraints.Permissions,
 		}
 	}
 
