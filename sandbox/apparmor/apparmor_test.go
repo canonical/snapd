@@ -640,28 +640,28 @@ func (s *apparmorSuite) TestPromptingSupported(c *C) {
 			kernelError:    nil,
 			parserFeatures: []string{"mqueue", "prompt"},
 			parserError:    nil,
-			expectedReason: "the kernel does not support prompting for file access",
+			expectedReason: "apparmor kernel features do not support prompting for file access",
 		},
 		{
 			kernelFeatures: []string{"policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt", "policy:notify", "policy:notify:user:foo"},
 			kernelError:    nil,
 			parserFeatures: []string{"mqueue", "prompt"},
 			parserError:    nil,
-			expectedReason: "the kernel does not support prompting for file access",
+			expectedReason: "apparmor kernel features do not support prompting for file access",
 		},
 		{
 			kernelFeatures: []string{"policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt", "policy:notify", "policy:notify:user:file"},
 			kernelError:    nil,
 			parserFeatures: []string{"mqueue", "prompt"},
 			parserError:    nil,
-			expectedReason: "kernel notification socket required by listener is not present",
+			expectedReason: "apparmor kernel notification socket required by prompting listener is not present",
 		},
 		{
 			kernelFeatures: []string{"policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt"},
 			kernelError:    nil,
 			parserFeatures: []string{"mqueue", "prompt"},
 			parserError:    nil,
-			expectedReason: "kernel notification socket required by listener is not present",
+			expectedReason: "apparmor kernel notification socket required by prompting listener is not present",
 		},
 	} {
 		restore := apparmor.MockFeatures(testCase.kernelFeatures, testCase.kernelError, testCase.parserFeatures, testCase.parserError)
