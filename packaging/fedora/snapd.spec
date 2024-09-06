@@ -104,7 +104,7 @@
 %endif
 
 Name:           snapd
-Version:        2.65.1
+Version:        2.65.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -1003,6 +1003,11 @@ fi
 
 
 %changelog
+* Fri Sep 06 2024 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.65.2
+ - Bump squashfuse from version 0.5.0 to 0.5.2 (used in snapd deb
+   only)
+
 * Sat Aug 24 2024 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.65.1
  - Support building snapd using base Core22 (Snapcraft 8.x)
