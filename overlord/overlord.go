@@ -2,7 +2,7 @@
 //go:build !nomanagers
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -111,6 +112,7 @@ type Overlord struct {
 	deviceMgr  *devicestate.DeviceManager
 	cmdMgr     *cmdstate.CommandManager
 	shotMgr    *snapshotstate.SnapshotManager
+	fdeMgr     *fdestate.FDEManager
 	// proxyConf mediates the http proxy config
 	proxyConf func(req *http.Request) (*url.URL, error)
 }
@@ -188,6 +190,8 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	// the shared task runner should be added last!
 	o.stateEng.AddManager(o.runner)
 
+	o.addManager(fdestate.Manager(s, o.runner))
+
 	s.Lock()
 	defer s.Unlock()
 	// setting up the store
@@ -220,6 +224,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.shotMgr = x
 	case *restart.RestartManager:
 		o.restartMgr = x
+	case *fdestate.FDEManager:
+		o.fdeMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 }
@@ -669,6 +675,11 @@ func (o *Overlord) DeviceManager() *devicestate.DeviceManager {
 // jobs.
 func (o *Overlord) CommandManager() *cmdstate.CommandManager {
 	return o.cmdMgr
+}
+
+// FDEManager returns the manager responsible for FDE
+func (o *Overlord) FDEManager() *fdestate.FDEManager {
+	return o.fdeMgr
 }
 
 // SnapshotManager returns the manager responsible for snapshots.

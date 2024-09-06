@@ -84,6 +84,8 @@ type SetupRequest struct {
 	// encode it automatically for us
 	Key []byte `json:"key,omitempty"`
 
+	AAD []byte `json:"aad,omitempty"`
+
 	// Only used when called with "initial-setup"
 	KeyName string `json:"key-name,omitempty"`
 
@@ -98,6 +100,7 @@ type RunSetupHookFunc func(req *SetupRequest) ([]byte, error)
 type InitialSetupParams struct {
 	Key     []byte
 	KeyName string
+	AAD     []byte
 }
 
 // InitalSetupResult contains the outputs of the fde-setup hook
@@ -114,6 +117,7 @@ func InitialSetup(runSetupHook RunSetupHookFunc, params *InitialSetupParams) (*I
 		Op:      "initial-setup",
 		Key:     params.Key,
 		KeyName: params.KeyName,
+		AAD:     params.AAD,
 	}
 	hookOutput, err := runSetupHook(req)
 	if err != nil {

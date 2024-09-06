@@ -2,7 +2,7 @@
 //go:build nosecboot
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2020, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -55,7 +54,7 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 	return nil, fmt.Errorf("build without secboot support")
 }
 
-func KeysForRole(setupData *EncryptionSetupData) map[string]keys.EncryptionKey {
+func ResetterForRole(setupData *EncryptionSetupData) map[string]secboot.KeyResetter {
 	return nil
 }
 

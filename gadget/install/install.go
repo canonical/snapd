@@ -2,7 +2,7 @@
 //go:build !nosecboot
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2020, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -99,7 +99,7 @@ func saveStorageTraits(mod gadget.Model, allVols map[string]*gadget.Volume, opts
 	return nil
 }
 
-func maybeEncryptPartition(dgpair *gadget.OnDiskAndGadgetStructurePair, encryptionType secboot.EncryptionType, sectorSize quantity.Size, perfTimings timings.Measurer) (fsParams *mkfsParams, encryptionKey keys.EncryptionKey, err error) {
+func maybeEncryptPartition(dgpair *gadget.OnDiskAndGadgetStructurePair, encryptionType secboot.EncryptionType, sectorSize quantity.Size, perfTimings timings.Measurer) (fsParams *mkfsParams, diskEncryptionKey secboot.DiskUnlockKey, err error) {
 	diskPart := dgpair.DiskStructure
 	volStruct := dgpair.GadgetStructure
 	mustEncrypt := (encryptionType != secboot.EncryptionTypeNone)
@@ -121,10 +121,12 @@ func maybeEncryptPartition(dgpair *gadget.OnDiskAndGadgetStructurePair, encrypti
 		timings.Run(perfTimings, fmt.Sprintf("make-key-set[%s]", volStruct.Role),
 			fmt.Sprintf("Create encryption key set for %s", volStruct.Role),
 			func(timings.Measurer) {
-				encryptionKey, err = keys.NewEncryptionKey()
-				if err != nil {
-					err = fmt.Errorf("cannot create encryption key: %v", err)
+				encryptionKey, errk := keys.NewEncryptionKey()
+				if errk != nil {
+					err = fmt.Errorf("cannot create encryption key: %v", errk)
+					return
 				}
+				diskEncryptionKey = secboot.DiskUnlockKey(encryptionKey)
 			})
 		if err != nil {
 			return nil, nil, err
@@ -136,7 +138,7 @@ func maybeEncryptPartition(dgpair *gadget.OnDiskAndGadgetStructurePair, encrypti
 			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s] (%v)", volStruct.Role, encryptionType),
 				fmt.Sprintf("Create encryption device for %s (%s)", volStruct.Role, encryptionType),
 				func(timings.Measurer) {
-					dataPart, err = newEncryptedDeviceLUKS(diskPart.Node, encryptionType, encryptionKey, volStruct.Label, volStruct.Name)
+					dataPart, err = newEncryptedDeviceLUKS(diskPart.Node, encryptionType, diskEncryptionKey, volStruct.Label, volStruct.Name)
 					// TODO close device???
 				})
 			if err != nil {
@@ -157,7 +159,7 @@ func maybeEncryptPartition(dgpair *gadget.OnDiskAndGadgetStructurePair, encrypti
 		fsParams.SectorSize = quantity.Size(fsSectorSizeInt)
 	}
 
-	return fsParams, encryptionKey, nil
+	return fsParams, diskEncryptionKey, nil
 }
 
 // TODO probably we won't need to pass partDisp when we include storage in laidOut
@@ -192,7 +194,7 @@ func installOnePartition(dgpair *gadget.OnDiskAndGadgetStructurePair,
 	kernelInfo *kernel.Info, kernelSnapInfo *KernelSnapInfo, gadgetRoot string,
 	encryptionType secboot.EncryptionType, sectorSize quantity.Size,
 	observer gadget.ContentObserver, perfTimings timings.Measurer,
-) (fsDevice string, encryptionKey keys.EncryptionKey, err error) {
+) (fsDevice string, encryptionKey secboot.DiskUnlockKey, err error) {
 	// 1. Encrypt
 	diskPart := dgpair.DiskStructure
 	vs := dgpair.GadgetStructure
@@ -352,7 +354,7 @@ func Run(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelSnapInfo, 
 	}
 
 	// Step 2: layout content in the created partitions
-	var keyForRole map[string]keys.EncryptionKey
+	var resetterForRole map[string]secboot.KeyResetter
 	devicesForRoles := map[string]string{}
 	partsEncrypted := map[string]gadget.StructureEncryptionParameters{}
 	kernelInfo, err := kernel.ReadInfo(kernelRoot)
@@ -391,10 +393,10 @@ func Run(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelSnapInfo, 
 		}
 
 		if encryptionKey != nil {
-			if keyForRole == nil {
-				keyForRole = map[string]keys.EncryptionKey{}
+			if resetterForRole == nil {
+				resetterForRole = map[string]secboot.KeyResetter{}
 			}
-			keyForRole[vs.Role] = encryptionKey
+			resetterForRole[vs.Role] = secboot.CreateKeyResetter(encryptionKey, diskPart.Node)
 			partsEncrypted[vs.Name] = createEncryptionParams(options.EncryptionType)
 		}
 		if options.Mount && vs.Label != "" && vs.HasFilesystem() {
@@ -422,8 +424,8 @@ func Run(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelSnapInfo, 
 	}
 
 	return &InstalledSystemSideData{
-		KeyForRole:    keyForRole,
-		DeviceForRole: devicesForRoles,
+		ResetterForRole: resetterForRole,
+		DeviceForRole:   devicesForRoles,
 	}, nil
 }
 
@@ -676,12 +678,12 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 	return setupData, nil
 }
 
-func KeysForRole(setupData *EncryptionSetupData) map[string]keys.EncryptionKey {
-	keyForRole := make(map[string]keys.EncryptionKey)
+func ResetterForRole(setupData *EncryptionSetupData) map[string]secboot.KeyResetter {
+	resetterForRole := make(map[string]secboot.KeyResetter)
 	for _, p := range setupData.parts {
-		keyForRole[p.role] = p.encryptionKey
+		resetterForRole[p.role] = secboot.CreateKeyResetter(p.encryptionKey, p.device)
 	}
-	return keyForRole
+	return resetterForRole
 }
 
 func FactoryReset(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelSnapInfo, bootDevice string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
@@ -746,7 +748,7 @@ func FactoryReset(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelS
 	if err != nil {
 		return nil, err
 	}
-	var keyForRole map[string]keys.EncryptionKey
+	var resetterForRole map[string]secboot.KeyResetter
 	deviceForRole := map[string]string{}
 	var hasSavePartition bool
 	rolesToReset := []string{gadget.SystemBoot, gadget.SystemData}
@@ -771,6 +773,11 @@ func FactoryReset(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelS
 		// device) for each role
 		deviceForRole[vs.Role] = onDiskStruct.Node
 
+		// TODO: when save partition does not have slots, then
+		// we need to create new partition the old fashion
+		// way.  Or, we should upgrade the save partition
+		// (which should be safe since the seed should not be
+		// considered safe to downgrade).
 		fsDevice, encryptionKey, err := installOnePartition(
 			&gadget.OnDiskAndGadgetStructurePair{
 				DiskStructure: onDiskStruct, GadgetStructure: vs},
@@ -780,10 +787,10 @@ func FactoryReset(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelS
 			return nil, err
 		}
 		if encryptionKey != nil {
-			if keyForRole == nil {
-				keyForRole = map[string]keys.EncryptionKey{}
+			if resetterForRole == nil {
+				resetterForRole = map[string]secboot.KeyResetter{}
 			}
-			keyForRole[vs.Role] = encryptionKey
+			resetterForRole[vs.Role] = secboot.CreateKeyResetter(encryptionKey, onDiskStruct.Node)
 		}
 		if options.Mount && vs.Label != "" && vs.HasFilesystem() {
 			// fs is taken from gadget, as on disk one might be displayed as
@@ -809,8 +816,8 @@ func FactoryReset(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelS
 	}
 
 	return &InstalledSystemSideData{
-		KeyForRole:    keyForRole,
-		DeviceForRole: deviceForRole,
+		ResetterForRole: resetterForRole,
+		DeviceForRole:   deviceForRole,
 	}, nil
 }
 

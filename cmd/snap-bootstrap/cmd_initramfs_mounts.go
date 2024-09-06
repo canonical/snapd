@@ -99,7 +99,7 @@ var (
 	secbootMeasureSnapSystemEpochWhenPossible    func() error
 	secbootMeasureSnapModelWhenPossible          func(findModel func() (*asserts.Model, error)) error
 	secbootUnlockVolumeUsingSealedKeyIfEncrypted func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)
-	secbootUnlockEncryptedVolumeUsingKey         func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error)
+	secbootUnlockEncryptedVolumeUsingPlatformKey func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error)
 
 	secbootLockSealedKeys func() error
 
@@ -357,7 +357,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	}
 
 	if useEncryption {
-		if err := install.PrepareEncryptedSystemData(model, installedSystem.KeyForRole, trustedInstallObserver); err != nil {
+		if err := install.PrepareEncryptedSystemData(model, installedSystem.ResetterForRole, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
@@ -719,6 +719,8 @@ type recoverModeStateMachine struct {
 	// state for tracking what happens as we progress through degraded mode of
 	// recovery
 	degradedState *recoverDegradedState
+
+	bootMode string
 }
 
 func (m *recoverModeStateMachine) whichModel() (*asserts.Model, error) {
@@ -966,7 +968,7 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 	return nil
 }
 
-func newRecoverModeStateMachine(model *asserts.Model, disk disks.Disk, allowFallback bool) *recoverModeStateMachine {
+func newRecoverModeStateMachine(model *asserts.Model, disk disks.Disk, allowFallback bool, bootMode string) *recoverModeStateMachine {
 	m := &recoverModeStateMachine{
 		model: model,
 		disk:  disk,
@@ -974,6 +976,7 @@ func newRecoverModeStateMachine(model *asserts.Model, disk disks.Disk, allowFall
 			ErrorLog: []string{},
 		},
 		noFallback: !allowFallback,
+		bootMode:   bootMode,
 	}
 	// first step is to mount ubuntu-boot to check for run mode keys to unlock
 	// ubuntu-data
@@ -1108,6 +1111,7 @@ func (m *recoverModeStateMachine) unlockDataRunKey() (stateFunc, error) {
 		// recovery key after we first try the fallback object
 		AllowRecoveryKey: false,
 		WhichModel:       m.whichModel,
+		BootMode:         m.bootMode,
 	}
 	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.disk, "ubuntu-data", runModeKey, unlockOpts)
 	if err := m.setUnlockStateWithRunKey("ubuntu-data", unlockRes, unlockErr); err != nil {
@@ -1148,6 +1152,7 @@ func (m *recoverModeStateMachine) unlockDataFallbackKey() (stateFunc, error) {
 		// to unlock data
 		AllowRecoveryKey: true,
 		WhichModel:       m.whichModel,
+		BootMode:         m.bootMode,
 	}
 	// TODO: this prompts for a recovery key
 	// TODO: we should somehow customize the prompt to mention what key we need
@@ -1210,7 +1215,7 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveRunKey() (stateFunc, error)
 		return m.unlockEncryptedSaveFallbackKey, nil
 	}
 
-	unlockRes, unlockErr := secbootUnlockEncryptedVolumeUsingKey(m.disk, "ubuntu-save", key)
+	unlockRes, unlockErr := secbootUnlockEncryptedVolumeUsingPlatformKey(m.disk, "ubuntu-save", key)
 	if err := m.setUnlockStateWithRunKey("ubuntu-save", unlockRes, unlockErr); err != nil {
 		return nil, err
 	}
@@ -1282,6 +1287,7 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveFallbackKey() (stateFunc, e
 		// to unlock save
 		AllowRecoveryKey: true,
 		WhichModel:       m.whichModel,
+		BootMode:         m.bootMode,
 	}
 	saveFallbackKey := device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
 	// TODO: this prompts again for a recover key, but really this is the
@@ -1364,7 +1370,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 
 	machine, err := func() (machine *recoverModeStateMachine, err error) {
 		// first state to execute is to unlock ubuntu-data with the run key
-		machine = newRecoverModeStateMachine(model, disk, allowFallback)
+		machine = newRecoverModeStateMachine(model, disk, allowFallback, "recover")
 		for {
 			finished, err := machine.execute()
 			// TODO: consider whether certain errors are fatal or not
@@ -1481,7 +1487,7 @@ func generateMountsModeFactoryReset(mst *initramfsMountsState) error {
 	// invoked)
 	machine, err := func() (machine *recoverModeStateMachine, err error) {
 		allowFallback := true
-		machine = newRecoverModeStateMachine(model, disk, allowFallback)
+		machine = newRecoverModeStateMachine(model, disk, allowFallback, "factory-reset")
 		// start from looking up encrypted ubuntu-save and unlocking with the fallback key
 		machine.current = machine.unlockMaybeEncryptedAloneSaveFallbackKey
 		for {
@@ -1799,7 +1805,7 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 		if err != nil {
 			return true, err
 		}
-		unlockRes, err := secbootUnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", key)
+		unlockRes, err := secbootUnlockEncryptedVolumeUsingPlatformKey(disk, "ubuntu-save", key)
 		if err != nil {
 			return true, fmt.Errorf("cannot unlock ubuntu-save volume: %v", err)
 		}
@@ -1980,6 +1986,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
 		AllowRecoveryKey: true,
 		WhichModel:       mst.UnverifiedBootModel,
+		BootMode:         "run",
 	}
 	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", runModeKey, opts)
 	if err != nil {

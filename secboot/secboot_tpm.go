@@ -2,7 +2,7 @@
 //go:build !nosecboot
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2021, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,9 +21,11 @@
 package secboot
 
 import (
+	"bytes"
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,15 +55,16 @@ var (
 	sbMeasureSnapSystemEpochToTPM                   = sb_tpm2.MeasureSnapSystemEpochToTPM
 	sbMeasureSnapModelToTPM                         = sb_tpm2.MeasureSnapModelToTPM
 	sbBlockPCRProtectionPolicies                    = sb_tpm2.BlockPCRProtectionPolicies
-	sbefiAddSecureBootPolicyProfile                 = sb_efi.AddSecureBootPolicyProfile
-	sbefiAddBootManagerProfile                      = sb_efi.AddBootManagerProfile
+	sbefiAddPCRProfile                              = sb_efi.AddPCRProfile
 	sbefiAddSystemdStubProfile                      = sb_efi.AddSystemdStubProfile
 	sbAddSnapModelProfile                           = sb_tpm2.AddSnapModelProfile
-	sbSealKeyToTPMMultiple                          = sb_tpm2.SealKeyToTPMMultiple
 	sbUpdateKeyPCRProtectionPolicyMultiple          = sb_tpm2.UpdateKeyPCRProtectionPolicyMultiple
 	sbSealedKeyObjectRevokeOldPCRProtectionPolicies = (*sb_tpm2.SealedKeyObject).RevokeOldPCRProtectionPolicies
-	sbNewKeyDataFromSealedKeyObjectFile             = sb_tpm2.NewKeyDataFromSealedKeyObjectFile
+	sbNewFileKeyDataReader                          = sb.NewFileKeyDataReader
+	sbReadKeyData                                   = sb.ReadKeyData
 	sbReadSealedKeyObjectFromFile                   = sb_tpm2.ReadSealedKeyObjectFromFile
+	sbNewTPMProtectedKey                            = sb_tpm2.NewTPMProtectedKey
+	sbNewKeyDataFromSealedKeyObjectFile             = sb_tpm2.NewKeyDataFromSealedKeyObjectFile
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
@@ -72,6 +75,8 @@ var (
 	tpmReleaseResources                 = tpmReleaseResourcesImpl
 
 	sbTPMDictionaryAttackLockReset = (*sb_tpm2.Connection).DictionaryAttackLockReset
+
+	sbUpdateKeyDataPCRProtectionPolicy = sb_tpm2.UpdateKeyDataPCRProtectionPolicy
 
 	// check whether the interfaces match
 	_ (sb.SnapModel) = ModelForSealing(nil)
@@ -271,17 +276,72 @@ func activateVolOpts(allowRecoveryKey bool) *sb.ActivateVolumeOptions {
 	return &options
 }
 
+func newAuthRequestor() (sb.AuthRequestor, error) {
+	return sb.NewSystemdAuthRequestor(
+		"Please enter passphrase for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
+		"Please enter recovery key for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
+	)
+}
+
+// TODO: consider moving this to secboot
+func readKeyFileImpl(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, error) {
+	f, err := os.Open(keyfile)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer f.Close()
+
+	var rawPrefix = []byte("USK$")
+
+	buf := make([]byte, len(rawPrefix))
+	if _, err := io.ReadFull(f, buf); err != nil {
+		return nil, nil, err
+	}
+	if bytes.HasPrefix(buf, rawPrefix) {
+		sealedObject, err := sbReadSealedKeyObjectFromFile(keyfile)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot read key object: %v", err)
+		}
+		keyData, err := sbNewKeyDataFromSealedKeyObjectFile(keyfile)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot read key object as key data: %v", err)
+		}
+		return keyData, sealedObject, err
+
+	} else {
+		reader, err := sbNewFileKeyDataReader(keyfile)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot open key data: %v", err)
+		}
+		keyData, err := sbReadKeyData(reader)
+		return keyData, nil, err
+	}
+}
+
+var readKeyFile = readKeyFileImpl
+
 // unlockEncryptedPartitionWithSealedKey unseals the keyfile and opens an encrypted
 // device. If activation with the sealed key fails, this function will attempt to
 // activate it with the fallback recovery key instead.
 func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile string, allowRecovery bool) (UnlockMethod, error) {
-	keyData, err := sbNewKeyDataFromSealedKeyObjectFile(keyfile)
-	if err != nil {
+	var keys []*sb.KeyData
+
+	keyData, _, err := readKeyFile(keyfile)
+	if os.IsNotExist(err) {
+	} else if err != nil {
 		return NotUnlocked, fmt.Errorf("cannot read key data: %v", err)
+	} else {
+		keys = append(keys, keyData)
 	}
 	options := activateVolOpts(allowRecovery)
+	options.Model = sb.SkipSnapModelCheck
 	// ignoring model checker as it doesn't work with tpm "legacy" platform key data
-	_, err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, keyData, options)
+	authRequestor, err := newAuthRequestor()
+	if err != nil {
+		return NotUnlocked, fmt.Errorf("cannot build an auth requestor: %v", err)
+	}
+
+	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, authRequestor, options, keys...)
 	if err == sb.ErrRecoveryKeyUsed {
 		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
 		return UnlockedWithRecoveryKey, nil
@@ -364,54 +424,69 @@ func ProvisionForCVM(initramfsUbuntuSeedDir string) error {
 // SealKeys seals the encryption keys according to the specified parameters. The
 // TPM must have already been provisioned. If sealed key already exists at the
 // PCR handle, SealKeys will fail and return an error.
-func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
+func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 	numModels := len(params.ModelParams)
 	if numModels < 1 {
-		return fmt.Errorf("at least one set of model-specific parameters is required")
+		return nil, fmt.Errorf("at least one set of model-specific parameters is required")
 	}
 
 	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
-		return fmt.Errorf("cannot connect to TPM: %v", err)
+		return nil, fmt.Errorf("cannot connect to TPM: %v", err)
 	}
 	defer tpm.Close()
 	if !isTPMEnabled(tpm) {
-		return fmt.Errorf("TPM device is not enabled")
+		return nil, fmt.Errorf("TPM device is not enabled")
 	}
 
 	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	pcrHandle := params.PCRPolicyCounterHandle
 	logger.Noticef("sealing with PCR handle %#x", pcrHandle)
-	// Seal the provided keys to the TPM
-	creationParams := sb_tpm2.KeyCreationParams{
-		PCRProfile:             pcrProfile,
-		PCRPolicyCounterHandle: tpm2.Handle(pcrHandle),
-		AuthKey:                params.TPMPolicyAuthKey,
-	}
 
-	sbKeys := make([]*sb_tpm2.SealKeyRequest, 0, len(keys))
-	for i := range keys {
-		sbKeys = append(sbKeys, &sb_tpm2.SealKeyRequest{
-			Key:  keys[i].Key,
-			Path: keys[i].KeyFile,
-		})
+	var primaryKey sb.PrimaryKey
+	if params.PrimaryKey != nil {
+		primaryKey = params.PrimaryKey
 	}
-
-	authKey, err := sbSealKeyToTPMMultiple(tpm, sbKeys, &creationParams)
-	if err != nil {
-		logger.Debugf("seal key error: %v", err)
-		return err
-	}
-	if params.TPMPolicyAuthKeyFile != "" {
-		if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, authKey, 0600, 0); err != nil {
-			return fmt.Errorf("cannot write the policy auth key file: %v", err)
+	for _, key := range keys {
+		creationParams := &sb_tpm2.ProtectKeyParams{
+			PCRProfile:             pcrProfile,
+			Role:                   key.Role,
+			PCRPolicyCounterHandle: tpm2.Handle(pcrHandle),
+			PrimaryKey:             primaryKey,
+		}
+		protectedKey, primaryKeyOut, unlockKey, err := sbNewTPMProtectedKey(tpm, creationParams)
+		if primaryKey == nil {
+			primaryKey = primaryKeyOut
+		}
+		if err != nil {
+			return nil, err
+		}
+		token := key.KeyFile == ""
+		tokenWriter, err := key.Resetter.AddKey(key.SlotName, unlockKey, token)
+		if err != nil {
+			return nil, err
+		}
+		var keyDataWriter sb.KeyDataWriter
+		if token {
+			keyDataWriter = tokenWriter
+		} else {
+			keyDataWriter = sb.NewFileKeyDataWriter(key.KeyFile)
+		}
+		if err := protectedKey.WriteAtomic(keyDataWriter); err != nil {
+			return nil, err
 		}
 	}
-	return nil
+	if primaryKey != nil && params.TPMPolicyAuthKeyFile != "" {
+		if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, primaryKey, 0600, 0); err != nil {
+			return nil, fmt.Errorf("cannot write the policy auth key file: %v", err)
+		}
+	}
+
+	return primaryKey, nil
 }
 
 // ResealKeys updates the PCR protection policy for the sealed encryption keys
@@ -437,37 +512,59 @@ func ResealKeys(params *ResealKeysParams) error {
 
 	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot build new PCR protection profile: %w", err)
 	}
 
 	authKey, err := os.ReadFile(params.TPMPolicyAuthKeyFile)
 	if err != nil {
-		return fmt.Errorf("cannot read the policy auth key file: %v", err)
+		return fmt.Errorf("cannot read the policy auth key file %s: %w", params.TPMPolicyAuthKeyFile, err)
 	}
 
+	hasOldObject := false
+	hasNewData := false
+
+	keyDatas := make([]*sb.KeyData, 0, numSealedKeyObjects)
 	sealedKeyObjects := make([]*sb_tpm2.SealedKeyObject, 0, numSealedKeyObjects)
 	for _, keyfile := range params.KeyFiles {
-		sealedKeyObject, err := sbReadSealedKeyObjectFromFile(keyfile)
+		keyData, keyObject, err := readKeyFile(keyfile)
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot read key file %s: %w", keyfile, err)
 		}
-		sealedKeyObjects = append(sealedKeyObjects, sealedKeyObject)
-	}
-
-	if err := sbUpdateKeyPCRProtectionPolicyMultiple(tpm, sealedKeyObjects, authKey, pcrProfile); err != nil {
-		return err
-	}
-
-	// write key files
-	for i, sko := range sealedKeyObjects {
-		w := sb_tpm2.NewFileSealedKeyObjectWriter(params.KeyFiles[i])
-		if err := sko.WriteAtomic(w); err != nil {
-			return fmt.Errorf("cannot write key data file: %v", err)
+		keyDatas = append(keyDatas, keyData)
+		sealedKeyObjects = append(sealedKeyObjects, keyObject)
+		if keyObject == nil {
+			hasNewData = true
+		} else {
+			hasOldObject = true
 		}
 	}
 
-	// revoke old policies via the primary key object
-	return sbSealedKeyObjectRevokeOldPCRProtectionPolicies(sealedKeyObjects[0], tpm, authKey)
+	if hasOldObject && hasNewData {
+		return fmt.Errorf("key files are different formats")
+	}
+
+	if hasOldObject {
+		if err := sbUpdateKeyPCRProtectionPolicyMultiple(tpm, sealedKeyObjects, authKey, pcrProfile); err != nil {
+			return fmt.Errorf("cannot update legacy PCR protection policy: %w", err)
+		}
+
+		// write key files
+		for i, sko := range sealedKeyObjects {
+			w := sb_tpm2.NewFileSealedKeyObjectWriter(params.KeyFiles[i])
+			if err := sko.WriteAtomic(w); err != nil {
+				return fmt.Errorf("cannot write key data file %s: %w", params.KeyFiles[i], err)
+			}
+		}
+
+		// revoke old policies via the primary key object
+		if err := sbSealedKeyObjectRevokeOldPCRProtectionPolicies(sealedKeyObjects[0], tpm, authKey); err != nil {
+			return fmt.Errorf("cannot revoke old PCR protection policies: %w", err)
+		}
+	} else {
+		return fmt.Errorf("Old code, new stuff")
+	}
+
+	return nil
 }
 
 func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRProtectionProfile, error) {
@@ -482,27 +579,14 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 			return nil, fmt.Errorf("cannot build EFI image load sequences: %v", err)
 		}
 
-		// Add EFI secure boot policy profile
-		policyParams := sb_efi.SecureBootPolicyProfileParams{
-			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
-			LoadSequences: loadSequences,
-			// TODO:UC20: set SignatureDbUpdateKeystore to support applying forbidden
-			//            signature updates to exclude signing keys (after rotating them).
-			//            This also requires integration of sbkeysync, and some work to
-			//            ensure that the PCR profile is updated before/after sbkeysync executes.
-		}
-
-		if err := sbefiAddSecureBootPolicyProfile(modelProfile, &policyParams); err != nil {
-			return nil, fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
-		}
-
-		// Add EFI boot manager profile
-		bootManagerParams := sb_efi.BootManagerProfileParams{
-			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
-			LoadSequences: loadSequences,
-		}
-		if err := sbefiAddBootManagerProfile(modelProfile, &bootManagerParams); err != nil {
-			return nil, fmt.Errorf("cannot add EFI boot manager profile: %v", err)
+		if err := sbefiAddPCRProfile(
+			tpm2.HashAlgorithmSHA256,
+			modelProfile.RootBranch(),
+			loadSequences,
+			sb_efi.WithSecureBootPolicyProfile(),
+			sb_efi.WithBootManagerCodeProfile(),
+		); err != nil {
+			return nil, fmt.Errorf("cannot add EFI secure boot and boot manager policy profiles: %v", err)
 		}
 
 		// Add systemd EFI stub profile
@@ -512,7 +596,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 				PCRIndex:       initramfsPCR,
 				KernelCmdlines: mp.KernelCmdlines,
 			}
-			if err := sbefiAddSystemdStubProfile(modelProfile, &systemdStubParams); err != nil {
+			if err := sbefiAddSystemdStubProfile(modelProfile.RootBranch(), &systemdStubParams); err != nil {
 				return nil, fmt.Errorf("cannot add systemd EFI stub profile: %v", err)
 			}
 		}
@@ -524,7 +608,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 				PCRIndex:     initramfsPCR,
 				Models:       []sb.SnapModel{mp.Model},
 			}
-			if err := sbAddSnapModelProfile(modelProfile, &snapModelParams); err != nil {
+			if err := sbAddSnapModelProfile(modelProfile.RootBranch(), &snapModelParams); err != nil {
 				return nil, fmt.Errorf("cannot add snap model profile: %v", err)
 			}
 		}
@@ -532,12 +616,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 		modelPCRProfiles = append(modelPCRProfiles, modelProfile)
 	}
 
-	var pcrProfile *sb_tpm2.PCRProtectionProfile
-	if numModels > 1 {
-		pcrProfile = sb_tpm2.NewPCRProtectionProfile().AddProfileOR(modelPCRProfiles...)
-	} else {
-		pcrProfile = modelPCRProfiles[0]
-	}
+	pcrProfile := sb_tpm2.NewPCRProtectionProfile().AddProfileOR(modelPCRProfiles...)
 
 	logger.Debugf("PCR protection profile:\n%s", pcrProfile.String())
 
@@ -581,7 +660,7 @@ func tpmProvision(tpm *sb_tpm2.Connection, mode TPMProvisionMode, lockoutAuthFil
 }
 
 // buildLoadSequences builds EFI load image event trees from this package LoadChains
-func buildLoadSequences(chains []*LoadChain) (loadseqs []*sb_efi.ImageLoadEvent, err error) {
+func buildLoadSequences(chains []*LoadChain) (loadseqs *sb_efi.ImageLoadSequences, err error) {
 	// this will build load event trees for the current
 	// device configuration, e.g. something like:
 	//
@@ -591,23 +670,25 @@ func buildLoadSequences(chains []*LoadChain) (loadseqs []*sb_efi.ImageLoadEvent,
 	//                      |-> normal grub -> run kernel good
 	//                                     |-> run kernel try
 
+	loadseqs = sb_efi.NewImageLoadSequences()
+
 	for _, chain := range chains {
 		// root of load events has source Firmware
-		loadseq, err := chain.loadEvent(sb_efi.Firmware)
+		loadseq, err := chain.loadEvent()
 		if err != nil {
 			return nil, err
 		}
-		loadseqs = append(loadseqs, loadseq)
+		loadseqs.Append(loadseq)
 	}
 	return loadseqs, nil
 }
 
 // loadEvent builds the corresponding load event and its tree
-func (lc *LoadChain) loadEvent(source sb_efi.ImageLoadEventSource) (*sb_efi.ImageLoadEvent, error) {
-	var next []*sb_efi.ImageLoadEvent
+func (lc *LoadChain) loadEvent() (sb_efi.ImageLoadActivity, error) {
+	var next []sb_efi.ImageLoadActivity
 	for _, nextChain := range lc.Next {
 		// everything that is not the root has source shim
-		ev, err := nextChain.loadEvent(sb_efi.Shim)
+		ev, err := nextChain.loadEvent()
 		if err != nil {
 			return nil, err
 		}
@@ -617,11 +698,7 @@ func (lc *LoadChain) loadEvent(source sb_efi.ImageLoadEventSource) (*sb_efi.Imag
 	if err != nil {
 		return nil, err
 	}
-	return &sb_efi.ImageLoadEvent{
-		Source: source,
-		Image:  image,
-		Next:   next,
-	}, nil
+	return sb_efi.NewImageLoadActivity(image).Loads(next...), nil
 }
 
 func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {
@@ -636,25 +713,30 @@ func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {
 	if err != nil {
 		return nil, err
 	}
-	return sb_efi.SnapFileImage{
-		Container: snapf,
-		FileName:  b.Path,
-	}, nil
+	return sb_efi.NewSnapFileImage(
+		snapf,
+		b.Path,
+	), nil
 }
 
 // PCRHandleOfSealedKey retunrs the PCR handle which was used when sealing a
 // given key object.
 func PCRHandleOfSealedKey(p string) (uint32, error) {
-	r, err := sb_tpm2.NewFileSealedKeyObjectReader(p)
+	keyData, keyObject, err := readKeyFile(p)
 	if err != nil {
-		return 0, fmt.Errorf("cannot open key file: %v", err)
+		return 0, fmt.Errorf("cannot read key file %s: %w", p, err)
 	}
-	sko, err := sb_tpm2.ReadSealedKeyObject(r)
-	if err != nil {
-		return 0, fmt.Errorf("cannot read sealed key file: %v", err)
+	if keyObject != nil {
+		handle := uint32(keyObject.PCRPolicyCounterHandle())
+		return handle, nil
+	} else {
+		sealedKeyData, err := sb_tpm2.NewSealedKeyData(keyData)
+		if err != nil {
+			return 0, fmt.Errorf("cannot read key data in keyfile %s: %w", p, err)
+		}
+		handle := uint32(sealedKeyData.PCRPolicyCounterHandle())
+		return handle, nil
 	}
-	handle := uint32(sko.PCRPolicyCounterHandle())
-	return handle, nil
 }
 
 func tpmReleaseResourcesImpl(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {

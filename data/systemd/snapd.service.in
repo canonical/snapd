@@ -27,6 +27,8 @@ NotifyAccess=all
 SuccessExitStatus=42
 RestartPreventExitStatus=42
 KillMode=process
+#TODO: test with "shared"
+KeyringMode=inherit
 
 [Install]
 WantedBy=multi-user.target

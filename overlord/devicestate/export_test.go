@@ -594,3 +594,19 @@ func CleanUpEncryptionSetupDataInCache(st *state.State, label string) {
 }
 
 type UniqueSnapsInRecoverySystem = uniqueSnapsInRecoverySystem
+
+func MockCreateSaveResetter(f func(saveNode string) (secboot.KeyResetter, error)) func() {
+	old := createSaveResetter
+	createSaveResetter = f
+	return func() {
+		createSaveResetter = old
+	}
+}
+
+func MockDeleteOldSaveKey(f func(saveMntPnt string) error) func() {
+	old := deleteOldSaveKey
+	deleteOldSaveKey = f
+	return func() {
+		deleteOldSaveKey = old
+	}
+}
