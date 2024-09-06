@@ -108,8 +108,11 @@ const (
 )
 
 type invalidFieldValue struct {
-	Reason   invalidReason `json:"invalid-reason"`
-	Metadata interface{}   `json:"metadata,omitempty"`
+	Reason    invalidReason `json:"invalid-reason"`
+	Value     interface{}   `json:"invalid-value,omitempty"`
+	Supported interface{}   `json:"supported,omitempty"`
+	// TODO: once documentation exists for user-defined fields
+	// DocumentationURL string `json:"documentation"`
 }
 
 type promptingUnsupportedValueError prompting_errors.UnsupportedValueError
@@ -117,14 +120,9 @@ type promptingUnsupportedValueError prompting_errors.UnsupportedValueError
 func (v *promptingUnsupportedValueError) MarshalJSON() ([]byte, error) {
 	value := make(map[string]invalidFieldValue, 1)
 	value[v.Field] = invalidFieldValue{
-		Reason: unsupportedValueReason,
-		Metadata: &struct {
-			Received  interface{} `json:"received-invalid"`
-			Supported []string    `json:"supported"`
-		}{
-			Received:  v.Value,
-			Supported: v.Supported,
-		},
+		Reason:    unsupportedValueReason,
+		Value:     v.Value,
+		Supported: v.Supported,
 	}
 	return json.Marshal(value)
 }
@@ -135,15 +133,9 @@ func (v *promptingParseError) MarshalJSON() ([]byte, error) {
 	value := make(map[string]invalidFieldValue, 1)
 	value[v.Field] = invalidFieldValue{
 		Reason: parseErrorReason,
-		Metadata: &struct {
-			Received string `json:"received-invalid"`
-			// TODO: once documentation exists for user-defined fields
-			// DocumentationURL string `json:"documentation"`
-		}{
-			Received: v.Invalid,
-			// TODO: once documentation exists for user-defined fields
-			// DocumentationURL: <url>,
-		},
+		Value:  v.Invalid,
+		// TODO: once documentation exists for user-defined fields
+		// DocumentationURL: <url>,
 	}
 	return json.Marshal(value)
 }
