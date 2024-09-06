@@ -105,7 +105,6 @@ type invalidReason string
 const (
 	unsupportedValueReason invalidReason = "unsupported-value"
 	parseErrorReason       invalidReason = "parse-error"
-	validationErrorReason  invalidReason = "validation-error"
 )
 
 type invalidFieldValue struct {
@@ -153,54 +152,28 @@ func (v *ParseErrorValue) MarshalJSON() ([]byte, error) {
 	return json.Marshal(value)
 }
 
-type validationErrorType string
+type RequestedPathNotMatchedErrorJSON prompting_errors.RequestedPathNotMatchedError
 
-var (
-	requestedPathNotMatched        validationErrorType = "requested-path-not-matched"
-	requestedPermissionsNotMatched validationErrorType = "requested-permissions-not-matched"
-	ruleConflict                   validationErrorType = "conflict-with-existing-rule"
-)
-
-type RequestedPathNotMatchedErrorValue struct {
-	err *prompting_errors.RequestedPathNotMatchedError
+func (v *RequestedPathNotMatchedErrorJSON) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&struct {
+		Received  string `json:"received-pattern"`
+		Requested string `json:"requested-path"`
+	}{
+		Received:  v.Received,
+		Requested: v.Requested,
+	})
 }
 
-func (v *RequestedPathNotMatchedErrorValue) MarshalJSON() ([]byte, error) {
-	value := make(map[string]invalidFieldValue, 1)
-	value["path-pattern"] = invalidFieldValue{
-		Reason: validationErrorReason,
-		Metadata: &struct {
-			ErrorType validationErrorType `json:"error-type"`
-			Received  string              `json:"received"`
-			Requested string              `json:"requested"`
-		}{
-			ErrorType: requestedPathNotMatched,
-			Received:  v.err.Received,
-			Requested: v.err.Requested,
-		},
-	}
-	return json.Marshal(value)
-}
+type RequestedPermissionsNotMatchedErrorJSON prompting_errors.RequestedPermissionsNotMatchedError
 
-type RequestedPermissionsNotMatchedErrorValue struct {
-	err *prompting_errors.RequestedPermissionsNotMatchedError
-}
-
-func (v *RequestedPermissionsNotMatchedErrorValue) MarshalJSON() ([]byte, error) {
-	value := make(map[string]invalidFieldValue, 1)
-	value["permissions"] = invalidFieldValue{
-		Reason: validationErrorReason,
-		Metadata: &struct {
-			ErrorType validationErrorType `json:"error-type"`
-			Received  []string            `json:"received"`
-			Requested []string            `json:"requested"`
-		}{
-			ErrorType: requestedPermissionsNotMatched,
-			Received:  v.err.Received,
-			Requested: v.err.Requested,
-		},
-	}
-	return json.Marshal(value)
+func (v *RequestedPermissionsNotMatchedErrorJSON) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&struct {
+		Received  []string `json:"received-permissions"`
+		Requested []string `json:"requested-permissions"`
+	}{
+		Received:  v.Received,
+		Requested: v.Requested,
+	})
 }
 
 type RuleConflictJSON prompting_errors.RuleConflict
@@ -217,27 +190,18 @@ func (r *RuleConflictJSON) MarshalJSON() ([]byte, error) {
 	})
 }
 
-type RuleConflictErrorValue struct {
-	err *prompting_errors.RuleConflictError
-}
+type RuleConflictErrorJSON prompting_errors.RuleConflictError
 
-func (v *RuleConflictErrorValue) MarshalJSON() ([]byte, error) {
-	conflictsJSON := make([]RuleConflictJSON, len(v.err.Conflicts))
-	for i, conflict := range v.err.Conflicts {
+func (v *RuleConflictErrorJSON) MarshalJSON() ([]byte, error) {
+	conflictsJSON := make([]RuleConflictJSON, len(v.Conflicts))
+	for i, conflict := range v.Conflicts {
 		conflictsJSON[i] = RuleConflictJSON(conflict)
 	}
-	value := make(map[string]invalidFieldValue, 1)
-	value["path-pattern"] = invalidFieldValue{
-		Reason: validationErrorReason,
-		Metadata: &struct {
-			ErrorType validationErrorType `json:"error-type"`
-			Conflicts []RuleConflictJSON  `json:"conflicts"`
-		}{
-			ErrorType: ruleConflict,
-			Conflicts: conflictsJSON,
-		},
-	}
-	return json.Marshal(value)
+	return json.Marshal(&struct {
+		Conflicts []RuleConflictJSON `json:"conflicts"`
+	}{
+		Conflicts: conflictsJSON,
+	})
 }
 
 func promptingNotRunningError() *apiError {
@@ -283,30 +247,24 @@ func promptingError(err error) *apiError {
 		}
 	case errors.Is(err, prompting_errors.ErrReplyNotMatchRequestedPath):
 		apiErr.Status = 400
-		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidFields
+		apiErr.Kind = client.ErrorKindInterfacesRequestsReplyNotMatchRequestedPath
 		var patternErr *prompting_errors.RequestedPathNotMatchedError
 		if errors.As(err, &patternErr) {
-			apiErr.Value = &RequestedPathNotMatchedErrorValue{
-				err: patternErr,
-			}
+			apiErr.Value = (*RequestedPathNotMatchedErrorJSON)(patternErr)
 		}
 	case errors.Is(err, prompting_errors.ErrReplyNotMatchRequestedPermissions):
 		apiErr.Status = 400
-		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidFields
+		apiErr.Kind = client.ErrorKindInterfacesRequestsReplyNotMatchRequestedPermissions
 		var permissionsErr *prompting_errors.RequestedPermissionsNotMatchedError
 		if errors.As(err, &permissionsErr) {
-			apiErr.Value = &RequestedPermissionsNotMatchedErrorValue{
-				err: permissionsErr,
-			}
+			apiErr.Value = (*RequestedPermissionsNotMatchedErrorJSON)(permissionsErr)
 		}
 	case errors.Is(err, prompting_errors.ErrRuleConflict):
 		apiErr.Status = 409
-		apiErr.Kind = client.ErrorKindInterfacesRequestsInvalidFields
+		apiErr.Kind = client.ErrorKindInterfacesRequestsRuleConflict
 		var conflictErr *prompting_errors.RuleConflictError
 		if errors.As(err, &conflictErr) {
-			apiErr.Value = &RuleConflictErrorValue{
-				err: conflictErr,
-			}
+			apiErr.Value = (*RuleConflictErrorJSON)(conflictErr)
 		}
 	default:
 		// Treat errors without specific mapping as internal errors.
