@@ -1,6 +1,6 @@
 module github.com/snapcore/snapd
 
-go 1.18
+go 1.21
 
 // maze.io/x/crypto/afis imported by github.com/snapcore/secboot/tpm2
 replace maze.io/x/crypto => github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066
