@@ -420,8 +420,8 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 				case arg == "--property=Before=initrd-fs.target":
 					foundBeforeInitrdfsTarget = true
 				case strings.HasPrefix(arg, "--options="):
-					for _, opt := range osutil.SplitMountOptions(strings.TrimPrefix(arg, "--options=")) {
-						switch opt := opt; {
+					for _, opt := range osutil.SplitSystemdMountOptions(strings.TrimPrefix(arg, "--options=")) {
+						switch {
 						case opt == "nosuid":
 							foundNoSuid = true
 						case opt == "bind":
