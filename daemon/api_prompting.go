@@ -108,8 +108,8 @@ const (
 )
 
 type invalidFieldValue struct {
-	Reason    invalidReason `json:"invalid-reason"`
-	Value     interface{}   `json:"invalid-value,omitempty"`
+	Reason    invalidReason `json:"reason"`
+	Value     interface{}   `json:"value,omitempty"`
 	Supported interface{}   `json:"supported,omitempty"`
 	// TODO: once documentation exists for user-defined fields
 	// DocumentationURL string `json:"documentation"`
