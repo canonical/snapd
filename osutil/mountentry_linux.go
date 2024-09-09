@@ -26,9 +26,9 @@ import (
 	"syscall"
 )
 
-// This is needed to properly split options that could contain an escaped
-// ',' character.
-func SplitMountOptions(s string) []string {
+// splitMountoptions will split options at ',' accounting for escaped ','
+// characters. ',' can be found as part of a valid path for instance.
+func splitMountOptions(s string) []string {
 	var o []string
 
 	var cur strings.Builder
@@ -66,6 +66,21 @@ func SplitMountOptions(s string) []string {
 	return o
 }
 
+// SplitSystemdMountOptions is used to properly split options passed to systemd-mount
+// that could contain an escaped ',' character such as a verity hash device or overlayfs
+// mount options.
+// Relevant systemd code https://github.com/systemd/systemd/blob/4ec630bfba02543af204f13ad9f5ce4a2329a166/src/basic/extract-word.c#L20
+func SplitSystemdMountOptions(s string) []string {
+	return splitMountOptions(s)
+}
+
+// SplitOverlayMountOptions splits mount options into a slice, in accordance to the kernel.
+// This is following how it is done for overlayfs in
+// https://elixir.bootlin.com/linux/v6.10.9/C/ident/ovl_next_opt
+func SplitOverlayMountOptions(s string) []string {
+	return splitMountOptions(s)
+}
+
 // ParseMountEntry parses a fstab-like entry.
 func ParseMountEntry(s string) (MountEntry, error) {
 	var e MountEntry
@@ -88,7 +103,13 @@ func ParseMountEntry(s string) (MountEntry, error) {
 	e.Type = unescape(fields[2])
 	// Parse Options if we have at least 4 fields
 	if len(fields) > 3 {
-		e.Options = SplitMountOptions(unescape(fields[3]))
+		// TODO: There are multiple filesystems which override generic_parse_monolithic
+		// in the kernel so special handling is needed on a per-fs basis.
+		if e.Type == "overlay" {
+			e.Options = SplitOverlayMountOptions(unescape(fields[3]))
+		} else {
+			e.Options = strings.Split(unescape(fields[3]), ",")
+		}
 	}
 	// Parse DumpFrequency if we have at least 5 fields
 	if len(fields) > 4 {
