@@ -855,15 +855,27 @@ jobs:
 
     - name: Download built snap
       uses: actions/download-artifact@v3
+      if: "!endsWith(matrix.group, '-fips')"
       with:
         name: snap-files-default-test
+        # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
         pattern: snapd_1337.*.snap
+        path: "${{ github.workspace }}/built-snap"
+
+    - name: Download built FIPS snap
+      uses: actions/download-artifact@v3
+      # eg. ubuntu-fips
+      if: "endsWith(matrix.group, '-fips')"
+      with:
+        name: snap-files-FIPS-test
+        # eg. snapd_1337.2.65.1+git97.gd35b459-fips_amd64.snap
+        pattern: snapd_1337.*-fips_*.snap
         path: "${{ github.workspace }}/built-snap"
 
     - name: Rename imported snap
       run: |
         for snap in built-snap/snapd_1337.*.snap; do
-          mv "${snap}" "${snap}.keep"
+          mv -v "${snap}" "${snap}.keep"
         done
 
     - name: Run spread tests
