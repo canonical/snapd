@@ -43,7 +43,8 @@ func (s *pathIterSuite) TestCurDir(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentPath(), Equals, ".")
-	c.Assert(iter.CurrentDir(), Equals, ".")
+	c.Assert(iter.CurrentPathPlusSlash(), Equals, "./")
+	c.Assert(iter.CurrentDir(), Equals, "")
 	c.Assert(iter.CurrentBase(), Equals, ".")
 	c.Assert(iter.IsCurrentBaseLeaf(), Equals, true)
 	c.Assert(iter.Depth(), Equals, 1)
@@ -61,7 +62,8 @@ func (s *pathIterSuite) TestPathIteratorFilename(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentPath(), Equals, "foo")
-	c.Assert(iter.CurrentDir(), Equals, ".")
+	c.Assert(iter.CurrentPathPlusSlash(), Equals, "foo/")
+	c.Assert(iter.CurrentDir(), Equals, "")
 	c.Assert(iter.CurrentBase(), Equals, "foo")
 	c.Assert(iter.IsCurrentBaseLeaf(), Equals, true)
 	c.Assert(iter.Depth(), Equals, 1)
@@ -79,13 +81,15 @@ func (s *pathIterSuite) TestPathIteratorRelative(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentPath(), Equals, "foo")
-	c.Assert(iter.CurrentDir(), Equals, ".")
+	c.Assert(iter.CurrentPathPlusSlash(), Equals, "foo/")
+	c.Assert(iter.CurrentDir(), Equals, "")
 	c.Assert(iter.CurrentBase(), Equals, "foo")
 	c.Assert(iter.IsCurrentBaseLeaf(), Equals, false)
 	c.Assert(iter.Depth(), Equals, 1)
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentPath(), Equals, "foo/bar")
+	c.Assert(iter.CurrentPathPlusSlash(), Equals, "foo/bar/")
 	c.Assert(iter.CurrentDir(), Equals, "foo")
 	c.Assert(iter.CurrentBase(), Equals, "bar")
 	c.Assert(iter.IsCurrentBaseLeaf(), Equals, true)
@@ -95,10 +99,39 @@ func (s *pathIterSuite) TestPathIteratorRelative(c *C) {
 	c.Assert(iter.Depth(), Equals, 2)
 }
 
-func (s *pathIterSuite) TestPathIteratorAbsoluteNotClean(c *C) {
+func (s *pathIterSuite) TestPathIteratorAbsoluteEndingSlash(c *C) {
 	iter, err := strutil.NewPathIterator("/foo/bar/")
 	c.Assert(err, IsNil)
 	c.Assert(iter.Path(), Equals, "/foo/bar/")
+	c.Assert(iter.Depth(), Equals, 0)
+	c.Assert(iter.IsCurrentBaseLeaf(), Equals, false)
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentPath(), Equals, "/")
+	c.Assert(iter.CurrentPathPlusSlash(), Equals, "/")
+	c.Assert(iter.CurrentDir(), Equals, "")
+	c.Assert(iter.CurrentBase(), Equals, "/")
+	c.Assert(iter.IsCurrentBaseLeaf(), Equals, false)
+	c.Assert(iter.Depth(), Equals, 1)
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentPath(), Equals, "/foo")
+	c.Assert(iter.CurrentPathPlusSlash(), Equals, "/foo/")
+	c.Assert(iter.CurrentDir(), Equals, "/")
+	c.Assert(iter.CurrentBase(), Equals, "foo")
+	c.Assert(iter.IsCurrentBaseLeaf(), Equals, false)
+	c.Assert(iter.Depth(), Equals, 2)
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentPath(), Equals, "/foo/bar")
+	c.Assert(iter.CurrentPathPlusSlash(), Equals, "/foo/bar/")
+	c.Assert(iter.CurrentDir(), Equals, "/foo")
+	c.Assert(iter.CurrentBase(), Equals, "bar")
+	c.Assert(iter.IsCurrentBaseLeaf(), Equals, true)
+	c.Assert(iter.Depth(), Equals, 3)
+
+	c.Assert(iter.Next(), Equals, false)
+	c.Assert(iter.Depth(), Equals, 3)
 }
 
 func (s *pathIterSuite) TestPathIteratorAbsoluteClean(c *C) {
@@ -110,13 +143,15 @@ func (s *pathIterSuite) TestPathIteratorAbsoluteClean(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentPath(), Equals, "/")
-	c.Assert(iter.CurrentDir(), Equals, "/")
+	c.Assert(iter.CurrentPathPlusSlash(), Equals, "/")
+	c.Assert(iter.CurrentDir(), Equals, "")
 	c.Assert(iter.CurrentBase(), Equals, "/")
 	c.Assert(iter.IsCurrentBaseLeaf(), Equals, false)
 	c.Assert(iter.Depth(), Equals, 1)
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentPath(), Equals, "/foo")
+	c.Assert(iter.CurrentPathPlusSlash(), Equals, "/foo/")
 	c.Assert(iter.CurrentDir(), Equals, "/")
 	c.Assert(iter.CurrentBase(), Equals, "foo")
 	c.Assert(iter.IsCurrentBaseLeaf(), Equals, false)
@@ -124,6 +159,7 @@ func (s *pathIterSuite) TestPathIteratorAbsoluteClean(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentPath(), Equals, "/foo/bar")
+	c.Assert(iter.CurrentPathPlusSlash(), Equals, "/foo/bar/")
 	c.Assert(iter.CurrentDir(), Equals, "/foo")
 	c.Assert(iter.CurrentBase(), Equals, "bar")
 	c.Assert(iter.IsCurrentBaseLeaf(), Equals, true)
@@ -142,13 +178,15 @@ func (s *pathIterSuite) TestPathIteratorAbsoluteCleanDepth4(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentPath(), Equals, "/")
-	c.Assert(iter.CurrentDir(), Equals, "/")
+	c.Assert(iter.CurrentPathPlusSlash(), Equals, "/")
+	c.Assert(iter.CurrentDir(), Equals, "")
 	c.Assert(iter.CurrentBase(), Equals, "/")
 	c.Assert(iter.IsCurrentBaseLeaf(), Equals, false)
 	c.Assert(iter.Depth(), Equals, 1)
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentPath(), Equals, "/foo")
+	c.Assert(iter.CurrentPathPlusSlash(), Equals, "/foo/")
 	c.Assert(iter.CurrentDir(), Equals, "/")
 	c.Assert(iter.CurrentBase(), Equals, "foo")
 	c.Assert(iter.IsCurrentBaseLeaf(), Equals, false)
@@ -156,6 +194,7 @@ func (s *pathIterSuite) TestPathIteratorAbsoluteCleanDepth4(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentPath(), Equals, "/foo/bar")
+	c.Assert(iter.CurrentPathPlusSlash(), Equals, "/foo/bar/")
 	c.Assert(iter.CurrentDir(), Equals, "/foo")
 	c.Assert(iter.CurrentBase(), Equals, "bar")
 	c.Assert(iter.IsCurrentBaseLeaf(), Equals, false)
@@ -163,6 +202,7 @@ func (s *pathIterSuite) TestPathIteratorAbsoluteCleanDepth4(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentPath(), Equals, "/foo/bar/baz")
+	c.Assert(iter.CurrentPathPlusSlash(), Equals, "/foo/bar/baz/")
 	c.Assert(iter.CurrentDir(), Equals, "/foo/bar")
 	c.Assert(iter.CurrentBase(), Equals, "baz")
 	c.Assert(iter.IsCurrentBaseLeaf(), Equals, true)
@@ -181,7 +221,8 @@ func (s *pathIterSuite) TestPathIteratorRootDir(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentPath(), Equals, "/")
-	c.Assert(iter.CurrentDir(), Equals, "/")
+	c.Assert(iter.CurrentPathPlusSlash(), Equals, "/")
+	c.Assert(iter.CurrentDir(), Equals, "")
 	c.Assert(iter.CurrentBase(), Equals, "/")
 	c.Assert(iter.IsCurrentBaseLeaf(), Equals, true)
 	c.Assert(iter.Depth(), Equals, 1)
@@ -205,13 +246,15 @@ func (s *pathIterSuite) TestPathIteratorUnicode(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentPath(), Equals, "/")
-	c.Assert(iter.CurrentDir(), Equals, "/")
+	c.Assert(iter.CurrentPathPlusSlash(), Equals, "/")
+	c.Assert(iter.CurrentDir(), Equals, "")
 	c.Assert(iter.CurrentBase(), Equals, "/")
 	c.Assert(iter.IsCurrentBaseLeaf(), Equals, false)
 	c.Assert(iter.Depth(), Equals, 1)
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentPath(), Equals, "/zażółć")
+	c.Assert(iter.CurrentPathPlusSlash(), Equals, "/zażółć/")
 	c.Assert(iter.CurrentDir(), Equals, "/")
 	c.Assert(iter.CurrentBase(), Equals, "zażółć")
 	c.Assert(iter.IsCurrentBaseLeaf(), Equals, false)
@@ -219,6 +262,7 @@ func (s *pathIterSuite) TestPathIteratorUnicode(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentPath(), Equals, "/zażółć/gęślą")
+	c.Assert(iter.CurrentPathPlusSlash(), Equals, "/zażółć/gęślą/")
 	c.Assert(iter.CurrentDir(), Equals, "/zażółć")
 	c.Assert(iter.CurrentBase(), Equals, "gęślą")
 	c.Assert(iter.IsCurrentBaseLeaf(), Equals, false)
@@ -226,6 +270,7 @@ func (s *pathIterSuite) TestPathIteratorUnicode(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentPath(), Equals, "/zażółć/gęślą/jaźń")
+	c.Assert(iter.CurrentPathPlusSlash(), Equals, "/zażółć/gęślą/jaźń/")
 	c.Assert(iter.CurrentDir(), Equals, "/zażółć/gęślą")
 	c.Assert(iter.CurrentBase(), Equals, "jaźń")
 	c.Assert(iter.IsCurrentBaseLeaf(), Equals, true)
@@ -242,11 +287,13 @@ func (s *pathIterSuite) TestPathIteratorRewind(c *C) {
 		c.Assert(iter.Next(), Equals, true)
 		c.Assert(iter.Depth(), Equals, 1)
 		c.Assert(iter.CurrentPath(), Equals, "/")
-		c.Assert(iter.CurrentDir(), Equals, "/")
+		c.Assert(iter.CurrentPathPlusSlash(), Equals, "/")
+		c.Assert(iter.CurrentDir(), Equals, "")
 		c.Assert(iter.CurrentBase(), Equals, "/")
 		c.Assert(iter.Next(), Equals, true)
 		c.Assert(iter.Depth(), Equals, 2)
 		c.Assert(iter.CurrentPath(), Equals, "/foo")
+		c.Assert(iter.CurrentPathPlusSlash(), Equals, "/foo/")
 		c.Assert(iter.CurrentDir(), Equals, "/")
 		c.Assert(iter.CurrentBase(), Equals, "foo")
 		iter.Rewind()
