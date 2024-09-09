@@ -96,6 +96,8 @@ var (
 	ProbeKernelFeatures = probeKernelFeatures
 	ProbeParserFeatures = probeParserFeatures
 
+	ProbeKernelFeaturesPermstable32Version = probeKernelFeaturesPermstable32Version
+
 	RequiredKernelFeatures  = requiredKernelFeatures
 	RequiredParserFeatures  = requiredParserFeatures
 	PreferredKernelFeatures = preferredKernelFeatures

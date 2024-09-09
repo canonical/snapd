@@ -28,6 +28,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -466,6 +467,13 @@ func PromptingSupportedByFeatures(apparmorFeatures *FeaturesSupported) (bool, st
 	if !notify.SupportAvailable() {
 		return false, "apparmor kernel notification socket required by prompting listener is not present"
 	}
+	version, err := probeKernelFeaturesPermstable32Version()
+	if err != nil {
+		return false, "apparmor kernel permissions table version must be at least 2, but version could not be read"
+	}
+	if version < 2 {
+		return false, fmt.Sprintf("apparmor kernel permissions table version must be at least 2, but version is %d", version)
+	}
 	return true, ""
 }
 
@@ -689,6 +697,14 @@ func probeKernelFeaturesInDirRecursively(dir string, prefix string) ([]string, e
 		}
 	}
 	return features, nil
+}
+
+func probeKernelFeaturesPermstable32Version() (int64, error) {
+	data, err := os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "permstable32_version"))
+	if err != nil {
+		return 0, err
+	}
+	return strconv.ParseInt(string(data), 0, 64)
 }
 
 func probeParserFeatures() ([]string, error) {
