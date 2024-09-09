@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strconv"
 
 	. "gopkg.in/check.v1"
 
@@ -38,9 +37,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
-	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
-	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -120,46 +117,27 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 	defer boot.MockModeenvLocked()()
 
 	for idx, tc := range []struct {
-		sealErr                  error
-		provisionErr             error
-		factoryReset             bool
-		pcrHandleOfKey           uint32
-		pcrHandleOfKeyErr        error
-		shimId                   string
-		grubId                   string
-		runGrubId                string
-		expErr                   string
-		expProvisionCalls        int
-		expSealCalls             int
-		expReleasePCRHandleCalls int
-		expPCRHandleOfKeyCalls   int
+		sealErr      error
+		provisionErr error
+		factoryReset bool
+		shimId       string
+		grubId       string
+		runGrubId    string
+		expErr       string
+		expSealCalls int
 	}{
 		{
-			sealErr: nil, expErr: "",
-			expProvisionCalls: 1, expSealCalls: 2,
+			expSealCalls: 1,
 		}, {
-			sealErr: nil,
 			// old boot assets
 			shimId: "bootx64.efi", grubId: "grubx64.efi",
-			expErr:            "",
-			expProvisionCalls: 1, expSealCalls: 2,
+			expSealCalls: 1,
 		}, {
-			sealErr: nil, factoryReset: true, pcrHandleOfKey: secboot.FallbackObjectPCRPolicyCounterHandle,
-			expProvisionCalls: 1, expSealCalls: 2, expPCRHandleOfKeyCalls: 1, expReleasePCRHandleCalls: 1,
+			factoryReset: true,
+			expSealCalls: 1,
 		}, {
-			sealErr: nil, factoryReset: true, pcrHandleOfKey: secboot.AltFallbackObjectPCRPolicyCounterHandle,
-			expProvisionCalls: 1, expSealCalls: 2, expPCRHandleOfKeyCalls: 1, expReleasePCRHandleCalls: 1,
-		}, {
-			sealErr: nil, factoryReset: true, pcrHandleOfKeyErr: errors.New("PCR handle error"),
-			expErr:                 "PCR handle error",
-			expPCRHandleOfKeyCalls: 1,
-		}, {
-			sealErr: errors.New("seal error"), expErr: "cannot seal the encryption keys: seal error",
-			expProvisionCalls: 1, expSealCalls: 1,
-		}, {
-			provisionErr: errors.New("provision error"), sealErr: errors.New("unexpected call"),
-			expErr:            "provision error",
-			expProvisionCalls: 1,
+			sealErr: errors.New("seal error"), expErr: `seal error`,
+			expSealCalls: 1,
 		},
 	} {
 		c.Logf("tc %v", idx)
@@ -229,128 +207,60 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		})
 		defer restore()
 
-		provisionCalls := 0
-		restore = fdeBackend.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
-			provisionCalls++
-			c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
-			if tc.factoryReset {
-				c.Check(mode, Equals, secboot.TPMPartialReprovision)
-			} else {
-				c.Check(mode, Equals, secboot.TPMProvisionFull)
-			}
-			return tc.provisionErr
-		})
-		defer restore()
+		sealKeyForBootChainsCalled := 0
+		restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams) error {
+			sealKeyForBootChainsCalled++
 
-		pcrHandleOfKeyCalls := 0
-		restore = boot.MockSecbootPCRHandleOfSealedKey(func(p string) (uint32, error) {
-			pcrHandleOfKeyCalls++
-			c.Check(provisionCalls, Equals, 0)
-			c.Check(p, Equals, filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
-			return tc.pcrHandleOfKey, tc.pcrHandleOfKeyErr
-		})
-		defer restore()
-
-		releasePCRHandleCalls := 0
-		releaseResourceFunc := func(handles ...uint32) error {
-			c.Check(tc.factoryReset, Equals, true)
-			releasePCRHandleCalls++
-			if tc.pcrHandleOfKey == secboot.FallbackObjectPCRPolicyCounterHandle {
-				c.Check(handles, DeepEquals, []uint32{
-					secboot.AltRunObjectPCRPolicyCounterHandle,
-					secboot.AltFallbackObjectPCRPolicyCounterHandle,
-				})
-			} else {
-				c.Check(handles, DeepEquals, []uint32{
-					secboot.RunObjectPCRPolicyCounterHandle,
-					secboot.FallbackObjectPCRPolicyCounterHandle,
-				})
-			}
-			return nil
-		}
-		restore = boot.MockSecbootReleasePCRResourceHandles(releaseResourceFunc)
-		defer restore()
-		restore = fdeBackend.MockSecbootReleasePCRResourceHandles(releaseResourceFunc)
-		defer restore()
-
-		// set mock key sealing
-		sealKeysCalls := 0
-		restore = fdeBackend.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
-			c.Assert(provisionCalls, Equals, 1, Commentf("TPM must have been provisioned before"))
-			sealKeysCalls++
-			switch sealKeysCalls {
-			case 1:
-				// the run object seals only the ubuntu-data key
-				c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-policy-auth-key"))
-
-				dataKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key")
-				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{BootstrappedContainer: myKey, KeyName: "ubuntu-data", KeyFile: dataKeyFile}})
-				if tc.pcrHandleOfKey == secboot.FallbackObjectPCRPolicyCounterHandle {
-					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltRunObjectPCRPolicyCounterHandle)
-				} else {
-					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.RunObjectPCRPolicyCounterHandle)
-				}
-			case 2:
-				// the fallback object seals the ubuntu-data and the ubuntu-save keys
-				c.Check(params.TPMPolicyAuthKeyFile, Equals, "")
-
-				dataKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key")
-				saveKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key")
-				if tc.factoryReset {
-					// during factory reset we use a different key location
-					saveKeyFile = filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory-reset")
-				}
-				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{BootstrappedContainer: myKey, KeyName: "ubuntu-data", KeyFile: dataKeyFile}, {BootstrappedContainer: myKey2, KeyName: "ubuntu-save", KeyFile: saveKeyFile}})
-				if tc.pcrHandleOfKey == secboot.FallbackObjectPCRPolicyCounterHandle {
-					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltFallbackObjectPCRPolicyCounterHandle)
-				} else {
-					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.FallbackObjectPCRPolicyCounterHandle)
-				}
-			default:
-				c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
-			}
-			c.Assert(params.ModelParams, HasLen, 1)
 			for _, d := range []string{boot.InitramfsSeedEncryptionKeyDir, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde")} {
 				ex, isdir, _ := osutil.DirExists(d)
 				c.Check(ex && isdir, Equals, true, Commentf("location %q does not exist or is not a directory", d))
 			}
 
-			shim := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-shim-hash-1", shimId)), bootloader.RoleRecovery)
-			grub := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-grub-hash-1", grubId)), bootloader.RoleRecovery)
-			runGrub := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-run-grub-hash-1", runGrubId)), bootloader.RoleRunMode)
-			kernel := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
-			runKernel := bootloader.NewBootFile(filepath.Join(rootdir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode)
+			c.Check(method, Equals, device.SealingMethodTPM)
+			c.Check(key, DeepEquals, myKey)
+			c.Check(saveKey, DeepEquals, myKey2)
 
-			switch sealKeysCalls {
-			case 1:
-				c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
-					secboot.NewLoadChain(shim,
-						secboot.NewLoadChain(grub,
-							secboot.NewLoadChain(kernel))),
-					secboot.NewLoadChain(shim,
-						secboot.NewLoadChain(grub,
-							secboot.NewLoadChain(runGrub,
-								secboot.NewLoadChain(runKernel)))),
-				})
-				c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
-					"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
-					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
-					"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
-				})
-			case 2:
-				c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
-					secboot.NewLoadChain(shim,
-						secboot.NewLoadChain(grub,
-							secboot.NewLoadChain(kernel))),
-				})
-				c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
-					"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
-					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
-				})
-			default:
-				c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
-			}
-			c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
+			recoveryBootLoader, hasRecovery := params.RoleToBlName[bootloader.RoleRecovery]
+			c.Assert(hasRecovery, Equals, true)
+			c.Check(recoveryBootLoader, Equals, "grub")
+			runBootLoader, hasRun := params.RoleToBlName[bootloader.RoleRunMode]
+			c.Assert(hasRun, Equals, true)
+			c.Check(runBootLoader, Equals, "grub")
+
+			c.Assert(params.RunModeBootChains, HasLen, 1)
+			runBootChain := params.RunModeBootChains[0]
+			c.Check(runBootChain.Model, Equals, model.Model())
+			c.Assert(runBootChain.AssetChain, HasLen, 3)
+			runShim := runBootChain.AssetChain[0]
+			runGrub := runBootChain.AssetChain[1]
+			runGrubRun := runBootChain.AssetChain[2]
+			c.Check(runShim.Name, Equals, shimId)
+			c.Assert(runShim.Hashes, HasLen, 1)
+			c.Check(runShim.Hashes[0], Equals, "shim-hash-1")
+			c.Check(runGrub.Name, Equals, grubId)
+			c.Assert(runGrub.Hashes, HasLen, 1)
+			c.Check(runGrub.Hashes[0], Equals, "grub-hash-1")
+			c.Check(runGrubRun.Name, Equals, runGrubId)
+			c.Assert(runGrubRun.Hashes, HasLen, 1)
+			c.Check(runGrubRun.Hashes[0], Equals, "run-grub-hash-1")
+
+			c.Check(params.RecoveryBootChainsForRunKey, HasLen, 0)
+
+			c.Assert(params.RecoveryBootChains, HasLen, 1)
+			recoveryBootChain := params.RecoveryBootChains[0]
+			c.Check(recoveryBootChain.Model, Equals, model.Model())
+			c.Assert(recoveryBootChain.AssetChain, HasLen, 2)
+			recoveryShim := recoveryBootChain.AssetChain[0]
+			recoveryGrub := recoveryBootChain.AssetChain[1]
+			c.Check(recoveryShim.Name, Equals, shimId)
+			c.Assert(recoveryShim.Hashes, HasLen, 1)
+			c.Check(recoveryShim.Hashes[0], Equals, "shim-hash-1")
+			c.Check(recoveryGrub.Name, Equals, grubId)
+			c.Assert(recoveryGrub.Hashes, HasLen, 1)
+			c.Check(recoveryGrub.Hashes[0], Equals, "grub-hash-1")
+
+			c.Check(params.FactoryReset, Equals, tc.factoryReset)
+			c.Check(params.InstallHostWritableDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data", "system-data"))
 
 			return tc.sealErr
 		})
@@ -362,110 +272,13 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			StateUnlocker: u.unlocker,
 		})
 		c.Check(u.unlocked, Equals, 1)
-		c.Check(pcrHandleOfKeyCalls, Equals, tc.expPCRHandleOfKeyCalls)
-		c.Check(provisionCalls, Equals, tc.expProvisionCalls)
-		c.Check(sealKeysCalls, Equals, tc.expSealCalls)
-		c.Check(releasePCRHandleCalls, Equals, tc.expReleasePCRHandleCalls)
+		c.Check(sealKeyForBootChainsCalled, Equals, tc.expSealCalls)
 		if tc.expErr == "" {
 			c.Assert(err, IsNil)
 		} else {
 			c.Assert(err, ErrorMatches, tc.expErr)
 			continue
 		}
-
-		// verify the boot chains data file
-		pbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "boot-chains"))
-		c.Assert(err, IsNil)
-		c.Check(cnt, Equals, 0)
-		c.Check(pbc, DeepEquals, boot.PredictableBootChains{
-			boot.BootChain{
-				BrandID:        "my-brand",
-				Model:          "my-model-uc20",
-				Grade:          "dangerous",
-				ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-				AssetChain: []boot.BootAsset{
-					{
-						Role:   "recovery",
-						Name:   shimId,
-						Hashes: []string{"shim-hash-1"},
-					},
-					{
-						Role:   "recovery",
-						Name:   grubId,
-						Hashes: []string{"grub-hash-1"},
-					},
-				},
-				Kernel:         "pc-kernel",
-				KernelRevision: "1",
-				KernelCmdlines: []string{
-					"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
-					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
-				},
-			},
-			boot.BootChain{
-				BrandID:        "my-brand",
-				Model:          "my-model-uc20",
-				Grade:          "dangerous",
-				ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-				AssetChain: []boot.BootAsset{
-					{
-						Role:   "recovery",
-						Name:   shimId,
-						Hashes: []string{"shim-hash-1"},
-					},
-					{
-						Role:   "recovery",
-						Name:   grubId,
-						Hashes: []string{"grub-hash-1"},
-					},
-					{
-						Role:   "run-mode",
-						Name:   runGrubId,
-						Hashes: []string{"run-grub-hash-1"},
-					},
-				},
-				Kernel:         "pc-kernel",
-				KernelRevision: "500",
-				KernelCmdlines: []string{
-					"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
-				},
-			},
-		})
-
-		// verify the recovery boot chains
-		pbc, cnt, err = boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "recovery-boot-chains"))
-		c.Assert(err, IsNil)
-		c.Check(cnt, Equals, 0)
-		c.Check(pbc, DeepEquals, boot.PredictableBootChains{
-			boot.BootChain{
-				BrandID:        "my-brand",
-				Model:          "my-model-uc20",
-				Grade:          "dangerous",
-				ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-				AssetChain: []boot.BootAsset{
-					{
-						Role:   "recovery",
-						Name:   shimId,
-						Hashes: []string{"shim-hash-1"},
-					},
-					{
-						Role:   "recovery",
-						Name:   grubId,
-						Hashes: []string{"grub-hash-1"},
-					},
-				},
-				Kernel:         "pc-kernel",
-				KernelRevision: "1",
-				KernelCmdlines: []string{
-					"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
-					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
-				},
-			},
-		})
-
-		// marker
-		marker := filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "sealed-keys")
-		c.Check(marker, testutil.FileEquals, "tpm")
 	}
 }
 
@@ -1811,44 +1624,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	defer dirs.SetRootDir("")
 	model := boottest.MakeMockUC20Model()
 
-	n := 0
-	var runFDESetupHookReqs []*fde.SetupRequest
-	restore := fdeBackend.MockRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
-		n++
-		runFDESetupHookReqs = append(runFDESetupHookReqs, req)
-
-		key := []byte(fmt.Sprintf("key-%v", strconv.Itoa(n)))
-		return key, nil
-	})
-	defer restore()
-	key := secboot.CreateMockBootstrappedContainer()
-	saveKey := secboot.CreateMockBootstrappedContainer()
-	keyToSave := make(map[string][]byte)
-	restore = fdeBackend.MockSecbootSealKeysWithFDESetupHook(func(runHook fde.RunSetupHookFunc, skrs []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error {
-		c.Check(params.Model.Model(), Equals, model.Model())
-		c.Check(params.Model.Model(), Equals, model.Model())
-		c.Check(params.AuxKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "aux-key"))
-		for _, skr := range skrs {
-			var expectedBootstrappedContainer secboot.BootstrappedContainer
-			switch skr.KeyName {
-			case "ubuntu-data":
-				expectedBootstrappedContainer = key
-			case "ubuntu-save":
-				expectedBootstrappedContainer = saveKey
-			}
-			c.Assert(skr.BootstrappedContainer, Equals, expectedBootstrappedContainer)
-			out, err := runHook(&fde.SetupRequest{
-				Key:     []byte{1, 2, 3, 4},
-				KeyName: skr.KeyName,
-			})
-			c.Assert(err, IsNil)
-			keyToSave[skr.KeyFile] = out
-		}
-		return nil
-	})
-	defer restore()
-
-	restore = boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 		return model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
@@ -1861,29 +1637,41 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 		ModelSignKeyID: model.SignKeyID(),
 	}
 
+	myKey := secboot.CreateMockBootstrappedContainer()
+	myKey2 := secboot.CreateMockBootstrappedContainer()
+
+	sealKeyForBootChainsCalled := 0
+	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams) error {
+		sealKeyForBootChainsCalled++
+		c.Check(method, Equals, device.SealingMethodFDESetupHook)
+		c.Check(key, DeepEquals, myKey)
+		c.Check(saveKey, DeepEquals, myKey2)
+
+		c.Assert(params.RunModeBootChains, HasLen, 1)
+		runBootChain := params.RunModeBootChains[0]
+		c.Check(runBootChain.Model, Equals, model.Model())
+
+		c.Check(runBootChain.AssetChain, HasLen, 0)
+
+		c.Check(params.RecoveryBootChainsForRunKey, HasLen, 0)
+
+		c.Assert(params.RecoveryBootChains, HasLen, 1)
+		recoveryBootChain := params.RecoveryBootChains[0]
+		c.Check(recoveryBootChain.Model, Equals, model.Model())
+		c.Check(recoveryBootChain.AssetChain, HasLen, 0)
+
+		c.Check(params.FactoryReset, Equals, false)
+		c.Check(params.InstallHostWritableDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data", "system-data"))
+
+		return nil
+	})
+	defer restore()
+
 	defer boot.MockModeenvLocked()()
 
-	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDESetupHook: true})
+	err := boot.SealKeyToModeenv(myKey, myKey2, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDESetupHook: true})
 	c.Assert(err, IsNil)
-	// check that runFDESetupHook was called the expected way
-	c.Check(runFDESetupHookReqs, DeepEquals, []*fde.SetupRequest{
-		{Key: []byte{1, 2, 3, 4}, KeyName: "ubuntu-data"},
-		{Key: []byte{1, 2, 3, 4}, KeyName: "ubuntu-data"},
-		{Key: []byte{1, 2, 3, 4}, KeyName: "ubuntu-save"},
-	})
-	// check that the sealed keys got written to the expected places
-	for i, p := range []string{
-		filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
-		filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
-		filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
-	} {
-		// Check for a valid platform handle, encrypted payload (base64)
-		mockedSealedKey := []byte(fmt.Sprintf("key-%v", strconv.Itoa(i+1)))
-		c.Check(keyToSave[p], DeepEquals, mockedSealedKey)
-	}
-
-	marker := filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "sealed-keys")
-	c.Check(marker, testutil.FileEquals, "fde-setup-hook")
+	c.Check(sealKeyForBootChainsCalled, Equals, 1)
 }
 
 func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
@@ -1893,8 +1681,11 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 
 	model := boottest.MakeMockUC20Model()
 
-	restore := fdeBackend.MockSecbootSealKeysWithFDESetupHook(func(fde.RunSetupHookFunc, []secboot.SealKeyRequest, *secboot.SealKeysWithFDESetupHookParams) error {
-		return fmt.Errorf("hook failed")
+	sealKeyForBootChainsCalled := 0
+	restore := boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams) error {
+		sealKeyForBootChainsCalled++
+
+		return fmt.Errorf("seal key failed")
 	})
 	defer restore()
 
@@ -1912,9 +1703,8 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	defer boot.MockModeenvLocked()()
 
 	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDESetupHook: true})
-	c.Assert(err, ErrorMatches, "hook failed")
-	marker := filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "sealed-keys")
-	c.Check(marker, testutil.FileAbsent)
+	c.Assert(err, ErrorMatches, `seal key failed`)
+	c.Check(sealKeyForBootChainsCalled, Equals, 1)
 }
 
 func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
@@ -2311,8 +2101,6 @@ func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
 			return tc.releasePCRHandlesErr
 		}
 		restore = boot.MockSecbootReleasePCRResourceHandles(releaseResourceFunc)
-		defer restore()
-		restore = fdeBackend.MockSecbootReleasePCRResourceHandles(releaseResourceFunc)
 		defer restore()
 
 		err := boot.MarkFactoryResetComplete(tc.encrypted)

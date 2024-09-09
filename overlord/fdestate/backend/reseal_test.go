@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"testing"
 
 	. "gopkg.in/check.v1"
 
@@ -38,8 +37,6 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
 )
-
-func TestFDEBackend(t *testing.T) { TestingT(t) }
 
 func isChainPresent(allowed []*secboot.LoadChain, files []bootloader.BootFile) bool {
 	if len(files) == 0 {
