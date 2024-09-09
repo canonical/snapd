@@ -205,6 +205,21 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			isMountedReturns: []bool{true},
 			comment:          "happy without specifying a verity offset",
 		},
+		// TODO: uncomment when overlay fs PR is merged. That PR introduces the
+		// SplitMountOptions function will takes care of splitting the mount options
+		// accounting for commas in path names. This test currently uses a split on
+		// comma approach which is not sufficient.
+		// {
+		// 	what:  "/run/mnt/data/some.snap",
+		// 	where: "/run/mnt/base",
+		// 	opts: &main.SystemdMountOptions{
+		// 		VerityHashDevice: "test,.verity",
+		// 		VerityRootHash:   "00000000000000000000000000000000",
+		// 	},
+		// 	timeNowTimes:     []time.Time{testStart, testStart},
+		// 	isMountedReturns: []bool{true},
+		// 	comment:          "happy with a hash device path containing a comma",
+		// },
 		{
 			what:  "what",
 			where: "where",
