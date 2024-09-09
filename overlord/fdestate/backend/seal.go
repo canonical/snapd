@@ -288,11 +288,3 @@ func MockRunFDESetupHook(f fde.RunSetupHookFunc) (restore func()) {
 	RunFDESetupHook = f
 	return func() { RunFDESetupHook = oldRunFDESetupHook }
 }
-
-func MockSecbootReleasePCRResourceHandles(f func(handles ...uint32) error) (restore func()) {
-	old := secbootReleasePCRResourceHandles
-	secbootReleasePCRResourceHandles = f
-	return func() {
-		secbootReleasePCRResourceHandles = old
-	}
-}

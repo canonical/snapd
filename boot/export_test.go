@@ -118,18 +118,6 @@ func MockSeedReadSystemEssential(f func(seedDir, label string, essentialTypes []
 	}
 }
 
-func MockSecbootPCRHandleOfSealedKey(f func(p string) (uint32, error)) (restore func()) {
-	restore = testutil.Backup(&secbootPCRHandleOfSealedKey)
-	secbootPCRHandleOfSealedKey = f
-	return restore
-}
-
-func MockSecbootReleasePCRResourceHandles(f func(handles ...uint32) error) (restore func()) {
-	restore = testutil.Backup(&secbootReleasePCRResourceHandles)
-	secbootReleasePCRResourceHandles = f
-	return restore
-}
-
 func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash string, recovery bool) {
 	ta := &trackedAsset{
 		blName: blName,
@@ -243,5 +231,13 @@ func MockResealKeyForBootChains(f func(method device.SealingMethod, rootdir stri
 	ResealKeyForBootChains = f
 	return func() {
 		ResealKeyForBootChains = old
+	}
+}
+
+func MockSealKeyForBootChains(f func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *SealKeyForBootChainsParams) error) (restore func()) {
+	old := SealKeyForBootChains
+	SealKeyForBootChains = f
+	return func() {
+		SealKeyForBootChains = old
 	}
 }
