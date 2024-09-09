@@ -516,7 +516,7 @@ var (
 
 	// Filesystem root defined locally to avoid dependency on the
 	// 'dirs' package
-	// XXX: is this still useful/relevant? The 'dirs' package is used here already.
+	// TODO: replace rootPath with dirs.GlobalRootDir, since dirs is used elsewhere
 	rootPath = "/"
 
 	// hostAbi30File is the path to the apparmor "3.0" ABI file and is typically
