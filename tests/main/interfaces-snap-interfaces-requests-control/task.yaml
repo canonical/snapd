@@ -7,8 +7,15 @@ details: |
     Specifically:
       - /v2/notices: to read change-update and refresh-inhibit notices
       - /v2/system-info: to check whether prompting is supported/enabled
+      - /v2/snaps/{name}: to get details about installed snaps
       # TODO: - /v2/interfaces/requests/prompts: to receive and reply to request prompts
       # TODO: - /v2/interfaces/requests/rules: to view and manage request rules
+
+systems:
+    # debian-sid: prompting is supposedly supported by the kernel, but doesn't work
+    # TODO: remove exclusion of debian-sid once we correctly detect that
+    # notifications are not running
+    - -debian-sid-*
 
 environment:
     # not all terminals support UTF-8, but Python tries to be smart and attempts
@@ -38,10 +45,18 @@ execute: |
     echo "Check snap can access system info via /v2/system-info"
     api-client --socket /run/snapd-snap.socket "/v2/system-info" | jq '."status-code"' | MATCH '^200$'
 
+    SNAP_NAME="snapd"
+    if os.query is-core16; then
+        SNAP_NAME="core"
+    fi
+
+    echo "Check snap can access snap info via /v2/snaps/{name}"
+    api-client --socket /run/snapd-snap.socket "/v2/snaps/$SNAP_NAME" | jq '."status-code"' | MATCH '^200$'
+
     echo "Ensure AppArmor Prompting experimental feature can be enabled where possible"
     # prompting is disabled everywhere but the Ubuntu systems
-    # TODO on Ubuntu releases < 24.04 we need the snapd snap for testing
-    if ! os.query is-ubuntu || os.query is-ubuntu-lt 24.04 || os.query is-core ; then
+    # on Ubuntu releases < 22.04 the kernel does not support prompting
+    if ! os.query is-ubuntu || os.query is-ubuntu-lt 22.04 || os.query is-core ; then
         not snap set system experimental.apparmor-prompting=true >& err.out
         if os.query is-core; then
             # there is a more specific error on Ubuntu Core
@@ -106,6 +121,7 @@ execute: |
     api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-prompt" | jq '."status-code"' | MATCH '^403$'
     api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-rule-update" | jq '."status-code"' | MATCH '^403$'
     api-client --socket /run/snapd-snap.socket "/v2/system-info" | jq '."status-code"' | MATCH '^403$'
+    api-client --socket /run/snapd-snap.socket "/v2/snaps/$SNAP_NAME" | jq '."status-code"' | MATCH '^403$'
     api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts" | jq '."status-code"' | MATCH '^403$'
     # Try to access an arbitrary prompt ID, should fail with 403 rather than 404
     api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts/1234123412341234" | jq '."status-code"' | MATCH '^403$'

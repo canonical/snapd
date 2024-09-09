@@ -622,9 +622,9 @@ func (iface *desktopInterface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 
 // https://specifications.freedesktop.org/desktop-entry-spec/latest/file-naming.html
 // Desktop file id must be a valid D-Bus name:
-//  - A sequence of non-empty elements separated by dots
-//  - None of which starts with a digit
-//  - Each of which contains only characters from the set [A-Za-z0-9-_]
+//   - A sequence of non-empty elements separated by dots
+//   - None of which starts with a digit
+//   - Each of which contains only characters from the set [A-Za-z0-9-_]
 //
 // XXX: dashes "-" are not recommended but supported, should they be removed?
 // https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names

@@ -24,8 +24,8 @@ execute: |
     echo '{"rules":[{"id":"0000000000000002","timestamp":"2004-10-20T14:05:08.901174186-05:00","user":1000,"snap":"shellcheck","interface":"home","constraints":{"path-pattern":"/home/test/Projects/**","permissions":["read"]},"outcome":"allow","lifespan":"forever","expiration":"0001-01-01T00:00:00Z"},{"id":"0000000000000003","timestamp":"2004-10-20T16:47:32.138415627-05:00","user":1000,"snap":"firefox","interface":"home","constraints":{"path-pattern":"/home/test/Downloads/**","permissions":["read","write"]},"outcome":"allow","lifespan":"timespan","expiration":"2005-04-08T00:00:00Z"}]}' | tee "$RULES_PATH"
 
     # Prompting is disabled everywhere but the Ubuntu systems
-    # TODO: on Ubuntu releases < 24.04 we need the snapd snap for testing
-    if ! os.query is-ubuntu || os.query is-ubuntu-lt 24.04 || os.query is-core ; then
+    # on releases < 22.04 the kernel does not support prompting
+    if ! os.query is-ubuntu || os.query is-ubuntu-lt 22.04 || os.query is-core ; then
         not snap set system experimental.apparmor-prompting=true >& err.out
         if os.query is-core; then
             # there is a more specific error on Ubuntu Core

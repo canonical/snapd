@@ -26,7 +26,7 @@ execute: |
        exit 0
     fi
 
-    # have 6 extra snaps installed, makes 7 with core
+    # have 6 extra snaps installed, makes 8 with core and snapd snap
     snap pack "$TESTSLIB"/snaps/basic
     snap set system experimental.parallel-instances=true
     for i in $(seq 6); do
@@ -43,7 +43,7 @@ execute: |
     EOF
     systemctl daemon-reload
 
-    # startup timeout will be adjusted by 30s + 7 * 5s and this will succeed
+    # startup timeout will be adjusted by 30s + 8 * 5s and this will succeed
     systemctl start snapd.service snapd.socket
 
-    "$TESTSTOOLS"/journal-state match-log "adjusting startup timeout by 1m5s"
+    "$TESTSTOOLS"/journal-state match-log "adjusting startup timeout by 1m10s"

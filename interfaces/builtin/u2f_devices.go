@@ -192,6 +192,11 @@ var u2fDevices = []u2fDevice{
 		VendorIDPattern:  "311f",
 		ProductIDPattern: "4a2a",
 	},
+	{
+		Name:             "OneSpan DIGIPASS FX Series",
+		VendorIDPattern:  "1a44",
+		ProductIDPattern: "1501|1502|1503|1506|1507",
+	},
 }
 
 const u2fDevicesConnectedPlugAppArmor = `

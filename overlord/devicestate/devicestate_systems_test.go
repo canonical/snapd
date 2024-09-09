@@ -56,6 +56,7 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
+	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -2779,6 +2780,7 @@ func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithGadgetYaml(c *C, label, ga
 	seed20.MakeAssertedSnap(c, "name: snapd\nversion: 1\ntype: snapd", nil, snap.R(1), "my-brand", s.storeSigning.Database)
 	seed20.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil, snap.R(1), "my-brand", s.storeSigning.Database)
 	seed20.MakeAssertedSnap(c, "name: core20\nversion: 1\ntype: base", nil, snap.R(1), "my-brand", s.storeSigning.Database)
+	seed20.MakeAssertedSnap(c, "name: optional-snap\nversion: 1\ntype: app\nbase: core20", nil, snap.R(1), "my-brand", s.storeSigning.Database)
 	gadgetFiles := [][]string{
 		{"meta/gadget.yaml", string(gadgetYaml)},
 	}
@@ -2800,13 +2802,23 @@ func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithGadgetYaml(c *C, label, ga
 				"id":              seed20.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "optional-snap",
+				"presence":        "optional",
+				"id":              seed20.AssertedSnapID("optional-snap"),
+				"default-channel": "20",
 			}},
 	}
 	if isClassic {
 		headers["classic"] = "true"
 		headers["distribution"] = "ubuntu"
 	}
-	return seed20.MakeSeed(c, label, "my-brand", "my-model", headers, nil)
+	return seed20.MakeSeed(c, label, "my-brand", "my-model", headers, []*seedwriter.OptionsSnap{
+		{
+			Name: "optional-snap",
+		},
+	})
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C) {
@@ -2825,6 +2837,9 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C)
 		Model:   fakeModel,
 		Brand:   s.brands.Account("my-brand"),
 		Actions: defaultSystemActions,
+		OptionalContainers: devicestate.OptionalContainers{
+			Snaps: []string{"optional-snap"},
+		},
 	})
 	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
 	c.Check(encInfo, DeepEquals, &install.EncryptionSupportInfo{

@@ -138,8 +138,10 @@ run_muinstaller() {
     # run installation
     local install_disk
     install_disk=$(remote.exec "readlink -f /dev/disk/by-id/virtio-target")
-    remote.exec "sudo muinstaller ${label} \
-        ${install_disk} /snap/muinstaller/current/bin/mk-classic-rootfs.sh"
+    remote.exec "sudo muinstaller \
+        -label ${label} \
+        -device ${install_disk} \
+        -rootfs-creator /snap/muinstaller/current/bin/mk-classic-rootfs.sh"
 
     remote.exec "sudo sync"
 

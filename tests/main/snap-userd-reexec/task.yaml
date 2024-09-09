@@ -2,36 +2,36 @@ summary: Check that core refresh will create the userd dbus service file
 
 details: |
     Check that snapd will create the userd dbus service file if
-    it is missing when the core snap is refreshed.
+    it is missing when the snapd snap is refreshed.
 
 # only run on systems that re-exec
 systems: [ubuntu-1*, ubuntu-2*, debian-*]
 
 environment:
-    # uploading the core snap triggers OOM
+    # uploading the snapd snap triggers OOM
     SNAPD_NO_MEMORY_LIMIT: 1
 
 restore: |
-    # Remove the local revision of core, if we installed one.
+    # Remove the local revision of snapd, if we installed one.
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    if [ "$(readlink "$SNAP_MOUNT_DIR/core/current")" = x1 ]; then
-        snap revert core
-        snap remove --revision=x1 core
+    if [ "$(readlink "$SNAP_MOUNT_DIR/snapd/current")" = x1 ]; then
+        snap revert snapd
+        snap remove --revision=x1 snapd
     fi
 
 execute: |
-    if [ "$MODIFY_CORE_SNAP_FOR_REEXEC" = 0 ]; then
+    if [ "$SNAP_REEXEC" = 0 ]; then
         echo "Reexec is not enabled, exiting..."
         exit 0
     fi
 
-    snap list | awk "/^core / {print(\$3)}" > prevBoot
+    snap list snapd | awk "/^snapd / {print(\$3)}" > prevBoot
 
     echo "Ensure service file is created if missing (e.g. on re-exec)"
     mv /usr/share/dbus-1/services/io.snapcraft.Launcher.service /usr/share/dbus-1/services/io.snapcraft.Launcher.service.orig
 
-    echo "Install new core"
-    snap install --dangerous "/var/lib/snapd/snaps/core_$(cat prevBoot).snap"
+    echo "Install new snapd"
+    snap install --dangerous "/var/lib/snapd/snaps/snapd_$(cat prevBoot).snap"
 
     echo "Ensure the dbus service file got created"
     test -f /usr/share/dbus-1/services/io.snapcraft.Launcher.service

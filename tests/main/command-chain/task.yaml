@@ -7,11 +7,6 @@ details: |
     that the command-chain is executed when running a snap with `snap run
     --shell`.
 
-systems:
-  # uubuntu 32bit: test uses snap with base core20 which there is no 32bit
-  # variant of
-  - -ubuntu-*-32
-
 environment:
     # Ensure that running purely from the deb (without re-exec) works
     # correctly
