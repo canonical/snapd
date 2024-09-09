@@ -25,6 +25,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -349,6 +350,54 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 	}
 }
 
+func (s *apparmorSuite) TestProbeAppArmorKernelFeaturesPermstable32Version(c *C) {
+	d := c.MkDir()
+
+	// Pretend that apparmor kernel features directory doesn't exist.
+	restore := apparmor.MockFsRootPath(d)
+	defer restore()
+	version, err := apparmor.ProbeKernelFeaturesPermstable32Version()
+	c.Assert(os.IsNotExist(err), Equals, true)
+	c.Check(version, Equals, int64(0))
+
+	// Pretend that the permstable32_version file exists but is malformed.
+	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "policy"), 0o755), IsNil)
+	f, err := os.OpenFile(filepath.Join(d, featuresSysPath, "policy", "permstable32_version"), os.O_CREATE, 0o644)
+	c.Assert(err, IsNil)
+	f.Close()
+	version, err = apparmor.ProbeKernelFeaturesPermstable32Version()
+	c.Assert(errors.Is(err, strconv.ErrSyntax), Equals, true)
+	c.Check(version, Equals, int64(0))
+
+	// Pretend that the permstable32_version file exists and is well-formed.
+	for _, testCase := range []struct {
+		str string
+		ver int64
+	}{
+		{
+			"0x000001",
+			1,
+		},
+		{
+			"0x2",
+			2,
+		},
+		{
+			"0x0000000000000003",
+			3,
+		},
+		{
+			"0x1234567890abcdef",
+			0x1234567890abcdef,
+		},
+	} {
+		c.Assert(os.WriteFile(filepath.Join(d, featuresSysPath, "policy", "permstable32_version"), []byte(testCase.str), 0o644), IsNil)
+		version, err = apparmor.ProbeKernelFeaturesPermstable32Version()
+		c.Check(err, IsNil)
+		c.Check(version, Equals, testCase.ver)
+	}
+}
+
 func probeOneParserFeature(c *C, known *[]string, parserPath, featureName, profileText string) {
 	probeOneVersionDependentParserFeature(c, known, parserPath, "0.0.0", featureName, profileText)
 }
@@ -596,6 +645,10 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 }
 
 func (s *apparmorSuite) TestPromptingSupported(c *C) {
+	d := c.MkDir()
+	restore := apparmor.MockFsRootPath(d)
+	defer restore()
+
 	goodKernelFeatures := []string{"policy:permstable32:prompt"}
 	goodKernelFeaturesWithNotify := []string{"policy:permstable32:prompt", "policy:notify", "policy:notify:user:file"}
 	goodParserFeatures := []string{"prompt"}
@@ -674,12 +727,29 @@ func (s *apparmorSuite) TestPromptingSupported(c *C) {
 	// Create a file at the notify path, doesn't matter what kind of file.
 	// The actual file is a socket, but a directory will do here for convenience.
 	c.Assert(os.MkdirAll(notify.SysPath, 0o755), IsNil)
+	restore = apparmor.MockFeatures(goodKernelFeatures, nil, goodParserFeatures, nil)
+	defer restore()
+
+	supported, reason := apparmor.PromptingSupported()
+	c.Check(supported, Equals, false)
+	c.Check(reason, Equals, "apparmor kernel permissions table version must be at least 2, but version could not be read")
+
+	// Create permstable32_version file with a version too early
+	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "policy"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, featuresSysPath, "policy", "permstable32_version"), []byte("0x000001"), 0o644), IsNil)
+
+	supported, reason = apparmor.PromptingSupported()
+	c.Check(supported, Equals, false)
+	c.Check(reason, Equals, "apparmor kernel permissions table version must be at least 2, but version is 1")
+
+	// Create permstable32_version file with a sufficient version
+	c.Assert(os.WriteFile(filepath.Join(d, featuresSysPath, "policy", "permstable32_version"), []byte("0x000002"), 0o644), IsNil)
 
 	for _, kernelFeatures := range [][]string{goodKernelFeatures, goodKernelFeaturesWithNotify} {
 		restore := apparmor.MockFeatures(kernelFeatures, nil, goodParserFeatures, nil)
 		defer restore()
 
-		supported, reason := apparmor.PromptingSupported()
+		supported, reason = apparmor.PromptingSupported()
 		c.Check(supported, Equals, true)
 		c.Check(reason, Equals, "")
 	}
