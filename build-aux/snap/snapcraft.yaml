@@ -203,10 +203,23 @@ parts:
       craftctl default
       # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
       VERSION="$(./mkversion.sh --output-only)"
-      if [ -f fips-build ] ; then
-          echo "-- appending FIPS tag to version $VERSION"
-          VERSION="$VERSION-fips"
+      if [ "${VERSION/+fips/}" != "$VERSION" ] ; then
+          # we have a '+fips' element in the version, which may be coming from
+          # debian/changelog or git tag
+          echo "-- detected FIPS build"
+          touch fips-build
       fi
+      # TODO detect when doing a FIPS snap build on LP
+
+      if [ -f fips-build ]; then
+          if [ "${VERSION/+fips/}" = "$VERSION" ] ; then
+              # we have a fips-build marker, but fips tag isn't yet part of the
+              # snap version, let's add it
+              echo "-- appending FIPS tag to version $VERSION"
+              VERSION="$VERSION+fips"
+          fi
+      fi
+
       if [ -f test-build ]; then
           VERSION="1337.${VERSION}"
       fi
