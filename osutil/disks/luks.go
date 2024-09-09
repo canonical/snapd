@@ -40,6 +40,10 @@ var (
 )
 
 func cryptLuks2DeviceMapperBackResolver(opts *deviceMapperBackResolversOpts) (dev string, ok bool) {
+	if opts == nil {
+		return "", false
+	}
+
 	if !strings.HasPrefix(string(opts.dmUUID), "CRYPT-LUKS") {
 		return "", false
 	}
