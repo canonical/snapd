@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -822,4 +823,18 @@ func resealExpectedByModeenvChange(m1, m2 *Modeenv) bool {
 	auxModeenv := *m2
 	auxModeenv.Gadget = m1.Gadget
 	return !auxModeenv.deepEqual(m1)
+}
+
+func MockSecbootPCRHandleOfSealedKey(f func(p string) (uint32, error)) (restore func()) {
+	osutil.MustBeTestBinary("mock PCRHandleOfSealedKey only to be used in tests")
+	restore = testutil.Backup(&secbootPCRHandleOfSealedKey)
+	secbootPCRHandleOfSealedKey = f
+	return restore
+}
+
+func MockSecbootReleasePCRResourceHandles(f func(handles ...uint32) error) (restore func()) {
+	osutil.MustBeTestBinary("mock ReleasePCRResourceHandles only to be used in tests")
+	restore = testutil.Backup(&secbootReleasePCRResourceHandles)
+	secbootReleasePCRResourceHandles = f
+	return restore
 }
