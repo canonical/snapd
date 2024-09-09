@@ -4206,6 +4206,184 @@ func checkDirContents(c *C, dir string, expected []string) {
 	c.Check(found, DeepEquals, expected)
 }
 
+func (s *seed20Suite) TestModeSnaps(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "optional20-a", "")
+	s.makeSnap(c, "required20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	assertCompRevs := map[string]snap.Revision{
+		"comp1": snap.R(22),
+		"comp2": snap.R(33),
+		"comp3": snap.R(44),
+	}
+	s.MakeAssertedSnapWithComps(c,
+		seedtest.SampleSnapYaml["component-test"], nil,
+		snap.R(11), assertCompRevs, "canonical", s.StoreSigning.Database,
+	)
+
+	const srcLabel = "20191030"
+	s.MakeSeedWithLocalComponents(c, srcLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":     "optional20-a",
+				"id":       s.AssertedSnapID("optional20-a"),
+				"presence": "required",
+				"modes":    []interface{}{"ephemeral"},
+			},
+			map[string]interface{}{
+				"name":     "required20",
+				"id":       s.AssertedSnapID("required20"),
+				"presence": "required",
+				"modes":    []interface{}{"run"},
+			},
+			map[string]interface{}{
+				"name":     "component-test",
+				"id":       s.AssertedSnapID("component-test"),
+				"presence": "required",
+				"modes":    []interface{}{"run", "ephemeral"},
+				"components": map[string]interface{}{
+					"comp1": map[string]interface{}{
+						"modes":    []interface{}{"run"},
+						"presence": "required",
+					},
+					"comp2": map[string]interface{}{
+						"modes":    []interface{}{"run", "ephemeral"},
+						"presence": "required",
+					},
+				},
+			},
+		},
+	}, []*seedwriter.OptionsSnap{
+		{
+			Path: s.makeLocalSnap(c, "local-component-test"),
+		},
+		{
+			Name:   "component-test",
+			SnapID: s.AssertedSnapID("component-test"),
+			Components: []seedwriter.OptionsComponent{
+				{
+					Name: "comp3",
+				},
+			},
+		},
+	}, map[string][]string{
+		"local-component-test": {
+			snaptest.MakeTestComponent(c, seedtest.SampleSnapYaml["local-component-test+comp4"]),
+		},
+	})
+
+	seed20, err := seed.Open(s.SeedDir, srcLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	runSnaps, err := seed20.ModeSnaps("run")
+	c.Assert(err, IsNil)
+
+	assertedSnapsDir := filepath.Join(s.SeedDir, "snaps")
+	unassertedSnapsDir := filepath.Join(s.SeedDir, "systems", srcLabel, "snaps")
+	c.Check(runSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     filepath.Join(assertedSnapsDir, "required20_1.snap"),
+			SideInfo: &s.AssertedSnapInfo("required20").SideInfo,
+			Required: true,
+			Channel:  "latest/stable",
+		},
+		{
+			Path:     filepath.Join(assertedSnapsDir, "component-test_11.snap"),
+			SideInfo: &s.AssertedSnapInfo("component-test").SideInfo,
+			Required: true,
+			Channel:  "latest/stable",
+			Components: []seed.Component{
+				{
+					Path: filepath.Join(assertedSnapsDir, "component-test+comp1_22.comp"),
+					CompSideInfo: snap.ComponentSideInfo{
+						Component: naming.NewComponentRef("component-test", "comp1"),
+						Revision:  snap.R(22),
+					},
+				},
+				{
+					Path: filepath.Join(assertedSnapsDir, "component-test+comp2_33.comp"),
+					CompSideInfo: snap.ComponentSideInfo{
+						Component: naming.NewComponentRef("component-test", "comp2"),
+						Revision:  snap.R(33),
+					},
+				},
+				{
+					Path: filepath.Join(unassertedSnapsDir, "component-test+comp3_44.comp"),
+					CompSideInfo: snap.ComponentSideInfo{
+						Component: naming.NewComponentRef("component-test", "comp3"),
+						Revision:  snap.R(44),
+					},
+				},
+			},
+		},
+		{
+			Path:     filepath.Join(unassertedSnapsDir, "local-component-test_1.0.snap"),
+			SideInfo: &snap.SideInfo{RealName: "local-component-test"},
+			Required: false,
+			Components: []seed.Component{
+				{
+					Path: filepath.Join(unassertedSnapsDir, "local-component-test+comp4_1.0.comp"),
+					CompSideInfo: snap.ComponentSideInfo{
+						Component: naming.NewComponentRef("local-component-test", "comp4"),
+					},
+				},
+			},
+		},
+	})
+
+	ephemeralSnaps, err := seed20.ModeSnaps("ephemeral")
+	c.Assert(err, IsNil)
+
+	c.Check(ephemeralSnaps, testutil.DeepUnsortedMatches, []*seed.Snap{
+		{
+			Path:     filepath.Join(assertedSnapsDir, "optional20-a_1.snap"),
+			SideInfo: &s.AssertedSnapInfo("optional20-a").SideInfo,
+			Required: true,
+			Channel:  "latest/stable",
+		},
+		{
+			Path:     filepath.Join(assertedSnapsDir, "component-test_11.snap"),
+			SideInfo: &s.AssertedSnapInfo("component-test").SideInfo,
+			Required: true,
+			Channel:  "latest/stable",
+			Components: []seed.Component{
+				{
+					Path: filepath.Join(assertedSnapsDir, "component-test+comp2_33.comp"),
+					CompSideInfo: snap.ComponentSideInfo{
+						Component: naming.NewComponentRef("component-test", "comp2"),
+						Revision:  snap.R(33),
+					},
+				},
+			},
+		},
+	})
+}
+
 type seedOpts struct {
 	delegated bool
 }
