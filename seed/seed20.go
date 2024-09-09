@@ -1492,25 +1492,24 @@ func (s *seed20) ModeSnaps(mode string) ([]*Snap, error) {
 
 		ms, ok := s.modelSnaps[sn.SnapName()]
 		if !ok {
-			// make a copy of the slice so that the caller can't mess with our
-			// internal state
-			copied.Components = append([]Component(nil), sn.Components...)
-
 			// snaps not in the model will be considered as run mode, and so
 			// will all of its components
 			if mode == "run" {
+				// make a copy of the slice so that the caller can't mess with our
+				// internal state
+				copied.Components = append([]Component(nil), sn.Components...)
 				snapsWithMode = append(snapsWithMode, &copied)
 			}
+			continue
+		}
+
+		if !snapModesInclude(ms.Modes, mode) {
 			continue
 		}
 
 		// we'll rebuild the slice of components with only the components that
 		// are applicable to the requested mode
 		copied.Components = nil
-
-		if !snapModesInclude(ms.Modes, mode) {
-			continue
-		}
 
 		for _, comp := range sn.Components {
 			modelComp, ok := ms.Components[comp.CompSideInfo.Component.ComponentName]
