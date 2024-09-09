@@ -347,12 +347,12 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 						case strings.HasPrefix(opt, "verity.hashoffset="):
 							foundVerityHashOffset = true
 						default:
-							c.Logf("Option '%s' unexpected", opt)
+							c.Logf("Option %q unexpected", opt)
 							c.Fail()
 						}
 					}
 				default:
-					c.Logf("Argument '%s' unexpected", arg)
+					c.Logf("Argument %q unexpected", arg)
 					c.Fail()
 				}
 			}
