@@ -188,7 +188,6 @@ jobs:
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd/c-vendor && ./vendor.sh
 
     - name: Install golangci-lint snap
-      if: ${{ matrix.gochannel == 'latest/stable' }}
       run: |
           sudo snap install --classic golangci-lint
 
@@ -211,10 +210,6 @@ jobs:
           if [ "${{ matrix.gochannel }}" != "1.18" ]; then
               export SKIP_GOFMT=1
               echo "Formatting checks will be skipped due to the use of Go version ${{ matrix.gochannel }}"
-          fi
-          if [ "${{ matrix.gochannel }}" != "latest/stable" ]; then
-              export SKIP_GOLANG_CI_LINT=1
-              echo "Will skip golangci_lint checks on all but the latest/stable version"
           fi
           sudo apt-get install -y python3-yamlordereddictloader
           ./run-checks --static

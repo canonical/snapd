@@ -56,8 +56,9 @@ execute: |
         skip="${skip:-} SKIP_NAKEDRET=1"
     fi
 
-    # To avoid checking old code, skip golangci-lint
-    skip="${skip:-} SKIP_GOLANG_CI_LINT=1"
+    # golangci-lint checks are system agnostic and were already checked in the github
+    # test workflow static checks. They can therefore be safely skipped here.
+    skip="${skip:-} SKIP_GOLANGCI_LINT=1"
 
     if not os.query is-trusty; then
         if [ "$VARIANT" = "static" ] ; then
