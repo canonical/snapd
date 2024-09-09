@@ -269,7 +269,7 @@ func createChangeRegistryTasks(st *state.State, chg *state.Change, tx *Transacti
 			continue
 		}
 
-		ignoreError := false
+		const ignoreError = false
 		chgViewTask := setupRegistryHook(st, name, "change-view-"+plug.Name, ignoreError)
 		// run change-view-<plug> hooks in a sequential, deterministic order
 		linkTask(chgViewTask)
@@ -282,7 +282,7 @@ func createChangeRegistryTasks(st *state.State, chg *state.Change, tx *Transacti
 			continue
 		}
 
-		ignoreError := false
+		const ignoreError = false
 		saveViewTask := setupRegistryHook(st, name, "save-view-"+plug.Name, ignoreError)
 		// also run save-view hooks sequentially so, if one fails, we can determine
 		// which tasks need to be rolled back
@@ -311,7 +311,7 @@ func createChangeRegistryTasks(st *state.State, chg *state.Change, tx *Transacti
 
 		for _, plug := range affectedPlugs[snapName] {
 			// TODO: run these concurrently or keep sequential for predictability?
-			ignoreError := true
+			const ignoreError = true
 			task := setupRegistryHook(st, snapName, plug.Name+"-view-changed", ignoreError)
 			linkTask(task)
 		}
@@ -410,8 +410,8 @@ func getPlugsAffectedByPaths(st *state.State, registry *registry.Registry, stora
 	return affectedPlugs, nil
 }
 
-// GetTransction returns the registry transaction associate with the task (even
-// if indirectly) and the task in which it was stored.
+// GetStoredTransaction returns the registry transaction associate with the
+// task (even if indirectly) and the task in which it was stored.
 func GetStoredTransaction(t *state.Task) (*Transaction, *state.Task, error) {
 	var tx *Transaction
 	err := t.Get("registry-transaction", &tx)
