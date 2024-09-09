@@ -39,6 +39,7 @@ var supportedHooks = []*HookType{
 	NewHookType(regexp.MustCompile("^check-health$")),
 	NewHookType(regexp.MustCompile("^fde-setup$")),
 	NewHookType(regexp.MustCompile("^gate-auto-refresh$")),
+	NewHookType(regexp.MustCompile("^change-view-.+$")),
 }
 
 var supportedComponentHooks = []*HookType{

@@ -394,3 +394,35 @@ func txData(c *C, tx *registrystate.Transaction) string {
 	c.Assert(err, IsNil)
 	return string(data)
 }
+
+func (s *transactionTestSuite) TestAbortPreventsReadsAndWrites(c *C) {
+	tx, err := registrystate.NewTransaction(s.state, "my-account", "my-reg")
+	c.Assert(err, IsNil)
+
+	err = tx.Set("foo", "bar")
+	c.Assert(err, IsNil)
+
+	val, err := tx.Get("foo")
+	c.Assert(err, IsNil)
+	c.Check(val, Equals, "bar")
+
+	tx.Abort("my-snap", "don't like the changes")
+
+	err = tx.Set("foo", "bar")
+	c.Assert(err, ErrorMatches, "cannot write to aborted transaction")
+
+	err = tx.Clear(s.state)
+	c.Assert(err, ErrorMatches, "cannot write to aborted transaction")
+
+	err = tx.Unset("foo")
+	c.Assert(err, ErrorMatches, "cannot write to aborted transaction")
+
+	_, err = tx.Get("foo")
+	c.Assert(err, ErrorMatches, "cannot read from aborted transaction")
+
+	_, err = tx.Data()
+	c.Assert(err, ErrorMatches, "cannot read from aborted transaction")
+
+	err = tx.Commit(s.state, registry.NewJSONSchema())
+	c.Assert(err, ErrorMatches, "cannot commit aborted transaction")
+}

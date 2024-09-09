@@ -28,6 +28,7 @@ var (
 	WriteDatabag              = writeDatabag
 	GetPlugsAffectedByPaths   = getPlugsAffectedByPaths
 	CreateChangeRegistryTasks = createChangeRegistryTasks
+	SetTransaction            = setTransaction
 )
 
 func MockReadDatabag(f func(st *state.State, account, registryName string) (registry.JSONDataBag, error)) func() {

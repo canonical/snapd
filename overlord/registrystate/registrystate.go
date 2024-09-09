@@ -438,3 +438,7 @@ func GetStoredTransaction(t *state.Task) (*Transaction, *state.Task, error) {
 
 	return tx, ct, nil
 }
+
+func setTransaction(t *state.Task, tx *Transaction) {
+	t.Set("registry-transaction", tx)
+}
