@@ -520,7 +520,7 @@ func (s *registryTestSuite) TestRegistryTasksUserSetWithManagerInstalled(c *C) {
 	c.Assert(err, IsNil)
 
 	// the manager snap's hooks are run
-	tasks := []string{"clear-transaction-on-error", "run-hook", "run-hook", "run-hook", "commit-transaction", "clear-transaction-state"}
+	tasks := []string{"clear-registry-tx-on-error", "run-hook", "run-hook", "run-hook", "commit-registry-tx", "clear-registry-tx"}
 	hooks := []*hookstate.HookSetup{
 		{
 			Snap:        "manager-snap",
@@ -566,7 +566,7 @@ func (s *registryTestSuite) TestRegistryTasksManagerSnapSet(c *C) {
 	c.Assert(err, IsNil)
 
 	// the manager snap's hooks are run
-	tasks := []string{"clear-transaction-on-error", "run-hook", "run-hook", "commit-transaction", "clear-transaction-state"}
+	tasks := []string{"clear-registry-tx-on-error", "run-hook", "run-hook", "commit-registry-tx", "clear-registry-tx"}
 	hooks := []*hookstate.HookSetup{
 		{
 			Snap:        "manager-snap",
@@ -607,7 +607,7 @@ func (s *registryTestSuite) TestRegistryTasksObserverSnapSetWithManagerInstalled
 
 	// we trigger hooks for the manager snap and for the -view-changed for the
 	// observer snap that didn't trigger the change
-	tasks := []string{"clear-transaction-on-error", "run-hook", "run-hook", "run-hook", "run-hook", "commit-transaction", "clear-transaction-state"}
+	tasks := []string{"clear-registry-tx-on-error", "run-hook", "run-hook", "run-hook", "run-hook", "commit-registry-tx", "clear-registry-tx"}
 	hooks := []*hookstate.HookSetup{
 		{
 			Snap:        "manager-snap",
@@ -750,7 +750,7 @@ plugs:
 
 func checkModifyRegistryTasks(c *C, chg *state.Change, taskKinds []string, hooksups []*hookstate.HookSetup) {
 	c.Assert(chg.Tasks(), HasLen, len(taskKinds))
-	commitTask := findTask(chg, "commit-transaction")
+	commitTask := findTask(chg, "commit-registry-tx")
 
 	// commit task carries the transaction
 	var tx *registrystate.Transaction
@@ -758,7 +758,7 @@ func checkModifyRegistryTasks(c *C, chg *state.Change, taskKinds []string, hooks
 	c.Assert(err, IsNil)
 	c.Assert(tx, NotNil)
 
-	t := findTask(chg, "clear-transaction-on-error")
+	t := findTask(chg, "clear-registry-tx-on-error")
 	var hookIndex int
 	var i int
 loop:
@@ -769,7 +769,7 @@ loop:
 			hookIndex++
 		}
 
-		if t.Kind() != "commit-transaction" {
+		if t.Kind() != "commit-registry-tx" {
 			// all tasks (other than the commit) are linked to the commit task
 			var id string
 			err := t.Get("commit-task", &id)

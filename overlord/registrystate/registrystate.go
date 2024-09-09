@@ -257,7 +257,7 @@ func createChangeRegistryTasks(st *state.State, chg *state.Change, tx *Transacti
 	}
 
 	// if the transaction errors, clear the tx from the state
-	clearTxOnErrTask := st.NewTask("clear-transaction-on-error", "Clears the ongoing transaction from state (on error)")
+	clearTxOnErrTask := st.NewTask("clear-registry-tx-on-error", "Clears the ongoing registry transaction from state (on error)")
 	linkTask(clearTxOnErrTask)
 
 	// look for plugs that reference the relevant view and create run-hooks for
@@ -318,7 +318,7 @@ func createChangeRegistryTasks(st *state.State, chg *state.Change, tx *Transacti
 	}
 
 	// commit after managers save ephemeral data
-	commitTask := st.NewTask("commit-transaction", fmt.Sprintf("Commit changes to registry \"%s/%s\"", view.Registry().Account, view.Registry().Name))
+	commitTask := st.NewTask("commit-registry-tx", fmt.Sprintf("Commit changes to registry \"%s/%s\"", view.Registry().Account, view.Registry().Name))
 	commitTask.Set("registry-transaction", tx)
 	// link all previous tasks to the commit task that carries the transaction
 	for _, t := range tasks {
@@ -327,7 +327,7 @@ func createChangeRegistryTasks(st *state.State, chg *state.Change, tx *Transacti
 	linkTask(commitTask)
 
 	// clear the ongoing tx from the state and unblock other writers waiting for it
-	clearTxTask := st.NewTask("clear-transaction-state", "Clears the ongoing transaction from state")
+	clearTxTask := st.NewTask("clear-registry-tx", "Clears the ongoing registry transaction from state")
 	linkTask(clearTxTask)
 	clearTxTask.Set("commit-task", commitTask.ID())
 
