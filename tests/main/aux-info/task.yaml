@@ -1,0 +1,26 @@
+summary: Test that snap aux info is correctly stored and returned by the snapd API
+
+details: |
+  When installing a snap, we should store some auxiliary information about that
+  snap in /var/cache/snapd/aux. This test verifies that this is properly done,
+  and then verifies that the information is returned by the snapd API.
+
+systems: [ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
+
+prepare: |
+  snap install snap-store
+  snap install jq
+  snap install --devmode --edge test-snapd-curl
+
+execute: |
+  snap_id=$(snap info snap-store | grep snap-id | awk '{ print $2 }')
+  jq --sort-keys .media < "/var/cache/snapd/aux/${snap_id}.json" > media.json
+
+  # don't depend on the exact number of media files, but there should be
+  # something here
+  media_length=$(jq '. | length' < media.json)
+  test "${media_length}" -gt 0
+
+  test-snapd-curl.curl -s --unix-socket /run/snapd.socket --max-time 5 'http://localhost/v2/snaps/snap-store' | jq --sort-keys .result.media > snapd-media.json
+
+  diff media.json snapd-media.json
