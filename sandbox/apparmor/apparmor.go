@@ -704,7 +704,7 @@ func probeKernelFeaturesPermstable32Version() (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return strconv.ParseInt(string(data), 0, 64)
+	return strconv.ParseInt(strings.TrimSpace(string(data)), 0, 64)
 }
 
 func probeParserFeatures() ([]string, error) {
