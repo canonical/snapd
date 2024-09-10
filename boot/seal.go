@@ -79,14 +79,6 @@ func MockSealKeyToModeenv(f func(key, saveKey secboot.BootstrappedContainer, mod
 	}
 }
 
-func BootChainsFileUnder(rootdir string) string {
-	return filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains")
-}
-
-func RecoveryBootChainsFileUnder(rootdir string) string {
-	return filepath.Join(dirs.SnapFDEDirUnder(rootdir), "recovery-boot-chains")
-}
-
 type sealKeyToModeenvFlags struct {
 	// HasFDESetupHook is true if the kernel has a fde-setup hook to use
 	HasFDESetupHook bool

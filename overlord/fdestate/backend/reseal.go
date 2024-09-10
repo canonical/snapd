@@ -65,7 +65,7 @@ func ResealKeyForBootChains(method device.SealingMethod, rootdir string, params 
 	// reseal the run object
 	pbc := boot.ToPredictableBootChains(append(params.RunModeBootChains, params.RecoveryBootChainsForRunKey...))
 
-	needed, nextCount, err := boot.IsResealNeeded(pbc, boot.BootChainsFileUnder(rootdir), expectReseal)
+	needed, nextCount, err := boot.IsResealNeeded(pbc, BootChainsFileUnder(rootdir), expectReseal)
 	if err != nil {
 		return err
 	}
@@ -78,7 +78,7 @@ func ResealKeyForBootChains(method device.SealingMethod, rootdir string, params 
 		}
 		logger.Debugf("resealing (%d) succeeded", nextCount)
 
-		bootChainsPath := boot.BootChainsFileUnder(rootdir)
+		bootChainsPath := BootChainsFileUnder(rootdir)
 		if err := boot.WriteBootChains(pbc, bootChainsPath, nextCount); err != nil {
 			return err
 		}
@@ -90,7 +90,7 @@ func ResealKeyForBootChains(method device.SealingMethod, rootdir string, params 
 	rpbc := boot.ToPredictableBootChains(params.RecoveryBootChains)
 
 	var nextFallbackCount int
-	needed, nextFallbackCount, err = boot.IsResealNeeded(rpbc, boot.RecoveryBootChainsFileUnder(rootdir), expectReseal)
+	needed, nextFallbackCount, err = boot.IsResealNeeded(rpbc, RecoveryBootChainsFileUnder(rootdir), expectReseal)
 	if err != nil {
 		return err
 	}
@@ -103,7 +103,7 @@ func ResealKeyForBootChains(method device.SealingMethod, rootdir string, params 
 		}
 		logger.Debugf("fallback resealing (%d) succeeded", nextFallbackCount)
 
-		recoveryBootChainsPath := boot.RecoveryBootChainsFileUnder(rootdir)
+		recoveryBootChainsPath := RecoveryBootChainsFileUnder(rootdir)
 		if err := boot.WriteBootChains(rpbc, recoveryBootChainsPath, nextFallbackCount); err != nil {
 			return err
 		}

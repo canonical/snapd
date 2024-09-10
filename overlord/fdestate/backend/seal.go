@@ -241,12 +241,12 @@ func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secbo
 		return err
 	}
 
-	installBootChainsPath := boot.BootChainsFileUnder(params.InstallHostWritableDir)
+	installBootChainsPath := BootChainsFileUnder(params.InstallHostWritableDir)
 	if err := boot.WriteBootChains(pbc, installBootChainsPath, 0); err != nil {
 		return err
 	}
 
-	installRecoveryBootChainsPath := boot.RecoveryBootChainsFileUnder(params.InstallHostWritableDir)
+	installRecoveryBootChainsPath := RecoveryBootChainsFileUnder(params.InstallHostWritableDir)
 	if err := boot.WriteBootChains(rpbc, installRecoveryBootChainsPath, 0); err != nil {
 		return err
 	}
