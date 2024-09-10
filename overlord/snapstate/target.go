@@ -155,6 +155,11 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		InstanceKey:        t.info.InstanceKey,
 		ExpectedProvenance: t.info.SnapProvenance,
 		Registries:         registries,
+		auxStoreInfo: auxStoreInfo{
+			Media: t.info.Media,
+			// XXX we store this for the benefit of old snapd
+			Website: t.info.Website(),
+		},
 	}, compsups, nil
 }
 
