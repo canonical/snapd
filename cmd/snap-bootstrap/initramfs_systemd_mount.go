@@ -173,18 +173,20 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 			return fmt.Errorf("cannot mount %q at %q: missing arguments for overlayfs mount. lowerdir, upperdir, workdir are needed.", what, where)
 		}
 
+		escaper := strings.NewReplacer(",", `\,`, " ", `\ `)
+
 		var lowerDirs strings.Builder
 		for i, d := range opts.LowerDirs {
 			if i != 0 {
 				lowerDirs.WriteRune(':')
 			}
-			ed := strings.ReplaceAll(d, ",", `\,`)
-			ed = strings.ReplaceAll(ed, ":", `\:`)
+			ed := strings.ReplaceAll(d, ":", `\:`)
+			ed = escaper.Replace(ed)
 			lowerDirs.WriteString(ed)
 		}
 		options = append(options, fmt.Sprintf("lowerdir=%s", lowerDirs.String()))
-		options = append(options, fmt.Sprintf("upperdir=%s", strings.ReplaceAll(opts.UpperDir, ",", `\,`)))
-		options = append(options, fmt.Sprintf("workdir=%s", strings.ReplaceAll(opts.WorkDir, ",", `\,`)))
+		options = append(options, fmt.Sprintf("upperdir=%s", escaper.Replace(opts.UpperDir)))
+		options = append(options, fmt.Sprintf("workdir=%s", escaper.Replace(opts.WorkDir)))
 	}
 	if len(options) > 0 {
 		args = append(args, "--options="+strings.Join(options, ","))
