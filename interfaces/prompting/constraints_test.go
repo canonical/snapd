@@ -130,12 +130,12 @@ func (s *constraintsSuite) TestValidatePermissionsUnhappy(c *C) {
 		{
 			"home",
 			[]string{"access"},
-			`invalid permissions for home interface: \[access\].*`,
+			`invalid permissions for home interface: "access"`,
 		},
 		{
 			"home",
 			[]string{"read", "write", "access"},
-			`invalid permissions for home interface: \[access\].*`,
+			`invalid permissions for home interface: "access"`,
 		},
 		{
 			"home",

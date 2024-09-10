@@ -380,7 +380,7 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 						"outcome": map[string]interface{}{
 							"reason":    "unsupported-value",
 							"supported": []interface{}{"bar", "baz"},
-							"value":     "foo",
+							"value":     []interface{}{"foo"},
 						},
 					},
 				},
@@ -399,7 +399,7 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 						"lifespan": map[string]interface{}{
 							"reason":    "unsupported-value",
 							"supported": []interface{}{"bar", "baz"},
-							"value":     "foo",
+							"value":     []interface{}{"foo"},
 						},
 					},
 				},
@@ -418,7 +418,7 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 						"lifespan": map[string]interface{}{
 							"reason":    "unsupported-value",
 							"supported": []interface{}{"bar", "baz"},
-							"value":     "single",
+							"value":     []interface{}{"single"},
 						},
 					},
 				},
@@ -437,7 +437,7 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 						"interface": map[string]interface{}{
 							"reason":    "unsupported-value",
 							"supported": []interface{}{"bar", "baz"},
-							"value":     "foo",
+							"value":     []interface{}{"foo"},
 						},
 					},
 				},
@@ -450,7 +450,7 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 			err: prompting_errors.NewInvalidPermissionsError("foo", []string{"bar", "baz"}, []string{"fizz", "buzz"}),
 			body: map[string]interface{}{
 				"result": map[string]interface{}{
-					"message": `invalid permissions for foo interface: [bar baz]`,
+					"message": `invalid permissions for foo interface: "bar", "baz"`,
 					"kind":    "interfaces-requests-invalid-fields",
 					"value": map[string]interface{}{
 						"permissions": map[string]interface{}{
@@ -475,6 +475,7 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 						"permissions": map[string]interface{}{
 							"reason":    "unsupported-value",
 							"supported": []interface{}{"bar", "baz"},
+							"value":     []interface{}{},
 						},
 					},
 				},
