@@ -74,13 +74,6 @@ func SplitSystemdMountOptions(s string) []string {
 	return splitMountOptions(s)
 }
 
-// SplitOverlayMountOptions splits mount options into a slice, in accordance to the kernel.
-// This is following how it is done for overlayfs in
-// https://elixir.bootlin.com/linux/v6.10.9/C/ident/ovl_next_opt
-func SplitOverlayMountOptions(s string) []string {
-	return splitMountOptions(s)
-}
-
 // ParseMountEntry parses a fstab-like entry.
 func ParseMountEntry(s string) (MountEntry, error) {
 	var e MountEntry
@@ -132,12 +125,8 @@ func ParseMountEntry(s string) (MountEntry, error) {
 			escapedOptions = strings.Join(fields[3:tailFieldIndex], " ")
 		}
 		// TODO: There are multiple filesystems which override generic_parse_monolithic
-		// in the kernel so special handling is needed on a per-fs basis.
-		if e.Type == "overlay" {
-			e.Options = SplitOverlayMountOptions(unescape(escapedOptions))
-		} else {
-			e.Options = strings.Split(unescape(escapedOptions), ",")
-		}
+		// in the kernel so special handling is needed on a per-fs basis. i.e overlayfs
+		e.Options = strings.Split(unescape(escapedOptions), ",")
 	}
 
 	// Parse DumpFrequency if we have one tail field.
