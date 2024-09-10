@@ -8,24 +8,19 @@ details: |
 systems: [ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
 
 prepare: |
-  if ! snap list core24; then
-    snap install core24
-  fi
-
+  snap install snap-store
   snap install jq
   snap install --devmode --edge test-snapd-curl
 
 execute: |
-  snap_id=$(snap info core24 | grep snap-id | awk '{ print $2 }')
-  jq --sort-keys . < "/var/cache/snapd/aux/${snap_id}.json" > aux.json
+  snap_id=$(snap info snap-store | grep snap-id | awk '{ print $2 }')
+  jq --sort-keys .media < "/var/cache/snapd/aux/${snap_id}.json" > media.json
 
   # don't depend on the exact number of media files, but there should be
   # something here
-  media_length=$(jq '.media | length' < aux.json)
+  media_length=$(jq '. | length' < media.json)
   test "${media_length}" -gt 0
 
-  jq -r '.website' | MATCH "https://snapcraft.io"
+  test-snapd-curl.curl -s --unix-socket /run/snapd.socket --max-time 5 'http://localhost/v2/snaps/snap-store' | jq --sort-keys .result.media > snapd-media.json
 
-  test-snapd-curl.curl -s --unix-socket /run/snapd.socket --max-time 5 'http://localhost/v2/snaps/core24' | jq --sort-keys .result.media > snapd-aux.json
-
-  diff aux.json snapd-aux.json
+  diff media.json snapd-media.json
