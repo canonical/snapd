@@ -25,9 +25,9 @@ package errors
 import (
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -79,18 +79,10 @@ func (e *UnsupportedValueError) Is(target error) bool {
 	return target == ErrUnsupportedValue
 }
 
-func formatUnsupported(unsupported []string) string {
-	quoted := make([]string, 0, len(unsupported))
-	for _, val := range unsupported {
-		quoted = append(quoted, strconv.Quote(val))
-	}
-	return strings.Join(quoted, ", ")
-}
-
 func NewInvalidOutcomeError(unsupported string, supported []string) *UnsupportedValueError {
 	return &UnsupportedValueError{
 		Field:     "outcome",
-		Msg:       fmt.Sprintf("invalid outcome: %s", formatUnsupported([]string{unsupported})),
+		Msg:       fmt.Sprintf("invalid outcome: %s", strutil.Quoted([]string{unsupported})),
 		Value:     []string{unsupported},
 		Supported: supported,
 	}
@@ -99,7 +91,7 @@ func NewInvalidOutcomeError(unsupported string, supported []string) *Unsupported
 func NewInvalidLifespanError(unsupported string, supported []string) *UnsupportedValueError {
 	return &UnsupportedValueError{
 		Field:     "lifespan",
-		Msg:       fmt.Sprintf("invalid lifespan: %s", formatUnsupported([]string{unsupported})),
+		Msg:       fmt.Sprintf("invalid lifespan: %s", strutil.Quoted([]string{unsupported})),
 		Value:     []string{unsupported},
 		Supported: supported,
 	}
@@ -117,7 +109,7 @@ func NewRuleLifespanSingleError(supported []string) *UnsupportedValueError {
 func NewInvalidInterfaceError(unsupported string, supported []string) *UnsupportedValueError {
 	return &UnsupportedValueError{
 		Field:     "interface",
-		Msg:       fmt.Sprintf("invalid interface: %s", formatUnsupported([]string{unsupported})),
+		Msg:       fmt.Sprintf("invalid interface: %s", strutil.Quoted([]string{unsupported})),
 		Value:     []string{unsupported},
 		Supported: supported,
 	}
@@ -126,7 +118,7 @@ func NewInvalidInterfaceError(unsupported string, supported []string) *Unsupport
 func NewInvalidPermissionsError(iface string, unsupported []string, supported []string) *UnsupportedValueError {
 	return &UnsupportedValueError{
 		Field:     "permissions",
-		Msg:       fmt.Sprintf("invalid permissions for %s interface: %s", iface, formatUnsupported(unsupported)),
+		Msg:       fmt.Sprintf("invalid permissions for %s interface: %s", iface, strutil.Quoted(unsupported)),
 		Value:     unsupported,
 		Supported: supported,
 	}
