@@ -363,6 +363,12 @@ func MockBootMakeSystemRunnableAfterDataReset(f func(model *asserts.Model, bootW
 	return restore
 }
 
+func MockBootMakeRecoverySystemBootable(f func(model *asserts.Model, rootdir string, relativeRecoverySystemDir string, bootWith *boot.RecoverySystemBootableSet) error) (restore func()) {
+	restore = testutil.Backup(&bootMakeRecoverySystemBootable)
+	bootMakeRecoverySystemBootable = f
+	return restore
+}
+
 func MockBootEnsureNextBootToRunMode(f func(systemLabel string) error) (restore func()) {
 	old := bootEnsureNextBootToRunMode
 	bootEnsureNextBootToRunMode = f
