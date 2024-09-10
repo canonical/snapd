@@ -54,13 +54,9 @@ func (pdb *PromptDB) NextID() (prompting.IDType, error) {
 }
 
 func MockInitialTimeout(timeout time.Duration) (restore func()) {
-	restore = testutil.Backup(&initialTimeout)
-	initialTimeout = timeout
-	return restore
+	return testutil.Mock(&initialTimeout, timeout)
 }
 
 func MockActivityTimeout(timeout time.Duration) (restore func()) {
-	restore = testutil.Backup(&activityTimeout)
-	activityTimeout = timeout
-	return restore
+	return testutil.Mock(&activityTimeout, timeout)
 }
