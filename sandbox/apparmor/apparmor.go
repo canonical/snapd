@@ -1049,3 +1049,11 @@ func MockParserSearchPath(new string) (restore func()) {
 		parserSearchPath = oldAppArmorParserSearchPath
 	}
 }
+
+func MockFsRootPath(path string) (restorer func()) {
+	old := rootPath
+	rootPath = path
+	return func() {
+		rootPath = old
+	}
+}
