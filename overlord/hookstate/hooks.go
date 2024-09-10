@@ -43,6 +43,12 @@ func init() {
 	snapstate.SetupGateAutoRefreshHook = SetupGateAutoRefreshHook
 }
 
+var (
+	ViewChangedHandlerGenerator func(context *Context) Handler
+	SaveViewHandlerGenerator    func(context *Context) Handler
+	ChangeViewHandlerGenerator  func(context *Context) Handler
+)
+
 func SetupInstallHook(st *state.State, snapName string) *state.Task {
 	hooksup := &HookSetup{
 		Snap:     snapName,
@@ -333,20 +339,11 @@ func SetupGateAutoRefreshHook(st *state.State, snapName string) *state.Task {
 	return task
 }
 
-type snapHookHandler struct {
-}
+type SnapHookHandler struct{}
 
-func (h *snapHookHandler) Before() error {
-	return nil
-}
-
-func (h *snapHookHandler) Done() error {
-	return nil
-}
-
-func (h *snapHookHandler) Error(err error) (bool, error) {
-	return false, nil
-}
+func (h *SnapHookHandler) Before() error                 { return nil }
+func (h *SnapHookHandler) Done() error                   { return nil }
+func (h *SnapHookHandler) Error(err error) (bool, error) { return false, nil }
 
 func SetupRemoveHook(st *state.State, snapName string) *state.Task {
 	hooksup := &HookSetup{
@@ -364,7 +361,7 @@ func SetupRemoveHook(st *state.State, snapName string) *state.Task {
 
 func setupHooks(hookMgr *HookManager) {
 	handlerGenerator := func(context *Context) Handler {
-		return &snapHookHandler{}
+		return &SnapHookHandler{}
 	}
 	gateAutoRefreshHandlerGenerator := func(context *Context) Handler {
 		return NewGateAutoRefreshHookHandler(context)
@@ -375,4 +372,7 @@ func setupHooks(hookMgr *HookManager) {
 	hookMgr.Register(regexp.MustCompile("^pre-refresh$"), handlerGenerator)
 	hookMgr.Register(regexp.MustCompile("^remove$"), handlerGenerator)
 	hookMgr.Register(regexp.MustCompile("^gate-auto-refresh$"), gateAutoRefreshHandlerGenerator)
+	hookMgr.Register(regexp.MustCompile("^.+-view-changed$"), ViewChangedHandlerGenerator)
+	hookMgr.Register(regexp.MustCompile("^change-view-.+$"), ChangeViewHandlerGenerator)
+	hookMgr.Register(regexp.MustCompile("^save-view-.+$"), SaveViewHandlerGenerator)
 }

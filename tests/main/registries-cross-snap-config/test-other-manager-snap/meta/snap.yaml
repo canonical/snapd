@@ -1,0 +1,12 @@
+name: test-other-manager-snap
+version: 1.0
+apps:
+  sh:
+    command: /bin/sh
+
+plugs:
+  manage-wifi:
+    interface: registry
+    account: developer1
+    view: network/wifi-setup
+    role: manager

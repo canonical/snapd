@@ -20,6 +20,7 @@ package registrystate
 
 import (
 	"encoding/json"
+	"errors"
 	"sync"
 
 	"github.com/snapcore/snapd/overlord/state"
@@ -37,11 +38,17 @@ type Transaction struct {
 	deltas        []map[string]interface{}
 	appliedDeltas int
 
+	abortingSnap string
+	abortReason  string
+
 	mu sync.RWMutex
+
+	onDone   []func() error
+	readOnly bool
 }
 
 // NewTransaction takes a getter and setter to read and write the databag.
-func NewTransaction(st *state.State, account, registryName string) (*Transaction, error) {
+func NewTransaction(st *state.State, readOnly bool, account, registryName string) (*Transaction, error) {
 	databag, err := readDatabag(st, account, registryName)
 	if err != nil {
 		return nil, err
@@ -51,6 +58,7 @@ func NewTransaction(st *state.State, account, registryName string) (*Transaction
 		pristine:        databag,
 		RegistryAccount: account,
 		RegistryName:    registryName,
+		readOnly:        readOnly,
 	}, nil
 }
 
@@ -63,6 +71,9 @@ type marshalledTransaction struct {
 	Modified      registry.JSONDataBag     `json:"modified,omitempty"`
 	Deltas        []map[string]interface{} `json:"deltas,omitempty"`
 	AppliedDeltas int                      `json:"applied-deltas,omitempty"`
+
+	AbortingSnap string `json:"aborting-snap,omitempty"`
+	AbortReason  string `json:"abort-reason,omitempty"`
 }
 
 func (t *Transaction) MarshalJSON() ([]byte, error) {
@@ -73,6 +84,8 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 		Modified:        t.modified,
 		Deltas:          t.deltas,
 		AppliedDeltas:   t.appliedDeltas,
+		AbortingSnap:    t.abortingSnap,
+		AbortReason:     t.abortReason,
 	})
 }
 
@@ -95,8 +108,16 @@ func (t *Transaction) UnmarshalJSON(data []byte) error {
 // Set sets a value in the transaction's databag. The change isn't persisted
 // until Commit returns without errors.
 func (t *Transaction) Set(path string, value interface{}) error {
+	if t.readOnly {
+		return errors.New("internal error: not allowed to write to registry")
+	}
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
+	if t.aborted() {
+		return errors.New("cannot write to aborted transaction")
+	}
 
 	t.deltas = append(t.deltas, map[string]interface{}{path: value})
 	return nil
@@ -105,8 +126,15 @@ func (t *Transaction) Set(path string, value interface{}) error {
 // Unset unsets a value in the transaction's databag. The change isn't persisted
 // until Commit returns without errors.
 func (t *Transaction) Unset(path string) error {
+	if t.readOnly {
+		return errors.New("internal error: not allowed to write to registry")
+	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
+	if t.aborted() {
+		return errors.New("cannot write to aborted transaction")
+	}
 
 	t.deltas = append(t.deltas, map[string]interface{}{path: nil})
 	return nil
@@ -116,6 +144,10 @@ func (t *Transaction) Unset(path string) error {
 func (t *Transaction) Get(path string) (interface{}, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
+	if t.aborted() {
+		return nil, errors.New("cannot read from aborted transaction")
+	}
 
 	// if there aren't any changes, just use the pristine bag
 	if len(t.deltas) == 0 {
@@ -132,8 +164,15 @@ func (t *Transaction) Get(path string) (interface{}, error) {
 // Commit applies the previous writes and validates the final databag. If any
 // error occurs, the original databag is kept.
 func (t *Transaction) Commit(st *state.State, schema registry.Schema) error {
+	if t.readOnly {
+		return errors.New("internal error: not allowed to write to registry")
+	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
+	if t.aborted() {
+		return errors.New("cannot commit aborted transaction")
+	}
 
 	pristine, err := readDatabag(st, t.RegistryAccount, t.RegistryName)
 	if err != nil {
@@ -169,6 +208,10 @@ func (t *Transaction) Commit(st *state.State, schema registry.Schema) error {
 func (t *Transaction) Clear(st *state.State) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
+	if t.aborted() {
+		return errors.New("cannot clear changes from aborted transaction")
+	}
 
 	pristine, err := readDatabag(st, t.RegistryAccount, t.RegistryName)
 	if err != nil {
@@ -237,9 +280,42 @@ func (t *Transaction) Data() ([]byte, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	if t.aborted() {
+		return nil, errors.New("cannot read changes from aborted transaction")
+	}
+
+	// TODO: if we apply the changes after each write to validate then there's
+	// no point in saving only deltas
 	if err := t.applyChanges(); err != nil {
 		return nil, err
 	}
 
 	return t.modified.Data()
+}
+
+func (t *Transaction) Abort(abortingSnap, reason string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.abortingSnap = abortingSnap
+	t.abortReason = reason
+}
+
+func (t *Transaction) aborted() bool {
+	return t.abortReason != ""
+}
+
+// OnDone register a callback to be called once Done is called. These callbacks
+// are not persisted.
+func (t *Transaction) OnDone(d func() error) {
+	t.onDone = append(t.onDone, d)
+}
+
+func (t *Transaction) Done() error {
+	for _, d := range t.onDone {
+		if err := d(); err != nil {
+			return err
+		}
+	}
+	return nil
 }

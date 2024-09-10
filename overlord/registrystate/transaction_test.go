@@ -66,7 +66,7 @@ func (s *transactionTestSuite) SetUpTest(c *C) {
 var _ = Suite(&transactionTestSuite{})
 
 func (s *transactionTestSuite) TestSet(c *C) {
-	tx, err := registrystate.NewTransaction(s.state, "my-account", "my-reg")
+	tx, err := registrystate.NewTransaction(s.state, false, "my-account", "my-reg")
 	c.Assert(err, IsNil)
 	c.Assert(s.readCalled, Equals, 1)
 
@@ -82,7 +82,7 @@ func (s *transactionTestSuite) TestSet(c *C) {
 }
 
 func (s *transactionTestSuite) TestCommit(c *C) {
-	tx, err := registrystate.NewTransaction(s.state, "my-account", "my-reg")
+	tx, err := registrystate.NewTransaction(s.state, false, "my-account", "my-reg")
 	c.Assert(err, IsNil)
 	c.Assert(s.readCalled, Equals, 1)
 
@@ -104,7 +104,7 @@ func (s *transactionTestSuite) TestCommit(c *C) {
 }
 
 func (s *transactionTestSuite) TestGetReadsUncommitted(c *C) {
-	tx, err := registrystate.NewTransaction(s.state, "my-account", "my-reg")
+	tx, err := registrystate.NewTransaction(s.state, false, "my-account", "my-reg")
 	c.Assert(err, IsNil)
 
 	bag, err := registrystate.ReadDatabag(s.state, "my-account", "my-reg")
@@ -144,7 +144,7 @@ func (f *failingSchema) Type() registry.SchemaType {
 }
 
 func (s *transactionTestSuite) TestRollBackOnCommitError(c *C) {
-	tx, err := registrystate.NewTransaction(s.state, "my-account", "my-reg")
+	tx, err := registrystate.NewTransaction(s.state, false, "my-account", "my-reg")
 	c.Assert(err, IsNil)
 
 	err = tx.Set("foo", "bar")
@@ -168,7 +168,7 @@ func (s *transactionTestSuite) TestRollBackOnCommitError(c *C) {
 }
 
 func (s *transactionTestSuite) TestManyWrites(c *C) {
-	tx, err := registrystate.NewTransaction(s.state, "my-account", "my-reg")
+	tx, err := registrystate.NewTransaction(s.state, false, "my-account", "my-reg")
 	c.Assert(err, IsNil)
 
 	err = tx.Set("foo", "bar")
@@ -192,7 +192,7 @@ func (s *transactionTestSuite) TestManyWrites(c *C) {
 }
 
 func (s *transactionTestSuite) TestCommittedIncludesRecentWrites(c *C) {
-	tx, err := registrystate.NewTransaction(s.state, "my-account", "my-reg")
+	tx, err := registrystate.NewTransaction(s.state, false, "my-account", "my-reg")
 	c.Assert(err, IsNil)
 	c.Assert(s.readCalled, Equals, 1)
 
@@ -228,10 +228,10 @@ func (s *transactionTestSuite) TestCommittedIncludesRecentWrites(c *C) {
 }
 
 func (s *transactionTestSuite) TestCommittedIncludesPreviousCommit(c *C) {
-	txOne, err := registrystate.NewTransaction(s.state, "my-account", "my-reg")
+	txOne, err := registrystate.NewTransaction(s.state, false, "my-account", "my-reg")
 	c.Assert(err, IsNil)
 
-	txTwo, err := registrystate.NewTransaction(s.state, "my-account", "my-reg")
+	txTwo, err := registrystate.NewTransaction(s.state, false, "my-account", "my-reg")
 	c.Assert(err, IsNil)
 
 	err = txOne.Set("foo", "bar")
@@ -276,7 +276,7 @@ func (s *transactionTestSuite) TestTransactionBagReadError(c *C) {
 	})
 	defer restore()
 
-	txOne, err := registrystate.NewTransaction(s.state, "my-account", "my-reg")
+	txOne, err := registrystate.NewTransaction(s.state, false, "my-account", "my-reg")
 	c.Assert(err, IsNil)
 
 	readErr = errors.New("expected")
@@ -285,7 +285,7 @@ func (s *transactionTestSuite) TestTransactionBagReadError(c *C) {
 	c.Assert(err, ErrorMatches, "expected")
 
 	// NewTransaction()'s databag read fails
-	txOne, err = registrystate.NewTransaction(s.state, "my-account", "my-reg")
+	txOne, err = registrystate.NewTransaction(s.state, false, "my-account", "my-reg")
 	c.Assert(err, ErrorMatches, "expected")
 }
 
@@ -296,7 +296,7 @@ func (s *transactionTestSuite) TestTransactionBagWriteError(c *C) {
 	})
 	defer restore()
 
-	txOne, err := registrystate.NewTransaction(s.state, "my-account", "my-reg")
+	txOne, err := registrystate.NewTransaction(s.state, false, "my-account", "my-reg")
 	c.Assert(err, IsNil)
 
 	// Commit()'s databag write fails
@@ -305,7 +305,7 @@ func (s *transactionTestSuite) TestTransactionBagWriteError(c *C) {
 }
 
 func (s *transactionTestSuite) TestTransactionReadsIsolated(c *C) {
-	tx, err := registrystate.NewTransaction(s.state, "my-account", "my-reg")
+	tx, err := registrystate.NewTransaction(s.state, false, "my-account", "my-reg")
 	c.Assert(err, IsNil)
 
 	bag, err := registrystate.ReadDatabag(s.state, "my-account", "my-reg")
@@ -319,7 +319,7 @@ func (s *transactionTestSuite) TestTransactionReadsIsolated(c *C) {
 }
 
 func (s *transactionTestSuite) TestUnset(c *C) {
-	tx, err := registrystate.NewTransaction(s.state, "my-account", "my-reg")
+	tx, err := registrystate.NewTransaction(s.state, false, "my-account", "my-reg")
 	c.Assert(err, IsNil)
 
 	err = tx.Set("foo", "bar")
@@ -355,7 +355,7 @@ func (s *transactionTestSuite) TestSerializable(c *C) {
 	err = registrystate.WriteDatabag(s.state, bag, "my-account", "my-reg")
 	c.Assert(err, IsNil)
 
-	tx, err := registrystate.NewTransaction(s.state, "my-account", "my-reg")
+	tx, err := registrystate.NewTransaction(s.state, false, "my-account", "my-reg")
 	c.Assert(err, IsNil)
 
 	err = tx.Set("foo", "bar")

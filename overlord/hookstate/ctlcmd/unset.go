@@ -77,14 +77,9 @@ func (s *unsetCommand) Execute(args []string) error {
 		return nil
 	}
 
-	// unsetting registry data
-	if !strings.HasPrefix(s.Positional.ConfKeys[0], ":") {
+	before, plugName, ok := strings.Cut(s.Positional.ConfKeys[0], ":")
+	if !ok || before != "" || plugName == "" {
 		return fmt.Errorf(i18n.G("cannot unset registry: plug must conform to format \":<plug-name>\": %s"), s.Positional.ConfKeys[0])
-	}
-
-	plugName := strings.TrimPrefix(s.Positional.ConfKeys[0], ":")
-	if plugName == "" {
-		return errors.New(i18n.G("cannot unset registry: plug name was not provided"))
 	}
 
 	if len(s.Positional.ConfKeys) == 1 {

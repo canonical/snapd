@@ -1,0 +1,7 @@
+#!/bin/sh -xe
+
+value=$(snapctl get --view :manage-wifi ssid)
+echo "$value" > "$SNAP_COMMON"/change-view-manage-wifi-ran
+
+# modify it again so we can check that we read the previously modded value
+snapctl set --view :manage-wifi ssid="$value-again"

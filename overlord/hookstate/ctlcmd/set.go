@@ -34,6 +34,10 @@ import (
 	"github.com/snapcore/snapd/overlord/registrystate"
 )
 
+var (
+	registrystateGetTransaction = registrystate.GetTransaction
+)
+
 type setCommand struct {
 	baseCommand
 
@@ -232,16 +236,23 @@ func setRegistryValues(ctx *hookstate.Context, plugName string, requests map[str
 
 	view, err := getRegistryView(ctx, plugName)
 	if err != nil {
-		return fmt.Errorf("cannot set registry: %v", err)
+		return fmt.Errorf("cannot modify registry: %v", err)
 	}
 
-	tx, err := registrystate.RegistryTransaction(ctx, view.Registry())
+	if registrystate.IsRegistryHook(ctx) && !strings.HasPrefix(ctx.HookName(), "change-view-") {
+		return fmt.Errorf("cannot modify registry in %q hook", ctx.HookName())
+	}
+
+	tx, err := registrystateGetTransaction(ctx, ctx.State(), view)
+	if err != nil {
+		// TODO: more info
+		return err
+	}
+
+	err = registrystate.SetViaViewInTx(tx, view, requests)
 	if err != nil {
 		return err
 	}
 
-	// TODO: once we have hooks, check that we don't set values in the wrong hooks
-	// (e.g., "registry-changed" hooks can only read data)
-
-	return registrystate.SetViaViewInTx(tx, view, requests)
+	return tx.Done()
 }
