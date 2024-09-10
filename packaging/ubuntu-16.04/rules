@@ -30,7 +30,8 @@ export PATH:=${PATH}:${CURDIR}
 export PATH:=/usr/lib/go-1.18/bin:${PATH}
 ifeq (${FIPSBUILD},1)
 	# when building with FIPS, use Go 1.21 which is also declared in build
-	# dependencies
+	# dependencies; during testing it is manually installed, but during LP builds
+	# it should be pulled in as a build dependency
 	export PATH:=/usr/lib/go-1.21/bin:${PATH}
 endif
 # GOCACHE is needed by go-1.13+
@@ -197,6 +198,15 @@ override_dh_clean:
 	(cd c-vendor/squashfuse && rm -f snapfuse && make distclean || true )
 
 override_dh_auto_build:
+	# very ugly test for FIPS variant of a toolchain
+	# see https://warthogs.atlassian.net/browse/FR-8860
+ifeq (${FIPSBUILD},1)
+	if ! test -f /usr/lib/go-1.21/src/crypto/internal/backend/openssl_linux.go; then \
+		echo "Go 1.21 FIPS toolchain not found"; \
+		exit 1; \
+	fi
+endif
+
 	# generate dh-golang does not copy modules.txt
 	cp -a vendor/modules.txt _build/src/$(DH_GOPKG)/vendor
 	# usually done via `go generate` but that is not supported on powerpc
