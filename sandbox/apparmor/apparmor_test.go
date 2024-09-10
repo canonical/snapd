@@ -375,7 +375,7 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeaturesPermstable32Version(c *C)
 		ver int64
 	}{
 		{
-			"0x000001",
+			"0x000001\n",
 			1,
 		},
 		{
@@ -383,7 +383,7 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeaturesPermstable32Version(c *C)
 			2,
 		},
 		{
-			"0x0000000000000003",
+			"0x0000000000000003\n",
 			3,
 		},
 		{
