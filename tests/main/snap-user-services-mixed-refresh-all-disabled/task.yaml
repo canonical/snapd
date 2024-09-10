@@ -55,6 +55,9 @@ prepare: |
 
 restore: |
     tests.session -u test2 restore
+    if ! userdel -rf test2; then
+        userdel --extrausers -rf test2
+    fi
     tests.session -u test restore
     snap unset system experimental.user-daemons
     if [ -f agent-was-enabled ]; then
