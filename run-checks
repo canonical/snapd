@@ -397,24 +397,31 @@ if [ "$STATIC" = 1 ]; then
     if [ -z "${SKIP_GOLANGCI_LINT-}" ]; then
 
         echo "Checking installation of golangci-lint"
-        if ! command -v golangci-lint > /dev/null ; then
-            echo "ERROR: Cannot find golangci-lint. You need to first install the golangci-lint snap"
+        gcil="$(command -v golangci-lint || true)"
+        if [ -z "$gcil" ]; then 
+            echo "ERROR: Cannot find golangci-lint. You need to first install the golangci-lint"
             exit 1
         fi
-        if snap refresh --list | grep -q golangci-lint; then
-            echo "WARNING: your golangci-lint snap is out of date. The CI will install a fresh version, which may differ from yours."
-        fi
-        if ! snap list golangci-lint | grep -q latest; then
-            echo "WARNING: your golangci-lint snap is not installed from the latest/* channel."
-        fi
-        goci_go_ver=$(golangci-lint --version | grep -o 'go[0-9]*\.[0-9]*\.[0-9]*' | cut -c 3-)
-        go_ver=$(go version | grep -o 'go[0-9]*\.[0-9]*\.[0-9]*' | cut -c 3-)
-        if [ "$(printf '%s\n' "$go_ver" "$goci_go_ver" | sort -V | head -n1)" != "$go_ver" ]; then
-           echo "WARNING: Your go version ($go_ver) is greater than the version of go that golangci-lint was built with ($goci_go_ver)."
+
+        if [ "${gcil/\/snap\/bin/}" != "$gcil" ]; then
+            # golangci-lint was installed from the snap
+            if snap refresh --list | grep -q golangci-lint; then
+                echo "WARNING: your golangci-lint snap is out of date. The CI will install a fresh version, which may differ from yours."
+            fi
+            if ! snap list golangci-lint | grep -q latest; then
+                echo "WARNING: your golangci-lint snap is not installed from the latest/* channel."
+            fi
         fi
 
-        echo "Running golangci-lint"
+        # Check whether the version golangci-lint was built with is >= version of go installed
+        gcil_go_ver=$(golangci-lint --version | grep -o 'go[0-9]*\.[0-9]*\.[0-9]*' | cut -c 3-)
+        go_ver=$(go version | grep -o 'go[0-9]*\.[0-9]*\.[0-9]*' | cut -c 3-)
+        if [ "$(printf '%s\n' "$go_ver" "$gcil_go_ver" | sort -V | head -n1)" != "$go_ver" ]; then
+           echo "WARNING: Your go version ($go_ver) is greater than the version of go that golangci-lint was built with ($gcil_go_ver)."
+        fi
+
         if [ -n "${BASE_REF:-}" ]; then
+            echo "Running golangci-lint"
             golangci-lint --new-from-rev="$BASE_REF" --path-prefix= run
         else
             echo "Running golangci-lint without the --new-from-rev option. If you would rather use that option, specify the branch in the BASE_REF environment variable."
