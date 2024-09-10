@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -76,14 +76,6 @@ func MockProfilesPath(t *testutil.BaseTest, profiles string) {
 	t.AddCleanup(func() {
 		profilesPath = realProfilesPath
 	})
-}
-
-func MockFsRootPath(path string) (restorer func()) {
-	old := rootPath
-	rootPath = path
-	return func() {
-		rootPath = old
-	}
 }
 
 func MockSnapdAppArmorSupportsReexec(new func() bool) (restore func()) {
