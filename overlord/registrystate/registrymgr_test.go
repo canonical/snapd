@@ -19,6 +19,8 @@
 package registrystate_test
 
 import (
+	"errors"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -27,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/testutil"
 
 	. "gopkg.in/check.v1"
 )
@@ -138,4 +141,131 @@ func (s *hookHandlerSuite) TestViewChangeHookRejectsChanges(c *C) {
 
 	err = handler.Done()
 	c.Assert(err, ErrorMatches, `cannot change registry my-acc/network: my-snap rejected changes: don't like`)
+}
+
+func (s *hookHandlerSuite) TestSaveViewHookOk(c *C) {
+	s.state.Lock()
+	hooksup := &hookstate.HookSetup{
+		Snap: "test-snap",
+		Hook: "view-change-setup",
+	}
+
+	tx, err := registrystate.NewTransaction(s.state, "my-acc", "network")
+	c.Assert(err, IsNil)
+
+	t := s.state.NewTask("task", "")
+	registrystate.SetTransaction(t, tx)
+
+	ctx, err := hookstate.NewContext(t, s.state, hooksup, nil, "")
+	c.Assert(err, IsNil)
+
+	handler := hookstate.SaveViewHandlerGenerator(ctx)
+	s.state.Unlock()
+
+	err = handler.Done()
+	c.Assert(err, IsNil)
+}
+
+func (s *hookHandlerSuite) TestSaveViewHookErrorRollsBackSaves(c *C) {
+	s.state.Lock()
+	chg := s.state.NewChange("my-change", "")
+	commitTask := s.state.NewTask("commit-registry-tx", "")
+	chg.AddTask(commitTask)
+
+	tx, err := registrystate.NewTransaction(s.state, "my-acc", "network")
+	c.Assert(err, IsNil)
+	registrystate.SetTransaction(commitTask, tx)
+
+	err = tx.Set("foo", "bar")
+	c.Assert(err, IsNil)
+
+	// the first save-view hook is done
+	hooksup := &hookstate.HookSetup{
+		Snap: "first-snap",
+		Hook: "save-view-setup",
+	}
+	firstTask := s.state.NewTask("run-hook", "")
+	chg.AddTask(firstTask)
+	firstTask.SetStatus(state.DoneStatus)
+	firstTask.Set("hook-setup", hooksup)
+
+	// Error looks for a non run-hook task in order to stop
+	prereq := s.state.NewTask("other", "")
+	chg.AddTask(prereq)
+	firstTask.WaitFor(prereq)
+
+	// setup the second save-view hook as the one that fails
+	hooksup = &hookstate.HookSetup{
+		Snap: "second-snap",
+		Hook: "save-view-setup",
+	}
+	secondTask := s.state.NewTask("run-hook", "")
+	chg.AddTask(secondTask)
+	secondTask.WaitFor(firstTask)
+	secondTask.SetStatus(state.DoingStatus)
+	secondTask.Set("hook-setup", hooksup)
+	secondTask.Set("commit-task", commitTask.ID())
+
+	ctx, err := hookstate.NewContext(secondTask, s.state, hooksup, nil, "")
+	c.Assert(err, IsNil)
+
+	handler := hookstate.SaveViewHandlerGenerator(ctx)
+	s.state.Unlock()
+
+	savingErr := errors.New("failed to save")
+	ignore, err := handler.Error(savingErr)
+	// Error creates tasks to roll back the previous saves so it ignores this error
+	c.Assert(err, IsNil)
+	c.Assert(ignore, Equals, true)
+
+	// we haven't rolled back yet, so we're still not surfacing the error
+	err = handler.Done()
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	// the transaction has been cleared
+	tx, _, err = registrystate.GetStoredTransaction(secondTask)
+	c.Assert(err, IsNil)
+	_, err = tx.Get("foo")
+	c.Assert(err, ErrorMatches, "no value was found under path \"foo\"")
+
+	halts := secondTask.HaltTasks()
+	c.Assert(halts, HasLen, 1)
+	cleanupTask := halts[0]
+
+	hooksup = nil
+	err = cleanupTask.Get("hook-setup", &hooksup)
+	c.Assert(err, IsNil)
+
+	// the first cleanup task will run for the errored hook
+	c.Assert(hooksup.Hook, Equals, "save-view-setup")
+	c.Assert(hooksup.Snap, Equals, "second-snap")
+
+	// only the last cleanup task has the original error to signal that it should
+	// be surfaced
+	var origErr string
+	err = cleanupTask.Get("original-error", &origErr)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+
+	cleanupTask = cleanupTask.HaltTasks()[0]
+	hooksup = nil
+	err = cleanupTask.Get("hook-setup", &hooksup)
+	c.Assert(err, IsNil)
+
+	// the second cleanup task will run for the completed hook
+	c.Assert(hooksup.Hook, Equals, "save-view-setup")
+	c.Assert(hooksup.Snap, Equals, "first-snap")
+
+	// the original error was saved so we can surface it after rolling back
+	err = cleanupTask.Get("original-error", &origErr)
+	c.Assert(err, IsNil)
+	c.Assert(origErr, Equals, savingErr.Error())
+
+	ctx, err = hookstate.NewContext(cleanupTask, s.state, hooksup, nil, "")
+	c.Assert(err, IsNil)
+	s.state.Unlock()
+
+	handler = hookstate.SaveViewHandlerGenerator(ctx)
+	err = handler.Done()
+	c.Assert(err, ErrorMatches, savingErr.Error())
 }

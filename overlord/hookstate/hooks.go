@@ -43,7 +43,10 @@ func init() {
 	snapstate.SetupGateAutoRefreshHook = SetupGateAutoRefreshHook
 }
 
-var ChangeViewHandlerGenerator func(context *Context) Handler
+var (
+	ChangeViewHandlerGenerator func(context *Context) Handler
+	SaveViewHandlerGenerator   func(context *Context) Handler
+)
 
 func SetupInstallHook(st *state.State, snapName string) *state.Task {
 	hooksup := &HookSetup{
@@ -369,4 +372,5 @@ func setupHooks(hookMgr *HookManager) {
 	hookMgr.Register(regexp.MustCompile("^remove$"), handlerGenerator)
 	hookMgr.Register(regexp.MustCompile("^gate-auto-refresh$"), gateAutoRefreshHandlerGenerator)
 	hookMgr.Register(regexp.MustCompile("^change-view-.+$"), ChangeViewHandlerGenerator)
+	hookMgr.Register(regexp.MustCompile("^save-view-.+$"), SaveViewHandlerGenerator)
 }
