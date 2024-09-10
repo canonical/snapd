@@ -373,4 +373,5 @@ func setupHooks(hookMgr *HookManager) {
 	hookMgr.Register(regexp.MustCompile("^gate-auto-refresh$"), gateAutoRefreshHandlerGenerator)
 	hookMgr.Register(regexp.MustCompile("^change-view-.+$"), ChangeViewHandlerGenerator)
 	hookMgr.Register(regexp.MustCompile("^save-view-.+$"), SaveViewHandlerGenerator)
+	hookMgr.Register(regexp.MustCompile("^.+-view-changed$"), handlerGenerator)
 }
