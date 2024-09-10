@@ -180,6 +180,8 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 			if i != 0 {
 				lowerDirs.WriteRune(':')
 			}
+			// This is used for splitting multiple lowerdirs as done in
+			// https://elixir.bootlin.com/linux/v6.10.9/C/ident/ovl_parse_param_split_lowerdirs
 			ed := strings.ReplaceAll(d, ":", `\:`)
 			ed = escaper.Replace(ed)
 			lowerDirs.WriteString(ed)
