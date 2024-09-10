@@ -382,6 +382,19 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				},
 			},
 		}
+	case "channel-for-media":
+		info.Media = snap.MediaInfos{
+			snap.MediaInfo{
+				Type:   "icon",
+				URL:    "http://example.com/icon.png",
+				Width:  100,
+				Height: 100,
+			},
+			snap.MediaInfo{
+				Type: "website",
+				URL:  "http://example.com",
+			},
+		}
 	}
 
 	if spec.Name == "provenance-snap" {
