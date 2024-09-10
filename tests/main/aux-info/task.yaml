@@ -1,7 +1,9 @@
-summary: Test basic component tasks
+summary: Test that snap aux info is correctly stored and returned by the snapd API
 
 details: |
-  Verifies that basic snap component operations (install, refresh, remove) work.
+  When installing a snap, we should store some auxiliary information about that
+  snap in /var/cache/snapd/aux. This test verifies that this is properly done,
+  and then verifies that the information is returned by the snapd API.
 
 systems: [ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
 
