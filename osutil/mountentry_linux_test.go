@@ -524,3 +524,20 @@ func (s *entrySuite) TestXSnapdMustExistDir(c *C) {
 	e = &osutil.MountEntry{Options: []string{osutil.XSnapdMustExistDir("$HOME")}}
 	c.Assert(e.XSnapdMustExistDir(), Equals, "$HOME")
 }
+
+func (s *entrySuite) TestSplitSystemdMountOptions(c *C) {
+	tt := []struct {
+		in  string
+		out []string
+	}{
+		{"foo,bar", []string{"foo", "bar"}},
+		{`foo\,,bar`, []string{`foo,`, "bar"}},
+		{`foo\f,bar`, []string{`foo\f`, "bar"}},
+		{`lowerdir=a\ ,upperdir=b\ ,workdir=c\ `, []string{`lowerdir=a\ `, `upperdir=b\ `, `workdir=c\ `}},
+		{`lowerdir=a\,,upperdir=b\,,workdir=c\,`, []string{`lowerdir=a,`, `upperdir=b,`, `workdir=c,`}},
+	}
+
+	for _, t := range tt {
+		c.Assert(osutil.SplitSystemdMountOptions(t.in), DeepEquals, t.out)
+	}
+}
