@@ -37,22 +37,22 @@ import (
 // iter:= NewPathIterator(path)
 //
 //	for iter.Next() {
-//	   // Use iter.CurrentName() with openat(2) family of functions.
-//	   // Use iter.CurrentPath() or iter.CurrentBaseNoSlash() for context.
+//	   // Use iter.CurrentBase() with openat(2) family of functions.
+//	   // Use iter.CurrentPath() or iter.CurrentDir() for context.
 //	}
 //
 // ```
 type PathIterator struct {
-	// Contains full clean path (the only exception to cleaniness is a possible ending slash)
+	// Contains full clean path (the only exception to cleaniness is a possible trailing slash)
 	path string
-	// Left and right are indices of the beginning and ending of the element indicated in CurrentBase
+	// Left and right are indices of the start and end of the element indicated in CurrentBase
 	left, right int
 	// The i-th path element pointed to by the iterator
 	depth int
 }
 
 // NewPathIterator returns an iterator for traversing the given path.
-// The path is passed through filepath.Clean automatically.
+// The path must be clean (except for a possible trailing slash).
 func NewPathIterator(path string) (*PathIterator, error) {
 	cleanPath := filepath.Clean(path)
 	if cleanPath != path && cleanPath+"/" != path {
@@ -66,60 +66,73 @@ func (iter *PathIterator) Path() string {
 	return iter.path
 }
 
-// CurrentBase returns the name of the current path element.
-// It will only end with a slash if the iterator is currently
-// placed at the base of the filesystem.
-// Ex:
+// CurrentBase returns the last element of the current path.
+// It removes any trailing slash unless the last element of the
+// current path is the filesystem root (and so CurrentBase() == "/").
+// If the current path is empty (i.e. Next() has not yet been called),
+// so is CurrentBase.
+// Example:
 //
-//	iter:= NewPathIterator("/foo/bar")
+//	iter:= NewPathIterator("/foo/bar")  // iter.CurrentBase() == ""
 //	iter.Next() // iter.CurrentBase() == "/" && iter.CurrentPath() == "/"
 //	iter.Next() // iter.CurrentBase() == "foo" && iter.CurrentPath() == "/foo"
 //	iter.Next() // iter.CurrentBase() == "bar" && iter.CurrentPath() == "/foo/bar"
 func (iter *PathIterator) CurrentBase() string {
-	// Only remove ending slash if the iterator is not pointing to the base of the filesystem
+	// Only remove trailing slash if the iterator is not pointing to the filesystem root
 	if iter.right > 1 && iter.path[iter.right-1:iter.right] == "/" {
 		return iter.path[iter.left : iter.right-1]
 	}
 	return iter.path[iter.left:iter.right]
 }
 
-// CurrentPath returns the prefix of path that was traversed, including the current base.
+// CurrentPath returns the path up to the current depth.
+// If the depth is 0 (i.e. Next has not yet been called),
+// then CurrentPath returns an empty string.
+// Example:
+//
+//		iter:= NewPathIterator("/foo/bar")  // iter.CurrentPath() == ""
+//	 	iter.Next() // iter.CurrentPath() == "/" && iter.Depth() == 1
+//	 	iter.Next() // iter.CurrentPath() == "/foo" && iter.Depth() == 2
+//	 	iter.Next() // iter.CurrentPath() == "/foo/bar" && iter.Depth() == 3
 func (iter *PathIterator) CurrentPath() string {
-	// Only remove ending slash if the iterator is not pointing to the base of the filesystem
+	// Only remove trailing slash if the iterator is not pointing to the filesystem root
 	if iter.right > 1 && iter.path[iter.right-1:iter.right] == "/" {
 		return iter.path[:iter.right-1]
 	}
 	return iter.path[:iter.right]
 }
 
-// Adds an ending slash to the current path even if the current path does not have one.
-// Ex:
+// Adds a trailing slash to the current path even if the current path does not have one.
+// If current path is empty (because Next has not yet been called),
+// then CurrentPathPlusSlash will also return an empty string.
+// Example:
 //
-//	    iter:= NewPathIterator("/foo/bar")
+//	    iter:= NewPathIterator("/foo/bar")  // iter.CurrentPathPlusSlash() == ""
 //		iter.Next() // iter.CurrentPathPlusSlash() == "/"
 //		iter.Next() // iter.CurrentPathPlusSlash() == "/foo/"
 //		iter.Next() // iter.CurrentPathPlusSlash() == "/foo/bar/"
 func (iter *PathIterator) CurrentPathPlusSlash() string {
-	// Only add an ending slash if one isn't already present
+	// Only add an trailing slash if one isn't already present
 	if iter.right > 0 && iter.path[iter.right-1:iter.right] != "/" {
 		return iter.path[:iter.right] + "/"
 	}
 	return iter.path[:iter.right]
 }
 
-// CurrentDir returns the prefix of the path that was traversed,
-// excluding the current name. The result never ends in '/' except if
-// current dir is root.
-// Ex:
+// CurrentDir returns all but the last element of the current path.
+// The result always removes a trailing slash unless CurrentDir is the filesystem root.
+// If the current path is empty because either Next has not yet been called or the
+// current path only contains one element, then CurrentDir will return an empty string.
+// Example:
 //
-//	iter:= NewPathIterator("/foo/bar")
+//	iter:= NewPathIterator("/foo/bar")  // iter.CurrentDir() == ""
 //	iter.Next() // iter.CurrentDir() == "" && iter.CurrentPath() == "/"
 //	iter.Next() // iter.CurrentDir() == "/" && iter.CurrentPath() == "/foo"
 //	iter.Next() // iter.CurrentDir() == "/foo" && iter.CurrentPath() == "/foo/bar"
 //
-// Ex:
+// Example:
 //
-//	iter:= NewPathIterator("foo/bar")
+//	iter:= NewPathIterator("foo/bar")  // iter.CurrentDir() == ""
 //	iter.Next() // iter.CurrentDir() == "" && iter.CurrentPath() == "foo"
 //	iter.Next() // iter.CurrentDir() == "foo" && iter.CurrentPath() == "foo/bar"
 func (iter *PathIterator) CurrentDir() string {
@@ -130,7 +143,7 @@ func (iter *PathIterator) CurrentDir() string {
 }
 
 // Indicates whether the element at CurrentBase is the leaf of the path.
-// Ex:
+// Example:
 //
 //	iter:= NewPathIterator("foo/bar")  // iter.IsCurrentBaseLeaf() == false
 //	iter.Next() // iter.CurrentBase() == "foo" && iter.IsCurrentBaseLeaf() == false
