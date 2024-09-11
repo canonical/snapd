@@ -1880,11 +1880,9 @@ type update struct {
 	Components []ComponentSetup
 }
 
-// revisionSatisfied returns true if the state of the snap on the system matches the
-// state specified in the update. This method is primarily concerned with the
-// revision of the snap.
-//
-// TODO:COMPS: check if we need to change the state of components
+// revisionSatisfied returns true if the state of the snap on the system matches
+// the state specified in the update. This method checks if the currently
+// installed snap and components match what is specified in the update.
 func (u *update) revisionSatisfied() (bool, error) {
 	if u.Setup.AlwaysUpdate || !u.SnapState.IsInstalled() {
 		return false, nil
