@@ -800,8 +800,7 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: spread-logs-${{ matrix.systems }}
-        path: |
-          ${{ github.workspace }}/.logs/*.log
+        path: ${{ github.workspace }}/.logs
 
     - name: Discard spread workers
       if: always()
