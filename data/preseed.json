@@ -25,6 +25,7 @@
     ],
     "exclude": [
         "var/lib/snapd/snaps/*.snap",
+        "var/lib/snapd/snaps/*.comp",
         "var/lib/seed/*"
     ]
 }
