@@ -241,7 +241,7 @@ func (tsto *ToolingStore) DownloadSnap(name string, comps []string, opts Downloa
 	}
 
 	// Download specified components
-	downloadedSnap.Components, err = tsto.downloadComponents(comps, sar, opts)
+	downloadedSnap.Components, err = tsto.downloadComponents(comps, sar, nil, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +249,7 @@ func (tsto *ToolingStore) DownloadSnap(name string, comps []string, opts Downloa
 	return downloadedSnap, err
 }
 
-func (tsto *ToolingStore) downloadComponents(comps []string, sar *store.SnapActionResult, opts DownloadSnapOptions) ([]*DownloadedComponent, error) {
+func (tsto *ToolingStore) downloadComponents(comps []string, sar *store.SnapActionResult, downloadDirs map[string]string, snapOpts DownloadSnapOptions) ([]*DownloadedComponent, error) {
 	downloadedComps := make([]*DownloadedComponent, len(comps))
 	for i, comp := range comps {
 		srr := sar.ResourceResult(comp)
@@ -257,7 +257,7 @@ func (tsto *ToolingStore) downloadComponents(comps []string, sar *store.SnapActi
 			return nil, fmt.Errorf("%s component for %s not found in store",
 				comp, sar.SnapName())
 		}
-		baseName := opts.Basename
+		baseName := snapOpts.Basename
 		if baseName == "" {
 			cpi := snap.MinimalComponentContainerPlaceInfo(
 				srr.Name, snap.R(srr.Revision), sar.SnapName())
@@ -265,9 +265,21 @@ func (tsto *ToolingStore) downloadComponents(comps []string, sar *store.SnapActi
 		} else {
 			baseName += fmt.Sprintf("+%s.comp", srr.Name)
 		}
-		targetFn := filepath.Join(opts.TargetDir, baseName)
 
-		downloadedComp, err := tsto.componentDownload(targetFn, sar.SnapName(), srr, opts)
+		var targetDir string
+		if downloadDirs != nil {
+			targetDir = downloadDirs[comp]
+		}
+
+		// if the caller doesn't provide a specific target dir, use the one
+		// that the snap was downloaded to
+		if targetDir == "" {
+			targetDir = snapOpts.TargetDir
+		}
+
+		targetFn := filepath.Join(targetDir, baseName)
+
+		downloadedComp, err := tsto.componentDownload(targetFn, sar.SnapName(), srr, snapOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -348,7 +360,7 @@ type CurrentSnap struct {
 }
 
 type DownloadManyOptions struct {
-	BeforeDownloadFunc func(*snap.Info, map[string]*snap.ComponentInfo) (targetPath string, err error)
+	BeforeDownloadFunc func(*snap.Info, map[string]*snap.ComponentInfo) (targetPath string, compPaths map[string]string, err error)
 	EnforceValidation  bool
 }
 
@@ -371,7 +383,6 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 		actionFlag = store.SnapActionEnforceValidation
 	}
 
-	downloadedSnaps = make(map[string]*DownloadedSnap, len(toDownload))
 	current := make([]*store.CurrentSnap, 0, len(curSnaps))
 	for _, csnap := range curSnaps {
 		ch := "stable"
@@ -388,6 +399,7 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 		})
 	}
 
+	toDownloadByName := make(map[string]SnapToDownload, len(toDownload))
 	actions := make([]*store.SnapAction, 0, len(toDownload))
 	for _, sn := range toDownload {
 		actions = append(actions, &store.SnapAction{
@@ -399,6 +411,7 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 			Flags:          actionFlag,
 			ValidationSets: sn.ValidationSets,
 		})
+		toDownloadByName[sn.Snap.SnapName()] = sn
 	}
 
 	sars, _, err := tsto.sto.SnapAction(context.TODO(), current, actions, nil, nil,
@@ -408,11 +421,17 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 		return nil, err
 	}
 
-	for i, sar := range sars {
+	downloadedSnaps = make(map[string]*DownloadedSnap, len(toDownload))
+	for _, sar := range sars {
+		snapToDownload, ok := toDownloadByName[sar.SnapName()]
+		if !ok {
+			return nil, fmt.Errorf("store returned unsolicited snap action: %s", sar.SnapName())
+		}
+
 		// Create component infos from resource data for the components we will download
 		cinfos := make(map[string]*snap.ComponentInfo, len(sar.Resources))
 		for _, res := range sar.Resources {
-			if !strutil.ListContains(toDownload[i].CompsToDownload, res.Name) {
+			if !strutil.ListContains(snapToDownload.CompsToDownload, res.Name) {
 				continue
 			}
 
@@ -427,7 +446,7 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 				cref, ctyp, res.Version, "", "", sar.Provenance(), csi)
 		}
 
-		targetPath, err := opts.BeforeDownloadFunc(sar.Info, cinfos)
+		targetPath, compPaths, err := opts.BeforeDownloadFunc(sar.Info, cinfos)
 		if err != nil {
 			return nil, err
 		}
@@ -437,9 +456,14 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 		}
 		downloadedSnaps[sar.SnapName()] = dlSnap
 
+		downloadDirs := make(map[string]string, len(compPaths))
+		for compName, compPath := range compPaths {
+			downloadDirs[compName] = filepath.Dir(compPath)
+		}
+
 		// Download components
 		downloadedSnapComps, err := tsto.downloadComponents(
-			toDownload[i].CompsToDownload, &sar,
+			snapToDownload.CompsToDownload, &sar, downloadDirs,
 			DownloadSnapOptions{TargetDir: filepath.Dir(targetPath)})
 		if err != nil {
 			return nil, err

@@ -8,8 +8,7 @@ details: |
     the namespace and retry again.
 
 systems:
-    # the snaps aren't available for ARM or 32bit systems.
-    - -ubuntu-*-32
+    # the snaps aren't available for ARM.
     - -ubuntu-*-arm*
 
 prepare: |

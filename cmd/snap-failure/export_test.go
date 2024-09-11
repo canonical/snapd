@@ -19,7 +19,9 @@
 
 package main
 
-import "time"
+import (
+	"time"
+)
 
 var (
 	Run       = run

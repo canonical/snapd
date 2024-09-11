@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -1726,6 +1727,9 @@ func applyUpdates(structureLocations map[string]map[int]StructureLocation, new G
 			return fmt.Errorf("cannot observe prepared update: %v", err)
 		}
 	}
+
+	// Inject fault during update of boot assets
+	osutil.MaybeInjectFault("update-boot-assets")
 
 	var updateErr error
 	var updateLastAttempted int

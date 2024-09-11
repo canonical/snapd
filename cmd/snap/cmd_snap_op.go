@@ -439,7 +439,7 @@ func maybeWithSudoSecurePath() bool {
 		return false
 	}
 	// Known distros setting secure_path that does not include
-	// $SNAP_MOUNT_DIR/bin:
+	// $STATIC_SNAP_MOUNT_DIR/bin:
 	return release.DistroLike("fedora", "opensuse", "debian")
 }
 

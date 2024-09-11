@@ -51,6 +51,14 @@ restore: |
             REBOOT_NEEDED=true
         fi
 
+        # find out what is the revision of the base in seed and one that is
+        # currently installed, if different a reboot will be issued
+        seed_base_rev="$(basename /var/lib/snapd/seed/snaps/core18_*.snap | cut -f1 -d. | cut -f2 -d_)"
+        cur_base_rev="$(readlink /snap/core18/current)"
+        if [ "$seed_base_rev" != "$cur_base_rev" ]; then
+            REBOOT_NEEDED=true
+        fi
+
         systemctl stop snapd.service snapd.socket
 
         clean_snapd_lib
@@ -79,6 +87,11 @@ restore: |
         find /var/snap
         exit 1
     fi
+
+debug: |
+   snap changes || true
+   snap change 1 || true
+   journalctl -u snapd --no-pager || true
 
 execute: |
     #shellcheck source=tests/lib/core-config.sh

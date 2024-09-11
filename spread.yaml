@@ -123,9 +123,7 @@ backends:
                   workers: 6
             - ubuntu-16.04-64:
                   workers: 8
-                  storage: 12G
-            - ubuntu-18.04-32:
-                  workers: 6
+                  storage: 15G
             - ubuntu-18.04-64:
                   storage: 15G
                   workers: 8
@@ -137,9 +135,6 @@ backends:
                   workers: 1
                   secure-boot: true
             - ubuntu-22.04-64:
-                  storage: 15G
-                  workers: 8
-            - ubuntu-23.10-64:
                   storage: 15G
                   workers: 8
             - ubuntu-24.04-64:
@@ -185,12 +180,22 @@ backends:
         halt-timeout: 2h
         systems:
             - ubuntu-pro-20.04-64:
-                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-focal-v20240614
+                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-lts
                   workers: 1
                   attach-service-account: true
 
             - ubuntu-pro-22.04-64:
-                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-focal-v20240614
+                  image: ubuntu-os-pro-cloud/ubuntu-pro-2204-lts
+                  workers: 1
+                  attach-service-account: true
+
+            - ubuntu-fips-20.04-64:
+                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-lts
+                  workers: 1
+                  attach-service-account: true
+
+            - ubuntu-fips-22.04-64:
+                  image: ubuntu-os-pro-cloud/ubuntu-pro-2204-lts
                   workers: 1
                   attach-service-account: true
 
@@ -271,9 +276,6 @@ backends:
                   storage: 12G
                   workers: 8
             - ubuntu-22.04-64:
-                  storage: 12G
-                  workers: 8
-            - ubuntu-23.10-64:
                   storage: 12G
                   workers: 8
             - ubuntu-24.04-64:
@@ -373,13 +375,7 @@ backends:
     qemu:
         memory: 4G
         systems:
-            - ubuntu-14.04-32:
-                  username: ubuntu
-                  password: ubuntu
             - ubuntu-14.04-64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-16.04-32:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-16.04-64:
@@ -410,19 +406,10 @@ backends:
             - ubuntu-18.04-64:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-18.04-32:
-                  username: ubuntu
-                  password: ubuntu
             - ubuntu-20.04-64:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-20.04-32:
-                  username: ubuntu
-                  password: ubuntu
             - ubuntu-22.04-64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-23.10-64:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-24.04-64:
@@ -460,14 +447,8 @@ backends:
             - ubuntu-14.04-amd64:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-14.04-i386:
-                  username: ubuntu
-                  password: ubuntu
             # Xenial
             - ubuntu-16.04-amd64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-16.04-i386:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-16.04-ppc64el:
@@ -481,9 +462,6 @@ backends:
                   password: ubuntu
             # Bionic
             - ubuntu-18.04-amd64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-18.04-i386:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-18.04-ppc64el:
@@ -502,9 +480,6 @@ backends:
             - ubuntu-20.04-amd64:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-20.04-i386:
-                  username: ubuntu
-                  password: ubuntu
             - ubuntu-20.04-ppc64el:
                   username: ubuntu
                   password: ubuntu
@@ -519,9 +494,6 @@ backends:
                   password: ubuntu
             # Jammy
             - ubuntu-22.04-amd64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-22.04-i386:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-22.04-ppc64el:
@@ -824,6 +796,26 @@ prepare: |
         apt-get update && apt-get install -y eatmydata
     fi
 
+    if [[ "$SPREAD_SYSTEM" == ubuntu-fips-* ]]; then
+        pro status
+
+        if [[ "$SPREAD_REBOOT" = 0 ]]; then
+            echo "--- enabling FIPS"
+            pro enable fips-updates --assume-yes
+            REBOOT
+        fi
+
+        if ! [ "$(cat /proc/sys/crypto/fips_enabled)" = "1" ]; then
+            echo "FIPS not enabled"
+            exit 1
+        fi
+
+        # enable GO FIPS PPA
+        add-apt-repository --yes ppa:ubuntu-toolchain-r/golang-fips
+        # XXX pin priority?
+        apt update
+    fi
+
     # Enable EPEL see https://docs.fedoraproject.org/en-US/epel/
     case "$SPREAD_SYSTEM" in
         centos-9-*)
@@ -954,7 +946,7 @@ suites:
     # All other tests run now and will heavily modify the system.
     tests/main/:
         summary: Full-system tests for snapd
-        systems: [-ubuntu-secboot-*]
+        systems: [-ubuntu-secboot-*, -ubuntu-fips-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -981,7 +973,7 @@ suites:
     tests/completion/:
         summary: completion tests
         # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
-        systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -ubuntu-secboot-*]
+        systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -ubuntu-secboot-*, -ubuntu-fips-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -1008,7 +1000,7 @@ suites:
 
     tests/regression/:
         summary: Regression tests for snapd
-        systems: [-ubuntu-secboot-*]
+        systems: [-ubuntu-secboot-*, -ubuntu-fips-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -1065,6 +1057,7 @@ suites:
                 -amazon-*,
                 -centos-*,
                 -ubuntu-secboot-*,
+                -ubuntu-fips-*,
             ]
         # unittests are run as part of the autopkgtest build already
         backends: [-autopkgtest]
@@ -1404,5 +1397,27 @@ suites:
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
+
+    # FIPS test suite
+    tests/fips/:
+        summary: FIPS enabled test suite
+        systems:
+          - ubuntu-fips-*
+        environment:
+          # TODO add snap variant
+          # disable reexec so that the tests run with deb
+          SNAP_REEXEC/deb: "0"
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+        debug: |
+            if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
+                systemctl status snapd.socket || true
+            fi
 
 # vim:ts=4:sw=4:et

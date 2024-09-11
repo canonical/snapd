@@ -14,7 +14,8 @@ backends: [-autopkgtest]
 #                 labels, labels can only be exported for NFSv4.2+ with security_label option
 # ubuntu-14.04-64: group 'systemd-journal' does not exist
 # amazon-linux-2023: nfs service unit does not exist
-systems: [-ubuntu-core-*, -opensuse-*, -fedora-*, -centos-*, -ubuntu-14.04-64, -amazon-linux-2023-*]
+# debian-sid: sg is broken and not shipped with 'login' https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1078122
+systems: [-ubuntu-core-*, -opensuse-*, -fedora-*, -centos-*, -ubuntu-14.04-64, -amazon-linux-2023-*, -debian-sid-*]
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
@@ -106,14 +107,16 @@ execute: |
     }
     ensure_extra_perms() {
         if [ "$(snap debug confinement)" = strict ]; then
-            MATCH 'network inet,' < /var/lib/snapd/apparmor/snap-confine/nfs-support
+            # we're using the internal apparmor parser
+            MATCH 'network inet,' < /var/lib/snapd/apparmor/snap-confine.internal/nfs-support
             MATCH 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
         fi
     }
 
     ensure_normal_perms() {
         if [ "$(snap debug confinement)" = strict ]; then
-            test ! -e /var/lib/snapd/apparmor/snap-confine/nfs-support
+            # we're using the internal apparmor parser
+            test ! -e /var/lib/snapd/apparmor/snap-confine.internal/nfs-support
             NOMATCH 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
         fi
     }

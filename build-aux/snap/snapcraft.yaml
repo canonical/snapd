@@ -287,7 +287,16 @@ parts:
              ;;
            *)
              export CGO_ENABLED=1
-             GO_LD_FLAGS=()
+             case "${CRAFT_ARCH_BUILD_FOR}" in
+               armhf)
+                 # https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/1822738
+                 BUILDMODE=()
+                 ;;
+               *)
+                 BUILDMODE=(-buildmode=pie)
+                 ;;
+             esac
+             GO_LD_FLAGS=("${BUILDMODE[@]}")
              unset CHECK_STATIC
              ;;
         esac
@@ -319,9 +328,11 @@ parts:
         if [ -f fips-build ]; then
           case "${cmd}" in
             # per snapd FIPS spec, FIPS build tags are only relevant for snapd,
-            # snap, snap-repair and snap-bootstrap
+            # snap, snap-repair and snap-bootstrap, tags:
+            # - goexperiment.opensslcrypto - enable openssl crypto backend
+            # - snapdfips - enable additional FIPS support (enforce FIPS compliant TLS)
             bin/snap|lib/snapd/snapd|lib/snapd/snap-repair|lib/snapd/snap-bootstrap)
-              TAGS+=(goexperiment.opensslcrypto)
+              TAGS+=(goexperiment.opensslcrypto snapdfips)
               ;;
           esac
         fi

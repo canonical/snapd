@@ -26,22 +26,20 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"syscall"
-	"time"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/timings"
-	"github.com/snapcore/snapd/usersession/client"
 	"github.com/snapcore/snapd/wrappers"
 )
 
 var wrappersAddSnapdSnapServices = wrappers.AddSnapdSnapServices
+var cgroupKillSnapProcesses = cgroup.KillSnapProcesses
 
 // LinkContext carries additional information about the current or the previous
 // state of the snap
@@ -68,6 +66,32 @@ type LinkContext struct {
 	// SkipBinaries indicates that we should skip removing snap binaries,
 	// icons and desktop files in UnlinkSnap
 	SkipBinaries bool
+
+	// HasOtherInstances indicates that other instances of the snap are
+	// already installed in the system.
+	HasOtherInstances bool
+}
+
+func createSharedSnapDirForParallelInstance(s snap.PlaceInfo) error {
+	_, key := snap.SplitInstanceName(s.InstanceName())
+
+	if key != "" {
+		err := os.MkdirAll(snap.BaseDir(s.SnapName()), 0755)
+		if err != nil && !os.IsExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+func removeSharedSnapDirForParallelInstance(s snap.PlaceInfo) {
+	_, instanceKey := snap.SplitInstanceName(s.InstanceName())
+
+	if instanceKey != "" {
+		// failure to remove is ok, there may be revisions of the
+		// instance-less snap installed in the system
+		os.Remove(snap.BaseDir(s.SnapName()))
+	}
 }
 
 func updateCurrentSymlinks(info *snap.Info) (revert func(), e error) {
@@ -164,8 +188,21 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 		}
 	}
 
+	// only after link snap it will be possible to execute snap
+	// applications, so ensure that the shared snap directory exists for
+	// parallel installed snaps
+	if err := createSharedSnapDirForParallelInstance(info); err != nil {
+		return boot.RebootInfo{}, err
+	}
+	cleanupSharedParallelInstanceDir := func() {
+		if !linkCtx.HasOtherInstances {
+			removeSharedSnapDirForParallelInstance(info)
+		}
+	}
+
 	revertSymlinks, err := updateCurrentSymlinks(info)
 	if err != nil {
+		cleanupSharedParallelInstanceDir()
 		return boot.RebootInfo{}, err
 	}
 	// if anything below here could return error, you need to
@@ -175,6 +212,7 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 		if err := restart.Restart(); err != nil {
 			logger.Noticef("WARNING: cannot restart services: %v", err)
 			revertSymlinks()
+			cleanupSharedParallelInstanceDir()
 
 			return boot.RebootInfo{}, err
 		}
@@ -352,6 +390,10 @@ func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress
 	// and finally remove current symlinks
 	err2 := removeCurrentSymlinks(info)
 
+	// XXX intentional lack of symmetry with LinkSnap wrt. parallel installs
+	// handling, the directory cleanup is left to be executed during the
+	// last phase of snap removal
+
 	// FIXME: aggregate errors instead
 	return firstErr(err0, err1, err2)
 }
@@ -411,21 +453,18 @@ func (b Backend) UnlinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revis
 	return nil
 }
 
-func (b Backend) KillSnapApps(snapName string, reason snap.AppKillReason, meter progress.Meter, tm timings.Measurer) error {
-	cli := client.New()
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
-	defer cancel()
+func (b Backend) KillSnapApps(snapName string, reason snap.AppKillReason, tm timings.Measurer) error {
+	if reason != snap.KillReasonOther {
+		logger.Debugf("KillSnapApps called for %q, reason: %v", snapName, reason)
+	} else {
+		logger.Debugf("KillSnapApps called for %q", snapName)
+	}
 
 	var err error
-	var failures []client.AppFailure
 	timings.Run(tm, "kill-snap-apps", fmt.Sprintf("kill running apps for snap %s", snapName), func(timings.Measurer) {
-		failures, err = cli.AppsKill(ctx, []string{snapName}, syscall.SIGKILL, reason)
+		// TODO: Ideally the context should come from the caller
+		err = cgroupKillSnapProcesses(context.TODO(), snapName)
 	})
-
-	for _, f := range failures {
-		meter.Notify(fmt.Sprintf("Could not kill transient unit %q for uid %d: %s", f.Unit, f.Uid, f.Error))
-	}
 
 	return err
 }

@@ -91,9 +91,9 @@ execute: |
             continue
         fi
 
-        if [ "$plug_iface" = "$CONSUMER_SNAP:qualcomm-ipc-router" ] && ( os.query is-trusty || os.query is-xenial || os.query is-core16) ; then
-            # the qualcomm-ipc-router interface is known not to work on xenial,
-            # just check that it cannot be connected and move on
+        if [ "$plug_iface" = "$CONSUMER_SNAP:qualcomm-ipc-router" ] && ( os.query is-trusty || os.query is-core16) ; then
+            # the qualcomm-ipc-router interface is known not to work on UC16
+            # without snapd, just check that it cannot be connected and move on
             snap connect "$plug_iface" "$slot_iface" 2>&1 | MATCH "cannot connect plug on system without qipcrtr socket support"
             continue
         fi

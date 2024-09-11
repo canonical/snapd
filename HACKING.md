@@ -374,11 +374,34 @@ with `gunzip` and placed into `~/.spread/qemu` as above.
 > An image for Ubuntu Core 20 that is pre-built for KVM can be downloaded from 
 [here](https://cdimage.ubuntu.com/ubuntu-core/20/stable/current/ubuntu-core-20-amd64.img.xz).
 
+#### Running spread
+
+For regular development work, the integration tests will be run with a prebuilt
+test variant of the snapd snap. The build happens automatically when starting
+the tests using `run-spread` helper like so:
+
+    $ ./run-spread <spread-args>
+
+Make sure you set up snapcraft following the [snapcraft build
+section](#building-the-snap-with-snapcraft).
+
+The test variant of the snapd snap may be built manually by invoking a helper
+script:
+
+    $ ./tests/build-test-snapd-snap
+    
+The artifact will be placed under `$PWD/built-snap`.
+
+On occasion, when working on a test and it is known that the snapd snap need not
+be rebuilt, the tests may be invoked with `NO_REBUILD=1` like so:
+
+    $ NO_REBUILD=1 ./run-spread <spread-args>
+
 #### Running spread with QEMU
 
 Finally, you can run the spread tests for Ubuntu 18.04 LTS 64-bit with:
 
-    $ spread -v qemu:ubuntu-18.04-64
+    $ ./run-spread -v qemu:ubuntu-18.04-64
 
 >To run for a different system, replace `ubuntu-18.04-64` with a different system
 name, which should be a basename of the [built](#building-spread-vm-images) or 
@@ -386,7 +409,7 @@ name, which should be a basename of the [built](#building-spread-vm-images) or
 
 For quick reuse you can use:
 
-    $ spread -reuse qemu:ubuntu-18.04-64
+    $ ./run-spread -reuse qemu:ubuntu-18.04-64
 
 It will print how to reuse the systems. Make sure to use
 `export REUSE_PROJECT=1` in your environment too.

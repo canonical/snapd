@@ -101,3 +101,9 @@ func MockServicestateControl(f func(st *state.State, appInfos []*snap.AppInfo, i
 func MockServicestateChangeTimeout(v time.Duration) func() {
 	return testutil.Mock(&serviceStartChangeTimeout, v)
 }
+
+func MockEnvPath(newEnvPath string) func() {
+	oldEnvPath := envFilePath
+	envFilePath = newEnvPath
+	return func() { envFilePath = oldEnvPath }
+}

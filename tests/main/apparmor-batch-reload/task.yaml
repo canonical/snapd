@@ -41,8 +41,10 @@ execute: |
     echo "Update system key"
     printf '{"version":1}' > /var/lib/snapd/system-key
 
-    echo "Replace apparmor parser with a broken one"
-    cp -f bin/apparmor_parser.fake /sbin/apparmor_parser
+    # snapd will execute the vendored apparmor-parser from the snapd snap
+    echo "Replace apparmor parser from the snapd snap with a broken one"
+    mount -o bind bin/apparmor_parser.fake /snap/snapd/current/usr/lib/snapd/apparmor_parser
+    tests.cleanup defer umount /snap/snapd/current/usr/lib/snapd/apparmor_parser
 
     # remove all apparmor cached profiles so we can check they are recreated
     rm -f $AA_CACHE/snap* $AA_CACHE/*/snap*

@@ -1,0 +1,37 @@
+summary: Check whether snapd works in FIPS mode
+details: |
+  Check whether snapd works correctly in a FIPS enabled system.
+
+systems:
+  - ubuntu-2*
+  - ubuntu-fips-*
+
+debug: |
+    cat snapd-map-fips.out || true
+    cat snapd-map-non-fips.out || true
+
+execute: |
+    pmap -p "$(pidof snapd)" > snapd-map.out
+    case "$SPREAD_SYSTEM" in
+        ubuntu-fips-*)
+            # this is checked in spread prepare, but let's be sure
+            [ "$(cat /proc/sys/crypto/fips_enabled)" = "1" ]
+
+            # TODO when executing with FIPS snapd snap, the paths shall come
+            # from the snapd snap
+            # libcrypto is loaded at runtime, this is what we're trying to
+            # match:
+            # 00007fc16068d000    712K r---- /usr/lib/x86_64-linux-gnu/libcrypto.so.3
+            MATCH ' /usr/lib/.*/libcrypto.*\.so.*' < snapd-map.out
+            if os.query is-ubuntu-ge 22.04; then
+                # since 22.04 openssl 3.x uses a separate fips.so runtime
+                # module:
+                # 00007fc160532000     96K r---- /usr/lib/x86_64-linux-gnu/ossl-modules-3/fips.so
+                MATCH ' /usr/lib/.*/ossl-modules-3/fips.so' < snapd-map.out
+            fi
+            ;;
+        ubuntu-*)
+            # no libcrypto, pure Go stack
+            NOMATCH 'libcrypto.*\.so.*' < snapd-map.out
+            ;;
+    esac

@@ -21,6 +21,7 @@ package main_test
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 
@@ -55,7 +56,7 @@ func (s *commonSuite) TestInstanceName(c *C) {
 func (s *commonSuite) TestLock(c *C) {
 	// Mock away real freezer code, allowing test code to return an error when freezing.
 	var freezingError error
-	restore := cgroup.MockFreezing(func(string) error { return freezingError }, func(string) error { return nil })
+	restore := cgroup.MockFreezing(func(context.Context, string) error { return freezingError }, func(string) error { return nil })
 	defer restore()
 	// Mock system directories, we use the lock directory.
 	dirs.SetRootDir(s.dir)

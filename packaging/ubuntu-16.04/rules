@@ -16,9 +16,23 @@ export DH_GOPKG := github.com/snapcore/snapd
 export DH_GOLANG_EXCLUDES=tests
 export DH_GOLANG_GO_GENERATE=1
 
+VERSION := $(shell dpkg-parsechangelog -S Version)
+
+ifneq (,$(findstring +fips,$(VERSION))))
+	# the version has +fips tag, we're building a FIPS variant
+	FIPSBUILD = 1
+else
+	FIPSBUILD = 0
+endif
+
 export PATH:=${PATH}:${CURDIR}
 # make sure that correct go version is found on xenial
 export PATH:=/usr/lib/go-1.18/bin:${PATH}
+ifeq (${FIPSBUILD},1)
+	# when building with FIPS, use Go 1.21 which is also declared in build
+	# dependencies
+	export PATH:=/usr/lib/go-1.21/bin:${PATH}
+endif
 # GOCACHE is needed by go-1.13+
 export GOCACHE:=/tmp/go-build
 
@@ -83,16 +97,25 @@ endif
 # build with "tpm" support on ubuntu by default
 # TAGS are the go build tags for all binaries, SNAP_TAGS are for snap and
 # snap-bootstrap build only.
-TAGS=
-SNAP_TAGS=
+_TAGS=
+_SNAP_TAGS=
 # check if we need to include the testkeys in the binary
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
   # if enabled also enable bootloader assets testing and fault injection
-	TAGS=-tags "withtestkeys withbootassetstesting faultinject"
-	SNAP_TAGS=-tags "nomanagers withtestkeys faultinject"
+	_TAGS := withtestkeys,withbootassetstesting,faultinject
+	_SNAP_TAGS := nomanagers,withtestkeys,faultinject
 else
-	SNAP_TAGS=-tags nomanagers
+	_SNAP_TAGS=nomanagers
 endif
+
+ifeq (${FIPSBUILD},1)
+  # if enabled also enable bootloader assets testing and fault injection
+	_TAGS := $(_TAGS),goexperiment.opensslcrypto
+	_SNAP_TAGS := $(_SNAP_TAGS),goexperiment.opensslcrypto
+endif
+
+TAGS=-tags "$(_TAGS)"
+SNAP_TAGS=-tags "$(_SNAP_TAGS)"
 
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 

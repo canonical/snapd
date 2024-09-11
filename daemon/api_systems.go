@@ -171,7 +171,11 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 			Validation:  sys.Brand.Validation(),
 		},
 		// no body: we expect models to have empty bodies
-		Model:             sys.Model.Headers(),
+		Model: sys.Model.Headers(),
+		AvailableOptional: client.AvailableForInstall{
+			Snaps:      sys.OptionalContainers.Snaps,
+			Components: sys.OptionalContainers.Components,
+		},
 		Volumes:           gadgetInfo.Volumes,
 		StorageEncryption: storageEncryption(encryptionInfo),
 	}
@@ -325,7 +329,25 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 		ensureStateSoon(st)
 		return AsyncResponse(nil, chg.ID())
 	case client.InstallStepFinish:
-		chg, err := devicestateInstallFinish(st, systemLabel, req.OnVolumes)
+		var optional *devicestate.OptionalContainers
+		if req.OptionalInstall != nil {
+			// note that we provide a nil optional install here in the case that
+			// the request set the All field to true. the nil optional install
+			// indicates that all opitonal snaps and components should be
+			// installed.
+			if req.OptionalInstall.All {
+				if len(req.OptionalInstall.Components) > 0 || len(req.OptionalInstall.Snaps) > 0 {
+					return BadRequest("cannot specify both all and individual optional snaps and components to install")
+				}
+			} else {
+				optional = &devicestate.OptionalContainers{
+					Snaps:      req.OptionalInstall.Snaps,
+					Components: req.OptionalInstall.Components,
+				}
+			}
+		}
+
+		chg, err := devicestateInstallFinish(st, systemLabel, req.OnVolumes, optional)
 		if err != nil {
 			return BadRequest("cannot finish install for %q: %v", systemLabel, err)
 		}

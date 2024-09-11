@@ -150,12 +150,12 @@ func (s *emulation) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions
 	// Pass directly options, note that passed options need to be correct
 	// for the final target that will use the preseeding tarball. See also
 	// comment in EnsureMountUnitFile.
-	mountUnitName, modified, err := ensureMountUnitFile(unitOptions)
+	mountUnitName, modified, err := EnsureMountUnitFileContent(unitOptions)
 	if err != nil {
 		return "", err
 	}
 
-	if modified == mountUnchanged {
+	if modified == MountUnchanged {
 		return mountUnitName, nil
 	}
 
@@ -169,8 +169,8 @@ func (s *emulation) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions
 	// systemd.EnsureMountUnitFile. For instance, when preseeding in a lxd
 	// container, the snap will be mounted with fuse, but mount unit will
 	// use squashfs.
-	hostFsType, actualOptions := hostFsTypeAndMountOptions(unitOptions.Fstype)
-	if modified == mountUpdated {
+	hostFsType, actualOptions := HostFsTypeAndMountOptions(unitOptions.Fstype)
+	if modified == MountUpdated {
 		actualOptions = append(actualOptions, "remount")
 	}
 	cmd := exec.Command("mount", "-t", hostFsType, unitOptions.What, unitOptions.Where, "-o", strings.Join(actualOptions, ","))
@@ -215,10 +215,6 @@ func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 
 func (s *emulation) ListMountUnits(snapName, origin string) ([]string, error) {
 	return nil, &notImplementedError{"ListMountUnits"}
-}
-
-func (s *emulation) ListUnits(pattern string) ([]string, error) {
-	return nil, &notImplementedError{"ListUnits"}
 }
 
 func (s *emulation) Mask(service string) error {

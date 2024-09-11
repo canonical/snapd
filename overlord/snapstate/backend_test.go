@@ -382,6 +382,19 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				},
 			},
 		}
+	case "channel-for-media":
+		info.Media = snap.MediaInfos{
+			snap.MediaInfo{
+				Type:   "icon",
+				URL:    "http://example.com/icon.png",
+				Width:  100,
+				Height: 100,
+			},
+			snap.MediaInfo{
+				Type: "website",
+				URL:  "http://example.com",
+			},
+		}
 	}
 
 	if spec.Name == "provenance-snap" {
@@ -1224,6 +1237,8 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx b
 
 		vitalityRank:        vitalityRank,
 		requireSnapdTooling: linkCtx.RequireMountedSnapdSnap,
+
+		otherInstances: linkCtx.HasOtherInstances,
 	}
 
 	if info.MountDir() == f.linkSnapFailTrigger {
@@ -1280,6 +1295,7 @@ func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, disabledSvcs *wr
 }
 
 func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
+	meter.Notify("stop-services")
 	f.appendOp(&fakeOp{
 		op:   fmt.Sprintf("stop-snap-services:%s", reason),
 		path: svcSnapMountDir(svcs),
@@ -1287,10 +1303,7 @@ func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.Servi
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) KillSnapApps(snapName string, reason snap.AppKillReason, meter progress.Meter, tm timings.Measurer) error {
-	// This ensures we are using the right variant between NewTaskProgressAdapter{Locked,Unlocked}
-	meter.Notify("kill-snap-apps")
-
+func (f *fakeSnappyBackend) KillSnapApps(snapName string, reason snap.AppKillReason, tm timings.Measurer) error {
 	f.appendOp(&fakeOp{
 		op:   fmt.Sprintf("kill-snap-apps:%s", reason),
 		name: snapName,
@@ -1372,6 +1385,7 @@ func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, linkCtx backend.LinkCont
 
 		unlinkFirstInstallUndo: linkCtx.FirstInstall,
 		unlinkSkipBinaries:     linkCtx.SkipBinaries,
+		otherInstances:         linkCtx.HasOtherInstances,
 	})
 	return f.maybeErrForLastOp()
 }

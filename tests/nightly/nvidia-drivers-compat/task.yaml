@@ -1,0 +1,41 @@
+summary: Collect and check nvidia driver libraries
+
+details: |
+  The test collects information about userspace libraries shipped by various
+  nvidia driver releases across a number of Ubuntu releases.
+
+# it's enough to run on a single host as the test launches all other releases in
+# containers
+
+systems: [ubuntu-24.04-64]
+
+kill-timeout: 60m
+
+prepare: |
+  "$TESTSTOOLS"/lxd-state prepare-snap
+
+restore: |
+  "$TESTSTOOLS"/lxd-state undo-mount-changes
+
+execute: |
+  # TODO include Debian?
+  ./collect-release.sh 18.04
+  ./collect-release.sh 20.04
+  ./collect-release.sh 22.04
+  ./collect-release.sh 24.04
+  # TODO add future releases here?
+
+  # TODO share reference test data with data from
+  # https://github.com/canonical/snapd/pull/14293
+
+  # shellcheck disable=SC2035
+  cat *.libs | LC_ALL=C sort -ud --stable > drivers-common.libs
+
+  echo "--- diffs should be empty if there are no new driver releases"
+  for f in *-nvidia-driver-*.libs; do
+      echo "--- checking drivers list $f"
+      diff -up "reference/$f" "$f"
+  done
+  diff -up reference/drivers-common.libs drivers-common.libs
+
+  # XXX update drivers-common.libs and commit

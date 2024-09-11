@@ -1280,7 +1280,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Check(snapstate.AuxStoreInfoFilename("some-snap-id"), testutil.FileAbsent)
 
 	chg := s.state.NewChange("install", "install a snap")
-	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	opts := &snapstate.RevisionOptions{Channel: "channel-for-media"}
 	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
@@ -1307,7 +1307,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			action: store.SnapAction{
 				Action:       "install",
 				InstanceName: "some-snap",
-				Channel:      "some-channel",
+				Channel:      "channel-for-media",
 			},
 			revno:  snap.R(11),
 			userID: 1,
@@ -1331,7 +1331,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				SnapID:   "some-snap-id",
-				Channel:  "some-channel",
+				Channel:  "channel-for-media",
 				Revision: snap.R(11),
 			},
 		},
@@ -1360,7 +1360,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				SnapID:   "some-snap-id",
-				Channel:  "some-channel",
+				Channel:  "channel-for-media",
 				Revision: snap.R(11),
 			},
 		},
@@ -1392,7 +1392,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	_, cur, total := task.Progress()
 	c.Assert(cur, Equals, s.fakeStore.fakeCurrentProgress)
 	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
-	c.Check(task.Summary(), Equals, `Download snap "some-snap" (11) from channel "some-channel"`)
+	c.Check(task.Summary(), Equals, `Download snap "some-snap" (11) from channel "channel-for-media"`)
 
 	// check install-record present
 	mountTask := ta[len(ta)-12]
@@ -1411,22 +1411,22 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	var snapsup snapstate.SnapSetup
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
-	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel:  "some-channel",
-		UserID:   s.user.ID,
-		SnapPath: filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
-		DownloadInfo: &snap.DownloadInfo{
-			DownloadURL: "https://some-server.com/some/path.snap",
-			Size:        5,
-		},
-		SideInfo:  snapsup.SideInfo,
-		Type:      snap.TypeApp,
-		Version:   "some-snapVer",
-		PlugsOnly: true,
+
+	c.Assert(snapsup.Channel, Equals, "channel-for-media")
+	c.Assert(snapsup.UserID, Equals, s.user.ID)
+	c.Assert(snapsup.SnapPath, Matches, `.*some-snap_11.snap`)
+	c.Assert(snapsup.DownloadInfo, DeepEquals, &snap.DownloadInfo{
+		DownloadURL: "https://some-server.com/some/path.snap",
+		Size:        5,
 	})
+	c.Assert(snapsup.SideInfo, DeepEquals, snapsup.SideInfo)
+	c.Assert(snapsup.Type, Equals, snap.TypeApp)
+	c.Assert(snapsup.Version, Equals, "some-snapVer")
+	c.Assert(snapsup.PlugsOnly, Equals, true)
+
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
-		Channel:  "some-channel",
+		Channel:  "channel-for-media",
 		Revision: snap.R(11),
 		SnapID:   "some-snap-id",
 	})
@@ -1439,17 +1439,36 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	snapst := snaps["some-snap"]
 	c.Assert(snapst, NotNil)
 	c.Assert(snapst.Active, Equals, true)
-	c.Assert(snapst.TrackingChannel, Equals, "some-channel/stable")
+	c.Assert(snapst.TrackingChannel, Equals, "channel-for-media/stable")
 	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideState(&snap.SideInfo{
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
-		Channel:  "some-channel",
+		Channel:  "channel-for-media",
 		Revision: snap.R(11),
 	}, nil))
 	c.Assert(snapst.Required, Equals, false)
 
-	// we end with the auxiliary store info
-	c.Check(snapstate.AuxStoreInfoFilename("some-snap-id"), testutil.FilePresent)
+	info := snap.Info{
+		SideInfo: snap.SideInfo{
+			SnapID:   "some-snap-id",
+			RealName: "some-snap",
+		},
+	}
+	err = snapstate.RetrieveAuxStoreInfo(&info)
+	c.Assert(err, IsNil)
+
+	c.Assert(info.Media, DeepEquals, snap.MediaInfos{
+		snap.MediaInfo{
+			Type:   "icon",
+			URL:    "http://example.com/icon.png",
+			Width:  100,
+			Height: 100,
+		},
+		snap.MediaInfo{
+			Type: "website",
+			URL:  "http://example.com",
+		},
+	})
 }
 
 func (s *snapmgrTestSuite) testParallelInstanceInstallRunThrough(c *C, inputFlags, expectedFlags snapstate.Flags) {

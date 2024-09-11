@@ -73,9 +73,13 @@ func init() {
 func pickVersionSpecificImpl() {
 	switch probeVersion {
 	case V1:
-		pickFreezerV1Impl()
+		FreezeSnapProcesses = freezeSnapProcessesImplV1
+		ThawSnapProcesses = thawSnapProcessesImplV1
+		KillSnapProcesses = killSnapProcessesImplV1
 	case V2:
-		pickFreezerV2Impl()
+		FreezeSnapProcesses = freezeSnapProcessesImplV2
+		ThawSnapProcesses = thawSnapProcessesImplV2
+		KillSnapProcesses = killSnapProcessesImplV2
 	}
 }
 
