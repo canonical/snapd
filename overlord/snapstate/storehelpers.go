@@ -454,6 +454,16 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]st
 			continue
 		}
 
+		comps, err := snapst.ComponentInfosForRevision(snapInfo.Revision)
+		if err != nil {
+			return nil, err
+		}
+
+		resources := make(map[string]snap.Revision, len(comps))
+		for _, comp := range comps {
+			resources[comp.Component.ComponentName] = comp.Revision
+		}
+
 		installed := &store.CurrentSnap{
 			InstanceName: snapInfo.InstanceName(),
 			SnapID:       snapInfo.SnapID,
@@ -465,6 +475,7 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]st
 			Epoch:            snapInfo.Epoch,
 			CohortKey:        snapst.CohortKey,
 			HeldBy:           holds[snapInfo.InstanceName()],
+			Resources:        resources,
 		}
 		curSnaps = append(curSnaps, installed)
 
@@ -680,13 +691,16 @@ func storeUpdatePlanCore(
 			return updatePlan{}, err
 		}
 
+		// build a list of components that are currently installed to then
+		// extract from the action results
 		compNames := make([]string, 0, len(currentComps))
 		for _, comp := range currentComps {
 			compNames = append(compNames, comp.Component.ComponentName)
 		}
 
-		// TODO:COMPS: handle components losing a resource that is currently
-		// installed
+		// compTargets will be filtered down to only the components that appear
+		// in the action result, meaning that we might install fewer components
+		// than we have installed right now
 		compTargets, err := componentTargetsFromActionResult("refresh", sar, compNames)
 		if err != nil {
 			return updatePlan{}, fmt.Errorf("cannot extract components from snap resources: %w", err)
