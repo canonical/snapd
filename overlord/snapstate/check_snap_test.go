@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os/user"
@@ -1523,4 +1524,159 @@ func (s *checkSnapSuite) TestCheckConfigureHooksUnHappy(c *C) {
 
 	err := snapstate.CheckSnap(s.st, "snap-path", "snap-with-default-configure", nil, nil, snapstate.Flags{}, nil)
 	c.Check(err, ErrorMatches, `cannot specify "default-configure" hook without "configure" hook`)
+}
+
+const desktopFileIDsYamlTemplate = `
+name: %s
+version: 1.0
+plugs:
+  desktop:
+    desktop-file-ids: [org.example.Foo]
+`
+
+func (s *snapmgrTestSuite) TestCheckDesktopFileIDsConflicts(c *C) {
+	someSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(desktopFileIDsYamlTemplate, "some-snap")))
+	c.Assert(err, IsNil)
+	c.Assert(someSnap.Plugs["desktop"], NotNil)
+	otherSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(desktopFileIDsYamlTemplate, "other-snap")))
+	c.Assert(err, IsNil)
+	c.Assert(otherSnap.Plugs["desktop"], NotNil)
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		switch name {
+		case "some-snap":
+			return someSnap, nil
+		case "other-snap":
+			return otherSnap, nil
+		default:
+			return s.fakeBackend.ReadInfo(name, si)
+		}
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	si := &snap.SideInfo{
+		RealName: "other-snap",
+		Revision: snap.R(-42),
+	}
+	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+
+	err = snapstate.CheckDesktopFileIDsConflicts(s.state, someSnap)
+	c.Assert(err, ErrorMatches, `snap "some-snap" requesting desktop-file-id "org.example.Foo" conflicts with snap "other-snap" use`)
+}
+
+func (s *snapmgrTestSuite) TestCheckDesktopFileIDsConflictsNoConflictWithSelf(c *C) {
+	someSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(desktopFileIDsYamlTemplate, "some-snap")))
+	c.Assert(err, IsNil)
+	c.Assert(someSnap.Plugs["desktop"], NotNil)
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		switch name {
+		case "some-snap":
+			return someSnap, nil
+		default:
+			return s.fakeBackend.ReadInfo(name, si)
+		}
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(-42),
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+
+	err = snapstate.CheckDesktopFileIDsConflicts(s.state, someSnap)
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestInstallDesktopFileIDsConflicts(c *C) {
+	someSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(desktopFileIDsYamlTemplate, "some-snap")))
+	c.Assert(err, IsNil)
+	c.Assert(someSnap.Plugs["desktop"], NotNil)
+	otherSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(desktopFileIDsYamlTemplate, "other-snap")))
+	c.Assert(err, IsNil)
+	c.Assert(otherSnap.Plugs["desktop"], NotNil)
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		switch name {
+		case "some-snap":
+			return someSnap, nil
+		case "other-snap":
+			return otherSnap, nil
+		default:
+			return s.fakeBackend.ReadInfo(name, si)
+		}
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	si := &snap.SideInfo{
+		RealName: "other-snap",
+		Revision: snap.R(-42),
+	}
+	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+
+	// Conflict should be detected in early checks
+	opts := &snapstate.RevisionOptions{Channel: "channel-for-desktop-file-ids"}
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `snap "some-snap" requesting desktop-file-id "org.example.Foo" conflicts with snap "other-snap" use`)
+}
+
+func (s *snapmgrTestSuite) TestInstallManyDesktopFileIDsConflicts(c *C) {
+	someSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(desktopFileIDsYamlTemplate, "some-snap")))
+	c.Assert(err, IsNil)
+	c.Assert(someSnap.Plugs["desktop"], NotNil)
+	otherSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(desktopFileIDsYamlTemplate, "other-snap")))
+	c.Assert(err, IsNil)
+	c.Assert(otherSnap.Plugs["desktop"], NotNil)
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		switch name {
+		case "some-snap":
+			return someSnap, nil
+		case "other-snap":
+			return otherSnap, nil
+		default:
+			return s.fakeBackend.ReadInfo(name, si)
+		}
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapNames := []string{"some-snap", "other-snap"}
+	// Don't use channel-for-desktop-file-ids to pass early checks and instead fail inside the install transaction
+	_, tss, err := snapstate.InstallMany(s.state, snapNames, nil, s.user.ID, nil)
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("install", "install two snaps")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	s.settle(c)
+
+	// The order of installation is indeterminant, but one will fail
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n- Make snap "(some|other)-snap" \(11\) available to the system \(snap "(some|other)-snap" requesting desktop-file-id "org.example.Foo" conflicts with snap "(some|other)-snap" use\)`)
 }

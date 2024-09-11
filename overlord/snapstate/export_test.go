@@ -171,6 +171,11 @@ var (
 	CheckDBusServiceConflicts = checkDBusServiceConflicts
 )
 
+// desktop-file-ids
+var (
+	CheckDesktopFileIDsConflicts = checkDesktopFileIDsConflicts
+)
+
 // readme files
 var (
 	WriteSnapReadme = writeSnapReadme

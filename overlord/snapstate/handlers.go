@@ -2164,6 +2164,11 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	if err := checkDBusServiceConflicts(st, newInfo); err != nil {
 		return err
 	}
+	// Check for desktop-file-ids conflicts a second time to detect
+	// conflicts within a transaction.
+	if err := checkDesktopFileIDsConflicts(st, newInfo); err != nil {
+		return err
+	}
 
 	opts, err := SnapServiceOptions(st, newInfo, nil)
 	if err != nil {

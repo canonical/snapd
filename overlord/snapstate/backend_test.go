@@ -395,6 +395,17 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				URL:  "http://example.com",
 			},
 		}
+	case "channel-for-desktop-file-ids":
+		info.Plugs = map[string]*snap.PlugInfo{
+			"desktop": {
+				Snap:      info,
+				Interface: "desktop",
+				Name:      "desktop",
+				Attrs: map[string]interface{}{
+					"desktop-file-ids": []interface{}{"org.example.Foo"},
+				},
+			},
+		}
 	}
 
 	if spec.Name == "provenance-snap" {
