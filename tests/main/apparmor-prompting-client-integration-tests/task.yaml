@@ -1,0 +1,89 @@
+summary: Run the prompting-client integration tests against snapd
+
+details: |
+    This test checks that the integration tests for the prompting-client pass
+    when run against snapd.
+
+systems:
+  - ubuntu-2*
+
+prepare: |
+    # Prerequisite for having a prompt handler service
+    snap set system experimental.user-daemons=true
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-prompt-handler
+    snap connect test-snapd-prompt-handler:snap-interfaces-requests-control
+
+    snap install lxd
+    lxd init --auto
+    snap install snapcraft --classic
+
+    git clone https://github.com/canonical/prompting-client /home/ubuntu/prompting-client
+
+restore: |
+    rm -rf /home/ubuntu/prompting-client
+    rm -f /home/ubuntu/integration-tests
+    snap unset system experimental.apparmor-prompting
+    snap unset system experimental.user-daemons
+
+debug: |
+    snap connections
+    snap services
+    loginctl
+
+    echo "Check kernel version"
+    uname -a
+    echo "Check kernel notification socket presence"
+    if ls /sys/kernel/security/apparmor/.notify ; then
+        echo "kernel notification socket exists"
+    else
+        echo "kernel notification socket does not exist"
+    fi
+    echo "Check system info"
+    snap debug api /v2/system-info
+
+execute: |
+    # Prompting is unsupported everywhere but the Ubuntu non-core systems with
+    # kernels which support apparmor prompting
+    if ! os.query is-ubuntu || os.query is-core || ! grep 'prompt' /sys/kernel/security/apparmor/features/policy/permstable32 ; then
+        not snap set system experimental.apparmor-prompting=true >& err.out
+        if os.query is-core; then
+            # there is a more specific error on Ubuntu Core
+            MATCH "cannot enable prompting feature as it is not supported on Ubuntu Core systems" < err.out
+        else
+            MATCH "cannot enable prompting feature as it is not supported by the system" < err.out
+        fi
+
+        # even if unsupported setting it to false should succeed
+        snap set system experimental.apparmor-prompting=false
+        exit 0
+    fi
+
+    # It takes a while to build the testing snap and the integration tests
+    # binary, so don't build them in prepare, instead wait until we know we're
+    # actually going to use them.
+
+    # TODO: use prebuilt test snap and integration tests binary associated with
+    # the latest prompting-client release, so we don't have to build these
+    # manually. This would also allow these tests to run on core.
+
+    echo "Build and install the testing snap, as it's called by the integration tests"
+    cd /home/ubuntu/prompting-client/testing-snap
+    snapcraft
+    snap install --dangerous ./*.snap
+
+    echo "Install dependencies for compiling integration tests binary"
+    apt install -y cargo
+    apt install -y protobuf-compiler
+
+    echo "Compile integration tests binary"
+    cd /home/ubuntu/prompting-client/prompting-client
+    cargo test --no-run
+    FNAME=$(find . -regextype grep -regex './target/debug/deps/integration.*[^.][^d]' | head -n1)
+    cp "$FNAME" /home/ubuntu/integration-tests
+    chown ubuntu:ubuntu /home/ubuntu/integration-tests
+
+    echo 'Enable AppArmor Prompting experimental feature'
+    snap set system experimental.apparmor-prompting=true
+
+    echo "Run prompting-client integration tests as non-root user"
+    sudo -iu ubuntu /home/ubuntu/integration-tests

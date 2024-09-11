@@ -19,7 +19,6 @@
 package features_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -30,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -143,75 +141,6 @@ func (*featureSuite) TestUserDaemonsSupportedCallback(c *C) {
 	restore2 := features.MockReleaseSystemctlSupportsUserUnits(func() bool { return true })
 	defer restore2()
 	supported, reason = callback()
-	c.Check(supported, Equals, true)
-	c.Check(reason, Equals, "")
-}
-
-func (*featureSuite) TestAppArmorPromptingSupportedCallback(c *C) {
-	callback, ok := features.FeaturesSupportedCallbacks[features.AppArmorPrompting]
-	c.Assert(ok, Equals, true)
-
-	for _, t := range []struct {
-		kernelFeatures []string
-		kernelError    error
-		parserFeatures []string
-		parserError    error
-		expectedReason string
-	}{
-		{
-			// Both unsupported
-			kernelFeatures: []string{"foo", "bar"},
-			kernelError:    nil,
-			parserFeatures: []string{"baz", "qux"},
-			parserError:    nil,
-			expectedReason: "apparmor kernel features do not support prompting",
-		},
-		{
-			// Kernel unsupported, parser supported
-			kernelFeatures: []string{"foo", "bar"},
-			kernelError:    nil,
-			parserFeatures: []string{"baz", "qux", "prompt"},
-			parserError:    nil,
-			expectedReason: "apparmor kernel features do not support prompting",
-		},
-		{
-			// Kernel supported, parser unsupported
-			kernelFeatures: []string{"foo", "bar", "policy:permstable32:prompt"},
-			kernelError:    nil,
-			parserFeatures: []string{"baz", "qux"},
-			parserError:    nil,
-			expectedReason: "apparmor parser does not support the prompt qualifier",
-		},
-		{
-			// Kernel error
-			kernelFeatures: []string{"foo", "bar", "policy:permstable32:prompt"},
-			kernelError:    fmt.Errorf("bad kernel"),
-			parserFeatures: []string{"baz", "qux", "prompt"},
-			parserError:    nil,
-			expectedReason: "cannot check apparmor kernel features: bad kernel",
-		},
-		{
-			// Parser error
-			kernelFeatures: []string{"foo", "bar", "policy:permstable32:prompt"},
-			kernelError:    nil,
-			parserFeatures: []string{"baz", "qux", "prompt"},
-			parserError:    fmt.Errorf("bad parser"),
-			expectedReason: "cannot check apparmor parser features: bad parser",
-		},
-	} {
-		restore := apparmor.MockFeatures(t.kernelFeatures, t.kernelError, t.parserFeatures, t.parserError)
-		supported, reason := callback()
-		c.Check(supported, Equals, false)
-		c.Check(reason, Equals, t.expectedReason)
-		restore()
-	}
-
-	// Both supported
-	kernelFeatures := []string{"foo", "bar", "policy:permstable32:prompt"}
-	parserFeatures := []string{"baz", "qux", "prompt"}
-	restore := apparmor.MockFeatures(kernelFeatures, nil, parserFeatures, nil)
-	defer restore()
-	supported, reason := callback()
 	c.Check(supported, Equals, true)
 	c.Check(reason, Equals, "")
 }

@@ -17,11 +17,23 @@ prepare: |
 restore: |
     tests.session -u test restore
 
+debug: |
+    echo "Check kernel version"
+    uname -a
+    echo "Check kernel notification socket presence"
+    if ls /sys/kernel/security/apparmor/.notify ; then
+        echo "kernel notification socket exists"
+    else
+        echo "kernel notification socket does not exist"
+    fi
+    echo "Check system info"
+    snap debug api /v2/system-info
+
 execute: |
     echo "Enable prompting via snap client where possible"
-    if os.query is-core || os.query is-ubuntu-lt 22.04; then
-        # prompting is disabled on Ubuntu Core
-        # on releases < 22.04 we need the kernel does not support prompting
+    # Prompting is unsupported everywhere but the Ubuntu non-core systems with
+    # kernels which support apparmor prompting
+    if ! os.query is-ubuntu || os.query is-core || ! grep 'prompt' /sys/kernel/security/apparmor/features/policy/permstable32 ; then
         not snap set system experimental.apparmor-prompting=true >& err.out
         if os.query is-core ; then
             MATCH "cannot enable prompting feature as it is not supported on Ubuntu Core systems" < err.out
