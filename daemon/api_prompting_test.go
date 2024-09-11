@@ -24,12 +24,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/interfaces/prompting"
+	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
@@ -249,6 +252,393 @@ func (s *promptingSuite) TestGetUserID(c *C) {
 			c.Check(rspe.Message, testutil.Contains, testCase.expectedErr)
 		}
 		c.Check(userID, Equals, testCase.expectedUser)
+	}
+}
+
+func (s *promptingSuite) TestPromptingNotRunningError(c *C) {
+	apiResp := daemon.PromptingNotRunningError()
+	jsonResp := apiResp.JSON()
+	rec := httptest.NewRecorder()
+	jsonResp.ServeHTTP(rec, nil)
+	var body map[string]interface{}
+	err := json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, IsNil)
+	c.Check(body, DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "AppArmor Prompting is not running",
+			"kind":    string(client.ErrorKindAppArmorPromptingNotRunning),
+		},
+		"status":      "Internal Server Error",
+		"status-code": 500.0,
+		"type":        "error",
+	})
+}
+
+func (s *promptingSuite) TestPromptingError(c *C) {
+	for _, testCase := range []struct {
+		err  error
+		body map[string]interface{}
+	}{
+		{
+			err: prompting_errors.ErrPromptNotFound,
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": prompting_errors.ErrPromptNotFound.Error(),
+					"kind":    string(client.ErrorKindInterfacesRequestsPromptNotFound),
+				},
+				"status":      "Not Found",
+				"status-code": 404.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: prompting_errors.ErrRuleNotFound,
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": prompting_errors.ErrRuleNotFound.Error(),
+					"kind":    string(client.ErrorKindInterfacesRequestsRuleNotFound),
+				},
+				"status":      "Not Found",
+				"status-code": 404.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: prompting_errors.ErrRuleNotAllowed,
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": prompting_errors.ErrRuleNotAllowed.Error(),
+					"kind":    string(client.ErrorKindInterfacesRequestsRuleNotFound),
+				},
+				"status":      "Not Found",
+				"status-code": 404.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: prompting_errors.ErrPromptsClosed,
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": prompting_errors.ErrPromptsClosed.Error(),
+				},
+				"status":      "Internal Server Error",
+				"status-code": 500.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: prompting_errors.ErrRulesClosed,
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": prompting_errors.ErrRulesClosed.Error(),
+				},
+				"status":      "Internal Server Error",
+				"status-code": 500.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: prompting_errors.ErrTooManyPrompts,
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": prompting_errors.ErrTooManyPrompts.Error(),
+				},
+				"status":      "Internal Server Error",
+				"status-code": 500.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: prompting_errors.ErrRuleIDConflict,
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": prompting_errors.ErrRuleIDConflict.Error(),
+				},
+				"status":      "Internal Server Error",
+				"status-code": 500.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: prompting_errors.ErrRuleDBInconsistent,
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": prompting_errors.ErrRuleDBInconsistent.Error(),
+				},
+				"status":      "Internal Server Error",
+				"status-code": 500.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: prompting_errors.NewInvalidOutcomeError("foo", []string{"bar", "baz"}),
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": `invalid outcome: "foo"`,
+					"kind":    "interfaces-requests-invalid-fields",
+					"value": map[string]interface{}{
+						"outcome": map[string]interface{}{
+							"reason":    "unsupported-value",
+							"supported": []interface{}{"bar", "baz"},
+							"value":     []interface{}{"foo"},
+						},
+					},
+				},
+				"status":      "Bad Request",
+				"status-code": 400.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: prompting_errors.NewInvalidLifespanError("foo", []string{"bar", "baz"}),
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": `invalid lifespan: "foo"`,
+					"kind":    "interfaces-requests-invalid-fields",
+					"value": map[string]interface{}{
+						"lifespan": map[string]interface{}{
+							"reason":    "unsupported-value",
+							"supported": []interface{}{"bar", "baz"},
+							"value":     []interface{}{"foo"},
+						},
+					},
+				},
+				"status":      "Bad Request",
+				"status-code": 400.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: prompting_errors.NewRuleLifespanSingleError([]string{"bar", "baz"}),
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": `cannot create rule with lifespan "single"`,
+					"kind":    "interfaces-requests-invalid-fields",
+					"value": map[string]interface{}{
+						"lifespan": map[string]interface{}{
+							"reason":    "unsupported-value",
+							"supported": []interface{}{"bar", "baz"},
+							"value":     []interface{}{"single"},
+						},
+					},
+				},
+				"status":      "Bad Request",
+				"status-code": 400.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: prompting_errors.NewInvalidInterfaceError("foo", []string{"bar", "baz"}),
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": `invalid interface: "foo"`,
+					"kind":    "interfaces-requests-invalid-fields",
+					"value": map[string]interface{}{
+						"interface": map[string]interface{}{
+							"reason":    "unsupported-value",
+							"supported": []interface{}{"bar", "baz"},
+							"value":     []interface{}{"foo"},
+						},
+					},
+				},
+				"status":      "Bad Request",
+				"status-code": 400.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: prompting_errors.NewInvalidPermissionsError("foo", []string{"bar", "baz"}, []string{"fizz", "buzz"}),
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": `invalid permissions for foo interface: "bar", "baz"`,
+					"kind":    "interfaces-requests-invalid-fields",
+					"value": map[string]interface{}{
+						"permissions": map[string]interface{}{
+							"reason":    "unsupported-value",
+							"supported": []interface{}{"fizz", "buzz"},
+							"value":     []interface{}{"bar", "baz"},
+						},
+					},
+				},
+				"status":      "Bad Request",
+				"status-code": 400.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: prompting_errors.NewPermissionsListEmptyError("foo", []string{"bar", "baz"}),
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": `invalid permissions for foo interface: permissions list empty`,
+					"kind":    "interfaces-requests-invalid-fields",
+					"value": map[string]interface{}{
+						"permissions": map[string]interface{}{
+							"reason":    "unsupported-value",
+							"supported": []interface{}{"bar", "baz"},
+							"value":     []interface{}{},
+						},
+					},
+				},
+				"status":      "Bad Request",
+				"status-code": 400.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: prompting_errors.NewInvalidDurationError("foo", "really terrible"),
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": `invalid duration: really terrible: "foo"`,
+					"kind":    "interfaces-requests-invalid-fields",
+					"value": map[string]interface{}{
+						"duration": map[string]interface{}{
+							"reason": "parse-error",
+							"value":  "foo",
+						},
+					},
+				},
+				"status":      "Bad Request",
+				"status-code": 400.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: prompting_errors.NewInvalidExpirationError(time.Date(1, time.February, 3, 4, 5, 6, 7, time.UTC), "really terrible"),
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": `invalid expiration: really terrible: "0001-02-03T04:05:06.000000007Z"`,
+					"kind":    "interfaces-requests-invalid-fields",
+					"value": map[string]interface{}{
+						"expiration": map[string]interface{}{
+							"reason": "parse-error",
+							"value":  "0001-02-03T04:05:06.000000007Z",
+						},
+					},
+				},
+				"status":      "Bad Request",
+				"status-code": 400.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: prompting_errors.NewInvalidPathPatternError(`invalid/pattern`, "must start with '/'"),
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": `invalid path pattern: must start with '/': "invalid/pattern"`,
+					"kind":    "interfaces-requests-invalid-fields",
+					"value": map[string]interface{}{
+						"path-pattern": map[string]interface{}{
+							"reason": "parse-error",
+							"value":  "invalid/pattern",
+						},
+					},
+				},
+				"status":      "Bad Request",
+				"status-code": 400.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: &prompting_errors.RequestedPathNotMatchedError{
+				Requested: "foo",
+				Replied:   "bar",
+			},
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": fmt.Sprintf(`%v "foo": "bar"`, prompting_errors.ErrReplyNotMatchRequestedPath),
+					"kind":    "interfaces-requests-reply-not-match-request",
+					"value": map[string]interface{}{
+						"path-pattern": map[string]interface{}{
+							"requested-path":  "foo",
+							"replied-pattern": "bar",
+						},
+					},
+				},
+				"status":      "Bad Request",
+				"status-code": 400.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: &prompting_errors.RequestedPermissionsNotMatchedError{
+				Requested: []string{"foo", "bar", "baz"},
+				Replied:   []string{"fizz", "buzz"},
+			},
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": fmt.Sprintf(`%v [foo bar baz]: [fizz buzz]`, prompting_errors.ErrReplyNotMatchRequestedPermissions),
+					"kind":    "interfaces-requests-reply-not-match-request",
+					"value": map[string]interface{}{
+						"permissions": map[string]interface{}{
+							"requested-permissions": []interface{}{"foo", "bar", "baz"},
+							"replied-permissions":   []interface{}{"fizz", "buzz"},
+						},
+					},
+				},
+				"status":      "Bad Request",
+				"status-code": 400.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: &prompting_errors.RuleConflictError{
+				Conflicts: []prompting_errors.RuleConflict{
+					{
+						Permission:    "foo",
+						Variant:       "variant 1",
+						ConflictingID: "conflicting rule 1",
+					},
+					{
+						Permission:    "bar",
+						Variant:       "variant 2",
+						ConflictingID: "conflicting rule 2",
+					},
+				},
+			},
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": prompting_errors.ErrRuleConflict.Error(),
+					"kind":    "interfaces-requests-rule-conflict",
+					"value": map[string]interface{}{
+						"conflicts": []interface{}{
+							map[string]interface{}{
+								"permission":     "foo",
+								"variant":        "variant 1",
+								"conflicting-id": "conflicting rule 1",
+							},
+							map[string]interface{}{
+								"permission":     "bar",
+								"variant":        "variant 2",
+								"conflicting-id": "conflicting rule 2",
+							},
+						},
+					},
+				},
+				"status":      "Conflict",
+				"status-code": 409.0,
+				"type":        "error",
+			},
+		},
+		{
+			err: fmt.Errorf("some arbitrary error"),
+			body: map[string]interface{}{
+				"result": map[string]interface{}{
+					"message": "some arbitrary error",
+				},
+				"status":      "Internal Server Error",
+				"status-code": 500.0,
+				"type":        "error",
+			},
+		},
+	} {
+		apiResp := daemon.PromptingError(testCase.err)
+		jsonResp := apiResp.JSON()
+		rec := httptest.NewRecorder()
+		jsonResp.ServeHTTP(rec, nil)
+		var body map[string]interface{}
+		err := json.Unmarshal(rec.Body.Bytes(), &body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, testCase.body)
 	}
 }
 
