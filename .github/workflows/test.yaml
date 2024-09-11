@@ -784,15 +784,14 @@ jobs:
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
           echo "Running command: $SPREAD $RUN_TESTS"
-          (set -o pipefail; $SPREAD -no-debug-output -logs .logs $RUN_TESTS | PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | tee spread.log)
+          (set -o pipefail; $SPREAD -no-debug-output -logs spread-logs $RUN_TESTS | PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | tee spread.log)
 
     - name: Uploading spread logs
       if: always()	
       uses: actions/upload-artifact@v3
       with:
-        include-hidden-files: true
         name: spread-logs-${{ matrix.systems }}
-        path: ".logs/*.logs"
+        path: "spread-logs/*.logs"
 
     - name: Discard spread workers
       if: always()
