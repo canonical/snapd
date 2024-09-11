@@ -2425,7 +2425,7 @@ func (s *infoSuite) TestRegistryPlugAttrs(c *C) {
 		Attrs: map[string]interface{}{
 			"account": "foo",
 			"view":    "bar/baz",
-			"role":    "manager",
+			"role":    "custodian",
 		},
 	}
 

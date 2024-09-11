@@ -92,7 +92,7 @@ func (s *registrySuite) TestRegistrySanitizePlug(c *C) {
 		{
 			account: "my-acc",
 			view:    "network/wifi",
-			role:    "manager",
+			role:    "custodian",
 		},
 		{
 			account: "my-acc",
@@ -109,7 +109,7 @@ func (s *registrySuite) TestRegistrySanitizePlug(c *C) {
 			account: "my-acc",
 			view:    "reg/view",
 			role:    "observer",
-			err:     `optional registry plug "role" attribute must be "manager"`,
+			err:     `optional registry plug "role" attribute must be "custodian"`,
 		},
 		{
 			account: "my-acc",
