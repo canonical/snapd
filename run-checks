@@ -403,7 +403,7 @@ if [ "$STATIC" = 1 ]; then
             exit 1
         fi
 
-        if [ "${gcil/\/snap\/bin/}" != "$gcil" ]; then
+        if echo "$gcil" | grep -q '/snap/bin/' ; then
             # golangci-lint was installed from the snap
             if snap refresh --list | grep -q golangci-lint; then
                 echo "WARNING: your golangci-lint snap is out of date. The CI will install a fresh version, which may differ from yours."
@@ -413,7 +413,7 @@ if [ "$STATIC" = 1 ]; then
             fi
         fi
 
-        # Check whether the version golangci-lint was built with is >= version of go installed
+        # Check whether golangci-lint was built with go version >= the installed go version
         gcil_go_ver=$(golangci-lint --version | grep -o 'go[0-9]*\.[0-9]*\.[0-9]*' | cut -c 3-)
         go_ver=$(go version | grep -o 'go[0-9]*\.[0-9]*\.[0-9]*' | cut -c 3-)
         if [ "$(printf '%s\n' "$go_ver" "$gcil_go_ver" | sort -V | head -n1)" != "$go_ver" ]; then
