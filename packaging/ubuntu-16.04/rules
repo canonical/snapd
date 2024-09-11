@@ -111,8 +111,8 @@ endif
 
 ifeq (${FIPSBUILD},1)
   # if enabled also enable bootloader assets testing and fault injection
-	_TAGS := $(_TAGS),goexperiment.opensslcrypto
-	_SNAP_TAGS := $(_SNAP_TAGS),goexperiment.opensslcrypto
+	_TAGS := $(_TAGS),goexperiment.opensslcrypto,snapdfips
+	_SNAP_TAGS := $(_SNAP_TAGS),goexperiment.opensslcrypto,snapdfips
 endif
 
 TAGS=-tags "$(_TAGS)"
