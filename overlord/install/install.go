@@ -457,12 +457,12 @@ func comparePreseedAndSeedSnaps(seedSnap *seed.Snap, preseedSnap *asserts.Presee
 	for _, c := range seedSnap.Components {
 		preseedComp, ok := expectedComps[c.CompSideInfo.Component.ComponentName]
 		if !ok {
-			return fmt.Errorf("component %q not present in the preseed assertion", c.CompSideInfo.Component.ComponentName)
+			return fmt.Errorf("component %q not present in the preseed assertion", c.CompSideInfo.Component)
 		}
 
 		if preseedComp.Revision != c.CompSideInfo.Revision.N {
 			rev := snap.Revision{N: preseedComp.Revision}
-			return fmt.Errorf("component %q has wrong revision %s (expected: %s)", c.CompSideInfo.Component.ComponentName, c.CompSideInfo.Revision, rev)
+			return fmt.Errorf("component %q has wrong revision %s (expected: %s)", c.CompSideInfo.Component, c.CompSideInfo.Revision, rev)
 		}
 
 		// once we've seen the component, remove it from the expected

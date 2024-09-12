@@ -1515,7 +1515,7 @@ func (s *installSuite) TestApplyPreseededDataComponentMismatchWrongRevision(c *C
 			},
 		},
 	}
-	const message = `component "comp1" has wrong revision 2 \(expected: 5\)`
+	const message = `component "essential-snap\+comp1" has wrong revision 2 \(expected: 5\)`
 	s.testApplyPreseededDataComponentMismatch(c, preseededDataComponentMismatchOpts{
 		preseed: preseed,
 		errMsg:  message,
@@ -1583,7 +1583,7 @@ func (s *installSuite) TestApplyPreseededDataComponentMismatchExtraComponent(c *
 			},
 		},
 	}
-	const message = `component \"comp3\" not present in the preseed assertion`
+	const message = `component "essential-snap\+comp3" not present in the preseed assertion`
 	s.testApplyPreseededDataComponentMismatch(c, preseededDataComponentMismatchOpts{
 		preseed: preseed,
 		errMsg:  message,
