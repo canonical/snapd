@@ -732,7 +732,7 @@ func (s *apparmorSuite) TestPromptingSupported(c *C) {
 
 	supported, reason := apparmor.PromptingSupported()
 	c.Check(supported, Equals, false)
-	c.Check(reason, Equals, "apparmor kernel permissions table version must be at least 2, but version could not be read")
+	c.Check(reason, Equals, "apparmor kernel permissions table version must be at least 2 for prompting to be supported, but version could not be read")
 
 	// Create permstable32_version file with a version too early
 	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "policy"), 0o755), IsNil)
@@ -740,7 +740,7 @@ func (s *apparmorSuite) TestPromptingSupported(c *C) {
 
 	supported, reason = apparmor.PromptingSupported()
 	c.Check(supported, Equals, false)
-	c.Check(reason, Equals, "apparmor kernel permissions table version must be at least 2, but version is 1")
+	c.Check(reason, Equals, "apparmor kernel permissions table version must be at least 2 for prompting to be supported, but version is 1")
 
 	// Create permstable32_version file with a sufficient version
 	c.Assert(os.WriteFile(filepath.Join(d, featuresSysPath, "policy", "permstable32_version"), []byte("0x000002"), 0o644), IsNil)

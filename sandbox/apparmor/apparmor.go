@@ -469,10 +469,10 @@ func PromptingSupportedByFeatures(apparmorFeatures *FeaturesSupported) (bool, st
 	}
 	version, err := probeKernelFeaturesPermstable32Version()
 	if err != nil {
-		return false, "apparmor kernel permissions table version must be at least 2, but version could not be read"
+		return false, "apparmor kernel permissions table version must be at least 2 for prompting to be supported, but version could not be read"
 	}
 	if version < 2 {
-		return false, fmt.Sprintf("apparmor kernel permissions table version must be at least 2, but version is %d", version)
+		return false, fmt.Sprintf("apparmor kernel permissions table version must be at least 2 for prompting to be supported, but version is %d", version)
 	}
 	return true, ""
 }
