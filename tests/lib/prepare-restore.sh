@@ -585,7 +585,9 @@ prepare_project() {
     # go mod runs as root and will leave strange permissions
     chown test:test -R "$SPREAD_PATH"
 
-    if [ "$BUILD_SNAPD_FROM_CURRENT" = true ]; then
+    if [ "$SNAPD_DEB_FROM_REPO" = true ] && [ -n "$(command -v apt)" ]; then
+        ( cd "${GOHOME}" && tests.pkgs download snapd )
+    elif [ "$BUILD_SNAPD_FROM_CURRENT" = true ]; then
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 build_deb
