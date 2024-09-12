@@ -21,60 +21,20 @@ package devicestate
 import (
 	"errors"
 	"fmt"
-	"os/exec"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 )
-
-func unmountSnap(snapst *snapstate.SnapState) error {
-	info, err := snapst.CurrentInfo()
-	if err != nil {
-		return err
-	}
-
-	comps, err := snapst.CurrentComponentInfos()
-	if err != nil {
-		return err
-	}
-
-	for _, c := range comps {
-		cpi := snap.MinimalComponentContainerPlaceInfo(
-			c.Component.ComponentName,
-			c.Revision,
-			info.InstanceName(),
-		)
-
-		logger.Debugf("unmounting component %s at %s", c.Component, cpi.MountDir())
-		if _, err := exec.Command("umount", "-d", "-l", cpi.MountDir()).CombinedOutput(); err != nil {
-			return err
-		}
-	}
-
-	logger.Debugf("unmounting snap %s at %s", info.InstanceName(), info.MountDir())
-	if _, err := exec.Command("umount", "-d", "-l", info.MountDir()).CombinedOutput(); err != nil {
-		return err
-	}
-
-	return nil
-}
 
 func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
-
-	snaps, err := snapstate.All(st)
-	if err != nil {
-		return err
-	}
 
 	systemKey, err := interfaces.RecordedSystemKey()
 	if err != nil {
@@ -94,12 +54,9 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 		if !preseeded {
 			preseeded = true
 			t.Set("preseeded", preseeded)
-			// unmount all snaps
-			// TODO: move to snapstate.UnmountAllSnaps.
-			for _, snapSt := range snaps {
-				if err := unmountSnap(snapSt); err != nil {
-					return err
-				}
+
+			if err := snapstate.UnmountAllSnaps(st); err != nil {
+				return err
 			}
 
 			st.Set("preseeded", preseeded)
