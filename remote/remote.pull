@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 show_help() {
-    echo "usage: remote.pull <REMOTE_PATH> <LOCAL_PATH>"
+    echo "usage: remote.pull <REMOTE_PATH> [LOCAL_PATH]"
     echo ""
     echo "Available options:"
     echo "  -h --help   show this help message."
@@ -34,18 +34,24 @@ _get_cert() {
 }
 
 remote_pull() {
-    local REMOTE_PATH=$1
-    local LOCAL_PATH=$2
-    if [ -z "$LOCAL_PATH" ] || [ -z "$REMOTE_PATH" ]; then
-        echo "remote.pull: local and remote paths are required"
+    local REMOTE_PATH="$1"
+    local LOCAL_PATH="${2:-.}"
+    if [ -z "$REMOTE_PATH" ]; then
+        echo "remote.pull: remote path is required"
     fi
 
     local SSH_PASS SSH_CERT
     SSH_PASS="$(_get_pass)"
     SSH_CERT="$(_get_cert)"
 
+    LEGACY_PARAM="-O"
+    # We check if -O option is supported by scp
+    if scp -O 2>&1 | grep -q "unknown option"; then
+        LEGACY_PARAM=""
+    fi
+
     # shellcheck disable=SC2153,SC2086
-    $SSH_PASS scp $SSH_CERT -P "$TESTS_REMOTE_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$TESTS_REMOTE_USER"@"$TESTS_REMOTE_HOST":"$1" "$2"
+    $SSH_PASS scp $SSH_CERT $LEGACY_PARAM -P "$TESTS_REMOTE_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$TESTS_REMOTE_USER"@"$TESTS_REMOTE_HOST":"$REMOTE_PATH" "$LOCAL_PATH"
 }
 
 main() {

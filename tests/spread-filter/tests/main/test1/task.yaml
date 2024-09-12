@@ -1,0 +1,6 @@
+summary: test file
+
+details: test file
+
+execute: |
+  echo "works"

@@ -1,5 +1,9 @@
 summary: tests for the tests.backup tool
 
+details: |
+    Check the tests.backup tool properly backs up and
+    restores a specific directory.
+
 backends: [google]
 
 execute: |

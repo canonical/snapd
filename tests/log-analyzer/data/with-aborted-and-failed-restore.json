@@ -1,6 +1,6 @@
 [
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:47:36",
         "verb": "Allocating",
@@ -8,7 +8,7 @@
         "extra": "google:ubuntu-22.04-64..."
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:47:36",
         "verb": "Allocating",
@@ -16,7 +16,7 @@
         "extra": "google:ubuntu-20.04-64..."
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:47:46",
         "verb": "Waiting",
@@ -24,7 +24,7 @@
         "extra": "for google:ubuntu-20.04-64 (may242047-566476) to boot at 104.196.212.243..."
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:47:46",
         "verb": "Waiting",
@@ -32,7 +32,7 @@
         "extra": "for google:ubuntu-22.04-64 (may242047-566626) to boot at 34.75.76.3..."
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:48:32",
         "verb": "Allocated",
@@ -40,7 +40,7 @@
         "extra": "google:ubuntu-22.04-64 (may242047-566626)."
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:48:32",
         "verb": "Connecting",
@@ -48,7 +48,7 @@
         "extra": "to google:ubuntu-22.04-64 (may242047-566626)..."
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:48:34",
         "verb": "Connected",
@@ -56,7 +56,7 @@
         "extra": "to google:ubuntu-22.04-64 (may242047-566626) at 34.75.76.3."
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:48:34",
         "verb": "Sending",
@@ -64,42 +64,42 @@
         "extra": "project content to google:ubuntu-22.04-64 (may242047-566626)..."
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:48:39",
         "verb": "Preparing",
         "task": "google:ubuntu-22.04-64"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:48:40",
         "verb": "Preparing",
         "task": "google:ubuntu-22.04-64:tests/"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:48:40",
         "verb": "Preparing",
         "task": "google:ubuntu-22.04-64:tests/test-5"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:48:41",
         "verb": "Executing",
         "task": "google:ubuntu-22.04-64:tests/test-5"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:48:42",
         "verb": "Restoring",
         "task": "google:ubuntu-22.04-64:tests/test-5"
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:48:42",
         "verb": "Allocated",
@@ -107,7 +107,7 @@
         "extra": "google:ubuntu-20.04-64 (may242047-566476)."
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:48:42",
         "verb": "Connecting",
@@ -134,14 +134,14 @@
         }
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:48:43",
         "verb": "Restoring",
         "task": "google:ubuntu-22.04-64:tests/"
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:48:43",
         "verb": "Connected",
@@ -149,7 +149,7 @@
         "extra": "to google:ubuntu-20.04-64 (may242047-566476) at 104.196.212.243."
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:48:43",
         "verb": "Sending",
@@ -157,14 +157,14 @@
         "extra": "project content to google:ubuntu-20.04-64 (may242047-566476)..."
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:48:44",
         "verb": "Restoring",
         "task": "google:ubuntu-22.04-64"
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:48:45",
         "verb": "Discarding",
@@ -172,35 +172,35 @@
         "extra": "google:ubuntu-22.04-64 (may242047-566626)..."
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:48:46",
         "verb": "Preparing",
         "task": "google:ubuntu-20.04-64"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:48:47",
         "verb": "Preparing",
         "task": "google:ubuntu-20.04-64:tests/"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:48:47",
         "verb": "Preparing",
         "task": "google:ubuntu-20.04-64:tests/test-1"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:48:48",
         "verb": "Executing",
         "task": "google:ubuntu-20.04-64:tests/test-1"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:48:48",
         "verb": "Restoring",
@@ -226,21 +226,21 @@
         }
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:48:49",
         "verb": "Restoring",
         "task": "google:ubuntu-20.04-64:tests/"
     },
     {
-        "type": "action",
+        "type": "phase",
         "date": "2022-05-24",
         "time": "17:48:49",
         "verb": "Restoring",
         "task": "google:ubuntu-20.04-64"
     },
     {
-        "type": "operation",
+        "type": "action",
         "date": "2022-05-24",
         "time": "17:48:50",
         "verb": "Discarding",
