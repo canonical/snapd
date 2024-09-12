@@ -56,6 +56,7 @@ type SnapOptions struct {
 	Unaliased        bool            `json:"unaliased,omitempty"`
 	Prefer           bool            `json:"prefer,omitempty"`
 	Purge            bool            `json:"purge,omitempty"`
+	Terminate        bool            `json:"terminate,omitempty"`
 	Amend            bool            `json:"amend,omitempty"`
 	Transaction      TransactionType `json:"transaction,omitempty"`
 	QuotaGroupName   string          `json:"quota-group,omitempty"`

@@ -22,7 +22,9 @@ package configcore_test
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/user"
+	"path/filepath"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -30,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -45,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -65,6 +69,12 @@ func (s *promptingSuite) SetUpTest(c *C) {
 		[]string{"policy:permstable32:prompt"}, nil,
 		[]string{"prompt"}, nil,
 	))
+	// mock the presence of the notification socket
+	os.MkdirAll(notify.SysPath, 0o755)
+	// mock the presence of permstable32_version with supported version
+	s.AddCleanup(apparmor.MockFsRootPath(dirs.GlobalRootDir))
+	os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "sys/kernel/security/apparmor/features/policy"), 0o755)
+	os.WriteFile(filepath.Join(dirs.GlobalRootDir, "sys/kernel/security/apparmor/features/policy/permstable32_version"), []byte("0x000002"), 0o644)
 
 	s.overlord = overlord.MockWithState(nil)
 	// override state set up by configcoreSuite
