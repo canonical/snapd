@@ -74,11 +74,6 @@ network netlink raw,
 
 owner /run/user/[0-9]*/pipewire-[0-9] rwk,
 owner /run/user/[0-9]*/pipewire-[0-9]-manager rwk,
-
-# This allows wireplumber to read the pulseaudio
-# configuration if pipewire runs inside a container
-/etc/pulse/ r,
-/etc/pulse/** r,
 `
 
 const pipewirePermanentSlotSecComp = `
