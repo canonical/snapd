@@ -235,6 +235,11 @@ parts:
       if [ -f fips-build ] ; then
           # use the fips channel of Go
           snap refresh --channel "$GO_TOOLCHAIN_FIPS_CHANNEL" go
+          # make sure it is really the Go FIPS toolchain
+          if ! test -f /snap/go/current/src/crypto/internal/backend/openssl_linux.go; then
+              echo "Go 1.21 FIPS toolchain not found"
+              exit 1
+          fi
       fi
       # make sure to set the version we declared in pull
       ./mkversion.sh "$VERSION"
