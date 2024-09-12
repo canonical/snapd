@@ -375,6 +375,7 @@ jobs:
       if: ${{ matrix.gochannel != 'latest/stable' }}
       uses: actions/upload-artifact@v3
       with:
+        include-hidden-files: true
         name: coverage-files
         path: "${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage/coverage*.cov"
 
@@ -502,6 +503,7 @@ jobs:
       if: ${{ matrix.gochannel != 'latest/stable' }}
       uses: actions/upload-artifact@v3
       with:
+        include-hidden-files: true
         name: coverage-files
         path: "${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage/coverage*.cov"
 
