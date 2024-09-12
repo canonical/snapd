@@ -68,9 +68,8 @@ func (iter *PathIterator) Path() string {
 
 // CurrentBase returns the last element of the current path.
 // It removes any trailing slash unless the last element of the
-// current path is the filesystem root (and so CurrentBase() == "/").
-// If the current path is empty (i.e. Next() has not yet been called),
-// so is CurrentBase.
+// current path is the filesystem root.
+// Before any iteration with Next, CurrentBase returns an empty string.
 // Example:
 //
 //	iter:= NewPathIterator("/foo/bar")  // iter.CurrentBase() == ""
@@ -86,8 +85,7 @@ func (iter *PathIterator) CurrentBase() string {
 }
 
 // CurrentPath returns the path up to the current depth.
-// If the depth is 0 (i.e. Next has not yet been called),
-// then CurrentPath returns an empty string.
+// Before any iteration with Next, CurrentPath returns an empty string.
 // Example:
 //
 //		iter:= NewPathIterator("/foo/bar")  // iter.CurrentPath() == ""
@@ -103,8 +101,7 @@ func (iter *PathIterator) CurrentPath() string {
 }
 
 // Adds a trailing slash to the current path even if the current path does not have one.
-// If current path is empty (because Next has not yet been called),
-// then CurrentPathPlusSlash will also return an empty string.
+// Before any iteration with Next, CurrentPathPlusSlash returns an empty string.
 // Example:
 //
 //	    iter:= NewPathIterator("/foo/bar")  // iter.CurrentPathPlusSlash() == ""
