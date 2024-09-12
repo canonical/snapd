@@ -47,6 +47,16 @@ execute: |
     not tests.pkgs is-installed test-snapd-pkg-1
     not tests.pkgs is-installed test-snapd-pkg-2
 
+    # Download curl package, trusty does not support apt download
+    if not os.query is-trusty; then
+        tests.pkgs download curl
+        if os.query is-opensuse; then
+            find . -maxdepth 4 -name 'curl.*'
+        else
+            find . -maxdepth 1 -name 'curl.*'
+        fi
+    fi
+
     # Check the message when a command is not supported
     tests.pkgs noexist test-snapd-pkg-1 2>&1 | MATCH 'tests.pkgs: unknown command noexist'
     tests.pkgs -install test-snapd-pkg-1 2>&1 | MATCH 'tests.pkgs: unknown option -install'

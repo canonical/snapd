@@ -79,3 +79,7 @@ cmd_remove() {
     # shellcheck disable=SC2086
     apt-get remove --yes $REMOVE_FLAGS "$@"
 }
+
+cmd_download() {
+    apt download $@ >/dev/null 2>&1
+}

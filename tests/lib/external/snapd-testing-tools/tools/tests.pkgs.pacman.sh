@@ -69,3 +69,7 @@ cmd_remove() {
     # shellcheck disable=SC2068
     pacman -Rnsc --noconfirm $@
 }
+
+cmd_download() {
+    pacman -Sw --noconfirm --cachedir "${PWD:-.}" $@ >/dev/null 2>&1
+}

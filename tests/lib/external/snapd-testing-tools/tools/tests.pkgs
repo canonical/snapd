@@ -3,6 +3,7 @@
 show_help() {
     echo "usage: tests.pkgs install [--no-install-recommends] [PACKAGE...]"
     echo "       tests.pkgs remove [PACKAGE...]"
+    echo "       tests.pkgs download [PACKAGE...]"
     echo "       tests.pkgs is-installed [PACKAGE]"
     echo "       tests.pkgs query [PACKAGE]"
     echo "       tests.pkgs list-installed"
@@ -23,6 +24,11 @@ cmd_install() {
 }
 
 cmd_install_local() {
+    # This is re-defined by the backend file.
+    unsupported
+}
+
+cmd_download() {
     # This is re-defined by the backend file.
     unsupported
 }
@@ -120,7 +126,7 @@ main() {
                 shift
                 break
                 ;;
-            install|remove|query|is-installed|list-installed)
+            install|remove|query|is-installed|list-installed|download)
                 action="$1"
                 shift
                 break  # consume remaining arguments
@@ -153,6 +159,9 @@ main() {
         remove)
             # shellcheck disable=SC2046
             cmd_remove $(remap_many "$@")
+            ;;
+        download)
+            cmd_download "$(remap_many "$@")"
             ;;
         *)
             echo "tests.pkgs: unknown action $action" >&2

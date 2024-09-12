@@ -64,3 +64,7 @@ cmd_remove() {
     # shellcheck disable=SC2068
     zypper remove -y $@
 }
+
+cmd_download() {
+    zypper --pkg-cache-dir "${PWD:-.}" download $@ >/dev/null 2>&1
+}
