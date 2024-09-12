@@ -522,6 +522,7 @@ Exec=snap.app.evil.evil
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
 X-SnapInstanceName=snap
 Name=foo
+X-SnapAppName=app
 Exec=env BAMF_DESKTOP_FILE_HINT=app.desktop %s/bin/snap.app
 `, dirs.SnapMountDir))
 }
@@ -544,6 +545,7 @@ Exec=snap.app %U
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
 X-SnapInstanceName=snap
 Name=foo
+X-SnapAppName=app
 Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app %%U
 `, dirs.SnapMountDir))
 }
@@ -643,6 +645,7 @@ Exec=snap.app
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
 X-SnapInstanceName=snap_bar
 Name=foo
+X-SnapAppName=app
 Exec=env BAMF_DESKTOP_FILE_HINT=snap+bar_app.desktop %s/bin/snap_bar.app
 `, dirs.SnapMountDir))
 }
@@ -667,17 +670,18 @@ Exec=snap.app %U
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
 X-SnapInstanceName=snap_bar
 Name=foo
+X-SnapAppName=app
 Exec=env BAMF_DESKTOP_FILE_HINT=snap+bar_app.desktop %s/bin/snap_bar.app %%U
 `, dirs.SnapMountDir))
 }
 
-func (s *sanitizeDesktopFileSuite) TestRewriteExecLineInvalid(c *C) {
+func (s *sanitizeDesktopFileSuite) TestDetectAppAndRewriteExecLineInvalid(c *C) {
 	snap := &snap.Info{}
-	_, err := wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=invalid")
+	_, _, err := wrappers.DetectAppAndRewriteExecLine(snap, "foo.desktop", "Exec=invalid")
 	c.Assert(err, ErrorMatches, `invalid exec command: "invalid"`)
 }
 
-func (s *sanitizeDesktopFileSuite) TestRewriteExecLineOk(c *C) {
+func (s *sanitizeDesktopFileSuite) TestDetectAppAndRewriteExecLineOk(c *C) {
 	snap, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
 version: 1.0
@@ -687,8 +691,10 @@ apps:
 `))
 	c.Assert(err, IsNil)
 
-	newl, err := wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=snap.app")
+	app, newl, err := wrappers.DetectAppAndRewriteExecLine(snap, "foo.desktop", "Exec=snap.app")
 	c.Assert(err, IsNil)
+	c.Assert(app.Name, Equals, "app")
+	c.Assert(app.Command, Equals, "cmd")
 	c.Assert(newl, Equals, fmt.Sprintf("Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app", dirs.SnapMountDir))
 }
 
@@ -778,6 +784,7 @@ Exec=snap.app
 X-SnapInstanceName=snap_bar
 Name=foo
 Icon=snap.snap_bar.icon
+X-SnapAppName=app
 Exec=env BAMF_DESKTOP_FILE_HINT=snap+bar_app.desktop %s/bin/snap_bar.app
 `, dirs.SnapMountDir))
 }

@@ -33,10 +33,10 @@ var (
 	GenerateDBusActivationFile = generateDBusActivationFile
 
 	// desktop
-	SanitizeDesktopFile    = sanitizeDesktopFile
-	RewriteExecLine        = rewriteExecLine
-	RewriteIconLine        = rewriteIconLine
-	IsValidDesktopFileLine = isValidDesktopFileLine
+	SanitizeDesktopFile         = sanitizeDesktopFile
+	DetectAppAndRewriteExecLine = detectAppAndRewriteExecLine
+	RewriteIconLine             = rewriteIconLine
+	IsValidDesktopFileLine      = isValidDesktopFileLine
 
 	// daemons
 	UsersToUids               = usersToUids
