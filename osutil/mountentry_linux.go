@@ -26,9 +26,11 @@ import (
 	"syscall"
 )
 
-// splitMountoptions will split options at ',' accounting for escaped ','
-// characters. ',' can be found as part of a valid path for instance.
-func splitMountOptions(s string) []string {
+// SplitSystemdMountOptions is used to properly split options passed to systemd-mount
+// that could contain an escaped ',' character such as a verity hash device or overlayfs
+// mount options.
+// Relevant systemd code https://github.com/systemd/systemd/blob/4ec630bfba02543af204f13ad9f5ce4a2329a166/src/basic/extract-word.c#L20
+func SplitSystemdMountOptions(s string) []string {
 	var o []string
 
 	var cur strings.Builder
@@ -64,14 +66,6 @@ func splitMountOptions(s string) []string {
 	}
 
 	return o
-}
-
-// SplitSystemdMountOptions is used to properly split options passed to systemd-mount
-// that could contain an escaped ',' character such as a verity hash device or overlayfs
-// mount options.
-// Relevant systemd code https://github.com/systemd/systemd/blob/4ec630bfba02543af204f13ad9f5ce4a2329a166/src/basic/extract-word.c#L20
-func SplitSystemdMountOptions(s string) []string {
-	return splitMountOptions(s)
 }
 
 // ParseMountEntry parses a fstab-like entry.
