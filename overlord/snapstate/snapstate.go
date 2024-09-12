@@ -778,9 +778,9 @@ func splitComponentTasksForInstall(
 
 		compSetupIDs = append(compSetupIDs, componentTS.compSetupTaskID)
 
-		tasksBeforePreRefreshHook = append(tasksBeforePreRefreshHook, componentTS.beforeLink...)
+		tasksBeforePreRefreshHook = append(tasksBeforePreRefreshHook, componentTS.beforeLinkTasks...)
 		tasksAfterLinkSnap = append(tasksAfterLinkSnap, componentTS.linkTask)
-		tasksAfterPostOpHook = append(tasksAfterPostOpHook, componentTS.postOpHookToDiscard...)
+		tasksAfterPostOpHook = append(tasksAfterPostOpHook, componentTS.postHookToDiscardTasks...)
 		if componentTS.discardTask != nil {
 			tasksBeforeDiscard = append(tasksBeforeDiscard, componentTS.discardTask)
 		}
