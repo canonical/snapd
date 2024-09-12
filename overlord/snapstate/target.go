@@ -377,8 +377,6 @@ func componentTargetsFromActionResult(action string, sar store.SnapActionResult,
 	for _, comp := range requested {
 		res, ok := mapping[comp]
 		if !ok {
-			// TODO:COMPS: make sure this branch is tested when we add support for
-			// losing components during a refresh
 			// during a refresh, we will not install components that don't exist
 			// in the new revision
 			if action == "refresh" {
@@ -1194,7 +1192,7 @@ type PathSnap struct {
 	// SideInfo contains extra information about the snap.
 	SideInfo *snap.SideInfo
 	// Components is a mapping of component side infos to paths that should be
-	// intsalled alongside this snap.
+	// installed alongside this snap.
 	Components map[*snap.ComponentSideInfo]string
 }
 

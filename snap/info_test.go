@@ -2370,38 +2370,6 @@ hooks:
 	c.Check(hook.SecurityTag(), Equals, "snap.test-snap_instance.hook.install")
 }
 
-func (s *infoSuite) TestTransientScopeGlob(c *C) {
-	pattern, err := snap.TransientScopeGlob("some-snap")
-	c.Assert(err, IsNil)
-	c.Check(pattern, Equals, "snap.some-snap.*.scope")
-	matched, err := filepath.Match(pattern, "snap.some-snap.some-app-4706fe54-7802-4808-aa7e-ae8b567239e0.scope")
-	c.Assert(err, IsNil)
-	c.Check(matched, Equals, true)
-}
-
-func (s *infoSuite) TestTransientScopeGlobInstance(c *C) {
-	pattern, err := snap.TransientScopeGlob("some-snap_instance-1")
-	c.Assert(err, IsNil)
-	c.Check(pattern, Equals, "snap.some-snap_instance-1.*.scope")
-	// matches instance
-	matched, err := filepath.Match(pattern, "snap.some-snap_instance-1.some-app-4706fe54-7802-4808-aa7e-ae8b567239e0.scope")
-	c.Assert(err, IsNil)
-	c.Check(matched, Equals, true)
-	// but not other instances
-	matched, err = filepath.Match(pattern, "snap.some-snap_instance-2.some-app-4706fe54-7802-4808-aa7e-ae8b567239e0.scope")
-	c.Assert(err, IsNil)
-	c.Check(matched, Equals, false)
-	// or the main snap
-	matched, err = filepath.Match(pattern, "snap.some-snap.some-app-4706fe54-7802-4808-aa7e-ae8b567239e0.scope")
-	c.Assert(err, IsNil)
-	c.Check(matched, Equals, false)
-}
-
-func (s *infoSuite) TestTransientScopeError(c *C) {
-	_, err := snap.TransientScopeGlob("invalid?name")
-	c.Assert(err.Error(), Equals, "invalid character in security tag: '?'")
-}
-
 func (s *infoSuite) TestComponentMountDir(c *C) {
 	dir := snap.ComponentMountDir("comp", snap.R(1), "snap")
 	c.Check(dir, Equals, filepath.Join(dirs.SnapMountDir, "snap", "components", "mnt", "comp", "1"))
@@ -2523,4 +2491,197 @@ func (s *infoSuite) TestSplitSnapInstanceAndComponents(c *C) {
 		c.Check(snap, Equals, tc.snap, Commentf("%v", tc.input))
 		c.Check(comps, DeepEquals, tc.comps, Commentf("%v", tc.input))
 	}
+}
+
+func (s *infoSuite) testDesktopFileIDs(c *C, hasDesktopPlug, hasDesktopFileIDs bool) {
+	if hasDesktopFileIDs && !hasDesktopPlug {
+		c.Error("cannot set hasDesktopFileIDs without hasDesktopPlug")
+	}
+
+	var desktopAppYaml = `
+name: foo
+version: 1.0
+`
+	if hasDesktopPlug {
+		desktopAppYaml += "\nplugs:\n  desktop:"
+	}
+	if hasDesktopFileIDs {
+		desktopAppYaml += "\n    desktop-file-ids: [org.example, org.example.Foo]"
+	}
+	info, err := snap.InfoFromSnapYaml([]byte(desktopAppYaml))
+	c.Assert(err, IsNil)
+	if hasDesktopPlug {
+		c.Assert(info.Plugs["desktop"], NotNil)
+	}
+
+	desktopFileIDs, err := info.DesktopPlugFileIDs()
+	c.Assert(err, IsNil)
+
+	if hasDesktopFileIDs {
+		c.Assert(desktopFileIDs, DeepEquals, []string{"org.example", "org.example.Foo"})
+	} else {
+		c.Assert(desktopFileIDs, IsNil)
+	}
+}
+
+func (s *infoSuite) TestDesktopFileIDs(c *C) {
+	const hasDesktopPlug = true
+	const hasDesktopFileIDs = true
+	s.testDesktopFileIDs(c, hasDesktopPlug, hasDesktopFileIDs)
+}
+
+func (s *infoSuite) TestDesktopFileIDsWithoutDesktopInterface(c *C) {
+	const hasDesktopPlug = false
+	const hasDesktopFileIDs = false
+	s.testDesktopFileIDs(c, hasDesktopPlug, hasDesktopFileIDs)
+}
+
+func (s *infoSuite) TestDesktopFileIDsWithoutDesktopFileIDs(c *C) {
+	const hasDesktopPlug = true
+	const hasDesktopFileIDs = false
+	s.testDesktopFileIDs(c, hasDesktopPlug, hasDesktopFileIDs)
+}
+
+func (s *infoSuite) TestDesktopFileIDsError(c *C) {
+	const desktopAppYamlTemplate = `
+name: foo
+version: 1.0
+plugs:
+  desktop:
+    desktop-file-ids: %s
+`
+
+	for _, tc := range []string{
+		"not-a-list-of-strings",
+		"1",
+		"true",
+		"[[string],1]",
+	} {
+		desktopAppYaml := fmt.Sprintf(desktopAppYamlTemplate, tc)
+		info, err := snap.InfoFromSnapYaml([]byte(desktopAppYaml))
+		c.Assert(err, IsNil)
+		c.Assert(info.Plugs["desktop"], NotNil)
+
+		_, err = info.DesktopPlugFileIDs()
+		c.Assert(err, ErrorMatches, `internal error: "desktop-file-ids" must be a list of strings`)
+	}
+}
+
+func (s *infoSuite) TestMangleDesktopFileName(c *C) {
+	const desktopAppYaml = `
+name: foo
+version: 1.0
+plugs:
+  desktop:
+    desktop-file-ids: [org.example]
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(desktopAppYaml))
+	c.Assert(err, IsNil)
+
+	type testcase struct {
+		fname, target string
+	}
+
+	for _, tc := range []testcase{
+		{"/some/dir/org.example.desktop", "/some/dir/org.example.desktop"},
+		{"/some/dir/org.example.Foo.desktop", "/some/dir/foo_org.example.Foo.desktop"},
+		{"/some/dir/org.desktop", "/some/dir/foo_org.desktop"},
+		{"/some/dir/test.desktop", "/some/dir/foo_test.desktop"},
+
+		{"org.example.desktop", "org.example.desktop"},
+		{"org.example.Foo.desktop", "foo_org.example.Foo.desktop"},
+		{"org.desktop", "foo_org.desktop"},
+		{"test.desktop", "foo_test.desktop"},
+	} {
+		mangled, err := info.MangleDesktopFileName(tc.fname)
+		c.Assert(err, IsNil, Commentf(tc.fname))
+		c.Assert(mangled, Equals, tc.target, Commentf(tc.fname))
+	}
+}
+
+func (s *infoSuite) TestMangleDesktopFileNameError(c *C) {
+	const desktopAppYaml = `
+name: foo
+version: 1.0
+plugs:
+  desktop:
+    desktop-file-ids: 1
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(desktopAppYaml))
+	c.Assert(err, IsNil)
+
+	_, err = info.MangleDesktopFileName("test.desktop")
+	c.Assert(err, NotNil)
+}
+
+func (s *infoSuite) TestDesktopFilesFromMountNoFiles(c *C) {
+	const desktopAppYaml = `
+name: foo
+version: 1.0
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(desktopAppYaml))
+	c.Assert(err, IsNil)
+
+	desktopFiles, err := info.DesktopFilesFromMount(snap.DesktopFilesFromMountOptions{})
+	c.Assert(err, IsNil)
+	c.Assert(desktopFiles, IsNil)
+}
+
+func (s *infoSuite) testDesktopFilesFromMount(c *C, mangle bool) {
+	const desktopAppYaml = `
+name: foo
+version: 1.0
+plugs:
+  desktop:
+    desktop-file-ids: [org.example]
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(desktopAppYaml))
+	c.Assert(err, IsNil)
+
+	guiDir := filepath.Join(info.MountDir(), "meta", "gui")
+	err = os.MkdirAll(guiDir, 0755)
+	c.Assert(err, IsNil)
+
+	testDesktopFiles := []string{"org.example.desktop", "org.example.Foo.desktop", "test.desktop"}
+	for _, df := range testDesktopFiles {
+		err = os.WriteFile(filepath.Join(guiDir, df), nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
+	opts := snap.DesktopFilesFromMountOptions{MangleFileNames: mangle}
+	desktopFilesFound, err := info.DesktopFilesFromMount(opts)
+	c.Assert(err, IsNil)
+	c.Assert(desktopFilesFound, HasLen, len(testDesktopFiles))
+
+	for _, target := range desktopFilesFound {
+		ok := false
+		for _, src := range testDesktopFiles {
+			src := filepath.Join(guiDir, src)
+			if mangle {
+				src, err = info.MangleDesktopFileName(src)
+				c.Assert(err, IsNil)
+			}
+			if src == target {
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			c.Error(Commentf(target))
+		}
+	}
+}
+
+func (s *infoSuite) TestDesktopFilesFromMount(c *C) {
+	const mangle = false
+	s.testDesktopFilesFromMount(c, mangle)
+}
+
+func (s *infoSuite) TestDesktopFilesFromMountMangled(c *C) {
+	const mangle = true
+	s.testDesktopFilesFromMount(c, mangle)
 }

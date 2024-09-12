@@ -7,7 +7,6 @@ details: |
 # Run only on ubuntu classic because this re-execs. We have a
 # separate test for UC18 already and on UC16 we always have a core
 # snap so we don't need to test there.
-# Snapd snap is not available on i386 anymore. So we stick with 64 bits.
 systems: [ubuntu-1*-64, ubuntu-2*-64]
 
 environment:

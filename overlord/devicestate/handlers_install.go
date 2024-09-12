@@ -1066,8 +1066,23 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 			return fmt.Errorf("internal error: seed does not support copying: %s", systemAndSnaps.Label)
 		}
 
+		var optional *seed.OptionalContainers
+		if t.Has("optional-install") {
+			var oc OptionalContainers
+			if err := t.Get("optional-install", &oc); err != nil {
+				return err
+			}
+			optional = &seed.OptionalContainers{
+				Snaps:      oc.Snaps,
+				Components: oc.Components,
+			}
+		}
+
 		logger.Debugf("copying label %q to seed partition", systemAndSnaps.Label)
-		if err := copier.Copy(seedMntDir, systemAndSnaps.Label, perfTimings); err != nil {
+		if err := copier.Copy(seedMntDir, seed.CopyOptions{
+			Label:              systemAndSnaps.Label,
+			OptionalContainers: optional,
+		}, perfTimings); err != nil {
 			return fmt.Errorf("cannot copy seed: %w", err)
 		}
 	}

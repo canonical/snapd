@@ -22,6 +22,7 @@ package snap
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -37,7 +38,6 @@ import (
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
 
@@ -233,18 +233,6 @@ func HookSecurityTag(snapName, hookName string) string {
 // are not associated to an app or hook in the snap.
 func NoneSecurityTag(snapName, uniqueName string) string {
 	return ScopedSecurityTag(snapName, "none", uniqueName)
-}
-
-// TransientScopeGlob returns the glob pattern matching
-// snap's transient scope units.
-//
-// e.g. snap.hello-world.sh-4706fe54-7802-4808-aa7e-ae8b567239e0.scope
-func TransientScopeGlob(snapName string) (string, error) {
-	snapSecurityTag := SecurityTag(snapName)
-	unitPrefix, err := systemd.SecurityTagToUnitName(snapSecurityTag)
-	// XXX: Should we also match snap components glob pattern (i.e. snap.name+*.*.scope?
-	// snap.name.*.scope
-	return unitPrefix + ".*.scope", err
 }
 
 // BaseDataDir returns the base directory for snap data locations.
@@ -948,6 +936,105 @@ func (s *Info) DesktopPrefix() string {
 	// we cannot use the usual "_" separator because that is also used
 	// to separate "$snap_$desktopfile"
 	return fmt.Sprintf("%s+%s", s.SnapName(), s.InstanceKey)
+}
+
+// DesktopPlugFileIDs returns desktop-file-ids desktop plug attribute entries.
+// The desktop-file-ids attribute is optional so an empty list is returned if
+// the it is not found.
+//
+// Note: DesktopPlugFileIDs doesn't check if the desktop plug is connected because
+// the desktop-file-ids attribute is controlled by an allow-installation rule.
+func (s *Info) DesktopPlugFileIDs() ([]string, error) {
+	var desktopPlug *PlugInfo
+	for _, plug := range s.Plugs {
+		if plug.Interface == "desktop" {
+			desktopPlug = plug
+			break
+		}
+	}
+	if desktopPlug == nil {
+		return nil, nil
+	}
+
+	attrVal, exists := desktopPlug.Lookup("desktop-file-ids")
+	if !exists {
+		// desktop-file-ids attribute is optional
+		return nil, nil
+	}
+
+	// TODO: The internal errors below should never happen due to validation
+	// in the desktop interface. It would be a good candidate for telemetry
+	// error reporting.
+
+	// desktop-file-ids must be a list of strings
+	attrList, ok := attrVal.([]interface{})
+	if !ok {
+		return nil, errors.New(`internal error: "desktop-file-ids" must be a list of strings`)
+	}
+
+	desktopFileIDs := make([]string, 0, len(attrList))
+	for _, val := range attrList {
+		desktopFileID, ok := val.(string)
+		if !ok {
+			return nil, errors.New(`internal error: "desktop-file-ids" must be a list of strings`)
+		}
+		desktopFileIDs = append(desktopFileIDs, desktopFileID)
+	}
+	return desktopFileIDs, nil
+}
+
+// MangleDesktopFileName returns the file name prefixed with Info.DesktopPrefix()
+// unless its name (without the .desktop extension) is listed under the
+// desktop-file-ids desktop interface attribute.
+func (s *Info) MangleDesktopFileName(desktopFile string) (string, error) {
+	desktopFileIDs, err := s.DesktopPlugFileIDs()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Dir(desktopFile)
+	base := filepath.Base(desktopFile)
+	// Don't mangle desktop files if listed under desktop-file-ids attribute
+	// XXX: Do we want to fail if a desktop-file-ids entry doesn't
+	// have a corresponding file?
+	for _, desktopFileID := range desktopFileIDs {
+		if strings.TrimSuffix(base, ".desktop") == desktopFileID {
+			return filepath.Join(dir, base), nil
+		}
+	}
+	// FIXME: don't blindly use the snap desktop filename, mangle it
+	// but we can't just use the app name because a desktop file
+	// may call the same app with multiple parameters, e.g.
+	// --create-new, --open-existing etc
+	return filepath.Join(dir, fmt.Sprintf("%s_%s", s.DesktopPrefix(), base)), nil
+}
+
+type DesktopFilesFromMountOptions struct {
+	// Mangles found desktop files using Info.MangleDesktopFileName()
+	MangleFileNames bool
+}
+
+// DesktopFilesFromMount returns the desktop files found under <snap-mount>/meta/gui.
+func (s *Info) DesktopFilesFromMount(opts DesktopFilesFromMountOptions) ([]string, error) {
+	rootDir := filepath.Join(s.MountDir(), "meta", "gui")
+	if !osutil.IsDirectory(rootDir) {
+		return nil, nil
+	}
+	desktopFiles, err := filepath.Glob(filepath.Join(rootDir, "*.desktop"))
+	if err != nil {
+		return nil, fmt.Errorf("cannot get desktop files from %v: %s", rootDir, err)
+	}
+
+	if !opts.MangleFileNames {
+		return desktopFiles, nil
+	}
+
+	for i, df := range desktopFiles {
+		desktopFiles[i], err = s.MangleDesktopFileName(df)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return desktopFiles, nil
 }
 
 // DownloadInfo contains the information to download a snap.

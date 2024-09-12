@@ -64,8 +64,16 @@ create_test_user(){
 }
 
 build_deb(){
+    newver="$(dpkg-parsechangelog --show-field Version)"
+
+    case "$SPREAD_SYSTEM" in
+        ubuntu-fips-*)
+            newver="${newver}+fips"
+            FIPS_BUILD_OPTION=fips
+            ;;
+    esac
     # Use fake version to ensure we are always bigger than anything else
-    dch --newversion "1337.$(dpkg-parsechangelog --show-field Version)" "testing build"
+    dch --newversion "1337.$newver" "testing build"
 
     if os.query is-debian sid; then
         # ensure we really build without vendored packages
@@ -73,7 +81,7 @@ build_deb(){
     fi
 
     unshare -n -- \
-            su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip -uc -us" test
+            su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys ${FIPS_BUILD_OPTION}' dpkg-buildpackage -tc -b -Zgzip -uc -us" test
     # put our debs to a safe place
     cp ../*.deb "$GOHOME"
 
@@ -546,6 +554,17 @@ prepare_project() {
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
             best_golang=golang-1.18
+            case "$SPREAD_SYSTEM" in
+                ubuntu-fips-*)
+                    # we are limited by the FIPS variants of go toolchain
+                    # available from the PPA, and we need to match the Go
+                    # version expected by during FIPS build of the deb, which
+                    # currently expects 1.21, see:
+                    # https://launchpad.net/~ubuntu-toolchain-r/+archive/ubuntu/golang-fips
+                    best_golang=golang-1.21
+                    quiet apt install -y golang-1.21
+                    ;;
+            esac
             # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
             gdebi --quiet --apt-line ./debian/control >deps.txt
             quiet xargs -r eatmydata apt-get install -y < deps.txt

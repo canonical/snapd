@@ -12,7 +12,7 @@
     "base": "core24",
     "snaps": [
         {
-            "default-channel": "latest/edge",
+            "default-channel": "24/edge",
             "id": "tTs9DVS01mt4L11PGqbrSiKcIxFHpUJq",
             "name": "test-snapd-remodel-pc-min-size",
             "type": "gadget"

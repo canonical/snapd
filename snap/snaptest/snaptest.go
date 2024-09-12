@@ -260,13 +260,15 @@ func MakeTestSnapWithFiles(c *check.C, snapYamlContent string, files [][]string)
 // the squashfs with files if required.
 func MakeTestComponentWithFiles(c *check.C, componentName, componentYaml string, files [][]string) (snapFilePath string) {
 	compSource := populateContainer(c, "component.yaml", componentYaml, files)
+
+	componentFileName := fmt.Sprintf("%s.comp", componentName)
 	err := osutil.ChDir(compSource, func() error {
-		d := squashfs.New(componentName)
+		d := squashfs.New(componentFileName)
 		err := d.Build(compSource, nil)
 		return err
 	})
 	c.Assert(err, check.IsNil)
-	return filepath.Join(compSource, componentName)
+	return filepath.Join(compSource, componentFileName)
 }
 
 func MakeTestComponent(c *check.C, compYaml string) string {

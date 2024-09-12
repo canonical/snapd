@@ -17,7 +17,6 @@ systems:
   - -fedora-39-*         # fails to start service daemon-containerd
   - -fedora-40-*         # fails to start service daemon-containerd
   - -ubuntu-14.04-*      # doesn't have libseccomp >= 2.4
-  - -ubuntu-*-32         # no microk8s snap for 32 bit systems
   - -arch-linux-*        # XXX: no curl to the pod for unknown reasons
   - -ubuntu-*-arm*       # not available on arm
 

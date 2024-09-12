@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -506,6 +507,8 @@ func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir
 		return false, err
 	}
 
+	osutil.MaybeInjectFault("update-config-bootloader")
+
 	if cmdlineChange {
 		candidate := true
 		if err := updateCmdlineVars(tbl, gadgetSnapOrDir, cmdlineAppend, candidate, dev); err != nil {
@@ -558,6 +561,8 @@ func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir, cmdli
 	if !cmdlineChange {
 		return false, nil
 	}
+
+	osutil.MaybeInjectFault("update-command-line-gadget")
 
 	candidate := false
 	if err := updateCmdlineVars(tbl, gadgetSnapOrDir, cmdlineAppend, candidate, dev); err != nil {

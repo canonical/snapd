@@ -104,6 +104,14 @@ func readInfo(snapPath string, si *snap.SideInfo) (*snap.Info, error) {
 	return snap.ReadInfoFromSnapFile(snapf, si)
 }
 
+func readComponentInfo(compPath string, info *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+	compf, err := snapfile.Open(compPath)
+	if err != nil {
+		return nil, err
+	}
+	return snap.ReadComponentInfoFromContainer(compf, info, csi)
+}
+
 func snapTypeFromModel(modSnap *asserts.ModelSnap) snap.Type {
 	switch modSnap.SnapType {
 	case "base":

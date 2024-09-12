@@ -24,13 +24,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
-	"net/http"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
-	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -51,7 +48,6 @@ import (
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
-	"github.com/snapcore/snapd/usersession/client"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -297,6 +293,57 @@ version: 1.0
 	c.Check(osutil.FileExists(currentActiveSymlink), Equals, false)
 	c.Check(osutil.FileExists(currentDataSymlink), Equals, false)
 
+}
+
+func (s *linkSuite) TestLinkDoUndoParallel(c *C) {
+	const yaml = `name: hello
+version: 1.0
+`
+	info := snaptest.MockSnapInstance(c, "hello_foo", yaml, &snap.SideInfo{Revision: snap.R(11)})
+
+	reboot, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{
+		HasOtherInstances: false,
+	}, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: false})
+
+	mountDir := info.MountDir()
+	dataDir := info.DataDir()
+	currentActiveSymlink := filepath.Join(mountDir, "..", "current")
+	currentActiveDir, err := filepath.EvalSymlinks(currentActiveSymlink)
+	c.Assert(err, IsNil)
+	c.Assert(currentActiveDir, Equals, mountDir)
+
+	fi, err := os.Stat(snap.BaseDir("hello"))
+	c.Assert(err, IsNil)
+	c.Check(fi.IsDir(), Equals, true)
+
+	currentDataSymlink := filepath.Join(dataDir, "..", "current")
+	currentDataDir, err := filepath.EvalSymlinks(currentDataSymlink)
+	c.Assert(err, IsNil)
+	c.Assert(currentDataDir, Equals, dataDir)
+
+	// undo will remove the symlinks but leave the shared snap directory
+	// behind regardless of other instances presence
+	for _, other := range []bool{true, false} {
+		err = s.be.UnlinkSnap(info, backend.LinkContext{
+			HasOtherInstances: other,
+		}, progress.Null)
+		c.Assert(err, IsNil)
+
+		c.Check(osutil.FileExists(currentActiveSymlink), Equals, false)
+		c.Check(osutil.FileExists(currentDataSymlink), Equals, false)
+
+		fi, err = os.Stat(snap.BaseDir("hello"))
+		c.Assert(err, IsNil)
+		c.Check(fi.IsDir(), Equals, true)
+	}
+
+	// but the shared snap directory is left behind
+	fi, err = os.Stat(snap.BaseDir("hello"))
+	c.Assert(err, IsNil)
+	c.Check(fi.IsDir(), Equals, true)
 }
 
 func (s *linkSuite) TestLinkSetNextBoot(c *C) {
@@ -753,6 +800,48 @@ func (s *linkCleanupSuite) TestLinkCleanupFailedSnapdSnapNonFirstInstallOnCore(c
 	s.testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c, false)
 }
 
+type testLinkCleanupParallelInstanceTestCase struct {
+	otherInstances bool
+}
+
+func (s *linkCleanupSuite) testLinkCleanupOnFailWithParallelInstance(c *C, tc testLinkCleanupParallelInstanceTestCase) {
+	const yaml = `name: instance-snap
+version: 1.0
+`
+
+	// break linking by creating a directory in place of 'current' symlink
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapMountDir, "instance-snap_foo/current"), 0755), IsNil)
+
+	snapinstance := snaptest.MockSnapInstance(c, "instance-snap_foo", yaml, &snap.SideInfo{Revision: snap.R(11)})
+
+	_, err := s.be.LinkSnap(snapinstance, mockDev,
+		backend.LinkContext{
+			HasOtherInstances: tc.otherInstances,
+		},
+		s.perfTimings)
+	c.Assert(err, NotNil)
+	c.Assert(errors.Is(err, fs.ErrExist), Equals, true)
+
+	_, err = os.Stat(filepath.Join(dirs.SnapMountDir, "instance-snap"))
+	if !tc.otherInstances {
+		c.Assert(errors.Is(err, fs.ErrNotExist), Equals, true)
+	} else {
+		c.Assert(err, IsNil)
+	}
+}
+
+func (s *linkCleanupSuite) TestLinkCleanupOnFailWithParallelInstanceHasOther(c *C) {
+	s.testLinkCleanupOnFailWithParallelInstance(c, testLinkCleanupParallelInstanceTestCase{
+		otherInstances: true,
+	})
+}
+
+func (s *linkCleanupSuite) TestLinkCleanupOnFailWithParallelInstanceNoOther(c *C) {
+	s.testLinkCleanupOnFailWithParallelInstance(c, testLinkCleanupParallelInstanceTestCase{
+		otherInstances: false,
+	})
+}
+
 type snapdOnCoreUnlinkSuite struct {
 	linkSuiteCommon
 }
@@ -1092,83 +1181,16 @@ func (s *linkSuite) TestUnlinkComponentError(c *C) {
 	c.Assert(err, ErrorMatches, `remove .*: directory not empty`)
 }
 
-func mockUserSessionAgent(handler http.Handler, c *C) (restore func()) {
-	server := &http.Server{Handler: handler}
-	for _, uid := range []int{1000, 42} {
-		sock := fmt.Sprintf("%s/%d/snapd-session-agent.socket", dirs.XdgRuntimeDirBase, uid)
-		err := os.MkdirAll(filepath.Dir(sock), 0755)
-		c.Assert(err, IsNil)
-		l, err := net.Listen("unix", sock)
-		c.Assert(err, IsNil)
-		go func(l net.Listener) {
-			err := server.Serve(l)
-			c.Check(err, Equals, http.ErrServerClosed)
-		}(l)
-	}
-
-	return func() {
-		err := server.Shutdown(context.Background())
-		c.Check(err, IsNil)
-	}
-}
-
 func (s *linkSuite) TestKillSnapApps(c *C) {
-	var agentCalled int32
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&agentCalled, 1)
-		c.Assert(r.URL.Path, Equals, "/v1/app-control")
-		w.Header().Set("Content-Type", "application/json")
-
-		decoder := json.NewDecoder(r.Body)
-		var inst client.AppInstruction
-		c.Assert(decoder.Decode(&inst), IsNil)
-		c.Check(inst.Action, Equals, "kill")
-		c.Check(inst.Snaps, DeepEquals, []string{"foo"})
-		c.Check(inst.Signal, Equals, syscall.SIGKILL)
-		c.Check(inst.Reason, Equals, snap.KillReasonRemove)
-
-		w.WriteHeader(200)
-		w.Write([]byte(`{
-  "type": "sync",
-  "result": null
-}`))
+	var called int
+	restore := backend.MockCgroupKillSnapProcesses(func(ctx context.Context, snapName string) error {
+		called++
+		c.Check(snapName, Equals, "foo")
+		return nil
 	})
-	restore := mockUserSessionAgent(handler, c)
 	defer restore()
 
-	err := s.be.KillSnapApps("foo", snap.KillReasonRemove, nil, s.perfTimings)
+	err := s.be.KillSnapApps("foo", snap.KillReasonRemove, s.perfTimings)
 	c.Assert(err, IsNil)
-
-	// called for two users 1000 and 42
-	c.Check(agentCalled, Equals, int32(2))
-}
-
-func (s *linkSuite) TestKillSnapAppsFailure(c *C) {
-	var agentCalled int32
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&agentCalled, 1)
-		c.Assert(r.URL.Path, Equals, "/v1/app-control")
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(500)
-		w.Write([]byte(`{
-  "type": "error",
-  "result": {
-    "kind": "app-control",
-    "message": "failed to kill running apps",
-    "value": {
-      "kill-errors": {
-        "snap.foo.some-app-7414e1a3-6d08-43ff-a81c-6547242a78b0.scope": "failed to kill running app"
-      }
-    }
-  }
-}`))
-	})
-	restore := mockUserSessionAgent(handler, c)
-	defer restore()
-
-	err := s.be.KillSnapApps("foo", snap.KillReasonRemove, progress.Null, s.perfTimings)
-	c.Assert(err, ErrorMatches, "failed to kill running apps")
-
-	// called for two users 1000 and 42
-	c.Check(agentCalled, Equals, int32(2))
+	c.Assert(called, Equals, 1)
 }

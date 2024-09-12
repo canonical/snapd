@@ -2104,6 +2104,10 @@ type System struct {
 	// DefaultRecoverySystem is true when the system is the default recovery
 	// system.
 	DefaultRecoverySystem bool
+	// OptionalContainers is a set of snaps and components that are optional in
+	// the system's model, but are available to be installed when installing this
+	// system.
+	OptionalContainers OptionalContainers
 }
 
 var defaultSystemActions = []SystemAction{

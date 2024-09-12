@@ -55,11 +55,15 @@ func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags, prqt
 		flags.DevMode = true
 	}
 
-	// TODO:COMPS: this will need to account for components in the future
+	compsSideInfos := make(map[*snap.ComponentSideInfo]string, len(sn.Components))
+	for _, comp := range sn.Components {
+		// Prevent reusing loop variable
+		comp := comp
+		compsSideInfos[&comp.CompSideInfo] = comp.Path
+	}
 
-	goal := snapstate.PathInstallGoal("", sn.Path, sn.SideInfo, nil, snapstate.RevisionOptions{
-		Channel: sn.Channel,
-	})
+	goal := snapstate.PathInstallGoal("", sn.Path, sn.SideInfo, compsSideInfos,
+		snapstate.RevisionOptions{Channel: sn.Channel})
 	info, ts, err := snapstate.InstallOne(context.Background(), st, goal, snapstate.Options{
 		Flags:         flags,
 		PrereqTracker: prqt,

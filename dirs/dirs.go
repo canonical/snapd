@@ -381,6 +381,10 @@ func SnapServicesDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, "/etc/systemd/system")
 }
 
+func SnapRuntimeServicesDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, "/run/systemd/system")
+}
+
 // SnapSystemdDirUnder returns the path to the systemd conf dir under
 // rootdir.
 func SnapSystemdDirUnder(rootdir string) string {
@@ -522,8 +526,8 @@ func SetRootDir(rootdir string) {
 	SnapRollbackDir = filepath.Join(rootdir, snappyDir, "rollback")
 
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
-	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
-	SnapRuntimeServicesDir = filepath.Join(rootdir, "/run/systemd/system")
+	SnapServicesDir = SnapServicesDirUnder(rootdir)
+	SnapRuntimeServicesDir = SnapRuntimeServicesDirUnder(rootdir)
 	SnapUserServicesDir = filepath.Join(rootdir, "/etc/systemd/user")
 	SnapSystemdConfDir = SnapSystemdConfDirUnder(rootdir)
 	SnapSystemdDir = filepath.Join(rootdir, "/etc/systemd")

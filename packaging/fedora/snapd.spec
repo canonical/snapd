@@ -107,7 +107,7 @@ Name:           snapd
 Version:        2.65.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
-License:        GPLv3
+License:        GPL-3.0-only
 URL:            https://%{provider_prefix}
 Source0:        https://%{provider_prefix}/releases/download/%{version}/%{name}_%{version}.no-vendor.tar.xz
 Source1:        https://%{provider_prefix}/releases/download/%{version}/%{name}_%{version}.only-vendor.tar.xz
@@ -204,7 +204,7 @@ designed for working with self-contained, immutable packages.
 
 %package -n snap-confine
 Summary:        Confinement system for snap applications
-License:        GPLv3
+License:        GPL-3.0-only
 BuildRequires:  autoconf
 BuildRequires:  autoconf-archive
 BuildRequires:  automake
@@ -247,7 +247,7 @@ the started snap applications.
 %if 0%{?with_selinux}
 %package selinux
 Summary:        SELinux module for snapd
-License:        GPLv2+
+License:        GPL-2.0-or-later
 BuildArch:      noarch
 BuildRequires:  selinux-policy
 BuildRequires:  selinux-policy-devel

@@ -20,19 +20,14 @@
 package prompting
 
 import (
-	"errors"
 	"fmt"
+	"sort"
 
+	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/strutil"
-)
-
-var (
-	ErrPermissionNotInList        = errors.New("permission not found in permissions list")
-	ErrPermissionsListEmpty       = errors.New("permissions list empty")
-	ErrUnrecognizedFilePermission = errors.New("file permissions mask contains unrecognized permission")
 )
 
 // Constraints hold information about the applicability of a rule to particular
@@ -48,12 +43,9 @@ type Constraints struct {
 // interface, otherwise returns an error.
 func (c *Constraints) ValidateForInterface(iface string) error {
 	if c.PathPattern == nil {
-		return fmt.Errorf("invalid constraints: no path pattern")
+		return prompting_errors.NewInvalidPathPatternError("", "no path pattern")
 	}
-	if err := c.validatePermissions(iface); err != nil {
-		return fmt.Errorf("invalid constraints: %w", err)
-	}
-	return nil
+	return c.validatePermissions(iface)
 }
 
 // validatePermissions checks that the permissions for the given constraints
@@ -63,17 +55,22 @@ func (c *Constraints) ValidateForInterface(iface string) error {
 func (c *Constraints) validatePermissions(iface string) error {
 	availablePerms, ok := interfacePermissionsAvailable[iface]
 	if !ok {
-		return fmt.Errorf("unsupported interface: %s", iface)
+		return prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
 	}
 	permsSet := make(map[string]bool, len(c.Permissions))
+	var invalidPerms []string
 	for _, perm := range c.Permissions {
 		if !strutil.ListContains(availablePerms, perm) {
-			return fmt.Errorf("unsupported permission for %s interface: %q", iface, perm)
+			invalidPerms = append(invalidPerms, perm)
+			continue
 		}
 		permsSet[perm] = true
 	}
+	if len(invalidPerms) > 0 {
+		return prompting_errors.NewInvalidPermissionsError(iface, invalidPerms, availablePerms)
+	}
 	if len(permsSet) == 0 {
-		return ErrPermissionsListEmpty
+		return prompting_errors.NewPermissionsListEmptyError(iface, availablePerms)
 	}
 	newPermissions := make([]string, 0, len(permsSet))
 	for _, perm := range availablePerms {
@@ -90,30 +87,14 @@ func (c *Constraints) validatePermissions(iface string) error {
 // If the constraints or path are invalid, returns an error.
 func (c *Constraints) Match(path string) (bool, error) {
 	if c.PathPattern == nil {
-		return false, fmt.Errorf("invalid constraints: no path pattern")
+		return false, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
 	}
 	match, err := c.PathPattern.Match(path)
 	if err != nil {
-		return false, fmt.Errorf("invalid constraints: %w", err)
+		// Error should not occur, since it was parsed internally
+		return false, prompting_errors.NewInvalidPathPatternError(c.PathPattern.String(), err.Error())
 	}
 	return match, nil
-}
-
-// RemovePermission removes every instance of the given permission from the
-// permissions list associated with the constraints. If the permission does
-// not exist in the list, returns ErrPermissionNotInList.
-func (c *Constraints) RemovePermission(permission string) error {
-	newPermissions := make([]string, 0, len(c.Permissions))
-	for _, perm := range c.Permissions {
-		if perm != permission {
-			newPermissions = append(newPermissions, perm)
-		}
-	}
-	if len(newPermissions) == len(c.Permissions) {
-		return ErrPermissionNotInList
-	}
-	c.Permissions = newPermissions
-	return nil
 }
 
 // ContainPermissions returns true if the constraints include every one of the
@@ -148,6 +129,16 @@ var (
 		},
 	}
 )
+
+// availableInterfaces returns the list of supported interfaces.
+func availableInterfaces() []string {
+	interfaces := make([]string, 0, len(interfacePermissionsAvailable))
+	for iface := range interfacePermissionsAvailable {
+		interfaces = append(interfaces, iface)
+	}
+	sort.Strings(interfaces)
+	return interfaces
+}
 
 // AvailablePermissions returns the list of available permissions for the given
 // interface.
@@ -208,10 +199,13 @@ func AbstractPermissionsFromAppArmorPermissions(iface string, permissions any) (
 // corresponding to the given permissions for the given interface.
 func AbstractPermissionsToAppArmorPermissions(iface string, permissions []string) (any, error) {
 	if len(permissions) == 0 {
-		return notify.FilePermission(0), ErrPermissionsListEmpty
+		availablePerms, _ := AvailablePermissions(iface)
+		// Caller should have already validated iface, so no error can occur
+		return notify.FilePermission(0), prompting_errors.NewPermissionsListEmptyError(iface, availablePerms)
 	}
 	filePermsMap, exists := interfaceFilePermissionsMaps[iface]
 	if !exists {
+		// Should not occur, since we already validated iface and permissions
 		return notify.FilePermission(0), fmt.Errorf("cannot map the given interface to map from abstract permissions to AppArmor permissions: %s", iface)
 	}
 	filePerms := notify.FilePermission(0)
