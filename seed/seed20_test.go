@@ -35,6 +35,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/internal"
@@ -53,6 +54,7 @@ type testSnapHandler struct {
 	pathPrefix string
 	asserted   map[string]string
 	unasserted map[string]string
+	containers map[string]snap.ContainerPlaceInfo
 }
 
 func newTestSnapHandler(seedDir string) *testSnapHandler {
@@ -60,6 +62,7 @@ func newTestSnapHandler(seedDir string) *testSnapHandler {
 		seedDir:    seedDir,
 		asserted:   make(map[string]string),
 		unasserted: make(map[string]string),
+		containers: make(map[string]snap.ContainerPlaceInfo),
 	}
 }
 
@@ -75,6 +78,7 @@ func (h *testSnapHandler) HandleUnassertedContainer(cpi snap.ContainerPlaceInfo,
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.unasserted[cpi.ContainerName()] = h.rel(path)
+	h.containers[cpi.ContainerName()] = cpi
 	return h.pathPrefix + path, nil
 }
 
@@ -87,6 +91,7 @@ func (h *testSnapHandler) HandleAndDigestAssertedContainer(cpi snap.ContainerPla
 		h.mu.Lock()
 		defer h.mu.Unlock()
 		h.asserted[cpi.ContainerName()] = fmt.Sprintf("%s", h.rel(path))
+		h.containers[cpi.ContainerName()] = cpi
 	}()
 	// XXX seed logic actually reads the gadget, leave it alone
 	if cpi.ContainerName() != "pc" {
@@ -4453,8 +4458,27 @@ func (s *seed20Suite) TestLoadMetaWithComponents(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	handler := newTestSnapHandler(s.SeedDir)
+
+	err = seed20.LoadMeta(seed.AllModes, handler, s.perfTimings)
 	c.Assert(err, IsNil)
+
+	expectedMountFiles := []string{
+		filepath.Join(dirs.SnapBlobDir, "required20+comp1_22.comp"),
+		filepath.Join(dirs.SnapBlobDir, "required20+comp2_33.comp"),
+		filepath.Join(dirs.SnapBlobDir, "snapd_1.snap"),
+		filepath.Join(dirs.SnapBlobDir, "pc-kernel_1.snap"),
+		filepath.Join(dirs.SnapBlobDir, "core20_1.snap"),
+		filepath.Join(dirs.SnapBlobDir, "pc_1.snap"),
+		filepath.Join(dirs.SnapBlobDir, "required20_11.snap"),
+	}
+
+	mountFiles := make([]string, 0, len(handler.containers))
+	for _, container := range handler.containers {
+		mountFiles = append(mountFiles, container.MountFile())
+	}
+
+	c.Check(mountFiles, testutil.DeepUnsortedMatches, expectedMountFiles)
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
