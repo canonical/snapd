@@ -786,12 +786,17 @@ jobs:
           echo "Running command: $SPREAD $RUN_TESTS"
           (set -o pipefail; $SPREAD -no-debug-output -logs spread-logs $RUN_TESTS | PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | tee spread.log)
 
+    - name: examine log dir
+      if: always()
+      run: |      
+          ls spread-logs
+
     - name: Uploading spread logs
       if: always()	
       uses: actions/upload-artifact@v3
       with:
         name: spread-logs-${{ matrix.systems }}
-        path: "spread-logs/*.logs"
+        path: ${{ github.workspace }}/spread-logs
 
     - name: Discard spread workers
       if: always()
