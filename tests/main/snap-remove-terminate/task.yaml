@@ -12,23 +12,24 @@ prepare: |
     snap install test-snapd-sh
 
 restore: |
-    systemctl stop test-kill.service || true
-    systemctl reset-failed test-kill.service || true
+    snap remove --purge test-snapd-sh || true
 
 execute: |
-    echo "Start a long running process"
     lockfile="$(pwd)/lockfile"
     touch "$lockfile"
+
+    echo "Start a long running process"
     sh_snap_bin="$(command -v test-snapd-sh.sh)"
-    systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c "sleep 100000"
-    # Wait for service to be up
-    retry -n 10 systemctl is-active test-kill.service
+    flock "$lockfile" "$sh_snap_bin" -c "sleep 100000" &
+    pid=$!
+    tests.cleanup defer "kill $pid || true"
 
     echo "Lock is held"
-    not flock --timeout 0 "$lockfile" --command "true"
+    retry -n 10 not flock --timeout 0 "$lockfile" --command "true"
 
     echo "Remove snap with --terminate flag"
-    snap remove --terminate test-snapd-sh
+    # cgroup v1 sometimes gets stuck at freezing state, retry if something goes wrong
+    retry -n 2 snap remove --terminate test-snapd-sh
 
     echo "Running process should be terminated after remove change is complete and lockfile should be unlocked"
     flock --timeout 60 "$lockfile" --command "true"
