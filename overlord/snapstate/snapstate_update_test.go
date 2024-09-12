@@ -14066,6 +14066,21 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughNoComponents(c *C) 
 	s.testUpdateWithComponentsRunThrough(c, updateWithComponentsOpts{})
 }
 
+func (s *snapmgrTestSuite) TestUpdateExplicitlyToSameRevisionRunThrough(c *C) {
+	s.testUpdateWithComponentsRunThrough(c, updateWithComponentsOpts{
+		useSameSnapRev:        true,
+		refreshAppAwarenessUX: true,
+	})
+}
+
+func (s *snapmgrTestSuite) TestUpdateExplicitlyToSameRevisionRunThroughUndo(c *C) {
+	s.testUpdateWithComponentsRunThrough(c, updateWithComponentsOpts{
+		useSameSnapRev:        true,
+		undo:                  true,
+		refreshAppAwarenessUX: true,
+	})
+}
+
 func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughUndo(c *C) {
 	s.testUpdateWithComponentsRunThrough(c, updateWithComponentsOpts{
 		components:            []string{"test-component", "kernel-modules-component"},
@@ -14116,6 +14131,7 @@ type updateWithComponentsOpts struct {
 	postRefreshComponents []string
 	refreshAppAwarenessUX bool
 	undo                  bool
+	useSameSnapRev        bool
 }
 
 func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateWithComponentsOpts) {
@@ -14130,7 +14146,11 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 
 	channel := "channel-for-components"
 	currentSnapRev := snap.R(7)
+
 	newSnapRev := snap.R(11)
+	if opts.useSameSnapRev {
+		newSnapRev = currentSnapRev
+	}
 
 	instanceName := snap.InstanceName(snapName, opts.instanceKey)
 
@@ -14263,7 +14283,12 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		InstanceKey:     opts.instanceKey,
 	})
 
-	ts, err := snapstate.Update(s.state, instanceName, nil, s.user.ID, snapstate.Flags{
+	var revOpts *snapstate.RevisionOptions
+	if opts.useSameSnapRev {
+		revOpts = &snapstate.RevisionOptions{Revision: currentSnapRev}
+	}
+
+	ts, err := snapstate.Update(s.state, instanceName, revOpts, s.user.ID, snapstate.Flags{
 		NoReRefresh: true,
 	})
 	c.Assert(err, IsNil)
@@ -14291,7 +14316,12 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 	// local modifications, edge must be set
 	te := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(te, NotNil)
-	c.Assert(te.Kind(), Equals, "validate-snap")
+
+	if opts.useSameSnapRev {
+		c.Assert(te.Kind(), Equals, "prepare-snap")
+	} else {
+		c.Assert(te.Kind(), Equals, "validate-snap")
+	}
 
 	s.settle(c)
 
@@ -14301,61 +14331,65 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		c.Assert(chg.Err(), IsNil, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
 	}
 
-	expected := fakeOps{
-		{
-			op: "storesvc-snap-action",
-			curSnaps: []store.CurrentSnap{{
-				InstanceName:    instanceName,
-				SnapID:          snapID,
-				Revision:        currentSnapRev,
-				TrackingChannel: channel,
-				RefreshedDate:   refreshedDate,
-				Epoch:           snap.E("1*"),
-				Resources:       currentResources,
-			}},
-			userID: 1,
-		},
-		{
-			op: "storesvc-snap-action:action",
-			action: store.SnapAction{
-				Action:       "refresh",
-				InstanceName: instanceName,
-				SnapID:       snapID,
-				Channel:      channel,
-				Flags:        store.SnapActionEnforceValidation,
+	var expected fakeOps
+
+	if !opts.useSameSnapRev {
+		expected = fakeOps{
+			{
+				op: "storesvc-snap-action",
+				curSnaps: []store.CurrentSnap{{
+					InstanceName:    instanceName,
+					SnapID:          snapID,
+					Revision:        currentSnapRev,
+					TrackingChannel: channel,
+					RefreshedDate:   refreshedDate,
+					Epoch:           snap.E("1*"),
+					Resources:       currentResources,
+				}},
+				userID: 1,
 			},
-			revno:  newSnapRev,
-			userID: 1,
-		},
-		{
-			op:   "storesvc-download",
-			name: snapName,
-		},
-		{
-			op:    "validate-snap:Doing",
-			name:  instanceName,
-			revno: newSnapRev,
-		},
-		{
-			op:  "current",
-			old: filepath.Join(dirs.SnapMountDir, instanceName, currentSnapRev.String()),
-		},
-		{
-			op:   "open-snap-file",
-			path: filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", instanceName, newSnapRev)),
-			sinfo: snap.SideInfo{
-				RealName: snapName,
-				SnapID:   snapID,
-				Channel:  channel,
-				Revision: newSnapRev,
+			{
+				op: "storesvc-snap-action:action",
+				action: store.SnapAction{
+					Action:       "refresh",
+					InstanceName: instanceName,
+					SnapID:       snapID,
+					Channel:      channel,
+					Flags:        store.SnapActionEnforceValidation,
+				},
+				revno:  newSnapRev,
+				userID: 1,
 			},
-		},
-		{
-			op:    "setup-snap",
-			name:  instanceName,
-			path:  filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", instanceName, newSnapRev)),
-			revno: newSnapRev,
-		},
+			{
+				op:   "storesvc-download",
+				name: snapName,
+			},
+			{
+				op:    "validate-snap:Doing",
+				name:  instanceName,
+				revno: newSnapRev,
+			},
+			{
+				op:  "current",
+				old: filepath.Join(dirs.SnapMountDir, instanceName, currentSnapRev.String()),
+			},
+			{
+				op:   "open-snap-file",
+				path: filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", instanceName, newSnapRev)),
+				sinfo: snap.SideInfo{
+					RealName: snapName,
+					SnapID:   snapID,
+					Channel:  channel,
+					Revision: newSnapRev,
+				},
+			},
+			{
+				op:    "setup-snap",
+				name:  instanceName,
+				path:  filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", instanceName, newSnapRev)),
+				revno: newSnapRev,
+			},
+		}
 	}
 
 	for _, cs := range expectedComponentStates {
@@ -14415,7 +14449,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		{
 			op:    "setup-profiles:Doing",
 			name:  instanceName,
-			revno: snap.R(11),
+			revno: newSnapRev,
 		},
 		{
 			op: "candidate",
@@ -14423,7 +14457,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 				RealName: snapName,
 				SnapID:   snapID,
 				Channel:  channel,
-				Revision: snap.R(11),
+				Revision: newSnapRev,
 			},
 		},
 		{
@@ -14445,7 +14479,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		{
 			op:    "auto-connect:Doing",
 			name:  instanceName,
-			revno: snap.R(11),
+			revno: newSnapRev,
 		},
 		{
 			op: "update-aliases",
@@ -14493,11 +14527,14 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		})
 	}
 
-	downloads := []fakeDownload{{
-		macaroon: s.user.StoreMacaroon,
-		name:     snapName,
-		target:   filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", instanceName, newSnapRev)),
-	}}
+	var downloads []fakeDownload
+	if !opts.useSameSnapRev {
+		downloads = []fakeDownload{{
+			macaroon: s.user.StoreMacaroon,
+			name:     snapName,
+			target:   filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", instanceName, newSnapRev)),
+		}}
+	}
 	for _, compName := range opts.postRefreshComponents {
 		downloads = append(downloads, fakeDownload{
 			macaroon: s.user.StoreMacaroon,
@@ -14508,29 +14545,33 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 
 	c.Check(s.fakeStore.downloads, DeepEquals, downloads)
 
-	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true, Commentf("salts seen: %v", s.fakeStore.seenPrivacyKeys))
+	if !opts.useSameSnapRev {
+		c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true, Commentf("salts seen: %v", s.fakeStore.seenPrivacyKeys))
+	}
+
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// check progress
 	task := ts.Tasks()[1]
-	_, cur, total := task.Progress()
-	c.Assert(cur, Equals, s.fakeStore.fakeCurrentProgress)
-	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
+
+	if !opts.useSameSnapRev {
+		_, cur, total := task.Progress()
+		c.Assert(cur, Equals, s.fakeStore.fakeCurrentProgress)
+		c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
+	}
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
-	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
+
+	expectedSnapsup := snapstate.SnapSetup{
 		Channel: channel,
 		UserID:  s.user.ID,
 
-		SnapPath: filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", instanceName, newSnapRev)),
-		DownloadInfo: &snap.DownloadInfo{
-			DownloadURL: "https://some-server.com/some/path.snap",
-		},
+		SnapPath:  filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", instanceName, newSnapRev)),
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
 		Version:   "some-snapVer",
@@ -14540,10 +14581,18 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		},
 		InstanceKey:                     opts.instanceKey,
 		PreUpdateKernelModuleComponents: currentKmodComps,
-	})
+	}
+
+	if !opts.useSameSnapRev {
+		expectedSnapsup.DownloadInfo = &snap.DownloadInfo{
+			DownloadURL: "https://some-server.com/some/path.snap",
+		}
+	}
+
+	c.Assert(snapsup, DeepEquals, expectedSnapsup)
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: snapName,
-		Revision: snap.R(11),
+		Revision: newSnapRev,
 		Channel:  channel,
 		SnapID:   snapID,
 	})
@@ -14557,7 +14606,11 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		c.Assert(snapst.LastRefreshTime, NotNil)
 		c.Check(snapst.LastRefreshTime.Equal(now), Equals, true)
 		c.Assert(snapst.Active, Equals, true)
-		c.Assert(snapst.Sequence.Revisions, HasLen, 2)
+		if opts.useSameSnapRev {
+			c.Assert(snapst.Sequence.Revisions, HasLen, 1)
+		} else {
+			c.Assert(snapst.Sequence.Revisions, HasLen, 2)
+		}
 		c.Assert(snapst.Sequence.Revisions[0], DeepEquals, currentSeq.Revisions[0])
 
 		cand := sequence.NewRevisionSideState(&snap.SideInfo{
@@ -14578,7 +14631,11 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		}
 
 		// add our new revision to the sequence
-		currentSeq.Revisions = append(currentSeq.Revisions, cand)
+		if opts.useSameSnapRev {
+			currentSeq.Revisions = []*sequence.RevisionSideState{cand}
+		} else {
+			currentSeq.Revisions = append(currentSeq.Revisions, cand)
+		}
 
 		c.Assert(snapst.Sequence, DeepEquals, currentSeq)
 
