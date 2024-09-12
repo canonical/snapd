@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
+	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
@@ -160,8 +161,8 @@ func (s *apparmorpromptingSuite) TestStop(c *C) {
 
 	// Check that the listener and prompt and rule backends were closed
 	checkListenerClosed(c, reqChan)
-	c.Check(promptDB.Close(), Equals, requestprompts.ErrClosed)
-	c.Check(ruleDB.Close(), Equals, requestrules.ErrClosed)
+	c.Check(promptDB.Close(), Equals, prompting_errors.ErrPromptsClosed)
+	c.Check(ruleDB.Close(), Equals, prompting_errors.ErrRulesClosed)
 
 	// Check that current backends are nil
 	c.Check(mgr.PromptDB(), IsNil)
@@ -408,12 +409,12 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 
 	// Wrong user ID
 	result, err := mgr.HandleReply(s.defaultUser+1, prompt.ID, nil, prompting.OutcomeAllow, prompting.LifespanSingle, "")
-	c.Check(err, Equals, requestprompts.ErrNotFound)
+	c.Check(err, Equals, prompting_errors.ErrPromptNotFound)
 	c.Check(result, IsNil)
 
 	// Wrong prompt ID
 	result, err = mgr.HandleReply(s.defaultUser, prompt.ID+1, nil, prompting.OutcomeAllow, prompting.LifespanSingle, "")
-	c.Check(err, Equals, requestprompts.ErrNotFound)
+	c.Check(err, Equals, prompting_errors.ErrPromptNotFound)
 	c.Check(result, IsNil)
 
 	// Invalid constraints
@@ -422,7 +423,7 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 		Permissions: []string{"foo"},
 	}
 	result, err = mgr.HandleReply(s.defaultUser, prompt.ID, &invalidConstraints, prompting.OutcomeAllow, prompting.LifespanSingle, "")
-	c.Check(err, ErrorMatches, "invalid constraints.*")
+	c.Check(err, ErrorMatches, "invalid permissions for home interface:.*")
 	c.Check(result, IsNil)
 
 	// Path not matched
@@ -431,7 +432,7 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 		Permissions: []string{"read"},
 	}
 	result, err = mgr.HandleReply(s.defaultUser, prompt.ID, &badPatternConstraints, prompting.OutcomeAllow, prompting.LifespanSingle, "")
-	c.Check(err, ErrorMatches, "constraints in reply do not match original request.*")
+	c.Check(err, ErrorMatches, "path pattern in reply constraints does not match originally requested path.*")
 	c.Check(result, IsNil)
 
 	// Permissions not matched
@@ -440,7 +441,7 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 		Permissions: []string{"write"},
 	}
 	result, err = mgr.HandleReply(s.defaultUser, prompt.ID, &badPermissionConstraints, prompting.OutcomeAllow, prompting.LifespanSingle, "")
-	c.Check(err, ErrorMatches, "replied permissions do not include all requested permissions.*")
+	c.Check(err, ErrorMatches, "permissions in reply constraints do not include all requested permissions.*")
 	c.Check(result, IsNil)
 
 	// Conflicting rule
@@ -1239,7 +1240,7 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 
 	// Check that prompt has been satisfied
 	_, err = mgr.PromptWithID(s.defaultUser, prompt.ID)
-	c.Assert(err, Equals, requestprompts.ErrNotFound)
+	c.Assert(err, Equals, prompting_errors.ErrPromptNotFound)
 	s.checkRecordedPromptNotices(c, whenPatched, 1)
 
 	// Check that a reply has been received
@@ -1256,7 +1257,7 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 
 	// Check that it can no longer be found
 	_, err = mgr.RuleWithID(rule.User, rule.ID)
-	c.Assert(err, Equals, requestrules.ErrRuleIDNotFound)
+	c.Assert(err, Equals, prompting_errors.ErrRuleNotFound)
 	rules, err := mgr.Rules(rule.User, "", "")
 	c.Assert(err, IsNil)
 	c.Assert(rules, HasLen, 0)

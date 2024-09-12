@@ -14332,7 +14332,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 	}
 
 	var expected fakeOps
-
 	if !opts.useSameSnapRev {
 		expected = fakeOps{
 			{
@@ -14630,7 +14629,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 			})
 		}
 
-		// add our new revision to the sequence
 		if opts.useSameSnapRev {
 			currentSeq.Revisions = []*sequence.RevisionSideState{cand}
 		} else {

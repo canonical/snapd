@@ -637,6 +637,7 @@ func createPreseedArtifact(opts *preseedCoreOptions) (digest []byte, err error) 
 	if err != nil {
 		return nil, err
 	}
+	defer pf.Close()
 
 	var patterns preseedFilePatterns
 	dec := json.NewDecoder(pf)

@@ -28,6 +28,8 @@ import (
 	"strings"
 
 	doublestar "github.com/bmatcuk/doublestar/v4"
+
+	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 )
 
 var ErrNoPatterns = errors.New("cannot establish precedence: no patterns given")
@@ -56,17 +58,16 @@ func ParsePathPattern(pattern string) (*PathPattern, error) {
 // parse validates the given pattern and parses it into a PathPattern from
 // which expanded path patterns can be iterated, overwriting the receiver.
 func (p *PathPattern) parse(pattern string) error {
-	prefix := fmt.Sprintf("cannot parse path pattern %q", pattern)
 	tokens, err := scan(pattern)
 	if err != nil {
-		return fmt.Errorf("%s: %w", prefix, err)
+		return prompting_errors.NewInvalidPathPatternError(pattern, err.Error())
 	}
 	tree, err := parse(tokens)
 	if err != nil {
-		return fmt.Errorf("%s: %w", prefix, err)
+		return prompting_errors.NewInvalidPathPatternError(pattern, err.Error())
 	}
 	if count := tree.NumVariants(); count > maxExpandedPatterns {
-		return fmt.Errorf("%s: exceeded maximum number of expanded path patterns (%d): %d", prefix, maxExpandedPatterns, count)
+		return prompting_errors.NewInvalidPathPatternError(pattern, fmt.Sprintf("exceeded maximum number of expanded path patterns (%d): %d", maxExpandedPatterns, count))
 	}
 	p.original = pattern
 	p.renderTree = tree
@@ -76,6 +77,10 @@ func (p *PathPattern) parse(pattern string) error {
 // Match returns true if the path pattern matches the given path.
 func (p *PathPattern) Match(path string) (bool, error) {
 	return PathPatternMatches(p.original, path)
+}
+
+func (p *PathPattern) String() string {
+	return p.original
 }
 
 // MarshalJSON implements json.Marshaller for PathPattern.

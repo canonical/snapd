@@ -27,6 +27,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/interfaces/prompting"
+	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/logger"
@@ -227,7 +228,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 				satisfiedPerms = append(satisfiedPerms, perm)
 			}
 		} else {
-			if !errors.Is(err, requestrules.ErrNoMatchingRule) {
+			if !errors.Is(err, prompting_errors.ErrNoMatchingRule) {
 				logger.Noticef("error while checking request against existing rules: %v", err)
 			}
 			// No matching rule found
@@ -390,14 +391,20 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 		return nil, err
 	}
 	if !matches {
-		return nil, fmt.Errorf("constraints in reply do not match original request: '%v' does not match '%v'; please try again", constraints, prompt.Constraints)
+		return nil, &prompting_errors.RequestedPathNotMatchedError{
+			Requested: prompt.Constraints.Path(),
+			Replied:   constraints.PathPattern.String(),
+		}
 	}
 
 	// XXX: do we want to allow only replying to a select subset of permissions, and
 	// auto-deny the rest?
 	contained := constraints.ContainPermissions(prompt.Constraints.RemainingPermissions())
 	if !contained {
-		return nil, fmt.Errorf("replied permissions do not include all requested permissions: requested %v, replied %v; please try again", prompt.Constraints.RemainingPermissions(), constraints.Permissions)
+		return nil, &prompting_errors.RequestedPermissionsNotMatchedError{
+			Requested: prompt.Constraints.RemainingPermissions(),
+			Replied:   constraints.Permissions,
+		}
 	}
 
 	// It is important that a lock is held while checking for conflicts with

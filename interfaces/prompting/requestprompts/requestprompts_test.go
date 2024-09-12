@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
+	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
@@ -411,7 +412,7 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 	// Check that adding a new unmerged prompt fails once limit is reached
 	for i := 0; i < 5; i++ {
 		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, lr)
-		c.Check(err, Equals, requestprompts.ErrTooManyPrompts)
+		c.Check(err, Equals, prompting_errors.ErrTooManyPrompts)
 		c.Check(prompt, IsNil)
 		c.Check(merged, Equals, false)
 		stored, err := pdb.Prompts(metadata.User)
@@ -469,11 +470,11 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 	c.Check(result, Equals, prompt)
 
 	result, err = pdb.PromptWithID(metadata.User, 1234)
-	c.Check(err, Equals, requestprompts.ErrNotFound)
+	c.Check(err, Equals, prompting_errors.ErrPromptNotFound)
 	c.Check(result, IsNil)
 
 	result, err = pdb.PromptWithID(metadata.User+1, prompt.ID)
-	c.Check(err, Equals, requestprompts.ErrNotFound)
+	c.Check(err, Equals, prompting_errors.ErrPromptNotFound)
 	c.Check(result, IsNil)
 
 	// Looking up prompts (with or without errors) should not record notices
@@ -593,10 +594,10 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 	outcome := prompting.OutcomeAllow
 
 	_, err = pdb.Reply(metadata.User, 1234, outcome)
-	c.Check(err, Equals, requestprompts.ErrNotFound)
+	c.Check(err, Equals, prompting_errors.ErrPromptNotFound)
 
 	_, err = pdb.Reply(metadata.User+1, prompt.ID, outcome)
-	c.Check(err, Equals, requestprompts.ErrNotFound)
+	c.Check(err, Equals, prompting_errors.ErrPromptNotFound)
 
 	_, err = pdb.Reply(metadata.User, prompt.ID, outcome)
 	c.Check(err, Equals, fakeError)
@@ -876,7 +877,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	c.Assert(stored[0], Equals, prompt)
 
 	satisfied, err := pdb.HandleNewRule(metadata, constraints, badOutcome)
-	c.Check(err, ErrorMatches, `internal error: invalid outcome.*`)
+	c.Check(err, ErrorMatches, `invalid outcome: "foo"`)
 	c.Check(satisfied, IsNil)
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
@@ -1009,28 +1010,28 @@ func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
 
 	metadata := prompting.Metadata{Interface: "home"}
 	result, merged, err := pdb.AddOrMerge(&metadata, "", nil, nil, nil)
-	c.Check(err, Equals, requestprompts.ErrClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
 	c.Check(result, IsNil)
 	c.Check(merged, Equals, false)
 
 	prompts, err := pdb.Prompts(1000)
-	c.Check(err, Equals, requestprompts.ErrClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
 	c.Check(prompts, IsNil)
 
 	prompt, err := pdb.PromptWithID(1000, 1)
-	c.Check(err, Equals, requestprompts.ErrClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
 	c.Check(prompt, IsNil)
 
 	result, err = pdb.Reply(1000, 1, prompting.OutcomeDeny)
-	c.Check(err, Equals, requestprompts.ErrClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
 	c.Check(result, IsNil)
 
 	promptIDs, err := pdb.HandleNewRule(nil, nil, prompting.OutcomeDeny)
-	c.Check(err, Equals, requestprompts.ErrClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
 	c.Check(promptIDs, IsNil)
 
 	err = pdb.Close()
-	c.Check(err, Equals, requestprompts.ErrClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
 }
 
 func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
