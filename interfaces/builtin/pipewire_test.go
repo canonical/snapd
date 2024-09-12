@@ -138,8 +138,6 @@ func (s *pipewireInterfaceSuite) TestSecCompOnClassic(c *C) {
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	c.Assert(spec.SnippetForTag("snap.pipewire.app1"), Not(testutil.Contains), "owner /run/user/[0-9]*/pipewire-[0-9] rwk,\n")
-	c.Check(spec.SnippetForTag("snap.pipewire.app1"), Not(testutil.Contains), "/etc/pulse/ r,\n")
-	c.Check(spec.SnippetForTag("snap.pipewire.app1"), Not(testutil.Contains), "/etc/pulse/** r,\n")
 }
 
 func (s *pipewireInterfaceSuite) TestAppArmor(c *C) {

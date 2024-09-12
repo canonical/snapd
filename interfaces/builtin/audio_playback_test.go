@@ -167,6 +167,8 @@ func (s *AudioPlaybackInterfaceSuite) TestAppArmor(c *C) {
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.audio-playback.app1"})
 	c.Check(spec.SnippetForTag("snap.audio-playback.app1"), testutil.Contains, "capability setuid,\n")
+	c.Check(spec.SnippetForTag("snap.audio-playback.app1"), testutil.Contains, "/etc/pulse/ r,\n")
+	c.Check(spec.SnippetForTag("snap.audio-playback.app1"), testutil.Contains, "/etc/pulse/** r,\n")
 }
 
 func (s *AudioPlaybackInterfaceSuite) TestAppArmorOnClassic(c *C) {
