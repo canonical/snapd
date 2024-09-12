@@ -32,9 +32,9 @@ const pipewireSummary = `allows access to the pipewire sockets, and offer them`
 
 const pipewireBaseDeclarationSlots = `
   pipewire:
-    slot-snap-type:
-      - app
-      - core
+    allow-installation:
+      slot-snap-type:
+        - core
     deny-auto-connection: true
 `
 
@@ -98,7 +98,7 @@ func (iface *pipewireInterface) Name() string {
 func (iface *pipewireInterface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
 		Summary:              pipewireSummary,
-		ImplicitOnClassic:    false,
+		ImplicitOnClassic:    true,
 		ImplicitOnCore:       false,
 		BaseDeclarationSlots: pipewireBaseDeclarationSlots,
 	}
