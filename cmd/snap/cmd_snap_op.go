@@ -134,6 +134,7 @@ type cmdRemove struct {
 
 	Revision   string `long:"revision"`
 	Purge      bool   `long:"purge"`
+	Terminate  bool   `long:"terminate"`
 	Positional struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
@@ -309,7 +310,7 @@ func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
 }
 
 func (x *cmdRemove) Execute([]string) error {
-	opts := &client.SnapOptions{Revision: x.Revision, Purge: x.Purge}
+	opts := &client.SnapOptions{Revision: x.Revision, Purge: x.Purge, Terminate: x.Terminate}
 	if len(x.Positional.Snaps) == 1 {
 		return x.removeOne(opts)
 	}
@@ -1493,6 +1494,8 @@ func init() {
 			"revision": i18n.G("Remove only the given revision"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"purge": i18n.G("Remove the snap without saving a snapshot of its data"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"terminate": i18n.G("Terminate running processes associated with a snap before removal"),
 		}), nil)
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(map[string]string{
