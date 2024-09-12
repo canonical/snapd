@@ -92,6 +92,7 @@ func ParseMountEntry(s string) (MountEntry, error) {
 	if len(fields) > 3 {
 		// TODO: There are multiple filesystems which override generic_parse_monolithic
 		// in the kernel so special handling is needed on a per-fs basis. i.e overlayfs
+		// https://warthogs.atlassian.net/browse/SNAPDENG-32056
 		e.Options = strings.Split(unescape(fields[3]), ",")
 	}
 	// Parse DumpFrequency if we have at least 5 fields
