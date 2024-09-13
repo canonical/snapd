@@ -34,7 +34,7 @@ const pipewireBaseDeclarationSlots = `
   pipewire:
     allow-installation:
       slot-snap-type:
-        - core
+        - app
     deny-auto-connection: true
 `
 
@@ -44,12 +44,10 @@ const pipewireConnectedPlugAppArmor = `
 
 owner /run/user/[0-9]*/ r,
 owner /run/user/[0-9]*/pipewire-[0-9] rw,
-owner /run/user/[0-9]*/pipewire-[0-9]-manager rw,
 `
 
 const pipewireConnectedPlugAppArmorCore = `
 owner /run/user/[0-9]*/###SLOT_SECURITY_TAGS###/pipewire-[0-9] rw,
-owner /run/user/[0-9]*/###SLOT_SECURITY_TAGS###/pipewire-[0-9]-manager rw,
 `
 
 const pipewireConnectedPlugSecComp = `
