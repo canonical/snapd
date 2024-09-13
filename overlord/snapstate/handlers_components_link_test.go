@@ -289,7 +289,7 @@ func (s *linkCompSnapSuite) TestDoUnlinkCurrentComponent(c *C) {
 	setStateWithOneComponent(s.state, snapName, snapRev, compName, compRev)
 	s.state.Unlock()
 
-	s.testDoUnlinkComponent(c, snapName, snapRev, compName, compRev, "unlink-current-component", nil)
+	s.testDoUnlinkComponent(c, snapName, snapRev, compName, compRev, "unlink-current-component", []*snap.ComponentSideInfo{})
 }
 
 func (s *linkCompSnapSuite) TestDoUnlinkCurrentComponentOtherCompPresent(c *C) {
@@ -303,11 +303,11 @@ func (s *linkCompSnapSuite) TestDoUnlinkCurrentComponentOtherCompPresent(c *C) {
 	csi1 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), compRev)
 	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, "other-comp"), snap.R(33))
 	cs1 := sequence.NewComponentState(csi1, snap.TestComponent)
-	cs2 := sequence.NewComponentState(csi2, snap.TestComponent)
+	cs2 := sequence.NewComponentState(csi2, snap.KernelModulesComponent)
 	setStateWithComponents(s.state, snapName, snapRev, []*sequence.ComponentState{cs1, cs2})
 	s.state.Unlock()
 
-	s.testDoUnlinkComponent(c, snapName, snapRev, compName, compRev, "unlink-current-component", nil)
+	s.testDoUnlinkComponent(c, snapName, snapRev, compName, compRev, "unlink-current-component", []*snap.ComponentSideInfo{cs2.SideInfo})
 }
 
 func (s *linkCompSnapSuite) TestDoUnlinkCurrentComponentTwoTasks(c *C) {
@@ -471,11 +471,6 @@ func (s *linkCompSnapSuite) TestDoUnlinkComponent(c *C) {
 
 	s.state.Lock()
 
-	kmodCsi := &snap.ComponentSideInfo{
-		Component: naming.NewComponentRef(snapName, "kmod-comp"),
-		Revision:  snap.R(10),
-	}
-
 	// State must contain the component. Note that in this case
 	// the snap does not need to be active.
 	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
@@ -483,7 +478,6 @@ func (s *linkCompSnapSuite) TestDoUnlinkComponent(c *C) {
 	csi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), compRev)
 	comps := []*sequence.ComponentState{
 		sequence.NewComponentState(csi, snap.TestComponent),
-		sequence.NewComponentState(kmodCsi, snap.KernelModulesComponent),
 	}
 	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active: false,
@@ -495,7 +489,7 @@ func (s *linkCompSnapSuite) TestDoUnlinkComponent(c *C) {
 
 	s.state.Unlock()
 
-	s.testDoUnlinkComponent(c, snapName, snapRev, compName, compRev, "unlink-component", []*snap.ComponentSideInfo{kmodCsi})
+	s.testDoUnlinkComponent(c, snapName, snapRev, compName, compRev, "unlink-component", nil)
 }
 
 func (s *linkCompSnapSuite) TestDoUnlinkThenUndoUnlinkComponent(c *C) {
