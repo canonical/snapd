@@ -28,14 +28,32 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"gopkg.in/tomb.v2"
 )
+
+func setupRegistryHook(st *state.State, snapName, hookName string, ignoreError bool) *state.Task {
+	hookSup := &hookstate.HookSetup{
+		Snap:        snapName,
+		Hook:        hookName,
+		Optional:    true,
+		IgnoreError: ignoreError,
+	}
+	summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), hookName, snapName)
+	task := hookstate.HookTask(st, summary, hookSup, nil)
+	return task
+}
 
 type RegistryManager struct{}
 
-func Manager(st *state.State, hookMgr *hookstate.HookManager, _ *state.TaskRunner) *RegistryManager {
+func Manager(st *state.State, hookMgr *hookstate.HookManager, runner *state.TaskRunner) *RegistryManager {
 	m := &RegistryManager{}
 
-	// TODO: add task handlers (commit-transaction, clear-state, etc)
+	// no undo since if we commit there's no rolling back
+	runner.AddHandler("commit-registry-tx", m.doCommitTransaction, nil)
+	// only activated on undo, to clear the ongoing transaction from state and
+	// unblock others who may be waiting for it
+	runner.AddHandler("clear-registry-tx-on-error", m.noop, m.clearOngoingTransaction)
+	runner.AddHandler("clear-registry-tx", m.clearOngoingTransaction, nil)
 
 	hookMgr.Register(regexp.MustCompile("^change-view-.+$"), func(context *hookstate.Context) hookstate.Handler {
 		return &changeViewHandler{ctx: context}
@@ -52,17 +70,94 @@ func Manager(st *state.State, hookMgr *hookstate.HookManager, _ *state.TaskRunne
 
 func (m *RegistryManager) Ensure() error { return nil }
 
-func setupRegistryHook(st *state.State, snapName, hookName string, ignoreError bool) *state.Task {
-	hookSup := &hookstate.HookSetup{
-		Snap:        snapName,
-		Hook:        hookName,
-		Optional:    true,
-		IgnoreError: ignoreError,
+func (m *RegistryManager) doCommitTransaction(t *state.Task, _ *tomb.Tomb) (err error) {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	tx, _, err := GetStoredTransaction(t)
+	if err != nil {
+		return err
 	}
-	summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), hookName, snapName)
-	task := hookstate.HookTask(st, summary, hookSup, nil)
-	return task
+
+	registryAssert, err := assertstateRegistry(st, tx.RegistryAccount, tx.RegistryName)
+	if err != nil {
+		return err
+	}
+	schema := registryAssert.Registry().Schema
+
+	return tx.Commit(st, schema)
 }
+
+func (m *RegistryManager) clearOngoingTransaction(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	tx, _, err := GetStoredTransaction(t)
+	if err != nil {
+		return err
+	}
+
+	err = unsetOngoingTransaction(st, tx.RegistryAccount, tx.RegistryName)
+	if err != nil {
+		return err
+	}
+
+	// TODO: unblock next waiting registry writer once we add the blocking logic
+	return nil
+}
+
+func setOngoingTransaction(st *state.State, account, registryName, commitTaskID string) error {
+	var commitTasks map[string]string
+	err := st.Get("registry-commit-tasks", &commitTasks)
+	if err != nil {
+		if !errors.Is(err, &state.NoStateError{}) {
+			return err
+		}
+
+		commitTasks = make(map[string]string, 1)
+	}
+
+	registryRef := account + "/" + registryName
+	if taskID, ok := commitTasks[registryRef]; ok {
+		return fmt.Errorf("internal error: cannot set task %q as ongoing commit task for registry %s: already have %q", commitTaskID, registryRef, taskID)
+	}
+
+	commitTasks[registryRef] = commitTaskID
+	st.Set("registry-commit-tasks", commitTasks)
+	return nil
+}
+
+func unsetOngoingTransaction(st *state.State, account, registryName string) error {
+	var commitTasks map[string]string
+	err := st.Get("registry-commit-tasks", &commitTasks)
+	if err != nil {
+		if errors.Is(err, &state.NoStateError{}) {
+			// already unset, nothing to do
+			return nil
+		}
+		return err
+	}
+
+	registryRef := account + "/" + registryName
+	if _, ok := commitTasks[registryRef]; !ok {
+		// already unset, nothing to do
+		return nil
+	}
+
+	delete(commitTasks, registryRef)
+
+	if len(commitTasks) == 0 {
+		st.Set("registry-commit-tasks", nil)
+	} else {
+		st.Set("registry-commit-tasks", commitTasks)
+	}
+
+	return nil
+}
+
+func (m *RegistryManager) noop(*state.Task, *tomb.Tomb) error { return nil }
 
 type changeViewHandler struct {
 	ctx *hookstate.Context

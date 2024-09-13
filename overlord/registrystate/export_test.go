@@ -30,6 +30,8 @@ var (
 	GetPlugsAffectedByPaths   = getPlugsAffectedByPaths
 	CreateChangeRegistryTasks = createChangeRegistryTasks
 	SetTransaction            = setTransaction
+	SetOngoingTransaction     = setOngoingTransaction
+	UnsetOngoingTransaction   = unsetOngoingTransaction
 )
 
 func ChangeViewHandlerGenerator(ctx *hookstate.Context) hookstate.Handler {
