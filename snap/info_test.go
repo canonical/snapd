@@ -1352,6 +1352,91 @@ func (s *infoSuite) TestAppDesktopFile(c *C) {
 	c.Check(snapInfo.DesktopPrefix(), Equals, "sample+instance")
 }
 
+func (s *infoSuite) testAppDesktopFileWithDesktopFileIDs(c *C, isParallelInstance bool) {
+	const sampleDesktopFileIDsYaml = `
+name: sample
+version: 1
+apps:
+ app:
+   command: foo
+ app2:
+   command: bar
+ sample:
+   command: foobar
+   command-chain: [chain]
+plugs:
+  desktop:
+    desktop-file-ids:
+      - org.example
+      - org.example.Foo
+      - org.example.Bar
+`
+
+	snaptest.MockSnap(c, sampleDesktopFileIDsYaml, &snap.SideInfo{})
+	snapInfo, err := snap.ReadInfo("sample", &snap.SideInfo{})
+	c.Assert(err, IsNil)
+	c.Assert(snapInfo.Plugs["desktop"], NotNil)
+
+	if isParallelInstance {
+		snapInfo.InstanceKey = "instance"
+	}
+
+	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755), IsNil)
+	mockDesktopFile := func(app *snap.AppInfo, path string) {
+		const mockDesktopFileTemplate = `[Desktop Entry]
+X-SnapInstanceName=%s
+Name=foo
+X-SnapAppName=%s
+Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s
+`
+		content := fmt.Sprintf(mockDesktopFileTemplate, snapInfo.InstanceName(), app.Name, app.WrapperPath())
+		c.Assert(os.WriteFile(path, []byte(content), 0644), IsNil)
+	}
+
+	// Given the configuration below:
+	//   - org.example     -> app
+	//   - org.example.Foo -> sample
+	//   - org.example.Bar -> sample
+	mockDesktopFile(snapInfo.Apps["app"], filepath.Join(dirs.SnapDesktopFilesDir, "org.example.desktop"))
+	mockDesktopFile(snapInfo.Apps["sample"], filepath.Join(dirs.SnapDesktopFilesDir, "org.example.Foo.desktop"))
+	mockDesktopFile(snapInfo.Apps["sample"], filepath.Join(dirs.SnapDesktopFilesDir, "org.example.Bar.desktop"))
+
+	// Desktop file detected for "app" should be org.example.desktop
+	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/org.example.desktop`)
+
+	// Desktop file detected for "sample" should be org.example.Foo.desktop because
+	// it comes before org.example.Bar in the desktop-file-ids attribute
+	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/org.example.Foo.desktop`)
+
+	// When org.example.Foo.desktop is removed, esktop file detected for "sample" should be org.example.Bar.desktop
+	c.Assert(os.Remove(filepath.Join(dirs.SnapDesktopFilesDir, "org.example.Foo.desktop")), IsNil)
+	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/org.example.Bar.desktop`)
+
+	// When no desktop-file-id desktop files exist, fallback to the "$PREFIX_$APP.desktop" heuristic
+	c.Assert(os.Remove(filepath.Join(dirs.SnapDesktopFilesDir, "org.example.desktop")), IsNil)
+	c.Assert(os.Remove(filepath.Join(dirs.SnapDesktopFilesDir, "org.example.Bar.desktop")), IsNil)
+	prefix := "sample"
+	if isParallelInstance {
+		prefix = `sample\+instance`
+	}
+	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, ".*/var/lib/snapd/desktop/applications/"+prefix+"_app.desktop")
+	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, ".*/var/lib/snapd/desktop/applications/"+prefix+"_sample.desktop")
+
+	// When X-SnapAppName is not found, also fallback to the "$PREFIX_$APP.desktop" heuristic
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "org.example.desktop"), nil, 0644), IsNil)
+	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, ".*/var/lib/snapd/desktop/applications/"+prefix+"_app.desktop")
+}
+
+func (s *infoSuite) TestAppDesktopFileWithDesktopFileIDs(c *C) {
+	const isParallelInstance = false
+	s.testAppDesktopFileWithDesktopFileIDs(c, isParallelInstance)
+}
+
+func (s *infoSuite) TestAppDesktopFileWithDesktopFileIDsParallelInstance(c *C) {
+	const isParallelInstance = true
+	s.testAppDesktopFileWithDesktopFileIDs(c, isParallelInstance)
+}
+
 const coreSnapYaml = `name: core
 version: 0
 type: os

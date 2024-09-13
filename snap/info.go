@@ -20,6 +20,7 @@
 package snap
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -1422,9 +1423,48 @@ func (app *AppInfo) SecurityTag() string {
 	return AppSecurityTag(app.Snap.InstanceName(), app.Name)
 }
 
+func snapAppNameFromDesktopFile(desktopFile string) (string, error) {
+	file, err := os.Open(desktopFile)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for i := 0; scanner.Scan(); i++ {
+		bline := scanner.Text()
+		if !strings.HasPrefix(bline, "X-SnapAppName=") {
+			continue
+		}
+		return strings.TrimPrefix(bline, "X-SnapAppName="), nil
+	}
+
+	return "", fmt.Errorf("cannot find X-SnapAppName entry in %q", desktopFile)
+}
+
 // DesktopFile returns the path to the installed optional desktop file for the
 // application.
 func (app *AppInfo) DesktopFile() string {
+	desktopFileIDs, err := app.Snap.DesktopPlugFileIDs()
+	if err != nil || len(desktopFileIDs) == 0 {
+		// fallback to a simple heuristic "$PREFIX_$APP.desktop"
+		return filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.DesktopPrefix(), app.Name))
+	}
+	// Loop through desktop-file-ids desktop interface plug attribute in order to
+	// have deterministic output
+	for _, desktopFileID := range desktopFileIDs {
+		desktopFile := filepath.Join(dirs.SnapDesktopFilesDir, desktopFileID+".desktop")
+		if !osutil.FileExists(desktopFile) {
+			continue
+		}
+		// No need to also check instance name because we already filter by the
+		// snap's desktop file ids
+		appName, err := snapAppNameFromDesktopFile(desktopFile)
+		if err == nil && appName == app.Name {
+			return desktopFile
+		}
+	}
+	// fallback to a simple heuristic "$PREFIX_$APP.desktop"
 	return filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.DesktopPrefix(), app.Name))
 }
 
