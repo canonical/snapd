@@ -2,7 +2,7 @@ on:
   workflow_call:
     inputs:
       runs-on:
-        description: 'A tag to indicate which runner to use'
+        description: 'A json list of tags to indicate which runner to use'
         required: true
         type: string
       toolchain:
@@ -16,12 +16,22 @@ on:
 
 jobs:
   snap-builds:
-    runs-on: ${{ inputs.runs-on }}
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
+    
+    - name: Set artifact name
+      id: set_artifact_name
+      run: |
+        postfix="${{ inputs.toolchain }}-${{ inputs.variant }}"
+        if grep -iq "arm" <<<"${{ inputs.runs-on }}"; then
+          echo "artifact_name=snap-files-arm-${postfix}" >> $GITHUB_OUTPUT
+        else
+          echo "artifact_name=snap-files-amd-${postfix}" >> $GITHUB_OUTPUT
+        fi
 
     - name: Select Go toolchain
       run: |
@@ -69,5 +79,5 @@ jobs:
     - name: Uploading snapd snap artifact
       uses: actions/upload-artifact@v4
       with:
-        name: snap-files-${{ inputs.toolchain }}-${{ inputs.variant }}
+        name: ${{ steps.set_artifact_name.outputs.artifact_name }}
         path: "*.snap"
