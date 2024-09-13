@@ -70,10 +70,10 @@ func (iface *registryInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	}
 
 	// by default, snaps can read/write registries and be notified of changes. The
-	// manager role allows snaps to change, reject and persist changes made by others
+	// custodian role allows snaps to change, reject and persist changes made by others
 	role, ok := plug.Attrs["role"].(string)
-	if ok && role != "manager" {
-		return fmt.Errorf(`optional registry plug "role" attribute must be "manager"`)
+	if ok && role != "custodian" {
+		return fmt.Errorf(`optional registry plug "role" attribute must be "custodian"`)
 	}
 
 	return nil

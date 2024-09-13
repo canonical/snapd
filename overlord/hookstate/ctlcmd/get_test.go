@@ -557,7 +557,7 @@ plugs:
     interface: registry
     account: %[1]s
     view: network/write-wifi
-    role: manager
+    role: custodian
 `, s.devAccID)
 	info := mockInstalledSnap(c, s.state, snapYaml, "")
 

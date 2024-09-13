@@ -453,8 +453,14 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		addTask(t)
 	}
 
-	// run refresh hooks when updating existing snap, otherwise run install hook further down.
-	runRefreshHooks := snapst.IsInstalled() && !snapsup.Flags.Revert
+	// if the snap is already installed, and the revision we are refreshing to
+	// is the same as the current revision, and we're not forcing an update,
+	// then we know that we're really modifying the state of components.
+	componentOnlyUpdate := snapst.IsInstalled() && snapsup.Revision() == snapst.Current && !snapsup.AlwaysUpdate
+
+	// run refresh hooks when updating existing snap, otherwise run install hook
+	// further down.
+	runRefreshHooks := snapst.IsInstalled() && !componentOnlyUpdate && !snapsup.Flags.Revert
 	if runRefreshHooks {
 		preRefreshHook := SetupPreRefreshHook(st, snapsup.InstanceName())
 		addTask(preRefreshHook)
@@ -620,8 +626,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q%s services"), snapsup.InstanceName(), revisionStr))
 	addTask(startSnapServices)
 
-	// TODO:COMPS: test discarding components during a snap refresh (coming
-	// soon!)
 	for _, t := range tasksBeforeDiscard {
 		addTask(t)
 	}
@@ -774,9 +778,9 @@ func splitComponentTasksForInstall(
 
 		compSetupIDs = append(compSetupIDs, componentTS.compSetupTaskID)
 
-		tasksBeforePreRefreshHook = append(tasksBeforePreRefreshHook, componentTS.beforeLink...)
+		tasksBeforePreRefreshHook = append(tasksBeforePreRefreshHook, componentTS.beforeLinkTasks...)
 		tasksAfterLinkSnap = append(tasksAfterLinkSnap, componentTS.linkTask)
-		tasksAfterPostOpHook = append(tasksAfterPostOpHook, componentTS.postOpHookAndAfter...)
+		tasksAfterPostOpHook = append(tasksAfterPostOpHook, componentTS.postHookToDiscardTasks...)
 		if componentTS.discardTask != nil {
 			tasksBeforeDiscard = append(tasksBeforeDiscard, componentTS.discardTask)
 		}
@@ -1876,17 +1880,35 @@ type update struct {
 	Components []ComponentSetup
 }
 
-// revisionSatisfied returns true if the state of the snap on the system matches the
-// state specified in the update. This method is primarily concerned with the
-// revision of the snap.
-//
-// TODO:COMPS: check if we need to change the state of components
-func (u *update) revisionSatisfied() bool {
+// revisionSatisfied returns true if the state of the snap on the system matches
+// the state specified in the update. This method checks if the currently
+// installed snap and components match what is specified in the update.
+func (u *update) revisionSatisfied() (bool, error) {
 	if u.Setup.AlwaysUpdate || !u.SnapState.IsInstalled() {
-		return false
+		return false, nil
 	}
 
-	return u.SnapState.Current == u.Setup.Revision()
+	if u.SnapState.Current != u.Setup.Revision() {
+		return false, nil
+	}
+
+	comps, err := u.SnapState.CurrentComponentInfos()
+	if err != nil {
+		return false, err
+	}
+
+	currentCompRevs := make(map[string]snap.Revision, len(comps))
+	for _, comp := range comps {
+		currentCompRevs[comp.Component.ComponentName] = comp.Revision
+	}
+
+	for _, comp := range u.Components {
+		if currentCompRevs[comp.CompSideInfo.Component.ComponentName] != comp.Revision() {
+			return false, nil
+		}
+	}
+
+	return true, nil
 }
 
 func doPotentiallySplitUpdate(st *state.State, requested []string, updates []update, opts Options) ([]string, *UpdateTaskSets, error) {
@@ -1991,7 +2013,12 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 	// and bases and then other snaps
 	for _, up := range updates {
 		// if the update is already satisfied, then we can skip it
-		if up.revisionSatisfied() {
+		ok, err := up.revisionSatisfied()
+		if err != nil {
+			return nil, false, nil, err
+		}
+
+		if ok {
 			alreadySatisfied = append(alreadySatisfied, up)
 			continue
 		}
@@ -2267,7 +2294,12 @@ func autoAliasesUpdate(st *state.State, requested []string, updates []update) (c
 	// snaps with updates
 	updating := make(map[string]bool, len(updates))
 	for _, up := range updates {
-		updating[up.Setup.InstanceName()] = !up.revisionSatisfied()
+		ok, err := up.revisionSatisfied()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		updating[up.Setup.InstanceName()] = !ok
 	}
 
 	// add explicitly auto-aliases only for snaps that are not updated

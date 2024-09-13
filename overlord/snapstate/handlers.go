@@ -2714,7 +2714,8 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if len(snapst.Sequence.Revisions) == 1 {
+	firstInstall := oldCurrent.Unset()
+	if firstInstall {
 		// XXX: shouldn't these two just log and carry on? this is an undo handler...
 		timings.Run(perfTimings, "discard-snap-namespace", fmt.Sprintf("discard the namespace of snap %q", snapsup.InstanceName()), func(tm timings.Measurer) {
 			err = m.backend.DiscardSnapNamespace(snapsup.InstanceName())
@@ -2801,7 +2802,6 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := NewTaskProgressAdapterLocked(t)
-	firstInstall := oldCurrent.Unset()
 	linkCtx := backend.LinkContext{
 		FirstInstall:      firstInstall,
 		IsUndo:            true,

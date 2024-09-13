@@ -499,12 +499,12 @@ slots:
 	c.Assert(plugNames, testutil.DeepUnsortedMatches, []string{"view-1", "view-3"})
 }
 
-func (s *registryTestSuite) TestRegistryTasksUserSetWithManagerInstalled(c *C) {
+func (s *registryTestSuite) TestRegistryTasksUserSetWithCustodianInstalled(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// only one manager snap is installed
-	s.setupRegistryModificationScenario(c, []string{"manager-snap"}, nil)
+	// only one custodian snap is installed
+	s.setupRegistryModificationScenario(c, []string{"custodian-snap"}, nil)
 
 	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
@@ -519,23 +519,23 @@ func (s *registryTestSuite) TestRegistryTasksUserSetWithManagerInstalled(c *C) {
 	err = registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "")
 	c.Assert(err, IsNil)
 
-	// the manager snap's hooks are run
+	// the custodian snap's hooks are run
 	tasks := []string{"clear-registry-tx-on-error", "run-hook", "run-hook", "run-hook", "commit-registry-tx", "clear-registry-tx"}
 	hooks := []*hookstate.HookSetup{
 		{
-			Snap:        "manager-snap",
+			Snap:        "custodian-snap",
 			Hook:        "change-view-setup",
 			Optional:    true,
 			IgnoreError: false,
 		},
 		{
-			Snap:        "manager-snap",
+			Snap:        "custodian-snap",
 			Hook:        "save-view-setup",
 			Optional:    true,
 			IgnoreError: false,
 		},
 		{
-			Snap:        "manager-snap",
+			Snap:        "custodian-snap",
 			Hook:        "setup-view-changed",
 			Optional:    true,
 			IgnoreError: true,
@@ -545,12 +545,12 @@ func (s *registryTestSuite) TestRegistryTasksUserSetWithManagerInstalled(c *C) {
 	checkModifyRegistryTasks(c, chg, tasks, hooks)
 }
 
-func (s *registryTestSuite) TestRegistryTasksManagerSnapSet(c *C) {
+func (s *registryTestSuite) TestRegistryTasksCustodianSnapSet(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// only one manager snap is installed
-	s.setupRegistryModificationScenario(c, []string{"manager-snap"}, nil)
+	// only one custodian snap is installed
+	s.setupRegistryModificationScenario(c, []string{"custodian-snap"}, nil)
 
 	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
@@ -562,20 +562,20 @@ func (s *registryTestSuite) TestRegistryTasksManagerSnapSet(c *C) {
 	chg := s.state.NewChange("modify-registry", "")
 
 	// a user (not a snap) changes a registry
-	err = registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "manager-snap")
+	err = registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "custodian-snap")
 	c.Assert(err, IsNil)
 
-	// the manager snap's hooks are run
+	// the custodian snap's hooks are run
 	tasks := []string{"clear-registry-tx-on-error", "run-hook", "run-hook", "commit-registry-tx", "clear-registry-tx"}
 	hooks := []*hookstate.HookSetup{
 		{
-			Snap:        "manager-snap",
+			Snap:        "custodian-snap",
 			Hook:        "change-view-setup",
 			Optional:    true,
 			IgnoreError: false,
 		},
 		{
-			Snap:        "manager-snap",
+			Snap:        "custodian-snap",
 			Hook:        "save-view-setup",
 			Optional:    true,
 			IgnoreError: false,
@@ -585,12 +585,12 @@ func (s *registryTestSuite) TestRegistryTasksManagerSnapSet(c *C) {
 	checkModifyRegistryTasks(c, chg, tasks, hooks)
 }
 
-func (s *registryTestSuite) TestRegistryTasksObserverSnapSetWithManagerInstalled(c *C) {
+func (s *registryTestSuite) TestRegistryTasksObserverSnapSetWithCustodianInstalled(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// one manager and several non-managers are installed
-	s.setupRegistryModificationScenario(c, []string{"manager-snap"}, []string{"test-snap-1", "test-snap-2"})
+	// one custodian and several non-custodians are installed
+	s.setupRegistryModificationScenario(c, []string{"custodian-snap"}, []string{"test-snap-1", "test-snap-2"})
 
 	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
@@ -601,28 +601,28 @@ func (s *registryTestSuite) TestRegistryTasksObserverSnapSetWithManagerInstalled
 	view := s.registry.View("setup-wifi")
 	chg := s.state.NewChange("modify-registry", "")
 
-	// a non-manager snap modifies a registry
+	// a non-custodian snap modifies a registry
 	err = registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "test-snap-1")
 	c.Assert(err, IsNil)
 
-	// we trigger hooks for the manager snap and for the -view-changed for the
+	// we trigger hooks for the custodian snap and for the -view-changed for the
 	// observer snap that didn't trigger the change
 	tasks := []string{"clear-registry-tx-on-error", "run-hook", "run-hook", "run-hook", "run-hook", "commit-registry-tx", "clear-registry-tx"}
 	hooks := []*hookstate.HookSetup{
 		{
-			Snap:        "manager-snap",
+			Snap:        "custodian-snap",
 			Hook:        "change-view-setup",
 			Optional:    true,
 			IgnoreError: false,
 		},
 		{
-			Snap:        "manager-snap",
+			Snap:        "custodian-snap",
 			Hook:        "save-view-setup",
 			Optional:    true,
 			IgnoreError: false,
 		},
 		{
-			Snap:        "manager-snap",
+			Snap:        "custodian-snap",
 			Hook:        "setup-view-changed",
 			Optional:    true,
 			IgnoreError: true,
@@ -638,26 +638,26 @@ func (s *registryTestSuite) TestRegistryTasksObserverSnapSetWithManagerInstalled
 	checkModifyRegistryTasks(c, chg, tasks, hooks)
 }
 
-func (s *registryTestSuite) TestRegistryTasksDisconnectedManagerSnap(c *C) {
+func (s *registryTestSuite) TestRegistryTasksDisconnectedCustodianSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// mock and installed manager-snap but disconnect it
-	s.setupRegistryModificationScenario(c, []string{"test-manager-snap"}, []string{"test-snap"})
-	s.repo.Disconnect("test-manager-snap", "setup", "core", "registry-slot")
-	s.testRegistryTasksNoManager(c)
+	// mock and installed custodian-snap but disconnect it
+	s.setupRegistryModificationScenario(c, []string{"test-custodian-snap"}, []string{"test-snap"})
+	s.repo.Disconnect("test-custodian-snap", "setup", "core", "registry-slot")
+	s.testRegistryTasksNoCustodian(c)
 }
 
-func (s *registryTestSuite) TestRegistryTasksNoManagerSnapInstalled(c *C) {
+func (s *registryTestSuite) TestRegistryTasksNoCustodianSnapInstalled(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// no manager snap is installed
+	// no custodian snap is installed
 	s.setupRegistryModificationScenario(c, nil, []string{"test-snap"})
-	s.testRegistryTasksNoManager(c)
+	s.testRegistryTasksNoCustodian(c)
 }
 
-func (s *registryTestSuite) testRegistryTasksNoManager(c *C) {
+func (s *registryTestSuite) testRegistryTasksNoCustodian(c *C) {
 	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
@@ -667,12 +667,12 @@ func (s *registryTestSuite) testRegistryTasksNoManager(c *C) {
 	view := s.registry.View("setup-wifi")
 	chg := s.state.NewChange("modify-registry", "")
 
-	// a non-manager snap modifies a registry
+	// a non-custodian snap modifies a registry
 	err = registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "test-snap-1")
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot commit changes to registry %s/network: no manager snap installed", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot commit changes to registry %s/network: no custodian snap installed", s.devAccID))
 }
 
-func (s *registryTestSuite) setupRegistryModificationScenario(c *C, managers, nonManagers []string) {
+func (s *registryTestSuite) setupRegistryModificationScenario(c *C, custodians, nonCustodians []string) {
 	s.repo = interfaces.NewRepository()
 	ifacerepo.Replace(s.state, s.repo)
 
@@ -696,7 +696,7 @@ slots:
 	err = s.repo.AddAppSet(coreSet)
 	c.Assert(err, IsNil)
 
-	mockSnap := func(snapName string, isManager bool) {
+	mockSnap := func(snapName string, isCustodian bool) {
 		snapYaml := fmt.Sprintf(`name: %s
 version: 1
 type: app
@@ -707,14 +707,14 @@ plugs:
     view: network/setup-wifi
 `, snapName, s.devAccID)
 
-		if isManager {
+		if isCustodian {
 			snapYaml +=
-				`    role: manager`
+				`    role: custodian`
 		}
 
 		info := mockInstalledSnap(c, s.state, snapYaml, "")
 
-		// by default, mock all the hooks a managers can have
+		// by default, mock all the hooks a custodians can have
 		for _, hookName := range []string{"change-view-setup", "save-view-setup", "setup-view-changed"} {
 			info.Hooks[hookName] = &snap.HookInfo{
 				Name: hookName,
@@ -735,16 +735,16 @@ plugs:
 		c.Assert(err, IsNil)
 	}
 
-	// mock managers
-	for _, snap := range managers {
-		isManager := true
-		mockSnap(snap, isManager)
+	// mock custodians
+	for _, snap := range custodians {
+		isCustodian := true
+		mockSnap(snap, isCustodian)
 	}
 
-	// mock non-managers
-	for _, snap := range nonManagers {
-		isManager := false
-		mockSnap(snap, isManager)
+	// mock non-custodians
+	for _, snap := range nonCustodians {
+		isCustodian := false
+		mockSnap(snap, isCustodian)
 	}
 }
 
