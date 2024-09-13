@@ -1343,6 +1343,121 @@ nested_start_core_vm_unit() {
     fi
 }
 
+
+nested_start_lxd_vm() {
+    local QEMU CURRENT_IMAGE
+    CURRENT_IMAGE=$1
+
+    snap install lxd
+    lxd init --auto
+
+    wget -q https://github.com/canonical/lxd/releases/latest/download/bin.linux.lxd-migrate.x86_64
+    chmod u+x bin.linux.lxd-migrate.x86_64
+    apt install -y rsync expect
+
+    # TODO: ask lxd team to suport configuration file for lxd-migrate tool
+    cat <<EOF > lxd-migrate-configurator.exp
+set timeout 120
+spawn ./bin.linux.lxd-migrate.x86_64
+
+expect {
+    "The local LXD server is the target" {
+        send "yes"
+        send "\r"
+    }
+}
+expect {
+    "Would you like to create a container" {
+        send "2"
+        send "\r"
+    }
+}
+expect {
+    "Name of the new instance" {
+        send "testvm"
+        send "\r"
+    }
+}
+expect {
+    "Please provide the path to a disk" {
+        send "/tmp/work-dir/images/ubuntu-core-current.img"
+        send "\r"
+    }
+}
+expect {
+    "Does the VM support UEFI Secure Boot" {
+        send "yes"
+        send "\r"
+    }
+}
+expect {
+    "Please pick one of the options above" {
+        send "1"
+        send "\r"
+    }
+}
+expect {
+    "Instance testvm successfully created" {
+        exit 0
+    } default {
+        exit 1
+    }
+}
+EOF
+    expect -d -f lxd-migrate-configurator.exp &>/dev/null || true
+
+    echo "Checking the vm is created and loaded"
+    lxc list testvm | grep -Eq ".* testvm .* STOPPED .* VIRTUAL-MACHINE .*"
+
+    echo "Configuring tpm"
+    lxc config device add testvm tpm tpm
+
+    echo "Configuring secure boot"
+    wget -q https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_CODE.secboot.fd
+    mv OVMF_CODE.secboot.fd /usr/share/OVMF/OVMF_CODE.secboot.fd
+    wget -q https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_VARS.snakeoil.fd
+    cp OVMF_VARS.snakeoil.fd /usr/share/OVMF/OVMF_VARS.snakeoil.fd
+    wget -q https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_VARS.ms.fd
+    mv OVMF_VARS.ms.fd /usr/share/OVMF/OVMF_VARS.ms.fd
+    mount --bind /usr/share/OVMF/OVMF_CODE.secboot.fd  /snap/lxd/current/share/qemu/OVMF_CODE.4MB.fd
+    mount --bind /usr/share/OVMF/OVMF_VARS.snakeoil.fd  /snap/lxd/current/share/qemu/OVMF_VARS.4MB.ms.fd
+    mount --bind /usr/share/OVMF/OVMF_VARS.snakeoil.fd  /snap/lxd/current/share/qemu/OVMF_VARS.4MB.fd
+
+    echo "Configuring ipv4 network configuration"
+    cat <<EOF | lxc config set testvm cloud-init.network-config -
+network:
+  version: 2
+  ethernets:
+    enp5s0:
+      dhcp4: yes
+EOF
+
+    echo "Starting vm"
+    lxc start testvm
+
+    echo -n "Waiting for ip assigned "
+    ip=""
+    for _ in $(seq 60); do
+        ip="$(lxc list testvm -f json  | jq -r ' .[0].state.network.eth0.addresses[] | select( .family == "inet" ) | .address')"
+        if [ -z "$ip" ]; then
+            sleep 5
+            echo -n "."
+        else
+            echo ""
+            break
+        fi
+    done
+
+    if [ -z "$ip" ]; then
+        echo "Ip could not be retrieved from vm"
+        exit 1
+    fi
+    echo "vm prepared with ip: $ip"
+
+    remote.setup config --host "$ip" --port 22 --user user1 --pass ubuntu
+    nested_wait_for_ssh 120 1
+}
+
 nested_get_current_image_name() {
     echo "ubuntu-core-current.img"
 }
@@ -1373,7 +1488,11 @@ nested_start_core_vm() {
         cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
 
         # Start the nested core vm
-        nested_start_core_vm_unit "$CURRENT_IMAGE"
+        if [ "$NESTED_USE_LXD_VM" = true ]; then
+            nested_start_lxd_vm "$CURRENT_IMAGE"
+        else
+            nested_start_core_vm_unit "$CURRENT_IMAGE"
+        fi
 
         if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured" ]; then
             # configure ssh for first time
