@@ -996,6 +996,21 @@ func (s *Info) DesktopPlugFileIDs() ([]string, error) {
 	return desktopFileIDs, nil
 }
 
+func sanitizeDesktopFileName(base string) string {
+	var b strings.Builder
+	b.Grow(len(base))
+
+	for _, c := range base {
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.' {
+			b.WriteRune(c)
+		} else {
+			b.WriteRune('_')
+		}
+	}
+
+	return b.String()
+}
+
 // MangleDesktopFileName returns the sanitized file name prefixed with Info.DesktopPrefix().
 // If the passed name (without the .desktop extension) is listed under the desktop-file-ids
 // desktop interface plug attribute then the desktop file name is returned as is without
@@ -1024,15 +1039,7 @@ func (s *Info) MangleDesktopFileName(desktopFile string) (string, error) {
 
 	// Sanitization logic shouldn't worry about being backware compatible because the
 	// desktop files are always written when snapd starts in ensureDesktopFilesUpdated.
-	sanitizedBase := ""
-	for _, c := range base {
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.' {
-			sanitizedBase += string(c)
-			continue
-		}
-		// Replace with '_'
-		sanitizedBase += "_"
-	}
+	sanitizedBase := sanitizeDesktopFileName(base)
 
 	return filepath.Join(dir, fmt.Sprintf("%s_%s", s.DesktopPrefix(), sanitizedBase)), nil
 }

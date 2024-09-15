@@ -79,20 +79,21 @@ func verifySlotPathAttribute(slotRef *interfaces.SlotRef, attrs interfaces.Attre
 	return cleanPath, nil
 }
 
-func getDesktopFileRulesFallback() []string {
-	return []string{
-		"# Support applications which use the unity messaging menu, xdg-mime, etc",
-		"# This leaks the names of snaps with desktop files",
-		fmt.Sprintf("%s/ r,", dirs.SnapDesktopFilesDir),
-		"# Allowing reading only our desktop files (required by (at least) the unity",
-		"# messaging menu).",
-		"# parallel-installs: this leaks read access to desktop files owned by keyed",
-		"# instances of @{SNAP_NAME} to @{SNAP_NAME} snap",
-		fmt.Sprintf("%s/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,", dirs.SnapDesktopFilesDir),
-		"# Explicitly deny access to other snap's desktop files",
-		fmt.Sprintf("deny %s/@{SNAP_INSTANCE_DESKTOP}[^_.]*.desktop r,", dirs.SnapDesktopFilesDir),
-		// XXX: Do we need to generate extensive deny rules for the fallback too?
-	}
+func getDesktopFileRulesFallback() string {
+	const template = `
+# Support applications which use the unity messaging menu, xdg-mime, etc
+# This leaks the names of snaps with desktop files
+%[1]s/ r,
+# Allowing reading only our desktop files (required by (at least) the unity
+# messaging menu).
+# parallel-installs: this leaks read access to desktop files owned by keyed
+# instances of @{SNAP_NAME} to @{SNAP_NAME} snap
+%[1]s/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,
+# Explicitly deny access to other snap's desktop files
+deny %[1]s/@{SNAP_INSTANCE_DESKTOP}[^_.]*.desktop r,
+`
+	// XXX: Do we need to generate extensive deny rules for the fallback too?
+	return fmt.Sprintf(template[1:], dirs.SnapDesktopFilesDir)
 }
 
 var apparmorGenerateAAREExclusionPatterns = apparmor.GenerateAAREExclusionPatterns
@@ -107,32 +108,36 @@ var desktopFilesFromMount = func(s *snap.Info) ([]string, error) {
 // to read all the desktop files in the dir, causing excessive noise. (LP: #1868051)
 //
 // The snap must be mounted.
-func getDesktopFileRules(s *snap.Info) []string {
-	baseDir := dirs.SnapDesktopFilesDir
+func getDesktopFileRules(s *snap.Info) string {
+	const template = `
+# Support applications which use the unity messaging menu, xdg-mime, etc
+# This leaks the names of snaps with desktop files
+%s/ r,
 
-	rules := []string{
-		"# Support applications which use the unity messaging menu, xdg-mime, etc",
-		"# This leaks the names of snaps with desktop files",
-		fmt.Sprintf("%s/ r,", baseDir),
-	}
+# Allow rules:
+%s
+
+# Deny rules:
+%s
+`
 
 	// Generate allow rules
-	rules = append(rules,
-		"# Allowing reading only our desktop files (required by (at least) the unity",
-		"# messaging menu).",
-		"# parallel-installs: this leaks read access to desktop files owned by keyed",
-		"# instances of @{SNAP_NAME} to @{SNAP_NAME} snap",
-		fmt.Sprintf("%s/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,", dirs.SnapDesktopFilesDir),
-	)
+	allowRules := `
+# Allowing reading only our desktop files (required by (at least) the unity
+# messaging menu).
+# parallel-installs: this leaks read access to desktop files owned by keyed
+# instances of @{SNAP_NAME} to @{SNAP_NAME} snap
+`
+	allowRules += fmt.Sprintf("%s/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,\n", dirs.SnapDesktopFilesDir)
 	// For allow rules let's be more defensive and not depend on desktop files
 	// shipped by the snap like what is done below in the deny rules so that if
 	// a snap figured out a way to trick the checks below it can only shoot
 	// itself in the foot and deny more stuff.
 	// Although, given the extensive use of ValidateNoAppArmorRegexp below this
-	// should never, but still it is better to play it safe with allow rules
+	// should never fail, but still it is better to play it safe with allow rules.
 	desktopFileIDs, err := s.DesktopPlugFileIDs()
 	if err != nil {
-		logger.Noticef("error: %v", err)
+		logger.Noticef("cannot list desktop plug file IDs: %v", err)
 		return getDesktopFileRulesFallback()
 	}
 	for _, desktopFileID := range desktopFileIDs {
@@ -140,13 +145,14 @@ func getDesktopFileRules(s *snap.Info) []string {
 		// desktop-file-ids are already validated during install.
 		// But still it is better to play it safe and check AARE characters anyway.
 		if err := apparmor.ValidateNoAppArmorRegexp(desktopFileID); err != nil {
-			logger.Noticef("error: %v", err)
+			logger.Noticef("invalid desktop file id %q found in %q: %v", desktopFileID, s.InstanceName(), err)
 			return getDesktopFileRulesFallback()
 		}
-		rules = append(rules, fmt.Sprintf("%s/%s r,", baseDir, desktopFileID+".desktop"))
+		allowRules += fmt.Sprintf("%s/%s r,\n", dirs.SnapDesktopFilesDir, desktopFileID+".desktop")
 	}
 
 	// Generate deny rules to suppress apparmor warnings
+	denyRules := "# Explicitly deny access to other snap's desktop files\n"
 	desktopFiles, err := desktopFilesFromMount(s)
 	if err != nil {
 		logger.Noticef("error: %v", err)
@@ -157,7 +163,7 @@ func getDesktopFileRules(s *snap.Info) []string {
 		return getDesktopFileRulesFallback()
 	}
 	excludeOpts := &apparmor.AAREExclusionPatternsOptions{
-		Prefix: fmt.Sprintf("deny %s", baseDir),
+		Prefix: fmt.Sprintf("deny %s", dirs.SnapDesktopFilesDir),
 		Suffix: ".desktop r,",
 	}
 	excludePatterns := make([]string, 0, len(desktopFiles))
@@ -168,7 +174,7 @@ func getDesktopFileRules(s *snap.Info) []string {
 		// - Desktop file ids are validated to only contain non-AARE characters
 		// But still it is better to play it safe and check AARE characters anyway.
 		if err := apparmor.ValidateNoAppArmorRegexp(desktopFile); err != nil {
-			logger.Noticef("error: %v", err)
+			logger.Noticef("invalid desktop file name %q found in snap %q: %v", desktopFile, s.InstanceName(), err)
 			return getDesktopFileRulesFallback()
 		}
 		excludePatterns = append(excludePatterns, "/"+strings.TrimSuffix(filepath.Base(desktopFile), ".desktop"))
@@ -178,10 +184,9 @@ func getDesktopFileRules(s *snap.Info) []string {
 		logger.Noticef("error: %v", err)
 		return getDesktopFileRulesFallback()
 	}
-	rules = append(rules, "# Explicitly deny access to other snap's desktop files")
-	rules = append(rules, excludeRules)
+	denyRules += excludeRules
 
-	return rules
+	return fmt.Sprintf(template, dirs.SnapDesktopFilesDir, allowRules[1:], denyRules)
 }
 
 // stringListAttribute returns a list of strings for the given attribute key if the attribute exists.
