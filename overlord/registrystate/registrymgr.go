@@ -51,9 +51,11 @@ func setupRegistryHook(st *state.State, snapName, hookName string, ignoreError b
 }
 
 type changeViewHandler struct {
-	hookstate.SnapHookHandler
 	ctx *hookstate.Context
 }
+
+func (h *changeViewHandler) Before() error                 { return nil }
+func (h *changeViewHandler) Error(err error) (bool, error) { return false, nil }
 
 func (h *changeViewHandler) Done() error {
 	h.ctx.Lock()
@@ -73,9 +75,10 @@ func (h *changeViewHandler) Done() error {
 }
 
 type saveViewHandler struct {
-	hookstate.SnapHookHandler
 	ctx *hookstate.Context
 }
+
+func (h *saveViewHandler) Before() error { return nil }
 
 func (h *saveViewHandler) Error(origErr error) (ignoreErr bool, err error) {
 	h.ctx.Lock()
