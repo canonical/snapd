@@ -408,6 +408,10 @@ func (s *transactionTestSuite) TestAbortPreventsReadsAndWrites(c *C) {
 
 	tx.Abort("my-snap", "don't like the changes")
 
+	snap, reason := tx.AbortInfo()
+	c.Assert(reason, Equals, "don't like the changes")
+	c.Assert(snap, Equals, "my-snap")
+
 	err = tx.Set("foo", "bar")
 	c.Assert(err, ErrorMatches, "cannot write to aborted transaction")
 
