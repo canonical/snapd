@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/store/storetest"
 
 	// So it registers Configure.
 	_ "github.com/snapcore/snapd/overlord/configstate"
@@ -100,15 +101,8 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 		}
 	}
 	expected := startTasks
-	if opts&unlinkBefore != 0 {
-		expected = append(expected,
-			"run-hook[pre-refresh]",
-			"stop-snap-services",
-			"remove-aliases",
-		)
-	}
 
-	var tasksBeforeCurrentUnlink, tasksAfterLinkSnap, tasksAfterPostOpHook []string
+	var tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard []string
 	for range components {
 		compOpts := compOptMultiCompInstall
 		if opts&localSnap != 0 {
@@ -118,14 +112,23 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 			compOpts |= compOptIsActive | compOptDuringSnapRefresh
 		}
 
-		beforeLink, linkToHooks, hooksAndAfter := expectedComponentInstallTasksSplit(compOpts)
+		beforeLink, link, hooksAndAfter, discard := expectedComponentInstallTasksSplit(compOpts)
 
-		tasksBeforeCurrentUnlink = append(tasksBeforeCurrentUnlink, beforeLink...)
-		tasksAfterLinkSnap = append(tasksAfterLinkSnap, linkToHooks...)
+		tasksBeforePreRefreshHook = append(tasksBeforePreRefreshHook, beforeLink...)
+		tasksAfterLinkSnap = append(tasksAfterLinkSnap, link...)
 		tasksAfterPostOpHook = append(tasksAfterPostOpHook, hooksAndAfter...)
+		tasksBeforeDiscard = append(tasksBeforeDiscard, discard...)
 	}
 
-	expected = append(expected, tasksBeforeCurrentUnlink...)
+	expected = append(expected, tasksBeforePreRefreshHook...)
+
+	if opts&unlinkBefore != 0 {
+		expected = append(expected,
+			"run-hook[pre-refresh]",
+			"stop-snap-services",
+			"remove-aliases",
+		)
+	}
 
 	if opts&unlinkBefore != 0 {
 		expected = append(expected, "unlink-current-snap")
@@ -6744,6 +6747,25 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, insta
 		})
 	}
 
+	compsups := make([]snapstate.ComponentSetup, 0, len(components))
+	for i, comp := range components {
+		compsups = append(compsups, snapstate.ComponentSetup{
+			CompSideInfo: &snap.ComponentSideInfo{
+				Component: naming.NewComponentRef(snapName, comp),
+				Revision:  snap.R(i + 1),
+			},
+			CompType: componentNameToType(c, comp),
+			DownloadInfo: &snap.DownloadInfo{
+				DownloadURL: "http://example.com/" + comp,
+			},
+			CompPath: filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s+%s_%d.comp", instanceName, comp, i+1)),
+			ComponentInstallFlags: snapstate.ComponentInstallFlags{
+				MultiComponentInstall: true,
+			},
+		})
+	}
+	checkComponentSetupTasks(c, ts, compsups, "download-component")
+
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
@@ -6770,6 +6792,17 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, insta
 			Revision: snapRevision,
 			SnapID:   snapID,
 		})
+
+		var compst []*sequence.ComponentState
+		for i, compName := range components {
+			compst = append(compst, &sequence.ComponentState{
+				SideInfo: &snap.ComponentSideInfo{
+					Component: naming.NewComponentRef(snapName, compName),
+					Revision:  snap.R(i + 1),
+				},
+				CompType: componentNameToType(c, compName),
+			})
+		}
 
 		// make sure that all of our components are accounted for
 		c.Assert(snapst.Sequence.Revisions[0].Components, DeepEquals, componentStates)
@@ -6842,6 +6875,9 @@ func (s *snapmgrTestSuite) testInstallComponentsFromPathRunThrough(c *C, snapNam
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// make sure that the store is never hit
+	snapstate.ReplaceStore(s.state, &storetest.Store{})
+
 	sort.Strings(compNames)
 
 	// use the real thing for this one
@@ -6857,20 +6893,13 @@ func (s *snapmgrTestSuite) testInstallComponentsFromPathRunThrough(c *C, snapNam
 	snapRevision := snap.R(11)
 	instanceName := snap.InstanceName(snapName, instanceKey)
 
-	compNameToType := func(name string) snap.ComponentType {
-		typ := strings.TrimSuffix(name, "-component")
-		if typ == name {
-			c.Fatalf("unexpected component name %q", name)
-		}
-		return snap.ComponentType(typ)
-	}
-
+	components := make(map[*snap.ComponentSideInfo]string, len(compNames))
+	compPaths := make(map[string]string, len(compNames))
 	compRevs := make(map[string]snap.Revision)
 	for i, compName := range compNames {
 		compRevs[compName] = snap.R(i + 1)
 	}
 
-	components := make(map[*snap.ComponentSideInfo]string, len(compNames))
 	var componentStates []*sequence.ComponentState
 	for _, compName := range compNames {
 		csi := &snap.ComponentSideInfo{
@@ -6881,10 +6910,12 @@ func (s *snapmgrTestSuite) testInstallComponentsFromPathRunThrough(c *C, snapNam
 		componentYaml := fmt.Sprintf(`component: %s
 type: %s
 version: 1.0
-`, csi.Component, compNameToType(compName))
+`, csi.Component, componentNameToType(c, compName))
 
-		components[csi] = snaptest.MakeTestComponent(c, componentYaml)
-		componentStates = append(componentStates, sequence.NewComponentState(csi, compNameToType(compName)))
+		path := snaptest.MakeTestComponent(c, componentYaml)
+		compPaths[csi.Component.ComponentName] = path
+		components[csi] = path
+		componentStates = append(componentStates, sequence.NewComponentState(csi, componentNameToType(c, compName)))
 	}
 
 	s.AddCleanup(snapstate.MockReadComponentInfo(func(
@@ -7030,6 +7061,23 @@ components:
 			revno: snapRevision,
 		})
 	}
+
+	compsups := make([]snapstate.ComponentSetup, 0, len(components))
+	for i, comp := range compNames {
+		compsups = append(compsups, snapstate.ComponentSetup{
+			CompSideInfo: &snap.ComponentSideInfo{
+				Component: naming.NewComponentRef(snapName, comp),
+				Revision:  snap.R(i + 1),
+			},
+			CompType: componentNameToType(c, comp),
+			CompPath: compPaths[comp],
+			ComponentInstallFlags: snapstate.ComponentInstallFlags{
+				MultiComponentInstall: true,
+				RemoveComponentPath:   removePaths,
+			},
+		})
+	}
+	checkComponentSetupTasks(c, ts, compsups, "prepare-component")
 
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)

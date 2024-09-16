@@ -225,9 +225,9 @@ type ComponentSetup struct {
 	// DownloadInfo contains information about how to download this component.
 	// Will be nil if the component should be sourced from a local file.
 	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
-	// componentInstallFlags is a set of flags that control the behavior of the
+	// ComponentInstallFlags is a set of flags that control the behavior of the
 	// component's installation/update.
-	componentInstallFlags
+	ComponentInstallFlags
 }
 
 func NewComponentSetup(csi *snap.ComponentSideInfo, compType snap.ComponentType, compPath string) *ComponentSetup {

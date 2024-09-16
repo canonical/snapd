@@ -236,7 +236,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		CompSideInfo: csi,
 		CompType:     compInfo.Type,
 		CompPath:     path,
-		componentInstallFlags: componentInstallFlags{
+		ComponentInstallFlags: ComponentInstallFlags{
 			// The file passed around is temporary, make sure it gets removed.
 			RemoveComponentPath: true,
 		},
@@ -250,7 +250,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 	return componentTS.taskSet(), nil
 }
 
-type componentInstallFlags struct {
+type ComponentInstallFlags struct {
 	RemoveComponentPath   bool `json:"remove-component-path,omitempty"`
 	MultiComponentInstall bool `json:"joint-snap-components-install,omitempty"`
 }
