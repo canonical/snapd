@@ -25,7 +25,7 @@ execute: |
     retry -n 10 systemctl is-active test-kill.service
 
     echo "Lock is held"
-    not flock --timeout 0 "$lockfile" --command "true"
+    not flock --timeout 10 "$lockfile" --command "true"
 
     echo "Remove snap with --terminate flag"
     snap remove --terminate test-snapd-sh
