@@ -30,10 +30,14 @@ func NumberOfFeatures() int {
 
 var FeaturesSupportedCallbacks = featuresSupportedCallbacks
 
-var FeaturesEnabledWhenUnset = featuresEnabledWhenUnset
+var FeatureNames = featureNames
 
 func MockReleaseSystemctlSupportsUserUnits(f func() bool) (restore func()) {
 	r := testutil.Backup(&releaseSystemctlSupportsUserUnits)
 	releaseSystemctlSupportsUserUnits = f
 	return r
+}
+
+func MockKnownFeaturesImpl(f func() []SnapdFeature) (restore func()) {
+	return testutil.Mock(&knownFeaturesImpl, f)
 }

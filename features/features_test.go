@@ -379,30 +379,26 @@ func (s *featureSuite) TestAll(c *C) {
 	tr := config.NewTransaction(st)
 
 	// Use the first feature as a testing feature and overwrite all its values.
-	fakeFeature := features.SnapdFeature(0)
+	fakeFeature := features.SnapdFeature(features.NumberOfFeatures())
 	is, why := fakeFeature.IsSupported()
 	c.Check(is, Equals, true)
 	c.Check(why, Equals, "")
-	originalFakeCallback := features.FeaturesSupportedCallbacks[fakeFeature]
-	delete(features.FeaturesSupportedCallbacks, fakeFeature)
-	defer func() {
-		if originalFakeCallback == nil {
-			delete(features.FeaturesSupportedCallbacks, fakeFeature)
-		} else {
-			features.FeaturesSupportedCallbacks[fakeFeature] = originalFakeCallback
-		}
-	}()
 
-	// Change default for fake feature (which may not be set) to be disabled if not set
-	originalEnabledWhenUnset := features.FeaturesEnabledWhenUnset[fakeFeature]
-	delete(features.FeaturesEnabledWhenUnset, fakeFeature)
+	restore := features.MockKnownFeaturesImpl(func() []features.SnapdFeature {
+		features := make([]features.SnapdFeature, 1)
+		features[0] = fakeFeature
+		return features
+	})
+	defer restore()
+
+	features.FeatureNames[fakeFeature] = "fake-feature"
 	defer func() {
-		if originalEnabledWhenUnset {
-			features.FeaturesEnabledWhenUnset[fakeFeature] = originalEnabledWhenUnset
-		}
+		delete(features.FeatureNames, fakeFeature)
 	}()
 
 	allFeaturesInfo := features.All(tr)
+
+	c.Assert(len(allFeaturesInfo), Equals, 1)
 
 	// Feature flags are included even if value unset
 	fakeFeatureInfo, exists := allFeaturesInfo[fakeFeature.String()]
@@ -418,6 +414,9 @@ func (s *featureSuite) TestAll(c *C) {
 		return fakeSupported, fakeReason
 	}
 	features.FeaturesSupportedCallbacks[fakeFeature] = fakeCallback
+	defer func() {
+		delete(features.FeaturesSupportedCallbacks, fakeFeature)
+	}()
 
 	// Feature flags with defined supported callbacks work correctly.
 
