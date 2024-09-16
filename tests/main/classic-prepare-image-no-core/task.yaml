@@ -20,7 +20,8 @@ environment:
     SEED_DIR: /var/lib/snapd/seed
 
 prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+    # In this scenario, the keys from the snapd pkg are used
+    if [ "$TRUST_TEST_KEYS" = "false" ] || ( [ "$SNAPD_DEB_FROM_REPO" = true ] && [ -n "$(command -v apt)" ]); then
         echo "This test needs test keys to be trusted"
         exit
     fi
@@ -30,7 +31,7 @@ prepare: |
     snap pack "$TESTSLIB/snaps/basic18"
     snap pack classic-gadget-18
 
-    echo Expose the needed assertions through the fakestore
+    echo Expose the needed assertions through pkg fakestore
     cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
     cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
     # have snap use the fakestore for assertions (but nothing else)
@@ -49,7 +50,8 @@ prepare: |
     systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+    # In this scenario, the keys from the snapd pkg are used
+    if [ "$TRUST_TEST_KEYS" = "false" ] || ( [ "$SNAPD_DEB_FROM_REPO" = true ] && [ -n "$(command -v apt)" ]); then
         echo "This test needs test keys to be trusted"
         exit
     fi
@@ -61,7 +63,8 @@ restore: |
     rm -rf "$ROOT"
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+    # In this scenario, the keys from the snapd deb are used
+    if [ "$TRUST_TEST_KEYS" = "false" ] || ( [ "$SNAPD_DEB_FROM_REPO" = true ] && [ -n "$(command -v apt)" ]); then
         echo "This test needs test keys to be trusted"
         exit
     fi
