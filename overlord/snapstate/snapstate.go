@@ -4427,6 +4427,8 @@ func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (res
 }
 
 // UnmountAllSnaps unmounts all of the snaps and components in the system state.
+// The primary use case for this is to unmount all snaps that were installed in
+// the chroot environment that is used when creating a preseeded image.
 func UnmountAllSnaps(st *state.State) error {
 	all, err := All(st)
 	if err != nil {
