@@ -96,7 +96,9 @@ func (h *saveViewHandler) Error(origErr error) (ignoreErr bool, err error) {
 		}
 	}
 
-	// create roll back tasks for the previously done save-registry hooks
+	// create roll back tasks for the previously done save-registry hooks (starting
+	// with the hook that failed, so it tries to overwrite with a pristine databag
+	// just like any previous save-view hooks)
 	last := t
 	for curTask := t; curTask.Kind() == "run-hook"; curTask = curTask.WaitTasks()[0] {
 		var hooksup hookstate.HookSetup

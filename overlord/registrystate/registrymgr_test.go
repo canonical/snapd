@@ -269,3 +269,74 @@ func (s *hookHandlerSuite) TestSaveViewHookErrorRollsBackSaves(c *C) {
 	err = handler.Done()
 	c.Assert(err, ErrorMatches, savingErr.Error())
 }
+
+func (s *hookHandlerSuite) TestSaveViewHookErrorHoldsTasks(c *C) {
+	s.state.Lock()
+	chg := s.state.NewChange("my-change", "")
+	commitTask := s.state.NewTask("commit-registry-tx", "")
+	chg.AddTask(commitTask)
+
+	tx, err := registrystate.NewTransaction(s.state, "my-acc", "network")
+	c.Assert(err, IsNil)
+	registrystate.SetTransaction(commitTask, tx)
+
+	err = tx.Set("foo", "bar")
+	c.Assert(err, IsNil)
+
+	// the first save-view hook will fail
+	hooksup := &hookstate.HookSetup{
+		Snap: "first-snap",
+		Hook: "save-view-setup",
+	}
+	firstTask := s.state.NewTask("run-hook", "")
+	chg.AddTask(firstTask)
+	firstTask.SetStatus(state.DoingStatus)
+	firstTask.Set("hook-setup", hooksup)
+	firstTask.Set("commit-task", commitTask.ID())
+
+	// Error looks for a non run-hook task in order to stop
+	prereq := s.state.NewTask("other", "")
+	chg.AddTask(prereq)
+	firstTask.WaitFor(prereq)
+
+	hooksup = &hookstate.HookSetup{
+		Snap: "second-snap",
+		Hook: "save-view-setup",
+	}
+	secondTask := s.state.NewTask("run-hook", "")
+	chg.AddTask(secondTask)
+	secondTask.WaitFor(firstTask)
+	secondTask.SetStatus(state.DoStatus)
+	secondTask.Set("hook-setup", hooksup)
+
+	ctx, err := hookstate.NewContext(firstTask, s.state, hooksup, nil, "")
+	c.Assert(err, IsNil)
+
+	handler := hookstate.SaveViewHandlerGenerator(ctx)
+
+	s.state.Unlock()
+	ignore, err := handler.Error(errors.New("failed to save"))
+	c.Assert(err, IsNil)
+	c.Assert(ignore, Equals, true)
+	s.state.Lock()
+
+	halts := firstTask.HaltTasks()
+	c.Assert(halts, HasLen, 2)
+	// the save-view hook for the second snap is held
+	nextHook := halts[0]
+	c.Assert(nextHook.Kind(), Equals, "run-hook")
+	c.Assert(nextHook.Status(), Equals, state.HoldStatus)
+	err = nextHook.Get("hook-setup", &hooksup)
+	c.Assert(err, IsNil)
+	c.Assert(hooksup.Hook, Equals, "save-view-setup")
+	c.Assert(hooksup.Snap, Equals, "second-snap")
+
+	// the rollback task for the failed hook
+	rollbackTask := halts[1]
+	c.Assert(rollbackTask.Kind(), Equals, "run-hook")
+	c.Assert(rollbackTask.Status(), Equals, state.DoStatus)
+	err = rollbackTask.Get("hook-setup", &hooksup)
+	c.Assert(err, IsNil)
+	c.Assert(hooksup.Hook, Equals, "save-view-setup")
+	c.Assert(hooksup.Snap, Equals, "first-snap")
+}
