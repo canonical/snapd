@@ -37,9 +37,9 @@ import (
 
 const defaultFreezerCgroupV1Dir = "/sys/fs/cgroup/freezer"
 const maxFreezeTimeout = 3000 * time.Millisecond
+const freezePulseDelay = 100 * time.Millisecond
 
 var freezerCgroupV1Dir = defaultFreezerCgroupV1Dir
-var freezePulseDelay = 100 * time.Millisecond
 
 var osReadFile = os.ReadFile
 

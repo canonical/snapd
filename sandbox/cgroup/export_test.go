@@ -42,6 +42,8 @@ var (
 	SecurityTagFromCgroupPath = securityTagFromCgroupPath
 
 	ApplyToSnap = applyToSnap
+
+	KillProcessesInCgroup = killProcessesInCgroup
 )
 
 func MockFsTypeForPath(mock func(string) (int64, error)) (restore func()) {
@@ -137,28 +139,12 @@ func (iw *inotifyWatcher) MonitorDelete(folders []string, name string, channel c
 
 var NewInotifyWatcher = newInotifyWatcher
 
-func MockFreezeSnapProcessesImplV1(fn func(ctx context.Context, snapName string) error) (restore func()) {
-	return testutil.Mock(&freezeSnapProcessesImplV1, fn)
-}
-
-func MockThawSnapProcessesImplV1(fn func(snapName string) error) (restore func()) {
-	return testutil.Mock(&thawSnapProcessesImplV1, fn)
+func MockKillProcessesInCgroup(fn func(dir string) error) (restore func()) {
+	return testutil.Mock(&killProcessesInCgroup, fn)
 }
 
 func MockSyscallKill(fn func(pid int, sig syscall.Signal) error) (restore func()) {
 	return testutil.Mock(&syscallKill, fn)
-}
-
-func MockFreezeOneV2(fn func(ctx context.Context, dir string) error) (restore func()) {
-	return testutil.Mock(&freezeOneV2, fn)
-}
-
-func MockThawOneV2(fn func(dir string) error) (restore func()) {
-	return testutil.Mock(&thawOneV2, fn)
-}
-
-func MockFreezePulseDelay(t time.Duration) (restore func()) {
-	return testutil.Mock(&freezePulseDelay, t)
 }
 
 func MockOsReadFile(fn func(name string) ([]byte, error)) (restore func()) {

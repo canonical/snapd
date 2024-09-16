@@ -32,15 +32,12 @@ import (
 // a given snap.
 //
 // A correct implementation is picked depending on cgroup v1 or v2 use in the
-// system. When cgroup v1 is detected, the call will directly act on the freezer
-// group created when a snap process was started, while with v2 the call will
-// act on all tracking groups of a snap.
+// system. For both cgroup v1 and v2, the call will act on all tracking groups
+// of a snap.
 //
-// XXX: It is important to note that the implementation for v2 is racy because
-// processes can be killed externally even when the cgroup is frozen and have
-// their pid reused. Also, v2 freezing support is a no-op on kernels before
-// 5.2 which means new processes can keep getting spawned while killing
-// pids read earlier.
+// Note: When cgroup v1 is detected, the call will also act on the freezer
+// group created when a snap process was started to address a known bug on
+// systemd v327 for non-root users.
 var KillSnapProcesses = func(ctx context.Context, snapName string) error {
 	return errors.New("KillSnapProcesses not implemented")
 }
@@ -52,40 +49,65 @@ var syscallKill = syscall.Kill
 //
 // The caller is responsible for making sure that pids are not reused
 // after reading `cgroup.procs` to avoid TOCTOU.
-func killProcessesInCgroup(dir string, signal syscall.Signal) error {
-	pids, err := pidsInFile(filepath.Join(dir, "cgroup.procs"))
-	if err != nil {
+var killProcessesInCgroup = func(dir string) error {
+	// Keep sending SIGKILL signals until no more pids are left in cgroup
+	// to cover the case where a process forks before we kill it.
+	for {
+		// XXX: Should this have maximum retries?
+		pids, err := pidsInFile(filepath.Join(dir, "cgroup.procs"))
+		if err != nil {
+			return err
+		}
+		if len(pids) == 0 {
+			// no more pids
+			return nil
+		}
+
+		var firstErr error
+		for _, pid := range pids {
+			pidNotFoundErr := syscall.ESRCH
+			// TODO: Use pidfs when possible to avoid killing reused pids.
+			if err := syscallKill(pid, syscall.SIGKILL); err != nil && !errors.Is(err, pidNotFoundErr) && firstErr == nil {
+				firstErr = err
+			}
+		}
+		if firstErr != nil {
+			return firstErr
+		}
+	}
+}
+
+func killSnapProcessesImplV1(ctx context.Context, snapName string) error {
+	var firstErr error
+	skipError := func(err error) bool {
+		// fs.ErrNotExist and ENODEV are ignored in case the cgroup went away while we were
+		// processing the cgorup. ENODEV is returned by the kernel if the cgroup went
+		// away while a kernfs operation is ongoing.
+		if !errors.Is(err, fs.ErrNotExist) && !errors.Is(err, syscall.ENODEV) && firstErr == nil {
+			firstErr = err
+		}
+		return true
+	}
+
+	if err := applyToSnap(snapName, killProcessesInCgroup, skipError); err != nil {
 		return err
 	}
 
-	var firstErr error
-	for _, pid := range pids {
-		pidNotFoundErr := syscall.ESRCH
-		if err := syscallKill(pid, signal); err != nil && !errors.As(err, &pidNotFoundErr) && firstErr == nil {
-			firstErr = err
-		}
+	// This is a workaround for systemd v237 (used by Ubuntu 18.04) for non-root users
+	// where a transient scope cgroup is not created for a snap hence it cannot be tracked
+	// by the usual snap.<security-tag>-<uuid>.scope pattern.
+	// Here, We rely on the fact that snap-confine moves the snap pids into the freezer cgroup
+	// created for the snap.
+	// There is still a tiny race window between "snap run" unlocking the run inhibition lock
+	// and snap-confine moving pids to the freezer cgroup where we would miss those pids.
+	err := killProcessesInCgroup(filepath.Join(freezerCgroupV1Dir, fmt.Sprintf("snap.%s", snapName)))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) && !errors.Is(err, syscall.ENODEV) && firstErr == nil {
+		firstErr = err
 	}
 
 	return firstErr
 }
 
-func killSnapProcessesImplV1(ctx context.Context, snapName string) error {
-	if err := freezeSnapProcessesImplV1(ctx, snapName); err != nil {
-		return err
-	}
-	// For V1, SIGKILL on a frozen cgroup will not take effect
-	// until the cgroup is thawed
-	defer thawSnapProcessesImplV1(snapName)
-
-	return killProcessesInCgroup(filepath.Join(freezerCgroupV1Dir, fmt.Sprintf("snap.%s", snapName)), syscall.SIGKILL)
-}
-
-// XXX: killSnapProcessesImplV2 is racy to varying degrees depending on the kernel
-// version.
-//
-//  1. Cgroup v2 freezer was only available since Linux 5.2 so freezing is a no-op before 5.2 which allows processes to keep forking.
-//  2. Freezing does not put processes in an uninterruptable sleep unlike v1, so they can be killed externally and have their pid reused.
-//  3. `cgroup.kill` was introduced in Linux 5.14 and solves the above issues as it kills the cgroup processes atomically.
 func killSnapProcessesImplV2(ctx context.Context, snapName string) error {
 	killCgroupProcs := func(dir string) error {
 		// Use cgroup.kill if it exists (requires linux 5.14+)
@@ -93,14 +115,9 @@ func killSnapProcessesImplV2(ctx context.Context, snapName string) error {
 		if err == nil || !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
-		// Fallback to classic freeze/kill/thaw if cgroup.kill doesn't exist
 
-		if err := freezeOneV2(ctx, dir); err != nil {
-			return err
-		}
-		if err := killProcessesInCgroup(dir, syscall.SIGKILL); err != nil {
-			// Thaw on error to avoid keeping cgroup stuck
-			thawOneV2(dir) // ignore the error, this is best-effort
+		// Fallback to killing each pid if cgroup.kill doesn't exist
+		if err := killProcessesInCgroup(dir); err != nil {
 			return err
 		}
 		return nil
@@ -108,7 +125,10 @@ func killSnapProcessesImplV2(ctx context.Context, snapName string) error {
 
 	var firstErr error
 	skipError := func(err error) bool {
-		if !errors.Is(err, fs.ErrNotExist) && firstErr == nil {
+		// fs.ErrNotExist and ENODEV are ignored in case the cgroup went away while we were
+		// processing the cgorup. ENODEV is returned by the kernel if the cgroup went
+		// away while a kernfs operation is ongoing.
+		if !errors.Is(err, fs.ErrNotExist) && !errors.Is(err, syscall.ENODEV) && firstErr == nil {
 			firstErr = err
 		}
 		return true
