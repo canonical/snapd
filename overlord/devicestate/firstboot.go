@@ -175,7 +175,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	// ack all initial assertions
 	timings.Run(tm, "import-assertions[finish]", "finish importing assertions from seed", func(nested timings.Measurer) {
 		isCoreBoot := hasModeenv || !release.OnClassic
-		deviceSeed, err = m.importAssertionsFromSeed(isCoreBoot)
+		deviceSeed, err = m.importAssertionsFromSeed(mode, isCoreBoot)
 	})
 	if err != nil && err != errNothingToDo {
 		return nil, err
@@ -404,7 +404,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	return tsAll, nil
 }
 
-func (m *DeviceManager) importAssertionsFromSeed(isCoreBoot bool) (seed.Seed, error) {
+func (m *DeviceManager) importAssertionsFromSeed(mode string, isCoreBoot bool) (seed.Seed, error) {
 	st := m.state
 
 	// TODO: use some kind of context fo Device/SetDevice?
@@ -428,19 +428,15 @@ func (m *DeviceManager) importAssertionsFromSeed(isCoreBoot bool) (seed.Seed, er
 	if err != nil {
 		return nil, err
 	}
+
 	modelAssertion := deviceSeed.Model()
 
-	classicModel := modelAssertion.Classic()
-	// FIXME this will not be correct on classic with modes system when
-	// mode is not "run".
-	if release.OnClassic != classicModel {
-		var msg string
-		if classicModel {
-			msg = "cannot seed an all-snaps system with a classic model"
-		} else {
-			msg = "cannot seed a classic system with an all-snaps model"
-		}
-		return nil, errors.New(msg)
+	if release.OnClassic && !modelAssertion.Classic() {
+		return nil, errors.New("cannot seed a classic system with an all-snaps model")
+	}
+
+	if !release.OnClassic && modelAssertion.Classic() && mode != "recover" {
+		return nil, errors.New("can only seed an all-snaps system with a classic model in recovery mode")
 	}
 
 	// set device,model from the model assertion

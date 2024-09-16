@@ -203,8 +203,8 @@ func EnsureSerialBoundSystemUserAssertionsProcessed(m *DeviceManager) error {
 	return m.ensureSerialBoundSystemUserAssertionsProcessed()
 }
 
-func ImportAssertionsFromSeed(m *DeviceManager, isCoreBoot bool) (seed.Seed, error) {
-	return m.importAssertionsFromSeed(isCoreBoot)
+func ImportAssertionsFromSeed(m *DeviceManager, mode string, isCoreBoot bool) (seed.Seed, error) {
+	return m.importAssertionsFromSeed(mode, isCoreBoot)
 }
 
 func PopulateStateFromSeedImpl(m *DeviceManager, tm timings.Measurer) ([]*state.TaskSet, error) {
