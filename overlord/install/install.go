@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
@@ -473,7 +474,7 @@ func comparePreseedAndSeedSnaps(seedSnap *seed.Snap, preseedSnap *asserts.Presee
 	if len(expectedComps) != 0 {
 		missing := make([]string, 0, len(expectedComps))
 		for name := range expectedComps {
-			missing = append(missing, name)
+			missing = append(missing, naming.NewComponentRef(seedSnap.SnapName(), name).String())
 		}
 		return fmt.Errorf("seed is missing components expected by preseed assertion: %s", strutil.Quoted(missing))
 	}

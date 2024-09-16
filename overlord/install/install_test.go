@@ -1551,7 +1551,7 @@ func (s *installSuite) TestApplyPreseededDataComponentMismatchMissingComponent(c
 			},
 		},
 	}
-	const message = `seed is missing components expected by preseed assertion: "comp3"`
+	const message = `seed is missing components expected by preseed assertion: "essential-snap\+comp3"`
 	s.testApplyPreseededDataComponentMismatch(c, preseededDataComponentMismatchOpts{
 		preseed: preseed,
 		errMsg:  message,
