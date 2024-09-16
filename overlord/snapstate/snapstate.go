@@ -275,18 +275,18 @@ func isCoreSnap(snapName string) bool {
 }
 
 // removeExtraComponentsTasks creates tasks that will remove unwanted components
-// that are currently installed alongside the snap revision that is about to be
-// installed. If the new snap revision is not in the sequence, then we don't
-// have anything to do. If the revision is in the sequence, then we generate
-// tasks that will unlink components that are not in compsups.
+// that are currently installed alongside the target snap revision. If the new
+// snap revision is not in the sequence, then we don't have anything to do. If
+// the revision is in the sequence, then we generate tasks that will unlink
+// components that are not in compsups.
 //
 // This is mostly relevant when we're moving from one snap revision to another
 // snap revision that has already been installed on the system. The target snap
 // might have components that are installed that we don't want any more.
-func removeExtraComponentsTasks(st *state.State, snapst *SnapState, newRevision snap.Revision, compsups []ComponentSetup) (
+func removeExtraComponentsTasks(st *state.State, snapst *SnapState, targetRevision snap.Revision, compsups []ComponentSetup) (
 	unlinkTasks, discardTasks []*state.Task, err error,
 ) {
-	idx := snapst.LastIndex(newRevision)
+	idx := snapst.LastIndex(targetRevision)
 	if idx < 0 {
 		return nil, nil, nil
 	}
@@ -297,9 +297,7 @@ func removeExtraComponentsTasks(st *state.State, snapst *SnapState, newRevision 
 		keep[compsup.CompSideInfo.Component] = true
 	}
 
-	snapst.CurrentComponentSideInfos()
-
-	linkedForRevision, err := snapst.ComponentInfosForRevision(newRevision)
+	linkedForRevision, err := snapst.ComponentInfosForRevision(targetRevision)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -329,7 +327,7 @@ func removeExtraComponentsTasks(st *state.State, snapst *SnapState, newRevision 
 		// once we introduce components and validation sets? if that is the
 		// case, we'll need to take care here to use "unlink-current-component"
 		// and point it to the correct snap setup task.
-		if snapst.Current == newRevision {
+		if snapst.Current == targetRevision {
 			return nil, nil, errors.New("internal error: cannot lose a component during a refresh without a snap revision change")
 		}
 
