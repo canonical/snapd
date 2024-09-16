@@ -378,59 +378,92 @@ func (s *featureSuite) TestAll(c *C) {
 	defer st.Unlock()
 	tr := config.NewTransaction(st)
 
+	// Use the first feature as a testing feature and overwrite all its values.
+	fakeFeature := features.SnapdFeature(0)
+	is, why := fakeFeature.IsSupported()
+	c.Check(is, Equals, true)
+	c.Check(why, Equals, "")
+	originalFakeCallback := features.FeaturesSupportedCallbacks[fakeFeature]
+	delete(features.FeaturesSupportedCallbacks, fakeFeature)
+	defer func() {
+		if originalFakeCallback == nil {
+			delete(features.FeaturesSupportedCallbacks, fakeFeature)
+		} else {
+			features.FeaturesSupportedCallbacks[fakeFeature] = originalFakeCallback
+		}
+	}()
+
+	// Change default for fake feature (which may not be set) to be disabled if not set
+	originalEnabledWhenUnset := features.FeaturesEnabledWhenUnset[fakeFeature]
+	delete(features.FeaturesEnabledWhenUnset, fakeFeature)
+	defer func() {
+		if originalEnabledWhenUnset {
+			features.FeaturesEnabledWhenUnset[fakeFeature] = originalEnabledWhenUnset
+		}
+	}()
+
 	allFeaturesInfo := features.All(tr)
 
 	// Feature flags are included even if value unset
-	layoutsInfo, exists := allFeaturesInfo[features.Layouts.String()]
+	fakeFeatureInfo, exists := allFeaturesInfo[fakeFeature.String()]
 	c.Assert(exists, Equals, true)
 	// Feature flags are supported even if no callback defined.
-	c.Check(layoutsInfo.Supported, Equals, true)
+	c.Check(fakeFeatureInfo.Supported, Equals, true)
 	// Feature flags have a value even if unset.
-	c.Check(layoutsInfo.Enabled, Equals, true)
+	c.Check(fakeFeatureInfo.Enabled, Equals, false)
+
+	var fakeSupported bool
+	var fakeReason string
+	fakeCallback := func() (bool, string) {
+		return fakeSupported, fakeReason
+	}
+	features.FeaturesSupportedCallbacks[fakeFeature] = fakeCallback
 
 	// Feature flags with defined supported callbacks work correctly.
 
 	// Callbacks which return false result in Supported: false
-	restore := systemd.MockSystemdVersion(229, nil)
-	defer restore()
+	fakeSupported = false
+	fakeReason = "foo"
 	allFeaturesInfo = features.All(tr)
-	quotaGroupsInfo, exists := allFeaturesInfo[features.QuotaGroups.String()]
+	fakeFeatureInfo, exists = allFeaturesInfo[fakeFeature.String()]
 	c.Assert(exists, Equals, true)
-	c.Check(quotaGroupsInfo.Supported, Equals, false)
-	c.Check(quotaGroupsInfo.UnsupportedReason, Matches, "systemd version 229 is too old.*")
-	c.Check(quotaGroupsInfo.Enabled, Equals, false)
+	c.Check(fakeFeatureInfo.Supported, Equals, false)
+	c.Check(fakeFeatureInfo.UnsupportedReason, Matches, fakeReason)
+	c.Check(fakeFeatureInfo.Enabled, Equals, false)
+
+	snapName, confName := fakeFeature.ConfigOption()
 
 	// Feature flags can be enabled but unsupported.
-	c.Assert(tr.Set("core", "experimental.quota-groups", "true"), IsNil)
+	c.Assert(tr.Set(snapName, confName, "true"), IsNil)
 	allFeaturesInfo = features.All(tr)
-	quotaGroupsInfo, exists = allFeaturesInfo[features.QuotaGroups.String()]
+	fakeFeatureInfo, exists = allFeaturesInfo[fakeFeature.String()]
 	c.Assert(exists, Equals, true)
-	c.Check(quotaGroupsInfo.Supported, Equals, false)
-	c.Check(quotaGroupsInfo.UnsupportedReason, Matches, "systemd version 229 is too old.*")
-	c.Check(quotaGroupsInfo.Enabled, Equals, true)
+	c.Check(fakeFeatureInfo.Supported, Equals, false)
+	c.Check(fakeFeatureInfo.UnsupportedReason, Matches, fakeReason)
+	c.Check(fakeFeatureInfo.Enabled, Equals, true)
 
 	// Callbacks which return true result in Supported: true
-	restore = systemd.MockSystemdVersion(230, nil)
-	defer restore()
+	fakeSupported = true
+	fakeReason = "foo"
 	allFeaturesInfo = features.All(tr)
-	quotaGroupsInfo, exists = allFeaturesInfo[features.QuotaGroups.String()]
+	fakeFeatureInfo, exists = allFeaturesInfo[fakeFeature.String()]
 	c.Assert(exists, Equals, true)
-	c.Check(quotaGroupsInfo.Supported, Equals, true)
-	c.Check(quotaGroupsInfo.UnsupportedReason, Equals, "")
-	c.Check(quotaGroupsInfo.Enabled, Equals, true)
+	c.Check(fakeFeatureInfo.Supported, Equals, fakeSupported)
+	c.Check(fakeFeatureInfo.UnsupportedReason, Equals, "")
+	c.Check(fakeFeatureInfo.Enabled, Equals, true)
 
 	// Feature flags can be disabled but supported.
-	c.Assert(tr.Set("core", "experimental.quota-groups", "false"), IsNil)
+	c.Assert(tr.Set(snapName, confName, "false"), IsNil)
 	allFeaturesInfo = features.All(tr)
-	quotaGroupsInfo, exists = allFeaturesInfo[features.QuotaGroups.String()]
+	fakeFeatureInfo, exists = allFeaturesInfo[fakeFeature.String()]
 	c.Assert(exists, Equals, true)
-	c.Check(quotaGroupsInfo.Supported, Equals, true)
-	c.Check(quotaGroupsInfo.UnsupportedReason, Equals, "")
-	c.Check(quotaGroupsInfo.Enabled, Equals, false)
+	c.Check(fakeFeatureInfo.Supported, Equals, true)
+	c.Check(fakeFeatureInfo.UnsupportedReason, Equals, "")
+	c.Check(fakeFeatureInfo.Enabled, Equals, false)
 
 	// Feature flags with bad values are omitted, even if supported.
-	c.Assert(tr.Set("core", "experimental.quota-groups", "banana"), IsNil)
+	c.Assert(tr.Set(snapName, confName, "banana"), IsNil)
 	allFeaturesInfo = features.All(tr)
-	quotaGroupsInfo, exists = allFeaturesInfo[features.QuotaGroups.String()]
+	fakeFeatureInfo, exists = allFeaturesInfo[fakeFeature.String()]
 	c.Assert(exists, Equals, false)
 }
