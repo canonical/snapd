@@ -261,7 +261,8 @@ func deriveDesktopFilesContent(s *snap.Info) (map[string]osutil.FileState, error
 			return nil, err
 		}
 		if _, exists := content[base]; exists {
-			return nil, fmt.Errorf("duplicate desktop file name after mangling")
+			logger.Noticef("skipping %q as a duplicate file name %q was found after mangling", filepath.Base(df), base)
+			continue
 		}
 		fileContent, err := os.ReadFile(df)
 		if err != nil {
