@@ -72,7 +72,7 @@ prepare: |
 
 execute: |
     # Update the cmdline
-    remote.exec "sudo snap set system system.kernel.dangerous-cmdline-append='extradang.val=1 extradang.flag'"
+    change_id="$(remote.exec "sudo snap set system system.kernel.dangerous-cmdline-append='extradang.val=1 extradang.flag'")"
 
     # Check if the fault was injected
     remote.exec "test -e /var/lib/snapd/faults/$TAG:$FAULT"

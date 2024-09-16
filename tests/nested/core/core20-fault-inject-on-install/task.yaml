@@ -33,7 +33,6 @@ prepare: |
     cp "$(ls /tmp/work-dir/snapd_snap/snapd_*.snap)" snapd.snap
 
 execute: |
-    VERSION="$(tests.nested show version)"
     SNAP=snapd
     REBOOT=false
 
