@@ -436,8 +436,10 @@ parts:
     source: .
     after:
       - snapd
-    override-pull: |
-      craftctl default
+    override-build: |
+      # XXX this should be done in pull, but apparently ordering is not honored
+      # for 'pull' step of parts
+
       # FIPS stamp files were created in the 'snap' part build
       if [ -f "${CRAFT_STAGE}/fips-build-lp" ]; then
         mkdir -p etc/apt/preferences.d/
@@ -459,7 +461,7 @@ parts:
         # grab the core22 from fips-updates channel
         snap download --channel fips-updates/stable --basename core22-fips core22
       fi
-    override-build: |
+
       # TODO this is really a hack as we should likely be using on LP; The snapd
       # snap should include the information about a particular openssl version
       # which was included in the build but the core22 FIPS variant snap has
