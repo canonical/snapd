@@ -215,11 +215,18 @@ parts:
       craftctl default
       # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
       VERSION="$(./mkversion.sh --output-only)"
+
+      if [ -f fips-build ]; then
+          # CI can set a build stamp for enabling the FIPS build mode
+          echo "-- detected FIPS build from CI build stamp"
+          touch "${CRAFT_STAGE}"/fips-build
+      fi
+
       if [ "${VERSION/+fips/}" != "$VERSION" ] ; then
           # we have a '+fips' element in the version, which may be coming from
           # debian/changelog or git tag
           echo "-- detected FIPS build from version $VERSION"
-          touch "${CRAFT_PROJECT_DIR}/fips-build"
+          touch "${CRAFT_STAGE}/fips-build"
       fi
 
       # check for triggers that indicate a build on LP of the snapd-fips snap
@@ -227,11 +234,11 @@ parts:
       is_lp_fips_build="$(./release-tools/is-lp-fips-build.sh)"
       if [ "$is_lp_fips_build" = "true" ]; then
           echo "-- detected FIPS build from LP location"
-          touch "${CRAFT_PROJECT_DIR}/fips-build"
-          touch "${CRAFT_PROJECT_DIR}/fips-build-lp"
+          touch "${CRAFT_STAGE}/fips-build"
+          touch "${CRAFT_STAGE}/fips-build-lp"
       fi
 
-      if [ -f "${CRAFT_PROJECT_DIR}/fips-build" ]; then
+      if [ -f "${CRAFT_STAGE}/fips-build" ]; then
           if [ "${VERSION/+fips/}" = "$VERSION" ] ; then
               # we have a fips-build marker, but fips tag isn't yet part of the
               # snap version, let's add it
@@ -253,7 +260,7 @@ parts:
       GO_TOOLCHAIN_FIPS_CHANNEL="1.21-fips/stable"
 
       VERSION="$(craftctl get version)"
-      if [ -f "${CRAFT_PROJECT_DIR}/fips-build" ] ; then
+      if [ -f "${CRAFT_STAGE}/fips-build" ] ; then
           # use the fips channel of Go
           snap refresh --channel "$GO_TOOLCHAIN_FIPS_CHANNEL" go
           # make sure it is really the Go FIPS toolchain
@@ -364,7 +371,7 @@ parts:
         esac
 
         # FIPS specific build tags
-        if [ -f "${CRAFT_PROJECT_DIR}/fips-build" ]; then
+        if [ -f "${CRAFT_STAGE}/fips-build" ]; then
           case "${cmd}" in
             # per snapd FIPS spec, FIPS build tags are only relevant for snapd,
             # snap, snap-repair and snap-bootstrap, tags:
@@ -433,7 +440,7 @@ parts:
     override-pull: |
       craftctl default
       # FIPS stamp files were created in the 'snap' part build
-      if [ -f "${CRAFT_PROJECT_DIR}/fips-build-lp" ]; then
+      if [ -f "${CRAFT_STAGE}/fips-build-lp" ]; then
         mkdir -p etc/apt/preferences.d/
         # need to up the priority of the repository
         # TODO what if we need to choose between FIPS and FIPS preview?
@@ -449,7 +456,7 @@ parts:
           cd fips-debs
           apt download openssl libssl3 openssl-fips-module-3
         )
-      elif [ -f "${CRAFT_PROJECT_DIR}/fips-build" ]; then
+      elif [ -f "${CRAFT_STAGE}/fips-build" ]; then
         # grab the core22 from fips-updates channel
         snap download --channel fips-updates/stable --basename core22-fips core22
       fi
@@ -458,7 +465,7 @@ parts:
       # snap should include the information about a particular openssl version
       # which was included in the build but the core22 FIPS variant snap has
       # been stripped off of the manifest.
-      if [ -f "${CRAFT_PROJECT_DIR}/fips-build-lp" ]; then
+      if [ -f "${CRAFT_STAGE}/fips-build-lp" ]; then
         mkdir fips-libs-from-debs
         mkdir fips-libs-from-debs-stage
 
@@ -482,7 +489,7 @@ parts:
               xargs -0 -- cp -av --parents --target ../fips-libs-from-debs-stage/
         )
         cp -av fips-libs-from-debs-stage/* "${CRAFT_PART_INSTALL}"
-      elif [ -f "${CRAFT_PROJECT_DIR}/fips-build" ]; then
+      elif [ -f "${CRAFT_STAGE}/fips-build" ]; then
         unsquashfs -d core22-fips-squashfs-root core22-fips.snap \
           'usr/lib/*-linux-gnu*/engines-3' \
           'usr/lib/*-linux-gnu*/ossl-modules-3' \
