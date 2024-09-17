@@ -155,16 +155,11 @@ func componentSetupsForInstall(ctx context.Context, st *state.State, names []str
 }
 
 func installComponentAction(st *state.State, snapst SnapState, snapRev snap.Revision, channel string, opts Options) (*store.SnapAction, error) {
-	var si *snap.SideInfo
-	if snapRev.Unset() {
-		si = snapst.CurrentSideInfo()
-	} else {
-		index := snapst.LastIndex(snapRev)
-		if index == -1 {
-			return nil, fmt.Errorf("internal error: cannot find snap revision %s in sequence", snapRev)
-		}
-		si = snapst.Sequence.SideInfos()[index]
+	index := snapst.LastIndex(snapRev)
+	if index == -1 {
+		return nil, fmt.Errorf("internal error: cannot find snap revision %s in sequence", snapRev)
 	}
+	si := snapst.Sequence.SideInfos()[index]
 
 	if si.SnapID == "" {
 		return nil, errors.New("internal error: cannot install components for a snap that is unknown to the store")
