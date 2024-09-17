@@ -247,7 +247,6 @@ parts:
           fi
       fi
 
-      # TODO use $CRAFT_PROJECT_DIR
       if [ -f test-build ]; then
           VERSION="1337.${VERSION}"
       fi
