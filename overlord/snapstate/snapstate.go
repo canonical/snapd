@@ -290,7 +290,6 @@ func removeExtraComponentsTasks(st *state.State, snapst *SnapState, targetRevisi
 	if idx < 0 {
 		return nil, nil, nil
 	}
-	si := snapst.Sequence.Revisions[idx].Snap
 
 	keep := make(map[naming.ComponentRef]bool, len(compsups))
 	for _, compsup := range compsups {
@@ -300,21 +299,6 @@ func removeExtraComponentsTasks(st *state.State, snapst *SnapState, targetRevisi
 	linkedForRevision, err := snapst.ComponentInfosForRevision(targetRevision)
 	if err != nil {
 		return nil, nil, err
-	}
-
-	// this is just a throwaway SnapSetup we create here so that
-	// unlink-component knows which snap revision we're unlinking the component
-	// from. note that we don't need to worry about kernel module components
-	// here, since the components that we are removing are not associated with
-	// the currently installed snap revision.
-	snapsup := SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: si.RealName,
-			SnapID:   si.SnapID,
-			Revision: si.Revision,
-		},
-		InstanceKey: snapst.InstanceKey,
-		Type:        snap.Type(snapst.SnapType),
 	}
 
 	for _, ci := range linkedForRevision {
@@ -331,11 +315,15 @@ func removeExtraComponentsTasks(st *state.State, snapst *SnapState, targetRevisi
 			return nil, nil, errors.New("internal error: cannot lose a component during a refresh without a snap revision change")
 		}
 
+		// note that we don't need to worry about kernel module components here,
+		// since the components that we are removing are not associated with the
+		// currently installed snap revision. unlink-component differs from
+		// unlink-current-component in that it doesn't save the state of kernel
+		// module components on the the SnapSetup.
 		unlink := st.NewTask("unlink-component", fmt.Sprintf(
-			i18n.G("Unlink component %q for snap revision %s"), ci.Component, snapsup.Revision(),
+			i18n.G("Unlink component %q for snap revision %s"), ci.Component, targetRevision,
 		))
 
-		unlink.Set("snap-setup", snapsup)
 		unlink.Set("component-setup", ComponentSetup{
 			CompSideInfo: &ci.ComponentSideInfo,
 			CompType:     ci.Type,
@@ -346,7 +334,6 @@ func removeExtraComponentsTasks(st *state.State, snapst *SnapState, targetRevisi
 			discard := st.NewTask("discard-component", fmt.Sprintf(
 				i18n.G("Discard previous revision for component %q"), ci.Component,
 			))
-			discard.Set("snap-setup-task", unlink.ID())
 			discard.Set("component-setup-task", unlink.ID())
 			discardTasks = append(discardTasks, discard)
 		}
