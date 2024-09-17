@@ -34,7 +34,7 @@ import (
 //
 // A simple example on how to use the iterator:
 // ```
-// iter:= NewPathIterator(path)
+// iter := NewPathIterator(path)
 //
 //	for iter.Next() {
 //	   // Use iter.CurrentBase() with openat(2) family of functions.
@@ -72,7 +72,7 @@ func (iter *PathIterator) Path() string {
 // Before any iteration with Next, CurrentBase returns an empty string.
 // Example:
 //
-//	iter:= NewPathIterator("/foo/bar")  // iter.CurrentBase() == ""
+//	iter := NewPathIterator("/foo/bar")  // iter.CurrentBase() == ""
 //	iter.Next() // iter.CurrentBase() == "/" && iter.CurrentPath() == "/"
 //	iter.Next() // iter.CurrentBase() == "foo" && iter.CurrentPath() == "/foo"
 //	iter.Next() // iter.CurrentBase() == "bar" && iter.CurrentPath() == "/foo/bar"
@@ -88,7 +88,7 @@ func (iter *PathIterator) CurrentBase() string {
 // Before any iteration with Next, CurrentPath returns an empty string.
 // Example:
 //
-//		iter:= NewPathIterator("/foo/bar")  // iter.CurrentPath() == ""
+//		iter := NewPathIterator("/foo/bar")  // iter.CurrentPath() == ""
 //	 	iter.Next() // iter.CurrentPath() == "/" && iter.Depth() == 1
 //	 	iter.Next() // iter.CurrentPath() == "/foo" && iter.Depth() == 2
 //	 	iter.Next() // iter.CurrentPath() == "/foo/bar" && iter.Depth() == 3
@@ -104,7 +104,7 @@ func (iter *PathIterator) CurrentPath() string {
 // Before any iteration with Next, CurrentPathPlusSlash returns an empty string.
 // Example:
 //
-//	    iter:= NewPathIterator("/foo/bar")  // iter.CurrentPathPlusSlash() == ""
+//	    iter := NewPathIterator("/foo/bar")  // iter.CurrentPathPlusSlash() == ""
 //		iter.Next() // iter.CurrentPathPlusSlash() == "/"
 //		iter.Next() // iter.CurrentPathPlusSlash() == "/foo/"
 //		iter.Next() // iter.CurrentPathPlusSlash() == "/foo/bar/"
@@ -122,14 +122,14 @@ func (iter *PathIterator) CurrentPathPlusSlash() string {
 // current path only contains one element, then CurrentDir will return an empty string.
 // Example:
 //
-//	iter:= NewPathIterator("/foo/bar")  // iter.CurrentDir() == ""
+//	iter := NewPathIterator("/foo/bar")  // iter.CurrentDir() == ""
 //	iter.Next() // iter.CurrentDir() == "" && iter.CurrentPath() == "/"
 //	iter.Next() // iter.CurrentDir() == "/" && iter.CurrentPath() == "/foo"
 //	iter.Next() // iter.CurrentDir() == "/foo" && iter.CurrentPath() == "/foo/bar"
 //
 // Example:
 //
-//	iter:= NewPathIterator("foo/bar")  // iter.CurrentDir() == ""
+//	iter := NewPathIterator("foo/bar")  // iter.CurrentDir() == ""
 //	iter.Next() // iter.CurrentDir() == "" && iter.CurrentPath() == "foo"
 //	iter.Next() // iter.CurrentDir() == "foo" && iter.CurrentPath() == "foo/bar"
 func (iter *PathIterator) CurrentDir() string {
@@ -139,10 +139,10 @@ func (iter *PathIterator) CurrentDir() string {
 	return iter.path[:iter.left]
 }
 
-// Indicates whether the element at CurrentBase is the leaf of the path.
+// IsCurrentBaseLeaf returns true if CurrentBase is the leaf of the path.
 // Example:
 //
-//	iter:= NewPathIterator("foo/bar")  // iter.IsCurrentBaseLeaf() == false
+//	iter := NewPathIterator("foo/bar")  // iter.IsCurrentBaseLeaf() == false
 //	iter.Next() // iter.CurrentBase() == "foo" && iter.IsCurrentBaseLeaf() == false
 //	iter.Next() // iter.CurrentBase() == "bar" && iter.IsCurrentBaseLeaf() == true
 func (iter *PathIterator) IsCurrentBaseLeaf() bool {

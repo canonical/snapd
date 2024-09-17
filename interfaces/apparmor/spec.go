@@ -746,7 +746,7 @@ func emitEnsureDir(spec *Specification, ifaceName string, ensureDirSpec *interfa
 
 	// Create entries for the remaining directories after MustExistDir up to and including EnsureDir
 	for iter.Next() {
-		emit("  owner %s/ rw,", replacePrefixHome(iter.CurrentPath()))
+		emit("  owner %s rw,", replacePrefixHome(iter.CurrentPathPlusSlash()))
 	}
 }
 
