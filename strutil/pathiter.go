@@ -47,7 +47,7 @@ type PathIterator struct {
 	path string
 	// Left and right are indices of the start and end of the element indicated in CurrentBase
 	left, right int
-	// The i-th path element pointed to by the iterator
+	// The depth-th path element pointed to by the iterator
 	depth int
 }
 
