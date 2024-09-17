@@ -25,6 +25,8 @@ package secboot
 // Debian does run "go list" without any support for passing -tags.
 
 import (
+	"encoding/json"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
@@ -132,9 +134,19 @@ type SealKeysWithFDESetupHookParams struct {
 	AuxKeyFile string
 }
 
+type SerializedPCRProfile json.RawMessage
+
+func (s SerializedPCRProfile) MarshalJSON() ([]byte, error) {
+	return json.RawMessage(s).MarshalJSON()
+}
+
+func (s *SerializedPCRProfile) UnmarshalJSON(data []byte) error {
+	return (*json.RawMessage)(s).UnmarshalJSON(data)
+}
+
 type ResealKeysParams struct {
 	// The snap model parameters
-	ModelParams []*SealKeyModelParams
+	PCRProfile SerializedPCRProfile
 	// The path to the sealed key files
 	KeyFiles []string
 	// The path to the authorization policy update key file (only relevant for TPM)
