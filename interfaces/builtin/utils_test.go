@@ -305,7 +305,7 @@ func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesNoDesktopFilesFallback(c
 }
 
 func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesSnapMountErrorFallback(c *C) {
-	restore := builtin.MockDesktopFilesFromMount(func(s *snap.Info) ([]string, error) {
+	restore := builtin.MockDesktopFilesFromInstalledSnap(func(s *snap.Info) ([]string, error) {
 		return nil, errors.New("boom")
 	})
 	defer restore()
@@ -381,7 +381,7 @@ func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesSanitizedDesktopFileName
 func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesBadDesktopFileName(c *C) {
 	// Stress the case where a snap file name skipped sanitization somehow
 	// This should never happen because snap.MangleDesktopFileName is called
-	restore := builtin.MockDesktopFilesFromMount(func(s *snap.Info) ([]string, error) {
+	restore := builtin.MockDesktopFilesFromInstalledSnap(func(s *snap.Info) ([]string, error) {
 		return []string{"foo**?$.desktop"}, nil
 	})
 	defer restore()
@@ -398,7 +398,7 @@ func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesBadDesktopFileName(c *C)
 func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesBadDesktopFileIDs(c *C) {
 	// Stress the case where a desktop file ids attribute skipped validation during
 	// installation somehow
-	restore := builtin.MockDesktopFilesFromMount(func(s *snap.Info) ([]string, error) {
+	restore := builtin.MockDesktopFilesFromInstalledSnap(func(s *snap.Info) ([]string, error) {
 		return []string{"org.*.example.desktop"}, nil
 	})
 	defer restore()

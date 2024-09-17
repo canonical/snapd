@@ -1044,13 +1044,13 @@ func (s *Info) MangleDesktopFileName(desktopFile string) (string, error) {
 	return filepath.Join(dir, fmt.Sprintf("%s_%s", s.DesktopPrefix(), sanitizedBase)), nil
 }
 
-type DesktopFilesFromMountOptions struct {
+type DesktopFilesFromInstalledSnapOptions struct {
 	// Mangles found desktop files using Info.MangleDesktopFileName()
 	MangleFileNames bool
 }
 
-// DesktopFilesFromMount returns the desktop files found under <snap-mount>/meta/gui.
-func (s *Info) DesktopFilesFromMount(opts DesktopFilesFromMountOptions) ([]string, error) {
+// DesktopFilesFromInstalledSnap returns the desktop files found under <snap-mount>/meta/gui.
+func (s *Info) DesktopFilesFromInstalledSnap(opts DesktopFilesFromInstalledSnapOptions) ([]string, error) {
 	rootDir := filepath.Join(s.MountDir(), "meta", "gui")
 	if !osutil.IsDirectory(rootDir) {
 		return nil, nil

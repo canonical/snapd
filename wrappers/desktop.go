@@ -248,7 +248,7 @@ func findDesktopFiles(rootDir string) ([]string, error) {
 }
 
 func deriveDesktopFilesContent(s *snap.Info) (map[string]osutil.FileState, error) {
-	desktopFiles, err := s.DesktopFilesFromMount(snap.DesktopFilesFromMountOptions{})
+	desktopFiles, err := s.DesktopFilesFromInstalledSnap(snap.DesktopFilesFromInstalledSnapOptions{})
 	if err != nil {
 		return nil, err
 	}

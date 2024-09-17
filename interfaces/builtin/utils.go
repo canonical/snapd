@@ -97,9 +97,9 @@ deny %[1]s/@{SNAP_INSTANCE_DESKTOP}[^_.]*.desktop r,
 }
 
 var apparmorGenerateAAREExclusionPatterns = apparmor.GenerateAAREExclusionPatterns
-var desktopFilesFromMount = func(s *snap.Info) ([]string, error) {
-	opts := snap.DesktopFilesFromMountOptions{MangleFileNames: true}
-	return s.DesktopFilesFromMount(opts)
+var desktopFilesFromInstalledSnap = func(s *snap.Info) ([]string, error) {
+	opts := snap.DesktopFilesFromInstalledSnapOptions{MangleFileNames: true}
+	return s.DesktopFilesFromInstalledSnap(opts)
 }
 
 // getDesktopFileRules generates snippet rules for allowing access to the
@@ -153,7 +153,7 @@ func getDesktopFileRules(s *snap.Info) string {
 
 	// Generate deny rules to suppress apparmor warnings
 	denyRules := "# Explicitly deny access to other snap's desktop files\n"
-	desktopFiles, err := desktopFilesFromMount(s)
+	desktopFiles, err := desktopFilesFromInstalledSnap(s)
 	if err != nil {
 		logger.Noticef("error: %v", err)
 		return getDesktopFileRulesFallback()
