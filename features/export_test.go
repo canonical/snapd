@@ -35,3 +35,19 @@ func MockReleaseSystemctlSupportsUserUnits(f func() bool) (restore func()) {
 	releaseSystemctlSupportsUserUnits = f
 	return r
 }
+
+func MockKnownFeaturesImpl(f func() []SnapdFeature) (restore func()) {
+	return testutil.Mock(&knownFeaturesImpl, f)
+}
+
+func MockFeatureNames(mockedFeatures map[SnapdFeature]string) (restore func()) {
+	r := testutil.Backup(&featureNames)
+	featureNames = mockedFeatures
+	return r
+}
+
+func MockFeaturesSupportedCallbacks(f map[SnapdFeature]func() (bool, string)) (restore func()) {
+	r := testutil.Backup(&featuresSupportedCallbacks)
+	featuresSupportedCallbacks = f
+	return r
+}

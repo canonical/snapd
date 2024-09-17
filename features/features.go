@@ -82,13 +82,17 @@ const (
 	lastFeature
 )
 
-// KnownFeatures returns the list of all known features.
-func KnownFeatures() []SnapdFeature {
+var knownFeaturesImpl = func() []SnapdFeature {
 	features := make([]SnapdFeature, int(lastFeature))
 	for i := range features {
 		features[i] = SnapdFeature(i)
 	}
 	return features
+}
+
+// KnownFeatures returns the list of all known features.
+func KnownFeatures() []SnapdFeature {
+	return knownFeaturesImpl()
 }
 
 // featureNames maps feature constant to stable string representation.
