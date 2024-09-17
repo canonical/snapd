@@ -219,14 +219,13 @@ parts:
       if [ -f fips-build ]; then
           # CI can set a build stamp for enabling the FIPS build mode
           echo "-- detected FIPS build from CI build stamp"
-          touch "${CRAFT_STAGE}"/fips-build
       fi
 
       if [ "${VERSION/+fips/}" != "$VERSION" ] ; then
           # we have a '+fips' element in the version, which may be coming from
           # debian/changelog or git tag
           echo "-- detected FIPS build from version $VERSION"
-          touch "${CRAFT_STAGE}/fips-build"
+          touch fips-build
       fi
 
       # check for triggers that indicate a build on LP of the snapd-fips snap
@@ -234,11 +233,11 @@ parts:
       is_lp_fips_build="$(./release-tools/is-lp-fips-build.sh)"
       if [ "$is_lp_fips_build" = "true" ]; then
           echo "-- detected FIPS build from LP location"
-          touch "${CRAFT_STAGE}/fips-build"
-          touch "${CRAFT_STAGE}/fips-build-lp"
+          touch fips-build
+          touch fips-build-lp
       fi
 
-      if [ -f "${CRAFT_STAGE}/fips-build" ]; then
+      if [ -f fips-build ]; then
           if [ "${VERSION/+fips/}" = "$VERSION" ] ; then
               # we have a fips-build marker, but fips tag isn't yet part of the
               # snap version, let's add it
@@ -259,7 +258,7 @@ parts:
       GO_TOOLCHAIN_FIPS_CHANNEL="1.21-fips/stable"
 
       VERSION="$(craftctl get version)"
-      if [ -f "${CRAFT_STAGE}/fips-build" ] ; then
+      if [ -f fips-build ] ; then
           # use the fips channel of Go
           snap refresh --channel "$GO_TOOLCHAIN_FIPS_CHANNEL" go
           # make sure it is really the Go FIPS toolchain
@@ -370,7 +369,7 @@ parts:
         esac
 
         # FIPS specific build tags
-        if [ -f "${CRAFT_STAGE}/fips-build" ]; then
+        if [ -f fips-build ]; then
           case "${cmd}" in
             # per snapd FIPS spec, FIPS build tags are only relevant for snapd,
             # snap, snap-repair and snap-bootstrap, tags:
@@ -425,8 +424,20 @@ parts:
       fi
 
       find "${CRAFT_PART_INSTALL}/usr/lib/snapd" "${CRAFT_PART_INSTALL}/usr/bin" -type f -exec strip {} ";"
+
+      if [ -f fips-build ]; then
+        touch "${CRAFT_PART_INSTALL}/fips-build"
+      fi
+      if [ -f fips-build-lp ]; then
+        touch "${CRAFT_PART_INSTALL}/fips-build-lp"
+      fi
+
     <<:
       - *dynamic-linker
+    prime:
+      # drop FIPS build stamps
+      - -fips-build
+      - -fips-build-lp
     override-prime: |
       craftctl default
       python3 "${CRAFT_PROJECT_DIR}/build-aux/snap/local/patch-dl.py" "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
