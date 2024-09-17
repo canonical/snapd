@@ -29,6 +29,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/snapcore/snapd/desktop/desktopentry"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -278,26 +279,6 @@ func deriveDesktopFilesContent(s *snap.Info) (map[string]osutil.FileState, error
 	return content, nil
 }
 
-// TODO: Merge desktop file helpers into desktop/desktopentry package
-func snapInstanceNameFromDesktopFile(desktopFile string) (string, error) {
-	file, err := os.Open(desktopFile)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for i := 0; scanner.Scan(); i++ {
-		bline := scanner.Text()
-		if !strings.HasPrefix(bline, "X-SnapInstanceName=") {
-			continue
-		}
-		return strings.TrimPrefix(bline, "X-SnapInstanceName="), nil
-	}
-
-	return "", fmt.Errorf("cannot find X-SnapInstanceName entry in %q", desktopFile)
-}
-
 // forAllDesktopFiles loops over all installed desktop files under
 // dirs.SnapDesktopFilesDir.
 //
@@ -310,15 +291,15 @@ func forAllDesktopFiles(cb func(base, instanceName string) error) error {
 	}
 
 	for _, desktopFile := range installedDesktopFiles {
-		instanceName, err := snapInstanceNameFromDesktopFile(desktopFile)
-		if err != nil {
+		de, err := desktopentry.Read(desktopFile)
+		if err != nil || de.SnapInstanceName == "" {
 			// cannot read instance name from desktop file, ignore
 			logger.Noticef("cannot read instance name: %s", err)
 			continue
 		}
 
 		base := filepath.Base(desktopFile)
-		if err := cb(base, instanceName); err != nil {
+		if err := cb(base, de.SnapInstanceName); err != nil {
 			return err
 		}
 	}
