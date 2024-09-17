@@ -57,11 +57,9 @@ execute: |
     case "$SPREAD_VARIANT" in
         gadget_*)
             SNAP=pc
-            CHANNEL="$VERSION/$CHANNEL"
             ;;
         kernel_*)
             SNAP=pc-kernel
-            CHANNEL="$VERSION/beta"
             if [ "$FAULT" = reboot ]; then
                 SECOND_REBOOT=true
             else
