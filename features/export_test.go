@@ -41,17 +41,13 @@ func MockKnownFeaturesImpl(f func() []SnapdFeature) (restore func()) {
 }
 
 func MockFeatureNames(mockedFeatures map[SnapdFeature]string) (restore func()) {
-	originalMap := featureNames
+	r := testutil.Backup(&featureNames)
 	featureNames = mockedFeatures
-	return func() {
-		featureNames = originalMap
-	}
+	return r
 }
 
 func MockFeaturesSupportedCallbacks(f map[SnapdFeature]func() (bool, string)) (restore func()) {
-	originalCallbacks := featuresSupportedCallbacks
+	r := testutil.Backup(&featuresSupportedCallbacks)
 	featuresSupportedCallbacks = f
-	return func() {
-		featuresSupportedCallbacks = originalCallbacks
-	}
+	return r
 }

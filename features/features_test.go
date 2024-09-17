@@ -380,27 +380,30 @@ func (s *featureSuite) TestAll(c *C) {
 	fakeFeatureUnsetNoCallback := features.SnapdFeature(features.NumberOfFeatures() + 2)
 	fakeFeatureDisabled := features.SnapdFeature(features.NumberOfFeatures() + 3)
 	fakeFeatureBadFlag := features.SnapdFeature(features.NumberOfFeatures() + 4)
+	fakeFeatureUnsupportedUnset := features.SnapdFeature(features.NumberOfFeatures() + 5)
 
 	restore1 := features.MockKnownFeaturesImpl(func() []features.SnapdFeature {
-		return []features.SnapdFeature{fakeFeature, fakeFeatureUnsupported, fakeFeatureUnsetNoCallback, fakeFeatureDisabled, fakeFeatureBadFlag}
+		return []features.SnapdFeature{fakeFeature, fakeFeatureUnsupported, fakeFeatureUnsetNoCallback, fakeFeatureDisabled, fakeFeatureBadFlag, fakeFeatureUnsupportedUnset}
 	})
 	defer restore1()
 
 	restore2 := features.MockFeatureNames(map[features.SnapdFeature]string{
-		fakeFeature:                "fake-feature",
-		fakeFeatureUnsupported:     "fake-feature-unsupported",
-		fakeFeatureUnsetNoCallback: "fake-feature-disabled",
-		fakeFeatureDisabled:        "fake-feature-set-disabled",
-		fakeFeatureBadFlag:         "fake-feature-bad-flag",
+		fakeFeature:                 "fake-feature",
+		fakeFeatureUnsupported:      "fake-feature-unsupported",
+		fakeFeatureUnsetNoCallback:  "fake-feature-disabled",
+		fakeFeatureDisabled:         "fake-feature-set-disabled",
+		fakeFeatureBadFlag:          "fake-feature-bad-flag",
+		fakeFeatureUnsupportedUnset: "fake-feature-unsupported-unset",
 	})
 	defer restore2()
 
 	unsupportedReason := "foo"
 	restore3 := features.MockFeaturesSupportedCallbacks(map[features.SnapdFeature]func() (bool, string){
-		fakeFeature:            func() (bool, string) { return true, unsupportedReason },
-		fakeFeatureUnsupported: func() (bool, string) { return false, unsupportedReason },
-		fakeFeatureDisabled:    func() (bool, string) { return true, unsupportedReason },
-		fakeFeatureBadFlag:     func() (bool, string) { return true, unsupportedReason },
+		fakeFeature:                 func() (bool, string) { return true, unsupportedReason },
+		fakeFeatureUnsupported:      func() (bool, string) { return false, unsupportedReason },
+		fakeFeatureDisabled:         func() (bool, string) { return true, unsupportedReason },
+		fakeFeatureBadFlag:          func() (bool, string) { return true, unsupportedReason },
+		fakeFeatureUnsupportedUnset: func() (bool, string) { return false, unsupportedReason },
 	})
 	defer restore3()
 
@@ -412,7 +415,7 @@ func (s *featureSuite) TestAll(c *C) {
 
 	allFeaturesInfo := features.All(tr)
 
-	c.Assert(len(allFeaturesInfo), Equals, 4)
+	c.Assert(len(allFeaturesInfo), Equals, 5)
 
 	// Feature flags are included even if value unset
 	fakeFeatureInfo, exists := allFeaturesInfo[fakeFeatureUnsetNoCallback.String()]
@@ -420,6 +423,12 @@ func (s *featureSuite) TestAll(c *C) {
 	// Feature flags are supported even if no callback defined.
 	c.Check(fakeFeatureInfo.Supported, Equals, true)
 	// Feature flags have a value even if unset.
+	c.Check(fakeFeatureInfo.Enabled, Equals, false)
+
+	// A feature can be both unset and unsupported
+	fakeFeatureInfo, exists = allFeaturesInfo[fakeFeatureUnsupportedUnset.String()]
+	c.Assert(exists, Equals, true)
+	c.Check(fakeFeatureInfo.Supported, Equals, false)
 	c.Check(fakeFeatureInfo.Enabled, Equals, false)
 
 	// Feature flags with defined supported callbacks work correctly.
