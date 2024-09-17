@@ -444,7 +444,6 @@ parts:
 
   libcrypto-fips:
     plugin: nil
-    source: .
     after:
       - snapd
     override-build: |
