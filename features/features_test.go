@@ -378,16 +378,13 @@ func (s *featureSuite) TestAll(c *C) {
 	defer st.Unlock()
 	tr := config.NewTransaction(st)
 
-	// Use the first feature as a testing feature and overwrite all its values.
 	fakeFeature := features.SnapdFeature(features.NumberOfFeatures())
 	is, why := fakeFeature.IsSupported()
 	c.Check(is, Equals, true)
 	c.Check(why, Equals, "")
 
 	restore := features.MockKnownFeaturesImpl(func() []features.SnapdFeature {
-		features := make([]features.SnapdFeature, 1)
-		features[0] = fakeFeature
-		return features
+		return []features.SnapdFeature{fakeFeature}
 	})
 	defer restore()
 
@@ -424,6 +421,7 @@ func (s *featureSuite) TestAll(c *C) {
 	fakeSupported = false
 	fakeReason = "foo"
 	allFeaturesInfo = features.All(tr)
+	c.Assert(len(allFeaturesInfo), Equals, 1)
 	fakeFeatureInfo, exists = allFeaturesInfo[fakeFeature.String()]
 	c.Assert(exists, Equals, true)
 	c.Check(fakeFeatureInfo.Supported, Equals, false)
@@ -435,6 +433,7 @@ func (s *featureSuite) TestAll(c *C) {
 	// Feature flags can be enabled but unsupported.
 	c.Assert(tr.Set(snapName, confName, "true"), IsNil)
 	allFeaturesInfo = features.All(tr)
+	c.Assert(len(allFeaturesInfo), Equals, 1)
 	fakeFeatureInfo, exists = allFeaturesInfo[fakeFeature.String()]
 	c.Assert(exists, Equals, true)
 	c.Check(fakeFeatureInfo.Supported, Equals, false)
@@ -445,6 +444,7 @@ func (s *featureSuite) TestAll(c *C) {
 	fakeSupported = true
 	fakeReason = "foo"
 	allFeaturesInfo = features.All(tr)
+	c.Assert(len(allFeaturesInfo), Equals, 1)
 	fakeFeatureInfo, exists = allFeaturesInfo[fakeFeature.String()]
 	c.Assert(exists, Equals, true)
 	c.Check(fakeFeatureInfo.Supported, Equals, fakeSupported)
@@ -454,6 +454,7 @@ func (s *featureSuite) TestAll(c *C) {
 	// Feature flags can be disabled but supported.
 	c.Assert(tr.Set(snapName, confName, "false"), IsNil)
 	allFeaturesInfo = features.All(tr)
+	c.Assert(len(allFeaturesInfo), Equals, 1)
 	fakeFeatureInfo, exists = allFeaturesInfo[fakeFeature.String()]
 	c.Assert(exists, Equals, true)
 	c.Check(fakeFeatureInfo.Supported, Equals, true)
@@ -463,6 +464,7 @@ func (s *featureSuite) TestAll(c *C) {
 	// Feature flags with bad values are omitted, even if supported.
 	c.Assert(tr.Set(snapName, confName, "banana"), IsNil)
 	allFeaturesInfo = features.All(tr)
+	c.Assert(len(allFeaturesInfo), Equals, 0)
 	fakeFeatureInfo, exists = allFeaturesInfo[fakeFeature.String()]
 	c.Assert(exists, Equals, false)
 }
