@@ -1,3 +1,6 @@
+# New in snapd 2.65.3:
+* Fix missing aux info from store on snap setup
+
 # New in snapd 2.65.2:
 * Bump squashfuse from version 0.5.0 to 0.5.2 (used in snapd deb only)
 
