@@ -107,10 +107,10 @@ func OpenPath(path string) (int, error) {
 	for iter.Next() {
 		// Ensure the parent file descriptor is closed
 		defer sysClose(fd)
-		if !strings.HasSuffix(iter.CurrentName(), "/") {
+		if iter.IsCurrentBaseLeaf() {
 			openFlags &^= syscall.O_DIRECTORY
 		}
-		fd, err = sysOpenat(fd, iter.CurrentNameNoSlash(), openFlags, 0)
+		fd, err = sysOpenat(fd, iter.CurrentBase(), openFlags, 0)
 		if err != nil {
 			return -1, err
 		}
@@ -175,7 +175,7 @@ func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs
 		// Keep closing the previous descriptor as we go, so that we have the
 		// last one handy from the MkDir below.
 		defer sysClose(fd)
-		fd, err = MkDir(fd, iter.CurrentBaseNoSlash(), iter.CurrentNameNoSlash(), perm, uid, gid, rs)
+		fd, err = MkDir(fd, iter.CurrentDir(), iter.CurrentBase(), perm, uid, gid, rs)
 		if err != nil {
 			return -1, err
 		}
@@ -406,25 +406,25 @@ func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid s
 	// Advance the iterator to the parent. Finding the parent is
 	// guaranteed by the earlier check isParent.
 	for iter.Next() {
-		if iter.CurrentPathNoSlash() == parent {
+		if iter.CurrentPath() == parent {
 			break
 		}
 	}
 	// Advance the iterator to the first missing directory
 	for iter.Next() {
-		if iter.CurrentPathNoSlash() == path {
+		if iter.CurrentPath() == path {
 			// Already confirmed path does not exist
 			break
 		}
-		fi, err = osLstat(iter.CurrentPathNoSlash())
+		fi, err = osLstat(iter.CurrentPath())
 		if err == nil {
 			if !fi.Mode().IsDir() {
-				return fmt.Errorf("cannot create directory %q: existing file in the way", iter.CurrentPathNoSlash())
+				return fmt.Errorf("cannot create directory %q: existing file in the way", iter.CurrentPath())
 			}
 			continue
 		}
 		if !os.IsNotExist(err) {
-			return fmt.Errorf("cannot inspect path %q: %v", iter.CurrentPathNoSlash(), err)
+			return fmt.Errorf("cannot inspect path %q: %v", iter.CurrentPath(), err)
 		}
 		break
 	}
@@ -432,12 +432,12 @@ func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid s
 	// Create the first missing directory. From this point onward all file descriptors are kept open
 	// until all missing directories have been created or failure, and then closed in reverse order.
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
-	fd, err := sysOpen(iter.CurrentBaseNoSlash(), openFlags, 0)
+	fd, err := sysOpen(iter.CurrentDir(), openFlags, 0)
 	if err != nil {
-		return fmt.Errorf("cannot open directory %q: %v", iter.CurrentBaseNoSlash(), err)
+		return fmt.Errorf("cannot open directory %q: %v", iter.CurrentDir(), err)
 	}
 	defer sysClose(fd)
-	fd, err = MkDir(fd, iter.CurrentBaseNoSlash(), iter.CurrentNameNoSlash(), perm, uid, gid, rs)
+	fd, err = MkDir(fd, iter.CurrentDir(), iter.CurrentBase(), perm, uid, gid, rs)
 	if err != nil {
 		return err
 	}
@@ -445,7 +445,7 @@ func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid s
 
 	// Create the remaining missing directories
 	for iter.Next() {
-		fd, err = MkDir(fd, iter.CurrentBaseNoSlash(), iter.CurrentNameNoSlash(), perm, uid, gid, rs)
+		fd, err = MkDir(fd, iter.CurrentDir(), iter.CurrentBase(), perm, uid, gid, rs)
 		if err != nil {
 			return err
 		}
