@@ -226,13 +226,10 @@ func (*featureSuite) TestIsSupported(c *C) {
 
 	var fakeSupported bool
 	var fakeReason string
-	fakeCallback := func() (bool, string) {
-		return fakeSupported, fakeReason
-	}
-	features.FeaturesSupportedCallbacks[fakeFeature] = fakeCallback
-	defer func() {
-		delete(features.FeaturesSupportedCallbacks, fakeFeature)
-	}()
+	restore := features.MockFeaturesSupportedCallbacks(map[features.SnapdFeature]func() (bool, string){
+		fakeFeature: func() (bool, string) { return fakeSupported, fakeReason },
+	})
+	defer restore()
 
 	fakeSupported = true
 	fakeReason = ""
@@ -379,92 +376,77 @@ func (s *featureSuite) TestAll(c *C) {
 	tr := config.NewTransaction(st)
 
 	fakeFeature := features.SnapdFeature(features.NumberOfFeatures())
-	is, why := fakeFeature.IsSupported()
-	c.Check(is, Equals, true)
-	c.Check(why, Equals, "")
+	fakeFeatureUnsupported := features.SnapdFeature(features.NumberOfFeatures() + 1)
+	fakeFeatureUnsetNoCallback := features.SnapdFeature(features.NumberOfFeatures() + 2)
+	fakeFeatureDisabled := features.SnapdFeature(features.NumberOfFeatures() + 3)
+	fakeFeatureBadFlag := features.SnapdFeature(features.NumberOfFeatures() + 4)
 
-	restore := features.MockKnownFeaturesImpl(func() []features.SnapdFeature {
-		return []features.SnapdFeature{fakeFeature}
+	restore1 := features.MockKnownFeaturesImpl(func() []features.SnapdFeature {
+		return []features.SnapdFeature{fakeFeature, fakeFeatureUnsupported, fakeFeatureUnsetNoCallback, fakeFeatureDisabled, fakeFeatureBadFlag}
 	})
-	defer restore()
+	defer restore1()
 
-	features.FeatureNames[fakeFeature] = "fake-feature"
-	defer func() {
-		delete(features.FeatureNames, fakeFeature)
-	}()
+	restore2 := features.MockFeatureNames(map[features.SnapdFeature]string{
+		fakeFeature:                "fake-feature",
+		fakeFeatureUnsupported:     "fake-feature-unsupported",
+		fakeFeatureUnsetNoCallback: "fake-feature-disabled",
+		fakeFeatureDisabled:        "fake-feature-set-disabled",
+		fakeFeatureBadFlag:         "fake-feature-bad-flag",
+	})
+	defer restore2()
+
+	unsupportedReason := "foo"
+	restore3 := features.MockFeaturesSupportedCallbacks(map[features.SnapdFeature]func() (bool, string){
+		fakeFeature:            func() (bool, string) { return true, unsupportedReason },
+		fakeFeatureUnsupported: func() (bool, string) { return false, unsupportedReason },
+		fakeFeatureDisabled:    func() (bool, string) { return true, unsupportedReason },
+		fakeFeatureBadFlag:     func() (bool, string) { return true, unsupportedReason },
+	})
+	defer restore3()
+
+	// Enable the two enabled fake features
+	c.Assert(tr.Set("core", "experimental."+fakeFeature.String(), "true"), IsNil)
+	c.Assert(tr.Set("core", "experimental."+fakeFeatureUnsupported.String(), "true"), IsNil)
+	c.Assert(tr.Set("core", "experimental."+fakeFeatureDisabled.String(), "false"), IsNil)
+	c.Assert(tr.Set("core", "experimental."+fakeFeatureBadFlag.String(), "banana"), IsNil)
 
 	allFeaturesInfo := features.All(tr)
 
-	c.Assert(len(allFeaturesInfo), Equals, 1)
+	c.Assert(len(allFeaturesInfo), Equals, 4)
 
 	// Feature flags are included even if value unset
-	fakeFeatureInfo, exists := allFeaturesInfo[fakeFeature.String()]
+	fakeFeatureInfo, exists := allFeaturesInfo[fakeFeatureUnsetNoCallback.String()]
 	c.Assert(exists, Equals, true)
 	// Feature flags are supported even if no callback defined.
 	c.Check(fakeFeatureInfo.Supported, Equals, true)
 	// Feature flags have a value even if unset.
 	c.Check(fakeFeatureInfo.Enabled, Equals, false)
 
-	var fakeSupported bool
-	var fakeReason string
-	fakeCallback := func() (bool, string) {
-		return fakeSupported, fakeReason
-	}
-	features.FeaturesSupportedCallbacks[fakeFeature] = fakeCallback
-	defer func() {
-		delete(features.FeaturesSupportedCallbacks, fakeFeature)
-	}()
-
 	// Feature flags with defined supported callbacks work correctly.
 
-	// Callbacks which return false result in Supported: false
-	fakeSupported = false
-	fakeReason = "foo"
-	allFeaturesInfo = features.All(tr)
-	c.Assert(len(allFeaturesInfo), Equals, 1)
-	fakeFeatureInfo, exists = allFeaturesInfo[fakeFeature.String()]
-	c.Assert(exists, Equals, true)
-	c.Check(fakeFeatureInfo.Supported, Equals, false)
-	c.Check(fakeFeatureInfo.UnsupportedReason, Matches, fakeReason)
-	c.Check(fakeFeatureInfo.Enabled, Equals, false)
-
-	snapName, confName := fakeFeature.ConfigOption()
-
 	// Feature flags can be enabled but unsupported.
-	c.Assert(tr.Set(snapName, confName, "true"), IsNil)
-	allFeaturesInfo = features.All(tr)
-	c.Assert(len(allFeaturesInfo), Equals, 1)
-	fakeFeatureInfo, exists = allFeaturesInfo[fakeFeature.String()]
+	fakeFeatureInfo, exists = allFeaturesInfo[fakeFeatureUnsupported.String()]
 	c.Assert(exists, Equals, true)
+	// Callbacks which return false result in Supported: false
 	c.Check(fakeFeatureInfo.Supported, Equals, false)
-	c.Check(fakeFeatureInfo.UnsupportedReason, Matches, fakeReason)
+	c.Check(fakeFeatureInfo.UnsupportedReason, Matches, unsupportedReason)
 	c.Check(fakeFeatureInfo.Enabled, Equals, true)
 
 	// Callbacks which return true result in Supported: true
-	fakeSupported = true
-	fakeReason = "foo"
-	allFeaturesInfo = features.All(tr)
-	c.Assert(len(allFeaturesInfo), Equals, 1)
 	fakeFeatureInfo, exists = allFeaturesInfo[fakeFeature.String()]
 	c.Assert(exists, Equals, true)
-	c.Check(fakeFeatureInfo.Supported, Equals, fakeSupported)
+	c.Check(fakeFeatureInfo.Supported, Equals, true)
 	c.Check(fakeFeatureInfo.UnsupportedReason, Equals, "")
 	c.Check(fakeFeatureInfo.Enabled, Equals, true)
 
 	// Feature flags can be disabled but supported.
-	c.Assert(tr.Set(snapName, confName, "false"), IsNil)
-	allFeaturesInfo = features.All(tr)
-	c.Assert(len(allFeaturesInfo), Equals, 1)
-	fakeFeatureInfo, exists = allFeaturesInfo[fakeFeature.String()]
+	fakeFeatureInfo, exists = allFeaturesInfo[fakeFeatureDisabled.String()]
 	c.Assert(exists, Equals, true)
 	c.Check(fakeFeatureInfo.Supported, Equals, true)
 	c.Check(fakeFeatureInfo.UnsupportedReason, Equals, "")
 	c.Check(fakeFeatureInfo.Enabled, Equals, false)
 
 	// Feature flags with bad values are omitted, even if supported.
-	c.Assert(tr.Set(snapName, confName, "banana"), IsNil)
-	allFeaturesInfo = features.All(tr)
-	c.Assert(len(allFeaturesInfo), Equals, 0)
-	fakeFeatureInfo, exists = allFeaturesInfo[fakeFeature.String()]
+	fakeFeatureInfo, exists = allFeaturesInfo[fakeFeatureBadFlag.String()]
 	c.Assert(exists, Equals, false)
 }

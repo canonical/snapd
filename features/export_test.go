@@ -30,8 +30,6 @@ func NumberOfFeatures() int {
 
 var FeaturesSupportedCallbacks = featuresSupportedCallbacks
 
-var FeatureNames = featureNames
-
 func MockReleaseSystemctlSupportsUserUnits(f func() bool) (restore func()) {
 	r := testutil.Backup(&releaseSystemctlSupportsUserUnits)
 	releaseSystemctlSupportsUserUnits = f
@@ -40,4 +38,20 @@ func MockReleaseSystemctlSupportsUserUnits(f func() bool) (restore func()) {
 
 func MockKnownFeaturesImpl(f func() []SnapdFeature) (restore func()) {
 	return testutil.Mock(&knownFeaturesImpl, f)
+}
+
+func MockFeatureNames(mockedFeatures map[SnapdFeature]string) (restore func()) {
+	originalMap := featureNames
+	featureNames = mockedFeatures
+	return func() {
+		featureNames = originalMap
+	}
+}
+
+func MockFeaturesSupportedCallbacks(f map[SnapdFeature]func() (bool, string)) (restore func()) {
+	originalCallbacks := featuresSupportedCallbacks
+	featuresSupportedCallbacks = f
+	return func() {
+		featuresSupportedCallbacks = originalCallbacks
+	}
 }
