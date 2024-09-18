@@ -33,7 +33,7 @@
       },
       "reply": {
         "action": "deny",
-        "lifespan": "once",
+        "lifespan": "single",
         "constraints": {
           "path-pattern": "${BASE_PATH}/*",
           "permissions": [ "write" ]
