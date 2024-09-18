@@ -54,21 +54,21 @@ const nvidiaTegraDriversSupportConnectedPlugAppArmor = `
 
 var nvidiaTegraDriversSupportConnectedPlugUdev = []string{
     // Nvidia dma barrier
-	`SUBSYSTEM=="host1x-fence" OWNER="root" GROUP="video" MODE="0660"`,
+    `SUBSYSTEM=="host1x-fence" OWNER="root" GROUP="video" MODE="0660"`,
 
     // Tegra memory manager
-	`KERNEL=="nvmap" OWNER="root" GROUP="video" MODE="0660"`,
+    `KERNEL=="nvmap" OWNER="root" GROUP="video" MODE="0660"`,
 
     //iGPU device nodes
-	`SUBSYSTEM=="nvidia-gpu-v2-power" KERNEL=="power" OWNER="root" GROUP="video" MODE="0660"`,
-	`SUBSYSTEM=="nvidia-gpu-v2" KERNEL=="as" OWNER="root" GROUP="video" MODE="0660"`,
-	`SUBSYSTEM=="nvidia-gpu-v2" KERNEL=="channel" OWNER="root" GROUP="video" MODE="0660"`,
-	`SUBSYSTEM=="nvidia-gpu-v2" KERNEL=="ctrl" OWNER="root" GROUP="video" MODE="0660"`,
-	`SUBSYSTEM=="nvidia-gpu-v2" KERNEL=="sched" OWNER="root" GROUP="root" MODE="0660"`,
-	`SUBSYSTEM=="nvidia-gpu-v2" KERNEL=="nvsched" OWNER="root" GROUP="video" MODE="0640"`,
+    `SUBSYSTEM=="nvidia-gpu-v2-power" KERNEL=="power" OWNER="root" GROUP="video" MODE="0660"`,
+    `SUBSYSTEM=="nvidia-gpu-v2" KERNEL=="as" OWNER="root" GROUP="video" MODE="0660"`,
+    `SUBSYSTEM=="nvidia-gpu-v2" KERNEL=="channel" OWNER="root" GROUP="video" MODE="0660"`,
+    `SUBSYSTEM=="nvidia-gpu-v2" KERNEL=="ctrl" OWNER="root" GROUP="video" MODE="0660"`,
+    `SUBSYSTEM=="nvidia-gpu-v2" KERNEL=="sched" OWNER="root" GROUP="root" MODE="0660"`,
+    `SUBSYSTEM=="nvidia-gpu-v2" KERNEL=="nvsched" OWNER="root" GROUP="video" MODE="0640"`,
 
     //render device node
-	`SUBSYSTEM=="drm" KERNEL=="renderD128" OWNER="root" GROUP="render" MODE="0660"`,
+    `SUBSYSTEM=="drm" KERNEL=="renderD128" OWNER="root" GROUP="render" MODE="0660"`,
 }
 
 const nvidiaTegraDriversSupportConnectedPlugSecComp = `
