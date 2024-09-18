@@ -691,10 +691,9 @@ apps:
 `))
 	c.Assert(err, IsNil)
 
-	app, newl, err := wrappers.DetectAppAndRewriteExecLine(snap, "foo.desktop", "Exec=snap.app")
+	appName, newl, err := wrappers.DetectAppAndRewriteExecLine(snap, "foo.desktop", "Exec=snap.app")
 	c.Assert(err, IsNil)
-	c.Assert(app.Name, Equals, "app")
-	c.Assert(app.Command, Equals, "cmd")
+	c.Assert(appName, Equals, "app")
 	c.Assert(newl, Equals, fmt.Sprintf("Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app", dirs.SnapMountDir))
 }
 

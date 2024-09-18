@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/desktop/desktopentry"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -1441,7 +1442,15 @@ func (app *AppInfo) DesktopFile() string {
 		// No need to also check instance name because we already filter by the
 		// snap's desktop file ids
 		de, err := desktopentry.Read(desktopFile)
-		if err == nil && de.SnapAppName == app.Name {
+		if err != nil {
+			// Errors when reading indicates either an issue opening the desktop
+			// file or a malformed desktop file, both of which are internal
+			// errors caused somewhere else.
+			// Let's log for debugging and try the next desktop file id.
+			logger.Debugf("internal error: failed to read %q: %v", desktopFile, err)
+			continue
+		}
+		if de.SnapAppName == app.Name {
 			return desktopFile
 		}
 	}

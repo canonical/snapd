@@ -104,9 +104,9 @@ var isValidDesktopFileLine = regexp.MustCompile(strings.Join([]string{
 	"^TargetEnvironment=",
 }, "|")).Match
 
-// detectAppAndRewriteExecLine parses snap app from passed "Exec=" line and rewrites it
+// detectAppAndRewriteExecLine parses snap app name from passed "Exec=" line and rewrites it
 // to use the wrapper path for snap application.
-func detectAppAndRewriteExecLine(s *snap.Info, desktopFile, line string) (*snap.AppInfo, string, error) {
+func detectAppAndRewriteExecLine(s *snap.Info, desktopFile, line string) (appName string, execLine string, err error) {
 	env := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s ", desktopFile)
 
 	cmd := strings.SplitN(line, "=", 2)[1]
@@ -123,9 +123,9 @@ func detectAppAndRewriteExecLine(s *snap.Info, desktopFile, line string) (*snap.
 		// this is ok because desktop files are not run through sh
 		// so we don't have to worry about the arguments too much
 		if cmd == validCmd {
-			return app, "Exec=" + env + wrapper, nil
+			return app.Name, "Exec=" + env + wrapper, nil
 		} else if strings.HasPrefix(cmd, validCmd+" ") {
-			return app, fmt.Sprintf("Exec=%s%s%s", env, wrapper, line[len("Exec=")+len(validCmd):]), nil
+			return app.Name, fmt.Sprintf("Exec=%s%s%s", env, wrapper, line[len("Exec=")+len(validCmd):]), nil
 		}
 	}
 
@@ -139,10 +139,10 @@ func detectAppAndRewriteExecLine(s *snap.Info, desktopFile, line string) (*snap.
 	if ok {
 		newExec := fmt.Sprintf("Exec=%s%s", env, app.WrapperPath())
 		logger.Noticef("rewriting desktop file %q to %q", desktopFile, newExec)
-		return app, newExec, nil
+		return app.Name, newExec, nil
 	}
 
-	return nil, "", fmt.Errorf("invalid exec command: %q", cmd)
+	return "", "", fmt.Errorf("invalid exec command: %q", cmd)
 }
 
 func rewriteIconLine(s *snap.Info, line string) (string, error) {
@@ -190,13 +190,13 @@ func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []
 		// rewrite exec lines to an absolute path for the binary
 		if bytes.HasPrefix(bline, []byte("Exec=")) {
 			var err error
-			app, line, err := detectAppAndRewriteExecLine(s, desktopFile, string(bline))
+			appName, line, err := detectAppAndRewriteExecLine(s, desktopFile, string(bline))
 			if err != nil {
 				// something went wrong, ignore the line
 				continue
 			}
 			// Add metadata entry to associate the exec line with a snap app
-			newContent.Write([]byte("X-SnapAppName=" + app.Name + "\n"))
+			newContent.Write([]byte("X-SnapAppName=" + appName + "\n"))
 
 			bline = []byte(line)
 		}
