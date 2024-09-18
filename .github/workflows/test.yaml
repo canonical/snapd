@@ -762,7 +762,6 @@ jobs:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.group }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
 
-
     - name: Prepare test results env and vars
       id: prepare-test-results-env
       run: |
@@ -775,7 +774,12 @@ jobs:
 
           # Make sure the test results dirs are created
           # This step has to be after the cache is restored
-          mkdir -p "$TEST_RESULTS_DIR"        
+          mkdir -p "$TEST_RESULTS_DIR"
+
+    - name: Prepare nested env vars
+      if: contains(github.event.pull_request.labels.*.name, 'Run nested') && startsWith(matrix.group, 'nested-')
+      run: |
+          echo "RUN_NESTED=true" >> "$GITHUB_ENV"
 
     - name: Get changed files
       id: changed-files
@@ -810,20 +814,24 @@ jobs:
           if [ -n "$FAILED_TESTS" ]; then
               RUN_TESTS="$FAILED_TESTS"
           else
+              CHANGES_PARAM=""
+              for CHANGE in $CHANGED_FILES; do
+                  CHANGES_PARAM="$CHANGES_PARAM -c $CHANGE"
+              done
               for SYSTEM in ${{ matrix.systems }}; do
-                  for TESTS in ${{ matrix.tests }}; do
-                    RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:$TESTS"
-                  done
-                  CHANGES_PARAM=""
-                  for CHANGE in $CHANGED_FILES; do
-                    CHANGES_PARAM="$CHANGES_PARAM -c $CHANGE"
-                  done
-                  SUGGESTED_TESTS="$SUGGESTED_TESTS $(./tests/lib/external/snapd-testing-tools/utils/spread-filter -r ./tests/lib/spread/rules/${{ matrix.rules }}.yaml -p "${{ matrix.backend }}:$SYSTEM" $CHANGES_PARAM)"
+                  # Configure parameters to run tests based on current changes
+                  # The tests are just filtered when the change is a PR
+                  # When 'Run Nested' label is added in a pr, all the nested tests have to be executed
+                  if [ -z "${{ github.event.number }}" ] || "$RUN_NESTED" = 'true'; then
+                      for TESTS in ${{ matrix.tests }}; do
+                          RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:$TESTS"
+                      done
+                  else
+                      RUN_TESTS="$RUN_TESTS $(./tests/lib/external/snapd-testing-tools/utils/spread-filter -r ./tests/lib/spread/rules/${{ matrix.rules }}.yaml -p "${{ matrix.backend }}:$SYSTEM" $CHANGES_PARAM)"
+                  fi
               done
           fi
           echo RUN_TESTS="$RUN_TESTS"  >> $GITHUB_ENV
-          echo "Suggested tests by spread-filter tool"
-          echo "$SUGGESTED_TESTS"
 
     - name: Setup grafana parameters
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
@@ -867,7 +875,7 @@ jobs:
         done
 
     - name: Run spread tests
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && ( !startsWith(matrix.group, 'nested-') || contains(github.event.pull_request.labels.*.name, 'Run nested') )"
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
