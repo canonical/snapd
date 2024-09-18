@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 show_help() {
-	echo "usage: tests.session exec [-u USER] [-p PID_FILE] [--] <CMD>"
+	echo "usage: tests.session [-u USER] [-p PID_FILE] exec <CMD>"
 	echo "       tests.session prepare | restore [-u USER | -u USER1,USER2,...]"
 	echo "       tests.session kill-leaked"
 	echo "       tests.session dump"
@@ -31,10 +31,6 @@ main() {
 				fi
 				pid_file="$2"
 				shift 2
-				;;
-			--)
-				shift
-				break
 				;;
 			kill-leaked)
 				action=kill-leaked
