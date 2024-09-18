@@ -350,10 +350,10 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 
 	userEntry, ok := pdb.perUser[metadata.User]
 	if !ok {
-		pdb.perUser[metadata.User] = &userPromptDB{
+		// New user entry, so create it and set up the expiration timer
+		userEntry = &userPromptDB{
 			ids: make(map[prompting.IDType]int),
 		}
-		userEntry = pdb.perUser[metadata.User]
 		userEntry.expirationTimer = time.AfterFunc(initialTimeout, func() {
 			pdb.mutex.Lock()
 			if pdb.maxIDMmap.IsClosed() {
@@ -384,6 +384,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 				p.sendReply(prompting.OutcomeDeny) // ignore any error, should not occur
 			}
 		})
+		pdb.perUser[metadata.User] = userEntry
 	}
 
 	constraints := &promptConstraints{
