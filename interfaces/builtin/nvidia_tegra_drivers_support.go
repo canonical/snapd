@@ -40,12 +40,12 @@ const nvidiaTegraDriversSupportConnectedPlugAppArmor = `
 
 # nvidia-smi is trying to access /sys/bus/nvmem/devices/fuse/nvmem
 # but doesn't have permissions to the link location which is listed here
-/sys/devices/platform/bus@0/3810000.fuse/fuse/nvmem r,
+/sys/devices/platform/bus@*/*.fuse/fuse/nvmem r,
 
 /dev/nvmap rw,
-/dev/dri/renderD128 rw,
-/dev/nvgpu/igpu0/power rw,
-/dev/nvgpu/igpu0/ctrl rw,
+/dev/dri/renderD[0-9]* rw,
+/dev/nvgpu/igpu[0-9]/power rw,
+/dev/nvgpu/igpu[0-9]/ctrl rw,
 /dev/host1x-fence rw,
 
 # tries to create shared memory slab with mknod in IPC cuda apps
@@ -68,7 +68,7 @@ var nvidiaTegraDriversSupportConnectedPlugUdev = []string{
     `SUBSYSTEM=="nvidia-gpu-v2" KERNEL=="nvsched"`,
 
     //render device node
-    `SUBSYSTEM=="drm" KERNEL=="renderD128"`,
+    `SUBSYSTEM=="drm" KERNEL=="renderD[0-9]*"`,
 }
 
 const nvidiaTegraDriversSupportConnectedPlugSecComp = `
