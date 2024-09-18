@@ -8,8 +8,16 @@ systems:
     # Ubuntu 14.04's special version of systemd doesn't have StartTransientUnit API.
     - -ubuntu-14.04-*
 
+environment:
+    BAD_SNAP/fork_bomb: fork-bomb
+    BAD_SNAP/no_fork_bomb: no-fork-bomb
+
 prepare: |
-    snap install test-snapd-sh
+    if [ "$BAD_SNAP" = "fork-bomb" ]; then
+        "$TESTSTOOLS"/snaps-state install-local fork-bomb
+    else
+        snap install test-snapd-sh
+    fi
 
 restore: |
     systemctl stop test-kill.service || true
@@ -22,8 +30,14 @@ execute: |
     echo "Start a long running process"
     lockfile="$(pwd)/lockfile"
     touch "$lockfile"
-    sh_snap_bin="$(command -v test-snapd-sh.sh)"
-    systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c 'touch /var/snap/test-snapd-sh/common/alive; sleep 100000'
+
+    if [ "$BAD_SNAP" = "fork-bomb" ]; then
+        sh_snap_bin="$(command -v fork-bomb)"
+        systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin"
+    else
+        sh_snap_bin="$(command -v test-snapd-sh.sh)"
+        systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c 'touch /var/snap/test-snapd-sh/common/alive; sleep 100000'
+    fi
     # Wait for service to be up
     retry -n 10 test -f /var/snap/test-snapd-sh/common/alive
 
@@ -31,7 +45,11 @@ execute: |
     not flock --timeout 0 "$lockfile" --command "true"
 
     echo "Remove snap with --terminate flag"
-    snap remove --terminate test-snapd-sh
+    if [ "$BAD_SNAP" = "fork-bomb" ]; then
+        snap remove --terminate fork-bomb
+    else
+        snap remove --terminate test-snapd-sh
+    fi
 
     echo "Running process should be terminated after remove change is complete and lockfile should be unlocked"
     flock --timeout 60 "$lockfile" --command "true"

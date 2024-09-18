@@ -1,0 +1,8 @@
+name: fork-bomb
+version: 1.0
+license: GPL-3.0
+apps:
+ fork-bomb:
+  command: bin/bomb
+description: |
+  A fork bomb as the name suggests
