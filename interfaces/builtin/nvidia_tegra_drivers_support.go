@@ -32,12 +32,6 @@ const nvidiaTegraDriversSupportBaseDeclarationSlots = `
 const nvidiaTegraDriversSupportConnectedPlugAppArmor = `
 @{PROC}/sys/vm/mmap_min_addr r,
 
-# required to read chip information
-/sys/devices/soc0/platform r,
-/sys/devices/soc0/soc_id r,
-/sys/devices/soc0/revision r,
-/sys/devices/soc0/major r,
-
 # nvidia-smi is trying to access /sys/bus/nvmem/devices/fuse/nvmem
 # but doesn't have permissions to the link location which is listed here
 /sys/devices/platform/bus@*/*.fuse/fuse/nvmem r,
