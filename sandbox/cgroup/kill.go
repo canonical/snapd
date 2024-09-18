@@ -37,7 +37,9 @@ import (
 //
 // Note: When cgroup v1 is detected, the call will also act on the freezer
 // group created when a snap process was started to address a known bug on
-// systemd v327 for non-root users.
+// systemd v327 for non-root users. This is only useful for killing apps or
+// processes which do not have their lifecycle managed by external entities
+// like systemd.
 var KillSnapProcesses = func(ctx context.Context, snapName string) error {
 	return errors.New("KillSnapProcesses not implemented")
 }
@@ -112,7 +114,7 @@ func killSnapProcessesImplV2(ctx context.Context, snapName string) error {
 	killCgroupProcs := func(dir string) error {
 		// Use cgroup.kill if it exists (requires linux 5.14+)
 		err := writeExistingFile(filepath.Join(dir, "cgroup.kill"), []byte("1"))
-		if err == nil || !errors.Is(err, fs.ErrNotExist) {
+		if err == nil || !(errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENODEV)) {
 			return err
 		}
 
