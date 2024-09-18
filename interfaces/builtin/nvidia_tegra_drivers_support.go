@@ -19,7 +19,7 @@
 
 package builtin
 
-const nvidiaTegraDriversSupportSummary = `allows hardware access to NVIDIA tegra platforms`
+const nvidiaTegraDriversSupportSummary = `allows iGPU access to NVIDIA Tegra platforms`
 
 const nvidiaTegraDriversSupportBaseDeclarationSlots = `
   nvidia-tegra-drivers-support:
