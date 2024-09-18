@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strconv"
 	"strings"
@@ -175,62 +176,118 @@ func (b byRevision) Less(i, j int) bool { return b[i].N < b[j].N }
 
 func (e *ValidationSetsValidationError) Error() string {
 	buf := bytes.NewBufferString("validation sets assertions are not met:")
-	printDetails := func(header string, details map[string][]string,
-		printSnap func(snapName string, keys []string) string) {
-		if len(details) == 0 {
-			return
-		}
-		fmt.Fprintf(buf, "\n- %s:", header)
-		for snapName, validationSetKeys := range details {
-			fmt.Fprintf(buf, "\n  - %s", printSnap(snapName, validationSetKeys))
-		}
-	}
 
 	if len(e.MissingSnaps) > 0 {
 		fmt.Fprintf(buf, "\n- missing required snaps:")
-		for snapName, revisions := range e.MissingSnaps {
-			revisionsSorted := make([]snap.Revision, 0, len(revisions))
-			for rev := range revisions {
-				revisionsSorted = append(revisionsSorted, rev)
-			}
-			sort.Sort(byRevision(revisionsSorted))
-			t := make([]string, 0, len(revisionsSorted))
-			for _, rev := range revisionsSorted {
-				keys := revisions[rev]
-				if rev.Unset() {
-					t = append(t, fmt.Sprintf("at any revision by sets %s", strings.Join(keys, ",")))
-				} else {
-					t = append(t, fmt.Sprintf("at revision %s by sets %s", rev, strings.Join(keys, ",")))
-				}
-			}
-			fmt.Fprintf(buf, "\n  - %s (required %s)", snapName, strings.Join(t, ", "))
+		for name, revisions := range e.MissingSnaps {
+			writeMissingError(buf, name, revisions)
 		}
 	}
 
-	printDetails("invalid snaps", e.InvalidSnaps, func(snapName string, validationSetKeys []string) string {
-		return fmt.Sprintf("%s (invalid for sets %s)", snapName, strings.Join(validationSetKeys, ","))
-	})
+	if len(e.InvalidSnaps) > 0 {
+		fmt.Fprintf(buf, "\n- invalid snaps:")
+		for snapName, validationSetKeys := range e.InvalidSnaps {
+			fmt.Fprintf(buf, "\n  - %s (invalid for sets %s)", snapName, strings.Join(validationSetKeys, ","))
+		}
+	}
 
 	if len(e.WrongRevisionSnaps) > 0 {
 		fmt.Fprint(buf, "\n- snaps at wrong revisions:")
 		for snapName, revisions := range e.WrongRevisionSnaps {
-			revisionsSorted := make([]snap.Revision, 0, len(revisions))
-			for rev := range revisions {
-				revisionsSorted = append(revisionsSorted, rev)
-			}
-			sort.Sort(byRevision(revisionsSorted))
-			t := make([]string, 0, len(revisionsSorted))
-			for _, rev := range revisionsSorted {
-				keys := revisions[rev]
-				t = append(t, fmt.Sprintf("at revision %s by sets %s", rev, strings.Join(keys, ",")))
-			}
-			fmt.Fprintf(buf, "\n  - %s (required %s)", snapName, strings.Join(t, ", "))
+			writeWrongRevisionError(buf, snapName, revisions)
 		}
 	}
 
-	// TODO: add components to error message
+	// the data structure here isn't really conducive to creating a
+	// non-hierarchical error message, maybe worth reorganizing. however, it
+	// will probably be better for actually using the error to extract what we
+	// need when resolving validation set errors in snapstate. it is also more
+	// representative of how the contraints are represented in the actual
+	// assertion.
+
+	var missingComps, invalidComps, wrongRevComps strings.Builder
+	for snapName, vcerr := range e.ComponentErrors {
+		for _, compName := range sortedStringKeys(vcerr.MissingComponents) {
+			writeMissingError(
+				&missingComps,
+				naming.NewComponentRef(snapName, compName).String(),
+				vcerr.MissingComponents[compName],
+			)
+		}
+
+		for _, compName := range sortedStringKeys(vcerr.InvalidComponents) {
+			fmt.Fprintf(
+				&invalidComps,
+				"\n  - %s (invalid for sets %s)",
+				naming.NewComponentRef(snapName, compName).String(),
+				strings.Join(vcerr.InvalidComponents[compName], ","),
+			)
+		}
+
+		for _, compName := range sortedStringKeys(vcerr.WrongRevisionComponents) {
+			writeWrongRevisionError(
+				&wrongRevComps,
+				naming.NewComponentRef(snapName, compName).String(),
+				vcerr.WrongRevisionComponents[compName],
+			)
+		}
+	}
+
+	if missingComps.Len() > 0 {
+		buf.WriteString("\n- missing required components:")
+		buf.WriteString(missingComps.String())
+	}
+	if invalidComps.Len() > 0 {
+		buf.WriteString("\n- invalid components:")
+		buf.WriteString(invalidComps.String())
+	}
+	if wrongRevComps.Len() > 0 {
+		buf.WriteString("\n- components at wrong revisions:")
+		buf.WriteString(wrongRevComps.String())
+	}
 
 	return buf.String()
+}
+
+func sortedStringKeys[T any](m map[string]T) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func writeWrongRevisionError(w io.Writer, name string, revisions map[snap.Revision][]string) {
+	revisionsSorted := make([]snap.Revision, 0, len(revisions))
+	for rev := range revisions {
+		revisionsSorted = append(revisionsSorted, rev)
+	}
+	sort.Sort(byRevision(revisionsSorted))
+	t := make([]string, 0, len(revisionsSorted))
+	for _, rev := range revisionsSorted {
+		keys := revisions[rev]
+		t = append(t, fmt.Sprintf("at revision %s by sets %s", rev, strings.Join(keys, ",")))
+	}
+	fmt.Fprintf(w, "\n  - %s (required %s)", name, strings.Join(t, ", "))
+}
+
+func writeMissingError(w io.Writer, name string, revisions map[snap.Revision][]string) {
+	revisionsSorted := make([]snap.Revision, 0, len(revisions))
+	for rev := range revisions {
+		revisionsSorted = append(revisionsSorted, rev)
+	}
+	sort.Sort(byRevision(revisionsSorted))
+	t := make([]string, 0, len(revisionsSorted))
+	for _, rev := range revisionsSorted {
+		keys := revisions[rev]
+		if rev.Unset() {
+			t = append(t, fmt.Sprintf("at any revision by sets %s", strings.Join(keys, ",")))
+		} else {
+			t = append(t, fmt.Sprintf("at revision %s by sets %s", rev, strings.Join(keys, ",")))
+		}
+	}
+	fmt.Fprintf(w, "\n  - %s (required %s)", name, strings.Join(t, ", "))
 }
 
 // ValidationSets can hold a combination of validation-set assertions

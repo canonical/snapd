@@ -782,7 +782,6 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsWithComponents(c *C) {
 		assertions       []string
 		installed        []*snapasserts.InstalledSnap
 		verr             *snapasserts.ValidationSetsValidationError
-		err              error
 		ignoreValidation map[string]bool
 	}
 
@@ -934,17 +933,62 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsWithComponents(c *C) {
 		c.Check(valSets.Conflict(), IsNil, Commentf(prefix))
 
 		err := valSets.CheckInstalledSnaps(tc.installed, tc.ignoreValidation)
-		switch {
-		case tc.err != nil:
-			c.Assert(err, testutil.ErrorIs, tc.err, Commentf("%s: unexpected error: %v", prefix, err))
-		case tc.verr != nil:
+		if tc.verr == nil {
+			c.Assert(err, IsNil, Commentf("%s: unexpected error: %v", prefix, err))
+		} else {
 			verr, ok := err.(*snapasserts.ValidationSetsValidationError)
 			c.Assert(ok, Equals, true, Commentf("%s: expected ValidationSetsValidationError, got: %v", prefix, err))
 			c.Check(verr, DeepEquals, tc.verr, Commentf(prefix))
-		default:
-			c.Assert(err, IsNil, Commentf("%s: unexpected error: %v", prefix, err))
 		}
 	}
+}
+
+func (s *validationSetsSuite) TestValidationSetsValidationErrorStringWithComponents(c *C) {
+	verr := &snapasserts.ValidationSetsValidationError{
+		Sets: map[string]*asserts.ValidationSet{
+			"acme/one":   nil, // can be nil for simplicity, not used in the test
+			"acme/two":   nil,
+			"acme/three": nil,
+		},
+		ComponentErrors: map[string]*snapasserts.ValidationSetsComponentValidationError{
+			"snap-a": {
+				MissingComponents: map[string]map[snap.Revision][]string{
+					"comp-3": {
+						snap.R(0): {"acme/one", "acme/two"},
+					},
+					"comp-4": {
+						snap.R(2): {"acme/one"},
+					},
+				},
+				InvalidComponents: map[string][]string{
+					"comp-5": {"acme/two"},
+				},
+				WrongRevisionComponents: map[string]map[snap.Revision][]string{
+					"comp-6": {
+						snap.R(3): {"acme/three"},
+					},
+				},
+			},
+		},
+		MissingSnaps: map[string]map[snap.Revision][]string{
+			"snap-a": {
+				snap.R(0): {"acme/one"},
+			},
+		},
+	}
+
+	const expected = `validation sets assertions are not met:
+- missing required snaps:
+  - snap-a (required at any revision by sets acme/one)
+- missing required components:
+  - snap-a+comp-3 (required at any revision by sets acme/one,acme/two)
+  - snap-a+comp-4 (required at revision 2 by sets acme/one)
+- invalid components:
+  - snap-a+comp-5 (invalid for sets acme/two)
+- components at wrong revisions:
+  - snap-a+comp-6 (required at revision 3 by sets acme/three)`
+
+	c.Check(verr.Error(), Equals, expected)
 }
 
 func (s *validationSetsSuite) TestCheckInstalledSnapsIgnoreValidation(c *C) {
