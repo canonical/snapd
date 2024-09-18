@@ -751,7 +751,12 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap, ignoreValid
 		return err
 	}
 
-	vcerrs, err := v.checkInstalledComponents(installed, ignoreValidation)
+	missingSnapNames := make(map[string]bool, len(missing))
+	for name := range missing {
+		missingSnapNames[name] = true
+	}
+
+	vcerrs, err := v.checkInstalledComponents(installed, ignoreValidation, missingSnapNames)
 	if err != nil {
 		return err
 	}
@@ -768,7 +773,7 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap, ignoreValid
 	return nil
 }
 
-func (v *ValidationSets) checkInstalledComponents(installedSnaps installedSnapSet, ignore map[string]bool) (map[string]*ValidationSetsComponentValidationError, error) {
+func (v *ValidationSets) checkInstalledComponents(installedSnaps installedSnapSet, ignore map[string]bool, missingSnaps map[string]bool) (map[string]*ValidationSetsComponentValidationError, error) {
 	componentInstalled := func(cstrs constraints) (snap.Revision, error) {
 		if cstrs.compRef == nil || cstrs.snapRef == nil {
 			return snap.Revision{}, errors.New("internal error: component constraint should have component and snap refs")
@@ -787,11 +792,13 @@ func (v *ValidationSets) checkInstalledComponents(installedSnaps installedSnapSe
 		// if we're ignoring the snap, then we don't consider its components
 		//
 		// if the snap is not installed, then nothing can be wrong with the
-		// components, since none will be installed.
+		// components, since none will be installed. however, for error
+		// reporting reasons, we consider components for snaps that are required
+		// by the validation sets.
 		//
 		// note that we consider "required" components to only be required if
 		// the snap itself is installed.
-		if ignore[sc.name] || !installedSnaps.Contains(sc.snapRef) {
+		if ignore[sc.name] || (!installedSnaps.Contains(sc.snapRef) && !missingSnaps[sc.name]) {
 			continue
 		}
 

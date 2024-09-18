@@ -739,6 +739,28 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsWithComponents(c *C) {
 				},
 			},
 		},
+		"four": {
+			map[string]interface{}{
+				"name":     "snap-a",
+				"id":       snaptest.AssertedSnapID("snap-a"),
+				"presence": "required",
+				"revision": "13",
+				"components": map[string]interface{}{
+					"comp-3": map[string]interface{}{
+						"presence": "required",
+						"revision": "1",
+					},
+					"comp-4": map[string]interface{}{
+						"presence": "required",
+						"revision": "2",
+					},
+					"comp-5": map[string]interface{}{
+						"presence": "optional",
+						"revision": "3",
+					},
+				},
+			},
+		},
 	}
 
 	assertions := make(map[string]*asserts.ValidationSet)
@@ -864,10 +886,36 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsWithComponents(c *C) {
 					"snap-a": {
 						MissingComponents: map[string]map[snap.Revision][]string{
 							"comp-2": {
-								{}:        {"acme/three"},
+								snap.R(0): {"acme/three"},
 								snap.R(3): {"acme/one"},
 							},
 						},
+					},
+				},
+			},
+		},
+		{
+			summary:    "missing required snap and required component",
+			assertions: []string{"four"},
+			verr: &snapasserts.ValidationSetsValidationError{
+				Sets: map[string]*asserts.ValidationSet{
+					"acme/four": assertions["four"],
+				},
+				ComponentErrors: map[string]*snapasserts.ValidationSetsComponentValidationError{
+					"snap-a": {
+						MissingComponents: map[string]map[snap.Revision][]string{
+							"comp-3": {
+								snap.R(1): {"acme/four"},
+							},
+							"comp-4": {
+								snap.R(2): {"acme/four"},
+							},
+						},
+					},
+				},
+				MissingSnaps: map[string]map[snap.Revision][]string{
+					"snap-a": {
+						snap.R(13): {"acme/four"},
 					},
 				},
 			},
