@@ -155,7 +155,7 @@ func getDesktopFileRules(s *snap.Info) string {
 	denyRules := "# Explicitly deny access to other snap's desktop files\n"
 	desktopFiles, err := desktopFilesFromInstalledSnap(s)
 	if err != nil {
-		logger.Noticef("internal error: failed to collect desktop files from snap %q: %v", s.InstanceName(), err)
+		logger.Noticef("failed to collect desktop files from snap %q: %v", s.InstanceName(), err)
 		return getDesktopFileRulesFallback()
 	}
 	if len(desktopFiles) == 0 {

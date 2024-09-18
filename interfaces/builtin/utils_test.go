@@ -323,7 +323,7 @@ func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesSnapMountErrorFallback(c
 	}
 	s.testDesktopFileRules(c, opts)
 
-	c.Check(logbuf.String(), testutil.Contains, `internal error: failed to collect desktop files from snap "some-snap": boom`)
+	c.Check(logbuf.String(), testutil.Contains, `failed to collect desktop files from snap "some-snap": boom`)
 }
 
 func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesAAREExclusionPatternsErrorFallback(c *C) {
