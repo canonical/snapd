@@ -166,7 +166,7 @@ func checkValidationSetComponents(snap map[string]interface{}, snapRevision int,
 			return nil, errors.New(`each field in "components" map must be either a map or a string`)
 		}
 
-		component, err := checkValidationSetComponent(parsed, name, snapRevision, snapName)
+		component, err := checkValidationSetComponent(name, parsed, snapName, snapRevision)
 		if err != nil {
 			return nil, err
 		}
@@ -176,7 +176,7 @@ func checkValidationSetComponents(snap map[string]interface{}, snapRevision int,
 	return components, nil
 }
 
-func checkValidationSetComponent(comp map[string]interface{}, compName string, snapRevision int, snapName string) (ValidationSetComponent, error) {
+func checkValidationSetComponent(compName string, comp map[string]interface{}, snapName string, snapRevision int) (ValidationSetComponent, error) {
 	if err := naming.ValidateSnap(compName); err != nil {
 		return ValidationSetComponent{}, fmt.Errorf("invalid component name %q", compName)
 	}
