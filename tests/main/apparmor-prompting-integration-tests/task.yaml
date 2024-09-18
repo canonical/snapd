@@ -24,11 +24,11 @@ environment:
 
 prepare: |
     tests.session prepare -u test
-    tests.session exec -u test -- sh -c 'mkdir -p "$HOME/integration-tests"' # $HOME must be that of test user
-    snap install prompting-client
+    tests.session -u test exec sh -c 'mkdir -p "$HOME/integration-tests"' # $HOME must be that of test user
+    snap install prompting-client --channel=latest/edge # TODO: use latest/stable once rev 28+ is stable
 
 restore: |
-    tests.session exec -u test -- sh -c 'rm -rf "$HOME/integration-tests"' # $HOME must be that of test user
+    tests.session -u test exec sh -c 'rm -rf "$HOME/integration-tests"' # $HOME must be that of test user
     tests.session restore -u test
 
 debug: |
@@ -65,15 +65,14 @@ execute: |
 
     # Create unique tmpdir and copy the script to it.
     # The tmpdir must be in the test user's home directory.
-    TEST_DIR="$(tests.session exec -u test -- sh -c 'mktemp --directory --tmpdir="$HOME/integration-tests"')"
+    TEST_DIR="$(tests.session -u test exec sh -c 'mktemp --directory --tmpdir="$HOME/integration-tests"')"
+    cp "$VARIANT.sh" "${TEST_DIR}/${VARIANT}.sh"
+    chmod 664 "${TEST_DIR}/${VARIANT}.sh" # ensure it's readable by the test user
     cp "$VARIANT.json" "${TEST_DIR}/script.json"
-    chmod 777 "${TEST_DIR}/script.json" # ensure it's readable by the test user
+    chmod 664 "${TEST_DIR}/script.json" # ensure it's readable by the test user
 
     # Test scripts can rely on the presence of "${TEST_DIR}/script.json",
     # which is the script of expected prompts and corresponding replies.
-    #
-    # Test scripts can use $SNAP_DO to execute a command as the prompting
-    # client snap, and thus trigger a prompt.
 
     echo "Run the test script as the test user"
-    tests.session exec -u test -- SNAP_DO='snap run --shell prompting-client -c "$*"' sh -ec "${TEST_DIR}/${VARIANT}.sh" "$TEST_DIR"
+    tests.session -u test exec sh -x "${TEST_DIR}/${VARIANT}.sh" "$TEST_DIR"

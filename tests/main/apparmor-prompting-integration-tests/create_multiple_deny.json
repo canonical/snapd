@@ -33,7 +33,23 @@
       },
       "reply": {
         "action": "allow",
-        "lifespan": "once",
+        "lifespan": "single",
+        "constraints": {
+          "path-pattern": "${BASE_PATH}/*",
+          "permissions": [ "write" ]
+        }
+      }
+    },
+    {
+      "prompt-filter": {
+        "constraints": {
+          "path": ".*/succeed.txt",
+          "requested-permissions": [ "write" ]
+        }
+      },
+      "reply": {
+        "action": "allow",
+        "lifespan": "single",
         "constraints": {
           "path-pattern": "${BASE_PATH}/*",
           "permissions": [ "write" ]
