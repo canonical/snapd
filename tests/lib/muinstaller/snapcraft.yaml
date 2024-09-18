@@ -23,7 +23,7 @@ parts:
     build-environment:
       # Avoid libc deps to make muinstaller statically compiled
       # (desirable as this is a classic snap).
-      - CGO_ENABLED: 0
+      - CGO_ENABLED: "0"
     override-build: |
       snapcraftctl build
       cp -a mk-classic-rootfs.sh $SNAPCRAFT_PART_INSTALL/bin
