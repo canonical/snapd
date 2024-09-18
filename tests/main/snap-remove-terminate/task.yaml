@@ -23,12 +23,9 @@ execute: |
     lockfile="$(pwd)/lockfile"
     touch "$lockfile"
     sh_snap_bin="$(command -v test-snapd-sh.sh)"
-    # shellcheck disable=SC2016
-    alive_check="$($sh_snap_bin -c 'echo $SNAP_COMMON/alive')"
-    # shellcheck disable=SC2016
-    systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c 'touch $SNAP_COMMON/alive; sleep 100000'
+    systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c 'touch /var/snap/test-snapd-sh/common/alive; sleep 100000'
     # Wait for service to be up
-    retry -n 10 test -f "$alive_check"
+    retry -n 10 test -f /var/snap/test-snapd-sh/common/alive
 
     echo "Lock is held"
     not flock --timeout 0 "$lockfile" --command "true"
