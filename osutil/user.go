@@ -415,6 +415,9 @@ func MockUserLookup(mock func(name string) (*user.User, error)) func() {
 	return func() { userLookup = realUserLookup }
 }
 
+// UsernamesToUids converts a list of usernames to map indexed
+// by their UID, i.e the call
+// UsernamesToUids([]string{"root"}) may return { 0, "root" }
 func UsernamesToUids(users []string) (map[int]string, error) {
 	uids := make(map[int]string)
 	for _, username := range users {

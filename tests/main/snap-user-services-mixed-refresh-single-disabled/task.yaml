@@ -96,8 +96,8 @@ execute: |
     # OBS: Currently this will not work, the way user-services are enabled
     # is by --global enable, which means that any attempt to individually disable
     # services will be a no-op.
-    # TODO: Switch to a user-preset approach and scrap the --global enable/disable
-    # for user-services specifically
+    # NOTE: Consider supporting masking of user-services to support per-user disable
+    # of user-services.
     snap_as_test stop --disable --user test-snapd-mixed-service
 
     # verify this worked
