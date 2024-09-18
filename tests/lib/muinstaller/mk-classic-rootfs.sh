@@ -64,8 +64,11 @@ EOF
 	fi
     fi
 
-    # ensure we can login
+    # ensure we can login. since when booting into recovery mode, we import
+    # users from the host system that are in the sudo and admin groups, we make
+    # sure to add our user to the sudo group.
     sudo chroot "$DESTDIR" /usr/sbin/adduser --disabled-password --gecos "" user1
+    sudo chroot "$DESTDIR" /usr/sbin/adduser user1 sudo
     printf "ubuntu\nubuntu\n" | sudo chroot "$DESTDIR" /usr/bin/passwd user1
     echo "user1 ALL=(ALL) NOPASSWD:ALL" | sudo tee -a "$DESTDIR"/etc/sudoers
 

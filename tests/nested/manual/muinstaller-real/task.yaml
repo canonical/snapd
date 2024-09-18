@@ -307,3 +307,22 @@ execute: |
 
   # model in the seed should match the one that was installed on the system
   remote.exec "diff <(snap model --assertion) /run/mnt/ubuntu-seed/systems/classic/model"
+
+  boot_id=$(remote.exec "cat /proc/sys/kernel/random/boot_id")
+  remote.exec "sudo snap reboot --recover classic"
+  remote.wait-for reboot "${boot_id}"
+
+  # we explicitly provide a password since the sudo group is not configured to
+  # allow passwordless sudo
+  timeout -v 300 remote.exec "echo ubuntu | sudo -S snap wait system seed.loaded"
+
+  remote.exec "groups" | tr ' ' '\n' | sort | xargs | MATCH 'sudo user1'
+
+  remote.exec "snap list" > snap-list
+  for name in pc pc-kernel snapd core22; do
+    MATCH "${name}" < snap-list
+  done
+
+  for name in passwd shadow group gshadow; do
+    remote.exec "findmnt -n /etc/${name}" | awk '{ print $2 }' | MATCH "tmpfs\[/snapd/hybrid-users/${name}\]"
+  done
