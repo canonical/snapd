@@ -15,17 +15,21 @@ restore: |
     systemctl stop test-kill.service || true
     systemctl reset-failed test-kill.service || true
 
+debug: |
+    journalctl -u test-kill.service
+
 execute: |
     echo "Start a long running process"
     lockfile="$(pwd)/lockfile"
     touch "$lockfile"
     sh_snap_bin="$(command -v test-snapd-sh.sh)"
-    systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c "sleep 100000"
+    alive_check="$($sh_snap_bin -c 'echo $SNAP_COMMON/alive')"
+    systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c 'touch $SNAP_COMMON/alive; sleep 100000'
     # Wait for service to be up
-    retry -n 10 systemctl is-active test-kill.service
+    retry -n 10 test -f "$alive_check"
 
     echo "Lock is held"
-    not flock --timeout 10 "$lockfile" --command "true"
+    not flock --timeout 0 "$lockfile" --command "true"
 
     echo "Remove snap with --terminate flag"
     snap remove --terminate test-snapd-sh
