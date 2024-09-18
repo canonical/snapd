@@ -1407,9 +1407,9 @@ EOF
     expect -d -f lxd-migrate-configurator.exp &>/dev/null || true
 
     echo "Checking the vm is created and loaded"
-    lxc list testvm | grep -Eq ".* testvm .* STOPPED .* VIRTUAL-MACHINE .*"
+    lxc list testvm -c ts --format csv  | MATCH "VIRTUAL-MACHINE,STOPPED"
 
-    echo "Configuring tpm"
+    echo "Configuring TPM"
     lxc config device add testvm tpm tpm
 
     echo "Configuring secure boot"
@@ -1432,13 +1432,13 @@ network:
       dhcp4: yes
 EOF
 
-    echo "Starting vm"
+    echo "Starting VM"
     lxc start testvm
 
-    echo -n "Waiting for ip assigned "
+    echo -n "Waiting for IPv4 address: "
     ip=""
     for _ in $(seq 60); do
-        ip="$(lxc list testvm -f json  | jq -r ' .[0].state.network.eth0.addresses[] | select( .family == "inet" ) | .address')"
+        ip="$(lxc list testvm -c 4 --format csv | awk '{print $1}')"
         if [ -z "$ip" ]; then
             sleep 5
             echo -n "."
@@ -1449,10 +1449,10 @@ EOF
     done
 
     if [ -z "$ip" ]; then
-        echo "Ip could not be retrieved from vm"
+        echo "error: timeout waiting for VM to have an IPv4 address"
         exit 1
     fi
-    echo "vm prepared with ip: $ip"
+    echo "VM prepared with IPv4 address: $ip"
 
     remote.setup config --host "$ip" --port 22 --user user1 --pass ubuntu
     nested_wait_for_ssh 120 1
