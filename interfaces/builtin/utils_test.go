@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
+	"github.com/snapcore/snapd/logger"
 	apparmorutils "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -305,7 +306,10 @@ func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesNoDesktopFilesFallback(c
 }
 
 func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesSnapMountErrorFallback(c *C) {
-	restore := builtin.MockDesktopFilesFromInstalledSnap(func(s *snap.Info) ([]string, error) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	restore = builtin.MockDesktopFilesFromInstalledSnap(func(s *snap.Info) ([]string, error) {
 		return nil, errors.New("boom")
 	})
 	defer restore()
@@ -318,10 +322,15 @@ func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesSnapMountErrorFallback(c
 		expectedRules:  s.fallbackRules,
 	}
 	s.testDesktopFileRules(c, opts)
+
+	c.Check(logbuf.String(), testutil.Contains, `internal error: failed to collect desktop files from snap "some-snap": boom`)
 }
 
 func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesAAREExclusionPatternsErrorFallback(c *C) {
-	restore := builtin.MockApparmorGenerateAAREExclusionPatterns(func(excludePatterns []string, opts *apparmorutils.AAREExclusionPatternsOptions) (string, error) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	restore = builtin.MockApparmorGenerateAAREExclusionPatterns(func(excludePatterns []string, opts *apparmorutils.AAREExclusionPatternsOptions) (string, error) {
 		return "", errors.New("boom")
 	})
 	defer restore()
@@ -334,6 +343,8 @@ func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesAAREExclusionPatternsErr
 		expectedRules:  s.fallbackRules,
 	}
 	s.testDesktopFileRules(c, opts)
+
+	c.Check(logbuf.String(), testutil.Contains, `internal error: failed to generate deny rules for snap "some-snap": boom`)
 }
 
 func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesCommonSnapNameAndDesktopFileID(c *C) {
@@ -379,9 +390,12 @@ func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesSanitizedDesktopFileName
 }
 
 func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesBadDesktopFileName(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
 	// Stress the case where a snap file name skipped sanitization somehow
 	// This should never happen because snap.MangleDesktopFileName is called
-	restore := builtin.MockDesktopFilesFromInstalledSnap(func(s *snap.Info) ([]string, error) {
+	restore = builtin.MockDesktopFilesFromInstalledSnap(func(s *snap.Info) ([]string, error) {
 		return []string{"foo**?$.desktop"}, nil
 	})
 	defer restore()
@@ -393,12 +407,17 @@ func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesBadDesktopFileName(c *C)
 		expectedRules: s.fallbackRules,
 	}
 	s.testDesktopFileRules(c, opts)
+
+	c.Check(logbuf.String(), testutil.Contains, `internal error: invalid desktop file name "foo**?$.desktop" found in snap "some-snap" which should have been validated earlier: "foo**?$.desktop" contains a reserved apparmor char`)
 }
 
 func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesBadDesktopFileIDs(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
 	// Stress the case where a desktop file ids attribute skipped validation during
 	// installation somehow
-	restore := builtin.MockDesktopFilesFromInstalledSnap(func(s *snap.Info) ([]string, error) {
+	restore = builtin.MockDesktopFilesFromInstalledSnap(func(s *snap.Info) ([]string, error) {
 		return []string{"org.*.example.desktop"}, nil
 	})
 	defer restore()
@@ -410,4 +429,6 @@ func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesBadDesktopFileIDs(c *C) 
 		expectedRules:  s.fallbackRules,
 	}
 	s.testDesktopFileRules(c, opts)
+
+	c.Check(logbuf.String(), testutil.Contains, `internal error: invalid desktop file id "org.*.example" found in snap "some-snap" which should have failed in BeforePreparePlug checks: "org.*.example" contains a reserved apparmor char`)
 }

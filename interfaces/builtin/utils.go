@@ -145,7 +145,7 @@ func getDesktopFileRules(s *snap.Info) string {
 		// desktop-file-ids are already validated during install.
 		// But still it is better to play it safe and check AARE characters anyway.
 		if err := apparmor.ValidateNoAppArmorRegexp(desktopFileID); err != nil {
-			logger.Noticef("invalid desktop file id %q found in %q: %v", desktopFileID, s.InstanceName(), err)
+			logger.Noticef("internal error: invalid desktop file id %q found in snap %q which should have failed in BeforePreparePlug checks: %v", desktopFileID, s.InstanceName(), err)
 			return getDesktopFileRulesFallback()
 		}
 		allowRules += fmt.Sprintf("%s/%s r,\n", dirs.SnapDesktopFilesDir, desktopFileID+".desktop")
@@ -155,7 +155,7 @@ func getDesktopFileRules(s *snap.Info) string {
 	denyRules := "# Explicitly deny access to other snap's desktop files\n"
 	desktopFiles, err := desktopFilesFromInstalledSnap(s)
 	if err != nil {
-		logger.Noticef("error: %v", err)
+		logger.Noticef("internal error: failed to collect desktop files from snap %q: %v", s.InstanceName(), err)
 		return getDesktopFileRulesFallback()
 	}
 	if len(desktopFiles) == 0 {
@@ -174,14 +174,14 @@ func getDesktopFileRules(s *snap.Info) string {
 		// - Desktop file ids are validated to only contain non-AARE characters
 		// But still it is better to play it safe and check AARE characters anyway.
 		if err := apparmor.ValidateNoAppArmorRegexp(desktopFile); err != nil {
-			logger.Noticef("invalid desktop file name %q found in snap %q: %v", desktopFile, s.InstanceName(), err)
+			logger.Noticef("internal error: invalid desktop file name %q found in snap %q which should have been validated earlier: %v", desktopFile, s.InstanceName(), err)
 			return getDesktopFileRulesFallback()
 		}
 		excludePatterns = append(excludePatterns, "/"+strings.TrimSuffix(filepath.Base(desktopFile), ".desktop"))
 	}
 	excludeRules, err := apparmorGenerateAAREExclusionPatterns(excludePatterns, excludeOpts)
 	if err != nil {
-		logger.Noticef("error: %v", err)
+		logger.Noticef("internal error: failed to generate deny rules for snap %q: %v", s.InstanceName(), err)
 		return getDesktopFileRulesFallback()
 	}
 	denyRules += excludeRules
