@@ -24,10 +24,12 @@ environment:
 
 prepare: |
     tests.session prepare -u test
+    #shellcheck disable=SC2016
     tests.session -u test exec sh -c 'mkdir -p "$HOME/integration-tests"' # $HOME must be that of test user
     snap install prompting-client --channel=latest/edge # TODO: use latest/stable once rev 28+ is stable
 
 restore: |
+    #shellcheck disable=SC2016
     tests.session -u test exec sh -c 'rm -rf "$HOME/integration-tests"' # $HOME must be that of test user
     tests.session restore -u test
 
@@ -65,6 +67,7 @@ execute: |
 
     # Create unique tmpdir and copy the script to it.
     # The tmpdir must be in the test user's home directory.
+    #shellcheck disable=SC2016
     TEST_DIR="$(tests.session -u test exec sh -c 'mktemp --directory --tmpdir="$HOME/integration-tests"')"
     cp "$VARIANT.sh" "${TEST_DIR}/${VARIANT}.sh"
     chmod 664 "${TEST_DIR}/${VARIANT}.sh" # ensure it's readable by the test user
