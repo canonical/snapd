@@ -10286,3 +10286,83 @@ func (s *refreshSuite) TestSetMaxInhibitionDays(c *C) {
 	maxInhibitionDuration = snapstate.MaxInhibitionDuration(st)
 	c.Assert(maxInhibitionDuration, Equals, 10*24*time.Hour-time.Second)
 }
+
+func (s *snapStateSuite) TestUnmountAllSnaps(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: sequence.SnapSequence{
+			Revisions: []*sequence.RevisionSideState{
+				{Snap: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(5)}},
+				{Snap: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(6)}},
+			},
+		},
+		Current:  snap.R(5),
+		SnapType: "app",
+	})
+
+	snapstate.Set(st, "snap-with-components", &snapstate.SnapState{
+		Active: true,
+		Sequence: sequence.SnapSequence{
+			Revisions: []*sequence.RevisionSideState{
+				{
+					Snap: &snap.SideInfo{RealName: "snap-with-components", SnapID: "snap-with-components-id", Revision: snap.R(2)},
+					Components: []*sequence.ComponentState{
+						sequence.NewComponentState(&snap.ComponentSideInfo{
+							Component: naming.NewComponentRef("snap-with-components", "test-component"),
+							Revision:  snap.R(22),
+						}, snap.TestComponent),
+						sequence.NewComponentState(&snap.ComponentSideInfo{
+							Component: naming.NewComponentRef("snap-with-components", "test-other-component"),
+							Revision:  snap.R(33),
+						}, snap.TestComponent),
+					},
+				},
+				{
+					Snap: &snap.SideInfo{RealName: "snap-with-components", SnapID: "snap-with-components-id", Revision: snap.R(3)},
+					Components: []*sequence.ComponentState{
+						sequence.NewComponentState(&snap.ComponentSideInfo{
+							Component: naming.NewComponentRef("snap-with-components", "test-component"),
+							Revision:  snap.R(22),
+						}, snap.TestComponent),
+						sequence.NewComponentState(&snap.ComponentSideInfo{
+							Component: naming.NewComponentRef("snap-with-components", "test-other-component"),
+							Revision:  snap.R(55),
+						}, snap.TestComponent),
+					},
+				},
+			},
+		},
+		Current:  snap.R(3),
+		SnapType: "app",
+	})
+
+	umount := testutil.MockCommand(c, "umount", "")
+	defer umount.Restore()
+
+	err := snapstate.UnmountAllSnaps(st)
+	c.Assert(err, IsNil)
+
+	expected := [][]string{
+		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/some-snap/5")},
+		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/some-snap/6")},
+		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/snap-with-components/components/mnt/test-component/22")},
+		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/snap-with-components/components/mnt/test-other-component/33")},
+		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/snap-with-components/2")},
+		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/snap-with-components/components/mnt/test-other-component/55")},
+		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/snap-with-components/3")},
+	}
+
+	calls := umount.Calls()
+	sort.Slice(calls, func(i, j int) bool {
+		return calls[i][3] < calls[j][3]
+	})
+	sort.Slice(expected, func(i, j int) bool {
+		return expected[i][3] < expected[j][3]
+	})
+
+	c.Assert(calls, DeepEquals, expected)
+}

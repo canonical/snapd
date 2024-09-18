@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -4428,4 +4429,57 @@ func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (res
 	old := osutilCheckFreeSpace
 	osutilCheckFreeSpace = mock
 	return func() { osutilCheckFreeSpace = old }
+}
+
+// UnmountAllSnaps unmounts all of the snaps and components in the system state.
+// The primary use case for this is to unmount all snaps that were installed in
+// the chroot environment that is used when creating a preseeded image.
+func UnmountAllSnaps(st *state.State) error {
+	all, err := All(st)
+	if err != nil {
+		return err
+	}
+
+	for _, snapst := range all {
+		if err := unmountSnap(snapst); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func unmountSnap(snapst *SnapState) error {
+	unmountedComps := make(map[string]bool)
+	for _, rev := range snapst.Sequence.Revisions {
+		for _, c := range rev.Components {
+			compName := c.SideInfo.Component.ComponentName
+			cpi := snap.MinimalComponentContainerPlaceInfo(
+				compName,
+				c.SideInfo.Revision,
+				snapst.InstanceName(),
+			)
+
+			mountDir := cpi.MountDir()
+
+			// components might be shared between snap revisions, so make sure
+			// we only unmount them once
+			if unmountedComps[mountDir] {
+				continue
+			}
+			unmountedComps[mountDir] = true
+
+			logger.Debugf("unmounting component %s at %s", compName, mountDir)
+			if _, err := exec.Command("umount", "-d", "-l", mountDir).CombinedOutput(); err != nil {
+				return err
+			}
+		}
+
+		mountDir := snap.MountDir(snapst.InstanceName(), rev.Snap.Revision)
+		logger.Debugf("unmounting snap %s at %s", snapst.InstanceName(), mountDir)
+		if _, err := exec.Command("umount", "-d", "-l", mountDir).CombinedOutput(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

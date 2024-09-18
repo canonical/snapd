@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
@@ -46,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
@@ -649,17 +651,28 @@ func (s *preseedingBaseSuite) SetUpTest(c *C, preseed, classic bool) {
 	defer st.Unlock()
 
 	si := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(3), SnapID: "test-snap-id"}
-	snaptest.MockSnap(c, `name: test-snap
+	info := snaptest.MockSnap(c, `name: test-snap
 version: 1.0
 apps:
  srv:
   command: bin/service
   daemon: simple
+components:
+  comp:
+    type: test
 `, si)
+
+	compInfo := snaptest.MockComponentCurrent(c, "component: test-snap+comp\ntype: test", info, snap.ComponentSideInfo{
+		Revision:  snap.R(5),
+		Component: naming.NewComponentRef("test-snap", "comp"),
+	})
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si})
+	seq.AddComponentForRevision(snap.R(3), sequence.NewComponentState(&compInfo.ComponentSideInfo, snap.TestComponent))
 
 	snapstate.Set(st, "test-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Sequence: seq,
 		Current:  si.Revision,
 		SnapType: "app",
 	})
@@ -700,7 +713,7 @@ func (s *preseedingClassicSuite) TestDoMarkPreseeded(c *C) {
 
 	// mark-preseeded task is left in Doing, meaning it will be re-executed
 	// after restart in normal (not preseeding) mode.
-	c.Check(t.Status(), Equals, state.DoingStatus)
+	c.Check(t.Status(), Equals, state.DoingStatus, Commentf("change error: %s", chg.Err()))
 
 	var preseeded bool
 	c.Check(t.Get("preseeded", &preseeded), IsNil)
@@ -720,6 +733,7 @@ func (s *preseedingClassicSuite) TestDoMarkPreseeded(c *C) {
 
 	// core snap was "manually" unmounted
 	c.Check(s.cmdUmount.Calls(), DeepEquals, [][]string{
+		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "test-snap/components/mnt/comp/5")},
 		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "test-snap/3")},
 	})
 
