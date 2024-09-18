@@ -130,7 +130,7 @@ func checkValidationSetSnap(snap map[string]interface{}) (*ValidationSetSnap, er
 		return nil, fmt.Errorf(`cannot specify revision %s at the same time as stating its presence is invalid`, what)
 	}
 
-	components, err := checkValidationSetComponents(snap, what)
+	components, err := checkValidationSetComponents(snap, snapRevision, what)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +144,7 @@ func checkValidationSetSnap(snap map[string]interface{}) (*ValidationSetSnap, er
 	}, nil
 }
 
-func checkValidationSetComponents(snap map[string]interface{}, what string) (map[string]ValidationSetComponent, error) {
+func checkValidationSetComponents(snap map[string]interface{}, snapRevision int, what string) (map[string]ValidationSetComponent, error) {
 	mapping, err := checkMapWhat(snap, "components", what)
 	if err != nil {
 		return nil, errors.New(`"components" field in "snaps" header must be a map`)
@@ -166,7 +166,7 @@ func checkValidationSetComponents(snap map[string]interface{}, what string) (map
 			return nil, errors.New(`each field in "components" map must be either a map or a string`)
 		}
 
-		component, err := checkValidationSetComponent(parsed, name)
+		component, err := checkValidationSetComponent(parsed, snapRevision, name)
 		if err != nil {
 			return nil, err
 		}
@@ -176,7 +176,7 @@ func checkValidationSetComponents(snap map[string]interface{}, what string) (map
 	return components, nil
 }
 
-func checkValidationSetComponent(comp map[string]interface{}, name string) (ValidationSetComponent, error) {
+func checkValidationSetComponent(comp map[string]interface{}, snapRevision int, name string) (ValidationSetComponent, error) {
 	if err := naming.ValidateSnap(name); err != nil {
 		return ValidationSetComponent{}, fmt.Errorf("invalid component name %q", name)
 	}
@@ -194,7 +194,15 @@ func checkValidationSetComponent(comp map[string]interface{}, name string) (Vali
 	}
 
 	if revision != 0 && presence == PresenceInvalid {
-		return ValidationSetComponent{}, fmt.Errorf(`cannot specify component revision %s at the same time as stating its presence is invalid`, what)
+		return ValidationSetComponent{}, fmt.Errorf("cannot specify component revision %s at the same time as stating its presence is invalid", what)
+	}
+
+	if snapRevision != 0 && revision == 0 {
+		return ValidationSetComponent{}, fmt.Errorf("must specify revision %s since its associated snap specifies a revision", what)
+	}
+
+	if snapRevision == 0 && revision != 0 {
+		return ValidationSetComponent{}, fmt.Errorf("cannot specify revision %s if its associated snap does not specify a revision", what)
 	}
 
 	return ValidationSetComponent{

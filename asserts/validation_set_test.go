@@ -134,6 +134,8 @@ func (vss *validationSetSuite) TestDecodeInvalid(c *C) {
 		{"OTHER", "    components:\n      comp:\n        - test\n", `each field in "components" map must be either a map or a string`},
 		{"OTHER", "    components:\n      comp:\n        revision: -1\n        presence: optional\n", `"revision" of component "comp" must be >=1: -1`},
 		{"OTHER", "    components: some-string", `"components" field in "snaps" header must be a map`},
+		{"OTHER", "    components:\n      comp:\n        presence: optional\n", `must specify revision of component "comp" since its associated snap specifies a revision`},
+		{"OTHER", "  -\n    name: foo-linux\n    id: foolinuxidididididididididididid\n    components:\n      comp:\n        revision: 1\n        presence: optional\n", `cannot specify revision of component "comp" if its associated snap does not specify a revision`},
 	}
 
 	for _, test := range invalidTests {
@@ -178,10 +180,15 @@ func (vss *validationSetSuite) TestSnapComponents(c *C) {
 	encoded := strings.Replace(validationSetExample, "TSLINE", vss.tsLine, 1)
 
 	const components = `    components:
-      string-only: optional
       with-revision:
         revision: 10
         presence: required
+  -
+    name: foo-linux
+    id: foolinuxidididididididididididid
+    presence: optional
+    components:
+      string-only: optional
       no-revision:
         presence: invalid
 `
@@ -194,16 +201,17 @@ func (vss *validationSetSuite) TestSnapComponents(c *C) {
 
 	valset := a.(*asserts.ValidationSet)
 	snaps := valset.Snaps()
-	c.Assert(snaps, HasLen, 1)
-	c.Assert(snaps[0].Components, HasLen, 3)
+	c.Assert(snaps, HasLen, 2)
 
 	c.Check(snaps[0].Components, DeepEquals, map[string]asserts.ValidationSetComponent{
-		"string-only": {
-			Presence: asserts.PresenceOptional,
-		},
 		"with-revision": {
 			Presence: asserts.PresenceRequired,
 			Revision: 10,
+		},
+	})
+	c.Check(snaps[1].Components, DeepEquals, map[string]asserts.ValidationSetComponent{
+		"string-only": {
+			Presence: asserts.PresenceOptional,
 		},
 		"no-revision": {
 			Presence: asserts.PresenceInvalid,
