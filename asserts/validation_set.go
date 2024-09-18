@@ -130,7 +130,7 @@ func checkValidationSetSnap(snap map[string]interface{}) (*ValidationSetSnap, er
 		return nil, fmt.Errorf(`cannot specify revision %s at the same time as stating its presence is invalid`, what)
 	}
 
-	components, err := checkValidationSetComponents(snap, snapRevision, snapName, what)
+	components, err := checkValidationSetComponents(snapName, snap, snapRevision)
 	if err != nil {
 		return nil, err
 	}
@@ -144,8 +144,8 @@ func checkValidationSetSnap(snap map[string]interface{}) (*ValidationSetSnap, er
 	}, nil
 }
 
-func checkValidationSetComponents(snap map[string]interface{}, snapRevision int, snapName string, what string) (map[string]ValidationSetComponent, error) {
-	mapping, err := checkMapWhat(snap, "components", what)
+func checkValidationSetComponents(snapName string, snap map[string]interface{}, snapRevision int) (map[string]ValidationSetComponent, error) {
+	mapping, err := checkMapWhat(snap, "components", fmt.Sprintf("of snap %q", snapName))
 	if err != nil {
 		return nil, errors.New(`"components" field in "snaps" header must be a map`)
 	}
