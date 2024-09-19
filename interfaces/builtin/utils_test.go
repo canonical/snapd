@@ -408,7 +408,7 @@ func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesBadDesktopFileName(c *C)
 	}
 	s.testDesktopFileRules(c, opts)
 
-	c.Check(logbuf.String(), testutil.Contains, `internal error: invalid desktop file name "foo**?$.desktop" found in snap "some-snap" which should have been validated earlier: "foo**?$.desktop" contains a reserved apparmor char`)
+	c.Check(logbuf.String(), testutil.Contains, `internal error: invalid desktop file name "foo**?$.desktop" found in snap "some-snap": "foo**?$.desktop" contains a reserved apparmor char`)
 }
 
 func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesBadDesktopFileIDs(c *C) {
@@ -430,5 +430,5 @@ func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesBadDesktopFileIDs(c *C) 
 	}
 	s.testDesktopFileRules(c, opts)
 
-	c.Check(logbuf.String(), testutil.Contains, `internal error: invalid desktop file id "org.*.example" found in snap "some-snap" which should have failed in BeforePreparePlug checks: "org.*.example" contains a reserved apparmor char`)
+	c.Check(logbuf.String(), testutil.Contains, `internal error: invalid desktop file ID "org.*.example" found in snap "some-snap": "org.*.example" contains a reserved apparmor char`)
 }

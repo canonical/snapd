@@ -145,7 +145,8 @@ func getDesktopFileRules(s *snap.Info) string {
 		// desktop-file-ids are already validated during install.
 		// But still it is better to play it safe and check AARE characters anyway.
 		if err := apparmor.ValidateNoAppArmorRegexp(desktopFileID); err != nil {
-			logger.Noticef("internal error: invalid desktop file id %q found in snap %q which should have failed in BeforePreparePlug checks: %v", desktopFileID, s.InstanceName(), err)
+			// Unexpected, should have failed in BeforePreparePlug
+			logger.Noticef("internal error: invalid desktop file ID %q found in snap %q: %v", desktopFileID, s.InstanceName(), err)
 			return getDesktopFileRulesFallback()
 		}
 		allowRules += fmt.Sprintf("%s/%s r,\n", dirs.SnapDesktopFilesDir, desktopFileID+".desktop")
@@ -174,7 +175,10 @@ func getDesktopFileRules(s *snap.Info) string {
 		// - Desktop file ids are validated to only contain non-AARE characters
 		// But still it is better to play it safe and check AARE characters anyway.
 		if err := apparmor.ValidateNoAppArmorRegexp(desktopFile); err != nil {
-			logger.Noticef("internal error: invalid desktop file name %q found in snap %q which should have been validated earlier: %v", desktopFile, s.InstanceName(), err)
+			// Unexpected, should have been validated/sanitized earlier in:
+			//   - Desktop interface's BeforePreparePlug for desktop file ids
+			//   - MangleDesktopFileName for prefixed desktop files
+			logger.Noticef("internal error: invalid desktop file name %q found in snap %q: %v", desktopFile, s.InstanceName(), err)
 			return getDesktopFileRulesFallback()
 		}
 		excludePatterns = append(excludePatterns, "/"+strings.TrimSuffix(filepath.Base(desktopFile), ".desktop"))
