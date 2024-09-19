@@ -92,17 +92,40 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 
 	// Compute the new current profile so that it contains only changes that were made
 	// and save it back for next runs.
-	var currentAfter osutil.MountProfile
-	for i := len(changesMade) - 1; i >= 0; i-- {
-		change := changesMade[i]
-		if change.Action == Keep {
-			currentAfter.Entries = append(currentAfter.Entries, change.Entry)
-		}
-	}
-	for _, change := range changesMade {
-		if change.Action == Mount {
-			currentAfter.Entries = append(currentAfter.Entries, change.Entry)
-		}
-	}
+	currentAfter := CurrentProfileFromChangesMade(changesMade)
 	return upCtx.SaveCurrentProfile(&currentAfter)
+}
+
+// CurrentProfileFromChangesMade computes a new mount profile a slice of changes.
+//
+// The return value collects mount profile entries from changes of type "mount"
+// and "keep" while discarding the changes of type "unmount". The order in
+// which entries are collected depends on their type.
+//
+// The sequence of changes, as produced by NeededChanges, is computed by
+// looking at two mount profiles, examining the most recent change and working
+// backwards. Since the most recent change is the last entry in the mount
+// profile, the first change describes the last mount entry of the old mount
+// profile.
+//
+// The "keep" changes are thus collected in reverse order - the order of their
+// true appearance, while "mount" changes are collected in the order of their
+// appearance as this represents the actual order of performed mount
+// operations.
+func CurrentProfileFromChangesMade(changes []*Change) osutil.MountProfile {
+	var profile osutil.MountProfile
+
+	for i := len(changes) - 1; i >= 0; i-- {
+		change := changes[i]
+		if change.Action == Keep {
+			profile.Entries = append(profile.Entries, change.Entry)
+		}
+	}
+	for _, change := range changes {
+		if change.Action == Mount {
+			profile.Entries = append(profile.Entries, change.Entry)
+		}
+	}
+
+	return profile
 }
