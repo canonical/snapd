@@ -29,7 +29,7 @@ execute: |
     "$TESTSTOOLS"/store-state --help | MATCH "usage: store-state setup-fake-store <DIR>"
 
     # Staging store cannot be used with snapd deb from the repository
-    if not [[ "$SNAPD_DEB_FROM_REPO" = true && -n "$(command -v apt)" ]]; then
+    if not tests.info is-snapd-pkg-repo; then
         # Setup staging store
         "$TESTSTOOLS"/store-state setup-staging-store
         snap info core | MATCH "store-url:.*https://staging-api.snapcraft.io"

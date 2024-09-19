@@ -585,7 +585,7 @@ prepare_project() {
     # go mod runs as root and will leave strange permissions
     chown test:test -R "$SPREAD_PATH"
 
-    if [ "$SNAPD_DEB_FROM_REPO" = true ] && [ -n "$(command -v apt)" ]; then
+    if tests.info is-snapd-pkg-repo; then
         ( cd "${GOHOME}" && tests.pkgs download snapd snap-confine ubuntu-core-launcher)
     elif [ "$BUILD_SNAPD_FROM_CURRENT" = true ]; then
         case "$SPREAD_SYSTEM" in

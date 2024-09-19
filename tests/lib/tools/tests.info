@@ -1,0 +1,51 @@
+#!/bin/bash -e
+
+show_help() {
+	echo "usage: tests.info <CMD>"
+	echo
+	echo "Supported commands:"
+	echo "    is-snapd-pkg-repo: indicates when the snap packages is from the repository"
+	echo "    is-reexec-enabled: indicates when snapd package is re-executing to snapd snap"
+}
+
+
+is_snapd_pkg_repo() {
+    [ "$SNAPD_DEB_FROM_REPO" = true ] && [ -n "$(command -v apt)" ]
+}
+
+is_reexec_enabled() {
+    snap debug execution snap | grep -q "is-reexecd: true"
+}
+
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
+
+    local subcommand="$1"
+    local action=
+    while [ $# -gt 0 ]; do
+        case "$subcommand" in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            *)
+                action=$(echo "$subcommand" | tr '-' '_')
+                shift
+                break
+                ;;
+        esac
+    done
+
+    if [ -z "$(declare -f "$action")" ]; then
+        echo "tests.env: no such command: $subcommand"
+        show_help
+        exit 1
+    fi
+
+    "$action" "$@"
+}
+
+main "$@"

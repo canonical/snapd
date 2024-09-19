@@ -16,7 +16,7 @@ environment:
 
 prepare: |
     # In this scenario, the keys from the snapd pkg are used
-    if [ "$TRUST_TEST_KEYS" = "false" ] || { [ "$SNAPD_DEB_FROM_REPO" = true ] && [ -n "$(command -v apt)" ]; }; then
+    if [ "$TRUST_TEST_KEYS" = "false" ] || tests.info is-snapd-pkg-repo; then
         echo "This test needs test keys to be trusted"
         exit
     fi
@@ -54,7 +54,7 @@ prepare: |
 
 restore: |
     # In this scenario, the keys from the snapd pkg are used
-    if [ "$TRUST_TEST_KEYS" = "false" ] || { [ "$SNAPD_DEB_FROM_REPO" = true ] && [ -n "$(command -v apt)" ]; }; then
+    if [ "$TRUST_TEST_KEYS" = "false" ] || tests.info is-snapd-pkg-repo; then
         echo "This test needs test keys to be trusted"
         exit
     fi
@@ -65,7 +65,7 @@ restore: |
 
 execute: |
     # In this scenario, the keys from the snapd pkg are used
-    if [ "$TRUST_TEST_KEYS" = "false" ] || { [ "$SNAPD_DEB_FROM_REPO" = true ] && [ -n "$(command -v apt)" ]; }; then
+    if [ "$TRUST_TEST_KEYS" = "false" ] || tests.info is-snapd-pkg-repo; then
         echo "This test needs test keys to be trusted"
         exit
     fi
