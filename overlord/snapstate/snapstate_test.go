@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -7577,6 +7578,7 @@ func (s *snapmgrTestSuite) TestStopSnapServicesUndo(c *C) {
 	c.Check(t.Get("disabled-services", &disabled), IsNil)
 	c.Check(disabled, DeepEquals, wrappers.DisabledServices{
 		SystemServices: []string{"svc1"},
+		UserServices:   map[int][]string{},
 	})
 }
 
@@ -7806,6 +7808,70 @@ func (s *snapmgrTestSuite) TestInstallModeDisableFreshInstallEnabledByHook(c *C)
 	op := s.fakeBackend.ops.First("start-snap-services")
 	c.Assert(op, Not(IsNil))
 	c.Check(op.disabledServices, HasLen, 0)
+}
+
+func (s *snapmgrTestSuite) TestInstallModeDisableFreshInstallEnabledByHookMixedServices(c *C) {
+	// fake two sockets, one for 0 and one for 1000
+	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "0", "snapd-session-agent.socket"), 0700)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0700)
+	c.Assert(err, IsNil)
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	oldServicesSnapYaml := servicesSnapYaml
+	servicesSnapYaml += `
+  svc-disable-foo:
+    daemon: simple
+    install-mode: disable
+  svc-disable-bar:
+    daemon: simple
+    install-mode: disable
+  svc-disable-bar-user:
+    daemon: simple
+    daemon-scope: user
+    install-mode: disable
+`
+	defer func() { servicesSnapYaml = oldServicesSnapYaml }()
+
+	// pretent we have a hook that enables the service on install
+	runner := s.o.TaskRunner()
+	runner.AddHandler("run-hook", func(t *state.Task, _ *tomb.Tomb) error {
+		var snapst snapstate.SnapState
+		st.Lock()
+		err := snapstate.Get(st, "services-snap", &snapst)
+		st.Unlock()
+		c.Assert(err, IsNil)
+		snapst.ServicesEnabledByHooks = []string{"svc-disable-bar"}
+		snapst.UserServicesEnabledByHooks = map[int][]string{
+			0: {"svc-disable-bar-user"},
+		}
+		st.Lock()
+		snapstate.Set(st, "services-snap", &snapst)
+		st.Unlock()
+		return nil
+	}, nil)
+
+	installChg := s.state.NewChange("install", "...")
+	installTs, err := snapstate.Install(context.Background(), s.state, "services-snap", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	installChg.AddAll(installTs)
+
+	s.settle(c)
+
+	c.Assert(installChg.Err(), IsNil)
+	c.Assert(installChg.IsReady(), Equals, true)
+
+	op := s.fakeBackend.ops.First("start-snap-services")
+	c.Assert(op, Not(IsNil))
+	c.Check(op.disabledServices, DeepEquals, []string{"svc-disable-foo"})
+	c.Check(op.disabledUserServices, testutil.DeepUnsortedMatches, map[int][]string{
+		// Because it was enabled specifically for user 0, and the available users
+		// are 0 and 1000, then it must now be disabled just for 1000
+		1000: {"svc-disable-bar-user"},
+	})
 }
 
 func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {

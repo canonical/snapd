@@ -321,10 +321,15 @@ type SnapState struct {
 	// remember services that were disabled in another revision and then renamed
 	// or otherwise removed from the snap in a future refresh.
 	LastActiveDisabledServices []string `json:"last-active-disabled-services,omitempty"`
+	// LastActiveDisabledUserServices, like LastActiveDisabledServices is a map of user-services
+	// that were disabled in the snap when it was last active. The same rules apply.
+	LastActiveDisabledUserServices map[int][]string `json:"last-active-disabled-user-services,omitempty"`
 
 	// tracking services enabled and disabled by hooks
-	ServicesEnabledByHooks  []string `json:"services-enabled-by-hooks,omitempty"`
-	ServicesDisabledByHooks []string `json:"services-disabled-by-hooks,omitempty"`
+	ServicesEnabledByHooks      []string         `json:"services-enabled-by-hooks,omitempty"`
+	UserServicesEnabledByHooks  map[int][]string `json:"user-services-enabled-by-hooks,omitempty"`
+	ServicesDisabledByHooks     []string         `json:"services-disabled-by-hooks,omitempty"`
+	UserServicesDisabledByHooks map[int][]string `json:"user-services-disabled-by-hooks,omitempty"`
 
 	// Current indicates the current active revision if Active is
 	// true or the last active revision if Active is false
