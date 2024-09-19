@@ -15,7 +15,5 @@ snapd: maintscript-calls-ldconfig [postinst]
 # in this location for complex reasons. We should write one and remove this
 # override.
 snapd: no-manual-page [usr/bin/snapctl]
-# TODO: ubuntu-core-launcher can be removed and is entirely obsolete.
-snapd: no-manual-page [usr/bin/ubuntu-core-launcher]
 # This is intentional.
 snapd: systemd-service-file-refers-to-unusual-wantedby-target cloud-final.service [lib/systemd/system/snapd.seeded.service]
