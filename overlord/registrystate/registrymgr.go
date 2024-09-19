@@ -21,6 +21,7 @@ package registrystate
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/i18n"
@@ -29,14 +30,26 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-func init() {
-	hookstate.ChangeViewHandlerGenerator = func(context *hookstate.Context) hookstate.Handler {
+type RegistryManager struct{}
+
+func Manager(st *state.State, hookMgr *hookstate.HookManager, _ *state.TaskRunner) *RegistryManager {
+
+	// TODO: add task handlers (commit-transaction, clear-state, etc)
+
+	hookMgr.Register(regexp.MustCompile("^change-view-.+$"), func(context *hookstate.Context) hookstate.Handler {
 		return &changeViewHandler{ctx: context}
-	}
-	hookstate.SaveViewHandlerGenerator = func(context *hookstate.Context) hookstate.Handler {
+	})
+	hookMgr.Register(regexp.MustCompile("^save-view-.+$"), func(context *hookstate.Context) hookstate.Handler {
 		return &saveViewHandler{ctx: context}
-	}
+	})
+	hookMgr.Register(regexp.MustCompile("^.+-view-changed$"), func(context *hookstate.Context) hookstate.Handler {
+		return &hookstate.SnapHookHandler{}
+	})
+
+	return nil
 }
+
+func (m *RegistryManager) Ensure() error { return nil }
 
 func setupRegistryHook(st *state.State, snapName, hookName string, ignoreError bool) *state.Task {
 	hookSup := &hookstate.HookSetup{

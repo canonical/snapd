@@ -351,6 +351,7 @@ func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 func (s *interfaceManagerSuite) hookManager(c *C) *hookstate.HookManager {
 	if s.privateHookMgr == nil {
 		mgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
+
 		c.Assert(err, IsNil)
 		s.privateHookMgr = mgr
 		s.o.AddManager(mgr)

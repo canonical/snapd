@@ -99,7 +99,7 @@ func (s *hookHandlerSuite) TestViewChangeHookOk(c *C) {
 	s.state.Lock()
 	hooksup := &hookstate.HookSetup{
 		Snap: "test-snap",
-		Hook: "view-change-setup",
+		Hook: "change-view-setup",
 	}
 
 	tx, err := registrystate.NewTransaction(s.state, "my-acc", "network")
@@ -111,7 +111,7 @@ func (s *hookHandlerSuite) TestViewChangeHookOk(c *C) {
 	ctx, err := hookstate.NewContext(t, s.state, hooksup, nil, "")
 	c.Assert(err, IsNil)
 
-	handler := hookstate.ChangeViewHandlerGenerator(ctx)
+	handler := registrystate.ChangeViewHandlerGenerator(ctx)
 	s.state.Unlock()
 
 	c.Assert(err, IsNil)
@@ -119,11 +119,11 @@ func (s *hookHandlerSuite) TestViewChangeHookOk(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *hookHandlerSuite) TestViewChangeHookRejectsChanges(c *C) {
+func (s *hookHandlerSuite) TestChangeViewHookRejectsChanges(c *C) {
 	s.state.Lock()
 	hooksup := &hookstate.HookSetup{
 		Snap: "test-snap",
-		Hook: "view-change-setup",
+		Hook: "change-view-setup",
 	}
 
 	tx, err := registrystate.NewTransaction(s.state, "my-acc", "network")
@@ -136,7 +136,7 @@ func (s *hookHandlerSuite) TestViewChangeHookRejectsChanges(c *C) {
 	ctx, err := hookstate.NewContext(t, s.state, hooksup, nil, "")
 	c.Assert(err, IsNil)
 
-	handler := hookstate.ChangeViewHandlerGenerator(ctx)
+	handler := registrystate.ChangeViewHandlerGenerator(ctx)
 	s.state.Unlock()
 
 	err = handler.Done()
@@ -147,7 +147,7 @@ func (s *hookHandlerSuite) TestSaveViewHookOk(c *C) {
 	s.state.Lock()
 	hooksup := &hookstate.HookSetup{
 		Snap: "test-snap",
-		Hook: "view-change-setup",
+		Hook: "save-view-setup",
 	}
 
 	tx, err := registrystate.NewTransaction(s.state, "my-acc", "network")
@@ -159,7 +159,7 @@ func (s *hookHandlerSuite) TestSaveViewHookOk(c *C) {
 	ctx, err := hookstate.NewContext(t, s.state, hooksup, nil, "")
 	c.Assert(err, IsNil)
 
-	handler := hookstate.SaveViewHandlerGenerator(ctx)
+	handler := registrystate.SaveViewHandlerGenerator(ctx)
 	s.state.Unlock()
 
 	err = handler.Done()
@@ -209,7 +209,7 @@ func (s *hookHandlerSuite) TestSaveViewHookErrorRollsBackSaves(c *C) {
 	ctx, err := hookstate.NewContext(secondTask, s.state, hooksup, nil, "")
 	c.Assert(err, IsNil)
 
-	handler := hookstate.SaveViewHandlerGenerator(ctx)
+	handler := registrystate.SaveViewHandlerGenerator(ctx)
 	s.state.Unlock()
 
 	savingErr := errors.New("failed to save")
@@ -265,7 +265,7 @@ func (s *hookHandlerSuite) TestSaveViewHookErrorRollsBackSaves(c *C) {
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
-	handler = hookstate.SaveViewHandlerGenerator(ctx)
+	handler = registrystate.SaveViewHandlerGenerator(ctx)
 	err = handler.Done()
 	c.Assert(err, ErrorMatches, savingErr.Error())
 }
@@ -312,7 +312,7 @@ func (s *hookHandlerSuite) TestSaveViewHookErrorHoldsTasks(c *C) {
 	ctx, err := hookstate.NewContext(firstTask, s.state, hooksup, nil, "")
 	c.Assert(err, IsNil)
 
-	handler := hookstate.SaveViewHandlerGenerator(ctx)
+	handler := registrystate.SaveViewHandlerGenerator(ctx)
 
 	s.state.Unlock()
 	ignore, err := handler.Error(errors.New("failed to save"))
