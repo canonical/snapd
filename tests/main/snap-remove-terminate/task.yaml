@@ -30,13 +30,13 @@ execute: |
     sh_snap_bin="$(command -v fork-bomb.sh)"
     if [ "$BAD_SNAP" = "fork-bomb" ]; then
         #shellcheck disable=SC2016
-        systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c 'touch /var/snap/test-snapd-sh/common/alive; $SNAP/bin/fork-bomb'
+        systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c 'touch /var/snap/fork-bomb/common/alive; $SNAP/bin/fork-bomb'
     else
         #shellcheck disable=SC2016
-        systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c 'touch /var/snap/test-snapd-sh/common/alive; sleep 100000'
+        systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c 'touch /var/snap/fork-bomb/common/alive; sleep 100000'
     fi
     # Wait for service to be up
-    retry -n 10 test -f /var/snap/test-snapd-sh/common/alive
+    retry -n 10 test -f /var/snap/fork-bomb/common/alive
 
     echo "Lock is held"
     not flock --timeout 0 "$lockfile" --command "true"

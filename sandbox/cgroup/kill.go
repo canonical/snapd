@@ -128,7 +128,7 @@ func killSnapProcessesImplV2(ctx context.Context, snapName string) error {
 	var firstErr error
 	skipError := func(err error) bool {
 		// fs.ErrNotExist and ENODEV are ignored in case the cgroup went away while we were
-		// processing the cgorup. ENODEV is returned by the kernel if the cgroup went
+		// processing the cgroup. ENODEV is returned by the kernel if the cgroup went
 		// away while a kernfs operation is ongoing.
 		if !errors.Is(err, fs.ErrNotExist) && !errors.Is(err, syscall.ENODEV) && firstErr == nil {
 			firstErr = err
