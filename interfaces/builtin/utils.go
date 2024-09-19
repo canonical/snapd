@@ -109,26 +109,18 @@ var desktopFilesFromInstalledSnap = func(s *snap.Info) ([]string, error) {
 //
 // The snap must be mounted.
 func getDesktopFileRules(s *snap.Info) string {
-	const template = `
-# Support applications which use the unity messaging menu, xdg-mime, etc
-# This leaks the names of snaps with desktop files
-%s/ r,
+	var b strings.Builder
 
-# Allow rules:
-%s
-
-# Deny rules:
-%s
-`
+	b.WriteString("# Support applications which use the unity messaging menu, xdg-mime, etc\n")
+	b.WriteString("# This leaks the names of snaps with desktop files\n")
+	fmt.Fprintf(&b, "%s/ r,\n", dirs.SnapDesktopFilesDir)
 
 	// Generate allow rules
-	allowRules := `
-# Allowing reading only our desktop files (required by (at least) the unity
-# messaging menu).
-# parallel-installs: this leaks read access to desktop files owned by keyed
-# instances of @{SNAP_NAME} to @{SNAP_NAME} snap
-`
-	allowRules += fmt.Sprintf("%s/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,\n", dirs.SnapDesktopFilesDir)
+	b.WriteString("# Allowing reading only our desktop files (required by (at least) the unity\n")
+	b.WriteString("# messaging menu).\n")
+	b.WriteString("# parallel-installs: this leaks read access to desktop files owned by keyed\n")
+	b.WriteString("# instances of @{SNAP_NAME} to @{SNAP_NAME} snap\n")
+	fmt.Fprintf(&b, "%s/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,\n", dirs.SnapDesktopFilesDir)
 	// For allow rules let's be more defensive and not depend on desktop files
 	// shipped by the snap like what is done below in the deny rules so that if
 	// a snap figured out a way to trick the checks below it can only shoot
@@ -149,11 +141,11 @@ func getDesktopFileRules(s *snap.Info) string {
 			logger.Noticef("internal error: invalid desktop file ID %q found in snap %q: %v", desktopFileID, s.InstanceName(), err)
 			return getDesktopFileRulesFallback()
 		}
-		allowRules += fmt.Sprintf("%s/%s r,\n", dirs.SnapDesktopFilesDir, desktopFileID+".desktop")
+		fmt.Fprintf(&b, "%s/%s r,\n", dirs.SnapDesktopFilesDir, desktopFileID+".desktop")
 	}
 
 	// Generate deny rules to suppress apparmor warnings
-	denyRules := "# Explicitly deny access to other snap's desktop files\n"
+	b.WriteString("# Explicitly deny access to other snap's desktop files\n")
 	desktopFiles, err := desktopFilesFromInstalledSnap(s)
 	if err != nil {
 		logger.Noticef("failed to collect desktop files from snap %q: %v", s.InstanceName(), err)
@@ -188,9 +180,9 @@ func getDesktopFileRules(s *snap.Info) string {
 		logger.Noticef("internal error: failed to generate deny rules for snap %q: %v", s.InstanceName(), err)
 		return getDesktopFileRulesFallback()
 	}
-	denyRules += excludeRules
+	b.WriteString(excludeRules)
 
-	return fmt.Sprintf(template, dirs.SnapDesktopFilesDir, allowRules[1:], denyRules)
+	return b.String()
 }
 
 // stringListAttribute returns a list of strings for the given attribute key if the attribute exists.
