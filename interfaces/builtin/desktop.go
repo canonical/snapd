@@ -111,6 +111,12 @@ dbus (receive, send)
     path=/org/freedesktop/portal/{desktop,documents}{,/**}
     peer=(label=unconfined),
 
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
+    path=/org/freedesktop/portal/{desktop,documents}{,/**}
+    peer=(label=unconfined),
+
 # The portals service is normally running and newer versions of
 # xdg-desktop-portal include AssumedAppArmor=unconfined. Since older
 # systems don't have this and because gtkfilechoosernativeportal.c relies on
@@ -474,11 +480,21 @@ dbus (receive, send)
     interface=org.freedesktop.DBus.Properties
     peer=(label=unconfined),
 
-# Allow access to the regular xdg-desktop-portal APIs
-dbus (send)
+# Allow access to the regular xdg-desktop-portal and xdg-document-portal APIs
+dbus (receive, send)
     bus=session
     interface=org.freedesktop.portal.*
-    path=/org/freedesktop/portal/desktop{,/**}
+    path=/org/freedesktop/portal/{desktop,documents}{,/**}
+    peer=(label=unconfined),
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/freedesktop/portal/{desktop,documents}{,/**}
+    peer=(label=unconfined),
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
+    path=/org/freedesktop/portal/{desktop,documents}{,/**}
     peer=(label=unconfined),
 
 # Allow access to various paths gnome-session and gnome-shell need.
