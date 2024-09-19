@@ -281,8 +281,9 @@ func isCoreSnap(snapName string) bool {
 // components that are not in compsups.
 //
 // This is mostly relevant when we're moving from one snap revision to another
-// snap revision that has already been installed on the system. The target snap
-// might have components that are installed that we don't want any more.
+// snap revision that was installed in past and is still in the sequence. The
+// target snap might have had components that were installed alongside it in the
+// past, and they are not wanted anymore.
 func removeExtraComponentsTasks(st *state.State, snapst *SnapState, targetRevision snap.Revision, compsups []ComponentSetup) (
 	unlinkTasks, discardTasks []*state.Task, err error,
 ) {
@@ -317,7 +318,7 @@ func removeExtraComponentsTasks(st *state.State, snapst *SnapState, targetRevisi
 
 		// note that we don't need to worry about kernel module components here,
 		// since the components that we are removing are not associated with the
-		// currently installed snap revision. unlink-component differs from
+		// current snap revision. unlink-component differs from
 		// unlink-current-component in that it doesn't save the state of kernel
 		// module components on the the SnapSetup.
 		unlink := st.NewTask("unlink-component", fmt.Sprintf(
