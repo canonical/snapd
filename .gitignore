@@ -95,3 +95,6 @@ cmd/test-driver
 
 # Image files
 *.img
+
+# Directory that is used by the run-spread script
+/built-snap
