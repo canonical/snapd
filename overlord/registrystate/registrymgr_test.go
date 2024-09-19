@@ -20,6 +20,7 @@ package registrystate_test
 
 import (
 	"errors"
+	"time"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -322,14 +323,6 @@ func (s *hookHandlerSuite) TestSaveViewHookErrorHoldsTasks(c *C) {
 
 	halts := firstTask.HaltTasks()
 	c.Assert(halts, HasLen, 2)
-	// the save-view hook for the second snap is held
-	nextHook := halts[0]
-	c.Assert(nextHook.Kind(), Equals, "run-hook")
-	c.Assert(nextHook.Status(), Equals, state.HoldStatus)
-	err = nextHook.Get("hook-setup", &hooksup)
-	c.Assert(err, IsNil)
-	c.Assert(hooksup.Hook, Equals, "save-view-setup")
-	c.Assert(hooksup.Snap, Equals, "second-snap")
 
 	// the rollback task for the failed hook
 	rollbackTask := halts[1]
@@ -339,4 +332,27 @@ func (s *hookHandlerSuite) TestSaveViewHookErrorHoldsTasks(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(hooksup.Hook, Equals, "save-view-setup")
 	c.Assert(hooksup.Snap, Equals, "first-snap")
+
+	// the save-view hook for the second snap is made to wait for the rollback
+	nextHook := halts[0]
+	c.Assert(nextHook.Kind(), Equals, "run-hook")
+	c.Assert(nextHook.Status(), Equals, state.DoStatus)
+	err = nextHook.Get("hook-setup", &hooksup)
+	c.Assert(err, IsNil)
+	c.Assert(hooksup.Hook, Equals, "save-view-setup")
+	c.Assert(hooksup.Snap, Equals, "second-snap")
+	c.Assert(nextHook.WaitTasks(), HasLen, 2)
+	c.Assert(nextHook.WaitTasks()[1].ID(), Equals, rollbackTask.ID())
+}
+
+func (s *registryTestSuite) TestManagerOk(c *C) {
+	runner := s.o.TaskRunner()
+	hookMgr, err := hookstate.Manager(s.state, runner)
+	c.Assert(err, IsNil)
+
+	mgr := registrystate.Manager(s.state, hookMgr, runner)
+	s.o.AddManager(mgr)
+
+	err = s.o.Settle(5 * time.Second)
+	c.Assert(err, IsNil)
 }

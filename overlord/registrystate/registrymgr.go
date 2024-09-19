@@ -106,13 +106,6 @@ func (h *saveViewHandler) Error(origErr error) (ignoreErr bool, err error) {
 		return false, err
 	}
 
-	// stop all tasks (we need to do this manually because we're not erroring yet)
-	for _, t := range t.Change().Tasks() {
-		if t.Status() == state.DoStatus {
-			t.SetStatus(state.HoldStatus)
-		}
-	}
-
 	// create roll back tasks for the previously done save-registry hooks (starting
 	// with the hook that failed, so it tries to overwrite with a pristine databag
 	// just like any previous save-view hooks)
@@ -139,6 +132,12 @@ func (h *saveViewHandler) Error(origErr error) (ignoreErr bool, err error) {
 		if len(curTask.WaitTasks()) != 1 {
 			return false, fmt.Errorf("internal error: cannot rollback failed save-view: expected one prerequisite task")
 		}
+	}
+
+	// prevent the next registry tasks from running before the rollbacks. Once the
+	// last rollback task errors, these will be put on Hold by the usual mechanism
+	for _, halt := range t.HaltTasks() {
+		halt.WaitFor(last)
 	}
 
 	// save the original error so we can return that once the rollback is done

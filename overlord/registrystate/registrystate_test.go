@@ -47,6 +47,7 @@ import (
 
 type registryTestSuite struct {
 	state *state.State
+	o     *overlord.Overlord
 
 	registry *registry.Registry
 	devAccID string
@@ -60,7 +61,8 @@ func Test(t *testing.T) { TestingT(t) }
 
 func (s *registryTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	s.state = overlord.Mock().State()
+	s.o = overlord.Mock()
+	s.state = s.o.State()
 
 	s.state.Lock()
 	defer s.state.Unlock()
