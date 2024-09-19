@@ -13,11 +13,7 @@ environment:
     BAD_SNAP/no_fork_bomb: no-fork-bomb
 
 prepare: |
-    if [ "$BAD_SNAP" = "fork-bomb" ]; then
-        "$TESTSTOOLS"/snaps-state install-local fork-bomb
-    else
-        snap install test-snapd-sh
-    fi
+    "$TESTSTOOLS"/snaps-state install-local fork-bomb
 
 restore: |
     systemctl stop test-kill.service || true
@@ -31,11 +27,12 @@ execute: |
     lockfile="$(pwd)/lockfile"
     touch "$lockfile"
 
+    sh_snap_bin="$(command -v fork-bomb.sh)"
     if [ "$BAD_SNAP" = "fork-bomb" ]; then
-        sh_snap_bin="$(command -v fork-bomb)"
-        systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin"
+        #shellcheck disable=SC2016
+        systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c 'touch /var/snap/test-snapd-sh/common/alive; $SNAP/bin/fork-bomb'
     else
-        sh_snap_bin="$(command -v test-snapd-sh.sh)"
+        #shellcheck disable=SC2016
         systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c 'touch /var/snap/test-snapd-sh/common/alive; sleep 100000'
     fi
     # Wait for service to be up
@@ -45,11 +42,7 @@ execute: |
     not flock --timeout 0 "$lockfile" --command "true"
 
     echo "Remove snap with --terminate flag"
-    if [ "$BAD_SNAP" = "fork-bomb" ]; then
-        snap remove --terminate fork-bomb
-    else
-        snap remove --terminate test-snapd-sh
-    fi
+    snap remove --terminate fork-bomb
 
     echo "Running process should be terminated after remove change is complete and lockfile should be unlocked"
     flock --timeout 60 "$lockfile" --command "true"
