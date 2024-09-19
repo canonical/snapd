@@ -30,7 +30,7 @@ execute: |
     sh_snap_bin="$(command -v fork-bomb.sh)"
     if [ "$BAD_SNAP" = "fork-bomb" ]; then
         #shellcheck disable=SC2016
-        systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c 'touch /var/snap/fork-bomb/common/alive; $SNAP/bin/fork-bomb'
+        systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c 'touch /var/snap/fork-bomb/common/alive; $SNAP/bin/bomb'
     else
         #shellcheck disable=SC2016
         systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c 'touch /var/snap/fork-bomb/common/alive; sleep 100000'
