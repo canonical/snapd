@@ -33,6 +33,7 @@ import (
 type RegistryManager struct{}
 
 func Manager(st *state.State, hookMgr *hookstate.HookManager, _ *state.TaskRunner) *RegistryManager {
+	m := &RegistryManager{}
 
 	// TODO: add task handlers (commit-transaction, clear-state, etc)
 
@@ -46,7 +47,7 @@ func Manager(st *state.State, hookMgr *hookstate.HookManager, _ *state.TaskRunne
 		return &hookstate.SnapHookHandler{}
 	})
 
-	return nil
+	return m
 }
 
 func (m *RegistryManager) Ensure() error { return nil }
