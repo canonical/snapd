@@ -16,6 +16,11 @@ environment:
     ENVDUMP: /var/snap/command-chain/current/env
 
 prepare: |
+    # No needed to test the snap pkg when it is coming from the repository
+    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
+        exit
+    fi
+
     echo "Build command chain snap"
     snap pack command-chain
     snap install --dangerous command-chain_1.0_all.snap
@@ -28,6 +33,11 @@ prepare: |
     fi
 
 execute: |
+    # No needed to test the snap pkg when it is coming from the repository
+    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
+        exit
+    fi
+
     echo "Test that command-chain runs for hooks"
     [ "$(cat "$BREADCRUMB")" = "chain1 chain2 configure" ]
     MATCH '^CHAIN_1_RAN=1$' < "$ENVDUMP"

@@ -12,10 +12,19 @@ environment:
     SNAP_REEXEC/reexec1: 1
 
 prepare: |
+    # No needed to test the snap pkg when it is coming from the repository
+    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
+        exit
+    fi
     snap pack test-snapd-epoch-1
     snap pack test-snapd-epoch-2
 
 execute: |
+    # No needed to test the snap pkg when it is coming from the repository
+    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
+        exit
+    fi
+
     rx="cannot refresh \"[^ \"]*\" to local snap with epoch [^ ]*, because it can't read the current epoch"
     snap try test-snapd-epoch-1
     not snap try test-snapd-epoch-2 2> try.err

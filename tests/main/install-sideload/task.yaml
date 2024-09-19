@@ -14,6 +14,11 @@ environment:
     SNAP_REEXEC/reexec1: 1
 
 prepare: |
+    # No needed to test the snap pkg when it is coming from the repository
+    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
+        exit
+    fi
+
     for snap in basic test-snapd-tools basic-desktop test-snapd-devmode snap-hooks-bad-install; do
         snap pack "$TESTSLIB"/snaps/$snap
     done
@@ -26,6 +31,11 @@ prepare: |
     fi
 
 execute: |
+    # No needed to test the snap pkg when it is coming from the repository
+    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
+        exit
+    fi
+
     echo "Sideloaded snap shows status"
     expected='^basic 1.0 installed$'
     snap install --dangerous ./basic_1.0_all.snap | MATCH "$expected"
