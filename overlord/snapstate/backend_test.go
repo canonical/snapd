@@ -262,7 +262,7 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 	switch spec.Name {
 	case "core", "core16", "ubuntu-core", "some-core":
 		typ = snap.TypeOS
-	case "some-base", "other-base", "some-other-base", "yet-another-base", "core18", "core22":
+	case "some-base", "other-base", "some-other-base", "yet-another-base", "core18", "core20", "core22", "core24", "bare":
 		typ = snap.TypeBase
 	case "some-kernel":
 		typ = snap.TypeKernel

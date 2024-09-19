@@ -248,6 +248,7 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaAll(c *C) {
 
 	c.Check(seen, DeepEquals, map[string]bool{
 		"core":                    true,
+		"snapd":                   true,
 		"alias-snap":              true,
 		"other-snap":              true,
 		"alias-snap-apps-go-away": true,

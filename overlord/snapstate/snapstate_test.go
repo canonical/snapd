@@ -314,6 +314,14 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "snapd", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: "snapd",
+	})
 
 	// commonly used revisions in tests
 	defaultInfoFile := `
@@ -5928,6 +5936,9 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapDoesRunWithAnySnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// remove snapd snap added for snapmgrBaseTest
+	snapstate.Set(s.state, "snapd", nil)
+
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.snapd-snap", true)
 	tr.Commit()
@@ -5965,6 +5976,9 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapStartsAutomaticallyWhenEnabled
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// remove snapd snap added for snapmgrBaseTest
+	snapstate.Set(s.state, "snapd", nil)
+
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active:   true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "beta"}}),
@@ -5977,13 +5991,13 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapStartsAutomaticallyWhenEnabled
 
 	s.settle(c)
 
-	c.Check(s.state.Changes(), HasLen, 1)
+	c.Assert(s.state.Changes(), HasLen, 1)
 	chg := s.state.Changes()[0]
 	c.Check(chg.Kind(), Equals, "transition-to-snapd-snap")
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
 
-	// snapd snap is instaleld from the default channel
+	// snapd snap is installed from the default channel
 	var snapst snapstate.SnapState
 	snapstate.Get(s.state, "snapd", &snapst)
 	c.Assert(snapst.TrackingChannel, Equals, "latest/stable")
@@ -5992,6 +6006,9 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapStartsAutomaticallyWhenEnabled
 func (s *snapmgrTestSuite) TestTransitionSnapdSnapWithCoreRunthrough(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// remove snapd snap added for snapmgrBaseTest
+	snapstate.Set(s.state, "snapd", nil)
 
 	// setup a classic model so the device context says we are on classic
 	defer snapstatetest.MockDeviceModel(ClassicModel())()
@@ -6031,6 +6048,9 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapTimeLimitWorks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// remove snapd snap added for snapmgrBaseTest
+	snapstate.Set(s.state, "snapd", nil)
+
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.snapd-snap", true)
 	tr.Commit()
@@ -6069,6 +6089,9 @@ func (s unhappyStore) SnapAction(ctx context.Context, currentSnaps []*store.Curr
 func (s *snapmgrTestSuite) TestTransitionSnapdSnapError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// remove snapd snap added for snapmgrBaseTest
+	snapstate.Set(s.state, "snapd", nil)
 
 	snapstate.ReplaceStore(s.state, unhappyStore{fakeStore: s.fakeStore})
 
@@ -6240,6 +6263,7 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2(c *C) {
 	}
 
 	snapstate.Set(s.state, "core", nil)
+	snapstate.Set(s.state, "snapd", nil)
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
@@ -6308,6 +6332,7 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2SnapDisabled(c *C) {
 	}
 
 	snapstate.Set(s.state, "core", nil)
+	snapstate.Set(s.state, "snapd", nil)
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
@@ -6835,6 +6860,9 @@ func (s *snapmgrTestSuite) TestSnapdSnapOnCoreWithoutBase(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
 
+	// remove snapd snap added for snapmgrBaseTest
+	snapstate.Set(s.state, "snapd", nil)
+
 	// it is now possible to install snapd snap on a system with core
 	_, err := snapstate.Install(context.Background(), s.state, "snapd", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -6845,6 +6873,9 @@ func (s *snapmgrTestSuite) TestSnapdSnapOnSystemsWithoutBaseOnUbuntuCore(c *C) {
 	defer s.state.Unlock()
 	r := release.MockOnClassic(false)
 	defer r()
+
+	// remove snapd snap added for snapmgrBaseTest
+	snapstate.Set(s.state, "snapd", nil)
 
 	// it is not possible to opt-into the snapd snap on core yet
 	tr := config.NewTransaction(s.state)
@@ -6860,6 +6891,9 @@ func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBaseButOption(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// remove snapd snap added for snapmgrBaseTest
+	snapstate.Set(s.state, "snapd", nil)
+
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.snapd-snap", true)
 	tr.Commit()
@@ -6871,6 +6905,9 @@ func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBaseButOption(c *C) {
 func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// remove snapd snap added for snapmgrBaseTest
+	snapstate.Set(s.state, "snapd", nil)
 
 	// snapd cannot be installed unless the model uses a base snap
 	r := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
@@ -7786,8 +7823,10 @@ func (s *snapmgrTestSuite) TestInstallModeDisableFreshInstallEnabledByHook(c *C)
 		var snapst snapstate.SnapState
 		st.Lock()
 		err := snapstate.Get(st, "services-snap", &snapst)
+		// Use Check here, Assert causes deadlock
+		c.Check(err, IsNil)
 		st.Unlock()
-		c.Assert(err, IsNil)
+
 		snapst.ServicesEnabledByHooks = []string{"svcInstallModeDisable"}
 		st.Lock()
 		snapstate.Set(st, "services-snap", &snapst)
@@ -8837,6 +8876,7 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementError(c *C) {
 		c.Check(pinned, DeepEquals, pinnedSeqs)
 		c.Check(snaps, testutil.DeepUnsortedMatches, []*snapasserts.InstalledSnap{
 			{SnapRef: naming.NewSnapRef("core", ""), Revision: snap.R(1)},
+			{SnapRef: naming.NewSnapRef("snapd", ""), Revision: snap.R(1)},
 			{SnapRef: naming.NewSnapRef("some-other-snap", "some-other-snap-id"), Revision: snap.R(2)},
 			{SnapRef: naming.NewSnapRef("some-snap", "some-snap-id"), Revision: snap.R(1)}})
 		c.Check(snapsToIgnore, HasLen, 0)

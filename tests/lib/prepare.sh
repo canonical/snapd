@@ -401,7 +401,7 @@ prepare_classic() {
     # This also prevents snapd from automatically installing snapd snap as
     # prerequisite for installing any non-base snap introduced in PR#14173.
     if snap list snapd ; then
-	    snap snap info snapd
+	    snap info snapd
 	    echo "Error: not expecting snapd snap to be installed"
 	    exit 1
     else
