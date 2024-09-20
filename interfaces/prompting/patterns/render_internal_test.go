@@ -97,24 +97,37 @@ func (s *renderSuite) TestRenderAllVariants(c *C) {
 
 func (s *renderSuite) TestRenderAllVariantsConflicts(c *C) {
 	// all variants are the exact same path
-	pattern := "/{fo{obar},foo{b{ar,ar},bar,{ba}r}}"
-	scanned, err := scan(pattern)
-	c.Assert(err, IsNil)
-	parsed, err := parse(scanned)
-	c.Assert(err, IsNil)
-
-	expectedVariants := []string{
-		"/foobar",
+	for _, testCase := range []struct {
+		pattern          string
+		expectedVariants []string
+	}{
+		{
+			"/{fo{obar},foo{b{ar,ar},bar,{ba}r}}",
+			[]string{"/foobar"},
+		},
+		{
+			"/{{foo/{bar,baz},123},{123,foo{/bar,/baz}}}",
+			[]string{
+				"/foo/bar",
+				"/foo/baz",
+				"/123",
+				"/123",
+				"/foo/bar",
+				"/foo/baz",
+			},
+		},
+	} {
+		scanned, err := scan(testCase.pattern)
+		c.Assert(err, IsNil)
+		parsed, err := parse(scanned)
+		c.Assert(err, IsNil)
+		variants := make([]string, 0, len(testCase.expectedVariants))
+		renderAllVariants(parsed, func(index int, variant PatternVariant) {
+			variants = append(variants, variant.String())
+		})
+		c.Check(variants, DeepEquals, testCase.expectedVariants)
+		c.Check(variants, HasLen, parsed.NumVariants())
 	}
-
-	variants := make([]string, 0, len(expectedVariants))
-	renderAllVariants(parsed, func(index int, variant PatternVariant) {
-		variants = append(variants, variant.String())
-	})
-
-	c.Check(variants, DeepEquals, expectedVariants)
-	c.Check(variants, HasLen, parsed.NumVariants())
-	c.Check(variants, HasLen, 1)
 }
 
 func (s *renderSuite) TestNextVariant(c *C) {
