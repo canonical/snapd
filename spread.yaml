@@ -933,7 +933,7 @@ suites:
     # environment on each platform. On autopkgtest we cannot run all tests
     # as this is very slow and we run into timeouts.
     #
-    # These tests are executed on all other plattforms as they
+    # These tests are executed on all other platforms as they
     # are designed to run on pristine systems
     tests/smoke/:
         summary: Essential system level tests for snapd
@@ -1163,7 +1163,7 @@ suites:
             NESTED_SNAPD_DEBUG_TO_SERIAL:  '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
             # Add any extra cmd line parameter to the nested vm
             NESTED_EXTRA_CMDLINE:  '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
-            # Generic imane name which has to be overwritten in the test
+            # Generic image name which has to be overwritten in the test
             NESTED_IMAGE_ID: "unset"
             # Configuration file used for remote tools
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
@@ -1406,9 +1406,10 @@ suites:
         systems:
           - ubuntu-fips-*
         environment:
-          # TODO add snap variant
           # disable reexec so that the tests run with deb
           SNAP_REEXEC/deb: "0"
+          # but keep it enabled when using the snap
+          SNAP_REEXEC/snap: "1"
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |

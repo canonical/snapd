@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
+	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/logger"
@@ -116,16 +117,16 @@ func (s *requestrulesSuite) TestRuleValidate(c *C) {
 	c.Check(rule.Validate(currTime), IsNil)
 
 	rule.Expiration = invalidExpiration
-	c.Check(rule.Validate(currTime), ErrorMatches, fmt.Sprintf("%v:.*", prompting.ErrExpirationInThePast))
+	c.Check(rule.Validate(currTime), ErrorMatches, fmt.Sprintf("%v:.*", prompting_errors.ErrRuleExpirationInThePast))
 
 	rule.Lifespan = invalidLifespan
-	c.Check(rule.Validate(currTime), Equals, requestrules.ErrLifespanSingle)
+	c.Check(rule.Validate(currTime), ErrorMatches, prompting_errors.NewRuleLifespanSingleError(prompting.SupportedRuleLifespans).Error())
 
 	rule.Outcome = invalidOutcome
-	c.Check(rule.Validate(currTime), ErrorMatches, "internal error: invalid outcome:.*")
+	c.Check(rule.Validate(currTime), ErrorMatches, `invalid outcome: ""`)
 
 	rule.Constraints = invalidConstraints
-	c.Check(rule.Validate(currTime), ErrorMatches, "invalid constraints:.*")
+	c.Check(rule.Validate(currTime), ErrorMatches, "invalid permissions for home interface:.*")
 }
 
 func mustParsePathPattern(c *C, patternStr string) *patterns.PathPattern {
@@ -267,7 +268,7 @@ func (s *requestrulesSuite) TestLoadErrorValidate(c *C) {
 	s.writeRules(c, dbPath, rules)
 
 	checkWritten := true
-	s.testLoadError(c, "internal error: invalid constraints: unsupported interface: foo.*", rules, checkWritten)
+	s.testLoadError(c, `internal error: invalid interface: "foo".*`, rules, checkWritten)
 }
 
 // ruleTemplate returns a rule with valid contents, intended to be customized.
@@ -315,7 +316,7 @@ func (s *requestrulesSuite) TestLoadErrorConflictingID(c *C) {
 	s.writeRules(c, dbPath, rules)
 
 	checkWritten := true
-	s.testLoadError(c, fmt.Sprintf("cannot add rule: %v.*", requestrules.ErrRuleIDConflict), rules, checkWritten)
+	s.testLoadError(c, fmt.Sprintf("cannot add rule: %v.*", prompting_errors.ErrRuleIDConflict), rules, checkWritten)
 }
 
 func setPathPatternAndExpiration(c *C, rule *requestrules.Rule, pathPattern string, expiration time.Time) {
@@ -340,7 +341,7 @@ func (s *requestrulesSuite) TestLoadErrorConflictingPattern(c *C) {
 	s.writeRules(c, dbPath, rules)
 
 	checkWritten := true
-	s.testLoadError(c, fmt.Sprintf("cannot add rule: %v.*", requestrules.ErrPathPatternConflict), rules, checkWritten)
+	s.testLoadError(c, fmt.Sprintf("cannot add rule: %v.*", prompting_errors.ErrRuleConflict), rules, checkWritten)
 }
 
 func (s *requestrulesSuite) TestLoadExpiredRules(c *C) {
@@ -454,23 +455,23 @@ func (s *requestrulesSuite) TestJoinInternalErrors(c *C) {
 	errBaz := errors.New("baz")
 
 	// Check that a list containing non-nil errors results in a joined error
-	// which is ErrInternalInconsistency
+	// which is prompting_errors.ErrRuleDBInconsistent
 	errs := []error{nil, errFoo, nil}
 	err := requestrules.JoinInternalErrors(errs)
-	c.Check(errors.Is(err, requestrules.ErrInternalInconsistency), Equals, true)
+	c.Check(errors.Is(err, prompting_errors.ErrRuleDBInconsistent), Equals, true)
 	// XXX: check the following when we're on golang v1.20+
 	// c.Check(errors.Is(err, errFoo), Equals, true)
 	c.Check(errors.Is(err, errBar), Equals, false)
-	c.Check(fmt.Sprintf("%v", err), Equals, fmt.Sprintf("%v\n%v", requestrules.ErrInternalInconsistency, errFoo))
+	c.Check(err.Error(), Equals, fmt.Sprintf("%v\n%v", prompting_errors.ErrRuleDBInconsistent, errFoo))
 
 	errs = append(errs, errBar, errBaz)
 	err = requestrules.JoinInternalErrors(errs)
-	c.Check(errors.Is(err, requestrules.ErrInternalInconsistency), Equals, true)
+	c.Check(errors.Is(err, prompting_errors.ErrRuleDBInconsistent), Equals, true)
 	// XXX: check the following when we're on golang v1.20+
 	// c.Check(errors.Is(err, errFoo), Equals, true)
 	// c.Check(errors.Is(err, errBar), Equals, true)
 	// c.Check(errors.Is(err, errBaz), Equals, true)
-	c.Check(fmt.Sprintf("%v", err), Equals, fmt.Sprintf("%v\n%v\n%v\n%v", requestrules.ErrInternalInconsistency, errFoo, errBar, errBaz))
+	c.Check(err.Error(), Equals, fmt.Sprintf("%v\n%v\n%v\n%v", prompting_errors.ErrRuleDBInconsistent, errFoo, errBar, errBaz))
 }
 
 func (s *requestrulesSuite) TestClose(c *C) {
@@ -513,9 +514,9 @@ func (s *requestrulesSuite) TestCloseRepeatedly(c *C) {
 	c.Check(rdb.Close(), IsNil)
 
 	// Check that closing repeatedly results in ErrClosed
-	c.Check(rdb.Close(), Equals, requestrules.ErrClosed)
-	c.Check(rdb.Close(), Equals, requestrules.ErrClosed)
-	c.Check(rdb.Close(), Equals, requestrules.ErrClosed)
+	c.Check(rdb.Close(), Equals, prompting_errors.ErrRulesClosed)
+	c.Check(rdb.Close(), Equals, prompting_errors.ErrRulesClosed)
+	c.Check(rdb.Close(), Equals, prompting_errors.ErrRulesClosed)
 }
 
 func (s *requestrulesSuite) TestCloseErrors(c *C) {
@@ -647,38 +648,38 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 	}{
 		{ // Non-empty duration with lifespan Forever
 			&addRuleContents{Duration: "10m"},
-			"cannot have specified duration.*",
+			"invalid duration: cannot have specified duration.*",
 		},
 		{ // Empty duration with lifespan Timespan
 			&addRuleContents{Lifespan: prompting.LifespanTimespan},
-			"cannot have unspecified duration.*",
+			"invalid duration: cannot have unspecified duration.*",
 		},
 		{ // Invalid duration
 			&addRuleContents{Lifespan: prompting.LifespanTimespan, Duration: "invalid"},
-			"cannot parse duration:.*",
+			"invalid duration: cannot parse duration:.*",
 		},
 		{ // Negative duration
 			&addRuleContents{Lifespan: prompting.LifespanTimespan, Duration: "-10s"},
-			"cannot have zero or negative duration:.*",
+			"invalid duration: cannot have zero or negative duration:.*",
 		},
 		{ // Invalid lifespan
 			&addRuleContents{Lifespan: prompting.LifespanType("invalid")},
-			"internal error: invalid lifespan:.*",
+			`invalid lifespan: "invalid"`,
 		},
 		{ // Invalid outcome
 			&addRuleContents{Outcome: prompting.OutcomeType("invalid")},
-			"internal error: invalid outcome:.*",
+			`invalid outcome: "invalid"`,
 		},
 		{ // Invalid lifespan (for rules)
 			&addRuleContents{Lifespan: prompting.LifespanSingle},
-			fmt.Sprintf("%v", requestrules.ErrLifespanSingle),
+			prompting_errors.NewRuleLifespanSingleError(prompting.SupportedRuleLifespans).Error(),
 		},
 		{ // Conflicting rule
 			&addRuleContents{
 				PathPattern: "/home/test/Pictures/**/*.{svg,jpg}",
 				Permissions: []string{"read", "write"},
 			},
-			fmt.Sprintf("cannot add rule: %v: conflicts:.* permission: 'write'", requestrules.ErrPathPatternConflict),
+			fmt.Sprintf("cannot add rule: %v", prompting_errors.ErrRuleConflict),
 		},
 	} {
 		result, err := addRuleFromTemplate(c, rdb, template, testCase.contents)
@@ -690,8 +691,8 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 		finalErr = err
 	}
 
-	// Check that the conflicting rule error can be unwrapped as ErrPathPatternConflict
-	c.Check(errors.Is(finalErr, requestrules.ErrPathPatternConflict), Equals, true)
+	// Check that the conflicting rule error can be unwrapped as ErrRuleConflict
+	c.Check(errors.Is(finalErr, prompting_errors.ErrRuleConflict), Equals, true)
 
 	// Failure to save rule DB should roll-back adding the rule and leave the
 	// DB unchanged. Set DB parent directory as read-only.
@@ -709,7 +710,7 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 	// immediately.
 	c.Assert(rdb.Close(), IsNil)
 	result, err = addRuleFromTemplate(c, rdb, template, &addRuleContents{Permissions: []string{"execute"}})
-	c.Check(err, Equals, requestrules.ErrClosed)
+	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
 	c.Check(result, IsNil)
 	// Failure should result in no changes to written rules and no notices
 	s.checkWrittenRuleDB(c, []*requestrules.Rule{good})
@@ -828,7 +829,7 @@ func (s *requestrulesSuite) TestIsPathAllowedSimple(c *C) {
 		{ // No rules
 			ruleContents: nil,
 			allowed:      false,
-			err:          requestrules.ErrNoMatchingRule,
+			err:          prompting_errors.ErrNoMatchingRule,
 		},
 		{ // Matching allow rule
 			ruleContents: template,
@@ -853,22 +854,22 @@ func (s *requestrulesSuite) TestIsPathAllowedSimple(c *C) {
 		{ // Rule with wrong user
 			ruleContents: &addRuleContents{User: s.defaultUser + 1},
 			allowed:      false,
-			err:          requestrules.ErrNoMatchingRule,
+			err:          prompting_errors.ErrNoMatchingRule,
 		},
 		{ // Rule with wrong snap
 			ruleContents: &addRuleContents{Snap: "thunderbird"},
 			allowed:      false,
-			err:          requestrules.ErrNoMatchingRule,
+			err:          prompting_errors.ErrNoMatchingRule,
 		},
 		{ // Rule with wrong pattern
 			ruleContents: &addRuleContents{PathPattern: "/home/test/path/to/other.txt"},
 			allowed:      false,
-			err:          requestrules.ErrNoMatchingRule,
+			err:          prompting_errors.ErrNoMatchingRule,
 		},
 		{ // Rule with wrong permissions
 			ruleContents: &addRuleContents{Permissions: []string{"write"}},
 			allowed:      false,
-			err:          requestrules.ErrNoMatchingRule,
+			err:          prompting_errors.ErrNoMatchingRule,
 		},
 	} {
 		rdb, err := requestrules.New(s.defaultNotifyRule)
@@ -1064,12 +1065,12 @@ func (s *requestrulesSuite) TestRuleWithID(c *C) {
 
 	// Should not find rule for correct user and incorrect ID
 	accessedRule, err = rdb.RuleWithID(s.defaultUser, prompting.IDType(1234567890))
-	c.Check(err, Equals, requestrules.ErrRuleIDNotFound)
+	c.Check(err, Equals, prompting_errors.ErrRuleNotFound)
 	c.Check(accessedRule, IsNil)
 
 	// Should not find rule for incorrect user and correct ID
 	accessedRule, err = rdb.RuleWithID(s.defaultUser+1, rule.ID)
-	c.Check(err, Equals, requestrules.ErrUserNotAllowed)
+	c.Check(err, Equals, prompting_errors.ErrRuleNotAllowed)
 	c.Check(accessedRule, IsNil)
 
 	// Reading (or failing to read) a notice should not record a notice
@@ -1235,7 +1236,7 @@ func (s *requestrulesSuite) testRemoveRule(c *C, rdb *requestrules.RuleDB, rule 
 
 	// Post-check that rule no longer exists
 	missing, err := rdb.RuleWithID(rule.User, rule.ID)
-	c.Check(err, Equals, requestrules.ErrRuleIDNotFound)
+	c.Check(err, Equals, prompting_errors.ErrRuleNotFound)
 	c.Check(missing, IsNil)
 }
 
@@ -1248,12 +1249,12 @@ func (s *requestrulesSuite) TestRemoveRuleErrors(c *C) {
 
 	// Attempt to remove rule with wrong user
 	result, err := rdb.RemoveRule(rule.User+1, rule.ID)
-	c.Check(err, Equals, requestrules.ErrUserNotAllowed)
+	c.Check(err, Equals, prompting_errors.ErrRuleNotAllowed)
 	c.Check(result, IsNil)
 
 	// Attempt to remove rule with wrong ID
 	result, err = rdb.RemoveRule(rule.User, rule.ID+1234)
-	c.Check(err, Equals, requestrules.ErrRuleIDNotFound)
+	c.Check(err, Equals, prompting_errors.ErrRuleNotFound)
 	c.Check(result, IsNil)
 
 	// Failure to save rule DB should roll-back removal and leave DB unchanged.
@@ -1439,17 +1440,17 @@ func (s *requestrulesSuite) TestRemoveRulesForSnapInterfaceErrors(c *C) {
 	c.Assert(err, IsNil)
 
 	removed, err = rdb.RemoveRulesForSnap(s.defaultUser, "amberol")
-	c.Check(err, Equals, requestrules.ErrClosed)
+	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
 	c.Check(removed, IsNil)
 	c.Check(rdb.Rules(s.defaultUser), DeepEquals, rules[:4])
 
 	removed, err = rdb.RemoveRulesForInterface(s.defaultUser, "audio-playback")
-	c.Check(err, Equals, requestrules.ErrClosed)
+	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
 	c.Check(removed, IsNil)
 	c.Check(rdb.Rules(s.defaultUser), DeepEquals, rules[:4])
 
 	removed, err = rdb.RemoveRulesForSnapInterface(s.defaultUser, "amberol", "audio-playback")
-	c.Check(err, Equals, requestrules.ErrClosed)
+	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
 	c.Check(removed, IsNil)
 	c.Check(rdb.Rules(s.defaultUser), DeepEquals, rules[:4])
 
@@ -1609,21 +1610,21 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 
 	// Wrong user
 	result, err := rdb.PatchRule(rule.User+1, rule.ID, nil, prompting.OutcomeUnset, prompting.LifespanUnset, "")
-	c.Check(err, Equals, requestrules.ErrUserNotAllowed)
+	c.Check(err, Equals, prompting_errors.ErrRuleNotAllowed)
 	c.Check(result, IsNil)
 	s.checkWrittenRuleDB(c, rules)
 	s.checkNewNoticesSimple(c, nil)
 
 	// Wrong ID
 	result, err = rdb.PatchRule(rule.User, prompting.IDType(1234), nil, prompting.OutcomeUnset, prompting.LifespanUnset, "")
-	c.Check(err, Equals, requestrules.ErrRuleIDNotFound)
+	c.Check(err, Equals, prompting_errors.ErrRuleNotFound)
 	c.Check(result, IsNil)
 	s.checkWrittenRuleDB(c, rules)
 	s.checkNewNoticesSimple(c, nil)
 
 	// Invalid lifespan
 	result, err = rdb.PatchRule(rule.User, rule.ID, nil, prompting.OutcomeUnset, prompting.LifespanSingle, "")
-	c.Check(err, Equals, requestrules.ErrLifespanSingle)
+	c.Check(err, ErrorMatches, prompting_errors.NewRuleLifespanSingleError(prompting.SupportedRuleLifespans).Error())
 	c.Check(result, IsNil)
 	s.checkWrittenRuleDB(c, rules)
 	s.checkNewNoticesSimple(c, nil)
@@ -1634,7 +1635,7 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 		Permissions: []string{"read", "write", "execute"},
 	}
 	result, err = rdb.PatchRule(rule.User, rule.ID, conflictingConstraints, prompting.OutcomeUnset, prompting.LifespanUnset, "")
-	c.Check(err, ErrorMatches, fmt.Sprintf("cannot patch rule: %v: conflicts:.* permission: 'write'", requestrules.ErrPathPatternConflict))
+	c.Check(err, ErrorMatches, fmt.Sprintf("cannot patch rule: %v", prompting_errors.ErrRuleConflict))
 	c.Check(result, IsNil)
 	s.checkWrittenRuleDB(c, rules)
 	s.checkNewNoticesSimple(c, nil)
@@ -1653,7 +1654,7 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 	// DB Closed
 	c.Assert(rdb.Close(), IsNil)
 	result, err = rdb.PatchRule(rule.User, rule.ID, nil, prompting.OutcomeUnset, prompting.LifespanUnset, "")
-	c.Check(err, Equals, requestrules.ErrClosed)
+	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
 	c.Check(result, IsNil)
 	s.checkWrittenRuleDB(c, rules)
 	s.checkNewNoticesSimple(c, nil)

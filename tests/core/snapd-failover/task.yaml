@@ -38,6 +38,8 @@ restore: |
 
 debug: |
     # dump failure data
+    systemctl status snapd.socket
+    systemctl status snapd.service
     "$TESTSTOOLS"/journal-state get-log -u snapd.failure.service
     "$TESTSTOOLS"/journal-state get-log -u snapd.socket
     if os.query is-core16; then
@@ -132,7 +134,9 @@ execute: |
         # it will be able to revert and fallback as many times as needed
         #shellcheck disable=SC2167
         for _ in $(seq 1 2); do
-            started_before="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Starting Failure handling of the snapd snap.' || true)"
+            # look for a log indicating that the failure service has finished
+            # running, such that we know that the failure recovery is complete
+            finished_before="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Finished Failure handling of the snapd snap.' || true)"
 
             echo "Install the broken snapd"
             if snap install --dangerous ./snapd-broken/snapd_*.snap; then
@@ -143,9 +147,9 @@ execute: |
             echo "Verify that snapd.failure was activated when we tried to install a broken snapd"
             #shellcheck disable=SC2165
             for _ in $(seq 60); do
-                # get the number of times that snapd.failure was started
-                started_after="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Starting Failure handling of the snapd snap.' || true)"
-                if [ "$started_after" -gt "$started_before" ] ; then
+                # get the number of times that snapd.failure finished
+                finished_after="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Finished Failure handling of the snapd snap.' || true)"
+                if [ "$finished_after" -gt "$finished_before" ] ; then
                     break
                 fi
                 sleep 1

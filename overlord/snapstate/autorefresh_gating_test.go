@@ -3181,18 +3181,21 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 			Revision:      snap.R(1),
 			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
+			Resources:     make(map[string]snap.Revision),
 		}, {
 			InstanceName:  "some-other-snap",
 			SnapID:        "some-other-snap-id",
 			Revision:      snap.R(1),
 			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
+			Resources:     make(map[string]snap.Revision),
 		}, {
 			InstanceName:  "some-snap",
 			SnapID:        "some-snap-id",
 			Revision:      snap.R(1),
 			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
+			Resources:     make(map[string]snap.Revision),
 		}},
 	}, {
 		op: "storesvc-snap-action:action",

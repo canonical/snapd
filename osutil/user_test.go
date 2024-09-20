@@ -666,3 +666,66 @@ func (s *ensureUserSuite) TestEnsureSnapUserGroupFailedUseraddCoreNoExtra(c *che
 		{"groupdel", "--extrausers", "lakatos"},
 	})
 }
+
+func (s *ensureUserSuite) TestUsersToUids(c *check.C) {
+	r := osutil.MockUserLookup(func(username string) (*user.User, error) {
+		switch username {
+		case "test":
+			return &user.User{
+				Uid:      "1000",
+				Gid:      "1000",
+				Username: username,
+				Name:     "test-user",
+				HomeDir:  "~",
+			}, nil
+		case "root":
+			return &user.User{
+				Uid:      "0",
+				Gid:      "0",
+				Username: username,
+				Name:     "root",
+				HomeDir:  "/",
+			}, nil
+		default:
+			return nil, fmt.Errorf("unexpected username in test: %s", username)
+		}
+	})
+	defer r()
+
+	users, err := osutil.UsernamesToUids([]string{"root", "test"})
+	c.Assert(err, check.IsNil)
+	c.Check(users, check.DeepEquals, map[int]string{
+		0:    "root",
+		1000: "test",
+	})
+}
+
+func (s *ensureUserSuite) TestUsersToUidsEmpty(c *check.C) {
+	users, err := osutil.UsernamesToUids([]string{})
+	c.Assert(err, check.IsNil)
+	c.Check(users, check.DeepEquals, map[int]string{})
+}
+
+func (s *ensureUserSuite) TestUsersToUidsFails(c *check.C) {
+	r := osutil.MockUserLookup(func(username string) (*user.User, error) {
+		c.Check(username, check.Equals, "test")
+		return nil, fmt.Errorf("oh no")
+	})
+	defer r()
+
+	_, err := osutil.UsernamesToUids([]string{"test"})
+	c.Assert(err, check.ErrorMatches, `oh no`)
+}
+
+func (s *ensureUserSuite) TestUsersToUidsFailsInvalidUid(c *check.C) {
+	r := osutil.MockUserLookup(func(username string) (*user.User, error) {
+		c.Check(username, check.Equals, "root")
+		return &user.User{
+			Uid: "hello",
+		}, nil
+	})
+	defer r()
+
+	_, err := osutil.UsernamesToUids([]string{"root"})
+	c.Assert(err, check.ErrorMatches, `strconv.Atoi: parsing "hello": invalid syntax`)
+}

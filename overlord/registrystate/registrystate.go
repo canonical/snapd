@@ -229,23 +229,23 @@ func RegistryTransaction(ctx *hookstate.Context, reg *registry.Registry) (*Trans
 }
 
 func createChangeRegistryTasks(st *state.State, chg *state.Change, tx *Transaction, view *registry.View, callingSnap string) error {
-	managerPlugs, err := getManagerPlugsForView(st, view)
+	custodianPlugs, err := getCustodianPlugsForView(st, view)
 	if err != nil {
 		return err
 	}
 
-	if len(managerPlugs) == 0 {
-		return fmt.Errorf("cannot commit changes to registry %s/%s: no manager snap installed", view.Registry().Account, view.Registry().Name)
+	if len(custodianPlugs) == 0 {
+		return fmt.Errorf("cannot commit changes to registry %s/%s: no custodian snap installed", view.Registry().Account, view.Registry().Name)
 	}
 
-	managerNames := make([]string, 0, len(managerPlugs))
-	for name := range managerPlugs {
-		managerNames = append(managerNames, name)
+	custodianNames := make([]string, 0, len(custodianPlugs))
+	for name := range custodianPlugs {
+		custodianNames = append(custodianNames, name)
 	}
 
 	// process the change/save hooks in a deterministic order (useful for testing
 	// and potentially for the snaps themselves)
-	sort.Strings(managerNames)
+	sort.Strings(custodianNames)
 
 	var tasks []*state.Task
 	linkTask := func(t *state.Task) {
@@ -262,10 +262,10 @@ func createChangeRegistryTasks(st *state.State, chg *state.Change, tx *Transacti
 
 	// look for plugs that reference the relevant view and create run-hooks for
 	// them, if the snap has those hooks
-	for _, name := range managerNames {
-		plug := managerPlugs[name]
-		manager := plug.Snap
-		if _, ok := manager.Hooks["change-view-"+plug.Name]; !ok {
+	for _, name := range custodianNames {
+		plug := custodianPlugs[name]
+		custodian := plug.Snap
+		if _, ok := custodian.Hooks["change-view-"+plug.Name]; !ok {
 			continue
 		}
 
@@ -275,10 +275,10 @@ func createChangeRegistryTasks(st *state.State, chg *state.Change, tx *Transacti
 		linkTask(chgViewTask)
 	}
 
-	for _, name := range managerNames {
-		plug := managerPlugs[name]
-		manager := plug.Snap
-		if _, ok := manager.Hooks["save-view-"+plug.Name]; !ok {
+	for _, name := range custodianNames {
+		plug := custodianPlugs[name]
+		custodian := plug.Snap
+		if _, ok := custodian.Hooks["save-view-"+plug.Name]; !ok {
 			continue
 		}
 
@@ -317,7 +317,7 @@ func createChangeRegistryTasks(st *state.State, chg *state.Change, tx *Transacti
 		}
 	}
 
-	// commit after managers save ephemeral data
+	// commit after custodians save ephemeral data
 	commitTask := st.NewTask("commit-registry-tx", fmt.Sprintf("Commit changes to registry \"%s/%s\"", view.Registry().Account, view.Registry().Name))
 	commitTask.Set("registry-transaction", tx)
 	// link all previous tasks to the commit task that carries the transaction
@@ -334,11 +334,11 @@ func createChangeRegistryTasks(st *state.State, chg *state.Change, tx *Transacti
 	return nil
 }
 
-func getManagerPlugsForView(st *state.State, view *registry.View) (map[string]*snap.PlugInfo, error) {
+func getCustodianPlugsForView(st *state.State, view *registry.View) (map[string]*snap.PlugInfo, error) {
 	repo := ifacerepo.Get(st)
 	plugs := repo.AllPlugs("registry")
 
-	managers := make(map[string]*snap.PlugInfo)
+	custodians := make(map[string]*snap.PlugInfo)
 	for _, plug := range plugs {
 		conns, err := repo.Connected(plug.Snap.InstanceName(), plug.Name)
 		if err != nil {
@@ -348,7 +348,7 @@ func getManagerPlugsForView(st *state.State, view *registry.View) (map[string]*s
 			continue
 		}
 
-		if role, ok := plug.Attrs["role"]; !ok || role != "manager" {
+		if role, ok := plug.Attrs["role"]; !ok || role != "custodian" {
 			continue
 		}
 
@@ -365,10 +365,10 @@ func getManagerPlugsForView(st *state.State, view *registry.View) (map[string]*s
 		// TODO: if a snap has more than one plug providing access to a view, then
 		// which plug we're getting here becomes unpredictable. We should check
 		// for this at some point (interface connection?)
-		managers[plug.Snap.SnapName()] = plug
+		custodians[plug.Snap.SnapName()] = plug
 	}
 
-	return managers, nil
+	return custodians, nil
 }
 
 func getPlugsAffectedByPaths(st *state.State, registry *registry.Registry, storagePaths []string) (map[string][]*snap.PlugInfo, error) {
@@ -437,4 +437,8 @@ func GetStoredTransaction(t *state.Task) (*Transaction, *state.Task, error) {
 	}
 
 	return tx, ct, nil
+}
+
+func setTransaction(t *state.Task, tx *Transaction) {
+	t.Set("registry-transaction", tx)
 }

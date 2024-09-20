@@ -56,6 +56,10 @@ execute: |
         skip="${skip:-} SKIP_NAKEDRET=1"
     fi
 
+    # golangci-lint checks are system agnostic and were already checked in the github
+    # test workflow static checks. They can therefore be safely skipped here.
+    skip="${skip:-} SKIP_GOLANGCI_LINT=1"
+
     if not os.query is-trusty; then
         if [ "$VARIANT" = "static" ] ; then
             tests.session -u test exec sh -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \

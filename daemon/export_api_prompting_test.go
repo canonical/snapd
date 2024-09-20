@@ -25,6 +25,9 @@ import (
 
 var (
 	GetUserID = getUserID
+
+	PromptingNotRunningError = promptingNotRunningError
+	PromptingError           = promptingError
 )
 
 type PostPromptBody postPromptBody

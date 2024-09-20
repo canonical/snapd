@@ -171,6 +171,11 @@ var (
 	CheckDBusServiceConflicts = checkDBusServiceConflicts
 )
 
+// desktop-file-ids
+var (
+	CheckDesktopFileIDsConflicts = checkDesktopFileIDsConflicts
+)
+
 // readme files
 var (
 	WriteSnapReadme = writeSnapReadme
@@ -336,6 +341,7 @@ var (
 )
 
 type AuxStoreInfo = auxStoreInfo
+type DisabledServices = disabledServices
 
 // link, misc handlers
 var (

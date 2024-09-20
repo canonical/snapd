@@ -1,25 +1,24 @@
-summary: Ensure the snapd snap transition works
+summary: Ensure snapd-snap experimental flag based transition to snapd snap works.
 
 details: |
-    Ensure the snapd snap transition feature works
+    Ensure that we can transition classic systems from core snap
+    to snapd snap using the snapd-snap experimental flag.
 
-# ubuntu-core-18+ already has the snapd snap
-# FIXME: ubuntu-core-16 needs special code for the transition
-systems: [-ubuntu-core-18-*, -ubuntu-core-2*, -ubuntu-core-16-*]
+# Exclude Ubuntu Core systems - require proper remodeling
+systems: [-ubuntu-core-*]
 
-execute: |
-    echo "Ensure no snapd snap is installed"
+prepare: |
     # remove all snaps to remove snapd
     snap remove core
     # this is only possible when snapd is the only installed snap
     snap remove snapd
-    # we should now be running from the distro package
+    # at this point we expect to be running from the distro package
     systemctl restart snapd.service
 
-    # TODO the test should install the snapd snap we built
+    # transition from core snap to snapd snap
     snap install --dangerous "$TESTSTMP"/core_snap/core_*.snap
-
-    echo "Enable the snapd snap"
+execute: |
+    echo "Enable the snapd snap experimental feature"
     snap set core experimental.snapd-snap=true
 
     for _ in $(seq 30); do
@@ -31,4 +30,3 @@ execute: |
     done
     snap list snapd
     snap changes | MATCH "Transition to the snapd snap"
-    

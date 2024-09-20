@@ -788,9 +788,13 @@ restore_suite_each() {
     done
 
     if [[ "$variant" = full ]]; then
-        # reset the failed status of snapd, snapd.socket, and snapd.failure.socket
-        # to prevent hitting the system restart rate-limit for these services
-        systemctl reset-failed snapd.service snapd.socket snapd.failure.service
+        # Reset the failed status of snapd, snapd.socket, and snapd.failure.socket
+        # to prevent hitting the system restart rate-limit for these services.
+        systemctl reset-failed snapd.service snapd.socket
+        # This unit may not be present, it is masked on some systems.
+        if systemctl status snapd.failure.service; then
+            systemctl reset-failed snapd.failure.service
+        fi
     fi
 
     if [[ "$variant" = full ]]; then

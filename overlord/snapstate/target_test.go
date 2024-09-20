@@ -3,9 +3,13 @@ package snapstate_test
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -13,13 +17,13 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-type TargetTestSuite struct {
+type targetTestSuite struct {
 	snapmgrBaseTest
 }
 
-var _ = Suite(&TargetTestSuite{})
+var _ = Suite(&targetTestSuite{})
 
-func (s *TargetTestSuite) TestInstallWithComponents(c *C) {
+func (s *targetTestSuite) TestInstallWithComponents(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -70,7 +74,7 @@ func (s *TargetTestSuite) TestInstallWithComponents(c *C) {
 	c.Check(compsups[0].CompSideInfo.Component.ComponentName, Equals, compName)
 }
 
-func (s *TargetTestSuite) TestInstallWithComponentsMissingResource(c *C) {
+func (s *targetTestSuite) TestInstallWithComponentsMissingResource(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -108,7 +112,7 @@ func (s *TargetTestSuite) TestInstallWithComponentsMissingResource(c *C) {
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`.*cannot find component "%s" in snap resources`, compName))
 }
 
-func (s *TargetTestSuite) TestInstallWithComponentsWrongType(c *C) {
+func (s *targetTestSuite) TestInstallWithComponentsWrongType(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -148,7 +152,7 @@ func (s *TargetTestSuite) TestInstallWithComponentsWrongType(c *C) {
 	))
 }
 
-func (s *TargetTestSuite) TestInstallWithComponentsOtherResource(c *C) {
+func (s *targetTestSuite) TestInstallWithComponentsOtherResource(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -187,7 +191,7 @@ func (s *TargetTestSuite) TestInstallWithComponentsOtherResource(c *C) {
 		`.*"otherresource/restype" is not a component resource`))
 }
 
-func (s *TargetTestSuite) TestInstallWithComponentsMissingInInfo(c *C) {
+func (s *targetTestSuite) TestInstallWithComponentsMissingInInfo(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -225,7 +229,7 @@ func (s *TargetTestSuite) TestInstallWithComponentsMissingInInfo(c *C) {
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`.*"%s" is not a component for snap "%s"`, compName, snapName))
 }
 
-func (s *TargetTestSuite) TestInstallWithComponentsFromPath(c *C) {
+func (s *targetTestSuite) TestInstallWithComponentsFromPath(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -234,8 +238,8 @@ func (s *TargetTestSuite) TestInstallWithComponentsFromPath(c *C) {
 		snapID   = "some-snap-id"
 		compName = "test-component"
 		snapYaml = `name: some-snap
-version: 1.0
 type: kernel
+version: 1.0
 components:
   test-component:
     type: test
@@ -271,12 +275,11 @@ version: 1.0
 
 	c.Check(info.InstanceName(), Equals, snapName)
 	c.Check(info.Components[compName].Name, Equals, compName)
-	release.OnClassic = false
 
-	verifyInstallTasksWithComponents(c, snap.TypeKernel, localSnap, 0, []string{compName}, ts)
+	verifyInstallTasksWithComponents(c, snap.TypeKernel, localSnap|updatesGadgetAssets, 0, []string{compName}, ts)
 }
 
-func (s *TargetTestSuite) TestInstallWithComponentsMixedAssertedCompsAndUnassertedSnap(c *C) {
+func (s *targetTestSuite) TestInstallWithComponentsMixedAssertedCompsAndUnassertedSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -319,7 +322,7 @@ version: 1.0
 	c.Assert(err, ErrorMatches, "cannot mix unasserted snap and asserted components")
 }
 
-func (s *TargetTestSuite) TestInstallWithComponentsMixedUnassertedCompsAndAssertedSnap(c *C) {
+func (s *targetTestSuite) TestInstallWithComponentsMixedUnassertedCompsAndAssertedSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -364,7 +367,7 @@ version: 1.0
 	c.Assert(err, ErrorMatches, "cannot mix asserted snap and unasserted components")
 }
 
-func (s *TargetTestSuite) TestUpdateSnapNotInstalled(c *C) {
+func (s *targetTestSuite) TestUpdateSnapNotInstalled(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -379,7 +382,7 @@ func (s *TargetTestSuite) TestUpdateSnapNotInstalled(c *C) {
 	c.Assert(err, ErrorMatches, `snap "some-snap" is not installed`)
 }
 
-func (s *TargetTestSuite) TestInvalidPathGoals(c *C) {
+func (s *targetTestSuite) TestInvalidPathGoals(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -439,7 +442,7 @@ func (s *TargetTestSuite) TestInvalidPathGoals(c *C) {
 	}
 }
 
-func (s *TargetTestSuite) TestInstallFromStoreDefaultChannel(c *C) {
+func (s *targetTestSuite) TestInstallFromStoreDefaultChannel(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -458,7 +461,7 @@ func (s *TargetTestSuite) TestInstallFromStoreDefaultChannel(c *C) {
 	c.Check(snapsup.Channel, Equals, "stable")
 }
 
-func (s *TargetTestSuite) TestInstallFromPathDefaultChannel(c *C) {
+func (s *targetTestSuite) TestInstallFromPathDefaultChannel(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -487,7 +490,51 @@ components:
 	c.Check(snapsup.Channel, Equals, "")
 }
 
-func (s *TargetTestSuite) TestInstallFromPathSideInfoChannel(c *C) {
+func (s *targetTestSuite) TestInstallComponentsFromPathInvalidComponentFile(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// use the real thing for this one
+	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
+
+	const (
+		snapID        = "test-snap-id"
+		snapName      = "test-snap"
+		componentName = "test-component"
+	)
+	snapRevision := snap.R(11)
+
+	csi := snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, componentName),
+		Revision:  snap.R(1),
+	}
+
+	compPath := filepath.Join(c.MkDir(), "invalid-component")
+	err := os.WriteFile(compPath, []byte("invalid-component"), 0644)
+	c.Assert(err, IsNil)
+
+	components := map[*snap.ComponentSideInfo]string{
+		&csi: compPath,
+	}
+
+	snapPath := makeTestSnap(c, `name: test-snap
+version: 1.0
+components:
+  test-component:
+    type: test
+`)
+	si := &snap.SideInfo{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snapRevision,
+	}
+
+	goal := snapstate.PathInstallGoal(snapName, snapPath, si, components, snapstate.RevisionOptions{})
+	_, _, err = snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`.*cannot process snap or snapdir: file "%s" is invalid.*`, compPath))
+}
+
+func (s *targetTestSuite) TestInstallFromPathSideInfoChannel(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -517,7 +564,7 @@ components:
 	c.Check(snapsup.Channel, Equals, "edge")
 }
 
-func (s *TargetTestSuite) TestInstallFromPathRevOptsChannel(c *C) {
+func (s *targetTestSuite) TestInstallFromPathRevOptsChannel(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -551,7 +598,7 @@ components:
 	c.Check(snapsup.Channel, Equals, "edge")
 }
 
-func (s *TargetTestSuite) TestInstallFromPathRevOptsSideInfoChannelMismatch(c *C) {
+func (s *targetTestSuite) TestInstallFromPathRevOptsSideInfoChannelMismatch(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -576,7 +623,7 @@ components:
 	c.Assert(err, ErrorMatches, `cannot install local snap "some-snap": edge != stable \(channel mismatch\)`)
 }
 
-func (s *TargetTestSuite) TestInstallFromStoreRevisionAndChannel(c *C) {
+func (s *targetTestSuite) TestInstallFromStoreRevisionAndChannel(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -600,7 +647,7 @@ func (s *TargetTestSuite) TestInstallFromStoreRevisionAndChannel(c *C) {
 	c.Check(snapsup.Revision(), Equals, snap.R(7))
 }
 
-func (s *TargetTestSuite) TestInstallFromStoreRevisionAndChannelWithRedirectChannel(c *C) {
+func (s *targetTestSuite) TestInstallFromStoreRevisionAndChannelWithRedirectChannel(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -626,4 +673,369 @@ func (s *TargetTestSuite) TestInstallFromStoreRevisionAndChannelWithRedirectChan
 	c.Assert(err, IsNil)
 	c.Check(snapsup.Channel, Equals, "2.0/stable")
 	c.Check(snapsup.Revision(), Equals, snap.R(7))
+}
+
+func (s *targetTestSuite) TestUpdateComponents(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const (
+		snapName = "some-snap"
+		snapID   = "some-snap-id"
+		compName = "test-component"
+		channel  = "channel-for-components"
+	)
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snap.R(7),
+	}})
+
+	seq.AddComponentForRevision(snap.R(7), &sequence.ComponentState{
+		SideInfo: &snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, compName),
+			Revision:  snap.R(1),
+		},
+		CompType: snap.TestComponent,
+	})
+
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(
+		compMntDir string, info *snap.Info, csi *snap.ComponentSideInfo,
+	) (*snap.ComponentInfo, error) {
+		return &snap.ComponentInfo{
+			Component:         naming.NewComponentRef(info.SnapName(), compName),
+			Type:              snap.TestComponent,
+			Version:           "1.0",
+			ComponentSideInfo: *csi,
+		}, nil
+	}))
+
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: channel,
+		Sequence:        seq,
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		c.Assert(info.SnapName(), DeepEquals, snapName)
+
+		return []store.SnapResourceResult{
+			{
+				DownloadInfo: snap.DownloadInfo{
+					DownloadURL: fmt.Sprintf("http://example.com/%s", snapName),
+				},
+				Name:      compName,
+				Revision:  2,
+				Type:      fmt.Sprintf("component/%s", snap.TestComponent),
+				Version:   "1.0",
+				CreatedAt: "2024-01-01T00:00:00Z",
+			},
+		}
+	}
+
+	goal := snapstate.StoreUpdateGoal(snapstate.StoreUpdate{
+		InstanceName: snapName,
+	})
+
+	ts, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	verifyUpdateTasksWithComponents(c, snap.TypeApp, doesReRefresh, 0, []string{compName}, ts)
+}
+
+func (s *targetTestSuite) TestUpdateComponentsFromPath(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const (
+		snapName = "some-snap"
+		snapID   = "some-snap-id"
+		compName = "test-component"
+		channel  = "channel-for-components"
+		snapYaml = `name: some-snap
+type: kernel
+version: 1.0
+components:
+  test-component:
+    type: test
+  kernel-modules-component:
+    type: kernel-modules
+epoch: 1
+`
+		componentYaml = `component: some-snap+test-component
+type: test
+version: 1.0
+`
+	)
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snap.R(7),
+	}})
+
+	seq.AddComponentForRevision(snap.R(7), &sequence.ComponentState{
+		SideInfo: &snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, compName),
+			Revision:  snap.R(1),
+		},
+		CompType: snap.TestComponent,
+	})
+
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: channel,
+		Sequence:        seq,
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+
+	si := &snap.SideInfo{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snap.R(9),
+	}
+	snapPath := makeTestSnap(c, snapYaml)
+
+	csi := &snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, compName),
+		Revision:  snap.R(2),
+	}
+	components := map[*snap.ComponentSideInfo]string{
+		csi: snaptest.MakeTestComponent(c, componentYaml),
+	}
+
+	goal := snapstate.PathUpdateGoal(snapstate.PathSnap{
+		InstanceName: snapName,
+		Path:         snapPath,
+		SideInfo:     si,
+		Components:   components,
+	})
+
+	ts, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	verifyUpdateTasksWithComponents(c, snap.TypeApp, doesReRefresh|localSnap|updatesGadgetAssets, 0, []string{compName}, ts)
+}
+
+func (s *targetTestSuite) TestUpdateComponentsFromPathInvalidComponentFile(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const (
+		snapName = "some-snap"
+		snapID   = "some-snap-id"
+		compName = "test-component"
+		channel  = "channel-for-components"
+		snapYaml = `name: some-snap
+type: kernel
+version: 1.0
+components:
+  test-component:
+    type: test
+  kernel-modules-component:
+    type: kernel-modules
+epoch: 1
+`
+		componentYaml = `component: some-snap+test-component
+type: test
+version: 1.0
+`
+	)
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snap.R(7),
+	}})
+
+	seq.AddComponentForRevision(snap.R(7), &sequence.ComponentState{
+		SideInfo: &snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, compName),
+			Revision:  snap.R(1),
+		},
+		CompType: snap.TestComponent,
+	})
+
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: channel,
+		Sequence:        seq,
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+
+	si := &snap.SideInfo{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snap.R(9),
+	}
+	snapPath := makeTestSnap(c, snapYaml)
+
+	csi := snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, compName),
+		Revision:  snap.R(2),
+	}
+
+	compPath := filepath.Join(c.MkDir(), "invalid-component")
+	err := os.WriteFile(compPath, []byte("invalid-component"), 0644)
+	c.Assert(err, IsNil)
+
+	components := map[*snap.ComponentSideInfo]string{
+		&csi: compPath,
+	}
+
+	goal := snapstate.PathUpdateGoal(snapstate.PathSnap{
+		InstanceName: snapName,
+		Path:         snapPath,
+		SideInfo:     si,
+		Components:   components,
+	})
+
+	_, err = snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`.*cannot process snap or snapdir: file "%s" is invalid.*`, compPath))
+}
+
+func (s *targetTestSuite) TestUpdateComponentsFromPathInvalidComponentName(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const (
+		snapName = "some-snap"
+		snapID   = "some-snap-id"
+		compName = "test-component"
+		snapYaml = `name: some-snap
+type: kernel
+version: 1.0
+components:
+  test-component:
+    type: test
+  kernel-modules-component:
+    type: kernel-modules
+epoch: 1
+`
+		componentYaml = `component: some-snap+test-component
+type: test
+version: 1.0
+`
+	)
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snap.R(7),
+	}})
+
+	seq.AddComponentForRevision(snap.R(7), &sequence.ComponentState{
+		SideInfo: &snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, compName),
+			Revision:  snap.R(1),
+		},
+		CompType: snap.TestComponent,
+	})
+
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active:   true,
+		Sequence: seq,
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	si := &snap.SideInfo{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snap.R(9),
+	}
+	snapPath := makeTestSnap(c, snapYaml)
+
+	badName := "Bad-component"
+	csi := snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, badName),
+		Revision:  snap.R(2),
+	}
+
+	compPath := filepath.Join(c.MkDir(), "invalid-component")
+	err := os.WriteFile(compPath, []byte("invalid-component"), 0644)
+	c.Assert(err, IsNil)
+
+	components := map[*snap.ComponentSideInfo]string{
+		&csi: compPath,
+	}
+
+	goal := snapstate.PathUpdateGoal(snapstate.PathSnap{
+		InstanceName: snapName,
+		Path:         snapPath,
+		SideInfo:     si,
+		Components:   components,
+	})
+
+	_, err = snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`invalid snap name: "%s"`, badName))
+}
+
+func (s *targetTestSuite) TestUpdateComponentsFromPathInvalidMissingInInfo(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const (
+		snapName = "some-snap"
+		snapID   = "some-snap-id"
+		compName = "other-component"
+		snapYaml = `name: some-snap
+type: kernel
+version: 1.0
+components:
+  test-component:
+    type: test
+  kernel-modules-component:
+    type: kernel-modules
+epoch: 1
+`
+		componentYaml = `component: some-snap+other-component
+type: test
+version: 1.0
+`
+	)
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snap.R(7),
+	}})
+
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active:   true,
+		Sequence: seq,
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	si := &snap.SideInfo{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snap.R(9),
+	}
+	snapPath := makeTestSnap(c, snapYaml)
+
+	csi := snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, compName),
+		Revision:  snap.R(2),
+	}
+
+	components := map[*snap.ComponentSideInfo]string{
+		&csi: snaptest.MakeTestComponent(c, componentYaml),
+	}
+
+	goal := snapstate.PathUpdateGoal(snapstate.PathSnap{
+		InstanceName: snapName,
+		Path:         snapPath,
+		SideInfo:     si,
+		Components:   components,
+	})
+
+	_, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`.*"%s" is not a component for snap "%s"`, compName, snapName))
 }

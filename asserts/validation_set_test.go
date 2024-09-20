@@ -127,13 +127,15 @@ func (vss *validationSetSuite) TestDecodeInvalid(c *C) {
 		{"presence: optional\n", "presence: no\n", `presence of snap "baz-linux" must be one of required\|optional\|invalid`},
 		{"revision: 99\n", "revision: 0\n", `"revision" of snap "baz-linux" must be >=1: 0`},
 		{"presence: optional\n", "presence: invalid\n", `cannot specify revision of snap "baz-linux" at the same time as stating its presence is invalid`},
-		{"OTHER", "    components:\n      comp: no\n", `presence of component "comp" must be one of required\|optional\|invalid`},
-		{"OTHER", "    components:\n      comp:\n        revision: 1\n        presence: invalid\n", `cannot specify component revision of component "comp" at the same time as stating its presence is invalid`},
+		{"OTHER", "    components:\n      comp: no\n", `presence of component "baz-linux\+comp" must be one of required\|optional\|invalid`},
+		{"OTHER", "    components:\n      comp:\n        revision: 1\n        presence: invalid\n", `cannot specify component revision of component "baz-linux\+comp" at the same time as stating its presence is invalid`},
 		{"OTHER", "    components:\n      c: optional\n", `invalid component name "c"`},
-		{"OTHER", "    components:\n      comp:\n        revision: 1\n", `"presence" of component "comp" is mandatory`},
+		{"OTHER", "    components:\n      comp:\n        revision: 1\n", `"presence" of component "baz-linux\+comp" is mandatory`},
 		{"OTHER", "    components:\n      comp:\n        - test\n", `each field in "components" map must be either a map or a string`},
-		{"OTHER", "    components:\n      comp:\n        revision: -1\n        presence: optional\n", `"revision" of component "comp" must be >=1: -1`},
+		{"OTHER", "    components:\n      comp:\n        revision: -1\n        presence: optional\n", `"revision" of component "baz-linux\+comp" must be >=1: -1`},
 		{"OTHER", "    components: some-string", `"components" field in "snaps" header must be a map`},
+		{"OTHER", "    components:\n      comp:\n        presence: optional\n", `must specify revision of component "baz-linux\+comp" since its associated snap specifies a revision`},
+		{"OTHER", "  -\n    name: foo-linux\n    id: foolinuxidididididididididididid\n    components:\n      comp:\n        revision: 1\n        presence: optional\n", `cannot specify revision of component "foo-linux\+comp" if its associated snap does not specify a revision`},
 	}
 
 	for _, test := range invalidTests {
@@ -178,10 +180,15 @@ func (vss *validationSetSuite) TestSnapComponents(c *C) {
 	encoded := strings.Replace(validationSetExample, "TSLINE", vss.tsLine, 1)
 
 	const components = `    components:
-      string-only: optional
       with-revision:
         revision: 10
         presence: required
+  -
+    name: foo-linux
+    id: foolinuxidididididididididididid
+    presence: optional
+    components:
+      string-only: optional
       no-revision:
         presence: invalid
 `
@@ -194,16 +201,17 @@ func (vss *validationSetSuite) TestSnapComponents(c *C) {
 
 	valset := a.(*asserts.ValidationSet)
 	snaps := valset.Snaps()
-	c.Assert(snaps, HasLen, 1)
-	c.Assert(snaps[0].Components, HasLen, 3)
+	c.Assert(snaps, HasLen, 2)
 
 	c.Check(snaps[0].Components, DeepEquals, map[string]asserts.ValidationSetComponent{
-		"string-only": {
-			Presence: asserts.PresenceOptional,
-		},
 		"with-revision": {
 			Presence: asserts.PresenceRequired,
 			Revision: 10,
+		},
+	})
+	c.Check(snaps[1].Components, DeepEquals, map[string]asserts.ValidationSetComponent{
+		"string-only": {
+			Presence: asserts.PresenceOptional,
 		},
 		"no-revision": {
 			Presence: asserts.PresenceInvalid,

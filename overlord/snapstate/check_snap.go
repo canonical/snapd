@@ -594,6 +594,43 @@ func checkConfigureHooks(_ *state.State, snapInfo, curInfo *snap.Info, _ snap.Co
 	return nil
 }
 
+func checkDesktopFileIDsConflicts(st *state.State, info *snap.Info) error {
+	desktopFileIDs, err := info.DesktopPlugFileIDs()
+	if err != nil {
+		return err
+	}
+
+	if len(desktopFileIDs) == 0 {
+		return nil
+	}
+
+	stateMap, err := All(st)
+	if err != nil {
+		return err
+	}
+	for instanceName, snapst := range stateMap {
+		if instanceName == info.InstanceName() {
+			continue
+		}
+
+		otherInfo, err := snapst.CurrentInfo()
+		if err != nil {
+			return err
+		}
+
+		otherDesktopFileIDs, err := otherInfo.DesktopPlugFileIDs()
+		if err != nil {
+			return err
+		}
+		for _, desktopFileID := range desktopFileIDs {
+			if strutil.ListContains(otherDesktopFileIDs, desktopFileID) {
+				return fmt.Errorf("snap %q requesting desktop-file-id %q conflicts with snap %q use", info.InstanceName(), desktopFileID, instanceName)
+			}
+		}
+	}
+	return nil
+}
+
 func init() {
 	AddCheckSnapCallback(checkCoreName)
 	AddCheckSnapCallback(checkSnapdName)

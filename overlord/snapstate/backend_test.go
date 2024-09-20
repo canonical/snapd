@@ -80,8 +80,9 @@ type fakeOp struct {
 	unlinkSkipBinaries     bool
 	skipKernelExtraction   bool
 
-	services         []string
-	disabledServices []string
+	services             []string
+	disabledServices     []string
+	disabledUserServices map[int][]string
 
 	vitalityRank int
 
@@ -261,7 +262,7 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 	switch spec.Name {
 	case "core", "core16", "ubuntu-core", "some-core":
 		typ = snap.TypeOS
-	case "some-base", "other-base", "some-other-base", "yet-another-base", "core18", "core22":
+	case "some-base", "other-base", "some-other-base", "yet-another-base", "core18", "core20", "core22", "core24", "bare":
 		typ = snap.TypeBase
 	case "some-kernel":
 		typ = snap.TypeKernel
@@ -395,6 +396,17 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				URL:  "http://example.com",
 			},
 		}
+	case "channel-for-desktop-file-ids":
+		info.Plugs = map[string]*snap.PlugInfo{
+			"desktop": {
+				Snap:      info,
+				Interface: "desktop",
+				Name:      "desktop",
+				Attrs: map[string]interface{}{
+					"desktop-file-ids": []interface{}{"org.example.Foo"},
+				},
+			},
+		}
 	}
 
 	if spec.Name == "provenance-snap" {
@@ -506,6 +518,8 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		base = "some-base"
 	case "provenance-snap-id":
 		name = "provenance-snap"
+	case "snap-with-components-id":
+		name = "snap-with-components"
 	default:
 		panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))
 	}
@@ -523,7 +537,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		confinement = snap.ClassicConfinement
 	case "channel-for-devmode/stable":
 		confinement = snap.DevModeConfinement
-	case "channel-for-components":
+	case "channel-for-components", "channel-for-components-only-component-refresh":
 		components = map[string]*snap.Component{
 			"test-component": {
 				Type: snap.TestComponent,
@@ -532,6 +546,14 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 			"kernel-modules-component": {
 				Type: snap.KernelModulesComponent,
 				Name: "kernel-modules-component",
+			},
+			"test-component-extra": {
+				Type: snap.TestComponent,
+				Name: "test-component-extra",
+			},
+			"test-component-present-in-sequence": {
+				Type: snap.TestComponent,
+				Name: "test-component-present-in-sequence",
 			},
 		}
 	}
@@ -625,6 +647,12 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	}
 
 	if !hit.Unset() {
+		return info, nil
+	}
+
+	// this is a special case for testing the case where we only refresh
+	// component revisions
+	if cand.channel == "channel-for-components-only-component-refresh" {
 		return info, nil
 	}
 
@@ -897,7 +925,8 @@ type fakeSnappyBackend struct {
 	copySnapDataFailTrigger string
 	emptyContainer          snap.Container
 
-	servicesCurrentlyDisabled []string
+	servicesCurrentlyDisabled     []string
+	userServicesCurrentlyDisabled map[int][]string
 
 	lockDir string
 
@@ -1111,6 +1140,17 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		info.SnapType = snap.TypeOS
 	case "snapd":
 		info.SnapType = snap.TypeSnapd
+	case "snap-with-components":
+		info.Components = map[string]*snap.Component{
+			"test-component": {
+				Type: snap.TestComponent,
+				Name: "test-component",
+			},
+			"kernel-modules-component": {
+				Type: snap.KernelModulesComponent,
+				Name: "kernel-modules-component",
+			},
+		}
 	case "services-snap":
 		var err error
 		// fix services after/before so that there is only one solution
@@ -1287,8 +1327,13 @@ func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, disabledSvcs *wr
 		services: services,
 	}
 	// only add the services to the op if there's something to add
-	if disabledSvcs != nil && len(disabledSvcs.SystemServices) != 0 {
-		op.disabledServices = disabledSvcs.SystemServices
+	if disabledSvcs != nil {
+		if len(disabledSvcs.SystemServices) != 0 {
+			op.disabledServices = disabledSvcs.SystemServices
+		}
+		if len(disabledSvcs.UserServices) != 0 {
+			op.disabledUserServices = disabledSvcs.UserServices
+		}
 	}
 	f.appendOp(&op)
 	return f.maybeErrForLastOp()
@@ -1312,27 +1357,44 @@ func (f *fakeSnappyBackend) KillSnapApps(snapName string, reason snap.AppKillRea
 }
 
 func (f *fakeSnappyBackend) QueryDisabledServices(info *snap.Info, meter progress.Meter) (*wrappers.DisabledServices, error) {
-	var l []string
-
 	// return the disabled services as disabled and nothing else
 	m := make(map[string]bool)
 	for _, svc := range f.servicesCurrentlyDisabled {
-		m[svc] = false
+		m[svc] = true
 	}
 
-	for name, enabled := range m {
-		if !enabled {
-			l = append(l, name)
+	um := make(map[int]map[string]bool)
+	for uid, svcs := range f.userServicesCurrentlyDisabled {
+		umi := make(map[string]bool)
+		for _, svc := range svcs {
+			umi[svc] = true
+		}
+		um[uid] = umi
+	}
+
+	var l []string
+	ul := make(map[int][]string)
+	for _, svc := range info.Services() {
+		if m[svc.Name] {
+			l = append(l, svc.Name)
+		} else {
+			for uid, umi := range um {
+				if umi[svc.Name] {
+					ul[uid] = append(ul[uid], svc.Name)
+				}
+			}
 		}
 	}
 
 	f.appendOp(&fakeOp{
-		op:               "current-snap-service-states",
-		disabledServices: f.servicesCurrentlyDisabled,
+		op:                   "current-snap-service-states",
+		disabledServices:     f.servicesCurrentlyDisabled,
+		disabledUserServices: f.userServicesCurrentlyDisabled,
 	})
 
 	return &wrappers.DisabledServices{
 		SystemServices: l,
+		UserServices:   ul,
 	}, f.maybeErrForLastOp()
 }
 

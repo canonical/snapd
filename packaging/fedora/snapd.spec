@@ -104,7 +104,7 @@
 %endif
 
 Name:           snapd
-Version:        2.65.2
+Version:        2.65.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -1003,6 +1003,10 @@ fi
 
 
 %changelog
+* Thu Sep 12 2024 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.65.3
+ - Fix missing aux info from store on snap setup
+
 * Fri Sep 06 2024 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.65.2
  - Bump squashfuse from version 0.5.0 to 0.5.2 (used in snapd deb

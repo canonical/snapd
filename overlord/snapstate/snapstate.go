@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -52,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
@@ -273,6 +275,75 @@ func isCoreSnap(snapName string) bool {
 	return snapName == defaultCoreSnapName
 }
 
+// removeExtraComponentsTasks creates tasks that will remove unwanted components
+// that are currently installed alongside the target snap revision. If the new
+// snap revision is not in the sequence, then we don't have anything to do. If
+// the revision is in the sequence, then we generate tasks that will unlink
+// components that are not in compsups.
+//
+// This is mostly relevant when we're moving from one snap revision to another
+// snap revision that was installed in past and is still in the sequence. The
+// target snap might have had components that were installed alongside it in the
+// past, and they are not wanted anymore.
+func removeExtraComponentsTasks(st *state.State, snapst *SnapState, targetRevision snap.Revision, compsups []ComponentSetup) (
+	unlinkTasks, discardTasks []*state.Task, err error,
+) {
+	idx := snapst.LastIndex(targetRevision)
+	if idx < 0 {
+		return nil, nil, nil
+	}
+
+	keep := make(map[naming.ComponentRef]bool, len(compsups))
+	for _, compsup := range compsups {
+		keep[compsup.CompSideInfo.Component] = true
+	}
+
+	linkedForRevision, err := snapst.ComponentInfosForRevision(targetRevision)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, ci := range linkedForRevision {
+		if keep[ci.Component] {
+			continue
+		}
+
+		// note that we shouldn't ever be able to lose components during a
+		// refresh without a snap revision change. this might be able to happen
+		// once we introduce components and validation sets? if that is the
+		// case, we'll need to take care here to use "unlink-current-component"
+		// and point it to the correct snap setup task.
+		if snapst.Current == targetRevision {
+			return nil, nil, errors.New("internal error: cannot lose a component during a refresh without a snap revision change")
+		}
+
+		// note that we don't need to worry about kernel module components here,
+		// since the components that we are removing are not associated with the
+		// current snap revision. unlink-component differs from
+		// unlink-current-component in that it doesn't save the state of kernel
+		// module components on the the SnapSetup.
+		unlink := st.NewTask("unlink-component", fmt.Sprintf(
+			i18n.G("Unlink component %q for snap revision %s"), ci.Component, targetRevision,
+		))
+
+		unlink.Set("component-setup", ComponentSetup{
+			CompSideInfo: &ci.ComponentSideInfo,
+			CompType:     ci.Type,
+		})
+		unlinkTasks = append(unlinkTasks, unlink)
+
+		if !snapst.Sequence.IsComponentRevInRefSeqPtInAnyOtherSeqPt(ci.Component, idx) {
+			discard := st.NewTask("discard-component", fmt.Sprintf(
+				i18n.G("Discard previous revision for component %q"), ci.Component,
+			))
+			discard.Set("component-setup-task", unlink.ID())
+			discardTasks = append(discardTasks, discard)
+		}
+	}
+
+	return unlinkTasks, discardTasks, nil
+}
+
 func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups []ComponentSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
 	tr := config.NewTransaction(st)
 	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
@@ -442,6 +513,15 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		}
 	}
 
+	removeExtraComps, discardExtraComps, err := removeExtraComponentsTasks(st, snapst, snapsup.Revision(), compsups)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, t := range removeExtraComps {
+		addTask(t)
+	}
+
 	tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard, compSetupIDs, err := splitComponentTasksForInstall(
 		compsups, st, snapst, snapsup, prepare.ID(), fromChange,
 	)
@@ -449,12 +529,20 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		return nil, err
 	}
 
+	tasksBeforeDiscard = append(tasksBeforeDiscard, discardExtraComps...)
+
 	for _, t := range tasksBeforePreRefreshHook {
 		addTask(t)
 	}
 
-	// run refresh hooks when updating existing snap, otherwise run install hook further down.
-	runRefreshHooks := snapst.IsInstalled() && !snapsup.Flags.Revert
+	// if the snap is already installed, and the revision we are refreshing to
+	// is the same as the current revision, and we're not forcing an update,
+	// then we know that we're really modifying the state of components.
+	componentOnlyUpdate := snapst.IsInstalled() && snapsup.Revision() == snapst.Current && !snapsup.AlwaysUpdate
+
+	// run refresh hooks when updating existing snap, otherwise run install hook
+	// further down.
+	runRefreshHooks := snapst.IsInstalled() && !componentOnlyUpdate && !snapsup.Flags.Revert
 	if runRefreshHooks {
 		preRefreshHook := SetupPreRefreshHook(st, snapsup.InstanceName())
 		addTask(preRefreshHook)
@@ -620,8 +708,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q%s services"), snapsup.InstanceName(), revisionStr))
 	addTask(startSnapServices)
 
-	// TODO:COMPS: test discarding components during a snap refresh (coming
-	// soon!)
 	for _, t := range tasksBeforeDiscard {
 		addTask(t)
 	}
@@ -774,9 +860,9 @@ func splitComponentTasksForInstall(
 
 		compSetupIDs = append(compSetupIDs, componentTS.compSetupTaskID)
 
-		tasksBeforePreRefreshHook = append(tasksBeforePreRefreshHook, componentTS.beforeLink...)
+		tasksBeforePreRefreshHook = append(tasksBeforePreRefreshHook, componentTS.beforeLinkTasks...)
 		tasksAfterLinkSnap = append(tasksAfterLinkSnap, componentTS.linkTask)
-		tasksAfterPostOpHook = append(tasksAfterPostOpHook, componentTS.postOpHookAndAfter...)
+		tasksAfterPostOpHook = append(tasksAfterPostOpHook, componentTS.postHookToDiscardTasks...)
 		if componentTS.discardTask != nil {
 			tasksBeforeDiscard = append(tasksBeforeDiscard, componentTS.discardTask)
 		}
@@ -1260,7 +1346,12 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 	if err := validateFeatureFlags(st, info); err != nil {
 		return flags, err
 	}
+	// TODO: if we implement a --disabled flag for install we should skip the
+	// dbus and desktop-file-ids checks below.
 	if err := checkDBusServiceConflicts(st, info); err != nil {
+		return flags, err
+	}
+	if err := checkDesktopFileIDsConflicts(st, info); err != nil {
 		return flags, err
 	}
 	return flags, nil
@@ -1876,17 +1967,35 @@ type update struct {
 	Components []ComponentSetup
 }
 
-// revisionSatisfied returns true if the state of the snap on the system matches the
-// state specified in the update. This method is primarily concerned with the
-// revision of the snap.
-//
-// TODO:COMPS: check if we need to change the state of components
-func (u *update) revisionSatisfied() bool {
+// revisionSatisfied returns true if the state of the snap on the system matches
+// the state specified in the update. This method checks if the currently
+// installed snap and components match what is specified in the update.
+func (u *update) revisionSatisfied() (bool, error) {
 	if u.Setup.AlwaysUpdate || !u.SnapState.IsInstalled() {
-		return false
+		return false, nil
 	}
 
-	return u.SnapState.Current == u.Setup.Revision()
+	if u.SnapState.Current != u.Setup.Revision() {
+		return false, nil
+	}
+
+	comps, err := u.SnapState.CurrentComponentInfos()
+	if err != nil {
+		return false, err
+	}
+
+	currentCompRevs := make(map[string]snap.Revision, len(comps))
+	for _, comp := range comps {
+		currentCompRevs[comp.Component.ComponentName] = comp.Revision
+	}
+
+	for _, comp := range u.Components {
+		if currentCompRevs[comp.CompSideInfo.Component.ComponentName] != comp.Revision() {
+			return false, nil
+		}
+	}
+
+	return true, nil
 }
 
 func doPotentiallySplitUpdate(st *state.State, requested []string, updates []update, opts Options) ([]string, *UpdateTaskSets, error) {
@@ -1991,7 +2100,12 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 	// and bases and then other snaps
 	for _, up := range updates {
 		// if the update is already satisfied, then we can skip it
-		if up.revisionSatisfied() {
+		ok, err := up.revisionSatisfied()
+		if err != nil {
+			return nil, false, nil, err
+		}
+
+		if ok {
 			alreadySatisfied = append(alreadySatisfied, up)
 			continue
 		}
@@ -2267,7 +2381,12 @@ func autoAliasesUpdate(st *state.State, requested []string, updates []update) (c
 	// snaps with updates
 	updating := make(map[string]bool, len(updates))
 	for _, up := range updates {
-		updating[up.Setup.InstanceName()] = !up.revisionSatisfied()
+		ok, err := up.revisionSatisfied()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		updating[up.Setup.InstanceName()] = !ok
 	}
 
 	// add explicitly auto-aliases only for snaps that are not updated
@@ -3640,7 +3759,7 @@ func removeInactiveRevision(st *state.State, snapst *SnapState, name, snapID str
 		compsup := ComponentSetup{
 			CompSideInfo: &cinfo.ComponentSideInfo,
 			CompType:     cinfo.Type,
-			componentInstallFlags: componentInstallFlags{
+			ComponentInstallFlags: ComponentInstallFlags{
 				MultiComponentInstall: true,
 			},
 		}
@@ -4391,4 +4510,57 @@ func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (res
 	old := osutilCheckFreeSpace
 	osutilCheckFreeSpace = mock
 	return func() { osutilCheckFreeSpace = old }
+}
+
+// UnmountAllSnaps unmounts all of the snaps and components in the system state.
+// The primary use case for this is to unmount all snaps that were installed in
+// the chroot environment that is used when creating a preseeded image.
+func UnmountAllSnaps(st *state.State) error {
+	all, err := All(st)
+	if err != nil {
+		return err
+	}
+
+	for _, snapst := range all {
+		if err := unmountSnap(snapst); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func unmountSnap(snapst *SnapState) error {
+	unmountedComps := make(map[string]bool)
+	for _, rev := range snapst.Sequence.Revisions {
+		for _, c := range rev.Components {
+			compName := c.SideInfo.Component.ComponentName
+			cpi := snap.MinimalComponentContainerPlaceInfo(
+				compName,
+				c.SideInfo.Revision,
+				snapst.InstanceName(),
+			)
+
+			mountDir := cpi.MountDir()
+
+			// components might be shared between snap revisions, so make sure
+			// we only unmount them once
+			if unmountedComps[mountDir] {
+				continue
+			}
+			unmountedComps[mountDir] = true
+
+			logger.Debugf("unmounting component %s at %s", compName, mountDir)
+			if _, err := exec.Command("umount", "-d", "-l", mountDir).CombinedOutput(); err != nil {
+				return err
+			}
+		}
+
+		mountDir := snap.MountDir(snapst.InstanceName(), rev.Snap.Revision)
+		logger.Debugf("unmounting snap %s at %s", snapst.InstanceName(), mountDir)
+		if _, err := exec.Command("umount", "-d", "-l", mountDir).CombinedOutput(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

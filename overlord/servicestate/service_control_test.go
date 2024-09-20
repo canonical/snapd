@@ -20,7 +20,10 @@
 package servicestate_test
 
 import (
+	"fmt"
 	"os"
+	"os/user"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -31,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -1253,7 +1257,7 @@ func (s *serviceControlSuite) TestConflict(c *C) {
 	c.Assert(err, ErrorMatches, `snap "test-snap" has "service-control" change in progress`)
 }
 
-func (s *serviceControlSuite) TestUpdateSnapstateServices(c *C) {
+func (s *serviceControlSuite) TestUpdateSnapstateSystemServices(c *C) {
 	var tests = []struct {
 		enable                    []string
 		disable                   []string
@@ -1306,12 +1310,20 @@ func (s *serviceControlSuite) TestUpdateSnapstateServices(c *C) {
 	for _, tst := range tests {
 		var enable, disable []*snap.AppInfo
 		for _, srv := range tst.enable {
-			enable = append(enable, &snap.AppInfo{Name: srv})
+			enable = append(enable, &snap.AppInfo{
+				Name:        srv,
+				Daemon:      "simple",
+				DaemonScope: snap.SystemDaemon,
+			})
 		}
 		for _, srv := range tst.disable {
-			disable = append(disable, &snap.AppInfo{Name: srv})
+			disable = append(disable, &snap.AppInfo{
+				Name:        srv,
+				Daemon:      "simple",
+				DaemonScope: snap.SystemDaemon,
+			})
 		}
-		result, err := servicestate.UpdateSnapstateServices(&snapst, enable, disable)
+		result, err := servicestate.UpdateSnapstateServices(&snapst, enable, disable, wrappers.ScopeOptions{})
 		c.Assert(err, IsNil)
 		c.Check(result, Equals, tst.changed)
 		c.Check(snapst.ServicesEnabledByHooks, DeepEquals, tst.expectedSnapstateEnabled)
@@ -1319,6 +1331,264 @@ func (s *serviceControlSuite) TestUpdateSnapstateServices(c *C) {
 	}
 
 	services := []*snap.AppInfo{{Name: "foo"}}
-	_, err := servicestate.UpdateSnapstateServices(nil, services, services)
+	_, err := servicestate.UpdateSnapstateServices(nil, services, services, wrappers.ScopeOptions{})
 	c.Assert(err, ErrorMatches, `internal error: cannot handle enabled and disabled services at the same time`)
+}
+
+func (s *serviceControlSuite) TestUpdateSnapstateServicesIgnoresNonServices(c *C) {
+	snapst := snapstate.SnapState{}
+
+	enable := []*snap.AppInfo{
+		{
+			Name:        "foo",
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
+		},
+		{
+			Name: "baz",
+		},
+	}
+	disable := []*snap.AppInfo{
+		{
+			Name:        "bar",
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
+		},
+		{
+			Name: "jazz",
+		},
+	}
+
+	result, err := servicestate.UpdateSnapstateServices(&snapst, enable, nil, wrappers.ScopeOptions{})
+	c.Assert(err, IsNil)
+	c.Check(result, Equals, true)
+	c.Check(snapst.ServicesEnabledByHooks, DeepEquals, []string{"foo"})
+	c.Check(snapst.ServicesDisabledByHooks, HasLen, 0)
+
+	result, err = servicestate.UpdateSnapstateServices(&snapst, nil, disable, wrappers.ScopeOptions{})
+	c.Assert(err, IsNil)
+	c.Check(result, Equals, true)
+	c.Check(snapst.ServicesEnabledByHooks, DeepEquals, []string{"foo"})
+	c.Check(snapst.ServicesDisabledByHooks, DeepEquals, []string{"bar"})
+}
+
+func (s *serviceControlSuite) TestUpdateSnapstateUserServices(c *C) {
+	// fake two sockets, one for 0 and one for 1000
+	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "0", "snapd-session-agent.socket"), 0700)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0700)
+	c.Assert(err, IsNil)
+
+	osutil.MockUserLookup(func(s string) (*user.User, error) {
+		switch s {
+		case "root":
+			return &user.User{
+				Uid: "0",
+			}, nil
+		case "test":
+			return &user.User{
+				Uid: "1000",
+			}, nil
+		default:
+			return nil, fmt.Errorf("unknown user %s", s)
+		}
+	})
+
+	var tests = []struct {
+		enable                    []string
+		disable                   []string
+		users                     []string
+		expectedSnapstateEnabled  map[int][]string
+		expectedSnapstateDisabled map[int][]string
+		changed                   bool
+	}{
+		// These test scenarios share a single SnapState instance and accumulate
+		// changes to ServicesEnabledByHooks and ServicesDisabledByHooks.
+		{
+			changed: false,
+		},
+		// first one affects specific users
+		{
+			enable: []string{"a"},
+			users:  []string{"root", "test"},
+			expectedSnapstateEnabled: map[int][]string{
+				0:    {"a"},
+				1000: {"a"},
+			},
+			changed: true,
+		},
+		// second one enables for all, should cause no change
+		{
+			enable: []string{"a"},
+			users:  []string{},
+			expectedSnapstateEnabled: map[int][]string{
+				0:    {"a"},
+				1000: {"a"},
+			},
+			changed: false,
+		},
+		// third enable for a specific user again does nothing
+		{
+			enable: []string{"a"},
+			users:  []string{"test"},
+			expectedSnapstateEnabled: map[int][]string{
+				0:    {"a"},
+				1000: {"a"},
+			},
+			changed: false,
+		},
+		// next up we disable one for a specific user
+		{
+			disable: []string{"a"},
+			users:   []string{"root"},
+			expectedSnapstateEnabled: map[int][]string{
+				1000: {"a"},
+			},
+			expectedSnapstateDisabled: map[int][]string{
+				0: {"a"},
+			},
+			changed: true,
+		},
+		// now we re-enable multiple for specific user
+		{
+			enable: []string{"a", "c"},
+			users:  []string{"root"},
+			expectedSnapstateEnabled: map[int][]string{
+				0:    {"a", "c"},
+				1000: {"a"},
+			},
+			expectedSnapstateDisabled: map[int][]string{},
+			changed:                   true,
+		},
+		// We now mix it up with disabling for everyone
+		{
+			disable: []string{"b"},
+			users:   []string{},
+			expectedSnapstateEnabled: map[int][]string{
+				0:    {"a", "c"},
+				1000: {"a"},
+			},
+			expectedSnapstateDisabled: map[int][]string{
+				0:    {"b"},
+				1000: {"b"},
+			},
+			changed: true,
+		},
+		// We now mix it up with disabling an existing one that only is
+		// enabled for one user
+		{
+			disable: []string{"c"},
+			users:   []string{},
+			expectedSnapstateEnabled: map[int][]string{
+				0:    {"a"},
+				1000: {"a"},
+			},
+			expectedSnapstateDisabled: map[int][]string{
+				0:    {"b", "c"},
+				1000: {"b", "c"},
+			},
+			changed: true,
+		},
+		{
+			disable: []string{"b", "c"},
+			users:   []string{},
+			expectedSnapstateEnabled: map[int][]string{
+				0:    {"a"},
+				1000: {"a"},
+			},
+			expectedSnapstateDisabled: map[int][]string{
+				0:    {"b", "c"},
+				1000: {"b", "c"},
+			},
+			changed: false,
+		},
+	}
+
+	snapst := snapstate.SnapState{}
+
+	for _, tst := range tests {
+		var enable, disable []*snap.AppInfo
+		for _, srv := range tst.enable {
+			enable = append(enable, &snap.AppInfo{
+				Name:        srv,
+				Daemon:      "simple",
+				DaemonScope: snap.UserDaemon,
+			})
+		}
+		for _, srv := range tst.disable {
+			disable = append(disable, &snap.AppInfo{
+				Name:        srv,
+				Daemon:      "simple",
+				DaemonScope: snap.UserDaemon,
+			})
+		}
+		result, err := servicestate.UpdateSnapstateServices(&snapst, enable, disable, wrappers.ScopeOptions{Users: tst.users})
+		c.Assert(err, IsNil)
+		c.Assert(result, Equals, tst.changed)
+		c.Assert(snapst.UserServicesEnabledByHooks, DeepEquals, tst.expectedSnapstateEnabled)
+		c.Assert(snapst.UserServicesDisabledByHooks, DeepEquals, tst.expectedSnapstateDisabled)
+	}
+}
+
+func (s *serviceControlSuite) TestUpdateSnapstateUserServicesFailsOnUserError(c *C) {
+	// fake two sockets, one for 0 and one for 1000
+	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "0", "snapd-session-agent.socket"), 0700)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0700)
+	c.Assert(err, IsNil)
+
+	osutil.MockUserLookup(func(s string) (*user.User, error) {
+		return nil, fmt.Errorf("unknown user %s", s)
+	})
+
+	snapst := snapstate.SnapState{}
+	enable := []*snap.AppInfo{
+		{
+			Name:        "foo",
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
+		},
+	}
+
+	result, err := servicestate.UpdateSnapstateServices(&snapst, enable, nil, wrappers.ScopeOptions{
+		Scope: wrappers.ServiceScopeUser,
+		Users: []string{"test"},
+	})
+	c.Assert(err, ErrorMatches, `unknown user test`)
+	c.Assert(result, Equals, false)
+	c.Assert(snapst.UserServicesEnabledByHooks, HasLen, 0)
+	c.Assert(snapst.UserServicesDisabledByHooks, HasLen, 0)
+}
+
+func (s *serviceControlSuite) TestUpdateSnapstateUserServicesFailsOnInvalidUID(c *C) {
+	// fake two sockets, one for 0 and one for 1000
+	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "0", "snapd-session-agent.socket"), 0700)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0700)
+	c.Assert(err, IsNil)
+
+	osutil.MockUserLookup(func(s string) (*user.User, error) {
+		return &user.User{
+			Uid:      "wups",
+			Username: s,
+		}, nil
+	})
+
+	snapst := snapstate.SnapState{}
+	enable := []*snap.AppInfo{
+		{
+			Name:        "foo",
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
+		},
+	}
+
+	result, err := servicestate.UpdateSnapstateServices(&snapst, enable, nil, wrappers.ScopeOptions{
+		Scope: wrappers.ServiceScopeUser,
+		Users: []string{"test"},
+	})
+	c.Assert(err, ErrorMatches, `strconv.Atoi: parsing "wups": invalid syntax`)
+	c.Assert(result, Equals, false)
+	c.Assert(snapst.UserServicesEnabledByHooks, HasLen, 0)
+	c.Assert(snapst.UserServicesDisabledByHooks, HasLen, 0)
 }

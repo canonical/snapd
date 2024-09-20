@@ -31,7 +31,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/desktop/desktopentry"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -1425,6 +1427,34 @@ func (app *AppInfo) SecurityTag() string {
 // DesktopFile returns the path to the installed optional desktop file for the
 // application.
 func (app *AppInfo) DesktopFile() string {
+	desktopFileIDs, err := app.Snap.DesktopPlugFileIDs()
+	if err != nil || len(desktopFileIDs) == 0 {
+		// fallback to a simple heuristic "$PREFIX_$APP.desktop"
+		return filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.DesktopPrefix(), app.Name))
+	}
+	// Loop through desktop-file-ids desktop interface plug attribute in order to
+	// have deterministic output
+	for _, desktopFileID := range desktopFileIDs {
+		desktopFile := filepath.Join(dirs.SnapDesktopFilesDir, desktopFileID+".desktop")
+		if !osutil.FileExists(desktopFile) {
+			continue
+		}
+		// No need to also check instance name because we already filter by the
+		// snap's desktop file ids
+		de, err := desktopentry.Read(desktopFile)
+		if err != nil {
+			// Errors when reading indicates either an issue opening the desktop
+			// file or a malformed desktop file, both of which are internal
+			// errors caused somewhere else.
+			// Let's log for debugging and try the next desktop file id.
+			logger.Debugf("internal error: failed to read %q: %v", desktopFile, err)
+			continue
+		}
+		if de.SnapAppName == app.Name {
+			return desktopFile
+		}
+	}
+	// fallback to a simple heuristic "$PREFIX_$APP.desktop"
 	return filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.DesktopPrefix(), app.Name))
 }
 

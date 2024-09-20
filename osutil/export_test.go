@@ -74,13 +74,6 @@ func MockSyscallSettimeofday(f func(*syscall.Timeval) error) (restore func()) {
 	}
 }
 
-func MockUserLookup(mock func(name string) (*user.User, error)) func() {
-	realUserLookup := userLookup
-	userLookup = mock
-
-	return func() { userLookup = realUserLookup }
-}
-
 func MockUserCurrent(mock func() (*user.User, error)) func() {
 	realUserCurrent := userCurrent
 	userCurrent = mock

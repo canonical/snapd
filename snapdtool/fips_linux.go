@@ -119,7 +119,7 @@ func MaybeSetupFIPS() error {
 		"GOFIPS=1",
 	}...)
 
-	// need we need to set up environment such that the FIPS library module
+	// now we need to set up environment such that the FIPS library module
 	// will be picked up at startup, however this is only relevant in the
 	// following cases:
 	// - on classic, when reexecuted from the snapd snap
