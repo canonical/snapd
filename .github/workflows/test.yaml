@@ -216,7 +216,7 @@ jobs:
 
     - name: Cache prebuilt indent
       id: cache-indent-bin
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: indent-bin
         key: ${{ runner.os }}-indent-2.2.13
@@ -357,7 +357,7 @@ jobs:
       if: ${{ matrix.unit-scenario == 'normal' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-        ./run-checks --unit
+        COVERAGE_OUT=./coverage ./run-checks --unit
 
     - name: Upload the coverage results
       if: ${{ matrix.gochannel != 'latest/stable' }}
@@ -365,7 +365,7 @@ jobs:
       with:
         include-hidden-files: true
         name: coverage-files
-        path: "${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage/coverage*.cov"
+        path: "${{ github.workspace }}/src/github.com/snapcore/snapd/coverage/coverage*.cov"
 
   # TODO run unit tests of C code
   unit-tests-special:
@@ -456,13 +456,13 @@ jobs:
       if: ${{ matrix.unit-scenario == 'snapd_debug' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-        SKIP_DIRTY_CHECK=1 SNAPD_DEBUG=1 ./run-checks --unit
+        COVERAGE_OUT=./coverage SKIP_DIRTY_CHECK=1 SNAPD_DEBUG=1 ./run-checks --unit
 
     - name: Test Go (withbootassetstesting)
       if: ${{ matrix.unit-scenario == 'withbootassetstesting' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=withbootassetstesting ./run-checks --unit
+        COVERAGE_OUT=./coverage SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=withbootassetstesting ./run-checks --unit
 
     - name: Test Go (nosecboot)
       if: ${{ matrix.unit-scenario == 'nosecboot' }}
@@ -473,19 +473,19 @@ jobs:
         # install secboot again
         # ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
         # ${{ github.workspace }}/bin/govendor remove +unused
-        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
+        COVERAGE_OUT=./coverage SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
 
     - name: Test Go (faultinject)
       if: ${{ matrix.unit-scenario == 'faultinject' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=faultinject ./run-checks --unit
+        COVERAGE_OUT=./coverage SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=faultinject ./run-checks --unit
 
     - name: Test Go (-race)
       if: ${{ matrix.unit-scenario == 'race' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-        SKIP_DIRTY_CHECK=1 GO_TEST_RACE=1 SKIP_COVERAGE=1 ./run-checks --unit
+        COVERAGE_OUT=./coverage SKIP_DIRTY_CHECK=1 GO_TEST_RACE=1 SKIP_COVERAGE=1 ./run-checks --unit
 
     - name: Upload the coverage results
       if: ${{ matrix.gochannel != 'latest/stable' }}
@@ -493,7 +493,7 @@ jobs:
       with:
         include-hidden-files: true
         name: coverage-files
-        path: "${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage/coverage*.cov"
+        path: "${{ github.workspace }}/src/github.com/snapcore/snapd/coverage/coverage*.cov"
 
 
   unit-tests-cross-distro:
@@ -757,7 +757,7 @@ jobs:
       shell: bash
 
     - name: Get previous cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.group }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
@@ -851,7 +851,7 @@ jobs:
         path: "${{ github.workspace }}/built-snap"
 
     - name: Download built FIPS snap
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       # eg. ubuntu-fips
       if: "endsWith(matrix.group, '-fips')"
       with:
@@ -975,7 +975,7 @@ jobs:
 
     - name: Save spread test results to cache
       if: always()
-      uses: actions/cache/save@v3
+      uses: actions/cache/save@v4
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.group }}-${{ github.run_attempt }}"
