@@ -72,6 +72,17 @@ func InstallComponents(
 		return nil, err
 	}
 
+	if !opts.Flags.IgnoreValidation && len(vsets) == 0 {
+		enforced, err := EnforcedValidationSets(st)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := checkComponentSetupsAgainstValidationSets(info.InstanceName(), compsups, enforced); err != nil {
+			return nil, err
+		}
+	}
+
 	snapsup := SnapSetup{
 		Base:        info.Base,
 		SideInfo:    &info.SideInfo,
@@ -121,6 +132,20 @@ func InstallComponents(
 		ts.AddTask(kmodSetup)
 	}
 	return append(tss, ts), nil
+}
+
+func checkComponentSetupsAgainstValidationSets(snapName string, compsups []ComponentSetup, vsets *snapasserts.ValidationSets) error {
+	comps := make(map[string]snap.Revision, len(compsups))
+	for _, comp := range compsups {
+		comps[comp.ComponentName()] = comp.Revision()
+	}
+
+	presence, err := vsets.Presence(naming.Snap(snapName))
+	if err != nil {
+		return err
+	}
+
+	return checkComponentsAgainstPresence(snapName, comps, presence, "install")
 }
 
 func componentSetupsForInstall(ctx context.Context, st *state.State, names []string, snapst SnapState, revOpts RevisionOptions, opts Options) ([]ComponentSetup, error) {
