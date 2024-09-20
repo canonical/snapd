@@ -59,8 +59,8 @@ execute: |
 
   # since revision 4 of the "two" component is not referenced by anything else
   # in the sequence, it should be unlinked and discarded
-  snap tasks --last=refresh-snap | MATCH 'Unlink.*test-snap-component-refreshes+two'
-  snap tasks --last=refresh-snap | MATCH 'Discard.*test-snap-component-refreshes+two'
+  snap tasks --last=refresh-snap | MATCH 'Unlink.*test-snap-component-refreshes\+two'
+  snap tasks --last=refresh-snap | MATCH 'Discard.*test-snap-component-refreshes\+two'
 
   # note that a revert does bring back the "two" component, since it was
   # installed when revision 5 was last installed
