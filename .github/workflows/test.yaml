@@ -359,6 +359,7 @@ jobs:
       if: ${{ matrix.unit-scenario == 'normal' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        ./run-checks --unit
 
     - name: Upload the coverage results
       if: ${{ matrix.gochannel != 'latest/stable' }}
