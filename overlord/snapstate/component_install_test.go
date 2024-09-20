@@ -55,6 +55,8 @@ const (
 	compOptMultiCompInstall
 	// Component is being installed with a snap that is being refreshed
 	compOptDuringSnapRefresh
+	// Component is being installed during a snap revert
+	compOptDuringSnapRevert
 )
 
 // opts is a bitset with compOpt* as possible values.
@@ -88,8 +90,9 @@ func expectedComponentInstallTasksSplit(opts int) (beforeLink, link, postOpHooks
 		beforeLink = append(beforeLink, "setup-profiles")
 	}
 
-	// link-component is always present
-	link = []string{"link-component"}
+	if opts&compOptDuringSnapRevert == 0 {
+		link = []string{"link-component"}
+	}
 
 	// expect the install hook if the snap wasn't already installed
 	if opts&compOptIsActive == 0 {
