@@ -357,7 +357,7 @@ jobs:
       if: ${{ matrix.unit-scenario == 'normal' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-        COVERAGE_OUT=${{ github.workspace }}/coverage ./run-checks --unit
+        COVERAGE_OUT=${{ github.workspace }}/coverage/coverage.cov ./run-checks --unit
 
     - name: Upload the coverage results
       if: ${{ matrix.gochannel != 'latest/stable' }}
@@ -456,13 +456,13 @@ jobs:
       if: ${{ matrix.unit-scenario == 'snapd_debug' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-        COVERAGE_OUT=${{ github.workspace }}/coverage SKIP_DIRTY_CHECK=1 SNAPD_DEBUG=1 ./run-checks --unit
+        COVERAGE_OUT=${{ github.workspace }}/coverage/coverage.cov SKIP_DIRTY_CHECK=1 SNAPD_DEBUG=1 ./run-checks --unit
 
     - name: Test Go (withbootassetstesting)
       if: ${{ matrix.unit-scenario == 'withbootassetstesting' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-        COVERAGE_OUT=${{ github.workspace }}/coverage SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=withbootassetstesting ./run-checks --unit
+        COVERAGE_OUT=${{ github.workspace }}/coverage/coverage.cov SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=withbootassetstesting ./run-checks --unit
 
     - name: Test Go (nosecboot)
       if: ${{ matrix.unit-scenario == 'nosecboot' }}
@@ -473,19 +473,19 @@ jobs:
         # install secboot again
         # ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
         # ${{ github.workspace }}/bin/govendor remove +unused
-        COVERAGE_OUT=${{ github.workspace }}/coverage SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
+        COVERAGE_OUT=${{ github.workspace }}/coverage/coverage.cov SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
 
     - name: Test Go (faultinject)
       if: ${{ matrix.unit-scenario == 'faultinject' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-        COVERAGE_OUT=${{ github.workspace }}/coverage SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=faultinject ./run-checks --unit
+        COVERAGE_OUT=${{ github.workspace }}/coverage/coverage.cov SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=faultinject ./run-checks --unit
 
     - name: Test Go (-race)
       if: ${{ matrix.unit-scenario == 'race' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-        COVERAGE_OUT=${{ github.workspace }}/coverage SKIP_DIRTY_CHECK=1 GO_TEST_RACE=1 SKIP_COVERAGE=1 ./run-checks --unit
+        COVERAGE_OUT=${{ github.workspace }}/coverage/coverage.cov SKIP_DIRTY_CHECK=1 GO_TEST_RACE=1 SKIP_COVERAGE=1 ./run-checks --unit
 
     - name: Upload the coverage results
       if: ${{ matrix.gochannel != 'latest/stable' }}
