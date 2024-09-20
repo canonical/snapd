@@ -617,6 +617,30 @@ func addRuleFromTemplate(c *C, rdb *requestrules.RuleDB, template *addRuleConten
 	return rdb.AddRule(partial.User, partial.Snap, partial.Interface, constraints, partial.Outcome, partial.Lifespan, partial.Duration)
 }
 
+func (s *requestrulesSuite) TestAddRuleDuplicateVariants(c *C) {
+	rdb, err := requestrules.New(s.defaultNotifyRule)
+	c.Assert(err, IsNil)
+
+	ruleContents := &addRuleContents{
+		User:        s.defaultUser,
+		Snap:        "nextcloud",
+		Interface:   "home",
+		PathPattern: "/home/test/{{foo/{bar,baz},123},{123,foo{/bar,/baz}}}",
+		Permissions: []string{"read"},
+		Outcome:     prompting.OutcomeAllow,
+		Lifespan:    prompting.LifespanForever,
+		Duration:    "",
+	}
+
+	var addedRules []*requestrules.Rule
+	rule, err := addRuleFromTemplate(c, rdb, ruleContents, ruleContents)
+	c.Check(err, IsNil)
+	c.Check(rule, NotNil)
+	addedRules = append(addedRules, rule)
+	s.checkWrittenRuleDB(c, addedRules)
+	s.checkNewNoticesSimple(c, nil, rule)
+}
+
 func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Assert(err, IsNil)

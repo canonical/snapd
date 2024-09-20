@@ -461,6 +461,9 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) []prom
 		switch {
 		case !exists:
 			newVariantEntries[variantStr] = newEntry
+		case conflictingVariantEntry.RuleID == rule.ID:
+			// Rule has duplicate variant, so ignore it
+			return
 		case rdb.isRuleWithIDExpired(conflictingVariantEntry.RuleID, rule.Timestamp):
 			expiredRules[conflictingVariantEntry.RuleID] = true
 			newVariantEntries[variantStr] = newEntry
