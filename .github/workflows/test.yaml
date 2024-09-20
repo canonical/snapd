@@ -822,7 +822,7 @@ jobs:
                   # Configure parameters to run tests based on current changes
                   # The tests are just filtered when the change is a PR
                   # When 'Run Nested' label is added in a pr, all the nested tests have to be executed
-                  if [ -z "${{ github.event.number }}" ] || "$RUN_NESTED" = 'true'; then
+                  if [ -z "${{ github.event.number }}" ] || [ "$RUN_NESTED" = 'true' ]; then
                       for TESTS in ${{ matrix.tests }}; do
                           RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:$TESTS"
                       done
