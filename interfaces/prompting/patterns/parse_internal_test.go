@@ -68,3 +68,19 @@ func (s *parseSuite) TestParse(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(tree, DeepEquals, handMadeTree)
 }
+
+func (s *parseSuite) TestParseWithLeadingLiteralOptimization(c *C) {
+	pattern := "/{foo,bar}"
+
+	handMadeTree := alt{
+		literal("/foo"),
+		literal("/bar"),
+	}
+
+	tokens, err := scan(pattern)
+	c.Assert(err, IsNil)
+	tree, err := parse(tokens)
+	c.Logf("Tree is: %v", tree)
+	c.Assert(err, IsNil)
+	c.Check(tree, DeepEquals, handMadeTree)
+}

@@ -190,22 +190,16 @@ func (s *renderSuite) TestOptimizeNodeEqualTrue(c *C) {
 		},
 		{
 			"/foo/{a,b}",
-			seq{
-				literal("/foo/"),
-				alt{
-					literal("a"),
-					literal("b"),
-				},
+			alt{
+				literal("/foo/a"),
+				literal("/foo/b"),
 			},
 		},
 		{
 			"/foo/{{a,b},{a,b}}",
-			seq{
-				literal("/foo/"),
-				alt{
-					literal("a"),
-					literal("b"),
-				},
+			alt{
+				literal("/foo/a"),
+				literal("/foo/b"),
 			},
 		},
 	} {
@@ -213,8 +207,8 @@ func (s *renderSuite) TestOptimizeNodeEqualTrue(c *C) {
 		c.Assert(err, IsNil, Commentf("testCase: %+v", testCase))
 		parsed, err := parse(scanned)
 		c.Assert(err, IsNil, Commentf("testCase: %+v", testCase))
-		c.Check(parsed.nodeEqual(testCase.byHand), Equals, true, Commentf("testCase: %+v\nparsed: %+v", testCase, parsed))
-		c.Check(testCase.byHand.nodeEqual(parsed), Equals, true, Commentf("testCase: %+v\nparsed: %+v", testCase, parsed))
+		c.Check(parsed.nodeEqual(testCase.byHand), Equals, true, Commentf("testCase: %+v\nparsed: %#v", testCase, parsed))
+		c.Check(testCase.byHand.nodeEqual(parsed), Equals, true, Commentf("testCase: %+v\nparsed: %#v", testCase, parsed))
 	}
 }
 
@@ -279,5 +273,58 @@ func (s *renderSuite) TestOptimizeNodeEqualFalse(c *C) {
 		c.Assert(err, IsNil, Commentf("testCase: %+v", testCase))
 		c.Check(parsed.nodeEqual(testCase.byHand), Equals, false, Commentf("testCase: %+v\nparsed: %+v", testCase, parsed))
 		c.Check(testCase.byHand.nodeEqual(parsed), Equals, false, Commentf("testCase: %+v\nparsed: %+v", testCase, parsed))
+	}
+}
+
+func (s *renderSuite) TestRenderAllVariantsConflicts(c *C) {
+	// all variants are the exact same path
+	for _, testCase := range []struct {
+		pattern          string
+		expectedVariants []string
+	}{
+		{
+			"/{fo{obar},foo{b{ar,ar},bar,{ba}r}}",
+			[]string{"/foobar"},
+		},
+		{
+			"/{{foo/{bar,baz},123},{123,foo{/bar,/baz}}}",
+			[]string{
+				"/foo/bar",
+				"/foo/baz",
+				"/123",
+			},
+		},
+		{
+			"/{{a,DUP},{b,DUP}}",
+			[]string{
+				"/a",
+				"/DUP",
+				"/b",
+			},
+		},
+		{
+			"/{{foo,bar}/baz/{fizz,buzz},{foo/,bar/}baz{/fizz,/buzz}}",
+			[]string{
+				"/foo/baz/fizz",
+				"/foo/baz/buzz",
+				"/bar/baz/fizz",
+				"/bar/baz/buzz",
+				"/foo/baz/fizz",
+				"/foo/baz/buzz",
+				"/bar/baz/fizz",
+				"/bar/baz/buzz",
+			},
+		},
+	} {
+		scanned, err := scan(testCase.pattern)
+		c.Assert(err, IsNil)
+		parsed, err := parse(scanned)
+		c.Assert(err, IsNil)
+		variants := make([]string, 0, len(testCase.expectedVariants))
+		renderAllVariants(parsed, func(index int, variant PatternVariant) {
+			variants = append(variants, variant.String())
+		})
+		c.Check(variants, DeepEquals, testCase.expectedVariants)
+		c.Check(variants, HasLen, parsed.NumVariants())
 	}
 }

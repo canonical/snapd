@@ -22,7 +22,6 @@ package patterns
 import (
 	"bytes"
 	"errors"
-	"strings"
 
 	"github.com/snapcore/snapd/logger"
 )
@@ -57,6 +56,7 @@ type renderNode interface {
 	NumVariants() int
 	// nodeEqual returns true if two nodes are recursively equal.
 	nodeEqual(renderNode) bool
+	prependLiteral(literal) renderNode
 }
 
 // renderAllVariants renders subsequent variants to a reusable buffer.
@@ -107,6 +107,10 @@ func (n literal) nodeEqual(other renderNode) bool {
 	}
 
 	return false
+}
+
+func (n literal) prependLiteral(l literal) renderNode {
+	return l + n
 }
 
 func (n literal) Render(buf *bytes.Buffer, alreadyRendered int) int {
@@ -176,44 +180,56 @@ func (n seq) nodeEqual(other renderNode) bool {
 // empty seq to a literal "", and reduces a seq with one element to that
 // element.
 func (n seq) optimize() (renderNode, error) {
-	var b strings.Builder
-
+	// Constant-fold leading literal into whatever that follows it.
+	var prefix literal
 	var newSeq seq
-
 	for _, item := range n {
-		if l, ok := item.(literal); ok {
-			if l == "" {
-				continue
-			}
-
-			b.WriteString(string(l))
-		} else {
-			if b.Len() > 0 {
-				newSeq = append(newSeq, literal(b.String()))
-				b.Reset()
-			}
-
-			newSeq = append(newSeq, item)
+		if prefix != "" {
+			// XXX: prependItem may return modified item.
+			item = item.prependLiteral(prefix)
 		}
+
+		if item, ok := item.(literal); ok {
+			prefix = item
+			continue
+		}
+
+		newSeq = append(newSeq, item)
+		prefix = ""
 	}
 
-	if b.Len() > 0 {
-		newSeq = append(newSeq, literal(b.String()))
-		b.Reset()
+	if prefix != "" {
+		newSeq = append(newSeq, prefix)
 	}
+
+	n = newSeq
 
 	// Reduce strength
-	switch len(newSeq) {
+	switch len(n) {
 	case 0:
 		return literal(""), nil
 	case 1:
-		return newSeq[0], nil
+		return n[0], nil
 	}
 
-	return newSeq, nil
+	return n, nil
 }
 
-// seqVariant is the variant state for a seqeunce of render nodes.
+func (n seq) prependLiteral(l literal) renderNode {
+	if l == "" {
+		return n
+	}
+
+	if len(n) == 0 {
+		return l
+	}
+
+	n[0] = n[0].prependLiteral(l)
+
+	return n
+}
+
+// seqVariant is the variant state for a sequence of render nodes.
 //
 // Each render node in the seq has a corresponding variant at the same index.
 // of the elements list.
@@ -314,9 +330,24 @@ func (n alt) nodeEqual(other renderNode) bool {
 // optimize for alt eliminates equivalent items and reduces alts with one item
 // to that item.
 func (n alt) optimize() (renderNode, error) {
-	var seen []renderNode
 	var newAlt alt
 
+	// This pass adds items that are alts back to us to unify the set of
+	// alts, effectively.
+	for _, item := range n {
+		if innerAlt, ok := item.(alt); ok {
+			newAlt = append(newAlt, innerAlt...)
+		} else {
+			newAlt = append(newAlt, item)
+		}
+	}
+
+	n = newAlt
+	newAlt = nil
+
+	var seen []renderNode
+
+	// This pass eliminates duplicate entries.
 outer:
 	for _, item := range n {
 		for _, seenItem := range seen {
@@ -340,6 +371,22 @@ outer:
 	}
 
 	return newAlt, nil
+}
+
+func (n alt) prependLiteral(l literal) renderNode {
+	if l == "" {
+		return n
+	}
+
+	if len(n) == 0 {
+		return l
+	}
+
+	for i := range n {
+		n[i] = n[i].prependLiteral(l)
+	}
+
+	return n
 }
 
 // altVariant is the variant state for an set of alternative render nodes.
