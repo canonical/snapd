@@ -21,6 +21,8 @@
 package secboot
 
 import (
+	"io"
+
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
@@ -339,5 +341,13 @@ func MockSbUpdateKeyDataPCRProtectionPolicy(f func(tpm *sb_tpm2.Connection, auth
 	sbUpdateKeyDataPCRProtectionPolicy = f
 	return func() {
 		sbUpdateKeyDataPCRProtectionPolicy = old
+	}
+}
+
+func MockSetAuthorizedSnapModelsOnHooksKeydata(f func(kd *sb_hooks.KeyData, rand io.Reader, key sb.PrimaryKey, models ...sb.SnapModel) error) (restore func()) {
+	old := setAuthorizedSnapModelsOnHooksKeydata
+	setAuthorizedSnapModelsOnHooksKeydata = f
+	return func() {
+		setAuthorizedSnapModelsOnHooksKeydata = old
 	}
 }
