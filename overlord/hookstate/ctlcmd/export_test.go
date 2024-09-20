@@ -24,6 +24,7 @@ import (
 	"errors"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -75,7 +76,7 @@ func MockServicestateControlFunc(f func(*state.State, []*snap.AppInfo, *services
 	return func() { servicestateControl = old }
 }
 
-func MockSnapstateInstallComponentsFunc(f func(ctx context.Context, st *state.State, names []string, info *snap.Info, opts snapstate.Options) ([]*state.TaskSet, error)) (restore func()) {
+func MockSnapstateInstallComponentsFunc(f func(ctx context.Context, st *state.State, names []string, info *snap.Info, vsets []snapasserts.ValidationSetKey, opts snapstate.Options) ([]*state.TaskSet, error)) (restore func()) {
 	old := snapstateInstallComponents
 	snapstateInstallComponents = f
 	return func() { snapstateInstallComponents = old }

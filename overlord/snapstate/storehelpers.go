@@ -661,7 +661,10 @@ func storeUpdatePlanCore(
 		// installed
 		compsToInstall = unique(append(compsToInstall, up.AdditionalComponents...))
 
-		compsups, err := componentSetupsForInstall(ctx, st, compsToInstall, *snapst, si.Revision, up.RevOpts.Channel, opts)
+		compsups, err := componentSetupsForInstall(ctx, st, compsToInstall, *snapst, RevisionOptions{
+			Channel:  up.RevOpts.Channel,
+			Revision: si.Revision,
+		}, opts)
 		if err != nil {
 			return updatePlan{}, err
 		}
