@@ -71,5 +71,6 @@ cmd_remove() {
 }
 
 cmd_download() {
-    pacman -Sw --noconfirm --cachedir "${PWD:-.}" $@ >/dev/null 2>&1
+    # shellcheck disable=SC2068
+    pacman -Sw --noconfirm --cachedir "${PWD:-.}" -q $@ >/dev/null
 }

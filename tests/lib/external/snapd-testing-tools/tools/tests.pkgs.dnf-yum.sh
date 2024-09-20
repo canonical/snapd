@@ -77,8 +77,8 @@ cmd_remove() {
 cmd_download() {
     # shellcheck disable=SC2068
     if [ "$(command -v dnf)" != "" ]; then
-        dnf download $@ >/dev/null 2>&1
+        dnf download -q $@
     else
-        yum reinstall --downloadonly $@ >/dev/null 2>&1
+        yum reinstall --downloadonly -q -y --downloaddir "${PWD:-.}" $@
     fi
 }
