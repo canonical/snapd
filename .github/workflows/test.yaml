@@ -365,7 +365,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         include-hidden-files: true
-        name: coverage-files
+        name: "coverage-files-${{ matrix.unit-scenario }}"
         path: "${{ github.workspace }}/coverage/coverage*.cov"
 
   # TODO run unit tests of C code
@@ -495,7 +495,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         include-hidden-files: true
-        name: coverage-files-${{ matrix.unit-scenario }}
+        name: "coverage-files-${{ matrix.unit-scenario }}"
         path: "${{ github.workspace }}/coverage/coverage*.cov"
 
 
