@@ -19,6 +19,8 @@
 #include "mount-support.c"
 #include "mount-support-nvidia.h"
 #include "mount-support-nvidia.c"
+#include "mount-support-wsl2-gpu.h"
+#include "mount-support-wsl2-gpu.c"
 
 #include <glib.h>
 #include <glib/gstdio.h>

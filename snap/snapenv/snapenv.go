@@ -121,7 +121,7 @@ func basicEnv(info *snap.Info) osutil.Environment {
 		"SNAP_REVISION":      info.Revision.String(),
 		"SNAP_ARCH":          arch.DpkgArchitecture(),
 		// see https://github.com/snapcore/snapd/pull/2732#pullrequestreview-18827193
-		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
+		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/lib/wsl:/var/lib/snapd/void",
 		"SNAP_REEXEC":       os.Getenv("SNAP_REEXEC"),
 		// these two environment variables match what BASH does, but with SNAP prefix.
 		"SNAP_UID":  fmt.Sprint(sys.Getuid()),
