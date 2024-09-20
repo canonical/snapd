@@ -220,13 +220,27 @@ AC_ARG_WITH([host-arch-32bit-triplet],
 AC_SUBST(HOST_ARCH32_TRIPLET)
 AC_DEFINE_UNQUOTED([HOST_ARCH32_TRIPLET], "${HOST_ARCH32_TRIPLET}", [Arch triplet for 32bit libraries])
 
-SYSTEMD_SYSTEM_GENERATOR_DIR="$($PKG_CONFIG --variable=systemdsystemgeneratordir systemd)"
-AS_IF([test "x$SYSTEMD_SYSTEM_GENERATOR_DIR" = "x"], [SYSTEMD_SYSTEM_GENERATOR_DIR=/lib/systemd/system-generators])
-AC_SUBST(SYSTEMD_SYSTEM_GENERATOR_DIR)
+dnl FIXME: Use PKG_CHECK_VAR when we have dropped Trusty (14.04)
+AC_ARG_VAR([SYSTEMD_SYSTEM_GENERATOR_DIR], [value for systemdsystemgeneratordir (overriding pkg-config)])
+if test -z "${SYSTEMD_SYSTEM_GENERATOR_DIR}"; then
+  SYSTEMD_SYSTEM_GENERATOR_DIR="$($PKG_CONFIG --variable=systemdsystemgeneratordir systemd)"
+  if test -z "${SYSTEMD_SYSTEM_GENERATOR_DIR}"; then
+    SYSTEMD_SYSTEM_GENERATOR_DIR="${prefix}/lib/systemd/system-generators"
+  fi
+fi
 
-# FIXME: get this via something like pkgconf once it is defined there
-SYSTEMD_SYSTEM_ENV_GENERATOR_DIR="${prefix}/lib/systemd/system-environment-generators"
-AC_SUBST(SYSTEMD_SYSTEM_ENV_GENERATOR_DIR)
+dnl FIXME: get this via something like pkgconf once it is defined there
+dnl FIXME: Use PKG_CHECK_VAR when we have dropped Trusty (14.04)
+AC_ARG_VAR([SYSTEMD_PREFIX], [value for systemd prefix (overriding pkg-config)])
+if test -z "${SYSTEMD_PREFIX}"; then
+  SYSTEMD_PREFIX="$($PKG_CONFIG --variable=prefix systemd)"
+fi
+if test -n "${SYSTEMD_PREFIX}"; then
+  SYSTEMD_SYSTEM_ENV_GENERATOR_DIR="${SYSTEMD_PREFIX}/lib/systemd/system-environment-generators"
+else
+  SYSTEMD_SYSTEM_ENV_GENERATOR_DIR="${prefix}/lib/systemd/system-environment-generators"
+fi
+AC_SUBST([SYSTEMD_SYSTEM_ENV_GENERATOR_DIR])
 
 AC_ARG_ENABLE([bpf],
 AS_HELP_STRING([--enable-bpf], [Enable BPF support]),
@@ -304,6 +318,16 @@ AS_IF([test "x$snapd_cv_missing_field_initializers_works" = "xno"], [
 AS_IF([test "x$with_unit_tests" = "xyes"], [
   AX_APPEND_COMPILE_FLAGS([-Werror], [CHECK_CFLAGS])
 ])
+
+AC_ARG_WITH([apparmorconfigdir],
+    [AS_HELP_STRING([--with-apparmorconfigdir], [path to apparmor.d configuration directory])], [
+  APPARMOR_SYSCONFIG="${withval}"
+], [
+  APPARMOR_SYSCONFIG="${sysconfdir}/apparmor.d"
+])
+AC_SUBST([APPARMOR_SYSCONFIG])
+
+AC_SUBST([snapdstatedir], "${localstatedir}/lib/snapd")
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

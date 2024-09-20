@@ -280,6 +280,8 @@ parts:
       ./configure \
         --prefix=/usr \
         --libexec=/usr/lib/snapd \
+        --sysconfdir=/etc \
+        --localstatedir=/var \
         --without-unit-tests \
         --enable-static-libapparmor \
         --disable-host-binaries \
