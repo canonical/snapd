@@ -2136,7 +2136,7 @@ func (s *sealSuite) TestWithBootChains(c *C) {
 	err = boot.WithBootChains(func(ch *boot.ResealKeyForBootChainsParams) error {
 		chains = ch
 		return nil
-	})
+	}, device.SealingMethodTPM)
 	c.Assert(err, IsNil)
 
 	c.Check(chains, DeepEquals, &boot.ResealKeyForBootChainsParams{
