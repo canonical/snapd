@@ -98,3 +98,7 @@ func GetPrimaryKeyHMAC(devicePath string, alg crypto.Hash) ([]byte, []byte, erro
 func VerifyPrimaryKeyHMAC(devicePath string, alg crypto.Hash, salt []byte, digest []byte) (bool, error) {
 	return false, errBuildWithoutSecboot
 }
+
+func ResealKeysWithFDESetupHook(keyFiles []string, primaryKeyFile string, models []ModelForSealing) error {
+	return errBuildWithoutSecboot
+}
