@@ -898,7 +898,7 @@ func installationTaskSets(ctx context.Context, st *state.State, inst *snapInstru
 				return nil, nil, nil, err
 			}
 
-			ts, err := snapstateInstallComponents(ctx, st, comps, info, opts)
+			ts, err := snapstateInstallComponents(ctx, st, comps, info, nil, opts)
 			if err != nil {
 				return nil, nil, nil, err
 			}

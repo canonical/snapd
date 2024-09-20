@@ -648,7 +648,7 @@ func (s *snapmgrTestSuite) TestInstallComponentUpdateConflict(c *C) {
 	chg := s.state.NewChange("update", "update a snap")
 	chg.AddAll(tupd)
 
-	_, err = snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, info, snapstate.Options{})
+	_, err = snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, info, nil, snapstate.Options{})
 	c.Assert(err.Error(), Equals, `snap "some-snap" has "update" change in progress`)
 }
 
@@ -688,14 +688,14 @@ func (s *snapmgrTestSuite) TestInstallComponentConflictsWithSelf(c *C) {
 		return results
 	}
 
-	tss, err := snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, info, snapstate.Options{})
+	tss, err := snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, info, nil, snapstate.Options{})
 	c.Assert(err, IsNil)
 	chg := s.state.NewChange("install-component", "install a component")
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
 
-	_, err = snapstate.InstallComponents(context.TODO(), s.state, []string{conflictComponentName}, info, snapstate.Options{})
+	_, err = snapstate.InstallComponents(context.TODO(), s.state, []string{conflictComponentName}, info, nil, snapstate.Options{})
 	c.Assert(err.Error(), Equals, `snap "some-snap" has "install-component" change in progress`)
 }
 
@@ -726,7 +726,7 @@ func (s *snapmgrTestSuite) TestInstallComponentCausesConflict(c *C) {
 		}}
 	}
 
-	tss, err := snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, info, snapstate.Options{})
+	tss, err := snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, info, nil, snapstate.Options{})
 	c.Assert(err, IsNil)
 	chg := s.state.NewChange("install-component", "install a component")
 	for _, ts := range tss {
@@ -902,7 +902,7 @@ func (s *snapmgrTestSuite) TestInstallComponents(c *C) {
 		return results
 	}
 
-	tss, err := snapstate.InstallComponents(context.Background(), s.state, components, info, snapstate.Options{})
+	tss, err := snapstate.InstallComponents(context.Background(), s.state, components, info, nil, snapstate.Options{})
 	c.Assert(err, IsNil)
 
 	setupProfiles := tss[len(tss)-1].Tasks()[0]
@@ -981,7 +981,7 @@ func (s *snapmgrTestSuite) TestInstallComponentsAlreadyInstalledError(c *C) {
 		TrackingChannel: "channel-for-components",
 	})
 
-	_, err := snapstate.InstallComponents(context.TODO(), s.state, []string{"one", "two"}, info, snapstate.Options{})
+	_, err := snapstate.InstallComponents(context.TODO(), s.state, []string{"one", "two"}, info, nil, snapstate.Options{})
 
 	c.Assert(err, testutil.ErrorIs, snap.AlreadyInstalledComponentError{Component: "one"})
 }

@@ -752,7 +752,10 @@ func storeUpdatePlanCore(
 			return updatePlan{}, err
 		}
 
-		compsups, err := componentSetupsForInstall(ctx, st, compsToInstall, *snapst, si.Revision, revOpts.Channel, opts)
+		compsups, err := componentSetupsForInstall(ctx, st, compsToInstall, *snapst, RevisionOptions{
+			Channel:  revOpts.Channel,
+			Revision: si.Revision,
+		}, opts)
 		if err != nil {
 			return updatePlan{}, err
 		}
