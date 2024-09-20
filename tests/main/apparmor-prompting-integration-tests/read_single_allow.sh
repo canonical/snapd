@@ -20,9 +20,9 @@ TEST_OUTPUT="$(snap run --shell prompting-client.scripted -c "cat ${TEST_DIR}/te
 
 sleep 5 # give the client a chance to write its result and exit
 
-CLIENT_RESULT="$(cat "${TEST_DIR}/result")"
+CLIENT_OUTPUT="$(cat "${TEST_DIR}/result")"
 
-if [ "$CLIENT_RESULT" != "success" ] ; then
+if [ "$CLIENT_OUTPUT" != "success" ] ; then
 	echo "test failed"
 	echo "output='$CLIENT_OUTPUT'"
 	exit 1
