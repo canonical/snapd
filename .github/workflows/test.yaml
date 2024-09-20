@@ -491,7 +491,7 @@ jobs:
         SKIP_DIRTY_CHECK=1 GO_TEST_RACE=1 SKIP_COVERAGE=1 ./run-checks --unit
 
     - name: Upload the coverage results
-      if: ${{ matrix.gochannel != 'latest/stable' }} || ${{ matrix.unit-scenario != 'race' }}
+      if: ${{ matrix.gochannel != 'latest/stable' }} && ${{ matrix.unit-scenario != 'race' }}
       uses: actions/upload-artifact@v4
       with:
         include-hidden-files: true
