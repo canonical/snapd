@@ -578,8 +578,9 @@ jobs:
     - name: Download the coverage files
       uses: actions/download-artifact@v4
       with:
-        name: coverage-files
+        pattern: coverage-files-*
         path: .coverage/
+        merge-multiple: true
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
