@@ -1620,3 +1620,87 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 	c.Assert(cnt, Equals, 10)
 	c.Check(pbc, DeepEquals, boot.ToPredictableBootChains(removeKernelBootFiles(append(runBootChains, recoveryBootChainsForRun...))))
 }
+
+func (s *resealTestSuite) TestHooksResealHappy(c *C) {
+	model := boottest.MakeMockUC20Model()
+	params := &boot.ResealKeyForBootChainsParams{
+		RunModeBootChains: []boot.BootChain{
+			{
+				BrandID:        model.BrandID(),
+				Model:          model.Model(),
+				Classic:        model.Classic(),
+				Grade:          model.Grade(),
+				ModelSignKeyID: model.SignKeyID(),
+				KernelCmdlines: []string{
+					"mode=run",
+				},
+			},
+		},
+
+		RecoveryBootChainsForRunKey: []boot.BootChain{
+			{
+				BrandID:        model.BrandID(),
+				Model:          model.Model(),
+				Classic:        model.Classic(),
+				Grade:          model.Grade(),
+				ModelSignKeyID: model.SignKeyID(),
+				KernelCmdlines: []string{
+					"mode=recover",
+				},
+			},
+		},
+
+		RecoveryBootChains: []boot.BootChain{
+			{
+				BrandID:        model.BrandID(),
+				Model:          model.Model(),
+				Classic:        model.Classic(),
+				Grade:          model.Grade(),
+				ModelSignKeyID: model.SignKeyID(),
+				KernelCmdlines: []string{
+					"mode=recover",
+				},
+			},
+		},
+	}
+
+	resealCalls := 0
+	restore := fdeBackend.MockSecbootResealKeysWithFDESetupHook(func(keyFiles []string, primaryKeyFile string, models []secboot.ModelForSealing) error {
+		resealCalls++
+
+		switch resealCalls {
+		case 1:
+			// Resealing the run+recover key for data partition
+			c.Check(keyFiles, DeepEquals, []string{
+				filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"),
+			})
+			c.Check(primaryKeyFile, Equals, filepath.Join(s.rootdir, "run/mnt/ubuntu-save/device/fde/aux-key"))
+			c.Assert(models, HasLen, 1)
+			c.Check(models[0].Model(), Equals, model.Model())
+		case 2:
+			// Resealing the recovery key for both data and save partitions
+			c.Check(keyFiles, DeepEquals, []string{
+				filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
+				filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"),
+			})
+			c.Check(primaryKeyFile, Equals, filepath.Join(s.rootdir, "run/mnt/ubuntu-save/device/fde/aux-key"))
+			c.Assert(models, HasLen, 1)
+			c.Check(models[0].Model(), Equals, model.Model())
+		default:
+			c.Errorf("unexpected additional call to secboot.ResealKey (call # %d)", resealCalls)
+		}
+		return nil
+	})
+
+	defer restore()
+
+	updateState := func(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
+		return nil
+	}
+
+	const expectReseal = true
+	err := fdeBackend.ResealKeyForBootChains(updateState, device.SealingMethodFDESetupHook, s.rootdir, params, expectReseal)
+	c.Assert(err, IsNil)
+
+	c.Check(resealCalls, Equals, 2)
+}

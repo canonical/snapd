@@ -22,11 +22,13 @@ package secboot_test
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -2551,4 +2553,120 @@ func (s *secbootSuite) TestSerializedProfile(c *C) {
 		// binary blobk is serialized to base64 by default
 		"tpm2-pcr-profile": base64.StdEncoding.EncodeToString([]byte("serialized-profile")),
 	})
+}
+
+type testModel struct {
+	name string
+}
+
+func (tm *testModel) Series() string {
+	return "16"
+}
+func (tm *testModel) BrandID() string {
+	return "some-brand"
+}
+func (tm *testModel) Model() string {
+	return tm.name
+}
+func (tm *testModel) Classic() bool {
+	return false
+}
+func (tm *testModel) Grade() asserts.ModelGrade {
+	return asserts.ModelSecured
+}
+func (tm *testModel) SignKeyID() string {
+	return "some-key"
+}
+
+func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
+	auxKey := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	key1 := []byte(`{"platform_name":"fde-hook-v2","platform_handle":{"handle-for":"key1"},"encrypted_payload":"U0VBTEVEOgAEAQIDBAAgAQIDBAUGBwgJCgsMDQ4PEAECAwQFBgcICQoLDA0ODxA=","authorized_snap_models":{"alg":"sha256","key_digest":"KTj3yfwaA090S9iS3TuTqEdU8+taRAUy/PVbJAhoqpI=","hmacs":["O8n/7j4ZT12hBjbF4rzPHpSUna69e7I43a90oZaB3HY="]}}`)
+
+	tmpdir := c.MkDir()
+	key1Fn := filepath.Join(tmpdir, "key1.key")
+	err := os.WriteFile(key1Fn, key1, 0644)
+	c.Assert(err, IsNil)
+	auxKeyFn := filepath.Join(tmpdir, "aux.key")
+	err = os.WriteFile(auxKeyFn, auxKey, 0644)
+	c.Assert(err, IsNil)
+
+	m := &testModel{
+		name: "mytest",
+	}
+
+	beforeReader, err := sb.NewFileKeyDataReader(key1Fn)
+	c.Assert(err, IsNil)
+	beforeKeyData, err := sb.ReadKeyData(beforeReader)
+	c.Assert(err, IsNil)
+
+	beforeAuthorized, err := beforeKeyData.IsSnapModelAuthorized(auxKey, m)
+	c.Assert(err, IsNil)
+	c.Check(beforeAuthorized, Equals, false)
+
+	err = secboot.ResealKeysWithFDESetupHook([]string{key1Fn}, auxKeyFn, []secboot.ModelForSealing{m})
+	c.Assert(err, IsNil)
+
+	afterReader, err := sb.NewFileKeyDataReader(key1Fn)
+	c.Assert(err, IsNil)
+	afterKeyData, err := sb.ReadKeyData(afterReader)
+	c.Assert(err, IsNil)
+
+	afterAuthorized, err := afterKeyData.IsSnapModelAuthorized(auxKey, m)
+	c.Assert(err, IsNil)
+	c.Check(afterAuthorized, Equals, true)
+}
+
+type fakeKeyProtector struct{}
+
+func (fakeKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
+	return cleartext, []byte(`"foo"`), nil
+}
+
+func (s *secbootSuite) TestResealKeysWithFDESetupHook(c *C) {
+	tmpdir := c.MkDir()
+	key1Fn := filepath.Join(tmpdir, "key1.key")
+	primaryKeyFn := filepath.Join(tmpdir, "primary.key")
+
+	oldModel := &testModel{
+		name: "oldmodel",
+	}
+
+	newModel := &testModel{
+		name: "newmodel",
+	}
+
+	primaryKey := []byte{9, 10, 11, 12}
+	err := os.WriteFile(primaryKeyFn, primaryKey, 0644)
+	c.Assert(err, IsNil)
+
+	params := &sb_hooks.KeyParams{
+		PrimaryKey: primaryKey,
+		Role:       "key1",
+		AuthorizedSnapModels: []sb.SnapModel{
+			oldModel,
+		},
+	}
+
+	sb_hooks.SetKeyProtector(&fakeKeyProtector{}, sb_hooks.KeyProtectorNoAEAD)
+	protectedKey, _, _, err := sb_hooks.NewProtectedKey(rand.Reader, params)
+	c.Assert(err, IsNil)
+	sb_hooks.SetKeyProtector(nil, 0)
+
+	writer := sb.NewFileKeyDataWriter(key1Fn)
+	c.Assert(writer, NotNil)
+	err = protectedKey.WriteAtomic(writer)
+	c.Assert(err, IsNil)
+
+	modelSet := 0
+	secboot.MockSetAuthorizedSnapModelsOnHooksKeydata(func(kd *sb_hooks.KeyData, rand io.Reader, key sb.PrimaryKey, models ...sb.SnapModel) error {
+		modelSet++
+		c.Check([]byte(key), DeepEquals, primaryKey)
+		c.Assert(models, HasLen, 1)
+		c.Check(models[0].Model(), Equals, "newmodel")
+		return nil
+	})
+
+	err = secboot.ResealKeysWithFDESetupHook([]string{key1Fn}, primaryKeyFn, []secboot.ModelForSealing{newModel})
+	c.Assert(err, IsNil)
+	c.Check(modelSet, Equals, 1)
 }
