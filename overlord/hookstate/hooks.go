@@ -333,20 +333,11 @@ func SetupGateAutoRefreshHook(st *state.State, snapName string) *state.Task {
 	return task
 }
 
-type snapHookHandler struct {
-}
+type SnapHookHandler struct{}
 
-func (h *snapHookHandler) Before() error {
-	return nil
-}
-
-func (h *snapHookHandler) Done() error {
-	return nil
-}
-
-func (h *snapHookHandler) Error(err error) (bool, error) {
-	return false, nil
-}
+func (h *SnapHookHandler) Before() error                 { return nil }
+func (h *SnapHookHandler) Done() error                   { return nil }
+func (h *SnapHookHandler) Error(err error) (bool, error) { return false, nil }
 
 func SetupRemoveHook(st *state.State, snapName string) *state.Task {
 	hooksup := &HookSetup{
@@ -364,7 +355,7 @@ func SetupRemoveHook(st *state.State, snapName string) *state.Task {
 
 func setupHooks(hookMgr *HookManager) {
 	handlerGenerator := func(context *Context) Handler {
-		return &snapHookHandler{}
+		return &SnapHookHandler{}
 	}
 	gateAutoRefreshHandlerGenerator := func(context *Context) Handler {
 		return NewGateAutoRefreshHookHandler(context)

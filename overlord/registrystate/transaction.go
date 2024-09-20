@@ -20,6 +20,7 @@ package registrystate
 
 import (
 	"encoding/json"
+	"errors"
 	"sync"
 
 	"github.com/snapcore/snapd/overlord/state"
@@ -36,6 +37,9 @@ type Transaction struct {
 	modified      registry.JSONDataBag
 	deltas        []map[string]interface{}
 	appliedDeltas int
+
+	abortingSnap string
+	abortReason  string
 
 	mu sync.RWMutex
 }
@@ -63,6 +67,9 @@ type marshalledTransaction struct {
 	Modified      registry.JSONDataBag     `json:"modified,omitempty"`
 	Deltas        []map[string]interface{} `json:"deltas,omitempty"`
 	AppliedDeltas int                      `json:"applied-deltas,omitempty"`
+
+	AbortingSnap string `json:"aborting-snap,omitempty"`
+	AbortReason  string `json:"abort-reason,omitempty"`
 }
 
 func (t *Transaction) MarshalJSON() ([]byte, error) {
@@ -73,6 +80,8 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 		Modified:        t.modified,
 		Deltas:          t.deltas,
 		AppliedDeltas:   t.appliedDeltas,
+		AbortingSnap:    t.abortingSnap,
+		AbortReason:     t.abortReason,
 	})
 }
 
@@ -88,6 +97,8 @@ func (t *Transaction) UnmarshalJSON(data []byte) error {
 	t.modified = mt.Modified
 	t.deltas = mt.Deltas
 	t.appliedDeltas = mt.AppliedDeltas
+	t.abortingSnap = mt.AbortingSnap
+	t.abortReason = mt.AbortReason
 
 	return nil
 }
@@ -97,6 +108,10 @@ func (t *Transaction) UnmarshalJSON(data []byte) error {
 func (t *Transaction) Set(path string, value interface{}) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
+	if t.aborted() {
+		return errors.New("cannot write to aborted transaction")
+	}
 
 	t.deltas = append(t.deltas, map[string]interface{}{path: value})
 	return nil
@@ -108,6 +123,10 @@ func (t *Transaction) Unset(path string) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	if t.aborted() {
+		return errors.New("cannot write to aborted transaction")
+	}
+
 	t.deltas = append(t.deltas, map[string]interface{}{path: nil})
 	return nil
 }
@@ -116,6 +135,10 @@ func (t *Transaction) Unset(path string) error {
 func (t *Transaction) Get(path string) (interface{}, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
+	if t.aborted() {
+		return nil, errors.New("cannot read from aborted transaction")
+	}
 
 	// if there aren't any changes, just use the pristine bag
 	if len(t.deltas) == 0 {
@@ -134,6 +157,10 @@ func (t *Transaction) Get(path string) (interface{}, error) {
 func (t *Transaction) Commit(st *state.State, schema registry.Schema) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
+	if t.aborted() {
+		return errors.New("cannot commit aborted transaction")
+	}
 
 	pristine, err := readDatabag(st, t.RegistryAccount, t.RegistryName)
 	if err != nil {
@@ -169,6 +196,10 @@ func (t *Transaction) Commit(st *state.State, schema registry.Schema) error {
 func (t *Transaction) Clear(st *state.State) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
+	if t.aborted() {
+		return errors.New("cannot write to aborted transaction")
+	}
 
 	pristine, err := readDatabag(st, t.RegistryAccount, t.RegistryName)
 	if err != nil {
@@ -237,9 +268,27 @@ func (t *Transaction) Data() ([]byte, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	if t.aborted() {
+		return nil, errors.New("cannot read from aborted transaction")
+	}
+
 	if err := t.applyChanges(); err != nil {
 		return nil, err
 	}
 
 	return t.modified.Data()
+}
+
+// Abort prevents any further writes or reads to the transaction. It takes an
+// abortingSnap and reason that can be used to surface information to the user.
+func (t *Transaction) Abort(abortingSnap, reason string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.abortingSnap = abortingSnap
+	t.abortReason = reason
+}
+
+func (t *Transaction) aborted() bool {
+	return t.abortReason != ""
 }

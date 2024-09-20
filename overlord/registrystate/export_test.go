@@ -19,6 +19,7 @@
 package registrystate
 
 import (
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/registry"
 )
@@ -28,7 +29,16 @@ var (
 	WriteDatabag              = writeDatabag
 	GetPlugsAffectedByPaths   = getPlugsAffectedByPaths
 	CreateChangeRegistryTasks = createChangeRegistryTasks
+	SetTransaction            = setTransaction
 )
+
+func ChangeViewHandlerGenerator(ctx *hookstate.Context) hookstate.Handler {
+	return &changeViewHandler{ctx: ctx}
+}
+
+func SaveViewHandlerGenerator(ctx *hookstate.Context) hookstate.Handler {
+	return &saveViewHandler{ctx: ctx}
+}
 
 func MockReadDatabag(f func(st *state.State, account, registryName string) (registry.JSONDataBag, error)) func() {
 	old := readDatabag
