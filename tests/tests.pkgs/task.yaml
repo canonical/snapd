@@ -47,13 +47,22 @@ execute: |
     not tests.pkgs is-installed test-snapd-pkg-1
     not tests.pkgs is-installed test-snapd-pkg-2
 
-    # Download curl package, trusty does not support apt download
+    # Download 2 packages, trusty does not support apt download
+    PKG1="grep"
+    PKG2="curl"
+    MAXDEPTH=1
+    if os.query is-opensuse; then
+        MAXDEPTH=4
+    fi
+    if os.query is-arch-linux || os.query is-fedora || os.query is-opensuse; then
+        PKG2="vi"
+    fi
+
     if not os.query is-trusty; then
-        tests.pkgs download curl
+        tests.pkgs download "$PKG1" "$PKG2"
         if os.query is-opensuse; then
-            find . -maxdepth 4 -name 'curl.*'
-        else
-            find . -maxdepth 1 -name 'curl.*'
+            find . -maxdepth "$MAXDEPTH" -name "$PKG1*"
+            find . -maxdepth "$MAXDEPTH" -name "$PKG2*"
         fi
     fi
 
