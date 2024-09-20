@@ -275,6 +275,41 @@ func (udb *userPromptDB) remove(id prompting.IDType) (*Prompt, error) {
 	return prompt, nil
 }
 
+// timeoutCallback is the function which should be called when the expiration
+// timer for the receiving user prompt DB expires. This method should never be
+// called directly outside of a `time.AfterFunc` call which initializes the
+// timer for the user prompt DB when it is first created.
+func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
+	pdb.mutex.Lock()
+	if pdb.maxIDMmap.IsClosed() {
+		return
+	}
+	// Restart expiration timer while holding the lock, so we don't
+	// overwrite a newly-set activity timeout with an initial timeout.
+	// With the lock held, no activity can occur, so no activity timeout
+	// can be set.
+	if udb.expirationTimer.Reset(initialTimeout) {
+		// Timer was active again, suggesting that some activity caused
+		// the timer to be reset at some point between the timer firing
+		// and the lock being released and subsequently acquired by this
+		// function. So reset the timer to activityTimeout, and do not
+		// purge prompts.
+		udb.expirationTimer.Reset(activityTimeout)
+		return
+	}
+	expiredPrompts := udb.prompts
+	// Clear all outstanding prompts for the user
+	udb.prompts = nil
+	udb.ids = make(map[prompting.IDType]int)
+	// Unlock now so we can record notices without holding the prompt DB lock
+	pdb.mutex.Unlock()
+	data := map[string]string{"resolved": "expired"}
+	for _, p := range expiredPrompts {
+		pdb.notifyPrompt(user, p.ID, data)
+		p.sendReply(prompting.OutcomeDeny) // ignore any error, should not occur
+	}
+}
+
 // PromptDB stores outstanding prompts in memory and ensures that new prompts
 // are created with a unique ID.
 type PromptDB struct {
@@ -355,34 +390,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 			ids: make(map[prompting.IDType]int),
 		}
 		userEntry.expirationTimer = time.AfterFunc(initialTimeout, func() {
-			pdb.mutex.Lock()
-			if pdb.maxIDMmap.IsClosed() {
-				return
-			}
-			// Restart expiration timer while holding the lock, so we don't
-			// overwrite a newly-set activity timeout with an initial timeout.
-			// With the lock held, no activity can occur, so no activity timeout
-			// can be set.
-			if userEntry.expirationTimer.Reset(initialTimeout) {
-				// Timer was active again, suggesting that some activity caused
-				// the timer to be reset at some point between the timer firing
-				// and the lock being released and subsequently acquired by this
-				// function. So reset the timer to activityTimeout, and do not
-				// purge prompts.
-				userEntry.expirationTimer.Reset(activityTimeout)
-				return
-			}
-			expiredPrompts := userEntry.prompts
-			// Clear all outstanding prompts for the user
-			userEntry.prompts = nil
-			userEntry.ids = make(map[prompting.IDType]int)
-			// Unlock now so we can record notices without holding the prompt DB lock
-			pdb.mutex.Unlock()
-			data := map[string]string{"resolved": "expired"}
-			for _, p := range expiredPrompts {
-				pdb.notifyPrompt(metadata.User, p.ID, data)
-				p.sendReply(prompting.OutcomeDeny) // ignore any error, should not occur
-			}
+			userEntry.timeoutCallback(pdb, metadata.User)
 		})
 		pdb.perUser[metadata.User] = userEntry
 	}
