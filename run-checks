@@ -455,6 +455,7 @@ if [ "$UNIT" = 1 ]; then
     # tests
     echo Running tests from "$PWD"
     if [ "$short" = 1 ]; then
+            echo "Running without test coverage"
             # shellcheck disable=SC2046,SC2086
             GOTRACEBACK=1 $goctest $tags $race -short -timeout 5m $(go list ./... | grep -v '/vendor/' )
     else
@@ -463,7 +464,7 @@ if [ "$UNIT" = 1 ]; then
             coverage="-coverprofile=$COVERAGE_OUT -covermode=$COVERMODE"
             # Prepare the coverage output profile.
             mkdir -p "$(dirname "$COVERAGE_OUT")"
-            echo "mode: $COVERMODE" > "$COVERAGE_OUT"
+            echo "Running with coverage mode: $COVERMODE"
         else
             echo "Skipping test coverage"
         fi
