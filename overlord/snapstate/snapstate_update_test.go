@@ -13899,21 +13899,17 @@ func (s *snapmgrTestSuite) TestUpdateStateConflictRemoved(c *C) {
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
 
-func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
+func (s *snapmgrTestSuite) TestUpdateBackToPrevRevision(c *C) {
 	const (
 		snapName    = "some-snap"
 		instanceKey = "key"
 		snapID      = "some-snap-id"
-		channel     = "channel-for-components"
+		channel     = "some-channel"
 	)
-
-	components := []string{"test-component", "kernel-modules-component"}
 
 	currentSnapRev := snap.R(11)
 	prevSnapRev := snap.R(7)
 	instanceName := snap.InstanceName(snapName, instanceKey)
-
-	sort.Strings(components)
 
 	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
 		c.Fatalf("unexpected call to snapResourcesFn")
@@ -13937,9 +13933,8 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// right now, we don't expect to hit the store for this case. we might if we
-	// choose to start checking the store for an updated list of compatible
-	// components.
+	// since we don't have any components to check on, we shouldn't hit the
+	// store at all
 	snapstate.ReplaceStore(s.state, &storetest.Store{})
 
 	if instanceKey != "" {
@@ -13956,47 +13951,6 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 	}
 
 	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&prevSI, &currentSI})
-
-	currentKmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
-	prevKmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
-	for i, comp := range components {
-		prevCsi := snap.ComponentSideInfo{
-			Component: naming.NewComponentRef(snapName, comp),
-			Revision:  snap.R(i + 1),
-		}
-
-		err := seq.AddComponentForRevision(prevSnapRev, &sequence.ComponentState{
-			SideInfo: &prevCsi,
-			CompType: componentNameToType(c, comp),
-		})
-		c.Assert(err, IsNil)
-
-		currentCsi := snap.ComponentSideInfo{
-			Component: naming.NewComponentRef(snapName, comp),
-			Revision:  snap.R(i + 2),
-		}
-		err = seq.AddComponentForRevision(currentSnapRev, &sequence.ComponentState{
-			SideInfo: &currentCsi,
-			CompType: componentNameToType(c, comp),
-		})
-		c.Assert(err, IsNil)
-
-		if strings.HasPrefix(comp, string(snap.KernelModulesComponent)) {
-			prevKmodComps = append(prevKmodComps, &prevCsi)
-			currentKmodComps = append(currentKmodComps, &currentCsi)
-		}
-	}
-
-	s.AddCleanup(snapstate.MockReadComponentInfo(func(
-		compMntDir string, info *snap.Info, csi *snap.ComponentSideInfo,
-	) (*snap.ComponentInfo, error) {
-		return &snap.ComponentInfo{
-			Component:         csi.Component,
-			Type:              componentNameToType(c, csi.Component.ComponentName),
-			Version:           "1.0",
-			ComponentSideInfo: *csi,
-		}, nil
-	}))
 
 	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 		Active:          true,
@@ -14072,16 +14026,6 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, instanceName, prevSnapRev.String()),
 		},
-	}
-
-	for i, compName := range components {
-		expected = append(expected, fakeOp{
-			op:   "link-component",
-			path: snap.ComponentMountDir(compName, snap.R(i+1), instanceName),
-		})
-	}
-
-	expected = append(expected, fakeOps{
 		{
 			op:    "auto-connect:Doing",
 			name:  instanceName,
@@ -14090,21 +14034,12 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 		{
 			op: "update-aliases",
 		},
-	}...)
-
-	if len(prevKmodComps) > 0 || len(currentKmodComps) > 0 {
-		expected = append(expected, fakeOp{
-			op:           "prepare-kernel-modules-components",
-			currentComps: currentKmodComps,
-			finalComps:   prevKmodComps,
-		})
+		{
+			op:    "cleanup-trash",
+			name:  instanceName,
+			revno: prevSnapRev,
+		},
 	}
-
-	expected = append(expected, fakeOp{
-		op:    "cleanup-trash",
-		name:  instanceName,
-		revno: prevSnapRev,
-	})
 
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
@@ -14129,7 +14064,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 			Transaction: client.TransactionPerSnap,
 		},
 		InstanceKey:                     instanceKey,
-		PreUpdateKernelModuleComponents: currentKmodComps,
+		PreUpdateKernelModuleComponents: []*snap.ComponentSideInfo{},
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: snapName,
@@ -14151,6 +14086,419 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 	// sequence. in this case, swapping their positions.
 	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, seq.Revisions[0])
 	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, seq.Revisions[1])
+}
+
+func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
+	const (
+		snapName    = "snap-with-components"
+		instanceKey = "key"
+		snapID      = "snap-with-components-id"
+		channel     = "channel-for-components-only-component-refresh"
+	)
+
+	components := []string{"test-component", "kernel-modules-component"}
+
+	currentSnapRev := snap.R(11)
+	prevSnapRev := snap.R(7)
+	instanceName := snap.InstanceName(snapName, instanceKey)
+
+	sort.Strings(components)
+
+	// we start without the auxiliary store info (or with an older one)
+	c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+
+	currentSI := snap.SideInfo{
+		RealName: snapName,
+		Revision: currentSnapRev,
+		SnapID:   snapID,
+		Channel:  channel,
+	}
+
+	snaptest.MockSnapInstance(c, instanceName, fmt.Sprintf("name: %s", snapName), &currentSI)
+
+	restore := snapstate.MockRevisionDate(nil)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	if instanceKey != "" {
+		tr := config.NewTransaction(s.state)
+		tr.Set("core", "experimental.parallel-instances", true)
+		tr.Commit()
+	}
+
+	prevSI := snap.SideInfo{
+		RealName: snapName,
+		Revision: prevSnapRev,
+		SnapID:   snapID,
+		Channel:  channel,
+	}
+
+	otherSI := snap.SideInfo{
+		RealName: snapName,
+		Revision: snap.R(99),
+		SnapID:   snapID,
+		Channel:  channel,
+	}
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&otherSI, &prevSI, &currentSI})
+
+	currentKmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
+	newKmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
+	currentResources := make(map[string]snap.Revision, len(components))
+
+	// we have three sets of revisions we are working with:
+	// 1. current component revisions (+1 to index)
+	// 2. previous component revisions (+3 to index)
+	// 3. new component revisions (that is connected with the original snap
+	//    revision, via the store) (+2 to index)
+	for i, comp := range components {
+		prevCsi := snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, comp),
+			Revision:  snap.R(i + 1),
+		}
+
+		err := seq.AddComponentForRevision(prevSnapRev, &sequence.ComponentState{
+			SideInfo: &prevCsi,
+			CompType: componentNameToType(c, comp),
+		})
+		c.Assert(err, IsNil)
+
+		currentCsi := snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, comp),
+			Revision:  snap.R(i + 3),
+		}
+		err = seq.AddComponentForRevision(currentSnapRev, &sequence.ComponentState{
+			SideInfo: &currentCsi,
+			CompType: componentNameToType(c, comp),
+		})
+		c.Assert(err, IsNil)
+
+		if strings.HasPrefix(comp, string(snap.KernelModulesComponent)) {
+			newKmodComps = append(newKmodComps, &snap.ComponentSideInfo{
+				Component: naming.NewComponentRef(snapName, comp),
+				Revision:  snap.R(i + 2),
+			})
+			currentKmodComps = append(currentKmodComps, &currentCsi)
+		}
+		currentResources[comp] = snap.R(i + 3)
+	}
+
+	availableComponents := make([]string, len(components))
+	copy(availableComponents, components)
+	availableComponents = append(availableComponents, "test-component-extra", "test-component-present-in-sequence")
+
+	// test-component-extra is installed for just the revision we're moving to,
+	// it should be unlinked and discarded
+	extraCsi := snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, "test-component-extra"),
+		Revision:  snap.R(len(availableComponents) + 1),
+	}
+	err := seq.AddComponentForRevision(prevSnapRev, &sequence.ComponentState{
+		SideInfo: &extraCsi,
+		CompType: componentNameToType(c, extraCsi.Component.ComponentName),
+	})
+	c.Assert(err, IsNil)
+
+	// test-component-present-in-sequence is installed for the revision we're
+	// moving to and another revision. it should be unlinked, but not discarded.
+	presentInSeqCsi := snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, "test-component-present-in-sequence"),
+		Revision:  snap.R(len(availableComponents) + 1),
+	}
+	for _, si := range []*snap.SideInfo{&prevSI, &otherSI} {
+		err := seq.AddComponentForRevision(si.Revision, &sequence.ComponentState{
+			SideInfo: &presentInSeqCsi,
+			CompType: componentNameToType(c, presentInSeqCsi.Component.ComponentName),
+		})
+		c.Assert(err, IsNil)
+	}
+
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		c.Assert(info.InstanceName(), DeepEquals, instanceName)
+		var results []store.SnapResourceResult
+		for i, compName := range availableComponents {
+			results = append(results, store.SnapResourceResult{
+				DownloadInfo: snap.DownloadInfo{
+					DownloadURL: "http://example.com/" + compName,
+				},
+				Name:      compName,
+				Revision:  i + 2,
+				Type:      fmt.Sprintf("component/%s", componentNameToType(c, compName)),
+				Version:   "1.0",
+				CreatedAt: "2024-01-01T00:00:00Z",
+			})
+		}
+		return results
+	}
+
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(
+		compMntDir string, info *snap.Info, csi *snap.ComponentSideInfo,
+	) (*snap.ComponentInfo, error) {
+		return &snap.ComponentInfo{
+			Component:         csi.Component,
+			Type:              componentNameToType(c, csi.Component.ComponentName),
+			Version:           "1.0",
+			ComponentSideInfo: *csi,
+		}, nil
+	}))
+
+	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
+		Active:          true,
+		Sequence:        seq,
+		Current:         currentSI.Revision,
+		SnapType:        "app",
+		TrackingChannel: channel,
+		InstanceKey:     instanceKey,
+	})
+
+	ts, err := snapstate.Update(s.state, instanceName, &snapstate.RevisionOptions{
+		Revision: prevSnapRev,
+	}, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("refresh", "refresh a snap")
+	chg.AddAll(ts)
+
+	// check unlink-reason
+	unlinkTask := findLastTask(chg, "unlink-current-snap")
+	c.Assert(unlinkTask, NotNil)
+	var unlinkReason string
+	unlinkTask.Get("unlink-reason", &unlinkReason)
+	c.Check(unlinkReason, Equals, "refresh")
+
+	// local modifications, edge must be set
+	te := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(te, NotNil)
+	c.Assert(te.Kind(), Equals, "prepare-snap")
+
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
+
+	fi, err := os.Stat(snap.MountFile(instanceName, currentSnapRev))
+	c.Assert(err, IsNil)
+
+	expected := fakeOps{
+		{
+			op: "storesvc-snap-action",
+			curSnaps: []store.CurrentSnap{{
+				InstanceName:    instanceName,
+				SnapID:          snapID,
+				Revision:        currentSnapRev,
+				TrackingChannel: channel,
+				RefreshedDate:   fi.ModTime(),
+				Epoch:           snap.E("1*"),
+				Resources:       currentResources,
+			}},
+			userID: 1,
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:          "refresh",
+				InstanceName:    instanceName,
+				Revision:        prevSnapRev,
+				SnapID:          snapID,
+				ResourceInstall: true,
+				// note that channel is empty here since we can't provide a
+				// channel in this case, since we don't know if the revision is
+				// a part of the channel
+				Channel: "",
+			},
+			revno:  prevSnapRev,
+			userID: 1,
+		},
+	}
+
+	for _, unlinked := range []snap.ComponentSideInfo{extraCsi, presentInSeqCsi} {
+		expected = append(expected, fakeOp{
+			op:   "unlink-component",
+			path: snap.ComponentMountDir(unlinked.Component.ComponentName, unlinked.Revision, instanceName),
+		})
+	}
+
+	for i, compName := range components {
+		csi := snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, compName),
+			Revision:  snap.R(i + 2),
+		}
+
+		containerName := fmt.Sprintf("%s+%s", instanceName, compName)
+		filename := fmt.Sprintf("%s_%v.comp", containerName, csi.Revision)
+
+		expected = append(expected, []fakeOp{{
+			op:   "storesvc-download",
+			name: csi.Component.String(),
+		}, {
+			op:                "validate-component:Doing",
+			name:              instanceName,
+			revno:             prevSnapRev,
+			componentName:     compName,
+			componentPath:     filepath.Join(dirs.SnapBlobDir, filename),
+			componentRev:      csi.Revision,
+			componentSideInfo: csi,
+		}, {
+			op:                "setup-component",
+			containerName:     containerName,
+			containerFileName: filename,
+		}}...)
+	}
+
+	expected = append(expected, fakeOp{
+		op:   "remove-snap-aliases",
+		name: instanceName,
+	})
+
+	expected = append(expected, fakeOps{
+		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        instanceName,
+			inhibitHint: "refresh",
+		},
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, instanceName, currentSnapRev.String()),
+		},
+		{
+			op:   "copy-data",
+			path: filepath.Join(dirs.SnapMountDir, instanceName, prevSnapRev.String()),
+			old:  filepath.Join(dirs.SnapMountDir, instanceName, currentSnapRev.String()),
+		},
+		{
+			op:   "setup-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, instanceName),
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  instanceName,
+			revno: prevSnapRev,
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				RealName: snapName,
+				SnapID:   snapID,
+				Channel:  channel,
+				Revision: prevSnapRev,
+			},
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, instanceName, prevSnapRev.String()),
+		},
+	}...)
+
+	for i, compName := range components {
+		expected = append(expected, fakeOp{
+			op:   "link-component",
+			path: snap.ComponentMountDir(compName, snap.R(i+2), instanceName),
+		})
+	}
+
+	expected = append(expected, fakeOps{
+		{
+			op:    "auto-connect:Doing",
+			name:  instanceName,
+			revno: prevSnapRev,
+		},
+		{
+			op: "update-aliases",
+		},
+	}...)
+
+	if len(newKmodComps) > 0 || len(currentKmodComps) > 0 {
+		expected = append(expected, fakeOp{
+			op:           "prepare-kernel-modules-components",
+			currentComps: currentKmodComps,
+			finalComps:   newKmodComps,
+		})
+	}
+
+	// note that test-present-in-both-component is not discarded since it is
+	// still referenced by the original snap revision
+	discardedContainerName := fmt.Sprintf("%s+%s", instanceName, extraCsi.Component.ComponentName)
+	discardedFilename := fmt.Sprintf("%s_%v.comp", discardedContainerName, extraCsi.Revision)
+	expected = append(expected, []fakeOp{
+		{
+			op:                "undo-setup-component",
+			containerName:     discardedContainerName,
+			containerFileName: discardedFilename,
+		},
+		{
+			op:                "remove-component-dir",
+			containerName:     discardedContainerName,
+			containerFileName: discardedFilename,
+		},
+	}...)
+
+	expected = append(expected, fakeOp{
+		op:    "cleanup-trash",
+		name:  instanceName,
+		revno: prevSnapRev,
+	})
+
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	task := ts.Tasks()[1]
+
+	// verify snapSetup info
+	var snapsup snapstate.SnapSetup
+	err = task.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
+		Channel: channel,
+		UserID:  s.user.ID,
+
+		SnapPath:  filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", instanceName, prevSnapRev)),
+		SideInfo:  snapsup.SideInfo,
+		Type:      snap.TypeApp,
+		Version:   "snap-with-componentsVer",
+		PlugsOnly: true,
+		Flags: snapstate.Flags{
+			Transaction: client.TransactionPerSnap,
+		},
+		InstanceKey:                     instanceKey,
+		PreUpdateKernelModuleComponents: currentKmodComps,
+	})
+	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: snapName,
+		Revision: prevSnapRev,
+		Channel:  channel,
+		SnapID:   snapID,
+	})
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, instanceName, &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.LastRefreshTime, NotNil)
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Sequence.Revisions, HasLen, 3)
+
+	// the original revision's components should be replaced with the new
+	// components
+	seq.Revisions[1].Components = nil
+	for i, comp := range components {
+		err := seq.AddComponentForRevision(prevSnapRev, &sequence.ComponentState{
+			SideInfo: &snap.ComponentSideInfo{
+				Component: naming.NewComponentRef(snapName, comp),
+				Revision:  snap.R(i + 2),
+			},
+			CompType: componentNameToType(c, comp),
+		})
+		c.Assert(err, IsNil)
+	}
+
+	// link-snap should put the revision we refreshed to at the end of the
+	// sequence
+	c.Assert(snapst.Sequence.Revisions[2], DeepEquals, seq.Revisions[1])
+	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, seq.Revisions[2])
+	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, seq.Revisions[0])
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThrough(c *C) {
@@ -14232,8 +14580,8 @@ type updateWithComponentsOpts struct {
 }
 
 func componentNameToType(c *C, name string) snap.ComponentType {
-	typ := strings.TrimSuffix(name, "-component")
-	if typ == name {
+	typ, _, ok := strings.Cut(name, "-component")
+	if !ok {
 		c.Fatalf("unexpected component name %q", name)
 	}
 	return snap.ComponentType(typ)
