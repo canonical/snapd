@@ -464,7 +464,7 @@ if [ "$UNIT" = 1 ]; then
             coverage="-coverprofile=$COVERAGE_OUT -covermode=$COVERMODE"
             # Prepare the coverage output profile.
             mkdir -p "$(dirname "$COVERAGE_OUT")"
-            echo "Running with coverage mode: $COVERMODE"
+            echo "Using coverage params: $coverage"
         else
             echo "Skipping test coverage"
         fi
