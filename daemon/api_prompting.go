@@ -331,7 +331,10 @@ func getPrompts(c *Command, r *http.Request, user *auth.UserState) Response {
 		return promptingNotRunningError()
 	}
 
-	prompts, err := getInterfaceManager(c).InterfacesRequestsManager().Prompts(userID)
+	// TODO: check that it's a handler service client making the API request
+	clientActivity := true
+
+	prompts, err := getInterfaceManager(c).InterfacesRequestsManager().Prompts(userID, clientActivity)
 	if err != nil {
 		return promptingError(err)
 	}
@@ -360,7 +363,10 @@ func getPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 		return promptingNotRunningError()
 	}
 
-	prompt, err := getInterfaceManager(c).InterfacesRequestsManager().PromptWithID(userID, promptID)
+	// TODO: check that it's a handler service client making the API request
+	clientActivity := true
+
+	prompt, err := getInterfaceManager(c).InterfacesRequestsManager().PromptWithID(userID, promptID, clientActivity)
 	if err != nil {
 		return promptingError(err)
 	}
@@ -392,7 +398,10 @@ func postPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 		return promptingError(fmt.Errorf("cannot decode request body into prompt reply: %w", err))
 	}
 
-	satisfiedPromptIDs, err := getInterfaceManager(c).InterfacesRequestsManager().HandleReply(userID, promptID, reply.Constraints, reply.Outcome, reply.Lifespan, reply.Duration)
+	// TODO: check that it's a handler service client making the API request
+	clientActivity := true
+
+	satisfiedPromptIDs, err := getInterfaceManager(c).InterfacesRequestsManager().HandleReply(userID, promptID, reply.Constraints, reply.Outcome, reply.Lifespan, reply.Duration, clientActivity)
 	if err != nil {
 		return promptingError(err)
 	}
