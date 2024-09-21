@@ -450,6 +450,9 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		return promptingNotRunningError()
 	}
 
+	// TODO: check if it's a handler service client making the API request
+	clientActivity := false
+
 	var postBody postRulesRequestBody
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&postBody); err != nil {
@@ -461,7 +464,7 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		if postBody.AddRule == nil {
 			return BadRequest(`must include "rule" field in request body when action is "add"`)
 		}
-		newRule, err := getInterfaceManager(c).InterfacesRequestsManager().AddRule(userID, postBody.AddRule.Snap, postBody.AddRule.Interface, postBody.AddRule.Constraints, postBody.AddRule.Outcome, postBody.AddRule.Lifespan, postBody.AddRule.Duration)
+		newRule, err := getInterfaceManager(c).InterfacesRequestsManager().AddRule(userID, postBody.AddRule.Snap, postBody.AddRule.Interface, postBody.AddRule.Constraints, postBody.AddRule.Outcome, postBody.AddRule.Lifespan, postBody.AddRule.Duration, clientActivity)
 		if err != nil {
 			return promptingError(err)
 		}
@@ -527,6 +530,9 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 		return promptingNotRunningError()
 	}
 
+	// TODO: check if it's a handler service client making the API request
+	clientActivity := false
+
 	var postBody postRuleRequestBody
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&postBody); err != nil {
@@ -538,7 +544,7 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 		if postBody.PatchRule == nil {
 			return BadRequest(`must include "rule" field in request body when action is "patch"`)
 		}
-		patchedRule, err := getInterfaceManager(c).InterfacesRequestsManager().PatchRule(userID, ruleID, postBody.PatchRule.Constraints, postBody.PatchRule.Outcome, postBody.PatchRule.Lifespan, postBody.PatchRule.Duration)
+		patchedRule, err := getInterfaceManager(c).InterfacesRequestsManager().PatchRule(userID, ruleID, postBody.PatchRule.Constraints, postBody.PatchRule.Outcome, postBody.PatchRule.Lifespan, postBody.PatchRule.Duration, clientActivity)
 		if err != nil {
 			return promptingError(err)
 		}
