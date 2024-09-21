@@ -439,7 +439,10 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 }
 
 // Prompts returns a slice of all outstanding prompts for the given user.
-func (pdb *PromptDB) Prompts(user uint32) ([]*Prompt, error) {
+//
+// If clientActivity is true, reset the expiration timeout for prompts for
+// the given user.
+func (pdb *PromptDB) Prompts(user uint32, clientActivity bool) ([]*Prompt, error) {
 	pdb.mutex.RLock()
 	defer pdb.mutex.RUnlock()
 	if pdb.maxIDMmap.IsClosed() {
@@ -450,25 +453,33 @@ func (pdb *PromptDB) Prompts(user uint32) ([]*Prompt, error) {
 		// No prompts for user, but no error
 		return nil, nil
 	}
-	userEntry.expirationTimer.Reset(activityTimeout)
+	if clientActivity {
+		userEntry.expirationTimer.Reset(activityTimeout)
+	}
 	promptsCopy := make([]*Prompt, len(userEntry.prompts))
 	copy(promptsCopy, userEntry.prompts)
 	return promptsCopy, nil
 }
 
 // PromptWithID returns the prompt with the given ID for the given user.
-func (pdb *PromptDB) PromptWithID(user uint32, id prompting.IDType) (*Prompt, error) {
+//
+// If clientActivity is true, reset the expiration timeout for prompts for
+// the given user.
+func (pdb *PromptDB) PromptWithID(user uint32, id prompting.IDType, clientActivity bool) (*Prompt, error) {
 	pdb.mutex.RLock()
 	defer pdb.mutex.RUnlock()
-	_, prompt, err := pdb.promptWithID(user, id)
+	_, prompt, err := pdb.promptWithID(user, id, clientActivity)
 	return prompt, err
 }
 
 // promptWithID returns the user entry for the given user and the prompt with
 // the given ID for the that user.
 //
+// If clientActivity is true, reset the expiration timeout for prompts for
+// the given user.
+//
 // The caller should hold a read (or write) lock on the prompt DB mutex.
-func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType) (*userPromptDB, *Prompt, error) {
+func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType, clientActivity bool) (*userPromptDB, *Prompt, error) {
 	if pdb.maxIDMmap.IsClosed() {
 		return nil, nil, prompting_errors.ErrPromptsClosed
 	}
@@ -476,7 +487,9 @@ func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType) (*userPrompt
 	if !ok {
 		return nil, nil, prompting_errors.ErrPromptNotFound
 	}
-	userEntry.expirationTimer.Reset(activityTimeout)
+	if clientActivity {
+		userEntry.expirationTimer.Reset(activityTimeout)
+	}
 	prompt, err := userEntry.get(id)
 	if err != nil {
 		return nil, nil, err
@@ -489,10 +502,13 @@ func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType) (*userPrompt
 // prompt from the prompt DB.
 //
 // Records a notice for the prompt, and returns the prompt's former contents.
-func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.OutcomeType) (*Prompt, error) {
+//
+// If clientActivity is true, reset the expiration timeout for prompts for
+// the given user.
+func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.OutcomeType, clientActivity bool) (*Prompt, error) {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
-	userEntry, prompt, err := pdb.promptWithID(user, id)
+	userEntry, prompt, err := pdb.promptWithID(user, id, clientActivity)
 	if err != nil {
 		return nil, err
 	}
