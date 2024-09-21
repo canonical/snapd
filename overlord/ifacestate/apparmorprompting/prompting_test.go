@@ -451,7 +451,7 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 	// Conflicting rule
 	// For this, need to add another rule to the DB first, then try to reply
 	// with a rule which conflicts with it. Reuse badPatternConstraints.
-	newRule, err := mgr.AddRule(s.defaultUser, "firefox", "home", &badPatternConstraints, prompting.OutcomeAllow, prompting.LifespanTimespan, "10s")
+	newRule, err := mgr.AddRule(s.defaultUser, "firefox", "home", &badPatternConstraints, prompting.OutcomeAllow, prompting.LifespanTimespan, "10s", false)
 	c.Assert(err, IsNil)
 	c.Assert(newRule, NotNil)
 	conflictingOutcome := prompting.OutcomeDeny
@@ -482,7 +482,8 @@ func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
 		PathPattern: mustParsePathPattern(c, "/home/test/**"),
 		Permissions: []string{"read"},
 	}
-	_, err = mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	clientActivity := false
+	_, err = mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "", clientActivity)
 	c.Assert(err, IsNil)
 
 	// Add allow rule to match write permission
@@ -490,7 +491,7 @@ func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
 		PathPattern: mustParsePathPattern(c, "/home/test/**"),
 		Permissions: []string{"write"},
 	}
-	_, err = mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	_, err = mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "", clientActivity)
 	c.Assert(err, IsNil)
 
 	// Create request for read and write
@@ -503,7 +504,6 @@ func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
 	time.Sleep(10 * time.Millisecond)
 
 	// Check that no prompts were created
-	clientActivity := false
 	prompts, err := mgr.Prompts(s.defaultUser, clientActivity)
 	c.Check(err, IsNil)
 	c.Check(prompts, HasLen, 0)
@@ -554,7 +554,8 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyAllowsNewPrompt(c *C) 
 		PathPattern: mustParsePathPattern(c, "/home/test/**"),
 		Permissions: []string{"read"},
 	}
-	_, err = mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	clientActivity := false
+	_, err = mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "", clientActivity)
 	c.Assert(err, IsNil)
 
 	// Do NOT add rule to match write permission
@@ -583,7 +584,8 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyDeniesNewPrompt(c *C) 
 		PathPattern: mustParsePathPattern(c, "/home/test/**"),
 		Permissions: []string{"read"},
 	}
-	_, err = mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeDeny, prompting.LifespanForever, "")
+	clientActivity := false
+	_, err = mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeDeny, prompting.LifespanForever, "", clientActivity)
 	c.Assert(err, IsNil)
 
 	// Add no rule for write permissions
@@ -598,7 +600,6 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyDeniesNewPrompt(c *C) 
 	time.Sleep(10 * time.Millisecond)
 
 	// Check that no prompts were created
-	clientActivity := false
 	prompts, err := mgr.Prompts(s.defaultUser, clientActivity)
 	c.Check(err, IsNil)
 	c.Check(prompts, HasLen, 0)
@@ -627,7 +628,8 @@ func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C
 		PathPattern: mustParsePathPattern(c, "/home/test/**"),
 		Permissions: []string{"read"},
 	}
-	_, err = mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeDeny, prompting.LifespanForever, "")
+	clientActivity := false
+	_, err = mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeDeny, prompting.LifespanForever, "", clientActivity)
 	c.Assert(err, IsNil)
 
 	// Add allow rule for write permissions
@@ -635,7 +637,7 @@ func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C
 		PathPattern: mustParsePathPattern(c, "/home/test/**"),
 		Permissions: []string{"write"},
 	}
-	_, err = mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	_, err = mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "", clientActivity)
 	c.Assert(err, IsNil)
 
 	// Create request for read and write
@@ -648,7 +650,6 @@ func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C
 	time.Sleep(10 * time.Millisecond)
 
 	// Check that no prompts were created
-	clientActivity := false
 	prompts, err := mgr.Prompts(s.defaultUser, clientActivity)
 	c.Check(err, IsNil)
 	c.Check(prompts, HasLen, 0)
@@ -703,7 +704,8 @@ func (s *apparmorpromptingSuite) TestNewRuleAllowExistingPrompt(c *C) {
 		PathPattern: mustParsePathPattern(c, "/home/test/**"),
 		Permissions: []string{"read"},
 	}
-	rule, err := mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	clientActivity := false
+	rule, err := mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "", clientActivity)
 	c.Assert(err, IsNil)
 
 	// Check that kernel received a reply
@@ -715,7 +717,6 @@ func (s *apparmorpromptingSuite) TestNewRuleAllowExistingPrompt(c *C) {
 	c.Check(resp.AllowedPermission, DeepEquals, expectedPermissions)
 
 	// Check that read request prompt was satisfied
-	clientActivity := false
 	_, err = mgr.PromptWithID(s.defaultUser, readPrompt.ID, clientActivity)
 	c.Check(err, NotNil)
 
@@ -777,7 +778,8 @@ func (s *apparmorpromptingSuite) TestNewRuleDenyExistingPrompt(c *C) {
 		PathPattern: mustParsePathPattern(c, "/home/test/**"),
 		Permissions: []string{"read"},
 	}
-	rule, err := mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeDeny, prompting.LifespanForever, "")
+	clientActivity := false
+	rule, err := mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeDeny, prompting.LifespanForever, "", clientActivity)
 	c.Assert(err, IsNil)
 
 	// Check that kernel received two replies
@@ -788,7 +790,6 @@ func (s *apparmorpromptingSuite) TestNewRuleDenyExistingPrompt(c *C) {
 	}
 
 	// Check that read and rw prompts were satisfied
-	clientActivity := false
 	_, err = mgr.PromptWithID(s.defaultUser, readPrompt.ID, clientActivity)
 	c.Check(err, NotNil)
 	_, err = mgr.PromptWithID(s.defaultUser, rwPrompt.ID, clientActivity)
@@ -1032,7 +1033,8 @@ func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
 		PathPattern: mustParsePathPattern(c, "/home/test/**"),
 		Permissions: []string{"read"},
 	}
-	_, err = mgr.AddRule(s.defaultUser, prompt.Snap, prompt.Interface, constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	clientActivity := false
+	_, err = mgr.AddRule(s.defaultUser, prompt.Snap, prompt.Interface, constraints, prompting.OutcomeAllow, prompting.LifespanForever, "", clientActivity)
 	c.Assert(err, IsNil)
 
 	// Create identical request again, it should merge even though some
@@ -1092,7 +1094,8 @@ func (s *apparmorpromptingSuite) prepManagerWithRules(c *C) (mgr *apparmorprompt
 		PathPattern: mustParsePathPattern(c, "/home/test/1"),
 		Permissions: []string{"read"},
 	}
-	rule1, err := mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	clientActivity := false
+	rule1, err := mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "", clientActivity)
 	c.Assert(err, IsNil)
 	rules = append(rules, rule1)
 
@@ -1101,7 +1104,7 @@ func (s *apparmorpromptingSuite) prepManagerWithRules(c *C) (mgr *apparmorprompt
 		PathPattern: mustParsePathPattern(c, "/home/test/2"),
 		Permissions: []string{"read"},
 	}
-	rule2, err := mgr.AddRule(s.defaultUser, "thunderbird", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	rule2, err := mgr.AddRule(s.defaultUser, "thunderbird", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "", clientActivity)
 	c.Assert(err, IsNil)
 	rules = append(rules, rule2)
 
@@ -1110,7 +1113,7 @@ func (s *apparmorpromptingSuite) prepManagerWithRules(c *C) (mgr *apparmorprompt
 		PathPattern: mustParsePathPattern(c, "/home/test/3"),
 		Permissions: []string{"read"},
 	}
-	rule3, err := mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	rule3, err := mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "", clientActivity)
 	c.Assert(err, IsNil)
 	// Since camera interface isn't supported yet, must adjust the interface
 	// after the rule has been created. This abuses implementation details of
@@ -1123,7 +1126,7 @@ func (s *apparmorpromptingSuite) prepManagerWithRules(c *C) (mgr *apparmorprompt
 		PathPattern: mustParsePathPattern(c, "/home/test/4"),
 		Permissions: []string{"read"},
 	}
-	rule4, err := mgr.AddRule(s.defaultUser+1, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	rule4, err := mgr.AddRule(s.defaultUser+1, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "", clientActivity)
 	c.Assert(err, IsNil)
 	rules = append(rules, rule4)
 
@@ -1221,7 +1224,8 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 		PathPattern: mustParsePathPattern(c, "/home/test/**"),
 		Permissions: []string{"write"},
 	}
-	rule, err := mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	clientActivity := false
+	rule, err := mgr.AddRule(s.defaultUser, "firefox", "home", constraints, prompting.OutcomeAllow, prompting.LifespanForever, "", clientActivity)
 	c.Assert(err, IsNil)
 	s.checkRecordedRuleUpdateNotices(c, whenAdded, 1)
 
@@ -1232,7 +1236,6 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 
 	// Check prompt still exists and no prompt notices recorded since before
 	// the rule was added
-	clientActivity := false
 	retrievedPrompt, err := mgr.PromptWithID(s.defaultUser, prompt.ID, clientActivity)
 	c.Assert(err, IsNil)
 	c.Assert(retrievedPrompt, Equals, prompt)
@@ -1244,7 +1247,7 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 		PathPattern: mustParsePathPattern(c, "/home/test/{foo,bar,baz}"),
 		Permissions: []string{"read", "write"},
 	}
-	patched, err := mgr.PatchRule(s.defaultUser, rule.ID, newConstraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	patched, err := mgr.PatchRule(s.defaultUser, rule.ID, newConstraints, prompting.OutcomeAllow, prompting.LifespanForever, "", clientActivity)
 	c.Assert(err, IsNil)
 	s.checkRecordedRuleUpdateNotices(c, whenPatched, 1)
 

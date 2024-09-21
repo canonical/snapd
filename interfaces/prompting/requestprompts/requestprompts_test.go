@@ -672,7 +672,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	}
 	outcome := prompting.OutcomeAllow
 
-	satisfied, err := pdb.HandleNewRule(metadata, constraints, outcome)
+	satisfied, err := pdb.HandleNewRule(metadata, constraints, outcome, clientActivity)
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 2)
 	c.Check(promptIDListContains(satisfied, prompt2.ID), Equals, true)
@@ -713,7 +713,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 		PathPattern: pathPattern,
 		Permissions: permissions,
 	}
-	satisfied, err = pdb.HandleNewRule(metadata, constraints, outcome)
+	satisfied, err = pdb.HandleNewRule(metadata, constraints, outcome, clientActivity)
 
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 1)
@@ -801,7 +801,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 	outcome := prompting.OutcomeDeny
 
 	// If one or more permissions denied each for prompts 1-3, so each is denied
-	satisfied, err := pdb.HandleNewRule(metadata, constraints, outcome)
+	satisfied, err := pdb.HandleNewRule(metadata, constraints, outcome, clientActivity)
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 3)
 	c.Check(promptIDListContains(satisfied, prompt1.ID), Equals, true)
@@ -884,7 +884,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	c.Assert(stored, HasLen, 1)
 	c.Assert(stored[0], Equals, prompt)
 
-	satisfied, err := pdb.HandleNewRule(metadata, constraints, badOutcome)
+	satisfied, err := pdb.HandleNewRule(metadata, constraints, badOutcome, clientActivity)
 	c.Check(err, ErrorMatches, `invalid outcome: "foo"`)
 	c.Check(satisfied, IsNil)
 
@@ -895,7 +895,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 		Snap:      snap,
 		Interface: iface,
 	}
-	satisfied, err = pdb.HandleNewRule(otherUserMetadata, constraints, outcome)
+	satisfied, err = pdb.HandleNewRule(otherUserMetadata, constraints, outcome, clientActivity)
 	c.Check(err, IsNil)
 	c.Check(satisfied, IsNil)
 
@@ -906,7 +906,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 		Snap:      otherSnap,
 		Interface: iface,
 	}
-	satisfied, err = pdb.HandleNewRule(otherSnapMetadata, constraints, outcome)
+	satisfied, err = pdb.HandleNewRule(otherSnapMetadata, constraints, outcome, clientActivity)
 	c.Check(err, IsNil)
 	c.Check(satisfied, IsNil)
 
@@ -917,19 +917,19 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 		Snap:      snap,
 		Interface: otherInterface,
 	}
-	satisfied, err = pdb.HandleNewRule(otherInterfaceMetadata, constraints, outcome)
+	satisfied, err = pdb.HandleNewRule(otherInterfaceMetadata, constraints, outcome, clientActivity)
 	c.Check(err, IsNil)
 	c.Check(satisfied, IsNil)
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
-	satisfied, err = pdb.HandleNewRule(metadata, otherConstraints, outcome)
+	satisfied, err = pdb.HandleNewRule(metadata, otherConstraints, outcome, clientActivity)
 	c.Check(err, IsNil)
 	c.Check(satisfied, IsNil)
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
-	satisfied, err = pdb.HandleNewRule(metadata, constraints, outcome)
+	satisfied, err = pdb.HandleNewRule(metadata, constraints, outcome, clientActivity)
 	c.Check(err, IsNil)
 	c.Assert(satisfied, HasLen, 1)
 
@@ -1035,7 +1035,7 @@ func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
 	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
 	c.Check(result, IsNil)
 
-	promptIDs, err := pdb.HandleNewRule(nil, nil, prompting.OutcomeDeny)
+	promptIDs, err := pdb.HandleNewRule(nil, nil, prompting.OutcomeDeny, clientActivity)
 	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
 	c.Check(promptIDs, IsNil)
 

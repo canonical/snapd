@@ -53,10 +53,10 @@ type Manager interface {
 	PromptWithID(userID uint32, promptID prompting.IDType, clientActivity bool) (*requestprompts.Prompt, error)
 	HandleReply(userID uint32, promptID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) ([]prompting.IDType, error)
 	Rules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error)
-	AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error)
+	AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) (*requestrules.Rule, error)
 	RemoveRules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error)
 	RuleWithID(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error)
-	PatchRule(userID uint32, ruleID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error)
+	PatchRule(userID uint32, ruleID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) (*requestrules.Rule, error)
 	RemoveRule(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error)
 }
 
@@ -449,18 +449,18 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 	}
 
 	// Apply new rule to outstanding prompts.
-	satisfiedPromptIDs = m.applyRuleToOutstandingPrompts(newRule)
+	satisfiedPromptIDs = m.applyRuleToOutstandingPrompts(newRule, clientActivity)
 
 	return satisfiedPromptIDs, nil
 }
 
-func (m *InterfacesRequestsManager) applyRuleToOutstandingPrompts(rule *requestrules.Rule) []prompting.IDType {
+func (m *InterfacesRequestsManager) applyRuleToOutstandingPrompts(rule *requestrules.Rule, clientActivity bool) []prompting.IDType {
 	metadata := &prompting.Metadata{
 		User:      rule.User,
 		Snap:      rule.Snap,
 		Interface: rule.Interface,
 	}
-	satisfiedPromptIDs, err := m.prompts.HandleNewRule(metadata, rule.Constraints, rule.Outcome)
+	satisfiedPromptIDs, err := m.prompts.HandleNewRule(metadata, rule.Constraints, rule.Outcome, clientActivity)
 	if err != nil {
 		// The rule's constraints and outcome were already validated, so an
 		// error should not occur here unless the prompt DB was already closed.
@@ -493,7 +493,10 @@ func (m *InterfacesRequestsManager) Rules(userID uint32, snap string, iface stri
 
 // AddRule creates a new rule with the given contents and then checks it against
 // outstanding prompts, resolving any prompts which it satisfies.
-func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error) {
+//
+// If clientActivity is true, reset the expiration timeout for prompts for
+// the given user.
+func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) (*requestrules.Rule, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
@@ -502,7 +505,7 @@ func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface st
 		return nil, err
 	}
 	// Apply new rule to outstanding prompts.
-	m.applyRuleToOutstandingPrompts(newRule)
+	m.applyRuleToOutstandingPrompts(newRule, clientActivity)
 	return newRule, nil
 }
 
@@ -540,7 +543,10 @@ func (m *InterfacesRequestsManager) RuleWithID(userID uint32, ruleID prompting.I
 
 // PatchRule updates the rule with the given ID using the provided contents.
 // Any of the given fields which are empty/nil are not updated in the rule.
-func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error) {
+//
+// If clientActivity is true, reset the expiration timeout for prompts for
+// the given user.
+func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) (*requestrules.Rule, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
@@ -549,7 +555,7 @@ func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.ID
 		return nil, err
 	}
 	// Apply patched rule to outstanding prompts.
-	m.applyRuleToOutstandingPrompts(patchedRule)
+	m.applyRuleToOutstandingPrompts(patchedRule, clientActivity)
 	return patchedRule, nil
 }
 
