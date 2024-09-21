@@ -25,7 +25,7 @@ jobs:
           - test
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
@@ -77,7 +77,7 @@ jobs:
         fi
 
     - name: Uploading snapd snap artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: snap-files-${{ matrix.toolchain }}-${{ matrix.version }}
         path: "*.snap"
@@ -86,7 +86,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         # needed for git commit history
         fetch-depth: 0
@@ -114,7 +114,7 @@ jobs:
         sudo tar cvf cached-apt.tar /var/cache/apt
 
     - name: upload Debian dependencies
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: debian-dependencies
         path: ./cached-apt.tar
@@ -143,7 +143,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         # needed for git commit history
         fetch-depth: 0
@@ -158,7 +158,7 @@ jobs:
         git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
 
     - name: Download Debian dependencies
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: debian-dependencies
         path: ./debian-deps/
@@ -216,7 +216,7 @@ jobs:
 
     - name: Cache prebuilt indent
       id: cache-indent-bin
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: indent-bin
         key: ${{ runner.os }}-indent-2.2.13
@@ -259,7 +259,7 @@ jobs:
     steps:
 
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         # needed for git commit history
         fetch-depth: 0
@@ -296,7 +296,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         # needed for git commit history
         fetch-depth: 0
@@ -311,7 +311,7 @@ jobs:
         git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
 
     - name: Download Debian dependencies
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: debian-dependencies
         path: ./debian-deps/
@@ -352,6 +352,8 @@ jobs:
     - name: Reset code coverage data
       run: |
           rm -rf ${{ github.workspace }}/.coverage/
+          COVERAGE_OUT="${{ github.workspace }}/coverage/coverage-${{ matrix.unit-scenario}}.cov"
+          echo "COVERAGE_OUT=$COVERAGE_OUT" >> $GITHUB_ENV
 
     - name: Test Go
       if: ${{ matrix.unit-scenario == 'normal' }}
@@ -361,11 +363,11 @@ jobs:
 
     - name: Upload the coverage results
       if: ${{ matrix.gochannel != 'latest/stable' }}
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         include-hidden-files: true
-        name: coverage-files
-        path: "${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage/coverage*.cov"
+        name: "coverage-files-${{ matrix.unit-scenario }}"
+        path: "${{ github.workspace }}/coverage/coverage*.cov"
 
   # TODO run unit tests of C code
   unit-tests-special:
@@ -395,7 +397,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         # needed for git commit history
         fetch-depth: 0
@@ -410,7 +412,7 @@ jobs:
         git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
 
     - name: Download Debian dependencies
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: debian-dependencies
         path: ./debian-deps/
@@ -451,6 +453,8 @@ jobs:
     - name: Reset code coverage data
       run: |
           rm -rf ${{ github.workspace }}/.coverage/
+          COVERAGE_OUT="${{ github.workspace }}/coverage/coverage-${{ matrix.unit-scenario}}.cov"
+          echo "COVERAGE_OUT=$COVERAGE_OUT" >> $GITHUB_ENV
 
     - name: Test Go (SNAPD_DEBUG=1)
       if: ${{ matrix.unit-scenario == 'snapd_debug' }}
@@ -488,12 +492,12 @@ jobs:
         SKIP_DIRTY_CHECK=1 GO_TEST_RACE=1 SKIP_COVERAGE=1 ./run-checks --unit
 
     - name: Upload the coverage results
-      if: ${{ matrix.gochannel != 'latest/stable' }}
-      uses: actions/upload-artifact@v3
+      if: ${{ matrix.gochannel != 'latest/stable' && matrix.unit-scenario != 'race' }}
+      uses: actions/upload-artifact@v4
       with:
         include-hidden-files: true
-        name: coverage-files
-        path: "${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage/coverage*.cov"
+        name: "coverage-files-${{ matrix.unit-scenario }}"
+        path: "${{ github.workspace }}/coverage/coverage*.cov"
 
 
   unit-tests-cross-distro:
@@ -572,13 +576,14 @@ jobs:
       GOROOT: ""
     steps:
     - name: Download the coverage files
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
-        name: coverage-files
+        pattern: coverage-files-*
         path: .coverage/
+        merge-multiple: true
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       # uploading to codecov occasionally fails, so continue running the test
       # workflow regardless of the upload
       continue-on-error: true
@@ -745,7 +750,7 @@ jobs:
           mkdir "${{ github.workspace }}"
 
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         # spread uses tags as delta reference
         fetch-depth: 0
@@ -757,7 +762,7 @@ jobs:
       shell: bash
 
     - name: Get previous cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.group }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
@@ -842,7 +847,7 @@ jobs:
           echo "GRAFANA START: pr ${CHANGE_ID} attempt ${{ github.run_attempt }} run ${{ github.run_id }} group ${{ matrix.group }}" > "$FILTERED_LOG_FILE"
 
     - name: Download built snap
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       if: "!endsWith(matrix.group, '-fips')"
       with:
         name: snap-files-default-test
@@ -851,7 +856,7 @@ jobs:
         path: "${{ github.workspace }}/built-snap"
 
     - name: Download built FIPS snap
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       # eg. ubuntu-fips
       if: "endsWith(matrix.group, '-fips')"
       with:
@@ -918,13 +923,13 @@ jobs:
           echo "Running command: $SPREAD $RUN_TESTS"
           (set -o pipefail; $SPREAD -no-debug-output -logs spread-logs $RUN_TESTS | PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | tee spread.log)
 
-
     - name: Uploading spread logs
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: spread-logs-${{ matrix.systems }}
         path: "spread-logs/*.log"
+        if-no-files-found: ignore
 
     - name: Discard spread workers
       if: always()
@@ -975,7 +980,7 @@ jobs:
 
     - name: Save spread test results to cache
       if: always()
-      uses: actions/cache/save@v3
+      uses: actions/cache/save@v4
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.group }}-${{ github.run_attempt }}"
