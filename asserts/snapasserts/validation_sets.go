@@ -315,9 +315,9 @@ type componentConstraints struct {
 }
 
 type constraints struct {
-	// name is the name of the snap or component that is being constrained
+	// name of the snap or component that is being constrained
 	name string
-	// presence is the allowed presence of the snap or component, considering
+	// presence of the snap or component, considering
 	// all of the constraints that impact it. if any of the constraints are in
 	// conflict, the presence is set to presConflict.
 	presence asserts.Presence
