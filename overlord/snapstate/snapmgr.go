@@ -699,6 +699,24 @@ func (snapst *SnapState) InstanceName() string {
 	return snap.InstanceName(cur.RealName, snapst.InstanceKey)
 }
 
+// SnapName returns the name of the snap. Implementation of naming.SnapRef.
+func (snapst *SnapState) SnapName() string {
+	cur := snapst.CurrentSideInfo()
+	if cur == nil {
+		return ""
+	}
+	return cur.RealName
+}
+
+// ID returns the ID of the snap. Implementation of naming.SnapRef.
+func (snapst *SnapState) ID() string {
+	cur := snapst.CurrentSideInfo()
+	if cur == nil {
+		return ""
+	}
+	return cur.SnapID
+}
+
 // RefreshInhibitProceedTime is the time after which a pending refresh is forced
 // for a running snap in the next auto-refresh. Zero time indicates that there
 // are no pending refreshes. st must be locked.
