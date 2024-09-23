@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -33,37 +32,7 @@ func importHybridUserData(rootToImport, referenceRoot string) error {
 		return err
 	}
 
-	if err := mergeAndWriteUserFiles(rootToImport, referenceRoot, []string{"sudo", "admin"}, outputDir); err != nil {
-		return err
-	}
-
-	if !osutil.FileExists("/lib/core/extra-paths") {
-		return nil
-	}
-
-	// TODO: this is just a hack for now so that i don't have to repack this
-	// script for testing. will be removed once kernel snap is updated to
-	// include changes to extra-paths.
-	script, err := os.OpenFile("/lib/core/extra-paths", os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer script.Close()
-
-	mounts := []string{"passwd", "shadow", "group", "gshadow"}
-	for _, m := range mounts {
-		_, err := fmt.Fprintf(
-			script,
-			"echo '%s %s none bind,x-initrd.mount 0 0' >> /sysroot/etc/fstab\n",
-			filepath.Join(outputDir, m),
-			filepath.Join("/etc", m),
-		)
-		if err != nil {
-			return err
-		}
-	}
-
-	return script.Close()
+	return mergeAndWriteUserFiles(rootToImport, referenceRoot, []string{"sudo", "admin"}, outputDir)
 }
 
 func mergeAndWriteUserFiles(importRoot, referenceRoot string, targetGroups []string, outputDir string) error {
