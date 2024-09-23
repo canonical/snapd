@@ -86,6 +86,11 @@ execute: |
   tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
   snap pack --filename=pc.snap pc-gadget/
 
+  # TODO: remove this once this change to extra-paths has made it into a
+  # released kernel snap
+  mkdir -p ./extra-initrd/usr/lib/core
+  cp ./extra-paths ./extra-initrd/usr/lib/core/extra-paths
+
   # Retrieve kernel
   snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
   # the fakestore needs this assertion
