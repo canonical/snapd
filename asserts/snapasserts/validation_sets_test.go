@@ -1985,3 +1985,147 @@ func (s *validationSetsSuite) TestSnapConstrained(c *C) {
 		Name: "unknown-snap",
 	}), Equals, false)
 }
+
+func (s *validationSetsSuite) TestSnapPresence(c *C) {
+	one := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "one",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "snap-1",
+				"id":       snaptest.AssertedSnapID("snap-1"),
+				"presence": "invalid",
+			},
+			map[string]interface{}{
+				"name":     "snap-2",
+				"id":       snaptest.AssertedSnapID("snap-2"),
+				"presence": "required",
+			},
+			map[string]interface{}{
+				"name":     "snap-3",
+				"id":       snaptest.AssertedSnapID("snap-3"),
+				"presence": "optional",
+				"components": map[string]interface{}{
+					"comp-4": map[string]interface{}{
+						"presence": "required",
+					},
+				},
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	two := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "two",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "snap-2",
+				"id":       snaptest.AssertedSnapID("snap-2"),
+				"presence": "optional",
+				"revision": "2",
+				"components": map[string]interface{}{
+					"comp-2": map[string]interface{}{
+						"presence": "required",
+						"revision": "22",
+					},
+					"comp-3": map[string]interface{}{
+						"presence": "invalid",
+					},
+				},
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	sets := snapasserts.NewValidationSets()
+
+	c.Assert(sets.Add(one), IsNil)
+	c.Assert(sets.Add(two), IsNil)
+
+	onePresence, err := sets.Presence(naming.Snap("snap-1"))
+	c.Assert(err, IsNil)
+
+	oneExpected := snapasserts.NewSnapPresence(snapasserts.ContainerPresence{
+		Presence: asserts.PresenceInvalid,
+		Revision: snap.R(-1),
+		Sets:     []snapasserts.ValidationSetKey{"16/account-id/one/1"},
+	}, make(map[string]snapasserts.ContainerPresence))
+	c.Check(onePresence, DeepEquals, oneExpected)
+	c.Check(onePresence.Constrained(), Equals, true)
+
+	twoPresence, err := sets.Presence(naming.Snap("snap-2"))
+	c.Assert(err, IsNil)
+
+	twoExpected := snapasserts.NewSnapPresence(snapasserts.ContainerPresence{
+		Presence: asserts.PresenceRequired,
+		Revision: snap.R(2),
+		Sets:     []snapasserts.ValidationSetKey{"16/account-id/one/1", "16/account-id/two/1"},
+	}, map[string]snapasserts.ContainerPresence{
+		"comp-2": {
+			Presence: asserts.PresenceRequired,
+			Revision: snap.R(22),
+			Sets:     []snapasserts.ValidationSetKey{"16/account-id/two/1"},
+		},
+		"comp-3": {
+			Presence: asserts.PresenceInvalid,
+			Revision: snap.R(-1),
+			Sets:     []snapasserts.ValidationSetKey{"16/account-id/two/1"},
+		},
+	})
+	c.Check(twoPresence, DeepEquals, twoExpected)
+	c.Check(twoPresence.Constrained(), Equals, true)
+
+	c.Check(twoExpected.Component("comp-2"), DeepEquals, snapasserts.ContainerPresence{
+		Presence: asserts.PresenceRequired,
+		Revision: snap.R(22),
+		Sets:     []snapasserts.ValidationSetKey{"16/account-id/two/1"},
+	})
+
+	c.Check(twoExpected.Component("comp-4"), DeepEquals, snapasserts.ContainerPresence{
+		Presence: asserts.PresenceOptional,
+	})
+
+	c.Check(twoExpected.RequiredComponents(), DeepEquals, map[string]snapasserts.ContainerPresence{
+		"comp-2": {
+			Presence: asserts.PresenceRequired,
+			Revision: snap.R(22),
+			Sets:     []snapasserts.ValidationSetKey{"16/account-id/two/1"},
+		},
+	})
+
+	threePresence, err := sets.Presence(naming.Snap("snap-3"))
+	c.Assert(err, IsNil)
+
+	threeExpected := snapasserts.NewSnapPresence(snapasserts.ContainerPresence{
+		Presence: asserts.PresenceOptional,
+		Revision: snap.R(0),
+		Sets:     []snapasserts.ValidationSetKey{"16/account-id/one/1"},
+	}, map[string]snapasserts.ContainerPresence{
+		"comp-4": {
+			Presence: asserts.PresenceRequired,
+			Sets:     []snapasserts.ValidationSetKey{"16/account-id/one/1"},
+		},
+	})
+	c.Check(threePresence, DeepEquals, threeExpected)
+	c.Check(threePresence.Constrained(), Equals, true)
+
+	fourPresence, err := sets.Presence(naming.Snap("snap-4"))
+	c.Assert(err, IsNil)
+
+	fourExpected := snapasserts.NewSnapPresence(snapasserts.ContainerPresence{
+		Presence: asserts.PresenceOptional,
+	}, nil)
+	c.Check(fourPresence, DeepEquals, fourExpected)
+	c.Check(fourPresence.Constrained(), Equals, false)
+
+	c.Check(fourExpected.Component("anything"), DeepEquals, snapasserts.ContainerPresence{
+		Presence: asserts.PresenceOptional,
+	})
+}
