@@ -25,6 +25,7 @@ import (
 	"math/rand"
 	"sort"
 	"strconv"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -1708,6 +1709,182 @@ func (s *validationSetsSuite) TestRevisionsConflict(c *C) {
 
 	_, err := valsets.Revisions()
 	c.Assert(err, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
+}
+
+func (s *validationSetsSuite) TestComponentConflicts(c *C) {
+	type test struct {
+		summary string
+		sets    []*asserts.ValidationSet
+		message string
+	}
+
+	cases := []test{{
+		summary: "component revision conflict",
+		sets: []*asserts.ValidationSet{assertstest.FakeAssertion(
+			map[string]interface{}{
+				"type":         "validation-set",
+				"authority-id": "account-id",
+				"series":       "16",
+				"account-id":   "account-id",
+				"name":         "one",
+				"sequence":     "1",
+				"snaps": []interface{}{
+					map[string]interface{}{
+						"name":     "snap-a",
+						"id":       snaptest.AssertedSnapID("snap-a"),
+						"presence": "required",
+						"revision": "10",
+						"components": map[string]interface{}{
+							"comp-2": map[string]interface{}{
+								"presence": "optional",
+								"revision": "3",
+							},
+						},
+					},
+				},
+			}).(*asserts.ValidationSet), assertstest.FakeAssertion(
+			map[string]interface{}{
+				"type":         "validation-set",
+				"authority-id": "account-id",
+				"series":       "16",
+				"account-id":   "account-id",
+				"name":         "two",
+				"sequence":     "1",
+				"snaps": []interface{}{
+					map[string]interface{}{
+						"name":     "snap-a",
+						"id":       snaptest.AssertedSnapID("snap-a"),
+						"presence": "required",
+						"revision": "10",
+						"components": map[string]interface{}{
+							"comp-2": map[string]interface{}{
+								"presence": "required",
+								"revision": "2",
+							},
+						},
+					},
+				},
+			}).(*asserts.ValidationSet),
+		},
+		message: `cannot constrain component "snap-a+comp-2" at different revisions 2 (account-id/two), 3 (account-id/one)`,
+	}, {
+		summary: "component presence conflict",
+		sets: []*asserts.ValidationSet{assertstest.FakeAssertion(
+			map[string]interface{}{
+				"type":         "validation-set",
+				"authority-id": "account-id",
+				"series":       "16",
+				"account-id":   "account-id",
+				"name":         "one",
+				"sequence":     "1",
+				"snaps": []interface{}{
+					map[string]interface{}{
+						"name":     "snap-a",
+						"id":       snaptest.AssertedSnapID("snap-a"),
+						"presence": "optional",
+						"components": map[string]interface{}{
+							"comp-2": map[string]interface{}{
+								"presence": "invalid",
+							},
+						},
+					},
+				},
+			}).(*asserts.ValidationSet), assertstest.FakeAssertion(
+			map[string]interface{}{
+				"type":         "validation-set",
+				"authority-id": "account-id",
+				"series":       "16",
+				"account-id":   "account-id",
+				"name":         "two",
+				"sequence":     "1",
+				"snaps": []interface{}{
+					map[string]interface{}{
+						"name":     "snap-a",
+						"id":       snaptest.AssertedSnapID("snap-a"),
+						"presence": "optional",
+						"components": map[string]interface{}{
+							"comp-2": map[string]interface{}{
+								"presence": "required",
+							},
+						},
+					},
+				},
+			}).(*asserts.ValidationSet),
+		},
+		message: `cannot constrain component "snap-a+comp-2" as both invalid (account-id/one) and required at any revision (account-id/two)`,
+	}, {
+		summary: "component presence conflict and snap presence conflict",
+		sets: []*asserts.ValidationSet{assertstest.FakeAssertion(
+			map[string]interface{}{
+				"type":         "validation-set",
+				"authority-id": "account-id",
+				"series":       "16",
+				"account-id":   "account-id",
+				"name":         "one",
+				"sequence":     "1",
+				"snaps": []interface{}{
+					map[string]interface{}{
+						"name":     "snap-a",
+						"id":       snaptest.AssertedSnapID("snap-a"),
+						"presence": "required",
+						"components": map[string]interface{}{
+							"comp-2": map[string]interface{}{
+								"presence": "invalid",
+							},
+						},
+					},
+				},
+			}).(*asserts.ValidationSet), assertstest.FakeAssertion(
+			map[string]interface{}{
+				"type":         "validation-set",
+				"authority-id": "account-id",
+				"series":       "16",
+				"account-id":   "account-id",
+				"name":         "two",
+				"sequence":     "1",
+				"snaps": []interface{}{
+					map[string]interface{}{
+						"name":     "snap-a",
+						"id":       snaptest.AssertedSnapID("snap-a"),
+						"presence": "optional",
+						"components": map[string]interface{}{
+							"comp-2": map[string]interface{}{
+								"presence": "required",
+							},
+						},
+					},
+				},
+			}).(*asserts.ValidationSet), assertstest.FakeAssertion(
+			map[string]interface{}{
+				"type":         "validation-set",
+				"authority-id": "account-id",
+				"series":       "16",
+				"account-id":   "account-id",
+				"name":         "three",
+				"sequence":     "1",
+				"snaps": []interface{}{
+					map[string]interface{}{
+						"name":     "snap-a",
+						"id":       snaptest.AssertedSnapID("snap-a"),
+						"presence": "invalid",
+					},
+				},
+			}).(*asserts.ValidationSet),
+		},
+		message: `cannot constrain component "snap-a+comp-2" as both invalid (account-id/one) and required at any revision (account-id/two)`,
+	}}
+
+	for _, tc := range cases {
+		prefix := fmt.Sprintf("test case: %s", tc.summary)
+
+		valsets := snapasserts.NewValidationSets()
+		for _, set := range tc.sets {
+			c.Check(valsets.Add(set), IsNil, Commentf(prefix))
+		}
+
+		err := valsets.Conflict()
+		c.Check(strings.Count(err.Error(), tc.message), Equals, 1, Commentf(prefix))
+	}
 }
 
 func (s *validationSetsSuite) TestValidationSetsConflictErrorIs(c *C) {

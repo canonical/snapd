@@ -376,12 +376,14 @@ func constraintsConflicts(c constraints) *conflictsError {
 	}
 
 	containerType := "snap"
+	name := c.name
 	if c.compRef != nil {
 		containerType = "component"
+		name = c.compRef.String()
 	}
 
 	return &conflictsError{
-		name:          c.name,
+		name:          name,
 		containerType: containerType,
 		revisions:     byRev,
 	}
