@@ -61,11 +61,9 @@ cmd_list_installed() {
 }
 
 cmd_remove() {
-    # shellcheck disable=SC2068
-    zypper remove -y $@
+    zypper remove -y "$@"
 }
 
 cmd_download() {
-    # shellcheck disable=SC2068
-    zypper --pkg-cache-dir "${PWD:-.}" -q download $@
+    zypper --pkg-cache-dir "${PWD:-.}" -q download "$@"
 }
