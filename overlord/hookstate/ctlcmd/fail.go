@@ -45,9 +45,10 @@ change-view-<plug> hook.
 `)
 
 func init() {
-	addCommand("fail", shortFailHelp, longFailHelp, func() command {
+	info := addCommand("fail", shortFailHelp, longFailHelp, func() command {
 		return &failCommand{}
 	})
+	info.hidden = true
 }
 
 func (c *failCommand) Execute(args []string) error {
