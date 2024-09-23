@@ -81,5 +81,6 @@ cmd_remove() {
 }
 
 cmd_download() {
+    # shellcheck disable=SC2068
     apt download -q $@ >/dev/null
 }
