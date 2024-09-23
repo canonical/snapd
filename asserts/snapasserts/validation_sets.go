@@ -528,12 +528,11 @@ func (v *ValidationSets) Add(valset *asserts.ValidationSet) error {
 // TODO: maybe a method on snapContraints?
 func addComponents(sc *snapConstraints, comps map[string]asserts.ValidationSetComponent, validationSetKey string) {
 	for name, comp := range comps {
-		addComponent(sc, name, comp, validationSetKey)
+		sc.addComponent(name, comp, validationSetKey)
 	}
 }
 
-// TODO: maybe a method on snapContraints?
-func addComponent(sc *snapConstraints, compName string, comp asserts.ValidationSetComponent, validationSetKey string) {
+func (sc *snapConstraints) addComponent(compName string, comp asserts.ValidationSetComponent, validationSetKey string) {
 	rev := snap.R(comp.Revision)
 	if comp.Presence == asserts.PresenceInvalid {
 		rev = invalidPresRevision
