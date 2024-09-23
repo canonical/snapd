@@ -26,6 +26,7 @@ import (
 	"io/fs"
 	"path/filepath"
 	"syscall"
+	"time"
 )
 
 // KillSnapProcesses sends a signal to all the processes belonging to
@@ -49,16 +50,18 @@ var KillSnapProcesses = func(ctx context.Context, snapName string) error {
 
 var syscallKill = syscall.Kill
 
+var maxKillTimeout = 1 * time.Minute
+
 // killProcessesInCgroup sends signal to all the processes belonging to
 // passed cgroup directory.
 //
 // The caller is responsible for making sure that pids are not reused
 // after reading `cgroup.procs` to avoid TOCTOU.
-//
-// TODO: Pass context and add max timeout.
-var killProcessesInCgroup = func(dir string) error {
+var killProcessesInCgroup = func(ctx context.Context, dir string) error {
 	// Keep sending SIGKILL signals until no more pids are left in cgroup
 	// to cover the case where a process forks before we kill it.
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, maxKillTimeout)
+	defer cancel()
 	for {
 		// XXX: Should this have maximum retries?
 		pids, err := pidsInFile(filepath.Join(dir, "cgroup.procs"))
@@ -68,6 +71,13 @@ var killProcessesInCgroup = func(dir string) error {
 		if len(pids) == 0 {
 			// no more pids
 			return nil
+		}
+
+		// This prevents a rouge fork bomb from keeping this loop running forever
+		select {
+		case <-ctxWithTimeout.Done():
+			return fmt.Errorf("cannot kill processes in cgroup %q: %w", dir, ctxWithTimeout.Err())
+		default:
 		}
 
 		var firstErr error
@@ -100,7 +110,7 @@ func killSnapProcessesImplV1(ctx context.Context, snapName string) error {
 	// until the cgroup is thawed
 	defer thawSnapProcessesImplV1(snapName)
 
-	err = killProcessesInCgroup(filepath.Join(freezerCgroupV1Dir, fmt.Sprintf("snap.%s", snapName)))
+	err = killProcessesInCgroup(ctx, filepath.Join(freezerCgroupV1Dir, fmt.Sprintf("snap.%s", snapName)))
 	if err != nil && !isCgroupNotExistErr(err) {
 		return err
 	}
@@ -129,7 +139,7 @@ func killSnapProcessesImplV2(ctx context.Context, snapName string) error {
 			return err
 		}
 
-		if err := killProcessesInCgroup(dir); err != nil {
+		if err := killProcessesInCgroup(ctx, dir); err != nil {
 			return err
 		}
 		return nil

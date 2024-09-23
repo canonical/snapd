@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -78,7 +79,7 @@ func (s *killSuite) TestKillSnapProcessesV1(c *C) {
 	mockCgroupsWithProcs(c, cgroupsToProcs)
 
 	var ops []string
-	restore = cgroup.MockKillProcessesInCgroup(func(dir string) error {
+	restore = cgroup.MockKillProcessesInCgroup(func(ctx context.Context, dir string) error {
 		// trim tmp root dir
 		dir = strings.TrimPrefix(dir, s.rootDir)
 		ops = append(ops, fmt.Sprintf("kill cgroup: %s", dir))
@@ -141,7 +142,7 @@ func (s *killSuite) testKillSnapProcessesV2(c *C, cgroupKillSupported, pidsContr
 	}
 
 	var ops []string
-	restore = cgroup.MockKillProcessesInCgroup(func(dir string) error {
+	restore = cgroup.MockKillProcessesInCgroup(func(ctx context.Context, dir string) error {
 		// trim tmp root dir
 		dir = strings.TrimPrefix(dir, s.rootDir)
 		ops = append(ops, fmt.Sprintf("kill cgroup: %s", dir))
@@ -342,7 +343,7 @@ func (s *killSuite) testKillSnapProcessesSkippedErrors(c *C, cgVersion int) {
 	mockCgroupsWithProcs(c, map[string][]string{cg: {"1"}})
 
 	var cgroupErr error
-	restore = cgroup.MockKillProcessesInCgroup(func(dir string) error {
+	restore = cgroup.MockKillProcessesInCgroup(func(ctx context.Context, dir string) error {
 		return cgroupErr
 	})
 	defer restore()
@@ -392,7 +393,7 @@ func (s *killSuite) TestKillProcessesInCgroupForkingProcess(c *C) {
 	})
 	defer restore()
 
-	c.Assert(cgroup.KillProcessesInCgroup(cg), IsNil)
+	c.Assert(cgroup.KillProcessesInCgroup(context.TODO(), cg), IsNil)
 	c.Assert(pid, Equals, 10)
 }
 
@@ -410,6 +411,33 @@ func (s *killSuite) TestKillProcessesInCgroupPidNotFound(c *C) {
 	})
 	defer restore()
 
-	c.Assert(cgroup.KillProcessesInCgroup(cg), IsNil)
+	c.Assert(cgroup.KillProcessesInCgroup(context.TODO(), cg), IsNil)
 	c.Assert(n, Equals, 1)
+}
+
+func (s *killSuite) TestKillProcessInCgroupTimeout(c *C) {
+	cg := filepath.Join(s.rootDir, "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/snap.foo.app-1.1234-1234-1234.scope")
+	c.Assert(os.MkdirAll(cg, 0755), IsNil)
+
+	pid := 2
+	procs := filepath.Join(cg, "cgroup.procs")
+	c.Assert(os.WriteFile(procs, []byte(strconv.Itoa(pid)), 0644), IsNil)
+
+	restore := cgroup.MockSyscallKill(func(targetPid int, sig syscall.Signal) error {
+		c.Assert(targetPid, Equals, pid)
+		// Mock a new fork for next check
+		pid++
+		c.Assert(os.WriteFile(procs, []byte(strconv.Itoa(pid)), 0644), IsNil)
+		// We should timeout after first check
+		time.Sleep(50 * time.Millisecond)
+		return nil
+	})
+	defer restore()
+
+	restore = cgroup.MockMaxKillTimeout(50 * time.Millisecond)
+	defer restore()
+
+	err := cgroup.KillProcessesInCgroup(context.TODO(), cg)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot kill processes in cgroup %q: context deadline exceeded", cg))
+	c.Assert(pid, Equals, 3)
 }

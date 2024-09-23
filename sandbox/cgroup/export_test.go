@@ -147,7 +147,7 @@ func MockThawSnapProcessesImplV1(fn func(snapName string) error) (restore func()
 	return testutil.Mock(&thawSnapProcessesImplV1, fn)
 }
 
-func MockKillProcessesInCgroup(fn func(dir string) error) (restore func()) {
+func MockKillProcessesInCgroup(fn func(ctx context.Context, dir string) error) (restore func()) {
 	return testutil.Mock(&killProcessesInCgroup, fn)
 }
 
@@ -157,4 +157,8 @@ func MockSyscallKill(fn func(pid int, sig syscall.Signal) error) (restore func()
 
 func MockOsReadFile(fn func(name string) ([]byte, error)) (restore func()) {
 	return testutil.Mock(&osReadFile, fn)
+}
+
+func MockMaxKillTimeout(t time.Duration) (restore func()) {
+	return testutil.Mock(&maxKillTimeout, t)
 }
