@@ -1,0 +1,119 @@
+#!/bin/bash
+
+show_help() {
+    echo "usage: spreadJ rerun [--suite SUITE] <RESULTS-PATH>"
+    echo "       spreadJ show [--suite SUITE] <TARGET> <RESULTS-PATH>"
+    echo "       spreadJ stats [--suite SUITE] <RESULTS-PATH>"
+    echo "       spreadJ list [--suite SUITE] <TARGET> <RESULTS-PATH>"
+    echo ""
+    echo "Available options:"
+    echo "  -h --help   show this help message."
+    echo ""
+    echo "TARGET:"
+    echo "  all,failed,passed,aborted"
+    echo ""
+    echo "Tool used to help with functions that are not already implemented in spread"
+}
+
+_filter_suite() {
+    local suite="$1"
+    if [ -z "$suite" ]; then
+        echo ".testsuites[]"
+    else
+        echo ".testsuites[] | select(.name == \"$suite\")"
+    fi
+}
+
+rerun() {
+    local suite=""
+    if [ "$1" == "--suite" ]; then
+        suite="$2"
+        shift 2
+    fi
+    local res_path="$1"
+    if [ ! -e "$res_path" ]; then
+        echo "spreadJ: results path not found: $res_path"
+        exit 1
+    fi
+
+    local query
+    query="$(_filter_suite $suite).tests[] | select((.result == \"failed\") or (.result == \"aborted\")).name"
+    jq -r "$query" "$res_path"
+}
+
+stats() {
+    local suite=""
+    if [ "$1" == "--suite" ]; then
+        suite="$2"
+        shift 2
+    fi
+    local res_path="$1"
+
+    if [ ! -e "$res_path" ]; then
+        echo "spreadJ: results path not found: $res_path"
+        exit 1
+    fi
+
+    local query
+    if [ -z "$suite" ]; then
+        query="del(.testsuites)"
+    else
+        query="$(_filter_suite $suite) | del(.tests) | del(.name)"
+    fi
+    jq -r "$query" "$res_path"
+}
+
+list() {
+    local suite=""
+    if [ "$1" == "--suite" ]; then
+        suite="$2"
+        shift 2
+    fi
+    local target="$1"
+    local res_path="$2"
+
+    if [ ! -e "$res_path" ]; then
+        echo "spreadJ: results path not found: $res_path"
+        exit 1
+    fi
+
+    if [ -z "$target" ]; then
+        echo "spreadJ: result target cannot be empty"
+        exit 1  
+    fi
+
+    local query
+    if [ "$target" == "all" ]; then
+        query="$(_filter_suite $suite).tests[]).name"
+    else
+        query="$(_filter_suite $suite).tests[] | select((.result == \"$target\")).name"
+    fi
+    jq -r "$query" "$res_path"
+}
+
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
+
+    local subcommand="$1"
+    local action=
+    if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+        show_help
+        exit 0
+    else
+        action=$(echo "$subcommand" | tr '-' '_')
+        shift
+    fi
+
+    if [ -z "$(declare -f "$action")" ]; then
+        echo "spreadJ: no such command: $subcommand" >&2
+        show_help
+        exit 1
+    fi
+    
+    "$action" "$@"
+}
+
+main "$@"

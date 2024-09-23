@@ -1,5 +1,7 @@
 summary: summary
 
+details: test
+
 prepare: |
     echo "prepare"
 

@@ -1,4 +1,9 @@
 summary: this is the summary
 
+details: details
+
 execute: |
     echo "execute"
+
+prepare: |
+    echo "prepare"
