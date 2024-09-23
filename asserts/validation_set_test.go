@@ -183,6 +183,7 @@ func (vss *validationSetSuite) TestSnapComponents(c *C) {
       with-revision:
         revision: 10
         presence: required
+      invalid-without-revision: invalid
   -
     name: foo-linux
     id: foolinuxidididididididididididid
@@ -207,6 +208,9 @@ func (vss *validationSetSuite) TestSnapComponents(c *C) {
 		"with-revision": {
 			Presence: asserts.PresenceRequired,
 			Revision: 10,
+		},
+		"invalid-without-revision": {
+			Presence: asserts.PresenceInvalid,
 		},
 	})
 	c.Check(snaps[1].Components, DeepEquals, map[string]asserts.ValidationSetComponent{
