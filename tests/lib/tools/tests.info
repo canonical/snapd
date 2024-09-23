@@ -1,4 +1,6 @@
-#!/bin/bash -e
+#!/bin/bash
+
+set -e
 
 show_help() {
 	echo "usage: tests.info <CMD>"
@@ -7,7 +9,6 @@ show_help() {
 	echo "    is-snapd-pkg-repo: indicates when the snap packages is from the repository"
 	echo "    is-reexec-enabled: indicates when snapd package is re-executing to snapd snap"
 }
-
 
 is_snapd_pkg_repo() {
     [ "$SNAPD_DEB_FROM_REPO" = true ] && \

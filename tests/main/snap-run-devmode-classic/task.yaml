@@ -68,7 +68,7 @@ prepare: |
     coredir=edge-core-snap
 
     snapddir=snapd-from-branch
-    dpkg-deb -x "${SPREAD_PATH}"/../snapd_*.deb "${snapddir}"
+    dpkg-deb -x "$GOHOME"/snapd_*.deb "${snapddir}"
 
     pushd "${PROJECT_PATH}"
     SNAPD_SNAP_VERSION=$(./mkversion.sh --output-only)
@@ -186,7 +186,7 @@ execute: |
         fi
 
         # undo the purging
-        apt install -y "$PROJECT_PATH/../"snapd_1337.*_amd64.deb
+        apt install -y "$GOHOME"/snapd_*.deb
     else
         echo "unknown variant $SNAP_TO_USE_FIRST"
         exit 1
