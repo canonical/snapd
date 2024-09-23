@@ -73,3 +73,11 @@ cmd_remove() {
         yum remove -y $@
     fi
 }
+
+cmd_download() {
+    if [ "$(command -v dnf)" != "" ]; then
+        dnf download -q "$@"
+    else
+        yum reinstall --downloadonly -q -y --downloaddir "${PWD:-.}" "$@"
+    fi
+}
