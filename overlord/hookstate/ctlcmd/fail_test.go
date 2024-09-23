@@ -20,8 +20,13 @@
 package ctlcmd_test
 
 import (
+	"os"
+
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
@@ -29,7 +34,23 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+func (s *registrySuite) mockRegistriesFeature(c *C) (restore func()) {
+	oldDir := dirs.FeaturesDir
+	dirs.FeaturesDir = c.MkDir()
+
+	registryCtlFile := features.Registries.ControlFile()
+	c.Assert(os.WriteFile(registryCtlFile, []byte(nil), 0644), check.IsNil)
+
+	return func() {
+		c.Assert(os.Remove(registryCtlFile), IsNil)
+		dirs.FeaturesDir = oldDir
+	}
+}
+
 func (s *registrySuite) TestFailAbortsRegistryTransaction(c *C) {
+	restore := s.mockRegistriesFeature(c)
+	defer restore()
+
 	s.state.Lock()
 	chg := s.state.NewChange("test", "")
 	commitTask := s.state.NewTask("commit-registry-tx", "")
@@ -68,7 +89,15 @@ func (s *registrySuite) TestFailAbortsRegistryTransaction(c *C) {
 }
 
 func (s *registrySuite) TestFailErrors(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fail"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fail", "reason"}, 0)
+	c.Assert(err, ErrorMatches, i18n.G(`cannot use "snapctl fail" without enabling the "experimental.registries" feature`))
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+
+	restore := s.mockRegistriesFeature(c)
+	defer restore()
+
+	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"fail"}, 0)
 	c.Assert(err, ErrorMatches, i18n.G("the required argument `:<rejection-reason>` was not provided"))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
@@ -82,7 +111,7 @@ func (s *registrySuite) TestFailErrors(c *C) {
 	c.Assert(err, IsNil)
 
 	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"fail", "reason"}, 0)
-	c.Assert(err, ErrorMatches, i18n.G("cannot use `snapctl fail` outside of a \"change-view\" hook"))
+	c.Assert(err, ErrorMatches, i18n.G(`cannot use "snapctl fail" outside of a "change-view" hook`))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/registrystate"
 )
@@ -50,6 +51,11 @@ func init() {
 }
 
 func (c *failCommand) Execute(args []string) error {
+	if !features.Registries.IsEnabled() {
+		_, confName := features.Registries.ConfigOption()
+		return fmt.Errorf(`cannot use "snapctl fail" without enabling the %q feature`, confName)
+	}
+
 	ctx, err := c.ensureContext()
 	if err != nil {
 		return err
@@ -59,7 +65,7 @@ func (c *failCommand) Execute(args []string) error {
 	defer ctx.Unlock()
 
 	if ctx.IsEphemeral() || !strings.HasPrefix(ctx.HookName(), "change-view-") {
-		return errors.New(i18n.G("cannot use `snapctl fail` outside of a \"change-view\" hook"))
+		return errors.New(i18n.G(`cannot use "snapctl fail" outside of a "change-view" hook`))
 	}
 
 	t, _ := ctx.Task()
