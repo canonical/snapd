@@ -5015,7 +5015,7 @@ func (s *validationSetsSuite) TestInstallSnapReferencedByValidationSetWrongRevis
 
 func (s *validationSetsSuite) TestInstallSnapInvalidByValidationSetIgnoreValidationOK(c *C) {
 	// doesn't fail with ignore-validation flag
-	err := s.installSnapReferencedByValidationSet(c, "invalid", "3", snap.R(0), "", &snapstate.Flags{IgnoreValidation: true})
+	err := s.installSnapReferencedByValidationSet(c, "invalid", "", snap.R(0), "", &snapstate.Flags{IgnoreValidation: true})
 	c.Assert(err, IsNil)
 
 	// validation sets are not set on the action
