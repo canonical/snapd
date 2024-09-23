@@ -197,7 +197,7 @@ func checkValidationSetComponent(compName string, comp map[string]interface{}, s
 		return ValidationSetComponent{}, fmt.Errorf("cannot specify component revision %s at the same time as stating its presence is invalid", what)
 	}
 
-	if snapRevision != 0 && revision == 0 {
+	if snapRevision != 0 && revision == 0 && presence != PresenceInvalid {
 		return ValidationSetComponent{}, fmt.Errorf("must specify revision %s since its associated snap specifies a revision", what)
 	}
 
