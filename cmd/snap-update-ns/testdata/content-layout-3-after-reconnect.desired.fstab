@@ -1,0 +1,3 @@
+# This is exactly the same as content-layout-initially-connected.desired.fstab.
+/snap/test-snapd-content-layout/x2/attached-content /usr/share/secureboot/potato none rbind,rw,x-snapd.origin=layout 0 0
+/snap/test-snapd-content/x1 /snap/test-snapd-content-layout/x2/attached-content none bind,ro 0 0

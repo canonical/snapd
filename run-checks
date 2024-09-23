@@ -295,7 +295,7 @@ if [ "$STATIC" = 1 ]; then
         ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck $FILTERED_FILES --exclude "$exclude_tools_path" --exclude "tests/nested/manual/core20-preseed"
     fi
 
-    if [ -z "${SKIP_MISSPELL-}" ]; then
+    if [ -z "${SKIP_MISSPELL:-}" ]; then
         echo "Checking spelling errors"
         if ! command -v misspell >/dev/null; then
             goinstall github.com/client9/misspell/cmd/misspell
@@ -309,7 +309,7 @@ if [ "$STATIC" = 1 ]; then
             xargs -0 misspell -error -i "$MISSPELL_IGNORE"
     fi
 
-    if [ -z "${SKIP_INEFFASSIGN-}" ]; then
+    if [ -z "${SKIP_INEFFASSIGN:-}" ]; then
         if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.12; then
             echo "Checking for ineffective assignments"
             if ! command -v ineffassign >/dev/null; then
@@ -357,7 +357,7 @@ if [ "$STATIC" = 1 ]; then
 
     # FIXME: re-add staticcheck with a matching version for the used go-version
 
-    if [ -z "${SKIP_TESTS_FORMAT_CHECK-}" ] || [ "$SKIP_TESTS_FORMAT_CHECK" = 0 ]; then
+    if [ -z "${SKIP_TESTS_FORMAT_CHECK:-}" ] || [ "$SKIP_TESTS_FORMAT_CHECK" = 0 ]; then
         CHANGED_TESTS=""
         FILTERED_TESTS=""
         EXCLUDE_PATH=tests/lib/external/snapd-testing-tools
@@ -394,7 +394,7 @@ if [ "$STATIC" = 1 ]; then
       exit 1
     fi
 
-    if [ -z "${SKIP_GOLANGCI_LINT-}" ]; then
+    if [ -z "${SKIP_GOLANGCI_LINT:-}" ]; then
 
         echo "Checking installation of golangci-lint"
         gcil="$(command -v golangci-lint || true)"
@@ -439,11 +439,11 @@ if [ "$UNIT" = 1 ]; then
 
     tags=
     race=
-    if [ -n "${GO_BUILD_TAGS-}" ]; then
+    if [ -n "${GO_BUILD_TAGS:-}" ]; then
         echo "Using build tags: $GO_BUILD_TAGS"
         tags="-tags $GO_BUILD_TAGS"
     fi
-    if [ -n "${GO_TEST_RACE-}" ]; then
+    if [ -n "${GO_TEST_RACE:-}" ]; then
         echo "Using go test -race"
         race="-race"
     fi
@@ -455,15 +455,16 @@ if [ "$UNIT" = 1 ]; then
     # tests
     echo Running tests from "$PWD"
     if [ "$short" = 1 ]; then
+            echo "Running without test coverage"
             # shellcheck disable=SC2046,SC2086
             GOTRACEBACK=1 $goctest $tags $race -short -timeout 5m $(go list ./... | grep -v '/vendor/' )
     else
         coverage=""
-        if [ -z "${SKIP_COVERAGE-}" ]; then
+        if [ -z "${SKIP_COVERAGE:-}" ]; then
             coverage="-coverprofile=$COVERAGE_OUT -covermode=$COVERMODE"
             # Prepare the coverage output profile.
             mkdir -p "$(dirname "$COVERAGE_OUT")"
-            echo "mode: $COVERMODE" > "$COVERAGE_OUT"
+            echo "Using coverage params: $coverage"
         else
             echo "Skipping test coverage"
         fi
@@ -492,7 +493,7 @@ EOF
     exit 1
 fi
 
-if [ -n "${SKIP_DIRTY_CHECK-}" ]; then
+if [ -n "${SKIP_DIRTY_CHECK:-}" ]; then
     exit 0
 fi
 

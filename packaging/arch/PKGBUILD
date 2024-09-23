@@ -89,6 +89,8 @@ __DEFINES__
   autoreconf -i -f
   ./configure \
     --prefix=/usr \
+    --sysconfdir=/etc \
+    --localstatedir=/var \
     --libexecdir=/usr/lib/snapd \
     --with-snap-mount-dir=/var/lib/snapd/snap \
     --enable-apparmor \

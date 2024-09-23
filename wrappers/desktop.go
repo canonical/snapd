@@ -282,8 +282,8 @@ func deriveDesktopFilesContent(s *snap.Info) (map[string]osutil.FileState, error
 // forAllDesktopFiles loops over all installed desktop files under
 // dirs.SnapDesktopFilesDir.
 //
-// Only the desktop file base and parsed instance name is passed the callback
-// function.
+// Only the desktop file base and parsed instance name are passed to the
+// callback function.
 func forAllDesktopFiles(cb func(base, instanceName string) error) error {
 	installedDesktopFiles, err := findDesktopFiles(dirs.SnapDesktopFilesDir)
 	if err != nil {
@@ -291,6 +291,13 @@ func forAllDesktopFiles(cb func(base, instanceName string) error) error {
 	}
 
 	for _, desktopFile := range installedDesktopFiles {
+		base := filepath.Base(desktopFile)
+		if isSnapdDesktopFile(base) {
+			// skip snapd desktop files installed on core, they don't
+			// have the usual X-SnapInstanceName entry.
+			continue
+		}
+
 		de, err := desktopentry.Read(desktopFile)
 		if err != nil || de.SnapInstanceName == "" {
 			// cannot read instance name from desktop file, ignore
@@ -298,7 +305,6 @@ func forAllDesktopFiles(cb func(base, instanceName string) error) error {
 			continue
 		}
 
-		base := filepath.Base(desktopFile)
 		if err := cb(base, de.SnapInstanceName); err != nil {
 			return err
 		}

@@ -835,3 +835,29 @@ func (s *desktopSuite) TestAddRemoveDesktopFiles(c *C) {
 		c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
 	}
 }
+
+func (s *desktopSuite) TestForAllDesktopFilesSkipsSnapdDesktopFiles(c *C) {
+	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755), IsNil)
+
+	var mockDesktopFile = []byte(`
+[Desktop Entry]
+Name=foo
+X-SnapInstanceName=foo`)
+
+	desktopFiles := wrappers.SnapdDesktopFileNames
+	desktopFiles = append(desktopFiles, "foo_foo.desktop", "foo_bar.desktop")
+	for _, df := range desktopFiles {
+		c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, df), mockDesktopFile, 0644), IsNil)
+	}
+
+	found := make(map[string]string, 2)
+	err := wrappers.ForAllDesktopFiles(func(base, instanceName string) error {
+		found[base] = instanceName
+		return nil
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(found, HasLen, 2)
+	c.Check(found["foo_foo.desktop"], Equals, "foo")
+	c.Check(found["foo_bar.desktop"], Equals, "foo")
+}

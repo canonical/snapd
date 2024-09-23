@@ -106,7 +106,7 @@ endif
 BUILT_USING=$(shell dpkg-query -f '$${source:Package} (= $${source:Version}), ' -W $(BUILT_USING_PACKAGES))
 
 %:
-	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd --builddirectory=_build
+	dh $@ --buildsystem=golang --with=golang --builddirectory=_build
 
 override_dh_fixperms:
 	dh_fixperms -Xusr/lib/snapd/snap-confine
@@ -182,14 +182,14 @@ endif
 
 	# Build C bits, sadly manually
 	cd cmd && ( autoreconf -i -f )
-	cd cmd && ( ./configure --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))
+	cd cmd && ( ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))
 	$(MAKE) -C cmd all
 
 	# Generate the real systemd/dbus/env config files
 	$(MAKE) -C data all
 
 override_dh_auto_test:
-	GO111MODULE=off dh_auto_test -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS) $(DH_GOPKG)/...
+	LANG=C.utf-8 GO111MODULE=off dh_auto_test -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS) $(DH_GOPKG)/...
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included

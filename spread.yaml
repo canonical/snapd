@@ -440,7 +440,6 @@ backends:
                 FATAL "adhoc only works inside autopkgtest"
                 exit 1
             fi
-            echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/99-spread-users
             ADDRESS localhost:22
         discard: |
             echo "Discarding ad-hoc $SPREAD_SYSTEM"
@@ -510,6 +509,25 @@ backends:
             - ubuntu-22.04-arm64:
                   username: ubuntu
                   password: ubuntu
+            # Debian
+            - debian-sid-amd64:
+                  username: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+                  password: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+            - debian-sid-i386:
+                  username: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+                  password: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+            - debian-sid-armhf:
+                  username: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+                  password: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+            - debian-sid-ppc64el:
+                  username: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+                  password: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+            - debian-sid-s390x:
+                  username: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+                  password: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+            - debian-sid-arm64:
+                  username: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+                  password: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
 
     external:
         type: adhoc

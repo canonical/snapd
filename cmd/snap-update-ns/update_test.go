@@ -363,14 +363,70 @@ func (s *updateSuite) TestKeepSyntheticMountsLP2043993(c *C) {
 
 	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
 	c.Assert(saved.Entries, HasLen, 2)
-	// TODO: the change of order is a bit unexpected, but that is a larger issue
-	// synth mount kept because it is needed by a desired mount
-	c.Check(saved.Entries[1].Type, Equals, "tmpfs")
-	c.Check(saved.Entries[1].Name, Equals, "tmpfs")
-	c.Check(saved.Entries[1].Dir, Equals, filepath.Join(baseSourceDir, "rofs"))
-	c.Check(saved.Entries[1].XSnapdSynthetic(), Equals, true)
-	c.Check(saved.Entries[1].XSnapdNeededBy(), Equals, "test-id")
-	c.Check(saved.Entries[0], DeepEquals, desiredMountEntry)
+	c.Check(saved.Entries[0].Type, Equals, "tmpfs")
+	c.Check(saved.Entries[0].Name, Equals, "tmpfs")
+	c.Check(saved.Entries[0].Dir, Equals, filepath.Join(baseSourceDir, "rofs"))
+	c.Check(saved.Entries[0].XSnapdSynthetic(), Equals, true)
+	c.Check(saved.Entries[0].XSnapdNeededBy(), Equals, "test-id")
+	c.Check(saved.Entries[1], DeepEquals, desiredMountEntry)
+}
+
+func (s *updateSuite) TestCurrentProfileFromChangesMade(c *C) {
+	// Changes are computed back-to-front, starting from the last entry in
+	// the mount profile.
+	changes := []*update.Change{
+		{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/dir-1"}},
+		{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/dir-2"}},
+		{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/dir-3"}},
+	}
+	profile := update.CurrentProfileFromChangesMade(changes)
+	c.Check(profile, DeepEquals, osutil.MountProfile{Entries: []osutil.MountEntry{
+		{Dir: "/dir-1"},
+		{Dir: "/dir-2"},
+		{Dir: "/dir-3"},
+	}})
+
+	// When we keep a number of entries we are not still processing them
+	// back-to-front but the order of actual changes is front-to-back.
+	changes = []*update.Change{
+		{Action: update.Keep, Entry: osutil.MountEntry{Dir: "/dir-3"}},
+		{Action: update.Keep, Entry: osutil.MountEntry{Dir: "/dir-2"}},
+		{Action: update.Keep, Entry: osutil.MountEntry{Dir: "/dir-1"}},
+	}
+	profile = update.CurrentProfileFromChangesMade(changes)
+	c.Check(profile, DeepEquals, osutil.MountProfile{Entries: []osutil.MountEntry{
+		{Dir: "/dir-1"},
+		{Dir: "/dir-2"},
+		{Dir: "/dir-3"},
+	}})
+
+	// When we unmount things they just don't appear in the resulting profile.
+	changes = []*update.Change{
+		{Action: update.Unmount, Entry: osutil.MountEntry{Dir: "/dir-1"}},
+		{Action: update.Unmount, Entry: osutil.MountEntry{Dir: "/dir-2"}},
+		{Action: update.Unmount, Entry: osutil.MountEntry{Dir: "/dir-3"}},
+	}
+	profile = update.CurrentProfileFromChangesMade(changes)
+	c.Check(profile, DeepEquals, osutil.MountProfile{})
+
+	// When we have a mixture of changes unmount entries are removed, keep
+	// entries are retained first, back to front and then mount entries are
+	// retained in the order in which they were executed.
+	changes = []*update.Change{
+		{Action: update.Unmount, Entry: osutil.MountEntry{Dir: "/old-2"}},
+		{Action: update.Unmount, Entry: osutil.MountEntry{Dir: "/old-1"}},
+		{Action: update.Keep, Entry: osutil.MountEntry{Dir: "/same-2"}},
+		{Action: update.Keep, Entry: osutil.MountEntry{Dir: "/same-1"}},
+		{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/new-1"}},
+		{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/new-2"}},
+	}
+	profile = update.CurrentProfileFromChangesMade(changes)
+	c.Check(profile, DeepEquals, osutil.MountProfile{Entries: []osutil.MountEntry{
+		{Dir: "/same-1"},
+		{Dir: "/same-2"},
+		{Dir: "/new-1"},
+		{Dir: "/new-2"},
+	}})
 }
 
 // testProfileUpdateContext implements MountProfileUpdateContext and is suitable for testing.

@@ -71,6 +71,7 @@ parts:
     override-pull: |
       craftctl default
       QUILT_PATCHES=debian/patches quilt push -a
+      patch -p1 <"${CRAFT_PROJECT_DIR}/build-aux/snap/local/rename-dynamic-loader-variables.patch"
 
     override-build: |
       rm -rf build
@@ -280,6 +281,8 @@ parts:
       ./configure \
         --prefix=/usr \
         --libexec=/usr/lib/snapd \
+        --sysconfdir=/etc \
+        --localstatedir=/var \
         --without-unit-tests \
         --enable-static-libapparmor \
         --disable-host-binaries \
