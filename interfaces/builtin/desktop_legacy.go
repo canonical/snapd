@@ -393,7 +393,10 @@ func (iface *desktopLegacyInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	// interfaces (like desktop-launch), so they are added here with the minimum
 	// priority, while those other, more privileged, interfaces will add an empty
 	// string with a bigger privilege value.
-	desktopSnippet := getDesktopFileRules(plug.Snap())
+	desktopSnippet, err := getDesktopFileRules(plug.Snap())
+	if err != nil {
+		return err
+	}
 	spec.AddPrioritizedSnippet(desktopSnippet, prioritizedSnippetDesktopFileAccess, desktopLegacyAndUnity7Priority)
 
 	return nil

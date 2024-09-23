@@ -108,7 +108,7 @@ var desktopFilesFromInstalledSnap = func(s *snap.Info) ([]string, error) {
 // to read all the desktop files in the dir, causing excessive noise. (LP: #1868051)
 //
 // The snap must be mounted.
-func getDesktopFileRules(s *snap.Info) string {
+func getDesktopFileRules(s *snap.Info) (string, error) {
 	var b strings.Builder
 
 	b.WriteString("# Support applications which use the unity messaging menu, xdg-mime, etc\n")
@@ -130,7 +130,7 @@ func getDesktopFileRules(s *snap.Info) string {
 	desktopFileIDs, err := s.DesktopPlugFileIDs()
 	if err != nil {
 		logger.Noticef("cannot list desktop plug file IDs: %v", err)
-		return getDesktopFileRulesFallback()
+		return getDesktopFileRulesFallback(), nil
 	}
 	for _, desktopFileID := range desktopFileIDs {
 		// Validate IDs, This check should never be triggered because
@@ -138,8 +138,7 @@ func getDesktopFileRules(s *snap.Info) string {
 		// But still it is better to play it safe and check AARE characters anyway.
 		if err := apparmor.ValidateNoAppArmorRegexp(desktopFileID); err != nil {
 			// Unexpected, should have failed in BeforePreparePlug
-			logger.Noticef("internal error: invalid desktop file ID %q found in snap %q: %v", desktopFileID, s.InstanceName(), err)
-			return getDesktopFileRulesFallback()
+			return "", fmt.Errorf("internal error: invalid desktop file ID %q found in snap %q: %v", desktopFileID, s.InstanceName(), err)
 		}
 		fmt.Fprintf(&b, "%s/%s r,\n", dirs.SnapDesktopFilesDir, desktopFileID+".desktop")
 	}
@@ -149,11 +148,11 @@ func getDesktopFileRules(s *snap.Info) string {
 	desktopFiles, err := desktopFilesFromInstalledSnap(s)
 	if err != nil {
 		logger.Noticef("failed to collect desktop files from snap %q: %v", s.InstanceName(), err)
-		return getDesktopFileRulesFallback()
+		return getDesktopFileRulesFallback(), nil
 	}
 	if len(desktopFiles) == 0 {
 		// Nothing to do
-		return getDesktopFileRulesFallback()
+		return getDesktopFileRulesFallback(), nil
 	}
 	excludeOpts := &apparmor.AAREExclusionPatternsOptions{
 		Prefix: fmt.Sprintf("deny %s", dirs.SnapDesktopFilesDir),
@@ -170,19 +169,18 @@ func getDesktopFileRules(s *snap.Info) string {
 			// Unexpected, should have been validated/sanitized earlier in:
 			//   - Desktop interface's BeforePreparePlug for desktop file ids
 			//   - MangleDesktopFileName for prefixed desktop files
-			logger.Noticef("internal error: invalid desktop file name %q found in snap %q: %v", desktopFile, s.InstanceName(), err)
-			return getDesktopFileRulesFallback()
+			return "", fmt.Errorf("internal error: invalid desktop file name %q found in snap %q: %v", desktopFile, s.InstanceName(), err)
 		}
 		excludePatterns = append(excludePatterns, "/"+strings.TrimSuffix(filepath.Base(desktopFile), ".desktop"))
 	}
 	excludeRules, err := apparmorGenerateAAREExclusionPatterns(excludePatterns, excludeOpts)
 	if err != nil {
 		logger.Noticef("internal error: failed to generate deny rules for snap %q: %v", s.InstanceName(), err)
-		return getDesktopFileRulesFallback()
+		return getDesktopFileRulesFallback(), nil
 	}
 	b.WriteString(excludeRules)
 
-	return b.String()
+	return b.String(), nil
 }
 
 // stringListAttribute returns a list of strings for the given attribute key if the attribute exists.

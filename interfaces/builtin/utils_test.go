@@ -200,6 +200,7 @@ type testDesktopFileRulesOptions struct {
 	desktopFileIDs []string
 	isInstance     bool
 	expectedRules  []string
+	expectedErr    string
 }
 
 func (s *desktopFileRulesBaseSuite) testDesktopFileRules(c *C, opts testDesktopFileRulesOptions) {
@@ -242,6 +243,10 @@ plugs:
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := apparmor.NewSpecification(plug.AppSet())
 	err := apparmorSpec.AddConnectedPlug(iface, plug, slot)
+	if opts.expectedErr != "" {
+		c.Assert(err.Error(), Equals, opts.expectedErr)
+		return
+	}
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SnippetForTag(securityTag), testutil.Contains, `# This leaks the names of snaps with desktop files`)
 	c.Assert(apparmorSpec.SnippetForTag(securityTag), testutil.Contains, `/var/lib/snapd/desktop/applications/ r,`)
@@ -390,12 +395,9 @@ func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesSanitizedDesktopFileName
 }
 
 func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesBadDesktopFileName(c *C) {
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
 	// Stress the case where a snap file name skipped sanitization somehow
 	// This should never happen because snap.MangleDesktopFileName is called
-	restore = builtin.MockDesktopFilesFromInstalledSnap(func(s *snap.Info) ([]string, error) {
+	restore := builtin.MockDesktopFilesFromInstalledSnap(func(s *snap.Info) ([]string, error) {
 		return []string{"foo**?$.desktop"}, nil
 	})
 	defer restore()
@@ -405,19 +407,15 @@ func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesBadDesktopFileName(c *C)
 		desktopFiles:  []string{"foo**?$.desktop"},
 		isInstance:    false,
 		expectedRules: s.fallbackRules,
+		expectedErr:   `internal error: invalid desktop file name "foo**?$.desktop" found in snap "some-snap": "foo**?$.desktop" contains a reserved apparmor char from ` + "?*[]{}^\"\x00",
 	}
 	s.testDesktopFileRules(c, opts)
-
-	c.Check(logbuf.String(), testutil.Contains, `internal error: invalid desktop file name "foo**?$.desktop" found in snap "some-snap": "foo**?$.desktop" contains a reserved apparmor char`)
 }
 
 func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesBadDesktopFileIDs(c *C) {
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
 	// Stress the case where a desktop file ids attribute skipped validation during
 	// installation somehow
-	restore = builtin.MockDesktopFilesFromInstalledSnap(func(s *snap.Info) ([]string, error) {
+	restore := builtin.MockDesktopFilesFromInstalledSnap(func(s *snap.Info) ([]string, error) {
 		return []string{"org.*.example.desktop"}, nil
 	})
 	defer restore()
@@ -427,8 +425,7 @@ func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesBadDesktopFileIDs(c *C) 
 		desktopFiles:   []string{"org.*.example.desktop"},
 		desktopFileIDs: []string{"org.*.example"},
 		expectedRules:  s.fallbackRules,
+		expectedErr:    `internal error: invalid desktop file ID "org.*.example" found in snap "some-snap": "org.*.example" contains a reserved apparmor char from ` + "?*[]{}^\"\x00",
 	}
 	s.testDesktopFileRules(c, opts)
-
-	c.Check(logbuf.String(), testutil.Contains, `internal error: invalid desktop file ID "org.*.example" found in snap "some-snap": "org.*.example" contains a reserved apparmor char`)
 }

@@ -36,7 +36,6 @@ var (
 	ResolveSpecialVariable      = resolveSpecialVariable
 	ImplicitSystemPermanentSlot = implicitSystemPermanentSlot
 	ImplicitSystemConnectedSlot = implicitSystemConnectedSlot
-	GetDesktopFileRules         = getDesktopFileRules
 	StringListAttribute         = stringListAttribute
 	PolkitPoliciesSupported     = polkitPoliciesSupported
 )
