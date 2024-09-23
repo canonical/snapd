@@ -104,7 +104,7 @@ execute: |
             os.query is-classic
             ! os.query is-core
             ;;
-
+        fedora-39-64)
         fedora-39-64)
             os.query is-fedora
             os.query is-fedora 39
@@ -149,6 +149,8 @@ execute: |
             os.query is-classic
             ! os.query is-core
             ;;
+        opensuse-15.6-64)
+            os.query is-opensuse 15.6
         opensuse-tumbleweed-64)
             os.query is-opensuse
             os.query is-opensuse tumbleweed
