@@ -85,13 +85,22 @@ func (s *killSuite) TestKillSnapProcessesV1(c *C) {
 		return nil
 	})
 	defer restore()
+	restore = cgroup.MockFreezeSnapProcessesImplV1(func(ctx context.Context, snapName string) error {
+		ops = append(ops, "freeze-snap-processes-v1:"+snapName)
+		return nil
+	})
+	defer restore()
+	restore = cgroup.MockThawSnapProcessesImplV1(func(snapName string) error {
+		ops = append(ops, "thaw-snap-processes-v1:"+snapName)
+		return nil
+	})
+	defer restore()
 
 	c.Assert(cgroup.KillSnapProcesses(context.TODO(), "foo"), IsNil)
 	c.Assert(ops, DeepEquals, []string{
-		"kill cgroup: /sys/fs/cgroup/pids/user.slice/user-0.slice/user@0.service/snap.foo.app-1.1234-1234-1234.scope",
-		"kill cgroup: /sys/fs/cgroup/pids/user.slice/user-0.slice/user@0.service/snap.foo.app-1.9876.scope",
-		"kill cgroup: /sys/fs/cgroup/pids/user.slice/user-0.slice/user@0.service/snap.foo.app-2.some-scope.scope",
+		"freeze-snap-processes-v1:foo",
 		"kill cgroup: /sys/fs/cgroup/freezer/snap.foo",
+		"thaw-snap-processes-v1:foo",
 	})
 }
 
@@ -108,7 +117,7 @@ func (s *killSuite) TestKillSnapProcessesV1NoCgroups(c *C) {
 	c.Assert(cgroup.KillSnapProcesses(context.TODO(), snapName), IsNil)
 }
 
-func (s *killSuite) testKillSnapProcessesV2(c *C, cgroupKillSupported bool) {
+func (s *killSuite) testKillSnapProcessesV2(c *C, cgroupKillSupported, pidsControllerMounted bool) {
 	restore := cgroup.MockVersion(cgroup.V2, nil)
 	defer restore()
 
@@ -122,9 +131,12 @@ func (s *killSuite) testKillSnapProcessesV2(c *C, cgroupKillSupported bool) {
 	}
 	mockCgroupsWithProcs(c, cgroupsToProcs)
 
-	if cgroupKillSupported {
-		for cg := range cgroupsToProcs {
+	for cg := range cgroupsToProcs {
+		if cgroupKillSupported {
 			c.Assert(os.WriteFile(filepath.Join(s.rootDir, cg, "cgroup.kill"), []byte(""), 0644), IsNil)
+		}
+		if pidsControllerMounted {
+			c.Assert(os.WriteFile(filepath.Join(s.rootDir, cg, "pids.max"), []byte(""), 0644), IsNil)
 		}
 	}
 
@@ -139,8 +151,8 @@ func (s *killSuite) testKillSnapProcessesV2(c *C, cgroupKillSupported bool) {
 
 	c.Assert(cgroup.KillSnapProcesses(context.TODO(), "foo"), IsNil)
 
-	if cgroupKillSupported {
-		for cg := range cgroupsToProcs {
+	for cg := range cgroupsToProcs {
+		if cgroupKillSupported {
 			cgKill := filepath.Join(s.rootDir, cg, "cgroup.kill")
 			if strings.HasSuffix(cg, "snap.bar.app-1.1234-1234-1234.scope") {
 				c.Assert(cgKill, testutil.FileEquals, "")
@@ -148,31 +160,59 @@ func (s *killSuite) testKillSnapProcessesV2(c *C, cgroupKillSupported bool) {
 				// "1" was written to cgroup.kill
 				c.Assert(cgKill, testutil.FileEquals, "1")
 			}
+			// Didn't fallback to classic implementation
+			c.Assert(ops, IsNil)
+		} else {
+			for cg := range cgroupsToProcs {
+				cgKill := filepath.Join(s.rootDir, cg, "cgroup.kill")
+				c.Assert(cgKill, testutil.FileAbsent)
+			}
+			c.Assert(ops, DeepEquals, []string{
+				"kill cgroup: /sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/snap.foo.app-1.1234-1234-1234.scope",
+				"kill cgroup: /sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/snap.foo.app-1.9876.scope",
+				"kill cgroup: /sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/snap.foo.app-2.some-scope.scope",
+			})
 		}
-		// Didn't fallback to classic implementation
-		c.Assert(ops, IsNil)
-	} else {
-		for cg := range cgroupsToProcs {
-			cgKill := filepath.Join(s.rootDir, cg, "cgroup.kill")
-			c.Assert(cgKill, testutil.FileAbsent)
+		if pidsControllerMounted {
+			pidsMax := filepath.Join(s.rootDir, cg, "pids.max")
+			if strings.HasSuffix(cg, "snap.bar.app-1.1234-1234-1234.scope") || cgroupKillSupported {
+				// if cgroup.kill exists, fallback code is not hit
+				c.Assert(pidsMax, testutil.FileEquals, "")
+			} else {
+				// "0" was written to pids.max
+				c.Assert(pidsMax, testutil.FileEquals, "0")
+			}
+		} else {
+			pidsMax := filepath.Join(s.rootDir, cg, "pids.max")
+			c.Assert(pidsMax, testutil.FileAbsent)
 		}
-		c.Assert(ops, DeepEquals, []string{
-			"kill cgroup: /sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/snap.foo.app-1.1234-1234-1234.scope",
-			"kill cgroup: /sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/snap.foo.app-1.9876.scope",
-			"kill cgroup: /sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/snap.foo.app-2.some-scope.scope",
-		})
 	}
 }
 
 func (s *killSuite) TestKillSnapProcessesV2(c *C) {
 	const cgroupKillSupported = false
-	s.testKillSnapProcessesV2(c, cgroupKillSupported)
+	const pidsControllerMounted = true
+	s.testKillSnapProcessesV2(c, cgroupKillSupported, pidsControllerMounted)
+}
+
+func (s *killSuite) TestKillSnapProcessesV2NoPidController(c *C) {
+	const cgroupKillSupported = false
+	const pidsControllerMounted = false
+	s.testKillSnapProcessesV2(c, cgroupKillSupported, pidsControllerMounted)
 }
 
 func (s *killSuite) TestKillSnapProcessesV2CgKillSupported(c *C) {
 	// cgroup.kill requires linux 5.14+
 	const cgroupKillSupported = true
-	s.testKillSnapProcessesV2(c, cgroupKillSupported)
+	const pidsControllerMounted = true
+	s.testKillSnapProcessesV2(c, cgroupKillSupported, pidsControllerMounted)
+}
+
+func (s *killSuite) TestKillSnapProcessesV2CgKillSupportedNoPidControler(c *C) {
+	// cgroup.kill requires linux 5.14+
+	const cgroupKillSupported = true
+	const pidsControllerMounted = false
+	s.testKillSnapProcessesV2(c, cgroupKillSupported, pidsControllerMounted)
 }
 
 func removePid(cgroupsToProcs map[string][]string, targetPid int) map[string][]string {
@@ -235,18 +275,39 @@ func (s *killSuite) testKillSnapProcessesError(c *C, cgVersion int, freezerOnly 
 		return nil
 	})
 	defer restore()
+	restore = cgroup.MockFreezeSnapProcessesImplV1(func(ctx context.Context, snapName string) error {
+		ops = append(ops, "freeze-snap-processes-v1:"+snapName)
+		return nil
+	})
+	defer restore()
+	restore = cgroup.MockThawSnapProcessesImplV1(func(snapName string) error {
+		ops = append(ops, "thaw-snap-processes-v1:"+snapName)
+		return nil
+	})
+	defer restore()
 
 	// Call failed and reported first error only
 	err := cgroup.KillSnapProcesses(context.TODO(), "foo")
 	c.Assert(err, ErrorMatches, "mock error for pid 1")
 
 	// But kept going
-	c.Assert(ops, DeepEquals, []string{
-		// Pid 1 not killed due to error
-		// Pid 2 not killed due to error
-		"kill-pid:3, signal:9",
-		"kill-pid:4, signal:9",
-	})
+	if cgVersion == cgroup.V1 {
+		c.Assert(ops, DeepEquals, []string{
+			"freeze-snap-processes-v1:foo",
+			// Pid 1 not killed due to error
+			// Pid 2 not killed due to error
+			"kill-pid:3, signal:9",
+			"kill-pid:4, signal:9",
+			"thaw-snap-processes-v1:foo",
+		})
+	} else {
+		c.Assert(ops, DeepEquals, []string{
+			// Pid 1 not killed due to error
+			// Pid 2 not killed due to error
+			"kill-pid:3, signal:9",
+			"kill-pid:4, signal:9",
+		})
+	}
 }
 
 func (s *killSuite) TestKillSnapProcessesV1Error(c *C) {

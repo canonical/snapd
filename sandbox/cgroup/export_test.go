@@ -139,6 +139,14 @@ func (iw *inotifyWatcher) MonitorDelete(folders []string, name string, channel c
 
 var NewInotifyWatcher = newInotifyWatcher
 
+func MockFreezeSnapProcessesImplV1(fn func(ctx context.Context, snapName string) error) (restore func()) {
+	return testutil.Mock(&freezeSnapProcessesImplV1, fn)
+}
+
+func MockThawSnapProcessesImplV1(fn func(snapName string) error) (restore func()) {
+	return testutil.Mock(&thawSnapProcessesImplV1, fn)
+}
+
 func MockKillProcessesInCgroup(fn func(dir string) error) (restore func()) {
 	return testutil.Mock(&killProcessesInCgroup, fn)
 }
