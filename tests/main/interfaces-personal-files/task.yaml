@@ -86,6 +86,9 @@ execute: |
 
     echo "Find snap-confine"
     SNAP_CONFINE=$(os.paths libexec-dir)/snapd/snap-confine
+    if tests.info is-snapd-pkg-repo; then
+        SNAP_CONFINE="/snap/snapd/current$SNAP_CONFINE"
+    fi
     # on Ubuntu Core we need to use the correct path to ensure it is
     # appropriately confined by apparmor as it may be from the snapd
     # snap
