@@ -35,6 +35,8 @@ var (
 	DetectAppAndRewriteExecLine = detectAppAndRewriteExecLine
 	RewriteIconLine             = rewriteIconLine
 	IsValidDesktopFileLine      = isValidDesktopFileLine
+	ForAllDesktopFiles          = forAllDesktopFiles
+	SnapdDesktopFileNames       = snapdDesktopFileNames
 
 	// daemons
 	NewUserServiceClientNames = newUserServiceClientNames
