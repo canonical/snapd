@@ -161,7 +161,8 @@ main() {
             cmd_remove $(remap_many "$@")
             ;;
         download)
-            cmd_download "$(remap_many "$@")"
+            # shellcheck disable=SC2046
+            cmd_download $(remap_many "$@")
             ;;
         *)
             echo "tests.pkgs: unknown action $action" >&2
