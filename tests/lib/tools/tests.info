@@ -14,7 +14,7 @@ show_help() {
 is_snapd_pkg_repo() {
     [ "$SNAPD_DEB_FROM_REPO" = true ] && \
     [ -n "$(command -v apt)" ] && \
-    os.query is-classic && \
+    [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]] && \
     not os.query is-trusty
 }
 
