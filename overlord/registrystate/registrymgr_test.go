@@ -420,7 +420,7 @@ func (s *registryTestSuite) TestCommitTransaction(c *C) {
 	registrystate.SetTransaction(t, tx)
 
 	s.state.Unlock()
-	err = s.o.Settle(testutil.HostScaledTimeout(500 * time.Second))
+	err = s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
 	s.state.Lock()
 	c.Assert(err, IsNil)
 
