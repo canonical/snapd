@@ -100,6 +100,9 @@ func (s *killSuite) TestKillSnapProcessesV1(c *C) {
 	c.Assert(cgroup.KillSnapProcesses(context.TODO(), "foo"), IsNil)
 	c.Assert(ops, DeepEquals, []string{
 		"freeze-snap-processes-v1:foo",
+		"kill cgroup: /sys/fs/cgroup/pids/user.slice/user-0.slice/user@0.service/snap.foo.app-1.1234-1234-1234.scope",
+		"kill cgroup: /sys/fs/cgroup/pids/user.slice/user-0.slice/user@0.service/snap.foo.app-1.9876.scope",
+		"kill cgroup: /sys/fs/cgroup/pids/user.slice/user-0.slice/user@0.service/snap.foo.app-2.some-scope.scope",
 		"kill cgroup: /sys/fs/cgroup/freezer/snap.foo",
 		"thaw-snap-processes-v1:foo",
 	})
@@ -434,7 +437,7 @@ func (s *killSuite) TestKillProcessInCgroupTimeout(c *C) {
 	})
 	defer restore()
 
-	restore = cgroup.MockMaxKillTimeout(50 * time.Millisecond)
+	restore = cgroup.MockMaxKillTimeout(10 * time.Millisecond)
 	defer restore()
 
 	err := cgroup.KillProcessesInCgroup(context.TODO(), cg)

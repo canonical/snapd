@@ -33,17 +33,21 @@ import (
 // a given snap.
 //
 // A correct implementation is picked depending on cgroup v1 or v2 use in the
-// system. When cgroup v1 is detected, the call will directly act on the freezer
-// group created when a snap process was started, while with v2 the call will
-// act on all tracking groups of a snap.
+// system. For both cgroup v1 and v2, the call will act on all tracking groups
+// of a snap.
 //
-// Note: Algorithms used for killing in cgroup v1 and v2 are different.
+// Note: Algorithms used for killing in cgroup v1 and v2 are slightly different.
 //   - cgroup v1: freeze/kill/thaw.
 //     This is to address multiple edge cases:
-//     (1) Hybrid v1/v2 cgroups with pids controller mounted only on v1 or v2 (Ubuntu 20.04).
-//     (2) Address a known bug on systemd v327 for non-root users where transient scopes are not created (Ubuntu 18.04).
-//   - cgroup v2: stop forking, kill processes until cgroup is drained.
-//     This is to address kernel versions without v2 freezer support.
+//     (1) Hybrid v1/v2 cgroups with pids controller mounted only on v1 or v2 (Ubuntu 20.04)
+//     so we cannot guarantee having pids.max so we use the freezer cgroup instead.
+//     (2) Address a known bug on systemd v327 for non-root users where transient scopes are
+//     not created (e.g. on Ubuntu 18.04) so we use the freezer cgroup for tracking. This is
+//     only useful for killing apps or processes which do not have their lifecycle managed by
+//     external entities like systemd.
+//   - cgroup v2: stop forking through pids.max, kill processes until cgroup is drained.
+//     This is to address kernel versions without v2 freezer support so we use pids.max
+//     to prevent fork bombs from racing with snapd.
 var KillSnapProcesses = func(ctx context.Context, snapName string) error {
 	return errors.New("KillSnapProcesses not implemented")
 }
@@ -63,7 +67,6 @@ var killProcessesInCgroup = func(ctx context.Context, dir string) error {
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, maxKillTimeout)
 	defer cancel()
 	for {
-		// XXX: Should this have maximum retries?
 		pids, err := pidsInFile(filepath.Join(dir, "cgroup.procs"))
 		if err != nil {
 			return err
@@ -110,12 +113,33 @@ func killSnapProcessesImplV1(ctx context.Context, snapName string) error {
 	// until the cgroup is thawed
 	defer thawSnapProcessesImplV1(snapName)
 
-	err = killProcessesInCgroup(ctx, filepath.Join(freezerCgroupV1Dir, fmt.Sprintf("snap.%s", snapName)))
-	if err != nil && !isCgroupNotExistErr(err) {
+	killCgroupProcs := func(dir string) error {
+		return killProcessesInCgroup(ctx, dir)
+	}
+
+	var firstErr error
+	skipError := func(err error) bool {
+		if !isCgroupNotExistErr(err) && firstErr == nil {
+			firstErr = err
+		}
+		return true
+	}
+
+	if err := applyToSnap(snapName, killCgroupProcs, skipError); err != nil {
 		return err
 	}
 
-	return nil
+	// This is a workaround for systemd v237 (used by Ubuntu 18.04) for non-root users
+	// where a transient scope cgroup is not created for a snap hence it cannot be tracked
+	// by the usual snap.<security-tag>-<uuid>.scope pattern.
+	// Here, We rely on the fact that snap-confine moves the snap pids into the freezer cgroup
+	// created for the snap.
+	err = killProcessesInCgroup(ctx, filepath.Join(freezerCgroupV1Dir, fmt.Sprintf("snap.%s", snapName)))
+	if err != nil && !isCgroupNotExistErr(err) && firstErr == nil {
+		firstErr = err
+	}
+
+	return firstErr
 }
 
 func killSnapProcessesImplV2(ctx context.Context, snapName string) error {
