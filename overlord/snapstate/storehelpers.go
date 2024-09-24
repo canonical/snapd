@@ -615,6 +615,8 @@ func storeUpdatePlanCore(
 	// make sure to explicitly request the components from the store.
 	requestComponentsFromStore := false
 
+	verifyEnforcedValidationSets := make(map[string]bool, len(updates))
+
 	// make sure that all requested updates are currently installed
 	for _, update := range updates {
 		snapst, ok := allSnaps[update.InstanceName]
@@ -625,6 +627,8 @@ func storeUpdatePlanCore(
 		if snapst.HasActiveComponents() {
 			requestComponentsFromStore = true
 		}
+
+		verifyEnforcedValidationSets[update.InstanceName] = !ignoreValidationSetsForRefresh(snapst, opts) && len(update.RevOpts.ValidationSets) == 0
 	}
 
 	enforcedSetsFunc := cachedEnforcedValidationSets(st)
@@ -780,6 +784,21 @@ func storeUpdatePlanCore(
 		})
 	}
 
+	for _, t := range plan.targets {
+		if !verifyEnforcedValidationSets[t.info.InstanceName()] {
+			continue
+		}
+
+		vsets, err := enforcedSetsFunc()
+		if err != nil {
+			return updatePlan{}, err
+		}
+
+		if err := checkTargetAgainstValidationSets(t, "refresh", vsets); err != nil {
+			return updatePlan{}, err
+		}
+	}
+
 	return plan, nil
 }
 
@@ -800,6 +819,19 @@ func currentComponentsAvailableInRevision(snapst *SnapState, info *snap.Info) ([
 		}
 	}
 	return intersection, nil
+}
+
+// ignoreValidationSetsForRefresh returns a boolean indicating whether or not we
+// should ignore validation sets when refreshing this snap. There are two cases
+// to consider, the single refresh case and the refresh-all case. During a
+// single refresh, we only consider the flag that was passed in. During a
+// refresh-all, we respect the sticky ignore validation flag that is held in
+// SnapState.
+func ignoreValidationSetsForRefresh(snapst *SnapState, opts Options) bool {
+	if !opts.ExpectOneSnap {
+		return snapst.IgnoreValidation
+	}
+	return opts.Flags.IgnoreValidation
 }
 
 func collectCurrentSnapsAndActions(
@@ -846,20 +878,14 @@ func collectCurrentSnapsAndActions(
 			InstanceName: installed.InstanceName,
 		}
 
+		ignoreValidation := ignoreValidationSetsForRefresh(snapst, opts)
+
 		// TODO: this is silly, but it matches how we currently send these flags
 		// now. we should probably just default to sending enforce, but that
 		// would require updating a good number of tests. good candidate for a
 		// follow-up PR.
-		//
-		// if we are expecting only one snap to be updated, we respect the flag
-		// that was passed in. this maintains the existing behavior of Update vs
-		// UpdateMany.
-		ignoreValidation := snapst.IgnoreValidation
-		if opts.ExpectOneSnap {
-			ignoreValidation = opts.Flags.IgnoreValidation
-			if !opts.Flags.IgnoreValidation && req.RevOpts.Revision.Unset() {
-				action.Flags = store.SnapActionEnforceValidation
-			}
+		if !ignoreValidation && opts.ExpectOneSnap && req.RevOpts.Revision.Unset() {
+			action.Flags = store.SnapActionEnforceValidation
 		}
 
 		if err := completeStoreAction(action, req.RevOpts, ignoreValidation, enforcedSets); err != nil {

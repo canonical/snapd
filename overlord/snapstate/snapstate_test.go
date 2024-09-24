@@ -173,6 +173,8 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 		fakeBackend:         s.fakeBackend,
 		state:               s.state,
 		downloadError:       make(map[string]error),
+		idsToNames:          make(map[string]string),
+		namesToAssertedIDs:  make(map[string]string),
 	}
 
 	// make tests work consistently also in containers

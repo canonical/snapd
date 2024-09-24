@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
@@ -250,6 +251,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 		return nil, err
 	}
 
+	verifyEnforcedValidationSets := make(map[string]bool, len(s.snaps))
 	enforcedSetsFunc := cachedEnforcedValidationSets(st)
 
 	includeResources := false
@@ -259,6 +261,8 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			Action:       "install",
 			InstanceName: sn.InstanceName,
 		}
+
+		verifyEnforcedValidationSets[sn.InstanceName] = !opts.Flags.IgnoreValidation && len(sn.RevOpts.ValidationSets) == 0
 
 		if err := completeStoreAction(action, sn.RevOpts, opts.Flags.IgnoreValidation, enforcedSetsFunc); err != nil {
 			return nil, err
@@ -345,7 +349,105 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 		})
 	}
 
+	for _, t := range installs {
+		if !verifyEnforcedValidationSets[t.info.InstanceName()] {
+			continue
+		}
+
+		vsets, err := enforcedSetsFunc()
+		if err != nil {
+			return nil, err
+		}
+
+		if err := checkTargetAgainstValidationSets(t, "install", vsets); err != nil {
+			return nil, err
+		}
+	}
+
 	return installs, err
+}
+
+func checkTargetAgainstValidationSets(target target, action string, vsets *snapasserts.ValidationSets) error {
+	presence, err := vsets.Presence(target.info)
+	if err != nil {
+		return err
+	}
+
+	if err := checkSnapAgainstPresence(target.info.InstanceName(), target.info.Revision, presence, action); err != nil {
+		return err
+	}
+
+	comps := make(map[string]snap.Revision, len(target.components))
+	for _, comp := range target.components {
+		comps[comp.ComponentName()] = comp.Revision()
+	}
+
+	return checkComponentsAgainstPresence(target.info.SnapName(), comps, presence, action)
+}
+
+// should something like this maybe be a method on snapasserts.ValidationSets?
+// the error strings are the main thing that don't really fit well in there
+func checkSnapAgainstPresence(
+	instanceName string,
+	revision snap.Revision,
+	presence snapasserts.SnapPresence,
+	action string,
+) error {
+	if presence.Presence == asserts.PresenceInvalid {
+		verb := "install"
+		if action == "refresh" {
+			verb = "update"
+		}
+
+		return fmt.Errorf(
+			"cannot %s snap %q due to enforcing rules of validation set %s",
+			verb,
+			instanceName,
+			presence.Sets.CommaSeparated(),
+		)
+	}
+
+	if !presence.Revision.Unset() && !revision.Unset() && revision != presence.Revision {
+		return invalidRevisionError(action, instanceName, presence.Sets, revision, presence.Revision)
+	}
+
+	return nil
+}
+
+func checkComponentsAgainstPresence(snapName string, comps map[string]snap.Revision, presence snapasserts.SnapPresence, action string) error {
+	verb := "install"
+	if action == "refresh" {
+		verb = "update"
+	}
+
+	for compName, compRevision := range comps {
+		cp := presence.Component(compName)
+
+		if cp.Presence == asserts.PresenceInvalid {
+			return fmt.Errorf(
+				"cannot %s component %q due to enforcing rules of validation set %s",
+				verb,
+				naming.NewComponentRef(snapName, compName),
+				cp.Sets.CommaSeparated(),
+			)
+		}
+
+		if !cp.Revision.Unset() && compRevision != cp.Revision {
+			return invalidComponentRevisionError(action, snapName, compName, cp.Sets, compRevision, cp.Revision)
+		}
+	}
+
+	for compName, compPres := range presence.RequiredComponents() {
+		if _, ok := comps[compName]; !ok {
+			return fmt.Errorf("cannot %s snap %q without component %q required by validation sets %s",
+				verb,
+				snapName,
+				compName,
+				compPres.Sets.CommaSeparated(),
+			)
+		}
+	}
+	return nil
 }
 
 // cachedEnforcedValidationSets returns a function that will lazily load (and
@@ -452,53 +554,48 @@ func completeStoreAction(action *store.SnapAction, revOpts RevisionOptions, igno
 		// might choose to track any channel in the RevisionOptions.
 		action.Channel = ""
 	default:
+		// if the caller didn't provide any validation sets, make sure that
+		// the snap is allowed by all of the enforced validation sets
 		vsets, err := enforcedSets()
 		if err != nil {
 			return err
 		}
 
-		// if the caller didn't provide any validation sets, make sure that
-		// the snap is allowed by all of the enforced validation sets
-		invalidSets, err := vsets.CheckPresenceInvalid(naming.Snap(action.InstanceName))
-		if err != nil {
-			if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
-				return err
-			} // else presence is optional or required, carry on
-		}
-
-		if len(invalidSets) > 0 {
-			verb := "install"
-			if action.Action == "refresh" {
-				verb = "update"
-			}
-
-			return fmt.Errorf(
-				"cannot %s snap %q due to enforcing rules of validation set %s",
-				verb,
-				action.InstanceName,
-				snapasserts.ValidationSetKeySlice(invalidSets).CommaSeparated(),
-			)
-		}
-
-		requiredSets, requiredRev, err := vsets.CheckPresenceRequired(naming.Snap(action.InstanceName))
+		snapName, _ := snap.SplitInstanceName(action.InstanceName)
+		presence, err := vsets.Presence(naming.Snap(snapName))
 		if err != nil {
 			return err
 		}
 
-		// make sure that the caller-requested revision matches the revision
-		// required by the enforced validation sets
-		if !requiredRev.Unset() && !revOpts.Revision.Unset() && requiredRev != revOpts.Revision {
-			return invalidRevisionError(action, requiredSets, revOpts.Revision, requiredRev)
+		// note that we don't check that we're installing invalid components
+		// here, since we might not know what components we're going to install
+		// yet. specifically, if the rules in the currently enforced validation
+		// sets have been broken (from using --ignore-validation), then our
+		// components might be in an invalid state. to prevent disallowing
+		// moving to a valid state, we can't check until we know what components
+		// are available for this snap.
+		//
+		// in short, this check is really just an early check to make sure that
+		// the snap revision we're installing isn't invalid in the validation
+		// sets before we hit the store.
+		if err := checkSnapAgainstPresence(
+			action.InstanceName, revOpts.Revision, presence, action.Action,
+		); err != nil {
+			return err
 		}
 
-		// TODO:COMPS: handle validation sets and components here
+		// if the validation sets are actually doing something, then we need to
+		// send them to the store. if any components for this snap (installed or
+		// not) are constrained by the validation sets, then we need to send
+		// them to the store.
+		if presence.Constrained() {
+			action.ValidationSets = presence.Sets
+		}
 
-		action.ValidationSets = requiredSets
-
-		if !requiredRev.Unset() {
+		if !presence.Revision.Unset() {
 			// make sure that we use the revision required by the enforced
 			// validation sets
-			action.Revision = requiredRev
+			action.Revision = presence.Revision
 
 			// we ignore the cohort if a validation set requires that the
 			// snap is pinned to a specific revision
@@ -513,10 +610,10 @@ func completeStoreAction(action *store.SnapAction, revOpts RevisionOptions, igno
 	return nil
 }
 
-func invalidRevisionError(a *store.SnapAction, sets []snapasserts.ValidationSetKey, requested, required snap.Revision) error {
+func invalidRevisionError(action, snapName string, sets []snapasserts.ValidationSetKey, requested, required snap.Revision) error {
 	verb := "install"
 	preposition := "at"
-	if a.Action == "refresh" {
+	if action == "refresh" {
 		verb = "update"
 		preposition = "to"
 	}
@@ -524,7 +621,26 @@ func invalidRevisionError(a *store.SnapAction, sets []snapasserts.ValidationSetK
 	return fmt.Errorf(
 		"cannot %s snap %q %s revision %s without --ignore-validation, revision %s is required by validation sets: %s",
 		verb,
-		a.InstanceName,
+		snapName,
+		preposition,
+		requested,
+		required,
+		snapasserts.ValidationSetKeySlice(sets).CommaSeparated(),
+	)
+}
+
+func invalidComponentRevisionError(action, snapName, componentName string, sets []snapasserts.ValidationSetKey, requested, required snap.Revision) error {
+	verb := "install"
+	preposition := "at"
+	if action == "refresh" {
+		verb = "update"
+		preposition = "to"
+	}
+
+	return fmt.Errorf(
+		"cannot %s component %q %s revision %s without --ignore-validation, revision %s is required by validation sets: %s",
+		verb,
+		naming.NewComponentRef(snapName, componentName),
 		preposition,
 		requested,
 		required,
