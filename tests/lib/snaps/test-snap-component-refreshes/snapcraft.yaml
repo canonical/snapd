@@ -13,6 +13,14 @@ components:
     description: First component for test-snap-component-refreshes
     version: 1.2
     type: test
+  # the "two" component isn't present in all of the revisions that are uploaded
+  # to the store with this snap, but this is how it was defined for the
+  # revisions that do have it.
+  two:
+    summary: Component 2
+    description: Second component for test-snap-component-refreshes
+    version: 1.2
+    type: test
 apps:
   test-snap-component-refreshes:
     command: test
@@ -22,3 +30,4 @@ parts:
     source: .
     organize:
       one: (component/one)/hello
+      two: (component/two)/hello
