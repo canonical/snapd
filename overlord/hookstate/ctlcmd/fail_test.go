@@ -102,9 +102,20 @@ func (s *registrySuite) TestFailErrors(c *C) {
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
+	// ephemeral context - no hook
+	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1)}
+	s.mockContext, err = hookstate.NewContext(nil, s.state, setup, s.mockHandler, "")
+	c.Assert(err, IsNil)
+
+	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"fail", "reason"}, 0)
+	c.Assert(err, ErrorMatches, i18n.G(`cannot use "snapctl fail" outside of a "change-view" hook`))
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+
+	// unexpected hook
 	s.state.Lock()
 	task := s.state.NewTask("run-hook", "my test task")
-	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "other-hook"}
+	setup = &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "other-hook"}
 	s.state.Unlock()
 
 	s.mockContext, err = hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
