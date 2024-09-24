@@ -22,6 +22,7 @@ package spdx
 import (
 	"fmt"
 	"io"
+	"strings"
 )
 
 const (
@@ -31,6 +32,7 @@ const (
 )
 
 func isOperator(tok string) bool {
+	tok = strings.ToUpper(tok)
 	return tok == opAND || tok == opOR || tok == opWITH
 }
 
@@ -74,10 +76,11 @@ func (p *parser) validate(depth int) error {
 
 	for p.s.Scan() {
 		tok := p.s.Text()
+		upperTok := strings.ToUpper(tok)
 
 		switch {
 		case tok == "(":
-			if last == opWITH {
+			if last == opWITH || strings.ToUpper(last) == opWITH {
 				return fmt.Errorf("%q not allowed after WITH", tok)
 			}
 			if err := p.validate(depth + 1); err != nil {
@@ -98,22 +101,22 @@ func (p *parser) validate(depth int) error {
 			if last == "" {
 				return fmt.Errorf("missing license before %s", tok)
 			}
-			if last == opAND || last == opOR {
+			if strings.ToUpper(last) == opAND || strings.ToUpper(last) == opOR {
 				return fmt.Errorf("expected license name, got %q", tok)
 			}
-			if tok == opWITH && last == "(" {
+			if upperTok == opWITH && last == "(" {
 				return fmt.Errorf("expected license name before %s", tok)
 			}
-			if last == opWITH {
+			if strings.ToUpper(last) == opWITH {
 				return fmt.Errorf("expected exception name, got %q", tok)
 			}
 		default:
 			switch {
-			case last == opWITH:
+			case strings.ToUpper(last) == opWITH:
 				if _, err := newLicenseExceptionID(tok); err != nil {
 					return err
 				}
-			case last == "", last == opAND, last == opOR:
+			case last == "", isOperator(last):
 				if _, err := newLicenseID(tok); err != nil {
 					return err
 				}
@@ -125,7 +128,6 @@ func (p *parser) validate(depth int) error {
 				}
 				return fmt.Errorf("unexpected string: %q", tok)
 			}
-
 		}
 		last = tok
 	}
