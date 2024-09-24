@@ -1,13 +1,14 @@
 #!/bin/bash
 
-set -e
+set -eu
 
 show_help() {
-	echo "usage: tests.info <CMD>"
-	echo
-	echo "Supported commands:"
-	echo "    is-snapd-pkg-repo: indicates when the snap packages is from the repository"
-	echo "    is-reexec-enabled: indicates when snapd package is re-executing to snapd snap"
+    echo "usage: tests.info <CMD>"
+    echo
+    echo "Supported commands:"
+    echo "    is-snapd-pkg-repo: indicates when the snap packages is from the repository"
+    echo "    is-reexec-req:     indicates re-execution has been explicitly enabled through the env"
+    echo "    is-reexec-done:    indicates re-execution to the snapd snap is being effectively performed"
 }
 
 is_snapd_pkg_repo() {
@@ -17,7 +18,11 @@ is_snapd_pkg_repo() {
     not os.query is-trusty
 }
 
-is_reexec_enabled() {
+is_reexec_req() {
+    snap debug execution snap | grep -q "is-reexec-enabled: true"
+}
+
+is_reexec_done() {
     snap debug execution snap | grep -q "is-reexecd: true"
 }
 
