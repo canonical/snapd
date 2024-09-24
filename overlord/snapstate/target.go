@@ -896,9 +896,9 @@ func (p *updatePlan) filterHeldSnaps(st *state.State, opts Options) error {
 	return nil
 }
 
-// validateAndFilterTargets validates the targets in the update plan against the
-// enforced validation sets. Any targets that cannot be validated are removed
-// from the update plan.
+// validateAndFilterTargets validates the targets in the update plan against
+// refresh control validation assertions. Any targets that cannot be validated
+// are removed from the update plan.
 func (p *updatePlan) validateAndFilterTargets(st *state.State, opts Options) error {
 	if ValidateRefreshes == nil || len(p.targets) == 0 || opts.Flags.IgnoreValidation {
 		return nil
@@ -911,6 +911,8 @@ func (p *updatePlan) validateAndFilterTargets(st *state.State, opts Options) err
 		}
 	}
 
+	// for the reader, the concept of validating here is not to be confused with
+	// validation sets.
 	validated, err := ValidateRefreshes(st, p.targetInfos(), ignoreValidation, opts.UserID, opts.DeviceCtx)
 	if err != nil {
 		if !p.refreshAll() {
