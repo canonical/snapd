@@ -72,9 +72,9 @@ execute: |
     #shellcheck disable=SC2016
     TEST_DIR="$(tests.session -u test exec sh -c 'mktemp --directory --tmpdir="$HOME/integration-tests"')"
     cp "$VARIANT.sh" "${TEST_DIR}/${VARIANT}.sh"
-    chmod 664 "${TEST_DIR}/${VARIANT}.sh" # ensure it's readable by the test user
+    chown test "${TEST_DIR}/${VARIANT}.sh"
     cp "$VARIANT.json" "${TEST_DIR}/script.json"
-    chmod 664 "${TEST_DIR}/script.json" # ensure it's readable by the test user
+    chown test "${TEST_DIR}/script.json"
 
     # Test scripts can rely on the presence of "${TEST_DIR}/script.json",
     # which is the script of expected prompts and corresponding replies.
