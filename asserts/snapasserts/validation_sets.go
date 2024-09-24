@@ -1077,6 +1077,17 @@ func (s *SnapPresence) Component(name string) presence {
 	return cp
 }
 
+func (s *SnapPresence) RequiredComponents() map[string]presence {
+	required := make(map[string]presence)
+	for name, pres := range s.components {
+		if pres.Presence != asserts.PresenceRequired {
+			continue
+		}
+		required[name] = pres
+	}
+	return required
+}
+
 // CheckPresenceInvalid returns the list of all validation sets that declare
 // presence of the given snap as invalid.
 func (v *ValidationSets) Presence(sn naming.SnapRef) (SnapPresence, error) {
