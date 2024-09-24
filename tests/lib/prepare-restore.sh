@@ -588,7 +588,7 @@ prepare_project() {
     chown test:test -R "$SPREAD_PATH"
 
     if tests.info is-snapd-pkg-repo; then
-        ( cd "${GOHOME}" && tests.pkgs download snapd snap-confine ubuntu-core-launcher)
+        ( cd "${GOHOME}" && tests.pkgs download snapd snap-confine)
     elif [ "$BUILD_SNAPD_FROM_CURRENT" = true ]; then
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)

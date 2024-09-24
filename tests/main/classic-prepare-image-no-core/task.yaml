@@ -31,7 +31,7 @@ prepare: |
     snap pack "$TESTSLIB/snaps/basic18"
     snap pack classic-gadget-18
 
-    echo Expose the needed assertions through pkg fakestore
+    echo Expose the needed assertions through the fakestore
     cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
     cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
     # have snap use the fakestore for assertions (but nothing else)

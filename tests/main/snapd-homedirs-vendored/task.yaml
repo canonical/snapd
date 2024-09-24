@@ -7,12 +7,17 @@ details: |
 
 # On ubuntu 18 and below snapd-internal is not available
 # ubuntu-24*: the snapd deb is version 2.60.4 which is post-vendored apparmor.
-systems: [ubuntu-18*, ubuntu-20*, ubuntu-22*, ubuntu-23*]
+systems: [ubuntu-18*, ubuntu-20*, ubuntu-22*]
 
 environment:
     USERNAME: home-sweet-home
 
 prepare: |
+    if tests.info is-snapd-pkg-repo; then
+        echo "This test needs to be executed when snapd deb is built from local"
+        exit 
+    fi
+
     # Create a new user in a non-standard location
     mkdir -p /remote/users
     useradd -b /remote/users -m -U "$USERNAME"
@@ -28,6 +33,11 @@ prepare: |
     rm -rf "${unpackdir}"
 
 restore: |
+    if tests.info is-snapd-pkg-repo; then
+        echo "This test needs to be executed when snapd deb is built from local"
+        exit 
+    fi
+
     userdel -f --remove "$USERNAME"
     rm -rf /remote/users
 
@@ -38,6 +48,11 @@ restore: |
     distro_install_build_snapd
 
 debug: |
+    if tests.info is-snapd-pkg-repo; then
+        echo "This test needs to be executed when snapd deb is built from local"
+        exit 
+    fi
+
     # output custom snap-confine snippets
     ls -l /var/lib/snapd/apparmor/snap-confine/
     for f in /var/lib/snapd/apparmor/snap-confine/*; do
@@ -46,6 +61,11 @@ debug: |
     done
 
 execute: |
+    if tests.info is-snapd-pkg-repo; then
+        echo "This test needs to be executed when snapd deb is built from local"
+        exit 
+    fi
+
     echo "Downgrading the snapd deb to pre-vendored apparmor times"
     TARGET_VER="$(apt list -a snapd | grep -- -updates | cut -f2 -d' ')"
     # Ubuntu release on development doesn't have updates
@@ -58,7 +78,6 @@ execute: |
     echo "But installing the vendored apparmor snapd with our changes"
     snap install --dangerous snapd_modified.snap
 
-    # Verify supported features
     snap debug sandbox-features --required apparmor:parser:snapd-internal
     snap debug sandbox-features --required apparmor:parser:include-if-exists
     
