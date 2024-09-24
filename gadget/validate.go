@@ -112,6 +112,9 @@ func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *Validation
 		if err := ruleValidateVolume(v, hasModes); err != nil {
 			return fmt.Errorf("invalid volume %q: %v", name, err)
 		}
+		if v.Schema == schemaEMMC && len(vols) > 2 {
+			return fmt.Errorf(`cannot use "schema: emmc" with multiple volumes yet`)
+		}
 	}
 
 	if isClassicWithModes {
@@ -150,6 +153,16 @@ func ruleValidateVolume(vol *Volume, hasModes bool) error {
 	return nil
 }
 
+func validateEMMCVolumeNames(vs *VolumeStructure) error {
+	if vs.EnclosingVolume.Schema != schemaEMMC {
+		return nil
+	}
+	if !strutil.ListContains(validEMMCVolumeNames, vs.Name) {
+		return fmt.Errorf("cannot use %q as emmc name, only %q is allowed", vs.Name, validEMMCVolumeNames)
+	}
+	return nil
+}
+
 func ruleValidateVolumeStructure(vs *VolumeStructure, hasModes bool) error {
 	var reservedLabels []string
 	if hasModes {
@@ -158,6 +171,9 @@ func ruleValidateVolumeStructure(vs *VolumeStructure, hasModes bool) error {
 		reservedLabels = reservedLabelsWithoutModes
 	}
 	if err := validateReservedLabels(vs, reservedLabels); err != nil {
+		return err
+	}
+	if err := validateEMMCVolumeNames(vs); err != nil {
 		return err
 	}
 	return nil
@@ -179,6 +195,9 @@ var (
 		ubuntuSeedLabel,
 		ubuntuDataLabel,
 	}
+
+	// valid names for volumes under an eMMC schema
+	validEMMCVolumeNames = []string{"boot0", "boot1", "rpmb"}
 )
 
 func validateReservedLabels(vs *VolumeStructure, reservedLabels []string) error {
