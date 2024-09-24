@@ -861,10 +861,12 @@ func splitComponentTasksForInstall(
 		compSetupIDs = append(compSetupIDs, componentTS.compSetupTaskID)
 
 		tasksBeforePreRefreshHook = append(tasksBeforePreRefreshHook, componentTS.beforeLinkTasks...)
-		tasksAfterLinkSnap = append(tasksAfterLinkSnap, componentTS.linkTask)
+		if componentTS.maybeLinkTask != nil {
+			tasksAfterLinkSnap = append(tasksAfterLinkSnap, componentTS.maybeLinkTask)
+		}
 		tasksAfterPostOpHook = append(tasksAfterPostOpHook, componentTS.postHookToDiscardTasks...)
-		if componentTS.discardTask != nil {
-			tasksBeforeDiscard = append(tasksBeforeDiscard, componentTS.discardTask)
+		if componentTS.maybeDiscardTask != nil {
+			tasksBeforeDiscard = append(tasksBeforeDiscard, componentTS.maybeDiscardTask)
 		}
 	}
 	return tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard, compSetupIDs, nil
@@ -3916,7 +3918,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		return nil, err
 	}
 
-	snapsup := &SnapSetup{
+	snapsup := SnapSetup{
 		Base:        info.Base,
 		SideInfo:    snapst.Sequence.SideInfos()[i],
 		Flags:       flags.ForSnapSetup(),
@@ -3926,8 +3928,19 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		InstanceKey: snapst.InstanceKey,
 	}
 
-	// TODO:COMPS: we need to handle components here too
-	return doInstall(st, &snapst, *snapsup, nil, 0, fromChange, nil)
+	components := snapst.Sequence.ComponentsForRevision(rev)
+	compsups := make([]ComponentSetup, 0, len(components))
+	for _, comp := range components {
+		compsups = append(compsups, ComponentSetup{
+			CompSideInfo: comp.SideInfo,
+			CompType:     comp.CompType,
+			ComponentInstallFlags: ComponentInstallFlags{
+				MultiComponentInstall: true,
+			},
+		})
+	}
+
+	return doInstall(st, &snapst, snapsup, compsups, 0, fromChange, nil)
 }
 
 // TransitionCore transitions from an old core snap name to a new core

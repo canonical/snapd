@@ -254,18 +254,20 @@ type ComponentInstallFlags struct {
 type componentInstallTaskSet struct {
 	compSetupTaskID        string
 	beforeLinkTasks        []*state.Task
-	linkTask               *state.Task
+	maybeLinkTask          *state.Task
 	postHookToDiscardTasks []*state.Task
-	discardTask            *state.Task
+	maybeDiscardTask       *state.Task
 }
 
 func (c *componentInstallTaskSet) taskSet() *state.TaskSet {
 	tasks := make([]*state.Task, 0, len(c.beforeLinkTasks)+1+len(c.postHookToDiscardTasks)+1)
 	tasks = append(tasks, c.beforeLinkTasks...)
-	tasks = append(tasks, c.linkTask)
+	if c.maybeLinkTask != nil {
+		tasks = append(tasks, c.maybeLinkTask)
+	}
 	tasks = append(tasks, c.postHookToDiscardTasks...)
-	if c.discardTask != nil {
-		tasks = append(tasks, c.discardTask)
+	if c.maybeDiscardTask != nil {
+		tasks = append(tasks, c.maybeDiscardTask)
 	}
 
 	ts := state.NewTaskSet(tasks...)
@@ -411,12 +413,15 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 		prev = setupSecurity
 	}
 
-	// finalize (sets SnapState)
-	linkSnap := st.NewTask("link-component",
-		fmt.Sprintf(i18n.G("Make component %q%s available to the system"),
-			compSi.Component, revisionStr))
-	componentTS.linkTask = linkSnap
-	addTask(linkSnap)
+	// finalize (sets SnapState). if we're reverting, there isn't anything to
+	// change in SnapState regarding the component
+	if !snapsup.Revert {
+		linkSnap := st.NewTask("link-component",
+			fmt.Sprintf(i18n.G("Make component %q%s available to the system"),
+				compSi.Component, revisionStr))
+		componentTS.maybeLinkTask = linkSnap
+		addTask(linkSnap)
+	}
 
 	var postOpHook *state.Task
 	if !compInstalled {
@@ -460,7 +465,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup ComponentS
 		discardComp := st.NewTask("discard-component", fmt.Sprintf(i18n.G(
 			"Discard previous revision for component %q"),
 			compSi.Component))
-		componentTS.discardTask = discardComp
+		componentTS.maybeDiscardTask = discardComp
 		addTask(discardComp)
 	}
 

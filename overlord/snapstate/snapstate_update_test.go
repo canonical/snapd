@@ -14088,6 +14088,261 @@ func (s *snapmgrTestSuite) TestUpdateBackToPrevRevision(c *C) {
 	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, seq.Revisions[1])
 }
 
+func (s *snapmgrTestSuite) TestRevertWithComponents(c *C) {
+	const undo = false
+	s.testRevertWithComponents(c, undo)
+}
+
+func (s *snapmgrTestSuite) TestRevertWithComponentsUndo(c *C) {
+	const undo = true
+	s.testRevertWithComponents(c, undo)
+}
+
+func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
+	const (
+		snapName    = "some-snap"
+		instanceKey = "key"
+		snapID      = "some-snap-id"
+		channel     = "channel-for-components"
+	)
+
+	components := []string{"test-component", "kernel-modules-component"}
+
+	currentSnapRev := snap.R(11)
+	prevSnapRev := snap.R(7)
+	instanceName := snap.InstanceName(snapName, instanceKey)
+
+	sort.Strings(components)
+
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		c.Fatalf("unexpected call to snapResourcesFn")
+		return nil
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	prevSI := snap.SideInfo{
+		RealName: snapName,
+		Revision: prevSnapRev,
+		SnapID:   snapID,
+		Channel:  channel,
+	}
+	currentSI := snap.SideInfo{
+		RealName: snapName,
+		Revision: currentSnapRev,
+		SnapID:   snapID,
+		Channel:  channel,
+	}
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&prevSI, &currentSI})
+
+	currentKmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
+	prevKmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
+	for i, comp := range components {
+		prevCsi := snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, comp),
+			Revision:  snap.R(i + 1),
+		}
+		err := seq.AddComponentForRevision(prevSnapRev, &sequence.ComponentState{
+			SideInfo: &prevCsi,
+			CompType: componentNameToType(c, comp),
+		})
+		c.Assert(err, IsNil)
+
+		currentCsi := snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, comp),
+			Revision:  snap.R(i + 2),
+		}
+		err = seq.AddComponentForRevision(currentSnapRev, &sequence.ComponentState{
+			SideInfo: &currentCsi,
+			CompType: componentNameToType(c, comp),
+		})
+		c.Assert(err, IsNil)
+
+		if strings.HasPrefix(comp, string(snap.KernelModulesComponent)) {
+			prevKmodComps = append(prevKmodComps, &prevCsi)
+			currentKmodComps = append(currentKmodComps, &currentCsi)
+		}
+	}
+
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(
+		compMntDir string, info *snap.Info, csi *snap.ComponentSideInfo,
+	) (*snap.ComponentInfo, error) {
+		return &snap.ComponentInfo{
+			Component:         csi.Component,
+			Type:              componentNameToType(c, csi.Component.ComponentName),
+			Version:           "1.0",
+			ComponentSideInfo: *csi,
+		}, nil
+	}))
+
+	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
+		Active:          true,
+		Sequence:        seq,
+		Current:         currentSI.Revision,
+		SnapType:        "app",
+		TrackingChannel: channel,
+		InstanceKey:     instanceKey,
+	})
+
+	ts, err := snapstate.Revert(s.state, instanceName, snapstate.Flags{}, "")
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("revert", "revert a snap")
+	chg.AddAll(ts)
+
+	if undo {
+		last := ts.Tasks()[len(ts.Tasks())-1]
+
+		terr := s.state.NewTask("error-trigger", "provoking total undo")
+		terr.WaitFor(last)
+		chg.AddTask(terr)
+	}
+
+	// local modifications, edge must be set
+	te := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(te, NotNil)
+	c.Assert(te.Kind(), Equals, "prepare-snap")
+
+	s.settle(c)
+
+	if undo {
+		c.Assert(chg.Err(), NotNil, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
+	} else {
+		c.Assert(chg.Err(), IsNil, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
+	}
+
+	// note the absence of link-component tasks. that is because we do not need
+	// to link components when reverting, since they should already be linked,
+	// as they were part of a the previous revision
+	expected := fakeOps{
+		{
+			op:   "remove-snap-aliases",
+			name: instanceName,
+		},
+		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        instanceName,
+			inhibitHint: "refresh",
+		},
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, instanceName, currentSnapRev.String()),
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  instanceName,
+			revno: prevSnapRev,
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				RealName: snapName,
+				SnapID:   snapID,
+				Channel:  channel,
+				Revision: prevSnapRev,
+			},
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, instanceName, prevSnapRev.String()),
+		},
+		{
+			op:    "auto-connect:Doing",
+			name:  instanceName,
+			revno: prevSnapRev,
+		},
+		{
+			op: "update-aliases",
+		},
+		{
+			op:           "prepare-kernel-modules-components",
+			currentComps: currentKmodComps,
+			finalComps:   prevKmodComps,
+		},
+	}
+
+	if undo {
+		expected = append(expected, []fakeOp{
+			{
+				op:           "prepare-kernel-modules-components",
+				currentComps: prevKmodComps,
+				finalComps:   currentKmodComps,
+			},
+			{
+				op:   "remove-snap-aliases",
+				name: instanceName,
+			},
+			{
+				op:    "auto-connect:Undoing",
+				name:  instanceName,
+				revno: prevSnapRev,
+			},
+			{
+				op:   "unlink-snap",
+				path: filepath.Join(dirs.SnapMountDir, instanceName, prevSnapRev.String()),
+			},
+			{
+				op:    "setup-profiles:Undoing",
+				name:  instanceName,
+				revno: prevSnapRev,
+			},
+			{
+				op:   "link-snap",
+				path: filepath.Join(dirs.SnapMountDir, instanceName, currentSnapRev.String()),
+			},
+			{
+				op: "update-aliases",
+			},
+		}...)
+	}
+
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	task := ts.Tasks()[1]
+
+	// verify snapSetup info
+	var snapsup snapstate.SnapSetup
+	err = task.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
+		SideInfo:  snapsup.SideInfo,
+		Type:      snap.TypeApp,
+		Version:   "some-snapVer",
+		PlugsOnly: true,
+		Flags: snapstate.Flags{
+			Revert: true,
+		},
+		InstanceKey:                     instanceKey,
+		PreUpdateKernelModuleComponents: currentKmodComps,
+	})
+	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: snapName,
+		Revision: prevSnapRev,
+		Channel:  channel,
+		SnapID:   snapID,
+	})
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, instanceName, &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Sequence.Revisions, HasLen, 2)
+
+	if undo {
+		c.Assert(snapst.Current, Equals, currentSnapRev)
+	} else {
+		c.Assert(snapst.Current, Equals, prevSnapRev)
+	}
+
+	// revert maintains the order of the sequence
+	c.Assert(snapst.Sequence.Revisions, DeepEquals, seq.Revisions)
+}
+
 func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 	const (
 		snapName    = "snap-with-components"
