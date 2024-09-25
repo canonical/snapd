@@ -1135,7 +1135,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedClassicModelOnCoreRunMode
 	c.Assert(err, IsNil)
 	st := ovld.State()
 
-	// add the odel assertion and its chain
+	// add the model assertion and its chain
 	assertsChain := s.makeModelAssertionChain(c, "my-model-classic-modes", nil)
 	s.WriteAssertions("model.asserts", assertsChain...)
 
