@@ -92,10 +92,6 @@ func (s *Unity7InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// getDesktopFileRules() rules
 	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `# This leaks the names of snaps with desktop files`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `/var/lib/snapd/desktop/applications/ r,`)
-	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,`)
-	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `deny /var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_DESKTOP}[^_.]*.desktop r,`)
-	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `deny /var/lib/snapd/desktop/applications/[^o]* r,`)
-	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `deny /var/lib/snapd/desktop/applications/other-sna[^p]* r,`)
 
 	// connected plugs for instance name have a non-nil security snippet for apparmor
 	apparmorSpec = apparmor.NewSpecification(s.plugInst.AppSet())
@@ -124,3 +120,9 @@ func (s *Unity7InterfaceSuite) TestUsedSecuritySystems(c *C) {
 func (s *Unity7InterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
+
+// Test how unity7 interface interacts desktop-file-ids attribute in desktop interface.
+var _ = Suite(&desktopFileRulesBaseSuite{
+	iface:    "unity7",
+	slotYaml: unity7mockSlotSnapInfoYaml,
+})

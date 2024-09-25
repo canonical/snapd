@@ -253,7 +253,7 @@ func findDesktopFiles(rootDir string) ([]string, error) {
 }
 
 func deriveDesktopFilesContent(s *snap.Info) (map[string]osutil.FileState, error) {
-	desktopFiles, err := s.DesktopFilesFromMount(snap.DesktopFilesFromMountOptions{})
+	desktopFiles, err := s.DesktopFilesFromInstalledSnap(snap.DesktopFilesFromInstalledSnapOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -264,6 +264,10 @@ func deriveDesktopFilesContent(s *snap.Info) (map[string]osutil.FileState, error
 		base, err := s.MangleDesktopFileName(base)
 		if err != nil {
 			return nil, err
+		}
+		if _, exists := content[base]; exists {
+			logger.Noticef("error: identified %q as a duplicate file name %q after mangling in snap %q", filepath.Base(df), base, s.InstanceName())
+			continue
 		}
 		fileContent, err := os.ReadFile(df)
 		if err != nil {

@@ -25,8 +25,10 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -34,8 +36,6 @@ var (
 	ResolveSpecialVariable      = resolveSpecialVariable
 	ImplicitSystemPermanentSlot = implicitSystemPermanentSlot
 	ImplicitSystemConnectedSlot = implicitSystemConnectedSlot
-	AareExclusivePatterns       = aareExclusivePatterns
-	GetDesktopFileRules         = getDesktopFileRules
 	StringListAttribute         = stringListAttribute
 	PolkitPoliciesSupported     = polkitPoliciesSupported
 )
@@ -145,4 +145,12 @@ func MockPolkitDaemonPaths(path1, path2 string) (restore func()) {
 		polkitDaemonPath1 = oldDaemonPath1
 		polkitDaemonPath2 = oldDaemonPath2
 	}
+}
+
+func MockApparmorGenerateAAREExclusionPatterns(fn func(excludePatterns []string, opts *apparmor.AAREExclusionPatternsOptions) (string, error)) (restore func()) {
+	return testutil.Mock(&apparmorGenerateAAREExclusionPatterns, fn)
+}
+
+func MockDesktopFilesFromInstalledSnap(fn func(s *snap.Info) ([]string, error)) (restore func()) {
+	return testutil.Mock(&desktopFilesFromInstalledSnap, fn)
 }

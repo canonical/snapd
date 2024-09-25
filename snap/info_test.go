@@ -2678,6 +2678,9 @@ plugs:
 		{"org.example.Foo.desktop", "foo_org.example.Foo.desktop"},
 		{"org.desktop", "foo_org.desktop"},
 		{"test.desktop", "foo_test.desktop"},
+		// character not in [A-Za-z0-9-_.] are replaced by '_'
+		{"test**.desktop", "foo_test__.desktop"},
+		{`AaZz09. -,._?**[]{}^"\$#` + "\x00" + "\000" + ".desktop", "foo_AaZz09._-_._______________.desktop"},
 	} {
 		mangled, err := info.MangleDesktopFileName(tc.fname)
 		c.Assert(err, IsNil, Commentf(tc.fname))
@@ -2701,7 +2704,7 @@ plugs:
 	c.Assert(err, NotNil)
 }
 
-func (s *infoSuite) TestDesktopFilesFromMountNoFiles(c *C) {
+func (s *infoSuite) TestDesktopFilesFromInstalledSnapNoFiles(c *C) {
 	const desktopAppYaml = `
 name: foo
 version: 1.0
@@ -2710,12 +2713,12 @@ version: 1.0
 	info, err := snap.InfoFromSnapYaml([]byte(desktopAppYaml))
 	c.Assert(err, IsNil)
 
-	desktopFiles, err := info.DesktopFilesFromMount(snap.DesktopFilesFromMountOptions{})
+	desktopFiles, err := info.DesktopFilesFromInstalledSnap(snap.DesktopFilesFromInstalledSnapOptions{})
 	c.Assert(err, IsNil)
 	c.Assert(desktopFiles, IsNil)
 }
 
-func (s *infoSuite) testDesktopFilesFromMount(c *C, mangle bool) {
+func (s *infoSuite) testDesktopFilesFromInstalledSnap(c *C, mangle bool) {
 	const desktopAppYaml = `
 name: foo
 version: 1.0
@@ -2737,8 +2740,8 @@ plugs:
 		c.Assert(err, IsNil)
 	}
 
-	opts := snap.DesktopFilesFromMountOptions{MangleFileNames: mangle}
-	desktopFilesFound, err := info.DesktopFilesFromMount(opts)
+	opts := snap.DesktopFilesFromInstalledSnapOptions{MangleFileNames: mangle}
+	desktopFilesFound, err := info.DesktopFilesFromInstalledSnap(opts)
 	c.Assert(err, IsNil)
 	c.Assert(desktopFilesFound, HasLen, len(testDesktopFiles))
 
@@ -2761,12 +2764,12 @@ plugs:
 	}
 }
 
-func (s *infoSuite) TestDesktopFilesFromMount(c *C) {
+func (s *infoSuite) TestDesktopFilesFromInstalledSnap(c *C) {
 	const mangle = false
-	s.testDesktopFilesFromMount(c, mangle)
+	s.testDesktopFilesFromInstalledSnap(c, mangle)
 }
 
-func (s *infoSuite) TestDesktopFilesFromMountMangled(c *C) {
+func (s *infoSuite) TestDesktopFilesFromInstalledSnapMangled(c *C) {
 	const mangle = true
-	s.testDesktopFilesFromMount(c, mangle)
+	s.testDesktopFilesFromInstalledSnap(c, mangle)
 }

@@ -985,9 +985,31 @@ func (s *Info) DesktopPlugFileIDs() ([]string, error) {
 	return desktopFileIDs, nil
 }
 
-// MangleDesktopFileName returns the file name prefixed with Info.DesktopPrefix()
-// unless its name (without the .desktop extension) is listed under the
-// desktop-file-ids desktop interface attribute.
+func sanitizeDesktopFileName(base string) string {
+	var b strings.Builder
+	b.Grow(len(base))
+
+	for _, c := range base {
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.' {
+			b.WriteRune(c)
+		} else {
+			b.WriteRune('_')
+		}
+	}
+
+	return b.String()
+}
+
+// MangleDesktopFileName returns the sanitized file name prefixed with Info.DesktopPrefix().
+// If the passed name (without the .desktop extension) is listed under the desktop-file-ids
+// desktop interface plug attribute then the desktop file name is returned as is without
+// mangling.
+//
+// File name sanitization is done by replacing any character not in [A-Za-z0-9-_.] by
+// an underscore '_'.
+//   - "test*.desktop" -> "PREFIX_test_.desktop
+//   - "test 123.desktop" -> "PREFIX_test_123.desktop
+//   - "test, *$$.desktop" -> "PREFIX_test_____.desktop"
 func (s *Info) MangleDesktopFileName(desktopFile string) (string, error) {
 	desktopFileIDs, err := s.DesktopPlugFileIDs()
 	if err != nil {
@@ -1003,20 +1025,21 @@ func (s *Info) MangleDesktopFileName(desktopFile string) (string, error) {
 			return filepath.Join(dir, base), nil
 		}
 	}
-	// FIXME: don't blindly use the snap desktop filename, mangle it
-	// but we can't just use the app name because a desktop file
-	// may call the same app with multiple parameters, e.g.
-	// --create-new, --open-existing etc
-	return filepath.Join(dir, fmt.Sprintf("%s_%s", s.DesktopPrefix(), base)), nil
+
+	// Sanitization logic shouldn't worry about being backware compatible because the
+	// desktop files are always written when snapd starts in ensureDesktopFilesUpdated.
+	sanitizedBase := sanitizeDesktopFileName(base)
+
+	return filepath.Join(dir, fmt.Sprintf("%s_%s", s.DesktopPrefix(), sanitizedBase)), nil
 }
 
-type DesktopFilesFromMountOptions struct {
+type DesktopFilesFromInstalledSnapOptions struct {
 	// Mangles found desktop files using Info.MangleDesktopFileName()
 	MangleFileNames bool
 }
 
-// DesktopFilesFromMount returns the desktop files found under <snap-mount>/meta/gui.
-func (s *Info) DesktopFilesFromMount(opts DesktopFilesFromMountOptions) ([]string, error) {
+// DesktopFilesFromInstalledSnap returns the desktop files found under <snap-mount>/meta/gui.
+func (s *Info) DesktopFilesFromInstalledSnap(opts DesktopFilesFromInstalledSnapOptions) ([]string, error) {
 	rootDir := filepath.Join(s.MountDir(), "meta", "gui")
 	if !osutil.IsDirectory(rootDir) {
 		return nil, nil
