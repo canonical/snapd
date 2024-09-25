@@ -85,6 +85,7 @@ var api = []*Command{
 	registryCmd,
 	noticesCmd,
 	noticeCmd,
+	systemSecurebootCmd,
 }
 
 const (
