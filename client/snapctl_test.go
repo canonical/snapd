@@ -77,6 +77,9 @@ func (cs *clientSuite) TestInternalSnapctlCmdNeedsStdin(c *check.C) {
 	res := client.InternalSnapctlCmdNeedsStdin("fde-setup-result")
 	c.Check(res, check.Equals, true)
 
+	res = client.InternalSnapctlCmdNeedsStdin("efi-secureboot-db-update")
+	c.Check(res, check.Equals, true)
+
 	for _, s := range []string{"help", "other"} {
 		res := client.InternalSnapctlCmdNeedsStdin(s)
 		c.Check(res, check.Equals, false)

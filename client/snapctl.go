@@ -30,7 +30,7 @@ import (
 // needs data from stdin
 func InternalSnapctlCmdNeedsStdin(name string) bool {
 	switch name {
-	case "fde-setup-result":
+	case "fde-setup-result", "efi-secureboot-db-update":
 		return true
 	default:
 		return false
