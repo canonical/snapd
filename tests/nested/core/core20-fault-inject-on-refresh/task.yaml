@@ -9,41 +9,59 @@ systems: [ubuntu-2*]
 environment: 
     TAG/base_panic_link_snap: link-snap
     FAULT/base_panic_link_snap: panic
+    STATUS/base_panic_link_snap: Done
     TAG/snapd_panic_link_snap: link-snap
     FAULT/snapd_panic_link_snap: panic
+    STATUS/snapd_panic_link_snap: Done
     TAG/kernel_panic_link_snap: link-snap
     FAULT/kernel_panic_link_snap: panic
+    STATUS/kernel_panic_link_snap: Done
     TAG/gadget_panic_link_snap: link-snap
     FAULT/gadget_panic_link_snap: panic
+    STATUS/gadget_panic_link_snap: Done
     TAG/kernel_panic_auto_connect: after-auto-connect
     FAULT/kernel_panic_auto_connect: panic
+    STATUS/kernel_panic_auto_connect: Done
     TAG/base_panic_auto_connect: after-auto-connect
     FAULT/base_panic_auto_connect: panic
+    STATUS/base_panic_auto_connect: Done
     TAG/gadget_panic_auto_connect: after-auto-connect
     FAULT/gadget_panic_auto_connect: panic
+    STATUS/gadget_panic_auto_connect: Done
     TAG/kernel_panic_refresh_gadget_assets: refresh-gadget-assets
     FAULT/kernel_panic_refresh_gadget_assets: panic
+    STATUS/kernel_panic_refresh_gadget_assets: Done
     TAG/gadget_panic_refresh_gadget_assets: refresh-gadget-assets
     FAULT/gadget_panic_refresh_gadget_assets: panic
+    STATUS/gadget_panic_refresh_gadget_assets: Done
 
     TAG/base_reboot_link_snap: link-snap
     FAULT/base_reboot_link_snap: reboot
+    STATUS/base_reboot_link_snap: Done
     TAG/snapd_reboot_link_snap: link-snap
     FAULT/snapd_reboot_link_snap: reboot
+    STATUS/snapd_reboot_link_snap: Done
     TAG/kernel_reboot_link_snap: link-snap
     FAULT/kernel_reboot_link_snap: reboot
+    STATUS/kernel_reboot_link_snap: Done
     TAG/gadget_reboot_link_snap: link-snap
     FAULT/gadget_reboot_link_snap: reboot
+    STATUS/gadget_reboot_link_snap: Done
     TAG/kernel_reboot_auto_connect: after-auto-connect
     FAULT/kernel_reboot_auto_connect: reboot
+    STATUS/kernel_reboot_auto_connect: Done
     TAG/base_reboot_auto_connect: after-auto-connect
     FAULT/base_reboot_auto_connect: reboot
+    STATUS/base_reboot_auto_connect: Done
     TAG/gadget_reboot_auto_connect: after-auto-connect
     FAULT/gadget_reboot_auto_connect: reboot
+    STATUS/gadget_reboot_auto_connect: Done
     TAG/kernel_reboot_refresh_gadget_assets: refresh-gadget-assets
     FAULT/kernel_reboot_refresh_gadget_assets: reboot
+    STATUS/kernel_reboot_refresh_gadget_assets: Error
     TAG/gadget_reboot_refresh_gadget_assets: refresh-gadget-assets
     FAULT/gadget_reboot_refresh_gadget_assets: reboot
+    STATUS/gadget_reboot_refresh_gadget_assets: Done
     
 prepare: |
     # automatically cleaned up in restore
@@ -138,6 +156,9 @@ execute: |
 
     FINAL_STATUS="$(remote.exec snap changes | grep -E "^$change_id .*" | awk ' {print $2} ')"
     CURRENT_REV="$(remote.exec snap list | grep -E "^$SNAP .*" | awk ' {print $3} ')"
+
+    # Check the final status is the expected one    
+    [ "$FINAL_STATUS" = "$STATUS" ]
 
     if [ "$FINAL_STATUS" = Error ]; then
         echo "Ensure the change has steps with Error"
