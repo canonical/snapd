@@ -814,6 +814,8 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 		return false, err
 	}
 	matchingEntry := variantMap[highestPrecedenceVariant.String()]
+	// All non-expired rules have the same outcome, so grab it from the first
+	// one we find
 	for id, outcome := range matchingEntry.RuleIDs {
 		if !rdb.isRuleWithIDExpired(id, currTime) {
 			return outcome.AsBool()
