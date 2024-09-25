@@ -104,10 +104,7 @@ execute: |
 
     FINAL_STATUS="$(remote.exec snap changes | grep -E "^$change_id .*" | awk ' {print $2} ')"
 
-    if [ "$FINAL_STATUS" = Error ]; then
-        echo "Ensure the remodel was not done"
-        not remote.exec "snap list hello-world"
-    else
-        echo "Ensure the remodel was done"
-        remote.exec "snap list hello-world"
-    fi
+    echo "Ensure the remodel was done"
+    [ "$FINAL_STATUS" = Done ]
+    remote.exec "snap list hello-world"
+

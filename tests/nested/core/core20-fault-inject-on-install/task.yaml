@@ -11,6 +11,7 @@ environment:
     FAULT/snapd_panic_auto_connect: panic
     TAG/snapd_reboot_auto_connect: after-auto-connect
     FAULT/snapd_reboot_auto_connect: reboot
+    STATUS: Done
 
 prepare: |
     # automatically cleaned up in restore
@@ -71,18 +72,8 @@ execute: |
     FINAL_STATUS="$(remote.exec snap changes | grep -E "^$change_id .*" | awk ' {print $2} ')"
     CURRENT_REV="$(remote.exec snap list | grep -E "^$SNAP .*" | awk ' {print $3} ')"
 
-    if [ "$FINAL_STATUS" = Error ]; then
-        echo "Ensure the change has steps with Error"
-        remote.exec "snap change $change_id" | MATCH "^Error .*"
-        echo "Ensure the change has steps Undone"
-        remote.exec "snap change $change_id" | MATCH "^Undone .*"
-        
-        echo "Ensure the initial revision is the current one"
-        test "$INITIAL_REV" = "$CURRENT_REV"
-    else
-        echo "Ensure the change has no steps with Error"
-        remote.exec "snap change $change_id" | NOMATCH "^Error .*"
-
-        echo "Ensure the initial revision is not the current one"
-        test "$INITIAL_REV" != "$CURRENT_REV"
-    fi
+    echo "Ensure the change has no steps with Error"
+    [ "$FINAL_STATUS" = Done ]
+    remote.exec "snap change $change_id" | NOMATCH "^Error .*"
+    echo "Ensure the initial revision is not the current one"
+    test "$INITIAL_REV" != "$CURRENT_REV"

@@ -84,18 +84,8 @@ execute: |
     FINAL_STATUS="$(remote.exec snap changes | grep -E "^$change_id .*" | awk ' {print $2} ')"
     KERNEL_VERSION=$(remote.exec uname -r)
 
-    if [ "$FINAL_STATUS" = Error ]; then
-        echo "Ensure the change has steps with Error"
-        remote.exec "snap change $change_id" | MATCH "^Error .*"
-        echo "Ensure the change has steps Undone"
-        remote.exec "snap change $change_id" | MATCH "^Undone .*"
-        
-        echo "Ensure the component is not installed"
-        remote.exec "! test -e /var/lib/snapd/kernel/pc-kernel/x1/lib/modules/$KERNEL_VERSION/updates/wifi-comp"
-    else
-        echo "Ensure the change has no steps with Error"
-        remote.exec "snap change $change_id" | NOMATCH "^Error .*"
-
-        echo "Ensure the component is installed"
-        remote.exec "test -e /var/lib/snapd/kernel/pc-kernel/x1/lib/modules/$KERNEL_VERSION/updates/wifi-comp"
-    fi
+    echo "Ensure the change has no steps with Error"
+    [ "$FINAL_STATUS" = Done ]
+    remote.exec "snap change $change_id" | NOMATCH "^Error .*"
+    echo "Ensure the component is installed"
+    remote.exec "test -e /var/lib/snapd/kernel/pc-kernel/x1/lib/modules/$KERNEL_VERSION/updates/wifi-comp"

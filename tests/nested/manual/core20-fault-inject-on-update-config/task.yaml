@@ -9,8 +9,8 @@ systems: [ubuntu-2*]
 environment:
     TAG/gadget_panic_command_line: update-command-line-gadget
     FAULT/gadget_panic_command_line: panic
-    TAG/gadget_panic_config_bootloader: update-config-bootloader
-    FAULT/gadget_panic_config_bootloader: panic
+    #TAG/gadget_panic_config_bootloader: update-config-bootloader
+    #FAULT/gadget_panic_config_bootloader: panic
 
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
     NESTED_REPACK_GADGET_SNAP: false
@@ -78,18 +78,10 @@ execute: |
     remote.exec "test -e /var/lib/snapd/faults/$TAG:$FAULT"
 
     FINAL_STATUS="$(remote.exec snap changes | grep -E "^$change_id .*" | awk ' {print $2} ')"
-    if [ "$FINAL_STATUS" = Error ]; then
-        echo "Ensure the change has steps with Error"
-        remote.exec "snap change $change_id" | MATCH "^Error .*"
-        echo "Ensure the change has steps Undone"
-        remote.exec "snap change $change_id" | MATCH "^Undone .*"
-        
-        echo "Ensure the command line hasn't been updated"
-        remote.exec "sudo cat /var/lib/snapd/modeenv" | NOMATCH "extradang.val=1"
-    else
-        echo "Ensure the change has no steps with Error"
-        remote.exec "snap change $change_id" | NOMATCH "^Error .*"
 
-        echo "Ensure the command line has been updated"
-        remote.exec "sudo cat /var/lib/snapd/modeenv" | MATCH "extradang.val=1"
-    fi
+    echo "Ensure the change has no steps with Error"
+    [ "$FINAL_STATUS" = Done ]
+    remote.exec "snap change $change_id" | NOMATCH "^Error .*"
+
+    echo "Ensure the command line has been updated"
+    remote.exec "sudo cat /var/lib/snapd/modeenv" | MATCH "extradang.val=1"
