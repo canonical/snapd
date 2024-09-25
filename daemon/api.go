@@ -89,6 +89,7 @@ var api = []*Command{
 	requestsPromptCmd,
 	requestsRulesCmd,
 	requestsRuleCmd,
+	systemSecurebootCmd,
 }
 
 const (
