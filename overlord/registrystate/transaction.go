@@ -279,8 +279,8 @@ func (t *Transaction) Data() ([]byte, error) {
 	return t.modified.Data()
 }
 
-// Abort prevents any further writes or reads to the transaction. It takes an
-// abortingSnap and reason that can be used to surface information to the user.
+// Abort prevents any further writes or reads to the transaction. It takes a
+// snap and reason that can be used to surface information to the user.
 func (t *Transaction) Abort(abortingSnap, reason string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -291,4 +291,8 @@ func (t *Transaction) Abort(abortingSnap, reason string) {
 
 func (t *Transaction) aborted() bool {
 	return t.abortReason != ""
+}
+
+func (t *Transaction) AbortInfo() (snap, reason string) {
+	return t.abortingSnap, t.abortReason
 }
