@@ -20,11 +20,13 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -441,4 +443,61 @@ func writeInitramfsMountUnit(what, where string, utype unitType) error {
 	}
 	linkPath := filepath.Join(wantsDir, unitFileName)
 	return os.Symlink(filepath.Join("..", unitFileName), linkPath)
+}
+
+// See comment in snapd/core-initrd/latest/factory/usr/lib/systemd/system/sysroot.mount
+// before modifying the dependencies.
+const sysrootMountUnitTmpltTxt = `[Unit]
+DefaultDependencies=no
+Before=initrd-root-fs.target
+After=snap-initramfs-mounts.service
+
+[Mount]
+What={{.What}}
+Where=/sysroot
+{{- with .MntType}}
+Type={{.}}
+{{- else}}
+Type=none
+Options=bind
+{{- end}}
+`
+
+var sysrootMountUnitTmpl = template.Must(template.New("unit").Parse(sysrootMountUnitTmpltTxt))
+
+func writeSysrootMountUnit(what, mntType string) error {
+	what = dirs.StripRootDir(what)
+	var unitContent bytes.Buffer
+	if err := sysrootMountUnitTmpl.Execute(&unitContent, struct {
+		What    string
+		MntType string
+	}{what, mntType}); err != nil {
+		return err
+	}
+
+	// Writing the unit in this folder overrides
+	// /lib/systemd/system/sysroot-writable.mount - we will remove
+	// this unit eventually from the initramfs.
+	unitDir := dirs.SnapRuntimeServicesDirUnder(dirs.GlobalRootDir)
+	if err := os.MkdirAll(unitDir, 0755); err != nil {
+		return err
+	}
+	unitFileName := "sysroot.mount"
+	unitPath := filepath.Join(unitDir, unitFileName)
+	// This is in the initramfs, no need for atomic writes
+	if err := os.WriteFile(unitPath, unitContent.Bytes(), 0644); err != nil {
+		return err
+	}
+
+	// Pull the unit from initrd-root-fs.target
+	wantsDir := filepath.Join(unitDir, "initrd-root-fs.target.wants")
+	if err := os.MkdirAll(wantsDir, 0755); err != nil {
+		return err
+	}
+	linkPath := filepath.Join(wantsDir, unitFileName)
+	if err := os.Symlink(filepath.Join("..", unitFileName), linkPath); err != nil &&
+		!os.IsExist(err) {
+		return err
+	}
+	return nil
 }
