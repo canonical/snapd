@@ -39,6 +39,14 @@ def get_commit_range():
         raise RuntimeError("expected two parents, but got {}".format(parents))
 
 
+def exception_invalid(maybeaddr: str) -> bool:
+    # from commit d935048f4ee5f9a8cde640a760bf1fdb9409de7e
+    # dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>
+    if "+dependabot[bot]@users.noreply.github.com" in maybeaddr:
+        return True
+    return False
+
+
 if __name__ == "__main__":
     if not os.path.exists('.git'):
         exit(0)
@@ -53,7 +61,7 @@ if __name__ == "__main__":
         if potentialemail == "":
             continue
         name, addr = parseaddr(potentialemail)
-        if addr == "":
+        if addr == "" and not exception_invalid(potentialemail):
             print(
                 "Found invalid email %s for commmit %s" % (potentialemail, commithash)
             )
