@@ -1082,7 +1082,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 
 		logger.Debugf("copying label %q to seed partition", systemAndSnaps.Label)
 		if err := copier.Copy(seedMntDir, seed.CopyOptions{
-			Label:              systemLabel,
+			Label:              systemAndSnaps.Label,
 			OptionalContainers: optional,
 		}, perfTimings); err != nil {
 			return fmt.Errorf("cannot copy seed: %w", err)
