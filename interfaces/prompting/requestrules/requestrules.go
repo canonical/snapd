@@ -543,9 +543,15 @@ func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) [
 		err := fmt.Errorf("internal error: no rules in the rule tree for user %d, snap %q, interface %q, permission %q", rule.User, rule.Snap, rule.Interface, permission)
 		return []error{err}
 	}
+	seenVariants := make(map[string]bool, rule.Constraints.PathPattern.NumVariants())
 	var errs []error
 	removeVariant := func(index int, variant patterns.PatternVariant) {
-		variantEntry, exists := permVariants.VariantEntries[variant.String()]
+		variantStr := variant.String()
+		if seenVariants[variantStr] {
+			return
+		}
+		seenVariants[variantStr] = true
+		variantEntry, exists := permVariants.VariantEntries[variantStr]
 		if !exists {
 			// Database was left inconsistent, should not occur
 			errs = append(errs, fmt.Errorf(`internal error: path pattern variant not found in the rule tree: %q`, variant))
@@ -553,7 +559,7 @@ func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) [
 			// Database was left inconsistent, should not occur
 			errs = append(errs, fmt.Errorf(`internal error: path pattern variant maps to different rule ID: %q: %s`, variant, variantEntry.RuleID.String()))
 		} else {
-			delete(permVariants.VariantEntries, variant.String())
+			delete(permVariants.VariantEntries, variantStr)
 		}
 	}
 	rule.Constraints.PathPattern.RenderAllVariants(removeVariant)
