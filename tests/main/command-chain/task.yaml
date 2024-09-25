@@ -18,6 +18,7 @@ environment:
 prepare: |
     # No needed to test the snap pkg when it is coming from the repository
     if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
+        touch .skip
         exit
     fi
 
@@ -33,10 +34,7 @@ prepare: |
     fi
 
 execute: |
-    # No needed to test the snap pkg when it is coming from the repository
-    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
-        exit
-    fi
+    test -f .skip && exit 0
 
     echo "Test that command-chain runs for hooks"
     [ "$(cat "$BREADCRUMB")" = "chain1 chain2 configure" ]

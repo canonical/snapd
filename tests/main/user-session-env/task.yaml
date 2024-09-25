@@ -56,7 +56,8 @@ execute: |
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     LOCAL_PATH=
     if tests.info is-snapd-pkg-repo; then
-        LOCAL_PATH=/snap/snapd/current
+        MOUNT_DIR="$(os.paths snap-mount-dir)"
+        LOCAL_PATH="$MOUNT_DIR/snapd/current"
     fi
     for user in test "$TEST_ZSH_USER" "$TEST_FISH_USER" ; do
         echo "checking $user"

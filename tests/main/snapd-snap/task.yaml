@@ -372,7 +372,8 @@ execute: |
     fi
 
     # reboot to ensure snapd.apparmor still works then too
-    if [ "$SPREAD_REBOOT" = "0" ]; then
+    
+    if [ "$SPREAD_REBOOT" = "0" ] && ! tests.info is-snapd-pkg-repo; then
         # downgrade the snapd deb from the distro package to test that we can
         # still handle the generated apparmor profiles etc from the snapd snap
         echo "Downgrading snapd to distro packaged version..."

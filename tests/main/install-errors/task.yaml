@@ -16,6 +16,7 @@ environment:
 prepare: |
     # No needed to test the snap pkg when it is coming from the repository
     if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
+        touch .skip
         exit 0
     fi
 
@@ -23,10 +24,7 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME"
 
 execute: |
-    # No needed to test the snap pkg when it is coming from the repository
-    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
-        exit 0
-    fi
+    test -f .skip && exit 0
 
     echo "Install unexisting snap prints error"
     if snap install unexisting.canonical; then

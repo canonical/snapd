@@ -587,6 +587,9 @@ prepare_project() {
     # go mod runs as root and will leave strange permissions
     chown test:test -R "$SPREAD_PATH"
 
+    # We are testing snapd snap on top of snapd from the archive
+    # of the tested distribution. Download snapd and snap-confine
+    # as they exist in the archive for further use.
     if tests.info is-snapd-pkg-repo; then
         ( cd "${GOHOME}" && tests.pkgs download snapd snap-confine)
     elif [ "$BUILD_SNAPD_FROM_CURRENT" = true ]; then

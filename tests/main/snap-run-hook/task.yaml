@@ -14,6 +14,7 @@ environment:
 prepare: |
     # No needed to test the snap pkg when it is coming from the repository
     if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
+        touch .skip
         exit
     fi
     "$TESTSTOOLS"/snaps-state install-local basic-hooks
@@ -26,10 +27,7 @@ prepare: |
     fi
 
 execute: |
-    # No needed to test the snap pkg when it is coming from the repository
-    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
-        exit
-    fi
+    test -f .skip && exit 0
 
     # Note that `snap run` doesn't exit non-zero if the hook is missing, so we
     # check the output instead.

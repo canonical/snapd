@@ -53,7 +53,8 @@ prepare: |
   echo "Running preseed --reset for already preseeded cloud images"
   SNAP_PRESEED=/usr/lib/snapd/snap-preseed
   if tests.info is-snapd-pkg-repo; then
-      SNAP_PRESEED="/snap/snapd/current$SNAP_PRESEED"
+      MOUNT_DIR="$(os.paths snap-mount-dir)"
+      SNAP_PRESEED="$MOUNT_DIR/snapd/current$SNAP_PRESEED"
   fi
   SNAPD_DEBUG=1 "$SNAP_PRESEED" --reset "$IMAGE_MOUNTPOINT"
 
@@ -109,7 +110,8 @@ execute: |
   lxc exec my-ubuntu -- mkdir -p "$GOHOME"
   SNAP_PRESEED=/usr/lib/snapd/snap-preseed
   if tests.info is-snapd-pkg-repo; then
-      SNAP_PRESEED="/snap/snapd/current$SNAP_PRESEED"
+      MOUNT_DIR="$(os.paths snap-mount-dir)"
+      SNAP_PRESEED="$MOUNT_DIR/snapd/current$SNAP_PRESEED"
   fi
   lxc file push "$SNAP_PRESEED" "my-ubuntu/$GOHOME/"
   lxc file push cloudimg.img "my-ubuntu/$GOHOME/"

@@ -15,6 +15,7 @@ environment:
 prepare: |
     if tests.info is-snapd-pkg-repo; then
         echo "This test needs to be executed when snapd deb is built from local"
+        touch .skip
         exit 
     fi
 
@@ -33,10 +34,7 @@ prepare: |
     rm -rf "${unpackdir}"
 
 restore: |
-    if tests.info is-snapd-pkg-repo; then
-        echo "This test needs to be executed when snapd deb is built from local"
-        exit 
-    fi
+    test -f .skip && exit 0
 
     userdel -f --remove "$USERNAME"
     rm -rf /remote/users
@@ -48,10 +46,7 @@ restore: |
     distro_install_build_snapd
 
 debug: |
-    if tests.info is-snapd-pkg-repo; then
-        echo "This test needs to be executed when snapd deb is built from local"
-        exit 
-    fi
+    test -f .skip && exit 0
 
     # output custom snap-confine snippets
     ls -l /var/lib/snapd/apparmor/snap-confine/
@@ -61,10 +56,7 @@ debug: |
     done
 
 execute: |
-    if tests.info is-snapd-pkg-repo; then
-        echo "This test needs to be executed when snapd deb is built from local"
-        exit 
-    fi
+    test -f .skip && exit 0
 
     echo "Downgrading the snapd deb to pre-vendored apparmor times"
     TARGET_VER="$(apt list -a snapd | grep -- -updates | cut -f2 -d' ')"

@@ -15,6 +15,7 @@ environment:
 prepare: |
     # No needed to test the snap pkg when it is coming from the repository
     if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
+        touch .skip
         exit
     fi
     snap pack data-writer
@@ -27,10 +28,7 @@ prepare: |
     fi
 
 execute: |
-    # No needed to test the snap pkg when it is coming from the repository
-    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
-        exit
-    fi
+    test -f .skip && exit 0
 
     snap install --dangerous data-writer_1.0_all.snap
 

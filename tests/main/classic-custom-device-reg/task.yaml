@@ -18,6 +18,7 @@ prepare: |
     # In this scenario, the keys from the snapd pkg are used
     if [ "$TRUST_TEST_KEYS" = "false" ] || tests.info is-snapd-pkg-repo; then
         echo "This test needs test keys to be trusted"
+        touch .skip
         exit
     fi
 
@@ -53,22 +54,15 @@ prepare: |
     systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
 
 restore: |
-    # In this scenario, the keys from the snapd pkg are used
-    if [ "$TRUST_TEST_KEYS" = "false" ] || tests.info is-snapd-pkg-repo; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+    test -f .skip && exit 0
+
     systemctl stop snapd.service snapd.socket fakedevicesvc
 
     rm -rf "$SEED_DIR"
     systemctl start snapd.socket snapd.service
 
 execute: |
-    # In this scenario, the keys from the snapd pkg are used
-    if [ "$TRUST_TEST_KEYS" = "false" ] || tests.info is-snapd-pkg-repo; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+    test -f .skip && exit 0
 
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh

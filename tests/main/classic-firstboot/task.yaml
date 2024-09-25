@@ -17,6 +17,7 @@ prepare: |
     # In this scenario, the keys from the snapd pkg are used
     if [ "$TRUST_TEST_KEYS" = "false" ] || tests.info is-snapd-pkg-repo; then
         echo "This test needs test keys to be trusted"
+        touch .skip
         exit
     fi
 
@@ -52,21 +53,13 @@ prepare: |
     cp ./test-snapd-service_1.0_all.snap "$SEED_DIR/snaps/test-snapd-service.snap"
 
 restore: |
-    # In this scenario, the keys from the snapd pkg are used
-    if [ "$TRUST_TEST_KEYS" = "false" ] || tests.info is-snapd-pkg-repo; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+    test -f .skip && exit 0
 
     rm -rf "$SEED_DIR"
     systemctl start snapd.socket snapd.service
 
 execute: |
-    # In this scenario, the keys from the snapd pkg are used
-    if [ "$TRUST_TEST_KEYS" = "false" ] || tests.info is-snapd-pkg-repo; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+    test -f .skip && exit 0
 
     echo "Start the daemon with an empty state, this will make it import "
     echo "assertions from the $SEED_DIR/assertions subdirectory and "
