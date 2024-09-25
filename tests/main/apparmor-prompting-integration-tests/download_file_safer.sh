@@ -19,7 +19,10 @@ mkdir -p "${TEST_DIR}/Downloads"
 touch "${TEST_DIR}/Downloads/existing.txt"
 
 echo "Attempt to list the contents of the parent directory"
-snap run --shell prompting-client.scripted -c "ls ${TEST_DIR}/Downloads"
+if ! snap run --shell prompting-client.scripted -c "ls ${TEST_DIR}/Downloads" | grep "existing.txt" ; then
+	echo "Failed to list contents of ${TEST_DIR}/Downloads"
+	exit 1
+fi
 
 echo "Attempt to write the file"
 snap run --shell prompting-client.scripted -c "echo it is written > ${TEST_DIR}/Downloads/test.txt"

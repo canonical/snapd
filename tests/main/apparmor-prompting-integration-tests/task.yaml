@@ -21,6 +21,7 @@ environment:
     VARIANT/create_multiple_deny: create_multiple_deny
     VARIANT/download_file_defaults: download_file_defaults
     VARIANT/download_file_safer: download_file_safer
+    VARIANT/download_file_conflict: download_file_conflict
     VARIANT/timespan_allow: timespan_allow
     VARIANT/timespan_deny: timespan_deny
     #VARIANT/create_multiple_actioned_by_other_pid: create_multiple_actioned_by_other_pid
