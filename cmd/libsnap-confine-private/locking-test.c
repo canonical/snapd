@@ -152,6 +152,58 @@ static void test_sc_enable_sanity_timeout(void)
 	    ("sanity timeout expired: Interrupted system call\n");
 }
 
+// Set alternate inhibit directory
+static void sc_set_inhibit_dir(const char *dir)
+{
+	sc_inhibit_dir = dir;
+}
+
+// Use temporary directory for inhibition.
+//
+// The directory is automatically reset to the real value at the end of the
+// test.
+static const char *sc_test_use_fake_inhibit_dir(void)
+{
+	char *inhibit_dir = g_dir_make_tmp(NULL, NULL);
+	g_assert_nonnull(inhibit_dir);
+	g_test_queue_free(inhibit_dir);
+	g_test_queue_destroy((GDestroyNotify) rm_rf_tmp, inhibit_dir);
+	g_test_queue_destroy((GDestroyNotify) sc_set_inhibit_dir,
+			     SC_INHIBIT_DIR);
+	sc_set_inhibit_dir(inhibit_dir);
+	return inhibit_dir;
+}
+
+static void test_sc_snap_is_inhibited__missing_dir(void)
+{
+	char *d = g_dir_make_tmp(NULL, NULL);
+	g_test_queue_destroy((GDestroyNotify) rm_rf_tmp, d);
+
+	char subd[PATH_MAX];
+	sc_must_snprintf(subd, sizeof subd, "%s/absent", d);
+	sc_set_inhibit_dir(subd);
+	g_assert_false(sc_snap_is_inhibited
+		       ("foo", SC_SNAP_HINT_INHIBITED_FOR_REMOVE));
+}
+
+static void test_sc_snap_is_inhibited__missing_file(void)
+{
+	const char *d = sc_test_use_fake_inhibit_dir();
+	g_assert_false(sc_snap_is_inhibited
+		       ("foo", SC_SNAP_HINT_INHIBITED_FOR_REMOVE));
+}
+
+static void test_sc_snap_is_inhibited__present_file(void)
+{
+	const char *d = sc_test_use_fake_inhibit_dir();
+	char pname[PATH_MAX];
+	sc_must_snprintf(pname, sizeof pname, "%s/foo.remove", d);
+	g_assert_true(g_file_set_contents(pname, "", -1, NULL));
+
+	g_assert_true(sc_snap_is_inhibited
+		      ("foo", SC_SNAP_HINT_INHIBITED_FOR_REMOVE));
+}
+
 static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/locking/sc_lock_unlock", test_sc_lock_unlock);
@@ -161,4 +213,10 @@ static void __attribute__((constructor)) init(void)
 			test_sc_verify_snap_lock__locked);
 	g_test_add_func("/locking/sc_verify_snap_lock__unlocked",
 			test_sc_verify_snap_lock__unlocked);
+	g_test_add_func("/locking/sc_snap_is_inhibited__missing_dir",
+			test_sc_snap_is_inhibited__missing_dir);
+	g_test_add_func("/locking/sc_snap_is_inhibited__missing_file",
+			test_sc_snap_is_inhibited__missing_file);
+	g_test_add_func("/locking/sc_snap_is_inhibited__present_file",
+			test_sc_snap_is_inhibited__present_file);
 }
