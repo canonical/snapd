@@ -330,16 +330,24 @@ func (s *accessSuite) TestInterfaceOpenAccess(c *C) {
 	s.daemon(c)
 	// interfaceOpenAccess allows access if requireInterfaceApiAccess() succeeds
 	ucred := &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket}
-	restore := daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, interfaceNames []string) *daemon.APIError {
+	restore := daemon.MockRequireInterfaceApiAccess(func(
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs,
+	) *daemon.APIError {
 		c.Check(d, Equals, s.d)
 		c.Check(u, Equals, ucred)
+		c.Check(reqs, DeepEquals, daemon.InterfaceAccessReqs{
+			Interfaces: []string{"snap-themes-control"},
+			Plug:       true,
+		})
 		return nil
 	})
 	defer restore()
 	c.Check(ac.CheckAccess(s.d, nil, ucred, nil), IsNil)
 
 	// Access is forbidden if requireInterfaceApiAccess() fails
-	restore = daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, interfaceNames []string) *daemon.APIError {
+	restore = daemon.MockRequireInterfaceApiAccess(func(
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, req daemon.InterfaceAccessReqs,
+	) *daemon.APIError {
 		return errForbidden
 	})
 	defer restore()
@@ -362,9 +370,14 @@ func (s *accessSuite) TestInterfaceAuthenticatedAccess(c *C) {
 
 	// interfaceAuthenticatedAccess denies access if requireInterfaceApiAccess fails
 	ucred := &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapSocket}
-	restore = daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, interfaceNames []string) *daemon.APIError {
+	restore = daemon.MockRequireInterfaceApiAccess(func(
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs,
+	) *daemon.APIError {
 		c.Check(d, Equals, s.d)
 		c.Check(u, Equals, ucred)
+		c.Check(reqs, DeepEquals, daemon.InterfaceAccessReqs{
+			Plug: true,
+		})
 		return errForbidden
 	})
 	defer restore()
@@ -372,7 +385,9 @@ func (s *accessSuite) TestInterfaceAuthenticatedAccess(c *C) {
 	c.Check(ac.CheckAccess(s.d, req, ucred, user), DeepEquals, errForbidden)
 
 	// If requireInterfaceApiAccess succeeds, root is granted access
-	restore = daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, interfaceNames []string) *daemon.APIError {
+	restore = daemon.MockRequireInterfaceApiAccess(func(
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs,
+	) *daemon.APIError {
 		return nil
 	})
 	defer restore()
@@ -394,9 +409,14 @@ func (s *accessSuite) TestInterfaceAuthenticatedAccessPolkit(c *C) {
 	ucred := &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapSocket}
 
 	s.daemon(c)
-	restore := daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, interfaceNames []string) *daemon.APIError {
+	restore := daemon.MockRequireInterfaceApiAccess(func(
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs,
+	) *daemon.APIError {
 		c.Check(d, Equals, s.d)
 		c.Check(u, Equals, ucred)
+		c.Check(reqs, DeepEquals, daemon.InterfaceAccessReqs{
+			Plug: true,
+		})
 		return nil
 	})
 	defer restore()
@@ -422,4 +442,196 @@ func (s *accessSuite) TestInterfaceAuthenticatedAccessPolkit(c *C) {
 	})
 	defer restore()
 	c.Check(ac.CheckAccess(s.d, req, ucred, nil), IsNil)
+}
+
+func (s *accessSuite) TestInterfaceProviderRootAccessCallsWithCorrectArgs(c *C) {
+	restore := daemon.MockCheckPolkitAction(func(r *http.Request, ucred *daemon.Ucrednet, action string) *daemon.APIError {
+		// Polkit is not consulted if no action is specified
+		c.Fail()
+		return errForbidden
+	})
+	defer restore()
+
+	var ac daemon.AccessChecker = daemon.InterfaceProviderRootAccess{
+		Interfaces: []string{"fwupd"},
+	}
+
+	req := httptest.NewRequest("GET", "/", nil)
+	s.daemon(c)
+
+	ucred := &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapSocket}
+
+	// mock and check whether correct arguments are passed
+	called := 0
+	restore = daemon.MockRequireInterfaceApiAccess(func(
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs,
+	) *daemon.APIError {
+		c.Check(d, Equals, s.d)
+		c.Check(u, Equals, ucred)
+		c.Check(reqs, DeepEquals, daemon.InterfaceAccessReqs{
+			Interfaces: []string{"fwupd"},
+			Slot:       true,
+		})
+		called++
+		return errForbidden
+	})
+	defer restore()
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errForbidden)
+	c.Assert(called, Equals, 1)
+}
+
+func (s *accessSuite) TestInterfaceProviderRootAccessChecks(c *C) {
+	d := s.daemon(c)
+	s.mockSnap(c, `
+name: fwupd-app
+type: app
+version: 1
+slots:
+  fwupd-provider:
+    interface: fwupd
+plugs:
+  fwupd-consumer:
+    interface: fwupd
+  `)
+	s.mockSnap(c, `
+name: connected-fwupd-caller
+version: 1
+plugs:
+  fwupd-consumer:
+    interface: fwupd
+`)
+	s.mockSnap(c, `
+name: disconnected-fwupd-caller
+version: 1
+plugs:
+  fwupd-consumer:
+    interface: fwupd
+`)
+
+	restore := daemon.MockCgroupSnapNameFromPid(func(pid int) (string, error) {
+		switch pid {
+		case 42:
+			return "fwupd-app", nil
+		case 1042:
+			return "connected-fwupd-caller", nil
+		case 10042:
+			return "disconnected-fwupd-caller", nil
+		default:
+			return "", fmt.Errorf("not a snap")
+		}
+	})
+	defer restore()
+
+	restore = daemon.MockCheckPolkitAction(func(r *http.Request, ucred *daemon.Ucrednet, action string) *daemon.APIError {
+		// Polkit is not consulted if no action is specified
+		c.Fail()
+		return errForbidden
+	})
+	defer restore()
+
+	var ac daemon.AccessChecker = daemon.InterfaceProviderRootAccess{
+		Interfaces: []string{"fwupd"},
+	}
+
+	user := &auth.UserState{}
+
+	// fwupd-app, but unconnected and over snap socket
+	ucred := &daemon.Ucrednet{Uid: 0, Pid: 42, Socket: dirs.SnapSocket}
+	req := &http.Request{
+		RemoteAddr: ucred.String(),
+	}
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errForbidden)
+
+	// Now connect both interfaces
+	st := d.Overlord().State()
+	st.Lock()
+	st.Set("conns", map[string]interface{}{
+		"fwupd-app:fwupd-consumer fwupd-app:fwupd-provider": map[string]interface{}{
+			"interface": "fwupd",
+		},
+		"connected-fwupd-caller:fwupd fwupd-app:fwupd-provider": map[string]interface{}{
+			"interface": "fwupd",
+		},
+	})
+	st.Unlock()
+
+	// fwupd-app, connected on the slot side
+	ucred = &daemon.Ucrednet{Uid: 0, Pid: 42, Socket: dirs.SnapSocket}
+	req = &http.Request{
+		RemoteAddr: ucred.String(),
+	}
+	c.Check(ac.CheckAccess(s.d, req, ucred, user), IsNil)
+
+	// connected-fwupd-caller, but on the plug side
+	ucred = &daemon.Ucrednet{Uid: 0, Pid: 1042, Socket: dirs.SnapSocket}
+	req = &http.Request{
+		RemoteAddr: ucred.String(),
+	}
+	c.Check(ac.CheckAccess(s.d, req, ucred, user), DeepEquals, errForbidden)
+
+	// disconnected-fwupd-caller
+	ucred = &daemon.Ucrednet{Uid: 0, Pid: 10042, Socket: dirs.SnapSocket}
+	req = &http.Request{
+		RemoteAddr: ucred.String(),
+	}
+	c.Check(ac.CheckAccess(s.d, req, ucred, user), DeepEquals, errForbidden)
+
+	// normal user has no access even with a Macaroon auth
+	ucred = &daemon.Ucrednet{Uid: 42, Pid: 42, Socket: dirs.SnapSocket}
+	req = &http.Request{
+		RemoteAddr: ucred.String(),
+	}
+	c.Check(ac.CheckAccess(s.d, req, ucred, user), DeepEquals, errUnauthorized)
+
+	// Without macaroon auth, normal users are unauthorized
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errUnauthorized)
+
+	// on snapd socket, non-root is unauthorized
+	ucred = &daemon.Ucrednet{Uid: 42, Pid: 123, Socket: dirs.SnapdSocket}
+	req = &http.Request{
+		RemoteAddr: ucred.String(),
+	}
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errUnauthorized)
+
+	// but root is
+	ucred = &daemon.Ucrednet{Uid: 0, Pid: 123, Socket: dirs.SnapdSocket}
+	req = &http.Request{
+		RemoteAddr: ucred.String(),
+	}
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil), IsNil)
+}
+
+func (s *accessSuite) TestRequireInterfaceApiAccessErrorChecks(c *C) {
+	d := s.daemon(c)
+	req := &http.Request{}
+
+	// no side of the connection is specified
+	c.Check(daemon.RequireInterfaceApiAccessImpl(d, req, nil, daemon.InterfaceAccessReqs{}), DeepEquals,
+		daemon.InternalError("required connection side is unspecified"))
+
+	// check on both sides
+	c.Check(
+		daemon.RequireInterfaceApiAccessImpl(d, req, nil, daemon.InterfaceAccessReqs{
+			Plug:       true,
+			Slot:       true,
+			Interfaces: []string{"foo"},
+		}),
+		DeepEquals,
+		daemon.InternalError("snap cannot be specified on both sides of the connection"))
+
+	// no interfaces
+	c.Check(
+		daemon.RequireInterfaceApiAccessImpl(d, req, nil, daemon.InterfaceAccessReqs{
+			Plug: true,
+		}),
+		DeepEquals,
+		daemon.InternalError("interfaces access check, but interfaces list is empty"))
+
+	// this one actually reaches the credentials check
+	c.Check(
+		daemon.RequireInterfaceApiAccessImpl(d, req, nil, daemon.InterfaceAccessReqs{
+			Plug:       true,
+			Interfaces: []string{"foo"},
+		}),
+		DeepEquals, errForbidden)
 }
