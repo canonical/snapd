@@ -80,7 +80,9 @@ execute: |
 
     # shellcheck disable=SC2016
     retry --wait 1 -n 120 --env "CHANGE_ID=3" sh -c 'remote.exec snap changes | MATCH "${CHANGE_ID} .* (Done|Error) .*"'
+    # shellcheck disable=SC2016
     retry --wait 1 -n 30 --env "CHANGE_ID=4" sh -c 'remote.exec snap changes | MATCH "${CHANGE_ID} .* (Done|Error) .*"'
+    # shellcheck disable=SC2016
     retry --wait 1 -n 30 --env "CHANGE_ID=5" sh -c 'remote.exec snap changes | MATCH "${CHANGE_ID} .* (Done|Error) .*"'
 
     # Check if the fault was injected
