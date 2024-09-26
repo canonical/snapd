@@ -20,6 +20,7 @@ package registrystate_test
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -355,4 +356,159 @@ func (s *registryTestSuite) TestManagerOk(c *C) {
 
 	err = s.o.Settle(5 * time.Second)
 	c.Assert(err, IsNil)
+}
+
+func (s *registryTestSuite) TestSetAndUnsetOngoingTransactionHelpers(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var commitTasks map[string]string
+	err := s.state.Get("registry-commit-tasks", &commitTasks)
+	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
+
+	err = registrystate.SetOngoingTransaction(s.state, "my-acc", "my-reg", "1")
+	c.Assert(err, IsNil)
+
+	// can't overwrite an ongoing commit task, since that could hide errors
+	err = registrystate.SetOngoingTransaction(s.state, "my-acc", "my-reg", "3")
+	c.Assert(err, ErrorMatches, `internal error: cannot set task "3" as ongoing commit task for registry my-acc/my-reg: already have "1"`)
+
+	err = registrystate.SetOngoingTransaction(s.state, "other-acc", "other-reg", "2")
+	c.Assert(err, IsNil)
+
+	err = s.state.Get("registry-commit-tasks", &commitTasks)
+	c.Assert(err, IsNil)
+	c.Assert(commitTasks["my-acc/my-reg"], Equals, "1")
+
+	err = registrystate.UnsetOngoingTransaction(s.state, "my-acc", "my-reg")
+	c.Assert(err, IsNil)
+
+	// unsetting non-existing key is fine
+	err = registrystate.UnsetOngoingTransaction(s.state, "my-acc", "my-reg")
+	c.Assert(err, IsNil)
+
+	err = s.state.Get("registry-commit-tasks", &commitTasks)
+	c.Assert(err, IsNil)
+	c.Assert(commitTasks["other-acc/other-reg"], Equals, "2")
+
+	err = registrystate.UnsetOngoingTransaction(s.state, "other-acc", "other-reg")
+	c.Assert(err, IsNil)
+
+	err = s.state.Get("registry-commit-tasks", &commitTasks)
+	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
+
+	// unsetting non-existing key is still fine when there's no map at all
+	err = registrystate.UnsetOngoingTransaction(s.state, "my-acc", "my-reg")
+	c.Assert(err, IsNil)
+}
+
+func (s *registryTestSuite) TestCommitTransaction(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("test", "")
+	t := s.state.NewTask("commit-registry-tx", "")
+	chg.AddTask(t)
+
+	// attach a transaction with some changes to the commit task
+	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	err = tx.Set("wifi.ssid", "foo")
+	c.Assert(err, IsNil)
+
+	registrystate.SetTransaction(t, tx)
+
+	s.state.Unlock()
+	err = s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(t.Status(), Equals, state.DoneStatus, Commentf(strings.Join(t.Log(), "\n")))
+
+	tx, _, err = registrystate.GetStoredTransaction(t)
+	c.Assert(err, IsNil)
+
+	// clearing would remove non-committed changes, so if we read the set value
+	// it's because it has been successfully committed
+	err = tx.Clear(s.state)
+	c.Assert(err, IsNil)
+
+	val, err := tx.Get("wifi.ssid")
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "foo")
+}
+
+func (s *registryTestSuite) TestClearOngoingTransaction(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("test", "")
+	commitTask := s.state.NewTask("commit-registry-tx", "")
+	commitTask.SetStatus(state.DoneStatus)
+	chg.AddTask(commitTask)
+
+	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+	registrystate.SetTransaction(commitTask, tx)
+
+	t := s.state.NewTask("clear-registry-tx", "")
+	chg.AddTask(t)
+	t.Set("commit-task", commitTask.ID())
+
+	registrystate.SetOngoingTransaction(s.state, s.devAccID, "network", commitTask.ID())
+
+	var commitTasks map[string]string
+	err = s.state.Get("registry-commit-tasks", &commitTasks)
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	err = s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
+	s.state.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(t.Status(), Equals, state.DoneStatus, Commentf(strings.Join(t.Log(), "\n")))
+
+	commitTasks = nil
+	err = s.state.Get("registry-commit-tasks", &commitTasks)
+	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
+}
+
+func (s *registryTestSuite) TestClearTransactionOnError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("test", "")
+	clearTask := s.state.NewTask("clear-registry-tx-on-error", "")
+	chg.AddTask(clearTask)
+
+	commitTask := s.state.NewTask("commit-registry-tx", "")
+	chg.AddTask(commitTask)
+	commitTask.WaitFor(clearTask)
+	clearTask.Set("commit-task", commitTask.ID())
+
+	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	// the schema will reject this, so the commit will fail
+	err = tx.Set("foo", "bar")
+	c.Assert(err, IsNil)
+	registrystate.SetTransaction(commitTask, tx)
+
+	// add this transaction to the state
+	registrystate.SetOngoingTransaction(s.state, s.devAccID, "network", commitTask.ID())
+
+	s.state.Unlock()
+	err = s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+	c.Assert(commitTask.Status(), Equals, state.ErrorStatus)
+	c.Assert(clearTask.Status(), Equals, state.UndoneStatus)
+	c.Assert(strings.Join(commitTask.Log(), "\n"), Matches, ".*ERROR cannot accept top level element: map contains unexpected key \"foo\"")
+
+	// no ongoing registry transaction
+	var commitTasks map[string]string
+	err = s.state.Get("registry-commit-tasks", &commitTasks)
+	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
 }

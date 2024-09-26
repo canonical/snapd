@@ -67,6 +67,17 @@ func (s *registryTestSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	runner := s.o.TaskRunner()
+	s.o.AddManager(runner)
+
+	hookMgr, err := hookstate.Manager(s.state, runner)
+	c.Assert(err, IsNil)
+	s.o.AddManager(hookMgr)
+
+	// to test the registryManager
+	mgr := registrystate.Manager(s.state, hookMgr, runner)
+	s.o.AddManager(mgr)
+
 	storeSigning := assertstest.NewStoreStack("can0nical", nil)
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
