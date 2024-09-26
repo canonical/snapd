@@ -73,6 +73,8 @@ prepare: |
 execute: |
     # Update the cmdline
     change_id="$(remote.exec "sudo snap set system system.kernel.dangerous-cmdline-append='extradang.val=1 extradang.flag'")"
+
+    # shellcheck disable=SC2016
     retry --wait 1 -n 120 --env "CHANGE_ID=$change_id" sh -c 'remote.exec snap changes | MATCH "${CHANGE_ID} .* (Done|Error) .*"'
 
     # Check if the fault was injected
