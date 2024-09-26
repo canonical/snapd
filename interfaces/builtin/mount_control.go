@@ -598,9 +598,22 @@ func (iface *mountControlInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 		}
 
 		// only pass the allowed kernel mount options on to apparmor
-		options := strings.Join(filterAllowedKernelMountOptions(mountInfo.options), ",")
-
-		emit("  mount %s options=(%s) \"%s\" -> \"%s{,/}\",\n", typeRule, options, source, target)
+		allowedOptions := filterAllowedKernelMountOptions(mountInfo.options)
+		var allowedOptionsRo []string
+		if strutil.ListContains(allowedOptions, "rw") {
+			allowedOptionsRo = make([]string, 0, len(allowedOptions))
+			for _, opt := range allowedOptions {
+				if opt == "rw" {
+					allowedOptionsRo = append(allowedOptionsRo, "ro")
+				} else {
+					allowedOptionsRo = append(allowedOptionsRo, opt)
+				}
+			}
+		}
+		emit("  mount %s options=(%s) \"%s\" -> \"%s{,/}\",\n", typeRule, strings.Join(allowedOptions, ","), source, target)
+		if allowedOptionsRo != nil {
+			emit("  mount %s options=(%s) \"%s\" -> \"%s{,/}\",\n", typeRule, strings.Join(allowedOptionsRo, ","), source, target)
+		}
 		emit("  umount \"%s{,/}\",\n", target)
 		return nil
 	})

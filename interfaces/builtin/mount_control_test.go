@@ -78,6 +78,10 @@ plugs:
     where: $SNAP_COMMON/mnt/**
     type: [aufs]
     options: [br:/mnt/a, add:0:/mnt/b, dirwh=1, rw]
+  - what: /dev/ctrlx-nvram/usr
+    where: $SNAP_COMMON/nvram
+    type: [nvram]
+    options: [rw,sync,nosuid]
 apps:
  app:
   plugs: [mntctl]
@@ -376,6 +380,15 @@ func (s *MountControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine7)
 	expectedUmountLine7 := `umount "/var/snap/consumer/common/mnt/**{,/}",`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedUmountLine7)
+
+	expectedMountLine8 := `mount fstype=(nvram) options=(rw,sync,nosuid) ` +
+		`"/dev/ctrlx-nvram/usr" -> "/var/snap/consumer/common/nvram{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine8)
+	expectedMountLine9 := `mount fstype=(nvram) options=(ro,sync,nosuid) ` +
+		`"/dev/ctrlx-nvram/usr" -> "/var/snap/consumer/common/nvram{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine9)
+	expectedUmountLine8 := `umount "/var/snap/consumer/common/nvram{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedUmountLine8)
 }
 
 func (s *MountControlInterfaceSuite) TestStaticInfo(c *C) {
