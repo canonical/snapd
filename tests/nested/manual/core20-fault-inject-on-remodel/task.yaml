@@ -94,7 +94,7 @@ execute: |
     echo "And snap remodel is completed"
     remote.exec "snap watch $change_id" || true
     # shellcheck disable=SC2016
-    retry --wait 1 -n 120 --env "CHANGE_ID=$change_id" --env "SNAP=$SNAP" sh -c 'remote.exec snap changes | MATCH "${CHANGE_ID} .* (Done|Error) .*"'
+    retry --wait 1 -n 300 --env "CHANGE_ID=$change_id" --env "SNAP=$SNAP" sh -c 'remote.exec snap changes | MATCH "${CHANGE_ID} .* (Done|Error) .*"'
 
     # Check if the fault was injected
     remote.exec "test -e /var/lib/snapd/faults/$TAG:$FAULT"

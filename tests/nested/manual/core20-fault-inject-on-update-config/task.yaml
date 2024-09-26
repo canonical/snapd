@@ -72,19 +72,27 @@ prepare: |
 
 execute: |
     # Update the cmdline
-    change_id="$(remote.exec "sudo snap set system system.kernel.dangerous-cmdline-append='extradang.val=1 extradang.flag'")"
+    remote.exec "sudo snap set system system.kernel.dangerous-cmdline-append='extradang.val=1 extradang.flag'"
+    # For this update, there are 3 changes generated   
+    #3    Done    today at 13:23 UTC  today at 13:26 UTC  Change configuration of "core" snap
+    #4    Done    today at 13:23 UTC  today at 13:25 UTC  Update kernel command line due to change in system configuration
+    #5    Done    today at 13:25 UTC  today at 13:26 UTC  Update kernel command line due to change in system configuration
 
     # shellcheck disable=SC2016
-    retry --wait 1 -n 120 --env "CHANGE_ID=$change_id" sh -c 'remote.exec snap changes | MATCH "${CHANGE_ID} .* (Done|Error) .*"'
+    retry --wait 1 -n 120 --env "CHANGE_ID=3" sh -c 'remote.exec snap changes | MATCH "${CHANGE_ID} .* (Done|Error) .*"'
+    retry --wait 1 -n 30 --env "CHANGE_ID=4" sh -c 'remote.exec snap changes | MATCH "${CHANGE_ID} .* (Done|Error) .*"'
+    retry --wait 1 -n 30 --env "CHANGE_ID=5" sh -c 'remote.exec snap changes | MATCH "${CHANGE_ID} .* (Done|Error) .*"'
 
     # Check if the fault was injected
     remote.exec "test -e /var/lib/snapd/faults/$TAG:$FAULT"
 
-    FINAL_STATUS="$(remote.exec snap changes | grep -E "^$change_id .*" | awk ' {print $2} ')"
+    for change_id in 3 4 5; do
+        FINAL_STATUS="$(remote.exec snap changes | grep -E "^$change_id .*" | awk ' {print $2} ')"
 
-    echo "Ensure the change has no steps with Error"
-    [ "$FINAL_STATUS" = Done ]
-    remote.exec "snap change $change_id" | NOMATCH "^Error .*"
+        echo "Ensure the change has no steps with Error"
+        [ "$FINAL_STATUS" = Done ]
+        remote.exec "snap change $change_id" | NOMATCH "^Error .*"
+    done
 
     echo "Ensure the command line has been updated"
     remote.exec "sudo cat /var/lib/snapd/modeenv" | MATCH "extradang.val=1"
