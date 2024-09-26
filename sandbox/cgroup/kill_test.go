@@ -50,6 +50,8 @@ func (s *killSuite) SetUpTest(c *C) {
 	s.rootDir = c.MkDir()
 	dirs.SetRootDir(s.rootDir)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
+
+	s.AddCleanup(cgroup.MockKillThawCooldown(1 * time.Nanosecond))
 }
 
 func mockCgroupsWithProcs(c *C, cgroupsToProcs map[string][]string) {
@@ -79,10 +81,15 @@ func (s *killSuite) TestKillSnapProcessesV1(c *C) {
 	mockCgroupsWithProcs(c, cgroupsToProcs)
 
 	var ops []string
-	restore = cgroup.MockKillProcessesInCgroup(func(ctx context.Context, dir string) error {
-		// trim tmp root dir
-		dir = strings.TrimPrefix(dir, s.rootDir)
-		ops = append(ops, fmt.Sprintf("kill cgroup: %s", dir))
+	// Replace with syscallKill mock
+	restore = cgroup.MockSyscallKill(func(pid int, sig syscall.Signal) error {
+		c.Assert(sig, Equals, syscall.SIGKILL)
+
+		// simulate killing pid
+		cgroupsToProcs = removePid(cgroupsToProcs, pid)
+		mockCgroupsWithProcs(c, cgroupsToProcs)
+
+		ops = append(ops, fmt.Sprintf("kill-pid:%d, signal:%d", pid, sig))
 		return nil
 	})
 	defer restore()
@@ -99,12 +106,20 @@ func (s *killSuite) TestKillSnapProcessesV1(c *C) {
 
 	c.Assert(cgroup.KillSnapProcesses(context.TODO(), "foo"), IsNil)
 	c.Assert(ops, DeepEquals, []string{
+		// freeze/kill/thaw for snap.foo.app-1.1234-1234-1234.scope
 		"freeze-snap-processes-v1:foo",
-		"kill cgroup: /sys/fs/cgroup/pids/user.slice/user-0.slice/user@0.service/snap.foo.app-1.1234-1234-1234.scope",
-		"kill cgroup: /sys/fs/cgroup/pids/user.slice/user-0.slice/user@0.service/snap.foo.app-1.9876.scope",
-		"kill cgroup: /sys/fs/cgroup/pids/user.slice/user-0.slice/user@0.service/snap.foo.app-2.some-scope.scope",
-		"kill cgroup: /sys/fs/cgroup/freezer/snap.foo",
+		"kill-pid:1, signal:9",
 		"thaw-snap-processes-v1:foo",
+		// freeze/kill/thaw for snap.foo.app-1.9876.scope
+		"freeze-snap-processes-v1:foo",
+		"kill-pid:2, signal:9",
+		"kill-pid:3, signal:9",
+		"thaw-snap-processes-v1:foo",
+		// freeze/kill/thaw for snap.foo.app-2.some-scope.scope
+		"freeze-snap-processes-v1:foo",
+		"kill-pid:4, signal:9",
+		"thaw-snap-processes-v1:foo",
+		// no more pids left for freezer cgroup
 	})
 }
 
@@ -145,7 +160,10 @@ func (s *killSuite) testKillSnapProcessesV2(c *C, cgroupKillSupported, pidsContr
 	}
 
 	var ops []string
-	restore = cgroup.MockKillProcessesInCgroup(func(ctx context.Context, dir string) error {
+	// Replace with syscallKill mock
+	restore = cgroup.MockKillProcessesInCgroup(func(ctx context.Context, dir string, freeze func(ctx context.Context), thaw func()) error {
+		c.Assert(freeze, IsNil)
+		c.Assert(thaw, IsNil)
 		// trim tmp root dir
 		dir = strings.TrimPrefix(dir, s.rootDir)
 		ops = append(ops, fmt.Sprintf("kill cgroup: %s", dir))
@@ -296,14 +314,35 @@ func (s *killSuite) testKillSnapProcessesError(c *C, cgVersion int, freezerOnly 
 
 	// But kept going
 	if cgVersion == cgroup.V1 {
-		c.Assert(ops, DeepEquals, []string{
-			"freeze-snap-processes-v1:foo",
-			// Pid 1 not killed due to error
-			// Pid 2 not killed due to error
-			"kill-pid:3, signal:9",
-			"kill-pid:4, signal:9",
-			"thaw-snap-processes-v1:foo",
-		})
+		if freezerOnly {
+			c.Assert(ops, DeepEquals, []string{
+				"freeze-snap-processes-v1:foo",
+				// Pid 1 not killed due to error
+				// Pid 2 not killed due to error
+				"kill-pid:3, signal:9",
+				"kill-pid:4, signal:9",
+				"thaw-snap-processes-v1:foo",
+			})
+		} else {
+			c.Assert(ops, DeepEquals, []string{
+				// freeze/kill/thaw for snap.foo.app-1.1234-1234-1234.scope
+				"freeze-snap-processes-v1:foo",
+				// Pid 1 not killed due to error
+				"thaw-snap-processes-v1:foo",
+				// freeze/kill/thaw for snap.foo.app-1.9876.scope
+				"freeze-snap-processes-v1:foo",
+				// Pid 2 not killed due to error
+				"kill-pid:3, signal:9",
+				"thaw-snap-processes-v1:foo",
+				// freeze/kill/thaw for snap.foo.app-2.some-scope.scope
+				"freeze-snap-processes-v1:foo",
+				"kill-pid:4, signal:9",
+				"thaw-snap-processes-v1:foo",
+				// freeze/kill/that for freezer cgroup since pids 1 and 2 are still not killed
+				"freeze-snap-processes-v1:foo",
+				"thaw-snap-processes-v1:foo",
+			})
+		}
 	} else {
 		c.Assert(ops, DeepEquals, []string{
 			// Pid 1 not killed due to error
@@ -346,7 +385,7 @@ func (s *killSuite) testKillSnapProcessesSkippedErrors(c *C, cgVersion int) {
 	mockCgroupsWithProcs(c, map[string][]string{cg: {"1"}})
 
 	var cgroupErr error
-	restore = cgroup.MockKillProcessesInCgroup(func(ctx context.Context, dir string) error {
+	restore = cgroup.MockKillProcessesInCgroup(func(ctx context.Context, dir string, freeze func(ctx context.Context), thaw func()) error {
 		return cgroupErr
 	})
 	defer restore()
@@ -383,10 +422,12 @@ func (s *killSuite) TestKillProcessesInCgroupForkingProcess(c *C) {
 	procs := filepath.Join(cg, "cgroup.procs")
 	c.Assert(os.WriteFile(procs, []byte(strconv.Itoa(pid)), 0644), IsNil)
 
+	var ops []string
 	restore := cgroup.MockSyscallKill(func(targetPid int, sig syscall.Signal) error {
 		c.Assert(targetPid, Equals, pid)
+		ops = append(ops, fmt.Sprintf("kill-pid:%d, signal:%d", pid, sig))
 		// Mock a new fork for next check
-		if pid < 10 {
+		if pid < 4 {
 			pid++
 			c.Assert(os.WriteFile(procs, []byte(strconv.Itoa(pid)), 0644), IsNil)
 		} else {
@@ -396,8 +437,25 @@ func (s *killSuite) TestKillProcessesInCgroupForkingProcess(c *C) {
 	})
 	defer restore()
 
-	c.Assert(cgroup.KillProcessesInCgroup(context.TODO(), cg), IsNil)
-	c.Assert(pid, Equals, 10)
+	mockFreeze := func(ctx context.Context) { ops = append(ops, "freeze") }
+	mockThaw := func() { ops = append(ops, "thaw") }
+
+	c.Assert(cgroup.KillProcessesInCgroup(context.TODO(), cg, mockFreeze, mockThaw), IsNil)
+	c.Assert(pid, Equals, 4)
+	c.Assert(ops, DeepEquals, []string{
+		// Pid 2
+		"freeze",
+		"kill-pid:2, signal:9",
+		"thaw",
+		// Pid 3
+		"freeze",
+		"kill-pid:3, signal:9",
+		"thaw",
+		// Pid 4
+		"freeze",
+		"kill-pid:4, signal:9",
+		"thaw",
+	})
 }
 
 func (s *killSuite) TestKillProcessesInCgroupPidNotFound(c *C) {
@@ -414,11 +472,20 @@ func (s *killSuite) TestKillProcessesInCgroupPidNotFound(c *C) {
 	})
 	defer restore()
 
-	c.Assert(cgroup.KillProcessesInCgroup(context.TODO(), cg), IsNil)
+	var freezeCalled, thawCalled int
+	mockFreeze := func(ctx context.Context) { freezeCalled++ }
+	mockThaw := func() { thawCalled++ }
+
+	c.Assert(cgroup.KillProcessesInCgroup(context.TODO(), cg, mockFreeze, mockThaw), IsNil)
 	c.Assert(n, Equals, 1)
+	c.Assert(freezeCalled, Equals, 1)
+	c.Assert(thawCalled, Equals, 1)
 }
 
-func (s *killSuite) TestKillProcessInCgroupTimeout(c *C) {
+func (s *killSuite) testKillProcessInCgroupTimeout(c *C, cgVersion int) {
+	restore := cgroup.MockVersion(cgVersion, nil)
+	defer restore()
+
 	cg := filepath.Join(s.rootDir, "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/snap.foo.app-1.1234-1234-1234.scope")
 	c.Assert(os.MkdirAll(cg, 0755), IsNil)
 
@@ -426,7 +493,7 @@ func (s *killSuite) TestKillProcessInCgroupTimeout(c *C) {
 	procs := filepath.Join(cg, "cgroup.procs")
 	c.Assert(os.WriteFile(procs, []byte(strconv.Itoa(pid)), 0644), IsNil)
 
-	restore := cgroup.MockSyscallKill(func(targetPid int, sig syscall.Signal) error {
+	restore = cgroup.MockSyscallKill(func(targetPid int, sig syscall.Signal) error {
 		c.Assert(targetPid, Equals, pid)
 		// Mock a new fork for next check
 		pid++
@@ -440,7 +507,17 @@ func (s *killSuite) TestKillProcessInCgroupTimeout(c *C) {
 	restore = cgroup.MockMaxKillTimeout(10 * time.Millisecond)
 	defer restore()
 
-	err := cgroup.KillProcessesInCgroup(context.TODO(), cg)
+	err := cgroup.KillSnapProcesses(context.TODO(), "foo")
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot kill processes in cgroup %q: context deadline exceeded", cg))
 	c.Assert(pid, Equals, 3)
+}
+
+func (s *killSuite) TestKillProcessInCgroupTimeoutV1(c *C) {
+	const cgVersion = cgroup.V1
+	s.testKillProcessInCgroupTimeout(c, cgVersion)
+}
+
+func (s *killSuite) TestKillProcessInCgroupTimeoutV2(c *C) {
+	const cgVersion = cgroup.V2
+	s.testKillProcessInCgroupTimeout(c, cgVersion)
 }

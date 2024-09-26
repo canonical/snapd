@@ -27,6 +27,8 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 // KillSnapProcesses sends a signal to all the processes belonging to
@@ -54,18 +56,22 @@ var KillSnapProcesses = func(ctx context.Context, snapName string) error {
 
 var syscallKill = syscall.Kill
 
-var maxKillTimeout = 1 * time.Minute
+var maxKillTimeout = 5 * time.Minute
+var killThawCooldown = 100 * time.Millisecond
 
-// killProcessesInCgroup sends signal to all the processes belonging to
+// killProcessesInCgroup sends SIGKILL signal to all the processes belonging to
 // passed cgroup directory.
 //
 // The caller is responsible for making sure that pids are not reused
 // after reading `cgroup.procs` to avoid TOCTOU.
-var killProcessesInCgroup = func(ctx context.Context, dir string) error {
+//
+// The freeze() callback is called exactly before killing pids is started while the thaw()
+// callback is called exactly after killing pids ends and before returning errors to give
+// a chance to recover a cgroup from a frozen state. Not propagating errors from the
+// callbacks is intentional to make it clear that they are best effort.
+var killProcessesInCgroup = func(ctx context.Context, dir string, freeze func(ctx context.Context), thaw func()) error {
 	// Keep sending SIGKILL signals until no more pids are left in cgroup
 	// to cover the case where a process forks before we kill it.
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, maxKillTimeout)
-	defer cancel()
 	for {
 		pids, err := pidsInFile(filepath.Join(dir, "cgroup.procs"))
 		if err != nil {
@@ -76,20 +82,27 @@ var killProcessesInCgroup = func(ctx context.Context, dir string) error {
 			return nil
 		}
 
-		// This prevents a rouge fork bomb from keeping this loop running forever
-		select {
-		case <-ctxWithTimeout.Done():
-			return fmt.Errorf("cannot kill processes in cgroup %q: %w", dir, ctxWithTimeout.Err())
-		default:
+		if freeze != nil {
+			freeze(ctx)
 		}
-
 		var firstErr error
 		for _, pid := range pids {
+			// This prevents a rouge fork bomb from keeping this loop running forever
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("cannot kill processes in cgroup %q: %w", dir, ctx.Err())
+			default:
+			}
+
 			pidNotFoundErr := syscall.ESRCH
 			// TODO: Use pidfs when possible to avoid killing reused pids.
 			if err := syscallKill(pid, syscall.SIGKILL); err != nil && !errors.Is(err, pidNotFoundErr) && firstErr == nil {
 				firstErr = err
 			}
+		}
+		if thaw != nil {
+			// thaw() must be called before returning to avoid keeping cgroup stuck after freeze()
+			thaw()
 		}
 		if firstErr != nil {
 			return firstErr
@@ -105,16 +118,32 @@ func isCgroupNotExistErr(err error) bool {
 }
 
 func killSnapProcessesImplV1(ctx context.Context, snapName string) error {
-	err := freezeSnapProcessesImplV1(ctx, snapName)
-	if err != nil && !isCgroupNotExistErr(err) {
-		return err
-	}
-	// For V1, SIGKILL on a frozen cgroup will not take effect
-	// until the cgroup is thawed
-	defer thawSnapProcessesImplV1(snapName)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, maxKillTimeout)
+	defer cancel()
 
+	freeze := func(ctx context.Context) {
+		// This is best effort freezing, ignore all errors and continue with
+		// processes killing.
+		// This accounts for two scenarios:
+		//   - Classic snaps without a freezer cgroup
+		//   - A bug in some kernel versions where sometimes a cgroup get stuck
+		//     in FREEZING state. Given that maxKillTimeout is bigger than timeout passed to freezer
+		//     This gives a chance to thaw the cgroup and trying again.
+		ctxWithTimeout, cancel := context.WithTimeout(ctx, 1*time.Second)
+		defer cancel()
+		err := freezeSnapProcessesImplV1(ctxWithTimeout, snapName)
+		if err != nil && !isCgroupNotExistErr(err) {
+			logger.Noticef("could not freeze cgroup while killing %q processes: %v", snapName, err)
+		}
+	}
+	thaw := func() {
+		// SIGKILL on a frozen cgroup will not take effect until the cgroup is thawed
+		thawSnapProcessesImplV1(snapName)
+		// Give for the sent SIGKILL signals to take effect on the next loop
+		time.Sleep(killThawCooldown)
+	}
 	killCgroupProcs := func(dir string) error {
-		return killProcessesInCgroup(ctx, dir)
+		return killProcessesInCgroup(ctxWithTimeout, dir, freeze, thaw)
 	}
 
 	var firstErr error
@@ -134,7 +163,7 @@ func killSnapProcessesImplV1(ctx context.Context, snapName string) error {
 	// by the usual snap.<security-tag>-<uuid>.scope pattern.
 	// Here, We rely on the fact that snap-confine moves the snap pids into the freezer cgroup
 	// created for the snap.
-	err = killProcessesInCgroup(ctx, filepath.Join(freezerCgroupV1Dir, fmt.Sprintf("snap.%s", snapName)))
+	err := killProcessesInCgroup(ctxWithTimeout, filepath.Join(freezerCgroupV1Dir, fmt.Sprintf("snap.%s", snapName)), freeze, thaw)
 	if err != nil && !isCgroupNotExistErr(err) && firstErr == nil {
 		firstErr = err
 	}
@@ -143,6 +172,9 @@ func killSnapProcessesImplV1(ctx context.Context, snapName string) error {
 }
 
 func killSnapProcessesImplV2(ctx context.Context, snapName string) error {
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, maxKillTimeout)
+	defer cancel()
+
 	killCgroupProcs := func(dir string) error {
 		// Use cgroup.kill if it exists (requires linux 5.14+)
 		err := writeExistingFile(filepath.Join(dir, "cgroup.kill"), []byte("1"))
@@ -163,7 +195,7 @@ func killSnapProcessesImplV2(ctx context.Context, snapName string) error {
 			return err
 		}
 
-		if err := killProcessesInCgroup(ctx, dir); err != nil {
+		if err := killProcessesInCgroup(ctxWithTimeout, dir, nil, nil); err != nil {
 			return err
 		}
 		return nil
