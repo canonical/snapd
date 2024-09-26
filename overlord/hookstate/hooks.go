@@ -101,10 +101,11 @@ func SetupPostRefreshComponentHook(st *state.State, snap, component string) *sta
 
 func SetupRemoveComponentHook(st *state.State, snap, component string) *state.Task {
 	hooksup := &HookSetup{
-		Snap:      snap,
-		Component: component,
-		Hook:      "remove",
-		Optional:  true,
+		Snap:        snap,
+		Component:   component,
+		Hook:        "remove",
+		Optional:    true,
+		IgnoreError: true,
 	}
 
 	summary := fmt.Sprintf(i18n.G(`Run remove hook of "%s+%s" component if present`), hooksup.Snap, hooksup.Component)
