@@ -450,10 +450,13 @@ prepare_classic() {
 
         snap list | grep core
 
-        systemctl stop snapd.{service,socket}
-        # repack and also make a side copy of the core snap
-        update_core_snap_for_classic_reexec "$TESTSTMP/core_snap"
-        systemctl start snapd.{service,socket}
+        # No need to update the core snap when the snap pkg is not being built from local changes
+        if not tests.info is-snapd-pkg-repo; then
+            systemctl stop snapd.{service,socket}
+            # repack and also make a side copy of the core snap
+            update_core_snap_for_classic_reexec "$TESTSTMP/core_snap"
+            systemctl start snapd.{service,socket}
+        fi
 
         prepare_reexec_override
         prepare_memory_limit_override
