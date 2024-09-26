@@ -8,6 +8,8 @@ systems:
     # Ubuntu 14.04's special version of systemd doesn't have StartTransientUnit API.
     - -ubuntu-14.04-*
 
+kill-timeout: 10m
+
 environment:
     BAD_SNAP/fork_bomb: fork-bomb
     BAD_SNAP/no_fork_bomb: no-fork-bomb
@@ -15,9 +17,21 @@ environment:
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local fork-bomb
 
+    if [ "$BAD_SNAP" = "fork-bomb" ]; then
+        tests.session -u test prepare
+        uid="$(id -u test)"
+        systemctl set-property "user-$uid.slice" TasksMax=1000
+    fi
+
 restore: |
-    systemctl stop test-kill.service || true
-    systemctl reset-failed test-kill.service || true
+    if [ "$BAD_SNAP" = "fork-bomb" ]; then
+        tests.session -u test restore
+        tests.session -u test exec systemctl --user stop test-kill.service || true
+        tests.session -u test exec systemctl --user reset-failed test-kill.service || true
+    else
+        systemctl stop test-kill.service || true
+        systemctl reset-failed test-kill.service || true
+    fi
 
 debug: |
     journalctl -u test-kill.service
@@ -26,17 +40,19 @@ execute: |
     echo "Start a long running process"
     lockfile="$(pwd)/lockfile"
     touch "$lockfile"
+    alive_check="/var/snap/fork-bomb/common/alive"
 
     sh_snap_bin="$(command -v fork-bomb.sh)"
     if [ "$BAD_SNAP" = "fork-bomb" ]; then
+        #shellcheck disable=SC2016,SC2086
+        alive_check="$(tests.session -u test exec $sh_snap_bin -c 'echo $SNAP_USER_COMMON/alive')"
         #shellcheck disable=SC2016
-        systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c 'touch /var/snap/fork-bomb/common/alive; $SNAP/bin/bomb'
+        tests.session -u test exec systemd-run --user --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c 'touch $SNAP_USER_COMMON/alive; sleep 100000'
     else
-        #shellcheck disable=SC2016
         systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c 'touch /var/snap/fork-bomb/common/alive; sleep 100000'
     fi
-    # Wait for service to be up
-    retry -n 10 test -f /var/snap/fork-bomb/common/alive
+    # Wait for snap to start
+    retry -n 10 test -f "$alive_check"
 
     echo "Lock is held"
     not flock --timeout 0 "$lockfile" --command "true"
