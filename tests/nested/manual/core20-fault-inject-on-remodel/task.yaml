@@ -14,12 +14,16 @@ environment:
 
     TAG/gadget_panic_remodel_boot_assets: remodel-boot-assets
     FAULT/gadget_panic_remodel_boot_assets: panic
+    STATUS/gadget_panic_remodel_boot_assets: Done
     TAG/gadget_reboot_remodel_boot_assets: remodel-boot-assets
     FAULT/gadget_reboot_remodel_boot_assets: reboot
+    STATUS/gadget_reboot_remodel_boot_assets: Error
     TAG/kernel_panic_remodel_boot_assets: remodel-boot-assets
     FAULT/kernel_panic_remodel_boot_assets: panic
+    STATUS/kernel_panic_remodel_boot_assets: Done
     TAG/kernel_reboot_remodel_boot_assets: remodel-boot-assets
     FAULT/kernel_reboot_remodel_boot_assets: reboot
+    STATUS/kernel_reboot_remodel_boot_assets: Error
 
 prepare: |
     tests.nested build-image core
@@ -90,7 +94,7 @@ execute: |
     echo "And snap remodel is completed"
     remote.exec "snap watch $change_id" || true
     # shellcheck disable=SC2016
-    retry --wait 1 -n 60 --env "CHANGE_ID=$change_id" --env "SNAP=$SNAP" sh -c 'remote.exec snap changes | MATCH "${CHANGE_ID} .* (Done|Error) .*"'
+    retry --wait 1 -n 120 --env "CHANGE_ID=$change_id" --env "SNAP=$SNAP" sh -c 'remote.exec snap changes | MATCH "${CHANGE_ID} .* (Done|Error) .*"'
 
     # Check if the fault was injected
     remote.exec "test -e /var/lib/snapd/faults/$TAG:$FAULT"
@@ -104,7 +108,11 @@ execute: |
 
     FINAL_STATUS="$(remote.exec snap changes | grep -E "^$change_id .*" | awk ' {print $2} ')"
 
-    echo "Ensure the remodel was done"
-    [ "$FINAL_STATUS" = Done ]
-    remote.exec "snap list hello-world"
-
+    [ "$FINAL_STATUS" = "$STATUS" ]
+    if [ "$FINAL_STATUS" = Error ]; then
+        echo "Ensure the remodel was not done"
+        not remote.exec "snap list hello-world"
+    else
+        echo "Ensure the remodel was done"
+        remote.exec "snap list hello-world"
+    fi
