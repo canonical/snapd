@@ -20,9 +20,13 @@ package registrystate_test
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
@@ -33,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/registrystate"
@@ -321,79 +326,7 @@ func (s *registryTestSuite) TestRegistrystateGetEntireView(c *C) {
 	})
 }
 
-func (s *registryTestSuite) TestRegistryTransaction(c *C) {
-	mkRegistry := func(account, name string) *registry.Registry {
-		reg, err := registry.New(account, name, map[string]interface{}{
-			"bar": map[string]interface{}{
-				"rules": []interface{}{
-					map[string]interface{}{"request": "foo", "storage": "foo"},
-				},
-			},
-		}, registry.NewJSONSchema())
-		c.Assert(err, IsNil)
-		return reg
-	}
-
-	s.state.Lock()
-	task := s.state.NewTask("test-task", "my test task")
-	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
-	s.state.Unlock()
-	mockHandler := hooktest.NewMockHandler()
-
-	type testcase struct {
-		acc1, acc2 string
-		reg1, reg2 string
-		equals     bool
-	}
-
-	tcs := []testcase{
-		{
-			// same transaction
-			acc1: "acc-1", reg1: "reg-1",
-			acc2: "acc-1", reg2: "reg-1",
-			equals: true,
-		},
-		{
-			// different registry name, different transaction
-			acc1: "acc-1", reg1: "reg-1",
-			acc2: "acc-1", reg2: "reg-2",
-		},
-		{
-			// different account, different transaction
-			acc1: "acc-1", reg1: "reg-1",
-			acc2: "acc-2", reg2: "reg-1",
-		},
-		{
-			// both different, different transaction
-			acc1: "acc-1", reg1: "reg-1",
-			acc2: "acc-2", reg2: "reg-2",
-		},
-	}
-
-	for _, tc := range tcs {
-		ctx, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
-		c.Assert(err, IsNil)
-		ctx.Lock()
-
-		reg1 := mkRegistry(tc.acc1, tc.reg1)
-		reg2 := mkRegistry(tc.acc2, tc.reg2)
-
-		tx1, err := registrystate.RegistryTransaction(ctx, reg1)
-		c.Assert(err, IsNil)
-
-		tx2, err := registrystate.RegistryTransaction(ctx, reg2)
-		c.Assert(err, IsNil)
-
-		if tc.equals {
-			c.Assert(tx1, Equals, tx2)
-		} else {
-			c.Assert(tx1, Not(Equals), tx2)
-		}
-		ctx.Unlock()
-	}
-}
-
-func mockInstalledSnap(c *C, st *state.State, snapYaml, cohortKey string) *snap.Info {
+func mockInstalledSnap(c *C, st *state.State, snapYaml string, hooks []string) *snap.Info {
 	info := snaptest.MockSnapCurrent(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
 	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
 		Active: true,
@@ -406,8 +339,14 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml, cohortKey string) *snap.
 		}),
 		Current:         info.Revision,
 		TrackingChannel: "stable",
-		CohortKey:       cohortKey,
 	})
+
+	for _, hook := range hooks {
+		c.Assert(os.MkdirAll(info.HooksDir(), 0775), IsNil)
+		err := os.WriteFile(filepath.Join(info.HooksDir(), hook), nil, 0755)
+		c.Assert(err, IsNil)
+	}
+
 	return info
 }
 
@@ -470,7 +409,7 @@ plugs:
     account: %[1]s
     view: reg/view-4
 `, s.devAccID)
-	info := mockInstalledSnap(c, s.state, snapYaml, "")
+	info := mockInstalledSnap(c, s.state, snapYaml, nil)
 
 	appSet, err := interfaces.NewSnapAppSet(info, nil)
 	c.Assert(err, IsNil)
@@ -484,7 +423,7 @@ slots:
  registry-slot:
   interface: registry
 `
-	info = mockInstalledSnap(c, s.state, coreYaml, "")
+	info = mockInstalledSnap(c, s.state, coreYaml, nil)
 
 	coreSet, err := interfaces.NewSnapAppSet(info, nil)
 	c.Assert(err, IsNil)
@@ -529,8 +468,17 @@ func (s *registryTestSuite) TestRegistryTasksUserSetWithCustodianInstalled(c *C)
 	chg := s.state.NewChange("modify-registry", "")
 
 	// a user (not a snap) changes a registry
-	err = registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "")
+	ts, err := registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "")
 	c.Assert(err, IsNil)
+
+	// there are two edges in the taskset
+	commitTask, err := ts.Edge(registrystate.CommitEdge)
+	c.Assert(err, IsNil)
+	c.Assert(commitTask.Kind(), Equals, "commit-registry-tx")
+
+	cleanupTask, err := ts.Edge(registrystate.LastEdge)
+	c.Assert(err, IsNil)
+	c.Assert(cleanupTask.Kind(), Equals, "clear-registry-tx")
 
 	// the custodian snap's hooks are run
 	tasks := []string{"clear-registry-tx-on-error", "run-hook", "run-hook", "run-hook", "commit-registry-tx", "clear-registry-tx"}
@@ -575,7 +523,7 @@ func (s *registryTestSuite) TestRegistryTasksCustodianSnapSet(c *C) {
 	chg := s.state.NewChange("modify-registry", "")
 
 	// a user (not a snap) changes a registry
-	err = registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "custodian-snap")
+	_, err = registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "custodian-snap")
 	c.Assert(err, IsNil)
 
 	// the custodian snap's hooks are run
@@ -615,7 +563,7 @@ func (s *registryTestSuite) TestRegistryTasksObserverSnapSetWithCustodianInstall
 	chg := s.state.NewChange("modify-registry", "")
 
 	// a non-custodian snap modifies a registry
-	err = registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "test-snap-1")
+	_, err = registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "test-snap-1")
 	c.Assert(err, IsNil)
 
 	// we trigger hooks for the custodian snap and for the -view-changed for the
@@ -681,7 +629,7 @@ func (s *registryTestSuite) testRegistryTasksNoCustodian(c *C) {
 	chg := s.state.NewChange("modify-registry", "")
 
 	// a non-custodian snap modifies a registry
-	err = registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "test-snap-1")
+	_, err = registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "test-snap-1")
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot commit changes to registry %s/network: no custodian snap installed", s.devAccID))
 }
 
@@ -701,7 +649,7 @@ slots:
   registry-slot:
     interface: registry
 `
-	info := mockInstalledSnap(c, s.state, coreYaml, "")
+	info := mockInstalledSnap(c, s.state, coreYaml, nil)
 
 	coreSet, err := interfaces.NewSnapAppSet(info, nil)
 	c.Assert(err, IsNil)
@@ -709,7 +657,7 @@ slots:
 	err = s.repo.AddAppSet(coreSet)
 	c.Assert(err, IsNil)
 
-	mockSnap := func(snapName string, isCustodian bool) {
+	mockSnap := func(snapName string, isCustodian bool, hooks []string) {
 		snapYaml := fmt.Sprintf(`name: %s
 version: 1
 type: app
@@ -725,12 +673,10 @@ plugs:
 				`    role: custodian`
 		}
 
-		info := mockInstalledSnap(c, s.state, snapYaml, "")
-
-		// by default, mock all the hooks a custodians can have
-		for _, hookName := range []string{"change-view-setup", "save-view-setup", "setup-view-changed"} {
-			info.Hooks[hookName] = &snap.HookInfo{
-				Name: hookName,
+		info := mockInstalledSnap(c, s.state, snapYaml, hooks)
+		for _, hook := range hooks {
+			info.Hooks[hook] = &snap.HookInfo{
+				Name: hook,
 				Snap: info,
 			}
 		}
@@ -749,15 +695,17 @@ plugs:
 	}
 
 	// mock custodians
+	hooks := []string{"change-view-setup", "save-view-setup", "setup-view-changed"}
 	for _, snap := range custodians {
 		isCustodian := true
-		mockSnap(snap, isCustodian)
+		mockSnap(snap, isCustodian, hooks)
 	}
 
 	// mock non-custodians
+	hooks = []string{"change-view-setup", "save-view-setup", "setup-view-changed", "install"}
 	for _, snap := range nonCustodians {
 		isCustodian := false
-		mockSnap(snap, isCustodian)
+		mockSnap(snap, isCustodian, hooks)
 	}
 }
 
@@ -843,4 +791,321 @@ func (s *registryTestSuite) TestGetStoredTransaction(c *C) {
 		c.Assert(storedTx.AlteredPaths(), DeepEquals, tx.AlteredPaths())
 		c.Assert(carryingTask, Equals, commitTask)
 	}
+}
+
+func (s *registryTestSuite) checkOngoingRegistryTransaction(c *C, account, registryName string) {
+	var commitTasks map[string]string
+	err := s.state.Get("registry-commit-tasks", &commitTasks)
+	c.Assert(err, IsNil)
+
+	registryRef := account + "/" + registryName
+	taskID, ok := commitTasks[registryRef]
+	c.Assert(ok, Equals, true)
+	commitTask := s.state.Task(taskID)
+	c.Assert(commitTask.Kind(), Equals, "commit-registry-tx")
+	c.Assert(commitTask.Status(), Equals, state.DoStatus)
+}
+
+func (s *registryTestSuite) TestGetTransactionFromUserCreatesNewChange(c *C) {
+	hooks, restore := s.mockRegistryHooks(c)
+	defer restore()
+
+	restore = registrystate.MockEnsureNow(func(*state.State) {
+		s.checkOngoingRegistryTransaction(c, s.devAccID, "network")
+
+		go s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// only one custodian snap is installed
+	s.setupRegistryModificationScenario(c, []string{"custodian-snap"}, nil)
+
+	view := s.registry.View("setup-wifi")
+
+	ctx := registrystate.NewContext(nil)
+	tx, err := registrystate.GetTransaction(ctx, s.state, view)
+	c.Assert(err, IsNil)
+	c.Assert(tx, NotNil)
+
+	err = tx.Set("wifi.ssid", "foo")
+	c.Assert(err, IsNil)
+
+	// mock the daemon calling Done() in api_registry
+	ctx.Done()
+
+	c.Assert(s.state.Changes(), HasLen, 1)
+	chg := s.state.Changes()[0]
+	c.Assert(chg.Kind(), Equals, "modify-registry")
+
+	s.checkModifyRegistryChange(c, chg, hooks)
+}
+
+func (s *registryTestSuite) TestGetTransactionFromSnapCreatesNewChange(c *C) {
+	hooks, restore := s.mockRegistryHooks(c)
+	defer restore()
+
+	restore = registrystate.MockEnsureNow(func(*state.State) {
+		s.checkOngoingRegistryTransaction(c, s.devAccID, "network")
+
+		go s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// only one custodian snap is installed
+	s.setupRegistryModificationScenario(c, []string{"custodian-snap"}, []string{"test-snap"})
+
+	ctx, err := hookstate.NewContext(nil, s.state, &hookstate.HookSetup{Snap: "test-snap"}, nil, "")
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	stdout, stderr, err := ctlcmd.Run(ctx, []string{"set", "--view", ":setup", "ssid=foo"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+
+	// the daemon calls Done() in api_snapctl
+	ctx.Lock()
+	ctx.Done()
+	ctx.Unlock()
+
+	s.state.Lock()
+	c.Assert(s.state.Changes(), HasLen, 1)
+	chg := s.state.Changes()[0]
+	c.Assert(chg.Kind(), Equals, "modify-registry")
+
+	s.checkModifyRegistryChange(c, chg, hooks)
+}
+
+func (s *registryTestSuite) TestGetTransactionFromNonRegistryHookAddsRegistryTx(c *C) {
+	var hooks []string
+	restore := hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
+		t, _ := ctx.Task()
+
+		ctx.State().Lock()
+		var hooksup *hookstate.HookSetup
+		err := t.Get("hook-setup", &hooksup)
+		ctx.State().Unlock()
+		if err != nil {
+			return nil, err
+		}
+
+		if hooksup.Hook == "install" {
+			_, _, err := ctlcmd.Run(ctx, []string{"set", "--view", ":setup", "ssid=foo"}, 0)
+			c.Assert(err, IsNil)
+			return nil, nil
+		}
+
+		hooks = append(hooks, hooksup.Hook)
+		return nil, nil
+	})
+	defer restore()
+
+	restore = registrystate.MockEnsureNow(func(st *state.State) {
+		// we actually want to call ensure here (since we use Loop) but check the
+		// transaction was added to the state as usual
+		s.checkOngoingRegistryTransaction(c, s.devAccID, "network")
+		st.EnsureBefore(0)
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	// only one custodian snap is installed
+	s.setupRegistryModificationScenario(c, []string{"custodian-snap"}, []string{"test-snap"})
+
+	hookTask := s.state.NewTask("run-hook", "")
+	chg := s.state.NewChange("install", "")
+	chg.AddTask(hookTask)
+
+	hooksup := &hookstate.HookSetup{
+		Snap: "test-snap",
+		Hook: "install",
+	}
+	hookTask.Set("hook-setup", hooksup)
+	s.state.Unlock()
+
+	c.Assert(s.o.StartUp(), IsNil)
+	s.state.EnsureBefore(0)
+	s.o.Loop()
+	defer s.o.Stop()
+
+	select {
+	case <-chg.Ready():
+	case <-time.After(5 * time.Second):
+		c.Fatalf("test timed out")
+	}
+
+	s.state.Lock()
+	s.checkModifyRegistryChange(c, chg, &hooks)
+}
+
+func (s *registryTestSuite) mockRegistryHooks(c *C) (*[]string, func()) {
+	var hooks []string
+	restore := hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
+		t, _ := ctx.Task()
+		ctx.State().Lock()
+		defer ctx.State().Unlock()
+
+		var hooksup *hookstate.HookSetup
+		err := t.Get("hook-setup", &hooksup)
+		if err != nil {
+			return nil, err
+		}
+
+		hooks = append(hooks, hooksup.Hook)
+		return nil, nil
+	})
+
+	return &hooks, restore
+}
+
+func (s *registryTestSuite) checkModifyRegistryChange(c *C, chg *state.Change, hooks *[]string) {
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+	c.Assert(*hooks, DeepEquals, []string{"change-view-setup", "save-view-setup", "setup-view-changed"})
+
+	commitTask := findTask(chg, "commit-registry-tx")
+	tx, _, err := registrystate.GetStoredTransaction(commitTask)
+	c.Assert(err, IsNil)
+
+	// the state was cleared
+	var txCommits map[string]string
+	err = s.state.Get("registry-tx-commits", &txCommits)
+	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
+
+	err = tx.Clear(s.state)
+	c.Assert(err, IsNil)
+
+	// was committed (otherwise would've been removed by Clear)
+	val, err := tx.Get("wifi.ssid")
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "foo")
+}
+
+func (s *registryTestSuite) TestGetTransactionDifferentFromOngoingOnlyForRead(c *C) {
+}
+
+func (s *registryTestSuite) TestGetTransactionFromChangeViewHook(c *C) {
+	ctx := s.testGetReadableOngoingTransaction(c, "change-view-setup")
+
+	// change-view hooks can also write to the transaction
+	stdout, stderr, err := ctlcmd.Run(ctx, []string{"set", "--view", ":setup", "ssid=bar"}, 0)
+	c.Assert(err, IsNil)
+	// accessed an ongoing transaction
+	c.Assert(stdout, IsNil)
+	c.Assert(stderr, IsNil)
+
+	// this save the changes that the hook performs
+	ctx.Lock()
+	ctx.Done()
+	ctx.Unlock()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	t, _ := ctx.Task()
+	tx, _, err := registrystate.GetStoredTransaction(t)
+	c.Assert(err, IsNil)
+
+	val, err := tx.Get("wifi.ssid")
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "bar")
+}
+
+func (s *registryTestSuite) TestGetTransactionFromSaveViewHook(c *C) {
+	ctx := s.testGetReadableOngoingTransaction(c, "save-view-setup")
+
+	// non change-view hooks cannot modify the transaction
+	stdout, stderr, err := ctlcmd.Run(ctx, []string{"set", "--view", ":setup", "ssid=bar"}, 0)
+	c.Assert(err, ErrorMatches, `cannot modify registry in "save-view-setup" hook`)
+	c.Assert(stdout, IsNil)
+	c.Assert(stderr, IsNil)
+}
+
+func (s *registryTestSuite) TestGetTransactionFromViewChangedHook(c *C) {
+	ctx := s.testGetReadableOngoingTransaction(c, "setup-view-changed")
+
+	// non change-view hooks cannot modify the transaction
+	stdout, stderr, err := ctlcmd.Run(ctx, []string{"set", "--view", ":setup", "ssid=bar"}, 0)
+	c.Assert(err, ErrorMatches, `cannot modify registry in "setup-view-changed" hook`)
+	c.Assert(stdout, IsNil)
+	c.Assert(stderr, IsNil)
+}
+
+func (s *registryTestSuite) testGetReadableOngoingTransaction(c *C, hook string) *hookstate.Context {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupRegistryModificationScenario(c, []string{"custodian-snap"}, []string{"test-snap"})
+
+	originalTx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	err = originalTx.Set("wifi.ssid", "foo")
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("test", "")
+	commitTask := s.state.NewTask("commit-registry-tx", "")
+	commitTask.Set("registry-transaction", originalTx)
+	chg.AddTask(commitTask)
+
+	hookTask := s.state.NewTask("run-hook", "")
+	chg.AddTask(hookTask)
+	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: hook}
+	mockHandler := hooktest.NewMockHandler()
+	hookTask.Set("commit-task", commitTask.ID())
+
+	ctx, err := hookstate.NewContext(hookTask, s.state, setup, mockHandler, "")
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	stdout, stderr, err := ctlcmd.Run(ctx, []string{"get", "--view", ":setup", "ssid"}, 0)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+	// accessed an ongoing transaction
+	c.Assert(string(stdout), Equals, "foo\n")
+	c.Assert(stderr, IsNil)
+
+	return ctx
+}
+
+func (s *registryTestSuite) TestGetDifferentTransactionThanOngoing(c *C) {
+	s.state.Lock()
+
+	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("some-change", "")
+	commitTask := s.state.NewTask("commit", "")
+	chg.AddTask(commitTask)
+	commitTask.Set("registry-transaction", tx)
+
+	refTask := s.state.NewTask("change-view-setup", "")
+	chg.AddTask(refTask)
+	refTask.Set("commit-task", commitTask.ID())
+
+	// make some other registry to access concurrently
+	reg, err := registry.New("foo", "bar", map[string]interface{}{
+		"foo": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{"request": "foo", "storage": "foo"},
+			}}}, registry.NewJSONSchema())
+	c.Assert(err, IsNil)
+	s.state.Unlock()
+
+	mockHandler := hooktest.NewMockHandler()
+	setup := &hookstate.HookSetup{Snap: "test-snap", Hook: "change-view-setup"}
+	hookCtx, err := hookstate.NewContext(refTask, s.state, setup, mockHandler, "")
+	c.Assert(err, IsNil)
+
+	hookCtx.Lock()
+	ctx := registrystate.NewContext(hookCtx)
+	tx, err = registrystate.GetTransaction(ctx, s.state, reg.View("foo"))
+	hookCtx.Unlock()
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot access registry foo/bar: ongoing transaction for %s/network`, s.devAccID))
+	c.Assert(tx, IsNil)
 }

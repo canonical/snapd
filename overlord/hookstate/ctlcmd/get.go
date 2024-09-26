@@ -39,6 +39,8 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+var registrystateGetTransaction = registrystate.GetTransaction
+
 type getCommand struct {
 	baseCommand
 
@@ -369,7 +371,8 @@ func (c *getCommand) getRegistryValues(ctx *hookstate.Context, plugName string, 
 		return fmt.Errorf("cannot get registry: %v", err)
 	}
 
-	tx, err := registrystate.RegistryTransaction(ctx, view.Registry())
+	regCtx := registrystate.NewContext(ctx)
+	tx, err := registrystateGetTransaction(regCtx, ctx.State(), view)
 	if err != nil {
 		return err
 	}

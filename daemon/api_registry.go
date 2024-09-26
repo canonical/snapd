@@ -60,6 +60,7 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		fields = strutil.CommaSeparatedList(fieldStr)
 	}
 
+	// TODO: replace access w/ GetTransaction
 	results, err := registrystateGetViaView(st, account, registryName, view, fields)
 	if err != nil {
 		return toAPIError(err)
@@ -86,6 +87,7 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return BadRequest("cannot decode registry request body: %v", err)
 	}
 
+	// TODO: replace w/ GetTransaction + call ctx.Done() then return changeID
 	err := registrystateSetViaView(st, account, registryName, view, values)
 	if err != nil {
 		return toAPIError(err)

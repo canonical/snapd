@@ -235,13 +235,15 @@ func setRegistryValues(ctx *hookstate.Context, plugName string, requests map[str
 		return fmt.Errorf("cannot set registry: %v", err)
 	}
 
-	tx, err := registrystate.RegistryTransaction(ctx, view.Registry())
+	if registrystate.IsRegistryHook(ctx) && !strings.HasPrefix(ctx.HookName(), "change-view-") {
+		return fmt.Errorf("cannot modify registry in %q hook", ctx.HookName())
+	}
+
+	regCtx := registrystate.NewContext(ctx)
+	tx, err := registrystateGetTransaction(regCtx, ctx.State(), view)
 	if err != nil {
 		return err
 	}
-
-	// TODO: once we have hooks, check that we don't set values in the wrong hooks
-	// (e.g., "registry-changed" hooks can only read data)
 
 	return registrystate.SetViaViewInTx(tx, view, requests)
 }
