@@ -188,9 +188,9 @@ var u2fDevices = []u2fDevice{
 		ProductIDPattern: "8055",
 	},
 	{
-		Name:             "TrustKey TrustKey G310H",
+		Name:             "TrustKeys FIDO2 U2F",
 		VendorIDPattern:  "311f",
-		ProductIDPattern: "4a2a",
+		ProductIDPattern: "4a2a|a6e9",
 	},
 	{
 		Name:             "OneSpan DIGIPASS FX Series",
