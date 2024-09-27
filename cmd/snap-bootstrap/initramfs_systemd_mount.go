@@ -494,3 +494,38 @@ func writeSysrootMountUnit(what, mntType string) error {
 	}
 	return nil
 }
+
+// writeSnapMountUnit writes a mount unit for a snap but does not activate it.
+// It uses destRoot as rootfs under which to store the unit.
+func writeSnapMountUnit(destRoot, what, where string, unitType systemd.MountUnitType, description string) error {
+	hostFsType, options := systemd.HostFsTypeAndMountOptions("squashfs")
+	mountOptions := &systemd.MountUnitOptions{
+		Lifetime:                 systemd.Persistent,
+		Description:              description,
+		What:                     dirs.StripRootDir(what),
+		Where:                    dirs.StripRootDir(where),
+		Fstype:                   hostFsType,
+		Options:                  options,
+		MountUnitType:            unitType,
+		RootDir:                  destRoot,
+		PreventRestartIfModified: true,
+	}
+	unitFileName, _, err := systemd.EnsureMountUnitFileContent(mountOptions)
+	if err != nil {
+		return err
+	}
+	// Make sure the unit is activated
+	unitFilePath := filepath.Join(dirs.SnapServicesDir, unitFileName)
+	for _, target := range []string{"multi-user.target.wants", "snapd.mounts.target.wants"} {
+		linkDir := filepath.Join(dirs.SnapServicesDirUnder(destRoot), target)
+		if err := os.MkdirAll(linkDir, 0755); err != nil {
+			return err
+		}
+		linkPath := filepath.Join(linkDir, unitFileName)
+		if err := osutil.AtomicSymlink(unitFilePath, linkPath); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
