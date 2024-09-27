@@ -161,12 +161,14 @@ save_installed_core_snap() {
     LIBEXEC_DIR="$(os.paths libexec-dir)"
     core="$(readlink -f "$SNAP_MOUNT_DIR/core/current" || readlink -f "$SNAP_MOUNT_DIR/ubuntu-core/current")"
     snap="$(mount | grep " $core" | head -n 1 | awk '{print $1}')"
+    snap_name="$(basename "$snap")"
 
     # make a copy for later use
     if [ -n "$target_dir" ]; then
         mkdir -p "$target_dir"
-        cp "$snap" "${target_dir}/${snap}"
-        cp "$snap" "${target_dir}/${snap}.orig"
+
+        cp -av "$snap" "${target_dir}/${snap_name}"
+        cp "$snap" "${target_dir}/${snap_name}.orig"
     fi
 }
 
