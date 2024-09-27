@@ -550,6 +550,7 @@ build_snapd_snap() {
                         ;;
                 esac
                 [ -d "${TARGET}" ] || mkdir -p "${TARGET}"
+                touch "${PROJECT_PATH}"/test-build
                 chmod -R go+r "${PROJECT_PATH}/tests"
                 # TODO: run_snapcraft does not currently guarantee or check the required version for building snapd
                 run_snapcraft --use-lxd --verbosity quiet --output="snapd_from_snapcraft.snap"
