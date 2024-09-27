@@ -7,6 +7,11 @@ details: |
     removal no leftovers remain in the mounting area.
 
 execute: |
+    # When snapd.deb is from the repo, we just need to test when re-exec is enabled
+    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
+        exit
+    fi
+
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"

@@ -9,6 +9,12 @@ details: |
     modified the code in unintended ways.
 
 execute: |
+    # When snapd.deb is from the repo, we just need to test when re-exec is enabled
+    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
+        touch .skip
+        exit
+    fi
+
     # TODO: fix dirty version number on riscv
     echo "Ensure the version number is not 'dirty'"
     if not uname -m | MATCH riscv64; then

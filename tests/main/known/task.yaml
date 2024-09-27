@@ -7,6 +7,11 @@ details: |
     properties in general.
 
 execute: |
+    # When snapd.deb is from the repo, we just need to test when re-exec is enabled
+    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
+        exit
+    fi
+
     echo "Listing all account assertions"
     snap known account|MATCH "^type: account$"
     snap known account|MATCH "^account-id: canonical$"

@@ -15,15 +15,25 @@ environment:
     SERVICE_NAME: "test-service"
 
 prepare: |
+    # When snapd.deb is from the repo, we just need to test when re-exec is enabled
+    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
+        touch .skip
+        exit
+    fi
+
     # shellcheck source=tests/lib/network.sh
     . "$TESTSLIB"/network.sh
     make_network_service "$SERVICE_NAME" "$PORT"
 
 restore: |
+    test -f .skip && exit 0
+
     systemctl stop "$SERVICE_NAME"
     rm -f "$READABLE_FILE"
 
 execute: |
+    test -f .skip && exit 0
+
     echo "Given a buildable snap in a known directory"
     echo "When try is executed on that directory"
     snap try "$TESTSLIB"/snaps/test-snapd-tools

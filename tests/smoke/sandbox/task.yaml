@@ -9,12 +9,20 @@ details: |
     the CPU supports one.
 
 restore: |
+    test -f .skip && exit 0
+
     rm -f /home/test/foo
     # required! in autopkgtest no suite restore is run at all
     snap remove --purge test-snapd-sandbox
     snap remove --purge test-snapd-hello-multi-arch
 
 execute: |
+    # When snapd.deb is from the repo, we just need to test when re-exec is enabled
+    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
+        touch .skip
+        exit
+    fi
+
     if [ "$(snap debug confinement)" != "strict" ]; then
         if os.query is-ubuntu; then
             echo "all ubuntu systems must have strict confinement"

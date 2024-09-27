@@ -6,6 +6,11 @@ details: |
   display detailed information about it by using the "snap info" command.
 
 execute: |
+  # When snapd.deb is from the repo, we just need to test when re-exec is enabled
+  if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
+      exit
+  fi
+  
   echo "Ensure 'snap find' works"
   snap find test-snapd-tools | MATCH ^test-snapd-tools
 

@@ -14,13 +14,23 @@ environment:
     STRACE_STATIC_CHANNEL: candidate
   
 prepare: |
+    # When snapd.deb is from the repo, we just need to test when re-exec is enabled
+    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
+        touch .skip
+        exit
+    fi
+
     "$TESTSTOOLS"/snaps-state install-local basic-run
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
 debug: |
+    test -f .skip && exit 0
+
     cat stderr || true
 
 execute: |
+    test -f .skip && exit 0
+
     echo "Running a trivial command causes no DENIED messages"
     test-snapd-sh.sh -c 'echo hello'
     dmesg | not grep DENIED

@@ -15,6 +15,11 @@ backends: [-autopkgtest]
 systems: [-ubuntu-*-ppc64el, -ubuntu-*-s390x]
 
 execute: |
+    # When snapd.deb is from the repo, we just need to test when re-exec is enabled
+    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
+        exit
+    fi
+
     echo "List all featured snaps"
     expected='(?s).*Name +Version +Publisher +Notes +Summary *\n(.*?\n)?.*'
     snap find > featured.txt
