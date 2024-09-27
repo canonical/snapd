@@ -193,9 +193,9 @@ apps:
 	c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
 	configureHooks := []string{"configure", "default-configure"}
 	for _, hook := range configureHooks {
-		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0666), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0644), IsNil)
 		_, err := pack.Pack(sourceDir, pack.Defaults)
-		c.Check(err, ErrorMatches, fmt.Sprintf("snap is unusable due to bad permissions: \"meta/hooks/%s\" should be executable, and isn't: -rw-rw-r--", hook))
+		c.Check(err, ErrorMatches, fmt.Sprintf("snap is unusable due to bad permissions: \"meta/hooks/%s\" should be executable, and isn't: -rw-r--r--", hook))
 		// Fix hook error to catch next hook's error
 		c.Assert(os.Chmod(filepath.Join(sourceDir, "meta", "hooks", hook), 755), IsNil)
 	}
