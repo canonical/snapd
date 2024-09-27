@@ -13,11 +13,7 @@ debug: |
     cat snapd-map-non-fips.out || true
 
 execute: |
-    # When snapd.deb is from the repo, we just need to test when re-exec is enabled
-    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
-        touch .skip
-        exit
-    fi
+    test -f .skip && exit 0
 
     # In this scenario, the keys from the snapd pkg are used
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

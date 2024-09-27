@@ -15,11 +15,7 @@ environment:
     SERVICE_NAME: "test-service"
 
 prepare: |
-    # When snapd.deb is from the repo, we just need to test when re-exec is enabled
-    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
-        touch .skip
-        exit
-    fi
+    test -f .skip && exit 0
 
     # shellcheck source=tests/lib/network.sh
     . "$TESTSLIB"/network.sh

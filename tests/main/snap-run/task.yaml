@@ -14,11 +14,7 @@ environment:
     STRACE_STATIC_CHANNEL: candidate
   
 prepare: |
-    # When snapd.deb is from the repo, we just need to test when re-exec is enabled
-    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
-        touch .skip
-        exit
-    fi
+    test -f .skip && exit 0
 
     "$TESTSTOOLS"/snaps-state install-local basic-run
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
