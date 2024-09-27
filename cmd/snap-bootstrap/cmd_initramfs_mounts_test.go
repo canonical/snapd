@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -409,6 +410,7 @@ func (s *baseInitramfsMountsSuite) SetUpTest(c *C) {
 	s.logs = buf
 
 	s.tmpDir = c.MkDir()
+	dirstest.MustMockCanonicalSnapMountDir(s.tmpDir)
 
 	restore = main.MockOsGetenv(func(envVar string) string { return "" })
 	s.AddCleanup(restore)
@@ -807,7 +809,6 @@ func (s *baseInitramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C
 	defer restore()
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -845,6 +846,7 @@ func (s *baseInitramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C
 	}
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	checkSnapdMountUnit(c)
 	return err
 }
 
@@ -1092,7 +1094,6 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 
 	modeMnts := []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", mode),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -1201,6 +1202,8 @@ grade=signed
 	c.Check(measureModelCalls, Equals, 1)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, s.sysLabel+"-model-measured"), testutil.FilePresent)
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) testInitramfsMountsEncryptedNoModel(c *C, mode, label string, expectedMeasureModelCalls int) {
