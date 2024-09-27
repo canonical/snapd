@@ -52,6 +52,41 @@ func (s *initramfsClassicMountsSuite) SetUpTest(c *C) {
 	s.baseInitramfsMountsSuite.SetUpTest(c)
 }
 
+func checkSnapdMountUnit(c *C) {
+	unitFileName := "snap-snapd-1.mount"
+	unitFilePath := filepath.Join(dirs.GlobalRootDir,
+		"run/mnt/data/system-data/_writable_defaults/etc/systemd/system", unitFileName)
+	c.Assert(unitFilePath, testutil.FileEquals, `[Unit]
+Description=Mount unit for snapd, revision 1
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+
+[Mount]
+What=/run/mnt/ubuntu-seed/snaps/snapd_1.snap
+Where=/snap/snapd/1
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`)
+	for _, target := range []string{"multi-user.target.wants", "snapd.mounts.target.wants"} {
+		path, err := os.Readlink(filepath.Join(dirs.GlobalRootDir,
+			"run/mnt/data/system-data/_writable_defaults/etc/systemd/system",
+			target, unitFileName))
+		c.Check(err, IsNil)
+		c.Check(path, Equals, filepath.Join(dirs.SnapServicesDir, unitFileName))
+	}
+
+	symlinkPath := filepath.Join(dirs.GlobalRootDir, "run/mnt/data/system-data",
+		dirs.StripRootDir(dirs.SnapMountDir), "snapd/current")
+	target, err := os.Readlink(symlinkPath)
+	c.Assert(err, IsNil)
+	c.Assert(target, Equals, "1")
+}
+
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedWithSaveHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
@@ -1027,7 +1062,6 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRecoveryModeHybridSyste
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
