@@ -558,11 +558,11 @@ func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.C
 	removeHook.Set("component-setup", compSetup)
 	removeHook.Set("snap-setup", snapSup)
 
-	prev := removeHook
+	setupTask, prev := removeHook, removeHook
 	tasks := []*state.Task{removeHook}
 	addTask := func(t *state.Task) {
-		t.Set("component-setup-task", removeHook.ID())
-		t.Set("snap-setup-task", removeHook.ID())
+		t.Set("component-setup-task", setupTask.ID())
+		t.Set("snap-setup-task", setupTask.ID())
 		t.WaitFor(prev)
 		tasks = append(tasks, t)
 		prev = t
@@ -590,7 +590,7 @@ func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.C
 		// We will be overwriting this object if removing multiple
 		// components, but should be fine as the SnapSetup does not
 		// change (snap still the same).
-		setupSecurity.Set("snap-setup-task", unlink.ID())
+		setupSecurity.Set("snap-setup-task", setupTask.ID())
 		prev = setupSecurity
 	}
 

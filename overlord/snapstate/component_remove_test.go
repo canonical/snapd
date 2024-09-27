@@ -79,14 +79,26 @@ func (s *snapmgrTestSuite) testRemoveComponent(c *C, opts snapstate.RemoveCompon
 	}
 	c.Assert(len(tss), Equals, numTaskSets)
 	totalTasks := 0
+
+	var setupProfilesSnapsupID, snapsupID string
 	for i, ts := range tss {
 		if i == len(tss)-1 && opts.RefreshProfile {
-			kinds := taskKinds(ts.Tasks())
-			c.Assert(kinds, DeepEquals, []string{"setup-profiles"})
+			tasks := ts.Tasks()
+			c.Assert(tasks, HasLen, 1)
+			setupProfiles := tasks[0]
+			c.Assert(setupProfiles.Kind(), Equals, "setup-profiles")
+			err := setupProfiles.Get("snap-setup-task", &setupProfilesSnapsupID)
+			c.Assert(err, IsNil)
+			c.Assert(setupProfilesSnapsupID, Not(HasLen), 0)
 		} else {
+			snapsupID = ts.Tasks()[0].ID()
 			verifyComponentRemoveTasks(c, compCurrentIsDiscarded, ts)
 		}
 		totalTasks += len(ts.Tasks())
+	}
+
+	if opts.RefreshProfile {
+		c.Assert(setupProfilesSnapsupID, Equals, snapsupID)
 	}
 
 	c.Assert(s.state.TaskCount(), Equals, totalTasks)
