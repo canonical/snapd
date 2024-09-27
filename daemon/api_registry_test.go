@@ -89,7 +89,7 @@ func (s *registrySuite) TestGetView(c *C) {
 		{name: "map", value: map[string]int{"foo": 123}},
 	} {
 		cmt := Commentf("%s test", t.name)
-		restore := daemon.MockRegistrystateGetViaView(func(_ *state.State, acc, registry, view string, fields []string) (interface{}, error) {
+		restore := daemon.MockRegistrystateGet(func(_ *state.State, acc, registry, view string, fields []string) (interface{}, error) {
 			c.Check(acc, Equals, "system", cmt)
 			c.Check(registry, Equals, "network", cmt)
 			c.Check(view, Equals, "wifi-setup", cmt)
@@ -112,7 +112,7 @@ func (s *registrySuite) TestViewGetMany(c *C) {
 	s.setFeatureFlag(c)
 
 	var calls int
-	restore := daemon.MockRegistrystateGetViaView(func(_ *state.State, _, _, _ string, _ []string) (interface{}, error) {
+	restore := daemon.MockRegistrystateGet(func(_ *state.State, _, _, _ string, _ []string) (interface{}, error) {
 		calls++
 		switch calls {
 		case 1:
@@ -137,7 +137,7 @@ func (s *registrySuite) TestViewGetSomeFieldNotFound(c *C) {
 	s.setFeatureFlag(c)
 
 	var calls int
-	restore := daemon.MockRegistrystateGetViaView(func(_ *state.State, acc, registry, view string, _ []string) (interface{}, error) {
+	restore := daemon.MockRegistrystateGet(func(_ *state.State, acc, registry, view string, _ []string) (interface{}, error) {
 		calls++
 		switch calls {
 		case 1:
@@ -162,7 +162,7 @@ func (s *registrySuite) TestGetViewNoFieldsFound(c *C) {
 	s.setFeatureFlag(c)
 
 	var calls int
-	restore := daemon.MockRegistrystateGetViaView(func(_ *state.State, _, _, _ string, fields []string) (interface{}, error) {
+	restore := daemon.MockRegistrystateGet(func(_ *state.State, _, _, _ string, fields []string) (interface{}, error) {
 		calls++
 		switch calls {
 		case 1:
@@ -193,7 +193,7 @@ func (s *registrySuite) TestGetViewNoFieldsFound(c *C) {
 func (s *registrySuite) TestViewGetDatabagNotFound(c *C) {
 	s.setFeatureFlag(c)
 
-	restore := daemon.MockRegistrystateGetViaView(func(_ *state.State, _, _, _ string, _ []string) (interface{}, error) {
+	restore := daemon.MockRegistrystateGet(func(_ *state.State, _, _, _ string, _ []string) (interface{}, error) {
 		return nil, &registry.NotFoundError{Account: "foo", RegistryName: "network", View: "wifi-setup", Operation: "get", Requests: []string{"ssid"}, Cause: "mocked"}
 	})
 	defer restore()
@@ -242,7 +242,7 @@ func (s *registrySuite) testViewSetMany(c *C) {
 	s.setFeatureFlag(c)
 
 	var calls int
-	restore := daemon.MockRegistrystateSetViaView(func(st *state.State, account, registryName, viewName string, requests map[string]interface{}) error {
+	restore := daemon.MockRegistrystateSet(func(st *state.State, account, registryName, viewName string, requests map[string]interface{}) error {
 		calls++
 		switch calls {
 		case 1:
@@ -307,7 +307,7 @@ func (s *registrySuite) TestGetViewError(c *C) {
 		{name: "registry not found", err: &registry.NotFoundError{}, code: 404},
 		{name: "internal", err: errors.New("internal"), code: 500},
 	} {
-		restore := daemon.MockRegistrystateGetViaView(func(_ *state.State, _, _, _ string, _ []string) (interface{}, error) {
+		restore := daemon.MockRegistrystateGet(func(_ *state.State, _, _, _ string, _ []string) (interface{}, error) {
 			return nil, t.err
 		})
 
@@ -324,7 +324,7 @@ func (s *registrySuite) TestGetViewMisshapenQuery(c *C) {
 	s.setFeatureFlag(c)
 
 	var calls int
-	restore := daemon.MockRegistrystateGetViaView(func(_ *state.State, _, _, _ string, fields []string) (interface{}, error) {
+	restore := daemon.MockRegistrystateGet(func(_ *state.State, _, _, _ string, fields []string) (interface{}, error) {
 		calls++
 		switch calls {
 		case 1:
@@ -361,7 +361,7 @@ func (s *registrySuite) TestSetView(c *C) {
 		{name: "map", value: map[string]interface{}{"foo": "bar"}},
 	} {
 		cmt := Commentf("%s test", t.name)
-		restore := daemon.MockRegistrystateSetViaView(func(st *state.State, acc, registryName, view string, requests map[string]interface{}) error {
+		restore := daemon.MockRegistrystateSet(func(st *state.State, acc, registryName, view string, requests map[string]interface{}) error {
 			c.Check(acc, Equals, "system", cmt)
 			c.Check(registryName, Equals, "network", cmt)
 			c.Check(view, Equals, "wifi-setup", cmt)
@@ -412,7 +412,7 @@ func (s *registrySuite) TestSetView(c *C) {
 func (s *registrySuite) TestUnsetView(c *C) {
 	s.setFeatureFlag(c)
 
-	restore := daemon.MockRegistrystateSetViaView(func(_ *state.State, acc, registryName, view string, requests map[string]interface{}) error {
+	restore := daemon.MockRegistrystateSet(func(_ *state.State, acc, registryName, view string, requests map[string]interface{}) error {
 		c.Check(acc, Equals, "system")
 		c.Check(registryName, Equals, "network")
 		c.Check(view, Equals, "wifi-setup")
@@ -452,7 +452,7 @@ func (s *registrySuite) TestSetViewError(c *C) {
 		{name: "not found", err: &registry.NotFoundError{}, code: 404},
 		{name: "internal", err: errors.New("internal"), code: 500},
 	} {
-		restore := daemon.MockRegistrystateSetViaView(func(*state.State, string, string, string, map[string]interface{}) error {
+		restore := daemon.MockRegistrystateSet(func(*state.State, string, string, string, map[string]interface{}) error {
 			return t.err
 		})
 		cmt := Commentf("%s test", t.name)
@@ -471,7 +471,7 @@ func (s *registrySuite) TestSetViewError(c *C) {
 func (s *registrySuite) TestSetViewEmptyBody(c *C) {
 	s.setFeatureFlag(c)
 
-	restore := daemon.MockRegistrystateSetViaView(func(*state.State, string, string, string, map[string]interface{}) error {
+	restore := daemon.MockRegistrystateSet(func(*state.State, string, string, string, map[string]interface{}) error {
 		err := errors.New("unexpected call to registrystate.Set")
 		c.Error(err)
 		return err
@@ -501,7 +501,7 @@ func (s *registrySuite) TestSetViewBadRequest(c *C) {
 func (s *registrySuite) TestGetBadRequest(c *C) {
 	s.setFeatureFlag(c)
 
-	restore := daemon.MockRegistrystateGetViaView(func(_ *state.State, acc, registryName, view string, fields []string) (interface{}, error) {
+	restore := daemon.MockRegistrystateGet(func(_ *state.State, acc, registryName, view string, fields []string) (interface{}, error) {
 		return nil, &registry.BadRequestError{
 			Account:      "acc",
 			RegistryName: "reg",
@@ -525,7 +525,7 @@ func (s *registrySuite) TestGetBadRequest(c *C) {
 func (s *registrySuite) TestSetBadRequest(c *C) {
 	s.setFeatureFlag(c)
 
-	restore := daemon.MockRegistrystateSetViaView(func(*state.State, string, string, string, map[string]interface{}) error {
+	restore := daemon.MockRegistrystateSet(func(*state.State, string, string, string, map[string]interface{}) error {
 		return &registry.BadRequestError{
 			Account:      "acc",
 			RegistryName: "reg",
@@ -549,7 +549,7 @@ func (s *registrySuite) TestSetBadRequest(c *C) {
 }
 
 func (s *registrySuite) TestSetFailUnsetFeatureFlag(c *C) {
-	restore := daemon.MockRegistrystateSetViaView(func(*state.State, string, string, string, map[string]interface{}) error {
+	restore := daemon.MockRegistrystateSet(func(*state.State, string, string, string, map[string]interface{}) error {
 		err := fmt.Errorf("unexpected call to registrystate")
 		c.Error(err)
 		return err
@@ -568,7 +568,7 @@ func (s *registrySuite) TestSetFailUnsetFeatureFlag(c *C) {
 }
 
 func (s *registrySuite) TestGetFailUnsetFeatureFlag(c *C) {
-	restore := daemon.MockRegistrystateSetViaView(func(*state.State, string, string, string, map[string]interface{}) error {
+	restore := daemon.MockRegistrystateSet(func(*state.State, string, string, string, map[string]interface{}) error {
 		err := fmt.Errorf("unexpected call to registrystate")
 		c.Error(err)
 		return err
@@ -588,7 +588,7 @@ func (s *registrySuite) TestGetNoFields(c *C) {
 	s.setFeatureFlag(c)
 
 	value := map[string]interface{}{"foo": 1, "bar": "baz", "nested": map[string]interface{}{"a": []interface{}{1, 2}}}
-	restore := daemon.MockRegistrystateGetViaView(func(_ *state.State, _, _, _ string, fields []string) (interface{}, error) {
+	restore := daemon.MockRegistrystateGet(func(_ *state.State, _, _, _ string, fields []string) (interface{}, error) {
 		c.Check(fields, IsNil)
 		return value, nil
 	})

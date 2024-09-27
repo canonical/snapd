@@ -414,7 +414,7 @@ func (s *registrySuite) TestRegistrySetSingleView(c *C) {
 	s.mockContext.Unlock()
 
 	s.state.Lock()
-	val, err := registrystate.GetViaView(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
+	val, err := registrystate.Get(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
 	s.state.Unlock()
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, map[string]interface{}{"ssid": "other-ssid"})
@@ -430,7 +430,7 @@ func (s *registrySuite) TestRegistrySetManyViews(c *C) {
 	s.mockContext.Unlock()
 
 	s.state.Lock()
-	val, err := registrystate.GetViaView(s.state, s.devAccID, "network", "read-wifi", []string{"ssid", "password"})
+	val, err := registrystate.Get(s.state, s.devAccID, "network", "read-wifi", []string{"ssid", "password"})
 	s.state.Unlock()
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, map[string]interface{}{
@@ -447,7 +447,7 @@ func (s *registrySuite) TestRegistrySetHappensTransactionally(c *C) {
 	c.Check(stderr, IsNil)
 
 	s.state.Lock()
-	_, err = registrystate.GetViaView(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
+	_, err = registrystate.Get(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
 	s.state.Unlock()
 	c.Assert(err, ErrorMatches, ".*matching rules don't map to any values")
 
@@ -457,7 +457,7 @@ func (s *registrySuite) TestRegistrySetHappensTransactionally(c *C) {
 	s.mockContext.Unlock()
 
 	s.state.Lock()
-	val, err := registrystate.GetViaView(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
+	val, err := registrystate.Get(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
 	s.state.Unlock()
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, map[string]interface{}{

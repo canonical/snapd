@@ -591,7 +591,7 @@ slots:
 
 func (s *registrySuite) TestRegistryGetSingleView(c *C) {
 	s.state.Lock()
-	err := registrystate.SetViaView(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
+	err := registrystate.Set(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
 		"ssid": "my-ssid",
 	})
 	s.state.Unlock()
@@ -605,7 +605,7 @@ func (s *registrySuite) TestRegistryGetSingleView(c *C) {
 
 func (s *registrySuite) TestRegistryGetManyViews(c *C) {
 	s.state.Lock()
-	err := registrystate.SetViaView(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
+	err := registrystate.Set(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
 		"ssid":     "my-ssid",
 		"password": "secret",
 	})
@@ -624,7 +624,7 @@ func (s *registrySuite) TestRegistryGetManyViews(c *C) {
 
 func (s *registrySuite) TestRegistryGetNoRequest(c *C) {
 	s.state.Lock()
-	err := registrystate.SetViaView(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
+	err := registrystate.Set(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
 		"ssid":     "my-ssid",
 		"password": "secret",
 	})
@@ -643,7 +643,7 @@ func (s *registrySuite) TestRegistryGetNoRequest(c *C) {
 
 func (s *registrySuite) TestRegistryGetHappensTransactionally(c *C) {
 	s.state.Lock()
-	err := registrystate.SetViaView(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
+	err := registrystate.Set(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
 		"ssid": "my-ssid",
 	})
 	s.state.Unlock()
@@ -659,7 +659,7 @@ func (s *registrySuite) TestRegistryGetHappensTransactionally(c *C) {
 	c.Check(stderr, IsNil)
 
 	s.state.Lock()
-	err = registrystate.SetViaView(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
+	err = registrystate.Set(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
 		"ssid": "other-ssid",
 	})
 	s.state.Unlock()

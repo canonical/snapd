@@ -374,7 +374,7 @@ func (c *getCommand) getRegistryValues(ctx *hookstate.Context, plugName string, 
 		return err
 	}
 
-	res, err := registrystate.GetViaViewInTx(tx, view, requests)
+	res, err := registrystate.GetViaView(tx, view, requests)
 	if err != nil {
 		return err
 	}

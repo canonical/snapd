@@ -379,19 +379,19 @@ var (
 	MaxReadBuflen = maxReadBuflen
 )
 
-func MockRegistrystateGetViaView(f func(_ *state.State, _, _, _ string, _ []string) (interface{}, error)) (restore func()) {
-	old := registrystateGetViaView
-	registrystateGetViaView = f
+func MockRegistrystateGet(f func(_ *state.State, _, _, _ string, _ []string) (interface{}, error)) (restore func()) {
+	old := registrystateGet
+	registrystateGet = f
 	return func() {
-		registrystateGetViaView = old
+		registrystateGet = old
 	}
 }
 
-func MockRegistrystateSetViaView(f func(_ *state.State, _, _, _ string, _ map[string]interface{}) error) (restore func()) {
-	old := registrystateSetViaView
-	registrystateSetViaView = f
+func MockRegistrystateSet(f func(_ *state.State, _, _, _ string, _ map[string]interface{}) error) (restore func()) {
+	old := registrystateSet
+	registrystateSet = f
 	return func() {
-		registrystateSetViaView = old
+		registrystateSet = old
 	}
 }
 
