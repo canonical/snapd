@@ -165,7 +165,8 @@ save_installed_core_snap() {
     # make a copy for later use
     if [ -n "$target_dir" ]; then
         mkdir -p "$target_dir"
-        cp -av "$snap" "$target_dir/"
+        cp -av "$snap" "${target_dir}/${snap}"
+        cp "$snap" "${target_dir}/${snap}.orig"
     fi
 }
 
