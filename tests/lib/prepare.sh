@@ -154,6 +154,25 @@ setup_experimental_features() {
     fi
 }
 
+save_installed_core_snap() {
+    local target_dir="${1-}"
+
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    LIBEXEC_DIR="$(os.paths libexec-dir)"
+    core="$(readlink -f "$SNAP_MOUNT_DIR/core/current" || readlink -f "$SNAP_MOUNT_DIR/ubuntu-core/current")"
+    snap="$(mount | grep " $core" | head -n 1 | awk '{print $1}')"
+    snap_name="$(basename "$snap")"
+
+    # make a copy for later use
+    if [ -n "$target_dir" ]; then
+        mkdir -p "$target_dir"
+
+        cp -av "$snap" "${target_dir}/${snap_name}"
+        cp "$snap" "${target_dir}/${snap_name}.orig"
+    fi
+}
+
+
 # update_core_snap_for_classic_reexec modifies the core snap for snapd re-exec
 # by injecting binaries from the installed snapd deb built from our modified code.
 # $1: directory where updated core snap should be copied (optional)
@@ -451,7 +470,9 @@ prepare_classic() {
         snap list | grep core
 
         # No need to update the core snap when the snap pkg is not being built from local changes
-        if ! tests.info is-snapd-pkg-repo; then
+        if tests.info is-snapd-pkg-repo; then
+            save_installed_core_snap "$TESTSTMP/core_snap"
+        else
             systemctl stop snapd.{service,socket}
             # repack and also make a side copy of the core snap
             update_core_snap_for_classic_reexec "$TESTSTMP/core_snap"
