@@ -44,6 +44,12 @@ execute: |
 
     sh_snap_bin="$(command -v fork-bomb.sh)"
     if [ "$BAD_SNAP" = "fork-bomb" ]; then
+        if [[ "$SPREAD_SYSTEM" = amazon-linux-2-* ]]; then
+            # Amazon Linux 2 does not support systemd --user (see tests/main/tests.session-support for details)
+            echo "Skipping because systemd --user is not supported"
+            exit 0
+        fi
+
         #shellcheck disable=SC2016,SC2086
         alive_check="$(tests.session -u test exec $sh_snap_bin -c 'echo $SNAP_USER_COMMON/alive')"
         #shellcheck disable=SC2016
