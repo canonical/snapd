@@ -130,6 +130,22 @@ func (s *renderSuite) TestRenderAllVariantsConflicts(c *C) {
 	}
 }
 
+func (s *renderSuite) TestRenderAllVariantsError(c *C) {
+	badNodes := seq{
+		literal("/"),
+		alt{
+			literal("good"),
+			literal("bad[path]"),
+			literal("great"),
+		},
+	}
+	variants := make([]string, 0, 1)
+	renderAllVariants(badNodes, func(index int, variant PatternVariant) {
+		variants = append(variants, variant.String())
+	})
+	c.Check(variants, DeepEquals, []string{"/good", "/great"})
+}
+
 func (s *renderSuite) TestNextVariant(c *C) {
 	pattern := "/{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld{-*,64}.so*"
 	scanned, err := scan(pattern)
