@@ -45,25 +45,6 @@ environment:
     TAG/gadget_reboot_refresh_gadget_assets: refresh-gadget-assets
     FAULT/gadget_reboot_refresh_gadget_assets: reboot
     
-    # TODO: Add the following scenarios in a different test
-    # These should go in a remodel test
-    #TAG/gadget_remodel_boot_assets: remodel-boot-assets
-    #TAG/kernel_remodel_boot_assets: remodel-boot-assets
-
-    # This needs a change in the gadget yaml like in cmdline-option test
-    # TAG/gadget_update_command_line_gadget: update-command-line-gadget
-    # TAG/gadget_update_config_bootloader: update-config-bootloader
-
-    # For this scenario we need to refresh to a kernel with components
-    # See this test nested/manual/kernel-modules-components
-    # TAG/kernel_panic_prepare_kernel_components: prepare-kernel-components
-    # FAULT/kernel_panic_prepare_kernel_components: panic
-
-    # This scenario need to install a new snapd with --dangerous instead of
-    # refresh from the store
-    # TAG/snapd_panic_auto_connect: after-auto-connect
-    # FAULT/snapd_panic_auto_connect: panic
-
 prepare: |
     # automatically cleaned up in restore
     echo "Inject a $FAULT on $TAG"
@@ -143,7 +124,7 @@ execute: |
     echo "And snap refresh is completed"
     remote.exec "snap watch $change_id" || true
     # shellcheck disable=SC2016
-    retry --wait 1 -n 60 --env "CHANGE_ID=$change_id" --env "SNAP=$SNAP" sh -c 'remote.exec snap changes | MATCH "${CHANGE_ID} .* (Done|Error) .*"'
+    retry --wait 1 -n 60 --env "CHANGE_ID=$change_id" sh -c 'remote.exec snap changes | MATCH "${CHANGE_ID} .* (Done|Error) .*"'
 
     # Check if the fault was injected
     remote.exec "test -e /var/lib/snapd/faults/$TAG:$FAULT"
@@ -158,6 +139,7 @@ execute: |
     FINAL_STATUS="$(remote.exec snap changes | grep -E "^$change_id .*" | awk ' {print $2} ')"
     CURRENT_REV="$(remote.exec snap list | grep -E "^$SNAP .*" | awk ' {print $3} ')"
 
+    # Check the final status is the expected one    
     if [ "$FINAL_STATUS" = Error ]; then
         echo "Ensure the change has steps with Error"
         remote.exec "snap change $change_id" | MATCH "^Error .*"
