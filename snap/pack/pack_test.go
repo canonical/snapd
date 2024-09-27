@@ -167,7 +167,7 @@ apps:
 `)
 	c.Assert(os.Remove(filepath.Join(sourceDir, "bin", "hello-world")), IsNil)
 	_, err := pack.Pack(sourceDir, pack.Defaults)
-	c.Assert(err, Equals, snap.ErrMissingPaths)
+	c.Assert(err, ErrorMatches, `snap is unusable due to missing files: path "bin/hello-world" does not exist`)
 }
 
 func (s *packSuite) TestPackDefaultConfigureWithoutConfigureError(c *C) {
@@ -195,7 +195,9 @@ apps:
 	for _, hook := range configureHooks {
 		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0666), IsNil)
 		_, err := pack.Pack(sourceDir, pack.Defaults)
-		c.Check(err, ErrorMatches, "snap is unusable due to bad permissions")
+		c.Check(err, ErrorMatches, fmt.Sprintf("snap is unusable due to bad permissions: \"meta/hooks/%s\" should be executable, and isn't: -rw-rw-r--", hook))
+		// Fix hook error to catch next hook's error
+		c.Assert(os.Chmod(filepath.Join(sourceDir, "meta", "hooks", hook), 755), IsNil)
 	}
 }
 
@@ -246,7 +248,7 @@ apps:
 `
 	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0411), IsNil)
 	_, err := pack.Pack(sourceDir, pack.Defaults)
-	c.Assert(err, ErrorMatches, "snap is unusable due to bad permissions")
+	c.Assert(err, ErrorMatches, `snap is unusable due to bad permissions: "meta/snapshots.yaml" should be world-readable, and isn't: -r----x--x`)
 }
 
 func (s *packSuite) TestPackSnapshotYamlHappy(c *C) {
@@ -283,7 +285,7 @@ apps:
 	c.Assert(os.Remove(filepath.Join(sourceDir, "bin", "hello-world")), IsNil)
 
 	err = pack.CheckSkeleton(&buf, sourceDir)
-	c.Assert(err, Equals, snap.ErrMissingPaths)
+	c.Assert(err, ErrorMatches, `snap is unusable due to missing files: path "bin/hello-world" does not exist`)
 	c.Check(buf.String(), Equals, "")
 }
 
