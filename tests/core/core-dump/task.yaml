@@ -7,16 +7,18 @@ details: |
 execute: |
   # To get VERSION_ID defined
   . /etc/os-release
+  cp -r "$TESTSLIB"/snaps/core-dump-snap .
+  core_dump_d=core-dump-snap
   if [ "$VERSION_ID" = 16 ]; then
-      sed -i '/base: ##BASE##/d' core-dump-snap/meta/snap.yaml
+      sed -i '/base: ##BASE##/d' "$core_dump_d"/meta/snap.yaml
   else
       BASE=core"$VERSION_ID"
-      sed -i "s/##BASE##/$BASE/" core-dump-snap/meta/snap.yaml
+      sed -i "s/##BASE##/$BASE/" "$core_dump_d"/meta/snap.yaml
   fi
 
   # Install snap with a service that simply waits
   DUMP_SNAP_FILE=core-dump-snap.snap
-  snap pack core-dump-snap --filename="$DUMP_SNAP_FILE"
+  snap pack "$core_dump_d" --filename="$DUMP_SNAP_FILE"
   snap install --dangerous "$DUMP_SNAP_FILE"
 
   # Allow suid programs like snap-confine to produce a core dump
