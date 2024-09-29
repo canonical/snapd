@@ -59,6 +59,8 @@ var syscallKill = syscall.Kill
 var maxKillTimeout = 5 * time.Minute
 var killThawCooldown = 100 * time.Millisecond
 
+const killFreezeTimeout = 1 * time.Second
+
 // killProcessesInCgroup sends SIGKILL signal to all the processes belonging to
 // passed cgroup directory.
 //
@@ -129,7 +131,7 @@ func killSnapProcessesImplV1(ctx context.Context, snapName string) error {
 		//   - A bug in some kernel versions where sometimes a cgroup get stuck
 		//     in FREEZING state. Given that maxKillTimeout is bigger than timeout passed to freezer
 		//     This gives a chance to thaw the cgroup and trying again.
-		ctxWithTimeout, cancel := context.WithTimeout(ctx, 1*time.Second)
+		ctxWithTimeout, cancel := context.WithTimeout(ctx, killFreezeTimeout)
 		defer cancel()
 		err := freezeSnapProcessesImplV1(ctxWithTimeout, snapName)
 		if err != nil && !isCgroupNotExistErr(err) {

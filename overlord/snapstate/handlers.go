@@ -3378,6 +3378,7 @@ func (m *SnapManager) doKillSnapApps(t *state.Task, _ *tomb.Tomb) (err error) {
 	if err != nil {
 		return err
 	}
+	defer lock.Close()
 	lock.Lock()
 	defer lock.Unlock()
 
