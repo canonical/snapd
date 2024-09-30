@@ -461,13 +461,16 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) []prom
 		switch {
 		case !exists:
 			newVariantEntries[variantStr] = newEntry
-		case conflictingVariantEntry.RuleID == rule.ID:
-			// Rule has duplicate variant, so ignore it
-			return
 		case rdb.isRuleWithIDExpired(conflictingVariantEntry.RuleID, rule.Timestamp):
 			expiredRules[conflictingVariantEntry.RuleID] = true
 			newVariantEntries[variantStr] = newEntry
 		default:
+			// XXX: If we ever switch to adding variants directly to the real
+			// variant entries map instead of a new map, check that the
+			// "conflicting" entry does not belong to the same rule that we're
+			// in the process of adding, which is possible if the rule's path
+			// pattern can render to duplicate variants. Ignore self-conflicts.
+
 			// Exists and is not expired, so there's a conflict
 			conflicts = append(conflicts, prompting_errors.RuleConflict{
 				Permission:    permission,
