@@ -3629,6 +3629,9 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 
 		removeHook := SetupRemoveHook(st, snapsup.InstanceName())
 		addNext(state.NewTaskSet(removeHook))
+		if prev != nil {
+			removeHook.WaitFor(prev)
+		}
 		prev = removeHook
 
 		// run disconnect hooks
