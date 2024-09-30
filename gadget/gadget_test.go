@@ -4425,30 +4425,38 @@ kernel-cmdline:
 	}
 }
 
-func (s *gadgetYamlTestSuite) testVolumeMinSize(c *C, gadgetYaml []byte, volSizes map[string]quantity.Size) {
+func (s *gadgetYamlTestSuite) testVolumeSize(c *C, gadgetYaml []byte, volSizes map[string]quantity.Size, volumeSizer func(*gadget.Volume) quantity.Size) {
 	ginfo, err := gadget.InfoFromGadgetYaml(gadgetYaml, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(len(ginfo.Volumes), Equals, len(volSizes))
 	for k, v := range ginfo.Volumes {
 		c.Logf("checking size of volume %s", k)
-		c.Check(v.MinSize(), Equals, quantity.Size(volSizes[k]))
+		c.Check(volumeSizer(v), Equals, quantity.Size(volSizes[k]))
 	}
 }
 
-func (s *gadgetYamlTestSuite) TestVolumeMinSize(c *C) {
+func (s *gadgetYamlTestSuite) TestVolumeSizes(c *C) {
 	for _, tc := range []struct {
-		gadgetYaml []byte
-		volsSizes  map[string]quantity.Size
+		gadgetYaml   []byte
+		volsMinSizes map[string]quantity.Size
+		volsSizes    map[string]quantity.Size
 	}{
 		{
 			gadgetYaml: gadgetYamlUnorderedParts,
+			volsMinSizes: map[string]quantity.Size{
+				"myvol": 1300 * quantity.SizeMiB,
+			},
 			volsSizes: map[string]quantity.Size{
 				"myvol": 1300 * quantity.SizeMiB,
 			},
 		},
 		{
 			gadgetYaml: mockMultiVolumeUC20GadgetYaml,
+			volsMinSizes: map[string]quantity.Size{
+				"frobinator-image":  (1 + 500 + 10 + 500 + 1024) * quantity.SizeMiB,
+				"u-boot-frobinator": 24576 + 623000,
+			},
 			volsSizes: map[string]quantity.Size{
 				"frobinator-image":  (1 + 500 + 10 + 500 + 1024) * quantity.SizeMiB,
 				"u-boot-frobinator": 24576 + 623000,
@@ -4456,6 +4464,10 @@ func (s *gadgetYamlTestSuite) TestVolumeMinSize(c *C) {
 		},
 		{
 			gadgetYaml: mockMultiVolumeGadgetYaml,
+			volsMinSizes: map[string]quantity.Size{
+				"frobinator-image":  (1 + 128 + 380) * quantity.SizeMiB,
+				"u-boot-frobinator": 24576 + 623000,
+			},
 			volsSizes: map[string]quantity.Size{
 				"frobinator-image":  (1 + 128 + 380) * quantity.SizeMiB,
 				"u-boot-frobinator": 24576 + 623000,
@@ -4463,31 +4475,44 @@ func (s *gadgetYamlTestSuite) TestVolumeMinSize(c *C) {
 		},
 		{
 			gadgetYaml: mockVolumeUpdateGadgetYaml,
+			volsMinSizes: map[string]quantity.Size{
+				"bootloader": 12345 + 88888,
+			},
 			volsSizes: map[string]quantity.Size{
 				"bootloader": 12345 + 88888,
 			},
 		},
 		{
 			gadgetYaml: gadgetYamlPC,
+			volsMinSizes: map[string]quantity.Size{
+				"pc": (1 + 1 + 50) * quantity.SizeMiB,
+			},
 			volsSizes: map[string]quantity.Size{
 				"pc": (1 + 1 + 50) * quantity.SizeMiB,
 			},
 		},
 		{
 			gadgetYaml: gadgetYamlUC20PC,
+			volsMinSizes: map[string]quantity.Size{
+				"pc": (1 + 1 + 1200 + 750 + 16 + 1024) * quantity.SizeMiB,
+			},
 			volsSizes: map[string]quantity.Size{
 				"pc": (1 + 1 + 1200 + 750 + 16 + 1024) * quantity.SizeMiB,
 			},
 		},
 		{
 			gadgetYaml: gadgetYamlMinSizePC,
-			volsSizes: map[string]quantity.Size{
+			volsMinSizes: map[string]quantity.Size{
 				"pc": (1 + 1 + 1200 + 750 + 16 + 1024) * quantity.SizeMiB,
+			},
+			volsSizes: map[string]quantity.Size{
+				"pc": (1 + 1 + 1200 + 750 + 32 + 1024) * quantity.SizeMiB,
 			},
 		},
 	} {
-		c.Logf("test min size for %s", tc.gadgetYaml)
-		s.testVolumeMinSize(c, tc.gadgetYaml, tc.volsSizes)
+		c.Logf("test sizes for %s", tc.gadgetYaml)
+		s.testVolumeSize(c, tc.gadgetYaml, tc.volsMinSizes, (*gadget.Volume).MinSize)
+		s.testVolumeSize(c, tc.gadgetYaml, tc.volsSizes, (*gadget.Volume).Size)
 	}
 }
 
