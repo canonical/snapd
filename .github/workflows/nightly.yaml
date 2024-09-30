@@ -20,7 +20,7 @@ jobs:
     strategy:
       matrix:
         gochannel:
-          - 1.18
+          - 1.23
         unit-scenario:
           - normal
 
