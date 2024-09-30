@@ -167,6 +167,7 @@ apps:
 `)
 	c.Assert(os.Remove(filepath.Join(sourceDir, "bin", "hello-world")), IsNil)
 	_, err := pack.Pack(sourceDir, pack.Defaults)
+	c.Check(err, testutil.ErrorIs, snap.ErrMissingPaths)
 	c.Assert(err, ErrorMatches, `snap is unusable due to missing files: path "bin/hello-world" does not exist`)
 }
 
@@ -195,6 +196,7 @@ apps:
 	for _, hook := range configureHooks {
 		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0644), IsNil)
 		_, err := pack.Pack(sourceDir, pack.Defaults)
+		c.Check(err, testutil.ErrorIs, snap.ErrBadModes)
 		c.Check(err, ErrorMatches, fmt.Sprintf("snap is unusable due to bad permissions: \"meta/hooks/%s\" should be executable, and isn't: -rw-r--r--", hook))
 		// Fix hook error to catch next hook's error
 		c.Assert(os.Chmod(filepath.Join(sourceDir, "meta", "hooks", hook), 755), IsNil)
@@ -248,6 +250,7 @@ apps:
 `
 	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0411), IsNil)
 	_, err := pack.Pack(sourceDir, pack.Defaults)
+	c.Check(err, testutil.ErrorIs, snap.ErrBadModes)
 	c.Assert(err, ErrorMatches, `snap is unusable due to bad permissions: "meta/snapshots.yaml" should be world-readable, and isn't: -r----x--x`)
 }
 
@@ -285,6 +288,7 @@ apps:
 	c.Assert(os.Remove(filepath.Join(sourceDir, "bin", "hello-world")), IsNil)
 
 	err = pack.CheckSkeleton(&buf, sourceDir)
+	c.Check(err, testutil.ErrorIs, snap.ErrMissingPaths)
 	c.Assert(err, ErrorMatches, `snap is unusable due to missing files: path "bin/hello-world" does not exist`)
 	c.Check(buf.String(), Equals, "")
 }
