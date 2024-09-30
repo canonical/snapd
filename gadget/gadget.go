@@ -185,19 +185,33 @@ func (v *Volume) HasPartial(pp PartialProperty) bool {
 	return false
 }
 
-// MinSize returns the minimum size required by a volume, as implicitly
-// defined by the size structures. It assumes sorted structures.
-func (v *Volume) MinSize() quantity.Size {
+// size returns the size of the volume using the structureSizer function to calculate
+// structures size. It assumes sorted structures.
+func (v *Volume) size(structureSizer func(VolumeStructure) quantity.Size) quantity.Size {
 	endVol := quantity.Offset(0)
 	for _, s := range v.Structure {
 		if s.Offset != nil {
-			endVol = *s.Offset + quantity.Offset(s.MinSize)
+			endVol = *s.Offset + quantity.Offset(structureSizer(s))
 		} else {
-			endVol += quantity.Offset(s.MinSize)
+			endVol += quantity.Offset(structureSizer(s))
 		}
 	}
 
 	return quantity.Size(endVol)
+}
+
+// MinSize returns the minimum size required by a volume.
+func (v *Volume) MinSize() quantity.Size {
+	return v.size(func(s VolumeStructure) quantity.Size {
+		return s.MinSize
+	})
+}
+
+// Size returns the current size required by a volume.
+func (v *Volume) Size() quantity.Size {
+	return v.size(func(s VolumeStructure) quantity.Size {
+		return s.Size
+	})
 }
 
 // StructFromYamlIndex returns the structure defined at a given yaml index from
