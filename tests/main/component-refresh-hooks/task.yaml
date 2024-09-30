@@ -16,7 +16,7 @@ systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*]
 
 restore: |
   if snap list test-snap-component-hooks; then
-    snap remove test-snap-component-hooks || true
+    snap remove test-snap-component-hooks
   fi
 
 execute: |
