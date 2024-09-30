@@ -35,6 +35,8 @@ type (
 	UnknownGroupError  = osuser.UnknownGroupError
 )
 
+const GetentBased = true
+
 // Current returns the current user
 func Current() (*User, error) {
 	u, err := lookupUserFromGetent(userMatchUid(os.Getuid()))
