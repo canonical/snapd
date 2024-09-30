@@ -43,7 +43,7 @@ import (
 //     This is to address multiple edge cases:
 //     (1) Hybrid v1/v2 cgroups with pids controller mounted only on v1 or v2 (Ubuntu 20.04)
 //     so we cannot guarantee having pids.max so we use the freezer cgroup instead.
-//     (2) Address a known bug on systemd v327 for non-root users where transient scopes are
+//     (2) Address a known bug on systemd v237 for non-root users where transient scopes are
 //     not created (e.g. on Ubuntu 18.04) so we use the freezer cgroup for tracking. This is
 //     only useful for killing apps or processes which do not have their lifecycle managed by
 //     external entities like systemd.
@@ -89,7 +89,7 @@ var killProcessesInCgroup = func(ctx context.Context, dir string, freeze func(ct
 		}
 		var firstErr error
 		for _, pid := range pids {
-			// This prevents a rouge fork bomb from keeping this loop running forever
+			// This prevents a rogue fork bomb from keeping this loop running forever
 			select {
 			case <-ctx.Done():
 				return fmt.Errorf("cannot kill processes in cgroup %q: %w", dir, ctx.Err())
