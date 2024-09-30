@@ -122,7 +122,7 @@ func loadAndValidate(sourceDir string, yaml []byte) (*snap.Info, error) {
 		return nil, fmt.Errorf("cannot validate snap %q: %v", info.InstanceName(), err)
 	}
 
-	if err := snap.ValidateSnapContainer(container, info, logger.Debugf); err != nil {
+	if err := snap.ValidateSnapContainer(container, info, logger.Noticef); err != nil {
 		return nil, err
 	}
 	if _, err := snap.ReadSnapshotYamlFromSnapFile(container); err != nil {
@@ -256,7 +256,7 @@ func packComponent(sourceDir string, yaml []byte, opts *Options) (string, error)
 		return "", err
 	}
 	compPath := componentPath(ci, opts.TargetDir, opts.SnapName)
-	if err := snap.ValidateComponentContainer(cont, compPath, logger.Debugf); err != nil {
+	if err := snap.ValidateComponentContainer(cont, compPath, logger.Noticef); err != nil {
 		return "", err
 	}
 
