@@ -142,3 +142,27 @@ func (s *getentSuite) TestLookupUserByNumericalName(c *C) {
 	c.Check(usr.Name, Equals, "John Doe")
 	c.Check(usr.HomeDir, Equals, "/home/johndoe")
 }
+
+func (s *getentSuite) TestLookupUserByNameMissing(c *C) {
+	s.mockGetentOutput(c, ``, "passwd", "johndoe")
+
+	usr, err := user.LookupUserFromGetent(user.UserMatchUsername("johndoe"))
+	c.Assert(err, IsNil)
+	c.Assert(usr, IsNil)
+}
+
+func (s *getentSuite) TestLookupUserUidMissing(c *C) {
+	s.mockGetentOutput(c, ``, "passwd", "60000")
+
+	usr, err := user.LookupUserFromGetent(user.UserMatchUid(60000))
+	c.Assert(err, IsNil)
+	c.Assert(usr, IsNil)
+}
+
+func (s *getentSuite) TestLookupGroupByNameMissing(c *C) {
+	s.mockGetentOutput(c, ``, "group", "mygroup")
+
+	grp, err := user.LookupGroupFromGetent(user.GroupMatchGroupname("mygroup"))
+	c.Assert(err, IsNil)
+	c.Assert(grp, IsNil)
+}
