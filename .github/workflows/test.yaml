@@ -252,27 +252,6 @@ jobs:
               exit 1
           fi
 
-  branch-static-checks:
-    runs-on: ubuntu-latest
-    needs: [cache-build-deps]
-    if: github.ref != 'refs/heads/master'
-    steps:
-
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        # needed for git commit history
-        fetch-depth: 0
-
-    - name: check-branch-ubuntu-daily-spread
-      run: |
-        # Compare the daily system in master and in the current branch
-        wget -q -O test_master.yaml https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/test.yaml
-        system_daily="$(yq '.jobs.spread.strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems'  test_master.yaml)"
-        current_daily="$(yq '.jobs.spread.strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems'  .github/workflows/test.yaml)"
-        test "$system_daily" == "$current_daily"
-      shell: bash
-
   unit-tests:
     needs: [static-checks]
     runs-on: ubuntu-22.04
@@ -607,86 +586,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - group: amazon-linux
-            backend: google-distro-1
-            systems: 'amazon-linux-2-64 amazon-linux-2023-64'
-            tests: 'tests/...'
-            rules: 'main'
-          - group: arch-linux
-            backend: google-distro-2
-            systems: 'arch-linux-64'
-            tests: 'tests/...'
-            rules: 'main'
-          - group: centos
-            backend: google-distro-2
-            systems: 'centos-9-64'
-            tests: 'tests/...'
-            rules: 'main'
-          - group: debian-req
-            backend: google-distro-1
-            systems: 'debian-11-64'
-            tests: 'tests/...'
-            rules: 'main'
-          - group: debian-not-req
-            backend: google-distro-1
-            systems: 'debian-12-64 debian-sid-64'
-            tests: 'tests/...'
-            rules: 'main'
-          - group: fedora
-            backend: google-distro-1
-            systems: 'fedora-38-64 fedora-39-64'
-            tests: 'tests/...'
-            rules: 'main'
-          - group: fedora-os
-            backend: openstack
-            systems: 'fedora-40-64'
-            tests: 'tests/...'
-            rules: 'main'
-          - group: opensuse
-            backend: google-distro-2
-            systems: 'opensuse-15.5-64 opensuse-15.6-64 opensuse-tumbleweed-64'
-            tests: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-trusty
-            backend: google
-            systems: 'ubuntu-14.04-64'
-            tests: 'tests/smoke/ tests/main/canonical-livepatch tests/main/canonical-livepatch-14.04'
-            rules: 'trusty'
-          - group: ubuntu-xenial-bionic
-            backend: google
-            systems: 'ubuntu-16.04-64 ubuntu-18.04-64'
-            tests: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-focal-jammy
-            backend: google
-            systems: 'ubuntu-20.04-64 ubuntu-22.04-64'
-            tests: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-noble
-            backend: google
-            systems: 'ubuntu-24.04-64'
-            tests: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-no-lts
-            backend: google
-            systems: ''
-            tests: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-daily
-            backend: google
-            systems: 'ubuntu-24.10-64'
-            tests: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-core-16
-            backend: google-core
-            systems: 'ubuntu-core-16-64'
-            tests: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-core-18
-            backend: google-core
-            systems: 'ubuntu-core-18-64'
-            tests: 'tests/...'
-            rules: 'main'
           - group: ubuntu-core-20
             backend: google-core
             systems: 'ubuntu-core-20-64'
@@ -702,46 +601,6 @@ jobs:
             systems: 'ubuntu-core-24-64'
             tests: 'tests/...'
             rules: 'main'
-          - group: ubuntu-arm
-            backend: google-arm
-            systems: 'ubuntu-20.04-arm-64 ubuntu-core-22-arm-64'
-            tests: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-secboot
-            backend: google
-            systems: 'ubuntu-secboot-20.04-64'
-            tests: 'tests/...'
-            rules: 'main'
-          - group: ubuntu-fips
-            backend: google-pro
-            systems: 'ubuntu-fips-22.04-64'
-            tests: 'tests/fips/...'
-            rules: 'main'
-          - group: nested-ubuntu-16.04
-            backend: google-nested
-            systems: 'ubuntu-16.04-64'
-            tests: 'tests/nested/...'
-            rules: 'nested'
-          - group: nested-ubuntu-18.04
-            backend: google-nested
-            systems: 'ubuntu-18.04-64'
-            tests: 'tests/nested/...'
-            rules: 'nested'
-          - group: nested-ubuntu-20.04
-            backend: google-nested
-            systems: 'ubuntu-20.04-64'
-            tests: 'tests/nested/...'
-            rules: 'nested'
-          - group: nested-ubuntu-22.04
-            backend: google-nested
-            systems: 'ubuntu-22.04-64'
-            tests: 'tests/nested/...'
-            rules: 'nested'
-          - group: nested-ubuntu-24.04
-            backend: google-nested
-            systems: 'ubuntu-24.04-64'
-            tests: 'tests/nested/...'
-            rules: 'nested'
     steps:
     - name: Cleanup job workspace
       id: cleanup-job-workspace

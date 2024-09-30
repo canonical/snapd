@@ -76,11 +76,26 @@ func init() {
 
 type cmdInitramfsMounts struct{}
 
+func runPsEverySecond() {
+	for {
+		cmd := exec.Command("ps") // This is busybox ps
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			fmt.Printf("ps failed: %v", err)
+			return
+		}
+		time.Sleep(time.Second)
+	}
+}
+
 func (c *cmdInitramfsMounts) Execute([]string) error {
 	boot.HasFDESetupHook = hasFDESetupHook
 	boot.RunFDESetupHook = runFDESetupHook
 
 	logger.Noticef("snap-bootstrap version %v starting", snapdtool.Version)
+
+	go runPsEverySecond()
 
 	return generateInitramfsMounts()
 }
