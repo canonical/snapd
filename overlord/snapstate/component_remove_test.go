@@ -32,8 +32,7 @@ import (
 )
 
 func expectedComponentRemoveTasks(opts int) []string {
-	var removeTasks []string
-	removeTasks = append(removeTasks, "unlink-current-component")
+	removeTasks := []string{"run-hook[remove]", "unlink-current-component"}
 	if opts&compTypeIsKernMods != 0 {
 		removeTasks = append(removeTasks, "prepare-kernel-modules-components")
 	}
@@ -80,14 +79,26 @@ func (s *snapmgrTestSuite) testRemoveComponent(c *C, opts snapstate.RemoveCompon
 	}
 	c.Assert(len(tss), Equals, numTaskSets)
 	totalTasks := 0
+
+	var setupProfilesSnapsupID, snapsupID string
 	for i, ts := range tss {
 		if i == len(tss)-1 && opts.RefreshProfile {
-			kinds := taskKinds(ts.Tasks())
-			c.Assert(kinds, DeepEquals, []string{"setup-profiles"})
+			tasks := ts.Tasks()
+			c.Assert(tasks, HasLen, 1)
+			setupProfiles := tasks[0]
+			c.Assert(setupProfiles.Kind(), Equals, "setup-profiles")
+			err := setupProfiles.Get("snap-setup-task", &setupProfilesSnapsupID)
+			c.Assert(err, IsNil)
+			c.Assert(setupProfilesSnapsupID, Not(HasLen), 0)
 		} else {
+			snapsupID = ts.Tasks()[0].ID()
 			verifyComponentRemoveTasks(c, compCurrentIsDiscarded, ts)
 		}
 		totalTasks += len(ts.Tasks())
+	}
+
+	if opts.RefreshProfile {
+		c.Assert(setupProfilesSnapsupID, Equals, snapsupID)
 	}
 
 	c.Assert(s.state.TaskCount(), Equals, totalTasks)
@@ -292,9 +303,10 @@ func (s *snapmgrTestSuite) TestRemoveComponentsPathRunWithError(c *C) {
 	// component tasks are undone/hold
 	for i := 0; i < 2; i++ {
 		ts := tss[i].Tasks()
-		c.Check(ts[0].Status(), Equals, state.UndoneStatus)
 		c.Check(ts[1].Status(), Equals, state.UndoneStatus)
-		c.Check(ts[2].Status(), Equals, state.HoldStatus)
+		c.Check(ts[1].Status(), Equals, state.UndoneStatus)
+		c.Check(ts[2].Status(), Equals, state.UndoneStatus)
+		c.Check(ts[3].Status(), Equals, state.HoldStatus)
 	}
 	// update profile is hold
 	c.Check(updateProfTask.Status(), Equals, state.HoldStatus)

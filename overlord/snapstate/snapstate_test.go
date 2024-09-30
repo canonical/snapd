@@ -187,6 +187,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	oldSetupInstallComponentHook := snapstate.SetupInstallComponentHook
 	oldSetupPostRefreshComponentHook := snapstate.SetupPostRefreshComponentHook
 	oldSetupPreRefreshComponentHook := snapstate.SetupPreRefreshComponentHook
+	oldSetupRemoveComponentHook := snapstate.SetupRemoveComponentHook
 	oldSetupPreRefreshHook := snapstate.SetupPreRefreshHook
 	oldSetupPostRefreshHook := snapstate.SetupPostRefreshHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
@@ -236,6 +237,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 		snapstate.SetupInstallComponentHook = oldSetupInstallComponentHook
 		snapstate.SetupPostRefreshComponentHook = oldSetupPostRefreshComponentHook
 		snapstate.SetupPreRefreshComponentHook = oldSetupPreRefreshComponentHook
+		snapstate.SetupRemoveComponentHook = oldSetupRemoveComponentHook
 		snapstate.SetupPreRefreshHook = oldSetupPreRefreshHook
 		snapstate.SetupPostRefreshHook = oldSetupPostRefreshHook
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
