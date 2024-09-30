@@ -43,11 +43,7 @@ jobs:
     - name: Install the go version
       uses: actions/setup-go@v5
       with:
-        go-version: '1.18.10'
-
-    - name: Install the go snap
-      run: |
-          sudo snap install --classic --channel="${{ matrix.gochannel }}" go
+        go-version: ${{ matrix.gochannel }}
 
     - name: Get deps
       run: |
