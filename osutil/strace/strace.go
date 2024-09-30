@@ -22,12 +22,12 @@ package strace
 import (
 	"fmt"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"runtime"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 )
 
 // These syscalls are excluded because they make strace hang on all or

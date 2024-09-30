@@ -24,11 +24,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"os/user"
 	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )

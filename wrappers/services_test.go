@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -39,6 +38,7 @@ import (
 	// imported to ensure actual interfaces are defined (in production this is guaranteed by ifacestate)
 	_ "github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"

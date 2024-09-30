@@ -21,7 +21,6 @@ package strace_test
 
 import (
 	"os"
-	"os/user"
 	"path/filepath"
 	"testing"
 
@@ -29,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/strace"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/testutil"
 )
 
