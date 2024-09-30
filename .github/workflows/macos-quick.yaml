@@ -2,7 +2,7 @@ name: MacOS quick checks
 on:
   # Only run on pull requests: not pushes
   pull_request:
-    branches: ["master", "release/**"]
+    branches: ["master", "release/**", "fde-manager-features"]
 
 jobs:
   macos-quick:
