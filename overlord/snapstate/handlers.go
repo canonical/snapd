@@ -732,6 +732,11 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		RateLimit: rate,
 	}
 	if snapsup.DownloadInfo == nil {
+		vsets, err := EnforcedValidationSets(st)
+		if err != nil {
+			return err
+		}
+
 		var result store.SnapActionResult
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
@@ -742,6 +747,10 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 				Channel:   snapsup.Channel,
 				CohortKey: snapsup.CohortKey,
 				Revision:  snapsup.Revision(),
+				// TODO: do we actually want to use the enforced validation sets
+				// here? i personally think no, since we should have already
+				// validated this change before getting here.
+				ValidationSets: vsets,
 			},
 		}, Options{})
 		if err != nil {

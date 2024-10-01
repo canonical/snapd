@@ -76,7 +76,7 @@ func MockServicestateControlFunc(f func(*state.State, []*snap.AppInfo, *services
 	return func() { servicestateControl = old }
 }
 
-func MockSnapstateInstallComponentsFunc(f func(ctx context.Context, st *state.State, names []string, info *snap.Info, vsets []snapasserts.ValidationSetKey, opts snapstate.Options) ([]*state.TaskSet, error)) (restore func()) {
+func MockSnapstateInstallComponentsFunc(f func(ctx context.Context, st *state.State, names []string, info *snap.Info, vsets *snapasserts.ValidationSets, opts snapstate.Options) ([]*state.TaskSet, error)) (restore func()) {
 	old := snapstateInstallComponents
 	snapstateInstallComponents = f
 	return func() { snapstateInstallComponents = old }

@@ -43,7 +43,7 @@ func InstallComponents(
 	st *state.State,
 	names []string,
 	info *snap.Info,
-	vsets []snapasserts.ValidationSetKey,
+	vsets *snapasserts.ValidationSets,
 	opts Options,
 ) ([]*state.TaskSet, error) {
 	if err := opts.setDefaultLane(st); err != nil {
@@ -69,6 +69,10 @@ func InstallComponents(
 		}
 	}
 
+	if vsets == nil {
+		vsets = snapasserts.NewValidationSets()
+	}
+
 	compsups, err := componentSetupsForInstall(ctx, st, names, snapst, RevisionOptions{
 		Revision:       snapst.Current,
 		Channel:        snapst.TrackingChannel,
@@ -77,6 +81,8 @@ func InstallComponents(
 	if err != nil {
 		return nil, err
 	}
+
+	// TODO: verify validation sets here
 
 	snapsup := SnapSetup{
 		Base:        info.Base,
@@ -156,7 +162,7 @@ func componentSetupsForInstall(ctx context.Context, st *state.State, names []str
 		return nil, err
 	}
 
-	action, err := installComponentAction(st, snapst, revOpts, opts)
+	action, err := installComponentAction(snapst, revOpts, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +191,7 @@ func componentSetupsForInstall(ctx context.Context, st *state.State, names []str
 
 // installComponentAction returns a store action that is used to get a list of
 // components that are available in the store.
-func installComponentAction(st *state.State, snapst SnapState, revOpts RevisionOptions, opts Options) (*store.SnapAction, error) {
+func installComponentAction(snapst SnapState, revOpts RevisionOptions, opts Options) (*store.SnapAction, error) {
 	if revOpts.Revision.Unset() {
 		return nil, errors.New("internal error: must specify snap revision when installing only components")
 	}
@@ -200,8 +206,6 @@ func installComponentAction(st *state.State, snapst SnapState, revOpts RevisionO
 		return nil, errors.New("internal error: cannot install components for a snap that is unknown to the store")
 	}
 
-	enforcedSetsFunc := cachedEnforcedValidationSets(st)
-
 	// we send a refresh action, since that is what the store requested that
 	// we do in this case
 	action := &store.SnapAction{
@@ -211,7 +215,7 @@ func installComponentAction(st *state.State, snapst SnapState, revOpts RevisionO
 		ResourceInstall: true,
 	}
 
-	if err := completeStoreAction(action, revOpts, opts.Flags.IgnoreValidation, enforcedSetsFunc); err != nil {
+	if err := completeStoreAction(action, revOpts, opts.Flags.IgnoreValidation); err != nil {
 		return nil, err
 	}
 

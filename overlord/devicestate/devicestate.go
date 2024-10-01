@@ -468,7 +468,7 @@ type modelSnapsForRemodel struct {
 	newSnap                string
 	newModelSnap           *asserts.ModelSnap
 	newRequiredRevision    snap.Revision
-	newModelValidationSets []snapasserts.ValidationSetKey
+	newModelValidationSets *snapasserts.ValidationSets
 }
 
 func (ms *modelSnapsForRemodel) canHaveUC18PinnedTrack() bool {
@@ -603,7 +603,7 @@ func (ro *remodelVariant) maybeSideInfoAndPathFromID(id string) *pathSideInfo {
 	return nil
 }
 
-func revisionOptionsForRemodel(channel string, revision snap.Revision, valsets []snapasserts.ValidationSetKey) *snapstate.RevisionOptions {
+func revisionOptionsForRemodel(channel string, revision snap.Revision, valsets *snapasserts.ValidationSets) *snapstate.RevisionOptions {
 	opts := &snapstate.RevisionOptions{
 		Channel:  channel,
 		Revision: revision,
@@ -751,7 +751,7 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSna
 // except for the snapd snap).
 func tasksForEssentialSnap(ctx context.Context, st *state.State,
 	snapType string, current, new *asserts.Model,
-	revision snap.Revision, vSetKeys []snapasserts.ValidationSetKey, remodelVar remodelVariant,
+	revision snap.Revision, vsets *snapasserts.ValidationSets, remodelVar remodelVariant,
 	tracker snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string,
 ) (*state.TaskSet, error) {
 	var currentSnap, newSnap string
@@ -783,7 +783,7 @@ func tasksForEssentialSnap(ctx context.Context, st *state.State,
 		newSnap:                newSnap,
 		newModelSnap:           newModelSnap,
 		newRequiredRevision:    revision,
-		newModelValidationSets: vSetKeys,
+		newModelValidationSets: vsets,
 	}
 	ts, err := remodelEssentialSnapTasks(ctx, st, ms, remodelVar, deviceCtx, fromChange, tracker)
 	if err != nil {
@@ -794,7 +794,7 @@ func tasksForEssentialSnap(ctx context.Context, st *state.State,
 
 func remodelSnapdSnapTasks(
 	st *state.State, newModel *asserts.Model, rev snap.Revision,
-	vSetKeys []snapasserts.ValidationSetKey, remodelVar remodelVariant,
+	vsets *snapasserts.ValidationSets, remodelVar remodelVariant,
 	tracker snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string,
 ) (*state.TaskSet, error) {
 	// First check if snapd snap is installed at all (might be the case
@@ -826,7 +826,7 @@ func remodelSnapdSnapTasks(
 	}
 
 	if channelChanged || revisionChanged {
-		revOpts := revisionOptionsForRemodel(newSnapdChannel, rev, vSetKeys)
+		revOpts := revisionOptionsForRemodel(newSnapdChannel, rev, vsets)
 
 		userID := 0
 		return remodelVar.UpdateWithDeviceContext(st, "snapd", naming.WellKnownSnapID("snapd"), revOpts, userID,
@@ -883,10 +883,8 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		return nil, err
 	}
 
-	vSetKeys := validationSets.Keys()
-
 	// First handle snapd as a special case
-	ts, err := remodelSnapdSnapTasks(st, new, snapRevisions["snapd"], vSetKeys, remodelVar, tracker, deviceCtx, fromChange)
+	ts, err := remodelSnapdSnapTasks(st, new, snapRevisions["snapd"], validationSets, remodelVar, tracker, deviceCtx, fromChange)
 	if err != nil {
 		return nil, err
 	}
@@ -906,7 +904,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		}
 		ts, err := tasksForEssentialSnap(ctx, st,
 			modelSnap.SnapType, current, new,
-			snapRevisions[modelSnap.SnapName()], vSetKeys, remodelVar, tracker, deviceCtx, fromChange)
+			snapRevisions[modelSnap.SnapName()], validationSets, remodelVar, tracker, deviceCtx, fromChange)
 		if err != nil {
 			return nil, err
 		}
@@ -965,7 +963,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 			return nil, err
 		}
 
-		revOpts := revisionOptionsForRemodel(newModelSnapChannel, snapRevisions[modelSnap.SnapName()], vSetKeys)
+		revOpts := revisionOptionsForRemodel(newModelSnapChannel, snapRevisions[modelSnap.SnapName()], validationSets)
 
 		if needsInstall {
 			ts, err := remodelVar.InstallWithDeviceContext(ctx, st, modelSnap.SnapName(), modelSnap.ID(), revOpts,
@@ -1773,7 +1771,7 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		ts, info, err := snapstateDownload(context.TODO(), st, sn.Name, dirs.SnapBlobDir, &snapstate.RevisionOptions{
 			Channel:        sn.DefaultChannel,
 			Revision:       rev,
-			ValidationSets: valsets.Keys(),
+			ValidationSets: valsets,
 		}, userID, snapstate.Flags{}, nil)
 		if err != nil {
 			return nil, err

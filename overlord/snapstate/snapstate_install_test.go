@@ -4673,17 +4673,16 @@ func (s *validationSetsSuite) installManySnapReferencedByValidationSet(c *C, sna
 }
 
 func (s *validationSetsSuite) TestInstallManyWithRevisionOpts(c *C) {
+	enforced := snapasserts.NewValidationSets()
+	err := enforced.Add(s.mockValidationSetAssert(c, "bar", "1", map[string]interface{}{
+		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+		"name":     "some-snap",
+		"presence": "invalid",
+	}).(*asserts.ValidationSet))
+	c.Assert(err, IsNil)
+
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-		// current validation set forbids "some-snap"
-		vs := snapasserts.NewValidationSets()
-		snapOne := map[string]interface{}{
-			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
-			"name":     "some-snap",
-			"presence": "invalid",
-		}
-		vsa1 := s.mockValidationSetAssert(c, "bar", "1", snapOne)
-		vs.Add(vsa1.(*asserts.ValidationSet))
-		return vs, nil
+		return enforced, nil
 	})
 	defer restore()
 
@@ -4698,9 +4697,17 @@ func (s *validationSetsSuite) TestInstallManyWithRevisionOpts(c *C) {
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
-	// installing "some-snap" with revision opts should succeed because current
-	// validation sets should be ignored
-	revOpts := []*snapstate.RevisionOptions{{Revision: snap.R(2), ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/2"}}}
+	provided := snapasserts.NewValidationSets()
+	err = provided.Add(s.mockValidationSetAssert(c, "bar", "1", map[string]interface{}{
+		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+		"name":     "some-snap",
+		"presence": "optional",
+	}).(*asserts.ValidationSet))
+	c.Assert(err, IsNil)
+
+	// installing "some-snap" with revision opts should succeed because provided
+	// validation sets should be used, rather than the currently enforced ones
+	revOpts := []*snapstate.RevisionOptions{{Revision: snap.R(2), ValidationSets: provided}}
 	affected, tss, err := snapstate.InstallMany(s.state, []string{"some-snap"}, revOpts, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(affected, DeepEquals, []string{"some-snap"})
@@ -5034,8 +5041,25 @@ func (s *validationSetsSuite) TestInstallSnapWithValidationSets(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	opts := &snapstate.RevisionOptions{Revision: snap.R(11), ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar", "16/foo/baz"}}
-	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{})
+	vsets := snapasserts.NewValidationSets()
+	bar := s.mockValidationSetAssert(c, "bar", "1", map[string]interface{}{
+		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+		"name":     "some-snap",
+		"presence": "optional",
+		"revision": "11",
+	})
+	err := vsets.Add(bar.(*asserts.ValidationSet))
+	c.Assert(err, IsNil)
+	baz := s.mockValidationSetAssert(c, "baz", "1", map[string]interface{}{
+		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+		"name":     "some-snap",
+		"presence": "required",
+	})
+	err = vsets.Add(baz.(*asserts.ValidationSet))
+	c.Assert(err, IsNil)
+
+	opts := &snapstate.RevisionOptions{ValidationSets: vsets}
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	// validation sets are set on the action
@@ -5044,7 +5068,7 @@ func (s *validationSetsSuite) TestInstallSnapWithValidationSets(c *C) {
 		action: store.SnapAction{
 			Action:         "install",
 			InstanceName:   "some-snap",
-			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar", "16/foo/baz"},
+			ValidationSets: vsets.Keys(),
 			Revision:       snap.R(11),
 		},
 		revno: snap.R(11),

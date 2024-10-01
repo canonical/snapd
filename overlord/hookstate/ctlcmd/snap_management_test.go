@@ -112,7 +112,7 @@ func (s *installSuite) testMngmtCommand(c *C, cmd string) {
 
 	switch cmd {
 	case "install":
-		ctlcmd.MockSnapstateInstallComponentsFunc(func(ctx context.Context, st *state.State, names []string, info *snap.Info, vsets []snapasserts.ValidationSetKey, opts snapstate.Options) ([]*state.TaskSet, error) {
+		ctlcmd.MockSnapstateInstallComponentsFunc(func(ctx context.Context, st *state.State, names []string, info *snap.Info, vsets *snapasserts.ValidationSets, opts snapstate.Options) ([]*state.TaskSet, error) {
 			c.Check(names, DeepEquals, []string{"comp1", "comp2"})
 			c.Check(opts, DeepEquals, snapstate.Options{ExpectOneSnap: true,
 				FromChange: s.mockContext.ChangeID()})
@@ -156,7 +156,7 @@ func (s *installSuite) testEphemeralMngmtCommand(c *C, cmd string) {
 
 	switch cmd {
 	case "install":
-		ctlcmd.MockSnapstateInstallComponentsFunc(func(ctx context.Context, st *state.State, names []string, info *snap.Info, vsets []snapasserts.ValidationSetKey, opts snapstate.Options) ([]*state.TaskSet, error) {
+		ctlcmd.MockSnapstateInstallComponentsFunc(func(ctx context.Context, st *state.State, names []string, info *snap.Info, vsets *snapasserts.ValidationSets, opts snapstate.Options) ([]*state.TaskSet, error) {
 			c.Check(names, DeepEquals,
 				[]string{"comp1", "comp2", "comp3", "comp4", "comp5", "comp6"})
 			c.Check(opts, DeepEquals, snapstate.Options{ExpectOneSnap: true})
