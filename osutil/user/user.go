@@ -31,6 +31,8 @@ type (
 	UnknownGroupError = osuser.UnknownGroupError
 )
 
+const GetentBased = false
+
 // Current returns the current user
 //
 // This is a wrapper for (os/user).Current

@@ -394,6 +394,7 @@ jobs:
           - nosecboot
           - faultinject
           - race
+          - snapdusergo
 
     steps:
     - name: Checkout code
@@ -490,6 +491,12 @@ jobs:
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         SKIP_DIRTY_CHECK=1 GO_TEST_RACE=1 SKIP_COVERAGE=1 ./run-checks --unit
+
+    - name: Test Go (snapdusergo)
+      if: ${{ matrix.unit-scenario == 'snapdusergo' }}
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=snapdusergo ./run-checks --unit
 
     - name: Upload the coverage results
       if: ${{ matrix.gochannel != 'latest/stable' && matrix.unit-scenario != 'race' }}

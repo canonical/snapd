@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -46,12 +47,17 @@ func (s *getentSuite) SetUpTest(c *C) {
 	s.getentDir = c.MkDir()
 
 	s.mockGetent = testutil.MockCommand(c, "getent", fmt.Sprintf(`
-cat '%s'/"${1}${2:+/}${2-}"
+set -eu
+base='%s'/"${1}${2:+/}${2-}"
+cat "${base}"
+if [ -f "${base}.exit" ]; then
+  exit "$(cat "${base}.exit")"
+fi
 `, s.getentDir))
 	s.AddCleanup(s.mockGetent.Restore)
 }
 
-func (s *getentSuite) mockGetentOutput(c *C, value string, params ...string) {
+func (s *getentSuite) mockGetentOutput(c *C, value string, exit int, params ...string) {
 	path := []string{s.getentDir}
 	path = append(path, params...)
 	resultPath := filepath.Join(path...)
@@ -60,11 +66,16 @@ func (s *getentSuite) mockGetentOutput(c *C, value string, params ...string) {
 	b := []byte(value)
 	err = os.WriteFile(resultPath, b, 0644)
 	c.Assert(err, IsNil)
+	if exit != 0 {
+		exitBytes := []byte(strconv.Itoa(exit))
+		err = os.WriteFile(resultPath+".exit", exitBytes, 0644)
+		c.Assert(err, IsNil)
+	}
 }
 
 func (s *getentSuite) TestLookupGroupByName(c *C) {
 	s.mockGetentOutput(c, `mygroup:x:60000:myuser,someuser
-`, "group", "mygroup")
+`, 0, "group", "mygroup")
 
 	grp, err := user.LookupGroupFromGetent(user.GroupMatchGroupname("mygroup"))
 	c.Assert(err, IsNil)
@@ -79,7 +90,7 @@ func (s *getentSuite) TestLookupGroupByNameError(c *C) {
 }
 
 func (s *getentSuite) TestLookupGroupByNameDoesNotExist(c *C) {
-	s.mockGetentOutput(c, ``, "group", "mygroup")
+	s.mockGetentOutput(c, ``, 2, "group", "mygroup")
 
 	grp, err := user.LookupGroupFromGetent(user.GroupMatchGroupname("mygroup"))
 	c.Assert(err, IsNil)
@@ -90,7 +101,7 @@ func (s *getentSuite) TestLookupGroupByNumericalName(c *C) {
 	// This is probably not valid
 	s.mockGetentOutput(c, `mygroup:x:60001:myuser,someuser
 1mygroup:x:60000:myuser,someuser
-`, "group")
+`, 0, "group")
 
 	grp, err := user.LookupGroupFromGetent(user.GroupMatchGroupname("1mygroup"))
 	c.Assert(err, IsNil)
@@ -101,7 +112,7 @@ func (s *getentSuite) TestLookupGroupByNumericalName(c *C) {
 
 func (s *getentSuite) TestLookupUserByName(c *C) {
 	s.mockGetentOutput(c, `johndoe:x:60000:60000:John Doe:/home/johndoe:/bin/bash
-`, "passwd", "johndoe")
+`, 0, "passwd", "johndoe")
 
 	usr, err := user.LookupUserFromGetent(user.UserMatchUsername("johndoe"))
 	c.Assert(err, IsNil)
@@ -115,7 +126,7 @@ func (s *getentSuite) TestLookupUserByName(c *C) {
 
 func (s *getentSuite) TestLookupUserByUid(c *C) {
 	s.mockGetentOutput(c, `johndoe:x:60000:60000:John Doe:/home/johndoe:/bin/bash
-`, "passwd", "60000")
+`, 0, "passwd", "60000")
 
 	usr, err := user.LookupUserFromGetent(user.UserMatchUid(60000))
 	c.Assert(err, IsNil)
@@ -131,7 +142,7 @@ func (s *getentSuite) TestLookupUserByNumericalName(c *C) {
 	// This is probably not valid
 	s.mockGetentOutput(c, `johndoe:x:60001:60001:John Doe2:/home/johndoe2:/bin/bash
 1johndoe:x:60000:60000:John Doe:/home/johndoe:/bin/bash
-`, "passwd")
+`, 0, "passwd")
 
 	usr, err := user.LookupUserFromGetent(user.UserMatchUsername("1johndoe"))
 	c.Assert(err, IsNil)
@@ -141,4 +152,28 @@ func (s *getentSuite) TestLookupUserByNumericalName(c *C) {
 	c.Check(usr.Gid, Equals, "60000")
 	c.Check(usr.Name, Equals, "John Doe")
 	c.Check(usr.HomeDir, Equals, "/home/johndoe")
+}
+
+func (s *getentSuite) TestLookupUserByNameMissing(c *C) {
+	s.mockGetentOutput(c, ``, 2, "passwd", "johndoe")
+
+	usr, err := user.LookupUserFromGetent(user.UserMatchUsername("johndoe"))
+	c.Assert(err, IsNil)
+	c.Assert(usr, IsNil)
+}
+
+func (s *getentSuite) TestLookupUserUidMissing(c *C) {
+	s.mockGetentOutput(c, ``, 2, "passwd", "60000")
+
+	usr, err := user.LookupUserFromGetent(user.UserMatchUid(60000))
+	c.Assert(err, IsNil)
+	c.Assert(usr, IsNil)
+}
+
+func (s *getentSuite) TestLookupGroupByNameMissing(c *C) {
+	s.mockGetentOutput(c, ``, 2, "group", "mygroup")
+
+	grp, err := user.LookupGroupFromGetent(user.GroupMatchGroupname("mygroup"))
+	c.Assert(err, IsNil)
+	c.Assert(grp, IsNil)
 }

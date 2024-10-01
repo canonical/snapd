@@ -37,6 +37,9 @@ func getEnt(params ...string) ([]byte, error) {
 	if err != nil {
 		var exitError *exec.ExitError
 		if errors.As(err, &exitError) {
+			if exitError.ExitCode() == 2 {
+				return nil, nil
+			}
 			return nil, fmt.Errorf("getent returned an error: %q", exitError.Stderr)
 		}
 		return nil, fmt.Errorf("getent could not be executed: %w", err)
