@@ -1,12 +1,11 @@
 #!/bin/bash
-
-set -e
+set -xeu
 
 need_rebuild=1
 
 shopt -s nullglob
 
-if [ "$NO_REBUILD" = "1" ]; then
+if [ "${NO_REBUILD:-0}" = "1" ]; then
     echo "-- $(date) -- requested no snap rebuild"
     need_rebuild=0
 
