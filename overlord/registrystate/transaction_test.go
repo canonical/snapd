@@ -445,8 +445,16 @@ func (s *transactionTestSuite) TestTransactionPristine(c *C) {
 	err = tx.Set("foo", "baz")
 	c.Assert(err, IsNil)
 
-	pristineBag := tx.Pristine()
-	val, err := pristineBag.Get("foo")
+	checkPristine := func(key, expected string) {
+		pristineBag := tx.Pristine()
+		val, err := pristineBag.Get(key)
+		c.Assert(err, IsNil)
+		c.Check(val, Equals, expected)
+	}
+	checkPristine("foo", "bar")
+
+	err = tx.Commit(s.state, registry.NewJSONSchema())
 	c.Assert(err, IsNil)
-	c.Check(val, Equals, "bar")
+
+	checkPristine("foo", "baz")
 }
