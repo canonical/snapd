@@ -110,7 +110,7 @@ func (x *packCmd) Execute([]string) error {
 
 	if x.CheckSkeleton {
 		err := pack.CheckSkeleton(Stderr, x.Positional.SnapDir)
-		if err == snap.ErrMissingPaths {
+		if errors.Is(err, snap.ErrMissingPaths) {
 			return nil
 		}
 		return err
