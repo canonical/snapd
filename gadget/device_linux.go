@@ -31,38 +31,10 @@ import (
 
 var evalSymlinks = filepath.EvalSymlinks
 
-// FindDeviceForStructure attempts to find an existing block device matching
-// given volume structure, by inspecting its name and, optionally, the
-// filesystem label. Assumes that the host's udev has set up device symlinks
-// correctly.
-func FindDeviceForStructure(vs *VolumeStructure) (string, error) {
-	var candidates []string
-
-	if vs.Name != "" {
-		byPartlabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", disks.BlkIDEncodeLabel(vs.Name))
-		candidates = append(candidates, byPartlabel)
-	}
-	if vs.HasFilesystem() {
-		fsLabel := vs.Label
-		if fsLabel == "" && vs.Name != "" {
-			// when image is built and the structure has no
-			// filesystem label, the structure name will be used by
-			// default as the label
-			fsLabel = vs.Name
-		}
-		if fsLabel != "" {
-			candLabel, err := disks.CandidateByLabelPath(fsLabel)
-			if err == nil {
-				candidates = append(candidates, candLabel)
-			} else {
-				logger.Debugf("no by-label candidate for %q: %v", fsLabel, err)
-			}
-		}
-	}
-
+func resolveMaybeDiskPaths(diskPaths []string) (string, error) {
 	var found string
 	var match string
-	for _, candidate := range candidates {
+	for _, candidate := range diskPaths {
 		if !osutil.FileExists(candidate) {
 			continue
 		}
@@ -90,4 +62,49 @@ func FindDeviceForStructure(vs *VolumeStructure) (string, error) {
 	}
 
 	return found, nil
+}
+
+func discoverDeviceDiskCandidatesForStructure(vs *VolumeStructure) (candidates []string) {
+	if vs.Name != "" {
+		byPartlabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", disks.BlkIDEncodeLabel(vs.Name))
+		candidates = append(candidates, byPartlabel)
+	}
+	if vs.HasFilesystem() {
+		fsLabel := vs.Label
+		if fsLabel == "" && vs.Name != "" {
+			// when image is built and the structure has no
+			// filesystem label, the structure name will be used by
+			// default as the label
+			fsLabel = vs.Name
+		}
+		if fsLabel != "" {
+			candLabel, err := disks.CandidateByLabelPath(fsLabel)
+			if err == nil {
+				candidates = append(candidates, candLabel)
+			} else {
+				logger.Debugf("no by-label candidate for %q: %v", fsLabel, err)
+			}
+		}
+	}
+	return candidates
+}
+
+// FindDeviceForStructure attempts to find an existing block device matching
+// given volume structure, by inspecting its name and, optionally, the
+// filesystem label. Assumes that the host's udev has set up device symlinks
+// correctly.
+func FindDeviceForStructure(vs *VolumeStructure) (string, error) {
+	candidates := discoverDeviceDiskCandidatesForStructure(vs)
+	return resolveMaybeDiskPaths(candidates)
+}
+
+// ResolveDeviceForStructure is an opposite to FindDeviceForStructure that allows
+// supplying a device path to resolve a specific disk. Calling this without a filter
+// (i.e device == ""), will return an error
+// The device path must be a path into /dev/disk/**
+func ResolveDeviceForStructure(device string) (string, error) {
+	if device == "" {
+		return "", fmt.Errorf("internal error: device must be supplied")
+	}
+	return resolveMaybeDiskPaths([]string{device})
 }

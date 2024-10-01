@@ -21,6 +21,7 @@ package gadget_test
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -242,5 +243,49 @@ func (d *deviceSuite) TestDeviceFindBadEvalSymlinks(c *C) {
 		Label:      "foo",
 	})
 	c.Check(err, ErrorMatches, `cannot read device link: failed`)
+	c.Check(found, Equals, "")
+}
+
+func (d *deviceSuite) TestResolveDeviceEmptyBase(c *C) {
+	found, err := gadget.ResolveDeviceForStructure("")
+	c.Check(err, ErrorMatches, `internal error: device must be supplied`)
+	c.Check(found, Equals, "")
+}
+
+func (d *deviceSuite) TestResolveDeviceBaseDeviceNotSymlink(c *C) {
+	// only the by-filesystem-label symlink
+	fakedevice := filepath.Join(d.dir, "/dev/fakedevice")
+	c.Assert(os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/foo")), IsNil)
+	c.Assert(os.Symlink("../../fakedevice", filepath.Join(d.dir, "/dev/disk/by-partlabel/relative")), IsNil)
+
+	found, err := gadget.ResolveDeviceForStructure(fakedevice)
+	c.Check(err, ErrorMatches, fmt.Sprintf(`candidate %s/dev/fakedevice is not a symlink`, d.dir))
+	c.Check(found, Equals, "")
+}
+
+func (d *deviceSuite) TestResolveDeviceMatchesBaseDeviceAsSymlink(c *C) {
+	// only the by-filesystem-label symlink
+	fakedevice := filepath.Join(d.dir, "/dev/fakedevice")
+	c.Assert(os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/foo")), IsNil)
+	c.Assert(os.Symlink("../../fakedevice", filepath.Join(d.dir, "/dev/disk/by-partlabel/relative")), IsNil)
+
+	found, err := gadget.ResolveDeviceForStructure(filepath.Join(d.dir, "/dev/disk/by-label/foo"))
+	c.Check(err, IsNil)
+	c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
+}
+
+func (d *deviceSuite) TestResolveDeviceNoMatchesBaseDevice(c *C) {
+	// fake two devices
+	// only the by-filesystem-label symlink
+	fakedevice0 := filepath.Join(d.dir, "/dev/fakedevice")
+	fakedevice1 := filepath.Join(d.dir, "/dev/fakedevice1")
+
+	c.Assert(os.Symlink(fakedevice0, filepath.Join(d.dir, "/dev/disk/by-label/foo")), IsNil)
+	c.Assert(os.Symlink(fakedevice1, filepath.Join(d.dir, "/dev/disk/by-label/bar")), IsNil)
+
+	c.Assert(os.Symlink("../../fakedevice", filepath.Join(d.dir, "/dev/disk/by-partlabel/relative")), IsNil)
+
+	found, err := gadget.ResolveDeviceForStructure(fakedevice1)
+	c.Check(err, ErrorMatches, `device not found`)
 	c.Check(found, Equals, "")
 }

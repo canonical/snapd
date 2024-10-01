@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -35,6 +36,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/edition"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
@@ -119,7 +121,8 @@ type KernelCmdline struct {
 }
 
 type Info struct {
-	Volumes map[string]*Volume `yaml:"volumes,omitempty"`
+	Volumes           map[string]*Volume  `yaml:"volumes,omitempty"`
+	VolumeAssignments []*VolumeAssignment `yaml:"volume-assignments,omitempty"`
 
 	// Default configuration for snaps (snap-id => key => value).
 	Defaults map[string]map[string]interface{} `yaml:"defaults,omitempty"`
@@ -553,6 +556,89 @@ type VolumeUpdate struct {
 	Preserve []string       `yaml:"preserve" json:"preserve"`
 }
 
+// VolumeAssignment is an optional set of volume-to-disk assignments
+// that can be specified. This is a nice way of reusing the same gadget
+// for multiple devices, or a way to map multiple volumes to the same disk
+// for cases like eMMC. Each assignment in this structure refers to a volume
+// and a device path (/dev/disk/** for now).
+type VolumeAssignment struct {
+	Name        string                       `yaml:"name"`
+	Assignments map[string]*DeviceAssignment `yaml:"assignment"`
+}
+
+func (va *VolumeAssignment) validate(volumes map[string]*Volume) error {
+	if len(va.Assignments) == 0 {
+		return fmt.Errorf("no assignments specified")
+	}
+
+	for name, asv := range va.Assignments {
+		if v := volumes[name]; v == nil {
+			return fmt.Errorf("volume %q is mentioned in assignment but has not been defined", name)
+		}
+		if err := asv.validate(); err != nil {
+			return fmt.Errorf("%q: %v", name, err)
+		}
+	}
+	return nil
+}
+
+// DeviceAssignment is the device data for each volume assignment. Currently
+// just keeps the device the volume should be assigned to.
+type DeviceAssignment struct {
+	Device string `yaml:"device"`
+}
+
+func (da *DeviceAssignment) validate() error {
+	if !strings.HasPrefix(da.Device, "/dev/disk/") {
+		return fmt.Errorf("unsupported device path %q, for now only paths under /dev/disk are valid", da.Device)
+	}
+	return nil
+}
+
+type DeviceVolume struct {
+	// Device is optional, and may mean that no mapping has been set
+	// for the volume
+	Device string
+	Volume *Volume
+}
+
+func areAssignmentsMatchingCurrentDevice(assignments map[string]*DeviceAssignment) bool {
+	for _, va := range assignments {
+		if _, err := os.Stat(path.Join(dirs.GlobalRootDir, va.Device)); err != nil {
+			// XXX: expect this to mean no path, consider actually
+			// ensuring the error is not-exists
+			logger.Debugf("failed to stat device %s: %v", va.Device, err)
+			return false
+		}
+	}
+	return true
+}
+
+// Indirection here for mocking
+var FindVolumesMatchingDeviceAssignment = findVolumesMatchingDeviceAssignmentImpl
+
+// findVolumesMatchingDeviceAssignmentImpl does a best effort match of the volume-assignments
+// against the current device. We find the first assignment that has all device paths matching
+func findVolumesMatchingDeviceAssignmentImpl(gi *Info) (map[string]DeviceVolume, error) {
+	for _, vas := range gi.VolumeAssignments {
+		if !areAssignmentsMatchingCurrentDevice(vas.Assignments) {
+			continue
+		}
+
+		// build a list of volumes matching assignment
+		logger.Noticef("found valid device-assignment: %s", vas.Name)
+		volumes := make(map[string]DeviceVolume)
+		for vol := range vas.Assignments {
+			volumes[vol] = DeviceVolume{
+				Device: vas.Assignments[vol].Device,
+				Volume: gi.Volumes[vol],
+			}
+		}
+		return volumes, nil
+	}
+	return nil, fmt.Errorf("no matching volume-assignment for current device")
+}
+
 // DiskVolumeDeviceTraits is a set of traits about a disk that were measured at
 // a previous point in time on the same device, and is used primarily to try and
 // map a volume in the gadget.yaml to a physical device on the system after the
@@ -718,6 +804,34 @@ func LoadDiskVolumesDeviceTraits(dir string) (map[string]DiskVolumeDeviceTraits,
 	return mapping, nil
 }
 
+func deviceNodeForStructure(device string, vs *VolumeStructure) (string, error) {
+	if device != "" {
+		disk, err := disks.DiskFromDeviceName(device)
+		if err != nil {
+			return "", err
+		}
+
+		return disk.KernelDeviceNode(), nil
+	}
+
+	structureDevice, err := FindDeviceForStructure(vs)
+	if err != nil && err != ErrDeviceNotFound {
+		return "", err
+	}
+
+	if structureDevice != "" {
+		// we found a device for this structure, get the parent disk
+		// and save that as the device for this volume
+		disk, err := disks.DiskFromPartitionDeviceNode(structureDevice)
+		if err != nil {
+			return "", err
+		}
+
+		return disk.KernelDeviceNode(), nil
+	}
+	return "", nil
+}
+
 // AllDiskVolumeDeviceTraits takes a mapping of volume name to Volume
 // and produces a map of volume name to DiskVolumeDeviceTraits. Since
 // doing so uses DiskVolumeDeviceTraitsForDevice, it will also
@@ -725,16 +839,19 @@ func LoadDiskVolumesDeviceTraits(dir string) (map[string]DiskVolumeDeviceTraits,
 // and matching before returning.
 func AllDiskVolumeDeviceTraits(allVols map[string]*Volume, optsPerVolume map[string]*DiskVolumeValidationOptions) (map[string]DiskVolumeDeviceTraits, error) {
 	// build up the mapping of volumes to disk device traits
-
-	allTraits := map[string]DiskVolumeDeviceTraits{}
-
 	// find all devices which map to volumes to save the current state of the
 	// system
+	allTraits := map[string]DiskVolumeDeviceTraits{}
 	for name, vol := range allVols {
 		// try to find a device for a structure inside the volume, we have a
 		// loop to attempt to use all structures in the volume in case there are
 		// partitions we can't map to a device directly at first using the
 		// device symlinks that FindDeviceForStructure uses
+		opts := optsPerVolume[name]
+		if opts == nil {
+			opts = &DiskVolumeValidationOptions{}
+		}
+
 		dev := ""
 		for _, vs := range vol.Structure {
 			// TODO: This code works for volumes that have at least one
@@ -747,26 +864,16 @@ func AllDiskVolumeDeviceTraits(allVols map[string]*Volume, optsPerVolume map[str
 			// locations, aside from potentially reading and comparing the bytes
 			// at the expected locations, but that is probably fragile and very
 			// non-performant.
-
 			if !vs.IsPartition() {
 				// skip trying to find non-partitions on disk, it won't work
 				continue
 			}
 
-			structureDevice, err := FindDeviceForStructure(&vs)
-			if err != nil && err != ErrDeviceNotFound {
+			devNode, err := deviceNodeForStructure(opts.Device, &vs)
+			if err != nil {
 				return nil, err
-			}
-			if structureDevice != "" {
-				// we found a device for this structure, get the parent disk
-				// and save that as the device for this volume
-				disk, err := disks.DiskFromPartitionDeviceNode(structureDevice)
-				if err != nil {
-					return nil, err
-				}
-
-				dev = disk.KernelDeviceNode()
-				break
+			} else if devNode != "" {
+				dev = devNode
 			}
 		}
 
@@ -777,10 +884,6 @@ func AllDiskVolumeDeviceTraits(allVols map[string]*Volume, optsPerVolume map[str
 		// now that we have a candidate device for this disk, build up the
 		// traits for it, this will also validate concretely that the
 		// device we picked and the volume are compatible
-		opts := optsPerVolume[name]
-		if opts == nil {
-			opts = &DiskVolumeValidationOptions{}
-		}
 		traits, err := DiskTraitsFromDeviceAndValidate(vol, dev, opts)
 		if err != nil {
 			return nil, fmt.Errorf("cannot gather disk traits for device %s to use with volume %s: %v", dev, name, err)
@@ -1014,6 +1117,9 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	}
 
 	// basic validation
+	// XXX: With the addition of volume-assignments we could even do per
+	// "device" validation here and check that atleast one bootloader
+	// assignment has been set for each of the assignments
 	var bootloadersFound int
 	for name := range gi.Volumes {
 		v := gi.Volumes[name]
@@ -1059,6 +1165,13 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 		return nil, errors.New("bootloader not declared in any volume")
 	case bootloadersFound > 1:
 		return nil, fmt.Errorf("too many (%d) bootloaders declared", bootloadersFound)
+	}
+
+	// do basic validation for volume-assignments
+	for _, va := range gi.VolumeAssignments {
+		if err := va.validate(gi.Volumes); err != nil {
+			return nil, fmt.Errorf("invalid volume-assignment for %q: %v", va.Name, err)
+		}
 	}
 
 	return &gi, nil

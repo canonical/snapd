@@ -79,41 +79,194 @@ func (s *installSuite) TestInstallRunError(c *C) {
 
 func (s *installSuite) TestInstallRunSimpleHappy(c *C) {
 	s.testInstall(c, installOpts{
-		encryption: false,
+		gadgetYaml: gadgettest.RaspiSimplifiedYaml,
+		diskMappings: map[string]*disks.MockDiskMapping{
+			"mmcblk0": gadgettest.ExpectedRaspiMockDiskInstallModeMapping,
+		},
+		disks:      defaultDiskSetup,
+		traitsJSON: gadgettest.ExpectedRaspiDiskVolumeDeviceTraitsJSON,
+		traits: map[string]gadget.DiskVolumeDeviceTraits{
+			"pi": gadgettest.ExpectedRaspiDiskVolumeDeviceTraits,
+		},
 	})
 }
 
 func (s *installSuite) TestInstallRunSimpleHappyFromMountPoint(c *C) {
 	s.testInstall(c, installOpts{
-		encryption: false,
-		fromSeed:   true,
+		gadgetYaml: gadgettest.RaspiSimplifiedYaml,
+		diskMappings: map[string]*disks.MockDiskMapping{
+			"mmcblk0": gadgettest.ExpectedRaspiMockDiskInstallModeMapping,
+		},
+		disks:      defaultDiskSetup,
+		traitsJSON: gadgettest.ExpectedRaspiDiskVolumeDeviceTraitsJSON,
+		traits: map[string]gadget.DiskVolumeDeviceTraits{
+			"pi": gadgettest.ExpectedRaspiDiskVolumeDeviceTraits,
+		},
+		fromSeed: true,
 	})
 }
 
 func (s *installSuite) TestInstallRunEncryptedLUKS(c *C) {
 	s.testInstall(c, installOpts{
+		gadgetYaml: gadgettest.RaspiSimplifiedYaml,
+		diskMappings: map[string]*disks.MockDiskMapping{
+			"mmcblk0": gadgettest.ExpectedRaspiMockDiskInstallModeMapping,
+		},
+		disks:      defaultDiskSetup,
+		traitsJSON: gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraitsJSON,
+		traits: map[string]gadget.DiskVolumeDeviceTraits{
+			"pi": gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits,
+		},
 		encryption: true,
 	})
 }
 
 func (s *installSuite) TestInstallRunExistingPartitions(c *C) {
 	s.testInstall(c, installOpts{
-		encryption:    false,
+		gadgetYaml: gadgettest.RaspiSimplifiedYaml,
+		diskMappings: map[string]*disks.MockDiskMapping{
+			"mmcblk0": gadgettest.ExpectedRaspiMockDiskMapping,
+		},
+		disks:      defaultDiskSetup,
+		traitsJSON: gadgettest.ExpectedRaspiDiskVolumeDeviceTraitsJSON,
+		traits: map[string]gadget.DiskVolumeDeviceTraits{
+			"pi": gadgettest.ExpectedRaspiDiskVolumeDeviceTraits,
+		},
 		existingParts: true,
 	})
 }
 
 func (s *installSuite) TestInstallRunEncryptionExistingPartitions(c *C) {
 	s.testInstall(c, installOpts{
+		gadgetYaml: gadgettest.RaspiSimplifiedYaml,
+		diskMappings: map[string]*disks.MockDiskMapping{
+			"mmcblk0": gadgettest.ExpectedLUKSEncryptedRaspiMockDiskMapping,
+		},
+		disks:      defaultDiskSetup,
+		traitsJSON: gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraitsJSON,
+		traits: map[string]gadget.DiskVolumeDeviceTraits{
+			"pi": gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits,
+		},
 		encryption:    true,
 		existingParts: true,
 	})
 }
 
+func (s *installSuite) TestInstallRunVolumeAssignmentHappy(c *C) {
+	s.testInstall(c, installOpts{
+		gadgetYaml: gadgettest.RaspiSimplifiedMultiVolumeAssignmentYaml,
+		diskMappings: map[string]*disks.MockDiskMapping{
+			"mmcblk0": gadgettest.ExpectedRaspiMockDiskInstallModeMapping,
+			"mmcblk1": gadgettest.ExpectedRaspiMockBackupDiskMapping,
+		},
+		disks: map[string]*installSetupDisk{
+			"mmcblk0": {
+				path: "42:0",
+				parts: map[string]string{
+					"mmcblk0p1": "ubuntu-seed",
+				},
+			},
+			"mmcblk1": {
+				path: "43:0",
+				parts: map[string]string{
+					"mmcblk1p1": "system-backup",
+				},
+			},
+		},
+		traitsJSON: gadgettest.ExpectedRaspiDiskVolumeMultiVolumeDeviceTraitsJSON,
+		traits: map[string]gadget.DiskVolumeDeviceTraits{
+			"pi":     gadgettest.ExpectedRaspiDiskVolumeDeviceTraits,
+			"backup": gadgettest.ExpectedRaspiDiskVolumeDeviceBackupTraits,
+		},
+		volumeAssignments: true,
+	})
+}
+
+func (s *installSuite) TestInstallRunVolumeAssignmentFromSeedHappy(c *C) {
+	s.testInstall(c, installOpts{
+		gadgetYaml: gadgettest.RaspiSimplifiedMultiVolumeAssignmentYaml,
+		diskMappings: map[string]*disks.MockDiskMapping{
+			"mmcblk0": gadgettest.ExpectedRaspiMockDiskInstallModeMapping,
+			"mmcblk1": gadgettest.ExpectedRaspiMockBackupDiskMapping,
+		},
+		disks: map[string]*installSetupDisk{
+			"mmcblk0": {
+				path: "42:0",
+				parts: map[string]string{
+					"mmcblk0p1": "ubuntu-seed",
+				},
+			},
+			"mmcblk1": {
+				path: "43:0",
+				parts: map[string]string{
+					"mmcblk1p1": "system-backup",
+				},
+			},
+		},
+		traitsJSON: gadgettest.ExpectedRaspiDiskVolumeMultiVolumeDeviceTraitsJSON,
+		traits: map[string]gadget.DiskVolumeDeviceTraits{
+			"pi":     gadgettest.ExpectedRaspiDiskVolumeDeviceTraits,
+			"backup": gadgettest.ExpectedRaspiDiskVolumeDeviceBackupTraits,
+		},
+		volumeAssignments: true,
+		fromSeed:          true,
+	})
+}
+
+func (s *installSuite) TestInstallRunVolumeAssignmentExistingPartsHappy(c *C) {
+	s.testInstall(c, installOpts{
+		gadgetYaml: gadgettest.RaspiSimplifiedMultiVolumeAssignmentYaml,
+		diskMappings: map[string]*disks.MockDiskMapping{
+			"mmcblk0": gadgettest.ExpectedRaspiMockDiskMapping,
+			"mmcblk1": gadgettest.ExpectedRaspiMockBackupDiskMapping,
+		},
+		disks: map[string]*installSetupDisk{
+			"mmcblk0": {
+				path: "42:0",
+				parts: map[string]string{
+					"mmcblk0p1": "ubuntu-seed",
+				},
+			},
+			"mmcblk1": {
+				path: "43:0",
+				parts: map[string]string{
+					"mmcblk1p1": "system-backup",
+				},
+			},
+		},
+		traitsJSON: gadgettest.ExpectedRaspiDiskVolumeMultiVolumeDeviceTraitsJSON,
+		traits: map[string]gadget.DiskVolumeDeviceTraits{
+			"pi":     gadgettest.ExpectedRaspiDiskVolumeDeviceTraits,
+			"backup": gadgettest.ExpectedRaspiDiskVolumeDeviceBackupTraits,
+		},
+		volumeAssignments: true,
+		existingParts:     true,
+	})
+}
+
+var defaultDiskSetup = map[string]*installSetupDisk{
+	"mmcblk0": {
+		parts: map[string]string{
+			"mmcblk0p1": "ubuntu-seed",
+		},
+	},
+}
+
+type installSetupDisk struct {
+	path  string
+	parts map[string]string
+}
+
 type installOpts struct {
-	encryption    bool
-	existingParts bool
-	fromSeed      bool
+	gadgetYaml        string
+	diskMappings      map[string]*disks.MockDiskMapping
+	disks             map[string]*installSetupDisk
+	traitsJSON        string
+	traits            map[string]gadget.DiskVolumeDeviceTraits
+	encryption        bool
+	existingParts     bool
+	fromSeed          bool
+	volumeAssignments bool
 }
 
 func (s *installSuite) testInstall(c *C, opts installOpts) {
@@ -129,28 +282,29 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 		HasModes: true,
 	}
 
-	s.setupMockUdevSymlinks(c, "mmcblk0p1")
+	c.Assert(len(opts.diskMappings) > 0, Equals, true, Commentf("mock disk must be provided"))
+	c.Assert(len(opts.disks) > 0, Equals, true, Commentf("mock disk must be provided"))
 
-	// mock single partition mapping to a disk with only ubuntu-seed partition
-	initialDisk := gadgettest.ExpectedRaspiMockDiskInstallModeMapping
-	if opts.existingParts {
-		// unless we are asked to mock with a full existing disk
-		if opts.encryption {
-			initialDisk = gadgettest.ExpectedLUKSEncryptedRaspiMockDiskMapping
-		} else {
-			initialDisk = gadgettest.ExpectedRaspiMockDiskMapping
-		}
-	}
-	m := map[string]*disks.MockDiskMapping{
-		filepath.Join(s.dir, "/dev/mmcblk0p1"): initialDisk,
+	for name, dopts := range opts.disks {
+		s.setupMockUdevSymlinks(c, mockUdevDeviceSetup{
+			name:  name,
+			path:  dopts.path,
+			parts: dopts.parts,
+		})
 	}
 
-	restore := disks.MockPartitionDeviceNodeToDiskMapping(m)
+	nodeToDiskMappings := make(map[string]*disks.MockDiskMapping, len(opts.diskMappings))
+	for name, mappings := range opts.diskMappings {
+		nodeToDiskMappings[filepath.Join(s.dir, fmt.Sprintf("/dev/%sp1", name))] = mappings
+	}
+	restore := disks.MockPartitionDeviceNodeToDiskMapping(nodeToDiskMappings)
 	defer restore()
 
-	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
-		"/dev/mmcblk0": initialDisk,
-	})
+	deviceToDiskMappings := make(map[string]*disks.MockDiskMapping, len(opts.diskMappings))
+	for name, mappings := range opts.diskMappings {
+		deviceToDiskMappings[fmt.Sprintf("/dev/%s", name)] = mappings
+	}
+	restore = disks.MockDeviceNameToDiskMapping(deviceToDiskMappings)
 	defer restore()
 
 	mockSfdisk := testutil.MockCommand(c, "sfdisk", "")
@@ -168,12 +322,21 @@ elif [ "$*" = "info --query property --name /dev/block/42:0" ]; then
 	echo "DEVTYPE=disk"
 	echo "ID_PART_TABLE_UUID=some-gpt-uuid"
 	echo "ID_PART_TABLE_TYPE=GPT"
+elif [ "$*" = "info --query property --name /dev/mmcblk1p1" ]; then
+	echo "ID_PART_ENTRY_DISK=43:0"
+elif [ "$*" = "info --query property --name /dev/block/43:0" ]; then
+	echo "DEVNAME=/dev/mmcblk1"
+	echo "DEVPATH=/devices/virtual/mmcblk1"
+	echo "DEVTYPE=disk"
+	echo "ID_PART_TABLE_UUID=another-gpt-uuid"
+	echo "ID_PART_TABLE_TYPE=GPT"
 fi
 `)
 	defer mockUdevadm.Restore()
 
 	if opts.fromSeed {
 		restoreMountInfo := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/ubuntu-seed rw,relatime shared:54 - vfat /dev/mmcblk0p1 rw
+130 30 43:1 / /run/mnt/system-backup rw,relatime shared:54 - ext4 /dev/mmcblk1p1 rw
 `)
 		defer restoreMountInfo()
 	} else {
@@ -197,21 +360,28 @@ fi
 		// device mapping so that later on in the function when we query for
 		// device traits, etc. we see the "full" disk
 
-		newDisk := gadgettest.ExpectedRaspiMockDiskMapping
+		n := make(map[string]*disks.MockDiskMapping, len(opts.diskMappings))
 		if opts.encryption {
-			newDisk = gadgettest.ExpectedLUKSEncryptedRaspiMockDiskMapping
+			n[filepath.Join(s.dir, "/dev/mmcblk0p1")] = gadgettest.ExpectedLUKSEncryptedRaspiMockDiskMapping
+		} else if opts.volumeAssignments {
+			n[filepath.Join(s.dir, "/dev/mmcblk0p1")] = gadgettest.ExpectedRaspiMockDiskMapping
+			n[filepath.Join(s.dir, "/dev/mmcblk1p1")] = gadgettest.ExpectedRaspiMockBackupDiskMapping
+		} else {
+			n[filepath.Join(s.dir, "/dev/mmcblk0p1")] = gadgettest.ExpectedRaspiMockDiskMapping
 		}
-
-		m := map[string]*disks.MockDiskMapping{
-			filepath.Join(s.dir, "/dev/mmcblk0p1"): newDisk,
-		}
-
-		restore := disks.MockPartitionDeviceNodeToDiskMapping(m)
+		restore := disks.MockPartitionDeviceNodeToDiskMapping(n)
 		addCleanup(restore)
 
-		restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
-			"/dev/mmcblk0": newDisk,
-		})
+		m := make(map[string]*disks.MockDiskMapping, len(opts.diskMappings))
+		if opts.encryption {
+			m["/dev/mmcblk0"] = gadgettest.ExpectedLUKSEncryptedRaspiMockDiskMapping
+		} else if opts.volumeAssignments {
+			m["/dev/mmcblk0"] = gadgettest.ExpectedRaspiMockDiskMapping
+			m["/dev/mmcblk1"] = gadgettest.ExpectedRaspiMockBackupDiskMapping
+		} else {
+			m["/dev/mmcblk0"] = gadgettest.ExpectedRaspiMockDiskMapping
+		}
+		restore = disks.MockDeviceNameToDiskMapping(m)
 		addCleanup(restore)
 
 		return nil
@@ -331,7 +501,7 @@ fi
 	})
 	defer restore()
 
-	gadgetRoot, err := gadgettest.WriteGadgetYaml(c.MkDir(), gadgettest.RaspiSimplifiedYaml)
+	gadgetRoot, err := gadgettest.WriteGadgetYaml(c.MkDir(), opts.gadgetYaml)
 	c.Assert(err, IsNil)
 
 	var saveEncryptionKey, dataEncryptionKey keys.EncryptionKey
@@ -412,7 +582,9 @@ fi
 
 	udevmadmCalls := [][]string{}
 
-	if opts.fromSeed {
+	// When volumes are assigned it does not query udevadm, but instead just
+	// verifies disks exists where their assignments are
+	if opts.fromSeed && !opts.volumeAssignments {
 		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "info", "--query", "property", "--name", "/dev/mmcblk0p1"})
 		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "info", "--query", "property", "--name", "/dev/block/42:0"})
 	}
@@ -451,13 +623,7 @@ fi
 	// check the disk-mapping.json that was written as well
 	mappingOnData, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")))
 	c.Assert(err, IsNil)
-	expMapping := gadgettest.ExpectedRaspiDiskVolumeDeviceTraits
-	if opts.encryption {
-		expMapping = gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits
-	}
-	c.Assert(mappingOnData, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
-		"pi": expMapping,
-	})
+	c.Assert(mappingOnData, DeepEquals, opts.traits)
 
 	// we get the same thing on ubuntu-save
 	dataFile := filepath.Join(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "disk-mapping.json")
@@ -467,11 +633,7 @@ fi
 	// also for extra paranoia, compare the object we load with manually loading
 	// the static JSON to make sure they compare the same, this ensures that
 	// the JSON that is written always stays compatible
-	jsonBytes := []byte(gadgettest.ExpectedRaspiDiskVolumeDeviceTraitsJSON)
-	if opts.encryption {
-		jsonBytes = []byte(gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraitsJSON)
-	}
-
+	jsonBytes := []byte(opts.traitsJSON)
 	err = os.WriteFile(dataFile, jsonBytes, 0644)
 	c.Assert(err, IsNil)
 
@@ -525,19 +687,39 @@ const mockUC20GadgetYaml = `volumes:
         size: 750M
 `
 
-func (s *installSuite) setupMockUdevSymlinks(c *C, devName string) {
-	err := os.MkdirAll(filepath.Join(s.dir, "/dev/disk/by-partlabel"), 0755)
-	c.Assert(err, IsNil)
+type mockUdevDeviceSetup struct {
+	name  string
+	parts map[string]string
+	path  string
+}
 
-	err = os.WriteFile(filepath.Join(s.dir, "/dev/"+devName), nil, 0644)
-	c.Assert(err, IsNil)
-	err = os.Symlink("../../"+devName, filepath.Join(s.dir, "/dev/disk/by-partlabel/ubuntu-seed"))
-	c.Assert(err, IsNil)
+func (s *installSuite) setupMockUdevSymlinks(c *C, opts mockUdevDeviceSetup) {
+	c.Assert(os.MkdirAll(filepath.Join(s.dir, "/dev/disk/by-partlabel"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.dir, "/dev/disk/by-path"), 0755), IsNil)
+
+	// mock the device node
+	c.Assert(os.WriteFile(filepath.Join(s.dir, "/dev/"+opts.name), nil, 0644), IsNil)
+
+	// mock the by-path node
+	if opts.path != "" {
+		c.Assert(os.Symlink("../../"+opts.name, filepath.Join(s.dir, fmt.Sprintf("/dev/disk/by-path/pci-%s", opts.path))), IsNil)
+	}
+
+	// mock partitions
+	for name, label := range opts.parts {
+		c.Assert(os.WriteFile(filepath.Join(s.dir, "/dev/"+name), nil, 0644), IsNil)
+		c.Assert(os.Symlink("../../"+name, filepath.Join(s.dir, fmt.Sprintf("/dev/disk/by-partlabel/%s", label))), IsNil)
+	}
 }
 
 func (s *installSuite) TestDeviceFromRoleHappy(c *C) {
 
-	s.setupMockUdevSymlinks(c, "fakedevice0p1")
+	s.setupMockUdevSymlinks(c, mockUdevDeviceSetup{
+		name: "fakedevice0",
+		parts: map[string]string{
+			"fakedevice0p1": "ubuntu-seed",
+		},
+	})
 
 	m := map[string]*disks.MockDiskMapping{
 		filepath.Join(s.dir, "/dev/fakedevice0p1"): {
@@ -568,7 +750,12 @@ func (s *installSuite) TestDeviceFromRoleErrorNoMatchingSysfs(c *C) {
 }
 
 func (s *installSuite) TestDeviceFromRoleErrorNoRole(c *C) {
-	s.setupMockUdevSymlinks(c, "fakedevice0p1")
+	s.setupMockUdevSymlinks(c, mockUdevDeviceSetup{
+		name: "fakedevice0",
+		parts: map[string]string{
+			"fakedevice0p1": "ubuntu-seed",
+		},
+	})
 	lv, err := gadgettest.LayoutFromYaml(c.MkDir(), mockGadgetYaml, nil)
 	c.Assert(err, IsNil)
 
@@ -577,14 +764,16 @@ func (s *installSuite) TestDeviceFromRoleErrorNoRole(c *C) {
 }
 
 type factoryResetOpts struct {
-	encryption bool
-	err        string
-	disk       *disks.MockDiskMapping
-	noSave     bool
-	gadgetYaml string
-	traitsJSON string
-	traits     gadget.DiskVolumeDeviceTraits
-	fromSeed   bool
+	encryption        bool
+	err               string
+	diskMappings      map[string]*disks.MockDiskMapping
+	disks             map[string]*installSetupDisk
+	noSave            bool
+	gadgetYaml        string
+	traitsJSON        string
+	traits            map[string]gadget.DiskVolumeDeviceTraits
+	fromSeed          bool
+	volumeAssignments bool
 }
 
 func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
@@ -596,18 +785,29 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 		c.Fatalf("unsupported test scenario, cannot use encryption without ubuntu-save")
 	}
 
-	s.setupMockUdevSymlinks(c, "mmcblk0p1")
+	c.Assert(len(opts.diskMappings) > 0, Equals, true, Commentf("mock disk must be provided"))
+	c.Assert(len(opts.disks) > 0, Equals, true, Commentf("mock disk must be provided"))
 
-	// mock single partition mapping to a disk with only ubuntu-seed partition
-	c.Assert(opts.disk, NotNil, Commentf("mock disk must be provided"))
-	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
-		filepath.Join(s.dir, "/dev/mmcblk0p1"): opts.disk,
-	})
+	for name, dopts := range opts.disks {
+		s.setupMockUdevSymlinks(c, mockUdevDeviceSetup{
+			name:  name,
+			path:  dopts.path,
+			parts: dopts.parts,
+		})
+	}
+
+	nodeToDiskMappings := make(map[string]*disks.MockDiskMapping, len(opts.diskMappings))
+	for name, mappings := range opts.diskMappings {
+		nodeToDiskMappings[filepath.Join(s.dir, fmt.Sprintf("/dev/%sp1", name))] = mappings
+	}
+	restore := disks.MockPartitionDeviceNodeToDiskMapping(nodeToDiskMappings)
 	defer restore()
 
-	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
-		"/dev/mmcblk0": opts.disk,
-	})
+	deviceToDiskMappings := make(map[string]*disks.MockDiskMapping, len(opts.diskMappings))
+	for name, mappings := range opts.diskMappings {
+		deviceToDiskMappings[fmt.Sprintf("/dev/%s", name)] = mappings
+	}
+	restore = disks.MockDeviceNameToDiskMapping(deviceToDiskMappings)
 	defer restore()
 
 	mockSfdisk := testutil.MockCommand(c, "sfdisk", "")
@@ -625,12 +825,21 @@ elif [ "$*" = "info --query property --name /dev/block/42:0" ]; then
 	echo "DEVTYPE=disk"
 	echo "ID_PART_TABLE_UUID=some-gpt-uuid"
 	echo "ID_PART_TABLE_TYPE=GPT"
+elif [ "$*" = "info --query property --name /dev/mmcblk1p1" ]; then
+	echo "ID_PART_ENTRY_DISK=43:0"
+elif [ "$*" = "info --query property --name /dev/block/43:0" ]; then
+	echo "DEVNAME=/dev/mmcblk1"
+	echo "DEVPATH=/devices/virtual/mmcblk1"
+	echo "DEVTYPE=disk"
+	echo "ID_PART_TABLE_UUID=another-gpt-uuid"
+	echo "ID_PART_TABLE_TYPE=GPT"
 fi
 `)
 	defer mockUdevadm.Restore()
 
 	if opts.fromSeed {
 		restoreMountInfo := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/ubuntu-seed rw,relatime shared:54 - vfat /dev/mmcblk0p1 rw
+130 30 43:1 / /run/mnt/system-backup rw,relatime shared:54 - ext4 /dev/mmcblk1p1 rw
 `)
 		defer restoreMountInfo()
 	} else {
@@ -812,7 +1021,9 @@ fi
 
 	udevmadmCalls := [][]string{}
 
-	if opts.fromSeed {
+	// When using volume-assignments for the device, `resolveBootDevice` will not call
+	// disks.DiskFromMountPoint and these calls wont happen
+	if opts.fromSeed && !opts.volumeAssignments {
 		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "info", "--query", "property", "--name", "/dev/mmcblk0p1"})
 		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "info", "--query", "property", "--name", "/dev/block/42:0"})
 	}
@@ -828,9 +1039,7 @@ fi
 	// check the disk-mapping.json that was written as well
 	mappingOnData, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")))
 	c.Assert(err, IsNil)
-	c.Assert(mappingOnData, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
-		"pi": opts.traits,
-	})
+	c.Assert(mappingOnData, DeepEquals, opts.traits)
 
 	// we get the same thing on ubuntu-save
 	dataFile := filepath.Join(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "disk-mapping.json")
@@ -854,26 +1063,39 @@ fi
 
 func (s *installSuite) TestFactoryResetHappyFromSeed(c *C) {
 	s.testFactoryReset(c, factoryResetOpts{
-		disk:       gadgettest.ExpectedRaspiMockDiskMapping,
+		diskMappings: map[string]*disks.MockDiskMapping{
+			"mmcblk0": gadgettest.ExpectedRaspiMockDiskMapping,
+		},
+		disks:      defaultDiskSetup,
 		gadgetYaml: gadgettest.RaspiSimplifiedYaml,
 		traitsJSON: gadgettest.ExpectedRaspiDiskVolumeDeviceTraitsJSON,
-		traits:     gadgettest.ExpectedRaspiDiskVolumeDeviceTraits,
-		fromSeed:   true,
+		traits: map[string]gadget.DiskVolumeDeviceTraits{
+			"pi": gadgettest.ExpectedRaspiDiskVolumeDeviceTraits,
+		},
+		fromSeed: true,
 	})
 }
 
 func (s *installSuite) TestFactoryResetHappyWithExisting(c *C) {
 	s.testFactoryReset(c, factoryResetOpts{
-		disk:       gadgettest.ExpectedRaspiMockDiskMapping,
+		diskMappings: map[string]*disks.MockDiskMapping{
+			"mmcblk0": gadgettest.ExpectedRaspiMockDiskMapping,
+		},
+		disks:      defaultDiskSetup,
 		gadgetYaml: gadgettest.RaspiSimplifiedYaml,
 		traitsJSON: gadgettest.ExpectedRaspiDiskVolumeDeviceTraitsJSON,
-		traits:     gadgettest.ExpectedRaspiDiskVolumeDeviceTraits,
+		traits: map[string]gadget.DiskVolumeDeviceTraits{
+			"pi": gadgettest.ExpectedRaspiDiskVolumeDeviceTraits,
+		},
 	})
 }
 
 func (s *installSuite) TestFactoryResetHappyWithoutDataAndBoot(c *C) {
 	s.testFactoryReset(c, factoryResetOpts{
-		disk:       gadgettest.ExpectedRaspiMockDiskInstallModeMapping,
+		diskMappings: map[string]*disks.MockDiskMapping{
+			"mmcblk0": gadgettest.ExpectedRaspiMockDiskInstallModeMapping,
+		},
+		disks:      defaultDiskSetup,
 		gadgetYaml: gadgettest.RaspiSimplifiedYaml,
 		err:        "gadget and system-boot device /dev/mmcblk0 partition table not compatible: cannot find .*ubuntu-boot.*",
 	})
@@ -881,21 +1103,94 @@ func (s *installSuite) TestFactoryResetHappyWithoutDataAndBoot(c *C) {
 
 func (s *installSuite) TestFactoryResetHappyWithoutSave(c *C) {
 	s.testFactoryReset(c, factoryResetOpts{
-		disk:       gadgettest.ExpectedRaspiMockDiskMappingNoSave,
+		diskMappings: map[string]*disks.MockDiskMapping{
+			"mmcblk0": gadgettest.ExpectedRaspiMockDiskMappingNoSave,
+		},
+		disks:      defaultDiskSetup,
 		gadgetYaml: gadgettest.RaspiSimplifiedNoSaveYaml,
 		noSave:     true,
 		traitsJSON: gadgettest.ExpectedRaspiDiskVolumeNoSaveDeviceTraitsJSON,
-		traits:     gadgettest.ExpectedRaspiDiskVolumeDeviceNoSaveTraits,
+		traits: map[string]gadget.DiskVolumeDeviceTraits{
+			"pi": gadgettest.ExpectedRaspiDiskVolumeDeviceNoSaveTraits,
+		},
 	})
 }
 
 func (s *installSuite) TestFactoryResetHappyEncrypted(c *C) {
 	s.testFactoryReset(c, factoryResetOpts{
 		encryption: true,
-		disk:       gadgettest.ExpectedLUKSEncryptedRaspiMockDiskMapping,
+		diskMappings: map[string]*disks.MockDiskMapping{
+			"mmcblk0": gadgettest.ExpectedLUKSEncryptedRaspiMockDiskMapping,
+		},
+		disks:      defaultDiskSetup,
 		gadgetYaml: gadgettest.RaspiSimplifiedYaml,
 		traitsJSON: gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraitsJSON,
-		traits:     gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits,
+		traits: map[string]gadget.DiskVolumeDeviceTraits{
+			"pi": gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits,
+		},
+	})
+}
+
+func (s *installSuite) TestFactoryResetHappyWithDeviceAssignmentFromSeed(c *C) {
+	s.testFactoryReset(c, factoryResetOpts{
+		diskMappings: map[string]*disks.MockDiskMapping{
+			"mmcblk0": gadgettest.ExpectedRaspiMockDiskMappingNoSave,
+			"mmcblk1": gadgettest.ExpectedRaspiMockBackupDiskMapping,
+		},
+		disks: map[string]*installSetupDisk{
+			"mmcblk0": {
+				path: "42:0",
+				parts: map[string]string{
+					"mmcblk0p1": "ubuntu-seed",
+				},
+			},
+			"mmcblk1": {
+				path: "43:0",
+				parts: map[string]string{
+					"mmcblk1p1": "system-backup",
+				},
+			},
+		},
+		gadgetYaml: gadgettest.RaspiSimplifiedMultiVolumeAssignmentNoSaveYaml,
+		traitsJSON: gadgettest.ExpectedRaspiDiskVolumeMultiVolumeDeviceNoSaveTraitsJSON,
+		traits: map[string]gadget.DiskVolumeDeviceTraits{
+			"pi":     gadgettest.ExpectedRaspiDiskVolumeDeviceNoSaveTraits,
+			"backup": gadgettest.ExpectedRaspiDiskVolumeDeviceBackupTraits,
+		},
+		fromSeed:          true,
+		noSave:            true,
+		volumeAssignments: true,
+	})
+}
+
+func (s *installSuite) TestFactoryResetHappyWithDeviceAssignmentFromExisting(c *C) {
+	s.testFactoryReset(c, factoryResetOpts{
+		diskMappings: map[string]*disks.MockDiskMapping{
+			"mmcblk0": gadgettest.ExpectedRaspiMockDiskMappingNoSave,
+			"mmcblk1": gadgettest.ExpectedRaspiMockBackupDiskMapping,
+		},
+		disks: map[string]*installSetupDisk{
+			"mmcblk0": {
+				path: "42:0",
+				parts: map[string]string{
+					"mmcblk0p1": "ubuntu-seed",
+				},
+			},
+			"mmcblk1": {
+				path: "43:0",
+				parts: map[string]string{
+					"mmcblk1p1": "system-backup",
+				},
+			},
+		},
+		gadgetYaml: gadgettest.RaspiSimplifiedMultiVolumeAssignmentNoSaveYaml,
+		traitsJSON: gadgettest.ExpectedRaspiDiskVolumeMultiVolumeDeviceNoSaveTraitsJSON,
+		traits: map[string]gadget.DiskVolumeDeviceTraits{
+			"pi":     gadgettest.ExpectedRaspiDiskVolumeDeviceNoSaveTraits,
+			"backup": gadgettest.ExpectedRaspiDiskVolumeDeviceBackupTraits,
+		},
+		noSave:            true,
+		volumeAssignments: true,
 	})
 }
 
