@@ -1593,6 +1593,23 @@ func (s *validationSetsSuite) TestKeys(c *C) {
 	})
 }
 
+func (s *validationSetsSuite) TestEmpty(c *C) {
+	a := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl",
+		"sequence":     "1",
+		"snaps":        []interface{}{},
+	}).(*asserts.ValidationSet)
+
+	vsets := snapasserts.NewValidationSets()
+	c.Assert(vsets.Empty(), Equals, true)
+	vsets.Add(a)
+	c.Assert(vsets.Empty(), Equals, false)
+}
+
 func (s *validationSetsSuite) TestRequiredSnapNames(c *C) {
 	valset1 := assertstest.FakeAssertion(map[string]interface{}{
 		"type":         "validation-set",

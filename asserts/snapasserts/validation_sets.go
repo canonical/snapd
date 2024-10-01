@@ -502,6 +502,13 @@ func (v *ValidationSets) Keys() []ValidationSetKey {
 	return keys
 }
 
+// Empty returns true if this ValidationSets hasn't had any validation sets
+// added to it. An empty ValidationSets doesn't enforce any constraints on the
+// state of snaps.
+func (v *ValidationSets) Empty() bool {
+	return len(v.sets) == 0
+}
+
 // Sets returns a slice of all of the validation sets that this ValidationSets
 // knows about.
 func (v *ValidationSets) Sets() []*asserts.ValidationSet {
