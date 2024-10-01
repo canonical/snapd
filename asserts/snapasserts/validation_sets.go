@@ -495,10 +495,11 @@ func (v *ValidationSets) Revisions() (map[string]snap.Revision, error) {
 // Keys returns a slice of ValidationSetKey structs that represent each
 // validation set that this ValidationSets knows about.
 func (v *ValidationSets) Keys() []ValidationSetKey {
-	keys := make([]ValidationSetKey, 0, len(v.sets))
+	keys := make(ValidationSetKeySlice, 0, len(v.sets))
 	for _, vs := range v.sets {
 		keys = append(keys, NewValidationSetKey(vs))
 	}
+	sort.Sort(keys)
 	return keys
 }
 

@@ -1587,9 +1587,9 @@ func (s *validationSetsSuite) TestKeys(c *C) {
 	c.Assert(valsets.Add(valset1), IsNil)
 	c.Assert(valsets.Add(valset2), IsNil)
 
-	c.Check(valsets.Keys(), testutil.DeepUnsortedMatches, []snapasserts.ValidationSetKey{
-		"16/account-id/my-snap-ctl2/2",
+	c.Check(valsets.Keys(), DeepEquals, []snapasserts.ValidationSetKey{
 		"16/account-id/my-snap-ctl/1",
+		"16/account-id/my-snap-ctl2/2",
 	})
 }
 
