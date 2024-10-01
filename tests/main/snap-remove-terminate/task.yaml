@@ -8,12 +8,30 @@ systems:
     # Ubuntu 14.04's special version of systemd doesn't have StartTransientUnit API.
     - -ubuntu-14.04-*
 
+kill-timeout: 10m
+
+environment:
+    BAD_SNAP/fork_bomb: fork-bomb
+    BAD_SNAP/no_fork_bomb: no-fork-bomb
+
 prepare: |
-    snap install test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local fork-bomb
+
+    if [ "$BAD_SNAP" = "fork-bomb" ]; then
+        tests.session -u test prepare
+        uid="$(id -u test)"
+        systemctl set-property "user-$uid.slice" TasksMax=1000
+    fi
 
 restore: |
-    systemctl stop test-kill.service || true
-    systemctl reset-failed test-kill.service || true
+    if [ "$BAD_SNAP" = "fork-bomb" ]; then
+        tests.session -u test restore
+        tests.session -u test exec systemctl --user stop test-kill.service || true
+        tests.session -u test exec systemctl --user reset-failed test-kill.service || true
+    else
+        systemctl stop test-kill.service || true
+        systemctl reset-failed test-kill.service || true
+    fi
 
 debug: |
     journalctl -u test-kill.service
@@ -22,16 +40,31 @@ execute: |
     echo "Start a long running process"
     lockfile="$(pwd)/lockfile"
     touch "$lockfile"
-    sh_snap_bin="$(command -v test-snapd-sh.sh)"
-    systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c 'touch /var/snap/test-snapd-sh/common/alive; sleep 100000'
-    # Wait for service to be up
-    retry -n 10 test -f /var/snap/test-snapd-sh/common/alive
+    alive_check="/var/snap/fork-bomb/common/alive"
+
+    sh_snap_bin="$(command -v fork-bomb.sh)"
+    if [ "$BAD_SNAP" = "fork-bomb" ]; then
+        if [[ "$SPREAD_SYSTEM" = amazon-linux-2-* ]]; then
+            # Amazon Linux 2 does not support systemd --user (see tests/main/tests.session-support for details)
+            echo "Skipping because systemd --user is not supported"
+            exit 0
+        fi
+
+        #shellcheck disable=SC2016,SC2086
+        alive_check="$(tests.session -u test exec $sh_snap_bin -c 'echo $SNAP_USER_COMMON/alive')"
+        #shellcheck disable=SC2016
+        tests.session -u test exec systemd-run --user --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c 'touch $SNAP_USER_COMMON/alive; sleep 100000'
+    else
+        systemd-run --unit test-kill.service flock "$lockfile" "$sh_snap_bin" -c 'touch /var/snap/fork-bomb/common/alive; sleep 100000'
+    fi
+    # Wait for snap to start
+    retry -n 10 test -f "$alive_check"
 
     echo "Lock is held"
     not flock --timeout 0 "$lockfile" --command "true"
 
     echo "Remove snap with --terminate flag"
-    snap remove --terminate test-snapd-sh
+    snap remove --terminate fork-bomb
 
     echo "Running process should be terminated after remove change is complete and lockfile should be unlocked"
     flock --timeout 60 "$lockfile" --command "true"
