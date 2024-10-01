@@ -1,0 +1,58 @@
+/*
+ * Copyright (C) 2015-2024 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+// THIS FILE IS GENERATED, DO NOT EDIT.
+
+#include "config.h"
+
+// Location for NVIDIA vulkan files (including _wayland)
+static const char *vulkan_globs[] = {
+	"icd.d/*nvidia*.json",
+};
+
+static const size_t vulkan_globs_len =
+    sizeof vulkan_globs / sizeof *vulkan_globs;
+
+// Location of EGL vendor files
+static const char *egl_vendor_globs[] = {
+	"egl_vendor.d/*nvidia*.json",
+};
+
+static const size_t egl_vendor_globs_len =
+    sizeof egl_vendor_globs / sizeof *egl_vendor_globs;
+
+#if defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
+
+// List of globs that describe nvidia userspace libraries.
+static const char *nvidia_globs[] = {
+{{- range $elem := .RegularGlobs }}
+    "{{ $elem }}",
+{{- end }}
+};
+
+static const size_t nvidia_globs_len =
+    sizeof nvidia_globs / sizeof *nvidia_globs;
+
+static const char *glvnd_globs[] = {
+{{- range $elem := .LibGlvndGlobs }}
+    "{{ $elem }}",
+{{- end }}
+};
+
+static const size_t glvnd_globs_len = sizeof glvnd_globs / sizeof *glvnd_globs;
+
+#endif				// defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
