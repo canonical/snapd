@@ -19,3 +19,6 @@ apps:
     date:
         command: bin/date
         plugs: [time-control]
+    sh:
+        command: bin/sh
+        plugs: [time-control]
