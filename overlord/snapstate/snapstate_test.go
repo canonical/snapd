@@ -8816,6 +8816,7 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementError(c *C) {
 				"name":     "some-snap",
 				"id":       "mysnapdddddddddddddddddddddddddd",
 				"presence": "required",
+				"revision": "1",
 			},
 			map[string]interface{}{
 				"name":     "some-other-snap",
@@ -8872,6 +8873,323 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementError(c *C) {
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, IsNil)
 	c.Check(snapst.Current, Equals, snap.R(1))
+
+	c.Assert(calledEnforce, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorComponents(c *C) {
+	headers := map[string]interface{}{
+		"type":         "validation-set",
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "bar",
+		"sequence":     "3",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "snap-with-missing-comps-at-wrong-rev",
+				"id":       snaptest.AssertedSnapID("snap-with-missing-comps-at-wrong-rev"),
+				"presence": "required",
+				"revision": "2",
+				"components": map[string]interface{}{
+					"one": map[string]interface{}{
+						"presence": "required",
+						"revision": "11",
+					},
+					"two": map[string]interface{}{
+						"presence": "required",
+						"revision": "22",
+					},
+				},
+			},
+			map[string]interface{}{
+				"name":     "snap-with-wrong-rev-comp-at-wrong-rev",
+				"id":       snaptest.AssertedSnapID("snap-with-wrong-rev-comp-at-wrong-rev"),
+				"presence": "required",
+				"revision": "2",
+				"components": map[string]interface{}{
+					"three": map[string]interface{}{
+						"presence": "required",
+						"revision": "33",
+					},
+				},
+			},
+			map[string]interface{}{
+				"name":     "snap-with-wrong-rev-comp",
+				"id":       snaptest.AssertedSnapID("snap-with-wrong-rev-comp"),
+				"presence": "required",
+				"revision": "1",
+				"components": map[string]interface{}{
+					"four": map[string]interface{}{
+						"presence": "required",
+						"revision": "44",
+					},
+				},
+			},
+			map[string]interface{}{
+				"name":     "snap-with-missing-comps",
+				"id":       snaptest.AssertedSnapID("snap-with-missing-comps"),
+				"presence": "required",
+				"revision": "1",
+				"components": map[string]interface{}{
+					"five": map[string]interface{}{
+						"presence": "required",
+						"revision": "55",
+					},
+				},
+			},
+			map[string]interface{}{
+				"name":     "snap-missing-with-missing-comps",
+				"id":       snaptest.AssertedSnapID("snap-missing-with-missing-comps"),
+				"presence": "required",
+				"revision": "1",
+				"components": map[string]interface{}{
+					"six": map[string]interface{}{
+						"presence": "required",
+						"revision": "66",
+					},
+				},
+			},
+		},
+	}
+
+	signing := assertstest.NewStoreStack("can0nical", nil)
+	a, err := signing.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	vs := a.(*asserts.ValidationSet)
+
+	vsets := snapasserts.NewValidationSets()
+	err = vsets.Add(vs)
+	c.Assert(err, IsNil)
+	c.Assert(vsets.Conflict(), IsNil)
+
+	newRef := func(name string) naming.SnapRef {
+		return naming.NewSnapRef(name, snaptest.AssertedSnapID(name))
+	}
+
+	newSeq := func(name string, rev snap.Revision, comps ...snap.ComponentSideInfo) sequence.SnapSequence {
+		seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+			RealName: name,
+			SnapID:   snaptest.AssertedSnapID(name),
+			Revision: rev,
+		}})
+		for _, comp := range comps {
+			// since we take a pointer to comp here, we've gotta copy it out of
+			// the loop variable. can be removed once we're on go 1.22
+			comp := comp
+			err := seq.AddComponentForRevision(rev, sequence.NewComponentState(&comp, snap.TestComponent))
+			c.Assert(err, IsNil)
+		}
+		return seq
+	}
+
+	opts := testResolveValidationSetsEnforcementErrorComponentsOpts{
+		vsets: vsets,
+		affected: []string{
+			"snap-with-missing-comps-at-wrong-rev",
+			"snap-with-wrong-rev-comp-at-wrong-rev",
+			"snap-with-wrong-rev-comp",
+			"snap-with-missing-comps",
+			"snap-missing-with-missing-comps",
+		},
+		expected: []*snapasserts.InstalledSnap{{
+			SnapRef:  newRef("snap-with-missing-comps-at-wrong-rev"),
+			Revision: snap.R(2),
+			Components: []snapasserts.InstalledComponent{{
+				ComponentRef: naming.NewComponentRef("snap-with-missing-comps-at-wrong-rev", "one"),
+				Revision:     snap.R(11),
+			}, {
+				ComponentRef: naming.NewComponentRef("snap-with-missing-comps-at-wrong-rev", "two"),
+				Revision:     snap.R(22),
+			}},
+		}, {
+			SnapRef:  newRef("snap-with-wrong-rev-comp-at-wrong-rev"),
+			Revision: snap.R(2),
+			Components: []snapasserts.InstalledComponent{{
+				ComponentRef: naming.NewComponentRef("snap-with-wrong-rev-comp-at-wrong-rev", "three"),
+				Revision:     snap.R(33),
+			}},
+		}, {
+			SnapRef:  newRef("snap-with-wrong-rev-comp"),
+			Revision: snap.R(1),
+			Components: []snapasserts.InstalledComponent{{
+				ComponentRef: naming.NewComponentRef("snap-with-wrong-rev-comp", "four"),
+				Revision:     snap.R(44),
+			}},
+		}, {
+			SnapRef:  newRef("snap-with-missing-comps"),
+			Revision: snap.R(1),
+			Components: []snapasserts.InstalledComponent{{
+				ComponentRef: naming.NewComponentRef("snap-with-missing-comps", "five"),
+				Revision:     snap.R(55),
+			}},
+		}, {
+			SnapRef:  newRef("snap-missing-with-missing-comps"),
+			Revision: snap.R(1),
+			Components: []snapasserts.InstalledComponent{{
+				ComponentRef: naming.NewComponentRef("snap-missing-with-missing-comps", "six"),
+				Revision:     snap.R(66),
+			}},
+		}},
+		componentsPerSnap: map[string][]snap.ComponentSideInfo{
+			"snap-with-missing-comps-at-wrong-rev": {
+				snap.ComponentSideInfo{Component: naming.NewComponentRef("snap-with-missing-comps-at-wrong-rev", "one"), Revision: snap.R(11)},
+				snap.ComponentSideInfo{Component: naming.NewComponentRef("snap-with-missing-comps-at-wrong-rev", "two"), Revision: snap.R(22)},
+			},
+			"snap-with-wrong-rev-comp-at-wrong-rev": {
+				snap.ComponentSideInfo{Component: naming.NewComponentRef("snap-with-wrong-rev-comp-at-wrong-rev", "three"), Revision: snap.R(33)},
+			},
+			"snap-with-wrong-rev-comp": {
+				snap.ComponentSideInfo{Component: naming.NewComponentRef("snap-with-wrong-rev-comp", "four"), Revision: snap.R(44)},
+			},
+			"snap-with-missing-comps": {
+				snap.ComponentSideInfo{Component: naming.NewComponentRef("snap-with-missing-comps", "five"), Revision: snap.R(55)},
+			},
+			"snap-missing-with-missing-comps": {
+				snap.ComponentSideInfo{Component: naming.NewComponentRef("snap-missing-with-missing-comps", "six"), Revision: snap.R(66)},
+			},
+		},
+		current: []snapstate.SnapState{{
+			Current:  snap.R(1),
+			Active:   true,
+			Sequence: newSeq("snap-with-missing-comps-at-wrong-rev", snap.R(1)),
+		}, {
+			Current: snap.R(1),
+			Active:  true,
+			Sequence: newSeq("snap-with-wrong-rev-comp-at-wrong-rev", snap.R(1), snap.ComponentSideInfo{
+				Component: naming.NewComponentRef("snap-with-wrong-rev-comp-at-wrong-rev", "three"),
+				Revision:  snap.R(32),
+			}),
+		}, {
+			Current: snap.R(1),
+			Active:  true,
+			Sequence: newSeq("snap-with-wrong-rev-comp", snap.R(1), snap.ComponentSideInfo{
+				Component: naming.NewComponentRef("snap-with-wrong-rev-comp", "four"),
+				Revision:  snap.R(43),
+			}),
+		}, {
+			Current:  snap.R(1),
+			Active:   true,
+			Sequence: newSeq("snap-with-missing-comps", snap.R(1)),
+		}},
+	}
+
+	s.testResolveValidationSetsEnforcementErrorComponents(c, opts)
+}
+
+type testResolveValidationSetsEnforcementErrorComponentsOpts struct {
+	expected          []*snapasserts.InstalledSnap
+	affected          []string
+	vsets             *snapasserts.ValidationSets
+	componentsPerSnap map[string][]snap.ComponentSideInfo
+	current           []snapstate.SnapState
+}
+
+func (s *snapmgrTestSuite) testResolveValidationSetsEnforcementErrorComponents(c *C, opts testResolveValidationSetsEnforcementErrorComponentsOpts) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, sn := range opts.current {
+		name := sn.CurrentSideInfo().RealName
+		snapstate.Set(s.state, name, &sn)
+	}
+
+	for _, name := range opts.affected {
+		s.fakeStore.registerID(name, snaptest.AssertedSnapID(name))
+	}
+
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		var results []store.SnapResourceResult
+		for _, csi := range opts.componentsPerSnap[info.InstanceName()] {
+			results = append(results, store.SnapResourceResult{
+				DownloadInfo: snap.DownloadInfo{
+					DownloadURL: "http://example.com/" + csi.Component.ComponentName,
+				},
+				Name:      csi.Component.ComponentName,
+				Revision:  csi.Revision.N,
+				Type:      "component/test",
+				Version:   "1.0",
+				CreatedAt: "2024-01-01T00:00:00Z",
+			})
+		}
+		return results
+	}
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		info.Components = make(map[string]*snap.Component)
+		for _, csi := range opts.componentsPerSnap[info.InstanceName()] {
+			info.Components[csi.Component.ComponentName] = &snap.Component{
+				Type: snap.TestComponent,
+				Name: csi.Component.ComponentName,
+			}
+		}
+		return nil
+	}
+
+	pinnedSeqs := map[string]int{"foo/bar": 3}
+	var calledEnforce bool
+	restore := snapstate.MockEnforceValidationSets(func(_ *state.State, usrKeysToVss map[string]*asserts.ValidationSet, pinned map[string]int, snaps []*snapasserts.InstalledSnap, snapsToIgnore map[string]bool, _ int) error {
+		calledEnforce = true
+		c.Check(pinned, DeepEquals, pinnedSeqs)
+		installed := []*snapasserts.InstalledSnap{
+			{SnapRef: naming.NewSnapRef("core", ""), Revision: snap.R(1)},
+			{SnapRef: naming.NewSnapRef("snapd", ""), Revision: snap.R(1)},
+		}
+
+		installed = append(installed, opts.expected...)
+
+		c.Check(snaps, testutil.DeepUnsortedMatches, installed)
+		c.Check(snapsToIgnore, HasLen, 0)
+		return nil
+	})
+	defer restore()
+
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(
+		compMntDir string, snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		return &snap.ComponentInfo{
+			Component:         csi.Component,
+			Type:              snap.TestComponent,
+			CompVersion:       "1.0",
+			ComponentSideInfo: *csi,
+		}, nil
+	}))
+
+	installed, _, err := snapstate.InstalledSnaps(s.state)
+	c.Assert(err, IsNil)
+
+	err = opts.vsets.CheckInstalledSnaps(installed, nil)
+	c.Assert(err, NotNil)
+	verr := err.(*snapasserts.ValidationSetsValidationError)
+
+	tss, affected, err := snapstate.ResolveValidationSetsEnforcementError(context.Background(), s.state, verr, pinnedSeqs, s.user.ID)
+	c.Assert(err, IsNil)
+	c.Assert(affected, testutil.DeepUnsortedMatches, opts.affected)
+
+	chg := s.state.NewChange("refresh-to-enforce", "")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	s.settle(c)
+	c.Assert(chg.Err(), IsNil)
+
+	for _, sn := range opts.expected {
+		var got snapstate.SnapState
+		err := snapstate.Get(s.state, sn.SnapName(), &got)
+		c.Assert(err, IsNil)
+		c.Check(got.Current, Equals, sn.Revision)
+
+		expectedComps := make([]*sequence.ComponentState, 0, len(sn.Components))
+		for _, comp := range sn.Components {
+			expectedComps = append(expectedComps, sequence.NewComponentState(&snap.ComponentSideInfo{
+				Component: comp.ComponentRef,
+				Revision:  comp.Revision,
+			}, snap.TestComponent))
+		}
+		gotComps := got.Sequence.Revisions[got.LastIndex(got.Current)].Components
+		c.Check(gotComps, testutil.DeepUnsortedMatches, expectedComps)
+	}
 
 	c.Assert(calledEnforce, Equals, true)
 }

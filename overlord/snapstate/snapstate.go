@@ -1779,10 +1779,15 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 		return nil, nil, fmt.Errorf("cannot auto-resolve validation set constraints that require removing snaps: %s", strutil.Quoted(invSnaps))
 	}
 
-	affected := make([]string, 0, len(valErr.MissingSnaps)+len(valErr.WrongRevisionSnaps))
-	var tasksets []*state.TaskSet
-	// use the same lane for installing and refreshing so everything is reversed
-	lane := st.NewLane()
+	var invComps []string
+	for snapName, cerr := range valErr.ComponentErrors {
+		for compName := range cerr.InvalidComponents {
+			invComps = append(invComps, naming.NewComponentRef(snapName, compName).String())
+		}
+	}
+	if len(invComps) != 0 {
+		return nil, nil, fmt.Errorf("cannot auto-resolve validation set constraints that require removing components: %s", strutil.Quoted(invComps))
+	}
 
 	vsets := snapasserts.NewValidationSets()
 	for _, vs := range valErr.Sets {
@@ -1791,52 +1796,112 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 		}
 	}
 
-	collectRevOpts := func(snapToRevToVss map[string]map[snap.Revision][]string) ([]string, []*RevisionOptions) {
-		var names []string
-		var revOpts []*RevisionOptions
+	affected := make([]string, 0, len(valErr.MissingSnaps)+len(valErr.WrongRevisionSnaps))
+	var tasksets []*state.TaskSet
+	// use the same lane for installing and refreshing so everything is reversed
+	lane := st.NewLane()
 
-		for snapName, revAndVs := range snapToRevToVss {
-			for rev := range revAndVs {
-				revOpts = append(revOpts, &RevisionOptions{Revision: rev, ValidationSets: vsets})
-			}
-			names = append(names, snapName)
+	// keep track of snaps that are being fixed. we won't need to fix any of
+	// their components explicitly
+	resolved := make(map[string]bool)
+
+	var wrongRevs []StoreUpdate
+	for name := range valErr.WrongRevisionSnaps {
+		resolved[name] = true
+
+		var additionalComps []string
+		if cerr, ok := valErr.ComponentErrors[name]; ok {
+			additionalComps = keys(cerr.MissingComponents)
 		}
 
-		return names, revOpts
+		wrongRevs = append(wrongRevs, StoreUpdate{
+			InstanceName: name,
+			RevOpts: RevisionOptions{
+				ValidationSets: vsets,
+			},
+			AdditionalComponents: additionalComps,
+		})
 	}
 
-	if len(valErr.WrongRevisionSnaps) > 0 {
-		names, revOpts := collectRevOpts(valErr.WrongRevisionSnaps)
-		// we're targeting precise revisions so re-refreshes don't make sense. Refreshes
-		// between epochs should managed by through  the validation sets
-		flags := &Flags{Transaction: client.TransactionAllSnaps, Lane: lane, NoReRefresh: true}
+	var missing []StoreSnap
+	for name := range valErr.MissingSnaps {
+		var comps []string
+		if cerr, ok := valErr.ComponentErrors[name]; ok {
+			comps = keys(cerr.MissingComponents)
+		}
 
-		updated, tss, err := UpdateMany(ctx, st, names, revOpts, userID, flags)
+		resolved[name] = true
+		missing = append(missing, StoreSnap{
+			InstanceName: name,
+			RevOpts: RevisionOptions{
+				ValidationSets: vsets,
+			},
+			Components: comps,
+		})
+	}
+
+	if len(wrongRevs) > 0 {
+		updated, uts, err := UpdateWithGoal(ctx, st, StoreUpdateGoal(wrongRevs...), nil, Options{
+			Flags: Flags{Transaction: client.TransactionAllSnaps, Lane: lane, NoReRefresh: true},
+		})
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %w", err)
 		}
 
-		tasksets = append(tasksets, tss...)
+		tasksets = append(tasksets, uts.Refresh...)
 		affected = append(affected, updated...)
 	}
 
-	if len(valErr.MissingSnaps) > 0 {
-		names, revOpts := collectRevOpts(valErr.MissingSnaps)
-		flags := &Flags{Transaction: client.TransactionAllSnaps, Lane: lane}
-
-		installed, tss, err := InstallMany(st, names, revOpts, userID, flags)
+	var installed []*snap.Info
+	var tss []*state.TaskSet
+	if len(missing) > 0 {
+		var err error
+		installed, tss, err = InstallWithGoal(ctx, st, StoreInstallGoal(missing...), Options{
+			Flags: Flags{Transaction: client.TransactionAllSnaps, Lane: lane},
+		})
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %w", err)
 		}
+	}
 
-		// updates should be done before the installs
-		for _, ts := range tss {
-			for _, prevTs := range tasksets {
-				ts.WaitAll(prevTs)
-			}
+	for snapName, cerr := range valErr.ComponentErrors {
+		if resolved[snapName] {
+			continue
 		}
-		tasksets = append(tasksets, tss...)
-		affected = append(affected, installed...)
+
+		comps := make([]string, 0, len(cerr.MissingComponents)+len(cerr.WrongRevisionComponents))
+		comps = append(comps, keys(cerr.MissingComponents)...)
+		comps = append(comps, keys(cerr.WrongRevisionComponents)...)
+
+		var snapst SnapState
+		err := Get(st, snapName, &snapst)
+		if err != nil && !errors.Is(err, state.ErrNoState) {
+			return nil, nil, err
+		}
+
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			return nil, nil, err
+		}
+
+		compTasks, err := InstallComponents(ctx, st, comps, info, vsets, Options{})
+		if err != nil {
+			return nil, nil, err
+		}
+
+		affected = append(affected, snapName)
+		tss = append(tss, compTasks...)
+	}
+
+	// updates should be done before the installs
+	for _, ts := range tss {
+		for _, prevTs := range tasksets {
+			ts.WaitAll(prevTs)
+		}
+	}
+	tasksets = append(tasksets, tss...)
+	for _, i := range installed {
+		affected = append(affected, i.InstanceName())
 	}
 
 	encodedAsserts := make(map[string][]byte, len(valErr.Sets))
