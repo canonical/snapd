@@ -617,6 +617,53 @@ func addRuleFromTemplate(c *C, rdb *requestrules.RuleDB, template *addRuleConten
 	return rdb.AddRule(partial.User, partial.Snap, partial.Interface, constraints, partial.Outcome, partial.Lifespan, partial.Duration)
 }
 
+func (s *requestrulesSuite) TestAddRuleRemoveRuleDuplicateVariants(c *C) {
+	rdb, err := requestrules.New(s.defaultNotifyRule)
+	c.Assert(err, IsNil)
+
+	ruleContents := &addRuleContents{
+		User:        s.defaultUser,
+		Snap:        "nextcloud",
+		Interface:   "home",
+		PathPattern: "/home/test/{{foo/{bar,baz},123},{123,foo{/bar,/baz}}}",
+		Permissions: []string{"read"},
+		Outcome:     prompting.OutcomeAllow,
+		Lifespan:    prompting.LifespanForever,
+		Duration:    "",
+	}
+
+	// Test that rule with a pattern which renders into duplicate variants does
+	// not conflict with itself while adding
+	var addedRules []*requestrules.Rule
+	rule, err := addRuleFromTemplate(c, rdb, ruleContents, ruleContents)
+	c.Check(err, IsNil)
+	c.Check(rule, NotNil)
+	addedRules = append(addedRules, rule)
+	s.checkWrittenRuleDB(c, addedRules)
+	s.checkNewNoticesSimple(c, nil, rule)
+
+	// Test that the rule exists
+	found, err := rdb.RuleWithID(rule.User, rule.ID)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, rule)
+	// Test that the rule's path pattern really renders to duplicate variants
+	variantList := make([]string, 0, found.Constraints.PathPattern.NumVariants())
+	variantSet := make(map[string]int, found.Constraints.PathPattern.NumVariants())
+	found.Constraints.PathPattern.RenderAllVariants(func(index int, variant patterns.PatternVariant) {
+		variantStr := variant.String()
+		variantList = append(variantList, variantStr)
+		variantSet[variantStr] += 1
+	})
+	c.Check(variantSet, Not(HasLen), len(variantList), Commentf("variant list: %q\nvariant set: %q", variantList, variantSet))
+
+	// Test that rule with a pattern which renders into duplicate variants does
+	// not cause an error while removing by trying to remove the same variant
+	// twice and finding it already removed the second time
+	removed, err := rdb.RemoveRule(rule.User, rule.ID)
+	c.Assert(err, IsNil)
+	c.Check(removed, DeepEquals, rule)
+}
+
 func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Assert(err, IsNil)

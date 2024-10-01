@@ -80,9 +80,9 @@ func renderAllVariants(n renderNode, observe func(index int, variant PatternVari
 		if err != nil {
 			// This should never occur
 			logger.Noticef("patterns: cannot parse pattern variant '%s': %v", variant, err)
-			continue
+		} else {
+			observe(i, variant)
 		}
-		observe(i, variant)
 		length, lengthUnchanged, moreRemain = v.NextVariant()
 	}
 }
