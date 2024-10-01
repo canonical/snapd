@@ -16,7 +16,6 @@ systems:
 
 prepare: |
   snap install test-snapd-stressd --edge --devmode
-  snap install test-snapd-curl --edge --devmode
 
 restore: |
   echo "Stop the service"

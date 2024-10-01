@@ -16,7 +16,6 @@ environment:
 
 prepare: | 
     "$TESTSTOOLS"/snaps-state install-local test-snap
-    snap install --devmode --edge test-snapd-curl
     snap install jq
 
 debug: |
@@ -48,11 +47,11 @@ execute: |
     # and is valid
     snap check-snapshot "$SET_ID"
     # and the snapshot metadata does not include an options entry
-    test-snapd-curl.curl -s --unix-socket /run/snapd.socket --max-time 5 http://localhost/v2/snapshots?set="$SET_ID" | NOMATCH '"options":'
+    timeout 5 snap debug api /v2/snapshots?set="$SET_ID" | NOMATCH '"options":'
 
     # Create snapshot that will apply dynamic exclusions, and grab the set ID
     #shellcheck disable=SC2016
-    RESPONSE=$( test-snapd-curl.curl -s --unix-socket /run/snapd.socket --max-time 5 http://localhost/v2/snaps -X POST -H 'Content-Type: application/json' -d '{"action": "snapshot", "snaps": ["test-snap"], "snapshot-options": {"test-snap":{"exclude":["$SNAP_DATA/dynamic-exclude.txt", "$SNAP_COMMON/dynamic-exclude.txt", "$SNAP_USER_COMMON/dynamic-exclude.txt", "$SNAP_USER_DATA/dynamic-exclude.txt"]}}}' )
+    RESPONSE=$( echo '{"action": "snapshot", "snaps": ["test-snap"], "snapshot-options": {"test-snap":{"exclude":["$SNAP_DATA/dynamic-exclude.txt", "$SNAP_COMMON/dynamic-exclude.txt", "$SNAP_USER_COMMON/dynamic-exclude.txt", "$SNAP_USER_DATA/dynamic-exclude.txt"]}}}' | timeout 5 snap debug api -X POST -H 'Content-Type: application/json' /v2/snaps )
     SET_ID=$( echo "$RESPONSE" | jq '.result."set-id"' )
     echo "$SET_ID" | MATCH "^[0-9]+$"
     CHANGE=$( echo "$RESPONSE" | jq ".change" | grep -o "[0-9]*" )
@@ -65,7 +64,7 @@ execute: |
     # and is valid
     snap check-snapshot "$SET_ID"
     # and the snapshot metadata includes options
-    test-snapd-curl.curl -s --unix-socket /run/snapd.socket --max-time 5 http://localhost/v2/snapshots?set="$SET_ID" | MATCH '"options":'
+    timeout 5 snap debug api /v2/snapshots?set="$SET_ID" | MATCH '"options":'
 
     # Check that shapshot is exportable
     snap export-snapshot "$SET_ID" "${SET_ID}_export.snapshot"
@@ -79,7 +78,7 @@ execute: |
     "\$SNAP_USER_COMMON/dynamic-exclude.txt"
     "\$SNAP_USER_DATA/dynamic-exclude.txt"
     EOF
-    test-snapd-curl.curl -s --unix-socket /run/snapd.socket --max-time 5 http://localhost/v2/snapshots?set="$SET_ID" | jq .result[0].snapshots[0].options.exclude[] > actual_options_entry
+    timeout 5 snap debug api /v2/snapshots?set="$SET_ID" | jq .result[0].snapshots[0].options.exclude[] > actual_options_entry
     diff -u expected_options_entry actual_options_entry
 
     # Remove the canaries to test restore

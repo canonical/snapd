@@ -10,7 +10,6 @@ systems: [ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
 prepare: |
   snap install snap-store
   snap install jq
-  snap install --devmode --edge test-snapd-curl
 
 execute: |
   snap_id=$(snap info snap-store | grep snap-id | awk '{ print $2 }')
@@ -21,6 +20,6 @@ execute: |
   media_length=$(jq '. | length' < media.json)
   test "${media_length}" -gt 0
 
-  test-snapd-curl.curl -s --unix-socket /run/snapd.socket --max-time 5 'http://localhost/v2/snaps/snap-store' | jq --sort-keys .result.media > snapd-media.json
+  timeout 5 snap debug api /v2/snaps/snap-store | jq --sort-keys .result.media > snapd-media.json
 
   diff media.json snapd-media.json
