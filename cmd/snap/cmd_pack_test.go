@@ -107,7 +107,8 @@ func (s *SnapSuite) TestPackPacksFailsForMissingPaths(c *check.C) {
 	snapDir := makeSnapDirForPack(c, packSnapYaml)
 
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", snapDir, snapDir})
-	c.Assert(err, check.ErrorMatches, `.* snap is unusable due to missing files: path "bin/hello" does not exist`)
+	// needed files/dirs are tracked in map so order of first error is not guaranteed
+	c.Assert(err, check.ErrorMatches, `.* snap is unusable due to missing files: path "(bin/hello|bin)" does not exist`)
 }
 
 func (s *SnapSuite) TestPackPacksASnap(c *check.C) {
