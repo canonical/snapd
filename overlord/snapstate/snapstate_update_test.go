@@ -15023,7 +15023,12 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		c.Assert(te.Kind(), Equals, "validate-snap")
 	}
 
-	s.settle(c)
+	// we manually settle here since this test can be slow when the host is
+	// under load
+	s.state.Unlock()
+	err = s.o.Settle(testutil.HostScaledTimeout(15 * time.Second))
+	s.state.Lock()
+	c.Assert(err, IsNil, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
 
 	if opts.undo {
 		c.Assert(chg.Err(), NotNil, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
@@ -15718,7 +15723,12 @@ components:
 	c.Assert(te, NotNil)
 	c.Assert(te.Kind(), Equals, "prepare-snap")
 
-	s.settle(c)
+	// we manually settle here since this test can be slow when the host is
+	// under load
+	s.state.Unlock()
+	err = s.o.Settle(testutil.HostScaledTimeout(15 * time.Second))
+	s.state.Lock()
+	c.Assert(err, IsNil, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
 
 	if undo {
 		c.Assert(chg.Err(), NotNil, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
@@ -16133,7 +16143,12 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughOnlyComponentUpdate
 	c.Assert(te, NotNil)
 	c.Assert(te.Kind(), Equals, "prepare-snap")
 
-	s.settle(c)
+	// we manually settle here since this test can be slow when the host is
+	// under load
+	s.state.Unlock()
+	err = s.o.Settle(testutil.HostScaledTimeout(15 * time.Second))
+	s.state.Lock()
+	c.Assert(err, IsNil, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
 
 	if opts.undo {
 		c.Assert(chg.Err(), NotNil, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
