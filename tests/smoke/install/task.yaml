@@ -10,7 +10,7 @@ details: |
     snaps: core, core18, core20 and core22.
 
 restore: |
-    test -f .skip && exit 0
+    tests.exec is-skipped && exit 0
 
     rm -f /home/test/stderr.log
     rm -f /home/test/stdout.log
@@ -18,7 +18,7 @@ restore: |
     snap remove --purge test-snapd-sh
 
 debug: |
-    test -f .skip && exit 0
+    tests.exec is-skipped && exit 0
 
     if test -e stderr.log; then
         echo "content of stderr.log"
@@ -26,7 +26,7 @@ debug: |
     fi
 
 execute: |
-    test -f .skip && exit 0
+    tests.exec is-skipped && exit 0
 
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh

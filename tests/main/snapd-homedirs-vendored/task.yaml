@@ -14,9 +14,7 @@ environment:
 
 prepare: |
     if tests.info is-snapd-pkg-repo; then
-        echo "This test needs to be executed when snapd deb is built from local"
-        touch .skip
-        exit 
+        tests.exec skip-test "No needed to test the snap pkg when it is coming from the repository" && exit 0
     fi
 
     # Create a new user in a non-standard location
@@ -34,7 +32,7 @@ prepare: |
     rm -rf "${unpackdir}"
 
 restore: |
-    test -f .skip && exit 0
+    tests.exec is-skipped && exit 0
 
     userdel -f --remove "$USERNAME"
     rm -rf /remote/users
@@ -46,7 +44,7 @@ restore: |
     distro_install_build_snapd
 
 debug: |
-    test -f .skip && exit 0
+    tests.exec is-skipped && exit 0
 
     # output custom snap-confine snippets
     ls -l /var/lib/snapd/apparmor/snap-confine/
@@ -56,7 +54,7 @@ debug: |
     done
 
 execute: |
-    test -f .skip && exit 0
+    tests.exec is-skipped && exit 0
 
     echo "Downgrading the snapd deb to pre-vendored apparmor times"
     TARGET_VER="$(apt list -a snapd | grep -- -updates | cut -f2 -d' ')"

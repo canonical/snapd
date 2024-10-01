@@ -159,7 +159,7 @@ save_installed_core_snap() {
 
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     LIBEXEC_DIR="$(os.paths libexec-dir)"
-    core="$(readlink -f "$SNAP_MOUNT_DIR/core/current" || readlink -f "$SNAP_MOUNT_DIR/ubuntu-core/current")"
+    core="$(readlink -f "$SNAP_MOUNT_DIR/core/current")"
     snap="$(mount | grep " $core" | head -n 1 | awk '{print $1}')"
     snap_name="$(basename "$snap")"
 
@@ -469,7 +469,9 @@ prepare_classic() {
 
         snap list | grep core
 
-        # No need to update the core snap when the snap pkg is not being built from local changes
+        # With reexec, and on classic, the snapd snap is preferred over the core snap for reexecution target,
+        # so to be as close as possible to the actual real life scenarios, we only update the snapd snap.
+        # The tests alreday ensure that snapd snap is installed.
         if tests.info is-snapd-pkg-repo; then
             save_installed_core_snap "$TESTSTMP/core_snap"
         else

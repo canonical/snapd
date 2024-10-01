@@ -22,9 +22,7 @@ environment:
 prepare: |
     # In this scenario, the keys from the snapd pkg are used
     if [ "$TRUST_TEST_KEYS" = "false" ] || tests.info is-snapd-pkg-repo; then
-        echo "This test needs test keys to be trusted"
-        touch .skip
-        exit
+        tests.exec skip-test "This test needs test keys to be trusted" && exit 0
     fi
 
     "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
@@ -51,7 +49,7 @@ prepare: |
     systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
 
 restore: |
-    test -f .skip && exit 0
+    tests.exec is-skipped && exit 0
 
     systemctl stop snapd.service snapd.socket fakedevicesvc
 
@@ -61,7 +59,7 @@ restore: |
     rm -rf "$ROOT"
 
 execute: |
-    test -f .skip && exit 0
+    tests.exec is-skipped && exit 0
 
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh

@@ -14,18 +14,18 @@ environment:
     STRACE_STATIC_CHANNEL: candidate
   
 prepare: |
-    test -f .skip && exit 0
+    tests.exec is-skipped && exit 0
 
     "$TESTSTOOLS"/snaps-state install-local basic-run
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
 debug: |
-    test -f .skip && exit 0
+    tests.exec is-skipped && exit 0
 
     cat stderr || true
 
 execute: |
-    test -f .skip && exit 0
+    tests.exec is-skipped && exit 0
 
     echo "Running a trivial command causes no DENIED messages"
     test-snapd-sh.sh -c 'echo hello'

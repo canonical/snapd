@@ -15,7 +15,7 @@ backends: [-autopkgtest]
 systems: [-ubuntu-*-ppc64el, -ubuntu-*-s390x]
 
 execute: |
-    test -f .skip && exit 0
+    tests.exec is-skipped && exit 0
 
     echo "List all featured snaps"
     expected='(?s).*Name +Version +Publisher +Notes +Summary *\n(.*?\n)?.*'

@@ -8,9 +8,7 @@ systems: [-ubuntu-core-*]
 
 prepare: |
     if tests.info is-snapd-pkg-repo; then
-        echo "This test is skipped when the snapd pkg isn't built from local"
-        touch .skip
-        exit
+        tests.exec skip-test "This test is skipped when the snapd pkg isn't built from local" && exit 0
     fi
 
     # TODO: unify this with tests/main/snap-mgmt/task.yaml
@@ -65,7 +63,7 @@ prepare: |
     fi
 
 restore: |
-    test -f .skip && exit 0
+    tests.exec is-skipped && exit 0
 
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
@@ -75,12 +73,12 @@ restore: |
     fi
 
 debug: |
-    test -f .skip && exit 0
+    tests.exec is-skipped && exit 0
 
     systemctl --no-legend --full | grep -E 'snap\..*\.(service|timer|socket|slice)' || true
 
 execute: |
-    test -f .skip && exit 0
+    tests.exec is-skipped && exit 0
 
     systemctl --no-legend --full | MATCH 'snap\..*\.(service|timer|socket|slice)'
 

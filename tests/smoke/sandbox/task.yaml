@@ -9,7 +9,7 @@ details: |
     the CPU supports one.
 
 restore: |
-    test -f .skip && exit 0
+    tests.exec is-skipped && exit 0
 
     rm -f /home/test/foo
     # required! in autopkgtest no suite restore is run at all
@@ -17,7 +17,7 @@ restore: |
     snap remove --purge test-snapd-hello-multi-arch
 
 execute: |
-    test -f .skip && exit 0
+    tests.exec is-skipped && exit 0
 
     if [ "$(snap debug confinement)" != "strict" ]; then
         if os.query is-ubuntu; then

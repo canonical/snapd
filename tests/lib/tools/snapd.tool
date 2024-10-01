@@ -49,7 +49,7 @@ main() {
 
 	# Use the tool from the snapd snap when re-exec is enabled
 	# Otherwise use the tool from the distro installation
-	if tests.info is-reexec-done; then
+	if tests.info is-reexec-in-use; then
 		MOUNT_DIR="$(os.paths snap-mount-dir)"
 		exec "$MOUNT_DIR"/snapd/current/usr/lib/snapd/"$tool" "$@"
 	else

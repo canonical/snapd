@@ -7,7 +7,7 @@ details: |
     properties in general.
 
 execute: |
-    test -f .skip && exit 0
+    tests.exec is-skipped && exit 0
 
     echo "Listing all account assertions"
     snap known account|MATCH "^type: account$"

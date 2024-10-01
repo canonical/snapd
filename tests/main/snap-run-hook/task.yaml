@@ -12,10 +12,8 @@ environment:
     ENVDUMP: /var/snap/basic-hooks/current/hooks-env
 
 prepare: |
-    # No needed to test the snap pkg when it is coming from the repository
     if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
-        touch .skip
-        exit
+        tests.exec skip-test "No needed to test the snap pkg when it is coming from the repository" && exit 0
     fi
     "$TESTSTOOLS"/snaps-state install-local basic-hooks
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
@@ -27,7 +25,7 @@ prepare: |
     fi
 
 execute: |
-    test -f .skip && exit 0
+    tests.exec is-skipped && exit 0
 
     # Note that `snap run` doesn't exit non-zero if the hook is missing, so we
     # check the output instead.
