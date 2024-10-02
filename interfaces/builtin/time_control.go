@@ -93,6 +93,9 @@ capability sys_time,
 /sys/class/rtc/*/ rw,
 /sys/class/rtc/*/** rw,
 
+# Nodes in /sys/class/rtc could be symlinks under /sys/devices
+/sys/devices/**/rtc/*/** rw,
+
 # Allow access to pps
 # https://www.kernel.org/doc/html/latest/driver-api/pps.html
 /dev/pps[0-9]* rw,
