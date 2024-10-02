@@ -468,8 +468,9 @@ func (s *registryTestSuite) TestRegistryTasksUserSetWithCustodianInstalled(c *C)
 	chg := s.state.NewChange("modify-registry", "")
 
 	// a user (not a snap) changes a registry
-	ts, err := registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "")
+	ts, err := registrystate.CreateChangeRegistryTasks(s.state, tx, view, "")
 	c.Assert(err, IsNil)
+	chg.AddAll(ts)
 
 	// there are two edges in the taskset
 	commitTask, err := ts.Edge(registrystate.CommitEdge)
@@ -523,8 +524,9 @@ func (s *registryTestSuite) TestRegistryTasksCustodianSnapSet(c *C) {
 	chg := s.state.NewChange("modify-registry", "")
 
 	// a user (not a snap) changes a registry
-	_, err = registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "custodian-snap")
+	ts, err := registrystate.CreateChangeRegistryTasks(s.state, tx, view, "custodian-snap")
 	c.Assert(err, IsNil)
+	chg.AddAll(ts)
 
 	// the custodian snap's hooks are run
 	tasks := []string{"clear-registry-tx-on-error", "run-hook", "run-hook", "commit-registry-tx", "clear-registry-tx"}
@@ -563,8 +565,9 @@ func (s *registryTestSuite) TestRegistryTasksObserverSnapSetWithCustodianInstall
 	chg := s.state.NewChange("modify-registry", "")
 
 	// a non-custodian snap modifies a registry
-	_, err = registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "test-snap-1")
+	ts, err := registrystate.CreateChangeRegistryTasks(s.state, tx, view, "test-snap-1")
 	c.Assert(err, IsNil)
+	chg.AddAll(ts)
 
 	// we trigger hooks for the custodian snap and for the -view-changed for the
 	// observer snap that didn't trigger the change
@@ -626,10 +629,9 @@ func (s *registryTestSuite) testRegistryTasksNoCustodian(c *C) {
 	c.Assert(err, IsNil)
 
 	view := s.registry.View("setup-wifi")
-	chg := s.state.NewChange("modify-registry", "")
 
 	// a non-custodian snap modifies a registry
-	_, err = registrystate.CreateChangeRegistryTasks(s.state, chg, tx, view, "test-snap-1")
+	_, err = registrystate.CreateChangeRegistryTasks(s.state, tx, view, "test-snap-1")
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot commit changes to registry %s/network: no custodian snap installed", s.devAccID))
 }
 

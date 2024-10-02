@@ -209,7 +209,6 @@ func GetTransaction(ctx *Context, st *state.State, view *registry.View) (*Transa
 		// running in the context of a transaction, so if the referenced registry
 		// doesn't match that tx, we only allow the caller to read the other registry
 		t, _ := hookCtx.Task()
-		var err error
 		tx, commitTask, err := GetStoredTransaction(t)
 		if err != nil {
 			return nil, fmt.Errorf("cannot access registry view %s/%s/%s: cannot get transaction: %v", account, registryName, view.Name, err)
@@ -221,7 +220,7 @@ func GetTransaction(ctx *Context, st *state.State, view *registry.View) (*Transa
 			return nil, fmt.Errorf("cannot access registry %s/%s: ongoing transaction for %s/%s", account, registryName, tx.RegistryAccount, tx.RegistryName)
 		}
 
-		ctx.OnDone(func() error {
+		ctx.onDone(func() error {
 			setTransaction(commitTask, tx)
 			return nil
 		})
@@ -239,7 +238,7 @@ func GetTransaction(ctx *Context, st *state.State, view *registry.View) (*Transa
 		return nil, fmt.Errorf("cannot modify registry view %s/%s/%s: cannot create transaction: %v", account, registryName, view.Name, err)
 	}
 
-	ctx.OnDone(func() error {
+	ctx.onDone(func() error {
 		var chg *state.Change
 		if hookCtx == nil || hookCtx.IsEphemeral() {
 			chg = st.NewChange("modify-registry", fmt.Sprintf("Modify registry \"%s/%s\"", account, registryName))
@@ -254,10 +253,11 @@ func GetTransaction(ctx *Context, st *state.State, view *registry.View) (*Transa
 			callingSnap = hookCtx.InstanceName()
 		}
 
-		ts, err := createChangeRegistryTasks(st, chg, tx, view, callingSnap)
+		ts, err := createChangeRegistryTasks(st, tx, view, callingSnap)
 		if err != nil {
 			return err
 		}
+		chg.AddAll(ts)
 
 		commitTask, err := ts.Edge(commitEdge)
 		if err != nil {
@@ -274,11 +274,11 @@ func GetTransaction(ctx *Context, st *state.State, view *registry.View) (*Transa
 			return err
 		}
 
-		// have a buffer size >1, in the unlikely case that there are more than 1
-		// status changes for before the reader unblocks and removes the handler
-		taskReady := make(chan struct{}, 5)
+		taskReady := make(chan struct{})
+		var done bool
 		id := st.AddTaskStatusChangedHandler(func(t *state.Task, old, new state.Status) {
-			if t.ID() == lastTask.ID() && !old.Ready() && new.Ready() {
+			if !done && t.ID() == lastTask.ID() && new.Ready() {
+				done = true
 				taskReady <- struct{}{}
 				return
 			}
@@ -304,7 +304,7 @@ const (
 	lastEdge   = state.TaskSetEdge("last-edge")
 )
 
-func createChangeRegistryTasks(st *state.State, chg *state.Change, tx *Transaction, view *registry.View, callingSnap string) (*state.TaskSet, error) {
+func createChangeRegistryTasks(st *state.State, tx *Transaction, view *registry.View, callingSnap string) (*state.TaskSet, error) {
 	custodianPlugs, err := getCustodianPlugsForView(st, view)
 	if err != nil {
 		return nil, err
@@ -329,7 +329,6 @@ func createChangeRegistryTasks(st *state.State, chg *state.Change, tx *Transacti
 		if len(tasks) > 0 {
 			t.WaitFor(tasks[len(tasks)-1])
 		}
-		chg.AddTask(t)
 		ts.AddTask(t)
 	}
 
@@ -529,10 +528,14 @@ func IsRegistryHook(ctx *hookstate.Context) bool {
 			strings.HasSuffix(ctx.HookName(), "-view-changed"))
 }
 
+// Context is used by GetTransaction to defer actions until a point after the
+// call (e.g., blocking on a registry transaction only when the caller wants to).
+// The context also carries a hookstate.Context that is used to determine whether
+// the registry is being accessed from a snap hook.
 type Context struct {
 	hookCtx *hookstate.Context
 
-	onDone []func() error
+	onDoneCallbacks []func() error
 }
 
 func NewContext(ctx *hookstate.Context) *Context {
@@ -549,13 +552,13 @@ func NewContext(ctx *hookstate.Context) *Context {
 	return regCtx
 }
 
-func (c *Context) OnDone(f func() error) {
-	c.onDone = append(c.onDone, f)
+func (c *Context) onDone(f func() error) {
+	c.onDoneCallbacks = append(c.onDoneCallbacks, f)
 }
 
 func (c *Context) Done() error {
 	var firstErr error
-	for _, f := range c.onDone {
+	for _, f := range c.onDoneCallbacks {
 		if err := f(); err != nil && firstErr == nil {
 			firstErr = err
 		}
