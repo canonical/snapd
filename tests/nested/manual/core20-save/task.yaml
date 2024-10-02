@@ -46,11 +46,11 @@ execute: |
         echo "Check that ubuntu-save is mounted and has a reasonable amount of free space"
         #example df output:
         # Filesystem                                                   1B-blocks  Used Available Use% Mounted on
-        # /dev/mapper/ubuntu-save-0bed13ef-f71f-418f-b046-b1ce32dd04a7   5079040 28672   4390912   1% /run/mnt/ubuntu-save
+        # /dev/mapper/ubuntu-save   5079040 28672   4390912   1% /run/mnt/ubuntu-save
         save_out="$(remote.exec "df -B1 /run/mnt/ubuntu-save | tail -1")"
         if tests.nested is-enabled tpm; then
             # when encrypted, ubuntu-save is mounted from a dm device
-            echo "$save_out" | MATCH '^/dev/mapper/ubuntu-save-[0-9a-z-]+\s+'
+            echo "$save_out" | MATCH '^/dev/mapper/ubuntu-save\s+'
         else
             # when plain ubuntu-save is mounted from a regular block device
             echo "$save_out" | MATCH '^/dev/vda[0-9]\s+'
@@ -84,7 +84,7 @@ execute: |
         recover_save_out="$(remote.exec "df -B1 /run/mnt/ubuntu-save | tail -1")"
         if tests.nested is-enabled tpm; then
             # when encrypted, ubuntu-save is mounted from a dm device
-            echo "$recover_save_out" | MATCH '^/dev/mapper/ubuntu-save-[0-9a-z-]+\s+'
+            echo "$recover_save_out" | MATCH '^/dev/mapper/ubuntu-save\s+'
         else
             # when plain ubuntu-save is mounted from a regular block device
             echo "$recover_save_out" | MATCH '^/dev/vda[0-9]\s+'

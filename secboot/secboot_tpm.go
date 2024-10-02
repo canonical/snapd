@@ -40,7 +40,6 @@ import (
 	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap/snapfile"
 )
 
@@ -62,8 +61,6 @@ var (
 	sbSealedKeyObjectRevokeOldPCRProtectionPolicies = (*sb_tpm2.SealedKeyObject).RevokeOldPCRProtectionPolicies
 	sbNewKeyDataFromSealedKeyObjectFile             = sb_tpm2.NewKeyDataFromSealedKeyObjectFile
 	sbReadSealedKeyObjectFromFile                   = sb_tpm2.ReadSealedKeyObjectFromFile
-
-	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
 	isTPMEnabled                        = (*sb_tpm2.Connection).IsEnabled
 	lockoutAuthSet                      = (*sb_tpm2.Connection).LockoutAuthSet
