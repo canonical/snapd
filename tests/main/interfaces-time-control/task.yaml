@@ -68,7 +68,7 @@ execute: |
     fi
 
     # make sure that we can access the files in /sys/class/rtc
-    test-snapd-timedate-control-consumer.sh -c "cat /sys/class/rtc/rtc0/wakealarm"
+    test-snapd-timedate-control-consumer.sh -c "cat /sys/class/rtc/rtc0/name"
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-timedate-control-consumer:time-control
@@ -85,4 +85,4 @@ execute: |
     # EPERM because date gets blocked by the seccomp profile
     MATCH "cannot set date: Operation not permitted" < call.error
 
-    not test-snapd-timedate-control-consumer.sh -c "cat /sys/class/rtc/rtc0/wakealarm"
+    not test-snapd-timedate-control-consumer.sh -c "cat /sys/class/rtc/rtc0/name"
