@@ -9,7 +9,7 @@ details: |
     that, after a snap declared a iio plug is installed and connected, it can
     access the node and read/write its content.
 
-systems: [ubuntu-core-16-64]
+systems: [ubuntu-core-*-64]
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
