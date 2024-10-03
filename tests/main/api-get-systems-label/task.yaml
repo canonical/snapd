@@ -15,7 +15,7 @@ execute: |
   current_label=$(jq -r '.result.systems[0]["label"]' < systems)
 
   echo "Get details for a specific system"
-  snap debug api /v2/systems/"$current_label" > current-system
+  snap debug api "/v2/systems/$current_label" > current-system
   echo "Ensure the result contains a model assertion"
   jq -r '.result.model.type' < current-system | MATCH model
   jq -r '.result.model.series' < current-system | MATCH 16

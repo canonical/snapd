@@ -101,7 +101,7 @@ execute: |
 
   # do some light checking that the system is valid
   snap debug api /v2/systems | jq '.result.systems[0].label' | MATCH "$LABEL"
-  snap debug api /v2/systems/"$LABEL" > system
+  snap debug api "/v2/systems/$LABEL" > system
   jq '.result.model.distribution' system | MATCH "ubuntu"
   # build muinstaller and put in place
   go build -o muinstaller "$TESTSLIB"/muinstaller/main.go

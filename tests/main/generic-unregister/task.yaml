@@ -6,6 +6,9 @@ details: |
    the unregister to be performed immediately and after snapd is
    restarted.
 
+# ubuntu-14.04: curl does not have --unix-socket option
+systems: [-ubuntu-core-*, -ubuntu-14.04-*]
+
 environment:
   UNTIL_REBOOT/rereg: false
   UNTIL_REBOOT/until_reboot: true
