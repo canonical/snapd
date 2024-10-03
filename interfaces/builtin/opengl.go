@@ -188,6 +188,11 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 # From https://bugs.launchpad.net/snapd/+bug/1862832
 /run/nvidia-xdriver-* rw,
 unix (send, receive) type=dgram peer=(addr="@var/run/nvidia-xdriver-*"),
+
+/dev/nvgpu/igpu[0-9]*/power rw,
+/dev/nvgpu/igpu[0-9]*/ctrl rw,
+/dev/nvgpu/igpu[0-9]*/prof rw,
+/dev/host1x-fence rw,
 `
 
 type openglInterface struct {
@@ -211,6 +216,14 @@ var openglConnectedPlugUDev = []string{
 	`KERNEL=="mali[0-9]*"`,
 	`KERNEL=="dma_buf_te"`,
 	`KERNEL=="galcore"`,
+
+	//iGPU device nodes
+	`SUBSYSTEM=="nvidia-gpu-v2-power" KERNEL=="power"`,
+	`SUBSYSTEM=="nvidia-gpu-v2" KERNEL=="ctrl"`,
+	`SUBSYSTEM=="nvidia-gpu-v2" KERNEL=="prof"`,
+
+	// Nvidia dma barrier
+	`SUBSYSTEM=="host1x-fence"`,
 }
 
 // Those two are the same, but in theory they are separate and can move (or
