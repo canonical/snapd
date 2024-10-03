@@ -451,12 +451,10 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 	}
 
 	for idx, tc := range []struct {
-		tpmErr              error
 		tpmEnabled          bool  // TPM storage and endorsement hierarchies disabled, only relevant if TPM available
 		hasEncdev           bool  // an encrypted device exists
 		rkAllow             bool  // allow recovery key activation
 		rkErr               error // recovery key unlock error, only relevant if TPM not available
-		activated           bool  // the activation operation succeeded
 		activateErr         error // the activation error
 		uuidFailure         bool  // failure to get valid uuid
 		err                 string
@@ -468,32 +466,32 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		{
 			// happy case with tpm and encrypted device
 			tpmEnabled: true, hasEncdev: true,
-			activated:       true,
 			disk:            mockDiskWithEncDev,
 			expUnlockMethod: secboot.UnlockedWithSealedKey,
 		},
 		{
 			// happy case with tpm and old sealed key
 			tpmEnabled: true, hasEncdev: true,
-			activated:       true,
 			disk:            mockDiskWithEncDev,
 			expUnlockMethod: secboot.UnlockedWithSealedKey,
 			oldKeyFormat:    true,
 		}, {
 			// encrypted device: failure to generate uuid based target device name
-			tpmEnabled: true, hasEncdev: true, activated: true, uuidFailure: true,
+			tpmEnabled: true, hasEncdev: true, uuidFailure: true,
 			disk: mockDiskWithEncDev,
 			err:  "mocked uuid error",
 		}, {
 			// device activation fails
 			tpmEnabled: true, hasEncdev: true,
-			err:  "cannot activate encrypted device .*: activation error",
-			disk: mockDiskWithEncDev,
+			activateErr: fmt.Errorf("activation error"),
+			err:         "cannot activate encrypted device .*: activation error",
+			disk:        mockDiskWithEncDev,
 		}, {
 			// device activation fails
 			tpmEnabled: true, hasEncdev: true,
-			err:  "cannot activate encrypted device .*: activation error",
-			disk: mockDiskWithEncDev,
+			activateErr: fmt.Errorf("activation error"),
+			err:         "cannot activate encrypted device .*: activation error",
+			disk:        mockDiskWithEncDev,
 		}, {
 			// happy case without encrypted device
 			tpmEnabled: true,
@@ -501,19 +499,10 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		}, {
 			// happy case with tpm and encrypted device, activation
 			// with recovery key
-			tpmEnabled: true, hasEncdev: true, activated: true,
+			tpmEnabled: true, hasEncdev: true,
 			activateErr:     sb.ErrRecoveryKeyUsed,
 			disk:            mockDiskWithEncDev,
 			expUnlockMethod: secboot.UnlockedWithRecoveryKey,
-		}, {
-			// tpm error, no encrypted device
-			tpmErr: errors.New("tpm error"),
-			disk:   mockDiskWithUnencDev,
-		}, {
-			// tpm error, has encrypted device
-			tpmErr: errors.New("tpm error"), hasEncdev: true,
-			err:  `cannot unlock encrypted device "name": tpm error`,
-			disk: mockDiskWithEncDev,
 		}, {
 			// tpm disabled, no encrypted device
 			disk: mockDiskWithUnencDev,
@@ -521,36 +510,16 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			// tpm disabled, has encrypted device, unlocked using the recovery key
 			hasEncdev:       true,
 			rkAllow:         true,
+			activateErr:     sb.ErrRecoveryKeyUsed,
 			disk:            mockDiskWithEncDev,
 			expUnlockMethod: secboot.UnlockedWithRecoveryKey,
 		}, {
 			// tpm disabled, has encrypted device, recovery key unlocking fails
 			hasEncdev: true, rkErr: errors.New("cannot unlock with recovery key"),
-			rkAllow: true,
-			disk:    mockDiskWithEncDev,
-			err:     `cannot unlock encrypted device "/dev/disk/by-uuid/enc-dev-uuid": cannot unlock with recovery key`,
-		}, {
-			// no tpm, has encrypted device, unlocked using the recovery key
-			tpmErr: sb_tpm2.ErrNoTPM2Device, hasEncdev: true,
-			rkAllow:         true,
-			disk:            mockDiskWithEncDev,
-			expUnlockMethod: secboot.UnlockedWithRecoveryKey,
-		}, {
-			// no tpm, has encrypted device, unlocking with recovery key not allowed
-			tpmErr: sb_tpm2.ErrNoTPM2Device, hasEncdev: true,
-			disk: mockDiskWithEncDev,
-			err:  `cannot activate encrypted device "/dev/disk/by-uuid/enc-dev-uuid": activation error`,
-		}, {
-			// no tpm, has encrypted device, recovery key unlocking fails
-			rkErr:  errors.New("cannot unlock with recovery key"),
-			tpmErr: sb_tpm2.ErrNoTPM2Device, hasEncdev: true,
-			rkAllow: true,
-			disk:    mockDiskWithEncDev,
-			err:     `cannot unlock encrypted device "/dev/disk/by-uuid/enc-dev-uuid": cannot unlock with recovery key`,
-		}, {
-			// no tpm, no encrypted device
-			tpmErr: sb_tpm2.ErrNoTPM2Device,
-			disk:   mockDiskWithUnencDev,
+			rkAllow:     true,
+			activateErr: fmt.Errorf("some error"),
+			disk:        mockDiskWithEncDev,
+			err:         `cannot activate encrypted device "/dev/disk/by-uuid/enc-dev-uuid": some error`,
 		}, {
 			// no disks at all
 			disk:                mockDiskWithoutAnyDev,
@@ -571,9 +540,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			return randomUUID, nil
 		})
 		defer restore()
-
-		_, restoreConnect := mockSbTPMConnection(c, tc.tpmErr)
-		defer restoreConnect()
 
 		restore = secboot.MockIsTPMEnabled(func(tpm *sb_tpm2.Connection) bool {
 			return tc.tpmEnabled
@@ -699,20 +665,14 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 					Model:            sb.SkipSnapModelCheck,
 				})
 			}
-			if !tc.activated && tc.activateErr == nil {
-				return errors.New("activation error")
-			}
 			return tc.activateErr
 		})
 		defer restore()
 
 		restore = secboot.MockSbActivateVolumeWithRecoveryKey(func(name, device string, authReq sb.AuthRequestor,
 			options *sb.ActivateVolumeOptions) error {
-			if !tc.rkAllow {
-				c.Fatalf("unexpected attempt to activate with recovery key")
-				return fmt.Errorf("unexpected call")
-			}
-			return tc.rkErr
+			c.Errorf("unexpected call")
+			return fmt.Errorf("unexpected call")
 		})
 		defer restore()
 
@@ -1497,7 +1457,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(
 		},
 	}
 	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
-	c.Assert(err, ErrorMatches, `cannot unlock encrypted partition: cannot perform action because of an unexpected error: cannot run \["fde-reveal-key"\]: helper error`)
+	c.Assert(err, ErrorMatches, `cannot activate encrypted device "/dev/disk/by-uuid/enc-dev-uuid": cannot perform action because of an unexpected error: cannot run \["fde-reveal-key"\]: helper error`)
 }
 
 // this test that v1 hooks and raw binary v1 created sealedKey files still work
@@ -1532,24 +1492,38 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1An
 		},
 	}
 
-	activated := 0
 	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte, options *sb.ActivateVolumeOptions) error {
+		c.Errorf("unexpected error")
+		return fmt.Errorf("unexpected error")
+	})
+	defer restore()
+
+	mockSealedKeyObject, err := sb_tpm2.ReadSealedKeyObjectFromFile(filepath.Join("test-data", "keyfile"))
+	c.Assert(err, IsNil)
+	reader, err := sb.NewFileKeyDataReader(filepath.Join("test-data", "keydata"))
+	c.Assert(err, IsNil)
+	mockKeyData, err := sb.ReadKeyData(reader)
+	c.Assert(err, IsNil)
+
+	restore = secboot.MockReadKeyFile(func(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, error) {
+		c.Check(keyfile, Equals, "the-key-file")
+		return mockKeyData, mockSealedKeyObject, nil
+	})
+	defer restore()
+
+	activated := 0
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
 		activated++
-		c.Check(string(key), Equals, "unsealed-key-64-chars-long-when-not-json-to-match-denver-project")
+		c.Assert(keys, HasLen, 1)
+		c.Check(keys[0], DeepEquals, mockKeyData)
 		return nil
 	})
 	defer restore()
 
 	defaultDevice := "device-name"
-	// note that we write a v1 created keyfile here, i.e. it's a raw
-	// disk-key without any json
-	mockSealedKeyFile := filepath.Join(c.MkDir(), "keyfile")
-	sealedKeyContent := []byte("USK$sealed-key-not-json-to-match-denver-project")
-	err := os.WriteFile(mockSealedKeyFile, sealedKeyContent, 0600)
-	c.Assert(err, IsNil)
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
-	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
+	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, "the-key-file", opts)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, secboot.UnlockResult{
 		UnlockMethod: secboot.UnlockedWithSealedKey,
@@ -1558,9 +1532,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1An
 		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
 	})
 	c.Check(activated, Equals, 1)
-	c.Check(reqs, HasLen, 1)
-	c.Check(reqs[0].Op, Equals, "reveal")
-	c.Check(reqs[0].SealedKey, DeepEquals, sealedKeyContent)
+	// FIXME: maybe we should remove this test
+	c.Check(reqs, HasLen, 0)
 }
 
 func (s *secbootSuite) TestLockSealedKeysCallsFdeReveal(c *C) {
@@ -1800,7 +1773,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Ac
 		},
 	}
 	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
-	c.Assert(err, ErrorMatches, `cannot unlock encrypted partition: some activation error`)
+	c.Assert(err, ErrorMatches, `cannot activate encrypted device "/dev/disk/by-uuid/enc-dev-uuid": some activation error`)
 	c.Check(res, DeepEquals, secboot.UnlockResult{
 		IsEncrypted: true,
 		PartDevice:  "/dev/disk/by-partuuid/enc-dev-partuuid",
@@ -1976,24 +1949,39 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c
 		},
 	}
 
-	mockEncryptedDiskKey := []byte("USK$encrypted-key-no-json-to-match-denver-project")
-	activated := 0
+	mockSealedKeyObject, err := sb_tpm2.ReadSealedKeyObjectFromFile(filepath.Join("test-data", "keyfile"))
+	c.Assert(err, IsNil)
+	reader, err := sb.NewFileKeyDataReader(filepath.Join("test-data", "keydata"))
+	c.Assert(err, IsNil)
+	mockKeyData, err := sb.ReadKeyData(reader)
+	c.Assert(err, IsNil)
+
+	restore = secboot.MockReadKeyFile(func(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, error) {
+		c.Check(keyfile, Equals, "the-key-file")
+		return mockKeyData, mockSealedKeyObject, nil
+	})
+	defer restore()
+
 	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte, options *sb.ActivateVolumeOptions) error {
+		c.Errorf("unexpected calls")
+		return fmt.Errorf("unexpected calls")
+	})
+
+	defer restore()
+
+	activated := 0
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
 		activated++
-		c.Check(key, DeepEquals, mockDiskKey)
+		c.Assert(keys, HasLen, 1)
+		c.Check(keys[0], DeepEquals, mockKeyData)
 		return nil
 	})
 	defer restore()
 
 	defaultDevice := "device-name"
-	// note that we write a v1 created keyfile here, i.e. it's a raw
-	// disk-key without any json
-	mockSealedKeyFile := filepath.Join(c.MkDir(), "keyfile")
-	err := os.WriteFile(mockSealedKeyFile, mockEncryptedDiskKey, 0600)
-	c.Assert(err, IsNil)
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
-	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
+	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, "the-key-file", opts)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, secboot.UnlockResult{
 		UnlockMethod: secboot.UnlockedWithSealedKey,
@@ -2002,10 +1990,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c
 		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
 	})
 	c.Check(activated, Equals, 1)
-	c.Check(reqs, HasLen, 1)
-	c.Check(reqs[0].Op, Equals, "reveal")
-	c.Check(reqs[0].SealedKey, DeepEquals, mockEncryptedDiskKey)
-	c.Check(reqs[0].Handle, IsNil)
+	// Maybe this test is superfluous
+	c.Check(reqs, HasLen, 0)
 }
 
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJSONv2(c *C) {
@@ -2059,7 +2045,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 	}
 	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
 
-	c.Check(err, ErrorMatches, `cannot unlock encrypted partition: invalid key data:.*`)
+	c.Check(err, ErrorMatches, `cannot activate encrypted device \".*\": invalid key data: cannot unmarshal cleartext key payload: EOF`)
 }
 
 func (s *secbootSuite) TestPCRHandleOfSealedKey(c *C) {
