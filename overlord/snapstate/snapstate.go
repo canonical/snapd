@@ -1811,6 +1811,22 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	return tasksets, affected, nil
 }
 
+func keys[T comparable](m map[T]struct{}) []T {
+	keys := make([]T, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func unique[T comparable](s []T) []T {
+	m := make(map[T]struct{}, len(s))
+	for _, v := range s {
+		m[v] = struct{}{}
+	}
+	return keys(m)
+}
+
 // updateFilter is the type of function that can be passed to
 // updateManyFromChange so it filters the updates.
 //
