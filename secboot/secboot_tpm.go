@@ -217,51 +217,6 @@ func lockTPMSealedKeys() error {
 	return sbBlockPCRProtectionPolicies(tpm, []int{initramfsPCR})
 }
 
-func unlockVolumeUsingSealedKeyTPM(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
-	// TODO:UC20: use sb.SecureConnectToDefaultTPM() if we decide there's benefit in doing that or
-	//            we have a hard requirement for a valid EK cert chain for every boot (ie, panic
-	//            if there isn't one). But we can't do that as long as we need to download
-	//            intermediate certs from the manufacturer.
-
-	res := UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
-	tpmDeviceAvailable := false
-	// Obtain a TPM connection.
-	if tpm, tpmErr := sbConnectToDefaultTPM(); tpmErr != nil {
-		if !xerrors.Is(tpmErr, sb_tpm2.ErrNoTPM2Device) {
-			return res, fmt.Errorf("cannot unlock encrypted device %q: %v", name, tpmErr)
-		}
-		logger.Noticef("cannot open TPM connection: %v", tpmErr)
-	} else {
-		// Also check if the TPM device is enabled. The platform firmware may disable the storage
-		// and endorsement hierarchies, but the device will remain visible to the operating system.
-		tpmDeviceAvailable = isTPMEnabled(tpm)
-		// later during ActivateVolumeWithKeyData secboot will
-		// open the TPM again, close it as it can't be opened
-		// multiple times and also we are done using it here
-		tpm.Close()
-	}
-
-	// if we don't have a tpm, and we allow using a recovery key, do that
-	// directly
-	if !tpmDeviceAvailable && opts.AllowRecoveryKey {
-		if err := UnlockEncryptedVolumeWithRecoveryKey(mapperName, sourceDevice); err != nil {
-			return res, err
-		}
-		res.FsDevice = targetDevice
-		res.UnlockMethod = UnlockedWithRecoveryKey
-		return res, nil
-	}
-
-	// otherwise we have a tpm and we should use the sealed key first, but
-	// this method will fallback to using the recovery key if enabled
-	method, err := unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, sealedEncryptionKeyFile, opts.AllowRecoveryKey)
-	res.UnlockMethod = method
-	if err == nil {
-		res.FsDevice = targetDevice
-	}
-	return res, err
-}
-
 func activateVolOpts(allowRecoveryKey bool) *sb.ActivateVolumeOptions {
 	options := sb.ActivateVolumeOptions{
 		PassphraseTries: 1,
@@ -286,6 +241,9 @@ func newAuthRequestor() (sb.AuthRequestor, error) {
 // TODO: consider moving this to secboot
 func readKeyFileImpl(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, error) {
 	f, err := os.Open(keyfile)
+	if os.IsNotExist(err) {
+		return nil, nil, err
+	}
 	if err != nil {
 		return nil, nil, err
 	}
