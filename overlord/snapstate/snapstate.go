@@ -125,7 +125,7 @@ func (ins installSnapInfo) SnapBase() string {
 }
 
 func (ins installSnapInfo) Prereq(st *state.State, prqt PrereqTracker) []string {
-	return getKeys(defaultProviderContentAttrs(st, ins.Info, prqt))
+	return keys(defaultProviderContentAttrs(st, ins.Info, prqt))
 }
 
 // InsufficientSpaceError represents an error where there is not enough disk
@@ -1243,16 +1243,6 @@ func defaultProviderContentAttrs(st *state.State, info *snap.Info, prqt PrereqTr
 	return prqt.MissingProviderContentTags(info, repo)
 }
 
-func getKeys(kv map[string][]string) []string {
-	keys := make([]string, 0, len(kv))
-
-	for key := range kv {
-		keys = append(keys, key)
-	}
-
-	return keys
-}
-
 // validateFeatureFlags validates the given snap only uses experimental
 // features that are enabled by the user.
 func validateFeatureFlags(st *state.State, info *snap.Info) error {
@@ -1809,6 +1799,22 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	tasksets = append(tasksets, ts)
 
 	return tasksets, affected, nil
+}
+
+func keys[K comparable, V any](m map[K]V) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func unique[T comparable](s []T) []T {
+	m := make(map[T]struct{}, len(s))
+	for _, v := range s {
+		m[v] = struct{}{}
+	}
+	return keys(m)
 }
 
 // updateFilter is the type of function that can be passed to

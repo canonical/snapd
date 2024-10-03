@@ -15181,10 +15181,32 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughLoseComponentsUndo(
 	})
 }
 
+func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughAdditionalComponents(c *C) {
+	s.testUpdateWithComponentsRunThrough(c, updateWithComponentsOpts{
+		instanceKey:           "key",
+		components:            []string{"standard-component"},
+		postRefreshComponents: []string{"standard-component", "kernel-modules-component"},
+		additionalComponents:  []string{"kernel-modules-component"},
+		refreshAppAwarenessUX: true,
+	})
+}
+
+func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughAdditionalComponentsUndo(c *C) {
+	s.testUpdateWithComponentsRunThrough(c, updateWithComponentsOpts{
+		instanceKey:           "key",
+		components:            []string{"standard-component"},
+		postRefreshComponents: []string{"standard-component", "kernel-modules-component"},
+		additionalComponents:  []string{"kernel-modules-component"},
+		refreshAppAwarenessUX: true,
+		undo:                  true,
+	})
+}
+
 type updateWithComponentsOpts struct {
 	instanceKey           string
 	components            []string
 	postRefreshComponents []string
+	additionalComponents  []string
 	refreshAppAwarenessUX bool
 	undo                  bool
 	useSameSnapRev        bool
@@ -15339,13 +15361,21 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		InstanceKey:     opts.instanceKey,
 	})
 
-	var revOpts *snapstate.RevisionOptions
+	var revOpts snapstate.RevisionOptions
 	if opts.useSameSnapRev {
-		revOpts = &snapstate.RevisionOptions{Revision: currentSnapRev}
+		revOpts.Revision = currentSnapRev
 	}
 
-	ts, err := snapstate.Update(s.state, instanceName, revOpts, s.user.ID, snapstate.Flags{
-		NoReRefresh: true,
+	ts, err := snapstate.UpdateOne(context.Background(), s.state, snapstate.StoreUpdateGoal(snapstate.StoreUpdate{
+		InstanceName:         instanceName,
+		RevOpts:              revOpts,
+		AdditionalComponents: opts.additionalComponents,
+	}), nil, snapstate.Options{
+		Flags: snapstate.Flags{
+			NoReRefresh: true,
+			Transaction: client.TransactionPerSnap,
+		},
+		UserID: s.user.ID,
 	})
 	c.Assert(err, IsNil)
 
