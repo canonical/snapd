@@ -72,6 +72,8 @@ func LockSealedKeys() error {
 // value will be true, even if error is non-nil. This is so that callers can be
 // robust and try unlocking using another method for example.
 func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+	// FIXME: this function is big. We need to split it.
+
 	res := UnlockResult{}
 
 	// find the encrypted device using the disk we were provided - note that
@@ -120,13 +122,56 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	sourceDevice := fmt.Sprintf("/dev/disk/by-uuid/%s", part.FilesystemUUID)
 	targetDevice := filepath.Join("/dev/mapper", mapperName)
 
-	if fdeHasRevealKey() {
-		res, err = unlockVolumeUsingSealedKeyFDERevealKey(sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
-	} else {
-		res, err = unlockVolumeUsingSealedKeyTPM(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
-	}
 	res.PartDevice = partDevice
-	return res, err
+
+	keyData, _, err := readKeyFile(sealedEncryptionKeyFile)
+	if err != nil {
+		return res, err
+	}
+
+	var keys []*sb.KeyData
+	if keyData != nil {
+		keys = append(keys, keyData)
+	}
+
+	if opts.WhichModel != nil {
+		model, err := opts.WhichModel()
+		if err != nil {
+			return res, fmt.Errorf("cannot retrieve which model to unlock for: %v", err)
+		}
+		sbSetModel(model)
+		// This does not seem to work:
+		//defer sbSetModel(nil)
+	}
+	// TODO: set boot mode
+	//sbSetBootMode("run")
+	//defer sbSetBootMode("")
+	sbSetKeyRevealer(&keyRevealerV3{})
+	defer sbSetKeyRevealer(nil)
+
+	options := activateVolOpts(opts.AllowRecoveryKey)
+	// TODO: remove this
+	options.Model = sb.SkipSnapModelCheck
+	authRequestor, err := newAuthRequestor()
+	if err != nil {
+		res.UnlockMethod = NotUnlocked
+		return res, fmt.Errorf("internal error: cannot build an auth requestor: %v", err)
+	}
+
+	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, authRequestor, options, keys...)
+	if err == sb.ErrRecoveryKeyUsed {
+		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
+		res.UnlockMethod = UnlockedWithRecoveryKey
+	} else if err != nil {
+		res.UnlockMethod = NotUnlocked
+		return res, fmt.Errorf("cannot activate encrypted device %q: %v", sourceDevice, err)
+	} else {
+		logger.Noticef("successfully activated encrypted device %q with TPM", sourceDevice)
+		res.UnlockMethod = UnlockedWithSealedKey
+	}
+
+	res.FsDevice = targetDevice
+	return res, nil
 }
 
 // UnlockEncryptedVolumeUsingKey unlocks an existing volume using the provided key.
