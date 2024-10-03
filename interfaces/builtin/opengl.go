@@ -189,9 +189,9 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 /run/nvidia-xdriver-* rw,
 unix (send, receive) type=dgram peer=(addr="@var/run/nvidia-xdriver-*"),
 
-/dev/nvgpu/igpu[0-9]/power rw,
-/dev/nvgpu/igpu[0-9]/ctrl rw,
-/dev/nvgpu/igpu[0-9]/prof rw,
+/dev/nvgpu/igpu[0-9]*/power rw,
+/dev/nvgpu/igpu[0-9]*/ctrl rw,
+/dev/nvgpu/igpu[0-9]*/prof rw,
 /dev/host1x-fence rw,
 `
 
