@@ -268,6 +268,8 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/cookie-support.h \
 	snap-confine/mount-support-nvidia.c \
 	snap-confine/mount-support-nvidia.h \
+	snap-confine/mount-support-hybris.c \
+	snap-confine/mount-support-hybris.h \
 	snap-confine/mount-support.c \
 	snap-confine/mount-support.h \
 	snap-confine/ns-support.c \
