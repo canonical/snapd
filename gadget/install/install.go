@@ -488,11 +488,6 @@ func Run(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelSnapInfo, 
 		return nil, err
 	}
 
-	// save the traits to ubuntu-data host and optionally to ubuntu-save if it exists
-	if err := saveStorageTraits(model, stripDeviceVolumes(volumes), optsPerVol, hasSavePartition); err != nil {
-		return nil, err
-	}
-
 	return &InstalledSystemSideData{
 		KeyForRole:    keyForRole,
 		DeviceForRole: devicesForRoles,
@@ -911,6 +906,7 @@ func FactoryReset(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelS
 	if err := saveStorageTraits(model, traitVolumes, optsPerVol, hasSavePartition); err != nil {
 		return nil, err
 	}
+
 	return &InstalledSystemSideData{
 		KeyForRole:    keyForRole,
 		DeviceForRole: deviceForRole,
