@@ -59,6 +59,8 @@ import (
 
 type secbootSuite struct {
 	testutil.BaseTest
+
+	currentModel sb.SnapModel
 }
 
 var _ = Suite(&secbootSuite{})
@@ -71,6 +73,7 @@ func (s *secbootSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 
 	s.AddCleanup(secboot.MockSbSetModel(func(model sb.SnapModel) {
+		s.currentModel = model
 	}))
 	s.AddCleanup(secboot.MockSbSetBootMode(func(mode string) {
 	}))
@@ -654,7 +657,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 					PassphraseTries:  1,
 					RecoveryKeyTries: 3,
 					KeyringPrefix:    "ubuntu-fde",
-					Model:            sb.SkipSnapModelCheck,
 				})
 			} else {
 				c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
@@ -662,7 +664,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 					// activation with recovery key was disabled
 					RecoveryKeyTries: 0,
 					KeyringPrefix:    "ubuntu-fde",
-					Model:            sb.SkipSnapModelCheck,
 				})
 			}
 			return tc.activateErr
@@ -1707,6 +1708,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 	expectedAuxKey := makeMockAuxKey()
 	activated := 0
 	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
+		c.Check(s.currentModel.Model(), Equals, fakeModel.Model())
 		c.Assert(keys, HasLen, 1)
 		keyData := keys[0]
 
