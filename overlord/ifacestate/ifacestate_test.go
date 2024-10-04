@@ -1737,8 +1737,8 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 	consumer := s.mockSnap(c, consumerWithComponentYaml)
 	producer := s.mockSnap(c, producerWithComponentYaml)
 
-	s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: test", consumer)
-	s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: test", producer)
+	s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: standard", consumer)
+	s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: standard", producer)
 
 	// Put a connection in the state so that it automatically gets set up when
 	// we create the manager.
@@ -1820,11 +1820,11 @@ plugs:
   static: plug-static-value
 components:
  comp:
-  type: test
+  type: standard
   hooks:
    install:
  not-installed:
-  type: test
+  type: standard
   hooks:
    install:
 `
@@ -1837,19 +1837,19 @@ slots:
   static: slot-static-value
 components:
  comp:
-  type: test
+  type: standard
   hooks:
    install:
  not-installed:
-  type: test
+  type: standard
   hooks:
    install:
 `
 	consumer := s.mockSnap(c, consumerYaml)
 	producer := s.mockSnap(c, producerYaml)
 
-	s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: test", consumer)
-	s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: test", producer)
+	s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: standard", consumer)
+	s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: standard", producer)
 
 	connState := map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
@@ -2562,7 +2562,7 @@ type: os
 var ubuntuCoreSnapWithComponentYaml = ubuntuCoreSnapYaml + `
 components:
   comp:
-    type: test
+    type: standard
     hooks:
       install:
 `
@@ -2602,28 +2602,28 @@ plugs:
 
 const sampleComponentYaml = `
 component: snap+comp1
-type: test
+type: standard
 version: 1.0
 `
 
 const sampleOtherComponentYaml = `
 component: snap+comp2
-type: test
+type: standard
 version: 1.0
 `
 
 var sampleSnapWithComponentsYaml = sampleSnapYaml + `
 components:
   comp1:
-    type: test
+    type: standard
     hooks:
       install:
   comp2:
-    type: test
+    type: standard
     hooks:
       pre-refresh:
   comp3:
-    type: test
+    type: standard
     hooks:
       post-refresh:
 `
@@ -2668,11 +2668,11 @@ hooks:
 var consumerWithComponentYaml = consumerYaml + `
 components:
   comp:
-    type: test
+    type: standard
     hooks:
       install:
   not-installed-comp:
-    type: test
+    type: standard
     hooks:
       install:
 `
@@ -2752,11 +2752,11 @@ hooks:
 var producerWithComponentYaml = producerYaml + `
 components:
   comp:
-    type: test
+    type: standard
     hooks:
       install:
   not-installed-comp:
-    type: test
+    type: standard
     hooks:
       install:
 `
@@ -4464,7 +4464,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesInstallSnapAndComponentsPreexis
 	s.MockModel(c, nil)
 
 	snapInfo := s.mockSnap(c, sampleSnapWithComponentsYaml)
-	s.mockComponentForSnap(c, "comp3", "component: snap+comp3\ntype: test", snapInfo)
+	s.mockComponentForSnap(c, "comp3", "component: snap+comp3\ntype: standard", snapInfo)
 
 	var compsups []*snapstate.ComponentSetup
 	for _, yaml := range []string{sampleComponentYaml, sampleOtherComponentYaml} {
@@ -4591,7 +4591,7 @@ func (s *interfaceManagerSuite) mockComponentForSnap(c *C, compName string, comp
 			Component: naming.NewComponentRef(snapInfo.SnapName(), compName),
 			Revision:  snap.R(1),
 		},
-		CompType: snap.TestComponent,
+		CompType: snap.StandardComponent,
 	})
 
 	snapstate.Set(s.state, snapInfo.InstanceName(), &snapst)
@@ -4603,7 +4603,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesInstallComponentSnapHasPreexist
 	s.MockModel(c, nil)
 
 	snapInfo := s.mockSnap(c, sampleSnapWithComponentsYaml)
-	s.mockComponentForSnap(c, "comp2", "component: snap+comp2\ntype: test", snapInfo)
+	s.mockComponentForSnap(c, "comp2", "component: snap+comp2\ntype: standard", snapInfo)
 
 	compInfo := snaptest.MockComponent(c, sampleComponentYaml, snapInfo, snap.ComponentSideInfo{
 		Revision: snap.R(1),
@@ -4661,7 +4661,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesUpdateSnapWithComponents(c *C) 
 
 	snapInfo := s.mockSnap(c, sampleSnapWithComponentsYaml)
 
-	s.mockComponentForSnap(c, "comp2", "component: snap+comp2\ntype: test", snapInfo)
+	s.mockComponentForSnap(c, "comp2", "component: snap+comp2\ntype: standard", snapInfo)
 
 	compInfo := snaptest.MockComponent(c, sampleComponentYaml, snapInfo, snap.ComponentSideInfo{
 		Revision: snap.R(1),
@@ -4718,14 +4718,14 @@ func (s *interfaceManagerSuite) TestSetupProfilesOfAffectedSnapWithComponents(c 
 	s.MockModel(c, nil)
 
 	snapInfo := s.mockSnap(c, sampleSnapWithComponentsYaml)
-	snaptest.MockComponent(c, "component: snap+comp2\ntype: test", snapInfo, snap.ComponentSideInfo{
+	snaptest.MockComponent(c, "component: snap+comp2\ntype: standard", snapInfo, snap.ComponentSideInfo{
 		Revision: snap.R(1),
 	})
 
 	// core snap is here so that it appears as an affected snap when "snap" has
 	// its profiles setup
 	coreSnapInfo := s.mockSnap(c, ubuntuCoreSnapWithComponentYaml)
-	snaptest.MockComponent(c, "component: ubuntu-core+comp\ntype: test", coreSnapInfo, snap.ComponentSideInfo{
+	snaptest.MockComponent(c, "component: ubuntu-core+comp\ntype: standard", coreSnapInfo, snap.ComponentSideInfo{
 		Revision: snap.R(1),
 	})
 
@@ -4740,7 +4740,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesOfAffectedSnapWithComponents(c 
 			Component: naming.NewComponentRef(snapInfo.SnapName(), "comp2"),
 			Revision:  snap.R(1),
 		},
-		CompType: snap.TestComponent,
+		CompType: snap.StandardComponent,
 	})
 
 	// add a component to the affected snap, we should see this in the final
@@ -4752,7 +4752,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesOfAffectedSnapWithComponents(c 
 			Component: naming.NewComponentRef(snapInfo.SnapName(), "comp"),
 			Revision:  snap.R(1),
 		},
-		CompType: snap.TestComponent,
+		CompType: snap.StandardComponent,
 	})
 
 	snapstate.Set(s.state, snapInfo.InstanceName(), &snapst)
@@ -5316,8 +5316,8 @@ func (s *interfaceManagerSuite) TestConnectWithComponentsSetsUpSecurity(c *C) {
 
 	consumerInfo := s.mockSnap(c, consumerWithComponentYaml)
 	producerInfo := s.mockSnap(c, producerWithComponentYaml)
-	s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: test", consumerInfo)
-	s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: test", producerInfo)
+	s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: standard", consumerInfo)
+	s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: standard", producerInfo)
 
 	_ = s.manager(c)
 
@@ -6653,8 +6653,8 @@ func (s *interfaceManagerSuite) mockConnectForUndo(c *C, conns map[string]interf
 	producer := s.mockSnap(c, producerWithComponentYaml)
 	consumer := s.mockSnap(c, consumerWithComponentYaml)
 
-	consumerComp := s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: test", consumer)
-	producerComp := s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: test", producer)
+	consumerComp := s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: standard", consumer)
+	producerComp := s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: standard", producer)
 
 	producerAppSet, err := interfaces.NewSnapAppSet(producer, []*snap.ComponentInfo{producerComp})
 	c.Assert(err, IsNil)

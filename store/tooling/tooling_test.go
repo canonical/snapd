@@ -484,13 +484,13 @@ func (s *toolingSuite) testDownloadSnapWithComps(c *C, opts tooling.DownloadSnap
 	cref1 := naming.NewComponentRef("required20", "comp1")
 	c.Check(dlComps[0].Info, DeepEquals, &snap.ComponentInfo{
 		Component:         cref1,
-		Type:              snap.TestComponent,
+		Type:              snap.StandardComponent,
 		ComponentSideInfo: *snap.NewComponentSideInfo(cref1, snap.R(22)),
 	})
 	cref2 := naming.NewComponentRef("required20", "comp2")
 	c.Check(dlComps[1].Info, DeepEquals, &snap.ComponentInfo{
 		Component:         cref2,
-		Type:              snap.TestComponent,
+		Type:              snap.StandardComponent,
 		ComponentSideInfo: *snap.NewComponentSideInfo(cref2, snap.R(33)),
 	})
 
@@ -529,13 +529,13 @@ func (s *toolingSuite) TestDownloadManySnapWithComps(c *C) {
 			c.Check(cinfos, DeepEquals, map[string]*snap.ComponentInfo{
 				"comp1": {
 					Component:           cref1,
-					Type:                snap.TestComponent,
+					Type:                snap.StandardComponent,
 					ComponentProvenance: "global-upload",
 					ComponentSideInfo:   *snap.NewComponentSideInfo(cref1, snap.R(22)),
 				},
 				"comp2": {
 					Component:           cref2,
-					Type:                snap.TestComponent,
+					Type:                snap.StandardComponent,
 					ComponentProvenance: "global-upload",
 					ComponentSideInfo:   *snap.NewComponentSideInfo(cref2, snap.R(33)),
 				},

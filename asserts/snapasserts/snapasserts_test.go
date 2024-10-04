@@ -672,12 +672,12 @@ func (s *snapassertsSuite) TestCheckComponentProvenanceWithVerifiedRevision(c *C
 		"timestamp":         time.Now().Format(time.RFC3339),
 	}).(*asserts.SnapResourceRevision)
 	compPath := snaptest.MakeTestComponentWithFiles(c, "comp1", `component: snap+comp1
-type: test
+type: standard
 provenance: prov
 version: 1.0.2
 `, nil)
 	compPath2 := snaptest.MakeTestComponentWithFiles(c, "comp1", `component: snap+comp1
-type: test
+type: standard
 version: 1.0.2
 `, nil)
 
@@ -900,7 +900,7 @@ func (s *snapassertsSuite) TestDeriveComponentSideInfoFromDigestAndSize(c *C) {
 	model := s.makeUC20Model(c, nil)
 
 	compPath := snaptest.MakeTestComponentWithFiles(c, "comp1", `component: snap+comp1
-type: test
+type: standard
 version: 1.0.2
 `, nil)
 	digest, size, err := asserts.SnapFileSHA3_384(compPath)
@@ -940,7 +940,7 @@ version: 1.0.2
 func (s *snapassertsSuite) TestDeriveComponentSideInfoFromDigestAndSizeWrongSize(c *C) {
 	model := s.makeUC20Model(c, nil)
 	compPath := snaptest.MakeTestComponentWithFiles(c, "comp1", `component: snap+comp1
-type: test
+type: standard
 version: 1.0.2
 `, nil)
 	digest, size, err := asserts.SnapFileSHA3_384(compPath)
@@ -971,7 +971,7 @@ version: 1.0.2
 func (s *snapassertsSuite) TestDeriveComponentSideInfoFromDigestAndSizeWithProvenance(c *C) {
 	model := s.makeUC20Model(c, map[string]interface{}{"store": "store1"})
 	compPath := snaptest.MakeTestComponentWithFiles(c, "comp1", `component: snap+comp1
-type: test
+type: standard
 provenance: prov
 version: 1.0.2
 `, nil)
@@ -1061,7 +1061,7 @@ func (s *snapassertsSuite) TestCrossCheckResource(c *C) {
 	componentRev := snap.R(24)
 	snapRev := snap.R(12)
 	const size = uint64(1024)
-	const resourceName = "test-component"
+	const resourceName = "standard-component"
 	const snapID = "snap-id-1"
 
 	revHeaders := map[string]interface{}{
@@ -1099,7 +1099,7 @@ func (s *snapassertsSuite) TestCrossCheckResource(c *C) {
 	}
 
 	csi := &snap.ComponentSideInfo{
-		Component: naming.NewComponentRef("snap", "test-component"),
+		Component: naming.NewComponentRef("snap", "standard-component"),
 		Revision:  snap.R(24),
 	}
 
@@ -1118,7 +1118,7 @@ func (s *snapassertsSuite) TestCrossCheckResourceProvenanceMissingRevisionAssert
 
 func (s *snapassertsSuite) testCrossCheckResourceMissingRevisionAssertion(c *C, provenance string) {
 	digest := makeDigest(12)
-	const resourceName = "test-component"
+	const resourceName = "standard-component"
 
 	si := &snap.SideInfo{
 		SnapID:   "snap-id-1",
@@ -1126,7 +1126,7 @@ func (s *snapassertsSuite) testCrossCheckResourceMissingRevisionAssertion(c *C, 
 	}
 
 	csi := &snap.ComponentSideInfo{
-		Component: naming.NewComponentRef("snap", "test-component"),
+		Component: naming.NewComponentRef("snap", "standard-component"),
 		Revision:  snap.R(24),
 	}
 
@@ -1171,7 +1171,7 @@ func (s *snapassertsSuite) TestCrossCheckResourceProvenance(c *C) {
 	componentRev := snap.R(24)
 	const (
 		size         = uint64(1024)
-		resourceName = "test-component"
+		resourceName = "standard-component"
 	)
 
 	revHeaders := map[string]interface{}{
@@ -1213,7 +1213,7 @@ func (s *snapassertsSuite) TestCrossCheckResourceProvenance(c *C) {
 	}
 
 	csi := &snap.ComponentSideInfo{
-		Component: naming.NewComponentRef("snap", "test-component"),
+		Component: naming.NewComponentRef("snap", "standard-component"),
 		Revision:  snap.R(24),
 	}
 
@@ -1243,7 +1243,7 @@ func (s *snapassertsSuite) TestCrossCheckResourceProvenance(c *C) {
 	c.Assert(err, IsNil)
 
 	err = snapasserts.CrossCheckResource(resourceName, digest, provenance, size, csi, si, nil, s.localDB)
-	c.Assert(err, ErrorMatches, `snap resource \"test-component\" revision assertion with provenance \"prov\" is not signed by an authority authorized on this device:.*`)
+	c.Assert(err, ErrorMatches, `snap resource \"standard-component\" revision assertion with provenance \"prov\" is not signed by an authority authorized on this device:.*`)
 }
 
 func (s *snapassertsSuite) TestCrossCheckResourceErrors(c *C) {
@@ -1252,7 +1252,7 @@ func (s *snapassertsSuite) TestCrossCheckResourceErrors(c *C) {
 	snapRev := snap.R(12)
 	const (
 		size         = uint64(1024)
-		resourceName = "test-component"
+		resourceName = "standard-component"
 		snapID       = "snap-id-1"
 	)
 
@@ -1296,25 +1296,25 @@ func (s *snapassertsSuite) TestCrossCheckResourceErrors(c *C) {
 			revisionOverrides: map[string]interface{}{
 				"resource-size": "1023",
 			},
-			err: `resource \"test-component\" file does not have expected size according to signatures \(download is broken or tampered\): 1024 != 1023`,
+			err: `resource \"standard-component\" file does not have expected size according to signatures \(download is broken or tampered\): 1024 != 1023`,
 		},
 		{
 			revisionOverrides: map[string]interface{}{
 				"resource-revision": "25",
 			},
-			err: `resource \"test-component\" does not have expected revision according to assertions \(metadata is broken or tampered\): 24 != 25`,
+			err: `resource \"standard-component\" does not have expected revision according to assertions \(metadata is broken or tampered\): 24 != 25`,
 		},
 		{
 			pairOverrides: map[string]interface{}{
 				"resource-revision": "25",
 			},
-			err: `cannot find snap-resource-pair for test-component: snap-resource-pair assertion not found`,
+			err: `cannot find snap-resource-pair for standard-component: snap-resource-pair assertion not found`,
 		},
 		{
 			revisionOverrides: map[string]interface{}{
 				"resource-name": "nope",
 			},
-			err: `internal error: cannot find pre-populated snap-resource-revision assertion for \"test-component\": .*`,
+			err: `internal error: cannot find pre-populated snap-resource-revision assertion for \"standard-component\": .*`,
 		},
 	}
 
@@ -1352,7 +1352,7 @@ func (s *snapassertsSuite) TestCrossCheckResourceErrors(c *C) {
 		}
 
 		csi := &snap.ComponentSideInfo{
-			Component: naming.NewComponentRef("snap", "test-component"),
+			Component: naming.NewComponentRef("snap", "standard-component"),
 			Revision:  snap.R(24),
 		}
 

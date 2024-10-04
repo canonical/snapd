@@ -108,7 +108,7 @@ slots:
 
 func (s *backendSuite) TestOpenComponentFile(c *C) {
 	const componentYaml = `component: snap+comp
-type: test
+type: standard
 version: 33
 `
 

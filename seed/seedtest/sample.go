@@ -91,12 +91,12 @@ base: core20
 version: 1.0
 components:
   comp1:
-    type: test
+    type: standard
   comp2:
-    type: test
+    type: standard
 `,
 	"required20+comp1": `component: required20+comp1
-type: test
+type: standard
 version: 1.0
 `,
 	"required20+comp1_kernel": `component: required20+comp1
@@ -104,11 +104,11 @@ type: kernel-modules
 version: 1.0
 `,
 	"required20+comp2": `component: required20+comp2
-type: test
+type: standard
 version: 2.0
 `,
 	"required20+unknown": `component: required20+unknown
-type: test
+type: standard
 version: 2.0
 `,
 	"aux-info-test": `name: aux-info-test
@@ -125,22 +125,22 @@ base: core20
 version: 1.0
 components:
   comp1:
-    type: test
+    type: standard
   comp2:
-    type: test
+    type: standard
   comp3:
-    type: test
+    type: standard
 `,
 	"component-test+comp1": `component: component-test+comp1
-type: test
+type: standard
 version: 1.0
 `,
 	"component-test+comp2": `component: component-test+comp2
-type: test
+type: standard
 version: 2.0
 `,
 	"component-test+comp3": `component: component-test+comp3
-type: test
+type: standard
 version: 2.0
 `,
 	"local-component-test": `name: local-component-test
@@ -149,10 +149,10 @@ base: core20
 version: 1.0
 components:
   comp4:
-    type: test
+    type: standard
 `,
 	"local-component-test+comp4": `component: local-component-test+comp4
-type: test
+type: standard
 version: 1.0
 `,
 	"optional20-a": `name: optional20-a
@@ -198,10 +198,10 @@ base: core22
 version: 1.0
 components:
   comp1:
-    type: test
+    type: standard
 `,
 	"optional22+comp1": `component: optional22+comp1
-type: test
+type: standard
 version: 1.0
 `,
 }

@@ -1743,23 +1743,23 @@ func (s *snapsSuite) TestMapLocalFieldsWithComponents(c *check.C) {
 		Components: map[string]*snap.Component{
 			"comp-1": {
 				Name: "comp-1",
-				Type: "test",
+				Type: "standard",
 			},
 			"comp-2": {
 				Name:        "comp-2",
-				Type:        "test",
+				Type:        "standard",
 				Summary:     "summary 2",
 				Description: "description 2",
 			},
 			"comp-3": {
 				Name:        "comp-3",
-				Type:        "test",
+				Type:        "standard",
 				Summary:     "summary 3",
 				Description: "description 3",
 			},
 			"comp-4": {
 				Name: "comp-4",
-				Type: "test",
+				Type: "standard",
 			},
 		},
 	}
@@ -1775,12 +1775,12 @@ func (s *snapsSuite) TestMapLocalFieldsWithComponents(c *check.C) {
 
 	const comp1yaml = `
 component: some-snap+comp-1
-type: test
+type: standard
 version: 1.0
 `
 	const comp2yaml = `
 component: some-snap+comp-2
-type: test
+type: standard
 version: 1.0
 summary: summary 2
 description: description 2
@@ -1791,9 +1791,9 @@ name: some-snap
 version: 1
 components:
   comp-1:
-    type: test
+    type: standard
   comp-2:
-    type: test
+    type: standard
 `
 
 	// Mock snap.yaml/component.yaml files for installed components
@@ -1805,8 +1805,8 @@ components:
 	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "comp-2"), snap.R(34))
 	snaptest.MockComponent(c, comp2yaml, info, *csi2)
 	comps := []*sequence.ComponentState{
-		sequence.NewComponentState(csi, snap.TestComponent),
-		sequence.NewComponentState(csi2, snap.TestComponent),
+		sequence.NewComponentState(csi, snap.StandardComponent),
+		sequence.NewComponentState(csi2, snap.StandardComponent),
 	}
 
 	// make InstallDate/InstalledSize work for comp1 and comp2
@@ -1877,14 +1877,14 @@ components:
 			{Snap: "some-snap", Name: "foo"},
 		},
 		Components: []client.Component{
-			{Name: "comp-1", Type: "test", Version: "1.0", Revision: snap.R(33),
+			{Name: "comp-1", Type: "standard", Version: "1.0", Revision: snap.R(33),
 				InstallDate: snap.ComponentInstallDate(cpi, snap.R(7)), InstalledSize: 2},
-			{Name: "comp-2", Type: "test", Version: "1.0", Revision: snap.R(34),
+			{Name: "comp-2", Type: "standard", Version: "1.0", Revision: snap.R(34),
 				Summary: "summary 2", Description: "description 2",
 				InstallDate: snap.ComponentInstallDate(cpi2, snap.R(7)), InstalledSize: 3},
-			{Name: "comp-3", Type: "test",
+			{Name: "comp-3", Type: "standard",
 				Summary: "summary 3", Description: "description 3"},
-			{Name: "comp-4", Type: "test"},
+			{Name: "comp-4", Type: "standard"},
 		},
 	}
 	c.Check(daemon.MapLocal(about, nil), check.DeepEquals, expected)

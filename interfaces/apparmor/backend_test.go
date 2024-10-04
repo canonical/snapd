@@ -395,7 +395,7 @@ name: snap
 version: 1
 components:
   comp:
-    type: test
+    type: standard
     hooks:
       install:
 plugs:
@@ -415,7 +415,7 @@ name: snap
 version: 1
 components:
   comp:
-    type: test
+    type: standard
 plugs:
   iface:
 `

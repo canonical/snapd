@@ -341,9 +341,9 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 		}
 	case "channel-for-components":
 		info.Components = map[string]*snap.Component{
-			"test-component": {
-				Type: snap.TestComponent,
-				Name: "test-component",
+			"standard-component": {
+				Type: snap.StandardComponent,
+				Name: "standard-component",
 			},
 			"kernel-modules-component": {
 				Type: snap.KernelModulesComponent,
@@ -542,21 +542,21 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		confinement = snap.DevModeConfinement
 	case "channel-for-components", "channel-for-components-only-component-refresh":
 		components = map[string]*snap.Component{
-			"test-component": {
-				Type: snap.TestComponent,
-				Name: "test-component",
+			"standard-component": {
+				Type: snap.StandardComponent,
+				Name: "standard-component",
 			},
 			"kernel-modules-component": {
 				Type: snap.KernelModulesComponent,
 				Name: "kernel-modules-component",
 			},
-			"test-component-extra": {
-				Type: snap.TestComponent,
-				Name: "test-component-extra",
+			"standard-component-extra": {
+				Type: snap.StandardComponent,
+				Name: "standard-component-extra",
 			},
-			"test-component-present-in-sequence": {
-				Type: snap.TestComponent,
-				Name: "test-component-present-in-sequence",
+			"standard-component-present-in-sequence": {
+				Type: snap.StandardComponent,
+				Name: "standard-component-present-in-sequence",
 			},
 		}
 	}
@@ -1145,9 +1145,9 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		info.SnapType = snap.TypeSnapd
 	case "snap-with-components":
 		info.Components = map[string]*snap.Component{
-			"test-component": {
-				Type: snap.TestComponent,
-				Name: "test-component",
+			"standard-component": {
+				Type: snap.StandardComponent,
+				Name: "standard-component",
 			},
 			"kernel-modules-component": {
 				Type: snap.KernelModulesComponent,

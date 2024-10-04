@@ -522,7 +522,7 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithKernelModulesComponents(c *C)
 			sequence.NewComponentState(&snap.ComponentSideInfo{
 				Component: naming.NewComponentRef("pkg", "comp"),
 				Revision:  snap.R(11),
-			}, snap.TestComponent),
+			}, snap.StandardComponent),
 		}),
 	})
 
