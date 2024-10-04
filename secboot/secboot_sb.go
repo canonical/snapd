@@ -153,8 +153,6 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	defer sbSetKeyRevealer(nil)
 
 	options := activateVolOpts(opts.AllowRecoveryKey)
-	// TODO: remove this
-	options.Model = sb.SkipSnapModelCheck
 	authRequestor, err := newAuthRequestor()
 	if err != nil {
 		res.UnlockMethod = NotUnlocked

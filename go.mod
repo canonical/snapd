@@ -21,9 +21,9 @@ require (
 	github.com/mvo5/libseccomp-golang v0.9.1-0.20180308152521-f4de83b52afb // old trusty builds only
 	github.com/seccomp/libseccomp-golang v0.9.2-0.20220502024300-f57e1d55ea18
 	github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785
-	github.com/snapcore/secboot v0.0.0-20240822165722-bc2266b5a56d
-	golang.org/x/crypto v0.17.0
-	golang.org/x/net v0.10.0 // indirect
+	github.com/snapcore/secboot v0.0.0-20241003185103-eaa3655091fc
+	golang.org/x/crypto v0.21.0
+	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/sys v0.19.0
 	golang.org/x/text v0.14.0
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f
@@ -38,15 +38,12 @@ require (
 require go.etcd.io/bbolt v1.3.9
 
 require (
+	github.com/canonical/cpuid v0.0.0-20220614022739-219e067757cb // indirect
 	github.com/canonical/go-sp800.108-kdf v0.0.0-20210315104021-ead800bbf9a0 // indirect
 	github.com/canonical/tcglog-parser v0.0.0-20240820013904-60cf7cbc7c5d // indirect
-	github.com/intel-go/cpuid v0.0.0-20220614022739-219e067757cb // indirect
 	github.com/kr/pretty v0.2.2-0.20200810074440-814ac30b4b18 // indirect
 	github.com/kr/text v0.1.0 // indirect
 	golang.org/x/exp v0.0.0-20240416160154-fe59bbe5cc7f // indirect
-	golang.org/x/term v0.15.0 // indirect
+	golang.org/x/term v0.18.0 // indirect
 	maze.io/x/crypto v0.0.0-20190131090603-9b94c9afe066 // indirect
 )
-
-// github.com/intel-go was taken over
-replace github.com/intel-go/cpuid => github.com/aregm/cpuid v0.0.0-20220614022739-219e067757cb
