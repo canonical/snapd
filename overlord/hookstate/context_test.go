@@ -54,12 +54,12 @@ func (s *contextSuite) SetUpTest(c *C) {
 	s.context, err = NewContext(s.task, s.task.State(), s.setup, nil, "")
 	c.Check(err, IsNil)
 
-	s.componentTask = s.state.NewTask("test-component-task", "my test component task")
+	s.componentTask = s.state.NewTask("standard-component-task", "my test component task")
 	s.componentSetup = &HookSetup{
 		Snap:              "test-snap",
 		Revision:          snap.R(1),
 		Hook:              "test-hook",
-		Component:         "test-component",
+		Component:         "standard-component",
 		ComponentRevision: snap.R(2),
 	}
 	s.componentContext, err = NewContext(s.componentTask, s.componentTask.State(), s.componentSetup, nil, "")
@@ -72,7 +72,7 @@ func (s *contextSuite) TestHookSetup(c *C) {
 	c.Check(s.context.IsSnapHook(), Equals, true)
 	c.Check(s.context.IsComponentHook(), Equals, false)
 
-	c.Check(s.componentContext.ComponentName(), Equals, "test-component")
+	c.Check(s.componentContext.ComponentName(), Equals, "standard-component")
 	c.Check(s.componentContext.ComponentRevision(), Equals, snap.R(2))
 	c.Check(s.componentContext.IsSnapHook(), Equals, false)
 	c.Check(s.componentContext.IsComponentHook(), Equals, true)
@@ -80,13 +80,13 @@ func (s *contextSuite) TestHookSetup(c *C) {
 
 func (s *contextSuite) TestHookSource(c *C) {
 	c.Check(s.context.HookSource(), Equals, "test-snap")
-	c.Check(s.componentContext.HookSource(), Equals, "test-snap+test-component")
+	c.Check(s.componentContext.HookSource(), Equals, "test-snap+standard-component")
 
 	// insert an instance key for a quick test
 	s.componentContext.setup.Snap = "test-snap_instance-key"
 	defer func() { s.componentContext.setup.Snap = "test-snap" }()
 
-	c.Check(s.componentContext.HookSource(), Equals, "test-snap_instance-key+test-component")
+	c.Check(s.componentContext.HookSource(), Equals, "test-snap_instance-key+standard-component")
 }
 
 func (s *contextSuite) TestSetAndGet(c *C) {

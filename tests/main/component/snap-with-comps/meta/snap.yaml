@@ -5,7 +5,7 @@ description: A snap that defines components
 base: core22
 components:
   comp1:
-    type: test
+    type: standard
 apps:
   test:
     command: test

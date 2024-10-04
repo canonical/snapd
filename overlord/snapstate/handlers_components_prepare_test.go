@@ -49,7 +49,7 @@ func (s *prepareSnapSuite) TestDoPrepareComponentSimple(c *C) {
 	t := s.state.NewTask("prepare-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.TestComponent, "path-to-component"))
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, "path-to-component"))
 	t.Set("snap-setup", ssu)
 
 	s.state.NewChange("test change", "change desc").AddTask(t)
@@ -91,15 +91,15 @@ func (s *prepareSnapSuite) TestDoPrepareComponentAlreadyPresent(c *C) {
 	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", compName), snap.R(-2))
 	csi3 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "othercomp"), snap.R(-13))
 	compsSi1 := []*sequence.ComponentState{
-		sequence.NewComponentState(csi1, snap.TestComponent),
-		sequence.NewComponentState(csi2, snap.TestComponent),
-		sequence.NewComponentState(csi3, snap.TestComponent),
+		sequence.NewComponentState(csi1, snap.StandardComponent),
+		sequence.NewComponentState(csi2, snap.StandardComponent),
+		sequence.NewComponentState(csi3, snap.StandardComponent),
 	}
 	csi4 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", compName), snap.R(-8))
 	csi5 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "othercomp"), snap.R(-9))
 	compsSi2 := []*sequence.ComponentState{
-		sequence.NewComponentState(csi4, snap.TestComponent),
-		sequence.NewComponentState(csi5, snap.TestComponent),
+		sequence.NewComponentState(csi4, snap.StandardComponent),
+		sequence.NewComponentState(csi5, snap.StandardComponent),
 	}
 	snapst := &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
@@ -114,7 +114,7 @@ func (s *prepareSnapSuite) TestDoPrepareComponentAlreadyPresent(c *C) {
 	t := s.state.NewTask("prepare-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.TestComponent, "path-to-component"))
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, "path-to-component"))
 	t.Set("snap-setup", ssu)
 
 	s.state.NewChange("test change", "change desc").AddTask(t)

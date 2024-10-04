@@ -85,7 +85,7 @@ func (s *downloadComponentSuite) testDoDownloadComponent(c *C, autoRefresh bool)
 			naming.NewComponentRef("snap", "comp"),
 			snap.R(11),
 		),
-		CompType: snap.TestComponent,
+		CompType: snap.StandardComponent,
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "http://some-url.com/comp",
 		},
@@ -169,7 +169,7 @@ func (s *downloadComponentSuite) TestDoDownloadComponentFailure(c *C) {
 			naming.NewComponentRef("snap", "comp"),
 			snap.R(11),
 		),
-		CompType: snap.TestComponent,
+		CompType: snap.StandardComponent,
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "http://some-url.com/comp",
 		},

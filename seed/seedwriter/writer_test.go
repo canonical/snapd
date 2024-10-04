@@ -3033,10 +3033,10 @@ func (s *writerSuite) testSeedSnapsWriteMetaCore20LocalSnaps(c *C, withComps boo
 		seedComps := map[string]*seedwriter.SeedComponent{}
 		if withComps {
 			cref1 := naming.NewComponentRef("required20", "comp1")
-			cinfo1 := snap.NewComponentInfo(cref1, snap.TestComponent, "1.0", "", "", "", nil)
+			cinfo1 := snap.NewComponentInfo(cref1, snap.StandardComponent, "1.0", "", "", "", nil)
 			pathComp1 = s.makeLocalComponent(c, "required20+comp1")
 			cref2 := naming.NewComponentRef("required20", "comp2")
-			cinfo2 := snap.NewComponentInfo(cref2, snap.TestComponent, "2.0", "", "", "", nil)
+			cinfo2 := snap.NewComponentInfo(cref2, snap.StandardComponent, "2.0", "", "", "", nil)
 			pathComp2 = s.makeLocalComponent(c, "required20+comp2")
 			seedComps["comp1"] = &seedwriter.SeedComponent{
 				ComponentRef: cref1,
@@ -3962,7 +3962,7 @@ func (s *writerSuite) testSeedSnapsWriteMetaCore20SignedLocalAssertedSnaps(c *C,
 		if withComps && info.SnapName() == "required20" {
 			for _, comp := range []string{"comp1", "comp2"} {
 				cref := naming.NewComponentRef("required20", comp)
-				cinfo := snap.NewComponentInfo(cref, snap.TestComponent,
+				cinfo := snap.NewComponentInfo(cref, snap.StandardComponent,
 					"1.0", "", "", "", nil)
 				pathComp := s.AssertedSnap(cref.String())
 				csi, _, err := seedwriter.DeriveComponentSideInfo(
@@ -5134,7 +5134,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20BadLocalComps(c *C) {
 
 	seedComps := map[string]*seedwriter.SeedComponent{}
 	cref1 := naming.NewComponentRef("required20", "comp-undefined")
-	cinfo1 := snap.NewComponentInfo(cref1, snap.TestComponent, "1.0", "", "", "", nil)
+	cinfo1 := snap.NewComponentInfo(cref1, snap.StandardComponent, "1.0", "", "", "", nil)
 	seedComps["comp-undefined"] = &seedwriter.SeedComponent{
 		ComponentRef: cref1,
 		Path:         "/some/path/file.comp",
@@ -5152,5 +5152,5 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20BadLocalComps(c *C) {
 		Info:         cinfo1,
 	}
 	c.Assert(w.SetInfo(sn, info, seedComps), ErrorMatches,
-		`component comp1 has type kernel-modules while snap required20 defines type test for it`)
+		`component comp1 has type kernel-modules while snap required20 defines type standard for it`)
 }

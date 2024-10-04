@@ -189,13 +189,13 @@ func (s *handlersComponentsSuite) testComponentInfoFromComponentSetup(c *C, inst
 		InstanceKey: instanceKey,
 		Components: map[string]*snap.Component{
 			"mycomp": {
-				Type: snap.TestComponent,
+				Type: snap.StandardComponent,
 				Name: compName,
 			},
 		},
 	}
 
-	realCompInfo := snaptest.MockComponent(c, "component: mysnap+mycomp\ntype: test\nversion: 1", info, *csi)
+	realCompInfo := snaptest.MockComponent(c, "component: mysnap+mycomp\ntype: standard\nversion: 1", info, *csi)
 	_ = realCompInfo
 
 	compsup := snapstate.NewComponentSetup(csi, snap.KernelModulesComponent, "")
@@ -204,6 +204,6 @@ func (s *handlersComponentsSuite) testComponentInfoFromComponentSetup(c *C, inst
 	c.Assert(err, IsNil)
 
 	c.Check(compInfo.Component, Equals, cref)
-	c.Check(compInfo.Type, Equals, snap.TestComponent)
+	c.Check(compInfo.Type, Equals, snap.StandardComponent)
 	c.Check(compInfo.ComponentSideInfo.Revision, Equals, compRev)
 }

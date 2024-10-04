@@ -37,7 +37,7 @@ func (s *snapmgrTestSuite) mockComponentInfos(c *C, snapName string, compNames [
 	cis := make([]*snap.ComponentInfo, len(compNames))
 	for i, comp := range compNames {
 		componentYaml := fmt.Sprintf(`component: %s+%s
-type: test
+type: standard
 version: 1.0
 `, snapName, comp)
 		ci, err := snap.InfoFromComponentYaml([]byte(componentYaml))
@@ -77,9 +77,9 @@ func (s *snapmgrTestSuite) TestComponentHelpers(c *C) {
 version: 1
 components:
   mycomp:
-    type: test
+    type: standard
   mycomp2:
-    type: test
+    type: standard
 `
 
 	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
@@ -98,7 +98,7 @@ components:
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
 				sequence.NewRevisionSideState(ssi,
-					[]*sequence.ComponentState{sequence.NewComponentState(csi2, snap.TestComponent), sequence.NewComponentState(csi, snap.TestComponent)})}),
+					[]*sequence.ComponentState{sequence.NewComponentState(csi2, snap.StandardComponent), sequence.NewComponentState(csi, snap.StandardComponent)})}),
 		Current: snapRev,
 	}
 	snaptest.MockSnap(c, snapYaml, ssi)
@@ -130,7 +130,7 @@ components:
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
 				sequence.NewRevisionSideState(ssi2, nil),
-				sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)}),
+				sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)}),
 			}),
 		Current: snapRev2,
 	}
@@ -181,8 +181,8 @@ components:
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
-				sequence.NewRevisionSideState(ssi2, []*sequence.ComponentState{sequence.NewComponentState(csi2, snap.TestComponent)}),
-				sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)}),
+				sequence.NewRevisionSideState(ssi2, []*sequence.ComponentState{sequence.NewComponentState(csi2, snap.StandardComponent)}),
+				sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)}),
 			}),
 		Current: snapRev,
 	}
@@ -217,8 +217,8 @@ components:
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
-				sequence.NewRevisionSideState(ssi2, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)}),
-				sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)}),
+				sequence.NewRevisionSideState(ssi2, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)}),
+				sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)}),
 			}),
 		Current: snapRev,
 	}

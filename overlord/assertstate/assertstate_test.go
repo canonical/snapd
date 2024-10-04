@@ -587,10 +587,10 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, provenance string, revisions
 
 func (s *assertMgrSuite) prereqComponentAssertions(c *C, provenance string, snapRev, compRev snap.Revision) (compPath string, digest string) {
 	const (
-		resourceName  = "test-component"
+		resourceName  = "standard-component"
 		snapID        = "snap-id-1"
-		componentYaml = `component: snap+test-component
-type: test
+		componentYaml = `component: snap+standard-component
+type: standard
 version: 1.0.2
 `
 	)
@@ -5333,7 +5333,7 @@ func (s *assertMgrSuite) testValidateComponent(c *C, provenance string) {
 	compsup := snapstate.ComponentSetup{
 		CompPath: compPath,
 		CompSideInfo: &snap.ComponentSideInfo{
-			Component: naming.NewComponentRef("foo", "test-component"),
+			Component: naming.NewComponentRef("foo", "standard-component"),
 			Revision:  compRev,
 		},
 	}
@@ -5352,7 +5352,7 @@ func (s *assertMgrSuite) testValidateComponent(c *C, provenance string) {
 
 	headers := map[string]string{
 		"resource-sha3-384": compDigest,
-		"resource-name":     "test-component",
+		"resource-name":     "standard-component",
 		"snap-id":           "snap-id-1",
 	}
 	if provenance != "" {

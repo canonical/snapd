@@ -389,11 +389,11 @@ name: sample
 version: 1
 components:
  comp:
-   type: test`
+   type: standard`
 
 	const componentYaml = `
 component: sample+comp
-type: test
+type: standard
 `
 
 	info := snaptest.MockSnapCurrent(c, snapYaml, &snap.SideInfo{
@@ -2410,7 +2410,7 @@ func (s *infoSuite) TestHookSecurityTags(c *C) {
 name: test-snap
 version: 1
 components:
-  test-component:
+  standard-component:
     hooks:
       install:
 hooks:
@@ -2418,12 +2418,12 @@ hooks:
 `
 	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
 
-	component := info.Components["test-component"]
+	component := info.Components["standard-component"]
 	c.Assert(component, NotNil)
 
 	componentHook := component.ExplicitHooks["install"]
 	c.Assert(componentHook, NotNil)
-	c.Check(componentHook.SecurityTag(), Equals, "snap.test-snap+test-component.hook.install")
+	c.Check(componentHook.SecurityTag(), Equals, "snap.test-snap+standard-component.hook.install")
 
 	hook := info.Hooks["install"]
 	c.Assert(hook, NotNil)
@@ -2435,7 +2435,7 @@ func (s *infoSuite) TestHookSecurityTagsInstance(c *C) {
 name: test-snap
 version: 1
 components:
-  test-component:
+  standard-component:
     hooks:
       install:
 hooks:
@@ -2443,12 +2443,12 @@ hooks:
 `
 	info := snaptest.MockSnapInstance(c, "test-snap_instance", snapYaml, &snap.SideInfo{Revision: snap.R(1)})
 
-	component := info.Components["test-component"]
+	component := info.Components["standard-component"]
 	c.Assert(component, NotNil)
 
 	componentHook := component.ExplicitHooks["install"]
 	c.Assert(componentHook, NotNil)
-	c.Check(componentHook.SecurityTag(), Equals, "snap.test-snap_instance+test-component.hook.install")
+	c.Check(componentHook.SecurityTag(), Equals, "snap.test-snap_instance+standard-component.hook.install")
 
 	hook := info.Hooks["install"]
 	c.Assert(hook, NotNil)
