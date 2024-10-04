@@ -77,6 +77,68 @@ func (s *installSuite) TestInstallRunError(c *C) {
 	c.Check(sys, IsNil)
 }
 
+func (s *installSuite) TestInstallSeedDiskDoesNotMatchAssignedDisk(c *C) {
+	uc20Mod := &gadgettest.ModelCharacteristics{
+		HasModes: true,
+	}
+
+	// mock the ubuntu seed device
+	s.setupMockUdevSymlinks(c, mockUdevDeviceSetup{
+		name: "fakedevice0",
+		parts: map[string]string{
+			"fakedevice0p1": "ubuntu-seed",
+		},
+	})
+
+	// mock the one we are assigning
+	s.setupMockUdevSymlinks(c, mockUdevDeviceSetup{
+		name: "fakedevice1",
+		path: "43:0",
+	})
+
+	m := map[string]*disks.MockDiskMapping{
+		filepath.Join(s.dir, "/dev/fakedevice0p1"): {
+			DevNum:  "42:0",
+			DevNode: "/dev/fakedevice0",
+			DevPath: "/sys/block/fakedevice0",
+		},
+		filepath.Join(s.dir, "/dev/fakedevice1p1"): {
+			DevNum:  "43:0",
+			DevNode: "/dev/fakedevice1",
+			DevPath: "/sys/block/fakedevice1",
+		},
+	}
+
+	restore := disks.MockPartitionDeviceNodeToDiskMapping(m)
+	defer restore()
+
+	n := map[string]*disks.MockDiskMapping{
+		"/dev/fakedevice0": {
+			DevNum:  "42:0",
+			DevNode: "/dev/fakedevice0",
+			DevPath: "/sys/block/fakedevice0",
+		},
+		"/dev/fakedevice1": {
+			DevNum:  "43:0",
+			DevNode: "/dev/fakedevice1",
+			DevPath: "/sys/block/fakedevice1",
+		},
+	}
+
+	restore = disks.MockDeviceNameToDiskMapping(n)
+	defer restore()
+
+	restoreMountInfo := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/ubuntu-seed rw,relatime shared:54 - vfat /dev/mmcblk0p1 rw
+	`)
+	defer restoreMountInfo()
+
+	gadgetRoot, err := gadgettest.WriteGadgetYaml(c.MkDir(), gadgettest.RaspiSimplifiedVolumeAssignmentYaml)
+	c.Assert(err, IsNil)
+
+	_, err = install.Run(uc20Mod, gadgetRoot, &install.KernelSnapInfo{}, "", install.Options{}, nil, timings.New(nil))
+	c.Assert(err, ErrorMatches, `volume pi was assigned disk /dev/fakedevice1, but this does not match the disk for ubuntu-seed /dev/fakedevice0`)
+}
+
 func (s *installSuite) TestInstallRunSimpleHappy(c *C) {
 	s.testInstall(c, installOpts{
 		gadgetYaml: gadgettest.RaspiSimplifiedYaml,
@@ -154,7 +216,7 @@ func (s *installSuite) TestInstallRunEncryptionExistingPartitions(c *C) {
 
 func (s *installSuite) TestInstallRunVolumeAssignmentHappy(c *C) {
 	s.testInstall(c, installOpts{
-		gadgetYaml: gadgettest.RaspiSimplifiedMultiVolumeAssignmentYaml,
+		gadgetYaml: gadgettest.RaspiMultiVolumeAssignmentYaml,
 		diskMappings: map[string]*disks.MockDiskMapping{
 			"mmcblk0": gadgettest.ExpectedRaspiMockDiskInstallModeMapping,
 			"mmcblk1": gadgettest.ExpectedRaspiMockBackupDiskMapping,
@@ -184,7 +246,7 @@ func (s *installSuite) TestInstallRunVolumeAssignmentHappy(c *C) {
 
 func (s *installSuite) TestInstallRunVolumeAssignmentFromSeedHappy(c *C) {
 	s.testInstall(c, installOpts{
-		gadgetYaml: gadgettest.RaspiSimplifiedMultiVolumeAssignmentYaml,
+		gadgetYaml: gadgettest.RaspiMultiVolumeAssignmentYaml,
 		diskMappings: map[string]*disks.MockDiskMapping{
 			"mmcblk0": gadgettest.ExpectedRaspiMockDiskInstallModeMapping,
 			"mmcblk1": gadgettest.ExpectedRaspiMockBackupDiskMapping,
@@ -215,7 +277,7 @@ func (s *installSuite) TestInstallRunVolumeAssignmentFromSeedHappy(c *C) {
 
 func (s *installSuite) TestInstallRunVolumeAssignmentExistingPartsHappy(c *C) {
 	s.testInstall(c, installOpts{
-		gadgetYaml: gadgettest.RaspiSimplifiedMultiVolumeAssignmentYaml,
+		gadgetYaml: gadgettest.RaspiMultiVolumeAssignmentYaml,
 		diskMappings: map[string]*disks.MockDiskMapping{
 			"mmcblk0": gadgettest.ExpectedRaspiMockDiskMapping,
 			"mmcblk1": gadgettest.ExpectedRaspiMockBackupDiskMapping,
@@ -584,7 +646,7 @@ fi
 
 	// When volumes are assigned it does not query udevadm, but instead just
 	// verifies disks exists where their assignments are
-	if opts.fromSeed && !opts.volumeAssignments {
+	if opts.fromSeed {
 		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "info", "--query", "property", "--name", "/dev/mmcblk0p1"})
 		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "info", "--query", "property", "--name", "/dev/block/42:0"})
 	}
@@ -1021,9 +1083,7 @@ fi
 
 	udevmadmCalls := [][]string{}
 
-	// When using volume-assignments for the device, `resolveBootDevice` will not call
-	// disks.DiskFromMountPoint and these calls wont happen
-	if opts.fromSeed && !opts.volumeAssignments {
+	if opts.fromSeed {
 		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "info", "--query", "property", "--name", "/dev/mmcblk0p1"})
 		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "info", "--query", "property", "--name", "/dev/block/42:0"})
 	}
@@ -1151,7 +1211,7 @@ func (s *installSuite) TestFactoryResetHappyWithDeviceAssignmentFromSeed(c *C) {
 				},
 			},
 		},
-		gadgetYaml: gadgettest.RaspiSimplifiedMultiVolumeAssignmentNoSaveYaml,
+		gadgetYaml: gadgettest.RaspiMultiVolumeAssignmentNoSaveYaml,
 		traitsJSON: gadgettest.ExpectedRaspiDiskVolumeMultiVolumeDeviceNoSaveTraitsJSON,
 		traits: map[string]gadget.DiskVolumeDeviceTraits{
 			"pi":     gadgettest.ExpectedRaspiDiskVolumeDeviceNoSaveTraits,
@@ -1183,7 +1243,7 @@ func (s *installSuite) TestFactoryResetHappyWithDeviceAssignmentFromExisting(c *
 				},
 			},
 		},
-		gadgetYaml: gadgettest.RaspiSimplifiedMultiVolumeAssignmentNoSaveYaml,
+		gadgetYaml: gadgettest.RaspiMultiVolumeAssignmentNoSaveYaml,
 		traitsJSON: gadgettest.ExpectedRaspiDiskVolumeMultiVolumeDeviceNoSaveTraitsJSON,
 		traits: map[string]gadget.DiskVolumeDeviceTraits{
 			"pi":     gadgettest.ExpectedRaspiDiskVolumeDeviceNoSaveTraits,

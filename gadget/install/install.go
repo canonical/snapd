@@ -231,15 +231,10 @@ func resolveBootDevice(bootDevice string, bootVol gadget.DeviceVolume) (string, 
 		return bootDevice, nil
 	}
 
-	if bootVol.Device != "" {
-		// disk is assigned for this volume
-		bootDisk, err := disks.DiskFromDeviceName(bootVol.Device)
-		if err != nil {
-			return "", err
-		}
-		logger.Noticef("volume %s has been assigned disk %s", bootVol.Volume.Name, bootDisk.KernelDeviceNode())
-		return bootDisk.KernelDeviceNode(), nil
-	}
+	// XXX: It makes no sense currently do handle bootVol.Device here and
+	// force the assignment there, as current constraints dictate the boot
+	// device must be on the same disk as ubuntu-seed. Therefor we should
+	// just ensure that the two disk paths don't differ if assigned
 
 	// default behavior for unassigned volumes
 	foundDisk, err := disks.DiskFromMountPoint("/run/mnt/ubuntu-seed", nil)
@@ -251,6 +246,19 @@ func resolveBootDevice(bootDevice string, bootVol gadget.DeviceVolume) (string, 
 	bootDevice, err = diskWithSystemSeed(bootVol.Volume)
 	if err != nil {
 		return "", fmt.Errorf("cannot find device to create partitions on: %v", err)
+	}
+	if bootVol.Device != "" {
+		// disk is assigned for this volume, then it must match the one
+		// that is assigned to system-seed
+		bootDisk, err := disks.DiskFromDeviceName(bootVol.Device)
+		if err != nil {
+			return "", err
+		}
+		logger.Noticef("volume %s has been assigned disk %s", bootVol.Volume.Name, bootDisk.KernelDeviceNode())
+		if bootDevice != bootDisk.KernelDeviceNode() {
+			return "", fmt.Errorf("volume %s was assigned disk %s, but this does not match the disk for ubuntu-seed %s",
+				bootVol.Volume.Name, bootDisk.KernelDeviceNode(), bootDevice)
+		}
 	}
 	return bootDevice, nil
 }
