@@ -871,46 +871,11 @@ func buildNewVolumeToDeviceMapping(mod Model, oldVolumes, newVolumes map[string]
 	vol := newVolumes[likelySystemBootVolume]
 
 	// search for matching devices that correspond to the gadget volume
-	dev := ""
-	for i := range vol.Volume.Structure {
-		var structureDevice string
-		var err error
-		if vol.Device != "" {
-			// If a specific device is assigned for the volume, then we must
-			// use that, so we verify that the device is valid.
-			structureDevice, err = ResolveDeviceForStructure(vol.Device)
-		} else {
-			// here it is okay that we require there to be either a partition label
-			// or a filesystem label since we require there to be a system-boot role
-			// on this volume which by definition must have a filesystem
-			structureDevice, err = FindDeviceForStructure(&vol.Volume.Structure[i])
-		}
-		if err == ErrDeviceNotFound {
-			continue
-		}
-		if err != nil {
-			// TODO: should this be a fatal error?
-			return nil, err
-		}
-
-		// we found a device for this structure, get the parent disk
-		// and save that as the device for this volume
-		disk, err := disks.DiskFromPartitionDeviceNode(structureDevice)
-		if err != nil {
-			// TODO: should we keep looping instead and try again with
-			// another structure? it probably wouldn't work because we found
-			// something on disk with the same name as something from the
-			// gadget.yaml, but then we failed to make a disk from that
-			// partition which suggests something is inconsistent with the
-			// state of the disk/udev database
-			return nil, err
-		}
-
-		dev = disk.KernelDeviceNode()
-		break
-	}
-
-	if dev == "" {
+	dev, err := MaybeDeviceForVolume(vol.Device, vol.Volume)
+	if err != nil {
+		// TODO: should this be a fatal error?
+		return nil, err
+	} else if dev == "" {
 		// couldn't find a disk at all, pre-UC20 we just warn about this
 		// but let the update continue
 		if isPreUC20 {

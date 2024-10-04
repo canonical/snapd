@@ -4225,6 +4225,46 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsImplicitSystemDataHap
 	})
 }
 
+func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsWithDeviceSetHappy(c *C) {
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-path"), 0755), IsNil)
+
+	fakedevice := filepath.Join(dirs.GlobalRootDir, "/dev/foo")
+	c.Assert(os.Symlink(fakedevice, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-path/42:0")), IsNil)
+	c.Assert(os.WriteFile(fakedevice, nil, 0644), IsNil)
+
+	// do not mock any partitions to ensure it doesn't fall back on
+	// to that code
+
+	// mock the device name
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": gadgettest.MockExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	// mock the partition device node going to a particular disk
+	restore = disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		filepath.Join(dirs.GlobalRootDir, "/dev/foop1"): gadgettest.MockExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil)
+	c.Assert(err, IsNil)
+
+	m := map[string]*gadget.Volume{
+		"foo": vol.Volume,
+	}
+	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(m, map[string]*gadget.DiskVolumeValidationOptions{
+		"foo": {
+			Device: "/dev/disk/by-path/42:0",
+		},
+	})
+	c.Assert(err, IsNil)
+
+	c.Assert(traitsMap, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
+		"foo": gadgettest.MockExtraVolumeDeviceTraits,
+	})
+}
+
 func (s *gadgetYamlTestSuite) TestGadgetInfoHasSameYamlAndJsonTags(c *C) {
 	// TODO: once we move to go 1.17 just use
 	//       reflect.StructField.IsExported() directly

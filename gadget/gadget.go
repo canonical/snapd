@@ -804,16 +804,9 @@ func LoadDiskVolumesDeviceTraits(dir string) (map[string]DiskVolumeDeviceTraits,
 	return mapping, nil
 }
 
-func deviceNodeForStructure(device string, vs *VolumeStructure) (string, error) {
-	if device != "" {
-		disk, err := disks.DiskFromDeviceName(device)
-		if err != nil {
-			return "", err
-		}
-
-		return disk.KernelDeviceNode(), nil
-	}
-
+// MaybeDeviceForStructure does a best-effort of resolving a device
+// node for the provided volume structure.
+func MaybeDeviceForStructure(vs *VolumeStructure) (string, error) {
 	structureDevice, err := FindDeviceForStructure(vs)
 	if err != nil && err != ErrDeviceNotFound {
 		return "", err
@@ -828,6 +821,46 @@ func deviceNodeForStructure(device string, vs *VolumeStructure) (string, error) 
 		}
 
 		return disk.KernelDeviceNode(), nil
+	}
+	return "", nil
+}
+
+// MaybeDeviceForVolume does a best-effort of finding a matching device
+// node for the provided volume. Optionally a device path can be specified
+// that should be resolved instead of finding a matching device for one
+// of the volume structures.
+func MaybeDeviceForVolume(device string, volume *Volume) (string, error) {
+	if device != "" {
+		disk, err := disks.DiskFromDeviceName(device)
+		if err != nil {
+			return "", err
+		}
+
+		return disk.KernelDeviceNode(), nil
+	}
+
+	for _, vs := range volume.Structure {
+		// TODO: This code works for volumes that have at least one
+		// partition (i.e. not type: bare structure), but does not work for
+		// volumes which contain only type: bare structures with no other
+		// structures on them. It is entirely unclear how to identify such
+		// a volume, since there is no information on the disk about where
+		// such raw structures begin and end and thus no way to validate
+		// that a given disk "has" such raw structures at particular
+		// locations, aside from potentially reading and comparing the bytes
+		// at the expected locations, but that is probably fragile and very
+		// non-performant.
+		if !vs.IsPartition() {
+			// skip trying to find non-partitions on disk, it won't work
+			continue
+		}
+
+		devNode, err := MaybeDeviceForStructure(&vs)
+		if err != nil {
+			return "", err
+		} else if devNode != "" {
+			return devNode, nil
+		}
 	}
 	return "", nil
 }
@@ -852,32 +885,10 @@ func AllDiskVolumeDeviceTraits(allVols map[string]*Volume, optsPerVolume map[str
 			opts = &DiskVolumeValidationOptions{}
 		}
 
-		dev := ""
-		for _, vs := range vol.Structure {
-			// TODO: This code works for volumes that have at least one
-			// partition (i.e. not type: bare structure), but does not work for
-			// volumes which contain only type: bare structures with no other
-			// structures on them. It is entirely unclear how to identify such
-			// a volume, since there is no information on the disk about where
-			// such raw structures begin and end and thus no way to validate
-			// that a given disk "has" such raw structures at particular
-			// locations, aside from potentially reading and comparing the bytes
-			// at the expected locations, but that is probably fragile and very
-			// non-performant.
-			if !vs.IsPartition() {
-				// skip trying to find non-partitions on disk, it won't work
-				continue
-			}
-
-			devNode, err := deviceNodeForStructure(opts.Device, &vs)
-			if err != nil {
-				return nil, err
-			} else if devNode != "" {
-				dev = devNode
-			}
-		}
-
-		if dev == "" {
+		dev, err := MaybeDeviceForVolume(opts.Device, vol)
+		if err != nil {
+			return nil, err
+		} else if dev == "" {
 			return nil, fmt.Errorf("cannot find disk for volume %s from gadget", name)
 		}
 
