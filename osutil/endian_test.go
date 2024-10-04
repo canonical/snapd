@@ -17,7 +17,7 @@
  *
  */
 
-package arch_test
+package osutil_test
 
 import (
 	"encoding/binary"
@@ -25,7 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/osutil"
 )
 
 type endianTestSuite struct{}
@@ -101,17 +101,17 @@ func (s *endianTestSuite) TestEndian(c *C) {
 		{"ppc64le", binary.LittleEndian},
 		{"riscv64", binary.LittleEndian},
 	} {
-		restore := arch.MockRuntimeGOARCH(t.arch)
+		restore := osutil.MockRuntimeGOARCH(t.arch)
 		defer restore()
 
-		c.Check(arch.Endian(), Equals, t.endian)
+		c.Check(osutil.Endian(), Equals, t.endian)
 		c.Check(knownGoArch(t.arch), IsNil)
 	}
 }
 
 func (s *endianTestSuite) TestEndianErrors(c *C) {
-	restore := arch.MockRuntimeGOARCH("unknown-arch")
+	restore := osutil.MockRuntimeGOARCH("unknown-arch")
 	defer restore()
 
-	c.Check(func() { arch.Endian() }, Panics, "unknown architecture unknown-arch")
+	c.Check(func() { osutil.Endian() }, Panics, "unknown architecture unknown-arch")
 }
