@@ -197,12 +197,15 @@ type ComponentType string
 
 const (
 	// TestComponent is just for testing purposes.
+	// TO BE DEPRECATED, please do not use in tests
 	TestComponent ComponentType = "test"
+	// StandardComponent is for vanilla components with no special behavior.
+	StandardComponent ComponentType = "standard"
 	// KernelModulesComponent is for components containing modules/firmware
 	KernelModulesComponent ComponentType = "kernel-modules"
 )
 
-var validComponentTypes = [...]ComponentType{TestComponent, KernelModulesComponent}
+var validComponentTypes = [...]ComponentType{TestComponent, StandardComponent, KernelModulesComponent}
 
 // ComponentTypeFromString converts a string to a ComponentType. An error is
 // returned if the string is not a valid ComponentType.

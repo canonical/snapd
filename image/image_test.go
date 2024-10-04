@@ -5340,5 +5340,5 @@ func (s *imageSuite) TestSetupSeedLocalComponentBadType(c *C) {
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
-	c.Assert(err, ErrorMatches, "component comp1 has type kernel-modules while snap required20 defines type test for it")
+	c.Assert(err, ErrorMatches, "component comp1 has type kernel-modules while snap required20 defines type standard for it")
 }

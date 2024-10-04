@@ -6302,7 +6302,7 @@ func (s *snapmgrTestSuite) TestInstallOneComponentsRunThrough(c *C) {
 		snapName    = "test-snap"
 		instanceKey = ""
 	)
-	s.testInstallComponentsRunThrough(c, snapName, instanceKey, []string{"test-component"}, undo)
+	s.testInstallComponentsRunThrough(c, snapName, instanceKey, []string{"standard-component"}, undo)
 }
 
 func (s *snapmgrTestSuite) TestInstallManyComponentsRunThrough(c *C) {
@@ -6311,7 +6311,7 @@ func (s *snapmgrTestSuite) TestInstallManyComponentsRunThrough(c *C) {
 		snapName    = "test-snap"
 		instanceKey = ""
 	)
-	s.testInstallComponentsRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo)
+	s.testInstallComponentsRunThrough(c, snapName, instanceKey, []string{"standard-component", "kernel-modules-component"}, undo)
 }
 
 func (s *snapmgrTestSuite) TestInstallInstanceManyComponentsRunThrough(c *C) {
@@ -6320,7 +6320,7 @@ func (s *snapmgrTestSuite) TestInstallInstanceManyComponentsRunThrough(c *C) {
 		snapName    = "test-snap"
 		instanceKey = "key"
 	)
-	s.testInstallComponentsRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo)
+	s.testInstallComponentsRunThrough(c, snapName, instanceKey, []string{"standard-component", "kernel-modules-component"}, undo)
 }
 
 func (s *snapmgrTestSuite) TestInstallManyComponentsUndoRunThrough(c *C) {
@@ -6329,7 +6329,7 @@ func (s *snapmgrTestSuite) TestInstallManyComponentsUndoRunThrough(c *C) {
 		snapName    = "test-snap"
 		instanceKey = ""
 	)
-	s.testInstallComponentsRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo)
+	s.testInstallComponentsRunThrough(c, snapName, instanceKey, []string{"standard-component", "kernel-modules-component"}, undo)
 }
 
 func (s *snapmgrTestSuite) TestInstallInstanceManyComponentsUndoRunThrough(c *C) {
@@ -6338,7 +6338,7 @@ func (s *snapmgrTestSuite) TestInstallInstanceManyComponentsUndoRunThrough(c *C)
 		snapName    = "test-snap"
 		instanceKey = "key"
 	)
-	s.testInstallComponentsRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo)
+	s.testInstallComponentsRunThrough(c, snapName, instanceKey, []string{"standard-component", "kernel-modules-component"}, undo)
 }
 
 func undoOps(instanceName string, newSequence, prevSequence *sequence.RevisionSideState) []fakeOp {
@@ -6840,7 +6840,7 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathOneRunThrough(c *C) {
 		instanceKey = ""
 		removePaths = false
 	)
-	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"test-component"}, undo, removePaths)
+	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"standard-component"}, undo, removePaths)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentsFromPathManyRunThrough(c *C) {
@@ -6850,7 +6850,7 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathManyRunThrough(c *C) {
 		instanceKey = ""
 		removePaths = false
 	)
-	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo, removePaths)
+	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"standard-component", "kernel-modules-component"}, undo, removePaths)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentsFromPathManyInstanceRunThrough(c *C) {
@@ -6860,7 +6860,7 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathManyInstanceRunThrough(c
 		instanceKey = ""
 		removePaths = false
 	)
-	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo, removePaths)
+	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"standard-component", "kernel-modules-component"}, undo, removePaths)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentsFromPathInstanceRunThroughUndo(c *C) {
@@ -6870,7 +6870,7 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathInstanceRunThroughUndo(c
 		instanceKey = ""
 		removePaths = false
 	)
-	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo, removePaths)
+	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"standard-component", "kernel-modules-component"}, undo, removePaths)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentsFromPathManyRemovePaths(c *C) {
@@ -6880,7 +6880,7 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathManyRemovePaths(c *C) {
 		instanceKey = ""
 		removePaths = true
 	)
-	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"test-component", "kernel-modules-component"}, undo, removePaths)
+	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"standard-component", "kernel-modules-component"}, undo, removePaths)
 }
 
 func (s *snapmgrTestSuite) testInstallComponentsFromPathRunThrough(c *C, snapName, instanceKey string, compNames []string, undo bool, removePaths bool) {
@@ -6945,8 +6945,8 @@ version: 1.0
 version: 1.0
 type: kernel
 components:
-  test-component:
-    type: test
+  standard-component:
+    type: standard
   kernel-modules-component:
     type: kernel-modules
 `)
@@ -7155,7 +7155,7 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathInvalidComponentFile(c *
 	const (
 		snapID        = "test-snap-id"
 		snapName      = "test-snap"
-		componentName = "test-component"
+		componentName = "standard-component"
 	)
 	snapRevision := snap.R(11)
 
@@ -7175,8 +7175,8 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathInvalidComponentFile(c *
 	snapPath := makeTestSnap(c, `name: test-snap
 version: 1.0
 components:
-  test-component:
-    type: test
+  standard-component:
+    type: standard
 `)
 	si := &snap.SideInfo{
 		RealName: snapName,
@@ -7215,8 +7215,8 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathInvalidComponentName(c *
 	snapPath := makeTestSnap(c, `name: test-snap
 version: 1.0
 components:
-  test-component:
-    type: test
+  standard-component:
+    type: standard
 `)
 	si := &snap.SideInfo{
 		RealName: snapName,

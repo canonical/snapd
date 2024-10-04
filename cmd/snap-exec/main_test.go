@@ -78,7 +78,7 @@ apps:
   command: nostop
 components:
  comp:
-  type: test
+  type: standard
   hooks:
    install:
 `)
@@ -86,7 +86,7 @@ components:
 var mockClassicYaml = append([]byte("confinement: classic\n"), mockYaml...)
 
 var mockComponentYaml = []byte(`component: snapname+comp
-type: test
+type: standard
 version: 1.0
 `)
 
@@ -103,7 +103,7 @@ hooks:
   command-chain: [chain1, chain2]
 components:
  comp:
-  type: test
+  type: standard
   hooks:
    install:
     command-chain: [chain3, chain4]

@@ -1398,7 +1398,7 @@ func (s *baseHookManagerSuite) setUpComponent(c *C, instanceName string, compone
 
 	const componentYaml = `
 component: %s+%s
-type: test
+type: standard
 `
 
 	const snapYaml = `
@@ -1406,7 +1406,7 @@ name: %s
 version: 1.0
 components:
   %s:
-    type: test
+    type: standard
     hooks:
       %s:
 `
@@ -1422,7 +1422,7 @@ components:
 			Snap: sideInfo,
 			Components: []*sequence.ComponentState{{
 				SideInfo: componentSideInfo,
-				CompType: snap.TestComponent,
+				CompType: snap.StandardComponent,
 			}},
 		}}),
 		Current:     snap.R(1),
@@ -1436,7 +1436,7 @@ func (s *componentHookManagerSuite) SetUpTest(c *C) {
 }
 
 func (s *componentHookManagerSuite) TestComponentHookTaskEnsure(c *C) {
-	s.setUpComponent(c, "test-snap", "test-component", "install")
+	s.setUpComponent(c, "test-snap", "standard-component", "install")
 
 	s.se.Ensure()
 	s.se.Wait()
@@ -1445,7 +1445,7 @@ func (s *componentHookManagerSuite) TestComponentHookTaskEnsure(c *C) {
 	defer s.state.Unlock()
 
 	c.Check(s.command.Calls(), DeepEquals, [][]string{{
-		"snap", "run", "--hook", "install", "-r", "1", "test-snap+test-component",
+		"snap", "run", "--hook", "install", "-r", "1", "test-snap+standard-component",
 	}})
 
 	c.Check(s.task.Kind(), Equals, "run-hook")
@@ -1456,7 +1456,7 @@ func (s *componentHookManagerSuite) TestComponentHookTaskEnsure(c *C) {
 }
 
 func (s *componentHookManagerSuite) TestComponentHookTaskEnsureInstance(c *C) {
-	s.setUpComponent(c, "test-snap_instance", "test-component", "install")
+	s.setUpComponent(c, "test-snap_instance", "standard-component", "install")
 
 	s.se.Ensure()
 	s.se.Wait()
@@ -1465,7 +1465,7 @@ func (s *componentHookManagerSuite) TestComponentHookTaskEnsureInstance(c *C) {
 	defer s.state.Unlock()
 
 	c.Check(s.command.Calls(), DeepEquals, [][]string{{
-		"snap", "run", "--hook", "install", "-r", "1", "test-snap_instance+test-component",
+		"snap", "run", "--hook", "install", "-r", "1", "test-snap_instance+standard-component",
 	}})
 
 	fmt.Println(s.change.Err())
@@ -1478,7 +1478,7 @@ func (s *componentHookManagerSuite) TestComponentHookTaskEnsureInstance(c *C) {
 }
 
 func (s *componentHookManagerSuite) TestComponentHookWithoutHookIsError(c *C) {
-	s.setUpComponent(c, "test-snap", "test-component", "install")
+	s.setUpComponent(c, "test-snap", "standard-component", "install")
 
 	s.state.Lock()
 
@@ -1500,5 +1500,5 @@ func (s *componentHookManagerSuite) TestComponentHookWithoutHookIsError(c *C) {
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
-	checkTaskLogContains(c, s.task, `.*component "test-snap\+test-component" has no "missing-hook" hook.*`)
+	checkTaskLogContains(c, s.task, `.*component "test-snap\+standard-component" has no "missing-hook" hook.*`)
 }

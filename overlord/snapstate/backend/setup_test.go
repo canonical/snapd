@@ -463,7 +463,7 @@ func (s *setupSuite) TestSetupComponentUndoIdempotent(c *C) {
 
 func (s *setupSuite) testSetupComponentDo(c *C, compName, snapName, instanceName string, compRev, snapRev snap.Revision) *backend.InstallRecord {
 	componentYaml := fmt.Sprintf(`component: %s+%s
-type: test
+type: standard
 version: 1.0
 `, snapName, compName)
 
@@ -522,7 +522,7 @@ func (s *setupSuite) TestSetupComponentCleanupAfterFail(c *C) {
 	compRev := snap.R(33)
 
 	componentYaml := fmt.Sprintf(`component: %s+%s
-type: test
+type: standard
 version: 1.0
 `, snapName, compName)
 

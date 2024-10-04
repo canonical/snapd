@@ -202,7 +202,7 @@ esac
 func (s *SnapSuite) TestPackComponentHappy(c *check.C) {
 	const compYaml = `component: snap+comp
 version: 12a
-type: test
+type: standard
 `
 	_, r := logger.MockLogger()
 	defer r()
@@ -219,7 +219,7 @@ type: test
 func (s *SnapSuite) TestPackComponentBadName(c *check.C) {
 	const compYaml = `component: snapcomp
 version: 12a
-type: test
+type: standard
 `
 	_, r := logger.MockLogger()
 	defer r()

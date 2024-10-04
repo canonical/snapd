@@ -659,16 +659,16 @@ apps:
   daemon: simple
 components:
   comp:
-    type: test
+    type: standard
 `, si)
 
-	compInfo := snaptest.MockComponentCurrent(c, "component: test-snap+comp\ntype: test", info, snap.ComponentSideInfo{
+	compInfo := snaptest.MockComponentCurrent(c, "component: test-snap+comp\ntype: standard", info, snap.ComponentSideInfo{
 		Revision:  snap.R(5),
 		Component: naming.NewComponentRef("test-snap", "comp"),
 	})
 
 	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si})
-	seq.AddComponentForRevision(snap.R(3), sequence.NewComponentState(&compInfo.ComponentSideInfo, snap.TestComponent))
+	seq.AddComponentForRevision(snap.R(3), sequence.NewComponentState(&compInfo.ComponentSideInfo, snap.StandardComponent))
 
 	snapstate.Set(st, "test-snap", &snapstate.SnapState{
 		Active:   true,

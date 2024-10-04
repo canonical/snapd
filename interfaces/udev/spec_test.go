@@ -81,13 +81,13 @@ apps:
     command: bin/foo
 components:
   comp:
-    type: test
+    type: standard
     hooks:
       install:
 hooks:
   configure:
 `
-	const compYaml = "component: snap1+comp\ntype: test"
+	const compYaml = "component: snap1+comp\ntype: standard"
 	s.plug, s.plugInfo = ifacetest.MockConnectedPlugWithComponents(c, plugYaml, nil, []string{compYaml}, "name")
 
 	const slotYaml = `name: snap2

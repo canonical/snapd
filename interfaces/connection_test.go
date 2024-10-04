@@ -413,7 +413,7 @@ hooks:
     plugs: [plug, hook-plug]
 components:
   comp:
-    type: test
+    type: standard
     hooks:
       install:
         plugs: [plug, comp-plug]
@@ -421,7 +421,7 @@ components:
 
 	const componentYaml = `
 component: consumer+comp
-type: test
+type: standard
 version: 1
 `
 
@@ -461,14 +461,14 @@ hooks:
     slots: [slot, hook-slot]
 components:
   comp:
-    type: test
+    type: standard
     hooks:
       install:
 `
 
 	const componentYaml = `
 component: producer+comp
-type: test
+type: standard
 version: 1
 `
 

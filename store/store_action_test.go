@@ -169,7 +169,7 @@ func (s *storeActionSuite) testSnapAction(c *C, resources []string) {
 						"size":     1024,
 						"url":      "https://example.com/comp.comp",
 					},
-					"type":        "component/test-component",
+					"type":        "component/standard-component",
 					"name":        "comp",
 					"revision":    3,
 					"version":     "1",
@@ -221,7 +221,7 @@ func (s *storeActionSuite) testSnapAction(c *C, resources []string) {
 	if len(resources) > 0 {
 		c.Assert(results[0].Resources, HasLen, 1)
 		c.Assert(results[0].Resources[0].Name, Equals, "comp")
-		c.Assert(results[0].Resources[0].Type, Equals, "component/test-component")
+		c.Assert(results[0].Resources[0].Type, Equals, "component/standard-component")
 		c.Assert(results[0].Resources[0].Revision, Equals, 3)
 		c.Assert(results[0].Resources[0].Version, Equals, "1")
 	}
@@ -599,7 +599,7 @@ func (s *storeActionSuite) TestSnapActionNoSkipIfResourceChange(c *C) {
        "resources": [
          {
            "name": "comp",
-           "type": "component/test-component",
+           "type": "component/standard-component",
            "revision": 3,
            "version": "1",
            "download": {
@@ -700,7 +700,7 @@ func (s *storeActionSuite) TestSnapActionSkipIfNoResourceChange(c *C) {
        "resources": [
          {
            "name": "comp",
-           "type": "component/test-component",
+           "type": "component/standard-component",
            "revision": 2,
            "version": "1",
            "download": {
@@ -3683,7 +3683,7 @@ func (s *storeActionSuite) TestResourceToComponentType(c *C) {
 		{"foo/bar", "foo/bar is not a component resource", ""},
 		{"foobar", "foobar is not a component resource", ""},
 		{"component/newtype", "invalid component type \"newtype\"", ""},
-		{"component/test", "", snap.TestComponent},
+		{"component/standard", "", snap.StandardComponent},
 		{"component/kernel-modules", "", snap.KernelModulesComponent},
 	} {
 		ctyp, err := store.ResourceToComponentType(tc.resource)
