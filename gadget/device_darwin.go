@@ -28,7 +28,3 @@ var errNotImplemented = errors.New("not implemented")
 func FindDeviceForStructure(vs *VolumeStructure) (string, error) {
 	return "", errNotImplemented
 }
-
-func ResolveDeviceForStructure(device string) (string, error) {
-	return "", errNotImplemented
-}
