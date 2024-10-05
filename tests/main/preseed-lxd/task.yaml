@@ -122,9 +122,9 @@ execute: |
       # sure all the dependencies are in place, otherwise it fails to access to
       # /snap/snapd/current/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
 
-      CURRENT_SNAPD_SNAP="$(ls $SNAPD_WORK_DIR/snapd_snap/snapd_*.snap)"
-      CURRENT_SNAPD_SNAP_NAME="$(basename $CURRENT_SNAPD_SNAP)"
-      if [ "$(wc -w <<< $CURRENT_SNAPD_SNAP)" != 1 ]; then
+      CURRENT_SNAPD_SNAP="$(ls "$SNAPD_WORK_DIR"/snapd_snap/snapd_*.snap)"
+      CURRENT_SNAPD_SNAP_NAME="$(basename "$CURRENT_SNAPD_SNAP")"
+      if [ "$(wc -w <<< "$CURRENT_SNAPD_SNAP")" != 1 ]; then
           echo "It is expected just 1 snapd snap in $SNAPD_WORK_DIR/snapd_snap"
           exit 1
       fi
