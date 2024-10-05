@@ -9,8 +9,6 @@ set -eux
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
-: "${WORK_DIR:=/tmp/work-dir}"
-
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
     echo "Turning off kernel rate-limiting"
@@ -420,15 +418,16 @@ prepare_classic() {
     # This also prevents snapd from automatically installing snapd snap as
     # prerequisite for installing any non-base snap introduced in PR#14173.
     if snap list snapd ; then
-	    snap info snapd
-	    echo "Error: not expecting snapd snap to be installed"
-	    exit 1
+        snap info snapd
+        echo "Error: not expecting snapd snap to be installed"
+        exit 1
     else
-	    build_dir="$WORK_DIR/snapd_snap_for_classic"
-	    rm -rf "$build_dir"
-	    mkdir -p "$build_dir"
-	    build_snapd_snap "$build_dir"
-	    snap install --dangerous "$build_dir/"snapd_*.snap
+        build_dir="$SNAPD_WORK_DIR/snapd_snap_for_classic"
+        rm -rf "$build_dir"
+        mkdir -p "$build_dir"
+        build_snapd_snap "$build_dir"
+        snap install --dangerous "$build_dir/"snapd_*.snap
+        snap wait system seed.loaded
     fi
     snap list snapd
 
@@ -549,7 +548,7 @@ build_snapd_snap() {
     local snapd_snap_cache
     TARGET="${1}"
 
-    snapd_snap_cache="$WORK_DIR/snapd_snap"
+    snapd_snap_cache="$SNAPD_WORK_DIR/snapd_snap"
     mkdir -p "${snapd_snap_cache}"
     for snap in "${snapd_snap_cache}"/snapd_*.snap; do
         if ! [ -f "${snap}" ]; then
@@ -592,7 +591,7 @@ build_snapd_snap_with_run_mode_firstboot_tweaks() {
 
     TARGET="${1}"
 
-    snapd_snap_cache="$WORK_DIR/snapd_snap_with_tweaks"
+    snapd_snap_cache="$SNAPD_WORK_DIR/snapd_snap_with_tweaks"
     mkdir -p "${snapd_snap_cache}"
     for snap in "${snapd_snap_cache}"/snapd_*.snap; do
         if [ -f "${snap}" ]; then

@@ -24,9 +24,10 @@ debug: |
     cat /tmp/snap-confine-stderr.log || true
 
 execute: |
+    MOUNT_DIR="$(os.paths snap-mount-dir)"
     SNAP_CONFINE=$(os.paths libexec-dir)/snapd/snap-confine
     if tests.info is-snapd-pkg-repo; then
-        SNAP_CONFINE="/snap/snapd/current$SNAP_CONFINE"
+        SNAP_CONFINE="$MOUNT_DIR/snapd/current$SNAP_CONFINE"
     fi
 
     # on Ubuntu Core we need to use the correct path to ensure it is
