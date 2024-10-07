@@ -195,11 +195,6 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(sealedEncryptionKeyFile, sourceDev
 
 	// the output of fde-reveal-key is the unsealed key
 	options := activateVolOpts(opts.AllowRecoveryKey)
-	// FIXME: consider setting it in activateVolOpts if we keep
-	// this function separate from the tpm one for key data in
-	// files. Otherwise we should only set it if we provide key
-	// data generation 1.
-	options.Model = model
 
 	sbSetModel(model)
 	// This does not seem to work:
