@@ -50,7 +50,6 @@ prepare: |
       # in spread.
       exit 0
     fi
-    tests.cleanup defer tests.pkgs remove "linux-modules-extra-$(uname -r)"
 
     case "$FS" in
       nfs)
@@ -68,7 +67,6 @@ prepare: |
         fi
 
         tests.pkgs install nfs-kernel-server
-        tests.cleanup defer tests.pkgs remove nfs-kernel-server 
 
         # Export /var/home/test-remote over NFS.
         mkdir -p /etc/exports.d/
@@ -82,7 +80,6 @@ prepare: |
       cifs)
         # Install samba.
         tests.pkgs install samba
-        tests.cleanup defer tests.pkgs remove samba
 
         # Create the var-home share.
         tests.backup prepare /etc/samba
