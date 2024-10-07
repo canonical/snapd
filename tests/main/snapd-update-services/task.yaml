@@ -21,17 +21,11 @@ prepare: |
   # Download current snapd edge
   snap download --edge snapd --basename=snapd_edge
 
-  # Repack it with currently built snapd
-  unpackdir=/tmp/snapd-update-services
-  unsquashfs -no-progress -d "${unpackdir}" snapd_edge.snap
-  dpkg-deb -x "${GOHOME}"/snapd_*.deb "${unpackdir}"
-  snap pack "${unpackdir}" --filename snapd_modified.snap
-  rm -rf "${unpackdir}"
+  # Get the snapd package built from the current branch
+  cp "$SNAPD_WORK_DIR"/snapd_snap/snapd_*.snap "$PWD/snapd_current.snap"
 
 restore: |
   rm -rf /tmp/snapd-update-services
-  rm -f snapd_edge.snap
-  rm -f snapd_modified.snap
 
 execute: |
   snap install --dangerous snapd_edge.snap
@@ -69,7 +63,7 @@ execute: |
   done
 
   # Snapd update
-  snap install --dangerous snapd_modified.snap
+  snap install --dangerous snapd_current.snap
 
   # Check the service file has been updated
   systemctl is-active snap.test-snapd-service.test-snapd-service.service
