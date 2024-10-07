@@ -2718,12 +2718,9 @@ func (s *linkSnapSuite) TestDoKillSnapAppsUnlocksOnError(c *C) {
 		Active:   true,
 	})
 
-	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
-		if op.op == "kill-snap-apps:remove" {
-			return fmt.Errorf("boom!")
-		}
-		return nil
-	}
+	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		return nil, fmt.Errorf("boom!")
+	})
 
 	task := s.state.NewTask("kill-snap-apps", "")
 	task.Set("kill-reason", snap.KillReasonRemove)
@@ -2749,6 +2746,57 @@ func (s *linkSnapSuite) TestDoKillSnapAppsUnlocksOnError(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(testLock.TryLock(), IsNil)
 	testLock.Close()
+}
+
+func (s *linkSnapSuite) TestDoKillSnapAppsTerminateBestEffort(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		Active:   true,
+	})
+
+	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+		if op.op == "kill-snap-apps:remove" {
+			return fmt.Errorf("boom!")
+		}
+		return nil
+	}
+
+	task := s.state.NewTask("kill-snap-apps", "")
+	task.Set("kill-reason", snap.KillReasonRemove)
+	task.Set("snap-setup", &snapstate.SnapSetup{SideInfo: si})
+	chg := s.state.NewChange("test", "")
+	chg.AddTask(task)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+
+	c.Assert(task.Status(), Equals, state.DoneStatus)
+
+	hint, _, err := runinhibit.IsLocked("some-snap")
+	c.Assert(err, IsNil)
+	// Error is ignored, inhibition lock is held
+	c.Check(hint, Equals, runinhibit.HintInhibitedForRemove)
+	// And snap lock is also unlocked
+	testLock, err := snaplock.OpenLock("some-snap")
+	c.Assert(err, IsNil)
+	c.Check(testLock.TryLock(), IsNil)
+	testLock.Close()
+	// But a warning is emitted
+	warnings := s.state.AllWarnings()
+	c.Assert(warnings, HasLen, 1)
+	c.Assert(warnings[0].String(), Equals, `cannot terminate running app processes for "some-snap": boom!`)
 }
 
 func (s *linkSnapSuite) testDoUndoKillSnapApps(c *C, svc bool) {
