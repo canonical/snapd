@@ -1,4 +1,4 @@
-summary: Ensures that a failed snap auto-refresh will be progressively in future refreshes.
+summary: Ensures that a failed snap auto-refresh will be will be exponentially delayed in future refreshes.
 
 details: |
     Test ensures that if a snap auto-refresh failed the next auto-refresh attempt for the

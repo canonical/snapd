@@ -10704,6 +10704,184 @@ func (s *snapmgrTestSuite) TestAutoRefreshCreatePreDownload(c *C) {
 	c.Assert(tasks[0].Summary(), testutil.Contains, "Pre-download snap \"some-snap\" (2) from channel")
 }
 
+func (s *snapmgrTestSuite) TestAutoRefreshRecordsFailures(c *C) {
+	// Setup test snaps
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: string(snap.TypeApp),
+	})
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: string(snap.TypeApp),
+	})
+
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+
+	buf, restore := logger.MockLogger()
+	defer restore()
+
+	badSnapRevision := snap.R(12)
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/some-snap/"+badSnapRevision.String())
+	goodSnapRevision := snap.R(12)
+	// Specify retrieved revisions for snaps from fakestore
+	s.fakeStore.refreshRevnos["some-snap-id"] = badSnapRevision
+	s.fakeStore.refreshRevnos["some-other-snap-id"] = goodSnapRevision
+
+	getRefreshFailures := func(name string) *snap.RefreshFailuresInfo {
+		var snapst snapstate.SnapState
+		c.Assert(snapstate.Get(s.state, name, &snapst), IsNil)
+		return snapst.RefreshFailures
+	}
+	getRefreshFailed := func(chg *state.Change) []interface{} {
+		var apiData map[string]interface{}
+		c.Assert(chg.Get("api-data", &apiData), IsNil)
+		if apiData["refresh-failed"] == nil {
+			return nil
+		}
+		refreshFailed := apiData["refresh-failed"].([]interface{})
+		return refreshFailed
+	}
+	getRevision := func(name string) snap.Revision {
+		var snapst snapstate.SnapState
+		c.Assert(snapstate.Get(s.state, name, &snapst), IsNil)
+		return snapst.Current
+	}
+
+	forceAutoRefresh := func() {
+		s.state.Unlock()
+		// Fake nextRefresh to now.
+		s.snapmgr.MockNextRefresh(time.Now())
+		// Fake that the retryRefreshDelay is over
+		restore := snapstate.MockRefreshRetryDelay(1 * time.Millisecond)
+		defer restore()
+		time.Sleep(10 * time.Millisecond)
+		// Trigger autorefresh.Ensure().
+		err := s.snapmgr.Ensure()
+		if errors.Is(err, advisor.ErrNotSupported) {
+			c.Skip("bolt is not supported")
+		}
+		c.Assert(err, IsNil)
+		s.state.Lock()
+		s.settle(c)
+	}
+
+	// Auto-refresh errors are not recorded until after unlink-current-snap as
+	// this indicates (with high probability) a real issue with the snap revision.
+	s.fakeBackend.maybeInjectErr = func(fo *fakeOp) error {
+		if fo.op == "unlink-snap" && strings.Contains(fo.path, "some-snap") {
+			return errors.New("error exactly at unlink-current-snap")
+		}
+		return nil
+	}
+	buf.Reset()
+	forceAutoRefresh()
+	chgs := s.state.Changes()
+	c.Assert(chgs, HasLen, 1)
+	c.Check(chgs[0].Kind(), Equals, "auto-refresh")
+	c.Check(chgs[0].Err(), ErrorMatches, "cannot perform the following tasks:\n.*- Make current revision for snap \"some-snap\" unavailable \\(error exactly at unlink-current-snap\\)")
+	c.Check(chgs[0].Status(), Equals, state.ErrorStatus)
+	c.Check(buf.String(), Not(testutil.Contains), `snap "some-snap" auto-refresh to revision 12 has failed, next auto-refresh attempt will be in 8 hours`)
+	c.Check(getRefreshFailed(chgs[0]), IsNil)
+	c.Check(getRefreshFailures("some-snap"), IsNil) // Refresh failures only count after unlink-current-snap
+	c.Check(getRevision("some-snap"), Equals, snap.R(1))
+	c.Check(getRefreshFailures("some-other-snap"), IsNil)
+	c.Check(getRevision("some-other-snap"), Equals, goodSnapRevision)
+
+	// Auto-refresh errors are recorded after unlink-current-snap
+	goodSnapRevision.N++
+	s.fakeStore.refreshRevnos["some-other-snap-id"] = goodSnapRevision
+	s.fakeBackend.maybeInjectErr = nil
+	buf.Reset()
+	forceAutoRefresh()
+	chgs = s.state.Changes()
+	sort.Slice(chgs, func(i, j int) bool {
+		return chgs[i].SpawnTime().Before(chgs[j].SpawnTime())
+	})
+	c.Assert(chgs, HasLen, 2)
+	c.Check(chgs[1].Kind(), Equals, "auto-refresh")
+	c.Check(chgs[1].Err(), ErrorMatches, "cannot perform the following tasks:\n.*- Make snap \"some-snap\" \\(12\\) available to the system \\(fail\\)")
+	c.Check(chgs[1].Status(), Equals, state.ErrorStatus)
+	c.Check(buf.String(), testutil.Contains, `snap "some-snap" auto-refresh to revision 12 has failed, next auto-refresh attempt will be delayed by 8 hours`)
+	c.Check(getRefreshFailed(chgs[1]), DeepEquals, []interface{}{"some-snap"})
+	c.Check(getRefreshFailures("some-snap").Revision, Equals, badSnapRevision)
+	c.Check(getRefreshFailures("some-snap").FailureCount, Equals, 1)
+	c.Check(getRevision("some-snap"), Equals, snap.R(1))
+	c.Check(getRefreshFailures("some-other-snap"), IsNil)
+	c.Check(getRevision("some-other-snap"), Equals, goodSnapRevision)
+
+	// Bad snap refresh is skipped due to backoff delay, but other refresh continue normally
+	goodSnapRevision.N++
+	s.fakeStore.refreshRevnos["some-other-snap-id"] = goodSnapRevision
+	buf.Reset()
+	forceAutoRefresh()
+	chgs = s.state.Changes()
+	sort.Slice(chgs, func(i, j int) bool {
+		return chgs[i].SpawnTime().Before(chgs[j].SpawnTime())
+	})
+	c.Assert(chgs, HasLen, 3)
+	c.Check(chgs[2].Kind(), Equals, "auto-refresh")
+	c.Check(chgs[2].Err(), IsNil)
+	c.Check(chgs[2].Status(), Equals, state.DoneStatus)
+	c.Check(buf.String(), Not(testutil.Contains), `snap "some-snap" auto-refresh to revision 12 has failed, next auto-refresh attempt will be delayed by 8 hours`)
+	c.Check(getRefreshFailed(chgs[2]), IsNil)
+	c.Check(getRefreshFailures("some-snap").Revision, Equals, badSnapRevision)
+	c.Check(getRefreshFailures("some-snap").FailureCount, Equals, 1) // Stays at 1
+	c.Check(getRevision("some-snap"), Equals, snap.R(1))
+	c.Check(getRefreshFailures("some-other-snap"), IsNil)
+	c.Check(getRevision("some-other-snap"), Equals, goodSnapRevision)
+
+	// Make sure backoff delay is capped to a reasonable value (~2 weeks)
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), IsNil)
+	snapst.RefreshFailures = &snap.RefreshFailuresInfo{
+		Revision:        badSnapRevision,
+		FailureCount:    100,
+		LastFailureTime: time.Now().Add(-2 * 7 * 24 * time.Hour),
+	}
+	snapstate.Set(s.state, "some-snap", &snapst)
+	buf.Reset()
+	forceAutoRefresh()
+	chgs = s.state.Changes()
+	sort.Slice(chgs, func(i, j int) bool {
+		return chgs[i].SpawnTime().Before(chgs[j].SpawnTime())
+	})
+	c.Assert(chgs, HasLen, 4)
+	c.Check(chgs[3].Kind(), Equals, "auto-refresh")
+	c.Check(chgs[3].Err(), ErrorMatches, "cannot perform the following tasks:\n.*- Make snap \"some-snap\" \\(12\\) available to the system \\(fail\\)")
+	c.Check(chgs[3].Status(), Equals, state.ErrorStatus)
+	c.Check(buf.String(), testutil.Contains, `snap "some-snap" auto-refresh to revision 12 has failed, next auto-refresh attempt will be delayed by 336 hours`)
+	c.Check(getRefreshFailed(chgs[3]), DeepEquals, []interface{}{"some-snap"})
+	c.Check(getRefreshFailures("some-snap").Revision, Equals, badSnapRevision)
+	c.Check(getRefreshFailures("some-snap").FailureCount, Equals, 101) // Backoff delay passed, increment for new failure
+	c.Check(getRevision("some-snap"), Equals, snap.R(1))
+
+	// New revision resets RefreshFailures
+	s.fakeStore.refreshRevnos["some-snap-id"] = snap.R(13)
+	buf.Reset()
+	forceAutoRefresh()
+	chgs = s.state.Changes()
+	sort.Slice(chgs, func(i, j int) bool {
+		return chgs[i].SpawnTime().Before(chgs[j].SpawnTime())
+	})
+	c.Assert(chgs, HasLen, 5)
+	c.Check(chgs[4].Kind(), Equals, "auto-refresh")
+	c.Check(chgs[4].Err(), IsNil)
+	c.Check(chgs[4].Status(), Equals, state.DoneStatus)
+	c.Check(getRefreshFailed(chgs[4]), IsNil)
+	c.Check(getRefreshFailures("some-snap"), IsNil)
+	c.Check(getRevision("some-snap"), Equals, snap.R(13))
+}
+
 func (s *snapmgrTestSuite) testAutoRefreshRefreshInhibitNoticeRecorded(c *C, markerInterfaceConnected bool, warningFallback bool) {
 	refreshAppsCheckCalled := 0
 	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
