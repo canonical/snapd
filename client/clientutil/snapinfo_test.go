@@ -121,6 +121,7 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 		"Hold",
 		"GatingHold",
 		"RefreshInhibit",
+		"RefreshFailures",
 		"Components",
 	}
 	var checker func(string, reflect.Value)
