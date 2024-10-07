@@ -142,14 +142,14 @@ execute: |
 
     echo '{"experimental.apparmor-prompting": true}' | snap debug api -X PUT -H 'Content-Type: application/json' /v2/snaps/system/conf | jq -r '.status' | MATCH "Accepted" || reset_start_limit
 
-    echo "Check that snapd restarted after prompting set to true via snap debug"
+    echo "Check that snapd restarted after prompting set to true via api"
     check_snapd_restarted
     check_prompting_setting "true"
 
     echo "Disable prompting via API request"
     echo '{"experimental.apparmor-prompting": false}' | snap debug api -X PUT -H 'Content-Type: application/json' /v2/snaps/system/conf | jq -r '.status' | MATCH "Accepted" || reset_start_limit
 
-    echo "Check that snapd restarted after prompting set to false via snap debug"
+    echo "Check that snapd restarted after prompting set to false via api"
     check_snapd_restarted
     check_prompting_setting "false"
 
