@@ -195,7 +195,7 @@ parts:
     plugin: nil
     source: .
     build-snaps:
-      - go/1.18/stable # the default Go toolchain
+      - go/latest/stable # the default Go toolchain
     after:
       - apparmor
     build-packages:
