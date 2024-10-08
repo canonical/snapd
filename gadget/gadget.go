@@ -612,11 +612,11 @@ func areAssignmentsMatchingCurrentDevice(assignments map[string]*DeviceAssignmen
 }
 
 // Indirection here for mocking
-var FindVolumesMatchingDeviceAssignment = findVolumesMatchingDeviceAssignmentImpl
+var VolumesForCurrentDeviceAssignment = volumesForCurrentDeviceAssignmentImpl
 
-// findVolumesMatchingDeviceAssignmentImpl does a best effort match of the volume-assignments
+// volumesForCurrentDeviceAssignmentImpl does a best effort match of the volume-assignments
 // against the current device. We find the first assignment that has all device paths matching
-func findVolumesMatchingDeviceAssignmentImpl(gi *Info) (map[string]*Volume, error) {
+func volumesForCurrentDeviceAssignmentImpl(gi *Info) (map[string]*Volume, error) {
 	for _, vas := range gi.VolumeAssignments {
 		if !areAssignmentsMatchingCurrentDevice(vas.Assignments) {
 			continue

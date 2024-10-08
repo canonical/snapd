@@ -1251,7 +1251,7 @@ func validateVolumesMatch(old, new map[string]*Volume) error {
 func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePolicyFunc, observer ContentUpdateObserver) error {
 	volumesForGadget := func(gd GadgetData) (map[string]*Volume, error) {
 		if len(gd.Info.VolumeAssignments) != 0 {
-			return FindVolumesMatchingDeviceAssignment(gd.Info)
+			return VolumesForCurrentDeviceAssignment(gd.Info)
 		} else {
 			return gd.Info.Volumes, nil
 		}

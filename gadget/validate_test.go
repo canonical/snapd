@@ -1317,3 +1317,112 @@ func (s *validateGadgetTestSuite) TestValidateClassicWithModesEncryptHappy(c *C)
 	err = gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{})
 	c.Assert(err, IsNil)
 }
+
+func (s *validateGadgetTestSuite) TestValidateVolumeAssignmentIdentical(c *C) {
+	// This is not allowed for classic with modes
+	const gadgetYaml = `
+volumes:
+  pc1:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        # whats the appropriate size?
+        size: 750M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+  pc2:
+    structure:
+      - name: ubuntu-backup
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+volume-assignments:
+  - name: frobinator-100
+    assignment:
+      pc1:
+        device: /dev/disk/path
+      pc2:
+          device: /dev/disk/my-path
+  - name: frobinator-200
+    assignment:
+      pc1:
+        device: /dev/disk/another-path
+      pc2:
+          device: /dev/disk/oh-no-path
+`
+
+	mod := &gadgettest.ModelCharacteristics{
+		HasModes: true,
+	}
+	giMeta, err := gadget.InfoFromGadgetYaml([]byte(gadgetYaml), mod)
+	c.Assert(err, IsNil)
+
+	err = gadget.Validate(giMeta, mod, nil)
+	c.Check(err, ErrorMatches, `volume-assignment variant "frobinator-200" is identical to "frobinator-100"`)
+}
+
+func (s *validateGadgetTestSuite) TestValidateVolumeAssignmentInvalid(c *C) {
+	// This is not allowed for classic with modes
+	const gadgetYaml = `
+volumes:
+  pc1:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        # whats the appropriate size?
+        size: 750M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+volume-assignments:
+  - name: frobinator-100
+    assignment:
+      part1:
+        device: /dev/disk/path
+`
+
+	mod := &gadgettest.ModelCharacteristics{
+		HasModes: true,
+	}
+	_, err := gadget.InfoFromGadgetYaml([]byte(gadgetYaml), mod)
+	c.Assert(err, ErrorMatches, `invalid volume-assignment for "frobinator-100": volume "part1" is mentioned in assignment but has not been defined`)
+}
