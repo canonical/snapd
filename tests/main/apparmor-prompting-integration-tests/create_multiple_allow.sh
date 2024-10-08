@@ -24,12 +24,12 @@ fi
 for name in test1.txt test2.md test3.pdf ; do
 	TEST_OUTPUT="$(cat "${TEST_DIR}/${name}")"
 	if [ "$TEST_OUTPUT" != "$name is written" ] ; then
-		echo "file creation failed"
+		echo "file creation failed for $name"
 		exit 1
 	fi
 done
 
 if [ -f "${TEST_DIR}/fail.txt" ] ; then
-	echo "file creation unexpectedly succeeded"
+	echo "file creation unexpectedly succeeded for fail.txt"
 	exit 1
 fi

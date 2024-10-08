@@ -19,6 +19,6 @@ if [ "$CLIENT_OUTPUT" != "success" ] ; then
 fi
 
 if [ -f "${TEST_DIR}/test.txt" ] ; then
-	echo "test script unexpectedly succeeded"
+	echo "file creation unexpectedly succeeded for test.txt"
 	exit 1
 fi

@@ -23,13 +23,13 @@ fi
 
 for name in test1.txt test2.md test3.pdf ; do
 	if [ -f "${TEST_DIR}/${name}" ] ; then
-		echo "file creation unexpectedly succeeded"
+		echo "file creation unexpectedly succeeded for $name"
 		exit 1
 	fi
 done
 
 TEST_OUTPUT="$(cat "${TEST_DIR}/succeed.txt")"
 if [ "$TEST_OUTPUT" != "succeed.txt is written" ] ; then
-	echo "file creation failed"
+	echo "file creation failed for succeed.txt"
 	exit 1
 fi

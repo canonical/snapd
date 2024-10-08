@@ -1,18 +1,19 @@
 #!/usr/bin/sh
 
-# A test that replying with allow always allows multiple files which match the
-# path pattern to be created, but doesn't allow other file creation.
+# A test that replying with allow forever actions previous matching prompts.
 
 TEST_DIR="$1"
 
+WRITABLE="$(snap run --shell prompting-client.scripted -c "cd ~; pwd")/$(basename "$TEST_DIR")"
+snap run --shell prompting-client.scripted -c "mkdir -p $WRITABLE"
+
 for name in test1.txt test2.txt test3.txt ; do
-	echo "Attempt to write $name"
-	snap run --shell prompting-client.scripted -c "echo $name is written > ${TEST_DIR}/${name}"
+	echo "Attempt to write $name in the background"
+	snap run --shell prompting-client.scripted -c "echo started > ${WRITABLE}/${name}; echo $name is written > ${TEST_DIR}/${name}" &
+	timeout 10 sh -c "while ! [ -f '${WRITABLE}/${name}' ] ; do sleep 0.1 ; done"
 done
 
-sleep 1 # wait for the rule to time out
-
-echo "Attempt to write test4.txt (should fail)"
+echo "Attempt to write test4.txt (for which client will reply)"
 snap run --shell prompting-client.scripted -c "echo test4.txt is written > ${TEST_DIR}/test4.txt"
 
 # Wait for the client to write its result and exit
@@ -26,15 +27,10 @@ if [ "$CLIENT_OUTPUT" != "success" ] ; then
 	exit 1
 fi
 
-for name in test1.txt test2.txt test3.txt ; do
+for name in test1.txt test2.txt test3.txt test4.txt; do
 	TEST_OUTPUT="$(cat "${TEST_DIR}/${name}")"
 	if [ "$TEST_OUTPUT" != "$name is written" ] ; then
 		echo "file creation failed for $name"
 		exit 1
 	fi
 done
-
-if [ -f "${TEST_DIR}/test4.txt" ] ; then
-	echo "file creation unexpectedly succeeded for test4.txt"
-	exit 1
-fi

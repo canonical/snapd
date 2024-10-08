@@ -21,6 +21,6 @@ fi
 TEST_OUTPUT="$(cat "${TEST_DIR}/test.txt")"
 
 if [ "$TEST_OUTPUT" != "it is written" ] ; then
-	echo "test script failed"
+	echo "write failed for test.txt"
 	exit 1
 fi
