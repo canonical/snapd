@@ -458,7 +458,7 @@ parts:
         # TODO what if we need to choose between FIPS and FIPS preview?
         cat <<-'EOF' > /etc/apt/preferences.d/fips.pref
       Package: *
-      Pin: release o=LP-PPA-fips-cc-stig-fips-under-certification
+      Pin: release o=LP-PPA-ubuntu-advantage-pro-fips-updates
       Pin-Priority: 1010
       EOF
         apt update
