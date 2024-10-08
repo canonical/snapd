@@ -1,6 +1,7 @@
-summary: Blah
+summary: verify remodel from UC20 to UC22
 details: |
-  Blah
+  Verify remodel from UC20 to UC22. This verifies unencrypted, tpm and
+  fde hook modes.
 
 systems: [ubuntu-20.04-64]
 
@@ -113,23 +114,15 @@ prepare: |
   snap pack pc-20/ --filename="$(tests.nested get extra-snaps-path)/pc.snap"
   "$TESTSTOOLS"/store-state make-snap-installable --noack --revision 2 "${NESTED_FAKESTORE_BLOB_DIR}" "$(tests.nested get extra-snaps-path)/pc.snap" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
 
-  add_to_channel() {
-    FILENAME=$1
-    CHANNEL=$2
-    SUM="$(snap info --verbose "$(realpath "${FILENAME}")" | sed '/^sha3-384: */{;s///;q;};d')"
-    mkdir -p "${NESTED_FAKESTORE_BLOB_DIR}/channels"
-    echo "${CHANNEL}" >"${NESTED_FAKESTORE_BLOB_DIR}/channels/${SUM}"
-  }
-
-  add_to_channel updates/pc-kernel-22.snap 22/edge
-  add_to_channel updates/pc-22.snap 22/edge
-  add_to_channel "$(tests.nested get extra-snaps-path)/pc-kernel.snap" 20/edge
-  add_to_channel "$(tests.nested get extra-snaps-path)/pc.snap" 20/edge
+  "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" updates/pc-kernel-22.snap 22/edge
+  "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" updates/pc-22.snap 22/edge
+  "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "$(tests.nested get extra-snaps-path)/pc-kernel.snap" 20/edge
+  "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "$(tests.nested get extra-snaps-path)/pc.snap" 20/edge
 
   for snap in "$(tests.nested get extra-snaps-path)"/snapd*.snap; do
-    add_to_channel "${snap}" latest/stable
+    "$TESTSTOOLS"/store-state add-to-channel "${snap}" latest/stable
   done
-  add_to_channel updates/core22.snap latest/stable
+  "$TESTSTOOLS"/store-state add-to-channel updates/core22.snap latest/stable
 
   # start fake device svc
   systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
@@ -165,10 +158,6 @@ execute: |
     remote.push "${f}"
   done
   remote.push "${TESTSLIB}/assertions/developer1-22-dangerous.model"
-
-  # There is no tracks on fakestore yet. So let's remove the old versions.
-  #rm "${NESTED_FAKESTORE_BLOB_DIR}/pc.snap"
-  #rm "${NESTED_FAKESTORE_BLOB_DIR}/pc-kernel.snap"
 
   remote.exec "snap model --assertion" | MATCH '^model: testkeys-snapd-dangerous-core-20-amd64$'
   remote.exec "snap model --assertion" | NOMATCH '^model: testkeys-snapd-dangerous-core-22-amd64$'
