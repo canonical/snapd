@@ -3410,7 +3410,13 @@ func (m *SnapManager) doKillSnapApps(t *state.Task, _ *tomb.Tomb) (err error) {
 	defer st.Lock()
 
 	if err := m.backend.KillSnapApps(snapName, reason, perfTimings); err != nil {
-		return err
+		// Snap processes termination is best-effort and task should continue
+		// without returning an error. This is to avoid a maliciously crafted snap
+		// from causing remove changes to always fail causing the snap to never be
+		// removed.
+		st.Lock()
+		st.Warnf("cannot terminate running app processes for %q: %v", snapName, err)
+		st.Unlock()
 	}
 
 	currentInfo, err := snapst.CurrentInfo()
