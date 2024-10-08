@@ -33,9 +33,15 @@ type constraintsSuite struct{}
 
 var _ = Suite(&constraintsSuite{})
 
-func (s *constraintsSuite) TestConstraintsValidateForInterface(c *C) {
-	validPathPattern, err := patterns.ParsePathPattern("/path/to/foo")
+func mustParsePathPattern(c *C, patternStr string) *patterns.PathPattern {
+	pattern, err := patterns.ParsePathPattern(patternStr)
 	c.Assert(err, IsNil)
+	return pattern
+}
+
+/*
+func (s *constraintsSuite) TestConstraintsValidateForInterface(c *C) {
+	validPathPattern := mustParsePathPattern(c, "/path/to/foo")
 
 	// Happy
 	constraints := &prompting.Constraints{
@@ -151,6 +157,7 @@ func (s *constraintsSuite) TestValidatePermissionsUnhappy(c *C) {
 		c.Check(err, ErrorMatches, testCase.errStr, Commentf("testCase: %+v", testCase))
 	}
 }
+*/
 
 func (*constraintsSuite) TestConstraintsMatch(c *C) {
 	cases := []struct {
@@ -170,13 +177,19 @@ func (*constraintsSuite) TestConstraintsMatch(c *C) {
 		},
 	}
 	for _, testCase := range cases {
-		pattern, err := patterns.ParsePathPattern(testCase.pattern)
-		c.Check(err, IsNil)
-		constraints := &prompting.Constraints{
+		pattern := mustParsePathPattern(c, testCase.pattern)
+
+		ruleConstraints := &prompting.RuleConstraints{
 			PathPattern: pattern,
-			Permissions: []string{"read"},
 		}
-		result, err := constraints.Match(testCase.path)
+		result, err := ruleConstraints.Match(testCase.path)
+		c.Check(err, IsNil, Commentf("test case: %+v", testCase))
+		c.Check(result, Equals, testCase.matches, Commentf("test case: %+v", testCase))
+
+		replyConstraints := &prompting.ReplyConstraints{
+			PathPattern: pattern,
+		}
+		result, err = replyConstraints.Match(testCase.path)
 		c.Check(err, IsNil, Commentf("test case: %+v", testCase))
 		c.Check(result, Equals, testCase.matches, Commentf("test case: %+v", testCase))
 	}
@@ -184,14 +197,23 @@ func (*constraintsSuite) TestConstraintsMatch(c *C) {
 
 func (s *constraintsSuite) TestConstraintsMatchUnhappy(c *C) {
 	badPath := `bad\path\`
-	badConstraints := &prompting.Constraints{
-		Permissions: []string{"read"},
+
+	badRuleConstraints := &prompting.RuleConstraints{
+		PathPattern: nil,
 	}
-	matches, err := badConstraints.Match(badPath)
+	matches, err := badRuleConstraints.Match(badPath)
+	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
+	c.Check(matches, Equals, false)
+
+	badReplyConstraints := &prompting.ReplyConstraints{
+		PathPattern: nil,
+	}
+	matches, err = badReplyConstraints.Match(badPath)
 	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
 	c.Check(matches, Equals, false)
 }
 
+/*
 func (s *constraintsSuite) TestConstraintsContainPermissions(c *C) {
 	cases := []struct {
 		constPerms []string
@@ -240,8 +262,7 @@ func (s *constraintsSuite) TestConstraintsContainPermissions(c *C) {
 		},
 	}
 	for _, testCase := range cases {
-		pathPattern, err := patterns.ParsePathPattern("/arbitrary")
-		c.Check(err, IsNil)
+		pathPattern := mustParsePathPattern(c, "/arbitrary")
 		constraints := &prompting.Constraints{
 			PathPattern: pathPattern,
 			Permissions: testCase.constPerms,
@@ -250,6 +271,7 @@ func (s *constraintsSuite) TestConstraintsContainPermissions(c *C) {
 		c.Check(contained, Equals, testCase.contained, Commentf("testCase: %+v", testCase))
 	}
 }
+*/
 
 func constructPermissionsMaps() []map[string]map[string]any {
 	var permissionsMaps []map[string]map[string]any

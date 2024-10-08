@@ -20,6 +20,7 @@
 package requestprompts_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -350,7 +351,19 @@ func applyNotices(expectedPromptIDs []prompting.IDType, expectedData map[string]
 }
 
 func (s *requestpromptsSuite) checkNewNotices(c *C, expectedNotices []*noticeInfo) {
-	c.Check(s.promptNotices, DeepEquals, expectedNotices)
+	c.Check(s.promptNotices, DeepEquals, expectedNotices, Commentf("%s", func() string {
+		var buf bytes.Buffer
+		buf.WriteString("\nobtained: [\n")
+		for _, n := range s.promptNotices {
+			buf.WriteString(fmt.Sprintf("    %+v\n", n))
+		}
+		buf.WriteString("]\nexpected: [\n")
+		for _, n := range expectedNotices {
+			buf.WriteString(fmt.Sprintf("    %+v\n", n))
+		}
+		buf.WriteString("]\n")
+		return buf.String()
+	}()))
 	s.promptNotices = s.promptNotices[:0]
 }
 
@@ -667,14 +680,16 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 
 	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
 	c.Assert(err, IsNil)
-	permissions := []string{"read", "write", "append"}
-	constraints := &prompting.Constraints{
+	constraints := &prompting.RuleConstraints{
 		PathPattern: pathPattern,
-		Permissions: permissions,
+		Permissions: prompting.RulePermissionMap{
+			"read":   &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
+			"write":  &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
+			"append": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
+		},
 	}
-	outcome := prompting.OutcomeAllow
 
-	satisfied, err := pdb.HandleNewRule(metadata, constraints, outcome)
+	satisfied, err := pdb.HandleNewRule(metadata, constraints)
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 2)
 	c.Check(promptIDListContains(satisfied, prompt2.ID), Equals, true)
@@ -710,12 +725,13 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	c.Assert(stored, HasLen, 2)
 
 	// Check that allowing the final missing permission allows the prompt.
-	permissions = []string{"execute"}
-	constraints = &prompting.Constraints{
+	constraints = &prompting.RuleConstraints{
 		PathPattern: pathPattern,
-		Permissions: permissions,
+		Permissions: prompting.RulePermissionMap{
+			"execute": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
+		},
 	}
-	satisfied, err = pdb.HandleNewRule(metadata, constraints, outcome)
+	satisfied, err = pdb.HandleNewRule(metadata, constraints)
 
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 1)
@@ -795,15 +811,15 @@ func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 
 	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
 	c.Assert(err, IsNil)
-	permissions := []string{"read"}
-	constraints := &prompting.Constraints{
+	constraints := &prompting.RuleConstraints{
 		PathPattern: pathPattern,
-		Permissions: permissions,
+		Permissions: prompting.RulePermissionMap{
+			"read": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeDeny},
+		},
 	}
-	outcome := prompting.OutcomeDeny
 
 	// If one or more permissions denied each for prompts 1-3, so each is denied
-	satisfied, err := pdb.HandleNewRule(metadata, constraints, outcome)
+	satisfied, err := pdb.HandleNewRule(metadata, constraints)
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 3)
 	c.Check(promptIDListContains(satisfied, prompt1.ID), Equals, true)
@@ -863,22 +879,31 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 
 	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
 	c.Assert(err, IsNil)
-	constraints := &prompting.Constraints{
+	constraints := &prompting.RuleConstraints{
 		PathPattern: pathPattern,
-		Permissions: permissions,
+		Permissions: prompting.RulePermissionMap{
+			"read": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
+		},
 	}
-	outcome := prompting.OutcomeAllow
+
+	badOutcomeConstraints := &prompting.RuleConstraints{
+		PathPattern: pathPattern,
+		Permissions: prompting.RulePermissionMap{
+			"read": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeType("foo")},
+		},
+	}
 
 	otherUser := user + 1
 	otherSnap := "ldx"
 	otherInterface := "system-files"
 	otherPattern, err := patterns.ParsePathPattern("/home/test/Pictures/**.png")
 	c.Assert(err, IsNil)
-	otherConstraints := &prompting.Constraints{
+	otherConstraints := &prompting.RuleConstraints{
 		PathPattern: otherPattern,
-		Permissions: permissions,
+		Permissions: prompting.RulePermissionMap{
+			"read": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
+		},
 	}
-	badOutcome := prompting.OutcomeType("foo")
 
 	clientActivity := false // doesn't matter if it's true or false for this test
 	stored, err := pdb.Prompts(metadata.User, clientActivity)
@@ -886,7 +911,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	c.Assert(stored, HasLen, 1)
 	c.Assert(stored[0], Equals, prompt)
 
-	satisfied, err := pdb.HandleNewRule(metadata, constraints, badOutcome)
+	satisfied, err := pdb.HandleNewRule(metadata, badOutcomeConstraints)
 	c.Check(err, ErrorMatches, `invalid outcome: "foo"`)
 	c.Check(satisfied, IsNil)
 
@@ -897,7 +922,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 		Snap:      snap,
 		Interface: iface,
 	}
-	satisfied, err = pdb.HandleNewRule(otherUserMetadata, constraints, outcome)
+	satisfied, err = pdb.HandleNewRule(otherUserMetadata, constraints)
 	c.Check(err, IsNil)
 	c.Check(satisfied, IsNil)
 
@@ -908,7 +933,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 		Snap:      otherSnap,
 		Interface: iface,
 	}
-	satisfied, err = pdb.HandleNewRule(otherSnapMetadata, constraints, outcome)
+	satisfied, err = pdb.HandleNewRule(otherSnapMetadata, constraints)
 	c.Check(err, IsNil)
 	c.Check(satisfied, IsNil)
 
@@ -919,19 +944,19 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 		Snap:      snap,
 		Interface: otherInterface,
 	}
-	satisfied, err = pdb.HandleNewRule(otherInterfaceMetadata, constraints, outcome)
+	satisfied, err = pdb.HandleNewRule(otherInterfaceMetadata, constraints)
 	c.Check(err, IsNil)
 	c.Check(satisfied, IsNil)
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
-	satisfied, err = pdb.HandleNewRule(metadata, otherConstraints, outcome)
+	satisfied, err = pdb.HandleNewRule(metadata, otherConstraints)
 	c.Check(err, IsNil)
 	c.Check(satisfied, IsNil)
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
-	satisfied, err = pdb.HandleNewRule(metadata, constraints, outcome)
+	satisfied, err = pdb.HandleNewRule(metadata, constraints)
 	c.Check(err, IsNil)
 	c.Assert(satisfied, HasLen, 1)
 
@@ -1061,7 +1086,7 @@ func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
 	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
 	c.Check(result, IsNil)
 
-	promptIDs, err := pdb.HandleNewRule(nil, nil, prompting.OutcomeDeny)
+	promptIDs, err := pdb.HandleNewRule(nil, nil)
 	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
 	c.Check(promptIDs, IsNil)
 
