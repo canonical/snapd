@@ -40,7 +40,8 @@ prepare: |
         tests.exec skip-test "Core snap is not modified for classic re-exec any more in this scenario" && exit 0
     fi
 
-    cp "$SNAPD_WORK_DIR"/snapd_snap/snapd_*.snap "$PWD/snapd-from-branch.snap"
+    CURRENT_SNAPD_SNAP="$(ls "$SNAPD_WORK_DIR"/snapd_snap/snapd_*.snap)"
+    cp "$CURRENT_SNAPD_SNAP" "$PWD/snapd-from-branch.snap"
 
     # now repack the core snap with this snapd snap
     snap download core --edge --basename=core-from-edge

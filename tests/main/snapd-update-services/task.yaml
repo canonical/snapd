@@ -22,7 +22,8 @@ prepare: |
   snap download --edge snapd --basename=snapd_edge
 
   # Get the snapd package built from the current branch
-  cp "$SNAPD_WORK_DIR"/snapd_snap/snapd_*.snap "$PWD/snapd_current.snap"
+  CURRENT_SNAPD_SNAP="$(ls "$SNAPD_WORK_DIR"/snapd_snap/snapd_*.snap)"
+  cp "$CURRENT_SNAPD_SNAP" "$PWD/snapd_current.snap"
 
 restore: |
   rm -rf /tmp/snapd-update-services
