@@ -3351,8 +3351,8 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedHappy(c *C
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
-		snapasserts.NewInstalledSnap("other", "ididididid", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
+		snapasserts.NewInstalledSnap("other", "ididididid", snap.Revision{N: 1}, nil),
 	}
 
 	sequence := 0
@@ -3389,7 +3389,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforcePinnedHappy(c *C) {
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 
 	sequence := 2
@@ -3518,7 +3518,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedAfterForge
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 
 	sequence := 0
@@ -3569,7 +3569,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedAfterMonit
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 
 	sequence := 0
@@ -3685,7 +3685,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertion(c *C) {
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 
 	sequence := 2
@@ -3746,7 +3746,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionUpdate(c *C) {
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 
 	sequence := 2
@@ -3823,7 +3823,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionPinToOlderSequence(c *
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 
 	sequence := 2
@@ -3894,7 +3894,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionAfterMonitor(c *C) {
 	assertstate.UpdateValidationSet(st, &monitor)
 
 	snaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 
 	// add a newer sequence to the store
@@ -3946,7 +3946,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionIgnoreValidation(c *C)
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 3}),
+		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 3}, nil),
 	}
 
 	sequence := 2
@@ -4038,8 +4038,8 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsValidationError(c
 	// try to enforce extra validation sets bar and baz. some-snap is present (and required by foo at any revision),
 	// but needs to be at revision 3 to satisfy bar. invalid-snap is present but is invalid for baz.
 	installedSnaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
-		snapasserts.NewInstalledSnap("invalid-snap", "cccchntON3vR7kwEbVPsILm7bUViPDcc", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
+		snapasserts.NewInstalledSnap("invalid-snap", "cccchntON3vR7kwEbVPsILm7bUViPDcc", snap.Revision{N: 1}, nil),
 	}
 	err := assertstate.TryEnforcedValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()), fmt.Sprintf("%s/baz", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
 	verr, ok := err.(*snapasserts.ValidationSetsValidationError)
@@ -4122,7 +4122,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsOK(c *C) {
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	installedSnaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 3}),
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 3}, nil),
 	}
 	err := assertstate.TryEnforcedValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()), fmt.Sprintf("%s/baz=1", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
 	c.Assert(err, IsNil)
@@ -4231,7 +4231,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsAlreadyTrackedUpd
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	installedSnaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 3}),
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 3}, nil),
 	}
 	err := assertstate.TryEnforcedValidationSets(st, []string{fmt.Sprintf("%s/foo", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
 	c.Assert(err, IsNil)
@@ -4312,7 +4312,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsConflictError(c *
 	// try to enforce extra validation sets bar and baz. some-snap is present (and required by foo at any revision),
 	// but needs to be at revision 3 to satisfy bar. invalid-snap is present but is invalid for baz.
 	installedSnaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 	err := assertstate.TryEnforcedValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
 	_, ok := err.(*snapasserts.ValidationSetsConflictError)
@@ -4523,7 +4523,7 @@ func (s *assertMgrSuite) testEnforceValidationSets(c *C, pinnedSeq int) {
 		requestedValSet: localVs,
 	}
 	installedSnaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 	err := assertstate.ApplyEnforcedValidationSets(st, valSets, pinnedSeqs, installedSnaps, nil, 0)
 	c.Assert(err, IsNil)
@@ -4586,7 +4586,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithNoLocalAssertions(c *C) {
 	}
 	pinnedSeqs := map[string]int{fmt.Sprintf("%s/foo", s.dev1Acct.AccountID()): 1}
 	installedSnaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 
 	err := assertstate.ApplyEnforcedValidationSets(st, valSets, pinnedSeqs, installedSnaps, nil, 0)
@@ -4673,7 +4673,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithUnmetConstraints(c *C) {
 	}
 
 	installedSnaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 2}),
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 2}, nil),
 	}
 
 	err := assertstate.ApplyEnforcedValidationSets(st, valSets, nil, installedSnaps, nil, 0)
@@ -4723,7 +4723,7 @@ func (s *assertMgrSuite) testApplyLocalEnforcedValidationSets(c *C, pinnedSeq in
 		vsKey: {release.Series, s.dev1Acct.AccountID(), "foo", "1"},
 	}
 	installedSnaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 	err := assertstate.ApplyLocalEnforcedValidationSets(st, valSets, pinnedSeqs, installedSnaps, nil)
 	c.Assert(err, IsNil)
@@ -4801,7 +4801,7 @@ func (s *assertMgrSuite) TestApplyLocalEnforcedValidationSetsWithUnmetConstraint
 	}
 
 	installedSnaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 2}),
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 2}, nil),
 	}
 
 	err := assertstate.ApplyLocalEnforcedValidationSets(st, valSets, nil, installedSnaps, nil)

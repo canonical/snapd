@@ -1534,8 +1534,10 @@ func (w *Writer) validationSets() (*snapasserts.ValidationSets, error) {
 
 func (w *Writer) installedSnaps() []*snapasserts.InstalledSnap {
 	installedSnap := func(snap *SeedSnap) *snapasserts.InstalledSnap {
-		return snapasserts.NewInstalledSnap(snap.SnapName(), snap.ID(), snap.Info.Revision)
+		return snapasserts.NewInstalledSnap(snap.SnapName(), snap.ID(), snap.Info.Revision, nil)
 	}
+
+	// TODO:COMPS: add components
 
 	var installedSnaps []*snapasserts.InstalledSnap
 	for _, sn := range w.snapsFromModel {

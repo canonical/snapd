@@ -8079,8 +8079,8 @@ version: 1`), &snap.SideInfo{Revision: snap.R("5")})
 	snaps, ignoreValidation, err = snapstate.InstalledSnaps(st)
 	c.Assert(err, IsNil)
 	c.Check(snaps, testutil.DeepUnsortedMatches, []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("foo", "foo-id", snap.R("23")),
-		snapasserts.NewInstalledSnap("bar", "bar-id", snap.R("5"))})
+		snapasserts.NewInstalledSnap("foo", "foo-id", snap.R("23"), nil),
+		snapasserts.NewInstalledSnap("bar", "bar-id", snap.R("5"), nil)})
 
 	c.Check(ignoreValidation, DeepEquals, map[string]bool{"bar": true})
 }
