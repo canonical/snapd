@@ -343,7 +343,7 @@ func onDiskStructsSortedIdx(vss map[int]*gadget.OnDiskStructure) []int {
 
 func determineDeviceVolumes(gi *gadget.Info) (map[string]*gadget.Volume, error) {
 	if len(gi.VolumeAssignments) != 0 {
-		devVols, err := gadget.FindVolumesMatchingDeviceAssignment(gi)
+		devVols, err := gadget.VolumesForCurrentDeviceAssignment(gi)
 		if err != nil {
 			return nil, err
 		}
