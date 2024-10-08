@@ -114,7 +114,6 @@ func resealKeyForBootChainsFDEHook(method device.SealingMethod, rootdir string, 
 func ResealKeyForBootChains(method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 	switch method {
 	case device.SealingMethodFDESetupHook:
-		// FIXME: do something
 		return resealKeyForBootChainsFDEHook(method, rootdir, params, expectReseal)
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
 	default:
