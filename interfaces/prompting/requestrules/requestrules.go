@@ -473,29 +473,6 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) []prom
 			}
 			return
 		}
-		if existingEntry.Outcome != rule.Outcome {
-			// Outcomes mismatch, so if there are any unexpired rules, these
-			// all conflict with the new rule. If all rules are expired, this
-			// is fine, and we can replace the existing entry with a new one.
-			for id := range existingEntry.RuleIDs {
-				if rdb.isRuleWithIDExpired(id, rule.Timestamp) {
-					expiredRules[id] = true
-					continue
-				}
-				// Conflicting non-expired rule
-				conflicts = append(conflicts, prompting_errors.RuleConflict{
-					Permission:    permission,
-					Variant:       variantStr,
-					ConflictingID: id.String(),
-				})
-			}
-		}
-		if len(conflicts) > 0 {
-			// If there are any conflicts (for this variant or others), all
-			// changes will be discarded, so don't bother building the new
-			// variant entry
-			return
-		}
 		newEntry := variantEntry{
 			Variant: variant,
 			Outcome: rule.Outcome,
@@ -503,22 +480,30 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) []prom
 		}
 		newEntry.RuleIDs[rule.ID] = true
 		newVariantEntries[variantStr] = newEntry
-		if existingEntry.Outcome != rule.Outcome {
-			// We know all existing rule IDs were expired, else there would
-			// have been a conflict
-			return
-		}
 		for id := range existingEntry.RuleIDs {
 			if rdb.isRuleWithIDExpired(id, rule.Timestamp) {
+				// Don't preserve expired rules, and don't care if they conflict
 				expiredRules[id] = true
 				continue
 			}
-			newEntry.RuleIDs[id] = true
+			if existingEntry.Outcome == rule.Outcome {
+				// Preserve non-expired rule which doesn't conflict
+				newEntry.RuleIDs[id] = true
+				continue
+			}
+			// Conflicting non-expired rule
+			conflicts = append(conflicts, prompting_errors.RuleConflict{
+				Permission:    permission,
+				Variant:       variantStr,
+				ConflictingID: id.String(),
+			})
 		}
 	}
 	rule.Constraints.PathPattern.RenderAllVariants(addVariant)
 
 	if len(conflicts) > 0 {
+		// If there are any conflicts, discard all changes, and do nothing
+		// about any expired rules.
 		return conflicts
 	}
 
@@ -532,6 +517,9 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) []prom
 	}
 
 	for variantStr, entry := range newVariantEntries {
+		// Replace the old variant entries with the new ones.
+		// This removes any expired rules from the entries, since these were
+		// not preserved in the new variant entries.
 		permVariants.VariantEntries[variantStr] = entry
 	}
 
