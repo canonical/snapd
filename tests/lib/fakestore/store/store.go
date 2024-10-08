@@ -195,7 +195,6 @@ type essentialInfo struct {
 	Confinement string
 	Type        string
 	Base        string
-	/*Channels    []string*/
 }
 
 var errInfo = errors.New("cannot get info")
