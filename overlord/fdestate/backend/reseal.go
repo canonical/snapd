@@ -35,7 +35,8 @@ import (
 )
 
 var (
-	secbootResealKeys = secboot.ResealKeys
+	secbootResealKeys                 = secboot.ResealKeys
+	secbootResealKeysWithFDESetupHook = secboot.ResealKeysWithFDESetupHook
 )
 
 // MockSecbootResealKeys is only useful in testing. Note that this is a very low
@@ -99,11 +100,11 @@ func resealKeyForBootChainsFDEHook(method device.SealingMethod, rootdir string, 
 
 	primaryKeyFile := filepath.Join(boot.InstallHostFDESaveDir, "aux-key")
 
-	if err := secboot.ResealKeysWithFDESetupHook(runKeys, primaryKeyFile, runModels); err != nil {
+	if err := secbootResealKeysWithFDESetupHook(runKeys, primaryKeyFile, runModels); err != nil {
 		return err
 	}
 
-	if err := secboot.ResealKeysWithFDESetupHook(recoveryKeys, primaryKeyFile, recoveryModels); err != nil {
+	if err := secbootResealKeysWithFDESetupHook(recoveryKeys, primaryKeyFile, recoveryModels); err != nil {
 		return err
 	}
 
