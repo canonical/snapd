@@ -35,9 +35,7 @@ execute: |
     echo "Installing test snap with daemon"
     snap install --beta test-snapd-layout-change-with-daemon
 
+    # This used not to work, but the layout update algorithm has been updated
+    # to cope better with changes like this.
     echo "Refreshing test snap with daemon to newer version"
-    echo "(this one must fail because daemon snaps can't discard the namespace)"
-    if snap refresh --edge test-snapd-layout-change-with-daemon ; then
-        echo "ERROR: running snap refresh for test-snapd-layout-change-with-daemon did not fail as expected"
-        exit 1
-    fi
+    snap refresh --edge test-snapd-layout-change-with-daemon
