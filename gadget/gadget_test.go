@@ -5397,6 +5397,22 @@ var mockNoAssignmentGadgetYaml = string(mockVolumeAssignmentGadget0Yaml) + `
 - name: baz-device
 `
 
+var mockIdenticalAssignmentGadgetYaml = string(mockVolumeAssignmentGadgetYamlBase) + `
+volume-assignments:
+- name: foo-device
+  assignment:
+    lun-0:
+      device: /dev/disk/by-diskseq/1
+    lun-1:
+      device: /dev/disk/by-path/pci-0000:02:00.1-ata-5
+- name: bar-device
+  assignment:
+    lun-0:
+      device: /dev/disk/by-diskseq/1
+    lun-1:
+      device: /dev/disk/by-path/pci-0000:02:00.1-ata-5
+`
+
 var mockChangedAssignmentGadget1Yaml = string(mockVolumeAssignmentGadgetYamlBase) + `
 volume-assignments:
 - name: foo-device
@@ -5435,7 +5451,7 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestReadGadgetYamlInvalidDevicePath(c 
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir0, coreMod)
-	c.Assert(err, ErrorMatches, `invalid volume-assignment for \"baz-device\": \"lun-1\": unsupported device path \"/dev/by-sda\", for now only paths under /dev/disk are valid`)
+	c.Assert(err, ErrorMatches, `volume-assignment variant \"baz-device\": \"lun-1\": unsupported device path \"/dev/by-sda\", for now only paths under /dev/disk are valid`)
 }
 
 func (s *gadgetYamlVolumeAssignmentSuite) TestReadGadgetYamlInvalidVolume(c *C) {
@@ -5443,7 +5459,7 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestReadGadgetYamlInvalidVolume(c *C) 
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir0, coreMod)
-	c.Assert(err, ErrorMatches, `invalid volume-assignment for \"baz-device\": volume \"lun-2\" is mentioned in assignment but has not been defined`)
+	c.Assert(err, ErrorMatches, `volume-assignment variant \"baz-device\": volume \"lun-2\" is mentioned in assignment but has not been defined`)
 }
 
 func (s *gadgetYamlVolumeAssignmentSuite) TestReadGadgetYamlNoAssignments(c *C) {
@@ -5451,7 +5467,15 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestReadGadgetYamlNoAssignments(c *C) 
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir0, coreMod)
-	c.Assert(err, ErrorMatches, `invalid volume-assignment for \"baz-device\": no assignments specified`)
+	c.Assert(err, ErrorMatches, `volume-assignment variant \"baz-device\": no assignments specified`)
+}
+
+func (s *gadgetYamlVolumeAssignmentSuite) TestReadGadgetYamlIdenticalAssignments(c *C) {
+	err := os.WriteFile(s.gadget0YamlPath, []byte(mockIdenticalAssignmentGadgetYaml), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo(s.dir0, coreMod)
+	c.Assert(err, ErrorMatches, `volume-assignment variant \"bar-device\": identical to \"foo-device\"`)
 }
 
 func (s *gadgetYamlVolumeAssignmentSuite) TestReadGadgetYamlHappy(c *C) {

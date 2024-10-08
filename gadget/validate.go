@@ -46,9 +46,6 @@ func Validate(info *Info, model Model, extra *ValidationConstraints) error {
 	if err := ruleValidateVolumes(info.Volumes, model, extra); err != nil {
 		return err
 	}
-	if err := validateVolumeAssignments(info.VolumeAssignments); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -195,26 +192,6 @@ func ruleValidateVolumeStructure(vs *VolumeStructure, hasModes bool) error {
 	}
 	if err := validateEMMCStructureName(vs); err != nil {
 		return err
-	}
-	return nil
-}
-
-func validateVolumeAssignments(volassigns []*VolumeAssignment) error {
-	// ensure no two variants are identical in terms of contents, as we
-	// can only do matching based on the first correct we find.
-	checker := make(map[string]string)
-	for _, vavariant := range volassigns {
-		var keys []string
-		for name := range vavariant.Assignments {
-			keys = append(keys, name)
-		}
-		sort.Strings(keys)
-
-		key := strings.Join(keys, " ")
-		if name, ok := checker[key]; ok {
-			return fmt.Errorf("volume-assignment variant %q is identical to %q", vavariant.Name, name)
-		}
-		checker[key] = vavariant.Name
 	}
 	return nil
 }
