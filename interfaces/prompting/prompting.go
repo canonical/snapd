@@ -159,10 +159,9 @@ func (lifespan *LifespanType) UnmarshalJSON(data []byte) error {
 // ValidateExpiration checks that the given expiration is valid for the
 // receiver lifespan.
 //
-// If the lifespan is LifespanTimespan, then expiration must be non-zero and be
-// after the given currTime. Otherwise, it must be zero. Returns an error if
-// any of the above are invalid.
-func (lifespan LifespanType) ValidateExpiration(expiration time.Time, currTime time.Time) error {
+// If the lifespan is LifespanTimespan, then expiration must be non-zero.
+// Otherwise, it must be zero. Returns an error if any of the above are invalid.
+func (lifespan LifespanType) ValidateExpiration(expiration time.Time) error {
 	switch lifespan {
 	case LifespanForever, LifespanSingle:
 		if !expiration.IsZero() {
@@ -171,9 +170,6 @@ func (lifespan LifespanType) ValidateExpiration(expiration time.Time, currTime t
 	case LifespanTimespan:
 		if expiration.IsZero() {
 			return prompting_errors.NewInvalidExpirationError(expiration, fmt.Sprintf("cannot have unspecified expiration when lifespan is %q", lifespan))
-		}
-		if currTime.After(expiration) {
-			return fmt.Errorf("%w: %q", prompting_errors.ErrRuleExpirationInThePast, expiration)
 		}
 	default:
 		// Should not occur, since lifespan is validated when unmarshalled
