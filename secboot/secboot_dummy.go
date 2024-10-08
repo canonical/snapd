@@ -21,6 +21,7 @@
 package secboot
 
 import (
+	"crypto"
 	"errors"
 
 	"github.com/snapcore/snapd/kernel/fde"
@@ -84,4 +85,16 @@ func RenameOrDeleteKeys(node string, renames map[string]string) error {
 
 func DeleteKeys(node string, matches map[string]bool) error {
 	return errBuildWithoutSecboot
+}
+
+func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams) (SerializedPCRProfile, error) {
+	return nil, errBuildWithoutSecboot
+}
+
+func GetPrimaryKeyHash(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
+	return nil, nil, errBuildWithoutSecboot
+}
+
+func VerifyPrimaryKeyHash(devicePath string, alg crypto.Hash, salt []byte, digest []byte) (bool, error) {
+	return false, errBuildWithoutSecboot
 }

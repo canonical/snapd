@@ -266,21 +266,15 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 		},
 	}
 
-	resealCalls := 0
-	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
-		resealCalls++
+	buildProfileCalls := 0
+	restore := fdeBackend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+		buildProfileCalls++
 
-		c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
-
-		c.Assert(params.ModelParams, HasLen, 1)
-		mp := params.ModelParams[0]
+		c.Assert(modelParams, HasLen, 1)
+		mp := modelParams[0]
 		c.Check(mp.Model.Model(), Equals, model.Model())
-		switch resealCalls {
+		switch buildProfileCalls {
 		case 1:
-			// Resealing the run+recover key for data partition
-			c.Check(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"),
-			})
 			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shimBf,
 					secboot.NewLoadChain(assetBf,
@@ -291,26 +285,49 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 							secboot.NewLoadChain(runKernel)))),
 			})
 		case 2:
-			// Resealing the recovery key for both data and save partitions
-			c.Check(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
-				filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"),
-			})
 			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shimBf,
 					secboot.NewLoadChain(assetBf,
 						secboot.NewLoadChain(recoveryKernel))),
 			})
 		default:
+			c.Errorf("unexpected additional call to secboot.BuildPCRProtectionProfile (call # %d)", buildProfileCalls)
+		}
+		return []byte(`"serialized-pcr-profile"`), nil
+	})
+	defer restore()
+
+	resealCalls := 0
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		resealCalls++
+
+		c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
+
+		c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-pcr-profile"`))
+		switch resealCalls {
+		case 1:
+			// Resealing the run+recover key for data partition
+			c.Check(params.KeyFiles, DeepEquals, []string{
+				filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"),
+			})
+		case 2:
+			// Resealing the recovery key for both data and save partitions
+			c.Check(params.KeyFiles, DeepEquals, []string{
+				filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
+				filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"),
+			})
+		default:
 			c.Errorf("unexpected additional call to secboot.ResealKey (call # %d)", resealCalls)
 		}
 		return nil
 	})
-
 	defer restore()
 
+	updateState := func(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
+		return nil
+	}
 	const expectReseal = true
-	err := fdeBackend.ResealKeyForBootChains(device.SealingMethodTPM, s.rootdir, params, expectReseal)
+	err := fdeBackend.ResealKeyForBootChains(updateState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
 
 	c.Check(resealCalls, Equals, 2)
@@ -411,16 +428,13 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 		// mock asset cache
 		mockAssetsCache(c, rootdir, "grub", expectedCache)
 
-		// set mock key resealing
-		resealKeysCalls := 0
-		restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
-			c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
+		buildProfileCalls := 0
+		restore := fdeBackend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+			buildProfileCalls++
 
-			resealKeysCalls++
-			c.Assert(params.ModelParams, HasLen, 1)
-
+			c.Assert(modelParams, HasLen, 1)
 			// shared parameters
-			c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
+			c.Assert(modelParams[0].Model.Model(), Equals, "my-model-uc20")
 
 			// recovery parameters
 			shim := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-shim-hash-1", shimId)), bootloader.RoleRecovery)
@@ -513,20 +527,63 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 			}
 
 			checkRunParams := func() {
-				c.Check(params.KeyFiles, DeepEquals, []string{
-					filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
-				})
-				c.Check(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				c.Check(modelParams[0].KernelCmdlines, DeepEquals, []string{
 					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 					"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 				})
 
 				for _, chain := range possibleChains {
-					c.Check(params.ModelParams[0].EFILoadChains, ContainsChain, chain)
+					c.Check(modelParams[0].EFILoadChains, ContainsChain, chain)
 				}
 				for _, chain := range possibleRecoveryChains {
-					c.Check(params.ModelParams[0].EFILoadChains, ContainsChain, chain)
+					c.Check(modelParams[0].EFILoadChains, ContainsChain, chain)
 				}
+			}
+
+			checkRecoveryParams := func() {
+				c.Check(modelParams[0].KernelCmdlines, DeepEquals, []string{
+					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+				})
+				for _, chain := range possibleRecoveryChains {
+					c.Check(modelParams[0].EFILoadChains, ContainsChain, chain)
+				}
+			}
+
+			switch buildProfileCalls {
+			case 1:
+				if !tc.reuseRunPbc {
+					checkRunParams()
+				} else if !tc.reuseRecoveryPbc {
+					checkRecoveryParams()
+				} else {
+					c.Errorf("unexpected call to secboot.BuildPCRProtectionProfile (call # %d)", buildProfileCalls)
+				}
+			case 2:
+				if !tc.reuseRecoveryPbc {
+					checkRecoveryParams()
+				} else {
+					c.Errorf("unexpected call to secboot.BuildPCRProtectionProfile (call # %d)", buildProfileCalls)
+				}
+			default:
+				c.Errorf("unexpected additional call to secboot.BuildPCRProtectionProfile (call # %d)", buildProfileCalls)
+			}
+
+			return []byte(`"serialized-pcr-profile"`), nil
+		})
+		defer restore()
+
+		// set mock key resealing
+		resealKeysCalls := 0
+		restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+			c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
+
+			resealKeysCalls++
+			c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-pcr-profile"`))
+
+			checkRunParams := func() {
+				c.Check(params.KeyFiles, DeepEquals, []string{
+					filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
+				})
 			}
 
 			checkRecoveryParams := func() {
@@ -534,12 +591,6 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 					filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
 					filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 				})
-				c.Check(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
-					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
-				})
-				for _, chain := range possibleRecoveryChains {
-					c.Check(params.ModelParams[0].EFILoadChains, ContainsChain, chain)
-				}
 			}
 
 			switch resealKeysCalls {
@@ -830,8 +881,11 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 			},
 		}
 
+		updateState := func(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
+			return nil
+		}
 		const expectReseal = false
-		err := fdeBackend.ResealKeyForBootChains(device.SealingMethodTPM, rootdir, params, expectReseal)
+		err := fdeBackend.ResealKeyForBootChains(updateState, device.SealingMethodTPM, rootdir, params, expectReseal)
 		if tc.reuseRunPbc && tc.reuseRecoveryPbc {
 			// did nothing
 			c.Assert(err, IsNil)
@@ -889,42 +943,32 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 		"grubx64.efi-run-grub-hash",
 	})
 
-	// set mock key resealing
-	resealKeysCalls := 0
-	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
-		c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
-
-		resealKeysCalls++
-		c.Assert(params.ModelParams, HasLen, 1)
+	buildProfileCalls := 0
+	restore := fdeBackend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+		buildProfileCalls++
 
 		// shared parameters
-		c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
-		switch resealKeysCalls {
+		c.Assert(modelParams[0].Model.Model(), Equals, "my-model-uc20")
+
+		switch buildProfileCalls {
 		case 1: // run key
-			c.Assert(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
-			})
-			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+			c.Assert(modelParams[0].KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=1234 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 			})
 			// load chains
-			c.Assert(params.ModelParams[0].EFILoadChains, HasLen, 3)
+			c.Assert(modelParams[0].EFILoadChains, HasLen, 3)
 		case 2: // recovery keys
-			c.Assert(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
-				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
-			})
-			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+			c.Assert(modelParams[0].KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 			})
 			// load chains
-			c.Assert(params.ModelParams[0].EFILoadChains, HasLen, 1)
+			c.Assert(modelParams[0].EFILoadChains, HasLen, 1)
 		default:
-			c.Errorf("unexpected additional call to secboot.ResealKeys (call # %d)", resealKeysCalls)
+			c.Errorf("unexpected additional call to secboot.BuildPCRProtectionProfile (call # %d)", buildProfileCalls)
 		}
 
 		// recovery parameters
@@ -937,9 +981,9 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 		runGrub := bootloader.NewBootFile("", filepath.Join(s.rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash"), bootloader.RoleRunMode)
 		runKernel := bootloader.NewBootFile(filepath.Join(s.rootdir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode)
 
-		switch resealKeysCalls {
+		switch buildProfileCalls {
 		case 1: // run load chain
-			c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+			c.Assert(modelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shim,
 					secboot.NewLoadChain(grub,
 						secboot.NewLoadChain(kernelGoodRecovery),
@@ -955,12 +999,38 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 					)),
 			})
 		case 2: // recovery load chains
-			c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+			c.Assert(modelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shim,
 					secboot.NewLoadChain(grub,
 						secboot.NewLoadChain(kernelGoodRecovery),
 					)),
 			})
+		}
+
+		return []byte(`"serialized-pcr-profile"`), nil
+	})
+	defer restore()
+
+	// set mock key resealing
+	resealKeysCalls := 0
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
+
+		resealKeysCalls++
+		c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-pcr-profile"`))
+
+		switch resealKeysCalls {
+		case 1: // run key
+			c.Assert(params.KeyFiles, DeepEquals, []string{
+				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
+			})
+		case 2: // recovery keys
+			c.Assert(params.KeyFiles, DeepEquals, []string{
+				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+			})
+		default:
+			c.Errorf("unexpected additional call to secboot.ResealKeys (call # %d)", resealKeysCalls)
 		}
 
 		return nil
@@ -1094,8 +1164,11 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 		},
 	}
 
+	updateState := func(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
+		return nil
+	}
 	const expectReseal = false
-	err := fdeBackend.ResealKeyForBootChains(device.SealingMethodTPM, s.rootdir, params, expectReseal)
+	err := fdeBackend.ResealKeyForBootChains(updateState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 2)
 
@@ -1119,48 +1192,38 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 		"grubx64.efi-run-grub-hash",
 	})
 
-	// set mock key resealing
-	resealKeysCalls := 0
-	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
-		c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
+	buildProfileCalls := 0
+	restore := fdeBackend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+		buildProfileCalls++
 
-		resealKeysCalls++
-
-		switch resealKeysCalls {
+		switch buildProfileCalls {
 		case 1: // run key
-			c.Assert(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
-			})
 			// 2 models, one current and one try model
-			c.Assert(params.ModelParams, HasLen, 2)
+			c.Assert(modelParams, HasLen, 2)
 			// shared parameters
-			c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
-			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+			c.Assert(modelParams[0].Model.Model(), Equals, "my-model-uc20")
+			c.Assert(modelParams[0].KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 			})
 			// 2 load chains (bootloader + run kernel, bootloader + recovery kernel)
-			c.Assert(params.ModelParams[0].EFILoadChains, HasLen, 2)
+			c.Assert(modelParams[0].EFILoadChains, HasLen, 2)
 
-			c.Assert(params.ModelParams[1].Model.Model(), Equals, "try-my-model-uc20")
-			c.Assert(params.ModelParams[1].KernelCmdlines, DeepEquals, []string{
+			c.Assert(modelParams[1].Model.Model(), Equals, "try-my-model-uc20")
+			c.Assert(modelParams[1].KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=factory-reset snapd_recovery_system=1234 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=1234 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 			})
 			// 2 load chains (bootloader + run kernel, bootloader + recovery kernel)
-			c.Assert(params.ModelParams[1].EFILoadChains, HasLen, 2)
+			c.Assert(modelParams[1].EFILoadChains, HasLen, 2)
 		case 2: // recovery keys
-			c.Assert(params.KeyFiles, DeepEquals, []string{
-				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
-				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
-			})
 			// only the current model
-			c.Assert(params.ModelParams, HasLen, 1)
+			c.Assert(modelParams, HasLen, 1)
 			// shared parameters
-			c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
-			for _, mp := range params.ModelParams {
+			c.Assert(modelParams[0].Model.Model(), Equals, "my-model-uc20")
+			for _, mp := range modelParams {
 				c.Assert(mp.KernelCmdlines, DeepEquals, []string{
 					"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
@@ -1169,7 +1232,7 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 				c.Assert(mp.EFILoadChains, HasLen, 1)
 			}
 		default:
-			c.Errorf("unexpected additional call to secboot.ResealKeys (call # %d)", resealKeysCalls)
+			c.Errorf("unexpected additional call to secboot.BuildPCRProtectionProfile (call # %d)", buildProfileCalls)
 		}
 
 		// recovery parameters
@@ -1183,13 +1246,13 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 		runKernel := bootloader.NewBootFile(filepath.Join(s.rootdir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode)
 
 		// verify the load chains, which  are identical for both models
-		switch resealKeysCalls {
+		switch buildProfileCalls {
 		case 1: // run load chain for 2 models, current and a try model
-			c.Assert(params.ModelParams, HasLen, 2)
+			c.Assert(modelParams, HasLen, 2)
 			// each load chain has either the run kernel (shared for
 			// both), or the kernel of the respective recovery
 			// system
-			c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+			c.Assert(modelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shim,
 					secboot.NewLoadChain(grub,
 						secboot.NewLoadChain(kernelOldRecovery),
@@ -1200,7 +1263,7 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 							secboot.NewLoadChain(runKernel)),
 					)),
 			})
-			c.Assert(params.ModelParams[1].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+			c.Assert(modelParams[1].EFILoadChains, DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shim,
 					secboot.NewLoadChain(grub,
 						secboot.NewLoadChain(kernelNewRecovery),
@@ -1212,15 +1275,41 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 					)),
 			})
 		case 2: // recovery load chains, only for the current model
-			c.Assert(params.ModelParams, HasLen, 1)
+			c.Assert(modelParams, HasLen, 1)
 			// load chain with a kernel from a recovery system that
 			// matches the current model only
-			c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+			c.Assert(modelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shim,
 					secboot.NewLoadChain(grub,
 						secboot.NewLoadChain(kernelOldRecovery),
 					)),
 			})
+		}
+
+		return []byte(`"serialized-pcr-profile"`), nil
+	})
+	defer restore()
+
+	// set mock key resealing
+	resealKeysCalls := 0
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
+
+		resealKeysCalls++
+		c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-pcr-profile"`))
+
+		switch resealKeysCalls {
+		case 1: // run key
+			c.Assert(params.KeyFiles, DeepEquals, []string{
+				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
+			})
+		case 2: // recovery keys
+			c.Assert(params.KeyFiles, DeepEquals, []string{
+				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+			})
+		default:
+			c.Errorf("unexpected additional call to secboot.ResealKeys (call # %d)", resealKeysCalls)
 		}
 
 		return nil
@@ -1344,8 +1433,11 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 		},
 	}
 
+	updateState := func(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
+		return nil
+	}
 	const expectReseal = false
-	err := fdeBackend.ResealKeyForBootChains(device.SealingMethodTPM, s.rootdir, params, expectReseal)
+	err := fdeBackend.ResealKeyForBootChains(updateState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 2)
 
@@ -1397,22 +1489,40 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 	bootloader.Force(mtbl)
 	defer bootloader.Force(nil)
 
-	// set mock key resealing
-	resealKeysCalls := 0
-	restore := fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
-		resealKeysCalls++
-		c.Assert(params.ModelParams, HasLen, 1)
-		c.Logf("reseal: %+v", params)
-		switch resealKeysCalls {
+	buildProfileCalls := 0
+	restore := fdeBackend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+		buildProfileCalls++
+
+		c.Assert(modelParams, HasLen, 1)
+
+		switch buildProfileCalls {
 		case 1:
-			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+			c.Assert(modelParams[0].KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=run static cmdline",
 			})
 		case 2:
-			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+			c.Assert(modelParams[0].KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
+		default:
+			c.Fatalf("unexpected number of build profile calls, %v", modelParams)
+		}
+
+		return []byte(`"serialized-pcr-profile"`), nil
+	})
+	defer restore()
+
+	// set mock key resealing
+	resealKeysCalls := 0
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		resealKeysCalls++
+
+		c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-pcr-profile"`))
+		c.Logf("reseal: %+v", params)
+		switch resealKeysCalls {
+		case 1:
+		case 2:
 		default:
 			c.Fatalf("unexpected number of reseal calls, %v", params)
 		}
@@ -1496,8 +1606,11 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 		},
 	}
 
+	updateState := func(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
+		return nil
+	}
 	const expectReseal = false
-	err = fdeBackend.ResealKeyForBootChains(device.SealingMethodTPM, s.rootdir, params, expectReseal)
+	err = fdeBackend.ResealKeyForBootChains(updateState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 2)
 
