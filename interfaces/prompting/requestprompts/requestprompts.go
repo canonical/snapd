@@ -100,30 +100,36 @@ func (p *Prompt) MarshalJSON() ([]byte, error) {
 }
 
 func (p *Prompt) sendReply(outcome prompting.OutcomeType) error {
+	allow, err := outcome.AsBool()
+	if err != nil {
+		// This should not occur
+		return err
+	}
 	// Reply with any permissions which were previously allowed
 	// If outcome is allow, then reply by allowing all originally-requested
 	// permissions. If outcome is deny, only allow permissions which were
 	// originally requested but have since been allowed by rules, and deny any
 	// remaining permissions.
-	allowedPermission := responseForInterfaceConstraintsOutcome(p.Interface, p.Constraints, outcome)
+	var denied []string
+	if !allow {
+		denied = p.Constraints.remainingPermissions
+	}
+	allowedPermission := buildResponse(p.Interface, p.Constraints, denied)
 	return p.sendReplyWithPermission(allowedPermission)
 }
 
-func responseForInterfaceConstraintsOutcome(iface string, constraints *promptConstraints, outcome prompting.OutcomeType) any {
-	allow, err := outcome.AsBool()
-	if err != nil {
-		// This should not occur, but if so, default to deny
-		allow = false
-		logger.Noticef("internal error: failed to compute prompting outcome: %v", err)
-	}
+// buildResponse creates a listener response based on the given interface,
+// prompt constraints, and list of denied permissions.
+//
+// The response is the AppArmor permission which should be allowed. This
+// corresponds to the originally requested permissions from the prompt
+// constraints, except with all denied permissions removed.
+func buildResponse(iface string, constraints *promptConstraints, denied []string) any {
 	allowedPerms := constraints.originalPermissions
-	if !allow {
-		// Remaining permissions were denied, so allow permissions which were
-		// previously allowed by prompt rules
-		allowedPerms = make([]string, 0, len(constraints.originalPermissions)-len(constraints.remainingPermissions))
+	if len(denied) > 0 {
+		allowedPerms = make([]string, 0, len(constraints.originalPermissions)-len(denied))
 		for _, perm := range constraints.originalPermissions {
-			// Exclude any permissions which were remaining at time of denial
-			if !strutil.ListContains(constraints.remainingPermissions, perm) {
+			if !strutil.ListContains(denied, perm) {
 				allowedPerms = append(allowedPerms, perm)
 			}
 		}
@@ -195,20 +201,63 @@ func (pc *promptConstraints) equals(other *promptConstraints) bool {
 	return true
 }
 
-// subtractPermissions removes all of the given permissions from the list of
-// permissions in the constraints.
-func (pc *promptConstraints) subtractPermissions(permissions []string) (modified bool) {
-	newPermissions := make([]string, 0, len(pc.remainingPermissions))
+// applyRuleConstraints modifies the prompt constraints, removing any remaining
+// permissions which are matched by the given rule constraints.
+//
+// If the path pattern does not match the prompt path, or the rule constraints
+// do not include any of the remaining prompt permissions, then returns false,
+// and no changes are made. If any permissions are denied by the rule
+// constraints, then those permissions are explicitly returned as denied
+// permissions.
+//
+// Assumes the outcomes in the permission entries in the rule constraints have
+// already been validated.
+func (pc *promptConstraints) applyRuleConstraints(constraints *prompting.RuleConstraints) (matched, satisfied bool, denied []string, err error) {
+	pathMatched, err := constraints.Match(pc.path)
+	if err != nil {
+		// Should not occur, only error is if path pattern is malformed,
+		// which would have thrown an error while parsing, not now.
+		return false, false, nil, err
+	}
+	if !pathMatched {
+		return false, false, nil, nil
+	}
+
+	// Path pattern matched, now check if any permissions match
+
+	var permissionMatched bool
+	newRemainingPermissions := make([]string, 0, len(pc.remainingPermissions))
 	for _, perm := range pc.remainingPermissions {
-		if !strutil.ListContains(permissions, perm) {
-			newPermissions = append(newPermissions, perm)
+		entry, exists := constraints.Permissions[perm]
+		if !exists {
+			// Permission not covered by rule constraints, so permission
+			// should continue to be in remainingPermissions.
+			newRemainingPermissions = append(newRemainingPermissions, perm)
+			continue
+		}
+		permissionMatched = true
+		allow, err := entry.Outcome.AsBool()
+		if err != nil {
+			// This should not occur, as rule constraints are built internally
+			return false, false, nil, err
+		}
+		if !allow {
+			denied = append(denied, perm)
 		}
 	}
-	if len(newPermissions) != len(pc.remainingPermissions) {
-		pc.remainingPermissions = newPermissions
-		return true
+	if !permissionMatched {
+		// No permissions matched, so nothing changes
+		return false, false, nil, nil
 	}
-	return false
+
+	pc.remainingPermissions = newRemainingPermissions
+
+	if len(pc.remainingPermissions) == 0 {
+		// All permissions satisfied
+		return true, true, denied, nil
+	}
+
+	return true, false, denied, nil
 }
 
 // Path returns the path associated with the request to which the receiving
@@ -434,7 +483,8 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 
 	if len(userEntry.prompts) >= maxOutstandingPromptsPerUser {
 		logger.Noticef("WARNING: too many outstanding prompts for user %d; auto-denying new one", metadata.User)
-		allowedPermission := responseForInterfaceConstraintsOutcome(metadata.Interface, constraints, prompting.OutcomeDeny)
+		// Deny all permissions which are not already allowed by existing rules
+		allowedPermission := buildResponse(metadata.Interface, constraints, constraints.remainingPermissions)
 		sendReply(listenerReq, allowedPermission)
 		return nil, false, prompting_errors.ErrTooManyPrompts
 	}
@@ -541,10 +591,10 @@ func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.O
 // contents and, if so, sends back a decision to their listener requests.
 //
 // A prompt is satisfied by the given rule contents if the user, snap,
-// interface, and path of the prompt match those of the rule, and if either the
-// outcome is "allow" and all of the prompt's permissions are matched by those
-// of the rule contents, or if the outcome is "deny" and any of the permissions
-// match.
+// interface, and path of the prompt match those of the rule, and all remaining
+// permissions are covered by permissions in the rule constraints or at least
+// one of the remaining permissions is covered by a permission which has an
+// outcome of "deny".
 //
 // Records a notice for any prompt which was satisfied, or which had some of
 // its permissions satisfied by the rule contents. In the future, only the
@@ -553,12 +603,11 @@ func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.O
 //
 // Returns the IDs of any prompts which were fully satisfied by the given rule
 // contents.
-func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *prompting.Constraints, outcome prompting.OutcomeType) ([]prompting.IDType, error) {
-	// Validate outcome before locking
-	allow, err := outcome.AsBool()
-	if err != nil {
-		return nil, err
-	}
+//
+// Since rule is new, we don't check the expiration timestamps for any
+// permissions, since any permissions with lifespan timespan were validated to
+// have a non-zero duration, and we handle this rule as it was at its creation.
+func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *prompting.RuleConstraints) ([]prompting.IDType, error) {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 
@@ -575,35 +624,39 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 		if !(prompt.Snap == metadata.Snap && prompt.Interface == metadata.Interface) {
 			continue
 		}
-		matched, err := constraints.Match(prompt.Constraints.path)
+
+		matched, satisfied, denied, err := prompt.Constraints.applyRuleConstraints(constraints)
 		if err != nil {
+			// Should not occur, only error is if path pattern is malformed,
+			// which would have thrown an error while parsing, not now.
 			return nil, err
 		}
 		if !matched {
 			continue
 		}
-
-		// Record all allowed permissions at the time of match, in case a
-		// permission is denied and we need to send back a response.
-		allowedPermission := responseForInterfaceConstraintsOutcome(metadata.Interface, prompt.Constraints, outcome)
-
-		// See if the permission matches any of the prompt's remaining permissions
-		modified := prompt.Constraints.subtractPermissions(constraints.Permissions)
-		if !modified {
-			// No permission was matched
+		// Matched, so at least one permission was satisfied
+		if !satisfied && len(denied) == 0 {
+			// Not all permissions were satisfied, and no permissions were
+			// denied, so re-record a notice and move on.
+			pdb.notifyPrompt(metadata.User, prompt.ID, nil)
 			continue
 		}
-		id := prompt.ID
-		if len(prompt.Constraints.remainingPermissions) > 0 && allow == true {
-			pdb.notifyPrompt(metadata.User, id, nil)
-			continue
+
+		// Either all permissions satisfied or at least one permission denied.
+		// Construct a response and send it back to the kernel, and record a
+		// notice that the prompt was satisfied.
+		if len(denied) > 0 {
+			// At least one permission denied by new rule, and want to send a
+			// response immediately, so include any remaining permissions as
+			// denied as well.
+			denied = append(denied, prompt.Constraints.remainingPermissions...)
 		}
-		// All permissions of prompt satisfied, or any permission denied
+		allowedPermission := buildResponse(metadata.Interface, prompt.Constraints, denied)
 		prompt.sendReplyWithPermission(allowedPermission)
-		userEntry.remove(id)
-		satisfiedPromptIDs = append(satisfiedPromptIDs, id)
+		userEntry.remove(prompt.ID)
+		satisfiedPromptIDs = append(satisfiedPromptIDs, prompt.ID)
 		data := map[string]string{"resolved": "satisfied"}
-		pdb.notifyPrompt(metadata.User, id, data)
+		pdb.notifyPrompt(metadata.User, prompt.ID, data)
 	}
 	return satisfiedPromptIDs, nil
 }

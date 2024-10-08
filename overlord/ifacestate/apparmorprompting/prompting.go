@@ -51,12 +51,12 @@ var (
 type Manager interface {
 	Prompts(userID uint32, clientActivity bool) ([]*requestprompts.Prompt, error)
 	PromptWithID(userID uint32, promptID prompting.IDType, clientActivity bool) (*requestprompts.Prompt, error)
-	HandleReply(userID uint32, promptID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) ([]prompting.IDType, error)
+	HandleReply(userID uint32, promptID prompting.IDType, replyConstraints *prompting.ReplyConstraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) ([]prompting.IDType, error)
 	Rules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error)
-	AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error)
+	AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints) (*requestrules.Rule, error)
 	RemoveRules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error)
 	RuleWithID(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error)
-	PatchRule(userID uint32, ruleID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error)
+	PatchRule(userID uint32, ruleID prompting.IDType, constraints *prompting.PatchConstraints) (*requestrules.Rule, error)
 	RemoveRule(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error)
 }
 
@@ -221,6 +221,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 
 	matchedDenyRule := false
 	for _, perm := range permissions {
+		// TODO: move this for-loop to a helper in requestrules
 		if yesNo, err := m.rules.IsPathAllowed(userID, snap, iface, path, perm); err == nil {
 			if !yesNo {
 				matchedDenyRule = true
@@ -311,29 +312,7 @@ func (m *InterfacesRequestsManager) disconnect() error {
 		m.rules = nil
 	}
 
-	return errorsJoin(errs...)
-}
-
-// errorsJoin returns an error that wraps the given errors.
-// Any nil error values are discarded.
-// errorsJoin returns nil if every value in errs is nil.
-//
-// TODO: replace with errors.Join() once we're on golang v1.20+
-func errorsJoin(errs ...error) error {
-	var nonNilErrs []error
-	for _, e := range errs {
-		if e != nil {
-			nonNilErrs = append(nonNilErrs, e)
-		}
-	}
-	if len(nonNilErrs) == 0 {
-		return nil
-	}
-	err := nonNilErrs[0]
-	for _, e := range nonNilErrs[1:] {
-		err = fmt.Errorf("%w\n%v", err, e)
-	}
-	return err
+	return prompting_errors.Join(errs...)
 }
 
 // Stop closes the listener, prompt DB, and rule DB. Stop is idempotent, and
@@ -372,7 +351,7 @@ func (m *InterfacesRequestsManager) PromptWithID(userID uint32, promptID prompti
 //
 // If clientActivity is true, reset the expiration timeout for prompts for
 // the given user.
-func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) (satisfiedPromptIDs []prompting.IDType, retErr error) {
+func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID prompting.IDType, replyConstraints *prompting.ReplyConstraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) (satisfiedPromptIDs []prompting.IDType, retErr error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
@@ -381,10 +360,12 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 		return nil, err
 	}
 
-	// Outcome and lifesnap are validated while unmarshalling, and duration is
-	// validated when the rule is being added. So only need to validate
-	// constraints.
-	if err := constraints.ValidateForInterface(prompt.Interface); err != nil {
+	// Validate reply constraints and convert them to Constraints, which have
+	// dedicated PermissionEntry values for each permission in the reply.
+	// Outcome and lifespan are validated while unmarshalling, and duration is
+	// validated against the given lifespan when constructing the Constraints.
+	constraints, err := replyConstraints.ToConstraints(prompt.Interface, outcome, lifespan, duration)
+	if err != nil {
 		return nil, err
 	}
 
@@ -395,24 +376,24 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 	// constraints, such as check that the path pattern does not match
 	// any paths not granted by the interface.
 	// TODO: Should this be reconsidered?
-	matches, err := constraints.Match(prompt.Constraints.Path())
+	matches, err := replyConstraints.Match(prompt.Constraints.Path())
 	if err != nil {
 		return nil, err
 	}
 	if !matches {
 		return nil, &prompting_errors.RequestedPathNotMatchedError{
 			Requested: prompt.Constraints.Path(),
-			Replied:   constraints.PathPattern.String(),
+			Replied:   replyConstraints.PathPattern.String(),
 		}
 	}
 
 	// XXX: do we want to allow only replying to a select subset of permissions, and
 	// auto-deny the rest?
-	contained := constraints.ContainPermissions(prompt.Constraints.RemainingPermissions())
+	contained := replyConstraints.ContainPermissions(prompt.Constraints.RemainingPermissions())
 	if !contained {
 		return nil, &prompting_errors.RequestedPermissionsNotMatchedError{
 			Requested: prompt.Constraints.RemainingPermissions(),
-			Replied:   constraints.Permissions,
+			Replied:   replyConstraints.Permissions,
 		}
 	}
 
@@ -422,7 +403,7 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 	var newRule *requestrules.Rule
 	if lifespan != prompting.LifespanSingle {
 		// Check that adding the rule doesn't conflict with other rules
-		newRule, err = m.rules.AddRule(userID, prompt.Snap, prompt.Interface, constraints, outcome, lifespan, duration)
+		newRule, err = m.rules.AddRule(userID, prompt.Snap, prompt.Interface, constraints)
 		if err != nil {
 			// Rule conflicts with existing rule (at least one identical pattern
 			// variant and permission). This should be considered a bad reply,
@@ -460,7 +441,7 @@ func (m *InterfacesRequestsManager) applyRuleToOutstandingPrompts(rule *requestr
 		Snap:      rule.Snap,
 		Interface: rule.Interface,
 	}
-	satisfiedPromptIDs, err := m.prompts.HandleNewRule(metadata, rule.Constraints, rule.Outcome)
+	satisfiedPromptIDs, err := m.prompts.HandleNewRule(metadata, rule.Constraints)
 	if err != nil {
 		// The rule's constraints and outcome were already validated, so an
 		// error should not occur here unless the prompt DB was already closed.
@@ -493,11 +474,11 @@ func (m *InterfacesRequestsManager) Rules(userID uint32, snap string, iface stri
 
 // AddRule creates a new rule with the given contents and then checks it against
 // outstanding prompts, resolving any prompts which it satisfies.
-func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error) {
+func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints) (*requestrules.Rule, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	newRule, err := m.rules.AddRule(userID, snap, iface, constraints, outcome, lifespan, duration)
+	newRule, err := m.rules.AddRule(userID, snap, iface, constraints)
 	if err != nil {
 		return nil, err
 	}
@@ -540,11 +521,11 @@ func (m *InterfacesRequestsManager) RuleWithID(userID uint32, ruleID prompting.I
 
 // PatchRule updates the rule with the given ID using the provided contents.
 // Any of the given fields which are empty/nil are not updated in the rule.
-func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraints *prompting.Constraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string) (*requestrules.Rule, error) {
+func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraints *prompting.PatchConstraints) (*requestrules.Rule, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	patchedRule, err := m.rules.PatchRule(userID, ruleID, constraints, outcome, lifespan, duration)
+	patchedRule, err := m.rules.PatchRule(userID, ruleID, constraints)
 	if err != nil {
 		return nil, err
 	}
