@@ -97,13 +97,13 @@ func resealKeyForBootChainsFDEHook(method device.SealingMethod, rootdir string, 
 	}
 	recoveryModels := getUniqueModels(params.RecoveryBootChains)
 
-	primaryKey := filepath.Join(boot.InstallHostFDESaveDir, "aux-key")
+	primaryKeyFile := filepath.Join(boot.InstallHostFDESaveDir, "aux-key")
 
-	if err := secboot.ResealKeysWithFDESetupHook(runKeys, primaryKey, runModels); err != nil {
+	if err := secboot.ResealKeysWithFDESetupHook(runKeys, primaryKeyFile, runModels); err != nil {
 		return err
 	}
 
-	if err := secboot.ResealKeysWithFDESetupHook(recoveryKeys, primaryKey, recoveryModels); err != nil {
+	if err := secboot.ResealKeysWithFDESetupHook(recoveryKeys, primaryKeyFile, recoveryModels); err != nil {
 		return err
 	}
 
