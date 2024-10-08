@@ -101,7 +101,7 @@ func (v *Volume) YamlIdxToStructureIdx(yamlIdx int) (int, error) {
 	return v.yamlIdxToStructureIdx(yamlIdx)
 }
 
-func MockFindVolumesMatchingDeviceAssignment(f func(gi *Info) (map[string]DeviceVolume, error)) (restore func()) {
+func MockFindVolumesMatchingDeviceAssignment(f func(gi *Info) (map[string]*Volume, error)) (restore func()) {
 	r := testutil.Backup(&FindVolumesMatchingDeviceAssignment)
 	FindVolumesMatchingDeviceAssignment = f
 	return r

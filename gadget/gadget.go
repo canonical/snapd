@@ -171,6 +171,10 @@ type Volume struct {
 	Structure []VolumeStructure `yaml:"structure" json:"structure"`
 	// Name is the name of the volume from the gadget.yaml
 	Name string `json:"-"`
+	// DeviceAssignment is set during runtime to assign a specific gadget
+	// volume to a device. This is only set optionally if matched against
+	// the volume-assignments.
+	DeviceAssignment string `json:"-"`
 }
 
 // VolumesHaveRole checks if any of the volumes has a structure with the given
@@ -595,13 +599,6 @@ func (da *DeviceAssignment) validate() error {
 	return nil
 }
 
-type DeviceVolume struct {
-	// Device is optional, and may mean that no mapping has been set
-	// for the volume
-	Device string
-	Volume *Volume
-}
-
 func areAssignmentsMatchingCurrentDevice(assignments map[string]*DeviceAssignment) bool {
 	for _, va := range assignments {
 		if _, err := os.Stat(path.Join(dirs.GlobalRootDir, va.Device)); err != nil {
@@ -619,20 +616,18 @@ var FindVolumesMatchingDeviceAssignment = findVolumesMatchingDeviceAssignmentImp
 
 // findVolumesMatchingDeviceAssignmentImpl does a best effort match of the volume-assignments
 // against the current device. We find the first assignment that has all device paths matching
-func findVolumesMatchingDeviceAssignmentImpl(gi *Info) (map[string]DeviceVolume, error) {
+func findVolumesMatchingDeviceAssignmentImpl(gi *Info) (map[string]*Volume, error) {
 	for _, vas := range gi.VolumeAssignments {
 		if !areAssignmentsMatchingCurrentDevice(vas.Assignments) {
 			continue
 		}
 
-		// build a list of volumes matching assignment
+		// update volume assignments
 		logger.Noticef("found valid device-assignment: %s", vas.Name)
-		volumes := make(map[string]DeviceVolume)
+		volumes := make(map[string]*Volume)
 		for vol := range vas.Assignments {
-			volumes[vol] = DeviceVolume{
-				Device: vas.Assignments[vol].Device,
-				Volume: gi.Volumes[vol],
-			}
+			gi.Volumes[vol].DeviceAssignment = vas.Assignments[vol].Device
+			volumes[vol] = gi.Volumes[vol]
 		}
 		return volumes, nil
 	}
@@ -829,9 +824,9 @@ func MaybeDeviceForStructure(vs *VolumeStructure) (string, error) {
 // node for the provided volume. Optionally a device path can be specified
 // that should be resolved instead of finding a matching device for one
 // of the volume structures.
-func MaybeDeviceForVolume(device string, volume *Volume) (string, error) {
-	if device != "" {
-		disk, err := disks.DiskFromDeviceName(device)
+func MaybeDeviceForVolume(volume *Volume) (string, error) {
+	if volume.DeviceAssignment != "" {
+		disk, err := disks.DiskFromDeviceName(volume.DeviceAssignment)
 		if err != nil {
 			return "", err
 		}
@@ -885,7 +880,7 @@ func AllDiskVolumeDeviceTraits(allVols map[string]*Volume, optsPerVolume map[str
 			opts = &DiskVolumeValidationOptions{}
 		}
 
-		dev, err := MaybeDeviceForVolume(opts.Device, vol)
+		dev, err := MaybeDeviceForVolume(vol)
 		if err != nil {
 			return nil, err
 		} else if dev == "" {

@@ -638,8 +638,6 @@ const (
 // options provided to EnsureVolumeCompatibility via
 // EnsureVolumeCompatibilityOptions.
 type DiskVolumeValidationOptions struct {
-	// Device allows to specify a specific disk path for the volume
-	Device string
 	// AllowImplicitSystemData has the same meaning as the eponymously named
 	// field in VolumeCompatibilityOptions.
 	AllowImplicitSystemData bool
@@ -820,7 +818,7 @@ var errSkipUpdateProceedRefresh = errors.New("cannot identify disk for gadget as
 // traits object from disk-mapping.json. It is meant to be used only with all
 // UC16/UC18 installs as well as UC20 installs from before we started writing
 // disk-mapping.json during install mode.
-func buildNewVolumeToDeviceMapping(mod Model, oldVolumes, newVolumes map[string]DeviceVolume) (map[string]DiskVolumeDeviceTraits, error) {
+func buildNewVolumeToDeviceMapping(mod Model, oldVolumes, newVolumes map[string]*Volume) (map[string]DiskVolumeDeviceTraits, error) {
 	var likelySystemBootVolume string
 
 	isPreUC20 := (mod.Grade() == asserts.ModelGradeUnset)
@@ -842,7 +840,7 @@ func buildNewVolumeToDeviceMapping(mod Model, oldVolumes, newVolumes map[string]
 		// on it, we need to pick the volume with that role
 	volumeLoop:
 		for volName, vol := range oldVolumes {
-			for _, structure := range vol.Volume.Structure {
+			for _, structure := range vol.Structure {
 				if structure.Role == SystemBoot {
 					// this is the volume
 					likelySystemBootVolume = volName
@@ -871,7 +869,7 @@ func buildNewVolumeToDeviceMapping(mod Model, oldVolumes, newVolumes map[string]
 	vol := newVolumes[likelySystemBootVolume]
 
 	// search for matching devices that correspond to the gadget volume
-	dev, err := MaybeDeviceForVolume(vol.Device, vol.Volume)
+	dev, err := MaybeDeviceForVolume(vol)
 	if err != nil {
 		// TODO: should this be a fatal error?
 		return nil, err
@@ -912,7 +910,7 @@ func buildNewVolumeToDeviceMapping(mod Model, oldVolumes, newVolumes map[string]
 		}
 	}
 
-	traits, err := DiskTraitsFromDeviceAndValidate(vol.Volume, dev, validateOpts)
+	traits, err := DiskTraitsFromDeviceAndValidate(vol, dev, validateOpts)
 	if err != nil {
 		if isPreUC20 {
 			logger.Noticef("WARNING: not applying gadget asset updates on main system-boot volume due to error while finding disk traits: %v", err)
@@ -951,8 +949,8 @@ type StructureLocation struct {
 // buildVolumeStructureToLocation builds a map of gadget volumes to
 // locations and to matched disk structures.
 func buildVolumeStructureToLocation(mod Model,
-	oldVolumes map[string]DeviceVolume,
-	newVolumes map[string]DeviceVolume,
+	oldVolumes map[string]*Volume,
+	newVolumes map[string]*Volume,
 	volToDeviceMapping map[string]DiskVolumeDeviceTraits,
 	missingInitialMapping bool,
 ) (map[string]map[int]StructureLocation, map[string]map[int]*OnDiskStructure, error) {
@@ -1000,7 +998,7 @@ func buildVolumeStructureToLocation(mod Model,
 			ExpectedStructureEncryption: diskDeviceTraits.StructureEncryption,
 		}
 
-		disk, gadgetToDiskStruct, err := searchVolumeWithTraitsAndMatchParts(newVol.Volume, diskDeviceTraits, validateOpts)
+		disk, gadgetToDiskStruct, err := searchVolumeWithTraitsAndMatchParts(newVol, diskDeviceTraits, validateOpts)
 		if err != nil {
 			dieErr := fmt.Errorf("could not map volume %s from gadget.yaml to any physical disk: %v", volName, err)
 			return nil, nil, maybeFatalError(dieErr)
@@ -1008,7 +1006,7 @@ func buildVolumeStructureToLocation(mod Model,
 		gadgetVolToPartMap[volName] = gadgetToDiskStruct
 
 		// the index here is 0-based and is equal to VolumeStructure.YamlIndex
-		for volYamlIndex, volStruct := range oldVol.Volume.Structure {
+		for volYamlIndex, volStruct := range oldVol.Structure {
 			structStartOffset := gadgetToDiskStruct[volYamlIndex].StartOffset
 
 			loc := StructureLocation{}
@@ -1092,7 +1090,7 @@ func buildVolumeStructureToLocation(mod Model,
 	return volumeStructureToLocation, gadgetVolToPartMap, nil
 }
 
-func MockVolumeStructureToLocationMap(f func(_ Model, _, _ map[string]DeviceVolume) (
+func MockVolumeStructureToLocationMap(f func(_ Model, _, _ map[string]*Volume) (
 	map[string]map[int]StructureLocation, map[string]map[int]*OnDiskStructure, error)) (restore func()) {
 	old := volumeStructureToLocationMap
 	volumeStructureToLocationMap = f
@@ -1113,7 +1111,7 @@ var volumeStructureToLocationMap = volumeStructureToLocationMapImpl
 // is the volume name and the second key is the yaml index of the
 // structure in the gadget definition. The value is the disk structure
 // that matches the gadget description.
-func volumeStructureToLocationMapImpl(mod Model, oldVolumes, newVolumes map[string]DeviceVolume) (
+func volumeStructureToLocationMapImpl(mod Model, oldVolumes, newVolumes map[string]*Volume) (
 	map[string]map[int]StructureLocation, map[string]map[int]*OnDiskStructure, error) {
 
 	// first try to load the disk-mapping.json volume trait info
@@ -1179,7 +1177,7 @@ func volumeStructureToLocationMapImpl(mod Model, oldVolumes, newVolumes map[stri
 	)
 }
 
-func validateVolumesMatch(old, new map[string]DeviceVolume) error {
+func validateVolumesMatch(old, new map[string]*Volume) error {
 	oldVolumes := make([]string, 0, len(old))
 	newVolumes := make([]string, 0, len(new))
 
@@ -1209,7 +1207,7 @@ func validateVolumesMatch(old, new map[string]DeviceVolume) error {
 	for name, cvol := range old {
 		// the new one must match
 		nvol := new[name]
-		if cvol.Device != nvol.Device {
+		if cvol.DeviceAssignment != nvol.DeviceAssignment {
 			return fmt.Errorf("cannot update gadget assets: device assignment is not identical for %q", name)
 		}
 	}
@@ -1251,17 +1249,11 @@ func validateVolumesMatch(old, new map[string]DeviceVolume) error {
 // d. After step (c) is completed the kernel refresh will now also work (no more
 // violation of rule 1)
 func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePolicyFunc, observer ContentUpdateObserver) error {
-	volumesForGadget := func(gd GadgetData) (map[string]DeviceVolume, error) {
+	volumesForGadget := func(gd GadgetData) (map[string]*Volume, error) {
 		if len(gd.Info.VolumeAssignments) != 0 {
 			return FindVolumesMatchingDeviceAssignment(gd.Info)
 		} else {
-			vols := make(map[string]DeviceVolume)
-			for name, vol := range gd.Info.Volumes {
-				vols[name] = DeviceVolume{
-					Volume: vol,
-				}
-			}
-			return vols, nil
+			return gd.Info.Volumes, nil
 		}
 	}
 
@@ -1343,12 +1335,12 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 
 		// layout old partially, without going deep into the layout of structure
 		// content
-		pOld, err := layoutVolumePartially(oldVol.Volume, volToPartsMap[volName])
+		pOld, err := layoutVolumePartially(oldVol, volToPartsMap[volName])
 		if err != nil {
 			return fmt.Errorf("cannot lay out the old volume %s: %v", volName, err)
 		}
 
-		pNew, err := LayoutVolume(newVol.Volume, volToPartsMap[volName], opts)
+		pNew, err := LayoutVolume(newVol, volToPartsMap[volName], opts)
 		if err != nil {
 			return fmt.Errorf("cannot lay out the new volume %s: %v", volName, err)
 		}
@@ -1378,15 +1370,15 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 
 		// can update old layout to new layout
 		for _, update := range updates {
-			fromIdx, err := oldVol.Volume.yamlIdxToStructureIdx(update.from.VolumeStructure.YamlIndex)
+			fromIdx, err := oldVol.yamlIdxToStructureIdx(update.from.VolumeStructure.YamlIndex)
 			if err != nil {
 				return err
 			}
-			toIdx, err := oldVol.Volume.yamlIdxToStructureIdx(update.from.VolumeStructure.YamlIndex)
+			toIdx, err := oldVol.yamlIdxToStructureIdx(update.from.VolumeStructure.YamlIndex)
 			if err != nil {
 				return err
 			}
-			if err := canUpdateStructure(oldVol.Volume, fromIdx, newVol.Volume, toIdx); err != nil {
+			if err := canUpdateStructure(oldVol, fromIdx, newVol, toIdx); err != nil {
 				return fmt.Errorf("cannot update volume structure %v for volume %s: %v", update.to, volName, err)
 			}
 		}

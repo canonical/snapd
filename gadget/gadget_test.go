@@ -4250,14 +4250,11 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsWithDeviceSetHappy(c 
 	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil)
 	c.Assert(err, IsNil)
 
+	vol.DeviceAssignment = "/dev/disk/by-path/42:0"
 	m := map[string]*gadget.Volume{
 		"foo": vol.Volume,
 	}
-	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(m, map[string]*gadget.DiskVolumeValidationOptions{
-		"foo": {
-			Device: "/dev/disk/by-path/42:0",
-		},
-	})
+	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(m, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(traitsMap, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
@@ -5579,16 +5576,12 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestUpdateApplyNoMatchingAssignment(c 
 func (s *gadgetYamlVolumeAssignmentSuite) TestUpdateApplyAssignmentChanged(c *C) {
 	// Create matchings - but now let us say that the once provided in the gadget
 	// has changed in an update, this must fail
-	restore := gadget.MockFindVolumesMatchingDeviceAssignment(func(gi *gadget.Info) (map[string]gadget.DeviceVolume, error) {
-		return map[string]gadget.DeviceVolume{
-			"lun-0": {
-				Device: gi.VolumeAssignments[1].Assignments["lun-0"].Device,
-				Volume: gi.Volumes["lun-0"],
-			},
-			"lun-1": {
-				Device: gi.VolumeAssignments[1].Assignments["lun-1"].Device,
-				Volume: gi.Volumes["lun-1"],
-			},
+	restore := gadget.MockFindVolumesMatchingDeviceAssignment(func(gi *gadget.Info) (map[string]*gadget.Volume, error) {
+		gi.Volumes["lun-0"].DeviceAssignment = gi.VolumeAssignments[1].Assignments["lun-0"].Device
+		gi.Volumes["lun-1"].DeviceAssignment = gi.VolumeAssignments[1].Assignments["lun-1"].Device
+		return map[string]*gadget.Volume{
+			"lun-0": gi.Volumes["lun-0"],
+			"lun-1": gi.Volumes["lun-1"],
 		}, nil
 	})
 	defer restore()
@@ -5648,39 +5641,35 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestUpdateApplyHappy(c *C) {
 
 	rollbackDir := c.MkDir()
 
-	restore := gadget.MockFindVolumesMatchingDeviceAssignment(func(gi *gadget.Info) (map[string]gadget.DeviceVolume, error) {
-		return map[string]gadget.DeviceVolume{
-			"lun-0": {
-				Device: "/dev/disk/by-diskseq/1",
-				Volume: gi.Volumes["lun-0"],
-			},
-			"lun-1": {
-				Device: "/dev/disk/by-id/wwm1234",
-				Volume: gi.Volumes["lun-1"],
-			},
+	restore := gadget.MockFindVolumesMatchingDeviceAssignment(func(gi *gadget.Info) (map[string]*gadget.Volume, error) {
+		gi.Volumes["lun-0"].DeviceAssignment = "/dev/disk/by-diskseq/1"
+		gi.Volumes["lun-1"].DeviceAssignment = "/dev/disk/by-id/wwm1234"
+		return map[string]*gadget.Volume{
+			"lun-0": gi.Volumes["lun-0"],
+			"lun-1": gi.Volumes["lun-1"],
 		}, nil
 	})
 	defer restore()
 
-	restore = gadget.MockVolumeStructureToLocationMap(func(gm gadget.Model, oldVolumes, _ map[string]gadget.DeviceVolume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	restore = gadget.MockVolumeStructureToLocationMap(func(gm gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
 				"lun-0": {
 					0: {
-						Device:         oldVolumes["lun-0"].Device,
+						Device:         oldVolumes["lun-0"].DeviceAssignment,
 						Offset:         quantity.OffsetMiB,
 						RootMountPoint: "/run/mnt/ubuntu-boot",
 					},
 				},
 				"lun-1": {
 					0: {
-						Device:         oldVolumes["lun-1"].Device,
+						Device:         oldVolumes["lun-1"].DeviceAssignment,
 						Offset:         quantity.OffsetMiB,
 						RootMountPoint: "/run/mnt/ubuntu-test",
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
-				"lun-0": gadget.OnDiskStructsFromGadget(oldVolumes["lun-0"].Volume),
-				"lun-1": gadget.OnDiskStructsFromGadget(oldVolumes["lun-1"].Volume),
+				"lun-0": gadget.OnDiskStructsFromGadget(oldVolumes["lun-0"]),
+				"lun-1": gadget.OnDiskStructsFromGadget(oldVolumes["lun-1"]),
 			}, nil
 	})
 	defer restore()
