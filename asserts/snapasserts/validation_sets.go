@@ -527,8 +527,7 @@ func (v *ValidationSets) Add(valset *asserts.ValidationSet) error {
 	return nil
 }
 
-// TODO: maybe a method on snapContraints?
-func addComponents(sc *snapConstraints, comps map[string]asserts.ValidationSetComponent, validationSetKey string) {
+func (sc *snapConstraints) addComponents(comps map[string]asserts.ValidationSetComponent, validationSetKey string) {
 	for name, comp := range comps {
 		sc.addComponent(name, comp, validationSetKey)
 	}
@@ -598,11 +597,11 @@ func (v *ValidationSets) addSnap(sn *asserts.ValidationSetSnap, validationSetKey
 			},
 			componentConstraints: make(map[string]*componentConstraints),
 		}
-		addComponents(v.snaps[sn.SnapID], sn.Components, validationSetKey)
+		v.snaps[sn.SnapID].addComponents(sn.Components, validationSetKey)
 		return
 	}
 
-	addComponents(sc, sn.Components, validationSetKey)
+	sc.addComponents(sn.Components, validationSetKey)
 
 	sc.revisions[rev] = append(sc.revisions[rev], rc)
 
