@@ -28,13 +28,13 @@ fi
 
 for name in test1.txt test2.txt test3.txt ; do
 	if [ -f "${TEST_DIR}/${name}" ] ; then
-		echo "file creation unexpectedly succeeded"
+		echo "file creation unexpectedly succeeded for $name"
 		exit 1
 	fi
 done
 
 TEST_OUTPUT="$(cat "${TEST_DIR}/test4.txt")"
 if [ "$TEST_OUTPUT" != "test4.txt is written" ] ; then
-	echo "file creation failed"
+	echo "file creation failed for test4.txt"
 	exit 1
 fi

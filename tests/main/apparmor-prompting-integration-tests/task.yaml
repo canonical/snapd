@@ -24,7 +24,10 @@ environment:
     VARIANT/download_file_conflict: download_file_conflict
     VARIANT/timespan_allow: timespan_allow
     VARIANT/timespan_deny: timespan_deny
-    #VARIANT/create_multiple_actioned_by_other_pid: create_multiple_actioned_by_other_pid
+    VARIANT/create_multiple_actioned_by_other_pid_always_allow: create_multiple_actioned_by_other_pid_always_allow
+    VARIANT/create_multiple_actioned_by_other_pid_always_deny: create_multiple_actioned_by_other_pid_always_deny
+    VARIANT/create_multiple_not_actioned_by_other_pid_single_allow: create_multiple_not_actioned_by_other_pid_single_allow
+    VARIANT/create_multiple_not_actioned_by_other_pid_single_deny: create_multiple_not_actioned_by_other_pid_single_deny
     #VARIANT/overwrite_file: overwrite_file
 
 prepare: |
@@ -91,6 +94,7 @@ execute: |
         --var="BASE_PATH:${TEST_DIR}" | tee "${TEST_DIR}/result" &
 
     timeout 5 sh -xc 'while ! pgrep -f "prompting-client-scripted" > /dev/null; do sleep 0.1; done'
+    sleep 1 # wait for scripted client to start listening, otherwise it may miss the first prompt
 
     echo "Run the test script as the test user"
     tests.session -u test exec sh -x "${TEST_DIR}/${VARIANT}.sh" "$TEST_DIR"
