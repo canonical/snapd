@@ -64,6 +64,7 @@ var (
 	bootMakeRunnableStandalone           = boot.MakeRunnableStandaloneSystem
 	bootMakeRunnableAfterDataReset       = boot.MakeRunnableSystemAfterDataReset
 	bootEnsureNextBootToRunMode          = boot.EnsureNextBootToRunMode
+	bootMakeRecoverySystemBootable       = boot.MakeRecoverySystemBootable
 	installRun                           = install.Run
 	installFactoryReset                  = install.FactoryReset
 	installMountVolumes                  = install.MountVolumes
@@ -1060,7 +1061,8 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 	defer unmountParts()
 
-	if !systemAndSnaps.Model.Classic() {
+	hasSystemSeed := gadget.VolumesHaveRole(mergedVols, gadget.SystemSeed)
+	if hasSystemSeed {
 		copier, ok := systemAndSnaps.Seed.(seed.Copier)
 		if !ok {
 			return fmt.Errorf("internal error: seed does not support copying: %s", systemAndSnaps.Label)
@@ -1128,6 +1130,27 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 	if err := bootMakeBootablePartition(seedMntDir, opts, bootWith, boot.ModeRun, nil); err != nil {
 		return err
+	}
+
+	if hasSystemSeed {
+		// get the path of the kernel snap relative to the original seed's
+		// directory. since we're not renaming the seed, this will be the same
+		// relative path as if we're working under the new seed's directory
+		kernelRelPath, err := filepath.Rel(dirs.SnapSeedDir, snapSeeds[snap.TypeKernel].Path)
+		if err != nil {
+			return err
+		}
+
+		// this will make the newly copied seed bootable as a recovery system by
+		// writing a grubenv file to the seed.
+		err = bootMakeRecoverySystemBootable(systemAndSnaps.Model, seedMntDir, filepath.Join("systems", systemLabel), &boot.RecoverySystemBootableSet{
+			Kernel:          snapInfos[snap.TypeKernel],
+			KernelPath:      filepath.Join(seedMntDir, kernelRelPath),
+			GadgetSnapOrDir: snapSeeds[snap.TypeGadget].Path,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	// writes the model etc
