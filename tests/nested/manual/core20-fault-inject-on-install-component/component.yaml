@@ -1,0 +1,5 @@
+component: pc-kernel+wifi-comp
+type: kernel-modules
+version: 1.0
+summary: wifi simulator
+description: wifi simulator for testing purposes

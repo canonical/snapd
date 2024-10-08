@@ -245,5 +245,5 @@ func setRegistryValues(ctx *hookstate.Context, plugName string, requests map[str
 		return err
 	}
 
-	return registrystate.SetViaViewInTx(tx, view, requests)
+	return registrystate.SetViaView(tx, view, requests)
 }

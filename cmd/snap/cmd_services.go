@@ -22,7 +22,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"os/user"
 	"strconv"
 
 	"github.com/jessevdk/go-flags"
@@ -30,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/osutil/user"
 )
 
 type svcStatus struct {

@@ -732,6 +732,19 @@ static void enter_non_classic_execution_environment(sc_invocation *inv,
 
 	// Do per-snap initialization.
 	int snap_lock_fd = sc_lock_snap(inv->snap_instance);
+
+	// This is a workaround for systemd v237 (used by Ubuntu 18.04) for non-root users
+	// where a transient scope cgroup is not created for a snap hence it cannot be tracked
+	// before the freezer cgroup is created (and joined) below.
+	if (sc_snap_is_inhibited
+	    (inv->snap_instance, SC_SNAP_HINT_INHIBITED_FOR_REMOVE)) {
+		// Prevent starting new snap processes when snap is being removed until
+		// the freezer cgroup is created below and the snap lock is released so
+		// that remove change can track running processes through pids under the
+		// freezer cgroup.
+		die("snap is currently being removed");
+	}
+
 	debug("initializing mount namespace: %s", inv->snap_instance);
 	struct sc_mount_ns *group = NULL;
 	group = sc_open_mount_ns(inv->snap_instance);

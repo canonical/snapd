@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -521,7 +522,7 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithKernelModulesComponents(c *C)
 			sequence.NewComponentState(&snap.ComponentSideInfo{
 				Component: naming.NewComponentRef("pkg", "comp"),
 				Revision:  snap.R(11),
-			}, snap.TestComponent),
+			}, snap.StandardComponent),
 		}),
 	})
 
@@ -2667,8 +2668,9 @@ func (s *linkSnapSuite) testDoKillSnapApps(c *C, svc bool) {
 
 	expected := fakeOps{
 		{
-			op:   "kill-snap-apps:remove",
-			name: "some-snap",
+			op:         "kill-snap-apps:remove",
+			name:       "some-snap",
+			snapLocked: true,
 		},
 	}
 	if svc {
@@ -2684,6 +2686,12 @@ func (s *linkSnapSuite) testDoKillSnapApps(c *C, svc bool) {
 	hint, _, err := runinhibit.IsLocked("some-snap")
 	c.Assert(err, IsNil)
 	c.Check(hint, Equals, runinhibit.HintInhibitedForRemove)
+
+	// Snap lock is unlocked after kill-snap-apps returns
+	testLock, err := snaplock.OpenLock("some-snap")
+	c.Assert(err, IsNil)
+	c.Check(testLock.TryLock(), IsNil)
+	testLock.Close()
 }
 
 func (s *linkSnapSuite) TestDoKillSnapApps(c *C) {
@@ -2736,6 +2744,11 @@ func (s *linkSnapSuite) TestDoKillSnapAppsUnlocksOnError(c *C) {
 	c.Assert(err, IsNil)
 	// On error hint inhibition file is unlocked
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+	// And snap lock is also unlocked
+	testLock, err := snaplock.OpenLock("some-snap")
+	c.Assert(err, IsNil)
+	c.Check(testLock.TryLock(), IsNil)
+	testLock.Close()
 }
 
 func (s *linkSnapSuite) testDoUndoKillSnapApps(c *C, svc bool) {
@@ -2787,8 +2800,9 @@ func (s *linkSnapSuite) testDoUndoKillSnapApps(c *C, svc bool) {
 
 	expected := fakeOps{
 		{
-			op:   "kill-snap-apps:remove",
-			name: "some-snap",
+			op:         "kill-snap-apps:remove",
+			name:       "some-snap",
+			snapLocked: true,
 		},
 	}
 	if svc {
@@ -2805,6 +2819,11 @@ func (s *linkSnapSuite) testDoUndoKillSnapApps(c *C, svc bool) {
 	c.Assert(err, IsNil)
 	// On undo hint inhibition file is unlocked
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+	// And snap lock is also unlocked
+	testLock, err := snaplock.OpenLock("some-snap")
+	c.Assert(err, IsNil)
+	c.Check(testLock.TryLock(), IsNil)
+	testLock.Close()
 }
 
 func (s *linkSnapSuite) TestDoUndoKillSnapApps(c *C) {

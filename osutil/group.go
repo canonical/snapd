@@ -22,8 +22,9 @@ package osutil
 import (
 	"bytes"
 	"fmt"
-	"os/user"
 	"strconv"
+
+	"github.com/snapcore/snapd/osutil/user"
 )
 
 // FindUid returns the identifier of the given UNIX user name. It will

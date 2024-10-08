@@ -945,6 +945,10 @@ var SetupPostRefreshComponentHook = func(st *state.State, snap, component string
 	panic("internal error: snapstate.SetupPostRefreshComponentHook is unset")
 }
 
+var SetupRemoveComponentHook = func(st *state.State, snap, component string) *state.Task {
+	panic("internal error: snapstate.SetupRemoveComponentHook is unset")
+}
+
 var SetupPreRefreshHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupPreRefreshHook is unset")
 }
@@ -3617,10 +3621,17 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 
 	// only run remove hook if uninstalling the snap completely
 	if removeAll {
-		// TODO:COMPS: Run component remove hooks
+		for _, comp := range snapst.Sequence.ComponentsForRevision(snapst.Current) {
+			removeCompHook := SetupRemoveComponentHook(st, snapsup.InstanceName(), comp.SideInfo.Component.ComponentName)
+			addNext(state.NewTaskSet(removeCompHook))
+			prev = removeCompHook
+		}
 
 		removeHook := SetupRemoveHook(st, snapsup.InstanceName())
 		addNext(state.NewTaskSet(removeHook))
+		if prev != nil {
+			removeHook.WaitFor(prev)
+		}
 		prev = removeHook
 
 		// run disconnect hooks

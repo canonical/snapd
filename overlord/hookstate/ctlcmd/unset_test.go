@@ -187,8 +187,10 @@ func (s *registrySuite) TestRegistryUnsetManyViews(c *C) {
 	_, err = tx.Get("wifi.ssid")
 	c.Assert(err, ErrorMatches, `no value was found under path "wifi.ssid"`)
 
-	_, err = tx.Get("wifi.psk")
-	c.Assert(err, ErrorMatches, `no value was found under path "wifi.psk"`)
+	s.state.Lock()
+	_, err = registrystate.Get(s.state, s.devAccID, "network", "write-wifi", []string{"ssid", "password"})
+	s.state.Unlock()
+	c.Assert(err, ErrorMatches, `cannot get "ssid", "password" .*: matching rules don't map to any values`)
 }
 
 func (s *registrySuite) TestRegistryUnsetInvalid(c *C) {

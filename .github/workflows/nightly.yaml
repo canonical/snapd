@@ -20,13 +20,13 @@ jobs:
     strategy:
       matrix:
         gochannel:
-          - 1.18
+          - 1.23
         unit-scenario:
           - normal
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         # needed for git commit history
         fetch-depth: 0
@@ -40,9 +40,10 @@ jobs:
           sudo apt update
           sudo apt build-dep -y "${{ github.workspace }}/src/github.com/snapcore/snapd"
 
-    - name: Install the go snap
-      run: |
-          sudo snap install --classic --channel="${{ matrix.gochannel }}" go
+    - name: Install the go version
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.gochannel }}
 
     - name: Get deps
       run: |
@@ -78,7 +79,6 @@ jobs:
 
     - name: Install TICS dependencies
       run: |
-          sudo snap refresh --channel=latest/stable go
           go install honnef.co/go/tools/cmd/staticcheck@latest
           sudo apt install -y pylint
 

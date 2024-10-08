@@ -463,12 +463,12 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 		cinfo1, err := snapst.CurrentComponentInfo(cref1)
 		c.Assert(err, IsNil)
 		c.Assert(cinfo1, DeepEquals,
-			snap.NewComponentInfo(cref1, snap.TestComponent, "1.0", "", "", "",
+			snap.NewComponentInfo(cref1, snap.StandardComponent, "1.0", "", "", "",
 				snap.NewComponentSideInfo(cref1, snap.R(22))))
 		cinfo2, err := snapst.CurrentComponentInfo(cref2)
 		c.Assert(err, IsNil)
 		c.Assert(cinfo2, DeepEquals,
-			snap.NewComponentInfo(cref2, snap.TestComponent, "2.0", "", "", "",
+			snap.NewComponentInfo(cref2, snap.StandardComponent, "2.0", "", "", "",
 				snap.NewComponentSideInfo(cref2, snap.R(33))))
 	}
 

@@ -22,7 +22,6 @@ package osutil_test
 import (
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strconv"
 
@@ -30,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/testutil"
 )
 

@@ -33,6 +33,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -98,6 +99,8 @@ type fakeOp struct {
 
 	containerName     string
 	containerFileName string
+
+	snapLocked bool
 }
 
 type fakeOps []fakeOp
@@ -338,9 +341,9 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 		}
 	case "channel-for-components":
 		info.Components = map[string]*snap.Component{
-			"test-component": {
-				Type: snap.TestComponent,
-				Name: "test-component",
+			"standard-component": {
+				Type: snap.StandardComponent,
+				Name: "standard-component",
 			},
 			"kernel-modules-component": {
 				Type: snap.KernelModulesComponent,
@@ -539,21 +542,21 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		confinement = snap.DevModeConfinement
 	case "channel-for-components", "channel-for-components-only-component-refresh":
 		components = map[string]*snap.Component{
-			"test-component": {
-				Type: snap.TestComponent,
-				Name: "test-component",
+			"standard-component": {
+				Type: snap.StandardComponent,
+				Name: "standard-component",
 			},
 			"kernel-modules-component": {
 				Type: snap.KernelModulesComponent,
 				Name: "kernel-modules-component",
 			},
-			"test-component-extra": {
-				Type: snap.TestComponent,
-				Name: "test-component-extra",
+			"standard-component-extra": {
+				Type: snap.StandardComponent,
+				Name: "standard-component-extra",
 			},
-			"test-component-present-in-sequence": {
-				Type: snap.TestComponent,
-				Name: "test-component-present-in-sequence",
+			"standard-component-present-in-sequence": {
+				Type: snap.StandardComponent,
+				Name: "standard-component-present-in-sequence",
 			},
 		}
 	}
@@ -1142,9 +1145,9 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		info.SnapType = snap.TypeSnapd
 	case "snap-with-components":
 		info.Components = map[string]*snap.Component{
-			"test-component": {
-				Type: snap.TestComponent,
-				Name: "test-component",
+			"standard-component": {
+				Type: snap.StandardComponent,
+				Name: "standard-component",
 			},
 			"kernel-modules-component": {
 				Type: snap.KernelModulesComponent,
@@ -1349,9 +1352,17 @@ func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.Servi
 }
 
 func (f *fakeSnappyBackend) KillSnapApps(snapName string, reason snap.AppKillReason, tm timings.Measurer) error {
+	testLock, err := snaplock.OpenLock(snapName)
+	if err != nil {
+		return err
+	}
+	defer testLock.Close()
+
 	f.appendOp(&fakeOp{
 		op:   fmt.Sprintf("kill-snap-apps:%s", reason),
 		name: snapName,
+		// Check if snap lock is held when terminating pids
+		snapLocked: testLock.TryLock() == osutil.ErrAlreadyLocked,
 	})
 	return f.maybeErrForLastOp()
 }

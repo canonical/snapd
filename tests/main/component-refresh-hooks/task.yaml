@@ -1,4 +1,4 @@
-summary: Test running component install, pre-refresh, and post-refresh hooks
+summary: Test running component install, pre-refresh, post-refresh, and remove hooks.
 
 details: |
   Tests a snap operations on a snap with two components. Some arbitrary
@@ -15,7 +15,9 @@ details: |
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*]
 
 restore: |
-  snap remove test-snap-component-hooks
+  if snap list test-snap-component-hooks; then
+    snap remove test-snap-component-hooks
+  fi
 
 execute: |
   snap install test-snap-component-hooks+one+two --revision=6
@@ -34,9 +36,9 @@ execute: |
   not snap get test-snap-component-hooks one-postrefreshed
   not snap get test-snap-component-hooks two-postrefreshed
 
-  snap refresh test-snap-component-hooks --edge
+  snap refresh test-snap-component-hooks --channel=latest/candidate
 
-  snap list test-snap-component-hooks | awk 'NR != 1 { print $3 }' | MATCH 7
+  snap list test-snap-component-hooks | awk 'NR != 1 { print $3 }' | MATCH 8
 
   # these shouldn't run again
   snap get test-snap-component-hooks one-installed | MATCH 4
@@ -47,5 +49,15 @@ execute: |
   snap get test-snap-component-hooks two-prerefreshed | MATCH 4
 
   # these run as the new revision
-  snap get test-snap-component-hooks one-postrefreshed | MATCH 5
-  snap get test-snap-component-hooks two-postrefreshed | MATCH 5
+  snap get test-snap-component-hooks one-postrefreshed | MATCH 6
+  snap get test-snap-component-hooks two-postrefreshed | MATCH 6
+
+  # make sure component remove hooks are run on individual component removal
+  snap remove test-snap-component-hooks+two
+  test -e /tmp/snap-private-tmp/snap.test-snap-component-hooks/tmp/two-remove-hook-executed
+  rm /tmp/snap-private-tmp/snap.test-snap-component-hooks/tmp/two-remove-hook-executed
+
+  # make sure component remove hooks are run on total snap removal
+  snap install test-snap-component-hooks+two
+  snap remove test-snap-component-hooks
+  test -e /tmp/snap-private-tmp/snap.test-snap-component-hooks/tmp/two-remove-hook-executed

@@ -2080,13 +2080,13 @@ func (s *snapmgrTestSuite) TestRemoveWithCompsTasks(c *C) {
 		case comp1name:
 			return &snap.ComponentInfo{
 				Component:         cref1,
-				Type:              snap.TestComponent,
+				Type:              snap.StandardComponent,
 				ComponentSideInfo: *csi,
 			}, nil
 		case comp2name:
 			return &snap.ComponentInfo{
 				Component:         cref2,
-				Type:              snap.TestComponent,
+				Type:              snap.StandardComponent,
 				ComponentSideInfo: *csi,
 			}, nil
 		}
@@ -2099,8 +2099,8 @@ func (s *snapmgrTestSuite) TestRemoveWithCompsTasks(c *C) {
 			SideInfo:      *si,
 			SnapType:      snap.TypeApp,
 			Components: map[string]*snap.Component{
-				comp1name: {Name: comp1name, Type: snap.TestComponent},
-				comp2name: {Name: comp2name, Type: snap.TestComponent},
+				comp1name: {Name: comp1name, Type: snap.StandardComponent},
+				comp2name: {Name: comp2name, Type: snap.StandardComponent},
 			},
 		}
 		info.Apps = map[string]*snap.AppInfo{
@@ -2123,16 +2123,16 @@ func (s *snapmgrTestSuite) TestRemoveWithCompsTasks(c *C) {
 			sequence.NewRevisionSideState(siRev1,
 				[]*sequence.ComponentState{
 					sequence.NewComponentState(
-						comp1si, snap.TestComponent),
+						comp1si, snap.StandardComponent),
 					sequence.NewComponentState(
-						comp2si, snap.TestComponent),
+						comp2si, snap.StandardComponent),
 				}),
 			sequence.NewRevisionSideState(siRev2,
 				[]*sequence.ComponentState{
 					sequence.NewComponentState(
-						comp11si, snap.TestComponent),
+						comp11si, snap.StandardComponent),
 					sequence.NewComponentState(
-						comp22si, snap.TestComponent),
+						comp22si, snap.StandardComponent),
 				}),
 		})
 	snapstate.Set(s.state, snapName, &snapstate.SnapState{
@@ -2148,7 +2148,9 @@ func (s *snapmgrTestSuite) TestRemoveWithCompsTasks(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"stop-snap-services",
-		"run-hook[remove]",
+		"run-hook[remove]", // component remove hook
+		"run-hook[remove]", // component remove hook
+		"run-hook[remove]", // snap remove hook
 		"auto-disconnect",
 		"save-snapshot",
 		"remove-aliases",

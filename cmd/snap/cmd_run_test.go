@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 	"time"
@@ -40,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/strace"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
@@ -64,7 +64,7 @@ var mockYamlWithComponent = []byte(`name: snapname
 version: 1.0
 components:
   comp:
-    type: test
+    type: standard
     hooks:
       install:
 hooks:
@@ -72,7 +72,7 @@ hooks:
 `)
 
 var mockComponentYaml = []byte(`component: snapname+comp
-type: test
+type: standard
 version: 1.0
 `)
 

@@ -70,9 +70,12 @@ func mockWSL(version int) (restore func()) {
 	}
 }
 
-func (s *mainSuite) TestIsContainerWithInternalPolicy(c *C) {
-	// since "apparmorfs" is not present within our test root dir setup
-	// we expect this to return false
+func (s *mainSuite) TestIsContainerWithInternalPolicy_NotContainer(c *C) {
+	// since "apparmorfs" is not present within our test root dir setup we
+	// expect this to return false
+	restore := mockWSL(0)
+	defer restore()
+
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
 
 	appArmorSecurityFSPath := filepath.Join(dirs.GlobalRootDir, "/sys/kernel/security/apparmor/")
@@ -80,21 +83,40 @@ func (s *mainSuite) TestIsContainerWithInternalPolicy(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
+}
 
-	// Simulate being inside WSL 1 and 2.
-	//
-	// At present neither version is capable of running AppArmor correctly.
-	// AppArmor on WSL-1 is just not emulated by the Windows kernel.
-	// AppArmor on WSL-2 is neither configured in the Microsoft distribution
-	// of Linux nor properly set up to stack so that each running
-	// distribution gets an isolated playground.
+func (s *mainSuite) TestIsContainerWithInternalPolicy_WSL1(c *C) {
 	restore := mockWSL(1)
-	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
-	restore()
+	defer restore()
 
-	restore = mockWSL(2)
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
-	restore()
+}
+
+func (s *mainSuite) TestIsContainerWithInternalPolicy_WSL2(c *C) {
+	restore := mockWSL(2)
+	defer restore()
+
+	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
+}
+
+func (s *mainSuite) TestIsContainerWithInternalPolicy_WSL2WithSecurityFS(c *C) {
+	restore := mockWSL(2)
+	defer restore()
+
+	appArmorSecurityFSPath := filepath.Join(dirs.GlobalRootDir, "/sys/kernel/security/apparmor/")
+	err := os.MkdirAll(appArmorSecurityFSPath, 0755)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, true)
+}
+
+func (s *mainSuite) TestIsContainerWithInternalPolicy_LinuxContainers(c *C) {
+	restore := mockWSL(0)
+	defer restore()
+
+	appArmorSecurityFSPath := filepath.Join(dirs.GlobalRootDir, "/sys/kernel/security/apparmor/")
+	err := os.MkdirAll(appArmorSecurityFSPath, 0755)
+	c.Assert(err, IsNil)
 
 	for _, prefix := range []string{"lxc", "lxd", "incus"} {
 		// simulate being inside a container environment

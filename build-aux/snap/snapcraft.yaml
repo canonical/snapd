@@ -112,9 +112,6 @@ parts:
       - squashfs-tools
       - xdelta3
       - zlib1g
-      # This is needed for using os/user on Ubuntu Core
-      # TODO: do not use os/user, but io.systemd.NameServiceSwitch through dbus
-      - libnss-extrausers
     stage:
       - -usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/ld*.so*
       - -lib32
@@ -125,9 +122,9 @@ parts:
       - -usr/share/man
       - -usr/share/lintian
       - -usr/share/lintian/**
+      - -usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libnss_*.so.2
     override-build: |
       craftctl default
-      mv "${CRAFT_PART_INSTALL}/usr/lib/libnss_extrausers.so.2" "${CRAFT_PART_INSTALL}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/"
       cp -rT "${CRAFT_PART_INSTALL}/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" "${CRAFT_PART_INSTALL}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}"
       rm -rf "${CRAFT_PART_INSTALL}/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}"
       rm -f "${CRAFT_PART_INSTALL}/lib/${DYNAMIC_LINKER}"
@@ -370,6 +367,7 @@ parts:
             esac
             ;;
         esac
+        TAGS+=(snapdusergo osusergo)
 
         # FIPS specific build tags
         if [ -f fips-build ]; then

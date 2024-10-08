@@ -84,10 +84,12 @@ version: 1
 	c.Assert(err, IsNil)
 
 	err = snap.ValidateSnapContainer(container, info, discard)
-	c.Check(err, Equals, snap.ErrMissingPaths)
+	c.Check(err, testutil.ErrorIs, snap.ErrMissingPaths)
+	c.Check(err, ErrorMatches, `snap is unusable due to missing files: path "meta" does not exist`)
 
 	err = snap.ValidateComponentContainer(container, "empty-snap+comp.comp", discard)
-	c.Check(err, Equals, snap.ErrMissingPaths)
+	c.Check(err, testutil.ErrorIs, snap.ErrMissingPaths)
+	c.Check(err, ErrorMatches, `snap is unusable due to missing files: path "meta" does not exist`)
 }
 
 func (s *validateSuite) TestValidateContainerEmptyButBadPermFails(c *C) {
@@ -107,7 +109,8 @@ version: 1
 	c.Assert(err, IsNil)
 
 	err = snap.ValidateSnapContainer(s.container(), info, discard)
-	c.Check(err, Equals, snap.ErrBadModes)
+	c.Check(err, testutil.ErrorIs, snap.ErrBadModes)
+	c.Check(err, ErrorMatches, `snap is unusable due to bad permissions: "." should be world-readable and executable, and isn't: drwx------`)
 }
 
 func (s *validateSuite) TestValidateComponentContainerEmptyButBadPermFails(c *C) {
@@ -121,16 +124,17 @@ func (s *validateSuite) TestValidateComponentContainerEmptyButBadPermFails(c *C)
 	// snapdir has /meta/component.yaml, but / is 0700
 
 	err = snap.ValidateComponentContainer(s.container(), "empty-snap+comp.comp", discard)
-	c.Check(err, Equals, snap.ErrBadModes)
+	c.Check(err, testutil.ErrorIs, snap.ErrBadModes)
+	c.Check(err, ErrorMatches, `snap is unusable due to bad permissions: "." should be world-readable and executable, and isn't: drwx------`)
 }
 
 func (s *validateSuite) TestValidateContainerMissingSnapYamlFails(c *C) {
 	const yaml = `name: empty-snap
 version: 1
 `
-	container := s.container()
 	c.Assert(os.Chmod(s.snapDirPath, 0755), IsNil)
 	c.Assert(os.Mkdir(filepath.Join(s.snapDirPath, "meta"), 0755), IsNil)
+	container := s.container()
 
 	// snapdir's / and /meta are 0755 (i.e. OK), but no /meta/snap.yaml
 
@@ -138,12 +142,14 @@ version: 1
 	c.Assert(err, IsNil)
 
 	err = snap.ValidateSnapContainer(container, info, discard)
-	c.Check(err, Equals, snap.ErrMissingPaths)
+	c.Check(err, testutil.ErrorIs, snap.ErrMissingPaths)
+	c.Check(err, ErrorMatches, `snap is unusable due to missing files: path "meta/snap.yaml" does not exist`)
 
 	// component's / and /meta are 0755 (i.e. OK), but no /meta/component.yaml
 
 	err = snap.ValidateComponentContainer(container, "empty-snap+comp.comp", discard)
-	c.Check(err, Equals, snap.ErrMissingPaths)
+	c.Check(err, testutil.ErrorIs, snap.ErrMissingPaths)
+	c.Check(err, ErrorMatches, `snap is unusable due to missing files: path "meta/component.yaml" does not exist`)
 }
 
 func (s *validateSuite) TestValidateContainerSnapYamlBadPermsFails(c *C) {
@@ -161,7 +167,8 @@ version: 1
 	c.Assert(err, IsNil)
 
 	err = snap.ValidateSnapContainer(s.container(), info, discard)
-	c.Check(err, Equals, snap.ErrBadModes)
+	c.Check(err, testutil.ErrorIs, snap.ErrBadModes)
+	c.Check(err, ErrorMatches, `snap is unusable due to bad permissions: "meta/snap.yaml" should be world-readable, and isn't: ----------`)
 }
 
 func (s *validateSuite) TestValidateComponentContainerSnapYamlBadPermsFails(c *C) {
@@ -173,7 +180,8 @@ func (s *validateSuite) TestValidateComponentContainerSnapYamlBadPermsFails(c *C
 	// /meta/component.yaml exists, but isn't readable
 
 	err := snap.ValidateComponentContainer(s.container(), "empty-snap+comp.comp", discard)
-	c.Check(err, Equals, snap.ErrBadModes)
+	c.Check(err, testutil.ErrorIs, snap.ErrBadModes)
+	c.Check(err, ErrorMatches, `snap is unusable due to bad permissions: "meta/component.yaml" should be world-readable, and isn't: ----------`)
 }
 
 func (s *validateSuite) TestValidateContainerSnapYamlNonRegularFails(c *C) {
@@ -191,7 +199,8 @@ version: 1
 	c.Assert(err, IsNil)
 
 	err = snap.ValidateSnapContainer(s.container(), info, discard)
-	c.Check(err, Equals, snap.ErrBadModes)
+	c.Check(err, testutil.ErrorIs, snap.ErrBadModes)
+	c.Check(err, ErrorMatches, `snap is unusable due to bad permissions: "meta/snap.yaml" should be a regular file \(or a symlink\) and isn't`)
 }
 
 // bootstrapEmptyContainer creates a minimal container directory under
@@ -233,7 +242,8 @@ apps:
 	c.Assert(err, IsNil)
 
 	err = snap.ValidateSnapContainer(s.container(), info, discard)
-	c.Check(err, Equals, snap.ErrMissingPaths)
+	c.Check(err, testutil.ErrorIs, snap.ErrMissingPaths)
+	c.Check(err, ErrorMatches, `snap is unusable due to missing files: path "foo" does not exist`)
 }
 
 func (s *validateSuite) TestValidateContainerBadAppPermsFails(c *C) {
@@ -252,7 +262,8 @@ apps:
 	c.Assert(err, IsNil)
 
 	err = snap.ValidateSnapContainer(s.container(), info, discard)
-	c.Check(err, Equals, snap.ErrBadModes)
+	c.Check(err, testutil.ErrorIs, snap.ErrBadModes)
+	c.Check(err, ErrorMatches, `snap is unusable due to bad permissions: "foo" should be world-readable and executable, and isn't: -r--r--r--`)
 }
 
 func (s *validateSuite) TestValidateContainerBadAppDirPermsFails(c *C) {
@@ -272,7 +283,8 @@ apps:
 	c.Assert(err, IsNil)
 
 	err = snap.ValidateSnapContainer(s.container(), info, discard)
-	c.Check(err, Equals, snap.ErrBadModes)
+	c.Check(err, testutil.ErrorIs, snap.ErrBadModes)
+	c.Check(err, ErrorMatches, `snap is unusable due to bad permissions: "apps" should be world-readable and executable, and isn't: drwx------`)
 }
 
 func (s *validateSuite) TestValidateContainerBadSvcPermsFails(c *C) {
@@ -293,7 +305,8 @@ apps:
 	c.Assert(err, IsNil)
 
 	err = snap.ValidateSnapContainer(s.container(), info, discard)
-	c.Check(err, Equals, snap.ErrBadModes)
+	c.Check(err, testutil.ErrorIs, snap.ErrBadModes)
+	c.Check(err, ErrorMatches, `snap is unusable due to bad permissions: "svcs/bar" should be executable, and isn't: ----------`)
 }
 
 func (s *validateSuite) TestValidateContainerCompleterFails(c *C) {
@@ -316,7 +329,8 @@ apps:
 	c.Assert(err, IsNil)
 
 	err = snap.ValidateSnapContainer(s.container(), info, discard)
-	c.Check(err, Equals, snap.ErrMissingPaths)
+	c.Check(err, testutil.ErrorIs, snap.ErrMissingPaths)
+	c.Check(err, ErrorMatches, `snap is unusable due to missing files: path "comp/foo.sh" does not exist`)
 }
 
 func (s *validateSuite) TestValidateContainerBadAppPathOK(c *C) {
@@ -404,7 +418,8 @@ version: 1
 	c.Assert(err, IsNil)
 
 	err = snap.ValidateSnapContainer(container, info, discard)
-	c.Check(err, ErrorMatches, "snap is unusable due to bad permissions")
+	c.Check(err, testutil.ErrorIs, snap.ErrBadModes)
+	c.Check(err, ErrorMatches, `snap is unusable due to bad permissions: "meta/symlink" should be world-readable, and isn't: -rwx--x--x`)
 }
 
 func (s *validateSuite) TestValidateContainerSymlinksMetaBadTargetMode0000(c *C) {
@@ -429,7 +444,8 @@ version: 1
 	c.Assert(err, IsNil)
 
 	err = snap.ValidateSnapContainer(container, info, discard)
-	c.Check(err, ErrorMatches, "snap is unusable due to bad permissions")
+	c.Check(err, testutil.ErrorIs, snap.ErrBadModes)
+	c.Check(err, ErrorMatches, `snap is unusable due to bad permissions: "meta/symlink" should be world-readable, and isn't: ----------`)
 }
 
 func (s *validateSuite) TestValidateContainerMetaExternalAbsSymlinksFails(c *C) {
@@ -450,7 +466,8 @@ version: 1
 	}
 
 	err = snap.ValidateSnapContainer(s.container(), info, mockLogf)
-	c.Check(err, Equals, snap.ErrBadModes)
+	c.Check(err, testutil.ErrorIs, snap.ErrBadModes)
+	c.Check(err, ErrorMatches, `snap is unusable due to bad permissions: external symlink found: meta/gui/icons/snap.empty-snap.png -> /etc/shadow`)
 }
 
 func (s *validateSuite) TestValidateContainerMetaExternalRelativeSymlinksFails(c *C) {
@@ -472,7 +489,8 @@ version: 1
 	}
 
 	err = snap.ValidateSnapContainer(s.container(), info, mockLogf)
-	c.Check(err, Equals, snap.ErrBadModes)
+	c.Check(err, testutil.ErrorIs, snap.ErrBadModes)
+	c.Check(err, ErrorMatches, `snap is unusable due to bad permissions: external symlink found: meta/gui/icons/snap.empty-snap.png -> 1/../../2/../../3/4/../../../../..`)
 }
 
 func (s *validateSuite) TestValidateContainerMetaExternalRelativeSymlinksOk(c *C) {
@@ -518,7 +536,8 @@ version: 1
 	c.Check(metaDirSymlinkErrFound, Equals, true)
 	// the check for missing files precedes check for permission errors, so we
 	// check for it instead.
-	c.Check(err, Equals, snap.ErrMissingPaths)
+	c.Check(err, testutil.ErrorIs, snap.ErrMissingPaths)
+	c.Check(err, ErrorMatches, `snap is unusable due to missing files: path "meta/snap.yaml" does not exist`)
 }
 
 func (s *validateSuite) TestValidateContainerAppsOK(c *C) {
@@ -599,7 +618,8 @@ version: 1
 	}
 
 	err = snap.ValidateSnapContainer(s.container(), info, mockLogf)
-	c.Check(err, Equals, snap.ErrBadModes)
+	c.Check(err, testutil.ErrorIs, snap.ErrBadModes)
+	c.Check(err, ErrorMatches, "snap is unusable due to bad permissions: too many levels of symbolic links")
 	c.Check(loopFound, Equals, true)
 }
 

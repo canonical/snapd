@@ -25,7 +25,6 @@ import (
 	"log/syslog"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -33,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/desktop/desktopentry"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 )

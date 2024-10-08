@@ -37,9 +37,9 @@ import (
 
 const defaultFreezerCgroupV1Dir = "/sys/fs/cgroup/freezer"
 const maxFreezeTimeout = 3000 * time.Millisecond
+const freezePulseDelay = 100 * time.Millisecond
 
 var freezerCgroupV1Dir = defaultFreezerCgroupV1Dir
-var freezePulseDelay = 100 * time.Millisecond
 
 var osReadFile = os.ReadFile
 
@@ -190,7 +190,7 @@ func writeExistingFile(where string, data []byte) error {
 	return errC
 }
 
-var freezeOneV2 = func(ctx context.Context, dir string) error {
+func freezeOneV2(ctx context.Context, dir string) error {
 	groupName := filepath.Base(dir)
 	fname := filepath.Join(dir, "cgroup.freeze")
 	if err := writeExistingFile(fname, []byte("1")); err != nil {
@@ -269,7 +269,7 @@ func freezeSnapProcessesImplV2(ctx context.Context, snapName string) error {
 	return fmt.Errorf("cannot finish freezing processes of snap %q: %w", snapName, err)
 }
 
-var thawOneV2 = func(dir string) error {
+func thawOneV2(dir string) error {
 	fname := filepath.Join(dir, "cgroup.freeze")
 	if err := writeExistingFile(fname, []byte("0")); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err

@@ -430,3 +430,31 @@ func (s *transactionTestSuite) TestAbortPreventsReadsAndWrites(c *C) {
 	err = tx.Commit(s.state, registry.NewJSONSchema())
 	c.Assert(err, ErrorMatches, "cannot commit aborted transaction")
 }
+
+func (s *transactionTestSuite) TestTransactionPristine(c *C) {
+	bag := registry.NewJSONDataBag()
+	err := bag.Set("foo", "bar")
+	c.Assert(err, IsNil)
+
+	err = registrystate.WriteDatabag(s.state, bag, "my-account", "my-reg")
+	c.Assert(err, IsNil)
+
+	tx, err := registrystate.NewTransaction(s.state, "my-account", "my-reg")
+	c.Assert(err, IsNil)
+
+	err = tx.Set("foo", "baz")
+	c.Assert(err, IsNil)
+
+	checkPristine := func(key, expected string) {
+		pristineBag := tx.Pristine()
+		val, err := pristineBag.Get(key)
+		c.Assert(err, IsNil)
+		c.Check(val, Equals, expected)
+	}
+	checkPristine("foo", "bar")
+
+	err = tx.Commit(s.state, registry.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	checkPristine("foo", "baz")
+}

@@ -21,13 +21,13 @@ package portal
 
 import (
 	"fmt"
-	"os/user"
 	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/osutil/user"
 )
 
 const (

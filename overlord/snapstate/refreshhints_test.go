@@ -255,7 +255,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 			Component: naming.NewComponentRef("other-snap", "comp1"),
 			Revision:  snap.R(1),
 		},
-		CompType: snap.TestComponent,
+		CompType: snap.StandardComponent,
 	})
 
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
@@ -282,7 +282,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 		},
 		Components: map[string]*snap.Component{
 			"comp1": {
-				Type: snap.TestComponent,
+				Type: snap.StandardComponent,
 				Name: "comp1",
 			},
 		},
@@ -321,7 +321,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 		c.Check(csi.Component.SnapName, Equals, "other-snap")
 		return &snap.ComponentInfo{
 			Component:         csi.Component,
-			Type:              snap.TestComponent,
+			Type:              snap.StandardComponent,
 			Version:           "1.0",
 			ComponentSideInfo: *csi,
 		}, nil

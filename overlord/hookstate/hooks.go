@@ -37,6 +37,7 @@ func init() {
 	snapstate.SetupInstallComponentHook = SetupInstallComponentHook
 	snapstate.SetupPreRefreshComponentHook = SetupPreRefreshComponentHook
 	snapstate.SetupPostRefreshComponentHook = SetupPostRefreshComponentHook
+	snapstate.SetupRemoveComponentHook = SetupRemoveComponentHook
 	snapstate.SetupPreRefreshHook = SetupPreRefreshHook
 	snapstate.SetupPostRefreshHook = SetupPostRefreshHook
 	snapstate.SetupRemoveHook = SetupRemoveHook
@@ -93,6 +94,21 @@ func SetupPostRefreshComponentHook(st *state.State, snap, component string) *sta
 	}
 
 	summary := fmt.Sprintf(i18n.G(`Run post-refresh hook of "%s+%s" component if present`), hooksup.Snap, hooksup.Component)
+	task := HookTask(st, summary, hooksup, nil)
+
+	return task
+}
+
+func SetupRemoveComponentHook(st *state.State, snap, component string) *state.Task {
+	hooksup := &HookSetup{
+		Snap:        snap,
+		Component:   component,
+		Hook:        "remove",
+		Optional:    true,
+		IgnoreError: true,
+	}
+
+	summary := fmt.Sprintf(i18n.G(`Run remove hook of "%s+%s" component if present`), hooksup.Snap, hooksup.Component)
 	task := HookTask(st, summary, hooksup, nil)
 
 	return task

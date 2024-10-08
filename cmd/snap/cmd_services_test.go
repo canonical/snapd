@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os/user"
 	"sort"
 	"strings"
 	"time"
@@ -32,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/strutil"
 )
 

@@ -22,13 +22,13 @@ package client_test
 import (
 	"encoding/json"
 	"fmt"
-	"os/user"
 	"strconv"
 	"strings"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/osutil/user"
 )
 
 func mksvc(snap, app string) *client.AppInfo {

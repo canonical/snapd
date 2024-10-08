@@ -187,6 +187,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	oldSetupInstallComponentHook := snapstate.SetupInstallComponentHook
 	oldSetupPostRefreshComponentHook := snapstate.SetupPostRefreshComponentHook
 	oldSetupPreRefreshComponentHook := snapstate.SetupPreRefreshComponentHook
+	oldSetupRemoveComponentHook := snapstate.SetupRemoveComponentHook
 	oldSetupPreRefreshHook := snapstate.SetupPreRefreshHook
 	oldSetupPostRefreshHook := snapstate.SetupPostRefreshHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
@@ -236,6 +237,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 		snapstate.SetupInstallComponentHook = oldSetupInstallComponentHook
 		snapstate.SetupPostRefreshComponentHook = oldSetupPostRefreshComponentHook
 		snapstate.SetupPreRefreshComponentHook = oldSetupPreRefreshComponentHook
+		snapstate.SetupRemoveComponentHook = oldSetupRemoveComponentHook
 		snapstate.SetupPreRefreshHook = oldSetupPreRefreshHook
 		snapstate.SetupPostRefreshHook = oldSetupPostRefreshHook
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
@@ -647,16 +649,16 @@ func (s *snapmgrTestSuite) TestSequenceSerialize(c *C) {
 	// With components
 	snapst = &snapstate.SnapState{Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
 		sequence.NewRevisionSideState(si1, []*sequence.ComponentState{
-			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("mysnap", "mycomp"), snap.R(7)), snap.TestComponent),
+			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("mysnap", "mycomp"), snap.R(7)), snap.StandardComponent),
 		}),
 		sequence.NewRevisionSideState(si2, []*sequence.ComponentState{
-			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("othersnap", "othercomp1"), snap.R(11)), snap.TestComponent),
-			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("othersnap", "othercomp2"), snap.R(14)), snap.TestComponent),
+			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("othersnap", "othercomp1"), snap.R(11)), snap.StandardComponent),
+			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("othersnap", "othercomp2"), snap.R(14)), snap.StandardComponent),
 		}),
 	})}
 	marshaled, err = json.Marshal(snapst)
 	c.Assert(err, IsNil)
-	c.Check(string(marshaled), Equals, `{"type":"","sequence":[{"name":"mysnap","snap-id":"snapid","revision":"7","components":[{"side-info":{"component":{"snap-name":"mysnap","component-name":"mycomp"},"revision":"7"},"type":"test"}]},{"name":"othersnap","snap-id":"otherid","revision":"11","components":[{"side-info":{"component":{"snap-name":"othersnap","component-name":"othercomp1"},"revision":"11"},"type":"test"},{"side-info":{"component":{"snap-name":"othersnap","component-name":"othercomp2"},"revision":"14"},"type":"test"}]}],"current":"unset"}`)
+	c.Check(string(marshaled), Equals, `{"type":"","sequence":[{"name":"mysnap","snap-id":"snapid","revision":"7","components":[{"side-info":{"component":{"snap-name":"mysnap","component-name":"mycomp"},"revision":"7"},"type":"standard"}]},{"name":"othersnap","snap-id":"otherid","revision":"11","components":[{"side-info":{"component":{"snap-name":"othersnap","component-name":"othercomp1"},"revision":"11"},"type":"standard"},{"side-info":{"component":{"snap-name":"othersnap","component-name":"othercomp2"},"revision":"14"},"type":"standard"}]}],"current":"unset"}`)
 }
 
 func maybeMockClassicSupport(c *C) (restore func()) {
@@ -5323,10 +5325,10 @@ func (s *snapmgrTestSuite) TestSnapStateLocalComponentRevision(c *C) {
 	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "mycomp"), snap.R(-2))
 	csi3 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "othercomp"), snap.R(-13))
 	compsSi7 := []*sequence.ComponentState{
-		sequence.NewComponentState(csi0, snap.TestComponent),
-		sequence.NewComponentState(csi1, snap.TestComponent),
-		sequence.NewComponentState(csi2, snap.TestComponent),
-		sequence.NewComponentState(csi3, snap.TestComponent),
+		sequence.NewComponentState(csi0, snap.StandardComponent),
+		sequence.NewComponentState(csi1, snap.StandardComponent),
+		sequence.NewComponentState(csi2, snap.StandardComponent),
+		sequence.NewComponentState(csi3, snap.StandardComponent),
 	}
 	si11 := snap.SideInfo{
 		RealName: "some-snap",
@@ -5335,8 +5337,8 @@ func (s *snapmgrTestSuite) TestSnapStateLocalComponentRevision(c *C) {
 	csi4 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "mycomp"), snap.R(-8))
 	csi5 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "othercomp"), snap.R(-9))
 	compsSi11 := []*sequence.ComponentState{
-		sequence.NewComponentState(csi4, snap.TestComponent),
-		sequence.NewComponentState(csi5, snap.TestComponent),
+		sequence.NewComponentState(csi4, snap.StandardComponent),
+		sequence.NewComponentState(csi5, snap.StandardComponent),
 	}
 	snapst := &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
@@ -5361,9 +5363,9 @@ func (s *snapmgrTestSuite) TestSnapStateNoLocalComponentRevision(c *C) {
 	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "mycomp"), snap.R(2))
 	csi3 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "othercomp"), snap.R(13))
 	compsSi7 := []*sequence.ComponentState{
-		sequence.NewComponentState(csi1, snap.TestComponent),
-		sequence.NewComponentState(csi2, snap.TestComponent),
-		sequence.NewComponentState(csi3, snap.TestComponent),
+		sequence.NewComponentState(csi1, snap.StandardComponent),
+		sequence.NewComponentState(csi2, snap.StandardComponent),
+		sequence.NewComponentState(csi3, snap.StandardComponent),
 	}
 	si11 := snap.SideInfo{
 		RealName: "some-snap",
@@ -5372,8 +5374,8 @@ func (s *snapmgrTestSuite) TestSnapStateNoLocalComponentRevision(c *C) {
 	csi4 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "mycomp"), snap.R(8))
 	csi5 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "othercomp"), snap.R(9))
 	compsSi11 := []*sequence.ComponentState{
-		sequence.NewComponentState(csi4, snap.TestComponent),
-		sequence.NewComponentState(csi5, snap.TestComponent),
+		sequence.NewComponentState(csi4, snap.StandardComponent),
+		sequence.NewComponentState(csi5, snap.StandardComponent),
 	}
 	snapst := &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
@@ -10419,26 +10421,26 @@ func (s *snapStateSuite) TestUnmountAllSnaps(c *C) {
 					Snap: &snap.SideInfo{RealName: "snap-with-components", SnapID: "snap-with-components-id", Revision: snap.R(2)},
 					Components: []*sequence.ComponentState{
 						sequence.NewComponentState(&snap.ComponentSideInfo{
-							Component: naming.NewComponentRef("snap-with-components", "test-component"),
+							Component: naming.NewComponentRef("snap-with-components", "standard-component"),
 							Revision:  snap.R(22),
-						}, snap.TestComponent),
+						}, snap.StandardComponent),
 						sequence.NewComponentState(&snap.ComponentSideInfo{
 							Component: naming.NewComponentRef("snap-with-components", "test-other-component"),
 							Revision:  snap.R(33),
-						}, snap.TestComponent),
+						}, snap.StandardComponent),
 					},
 				},
 				{
 					Snap: &snap.SideInfo{RealName: "snap-with-components", SnapID: "snap-with-components-id", Revision: snap.R(3)},
 					Components: []*sequence.ComponentState{
 						sequence.NewComponentState(&snap.ComponentSideInfo{
-							Component: naming.NewComponentRef("snap-with-components", "test-component"),
+							Component: naming.NewComponentRef("snap-with-components", "standard-component"),
 							Revision:  snap.R(22),
-						}, snap.TestComponent),
+						}, snap.StandardComponent),
 						sequence.NewComponentState(&snap.ComponentSideInfo{
 							Component: naming.NewComponentRef("snap-with-components", "test-other-component"),
 							Revision:  snap.R(55),
-						}, snap.TestComponent),
+						}, snap.StandardComponent),
 					},
 				},
 			},
@@ -10456,7 +10458,7 @@ func (s *snapStateSuite) TestUnmountAllSnaps(c *C) {
 	expected := [][]string{
 		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/some-snap/5")},
 		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/some-snap/6")},
-		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/snap-with-components/components/mnt/test-component/22")},
+		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/snap-with-components/components/mnt/standard-component/22")},
 		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/snap-with-components/components/mnt/test-other-component/33")},
 		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/snap-with-components/2")},
 		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "/snap-with-components/components/mnt/test-other-component/55")},

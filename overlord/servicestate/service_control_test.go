@@ -22,7 +22,6 @@ package servicestate_test
 import (
 	"fmt"
 	"os"
-	"os/user"
 	"path"
 	"path/filepath"
 	"sort"
@@ -35,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"

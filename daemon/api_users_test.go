@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
-	"os/user"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -32,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
