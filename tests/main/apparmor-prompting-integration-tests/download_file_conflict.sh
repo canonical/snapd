@@ -42,7 +42,7 @@ if ! grep 'cannot add rule: a rule with conflicting path pattern and permission 
 fi
 
 if [ -f "$TEST_DIR/test.txt" ] ; then
-	echo "write unexpectedly succeeded"
+	echo "file creation unexpectedly succeeded for test.txt"
 	cat "${TEST_DIR}/test.txt"
 	exit 1
 fi
