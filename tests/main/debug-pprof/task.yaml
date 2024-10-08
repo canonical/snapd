@@ -6,7 +6,7 @@ details: |
     This test checks that the pprof profiles can be accessed through
     the http://localhost/v2/debug/pprof/ API
 
-# ubuntu-core: no jq and go
+# ubuntu-core: no jq and no go
 systems: [-ubuntu-core-*]
 
 execute: |
