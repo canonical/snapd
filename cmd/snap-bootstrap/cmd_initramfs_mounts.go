@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -40,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	gadgetInstall "github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -54,6 +56,7 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
@@ -1896,6 +1899,142 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 	return nil
 }
 
+func createKernelMounts(runWritableDataDir, kernelName string, rev snap.Revision, isClassic bool) (bool, error) {
+	driversStandardDir := kernel.DriversTreeDir(runWritableDataDir, kernelName, rev)
+	// On UC first boot the drivers dir is initially under
+	// _writable_defaults, so we need to check that directory too. But the
+	// mount happens after handle-writable-paths has run, so the unit can
+	// use driversFirstBootDir.
+	driversFirstBootDir := kernel.DriversTreeDir(
+		filepath.Join(runWritableDataDir, "_writable_defaults"), kernelName, rev)
+	var driversDir string
+	switch {
+	case osutil.IsDirectory(driversStandardDir):
+		driversDir = driversStandardDir
+	case osutil.IsDirectory(driversFirstBootDir):
+		driversDir = driversFirstBootDir
+	default:
+		logger.Noticef("no drivers tree at %s", driversStandardDir)
+		return false, nil
+	}
+	logger.Noticef("drivers tree found in %s", driversDir)
+
+	// 1. Mount unit for the kernel snap
+	cpi := snap.MinimalSnapContainerPlaceInfo(kernelName, rev)
+	squashfsPath := filepath.Join(runWritableDataDir, dirs.StripRootDir(cpi.MountFile()))
+	// snapRoot is where we will find the /snap directory where
+	// snaps/components will be mounted
+	snapRoot := filepath.Join("writable", "system-data")
+	if isClassic {
+		snapRoot = "sysroot"
+	}
+	where := filepath.Join(dirs.GlobalRootDir, snapRoot, dirs.StripRootDir(cpi.MountDir()))
+	if err := writeInitramfsMountUnit(squashfsPath, where, squashfsUnit); err != nil {
+		return false, err
+	}
+
+	// 2. Mount units for kernel-modules components
+	if err := createKernelModulesMountUnits(
+		runWritableDataDir, snapRoot, driversDir, kernelName); err != nil {
+		return false, err
+	}
+
+	// 3. Mount units for /lib/{modules,firmware}
+	for _, subDir := range []string{"modules", "firmware"} {
+		what := filepath.Join(driversStandardDir, "lib", subDir)
+		where := filepath.Join(dirs.GlobalRootDir, "sysroot", "usr", "lib", subDir)
+		if err := writeInitramfsMountUnit(what, where, bindUnit); err != nil {
+			return false, fmt.Errorf("while creating mount for %s in %s: %v",
+				what, where, err)
+		}
+	}
+
+	// TODO daemon-reload is not needed because done from initramfs
+	// later, but maybe we should do it here as well?
+
+	return true, nil
+}
+
+func createKernelModulesMountUnits(writableRootDir, snapRoot, driversDir, kernelName string) error {
+	// Look for symlinks to kernel components. We care only about links to
+	// content in the squashfs, links to $SNAP_DATA will just work as
+	// /var/snap will be present before switch root.
+
+	// First in modules (we might not have a kernel version subdir if there
+	// are no kernel modules).
+	kversion, kverr := kernel.KernelVersionFromModulesDir(filepath.Join(driversDir, "lib"))
+	compSet := map[snap.ComponentSideInfo]bool{}
+	if kverr == nil {
+		modUpdatesDir := filepath.Join(driversDir, "lib", "modules", kversion, "updates")
+		if err := getCompsFromSymlinks(modUpdatesDir, kernelName, compSet); err != nil {
+			return err
+		}
+	}
+	// Then look in firmware
+	fwUpdatesDir := filepath.Join(driversDir, "lib", "firmware", "updates")
+	if err := getCompsFromSymlinks(fwUpdatesDir, kernelName, compSet); err != nil {
+		return err
+	}
+
+	// now create the component units
+	for comp := range compSet {
+		cpi := snap.MinimalComponentContainerPlaceInfo(
+			comp.Component.ComponentName, comp.Revision, kernelName)
+		squashfsPath := filepath.Join(writableRootDir, dirs.StripRootDir(cpi.MountFile()))
+		where := filepath.Join(dirs.GlobalRootDir, snapRoot, dirs.StripRootDir(cpi.MountDir()))
+		if err := writeInitramfsMountUnit(squashfsPath, where, squashfsUnit); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func getCompsFromSymlinks(symLinksDir, kernelName string, compSet map[snap.ComponentSideInfo]bool) error {
+	entries, err := os.ReadDir(symLinksDir)
+	if err != nil {
+		// No updates folder, so there are no kernel-modules comps installed
+		return nil
+	}
+
+	for _, node := range entries {
+		if node.Type() != fs.ModeSymlink {
+			continue
+		}
+		// Note that symlinks in drivers tree are absolute
+		dest, err := os.Readlink(filepath.Join(symLinksDir, node.Name()))
+		if err != nil {
+			return err
+		}
+
+		// find out component name from symlink
+		prefix := filepath.Join(snap.ComponentsBaseDir(kernelName), "mnt")
+		subdir := strings.TrimPrefix(dest, prefix+string(os.PathSeparator))
+		if subdir == dest {
+			// Possibly points to $SNAP_DATA instead of to $SNAP,
+			// or is a relative symlink to some fw file in the
+			// component.
+			continue
+		}
+		dirs := strings.Split(subdir, string(os.PathSeparator))
+		// dirs should still have as a minimum 4 elements
+		// <comp_name>/<comp_rev>/{modules/<kversion>,firmware/<filename>}
+		if len(dirs) < 4 {
+			logger.Noticef("warning: %s seems to be badly formed", dest)
+			continue
+		}
+		rev, err := snap.ParseRevision(dirs[1])
+		if err != nil {
+			logger.Noticef("warning: wrong revision in symlink %s: %v", dest, err)
+			continue
+		}
+		csi := snap.NewComponentSideInfo(naming.NewComponentRef(kernelName, dirs[0]), rev)
+		compSet[*csi] = true
+	}
+
+	return nil
+}
+
 func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 1. mount ubuntu-boot
 	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot"); err != nil {
@@ -2084,8 +2223,20 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	//            to the function above to make decisions there, or perhaps this
 	//            code actually belongs in the bootloader implementation itself
 
-	// 4.3 mount base (if UC), gadget and kernel snaps
+	// Create mounts for kernel modules/firmware if we have a drivers tree.
+	// InitramfsRunModeSelectSnapsToMount guarantees we do have a kernel in the map.
+	kernPlaceInfo := mounts[snap.TypeKernel]
+	hasDriversTree, err := createKernelMounts(
+		rootfsDir, kernPlaceInfo.SnapName(), kernPlaceInfo.SnapRevision(), isClassic)
+	if err != nil {
+		return err
+	}
+
+	// 4.3 mount base (if UC), gadget and kernel (if there is no drivers tree) snaps
 	for _, typ := range typs {
+		if typ == snap.TypeKernel && hasDriversTree {
+			continue
+		}
 		if sn, ok := mounts[typ]; ok {
 			dir := snapTypeToMountDir[typ]
 			snapPath := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), sn.Filename())

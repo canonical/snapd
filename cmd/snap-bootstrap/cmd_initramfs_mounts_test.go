@@ -8487,3 +8487,418 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunInstallDeviceHook
 	c.Assert(err, IsNil)
 	c.Check(sealedKeysLocked, Equals, true)
 }
+
+func checkKernelMounts(c *C, dataRootfs, snapRoot string, compsExist, compsNotExist []int) {
+	// Check mount units for the drivers tree
+	unitsPath := filepath.Join(dirs.GlobalRootDir, "run/systemd/system")
+	snapMntDir := dirs.StripRootDir(dirs.SnapMountDir)
+
+	// kernel snap
+	what := filepath.Join(dataRootfs, "var/lib/snapd/snaps/pc-kernel_1.snap")
+	where := filepath.Join(snapRoot, snapMntDir, "pc-kernel/1")
+	unit := systemd.EscapeUnitNamePath(where) + ".mount"
+	c.Check(filepath.Join(unitsPath, unit), testutil.FileEquals, fmt.Sprintf(`[Unit]
+Description=Mount for kernel snap
+DefaultDependencies=no
+After=initrd-parse-etc.service
+Before=initrd-fs.target
+Before=umount.target
+Conflicts=umount.target
+
+[Mount]
+What=%s
+Where=%s
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
+`, what, where))
+
+	// kernel-modules components
+	for _, comp := range compsExist {
+		compName := fmt.Sprint("comp", comp)
+		compRev := fmt.Sprintf("%d%d", comp, comp)
+		what := filepath.Join(dataRootfs,
+			"var/lib/snapd/snaps/pc-kernel+"+compName+"_"+compRev+".comp")
+		where := filepath.Join(snapRoot, snapMntDir, "pc-kernel/components/mnt",
+			compName, compRev)
+		unit := systemd.EscapeUnitNamePath(where) + ".mount"
+		c.Check(filepath.Join(unitsPath, unit), testutil.FileEquals, fmt.Sprintf(`[Unit]
+Description=Mount for kernel snap
+DefaultDependencies=no
+After=initrd-parse-etc.service
+Before=initrd-fs.target
+Before=umount.target
+Conflicts=umount.target
+
+[Mount]
+What=%s
+Where=%s
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
+`, what, where))
+	}
+
+	for _, comp := range compsNotExist {
+		compName := fmt.Sprint("comp", comp)
+		compRev := fmt.Sprintf("%d%d", comp, comp)
+		where := filepath.Join(snapRoot, snapMntDir, "pc-kernel/components/mnt",
+			compName, compRev)
+		unit := systemd.EscapeUnitNamePath(where) + ".mount"
+		c.Check(filepath.Join(unitsPath, unit), testutil.FileAbsent)
+	}
+
+	// for /lib/{modules,firmware}
+	for _, subdir := range []string{"modules", "firmware"} {
+		what := filepath.Join(dataRootfs, "var/lib/snapd/kernel/pc-kernel/1/lib", subdir)
+		where := filepath.Join("/sysroot/usr/lib", subdir)
+		unit := systemd.EscapeUnitNamePath(where) + ".mount"
+		c.Check(filepath.Join(unitsPath, unit), testutil.FileEquals, fmt.Sprintf(`[Unit]
+Description=Mount of kernel drivers tree
+DefaultDependencies=no
+After=initrd-parse-etc.service
+Before=initrd-fs.target
+Before=umount.target
+Conflicts=umount.target
+
+[Mount]
+What=%s
+Where=%s
+Options=bind,shared
+`, what, where))
+	}
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithDriversTreeHappy(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsDataDir}:       defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: defaultBootWithSaveDisk,
+		},
+	)
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		s.ubuntuLabelMount("ubuntu-boot", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
+	}, nil)
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+
+	s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+	// Create a "drivers tree"
+	driversDir := filepath.Join(dirs.GlobalRootDir,
+		"/run/mnt/data/system-data/var/lib/snapd/kernel/pc-kernel",
+		fmt.Sprint(s.kernel.SnapRevision().N), "lib")
+	c.Assert(os.MkdirAll(filepath.Join(driversDir, "modules"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(driversDir, "firmware"), 0755), IsNil)
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		Gadget:         s.gadget.Filename(),
+		CurrentKernels: []string{s.kernel.Filename()},
+	}
+	err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
+	c.Assert(err, IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+
+	checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data", nil, nil)
+}
+
+func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeWithDriversTreeHappyClassic(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsDataDir}:       defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: defaultBootWithSaveDisk,
+		},
+	)
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		s.ubuntuLabelMount("ubuntu-boot", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
+	}, nil)
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+
+	s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+	// Create a "drivers tree"
+	driversDir := filepath.Join(dirs.GlobalRootDir,
+		"/run/mnt/data/var/lib/snapd/kernel/pc-kernel",
+		fmt.Sprint(s.kernel.SnapRevision().N), "lib")
+	c.Assert(os.MkdirAll(filepath.Join(driversDir, "modules"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(driversDir, "firmware"), 0755), IsNil)
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		Gadget:         s.gadget.Filename(),
+		CurrentKernels: []string{s.kernel.Filename()},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsDataDir)
+	c.Assert(err, IsNil)
+
+	// write gadget.yaml, which is checked for classic
+	writeGadget(c, "ubuntu-seed", "system-seed", "")
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+
+	checkKernelMounts(c, "/run/mnt/data", "/sysroot", nil, nil)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsHappy(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsDataDir}:       defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: defaultBootWithSaveDisk,
+		},
+	)
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		s.ubuntuLabelMount("ubuntu-boot", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
+	}, nil)
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+
+	s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+	// Create a "drivers tree" with links to kernel-modules components
+	driversDir := filepath.Join(dirs.GlobalRootDir,
+		"/run/mnt/data/system-data/var/lib/snapd/kernel/pc-kernel",
+		fmt.Sprint(s.kernel.SnapRevision().N), "lib")
+	kversion := "6.8.0-46-generic"
+	modUpdates := filepath.Join(driversDir, "modules", kversion, "updates")
+	c.Assert(os.MkdirAll(modUpdates, 0755), IsNil)
+	fwUpdates := filepath.Join(driversDir, "firmware", "updates")
+	c.Assert(os.MkdirAll(fwUpdates, 0755), IsNil)
+	os.Symlink(filepath.Join(dirs.SnapMountDir,
+		"pc-kernel/components/mnt/comp1/11/modules", kversion),
+		filepath.Join(modUpdates, "comp1"))
+	os.Symlink(filepath.Join(dirs.SnapMountDir,
+		"pc-kernel/components/mnt/comp2/22/modules", kversion),
+		filepath.Join(modUpdates, "comp2"))
+	// Note comp2 has links also in modules subfolder
+	os.Symlink(filepath.Join(dirs.SnapMountDir,
+		"pc-kernel/components/mnt/comp2/22/firmware/fw2.bin"),
+		filepath.Join(fwUpdates, "fw2.bin"))
+	os.Symlink(filepath.Join(dirs.SnapMountDir,
+		"pc-kernel/components/mnt/comp3/33/firmware/fw3.bin"),
+		filepath.Join(fwUpdates, "fw3.bin"))
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		Gadget:         s.gadget.Filename(),
+		CurrentKernels: []string{s.kernel.Filename()},
+	}
+	err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
+	c.Assert(err, IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+
+	checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data", []int{1, 2, 3}, nil)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsBadComps(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsDataDir}:       defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: defaultBootWithSaveDisk,
+		},
+	)
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		s.ubuntuLabelMount("ubuntu-boot", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
+	}, nil)
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+
+	s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+	// Create a "drivers tree" with links to kernel-modules components
+	driversDir := filepath.Join(dirs.GlobalRootDir,
+		"/run/mnt/data/system-data/var/lib/snapd/kernel/pc-kernel",
+		fmt.Sprint(s.kernel.SnapRevision().N), "lib")
+	kversion := "6.8.0-46-generic"
+	modUpdates := filepath.Join(driversDir, "modules", kversion, "updates")
+	c.Assert(os.MkdirAll(modUpdates, 0755), IsNil)
+	fwUpdates := filepath.Join(driversDir, "firmware", "updates")
+	c.Assert(os.MkdirAll(fwUpdates, 0755), IsNil)
+	// No kernel version in target
+	os.Symlink(filepath.Join(dirs.SnapMountDir,
+		"pc-kernel/components/mnt/comp1/11/modules"),
+		filepath.Join(modUpdates, "comp1"))
+	// Bad revision in target
+	os.Symlink(filepath.Join(dirs.SnapMountDir,
+		"pc-kernel/components/mnt/comp2/xx/modules", kversion),
+		filepath.Join(modUpdates, "comp2"))
+	// Link directly to firmware folder
+	os.Symlink(filepath.Join(dirs.SnapMountDir,
+		"pc-kernel/components/mnt/comp3/33/firmware"),
+		filepath.Join(fwUpdates, "fw3.bin"))
+	// Bad revision in target
+	os.Symlink(filepath.Join(dirs.SnapMountDir,
+		"pc-kernel/components/mnt/comp4/badrev/firmware/fw3.bin"),
+		filepath.Join(fwUpdates, "fw4.bin"))
+	// Points to $SNAP_DATA
+	os.Symlink(filepath.Join(dirs.GlobalRootDir,
+		"/var/snap/pc-kernel/1/firmware/fw5.bin"),
+		filepath.Join(fwUpdates, "fw5.bin"))
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		Gadget:         s.gadget.Filename(),
+		CurrentKernels: []string{s.kernel.Filename()},
+	}
+	err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
+	c.Assert(err, IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+
+	checkKernelMounts(c, "/run/mnt/data/system-data", "/writable/system-data", nil, []int{1, 2, 3, 4})
+}
+
+func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeWithComponentsHappyClassic(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsDataDir}:       defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: defaultBootWithSaveDisk,
+		},
+	)
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		s.ubuntuLabelMount("ubuntu-boot", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
+	}, nil)
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+
+	s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+	// Create a "drivers tree"
+	driversDir := filepath.Join(dirs.GlobalRootDir,
+		"/run/mnt/data/var/lib/snapd/kernel/pc-kernel",
+		fmt.Sprint(s.kernel.SnapRevision().N), "lib")
+	kversion := "6.8.0-46-generic"
+	modUpdates := filepath.Join(driversDir, "modules", kversion, "updates")
+	c.Assert(os.MkdirAll(modUpdates, 0755), IsNil)
+	fwUpdates := filepath.Join(driversDir, "firmware", "updates")
+	c.Assert(os.MkdirAll(fwUpdates, 0755), IsNil)
+	os.Symlink(filepath.Join(dirs.SnapMountDir,
+		"pc-kernel/components/mnt/comp1/11/modules", kversion),
+		filepath.Join(modUpdates, "comp1"))
+	os.Symlink(filepath.Join(dirs.SnapMountDir,
+		"pc-kernel/components/mnt/comp2/22/modules", kversion),
+		filepath.Join(modUpdates, "comp2"))
+	// Note comp2 has links also in modules subfolder
+	os.Symlink(filepath.Join(dirs.SnapMountDir,
+		"pc-kernel/components/mnt/comp2/22/firmware/fw2.bin"),
+		filepath.Join(fwUpdates, "fw2.bin"))
+	os.Symlink(filepath.Join(dirs.SnapMountDir,
+		"pc-kernel/components/mnt/comp3/33/firmware/fw3.bin"),
+		filepath.Join(fwUpdates, "fw3.bin"))
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		Gadget:         s.gadget.Filename(),
+		CurrentKernels: []string{s.kernel.Filename()},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsDataDir)
+	c.Assert(err, IsNil)
+
+	// write gadget.yaml, which is checked for classic
+	writeGadget(c, "ubuntu-seed", "system-seed", "")
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+
+	checkKernelMounts(c, "/run/mnt/data", "/sysroot", []int{1, 2, 3}, nil)
+}

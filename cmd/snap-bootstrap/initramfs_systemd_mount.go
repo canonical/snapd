@@ -215,3 +215,72 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 
 	return nil
 }
+
+const driversUnit = `[Unit]
+Description=Mount of kernel drivers tree
+DefaultDependencies=no
+After=initrd-parse-etc.service
+Before=initrd-fs.target
+Before=umount.target
+Conflicts=umount.target
+
+[Mount]
+What=%s
+Where=%s
+Options=bind,shared
+`
+
+const containerUnit = `[Unit]
+Description=Mount for kernel snap
+DefaultDependencies=no
+After=initrd-parse-etc.service
+Before=initrd-fs.target
+Before=umount.target
+Conflicts=umount.target
+
+[Mount]
+What=%s
+Where=%s
+Type=%s
+Options=%s
+`
+
+type unitType string
+
+const (
+	bindUnit     unitType = "bind"
+	squashfsUnit unitType = "squashfs"
+)
+
+func writeInitramfsMountUnit(what, where string, utype unitType) error {
+	what = dirs.StripRootDir(what)
+	where = dirs.StripRootDir(where)
+	unitDir := dirs.SnapRuntimeServicesDirUnder(dirs.GlobalRootDir)
+	if err := os.MkdirAll(unitDir, 0755); err != nil {
+		return err
+	}
+	var unit string
+	switch utype {
+	case bindUnit:
+		unit = fmt.Sprintf(driversUnit, what, where)
+	case squashfsUnit:
+		hostFsType, options := systemd.HostFsTypeAndMountOptions("squashfs")
+		unit = fmt.Sprintf(containerUnit, what, where, hostFsType, strings.Join(options, ","))
+	default:
+		return fmt.Errorf("internal error, unknown unit type %s", utype)
+	}
+	unitFileName := systemd.EscapeUnitNamePath(where) + ".mount"
+	unitPath := filepath.Join(unitDir, unitFileName)
+	// This is in /run, no need for atomic writes
+	if err := os.WriteFile(unitPath, []byte(unit), 0644); err != nil {
+		return err
+	}
+
+	// Pull the unit from initrd-fs.target
+	wantsDir := filepath.Join(unitDir, "initrd-fs.target.wants")
+	if err := os.MkdirAll(wantsDir, 0755); err != nil {
+		return err
+	}
+	linkPath := filepath.Join(wantsDir, unitFileName)
+	return os.Symlink(filepath.Join("..", unitFileName), linkPath)
+}
