@@ -27,6 +27,6 @@ var JoinInternalErrors = joinInternalErrors
 
 type RulesDBJSON rulesDBJSON
 
-func (rule *Rule) Validate(currTime time.Time) error {
+func (rule *Rule) Validate(currTime time.Time) (expired bool, err error) {
 	return rule.validate(currTime)
 }

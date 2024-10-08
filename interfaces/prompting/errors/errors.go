@@ -51,9 +51,8 @@ var (
 	ErrRuleDBInconsistent = errors.New("internal error: interfaces requests rule database left inconsistent")
 
 	// Errors which are used internally and should never be returned over the API
-	ErrNoMatchingRule          = errors.New("no rule matches the given path")
-	ErrInvalidID               = errors.New("invalid ID: format must be parsable as uint64")
-	ErrRuleExpirationInThePast = errors.New("cannot have expiration time in the past")
+	ErrNoMatchingRule = errors.New("no rule matches the given path")
+	ErrInvalidID      = errors.New("invalid ID: format must be parsable as uint64")
 )
 
 // Marker for UnsupportedValueError, should never be returned as an actual
@@ -125,6 +124,9 @@ func NewInvalidPermissionsError(iface string, unsupported []string, supported []
 }
 
 func NewPermissionsListEmptyError(iface string, supported []string) *UnsupportedValueError {
+	// TODO: change language to "permissions empty" rather than "permissions list empty",
+	// since permissions now come as a list in prompt replies but as a map when creating
+	// or modifying rules directly.
 	return &UnsupportedValueError{
 		Field:     "permissions",
 		Msg:       fmt.Sprintf("invalid permissions for %s interface: permissions list empty", iface),
@@ -228,4 +230,29 @@ func (e *RuleConflictError) Error() string {
 
 func (e *RuleConflictError) Unwrap() error {
 	return ErrRuleConflict
+}
+
+// Join returns an error that wraps the given errors.
+// Any nil error values are discarded.
+// Join returns nil if every value in errs is nil.
+//
+// TODO: replace with errors.Join() once we're on golang v1.20+
+//
+// This is a lossy implementation of errors.Join, where only the first non-nil
+// error is preserved in a state which can be unwrapped.
+func Join(errs ...error) error {
+	var nonNilErrs []error
+	for _, e := range errs {
+		if e != nil {
+			nonNilErrs = append(nonNilErrs, e)
+		}
+	}
+	if len(nonNilErrs) == 0 {
+		return nil
+	}
+	err := nonNilErrs[0]
+	for _, e := range nonNilErrs[1:] {
+		err = fmt.Errorf("%w\n%v", err, e)
+	}
+	return err
 }
