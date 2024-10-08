@@ -79,8 +79,18 @@ execute: |
     cp "$VARIANT.json" "${TEST_DIR}/script.json"
     chown test "${TEST_DIR}/script.json"
 
-    # Test scripts can rely on the presence of "${TEST_DIR}/script.json",
-    # which is the script of expected prompts and corresponding replies.
+    # Test scripts can rely on the scripted client writing their result to
+    # "${TEST_DIR}/result". Those results will be "success" if the scripted
+    # client exits without error, or an error message if it encounters an
+    # unexpected prompt or an error from snapd.
+
+    echo "Run the prompting client in scripted mode in the background as the test user"
+    tests.session -u test exec prompting-client.scripted \
+        --script="${TEST_DIR}/script.json" \
+        --grace-period=1 \
+        --var="BASE_PATH:${TEST_DIR}" | tee "${TEST_DIR}/result" &
+
+    timeout 5 sh -xc 'while ! pgrep -f "prompting-client-scripted" > /dev/null; do sleep 0.1; done'
 
     echo "Run the test script as the test user"
     tests.session -u test exec sh -x "${TEST_DIR}/${VARIANT}.sh" "$TEST_DIR"
