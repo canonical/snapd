@@ -18,7 +18,7 @@
       "reply": {
         "action": "deny",
         "lifespan": "timespan",
-        "duration": "5s",
+        "duration": "1s",
         "constraints": {
           "path-pattern": "${BASE_PATH}/test*",
           "permissions": [ "write" ]

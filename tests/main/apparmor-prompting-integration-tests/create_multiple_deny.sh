@@ -5,20 +5,13 @@
 
 TEST_DIR="$1"
 
-echo "Run the prompting client in scripted mode in the background"
-prompting-client.scripted \
-	--script="${TEST_DIR}/script.json" \
-	--grace-period=1 \
-	--var="BASE_PATH:${TEST_DIR}" | tee "${TEST_DIR}/result" &
-
-sleep 1 # give the client a chance to start listening
-
 for name in test1.txt test2.md succeed.txt test3.pdf ; do
 	echo "Attempt to write $name"
 	snap run --shell prompting-client.scripted -c "echo $name is written > ${TEST_DIR}/${name}"
 done
 
-sleep 5 # give the client a chance to write its result and exit
+# Wait for the client to write its result and exit
+timeout 5 sh -c 'while pgrep -f "prompting-client-scripted" > /dev/null; do sleep 0.1; done'
 
 CLIENT_OUTPUT="$(cat "${TEST_DIR}/result")"
 
