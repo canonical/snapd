@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/registry"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -591,7 +592,7 @@ slots:
 
 func (s *registrySuite) TestRegistryGetSingleView(c *C) {
 	s.state.Lock()
-	err := registrystate.SetViaView(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
+	err := registrystate.Set(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
 		"ssid": "my-ssid",
 	})
 	s.state.Unlock()
@@ -605,7 +606,7 @@ func (s *registrySuite) TestRegistryGetSingleView(c *C) {
 
 func (s *registrySuite) TestRegistryGetManyViews(c *C) {
 	s.state.Lock()
-	err := registrystate.SetViaView(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
+	err := registrystate.Set(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
 		"ssid":     "my-ssid",
 		"password": "secret",
 	})
@@ -624,7 +625,7 @@ func (s *registrySuite) TestRegistryGetManyViews(c *C) {
 
 func (s *registrySuite) TestRegistryGetNoRequest(c *C) {
 	s.state.Lock()
-	err := registrystate.SetViaView(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
+	err := registrystate.Set(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
 		"ssid":     "my-ssid",
 		"password": "secret",
 	})
@@ -643,7 +644,7 @@ func (s *registrySuite) TestRegistryGetNoRequest(c *C) {
 
 func (s *registrySuite) TestRegistryGetHappensTransactionally(c *C) {
 	s.state.Lock()
-	err := registrystate.SetViaView(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
+	err := registrystate.Set(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
 		"ssid": "my-ssid",
 	})
 	s.state.Unlock()
@@ -659,7 +660,7 @@ func (s *registrySuite) TestRegistryGetHappensTransactionally(c *C) {
 	c.Check(stderr, IsNil)
 
 	s.state.Lock()
-	err = registrystate.SetViaView(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
+	err = registrystate.Set(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
 		"ssid": "other-ssid",
 	})
 	s.state.Unlock()
@@ -845,5 +846,44 @@ func (s *registrySuite) TestRegistryGetAndSetViewNotFound(c *C) {
 	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=my-ssid"}, 0)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot set registry: view \"write-wifi\" not found in registry %s/network", s.devAccID))
 	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+}
+
+func (s *registrySuite) TestRegistryGetPristine(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	err := registrystate.Set(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
+		"ssid": "foo",
+	})
+	c.Assert(err, IsNil)
+
+	task := s.state.NewTask("run-hook", "")
+	setup := &hookstate.HookSetup{Snap: "test-snap", Hook: "save-view-plug"}
+	ctx, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
+	c.Assert(err, IsNil)
+
+	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	err = tx.Set("wifi.ssid", "bar")
+	c.Assert(err, IsNil)
+
+	restore := ctlcmd.MockRegistrystateRegistryTransaction(func(*hookstate.Context, *registry.Registry) (*registrystate.Transaction, error) {
+		return tx, nil
+	})
+	defer restore()
+
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	stdout, stderr, err := ctlcmd.Run(ctx, []string{"get", "--view", "--pristine", ":read-wifi", "ssid"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "foo\n")
+	c.Check(stderr, IsNil)
+
+	stdout, stderr, err = ctlcmd.Run(ctx, []string{"get", "--view", ":read-wifi", "ssid"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "bar\n")
 	c.Check(stderr, IsNil)
 }
