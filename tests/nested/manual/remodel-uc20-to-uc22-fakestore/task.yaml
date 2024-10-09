@@ -120,9 +120,9 @@ prepare: |
   "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "$(tests.nested get extra-snaps-path)/pc.snap" 20/edge
 
   for snap in "$(tests.nested get extra-snaps-path)"/snapd*.snap; do
-    "$TESTSTOOLS"/store-state add-to-channel "${snap}" latest/stable
+    "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "${snap}" latest/stable
   done
-  "$TESTSTOOLS"/store-state add-to-channel updates/core22.snap latest/stable
+  "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" updates/core22.snap latest/stable
 
   # start fake device svc
   systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
