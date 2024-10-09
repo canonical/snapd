@@ -120,7 +120,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		what = "tmpfs"
 	}
 
-	forbiddenChars := `\,: `
+	forbiddenChars := `\,:" `
 	if pathContainsAny(what, forbiddenChars) {
 		return fmt.Errorf("cannot mount %q at %q: what systemd-mount argument contains forbidden characters. %q contains one of \"%s\".", what, where, what, forbiddenChars)
 	}
@@ -205,7 +205,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 				lowerDirs.WriteRune(':')
 			}
 
-			forbiddenChars := `\, `
+			forbiddenChars := `\," `
 			if pathContainsAny(d, forbiddenChars) {
 				return fmt.Errorf("cannot mount %q at %q: lowerdir overlayfs mount option contains forbidden characters. %q contains one of \"%s\".", what, where, d, forbiddenChars)
 			}
