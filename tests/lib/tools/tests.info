@@ -6,12 +6,14 @@ show_help() {
     echo "usage: tests.info <CMD>"
     echo
     echo "Supported commands:"
-    echo "    is-snapd-pkg-repo: indicates when the snapd package is from the repository"
-    echo "    is-reexec-enabled: indicates re-execution has been explicitly enabled through the env"
-    echo "    is-reexec-in-use:  indicates re-execution to the snapd snap is being effectively performed"
+    echo "    is-snapd-from-archive:  indicates when the snapd package is from the repository"
+    echo "    is-reexec-enabled:      indicates re-execution has been explicitly enabled through the env"
+    echo "    is-reexec-in-use:       indicates re-execution to the snapd snap is being effectively performed"
 }
 
-is_snapd_pkg_repo() {
+# ubuntu 14.04: does not support apt download which is used to get the packages from the archive.
+# ubuntu-core: it is built based on the snapd.deb file, so it requires the deb is created from current.
+is_snapd_from_archive() {
     [ "$SNAPD_DEB_FROM_REPO" = true ] && \
     [ -n "$(command -v apt)" ] && \
     [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]] && \

@@ -52,7 +52,7 @@ prepare: |
   # for images that are already preseeded, we need to undo the preseeding there
   echo "Running preseed --reset for already preseeded cloud images"
   SNAP_PRESEED=/usr/lib/snapd/snap-preseed
-  if tests.info is-snapd-pkg-repo; then
+  if tests.info is-snapd-from-archive; then
       MOUNT_DIR="$(os.paths snap-mount-dir)"
       SNAP_PRESEED="$MOUNT_DIR/snapd/current$SNAP_PRESEED"
   fi
@@ -116,7 +116,7 @@ execute: |
   echo "Make latest snap-preseed command available in the lxd container"
   echo "Running preseeding in the lxd container"
   SNAP_PRESEED=/usr/lib/snapd/snap-preseed
-  if tests.info is-snapd-pkg-repo; then
+  if tests.info is-snapd-from-archive; then
       # We use the snap preseed from the current snapd snap
       # The current snapd snap is installed in the lxd container to make
       # sure all the dependencies are in place, otherwise it fails to access to

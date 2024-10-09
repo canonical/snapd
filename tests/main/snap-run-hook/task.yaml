@@ -12,7 +12,7 @@ environment:
     ENVDUMP: /var/snap/basic-hooks/current/hooks-env
 
 prepare: |
-    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-pkg-repo; then
+    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-from-archive; then
         tests.exec skip-test "No needed to test the snap pkg when it is coming from the repository" && exit 0
     fi
     "$TESTSTOOLS"/snaps-state install-local basic-hooks

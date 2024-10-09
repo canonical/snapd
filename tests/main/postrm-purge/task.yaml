@@ -7,7 +7,7 @@ details: |
 systems: [-ubuntu-core-*]
 
 prepare: |
-    if tests.info is-snapd-pkg-repo; then
+    if tests.info is-snapd-from-archive; then
         tests.exec skip-test "This test is skipped when the snapd pkg isn't built from local" && exit 0
     fi
 

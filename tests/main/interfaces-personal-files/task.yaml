@@ -86,7 +86,7 @@ execute: |
 
     echo "Find snap-confine"
     SNAP_CONFINE=$(os.paths libexec-dir)/snapd/snap-confine
-    if tests.info is-snapd-pkg-repo; then
+    if tests.info is-snapd-from-archive; then
         MOUNT_DIR="$(os.paths snap-mount-dir)"
         SNAP_CONFINE="$MOUNT_DIR/snapd/current$SNAP_CONFINE"
     fi

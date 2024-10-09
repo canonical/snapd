@@ -36,7 +36,7 @@ prepare: |
   # for images that are already preseeded, we need to undo the preseeding there
   echo "Running preseed --reset for already preseeded cloud images"
   SNAP_PRESEED=/usr/lib/snapd/snap-preseed
-  if tests.info is-snapd-pkg-repo; then
+  if tests.info is-snapd-from-archive; then
       SNAP_PRESEED="/snap/snapd/current$SNAP_PRESEED"
   fi
   SNAPD_DEBUG=1 "$SNAP_PRESEED" --reset "$IMAGE_MOUNTPOINT"
@@ -53,7 +53,7 @@ execute: |
   fi
 
   SNAP_PRESEED=/usr/lib/snapd/snap-preseed
-  if tests.info is-snapd-pkg-repo; then
+  if tests.info is-snapd-from-archive; then
       SNAP_PRESEED="/snap/snapd/current$SNAP_PRESEED"
   fi
 

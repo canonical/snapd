@@ -21,7 +21,7 @@ environment:
 
 prepare: |
     # In this scenario, the keys from the snapd pkg are used
-    if [ "$TRUST_TEST_KEYS" = "false" ] || tests.info is-snapd-pkg-repo; then
+    if [ "$TRUST_TEST_KEYS" = "false" ] || tests.info is-snapd-from-archive; then
         tests.exec skip-test "This test needs test keys to be trusted" && exit 0
     fi
 

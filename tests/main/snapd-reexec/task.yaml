@@ -78,7 +78,7 @@ execute: |
 
     echo "Ensure we re-exec by default"
     IS_REEXEC=true
-    if [ "$SNAPD_SRC" = core ] && tests.info is-snapd-pkg-repo; then
+    if [ "$SNAPD_SRC" = core ] && tests.info is-snapd-from-archive; then
         # In this scenario it is possible that the core snap version is older
         # than the distribution package because the core snap comes from latest/edge
         # which is not updated regularly.

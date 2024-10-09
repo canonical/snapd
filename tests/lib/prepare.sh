@@ -156,9 +156,8 @@ save_installed_core_snap() {
     local target_dir="${1-}"
 
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    LIBEXEC_DIR="$(os.paths libexec-dir)"
-    core="$(readlink -f "$SNAP_MOUNT_DIR/core/current")"
-    snap="$(mount | grep " $core" | head -n 1 | awk '{print $1}')"
+    core="$(readlink -f "$SNAP_MOUNT_DIR"/core/current)"
+    snap="$(mount | awk -v core="$core" '{ if ($3 == core) print $1 }' | head -n1)"
     snap_name="$(basename "$snap")"
 
     # make a copy for later use
@@ -192,8 +191,8 @@ update_core_snap_for_classic_reexec() {
     LIBEXEC_DIR="$(os.paths libexec-dir)"
 
     # First of all, unmount the core
-    core="$(readlink -f "$SNAP_MOUNT_DIR/core/current" || readlink -f "$SNAP_MOUNT_DIR/ubuntu-core/current")"
-    snap="$(mount | grep " $core" | head -n 1 | awk '{print $1}')"
+    core="$(readlink -f "$SNAP_MOUNT_DIR"/core/current)"
+    snap="$(mount | awk -v core="$core" '{ if ($3 == core) print $1 }' | head -n1)"
     umount --verbose "$core"
 
     # Now unpack the core, inject the new snap-exec/snapctl into it
@@ -471,7 +470,7 @@ prepare_classic() {
         # With reexec, and on classic, the snapd snap is preferred over the core snap for reexecution target,
         # so to be as close as possible to the actual real life scenarios, we only update the snapd snap.
         # The tests alreday ensure that snapd snap is installed.
-        if tests.info is-snapd-pkg-repo; then
+        if tests.info is-snapd-from-archive; then
             save_installed_core_snap "$TESTSTMP/core_snap"
         else
             systemctl stop snapd.{service,socket}

@@ -590,7 +590,7 @@ prepare_project() {
     # We are testing snapd snap on top of snapd from the archive
     # of the tested distribution. Download snapd and snap-confine
     # as they exist in the archive for further use.
-    if tests.info is-snapd-pkg-repo; then
+    if tests.info is-snapd-from-archive; then
         ( cd "${GOHOME}" && tests.pkgs download snapd snap-confine)
     elif [ "$BUILD_SNAPD_FROM_CURRENT" = true ]; then
         case "$SPREAD_SYSTEM" in

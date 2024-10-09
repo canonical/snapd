@@ -9,7 +9,7 @@ debug: |
 
 execute: |
     # TODO: remove this check once snapd 2.65 is released
-    if tests.info is-snapd-pkg-repo; then
+    if tests.info is-snapd-from-archive; then
         exit 0
     fi
 

@@ -114,7 +114,7 @@ prepare: |
 
         # When the SRU validation tests are executed, the core snap is not repacked
         # and the var MODIFY_CORE_SNAP_FOR_REEXEC is 0
-        if [ "$MODIFY_CORE_SNAP_FOR_REEXEC" = 1 ] && ! tests.info is-snapd-pkg-repo; then
+        if [ "$MODIFY_CORE_SNAP_FOR_REEXEC" = 1 ] && ! tests.info is-snapd-from-archive; then
             CORE_SNAP_REV=$(snap list core | grep -v Name | awk '{print $3}')
             CORE_SNAP="/var/lib/snapd/snaps/core_${CORE_SNAP_REV}.snap"
             ORIG_CORE_SNAP=${CORE_SNAP}.orig
@@ -373,7 +373,7 @@ execute: |
 
     # reboot to ensure snapd.apparmor still works then too
     
-    if [ "$SPREAD_REBOOT" = "0" ] && ! tests.info is-snapd-pkg-repo; then
+    if [ "$SPREAD_REBOOT" = "0" ] && ! tests.info is-snapd-from-archive; then
         # downgrade the snapd deb from the distro package to test that we can
         # still handle the generated apparmor profiles etc from the snapd snap
         echo "Downgrading snapd to distro packaged version..."

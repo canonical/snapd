@@ -46,7 +46,7 @@ prepare: |
     # NOTE: When snapd is downloaded from the repo version does not match 1337
     # NOTE: This step is only necessary while snapd in the store is older than the fix
     lxc file push /usr/bin/snap bionic/usr/bin/snap
-    if [ ! "$SRU_VALIDATION" = 1 ] && ! tests.info is-snapd-pkg-repo ; then
+    if [ ! "$SRU_VALIDATION" = 1 ] && ! tests.info is-snapd-from-archive ; then
         lxc exec bionic -- snap version | MATCH 1337
     fi
 

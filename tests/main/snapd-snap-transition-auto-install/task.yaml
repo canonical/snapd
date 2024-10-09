@@ -14,10 +14,9 @@ environment:
     SNAPD_SRC/deb:  "deb"
     SNAPD_SRC/core: "core"
 
-prepare: |
-    if tests.info is-snapd-pkg-repo; then
-        echo "This test needs snapd deb built from local"
-        exit
+prepare: |    
+    if tests.info is-snapd-from-archive; then
+        tests.exec skip-test "This test needs snapd deb built from local" && exit 0
     fi
 
     # Expect system preparation stage installed built snapd and core snaps.
@@ -50,10 +49,7 @@ prepare: |
     not snap list snapd
 
 execute: | 
-    if tests.info is-snapd-pkg-repo; then
-        echo "This test needs snapd deb built from local"
-        exit
-    fi
+    tests.exec is-skipped && exit 0
 
     # check re-exec disabled, exec from snapd deb or re-exec from core snap
     snap_mount_dir="$(os.paths snap-mount-dir)"
