@@ -2108,4 +2108,7 @@ type RefreshFailuresInfo struct {
 	FailureCount int `json:"failure-count,omitempty"`
 	// LastFailureTime is the time of the last failed refresh attempt for the revision.
 	LastFailureTime time.Time `json:"last-failure-time"`
+
+	// TODO: add AfterReboot flag and RefreshFailureReason to allow for more
+	// aggressive delays for snaps that fail after rebooting.
 }

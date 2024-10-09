@@ -2116,8 +2116,16 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 			continue
 		}
 
-		if shouldSkipSnapRefresh(st, &up.SnapState, up.Setup.Revision(), opts) {
-			continue
+		if up.SnapState.RefreshFailures != nil {
+			// Check if snap revision is known to fail and if the current refresh needs to be skipped.
+			if up.SnapState.RefreshFailures.ToRevision != up.Setup.Revision() {
+				// Snap has new target revision not known to fail, let's reset RefreshFailures
+				// and continue refresh normally.
+				up.SnapState.RefreshFailures = nil
+				Set(st, up.SnapState.InstanceName(), &up.SnapState)
+			} else if shouldSkipSnapRefresh(&up.SnapState, up.Setup.Revision(), opts) {
+				continue
+			}
 		}
 
 		// if any snaps actually get a revision change, we need to do a
