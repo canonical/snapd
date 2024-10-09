@@ -26,48 +26,6 @@ import (
 	"syscall"
 )
 
-// SplitSystemdMountOptions is used to properly split options passed to systemd-mount
-// that could contain an escaped ',' character such as a verity hash device or overlayfs
-// mount options.
-// Relevant systemd code https://github.com/systemd/systemd/blob/4ec630bfba02543af204f13ad9f5ce4a2329a166/src/basic/extract-word.c#L20
-func SplitSystemdMountOptions(s string) []string {
-	var o []string
-
-	var cur strings.Builder
-	escaped := false
-	for _, c := range s {
-		switch c {
-		case '\\':
-			if escaped {
-				cur.WriteRune(c)
-				escaped = false
-			} else {
-				escaped = true
-			}
-		case ',':
-			if escaped {
-				cur.WriteRune(c)
-				escaped = false
-			} else {
-				o = append(o, cur.String())
-				cur.Reset()
-			}
-		default:
-			if escaped {
-				cur.WriteRune('\\')
-				escaped = false
-			}
-			cur.WriteRune(c)
-		}
-	}
-
-	if cur.Len() > 0 {
-		o = append(o, cur.String())
-	}
-
-	return o
-}
-
 // ParseMountEntry parses a fstab-like entry.
 func ParseMountEntry(s string) (MountEntry, error) {
 	var e MountEntry
