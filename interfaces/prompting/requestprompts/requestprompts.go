@@ -38,6 +38,18 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+var (
+	// initialTimeout is the duration before which prompts for a given user
+	// will expire if there has been no retrieval of prompt details for that
+	// user since the previous timeout, or if the user prompt DB was just
+	// created.
+	initialTimeout = 10 * time.Second
+	// initialTimeout is the duration before which prompts for a given user
+	// will expire after the most recent retrieval of prompt details for that
+	// user.
+	activityTimeout = 10 * time.Minute
+)
+
 // Prompt contains information about a request for which a user should be
 // prompted.
 type Prompt struct {
@@ -81,6 +93,61 @@ func (p *Prompt) MarshalJSON() ([]byte, error) {
 		Constraints: constraints,
 	}
 	return json.Marshal(toMarshal)
+}
+
+func (p *Prompt) sendReply(outcome prompting.OutcomeType) error {
+	// Reply with any permissions which were previously allowed
+	// If outcome is allow, then reply by allowing all originally-requested
+	// permissions. If outcome is deny, only allow permissions which were
+	// originally requested but have since been allowed by rules, and deny any
+	// remaining permissions.
+	allowedPermission := responseForInterfaceConstraintsOutcome(p.Interface, p.Constraints, outcome)
+	return p.sendReplyWithPermission(allowedPermission)
+}
+
+func responseForInterfaceConstraintsOutcome(iface string, constraints *promptConstraints, outcome prompting.OutcomeType) any {
+	allow, err := outcome.AsBool()
+	if err != nil {
+		// This should not occur, but if so, default to deny
+		allow = false
+		logger.Debugf("%v", err)
+	}
+	allowedPerms := constraints.originalPermissions
+	if !allow {
+		// Remaining permissions were denied, so allow permissions which were
+		// previously allowed by prompt rules
+		allowedPerms = make([]string, 0, len(constraints.originalPermissions)-len(constraints.remainingPermissions))
+		for _, perm := range constraints.originalPermissions {
+			// Exclude any permissions which were remaining at time of denial
+			if !strutil.ListContains(constraints.remainingPermissions, perm) {
+				allowedPerms = append(allowedPerms, perm)
+			}
+		}
+	}
+	allowedPermission, err := prompting.AbstractPermissionsToAppArmorPermissions(iface, allowedPerms)
+	if err != nil {
+		// This should not occur, but if so, permission should be set to the
+		// empty value for its corresponding permission type.
+		logger.Debugf("internal error: cannot convert abstract permissions to AppArmor permissions: %v", err)
+	}
+	return allowedPermission
+}
+
+func (p *Prompt) sendReplyWithPermission(allowedPermission any) error {
+	for _, listenerReq := range p.listenerReqs {
+		if err := sendReply(listenerReq, allowedPermission); err != nil {
+			// Error should only occur if reply is malformed, and since these
+			// listener requests should be identical, if a reply is malformed
+			// for one, it should be malformed for all. Malformed replies should
+			// leave the listener request unchanged. Thus, return early.
+			return err
+		}
+	}
+	return nil
+}
+
+var sendReply = func(listenerReq *listener.Request, allowedPermission any) error {
+	return listenerReq.Reply(allowedPermission)
 }
 
 // promptConstraints store the path which was requested, along with three
@@ -160,6 +227,8 @@ type userPromptDB struct {
 	ids map[prompting.IDType]int
 	// prompts is the list of prompts which apply to the given user.
 	prompts []*Prompt
+	// expirationTimer clears the prompts for the given user when it expires.
+	expirationTimer *time.Timer
 }
 
 // get returns the prompt with the given ID from the user prompt DB.
@@ -204,6 +273,41 @@ func (udb *userPromptDB) remove(id prompting.IDType) (*Prompt, error) {
 	udb.ids[movedID] = index
 	delete(udb.ids, id)
 	return prompt, nil
+}
+
+// timeoutCallback is the function which should be called when the expiration
+// timer for the receiving user prompt DB expires. This method should never be
+// called directly outside of a `time.AfterFunc` call which initializes the
+// timer for the user prompt DB when it is first created.
+func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
+	pdb.mutex.Lock()
+	if pdb.maxIDMmap.IsClosed() {
+		return
+	}
+	// Restart expiration timer while holding the lock, so we don't
+	// overwrite a newly-set activity timeout with an initial timeout.
+	// With the lock held, no activity can occur, so no activity timeout
+	// can be set.
+	if udb.expirationTimer.Reset(initialTimeout) {
+		// Timer was active again, suggesting that some activity caused
+		// the timer to be reset at some point between the timer firing
+		// and the lock being released and subsequently acquired by this
+		// function. So reset the timer to activityTimeout, and do not
+		// purge prompts.
+		udb.expirationTimer.Reset(activityTimeout)
+		return
+	}
+	expiredPrompts := udb.prompts
+	// Clear all outstanding prompts for the user
+	udb.prompts = nil
+	udb.ids = make(map[prompting.IDType]int)
+	// Unlock now so we can record notices without holding the prompt DB lock
+	pdb.mutex.Unlock()
+	data := map[string]string{"resolved": "expired"}
+	for _, p := range expiredPrompts {
+		pdb.notifyPrompt(user, p.ID, data)
+		p.sendReply(prompting.OutcomeDeny) // ignore any error, should not occur
+	}
 }
 
 // PromptDB stores outstanding prompts in memory and ensures that new prompts
@@ -281,10 +385,14 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 
 	userEntry, ok := pdb.perUser[metadata.User]
 	if !ok {
-		pdb.perUser[metadata.User] = &userPromptDB{
+		// New user entry, so create it and set up the expiration timer
+		userEntry = &userPromptDB{
 			ids: make(map[prompting.IDType]int),
 		}
-		userEntry = pdb.perUser[metadata.User]
+		userEntry.expirationTimer = time.AfterFunc(initialTimeout, func() {
+			userEntry.timeoutCallback(pdb, metadata.User)
+		})
+		pdb.perUser[metadata.User] = userEntry
 	}
 
 	constraints := &promptConstraints{
@@ -330,36 +438,11 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 	return prompt, false, nil
 }
 
-func responseForInterfaceConstraintsOutcome(iface string, constraints *promptConstraints, outcome prompting.OutcomeType) any {
-	allow, err := outcome.AsBool()
-	if err != nil {
-		// This should not occur, but if so, default to deny
-		allow = false
-		logger.Debugf("%v", err)
-	}
-	allowedPerms := constraints.originalPermissions
-	if !allow {
-		// Remaining permissions were denied, so allow permissions which were
-		// previously allowed by prompt rules
-		allowedPerms = make([]string, 0, len(constraints.originalPermissions)-len(constraints.remainingPermissions))
-		for _, perm := range constraints.originalPermissions {
-			// Exclude any permissions which were remaining at time of denial
-			if !strutil.ListContains(constraints.remainingPermissions, perm) {
-				allowedPerms = append(allowedPerms, perm)
-			}
-		}
-	}
-	allowedPermission, err := prompting.AbstractPermissionsToAppArmorPermissions(iface, allowedPerms)
-	if err != nil {
-		// This should not occur, but if so, permission should be set to the
-		// empty value for its corresponding permission type.
-		logger.Debugf("internal error: cannot convert abstract permissions to AppArmor permissions: %v", err)
-	}
-	return allowedPermission
-}
-
 // Prompts returns a slice of all outstanding prompts for the given user.
-func (pdb *PromptDB) Prompts(user uint32) ([]*Prompt, error) {
+//
+// If clientActivity is true, reset the expiration timeout for prompts for
+// the given user.
+func (pdb *PromptDB) Prompts(user uint32, clientActivity bool) ([]*Prompt, error) {
 	pdb.mutex.RLock()
 	defer pdb.mutex.RUnlock()
 	if pdb.maxIDMmap.IsClosed() {
@@ -370,30 +453,42 @@ func (pdb *PromptDB) Prompts(user uint32) ([]*Prompt, error) {
 		// No prompts for user, but no error
 		return nil, nil
 	}
+	if clientActivity {
+		userEntry.expirationTimer.Reset(activityTimeout)
+	}
 	promptsCopy := make([]*Prompt, len(userEntry.prompts))
 	copy(promptsCopy, userEntry.prompts)
 	return promptsCopy, nil
 }
 
 // PromptWithID returns the prompt with the given ID for the given user.
-func (pdb *PromptDB) PromptWithID(user uint32, id prompting.IDType) (*Prompt, error) {
+//
+// If clientActivity is true, reset the expiration timeout for prompts for
+// the given user.
+func (pdb *PromptDB) PromptWithID(user uint32, id prompting.IDType, clientActivity bool) (*Prompt, error) {
 	pdb.mutex.RLock()
 	defer pdb.mutex.RUnlock()
-	_, prompt, err := pdb.promptWithID(user, id)
+	_, prompt, err := pdb.promptWithID(user, id, clientActivity)
 	return prompt, err
 }
 
 // promptWithID returns the user entry for the given user and the prompt with
 // the given ID for the that user.
 //
-// The caller should hold a read lock on the prompt DB mutex.
-func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType) (*userPromptDB, *Prompt, error) {
+// If clientActivity is true, reset the expiration timeout for prompts for
+// the given user.
+//
+// The caller should hold a read (or write) lock on the prompt DB mutex.
+func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType, clientActivity bool) (*userPromptDB, *Prompt, error) {
 	if pdb.maxIDMmap.IsClosed() {
 		return nil, nil, prompting_errors.ErrPromptsClosed
 	}
 	userEntry, ok := pdb.perUser[user]
 	if !ok {
 		return nil, nil, prompting_errors.ErrPromptNotFound
+	}
+	if clientActivity {
+		userEntry.expirationTimer.Reset(activityTimeout)
 	}
 	prompt, err := userEntry.get(id)
 	if err != nil {
@@ -407,31 +502,23 @@ func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType) (*userPrompt
 // prompt from the prompt DB.
 //
 // Records a notice for the prompt, and returns the prompt's former contents.
-func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.OutcomeType) (*Prompt, error) {
+//
+// If clientActivity is true, reset the expiration timeout for prompts for
+// the given user.
+func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.OutcomeType, clientActivity bool) (*Prompt, error) {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
-	userEntry, prompt, err := pdb.promptWithID(user, id)
+	userEntry, prompt, err := pdb.promptWithID(user, id, clientActivity)
 	if err != nil {
 		return nil, err
 	}
-	allowedPermission := responseForInterfaceConstraintsOutcome(prompt.Interface, prompt.Constraints, outcome)
-	for _, listenerReq := range prompt.listenerReqs {
-		if err := sendReply(listenerReq, allowedPermission); err != nil {
-			// Error should only occur if reply is malformed, and since these
-			// listener requests should be identical, if a reply is malformed
-			// for one, it should be malformed for all. Malformed replies should
-			// leave the listener request unchanged. Thus, return early.
-			return nil, err
-		}
+	if err = prompt.sendReply(outcome); err != nil {
+		return nil, err
 	}
 	userEntry.remove(id)
 	data := map[string]string{"resolved": "replied"}
 	pdb.notifyPrompt(user, id, data)
 	return prompt, nil
-}
-
-var sendReply = func(listenerReq *listener.Request, allowedPermission any) error {
-	return listenerReq.Reply(allowedPermission)
 }
 
 // HandleNewRule checks if any existing prompts are satisfied by the given rule
@@ -448,9 +535,12 @@ var sendReply = func(listenerReq *listener.Request, allowedPermission any) error
 // remaining unsatisfied permissions of a partially-satisfied prompt must be
 // satisfied for the prompt as a whole to be satisfied.
 //
+// If clientActivity is true, reset the expiration timeout for prompts for
+// the given user.
+//
 // Returns the IDs of any prompts which were fully satisfied by the given rule
 // contents.
-func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *prompting.Constraints, outcome prompting.OutcomeType) ([]prompting.IDType, error) {
+func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *prompting.Constraints, outcome prompting.OutcomeType, clientActivity bool) ([]prompting.IDType, error) {
 	// Validate outcome before locking
 	allow, err := outcome.AsBool()
 	if err != nil {
@@ -466,6 +556,9 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 	userEntry, ok := pdb.perUser[metadata.User]
 	if !ok {
 		return nil, nil
+	}
+	if clientActivity {
+		userEntry.expirationTimer.Reset(activityTimeout)
 	}
 	var satisfiedPromptIDs []prompting.IDType
 	for _, prompt := range userEntry.prompts {
@@ -496,11 +589,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 			continue
 		}
 		// All permissions of prompt satisfied, or any permission denied
-		for _, listenerReq := range prompt.listenerReqs {
-			// Reply with any permissions which were allowed, either by this
-			// new rule or by previous rules.
-			sendReply(listenerReq, allowedPermission)
-		}
+		prompt.sendReplyWithPermission(allowedPermission)
 		userEntry.remove(id)
 		satisfiedPromptIDs = append(satisfiedPromptIDs, id)
 		data := map[string]string{"resolved": "satisfied"}
@@ -529,6 +618,7 @@ func (pdb *PromptDB) Close() error {
 	// not want to send {"resolved": "cancelled"} in the notice data.
 	data := map[string]string{"resolved": "cancelled"}
 	for user, userEntry := range pdb.perUser {
+		userEntry.expirationTimer.Stop()
 		for id := range userEntry.ids {
 			pdb.notifyPrompt(user, id, data)
 		}
