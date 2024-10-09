@@ -108,3 +108,72 @@ func assembleRegistry(assert assertionBase) (Assertion, error) {
 		timestamp:     timestamp,
 	}, nil
 }
+
+// RegistryControl holds a registry-control assertion, which holds a list of
+// registry views delegated by the device to an operator.
+type RegistryControl struct {
+	assertionBase
+
+	registryControl *registry.RegistryControl
+}
+
+// BrandID returns the brand identifier of the device.
+func (rgCtrl *RegistryControl) BrandID() string {
+	return rgCtrl.HeaderString("brand-id")
+}
+
+// Model returns the model name identifier of the device.
+func (rgCtrl *RegistryControl) Model() string {
+	return rgCtrl.HeaderString("model")
+}
+
+// Serial returns the serial identifier of the device, together with
+// brand id and model they form the unique identifier of the device.
+func (rgCtrl *RegistryControl) Serial() string {
+	return rgCtrl.HeaderString("serial")
+}
+
+// OperatorID returns the identifier of the operator the device
+// has delegated registry control to.
+func (rgCtrl *RegistryControl) OperatorID() string {
+	return rgCtrl.HeaderString("operator-id")
+}
+
+// RegistryControl returns a RegistryControl assembled from the assertion that
+// can be used to access the delegation information.
+func (rgCtrl *RegistryControl) RegistryControl() *registry.RegistryControl {
+	return rgCtrl.registryControl
+}
+
+// assembleRegistryControl assembles the registry-control assertion.
+// TODO: Confirm that the brand-id, model, & serial match the device's serial assertion
+func assembleRegistryControl(assert assertionBase) (Assertion, error) {
+	_, err := checkStringMatches(assert.headers, "brand-id", validAccountID)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkModel(assert.headers)
+	if err != nil {
+		return nil, err
+	}
+
+	views, err := checkList(assert.headers, "views")
+	if err != nil {
+		return nil, err
+	}
+	if views == nil {
+		return nil, fmt.Errorf(`"views" stanza is mandatory`)
+	}
+
+	operatorID := assert.HeaderString("operator-id")
+	rgCtrl, err := registry.NewRegistryControl(operatorID, views)
+	if err != nil {
+		return nil, err
+	}
+
+	return &RegistryControl{
+		assertionBase:   assert,
+		registryControl: rgCtrl,
+	}, nil
+}

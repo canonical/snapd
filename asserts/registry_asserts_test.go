@@ -33,7 +33,10 @@ type registrySuite struct {
 	tsLine string
 }
 
-var _ = Suite(&registrySuite{})
+var (
+	_ = Suite(&registrySuite{})
+	_ = Suite(&registryControlSuite{})
+)
 
 func (s *registrySuite) SetUpSuite(c *C) {
 	s.ts = time.Now().Truncate(time.Second).UTC()
@@ -198,4 +201,99 @@ func (s *registrySuite) TestAssembleAndSignChecksSchemaFormatFail(c *C) {
 	schema := `{ "storage": { "schema": { "foo": "any" } } }`
 	_, err := asserts.AssembleAndSignInTest(asserts.RegistryType, headers, []byte(schema), testPrivKey0)
 	c.Assert(err, ErrorMatches, `assertion registry: JSON in body must be indented with 2 spaces and sort object entries by key`)
+}
+
+type registryControlSuite struct{}
+
+const (
+	registryControlExample = `type: registry-control
+brand-id: generic
+model: generic-classic
+serial: 03961d5d-26e5-443f-838d-6db046126bea
+operator-id: f22PSauKuNkwQTM9Wz67ZCjNACuSjjhN
+views:
+  -
+    name: canonical/network/control-device
+  -
+    name: canonical/network/observe-device
+  -
+    name: canonical/network/control-interfaces
+  -
+    name: canonical/network/observe-interfaces
+sign-key-sha3-384: t9yuKGLyiezBq_PXMJZsGdkTukmL7MgrgqXAlxxiZF4TYryOjZcy48nnjDmEHQDp
+
+AXNpZw==`
+)
+
+func (s *registryControlSuite) TestDecodeOK(c *C) {
+	encoded := registryControlExample
+
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a, NotNil)
+	c.Check(a.Type(), Equals, asserts.RegistryControlType)
+
+	rgCtrlA := a.(*asserts.RegistryControl)
+	c.Check(rgCtrlA.AuthorityID(), Equals, "")
+	c.Check(rgCtrlA.BrandID(), Equals, "generic")
+	c.Check(rgCtrlA.Model(), Equals, "generic-classic")
+	c.Check(rgCtrlA.Serial(), Equals, "03961d5d-26e5-443f-838d-6db046126bea")
+	c.Check(rgCtrlA.OperatorID(), Equals, "f22PSauKuNkwQTM9Wz67ZCjNACuSjjhN")
+
+	rgCtrl := rgCtrlA.RegistryControl()
+	c.Assert(rgCtrl, NotNil)
+	networkRegistry := rgCtrl.Registries["canonical/network"]
+	c.Assert(networkRegistry, NotNil)
+
+	c.Check(len(networkRegistry.Views), Equals, 4)
+	c.Check(rgCtrl.IsDelegated("canonical", "network", "control-device"), Equals, true)
+	c.Check(rgCtrl.IsDelegated("canonical", "network", "control-interfaces"), Equals, true)
+	c.Check(rgCtrl.IsDelegated("canonical", "network", "observe-device"), Equals, true)
+	c.Check(rgCtrl.IsDelegated("canonical", "network", "observe-interfaces"), Equals, true)
+
+	c.Check(rgCtrl.IsDelegated("canonical", "network", "control-vpn"), Equals, false)
+
+	rgCtrl.Delegate("canonical", "network", "control-vpn")
+	c.Check(rgCtrl.IsDelegated("canonical", "network", "control-vpn"), Equals, true)
+
+	rgCtrl.Revoke("canonical", "network", "control-vpn")
+	c.Check(rgCtrl.IsDelegated("canonical", "network", "control-vpn"), Equals, false)
+}
+
+func (s *registryControlSuite) TestDecodeInvalid(c *C) {
+	encoded := registryControlExample
+	const validationSetErrPrefix = "assertion registry-control: "
+
+	viewsStanza := encoded[strings.Index(encoded, "views:") : strings.Index(encoded, "sign-key-sha3-384:")-1]
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"brand-id: generic\n", "", `"brand-id" header is mandatory`},
+		{"brand-id: generic\n", "brand-id: \n", `"brand-id" header should not be empty`},
+		{"brand-id: generic\n", "brand-id: 456#\n", `"brand-id" header contains invalid characters: "456#"`},
+		{"model: generic-classic\n", "", `"model" header is mandatory`},
+		{"model: generic-classic\n", "model: \n", `"model" header should not be empty`},
+		{"model: generic-classic\n", "model: #\n", `"model" header contains invalid characters: "#"`},
+		{"serial: 03961d5d-26e5-443f-838d-6db046126bea\n", "", `"serial" header is mandatory`},
+		{"serial: 03961d5d-26e5-443f-838d-6db046126bea\n", "serial: \n", `"serial" header should not be empty`},
+		{"operator-id: f22PSauKuNkwQTM9Wz67ZCjNACuSjjhN\n", "", `"operator-id" header is mandatory`},
+		{"operator-id: f22PSauKuNkwQTM9Wz67ZCjNACuSjjhN\n", "operator-id: \n", `"operator-id" header should not be empty`},
+		{
+			"operator-id: f22PSauKuNkwQTM9Wz67ZCjNACuSjjhN\n",
+			"operator-id: @op\n",
+			"invalid Operator ID @op",
+		},
+		{viewsStanza, "views: abcd", `"views" header must be a list`},
+		{viewsStanza, "foo: bar", `"views" stanza is mandatory`},
+		{
+			"canonical/network/control-interfaces",
+			"canonical",
+			`view at position 3: "name" must be in the format account/registry/view: canonical`,
+		},
+	}
+
+	for i, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, validationSetErrPrefix+test.expectedErr, Commentf("test %d/%d failed", i+1, len(invalidTests)))
+	}
 }
