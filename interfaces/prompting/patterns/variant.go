@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -393,7 +394,11 @@ func prepareVariantForParsing(variant string) string {
 		// Discard trailing "**", add "⁑" instead
 		return s[:len(s)-2] + "⁑"
 	})
-	return prepared
+	cleaned := filepath.Clean(prepared)
+	if strings.HasSuffix(prepared, "/") {
+		cleaned = cleaned + "/"
+	}
+	return cleaned
 }
 
 type componentReader struct {

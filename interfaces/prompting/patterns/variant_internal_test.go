@@ -86,7 +86,7 @@ func (s *variantSuite) TestParsePatternVariant(c *C) {
 		},
 		{
 			"/foo////bar",
-			"/foo////bar",
+			"/foo/bar",
 			[]component{
 				{compType: compSeparator},
 				{compType: compLiteral, compText: "foo"},
@@ -360,6 +360,36 @@ func (s *variantSuite) TestParsePatternVariant(c *C) {
 				{compType: compTerminal},
 			},
 			`/foo/⁑*⁑\**⁑*\\*⁑\\\**\\⁑`,
+		},
+		{
+			`/foo\/.\/../bar`,
+			// filepath.Clean treats the escape '\' characters as literals, so
+			// the pattern is treated as `/foo\` `/` `.\` `/` `..` `/` `bar`,
+			// which is then cleaned to be `/foo\` `/` `bar`
+			`/foo\/bar`,
+			[]component{
+				{compType: compSeparator},
+				{compType: compLiteral, compText: `foo/bar`},
+				{compType: compTerminal},
+			},
+			// Not so sure about this, should we preserve the '\' to escape the '/'?
+			`/foo/bar`,
+		},
+		{
+			`/foo/bar\/..\/./baz`,
+			// filepath.Clean treats the escape '\' characters as literals, so
+			// the pattern is treated as `/foo` `/` `bar\` `/` `..\` `/` `.` `/` `bar`,
+			// which is then cleaned to be `/foo` `/` `bar\` `/` `..\` `/` `baz`
+			`/foo/bar\/..\/baz`,
+			[]component{
+				{compType: compSeparator},
+				{compType: compLiteral, compText: `foo`},
+				{compType: compSeparator},
+				{compType: compLiteral, compText: `bar/../baz`},
+				{compType: compTerminal},
+			},
+			// Not sure about this either...
+			`/foo/bar/../baz`,
 		},
 	} {
 		c.Check(prepareVariantForParsing(testCase.pattern), Equals, testCase.preparedPattern, Commentf("testCase: %+v", testCase))

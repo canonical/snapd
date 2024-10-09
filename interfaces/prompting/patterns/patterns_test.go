@@ -232,6 +232,16 @@ func (s *patternsSuite) TestPathPatternMatch(c *C) {
 			true, // we override doublestar here
 		},
 		{
+			"/foo/",
+			"/foo",
+			false,
+		},
+		{
+			"/foo/",
+			"/foo/",
+			true,
+		},
+		{
 			"/foo/ba{r,z}/**",
 			"/foo/bar/baz/qux",
 			true,
@@ -335,6 +345,10 @@ func (s *patternsSuite) TestPathPatternRenderAllVariants(c *C) {
 		{
 			`/foo`,
 			[]string{`/foo`},
+		},
+		{
+			`/foo/`,
+			[]string{`/foo/`},
 		},
 		{
 			`/{foo,bar/}`,
@@ -470,6 +484,30 @@ func (s *patternsSuite) TestPathPatternRenderAllVariants(c *C) {
 		{
 			"/foo,bar,baz",
 			[]string{"/foo,bar,baz"},
+		},
+		{
+			"/foo/bar/../**",
+			[]string{"/foo/**"},
+		},
+		{
+			"/foo/bar/../baz",
+			[]string{"/foo/baz"},
+		},
+		{
+			"/foo/**/bar/./baz/../",
+			[]string{"/foo/**/bar/"},
+		},
+		{
+			"/foo/*/bar/./baz/**/../",
+			[]string{"/foo/*/bar/baz/"}, // this is uncharted territory
+		},
+		{
+			"/foo/bar/.{hidden,,.}/baz",
+			[]string{
+				"/foo/bar/.hidden/baz",
+				"/foo/bar/baz",
+				"/foo/baz",
+			},
 		},
 	} {
 		pathPattern, err := patterns.ParsePathPattern(testCase.pattern)
