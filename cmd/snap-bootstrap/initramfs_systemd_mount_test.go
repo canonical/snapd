@@ -54,7 +54,7 @@ exit 1
 `)
 	defer cmd.Restore()
 
-	err := main.DoSystemdMount("something", "somewhere only we know", nil)
+	err := main.DoSystemdMount("something", "somewhereonlyweknow", nil)
 	c.Assert(err, ErrorMatches, "mocked error")
 }
 
@@ -209,48 +209,51 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			isMountedReturns: []bool{true},
 			comment:          "happy overlay mount",
 		},
-		{
-			// The What argument is ignored for overlay mounts but needs to be a path that exists.
-			what:  "/merged",
-			where: "/merged",
-			opts: &main.SystemdMountOptions{
-				Overlayfs: true,
-				LowerDirs: []string{"/lower,"},
-				UpperDir:  "/upper",
-				WorkDir:   "/work",
-			},
-			timeNowTimes:     []time.Time{testStart, testStart},
-			isMountedReturns: []bool{true},
-			comment:          "happy overlay mount with lowerdir path containing a comma",
-		},
-		{
-			// The What argument is ignored for overlay mounts but needs to be a path that exists.
-			what:  "/merged",
-			where: "/merged",
-			opts: &main.SystemdMountOptions{
-				Overlayfs: true,
-				LowerDirs: []string{"/lower"},
-				UpperDir:  "/upper,",
-				WorkDir:   "/work",
-			},
-			timeNowTimes:     []time.Time{testStart, testStart},
-			isMountedReturns: []bool{true},
-			comment:          "happy overlay mount with upperdir path containing a comma",
-		},
-		{
-			// The What argument is ignored for overlay mounts but needs to be a path that exists.
-			what:  "/merged",
-			where: "/merged",
-			opts: &main.SystemdMountOptions{
-				Overlayfs: true,
-				LowerDirs: []string{"/lower"},
-				UpperDir:  "/upper",
-				WorkDir:   "/work,",
-			},
-			timeNowTimes:     []time.Time{testStart, testStart},
-			isMountedReturns: []bool{true},
-			comment:          "happy overlay mount with workdir path containing a comma",
-		},
+		// TODO: Despite this being a valid path, we forbid the use of backslashes, commas and spaces in all paths.
+		// {
+		// 	// The What argument is ignored for overlay mounts but needs to be a path that exists.
+		// 	what:  "/merged",
+		// 	where: "/merged",
+		// 	opts: &main.SystemdMountOptions{
+		// 		Overlayfs: true,
+		// 		LowerDirs: []string{"/lower,"},
+		// 		UpperDir:  "/upper",
+		// 		WorkDir:   "/work",
+		// 	},
+		// 	timeNowTimes:     []time.Time{testStart, testStart},
+		// 	isMountedReturns: []bool{true},
+		// 	comment:          "happy overlay mount with lowerdir path containing a comma",
+		// },
+		// TODO: Despite this being a valid path, we forbid the use of backslashes, commas and spaces in all paths.
+		// {
+		// 	// The What argument is ignored for overlay mounts but needs to be a path that exists.
+		// 	what:  "/merged",
+		// 	where: "/merged",
+		// 	opts: &main.SystemdMountOptions{
+		// 		Overlayfs: true,
+		// 		LowerDirs: []string{"/lower"},
+		// 		UpperDir:  "/upper,",
+		// 		WorkDir:   "/work",
+		// 	},
+		// 	timeNowTimes:     []time.Time{testStart, testStart},
+		// 	isMountedReturns: []bool{true},
+		// 	comment:          "happy overlay mount with upperdir path containing a comma",
+		// },
+		// TODO: Despite this being a valid path, we forbid the use of backslashes, commas and spaces in all paths.
+		// {
+		// 	// The What argument is ignored for overlay mounts but needs to be a path that exists.
+		// 	what:  "/merged",
+		// 	where: "/merged",
+		// 	opts: &main.SystemdMountOptions{
+		// 		Overlayfs: true,
+		// 		LowerDirs: []string{"/lower"},
+		// 		UpperDir:  "/upper",
+		// 		WorkDir:   "/work,",
+		// 	},
+		// 	timeNowTimes:     []time.Time{testStart, testStart},
+		// 	isMountedReturns: []bool{true},
+		// 	comment:          "happy overlay mount with workdir path containing a comma",
+		// },
 		{
 			// The What argument is ignored for overlay mounts but needs to be a path that exists.
 			what:  "/merged",
@@ -316,30 +319,30 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			comment: "overlayfs mount requested without specifying a workdir",
 		},
 		{
-			what:    "what\\",
+			what:    "what\\,: ",
 			where:   "where",
 			opts:    &main.SystemdMountOptions{},
-			expErr:  `cannot mount "` + regexp.QuoteMeta(`what\\`) + `" at "where": what systemd-mount argument contains forbidden characters. "` + regexp.QuoteMeta(`what\\`) + `" contains one of "\\".`,
-			comment: "disallow use of \\ in the what argument",
+			expErr:  `cannot mount "` + regexp.QuoteMeta(`what\\,: `) + `" at "where": what systemd-mount argument contains forbidden characters. "` + regexp.QuoteMeta(`what\\,: `) + `" contains one of "` + regexp.QuoteMeta(`\,: `) + `".`,
+			comment: "disallow use of \\,: and space in the what argument",
 		},
 		{
 			what:    "what",
-			where:   "where\\",
+			where:   "where\\,: ",
 			opts:    &main.SystemdMountOptions{},
-			expErr:  `cannot mount "what" at "` + regexp.QuoteMeta(`where\\`) + `": where systemd-mount argument contains forbidden characters. "` + regexp.QuoteMeta(`where\\`) + `" contains one of "\\".`,
-			comment: "disallow use of \\ in the where argument",
+			expErr:  `cannot mount "what" at "` + regexp.QuoteMeta(`where\\,: `) + `": where systemd-mount argument contains forbidden characters. "` + regexp.QuoteMeta(`where\\,: `) + `" contains one of "` + regexp.QuoteMeta(`\,: `) + `".`,
+			comment: "disallow use of \\,: and space in the where argument",
 		},
 		{
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
 				Overlayfs: true,
-				LowerDirs: []string{"/lower1\\"},
+				LowerDirs: []string{"/lower1\\, "},
 				UpperDir:  "/upper",
 				WorkDir:   "/work",
 			},
-			expErr:  `cannot mount "what" at "where": lowerdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/lower1\\`) + `" contains one of "\\".`,
-			comment: "disallow use of \\ in the overlayfs lowerdir mount option",
+			expErr:  `cannot mount "what" at "where": lowerdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/lower1\\, `) + `" contains one of "` + regexp.QuoteMeta(`\, `) + `".`,
+			comment: "disallow use of \\, and space in the overlayfs lowerdir mount option",
 		},
 		{
 			what:  "what",
@@ -347,11 +350,11 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			opts: &main.SystemdMountOptions{
 				Overlayfs: true,
 				LowerDirs: []string{"/lower1"},
-				UpperDir:  "/upper\\",
+				UpperDir:  "/upper\\,: ",
 				WorkDir:   "/work",
 			},
-			expErr:  `cannot mount "what" at "where": upperdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/upper\\`) + `" contains one of "\\".`,
-			comment: "disallow use of \\ in the overlayfs upperdir mount option",
+			expErr:  `cannot mount "what" at "where": upperdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/upper\\,: `) + `" contains one of "` + regexp.QuoteMeta(`\,: `) + `".`,
+			comment: "disallow use of \\,: and space in the overlayfs upperdir mount option",
 		},
 		{
 			what:  "what",
@@ -360,10 +363,10 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 				Overlayfs: true,
 				LowerDirs: []string{"/lower1"},
 				UpperDir:  "/upper",
-				WorkDir:   "/work\\",
+				WorkDir:   "/work\\,: ",
 			},
-			expErr:  `cannot mount "what" at "where": workdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/work\\`) + `" contains one of "\\".`,
-			comment: "disallow use of \\ in the overlayfs workdir mount option",
+			expErr:  `cannot mount "what" at "where": workdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/work\\,: `) + `" contains one of "` + regexp.QuoteMeta(`\,: `) + `".`,
+			comment: "disallow use of \\,: and space in the overlayfs workdir mount option",
 		},
 	}
 

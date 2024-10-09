@@ -120,7 +120,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		what = "tmpfs"
 	}
 
-	forbiddenChars := `\`
+	forbiddenChars := `\,: `
 	if pathContainsAny(what, forbiddenChars) {
 		return fmt.Errorf("cannot mount %q at %q: what systemd-mount argument contains forbidden characters. %q contains one of \"%s\".", what, where, what, forbiddenChars)
 	}
@@ -199,27 +199,25 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 			return fmt.Errorf("cannot mount %q at %q: workdir overlayfs mount option contains forbidden characters. %q contains one of \"%s\".", what, where, opts.WorkDir, forbiddenChars)
 		}
 
-		escaper := strings.NewReplacer(",", `\,`, " ", `\ `)
-		lowerdirescaper := strings.NewReplacer(",", `\,`, " ", `\ `, ":", `\:`)
-
 		var lowerDirs strings.Builder
 		for i, d := range opts.LowerDirs {
 			if i != 0 {
 				lowerDirs.WriteRune(':')
 			}
 
+			forbiddenChars := `\, `
 			if pathContainsAny(d, forbiddenChars) {
 				return fmt.Errorf("cannot mount %q at %q: lowerdir overlayfs mount option contains forbidden characters. %q contains one of \"%s\".", what, where, d, forbiddenChars)
 			}
 
 			// This is used for splitting multiple lowerdirs as done in
 			// https://elixir.bootlin.com/linux/v6.10.9/C/ident/ovl_parse_param_split_lowerdirs
-			ed := lowerdirescaper.Replace(d)
+			ed := strings.ReplaceAll(d, ":", `\:`)
 			lowerDirs.WriteString(ed)
 		}
-		options = append(options, fmt.Sprintf("lowerdir=%s", lowerDirs.String()))
-		options = append(options, fmt.Sprintf("upperdir=%s", escaper.Replace(opts.UpperDir)))
-		options = append(options, fmt.Sprintf("workdir=%s", escaper.Replace(opts.WorkDir)))
+		options = append(options, fmt.Sprintf("lowerdir=\"%s\"", lowerDirs.String()))
+		options = append(options, fmt.Sprintf("upperdir=\"%s\"", opts.UpperDir))
+		options = append(options, fmt.Sprintf("workdir=\"%s\"", opts.WorkDir))
 	}
 	if len(options) > 0 {
 		args = append(args, "--options="+strings.Join(options, ","))
