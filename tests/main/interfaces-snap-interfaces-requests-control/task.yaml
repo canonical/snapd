@@ -103,12 +103,10 @@ execute: |
     echo "Check snap can access rules via /v2/interfaces/requests/rules"
     api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules" | jq '."status-code"' | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
 
-    # XXX: creating rules requires polkit authentication, so for now, use curl
-    # XXX: should use `snap debug api` instead of curl, but should really just use api-client
+    # XXX: creating rules requires polkit authentication, so for now, use snap debug api instead of api-client
     # echo "Check snap can create rule via /v2/interfaces/requests/rules"
     # api-client --socket /run/snapd-snap.socket --method=POST '{"action":"add","rule":{"snap":"api-client","interface":"home","constraints":{"path-pattern":"/path/to/file","permissions":["read","write","execute"]},"outcome":"allow","lifespan":"forever"}}' "/v2/interfaces/requests/rules" > result.json
-    apt install -y curl
-    curl -sS --unix-socket /run/snapd.socket -d '{"action":"add","rule":{"snap":"api-client","interface":"home","constraints":{"path-pattern":"/path/to/file","permissions":["read","write","execute"]},"outcome":"allow","lifespan":"forever"}}' "http://localhost/v2/interfaces/requests/rules" | tee result.json
+    echo '{"action":"add","rule":{"snap":"api-client","interface":"home","constraints":{"path-pattern":"/path/to/file","permissions":["read","write","execute"]},"outcome":"allow","lifespan":"forever"}}' | snap debug api -X POST -H 'Content-Type: application/json' "/v2/interfaces/requests/rules" | tee result.json
     jq '."status-code"' < result.json | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
     RULE_ID=$(jq '."result"."id"' < result.json | tr -d '"')
     echo "Check snap can view a single rule via /v2/interfaces/requests/rules/<ID>"
