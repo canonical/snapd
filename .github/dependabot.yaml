@@ -8,3 +8,17 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      non-breaking:
+        applies-to: version-updates
+        patterns:
+        - "*"
+        update-types:
+        - "minor"
+        - "patch"
+      breaking:
+        applies-to: version-updates
+        patterns:
+        - "*"
+        update-types:
+        - "major"
