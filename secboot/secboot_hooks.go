@@ -31,7 +31,6 @@ import (
 	sb "github.com/snapcore/secboot"
 	sb_scope "github.com/snapcore/secboot/bootscope"
 	sb_hooks "github.com/snapcore/secboot/hooks"
-	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
@@ -134,102 +133,6 @@ func isV1EncryptedKeyFile(p string) bool {
 		return false
 	}
 	return bytes.HasPrefix(buf, v1KeyPrefix)
-}
-
-// We have to deal with the following cases:
-// 1. Key created with v1 data-format on disk (raw encrypted key), v1 hook reads the data
-// 2. Key created with v2 data-format on disk (json), v1 hook created the data (no handle) and reads the data (hook output not json but raw binary data)
-// 3. Key created with v1 data-format on disk (raw), v2 hook
-// 4. Key created with v2 data-format on disk (json), v2 hook [easy]
-func unlockVolumeUsingSealedKeyFDERevealKey(sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
-	// deal with v1 keys
-	if isV1EncryptedKeyFile(sealedEncryptionKeyFile) {
-		return unlockVolumeUsingSealedKeyFDERevealKeyV1(sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName)
-	}
-	return unlockVolumeUsingSealedKeyFDERevealKeyV2(sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
-}
-
-func unlockVolumeUsingSealedKeyFDERevealKeyV1(sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string) (UnlockResult, error) {
-	res := UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
-
-	sealedKey, err := os.ReadFile(sealedEncryptionKeyFile)
-	if err != nil {
-		return res, fmt.Errorf("cannot read sealed key file: %v", err)
-	}
-
-	p := fde.RevealParams{
-		SealedKey: sealedKey,
-	}
-	output, err := fde.Reveal(&p)
-	if err != nil {
-		return res, err
-	}
-
-	// the output of fde-reveal-key is the unsealed key
-	unsealedKey := output
-	if err := unlockEncryptedPartitionWithKey(mapperName, sourceDevice, unsealedKey); err != nil {
-		return res, fmt.Errorf("cannot unlock encrypted partition: %v", err)
-	}
-	res.FsDevice = targetDevice
-	res.UnlockMethod = UnlockedWithSealedKey
-	return res, nil
-}
-
-func unlockVolumeUsingSealedKeyFDERevealKeyV2(sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (res UnlockResult, err error) {
-	res = UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
-
-	f, err := sb.NewFileKeyDataReader(sealedEncryptionKeyFile)
-	if err != nil {
-		return res, err
-	}
-	keyData, err := sb.ReadKeyData(f)
-	if err != nil {
-		fmt := "cannot read key data: %w"
-		return res, xerrors.Errorf(fmt, err)
-	}
-
-	model, err := opts.WhichModel()
-	if err != nil {
-		return res, fmt.Errorf("cannot retrieve which model to unlock for: %v", err)
-	}
-
-	// the output of fde-reveal-key is the unsealed key
-	options := activateVolOpts(opts.AllowRecoveryKey)
-	// FIXME: consider setting it in activateVolOpts if we keep
-	// this function separate from the tpm one for key data in
-	// files. Otherwise we should only set it if we provide key
-	// data generation 1.
-	options.Model = model
-
-	sbSetModel(model)
-	// This does not seem to work:
-	//defer sbSetModel(nil)
-	// TODO: set boot mode
-	//sbSetBootMode("run")
-	//defer sbSetBootMode("")
-	sbSetKeyRevealer(&keyRevealerV3{})
-	defer sbSetKeyRevealer(nil)
-
-	authRequestor, err := newAuthRequestor()
-	if err != nil {
-		return res, fmt.Errorf("internal error: cannot build an auth requestor: %v", err)
-	}
-
-	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, authRequestor, options, keyData)
-	if err == sb.ErrRecoveryKeyUsed {
-		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
-		res.FsDevice = targetDevice
-		res.UnlockMethod = UnlockedWithRecoveryKey
-		return res, nil
-	}
-	if err != nil {
-		return res, fmt.Errorf("cannot unlock encrypted partition: %v", err)
-	}
-
-	logger.Noticef("successfully activated encrypted device %q using FDE kernel hooks", sourceDevice)
-	res.FsDevice = targetDevice
-	res.UnlockMethod = UnlockedWithSealedKey
-	return res, nil
 }
 
 type fdeHookV2DataHandler struct{}
