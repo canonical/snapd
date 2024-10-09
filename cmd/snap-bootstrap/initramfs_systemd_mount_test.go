@@ -22,6 +22,7 @@ package main_test
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -231,6 +232,16 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			},
 			expErr:  "cannot mount \"what\" at \"where\": mount with dm-verity was requested but a hash device and root hash were not specified",
 			comment: "verity hash offset specified without specifying a verity root hash and a verity hash device",
+		},
+		{
+			what:  "what",
+			where: "where",
+			opts: &main.SystemdMountOptions{
+				VerityHashDevice: "test.verity\\,:\" ",
+				VerityRootHash:   "00000000000000000000000000000000",
+			},
+			expErr:  `cannot mount "what" at "where": dm-verity hash device path contains forbidden characters. "` + regexp.QuoteMeta(`test.verity\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\,:" `) + `".`,
+			comment: "disallow use of \\,:\": and space in the dm-verity hash device option",
 		},
 	}
 

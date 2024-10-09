@@ -84,6 +84,16 @@ type systemdMountOptions struct {
 	VerityHashOffset uint64
 }
 
+func pathContainsAny(i string, chars string) bool {
+	for _, c := range chars {
+		if strings.IndexRune(i, c) >= 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
 // doSystemdMount will mount "what" at "where" using systemd-mount(1) with
 // various options. Note that in some error cases, the mount unit may have
 // already been created and it will not be deleted here, if that is the case
@@ -162,12 +172,18 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	if opts.VerityRootHash != "" && opts.VerityHashDevice == "" {
 		return fmt.Errorf("cannot mount %q at %q: mount with dm-verity was requested but a hash device was not specified", what, where)
 	}
+
+	forbiddenChars := `\,:" `
+	if pathContainsAny(opts.VerityHashDevice, forbiddenChars) {
+		return fmt.Errorf("cannot mount %q at %q: dm-verity hash device path contains forbidden characters. %q contains one of \"%s\".", what, where, opts.VerityHashDevice, forbiddenChars)
+	}
+
 	if opts.VerityHashOffset != 0 && (opts.VerityHashDevice == "" || opts.VerityRootHash == "") {
 		return fmt.Errorf("cannot mount %q at %q: mount with dm-verity was requested but a hash device and root hash were not specified", what, where)
 	}
 	if opts.VerityHashDevice != "" && opts.VerityRootHash != "" {
 		options = append(options, fmt.Sprintf("verity.roothash=%s", opts.VerityRootHash))
-		options = append(options, fmt.Sprintf("verity.hashdevice=%s", opts.VerityHashDevice))
+		options = append(options, fmt.Sprintf("verity.hashdevice=\"%s\"", opts.VerityHashDevice))
 
 		if opts.VerityHashOffset != 0 {
 			options = append(options, fmt.Sprintf("verity.hashoffset=%d", opts.VerityHashOffset))
