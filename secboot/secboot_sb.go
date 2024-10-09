@@ -128,7 +128,6 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	}
 
 	var keys []*sb.KeyData
-
 	if keyData != nil {
 		keys = append(keys, keyData)
 	}
