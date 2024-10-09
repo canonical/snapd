@@ -41,6 +41,7 @@ const contentBaseDeclarationSlots = `
       slot-snap-type:
         - app
         - gadget
+        - kernel
     allow-connection:
       plug-attributes:
         content: $SLOT(content)
