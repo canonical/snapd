@@ -542,7 +542,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		sc_initialize_ns_fstab(config->snap_instance);
 		// Create a tmpfs on scratch_dir; we'll them mount all the root
 		// directories of the base snap onto it.
-		sc_do_mount("none", scratch_dir, "tmpfs", 0, NULL);
+		sc_do_mount("none", scratch_dir, "tmpfs", 0, "uid=0,gid=0");
 		sc_replicate_base_rootfs(scratch_dir, config->rootfs_dir,
 					 config->mounts);
 	} else {
