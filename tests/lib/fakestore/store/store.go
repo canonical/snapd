@@ -366,7 +366,7 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), 500)
 		return
 	}
-	snaps, err := s.collectSnaps(s.channelRepository)
+	snaps, err := s.collectSnaps()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), 500)
 		return
@@ -412,7 +412,7 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 	w.Write(out)
 }
 
-func (s *Store) collectSnaps(cs *ChannelRepository) (map[string]string, error) {
+func (s *Store) collectSnaps() (map[string]string, error) {
 	snapFns, err := filepath.Glob(filepath.Join(s.blobDir, "*.snap"))
 	if err != nil {
 		return nil, err
@@ -438,7 +438,7 @@ func (s *Store) collectSnaps(cs *ChannelRepository) (map[string]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		channels, err := cs.findSnapChannels(digest)
+		channels, err := s.channelRepository.findSnapChannels(digest)
 		if err != nil {
 			return nil, err
 		}
@@ -515,7 +515,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	snaps, err := s.collectSnaps(s.channelRepository)
+	snaps, err := s.collectSnaps()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), 500)
 		return
@@ -686,7 +686,7 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	snaps, err := s.collectSnaps(s.channelRepository)
+	snaps, err := s.collectSnaps()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), 500)
 		return
