@@ -120,15 +120,6 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		what = "tmpfs"
 	}
 
-	forbiddenChars := `\,:" `
-	if pathContainsAny(what, forbiddenChars) {
-		return fmt.Errorf("cannot mount %q at %q: what systemd-mount argument contains forbidden characters. %q contains one of \"%s\".", what, where, what, forbiddenChars)
-	}
-
-	if pathContainsAny(where, forbiddenChars) {
-		return fmt.Errorf("cannot mount %q at %q: where systemd-mount argument contains forbidden characters. %q contains one of \"%s\".", what, where, where, forbiddenChars)
-	}
-
 	args := []string{what, where, "--no-pager", "--no-ask-password"}
 
 	if opts.Umount {
@@ -192,6 +183,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 			return fmt.Errorf("cannot mount %q at %q: missing arguments for overlayfs mount. lowerdir, upperdir, workdir are needed.", what, where)
 		}
 
+		forbiddenChars := `\,:" `
 		if pathContainsAny(opts.UpperDir, forbiddenChars) {
 			return fmt.Errorf("cannot mount %q at %q: upperdir overlayfs mount option contains forbidden characters. %q contains one of \"%s\".", what, where, opts.UpperDir, forbiddenChars)
 		}

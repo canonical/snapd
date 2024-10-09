@@ -319,20 +319,6 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			comment: "overlayfs mount requested without specifying a workdir",
 		},
 		{
-			what:    "what\\,:\" ",
-			where:   "where",
-			opts:    &main.SystemdMountOptions{},
-			expErr:  `cannot mount "` + regexp.QuoteMeta(`what\\,:\" `) + `" at "where": what systemd-mount argument contains forbidden characters. "` + regexp.QuoteMeta(`what\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\,:" `) + `".`,
-			comment: "disallow use of \\,:\" and space in the what argument",
-		},
-		{
-			what:    "what",
-			where:   "where\\,:\" ",
-			opts:    &main.SystemdMountOptions{},
-			expErr:  `cannot mount "what" at "` + regexp.QuoteMeta(`where\\,:\" `) + `": where systemd-mount argument contains forbidden characters. "` + regexp.QuoteMeta(`where\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\,:" `) + `".`,
-			comment: "disallow use of \\,:\" and space in the where argument",
-		},
-		{
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
