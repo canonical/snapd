@@ -502,7 +502,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNotDiskDevice(
 
 	opts := &disks.Options{IsDecryptedDevice: true}
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, `cannot process properties of /dev/vda4 parent device: not a decrypted device: devtype is not disk \(is partition\)`)
+	c.Assert(err, ErrorMatches, `cannot process properties of /dev/vda4 parent device: devtype is not disk \(is partition\)`)
 }
 
 func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNoSysfs(c *C) {
@@ -530,7 +530,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNoSysfs(c *C) 
 
 	opts := &disks.Options{IsDecryptedDevice: true}
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot process properties of /dev/mapper/something parent device: not a decrypted device: could not read device mapper metadata: open %s/dev/block/252:0/dm/uuid: no such file or directory`, dirs.SysfsDir))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot process properties of /dev/mapper/something parent device: could not read device mapper metadata: open %s/dev/block/252:0/dm/uuid: no such file or directory`, dirs.SysfsDir))
 }
 
 func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitionsInSysfs(c *C) {
@@ -760,7 +760,7 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedLUKSDeviceVolumeHappy(c *C)
 	}()
 
 	_, err = disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, `cannot process properties of /dev/mapper/something parent device: internal error: no back resolver supports decrypted device mapper with UUID "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something" and name "something"`)
+	c.Assert(err, ErrorMatches, `cannot process properties of /dev/mapper/something parent device: internal error: no back resolver supports device mapper with UUID "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something" and name "something"`)
 
 	// but when it is available it works
 	disks.RegisterDeviceMapperBackResolver("crypt-luks2", disks.CryptLuks2DeviceMapperBackResolver)
@@ -2047,4 +2047,117 @@ func (s *diskSuite) TestMockDisksChecking(c *C) {
 		})
 	}
 	c.Check(f, Panics, "mock error: duplicated kernel device nodes for partitions in disk mapping")
+}
+
+func (s *diskSuite) TestDiskFromMountPointIsVerityDeviceVolumeHappy(c *C) {
+	restore := osutil.MockMountInfo(`130 30 242:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/mapper/something rw
+`)
+	defer restore()
+
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		switch dev {
+		case "/dev/mapper/something":
+			return map[string]string{
+				"DEVTYPE":    "disk",
+				"MAJOR":      "252",
+				"MINOR":      "1",
+				"ID_FS_UUID": "cafecafe-c87e-4dfa-81a8-8dc5667d1304",
+			}, nil
+		case "/dev/disk/by-uuid/cafecafe-c87e-4dfa-81a8-8dc5667d1304":
+			return map[string]string{
+				"ID_PART_ENTRY_DISK": "42:0",
+			}, nil
+		case "/dev/block/42:0":
+			return map[string]string{
+				"DEVTYPE":            "disk",
+				"DEVNAME":            "foo",
+				"DEVPATH":            "/devices/foo",
+				"ID_PART_TABLE_UUID": "foo-uuid",
+				"ID_PART_TABLE_TYPE": "DOS",
+			}, nil
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
+	})
+	defer restore()
+
+	// mock the sysfs dm uuid and name files
+	dmDir := filepath.Join(filepath.Join(dirs.SysfsDir, "dev", "block"), "252:1", "dm")
+	err := os.MkdirAll(dmDir, 0755)
+	c.Assert(err, IsNil)
+
+	b := []byte("something")
+	err = os.WriteFile(filepath.Join(dmDir, "name"), b, 0644)
+	c.Assert(err, IsNil)
+
+	b = []byte("CRYPT-VERITY-5a522809c87e4dfa81a88dc5667d1304-something")
+	err = os.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644)
+	c.Assert(err, IsNil)
+
+	opts := &disks.Options{IsVerityDevice: true}
+
+	// when the handler is not available, we can't handle the mapper
+	disks.UnregisterDeviceMapperBackResolver("crypt-verity")
+	defer func() {
+		// re-register it at the end, since it's registered by default
+		disks.RegisterDeviceMapperBackResolver("crypt-verity", disks.CryptVerityDeviceMapperBackResolver)
+	}()
+
+	_, err = disks.DiskFromMountPoint("/run/mnt/point", opts)
+	c.Assert(err, ErrorMatches, `cannot process properties of /dev/mapper/something parent device: internal error: no back resolver supports device mapper with UUID "CRYPT-VERITY-5a522809c87e4dfa81a88dc5667d1304-something" and name "something"`)
+
+	// but when it is available it works
+	disks.RegisterDeviceMapperBackResolver("crypt-verity", disks.CryptVerityDeviceMapperBackResolver)
+
+	d, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
+	c.Assert(err, IsNil)
+	c.Assert(d.Dev(), Equals, "42:0")
+	c.Assert(d.HasPartitions(), Equals, true)
+	c.Assert(d.Schema(), Equals, "dos")
+}
+
+func (s *diskSuite) TestDiskFromMountPointUnhappyMissingFSUUIDFieldInVerityBackendDeviceUdevProperties(c *C) {
+	restore := osutil.MockMountInfo(`130 30 242:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/mapper/something rw
+`)
+	defer restore()
+
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		switch dev {
+		case "/dev/mapper/something":
+			return map[string]string{
+				"DEVTYPE": "disk",
+				"MAJOR":   "252",
+				"MINOR":   "1",
+			}, nil
+		case "/dev/disk/by-uuid":
+			return nil, fmt.Errorf(`Unknown device "/dev/disk/by-uuid": No such device`)
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
+	})
+	defer restore()
+
+	// mock the sysfs dm uuid and name files
+	dmDir := filepath.Join(filepath.Join(dirs.SysfsDir, "dev", "block"), "252:1", "dm")
+	err := os.MkdirAll(dmDir, 0755)
+	c.Assert(err, IsNil)
+
+	b := []byte("something")
+	err = os.WriteFile(filepath.Join(dmDir, "name"), b, 0644)
+	c.Assert(err, IsNil)
+
+	b = []byte("CRYPT-VERITY-5a522809c87e4dfa81a88dc5667d1304-something")
+	err = os.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644)
+	c.Assert(err, IsNil)
+
+	opts := &disks.Options{IsVerityDevice: true}
+
+	disks.RegisterDeviceMapperBackResolver("crypt-verity", disks.CryptVerityDeviceMapperBackResolver)
+
+	_, err = disks.DiskFromMountPoint("/run/mnt/point", opts)
+	c.Assert(err, ErrorMatches, `cannot process properties of /dev/mapper/something parent device: cannot get udev properties for partition /dev/disk/by-uuid: Unknown device "/dev/disk/by-uuid": No such device`)
 }
