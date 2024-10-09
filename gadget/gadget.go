@@ -1181,7 +1181,6 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	if err := validateVolumeAssignments(gi.VolumeAssignments, gi.Volumes); err != nil {
 		return nil, err
 	}
-	
 	return &gi, nil
 }
 
