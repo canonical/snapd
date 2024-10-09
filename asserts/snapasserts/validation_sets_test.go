@@ -1198,9 +1198,9 @@ func (s *validationSetsSuite) TestCheckPresenceRequired(c *C) {
 	valsets := snapasserts.NewValidationSets()
 
 	// no validation sets
-	vsKeys, _, err := valsets.CheckPresenceRequired(naming.Snap("my-snap"))
+	presence, err := valsets.Presence(naming.Snap("my-snap"))
 	c.Assert(err, IsNil)
-	c.Check(vsKeys, HasLen, 0)
+	c.Check(presence.Constrained(), Equals, false)
 
 	c.Assert(valsets.Add(valset1), IsNil)
 	c.Assert(valsets.Add(valset2), IsNil)
@@ -1209,39 +1209,31 @@ func (s *validationSetsSuite) TestCheckPresenceRequired(c *C) {
 	// validity
 	c.Assert(valsets.Conflict(), IsNil)
 
-	vsKeys, rev, err := valsets.CheckPresenceRequired(naming.Snap("my-snap"))
+	presence, err = valsets.Presence(naming.Snap("my-snap"))
 	c.Assert(err, IsNil)
-	c.Check(rev, DeepEquals, snap.Revision{N: 7})
-	c.Check(vsKeys, DeepEquals, []snapasserts.ValidationSetKey{"16/account-id/my-snap-ctl/1", "16/account-id/my-snap-ctl2/2", "16/account-id/my-snap-ctl3/1"})
+	c.Check(presence.Revision, DeepEquals, snap.Revision{N: 7})
+	c.Check(presence.Presence, DeepEquals, asserts.PresenceRequired)
+	c.Check(presence.Sets, DeepEquals, snapasserts.ValidationSetKeySlice{"16/account-id/my-snap-ctl/1", "16/account-id/my-snap-ctl2/2", "16/account-id/my-snap-ctl3/1"})
 
-	vsKeys, rev, err = valsets.CheckPresenceRequired(naming.NewSnapRef("my-snap", "mysnapididididididididididididid"))
+	presence, err = valsets.Presence(naming.NewSnapRef("my-snap", "mysnapididididididididididididid"))
 	c.Assert(err, IsNil)
-	c.Check(rev, DeepEquals, snap.Revision{N: 7})
-	c.Check(vsKeys, DeepEquals, []snapasserts.ValidationSetKey{"16/account-id/my-snap-ctl/1", "16/account-id/my-snap-ctl2/2", "16/account-id/my-snap-ctl3/1"})
-
-	// other-snap is not required
-	vsKeys, rev, err = valsets.CheckPresenceRequired(naming.Snap("other-snap"))
-	c.Assert(err, ErrorMatches, `unexpected presence "invalid" for snap "other-snap"`)
-	pr, ok := err.(*snapasserts.PresenceConstraintError)
-	c.Assert(ok, Equals, true)
-	c.Check(pr.SnapName, Equals, "other-snap")
-	c.Check(pr.Presence, Equals, asserts.PresenceInvalid)
-	c.Check(rev, DeepEquals, snap.Revision{N: 0})
-	c.Check(vsKeys, HasLen, 0)
+	c.Check(presence.Revision, DeepEquals, snap.Revision{N: 7})
+	c.Check(presence.Presence, DeepEquals, asserts.PresenceRequired)
+	c.Check(presence.Sets, DeepEquals, snapasserts.ValidationSetKeySlice{"16/account-id/my-snap-ctl/1", "16/account-id/my-snap-ctl2/2", "16/account-id/my-snap-ctl3/1"})
 
 	// unknown snap is not required
-	vsKeys, rev, err = valsets.CheckPresenceRequired(naming.NewSnapRef("unknown-snap", "00000000idididididididididididid"))
+	presence, err = valsets.Presence(naming.NewSnapRef("unknown-snap", "00000000idididididididididididid"))
 	c.Assert(err, IsNil)
-	c.Check(rev, DeepEquals, snap.Revision{N: 0})
-	c.Check(vsKeys, HasLen, 0)
+	c.Check(presence.Constrained(), Equals, false)
 
 	// just one set, required but no revision specified
 	valsets = snapasserts.NewValidationSets()
 	c.Assert(valsets.Add(valset3), IsNil)
-	vsKeys, rev, err = valsets.CheckPresenceRequired(naming.Snap("my-snap"))
+	presence, err = valsets.Presence(naming.Snap("my-snap"))
 	c.Assert(err, IsNil)
-	c.Check(rev, DeepEquals, snap.Revision{N: 0})
-	c.Check(vsKeys, DeepEquals, []snapasserts.ValidationSetKey{"16/account-id/my-snap-ctl3/1"})
+	c.Check(presence.Revision, DeepEquals, snap.Revision{N: 0})
+	c.Check(presence.Presence, DeepEquals, asserts.PresenceRequired)
+	c.Check(presence.Sets, DeepEquals, snapasserts.ValidationSetKeySlice{"16/account-id/my-snap-ctl3/1"})
 }
 
 func (s *validationSetsSuite) TestIsPresenceInvalid(c *C) {
@@ -1285,9 +1277,9 @@ func (s *validationSetsSuite) TestIsPresenceInvalid(c *C) {
 	valsets := snapasserts.NewValidationSets()
 
 	// no validation sets
-	vsKeys, err := valsets.CheckPresenceInvalid(naming.Snap("my-snap"))
+	presence, err := valsets.Presence(naming.Snap("my-snap"))
 	c.Assert(err, IsNil)
-	c.Check(vsKeys, HasLen, 0)
+	c.Check(presence.Constrained(), Equals, false)
 
 	c.Assert(valsets.Add(valset1), IsNil)
 	c.Assert(valsets.Add(valset2), IsNil)
@@ -1296,31 +1288,18 @@ func (s *validationSetsSuite) TestIsPresenceInvalid(c *C) {
 	c.Assert(valsets.Conflict(), IsNil)
 
 	// invalid in two sets
-	vsKeys, err = valsets.CheckPresenceInvalid(naming.Snap("my-snap"))
+	presence, err = valsets.Presence(naming.Snap("my-snap"))
 	c.Assert(err, IsNil)
-	c.Check(vsKeys, DeepEquals, []snapasserts.ValidationSetKey{"16/account-id/my-snap-ctl/1", "16/account-id/my-snap-ctl2/2"})
+	c.Check(presence.Sets, DeepEquals, snapasserts.ValidationSetKeySlice{"16/account-id/my-snap-ctl/1", "16/account-id/my-snap-ctl2/2"})
 
-	vsKeys, err = valsets.CheckPresenceInvalid(naming.NewSnapRef("my-snap", "mysnapididididididididididididid"))
+	presence, err = valsets.Presence(naming.NewSnapRef("my-snap", "mysnapididididididididididididid"))
 	c.Assert(err, IsNil)
-	c.Check(vsKeys, DeepEquals, []snapasserts.ValidationSetKey{"16/account-id/my-snap-ctl/1", "16/account-id/my-snap-ctl2/2"})
+	c.Check(presence.Sets, DeepEquals, snapasserts.ValidationSetKeySlice{"16/account-id/my-snap-ctl/1", "16/account-id/my-snap-ctl2/2"})
 
-	// other-snap isn't invalid
-	vsKeys, err = valsets.CheckPresenceInvalid(naming.Snap("other-snap"))
-	c.Assert(err, ErrorMatches, `unexpected presence "optional" for snap "other-snap"`)
-	pr, ok := err.(*snapasserts.PresenceConstraintError)
-	c.Assert(ok, Equals, true)
-	c.Check(pr.SnapName, Equals, "other-snap")
-	c.Check(pr.Presence, Equals, asserts.PresenceOptional)
-	c.Check(vsKeys, HasLen, 0)
-
-	vsKeys, err = valsets.CheckPresenceInvalid(naming.NewSnapRef("other-snap", "123456ididididididididididididid"))
-	c.Assert(err, ErrorMatches, `unexpected presence "optional" for snap "other-snap"`)
-	c.Check(vsKeys, HasLen, 0)
-
-	// unknown snap isn't invalid
-	vsKeys, err = valsets.CheckPresenceInvalid(naming.NewSnapRef("unknown-snap", "00000000idididididididididididid"))
+	// unknown snap isn't constrained
+	presence, err = valsets.Presence(naming.NewSnapRef("unknown-snap", "00000000idididididididididididid"))
 	c.Assert(err, IsNil)
-	c.Check(vsKeys, HasLen, 0)
+	c.Check(presence.Constrained(), Equals, false)
 }
 
 func (s *validationSetsSuite) TestParseValidationSet(c *C) {

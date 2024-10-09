@@ -962,28 +962,6 @@ func (v *ValidationSets) constraintsForSnap(snapRef naming.SnapRef) *snapConstra
 	return nil
 }
 
-// CheckPresenceRequired returns the list of all validation sets that declare
-// presence of the given snap as required and the required revision (or
-// snap.R(0) if no specific revision is required). PresenceConstraintError is
-// returned if presence of the snap is "invalid".
-// The method assumes that validation sets are not in conflict.
-func (v *ValidationSets) CheckPresenceRequired(snapRef naming.SnapRef) ([]ValidationSetKey, snap.Revision, error) {
-	p, err := v.Presence(snapRef)
-	if err != nil {
-		return nil, snap.Revision{}, err
-	}
-
-	if p.Presence == asserts.PresenceInvalid {
-		return nil, snap.Revision{}, &PresenceConstraintError{snapRef.SnapName(), p.Presence}
-	}
-
-	if p.Presence != asserts.PresenceRequired {
-		return nil, unspecifiedRevision, nil
-	}
-
-	return p.Sets, p.Revision, nil
-}
-
 // CanBePresent returns true if a snap can be present in a situation in which
 // these validation sets are being applied.
 func (v *ValidationSets) CanBePresent(snapRef naming.SnapRef) bool {
@@ -1010,27 +988,6 @@ func (v *ValidationSets) RequiredSnaps() []string {
 // validation sets known to this ValidationSets.
 func (v *ValidationSets) SnapConstrained(snapRef naming.SnapRef) bool {
 	return v.constraintsForSnap(snapRef) != nil
-}
-
-// CheckPresenceInvalid returns the list of all validation sets that declare
-// presence of the given snap as invalid. PresenceConstraintError is returned if
-// presence of the snap is "optional" or "required".
-// The method assumes that validation sets are not in conflict.
-func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) ([]ValidationSetKey, error) {
-	if !v.SnapConstrained(snapRef) {
-		return nil, nil
-	}
-
-	p, err := v.Presence(snapRef)
-	if err != nil {
-		return nil, err
-	}
-
-	if p.Presence != asserts.PresenceInvalid {
-		return nil, &PresenceConstraintError{snapRef.SnapName(), p.Presence}
-	}
-
-	return p.Sets, nil
 }
 
 type presence struct {

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
@@ -413,14 +414,12 @@ func completeStoreAction(action *store.SnapAction, revOpts RevisionOptions, igno
 
 		// if the caller didn't provide any validation sets, make sure that
 		// the snap is allowed by all of the enforced validation sets
-		invalidSets, err := vsets.CheckPresenceInvalid(naming.Snap(action.InstanceName))
+		pres, err := vsets.Presence(naming.Snap(action.InstanceName))
 		if err != nil {
-			if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
-				return err
-			} // else presence is optional or required, carry on
+			return err
 		}
 
-		if len(invalidSets) > 0 {
+		if pres.Presence == asserts.PresenceInvalid {
 			verb := "install"
 			if action.Action == "refresh" {
 				verb = "update"
@@ -430,29 +429,28 @@ func completeStoreAction(action *store.SnapAction, revOpts RevisionOptions, igno
 				"cannot %s snap %q due to enforcing rules of validation set %s",
 				verb,
 				action.InstanceName,
-				snapasserts.ValidationSetKeySlice(invalidSets).CommaSeparated(),
+				pres.Sets.CommaSeparated(),
 			)
-		}
-
-		requiredSets, requiredRev, err := vsets.CheckPresenceRequired(naming.Snap(action.InstanceName))
-		if err != nil {
-			return err
 		}
 
 		// make sure that the caller-requested revision matches the revision
 		// required by the enforced validation sets
-		if !requiredRev.Unset() && !revOpts.Revision.Unset() && requiredRev != revOpts.Revision {
-			return invalidRevisionError(action, requiredSets, revOpts.Revision, requiredRev)
+		if !pres.Revision.Unset() && !revOpts.Revision.Unset() && pres.Revision != revOpts.Revision {
+			return invalidRevisionError(action, pres.Sets, revOpts.Revision, pres.Revision)
 		}
 
 		// TODO:COMPS: handle validation sets and components here
 
-		action.ValidationSets = requiredSets
+		// we only need to send these if this snap is actually constrained by
+		// the validation sets in some way
+		if pres.Constrained() {
+			action.ValidationSets = pres.Sets
+		}
 
-		if !requiredRev.Unset() {
+		if !pres.Revision.Unset() {
 			// make sure that we use the revision required by the enforced
 			// validation sets
-			action.Revision = requiredRev
+			action.Revision = pres.Revision
 
 			// we ignore the cohort if a validation set requires that the
 			// snap is pinned to a specific revision
