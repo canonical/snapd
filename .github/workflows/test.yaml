@@ -26,6 +26,12 @@ jobs:
           # are the build that should be installed by human users.
           - pristine
           - test
+        exclude:
+          - runner: [self-hosted, Linux, jammy, ARM64, large]
+            toolchain: FIPS
+          - runner: [self-hosted, Linux, jammy, ARM64, large]
+            version: pristine
+  
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
