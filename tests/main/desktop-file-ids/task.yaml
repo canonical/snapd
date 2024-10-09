@@ -14,7 +14,7 @@ environment:
     DIR: /var/lib/snapd/desktop/applications
 
 prepare: |
-    cat > "$TESTSLIB/snaps/test-snapd-desktop-file-ids/meta/gui/bad. ,?**[]{}^\$#.desktop" << EOF
+    cat > "$TESTSLIB"/snaps/test-snapd-desktop-file-ids/meta/gui/'bad. ,?**[]{}^\$#.desktop' << EOF
     [Desktop Entry]
     Name=test-snapd-desktop.cmd
     Comment=A desktop file for test-snapd-desktop.cmd
