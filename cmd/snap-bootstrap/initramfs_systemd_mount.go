@@ -88,6 +88,16 @@ type systemdMountOptions struct {
 	WorkDir string
 }
 
+func pathContainsAny(i string, chars string) bool {
+	for _, c := range chars {
+		if strings.IndexRune(i, c) >= 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
 // doSystemdMount will mount "what" at "where" using systemd-mount(1) with
 // various options. Note that in some error cases, the mount unit may have
 // already been created and it will not be deleted here, if that is the case
@@ -108,6 +118,15 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 
 	if opts.Tmpfs && what == "" {
 		what = "tmpfs"
+	}
+
+	forbiddenChars := `\`
+	if pathContainsAny(what, forbiddenChars) {
+		return fmt.Errorf("cannot mount %q at %q: what systemd-mount argument contains forbidden characters. %q contains one of \"%s\".", what, where, what, forbiddenChars)
+	}
+
+	if pathContainsAny(where, forbiddenChars) {
+		return fmt.Errorf("cannot mount %q at %q: where systemd-mount argument contains forbidden characters. %q contains one of \"%s\".", what, where, where, forbiddenChars)
 	}
 
 	args := []string{what, where, "--no-pager", "--no-ask-password"}
@@ -173,6 +192,13 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 			return fmt.Errorf("cannot mount %q at %q: missing arguments for overlayfs mount. lowerdir, upperdir, workdir are needed.", what, where)
 		}
 
+		if pathContainsAny(opts.UpperDir, forbiddenChars) {
+			return fmt.Errorf("cannot mount %q at %q: upperdir overlayfs mount option contains forbidden characters. %q contains one of \"%s\".", what, where, opts.UpperDir, forbiddenChars)
+		}
+		if pathContainsAny(opts.WorkDir, forbiddenChars) {
+			return fmt.Errorf("cannot mount %q at %q: workdir overlayfs mount option contains forbidden characters. %q contains one of \"%s\".", what, where, opts.WorkDir, forbiddenChars)
+		}
+
 		escaper := strings.NewReplacer(",", `\,`, " ", `\ `)
 		lowerdirescaper := strings.NewReplacer(",", `\,`, " ", `\ `, ":", `\:`)
 
@@ -181,6 +207,11 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 			if i != 0 {
 				lowerDirs.WriteRune(':')
 			}
+
+			if pathContainsAny(d, forbiddenChars) {
+				return fmt.Errorf("cannot mount %q at %q: lowerdir overlayfs mount option contains forbidden characters. %q contains one of \"%s\".", what, where, d, forbiddenChars)
+			}
+
 			// This is used for splitting multiple lowerdirs as done in
 			// https://elixir.bootlin.com/linux/v6.10.9/C/ident/ovl_parse_param_split_lowerdirs
 			ed := lowerdirescaper.Replace(d)

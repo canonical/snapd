@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -313,6 +314,56 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			},
 			expErr:  "cannot mount \"what\" at \"where\": missing arguments for overlayfs mount. lowerdir, upperdir, workdir are needed.",
 			comment: "overlayfs mount requested without specifying a workdir",
+		},
+		{
+			what:    "what\\",
+			where:   "where",
+			opts:    &main.SystemdMountOptions{},
+			expErr:  `cannot mount "` + regexp.QuoteMeta(`what\\`) + `" at "where": what systemd-mount argument contains forbidden characters. "` + regexp.QuoteMeta(`what\\`) + `" contains one of "\\".`,
+			comment: "disallow use of \\ in the what argument",
+		},
+		{
+			what:    "what",
+			where:   "where\\",
+			opts:    &main.SystemdMountOptions{},
+			expErr:  `cannot mount "what" at "` + regexp.QuoteMeta(`where\\`) + `": where systemd-mount argument contains forbidden characters. "` + regexp.QuoteMeta(`where\\`) + `" contains one of "\\".`,
+			comment: "disallow use of \\ in the where argument",
+		},
+		{
+			what:  "what",
+			where: "where",
+			opts: &main.SystemdMountOptions{
+				Overlayfs: true,
+				LowerDirs: []string{"/lower1\\"},
+				UpperDir:  "/upper",
+				WorkDir:   "/work",
+			},
+			expErr:  `cannot mount "what" at "where": lowerdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/lower1\\`) + `" contains one of "\\".`,
+			comment: "disallow use of \\ in the overlayfs lowerdir mount option",
+		},
+		{
+			what:  "what",
+			where: "where",
+			opts: &main.SystemdMountOptions{
+				Overlayfs: true,
+				LowerDirs: []string{"/lower1"},
+				UpperDir:  "/upper\\",
+				WorkDir:   "/work",
+			},
+			expErr:  `cannot mount "what" at "where": upperdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/upper\\`) + `" contains one of "\\".`,
+			comment: "disallow use of \\ in the overlayfs upperdir mount option",
+		},
+		{
+			what:  "what",
+			where: "where",
+			opts: &main.SystemdMountOptions{
+				Overlayfs: true,
+				LowerDirs: []string{"/lower1"},
+				UpperDir:  "/upper",
+				WorkDir:   "/work\\",
+			},
+			expErr:  `cannot mount "what" at "where": workdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/work\\`) + `" contains one of "\\".`,
+			comment: "disallow use of \\ in the overlayfs workdir mount option",
 		},
 	}
 
