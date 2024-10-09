@@ -6,9 +6,7 @@ details: |
   updated. And if the services fail, then we need to reset the
   symlink.
 
-systems:
-  - ubuntu-core-20-*
-  - ubuntu-core-22-*
+systems: [ ubuntu-core-2* ]
 
 restore: |
   current_rev="$(readlink /snap/snapd/current)"
@@ -83,8 +81,8 @@ execute: |
   snap watch "${broken_install_id}" || true
   snap change "${broken_install_id}" | MATCH 'Error'
 
-  # snapd.failure.service is not running
-  systemctl show -p ActiveState --value snapd.failure.service | MATCH inactive
+  # snapd.failure.service is not running (in arm devices it could take a while)
+  retry -n 60 --wait 1 sh -c "systemctl show -p ActiveState --value snapd.failure.service | MATCH inactive"
   # but it has run since last install
   last_activated="$(date --date="$(systemctl show -p InactiveEnterTimestamp --value snapd.failure.service)" +%s)"
   [ -n "${last_activated}" ]
