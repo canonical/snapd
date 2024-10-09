@@ -85,3 +85,7 @@ func RenameOrDeleteKeys(node string, renames map[string]string) error {
 func DeleteKeys(node string, matches map[string]bool) error {
 	return errBuildWithoutSecboot
 }
+
+func ResealKeysWithFDESetupHook(keyFiles []string, primaryKeyFile string, models []ModelForSealing) error {
+	return errBuildWithoutSecboot
+}
