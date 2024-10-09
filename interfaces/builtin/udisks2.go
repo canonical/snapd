@@ -177,6 +177,12 @@ const udisks2ConnectedPlugAppArmor = `
 
 #include <abstractions/dbus-strict>
 
+dbus (send)
+    bus=system
+    path=/org/freedesktop/UDisks2
+    interface=org.freedesktop.DBus.Peer
+    member=Ping
+    peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive, send)
     bus=system
     path=/org/freedesktop/UDisks2/**
