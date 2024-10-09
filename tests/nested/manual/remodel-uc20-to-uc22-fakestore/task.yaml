@@ -1,7 +1,8 @@
 summary: verify remodel from UC20 to UC22
 details: |
   Verify remodel from UC20 to UC22. This verifies unencrypted, tpm and
-  fde hook modes.
+  fde hook modes. This uses the fakestore only for update of snaps
+  during remodel.
 
 systems: [ubuntu-20.04-64]
 
