@@ -14,6 +14,15 @@ environment:
     DIR: /var/lib/snapd/desktop/applications
 
 prepare: |
+    cat > "$TESTSLIB/snaps/test-snapd-desktop-file-ids/meta/gui/bad. ,?**[]{}^\$#.desktop" << EOF
+    [Desktop Entry]
+    Name=test-snapd-desktop.cmd
+    Comment=A desktop file for test-snapd-desktop.cmd
+    Exec=test-snapd-desktop.cmd
+    Terminal=true
+    Type=Application
+    EOF
+
     "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop-file-ids
     touch "$DIR/test-confinement.desktop"
     tests.session -u test prepare
