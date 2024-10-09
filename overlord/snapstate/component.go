@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
@@ -39,7 +40,14 @@ import (
 // in names should not be installed prior to calling this function.
 //
 // TODO:COMPS: respect the transaction that is passed to this function
-func InstallComponents(ctx context.Context, st *state.State, names []string, info *snap.Info, opts Options) ([]*state.TaskSet, error) {
+func InstallComponents(
+	ctx context.Context,
+	st *state.State,
+	names []string,
+	info *snap.Info,
+	vsets []snapasserts.ValidationSetKey,
+	opts Options,
+) ([]*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, info.InstanceName(), &snapst)
 	if err != nil {
@@ -55,9 +63,24 @@ func InstallComponents(ctx context.Context, st *state.State, names []string, inf
 		}
 	}
 
-	compsups, err := componentSetupsForInstall(ctx, st, names, snapst, snapst.Current, snapst.TrackingChannel, opts)
+	compsups, err := componentSetupsForInstall(ctx, st, names, snapst, RevisionOptions{
+		Revision:       snapst.Current,
+		Channel:        snapst.TrackingChannel,
+		ValidationSets: vsets,
+	}, opts)
 	if err != nil {
 		return nil, err
+	}
+
+	if !opts.Flags.IgnoreValidation && len(vsets) == 0 {
+		enforced, err := EnforcedValidationSets(st)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := checkComponentSetupsAgainstValidationSets(info.InstanceName(), compsups, enforced); err != nil {
+			return nil, err
+		}
 	}
 
 	snapsup := SnapSetup{
@@ -111,7 +134,21 @@ func InstallComponents(ctx context.Context, st *state.State, names []string, inf
 	return append(tss, ts), nil
 }
 
-func componentSetupsForInstall(ctx context.Context, st *state.State, names []string, snapst SnapState, snapRev snap.Revision, channel string, opts Options) ([]ComponentSetup, error) {
+func checkComponentSetupsAgainstValidationSets(snapName string, compsups []ComponentSetup, vsets *snapasserts.ValidationSets) error {
+	comps := make(map[string]snap.Revision, len(compsups))
+	for _, comp := range compsups {
+		comps[comp.ComponentName()] = comp.Revision()
+	}
+
+	presence, err := vsets.Presence(naming.Snap(snapName))
+	if err != nil {
+		return err
+	}
+
+	return checkComponentsAgainstPresence(snapName, comps, presence, "install")
+}
+
+func componentSetupsForInstall(ctx context.Context, st *state.State, names []string, snapst SnapState, revOpts RevisionOptions, opts Options) ([]ComponentSetup, error) {
 	if len(names) == 0 {
 		return nil, nil
 	}
@@ -127,7 +164,7 @@ func componentSetupsForInstall(ctx context.Context, st *state.State, names []str
 		return nil, err
 	}
 
-	action, err := installComponentAction(st, snapst, snapRev, channel, opts)
+	action, err := installComponentAction(st, snapst, revOpts, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -154,10 +191,16 @@ func componentSetupsForInstall(ctx context.Context, st *state.State, names []str
 	return componentTargetsFromActionResult("install", sars[0], names)
 }
 
-func installComponentAction(st *state.State, snapst SnapState, snapRev snap.Revision, channel string, opts Options) (*store.SnapAction, error) {
-	index := snapst.LastIndex(snapRev)
+// installComponentAction returns a store action that is used to get a list of
+// components that are available in the store.
+func installComponentAction(st *state.State, snapst SnapState, revOpts RevisionOptions, opts Options) (*store.SnapAction, error) {
+	if revOpts.Revision.Unset() {
+		return nil, errors.New("internal error: must specify snap revision when installing only components")
+	}
+
+	index := snapst.LastIndex(revOpts.Revision)
 	if index == -1 {
-		return nil, fmt.Errorf("internal error: cannot find snap revision %s in sequence", snapRev)
+		return nil, fmt.Errorf("internal error: cannot find snap revision %s in sequence", revOpts.Revision)
 	}
 	si := snapst.Sequence.SideInfos()[index]
 
@@ -176,15 +219,6 @@ func installComponentAction(st *state.State, snapst SnapState, snapRev snap.Revi
 		ResourceInstall: true,
 	}
 
-	// we send an action that contains the current channel and revision so
-	// that we make sure to get back components that are compatible with the
-	// currently installed snap
-	revOpts := RevisionOptions{
-		Revision: si.Revision,
-		Channel:  channel,
-	}
-
-	// TODO:COMPS: handle validation sets here
 	if err := completeStoreAction(action, revOpts, opts.Flags.IgnoreValidation, enforcedSetsFunc); err != nil {
 		return nil, err
 	}

@@ -291,7 +291,7 @@ func createSnapctlInstallTasks(hctx *hookstate.Context, cmd managementCommand) (
 	if err != nil {
 		return nil, err
 	}
-	return snapstateInstallComponents(context.TODO(), st, cmd.components, info,
+	return snapstateInstallComponents(context.TODO(), st, cmd.components, info, nil,
 		snapstate.Options{ExpectOneSnap: true, FromChange: changeIDIfNotEphemeral(hctx)})
 }
 
