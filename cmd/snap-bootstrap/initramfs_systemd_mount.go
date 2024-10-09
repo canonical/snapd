@@ -174,6 +174,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		}
 
 		escaper := strings.NewReplacer(",", `\,`, " ", `\ `)
+		lowerdirescaper := strings.NewReplacer(",", `\,`, " ", `\ `, ":", `\:`)
 
 		var lowerDirs strings.Builder
 		for i, d := range opts.LowerDirs {
@@ -182,8 +183,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 			}
 			// This is used for splitting multiple lowerdirs as done in
 			// https://elixir.bootlin.com/linux/v6.10.9/C/ident/ovl_parse_param_split_lowerdirs
-			ed := strings.ReplaceAll(d, ":", `\:`)
-			ed = escaper.Replace(ed)
+			ed := lowerdirescaper.Replace(d)
 			lowerDirs.WriteString(ed)
 		}
 		options = append(options, fmt.Sprintf("lowerdir=%s", lowerDirs.String()))
