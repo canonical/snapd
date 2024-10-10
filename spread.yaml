@@ -1214,7 +1214,7 @@ suites:
             fi
 
             # Install the snapd built
-            dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+            dpkg -i "$GOHOME"/snapd_*.deb
 
             # Configure the ssh connection to the test vm
             remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
@@ -1273,7 +1273,7 @@ suites:
             fi
 
             # Install the snapd built
-            dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+            dpkg -i "$GOHOME"/snapd_*.deb
 
             # Configure the ssh connection to the test vm
             remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
@@ -1330,7 +1330,7 @@ suites:
             fi
 
             # Install the snapd built
-            dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+            dpkg -i "$GOHOME"/snapd_*.deb
 
             # Configure the ssh connection to the test vm
             remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
@@ -1395,7 +1395,7 @@ suites:
             fi
   
             # Install the snapd built
-            dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+            dpkg -i "$GOHOME"/snapd_*.deb
 
             # Configure the ssh connection to the test vm
             remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
