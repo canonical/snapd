@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -108,6 +109,72 @@ func (s *snapConfSuite) TestGetConfMissingKey(c *check.C) {
 		"message": `snap "test-snap" has no "test-key2" configuration option`,
 		"kind":    "option-not-found",
 	})
+}
+
+func (s *snapConfSuite) TestGetConfCoreUnsupportedExperimentalFlag(c *check.C) {
+	d := s.daemon(c)
+
+	// We are testing that experimental features that are no longer experimental
+	// are hidden
+
+	d.Overlord().State().Lock()
+	tr := config.NewTransaction(d.Overlord().State())
+	err := tr.Set("core", "experimental.old-flag", true)
+	c.Assert(err, check.IsNil)
+	err = tr.Set("core", "experimental.supported-flag", true)
+	c.Assert(err, check.IsNil)
+	tr.Commit()
+	d.Overlord().State().Unlock()
+
+	// Simulate that experimental.old-flag is now out of experimental
+	restore := configcore.MockSupportedExperimentalFlags([]string{"supported-flag"})
+	defer restore()
+
+	// Exact query to old experimental feature returns an error
+	result := s.runGetConf(c, "core", []string{"experimental.old-flag"}, 400)
+	c.Check(result, check.DeepEquals, map[string]interface{}{
+		"value": map[string]interface{}{
+			"SnapName": "core",
+			"Key":      "experimental.old-flag",
+		},
+		"message": `snap "core" has no "experimental.old-flag" configuration option`,
+		"kind":    "option-not-found",
+	})
+
+	// Generic experimental features query should hide old experimental
+	// features that are no longer supported
+	result = s.runGetConf(c, "core", []string{"experimental"}, 200)
+	c.Check(result, check.DeepEquals, map[string]interface{}{
+		"experimental": map[string]interface{}{
+			"supported-flag": true,
+		},
+	})
+	// Let's only check experimental config in root document
+	result = s.runGetConf(c, "core", nil, 200)
+	result = result["experimental"].(map[string]interface{})
+	c.Check(result, check.DeepEquals, map[string]interface{}{"supported-flag": true})
+
+	// Simulate the scenario where snapd is reverted to revision
+	// that supports a hidden experimental feature
+	restore = configcore.MockSupportedExperimentalFlags([]string{"supported-flag", "old-flag"})
+	defer restore()
+
+	// Exact queries should now work
+	result = s.runGetConf(c, "core", []string{"experimental.old-flag"}, 200)
+	c.Check(result, check.DeepEquals, map[string]interface{}{"experimental.old-flag": true})
+
+	// Generic queries should now show previously hidden experimental feature
+	result = s.runGetConf(c, "core", []string{"experimental"}, 200)
+	c.Check(result, check.DeepEquals, map[string]interface{}{
+		"experimental": map[string]interface{}{
+			"old-flag":       true,
+			"supported-flag": true,
+		},
+	})
+	result = s.runGetConf(c, "core", nil, 200)
+	result = result["experimental"].(map[string]interface{})
+	c.Check(result, check.DeepEquals, map[string]interface{}{"old-flag": true, "supported-flag": true})
+
 }
 
 func (s *snapConfSuite) TestGetRootDocument(c *check.C) {
