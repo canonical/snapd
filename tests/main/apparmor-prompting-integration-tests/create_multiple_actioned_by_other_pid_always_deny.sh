@@ -4,9 +4,11 @@
 #
 # When creating a new file is blocked on a reply to a request prompt, the
 # directory in which the file will be created is locked from other writes.
-# Thus, we can't queue up multiple outstanding writes on files in the same
-# directory. Instead, we must write files in different directories in order
-# for this test to succeed.
+# Thus, we can't queue up multiple outstanding file creations in the same
+# directory. Instead, we must create files in different directories in order
+# for this test to succeed. Reads and writes to already-existing files in a
+# directory are not blocked by file creations pending replies in that same
+# directory.
 
 TEST_DIR="$1"
 
