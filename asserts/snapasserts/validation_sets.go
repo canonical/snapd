@@ -962,47 +962,6 @@ func (v *ValidationSets) constraintsForSnap(snapRef naming.SnapRef) *snapConstra
 	return nil
 }
 
-// CheckPresenceRequired returns the list of all validation sets that declare
-// presence of the given snap as required and the required revision (or
-// snap.R(0) if no specific revision is required). PresenceConstraintError is
-// returned if presence of the snap is "invalid".
-// The method assumes that validation sets are not in conflict.
-func (v *ValidationSets) CheckPresenceRequired(snapRef naming.SnapRef) ([]ValidationSetKey, snap.Revision, error) {
-	cstrs := v.constraintsForSnap(snapRef)
-	if cstrs == nil {
-		return nil, unspecifiedRevision, nil
-	}
-	if cstrs.presence == asserts.PresenceInvalid {
-		return nil, unspecifiedRevision, &PresenceConstraintError{snapRef.SnapName(), cstrs.presence}
-	}
-	if cstrs.presence != asserts.PresenceRequired {
-		return nil, unspecifiedRevision, nil
-	}
-
-	snapRev := unspecifiedRevision
-	var keys []ValidationSetKey
-	for rev, revCstr := range cstrs.revisions {
-		for _, rc := range revCstr {
-			vs := v.sets[rc.validationSetKey]
-			if vs == nil {
-				return nil, unspecifiedRevision, fmt.Errorf("internal error: no validation set for %q", rc.validationSetKey)
-			}
-			keys = append(keys, NewValidationSetKey(vs))
-			// there may be constraints without revision; only set snapRev if
-			// it wasn't already determined. Note that if revisions are set,
-			// then they are the same, otherwise validation sets would be in
-			// conflict.
-			// This is an equivalent of 'if rev != unspecifiedRevision`.
-			if snapRev == unspecifiedRevision {
-				snapRev = rev
-			}
-		}
-	}
-
-	sort.Sort(ValidationSetKeySlice(keys))
-	return keys, snapRev, nil
-}
-
 // CanBePresent returns true if a snap can be present in a situation in which
 // these validation sets are being applied.
 func (v *ValidationSets) CanBePresent(snapRef naming.SnapRef) bool {
@@ -1031,33 +990,132 @@ func (v *ValidationSets) SnapConstrained(snapRef naming.SnapRef) bool {
 	return v.constraintsForSnap(snapRef) != nil
 }
 
-// CheckPresenceInvalid returns the list of all validation sets that declare
-// presence of the given snap as invalid. PresenceConstraintError is returned if
-// presence of the snap is "optional" or "required".
-// The method assumes that validation sets are not in conflict.
-func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) ([]ValidationSetKey, error) {
-	cstrs := v.constraintsForSnap(snapRef)
+type presence struct {
+	Presence asserts.Presence
+	Revision snap.Revision
+	Sets     ValidationSetKeySlice
+}
+
+// SnapPresence contains information about a snap's allowed presence with
+// respect to a set of validation sets.
+type SnapPresence struct {
+	presence
+	components map[string]presence
+}
+
+// Constrained returns true if the snap is constrained in any way by the
+// validation sets that this SnapPresence is created from.
+// Ultimately, one of these things must be true for a snap to be constrained:
+//   - snap has a presence of either "required" or "invalid"
+//   - the snap's revision is pinned to a specific revision
+//   - either of the above are true for any of the snap's components
+func (s *SnapPresence) Constrained() bool {
+	if s.constrained() {
+		return true
+	}
+
+	for _, comp := range s.components {
+		if comp.constrained() {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *presence) constrained() bool {
+	return p.Presence != asserts.PresenceOptional || !p.Revision.Unset()
+}
+
+// Component returns the presence of the given component of the snap. If this
+// SnapPresence doesn't know about the component, the component will be
+// considered optional and allowed to have any revision.
+func (s *SnapPresence) Component(name string) presence {
+	if s.components == nil {
+		return presence{
+			Presence: asserts.PresenceOptional,
+		}
+	}
+
+	cp, ok := s.components[name]
+	if !ok {
+		return presence{
+			Presence: asserts.PresenceOptional,
+		}
+	}
+	return cp
+}
+
+// RequiredComponents returns a set of all of the components that are required
+// to be installed when this snap is installed.
+func (s *SnapPresence) RequiredComponents() map[string]presence {
+	required := make(map[string]presence)
+	for name, pres := range s.components {
+		if pres.Presence != asserts.PresenceRequired {
+			continue
+		}
+		required[name] = pres
+	}
+	return required
+}
+
+// Presence returns a SnapPresence for the given snap. The returned struct
+// contains information about the allowed presence of the snap, with respect to
+// the validation sets that are known to this ValidationSets. if the snap is not
+// constrained by any validation sets, the presence will be considered optional.
+func (v *ValidationSets) Presence(sn naming.SnapRef) (SnapPresence, error) {
+	cstrs := v.constraintsForSnap(sn)
 	if cstrs == nil {
-		return nil, nil
+		return SnapPresence{
+			presence: presence{Presence: asserts.PresenceOptional},
+		}, nil
 	}
-	if cstrs.presence != asserts.PresenceInvalid {
-		return nil, &PresenceConstraintError{snapRef.SnapName(), cstrs.presence}
+
+	snapPresence, err := presenceFromConstraints(cstrs.constraints, v.sets)
+	if err != nil {
+		return SnapPresence{}, err
 	}
-	var keys []ValidationSetKey
-	for _, revCstr := range cstrs.revisions {
+
+	comps := make(map[string]presence, len(cstrs.componentConstraints))
+	for _, cstrs := range cstrs.componentConstraints {
+		compPresence, err := presenceFromConstraints(cstrs.constraints, v.sets)
+		if err != nil {
+			return SnapPresence{}, err
+		}
+		comps[cstrs.name] = compPresence
+	}
+
+	return SnapPresence{
+		presence:   snapPresence,
+		components: comps,
+	}, nil
+}
+
+func presenceFromConstraints(cstrs constraints, vsets map[string]*asserts.ValidationSet) (presence, error) {
+	p := presence{
+		Presence: asserts.PresenceOptional,
+	}
+	for rev, revCstr := range cstrs.revisions {
 		for _, rc := range revCstr {
-			if rc.presence == asserts.PresenceInvalid {
-				vs := v.sets[rc.validationSetKey]
-				if vs == nil {
-					return nil, fmt.Errorf("internal error: no validation set for %q", rc.validationSetKey)
-				}
-				keys = append(keys, NewValidationSetKey(vs))
+			vs := vsets[rc.validationSetKey]
+			if vs == nil {
+				return presence{}, fmt.Errorf("internal error: no validation set for %q", rc.validationSetKey)
+			}
+
+			p.Sets = append(p.Sets, NewValidationSetKey(vs))
+
+			if p.Revision == unspecifiedRevision {
+				p.Revision = rev
+			}
+
+			if p.Presence == asserts.PresenceOptional {
+				p.Presence = rc.presence
 			}
 		}
 	}
 
-	sort.Sort(ValidationSetKeySlice(keys))
-	return keys, nil
+	sort.Sort(ValidationSetKeySlice(p.Sets))
+
+	return p, nil
 }
 
 // ParseValidationSet parses a validation set string (account/name or account/name=sequence)

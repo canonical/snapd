@@ -3464,30 +3464,24 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	if enforcedSets == nil {
 		return nil
 	}
-	requiredValsets, requiredRevision, err := enforcedSets.CheckPresenceRequired(si)
+	pres, err := enforcedSets.Presence(si)
 	if err != nil {
-		if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
-			return err
-		}
-		// else - presence is invalid, nothing to do (not really possible since
-		// it shouldn't be allowed to get installed in the first place).
-		return nil
+		return err
 	}
-	if len(requiredValsets) == 0 {
-		// not required by any validation set (or is optional)
+	if pres.Presence != asserts.PresenceRequired {
 		return nil
 	}
 	// removeAll is set if we're removing the snap completely
 	if removeAll {
-		if requiredRevision.Unset() {
-			return fmt.Errorf("snap %q is required by validation sets: %s", si.InstanceName(), snapasserts.ValidationSetKeySlice(requiredValsets).CommaSeparated())
+		if pres.Revision.Unset() {
+			return fmt.Errorf("snap %q is required by validation sets: %s", si.InstanceName(), pres.Sets.CommaSeparated())
 		}
-		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), requiredRevision, snapasserts.ValidationSetKeySlice(requiredValsets).CommaSeparated())
+		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), pres.Revision, pres.Sets.CommaSeparated())
 	}
 
 	// rev is set at this point (otherwise we would hit removeAll case)
-	if requiredRevision.N == rev.N {
-		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), rev, snapasserts.ValidationSetKeySlice(requiredValsets).CommaSeparated())
+	if pres.Revision.N == rev.N {
+		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), rev, pres.Sets.CommaSeparated())
 	} // else - it's ok to remove a revision different than the required
 	return nil
 }
@@ -3980,11 +3974,17 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		return nil, err
 	}
 	if !newSnapst.IsInstalled() {
-		var userID int
-		newInfo, err := installInfo(context.TODO(), st, newName, &RevisionOptions{Channel: oldSnapst.TrackingChannel}, userID, Flags{}, nil)
+		result, err := sendOneInstallAction(context.TODO(), st, StoreSnap{
+			InstanceName: newName,
+			RevOpts: RevisionOptions{
+				Channel: oldSnapst.TrackingChannel,
+			},
+		}, Options{})
 		if err != nil {
 			return nil, err
 		}
+
+		newInfo := result.Info
 
 		// start by installing the new snap
 		tsInst, err := doInstall(st, &newSnapst, SnapSetup{
