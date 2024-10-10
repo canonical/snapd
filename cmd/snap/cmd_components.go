@@ -93,7 +93,8 @@ func (x *cmdComponents) Execute(args []string) error {
 	w := tabWriter()
 	fmt.Fprintln(w, i18n.G("Component\tStatus\tType"))
 	for _, snap := range snaps {
-		for _, comp := range sortedComponents(snap.Components) {
+		sort.Slice(snap.Components, componentsByInstallStatusAndSnapName(snap.Components))
+		for _, comp := range snap.Components {
 			// note that snap.Name is actually an instance name, and this isn't
 			// how we'd usually use a naming.ComponentRef. however, presenting
 			// users with a string that they can copy-paste into a "snap
@@ -111,14 +112,13 @@ func (x *cmdComponents) Execute(args []string) error {
 	return nil
 }
 
-func sortedComponents(comps []client.Component) []client.Component {
-	copied := make([]client.Component, len(comps))
-	copy(copied, comps)
-
-	// installed components are put first, followed by available components.
-	// components within those groups are sorted lexicographically
-	sort.Slice(copied, func(i, j int) bool {
-		left, right := copied[i], copied[j]
+// componentsByInstallStatusAndSnapName sorts a slice of components for use in
+// the output of the "snap components" command. Installed components are put
+// first, followed by available components. Components within those groups are
+// sorted lexicographically.
+func componentsByInstallStatusAndSnapName(comps []client.Component) func(i int, j int) bool {
+	return func(i, j int) bool {
+		left, right := comps[i], comps[j]
 
 		if left.InstallDate == nil && right.InstallDate != nil {
 			return false
@@ -129,7 +129,5 @@ func sortedComponents(comps []client.Component) []client.Component {
 		}
 
 		return left.Name < right.Name
-	})
-
-	return copied
+	}
 }
