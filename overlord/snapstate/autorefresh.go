@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -976,7 +977,7 @@ func MockRefreshCandidate(snapSetup *SnapSetup) interface{} {
 	}
 }
 
-func incrementSnapRefreshFailures(st *state.State, snapsup *SnapSetup) error {
+func incrementSnapRefreshFailures(st *state.State, snapsup *SnapSetup, severity snap.RefreshFailureSeverity) error {
 	var snapst SnapState
 	err := Get(st, snapsup.InstanceName(), &snapst)
 	if err != nil {
@@ -994,11 +995,50 @@ func incrementSnapRefreshFailures(st *state.State, snapsup *SnapSetup) error {
 			LastFailureTime: timeNow(),
 		}
 	}
+	snapst.RefreshFailures.LastFailureSeverity = severity
 	Set(st, snapsup.InstanceName(), &snapst)
 
 	delay := computeSnapRefreshRemainingDelay(snapst.RefreshFailures).Round(time.Hour)
 	logger.Noticef("snap %q auto-refresh to revision %s has failed, next auto-refresh attempt will be delayed by %v hours", snapsup.InstanceName(), snapsup.Revision(), delay.Hours())
 	return nil
+}
+
+func computeSnapRefreshFailureSeverity(chg *state.Change, unlinkTask *state.Task, snapName string) snap.RefreshFailureSeverity {
+	// It is ok to pass nil for the DeviceContext as the situation here is auto-refresh and not remodel.
+	bootBase, err := deviceModelBootBase(chg.State(), nil)
+	if err != nil {
+		logger.Debugf("internal error: failed to get model boot base: %v", err)
+	}
+
+	laneTasks := chg.LaneTasks(unlinkTask.Lanes()...)
+	// Look for a tasks marked as a restart boundary.
+	for _, t := range laneTasks {
+		// If a task is found in an Undone state with its restart boundary in the "do"
+		// direction then this indicates that the auto-refresh failed after a reboot
+		// and we should be more aggressive with the backoff delay applied to it to
+		// decrease devices' downtime due to bad snap revisions.
+		if t.Status() != state.UndoneStatus || !restart.TaskIsRestartBoundary(t, restart.RestartBoundaryDirectionDo) {
+			continue
+		}
+		// let's double check task is for the guilty snap since the refresh
+		// change might be running in a transaction and have all snaps'
+		// refresh tasks in the same lane.
+		snapsup, err := TaskSnapSetup(t)
+		if err != nil {
+			logger.Debugf("internal error: failed to get snap associated with task %s: %v", t.ID(), err)
+			continue
+		}
+		if snapsup.InstanceName() != snapName {
+			continue
+		}
+
+		if isEssentialSnap(snapsup.InstanceName(), snapsup.Type, bootBase) {
+			// Refresh failure happened after a reboot
+			return snap.RefreshFailureSeverityAfterReboot
+		}
+	}
+
+	return snap.RefreshFailureSeverityNone
 }
 
 func processFailedAutoRefresh(chg *state.Change, _ state.Status, new state.Status) {
@@ -1020,7 +1060,9 @@ func processFailedAutoRefresh(chg *state.Change, _ state.Status, new state.Statu
 			logger.Debugf("internal error: failed to get snap associated with task %s: %v", t.ID(), err)
 			continue
 		}
-		if err := incrementSnapRefreshFailures(t.State(), snapsup); err != nil {
+
+		failureSeverity := computeSnapRefreshFailureSeverity(chg, t, snapsup.InstanceName())
+		if err := incrementSnapRefreshFailures(t.State(), snapsup, failureSeverity); err != nil {
 			logger.Debugf("internal error: failed to increment failure count for snap %q: %v", snapsup.InstanceName(), err)
 			continue
 		}
@@ -1072,7 +1114,15 @@ func computeSnapRefreshRemainingDelay(refreshFailures *snap.RefreshFailuresInfo)
 		// Cap failure count to max delay according to snapRefreshDelay
 		failureCount = len(snapRefreshDelay) - 1
 	}
+
 	delay := snapRefreshDelay[failureCount]
+	if refreshFailures.LastFailureSeverity == snap.RefreshFailureSeverityAfterReboot {
+		// More aggressive delay for snaps that failed after requesting a reboot. This is
+		// to reduce downtime of failed upgrade loops that fully reboots devices. This
+		// could be a bad kernel, gadget, ..etc.
+		delay = delay * 2
+	}
+
 	now := timeNow()
 	if refreshFailures.LastFailureTime.Add(delay).Before(now) {
 		// Backoff delay has passed since last failure
