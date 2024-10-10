@@ -163,7 +163,7 @@ func (l *Log) debugEnabled() bool {
 // Debug only prints if SNAPD_DEBUG is set
 func (l *Log) Debug(msg string) {
 	if l.debugEnabled() {
-		l.NoGuardDebug(msg)
+		l.log.Output(3, "DEBUG: "+msg)
 	}
 }
 
