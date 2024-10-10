@@ -69,7 +69,7 @@ func (x *cmdComponents) Execute(args []string) error {
 	if err != nil {
 		if err == client.ErrNoSnapsInstalled {
 			if len(names) == 0 {
-				fmt.Fprintln(Stderr, i18n.G("No snaps are installed yet. Try 'snap install hello-world'."))
+				fmt.Fprintln(Stderr, i18n.G("No snaps are installed yet."))
 				return nil
 			} else {
 				return ErrNoMatchingSnaps
