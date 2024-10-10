@@ -921,7 +921,7 @@ func installActionsForAmend(st *state.State, updates map[string]StoreUpdate, opt
 
 		si := snapst.CurrentSideInfo()
 
-		if si == nil || si.SnapID != "" || snapst.TryMode {
+		if si == nil || si.SnapID != "" {
 			continue
 		}
 
