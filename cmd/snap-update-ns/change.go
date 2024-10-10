@@ -565,13 +565,6 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		desired[i].Dir = filepath.Clean(desired[i].Dir)
 	}
 
-	// Make yet another copy of the current entries, to retain their original
-	// order (the "current" variable is going to be sorted soon); just using
-	// currentProfile.Entries is not reliable because it didn't undergo the
-	// cleanup of the Dir paths.
-	unsortedCurrent := make([]osutil.MountEntry, len(current))
-	copy(unsortedCurrent, current)
-
 	dumpMountEntries := func(entries []osutil.MountEntry, pfx string) {
 		logger.Debug(pfx)
 		for _, en := range entries {
@@ -604,10 +597,8 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		desiredIDs[desired[i].XSnapdEntryID()] = true
 	}
 
-	// Compute reusable entries: those which are equal in current and desired and which
-	// are not prefixed by another entry that changed.
-	// sort them first
-	sort.Sort(byOvernameAndMountPoint(current))
+	// Compute reusable entries: those which are equal in current and
+	// desired and which are not prefixed by another entry that changed.
 	for i := range current {
 		dir := current[i].Dir
 		if skipDir != "" && strings.HasPrefix(dir, skipDir) {
@@ -694,12 +685,11 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	var changes []*Change
 
 	// Unmount entries not reused in reverse to handle children before their parent.
-	unmountOrder := unsortedCurrent
-	for i := len(unmountOrder) - 1; i >= 0; i-- {
-		if reuse[mountEntryId{unmountOrder[i].Dir, unmountOrder[i].Type}] {
-			changes = append(changes, &Change{Action: Keep, Entry: unmountOrder[i]})
+	for i := len(current) - 1; i >= 0; i-- {
+		if reuse[mountEntryId{current[i].Dir, current[i].Type}] {
+			changes = append(changes, &Change{Action: Keep, Entry: current[i]})
 		} else {
-			var entry osutil.MountEntry = unmountOrder[i]
+			var entry osutil.MountEntry = current[i]
 			entry.Options = append([]string(nil), entry.Options...)
 			// If the mount entry can potentially host nested mount points then detach
 			// rather than unmount, since detach will always succeed.
