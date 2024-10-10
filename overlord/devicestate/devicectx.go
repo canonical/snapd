@@ -78,6 +78,13 @@ func (dc *groundDeviceContext) SystemMode() string {
 	return dc.systemMode
 }
 
+// Classic returns true if the model is marked as a classic model.
+//
+// TODO: consider refactoring this, since this will return true in cases where
+// we might not really consider the system to be a classic system. For example,
+// this will return true when we're booting into recovery mode on a hybrid
+// system. While the model is a classic model, nothing about the running system
+// looks like a classic system.
 func (dc groundDeviceContext) Classic() bool {
 	return dc.model.Classic()
 }
