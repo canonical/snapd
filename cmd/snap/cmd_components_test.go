@@ -156,7 +156,7 @@ snap-1_two+comp-1  available  standard
 
 func (s *SnapSuite) TestComponentsNoSnaps(c *check.C) {
 	s.testComponents(c, testComponentOpts{
-		stderr: "No snaps are installed yet. Try 'snap install hello-world'.\n",
+		stderr: "No snaps are installed yet.\n",
 	})
 }
 
