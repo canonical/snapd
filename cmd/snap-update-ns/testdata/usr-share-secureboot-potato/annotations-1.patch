@@ -1,7 +1,7 @@
-diff --git b/cmd/snap-update-ns/testdata/content-layout-1-initially-connected.current.fstab a/cmd/snap-update-ns/testdata/content-layout-1-initially-connected.current.fstab
+diff --git b/cmd/snap-update-ns/testdata/usr-share-secureboot-potato/1-initially-connected.current.fstab a/cmd/snap-update-ns/testdata/usr-share-secureboot-potato/1-initially-connected.current.fstab
 index 54fbe65b9b..412f98e827 100644
---- b/cmd/snap-update-ns/testdata/content-layout-1-initially-connected.current.fstab
-+++ a/cmd/snap-update-ns/testdata/content-layout-1-initially-connected.current.fstab
+--- b/cmd/snap-update-ns/testdata/usr-share-secureboot-potato/1-initially-connected.current.fstab
++++ a/cmd/snap-update-ns/testdata/usr-share-secureboot-potato/1-initially-connected.current.fstab
 @@ -1,5 +1,27 @@
 +# This entry is injected by snap-confine. It represents the tmpfs
 +# created at / during construction of the mount namespace, before
@@ -30,10 +30,10 @@ index 54fbe65b9b..412f98e827 100644
 +# or relation to the connected content and is happy to replicate an empty
 +# unconnected directory.
  /snap/test-snapd-content-layout/x2/attached-content /usr/share/secureboot/potato none rbind,rw,x-snapd.origin=layout 0 0
-diff --git b/cmd/snap-update-ns/testdata/content-layout-1-initially-connected.desired.fstab a/cmd/snap-update-ns/testdata/content-layout-1-initially-connected.desired.fstab
+diff --git b/cmd/snap-update-ns/testdata/usr-share-secureboot-potato/1-initially-connected.desired.fstab a/cmd/snap-update-ns/testdata/usr-share-secureboot-potato/1-initially-connected.desired.fstab
 index 7e92c4709a..6ffd2382a4 100644
---- b/cmd/snap-update-ns/testdata/content-layout-1-initially-connected.desired.fstab
-+++ a/cmd/snap-update-ns/testdata/content-layout-1-initially-connected.desired.fstab
+--- b/cmd/snap-update-ns/testdata/usr-share-secureboot-potato/1-initially-connected.desired.fstab
++++ a/cmd/snap-update-ns/testdata/usr-share-secureboot-potato/1-initially-connected.desired.fstab
 @@ -1,2 +1,5 @@
 +# This is the layout entry. Snapd orders layouts before any content entries.
  /snap/test-snapd-content-layout/x2/attached-content /usr/share/secureboot/potato none rbind,rw,x-snapd.origin=layout 0 0

@@ -1,7 +1,7 @@
-diff --git b/cmd/snap-update-ns/testdata/content-layout-3-after-reconnect.current.fstab a/cmd/snap-update-ns/testdata/content-layout-3-after-reconnect.current.fstab
+diff --git b/cmd/snap-update-ns/testdata/usr-share-secureboot-potato/3-after-reconnect.current.fstab a/cmd/snap-update-ns/testdata/usr-share-secureboot-potato/3-after-reconnect.current.fstab
 index 619722d4a8..4e37544570 100644
---- b/cmd/snap-update-ns/testdata/content-layout-3-after-reconnect.current.fstab
-+++ a/cmd/snap-update-ns/testdata/content-layout-3-after-reconnect.current.fstab
+--- b/cmd/snap-update-ns/testdata/usr-share-secureboot-potato/3-after-reconnect.current.fstab
++++ a/cmd/snap-update-ns/testdata/usr-share-secureboot-potato/3-after-reconnect.current.fstab
 @@ -1,5 +1,11 @@
 +# Note that the order is back to being correct because bug 
 +# https://warthogs.atlassian.net/browse/SNAPDENG-31644 keeps flipping it back and forth!
@@ -14,11 +14,11 @@ index 619722d4a8..4e37544570 100644
  /snap/test-snapd-content-layout/x2/attached-content /usr/share/secureboot/potato none rbind,rw,x-snapd.origin=layout 0 0
 +# The content is now here. The bind mount may or may not propagate though.
  /snap/test-snapd-content/x1 /snap/test-snapd-content-layout/x2/attached-content none bind,ro 0 0
-diff --git b/cmd/snap-update-ns/testdata/content-layout-3-after-reconnect.desired.fstab a/cmd/snap-update-ns/testdata/content-layout-3-after-reconnect.desired.fstab
+diff --git b/cmd/snap-update-ns/testdata/usr-share-secureboot-potato/3-after-reconnect.desired.fstab a/cmd/snap-update-ns/testdata/usr-share-secureboot-potato/3-after-reconnect.desired.fstab
 index 7e92c4709a..5fea10444b 100644
---- b/cmd/snap-update-ns/testdata/content-layout-3-after-reconnect.desired.fstab
-+++ a/cmd/snap-update-ns/testdata/content-layout-3-after-reconnect.desired.fstab
+--- b/cmd/snap-update-ns/testdata/usr-share-secureboot-potato/3-after-reconnect.desired.fstab
++++ a/cmd/snap-update-ns/testdata/usr-share-secureboot-potato/3-after-reconnect.desired.fstab
 @@ -1,2 +1,3 @@
-+# This is exactly the same as content-layout-initially-connected.desired.fstab.
++# This is exactly the same as initially-connected.desired.fstab.
  /snap/test-snapd-content-layout/x2/attached-content /usr/share/secureboot/potato none rbind,rw,x-snapd.origin=layout 0 0
  /snap/test-snapd-content/x1 /snap/test-snapd-content-layout/x2/attached-content none bind,ro 0 0

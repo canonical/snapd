@@ -30,9 +30,9 @@ func (s *changeSuite) TestContentLayout1InitiallyConnected(c *C) {
 	// NOTE: This doesn't measure what is going on during construction. It
 	// merely measures what is constructed is stable and that it does not cause
 	// further changes to be created.
-	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-1-initially-connected.current.fstab")
+	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/1-initially-connected.current.fstab")
 	c.Assert(err, IsNil)
-	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-1-initially-connected.desired.fstab")
+	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/1-initially-connected.desired.fstab")
 	c.Assert(err, IsNil)
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
@@ -62,9 +62,9 @@ func (s *changeSuite) TestContentLayout1InitiallyConnected(c *C) {
 }
 
 func (s *changeSuite) TestContentLayout2InitiallyConnectedThenDisconnected(c *C) {
-	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-1-initially-connected.current.fstab")
+	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/1-initially-connected.current.fstab")
 	c.Assert(err, IsNil)
-	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-2-after-disconnect.desired.fstab")
+	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/2-after-disconnect.desired.fstab")
 	c.Assert(err, IsNil)
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
@@ -108,9 +108,9 @@ func (s *changeSuite) TestContentLayout2InitiallyConnectedThenDisconnected(c *C)
 }
 
 func (s *changeSuite) TestContentLayout3InitiallyConnectedThenDisconnectedAndReconnected(c *C) {
-	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-2-after-disconnect.current.fstab")
+	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/2-after-disconnect.current.fstab")
 	c.Assert(err, IsNil)
-	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-3-after-reconnect.desired.fstab")
+	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/3-after-reconnect.desired.fstab")
 	c.Assert(err, IsNil)
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
@@ -156,9 +156,9 @@ func (s *changeSuite) TestContentLayout3InitiallyConnectedThenDisconnectedAndRec
 }
 
 func (s *changeSuite) TestContentLayout4InitiallyDisconnectedThenConnected(c *C) {
-	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-4-initially-disconnected-then-connected.before.current.fstab")
+	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/4-initially-disconnected-then-connected.before.current.fstab")
 	c.Assert(err, IsNil)
-	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-4-initially-disconnected-then-connected.desired.fstab")
+	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/4-initially-disconnected-then-connected.desired.fstab")
 	c.Assert(err, IsNil)
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
@@ -181,9 +181,9 @@ func (s *changeSuite) TestContentLayout4InitiallyDisconnectedThenConnected(c *C)
 }
 
 func (s *changeSuite) TestContentLayout5InitiallyConnectedThenContentRefreshed(c *C) {
-	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-5-initially-connected-then-content-refreshed.before.current.fstab")
+	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/5-initially-connected-then-content-refreshed.before.current.fstab")
 	c.Assert(err, IsNil)
-	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-5-initially-connected-then-content-refreshed.desired.fstab")
+	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/5-initially-connected-then-content-refreshed.desired.fstab")
 	c.Assert(err, IsNil)
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
@@ -200,9 +200,9 @@ func (s *changeSuite) TestContentLayout5InitiallyConnectedThenContentRefreshed(c
 }
 
 func (s *changeSuite) TestContentLayout6InitiallyConnectedThenAppRefreshed(c *C) {
-	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-6-initially-connected-then-app-refreshed.before.current.fstab")
+	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/6-initially-connected-then-app-refreshed.before.current.fstab")
 	c.Assert(err, IsNil)
-	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-6-initially-connected-then-app-refreshed.desired.fstab")
+	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/6-initially-connected-then-app-refreshed.desired.fstab")
 	c.Assert(err, IsNil)
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
