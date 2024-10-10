@@ -1,26 +1,66 @@
 #!/usr/bin/sh
 
-# A test that replying with allow forever actions previous matching prompts.
+# A test that replying with allow once does not action previous matching prompts.
+#
+# When creating a new file is blocked on a reply to a request prompt, the
+# directory in which the file will be created is locked from other writes.
+# Thus, we can't queue up multiple outstanding writes on files in the same
+# directory. Instead, we must write files in different directories in order
+# for this test to succeed.
 
 TEST_DIR="$1"
 
-WRITABLE="$(snap run --shell prompting-client.scripted -c "cd ~; pwd")/$(basename "$TEST_DIR")"
+WRITABLE="$(snap run --shell prompting-client.scripted -c 'cd ~; pwd')/$(basename "$TEST_DIR")"
 snap run --shell prompting-client.scripted -c "mkdir -p $WRITABLE"
 
-for name in test1.txt test2.txt test3.txt ; do
+for dir in test1 test2 test3 ; do
+	mkdir -p "${TEST_DIR}/${dir}"
+	name="${dir}/file.txt"
 	echo "Attempt to write $name in the background"
-	snap run --shell prompting-client.scripted -c "echo started > ${WRITABLE}/${name}; echo $name is written > ${TEST_DIR}/${name}" &
-	timeout 10 sh -c "while ! [ -f '${WRITABLE}/${name}' ] ; do sleep 0.1 ; done"
+	snap run --shell prompting-client.scripted -c "touch ${WRITABLE}/${dir}-started; echo $name is written > ${TEST_DIR}/${name}; touch ${WRITABLE}/${dir}-finished" &
+	if ! timeout 10 sh -c "while ! [ -f '${WRITABLE}/${dir}-started' ] ; do sleep 0.1 ; done" ; then
+		echo "failed to start write of $name within timeout period"
+		exit 1
+	fi
 done
 
-echo "Attempt to write test4.txt (for which client will reply allow single)"
-snap run --shell prompting-client.scripted -c "echo test4.txt is written > ${TEST_DIR}/test4.txt"
+for dir in test1 test2 test3 ; do
+	name="${dir}/file.txt"
+	echo "Check that write for $name has not yet finished"
+	if [ -f "${WRITABLE}/${dir}-finished" ] ; then
+		echo "write of $name finished before write for test4/file.txt started"
+		exit 1
+	fi
+done
 
-echo "Attempt to write test5.txt (for which client will reply deny forever)"
-snap run --shell prompting-client.scripted -c "echo test5.txt is written > ${TEST_DIR}/test5.txt"
+echo "Attempt to write test4/file.txt (for which client will reply allow single)"
+mkdir -p "${TEST_DIR}/test4"
+snap run --shell prompting-client.scripted -c "echo test4/file.txt is written > ${TEST_DIR}/test4/file.txt"
+
+for dir in test1 test2 test3 ; do
+	name="${dir}/file.txt"
+	echo "Check that write for $name was not actioned by reply for test4/file.txt"
+	if [ -f "${WRITABLE}/${dir}-finished" ] ; then
+		echo "write of $name finished before write for test5/file.txt started"
+		exit 1
+	fi
+done
+
+echo "Attempt to write test5/file.txt (for which client will reply deny forever)"
+mkdir -p "${TEST_DIR}/test5"
+snap run --shell prompting-client.scripted -c "echo test5/file.txt is written > ${TEST_DIR}/test5/file.txt"
 
 # Wait for the client to write its result and exit
 timeout 5 sh -c 'while pgrep -f "prompting-client-scripted" > /dev/null; do sleep 0.1; done'
+
+for dir in test1 test2 test3 ; do
+	name="${dir}/file.txt"
+	echo "Check that write for $name has finished"
+	if ! [ -f "${WRITABLE}/${dir}-finished" ] ; then
+		echo "write of $name did not finish after client replied"
+		exit 1
+	fi
+done
 
 CLIENT_OUTPUT="$(cat "${TEST_DIR}/result")"
 
@@ -30,13 +70,14 @@ if [ "$CLIENT_OUTPUT" != "success" ] ; then
 	exit 1
 fi
 
-TEST_OUTPUT="$(cat "${TEST_DIR}/test4.txt")"
-if [ "$TEST_OUTPUT" != "test4.txt is written" ] ; then
-	echo "file creation failed for test4.txt"
+TEST_OUTPUT="$(cat "${TEST_DIR}/test4/file.txt")"
+if [ "$TEST_OUTPUT" != "test4/file.txt is written" ] ; then
+	echo "file creation failed for test4/file.txt"
 	exit 1
 fi
 
-for name in test1.txt test2.txt test3.txt test5.txt; do
+for dir in test1 test2 test3 test5; do
+	name="${dir}/file.txt"
 	if [ -f "${TEST_DIR}/${name}" ] ; then
 		echo "file creation unexpectedly succeeded for $name"
 		exit 1
