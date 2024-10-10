@@ -608,9 +608,6 @@ prepare_project() {
                 exit 1
                 ;;
         esac
-    elif [ -n "$SNAPD_PUBLISHED_VERSION" ]; then
-        download_from_published "$SNAPD_PUBLISHED_VERSION"
-        install_dependencies_from_published "$SNAPD_PUBLISHED_VERSION"
     else
         download_from_gce_bucket
         install_dependencies_gce_bucket
