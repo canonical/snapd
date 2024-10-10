@@ -1,4 +1,4 @@
-# Note that the order is back to being correct because bug 
+# Note that the order is back to being correct because bug
 # https://warthogs.atlassian.net/browse/SNAPDENG-31644 keeps flipping it back and forth!
 tmpfs / tmpfs x-snapd.origin=rootfs 0 0
 # Unlike in the "initially connected" case. The mimic is ordered
