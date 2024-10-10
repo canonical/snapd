@@ -923,6 +923,9 @@ jobs:
             exit 0
           fi
 
+          # Select an old kernel used to check snapd
+          export SPREAD_USE_KERNEL=5.0.5
+
           # Run spread tests
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger

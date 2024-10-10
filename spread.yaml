@@ -1447,4 +1447,33 @@ suites:
                 systemctl status snapd.socket || true
             fi
 
+    tests/kernels/:
+        summary: Test snapd with different kernels
+        systems:
+          - ubuntu-2*
+        environment:
+          USE_KERNEL/latest: ''
+          USE_KERNEL/version: '$(HOST: echo "$SPREAD_USE_KERNEL")'
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+        prepare-each: |
+            wget https://raw.githubusercontent.com/pimlie/ubuntu-mainline-kernel.sh/master/ubuntu-mainline-kernel.sh
+            chmod +x ubuntu-mainline-kernel.sh
+          
+            if [ "$SPREAD_REBOOT" = 0 ]; then
+                # Remove the current kernel
+                apt remove -y linux-headers-*
+                apt remove -y linux-image-*
+                
+                # Install the new kernel
+                ./ubuntu-mainline-kernel.sh --yes -i $USE_KERNEL
+                REBOOT
+            fi
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+
+
 # vim:ts=4:sw=4:et
