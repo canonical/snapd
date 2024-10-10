@@ -354,6 +354,7 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 	// Create notify directory
 	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "policy", "notify"), 0755), IsNil)
 	features, err = apparmor.ProbeKernelFeatures()
+	c.Assert(err, IsNil)
 	expected := []string{"bar", "foo", "foo:baz", "foo:qux", "policy", "policy:notify", "policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt", "xyz"}
 	c.Check(features, DeepEquals, expected)
 
