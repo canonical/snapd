@@ -1,3 +1,7 @@
+# New in snapd 2.66.1:
+* AppArmor prompting (experimental): Fix kernel prompting support check
+* Allow kernel snaps to have content slots
+
 # New in snapd 2.66:
 * AppArmor prompting (experimental): expand kernel support checks
 * AppArmor prompting (experimental): consolidate error messages and add error kinds
