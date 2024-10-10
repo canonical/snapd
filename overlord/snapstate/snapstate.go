@@ -4227,9 +4227,22 @@ func InstalledSnaps(st *state.State) (snaps []*snapasserts.InstalledSnap, ignore
 		if err != nil {
 			return nil, nil, err
 		}
-		// TODO:COMPS: add components
-		snaps = append(snaps, snapasserts.NewInstalledSnap(snapState.InstanceName(),
-			snapState.CurrentSideInfo().SnapID, cur.Revision, nil))
+
+		var comps []snapasserts.InstalledComponent
+		for _, comp := range snapState.Sequence.Revisions[snapState.LastIndex(cur.Revision)].Components {
+			comps = append(comps, snapasserts.InstalledComponent{
+				ComponentRef: comp.SideInfo.Component,
+				Revision:     comp.SideInfo.Revision,
+			})
+		}
+
+		snaps = append(snaps, snapasserts.NewInstalledSnap(
+			snapState.InstanceName(),
+			snapState.CurrentSideInfo().SnapID,
+			cur.Revision,
+			comps,
+		))
+
 		if snapState.IgnoreValidation {
 			ignoreValidation[snapState.InstanceName()] = true
 		}

@@ -8023,9 +8023,15 @@ func (s *snapmgrTestSuite) TestInstalledSnaps(c *C) {
 	snaptest.MockSnap(c, string(`name: foo
 version: 1`), &snap.SideInfo{Revision: snap.R("13")})
 
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "bar", Revision: snap.R(5), SnapID: "bar-id"}})
+	seq.AddComponentForRevision(snap.R(5), sequence.NewComponentState(&snap.ComponentSideInfo{
+		Component: naming.NewComponentRef("bar", "comp"),
+		Revision:  snap.R(55),
+	}, snap.StandardComponent))
+
 	snapstate.Set(st, "bar", &snapstate.SnapState{
 		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "bar", Revision: snap.R(5), SnapID: "bar-id"}}),
+		Sequence: seq,
 		Current:  snap.R(5),
 		Flags:    snapstate.Flags{IgnoreValidation: true},
 	})
@@ -8036,7 +8042,11 @@ version: 1`), &snap.SideInfo{Revision: snap.R("5")})
 	c.Assert(err, IsNil)
 	c.Check(snaps, testutil.DeepUnsortedMatches, []*snapasserts.InstalledSnap{
 		snapasserts.NewInstalledSnap("foo", "foo-id", snap.R("23"), nil),
-		snapasserts.NewInstalledSnap("bar", "bar-id", snap.R("5"), nil)})
+		snapasserts.NewInstalledSnap("bar", "bar-id", snap.R("5"), []snapasserts.InstalledComponent{{
+			ComponentRef: naming.NewComponentRef("bar", "comp"),
+			Revision:     snap.R(55),
+		}}),
+	})
 
 	c.Check(ignoreValidation, DeepEquals, map[string]bool{"bar": true})
 }
