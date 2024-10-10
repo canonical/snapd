@@ -86,6 +86,7 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return BadRequest("cannot decode registry request body: %v", err)
 	}
 
+	// TODO: replace w/ GetTransaction + call ctx.Done() then return changeID
 	err := registrystateSet(st, account, registryName, view, values)
 	if err != nil {
 		return toAPIError(err)

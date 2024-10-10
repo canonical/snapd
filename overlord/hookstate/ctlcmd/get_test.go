@@ -642,57 +642,6 @@ func (s *registrySuite) TestRegistryGetNoRequest(c *C) {
 	c.Check(stderr, IsNil)
 }
 
-func (s *registrySuite) TestRegistryGetHappensTransactionally(c *C) {
-	s.state.Lock()
-	err := registrystate.Set(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
-		"ssid": "my-ssid",
-	})
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-
-	// registry transaction is created when snapctl runs for the first time
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
-	c.Assert(err, IsNil)
-	c.Check(string(stdout), Equals, `{
-	"ssid": "my-ssid"
-}
-`)
-	c.Check(stderr, IsNil)
-
-	s.state.Lock()
-	err = registrystate.Set(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{
-		"ssid": "other-ssid",
-	})
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-
-	// the new write wasn't reflected because it didn't run in the same transaction
-	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
-	c.Assert(err, IsNil)
-	c.Check(string(stdout), Equals, `{
-	"ssid": "my-ssid"
-}
-`)
-	c.Check(stderr, IsNil)
-
-	// make a new context so we get a new transaction
-	s.state.Lock()
-	task := s.state.NewTask("test-task", "my test task")
-	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
-	s.mockContext, err = hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-
-	// now we get the new data
-	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
-	c.Assert(err, IsNil)
-	c.Check(string(stdout), Equals, `{
-	"ssid": "other-ssid"
-}
-`)
-	c.Check(stderr, IsNil)
-}
-
 func (s *registrySuite) TestRegistryGetInvalid(c *C) {
 	type testcase struct {
 		args []string
@@ -805,7 +754,6 @@ func (s *registrySuite) TestRegistryGetAndSetAssertionNotFound(c *C) {
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot set registry: registry assertion %s/network not found", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
-
 }
 
 func (s *registrySuite) TestRegistryGetAndSetViewNotFound(c *C) {
@@ -869,7 +817,7 @@ func (s *registrySuite) TestRegistryGetPristine(c *C) {
 	err = tx.Set("wifi.ssid", "bar")
 	c.Assert(err, IsNil)
 
-	restore := ctlcmd.MockRegistrystateRegistryTransaction(func(*hookstate.Context, *registry.Registry) (*registrystate.Transaction, error) {
+	restore := ctlcmd.MockRegistrystateGetTransaction(func(*registrystate.Context, *state.State, *registry.View) (*registrystate.Transaction, error) {
 		return tx, nil
 	})
 	defer restore()

@@ -39,6 +39,8 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+var registrystateGetTransaction = registrystate.GetTransaction
+
 type getCommand struct {
 	baseCommand
 
@@ -361,8 +363,6 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	})
 }
 
-var registrystateRegistryTransaction = registrystate.RegistryTransaction
-
 func (c *getCommand) getRegistryValues(ctx *hookstate.Context, plugName string, requests []string, pristine bool) error {
 	if c.ForcePlugSide || c.ForceSlotSide {
 		return errors.New(i18n.G("cannot use --plug or --slot with --view"))
@@ -375,7 +375,8 @@ func (c *getCommand) getRegistryValues(ctx *hookstate.Context, plugName string, 
 		return fmt.Errorf("cannot get registry: %v", err)
 	}
 
-	tx, err := registrystateRegistryTransaction(ctx, view.Registry())
+	regCtx := registrystate.NewContext(ctx)
+	tx, err := registrystateGetTransaction(regCtx, ctx.State(), view)
 	if err != nil {
 		return err
 	}

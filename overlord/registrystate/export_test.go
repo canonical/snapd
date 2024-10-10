@@ -34,6 +34,11 @@ var (
 	UnsetOngoingTransaction   = unsetOngoingTransaction
 )
 
+const (
+	CommitEdge = commitEdge
+	LastEdge   = lastEdge
+)
+
 func ChangeViewHandlerGenerator(ctx *hookstate.Context) hookstate.Handler {
 	return &changeViewHandler{ctx: ctx}
 }
@@ -55,5 +60,13 @@ func MockWriteDatabag(f func(st *state.State, databag registry.JSONDataBag, acco
 	writeDatabag = f
 	return func() {
 		writeDatabag = old
+	}
+}
+
+func MockEnsureNow(f func(*state.State)) func() {
+	old := ensureNow
+	ensureNow = f
+	return func() {
+		ensureNow = old
 	}
 }

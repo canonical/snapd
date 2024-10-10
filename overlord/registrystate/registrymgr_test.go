@@ -65,7 +65,7 @@ slots:
   registry-slot:
     interface: registry
 `
-	info := mockInstalledSnap(c, s.state, coreYaml, "")
+	info := mockInstalledSnap(c, s.state, coreYaml, nil)
 	coreSet, err := interfaces.NewSnapAppSet(info, nil)
 	c.Assert(err, IsNil)
 
@@ -82,7 +82,7 @@ plugs:
     view: network/setup-wifi
 `
 
-	info = mockInstalledSnap(c, s.state, snapYaml, "")
+	info = mockInstalledSnap(c, s.state, snapYaml, nil)
 	appSet, err := interfaces.NewSnapAppSet(info, nil)
 	c.Assert(err, IsNil)
 	err = s.repo.AddAppSet(appSet)
