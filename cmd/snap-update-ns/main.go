@@ -43,7 +43,9 @@ var opts struct {
 // snap-confine.
 
 func main() {
-	logger.SimpleSetup(nil)
+	logger.SimpleSetup(&logger.LoggerOptions{
+		ForceDebug: true, // Because why not
+	})
 	if err := run(); err != nil {
 		fmt.Printf("cannot update snap namespace: %s\n", err)
 		os.Exit(1)
