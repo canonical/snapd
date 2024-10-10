@@ -348,6 +348,44 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 		expected = append(expected, "xyz")
 		c.Check(features, DeepEquals, expected, Commentf("test case: %+v", testCase))
 	}
+
+	// Set permstable32 to good value
+	c.Assert(os.WriteFile(filepath.Join(d, featuresSysPath, "policy", "permstable32"), []byte("allow deny prompt"), 0644), IsNil)
+	// Create notify directory
+	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "policy", "notify"), 0755), IsNil)
+	features, err = apparmor.ProbeKernelFeatures()
+	c.Assert(err, IsNil)
+	expected := []string{"bar", "foo", "foo:baz", "foo:qux", "policy", "policy:notify", "policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt", "xyz"}
+	c.Check(features, DeepEquals, expected)
+
+	// Also test that prompt feature is read from notify/user if it exists
+	for _, testCase := range []struct {
+		userContent      string
+		expectedSuffixes []string
+	}{
+		{
+			"file",
+			[]string{"file"},
+		},
+		{
+			"network file",
+			[]string{"file", "network"},
+		},
+		{
+			"file\ndbus \n  network",
+			[]string{"dbus", "file", "network"},
+		},
+	} {
+		c.Assert(os.WriteFile(filepath.Join(d, featuresSysPath, "policy", "notify", "user"), []byte(testCase.userContent), 0644), IsNil)
+		features, err = apparmor.ProbeKernelFeatures()
+		c.Assert(err, IsNil)
+		expected = []string{"bar", "foo", "foo:baz", "foo:qux", "policy", "policy:notify"}
+		for _, suffix := range testCase.expectedSuffixes {
+			expected = append(expected, fmt.Sprintf("policy:notify:user:%s", suffix))
+		}
+		expected = append(expected, "policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt", "xyz")
+		c.Check(features, DeepEquals, expected, Commentf("test case: %+v", testCase))
+	}
 }
 
 func (s *apparmorSuite) TestProbeAppArmorKernelFeaturesPermstable32Version(c *C) {
