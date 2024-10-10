@@ -63,7 +63,7 @@ jobs:
     - name: Test C
       run: |
           cd "${{ github.workspace }}/src/github.com/snapcore/snapd/cmd"
-          make check
+          make distcheck
 
     - name: Reset code coverage data
       run: |
