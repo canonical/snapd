@@ -114,6 +114,8 @@ execute: |
     systemctl start snapd.{service,socket}
     # Wait until auto-refresh is triggered and completed
     retry -n 120 --wait 1 "$(pwd)"/check_auto_refresh_count.sh "$LAST_CHANGE_ID" 1
+    # Check log is emitted about failed auto-refresh for SNAP_ONE
+    retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "auto-refresh to revision 11 has failed, next auto-refresh attempt will be delayed by 8 hours"'
 
     echo "Check we have expected revisions for both snaps"
     readlink "$SNAP_MOUNT_DIR/$SNAP_ONE/current" | NOMATCH 11
@@ -132,6 +134,8 @@ execute: |
     systemctl start snapd.{service,socket}
     # Wait until auto-refresh is triggered and completed
     retry -n 120 --wait 1 "$(pwd)"/check_auto_refresh_count.sh "$LAST_CHANGE_ID" 2
+    # Check log is emitted about skipping auto-refresh of bad revision for SNAP_ONE
+    retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "auto-refresh to revision 11 was skipped due to previous failures, next auto-refresh attempt will be delayed by 8 hours"'
 
     echo "Check we have expected revisions for both snaps"
     readlink "$SNAP_MOUNT_DIR/$SNAP_ONE/current" | NOMATCH 11
