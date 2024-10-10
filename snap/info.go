@@ -1890,16 +1890,6 @@ func InstanceName(snapName, instanceKey string) string {
 	return snapName
 }
 
-// ByType supports sorting the given slice of snap info by types. The most
-// important types will come first.
-type ByType []*Info
-
-func (r ByType) Len() int      { return len(r) }
-func (r ByType) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
-func (r ByType) Less(i, j int) bool {
-	return r[i].Type().SortsBefore(r[j].Type())
-}
-
 // SortServices sorts the apps based on their Before and After specs, such that
 // starting the services in the returned ordering will satisfy all specs.
 func SortServices(apps []*AppInfo) (sorted []*AppInfo, err error) {
