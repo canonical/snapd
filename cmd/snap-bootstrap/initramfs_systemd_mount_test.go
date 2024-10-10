@@ -53,7 +53,7 @@ exit 1
 `)
 	defer cmd.Restore()
 
-	err := main.DoSystemdMount("something", "somewhereonlyweknow", nil)
+	err := main.DoSystemdMount("something", "somewhere only we know", nil)
 	c.Assert(err, ErrorMatches, "mocked error")
 }
 
