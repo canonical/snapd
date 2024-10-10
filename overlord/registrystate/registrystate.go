@@ -34,9 +34,9 @@ import (
 
 var assertstateRegistry = assertstate.Registry
 
-// SetViaView finds the view identified by the account, registry and view names
-// and sets the request fields to their respective values.
-func SetViaView(st *state.State, account, registryName, viewName string, requests map[string]interface{}) error {
+// Set finds the view identified by the account, registry and view names and
+// sets the request fields to their respective values.
+func Set(st *state.State, account, registryName, viewName string, requests map[string]interface{}) error {
 	registryAssert, err := assertstateRegistry(st, account, registryName)
 	if err != nil {
 		return err
@@ -68,21 +68,21 @@ func SetViaView(st *state.State, account, registryName, viewName string, request
 		return err
 	}
 
-	if err = SetViaViewInTx(tx, view, requests); err != nil {
+	if err := SetViaView(tx, view, requests); err != nil {
 		return err
 	}
 
 	return tx.Commit(st, reg.Schema)
 }
 
-// SetViaViewInTx uses the view to set the requests in the transaction's databag.
-func SetViaViewInTx(tx *Transaction, view *registry.View, requests map[string]interface{}) error {
+// SetViaView uses the view to set the requests in the transaction's databag.
+func SetViaView(bag registry.DataBag, view *registry.View, requests map[string]interface{}) error {
 	for field, value := range requests {
 		var err error
 		if value == nil {
-			err = view.Unset(tx, field)
+			err = view.Unset(bag, field)
 		} else {
-			err = view.Set(tx, field, value)
+			err = view.Set(bag, field, value)
 		}
 
 		if err != nil {
@@ -93,11 +93,11 @@ func SetViaViewInTx(tx *Transaction, view *registry.View, requests map[string]in
 	return nil
 }
 
-// GetViaView finds the view identified by the account, registry and view names
-// and uses it to get the values for the specified fields. The results are
-// returned in a map of fields to their values, unless there are no fields in
-// which case all views are returned.
-func GetViaView(st *state.State, account, registryName, viewName string, fields []string) (interface{}, error) {
+// Get finds the view identified by the account, registry and view names and
+// uses it to get the values for the specified fields. The results are returned
+// in a map of fields to their values, unless there are no fields in which case
+// case all views are returned.
+func Get(st *state.State, account, registryName, viewName string, fields []string) (interface{}, error) {
 	registryAssert, err := assertstateRegistry(st, account, registryName)
 	if err != nil {
 		return nil, err
@@ -121,14 +121,14 @@ func GetViaView(st *state.State, account, registryName, viewName string, fields 
 		return nil, err
 	}
 
-	return GetViaViewInTx(tx, view, fields)
+	return GetViaView(tx, view, fields)
 }
 
-// GetViaViewInTx uses the view to get values for the fields from the databag
-// in the transaction.
-func GetViaViewInTx(tx *Transaction, view *registry.View, fields []string) (interface{}, error) {
+// GetViaView uses the view to get values for the fields from the databag in
+// the transaction.
+func GetViaView(bag registry.DataBag, view *registry.View, fields []string) (interface{}, error) {
 	if len(fields) == 0 {
-		val, err := view.Get(tx, "")
+		val, err := view.Get(bag, "")
 		if err != nil {
 			return nil, err
 		}
@@ -138,7 +138,7 @@ func GetViaViewInTx(tx *Transaction, view *registry.View, fields []string) (inte
 
 	results := make(map[string]interface{}, len(fields))
 	for _, field := range fields {
-		value, err := view.Get(tx, field)
+		value, err := view.Get(bag, field)
 		if err != nil {
 			if errors.Is(err, &registry.NotFoundError{}) && len(fields) > 1 {
 				// keep looking; return partial result if only some fields are found
@@ -153,8 +153,8 @@ func GetViaViewInTx(tx *Transaction, view *registry.View, fields []string) (inte
 
 	if len(results) == 0 {
 		return nil, &registry.NotFoundError{
-			Account:      tx.RegistryAccount,
-			RegistryName: tx.RegistryName,
+			Account:      view.Registry().Account,
+			RegistryName: view.Registry().Name,
 			View:         view.Name,
 			Operation:    "get",
 			Requests:     fields,

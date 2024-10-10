@@ -243,5 +243,5 @@ func setRegistryValues(ctx *hookstate.Context, plugName string, requests map[str
 	// TODO: once we have hooks, check that we don't set values in the wrong hooks
 	// (e.g., "registry-changed" hooks can only read data)
 
-	return registrystate.SetViaViewInTx(tx, view, requests)
+	return registrystate.SetViaView(tx, view, requests)
 }

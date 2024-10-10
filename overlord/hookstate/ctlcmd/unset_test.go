@@ -164,7 +164,7 @@ func (s *unsetSuite) TestCommandWithoutContext(c *C) {
 
 func (s *registrySuite) TestRegistryUnsetManyViews(c *C) {
 	s.state.Lock()
-	err := registrystate.SetViaView(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{"ssid": "my-ssid", "password": "my-secret"})
+	err := registrystate.Set(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{"ssid": "my-ssid", "password": "my-secret"})
 	s.state.Unlock()
 	c.Assert(err, IsNil)
 
@@ -177,14 +177,14 @@ func (s *registrySuite) TestRegistryUnsetManyViews(c *C) {
 	s.mockContext.Unlock()
 
 	s.state.Lock()
-	_, err = registrystate.GetViaView(s.state, s.devAccID, "network", "write-wifi", []string{"ssid", "password"})
+	_, err = registrystate.Get(s.state, s.devAccID, "network", "write-wifi", []string{"ssid", "password"})
 	s.state.Unlock()
 	c.Assert(err, ErrorMatches, `cannot get "ssid", "password" .*: matching rules don't map to any values`)
 }
 
 func (s *registrySuite) TestRegistryUnsetHappensTransactionally(c *C) {
 	s.state.Lock()
-	err := registrystate.SetViaView(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{"ssid": "my-ssid"})
+	err := registrystate.Set(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{"ssid": "my-ssid"})
 	s.state.Unlock()
 	c.Assert(err, IsNil)
 
@@ -194,7 +194,7 @@ func (s *registrySuite) TestRegistryUnsetHappensTransactionally(c *C) {
 	c.Check(stderr, IsNil)
 
 	s.state.Lock()
-	val, err := registrystate.GetViaView(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
+	val, err := registrystate.Get(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
 	s.state.Unlock()
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, map[string]interface{}{
@@ -207,7 +207,7 @@ func (s *registrySuite) TestRegistryUnsetHappensTransactionally(c *C) {
 	s.mockContext.Unlock()
 
 	s.state.Lock()
-	_, err = registrystate.GetViaView(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
+	_, err = registrystate.Get(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
 	s.state.Unlock()
 	c.Assert(err, ErrorMatches, `cannot get "ssid" .*: matching rules don't map to any values`)
 }
