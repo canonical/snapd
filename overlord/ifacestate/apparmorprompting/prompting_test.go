@@ -450,11 +450,12 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 	newRule, err := mgr.AddRule(s.defaultUser, "firefox", "home", &badPatternConstraints, prompting.OutcomeAllow, prompting.LifespanTimespan, "10s")
 	c.Assert(err, IsNil)
 	c.Assert(newRule, NotNil)
+	conflictingOutcome := prompting.OutcomeDeny
 	conflictingConstraints := prompting.Constraints{
 		PathPattern: mustParsePathPattern(c, "/home/test/{foo,other}"),
 		Permissions: []string{"read"},
 	}
-	result, err = mgr.HandleReply(s.defaultUser, prompt.ID, &conflictingConstraints, prompting.OutcomeAllow, prompting.LifespanForever, "")
+	result, err = mgr.HandleReply(s.defaultUser, prompt.ID, &conflictingConstraints, conflictingOutcome, prompting.LifespanForever, "")
 	c.Check(err, ErrorMatches, "cannot add rule.*")
 	c.Check(result, IsNil)
 

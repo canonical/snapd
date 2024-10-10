@@ -336,6 +336,7 @@ func (s *requestrulesSuite) TestLoadErrorConflictingPattern(c *C) {
 	conflicting := s.ruleTemplate(c, prompting.IDType(3))
 	// Even with not all permissions being in conflict, still error
 	conflicting.Constraints.Permissions = []string{"read", "write"}
+	conflicting.Outcome = prompting.OutcomeDeny
 
 	rules := []*requestrules.Rule{good, expired, conflicting}
 	s.writeRules(c, dbPath, rules)
@@ -725,6 +726,7 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 			&addRuleContents{
 				PathPattern: "/home/test/Pictures/**/*.{svg,jpg}",
 				Permissions: []string{"read", "write"},
+				Outcome:     prompting.OutcomeDeny,
 			},
 			fmt.Sprintf("cannot add rule: %v", prompting_errors.ErrRuleConflict),
 		},
@@ -764,6 +766,64 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 	s.checkNewNoticesSimple(c, nil)
 }
 
+func (s *requestrulesSuite) TestAddRuleOverlapping(c *C) {
+	rdb, err := requestrules.New(s.defaultNotifyRule)
+	c.Assert(err, IsNil)
+
+	template := &addRuleContents{
+		User:        s.defaultUser,
+		Snap:        "lxd",
+		Interface:   "home",
+		PathPattern: "/home/test/Pictures/**/*.png",
+		Permissions: []string{"write"},
+		Outcome:     prompting.OutcomeAllow,
+		Lifespan:    prompting.LifespanForever,
+		Duration:    "",
+	}
+
+	var addedRules []*requestrules.Rule
+
+	// Add one rule matching template, then various overlapping rules, and
+	// check that all rules add without error.
+	for _, ruleContents := range []*addRuleContents{
+		{}, // use template
+		{PathPattern: "/home/test/Pictures/**/*.{jpg,png,svg}"},
+		{Permissions: []string{"read", "write"}},
+		{PathPattern: "/home/test/Pictures/**/*.{jp,pn,sv}g"},
+		{PathPattern: "/home/test/{Documents,Pictures}/**/*.{jpg,png,svg}", Permissions: []string{"read", "write", "execute"}},
+		{}, // template again, for good measure
+	} {
+		rule, err := addRuleFromTemplate(c, rdb, template, ruleContents)
+		c.Check(err, IsNil)
+		c.Check(rule, NotNil)
+		addedRules = append(addedRules, rule)
+		s.checkWrittenRuleDB(c, addedRules)
+		s.checkNewNoticesSimple(c, nil, rule)
+	}
+
+	// Lastly, add a conflicting rule, and check that it conflicts with all
+	// the prior rules
+	rule, err := addRuleFromTemplate(c, rdb, template, &addRuleContents{
+		Outcome: prompting.OutcomeDeny,
+	})
+	c.Check(err, NotNil)
+	c.Check(rule, IsNil)
+	var ruleConflictErr *prompting_errors.RuleConflictError
+	if !errors.As(err, &ruleConflictErr) {
+		c.Fatalf("cannot cast error as RuleConflictError: %v", err)
+	}
+	c.Check(ruleConflictErr.Conflicts, HasLen, len(addedRules))
+outer:
+	for _, existing := range addedRules {
+		for _, conflict := range ruleConflictErr.Conflicts {
+			if conflict.ConflictingID == existing.ID.String() {
+				continue outer
+			}
+		}
+		c.Errorf("conflict error does not include existing rule: %+v", existing)
+	}
+}
+
 func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Assert(err, IsNil)
@@ -800,16 +860,17 @@ func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 	// Add rules which all conflict but each expire before the next is added,
 	// thus causing the prior one to be removed and not causing a conflict error.
 	for _, ruleContents := range []*addRuleContents{
-		{}, // use template
-		{PathPattern: "/home/test/{**/secret,**/private}/**"},
-		{PathPattern: "/home/test/**/{sec,priv}{ret,ate}/**", Permissions: []string{"read", "write"}},
-		{Permissions: []string{"write", "execute"}},
+		{Outcome: prompting.OutcomeDeny},
+		{Outcome: prompting.OutcomeAllow, PathPattern: "/home/test/{**/secret,**/private}/**"},
+		{Outcome: prompting.OutcomeDeny, PathPattern: "/home/test/**/{sec,priv}{ret,ate}/**", Permissions: []string{"read", "write"}},
+		{Outcome: prompting.OutcomeAllow, Permissions: []string{"write", "execute"}},
+		{Outcome: prompting.OutcomeDeny, PathPattern: "/home/test/*{*/secret/*,*/private/*}*"},
 	} {
 		ruleContents.Lifespan = prompting.LifespanTimespan
 		ruleContents.Duration = "1ms"
 		newRule, err := addRuleFromTemplate(c, rdb, template, ruleContents)
 		c.Check(err, IsNil)
-		c.Check(newRule, NotNil)
+		c.Assert(newRule, NotNil)
 		s.checkWrittenRuleDB(c, []*requestrules.Rule{good, newRule})
 		expectedNoticeInfo := []*noticeInfo{
 			{
@@ -1677,11 +1738,12 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 	s.checkNewNoticesSimple(c, nil)
 
 	// Conflicting rule
+	conflictingOutcome := prompting.OutcomeDeny
 	conflictingConstraints := &prompting.Constraints{
 		PathPattern: mustParsePathPattern(c, template.PathPattern),
 		Permissions: []string{"read", "write", "execute"},
 	}
-	result, err = rdb.PatchRule(rule.User, rule.ID, conflictingConstraints, prompting.OutcomeUnset, prompting.LifespanUnset, "")
+	result, err = rdb.PatchRule(rule.User, rule.ID, conflictingConstraints, conflictingOutcome, prompting.LifespanUnset, "")
 	c.Check(err, ErrorMatches, fmt.Sprintf("cannot patch rule: %v", prompting_errors.ErrRuleConflict))
 	c.Check(result, IsNil)
 	s.checkWrittenRuleDB(c, rules)
