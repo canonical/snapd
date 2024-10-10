@@ -758,6 +758,16 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
+	const tryMode = false
+	s.testUpdateAmendRunThrough(c, tryMode)
+}
+
+func (s *snapmgrTestSuite) TestUpdateAmendRunThroughTryMode(c *C) {
+	const tryMode = true
+	s.testUpdateAmendRunThrough(c, tryMode)
+}
+
+func (s *snapmgrTestSuite) testUpdateAmendRunThrough(c *C, tryMode bool) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(-42),
@@ -773,6 +783,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 		Current:         si.Revision,
 		SnapType:        "app",
 		TrackingChannel: "latest/stable",
+		Flags:           snapstate.Flags{TryMode: tryMode},
 	})
 
 	chg := s.state.NewChange("refresh", "refresh a snap")
