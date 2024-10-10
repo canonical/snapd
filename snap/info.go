@@ -2099,3 +2099,16 @@ func RegistryPlugAttrs(plug *PlugInfo) (account, registry, view string, err erro
 
 	return account, registry, view, nil
 }
+
+// RefreshFailures holds information about snap failed refreshes.
+type RefreshFailuresInfo struct {
+	// ToRevision is the target revision that caused the refresh failure.
+	ToRevision Revision `json:"to-revision,omitempty"`
+	// FailureCount is the number of failed attempts to refresh to the given revision.
+	FailureCount int `json:"failure-count,omitempty"`
+	// LastFailureTime is the time of the last failed refresh attempt for the revision.
+	LastFailureTime time.Time `json:"last-failure-time"`
+
+	// TODO: add RefreshFailureSeverity to allow for more aggressive
+	// delays for snaps that fail after rebooting.
+}
