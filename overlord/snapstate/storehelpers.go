@@ -944,17 +944,6 @@ func installActionsForAmend(st *state.State, updates map[string]StoreUpdate, opt
 			return nil, nil, err
 		}
 
-		comps, err := snapst.CurrentComponentInfos()
-		if err != nil {
-			return nil, nil, err
-		}
-
-		// TODO: lift this restriction, just don't want to think about it right
-		// now
-		if len(comps) > 0 {
-			return nil, nil, fmt.Errorf("cannot amend snap %q with components", up.InstanceName)
-		}
-
 		action := &store.SnapAction{
 			Action:       "install",
 			InstanceName: info.InstanceName(),
