@@ -890,10 +890,6 @@ jobs:
           if [[ "${{ matrix.group }}" =~ nested- ]]; then
             export NESTED_BUILD_SNAPD_FROM_CURRENT=true
             export NESTED_ENABLE_KVM=true
-
-            if [[ "${{ matrix.systems }}" =~ ubuntu-16 ]]; then
-              export SPREAD_SNAPD_DEB_FROM_REPO=false
-            fi
           fi
 
           case "${{ matrix.systems }}" in
