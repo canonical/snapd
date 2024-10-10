@@ -143,7 +143,7 @@ dbus (send)
 # Allow clients to enumerate DBus connection names on common buses
 dbus (send)
     bus={session,system}
-    path=/org/freedesktop/DBus
+    path={/,/org/freedesktop/DBus}
     interface=org.freedesktop.DBus
     member={ListNames,ListActivatableNames}
     peer=(label=unconfined),
