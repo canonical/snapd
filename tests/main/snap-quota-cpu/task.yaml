@@ -36,7 +36,7 @@ execute: |
       # We use 'top' here to get the current CPU usage as top sorts by CPU usage, 
       # so we assume that 'stress' is going to lie in the top as the odds of another
       # process being in the top is close to 0.
-      usage=$(top -w256 -b -n 2 -d 0.2 | head | grep "$service_name" | awk '{print $9*100}')
+      usage=$(top -w256 -b -n 2 -d 0.2 | head | grep "$service_name" | awk '{print $9*100}' | xargs printf "%.0f\n")
       if [ "$usage" -gt "$expected_usage" ]; then
         return 0
       fi
@@ -102,7 +102,7 @@ execute: |
       # We use 'top' here to get the current CPU usage as top sorts by CPU usage, 
       # so we assume that 'stress' is going to lie in the top as the odds of another
       # process being in the top is close to 0.
-      usage=$(top -w256 -b -n 2 -d 0.2 | head | grep "$service_name" | awk '{print $9*100}')
+      usage=$(top -w256 -b -n 2 -d 0.2 | head | grep "$service_name" | awk '{print $9*100}' | xargs printf "%.0f\n")
       if [ "$usage" -lt "$expected_usage" ]; then
         return 0
       fi
