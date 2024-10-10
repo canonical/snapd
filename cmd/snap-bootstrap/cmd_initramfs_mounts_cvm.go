@@ -267,26 +267,6 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 				return err
 			}
 		}
-
-		// Verify that detected non tmpfs partitions come from where we expect them to
-		if !pm.Opts.Tmpfs {
-			diskOpts := &disks.Options{}
-			if unlockRes.IsEncrypted {
-				// then we need to specify that the data mountpoint is
-				// expected to be a decrypted device
-				diskOpts.IsDecryptedDevice = true
-			}
-
-			matches, err := disk.MountPointIsFromDisk(pm.Where, diskOpts)
-			if err != nil {
-				return err
-			}
-			if !matches {
-				// failed to verify that manifest partition mountpoint
-				// comes from the same disk as ESP
-				return fmt.Errorf("cannot validate boot: %s mountpoint is expected to be from disk %s but is not", pm.GptLabel, disk.Dev())
-			}
-		}
 	}
 
 	// Unmount ESP because otherwise unmounting is racy and results in booted systems without ESP
