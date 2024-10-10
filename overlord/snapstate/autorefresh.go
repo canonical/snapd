@@ -983,21 +983,20 @@ func incrementSnapRefreshFailures(st *state.State, snapsup *SnapSetup) error {
 	}
 
 	// Update refresh failure information for snap revision
-	if snapst.RefreshFailures == nil {
-		// Initialize RefreshFailures
-		snapst.RefreshFailures = &snap.RefreshFailuresInfo{}
-	}
-	if snapst.RefreshFailures.ToRevision == snapsup.Revision() {
+	if snapst.RefreshFailures != nil && snapst.RefreshFailures.ToRevision == snapsup.Revision() {
 		snapst.RefreshFailures.FailureCount++
+		snapst.RefreshFailures.LastFailureTime = timeNow()
 	} else {
-		snapst.RefreshFailures.ToRevision = snapsup.Revision()
-		snapst.RefreshFailures.FailureCount = 1
+		snapst.RefreshFailures = &snap.RefreshFailuresInfo{
+			ToRevision:      snapsup.Revision(),
+			FailureCount:    1,
+			LastFailureTime: timeNow(),
+		}
 	}
-	snapst.RefreshFailures.LastFailureTime = timeNow()
 	Set(st, snapsup.InstanceName(), &snapst)
 
-	delay := computeSnapRefreshDelay(snapst.RefreshFailures)
-	logger.Noticef("snap %q auto-refresh to revision %s has failed, next auto-refresh attempt will be in %v hours", snapsup.InstanceName(), snapsup.Revision(), delay.Hours())
+	delay := computeSnapRefreshRemainingDelay(snapst.RefreshFailures).Round(time.Hour)
+	logger.Noticef("snap %q auto-refresh to revision %s has failed, next auto-refresh attempt will be delayed by %v hours", snapsup.InstanceName(), snapsup.Revision(), delay.Hours())
 	return nil
 }
 
@@ -1043,7 +1042,6 @@ func processFailedAutoRefresh(chg *state.Change, _ state.Status, new state.Statu
 	if len(data) == 0 {
 		data = make(map[string]interface{})
 	}
-	// XXX: Should this be set regardless the refresh failed before/after unlink-current-snap?
 	data["refresh-failed"] = failedSnapNames
 	chg.Set("api-data", data)
 }
@@ -1063,7 +1061,7 @@ var snapRefreshDelay = []time.Duration{
 	2 * 7 * 24 * time.Hour,   // FailureCount == 8 -> 2 weeks delay
 }
 
-func computeSnapRefreshDelay(refreshFailures *snap.RefreshFailuresInfo) time.Duration {
+func computeSnapRefreshRemainingDelay(refreshFailures *snap.RefreshFailuresInfo) time.Duration {
 	if refreshFailures == nil {
 		return 0
 	}
@@ -1072,7 +1070,15 @@ func computeSnapRefreshDelay(refreshFailures *snap.RefreshFailuresInfo) time.Dur
 		// Cap failure count to max delay according to snapRefreshDelay
 		failureCount = len(snapRefreshDelay) - 1
 	}
-	return snapRefreshDelay[failureCount]
+	delay := snapRefreshDelay[failureCount]
+	now := timeNow()
+	if refreshFailures.LastFailureTime.Add(delay).Before(now) {
+		// Backoff delay has passed since last failure
+		return 0
+	}
+
+	remaining := delay - now.Sub(refreshFailures.LastFailureTime)
+	return remaining
 }
 
 // shouldSkipSnapRefresh checks if a snap refresh to a target revision should be skipped or not.
@@ -1087,12 +1093,12 @@ func shouldSkipSnapRefresh(snapst *SnapState, targetRevision snap.Revision, opts
 
 	// Here we are certain that the attempted target revision refresh is known to fail.
 	// Let's compute delay according to RefreshFailures.
-	delay := computeSnapRefreshDelay(snapst.RefreshFailures)
-	lastFailureTime := snapst.RefreshFailures.LastFailureTime
+	delay := computeSnapRefreshRemainingDelay(snapst.RefreshFailures)
 	// TODO: implement more aggressive backoff for snaps that failed after reboot
-	if lastFailureTime.Add(delay).After(timeNow()) {
+	if delay > 0 {
 		// Backoff delay duration since last failure has passed, let's continue refresh
-		logger.Noticef("snap %q auto-refresh to revision %s was skipped due to previous failures, next auto-refresh attempt will be in %v hours", snapst.InstanceName(), targetRevision, delay.Hours())
+		remainingHours := delay.Round(time.Hour).Hours()
+		logger.Noticef("snap %q auto-refresh to revision %s was skipped due to previous failures, next auto-refresh attempt will be delayed by %v hours", snapst.InstanceName(), targetRevision, remainingHours)
 		return true
 	}
 

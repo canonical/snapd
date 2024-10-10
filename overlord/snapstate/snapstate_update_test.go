@@ -10803,7 +10803,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshRecordsFailures(c *C) {
 	c.Check(chgs[1].Kind(), Equals, "auto-refresh")
 	c.Check(chgs[1].Err(), ErrorMatches, "cannot perform the following tasks:\n.*- Make snap \"some-snap\" \\(12\\) available to the system \\(fail\\)")
 	c.Check(chgs[1].Status(), Equals, state.ErrorStatus)
-	c.Check(buf.String(), testutil.Contains, `snap "some-snap" auto-refresh to revision 12 has failed, next auto-refresh attempt will be in 8 hours`)
+	c.Check(buf.String(), testutil.Contains, `snap "some-snap" auto-refresh to revision 12 has failed, next auto-refresh attempt will be delayed by 8 hours`)
 	c.Check(getRefreshFailed(chgs[1]), DeepEquals, []interface{}{"some-snap"})
 	c.Check(getRefreshFailures("some-snap").ToRevision, Equals, badSnapRevision)
 	c.Check(getRefreshFailures("some-snap").FailureCount, Equals, 1)
@@ -10824,7 +10824,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshRecordsFailures(c *C) {
 	c.Check(chgs[2].Kind(), Equals, "auto-refresh")
 	c.Check(chgs[2].Err(), IsNil)
 	c.Check(chgs[2].Status(), Equals, state.DoneStatus)
-	c.Check(buf.String(), Not(testutil.Contains), `snap "some-snap" auto-refresh to revision 12 has failed, next auto-refresh attempt will be in 8 hours`)
+	c.Check(buf.String(), Not(testutil.Contains), `snap "some-snap" auto-refresh to revision 12 has failed, next auto-refresh attempt will be delayed by 8 hours`)
 	c.Check(getRefreshFailed(chgs[2]), IsNil)
 	c.Check(getRefreshFailures("some-snap").ToRevision, Equals, badSnapRevision)
 	c.Check(getRefreshFailures("some-snap").FailureCount, Equals, 1) // Stays at 1
@@ -10851,7 +10851,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshRecordsFailures(c *C) {
 	c.Check(chgs[3].Kind(), Equals, "auto-refresh")
 	c.Check(chgs[3].Err(), ErrorMatches, "cannot perform the following tasks:\n.*- Make snap \"some-snap\" \\(12\\) available to the system \\(fail\\)")
 	c.Check(chgs[3].Status(), Equals, state.ErrorStatus)
-	c.Check(buf.String(), testutil.Contains, `snap "some-snap" auto-refresh to revision 12 has failed, next auto-refresh attempt will be in 336 hours`)
+	c.Check(buf.String(), testutil.Contains, `snap "some-snap" auto-refresh to revision 12 has failed, next auto-refresh attempt will be delayed by 336 hours`)
 	c.Check(getRefreshFailed(chgs[3]), DeepEquals, []interface{}{"some-snap"})
 	c.Check(getRefreshFailures("some-snap").ToRevision, Equals, badSnapRevision)
 	c.Check(getRefreshFailures("some-snap").FailureCount, Equals, 101) // Backoff delay passed, increment for new failure
