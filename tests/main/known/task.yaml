@@ -7,6 +7,8 @@ details: |
     properties in general.
 
 execute: |
+    tests.exec is-skipped && exit 0
+
     echo "Listing all account assertions"
     snap known account|MATCH "^type: account$"
     snap known account|MATCH "^account-id: canonical$"

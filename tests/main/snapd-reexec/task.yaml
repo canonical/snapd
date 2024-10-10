@@ -77,7 +77,19 @@ execute: |
     fi
 
     echo "Ensure we re-exec by default"
-    /usr/bin/env SNAPD_DEBUG=1 snap list 2>&1 | MATCH "DEBUG: restarting into \"$SNAPD_MOUNT_DIR/current/usr/bin/snap\""
+    IS_REEXEC=true
+    if [ "$SNAPD_SRC" = core ] && tests.info is-snapd-from-archive; then
+        # In this scenario it is possible that the core snap version is older
+        # than the distribution package because the core snap comes from latest/edge
+        # which is not updated regularly.
+        # TODO: Compare manually the snap and deb versions and determine which string needs to be in MATCH
+        if /usr/bin/env SNAPD_DEBUG=1 snap list 2>&1 | MATCH "snap \(at .*\) is older \(.*\) than distribution package"; then
+            IS_REEXEC=false
+        fi
+    fi
+    if [ "$IS_REEXEC" = true ]; then
+        /usr/bin/env SNAPD_DEBUG=1 snap list 2>&1 | MATCH "DEBUG: restarting into \"$SNAPD_MOUNT_DIR/current/usr/bin/snap\""        
+    fi
 
     echo "Ensure that we do not re-exec into older versions"
     systemctl stop snapd.service snapd.socket
@@ -118,11 +130,13 @@ execute: |
     systemctl daemon-reload
     systemctl start snapd.service snapd.socket
 
-    echo "Ensure SNAP_REEXEC=0 is honored for snap"
-    mount --bind /tmp/broken-snapd "$SNAPD_MOUNT_DIR/current/usr/bin/snap"
-    snap list|MATCH "from the $SNAPD_SRC snap"
+    if [ "$IS_REEXEC" = true ]; then
+        echo "Ensure SNAP_REEXEC=0 is honored for snap"
+        mount --bind /tmp/broken-snapd "$SNAPD_MOUNT_DIR/current/usr/bin/snap"
+        snap list | MATCH "from the $SNAPD_SRC snap"
+        umount "$SNAPD_MOUNT_DIR/current/usr/bin/snap"
+    fi    
     SNAP_REEXEC=0 SNAPD_DEBUG=1 snap list 2>&1 |MATCH "DEBUG: re-exec disabled by user"
-    umount "$SNAPD_MOUNT_DIR/current/usr/bin/snap"
 
     echo "Ensure a snapd source refresh restarts snapd"
     prev_src=$(snap list | awk "/^$SNAPD_SRC / {print(\$3)}")
@@ -135,8 +149,12 @@ execute: |
         echo "Test broken $now_src and $prev_src are the same"
         exit 1
     fi
-    SNAPD_PATH=$(readlink -f "/proc/$(pidof snapd)/exe")
-    if [ "$SNAPD_PATH" != "/snap/$SNAPD_SRC/${now_src}/usr/lib/snapd/snapd" ]; then
-        echo "unexpected $SNAPD_PATH for $now_src snap (previous $prev_src)"
-        exit 1
-    fi
+    
+    # This check is valid only if snap command is re-executing to the snap
+    if [ "$IS_REEXEC" = true ]; then        
+        SNAPD_PATH=$(readlink -f "/proc/$(pidof snapd)/exe")
+        if [ "$SNAPD_PATH" != "/snap/$SNAPD_SRC/${now_src}/usr/lib/snapd/snapd" ]; then
+            echo "unexpected $SNAPD_PATH for $now_src snap (previous $prev_src)"
+            exit 1
+        fi
+    fi    

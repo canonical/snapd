@@ -1,10 +1,16 @@
 summary: Check that package remove and purge removes everything related to snaps
+
 details: |
   Ensure that the purge we do when removing the snapd package really removes all
   snap related files from the host system.
+
 systems: [-ubuntu-core-*]
 
 prepare: |
+    if tests.info is-snapd-from-archive; then
+        tests.exec skip-test "This test is skipped when the snapd pkg isn't built from local" && exit 0
+    fi
+
     # TODO: unify this with tests/main/snap-mgmt/task.yaml
 
     # note: no need to unset these since this spread test purges snapd totally
@@ -57,6 +63,8 @@ prepare: |
     fi
 
 restore: |
+    tests.exec is-skipped && exit 0
+
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
     if [ -e pkg-removed ]; then
@@ -65,9 +73,13 @@ restore: |
     fi
 
 debug: |
+    tests.exec is-skipped && exit 0
+
     systemctl --no-legend --full | grep -E 'snap\..*\.(service|timer|socket|slice)' || true
 
 execute: |
+    tests.exec is-skipped && exit 0
+
     systemctl --no-legend --full | MATCH 'snap\..*\.(service|timer|socket|slice)'
 
     #shellcheck source=tests/lib/pkgdb.sh
