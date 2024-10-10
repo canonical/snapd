@@ -63,7 +63,12 @@ func (s *nsSuite) TestDiscardNamespaceMnt(c *C) {
 		{
 			cmd:    "echo failure; exit 1;",
 			mnt:    true,
-			errStr: `cannot discard preserved namespace of snap "snap-name": failure`,
+			errStr: `cannot discard preserved namespace of snap "snap-name": exit status 1`,
+			res:    [][]string{{"snap-discard-ns", "snap-name"}}},
+		{
+			cmd:    "echo failure >&2; exit 1;",
+			mnt:    true,
+			errStr: `cannot discard preserved namespace of snap "snap-name": exit status 1: failure`,
 			res:    [][]string{{"snap-discard-ns", "snap-name"}}},
 		// The mnt file is present so we use snap-discard-ns;
 		// The command fails silently and we forward this fact using a generic message.
@@ -111,7 +116,7 @@ func (s *nsSuite) TestUpdateNamespaceMnt(c *C) {
 		{
 			cmd:    "echo failure; exit 1;",
 			mnt:    true,
-			errStr: `cannot update preserved namespace of snap "snap-name": failure`,
+			errStr: `cannot update preserved namespace of snap "snap-name": exit status 1`,
 			res:    [][]string{{"snap-update-ns", "snap-name"}}},
 		// The mnt file is present so we use snap-update-ns;
 		// The command fails silently and we forward this fact using a generic message.
