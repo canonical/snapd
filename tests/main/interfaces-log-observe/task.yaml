@@ -8,11 +8,24 @@ details: |
     list. The plug must not be auto-connected on install and, as usual, must be
     able to be reconnected.
 
+    A snap which defines log-observe (without some additional to-be-defined
+    interface) must not be allowed "control"-type syslog(2) accesses (i.e.
+    SYSLOG_ACTION{,_READ}_CLEAR, SYSLOG_ACTION_CONSOLE_{ON,OFF,LEVEL})
+
 environment:
     SNAP_NAME: log-observe-consumer
     PLUG: log-observe
 
 prepare: |
+    if os.query is-jammy || os.query is-noble ; then
+        echo "Ensure that on Jammy+, sysctl kernel.dmesg_restrict == 1"
+        # This should be the default, but we write it out just to be doubly sure
+        # On systems before Jammy, leave it as whatever the default is.
+        orig_dmesg_restrict=$(sysctl -n kernel.dmesg_restrict)
+        sysctl -w kernel.dmesg_restrict=1
+        tests.cleanup defer sysctl -w kernel.dmesg_restrict="$orig_dmesg_restrict"
+    fi
+
     echo "Given a snap declaring the $PLUG plug is installed"
     "$TESTSTOOLS"/snaps-state install-local log-observe-consumer
 
@@ -32,9 +45,42 @@ execute: |
     echo "Then the snap is able to access the system logs"
     log-observe-consumer | MATCH 'ok$'
 
+    echo "And make safe syslog(2) calls"
+
+    # Launch a background thread generating klogs
+    # Otherwise the read commands will hang waiting for kernel output
+    gen_kernel_messages(){
+        while true; do
+            echo "0123456789abcdef" > /dev/kmsg
+            sleep 5
+        done
+    }
+    gen_kernel_messages &
+    pid_gen_kernel_messages=$!
+    #shellcheck disable=SC2064
+    trap "kill -9 $pid_gen_kernel_messages" EXIT
+
+    log-observe-consumer.klogctl SYSLOG_ACTION_READ | MATCH 'SUCCESS'
+    log-observe-consumer.klogctl SYSLOG_ACTION_READ_ALL | MATCH 'SUCCESS'
+    log-observe-consumer.klogctl SYSLOG_ACTION_SIZE_UNREAD | MATCH 'SUCCESS'
+    log-observe-consumer.klogctl SYSLOG_ACTION_SIZE_BUFFER | MATCH 'SUCCESS'
+
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
+
+    echo "But can't make unsafe syslog(2) calls"
+    # Check for EACCES for all these, because they are explicitly denied by seccomp
+    log-observe-consumer.klogctl SYSLOG_ACTION_CLOSE | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_OPEN | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_READ_CLEAR | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CLEAR | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_OFF | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_ON | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_LEVEL | MATCH 'ERROR permission denied'
+    # It is important that the following matches EACCES, not EINVAL, as it
+    # is a stand-in for potential future SYSLOG_ACTIONs, which should be denied by default
+    log-observe-consumer.klogctl SYSLOG_ACTION_BAD | MATCH 'ERROR permission denied'
 
     echo "When the plug is disconnected"
     snap disconnect "$SNAP_NAME:$PLUG"
@@ -44,3 +90,34 @@ execute: |
         echo "System log shouldn't be accessible"
         exit 1
     fi
+
+    echo "Or make ANY privileged syslog(2) calls"
+    # Check for EACCES for all these, because they are explicitly denied by seccomp
+    log-observe-consumer.klogctl SYSLOG_ACTION_CLOSE | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_OPEN | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_READ_CLEAR | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CLEAR | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_OFF | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_ON | MATCH 'ERROR permission denied'
+    log-observe-consumer.klogctl SYSLOG_ACTION_CONSOLE_LEVEL | MATCH 'ERROR permission denied'
+    # It is important that the following matches EACCES, not EINVAL, as it
+    # is a stand-in for potential future SYSLOG_ACTIONs, which should be denied by default
+    log-observe-consumer.klogctl SYSLOG_ACTION_BAD | MATCH 'ERROR permission denied'
+
+    # Check for EPERM for the rest, because these are allowed by seccomp but denied
+    # because without log-observe the snap lacks CAP_SYSLOG
+    log-observe-consumer.klogctl SYSLOG_ACTION_READ | MATCH 'ERROR operation not permitted'
+    log-observe-consumer.klogctl SYSLOG_ACTION_SIZE_UNREAD | MATCH 'ERROR operation not permitted'
+
+    # On systems with kernel.dmesg_restrict == 0, SYSLOG_ACTION_READ_ALL
+    # and SYSLOG_ACTION_SIZE_BUFFER are available to anyone regardless of
+    # privilege. Since we allow syslog(2) in the seccomp base template, these
+    # are available regardless of interface connection. On systems with
+    # kernel.dmesg_restrict == 1, they should only be available to snaps with
+    # log-observe connected
+    if [ "$(sysctl -n kernel.dmesg_restrict)" -eq 0 ] ; then
+        exit 0
+    fi
+
+    log-observe-consumer.klogctl SYSLOG_ACTION_READ_ALL | MATCH 'ERROR operation not permitted'
+    log-observe-consumer.klogctl SYSLOG_ACTION_SIZE_BUFFER | MATCH 'ERROR operation not permitted'
