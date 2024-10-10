@@ -663,7 +663,7 @@ func probeKernelFeatures() ([]string, error) {
 			features = append(features, "policy:permstable32:"+feat)
 		}
 	}
-	if data, err := os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "notify", "user")); err != nil {
+	if data, err := os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "notify", "user")); err == nil {
 		// XXX: there's no feature added for policy:notify:user, since user is
 		// a file rather than a directory.
 		notifyUserFeatures := strings.Fields(string(data))

@@ -807,7 +807,7 @@ var (
 		"bluez":                     {"app", "core"},
 		"bool-file":                 {"core", "gadget"},
 		"browser-support":           {"core"},
-		"content":                   {"app", "gadget"},
+		"content":                   {"app", "gadget", "kernel"},
 		"core-support":              {"core"},
 		"cups":                      {"app"},
 		"cups-control":              {"app", "core"},
