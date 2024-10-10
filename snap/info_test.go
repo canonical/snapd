@@ -1974,7 +1974,9 @@ func (s *infoSuite) TestSortByType(c *C) {
 		{SuggestedName: "gadget2", SnapType: "gadget"},
 		{SuggestedName: "kernel2", SnapType: "kernel"},
 	}
-	sort.Stable(snap.ByType(infos))
+	sort.SliceStable(infos, func(i, j int) bool {
+		return infos[i].Type().SortsBefore(infos[j].Type())
+	})
 
 	c.Check(infos, DeepEquals, []*snap.Info{
 		{SuggestedName: "snapd", SnapType: "snapd"},
@@ -1999,7 +2001,9 @@ func (s *infoSuite) TestSortByTypeAgain(c *C) {
 	snapd.SideInfo = snap.SideInfo{RealName: "snapd"}
 
 	byType := func(snaps ...*snap.Info) []*snap.Info {
-		sort.Stable(snap.ByType(snaps))
+		sort.SliceStable(snaps, func(i, j int) bool {
+			return snaps[i].Type().SortsBefore(snaps[j].Type())
+		})
 		return snaps
 	}
 

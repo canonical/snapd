@@ -1426,7 +1426,7 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
 
-	checkOrder(c, tsAll, "snapd", "pc-kernel", "core18", "pc")
+	checkOrder(c, tsAll, "snapd", "core18", "pc-kernel", "pc")
 
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
@@ -1549,7 +1549,7 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
 
-	checkOrder(c, tsAll, "snapd", "pc-kernel", "core18", "pc", "other-base", "snap-req-other-base")
+	checkOrder(c, tsAll, "snapd", "core18", "pc-kernel", "pc", "other-base", "snap-req-other-base")
 }
 
 func (s *firstBoot16Suite) TestFirstbootGadgetBaseModelBaseMismatch(c *C) {
@@ -2379,7 +2379,7 @@ snaps:
 	}
 	c.Assert(st.Changes(), HasLen, 1)
 
-	checkOrder(c, tsAll, "snapd", "pc-kernel", "core18", "pc")
+	checkOrder(c, tsAll, "snapd", "core18", "pc-kernel", "pc")
 
 	st.Unlock()
 	err = s.overlord.Settle(settleTimeout)
