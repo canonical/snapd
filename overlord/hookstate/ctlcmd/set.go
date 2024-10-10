@@ -75,6 +75,10 @@ func init() {
 }
 
 func (s *setCommand) Execute(args []string) error {
+	if !s.View && s.uid != "0" {
+		return &ForbiddenCommandError{Message: fmt.Sprintf(`cannot use "set" with uid %s, try with sudo`, s.uid)}
+	}
+
 	if s.Positional.PlugOrSlotSpec == "" && len(s.Positional.ConfValues) == 0 {
 		return errors.New(i18n.G("set which option?"))
 	}
