@@ -565,13 +565,6 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		desired[i].Dir = filepath.Clean(desired[i].Dir)
 	}
 
-	// Make yet another copy of the current entries, to retain their original
-	// order (the "current" variable is going to be sorted soon); just using
-	// currentProfile.Entries is not reliable because it didn't undergo the
-	// cleanup of the Dir paths.
-	unsortedCurrent := make([]osutil.MountEntry, len(current))
-	copy(unsortedCurrent, current)
-
 	dumpMountEntries := func(entries []osutil.MountEntry, pfx string) {
 		logger.Debug(pfx)
 		for _, en := range entries {
@@ -604,10 +597,8 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		desiredIDs[desired[i].XSnapdEntryID()] = true
 	}
 
-	// Compute reusable entries: those which are equal in current and desired and which
-	// are not prefixed by another entry that changed.
-	// sort them first
-	sort.Sort(byOvernameAndMountPoint(current))
+	// Compute reusable entries: those which are equal in current and
+	// desired and which are not prefixed by another entry that changed.
 	for i := range current {
 		dir := current[i].Dir
 		if skipDir != "" && strings.HasPrefix(dir, skipDir) {
@@ -656,6 +647,37 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		skipDir = strings.TrimSuffix(dir, "/") + "/"
 	}
 
+	// Do not reuse layout entries when they are may be used to distribute a
+	// content connection that were not kept. This is done so that we correctly
+	// re-create them to point to the disconnected location. This is needed
+	// because mount entries that are not reused are detached with private
+	// propagation, so the unmount does not propagate to the layout.
+	var dropped []string
+	for _, e := range current {
+		if !reuse[mountEntryId{dir: e.Dir, fsType: e.Type}] {
+			dropped = append(dropped, e.Dir)
+		}
+	}
+	for _, droppedPath := range dropped {
+		// For any layout that is not a symlink (so for any bind mount)
+		// we are trying not to reuse it if the any of the base directories
+		// belong to a dropped path.
+		//
+		// For example, if a layout attaches from
+		// /snap/foo/42/share/foo (e.Name) to /usr/share/foo (e.Dir)
+		// but /snap/foo/42/share is not reused then we don't want to
+		// reuse the layout.
+		for _, e := range current {
+			if e.XSnapdOrigin() == "layout" && e.XSnapdKind() != "symlink" {
+				if strings.HasPrefix(e.Name, droppedPath) {
+					logger.Debugf("not reusing layout entry %q due to changed content entry %s",
+						e.Dir, droppedPath)
+					delete(reuse, mountEntryId{dir: e.Dir, fsType: e.Type})
+				}
+			}
+		}
+	}
+
 	logger.Debugf("desiredIDs: %v", desiredIDs)
 	logger.Debugf("reuse: %v", reuse)
 
@@ -663,12 +685,11 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	var changes []*Change
 
 	// Unmount entries not reused in reverse to handle children before their parent.
-	unmountOrder := unsortedCurrent
-	for i := len(unmountOrder) - 1; i >= 0; i-- {
-		if reuse[mountEntryId{unmountOrder[i].Dir, unmountOrder[i].Type}] {
-			changes = append(changes, &Change{Action: Keep, Entry: unmountOrder[i]})
+	for i := len(current) - 1; i >= 0; i-- {
+		if reuse[mountEntryId{current[i].Dir, current[i].Type}] {
+			changes = append(changes, &Change{Action: Keep, Entry: current[i]})
 		} else {
-			var entry osutil.MountEntry = unmountOrder[i]
+			var entry osutil.MountEntry = current[i]
 			entry.Options = append([]string(nil), entry.Options...)
 			// If the mount entry can potentially host nested mount points then detach
 			// rather than unmount, since detach will always succeed.

@@ -20,7 +20,9 @@
 package mount
 
 import (
+	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -36,34 +38,48 @@ func mountNsPath(snapName string) string {
 }
 
 // Run an internal tool on a given snap namespace, if one exists.
-func runNamespaceTool(toolName, snapName string) ([]byte, error) {
+func runNamespaceTool(toolName, snapName string) error {
 	mntFile := mountNsPath(snapName)
-	if osutil.FileExists(mntFile) {
-		toolPath, err := snapdtool.InternalToolPath(toolName)
-		if err != nil {
-			return nil, err
-		}
-		cmd := exec.Command(toolPath, snapName)
-		output, err := cmd.CombinedOutput()
-		return output, err
+	if !osutil.FileExists(mntFile) {
+		return nil
 	}
-	return nil, nil
+
+	toolPath, err := snapdtool.InternalToolPath(toolName)
+	if err != nil {
+		return err
+	}
+
+	var stdout, stderr bytes.Buffer
+
+	cmd := exec.Command(toolPath, snapName)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if stderr.Len() == 0 {
+			return err
+		}
+
+		return fmt.Errorf("%w: %s", err, bytes.TrimSpace(stderr.Bytes()))
+	}
+
+	_, _ = stderr.WriteTo(os.Stderr)
+	_, _ = stdout.WriteTo(os.Stdout)
+
+	return err
 }
 
 // Discard the mount namespace of a given snap.
 func DiscardSnapNamespace(snapName string) error {
-	output, err := runNamespaceTool("snap-discard-ns", snapName)
-	if err != nil {
-		return fmt.Errorf("cannot discard preserved namespace of snap %q: %s", snapName, osutil.OutputErr(output, err))
+	if err := runNamespaceTool("snap-discard-ns", snapName); err != nil {
+		return fmt.Errorf("cannot discard preserved namespace of snap %q: %w", snapName, err)
 	}
 	return nil
 }
 
 // Update the mount namespace of a given snap.
 func UpdateSnapNamespace(snapName string) error {
-	output, err := runNamespaceTool("snap-update-ns", snapName)
-	if err != nil {
-		return fmt.Errorf("cannot update preserved namespace of snap %q: %s", snapName, osutil.OutputErr(output, err))
+	if err := runNamespaceTool("snap-update-ns", snapName); err != nil {
+		return fmt.Errorf("cannot update preserved namespace of snap %q: %w", snapName, err)
 	}
 	return nil
 }
