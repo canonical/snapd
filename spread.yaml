@@ -81,11 +81,8 @@ environment:
     # set to 1 when the snapd memory limit has to be removed
     SNAPD_NO_MEMORY_LIMIT: '$(HOST: echo "${SPREAD_SNAPD_NO_MEMORY_LIMIT:-}")'
 
-    SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
     # Use the snapd package from the repository when possible
     SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-true}")'
-    # Build and use snapd from current branch
-    BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-true}")'
     # Directory where the built snapd snaps and other assets are stored
     SNAPD_WORK_DIR: '$(HOST: echo "${SPREAD_SNAPD_WORK_DIR:-/tmp/work-dir}")'
 
