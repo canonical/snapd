@@ -1,3 +1,85 @@
+snapd (2.66) xenial; urgency=medium
+
+  * New upstream release, LP: #2083490
+    - AppArmor prompting (experimental): expand kernel support checks
+    - AppArmor prompting (experimental): consolidate error messages and
+      add error kinds
+    - AppArmor prompting (experimental): grant /v2/snaps/{name} via
+      snap-interfaces-requests-control
+    - AppArmor prompting (experimental): add checks for duplicate
+      pattern variants
+    - Registry views (experimental): add handlers that commit (and
+      cleanup) registry transactions
+    - Registry views (experimental): add a snapctl fail command for
+      rejecting registry transactions
+    - Registry views (experimental): allow custodian snaps to implement
+      registry hooks that modify and save registry data
+    - Registry views (experimental): run view-changed hooks only for
+      snaps plugging views affected by modified paths
+    - Registry views (experimental): make registry transactions
+      serialisable
+    - Snap components: handle refreshing components to revisions that
+      have been on the system before
+    - Snap components: enable creating Ubuntu Core images that contain
+      components
+    - Snap components: handle refreshing components independently of
+      snaps
+    - Snap components: handle removing components when refreshing a snap
+      that no longer defines them
+    - Snap components: extend snapd Ubuntu Core installation API to
+      allow for picking optional snaps and components to install
+    - Snap components: extend kernel.yaml with "dynamic-modules",
+      allowing kernel to define a location for kmods from component
+      hooks
+    - Snap components: renamed component type "test" to "standard"
+    - Desktop IDs: support installing desktop files with custom names
+      based on desktop-file-ids desktop interface plug attr
+    - Auto-install snapd on classic systems as prerequisite for any non-
+      essential snap install
+    - Support loading AppArmor profiles on WSL2 with non-default kernel
+      and securityfs mounted
+    - Debian/Fedora packaging updates
+    - Add snap debug command for investigating execution aspects of the
+      snap toolchain
+    - Improve snap pack error for easier parsing
+    - Add support for user services when refreshing snaps
+    - Add snap remove --terminate flag for terminating running snap
+      processes
+    - Support building FIPS complaint snapd deb and snap
+    - Fix to not use nss when looking up for users/groups from snapd
+      snap
+    - Fix ordering in which layout changes are saved
+    - Patch snapd snap dynamic linker to ignore LD_LIBRARY_PATH and
+      related variables
+    - Fix libexec dir for openSUSE Slowroll
+    - Fix handling of the shared snap directory for parallel installs
+    - Allow writing to /run/systemd/journal/dev-log by default
+    - Avoid state lock during snap removal to avoid delaying other snapd
+      operations
+    - Add nomad-support interface to enable running Hashicorp Nomad
+    - Add intel-qat interface
+    - u2f-devices interface: add u2f trustkey t120 product id and fx
+      series fido u2f devices
+    - desktop interface: improve integration with xdg-desktop-portal
+    - desktop interface: add desktop-file-ids plug attr to desktop
+      interface
+    - unity7 interface: support desktop-file-ids in desktop files rule
+      generation
+    - desktop-legacy interface: support desktop-file-ids in desktop
+      files rule generation
+    - desktop-legacy interface: grant access to gcin socket location
+    - login-session-observe interface: allow introspection
+    - custom-device interface: allow to explicitly identify matching
+      device in udev tagging block
+    - system-packages-doc interface: allow reading /usr/share/javascript
+    - modem-manager interface: add new format of WWAN ports
+    - pcscd interface: allow pcscd to read opensc.conf
+    - cpu-control interface: add IRQ affinity control to cpu_control
+    - opengl interface: add support for cuda workloads on Tegra iGPU in
+      opengl interface
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Fri, 04 Oct 2024 14:22:03 +0200
+
 snapd (2.65.3) xenial; urgency=medium
 
   * New upstream release, LP: #2077473
