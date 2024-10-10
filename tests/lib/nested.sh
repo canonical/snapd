@@ -454,7 +454,7 @@ nested_cleanup_env() {
     rm -rf "$(nested_get_extra_snaps_path)"
 }
 
-nested_get_image_name() {
+nested_get_image_name_base() {
     local TYPE="$1"
     local SOURCE="${NESTED_CORE_CHANNEL}"
     local NAME="${NESTED_IMAGE_ID:-generic}"
@@ -476,7 +476,13 @@ nested_get_image_name() {
     if [ "$(nested_get_extra_snaps | wc -l)" != "0" ]; then
         SOURCE="custom"
     fi
-    echo "ubuntu-${TYPE}-${VERSION}-${SOURCE}-${NAME}.img"
+    echo "ubuntu-${TYPE}-${VERSION}-${SOURCE}-${NAME}"
+}
+
+nested_get_image_name() {
+    local BASE_NAME
+    BASE_NAME="$(nested_get_image_name_base "$1")"
+    echo "${BASE_NAME}.img"
 }
 
 nested_is_generic_image() {
@@ -914,13 +920,23 @@ nested_create_core_vm() {
             # ubuntu-image dropped the --output parameter, so we have to rename
             # the image ourselves, the images are named after volumes listed in
             # gadget.yaml
+            local IMAGE_BASE_NAME
+            IMAGE_BASE_NAME="$(nested_get_image_name_base core)"
             find "$NESTED_IMAGES_DIR/" -maxdepth 1 -name '*.img' | while read -r imgname; do
-                if [ -e "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
-                    echo "Image $IMAGE_NAME file already present"
-                    exit 1
-                fi
-                mv "$imgname" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+                volname=$(basename "$imgname" .img)
+                mv "$imgname" "$NESTED_IMAGES_DIR/$IMAGE_BASE_NAME-$volname.img"
             done
+
+            # get the name of the boot-volume, and then create a symlink
+            # between the regular image name and the main volume, additional
+            # volumes must be manually added to the VM creation by the tests
+            local BOOTVOLUME
+            BOOTVOLUME=pc
+            if [ -e pc-gadget/meta/gadget.yaml ]; then
+                BOOTVOLUME="$(yq eval '.volumes[] | .structure.[] | select(.name == "ubuntu-boot") | parent(2) | key' pc-gadget/meta/gadget.yaml)"
+            fi
+            ln -s "$NESTED_IMAGES_DIR/$IMAGE_BASE_NAME-$BOOTVOLUME.img" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+
             unset SNAPPY_FORCE_SAS_URL
             unset UBUNTU_IMAGE_SNAP_CMD
         fi
