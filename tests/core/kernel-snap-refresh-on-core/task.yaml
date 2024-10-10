@@ -5,8 +5,7 @@ details: |
     revision to a new one. It expects to find a new snap revision in the
     channel pointed by the NEW_CORE_CHANNEL env var.
 
-# TODO:UC20 enable for UC20/UC18
-systems: [ubuntu-core-16-64]
+systems: [ubuntu-core-*-64]
 
 manual: true
 
