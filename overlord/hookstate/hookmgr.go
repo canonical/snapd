@@ -79,12 +79,6 @@ type Handler interface {
 // HandlerGenerator is the function signature required to register for hooks.
 type HandlerGenerator func(*Context) Handler
 
-type Precondition interface {
-	// Precondition is called prior to the Before method and should return true
-	// if the hook should run or false, if it should be skipped without erroring.
-	Precondition() (bool, error)
-}
-
 // HookSetup is a reference to a hook within a specific snap.
 type HookSetup struct {
 	Snap     string        `json:"snap"`
@@ -428,17 +422,6 @@ func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hoo
 		delete(m.contexts, contextID)
 		m.contextsMutex.Unlock()
 	}()
-
-	if ph, ok := context.Handler().(Precondition); ok {
-		precond, err := ph.Precondition()
-		if err != nil {
-			return err
-		}
-
-		if !precond {
-			return nil
-		}
-	}
 
 	if err := context.Handler().Before(); err != nil {
 		return err
