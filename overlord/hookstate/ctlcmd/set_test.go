@@ -509,3 +509,10 @@ func (s *registrySuite) TestRegistrySetExclamationMark(c *C) {
 `)
 	c.Check(stderr, IsNil)
 }
+
+func (s *registrySuite) TestRegistrySetNonRoot(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=other-ssid", "password=other-secret"}, 1000)
+	c.Assert(err, IsNil)
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+}
