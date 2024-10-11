@@ -603,6 +603,8 @@ jobs:
 
   spread:
     needs: [unit-tests, snap-builds]
+    permissions:
+      pull-requests: write
     name: ${{ matrix.group }}
     runs-on: [self-hosted, spread-enabled]
     strategy:
@@ -961,6 +963,37 @@ jobs:
             done <<< $(jq -r '.[] | select( .type == "info" ) | select( .info_type == "Error" ) | "\(.verb) \(.task)"' spread-results.json)
         else
             echo "No spread log found, skipping errors reporting"
+        fi
+
+    - name: Add/Update errors in PR comment
+      if: always() && github.event_name == 'pull_request'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        comment_body=""
+        if [ -e spread.log ]; then
+          comment_body="## No test failures"
+        else
+          PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json --cut 1 >/dev/null
+
+          comment_body+="## Spread Failures:\n"
+          if [[ $(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "preparing" )' spread-results.json) ]]; then
+            comment_body+="### Prepare:\n"
+            comment_body+=$(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "preparing" ) .task' spread-results.json | while read line; do echo "- $line\n"; done)
+          fi
+          if [[ $(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "executing" )' spread-results.json) ]]; then
+            comment_body+="### Executing:\n"
+            comment_body+=$(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "executing" ) .task' spread-results.json | while read line; do echo "- $line\n"; done)
+          fi
+          if [[ $(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "restoring" )' spread-results.json) ]]; then
+            comment_body+="### Restoring:\n"
+            comment_body+=$(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "restoring" ) .task' spread-results.json | while read line; do echo "- $line\n"; done)
+          fi
+        fi
+
+        # Update or create the comment on the PR with the test failures
+        if ! gh pr comment "${{ github.event.number }}" --body "$(echo -e $comment_body)" --edit-last; then
+          gh pr comment "${{ github.event.number }}" --body "$(echo -e $comment_body)"
         fi
 
     - name: Analyze spread test results
