@@ -230,9 +230,14 @@ func setRegistryValues(ctx *hookstate.Context, plugName string, requests map[str
 	ctx.Lock()
 	defer ctx.Unlock()
 
-	view, err := getRegistryView(ctx, plugName)
+	account, registryName, viewName, err := getRegistryViewID(ctx, plugName)
 	if err != nil {
-		return fmt.Errorf("cannot set registry: %v", err)
+		return err
+	}
+
+	view, err := getRegistryView(ctx, account, registryName, viewName)
+	if err != nil {
+		return err
 	}
 
 	if registrystate.IsRegistryHook(ctx) && !strings.HasPrefix(ctx.HookName(), "change-view-") {

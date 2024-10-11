@@ -187,3 +187,11 @@ func MockRegistrystateGetTransaction(f func(*registrystate.Context, *state.State
 		registrystateGetTransaction = old
 	}
 }
+
+func MockGetRegistryView(f func(ctx *hookstate.Context, account, registryName, viewName string) (*registry.View, error)) (restore func()) {
+	old := getRegistryView
+	getRegistryView = f
+	return func() {
+		getRegistryView = old
+	}
+}

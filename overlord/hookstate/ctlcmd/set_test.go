@@ -463,7 +463,7 @@ func (s *registrySuite) TestRegistrySetInvalid(c *C) {
 	tcs := []testcase{
 		{
 			args: []string{":non-existent", "ssid=my-ssid"},
-			err:  `cannot set registry: cannot find plug :non-existent for snap "test-snap"`,
+			err:  `cannot find plug :non-existent for snap "test-snap"`,
 		},
 		{
 			args: []string{":non-existent", "ssid"},
@@ -501,14 +501,12 @@ func (s *registrySuite) TestRegistrySetExclamationMark(c *C) {
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
-	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
+	_, err = tx.Get("wifi.psk")
+	c.Assert(err, ErrorMatches, "no value was found under path \"wifi.psk\"")
+
+	val, err := tx.Get("wifi.ssid")
 	c.Assert(err, IsNil)
-	c.Check(string(stdout), Equals, `{
-	"ssid": "foo"
-}
-`)
-	c.Check(stderr, IsNil)
-	s.state.Lock()
+	c.Assert(val, Equals, "foo")
 }
 
 func (s *registrySuite) TestRegistryOnlyChangeViewCanSet(c *C) {
@@ -545,5 +543,4 @@ func (s *registrySuite) TestRegistryOnlyChangeViewCanSet(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
-
 }

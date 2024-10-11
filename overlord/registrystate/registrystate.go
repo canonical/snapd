@@ -117,12 +117,12 @@ func Get(st *state.State, account, registryName, viewName string, fields []strin
 		}
 	}
 
-	tx, err := NewTransaction(st, account, registryName)
+	bag, err := readDatabag(st, account, registryName)
 	if err != nil {
 		return nil, err
 	}
 
-	return GetViaView(tx, view, fields)
+	return GetViaView(bag, view, fields)
 }
 
 // GetViaView uses the view to get values for the fields from the databag in
@@ -198,13 +198,13 @@ var writeDatabag = func(st *state.State, databag registry.JSONDataBag, account, 
 	return nil
 }
 
-// GetTransaction retrieves or creates a transaction to access the view's
+// GetTransactionToModify retrieves or creates a transaction to change the view's
 // registry. The state must be locked by the caller. Takes a context which should
 // contain a hookstate.Context in it, if it came from a hook context. Calling
 // ctx.Done will trigger the creation of a modify-registry change and wait for
 // its completion (unless one already existed, in which case it just persists
 // changes to the existing transaction).
-func GetTransaction(ctx *Context, st *state.State, view *registry.View) (*Transaction, error) {
+func GetTransactionToModify(ctx *Context, st *state.State, view *registry.View) (*Transaction, error) {
 	account, registryName := view.Registry().Account, view.Registry().Name
 
 	// check if we're already running in the context of a committing transaction
@@ -219,8 +219,6 @@ func GetTransaction(ctx *Context, st *state.State, view *registry.View) (*Transa
 		}
 
 		if tx.RegistryAccount != account || tx.RegistryName != registryName {
-			// TODO: can we allow accessing a different registry just for reading? we'll
-			// need to create a change and run hooks so will require accounting in state
 			return nil, fmt.Errorf("cannot access registry %s/%s: ongoing transaction for %s/%s", account, registryName, tx.RegistryAccount, tx.RegistryName)
 		}
 
@@ -231,9 +229,7 @@ func GetTransaction(ctx *Context, st *state.State, view *registry.View) (*Transa
 
 		return tx, nil
 	}
-	// TODO:
-	//	* add concurrency checks
-	// 	* distinguish from reads/write (reads will require different hooks)
+	// TODO: add concurrency checks
 
 	// not running in an existing registry hook context, so create a transaction
 	// and a change to verify its changes and commit
@@ -268,12 +264,12 @@ func GetTransaction(ctx *Context, st *state.State, view *registry.View) (*Transa
 			return err
 		}
 
-		err = setOngoingTransaction(st, account, registryName, commitTask.ID())
+		clearTxTask, err := ts.Edge(clearTxEdge)
 		if err != nil {
 			return err
 		}
 
-		clearTxTask, err := ts.Edge(clearTxEdge)
+		err = setOngoingTransaction(st, account, registryName, commitTask.ID())
 		if err != nil {
 			return err
 		}

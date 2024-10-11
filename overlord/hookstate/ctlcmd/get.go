@@ -39,7 +39,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var registrystateGetTransaction = registrystate.GetTransaction
+var registrystateGetTransaction = registrystate.GetTransactionToModify
 
 type getCommand struct {
 	baseCommand
@@ -370,20 +370,19 @@ func (c *getCommand) getRegistryValues(ctx *hookstate.Context, plugName string, 
 	ctx.Lock()
 	defer ctx.Unlock()
 
-	view, err := getRegistryView(ctx, plugName)
-	if err != nil {
-		return fmt.Errorf("cannot get registry: %v", err)
-	}
-
-	regCtx := registrystate.NewContext(ctx)
-	tx, err := registrystateGetTransaction(regCtx, ctx.State(), view)
+	account, registryName, viewName, err := getRegistryViewID(ctx, plugName)
 	if err != nil {
 		return err
 	}
 
-	bag := registry.DataBag(tx)
-	if pristine {
-		bag = tx.Pristine()
+	view, err := getRegistryView(ctx, account, registryName, viewName)
+	if err != nil {
+		return err
+	}
+
+	bag, err := c.getDatabag(ctx, view, pristine)
+	if err != nil {
+		return err
 	}
 
 	res, err := registrystate.GetViaView(bag, view, requests)
@@ -394,23 +393,63 @@ func (c *getCommand) getRegistryValues(ctx *hookstate.Context, plugName string, 
 	return c.printPatch(res)
 }
 
-func getRegistryView(ctx *hookstate.Context, plugName string) (*registry.View, error) {
+func (c *getCommand) getDatabag(ctx *hookstate.Context, view *registry.View, pristine bool) (bag registry.DataBag, err error) {
+	account, registryName := view.Registry().Account, view.Registry().Name
+
+	var tx *registrystate.Transaction
+	if registrystate.IsRegistryHook(ctx) {
+		// running in the context of a transaction, so if the referenced registry
+		// doesn't match that tx, we only allow the caller to read the other registry
+		t, _ := ctx.Task()
+		tx, _, err = registrystate.GetStoredTransaction(t)
+		if err != nil {
+			return nil, fmt.Errorf("cannot access registry view %s/%s/%s: cannot get transaction: %v", account, registryName, view.Name, err)
+		}
+
+		if tx.RegistryAccount != account || tx.RegistryName != registryName {
+			// we're reading a different transaction
+			tx = nil
+		}
+	}
+
+	// reading a view but there's no ongoing transaction for it, make a temporary
+	// transaction just as a pass-through databag
+	if tx == nil {
+		tx, err = registrystate.NewTransaction(ctx.State(), account, registryName)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	bag = registry.DataBag(tx)
+	if pristine {
+		bag = tx.Pristine()
+	}
+
+	return bag, nil
+}
+
+func getRegistryViewID(ctx *hookstate.Context, plugName string) (account, registryName, viewName string, err error) {
 	repo := ifacerepo.Get(ctx.State())
 
 	plug := repo.Plug(ctx.InstanceName(), plugName)
 	if plug == nil {
-		return nil, fmt.Errorf(i18n.G("cannot find plug :%s for snap %q"), plugName, ctx.InstanceName())
+		return "", "", "", fmt.Errorf(i18n.G("cannot find plug :%s for snap %q"), plugName, ctx.InstanceName())
 	}
 
 	if plug.Interface != "registry" {
-		return nil, fmt.Errorf(i18n.G("cannot use --view with non-registry plug :%s"), plugName)
+		return "", "", "", fmt.Errorf(i18n.G("cannot use --view with non-registry plug :%s"), plugName)
 	}
 
-	account, registryName, viewName, err := snap.RegistryPlugAttrs(plug)
+	account, registryName, viewName, err = snap.RegistryPlugAttrs(plug)
 	if err != nil {
-		return nil, fmt.Errorf(i18n.G("invalid plug :%s: %w"), plugName, err)
+		return "", "", "", fmt.Errorf(i18n.G("invalid plug :%s: %w"), plugName, err)
 	}
 
+	return account, registryName, viewName, nil
+}
+
+var getRegistryView = func(ctx *hookstate.Context, account, registryName, viewName string) (*registry.View, error) {
 	registryAssert, err := assertstate.Registry(ctx.State(), account, registryName)
 	if err != nil {
 		if errors.Is(err, &asserts.NotFoundError{}) {

@@ -828,7 +828,7 @@ func (s *registryTestSuite) TestGetTransactionFromUserCreatesNewChange(c *C) {
 	view := s.registry.View("setup-wifi")
 
 	ctx := registrystate.NewContext(nil)
-	tx, err := registrystate.GetTransaction(ctx, s.state, view)
+	tx, err := registrystate.GetTransactionToModify(ctx, s.state, view)
 	c.Assert(err, IsNil)
 	c.Assert(tx, NotNil)
 
@@ -871,7 +871,7 @@ func (s *registryTestSuite) TestGetTransactionFromSnapCreatesNewChange(c *C) {
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
-	// the daemon calls Done() in api_snapctl
+	// this is called automatically by hooks or manually for daemon/
 	ctx.Lock()
 	ctx.Done()
 	ctx.Unlock()
@@ -1106,7 +1106,7 @@ func (s *registryTestSuite) TestGetDifferentTransactionThanOngoing(c *C) {
 
 	hookCtx.Lock()
 	ctx := registrystate.NewContext(hookCtx)
-	tx, err = registrystate.GetTransaction(ctx, s.state, reg.View("foo"))
+	tx, err = registrystate.GetTransactionToModify(ctx, s.state, reg.View("foo"))
 	hookCtx.Unlock()
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot access registry foo/bar: ongoing transaction for %s/network`, s.devAccID))
 	c.Assert(tx, IsNil)
