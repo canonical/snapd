@@ -104,7 +104,7 @@
 %endif
 
 Name:           snapd
-Version:        2.66
+Version:        2.66.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -1003,6 +1003,13 @@ fi
 
 
 %changelog
+* Fri Oct 11 2024 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.66.1
+ - AppArmor prompting (experimental): Fix kernel prompting support
+   check
+ - Allow kernel snaps to have content slots
+ - Fix ignoring snaps in try mode when amending
+
 * Fri Oct 04 2024 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.66
  - AppArmor prompting (experimental): expand kernel support checks
