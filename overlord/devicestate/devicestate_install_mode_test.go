@@ -1115,9 +1115,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPMAndSave(c *C) {
 	}
 	err := s.doRunChangeTestWithEncryption(c, "secured", tc)
 	c.Assert(err, IsNil)
-	saveKey, hasSaveKey := tc.saveContainer.Slots["default"]
+	_, hasSaveKey := tc.saveContainer.Slots["default"]
 	c.Assert(hasSaveKey, Equals, true)
-	c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, saveKey)
 	marker, err := os.ReadFile(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker"))
 	c.Assert(err, IsNil)
 	c.Check(marker, HasLen, 32)
@@ -1783,9 +1782,8 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	if tc.encrypt {
 		c.Check(recoveryKeysRemoved, Equals, true)
 		c.Assert(bootstrapContainer, NotNil)
-		saveKey, hasSaveKey := bootstrapContainer.Slots["default"]
+		_, hasSaveKey := bootstrapContainer.Slots["default"]
 		c.Check(hasSaveKey, Equals, true)
-		c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
 		c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"), testutil.FileEquals, "new-data")
 		// sha3-384 of the mocked ubuntu-save sealed key
 		c.Check(filepath.Join(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "factory-reset"),

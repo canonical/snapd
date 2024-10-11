@@ -275,6 +275,14 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 		c.Check(mp.Model.Model(), Equals, model.Model())
 		switch buildProfileCalls {
 		case 1:
+			// Resealing the run+recover key for data partition
+			c.Check(params.Keys, DeepEquals, []secboot.KeyFileOrSlotName{
+				{
+					DevicePath: "/dev/disk/by-partlabel/ubuntu-data-enc",
+					SlotName:   "default",
+					KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"),
+				},
+			})
 			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shimBf,
 					secboot.NewLoadChain(assetBf,
@@ -285,6 +293,19 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 							secboot.NewLoadChain(runKernel)))),
 			})
 		case 2:
+			// Resealing the recovery key for both data and save partitions
+			c.Check(params.Keys, DeepEquals, []secboot.KeyFileOrSlotName{
+				{
+					DevicePath: "/dev/disk/by-partlabel/ubuntu-data-enc",
+					SlotName:   "default-fallback",
+					KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
+				},
+				{
+					DevicePath: "/dev/disk/by-partlabel/ubuntu-save-enc",
+					SlotName:   "default-fallback",
+					KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"),
+				},
+			})
 			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shimBf,
 					secboot.NewLoadChain(assetBf,
@@ -527,6 +548,13 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 			}
 
 			checkRunParams := func() {
+				c.Check(params.Keys, DeepEquals, []secboot.KeyFileOrSlotName{
+					{
+						DevicePath: "/dev/disk/by-partlabel/ubuntu-data-enc",
+						SlotName:   "default",
+						KeyFile:    filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
+					},
+				})
 				c.Check(modelParams[0].KernelCmdlines, DeepEquals, []string{
 					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 					"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
@@ -587,9 +615,17 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 			}
 
 			checkRecoveryParams := func() {
-				c.Check(params.KeyFiles, DeepEquals, []string{
-					filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
-					filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+				c.Check(params.Keys, DeepEquals, []secboot.KeyFileOrSlotName{
+					{
+						DevicePath: "/dev/disk/by-partlabel/ubuntu-data-enc",
+						SlotName:   "default-fallback",
+						KeyFile:    filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+					},
+					{
+						DevicePath: "/dev/disk/by-partlabel/ubuntu-save-enc",
+						SlotName:   "default-fallback",
+						KeyFile:    filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+					},
 				})
 			}
 
@@ -952,6 +988,13 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 
 		switch buildProfileCalls {
 		case 1: // run key
+			c.Assert(params.Keys, DeepEquals, []secboot.KeyFileOrSlotName{
+				{
+					DevicePath: "/dev/disk/by-partlabel/ubuntu-data-enc",
+					SlotName:   "default",
+					KeyFile:    filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
+				},
+			})
 			c.Assert(modelParams[0].KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=1234 console=ttyS0 console=tty1 panic=-1",
@@ -961,6 +1004,18 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 			// load chains
 			c.Assert(modelParams[0].EFILoadChains, HasLen, 3)
 		case 2: // recovery keys
+			c.Assert(params.Keys, DeepEquals, []secboot.KeyFileOrSlotName{
+				{
+					DevicePath: "/dev/disk/by-partlabel/ubuntu-data-enc",
+					SlotName:   "default-fallback",
+					KeyFile:    filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+				},
+				{
+					DevicePath: "/dev/disk/by-partlabel/ubuntu-save-enc",
+					SlotName:   "default-fallback",
+					KeyFile:    filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+				},
+			})
 			c.Assert(modelParams[0].KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
@@ -1198,6 +1253,13 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 
 		switch buildProfileCalls {
 		case 1: // run key
+			c.Assert(params.Keys, DeepEquals, []secboot.KeyFileOrSlotName{
+				{
+					DevicePath: "/dev/disk/by-partlabel/ubuntu-data-enc",
+					SlotName:   "default",
+					KeyFile:    filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
+				},
+			})
 			// 2 models, one current and one try model
 			c.Assert(modelParams, HasLen, 2)
 			// shared parameters
@@ -1219,6 +1281,18 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 			// 2 load chains (bootloader + run kernel, bootloader + recovery kernel)
 			c.Assert(modelParams[1].EFILoadChains, HasLen, 2)
 		case 2: // recovery keys
+			c.Assert(params.Keys, DeepEquals, []secboot.KeyFileOrSlotName{
+				{
+					DevicePath: "/dev/disk/by-partlabel/ubuntu-data-enc",
+					SlotName:   "default-fallback",
+					KeyFile:    filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+				},
+				{
+					DevicePath: "/dev/disk/by-partlabel/ubuntu-save-enc",
+					SlotName:   "default-fallback",
+					KeyFile:    filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+				},
+			})
 			// only the current model
 			c.Assert(modelParams, HasLen, 1)
 			// shared parameters
