@@ -47,32 +47,42 @@ var (
 	}
 )
 
-func runKeySealRequests(key secboot.BootstrappedContainer) []secboot.SealKeyRequest {
+func runKeySealRequests(key secboot.BootstrappedContainer, useTokens bool) []secboot.SealKeyRequest {
+	var keyFile string
+	if !useTokens {
+		keyFile = device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir)
+	}
 	return []secboot.SealKeyRequest{
 		{
 			BootstrappedContainer: key,
 			KeyName:               "ubuntu-data",
 			SlotName:              "default",
-			KeyFile:               device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir),
+			KeyFile:               keyFile,
 		},
 	}
 }
 
-func fallbackKeySealRequests(key, saveKey secboot.BootstrappedContainer, factoryReset bool) []secboot.SealKeyRequest {
-	saveFallbackKey := device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+func fallbackKeySealRequests(key, saveKey secboot.BootstrappedContainer, factoryReset bool, useTokens bool) []secboot.SealKeyRequest {
+	var dataFallbackKey, saveFallbackKey string
+	if !useTokens {
+		dataFallbackKey = device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
 
-	if factoryReset {
-		// factory reset uses alternative sealed key location, such that
-		// until we boot into the run mode, both sealed keys are present
-		// on disk
-		saveFallbackKey = device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+		if factoryReset {
+			// factory reset uses alternative sealed key location, such that
+			// until we boot into the run mode, both sealed keys are present
+			// on disk
+			saveFallbackKey = device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+		} else {
+			saveFallbackKey = device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+		}
 	}
+
 	return []secboot.SealKeyRequest{
 		{
 			BootstrappedContainer: key,
 			KeyName:               "ubuntu-data",
 			SlotName:              "default-fallback",
-			KeyFile:               device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
+			KeyFile:               dataFallbackKey,
 		},
 		{
 			BootstrappedContainer: saveKey,
@@ -83,7 +93,7 @@ func fallbackKeySealRequests(key, saveKey secboot.BootstrappedContainer, factory
 	}
 }
 
-func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBootChains, roleToBlName map[bootloader.Role]string, pcrHandle uint32) ([]byte, error) {
+func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBootChains, roleToBlName map[bootloader.Role]string, pcrHandle uint32, useTokens bool) ([]byte, error) {
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
 		return nil, fmt.Errorf("cannot prepare for key sealing: %v", err)
@@ -102,7 +112,7 @@ func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBo
 	// path only unseals one object because unsealing is expensive.
 	// Furthermore, the run object key is stored on ubuntu-boot so that we do not
 	// need to continually write/read keys from ubuntu-seed.
-	primaryKey, err := secbootSealKeys(runKeySealRequests(key), sealKeyParams)
+	primaryKey, err := secbootSealKeys(runKeySealRequests(key, useTokens), sealKeyParams)
 	if err != nil {
 		return nil, fmt.Errorf("cannot seal the encryption keys: %v", err)
 	}
@@ -110,7 +120,7 @@ func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBo
 	return primaryKey, nil
 }
 
-func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot.PredictableBootChains, primaryKey []byte, roleToBlName map[bootloader.Role]string, factoryReset bool, pcrHandle uint32) error {
+func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot.PredictableBootChains, primaryKey []byte, roleToBlName map[bootloader.Role]string, factoryReset bool, pcrHandle uint32, useTokens bool) error {
 	// also seal the keys to the recovery bootchains as a fallback
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
@@ -126,7 +136,7 @@ func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot
 	// key files are stored on ubuntu-seed, separate from ubuntu-data so they
 	// can be used if ubuntu-data and ubuntu-boot are corrupted or unavailable.
 
-	if _, err := secbootSealKeys(fallbackKeySealRequests(key, saveKey, factoryReset), sealKeyParams); err != nil {
+	if _, err := secbootSealKeys(fallbackKeySealRequests(key, saveKey, factoryReset, useTokens), sealKeyParams); err != nil {
 		return fmt.Errorf("cannot seal the fallback encryption keys: %v", err)
 	}
 
@@ -143,7 +153,7 @@ func sealKeyForBootChainsHook(key, saveKey secboot.BootstrappedContainer, params
 		break
 	}
 
-	skrs := append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey, params.FactoryReset)...)
+	skrs := append(runKeySealRequests(key, params.UseTokens), fallbackKeySealRequests(key, saveKey, params.FactoryReset, params.UseTokens)...)
 	if err := secbootSealKeysWithFDESetupHook(RunFDESetupHook, skrs, &sealingParams); err != nil {
 		return err
 	}
@@ -220,13 +230,13 @@ func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secbo
 
 	// TODO: refactor sealing functions to take a struct instead of so many
 	// parameters
-	primaryKey, err := sealRunObjectKeys(key, pbc, params.RoleToBlName, runObjectKeyPCRHandle)
+	primaryKey, err := sealRunObjectKeys(key, pbc, params.RoleToBlName, runObjectKeyPCRHandle, params.UseTokens)
 	if err != nil {
 		return err
 	}
 
 	err = sealFallbackObjectKeys(key, saveKey, rpbc, primaryKey, params.RoleToBlName, params.FactoryReset,
-		fallbackObjectKeyPCRHandle)
+		fallbackObjectKeyPCRHandle, params.UseTokens)
 	if err != nil {
 		return err
 	}

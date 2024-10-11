@@ -905,6 +905,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		sealErr              error
 		sealCalls            int
 		expectedErr          string
+		saveToFile           bool
 	}{
 		{tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
 		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
@@ -915,6 +916,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot add snap model profile: some error"},
 		{tpmEnabled: true, sealErr: mockErr, sealCalls: 1, expectedErr: "some error"},
 		{tpmEnabled: true, sealCalls: 2, expectedErr: ""},
+		{tpmEnabled: true, sealCalls: 2, expectedErr: "", saveToFile: true},
 	} {
 		c.Logf("tc: %v", idx)
 		tmpDir := c.MkDir()
@@ -975,15 +977,22 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			PCRPolicyCounterHandle: 42,
 		}
 
+		containerA := secboot.CreateMockBootstrappedContainer()
+		containerB := secboot.CreateMockBootstrappedContainer()
 		myKeys := []secboot.SealKeyRequest{
 			{
-				BootstrappedContainer: secboot.CreateMockBootstrappedContainer(),
-				KeyFile:               filepath.Join(tmpDir, "keyfile"),
+				BootstrappedContainer: containerA,
+				SlotName:              "foo1",
 			},
 			{
-				BootstrappedContainer: secboot.CreateMockBootstrappedContainer(),
-				KeyFile:               filepath.Join(tmpDir, "keyfile2"),
+				BootstrappedContainer: containerB,
+				SlotName:              "foo2",
 			},
+		}
+
+		if tc.saveToFile {
+			myKeys[0].KeyFile = filepath.Join(tmpDir, "key-file-1")
+			myKeys[1].KeyFile = filepath.Join(tmpDir, "key-file-2")
 		}
 
 		// events for
@@ -1116,10 +1125,29 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			c.Assert(addPCRProfileCalls, Equals, 2)
 			c.Assert(addSnapModelCalls, Equals, 2)
 			c.Assert(osutil.FileExists(myParams.TPMPolicyAuthKeyFile), Equals, true)
+
+			_, aHasSlot := containerA.Slots["foo1"]
+			c.Check(aHasSlot, Equals, true)
+			_, bHasSlot := containerB.Slots["foo2"]
+			c.Check(bHasSlot, Equals, true)
+			if tc.saveToFile {
+				c.Check(containerA.Tokens, HasLen, 0)
+				c.Check(containerB.Tokens, HasLen, 0)
+				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-1")), Equals, true)
+				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-2")), Equals, true)
+			} else {
+				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-1")), Equals, false)
+				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-2")), Equals, false)
+				_, aHasToken := containerA.Tokens["foo1"]
+				c.Check(aHasToken, Equals, true)
+				_, bHasToken := containerB.Tokens["foo2"]
+				c.Check(bHasToken, Equals, true)
+			}
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr)
 		}
 		c.Assert(sealCalls, Equals, tc.sealCalls)
+
 	}
 }
 
@@ -1129,6 +1157,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 	for idx, tc := range []struct {
 		tpmErr                 error
 		tpmEnabled             bool
+		keyDataInFile          bool
 		missingFile            bool
 		addPCRProfileErr       error
 		addSystemdEFIStubErr   error
@@ -1146,6 +1175,8 @@ func (s *secbootSuite) TestResealKey(c *C) {
 	}{
 		// happy case
 		{tpmEnabled: true, resealCalls: 1},
+		// happy case with key files
+		{tpmEnabled: true, keyDataInFile: true, resealCalls: 1},
 		// happy case with DBX update
 		{tpmEnabled: true, resealCalls: 1, dbxUpdate: []byte("dbx-update")},
 		// happy case, old keys
@@ -1158,7 +1189,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		{tpmEnabled: true, addPCRProfileErr: mockErr, buildProfileErr: `cannot add EFI secure boot and boot manager policy profiles: some error`},
 		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, buildProfileErr: `cannot add systemd EFI stub profile: some error`},
 		{tpmEnabled: true, addSnapModelErr: mockErr, buildProfileErr: `cannot add snap model profile: some error`},
-		{tpmEnabled: true, readSealedKeyObjectErr: mockErr, expectedErr: "cannot read key file .*: some error"},
+		{tpmEnabled: true, readSealedKeyObjectErr: mockErr, expectedErr: `trying to load key data from .* returned "some error", and from .* returned "some error"`},
 		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "cannot update legacy PCR protection policy: some error", oldKeyFiles: true},
 		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "cannot update PCR protection policy: some error"},
 		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "cannot update legacy PCR protection policy: some error", oldKeyFiles: true},
@@ -1253,15 +1284,26 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		keyFile := filepath.Join(tmpdir, "keyfile")
 		keyFile2 := filepath.Join(tmpdir, "keyfile2")
 		myParams := &secboot.ResealKeysParams{
-			PCRProfile:           pcrProfile,
-			KeyFiles:             []string{keyFile, keyFile2},
+			PCRProfile: pcrProfile,
+			Keys: []secboot.KeyDataLocation{
+				{
+					DevicePath: "/dev/somedevice",
+					SlotName:   "key1",
+					KeyFile:    keyFile,
+				},
+				{
+					DevicePath: "/dev/somedevice",
+					SlotName:   "key2",
+					KeyFile:    keyFile2,
+				},
+			},
 			TPMPolicyAuthKeyFile: mockTPMPolicyAuthKeyFile,
 		}
 
-		numMockSealedKeyObjects := len(myParams.KeyFiles)
+		numMockSealedKeyObjects := len(myParams.Keys)
 		mockSealedKeyObjects := make([]*sb_tpm2.SealedKeyObject, 0, numMockSealedKeyObjects)
 		mockKeyDatas := make([]*sb.KeyData, 0, numMockSealedKeyObjects)
-		for range myParams.KeyFiles {
+		for range myParams.Keys {
 			if tc.oldKeyFiles {
 				// Copy of
 				// https://github.com/snapcore/secboot/blob/master/internal/compattest/testdata/v1/key
@@ -1297,13 +1339,55 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		restore = secboot.MockReadKeyFile(func(keyfile string, kl secboot.KeyLoader, hintExpectFDEHook bool) error {
 			readSealedKeyObjectCalls++
 			c.Check(hintExpectFDEHook, Equals, false)
-			c.Assert(keyfile, Equals, myParams.KeyFiles[readSealedKeyObjectCalls-1])
+			c.Assert(keyfile, Equals, myParams.Keys[readSealedKeyObjectCalls-1].KeyFile)
 			if tc.oldKeyFiles {
 				kl.LoadedSealedKeyObject(mockSealedKeyObjects[readSealedKeyObjectCalls-1])
 				return tc.readSealedKeyObjectErr
 			} else {
 				kl.LoadedKeyData(mockKeyDatas[readSealedKeyObjectCalls-1])
 				return tc.readSealedKeyObjectErr
+			}
+		})
+		defer restore()
+
+		readKeyTokenCalls := 0
+		restore = secboot.MockReadKeyToken(func(devicePath, slotName string) (*sb.KeyData, error) {
+			readKeyTokenCalls++
+			c.Check(devicePath, Equals, "/dev/somedevice")
+			if tc.keyDataInFile || tc.oldKeyFiles {
+				return nil, fmt.Errorf("token does not work")
+			} else {
+				if tc.readSealedKeyObjectErr != nil {
+					return nil, tc.readSealedKeyObjectErr
+				}
+				switch slotName {
+				case "key1":
+					return mockKeyDatas[0], nil
+				case "key2":
+					return mockKeyDatas[1], nil
+				default:
+					c.Errorf("unexpected call")
+					return nil, fmt.Errorf("unexpected")
+				}
+			}
+		})
+		defer restore()
+
+		keyData1Writer := &myKeyDataWriter{}
+		keyData2Writer := &myKeyDataWriter{}
+		tokenWritten := 0
+		restore = secboot.MockNewLUKS2KeyDataWriter(func(devicePath string, name string) (secboot.KeyDataWriter, error) {
+			tokenWritten++
+			c.Check(devicePath, Equals, "/dev/somedevice")
+			c.Check(tc.keyDataInFile || tc.oldKeyFiles, Equals, false)
+			switch name {
+			case "key1":
+				return keyData1Writer, nil
+			case "key2":
+				return keyData2Writer, nil
+			default:
+				c.Errorf("unexpected call")
+				return nil, fmt.Errorf("unexpected")
 			}
 		})
 		defer restore()
@@ -1348,8 +1432,15 @@ func (s *secbootSuite) TestResealKey(c *C) {
 			c.Assert(addPCRProfileCalls, Equals, 1)
 			c.Assert(addSystemdEfiStubCalls, Equals, 1)
 			c.Assert(addSnapModelCalls, Equals, 1)
-			c.Assert(keyFile, testutil.FilePresent)
-			c.Assert(keyFile2, testutil.FilePresent)
+			if tc.keyDataInFile || tc.oldKeyFiles {
+				c.Check(tokenWritten, Equals, 0)
+				c.Assert(keyFile, testutil.FilePresent)
+				c.Assert(keyFile2, testutil.FilePresent)
+			} else {
+				c.Check(tokenWritten, Equals, 2)
+				c.Check(keyFile, Not(testutil.FilePresent))
+				c.Check(keyFile2, Not(testutil.FilePresent))
+			}
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr, Commentf("%v", tc))
 			if revokeCalls == 0 {
@@ -1367,7 +1458,6 @@ func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
 	myKeys := []secboot.SealKeyRequest{
 		{
 			BootstrappedContainer: secboot.CreateMockBootstrappedContainer(),
-			KeyFile:               "keyfile",
 		},
 	}
 	myParams := secboot.SealKeysParams{
@@ -1656,7 +1746,7 @@ func (s *secbootSuite) TestLockSealedKeysCallsFdeReveal(c *C) {
 	c.Check(ops, DeepEquals, []string{"lock"})
 }
 
-func (s *secbootSuite) TestSealKeysWithFDESetupHookHappy(c *C) {
+func (s *secbootSuite) testSealKeysWithFDESetupHookHappy(c *C, useKeyFiles bool) {
 	n := 0
 	sealedPrefix := []byte("SEALED:")
 	rawHandle1 := json.RawMessage(`{"handle-for":"key1"}`)
@@ -1676,19 +1766,23 @@ func (s *secbootSuite) TestSealKeysWithFDESetupHookHappy(c *C) {
 		return json.Marshal(res)
 	}
 
-	tmpdir := c.MkDir()
-	key1Fn := filepath.Join(tmpdir, "key1.key")
-	key2Fn := filepath.Join(tmpdir, "key2.key")
-	auxKeyFn := filepath.Join(tmpdir, "aux-key")
+	tmpDir := c.MkDir()
+	auxKeyFn := filepath.Join(tmpDir, "aux-key")
 	params := secboot.SealKeysWithFDESetupHookParams{
 		Model:      fakeModel,
 		AuxKeyFile: auxKeyFn,
 	}
-	err := secboot.SealKeysWithFDESetupHook(runFDESetupHook,
-		[]secboot.SealKeyRequest{
-			{BootstrappedContainer: secboot.CreateMockBootstrappedContainer(), KeyName: "key1", KeyFile: key1Fn},
-			{BootstrappedContainer: secboot.CreateMockBootstrappedContainer(), KeyName: "key2", KeyFile: key2Fn},
-		}, &params)
+	containerA := secboot.CreateMockBootstrappedContainer()
+	containerB := secboot.CreateMockBootstrappedContainer()
+	myKeys := []secboot.SealKeyRequest{
+		{BootstrappedContainer: containerA, KeyName: "key1", SlotName: "foo1"},
+		{BootstrappedContainer: containerB, KeyName: "key2", SlotName: "foo2"},
+	}
+	if useKeyFiles {
+		myKeys[0].KeyFile = filepath.Join(tmpDir, "key-file-1")
+		myKeys[1].KeyFile = filepath.Join(tmpDir, "key-file-2")
+	}
+	err := secboot.SealKeysWithFDESetupHook(runFDESetupHook, myKeys, &params)
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookReqs, HasLen, 2)
@@ -1696,6 +1790,33 @@ func (s *secbootSuite) TestSealKeysWithFDESetupHookHappy(c *C) {
 	c.Check(runFDESetupHookReqs[1].Op, Equals, "initial-setup")
 	c.Check(runFDESetupHookReqs[0].KeyName, Equals, "key1")
 	c.Check(runFDESetupHookReqs[1].KeyName, Equals, "key2")
+	_, aHasSlot := containerA.Slots["foo1"]
+	c.Check(aHasSlot, Equals, true)
+	_, bHasSlot := containerB.Slots["foo2"]
+	c.Check(bHasSlot, Equals, true)
+	if useKeyFiles {
+		c.Check(containerA.Tokens, HasLen, 0)
+		c.Check(containerB.Tokens, HasLen, 0)
+		c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-1")), Equals, true)
+		c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-2")), Equals, true)
+	} else {
+		c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-1")), Equals, false)
+		c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-2")), Equals, false)
+		_, aHasToken := containerA.Tokens["foo1"]
+		c.Check(aHasToken, Equals, true)
+		_, bHasToken := containerB.Tokens["foo2"]
+		c.Check(bHasToken, Equals, true)
+	}
+}
+
+func (s *secbootSuite) TestSealKeysWithFDESetupHookHappyKeyFiles(c *C) {
+	const useKeyFiles = true
+	s.testSealKeysWithFDESetupHookHappy(c, useKeyFiles)
+}
+
+func (s *secbootSuite) TestSealKeysWithFDESetupHookHappyTokens(c *C) {
+	const useKeyFiles = false
+	s.testSealKeysWithFDESetupHookHappy(c, useKeyFiles)
 }
 
 func makeMockDiskKey() keys.EncryptionKey {
@@ -2733,7 +2854,13 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV1(c *C) {
 		name: "mytest",
 	}
 
-	err = secboot.ResealKeysWithFDESetupHook([]string{key1Fn}, auxKeyFn, []secboot.ModelForSealing{m})
+	key1Location := secboot.KeyDataLocation{
+		DevicePath: "/dev/foo",
+		SlotName:   "default",
+		KeyFile:    key1Fn,
+	}
+
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, auxKeyFn, []secboot.ModelForSealing{m})
 	c.Assert(err, IsNil)
 
 	// Nothing should have happened. But we make sure that they key is still there untouched.
@@ -2768,7 +2895,13 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(beforeAuthorized, Equals, false)
 
-	err = secboot.ResealKeysWithFDESetupHook([]string{key1Fn}, auxKeyFn, []secboot.ModelForSealing{m})
+	key1Location := secboot.KeyDataLocation{
+		DevicePath: "/dev/foo",
+		SlotName:   "default",
+		KeyFile:    key1Fn,
+	}
+
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, auxKeyFn, []secboot.ModelForSealing{m})
 	c.Assert(err, IsNil)
 
 	afterReader, err := sb.NewFileKeyDataReader(key1Fn)
@@ -2817,10 +2950,22 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHook(c *C) {
 	c.Assert(err, IsNil)
 	sb_hooks.SetKeyProtector(nil, 0)
 
-	writer := sb.NewFileKeyDataWriter(key1Fn)
-	c.Assert(writer, NotNil)
-	err = protectedKey.WriteAtomic(writer)
-	c.Assert(err, IsNil)
+	restore := secboot.MockReadKeyToken(func(devicePath, slotName string) (*sb.KeyData, error) {
+		c.Check(devicePath, Equals, "/dev/somedevice")
+		c.Check(slotName, Equals, "token-name")
+		return protectedKey, nil
+	})
+	defer restore()
+
+	keyDataWriter := &myKeyDataWriter{}
+	tokenWritten := 0
+	restore = secboot.MockNewLUKS2KeyDataWriter(func(devicePath string, name string) (secboot.KeyDataWriter, error) {
+		tokenWritten++
+		c.Check(devicePath, Equals, "/dev/somedevice")
+		c.Check(name, Equals, "token-name")
+		return keyDataWriter, nil
+	})
+	defer restore()
 
 	modelSet := 0
 	secboot.MockSetAuthorizedSnapModelsOnHooksKeydata(func(kd *sb_hooks.KeyData, rand io.Reader, key sb.PrimaryKey, models ...sb.SnapModel) error {
@@ -2831,9 +2976,82 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHook(c *C) {
 		return nil
 	})
 
-	err = secboot.ResealKeysWithFDESetupHook([]string{key1Fn}, primaryKeyFn, []secboot.ModelForSealing{newModel})
+	key1Location := secboot.KeyDataLocation{
+		DevicePath: "/dev/somedevice",
+		SlotName:   "token-name",
+		KeyFile:    key1Fn,
+	}
+
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, primaryKeyFn, []secboot.ModelForSealing{newModel})
 	c.Assert(err, IsNil)
 	c.Check(modelSet, Equals, 1)
+	c.Check(tokenWritten, Equals, 1)
+}
+
+func (s *secbootSuite) TestResealKeysWithFDESetupHookFromFile(c *C) {
+	tmpdir := c.MkDir()
+	key1Fn := filepath.Join(tmpdir, "key1.key")
+	primaryKeyFn := filepath.Join(tmpdir, "primary.key")
+
+	oldModel := &testModel{
+		name: "oldmodel",
+	}
+
+	newModel := &testModel{
+		name: "newmodel",
+	}
+
+	primaryKey := []byte{9, 10, 11, 12}
+	err := os.WriteFile(primaryKeyFn, primaryKey, 0644)
+	c.Assert(err, IsNil)
+
+	params := &sb_hooks.KeyParams{
+		PrimaryKey: primaryKey,
+		Role:       "key1",
+		AuthorizedSnapModels: []sb.SnapModel{
+			oldModel,
+		},
+	}
+
+	sb_hooks.SetKeyProtector(&fakeKeyProtector{}, sb_hooks.KeyProtectorNoAEAD)
+	protectedKey, _, _, err := sb_hooks.NewProtectedKey(rand.Reader, params)
+	c.Assert(err, IsNil)
+	sb_hooks.SetKeyProtector(nil, 0)
+
+	writer := sb.NewFileKeyDataWriter(key1Fn)
+	c.Assert(writer, NotNil)
+	err = protectedKey.WriteAtomic(writer)
+	c.Assert(err, IsNil)
+
+	readKeyTokenCalls := 0
+	restore := secboot.MockReadKeyToken(func(devicePath, slotName string) (*sb.KeyData, error) {
+		readKeyTokenCalls++
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(slotName, Equals, "default")
+		return nil, fmt.Errorf("some error")
+	})
+	defer restore()
+
+	modelSet := 0
+	secboot.MockSetAuthorizedSnapModelsOnHooksKeydata(func(kd *sb_hooks.KeyData, rand io.Reader, key sb.PrimaryKey, models ...sb.SnapModel) error {
+		modelSet++
+		c.Check([]byte(key), DeepEquals, primaryKey)
+		c.Assert(models, HasLen, 1)
+		c.Check(models[0].Model(), Equals, "newmodel")
+		return nil
+	})
+
+	key1Location := secboot.KeyDataLocation{
+		DevicePath: "/dev/foo",
+		SlotName:   "default",
+		KeyFile:    key1Fn,
+	}
+
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, primaryKeyFn, []secboot.ModelForSealing{newModel})
+	c.Assert(err, IsNil)
+	c.Check(modelSet, Equals, 1)
+	// We tried to read key data from token
+	c.Check(readKeyTokenCalls, Equals, 1)
 }
 
 func (s *secbootSuite) TestReadKeyFileKeyData(c *C) {

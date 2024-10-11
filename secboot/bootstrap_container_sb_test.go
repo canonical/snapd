@@ -116,7 +116,9 @@ func (*bootstrapContainerSuite) TestBootstrappedContainerHappyTokenWriter(c *C) 
 		return keyDataWriter, nil
 	})()
 
-	tokenWriter, err := container.AddKeyAndGetTokenWriter("", []byte{9, 10, 11, 12})
+	err = container.AddKey("", []byte{9, 10, 11, 12})
+	c.Assert(err, IsNil)
+	tokenWriter, err := container.GetTokenWriter("")
 	c.Assert(err, IsNil)
 	c.Check(tokenWriter, Equals, keyDataWriter)
 
@@ -188,6 +190,8 @@ func (*bootstrapContainerSuite) TestBootstrappedContainerTokenWriterFailure(c *C
 		return nil, fmt.Errorf("some error")
 	})()
 
-	_, err = container.AddKeyAndGetTokenWriter("", []byte{9, 10, 11, 12})
+	err = container.AddKey("", []byte{9, 10, 11, 12})
+	c.Assert(err, IsNil)
+	_, err = container.GetTokenWriter("")
 	c.Assert(err, ErrorMatches, `some error`)
 }

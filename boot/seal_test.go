@@ -77,17 +77,22 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 	defer boot.MockModeenvLocked()()
 
 	for idx, tc := range []struct {
-		sealErr      error
-		provisionErr error
-		factoryReset bool
-		shimId       string
-		grubId       string
-		runGrubId    string
-		expErr       string
-		expSealCalls int
+		sealErr       error
+		provisionErr  error
+		factoryReset  bool
+		shimId        string
+		grubId        string
+		runGrubId     string
+		expErr        string
+		expSealCalls  int
+		disableTokens bool
 	}{
 		{
 			expSealCalls: 1,
+		},
+		{
+			expSealCalls:  1,
+			disableTokens: true,
 		}, {
 			// old boot assets
 			shimId: "bootx64.efi", grubId: "grubx64.efi",
@@ -221,6 +226,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 
 			c.Check(params.FactoryReset, Equals, tc.factoryReset)
 			c.Check(params.InstallHostWritableDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data", "system-data"))
+			c.Check(params.UseTokens, Equals, !tc.disableTokens)
 
 			return tc.sealErr
 		})
@@ -230,6 +236,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		err = boot.SealKeyToModeenv(myKey, myKey2, model, modeenv, boot.MockSealKeyToModeenvFlags{
 			FactoryReset:  tc.factoryReset,
 			StateUnlocker: u.unlocker,
+			UseTokens:     !tc.disableTokens,
 		})
 		c.Check(u.unlocked, Equals, 1)
 		c.Check(sealKeyForBootChainsCalled, Equals, tc.expSealCalls)
@@ -1622,6 +1629,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 
 		c.Check(params.FactoryReset, Equals, false)
 		c.Check(params.InstallHostWritableDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data", "system-data"))
+		c.Check(params.UseTokens, Equals, true)
 
 		return nil
 	})
@@ -1629,7 +1637,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 
 	defer boot.MockModeenvLocked()()
 
-	err := boot.SealKeyToModeenv(myKey, myKey2, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDESetupHook: true})
+	err := boot.SealKeyToModeenv(myKey, myKey2, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDESetupHook: true, UseTokens: true})
 	c.Assert(err, IsNil)
 	c.Check(sealKeyForBootChainsCalled, Equals, 1)
 }
