@@ -5397,7 +5397,23 @@ var mockNoAssignmentGadgetYaml = string(mockVolumeAssignmentGadget0Yaml) + `
 - name: baz-device
 `
 
-var mockIdenticalAssignmentGadgetYaml = string(mockVolumeAssignmentGadgetYamlBase) + `
+var mockIdenticalAssignmentOkayGadgetYaml = string(mockVolumeAssignmentGadgetYamlBase) + `
+volume-assignments:
+- name: foo-device
+  assignment:
+    lun-0:
+      device: /dev/disk/by-diskseq/2
+    lun-1:
+      device: /dev/disk/by-path/pci-0000:06:00.1-ata-5
+- name: foo-device
+  assignment:
+    lun-0:
+      device: /dev/disk/by-diskseq/1
+    lun-1:
+      device: /dev/disk/by-path/pci-0000:02:00.1-ata-5
+`
+
+var mockIdenticalAssignmentNotOkayGadgetYaml = string(mockVolumeAssignmentGadgetYamlBase) + `
 volume-assignments:
 - name: foo-device
   assignment:
@@ -5470,8 +5486,16 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestReadGadgetYamlNoAssignments(c *C) 
 	c.Assert(err, ErrorMatches, `volume-assignment variant \"baz-device\": no assignments specified`)
 }
 
-func (s *gadgetYamlVolumeAssignmentSuite) TestReadGadgetYamlIdenticalAssignments(c *C) {
-	err := os.WriteFile(s.gadget0YamlPath, []byte(mockIdenticalAssignmentGadgetYaml), 0644)
+func (s *gadgetYamlVolumeAssignmentSuite) TestReadGadgetYamlIdenticalAssignmentsHappy(c *C) {
+	err := os.WriteFile(s.gadget0YamlPath, []byte(mockIdenticalAssignmentOkayGadgetYaml), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo(s.dir0, coreMod)
+	c.Assert(err, IsNil)
+}
+
+func (s *gadgetYamlVolumeAssignmentSuite) TestReadGadgetYamlIdenticalAssignmentsFail(c *C) {
+	err := os.WriteFile(s.gadget0YamlPath, []byte(mockIdenticalAssignmentNotOkayGadgetYaml), 0644)
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir0, coreMod)

@@ -875,11 +875,6 @@ func AllDiskVolumeDeviceTraits(allVols map[string]*Volume, optsPerVolume map[str
 		// loop to attempt to use all structures in the volume in case there are
 		// partitions we can't map to a device directly at first using the
 		// device symlinks that FindDeviceForStructure uses
-		opts := optsPerVolume[name]
-		if opts == nil {
-			opts = &DiskVolumeValidationOptions{}
-		}
-
 		dev, err := MaybeDeviceForVolume(vol)
 		if err != nil {
 			return nil, err
@@ -890,6 +885,10 @@ func AllDiskVolumeDeviceTraits(allVols map[string]*Volume, optsPerVolume map[str
 		// now that we have a candidate device for this disk, build up the
 		// traits for it, this will also validate concretely that the
 		// device we picked and the volume are compatible
+		opts := optsPerVolume[name]
+		if opts == nil {
+			opts = &DiskVolumeValidationOptions{}
+		}
 		traits, err := DiskTraitsFromDeviceAndValidate(vol, dev, opts)
 		if err != nil {
 			return nil, fmt.Errorf("cannot gather disk traits for device %s to use with volume %s: %v", dev, name, err)
@@ -1096,8 +1095,12 @@ func validateVolumeAssignments(volassigns []*VolumeAssignment, volumes map[strin
 	checker := make(map[string]string)
 	for _, vavariant := range volassigns {
 		var keys []string
-		for name := range vavariant.Assignments {
-			keys = append(keys, name)
+
+		// include the device path to ensure that the assignments
+		// atleast differ, as the same volumes may be reused for multiple
+		// devices
+		for name, da := range vavariant.Assignments {
+			keys = append(keys, name+da.Device)
 		}
 		sort.Strings(keys)
 
