@@ -622,6 +622,7 @@ pkg_dependencies_ubuntu_classic(){
                 lz4
                 qemu-kvm
                 qemu-utils
+                systemd-dev
                 "
             ;;
         ubuntu-*)
