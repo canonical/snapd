@@ -96,7 +96,7 @@ run_muinstaller() {
     # TODO: this abuses /var/lib/snapd to store the deb so that mk-initramfs-classic
     # can pick it up. the real installer will also need a very recent snapd
     # in its on disk-image to support seeding
-    remote.push "${SPREAD_PATH}"/../snapd_*.deb
+    remote.push "${GOHOME}"/snapd_*.deb
     remote.exec "sudo mv snapd_*.deb /var/lib/snapd/"
     remote.exec "sudo apt install -y /var/lib/snapd/snapd_*.deb"
 
