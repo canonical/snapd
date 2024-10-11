@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
@@ -497,8 +498,28 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: cannot make pre-UC20 system runnable`)
 }
 
-func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, standalone, factoryReset, classic bool, fromInitrd bool) {
-	restore := release.MockOnClassic(classic)
+type testMakeSystemRunnable20Parmaters struct {
+	standalone    bool
+	factoryReset  bool
+	classic       bool
+	fromInitrd    bool
+	oldCryptsetup bool
+	forceTokens   string
+}
+
+func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, tc *testMakeSystemRunnable20Parmaters) {
+	fakeProc := c.MkDir()
+	fakeCmdline := filepath.Join(fakeProc, "cmdline")
+	defer kcmdline.MockProcCmdline(fakeCmdline)()
+	if tc.forceTokens == "" {
+		err := os.WriteFile(fakeCmdline, []byte("some args"), 0644)
+		c.Assert(err, IsNil)
+	} else {
+		err := os.WriteFile(fakeCmdline, []byte(fmt.Sprintf("some ubuntu-core.force-experimental-tokens=%s args", tc.forceTokens)), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	restore := release.MockOnClassic(tc.classic)
 	defer restore()
 	dirs.SetRootDir(dirs.GlobalRootDir)
 
@@ -512,7 +533,7 @@ func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, standalone, factory
 	})()
 
 	var model *asserts.Model
-	if classic {
+	if tc.classic {
 		model = boottest.MakeMockUC20Model(map[string]interface{}{
 			"classic":      "true",
 			"distribution": "ubuntu",
@@ -635,7 +656,7 @@ version: 5.0
 	// set a mock recovery kernel
 	readSystemEssentialCalls := 0
 	restore = boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
-		if fromInitrd {
+		if tc.fromInitrd {
 			c.Assert(seedDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
 		} else {
 			c.Assert(seedDir, Equals, dirs.SnapSeedDir)
@@ -691,11 +712,20 @@ version: 5.0
 		c.Assert(recoveryGrub.Hashes, HasLen, 1)
 		c.Check(recoveryGrub.Hashes[0], Equals, "aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5")
 
-		c.Check(params.FactoryReset, Equals, factoryReset)
-		if classic {
+		c.Check(params.FactoryReset, Equals, tc.factoryReset)
+		if tc.classic {
 			c.Check(params.InstallHostWritableDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"))
 		} else {
 			c.Check(params.InstallHostWritableDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data", "system-data"))
+		}
+
+		// For now tokens are used only on classic when
+		// cryptsetup has the features we need.
+		// Later this check will change to also include UC24+
+		if tc.classic {
+			c.Check(params.UseTokens, Equals, !tc.oldCryptsetup)
+		} else {
+			c.Check(params.UseTokens, Equals, tc.forceTokens == "1")
 		}
 
 		return nil
@@ -710,14 +740,17 @@ version: 5.0
 	})
 	defer restore()
 
+	restore = boot.MockCryptsetupSupportsTokenReplace(!tc.oldCryptsetup)
+	defer restore()
+
 	switch {
-	case standalone && fromInitrd:
+	case tc.standalone && tc.fromInitrd:
 		err = boot.MakeRunnableStandaloneSystemFromInitrd(model, bootWith, obs)
-	case standalone && !fromInitrd:
+	case tc.standalone && !tc.fromInitrd:
 		u := mockUnlocker{}
 		err = boot.MakeRunnableStandaloneSystem(model, bootWith, obs, u.unlocker)
 		c.Check(u.unlocked, Equals, 1)
-	case factoryReset && !fromInitrd:
+	case tc.factoryReset && !tc.fromInitrd:
 		err = boot.MakeRunnableSystemAfterDataReset(model, bootWith, obs)
 	default:
 		err = boot.MakeRunnableSystem(model, bootWith, obs)
@@ -734,7 +767,7 @@ version: 5.0
 	c.Check(mockBootGrubCfg, testutil.FileEquals, string(grubCfgAsset))
 
 	var installHostWritableDir string
-	if classic {
+	if tc.classic {
 		installHostWritableDir = filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data")
 	} else {
 		installHostWritableDir = filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")
@@ -775,7 +808,7 @@ version: 5.0
 
 	// ensure modeenv looks correct
 	var ubuntuDataModeEnvPath, classicLine, base string
-	if classic {
+	if tc.classic {
 		base = ""
 		ubuntuDataModeEnvPath = filepath.Join(s.rootdir, "/run/mnt/ubuntu-data/var/lib/snapd/modeenv")
 		classicLine = "\nclassic=true"
@@ -830,43 +863,51 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20Install(c *C) {
-	const standalone = false
-	const factoryReset = false
-	const classic = false
-	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	s.testMakeSystemRunnable20(c, &testMakeSystemRunnable20Parmaters{})
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallOnClassic(c *C) {
-	const standalone = false
-	const factoryReset = false
-	const classic = true
-	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	s.testMakeSystemRunnable20(c, &testMakeSystemRunnable20Parmaters{
+		classic: true,
+	})
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryReset(c *C) {
-	const standalone = false
-	const factoryReset = true
-	const classic = false
-	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	s.testMakeSystemRunnable20(c, &testMakeSystemRunnable20Parmaters{
+		factoryReset: true,
+	})
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryResetOnClassic(c *C) {
-	const standalone = false
-	const factoryReset = true
-	const classic = true
-	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	s.testMakeSystemRunnable20(c, &testMakeSystemRunnable20Parmaters{
+		factoryReset: true,
+		classic:      true,
+	})
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallFromInitrd(c *C) {
-	const standalone = true
-	const factoryReset = false
-	const classic = false
-	const fromInitrd = true
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	s.testMakeSystemRunnable20(c, &testMakeSystemRunnable20Parmaters{
+		standalone: true,
+		fromInitrd: true,
+	})
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallOldCryptsetup(c *C) {
+	s.testMakeSystemRunnable20(c, &testMakeSystemRunnable20Parmaters{
+		oldCryptsetup: true,
+	})
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallForceTokens(c *C) {
+	s.testMakeSystemRunnable20(c, &testMakeSystemRunnable20Parmaters{
+		forceTokens: "1",
+	})
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallForceDisabledTokens(c *C) {
+	s.testMakeSystemRunnable20(c, &testMakeSystemRunnable20Parmaters{
+		forceTokens: "0",
+	})
 }
 
 func (s *makeBootable20Suite) TestMakeRunnableSystem20ModeInstallBootConfigErr(c *C) {
@@ -2187,19 +2228,16 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 }
 
 func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20Install(c *C) {
-	const standalone = true
-	const factoryReset = false
-	const classic = false
-	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	s.testMakeSystemRunnable20(c, &testMakeSystemRunnable20Parmaters{
+		standalone: true,
+	})
 }
 
 func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20InstallOnClassic(c *C) {
-	const standalone = true
-	const factoryReset = false
-	const classic = true
-	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	s.testMakeSystemRunnable20(c, &testMakeSystemRunnable20Parmaters{
+		standalone: true,
+		classic:    true,
+	})
 }
 
 func (s *makeBootable20Suite) testMakeBootableImageOptionalKernelArgs(c *C, model *asserts.Model, options map[string]string, expectedCmdline, errMsg string) {

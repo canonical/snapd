@@ -446,3 +446,11 @@ func VerifyPrimaryKeyDigest(devicePath string, alg crypto.Hash, salt []byte, dig
 }
 
 type HashAlg = sb.HashAlg
+
+func (key *SealKeyRequest) getWriter() (sb.KeyDataWriter, error) {
+	if key.KeyFile != "" {
+		return sb.NewFileKeyDataWriter(key.KeyFile), nil
+	} else {
+		return key.BootstrappedContainer.GetTokenWriter(key.SlotName)
+	}
+}
