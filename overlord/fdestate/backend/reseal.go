@@ -130,13 +130,25 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 		return err
 	}
 
-	runKeys := []string{
-		device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir),
+	runKeys := []secboot.KeyDataLocation{
+		{
+			DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
+			SlotName:   "default",
+			KeyFile:    device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir),
+		},
 	}
 
-	recoveryKeys := []string{
-		device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
-		device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
+	recoveryKeys := []secboot.KeyDataLocation{
+		{
+			DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
+			SlotName:   "default-fallback",
+			KeyFile:    device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
+		},
+		{
+			DevicePath: "/dev/disk/by-partlabel/ubuntu-save",
+			SlotName:   "default-fallback",
+			KeyFile:    device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
+		},
 	}
 
 	switch method {
@@ -159,7 +171,7 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 		if runParams != nil {
 			runResealKeyParams := &secboot.ResealKeysParams{
 				PCRProfile:           runParams.TpmPCRProfile,
-				KeyFiles:             runKeys,
+				Keys:                 runKeys,
 				TPMPolicyAuthKeyFile: authKeyFile,
 			}
 
@@ -170,7 +182,7 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 		if recoveryParams != nil {
 			recoveryResealKeyParams := &secboot.ResealKeysParams{
 				PCRProfile:           recoveryParams.TpmPCRProfile,
-				KeyFiles:             recoveryKeys,
+				Keys:                 recoveryKeys,
 				TPMPolicyAuthKeyFile: authKeyFile,
 			}
 			if err := secbootResealKeys(recoveryResealKeyParams); err != nil {
@@ -339,6 +351,7 @@ func updateRunProtectionProfile(
 		Models:        models,
 		TpmPCRProfile: pcrProfile,
 	}
+
 	// TODO: use constants for "run+recover" and "all"
 	if err := manager.Update("run+recover", "all", runParams); err != nil {
 		return err
