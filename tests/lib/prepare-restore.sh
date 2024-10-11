@@ -592,7 +592,7 @@ prepare_project() {
     # as they exist in the archive for further use.
     if tests.info is-snapd-from-archive; then
         ( cd "${GOHOME}" && tests.pkgs download snapd snap-confine)
-    elif [ "$BUILD_SNAPD_FROM_CURRENT" = true ]; then
+    else
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 build_deb
@@ -608,9 +608,6 @@ prepare_project() {
                 exit 1
                 ;;
         esac
-    else
-        download_from_gce_bucket
-        install_dependencies_gce_bucket
     fi
 
     # Build fakestore.
