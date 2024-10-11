@@ -1488,7 +1488,9 @@ suites:
                 apt remove -y linux-image-*
                 
                 # Install the new kernel
+                # shellcheck disable=SC2086
                 ./ubuntu-mainline-kernel.sh --yes -i $USE_KERNEL
+
                 REBOOT
             fi
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
