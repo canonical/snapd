@@ -150,11 +150,17 @@ func resealRunObjectKeys(updateState StateUpdater, pbc boot.PredictableBootChain
 	}
 
 	// list all the key files to reseal
-	keyFiles := []string{device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir)}
+	keys := []secboot.KeyFileOrSlotName{
+		{
+			DevicePath: "/dev/disk/by-partlabel/ubuntu-data-enc",
+			SlotName:   "default",
+			KeyFile:    device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir),
+		},
+	}
 
 	resealKeyParams := &secboot.ResealKeysParams{
 		PCRProfile:           pcrProfile,
-		KeyFiles:             keyFiles,
+		Keys:                 keys,
 		TPMPolicyAuthKeyFile: authKeyFile,
 	}
 	if err := secbootResealKeys(resealKeyParams); err != nil {
@@ -194,14 +200,22 @@ func resealFallbackObjectKeys(updateState StateUpdater, pbc boot.PredictableBoot
 	}
 
 	// list all the key files to reseal
-	keyFiles := []string{
-		device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
-		device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
+	keys := []secboot.KeyFileOrSlotName{
+		{
+			DevicePath: "/dev/disk/by-partlabel/ubuntu-data-enc",
+			SlotName:   "default-fallback",
+			KeyFile:    device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
+		},
+		{
+			DevicePath: "/dev/disk/by-partlabel/ubuntu-save-enc",
+			SlotName:   "default-fallback",
+			KeyFile:    device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
+		},
 	}
 
 	resealKeyParams := &secboot.ResealKeysParams{
 		PCRProfile:           pcrProfile,
-		KeyFiles:             keyFiles,
+		Keys:                 keys,
 		TPMPolicyAuthKeyFile: authKeyFile,
 	}
 	if err := secbootResealKeys(resealKeyParams); err != nil {

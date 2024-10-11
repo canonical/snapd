@@ -47,7 +47,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -915,19 +914,15 @@ func (s *secbootSuite) TestSealKey(c *C) {
 					Model:          &asserts.Model{},
 				},
 			},
-			TPMPolicyAuthKeyFile: filepath.Join(tmpDir, "policy-auth-key-file"),
-
 			PCRPolicyCounterHandle: 42,
 		}
 
 		myKeys := []secboot.SealKeyRequest{
 			{
 				BootstrappedContainer: secboot.CreateMockBootstrappedContainer(),
-				KeyFile:               filepath.Join(tmpDir, "keyfile"),
 			},
 			{
 				BootstrappedContainer: secboot.CreateMockBootstrappedContainer(),
-				KeyFile:               filepath.Join(tmpDir, "keyfile2"),
 			},
 		}
 
@@ -1060,7 +1055,6 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			c.Assert(err, IsNil)
 			c.Assert(addPCRProfileCalls, Equals, 2)
 			c.Assert(addSnapModelCalls, Equals, 2)
-			c.Assert(osutil.FileExists(myParams.TPMPolicyAuthKeyFile), Equals, true)
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr)
 		}
@@ -1100,7 +1094,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		{tpmEnabled: true, addPCRProfileErr: mockErr, buildProfileErr: `cannot add EFI secure boot and boot manager policy profiles: some error`},
 		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, buildProfileErr: `cannot add systemd EFI stub profile: some error`},
 		{tpmEnabled: true, addSnapModelErr: mockErr, buildProfileErr: `cannot add snap model profile: some error`},
-		{tpmEnabled: true, readSealedKeyObjectErr: mockErr, expectedErr: "cannot read key file .*: some error"},
+		{tpmEnabled: true, readSealedKeyObjectErr: mockErr, expectedErr: `trying to load key data from .* returned "token does not work", and from .* returned "some error"`},
 		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "cannot update legacy PCR protection policy: some error", oldKeyFiles: true},
 		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "cannot update PCR protection policy: some error"},
 		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "cannot update legacy PCR protection policy: some error", oldKeyFiles: true},
@@ -1176,15 +1170,26 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		keyFile := filepath.Join(tmpdir, "keyfile")
 		keyFile2 := filepath.Join(tmpdir, "keyfile2")
 		myParams := &secboot.ResealKeysParams{
-			PCRProfile:           pcrProfile,
-			KeyFiles:             []string{keyFile, keyFile2},
+			PCRProfile: pcrProfile,
+			Keys: []secboot.KeyFileOrSlotName{
+				{
+					DevicePath: "/dev/somedevice",
+					SlotName:   "key1",
+					KeyFile:    keyFile,
+				},
+				{
+					DevicePath: "/dev/somedevice",
+					SlotName:   "key2",
+					KeyFile:    keyFile2,
+				},
+			},
 			TPMPolicyAuthKeyFile: mockTPMPolicyAuthKeyFile,
 		}
 
-		numMockSealedKeyObjects := len(myParams.KeyFiles)
+		numMockSealedKeyObjects := len(myParams.Keys)
 		mockSealedKeyObjects := make([]*sb_tpm2.SealedKeyObject, 0, numMockSealedKeyObjects)
 		mockKeyDatas := make([]*sb.KeyData, 0, numMockSealedKeyObjects)
-		for range myParams.KeyFiles {
+		for range myParams.Keys {
 			if tc.oldKeyFiles {
 				// Copy of
 				// https://github.com/snapcore/secboot/blob/master/internal/compattest/testdata/v1/key
@@ -1219,12 +1224,18 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		readSealedKeyObjectCalls := 0
 		restore = secboot.MockReadKeyFile(func(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, error) {
 			readSealedKeyObjectCalls++
-			c.Assert(keyfile, Equals, myParams.KeyFiles[readSealedKeyObjectCalls-1])
+			c.Assert(keyfile, Equals, myParams.Keys[readSealedKeyObjectCalls-1].KeyFile)
 			if tc.oldKeyFiles {
 				return nil, mockSealedKeyObjects[readSealedKeyObjectCalls-1], tc.readSealedKeyObjectErr
 			} else {
 				return mockKeyDatas[readSealedKeyObjectCalls-1], nil, tc.readSealedKeyObjectErr
 			}
+		})
+		defer restore()
+
+		restore = secboot.MockReadKeyToken(func(devicePath, slotName string) (*sb.KeyData, error) {
+			c.Check(devicePath, Equals, "/dev/somedevice")
+			return nil, fmt.Errorf("token does not work")
 		})
 		defer restore()
 
@@ -1287,12 +1298,9 @@ func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
 	myKeys := []secboot.SealKeyRequest{
 		{
 			BootstrappedContainer: secboot.CreateMockBootstrappedContainer(),
-			KeyFile:               "keyfile",
 		},
 	}
-	myParams := secboot.SealKeysParams{
-		TPMPolicyAuthKeyFile: "policy-auth-key-file",
-	}
+	myParams := secboot.SealKeysParams{}
 
 	_, err := secboot.SealKeys(myKeys, &myParams)
 	c.Assert(err, ErrorMatches, "at least one set of model-specific parameters is required")
@@ -1586,18 +1594,13 @@ func (s *secbootSuite) TestSealKeysWithFDESetupHookHappy(c *C) {
 		return json.Marshal(res)
 	}
 
-	tmpdir := c.MkDir()
-	key1Fn := filepath.Join(tmpdir, "key1.key")
-	key2Fn := filepath.Join(tmpdir, "key2.key")
-	auxKeyFn := filepath.Join(tmpdir, "aux-key")
 	params := secboot.SealKeysWithFDESetupHookParams{
-		Model:      fakeModel,
-		AuxKeyFile: auxKeyFn,
+		Model: fakeModel,
 	}
 	err := secboot.SealKeysWithFDESetupHook(runFDESetupHook,
 		[]secboot.SealKeyRequest{
-			{BootstrappedContainer: secboot.CreateMockBootstrappedContainer(), KeyName: "key1", KeyFile: key1Fn},
-			{BootstrappedContainer: secboot.CreateMockBootstrappedContainer(), KeyName: "key2", KeyFile: key2Fn},
+			{BootstrappedContainer: secboot.CreateMockBootstrappedContainer(), KeyName: "key1"},
+			{BootstrappedContainer: secboot.CreateMockBootstrappedContainer(), KeyName: "key2"},
 		}, &params)
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
