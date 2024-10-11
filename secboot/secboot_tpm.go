@@ -243,6 +243,16 @@ func newAuthRequestor() (sb.AuthRequestor, error) {
 	)
 }
 
+func readKeyTokenImpl(devicePath, slotName string) (*sb.KeyData, error) {
+	kdReader, err := sb.NewLUKS2KeyDataReader(devicePath, slotName)
+	if err != nil {
+		return nil, err
+	}
+	return sb.ReadKeyData(kdReader)
+}
+
+var readKeyToken = readKeyTokenImpl
+
 // TODO: we do not really need an interface here, a struct would be
 // enough.
 type keyLoader interface {
@@ -351,6 +361,57 @@ func readKeyFileImpl(keyfile string, kl keyLoader, hintExpectFDEHook bool) error
 }
 
 var readKeyFile = readKeyFileImpl
+
+func (key KeyDataLocation) readTokenAndGetWriter() (*sb.KeyData, sb.KeyDataWriter, error) {
+	kd, err := readKeyToken(key.DevicePath, key.SlotName)
+	if err != nil {
+		return nil, nil, err
+	}
+	writer, err := newLUKS2KeyDataWriter(key.DevicePath, key.SlotName)
+	if err != nil {
+		return nil, nil, err
+	}
+	return kd, writer, nil
+}
+
+// readKeyData reads key data or sealed key object from a token or a
+// file. The key data could be placed either way since the
+// installation decides where to store it. When resealing, we do not
+// know about this decision that might have been done with another
+// version of snapd. So it has to try from both the token and file. It
+// will read in priority from the token. It may return either a
+// KeyData or a SealedKeyObject depending on the format if read from a
+// file. It will return only a KeyData if found in a token. If a
+// KeyData is returned, then a KeyDataWriter is also returned.
+// TODO: consider moving this to secboot_sb.go
+func readKeyData(key KeyDataLocation) (*sb.KeyData, *sb_tpm2.SealedKeyObject, sb.KeyDataWriter, error) {
+	// We try with the token first. If we find it, we will ignore
+	// the file.
+	kd, writer, tokenErr := key.readTokenAndGetWriter()
+	if tokenErr == nil {
+		return kd, nil, writer, nil
+	}
+
+	// We did not find key data in the token. Let's try with the
+	// file.
+	loadedKey := &defaultKeyLoader{}
+	const hintExpectFDEHook = false
+	fileErr := readKeyFile(key.KeyFile, loadedKey, hintExpectFDEHook)
+
+	if fileErr == nil {
+		if loadedKey.SealedKeyObject == nil {
+			return loadedKey.KeyData, nil, sb.NewFileKeyDataWriter(key.KeyFile), nil
+		} else {
+			// loadedKey.SealedKeyObject is not nil, then
+			// the KeyData is just a work-around for
+			// unlocking. Let's ignore it here.
+			// There is no KeyDataWriter.
+			return nil, loadedKey.SealedKeyObject, nil, nil
+		}
+	}
+
+	return nil, nil, nil, fmt.Errorf(`trying to load key data from %s:%s returned "%v", and from %s returned "%v"`, key.DevicePath, key.SlotName, tokenErr, key.KeyFile, fileErr)
+}
 
 // ProvisionTPM provisions the default TPM and saves the lockout authorization
 // key to the specified file.
@@ -467,23 +528,31 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 		if err := key.BootstrappedContainer.AddKey(key.SlotName, unlockKey); err != nil {
 			return nil, err
 		}
-		writer := sb.NewFileKeyDataWriter(key.KeyFile)
-		if err := protectedKey.WriteAtomic(writer); err != nil {
+
+		keyWriter, err := key.getWriter()
+		if err != nil {
 			return nil, err
 		}
+
+		if err := protectedKey.WriteAtomic(keyWriter); err != nil {
+			return nil, err
+		}
+
 	}
+
 	if primaryKey != nil && params.TPMPolicyAuthKeyFile != "" {
 		if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, primaryKey, 0600, 0); err != nil {
 			return nil, fmt.Errorf("cannot write the policy auth key file: %v", err)
 		}
 	}
+
 	return primaryKey, nil
 }
 
 // ResealKeys updates the PCR protection policy for the sealed encryption keys
 // according to the specified parameters.
 func ResealKeys(params *ResealKeysParams) error {
-	numSealedKeyObjects := len(params.KeyFiles)
+	numSealedKeyObjects := len(params.Keys)
 	if numSealedKeyObjects < 1 {
 		return fmt.Errorf("at least one key file is required")
 	}
@@ -502,6 +571,7 @@ func ResealKeys(params *ResealKeysParams) error {
 		return err
 	}
 
+	// FIXME: load primary key from keyring when available
 	authKey, err := os.ReadFile(params.TPMPolicyAuthKeyFile)
 	if err != nil {
 		return fmt.Errorf("cannot read the policy auth key file %s: %w", params.TPMPolicyAuthKeyFile, err)
@@ -509,20 +579,20 @@ func ResealKeys(params *ResealKeysParams) error {
 
 	keyDatas := make([]*sb.KeyData, 0, numSealedKeyObjects)
 	sealedKeyObjects := make([]*sb_tpm2.SealedKeyObject, 0, numSealedKeyObjects)
-	for _, keyfile := range params.KeyFiles {
-		loadedKey := &defaultKeyLoader{}
-		const hintExpectFDEHook = false
-		err := readKeyFile(keyfile, loadedKey, hintExpectFDEHook)
+	writers := make([]sb.KeyDataWriter, 0, numSealedKeyObjects)
+	for _, key := range params.Keys {
+		keyData, keyObject, writer, err := readKeyData(key)
 		if err != nil {
-			return fmt.Errorf("cannot read key file %s: %w", keyfile, err)
+			return err
 		}
-		if loadedKey.SealedKeyObject != nil {
-			sealedKeyObjects = append(sealedKeyObjects, loadedKey.SealedKeyObject)
-		} else if loadedKey.KeyData != nil {
-			// Note the "else", if we had an old sealed
-			// key object, then the key data is a work
-			// around, so we ignore it.
-			keyDatas = append(keyDatas, loadedKey.KeyData)
+		if keyObject == nil {
+			if writer == nil {
+				return fmt.Errorf("internal error: new keydata has no writer")
+			}
+			writers = append(writers, writer)
+			keyDatas = append(keyDatas, keyData)
+		} else {
+			sealedKeyObjects = append(sealedKeyObjects, keyObject)
 		}
 	}
 
@@ -540,9 +610,9 @@ func ResealKeys(params *ResealKeysParams) error {
 
 		// write key files
 		for i, sko := range sealedKeyObjects {
-			w := sb_tpm2.NewFileSealedKeyObjectWriter(params.KeyFiles[i])
+			w := sb_tpm2.NewFileSealedKeyObjectWriter(params.Keys[i].KeyFile)
 			if err := sko.WriteAtomic(w); err != nil {
-				return fmt.Errorf("cannot write key data file %s: %w", params.KeyFiles[i], err)
+				return fmt.Errorf("cannot write key data file %s: %w", params.Keys[i].KeyFile, err)
 			}
 		}
 
@@ -556,10 +626,9 @@ func ResealKeys(params *ResealKeysParams) error {
 			return fmt.Errorf("cannot update PCR protection policy: %w", err)
 		}
 
-		for i, keyfile := range params.KeyFiles {
-			writer := sb.NewFileKeyDataWriter(keyfile)
-			if err := keyDatas[i].WriteAtomic(writer); err != nil {
-				return fmt.Errorf("cannot write key data in keyfile %s: %w", keyfile, err)
+		for i, key := range params.Keys {
+			if err := keyDatas[i].WriteAtomic(writers[i]); err != nil {
+				return fmt.Errorf("cannot write key data in keyfile %s:%s: %w", key.DevicePath, key.SlotName, err)
 			}
 		}
 
