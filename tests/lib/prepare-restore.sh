@@ -102,7 +102,6 @@ build_rpm() {
         distro=amzn
         release=2023
     fi
-    arch=x86_64
     base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
     version="1337.$base_version"
     packaging_path=packaging/$distro-$release
@@ -196,34 +195,6 @@ build_arch_pkg() {
     # /etc/makepkg.conf defines PKGEXT which drives the compression alg and sets
     # the package file name extension, keep it simple and try a glob instead
     cp /tmp/pkg/snapd*.pkg.tar.* "${GOPATH%%:*}"
-}
-
-download_from_published(){
-    local published_version="$1"
-
-    curl -s -o pkg_page "https://launchpad.net/ubuntu/+source/snapd/$published_version"
-
-    arch=$(dpkg --print-architecture)
-    build_id=$(sed -n 's|<a href="/ubuntu/+source/snapd/'"$published_version"'/+build/\(.*\)">'"$arch"'</a>|\1|p' pkg_page | sed -e 's/^[[:space:]]*//')
-
-    # we need to download snap-confine and ubuntu-core-launcher for versions < 2.23
-    for pkg in snapd snap-confine ubuntu-core-launcher; do
-        file="${pkg}_${published_version}_${arch}.deb"
-        curl -L -o "$GOHOME/$file" "https://launchpad.net/ubuntu/+source/snapd/${published_version}/+build/${build_id}/+files/${file}"
-    done
-}
-
-download_from_gce_bucket(){
-    curl -o "${SPREAD_SYSTEM}.tar" "https://storage.googleapis.com/snapd-spread-tests/snapd-tests/packages/${SPREAD_SYSTEM}.tar"
-    tar -xf "${SPREAD_SYSTEM}.tar" -C "$PROJECT_PATH"/..
-}
-
-install_dependencies_from_published(){
-    local published_version="$1"
-
-    for dep in snap-confine ubuntu-core-launcher; do
-        dpkg -i "$GOHOME/${dep}_${published_version}_$(dpkg --print-architecture).deb"
-    done
 }
 
 install_snapd_rpm_dependencies(){
@@ -592,7 +563,7 @@ prepare_project() {
     # as they exist in the archive for further use.
     if tests.info is-snapd-from-archive; then
         ( cd "${GOHOME}" && tests.pkgs download snapd snap-confine)
-    elif [ "$BUILD_SNAPD_FROM_CURRENT" = true ]; then
+    else
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 build_deb
@@ -608,9 +579,6 @@ prepare_project() {
                 exit 1
                 ;;
         esac
-    else
-        download_from_gce_bucket
-        install_dependencies_gce_bucket
     fi
 
     # Build fakestore.
