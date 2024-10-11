@@ -315,6 +315,26 @@ backends:
                   storage: 25G
                   workers: 14
 
+    google-kernels:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/us-central1-a
+        plan: n2-standard-2
+        halt-timeout: 2h
+        systems:
+            - ubuntu-20.04-64:
+                  storage: 20G
+                  workers: 1
+            - ubuntu-22.04-64:
+                  storage: 25G
+                  workers: 1
+            - ubuntu-24.04-64:
+                  storage: 25G
+                  workers: 1
+            - ubuntu-24.10-64:
+                  storage: 25G
+                  workers: 1
+
     google-nested-arm:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
@@ -1449,8 +1469,10 @@ suites:
 
     tests/kernels/:
         summary: Test snapd with different kernels
+        backends: [ google-kernels ]
         systems:
           - ubuntu-2*
+        manual: true
         environment:
           USE_KERNEL/latest: ''
           USE_KERNEL/version: '$(HOST: echo "$SPREAD_USE_KERNEL")'
