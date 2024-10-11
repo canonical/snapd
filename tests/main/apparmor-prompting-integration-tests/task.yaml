@@ -31,6 +31,7 @@ environment:
     #VARIANT/overwrite_file: overwrite_file
 
 prepare: |
+    snap install jq
     tests.session prepare -u test
     #shellcheck disable=SC2016
     tests.session -u test exec sh -c 'mkdir -p "$HOME/integration-tests"' # $HOME must be that of test user
@@ -42,6 +43,7 @@ restore: |
     tests.session restore -u test
 
 debug: |
+    cat /var/lib/snapd/interfaces-requests/request-rules.json | jq
 
 execute: |
     echo "Enable prompting via snap client where possible"
