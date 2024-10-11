@@ -102,6 +102,10 @@ type sealKeyToModeenvFlags struct {
 	SeedDir string
 	// Unlocker is used unlock the snapd state for long operations
 	StateUnlocker Unlocker
+	// UseTokens indicates that key data should be saved to the
+	// tokens of key slots. If not, they will be saved to key
+	// files.
+	UseTokens bool
 }
 
 // sealKeyToModeenvImpl seals the supplied keys to the parameters specified
@@ -150,6 +154,10 @@ type SealKeyForBootChainsParams struct {
 	RoleToBlName map[bootloader.Role]string
 	// FactoryReset...
 	FactoryReset bool
+	// UseTokens indicates that key data should be saved to the
+	// tokens of key slots. If not, they will be saved to key
+	// files.
+	UseTokens bool
 	// InstallHostWritableDir...
 	InstallHostWritableDir string
 }
@@ -163,6 +171,7 @@ var SealKeyForBootChains = sealKeyForBootChainsImpl
 func sealKeyToModeenvForMethod(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
 	params := &SealKeyForBootChainsParams{
 		FactoryReset:           flags.FactoryReset,
+		UseTokens:              flags.UseTokens,
 		InstallHostWritableDir: InstallHostWritableDir(model),
 	}
 
