@@ -231,3 +231,9 @@ func MockSealKeyForBootChains(f func(method device.SealingMethod, key, saveKey s
 		SealKeyForBootChains = old
 	}
 }
+
+func MockCryptsetupSupportsTokenReplace(support bool) (restore func()) {
+	return testutil.Mock(&cryptsetupSupportsTokenReplace, func() bool {
+		return support
+	})
+}

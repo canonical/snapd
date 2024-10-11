@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
@@ -498,14 +499,27 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 }
 
 type testMakeSystemRunnable20Opts struct {
-	standalone   bool
-	factoryReset bool
-	classic      bool
-	fromInitrd   bool
-	withKComps   bool
+	standalone    bool
+	factoryReset  bool
+	classic       bool
+	fromInitrd    bool
+	withKComps    bool
+	oldCryptsetup bool
+	forceTokens   string
 }
 
 func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, opts testMakeSystemRunnable20Opts) {
+	fakeProc := c.MkDir()
+	fakeCmdline := filepath.Join(fakeProc, "cmdline")
+	defer kcmdline.MockProcCmdline(fakeCmdline)()
+	if opts.forceTokens == "" {
+		err := os.WriteFile(fakeCmdline, []byte("some args"), 0644)
+		c.Assert(err, IsNil)
+	} else {
+		err := os.WriteFile(fakeCmdline, []byte(fmt.Sprintf("some ubuntu-core.force-experimental-tokens=%s args", opts.forceTokens)), 0644)
+		c.Assert(err, IsNil)
+	}
+
 	restore := release.MockOnClassic(opts.classic)
 	defer restore()
 	dirs.SetRootDir(dirs.GlobalRootDir)
@@ -717,6 +731,15 @@ version: 5.0
 			c.Check(params.InstallHostWritableDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data", "system-data"))
 		}
 
+		// For now tokens are used only on classic when
+		// cryptsetup has the features we need.
+		// Later this check will change to also include UC24+
+		if opts.classic {
+			c.Check(params.UseTokens, Equals, !opts.oldCryptsetup)
+		} else {
+			c.Check(params.UseTokens, Equals, opts.forceTokens == "1")
+		}
+
 		return nil
 	})
 	defer restore()
@@ -727,6 +750,9 @@ version: 5.0
 		hasFDESetupHookCalled = true
 		return false, nil
 	})
+	defer restore()
+
+	restore = boot.MockCryptsetupSupportsTokenReplace(!opts.oldCryptsetup)
 	defer restore()
 
 	switch {
@@ -912,6 +938,24 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallFromInitrd(c *C) {
 		classic:      false,
 		fromInitrd:   true,
 		withKComps:   true,
+	})
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallOldCryptsetup(c *C) {
+	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
+		oldCryptsetup: true,
+	})
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallForceTokens(c *C) {
+	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
+		forceTokens: "1",
+	})
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallForceDisabledTokens(c *C) {
+	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
+		forceTokens: "0",
 	})
 }
 

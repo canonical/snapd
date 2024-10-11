@@ -59,18 +59,8 @@ func (bc *bootstrappedContainer) AddKey(slotName string, newKey []byte) error {
 	return nil
 }
 
-func (bc *bootstrappedContainer) AddKeyAndGetTokenWriter(slotName string, newKey []byte) (KeyDataWriter, error) {
-	err := bc.AddKey(slotName, newKey)
-	if err != nil {
-		return nil, err
-	}
-
-	writer, err := newLUKS2KeyDataWriter(bc.devicePath, slotNameOrDefault(slotName))
-	if err != nil {
-		return nil, err
-	}
-
-	return writer, nil
+func (bc *bootstrappedContainer) GetTokenWriter(slotName string) (KeyDataWriter, error) {
+	return newLUKS2KeyDataWriter(bc.devicePath, slotNameOrDefault(slotName))
 }
 
 func (bc *bootstrappedContainer) RemoveBootstrapKey() error {

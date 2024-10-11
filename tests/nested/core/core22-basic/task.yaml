@@ -5,7 +5,18 @@ details: |
 
 systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
+environment:
+    NESTED_EXTRA_CMDLINE/tokens: ubuntu-core.force-experimental-tokens=1
+    NESTED_EXTRA_CMDLINE/files: ubuntu-core.force-experimental-tokens=0
+    EXPECT_TOKENS/tokens: true
+    EXPECT_TOKENS/files: false
+
 execute: |
+    if os.query is-ubuntu-lt 24.04 && [ "${EXPECT_TOKENS}" = true ]; then
+        # SKIP
+        exit 0
+    fi
+
     echo "Wait for the system to be seeded first"
     remote.exec "sudo snap wait system seed.loaded"
 
@@ -33,4 +44,32 @@ execute: |
     if remote.exec "snap recovery --show-keys"; then
         echo "snap recovery --show-key should not work as a user"
         exit 1
+    fi
+
+    if os.query is-ubuntu-ge 24.04 && [ "${EXPECT_TOKENS}" = true ]; then
+        remote.exec "sudo cryptsetup luksDump --dump-json-metadata /dev/disk/by-label/ubuntu-data-enc" >data.json
+        remote.exec "sudo cryptsetup luksDump --dump-json-metadata /dev/disk/by-label/ubuntu-save-enc" >save.json
+        # TODO: use gojq
+        data_default_token_type="$(jq -r '.tokens.[]|select(.ubuntu_fde_name=="default").type' data.json)"
+        data_default_platform_name="$(jq -r '.tokens.[]|select(.ubuntu_fde_name=="default").ubuntu_fde_data.platform_name' data.json)"
+        data_fallback_token_type="$(jq -r '.tokens.[]|select(.ubuntu_fde_name=="default-fallback").type' data.json)"
+        data_fallback_platform_name="$(jq -r '.tokens.[]|select(.ubuntu_fde_name=="default-fallback").ubuntu_fde_data.platform_name' data.json)"
+        save_fallback_token_type="$(jq -r '.tokens.[]|select(.ubuntu_fde_name=="default-fallback").type' save.json)"
+        save_fallback_platform_name="$(jq -r '.tokens.[]|select(.ubuntu_fde_name=="default-fallback").ubuntu_fde_data.platform_name' save.json)"
+
+        test "${data_default_token_type}" = "ubuntu-fde"
+        test "${data_fallback_token_type}" = "ubuntu-fde"
+        test "${save_fallback_token_type}" = "ubuntu-fde"
+
+        test "${data_default_platform_name}" = "tpm2"
+        test "${data_fallback_platform_name}" = "tpm2"
+        test "${save_fallback_platform_name}" = "tpm2"
+
+        remote.exec "! test -f /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"
+        remote.exec "! test -f /run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"
+        remote.exec "! test -f /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"
+    else
+        remote.exec "test -f /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"
+        remote.exec "test -f /run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"
+        remote.exec "test -f /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"
     fi

@@ -99,7 +99,7 @@ func VerifyPrimaryKeyDigest(devicePath string, alg crypto.Hash, salt []byte, dig
 	return false, errBuildWithoutSecboot
 }
 
-func ResealKeysWithFDESetupHook(keyFiles []string, primaryKeyFile string, models []ModelForSealing) error {
+func ResealKeysWithFDESetupHook(keys []KeyDataLocation, primaryKeyFile string, models []ModelForSealing) error {
 	return errBuildWithoutSecboot
 }
 

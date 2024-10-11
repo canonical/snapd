@@ -254,6 +254,14 @@ func MockSbSetKeyRevealer(f func(kr sb_hooks.KeyRevealer)) (restore func()) {
 	}
 }
 
+func MockReadKeyToken(f func(devicePath, slotName string) (*sb.KeyData, error)) (restore func()) {
+	old := readKeyToken
+	readKeyToken = f
+	return func() {
+		readKeyToken = old
+	}
+}
+
 type KeyLoader = keyLoader
 
 func MockReadKeyFile(f func(keyfile string, kl keyLoader, hintExpectFDEHook bool) error) (restore func()) {

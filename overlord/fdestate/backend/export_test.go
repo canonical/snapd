@@ -31,7 +31,7 @@ func MockSecbootReleasePCRResourceHandles(f func(handles ...uint32) error) (rest
 	}
 }
 
-func MockSecbootResealKeysWithFDESetupHook(f func(keyFiles []string, primaryKeyFile string, models []secboot.ModelForSealing) error) (restore func()) {
+func MockSecbootResealKeysWithFDESetupHook(f func(keys []secboot.KeyDataLocation, primaryKeyFile string, models []secboot.ModelForSealing) error) (restore func()) {
 	old := secbootResealKeysWithFDESetupHook
 	secbootResealKeysWithFDESetupHook = f
 	return func() {

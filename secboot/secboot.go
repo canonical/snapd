@@ -71,10 +71,10 @@ type SealKeyRequest struct {
 	BootstrappedContainer BootstrappedContainer
 	// The key name; identical keys should have identical names
 	KeyName string
-
+	// The name of the slot where they key will be saved.
 	SlotName string
-	// The path to store the sealed key file. The same Key/KeyName
-	// can be stored under multiple KeyFile names for safety.
+	// The file to store the key data. If empty, the key data will
+	// be saved to the token.
 	KeyFile string
 }
 
@@ -140,6 +140,22 @@ type SealKeysWithFDESetupHookParams struct {
 	AuxKeyFile string
 }
 
+// KeyDataLocation represents the possible places where key data
+// might be saved.
+//
+// This is used for resealing keys in key data. The resealing will be
+// responsible of finding which one is in use. The basic strategy is
+// if a key data is found in the token, then this will be used and the
+// key file will be ignored.
+type KeyDataLocation struct {
+	// KeyFile is the path to the file that contains either the key data or sealed key object.
+	KeyFile string
+	// DevicePath is the LUKS2 device which contains a token with they key data
+	DevicePath string
+	// SlotName is the name of the token that contains the key data
+	SlotName string
+}
+
 // SerializedPCRProfile wraps a serialized PCR profile which is treated as an
 // opaque binary blob outside of secboot package.
 type SerializedPCRProfile []byte
@@ -147,8 +163,8 @@ type SerializedPCRProfile []byte
 type ResealKeysParams struct {
 	// The snap model parameters
 	PCRProfile SerializedPCRProfile
-	// The path to the sealed key files
-	KeyFiles []string
+	// The locations to the key data
+	Keys []KeyDataLocation
 	// The path to the authorization policy update key file (only relevant for TPM)
 	TPMPolicyAuthKeyFile string
 }

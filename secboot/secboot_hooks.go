@@ -102,11 +102,17 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 		if err := skr.BootstrappedContainer.AddKey(skr.SlotName, unlockKey); err != nil {
 			return err
 		}
-		writer := sb.NewFileKeyDataWriter(skr.KeyFile)
-		if err := protectedKey.WriteAtomic(writer); err != nil {
+
+		keyWriter, err := skr.getWriter()
+		if err != nil {
+			return err
+		}
+
+		if err := protectedKey.WriteAtomic(keyWriter); err != nil {
 			return err
 		}
 	}
+
 	if primaryKey != nil && params.AuxKeyFile != "" {
 		if err := osutil.AtomicWriteFile(params.AuxKeyFile, primaryKey, 0600, 0); err != nil {
 			return fmt.Errorf("cannot write the policy auth key file: %v", err)
@@ -124,7 +130,8 @@ var setAuthorizedSnapModelsOnHooksKeydata = setAuthorizedSnapModelsOnHooksKeydat
 
 // ResealKeysWithFDESetupHook updates hook based keydatas for given
 // files with a specific list of models
-func ResealKeysWithFDESetupHook(keyFiles []string, primaryKeyFile string, models []ModelForSealing) error {
+func ResealKeysWithFDESetupHook(keys []KeyDataLocation, primaryKeyFile string, models []ModelForSealing) error {
+	// FIXME: load primary key from keyring when available
 	primaryKeyBuf, err := os.ReadFile(primaryKeyFile)
 	if err != nil {
 		return fmt.Errorf("cannot read primary key file: %v", err)
@@ -135,30 +142,41 @@ func ResealKeysWithFDESetupHook(keyFiles []string, primaryKeyFile string, models
 	for _, model := range models {
 		sbModels = append(sbModels, model)
 	}
-	for _, keyFile := range keyFiles {
-		loadedKey := &defaultKeyLoader{}
-		const hintExpectFDEHook = true
-		if err := readKeyFile(keyFile, loadedKey, hintExpectFDEHook); err != nil {
-			return err
+	for _, key := range keys {
+		var keyDataWriter sb.KeyDataWriter
+
+		keyData, tokenWriter, tokenErr := key.readTokenAndGetWriter()
+		if tokenErr == nil {
+			keyDataWriter = tokenWriter
+		} else {
+			loadedKey := &defaultKeyLoader{}
+			const hintExpectFDEHook = true
+			if err := readKeyFile(key.KeyFile, loadedKey, hintExpectFDEHook); err != nil {
+				return tokenErr
+			}
+
+			// Non-nil FDEHookKeyV1 indicates that V1 hook key is used
+			if loadedKey.FDEHookKeyV1 != nil {
+				// V1 keys do not need resealing
+				continue
+			}
+
+			if loadedKey.KeyData == nil {
+				return fmt.Errorf("internal error: keydata was expected, but none found")
+			}
+
+			keyData = loadedKey.KeyData
+
+			keyDataWriter = sb.NewFileKeyDataWriter(key.KeyFile)
 		}
 
-		// Non-nil FDEHookKeyV1 indicates that V1 hook key is used
-		if loadedKey.FDEHookKeyV1 != nil {
-			// V1 keys do not need resealing
-			continue
-		}
-
-		if loadedKey.KeyData == nil {
-			return fmt.Errorf("internal error: keydata was expected, but none found")
-		}
-
-		if loadedKey.KeyData.Generation() == 1 {
-			if err := loadedKey.KeyData.SetAuthorizedSnapModels(primaryKey, sbModels...); err != nil {
+		if keyData.Generation() == 1 {
+			if err := keyData.SetAuthorizedSnapModels(primaryKey, sbModels...); err != nil {
 				return err
 			}
 		} else {
 			// TODO: also set the run modes
-			hooksKeyData, err := sb_hooks.NewKeyData(loadedKey.KeyData)
+			hooksKeyData, err := sb_hooks.NewKeyData(keyData)
 			if err != nil {
 				return err
 			}
@@ -167,8 +185,7 @@ func ResealKeysWithFDESetupHook(keyFiles []string, primaryKeyFile string, models
 			}
 		}
 
-		writer := sb.NewFileKeyDataWriter(keyFile)
-		if err := loadedKey.KeyData.WriteAtomic(writer); err != nil {
+		if err := keyData.WriteAtomic(keyDataWriter); err != nil {
 			return err
 		}
 	}
