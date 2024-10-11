@@ -39,8 +39,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var registrystateGetTransaction = registrystate.GetTransactionToModify
-
 type getCommand struct {
 	baseCommand
 
@@ -421,12 +419,10 @@ func (c *getCommand) getDatabag(ctx *hookstate.Context, view *registry.View, pri
 		}
 	}
 
-	bag = registry.DataBag(tx)
 	if pristine {
-		bag = tx.Pristine()
+		return tx.Pristine(), nil
 	}
-
-	return bag, nil
+	return tx, nil
 }
 
 func getRegistryViewID(ctx *hookstate.Context, plugName string) (account, registryName, viewName string, err error) {

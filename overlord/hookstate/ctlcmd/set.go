@@ -34,6 +34,8 @@ import (
 	"github.com/snapcore/snapd/overlord/registrystate"
 )
 
+var registrystateGetTransaction = registrystate.GetTransactionToModify
+
 type setCommand struct {
 	baseCommand
 
