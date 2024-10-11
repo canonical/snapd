@@ -231,7 +231,7 @@ func resolveBootDevice(bootDevice string, bootVol *gadget.Volume) (string, error
 		return bootDevice, nil
 	}
 
-	// XXX: It makes no sense currently do handle bootVol.Device here and
+	// XXX: It makes no sense to handle bootVol.DeviceAssignment here and
 	// force the assignment there, as current constraints dictate the boot
 	// device must be on the same disk as ubuntu-seed. Therefor we should
 	// just ensure that the two disk paths don't differ if assigned
