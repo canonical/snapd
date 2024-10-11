@@ -477,7 +477,7 @@ func (s *registryTestSuite) TestRegistryTasksUserSetWithCustodianInstalled(c *C)
 	c.Assert(err, IsNil)
 	c.Assert(commitTask.Kind(), Equals, "commit-registry-tx")
 
-	cleanupTask, err := ts.Edge(registrystate.LastEdge)
+	cleanupTask, err := ts.Edge(registrystate.ClearTxEdge)
 	c.Assert(err, IsNil)
 	c.Assert(cleanupTask.Kind(), Equals, "clear-registry-tx")
 

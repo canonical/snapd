@@ -35,8 +35,8 @@ var (
 )
 
 const (
-	CommitEdge = commitEdge
-	LastEdge   = lastEdge
+	CommitEdge  = commitEdge
+	ClearTxEdge = clearTxEdge
 )
 
 func ChangeViewHandlerGenerator(ctx *hookstate.Context) hookstate.Handler {

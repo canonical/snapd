@@ -199,13 +199,17 @@ var writeDatabag = func(st *state.State, databag registry.JSONDataBag, account, 
 }
 
 // GetTransaction retrieves or creates a transaction to access the view's
-// registry. The state must be locked by the caller.
+// registry. The state must be locked by the caller. Takes a context which should
+// contain a hookstate.Context in it, if it came from a hook context. Calling
+// ctx.Done will trigger the creation of a modify-registry change and wait for
+// its completion (unless one already existed, in which case it just persists
+// changes to the existing transaction).
 func GetTransaction(ctx *Context, st *state.State, view *registry.View) (*Transaction, error) {
 	account, registryName := view.Registry().Account, view.Registry().Name
 
 	// check if we're already running in the context of a committing transaction
 	hookCtx := ctx.hookCtx
-	if hookCtx != nil && !hookCtx.IsEphemeral() && IsRegistryHook(hookCtx) {
+	if IsRegistryHook(hookCtx) {
 		// running in the context of a transaction, so if the referenced registry
 		// doesn't match that tx, we only allow the caller to read the other registry
 		t, _ := hookCtx.Task()
@@ -269,7 +273,7 @@ func GetTransaction(ctx *Context, st *state.State, view *registry.View) (*Transa
 			return err
 		}
 
-		lastTask, err := ts.Edge(lastEdge)
+		clearTxTask, err := ts.Edge(clearTxEdge)
 		if err != nil {
 			return err
 		}
@@ -277,7 +281,7 @@ func GetTransaction(ctx *Context, st *state.State, view *registry.View) (*Transa
 		taskReady := make(chan struct{})
 		var done bool
 		id := st.AddTaskStatusChangedHandler(func(t *state.Task, old, new state.Status) {
-			if !done && t.ID() == lastTask.ID() && new.Ready() {
+			if !done && t.ID() == clearTxTask.ID() && new.Ready() {
 				done = true
 				taskReady <- struct{}{}
 				return
@@ -300,8 +304,8 @@ var ensureNow = func(st *state.State) {
 }
 
 const (
-	commitEdge = state.TaskSetEdge("commit-edge")
-	lastEdge   = state.TaskSetEdge("last-edge")
+	commitEdge  = state.TaskSetEdge("commit-edge")
+	clearTxEdge = state.TaskSetEdge("clear-tx-edge")
 )
 
 func createChangeRegistryTasks(st *state.State, tx *Transaction, view *registry.View, callingSnap string) (*state.TaskSet, error) {
@@ -407,7 +411,7 @@ func createChangeRegistryTasks(st *state.State, tx *Transaction, view *registry.
 	clearTxTask := st.NewTask("clear-registry-tx", "Clears the ongoing registry transaction from state")
 	linkTask(clearTxTask)
 	clearTxTask.Set("commit-task", commitTask.ID())
-	ts.MarkEdge(clearTxTask, lastEdge)
+	ts.MarkEdge(clearTxTask, clearTxEdge)
 
 	return ts, nil
 }
@@ -522,7 +526,7 @@ func setTransaction(t *state.Task, tx *Transaction) {
 }
 
 func IsRegistryHook(ctx *hookstate.Context) bool {
-	return !ctx.IsEphemeral() &&
+	return ctx != nil && !ctx.IsEphemeral() &&
 		(strings.HasPrefix(ctx.HookName(), "change-view-") ||
 			strings.HasPrefix(ctx.HookName(), "save-view-") ||
 			strings.HasSuffix(ctx.HookName(), "-view-changed"))
