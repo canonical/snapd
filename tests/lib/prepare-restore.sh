@@ -102,7 +102,6 @@ build_rpm() {
         distro=amzn
         release=2023
     fi
-    arch=x86_64
     base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
     version="1337.$base_version"
     packaging_path=packaging/$distro-$release
