@@ -196,6 +196,9 @@ var templateCommon = `
   /etc/os-release rk,
   /usr/lib/os-release k,
 
+  # Debian version of the host OS which might be required in AppArmor-secured Debian
+  /etc/debian_version r,
+
   # systemd native journal API (see sd_journal_print(4)). This should be in
   # AppArmor's base abstraction, but until it is, include here. We include
   # the base journal path as well as the journal namespace pattern path. Each
