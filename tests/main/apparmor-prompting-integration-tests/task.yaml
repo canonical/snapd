@@ -28,10 +28,10 @@ environment:
     VARIANT/create_multiple_actioned_by_other_pid_always_deny: create_multiple_actioned_by_other_pid_always_deny
     VARIANT/create_multiple_not_actioned_by_other_pid_single_allow: create_multiple_not_actioned_by_other_pid_single_allow
     VARIANT/create_multiple_not_actioned_by_other_pid_single_deny: create_multiple_not_actioned_by_other_pid_single_deny
-    #VARIANT/overwrite_file: overwrite_file
+    VARIANT/write_read_multiple_actioned_by_other_pid_allow_deny: write_read_multiple_actioned_by_other_pid_allow_deny
+    VARIANT/write_read_multiple_actioned_by_other_pid_deny_allow: write_read_multiple_actioned_by_other_pid_deny_allow
 
 prepare: |
-    snap install jq
     tests.session prepare -u test
     #shellcheck disable=SC2016
     tests.session -u test exec sh -c 'mkdir -p "$HOME/integration-tests"' # $HOME must be that of test user
@@ -43,7 +43,11 @@ restore: |
     tests.session restore -u test
 
 debug: |
-    cat /var/lib/snapd/interfaces-requests/request-rules.json | jq
+    TEST_UID="$(id -u test)"
+    echo "outstanding prompts:"
+    snap debug api "/v2/interfaces/requests/prompts?user-id=$TEST_UID"
+    echo "rules:"
+    snap debug api "/v2/interfaces/requests/rules?user-id=$TEST_UID"
 
 execute: |
     echo "Enable prompting via snap client where possible"
@@ -99,4 +103,8 @@ execute: |
     sleep 1 # wait for scripted client to start listening, otherwise it may miss the first prompt
 
     echo "Run the test script as the test user"
-    tests.session -u test exec sh -x "${TEST_DIR}/${VARIANT}.sh" "$TEST_DIR"
+    if ! tests.session -u test exec sh -x "${TEST_DIR}/${VARIANT}.sh" "$TEST_DIR" ; then
+        # kill the prompting-client-scripted process for this test run
+        pkill -f "prompting-client-scripted.*${TEST_DIR}"
+        exit 1
+    fi
