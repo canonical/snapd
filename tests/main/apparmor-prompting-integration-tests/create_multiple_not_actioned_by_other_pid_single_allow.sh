@@ -42,6 +42,7 @@ snap run --shell prompting-client.scripted -c "echo test4/file.txt is written > 
 for dir in test1 test2 test3 ; do
 	name="${dir}/file.txt"
 	echo "Check that create for $name was not actioned by reply for test4/file.txt"
+	# NOTE: if one checks [ -f "${TEST_DIR}/${name}" ], it may kill the blocked create
 	if [ -f "${WRITABLE}/${dir}-finished" ] ; then
 		echo "create of $name finished before create for test5/file.txt started"
 		exit 1
