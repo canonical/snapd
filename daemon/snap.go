@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,11 +20,14 @@
 package daemon
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/client"
@@ -35,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var errNoSnap = errors.New("snap not installed")
@@ -338,12 +342,68 @@ func fillComponentInfo(about aboutSnap) []client.Component {
 	return comps
 }
 
-// snapIcon tries to find the icon inside the snap
+// snapIcon tries to find the icon inside the snap.
 func snapIcon(info snap.PlaceInfo) string {
 	found, _ := filepath.Glob(filepath.Join(info.MountDir(), "meta", "gui", "icon.*"))
-	if len(found) == 0 {
+	if len(found) > 0 {
+		return found[0]
+	}
+
+	// Try to find the icon via the Icon= field of a .desktop file for the snap.
+
+	// Find all .desktop files in ${SNAP}/meta/gui
+	desktopFiles, _ := filepath.Glob(filepath.Join(info.MountDir(), "meta", "gui", "*.desktop"))
+	if len(desktopFiles) == 0 {
 		return ""
 	}
 
-	return found[0]
+	// Try <snap>.desktop first
+	if snapDesktop := info.SnapName() + ".desktop"; strutil.ListContains(desktopFiles, snapDesktop) {
+		if iconPath, err := iconPathFromDesktopFile(info, snapDesktop); err == nil {
+			return iconPath
+		}
+	}
+
+	// Try <snap>_<snap>.desktop next
+	if snapAppDesktop := fmt.Sprintf("%s_%s.desktop", info.SnapName(), info.SnapName()); strutil.ListContains(desktopFiles, snapAppDesktop) {
+		if iconPath, err := iconPathFromDesktopFile(info, snapAppDesktop); err == nil {
+			return iconPath
+		}
+	}
+
+	// Try any .desktop file we could find
+	for _, desktopFile := range desktopFiles {
+		if iconPath, err := iconPathFromDesktopFile(info, desktopFile); err == nil {
+			return iconPath
+		}
+	}
+
+	return ""
+}
+
+var iconMatcher = regexp.MustCompile(fmt.Sprintf("^%s(.*)$", regexp.QuoteMeta("Icon=${SNAP}")))
+
+// iconPathFromDesktopFile opens the given filename and searches for a line
+// starting with `Icon=${SNAP}`, returning the remaining icon path prefixed by
+// the snap's mount directory.
+func iconPathFromDesktopFile(info snap.PlaceInfo, filename string) (string, error) {
+	desktopFile, err := os.Open(filename)
+	if err != nil {
+		return "", err
+	}
+
+	scanner := bufio.NewScanner(desktopFile)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		matches := iconMatcher.FindSubmatch(line)
+		if matches == nil {
+			continue
+		}
+
+		iconPath := filepath.Join(info.MountDir(), strings.TrimSpace(string(matches[1])))
+
+		return iconPath, nil
+	}
+
+	return "", fmt.Errorf("cannot find icon path in desktop file: '%s'", filename)
 }
