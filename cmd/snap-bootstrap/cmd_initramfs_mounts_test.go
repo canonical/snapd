@@ -2312,9 +2312,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
-			{Mountpoint: boot.InitramfsUbuntuBootDir}:                          defaultEncBootDisk,
-			{Mountpoint: boot.InitramfsDataDir, IsDecryptedDevice: true}:       defaultEncBootDisk,
-			{Mountpoint: boot.InitramfsUbuntuSaveDir, IsDecryptedDevice: true}: defaultEncBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}:                           defaultEncBootDisk,
+			{Mountpoint: boot.InitramfsDataDir, IsCryptsetupDevice: true}:       defaultEncBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir, IsCryptsetupDevice: true}: defaultEncBootDisk,
 		},
 	)
 	defer restore()
@@ -2440,8 +2440,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunCVMModeHappy(c *C) {
 
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
-			{Mountpoint: boot.InitramfsUbuntuSeedDir}:                    defaultCVMDisk,
-			{Mountpoint: boot.InitramfsDataDir, IsDecryptedDevice: true}: defaultCVMDisk,
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}:                     defaultCVMDisk,
+			{Mountpoint: boot.InitramfsDataDir, IsCryptsetupDevice: true}: defaultCVMDisk,
 		},
 	)
 	defer restore()
@@ -2558,8 +2558,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyNoS
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
-			{Mountpoint: boot.InitramfsUbuntuBootDir}:                    defaultEncNoSaveBootDisk,
-			{Mountpoint: boot.InitramfsDataDir, IsDecryptedDevice: true}: defaultEncNoSaveBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}:                     defaultEncNoSaveBootDisk,
+			{Mountpoint: boot.InitramfsDataDir, IsCryptsetupDevice: true}: defaultEncNoSaveBootDisk,
 		},
 	)
 	defer restore()
@@ -2636,9 +2636,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyUnl
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
-			{Mountpoint: boot.InitramfsUbuntuBootDir}:                          defaultEncBootDisk,
-			{Mountpoint: boot.InitramfsDataDir, IsDecryptedDevice: true}:       defaultEncBootDisk,
-			{Mountpoint: boot.InitramfsUbuntuSaveDir, IsDecryptedDevice: true}: defaultEncBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}:                           defaultEncBootDisk,
+			{Mountpoint: boot.InitramfsDataDir, IsCryptsetupDevice: true}:       defaultEncBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir, IsCryptsetupDevice: true}: defaultEncBootDisk,
 		},
 	)
 	defer restore()
@@ -3659,12 +3659,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncBootDisk,
 			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultEncBootDisk,
 			{
-				Mountpoint:        boot.InitramfsHostUbuntuDataDir,
-				IsDecryptedDevice: true,
+				Mountpoint:         boot.InitramfsHostUbuntuDataDir,
+				IsCryptsetupDevice: true,
 			}: defaultEncBootDisk,
 			{
-				Mountpoint:        boot.InitramfsUbuntuSaveDir,
-				IsDecryptedDevice: true,
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				IsCryptsetupDevice: true,
 			}: defaultEncBootDisk,
 		},
 	)
@@ -3798,12 +3798,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncBootDisk,
 			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultEncBootDisk,
 			{
-				Mountpoint:        boot.InitramfsHostUbuntuDataDir,
-				IsDecryptedDevice: true,
+				Mountpoint:         boot.InitramfsHostUbuntuDataDir,
+				IsCryptsetupDevice: true,
 			}: defaultEncBootDisk,
 			{
-				Mountpoint:        boot.InitramfsUbuntuSaveDir,
-				IsDecryptedDevice: true,
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				IsCryptsetupDevice: true,
 			}: defaultEncBootDisk,
 		},
 	)
@@ -3973,12 +3973,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedSa
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncBootDisk,
 			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultEncBootDisk,
 			{
-				Mountpoint:        boot.InitramfsHostUbuntuDataDir,
-				IsDecryptedDevice: true,
+				Mountpoint:         boot.InitramfsHostUbuntuDataDir,
+				IsCryptsetupDevice: true,
 			}: defaultEncBootDisk,
 			{
-				Mountpoint:        boot.InitramfsUbuntuSaveDir,
-				IsDecryptedDevice: true,
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				IsCryptsetupDevice: true,
 			}: defaultEncBootDisk,
 		},
 	)
@@ -4163,12 +4163,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 			// no ubuntu-boot so we fall back to unlocking data with fallback
 			// key right away
 			{
-				Mountpoint:        boot.InitramfsHostUbuntuDataDir,
-				IsDecryptedDevice: true,
+				Mountpoint:         boot.InitramfsHostUbuntuDataDir,
+				IsCryptsetupDevice: true,
 			}: defaultEncDiskNoBoot,
 			{
-				Mountpoint:        boot.InitramfsUbuntuSaveDir,
-				IsDecryptedDevice: true,
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				IsCryptsetupDevice: true,
 			}: defaultEncDiskNoBoot,
 		},
 	)
@@ -4324,12 +4324,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 			// no ubuntu-boot so we fall back to unlocking data with fallback
 			// key right away
 			{
-				Mountpoint:        boot.InitramfsHostUbuntuDataDir,
-				IsDecryptedDevice: true,
+				Mountpoint:         boot.InitramfsHostUbuntuDataDir,
+				IsCryptsetupDevice: true,
 			}: defaultEncDiskNoBoot,
 			{
-				Mountpoint:        boot.InitramfsUbuntuSaveDir,
-				IsDecryptedDevice: true,
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				IsCryptsetupDevice: true,
 			}: defaultEncDiskNoBoot,
 		},
 	)
@@ -4478,8 +4478,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncBootDisk,
 			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultEncBootDisk,
 			{
-				Mountpoint:        boot.InitramfsUbuntuSaveDir,
-				IsDecryptedDevice: true,
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				IsCryptsetupDevice: true,
 			}: defaultEncBootDisk,
 		},
 	)
@@ -5280,8 +5280,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: mockDiskNoData,
 			{Mountpoint: boot.InitramfsUbuntuBootDir}: mockDiskNoData,
 			{
-				Mountpoint:        boot.InitramfsUbuntuSaveDir,
-				IsDecryptedDevice: true,
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				IsCryptsetupDevice: true,
 			}: mockDiskNoData,
 		},
 	)
@@ -5471,8 +5471,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncBootDisk,
 			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultEncBootDisk,
 			{
-				Mountpoint:        boot.InitramfsUbuntuSaveDir,
-				IsDecryptedDevice: true,
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				IsCryptsetupDevice: true,
 			}: defaultEncBootDisk,
 		},
 	)
@@ -5667,12 +5667,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedMismatched
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncBootDisk,
 			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultEncBootDisk,
 			{
-				Mountpoint:        boot.InitramfsHostUbuntuDataDir,
-				IsDecryptedDevice: true,
+				Mountpoint:         boot.InitramfsHostUbuntuDataDir,
+				IsCryptsetupDevice: true,
 			}: defaultEncBootDisk,
 			{
-				Mountpoint:        boot.InitramfsUbuntuSaveDir,
-				IsDecryptedDevice: true,
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				IsCryptsetupDevice: true,
 			}: defaultEncBootDisk,
 		},
 	)
@@ -5882,12 +5882,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: mockDisk,
 			{Mountpoint: boot.InitramfsUbuntuBootDir}: mockDisk,
 			{
-				Mountpoint:        boot.InitramfsHostUbuntuDataDir,
-				IsDecryptedDevice: true,
+				Mountpoint:         boot.InitramfsHostUbuntuDataDir,
+				IsCryptsetupDevice: true,
 			}: mockDisk,
 			{
-				Mountpoint:        boot.InitramfsUbuntuSaveDir,
-				IsDecryptedDevice: true,
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				IsCryptsetupDevice: true,
 			}: mockDisk,
 			// this is the attacker fs on a different disk
 			{Mountpoint: "somewhere-else"}: attackerDisk,
@@ -6396,8 +6396,8 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryDegraded(c *C, expe
 		{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncBootDisk,
 		{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultEncBootDisk,
 		{
-			Mountpoint:        boot.InitramfsUbuntuSaveDir,
-			IsDecryptedDevice: true,
+			Mountpoint:         boot.InitramfsUbuntuSaveDir,
+			IsCryptsetupDevice: true,
 		}: defaultEncBootDisk,
 	}
 	mountSequence := []systemdMount{
@@ -6422,8 +6422,8 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryDegraded(c *C, expe
 	if !unlockDataFails {
 		// unlocking data is successful in this scenario
 		mountMappings[disks.Mountpoint{
-			Mountpoint:        boot.InitramfsHostUbuntuDataDir,
-			IsDecryptedDevice: true,
+			Mountpoint:         boot.InitramfsHostUbuntuDataDir,
+			IsCryptsetupDevice: true,
 		}] = defaultEncBootDisk
 		// and it got mounted too
 		mountSequence = append(mountSequence, systemdMount{
@@ -6735,8 +6735,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyEncrypted
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncBootDisk,
 			{
-				Mountpoint:        boot.InitramfsUbuntuSaveDir,
-				IsDecryptedDevice: true,
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				IsCryptsetupDevice: true,
 			}: defaultEncBootDisk,
 		},
 	)
@@ -7578,10 +7578,10 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeEncryptedDataHap
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
-			{Mountpoint: boot.InitramfsUbuntuSeedDir}:                          defaultEncBootDisk,
-			{Mountpoint: boot.InitramfsUbuntuBootDir}:                          defaultEncBootDisk,
-			{Mountpoint: boot.InitramfsDataDir, IsDecryptedDevice: true}:       defaultEncBootDisk,
-			{Mountpoint: boot.InitramfsUbuntuSaveDir, IsDecryptedDevice: true}: defaultEncBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}:                           defaultEncBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}:                           defaultEncBootDisk,
+			{Mountpoint: boot.InitramfsDataDir, IsCryptsetupDevice: true}:       defaultEncBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir, IsCryptsetupDevice: true}: defaultEncBootDisk,
 		},
 	)
 	defer restore()

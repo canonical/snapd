@@ -318,8 +318,8 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingVerifiesConsist
 	// a mountpoint mapping where the same mountpoint has different options for
 	// the source mountpoint
 	m := map[disks.Mountpoint]*disks.MockDiskMapping{
-		{Mountpoint: "mount1", IsDecryptedDevice: false}: d1,
-		{Mountpoint: "mount1", IsDecryptedDevice: true}:  d1,
+		{Mountpoint: "mount1", IsCryptsetupDevice: false}: d1,
+		{Mountpoint: "mount1", IsCryptsetupDevice: true}:  d1,
 	}
 
 	// mocking shouldn't work
@@ -327,7 +327,7 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingVerifiesConsist
 		func() { disks.MockMountPointDisksToPartitionMapping(m) },
 		PanicMatches,
 		// use .* for true/false since iterating over map order is not defined
-		`mocked source mountpoint mount1 is duplicated with different options - previous option for IsDecryptedDevice was .*, current option is .*`,
+		`mocked source mountpoint mount1 is duplicated with different options - previous option for IsCryptsetupDevice was .*, current option is .*`,
 	)
 }
 
@@ -503,8 +503,8 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingDecryptedDevice
 			{Mountpoint: "/run/mnt/ubuntu-boot"}: d1,
 			{Mountpoint: "/run/mnt/ubuntu-seed"}: d1,
 			{
-				Mountpoint:        "/run/mnt/ubuntu-data",
-				IsDecryptedDevice: true,
+				Mountpoint:         "/run/mnt/ubuntu-data",
+				IsCryptsetupDevice: true,
 			}: d1,
 		},
 	)
@@ -525,8 +525,8 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingDecryptedDevice
 	c.Assert(label, Equals, "ubuntu-data-enc-part")
 
 	// and then finally ubuntu-data enc is from the same disk as ubuntu-boot
-	// with IsDecryptedDevice = true
-	opts := &disks.Options{IsDecryptedDevice: true}
+	// with IsCryptsetupDevice = true
+	opts := &disks.Options{IsCryptsetupDevice: true}
 	matches, err := d.MountPointIsFromDisk("/run/mnt/ubuntu-data", opts)
 	c.Assert(err, IsNil)
 	c.Assert(matches, Equals, true)

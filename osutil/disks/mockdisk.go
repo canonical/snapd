@@ -178,8 +178,8 @@ func (d *MockDiskMapping) SizeInBytes() (uint64, error) {
 // with MountPointIsFromDisk and DiskFromMountPoint with
 // MockMountPointDisksToPartitionMapping.
 type Mountpoint struct {
-	Mountpoint        string
-	IsDecryptedDevice bool
+	Mountpoint         string
+	IsCryptsetupDevice bool
 }
 
 func checkMockDiskMappingsForDuplicates(mockedDisks map[string]*MockDiskMapping) {
@@ -371,12 +371,12 @@ func MockMountPointDisksToPartitionMapping(mockedMountPoints map[Mountpoint]*Moc
 	seenSrcMntPts := make(map[string]bool, len(mockedMountPoints))
 	for srcMntPt, mockDisk := range mockedMountPoints {
 		if decryptedVal, ok := seenSrcMntPts[srcMntPt.Mountpoint]; ok {
-			if decryptedVal != srcMntPt.IsDecryptedDevice {
-				msg := fmt.Sprintf("mocked source mountpoint %s is duplicated with different options - previous option for IsDecryptedDevice was %t, current option is %t", srcMntPt.Mountpoint, decryptedVal, srcMntPt.IsDecryptedDevice)
+			if decryptedVal != srcMntPt.IsCryptsetupDevice {
+				msg := fmt.Sprintf("mocked source mountpoint %s is duplicated with different options - previous option for IsCryptsetupDevice was %t, current option is %t", srcMntPt.Mountpoint, decryptedVal, srcMntPt.IsCryptsetupDevice)
 				panic(msg)
 			}
 		}
-		seenSrcMntPts[srcMntPt.Mountpoint] = srcMntPt.IsDecryptedDevice
+		seenSrcMntPts[srcMntPt.Mountpoint] = srcMntPt.IsCryptsetupDevice
 		if old, ok := alreadySeen[mockDisk.DevNum]; ok {
 			if mockDisk != old {
 				// we already saw a disk with this DevNum as a different pointer
@@ -397,7 +397,7 @@ func MockMountPointDisksToPartitionMapping(mockedMountPoints map[Mountpoint]*Moc
 		if opts == nil {
 			opts = &Options{}
 		}
-		m := Mountpoint{mountpoint, opts.IsDecryptedDevice}
+		m := Mountpoint{mountpoint, opts.IsCryptsetupDevice}
 		if mockedDisk, ok := mockedMountPoints[m]; ok {
 			return mockedDisk, nil
 		}
