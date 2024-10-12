@@ -20,7 +20,6 @@
 package httputil_test
 
 import (
-	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -151,7 +150,7 @@ type tlsSuite struct {
 
 	tmpdir            string
 	certpath, keypath string
-	logbuf            *bytes.Buffer
+	logbuf            logger.MockedLogger
 
 	srv *httptest.Server
 }

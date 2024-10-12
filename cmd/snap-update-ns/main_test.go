@@ -20,7 +20,6 @@
 package main_test
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -42,7 +41,7 @@ func Test(t *testing.T) { TestingT(t) }
 type mainSuite struct {
 	testutil.BaseTest
 	as  *update.Assumptions
-	log *bytes.Buffer
+	log logger.MockedLogger
 }
 
 var _ = Suite(&mainSuite{})

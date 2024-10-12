@@ -148,7 +148,7 @@ type baseMgrsSuite struct {
 
 	automaticSnapshots []automaticSnapshotCall
 
-	logbuf *bytes.Buffer
+	logbuf logger.MockedLogger
 
 	storeObserver func(r *http.Request)
 }
