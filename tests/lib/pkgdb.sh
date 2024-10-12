@@ -623,6 +623,11 @@ pkg_dependencies_ubuntu_classic(){
                 qemu-kvm
                 qemu-utils
                 "
+            if os.query is-ubuntu 24.10; then
+                echo "
+                    systemd-dev
+                    "
+            fi
             ;;
         ubuntu-*)
             echo "
