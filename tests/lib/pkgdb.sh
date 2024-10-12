@@ -622,8 +622,12 @@ pkg_dependencies_ubuntu_classic(){
                 lz4
                 qemu-kvm
                 qemu-utils
-                systemd-dev
                 "
+            if os.query is-ubuntu 24.10; then
+                echo "
+                    systemd-dev
+                    "
+            fi
             ;;
         ubuntu-*)
             echo "
