@@ -59,9 +59,7 @@ func delta(then, now time.Time) int {
 func humanTimeSince(then, now time.Time, cutoffDays int) string {
 	d := delta(then, now)
 	switch {
-	case d < -cutoffDays || d > cutoffDays:
-		return then.Format("2006-01-02")
-	case d < -1:
+	case d < -1 && d >= -cutoffDays:
 		// TRANSLATORS: %d will be at least 2; the singular is only included to help gettext
 		return fmt.Sprintf(then.Format(i18n.NG("%d day ago, at 15:04 MST", "%d days ago, at 15:04 MST", -d)), -d)
 	case d == -1:
@@ -70,12 +68,11 @@ func humanTimeSince(then, now time.Time, cutoffDays int) string {
 		return then.Format(i18n.G("today at 15:04 MST"))
 	case d == 1:
 		return then.Format(i18n.G("tomorrow at 15:04 MST"))
-	case d > 1:
+	case d > 1 && d <= cutoffDays:
 		// TRANSLATORS: %d will be at least 2; the singular is only included to help gettext
 		return fmt.Sprintf(then.Format(i18n.NG("in %d day, at 15:04 MST", "in %d days, at 15:04 MST", d)), d)
 	default:
-		// the following message is brought to you by Joel Armando, the self-described awesome and sexy mathematician.
-		panic("you have broken the law of trichotomy! ℤ is no longer totally ordered! chaos ensues!")
+		return then.Format("2006-01-02")
 	}
 }
 
