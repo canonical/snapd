@@ -2118,5 +2118,106 @@ func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
 				testutil.FileAbsent)
 		}
 	}
+}
 
+func (s *sealSuite) TestWithBootChains(c *C) {
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+	defer dirs.SetRootDir("")
+
+	model := boottest.MakeMockUC20Model()
+
+	modeenv := &boot.Modeenv{
+		Mode: "run",
+
+		// no recovery systems to keep things relatively short
+		//
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"grubx64.efi": []string{"grub-hash"},
+			"bootx64.efi": []string{"shim-hash"},
+		},
+
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"grubx64.efi": []string{"run-grub-hash"},
+		},
+
+		CurrentKernels: []string{"pc-kernel_500.snap"},
+
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		},
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
+	}
+
+	c.Assert(modeenv.WriteTo(dirs.GlobalRootDir), IsNil)
+
+	err := createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-seed"))
+	c.Assert(err, IsNil)
+
+	err = createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-boot"))
+	c.Assert(err, IsNil)
+
+	// mock asset cache
+	mockAssetsCache(c, rootdir, "grub", []string{
+		"run-grub-hash",
+		"grub-hash",
+		"shim-hash",
+	})
+
+	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+		return model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
+	})
+	defer restore()
+
+	var chains *boot.ResealKeyForBootChainsParams
+	err = boot.WithBootChains(func(ch *boot.ResealKeyForBootChainsParams) error {
+		chains = ch
+		return nil
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(chains, DeepEquals, &boot.ResealKeyForBootChainsParams{
+		RunModeBootChains: []boot.BootChain{
+			{
+				BrandID:        "my-brand",
+				Model:          "my-model-uc20",
+				Grade:          "dangerous",
+				ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+				AssetChain: []boot.BootAsset{
+					{
+						Role:   bootloader.RoleRecovery,
+						Name:   "bootx64.efi",
+						Hashes: []string{"shim-hash"},
+					},
+					{
+						Role:   bootloader.RoleRecovery,
+						Name:   "grubx64.efi",
+						Hashes: []string{"grub-hash"},
+					},
+					{
+						Role:   bootloader.RoleRunMode,
+						Name:   "grubx64.efi",
+						Hashes: []string{"run-grub-hash"},
+					},
+				},
+				Kernel:         "pc-kernel",
+				KernelRevision: "500",
+				KernelCmdlines: []string{
+					"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+				},
+				KernelBootFile: bootloader.BootFile{
+					Path: "kernel.efi",
+					Snap: filepath.Join(rootdir, "var/lib/snapd/snaps/pc-kernel_500.snap"),
+					Role: bootloader.RoleRunMode,
+				},
+			},
+		},
+		RoleToBlName: map[bootloader.Role]string{
+			bootloader.RoleRunMode:  "grub",
+			bootloader.RoleRecovery: "grub",
+		},
+	})
 }
