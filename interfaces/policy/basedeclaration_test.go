@@ -813,6 +813,7 @@ var (
 		"cups-control":              {"app", "core"},
 		"dbus":                      {"app"},
 		"docker-support":            {"core"},
+		"desktop-files":             {"core"},
 		"desktop-launch":            {"core"},
 		"dsp":                       {"core", "gadget"},
 		"empty":                     {"app"},
