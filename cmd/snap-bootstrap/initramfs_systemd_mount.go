@@ -88,15 +88,11 @@ type systemdMountOptions struct {
 	WorkDir string
 }
 
-func pathContainsAny(i string, chars string) bool {
-	for _, c := range chars {
-		if strings.IndexRune(i, c) >= 0 {
-			return true
-		}
-	}
+// forbiddenChars is a list of characters that are not allowed in any mount paths used in systemd-mount.
+const forbiddenChars = `\,:" `
 
-	return false
-}
+// colons are allowed for the lowerdir option of overlayfs in order to support multiple lowerdir paths.
+const forbiddenCharsExceptColon = `\," `
 
 // doSystemdMount will mount "what" at "where" using systemd-mount(1) with
 // various options. Note that in some error cases, the mount unit may have
@@ -183,11 +179,10 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 			return fmt.Errorf("cannot mount %q at %q: missing arguments for overlayfs mount. lowerdir, upperdir, workdir are needed.", what, where)
 		}
 
-		forbiddenChars := `\,:" `
-		if pathContainsAny(opts.UpperDir, forbiddenChars) {
+		if strings.ContainsAny(opts.UpperDir, forbiddenChars) {
 			return fmt.Errorf("cannot mount %q at %q: upperdir overlayfs mount option contains forbidden characters. %q contains one of \"%s\".", what, where, opts.UpperDir, forbiddenChars)
 		}
-		if pathContainsAny(opts.WorkDir, forbiddenChars) {
+		if strings.ContainsAny(opts.WorkDir, forbiddenChars) {
 			return fmt.Errorf("cannot mount %q at %q: workdir overlayfs mount option contains forbidden characters. %q contains one of \"%s\".", what, where, opts.WorkDir, forbiddenChars)
 		}
 
@@ -197,9 +192,8 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 				lowerDirs.WriteRune(':')
 			}
 
-			forbiddenChars := `\," `
-			if pathContainsAny(d, forbiddenChars) {
-				return fmt.Errorf("cannot mount %q at %q: lowerdir overlayfs mount option contains forbidden characters. %q contains one of \"%s\".", what, where, d, forbiddenChars)
+			if strings.ContainsAny(d, forbiddenCharsExceptColon) {
+				return fmt.Errorf("cannot mount %q at %q: lowerdir overlayfs mount option contains forbidden characters. %q contains one of \"%s\".", what, where, d, forbiddenCharsExceptColon)
 			}
 
 			// This is used for splitting multiple lowerdirs as done in
