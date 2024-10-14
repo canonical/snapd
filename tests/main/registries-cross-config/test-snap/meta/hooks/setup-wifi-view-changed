@@ -1,0 +1,4 @@
+#!/bin/sh -xe
+
+value=$(snapctl get --view :setup-wifi ssid)
+echo "$value" > "$SNAP_COMMON"/setup-wifi-view-changed-ran
