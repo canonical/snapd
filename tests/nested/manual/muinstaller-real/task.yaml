@@ -289,6 +289,12 @@ execute: |
   remote.exec test -d /run/mnt/ubuntu-seed/systems/classic
   remote.exec "sudo snap recovery" | MATCH 'classic\s+developer1\s+developer1-22-classic-dangerous\s+current'
 
+  echo "unasserted snaps"
+  remote.exec "ls /run/mnt/ubuntu-seed/systems/classic/snaps"
+
+  echo "asserted snaps"
+  remote.exec "ls /run/mnt/ubuntu-seed/snaps"
+
   # check for unasserted snaps
   for sn in pc pc-kernel snapd; do
       version=$(remote.exec "snap list ${sn}" | awk 'NR != 1 { print $2 }' | cut -d '+' -f 1)
