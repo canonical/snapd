@@ -28,6 +28,8 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -592,6 +594,16 @@ slots:
 	}
 	_, err = repo.Connect(ref, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
+
+	s.setRegistryFlag(true, c)
+}
+
+func (s *registrySuite) setRegistryFlag(val bool, c *C) {
+	tr := config.NewTransaction(s.state)
+	_, confOption := features.Registries.ConfigOption()
+	err := tr.Set("core", confOption, val)
+	c.Assert(err, IsNil)
+	tr.Commit()
 }
 
 func (s *registrySuite) TestRegistryGetSingleView(c *C) {
@@ -876,4 +888,17 @@ func (s *registrySuite) TestRegistryGetDifferentViewThanOngoingTx(c *C) {
 	c.Assert(err, ErrorMatches, `.* matching rules don't map to any values`)
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
+}
+
+func (s *registrySuite) TestRegistryExperimentalFlag(c *C) {
+	s.state.Lock()
+	s.setRegistryFlag(false, c)
+	s.state.Unlock()
+
+	for _, cmd := range []string{"get", "set", "unset"} {
+		stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{cmd, "--view", ":read-wifi"}, 0)
+		c.Assert(err, ErrorMatches, i18n.G(`"registries" feature flag is disabled: set 'experimental.registries' to true`))
+		c.Check(stdout, IsNil)
+		c.Check(stderr, IsNil)
+	}
 }

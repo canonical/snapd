@@ -108,6 +108,10 @@ func (s *setCommand) Execute(args []string) error {
 	}
 
 	if s.View {
+		if err := validateRegistriesFeatureFlag(context.State()); err != nil {
+			return err
+		}
+
 		opts := &clientutil.ParseConfigOptions{String: s.String, Typed: s.Typed}
 		requests, _, err := clientutil.ParseConfigValues(s.Positional.ConfValues, opts)
 		if err != nil {
