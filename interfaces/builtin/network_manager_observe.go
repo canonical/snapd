@@ -52,7 +52,7 @@ dbus (receive)
     bus=system
     path="/org/freedesktop/NetworkManager"
     interface="org.freedesktop.NetworkManager"
-    member="Get{,All}Devices"
+    member="Get{Devices,AllDevices,DeviceByIpIface}"
     peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive)
     bus=system
@@ -113,7 +113,7 @@ dbus (send)
     bus=system
     path="/org/freedesktop/NetworkManager"
     interface="org.freedesktop.NetworkManager"
-    member="GetDevices"
+    member="Get{Devices,AllDevices,DeviceByIpIface}"
     peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (send)
     bus=system
