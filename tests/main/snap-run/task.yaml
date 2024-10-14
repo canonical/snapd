@@ -79,7 +79,8 @@ execute: |
     echo "Test snap run --strace with options works"
     snap run --strace="-V" test-snapd-sh.sh -c 'echo hello-world' >stdout 2>stderr
     MATCH "strace -- version" < stdout
-    # We don't want to test for an empty stderr should there be unrelated errors with strace. Instead we look for a keyword
+    # We don't want to test for an empty stderr should there be unrelated errors with
+    # strace. Instead we look for a keyword
     NOMATCH 'exec' < stderr
 
     snap run --trace-exec test-snapd-sh.sh -c 'echo hello' 2> stderr
