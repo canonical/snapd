@@ -22,8 +22,6 @@
 package fdestate
 
 import (
-	"time"
-
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/boot"
@@ -73,12 +71,16 @@ func Manager(st *state.State, runner *state.TaskRunner) *FDEManager {
 			return false
 		}
 
+		// TODO: should we blocked on any FDE related task?
 		for _, runningT := range running {
 			if isFDETaskKind(runningT.Kind()) {
 				// we have other FDE tasks running
 				return true
 			}
 		}
+
+		// TODO: should the DBX update task be blocked until we're tracking the
+		// change, or is retry error in the task sufficient?
 
 		return false
 	})
@@ -125,5 +127,5 @@ func (m *FDEManager) doEFISecurebootDBUpdate(task *state.Task, tomb *tomb.Tomb) 
 	// the handler does not do anything, it merely represents an action running externally
 
 	// TODO should this keep returning state.Retry?
-	return &state.Retry{After: time.Minute}
+	return &state.Retry{}
 }
