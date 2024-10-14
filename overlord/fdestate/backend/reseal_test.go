@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
@@ -1703,4 +1704,151 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(resealCalls, Equals, 2)
+}
+
+func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
+	mockAssetsCache(c, s.rootdir, "trusted", []string{
+		"asset-asset-hash-1",
+	})
+
+	// match one of current kernels
+	runKernelBf := bootloader.NewBootFile("/var/lib/snapd/snap/pc-kernel_500.snap", "kernel.efi", bootloader.RoleRunMode)
+	// match the seed kernel
+	recoveryKernelBf := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
+
+	// keep this relatively realistic
+	runBootChains := []boot.BootChain{
+		{
+			BrandID:        "my-brand",
+			Model:          "my-model-uc20",
+			Grade:          "dangerous",
+			ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+			AssetChain: []boot.BootAsset{
+				{
+					Role:   "run-mode",
+					Name:   "asset",
+					Hashes: []string{"asset-hash-1"},
+				},
+			},
+			Kernel:         "pc-kernel",
+			KernelRevision: "500",
+			KernelCmdlines: []string{
+				"snapd_recovery_mode=run static cmdline",
+			},
+			KernelBootFile: runKernelBf,
+		},
+	}
+
+	recoveryBootChainsForRun := []boot.BootChain{
+		{
+			BrandID:        "my-brand",
+			Model:          "my-model-uc20",
+			Grade:          "dangerous",
+			ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+			AssetChain: []boot.BootAsset{
+				{
+					Role:   "recovery",
+					Name:   "asset",
+					Hashes: []string{"asset-hash-1"},
+				},
+			},
+			Kernel:         "pc-kernel",
+			KernelRevision: "1",
+			KernelCmdlines: []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+			},
+			KernelBootFile: recoveryKernelBf,
+		},
+	}
+
+	recoveryBootChains := []boot.BootChain{
+		{
+			BrandID:        "my-brand",
+			Model:          "my-model-uc20",
+			Grade:          "dangerous",
+			ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+			AssetChain: []boot.BootAsset{
+				{
+					Role:   "recovery",
+					Name:   "asset",
+					Hashes: []string{"asset-hash-1"},
+				},
+			},
+			Kernel:         "pc-kernel",
+			KernelRevision: "1",
+			KernelCmdlines: []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+			},
+			KernelBootFile: recoveryKernelBf,
+		},
+	}
+
+	// write boot chains so that a usual reseal would not happen
+	pbc := boot.ToPredictableBootChains(append(runBootChains, recoveryBootChainsForRun...))
+	err := boot.WriteBootChains(pbc, backend.BootChainsFileUnder(dirs.GlobalRootDir), 0)
+	c.Assert(err, IsNil)
+
+	rpbc := boot.ToPredictableBootChains(recoveryBootChains)
+	err = boot.WriteBootChains(rpbc, backend.RecoveryBootChainsFileUnder(dirs.GlobalRootDir), 0)
+	c.Assert(err, IsNil)
+
+	// make sure that normally a reseal would not be needed
+	const expectReseal = true
+	needed, next, err := boot.IsResealNeeded(pbc, backend.BootChainsFileUnder(dirs.GlobalRootDir), expectReseal)
+	c.Assert(err, IsNil)
+	c.Assert(needed, Equals, false)
+	c.Assert(next, Equals, 1)
+	// and same for recovery
+	needed, next, err = boot.IsResealNeeded(rpbc, backend.RecoveryBootChainsFileUnder(dirs.GlobalRootDir), expectReseal)
+	c.Assert(err, IsNil)
+	c.Assert(needed, Equals, false)
+	c.Assert(next, Equals, 1)
+
+	params := &boot.ResealKeyForBootChainsParams{
+		RunModeBootChains:           runBootChains,
+		RecoveryBootChainsForRunKey: recoveryBootChainsForRun,
+		RecoveryBootChains:          recoveryBootChains,
+		RoleToBlName: map[bootloader.Role]string{
+			bootloader.RoleRunMode:  "trusted",
+			bootloader.RoleRecovery: "trusted",
+		},
+	}
+
+	buildProfileCalls := 0
+	restore := fdeBackend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+		buildProfileCalls++
+
+		c.Assert(modelParams, HasLen, 1)
+		// same DBX update paylad is included for both run and recovery keys
+		c.Assert(modelParams[0].EFIForbiddenKeySignatureDBUpdate, DeepEquals, []byte("dbx-payload"))
+
+		return []byte(`"serialized-pcr-profile-with-dbx"`), nil
+	})
+	defer restore()
+
+	// set mock key resealing
+	resealKeysCalls := 0
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		resealKeysCalls++
+
+		c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-pcr-profile-with-dbx"`))
+		c.Logf("reseal: %+v", params)
+
+		return nil
+	})
+	defer restore()
+
+	updateCalls := 0
+	up := func(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
+		updateCalls++
+		return nil
+	}
+
+	err = backend.ResealKeysForSignaturesDBUpdate(up, device.SealingMethodTPM, dirs.GlobalRootDir,
+		params, []byte("dbx-payload"))
+	c.Assert(err, IsNil)
+
+	// reseal was called
+	c.Check(buildProfileCalls, Equals, 2)
+	c.Check(resealKeysCalls, Equals, 2)
 }
