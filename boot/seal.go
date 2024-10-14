@@ -266,6 +266,102 @@ type ResealKeyForBootChainsParams struct {
 	RoleToBlName map[bootloader.Role]string
 }
 
+// WithBootChains calls the provided function passing the boot chains which may
+// be observed when booting as an input. The boot can be used as an input for
+// resealing of disk encryption keys. The modeenv is locked internally, hence
+// resealing is safe to perform
+func WithBootChains(f func(bc *ResealKeyForBootChainsParams) error) error {
+	modeenvLock()
+	defer modeenvUnlock()
+
+	m, err := loadModeenv()
+	if err != nil {
+		return err
+	}
+
+	bc, err := bootChains(m)
+	if err != nil {
+		return err
+	}
+
+	return f(bc)
+}
+
+// bootChains constructs the boot chains which may be observed when booting the
+// device such that they can be used as an input for resealing of encryption
+// keys.
+func bootChains(modeenv *Modeenv) (*ResealKeyForBootChainsParams, error) {
+	params := &ResealKeyForBootChainsParams{}
+
+	// build the recovery mode boot chain
+	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
+		Role: bootloader.RoleRecovery,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot find the recovery bootloader: %v", err)
+	}
+	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
+	if !ok {
+		// TODO:UC20: later the exact kind of bootloaders we expect here might change
+		return nil, fmt.Errorf("internal error: sealed keys but not a trusted assets bootloader")
+	}
+	// derive the allowed modes for each system mentioned in the modeenv
+	modes := modesForSystems(modeenv)
+
+	// the recovery boot chains for the run key are generated for all
+	// recovery systems, including those that are being tried; since this is
+	// a run key, the boot chains are generated for both models to
+	// accommodate the dynamics of a remodel
+	includeTryModel := true
+	params.RecoveryBootChainsForRunKey, err = recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, modes, tbl,
+		modeenv, includeTryModel, dirs.SnapSeedDir)
+	if err != nil {
+		return nil, fmt.Errorf("cannot compose recovery boot chains for run key: %v", err)
+	}
+
+	// the boot chains for recovery keys include only those system that were
+	// tested and are known to be good
+	testedRecoverySystems := modeenv.GoodRecoverySystems
+	if len(testedRecoverySystems) == 0 && len(modeenv.CurrentRecoverySystems) > 0 {
+		// compatibility for systems where good recovery systems list
+		// has not been populated yet
+		testedRecoverySystems = modeenv.CurrentRecoverySystems[:1]
+		logger.Noticef("no good recovery systems for reseal, fallback to known current system %v",
+			testedRecoverySystems[0])
+	}
+	// use the current model as the recovery keys are not expected to be
+	// used during a remodel
+	includeTryModel = false
+	params.RecoveryBootChains, err = recoveryBootChainsForSystems(testedRecoverySystems, modes, tbl, modeenv, includeTryModel, dirs.SnapSeedDir)
+	if err != nil {
+		return nil, fmt.Errorf("cannot compose recovery boot chains: %v", err)
+	}
+
+	// build the run mode boot chains
+	bl, err := bootloader.Find(InitramfsUbuntuBootDir, &bootloader.Options{
+		Role:        bootloader.RoleRunMode,
+		NoSlashBoot: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot find the bootloader: %v", err)
+	}
+	cmdlines, err := kernelCommandLinesForResealWithFallback(modeenv)
+	if err != nil {
+		return nil, err
+	}
+	params.RunModeBootChains, err = runModeBootChains(tbl, bl, modeenv, cmdlines, "")
+	if err != nil {
+		return nil, fmt.Errorf("cannot compose run mode boot chains: %v", err)
+	}
+
+	params.RoleToBlName = map[bootloader.Role]string{
+		bootloader.RoleRecovery: rbl.Name(),
+		bootloader.RoleRunMode:  bl.Name(),
+	}
+
+	return params, nil
+}
+
 func resealKeyToModeenvForMethod(unlocker Unlocker, method device.SealingMethod, rootdir string, modeenv *Modeenv, expectReseal bool) error {
 	// this is just optimization. If the backend does not need it, we should not calculate it.
 	requiresBootChains := true
@@ -277,71 +373,11 @@ func resealKeyToModeenvForMethod(unlocker Unlocker, method device.SealingMethod,
 	params := &ResealKeyForBootChainsParams{}
 
 	if requiresBootChains {
-		// build the recovery mode boot chain
-		rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
-			Role: bootloader.RoleRecovery,
-		})
-		if err != nil {
-			return fmt.Errorf("cannot find the recovery bootloader: %v", err)
-		}
-		tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
-		if !ok {
-			// TODO:UC20: later the exact kind of bootloaders we expect here might change
-			return fmt.Errorf("internal error: sealed keys but not a trusted assets bootloader")
-		}
-		// derive the allowed modes for each system mentioned in the modeenv
-		modes := modesForSystems(modeenv)
-
-		// the recovery boot chains for the run key are generated for all
-		// recovery systems, including those that are being tried; since this is
-		// a run key, the boot chains are generated for both models to
-		// accommodate the dynamics of a remodel
-		includeTryModel := true
-		params.RecoveryBootChainsForRunKey, err = recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, modes, tbl,
-			modeenv, includeTryModel, dirs.SnapSeedDir)
-		if err != nil {
-			return fmt.Errorf("cannot compose recovery boot chains for run key: %v", err)
-		}
-
-		// the boot chains for recovery keys include only those system that were
-		// tested and are known to be good
-		testedRecoverySystems := modeenv.GoodRecoverySystems
-		if len(testedRecoverySystems) == 0 && len(modeenv.CurrentRecoverySystems) > 0 {
-			// compatibility for systems where good recovery systems list
-			// has not been populated yet
-			testedRecoverySystems = modeenv.CurrentRecoverySystems[:1]
-			logger.Noticef("no good recovery systems for reseal, fallback to known current system %v",
-				testedRecoverySystems[0])
-		}
-		// use the current model as the recovery keys are not expected to be
-		// used during a remodel
-		includeTryModel = false
-		params.RecoveryBootChains, err = recoveryBootChainsForSystems(testedRecoverySystems, modes, tbl, modeenv, includeTryModel, dirs.SnapSeedDir)
-		if err != nil {
-			return fmt.Errorf("cannot compose recovery boot chains: %v", err)
-		}
-
-		// build the run mode boot chains
-		bl, err := bootloader.Find(InitramfsUbuntuBootDir, &bootloader.Options{
-			Role:        bootloader.RoleRunMode,
-			NoSlashBoot: true,
-		})
-		if err != nil {
-			return fmt.Errorf("cannot find the bootloader: %v", err)
-		}
-		cmdlines, err := kernelCommandLinesForResealWithFallback(modeenv)
+		bc, err := bootChains(modeenv)
 		if err != nil {
 			return err
 		}
-		params.RunModeBootChains, err = runModeBootChains(tbl, bl, modeenv, cmdlines, "")
-		if err != nil {
-			return fmt.Errorf("cannot compose run mode boot chains: %v", err)
-		}
-
-		params.RoleToBlName = map[bootloader.Role]string{
-			bootloader.RoleRecovery: rbl.Name(),
-			bootloader.RoleRunMode:  bl.Name(),
-		}
+		params = bc
 	}
 
 	return ResealKeyForBootChains(unlocker, method, rootdir, params, expectReseal)
@@ -353,7 +389,7 @@ func resealKeyForBootChainsImpl(unlocker Unlocker, method device.SealingMethod, 
 
 var ResealKeyForBootChains = resealKeyForBootChainsImpl
 
-// recoveryModesForSystems returns a map for recovery modes for recovery systems
+// modesForSystems returns a map for recovery modes for recovery systems
 // mentioned in the modeenv. The returned map contains both tested and candidate
 // recovery systems
 func modesForSystems(modeenv *Modeenv) map[string][]string {
