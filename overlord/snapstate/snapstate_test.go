@@ -5918,6 +5918,116 @@ func (s *snapmgrTestSuite) TestTransitionCoreBlocksOtherChanges(c *C) {
 	c.Check(ts, NotNil)
 }
 
+func (s *snapmgrTestSuite) TestTransitionCoreValidationSetsInvalid(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	headers := map[string]interface{}{
+		"type":         "validation-set",
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "bar",
+		"sequence":     "3",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "core",
+				"id":       snaptest.AssertedSnapID("core"),
+				"presence": "invalid",
+			},
+		},
+	}
+
+	signing := assertstest.NewStoreStack("can0nical", nil)
+	a, err := signing.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	vs := a.(*asserts.ValidationSet)
+
+	vsets := snapasserts.NewValidationSets()
+	err = vsets.Add(vs)
+	c.Assert(err, IsNil)
+	c.Assert(vsets.Conflict(), IsNil)
+
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		return vsets, nil
+	})
+	s.AddCleanup(restore)
+
+	snapstate.Set(s.state, "core", nil)
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}}),
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	_, err = snapstate.TransitionCore(s.state, "ubuntu-core", "core")
+	c.Assert(err, ErrorMatches, `cannot install snap "core" due to enforcing rules of validation set 16/foo/bar/3`)
+}
+
+func (s *snapmgrTestSuite) TestTransitionCoreValidationSetsRevision(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	headers := map[string]interface{}{
+		"type":         "validation-set",
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "bar",
+		"sequence":     "3",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "core",
+				"id":       snaptest.AssertedSnapID("core"),
+				"presence": "required",
+				"revision": "15",
+			},
+		},
+	}
+
+	signing := assertstest.NewStoreStack("can0nical", nil)
+	a, err := signing.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	vs := a.(*asserts.ValidationSet)
+
+	vsets := snapasserts.NewValidationSets()
+	err = vsets.Add(vs)
+	c.Assert(err, IsNil)
+	c.Assert(vsets.Conflict(), IsNil)
+
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		return vsets, nil
+	})
+	s.AddCleanup(restore)
+
+	snapstate.Set(s.state, "core", nil)
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}}),
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	_, err = snapstate.TransitionCore(s.state, "ubuntu-core", "core")
+	c.Assert(err, IsNil)
+
+	c.Assert(s.fakeBackend.ops, HasLen, 2)
+	c.Assert(s.fakeBackend.ops[1], DeepEquals, fakeOp{
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:         "install",
+			InstanceName:   "core",
+			Channel:        "",
+			Revision:       snap.R(15),
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/3"},
+		},
+		revno: snap.R(15),
+	})
+}
+
 func (s *snapmgrTestSuite) TestTransitionSnapdSnapDoesNotRunWithoutSnaps(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

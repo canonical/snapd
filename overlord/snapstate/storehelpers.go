@@ -275,7 +275,11 @@ func downloadInfo(ctx context.Context, st *state.State, name string, revOpts *Re
 	return singleActionResult(name, action.Action, res, err)
 }
 
-func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (store.SnapActionResult, error) {
+func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int) (store.SnapActionResult, error) {
+	if len(revOpts.ValidationSets) > 0 {
+		return store.SnapActionResult{}, errors.New("internal error: only enforced validation sets are supported")
+	}
+
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
 		return store.SnapActionResult{}, err
@@ -296,46 +300,35 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 		InstanceName: name,
 	}
 
-	if flags.IgnoreValidation {
-		action.Flags = store.SnapActionIgnoreValidation
-	}
-
 	var requiredRevision snap.Revision
 	var requiredValSets []snapasserts.ValidationSetKey
 
-	if !flags.IgnoreValidation {
-		if len(revOpts.ValidationSets) > 0 {
-			requiredRevision = revOpts.Revision
-			requiredValSets = revOpts.ValidationSets
-		} else {
-			enforcedSets, err := EnforcedValidationSets(st)
-			if err != nil {
-				return store.SnapActionResult{}, err
-			}
+	enforcedSets, err := EnforcedValidationSets(st)
+	if err != nil {
+		return store.SnapActionResult{}, err
+	}
 
-			if enforcedSets != nil {
-				// check for invalid presence first to have a list of sets where it's invalid
-				invalidForValSets, err := enforcedSets.CheckPresenceInvalid(naming.Snap(name))
-				if err != nil {
-					if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
-						return store.SnapActionResult{}, err
-					} // else presence is optional or required, carry on
-				}
-				if len(invalidForValSets) > 0 {
-					return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, snapasserts.ValidationSetKeySlice(invalidForValSets).CommaSeparated())
-				}
-				requiredValSets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(name))
-				if err != nil {
-					return store.SnapActionResult{}, err
-				}
-			}
+	// check for invalid presence first to have a list of sets where it's invalid
+	invalidForValSets, err := enforcedSets.CheckPresenceInvalid(naming.Snap(name))
+	if err != nil {
+		if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
+			return store.SnapActionResult{}, err
+		} // else presence is optional or required, carry on
+	}
 
-			// check if desired revision matches the revision required by validation sets
-			if !requiredRevision.Unset() && !revOpts.Revision.Unset() && revOpts.Revision.N != requiredRevision.N {
-				return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q at requested revision %s without --ignore-validation, revision %s required by validation sets: %s",
-					name, revOpts.Revision, requiredRevision, snapasserts.ValidationSetKeySlice(requiredValSets).CommaSeparated())
-			}
-		}
+	if len(invalidForValSets) > 0 {
+		return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, snapasserts.ValidationSetKeySlice(invalidForValSets).CommaSeparated())
+	}
+
+	requiredValSets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(name))
+	if err != nil {
+		return store.SnapActionResult{}, err
+	}
+
+	// check if desired revision matches the revision required by validation sets
+	if !requiredRevision.Unset() && !revOpts.Revision.Unset() && revOpts.Revision.N != requiredRevision.N {
+		return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q at requested revision %s without --ignore-validation, revision %s required by validation sets: %s",
+			name, revOpts.Revision, requiredRevision, snapasserts.ValidationSetKeySlice(requiredValSets).CommaSeparated())
 	}
 
 	if len(requiredValSets) > 0 {
@@ -354,7 +347,7 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 		}
 	}
 
-	theStore := Store(st, deviceCtx)
+	theStore := Store(st, nil)
 	st.Unlock() // calls to the store should be done without holding the state lock
 	res, _, err := theStore.SnapAction(ctx, curSnaps, []*store.SnapAction{action}, nil, user, opts)
 	st.Lock()
