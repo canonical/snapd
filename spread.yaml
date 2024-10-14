@@ -312,6 +312,26 @@ backends:
                   storage: 25G
                   workers: 14
 
+    google-kernels:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/us-central1-a
+        plan: n2-standard-2
+        halt-timeout: 2h
+        systems:
+            - ubuntu-20.04-64:
+                  storage: 20G
+                  workers: 1
+            - ubuntu-22.04-64:
+                  storage: 25G
+                  workers: 1
+            - ubuntu-24.04-64:
+                  storage: 25G
+                  workers: 1
+            - ubuntu-24.10-64:
+                  storage: 25G
+                  workers: 1
+
     google-nested-arm:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
@@ -1450,5 +1470,38 @@ suites:
             if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
                 systemctl status snapd.socket || true
             fi
+
+    tests/kernels/:
+        summary: Test snapd with different kernels
+        backends: [ google-kernels ]
+        systems:
+          - ubuntu-2*
+        manual: true
+        environment:
+          USE_KERNEL/latest: ''
+          USE_KERNEL/version: '$(HOST: echo "$SPREAD_USE_KERNEL")'
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+        prepare-each: |
+            wget https://raw.githubusercontent.com/pimlie/ubuntu-mainline-kernel.sh/master/ubuntu-mainline-kernel.sh
+            chmod +x ubuntu-mainline-kernel.sh
+          
+            if [ "$SPREAD_REBOOT" = 0 ]; then
+                # Remove the current kernel
+                apt remove -y linux-headers-*
+                apt remove -y linux-image-*
+                
+                # Install the new kernel
+                # shellcheck disable=SC2086
+                ./ubuntu-mainline-kernel.sh --yes -i $USE_KERNEL
+
+                REBOOT
+            fi
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+
 
 # vim:ts=4:sw=4:et
