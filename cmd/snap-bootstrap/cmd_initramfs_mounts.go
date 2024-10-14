@@ -96,11 +96,11 @@ var (
 		snap.TypeSnapd:  "snapd",
 	}
 
-	secbootProvisionForCVM                       func(initramfsUbuntuSeedDir string) error
-	secbootMeasureSnapSystemEpochWhenPossible    func() error
-	secbootMeasureSnapModelWhenPossible          func(findModel func() (*asserts.Model, error)) error
-	secbootUnlockVolumeUsingSealedKeyIfEncrypted func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)
-	secbootUnlockEncryptedVolumeUsingKey         func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error)
+	secbootProvisionForCVM                        func(initramfsUbuntuSeedDir string) error
+	secbootMeasureSnapSystemEpochWhenPossible     func() error
+	secbootMeasureSnapModelWhenPossible           func(findModel func() (*asserts.Model, error)) error
+	secbootUnlockVolumeUsingSealedKeyIfEncrypted  func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)
+	secbootUnlockEncryptedVolumeUsingProtectorKey func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error)
 
 	secbootLockSealedKeys func() error
 
@@ -1211,7 +1211,7 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveRunKey() (stateFunc, error)
 		return m.unlockEncryptedSaveFallbackKey, nil
 	}
 
-	unlockRes, unlockErr := secbootUnlockEncryptedVolumeUsingKey(m.disk, "ubuntu-save", key)
+	unlockRes, unlockErr := secbootUnlockEncryptedVolumeUsingProtectorKey(m.disk, "ubuntu-save", key)
 	if err := m.setUnlockStateWithRunKey("ubuntu-save", unlockRes, unlockErr); err != nil {
 		return nil, err
 	}
@@ -1800,7 +1800,7 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 		if err != nil {
 			return true, err
 		}
-		unlockRes, err := secbootUnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", key)
+		unlockRes, err := secbootUnlockEncryptedVolumeUsingProtectorKey(disk, "ubuntu-save", key)
 		if err != nil {
 			return true, fmt.Errorf("cannot unlock ubuntu-save volume: %v", err)
 		}
