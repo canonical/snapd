@@ -323,10 +323,6 @@ func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile str
 	}
 	keys = append(keys, keyData)
 	options := activateVolOpts(allowRecovery)
-	// Ignoring model checker as it doesn't work with tpm "legacy" platform key data.
-	// TODO: In the general case anway, it is also not how the model is
-	// supposed to be provided. We should call SetModels instead.
-	options.Model = sb.SkipSnapModelCheck
 	authRequestor, err := newAuthRequestor()
 	if err != nil {
 		return NotUnlocked, fmt.Errorf("internal error: cannot build an auth requestor: %v", err)

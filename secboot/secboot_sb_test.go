@@ -653,7 +653,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 					PassphraseTries:  1,
 					RecoveryKeyTries: 3,
 					KeyringPrefix:    "ubuntu-fde",
-					Model:            sb.SkipSnapModelCheck,
 				})
 			} else {
 				c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
@@ -661,7 +660,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 					// activation with recovery key was disabled
 					RecoveryKeyTries: 0,
 					KeyringPrefix:    "ubuntu-fde",
-					Model:            sb.SkipSnapModelCheck,
 				})
 			}
 			return tc.activateErr
