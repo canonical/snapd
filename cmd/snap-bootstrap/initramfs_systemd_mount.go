@@ -183,7 +183,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	}
 	if opts.VerityHashDevice != "" && opts.VerityRootHash != "" {
 		options = append(options, fmt.Sprintf("verity.roothash=%s", opts.VerityRootHash))
-		options = append(options, fmt.Sprintf("verity.hashdevice=\"%s\"", opts.VerityHashDevice))
+		options = append(options, fmt.Sprintf("verity.hashdevice=%s", opts.VerityHashDevice))
 
 		if opts.VerityHashOffset != 0 {
 			options = append(options, fmt.Sprintf("verity.hashoffset=%d", opts.VerityHashOffset))
