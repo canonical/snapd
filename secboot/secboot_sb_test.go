@@ -2552,7 +2552,7 @@ type SomeStructure struct {
 
 func (s *secbootSuite) TestSerializedProfile(c *C) {
 	krp := SomeStructure{
-		TPM2PCRProfile: secboot.SerializedPCRProfile(`"serialized-profile"`),
+		TPM2PCRProfile: secboot.SerializedPCRProfile("serialized-profile"),
 	}
 
 	data, err := json.Marshal(krp)
@@ -2561,6 +2561,7 @@ func (s *secbootSuite) TestSerializedProfile(c *C) {
 	err = json.Unmarshal(data, &raw)
 	c.Assert(err, IsNil)
 	c.Check(raw, DeepEquals, map[string]any{
-		"tpm2-pcr-profile": "serialized-profile",
+		// binary blobk is serialized to base64 by default
+		"tpm2-pcr-profile": base64.StdEncoding.EncodeToString([]byte("serialized-profile")),
 	})
 }
