@@ -201,9 +201,11 @@ func (h *saveViewHandler) Error(origErr error) (ignoreErr bool, err error) {
 		return false, err
 	}
 
+	// save the tasks after the failed task so we can insert rollback tasks between them
+	haltTasks := t.HaltTasks()
+
 	// create roll back tasks for the previously done save-registry hooks (starting
-	// with the hook that failed, so it tries to overwrite with a pristine databag
-	// just like any previous save-view hooks)
+	// with the hook that failed, so it tries to overwrite with a pristine databag)
 	last := t
 	for curTask := t; curTask.Kind() == "run-hook"; curTask = curTask.WaitTasks()[0] {
 		var hooksup hookstate.HookSetup
@@ -231,7 +233,7 @@ func (h *saveViewHandler) Error(origErr error) (ignoreErr bool, err error) {
 
 	// prevent the next registry tasks from running before the rollbacks. Once the
 	// last rollback task errors, these will be put on Hold by the usual mechanism
-	for _, halt := range t.HaltTasks() {
+	for _, halt := range haltTasks {
 		halt.WaitFor(last)
 	}
 
