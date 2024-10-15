@@ -64,7 +64,7 @@ func (s *fdeMgrSuite) TestGetManagerFromState(c *C) {
 
 	defer fdestate.MockDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
 		switch mountpoint {
-		case dirs.GlobalRootDir:
+		case dirs.SnapdStateDir(dirs.GlobalRootDir):
 			return "aaa", nil
 		case dirs.SnapSaveDir:
 			return "bbb", nil
@@ -136,7 +136,7 @@ func (s *fdeMgrSuite) TestUpdateState(c *C) {
 
 	defer fdestate.MockDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
 		switch mountpoint {
-		case dirs.GlobalRootDir:
+		case dirs.SnapdStateDir(dirs.GlobalRootDir):
 			return "aaa", nil
 		case dirs.SnapSaveDir:
 			return "bbb", nil
@@ -191,7 +191,7 @@ func (s *fdeMgrSuite) TestUpdateReseal(c *C) {
 
 	defer fdestate.MockDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
 		switch mountpoint {
-		case dirs.GlobalRootDir:
+		case dirs.SnapdStateDir(dirs.GlobalRootDir):
 			return "aaa", nil
 		case dirs.SnapSaveDir:
 			return "bbb", nil
