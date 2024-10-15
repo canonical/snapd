@@ -274,6 +274,11 @@ func (cs *clientSuite) testClientSnap(c *check.C, refreshInhibited bool) {
 			"private": true,
 			"devmode": true,
 			"trymode": true,
+			"refresh-failures": {
+				"revision": 43,
+				"failure-count": 5,
+				"last-failure-time": "2024-10-06T21:31:05Z"
+			},
                         "screenshots": [
                             {"url":"http://example.com/shot1.png", "width":640, "height":480},
                             {"url":"http://example.com/shot2.png"}
@@ -356,6 +361,11 @@ func (cs *clientSuite) testClientSnap(c *check.C, refreshInhibited bool) {
 		Website:        "http://example.com/funky",
 		StoreURL:       "https://snapcraft.io/chatroom",
 		RefreshInhibit: expectedSnapRefreshInhibit,
+		RefreshFailures: &snap.RefreshFailuresInfo{
+			Revision:        snap.R(43),
+			FailureCount:    5,
+			LastFailureTime: time.Date(2024, 10, 6, 21, 31, 5, 0, time.UTC),
+		},
 	})
 }
 
