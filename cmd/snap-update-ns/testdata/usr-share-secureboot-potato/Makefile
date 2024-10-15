@@ -3,125 +3,156 @@ ifeq (,$(findstring grouped-target,$(.FEATURES)))
 $(error You need make with the grouped-taget feature to build this dataset)
 endif
 
-fstab_files = content-layout-1-initially-connected.current.fstab \
-			  content-layout-1-initially-connected.desired.fstab \
-			  content-layout-2-after-disconnect.desired.fstab \
-			  content-layout-2-after-disconnect.current.fstab \
-			  content-layout-3-after-reconnect.desired.fstab \
-			  content-layout-3-after-reconnect.current.fstab \
-			  content-layout-4-initially-disconnected-then-connected.before.current.fstab \
-			  content-layout-4-initially-disconnected-then-connected.desired.fstab \
-			  content-layout-4-initially-disconnected-then-connected.current.fstab \
-			  content-layout-5-initially-connected-then-content-refreshed.before.current.fstab \
-			  content-layout-5-initially-connected-then-content-refreshed.desired.fstab \
-			  content-layout-5-initially-connected-then-content-refreshed.current.fstab \
-			  content-layout-6-initially-connected-then-app-refreshed.before.current.fstab \
-			  content-layout-6-initially-connected-then-app-refreshed.desired.fstab \
-			  content-layout-6-initially-connected-then-app-refreshed.current.fstab
+fstab_files = \
+	      1-initially-connected.current.fstab \
+	      1-initially-connected.desired.fstab \
+	      2-after-disconnect.desired.fstab \
+	      2-after-disconnect.current.fstab \
+	      3-after-reconnect.desired.fstab \
+	      3-after-reconnect.current.fstab \
+	      4-initially-disconnected-then-connected.before.current.fstab \
+	      4-initially-disconnected-then-connected.desired.fstab \
+	      4-initially-disconnected-then-connected.current.fstab \
+	      5-initially-connected-then-content-refreshed.before.current.fstab \
+	      5-initially-connected-then-content-refreshed.desired.fstab \
+	      5-initially-connected-then-content-refreshed.current.fstab \
+	      6-initially-connected-then-app-refreshed.before.current.fstab \
+	      6-initially-connected-then-app-refreshed.desired.fstab \
+	      6-initially-connected-then-app-refreshed.current.fstab
 
 # None of the fstab files can be built in parallel as the depend on global system state.
 .NOTPARALLEL: $(fstab_files)
 .PHONY: all
 all: $(fstab_files)
 
-content-layout-1-initially-connected.desired.fstab content-layout-1-initially-connected.current.fstab &: test-snapd-content-layout_a_all.snap test-snapd-content_a_all.snap
-	sudo snap remove --purge test-snapd-content-layout
+.PHONY:
+clean:
+	rm -f $(fstab_files)
+	rm -f *.snap
+	rm -f *.mountinfo
+	rm -f *.find
+
+$(addprefix 1-initially-connected,.desired.fstab .current.fstab .mountinfo) &: PREFIX=1-initially-connected
+$(addprefix 1-initially-connected,.desired.fstab .current.fstab .mountinfo) &: test-snapd-layout_a_all.snap test-snapd-content_a_all.snap
+	sudo snap remove --purge test-snapd-layout
 	sudo snap remove --purge test-snapd-content
 	sudo snap install --dangerous $(word 1,$^)
 	sudo snap install --dangerous $(word 1,$^) # Reinstall to get another revision for better clarity of the data.
 	sudo snap install --dangerous $(word 2,$^)
-	sudo snap connect test-snapd-content-layout:just-content test-snapd-content:just-content
-	snap run test-snapd-content-layout.sh -c true
-	cp /var/lib/snapd/mount/snap.test-snapd-content-layout.fstab content-layout-1-initially-connected.desired.fstab
-	cp /run/snapd/ns/snap.test-snapd-content-layout.fstab content-layout-1-initially-connected.current.fstab
-	sudo snap remove --purge test-snapd-content-layout
+	sudo snap connect test-snapd-layout:content test-snapd-content:content
+	snap run test-snapd-layout.sh -c true
+	cp /var/lib/snapd/mount/snap.test-snapd-layout.fstab $(PREFIX).desired.fstab
+	cp /run/snapd/ns/snap.test-snapd-layout.fstab $(PREFIX).current.fstab
+	sudo nsenter -m/run/snapd/ns/test-snapd-layout.mnt cat /proc/self/mountinfo >$(PREFIX).mountinfo
+	sudo nsenter -m/run/snapd/ns/test-snapd-layout.mnt find /usr/share/secureboot >$(PREFIX).usr.share.secureboot.find
+	sudo snap remove --purge test-snapd-layout
 	sudo snap remove --purge test-snapd-content
 	patch <annotations-1.patch
 
-content-layout-2-after-disconnect.desired.fstab content-layout-2-after-disconnect.current.fstab &: test-snapd-content-layout_a_all.snap test-snapd-content_a_all.snap
-	sudo snap remove --purge test-snapd-content-layout
+$(addprefix 2-after-disconnect,.desired.fstab .current.fstab .mountinfo) &: PREFIX=2-after-disconnect
+$(addprefix 2-after-disconnect,.desired.fstab .current.fstab .mountinfo) &: test-snapd-layout_a_all.snap test-snapd-content_a_all.snap
+	sudo snap remove --purge test-snapd-layout
 	sudo snap remove --purge test-snapd-content
 	sudo snap install --dangerous $(word 1,$^)
 	sudo snap install --dangerous $(word 1,$^) # Reinstall to get another revision for better clarity of the data.
 	sudo snap install --dangerous $(word 2,$^)
-	sudo snap connect test-snapd-content-layout:just-content test-snapd-content:just-content
-	snap run test-snapd-content-layout.sh -c true
-	sudo snap disconnect test-snapd-content-layout:just-content test-snapd-content:just-content
-	cp /var/lib/snapd/mount/snap.test-snapd-content-layout.fstab content-layout-2-after-disconnect.desired.fstab
-	cp /run/snapd/ns/snap.test-snapd-content-layout.fstab content-layout-2-after-disconnect.current.fstab
-	sudo snap remove --purge test-snapd-content-layout
+	sudo snap connect test-snapd-layout:content test-snapd-content:content
+	snap run test-snapd-layout.sh -c true
+	sudo snap disconnect test-snapd-layout:content test-snapd-content:content
+	cp /var/lib/snapd/mount/snap.test-snapd-layout.fstab $(PREFIX).desired.fstab
+	cp /run/snapd/ns/snap.test-snapd-layout.fstab $(PREFIX).current.fstab
+	sudo nsenter -m/run/snapd/ns/test-snapd-layout.mnt cat /proc/self/mountinfo >$(PREFIX).mountinfo
+	sudo nsenter -m/run/snapd/ns/test-snapd-layout.mnt find /usr/share/secureboot >$(PREFIX).usr.share.secureboot.find
+	sudo snap remove --purge test-snapd-layout
 	sudo snap remove --purge test-snapd-content
 	patch <annotations-2.patch
 
-content-layout-3-after-reconnect.desired.fstab content-layout-3-after-reconnect.current.fstab &: test-snapd-content-layout_a_all.snap test-snapd-content_a_all.snap
-	sudo snap remove --purge test-snapd-content-layout
+$(addprefix 3-after-reconnect,.desired.fstab .current.fstab .mountinfo) &: PREFIX=3-after-reconnect
+$(addprefix 3-after-reconnect,.desired.fstab .current.fstab .mountinfo) &: test-snapd-layout_a_all.snap test-snapd-content_a_all.snap
+	sudo snap remove --purge test-snapd-layout
 	sudo snap remove --purge test-snapd-content
 	sudo snap install --dangerous $(word 1,$^)
 	sudo snap install --dangerous $(word 1,$^) # Reinstall to get another revision for better clarity of the data.
 	sudo snap install --dangerous $(word 2,$^)
-	sudo snap connect test-snapd-content-layout:just-content test-snapd-content:just-content
-	snap run test-snapd-content-layout.sh -c true
-	sudo snap disconnect test-snapd-content-layout:just-content test-snapd-content:just-content
-	sudo snap connect test-snapd-content-layout:just-content test-snapd-content:just-content
-	cp /var/lib/snapd/mount/snap.test-snapd-content-layout.fstab content-layout-3-after-reconnect.desired.fstab
-	cp /run/snapd/ns/snap.test-snapd-content-layout.fstab content-layout-3-after-reconnect.current.fstab
-	sudo snap remove --purge test-snapd-content-layout
+	sudo snap connect test-snapd-layout:content test-snapd-content:content
+	snap run test-snapd-layout.sh -c true
+	sudo snap disconnect test-snapd-layout:content test-snapd-content:content
+	sudo snap connect test-snapd-layout:content test-snapd-content:content
+	cp /var/lib/snapd/mount/snap.test-snapd-layout.fstab $(PREFIX).desired.fstab
+	cp /run/snapd/ns/snap.test-snapd-layout.fstab $(PREFIX).current.fstab
+	sudo nsenter -m/run/snapd/ns/test-snapd-layout.mnt cat /proc/self/mountinfo >$(PREFIX).mountinfo
+	sudo nsenter -m/run/snapd/ns/test-snapd-layout.mnt find /usr/share/secureboot >$(PREFIX).usr.share.secureboot.find
+	sudo snap remove --purge test-snapd-layout
 	sudo snap remove --purge test-snapd-content
 	patch <annotations-3.patch
 
-content-layout-4-initially-disconnected-then-connected.before.current.fstab content-layout-4-initially-disconnected-then-connected.desired.fstab content-layout-4-initially-disconnected-then-connected.current.fstab &: test-snapd-content-layout_a_all.snap test-snapd-content_a_all.snap
-	sudo snap remove --purge test-snapd-content-layout
+$(addprefix 4-initially-disconnected-then-connected,.before.current.fstab .desired.fstab .current.fstab .mountinfo) &: PREFIX=4-initially-disconnected-then-connected
+$(addprefix 4-initially-disconnected-then-connected,.before.current.fstab .desired.fstab .current.fstab .mountinfo) &: test-snapd-layout_a_all.snap test-snapd-content_a_all.snap
+	sudo snap remove --purge test-snapd-layout
 	sudo snap remove --purge test-snapd-content
 	sudo snap install --dangerous $(word 1,$^)
 	sudo snap install --dangerous $(word 1,$^) # Reinstall to get another revision for better clarity of the data.
 	sudo snap install --dangerous $(word 2,$^)
-	snap connections test-snapd-content-layout | grep -xF 'content    test-snapd-content-layout:just-content  -     -'
-	snap run test-snapd-content-layout.sh -c true
+	snap connections test-snapd-layout | grep -xF 'content    test-snapd-layout:content  -     -'
+	snap run test-snapd-layout.sh -c true
 	# This file is used by unit tests model the changes needed after the refresh below.
-	cp /run/snapd/ns/snap.test-snapd-content-layout.fstab content-layout-4-initially-disconnected-then-connected.before.current.fstab
-	sudo snap connect test-snapd-content-layout:just-content test-snapd-content:just-content
-	cp /var/lib/snapd/mount/snap.test-snapd-content-layout.fstab content-layout-4-initially-disconnected-then-connected.desired.fstab
-	cp /run/snapd/ns/snap.test-snapd-content-layout.fstab content-layout-4-initially-disconnected-then-connected.current.fstab
-	sudo snap remove --purge test-snapd-content-layout
+	cp /run/snapd/ns/snap.test-snapd-layout.fstab $(PREFIX).before.current.fstab
+	sudo snap connect test-snapd-layout:content test-snapd-content:content
+	cp /var/lib/snapd/mount/snap.test-snapd-layout.fstab $(PREFIX).desired.fstab
+	cp /run/snapd/ns/snap.test-snapd-layout.fstab $(PREFIX).current.fstab
+	sudo nsenter -m/run/snapd/ns/test-snapd-layout.mnt cat /proc/self/mountinfo >$(PREFIX).mountinfo
+	sudo nsenter -m/run/snapd/ns/test-snapd-layout.mnt find /usr/share/secureboot >$(PREFIX).usr.share.secureboot.find
+	sudo snap remove --purge test-snapd-layout
 	sudo snap remove --purge test-snapd-content
 	patch <annotations-4.patch
 
-content-layout-5-initially-connected-then-content-refreshed.before.current.fstab content-layout-5-initially-connected-then-content-refreshed.desired.fstab content-layout-5-initially-connected-then-content-refreshed.current.fstab &: test-snapd-content-layout_a_all.snap test-snapd-content_a_all.snap
-	sudo snap remove --purge test-snapd-content-layout
+$(addprefix 5-initially-connected-then-content-refreshed,.before.current.fstab .desired.fstab .current.fstab .mountinfo) &: PREFIX=5-initially-connected-then-content-refreshed
+$(addprefix 5-initially-connected-then-content-refreshed,.before.current.fstab .desired.fstab .current.fstab .mountinfo) &: test-snapd-layout_a_all.snap test-snapd-content_a_all.snap test-snapd-content_b_all.snap
+	sudo snap remove --purge test-snapd-layout
 	sudo snap remove --purge test-snapd-content
 	sudo snap install --dangerous $(word 1,$^)
 	sudo snap install --dangerous $(word 1,$^) # Reinstall to get another revision for better clarity of the data.
 	sudo snap install --dangerous $(word 2,$^)
-	sudo snap connect test-snapd-content-layout:just-content test-snapd-content:just-content
-	snap run test-snapd-content-layout.sh -c true
+	sudo snap connect test-snapd-layout:content test-snapd-content:content
+	snap run test-snapd-layout.sh -c true
 	# This file is used by unit tests model the changes needed after the refresh below.
-	cp /run/snapd/ns/snap.test-snapd-content-layout.fstab content-layout-5-initially-connected-then-content-refreshed.before.current.fstab
-	sudo snap install --dangerous $(word 2,$^) # Refresh the content.
-	cp /var/lib/snapd/mount/snap.test-snapd-content-layout.fstab content-layout-5-initially-connected-then-content-refreshed.desired.fstab
-	cp /run/snapd/ns/snap.test-snapd-content-layout.fstab content-layout-5-initially-connected-then-content-refreshed.current.fstab
-	sudo snap remove --purge test-snapd-content-layout
+	cp /run/snapd/ns/snap.test-snapd-layout.fstab $(PREFIX).before.current.fstab
+	sudo snap install --dangerous $(word 3,$^) # Refresh the content.
+	cp /var/lib/snapd/mount/snap.test-snapd-layout.fstab $(PREFIX).desired.fstab
+	cp /run/snapd/ns/snap.test-snapd-layout.fstab $(PREFIX).current.fstab
+	sudo nsenter -m/run/snapd/ns/test-snapd-layout.mnt cat /proc/self/mountinfo >$(PREFIX).mountinfo
+	sudo nsenter -m/run/snapd/ns/test-snapd-layout.mnt find /snap/test-snapd-content/x1/ >$(PREFIX).content-x1.find
+	sudo nsenter -m/run/snapd/ns/test-snapd-layout.mnt find /snap/test-snapd-content/x2/ >$(PREFIX).content-x2.find
+	sudo nsenter -m/run/snapd/ns/test-snapd-layout.mnt find /usr/share/secureboot >$(PREFIX).usr.share.secureboot.find
+	sudo snap remove --purge test-snapd-layout
 	sudo snap remove --purge test-snapd-content
 	patch <annotations-5.patch
 
-content-layout-6-initially-connected-then-app-refreshed.before.current.fstab content-layout-6-initially-connected-then-app-refreshed.desired.fstab content-layout-6-initially-connected-then-app-refreshed.current.fstab &: test-snapd-content-layout_a_all.snap test-snapd-content_a_all.snap
-	sudo snap remove --purge test-snapd-content-layout
+$(addprefix 6-initially-connected-then-app-refreshed,.before.current.fstab .desired.fstab .current.fstab .mountinfo) &: PREFIX=6-initially-connected-then-app-refreshed
+$(addprefix 6-initially-connected-then-app-refreshed,.before.current.fstab .desired.fstab .current.fstab .mountinfo) &: test-snapd-layout_a_all.snap test-snapd-content_a_all.snap
+	sudo snap remove --purge test-snapd-layout
 	sudo snap remove --purge test-snapd-content
 	sudo snap install --dangerous $(word 1,$^)
 	sudo snap install --dangerous $(word 1,$^) # Reinstall to get another revision for better clarity of the data.
 	sudo snap install --dangerous $(word 2,$^)
-	sudo snap connect test-snapd-content-layout:just-content test-snapd-content:just-content
-	snap run test-snapd-content-layout.sh -c true
+	sudo snap connect test-snapd-layout:content test-snapd-content:content
+	snap run test-snapd-layout.sh -c true
 	# This file is used by unit tests model the changes needed after the refresh below.
-	cp /run/snapd/ns/snap.test-snapd-content-layout.fstab content-layout-6-initially-connected-then-app-refreshed.before.current.fstab
+	cp /run/snapd/ns/snap.test-snapd-layout.fstab $(PREFIX).before.current.fstab
 	sudo snap install --dangerous $(word 1,$^) # Refresh the app.
-	cp /var/lib/snapd/mount/snap.test-snapd-content-layout.fstab content-layout-6-initially-connected-then-app-refreshed.desired.fstab
-	cp /run/snapd/ns/snap.test-snapd-content-layout.fstab content-layout-6-initially-connected-then-app-refreshed.current.fstab
-	sudo snap remove --purge test-snapd-content-layout
+	cp /var/lib/snapd/mount/snap.test-snapd-layout.fstab $(PREFIX).desired.fstab
+	cp /run/snapd/ns/snap.test-snapd-layout.fstab $(PREFIX).current.fstab
+	sudo nsenter -m/run/snapd/ns/test-snapd-layout.mnt cat /proc/self/mountinfo >$(PREFIX).mountinfo
+	sudo nsenter -m/run/snapd/ns/test-snapd-layout.mnt find /usr/share/secureboot >$(PREFIX).usr.share.secureboot.find
+	sudo snap remove --purge test-snapd-layout
 	sudo snap remove --purge test-snapd-content
 	patch <annotations-6.patch
 
-test-snapd-content-layout_a_all.snap: test-snapd-content-layout
+test-snapd-layout_a_all.snap: test-snapd-layout
 	snap pack $<
 
-test-snapd-content_a_all.snap: test-snapd-content
+test-snapd-content_a_all.snap: test-snapd-content-a
+	snap pack $<
+
+test-snapd-content_b_all.snap: test-snapd-content-b
 	snap pack $<

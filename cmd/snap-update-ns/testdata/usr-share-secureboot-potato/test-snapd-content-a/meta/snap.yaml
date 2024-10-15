@@ -6,7 +6,8 @@ base: core24
 architecture: all
 
 slots:
-  just-content:
+  content:
     interface: content
+    content: content
     read:
     - /

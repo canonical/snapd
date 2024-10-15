@@ -1,4 +1,4 @@
-name: test-snapd-content-layout
+name: test-snapd-layout
 version: a
 
 confinement: strict
@@ -12,8 +12,8 @@ apps:
     command: bin/bash
 
 plugs:
-  just-content:
-    content: just-content
+  content:
+    content: content
     interface: content
     target: $SNAP/attached-content
 

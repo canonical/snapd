@@ -30,9 +30,9 @@ func (s *changeSuite) TestContentLayout1InitiallyConnected(c *C) {
 	// NOTE: This doesn't measure what is going on during construction. It
 	// merely measures what is constructed is stable and that it does not cause
 	// further changes to be created.
-	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-1-initially-connected.current.fstab")
+	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/1-initially-connected.current.fstab")
 	c.Assert(err, IsNil)
-	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-1-initially-connected.desired.fstab")
+	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/1-initially-connected.desired.fstab")
 	c.Assert(err, IsNil)
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
@@ -41,14 +41,14 @@ func (s *changeSuite) TestContentLayout1InitiallyConnected(c *C) {
 	// Note that the order of entries is back to front.
 	//
 	// At this time, the mount namespace is correct:
-	// zyga@wyzima:/run/snapd/ns$ sudo nsenter -mtest-snapd-content-layout.mnt
+	// zyga@wyzima:/run/snapd/ns$ sudo nsenter -mtest-snapd-layout.mnt
 	// root@wyzima:/# ls -l /usr/share/secureboot/potato
 	// total 1
 	// -rw-rw-r-- 1 root root 22 Aug 30 09:36 canary.txt
 	// drwxrwxr-x 2 root root 32 Aug 30 09:36 meta
-	// root@wyzima:/# ls -l /snap/test-snapd-content-layout/
+	// root@wyzima:/# ls -l /snap/test-snapd-layout/
 	// current/ x1/      x2/
-	// root@wyzima:/# ls -l /snap/test-snapd-content-layout/x2/attached-content/
+	// root@wyzima:/# ls -l /snap/test-snapd-layout/x2/attached-content/
 	// total 1
 	// -rw-rw-r-- 1 root root 22 Aug 30 09:36 canary.txt
 	// drwxrwxr-x 2 root root 32 Aug 30 09:36 meta
@@ -62,9 +62,9 @@ func (s *changeSuite) TestContentLayout1InitiallyConnected(c *C) {
 }
 
 func (s *changeSuite) TestContentLayout2InitiallyConnectedThenDisconnected(c *C) {
-	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-1-initially-connected.current.fstab")
+	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/1-initially-connected.current.fstab")
 	c.Assert(err, IsNil)
-	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-2-after-disconnect.desired.fstab")
+	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/2-after-disconnect.desired.fstab")
 	c.Assert(err, IsNil)
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
@@ -76,8 +76,8 @@ func (s *changeSuite) TestContentLayout2InitiallyConnectedThenDisconnected(c *C)
 	// construction sticks around and is not updated. This is a bug.
 	// This is tracked as https://warthogs.atlassian.net/browse/SNAPDENG-31645
 	//
-	// zyga@wyzima:/run/snapd/ns$ sudo nsenter -mtest-snapd-content-layout.mnt
-	// root@wyzima:/# ls -l /snap/test-snapd-content-layout/x2/attached-content/
+	// zyga@wyzima:/run/snapd/ns$ sudo nsenter -mtest-snapd-layout.mnt
+	// root@wyzima:/# ls -l /snap/test-snapd-layout/x2/attached-content/
 	// total 1
 	// -rw-rw-r-- 1 root root 46 Aug 30 09:36 hidden
 	// root@wyzima:/# ls -l /usr/share/secureboot/potato
@@ -101,16 +101,16 @@ func (s *changeSuite) TestContentLayout2InitiallyConnectedThenDisconnected(c *C)
 	// The actual entry for clarity.
 	c.Assert(changes[3].Entry, DeepEquals, osutil.MountEntry{
 		Name:    "/snap/test-snapd-content/x1",
-		Dir:     "/snap/test-snapd-content-layout/x2/attached-content",
+		Dir:     "/snap/test-snapd-layout/x2/attached-content",
 		Type:    "none",
 		Options: []string{"bind", "ro", "x-snapd.detach"},
 	})
 }
 
 func (s *changeSuite) TestContentLayout3InitiallyConnectedThenDisconnectedAndReconnected(c *C) {
-	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-2-after-disconnect.current.fstab")
+	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/2-after-disconnect.current.fstab")
 	c.Assert(err, IsNil)
-	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-3-after-reconnect.desired.fstab")
+	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/3-after-reconnect.desired.fstab")
 	c.Assert(err, IsNil)
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
@@ -121,12 +121,12 @@ func (s *changeSuite) TestContentLayout3InitiallyConnectedThenDisconnectedAndRec
 	// namespace incorrect. The content connection is new and correct but the layout
 	// is still the same and was not propagated.
 	//
-	// zyga@wyzima:/run/snapd/ns$ sudo nsenter -mtest-snapd-content-layout.mnt
+	// zyga@wyzima:/run/snapd/ns$ sudo nsenter -mtest-snapd-layout.mnt
 	// root@wyzima:/# ls -l /usr/share/secureboot/potato
 	// total 1
 	// -rw-rw-r-- 1 root root 22 Aug 30 09:36 canary.txt
 	// drwxrwxr-x 2 root root 32 Aug 30 09:36 meta
-	// root@wyzima:/# ls -l /snap/test-snapd-content-layout/x2/attached-content/
+	// root@wyzima:/# ls -l /snap/test-snapd-layout/x2/attached-content/
 	// total 1
 	// -rw-rw-r-- 1 root root 22 Aug 30 09:36 canary.txt
 	// drwxrwxr-x 2 root root 32 Aug 30 09:36 meta
@@ -134,7 +134,7 @@ func (s *changeSuite) TestContentLayout3InitiallyConnectedThenDisconnectedAndRec
 	// Yes, but:
 	//
 	// root@wyzima:/# cat /proc/self/mountinfo  | grep attached
-	// 212 945 7:12 / /snap/test-snapd-content-layout/x2/attached-content ro,relatime master:34 - squashfs /dev/loop12 ro,errors=continue,threads=single
+	// 212 945 7:12 / /snap/test-snapd-layout/x2/attached-content ro,relatime master:34 - squashfs /dev/loop12 ro,errors=continue,threads=single
 	//
 	// root@wyzima:/# cat /proc/self/mountinfo  | grep potato
 	// 572 598 7:12 / /usr/share/secureboot/potato ro,relatime master:34 - squashfs /dev/loop12 ro,errors=continue,threads=single
@@ -149,16 +149,16 @@ func (s *changeSuite) TestContentLayout3InitiallyConnectedThenDisconnectedAndRec
 	// The actual entry for clarity.
 	c.Assert(changes[4].Entry, DeepEquals, osutil.MountEntry{
 		Name:    "/snap/test-snapd-content/x1",
-		Dir:     "/snap/test-snapd-content-layout/x2/attached-content",
+		Dir:     "/snap/test-snapd-layout/x2/attached-content",
 		Type:    "none",
 		Options: []string{"bind", "ro"},
 	})
 }
 
 func (s *changeSuite) TestContentLayout4InitiallyDisconnectedThenConnected(c *C) {
-	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-4-initially-disconnected-then-connected.before.current.fstab")
+	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/4-initially-disconnected-then-connected.before.current.fstab")
 	c.Assert(err, IsNil)
-	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-4-initially-disconnected-then-connected.desired.fstab")
+	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/4-initially-disconnected-then-connected.desired.fstab")
 	c.Assert(err, IsNil)
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
@@ -174,16 +174,16 @@ func (s *changeSuite) TestContentLayout4InitiallyDisconnectedThenConnected(c *C)
 	// The actual entry for clarity.
 	c.Assert(changes[4].Entry, DeepEquals, osutil.MountEntry{
 		Name:    "/snap/test-snapd-content/x1",
-		Dir:     "/snap/test-snapd-content-layout/x2/attached-content",
+		Dir:     "/snap/test-snapd-layout/x2/attached-content",
 		Type:    "none",
 		Options: []string{"bind", "ro"},
 	})
 }
 
 func (s *changeSuite) TestContentLayout5InitiallyConnectedThenContentRefreshed(c *C) {
-	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-5-initially-connected-then-content-refreshed.before.current.fstab")
+	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/5-initially-connected-then-content-refreshed.before.current.fstab")
 	c.Assert(err, IsNil)
-	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-5-initially-connected-then-content-refreshed.desired.fstab")
+	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/5-initially-connected-then-content-refreshed.desired.fstab")
 	c.Assert(err, IsNil)
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
@@ -200,9 +200,9 @@ func (s *changeSuite) TestContentLayout5InitiallyConnectedThenContentRefreshed(c
 }
 
 func (s *changeSuite) TestContentLayout6InitiallyConnectedThenAppRefreshed(c *C) {
-	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-6-initially-connected-then-app-refreshed.before.current.fstab")
+	current, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/6-initially-connected-then-app-refreshed.before.current.fstab")
 	c.Assert(err, IsNil)
-	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/content-layout-6-initially-connected-then-app-refreshed.desired.fstab")
+	desired, err := osutil.LoadMountProfile("testdata/usr-share-secureboot-potato/6-initially-connected-then-app-refreshed.desired.fstab")
 	c.Assert(err, IsNil)
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
