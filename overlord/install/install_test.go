@@ -886,13 +886,20 @@ func (s *installSuite) TestPrepareEncryptedSystemData(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(to, NotNil)
 
+	restore := install.MockBootUseTokens(func(model *asserts.Model) bool {
+		return true
+	})
+	defer restore()
+
 	// We are required to call ObserveExistingTrustedRecoveryAssets on trusted observers
 	err = to.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir)
 	c.Assert(err, IsNil)
 
+	saveDisk := secboot.CreateMockBootstrappedContainer()
+
 	installKeyForRole := map[string]secboot.BootstrappedContainer{
 		gadget.SystemData: secboot.CreateMockBootstrappedContainer(),
-		gadget.SystemSave: secboot.CreateMockBootstrappedContainer(),
+		gadget.SystemSave: saveDisk,
 	}
 	err = install.PrepareEncryptedSystemData(mockModel, installKeyForRole, to)
 	c.Assert(err, IsNil)
@@ -902,10 +909,64 @@ func (s *installSuite) TestPrepareEncryptedSystemData(c *C) {
 	c.Check(marker, HasLen, 32)
 	c.Check(filepath.Join(boot.InstallHostFDESaveDir, "marker"), testutil.FileEquals, marker)
 
-	// the assets cache was written to
+	// Check that the assets cache was written to
 	l, err := os.ReadDir(filepath.Join(dirs.SnapBootAssetsDir, "trusted"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 1)
+
+	_, err = os.ReadFile(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde", "ubuntu-save.key"))
+	c.Assert(err, IsNil)
+
+	_, hasToken := saveDisk.Tokens["default"]
+	c.Assert(hasToken, Equals, true)
+}
+
+func (s *installSuite) TestPrepareEncryptedSystemDataLegacyKeys(c *C) {
+	_, gadgetDir := s.mountedGadget(c)
+	mockModel := s.mockModel(nil)
+
+	trustedAssets := true
+	s.mockBootloader(c, trustedAssets, false)
+
+	useEncryption := true
+	_, to, err := install.BuildInstallObserver(mockModel, gadgetDir, useEncryption)
+	c.Assert(err, IsNil)
+	c.Assert(to, NotNil)
+
+	restore := install.MockBootUseTokens(func(model *asserts.Model) bool {
+		return false
+	})
+	defer restore()
+
+	// We are required to call ObserveExistingTrustedRecoveryAssets on trusted observers
+	err = to.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir)
+	c.Assert(err, IsNil)
+
+	saveDisk := secboot.CreateMockBootstrappedContainer()
+
+	installKeyForRole := map[string]secboot.BootstrappedContainer{
+		gadget.SystemData: secboot.CreateMockBootstrappedContainer(),
+		gadget.SystemSave: saveDisk,
+	}
+	err = install.PrepareEncryptedSystemData(mockModel, installKeyForRole, to)
+	c.Assert(err, IsNil)
+
+	marker, err := os.ReadFile(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker"))
+	c.Assert(err, IsNil)
+	c.Check(marker, HasLen, 32)
+	c.Check(filepath.Join(boot.InstallHostFDESaveDir, "marker"), testutil.FileEquals, marker)
+
+	// Check that the assets cache was written to
+	l, err := os.ReadDir(filepath.Join(dirs.SnapBootAssetsDir, "trusted"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 1)
+
+	saveKey, err := os.ReadFile(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde", "ubuntu-save.key"))
+	c.Assert(err, IsNil)
+
+	slotKey, hasSlot := saveDisk.Slots["default"]
+	c.Assert(hasSlot, Equals, true)
+	c.Check(slotKey, DeepEquals, saveKey)
 }
 
 func (s *installSuite) TestPrepareRunSystemDataWritesModel(c *C) {
