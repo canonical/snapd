@@ -26,6 +26,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
@@ -127,14 +128,17 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 
 	res.PartDevice = partDevice
 
-	keyData, _, err := readKeyFile(sealedEncryptionKeyFile)
-	if err != nil {
-		return res, err
-	}
-
 	var keys []*sb.KeyData
-	if keyData != nil {
-		keys = append(keys, keyData)
+
+	keyData, _, err := readKeyFile(sealedEncryptionKeyFile)
+	if err == nil {
+		if keyData != nil {
+			keys = append(keys, keyData)
+		}
+	} else {
+		if !os.IsNotExist(err) {
+			logger.Noticef("WARNING: there was an error loading key %s: %v", sealedEncryptionKeyFile, err)
+		}
 	}
 
 	if opts.WhichModel != nil {
