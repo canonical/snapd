@@ -109,8 +109,7 @@ func main() {
 		if err != nil {
 			panic("cannot create data key")
 		}
-		const token = false
-		if _, err := dataBootstrapKey.AddKey("", secboot.DiskUnlockKey(dataKey), token); err != nil {
+		if err := dataBootstrapKey.AddKey("", secboot.DiskUnlockKey(dataKey)); err != nil {
 			panic("cannot reset data key")
 		}
 
@@ -123,7 +122,7 @@ func main() {
 		if err != nil {
 			panic("cannot create save key")
 		}
-		if _, err := saveBootstrapKey.AddKey("", secboot.DiskUnlockKey(saveKey), token); err != nil {
+		if err := saveBootstrapKey.AddKey("", secboot.DiskUnlockKey(saveKey)); err != nil {
 			panic("cannot reset save key")
 		}
 
