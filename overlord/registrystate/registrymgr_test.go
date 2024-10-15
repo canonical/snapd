@@ -65,7 +65,7 @@ slots:
   registry-slot:
     interface: registry
 `
-	info := mockInstalledSnap(c, s.state, coreYaml, "")
+	info := mockInstalledSnap(c, s.state, coreYaml, nil)
 	coreSet, err := interfaces.NewSnapAppSet(info, nil)
 	c.Assert(err, IsNil)
 
@@ -82,7 +82,7 @@ plugs:
     view: network/setup-wifi
 `
 
-	info = mockInstalledSnap(c, s.state, snapYaml, "")
+	info = mockInstalledSnap(c, s.state, snapYaml, nil)
 	appSet, err := interfaces.NewSnapAppSet(info, nil)
 	c.Assert(err, IsNil)
 	err = s.repo.AddAppSet(appSet)
@@ -97,6 +97,10 @@ plugs:
 	c.Assert(err, IsNil)
 }
 
+func setTransaction(t *state.Task, tx *registrystate.Transaction) {
+	t.Set("registry-transaction", tx)
+}
+
 func (s *hookHandlerSuite) TestViewChangeHookOk(c *C) {
 	s.state.Lock()
 	hooksup := &hookstate.HookSetup{
@@ -108,7 +112,7 @@ func (s *hookHandlerSuite) TestViewChangeHookOk(c *C) {
 	c.Assert(err, IsNil)
 
 	t := s.state.NewTask("task", "")
-	registrystate.SetTransaction(t, tx)
+	setTransaction(t, tx)
 
 	ctx, err := hookstate.NewContext(t, s.state, hooksup, nil, "")
 	c.Assert(err, IsNil)
@@ -133,7 +137,7 @@ func (s *hookHandlerSuite) TestChangeViewHookRejectsChanges(c *C) {
 	tx.Abort("my-snap", "don't like")
 
 	t := s.state.NewTask("task", "")
-	registrystate.SetTransaction(t, tx)
+	setTransaction(t, tx)
 
 	ctx, err := hookstate.NewContext(t, s.state, hooksup, nil, "")
 	c.Assert(err, IsNil)
@@ -156,7 +160,7 @@ func (s *hookHandlerSuite) TestSaveViewHookOk(c *C) {
 	c.Assert(err, IsNil)
 
 	t := s.state.NewTask("task", "")
-	registrystate.SetTransaction(t, tx)
+	setTransaction(t, tx)
 
 	ctx, err := hookstate.NewContext(t, s.state, hooksup, nil, "")
 	c.Assert(err, IsNil)
@@ -176,7 +180,7 @@ func (s *hookHandlerSuite) TestSaveViewHookErrorRollsBackSaves(c *C) {
 
 	tx, err := registrystate.NewTransaction(s.state, "my-acc", "network")
 	c.Assert(err, IsNil)
-	registrystate.SetTransaction(commitTask, tx)
+	setTransaction(commitTask, tx)
 
 	err = tx.Set("foo", "bar")
 	c.Assert(err, IsNil)
@@ -280,7 +284,7 @@ func (s *hookHandlerSuite) TestSaveViewHookErrorHoldsTasks(c *C) {
 
 	tx, err := registrystate.NewTransaction(s.state, "my-acc", "network")
 	c.Assert(err, IsNil)
-	registrystate.SetTransaction(commitTask, tx)
+	setTransaction(commitTask, tx)
 
 	err = tx.Set("foo", "bar")
 	c.Assert(err, IsNil)
@@ -417,7 +421,7 @@ func (s *registryTestSuite) TestCommitTransaction(c *C) {
 	err = tx.Set("wifi.ssid", "foo")
 	c.Assert(err, IsNil)
 
-	registrystate.SetTransaction(t, tx)
+	setTransaction(t, tx)
 
 	s.state.Unlock()
 	err = s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
@@ -450,7 +454,7 @@ func (s *registryTestSuite) TestClearOngoingTransaction(c *C) {
 
 	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
-	registrystate.SetTransaction(commitTask, tx)
+	setTransaction(commitTask, tx)
 
 	t := s.state.NewTask("clear-registry-tx", "")
 	chg.AddTask(t)
@@ -492,7 +496,7 @@ func (s *registryTestSuite) TestClearTransactionOnError(c *C) {
 	// the schema will reject this, so the commit will fail
 	err = tx.Set("foo", "bar")
 	c.Assert(err, IsNil)
-	registrystate.SetTransaction(commitTask, tx)
+	setTransaction(commitTask, tx)
 
 	// add this transaction to the state
 	registrystate.SetOngoingTransaction(s.state, s.devAccID, "network", commitTask.ID())

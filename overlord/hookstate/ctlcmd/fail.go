@@ -70,12 +70,12 @@ func (c *failCommand) Execute(args []string) error {
 	}
 
 	t, _ := ctx.Task()
-	tx, commitTask, err := registrystate.GetStoredTransaction(t)
+	tx, saveChanges, err := registrystate.GetStoredTransaction(t)
 	if err != nil {
 		return fmt.Errorf(i18n.G("internal error: cannot get registry transaction to fail: %v"), err)
 	}
 
 	tx.Abort(ctx.InstanceName(), c.Positional.Reason)
-	commitTask.Set("registry-transaction", tx)
+	saveChanges()
 	return nil
 }

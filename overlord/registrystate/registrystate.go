@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -116,12 +117,12 @@ func Get(st *state.State, account, registryName, viewName string, fields []strin
 		}
 	}
 
-	tx, err := NewTransaction(st, account, registryName)
+	bag, err := readDatabag(st, account, registryName)
 	if err != nil {
 		return nil, err
 	}
 
-	return GetViaView(tx, view, fields)
+	return GetViaView(bag, view, fields)
 }
 
 // GetViaView uses the view to get values for the fields from the databag in
@@ -197,45 +198,121 @@ var writeDatabag = func(st *state.State, databag registry.JSONDataBag, account, 
 	return nil
 }
 
-type cachedRegistryTx struct {
-	account  string
-	registry string
-}
+// GetTransactionToModify retrieves or creates a transaction to change the view's
+// registry. The state must be locked by the caller. Takes a context which should
+// contain a hookstate.Context in it, if it came from a hook context. Calling
+// ctx.Done will trigger the creation of a modify-registry change and wait for
+// its completion (unless one already existed, in which case it just persists
+// changes to the existing transaction).
+func GetTransactionToModify(ctx *Context, st *state.State, view *registry.View) (*Transaction, error) {
+	account, registryName := view.Registry().Account, view.Registry().Name
 
-// RegistryTransaction returns the registry.Transaction cached in the context
-// or creates one and caches it, if none existed. The context must be locked by
-// the caller.
-func RegistryTransaction(ctx *hookstate.Context, reg *registry.Registry) (*Transaction, error) {
-	key := cachedRegistryTx{
-		account:  reg.Account,
-		registry: reg.Name,
-	}
-	tx, ok := ctx.Cached(key).(*Transaction)
-	if ok {
+	// check if we're already running in the context of a committing transaction
+	hookCtx := ctx.hookCtx
+	if IsRegistryHook(hookCtx) {
+		// running in the context of a transaction, so if the referenced registry
+		// doesn't match that tx, we only allow the caller to read the other registry
+		t, _ := hookCtx.Task()
+		tx, saveTxChanges, err := GetStoredTransaction(t)
+		if err != nil {
+			return nil, fmt.Errorf("cannot access registry view %s/%s/%s: cannot get transaction: %v", account, registryName, view.Name, err)
+		}
+
+		if tx.RegistryAccount != account || tx.RegistryName != registryName {
+			return nil, fmt.Errorf("cannot access registry %s/%s: ongoing transaction for %s/%s", account, registryName, tx.RegistryAccount, tx.RegistryName)
+		}
+
+		// update the commit task to save transaction changes made by the hook
+		ctx.onDone(func() error {
+			saveTxChanges()
+			return nil
+		})
+
 		return tx, nil
 	}
+	// TODO: add concurrency checks
 
-	tx, err := NewTransaction(ctx.State(), reg.Account, reg.Name)
+	// not running in an existing registry hook context, so create a transaction
+	// and a change to verify its changes and commit
+	tx, err := NewTransaction(st, account, registryName)
+	if err != nil {
+		return nil, fmt.Errorf("cannot modify registry view %s/%s/%s: cannot create transaction: %v", account, registryName, view.Name, err)
+	}
+
+	ctx.onDone(func() error {
+		var chg *state.Change
+		if hookCtx == nil || hookCtx.IsEphemeral() {
+			chg = st.NewChange("modify-registry", fmt.Sprintf("Modify registry \"%s/%s\"", account, registryName))
+		} else {
+			// we're running in the context of a non-registry hook, add the tasks to that change
+			task, _ := hookCtx.Task()
+			chg = task.Change()
+		}
+
+		var callingSnap string
+		if hookCtx != nil {
+			callingSnap = hookCtx.InstanceName()
+		}
+
+		ts, err := createChangeRegistryTasks(st, tx, view, callingSnap)
+		if err != nil {
+			return err
+		}
+		chg.AddAll(ts)
+
+		commitTask, err := ts.Edge(commitEdge)
+		if err != nil {
+			return err
+		}
+
+		clearTxTask, err := ts.Edge(clearTxEdge)
+		if err != nil {
+			return err
+		}
+
+		err = setOngoingTransaction(st, account, registryName, commitTask.ID())
+		if err != nil {
+			return err
+		}
+
+		taskReady := make(chan struct{})
+		var done bool
+		id := st.AddTaskStatusChangedHandler(func(t *state.Task, old, new state.Status) {
+			if !done && t.ID() == clearTxTask.ID() && new.Ready() {
+				done = true
+				taskReady <- struct{}{}
+				return
+			}
+		})
+
+		ensureNow(st)
+		st.Unlock()
+		<-taskReady
+		st.Lock()
+		st.RemoveTaskStatusChangedHandler(id)
+		return nil
+	})
+
+	return tx, nil
+}
+
+var ensureNow = func(st *state.State) {
+	st.EnsureBefore(0)
+}
+
+const (
+	commitEdge  = state.TaskSetEdge("commit-edge")
+	clearTxEdge = state.TaskSetEdge("clear-tx-edge")
+)
+
+func createChangeRegistryTasks(st *state.State, tx *Transaction, view *registry.View, callingSnap string) (*state.TaskSet, error) {
+	custodianPlugs, err := getCustodianPlugsForView(st, view)
 	if err != nil {
 		return nil, err
 	}
 
-	ctx.OnDone(func() error {
-		return tx.Commit(ctx.State(), reg.Schema)
-	})
-
-	ctx.Cache(key, tx)
-	return tx, nil
-}
-
-func createChangeRegistryTasks(st *state.State, chg *state.Change, tx *Transaction, view *registry.View, callingSnap string) error {
-	custodianPlugs, err := getCustodianPlugsForView(st, view)
-	if err != nil {
-		return err
-	}
-
 	if len(custodianPlugs) == 0 {
-		return fmt.Errorf("cannot commit changes to registry %s/%s: no custodian snap installed", view.Registry().Account, view.Registry().Name)
+		return nil, fmt.Errorf("cannot commit changes to registry %s/%s: no custodian snap installed", view.Registry().Account, view.Registry().Name)
 	}
 
 	custodianNames := make([]string, 0, len(custodianPlugs))
@@ -247,13 +324,13 @@ func createChangeRegistryTasks(st *state.State, chg *state.Change, tx *Transacti
 	// and potentially for the snaps themselves)
 	sort.Strings(custodianNames)
 
-	var tasks []*state.Task
+	ts := state.NewTaskSet()
 	linkTask := func(t *state.Task) {
+		tasks := ts.Tasks()
 		if len(tasks) > 0 {
 			t.WaitFor(tasks[len(tasks)-1])
 		}
-		tasks = append(tasks, t)
-		chg.AddTask(t)
+		ts.AddTask(t)
 	}
 
 	// if the transaction errors, clear the tx from the state
@@ -294,7 +371,7 @@ func createChangeRegistryTasks(st *state.State, chg *state.Change, tx *Transacti
 	paths := tx.AlteredPaths()
 	affectedPlugs, err := getPlugsAffectedByPaths(st, view.Registry(), paths)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	viewChangedSnaps := make([]string, 0, len(affectedPlugs))
@@ -321,17 +398,19 @@ func createChangeRegistryTasks(st *state.State, chg *state.Change, tx *Transacti
 	commitTask := st.NewTask("commit-registry-tx", fmt.Sprintf("Commit changes to registry \"%s/%s\"", view.Registry().Account, view.Registry().Name))
 	commitTask.Set("registry-transaction", tx)
 	// link all previous tasks to the commit task that carries the transaction
-	for _, t := range tasks {
+	for _, t := range ts.Tasks() {
 		t.Set("commit-task", commitTask.ID())
 	}
 	linkTask(commitTask)
+	ts.MarkEdge(commitTask, commitEdge)
 
 	// clear the ongoing tx from the state and unblock other writers waiting for it
 	clearTxTask := st.NewTask("clear-registry-tx", "Clears the ongoing registry transaction from state")
 	linkTask(clearTxTask)
 	clearTxTask.Set("commit-task", commitTask.ID())
+	ts.MarkEdge(clearTxTask, clearTxEdge)
 
-	return nil
+	return ts, nil
 }
 
 func getCustodianPlugsForView(st *state.State, view *registry.View) (map[string]*snap.PlugInfo, error) {
@@ -410,13 +489,16 @@ func getPlugsAffectedByPaths(st *state.State, registry *registry.Registry, stora
 	return affectedPlugs, nil
 }
 
-// GetStoredTransaction returns the registry transaction associate with the
-// task (even if indirectly) and the task in which it was stored.
-func GetStoredTransaction(t *state.Task) (*Transaction, *state.Task, error) {
-	var tx *Transaction
-	err := t.Get("registry-transaction", &tx)
+// GetStoredTransaction returns the transaction associated with the task
+// (even if indirectly) and a callback to persist changes made to it.
+func GetStoredTransaction(t *state.Task) (tx *Transaction, saveTxChanges func(), err error) {
+	err = t.Get("registry-transaction", &tx)
 	if err == nil {
-		return tx, t, nil
+		saveTxChanges = func() {
+			t.Set("registry-transaction", tx)
+		}
+
+		return tx, saveTxChanges, nil
 	} else if !errors.Is(err, &state.NoStateError{}) {
 		return nil, nil, err
 	}
@@ -436,9 +518,55 @@ func GetStoredTransaction(t *state.Task) (*Transaction, *state.Task, error) {
 		return nil, nil, err
 	}
 
-	return tx, ct, nil
+	saveTxChanges = func() {
+		ct.Set("registry-transaction", tx)
+	}
+	return tx, saveTxChanges, nil
 }
 
-func setTransaction(t *state.Task, tx *Transaction) {
-	t.Set("registry-transaction", tx)
+// IsRegistryHook returns whether the hook context belongs to a registry hook.
+func IsRegistryHook(ctx *hookstate.Context) bool {
+	return ctx != nil && !ctx.IsEphemeral() &&
+		(strings.HasPrefix(ctx.HookName(), "change-view-") ||
+			strings.HasPrefix(ctx.HookName(), "save-view-") ||
+			strings.HasSuffix(ctx.HookName(), "-view-changed"))
+}
+
+// Context is used by GetTransaction to defer actions until a point after the
+// call (e.g., blocking on a registry transaction only when the caller wants to).
+// The context also carries a hookstate.Context that is used to determine whether
+// the registry is being accessed from a snap hook.
+type Context struct {
+	hookCtx *hookstate.Context
+
+	onDoneCallbacks []func() error
+}
+
+func NewContext(ctx *hookstate.Context) *Context {
+	regCtx := &Context{
+		hookCtx: ctx,
+	}
+
+	if ctx != nil {
+		ctx.OnDone(func() error {
+			return regCtx.Done()
+		})
+	}
+
+	return regCtx
+}
+
+func (c *Context) onDone(f func() error) {
+	c.onDoneCallbacks = append(c.onDoneCallbacks, f)
+}
+
+func (c *Context) Done() error {
+	var firstErr error
+	for _, f := range c.onDoneCallbacks {
+		if err := f(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+
+	return firstErr
 }

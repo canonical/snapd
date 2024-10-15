@@ -29,9 +29,13 @@ var (
 	WriteDatabag              = writeDatabag
 	GetPlugsAffectedByPaths   = getPlugsAffectedByPaths
 	CreateChangeRegistryTasks = createChangeRegistryTasks
-	SetTransaction            = setTransaction
 	SetOngoingTransaction     = setOngoingTransaction
 	UnsetOngoingTransaction   = unsetOngoingTransaction
+)
+
+const (
+	CommitEdge  = commitEdge
+	ClearTxEdge = clearTxEdge
 )
 
 func ChangeViewHandlerGenerator(ctx *hookstate.Context) hookstate.Handler {
@@ -55,5 +59,13 @@ func MockWriteDatabag(f func(st *state.State, databag registry.JSONDataBag, acco
 	writeDatabag = f
 	return func() {
 		writeDatabag = old
+	}
+}
+
+func MockEnsureNow(f func(*state.State)) func() {
+	old := ensureNow
+	ensureNow = f
+	return func() {
+		ensureNow = old
 	}
 }

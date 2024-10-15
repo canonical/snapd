@@ -180,10 +180,18 @@ func MockNewStatusDecorator(f func(ctx context.Context, isGlobal bool, uid strin
 	return restore
 }
 
-func MockRegistrystateRegistryTransaction(f func(*hookstate.Context, *registry.Registry) (*registrystate.Transaction, error)) (restore func()) {
-	old := registrystateRegistryTransaction
-	registrystateRegistryTransaction = f
+func MockRegistrystateGetTransaction(f func(*registrystate.Context, *state.State, *registry.View) (*registrystate.Transaction, error)) (restore func()) {
+	old := registrystateGetTransaction
+	registrystateGetTransaction = f
 	return func() {
-		registrystateRegistryTransaction = old
+		registrystateGetTransaction = old
+	}
+}
+
+func MockGetRegistryView(f func(ctx *hookstate.Context, account, registryName, viewName string) (*registry.View, error)) (restore func()) {
+	old := getRegistryView
+	getRegistryView = f
+	return func() {
+		getRegistryView = old
 	}
 }
