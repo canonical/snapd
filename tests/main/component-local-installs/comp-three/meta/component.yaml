@@ -1,5 +1,5 @@
 component: test-snap-two+comp-three
-type: test
+type: standard
 version: '1.0'
 summary: test component
 description: test component

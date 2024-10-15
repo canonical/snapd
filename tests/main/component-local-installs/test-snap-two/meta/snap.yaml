@@ -15,8 +15,8 @@ components:
   comp-three:
     summary: test component
     description: test component
-    type: test
+    type: standard
   comp-four:
     summary: test component
     description: test component
-    type: test
+    type: standard

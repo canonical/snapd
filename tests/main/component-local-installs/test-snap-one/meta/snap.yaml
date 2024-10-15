@@ -15,8 +15,8 @@ components:
   comp-one:
     summary: test component
     description: test component
-    type: test
+    type: standard
   comp-two:
     summary: test component
     description: test component
-    type: test
+    type: standard
