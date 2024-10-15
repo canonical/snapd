@@ -126,7 +126,7 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		}
 
 		if cmd.Refresh {
-			changeID, err := cmd.client.RefreshMany(nil, &client.SnapOptions{
+			changeID, err := cmd.client.RefreshMany(nil, nil, &client.SnapOptions{
 				ValidationSets: []string{cmd.Positional.ValidationSet},
 			})
 			if err != nil {
