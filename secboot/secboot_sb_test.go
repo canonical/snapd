@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -47,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
@@ -465,19 +467,32 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		expUnlockMethod     secboot.UnlockMethod
 		disk                *disks.MockDiskMapping
 		oldKeyFormat        bool
+		noKeyFile           bool // when no key file is present, then we expect the key data is in the token
+		errorReadKeyFile    bool
 	}{
 		{
 			// happy case with tpm and encrypted device
 			tpmEnabled: true, hasEncdev: true,
 			disk:            mockDiskWithEncDev,
 			expUnlockMethod: secboot.UnlockedWithSealedKey,
-		},
-		{
+		}, {
+			// happy case with tpm and encrypted device, and keys on the tokens
+			tpmEnabled: true, hasEncdev: true,
+			disk:            mockDiskWithEncDev,
+			expUnlockMethod: secboot.UnlockedWithSealedKey,
+			noKeyFile:       true,
+		}, {
 			// happy case with tpm and old sealed key
 			tpmEnabled: true, hasEncdev: true,
 			disk:            mockDiskWithEncDev,
 			expUnlockMethod: secboot.UnlockedWithSealedKey,
 			oldKeyFormat:    true,
+		}, {
+			// If we cannot read the key file we should still try to open without key
+			tpmEnabled: true, hasEncdev: true,
+			disk:             mockDiskWithEncDev,
+			expUnlockMethod:  secboot.UnlockedWithSealedKey,
+			errorReadKeyFile: true,
 		}, {
 			// encrypted device: failure to generate uuid based target device name
 			tpmEnabled: true, hasEncdev: true, uuidFailure: true,
@@ -533,184 +548,220 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			err: "error enumerating partitions for disk to find unencrypted device \"name\": filesystem label \"name\" not found",
 		},
 	} {
-		c.Logf("tc %v: %+v", idx, tc)
+		// we need a closure to force calling the "defer"s at the end of the test case
+		func() {
+			c.Logf("tc %v: %+v", idx, tc)
 
-		randomUUID := fmt.Sprintf("random-uuid-for-test-%d", idx)
-		restore := secboot.MockRandomKernelUUID(func() (string, error) {
-			if tc.uuidFailure {
-				return "", errors.New("mocked uuid error")
+			logbuf, restore := logger.MockLogger()
+			defer restore()
+
+			randomUUID := fmt.Sprintf("random-uuid-for-test-%d", idx)
+			restore = secboot.MockRandomKernelUUID(func() (string, error) {
+				if tc.uuidFailure {
+					return "", errors.New("mocked uuid error")
+				}
+				return randomUUID, nil
+			})
+			defer restore()
+
+			restore = secboot.MockIsTPMEnabled(func(tpm *sb_tpm2.Connection) bool {
+				return tc.tpmEnabled
+			})
+			defer restore()
+
+			defaultDevice := "name"
+
+			fsLabel := defaultDevice
+			if tc.hasEncdev {
+				fsLabel += "-enc"
 			}
-			return randomUUID, nil
-		})
-		defer restore()
 
-		restore = secboot.MockIsTPMEnabled(func(tpm *sb_tpm2.Connection) bool {
-			return tc.tpmEnabled
-		})
-		defer restore()
+			uuid := ""
+			partUUID := ""
+			if !tc.skipDiskEnsureCheck {
+				for _, p := range tc.disk.Structure {
+					if p.FilesystemLabel == fsLabel {
+						uuid = p.FilesystemUUID
+						partUUID = p.PartitionUUID
+						break
+					}
+				}
+				c.Assert(uuid, Not(Equals), "", Commentf("didn't find fs label %s in disk", fsLabel))
+				c.Assert(partUUID, Not(Equals), "", Commentf("didn't find fs label %s in disk", fsLabel))
+			}
 
-		defaultDevice := "name"
+			devicePath := filepath.Join("/dev/disk/by-partuuid", partUUID)
+			devicePathUUID := fmt.Sprintf("/dev/disk/by-uuid/%s", uuid)
 
-		fsLabel := defaultDevice
-		if tc.hasEncdev {
-			fsLabel += "-enc"
-		}
+			var keyPath string
+			var expectedKeyPath fs.FileInfo
 
-		uuid := ""
-		partUUID := ""
-		if !tc.skipDiskEnsureCheck {
-			for _, p := range tc.disk.Structure {
-				if p.FilesystemLabel == fsLabel {
-					uuid = p.FilesystemUUID
-					partUUID = p.PartitionUUID
-					break
+			if !tc.noKeyFile && !tc.errorReadKeyFile {
+				if tc.oldKeyFormat {
+					keyPath = filepath.Join("test-data", "keyfile")
+				} else {
+					keyPath = filepath.Join("test-data", "keydata")
+				}
+				finfo, err := os.Lstat(keyPath)
+				c.Assert(err, IsNil)
+				expectedKeyPath = finfo
+			} else {
+				keyPath = "/some/path"
+			}
+
+			var expectedKeyData *sb.KeyData
+
+			restore = secboot.MockSbNewKeyDataFromSealedKeyObjectFile(func(path string) (*sb.KeyData, error) {
+				if !tc.oldKeyFormat {
+					c.Errorf("unexpected call")
+				}
+				info, err := os.Lstat(path)
+				c.Assert(err, IsNil)
+				sameFile := os.SameFile(expectedKeyPath, info)
+				c.Check(sameFile, Equals, true)
+
+				kd, err := sb_tpm2.NewKeyDataFromSealedKeyObjectFile(keyPath)
+				c.Assert(err, IsNil)
+
+				if sameFile {
+					c.Check(expectedKeyData, IsNil)
+					expectedKeyData = kd
+				}
+
+				return kd, nil
+			})
+			defer restore()
+
+			var expectedKeyDataReader *sb.FileKeyDataReader
+
+			restore = secboot.MockSbNewFileKeyDataReader(func(path string) (*sb.FileKeyDataReader, error) {
+				if tc.oldKeyFormat || tc.noKeyFile || tc.errorReadKeyFile {
+					c.Errorf("unexpected call")
+				}
+				info, err := os.Lstat(path)
+				c.Assert(err, IsNil)
+				sameFile := os.SameFile(expectedKeyPath, info)
+				c.Check(sameFile, Equals, true)
+
+				kdr, err := sb.NewFileKeyDataReader(keyPath)
+				c.Assert(err, IsNil)
+
+				if sameFile {
+					c.Check(expectedKeyDataReader, IsNil)
+					expectedKeyDataReader = kdr
+				}
+
+				return kdr, nil
+			})
+			defer restore()
+
+			if tc.noKeyFile || tc.errorReadKeyFile {
+				restore = secboot.MockReadKeyFile(func(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, error) {
+					if tc.noKeyFile {
+						return nil, nil, fs.ErrNotExist
+					}
+					if tc.errorReadKeyFile {
+						return nil, nil, fmt.Errorf("some other error")
+					}
+					c.Errorf("unexpected call")
+					return nil, nil, fmt.Errorf("unexpected call")
+				})
+				defer restore()
+			}
+
+			restore = secboot.MockSbReadKeyData(func(reader sb.KeyDataReader) (*sb.KeyData, error) {
+				if tc.oldKeyFormat || tc.noKeyFile || tc.errorReadKeyFile {
+					c.Errorf("unexpected call")
+				}
+				c.Check(expectedKeyDataReader, Equals, reader)
+				kd, err := sb.ReadKeyData(reader)
+				c.Assert(err, IsNil)
+
+				if expectedKeyDataReader == reader {
+					c.Check(expectedKeyData, IsNil)
+					expectedKeyData = kd
+				}
+
+				return kd, nil
+			})
+			defer restore()
+
+			restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
+
+				c.Assert(volumeName, Equals, "name-"+randomUUID)
+				c.Assert(sourceDevicePath, Equals, devicePathUUID)
+				if tc.noKeyFile || tc.errorReadKeyFile {
+					c.Check(keys, HasLen, 0)
+				} else {
+					c.Assert(keys, HasLen, 1)
+					c.Assert(keys[0], Equals, expectedKeyData)
+				}
+
+				if tc.rkAllow {
+					c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
+						PassphraseTries:  1,
+						RecoveryKeyTries: 3,
+						KeyringPrefix:    "ubuntu-fde",
+					})
+				} else {
+					c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
+						PassphraseTries: 1,
+						// activation with recovery key was disabled
+						RecoveryKeyTries: 0,
+						KeyringPrefix:    "ubuntu-fde",
+					})
+				}
+				return tc.activateErr
+			})
+			defer restore()
+
+			restore = secboot.MockSbActivateVolumeWithRecoveryKey(func(name, device string, authReq sb.AuthRequestor,
+				options *sb.ActivateVolumeOptions) error {
+				c.Errorf("unexpected call")
+				return fmt.Errorf("unexpected call")
+			})
+			defer restore()
+
+			opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
+				AllowRecoveryKey: tc.rkAllow,
+				WhichModel: func() (*asserts.Model, error) {
+					return fakeModel, nil
+				},
+			}
+			unlockRes, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(tc.disk, defaultDevice, keyPath, opts)
+			if tc.errorReadKeyFile {
+				c.Check(logbuf.String(), testutil.Contains, `WARNING: there was an error loading key /some/path: some other error`)
+			} else {
+				c.Check(logbuf.String(), Not(testutil.Contains), `WARNING: there was an error loading key`)
+			}
+			if tc.err == "" {
+				c.Assert(err, IsNil)
+				c.Assert(unlockRes.IsEncrypted, Equals, tc.hasEncdev)
+				c.Assert(unlockRes.PartDevice, Equals, devicePath)
+				if tc.hasEncdev {
+					c.Assert(unlockRes.FsDevice, Equals, filepath.Join("/dev/mapper", defaultDevice+"-"+randomUUID))
+				} else {
+					c.Assert(unlockRes.FsDevice, Equals, devicePath)
+				}
+			} else {
+				c.Assert(err, ErrorMatches, tc.err)
+				// also check that the IsEncrypted value matches, this is
+				// important for robust callers to know whether they should try to
+				// unlock using a different method or not
+				// this is only skipped on some test cases where we get an error
+				// very early, like trying to connect to the tpm
+				c.Assert(unlockRes.IsEncrypted, Equals, tc.hasEncdev)
+				if tc.hasEncdev {
+					c.Check(unlockRes.PartDevice, Equals, devicePath)
+					c.Check(unlockRes.FsDevice, Equals, "")
+				} else {
+					c.Check(unlockRes.PartDevice, Equals, "")
+					c.Check(unlockRes.FsDevice, Equals, "")
 				}
 			}
-			c.Assert(uuid, Not(Equals), "", Commentf("didn't find fs label %s in disk", fsLabel))
-			c.Assert(partUUID, Not(Equals), "", Commentf("didn't find fs label %s in disk", fsLabel))
-		}
 
-		devicePath := filepath.Join("/dev/disk/by-partuuid", partUUID)
-		devicePathUUID := fmt.Sprintf("/dev/disk/by-uuid/%s", uuid)
-
-		var keyPath string
-		if tc.oldKeyFormat {
-			keyPath = filepath.Join("test-data", "keyfile")
-		} else {
-			keyPath = filepath.Join("test-data", "keydata")
-		}
-		expectedKeyPath, err := os.Lstat(keyPath)
-		c.Assert(err, IsNil)
-
-		var expectedKeyData *sb.KeyData
-
-		restore = secboot.MockSbNewKeyDataFromSealedKeyObjectFile(func(path string) (*sb.KeyData, error) {
-			if !tc.oldKeyFormat {
-				c.Errorf("unexpected call")
-			}
-			info, err := os.Lstat(path)
-			c.Assert(err, IsNil)
-			sameFile := os.SameFile(expectedKeyPath, info)
-			c.Check(sameFile, Equals, true)
-
-			kd, err := sb_tpm2.NewKeyDataFromSealedKeyObjectFile(keyPath)
-			c.Assert(err, IsNil)
-
-			if sameFile {
-				c.Check(expectedKeyData, IsNil)
-				expectedKeyData = kd
-			}
-
-			return kd, nil
-		})
-		defer restore()
-
-		var expectedKeyDataReader *sb.FileKeyDataReader
-
-		restore = secboot.MockSbNewFileKeyDataReader(func(path string) (*sb.FileKeyDataReader, error) {
-			if tc.oldKeyFormat {
-				c.Errorf("unexpected call")
-			}
-			info, err := os.Lstat(path)
-			c.Assert(err, IsNil)
-			sameFile := os.SameFile(expectedKeyPath, info)
-			c.Check(sameFile, Equals, true)
-
-			kdr, err := sb.NewFileKeyDataReader(keyPath)
-			c.Assert(err, IsNil)
-
-			if sameFile {
-				c.Check(expectedKeyDataReader, IsNil)
-				expectedKeyDataReader = kdr
-			}
-
-			return kdr, nil
-		})
-		defer restore()
-
-		restore = secboot.MockSbReadKeyData(func(reader sb.KeyDataReader) (*sb.KeyData, error) {
-			if tc.oldKeyFormat {
-				c.Errorf("unexpected call")
-			}
-			c.Check(expectedKeyDataReader, Equals, reader)
-			kd, err := sb.ReadKeyData(reader)
-			c.Assert(err, IsNil)
-
-			if expectedKeyDataReader == reader {
-				c.Check(expectedKeyData, IsNil)
-				expectedKeyData = kd
-			}
-
-			return kd, nil
-		})
-		defer restore()
-
-		restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
-
-			c.Assert(volumeName, Equals, "name-"+randomUUID)
-			c.Assert(sourceDevicePath, Equals, devicePathUUID)
-			c.Assert(keys, HasLen, 1)
-			c.Assert(keys[0], Equals, expectedKeyData)
-
-			if tc.rkAllow {
-				c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
-					PassphraseTries:  1,
-					RecoveryKeyTries: 3,
-					KeyringPrefix:    "ubuntu-fde",
-				})
-			} else {
-				c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
-					PassphraseTries: 1,
-					// activation with recovery key was disabled
-					RecoveryKeyTries: 0,
-					KeyringPrefix:    "ubuntu-fde",
-				})
-			}
-			return tc.activateErr
-		})
-		defer restore()
-
-		restore = secboot.MockSbActivateVolumeWithRecoveryKey(func(name, device string, authReq sb.AuthRequestor,
-			options *sb.ActivateVolumeOptions) error {
-			c.Errorf("unexpected call")
-			return fmt.Errorf("unexpected call")
-		})
-		defer restore()
-
-		opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
-			AllowRecoveryKey: tc.rkAllow,
-			WhichModel: func() (*asserts.Model, error) {
-				return fakeModel, nil
-			},
-		}
-		unlockRes, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(tc.disk, defaultDevice, keyPath, opts)
-		if tc.err == "" {
-			c.Assert(err, IsNil)
-			c.Assert(unlockRes.IsEncrypted, Equals, tc.hasEncdev)
-			c.Assert(unlockRes.PartDevice, Equals, devicePath)
-			if tc.hasEncdev {
-				c.Assert(unlockRes.FsDevice, Equals, filepath.Join("/dev/mapper", defaultDevice+"-"+randomUUID))
-			} else {
-				c.Assert(unlockRes.FsDevice, Equals, devicePath)
-			}
-		} else {
-			c.Assert(err, ErrorMatches, tc.err)
-			// also check that the IsEncrypted value matches, this is
-			// important for robust callers to know whether they should try to
-			// unlock using a different method or not
-			// this is only skipped on some test cases where we get an error
-			// very early, like trying to connect to the tpm
-			c.Assert(unlockRes.IsEncrypted, Equals, tc.hasEncdev)
-			if tc.hasEncdev {
-				c.Check(unlockRes.PartDevice, Equals, devicePath)
-				c.Check(unlockRes.FsDevice, Equals, "")
-			} else {
-				c.Check(unlockRes.PartDevice, Equals, "")
-				c.Check(unlockRes.FsDevice, Equals, "")
-			}
-		}
-
-		c.Assert(unlockRes.UnlockMethod, Equals, tc.expUnlockMethod)
+			c.Assert(unlockRes.UnlockMethod, Equals, tc.expUnlockMethod)
+		}()
 	}
 }
 
