@@ -161,7 +161,7 @@ func maybeEncryptPartition(dgpair *gadget.OnDiskAndGadgetStructurePair, encrypti
 }
 
 // TODO probably we won't need to pass partDisp when we include storage in laidOut
-func createFilesystem(part *gadget.OnDiskStructure, fsParams *mkfsParams, partDisp string, perfTimings timings.Measurer) error {
+func createFilesystem(fsParams *mkfsParams, partDisp string, perfTimings timings.Measurer) error {
 	var err error
 	timings.Run(perfTimings, fmt.Sprintf("make-filesystem[%s]", partDisp),
 		fmt.Sprintf("Create filesystem for %s", fsParams.Device),
@@ -194,7 +194,6 @@ func installOnePartition(dgpair *gadget.OnDiskAndGadgetStructurePair,
 	observer gadget.ContentObserver, perfTimings timings.Measurer,
 ) (fsDevice string, encryptionKey keys.EncryptionKey, err error) {
 	// 1. Encrypt
-	diskPart := dgpair.DiskStructure
 	vs := dgpair.GadgetStructure
 	role := vs.Role
 	fsParams, encryptionKey, err := maybeEncryptPartition(dgpair, encryptionType, sectorSize, perfTimings)
@@ -204,7 +203,7 @@ func installOnePartition(dgpair *gadget.OnDiskAndGadgetStructurePair,
 	fsDevice = fsParams.Device
 
 	// 2. Create filesystem
-	if err := createFilesystem(diskPart, fsParams, role, perfTimings); err != nil {
+	if err := createFilesystem(fsParams, role, perfTimings); err != nil {
 		return "", nil, err
 	}
 
@@ -231,6 +230,11 @@ func resolveBootDevice(bootDevice string, bootVol *gadget.Volume) (string, error
 	if bootDevice != "" {
 		return bootDevice, nil
 	}
+
+	// XXX: It makes no sense to handle bootVol.DeviceAssignment here and
+	// force the assignment there, as current constraints dictate the boot
+	// device must be on the same disk as ubuntu-seed. Therefor we should
+	// just ensure that the two disk paths don't differ if assigned
 	foundDisk, err := disks.DiskFromMountPoint("/run/mnt/ubuntu-seed", nil)
 	if err != nil {
 		logger.Noticef("Warning: cannot find disk from mounted seed: %s", err)
@@ -241,7 +245,19 @@ func resolveBootDevice(bootDevice string, bootVol *gadget.Volume) (string, error
 	if err != nil {
 		return "", fmt.Errorf("cannot find device to create partitions on: %v", err)
 	}
-
+	if bootVol.DeviceAssignment != "" {
+		// disk is assigned for this volume, then it must match the one
+		// that is assigned to system-seed
+		bootDisk, err := disks.DiskFromDeviceName(bootVol.DeviceAssignment)
+		if err != nil {
+			return "", err
+		}
+		logger.Noticef("volume %s has been assigned disk %s", bootVol.Name, bootDisk.KernelDeviceNode())
+		if bootDevice != bootDisk.KernelDeviceNode() {
+			return "", fmt.Errorf("volume %s was assigned disk %s, but this does not match the disk for ubuntu-seed %s",
+				bootVol.Name, bootDisk.KernelDeviceNode(), bootDevice)
+		}
+	}
 	return bootDevice, nil
 }
 
@@ -249,11 +265,10 @@ func resolveBootDevice(bootDevice string, bootVol *gadget.Volume) (string, error
 // volume name where partitions have been created, the on disk
 // structures after that, the laidout volumes, and the disk sector
 // size.
-func createPartitions(model gadget.Model, info *gadget.Info, gadgetRoot, kernelRoot, bootDevice string, options Options,
-	perfTimings timings.Measurer) (
+func createPartitions(volumes map[string]*gadget.Volume, gadgetRoot, bootDevice string, perfTimings timings.Measurer) (
 	bootVolGadgetName string, created []*gadget.OnDiskAndGadgetStructurePair, bootVolSectorSize quantity.Size, err error) {
 	// Find boot volume
-	bootVol, err := gadget.FindBootVolume(info.Volumes)
+	bootVol, err := gadget.FindBootVolume(volumes)
 	if err != nil {
 		return "", nil, 0, err
 	}
@@ -324,6 +339,24 @@ func onDiskStructsSortedIdx(vss map[int]*gadget.OnDiskStructure) []int {
 	return yamlIdxSl
 }
 
+func determineDeviceVolumes(gi *gadget.Info) (map[string]*gadget.Volume, error) {
+	if len(gi.VolumeAssignments) != 0 {
+		devVols, err := gadget.VolumesForCurrentDeviceAssignment(gi)
+		if err != nil {
+			return nil, err
+		}
+
+		// in case of volume assignments let us list those for
+		// information
+		logger.Noticef("volume assignments:")
+		for name, vol := range devVols {
+			logger.Noticef("        %s => %s", name, vol.DeviceAssignment)
+		}
+		return devVols, nil
+	}
+	return gi.Volumes, nil
+}
+
 // Run creates partitions, encrypts them when expected, creates
 // filesystems, and finally writes content on them.
 func Run(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelSnapInfo, bootDevice string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
@@ -343,10 +376,15 @@ func Run(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelSnapInfo, 
 		return nil, err
 	}
 
+	volumes, err := determineDeviceVolumes(info)
+	if err != nil {
+		return nil, err
+	}
+
 	// Step 1: create partitions
 	kernelRoot := kernelSnapInfo.MountPoint
-	bootVolGadgetName, created, bootVolSectorSize, err :=
-		createPartitions(model, info, gadgetRoot, kernelRoot, bootDevice, options, perfTimings)
+	bootVolumeName, created, bootVolSectorSize, err :=
+		createPartitions(volumes, gadgetRoot, bootDevice, perfTimings)
 	if err != nil {
 		return nil, err
 	}
@@ -408,16 +446,19 @@ func Run(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelSnapInfo, 
 
 	// after we have created all partitions, build up the mapping of volumes
 	// to disk device traits and save it to disk for later usage
-	optsPerVol := map[string]*gadget.DiskVolumeValidationOptions{
-		// this assumes that the encrypted partitions above are always only on the
-		// system-boot volume, this assumption may change
-		bootVolGadgetName: {
-			ExpectedStructureEncryption: partsEncrypted,
-		},
+	optsPerVol := make(map[string]*gadget.DiskVolumeValidationOptions)
+	for name := range volumes {
+		if name == bootVolumeName {
+			// this assumes that the encrypted partitions above are always only on the
+			// system-boot volume, this assumption may change
+			optsPerVol[name] = &gadget.DiskVolumeValidationOptions{
+				ExpectedStructureEncryption: partsEncrypted,
+			}
+		}
 	}
 
 	// save the traits to ubuntu-data host and optionally to ubuntu-save if it exists
-	if err := saveStorageTraits(model, info.Volumes, optsPerVol, hasSavePartition); err != nil {
+	if err := saveStorageTraits(model, volumes, optsPerVol, hasSavePartition); err != nil {
 		return nil, err
 	}
 
@@ -701,10 +742,17 @@ func FactoryReset(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelS
 	if err != nil {
 		return nil, err
 	}
-	bootVol, err := gadget.FindBootVolume(info.Volumes)
+
+	volumes, err := determineDeviceVolumes(info)
 	if err != nil {
 		return nil, err
 	}
+
+	bootVol, err := gadget.FindBootVolume(volumes)
+	if err != nil {
+		return nil, err
+	}
+
 	bootDevice, err = resolveBootDevice(bootDevice, bootVol)
 	if err != nil {
 		return nil, err
@@ -796,15 +844,19 @@ func FactoryReset(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelS
 
 	// after we have created all partitions, build up the mapping of volumes
 	// to disk device traits and save it to disk for later usage
-	optsPerVol := map[string]*gadget.DiskVolumeValidationOptions{
-		// this assumes that the encrypted partitions above are always only on the
-		// system-boot volume, this assumption may change
-		bootVol.Name: {
-			ExpectedStructureEncryption: volCompatOps.ExpectedStructureEncryption,
-		},
+	optsPerVol := make(map[string]*gadget.DiskVolumeValidationOptions)
+	for name := range volumes {
+		if name == bootVol.Name {
+			// this assumes that the encrypted partitions above are always only on the
+			// system-boot volume, this assumption may change
+			optsPerVol[name] = &gadget.DiskVolumeValidationOptions{
+				ExpectedStructureEncryption: volCompatOps.ExpectedStructureEncryption,
+			}
+		}
 	}
+
 	// save the traits to ubuntu-data host and optionally to ubuntu-save if it exists
-	if err := saveStorageTraits(model, info.Volumes, optsPerVol, hasSavePartition); err != nil {
+	if err := saveStorageTraits(model, volumes, optsPerVol, hasSavePartition); err != nil {
 		return nil, err
 	}
 

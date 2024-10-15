@@ -19,7 +19,10 @@
 
 package gadget
 
-import "github.com/snapcore/snapd/gadget/quantity"
+import (
+	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/testutil"
+)
 
 type (
 	MountedFilesystemUpdater = mountedFilesystemUpdater
@@ -96,4 +99,10 @@ func NewInvalidOffsetError(offset, lowerBound, upperBound quantity.Offset) *Inva
 
 func (v *Volume) YamlIdxToStructureIdx(yamlIdx int) (int, error) {
 	return v.yamlIdxToStructureIdx(yamlIdx)
+}
+
+func MockFindVolumesMatchingDeviceAssignment(f func(gi *Info) (map[string]*Volume, error)) (restore func()) {
+	r := testutil.Backup(&VolumesForCurrentDeviceAssignment)
+	VolumesForCurrentDeviceAssignment = f
+	return r
 }
