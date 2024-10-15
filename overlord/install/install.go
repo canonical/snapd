@@ -253,18 +253,18 @@ func PrepareEncryptedSystemData(model *asserts.Model, installKeyForRole map[stri
 	dataBootstrappedContainer := installKeyForRole[gadget.SystemData]
 	saveBootstrappedContainer := installKeyForRole[gadget.SystemSave]
 
-	// make note of the encryption keys
-	trustedInstallObserver.SetBootstrappedContainers(dataBootstrappedContainer, saveBootstrappedContainer)
+	var primaryKey []byte
 
 	if saveBootstrappedContainer != nil {
-		platformKey, err := keys.NewProtectorKey()
+		protectorKey, err := keys.NewProtectorKey()
 		if err != nil {
 			return err
 		}
-		plainKey, diskKey, err := platformKey.CreateProtectedKey()
+		plainKey, generatedPK, diskKey, err := protectorKey.CreateProtectedKey(nil)
 		if err != nil {
 			return err
 		}
+		primaryKey = generatedPK
 
 		const token = true
 		tokenWriter, err := saveBootstrappedContainer.AddKey("default", diskKey, token)
@@ -276,7 +276,7 @@ func PrepareEncryptedSystemData(model *asserts.Model, installKeyForRole map[stri
 			return err
 		}
 
-		if err := saveKeys(model, platformKey); err != nil {
+		if err := saveKeys(model, protectorKey); err != nil {
 			return err
 		}
 	}
@@ -284,6 +284,10 @@ func PrepareEncryptedSystemData(model *asserts.Model, installKeyForRole map[stri
 	if err := writeMarkers(model); err != nil {
 		return err
 	}
+
+	// make note of the encryption keys
+	trustedInstallObserver.SetBootstrappedContainers(dataBootstrappedContainer, saveBootstrappedContainer, primaryKey)
+
 	return nil
 }
 

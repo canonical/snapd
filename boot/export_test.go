@@ -234,7 +234,7 @@ func MockResealKeyForBootChains(f func(unlocker Unlocker, method device.SealingM
 	}
 }
 
-func MockSealKeyForBootChains(f func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *SealKeyForBootChainsParams) error) (restore func()) {
+func MockSealKeyForBootChains(f func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, params *SealKeyForBootChainsParams) error) (restore func()) {
 	old := SealKeyForBootChains
 	SealKeyForBootChains = f
 	return func() {
