@@ -90,6 +90,8 @@ var (
 
 	secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
 	sysconfigConfigureTargetSystem     = sysconfig.ConfigureTargetSystem
+
+	bootUseTokens = boot.UseTokens
 )
 
 // MockSecbootCheckTPMKeySealingSupported mocks secboot.CheckTPMKeySealingSupported usage by the package for testing.
@@ -267,26 +269,59 @@ func PrepareEncryptedSystemData(model *asserts.Model, installKeyForRole map[stri
 	dataBootstrappedContainer := installKeyForRole[gadget.SystemData]
 	saveBootstrappedContainer := installKeyForRole[gadget.SystemSave]
 
-	// make note of the encryption keys
-	trustedInstallObserver.SetBootstrappedContainersAndPrimaryKey(dataBootstrappedContainer, saveBootstrappedContainer, nil)
+	var primaryKey []byte
 
 	if saveBootstrappedContainer != nil {
-		// TODO: use plainkey from secboot
-		saveKey, err := keys.NewEncryptionKey()
-		if err != nil {
-			return err
-		}
-		if err := saveBootstrappedContainer.AddKey("default", saveKey); err != nil {
-			return err
-		}
-		if err := saveKeys(model, saveKey); err != nil {
-			return err
+		if bootUseTokens(model) {
+			protectorKey, err := keys.NewProtectorKey()
+			if err != nil {
+				return err
+			}
+
+			plainKey, generatedPK, diskKey, err := protectorKey.CreateProtectedKey(nil)
+			if err != nil {
+				return err
+			}
+
+			if err := saveBootstrappedContainer.AddKey("default", diskKey); err != nil {
+				return err
+			}
+			tokenWriter, err := saveBootstrappedContainer.GetTokenWriter("default")
+			if err != nil {
+				return err
+			}
+			if err := plainKey.Write(tokenWriter); err != nil {
+				return err
+			}
+
+			if err := saveKeys(model, protectorKey); err != nil {
+				return err
+			}
+
+			primaryKey = generatedPK
+		} else {
+			saveKey, err := keys.NewEncryptionKey()
+			if err != nil {
+				return err
+			}
+
+			if err := saveBootstrappedContainer.AddKey("default", saveKey); err != nil {
+				return err
+			}
+
+			if err := saveLegacyKeys(model, saveKey); err != nil {
+				return err
+			}
 		}
 	}
 	// write markers containing a secret to pair data and save
 	if err := writeMarkers(model); err != nil {
 		return err
 	}
+
+	// make note of the encryption keys
+	trustedInstallObserver.SetBootstrappedContainersAndPrimaryKey(dataBootstrappedContainer, saveBootstrappedContainer, primaryKey)
+
 	return nil
 }
 
@@ -309,7 +344,17 @@ func writeMarkers(model *asserts.Model) error {
 	return device.WriteEncryptionMarkers(boot.InstallHostFDEDataDir(model), boot.InstallHostFDESaveDir, markerSecret)
 }
 
-func saveKeys(model *asserts.Model, saveKey keys.EncryptionKey) error {
+func saveKeys(model *asserts.Model, saveKey keys.ProtectorKey) error {
+	saveKeyPath := device.SaveKeyUnder(boot.InstallHostFDEDataDir(model))
+
+	if err := os.MkdirAll(filepath.Dir(saveKeyPath), 0755); err != nil {
+		return err
+	}
+
+	return saveKey.SaveToFile(saveKeyPath)
+}
+
+func saveLegacyKeys(model *asserts.Model, saveKey keys.EncryptionKey) error {
 	saveKeyPath := device.SaveKeyUnder(boot.InstallHostFDEDataDir(model))
 
 	if err := os.MkdirAll(filepath.Dir(saveKeyPath), 0755); err != nil {
