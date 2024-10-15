@@ -30,6 +30,10 @@ type Options struct {
 	// IsDecryptedDevice indicates that the mountpoint is referring to a
 	// decrypted device.
 	IsDecryptedDevice bool
+
+	// IsVerityDevice indicates that the mountpoint is referring to
+	// device mounted with verity data.
+	IsVerityDevice bool
 }
 
 // Disk is a single physical disk device that contains partitions.
@@ -216,8 +220,15 @@ var (
 	_ = error(PartitionNotFoundError{})
 )
 
+type deviceMapperBackResolversOpts struct {
+	dmUUID []byte
+	dmName []byte
+	// this is needed by the verity device resolver
+	idFsUUID string
+}
+
 // TODO: simplify this away as now we have only LUKS?
-var deviceMapperBackResolvers = map[string]func(dmUUID, dmName []byte) (dev string, ok bool){}
+var deviceMapperBackResolvers = map[string]func(opts *deviceMapperBackResolversOpts) (dev string, ok bool){}
 
 // RegisterDeviceMapperBackResolver takes a callback function which is used when
 // the disks package through some of it's various methods to locate/create a
@@ -229,7 +240,7 @@ var deviceMapperBackResolvers = map[string]func(dmUUID, dmName []byte) (dev stri
 // for the mapper device and true. If the handler does not match a provided
 // device mapper, the function should return "ok" as false.
 // The name of the handler is currently only used in tests.
-func RegisterDeviceMapperBackResolver(name string, f func(dmUUID, dmName []byte) (dev string, ok bool)) {
+func RegisterDeviceMapperBackResolver(name string, f func(opts *deviceMapperBackResolversOpts) (dev string, ok bool)) {
 	deviceMapperBackResolvers[name] = f
 }
 

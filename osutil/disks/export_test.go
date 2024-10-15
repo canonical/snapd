@@ -24,5 +24,7 @@ var (
 
 	CryptLuks2DeviceMapperBackResolver = cryptLuks2DeviceMapperBackResolver
 
+	CryptVerityDeviceMapperBackResolver = cryptVerityDeviceMapperBackResolver
+
 	FilesystemTypeForPartition = filesystemTypeForPartition
 )
