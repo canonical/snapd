@@ -26,8 +26,8 @@ func (key ProtectorKey) SaveToFile(path string) error {
 	return nil
 }
 
-func (key ProtectorKey) CreateProtectedKey() (*PlainKey, []byte, error) {
-	return &PlainKey{}, []byte{}, nil
+func (key ProtectorKey) CreateProtectedKey(primaryKey []byte) (*PlainKey, []byte, []byte, error) {
+	return &PlainKey{}, primaryKey, []byte{}, nil
 }
 
 type KeyDataWriter interface {

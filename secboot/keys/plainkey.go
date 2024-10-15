@@ -37,9 +37,9 @@ type PlainKey struct {
 	keyData *sb.KeyData
 }
 
-func (key ProtectorKey) CreateProtectedKey() (*PlainKey, []byte, error) {
-	protectedKey /*primaryKey*/, _, unlockKey, err := sb_plainkey.NewProtectedKey(rand.Reader, key[:], nil)
-	return &PlainKey{protectedKey}, unlockKey, err
+func (key ProtectorKey) CreateProtectedKey(primaryKey []byte) (*PlainKey, []byte, []byte, error) {
+	protectedKey, generatedPK, unlockKey, err := sb_plainkey.NewProtectedKey(rand.Reader, key[:], primaryKey)
+	return &PlainKey{protectedKey}, generatedPK, unlockKey, err
 }
 
 type KeyDataWriter interface {

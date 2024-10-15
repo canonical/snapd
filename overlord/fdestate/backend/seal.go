@@ -71,15 +71,15 @@ func fallbackKeySealRequests(key, saveKey secboot.BootstrappedContainer) []secbo
 	}
 }
 
-func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBootChains, roleToBlName map[bootloader.Role]string, pcrHandle uint32) ([]byte, error) {
+func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBootChains, primaryKey []byte, roleToBlName map[bootloader.Role]string, pcrHandle uint32) error {
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
-		return nil, fmt.Errorf("cannot prepare for key sealing: %v", err)
+		return fmt.Errorf("cannot prepare for key sealing: %v", err)
 	}
 
 	sealKeyParams := &secboot.SealKeysParams{
 		ModelParams:            modelParams,
-		PrimaryKey:             nil,
+		PrimaryKey:             primaryKey,
 		PCRPolicyCounterHandle: pcrHandle,
 	}
 
@@ -89,12 +89,11 @@ func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBo
 	// path only unseals one object because unsealing is expensive.
 	// Furthermore, the run object key is stored on ubuntu-boot so that we do not
 	// need to continually write/read keys from ubuntu-seed.
-	primaryKey, err := secbootSealKeys(runKeySealRequests(key), sealKeyParams)
-	if err != nil {
-		return nil, fmt.Errorf("cannot seal the encryption keys: %v", err)
+	if _, err := secbootSealKeys(runKeySealRequests(key), sealKeyParams); err != nil {
+		return fmt.Errorf("cannot seal the encryption keys: %v", err)
 	}
 
-	return primaryKey, nil
+	return nil
 }
 
 func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot.PredictableBootChains, primaryKey []byte, roleToBlName map[bootloader.Role]string, pcrHandle uint32) error {
@@ -152,7 +151,7 @@ func sealKeyForBootChainsHook(key, saveKey secboot.BootstrappedContainer, params
 	return nil
 }
 
-func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams) error {
+func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, params *boot.SealKeyForBootChainsParams) error {
 	if method == device.SealingMethodFDESetupHook {
 		return sealKeyForBootChainsHook(key, saveKey, params)
 	}
@@ -205,14 +204,11 @@ func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secbo
 
 	// TODO: refactor sealing functions to take a struct instead of so many
 	// parameters
-	primaryKey, err := sealRunObjectKeys(key, pbc, params.RoleToBlName, runObjectKeyPCRHandle)
-	if err != nil {
+	if err := sealRunObjectKeys(key, pbc, primaryKey, params.RoleToBlName, runObjectKeyPCRHandle); err != nil {
 		return err
 	}
-
-	err = sealFallbackObjectKeys(key, saveKey, rpbc, primaryKey, params.RoleToBlName,
-		fallbackObjectKeyPCRHandle)
-	if err != nil {
+	if err := sealFallbackObjectKeys(key, saveKey, rpbc, primaryKey, params.RoleToBlName,
+		fallbackObjectKeyPCRHandle); err != nil {
 		return err
 	}
 
