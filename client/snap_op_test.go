@@ -48,7 +48,12 @@ var ops = []struct {
 		},
 		action: "install",
 	},
-	{(*client.Client).Refresh, "refresh"},
+	{
+		op: func(c *client.Client, name string, options *client.SnapOptions) (string, error) {
+			return c.Refresh(name, nil, options)
+		},
+		action: "refresh",
+	},
 	{
 		op: func(c *client.Client, name string, options *client.SnapOptions) (string, error) {
 			return c.Remove(name, nil, options)
@@ -67,7 +72,12 @@ var multiOps = []struct {
 	op     func(*client.Client, []string, *client.SnapOptions) (string, error)
 	action string
 }{
-	{(*client.Client).RefreshMany, "refresh"},
+	{
+		op: func(c *client.Client, names []string, options *client.SnapOptions) (string, error) {
+			return c.RefreshMany(names, nil, options)
+		},
+		action: "refresh",
+	},
 	{
 		op: func(c *client.Client, names []string, options *client.SnapOptions) (string, error) {
 			return c.InstallMany(names, nil, options)
@@ -874,7 +884,7 @@ func (cs *clientSuite) TestClientRefreshWithValidationSets(c *check.C) {
 	}`
 
 	sets := []string{"foo/bar=2", "foo/baz"}
-	chgID, err := cs.cli.RefreshMany(nil, &client.SnapOptions{
+	chgID, err := cs.cli.RefreshMany(nil, nil, &client.SnapOptions{
 		ValidationSets: sets,
 	})
 	c.Assert(err, check.IsNil)
@@ -957,6 +967,10 @@ func (cs *clientSuite) TestClientOpInstallWithComponents(c *check.C) {
 	cs.testClientOpWithComponents(c, cs.cli.Install)
 }
 
+func (cs *clientSuite) TestClientOpRefreshWithComponents(c *check.C) {
+	cs.testClientOpWithComponents(c, cs.cli.Refresh)
+}
+
 func (cs *clientSuite) TestClientOpRemoveWithComponents(c *check.C) {
 	cs.testClientOpWithComponents(c, cs.cli.Remove)
 }
@@ -989,6 +1003,10 @@ func (cs *clientSuite) testClientOpManyWithComponents(c *check.C, action func(na
 
 func (cs *clientSuite) TestClientOpInstallManyWithComponents(c *check.C) {
 	cs.testClientOpManyWithComponents(c, cs.cli.InstallMany)
+}
+
+func (cs *clientSuite) TestClientOpRefreshManyWithComponents(c *check.C) {
+	cs.testClientOpManyWithComponents(c, cs.cli.RefreshMany)
 }
 
 func (cs *clientSuite) TestClientOpRemoveManyWithComponents(c *check.C) {
