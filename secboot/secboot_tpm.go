@@ -390,8 +390,7 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		const token = false
-		if _, err := key.BootstrappedContainer.AddKey(key.SlotName, unlockKey, token); err != nil {
+		if err := key.BootstrappedContainer.AddKey(key.SlotName, unlockKey); err != nil {
 			return nil, err
 		}
 		writer := sb.NewFileKeyDataWriter(key.KeyFile)

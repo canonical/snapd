@@ -341,3 +341,11 @@ func MockSbUpdateKeyDataPCRProtectionPolicy(f func(tpm *sb_tpm2.Connection, auth
 		sbUpdateKeyDataPCRProtectionPolicy = old
 	}
 }
+
+func MockNewLUKS2KeyDataWriter(f func(devicePath string, name string) (KeyDataWriter, error)) (restore func()) {
+	old := newLUKS2KeyDataWriter
+	newLUKS2KeyDataWriter = f
+	return func() {
+		newLUKS2KeyDataWriter = old
+	}
+}
