@@ -201,9 +201,9 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 			ed := strings.ReplaceAll(d, ":", `\:`)
 			lowerDirs.WriteString(ed)
 		}
-		options = append(options, fmt.Sprintf("lowerdir=\"%s\"", lowerDirs.String()))
-		options = append(options, fmt.Sprintf("upperdir=\"%s\"", opts.UpperDir))
-		options = append(options, fmt.Sprintf("workdir=\"%s\"", opts.WorkDir))
+		options = append(options, fmt.Sprintf("lowerdir=%s", lowerDirs.String()))
+		options = append(options, fmt.Sprintf("upperdir=%s", opts.UpperDir))
+		options = append(options, fmt.Sprintf("workdir=%s", opts.WorkDir))
 	}
 	if len(options) > 0 {
 		args = append(args, "--options="+strings.Join(options, ","))
