@@ -48,7 +48,11 @@ func (bc *bootstrappedContainer) AddKey(slotName string, newKey []byte, token bo
 	if !token {
 		return nil, nil
 	}
-	return nil, fmt.Errorf("not implemented")
+	writer, err := sb.NewLUKS2KeyDataWriter(bc.devicePath, slotName)
+	if err != nil {
+		return nil, err
+	}
+	return writer, nil
 }
 
 func (bc *bootstrappedContainer) RemoveBootstrapKey() error {

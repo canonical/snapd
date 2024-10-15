@@ -20,14 +20,16 @@
 package secboot
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 
 	"github.com/snapcore/snapd/osutil"
 )
 
 type KeyDataWriter interface {
-	// TODO: this will typically have a function that takes a key
-	// data as input
+	io.Writer
+	Commit() error
 }
 
 // BootstrappedContainer is an abstraction for an encrypted container
@@ -51,11 +53,27 @@ var CreateBootstrappedContainer = createBootstrappedContainerMockImpl
 type MockBootstrappedContainer struct {
 	BootstrapKeyRemoved bool
 	Slots               map[string][]byte
+	Tokens              map[string][]byte
 }
 
 func CreateMockBootstrappedContainer() *MockBootstrappedContainer {
 	osutil.MustBeTestBinary("CreateMockBootstrappedContainer can be only called from tests")
-	return &MockBootstrappedContainer{Slots: make(map[string][]byte)}
+	return &MockBootstrappedContainer{Slots: make(map[string][]byte), Tokens: make(map[string][]byte)}
+}
+
+type mockKeyDataWriter struct {
+	m        *MockBootstrappedContainer
+	slotName string
+	buf      bytes.Buffer
+}
+
+func (m *mockKeyDataWriter) Write(p []byte) (n int, err error) {
+	return m.buf.Write(p)
+}
+
+func (m *mockKeyDataWriter) Commit() error {
+	m.m.Tokens[m.slotName] = m.buf.Bytes()
+	return nil
 }
 
 func (m *MockBootstrappedContainer) AddKey(slotName string, newKey []byte, token bool) (KeyDataWriter, error) {
@@ -63,14 +81,15 @@ func (m *MockBootstrappedContainer) AddKey(slotName string, newKey []byte, token
 		return nil, fmt.Errorf("internal error: key resetter was a already finished")
 	}
 
+	_, ok := m.Slots[slotName]
+	if ok {
+		return nil, fmt.Errorf("slot already taken")
+	}
+	m.Slots[slotName] = newKey
+
 	if token {
-		return nil, fmt.Errorf("not implemented")
+		return &mockKeyDataWriter{m: m, slotName: slotName}, nil
 	} else {
-		_, ok := m.Slots[slotName]
-		if ok {
-			return nil, fmt.Errorf("slot already taken")
-		}
-		m.Slots[slotName] = newKey
 		return nil, nil
 	}
 }
