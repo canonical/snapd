@@ -13,5 +13,5 @@ index 7e92c4709a..4d0f5b97bd 100644
 +++ a/cmd/snap-update-ns/testdata/usr-share-secureboot-potato/4-initially-disconnected-then-connected.desired.fstab
 @@ -1,2 +1,3 @@
 +# This file is identical to 1-initially-connected.desired.fstab, except for revision numbers.
- /snap/test-snapd-content-layout/x2/attached-content /usr/share/secureboot/potato none rbind,rw,x-snapd.origin=layout 0 0
- /snap/test-snapd-content/x1 /snap/test-snapd-content-layout/x2/attached-content none bind,ro 0 0
+ /snap/test-snapd-layout/x2/attached-content /usr/share/secureboot/potato none rbind,rw,x-snapd.origin=layout 0 0
+ /snap/test-snapd-content/x1 /snap/test-snapd-layout/x2/attached-content none bind,ro 0 0

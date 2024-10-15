@@ -1,4 +1,4 @@
-name: test-snapd-content-layout
+name: test-snapd-layout
 version: a
 
 confinement: strict

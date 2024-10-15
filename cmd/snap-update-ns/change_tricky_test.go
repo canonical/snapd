@@ -41,14 +41,14 @@ func (s *changeSuite) TestContentLayout1InitiallyConnected(c *C) {
 	// Note that the order of entries is back to front.
 	//
 	// At this time, the mount namespace is correct:
-	// zyga@wyzima:/run/snapd/ns$ sudo nsenter -mtest-snapd-content-layout.mnt
+	// zyga@wyzima:/run/snapd/ns$ sudo nsenter -mtest-snapd-layout.mnt
 	// root@wyzima:/# ls -l /usr/share/secureboot/potato
 	// total 1
 	// -rw-rw-r-- 1 root root 22 Aug 30 09:36 canary.txt
 	// drwxrwxr-x 2 root root 32 Aug 30 09:36 meta
-	// root@wyzima:/# ls -l /snap/test-snapd-content-layout/
+	// root@wyzima:/# ls -l /snap/test-snapd-layout/
 	// current/ x1/      x2/
-	// root@wyzima:/# ls -l /snap/test-snapd-content-layout/x2/attached-content/
+	// root@wyzima:/# ls -l /snap/test-snapd-layout/x2/attached-content/
 	// total 1
 	// -rw-rw-r-- 1 root root 22 Aug 30 09:36 canary.txt
 	// drwxrwxr-x 2 root root 32 Aug 30 09:36 meta
@@ -76,8 +76,8 @@ func (s *changeSuite) TestContentLayout2InitiallyConnectedThenDisconnected(c *C)
 	// construction sticks around and is not updated. This is a bug.
 	// This is tracked as https://warthogs.atlassian.net/browse/SNAPDENG-31645
 	//
-	// zyga@wyzima:/run/snapd/ns$ sudo nsenter -mtest-snapd-content-layout.mnt
-	// root@wyzima:/# ls -l /snap/test-snapd-content-layout/x2/attached-content/
+	// zyga@wyzima:/run/snapd/ns$ sudo nsenter -mtest-snapd-layout.mnt
+	// root@wyzima:/# ls -l /snap/test-snapd-layout/x2/attached-content/
 	// total 1
 	// -rw-rw-r-- 1 root root 46 Aug 30 09:36 hidden
 	// root@wyzima:/# ls -l /usr/share/secureboot/potato
@@ -101,7 +101,7 @@ func (s *changeSuite) TestContentLayout2InitiallyConnectedThenDisconnected(c *C)
 	// The actual entry for clarity.
 	c.Assert(changes[3].Entry, DeepEquals, osutil.MountEntry{
 		Name:    "/snap/test-snapd-content/x1",
-		Dir:     "/snap/test-snapd-content-layout/x2/attached-content",
+		Dir:     "/snap/test-snapd-layout/x2/attached-content",
 		Type:    "none",
 		Options: []string{"bind", "ro", "x-snapd.detach"},
 	})
@@ -121,12 +121,12 @@ func (s *changeSuite) TestContentLayout3InitiallyConnectedThenDisconnectedAndRec
 	// namespace incorrect. The content connection is new and correct but the layout
 	// is still the same and was not propagated.
 	//
-	// zyga@wyzima:/run/snapd/ns$ sudo nsenter -mtest-snapd-content-layout.mnt
+	// zyga@wyzima:/run/snapd/ns$ sudo nsenter -mtest-snapd-layout.mnt
 	// root@wyzima:/# ls -l /usr/share/secureboot/potato
 	// total 1
 	// -rw-rw-r-- 1 root root 22 Aug 30 09:36 canary.txt
 	// drwxrwxr-x 2 root root 32 Aug 30 09:36 meta
-	// root@wyzima:/# ls -l /snap/test-snapd-content-layout/x2/attached-content/
+	// root@wyzima:/# ls -l /snap/test-snapd-layout/x2/attached-content/
 	// total 1
 	// -rw-rw-r-- 1 root root 22 Aug 30 09:36 canary.txt
 	// drwxrwxr-x 2 root root 32 Aug 30 09:36 meta
@@ -134,7 +134,7 @@ func (s *changeSuite) TestContentLayout3InitiallyConnectedThenDisconnectedAndRec
 	// Yes, but:
 	//
 	// root@wyzima:/# cat /proc/self/mountinfo  | grep attached
-	// 212 945 7:12 / /snap/test-snapd-content-layout/x2/attached-content ro,relatime master:34 - squashfs /dev/loop12 ro,errors=continue,threads=single
+	// 212 945 7:12 / /snap/test-snapd-layout/x2/attached-content ro,relatime master:34 - squashfs /dev/loop12 ro,errors=continue,threads=single
 	//
 	// root@wyzima:/# cat /proc/self/mountinfo  | grep potato
 	// 572 598 7:12 / /usr/share/secureboot/potato ro,relatime master:34 - squashfs /dev/loop12 ro,errors=continue,threads=single
@@ -149,7 +149,7 @@ func (s *changeSuite) TestContentLayout3InitiallyConnectedThenDisconnectedAndRec
 	// The actual entry for clarity.
 	c.Assert(changes[4].Entry, DeepEquals, osutil.MountEntry{
 		Name:    "/snap/test-snapd-content/x1",
-		Dir:     "/snap/test-snapd-content-layout/x2/attached-content",
+		Dir:     "/snap/test-snapd-layout/x2/attached-content",
 		Type:    "none",
 		Options: []string{"bind", "ro"},
 	})
@@ -174,7 +174,7 @@ func (s *changeSuite) TestContentLayout4InitiallyDisconnectedThenConnected(c *C)
 	// The actual entry for clarity.
 	c.Assert(changes[4].Entry, DeepEquals, osutil.MountEntry{
 		Name:    "/snap/test-snapd-content/x1",
-		Dir:     "/snap/test-snapd-content-layout/x2/attached-content",
+		Dir:     "/snap/test-snapd-layout/x2/attached-content",
 		Type:    "none",
 		Options: []string{"bind", "ro"},
 	})
