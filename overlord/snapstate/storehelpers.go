@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -225,9 +224,7 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int, 
 }
 
 func setActionValidationSetsAndRequiredRevision(action *store.SnapAction, valsets []snapasserts.ValidationSetKey, requiredRevision snap.Revision) {
-	for _, vs := range valsets {
-		action.ValidationSets = append(action.ValidationSets, vs)
-	}
+	action.ValidationSets = append(action.ValidationSets, valsets...)
 	if !requiredRevision.Unset() {
 		action.Revision = requiredRevision
 		// channel cannot be present if revision is set (store would
@@ -261,93 +258,6 @@ func downloadInfo(ctx context.Context, st *state.State, name string, revOpts *Re
 		// cannot specify both with the API
 		if revOpts.Revision.Unset() {
 			action.Channel = revOpts.Channel
-			action.CohortKey = revOpts.CohortKey
-		} else {
-			action.Revision = revOpts.Revision
-		}
-	}
-
-	theStore := Store(st, deviceCtx)
-	st.Unlock() // calls to the store should be done without holding the state lock
-	res, _, err := theStore.SnapAction(ctx, curSnaps, []*store.SnapAction{action}, nil, user, opts)
-	st.Lock()
-
-	return singleActionResult(name, action.Action, res, err)
-}
-
-func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (store.SnapActionResult, error) {
-	curSnaps, err := currentSnaps(st)
-	if err != nil {
-		return store.SnapActionResult{}, err
-	}
-
-	user, err := userFromUserID(st, userID)
-	if err != nil {
-		return store.SnapActionResult{}, err
-	}
-
-	opts, err := refreshOptions(st, nil)
-	if err != nil {
-		return store.SnapActionResult{}, err
-	}
-
-	action := &store.SnapAction{
-		Action:       "install",
-		InstanceName: name,
-	}
-
-	if flags.IgnoreValidation {
-		action.Flags = store.SnapActionIgnoreValidation
-	}
-
-	var requiredRevision snap.Revision
-	var requiredValSets []snapasserts.ValidationSetKey
-
-	if !flags.IgnoreValidation {
-		if len(revOpts.ValidationSets) > 0 {
-			requiredRevision = revOpts.Revision
-			requiredValSets = revOpts.ValidationSets
-		} else {
-			enforcedSets, err := EnforcedValidationSets(st)
-			if err != nil {
-				return store.SnapActionResult{}, err
-			}
-
-			if enforcedSets != nil {
-				// check for invalid presence first to have a list of sets where it's invalid
-				invalidForValSets, err := enforcedSets.CheckPresenceInvalid(naming.Snap(name))
-				if err != nil {
-					if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
-						return store.SnapActionResult{}, err
-					} // else presence is optional or required, carry on
-				}
-				if len(invalidForValSets) > 0 {
-					return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, snapasserts.ValidationSetKeySlice(invalidForValSets).CommaSeparated())
-				}
-				requiredValSets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(name))
-				if err != nil {
-					return store.SnapActionResult{}, err
-				}
-			}
-
-			// check if desired revision matches the revision required by validation sets
-			if !requiredRevision.Unset() && !revOpts.Revision.Unset() && revOpts.Revision.N != requiredRevision.N {
-				return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q at requested revision %s without --ignore-validation, revision %s required by validation sets: %s",
-					name, revOpts.Revision, requiredRevision, snapasserts.ValidationSetKeySlice(requiredValSets).CommaSeparated())
-			}
-		}
-	}
-
-	if len(requiredValSets) > 0 {
-		setActionValidationSetsAndRequiredRevision(action, requiredValSets, requiredRevision)
-	}
-
-	if requiredRevision.Unset() {
-		// cannot specify both with the API
-		if revOpts.Revision.Unset() {
-			// the desired channel
-			action.Channel = revOpts.Channel
-			// the desired cohort key
 			action.CohortKey = revOpts.CohortKey
 		} else {
 			action.Revision = revOpts.Revision
@@ -1077,4 +987,71 @@ func SnapHolds(st *state.State, snaps []string) (map[string][]string, error) {
 	}
 
 	return holds, nil
+}
+
+func sendOneInstallAction(ctx context.Context, st *state.State, snaps StoreSnap, opts Options) (store.SnapActionResult, error) {
+	opts.ExpectOneSnap = true
+	results, err := sendInstallActions(ctx, st, []StoreSnap{snaps}, opts)
+	if err != nil {
+		return store.SnapActionResult{}, err
+	}
+	if len(results) != 1 {
+		return store.SnapActionResult{}, fmt.Errorf("expected exactly one result, got %d", len(results))
+	}
+	return results[0], nil
+}
+
+func sendInstallActions(ctx context.Context, st *state.State, snaps []StoreSnap, opts Options) ([]store.SnapActionResult, error) {
+	enforcedSetsFunc := cachedEnforcedValidationSets(st)
+
+	includeResources := false
+	actions := make([]*store.SnapAction, 0, len(snaps))
+	for _, sn := range snaps {
+		action := &store.SnapAction{
+			Action:       "install",
+			InstanceName: sn.InstanceName,
+		}
+
+		if err := completeStoreAction(action, sn.RevOpts, opts.Flags.IgnoreValidation, enforcedSetsFunc); err != nil {
+			return nil, err
+		}
+
+		if len(sn.Components) > 0 {
+			includeResources = true
+		}
+
+		actions = append(actions, action)
+	}
+
+	curSnaps, err := currentSnaps(st)
+	if err != nil {
+		return nil, err
+	}
+
+	refreshOpts, err := refreshOptions(st, &store.RefreshOptions{
+		IncludeResources: includeResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := userFromUserID(st, opts.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	str := Store(st, opts.DeviceCtx)
+
+	st.Unlock() // calls to the store should be done without holding the state lock
+	results, _, err := str.SnapAction(ctx, curSnaps, actions, nil, user, refreshOpts)
+	st.Lock()
+
+	if err != nil {
+		if opts.ExpectOneSnap {
+			return nil, singleActionResultErr(actions[0].InstanceName, actions[0].Action, err)
+		}
+		return nil, err
+	}
+
+	return results, nil
 }
