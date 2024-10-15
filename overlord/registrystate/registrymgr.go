@@ -238,7 +238,7 @@ func (h *saveViewHandler) Error(origErr error) (ignoreErr bool, err error) {
 	// save the original error so we can return that once the rollback is done
 	last.Set("original-error", origErr.Error())
 
-	tx, commitTask, err := GetStoredTransaction(t)
+	tx, saveChanges, err := GetStoredTransaction(t)
 	if err != nil {
 		return false, fmt.Errorf("cannot rollback failed save-view: cannot get transaction: %v", err)
 	}
@@ -248,7 +248,7 @@ func (h *saveViewHandler) Error(origErr error) (ignoreErr bool, err error) {
 	if err != nil {
 		return false, fmt.Errorf("cannot rollback failed save-view: cannot clear transaction changes: %v", err)
 	}
-	commitTask.Set("registry-transaction", tx)
+	saveChanges()
 
 	// ignore error for now so we run again to try to undo any committed data
 	return true, nil

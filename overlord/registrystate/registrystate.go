@@ -213,7 +213,7 @@ func GetTransactionToModify(ctx *Context, st *state.State, view *registry.View) 
 		// running in the context of a transaction, so if the referenced registry
 		// doesn't match that tx, we only allow the caller to read the other registry
 		t, _ := hookCtx.Task()
-		tx, commitTask, err := GetStoredTransaction(t)
+		tx, saveTxChanges, err := GetStoredTransaction(t)
 		if err != nil {
 			return nil, fmt.Errorf("cannot access registry view %s/%s/%s: cannot get transaction: %v", account, registryName, view.Name, err)
 		}
@@ -222,8 +222,9 @@ func GetTransactionToModify(ctx *Context, st *state.State, view *registry.View) 
 			return nil, fmt.Errorf("cannot access registry %s/%s: ongoing transaction for %s/%s", account, registryName, tx.RegistryAccount, tx.RegistryName)
 		}
 
+		// update the commit task to save transaction changes made by the hook
 		ctx.onDone(func() error {
-			setTransaction(commitTask, tx)
+			saveTxChanges()
 			return nil
 		})
 
@@ -488,13 +489,16 @@ func getPlugsAffectedByPaths(st *state.State, registry *registry.Registry, stora
 	return affectedPlugs, nil
 }
 
-// GetStoredTransaction returns the registry transaction associate with the
-// task (even if indirectly) and the task in which it was stored.
-func GetStoredTransaction(t *state.Task) (*Transaction, *state.Task, error) {
-	var tx *Transaction
-	err := t.Get("registry-transaction", &tx)
+// GetStoredTransaction returns the transaction associated with the task
+// (even if indirectly) and a callback to persist changes made to it.
+func GetStoredTransaction(t *state.Task) (tx *Transaction, saveTxChanges func(), err error) {
+	err = t.Get("registry-transaction", &tx)
 	if err == nil {
-		return tx, t, nil
+		saveTxChanges = func() {
+			t.Set("registry-transaction", tx)
+		}
+
+		return tx, saveTxChanges, nil
 	} else if !errors.Is(err, &state.NoStateError{}) {
 		return nil, nil, err
 	}
@@ -514,13 +518,13 @@ func GetStoredTransaction(t *state.Task) (*Transaction, *state.Task, error) {
 		return nil, nil, err
 	}
 
-	return tx, ct, nil
+	saveTxChanges = func() {
+		ct.Set("registry-transaction", tx)
+	}
+	return tx, saveTxChanges, nil
 }
 
-func setTransaction(t *state.Task, tx *Transaction) {
-	t.Set("registry-transaction", tx)
-}
-
+// IsRegistryHook returns whether the hook context belongs to a registry hook.
 func IsRegistryHook(ctx *hookstate.Context) bool {
 	return ctx != nil && !ctx.IsEphemeral() &&
 		(strings.HasPrefix(ctx.HookName(), "change-view-") ||

@@ -785,13 +785,26 @@ func (s *registryTestSuite) TestGetStoredTransaction(c *C) {
 	refTask.Set("commit-task", commitTask.ID())
 
 	for _, t := range []*state.Task{commitTask, refTask} {
-		storedTx, carryingTask, err := registrystate.GetStoredTransaction(t)
+		storedTx, saveChanges, err := registrystate.GetStoredTransaction(t)
 		c.Assert(err, IsNil)
-
 		c.Assert(storedTx.RegistryAccount, Equals, tx.RegistryAccount)
 		c.Assert(storedTx.RegistryName, Equals, tx.RegistryName)
-		c.Assert(storedTx.AlteredPaths(), DeepEquals, tx.AlteredPaths())
-		c.Assert(carryingTask, Equals, commitTask)
+		c.Assert(saveChanges, NotNil)
+
+		// check that making and saving changes works
+		c.Assert(storedTx.Set("foo", "bar"), IsNil)
+		saveChanges()
+
+		tx = nil
+		tx, _, err = registrystate.GetStoredTransaction(t)
+		c.Assert(err, IsNil)
+
+		val, err := tx.Get("foo")
+		c.Assert(err, IsNil)
+		c.Assert(val, Equals, "bar")
+
+		c.Assert(tx.Clear(s.state), IsNil)
+		commitTask.Set("registry-transaction", tx)
 	}
 }
 
