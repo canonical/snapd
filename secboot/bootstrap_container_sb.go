@@ -34,21 +34,43 @@ type bootstrappedContainer struct {
 	finished            bool
 }
 
-func (bc *bootstrappedContainer) AddKey(slotName string, newKey []byte, token bool) (KeyDataWriter, error) {
-	if bc.finished {
-		return nil, fmt.Errorf("internal error: key resetter was a already finished")
+func newLUKS2KeyDataWriterImpl(devicePath string, name string) (KeyDataWriter, error) {
+	return sb.NewLUKS2KeyDataWriter(devicePath, name)
+}
+
+var newLUKS2KeyDataWriter = newLUKS2KeyDataWriterImpl
+
+func slotNameOrDefault(slotName string) string {
+	if slotName == "" {
+		return "default"
 	}
 
-	if slotName == "" {
-		slotName = "default"
+	return slotName
+}
+
+func (bc *bootstrappedContainer) AddKey(slotName string, newKey []byte) error {
+	if bc.finished {
+		return fmt.Errorf("internal error: key resetter was a already finished")
 	}
-	if err := sbAddLUKS2ContainerUnlockKey(bc.devicePath, slotName, sb.DiskUnlockKey(bc.key), sb.DiskUnlockKey(newKey)); err != nil {
+
+	if err := sbAddLUKS2ContainerUnlockKey(bc.devicePath, slotNameOrDefault(slotName), sb.DiskUnlockKey(bc.key), sb.DiskUnlockKey(newKey)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (bc *bootstrappedContainer) AddKeyAndGetTokenWriter(slotName string, newKey []byte) (KeyDataWriter, error) {
+	err := bc.AddKey(slotName, newKey)
+	if err != nil {
 		return nil, err
 	}
-	if !token {
-		return nil, nil
+
+	writer, err := newLUKS2KeyDataWriter(bc.devicePath, slotNameOrDefault(slotName))
+	if err != nil {
+		return nil, err
 	}
-	return nil, fmt.Errorf("not implemented")
+
+	return writer, nil
 }
 
 func (bc *bootstrappedContainer) RemoveBootstrapKey() error {

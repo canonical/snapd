@@ -20,14 +20,20 @@
 package secboot
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 
 	"github.com/snapcore/snapd/osutil"
 )
 
+// KeyDataWriter is an interface used by KeyData to write the data to
+// persistent storage in an atomic way.
+// The interface is compatible with identically named interface
+// from github.com/canonical/secboot.
 type KeyDataWriter interface {
-	// TODO: this will typically have a function that takes a key
-	// data as input
+	io.Writer
+	Commit() error
 }
 
 // BootstrappedContainer is an abstraction for an encrypted container
@@ -36,8 +42,10 @@ type KeyDataWriter interface {
 // are enrolled, by calling RemoveBootstrapKey.
 type BootstrappedContainer interface {
 	//AddKey adds a key "newKey" to "slotName"
-	//If "token", the a KeyDataWriter is returned to write key data to the token of the new key slot
-	AddKey(slotName string, newKey []byte, token bool) (KeyDataWriter, error)
+	AddKey(slotName string, newKey []byte) error
+	//AddKeyAndGetTokenWriter adds a key "newKey" to "slotName"
+	// and returns the keydata writer that writes to the token.
+	AddKeyAndGetTokenWriter(slotName string, newKey []byte) (KeyDataWriter, error)
 	//RemoveBootstrapKey removes the bootstrap key
 	RemoveBootstrapKey() error
 }
@@ -51,28 +59,50 @@ var CreateBootstrappedContainer = createBootstrappedContainerMockImpl
 type MockBootstrappedContainer struct {
 	BootstrapKeyRemoved bool
 	Slots               map[string][]byte
+	Tokens              map[string][]byte
 }
 
 func CreateMockBootstrappedContainer() *MockBootstrappedContainer {
 	osutil.MustBeTestBinary("CreateMockBootstrappedContainer can be only called from tests")
-	return &MockBootstrappedContainer{Slots: make(map[string][]byte)}
+	return &MockBootstrappedContainer{Slots: make(map[string][]byte), Tokens: make(map[string][]byte)}
 }
 
-func (m *MockBootstrappedContainer) AddKey(slotName string, newKey []byte, token bool) (KeyDataWriter, error) {
+type mockKeyDataWriter struct {
+	m        *MockBootstrappedContainer
+	slotName string
+	buf      bytes.Buffer
+}
+
+func (m *mockKeyDataWriter) Write(p []byte) (n int, err error) {
+	return m.buf.Write(p)
+}
+
+func (m *mockKeyDataWriter) Commit() error {
+	m.m.Tokens[m.slotName] = m.buf.Bytes()
+	return nil
+}
+
+func (m *MockBootstrappedContainer) AddKey(slotName string, newKey []byte) error {
 	if m.BootstrapKeyRemoved {
-		return nil, fmt.Errorf("internal error: key resetter was a already finished")
+		return fmt.Errorf("internal error: key resetter was a already finished")
 	}
 
-	if token {
-		return nil, fmt.Errorf("not implemented")
-	} else {
-		_, ok := m.Slots[slotName]
-		if ok {
-			return nil, fmt.Errorf("slot already taken")
-		}
-		m.Slots[slotName] = newKey
-		return nil, nil
+	_, ok := m.Slots[slotName]
+	if ok {
+		return fmt.Errorf("slot already taken")
 	}
+	m.Slots[slotName] = newKey
+
+	return nil
+}
+
+func (m *MockBootstrappedContainer) AddKeyAndGetTokenWriter(slotName string, newKey []byte) (KeyDataWriter, error) {
+	err := m.AddKey(slotName, newKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return &mockKeyDataWriter{m: m, slotName: slotName}, nil
 }
 
 func (l *MockBootstrappedContainer) RemoveBootstrapKey() error {
