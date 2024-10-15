@@ -257,16 +257,26 @@ func PrepareEncryptedSystemData(model *asserts.Model, installKeyForRole map[stri
 	trustedInstallObserver.SetBootstrappedContainers(dataBootstrappedContainer, saveBootstrappedContainer)
 
 	if saveBootstrappedContainer != nil {
-		// TODO: use plainkey from secboot
-		saveKey, err := keys.NewEncryptionKey()
+		platformKey, err := keys.NewProtectorKey()
 		if err != nil {
 			return err
 		}
-		const token = false
-		if _, err := saveBootstrappedContainer.AddKey("default", saveKey, token); err != nil {
+		plainKey, diskKey, err := platformKey.CreateProtectedKey()
+		if err != nil {
 			return err
 		}
-		if err := saveKeys(model, saveKey); err != nil {
+
+		const token = true
+		tokenWriter, err := saveBootstrappedContainer.AddKey("default", diskKey, token)
+		if err != nil {
+			return err
+		}
+
+		if err := plainKey.Write(tokenWriter); err != nil {
+			return err
+		}
+
+		if err := saveKeys(model, platformKey); err != nil {
 			return err
 		}
 	}
@@ -296,14 +306,14 @@ func writeMarkers(model *asserts.Model) error {
 	return device.WriteEncryptionMarkers(boot.InstallHostFDEDataDir(model), boot.InstallHostFDESaveDir, markerSecret)
 }
 
-func saveKeys(model *asserts.Model, saveKey keys.EncryptionKey) error {
+func saveKeys(model *asserts.Model, saveKey keys.ProtectorKey) error {
 	saveKeyPath := device.SaveKeyUnder(boot.InstallHostFDEDataDir(model))
 
 	if err := os.MkdirAll(filepath.Dir(saveKeyPath), 0755); err != nil {
 		return err
 	}
 
-	return saveKey.Save(saveKeyPath)
+	return saveKey.SaveToFile(saveKeyPath)
 }
 
 // PrepareRunSystemData prepares the run system:
