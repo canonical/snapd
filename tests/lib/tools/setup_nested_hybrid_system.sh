@@ -36,13 +36,15 @@ run_muinstaller() {
     tests.nested secboot-sign gadget pc-gadget "${snakeoil_key}" "${snakeoil_cert}"
     snap pack --filename=pc.snap pc-gadget/
 
+    build_snapd_snap .
+    mv snapd_*.snap snapd.snap
+
     # prepare a classic seed
-    # TODO:
-    # - repacked snapd snap
     snap prepare-image --classic \
         --channel=edge \
         --snap "${kernel_snap}" \
         --snap pc.snap \
+        --snap snapd.snap \
         "${model_assertion}" \
         ./classic-seed
 
@@ -94,7 +96,7 @@ run_muinstaller() {
     # TODO: this abuses /var/lib/snapd to store the deb so that mk-initramfs-classic
     # can pick it up. the real installer will also need a very recent snapd
     # in its on disk-image to support seeding
-    remote.push "${SPREAD_PATH}"/../snapd_*.deb
+    remote.push "${GOHOME}"/snapd_*.deb
     remote.exec "sudo mv snapd_*.deb /var/lib/snapd/"
     remote.exec "sudo apt install -y /var/lib/snapd/snapd_*.deb"
 

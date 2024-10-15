@@ -3798,9 +3798,6 @@ func (s *seed20Suite) testCopy(c *C, opts testCopyOpts) {
 		},
 	})
 
-	err := os.WriteFile(filepath.Join(s.SeedDir, "systems", srcLabel, "grubenv"), []byte("grubenv"), 0644)
-	c.Assert(err, IsNil)
-
 	seed20, err := seed.Open(s.SeedDir, srcLabel)
 	c.Assert(err, IsNil)
 
@@ -3824,7 +3821,7 @@ func (s *seed20Suite) testCopy(c *C, opts testCopyOpts) {
 
 	destSystemDir := filepath.Join(destSeedDir, "systems", copiedLabel)
 
-	expectedSystemDirContents := []string{"assertions", "model", "snaps", "grubenv"}
+	expectedSystemDirContents := []string{"assertions", "model", "snaps"}
 	if opts.expectOptionsYaml {
 		expectedSystemDirContents = append(expectedSystemDirContents, "options.yaml")
 	}

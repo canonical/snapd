@@ -130,14 +130,7 @@ type Info struct {
 // HasRole returns true if any of the volume structures in this Info has the
 // given role.
 func (i *Info) HasRole(role string) bool {
-	for _, v := range i.Volumes {
-		for _, s := range v.Structure {
-			if s.Role == role {
-				return true
-			}
-		}
-	}
-	return false
+	return VolumesHaveRole(i.Volumes, role)
 }
 
 // PartialProperty is a gadget property that can be partially defined.
@@ -173,6 +166,19 @@ type Volume struct {
 	Structure []VolumeStructure `yaml:"structure" json:"structure"`
 	// Name is the name of the volume from the gadget.yaml
 	Name string `json:"-"`
+}
+
+// VolumesHaveRole checks if any of the volumes has a structure with the given
+// role.
+func VolumesHaveRole(volumes map[string]*Volume, role string) bool {
+	for _, v := range volumes {
+		for _, s := range v.Structure {
+			if s.Role == role {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // HasPartial checks if the volume has a partially defined part.

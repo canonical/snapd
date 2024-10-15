@@ -5267,8 +5267,26 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoHasRole(c *C) {
 			},
 		},
 	}
-
 	c.Check(info.HasRole(gadget.SystemSeed), Equals, true)
 	c.Check(info.HasRole(gadget.SystemBoot), Equals, true)
 	c.Check(info.HasRole(gadget.SystemSeedNull), Equals, false)
+}
+
+func (s *gadgetYamlTestSuite) TestVolumesHaveRole(c *C) {
+	volumes := map[string]*gadget.Volume{
+		"name": {
+			Structure: []gadget.VolumeStructure{
+				{Role: gadget.SystemSeed},
+			},
+		},
+		"other-name": {
+			Structure: []gadget.VolumeStructure{
+				{Role: gadget.SystemBoot},
+			},
+		},
+	}
+
+	c.Check(gadget.VolumesHaveRole(volumes, gadget.SystemSeed), Equals, true)
+	c.Check(gadget.VolumesHaveRole(volumes, gadget.SystemBoot), Equals, true)
+	c.Check(gadget.VolumesHaveRole(volumes, gadget.SystemSeedNull), Equals, false)
 }
