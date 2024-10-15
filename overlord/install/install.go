@@ -320,8 +320,7 @@ func PrepareEncryptedSystemData(model *asserts.Model, installKeyForRole map[stri
 		if err != nil {
 			return err
 		}
-		const token = false
-		if _, err := saveBootstrappedContainer.AddKey("default", saveKey, token); err != nil {
+		if err := saveBootstrappedContainer.AddKey("default", saveKey); err != nil {
 			return err
 		}
 		if err := saveKeys(model, saveKey); err != nil {
