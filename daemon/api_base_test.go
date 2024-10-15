@@ -260,6 +260,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 
 	s.AddCleanup(daemon.MockSnapstateStoreInstallGoal(newStoreInstallGoalRecorder))
 	s.AddCleanup(daemon.MockSnapstatePathUpdateGoal(newPathUpdateGoalRecorder))
+	s.AddCleanup(daemon.MockSnapstateStoreUpdateGoal(newStoreUpdateGoalRecorder))
 }
 
 type storeInstallGoalRecorder struct {
@@ -283,6 +284,26 @@ func newPathUpdateGoalRecorder(snaps ...snapstate.PathSnap) snapstate.UpdateGoal
 	return &pathUpdateGoalRecorder{
 		snaps:      snaps,
 		UpdateGoal: snapstate.PathUpdateGoal(snaps...),
+	}
+}
+
+type storeUpdateGoalRecorder struct {
+	snapstate.UpdateGoal
+	snaps []snapstate.StoreUpdate
+}
+
+func (s *storeUpdateGoalRecorder) names() []string {
+	names := make([]string, 0, len(s.snaps))
+	for _, snap := range s.snaps {
+		names = append(names, snap.InstanceName)
+	}
+	return names
+}
+
+func newStoreUpdateGoalRecorder(snaps ...snapstate.StoreUpdate) snapstate.UpdateGoal {
+	return &storeUpdateGoalRecorder{
+		snaps:      snaps,
+		UpdateGoal: snapstate.StoreUpdateGoal(snaps...),
 	}
 }
 

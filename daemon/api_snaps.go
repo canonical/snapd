@@ -533,7 +533,7 @@ func multiInstallMessage(inst *snapInstruction) string {
 	return b.String()
 }
 
-func snapUpdate(_ context.Context, inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+func snapUpdate(ctx context.Context, inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
 	// TODO: bail if revision is given (and != current?), *or* behave as with install --revision?
 	flags, err := inst.modeFlags()
 	if err != nil {
@@ -554,7 +554,21 @@ func snapUpdate(_ context.Context, inst *snapInstruction, st *state.State) (*sna
 		return nil, err
 	}
 
-	ts, err := snapstateUpdate(st, inst.Snaps[0], inst.revnoOpts(), inst.userID, flags)
+	// TODO: once we completely move away from the old snapstate API, this
+	// backwards compatibility bit should be removed
+	if flags.Transaction == "" {
+		flags.Transaction = client.TransactionPerSnap
+	}
+
+	goal := snapstateStoreUpdateGoal(snapstate.StoreUpdate{
+		InstanceName: inst.Snaps[0],
+		RevOpts:      *inst.revnoOpts(),
+	})
+
+	ts, err := snapstateUpdateOne(ctx, st, goal, nil, snapstate.Options{
+		Flags:  flags,
+		UserID: inst.userID,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -968,10 +982,27 @@ func snapUpdateMany(ctx context.Context, inst *snapInstruction, st *state.State)
 		return nil, err
 	}
 
-	transaction := inst.Transaction
-	updated, tasksets, err := snapstateUpdateMany(ctx, st, inst.Snaps, nil, inst.userID, &snapstate.Flags{
+	updates := make([]snapstate.StoreUpdate, 0, len(inst.Snaps))
+	for _, name := range inst.Snaps {
+		updates = append(updates, snapstate.StoreUpdate{
+			InstanceName: name,
+		})
+	}
+
+	flags := snapstate.Flags{
 		IgnoreRunning: inst.IgnoreRunning,
-		Transaction:   transaction,
+		Transaction:   inst.Transaction,
+	}
+
+	// TODO: once we completely move away from the old snapstate API, this
+	// backwards compatibility bit should be removed
+	if flags.Transaction == "" {
+		flags.Transaction = client.TransactionPerSnap
+	}
+
+	goal := snapstateStoreUpdateGoal(updates...)
+	updated, uts, err := snapstateUpdateWithGoal(ctx, st, goal, nil, snapstate.Options{
+		Flags: flags,
 	})
 	if err != nil {
 		if opts.IsRefreshOfAllSnaps {
@@ -981,6 +1012,7 @@ func snapUpdateMany(ctx context.Context, inst *snapInstruction, st *state.State)
 		}
 		return nil, err
 	}
+	tasksets := uts.Refresh
 
 	var msg string
 	switch len(updated) {
