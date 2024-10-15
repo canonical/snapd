@@ -84,15 +84,8 @@ type systemdMountOptions struct {
 	VerityHashOffset uint64
 }
 
-func pathContainsAny(i string, chars string) bool {
-	for _, c := range chars {
-		if strings.IndexRune(i, c) >= 0 {
-			return true
-		}
-	}
-
-	return false
-}
+// forbiddenChars is a list of characters that are not allowed in any mount paths used in systemd-mount.
+const forbiddenChars = `\,:" `
 
 // doSystemdMount will mount "what" at "where" using systemd-mount(1) with
 // various options. Note that in some error cases, the mount unit may have
@@ -173,8 +166,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		return fmt.Errorf("cannot mount %q at %q: mount with dm-verity was requested but a hash device was not specified", what, where)
 	}
 
-	forbiddenChars := `\,:" `
-	if pathContainsAny(opts.VerityHashDevice, forbiddenChars) {
+	if strings.ContainsAny(opts.VerityHashDevice, forbiddenChars) {
 		return fmt.Errorf("cannot mount %q at %q: dm-verity hash device path contains forbidden characters. %q contains one of \"%s\".", what, where, opts.VerityHashDevice, forbiddenChars)
 	}
 
