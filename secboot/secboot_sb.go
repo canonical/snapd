@@ -344,6 +344,9 @@ func GetPrimaryKeyHMAC(devicePath string, alg crypto.Hash) (salt []byte, digest 
 	const remove = false
 	p, err := sb.GetPrimaryKeyFromKernel(keyringPrefix, devicePath, remove)
 	if err != nil {
+		if errors.Is(err, sb.ErrKernelKeyNotFound) {
+			return nil, nil, ErrKernelKeyNotFound
+		}
 		return nil, nil, err
 	}
 
@@ -361,6 +364,9 @@ func VerifyPrimaryKeyHMAC(devicePath string, alg crypto.Hash, salt []byte, diges
 	const remove = false
 	p, err := sb.GetPrimaryKeyFromKernel(keyringPrefix, devicePath, remove)
 	if err != nil {
+		if errors.Is(err, sb.ErrKernelKeyNotFound) {
+			return false, ErrKernelKeyNotFound
+		}
 		return false, err
 	}
 

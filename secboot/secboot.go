@@ -26,6 +26,7 @@ package secboot
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
@@ -47,6 +48,8 @@ const (
 
 // WithSecbootSupport is true if this package was built with githbu.com/snapcore/secboot.
 var WithSecbootSupport = false
+
+var ErrKernelKeyNotFound = errors.New("kernel key not found")
 
 type LoadChain struct {
 	*bootloader.BootFile
