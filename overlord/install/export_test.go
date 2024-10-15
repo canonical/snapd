@@ -45,3 +45,11 @@ func MockSysconfigConfigureTargetSystem(f func(mod *asserts.Model, opts *sysconf
 		sysconfigConfigureTargetSystem = old
 	}
 }
+
+func MockBootUseTokens(f func(model *asserts.Model) bool) (restore func()) {
+	old := bootUseTokens
+	bootUseTokens = f
+	return func() {
+		bootUseTokens = old
+	}
+}
