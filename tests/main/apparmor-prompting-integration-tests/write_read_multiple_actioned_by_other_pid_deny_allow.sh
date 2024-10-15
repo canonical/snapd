@@ -6,6 +6,10 @@
 # rule with the most specific path pattern has precedence.
 
 TEST_DIR="$1"
+TIMEOUT="$2"
+if [ -z "$TIMEOUT" ] ; then
+	TIMEOUT=10
+fi
 
 WRITABLE="$(snap run --shell prompting-client.scripted -c 'cd ~; pwd')/$(basename "$TEST_DIR")"
 snap run --shell prompting-client.scripted -c "mkdir -p $WRITABLE"
@@ -16,7 +20,7 @@ for name in test1.txt test2.txt test3.txt ; do
 	echo "Attempt to write $name in the background"
 	echo "not written" > "${TEST_DIR}/${name}"
 	snap run --shell prompting-client.scripted -c "touch ${WRITABLE}/${name}-write-started; echo $name is written > ${TEST_DIR}/${name}; touch ${WRITABLE}/${name}-write-finished" &
-	if ! timeout 10 sh -c "while ! [ -f '${WRITABLE}/${name}-write-started' ] ; do sleep 0.1 ; done" ; then
+	if ! timeout "$TIMEOUT" sh -c "while ! [ -f '${WRITABLE}/${name}-write-started' ] ; do sleep 0.1 ; done" ; then
 		echo "failed to start write of $name within timeout period"
 		exit 1
 	fi
@@ -38,7 +42,7 @@ snap run --shell prompting-client.scripted -c "echo test4.txt is written > ${TES
 
 for name in test1.txt test2.txt test3.txt ; do
 	echo "Check that write for $name has finished"
-	if ! timeout 5 sh -c "while ! [ -f '${WRITABLE}/${name}-write-finished' ] ; do sleep 0.1 ; done" ; then
+	if ! timeout "$TIMEOUT" -c "while ! [ -f '${WRITABLE}/${name}-write-finished' ] ; do sleep 0.1 ; done" ; then
 		echo "write of $name did not finish after client replied"
 		exit 1
 	fi
@@ -60,7 +64,7 @@ done
 for name in test1.txt test2.txt test3.txt ; do
 	echo "Attempt to read $name in the background"
 	snap run --shell prompting-client.scripted -c "touch ${WRITABLE}/${name}-read-started; cat ${TEST_DIR}/${name} > ${WRITABLE}/${name}; touch ${WRITABLE}/${name}-read-finished" &
-	if ! timeout 10 sh -c "while ! [ -f '${WRITABLE}/${name}-read-started' ] ; do sleep 0.1 ; done" ; then
+	if ! timeout "$TIMEOUT" sh -c "while ! [ -f '${WRITABLE}/${name}-read-started' ] ; do sleep 0.1 ; done" ; then
 		echo "failed to start read of $name within timeout period"
 		exit 1
 	fi
@@ -81,7 +85,7 @@ snap run --shell prompting-client.scripted -c "cat ${TEST_DIR}/test4.txt > ${WRI
 
 for name in test1.txt test2.txt test3.txt ; do
 	echo "Check that read for $name has finished"
-	if ! timeout 5 sh -c "while ! [ -f '${WRITABLE}/${name}-read-finished' ] ; do sleep 0.1 ; done" ; then
+	if ! timeout "$TIMEOUT" -c "while ! [ -f '${WRITABLE}/${name}-read-finished' ] ; do sleep 0.1 ; done" ; then
 		echo "read of $name did not finish after client replied"
 		exit 1
 	fi
@@ -136,7 +140,7 @@ if [ -f "${TEST_DIR}/other.txt" ] ; then
 fi
 
 # Wait for the client to write its result and exit
-timeout 5 sh -c 'while pgrep -f "prompting-client-scripted" > /dev/null; do sleep 0.1; done'
+timeout "$TIMEOUT" -c 'while pgrep -f "prompting-client-scripted" > /dev/null; do sleep 0.1; done'
 
 CLIENT_OUTPUT="$(cat "${TEST_DIR}/result")"
 

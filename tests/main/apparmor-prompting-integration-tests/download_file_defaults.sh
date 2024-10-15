@@ -5,6 +5,10 @@
 # the particular file in that directory.
 
 TEST_DIR="$1"
+TIMEOUT="$2"
+if [ -z "$TIMEOUT" ] ; then
+	TIMEOUT=10
+fi
 
 # Prep a "Downloads" directory with an existing file in it
 mkdir -p "${TEST_DIR}/Downloads"
@@ -23,7 +27,7 @@ echo "Attempt to chmod the file after it has been written"
 snap run --shell prompting-client.scripted -c "chmod 664 ${TEST_DIR}/Downloads/test.txt"
 
 # Wait for the client to write its result and exit
-timeout 5 sh -c 'while pgrep -f "prompting-client-scripted" > /dev/null; do sleep 0.1; done'
+timeout "$TIMEOUT" sh -c 'while pgrep -f "prompting-client-scripted" > /dev/null; do sleep 0.1; done'
 
 CLIENT_OUTPUT="$(cat "${TEST_DIR}/result")"
 

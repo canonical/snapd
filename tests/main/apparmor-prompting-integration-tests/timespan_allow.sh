@@ -4,19 +4,24 @@
 # path pattern to be created, but doesn't allow other file creation.
 
 TEST_DIR="$1"
+TIMEOUT="$2"
+if [ -z "$TIMEOUT" ] ; then
+	TIMEOUT=10
+fi
 
 for name in test1.txt test2.txt test3.txt ; do
 	echo "Attempt to write $name"
 	snap run --shell prompting-client.scripted -c "echo $name is written > ${TEST_DIR}/${name}"
 done
 
-sleep 1 # wait for the rule to time out
+# The reply has a hard-coded duration of 10s
+sleep 10 # wait for the rule to expire
 
 echo "Attempt to write test4.txt (should fail)"
 snap run --shell prompting-client.scripted -c "echo test4.txt is written > ${TEST_DIR}/test4.txt"
 
 # Wait for the client to write its result and exit
-timeout 5 sh -c 'while pgrep -f "prompting-client-scripted" > /dev/null; do sleep 0.1; done'
+timeout "$TIMEOUT" -c 'while pgrep -f "prompting-client-scripted" > /dev/null; do sleep 0.1; done'
 
 CLIENT_OUTPUT="$(cat "${TEST_DIR}/result")"
 

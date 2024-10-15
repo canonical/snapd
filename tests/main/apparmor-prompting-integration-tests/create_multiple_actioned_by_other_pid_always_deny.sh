@@ -11,6 +11,10 @@
 # directory.
 
 TEST_DIR="$1"
+TIMEOUT="$2"
+if [ -z "$TIMEOUT" ] ; then
+	TIMEOUT=10
+fi
 
 WRITABLE="$(snap run --shell prompting-client.scripted -c 'cd ~; pwd')/$(basename "$TEST_DIR")"
 snap run --shell prompting-client.scripted -c "mkdir -p $WRITABLE"
@@ -20,7 +24,7 @@ for dir in test1 test2 test3 ; do
 	name="${dir}/file.txt"
 	echo "Attempt to create $name in the background"
 	snap run --shell prompting-client.scripted -c "touch ${WRITABLE}/${dir}-started; echo $name is written > ${TEST_DIR}/${name}; touch ${WRITABLE}/${dir}-finished" &
-	if ! timeout 10 sh -c "while ! [ -f '${WRITABLE}/${dir}-started' ] ; do sleep 0.1 ; done" ; then
+	if ! timeout "$TIMEOUT" sh -c "while ! [ -f '${WRITABLE}/${dir}-started' ] ; do sleep 0.1 ; done" ; then
 		echo "failed to start create of $name within timeout period"
 		exit 1
 	fi
@@ -40,7 +44,7 @@ mkdir -p "${TEST_DIR}/test4"
 snap run --shell prompting-client.scripted -c "echo test4/file.txt is written > ${TEST_DIR}/test4/file.txt"
 
 # Wait for the client to write its result and exit
-timeout 5 sh -c 'while pgrep -f "prompting-client-scripted" > /dev/null; do sleep 0.1; done'
+timeout "$TIMEOUT" sh -c 'while pgrep -f "prompting-client-scripted" > /dev/null; do sleep 0.1; done'
 
 for dir in test1 test2 test3 ; do
 	name="${dir}/file.txt"

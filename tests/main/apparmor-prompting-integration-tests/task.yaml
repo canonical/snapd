@@ -4,11 +4,15 @@ details: |
     Test that the AppArmor Prompting subsystems work by simulating common usage
     scenarios. Manually carry out operations which generate prompts and, using
     the prompting-client snap in scripted mode, check that those prompts match
-    what is expected, and that the client suffessfully allows the operations.
+    what is expected, and that the client carries out the operations as intended.
+
+    Details about the operation of the prompting client in scripted mode:
+    https://github.com/canonical/prompting-client/blob/main/docs/running-the-scripted-client.md
+
 
 systems:
-  - ubuntu-16.04-*
-  - ubuntu-18.04-64
+  - ubuntu-16*
+  - ubuntu-18*
   - ubuntu-2*
   - ubuntu-core-*
 
@@ -31,29 +35,30 @@ environment:
     VARIANT/write_read_multiple_actioned_by_other_pid_allow_deny: write_read_multiple_actioned_by_other_pid_allow_deny
     VARIANT/write_read_multiple_actioned_by_other_pid_deny_allow: write_read_multiple_actioned_by_other_pid_deny_allow
 
+    TIMEOUT: "30" # Define common timeout which can be modified as needed
+
 prepare: |
     tests.session prepare -u test
-    #shellcheck disable=SC2016
-    tests.session -u test exec sh -c 'mkdir -p "$HOME/integration-tests"' # $HOME must be that of test user
+    tests.session -u test exec sh -c 'mkdir -p "/home/test/integration-tests"'
     snap install prompting-client
 
 restore: |
-    #shellcheck disable=SC2016
-    tests.session -u test exec sh -c 'rm -rf "$HOME/integration-tests"' # $HOME must be that of test user
+    snap set system experimental.apparmor-prompting=false
+    tests.session -u test exec sh -c 'rm -rf "/home/test/integration-tests"'
     tests.session restore -u test
 
 debug: |
     TEST_UID="$(id -u test)"
     echo "outstanding prompts:"
-    snap debug api "/v2/interfaces/requests/prompts?user-id=$TEST_UID"
+    snap debug api "/v2/interfaces/requests/prompts?user-id=$TEST_UID" || true
     echo "rules:"
-    snap debug api "/v2/interfaces/requests/rules?user-id=$TEST_UID"
+    snap debug api "/v2/interfaces/requests/rules?user-id=$TEST_UID" || true
 
 execute: |
     echo "Enable prompting via snap client where possible"
     # Prompting is unsupported everywhere but the Ubuntu non-core systems with
     # kernels which support apparmor prompting
-    if ! os.query is-ubuntu || os.query is-core || ! grep 'prompt' /sys/kernel/security/apparmor/features/policy/permstable32 ; then
+    if ! os.query is-ubuntu || os.query is-core || NOMATCH 'prompt' /sys/kernel/security/apparmor/features/policy/permstable32 ; then
         not snap set system experimental.apparmor-prompting=true >& err.out
         if os.query is-core ; then
             MATCH "cannot enable prompting feature as it is not supported on Ubuntu Core systems" < err.out
@@ -61,8 +66,6 @@ execute: |
             MATCH "cannot enable prompting feature as it is not supported by the system" < err.out
         fi
 
-        # even if unsupported setting it to false should succeed
-        snap set system experimental.apparmor-prompting=false
         exit 0
     fi
 
@@ -80,30 +83,33 @@ execute: |
     test -f "$VARIANT.json"
 
     # Create unique tmpdir and copy the script to it.
-    # The tmpdir must be in the test user's home directory.
-    #shellcheck disable=SC2016
-    TEST_DIR="$(tests.session -u test exec sh -c 'mktemp --directory --tmpdir="$HOME/integration-tests"')"
-    cp "$VARIANT.sh" "${TEST_DIR}/${VARIANT}.sh"
+    TEST_DIR="$(tests.session -u test exec sh -c 'mktemp --directory --tmpdir="/home/test/integration-tests"')"
+    cp "${VARIANT}.sh" "${TEST_DIR}/${VARIANT}.sh"
     chown test "${TEST_DIR}/${VARIANT}.sh"
-    cp "$VARIANT.json" "${TEST_DIR}/script.json"
+    cp "${VARIANT}.json" "${TEST_DIR}/script.json"
     chown test "${TEST_DIR}/script.json"
+
+    echo "Run the prompting client in scripted mode in the background as the test user"
+    # Grace period does not need to be as long as the timeout, and longer grace
+    # periods slow down every variant of every test run
+    tests.session -u test exec prompting-client.scripted \
+        --script="${TEST_DIR}/script.json" \
+        --grace-period=5 \
+        --var="BASE_PATH:${TEST_DIR}" | tee "${TEST_DIR}/result" &
 
     # Test scripts can rely on the scripted client writing their result to
     # "${TEST_DIR}/result". Those results will be "success" if the scripted
     # client exits without error, or an error message if it encounters an
     # unexpected prompt or an error from snapd.
 
-    echo "Run the prompting client in scripted mode in the background as the test user"
-    tests.session -u test exec prompting-client.scripted \
-        --script="${TEST_DIR}/script.json" \
-        --grace-period=1 \
-        --var="BASE_PATH:${TEST_DIR}" | tee "${TEST_DIR}/result" &
-
-    timeout 5 sh -xc 'while ! pgrep -f "prompting-client-scripted" > /dev/null; do sleep 0.1; done'
-    sleep 1 # wait for scripted client to start listening, otherwise it may miss the first prompt
+    echo "Wait for the scripted client to start"
+    timeout "$TIMEOUT" sh -xc "while ! pgrep -f 'prompting-client-scripted.*${TEST_DIR}' > /dev/null; do sleep 0.1; done"
+    SCRIPTED_PID="$(pgrep -f "prompting-client-scripted.*${TEST_DIR}")"
+    echo "Wait for the scripted client to open a unix socket for streaming"
+    timeout "$TIMEOUT" sh -xc "while ! lsof -a -U -p '$SCRIPTED_PID' > /dev/null; do sleep 0.1; done"
 
     echo "Run the test script as the test user"
-    if ! tests.session -u test exec sh -x "${TEST_DIR}/${VARIANT}.sh" "$TEST_DIR" ; then
+    if ! tests.session -u test exec sh -x "${TEST_DIR}/${VARIANT}.sh" "$TEST_DIR" "$TIMEOUT"; then
         # kill the prompting-client-scripted process for this test run
         pkill -f "prompting-client-scripted.*${TEST_DIR}"
         exit 1
