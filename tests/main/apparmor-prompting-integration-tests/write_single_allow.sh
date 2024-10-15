@@ -3,12 +3,16 @@
 # A simple allow once test of a write prompt.
 
 TEST_DIR="$1"
+TIMEOUT="$2"
+if [ -z "$TIMEOUT" ] ; then
+	TIMEOUT=10
+fi
 
 echo "Attempt to write the file"
 snap run --shell prompting-client.scripted -c "echo it is written > ${TEST_DIR}/test.txt"
 
 # Wait for the client to write its result and exit
-timeout 5 sh -c 'while pgrep -f "prompting-client-scripted" > /dev/null; do sleep 0.1; done'
+timeout "$TIMEOUT" sh -c 'while pgrep -f "prompting-client-scripted" > /dev/null; do sleep 0.1; done'
 
 CLIENT_OUTPUT="$(cat "${TEST_DIR}/result")"
 

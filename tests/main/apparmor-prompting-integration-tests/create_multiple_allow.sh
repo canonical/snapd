@@ -4,6 +4,10 @@
 # path pattern to be created, but doesn't allow other file creation.
 
 TEST_DIR="$1"
+TIMEOUT="$2"
+if [ -z "$TIMEOUT" ] ; then
+	TIMEOUT=10
+fi
 
 for name in test1.txt test2.md fail.txt test3.pdf ; do
 	echo "Attempt to write $name"
@@ -11,7 +15,7 @@ for name in test1.txt test2.md fail.txt test3.pdf ; do
 done
 
 # Wait for the client to write its result and exit
-timeout 5 sh -c 'while pgrep -f "prompting-client-scripted" > /dev/null; do sleep 0.1; done'
+timeout "$TIMEOUT" sh -c 'while pgrep -f "prompting-client-scripted" > /dev/null; do sleep 0.1; done'
 
 CLIENT_OUTPUT="$(cat "${TEST_DIR}/result")"
 
