@@ -247,6 +247,8 @@ func initializeState(st *state.State) error {
 
 	dataUUID, dataErr := disksDMCryptUUIDFromMountPoint(dirs.SnapdStateDir(dirs.GlobalRootDir))
 	saveUUID, saveErr := disksDMCryptUUIDFromMountPoint(dirs.SnapSaveDir)
+	logger.Debugf("data UUID: %q data err: %v", dataUUID, dataErr)
+	logger.Debugf("save UUID: %q save err: %v", saveUUID, saveErr)
 	if errors.Is(saveErr, disks.ErrMountPointNotFound) {
 		// TODO: do we need to care about old cases where there is no save partition?
 		return nil
