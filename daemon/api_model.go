@@ -186,7 +186,7 @@ func startOfflineRemodelChange(st *state.State, newModel *asserts.Model,
 		return nil, apiErr
 	}
 
-	*pathsToNotRemove = make([]string, len(slInfo.snaps))
+	*pathsToNotRemove = make([]string, 0, len(slInfo.snaps))
 	sideInfos := make([]*snap.SideInfo, 0, len(slInfo.snaps))
 	paths := make([]string, 0, len(slInfo.snaps))
 	for _, psi := range slInfo.snaps {
