@@ -10,6 +10,6 @@ if [ ! -f "/snap/${SNAP_NAME}/components/${SNAP_REVISION}/${1}/meta/component.ya
     exit 1
 fi
 
-comp_rev="$(basename $(readlink -f "/snap/${SNAP_NAME}/components/${SNAP_REVISION}/${1}"))"
+comp_rev="$(basename "$(readlink -f "/snap/${SNAP_NAME}/components/${SNAP_REVISION}/${1}")")"
 
 echo "component ${1} is installed at revision ${comp_rev}"
