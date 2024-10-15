@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/systemd"
 
 	// to set sysconfig.ApplyFilesystemOnlyDefaultsImpl
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
@@ -386,6 +387,14 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		Bind: true,
 	}
 	if err := doSystemdMount(boot.InstallUbuntuDataDir, boot.InitramfsDataDir, dataMountOpts); err != nil {
+		return err
+	}
+
+	// Now we can write the snapd mount unit (needed as this is the first boot)
+	isRunMode := false
+	rootfsDir := boot.InitramfsWritableDir(model, isRunMode)
+	snapdSeed := sysSnaps[snap.TypeSnapd]
+	if err := writeSeedSnapMountUnit(rootfsDir, snapdSeed); err != nil {
 		return err
 	}
 
@@ -1318,7 +1327,7 @@ func (m *recoverModeStateMachine) mountSave() (stateFunc, error) {
 
 func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// steps 1 and 2 are shared with install mode
-	model, snaps, err := generateMountsCommonInstallRecover(mst)
+	model, snaps, err := generateMountsRecoverOrFactoryReset(mst)
 	if err != nil {
 		return err
 	}
@@ -1463,7 +1472,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 
 func generateMountsModeFactoryReset(mst *initramfsMountsState) error {
 	// steps 1 and 2 are shared with install mode
-	model, snaps, err := generateMountsCommonInstallRecover(mst)
+	model, snaps, err := generateMountsRecoverOrFactoryReset(mst)
 	if err != nil {
 		return err
 	}
@@ -1709,9 +1718,17 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 
 	for _, essentialSnap := range essSnaps {
 		systemSnaps[essentialSnap.EssentialType] = essentialSnap
+		if essentialSnap.EssentialType == snap.TypeSnapd {
+			// We write later a unit for this one, when the data
+			// partition is mounted
+			continue
+		}
 		dir := snapTypeToMountDir[essentialSnap.EssentialType]
-		// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
-		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), mountReadOnlyOptions); err != nil {
+		// TODO:UC20: we need to cross-check the kernel path
+		// with snapd_recovery_kernel used by grub
+		if err := doSystemdMount(essentialSnap.Path,
+			filepath.Join(boot.InitramfsRunMntDir, dir),
+			mountReadOnlyOptions); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -1746,12 +1763,19 @@ func generateMountsCommonInstallRecoverContinue(mst *initramfsMountsState, model
 		return err
 	}
 
+	// Now we can write the snapd mount unit (needed as this is the first boot)
+	isRunMode := false
+	rootfsDir := boot.InitramfsWritableDir(model, isRunMode)
+	snapdSeed := sysSnaps[snap.TypeSnapd]
+	if err := writeSeedSnapMountUnit(rootfsDir, snapdSeed); err != nil {
+		return err
+	}
+
 	// finally get the gadget snap from the essential snaps and use it to
 	// configure the ephemeral system
 	// should only be one seed snap
 	gadgetSnap := squashfs.New(sysSnaps[snap.TypeGadget].Path)
 
-	isRunMode := false
 	// we need to configure the ephemeral system with defaults and such using
 	// from the seed gadget
 	configOpts := &sysconfig.Options{
@@ -1771,7 +1795,7 @@ func generateMountsCommonInstallRecoverContinue(mst *initramfsMountsState, model
 	return nil
 }
 
-func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap, err error) {
+func generateMountsRecoverOrFactoryReset(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap, err error) {
 	model, snaps, err := generateMountsCommonInstallRecoverStart(mst)
 	if err != nil {
 		return nil, nil, err
@@ -2122,13 +2146,40 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		if err := theSeed.LoadEssentialMeta([]snap.Type{snap.TypeSnapd}, perf); err != nil {
 			return fmt.Errorf("cannot load metadata and verify snapd snap: %v", err)
 		}
-		essSnaps := theSeed.EssentialSnaps()
-		if err := doSystemdMount(essSnaps[0].Path, filepath.Join(boot.InitramfsRunMntDir, "snapd"), mountReadOnlyOptions); err != nil {
-			return fmt.Errorf("cannot mount snapd snap: %v", err)
+
+		snapdSeed := theSeed.EssentialSnaps()[0]
+		if err := writeSeedSnapMountUnit(rootfsDir, snapdSeed); err != nil {
+			return err
 		}
 	}
 
 	return nil
+}
+
+func writeSeedSnapMountUnit(rootfsDir string, seedSnap *seed.Snap) error {
+	// We need to replicate the mount unit that snapd would create, but
+	// differently to other mounts we have to do here we do not need to
+	// start it from the initramfs. As this is first boot, do it in
+	// _writable_defaults to make sure we do not prevent files already
+	// there to be copied.
+	si := seedSnap.SideInfo
+	cpi := snap.MinimalSnapContainerPlaceInfo(si.RealName, si.Revision)
+	destRoot := sysconfig.WritableDefaultsDir(rootfsDir)
+	logger.Debugf("writing %s mount unit to %s", si.RealName, destRoot)
+	if err := writeSnapMountUnit(destRoot, seedSnap.Path, cpi.MountDir(),
+		systemd.RegularMountUnit, cpi.MountDescription()); err != nil {
+		return fmt.Errorf("while writing %s first boot mount unit: %v", si.RealName, err)
+	}
+
+	// We need to initialize /snap/snapd/current symlink so that the
+	// dynamic linker
+	// /snap/snapd/current/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 is
+	// available to run snapd on first boot.
+	mountDir := filepath.Join(rootfsDir, dirs.StripRootDir(dirs.SnapMountDir), si.RealName)
+	if err := os.MkdirAll(mountDir, 0755); err != nil {
+		return err
+	}
+	return osutil.AtomicSymlink(si.Revision.String(), filepath.Join(mountDir, "current"))
 }
 
 var tryRecoverySystemHealthCheck = func(model gadget.Model) error {
