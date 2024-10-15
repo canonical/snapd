@@ -40,7 +40,7 @@ import (
 // in names should not be installed prior to calling this function.
 func InstallComponents(ctx context.Context, st *state.State, names []string, info *snap.Info, opts Options) ([]*state.TaskSet, error) {
 	if opts.Flags.Transaction != client.TransactionAllSnaps && opts.Flags.Lane != 0 {
-		return nil, errors.New("cannot specify a lane without setting transaction to \"all-snaps\"")
+		return nil, errors.New("internal error: cannot specify a lane without setting transaction to \"all-snaps\"")
 	}
 
 	if opts.Flags.Transaction == client.TransactionAllSnaps && opts.Flags.Lane == 0 {
