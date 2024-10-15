@@ -215,14 +215,10 @@ func doValidateComponent(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	db := DB(st)
-	err = snapasserts.CrossCheckResource(compsup.ComponentName(), sha3_384, expectedProv, compSize, compsup.CompSideInfo, snapsup.SideInfo, modelAs, db)
+	resRev, err := snapasserts.CrossCheckResource(compsup.ComponentName(), sha3_384, expectedProv, compSize, compsup.CompSideInfo, snapsup.SideInfo, modelAs, db)
 	if err != nil {
 		return err
 	}
 
-	// TODO:COMPS: check the provenance stored inside the component blob against
-	// what we expect from the assertion (similar to
-	// snapasserts.CheckProvenanceWithVerifiedRevision)
-
-	return nil
+	return snapasserts.CheckComponentProvenanceWithVerifiedRevision(compsup.CompPath, resRev)
 }
