@@ -373,9 +373,9 @@ func (s *sideloadSuite) TestSideloadComponentForNotInstalledSnap(c *check.C) {
 	})()
 	defer daemon.MockReadComponentInfoFromCont(func(tempPath string, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
 		return &snap.ComponentInfo{
-			Component: naming.NewComponentRef("local", "comp"),
-			Type:      snap.StandardComponent,
-			Version:   "1.0",
+			Component:   naming.NewComponentRef("local", "comp"),
+			Type:        snap.StandardComponent,
+			CompVersion: "1.0",
 		}, nil
 	})()
 

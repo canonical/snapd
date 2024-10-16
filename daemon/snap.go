@@ -311,7 +311,7 @@ func fillComponentInfo(about aboutSnap) []client.Component {
 		comps = append(comps, client.Component{
 			Name:          comp.Component.ComponentName,
 			Type:          comp.Type,
-			Version:       comp.Version,
+			Version:       comp.Version(about.info.Version),
 			Summary:       comp.Summary,
 			Description:   comp.Description,
 			Revision:      csi.Revision,

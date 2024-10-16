@@ -423,6 +423,26 @@ provenance: prov
 	c.Assert(string(output), Matches, expr)
 }
 
+func (s *packSuite) TestPackComponentNoVersion(c *C) {
+	sourceDir := makeExampleComponentSourceDir(c, `component: hello+test
+type: standard
+`)
+
+	result, err := pack.Pack(sourceDir, nil)
+	c.Assert(err, IsNil)
+
+	// check that there is result
+	_, err = os.Stat(result)
+	c.Assert(err, IsNil)
+	c.Assert(result, Equals, "hello+test.comp")
+
+	// check that the content looks sane
+	output, err := exec.Command("unsquashfs", "-ll", result).CombinedOutput()
+	c.Assert(err, IsNil)
+	expr := fmt.Sprintf(`(?ms).*%s.*`, regexp.QuoteMeta("meta/component.yaml"))
+	c.Assert(string(output), Matches, expr)
+}
+
 func (s *packSuite) TestPackSimple(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1

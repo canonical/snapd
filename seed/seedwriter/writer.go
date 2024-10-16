@@ -290,7 +290,7 @@ type tree interface {
 	componentPath(*SeedSnap, *SeedComponent) (string, error)
 
 	localSnapPath(*SeedSnap) (string, error)
-	localComponentPath(*SeedComponent) (string, error)
+	localComponentPath(*SeedComponent, string) (string, error)
 
 	writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error
 
@@ -1606,11 +1606,11 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 				}
 			} else {
 				var snapPath func(*SeedSnap) (string, error)
-				var compPath func(*SeedComponent) (string, error)
+				var compPath func(*SeedComponent, string) (string, error)
 				if sn.Info.ID() != "" {
 					// actually asserted
 					snapPath = w.tree.snapPath
-					compPath = func(sc *SeedComponent) (string, error) {
+					compPath = func(sc *SeedComponent, snapVersion string) (string, error) {
 						return w.tree.componentPath(sn, sc)
 					}
 				} else {
@@ -1627,7 +1627,7 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 				}
 				// copy components
 				for i, comp := range sn.Components {
-					compDst, err := compPath(&comp)
+					compDst, err := compPath(&comp, sn.Info.Version)
 					if err != nil {
 						return err
 					}
