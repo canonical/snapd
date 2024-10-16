@@ -67,7 +67,7 @@ func (s *SnapSuite) TestDownloadChannelAndRevision(c *check.C) {
 }
 
 func (s *SnapSuite) TestPrintInstalHint(c *check.C) {
-	snapCmd.PrintInstallHint("foo_1.assert", "foo_1.snap")
+	snapCmd.PrintInstallHint("foo_1.assert", []string{"foo_1.snap"})
 	c.Check(s.Stdout(), check.Equals, `Install the snap with:
    snap ack foo_1.assert
    snap install foo_1.snap
@@ -78,7 +78,7 @@ func (s *SnapSuite) TestPrintInstalHint(c *check.C) {
 	c.Assert(err, check.IsNil)
 	as := filepath.Join(cwd, "some-dir/foo_1.assert")
 	sn := filepath.Join(cwd, "some-dir/foo_1.snap")
-	snapCmd.PrintInstallHint(as, sn)
+	snapCmd.PrintInstallHint(as, []string{sn})
 	c.Check(s.Stdout(), check.Equals, `Install the snap with:
    snap ack some-dir/foo_1.assert
    snap install some-dir/foo_1.snap
@@ -87,17 +87,32 @@ func (s *SnapSuite) TestPrintInstalHint(c *check.C) {
 
 func (s *SnapSuite) TestDownloadDirect(c *check.C) {
 	var n int
-	restore := snapCmd.MockDownloadDirect(func(snapName string, revision snap.Revision, dlOpts tooling.DownloadSnapOptions) error {
+	restore := snapCmd.MockDownloadContainers(func(snapName string, components []string, tsto *tooling.ToolingStore, opts tooling.DownloadSnapOptions) (*tooling.DownloadedSnap, error) {
 		c.Check(snapName, check.Equals, "a-snap")
-		c.Check(revision, check.Equals, snap.R(0))
-		c.Check(dlOpts.Basename, check.Equals, "some-base-name")
-		c.Check(dlOpts.TargetDir, check.Equals, "some-target-dir")
-		c.Check(dlOpts.Channel, check.Equals, "some-channel")
-		c.Check(dlOpts.CohortKey, check.Equals, "some-cohort")
+		c.Check(opts.Revision, check.Equals, snap.R(0))
+		c.Check(opts.Basename, check.Equals, "some-base-name")
+		c.Check(opts.TargetDir, check.Equals, "some-target-dir")
+		c.Check(opts.Channel, check.Equals, "some-channel")
+		c.Check(opts.CohortKey, check.Equals, "some-cohort")
+		c.Check(opts.OnlyComponents, check.Equals, false)
 		n++
-		return nil
+		return &tooling.DownloadedSnap{
+			Path: "a-snap_1.snap",
+			Info: &snap.Info{
+				SideInfo: snap.SideInfo{
+					RealName: "a-snap",
+				},
+			},
+		}, nil
 	})
 	defer restore()
+
+	restore = snapCmd.MockDownloadAssertions(func(info *snap.Info, snapPath string, components map[string]*snap.ComponentInfo, tsto *tooling.ToolingStore, opts tooling.DownloadSnapOptions) (string, error) {
+		c.Check(info.RealName, check.Equals, "a-snap")
+		c.Check(snapPath, check.Equals, "a-snap_1.snap")
+		c.Check(components, check.HasLen, 0)
+		return "foo_1.assert", nil
+	})
 
 	// check that a direct download got issued
 	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
@@ -114,9 +129,9 @@ func (s *SnapSuite) TestDownloadDirect(c *check.C) {
 
 func (s *SnapSuite) TestDownloadDirectErrors(c *check.C) {
 	var n int
-	restore := snapCmd.MockDownloadDirect(func(snapName string, revision snap.Revision, dlOpts tooling.DownloadSnapOptions) error {
+	restore := snapCmd.MockDownloadContainers(func(snapName string, components []string, tsto *tooling.ToolingStore, opts tooling.DownloadSnapOptions) (*tooling.DownloadedSnap, error) {
 		n++
-		return fmt.Errorf("some-error")
+		return nil, fmt.Errorf("some-error")
 	})
 	defer restore()
 
