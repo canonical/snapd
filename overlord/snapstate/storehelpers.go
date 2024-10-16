@@ -223,16 +223,6 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int, 
 	return total, nil
 }
 
-func setActionValidationSetsAndRequiredRevision(action *store.SnapAction, valsets []snapasserts.ValidationSetKey, requiredRevision snap.Revision) {
-	action.ValidationSets = append(action.ValidationSets, valsets...)
-	if !requiredRevision.Unset() {
-		action.Revision = requiredRevision
-		// channel cannot be present if revision is set (store would
-		// respond with revision-conflict error).
-		action.Channel = ""
-	}
-}
-
 func downloadInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, deviceCtx DeviceContext) (store.SnapActionResult, error) {
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
