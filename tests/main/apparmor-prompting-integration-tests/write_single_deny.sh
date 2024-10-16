@@ -12,7 +12,7 @@ echo "Attempt to write the file (should fail)"
 snap run --shell prompting-client.scripted -c "echo it is written > ${TEST_DIR}/test.txt"
 
 # Wait for the client to write its result and exit
-timeout "$TIMEOUT" -c 'while pgrep -f "prompting-client-scripted" > /dev/null; do sleep 0.1; done'
+timeout "$TIMEOUT" -c 'while pgrep -f "prompting-client.scripted.*${TEST_DIR}" > /dev/null; do sleep 0.1; done'
 
 CLIENT_OUTPUT="$(cat "${TEST_DIR}/result")"
 
