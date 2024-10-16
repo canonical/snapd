@@ -55,6 +55,10 @@ debug: |
     snap debug api "/v2/interfaces/requests/rules?user-id=$TEST_UID" || true
 
 execute: |
+    echo "Precondition check that snapd is active"
+    systemctl is-active snapd.service snapd.socket
+    SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
+
     echo "Enable prompting via snap client where possible"
     # Prompting is unsupported everywhere but the Ubuntu non-core systems with
     # kernels which support apparmor prompting
@@ -72,10 +76,10 @@ execute: |
     echo "Enable AppArmor prompting experimental feature"
     snap set system experimental.apparmor-prompting=true
 
-    # Wait for snapd to begin restart
-    sleep 1
+    echo "Wait for snapd to begin restart"
+    retry --wait 1 -n 60 test "$SNAPD_PID" != "$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
 
-    echo "Wait until prompting is active"
+    echo "Wait until snapd is active"
     retry --wait 1 -n 60 systemctl is-active snapd
 
     echo "Check that shell script and scripted replies exist for $VARIANT"
@@ -110,7 +114,8 @@ execute: |
 
     echo "Run the test script as the test user"
     if ! tests.session -u test exec sh -x "${TEST_DIR}/${VARIANT}.sh" "$TEST_DIR" "$TIMEOUT"; then
-        # kill the prompting-client-scripted process for this test run
+        # Test script exited early with error, so the prompting client may still
+        # be running, waiting for further requests, so it should be killed.
         pkill -f 'prompting-client-scripted.*'"${TEST_DIR}"
         exit 1
     fi
