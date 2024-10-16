@@ -443,10 +443,6 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 // ResealKeys updates the PCR protection policy for the sealed encryption keys
 // according to the specified parameters.
 func ResealKeys(params *ResealKeysParams) error {
-	numModels := len(params.ModelParams)
-	if numModels < 1 {
-		return fmt.Errorf("at least one set of model-specific parameters is required")
-	}
 	numSealedKeyObjects := len(params.KeyFiles)
 	if numSealedKeyObjects < 1 {
 		return fmt.Errorf("at least one key file is required")
@@ -461,9 +457,9 @@ func ResealKeys(params *ResealKeysParams) error {
 		return fmt.Errorf("TPM device is not enabled")
 	}
 
-	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
-	if err != nil {
-		return fmt.Errorf("cannot build new PCR protection profile: %w", err)
+	var pcrProfile sb_tpm2.PCRProtectionProfile
+	if _, err := mu.UnmarshalFromBytes(params.PCRProfile, &pcrProfile); err != nil {
+		return err
 	}
 
 	authKey, err := os.ReadFile(params.TPMPolicyAuthKeyFile)
@@ -495,7 +491,7 @@ func ResealKeys(params *ResealKeysParams) error {
 	}
 
 	if hasOldObject {
-		if err := sbUpdateKeyPCRProtectionPolicyMultiple(tpm, sealedKeyObjects, authKey, pcrProfile); err != nil {
+		if err := sbUpdateKeyPCRProtectionPolicyMultiple(tpm, sealedKeyObjects, authKey, &pcrProfile); err != nil {
 			return fmt.Errorf("cannot update legacy PCR protection policy: %w", err)
 		}
 
@@ -513,7 +509,7 @@ func ResealKeys(params *ResealKeysParams) error {
 		}
 	} else {
 		// TODO: find out which context when revocation should happen
-		if err := sbUpdateKeyDataPCRProtectionPolicy(tpm, authKey, pcrProfile, sb_tpm2.NoNewPCRPolicyVersion, keyDatas...); err != nil {
+		if err := sbUpdateKeyDataPCRProtectionPolicy(tpm, authKey, &pcrProfile, sb_tpm2.NoNewPCRPolicyVersion, keyDatas...); err != nil {
 			return fmt.Errorf("cannot update PCR protection policy: %w", err)
 		}
 
@@ -584,6 +580,16 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 	logger.Debugf("PCR protection profile:\n%s", pcrProfile.String())
 
 	return pcrProfile, nil
+}
+
+// BuildPCRProtectionProfile builds and serializes a PCR profile from
+// a list of SealKeyModelParams.
+func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams) (SerializedPCRProfile, error) {
+	pcrProfile, err := buildPCRProtectionProfile(modelParams)
+	if err != nil {
+		return nil, err
+	}
+	return mu.MarshalToBytes(pcrProfile)
 }
 
 func tpmProvision(tpm *sb_tpm2.Connection, mode TPMProvisionMode, lockoutAuthFile string) error {
