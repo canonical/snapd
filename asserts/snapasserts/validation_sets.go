@@ -1063,6 +1063,11 @@ func (s *SnapPresence) RequiredComponents() map[string]presence {
 // the validation sets that are known to this ValidationSets. if the snap is not
 // constrained by any validation sets, the presence will be considered optional.
 func (v *ValidationSets) Presence(sn naming.SnapRef) (SnapPresence, error) {
+	// if this is true, then calling code has a bug
+	if snapName := sn.SnapName(); strings.Contains(sn.SnapName(), "_") {
+		return SnapPresence{}, fmt.Errorf("internal error: cannot check snap against validation sets with instance name: %q", snapName)
+	}
+
 	cstrs := v.constraintsForSnap(sn)
 	if cstrs == nil {
 		return SnapPresence{
