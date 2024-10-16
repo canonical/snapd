@@ -706,7 +706,7 @@ func (s *targetTestSuite) TestUpdateComponents(c *C) {
 		return &snap.ComponentInfo{
 			Component:         naming.NewComponentRef(info.SnapName(), compName),
 			Type:              snap.StandardComponent,
-			Version:           "1.0",
+			YamlVersion:       "1.0",
 			ComponentSideInfo: *csi,
 		}, nil
 	}))

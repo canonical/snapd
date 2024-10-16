@@ -215,7 +215,7 @@ func (tr *tree16) componentPath(sn *SeedSnap, sc *SeedComponent) (string, error)
 	return "", errors.New("components not supported on UC16")
 }
 
-func (tr *tree16) localComponentPath(sc *SeedComponent) (string, error) {
+func (tr *tree16) localComponentPath(*SeedComponent, string) (string, error) {
 	return "", errors.New("components not supported on UC16")
 }
 

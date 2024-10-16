@@ -1808,7 +1808,6 @@ func (s *snapsSuite) TestMapLocalFieldsWithComponents(c *check.C) {
 	const comp1yaml = `
 component: some-snap+comp-1
 type: standard
-version: 1.0
 `
 	const comp2yaml = `
 component: some-snap+comp-2
@@ -1909,7 +1908,8 @@ components:
 			{Snap: "some-snap", Name: "foo"},
 		},
 		Components: []client.Component{
-			{Name: "comp-1", Type: "standard", Version: "1.0", Revision: snap.R(33),
+			// comp-1 has the snap version as it did not specify a version itself
+			{Name: "comp-1", Type: "standard", Version: "v1.0", Revision: snap.R(33),
 				InstallDate: snap.ComponentInstallDate(cpi, snap.R(7)), InstalledSize: 2},
 			{Name: "comp-2", Type: "standard", Version: "1.0", Revision: snap.R(34),
 				Summary: "summary 2", Description: "description 2",
