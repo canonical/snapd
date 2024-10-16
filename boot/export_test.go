@@ -226,7 +226,7 @@ func EnableTestingRebootFunction() (restore func()) {
 	return func() { testingRebootItself = false }
 }
 
-func MockResealKeyForBootChains(f func(method device.SealingMethod, rootdir string, params *ResealKeyForBootChainsParams, expectReseal bool) error) (restore func()) {
+func MockResealKeyForBootChains(f func(unlocker Unlocker, method device.SealingMethod, rootdir string, params *ResealKeyForBootChainsParams, expectReseal bool) error) (restore func()) {
 	old := ResealKeyForBootChains
 	ResealKeyForBootChains = f
 	return func() {

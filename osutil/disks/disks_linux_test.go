@@ -1854,7 +1854,8 @@ func (s *diskSuite) TestDMCryptUUIDFromMountPointErrs(c *C) {
 	defer restore()
 
 	_, err := disks.DMCryptUUIDFromMountPoint("/run/mnt/blah")
-	c.Assert(err, ErrorMatches, "cannot find mountpoint \"/run/mnt/blah\"")
+	c.Assert(err, ErrorMatches, `cannot find mountpoint "/run/mnt/blah"`)
+	c.Assert(errors.Is(err, disks.ErrMountPointNotFound), Equals, true)
 
 	restore = osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/vda4 rw
 `)
@@ -1872,6 +1873,7 @@ func (s *diskSuite) TestDMCryptUUIDFromMountPointErrs(c *C) {
 
 	_, err = disks.DMCryptUUIDFromMountPoint("/run/mnt/point")
 	c.Assert(err, ErrorMatches, "device has no DM_UUID")
+	c.Assert(err, Equals, disks.ErrNoDmUUID)
 
 	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")

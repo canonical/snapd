@@ -26,6 +26,11 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/secboot"
+)
+
+var (
+	backendResealKeyForBootChains = backend.ResealKeyForBootChains
 )
 
 // FDEManager is responsible for managing full disk encryption keys.
@@ -49,12 +54,31 @@ func Manager(st *state.State, runner *state.TaskRunner) *FDEManager {
 	return m
 }
 
+// Ensure implements StateManager.Ensure
 func (m *FDEManager) Ensure() error {
 	return nil
 }
 
-func (m *FDEManager) resealKeyForBootChains(method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
-	return backend.ResealKeyForBootChains(method, rootdir, params, expectReseal)
+// StartUp implements StateStarterUp.Startup
+func (m *FDEManager) StartUp() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+	return initializeState(m.state)
+}
+
+func (m *FDEManager) resealKeyForBootChains(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+	doUpdate := func(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
+		if unlocker != nil {
+			m.state.Lock()
+			defer m.state.Unlock()
+		}
+		return updateParameters(m.state, role, containerRole, bootModes, models, tpmPCRProfile)
+	}
+	if unlocker != nil {
+		locker := unlocker()
+		defer locker()
+	}
+	return backendResealKeyForBootChains(doUpdate, method, rootdir, params, expectReseal)
 }
 
 func fdeMgr(st *state.State) *FDEManager {
