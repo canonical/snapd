@@ -25,6 +25,8 @@ package secboot
 // Debian does run "go list" without any support for passing -tags.
 
 import (
+	"errors"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
@@ -45,6 +47,8 @@ const (
 
 // WithSecbootSupport is true if this package was built with githbu.com/snapcore/secboot.
 var WithSecbootSupport = false
+
+var ErrKernelKeyNotFound = errors.New("kernel key not found")
 
 type LoadChain struct {
 	*bootloader.BootFile
@@ -132,9 +136,13 @@ type SealKeysWithFDESetupHookParams struct {
 	AuxKeyFile string
 }
 
+// SerializedPCRProfile wraps a serialized PCR profile which is treated as an
+// opaque binary blob outside of secboot package.
+type SerializedPCRProfile []byte
+
 type ResealKeysParams struct {
 	// The snap model parameters
-	ModelParams []*SealKeyModelParams
+	PCRProfile SerializedPCRProfile
 	// The path to the sealed key files
 	KeyFiles []string
 	// The path to the authorization policy update key file (only relevant for TPM)

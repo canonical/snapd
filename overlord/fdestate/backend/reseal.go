@@ -34,7 +34,8 @@ import (
 )
 
 var (
-	secbootResealKeys = secboot.ResealKeys
+	secbootResealKeys                = secboot.ResealKeys
+	secbootBuildPCRProtectionProfile = secboot.BuildPCRProtectionProfile
 )
 
 // MockSecbootResealKeys is only useful in testing. Note that this is a very low
@@ -48,8 +49,19 @@ func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams) error) (rest
 	}
 }
 
+func MockSecbootBuildPCRProtectionProfile(f func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error)) (restore func()) {
+	osutil.MustBeTestBinary("secbootBuildPCRProtectionProfile only can be mocked in tests")
+	old := secbootBuildPCRProtectionProfile
+	secbootBuildPCRProtectionProfile = f
+	return func() {
+		secbootBuildPCRProtectionProfile = old
+	}
+}
+
+type StateUpdater func(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error
+
 // ResealKeyForBootChains reseals disk encryption keys with the given bootchains.
-func ResealKeyForBootChains(method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+func ResealKeyForBootChains(updateState StateUpdater, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 	switch method {
 	case device.SealingMethodFDESetupHook:
 		// FIXME: do something
@@ -73,9 +85,10 @@ func ResealKeyForBootChains(method device.SealingMethod, rootdir string, params 
 		pbcJSON, _ := json.Marshal(pbc)
 		logger.Debugf("resealing (%d) to boot chains: %s", nextCount, pbcJSON)
 
-		if err := resealRunObjectKeys(pbc, authKeyFile, params.RoleToBlName); err != nil {
+		if err := resealRunObjectKeys(updateState, pbc, authKeyFile, params.RoleToBlName); err != nil {
 			return err
 		}
+
 		logger.Debugf("resealing (%d) succeeded", nextCount)
 
 		bootChainsPath := BootChainsFileUnder(rootdir)
@@ -98,7 +111,7 @@ func ResealKeyForBootChains(method device.SealingMethod, rootdir string, params 
 		rpbcJSON, _ := json.Marshal(rpbc)
 		logger.Debugf("resealing (%d) to recovery boot chains: %s", nextFallbackCount, rpbcJSON)
 
-		if err := resealFallbackObjectKeys(rpbc, authKeyFile, params.RoleToBlName); err != nil {
+		if err := resealFallbackObjectKeys(updateState, rpbc, authKeyFile, params.RoleToBlName); err != nil {
 			return err
 		}
 		logger.Debugf("fallback resealing (%d) succeeded", nextFallbackCount)
@@ -114,18 +127,33 @@ func ResealKeyForBootChains(method device.SealingMethod, rootdir string, params 
 	return nil
 }
 
-func resealRunObjectKeys(pbc boot.PredictableBootChains, authKeyFile string, roleToBlName map[bootloader.Role]string) error {
+func resealRunObjectKeys(updateState StateUpdater, pbc boot.PredictableBootChains, authKeyFile string, roleToBlName map[bootloader.Role]string) error {
 	// get model parameters from bootchains
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
 		return fmt.Errorf("cannot prepare for key resealing: %v", err)
 	}
 
+	numModels := len(modelParams)
+	if numModels < 1 {
+		return fmt.Errorf("at least one set of model-specific parameters is required")
+	}
+
+	pcrProfile, err := secbootBuildPCRProtectionProfile(modelParams)
+	if err != nil {
+		return err
+	}
+
+	var models []secboot.ModelForSealing
+	for _, m := range modelParams {
+		models = append(models, m.Model)
+	}
+
 	// list all the key files to reseal
 	keyFiles := []string{device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir)}
 
 	resealKeyParams := &secboot.ResealKeysParams{
-		ModelParams:          modelParams,
+		PCRProfile:           pcrProfile,
 		KeyFiles:             keyFiles,
 		TPMPolicyAuthKeyFile: authKeyFile,
 	}
@@ -133,14 +161,36 @@ func resealRunObjectKeys(pbc boot.PredictableBootChains, authKeyFile string, rol
 		return fmt.Errorf("cannot reseal the encryption key: %v", err)
 	}
 
+	// FIXME: We should also update "run" keyslot role
+
+	// TODO: use constants for "run+recover" and "all"
+	if err := updateState("run+recover", "all", []string{"run", "recover"}, models, pcrProfile); err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func resealFallbackObjectKeys(pbc boot.PredictableBootChains, authKeyFile string, roleToBlName map[bootloader.Role]string) error {
+func resealFallbackObjectKeys(updateState StateUpdater, pbc boot.PredictableBootChains, authKeyFile string, roleToBlName map[bootloader.Role]string) error {
 	// get model parameters from bootchains
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
 		return fmt.Errorf("cannot prepare for fallback key resealing: %v", err)
+	}
+
+	numModels := len(modelParams)
+	if numModels < 1 {
+		return fmt.Errorf("at least one set of model-specific parameters is required")
+	}
+
+	pcrProfile, err := secbootBuildPCRProtectionProfile(modelParams)
+	if err != nil {
+		return err
+	}
+
+	var models []secboot.ModelForSealing
+	for _, m := range modelParams {
+		models = append(models, m.Model)
 	}
 
 	// list all the key files to reseal
@@ -150,12 +200,21 @@ func resealFallbackObjectKeys(pbc boot.PredictableBootChains, authKeyFile string
 	}
 
 	resealKeyParams := &secboot.ResealKeysParams{
-		ModelParams:          modelParams,
+		PCRProfile:           pcrProfile,
 		KeyFiles:             keyFiles,
 		TPMPolicyAuthKeyFile: authKeyFile,
 	}
 	if err := secbootResealKeys(resealKeyParams); err != nil {
 		return fmt.Errorf("cannot reseal the fallback encryption keys: %v", err)
+	}
+
+	// FIXME: We are missing recover for system-data, for
+	// "recover" boot mode. It is different from the run+recover
+	// as this should only include working models.
+
+	// TODO: use constants for "recover" (the first parameter) and "system-save"
+	if err := updateState("recover", "system-save", []string{"recover", "factory-reset"}, models, pcrProfile); err != nil {
+		return err
 	}
 
 	return nil
