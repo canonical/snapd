@@ -407,6 +407,15 @@ func completeStoreAction(action *store.SnapAction, revOpts RevisionOptions, igno
 		// might choose to track any channel in the RevisionOptions.
 		action.Channel = ""
 	default:
+		snapName, _ := snap.SplitInstanceName(action.InstanceName)
+		isParallelInstall := snapName != action.InstanceName
+
+		// TODO: figure out the best way to handle parallel installs and
+		// validation sets. right now, we just ignore them.
+		if isParallelInstall {
+			return nil
+		}
+
 		vsets, err := enforcedSets()
 		if err != nil {
 			return err
@@ -414,7 +423,7 @@ func completeStoreAction(action *store.SnapAction, revOpts RevisionOptions, igno
 
 		// if the caller didn't provide any validation sets, make sure that
 		// the snap is allowed by all of the enforced validation sets
-		pres, err := vsets.Presence(naming.Snap(action.InstanceName))
+		pres, err := vsets.Presence(naming.Snap(snapName))
 		if err != nil {
 			return err
 		}
