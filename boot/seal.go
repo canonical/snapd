@@ -251,11 +251,7 @@ func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool,
 		return err
 	}
 
-	if unlocker != nil {
-		// unlock/relock global state
-		defer unlocker()()
-	}
-	return resealKeyToModeenvForMethod(method, rootdir, modeenv, expectReseal)
+	return resealKeyToModeenvForMethod(unlocker, method, rootdir, modeenv, expectReseal)
 }
 
 type ResealKeyForBootChainsParams struct {
@@ -270,7 +266,7 @@ type ResealKeyForBootChainsParams struct {
 	RoleToBlName map[bootloader.Role]string
 }
 
-func resealKeyToModeenvForMethod(method device.SealingMethod, rootdir string, modeenv *Modeenv, expectReseal bool) error {
+func resealKeyToModeenvForMethod(unlocker Unlocker, method device.SealingMethod, rootdir string, modeenv *Modeenv, expectReseal bool) error {
 	// this is just optimization. If the backend does not need it, we should not calculate it.
 	requiresBootChains := true
 	switch method {
@@ -348,10 +344,10 @@ func resealKeyToModeenvForMethod(method device.SealingMethod, rootdir string, mo
 		}
 	}
 
-	return ResealKeyForBootChains(method, rootdir, params, expectReseal)
+	return ResealKeyForBootChains(unlocker, method, rootdir, params, expectReseal)
 }
 
-func resealKeyForBootChainsImpl(method device.SealingMethod, rootdir string, params *ResealKeyForBootChainsParams, expectReseal bool) error {
+func resealKeyForBootChainsImpl(unlocker Unlocker, method device.SealingMethod, rootdir string, params *ResealKeyForBootChainsParams, expectReseal bool) error {
 	return fmt.Errorf("FDE manager was not started")
 }
 

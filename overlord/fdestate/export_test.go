@@ -19,4 +19,20 @@
 
 package fdestate
 
+import (
+	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/overlord/fdestate/backend"
+)
+
 var FdeMgr = fdeMgr
+
+var UpdateParameters = updateParameters
+
+func MockBackendResealKeyForBootChains(f func(updateState backend.StateUpdater, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error) (restore func()) {
+	old := backendResealKeyForBootChains
+	backendResealKeyForBootChains = f
+	return func() {
+		backendResealKeyForBootChains = old
+	}
+}
