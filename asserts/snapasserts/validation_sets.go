@@ -1060,7 +1060,7 @@ func (s *SnapPresence) RequiredComponents() map[string]presence {
 
 // Presence returns a SnapPresence for the given snap. The returned struct
 // contains information about the allowed presence of the snap, with respect to
-// the validation sets that are known to this ValidationSets. if the snap is not
+// the validation sets that are known to this ValidationSets. If the snap is not
 // constrained by any validation sets, the presence will be considered optional.
 func (v *ValidationSets) Presence(sn naming.SnapRef) (SnapPresence, error) {
 	// if this is true, then calling code has a bug
