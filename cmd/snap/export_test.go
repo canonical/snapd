@@ -397,11 +397,19 @@ func MockIoutilTempDir(f func(string, string) (string, error)) (restore func()) 
 	}
 }
 
-func MockDownloadDirect(f func(snapName string, revision snap.Revision, dlOpts tooling.DownloadSnapOptions) error) (restore func()) {
-	old := downloadDirect
-	downloadDirect = f
+func MockDownloadContainers(f func(snapName string, components []string, tsto *tooling.ToolingStore, opts tooling.DownloadSnapOptions) (*tooling.DownloadedSnap, error)) (restore func()) {
+	old := downloadContainers
+	downloadContainers = f
 	return func() {
-		downloadDirect = old
+		downloadContainers = old
+	}
+}
+
+func MockDownloadAssertions(f func(info *snap.Info, snapPath string, components map[string]*snap.ComponentInfo, tsto *tooling.ToolingStore, opts tooling.DownloadSnapOptions) (string, error)) (restore func()) {
+	old := downloadAssertions
+	downloadAssertions = f
+	return func() {
+		downloadAssertions = old
 	}
 }
 
