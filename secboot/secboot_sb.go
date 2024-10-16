@@ -21,6 +21,9 @@
 package secboot
 
 import (
+	"crypto"
+	"crypto/hmac"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -335,4 +338,39 @@ func DeleteKeys(node string, matches map[string]bool) error {
 	}
 
 	return nil
+}
+
+func GetPrimaryKeyHMAC(devicePath string, alg crypto.Hash) (salt []byte, digest []byte, err error) {
+	const remove = false
+	p, err := sb.GetPrimaryKeyFromKernel(keyringPrefix, devicePath, remove)
+	if err != nil {
+		if errors.Is(err, sb.ErrKernelKeyNotFound) {
+			return nil, nil, ErrKernelKeyNotFound
+		}
+		return nil, nil, err
+	}
+
+	var saltArray [32]byte
+	if _, err := rand.Read(saltArray[:]); err != nil {
+		return nil, nil, err
+	}
+
+	h := hmac.New(alg.New, salt[:])
+	h.Write(p)
+	return saltArray[:], h.Sum(nil), nil
+}
+
+func VerifyPrimaryKeyHMAC(devicePath string, alg crypto.Hash, salt []byte, digest []byte) (bool, error) {
+	const remove = false
+	p, err := sb.GetPrimaryKeyFromKernel(keyringPrefix, devicePath, remove)
+	if err != nil {
+		if errors.Is(err, sb.ErrKernelKeyNotFound) {
+			return false, ErrKernelKeyNotFound
+		}
+		return false, err
+	}
+
+	h := hmac.New(alg.New, salt[:])
+	h.Write(p)
+	return hmac.Equal(h.Sum(nil), digest), nil
 }

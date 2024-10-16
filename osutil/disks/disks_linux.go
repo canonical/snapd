@@ -610,7 +610,7 @@ func partitionPropsFromMountPoint(mountpoint string) (source string, props map[s
 		}
 	}
 	if source == "" {
-		return "", nil, fmt.Errorf("cannot find mountpoint %q", mountpoint)
+		return "", nil, errMountPointNotFoundImpl{path: mountpoint}
 	}
 
 	// now we have the partition for this mountpoint, we need to tie that back
@@ -976,8 +976,9 @@ func DMCryptUUIDFromMountPoint(mountpoint string) (string, error) {
 
 	dmUUID, hasDmUUID := props["DM_UUID"]
 	if !hasDmUUID {
-		return "", fmt.Errorf("device has no DM_UUID")
+		return "", ErrNoDmUUID
 	}
+
 	match := dmUUIDRe.FindStringSubmatchIndex(dmUUID)
 	if match == nil {
 		return "", fmt.Errorf("value of DM_UUID is not recognized")
