@@ -62,7 +62,7 @@ execute: |
     echo "Enable prompting via snap client where possible"
     # Prompting is unsupported everywhere but the Ubuntu non-core systems with
     # kernels which support apparmor prompting
-    if ! os.query is-ubuntu || os.query is-core || NOMATCH 'prompt' /sys/kernel/security/apparmor/features/policy/permstable32 ; then
+    if ! os.query is-ubuntu || os.query is-core || cat /sys/kernel/security/apparmor/features/policy/permstable32 | NOMATCH 'prompt' ; then
         not snap set system experimental.apparmor-prompting=true >& err.out
         if os.query is-core ; then
             MATCH "cannot enable prompting feature as it is not supported on Ubuntu Core systems" < err.out
@@ -107,15 +107,22 @@ execute: |
     # unexpected prompt or an error from snapd.
 
     echo "Wait for the scripted client to start"
-    timeout "$TIMEOUT" sh -xc "while ! pgrep -f 'prompting-client-scripted.*${TEST_DIR}' > /dev/null; do sleep 0.1; done"
-    SCRIPTED_PID="$(pgrep -f 'prompting-client-scripted.*'"${TEST_DIR}")"
+    if ! retry --wait 1 -n "$TIMEOUT" pgrep -af "^/snap/.*/prompting-client-scripted.*${TEST_DIR}" ; then
+        pgrep -af 'prompting-client' || true
+        pkill -f 'prompting-client' || true
+        exit 1
+    fi
+    SCRIPTED_PID="$(pgrep -f "^/snap/.*/prompting-client-scripted.*${TEST_DIR}")"
     echo "Wait for the scripted client to open a unix socket for streaming"
-    timeout "$TIMEOUT" sh -xc "while ! lsof -a -U -p '$SCRIPTED_PID' > /dev/null; do sleep 0.1; done"
+    if ! retry --wait 1 -n "$TIMEOUT" lsof -a -U -p "$SCRIPTED_PID" ; then
+        pkill -f "prompting-client-scripted.*${TEST_DIR}" || true
+        exit 1
+    fi
 
     echo "Run the test script as the test user"
     if ! tests.session -u test exec sh -x "${TEST_DIR}/${VARIANT}.sh" "$TEST_DIR" "$TIMEOUT"; then
         # Test script exited early with error, so the prompting client may still
         # be running, waiting for further requests, so it should be killed.
-        pkill -f 'prompting-client-scripted.*'"${TEST_DIR}"
+        pkill -f "prompting-client-scripted.*${TEST_DIR}"
         exit 1
     fi
