@@ -140,7 +140,7 @@ if [ -f "${TEST_DIR}/other.txt" ] ; then
 fi
 
 # Wait for the client to write its result and exit
-timeout "$TIMEOUT" -c 'while pgrep -f "prompting-client-scripted" > /dev/null; do sleep 0.1; done'
+timeout "$TIMEOUT" -c 'while pgrep -f "prompting-client.scripted.*${TEST_DIR}" > /dev/null; do sleep 0.1; done'
 
 CLIENT_OUTPUT="$(cat "${TEST_DIR}/result")"
 
