@@ -16,10 +16,16 @@ execute: |
 
         for _ in $(seq $num_retries); do
             # Make a HEAD request to the URL and capture the HTTP status code
-            status_code=$(curl -o /dev/null -s -w "%{http_code}\n" "$url")
+            status_code=$(curl -o /dev/null -s -w "%{http_code}\n" --connect-timeout 10 "$url")
 
-            # Check if the status code is in the 2xx range
+            # If the status code is 2xx the url is ok
             if [ "$status_code" -ge 200 ] && [ "$status_code" -lt 300 ]; then
+                return 0
+            fi
+
+            # If status code is 500 means the server is not working properly
+            # In this case we return because 4xx is returned 0 if the page is not found
+            if [ "$status_code" == 500 ]; then
                 return 0
             fi
         done
@@ -60,20 +66,23 @@ execute: |
     }
 
     bad=""
+    nodoc=""
     # Loop through all interfaces
     for iface in $(snap interface --all | awk 'NR > 1 {print $1}' | tr '\n' ' '); do
-        printf "Checking presence of documentation url for interface %s\n" "'$iface':"
-        url="https://snapcraft.io/docs/$iface-interface"
+        echo "Checking presence of documentation url for interface $iface"
+        url="https://snapcraft.io/docs/${iface}-interface"
         actual="$( snap interface "$iface" )"
         if MATCH "documentation: $url" <<<"$actual"; then
-            if exclude "$iface" || webpage_exists "$url"; then
-                echo "ok"
+            if exclude "$iface"; then
+                echo "Interface $iface excluded"
+            elif webpage_exists "$url"; then
+                echo "Interface $iface has webpage"
             else
-                bad=1
+                nodoc="$nodoc $iface"
                 echo "ERROR: Could not find help url for $iface at $url"
             fi
         else
-            bad=1
+            bad="$bad $iface"
             echo
             echo "ERROR: The output of 'snap interface $iface' does not contain a documentation entry for $url:"
             echo "----------------"
@@ -82,4 +91,13 @@ execute: |
         fi
     done
 
+    if [ -n "$bad" ]; then
+        echo "The output of the following interfaces do not contain a documentation entry: $bad"
+    fi
+
+    if [ -n "$nodoc" ]; then
+        echo "The following interfaces have not a documentation url: $nodoc"
+    fi
+
     test -z "$bad"
+    test -z "$nodoc"
