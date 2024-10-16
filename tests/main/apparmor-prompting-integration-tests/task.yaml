@@ -104,13 +104,13 @@ execute: |
 
     echo "Wait for the scripted client to start"
     timeout "$TIMEOUT" sh -xc "while ! pgrep -f 'prompting-client-scripted.*${TEST_DIR}' > /dev/null; do sleep 0.1; done"
-    SCRIPTED_PID="$(pgrep -f "prompting-client-scripted.*${TEST_DIR}")"
+    SCRIPTED_PID="$(pgrep -f 'prompting-client-scripted.*'"${TEST_DIR}")"
     echo "Wait for the scripted client to open a unix socket for streaming"
     timeout "$TIMEOUT" sh -xc "while ! lsof -a -U -p '$SCRIPTED_PID' > /dev/null; do sleep 0.1; done"
 
     echo "Run the test script as the test user"
     if ! tests.session -u test exec sh -x "${TEST_DIR}/${VARIANT}.sh" "$TEST_DIR" "$TIMEOUT"; then
         # kill the prompting-client-scripted process for this test run
-        pkill -f "prompting-client-scripted.*${TEST_DIR}"
+        pkill -f 'prompting-client-scripted.*'"${TEST_DIR}"
         exit 1
     fi
