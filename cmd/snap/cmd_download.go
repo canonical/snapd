@@ -33,14 +33,17 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store/tooling"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type cmdDownload struct {
 	channelMixin
-	Revision  string `long:"revision"`
-	Basename  string `long:"basename"`
-	TargetDir string `long:"target-directory"`
+	Revision       string `long:"revision"`
+	Basename       string `long:"basename"`
+	TargetDir      string `long:"target-directory"`
+	OnlyComponents bool   `long:"only-components"`
 
 	CohortKey  string `long:"cohort"`
 	Positional struct {
@@ -50,8 +53,9 @@ type cmdDownload struct {
 
 var shortDownloadHelp = i18n.G("Download the given snap")
 var longDownloadHelp = i18n.G(`
-The download command downloads the given snap and its supporting assertions
-to the current directory with .snap and .assert file extensions, respectively.
+The download command downloads the given snap, components, and their supporting
+assertions to the current directory with .snap, .comp, and .assert file
+extensions, respectively.
 `)
 
 func init() {
@@ -59,21 +63,144 @@ func init() {
 		return &cmdDownload{}
 	}, channelDescs.also(map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"revision": i18n.G("Download the given revision of a snap"),
+		"revision": i18n.G("Download the given revision of a snap. When downloading components, download the components associated with the given snap revision."),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"cohort": i18n.G("Download from the given cohort"),
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"basename": i18n.G("Use this basename for the snap and assertion files (defaults to <snap>_<revision>)"),
+		"basename": i18n.G("Use this basename for the snap, component, and assertion files (defaults to <snap>_<revision>)"),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"target-directory": i18n.G("Download to this directory (defaults to the current directory)"),
-	}), []argDesc{{
-		name: "<snap>",
 		// TRANSLATORS: This should not start with a lowercase letter.
-		desc: i18n.G("Snap name"),
+		"only-components": i18n.G("Only download the given components, not the snap"),
+	}), []argDesc{{
+		name: "<snap[+component...]>",
+		// TRANSLATORS: This should not start with a lowercase letter.
+		desc: i18n.G("Snap and, optionally, component names"),
 	}})
 }
 
-func fetchSnapAssertionsDirect(tsto *tooling.ToolingStore, snapPath string, snapInfo *snap.Info) (string, error) {
+func printInstallHint(assertPath string, containerPaths []string) {
+	// simplify paths
+	wd, _ := os.Getwd()
+	if p, err := filepath.Rel(wd, assertPath); err == nil {
+		assertPath = p
+	}
+
+	relativePaths := make([]string, 0, len(containerPaths))
+	for _, path := range containerPaths {
+		if rel, err := filepath.Rel(wd, path); err == nil {
+			relativePaths = append(relativePaths, rel)
+		} else {
+			relativePaths = append(relativePaths, path)
+		}
+	}
+
+	// add a hint what to do with the downloaded snap (LP:1676707)
+	fmt.Fprintf(Stdout, i18n.G(`Install the snap with:
+   snap ack %s
+   snap install %s
+`), assertPath, strings.Join(relativePaths, " "))
+}
+
+func downloadDirect(snapName string, components []string, opts tooling.DownloadSnapOptions) error {
+	compRefs := make([]string, 0, len(components))
+	for _, comp := range components {
+		compRefs = append(compRefs, naming.NewComponentRef(snapName, comp).String())
+	}
+
+	if opts.OnlyComponents {
+		if len(compRefs) == 1 {
+			fmt.Fprintf(Stdout, i18n.G("Fetching component %q\n"), compRefs[0])
+		} else {
+			fmt.Fprintf(Stdout, i18n.G("Fetching components %s\n"), strutil.Quoted(compRefs))
+		}
+	} else {
+		switch len(components) {
+		case 0:
+			fmt.Fprintf(Stdout, i18n.G("Fetching snap %q\n"), snapName)
+		case 1:
+			fmt.Fprintf(Stdout, i18n.G("Fetching snap %q and component %q\n"), snapName, compRefs[0])
+		default:
+			fmt.Fprintf(Stdout, i18n.G("Fetching snap %q and components %s\n"), snapName, strutil.Quoted(compRefs))
+		}
+	}
+
+	tsto, err := tooling.NewToolingStore()
+	if err != nil {
+		return err
+	}
+	tsto.Stdout = Stdout
+
+	dl, err := downloadContainers(snapName, components, tsto, opts)
+	if err != nil {
+		return err
+	}
+
+	downloaded := make([]string, 0, len(compRefs)+1)
+	if !opts.OnlyComponents {
+		downloaded = append(downloaded, snapName)
+	}
+	downloaded = append(downloaded, compRefs...)
+
+	fmt.Fprintf(Stdout, i18n.G("Fetching assertions for %s\n"), strutil.Quoted(downloaded))
+
+	compInfos := make(map[string]*snap.ComponentInfo, len(components))
+	for _, comp := range dl.Components {
+		compInfos[comp.Path] = comp.Info
+	}
+
+	snapPath := dl.Path
+
+	// if we're only downloading components, then we won't have a snap path to
+	// work with. since downloadAssertions derives where it downloads the
+	// assertions to based on the snap path, we need to set it to something
+	// appropriate here.
+	if opts.OnlyComponents {
+		if opts.Basename == "" {
+			snapPath = fmt.Sprintf("%s_%s.snap", dl.Info.SnapName(), dl.Info.Revision)
+		} else {
+			snapPath = fmt.Sprintf("%s.snap", opts.Basename)
+		}
+	}
+
+	assertsPath, err := downloadAssertions(dl.Info, snapPath, compInfos, tsto, opts)
+	if err != nil {
+		return err
+	}
+
+	containerPaths := make([]string, 0, len(components)+1)
+	if !opts.OnlyComponents {
+		containerPaths = append(containerPaths, dl.Path)
+	}
+	for _, c := range dl.Components {
+		containerPaths = append(containerPaths, c.Path)
+	}
+
+	printInstallHint(assertsPath, containerPaths)
+
+	return nil
+}
+
+var (
+	downloadAssertions = downloadAssertionsImpl
+	downloadContainers = downloadContainersImpl
+)
+
+func downloadContainersImpl(snapName string, components []string, tsto *tooling.ToolingStore, opts tooling.DownloadSnapOptions) (*tooling.DownloadedSnap, error) {
+	dl, err := tsto.DownloadSnap(snapName, components, opts)
+	if err != nil {
+		return nil, err
+	}
+	return dl, nil
+}
+
+func downloadAssertionsImpl(
+	info *snap.Info,
+	snapPath string,
+	components map[string]*snap.ComponentInfo,
+	tsto *tooling.ToolingStore,
+	opts tooling.DownloadSnapOptions,
+) (string, error) {
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   sysdb.Trusted(),
@@ -83,6 +210,7 @@ func fetchSnapAssertionsDirect(tsto *tooling.ToolingStore, snapPath string, snap
 	}
 
 	assertPath := strings.TrimSuffix(snapPath, filepath.Ext(snapPath)) + ".assert"
+
 	w, err := os.Create(assertPath)
 	if err != nil {
 		return "", fmt.Errorf(i18n.G("cannot create assertions file: %v"), err)
@@ -95,55 +223,36 @@ func fetchSnapAssertionsDirect(tsto *tooling.ToolingStore, snapPath string, snap
 	}
 	f := tsto.AssertionFetcher(db, save)
 
-	// TODO:COMPS: support downloading components
-	_, err = image.FetchAndCheckSnapAssertions(snapPath, snapInfo, nil, nil, f, db)
-	return assertPath, err
+	comps := make([]image.CompInfoPath, 0, len(components))
+	for path, ci := range components {
+		comps = append(comps, image.CompInfoPath{
+			Info: ci,
+			Path: path,
+		})
+	}
+
+	if !opts.OnlyComponents {
+		_, err := image.FetchAndCheckSnapAssertions(snapPath, info, comps, nil, f, db)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		for _, c := range comps {
+			if err := image.FetchAndCheckComponentAssertions(c, info, nil, f, db); err != nil {
+				return "", err
+			}
+		}
+	}
+
+	if err := w.Close(); err != nil {
+		return "", err
+	}
+
+	return assertPath, nil
 }
 
-func printInstallHint(assertPath, snapPath string) {
-	// simplify paths
-	wd, _ := os.Getwd()
-	if p, err := filepath.Rel(wd, assertPath); err == nil {
-		assertPath = p
-	}
-	if p, err := filepath.Rel(wd, snapPath); err == nil {
-		snapPath = p
-	}
-	// add a hint what to do with the downloaded snap (LP:1676707)
-	fmt.Fprintf(Stdout, i18n.G(`Install the snap with:
-   snap ack %s
-   snap install %s
-`), assertPath, snapPath)
-}
-
-// for testing
-var downloadDirect = downloadDirectImpl
-
-func downloadDirectImpl(snapName string, revision snap.Revision, dlOpts tooling.DownloadSnapOptions) error {
-	tsto, err := tooling.NewToolingStore()
-	if err != nil {
-		return err
-	}
-	tsto.Stdout = Stdout
-
-	fmt.Fprintf(Stdout, i18n.G("Fetching snap %q\n"), snapName)
-	// TODO:COMPS: consider downloading components
-	dlSnap, err := tsto.DownloadSnap(snapName, nil, dlOpts)
-	if err != nil {
-		return err
-	}
-
-	fmt.Fprintf(Stdout, i18n.G("Fetching assertions for %q\n"), snapName)
-	assertPath, err := fetchSnapAssertionsDirect(tsto, dlSnap.Path, dlSnap.Info)
-	if err != nil {
-		return err
-	}
-	printInstallHint(assertPath, dlSnap.Path)
-	return nil
-}
-
-func (x *cmdDownload) downloadFromStore(snapName string, revision snap.Revision) error {
-	dlOpts := tooling.DownloadSnapOptions{
+func (x *cmdDownload) downloadFromStore(snap string, comps []string, revision snap.Revision) error {
+	return downloadDirect(snap, comps, tooling.DownloadSnapOptions{
 		TargetDir: x.TargetDir,
 		Basename:  x.Basename,
 		Channel:   x.Channel,
@@ -151,8 +260,8 @@ func (x *cmdDownload) downloadFromStore(snapName string, revision snap.Revision)
 		Revision:  revision,
 		// if something goes wrong, don't force it to start over again
 		LeavePartialOnError: true,
-	}
-	return downloadDirect(snapName, revision, dlOpts)
+		OnlyComponents:      x.OnlyComponents,
+	})
 }
 
 func (x *cmdDownload) Execute(args []string) error {
@@ -184,6 +293,10 @@ func (x *cmdDownload) Execute(args []string) error {
 		}
 	}
 
-	snapName := string(x.Positional.Snap)
-	return x.downloadFromStore(snapName, revision)
+	snap, comps := snap.SplitSnapInstanceAndComponents(string(x.Positional.Snap))
+	if x.OnlyComponents && len(comps) == 0 {
+		return errors.New(i18n.G("cannot specify --only-components without providing any components;"))
+	}
+
+	return x.downloadFromStore(snap, comps, revision)
 }
