@@ -19,10 +19,22 @@
 
 package backend
 
+import (
+	"github.com/snapcore/snapd/secboot"
+)
+
 func MockSecbootReleasePCRResourceHandles(f func(handles ...uint32) error) (restore func()) {
 	old := secbootReleasePCRResourceHandles
 	secbootReleasePCRResourceHandles = f
 	return func() {
 		secbootReleasePCRResourceHandles = old
+	}
+}
+
+func MockSecbootResealKeysWithFDESetupHook(f func(keyFiles []string, primaryKeyFile string, models []secboot.ModelForSealing) error) (restore func()) {
+	old := secbootResealKeysWithFDESetupHook
+	secbootResealKeysWithFDESetupHook = f
+	return func() {
+		secbootResealKeysWithFDESetupHook = old
 	}
 }
