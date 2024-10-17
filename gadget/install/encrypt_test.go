@@ -36,8 +36,6 @@ import (
 type encryptSuite struct {
 	testutil.BaseTest
 
-	mockCryptsetup *testutil.MockCmd
-
 	mockedEncryptionKey keys.EncryptionKey
 	mockedRecoveryKey   keys.RecoveryKey
 }

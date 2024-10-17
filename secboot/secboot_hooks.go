@@ -21,12 +21,10 @@
 package secboot
 
 import (
-	"bytes"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 
 	sb "github.com/snapcore/secboot"
 	sb_scope "github.com/snapcore/secboot/bootscope"
@@ -116,23 +114,6 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 	}
 
 	return nil
-}
-
-func isV1EncryptedKeyFile(p string) bool {
-	// XXX move some of this to kernel/fde
-	var v1KeyPrefix = []byte("USK$")
-
-	f, err := os.Open(p)
-	if err != nil {
-		return false
-	}
-	defer f.Close()
-
-	buf := make([]byte, len(v1KeyPrefix))
-	if _, err := io.ReadFull(f, buf); err != nil {
-		return false
-	}
-	return bytes.HasPrefix(buf, v1KeyPrefix)
 }
 
 type fdeHookV2DataHandler struct{}

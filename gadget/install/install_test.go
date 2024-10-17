@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -1082,24 +1081,6 @@ func (s *installSuite) TestInstallWriteContentDeviceNotFound(c *C) {
 
 type encryptPartitionsOpts struct {
 	encryptType secboot.EncryptionType
-}
-
-func expectedCipher() string {
-	switch runtime.GOARCH {
-	case "arm":
-		return "aes-cbc-essiv:sha256"
-	default:
-		return "aes-xts-plain64"
-	}
-}
-
-func expectedKeysize() string {
-	switch runtime.GOARCH {
-	case "arm":
-		return "256"
-	default:
-		return "512"
-	}
 }
 
 func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
