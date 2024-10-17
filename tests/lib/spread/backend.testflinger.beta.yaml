@@ -1,4 +1,4 @@
-    #this backend is used for edge validation
+    #this backend is used for beta validation
     testflinger:
         environment:
             TRUST_TEST_KEYS: "false"
