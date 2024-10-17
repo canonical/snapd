@@ -127,14 +127,14 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 
 	res.PartDevice = partDevice
 
-	keyData, _, err := readKeyFile(sealedEncryptionKeyFile)
-	if err != nil {
+	loadedKey := &defaultKeyLoader{}
+	if err := readKeyFile(sealedEncryptionKeyFile, loadedKey); err != nil {
 		return res, err
 	}
 
 	var keys []*sb.KeyData
-	if keyData != nil {
-		keys = append(keys, keyData)
+	if loadedKey.KeyData != nil {
+		keys = append(keys, loadedKey.KeyData)
 	}
 
 	if opts.WhichModel != nil {
@@ -159,6 +159,22 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	if err != nil {
 		res.UnlockMethod = NotUnlocked
 		return res, fmt.Errorf("internal error: cannot build an auth requestor: %v", err)
+	}
+
+	if loadedKey.SealedKeyV1 != nil {
+		// Special case for hook keys v1. They do not have
+		// primary keys. So we cannot wrap them in KeyData
+		err := unlockDiskWithHookV1Key(mapperName, sourceDevice, loadedKey.SealedKeyV1)
+		if err == nil {
+			res.FsDevice = targetDevice
+			res.UnlockMethod = UnlockedWithSealedKey
+			return res, nil
+		}
+		// If we did not manage we should still try unlocking
+		// with key data if there are some on the tokens.
+		// Also the request for recovery key will happen in
+		// ActivateVolumeWithKeyData
+		logger.Noticef("WARNING: attempting opening device %s  with key file %s failed: %v", sourceDevice, sealedEncryptionKeyFile, err)
 	}
 
 	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, authRequestor, options, keys...)

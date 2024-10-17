@@ -1216,13 +1216,15 @@ func (s *secbootSuite) TestResealKey(c *C) {
 
 		// mock ReadSealedKeyObject
 		readSealedKeyObjectCalls := 0
-		restore = secboot.MockReadKeyFile(func(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, error) {
+		restore = secboot.MockReadKeyFile(func(keyfile string, kl secboot.KeyLoader) error {
 			readSealedKeyObjectCalls++
 			c.Assert(keyfile, Equals, myParams.KeyFiles[readSealedKeyObjectCalls-1])
 			if tc.oldKeyFiles {
-				return nil, mockSealedKeyObjects[readSealedKeyObjectCalls-1], tc.readSealedKeyObjectErr
+				kl.LoadSealedKeyObject(mockSealedKeyObjects[readSealedKeyObjectCalls-1])
+				return tc.readSealedKeyObjectErr
 			} else {
-				return mockKeyDatas[readSealedKeyObjectCalls-1], nil, tc.readSealedKeyObjectErr
+				kl.LoadKeyData(mockKeyDatas[readSealedKeyObjectCalls-1])
+				return tc.readSealedKeyObjectErr
 			}
 		})
 		defer restore()
@@ -1516,9 +1518,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1An
 	mockKeyData, err := sb.ReadKeyData(reader)
 	c.Assert(err, IsNil)
 
-	restore = secboot.MockReadKeyFile(func(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, error) {
+	restore = secboot.MockReadKeyFile(func(keyfile string, kl secboot.KeyLoader) error {
 		c.Check(keyfile, Equals, "the-key-file")
-		return mockKeyData, mockSealedKeyObject, nil
+		kl.LoadKeyData(mockKeyData)
+		kl.LoadSealedKeyObject(mockSealedKeyObject)
+		return nil
 	})
 	defer restore()
 
@@ -1901,9 +1905,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c
 	mockKeyData, err := sb.ReadKeyData(reader)
 	c.Assert(err, IsNil)
 
-	restore = secboot.MockReadKeyFile(func(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, error) {
+	restore = secboot.MockReadKeyFile(func(keyfile string, kl secboot.KeyLoader) error {
 		c.Check(keyfile, Equals, "the-key-file")
-		return mockKeyData, mockSealedKeyObject, nil
+		kl.LoadKeyData(mockKeyData)
+		kl.LoadSealedKeyObject(mockSealedKeyObject)
+		return nil
 	})
 	defer restore()
 
