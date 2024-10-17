@@ -1384,6 +1384,9 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
 		{
+			op: "maybe-set-next-boot",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
@@ -1582,6 +1585,9 @@ func (s *snapmgrTestSuite) testParallelInstanceInstallRunThrough(c *C, inputFlag
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/11"),
+		},
+		{
+			op: "maybe-set-next-boot",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -1796,6 +1802,9 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
 		{
+			op: "maybe-set-next-boot",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
@@ -1950,6 +1959,9 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/666"),
+		},
+		{
+			op: "maybe-set-next-boot",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -2149,6 +2161,9 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, req
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, filepath.Join(snapName, "42")),
+		},
+		{
+			op: "maybe-set-next-boot",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -2351,6 +2366,9 @@ version: 1.0`)
 			path: filepath.Join(dirs.SnapMountDir, "mock/x1"),
 		},
 		{
+			op: "maybe-set-next-boot",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "mock",
 			revno: snap.R("x1"),
@@ -2481,6 +2499,9 @@ epoch: 1*
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "mock/x3"),
+		},
+		{
+			op: "maybe-set-next-boot",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -2622,6 +2643,9 @@ epoch: 1*
 			path: filepath.Join(dirs.SnapMountDir, "mock/x1"),
 		},
 		{
+			op: "maybe-set-next-boot",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "mock",
 			revno: snap.R("x1"),
@@ -2677,7 +2701,7 @@ version: 1.0`)
 	s.settle(c)
 
 	// ensure only local install was run, i.e. first actions are pseudo-action current
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 10)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 11)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
 	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
 	// and setup-snap
@@ -2690,6 +2714,7 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[5].sinfo, DeepEquals, *si)
 	c.Check(s.fakeBackend.ops[6].op, Equals, "link-snap")
 	c.Check(s.fakeBackend.ops[6].path, Equals, filepath.Join(dirs.SnapMountDir, "some-snap/42"))
+	c.Check(s.fakeBackend.ops[7].op, Equals, "maybe-set-next-boot")
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -2865,6 +2890,9 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "core/11"),
 		},
 		{
+			op: "maybe-set-next-boot",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "core",
 			revno: snap.R(11),
@@ -2928,6 +2956,9 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/42"),
+		},
+		{
+			op: "maybe-set-next-boot",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -3324,6 +3355,8 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		op:   "link-snap",
 		path: filepath.Join(dirs.SnapMountDir, "snap-content-slot/11"),
 	}, {
+		op: "maybe-set-next-boot",
+	}, {
 		op:    "auto-connect:Doing",
 		name:  "snap-content-slot",
 		revno: snap.R(11),
@@ -3375,6 +3408,8 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 	}, {
 		op:   "link-snap",
 		path: filepath.Join(dirs.SnapMountDir, "snap-content-plug/42"),
+	}, {
+		op: "maybe-set-next-boot",
 	}, {
 		op:    "auto-connect:Doing",
 		name:  "snap-content-plug",
@@ -6436,10 +6471,16 @@ func undoOps(instanceName string, newSequence, prevSequence *sequence.RevisionSi
 			path: filepath.Join(dirs.SnapDataDir, instanceName),
 		})
 	} else {
-		ops = append(ops, fakeOp{
-			op:   "link-snap",
-			path: filepath.Join(dirs.SnapMountDir, instanceName, prevRevision.String()),
-		})
+		ops = append(ops,
+			fakeOp{
+				op:   "link-snap",
+				path: filepath.Join(dirs.SnapMountDir, instanceName, prevRevision.String()),
+			},
+			fakeOp{
+				op:     "maybe-set-next-boot",
+				isUndo: true,
+			},
+		)
 	}
 
 	for i := len(newComponents) - 1; i >= 0; i-- {
@@ -6702,6 +6743,8 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, insta
 	}, {
 		op:   "link-snap",
 		path: filepath.Join(dirs.SnapMountDir, filepath.Join(instanceName, snapRevision.String())),
+	}, {
+		op: "maybe-set-next-boot",
 	}}...)
 
 	// ops for linking components
@@ -7030,6 +7073,8 @@ components:
 	}, {
 		op:   "link-snap",
 		path: filepath.Join(dirs.SnapMountDir, filepath.Join(instanceName, snapRevision.String())),
+	}, {
+		op: "maybe-set-next-boot",
 	}}...)
 
 	for _, compName := range compNames {

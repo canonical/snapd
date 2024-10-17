@@ -79,11 +79,12 @@ type managerBackend interface {
 	SetupKernelModulesComponents(currentComps, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error)
 	CopySnapData(newSnap, oldSnap *snap.Info, opts *dirs.SnapDirOptions, meter progress.Meter) error
 	SetupSnapSaveData(info *snap.Info, dev snap.Device, meter progress.Meter) error
-	LinkSnap(info *snap.Info, dev snap.Device, linkCtx backend.LinkContext, tm timings.Measurer) (rebootInfo boot.RebootInfo, err error)
+	LinkSnap(info *snap.Info, dev snap.Device, linkCtx backend.LinkContext, tm timings.Measurer) error
 	LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error
 	StartServices(svcs []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, meter progress.Meter, tm timings.Measurer) error
 	StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error
 	QueryDisabledServices(info *snap.Info, pb progress.Meter) (*wrappers.DisabledServices, error)
+	MaybeSetNextBoot(info *snap.Info, dev snap.Device, isUndo bool) (boot.RebootInfo, error)
 
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, dev snap.Device, meter progress.Meter) error

@@ -48,10 +48,6 @@ type LinkContext struct {
 	// installed
 	FirstInstall bool
 
-	// IsUndo is set when we are installing the previous snap while
-	// performing a revert of the latest one that was installed
-	IsUndo bool
-
 	// ServiceOptions is used to configure services.
 	ServiceOptions *wrappers.SnapServiceOptions
 
@@ -156,16 +152,28 @@ func updateCurrentSymlinks(info *snap.Info) (revert func(), e error) {
 	return revertFunc, nil
 }
 
+// MaybeSetNextBoot configures the system for a reboot if necesssary because
+// of a snap refresh. isUndo must be set when we are installing the previous
+// snap while performing a revert of the latest one that was installed
+func (b Backend) MaybeSetNextBoot(info *snap.Info, dev snap.Device, isUndo bool) (boot.RebootInfo, error) {
+	if b.preseed {
+		return boot.RebootInfo{}, nil
+	}
+
+	bootCtx := boot.NextBootContext{BootWithoutTry: isUndo}
+	return boot.Participant(info, info.Type(), dev).SetNextBoot(bootCtx)
+}
+
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
-func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext, tm timings.Measurer) (rebootRequired boot.RebootInfo, e error) {
+func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext, tm timings.Measurer) (e error) {
 	// explicitly prevent passing nil state unlocker to avoid internal errors of
 	// forgeting to pass the unlocker leading to deadlocks.
 	if linkCtx.StateUnlocker == nil {
-		return boot.RebootInfo{}, errors.New("internal error: LinkContext.StateUnlocker cannot be nil")
+		return errors.New("internal error: LinkContext.StateUnlocker cannot be nil")
 	}
 
 	if info.Revision.Unset() {
-		return boot.RebootInfo{}, fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
+		return fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
 	}
 
 	osutil.MaybeInjectFault("link-snap")
@@ -176,7 +184,7 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 		restart, err = b.generateWrappers(info, linkCtx)
 	})
 	if err != nil {
-		return boot.RebootInfo{}, err
+		return err
 	}
 	defer func() {
 		if e == nil {
@@ -187,21 +195,11 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 		})
 	}()
 
-	var rebootInfo boot.RebootInfo
-	if !b.preseed {
-		bootCtx := boot.NextBootContext{BootWithoutTry: linkCtx.IsUndo}
-		rebootInfo, err = boot.Participant(
-			info, info.Type(), dev).SetNextBoot(bootCtx)
-		if err != nil {
-			return boot.RebootInfo{}, err
-		}
-	}
-
 	// only after link snap it will be possible to execute snap
 	// applications, so ensure that the shared snap directory exists for
 	// parallel installed snaps
 	if err := createSharedSnapDirForParallelInstance(info); err != nil {
-		return boot.RebootInfo{}, err
+		return err
 	}
 	cleanupSharedParallelInstanceDir := func() {
 		if !linkCtx.HasOtherInstances {
@@ -212,7 +210,7 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 	revertSymlinks, err := updateCurrentSymlinks(info)
 	if err != nil {
 		cleanupSharedParallelInstanceDir()
-		return boot.RebootInfo{}, err
+		return err
 	}
 	// if anything below here could return error, you need to
 	// somehow clean up whatever updateCurrentSymlinks did
@@ -223,17 +221,17 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 			revertSymlinks()
 			cleanupSharedParallelInstanceDir()
 
-			return boot.RebootInfo{}, err
+			return err
 		}
 
 	}
 
 	// Stop inhibiting application startup by removing the inhibitor file.
 	if err := runinhibit.Unlock(info.InstanceName(), linkCtx.StateUnlocker); err != nil {
-		return boot.RebootInfo{}, err
+		return err
 	}
 
-	return rebootInfo, nil
+	return nil
 }
 
 func (b Backend) LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error {

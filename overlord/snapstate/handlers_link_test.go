@@ -714,6 +714,10 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapWithVitalityScore(c *C) {
 			path:         filepath.Join(dirs.SnapMountDir, "foo/11"),
 			vitalityRank: 2,
 		},
+		{
+			op:     "maybe-set-next-boot",
+			isUndo: true,
+		},
 	}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 }
@@ -923,6 +927,9 @@ func (s *linkSnapSuite) TestDoLinkSnapWithVitalityScore(c *C) {
 			op:           "link-snap",
 			path:         filepath.Join(dirs.SnapMountDir, "foo/33"),
 			vitalityRank: 2,
+		},
+		{
+			op: "maybe-set-next-boot",
 		},
 	}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
@@ -1302,6 +1309,65 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessGadgetDoesRequestsRestart(c *C) {
 	c.Check(t.Log(), HasLen, 1)
 }
 
+func (s *linkSnapSuite) TestDoLinkSnapFailGadgetDoesRequestsRestart(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	si := &snap.SideInfo{
+		RealName: "pc",
+		SnapID:   "pc-snap-id",
+		Revision: snap.R(1),
+	}
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	// Force failure in a contrieved way by setting
+	// "gadget-restart-required" to a string (we want to make sure that we
+	// unlink on an error after setting next boot)
+	chg.Set("gadget-restart-required", "not-bool")
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	expected := fakeOps{
+		{
+			op:    "candidate",
+			sinfo: *si,
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, "pc/1"),
+		},
+		{
+			op: "maybe-set-next-boot",
+		},
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "pc/1"),
+
+			unlinkFirstInstallUndo: true,
+		},
+	}
+	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+
+	// Error, no reboot has been requested
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+	c.Check(s.restartRequested, HasLen, 0)
+	c.Check(t.Log(), HasLen, 2)
+}
+
 func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreAndSnapdNoCoreRestart(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
@@ -1536,6 +1602,9 @@ func (s *linkSnapSuite) TestDoLinkSnapdDiscardsNsOnDowngrade(c *C) {
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "snapd/41"),
 		},
+		{
+			op: "maybe-set-next-boot",
+		},
 	}
 
 	// start with an easier-to-read error if this fails:
@@ -1620,6 +1689,9 @@ func (s *linkSnapSuite) TestDoLinkSnapdRemovesAppArmorProfilesOnSnapdDowngrade(c
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "snapd/41"),
+		},
+		{
+			op: "maybe-set-next-boot",
 		},
 	}
 
@@ -2273,6 +2345,9 @@ func (s *linkSnapSuite) TestUndoLinkSnapdFirstInstall(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "snapd/22"),
 		},
 		{
+			op: "maybe-set-next-boot",
+		},
+		{
 			op:   "discard-namespace",
 			name: "snapd",
 		},
@@ -2349,6 +2424,9 @@ func (s *linkSnapSuite) TestUndoLinkSnapdNthInstall(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "snapd/22"),
+		},
+		{
+			op: "maybe-set-next-boot",
 		},
 		{
 			op:   "link-snap",
@@ -2601,6 +2679,9 @@ func (s *linkSnapSuite) testDoLinkSnapWithToolingDependency(c *C, classicOrBase 
 			op:                  "link-snap",
 			path:                filepath.Join(dirs.SnapMountDir, "services-snap/11"),
 			requireSnapdTooling: needsTooling,
+		},
+		{
+			op: "maybe-set-next-boot",
 		},
 	}
 
