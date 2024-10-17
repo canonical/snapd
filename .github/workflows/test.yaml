@@ -57,11 +57,6 @@ jobs:
       with:
         snapcraft-channel: 8.x/stable
 
-    - name: Build test snapd snap
-      uses: snapcore/action-build@v1
-      with:
-        snapcraft-channel: 8.x/stable
-
     - name: Check built artifact
       run: |
         unsquashfs snapd*.snap meta/snap.yaml usr/lib/snapd/
