@@ -1,0 +1,5 @@
+component: test-snap-one+comp-one
+type: standard
+version: '1.0'
+summary: test component
+description: test component
