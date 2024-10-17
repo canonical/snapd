@@ -32,12 +32,13 @@ import (
 
 // ComponentInfo contains information about a snap component.
 type ComponentInfo struct {
-	Component           naming.ComponentRef `yaml:"component"`
-	Type                ComponentType       `yaml:"type"`
-	Version             string              `yaml:"version"`
-	Summary             string              `yaml:"summary"`
-	Description         string              `yaml:"description"`
-	ComponentProvenance string              `yaml:"provenance,omitempty"`
+	Component naming.ComponentRef `yaml:"component"`
+	Type      ComponentType       `yaml:"type"`
+	// YamlVersion should be used only in tests
+	YamlVersion         string `yaml:"version"`
+	Summary             string `yaml:"summary"`
+	Description         string `yaml:"description"`
+	ComponentProvenance string `yaml:"provenance,omitempty"`
 
 	// Hooks contains information about implicit and explicit hooks that this
 	// component has. This information is derived from a combination on the
@@ -61,6 +62,13 @@ func (ci *ComponentInfo) Provenance() string {
 	return ci.ComponentProvenance
 }
 
+func (ci *ComponentInfo) Version(snapVersion string) string {
+	if ci.YamlVersion == "" {
+		return snapVersion
+	}
+	return ci.YamlVersion
+}
+
 // NewComponentInfo creates a new ComponentInfo.
 func NewComponentInfo(cref naming.ComponentRef, ctype ComponentType, version, summary, description, provenance string, csi *ComponentSideInfo) *ComponentInfo {
 	if csi == nil {
@@ -70,7 +78,7 @@ func NewComponentInfo(cref naming.ComponentRef, ctype ComponentType, version, su
 	return &ComponentInfo{
 		Component:           cref,
 		Type:                ctype,
-		Version:             version,
+		YamlVersion:         version,
 		Summary:             summary,
 		Description:         description,
 		ComponentProvenance: provenance,
@@ -340,8 +348,8 @@ func (ci *ComponentInfo) validate() error {
 		return fmt.Errorf("component type cannot be empty")
 	}
 	// version is optional
-	if ci.Version != "" {
-		if err := ValidateVersion(ci.Version); err != nil {
+	if ci.YamlVersion != "" {
+		if err := ValidateVersion(ci.YamlVersion); err != nil {
 			return err
 		}
 	}

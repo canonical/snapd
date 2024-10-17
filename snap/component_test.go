@@ -89,6 +89,28 @@ provenance: prov
 func (s *componentSuite) TestReadComponentInfoMinimal(c *C) {
 	const componentYaml = `component: mysnap+test-info
 type: standard
+`
+	compName := "mysnap+test-info"
+	testComp := snaptest.MakeTestComponentWithFiles(c, compName+".comp", componentYaml, nil)
+
+	compf, err := snapfile.Open(testComp)
+	c.Assert(err, IsNil)
+
+	ci, err := snap.ReadComponentInfoFromContainer(compf, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(ci, DeepEquals, snap.NewComponentInfo(
+		naming.NewComponentRef("mysnap", "test-info"),
+		snap.ComponentType("standard"),
+		"", "", "", "", nil,
+	))
+	c.Assert(ci.FullName(), Equals, compName)
+	c.Check(ci.Version("2.0"), Equals, "2.0")
+	c.Assert(ci.Provenance(), Equals, naming.DefaultProvenance)
+}
+
+func (s *componentSuite) TestReadComponentInfoWithVersion(c *C) {
+	const componentYaml = `component: mysnap+test-info
+type: standard
 version: 1.0.2
 `
 	compName := "mysnap+test-info"
@@ -106,6 +128,7 @@ version: 1.0.2
 		"", "", "", nil,
 	))
 	c.Assert(ci.FullName(), Equals, compName)
+	c.Check(ci.Version("2.0"), Equals, "1.0.2")
 	c.Assert(ci.Provenance(), Equals, naming.DefaultProvenance)
 }
 
@@ -241,7 +264,7 @@ version: %s
 			c.Check(ci, IsNil)
 		} else {
 			c.Check(err, IsNil)
-			c.Check(ci.Version, Equals, tc.version)
+			c.Check(ci.Version(""), Equals, tc.version)
 		}
 	}
 }
@@ -400,7 +423,7 @@ plugs:
 	c.Check(ci.Component.ComponentName, Equals, "component")
 	c.Check(ci.Component.SnapName, Equals, "snap")
 	c.Check(ci.Type, Equals, ctype)
-	c.Check(ci.Version, Equals, "1.0")
+	c.Check(ci.Version(""), Equals, "1.0")
 	c.Check(ci.Summary, Equals, "short description")
 	c.Check(ci.Description, Equals, "long description")
 	c.Check(ci.FullName(), Equals, compName)
@@ -475,7 +498,7 @@ plugs:
 	c.Check(ci.Component.ComponentName, Equals, "component")
 	c.Check(ci.Component.SnapName, Equals, "snap")
 	c.Check(ci.Type, Equals, snap.StandardComponent)
-	c.Check(ci.Version, Equals, "1.0")
+	c.Check(ci.Version(""), Equals, "1.0")
 	c.Check(ci.Summary, Equals, "short description")
 	c.Check(ci.Description, Equals, "long description")
 	c.Check(ci.FullName(), Equals, compName)
