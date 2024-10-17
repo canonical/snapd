@@ -96,7 +96,7 @@ execute: |
     fi
 
     if [ -n "$nodoc" ]; then
-        echo "The following interfaces have not a documentation url: $nodoc"
+        echo "The following interfaces do not have a documentation webpage: $nodoc"
     fi
 
     test -z "$bad"
