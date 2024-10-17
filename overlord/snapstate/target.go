@@ -1138,12 +1138,16 @@ func validateAndInitStoreUpdates(allSnaps map[string]*SnapState, updates map[str
 			return err
 		}
 
+		additional := make([]string, 0, len(sn.AdditionalComponents))
+
+		// filter out additional components that are already installed
 		snapName, _ := snap.SplitInstanceName(sn.InstanceName)
 		for _, add := range sn.AdditionalComponents {
-			if snapst.CurrentComponentState(naming.NewComponentRef(snapName, add)) != nil {
-				return snap.AlreadyInstalledComponentError{Component: add}
+			if snapst.CurrentComponentState(naming.NewComponentRef(snapName, add)) == nil {
+				additional = append(additional, add)
 			}
 		}
+		sn.AdditionalComponents = additional
 
 		updates[sn.InstanceName] = sn
 	}
