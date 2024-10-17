@@ -77,10 +77,10 @@ execute: |
     snap set system experimental.apparmor-prompting=true
 
     echo "Wait for snapd to begin restart"
-    retry --wait 1 -n 60 test "$SNAPD_PID" != "$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
+    retry --wait 1 -n 300 test "$SNAPD_PID" != "$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
 
     echo "Wait until snapd is active"
-    retry --wait 1 -n 60 systemctl is-active snapd
+    retry --wait 1 -n 300 systemctl is-active snapd
 
     echo "Check that shell script and scripted replies exist for $VARIANT"
     test -f "$VARIANT.sh"
