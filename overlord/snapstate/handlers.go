@@ -1341,11 +1341,10 @@ func (m *SnapManager) restoreUnlinkOnError(t *state.Task, info *snap.Info, other
 	}
 	linkCtx := backend.LinkContext{
 		FirstInstall:      false,
-		IsUndo:            true,
 		ServiceOptions:    opts,
 		HasOtherInstances: otherInstances,
 	}
-	_, err = m.backend.LinkSnap(info, deviceCtx, linkCtx, tm)
+	err = m.backend.LinkSnap(info, deviceCtx, linkCtx, tm)
 	return err
 }
 
@@ -1604,11 +1603,15 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	linkCtx := backend.LinkContext{
 		FirstInstall:      false,
-		IsUndo:            true,
 		ServiceOptions:    opts,
 		HasOtherInstances: otherInstances,
 	}
-	reboot, err := m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
+	err = m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
+	if err != nil {
+		return err
+	}
+	isUndo := true
+	reboot, err := m.backend.MaybePrepareReboot(oldInfo, deviceCtx, isUndo)
 	if err != nil {
 		return err
 	}
@@ -2247,7 +2250,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// links the new revision to current and ensures a shared base prefix
 	// directory for parallel installed snaps
-	rebootInfo, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
+	err = m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
 	defer func() {
@@ -2261,7 +2264,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 			// snapd snap is special in the sense that we always
 			// need the current symlink, so we restore the link to
 			// the old revision
-			_, backendErr = m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
+			backendErr = m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
 		} else {
 			// snapd during first install and all other snaps
 			backendErr = m.backend.UnlinkSnap(newInfo, linkCtx, pb)
@@ -2271,6 +2274,12 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 		notifyLinkParticipants(t, snapsup)
 	}()
+	if err != nil {
+		return err
+	}
+	// Prepare for rebooting when needed
+	isUndo := false
+	rebootInfo, err := m.backend.MaybePrepareReboot(newInfo, deviceCtx, isUndo)
 	if err != nil {
 		return err
 	}
@@ -2837,7 +2846,6 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	pb := NewTaskProgressAdapterLocked(t)
 	linkCtx := backend.LinkContext{
 		FirstInstall:      firstInstall,
-		IsUndo:            true,
 		HasOtherInstances: otherInstances,
 	}
 
@@ -2853,7 +2861,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		// the snapd snap is special in the sense that we need to make
 		// sure that a sensible version is always linked as current,
 		// also we never reboot when updating snapd snap
-		_, backendErr = m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
+		backendErr = m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
 	} else {
 		// snapd during first install and all other snaps
 		backendErr = m.backend.UnlinkSnap(newInfo, linkCtx, pb)
@@ -3565,11 +3573,16 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	linkCtx := backend.LinkContext{
 		FirstInstall:      false,
-		IsUndo:            true,
 		ServiceOptions:    opts,
 		HasOtherInstances: otherInstances,
 	}
-	reboot, err := m.backend.LinkSnap(info, deviceCtx, linkCtx, perfTimings)
+	err = m.backend.LinkSnap(info, deviceCtx, linkCtx, perfTimings)
+	if err != nil {
+		return err
+	}
+
+	isUndo := true
+	reboot, err := m.backend.MaybePrepareReboot(info, deviceCtx, isUndo)
 	if err != nil {
 		return err
 	}
