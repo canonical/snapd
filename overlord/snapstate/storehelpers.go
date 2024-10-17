@@ -696,6 +696,14 @@ func storeUpdatePlanCore(
 	return plan, nil
 }
 
+func unique[T comparable](s []T) []T {
+	m := make(map[T]struct{}, len(s))
+	for _, v := range s {
+		m[v] = struct{}{}
+	}
+	return keys(m)
+}
+
 func currentComponentsAvailableInRevision(snapst *SnapState, info *snap.Info) ([]string, error) {
 	if len(info.Components) == 0 {
 		return nil, nil
