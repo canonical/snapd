@@ -278,39 +278,6 @@ func readKeyFileImpl(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, err
 
 var readKeyFile = readKeyFileImpl
 
-// unlockEncryptedPartitionWithSealedKey unseals the keyfile and opens an encrypted
-// device. If activation with the sealed key fails, this function will attempt to
-// activate it with the fallback recovery key instead.
-func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile string, allowRecovery bool) (UnlockMethod, error) {
-	var keys []*sb.KeyData
-
-	keyData, _, err := readKeyFile(keyfile)
-	if err != nil {
-		return NotUnlocked, fmt.Errorf("cannot read key data: %v", err)
-	}
-	keys = append(keys, keyData)
-	options := activateVolOpts(allowRecovery)
-	// Ignoring model checker as it doesn't work with tpm "legacy" platform key data.
-	// TODO: In the general case anway, it is also not how the model is
-	// supposed to be provided. We should call SetModels instead.
-	options.Model = sb.SkipSnapModelCheck
-	authRequestor, err := newAuthRequestor()
-	if err != nil {
-		return NotUnlocked, fmt.Errorf("internal error: cannot build an auth requestor: %v", err)
-	}
-
-	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, authRequestor, options, keys...)
-	if err == sb.ErrRecoveryKeyUsed {
-		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
-		return UnlockedWithRecoveryKey, nil
-	}
-	if err != nil {
-		return NotUnlocked, fmt.Errorf("cannot activate encrypted device %q: %v", sourceDevice, err)
-	}
-	logger.Noticef("successfully activated encrypted device %q with TPM", sourceDevice)
-	return UnlockedWithSealedKey, nil
-}
-
 // ProvisionTPM provisions the default TPM and saves the lockout authorization
 // key to the specified file.
 func ProvisionTPM(mode TPMProvisionMode, lockoutAuthFile string) error {
