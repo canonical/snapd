@@ -336,7 +336,7 @@ func (s *accessSuite) TestInterfaceOpenAccess(c *C) {
 		c.Check(d, Equals, s.d)
 		c.Check(u, Equals, ucred)
 		c.Check(reqs, DeepEquals, daemon.InterfaceAccessReqs{
-			Interfaces: []string{"snap-themes-control"},
+			Interfaces: []string{"snap-themes-control", "snap-interfaces-requests-control"},
 			Plug:       true,
 		})
 		return nil
