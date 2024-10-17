@@ -23,6 +23,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var FdeMgr = fdeMgr
@@ -30,9 +31,7 @@ var FdeMgr = fdeMgr
 var UpdateParameters = updateParameters
 
 func MockBackendResealKeyForBootChains(f func(updateState backend.StateUpdater, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error) (restore func()) {
-	old := backendResealKeyForBootChains
+	restore = testutil.Backup(&backendResealKeyForBootChains)
 	backendResealKeyForBootChains = f
-	return func() {
-		backendResealKeyForBootChains = old
-	}
+	return restore
 }
