@@ -294,7 +294,7 @@ func (s *hookHandlerSuite) TestSaveViewHookErrorHoldsTasks(c *C) {
 		Snap: "first-snap",
 		Hook: "save-view-setup",
 	}
-	firstTask := s.state.NewTask("run-hook", "")
+	firstTask := s.state.NewTask("run-hook", "1st save-view")
 	chg.AddTask(firstTask)
 	firstTask.SetStatus(state.DoingStatus)
 	firstTask.Set("hook-setup", hooksup)
@@ -309,7 +309,7 @@ func (s *hookHandlerSuite) TestSaveViewHookErrorHoldsTasks(c *C) {
 		Snap: "second-snap",
 		Hook: "save-view-setup",
 	}
-	secondTask := s.state.NewTask("run-hook", "")
+	secondTask := s.state.NewTask("run-hook", "2nd save-view")
 	chg.AddTask(secondTask)
 	secondTask.WaitFor(firstTask)
 	secondTask.SetStatus(state.DoStatus)
@@ -331,23 +331,16 @@ func (s *hookHandlerSuite) TestSaveViewHookErrorHoldsTasks(c *C) {
 
 	// the rollback task for the failed hook
 	rollbackTask := halts[1]
+	// it was inserted between the failed task and the second save-view task
+	c.Assert(rollbackTask.HaltTasks(), HasLen, 1)
+	c.Assert(rollbackTask.HaltTasks()[0].ID(), Equals, secondTask.ID())
+
 	c.Assert(rollbackTask.Kind(), Equals, "run-hook")
 	c.Assert(rollbackTask.Status(), Equals, state.DoStatus)
 	err = rollbackTask.Get("hook-setup", &hooksup)
 	c.Assert(err, IsNil)
 	c.Assert(hooksup.Hook, Equals, "save-view-setup")
 	c.Assert(hooksup.Snap, Equals, "first-snap")
-
-	// the save-view hook for the second snap is made to wait for the rollback
-	nextHook := halts[0]
-	c.Assert(nextHook.Kind(), Equals, "run-hook")
-	c.Assert(nextHook.Status(), Equals, state.DoStatus)
-	err = nextHook.Get("hook-setup", &hooksup)
-	c.Assert(err, IsNil)
-	c.Assert(hooksup.Hook, Equals, "save-view-setup")
-	c.Assert(hooksup.Snap, Equals, "second-snap")
-	c.Assert(nextHook.WaitTasks(), HasLen, 2)
-	c.Assert(nextHook.WaitTasks()[1].ID(), Equals, rollbackTask.ID())
 }
 
 func (s *registryTestSuite) TestManagerOk(c *C) {
