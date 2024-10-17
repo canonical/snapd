@@ -41,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -67,50 +66,11 @@ func (s *sealSuite) SetUpTest(c *C) {
 }
 
 func mockKernelSeedSnap(rev snap.Revision) *seed.Snap {
-	return mockNamedKernelSeedSnap(rev, "pc-kernel")
-}
-
-func mockNamedKernelSeedSnap(rev snap.Revision, name string) *seed.Snap {
-	revAsString := rev.String()
-	if rev.Unset() {
-		revAsString = "unset"
-	}
-	return &seed.Snap{
-		Path: fmt.Sprintf("/var/lib/snapd/seed/snaps/%v_%v.snap", name, revAsString),
-		SideInfo: &snap.SideInfo{
-			RealName: name,
-			Revision: rev,
-		},
-		EssentialType: snap.TypeKernel,
-	}
+	return boottest.MockNamedKernelSeedSnap(rev, "pc-kernel")
 }
 
 func mockGadgetSeedSnap(c *C, files [][]string) *seed.Snap {
-	mockGadgetYaml := `
-volumes:
-  volumename:
-    bootloader: grub
-`
-
-	hasGadgetYaml := false
-	for _, entry := range files {
-		if entry[0] == "meta/gadget.yaml" {
-			hasGadgetYaml = true
-		}
-	}
-	if !hasGadgetYaml {
-		files = append(files, []string{"meta/gadget.yaml", mockGadgetYaml})
-	}
-
-	gadgetSnapFile := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, files)
-	return &seed.Snap{
-		Path: gadgetSnapFile,
-		SideInfo: &snap.SideInfo{
-			RealName: "gadget",
-			Revision: snap.R(1),
-		},
-		EssentialType: snap.TypeGadget,
-	}
+	return boottest.MockGadgetSeedSnap(c, gadgetSnapYaml, files)
 }
 
 func (s *sealSuite) TestSealKeyToModeenv(c *C) {
@@ -189,7 +149,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		}
 
 		// mock asset cache
-		mockAssetsCache(c, rootdir, "grub", []string{
+		boottest.MockAssetsCache(c, rootdir, "grub", []string{
 			fmt.Sprintf("%s-shim-hash-1", shimId),
 			fmt.Sprintf("%s-grub-hash-1", grubId),
 			fmt.Sprintf("%s-run-grub-hash-1", runGrubId),
@@ -1438,7 +1398,7 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 		bootloader.RoleRunMode:  "grub",
 	}
 	// mock asset cache
-	mockAssetsCache(c, rootdir, "grub", []string{
+	boottest.MockAssetsCache(c, rootdir, "grub", []string{
 		"shim-shim-hash",
 		"loader-loader-hash1",
 		"loader-loader-hash2",
@@ -2118,5 +2078,106 @@ func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
 				testutil.FileAbsent)
 		}
 	}
+}
 
+func (s *sealSuite) TestWithBootChains(c *C) {
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+	defer dirs.SetRootDir("")
+
+	model := boottest.MakeMockUC20Model()
+
+	modeenv := &boot.Modeenv{
+		Mode: "run",
+
+		// no recovery systems to keep things relatively short
+		//
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"grubx64.efi": []string{"grub-hash"},
+			"bootx64.efi": []string{"shim-hash"},
+		},
+
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"grubx64.efi": []string{"run-grub-hash"},
+		},
+
+		CurrentKernels: []string{"pc-kernel_500.snap"},
+
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		},
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
+	}
+
+	c.Assert(modeenv.WriteTo(dirs.GlobalRootDir), IsNil)
+
+	err := createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-seed"))
+	c.Assert(err, IsNil)
+
+	err = createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-boot"))
+	c.Assert(err, IsNil)
+
+	// mock asset cache
+	boottest.MockAssetsCache(c, rootdir, "grub", []string{
+		"run-grub-hash",
+		"grub-hash",
+		"shim-hash",
+	})
+
+	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+		return model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
+	})
+	defer restore()
+
+	var chains *boot.ResealKeyForBootChainsParams
+	err = boot.WithBootChains(func(ch *boot.ResealKeyForBootChainsParams) error {
+		chains = ch
+		return nil
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(chains, DeepEquals, &boot.ResealKeyForBootChainsParams{
+		RunModeBootChains: []boot.BootChain{
+			{
+				BrandID:        "my-brand",
+				Model:          "my-model-uc20",
+				Grade:          "dangerous",
+				ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+				AssetChain: []boot.BootAsset{
+					{
+						Role:   bootloader.RoleRecovery,
+						Name:   "bootx64.efi",
+						Hashes: []string{"shim-hash"},
+					},
+					{
+						Role:   bootloader.RoleRecovery,
+						Name:   "grubx64.efi",
+						Hashes: []string{"grub-hash"},
+					},
+					{
+						Role:   bootloader.RoleRunMode,
+						Name:   "grubx64.efi",
+						Hashes: []string{"run-grub-hash"},
+					},
+				},
+				Kernel:         "pc-kernel",
+				KernelRevision: "500",
+				KernelCmdlines: []string{
+					"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+				},
+				KernelBootFile: bootloader.BootFile{
+					Path: "kernel.efi",
+					Snap: filepath.Join(rootdir, "var/lib/snapd/snaps/pc-kernel_500.snap"),
+					Role: bootloader.RoleRunMode,
+				},
+			},
+		},
+		RoleToBlName: map[bootloader.Role]string{
+			bootloader.RoleRunMode:  "grub",
+			bootloader.RoleRecovery: "grub",
+		},
+	})
 }

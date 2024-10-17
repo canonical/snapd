@@ -27,10 +27,8 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
-	"github.com/snapcore/snapd/timings"
 )
 
 func NewCoreBootParticipant(s snap.PlaceInfo, t snap.Type, dev snap.Device) *coreBootParticipant {
@@ -108,14 +106,6 @@ func (o *trustedAssetsInstallObserverImpl) CurrentDataBootstrappedContainer() se
 
 func (o *trustedAssetsInstallObserverImpl) CurrentSaveBootstrappedContainer() secboot.BootstrappedContainer {
 	return o.saveBootstrappedContainer
-}
-
-func MockSeedReadSystemEssential(f func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error)) (restore func()) {
-	old := seedReadSystemEssential
-	seedReadSystemEssential = f
-	return func() {
-		seedReadSystemEssential = old
-	}
 }
 
 func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash string, recovery bool) {
