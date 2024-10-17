@@ -22,12 +22,14 @@ package daemon
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -78,6 +80,15 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 				return InternalError("%v", err)
 			}
 		}
+
+		// Hide old experimental features (that are no longer experimental)
+		if snapName == "core" {
+			var err *apiError
+			value, err = cleanExperimentalFlags(key, value)
+			if err != nil {
+				return err
+			}
+		}
 		if key == "" {
 			if len(keys) > 1 {
 				return BadRequest("keys contains zero-length string")
@@ -89,6 +100,72 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(currentConfValues)
+}
+
+// cleanExperimentalFlags returns an exact copy of val after hiding experimental
+// features that are no longer supported from core.experimental configuration
+// generic queries (i.e. key is "" or "experimental").
+// For exact queries (e.g. core.experimental.old-flag) a client.ErrorKindConfigNoSuchOption
+// error is returned.
+//
+// This helper should only be called for core configurations. Any errors when parsing
+// core config are ignored and val is returned without modification.
+func cleanExperimentalFlags(key string, val interface{}) (interface{}, *apiError) {
+	if val == nil {
+		return val, nil
+	}
+
+	if strings.HasPrefix(key, "experimental.") {
+		flag := strings.TrimPrefix(key, "experimental.")
+		if !configcore.IsSupportedExperimentalFlag(flag) {
+			err := &config.NoOptionError{
+				SnapName: "core",
+				Key:      key,
+			}
+			return nil, &apiError{
+				Status:  400,
+				Message: err.Error(),
+				Kind:    client.ErrorKindConfigNoSuchOption,
+				Value:   err,
+			}
+		}
+	}
+
+	if key != "" && key != "experimental" {
+		// We only care about config that might contain old experimental features
+		return val, nil
+	}
+
+	var experimentalFlags map[string]interface{}
+	if key == "" {
+		rootConfig, ok := val.(map[string]interface{})
+		if !ok {
+			// XXX: This should never happen, skip cleaning
+			return val, nil
+		}
+		experimentalFlags, ok = rootConfig["experimental"].(map[string]interface{})
+		if !ok {
+			// No experimental key, do nothing
+			return val, nil
+		}
+	} else {
+		var ok bool
+		experimentalFlags, ok = val.(map[string]interface{})
+		if !ok {
+			// XXX: This should never happen, skip cleaning
+			return val, nil
+		}
+	}
+
+	for flag := range experimentalFlags {
+		if !configcore.IsSupportedExperimentalFlag(flag) {
+			// Hide the no longer supported experimental flag
+			delete(experimentalFlags, flag)
+		}
+	}
+
+	// Changes in experimentalFlags should reflect in values
+	return val, nil
 }
 
 func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
