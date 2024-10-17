@@ -1809,14 +1809,6 @@ func keys[K comparable, V any](m map[K]V) []K {
 	return keys
 }
 
-func unique[T comparable](s []T) []T {
-	m := make(map[T]struct{}, len(s))
-	for _, v := range s {
-		m[v] = struct{}{}
-	}
-	return keys(m)
-}
-
 // updateFilter is the type of function that can be passed to
 // updateManyFromChange so it filters the updates.
 //
