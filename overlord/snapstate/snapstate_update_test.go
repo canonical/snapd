@@ -10839,7 +10839,7 @@ func (s *snapmgrTestSuite) testAutoRefreshRecordsFailures(c *C, afterReboot bool
 	badSnapType := snap.TypeApp
 	expectedMinDelay := 8
 	expectedMaxDelay := 336
-	expectedFailureSeverity := snap.RefreshFailureSeverityGeneric
+	expectedFailureSeverity := snap.RefreshFailureSeverityNone
 	if afterReboot {
 		badSnap = "kernel"
 		badSnapID = "kernel-id"

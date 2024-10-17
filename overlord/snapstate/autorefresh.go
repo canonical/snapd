@@ -1025,11 +1025,18 @@ func computeSnapRefreshFailureSeverity(chg *state.Change, unlinkTask *state.Task
 		if snapsup.InstanceName() != snapName {
 			continue
 		}
-		// Refresh failure happened after a reboot
-		return snap.RefreshFailureSeverityAfterReboot
+
+		bootBase, err := deviceModelBootBase(chg.State(), nil)
+		if err != nil {
+			logger.Debugf("internal error: failed to get model boot base: %v", err)
+		}
+		if isEssentialSnap(snapsup.SnapName(), snapsup.Type, bootBase) {
+			// Refresh failure happened after a reboot
+			return snap.RefreshFailureSeverityAfterReboot
+		}
 	}
 
-	return snap.RefreshFailureSeverityGeneric
+	return snap.RefreshFailureSeverityNone
 }
 
 func processFailedAutoRefresh(chg *state.Change, _ state.Status, new state.Status) {

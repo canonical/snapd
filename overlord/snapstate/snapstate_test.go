@@ -9467,10 +9467,9 @@ func (s *snapmgrTestSuite) testBackoffOnAutoRefresh(c *C, afterReboot bool) {
 		Current:  snap.R(1),
 		SnapType: "app",
 		RefreshFailures: &snap.RefreshFailuresInfo{
-			Revision:            badRevison,
-			FailureCount:        1,
-			LastFailureTime:     time.Now(),
-			LastFailureSeverity: snap.RefreshFailureSeverityGeneric,
+			Revision:        badRevison,
+			FailureCount:    1,
+			LastFailureTime: time.Now(),
 		},
 	}
 	if afterReboot {

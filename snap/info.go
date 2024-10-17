@@ -2094,7 +2094,6 @@ type RefreshFailureSeverity string
 
 const (
 	RefreshFailureSeverityNone        RefreshFailureSeverity = ""
-	RefreshFailureSeverityGeneric     RefreshFailureSeverity = "generic"
 	RefreshFailureSeverityAfterReboot RefreshFailureSeverity = "after-reboot"
 )
 
@@ -2108,5 +2107,5 @@ type RefreshFailuresInfo struct {
 	LastFailureTime time.Time `json:"last-failure-time"`
 	// LastFailureSeverity identifies how severe the last failure was.
 	// This allows for more aggressive backoff delay for snaps that fail after a reboot.
-	LastFailureSeverity RefreshFailureSeverity `json:"last-failure-severity"`
+	LastFailureSeverity RefreshFailureSeverity `json:"last-failure-severity,omitempty"`
 }
