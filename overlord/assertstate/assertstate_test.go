@@ -585,15 +585,26 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, provenance string, revisions
 	return paths, digests
 }
 
-func (s *assertMgrSuite) prereqComponentAssertions(c *C, provenance string, snapRev, compRev snap.Revision) (compPath string, digest string) {
+type prereqComponentAssertionsOpts struct {
+	provenance     string
+	blobProvenance string
+	snapRev        snap.Revision
+	compRev        snap.Revision
+}
+
+func (s *assertMgrSuite) prereqComponentAssertions(c *C, opts prereqComponentAssertionsOpts) (compPath string, digest string) {
 	const (
-		resourceName  = "standard-component"
-		snapID        = "snap-id-1"
-		componentYaml = `component: snap+standard-component
+		resourceName = "standard-component"
+		snapID       = "snap-id-1"
+	)
+
+	componentYaml := `component: snap+standard-component
 type: standard
 version: 1.0.2
 `
-	)
+	if opts.blobProvenance != "" {
+		componentYaml += fmt.Sprintf("provenance: %s\n", opts.blobProvenance)
+	}
 
 	compPath = snaptest.MakeTestComponentWithFiles(c, resourceName+".comp", componentYaml, nil)
 
@@ -604,15 +615,15 @@ version: 1.0.2
 		"snap-id":           snapID,
 		"resource-name":     resourceName,
 		"resource-sha3-384": digest,
-		"resource-revision": compRev.String(),
+		"resource-revision": opts.compRev.String(),
 		"resource-size":     strconv.Itoa(int(size)),
 		"developer-id":      s.dev1Acct.AccountID(),
 		"timestamp":         time.Now().Format(time.RFC3339),
 	}
 
 	signer := assertstest.SignerDB(s.storeSigning)
-	if provenance != "" {
-		revHeaders["provenance"] = provenance
+	if opts.provenance != "" {
+		revHeaders["provenance"] = opts.provenance
 		signer = s.dev1Signing
 	}
 
@@ -624,13 +635,13 @@ version: 1.0.2
 	pairHeaders := map[string]interface{}{
 		"snap-id":           snapID,
 		"resource-name":     resourceName,
-		"resource-revision": compRev.String(),
-		"snap-revision":     snapRev.String(),
+		"resource-revision": opts.compRev.String(),
+		"snap-revision":     opts.snapRev.String(),
 		"developer-id":      s.dev1Acct.AccountID(),
 		"timestamp":         time.Now().Format(time.RFC3339),
 	}
-	if provenance != "" {
-		pairHeaders["provenance"] = provenance
+	if opts.provenance != "" {
+		pairHeaders["provenance"] = opts.provenance
 	}
 
 	resourcePair, err := signer.Sign(asserts.SnapResourcePairType, pairHeaders, nil, "")
@@ -5294,21 +5305,42 @@ func (s *assertMgrSuite) TestRegistry(c *C) {
 
 func (s *assertMgrSuite) TestValidateComponent(c *C) {
 	const provenance = ""
-	s.testValidateComponent(c, provenance)
+	const failCrosscheckProvenance = false
+	s.testValidateComponent(c, provenance, failCrosscheckProvenance)
 }
 
 func (s *assertMgrSuite) TestValidateComponentProvenance(c *C) {
 	const provenance = "provenance"
-	s.testValidateComponent(c, provenance)
+	const failCrosscheckProvenance = false
+	s.testValidateComponent(c, provenance, failCrosscheckProvenance)
 }
 
-func (s *assertMgrSuite) testValidateComponent(c *C, provenance string) {
+func (s *assertMgrSuite) TestValidateComponentProvenanceInvalidBlob(c *C) {
+	const provenance = "provenance"
+	const failCrosscheckProvenance = true
+	s.testValidateComponent(c, provenance, failCrosscheckProvenance)
+}
+
+func (s *assertMgrSuite) testValidateComponent(c *C, provenance string, failCrosscheckProvenance bool) {
 	snapRev, compRev := snap.R(10), snap.R(20)
 
 	paths, _ := s.prereqSnapAssertions(c, provenance, 10)
 	snapPath := paths[10]
 
-	compPath, compDigest := s.prereqComponentAssertions(c, provenance, snapRev, compRev)
+	blobProvenance := provenance
+	if failCrosscheckProvenance {
+		blobProvenance = "invalid"
+	}
+
+	compPath, compDigest := s.prereqComponentAssertions(c, prereqComponentAssertionsOpts{
+		provenance:     provenance,
+		blobProvenance: blobProvenance,
+		snapRev:        snapRev,
+		compRev:        compRev,
+	})
+
+	if failCrosscheckProvenance {
+	}
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -5345,6 +5377,11 @@ func (s *assertMgrSuite) testValidateComponent(c *C, provenance string) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+
+	if failCrosscheckProvenance {
+		c.Assert(chg.Err(), ErrorMatches, `(?s).*component .* has been signed under provenance "provenance" different from the metadata one: "invalid".*`)
+		return
+	}
 
 	c.Assert(chg.Err(), IsNil)
 
