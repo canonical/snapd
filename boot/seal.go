@@ -45,6 +45,15 @@ var (
 	seedReadSystemEssential = seed.ReadSystemEssential
 )
 
+func MockSeedReadSystemEssential(f func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error)) (restore func()) {
+	osutil.MustBeTestBinary("cannot mock seedReadSystemEssential in a non-test binary")
+	old := seedReadSystemEssential
+	seedReadSystemEssential = f
+	return func() {
+		seedReadSystemEssential = old
+	}
+}
+
 // Hook functions setup by devicestate to support device-specific full
 // disk encryption implementations. The state must be locked when these
 // functions are called.
