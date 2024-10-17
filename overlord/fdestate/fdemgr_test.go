@@ -34,13 +34,36 @@ import (
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestFDE(t *testing.T) { TestingT(t) }
 
-type fdeMgrSuite struct{}
+type fdeMgrSuite struct {
+	testutil.BaseTest
+
+	rootdir string
+	st      *state.State
+	runner  *state.TaskRunner
+}
 
 var _ = Suite(&fdeMgrSuite{})
+
+func (s *fdeMgrSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	s.rootdir = c.MkDir()
+	dirs.SetRootDir(s.rootdir)
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+
+	s.st = state.New(nil)
+	s.runner = state.NewTaskRunner(s.st)
+
+	s.AddCleanup(fdestate.MockBackendResealKeyForBootChains(
+		func(updateState backend.StateUpdater, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+			panic("BackendResealKeyForBootChains not mocked")
+		}))
+}
 
 type instrumentedUnlocker struct {
 	state    *state.State
@@ -59,9 +82,7 @@ func (u *instrumentedUnlocker) Relock() {
 	u.relocked += 1
 }
 
-func (s *fdeMgrSuite) TestGetManagerFromState(c *C) {
-	st := state.New(nil)
-
+func (s *fdeMgrSuite) startedManager(c *C) *fdestate.FDEManager {
 	defer fdestate.MockDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
 		switch mountpoint {
 		case dirs.SnapdStateDir(dirs.GlobalRootDir):
@@ -69,26 +90,32 @@ func (s *fdeMgrSuite) TestGetManagerFromState(c *C) {
 		case dirs.SnapSaveDir:
 			return "bbb", nil
 		}
-		return "", fmt.Errorf("unknown mount point")
+		panic(fmt.Sprintf("missing mocked mount point %q", mountpoint))
 	})()
 
 	defer fdestate.MockGetPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
-		c.Check(devicePath, Equals, "/dev/disk/by-uuid/aaa")
+		c.Assert(devicePath, Equals, "/dev/disk/by-uuid/aaa")
 		c.Check(alg, Equals, crypto.Hash(crypto.SHA256))
 		return []byte{1, 2, 3, 4}, []byte{5, 6, 7, 8}, nil
 	})()
 
 	defer fdestate.MockVerifyPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash, salt, digest []byte) (bool, error) {
-		c.Check(devicePath, Equals, "/dev/disk/by-uuid/bbb")
+		c.Assert(devicePath, Equals, "/dev/disk/by-uuid/bbb")
 		c.Check(alg, Equals, crypto.Hash(crypto.SHA256))
 		c.Check(salt, DeepEquals, []byte{1, 2, 3, 4})
 		c.Check(digest, DeepEquals, []byte{5, 6, 7, 8})
 		return true, nil
 	})()
 
-	runner := state.NewTaskRunner(st)
-	manager := fdestate.Manager(st, runner)
+	manager := fdestate.Manager(s.st, s.runner)
 	c.Assert(manager.StartUp(), IsNil)
+	return manager
+}
+
+func (s *fdeMgrSuite) TestGetManagerFromState(c *C) {
+	st := s.st
+	manager := s.startedManager(c)
+
 	st.Lock()
 	defer st.Unlock()
 	foundManager := fdestate.FdeMgr(st)
@@ -132,35 +159,9 @@ func (m *mockModel) SignKeyID() string {
 }
 
 func (s *fdeMgrSuite) TestUpdateState(c *C) {
-	st := state.New(nil)
+	st := s.st
+	manager := s.startedManager(c)
 
-	defer fdestate.MockDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
-		switch mountpoint {
-		case dirs.SnapdStateDir(dirs.GlobalRootDir):
-			return "aaa", nil
-		case dirs.SnapSaveDir:
-			return "bbb", nil
-		}
-		return "", fmt.Errorf("unknown mount point")
-	})()
-
-	defer fdestate.MockGetPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
-		c.Check(devicePath, Equals, "/dev/disk/by-uuid/aaa")
-		c.Check(alg, Equals, crypto.Hash(crypto.SHA256))
-		return []byte{1, 2, 3, 4}, []byte{5, 6, 7, 8}, nil
-	})()
-
-	defer fdestate.MockVerifyPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash, salt, digest []byte) (bool, error) {
-		c.Check(devicePath, Equals, "/dev/disk/by-uuid/bbb")
-		c.Check(alg, Equals, crypto.Hash(crypto.SHA256))
-		c.Check(salt, DeepEquals, []byte{1, 2, 3, 4})
-		c.Check(digest, DeepEquals, []byte{5, 6, 7, 8})
-		return true, nil
-	})()
-
-	runner := state.NewTaskRunner(st)
-	manager := fdestate.Manager(st, runner)
-	c.Assert(manager.StartUp(), IsNil)
 	st.Lock()
 	defer st.Unlock()
 	foundManager := fdestate.FdeMgr(st)
@@ -187,35 +188,9 @@ func (s *fdeMgrSuite) TestUpdateState(c *C) {
 }
 
 func (s *fdeMgrSuite) TestUpdateReseal(c *C) {
-	st := state.New(nil)
+	st := s.st
+	manager := s.startedManager(c)
 
-	defer fdestate.MockDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
-		switch mountpoint {
-		case dirs.SnapdStateDir(dirs.GlobalRootDir):
-			return "aaa", nil
-		case dirs.SnapSaveDir:
-			return "bbb", nil
-		}
-		return "", fmt.Errorf("unknown mount point")
-	})()
-
-	defer fdestate.MockGetPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
-		c.Check(devicePath, Equals, "/dev/disk/by-uuid/aaa")
-		c.Check(alg, Equals, crypto.Hash(crypto.SHA256))
-		return []byte{1, 2, 3, 4}, []byte{5, 6, 7, 8}, nil
-	})()
-
-	defer fdestate.MockVerifyPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash, salt, digest []byte) (bool, error) {
-		c.Check(devicePath, Equals, "/dev/disk/by-uuid/bbb")
-		c.Check(alg, Equals, crypto.Hash(crypto.SHA256))
-		c.Check(salt, DeepEquals, []byte{1, 2, 3, 4})
-		c.Check(digest, DeepEquals, []byte{5, 6, 7, 8})
-		return true, nil
-	})()
-
-	runner := state.NewTaskRunner(st)
-	manager := fdestate.Manager(st, runner)
-	c.Assert(manager.StartUp(), IsNil)
 	st.Lock()
 	defer st.Unlock()
 	foundManager := fdestate.FdeMgr(st)
