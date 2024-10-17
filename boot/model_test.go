@@ -131,7 +131,7 @@ func (s *modelSuite) SetUpTest(c *C) {
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
