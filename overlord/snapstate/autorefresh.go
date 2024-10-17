@@ -1004,6 +1004,12 @@ func incrementSnapRefreshFailures(st *state.State, snapsup *SnapSetup, severity 
 }
 
 func computeSnapRefreshFailureSeverity(chg *state.Change, unlinkTask *state.Task, snapName string) snap.RefreshFailureSeverity {
+	// It is ok to pass nil for the DeviceContext as the situation here is auto-refresh and not remodel.
+	bootBase, err := deviceModelBootBase(chg.State(), nil)
+	if err != nil {
+		logger.Debugf("internal error: failed to get model boot base: %v", err)
+	}
+
 	laneTasks := chg.LaneTasks(unlinkTask.Lanes()...)
 	// Look for a tasks marked as a restart boundary.
 	for _, t := range laneTasks {
@@ -1026,11 +1032,7 @@ func computeSnapRefreshFailureSeverity(chg *state.Change, unlinkTask *state.Task
 			continue
 		}
 
-		bootBase, err := deviceModelBootBase(chg.State(), nil)
-		if err != nil {
-			logger.Debugf("internal error: failed to get model boot base: %v", err)
-		}
-		if isEssentialSnap(snapsup.SnapName(), snapsup.Type, bootBase) {
+		if isEssentialSnap(snapsup.InstanceName(), snapsup.Type, bootBase) {
 			// Refresh failure happened after a reboot
 			return snap.RefreshFailureSeverityAfterReboot
 		}

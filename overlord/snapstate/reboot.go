@@ -95,7 +95,7 @@ func taskSetsByTypeForEssentialSnaps(tss []*state.TaskSet, bootBase string) (map
 			continue
 		}
 
-		if isEssentialSnap(snapsup.SnapName(), snapsup.Type, bootBase) {
+		if isEssentialSnap(snapsup.InstanceName(), snapsup.Type, bootBase) {
 			avail[snapsup.Type] = ts
 		}
 	}
