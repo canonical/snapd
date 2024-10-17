@@ -41,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -67,50 +66,11 @@ func (s *sealSuite) SetUpTest(c *C) {
 }
 
 func mockKernelSeedSnap(rev snap.Revision) *seed.Snap {
-	return mockNamedKernelSeedSnap(rev, "pc-kernel")
-}
-
-func mockNamedKernelSeedSnap(rev snap.Revision, name string) *seed.Snap {
-	revAsString := rev.String()
-	if rev.Unset() {
-		revAsString = "unset"
-	}
-	return &seed.Snap{
-		Path: fmt.Sprintf("/var/lib/snapd/seed/snaps/%v_%v.snap", name, revAsString),
-		SideInfo: &snap.SideInfo{
-			RealName: name,
-			Revision: rev,
-		},
-		EssentialType: snap.TypeKernel,
-	}
+	return boottest.MockNamedKernelSeedSnap(rev, "pc-kernel")
 }
 
 func mockGadgetSeedSnap(c *C, files [][]string) *seed.Snap {
-	mockGadgetYaml := `
-volumes:
-  volumename:
-    bootloader: grub
-`
-
-	hasGadgetYaml := false
-	for _, entry := range files {
-		if entry[0] == "meta/gadget.yaml" {
-			hasGadgetYaml = true
-		}
-	}
-	if !hasGadgetYaml {
-		files = append(files, []string{"meta/gadget.yaml", mockGadgetYaml})
-	}
-
-	gadgetSnapFile := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, files)
-	return &seed.Snap{
-		Path: gadgetSnapFile,
-		SideInfo: &snap.SideInfo{
-			RealName: "gadget",
-			Revision: snap.R(1),
-		},
-		EssentialType: snap.TypeGadget,
-	}
+	return boottest.MockGadgetSeedSnap(c, gadgetSnapYaml, files)
 }
 
 func (s *sealSuite) TestSealKeyToModeenv(c *C) {
@@ -189,7 +149,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		}
 
 		// mock asset cache
-		mockAssetsCache(c, rootdir, "grub", []string{
+		boottest.MockAssetsCache(c, rootdir, "grub", []string{
 			fmt.Sprintf("%s-shim-hash-1", shimId),
 			fmt.Sprintf("%s-grub-hash-1", grubId),
 			fmt.Sprintf("%s-run-grub-hash-1", runGrubId),
@@ -1438,7 +1398,7 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 		bootloader.RoleRunMode:  "grub",
 	}
 	// mock asset cache
-	mockAssetsCache(c, rootdir, "grub", []string{
+	boottest.MockAssetsCache(c, rootdir, "grub", []string{
 		"shim-shim-hash",
 		"loader-loader-hash1",
 		"loader-loader-hash2",
@@ -2161,7 +2121,7 @@ func (s *sealSuite) TestWithBootChains(c *C) {
 	c.Assert(err, IsNil)
 
 	// mock asset cache
-	mockAssetsCache(c, rootdir, "grub", []string{
+	boottest.MockAssetsCache(c, rootdir, "grub", []string{
 		"run-grub-hash",
 		"grub-hash",
 		"shim-hash",
