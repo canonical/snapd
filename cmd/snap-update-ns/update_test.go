@@ -22,15 +22,12 @@ package main_test
 import (
 	"bytes"
 	"fmt"
-	"path/filepath"
-	"syscall"
 
 	. "gopkg.in/check.v1"
 
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -286,89 +283,6 @@ func (s *updateSuite) TestCannotPerformOvermountChange(c *C) {
 	err := update.ExecuteMountProfileUpdate(upCtx)
 	c.Check(err, Equals, errTesting)
 	c.Check(saved, IsNil)
-}
-
-func (s *updateSuite) TestKeepSyntheticMountsLP2043993(c *C) {
-	baseSourceDir := c.MkDir()
-	sourceFile := filepath.Join(baseSourceDir, "rofs/dir/source")
-
-	baseTargetDir := c.MkDir()
-	targetFile := filepath.Join(baseTargetDir, "target")
-
-	as := update.Assumptions{}
-	restore := as.MockUnrestrictedPaths("/")
-	defer restore()
-
-	// mock for permission errors
-	restore = update.MockSysFchown(func(fd int, uid sys.UserID, gid sys.GroupID) error {
-		return nil
-	})
-	defer restore()
-
-	// mock for permission errors
-	restore = update.MockSysMount(func(source, target, fstype string, flags uintptr, data string) (err error) {
-		return nil
-	})
-	defer restore()
-
-	// mock for permission errors
-	restore = update.MockSysUnmount(func(target string, flags int) (err error) {
-		return nil
-	})
-	defer restore()
-
-	var mkdiratFailed bool
-	restore = update.MockSysMkdirat(func(dirfd int, path string, mode uint32) (err error) {
-		if path == "dir" && !mkdiratFailed {
-			mkdiratFailed = true
-			return syscall.EROFS
-		}
-		return syscall.Mkdirat(dirfd, path, mode)
-	})
-	defer restore()
-
-	desiredMountEntry := osutil.MountEntry{
-		Name:    sourceFile,
-		Dir:     targetFile,
-		Options: []string{"rbind", "rw", "x-snapd.id=test-id", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()},
-	}
-
-	var saved osutil.MountProfile
-	upCtx := &testProfileUpdateContext{
-		assumptions: func() *update.Assumptions {
-			return &as
-		},
-		loadDesiredProfile: func() (*osutil.MountProfile, error) {
-			return &osutil.MountProfile{Entries: []osutil.MountEntry{desiredMountEntry}}, nil
-		},
-		loadCurrentProfile: func() (*osutil.MountProfile, error) {
-			return &saved, nil
-		},
-		saveCurrentProfile: func(profile *osutil.MountProfile) error {
-			saved.Entries = profile.Entries
-			return nil
-		},
-	}
-
-	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
-	c.Assert(saved.Entries, HasLen, 2)
-	// synth mount created due to read-only fs
-	c.Check(saved.Entries[0].Type, Equals, "tmpfs")
-	c.Check(saved.Entries[0].Name, Equals, "tmpfs")
-	c.Check(saved.Entries[0].Dir, Equals, filepath.Join(baseSourceDir, "rofs"))
-	c.Check(saved.Entries[0].XSnapdSynthetic(), Equals, true)
-	c.Check(saved.Entries[0].XSnapdNeededBy(), Equals, "test-id")
-	// desired mount exists
-	c.Check(saved.Entries[1], DeepEquals, desiredMountEntry)
-
-	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
-	c.Assert(saved.Entries, HasLen, 2)
-	c.Check(saved.Entries[0].Type, Equals, "tmpfs")
-	c.Check(saved.Entries[0].Name, Equals, "tmpfs")
-	c.Check(saved.Entries[0].Dir, Equals, filepath.Join(baseSourceDir, "rofs"))
-	c.Check(saved.Entries[0].XSnapdSynthetic(), Equals, true)
-	c.Check(saved.Entries[0].XSnapdNeededBy(), Equals, "test-id")
-	c.Check(saved.Entries[1], DeepEquals, desiredMountEntry)
 }
 
 func (s *updateSuite) TestCurrentProfileFromChangesMade(c *C) {

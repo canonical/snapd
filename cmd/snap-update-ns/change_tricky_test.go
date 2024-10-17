@@ -37,27 +37,23 @@ func (s *changeSuite) TestContentLayout1InitiallyConnected(c *C) {
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
 
-	// The change plan is to do nothing.
-	// Note that the order of entries is back to front.
-	//
-	// At this time, the mount namespace is correct:
-	// zyga@wyzima:/run/snapd/ns$ sudo nsenter -mtest-snapd-layout.mnt
-	// root@wyzima:/# ls -l /usr/share/secureboot/potato
-	// total 1
-	// -rw-rw-r-- 1 root root 22 Aug 30 09:36 canary.txt
-	// drwxrwxr-x 2 root root 32 Aug 30 09:36 meta
-	// root@wyzima:/# ls -l /snap/test-snapd-layout/
-	// current/ x1/      x2/
-	// root@wyzima:/# ls -l /snap/test-snapd-layout/x2/attached-content/
-	// total 1
-	// -rw-rw-r-- 1 root root 22 Aug 30 09:36 canary.txt
-	// drwxrwxr-x 2 root root 32 Aug 30 09:36 meta
+	// We are in sorched earth mode, rebuild everything every time we are asked
+	// to do anything. The reason this is not doing any comparison is that the
+	// current profile is not really representative of the desired profile as
+	// it also contains the / tmpfs set up by snap-confine (so our naive
+	// comparison would always be false), and any mimics that make the reality
+	// more confusing.  Instead of trading one complexity for another we rely
+	// on snapd calling snap-update-ns only when something changed (and snapd
+	// compares old content of desired profile with new content of desired
+	// profile, something that we cannot do).
 	c.Assert(changes, DeepEquals, []*update.Change{
-		{Action: "keep", Entry: current.Entries[4]},
-		{Action: "keep", Entry: current.Entries[3]},
-		{Action: "keep", Entry: current.Entries[2]},
-		{Action: "keep", Entry: current.Entries[1]},
-		{Action: "keep", Entry: current.Entries[0]},
+		/* 0 */ {Action: "unmount", Entry: withDetachOption(current.Entries[4])},
+		/* 1 */ {Action: "unmount", Entry: current.Entries[3]}, // This is already detach by default.
+		/* 2 */ {Action: "unmount", Entry: withDetachOption(current.Entries[2])},
+		/* 3 */ {Action: "unmount", Entry: withDetachOption(current.Entries[1])},
+		/* 4 */ {Action: "keep", Entry: current.Entries[0]}, // Keep the rootfs
+		/* 5 */ {Action: "mount", Entry: desired.Entries[1]},
+		/* 6 */ {Action: "mount", Entry: desired.Entries[0]},
 	})
 }
 
@@ -69,41 +65,14 @@ func (s *changeSuite) TestContentLayout2InitiallyConnectedThenDisconnected(c *C)
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
 
-	// The change plan is to do detach the content entry.
-	//
-	// Detached entries are first isolated from mount propagation. So the bug
-	// here is that the mount entry propagated to the layout during initial
-	// construction sticks around and is not updated. This is a bug.
-	// This is tracked as https://warthogs.atlassian.net/browse/SNAPDENG-31645
-	//
-	// zyga@wyzima:/run/snapd/ns$ sudo nsenter -mtest-snapd-layout.mnt
-	// root@wyzima:/# ls -l /snap/test-snapd-layout/x2/attached-content/
-	// total 1
-	// -rw-rw-r-- 1 root root 46 Aug 30 09:36 hidden
-	// root@wyzima:/# ls -l /usr/share/secureboot/potato
-	// total 1
-	// -rw-rw-r-- 1 root root 22 Aug 30 09:36 canary.txt
-	// drwxrwxr-x 2 root root 32 Aug 30 09:36 meta
-	//
-	// Note that the order of entries is back to front. There is another bug
-	// here, although it is not visible from the change plan alone. The reverse
-	// order of mount entries listed here is actually stored as the new current
-	// mount profile. This is tracked as
-	// https://warthogs.atlassian.net/browse/SNAPDENG-31644
+	// Like above, destroy and re-construct everything.
 	c.Assert(changes, DeepEquals, []*update.Change{
-		{Action: "keep", Entry: current.Entries[4]},
-		{Action: "keep", Entry: current.Entries[3]},
-		{Action: "keep", Entry: current.Entries[2]},
-		{Action: "unmount", Entry: withDetachOption(current.Entries[1])},
-		{Action: "keep", Entry: current.Entries[0]},
-	})
-
-	// The actual entry for clarity.
-	c.Assert(changes[3].Entry, DeepEquals, osutil.MountEntry{
-		Name:    "/snap/test-snapd-content/x1",
-		Dir:     "/snap/test-snapd-layout/x2/attached-content",
-		Type:    "none",
-		Options: []string{"bind", "ro", "x-snapd.detach"},
+		/* 0 */ {Action: "unmount", Entry: withDetachOption(current.Entries[4])},
+		/* 1 */ {Action: "unmount", Entry: current.Entries[3]}, // This is already using detach.
+		/* 2 */ {Action: "unmount", Entry: withDetachOption(current.Entries[2])},
+		/* 3 */ {Action: "unmount", Entry: withDetachOption(current.Entries[1])},
+		/* 4 */ {Action: "keep", Entry: current.Entries[0]}, // Keep the rootfs
+		/* 5 */ {Action: "mount", Entry: desired.Entries[0]},
 	})
 }
 
@@ -115,43 +84,14 @@ func (s *changeSuite) TestContentLayout3InitiallyConnectedThenDisconnectedAndRec
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
 
-	// In theory we should get back to the initial state but the reality is
-	// much more complicated. The change looks good on paper but the
-	// propagation that is not taken into account makes the actual mount
-	// namespace incorrect. The content connection is new and correct but the layout
-	// is still the same and was not propagated.
-	//
-	// zyga@wyzima:/run/snapd/ns$ sudo nsenter -mtest-snapd-layout.mnt
-	// root@wyzima:/# ls -l /usr/share/secureboot/potato
-	// total 1
-	// -rw-rw-r-- 1 root root 22 Aug 30 09:36 canary.txt
-	// drwxrwxr-x 2 root root 32 Aug 30 09:36 meta
-	// root@wyzima:/# ls -l /snap/test-snapd-layout/x2/attached-content/
-	// total 1
-	// -rw-rw-r-- 1 root root 22 Aug 30 09:36 canary.txt
-	// drwxrwxr-x 2 root root 32 Aug 30 09:36 meta
-	//
-	// Yes, but:
-	//
-	// root@wyzima:/# cat /proc/self/mountinfo  | grep attached
-	// 212 945 7:12 / /snap/test-snapd-layout/x2/attached-content ro,relatime master:34 - squashfs /dev/loop12 ro,errors=continue,threads=single
-	//
-	// root@wyzima:/# cat /proc/self/mountinfo  | grep potato
-	// 572 598 7:12 / /usr/share/secureboot/potato ro,relatime master:34 - squashfs /dev/loop12 ro,errors=continue,threads=single
+	// Like above, destroy and re-construct everything.
 	c.Assert(changes, DeepEquals, []*update.Change{
-		{Action: "keep", Entry: current.Entries[3]},
-		{Action: "keep", Entry: current.Entries[2]},
-		{Action: "keep", Entry: current.Entries[1]},
-		{Action: "keep", Entry: current.Entries[0]},
-		{Action: "mount", Entry: desired.Entries[1]},
-	})
-
-	// The actual entry for clarity.
-	c.Assert(changes[4].Entry, DeepEquals, osutil.MountEntry{
-		Name:    "/snap/test-snapd-content/x1",
-		Dir:     "/snap/test-snapd-layout/x2/attached-content",
-		Type:    "none",
-		Options: []string{"bind", "ro"},
+		/* 0 */ {Action: "unmount", Entry: withDetachOption(current.Entries[3])},
+		/* 1 */ {Action: "unmount", Entry: current.Entries[2]}, // This is already using detach.
+		/* 2 */ {Action: "unmount", Entry: withDetachOption(current.Entries[1])},
+		/* 3 */ {Action: "keep", Entry: current.Entries[0]}, // Keep the rootfs
+		/* 4 */ {Action: "mount", Entry: desired.Entries[1]},
+		/* 5 */ {Action: "mount", Entry: desired.Entries[0]},
 	})
 }
 
@@ -163,20 +103,14 @@ func (s *changeSuite) TestContentLayout4InitiallyDisconnectedThenConnected(c *C)
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
 
+	// Like above, destroy and re-construct everything.
 	c.Assert(changes, DeepEquals, []*update.Change{
-		{Action: "keep", Entry: current.Entries[3]},
-		{Action: "keep", Entry: current.Entries[2]},
-		{Action: "keep", Entry: current.Entries[1]},
-		{Action: "keep", Entry: current.Entries[0]},
-		{Action: "mount", Entry: desired.Entries[1]},
-	})
-
-	// The actual entry for clarity.
-	c.Assert(changes[4].Entry, DeepEquals, osutil.MountEntry{
-		Name:    "/snap/test-snapd-content/x1",
-		Dir:     "/snap/test-snapd-layout/x2/attached-content",
-		Type:    "none",
-		Options: []string{"bind", "ro"},
+		/* 0 */ {Action: "unmount", Entry: withDetachOption(current.Entries[3])},
+		/* 1 */ {Action: "unmount", Entry: current.Entries[2]}, // This is already using detach.
+		/* 2 */ {Action: "unmount", Entry: withDetachOption(current.Entries[1])},
+		/* 3 */ {Action: "keep", Entry: current.Entries[0]}, // Keep the rootfs
+		/* 4 */ {Action: "mount", Entry: desired.Entries[1]},
+		/* 5 */ {Action: "mount", Entry: desired.Entries[0]},
 	})
 }
 
@@ -188,14 +122,15 @@ func (s *changeSuite) TestContentLayout5InitiallyConnectedThenContentRefreshed(c
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
 
-	// This test shows similar behavior to -2- test - the layout stays propagated.
+	// Like above, destroy and re-construct everything.
 	c.Assert(changes, DeepEquals, []*update.Change{
-		{Action: "keep", Entry: current.Entries[4]},
-		{Action: "keep", Entry: current.Entries[3]},
-		{Action: "keep", Entry: current.Entries[2]},
-		{Action: "unmount", Entry: withDetachOption(current.Entries[1])},
-		{Action: "keep", Entry: current.Entries[0]},
-		{Action: "mount", Entry: desired.Entries[1]},
+		/* 0 */ {Action: "unmount", Entry: withDetachOption(current.Entries[4])},
+		/* 1 */ {Action: "unmount", Entry: current.Entries[3]}, // This is already using detach.
+		/* 2 */ {Action: "unmount", Entry: withDetachOption(current.Entries[2])},
+		/* 3 */ {Action: "unmount", Entry: withDetachOption(current.Entries[1])},
+		/* 4 */ {Action: "keep", Entry: current.Entries[0]}, // Keep the rootfs
+		/* 5 */ {Action: "mount", Entry: desired.Entries[1]},
+		/* 6 */ {Action: "mount", Entry: desired.Entries[0]},
 	})
 }
 
@@ -207,19 +142,15 @@ func (s *changeSuite) TestContentLayout6InitiallyConnectedThenAppRefreshed(c *C)
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
 
-	// In this case, because the attached content is mounted to $SNAP (and not $SNAP_COMMON), the path changes
-	// and both the layout and content are re-made.
+	// Like above, destroy and re-construct everything.
 	c.Assert(changes, DeepEquals, []*update.Change{
-		{Action: "unmount", Entry: withDetachOption(current.Entries[4])},
-		{Action: "keep", Entry: current.Entries[3]},
-		{Action: "keep", Entry: current.Entries[2]},
-		{Action: "unmount", Entry: withDetachOption(current.Entries[1])},
-		{Action: "keep", Entry: current.Entries[0]},
-		// It is interesting to note that we first mount the content to $SNAP/attached-content
-		// and only then construct the layout from $SNAP/attached-content to /usr/share/secureboot/potato.
-		// This is correct but the ordering is fraigle.
-		{Action: "mount", Entry: desired.Entries[1]},
-		{Action: "mount", Entry: desired.Entries[0]},
+		/* 0 */ {Action: "unmount", Entry: withDetachOption(current.Entries[4])},
+		/* 1 */ {Action: "unmount", Entry: current.Entries[3]}, // This is already using detach.
+		/* 2 */ {Action: "unmount", Entry: withDetachOption(current.Entries[2])},
+		/* 3 */ {Action: "unmount", Entry: withDetachOption(current.Entries[1])},
+		/* 4 */ {Action: "keep", Entry: current.Entries[0]}, // Keep the rootfs
+		/* 5 */ {Action: "mount", Entry: desired.Entries[1]},
+		/* 6 */ {Action: "mount", Entry: desired.Entries[0]},
 	})
 }
 
