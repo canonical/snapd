@@ -524,294 +524,59 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 	return fmt.Errorf("cannot process mount change: unknown action: %q", c.Action)
 }
 
-// Using dir is not enough to identify the mount entry, because when
-// using layouts some directories could be used as mount points more
-// than once. This can happen when, say, we have a layout for /dir/sd1
-// and another one for /dir/sd2/sd3, being the case that /dir/sd1 and
-// /dir/sd2/sd3 do not exist (but their parent dirs do exist) -
-// /dir/sd2 will be one of the bind mounted directories of the tmpfs
-// that is created in /dir to have a layout on /dir/sd1, while at the
-// same time a tmpfs will be mounted in /dir/sd2 so we can have a
-// layout in /dir/sd2/sd3. So /dir/sd2 is used twice with different
-// filesystem types (none and tmpfs). As we make sure that mimics are
-// created only once per directory, we should only have one entry per
-// dir+fstype, being fstype either none or tmpfs.
-//
-// TODO Ideally we should have only one mount per mountpoint, but we
-// perform mounts as we create the changes in Change.Perform which
-// makes it difficult to create the full list of changes and then
-// clean-up repeated mountpoints. In any case using this is still
-// needed to handle mount namespaces created by older snapd versions.
-type mountEntryId struct {
-	dir    string
-	fsType string
-}
-
 // neededChanges is the real implementation of NeededChanges
 func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Change {
-	// Copy both profiles as we will want to mutate them.
+	if len(currentProfile.Entries)+len(desiredProfile.Entries) == 0 {
+		return nil
+	}
+
 	current := make([]osutil.MountEntry, len(currentProfile.Entries))
 	copy(current, currentProfile.Entries)
-	desired := make([]osutil.MountEntry, len(desiredProfile.Entries))
-	copy(desired, desiredProfile.Entries)
-
-	// Clean the directory part of both profiles. This is done so that we can
-	// easily test if a given directory is a subdirectory with
-	// strings.HasPrefix coupled with an extra slash character.
-	for i := range current {
-		current[i].Dir = filepath.Clean(current[i].Dir)
-	}
-	for i := range desired {
-		desired[i].Dir = filepath.Clean(desired[i].Dir)
-	}
-
-	// Make yet another copy of the current entries, to retain their original
-	// order (the "current" variable is going to be sorted soon); just using
-	// currentProfile.Entries is not reliable because it didn't undergo the
-	// cleanup of the Dir paths.
-	unsortedCurrent := make([]osutil.MountEntry, len(current))
-	copy(unsortedCurrent, current)
-
-	dumpMountEntries := func(entries []osutil.MountEntry, pfx string) {
-		logger.Debug(pfx)
-		for _, en := range entries {
-			logger.Debugf("- %v", en)
-		}
-	}
-	dumpMountEntries(current, "current mount entries")
-	// Sort only the desired lists by directory name with implicit trailing
-	// slash and the mount kind.
-	// Note that the current profile is a log of what was applied and should
-	// not be sorted at all.
-	sort.Sort(byOriginAndMountPoint(desired))
-	dumpMountEntries(desired, "desired mount entries (sorted)")
-
-	// Construct a desired directory map.
-	desiredMap := make(map[string]*osutil.MountEntry)
-	for i := range desired {
-		desiredMap[desired[i].Dir] = &desired[i]
-	}
-
-	// Indexed by mount point path.
-	reuse := make(map[mountEntryId]bool)
-	// Indexed by entry ID
-	desiredIDs := make(map[string]bool)
-	var skipDir string
-
-	// Collect the IDs of desired changes.
-	// We need that below to keep implicit changes from the current profile.
-	for i := range desired {
-		desiredIDs[desired[i].XSnapdEntryID()] = true
-	}
-
-	// Compute reusable entries: those which are equal in current and desired and which
-	// are not prefixed by another entry that changed.
-	// sort them first
-	sort.Sort(byOvernameAndMountPoint(current))
-	for i := range current {
-		dir := current[i].Dir
-		if skipDir != "" && strings.HasPrefix(dir, skipDir) {
-			logger.Debugf("skipping entry %q", current[i])
-			continue
-		}
-		skipDir = "" // reset skip prefix as it no longer applies
-
-		mountId := mountEntryId{dir, current[i].Type}
-		if current[i].XSnapdOrigin() == "rootfs" {
-			// This is the rootfs setup by snap-confine, we should not touch it
-			logger.Debugf("reusing rootfs")
-			reuse[mountId] = true
-			continue
-		}
-
-		// Reuse synthetic entries if their needed-by entry is desired.
-		// Synthetic entries cannot exist on their own and always couple to a
-		// non-synthetic entry.
-
-		// NOTE: Synthetic changes have a special purpose.
-		//
-		// They are a "shadow" of mount events that occurred to allow one of
-		// the desired mount entries to be possible. The changes have only one
-		// goal: tell snap-update-ns how those mount events can be undone in
-		// case they are no longer needed. The actual changes may have been
-		// different and may have involved steps not represented as synthetic
-		// mount entires as long as those synthetic entries can be undone to
-		// reverse the effect. In reality each non-tmpfs synthetic entry was
-		// constructed using a temporary bind mount that contained the original
-		// mount entries of a directory that was hidden with a tmpfs, but this
-		// fact was lost.
-		if current[i].XSnapdSynthetic() && desiredIDs[current[i].XSnapdNeededBy()] {
-			logger.Debugf("reusing synthetic entry %q", current[i])
-			reuse[mountId] = true
-			continue
-		}
-
-		// Reuse entries that are desired and identical in the current profile.
-		if entry, ok := desiredMap[dir]; ok && current[i].Equal(entry) {
-			logger.Debugf("reusing unchanged entry %q", current[i])
-			reuse[mountId] = true
-			continue
-		}
-
-		skipDir = strings.TrimSuffix(dir, "/") + "/"
-	}
-
-	logger.Debugf("desiredIDs: %v", desiredIDs)
-	logger.Debugf("reuse: %v", reuse)
 
 	// We are now ready to compute the necessary mount changes.
-	var changes []*Change
+	changes := make([]*Change, 0, len(currentProfile.Entries)+len(desiredProfile.Entries))
 
-	// Unmount entries not reused in reverse to handle children before their parent.
-	unmountOrder := unsortedCurrent
-	for i := len(unmountOrder) - 1; i >= 0; i-- {
-		if reuse[mountEntryId{unmountOrder[i].Dir, unmountOrder[i].Type}] {
-			changes = append(changes, &Change{Action: Keep, Entry: unmountOrder[i]})
-		} else {
-			var entry osutil.MountEntry = unmountOrder[i]
+	// Remove almost everything, except the rootfs at /, in current in reverse.
+	// If the mount entry can potentially host nested mount points then detach
+	// rather than unmount, since detach will always succeed.
+	for i := len(current) - 1; i >= 0; i-- {
+		entry := current[i]
+		if entry.Dir == "/" && entry.XSnapdOrigin() == "rootfs" {
+			changes = append(changes, &Change{Action: Keep, Entry: entry})
+			continue
+		}
+
+		shouldDetach := entry.Type == "tmpfs" || entry.OptBool("bind") || entry.OptBool("rbind")
+		if shouldDetach && !entry.XSnapdDetach() {
 			entry.Options = append([]string(nil), entry.Options...)
-			// If the mount entry can potentially host nested mount points then detach
-			// rather than unmount, since detach will always succeed.
-			shouldDetach := entry.Type == "tmpfs" || entry.OptBool("bind") || entry.OptBool("rbind")
-			if shouldDetach && !entry.XSnapdDetach() {
-				entry.Options = append(entry.Options, osutil.XSnapdDetach())
-			}
-			changes = append(changes, &Change{Action: Unmount, Entry: entry})
+			entry.Options = append(entry.Options, osutil.XSnapdDetach())
 		}
+
+		changes = append(changes, &Change{Action: Unmount, Entry: entry})
 	}
 
-	var desiredNotReused []osutil.MountEntry
+	desired := make([]osutil.MountEntry, len(desiredProfile.Entries))
+	copy(desired, desiredProfile.Entries)
+	for i := range desired {
+		desired[i].Dir = filepath.Clean(desired[i].Dir)
+		// desired[i].Name = filepath.Clean(desired[i].Name)
+	}
+
+	// Sort only the desired lists by directory name with implicit trailing
+	// slash and the mount kind. Note that the current profile is a log of
+	// what was applied and should not be sorted at all.
+	sort.Sort(byOriginAndMountPoint(desired))
+
+	// Mount all entries in the resulting order. Note that we will actually do
+	// a two-pass approach when performing changes. The first pass constructs
+	// source and target mounts, creating mimics as required. The second pass
+	// creates the actual mounts. Due to this approach we don't have to do
+	// anything sophisticated here.
 	for _, entry := range desired {
-		if !reuse[mountEntryId{entry.Dir, entry.Type}] {
-			desiredNotReused = append(desiredNotReused, entry)
-		}
-	}
-
-	// Mount desired entries not reused, ordering by the mimic directories they
-	// need created
-	// We proceeds in three steps:
-	// 1. Perform the mounts for the "overname" entries
-	// 2. Perform the mounts for the entries which need a mimic
-	// 3. Perform all the remaining desired mounts
-
-	var newDesiredEntries []osutil.MountEntry
-	var newIndependentDesiredEntries []osutil.MountEntry
-	// Indexed by mount point path.
-	addedDesiredEntries := make(map[string]bool)
-	// This function is idempotent, it won't add the same entry twice
-	addDesiredEntry := func(entry osutil.MountEntry) {
-		if !addedDesiredEntries[entry.Dir] {
-			logger.Debugf("adding entry: %s", entry)
-			newDesiredEntries = append(newDesiredEntries, entry)
-			addedDesiredEntries[entry.Dir] = true
-		}
-	}
-	addIndependentDesiredEntry := func(entry osutil.MountEntry) {
-		if !addedDesiredEntries[entry.Dir] {
-			logger.Debugf("adding independent entry: %s", entry)
-			newIndependentDesiredEntries = append(newIndependentDesiredEntries, entry)
-			addedDesiredEntries[entry.Dir] = true
-		}
-	}
-
-	logger.Debugf("processing mount entries")
-	// Create a map of the target directories (mimics) needed for the visited
-	// entries
-	affectedTargetCreationDirs := map[string][]osutil.MountEntry{}
-	for _, entry := range desiredNotReused {
-		if entry.XSnapdOrigin() == "overname" {
-			addIndependentDesiredEntry(entry)
-		}
-
-		// collect all entries, so that we know what mimics are needed
-		parentTargetDir := filepath.Dir(entry.Dir)
-		affectedTargetCreationDirs[parentTargetDir] = append(affectedTargetCreationDirs[parentTargetDir], entry)
-	}
-
-	if len(affectedTargetCreationDirs) != 0 {
-		entriesForMimicDir := map[string][]osutil.MountEntry{}
-		for parentTargetDir, entriesNeedingDir := range affectedTargetCreationDirs {
-			// First check if any of the mount entries for the changes will potentially
-			// result in creating a mimic. Note that to actually know if a given mount
-			// entry will require a mimic when the mount target doesn't exist, we would
-			// have to try and create a file/directory/symlink at the desired target,
-			// however that would be a destructive change which is not appropriate here
-			// (that is done in ChangePerform() instead), but for our purposes of sorting
-			// mount entries it is sufficient to use this assumption.
-			// We check if a mount entry would result in a potential mimic by just
-			// checking if the file/dir/symlink that is the target of the mount exists
-			// already in the form we need to to bind mount on top of it. If it
-			// doesn't then we need to create a mimic and so we then go looking for
-			// where to create the mimic.
-			for _, entry := range entriesNeedingDir {
-				exists := true
-				switch entry.XSnapdKind() {
-				case "":
-					exists = osutilIsDirectory(entry.Dir)
-				case "file":
-					exists = osutil.FileExists(entry.Dir)
-				case "symlink":
-					exists = osutil.IsSymlink(entry.Dir)
-				}
-
-				// if it doesn't exist we may need a mimic
-				if !exists {
-					neededMimicDir := findFirstRootDirectoryThatExists(parentTargetDir)
-					entriesForMimicDir[neededMimicDir] = append(entriesForMimicDir[neededMimicDir], entry)
-					logger.Debugf("entry that requires %q: %v", neededMimicDir, entry)
-				} else {
-					// entry is independent
-					addIndependentDesiredEntry(entry)
-				}
-			}
-		}
-
-		// sort the mimic creation dirs to get the correct ordering of mimics to
-		// create dirs in: the sorting algorithm places parent directories
-		// before children.
-		allMimicCreationDirs := []string{}
-		for mimicDir := range entriesForMimicDir {
-			allMimicCreationDirs = append(allMimicCreationDirs, mimicDir)
-		}
-
-		sort.Strings(allMimicCreationDirs)
-
-		logger.Debugf("all mimics:")
-		for _, mimicDir := range allMimicCreationDirs {
-			logger.Debugf("- %v", mimicDir)
-		}
-
-		for _, mimicDir := range allMimicCreationDirs {
-			// make sure to sort the entries for each mimic dir in a consistent
-			// order
-			entries := entriesForMimicDir[mimicDir]
-			sort.Sort(byOriginAndMountPoint(entries))
-			for _, entry := range entries {
-				addDesiredEntry(entry)
-			}
-		}
-	}
-
-	sort.Sort(byOriginAndMountPoint(newIndependentDesiredEntries))
-	allEntries := append(newIndependentDesiredEntries, newDesiredEntries...)
-	dumpMountEntries(allEntries, "mount entries ordered as they will be applied")
-	for _, entry := range allEntries {
 		changes = append(changes, &Change{Action: Mount, Entry: entry})
 	}
 
 	return changes
-}
-
-func findFirstRootDirectoryThatExists(desiredParentDir string) string {
-	// trivial case - the dir already exists
-	if osutilIsDirectory(desiredParentDir) {
-		return desiredParentDir
-	}
-
-	// otherwise we need to recurse up to find the first dir that exists where
-	// we would place the mimic - note that this cannot recurse infinitely,
-	// since at some point we will reach "/" which always exists
-	return findFirstRootDirectoryThatExists(filepath.Dir(desiredParentDir))
 }
 
 // NeededChanges computes the changes required to change current to desired mount entries.

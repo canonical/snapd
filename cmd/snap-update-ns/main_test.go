@@ -400,14 +400,15 @@ none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOM
 	c.Assert(err, IsNil)
 	c.Assert(changes, HasLen, 2)
 
-	c.Assert(changes[0].Entry.Name, Equals, "none")
-	c.Assert(changes[0].Entry.Dir, Equals, tmpHomeDir+"/.local/share")
-	c.Assert(changes[0].Entry.XSnapdMustExistDir(), Equals, tmpHomeDir)
-
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, 1000)
-	c.Assert(changes[1].Action, Equals, update.Mount)
-	c.Assert(changes[1].Entry.Name, Equals, xdgRuntimeDir+"/doc/by-app/snap.foo")
-	c.Assert(changes[1].Entry.Dir, Matches, xdgRuntimeDir+"/doc")
+	c.Assert(changes[0].Action, Equals, update.Mount)
+	c.Assert(changes[0].Entry.Name, Equals, xdgRuntimeDir+"/doc/by-app/snap.foo")
+	c.Assert(changes[0].Entry.Dir, Matches, xdgRuntimeDir+"/doc")
+
+	c.Assert(changes[0].Action, Equals, update.Mount)
+	c.Assert(changes[1].Entry.Name, Equals, "none")
+	c.Assert(changes[1].Entry.Dir, Equals, tmpHomeDir+"/.local/share")
+	c.Assert(changes[1].Entry.XSnapdMustExistDir(), Equals, tmpHomeDir)
 }
 
 func (s *mainSuite) TestApplyUserFstabErrorHomeRequiredAndMissing(c *C) {
