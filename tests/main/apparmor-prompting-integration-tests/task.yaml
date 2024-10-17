@@ -77,7 +77,8 @@ execute: |
     snap set system experimental.apparmor-prompting=true
 
     echo "Wait for snapd to begin restart"
-    retry --wait 1 -n 300 test "$SNAPD_PID" != "$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
+    #shellcheck disable=SC2016
+    retry --wait 1 -n 300 sh -c 'test '"$SNAPD_PID"' != $(systemctl show --property MainPID snapd.service | cut -f2 -d=)'
 
     echo "Wait until snapd is active"
     retry --wait 1 -n 300 systemctl is-active snapd
