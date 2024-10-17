@@ -257,6 +257,17 @@ func readKeyFileImpl(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, err
 		return nil, nil, err
 	}
 	if l == len(rawPrefix) && bytes.HasPrefix(buf, rawPrefix) {
+		if fdeHasRevealKey() {
+			keyData, err := NewKeyDataFromV1HookFile(keyfile)
+			if err != nil {
+				return nil, nil, fmt.Errorf("cannot read key object as key data: %v", err)
+			}
+			// we do not return raw sealed object here
+			// since we do not expect resealing from fde
+			// hooks v1. There is no model.
+			return keyData, nil, nil
+		}
+
 		sealedObject, err := sbReadSealedKeyObjectFromFile(keyfile)
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot read key object: %v", err)
