@@ -24,11 +24,11 @@ execute: |
             fi
 
             # If status code is 500 means the server is not working properly
-            # In this case we return because 4xx is returned 0 if the page is not found
             if [ "$status_code" == 500 ]; then
                 return 0
             fi
         done
+        # If status code 4xx is returned then the page is not found, return error
         return 1
     }
      
