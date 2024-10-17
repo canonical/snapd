@@ -57,7 +57,7 @@ func (o *simpleObserver) Observe(op gadget.ContentOperation, partRole, root, dst
 	return gadget.ChangeApply, nil
 }
 
-func (o *simpleObserver) ChosenEncryptionKey(key keys.EncryptionKey) {}
+func (o *simpleObserver) ChosenBootstrappedContainer(key secboot.BootstrappedContainer) {}
 
 type uc20Constraints struct{}
 
@@ -97,17 +97,36 @@ func main() {
 	}
 
 	if args.Encrypt {
-		if installSideData == nil || len(installSideData.KeyForRole) == 0 {
+		if installSideData == nil || len(installSideData.BootstrappedContainerForRole) == 0 {
 			panic("expected encryption keys")
 		}
-		dataKey := installSideData.KeyForRole[gadget.SystemData]
-		if dataKey == nil {
+		dataBootstrapKey := installSideData.BootstrappedContainerForRole[gadget.SystemData]
+		if dataBootstrapKey == nil {
 			panic("ubuntu-data encryption key is unset")
 		}
-		saveKey := installSideData.KeyForRole[gadget.SystemSave]
-		if saveKey == nil {
+
+		dataKey, err := keys.NewEncryptionKey()
+		if err != nil {
+			panic("cannot create data key")
+		}
+		const token = false
+		if _, err := dataBootstrapKey.AddKey("", secboot.DiskUnlockKey(dataKey), token); err != nil {
+			panic("cannot reset data key")
+		}
+
+		saveBootstrapKey := installSideData.BootstrappedContainerForRole[gadget.SystemSave]
+		if saveBootstrapKey == nil {
 			panic("ubuntu-save encryption key is unset")
 		}
+
+		saveKey, err := keys.NewEncryptionKey()
+		if err != nil {
+			panic("cannot create save key")
+		}
+		if _, err := saveBootstrapKey.AddKey("", secboot.DiskUnlockKey(saveKey), token); err != nil {
+			panic("cannot reset save key")
+		}
+
 		toWrite := map[string][]byte{
 			"unsealed-key": dataKey[:],
 			"save-key":     saveKey[:],
@@ -116,6 +135,13 @@ func main() {
 			if err := os.WriteFile(keyFileName, keyData, 0644); err != nil {
 				panic(err)
 			}
+		}
+
+		if err := dataBootstrapKey.RemoveBootstrapKey(); err != nil {
+			panic(err)
+		}
+		if err := saveBootstrapKey.RemoveBootstrapKey(); err != nil {
+			panic(err)
 		}
 	}
 }
