@@ -21,7 +21,7 @@
 package secboot
 
 import (
-	"bytes"
+	"crypto"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -42,11 +42,15 @@ var sbSetModel = sb_scope.SetModel
 var sbSetBootMode = sb_scope.SetBootMode
 var sbSetKeyRevealer = sb_hooks.SetKeyRevealer
 
+const ancientFdeHooksPlatformName = "fde-hook-v1"
 const legacyFdeHooksPlatformName = "fde-hook-v2"
 
 func init() {
-	handler := &fdeHookV2DataHandler{}
-	sb.RegisterPlatformKeyDataHandler(legacyFdeHooksPlatformName, handler)
+	v1Handler := &fdeHookV1DataHandler{}
+	sb.RegisterPlatformKeyDataHandler(ancientFdeHooksPlatformName, v1Handler)
+	v2Handler := &fdeHookV2DataHandler{}
+	sb.RegisterPlatformKeyDataHandler(legacyFdeHooksPlatformName, v2Handler)
+
 }
 
 type hookKeyProtector struct {
@@ -118,21 +122,45 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 	return nil
 }
 
-func isV1EncryptedKeyFile(p string) bool {
-	// XXX move some of this to kernel/fde
-	var v1KeyPrefix = []byte("USK$")
-
-	f, err := os.Open(p)
+func NewKeyDataFromV1HookFile(path string) (*sb.KeyData, error) {
+	sealedKey, err := os.ReadFile(path)
 	if err != nil {
-		return false
+		return nil, fmt.Errorf("cannot read sealed key file: %v", err)
 	}
-	defer f.Close()
 
-	buf := make([]byte, len(v1KeyPrefix))
-	if _, err := io.ReadFull(f, buf); err != nil {
-		return false
+	handle, err := json.Marshal(sealedKey)
+	if err != nil {
+		return nil, err
 	}
-	return bytes.HasPrefix(buf, v1KeyPrefix)
+
+	params := sb.KeyParams{
+		Handle:       json.RawMessage(handle),
+		PlatformName: ancientFdeHooksPlatformName,
+		KDFAlg:       crypto.Hash(0), // non-derived unlock key
+	}
+
+	return sb.NewKeyData(&params)
+}
+
+type fdeHookV1DataHandler struct{}
+
+func (fh *fdeHookV1DataHandler) RecoverKeys(data *sb.PlatformKeyData, encryptedPayload []byte) ([]byte, error) {
+	var handle []byte
+	if err := json.Unmarshal(data.EncodedHandle, &handle); err != nil {
+		return nil, fmt.Errorf("cannot unmarshal handle")
+	}
+	p := fde.RevealParams{
+		SealedKey: handle,
+	}
+	return fde.Reveal(&p)
+}
+
+func (fh *fdeHookV1DataHandler) ChangeAuthKey(data *sb.PlatformKeyData, old, new []byte) ([]byte, error) {
+	return nil, fmt.Errorf("cannot change auth key yet")
+}
+
+func (fh *fdeHookV1DataHandler) RecoverKeysWithAuthKey(data *sb.PlatformKeyData, encryptedPayload, key []byte) ([]byte, error) {
+	return nil, fmt.Errorf("cannot recover keys with auth keys yet")
 }
 
 type fdeHookV2DataHandler struct{}
