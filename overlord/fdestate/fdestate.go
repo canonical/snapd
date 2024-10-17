@@ -40,10 +40,10 @@ import (
 var errNotImplemented = errors.New("not implemented")
 
 var (
-	disksDMCryptUUIDFromMountPoint        = disks.DMCryptUUIDFromMountPoint
-	secbootGetPrimaryKeyHMAC              = secboot.GetPrimaryKeyHMAC
-	secbootVerifyPrimaryKeyHMAC           = secboot.VerifyPrimaryKeyHMAC
-	backendResealKeysForSignatureDBUpdate = backend.ResealKeysForSignaturesDBUpdate
+	disksDMCryptUUIDFromMountPoint         = disks.DMCryptUUIDFromMountPoint
+	secbootGetPrimaryKeyHMAC               = secboot.GetPrimaryKeyHMAC
+	secbootVerifyPrimaryKeyHMAC            = secboot.VerifyPrimaryKeyHMAC
+	backendResealKeysForSignaturesDBUpdate = backend.ResealKeysForSignaturesDBUpdate
 )
 
 // EFISecureBootDBManagerStartup indicates that the local EFI key database
@@ -117,7 +117,7 @@ func EFISecureBootDBUpdatePrepare(st *state.State, db EFISecurebootKeyDatabase, 
 		logger.Debugf("DBX update payload: %x", payload)
 
 		// TODO use a different helper for resealing
-		return backend.ResealKeysForSignaturesDBUpdate(
+		return backendResealKeysForSignaturesDBUpdate(
 			unlockedStateUpdater(st, "efi-secureboot-update-db-prepare"),
 			method, dirs.GlobalRootDir, bc, payload,
 		)
@@ -326,9 +326,9 @@ type PrimaryKeyInfo struct {
 }
 
 type externalOperation struct {
-	Kind     string           `json:"kind"`
-	ChangeID string           `json:"change-id"`
-	Context  *json.RawMessage `json:"context"`
+	Kind     string          `json:"kind"`
+	ChangeID string          `json:"change-id"`
+	Context  json.RawMessage `json:"context"`
 }
 
 // FdeState is the root persistent FDE state
@@ -532,12 +532,10 @@ func addEFISecurebootDBUpdateChange(st *state.State, payload []byte) (*state.Cha
 		return nil, err
 	}
 
-	opCtxRaw := json.RawMessage(data)
-
 	opDesc := externalOperation{
 		Kind:     "fde-efi-secureboot-db-update",
 		ChangeID: chg.ID(),
-		Context:  &opCtxRaw,
+		Context:  json.RawMessage(data),
 	}
 
 	s.PendingExternalOperations = append(s.PendingExternalOperations, opDesc)
