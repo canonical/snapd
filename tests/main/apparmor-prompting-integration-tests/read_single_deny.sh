@@ -14,10 +14,8 @@ echo "testing testing 1 2 3" | tee "${TEST_DIR}/test.txt"
 echo "Attempt to read the file (should fail)"
 TEST_OUTPUT="$(snap run --shell prompting-client.scripted -c "cat ${TEST_DIR}/test.txt")"
 
-ECODE=$?
-
 # Wait for the client to write its result and exit
-timeout "$TIMEOUT" sh -c 'while pgrep -f "prompting-client.scripted.*${TEST_DIR}" > /dev/null; do sleep 0.1; done'
+timeout "$TIMEOUT" sh -c "while pgrep -f 'prompting-client.scripted.*${TEST_DIR}' > /dev/null; do sleep 0.1; done"
 
 CLIENT_OUTPUT="$(cat "${TEST_DIR}/result")"
 
