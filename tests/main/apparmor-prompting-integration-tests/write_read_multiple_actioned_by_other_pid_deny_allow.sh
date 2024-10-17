@@ -42,7 +42,7 @@ snap run --shell prompting-client.scripted -c "echo test4.txt is written > ${TES
 
 for name in test1.txt test2.txt test3.txt ; do
 	echo "Check that write for $name has finished"
-	if ! timeout "$TIMEOUT" -c "while ! [ -f '${WRITABLE}/${name}-write-finished' ] ; do sleep 0.1 ; done" ; then
+	if ! timeout "$TIMEOUT" sh -c "while ! [ -f '${WRITABLE}/${name}-write-finished' ] ; do sleep 0.1 ; done" ; then
 		echo "write of $name did not finish after client replied"
 		exit 1
 	fi
@@ -85,7 +85,7 @@ snap run --shell prompting-client.scripted -c "cat ${TEST_DIR}/test4.txt > ${WRI
 
 for name in test1.txt test2.txt test3.txt ; do
 	echo "Check that read for $name has finished"
-	if ! timeout "$TIMEOUT" -c "while ! [ -f '${WRITABLE}/${name}-read-finished' ] ; do sleep 0.1 ; done" ; then
+	if ! timeout "$TIMEOUT" sh -c "while ! [ -f '${WRITABLE}/${name}-read-finished' ] ; do sleep 0.1 ; done" ; then
 		echo "read of $name did not finish after client replied"
 		exit 1
 	fi
@@ -140,7 +140,7 @@ if [ -f "${TEST_DIR}/other.txt" ] ; then
 fi
 
 # Wait for the client to write its result and exit
-timeout "$TIMEOUT" -c 'while pgrep -f "prompting-client.scripted.*${TEST_DIR}" > /dev/null; do sleep 0.1; done'
+timeout "$TIMEOUT" sh -c "while pgrep -f 'prompting-client.scripted.*${TEST_DIR}' > /dev/null; do sleep 0.1; done"
 
 CLIENT_OUTPUT="$(cat "${TEST_DIR}/result")"
 

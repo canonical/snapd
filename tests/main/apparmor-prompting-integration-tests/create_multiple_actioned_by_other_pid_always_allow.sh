@@ -44,7 +44,7 @@ mkdir -p "${TEST_DIR}/test4"
 snap run --shell prompting-client.scripted -c "echo test4/file.txt is written > ${TEST_DIR}/test4/file.txt"
 
 # Wait for the client to write its result and exit
-timeout "$TIMEOUT" sh -c 'while pgrep -f "prompting-client.scripted.*${TEST_DIR}" > /dev/null; do sleep 0.1; done'
+timeout "$TIMEOUT" sh -c "while pgrep -f 'prompting-client.scripted.*${TEST_DIR}' > /dev/null; do sleep 0.1; done"
 
 for dir in test1 test2 test3 ; do
 	name="${dir}/file.txt"

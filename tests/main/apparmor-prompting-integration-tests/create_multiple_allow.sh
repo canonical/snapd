@@ -15,7 +15,7 @@ for name in test1.txt test2.md fail.txt test3.pdf ; do
 done
 
 # Wait for the client to write its result and exit
-timeout "$TIMEOUT" sh -c 'while pgrep -f "prompting-client.scripted.*${TEST_DIR}" > /dev/null; do sleep 0.1; done'
+timeout "$TIMEOUT" sh -c "while pgrep -f 'prompting-client.scripted.*${TEST_DIR}' > /dev/null; do sleep 0.1; done"
 
 CLIENT_OUTPUT="$(cat "${TEST_DIR}/result")"
 
