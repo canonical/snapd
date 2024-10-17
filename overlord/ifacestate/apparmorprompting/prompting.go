@@ -20,7 +20,6 @@
 package apparmorprompting
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 
@@ -212,54 +211,26 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		return requestReply(req, nil)
 	}
 
-	outstandingPerms := make([]string, 0, len(permissions))
-	satisfiedPerms := make([]string, 0, len(permissions))
-
 	// we're done with early checks, serious business starts now, and we can
 	// take the lock
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	matchedDenyRule := false
-	for _, perm := range permissions {
-		// TODO: move this for-loop to a helper in requestrules
-		if yesNo, err := m.rules.IsPathAllowed(userID, snap, iface, path, perm); err == nil {
-			if !yesNo {
-				matchedDenyRule = true
-			} else {
-				satisfiedPerms = append(satisfiedPerms, perm)
-			}
-		} else {
-			if !errors.Is(err, prompting_errors.ErrNoMatchingRule) {
-				logger.Noticef("error while checking request against existing rules: %v", err)
-			}
-			// No matching rule found
-			outstandingPerms = append(outstandingPerms, perm)
+	allowedPerms, matchedDenyRule, outstandingPerms, err := m.rules.IsRequestAllowed(userID, snap, iface, path, permissions)
+	if err != nil || matchedDenyRule || len(outstandingPerms) == 0 {
+		switch {
+		case err != nil:
+			logger.Noticef("error while checking request against existing rules: %v", err)
+		case matchedDenyRule:
+			logger.Debugf("request denied by existing rule: %+v", req)
+		case len(outstandingPerms) == 0:
+			logger.Debugf("request allowed by existing rule: %+v", req)
 		}
-	}
-	if matchedDenyRule {
-		logger.Debugf("request denied by existing rule: %+v", req)
-
-		// Respond with this information by allowing any requested permissions
-		// which were explicitly allowed by existing rules (there may be no
-		// such permissions) and let the listener deny all permissions which
-		// were not explicitly included in the allowed permissions.
-		allowedPermission, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, satisfiedPerms)
-		// Error should not occur, but if it does, allowedPermission is set to
-		// empty, leaving it to the listener to default deny all permissions.
-		return requestReply(req, allowedPermission)
-	}
-
-	if len(outstandingPerms) == 0 {
-		logger.Debugf("request allowed by existing rule: %+v", req)
-
-		// We don't want to just send back req.Permission() here, since that
-		// could include unrecognized permissions which were discarded, and
-		// were not matched by an existing rule. So only respond with the
-		// permissions which were matched and allowed, the listener will
-		// deny any permissions which were not explicitly included in the
-		// allowed permissions.
-		allowedPermission, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, satisfiedPerms)
+		// Allow any requested permissions which were explicitly allowed by
+		// existing rules (there may be no such permissions) and let the
+		// listener deny all permissions which were not explicitly included in
+		// the allowed permissions.
+		allowedPermission, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, allowedPerms)
 		// Error should not occur, but if it does, allowedPermission is set to
 		// empty, leaving it to the listener to default deny all permissions.
 		return requestReply(req, allowedPermission)
@@ -280,17 +251,17 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		// We weren't able to create a new prompt, so respond with the best
 		// information we have, which is to allow any permissions which were
 		// allowed by existing rules, and let the listener deny the rest.
-		allowedPermission, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, satisfiedPerms)
+		allowedPermission, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, allowedPerms)
 		// Error should not occur, but if it does, allowedPermission is set to
 		// empty, leaving it to the listener to default deny all permissions.
 		return requestReply(req, allowedPermission)
 	}
+
 	if merged {
 		logger.Debugf("new prompt merged with identical existing prompt: %+v", newPrompt)
-		return nil
+	} else {
+		logger.Debugf("adding prompt to internal storage: %+v", newPrompt)
 	}
-
-	logger.Debugf("adding prompt to internal storage: %+v", newPrompt)
 
 	return nil
 }

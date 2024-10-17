@@ -735,10 +735,43 @@ func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constrain
 	return &newRule, nil
 }
 
-// IsPathAllowed checks whether the given path with the given permission is
+// IsRequestAllowed checks whether a request with the given parameters is
+// allowed or denied by existing rules.
+//
+// If any of the given permissions are allowed, they are returned as
+// allowedPerms. If any permissions are denied, then returns anyDenied as true.
+// If any of the given permissions were not matched by an existing rule, then
+// they are returned as outstandingPerms. If an error occurred, returns it.
+func (rdb *RuleDB) IsRequestAllowed(user uint32, snap string, iface string, path string, permissions []string) (allowedPerms []string, anyDenied bool, outstandingPerms []string, err error) {
+	allowedPerms = make([]string, 0, len(permissions))
+	outstandingPerms = make([]string, 0, len(permissions))
+	var errs []error
+	for _, perm := range permissions {
+		allowed, err := isPathPermAllowedByRuleDB(rdb, user, snap, iface, path, perm)
+		switch {
+		case err == nil:
+			if allowed {
+				allowedPerms = append(allowedPerms, perm)
+			} else {
+				anyDenied = true
+			}
+		case errors.Is(err, prompting_errors.ErrNoMatchingRule):
+			outstandingPerms = append(outstandingPerms, perm)
+		default:
+			errs = append(errs, err)
+		}
+	}
+	return allowedPerms, anyDenied, outstandingPerms, strutil.JoinErrors(errs...)
+}
+
+var isPathPermAllowedByRuleDB = func(rdb *RuleDB, user uint32, snap string, iface string, path string, permission string) (bool, error) {
+	return rdb.isPathPermAllowed(user, snap, iface, path, permission)
+}
+
+// isPathPermAllowed checks whether the given path with the given permission is
 // allowed or denied by existing rules for the given user, snap, and interface.
 // If no rule applies, returns prompting_errors.ErrNoMatchingRule.
-func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path string, permission string) (bool, error) {
+func (rdb *RuleDB) isPathPermAllowed(user uint32, snap string, iface string, path string, permission string) (bool, error) {
 	rdb.mutex.RLock()
 	defer rdb.mutex.RUnlock()
 	permissionMap, ok := rdb.permissionDBForUserSnapInterfacePermission(user, snap, iface, permission)
