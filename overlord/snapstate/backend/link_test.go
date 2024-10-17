@@ -117,7 +117,7 @@ apps:
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	_, err := s.be.LinkSnap(info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
+	err := s.be.LinkSnap(info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
 	c.Assert(err, IsNil)
 
 	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
@@ -184,7 +184,7 @@ Exec=foo
 	c.Assert(os.WriteFile(filepath.Join(iconsDir, "snap.hello.png"), []byte(""), 0644), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(iconsDir, "snap.hello.svg"), []byte(""), 0644), IsNil)
 
-	_, err := s.be.LinkSnap(info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
+	err := s.be.LinkSnap(info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
 	c.Assert(err, IsNil)
 
 	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
@@ -239,7 +239,7 @@ Exec=foo
 	c.Assert(os.WriteFile(filepath.Join(iconsDir, "snap.hello.png"), []byte(""), 0644), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(iconsDir, "snap.hello.svg"), []byte(""), 0644), IsNil)
 
-	_, err := s.be.LinkSnap(info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
+	err := s.be.LinkSnap(info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
 	c.Assert(err, IsNil)
 
 	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
@@ -276,9 +276,12 @@ version: 1.0
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	reboot, err := s.be.LinkSnap(info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
+	err := s.be.LinkSnap(info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
 	c.Assert(err, IsNil)
 
+	isUndo := false
+	reboot, err := s.be.MaybeSetNextBoot(info, mockDev, isUndo)
+	c.Assert(err, IsNil)
 	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
 	mountDir := info.MountDir()
@@ -308,13 +311,16 @@ version: 1.0
 `
 	info := snaptest.MockSnapInstance(c, "hello_foo", yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	reboot, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{
+	err := s.be.LinkSnap(info, mockDev, backend.LinkContext{
 		HasOtherInstances: false,
 		// This is required for LinkSnap
 		StateUnlocker: func() (relock func()) { return func() {} },
 	}, s.perfTimings)
 	c.Assert(err, IsNil)
 
+	isUndo := false
+	reboot, err := s.be.MaybeSetNextBoot(info, mockDev, isUndo)
+	c.Assert(err, IsNil)
 	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
 	mountDir := info.MountDir()
@@ -369,7 +375,11 @@ type: base
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	reboot, err := s.be.LinkSnap(info, coreDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
+	err := s.be.LinkSnap(info, coreDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
+	c.Assert(err, IsNil)
+
+	isUndo := false
+	reboot, err := s.be.MaybeSetNextBoot(info, coreDev, isUndo)
 	c.Assert(err, IsNil)
 	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: true})
 }
@@ -391,7 +401,11 @@ type: kernel
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	reboot, err := be.LinkSnap(info, coreDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
+	err := be.LinkSnap(info, coreDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
+	c.Assert(err, IsNil)
+
+	isUndo := false
+	reboot, err := s.be.MaybeSetNextBoot(info, mockDev, isUndo)
 	c.Assert(err, IsNil)
 	c.Check(reboot, DeepEquals, boot.RebootInfo{})
 }
@@ -421,7 +435,7 @@ type: snapd
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	_, err := be.LinkSnap(info, coreDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
+	err := be.LinkSnap(info, coreDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, true)
 }
@@ -449,13 +463,13 @@ apps:
 	}
 	linkCtx := backend.LinkContext{StateUnlocker: fakeUnlocker}
 
-	_, err := s.be.LinkSnap(info, mockDev, linkCtx, s.perfTimings)
+	err := s.be.LinkSnap(info, mockDev, linkCtx, s.perfTimings)
 	c.Assert(err, IsNil)
 	// no hint file, no locking needed
 	c.Check(unlockerCalled, Equals, 1)
 	c.Check(relockCalled, Equals, 1)
 
-	_, err = s.be.LinkSnap(info, mockDev, linkCtx, s.perfTimings)
+	err = s.be.LinkSnap(info, mockDev, linkCtx, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Check(unlockerCalled, Equals, 2)
 	c.Check(relockCalled, Equals, 2)
@@ -496,7 +510,7 @@ apps:
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	_, err := s.be.LinkSnap(info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
+	err := s.be.LinkSnap(info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
 	c.Assert(err, IsNil)
 
 	err = s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null)
@@ -527,7 +541,7 @@ func (s *linkSuite) TestLinkFailsForUnsetRevision(c *C) {
 	info := &snap.Info{
 		SuggestedName: "foo",
 	}
-	_, err := s.be.LinkSnap(info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
+	err := s.be.LinkSnap(info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
 	c.Assert(err, ErrorMatches, `cannot link snap "foo" with unset revision`)
 }
 
@@ -566,7 +580,11 @@ func (s *linkSuite) TestLinkSnapdSnapOnCore(c *C) {
 
 	info, _ := mockSnapdSnapForLink(c)
 
-	reboot, err := s.be.LinkSnap(info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
+	err = s.be.LinkSnap(info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
+	c.Assert(err, IsNil)
+
+	isUndo := false
+	reboot, err := s.be.MaybeSetNextBoot(info, mockDev, isUndo)
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
@@ -675,7 +693,7 @@ func (s *linkCleanupSuite) testLinkCleanupDirOnFail(c *C, dir string) {
 	c.Assert(os.Chmod(dir, 0555), IsNil)
 	defer os.Chmod(dir, 0755)
 
-	_, err := s.be.LinkSnap(s.info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
+	err := s.be.LinkSnap(s.info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
 	c.Assert(err, NotNil)
 	_, isPathError := err.(*os.PathError)
 	_, isLinkError := err.(*os.LinkError)
@@ -720,7 +738,7 @@ func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
 	})
 	defer r()
 
-	_, err := s.be.LinkSnap(s.info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
+	err := s.be.LinkSnap(s.info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
 	c.Assert(err, ErrorMatches, "ouchie")
 
 	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir} {
@@ -740,7 +758,7 @@ func (s *linkCleanupSuite) TestLinkCleansUpDataDirAndSymlinksOnSymlinkFail(c *C)
 	c.Assert(os.Chmod(d, 0555), IsNil)
 	defer os.Chmod(d, 0755)
 
-	_, err := s.be.LinkSnap(s.info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
+	err := s.be.LinkSnap(s.info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
 	c.Assert(err, ErrorMatches, `(?i).*symlink.*permission denied.*`)
 
 	c.Check(s.info.DataDir(), testutil.FileAbsent)
@@ -780,8 +798,12 @@ func (s *linkCleanupSuite) testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C
 		// This is required for LinkSnap
 		StateUnlocker: func() (relock func()) { return func() {} },
 	}
-	reboot, err := s.be.LinkSnap(info, mockDev, linkCtx, s.perfTimings)
+	err = s.be.LinkSnap(info, mockDev, linkCtx, s.perfTimings)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("symlink %s /.*/snapd/current.*: permission denied", info.Revision))
+
+	isUndo := false
+	reboot, err := s.be.MaybeSetNextBoot(info, mockDev, isUndo)
+	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
 	checker := testutil.FilePresent
@@ -837,7 +859,7 @@ version: 1.0
 
 	snapinstance := snaptest.MockSnapInstance(c, "instance-snap_foo", yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	_, err := s.be.LinkSnap(snapinstance, mockDev,
+	err := s.be.LinkSnap(snapinstance, mockDev,
 		backend.LinkContext{
 			HasOtherInstances: tc.otherInstances,
 			// This is required for LinkSnap
@@ -896,7 +918,11 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 		return filepath.Join(dirs.SnapServicesDir, filepath.Base(p))
 	}
 
-	reboot, err := s.be.LinkSnap(info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
+	err = s.be.LinkSnap(info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
+	c.Assert(err, IsNil)
+
+	isUndo := false
+	reboot, err := s.be.MaybeSetNextBoot(info, mockDev, isUndo)
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
@@ -1009,7 +1035,7 @@ apps:
 		// This is required for LinkSnap
 		StateUnlocker: func() (relock func()) { return func() {} },
 	}
-	_, err := s.be.LinkSnap(info, mockDev, linkCtxWithTooling, s.perfTimings)
+	err := s.be.LinkSnap(info, mockDev, linkCtxWithTooling, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.hello.svc.service"), testutil.FileContains,
 		`Wants=usr-lib-snapd.mount
@@ -1025,7 +1051,7 @@ After=usr-lib-snapd.mount`)
 		// This is required for LinkSnap
 		StateUnlocker: func() (relock func()) { return func() {} },
 	}
-	_, err = s.be.LinkSnap(info, mockDev, linkCtxNoTooling, s.perfTimings)
+	err = s.be.LinkSnap(info, mockDev, linkCtxNoTooling, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.hello.svc.service"), Not(testutil.FileContains), `usr-lib-snapd.mount`)
 }
@@ -1051,7 +1077,7 @@ apps:
 		// This is required for LinkSnap
 		StateUnlocker: func() (relock func()) { return func() {} },
 	}
-	_, err = s.be.LinkSnap(info, mockDev, linkCtxWithGroup, s.perfTimings)
+	err = s.be.LinkSnap(info, mockDev, linkCtxWithGroup, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.hello.svc.service"), testutil.FileContains,
 		"\nSlice=snap.foogroup.slice\n")
@@ -1104,7 +1130,7 @@ type: snapd
 	be := backend.NewForPreseedMode()
 	coreDev := boottest.MockUC20Device("run", nil)
 
-	_, err = be.LinkSnap(info, coreDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
+	err = be.LinkSnap(info, coreDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
 	c.Assert(err, ErrorMatches, `BROKEN`)
 	c.Assert(restartDone, Equals, true)
 
@@ -1245,7 +1271,7 @@ func (s *linkSuite) TestKillSnapApps(c *C) {
 }
 
 func (s *linkSuite) TestLinkSnapNilStateUnlockerError(c *C) {
-	_, err := s.be.LinkSnap(nil, nil, backend.LinkContext{}, nil)
+	err := s.be.LinkSnap(nil, nil, backend.LinkContext{}, nil)
 	c.Assert(err, ErrorMatches, "internal error: LinkContext.StateUnlocker cannot be nil")
 }
 

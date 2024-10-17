@@ -1572,6 +1572,10 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoRestoresCurrent(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
 		},
 		{
+			op:     "maybe-set-next-boot",
+			isUndo: true,
+		},
+		{
 			op: "update-aliases",
 		},
 	}

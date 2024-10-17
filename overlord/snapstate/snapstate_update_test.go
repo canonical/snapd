@@ -130,6 +130,9 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
 		{
+			op: "maybe-set-next-boot",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
@@ -270,6 +273,7 @@ func (s *snapmgrTestSuite) testUpdateScenario(c *C, desc string, t switchScenari
 		"setup-profiles:Doing",
 		"candidate",
 		"link-snap",
+		"maybe-set-next-boot",
 		"auto-connect:Doing",
 		"update-aliases",
 		"cleanup-trash",
@@ -414,6 +418,9 @@ func (s *snapmgrTestSuite) testUpdateCanDoBackwards(c *C, refreshAppAwarenessUX 
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+		},
+		{
+			op: "maybe-set-next-boot",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -932,6 +939,7 @@ func (s *snapmgrTestSuite) testUpdateAmendRunThrough(c *C, tryMode bool, compone
 		"setup-profiles:Doing",
 		"candidate",
 		"link-snap",
+		"maybe-set-next-boot",
 	}...)
 	for range components {
 		ops = append(ops, "link-component")
@@ -1189,6 +1197,9 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "services-snap/11"),
+		},
+		{
+			op: "maybe-set-next-boot",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -1564,6 +1575,9 @@ func (s *snapmgrTestSuite) testParallelInstanceUpdateRunThrough(c *C, refreshApp
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "services-snap_instance/11"),
+		},
+		{
+			op: "maybe-set-next-boot",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -2501,6 +2515,10 @@ func (s *snapmgrTestSuite) testUpdateUndoRunThrough(c *C, refreshAppAwarenessUX 
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
+		{
+			op:     "maybe-set-next-boot",
+			isUndo: true,
+		},
 	}...)
 	// aliases removal undo is skipped when refresh-app-awareness-ux is enabled
 	if !refreshAppAwarenessUX {
@@ -2817,6 +2835,9 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
 		{
+			op: "maybe-set-next-boot",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
@@ -2865,6 +2886,10 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+		},
+		{
+			op:     "maybe-set-next-boot",
+			isUndo: true,
 		},
 	}...)
 	// aliases removal undo is skipped when refresh-app-awareness-ux is enabled
@@ -14383,6 +14408,9 @@ func (s *snapmgrTestSuite) TestUpdateBackToPrevRevision(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, instanceName, prevSnapRev.String()),
 		},
 		{
+			op: "maybe-set-next-boot",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  instanceName,
 			revno: prevSnapRev,
@@ -14604,6 +14632,9 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 			path: filepath.Join(dirs.SnapMountDir, instanceName, prevSnapRev.String()),
 		},
 		{
+			op: "maybe-set-next-boot",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  instanceName,
 			revno: prevSnapRev,
@@ -14646,6 +14677,10 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 			{
 				op:   "link-snap",
 				path: filepath.Join(dirs.SnapMountDir, instanceName, currentSnapRev.String()),
+			},
+			{
+				op:     "maybe-set-next-boot",
+				isUndo: true,
 			},
 			{
 				op: "update-aliases",
@@ -14999,6 +15034,9 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, instanceName, prevSnapRev.String()),
 		},
+		{
+			op: "maybe-set-next-boot",
+		},
 	}...)
 
 	for i, compName := range components {
@@ -15338,6 +15376,9 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevisionAddComponen
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, instanceName, prevSnapRev.String()),
+		},
+		{
+			op: "maybe-set-next-boot",
 		},
 		{
 			op:   "link-component",
@@ -15885,6 +15926,9 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, instanceName, newSnapRev.String()),
+		},
+		{
+			op: "maybe-set-next-boot",
 		},
 	}...)
 
@@ -16531,6 +16575,9 @@ components:
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, instanceName, newSnapRev.String()),
 		},
+		{
+			op: "maybe-set-next-boot",
+		},
 	}...)
 
 	for _, cs := range expectedComponentStates {
@@ -16976,6 +17023,9 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughOnlyComponentUpdate
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, instanceName, currentSnapRev.String()),
+		},
+		{
+			op: "maybe-set-next-boot",
 		},
 	}...)
 
