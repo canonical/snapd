@@ -147,6 +147,14 @@ func MockSnapstateInstallWithGoal(mock func(ctx context.Context, st *state.State
 	}
 }
 
+func MockSnapstateUpdateOne(mock func(ctx context.Context, st *state.State, goal snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) (*state.TaskSet, error)) (restore func()) {
+	old := snapstateUpdateOne
+	snapstateUpdateOne = mock
+	return func() {
+		snapstateUpdateOne = old
+	}
+}
+
 func MockSnapstateInstallComponents(mock func(ctx context.Context, st *state.State, names []string, info *snap.Info, opts snapstate.Options) ([]*state.TaskSet, error)) (restore func()) {
 	old := snapstateInstallComponents
 	snapstateInstallComponents = mock
@@ -163,19 +171,19 @@ func MockSnapstateStoreInstallGoal(mock func(snaps ...snapstate.StoreSnap) snaps
 	}
 }
 
+func MockSnapstateStoreUpdateGoal(mock func(snaps ...snapstate.StoreUpdate) snapstate.UpdateGoal) (restore func()) {
+	old := snapstateStoreUpdateGoal
+	snapstateStoreUpdateGoal = mock
+	return func() {
+		snapstateStoreUpdateGoal = old
+	}
+}
+
 func MockSnapstateInstallPath(mock func(*state.State, *snap.SideInfo, string, string, string, snapstate.Flags, snapstate.PrereqTracker) (*state.TaskSet, *snap.Info, error)) (restore func()) {
 	oldSnapstateInstallPath := snapstateInstallPath
 	snapstateInstallPath = mock
 	return func() {
 		snapstateInstallPath = oldSnapstateInstallPath
-	}
-}
-
-func MockSnapstateUpdate(mock func(*state.State, string, *snapstate.RevisionOptions, int, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
-	oldSnapstateUpdate := snapstateUpdate
-	snapstateUpdate = mock
-	return func() {
-		snapstateUpdate = oldSnapstateUpdate
 	}
 }
 
@@ -211,11 +219,11 @@ func MockSnapstateRevertToRevision(mock func(*state.State, string, snap.Revision
 	}
 }
 
-func MockSnapstateUpdateMany(mock func(context.Context, *state.State, []string, []*snapstate.RevisionOptions, int, *snapstate.Flags) ([]string, []*state.TaskSet, error)) (restore func()) {
-	oldSnapstateUpdateMany := snapstateUpdateMany
-	snapstateUpdateMany = mock
+func MockSnapstateUpdateWithGoal(mock func(context.Context, *state.State, snapstate.UpdateGoal, func(*snap.Info, *snapstate.SnapState) bool, snapstate.Options) ([]string, *snapstate.UpdateTaskSets, error)) (restore func()) {
+	oldSnapstateUpdateWithGoal := snapstateUpdateWithGoal
+	snapstateUpdateWithGoal = mock
 	return func() {
-		snapstateUpdateMany = oldSnapstateUpdateMany
+		snapstateUpdateWithGoal = oldSnapstateUpdateWithGoal
 	}
 }
 

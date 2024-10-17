@@ -150,8 +150,9 @@ var (
 	snapstateInstallComponents              = snapstate.InstallComponents
 	snapstateRefreshCandidates              = snapstate.RefreshCandidates
 	snapstateTryPath                        = snapstate.TryPath
-	snapstateUpdate                         = snapstate.Update
-	snapstateUpdateMany                     = snapstate.UpdateMany
+	snapstateStoreUpdateGoal                = snapstate.StoreUpdateGoal
+	snapstateUpdateWithGoal                 = snapstate.UpdateWithGoal
+	snapstateUpdateOne                      = snapstate.UpdateOne
 	snapstateRemove                         = snapstate.Remove
 	snapstateRemoveMany                     = snapstate.RemoveMany
 	snapstateResolveValSetsEnforcementError = snapstate.ResolveValidationSetsEnforcementError

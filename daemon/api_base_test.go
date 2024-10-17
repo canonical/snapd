@@ -259,6 +259,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	}))
 
 	s.AddCleanup(daemon.MockSnapstateStoreInstallGoal(newStoreInstallGoalRecorder))
+	s.AddCleanup(daemon.MockSnapstateStoreUpdateGoal(newStoreUpdateGoalRecorder))
 }
 
 type storeInstallGoalRecorder struct {
@@ -270,6 +271,26 @@ func newStoreInstallGoalRecorder(snaps ...snapstate.StoreSnap) snapstate.Install
 	return &storeInstallGoalRecorder{
 		snaps:       snaps,
 		InstallGoal: snapstate.StoreInstallGoal(snaps...),
+	}
+}
+
+type storeUpdateGoalRecorder struct {
+	snapstate.UpdateGoal
+	snaps []snapstate.StoreUpdate
+}
+
+func (s *storeUpdateGoalRecorder) names() []string {
+	names := make([]string, 0, len(s.snaps))
+	for _, snap := range s.snaps {
+		names = append(names, snap.InstanceName)
+	}
+	return names
+}
+
+func newStoreUpdateGoalRecorder(snaps ...snapstate.StoreUpdate) snapstate.UpdateGoal {
+	return &storeUpdateGoalRecorder{
+		snaps:      snaps,
+		UpdateGoal: snapstate.StoreUpdateGoal(snaps...),
 	}
 }
 
@@ -401,6 +422,9 @@ func newFakeSnapManager(st *state.State, runner *state.TaskRunner) *fakeSnapMana
 	}, nil)
 	runner.AddHandler("fake-install-snap-error", func(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("fake-install-snap-error errored")
+	}, nil)
+	runner.AddHandler("fake-refresh-snap", func(t *state.Task, _ *tomb.Tomb) error {
+		return nil
 	}, nil)
 
 	return &fakeSnapManager{}
