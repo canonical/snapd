@@ -14,7 +14,6 @@ import (
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
-	"github.com/snapcore/snapd/testutil"
 	. "gopkg.in/check.v1"
 )
 
@@ -381,41 +380,6 @@ func (s *targetTestSuite) TestUpdateSnapNotInstalled(c *C) {
 
 	_, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" is not installed`)
-}
-
-func (s *targetTestSuite) TestUpdateAdditionalComponentAlreadyInstalled(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
-		RealName: "snap-1",
-		SnapID:   snaptest.AssertedSnapID("snap-1"),
-		Revision: snap.R(7),
-	}})
-
-	seq.AddComponentForRevision(snap.R(7), &sequence.ComponentState{
-		SideInfo: &snap.ComponentSideInfo{
-			Component: naming.NewComponentRef("snap-1", "comp-1"),
-			Revision:  snap.R(1),
-		},
-		CompType: snap.StandardComponent,
-	})
-
-	snapstate.Set(s.state, "snap-1", &snapstate.SnapState{
-		Active:          true,
-		TrackingChannel: "latest/stable",
-		Sequence:        seq,
-		Current:         snap.R(7),
-		SnapType:        "app",
-	})
-
-	goal := snapstate.StoreUpdateGoal(snapstate.StoreUpdate{
-		InstanceName:         "snap-1",
-		AdditionalComponents: []string{"comp-1"},
-	})
-
-	_, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
-	c.Assert(err, testutil.ErrorIs, snap.AlreadyInstalledComponentError{Component: "comp-1"})
 }
 
 func (s *targetTestSuite) TestInvalidPathGoals(c *C) {

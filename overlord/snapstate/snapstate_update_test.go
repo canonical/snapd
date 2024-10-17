@@ -15191,6 +15191,16 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughAdditionalComponent
 	})
 }
 
+func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughAdditionalComponentsAlreadyInstalled(c *C) {
+	s.testUpdateWithComponentsRunThrough(c, updateWithComponentsOpts{
+		instanceKey:           "key",
+		components:            []string{"standard-component"},
+		postRefreshComponents: []string{"standard-component"},
+		additionalComponents:  []string{"standard-component"},
+		refreshAppAwarenessUX: true,
+	})
+}
+
 func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughAdditionalComponentsUndo(c *C) {
 	s.testUpdateWithComponentsRunThrough(c, updateWithComponentsOpts{
 		instanceKey:           "key",
