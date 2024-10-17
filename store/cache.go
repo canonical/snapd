@@ -165,54 +165,46 @@ func (cm *CacheManager) cleanup() error {
 		return err
 	}
 
-	// we need the modtime so convert to FileInfo
-	fil := make([]os.FileInfo, 0, len(entries))
+	if len(entries) <= cm.maxItems {
+		return nil
+	}
+
+	// most of the entries will have more than one hardlink, but a minority may
+	// be referenced only the cache and thus be a candidate for pruning
+	pruneCandidates := make([]os.FileInfo, 0, len(entries)/5)
+
 	for _, entry := range entries {
 		fi, err := entry.Info()
 		if err != nil {
 			return err
 		}
 
-		fil = append(fil, fi)
-	}
-
-	if len(fil) <= cm.maxItems {
-		return nil
-	}
-
-	numOwned := 0
-	for _, fi := range fil {
 		n, err := hardLinkCount(fi)
 		if err != nil {
 			logger.Noticef("cannot inspect cache: %s", err)
 		}
-		// Only count the file if it is not referenced elsewhere in the filesystem
+		// If the file is referenced in the filesystem somewhere else our copy
+		// is "free" so skip it.
 		if n <= 1 {
-			numOwned++
+			pruneCandidates = append(pruneCandidates, fi)
 		}
 	}
 
-	if numOwned <= cm.maxItems {
+	if len(pruneCandidates) <= cm.maxItems {
+		// nothing to prune
 		return nil
 	}
 
 	var lastErr error
-	sort.Sort(changesByMtime(fil))
+	sort.Sort(changesByMtime(pruneCandidates))
+	numOwned := len(pruneCandidates)
 	deleted := 0
-	for _, fi := range fil {
+	for _, fi := range pruneCandidates {
 		path := cm.path(fi.Name())
-		n, err := hardLinkCount(fi)
-		if err != nil {
-			logger.Noticef("cannot inspect cache: %s", err)
-		}
-		// If the file is referenced in the filesystem somewhere
-		// else our copy is "free" so skip it. If there is any
-		// error we cleanup the file (it is just a cache afterall).
-		if n > 1 {
-			continue
-		}
 		if err := osRemove(path); err != nil {
 			if !os.IsNotExist(err) {
+				// If there is any error we cleanup the file (it is just a cache
+				// afterall).
 				logger.Noticef("cannot cleanup cache: %s", err)
 				lastErr = err
 			}
