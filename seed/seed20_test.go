@@ -764,7 +764,7 @@ func (s *seed20Suite) TestLoadMetaCore20DelegatedSnap(c *C) {
 		"provenance": []interface{}{"delegated-prov"},
 		"on-store":   []interface{}{"my-brand-store"},
 	}
-	s.MakeAssertedDelegatedSnap(c, snapYaml["required20"]+"\nprovenance: delegated-prov\n", nil, snap.R(1), "developerid", "my-brand", "delegated-prov", ra, s.StoreSigning.Database)
+	s.MakeAssertedDelegatedSnap(c, snapYaml["required20"]+"\nprovenance: delegated-prov\n", nil, snap.R(1), "developerid", "my-brand", "delegated-prov", "delegated-prov", ra, s.StoreSigning.Database)
 
 	s.setSnapContact("required20", "mailto:author@example.com")
 
@@ -869,7 +869,7 @@ func (s *seed20Suite) TestLoadMetaCore20DelegatedSnapProvenanceMismatch(c *C) {
 		"provenance": []interface{}{"delegated-prov"},
 		"on-store":   []interface{}{"my-brand-store"},
 	}
-	s.MakeAssertedDelegatedSnap(c, snapYaml["required20"]+"\nprovenance: delegated-prov-other\n", nil, snap.R(1), "developerid", "my-brand", "delegated-prov", ra, s.StoreSigning.Database)
+	s.MakeAssertedDelegatedSnap(c, snapYaml["required20"]+"\nprovenance: delegated-prov-other\n", nil, snap.R(1), "developerid", "my-brand", "delegated-prov", "delegated-prov", ra, s.StoreSigning.Database)
 
 	sysLabel := "20220705"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
@@ -918,7 +918,7 @@ func (s *seed20Suite) TestLoadMetaCore20DelegatedSnapDeviceMismatch(c *C) {
 		"provenance": []interface{}{"delegated-prov"},
 		"on-model":   []interface{}{"my-brand/my-other-model"},
 	}
-	s.MakeAssertedDelegatedSnap(c, snapYaml["required20"]+"\nprovenance: delegated-prov\n", nil, snap.R(1), "developerid", "my-brand", "delegated-prov", ra, s.StoreSigning.Database)
+	s.MakeAssertedDelegatedSnap(c, snapYaml["required20"]+"\nprovenance: delegated-prov\n", nil, snap.R(1), "developerid", "my-brand", "delegated-prov", "delegated-prov", ra, s.StoreSigning.Database)
 
 	sysLabel := "20220705"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
@@ -4387,7 +4387,8 @@ func (s *seed20Suite) TestModeSnaps(c *C) {
 }
 
 type seedOpts struct {
-	delegated bool
+	delegated                  bool
+	defaultComponentProvenance bool
 }
 
 func (s *seed20Suite) makeCore20SeedWithComps(c *C, sysLabel string, opts seedOpts) string {
@@ -4404,10 +4405,16 @@ func (s *seed20Suite) makeCore20SeedWithComps(c *C, sysLabel string, opts seedOp
 			"account-id": "my-brand",
 			"provenance": []interface{}{"delegated-prov", "other-prov"},
 		}
+
+		resourceProv := "delegated-prov"
+		if opts.defaultComponentProvenance {
+			resourceProv = ""
+		}
+
 		s.MakeAssertedDelegatedSnapWithComps(c,
 			snapYaml["required20"]+"\nprovenance: delegated-prov\n",
 			nil, snap.R(1), compRevs, "developerid", "my-brand",
-			"delegated-prov", ra, s.StoreSigning.Database)
+			"delegated-prov", resourceProv, ra, s.StoreSigning.Database)
 	} else {
 		s.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["required20"], nil,
 			snap.R(11), compRevs, "canonical", s.StoreSigning.Database)
@@ -4798,7 +4805,10 @@ func (s *seed20Suite) TestLoadMetaWithComponentsUnmatchedProvenanceInMetadata(c 
 	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
 
 	sysLabel := "20240805"
-	s.makeCore20SeedWithComps(c, sysLabel, seedOpts{delegated: true})
+	s.makeCore20SeedWithComps(c, sysLabel, seedOpts{
+		delegated:                  true,
+		defaultComponentProvenance: true,
+	})
 
 	seed20, err := seed.Open(s.SeedDir, sysLabel)
 	c.Assert(err, IsNil)
