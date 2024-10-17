@@ -1,0 +1,29 @@
+# This file is used to define which features, groups and tags are available in spread tests
+# All these definitions are cross-checked to ensure tests integrity.
+# These definitions can be used to define a subset of tests to run but also as a way
+# of coverage documentation.
+
+definitions:
+    # Features refer to product caracteristics being tested
+    # The main porpoise is to know the features testing coverage
+    features: [
+        interfaces,           # snap interfaces
+        snap_refresh,         # snap refresh and snap auto refreshes
+        snap_install          # snap install command
+        ]
+
+    # Groups are set of tests orthogonal to the suites definition
+    # The main porpoise is to run an independent subset of tests to avoid test duplication 
+    groups: [
+        core_validation,      # Set of tests used to validate ubuntu core images
+        sanity                # Minimal set of tests used to validate a system with more coverage than the smoke tests
+        ]
+
+    # Tags are free labels used to identify group of tests
+    # Those can be used to identify tests that are exercising specific OS features, or are interacting with
+    # an external dependency among others. 
+    tags: [
+        networking,           # OS networking, network managers 
+        os_errors             # system errors, segmentation faults, panics, etc 
+        ]
+  
