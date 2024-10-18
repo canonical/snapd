@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
@@ -47,6 +48,18 @@ type FDEManager struct {
 
 type fdeMgrKey struct{}
 
+func initModeFromModeenv(m *FDEManager) error {
+	modeenv, err := maybeReadModeenv()
+	if err != nil {
+		return err
+	}
+
+	if modeenv != nil {
+		m.mode = modeenv.Mode
+	}
+	return nil
+}
+
 func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 	m := &FDEManager{
 		state:   st,
@@ -56,13 +69,8 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 	boot.ResealKeyForBootChains = m.resealKeyForBootChains
 
 	if !m.preseed {
-		modeenv, err := maybeReadModeenv()
-		if err != nil {
+		if err := initModeFromModeenv(m); err != nil {
 			return nil, err
-		}
-
-		if modeenv != nil {
-			m.mode = modeenv.Mode
 		}
 	}
 
@@ -104,6 +112,13 @@ func (m *FDEManager) StartUp() error {
 		}
 	}
 	return nil
+}
+
+// ReloadModeenv is a helper function for forcing a reload of modeenv. Only
+// useful in integration testing.
+func (m *FDEManager) ReloadModeenv() error {
+	osutil.MustBeTestBinary("ReloadModeenv can only be called from tests")
+	return initModeFromModeenv(m)
 }
 
 func (m *FDEManager) resealKeyForBootChains(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
