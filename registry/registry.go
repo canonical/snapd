@@ -30,6 +30,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -60,26 +61,11 @@ func newAccessType(access string) (accessType, error) {
 }
 
 type NotFoundError struct {
-	Account      string
-	RegistryName string
-	View         string
-	Operation    string
-	Requests     []string
-	Cause        string
+	msg string
 }
 
 func (e *NotFoundError) Error() string {
-	var reqStr string
-	switch len(e.Requests) {
-	case 0:
-		// leave empty, so the message reflects the request gets the whole view
-	case 1:
-		reqStr = fmt.Sprintf(" %q in", e.Requests[0])
-	default:
-		reqStr = fmt.Sprintf(" %s in", strutil.Quoted(e.Requests))
-	}
-
-	return fmt.Sprintf("cannot %s%s registry view %s/%s/%s: %s", e.Operation, reqStr, e.Account, e.RegistryName, e.View, e.Cause)
+	return e.msg
 }
 
 func (e *NotFoundError) Is(err error) bool {
@@ -87,20 +73,8 @@ func (e *NotFoundError) Is(err error) bool {
 	return ok
 }
 
-func notFoundErrorFrom(v *View, op, request, errMsg string) *NotFoundError {
-	var req []string
-	if request != "" {
-		req = []string{request}
-	}
-
-	return &NotFoundError{
-		Account:      v.registry.Account,
-		RegistryName: v.registry.Name,
-		View:         v.Name,
-		Operation:    op,
-		Requests:     req,
-		Cause:        errMsg,
-	}
+func NewNotFoundError(msg string, v ...any) *NotFoundError {
+	return &NotFoundError{msg: fmt.Sprintf(msg, v...)}
 }
 
 type BadRequestError struct {
@@ -566,7 +540,7 @@ func (v *View) Set(databag DataBag, request string, value interface{}) error {
 	}
 
 	if len(matches) == 0 {
-		return notFoundErrorFrom(v, "set", request, "no matching write rule")
+		return NewNotFoundError(i18n.G("cannot set %q through %s/%s/%s: no matching rule"), request, v.registry.Account, v.registry.Name, v.Name)
 	}
 
 	// sort less nested paths before more nested ones so that writes aren't overwritten
@@ -633,7 +607,7 @@ func (v *View) Unset(databag DataBag, request string) error {
 	}
 
 	if len(matches) == 0 {
-		return notFoundErrorFrom(v, "unset", request, "no matching write rule")
+		return NewNotFoundError(i18n.G("cannot unset %q through %s/%s/%s: no matching rule"), request, v.registry.Account, v.registry.Name, v.Name)
 	}
 
 	for _, match := range matches {
@@ -1033,8 +1007,12 @@ func (v *View) Get(databag DataBag, request string) (interface{}, error) {
 	}
 
 	if merged == nil {
-		// TODO: improve this error message
-		return nil, notFoundErrorFrom(v, "get", request, "matching rules don't map to any values")
+		var reqStr string
+		if request != "" {
+			reqStr = fmt.Sprintf(" %q through", request)
+		}
+
+		return nil, NewNotFoundError(i18n.G("cannot get%s %s/%s/%s: no view data"), reqStr, v.registry.Account, v.registry.Name, v.Name)
 	}
 
 	return merged, nil
@@ -1118,7 +1096,7 @@ func (v *View) matchGetRequest(request string) (matches []requestMatch, err erro
 	}
 
 	if len(matches) == 0 {
-		return nil, notFoundErrorFrom(v, "get", request, "no matching read rule")
+		return nil, NewNotFoundError(i18n.G("cannot get %q through %s/%s/%s: no matching rule"), request, v.registry.Account, v.registry.Name, v.Name)
 	}
 
 	// sort matches by namespace (unmatched suffix) to ensure that nested matches

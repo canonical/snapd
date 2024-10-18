@@ -241,7 +241,7 @@ func setRegistryValues(ctx *hookstate.Context, plugName string, requests map[str
 		return err
 	}
 
-	view, err := getRegistryView(ctx, account, registryName, viewName)
+	view, err := registrystateGetView(ctx.State(), account, registryName, viewName)
 	if err != nil {
 		return err
 	}
