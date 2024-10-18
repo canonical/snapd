@@ -240,3 +240,13 @@ func (s *fdeMgrSuite) TestUpdateReseal(c *C) {
 	c.Check(containerRole.BootModes, DeepEquals, []string{"run"})
 	c.Check(containerRole.TPM2PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-profile"`))
 }
+
+func (s *fdeMgrSuite) TestManagerPreseeding(c *C) {
+	defer snapdenv.MockPreseeding(true)()
+
+	manager := fdestate.Manager(s.st, s.runner)
+
+	// neither startup nor ensure fails
+	c.Assert(manager.StartUp(), IsNil)
+	c.Assert(manager.Ensure(), IsNil)
+}
