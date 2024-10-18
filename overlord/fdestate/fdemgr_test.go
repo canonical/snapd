@@ -63,6 +63,15 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 		func(updateState backend.StateUpdater, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 			panic("BackendResealKeyForBootChains not mocked")
 		}))
+	s.AddCleanup(fdestate.MockDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
+		panic("MockDMCryptUUIDFromMountPoint is not mocked")
+	}))
+	s.AddCleanup(fdestate.MockGetPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
+		panic("GetPrimaryKeyHMAC is not mocked")
+	}))
+	s.AddCleanup(fdestate.MockVerifyPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash, salt, digest []byte) (bool, error) {
+		panic("VerifyPrimaryKeyHMAC is not mocked")
+	}))
 }
 
 type instrumentedUnlocker struct {
