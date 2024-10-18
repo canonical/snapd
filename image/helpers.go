@@ -75,22 +75,49 @@ func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, comps []CompI
 
 	// fetch component assertions
 	for _, comp := range comps {
-		sha3_384, _, err := asserts.SnapFileSHA3_384(comp.Path)
-		if err != nil {
+		if err := FetchAndCheckComponentAssertions(comp, info, model, f, db); err != nil {
 			return nil, err
 		}
-
-		if err := snapasserts.FetchComponentAssertions(
-			f, &info.SideInfo, &comp.Info.ComponentSideInfo,
-			sha3_384, expectedProv); err != nil {
-			return nil, err
-		}
-
-		// TODO:COMPS: do similar cross check for components
-		// as what is done for snaps in snapasserts.CrossCheck
 	}
 
 	return a.(*asserts.SnapDeclaration), nil
+}
+
+// FetchAndCheckSnapAssertions fetches and cross checks the snap assertions
+// matching the given component file using the provided asserts.Fetcher and
+// assertion database. The optional model assertion must be passed for full
+// cross checks.
+func FetchAndCheckComponentAssertions(comp CompInfoPath, info *snap.Info, model *asserts.Model, f asserts.Fetcher, db asserts.RODatabase) error {
+	sha3_384, size, err := asserts.SnapFileSHA3_384(comp.Path)
+	if err != nil {
+		return err
+	}
+
+	if err := snapasserts.FetchComponentAssertions(
+		f,
+		&info.SideInfo,
+		&comp.Info.ComponentSideInfo,
+		sha3_384,
+		comp.Info.Provenance(),
+	); err != nil {
+		return err
+	}
+
+	resRev, err := snapasserts.CrossCheckResource(
+		comp.Info.Component.ComponentName,
+		sha3_384,
+		comp.Info.Provenance(),
+		size,
+		&comp.Info.ComponentSideInfo,
+		&info.SideInfo,
+		model,
+		db,
+	)
+	if err != nil {
+		return err
+	}
+
+	return snapasserts.CheckComponentProvenanceWithVerifiedRevision(comp.Path, resRev)
 }
 
 // var so that it can be mocked for tests

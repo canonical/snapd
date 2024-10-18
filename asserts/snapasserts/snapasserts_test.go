@@ -1074,9 +1074,9 @@ func (s *snapassertsSuite) TestCrossCheckResource(c *C) {
 		"timestamp":         time.Now().Format(time.RFC3339),
 	}
 
-	resourceRev, err := s.storeSigning.Sign(asserts.SnapResourceRevisionType, revHeaders, nil, "")
+	expectedResourceRev, err := s.storeSigning.Sign(asserts.SnapResourceRevisionType, revHeaders, nil, "")
 	c.Assert(err, IsNil)
-	err = s.localDB.Add(resourceRev)
+	err = s.localDB.Add(expectedResourceRev)
 	c.Assert(err, IsNil)
 
 	pairHeaders := map[string]interface{}{
@@ -1104,8 +1104,9 @@ func (s *snapassertsSuite) TestCrossCheckResource(c *C) {
 	}
 
 	// everything cross checks, with the regular snap name
-	err = snapasserts.CrossCheckResource(resourceName, digest, "", size, csi, si, nil, s.localDB)
+	resourceRev, err := snapasserts.CrossCheckResource(resourceName, digest, "", size, csi, si, nil, s.localDB)
 	c.Assert(err, IsNil)
+	c.Assert(resourceRev, DeepEquals, expectedResourceRev)
 }
 
 func (s *snapassertsSuite) TestCrossCheckResourceMissingRevisionAssertion(c *C) {
@@ -1130,7 +1131,7 @@ func (s *snapassertsSuite) testCrossCheckResourceMissingRevisionAssertion(c *C, 
 		Revision:  snap.R(24),
 	}
 
-	err := snapasserts.CrossCheckResource(resourceName, digest, provenance, uint64(1024), csi, si, nil, s.localDB)
+	_, err := snapasserts.CrossCheckResource(resourceName, digest, provenance, uint64(1024), csi, si, nil, s.localDB)
 	c.Assert(err, NotNil)
 
 	var suffix string
@@ -1186,9 +1187,9 @@ func (s *snapassertsSuite) TestCrossCheckResourceProvenance(c *C) {
 		"provenance":        provenance,
 	}
 
-	resourceRev, err := s.dev1Signing.Sign(asserts.SnapResourceRevisionType, revHeaders, nil, "")
+	expectedResourceRev, err := s.dev1Signing.Sign(asserts.SnapResourceRevisionType, revHeaders, nil, "")
 	c.Assert(err, IsNil)
-	err = s.localDB.Add(resourceRev)
+	err = s.localDB.Add(expectedResourceRev)
 	c.Assert(err, IsNil)
 
 	pairHeaders := map[string]interface{}{
@@ -1217,8 +1218,9 @@ func (s *snapassertsSuite) TestCrossCheckResourceProvenance(c *C) {
 		Revision:  snap.R(24),
 	}
 
-	err = snapasserts.CrossCheckResource(resourceName, digest, provenance, size, csi, si, nil, s.localDB)
+	resourceRev, err := snapasserts.CrossCheckResource(resourceName, digest, provenance, size, csi, si, nil, s.localDB)
 	c.Assert(err, IsNil)
+	c.Assert(resourceRev, DeepEquals, expectedResourceRev)
 
 	// update the snap-decl with a mismatch provenance and check that the cross
 	// check fails
@@ -1242,7 +1244,7 @@ func (s *snapassertsSuite) TestCrossCheckResourceProvenance(c *C) {
 	err = s.localDB.Add(snapDecl)
 	c.Assert(err, IsNil)
 
-	err = snapasserts.CrossCheckResource(resourceName, digest, provenance, size, csi, si, nil, s.localDB)
+	_, err = snapasserts.CrossCheckResource(resourceName, digest, provenance, size, csi, si, nil, s.localDB)
 	c.Assert(err, ErrorMatches, `snap resource \"standard-component\" revision assertion with provenance \"prov\" is not signed by an authority authorized on this device:.*`)
 }
 
@@ -1336,9 +1338,9 @@ func (s *snapassertsSuite) TestCrossCheckResourceErrors(c *C) {
 		err = localDB.Add(snapDecl)
 		c.Assert(err, IsNil)
 
-		resourceRev, err := s.storeSigning.Sign(asserts.SnapResourceRevisionType, revHeaders, nil, "")
+		expectedResourceRev, err := s.storeSigning.Sign(asserts.SnapResourceRevisionType, revHeaders, nil, "")
 		c.Assert(err, IsNil)
-		err = localDB.Add(resourceRev)
+		err = localDB.Add(expectedResourceRev)
 		c.Assert(err, IsNil)
 
 		resourcePair, err := s.storeSigning.Sign(asserts.SnapResourcePairType, pairHeaders, nil, "")
@@ -1357,8 +1359,11 @@ func (s *snapassertsSuite) TestCrossCheckResourceErrors(c *C) {
 		}
 
 		// everything cross checks, with the regular snap name
-		err = snapasserts.CrossCheckResource(resourceName, digest, "", size, csi, si, nil, localDB)
+		resourceRev, err := snapasserts.CrossCheckResource(resourceName, digest, "", size, csi, si, nil, localDB)
 		c.Assert(err, ErrorMatches, t.err)
+		if err == nil {
+			c.Assert(resourceRev, DeepEquals, expectedResourceRev)
+		}
 	}
 }
 

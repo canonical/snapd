@@ -3713,7 +3713,7 @@ func (s *imageSuite) TestSetupSeedCore20DelegatedSnap(c *C) {
 		"account-id": "my-brand",
 		"provenance": []interface{}{"delegated-prov"},
 	}
-	s.MakeAssertedDelegatedSnap(c, seedtest.SampleSnapYaml["required20"]+"\nprovenance: delegated-prov\n", nil, snap.R(1), "my-brand", "my-brand", "delegated-prov", ra, s.StoreSigning.Database)
+	s.MakeAssertedDelegatedSnap(c, seedtest.SampleSnapYaml["required20"]+"\nprovenance: delegated-prov\n", nil, snap.R(1), "my-brand", "my-brand", "delegated-prov", "delegated-prov", ra, s.StoreSigning.Database)
 
 	opts := &image.Options{
 		PrepareDir: prepareDir,
@@ -3725,6 +3725,92 @@ func (s *imageSuite) TestSetupSeedCore20DelegatedSnap(c *C) {
 
 	err := image.SetupSeed(s.tsto, model, opts)
 	c.Check(err, IsNil)
+}
+
+func (s *imageSuite) TestSetupSeedCore20DelegatedComponentMismatch(c *C) {
+	bootloader.Force(nil)
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	// a model that uses core20
+	model := s.makeUC20Model(nil)
+
+	prepareDir := c.MkDir()
+
+	s.makeSnap(c, "snapd", [][]string{snapdInfoFile}, snap.R(1), "")
+	s.makeSnap(c, "core20", nil, snap.R(20), "")
+	s.makeSnap(c, "pc-kernel=20", nil, snap.R(1), "")
+	gadgetContent := [][]string{
+		{"grub.conf", "# boot grub.cfg"},
+		{"meta/gadget.yaml", pcUC20GadgetYaml},
+	}
+	s.makeSnap(c, "pc=20", gadgetContent, snap.R(22), "")
+
+	ra := map[string]interface{}{
+		"account-id": "my-brand",
+		"provenance": []interface{}{"delegated-prov"},
+	}
+	s.MakeAssertedDelegatedSnap(
+		c,
+		seedtest.SampleSnapYaml["required20"]+"\nprovenance: delegated-prov\n",
+		nil,
+		snap.R(1),
+		"my-brand",
+		"my-brand",
+		"delegated-prov",
+		"", // note the missing provenance here
+		ra,
+		s.StoreSigning.Database,
+	)
+
+	opts := &image.Options{
+		PrepareDir: prepareDir,
+		Customizations: image.Customizations{
+			BootFlags:  []string{"factory"},
+			Validation: "ignore",
+		},
+	}
+
+	err := image.SetupSeed(s.tsto, model, opts)
+	c.Check(err, ErrorMatches, `component .* has been signed under provenance "delegated-prov" different from the metadata one: "global-upload"`)
+}
+
+func (s *imageSuite) TestSetupSeedCore20ComponentTamperedWith(c *C) {
+	bootloader.Force(nil)
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	// a model that uses core20
+	model := s.makeUC20Model(nil)
+
+	prepareDir := c.MkDir()
+
+	s.TamperWithResourceRevisions = func(headers map[string]interface{}) {
+		n, err := strconv.Atoi(headers["resource-revision"].(string))
+		c.Assert(err, IsNil)
+		headers["resource-revision"] = strconv.Itoa(n + 1)
+	}
+
+	s.makeSnap(c, "snapd", [][]string{snapdInfoFile}, snap.R(1), "")
+	s.makeSnap(c, "core20", nil, snap.R(20), "")
+	s.makeSnap(c, "pc-kernel=20", nil, snap.R(1), "")
+	gadgetContent := [][]string{
+		{"grub.conf", "# boot grub.cfg"},
+		{"meta/gadget.yaml", pcUC20GadgetYaml},
+	}
+	s.makeSnap(c, "pc=20", gadgetContent, snap.R(22), "")
+	s.makeSnap(c, "required20", nil, snap.R(1), "")
+
+	opts := &image.Options{
+		PrepareDir: prepareDir,
+		Customizations: image.Customizations{
+			BootFlags:  []string{"factory"},
+			Validation: "ignore",
+		},
+	}
+
+	err := image.SetupSeed(s.tsto, model, opts)
+	c.Check(err, ErrorMatches, `resource "comp1" does not have expected revision according to assertions \(metadata is broken or tampered\): 77 != 78`)
 }
 
 func (s *imageSuite) prepSetupSeedCore20DelegatedSnapAssertionMaxFormats(c *C) {
@@ -3754,7 +3840,7 @@ func (s *imageSuite) TestSetupSeedCore20DelegatedSnapAssertionMaxFormatsHappy(c 
 		"account-id": "my-brand",
 		"provenance": []interface{}{"delegated-prov"},
 	}
-	s.MakeAssertedDelegatedSnap(c, seedtest.SampleSnapYaml["required20"]+"\nprovenance: delegated-prov\n", nil, snap.R(1), "my-brand", "my-brand", "delegated-prov", ra, s.StoreSigning.Database)
+	s.MakeAssertedDelegatedSnap(c, seedtest.SampleSnapYaml["required20"]+"\nprovenance: delegated-prov\n", nil, snap.R(1), "my-brand", "my-brand", "delegated-prov", "delegated-prov", ra, s.StoreSigning.Database)
 
 	s.addSnapDecl(c, "required20", "my-brand", map[string]interface{}{
 		"revision":           "1",
@@ -3823,7 +3909,7 @@ func (s *imageSuite) TestSetupSeedCore20DelegatedSnapAssertionMaxFormatsAuthorit
 		"account-id": "my-brand",
 		"provenance": []interface{}{"delegated-prov"},
 	}
-	s.MakeAssertedDelegatedSnap(c, seedtest.SampleSnapYaml["required20"]+"\nprovenance: delegated-prov\n", nil, snap.R(1), "my-brand", "my-brand", "delegated-prov", ra, s.StoreSigning.Database)
+	s.MakeAssertedDelegatedSnap(c, seedtest.SampleSnapYaml["required20"]+"\nprovenance: delegated-prov\n", nil, snap.R(1), "my-brand", "my-brand", "delegated-prov", "delegated-prov", ra, s.StoreSigning.Database)
 
 	// format 4 will be used but does not have revision-authority set up
 	s.addSnapDecl(c, "required20", "my-brand", map[string]interface{}{
