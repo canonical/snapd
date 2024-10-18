@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
+	"golang.org/x/sys/unix"
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/kernel/fde"
@@ -63,6 +64,28 @@ func LockSealedKeys() error {
 		return fde.LockSealedKeys()
 	}
 	return lockTPMSealedKeys()
+}
+
+func copyKeyring(devPath, legacyDevPath string) error {
+	const keyringPrefix = "ubuntu-fde"
+	for _, purpose := range []string{"aux", "unlock"} {
+		id, err := unix.KeyctlSearch(unix.KEY_SPEC_USER_KEYRING, "user", fmt.Sprintf("%s:%s:%s", keyringPrefix, devPath, purpose), 0)
+		if err != nil {
+			return err
+		}
+		sz, err := unix.KeyctlBuffer(unix.KEYCTL_READ, id, nil, 0)
+		if err != nil {
+			return err
+		}
+		key := make([]byte, sz)
+		if _, err = unix.KeyctlBuffer(unix.KEYCTL_READ, id, key, 0); err != nil {
+			return err
+		}
+		if _, err := unix.AddKey("user", fmt.Sprintf("%s:%s:%s", keyringPrefix, legacyDevPath, purpose), key, unix.KEY_SPEC_USER_KEYRING); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // UnlockVolumeUsingSealedKeyIfEncrypted verifies whether an encrypted volume
@@ -172,6 +195,11 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	} else {
 		logger.Noticef("successfully activated encrypted device %q with TPM", sourceDevice)
 		res.UnlockMethod = UnlockedWithSealedKey
+	}
+
+	// FIXME: replace with https://github.com/canonical/secboot/pull/331 when available
+	if err := copyKeyring(sourceDevice, partDevice); err != nil {
+		logger.Noticef("WARNING: could not copy keys in the user keyring: %v", err)
 	}
 
 	res.FsDevice = targetDevice
