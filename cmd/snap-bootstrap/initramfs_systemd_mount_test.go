@@ -327,7 +327,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 				UpperDir:  "/upper",
 				WorkDir:   "/work",
 			},
-			expErr:  `cannot mount "what" at "where": lowerdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/lower1\\,\" `) + `" contains one of "` + regexp.QuoteMeta(`\,:" `) + `".`,
+			expErr:  `cannot mount "what" at "where": lowerdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/lower1\\,\" `) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `".`,
 			comment: "disallow use of \\,\" and space in the overlayfs lowerdir mount option",
 		},
 		{
@@ -339,7 +339,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 				UpperDir:  "/upper",
 				WorkDir:   "/work",
 			},
-			expErr:  `cannot mount "what" at "where": lowerdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/lower1:`) + `" contains one of "` + regexp.QuoteMeta(`\,:" `) + `".`,
+			expErr:  `cannot mount "what" at "where": lowerdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/lower1:`) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `".`,
 			comment: "disallow use of : in the overlayfs lowerdir mount option",
 		},
 		{
@@ -351,7 +351,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 				UpperDir:  "/upper\\,:\" ",
 				WorkDir:   "/work",
 			},
-			expErr:  `cannot mount "what" at "where": upperdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/upper\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\,:" `) + `".`,
+			expErr:  `cannot mount "what" at "where": upperdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/upper\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `".`,
 			comment: "disallow use of \\,:\" and space in the overlayfs upperdir mount option",
 		},
 		{
@@ -363,7 +363,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 				UpperDir:  "/upper",
 				WorkDir:   "/work\\,:\" ",
 			},
-			expErr:  `cannot mount "what" at "where": workdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/work\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\,:" `) + `".`,
+			expErr:  `cannot mount "what" at "where": workdir overlayfs mount option contains forbidden characters. "` + regexp.QuoteMeta(`/work\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `".`,
 			comment: "disallow use of \\,:\" and space in the overlayfs workdir mount option",
 		},
 	}

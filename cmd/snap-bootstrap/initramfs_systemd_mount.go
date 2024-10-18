@@ -177,16 +177,16 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		}
 
 		if strings.ContainsAny(opts.UpperDir, forbiddenChars) {
-			return fmt.Errorf("cannot mount %q at %q: upperdir overlayfs mount option contains forbidden characters. %q contains one of \"%s\".", what, where, opts.UpperDir, forbiddenChars)
+			return fmt.Errorf("cannot mount %q at %q: upperdir overlayfs mount option contains forbidden characters. %q contains one of %q.", what, where, opts.UpperDir, forbiddenChars)
 		}
 		if strings.ContainsAny(opts.WorkDir, forbiddenChars) {
-			return fmt.Errorf("cannot mount %q at %q: workdir overlayfs mount option contains forbidden characters. %q contains one of \"%s\".", what, where, opts.WorkDir, forbiddenChars)
+			return fmt.Errorf("cannot mount %q at %q: workdir overlayfs mount option contains forbidden characters. %q contains one of %q.", what, where, opts.WorkDir, forbiddenChars)
 		}
 
 		var lowerDirs strings.Builder
 		for i, d := range opts.LowerDirs {
 			if strings.ContainsAny(d, forbiddenChars) {
-				return fmt.Errorf("cannot mount %q at %q: lowerdir overlayfs mount option contains forbidden characters. %q contains one of \"%s\".", what, where, d, forbiddenChars)
+				return fmt.Errorf("cannot mount %q at %q: lowerdir overlayfs mount option contains forbidden characters. %q contains one of %q.", what, where, d, forbiddenChars)
 			}
 
 			// This is used for splitting multiple lowerdirs as done in
