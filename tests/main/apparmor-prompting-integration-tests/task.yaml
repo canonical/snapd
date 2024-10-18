@@ -40,7 +40,6 @@ environment:
 prepare: |
     tests.session prepare -u test
     tests.session -u test exec sh -c 'mkdir -p "/home/test/integration-tests"'
-    snap install prompting-client
 
 restore: |
     snap set system experimental.apparmor-prompting=false
@@ -57,7 +56,9 @@ debug: |
 execute: |
     echo "Precondition check that snapd is active"
     systemctl is-active snapd.service snapd.socket
-    SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
+
+    echo "Install the prompting client"
+    retry --wait 1 -n 100 snap install prompting-client
 
     echo "Enable prompting via snap client where possible"
     # Prompting is unsupported everywhere but the Ubuntu non-core systems with
@@ -72,6 +73,8 @@ execute: |
 
         exit 0
     fi
+
+    SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
 
     echo "Enable AppArmor prompting experimental feature"
     snap set system experimental.apparmor-prompting=true
