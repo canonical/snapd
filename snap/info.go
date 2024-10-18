@@ -1890,16 +1890,6 @@ func InstanceName(snapName, instanceKey string) string {
 	return snapName
 }
 
-// ByType supports sorting the given slice of snap info by types. The most
-// important types will come first.
-type ByType []*Info
-
-func (r ByType) Len() int      { return len(r) }
-func (r ByType) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
-func (r ByType) Less(i, j int) bool {
-	return r[i].Type().SortsBefore(r[j].Type())
-}
-
 // SortServices sorts the apps based on their Before and After specs, such that
 // starting the services in the returned ordering will satisfy all specs.
 func SortServices(apps []*AppInfo) (sorted []*AppInfo, err error) {
@@ -2098,4 +2088,17 @@ func RegistryPlugAttrs(plug *PlugInfo) (account, registry, view string, err erro
 	registry, view = parts[0], parts[1]
 
 	return account, registry, view, nil
+}
+
+// RefreshFailures holds information about snap failed refreshes.
+type RefreshFailuresInfo struct {
+	// Revision is the target revision that caused the refresh failure.
+	Revision Revision `json:"revision"`
+	// FailureCount is the number of failed attempts to refresh to the given revision.
+	FailureCount int `json:"failure-count"`
+	// LastFailureTime is the time of the last failed refresh attempt for the revision.
+	LastFailureTime time.Time `json:"last-failure-time"`
+
+	// TODO: add RefreshFailureSeverity to allow for more aggressive
+	// delays for snaps that fail after rebooting.
 }

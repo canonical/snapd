@@ -173,6 +173,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 		fakeBackend:         s.fakeBackend,
 		state:               s.state,
 		downloadError:       make(map[string]error),
+		refreshRevnos:       make(map[string]snap.Revision),
 	}
 
 	// make tests work consistently also in containers
@@ -9451,6 +9452,109 @@ func (s *snapmgrTestSuite) TestSaveRefreshCandidatesOnAutoRefresh(c *C) {
 	c.Assert(cands, HasLen, 2)
 	c.Check(cands["some-snap"], NotNil)
 	c.Check(cands["some-other-snap"], NotNil)
+}
+
+func (s *snapmgrTestSuite) TestBackoffOnAutoRefresh(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	badRevison := snap.R(12)
+	badSnapst := &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: "app",
+		RefreshFailures: &snap.RefreshFailuresInfo{
+			Revision:        badRevison,
+			FailureCount:    1,
+			LastFailureTime: time.Now(),
+		},
+	}
+	snapstate.Set(s.state, "some-snap", badSnapst)
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	s.fakeStore.refreshRevnos["some-snap-id"] = badRevison
+	names, tss, err := snapstate.AutoRefresh(context.Background(), s.state)
+	c.Assert(err, IsNil)
+	c.Assert(tss, NotNil)
+	// some-snap auto-refresh skipped
+	c.Check(names, DeepEquals, []string{"some-other-snap"})
+
+	// Failure delay is capped at 2 weeks
+	badSnapst.RefreshFailures.FailureCount = 100
+	badSnapst.RefreshFailures.LastFailureTime = time.Now().Add(-(2*7*24 - 1) * time.Hour)
+	snapstate.Set(s.state, "some-snap", badSnapst)
+	names, _, err = snapstate.AutoRefresh(context.Background(), s.state)
+	c.Assert(err, IsNil)
+	// some-snap auto-refresh skipped
+	c.Check(names, DeepEquals, []string{"some-other-snap"})
+	// But backoff delay is capped at two weeks
+	badSnapst.RefreshFailures.LastFailureTime = time.Now().Add(-(2 * 7 * 24) * time.Hour)
+	snapstate.Set(s.state, "some-snap", badSnapst)
+	names, _, err = snapstate.AutoRefresh(context.Background(), s.state)
+	c.Assert(err, IsNil)
+	c.Check(names, DeepEquals, []string{"some-other-snap", "some-snap"})
+}
+
+func (s *snapmgrTestSuite) TestBackoffOnAutoRefreshWithNewRevision(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	badRevison := snap.R(12)
+	badSnapst := &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: "app",
+		RefreshFailures: &snap.RefreshFailuresInfo{
+			Revision:        badRevison,
+			FailureCount:    3,
+			LastFailureTime: time.Now(),
+		},
+	}
+	snapstate.Set(s.state, "some-snap", badSnapst)
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	s.fakeStore.refreshRevnos["some-snap-id"] = badRevison
+	names, tss, err := snapstate.AutoRefresh(context.Background(), s.state)
+	c.Assert(err, IsNil)
+	c.Assert(tss, NotNil)
+	// some-snap auto-refresh skipped
+	c.Check(names, DeepEquals, []string{"some-other-snap"})
+
+	// Check that new revision resets RefreshFailures
+	s.fakeStore.refreshRevnos["some-snap-id"] = snap.R(13)
+	// First make sure RefreshFailures is not nil
+	var snapst snapstate.SnapState
+	snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(snapst.RefreshFailures.FailureCount, Equals, 3)
+	// Trigger new auto-refresh (with new revision from fakestore)
+	names, tss, err = snapstate.AutoRefresh(context.Background(), s.state)
+	c.Assert(err, IsNil)
+	c.Assert(tss, NotNil)
+	// some-snap auto-refresh not skipped
+	c.Check(names, DeepEquals, []string{"some-other-snap", "some-snap"})
+	// And RefreshFailures is reset
+	snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(snapst.RefreshFailures, IsNil)
 }
 
 type customStore struct {

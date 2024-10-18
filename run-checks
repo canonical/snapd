@@ -420,13 +420,9 @@ if [ "$STATIC" = 1 ]; then
            echo "WARNING: Your go version ($go_ver) is greater than the version of go that golangci-lint was built with ($gcil_go_ver)."
         fi
 
-        if [ -n "${BASE_REF:-}" ]; then
-            echo "Running golangci-lint"
-            golangci-lint --new-from-rev="$BASE_REF" --path-prefix= run
-        else
-            echo "Running golangci-lint without the --new-from-rev option. If you would rather use that option, specify the branch in the BASE_REF environment variable."
-            golangci-lint --path-prefix= run
-        fi
+        # don't run with --new-from-rev as the diff might not be enough to tell
+        # the change introduces problems (e.g., removing the last call to a function)
+        golangci-lint --path-prefix= run
     fi
 fi
 

@@ -1,0 +1,2 @@
+tmpfs / tmpfs x-snapd.origin=rootfs 0 0
+/snap/test-snapd-layout/x1/opt /opt none rbind,rw,x-snapd.origin=layout 0 0

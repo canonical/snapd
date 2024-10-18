@@ -34,6 +34,9 @@ const (
 	TypeKernel Type = "kernel"
 	TypeBase   Type = "base"
 	TypeSnapd  Type = "snapd"
+	// This is used internally so we can install the boot base for
+	// a system before the kernel.
+	InternalTypeBootBase Type = "internal-boot-base"
 
 	// FIXME: this really should be TypeCore
 	TypeOS Type = "os"
@@ -43,12 +46,13 @@ const (
 // types. On e.g. firstboot this will be used to order the snaps this
 // way.
 var typeOrder = map[Type]int{
-	TypeApp:    50,
-	TypeGadget: 40,
-	TypeBase:   30,
-	TypeKernel: 20,
-	TypeOS:     10,
-	TypeSnapd:  0,
+	TypeApp:              50,
+	TypeGadget:           40,
+	TypeBase:             30,
+	TypeKernel:           20,
+	InternalTypeBootBase: 11,
+	TypeOS:               10,
+	TypeSnapd:            0,
 }
 
 func (m Type) SortsBefore(other Type) bool {

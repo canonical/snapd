@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/registrystate"
 )
@@ -52,13 +51,12 @@ func init() {
 }
 
 func (c *failCommand) Execute(args []string) error {
-	if !features.Registries.IsEnabled() {
-		_, confName := features.Registries.ConfigOption()
-		return fmt.Errorf(`cannot use "snapctl fail" without enabling the %q feature`, confName)
-	}
-
 	ctx, err := c.ensureContext()
 	if err != nil {
+		return err
+	}
+
+	if err := validateRegistriesFeatureFlag(ctx.State()); err != nil {
 		return err
 	}
 

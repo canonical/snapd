@@ -65,16 +65,20 @@ func (s *unsetCommand) Execute(args []string) error {
 		return err
 	}
 
-	context.Lock()
-	tr := configstate.ContextTransaction(context)
-	context.Unlock()
-
 	if !s.View {
+		context.Lock()
+		tr := configstate.ContextTransaction(context)
+		context.Unlock()
+
 		// unsetting options
 		for _, confKey := range s.Positional.ConfKeys {
 			tr.Set(context.InstanceName(), confKey, nil)
 		}
 		return nil
+	}
+
+	if err := validateRegistriesFeatureFlag(context.State()); err != nil {
+		return err
 	}
 
 	// unsetting registry data

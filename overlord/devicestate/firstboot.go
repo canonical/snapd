@@ -264,7 +264,21 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	}
 
 	chainSorted := func(infos []*snap.Info, infoToTs map[*snap.Info]*state.TaskSet) {
-		sort.Stable(snap.ByType(infos))
+		// This is the order in which snaps will be installed in the
+		// system. We want the boot base to be installed before the
+		// kernel so any existing kernel hook can execute with the boot
+		// base as rootfs.
+		effectiveType := func(info *snap.Info) snap.Type {
+			typ := info.Type()
+			if info.RealName == model.Base() {
+				typ = snap.InternalTypeBootBase
+			}
+			return typ
+		}
+		sort.SliceStable(infos, func(i, j int) bool {
+			return effectiveType(infos[i]).SortsBefore(effectiveType(infos[j]))
+		})
+
 		for _, info := range infos {
 			ts := infoToTs[info]
 			tsAll = chainTs(tsAll, ts)

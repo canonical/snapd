@@ -2116,6 +2116,14 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 			continue
 		}
 
+		if err := checkSnapRefreshFailures(st, &up.SnapState, up.Setup.Revision(), opts); err != nil {
+			if errors.Is(err, errKnownBadRevision) {
+				// revision known to fail during refresh and backoff delay has not passed
+				continue
+			}
+			return nil, false, nil, err
+		}
+
 		// if any snaps actually get a revision change, we need to do a
 		// re-refresh check
 		needsRerefreshCheck = true

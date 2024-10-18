@@ -31,11 +31,13 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
@@ -149,6 +151,12 @@ func (s *registryTestSuite) SetUpTest(c *C) {
 
 	s.devAccID = devAccKey.AccountID()
 	s.registry = as.(*asserts.Registry).Registry()
+
+	tr := config.NewTransaction(s.state)
+	_, confOption := features.Registries.ConfigOption()
+	err = tr.Set("core", confOption, true)
+	c.Assert(err, IsNil)
+	tr.Commit()
 }
 
 func (s *registryTestSuite) TestGetView(c *C) {
@@ -1000,9 +1008,6 @@ func (s *registryTestSuite) checkModifyRegistryChange(c *C, chg *state.Change, h
 	val, err := tx.Get("wifi.ssid")
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "foo")
-}
-
-func (s *registryTestSuite) TestGetTransactionDifferentFromOngoingOnlyForRead(c *C) {
 }
 
 func (s *registryTestSuite) TestGetTransactionFromChangeViewHook(c *C) {

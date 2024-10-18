@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -173,15 +174,20 @@ func (c *getCommand) Execute(args []string) error {
 		if snap != "" {
 			return fmt.Errorf(`"snapctl get %s" not supported, use "snapctl get :%s" instead`, c.Positional.PlugOrSlotSpec, parts[1])
 		}
-		// registry views can be read without fields
-		if !c.View && len(c.Positional.Keys) == 0 {
-			return errors.New(i18n.G("get which attribute?"))
-		}
 
 		if c.View {
+			if err := validateRegistriesFeatureFlag(context.State()); err != nil {
+				return err
+			}
+
 			requests := c.Positional.Keys
 			return c.getRegistryValues(context, name, requests, c.Pristine)
 		}
+
+		if len(c.Positional.Keys) == 0 {
+			return errors.New(i18n.G("get which attribute?"))
+		}
+
 		return c.getInterfaceSetting(context, name)
 	}
 
@@ -461,4 +467,24 @@ var getRegistryView = func(ctx *hookstate.Context, account, registryName, viewNa
 	}
 
 	return view, nil
+}
+
+// validateRegistriesFeatureFlag checks whether the registries experimental flag
+// is enabled. The state should not be locked by the caller.
+func validateRegistriesFeatureFlag(st *state.State) error {
+	st.Lock()
+	defer st.Unlock()
+
+	tr := config.NewTransaction(st)
+	enabled, err := features.Flag(tr, features.Registries)
+	if err != nil && !config.IsNoOption(err) {
+		return fmt.Errorf(i18n.G("internal error: cannot check registries feature flag: %v"), err)
+	}
+
+	if !enabled {
+		_, confName := features.Registries.ConfigOption()
+		return fmt.Errorf(i18n.G(`"registries" feature flag is disabled: set '%s' to true`), confName)
+	}
+
+	return nil
 }

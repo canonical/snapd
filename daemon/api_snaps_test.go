@@ -1578,6 +1578,38 @@ func (s *snapsSuite) TestSnapManyInfosSelectRefreshInhibited(c *check.C) {
 	}
 }
 
+func (s *snapsSuite) TestSnapInfoReturnsRefreshFailures(c *check.C) {
+	s.expectSnapsNameReadAccess()
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "foo", "bar", "v0", snap.R(5), true, "")
+
+	expectedRefreshFailures := &snap.RefreshFailuresInfo{
+		Revision:        snap.R(6),
+		FailureCount:    4,
+		LastFailureTime: time.Date(2024, time.October, 10, 21, 22, 11, 0, time.UTC),
+	}
+
+	st := d.Overlord().State()
+	st.Lock()
+	var snapst snapstate.SnapState
+	// Update snap state with RefreshFailure.
+	c.Assert(snapstate.Get(st, "foo", &snapst), check.IsNil)
+	snapst.RefreshFailures = expectedRefreshFailures
+	snapstate.Set(st, "foo", &snapst)
+	st.Unlock()
+
+	req, err := http.NewRequest("GET", "/v2/snaps/foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, nil)
+
+	c.Assert(rsp.Result, check.FitsTypeOf, &client.Snap{})
+	snapInfo := rsp.Result.(*client.Snap)
+	c.Assert(snapInfo.RefreshFailures, check.NotNil)
+
+	c.Check(snapInfo.RefreshFailures, check.DeepEquals, expectedRefreshFailures)
+}
+
 func (s *snapsSuite) TestMapLocalFields(c *check.C) {
 	media := snap.MediaInfos{
 		{

@@ -1965,21 +1965,27 @@ func (s *infoSuite) TestSortByType(c *C) {
 		{SuggestedName: "app1", SnapType: "app"},
 		{SuggestedName: "os1", SnapType: "os"},
 		{SuggestedName: "base1", SnapType: "base"},
+		{SuggestedName: "internal1", SnapType: "internal-boot-base"},
 		{SuggestedName: "gadget1", SnapType: "gadget"},
 		{SuggestedName: "kernel1", SnapType: "kernel"},
 		{SuggestedName: "app2", SnapType: "app"},
 		{SuggestedName: "os2", SnapType: "os"},
+		{SuggestedName: "internal2", SnapType: "internal-boot-base"},
 		{SuggestedName: "snapd", SnapType: "snapd"},
 		{SuggestedName: "base2", SnapType: "base"},
 		{SuggestedName: "gadget2", SnapType: "gadget"},
 		{SuggestedName: "kernel2", SnapType: "kernel"},
 	}
-	sort.Stable(snap.ByType(infos))
+	sort.SliceStable(infos, func(i, j int) bool {
+		return infos[i].Type().SortsBefore(infos[j].Type())
+	})
 
 	c.Check(infos, DeepEquals, []*snap.Info{
 		{SuggestedName: "snapd", SnapType: "snapd"},
 		{SuggestedName: "os1", SnapType: "os"},
 		{SuggestedName: "os2", SnapType: "os"},
+		{SuggestedName: "internal1", SnapType: "internal-boot-base"},
+		{SuggestedName: "internal2", SnapType: "internal-boot-base"},
 		{SuggestedName: "kernel1", SnapType: "kernel"},
 		{SuggestedName: "kernel2", SnapType: "kernel"},
 		{SuggestedName: "base1", SnapType: "base"},
@@ -1999,7 +2005,9 @@ func (s *infoSuite) TestSortByTypeAgain(c *C) {
 	snapd.SideInfo = snap.SideInfo{RealName: "snapd"}
 
 	byType := func(snaps ...*snap.Info) []*snap.Info {
-		sort.Stable(snap.ByType(snaps))
+		sort.SliceStable(snaps, func(i, j int) bool {
+			return snaps[i].Type().SortsBefore(snaps[j].Type())
+		})
 		return snaps
 	}
 
