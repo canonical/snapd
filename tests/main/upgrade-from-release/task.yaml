@@ -56,7 +56,12 @@ execute: |
         ["14.04"]='2.37.4~14.04.1'
     )
 
-    apt list --installed snapd | MATCH "${EXPECTED_SNAPD_VERSIONS[$VERSION_ID]}\]"
+    SNAPD_INSTALLED="$(apt list --installed snapd)"
+    if echo "$SNAPD_INSTALLED" | MATCH 'upgradable to' ; then
+        echo "$SNAPD_INSTALLED" | MATCH "upgradable to: .*${EXPECTED_SNAPD_VERSIONS[$VERSION_ID]}\]$"
+    else
+        echo "$SNAPD_INSTALLED" | MATCH "${EXPECTED_SNAPD_VERSIONS[$VERSION_ID]}"
+    fi
 
     echo "install a test service and a test command"
     snap install go-example-webserver
