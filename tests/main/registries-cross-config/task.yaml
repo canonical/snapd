@@ -4,11 +4,11 @@ details: |
   Check that we can configure registries across snaps and that the appropriate
   hooks are invoked.
 
+priority: 9000
+
 prepare: |
   snap set system experimental.registries=true
   snap install --edge jq
-
-priority: 9000
 
 debug: |
   snap changes
