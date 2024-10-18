@@ -141,12 +141,32 @@ func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *Validation
 }
 
 func ruleValidateVolume(vol *Volume, hasModes bool) error {
+	if vol.Schema == schemaEMMC {
+		if err := ruleValidateEMMCVolume(vol); err != nil {
+			return err
+		}
+	}
+
 	for idx, s := range vol.Structure {
 		if err := ruleValidateVolumeStructure(&s, hasModes); err != nil {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
 	}
 
+	return nil
+}
+
+func ruleValidateEMMCVolume(vol *Volume) error {
+	// Only content, schema and name can be set currently for eMMC
+	if vol.Bootloader != "" {
+		return fmt.Errorf(`cannot set "bootloader" for eMMC schemas`)
+	}
+	if vol.ID != "" {
+		return fmt.Errorf(`cannot set "id" for eMMC schemas`)
+	}
+	if len(vol.Partial) != 0 {
+		return fmt.Errorf(`cannot set "partial" content for eMMC schemas`)
+	}
 	return nil
 }
 

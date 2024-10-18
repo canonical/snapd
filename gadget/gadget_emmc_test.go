@@ -73,19 +73,6 @@ volumes:
           - image: boot1filename
 `)
 
-var mockEMMCMultiVolumeGadgetYaml = string(mockEMMCGadgetYaml) + `
-  other-volume:
-    schema: mbr
-    id:     0C
-    structure:
-      - filesystem-label: data
-        offset: 12345
-        offset-write: 777
-        size: 88888
-        type: 0C
-        filesystem: vfat
-`
-
 func (s *gadgetYamlEMMCSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
@@ -97,6 +84,62 @@ func (s *gadgetYamlEMMCSuite) SetUpTest(c *C) {
 
 func (s *gadgetYamlEMMCSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
+}
+
+func (s *gadgetYamlEMMCSuite) TestReadGadgetYamlEMMCNoID(c *C) {
+	err := os.WriteFile(s.gadgetYamlPath, []byte(`
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: u-boot
+  my-emmc:
+    schema: emmc
+    id: test
+`), 0644)
+	c.Assert(err, IsNil)
+
+	info, err := gadget.ReadInfo(s.dir, coreMod)
+	c.Assert(err, IsNil)
+
+	err = gadget.Validate(info, nil, nil)
+	c.Assert(err, ErrorMatches, `invalid volume "my-emmc": cannot set "id" for eMMC schemas`)
+}
+
+func (s *gadgetYamlEMMCSuite) TestReadGadgetYamlEMMCNoBootloader(c *C) {
+	err := os.WriteFile(s.gadgetYamlPath, []byte(`
+volumes:
+  volumename:
+    schema: mbr
+  my-emmc:
+    schema: emmc
+    bootloader: u-boot
+`), 0644)
+	c.Assert(err, IsNil)
+
+	info, err := gadget.ReadInfo(s.dir, coreMod)
+	c.Assert(err, IsNil)
+
+	err = gadget.Validate(info, nil, nil)
+	c.Assert(err, ErrorMatches, `invalid volume "my-emmc": cannot set "bootloader" for eMMC schemas`)
+}
+
+func (s *gadgetYamlEMMCSuite) TestReadGadgetYamlEMMCNoPartial(c *C) {
+	err := os.WriteFile(s.gadgetYamlPath, []byte(`
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: u-boot
+  my-emmc:
+    schema: emmc
+    partial: [size]
+`), 0644)
+	c.Assert(err, IsNil)
+
+	info, err := gadget.ReadInfo(s.dir, coreMod)
+	c.Assert(err, IsNil)
+
+	err = gadget.Validate(info, nil, nil)
+	c.Assert(err, ErrorMatches, `invalid volume "my-emmc": cannot set "partial" content for eMMC schemas`)
 }
 
 func (s *gadgetYamlEMMCSuite) TestReadGadgetYamlOffsetNotSupportedForBoot(c *C) {
