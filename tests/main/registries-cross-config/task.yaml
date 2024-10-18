@@ -8,6 +8,12 @@ prepare: |
   snap set system experimental.registries=true
   snap install --edge jq
 
+debug: |
+  snap changes
+  CHG_ID=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
+  snap change "$CHG_ID"
+  journalctl --no-pager -b0 -u snapd
+
 execute: |
   changeAfterID() {
     local OLD_CHANGE="$1"
