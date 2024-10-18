@@ -21,6 +21,7 @@
 package secboot_test
 
 import (
+	"bytes"
 	"fmt"
 
 	sb "github.com/snapcore/secboot"
@@ -45,7 +46,7 @@ func (*bootstrapContainerSuite) TestBootstrappedContainerHappy(c *C) {
 		return nil
 	})()
 
-	_, err := container.AddKey("slot-name", []byte{5, 6, 7, 8}, false)
+	err := container.AddKey("slot-name", []byte{5, 6, 7, 8})
 	c.Assert(err, IsNil)
 
 	defer secboot.MockAddLUKS2ContainerUnlockKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, newKey sb.DiskUnlockKey) error {
@@ -56,8 +57,68 @@ func (*bootstrapContainerSuite) TestBootstrappedContainerHappy(c *C) {
 		return nil
 	})()
 
-	_, err = container.AddKey("", []byte{9, 10, 11, 12}, false)
+	err = container.AddKey("", []byte{9, 10, 11, 12})
 	c.Assert(err, IsNil)
+
+	defer secboot.MockDeleteLUKS2ContainerKey(func(devicePath, slotName string) error {
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(slotName, Equals, "bootstrap-key")
+		return nil
+	})()
+
+	err = container.RemoveBootstrapKey()
+	c.Assert(err, IsNil)
+
+	defer secboot.MockDeleteLUKS2ContainerKey(func(devicePath, slotName string) error {
+		c.Errorf("unexpected call")
+		return nil
+	})()
+
+	err = container.RemoveBootstrapKey()
+	c.Assert(err, IsNil)
+}
+
+type myKeyDataWriter struct {
+	bytes.Buffer
+}
+
+func (m *myKeyDataWriter) Commit() error {
+	return nil
+}
+
+func (*bootstrapContainerSuite) TestBootstrappedContainerHappyTokenWriter(c *C) {
+	container := secboot.CreateBootstrappedContainer([]byte{1, 2, 3, 4}, "/dev/foo")
+
+	defer secboot.MockAddLUKS2ContainerUnlockKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, newKey sb.DiskUnlockKey) error {
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(keyslotName, Equals, "slot-name")
+		c.Check(existingKey, DeepEquals, sb.DiskUnlockKey([]byte{1, 2, 3, 4}))
+		c.Check(newKey, DeepEquals, sb.DiskUnlockKey([]byte{5, 6, 7, 8}))
+		return nil
+	})()
+
+	err := container.AddKey("slot-name", []byte{5, 6, 7, 8})
+	c.Assert(err, IsNil)
+
+	defer secboot.MockAddLUKS2ContainerUnlockKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, newKey sb.DiskUnlockKey) error {
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(keyslotName, Equals, "default")
+		c.Check(existingKey, DeepEquals, sb.DiskUnlockKey([]byte{1, 2, 3, 4}))
+		c.Check(newKey, DeepEquals, sb.DiskUnlockKey([]byte{9, 10, 11, 12}))
+		return nil
+	})()
+
+	keyDataWriter := &myKeyDataWriter{}
+
+	defer secboot.MockNewLUKS2KeyDataWriter(func(devicePath string, keyslotName string) (secboot.KeyDataWriter, error) {
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(keyslotName, Equals, "default")
+		return keyDataWriter, nil
+	})()
+
+	tokenWriter, err := container.AddKeyAndGetTokenWriter("", []byte{9, 10, 11, 12})
+	c.Assert(err, IsNil)
+	c.Check(tokenWriter, Equals, keyDataWriter)
 
 	defer secboot.MockDeleteLUKS2ContainerKey(func(devicePath, slotName string) error {
 		c.Check(devicePath, Equals, "/dev/foo")
@@ -84,7 +145,7 @@ func (*bootstrapContainerSuite) TestBootstrappedContainerErrorAddKey(c *C) {
 		return fmt.Errorf("boom")
 	})()
 
-	_, err := container.AddKey("slot-name", []byte{5, 6, 7, 8}, false)
+	err := container.AddKey("slot-name", []byte{5, 6, 7, 8})
 	c.Assert(err, ErrorMatches, `boom`)
 }
 
@@ -97,4 +158,36 @@ func (*bootstrapContainerSuite) TestBootstrappedContainerErrorRemoveKey(c *C) {
 
 	err := container.RemoveBootstrapKey()
 	c.Assert(err, ErrorMatches, `cannot remove bootstrap key: boom`)
+}
+
+func (*bootstrapContainerSuite) TestBootstrappedContainerTokenWriterFailure(c *C) {
+	container := secboot.CreateBootstrappedContainer([]byte{1, 2, 3, 4}, "/dev/foo")
+
+	defer secboot.MockAddLUKS2ContainerUnlockKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, newKey sb.DiskUnlockKey) error {
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(keyslotName, Equals, "slot-name")
+		c.Check(existingKey, DeepEquals, sb.DiskUnlockKey([]byte{1, 2, 3, 4}))
+		c.Check(newKey, DeepEquals, sb.DiskUnlockKey([]byte{5, 6, 7, 8}))
+		return nil
+	})()
+
+	err := container.AddKey("slot-name", []byte{5, 6, 7, 8})
+	c.Assert(err, IsNil)
+
+	defer secboot.MockAddLUKS2ContainerUnlockKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, newKey sb.DiskUnlockKey) error {
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(keyslotName, Equals, "default")
+		c.Check(existingKey, DeepEquals, sb.DiskUnlockKey([]byte{1, 2, 3, 4}))
+		c.Check(newKey, DeepEquals, sb.DiskUnlockKey([]byte{9, 10, 11, 12}))
+		return nil
+	})()
+
+	defer secboot.MockNewLUKS2KeyDataWriter(func(devicePath string, keyslotName string) (secboot.KeyDataWriter, error) {
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(keyslotName, Equals, "default")
+		return nil, fmt.Errorf("some error")
+	})()
+
+	_, err = container.AddKeyAndGetTokenWriter("", []byte{9, 10, 11, 12})
+	c.Assert(err, ErrorMatches, `some error`)
 }
