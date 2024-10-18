@@ -245,6 +245,7 @@ func initializeState(st *state.State) error {
 		return err
 	}
 
+	// FIXME mount points will be different in recovery or factory-reset modes
 	dataUUID, dataErr := disksDMCryptUUIDFromMountPoint(dirs.SnapdStateDir(dirs.GlobalRootDir))
 	saveUUID, saveErr := disksDMCryptUUIDFromMountPoint(dirs.SnapSaveDir)
 	if errors.Is(saveErr, disks.ErrMountPointNotFound) {

@@ -24,6 +24,7 @@ package fdestate
 import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
@@ -63,7 +64,13 @@ func (m *FDEManager) Ensure() error {
 func (m *FDEManager) StartUp() error {
 	m.state.Lock()
 	defer m.state.Unlock()
-	return initializeState(m.state)
+
+	// FIXME should we try to initialize the state in
+	// install/recover/factory-reset modes?
+	if err := initializeState(m.state); err != nil {
+		logger.Noticef("cannot initialize FDE state: %v", err)
+	}
+	return nil
 }
 
 func (m *FDEManager) resealKeyForBootChains(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
