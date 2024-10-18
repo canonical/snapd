@@ -714,6 +714,9 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapWithVitalityScore(c *C) {
 			path:         filepath.Join(dirs.SnapMountDir, "foo/11"),
 			vitalityRank: 2,
 		},
+		{
+			op: "maybe-prepare-reboot",
+		},
 	}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 }
@@ -923,6 +926,9 @@ func (s *linkSnapSuite) TestDoLinkSnapWithVitalityScore(c *C) {
 			op:           "link-snap",
 			path:         filepath.Join(dirs.SnapMountDir, "foo/33"),
 			vitalityRank: 2,
+		},
+		{
+			op: "maybe-prepare-reboot",
 		},
 	}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
@@ -1536,6 +1542,9 @@ func (s *linkSnapSuite) TestDoLinkSnapdDiscardsNsOnDowngrade(c *C) {
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "snapd/41"),
 		},
+		{
+			op: "maybe-prepare-reboot",
+		},
 	}
 
 	// start with an easier-to-read error if this fails:
@@ -1620,6 +1629,9 @@ func (s *linkSnapSuite) TestDoLinkSnapdRemovesAppArmorProfilesOnSnapdDowngrade(c
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "snapd/41"),
+		},
+		{
+			op: "maybe-prepare-reboot",
 		},
 	}
 
@@ -2273,6 +2285,9 @@ func (s *linkSnapSuite) TestUndoLinkSnapdFirstInstall(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "snapd/22"),
 		},
 		{
+			op: "maybe-prepare-reboot",
+		},
+		{
 			op:   "discard-namespace",
 			name: "snapd",
 		},
@@ -2349,6 +2364,9 @@ func (s *linkSnapSuite) TestUndoLinkSnapdNthInstall(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "snapd/22"),
+		},
+		{
+			op: "maybe-prepare-reboot",
 		},
 		{
 			op:   "link-snap",
@@ -2601,6 +2619,9 @@ func (s *linkSnapSuite) testDoLinkSnapWithToolingDependency(c *C, classicOrBase 
 			op:                  "link-snap",
 			path:                filepath.Join(dirs.SnapMountDir, "services-snap/11"),
 			requireSnapdTooling: needsTooling,
+		},
+		{
+			op: "maybe-prepare-reboot",
 		},
 	}
 
