@@ -240,7 +240,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 				VerityHashDevice: "test.verity\\,:\" ",
 				VerityRootHash:   "00000000000000000000000000000000",
 			},
-			expErr:  `cannot mount "what" at "where": dm-verity hash device path contains forbidden characters. "` + regexp.QuoteMeta(`test.verity\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\,:" `) + `".`,
+			expErr:  `cannot mount "what" at "where": dm-verity hash device path contains forbidden characters. "` + regexp.QuoteMeta(`test.verity\\,:\" `) + `" contains one of "` + regexp.QuoteMeta(`\\,:\" `) + `".`,
 			comment: "disallow use of \\,:\": and space in the dm-verity hash device option",
 		},
 	}

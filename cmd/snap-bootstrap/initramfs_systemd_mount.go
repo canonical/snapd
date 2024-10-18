@@ -167,7 +167,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	}
 
 	if strings.ContainsAny(opts.VerityHashDevice, forbiddenChars) {
-		return fmt.Errorf("cannot mount %q at %q: dm-verity hash device path contains forbidden characters. %q contains one of \"%s\".", what, where, opts.VerityHashDevice, forbiddenChars)
+		return fmt.Errorf("cannot mount %q at %q: dm-verity hash device path contains forbidden characters. %q contains one of %q.", what, where, opts.VerityHashDevice, forbiddenChars)
 	}
 
 	if opts.VerityHashOffset != 0 && (opts.VerityHashDevice == "" || opts.VerityRootHash == "") {
