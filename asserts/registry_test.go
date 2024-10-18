@@ -20,6 +20,7 @@
 package asserts_test
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -33,7 +34,10 @@ type registrySuite struct {
 	tsLine string
 }
 
-var _ = Suite(&registrySuite{})
+var (
+	_ = Suite(&registrySuite{})
+	_ = Suite(&registryControlSuite{})
+)
 
 func (s *registrySuite) SetUpSuite(c *C) {
 	s.ts = time.Now().Truncate(time.Second).UTC()
@@ -198,4 +202,444 @@ func (s *registrySuite) TestAssembleAndSignChecksSchemaFormatFail(c *C) {
 	schema := `{ "storage": { "schema": { "foo": "any" } } }`
 	_, err := asserts.AssembleAndSignInTest(asserts.RegistryType, headers, []byte(schema), testPrivKey0)
 	c.Assert(err, ErrorMatches, `assertion registry: JSON in body must be indented with 2 spaces and sort object entries by key`)
+}
+
+type registryControlSuite struct{}
+
+const (
+	registryControlExample = `type: registry-control
+brand-id: generic
+model: generic-classic
+serial: 03961d5d-26e5-443f-838d-6db046126bea
+groups:
+  -
+    operator-id: john
+    authentication:
+      - operator-key
+    views:
+      - canonical/network/control-device
+      - canonical/network/observe-device
+  -
+    operator-id: john
+    authentication:
+      - store
+    views:
+      - canonical/network/control-interfaces
+  -
+    operator-id: jane
+    authentication:
+      - operator-key
+      - store
+    views:
+      - canonical/network/observe-interfaces
+sign-key-sha3-384: t9yuKGLyiezBq_PXMJZsGdkTukmL7MgrgqXAlxxiZF4TYryOjZcy48nnjDmEHQDp
+
+AXNpZw==`
+)
+
+func (s *registryControlSuite) TestDecodeOK(c *C) {
+	encoded := registryControlExample
+
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a, NotNil)
+	c.Check(a.Type(), Equals, asserts.RegistryControlType)
+
+	rgCtrl := a.(*asserts.RegistryControl)
+	c.Check(rgCtrl.BrandID(), Equals, "generic")
+	c.Check(rgCtrl.Model(), Equals, "generic-classic")
+	c.Check(rgCtrl.Serial(), Equals, "03961d5d-26e5-443f-838d-6db046126bea")
+	c.Check(rgCtrl.AuthorityID(), Equals, "")
+
+	c.Check(rgCtrl.IsDelegated("john", "canonical/network/control-device", "operator-key"), Equals, true)
+	c.Check(rgCtrl.IsDelegated("john", "canonical/network/observe-device", "operator-key"), Equals, true)
+	c.Check(rgCtrl.IsDelegated("john", "canonical/network/control-interfaces", "store"), Equals, true)
+	c.Check(rgCtrl.IsDelegated("jane", "canonical/network/observe-interfaces", "store"), Equals, true)
+	c.Check(rgCtrl.IsDelegated("jane", "canonical/network/observe-interfaces", "operator-key"), Equals, true)
+
+	c.Check(rgCtrl.IsDelegated("john", "canonical/network/control-device", "store"), Equals, false)
+	c.Check(rgCtrl.IsDelegated("john", "canonical/network/control-device", "management-system"), Equals, false)
+	c.Check(rgCtrl.IsDelegated("jane", "canonical/network/control-device", "operator-key"), Equals, false)
+	c.Check(rgCtrl.IsDelegated("unknown", "canonical/network/observe-interfaces", "operator-key"), Equals, false)
+}
+
+func (s *registryControlSuite) TestDecodeInvalid(c *C) {
+	encoded := registryControlExample
+	const validationSetErrPrefix = "assertion registry-control: "
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"brand-id: generic\n", "", `"brand-id" header is mandatory`},
+		{"brand-id: generic\n", "brand-id: \n", `"brand-id" header should not be empty`},
+		{"brand-id: generic\n", "brand-id: 456#\n", `"brand-id" header contains invalid characters: "456#"`},
+		{"model: generic-classic\n", "", `"model" header is mandatory`},
+		{"model: generic-classic\n", "model: \n", `"model" header should not be empty`},
+		{"model: generic-classic\n", "model: #\n", `"model" header contains invalid characters: "#"`},
+		{"serial: 03961d5d-26e5-443f-838d-6db046126bea\n", "", `"serial" header is mandatory`},
+		{"serial: 03961d5d-26e5-443f-838d-6db046126bea\n", "serial: \n", `"serial" header should not be empty`},
+		{"groups:", "groups: foo\nviews:", `"groups" header must be a list`},
+		{"groups:", "views:", `"groups" stanza is mandatory`},
+		{"groups:", "groups:\n  - bar", `group at position 1: must be a map`},
+		{"    operator-id: jane\n", "", `group at position 3: "operator-id" not provided`},
+		{
+			"operator-id: jane\n",
+			"operator-id: \n",
+			`group at position 3: "operator-id" must be a non-empty string`,
+		},
+		{
+			"operator-id: jane\n",
+			"operator-id: @op\n",
+			`group at position 3: invalid "operator-id" @op`,
+		},
+		{
+			"    authentication:\n      - store",
+			"    authentication: abcd",
+			`group at position 2: "authentication" field must be a list of strings`,
+		},
+		{
+			"    authentication:\n      - store",
+			"    foo: bar",
+			`group at position 2: "authentication" must be provided`,
+		},
+		{
+			"    views:\n      - canonical/network/control-interfaces",
+			"    views: abcd",
+			`group at position 2: "views" field must be a list of strings`,
+		},
+		{
+			"    views:\n      - canonical/network/control-interfaces",
+			"    foo: bar",
+			`group at position 2: "views" must be provided`,
+		},
+		{
+			"      - operator-key",
+			"      - foo-bar",
+			"group at position 1: unknown authentication method: foo-bar",
+		},
+		{
+			"canonical/network/control-interfaces",
+			"canonical",
+			`group at position 2: "canonical" must be in the format account/registry/view`,
+		},
+	}
+
+	for i, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, validationSetErrPrefix+test.expectedErr, Commentf("test %d/%d failed", i+1, len(invalidTests)))
+	}
+}
+
+func (s *registryControlSuite) TestDelegate(c *C) {
+	encoded := registryControlExample
+
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	rgCtrl := a.(*asserts.RegistryControl)
+	c.Check(rgCtrl.IsDelegated("stephen", "canonical/network/control-device", "operator-key"), Equals, false)
+
+	rgCtrl.Delegate(
+		"stephen",
+		[]string{"canonical/network/control-vpn", "canonical/network/control-device"},
+		[]string{"operator-key"},
+	)
+	rgCtrl.Delegate(
+		"stephen",
+		[]string{"canonical/network/control-interfaces", "canonical/network/control-device"},
+		[]string{"store", "operator-key"},
+	)
+
+	c.Check(rgCtrl.IsDelegated("stephen", "canonical/network/control-device", "operator-key"), Equals, true)
+	c.Check(rgCtrl.IsDelegated("stephen", "canonical/network/control-device", "store"), Equals, true)
+	c.Check(rgCtrl.IsDelegated("stephen", "canonical/network/control-vpn", "operator-key"), Equals, true)
+	c.Check(rgCtrl.IsDelegated("stephen", "canonical/network/control-vpn", "store"), Equals, false)
+}
+
+func (s *registryControlSuite) TestHeuristics(c *C) {
+	type testcase struct {
+		// before
+		before string
+		// request
+		action         string
+		operatorID     string
+		authentication []string
+		views          []string
+		// after
+		after string
+	}
+
+	tcs := []testcase{
+		{
+			before: `
+groups:
+  -
+    operator-id: john
+    authentication:
+      - operator-key
+    views:
+      - aa/b/c
+      - dd/e/f`,
+			action:         "delegate",
+			operatorID:     "john",
+			authentication: []string{"store", "operator-key"},
+			views:          []string{"xx/y/z", "ii/j/k", "aa/b/c", "uu/v/w"},
+			after: `
+groups:
+  -
+    operator-id: john
+    authentication:
+      - operator-key
+    views:
+      - dd/e/f
+  -
+    operator-id: john
+    authentication:
+      - operator-key
+      - store
+    views:
+      - aa/b/c
+      - ii/j/k
+      - uu/v/w
+      - xx/y/z
+`,
+		},
+		{
+			before: `
+groups:
+  -
+    operator-id: john
+    authentication:
+      - operator-key
+    views:
+      - aa/b/c
+      - dd/e/f`,
+			action:         "delegate",
+			operatorID:     "jane",
+			authentication: []string{"store"},
+			views:          []string{"aa/b/c"},
+			after: `
+groups:
+  -
+    operator-id: jane
+    authentication:
+      - store
+    views:
+      - aa/b/c
+  -
+    operator-id: john
+    authentication:
+      - operator-key
+    views:
+      - aa/b/c
+      - dd/e/f
+`,
+		},
+		{
+			before: `
+groups:
+  -
+    operator-id: john
+    authentication:
+      - operator-key
+    views:
+      - dd/e/f
+  -
+    operator-id: john
+    authentication:
+      - operator-key
+      - store
+    views:
+      - aa/b/c
+      - xx/y/z`,
+			action:     "revoke",
+			operatorID: "john",
+			views:      []string{"xx/y/z", "dd/e/f"},
+			after: `
+groups:
+  -
+    operator-id: john
+    authentication:
+      - operator-key
+      - store
+    views:
+      - aa/b/c
+`,
+		},
+		{
+			before: `
+groups:
+  -
+    operator-id: john
+    authentication:
+      - operator-key
+    views:
+      - dd/e/f
+  -
+    operator-id: john
+    authentication:
+      - operator-key
+      - store
+    views:
+      - aa/b/c
+      - xx/y/z
+  -
+    operator-id: jane
+    authentication:
+      - store
+    views:
+      - aa/b/c`,
+			action:     "revoke",
+			operatorID: "john",
+			after: `
+groups:
+  -
+    operator-id: jane
+    authentication:
+      - store
+    views:
+      - aa/b/c
+`,
+		},
+		{
+			before: `
+groups:
+  -
+    operator-id: john
+    authentication:
+      - operator-key
+    views:
+      - dd/e/f
+  -
+    operator-id: john
+    authentication:
+      - operator-key
+      - store
+    views:
+      - aa/b/c
+      - xx/y/z`,
+			action:         "revoke",
+			operatorID:     "john",
+			authentication: []string{"store"},
+			views:          []string{"xx/y/z"},
+			after: `
+groups:
+  -
+    operator-id: john
+    authentication:
+      - operator-key
+    views:
+      - dd/e/f
+      - xx/y/z
+  -
+    operator-id: john
+    authentication:
+      - operator-key
+      - store
+    views:
+      - aa/b/c
+`,
+		},
+		{
+			before: `
+groups:
+  -
+    operator-id: john
+    authentication:
+      - operator-key
+    views:
+      - dd/e/f
+  -
+    operator-id: john
+    authentication:
+      - operator-key
+      - store
+    views:
+      - aa/b/c`,
+			action:     "revoke",
+			operatorID: "john",
+			views:      []string{"aa/b/c", "dd/e/f"},
+			after: `
+groups:
+`,
+		},
+	}
+
+	prefix := `type: registry-control
+brand-id: generic
+model: generic-classic
+serial: 03961d5d-26e5-443f-838d-6db046126bea`
+	suffix := `
+sign-key-sha3-384: t9yuKGLyiezBq_PXMJZsGdkTukmL7MgrgqXAlxxiZF4TYryOjZcy48nnjDmEHQDp
+
+AXNpZw==`
+	for i, tc := range tcs {
+		assertion := fmt.Sprintf("%s%s%s", prefix, tc.before, suffix)
+		a, err := asserts.Decode([]byte(assertion))
+		c.Assert(err, IsNil)
+
+		rgCtrl := a.(*asserts.RegistryControl)
+		if tc.action == "delegate" {
+			err = rgCtrl.Delegate(tc.operatorID, tc.views, tc.authentication)
+		} else {
+			err = rgCtrl.Revoke(tc.operatorID, tc.views, tc.authentication)
+		}
+		c.Assert(err, IsNil)
+
+		cmt := Commentf("test number %d", i+1)
+		c.Check("\n"+rgCtrl.PrintGroups(), Equals, tc.after, cmt)
+	}
+}
+
+func (s *registryControlSuite) TestRevoke(c *C) {
+	encoded := registryControlExample
+
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	rgCtrl := a.(*asserts.RegistryControl)
+
+	c.Check(rgCtrl.IsDelegated("john", "canonical/network/control-device", "operator-key"), Equals, true)
+	c.Check(rgCtrl.IsDelegated("jane", "canonical/network/observe-interfaces", "store"), Equals, true)
+	c.Check(rgCtrl.IsDelegated("jane", "canonical/network/observe-interfaces", "operator-key"), Equals, true)
+
+	rgCtrl.Revoke("john", []string{"canonical/network/control-device"}, []string{"operator-key"})
+	c.Check(rgCtrl.IsDelegated("john", "canonical/network/control-device", "operator-key"), Equals, false)
+
+	rgCtrl.Revoke(
+		"jane",
+		[]string{"canonical/network/observe-interfaces", "some/unknown/view"},
+		[]string{"store", "operator-key"},
+	)
+	c.Check(rgCtrl.IsDelegated("jane", "canonical/network/observe-interfaces", "store"), Equals, false)
+	c.Check(rgCtrl.IsDelegated("jane", "canonical/network/observe-interfaces", "operator-key"), Equals, false)
+
+	// trying to revoke from a non-existent operator
+	err = rgCtrl.Revoke("who?", []string{"canonical/network/control-device"}, []string{"operator-key"})
+	c.Assert(err, IsNil)
+	c.Check(rgCtrl.IsDelegated("who?", "canonical/network/control-device", "operator-key"), Equals, false)
+}
+
+func (s *registryControlSuite) TestUnknownAuthMethod(c *C) {
+	encoded := registryControlExample
+
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	rgCtrl := a.(*asserts.RegistryControl)
+
+	err = rgCtrl.Delegate(
+		"jane",
+		[]string{"canonical/network/control-interfaces"},
+		[]string{"foo-bar"},
+	)
+	c.Check(err, ErrorMatches, "unknown authentication method: foo-bar")
+
+	err = rgCtrl.Revoke(
+		"jane",
+		[]string{"canonical/network/control-interfaces"},
+		[]string{"store", "baz", "operator-key"},
+	)
+	c.Check(err, ErrorMatches, "unknown authentication method: baz")
+
+	c.Check(rgCtrl.IsDelegated("jane", "canonical/network/control-interfaces", "baz"), Equals, false)
 }

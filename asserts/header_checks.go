@@ -322,3 +322,20 @@ func checkMapWhat(m map[string]interface{}, name, what string) (map[string]inter
 	}
 	return mv, nil
 }
+
+func checkList(headers map[string]interface{}, name string) ([]interface{}, error) {
+	return checkListWhat(headers, name, "header")
+}
+
+func checkListWhat(m map[string]interface{}, name, what string) ([]interface{}, error) {
+	value, ok := m[name]
+	if !ok {
+		return nil, nil
+	}
+
+	list, ok := value.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("%q %s must be a list", name, what)
+	}
+	return list, nil
+}
