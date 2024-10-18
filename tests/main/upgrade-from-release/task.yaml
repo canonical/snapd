@@ -48,14 +48,20 @@ execute: |
     fi
 
     declare -A EXPECTED_SNAPD_VERSIONS=(
-        ["24.04"]='2.63.1\+24.04'
-        ["22.04"]='2.55.3\+22.04'
-        ["20.04"]='2.44.3\+20.04'
-        ["18.04"]='2.32.5\+18.04'
+        ["24.04"]='2.65.3\+24.04'
+        ["22.04"]='2.65.3\+22.04'
+        ["20.04"]='2.65.3\+20.04'
+        ["18.04"]='2.58\+18.04.1'
         ["16.04"]='2.48.3'
         ["14.04"]='2.37.4~14.04.1'
     )
-    apt list --installed snapd | MATCH "${EXPECTED_SNAPD_VERSIONS[$VERSION_ID]}"
+
+    SNAPD_INSTALLED="$(apt list --installed snapd)"
+    if echo "$SNAPD_INSTALLED" | MATCH 'upgradable to' ; then
+        echo "$SNAPD_INSTALLED" | MATCH "upgradable to: .*${EXPECTED_SNAPD_VERSIONS[$VERSION_ID]}\]$"
+    else
+        echo "$SNAPD_INSTALLED" | MATCH "${EXPECTED_SNAPD_VERSIONS[$VERSION_ID]}"
+    fi
 
     echo "install a test service and a test command"
     snap install go-example-webserver
