@@ -94,10 +94,9 @@ func (s *validateGadgetTestSuite) TestRuleValidateStructureEmmcNames(c *C) {
 		name, err string
 		model     gadget.Model
 	}{
-		{name: "some-name", err: `cannot use "some-name" as emmc name, only \["boot0" "boot1" "rpmb"\] is allowed`},
+		{name: "some-name", err: `cannot use "some-name" as emmc name, only \["boot0" "boot1"\] is allowed`},
 		{name: "boot0", err: ""},
 		{name: "boot1", err: ""},
-		{name: "rpmb", err: ""},
 	} {
 		gi := &gadget.Info{
 			Volumes: map[string]*gadget.Volume{

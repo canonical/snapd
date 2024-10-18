@@ -1173,13 +1173,14 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 		// Set offset if it was not set (must be after setImplicitForVolumeStructure
 		// so roles are good). This is possible only if the previous structure had
 		// a well-defined end.
-		if vol.Schema == schemaEMMC {
+		switch vol.Schema {
+		case schemaEMMC:
 			// For eMMC, we do not support partition offsets. The partitions
 			// are hardware partitions that act more like traditional disks.
 			vs.Offset = asOffsetPtr(0)
-			continue
+		default:
+			previousEnd = setVolumeStructureOffset(vs, previousEnd)
 		}
-		previousEnd = setVolumeStructureOffset(vs, previousEnd)
 	}
 
 	return nil
@@ -1376,7 +1377,7 @@ func isMBR(vs *VolumeStructure) bool {
 }
 
 func validateCrossVolumeStructure(vol *Volume) error {
-	// emmc have no traditional volumes, instead emmc has the concept
+	// eMMC have no traditional volumes, instead eMMC has the concept
 	// of hardware partitions that act like separate disks.
 	if vol.Schema == schemaEMMC {
 		return nil
@@ -1628,8 +1629,7 @@ func validateBareContent(_ string, vc *VolumeContent) error {
 }
 
 func validateEMMCContent(name string, vc *VolumeContent) error {
-	// We only allow offset and size for the rpmb block
-	if (vc.Offset != nil || vc.Size != 0) && name != "rpmb" {
+	if vc.Offset != nil || vc.Size != 0 {
 		return fmt.Errorf("cannot specify size or offset for content in %q", name)
 	}
 
