@@ -25,13 +25,12 @@ package secboot
 // Debian does run "go list" without any support for passing -tags.
 
 import (
-	"crypto/ecdsa"
+	"errors"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
-	"github.com/snapcore/snapd/secboot/keys"
 )
 
 const (
@@ -48,6 +47,8 @@ const (
 
 // WithSecbootSupport is true if this package was built with githbu.com/snapcore/secboot.
 var WithSecbootSupport = false
+
+var ErrKernelKeyNotFound = errors.New("kernel key not found")
 
 type LoadChain struct {
 	*bootloader.BootFile
@@ -66,10 +67,12 @@ func NewLoadChain(bf bootloader.BootFile, next ...*LoadChain) *LoadChain {
 }
 
 type SealKeyRequest struct {
-	// The key to seal
-	Key keys.EncryptionKey
+	// The installation key to enroll a new key slot
+	BootstrappedContainer BootstrappedContainer
 	// The key name; identical keys should have identical names
 	KeyName string
+
+	SlotName string
 	// The path to store the sealed key file. The same Key/KeyName
 	// can be stored under multiple KeyFile names for safety.
 	KeyFile string
@@ -116,28 +119,30 @@ const (
 type SealKeysParams struct {
 	// The parameters we're sealing the key to
 	ModelParams []*SealKeyModelParams
-	// The authorization policy update key file (only relevant for TPM)
-	TPMPolicyAuthKey *ecdsa.PrivateKey
+	// The primary key to use, nil if needs to be generated
+	PrimaryKey []byte
+	// The handle at which to create a NV index for dynamic authorization policy revocation support
+	PCRPolicyCounterHandle uint32
 	// The path to the authorization policy update key file (only relevant for TPM,
 	// if empty the key will not be saved)
 	TPMPolicyAuthKeyFile string
-	// The handle at which to create a NV index for dynamic authorization policy revocation support
-	PCRPolicyCounterHandle uint32
 }
 
 type SealKeysWithFDESetupHookParams struct {
 	// Initial model to bind sealed keys to.
 	Model ModelForSealing
-	// AuxKey is the auxiliary key used to bind models.
-	AuxKey keys.AuxKey
 	// The path to the aux key file (if empty the key will not be
 	// saved)
 	AuxKeyFile string
 }
 
+// SerializedPCRProfile wraps a serialized PCR profile which is treated as an
+// opaque binary blob outside of secboot package.
+type SerializedPCRProfile []byte
+
 type ResealKeysParams struct {
 	// The snap model parameters
-	ModelParams []*SealKeyModelParams
+	PCRProfile SerializedPCRProfile
 	// The path to the sealed key files
 	KeyFiles []string
 	// The path to the authorization policy update key file (only relevant for TPM)

@@ -600,3 +600,43 @@ func CleanUpEncryptionSetupDataInCache(st *state.State, label string) {
 }
 
 type UniqueSnapsInRecoverySystem = uniqueSnapsInRecoverySystem
+
+func MockSecbootAddBootstrapKeyOnExistingDisk(f func(node string, newKey keys.EncryptionKey) error) (restore func()) {
+	old := secbootAddBootstrapKeyOnExistingDisk
+	secbootAddBootstrapKeyOnExistingDisk = f
+	return func() {
+		secbootAddBootstrapKeyOnExistingDisk = old
+	}
+}
+
+func MockSecbootRenameOrDeleteKeys(f func(node string, renames map[string]string) error) (restore func()) {
+	old := secbootRenameOrDeleteKeys
+	secbootRenameOrDeleteKeys = f
+	return func() {
+		secbootRenameOrDeleteKeys = old
+	}
+}
+
+func MockSecbootCreateBootstrappedContainer(f func(key secboot.DiskUnlockKey, devicePath string) secboot.BootstrappedContainer) (restore func()) {
+	old := secbootCreateBootstrappedContainer
+	secbootCreateBootstrappedContainer = f
+	return func() {
+		secbootCreateBootstrappedContainer = old
+	}
+}
+
+func MockSecbootDeleteKeys(f func(node string, matches map[string]bool) error) (restore func()) {
+	old := secbootDeleteKeys
+	secbootDeleteKeys = f
+	return func() {
+		secbootDeleteKeys = old
+	}
+}
+
+func MockDisksDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error)) (restore func()) {
+	old := disksDMCryptUUIDFromMountPoint
+	disksDMCryptUUIDFromMountPoint = f
+	return func() {
+		disksDMCryptUUIDFromMountPoint = old
+	}
+}

@@ -34,6 +34,9 @@ type (
 	SnapAccess                   = snapAccess
 	InterfaceOpenAccess          = interfaceOpenAccess
 	InterfaceAuthenticatedAccess = interfaceAuthenticatedAccess
+	InterfaceProviderRootAccess  = interfaceProviderRootAccess
+
+	InterfaceAccessReqs = interfaceAccessReqs
 )
 
 var CheckPolkitActionImpl = checkPolkitActionImpl
@@ -64,7 +67,7 @@ func MockCgroupSnapNameFromPid(new func(pid int) (string, error)) (restore func(
 
 var RequireInterfaceApiAccessImpl = requireInterfaceApiAccessImpl
 
-func MockRequireInterfaceApiAccess(new func(d *Daemon, r *http.Request, ucred *ucrednet, interfaceNames []string) *apiError) (restore func()) {
+func MockRequireInterfaceApiAccess(new func(d *Daemon, r *http.Request, ucred *ucrednet, reqs InterfaceAccessReqs) *apiError) (restore func()) {
 	old := requireInterfaceApiAccess
 	requireInterfaceApiAccess = new
 	return func() {

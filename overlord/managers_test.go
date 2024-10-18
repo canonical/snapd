@@ -24,6 +24,7 @@ package overlord_test
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -74,6 +75,8 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/fdestate"
+	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -7451,6 +7454,35 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	mockServer := s.mockStore(c)
 	defer mockServer.Close()
 
+	restore = fdeBackend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+		return []byte(`"some-profile"`), nil
+	})
+	defer restore()
+
+	restore = fdestate.MockDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
+		if mountpoint == dirs.GlobalRootDir {
+			return "root-uuid", nil
+		} else {
+			return "save-uuid", nil
+		}
+	})
+	defer restore()
+
+	restore = fdestate.MockGetPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
+		return []byte("aaaa"), []byte("bbbb"), nil
+	})
+	defer restore()
+
+	restore = fdestate.MockVerifyPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash, salt []byte, digest []byte) (bool, error) {
+		return true, nil
+	})
+	defer restore()
+
+	fdemgr := s.o.FDEManager()
+	c.Assert(fdemgr, NotNil)
+	err := fdemgr.StartUp()
+	c.Assert(err, IsNil)
+
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
@@ -7467,7 +7499,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 		s.serveSnap(snapPath, "22")
 	}
 
-	err := assertstate.Add(st, s.devAcct)
+	err = assertstate.Add(st, s.devAcct)
 	c.Assert(err, IsNil)
 	// snaps in state
 	pcInfo := s.makeInstalledSnapInStateForRemodel(c, "pc", snap.R(1), "20/stable")
@@ -7588,7 +7620,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	c.Assert(err, IsNil)
 
 	secbootResealCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		secbootResealCalls++
 		if !encrypted {
 			return fmt.Errorf("unexpected call")
@@ -7935,11 +7967,6 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystemSimpleSetUp(c *C, model
 		"snap_kernel": "pc-kernel_2.snap",
 	})
 	c.Assert(err, IsNil)
-
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
-		return fmt.Errorf("unexpected call")
-	})
-	s.AddCleanup(restore)
 }
 
 func (s *mgrsSuiteCore) TestRemodelUC20DifferentKernelChannel(c *C) {
