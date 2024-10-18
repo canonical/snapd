@@ -22,11 +22,16 @@
 package fdestate
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/snapdenv"
 )
 
 var (
@@ -36,22 +41,44 @@ var (
 // FDEManager is responsible for managing full disk encryption keys.
 type FDEManager struct {
 	state *state.State
+
+	preseed bool
+	mode    string
 }
 
 type fdeMgrKey struct{}
 
-func Manager(st *state.State, runner *state.TaskRunner) *FDEManager {
+func initModeFromModeenv(m *FDEManager) error {
+	modeenv, err := maybeReadModeenv()
+	if err != nil {
+		return err
+	}
+
+	if modeenv != nil {
+		m.mode = modeenv.Mode
+	}
+	return nil
+}
+
+func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 	m := &FDEManager{
-		state: st,
+		state:   st,
+		preseed: snapdenv.Preseeding(),
 	}
 
 	boot.ResealKeyForBootChains = m.resealKeyForBootChains
+
+	if !m.preseed {
+		if err := initModeFromModeenv(m); err != nil {
+			return nil, err
+		}
+	}
 
 	st.Lock()
 	defer st.Unlock()
 	st.Cache(fdeMgrKey{}, m)
 
-	return m
+	return m, nil
 }
 
 // Ensure implements StateManager.Ensure
@@ -59,11 +86,39 @@ func (m *FDEManager) Ensure() error {
 	return nil
 }
 
+func maybeReadModeenv() (*boot.Modeenv, error) {
+	modeenv, err := boot.ReadModeenv("")
+	if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("cannot read modeenv: %v", err)
+	}
+	return modeenv, nil
+}
+
 // StartUp implements StateStarterUp.Startup
 func (m *FDEManager) StartUp() error {
+	if m.preseed {
+		// nothing to do in preseeding mode
+		return nil
+	}
+
 	m.state.Lock()
 	defer m.state.Unlock()
-	return initializeState(m.state)
+
+	if m.mode == "run" {
+		// TODO should we try to initialize the state in
+		// install/recover/factory-reset modes?
+		if err := initializeState(m.state); err != nil {
+			return fmt.Errorf("cannot initialize FDE state: %v", err)
+		}
+	}
+	return nil
+}
+
+// ReloadModeenv is a helper function for forcing a reload of modeenv. Only
+// useful in integration testing.
+func (m *FDEManager) ReloadModeenv() error {
+	osutil.MustBeTestBinary("ReloadModeenv can only be called from tests")
+	return initModeFromModeenv(m)
 }
 
 func (m *FDEManager) resealKeyForBootChains(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
