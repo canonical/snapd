@@ -76,6 +76,9 @@ func ParseMountEntry(s string) (MountEntry, error) {
 			tailFieldIndex = len(fields) - 2
 			escapedOptions = strings.Join(fields[3:tailFieldIndex], " ")
 		}
+		// TODO: There are multiple filesystems which override generic_parse_monolithic
+		// in the kernel so special handling is needed on a per-fs basis. i.e overlayfs
+		// https://warthogs.atlassian.net/browse/SNAPDENG-32056
 		e.Options = strings.Split(unescape(escapedOptions), ",")
 	}
 
