@@ -252,7 +252,9 @@ func MockSbSetKeyRevealer(f func(kr sb_hooks.KeyRevealer)) (restore func()) {
 	}
 }
 
-func MockReadKeyFile(f func(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, error)) (restore func()) {
+type KeyLoader = keyLoader
+
+func MockReadKeyFile(f func(keyfile string, kl keyLoader) error) (restore func()) {
 	old := readKeyFile
 	readKeyFile = f
 	return func() {
