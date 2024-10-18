@@ -21,7 +21,6 @@ package backend
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
@@ -53,46 +52,34 @@ func runKeySealRequests(key secboot.BootstrappedContainer) []secboot.SealKeyRequ
 			BootstrappedContainer: key,
 			KeyName:               "ubuntu-data",
 			SlotName:              "default",
-			KeyFile:               device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir),
 		},
 	}
 }
 
-func fallbackKeySealRequests(key, saveKey secboot.BootstrappedContainer, factoryReset bool) []secboot.SealKeyRequest {
-	saveFallbackKey := device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
-
-	if factoryReset {
-		// factory reset uses alternative sealed key location, such that
-		// until we boot into the run mode, both sealed keys are present
-		// on disk
-		saveFallbackKey = device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
-	}
+func fallbackKeySealRequests(key, saveKey secboot.BootstrappedContainer) []secboot.SealKeyRequest {
 	return []secboot.SealKeyRequest{
 		{
 			BootstrappedContainer: key,
 			KeyName:               "ubuntu-data",
 			SlotName:              "default-fallback",
-			KeyFile:               device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
 		},
 		{
 			BootstrappedContainer: saveKey,
 			KeyName:               "ubuntu-save",
 			SlotName:              "default-fallback",
-			KeyFile:               saveFallbackKey,
 		},
 	}
 }
 
-func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBootChains, roleToBlName map[bootloader.Role]string, pcrHandle uint32) ([]byte, error) {
+func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBootChains, primaryKey []byte, roleToBlName map[bootloader.Role]string, pcrHandle uint32) error {
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
-		return nil, fmt.Errorf("cannot prepare for key sealing: %v", err)
+		return fmt.Errorf("cannot prepare for key sealing: %v", err)
 	}
 
 	sealKeyParams := &secboot.SealKeysParams{
 		ModelParams:            modelParams,
-		PrimaryKey:             nil,
-		TPMPolicyAuthKeyFile:   filepath.Join(boot.InstallHostFDESaveDir, "tpm-policy-auth-key"),
+		PrimaryKey:             primaryKey,
 		PCRPolicyCounterHandle: pcrHandle,
 	}
 
@@ -102,15 +89,14 @@ func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBo
 	// path only unseals one object because unsealing is expensive.
 	// Furthermore, the run object key is stored on ubuntu-boot so that we do not
 	// need to continually write/read keys from ubuntu-seed.
-	primaryKey, err := secbootSealKeys(runKeySealRequests(key), sealKeyParams)
-	if err != nil {
-		return nil, fmt.Errorf("cannot seal the encryption keys: %v", err)
+	if _, err := secbootSealKeys(runKeySealRequests(key), sealKeyParams); err != nil {
+		return fmt.Errorf("cannot seal the encryption keys: %v", err)
 	}
 
-	return primaryKey, nil
+	return nil
 }
 
-func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot.PredictableBootChains, primaryKey []byte, roleToBlName map[bootloader.Role]string, factoryReset bool, pcrHandle uint32) error {
+func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot.PredictableBootChains, primaryKey []byte, roleToBlName map[bootloader.Role]string, pcrHandle uint32) error {
 	// also seal the keys to the recovery bootchains as a fallback
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
@@ -126,7 +112,7 @@ func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot
 	// key files are stored on ubuntu-seed, separate from ubuntu-data so they
 	// can be used if ubuntu-data and ubuntu-boot are corrupted or unavailable.
 
-	if _, err := secbootSealKeys(fallbackKeySealRequests(key, saveKey, factoryReset), sealKeyParams); err != nil {
+	if _, err := secbootSealKeys(fallbackKeySealRequests(key, saveKey), sealKeyParams); err != nil {
 		return fmt.Errorf("cannot seal the fallback encryption keys: %v", err)
 	}
 
@@ -134,16 +120,14 @@ func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot
 }
 
 func sealKeyForBootChainsHook(key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams) error {
-	sealingParams := secboot.SealKeysWithFDESetupHookParams{
-		AuxKeyFile: filepath.Join(boot.InstallHostFDESaveDir, "aux-key"),
-	}
+	sealingParams := secboot.SealKeysWithFDESetupHookParams{}
 
 	for _, runChain := range params.RunModeBootChains {
 		sealingParams.Model = runChain.ModelForSealing()
 		break
 	}
 
-	skrs := append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey, params.FactoryReset)...)
+	skrs := append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...)
 	if err := secbootSealKeysWithFDESetupHook(RunFDESetupHook, skrs, &sealingParams); err != nil {
 		return err
 	}
@@ -167,7 +151,7 @@ func sealKeyForBootChainsHook(key, saveKey secboot.BootstrappedContainer, params
 	return nil
 }
 
-func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams) error {
+func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, params *boot.SealKeyForBootChainsParams) error {
 	if method == device.SealingMethodFDESetupHook {
 		return sealKeyForBootChainsHook(key, saveKey, params)
 	}
@@ -220,14 +204,11 @@ func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secbo
 
 	// TODO: refactor sealing functions to take a struct instead of so many
 	// parameters
-	primaryKey, err := sealRunObjectKeys(key, pbc, params.RoleToBlName, runObjectKeyPCRHandle)
-	if err != nil {
+	if err := sealRunObjectKeys(key, pbc, primaryKey, params.RoleToBlName, runObjectKeyPCRHandle); err != nil {
 		return err
 	}
-
-	err = sealFallbackObjectKeys(key, saveKey, rpbc, primaryKey, params.RoleToBlName, params.FactoryReset,
-		fallbackObjectKeyPCRHandle)
-	if err != nil {
+	if err := sealFallbackObjectKeys(key, saveKey, rpbc, primaryKey, params.RoleToBlName,
+		fallbackObjectKeyPCRHandle); err != nil {
 		return err
 	}
 
