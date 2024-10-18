@@ -71,12 +71,6 @@ volumes:
         size: 4M
         content:
           - image: boot1filename
-      - name: rpmb
-        size: 131072
-        content:
-          - image: rpmbfilename
-            offset: 1234
-            size: 4321
 `)
 
 var mockEMMCMultiVolumeGadgetYaml = string(mockEMMCGadgetYaml) + `
@@ -103,17 +97,6 @@ func (s *gadgetYamlEMMCSuite) SetUpTest(c *C) {
 
 func (s *gadgetYamlEMMCSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
-}
-
-func (s *gadgetYamlEMMCSuite) TestReadGadgetYamlMultiVolumeEMMCNotSupported(c *C) {
-	err := os.WriteFile(s.gadgetYamlPath, []byte(mockEMMCMultiVolumeGadgetYaml), 0644)
-	c.Assert(err, IsNil)
-
-	info, err := gadget.ReadInfo(s.dir, coreMod)
-	c.Assert(err, IsNil)
-
-	err = gadget.Validate(info, nil, nil)
-	c.Assert(err, ErrorMatches, `cannot use "schema: emmc" with multiple volumes yet`)
 }
 
 func (s *gadgetYamlEMMCSuite) TestReadGadgetYamlOffsetNotSupportedForBoot(c *C) {
@@ -152,7 +135,7 @@ volumes:
 }
 
 func (s *gadgetYamlEMMCSuite) TestReadGadgetYamlSourceIsNotSupported(c *C) {
-	for _, t := range []string{"boot0", "boot1", "rpmb"} {
+	for _, t := range []string{"boot0", "boot1"} {
 		err := os.WriteFile(s.gadgetYamlPath, []byte(fmt.Sprintf(`
 volumes:
   volumename:
@@ -186,7 +169,7 @@ volumes:
 }
 
 func (s *gadgetYamlEMMCSuite) TestReadGadgetYamlImageMustBeSet(c *C) {
-	for _, t := range []string{"boot0", "boot1", "rpmb"} {
+	for _, t := range []string{"boot0", "boot1"} {
 		err := os.WriteFile(s.gadgetYamlPath, []byte(fmt.Sprintf(`
 volumes:
   volumename:
@@ -286,20 +269,6 @@ func (s *gadgetYamlEMMCSuite) TestReadGadgetYamlHappy(c *C) {
 							},
 						},
 						YamlIndex: 1,
-					}, {
-						VolumeName: "my-emmc",
-						Name:       "rpmb",
-						Offset:     asOffsetPtr(0),
-						Size:       131072,
-						MinSize:    131072,
-						Content: []gadget.VolumeContent{
-							{
-								Image:  "rpmbfilename",
-								Offset: asOffsetPtr(1234),
-								Size:   4321,
-							},
-						},
-						YamlIndex: 2,
 					},
 				},
 			},
@@ -319,7 +288,6 @@ func (s *gadgetYamlEMMCSuite) TestUpdateApplyHappy(c *C) {
 	oldRootDir := c.MkDir()
 	makeSizedFile(c, filepath.Join(oldRootDir, "boot0filename"), 1*quantity.SizeMiB, nil)
 	makeSizedFile(c, filepath.Join(oldRootDir, "boot1filename"), 1*quantity.SizeMiB, nil)
-	makeSizedFile(c, filepath.Join(oldRootDir, "rpmbfilename"), 1234, nil)
 	oldData := gadget.GadgetData{Info: oldInfo, RootDir: oldRootDir}
 
 	newInfo, err := gadget.ReadInfo(s.dir, coreMod)
@@ -330,7 +298,6 @@ func (s *gadgetYamlEMMCSuite) TestUpdateApplyHappy(c *C) {
 	newRootDir := c.MkDir()
 	makeSizedFile(c, filepath.Join(newRootDir, "boot0filename"), 1*quantity.SizeMiB, nil)
 	makeSizedFile(c, filepath.Join(newRootDir, "boot1filename"), 2*quantity.SizeMiB, nil)
-	makeSizedFile(c, filepath.Join(newRootDir, "rpmbfilename"), 1234, nil)
 	newData := gadget.GadgetData{Info: newInfo, RootDir: newRootDir}
 
 	rollbackDir := c.MkDir()
@@ -350,9 +317,6 @@ func (s *gadgetYamlEMMCSuite) TestUpdateApplyHappy(c *C) {
 					},
 					1: {
 						Device: "/dev/emmcblk0boot1",
-					},
-					2: {
-						Device: "/dev/emmcblk0rpmb",
 					},
 				},
 			}, map[string]map[int]*gadget.OnDiskStructure{
