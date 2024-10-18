@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/snapdenv"
 )
 
 var (
@@ -37,13 +38,16 @@ var (
 // FDEManager is responsible for managing full disk encryption keys.
 type FDEManager struct {
 	state *state.State
+
+	preseed bool
 }
 
 type fdeMgrKey struct{}
 
 func Manager(st *state.State, runner *state.TaskRunner) *FDEManager {
 	m := &FDEManager{
-		state: st,
+		state:   st,
+		preseed: snapdenv.Preseeding(),
 	}
 
 	boot.ResealKeyForBootChains = m.resealKeyForBootChains
@@ -62,6 +66,11 @@ func (m *FDEManager) Ensure() error {
 
 // StartUp implements StateStarterUp.Startup
 func (m *FDEManager) StartUp() error {
+	if m.preseed {
+		// nothing to do in preseeding mode
+		return nil
+	}
+
 	m.state.Lock()
 	defer m.state.Unlock()
 
