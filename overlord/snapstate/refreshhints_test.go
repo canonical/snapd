@@ -322,7 +322,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 		return &snap.ComponentInfo{
 			Component:         csi.Component,
 			Type:              snap.StandardComponent,
-			Version:           "1.0",
+			CompVersion:       "1.0",
 			ComponentSideInfo: *csi,
 		}, nil
 	})

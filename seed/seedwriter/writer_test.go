@@ -3033,10 +3033,10 @@ func (s *writerSuite) testSeedSnapsWriteMetaCore20LocalSnaps(c *C, withComps boo
 		seedComps := map[string]*seedwriter.SeedComponent{}
 		if withComps {
 			cref1 := naming.NewComponentRef("required20", "comp1")
-			cinfo1 := snap.NewComponentInfo(cref1, snap.StandardComponent, "1.0", "", "", "", nil)
+			cinfo1 := snap.NewComponentInfo(cref1, snap.StandardComponent, "1.5", "", "", "", nil)
 			pathComp1 = s.makeLocalComponent(c, "required20+comp1")
 			cref2 := naming.NewComponentRef("required20", "comp2")
-			cinfo2 := snap.NewComponentInfo(cref2, snap.StandardComponent, "2.0", "", "", "", nil)
+			cinfo2 := snap.NewComponentInfo(cref2, snap.StandardComponent, "", "", "", "", nil)
 			pathComp2 = s.makeLocalComponent(c, "required20+comp2")
 			seedComps["comp1"] = &seedwriter.SeedComponent{
 				ComponentRef: cref1,
@@ -3097,8 +3097,10 @@ func (s *writerSuite) testSeedSnapsWriteMetaCore20LocalSnaps(c *C, withComps boo
 	// local unasserted snap/component were put in system snaps dir
 	c.Check(filepath.Join(systemDir, "snaps", "required20_1.0.snap"), testutil.FilePresent)
 	if withComps {
-		c.Check(filepath.Join(systemDir, "snaps", "required20+comp1_1.0.comp"), testutil.FilePresent)
-		c.Check(filepath.Join(systemDir, "snaps", "required20+comp2_2.0.comp"), testutil.FilePresent)
+		c.Check(filepath.Join(systemDir, "snaps", "required20+comp1_1.5.comp"), testutil.FilePresent)
+		// Note that the component version is here the one for the snap
+		// as it was not specified in the component itself.
+		c.Check(filepath.Join(systemDir, "snaps", "required20+comp2_1.0.comp"), testutil.FilePresent)
 	}
 
 	options20, err := seedwriter.InternalReadOptions20(filepath.Join(systemDir, "options.yaml"))
@@ -3109,11 +3111,11 @@ func (s *writerSuite) testSeedSnapsWriteMetaCore20LocalSnaps(c *C, withComps boo
 		compOpts = []internal.Component20{
 			{
 				Name:       "comp1",
-				Unasserted: "required20+comp1_1.0.comp",
+				Unasserted: "required20+comp1_1.5.comp",
 			},
 			{
 				Name:       "comp2",
-				Unasserted: "required20+comp2_2.0.comp",
+				Unasserted: "required20+comp2_1.0.comp",
 			},
 		}
 	}

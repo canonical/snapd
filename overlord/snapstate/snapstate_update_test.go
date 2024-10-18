@@ -867,7 +867,7 @@ func (s *snapmgrTestSuite) testUpdateAmendRunThrough(c *C, tryMode bool, compone
 		return &snap.ComponentInfo{
 			Component:         csi.Component,
 			Type:              componentNameToType(c, csi.Component.ComponentName),
-			Version:           "1.0",
+			CompVersion:       "1.0",
 			ComponentSideInfo: *csi,
 		}, nil
 	}))
@@ -11187,7 +11187,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedOnPreDownl
 		return &snap.ComponentInfo{
 			Component:         csi.Component,
 			Type:              "standard",
-			Version:           "1.0",
+			CompVersion:       "1.0",
 			ComponentSideInfo: *csi,
 		}, nil
 	}))
@@ -14489,7 +14489,7 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 		return &snap.ComponentInfo{
 			Component:         csi.Component,
 			Type:              componentNameToType(c, csi.Component.ComponentName),
-			Version:           "1.0",
+			CompVersion:       "1.0",
 			ComponentSideInfo: *csi,
 		}, nil
 	}))
@@ -14812,7 +14812,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 		return &snap.ComponentInfo{
 			Component:         csi.Component,
 			Type:              componentNameToType(c, csi.Component.ComponentName),
-			Version:           "1.0",
+			CompVersion:       "1.0",
 			ComponentSideInfo: *csi,
 		}, nil
 	}))
@@ -15287,7 +15287,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		return &snap.ComponentInfo{
 			Component:         csi.Component,
 			Type:              componentNameToType(c, csi.Component.ComponentName),
-			Version:           "1.0",
+			CompVersion:       "1.0",
 			ComponentSideInfo: *csi,
 		}, nil
 	}))
@@ -15960,7 +15960,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsFromPathRunThrough(c *C, inst
 		return &snap.ComponentInfo{
 			Component:         csi.Component,
 			Type:              componentNameToType(c, csi.Component.ComponentName),
-			Version:           "1.0",
+			CompVersion:       "1.0",
 			ComponentSideInfo: *csi,
 		}, nil
 	}))
@@ -16419,7 +16419,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughOnlyComponentUpdate
 		return &snap.ComponentInfo{
 			Component:         csi.Component,
 			Type:              compNameToType(csi.Component.ComponentName),
-			Version:           "1.0",
+			CompVersion:       "1.0",
 			ComponentSideInfo: *csi,
 		}, nil
 	}))

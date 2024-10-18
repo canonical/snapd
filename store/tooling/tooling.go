@@ -583,14 +583,7 @@ func (tsto *ToolingStore) componentDownload(targetFn string, snapName string, sr
 
 	return &DownloadedComponent{
 		Path: targetFn,
-		Info: &snap.ComponentInfo{
-			Component: cref,
-			Type:      ctyp,
-			Version:   srr.Version,
-			ComponentSideInfo: snap.ComponentSideInfo{
-				Component: cref,
-				Revision:  snap.R(srr.Revision),
-			},
-		},
+		Info: snap.NewComponentInfo(cref, ctyp, srr.Version,
+			"", "", "", snap.NewComponentSideInfo(cref, snap.R(srr.Revision))),
 	}, nil
 }

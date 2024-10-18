@@ -67,7 +67,16 @@ var mockComponentInfo = &snap.ComponentInfo{
 		SnapName:      "foo",
 		ComponentName: "comp",
 	},
-	Version: "1.0",
+	CompVersion: "1.1",
+	ComponentSideInfo: snap.ComponentSideInfo{
+		Revision: snap.R(5),
+	},
+}
+var mockComponentInfoNoVersion = &snap.ComponentInfo{
+	Component: naming.ComponentRef{
+		SnapName:      "foo",
+		ComponentName: "comp",
+	},
 	ComponentSideInfo: snap.ComponentSideInfo{
 		Revision: snap.R(5),
 	},
@@ -325,11 +334,7 @@ func (s *HTestSuite) TestExtendEnvForRunForClassic(c *C) {
 	c.Assert(env["TMPDIR"], Equals, "/var/tmp")
 }
 
-func (s *HTestSuite) TestExtendEnvForRunWithComponent(c *C) {
-	env := osutil.Environment{"TMPDIR": "/var/tmp"}
-
-	ExtendEnvForRun(env, mockSnapInfo, mockComponentInfo, nil)
-
+func checkEnvWithComp(c *C, env osutil.Environment, compVersion string) {
 	c.Assert(env["SNAP_NAME"], Equals, "foo")
 	c.Assert(env["SNAP_COMMON"], Equals, "/var/snap/foo/common")
 	c.Assert(env["SNAP_DATA"], Equals, "/var/snap/foo/17")
@@ -338,8 +343,25 @@ func (s *HTestSuite) TestExtendEnvForRunWithComponent(c *C) {
 
 	c.Assert(env["SNAP_COMPONENT"], Equals, filepath.Join(dirs.CoreSnapMountDir, "foo/components/mnt/comp/5"))
 	c.Assert(env["SNAP_COMPONENT_REVISION"], Equals, "5")
-	c.Assert(env["SNAP_COMPONENT_VERSION"], Equals, "1.0")
+	c.Assert(env["SNAP_COMPONENT_VERSION"], Equals, compVersion)
 	c.Assert(env["SNAP_COMPONENT_NAME"], Equals, "foo+comp")
+}
+
+func (s *HTestSuite) TestExtendEnvForRunWithComponent(c *C) {
+	env := osutil.Environment{"TMPDIR": "/var/tmp"}
+
+	ExtendEnvForRun(env, mockSnapInfo, mockComponentInfo, nil)
+	compVersion := "1.1"
+	checkEnvWithComp(c, env, compVersion)
+}
+
+func (s *HTestSuite) TestExtendEnvForRunWithComponentNoVersion(c *C) {
+	env := osutil.Environment{"TMPDIR": "/var/tmp"}
+
+	ExtendEnvForRun(env, mockSnapInfo, mockComponentInfoNoVersion, nil)
+	// Same as snap in this case
+	compVersion := "1.0"
+	checkEnvWithComp(c, env, compVersion)
 }
 
 func (s *HTestSuite) TestHiddenDirEnv(c *C) {
