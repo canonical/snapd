@@ -179,17 +179,22 @@ func (s *registryTestSuite) TestGetNotFound(c *C) {
 
 	res, err := registrystate.Get(s.state, s.devAccID, "network", "other-view", []string{"ssid"})
 	c.Assert(err, FitsTypeOf, &registry.NotFoundError{})
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid" in registry view %s/network/other-view: not found`, s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot find view "other-view" in registry %s/network`, s.devAccID))
 	c.Check(res, IsNil)
 
 	res, err = registrystate.Get(s.state, s.devAccID, "network", "setup-wifi", []string{"ssid"})
 	c.Assert(err, FitsTypeOf, &registry.NotFoundError{})
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid" in registry view %s/network/setup-wifi: matching rules don't map to any values`, s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid" through %s/network/setup-wifi: no view data`, s.devAccID))
+	c.Check(res, IsNil)
+
+	res, err = registrystate.Get(s.state, s.devAccID, "network", "setup-wifi", []string{"ssid", "ssids"})
+	c.Assert(err, FitsTypeOf, &registry.NotFoundError{})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid", "ssids" through %s/network/setup-wifi: no view data`, s.devAccID))
 	c.Check(res, IsNil)
 
 	res, err = registrystate.Get(s.state, s.devAccID, "network", "setup-wifi", []string{"other-field"})
 	c.Assert(err, FitsTypeOf, &registry.NotFoundError{})
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "other-field" in registry view %s/network/setup-wifi: no matching read rule`, s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "other-field" through %s/network/setup-wifi: no matching rule`, s.devAccID))
 	c.Check(res, IsNil)
 }
 
@@ -215,11 +220,11 @@ func (s *registryTestSuite) TestSetNotFound(c *C) {
 
 	err := registrystate.Set(s.state, s.devAccID, "network", "setup-wifi", map[string]interface{}{"foo": "bar"})
 	c.Assert(err, FitsTypeOf, &registry.NotFoundError{})
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot set "foo" in registry view %s/network/setup-wifi: no matching write rule`, s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot set "foo" through %s/network/setup-wifi: no matching rule`, s.devAccID))
 
 	err = registrystate.Set(s.state, s.devAccID, "network", "other-view", map[string]interface{}{"foo": "bar"})
 	c.Assert(err, FitsTypeOf, &registry.NotFoundError{})
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot set "foo" in registry view %s/network/other-view: not found`, s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot find view "other-view" in registry %s/network`, s.devAccID))
 }
 
 func (s *registryTestSuite) TestUnsetView(c *C) {
