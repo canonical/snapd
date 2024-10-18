@@ -1177,6 +1177,11 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 		case schemaEMMC:
 			// For eMMC, we do not support partition offsets. The partitions
 			// are hardware partitions that act more like traditional disks.
+			// XXX: In some use-cases these partitions are actually defined
+			// not necessarily as physical partitions, and we should maybe allow
+			// offsets to be specified for boot0/boot1, however if one has it, both
+			// should. So it will be either all of them or none.
+			// XXX: We should add support for this and remove this 'case'.
 			vs.Offset = asOffsetPtr(0)
 		default:
 			previousEnd = setVolumeStructureOffset(vs, previousEnd)
