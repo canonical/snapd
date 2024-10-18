@@ -101,20 +101,17 @@ func SetViaView(bag registry.DataBag, view *registry.View, requests map[string]i
 func Get(st *state.State, account, registryName, viewName string, fields []string) (interface{}, error) {
 	registryAssert, err := assertstateRegistry(st, account, registryName)
 	if err != nil {
-		return nil, err
+		if errors.Is(err, &asserts.NotFoundError{}) {
+			// replace the not found error so the output matches the usual registry ID layout
+			return nil, registry.NewNotFoundError(i18n.G("cannot find registry %s/%s: assertion not found"), account, registryName)
+
+		}
+		return nil, fmt.Errorf(i18n.G("cannot find registry assertion %s/%s: %v"), account, registryName, err)
 	}
 	reg := registryAssert.Registry()
 
 	view := reg.View(viewName)
 	if view == nil {
-		return nil, &registry.NotFoundError{
-			Account:      account,
-			RegistryName: registryName,
-			View:         viewName,
-			Operation:    "get",
-			Requests:     fields,
-			Cause:        "not found",
-		}
 	}
 
 	bag, err := readDatabag(st, account, registryName)
@@ -153,14 +150,19 @@ func GetViaView(bag registry.DataBag, view *registry.View, fields []string) (int
 	}
 
 	if len(results) == 0 {
-		return nil, &registry.NotFoundError{
-			Account:      view.Registry().Account,
-			RegistryName: view.Registry().Name,
-			View:         view.Name,
-			Operation:    "get",
-			Requests:     fields,
-			Cause:        "matching rules don't map to any values",
+		var reqStr string
+		switch len(fields) {
+		case 0:
+			// leave empty, so the message reflects the request gets the whole view
+		case 1:
+			// we should error out of the check in the loop before we hit this, but
+			// let's be robust in case we do
+			reqStr = fmt.Sprintf(i18n.G(" %q through"), fields[0])
+		default:
+			reqStr = fmt.Sprintf(i18n.G(" %s through"), strutil.Quoted(fields))
 		}
+
+		return nil, registry.NewNotFoundError(i18n.G("cannot get%s %s/%s/%s: no view data"), reqStr, view.Registry().Account, view.Registry().Name, view.Name)
 	}
 
 	return results, nil

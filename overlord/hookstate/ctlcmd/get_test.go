@@ -762,12 +762,12 @@ func (s *registrySuite) TestRegistryGetAndSetAssertionNotFound(c *C) {
 	s.state.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("registry assertion %s/network not found", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find registry %s/network: assertion not found", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
 	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=my-ssid"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("registry assertion %s/network not found", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find registry %s/network: assertion not found", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 }
@@ -885,7 +885,7 @@ func (s *registrySuite) TestRegistryGetDifferentViewThanOngoingTx(c *C) {
 
 	stdout, stderr, err := ctlcmd.Run(ctx, []string{"get", "--view", ":other", "ssid"}, 0)
 	// error is for no stored value, meaning we read the right registry
-	c.Assert(err, ErrorMatches, `.* matching rules don't map to any values`)
+	c.Assert(err, ErrorMatches, `.*: no view data`)
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 }
