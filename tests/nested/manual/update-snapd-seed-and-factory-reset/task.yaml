@@ -1,0 +1,197 @@
+summary: blah
+
+details: |
+    blah
+
+systems: [ubuntu-2*]
+
+environment:
+  NESTED_CUSTOM_MODEL: $(pwd)/model-old.model
+  NESTED_ENABLE_TPM/tpm: true
+  NESTED_ENABLE_SECURE_BOOT/tpm: true
+
+  NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
+  NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
+  REMOTE_SAS_URL: http://10.0.2.2:11028
+
+  # We will sign manually because we need to move files around
+  NESTED_SIGN_SNAPS_FAKESTORE: false
+
+  # 2.63
+  OLD_SNAPD_REVISION: 21759
+  OLD_SNAPD_COMMIT: 40efd81c2f35213eabf2df83fb9efabe88fa124e
+
+prepare: |
+    # Install what is needed before using the fake store
+    snap install jq remarshal
+    snap install test-snapd-swtpm --edge
+
+    # We could use our own names and ids since we will provide our own
+    # store. But to avoid errors with some hardcoded checks, let's use
+    # the same as the store.
+    VERSION="$(tests.nested show version)"
+    core_name="core${VERSION}"
+    if tests.nested is-nested uc20; then
+       core_id="DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q"
+    elif tests.nested is-nested uc22; then
+       core_id="amcUKQILKXHHTlmSa7NMdnXSx02dNeeT"
+    elif tests.nested is-nested uc24; then
+       core_id="dwTAh7MZZ01zyriOZErqd1JynQLiOGvM"
+    else
+       echo "Unknown system" 1>&2
+       exit 1
+    fi
+
+    "${TESTSTOOLS}/store-state" setup-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
+    cp "${TESTSLIB}/assertions/developer1.account" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+    cp "${TESTSLIB}/assertions/developer1.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+    cp "${TESTSLIB}/assertions/testrootorg-store.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+
+    for model_version in old new; do
+      gendeveloper1 sign-model <<EOF >"model-${model_version}.model"
+    {
+        "type": "model",
+        "authority-id": "developer1",
+        "series": "16",
+        "brand-id": "developer1",
+        "model": "update-snapd-seed-and-factory-reset-${model_version}",
+        "architecture": "amd64",
+        "timestamp": "$(date -Iseconds --utc)",
+        "grade": "dangerous",
+        "base": "${core_name}",
+        "serial-authority": [
+            "generic"
+        ],
+        "snaps": [
+            {
+                "default-channel": "${VERSION}/edge",
+                "id": "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH",
+                "name": "pc",
+                "type": "gadget"
+            },
+            {
+                "default-channel": "${VERSION}/edge",
+                "id": "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza",
+                "name": "pc-kernel",
+                "type": "kernel"
+            },
+            {
+                "default-channel": "${VERSION}/edge",
+                "id": "${core_id}",
+                "name": "${core_name}",
+                "type": "base"
+            },
+            {
+                "default-channel": "${model_version}/edge",
+                "id": "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
+                "name": "snapd",
+                "type": "snapd"
+            }
+        ]
+    }
+    EOF
+    done
+
+    extra="$(tests.nested get extra-snaps-path)"
+    tests.nested prepare-essential-snaps
+
+    # Now we want to start with the old snap for snapd, and keep the
+    # prepared snap (containing new code), for the new model
+    mv "${extra}"/snapd_*.snap snapd_new.snap
+
+    snap download snapd --revision="${OLD_SNAPD_REVISION}" --basename=snapd_old
+    unsquashfs -d snapd_old snapd_old.snap
+    rm -rf snapd_old.snap
+
+    git clone https://github.com/canonical/snapd.git snapd_old_source
+    git -C snapd_old_source checkout "${OLD_SNAPD_COMMIT}"
+    pushd snapd_old_source
+    ./get-deps.sh --skip-unused-check
+    ./mkversion.sh "2.63"
+    CGO_ENABLED=1 go build -mod=vendor -tags withtestkeys -o ../snapd_old/usr/lib/snapd/snapd github.com/snapcore/snapd/cmd/snapd
+    popd
+    rm -rf snapd_old_source
+    snap pack snapd_old --filename="${extra}/snapd_old.snap"
+    rm -rf snapd_old
+
+    # We need to set the serial to match fakedevicesvc
+    unsquashfs -d pc "${extra}"/pc.snap
+    rm -f "${extra}"/pc.snap
+    install -Dm755 -t pc/meta/hooks prepare-device
+    echo 7777 >pc/serial
+    snap pack pc --filename="${extra}"/pc.snap
+    rm -rf pc
+
+    unsquashfs -d core "${extra}/${core_name}.snap"
+    rm "${extra}/${core_name}.snap"
+    mkdir -p core/usr/lib/systemd/system.conf.d
+    cat <<EOF >core/usr/lib/systemd/system.conf.d/50-fakestore.conf
+    [Manager]
+    DefaultEnvironment=SNAPPY_FORCE_API_URL=${REMOTE_SAS_URL} SNAPPY_FORCE_SAS_URL=${REMOTE_SAS_URL}
+    EOF
+    snap pack core --filename="${extra}/${core_name}.snap"
+    rm -rf core
+
+    add_to_channel() {
+      FILENAME=$1
+      CHANNEL=$2
+      SUM="$(snap info --verbose "$(realpath "${FILENAME}")" | sed '/^sha3-384: */{;s///;q;};d')"
+      mkdir -p "${NESTED_FAKESTORE_BLOB_DIR}/channels"
+      echo "${CHANNEL}" >"${NESTED_FAKESTORE_BLOB_DIR}/channels/${SUM}"
+    }
+
+    "${TESTSTOOLS}/store-state" make-snap-installable --noack --revision 1 "${NESTED_FAKESTORE_BLOB_DIR}" "${extra}/pc.snap" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
+    add_to_channel "${extra}/pc.snap" "${VERSION}/edge"
+
+    "${TESTSTOOLS}/store-state" make-snap-installable --noack --revision 1 "${NESTED_FAKESTORE_BLOB_DIR}" "${extra}/pc-kernel.snap" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
+    add_to_channel "${extra}/pc-kernel.snap" "${VERSION}/edge"
+
+    "${TESTSTOOLS}/store-state" make-snap-installable --noack --revision 1 "${NESTED_FAKESTORE_BLOB_DIR}" "${extra}/${core_name}.snap" "${core_id}"
+    add_to_channel "${extra}/${core_name}.snap" "${VERSION}/edge"
+
+
+    "${TESTSTOOLS}/store-state" make-snap-installable --noack --revision 1 "${NESTED_FAKESTORE_BLOB_DIR}" "${extra}/snapd_old.snap" "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
+    add_to_channel "${extra}/snapd_old.snap" "old/edge"
+
+    "${TESTSTOOLS}/store-state" make-snap-installable --noack --revision 2 "${NESTED_FAKESTORE_BLOB_DIR}" "snapd_new.snap" "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
+    add_to_channel "snapd_new.snap" "new/edge"
+
+    systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
+
+    NESTED_BUILD_SNAPD_FROM_CURRENT=false tests.nested build-image core
+
+    tests.nested create-vm core
+
+restore: |
+    systemctl stop fakedevicesvc || true
+    "${TESTSTOOLS}/store-state" teardown-fake-store "${NESTED_FAKESTORE_BLOB_DIR}" || true
+    rm -f model-{old,new}.model snapd_{old,new}.snap
+    rm -rf pc core snapd_old_source snapd_old
+
+execute: |
+    remote.exec "snap model --assertion" | MATCH '^model: update-snapd-seed-and-factory-reset-old$'
+    remote.exec "snap version" | MATCH "^snapd *2.63$"
+
+    remote.push model-new.model
+
+    boot_id="$(tests.nested boot-id)"
+    change_id="$(remote.exec sudo snap remodel --no-wait model-new.model)"
+    remote.wait-for reboot "${boot_id}"
+
+    retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${change_id}\s+(Done|Undone|Error)'"
+    remote.exec "sudo snap changes" | MATCH "^${change_id}\s+Done"
+
+    remote.exec "snap model --assertion" | MATCH '^model: update-snapd-seed-and-factory-reset-new$'
+    remote.exec "snap model --assertion" | NOMATCH '^model: update-snapd-seed-and-factory-reset-old$'
+    remote.exec "snap version" | NOMATCH "^snapd *2.63$"
+
+    boot_id="$(tests.nested boot-id)"
+    remote.exec "sudo snap reboot --factory-reset" || true
+    remote.wait-for reboot "${boot_id}"
+
+    remote.exec "snap model --assertion" | MATCH '^model: update-snapd-seed-and-factory-reset-new$'
+    remote.exec "snap model --assertion" | NOMATCH '^model: update-snapd-seed-and-factory-reset-old$'
+    remote.exec "snap version" | NOMATCH "^snapd *2.63$"
+
+    remote.exec "sudo cryptsetup luksDump /dev/disk/by-partlabel/ubuntu-save --dump-json-metadata" | python3 find-orphan-keys.py
+    remote.exec "sudo cryptsetup luksDump /dev/disk/by-partlabel/ubuntu-data --dump-json-metadata" | python3 find-orphan-keys.py
