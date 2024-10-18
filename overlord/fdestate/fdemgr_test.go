@@ -22,6 +22,7 @@ package fdestate_test
 import (
 	"crypto"
 	"fmt"
+	"os"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -72,6 +74,12 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 	s.AddCleanup(fdestate.MockVerifyPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash, salt, digest []byte) (bool, error) {
 		panic("VerifyPrimaryKeyHMAC is not mocked")
 	}))
+
+	m := boot.Modeenv{
+		Mode: boot.ModeRun,
+	}
+	err := m.WriteTo(dirs.GlobalRootDir)
+	c.Assert(err, IsNil)
 }
 
 type instrumentedUnlocker struct {
@@ -116,7 +124,8 @@ func (s *fdeMgrSuite) startedManager(c *C) *fdestate.FDEManager {
 		return true, nil
 	})()
 
-	manager := fdestate.Manager(s.st, s.runner)
+	manager, err := fdestate.Manager(s.st, s.runner)
+	c.Assert(err, IsNil)
 	c.Assert(manager.StartUp(), IsNil)
 	return manager
 }
@@ -241,10 +250,24 @@ func (s *fdeMgrSuite) TestUpdateReseal(c *C) {
 	c.Check(containerRole.TPM2PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-profile"`))
 }
 
+func (s *fdeMgrSuite) TestManagerUC_16_18(c *C) {
+	// no modeenv
+	err := os.Remove(dirs.SnapModeenvFileUnder(s.rootdir))
+	c.Assert(err, IsNil)
+
+	manager, err := fdestate.Manager(s.st, s.runner)
+	c.Assert(err, IsNil)
+
+	// neither startup nor ensure fails
+	c.Assert(manager.StartUp(), IsNil)
+	c.Assert(manager.Ensure(), IsNil)
+}
+
 func (s *fdeMgrSuite) TestManagerPreseeding(c *C) {
 	defer snapdenv.MockPreseeding(true)()
 
-	manager := fdestate.Manager(s.st, s.runner)
+	manager, err := fdestate.Manager(s.st, s.runner)
+	c.Assert(err, IsNil)
 
 	// neither startup nor ensure fails
 	c.Assert(manager.StartUp(), IsNil)

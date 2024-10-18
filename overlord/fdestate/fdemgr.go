@@ -22,9 +22,11 @@
 package fdestate
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget/device"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
@@ -40,11 +42,12 @@ type FDEManager struct {
 	state *state.State
 
 	preseed bool
+	mode    string
 }
 
 type fdeMgrKey struct{}
 
-func Manager(st *state.State, runner *state.TaskRunner) *FDEManager {
+func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 	m := &FDEManager{
 		state:   st,
 		preseed: snapdenv.Preseeding(),
@@ -52,16 +55,35 @@ func Manager(st *state.State, runner *state.TaskRunner) *FDEManager {
 
 	boot.ResealKeyForBootChains = m.resealKeyForBootChains
 
+	if !m.preseed {
+		modeenv, err := maybeReadModeenv()
+		if err != nil {
+			return nil, err
+		}
+
+		if modeenv != nil {
+			m.mode = modeenv.Mode
+		}
+	}
+
 	st.Lock()
 	defer st.Unlock()
 	st.Cache(fdeMgrKey{}, m)
 
-	return m
+	return m, nil
 }
 
 // Ensure implements StateManager.Ensure
 func (m *FDEManager) Ensure() error {
 	return nil
+}
+
+func maybeReadModeenv() (*boot.Modeenv, error) {
+	modeenv, err := boot.ReadModeenv("")
+	if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("cannot read modeenv: %v", err)
+	}
+	return modeenv, nil
 }
 
 // StartUp implements StateStarterUp.Startup
