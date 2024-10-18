@@ -8,6 +8,8 @@ prepare: |
   snap set system experimental.registries=true
   snap install --edge jq
 
+priority: 9000
+
 debug: |
   snap changes
   CHG_ID=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
