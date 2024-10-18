@@ -547,22 +547,22 @@ nested_get_model() {
         return
     fi
     case "$SPREAD_SYSTEM" in
-        ubuntu-16*)
+        ubuntu-16-64)
             echo "$TESTSLIB/assertions/nested-amd64.model"
             ;;
-        ubuntu-18*)
+        ubuntu-18-64)
             echo "$TESTSLIB/assertions/nested-18-amd64.model"
             ;;
-        ubuntu-20*)
+        ubuntu-20-64)
             echo "$TESTSLIB/assertions/nested-20-amd64.model"
             ;;
-        ubuntu-22*)
+        ubuntu-22-64)
             echo "$TESTSLIB/assertions/nested-22-amd64.model"
             ;;
-        ubuntu-22*)
+        ubuntu-22-arm-64)
             echo "$TESTSLIB/assertions/nested-22-arm64.model"
             ;;
-        ubuntu-24*)
+        ubuntu-24-64)
             echo "$TESTSLIB/assertions/nested-24-amd64.model"
             ;;
         *)
