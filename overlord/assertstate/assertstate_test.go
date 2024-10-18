@@ -586,10 +586,11 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, provenance string, revisions
 }
 
 type prereqComponentAssertionsOpts struct {
-	provenance     string
-	blobProvenance string
-	snapRev        snap.Revision
-	compRev        snap.Revision
+	provenance                 string
+	blobProvenance             string
+	invalidateResourceRevision bool
+	snapRev                    snap.Revision
+	compRev                    snap.Revision
 }
 
 func (s *assertMgrSuite) prereqComponentAssertions(c *C, opts prereqComponentAssertionsOpts) (compPath string, digest string) {
@@ -611,11 +612,16 @@ version: 1.0.2
 	digest, size, err := asserts.SnapFileSHA3_384(compPath)
 	c.Assert(err, IsNil)
 
+	resourceRevivion := opts.compRev
+	if opts.invalidateResourceRevision {
+		resourceRevivion.N += 1
+	}
+
 	revHeaders := map[string]interface{}{
 		"snap-id":           snapID,
 		"resource-name":     resourceName,
 		"resource-sha3-384": digest,
-		"resource-revision": opts.compRev.String(),
+		"resource-revision": resourceRevivion.String(),
 		"resource-size":     strconv.Itoa(int(size)),
 		"developer-id":      s.dev1Acct.AccountID(),
 		"timestamp":         time.Now().Format(time.RFC3339),
@@ -5304,43 +5310,52 @@ func (s *assertMgrSuite) TestRegistry(c *C) {
 }
 
 func (s *assertMgrSuite) TestValidateComponent(c *C) {
-	const provenance = ""
-	const failCrosscheckProvenance = false
-	s.testValidateComponent(c, provenance, failCrosscheckProvenance)
+	s.testValidateComponent(c, testValidateComponentOpts{})
 }
 
 func (s *assertMgrSuite) TestValidateComponentProvenance(c *C) {
-	const provenance = "provenance"
-	const failCrosscheckProvenance = false
-	s.testValidateComponent(c, provenance, failCrosscheckProvenance)
+	s.testValidateComponent(c, testValidateComponentOpts{
+		provenance: "provenance",
+	})
 }
 
 func (s *assertMgrSuite) TestValidateComponentProvenanceInvalidBlob(c *C) {
-	const provenance = "provenance"
-	const failCrosscheckProvenance = true
-	s.testValidateComponent(c, provenance, failCrosscheckProvenance)
+	s.testValidateComponent(c, testValidateComponentOpts{
+		provenance:               "provenance",
+		failCrosscheckProvenance: true,
+	})
 }
 
-func (s *assertMgrSuite) testValidateComponent(c *C, provenance string, failCrosscheckProvenance bool) {
+func (s *assertMgrSuite) TestValidateComponentProvenanceInvalidResourceRevision(c *C) {
+	s.testValidateComponent(c, testValidateComponentOpts{
+		failCrosscheckResourceRevision: true,
+	})
+}
+
+type testValidateComponentOpts struct {
+	provenance                     string
+	failCrosscheckProvenance       bool
+	failCrosscheckResourceRevision bool
+}
+
+func (s *assertMgrSuite) testValidateComponent(c *C, opts testValidateComponentOpts) {
 	snapRev, compRev := snap.R(10), snap.R(20)
 
-	paths, _ := s.prereqSnapAssertions(c, provenance, 10)
+	paths, _ := s.prereqSnapAssertions(c, opts.provenance, 10)
 	snapPath := paths[10]
 
-	blobProvenance := provenance
-	if failCrosscheckProvenance {
+	blobProvenance := opts.provenance
+	if opts.failCrosscheckProvenance {
 		blobProvenance = "invalid"
 	}
 
 	compPath, compDigest := s.prereqComponentAssertions(c, prereqComponentAssertionsOpts{
-		provenance:     provenance,
-		blobProvenance: blobProvenance,
-		snapRev:        snapRev,
-		compRev:        compRev,
+		provenance:                 opts.provenance,
+		blobProvenance:             blobProvenance,
+		snapRev:                    snapRev,
+		compRev:                    compRev,
+		invalidateResourceRevision: opts.failCrosscheckResourceRevision,
 	})
-
-	if failCrosscheckProvenance {
-	}
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -5355,7 +5370,7 @@ func (s *assertMgrSuite) testValidateComponent(c *C, provenance string, failCros
 	snapsup := snapstate.SnapSetup{
 		SnapPath:           snapPath,
 		UserID:             0,
-		ExpectedProvenance: provenance,
+		ExpectedProvenance: opts.provenance,
 		SideInfo: &snap.SideInfo{
 			RealName: "foo",
 			SnapID:   "snap-id-1",
@@ -5378,8 +5393,13 @@ func (s *assertMgrSuite) testValidateComponent(c *C, provenance string, failCros
 	s.settle(c)
 	s.state.Lock()
 
-	if failCrosscheckProvenance {
+	if opts.failCrosscheckProvenance {
 		c.Assert(chg.Err(), ErrorMatches, `(?s).*component .* has been signed under provenance "provenance" different from the metadata one: "invalid".*`)
+		return
+	}
+
+	if opts.failCrosscheckResourceRevision {
+		c.Assert(chg.Err(), ErrorMatches, `(?s).*resource "standard-component" does not have expected revision according to assertions \(metadata is broken or tampered\): 20 != 21.*`)
 		return
 	}
 
@@ -5392,8 +5412,8 @@ func (s *assertMgrSuite) testValidateComponent(c *C, provenance string, failCros
 		"resource-name":     "standard-component",
 		"snap-id":           "snap-id-1",
 	}
-	if provenance != "" {
-		headers["provenance"] = provenance
+	if opts.provenance != "" {
+		headers["provenance"] = opts.provenance
 	}
 
 	a, err := db.Find(asserts.SnapResourceRevisionType, headers)
