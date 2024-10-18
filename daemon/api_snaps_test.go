@@ -1584,9 +1584,10 @@ func (s *snapsSuite) TestSnapInfoReturnsRefreshFailures(c *check.C) {
 	s.mkInstalledInState(c, d, "foo", "bar", "v0", snap.R(5), true, "")
 
 	expectedRefreshFailures := &snap.RefreshFailuresInfo{
-		Revision:        snap.R(6),
-		FailureCount:    4,
-		LastFailureTime: time.Date(2024, time.October, 10, 21, 22, 11, 0, time.UTC),
+		Revision:            snap.R(6),
+		FailureCount:        4,
+		LastFailureTime:     time.Date(2024, time.October, 10, 21, 22, 11, 0, time.UTC),
+		LastFailureSeverity: snap.RefreshFailureSeverityAfterReboot,
 	}
 
 	st := d.Overlord().State()

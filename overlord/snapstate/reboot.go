@@ -73,6 +73,18 @@ func maybeTaskSetSnapSetup(ts *state.TaskSet) *SnapSetup {
 	return nil
 }
 
+func isEssentialSnap(snapName string, snapType snap.Type, bootBase string) bool {
+	switch snapType {
+	case snap.TypeBase:
+		if snapName == bootBase {
+			return true
+		}
+	case snap.TypeSnapd, snap.TypeOS, snap.TypeGadget, snap.TypeKernel:
+		return true
+	}
+	return false
+}
+
 // taskSetsByTypeForEssentialSnaps returns a map of task-sets by their essential snap type, if
 // a task-set for any of the essential snap exists.
 func taskSetsByTypeForEssentialSnaps(tss []*state.TaskSet, bootBase string) (map[snap.Type]*state.TaskSet, error) {
@@ -83,12 +95,7 @@ func taskSetsByTypeForEssentialSnaps(tss []*state.TaskSet, bootBase string) (map
 			continue
 		}
 
-		switch snapsup.Type {
-		case snap.TypeBase:
-			if snapsup.SnapName() == bootBase {
-				avail[snapsup.Type] = ts
-			}
-		case snap.TypeSnapd, snap.TypeOS, snap.TypeGadget, snap.TypeKernel:
+		if isEssentialSnap(snapsup.InstanceName(), snapsup.Type, bootBase) {
 			avail[snapsup.Type] = ts
 		}
 	}

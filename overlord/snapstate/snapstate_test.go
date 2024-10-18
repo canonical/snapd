@@ -9454,7 +9454,7 @@ func (s *snapmgrTestSuite) TestSaveRefreshCandidatesOnAutoRefresh(c *C) {
 	c.Check(cands["some-other-snap"], NotNil)
 }
 
-func (s *snapmgrTestSuite) TestBackoffOnAutoRefresh(c *C) {
+func (s *snapmgrTestSuite) testBackoffOnAutoRefresh(c *C, afterReboot bool) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -9471,6 +9471,9 @@ func (s *snapmgrTestSuite) TestBackoffOnAutoRefresh(c *C) {
 			FailureCount:    1,
 			LastFailureTime: time.Now(),
 		},
+	}
+	if afterReboot {
+		badSnapst.RefreshFailures.LastFailureSeverity = snap.RefreshFailureSeverityAfterReboot
 	}
 	snapstate.Set(s.state, "some-snap", badSnapst)
 	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
@@ -9489,9 +9492,13 @@ func (s *snapmgrTestSuite) TestBackoffOnAutoRefresh(c *C) {
 	// some-snap auto-refresh skipped
 	c.Check(names, DeepEquals, []string{"some-other-snap"})
 
-	// Failure delay is capped at 2 weeks
+	// Failure delay is capped at 2 weeks for normal snaps
 	badSnapst.RefreshFailures.FailureCount = 100
 	badSnapst.RefreshFailures.LastFailureTime = time.Now().Add(-(2*7*24 - 1) * time.Hour)
+	if afterReboot {
+		// The delay is doubled for snaps whose refresh fail after a reboot (e.g. kernel, gadget ...etc)
+		badSnapst.RefreshFailures.LastFailureTime = time.Now().Add(-2 * (2*7*24 - 1) * time.Hour)
+	}
 	snapstate.Set(s.state, "some-snap", badSnapst)
 	names, _, err = snapstate.AutoRefresh(context.Background(), s.state)
 	c.Assert(err, IsNil)
@@ -9499,10 +9506,24 @@ func (s *snapmgrTestSuite) TestBackoffOnAutoRefresh(c *C) {
 	c.Check(names, DeepEquals, []string{"some-other-snap"})
 	// But backoff delay is capped at two weeks
 	badSnapst.RefreshFailures.LastFailureTime = time.Now().Add(-(2 * 7 * 24) * time.Hour)
+	if afterReboot {
+		// The delay is doubled for snaps whose refresh fail after a reboot (e.g. kernel, gadget ...etc)
+		badSnapst.RefreshFailures.LastFailureTime = time.Now().Add(-2 * (2 * 7 * 24) * time.Hour)
+	}
 	snapstate.Set(s.state, "some-snap", badSnapst)
 	names, _, err = snapstate.AutoRefresh(context.Background(), s.state)
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"some-other-snap", "some-snap"})
+}
+
+func (s *snapmgrTestSuite) TestBackoffOnAutoRefresh(c *C) {
+	const afterReboot = false
+	s.testBackoffOnAutoRefresh(c, afterReboot)
+}
+
+func (s *snapmgrTestSuite) TestBackoffOnAutoRefreshAfterReboot(c *C) {
+	const afterReboot = true
+	s.testBackoffOnAutoRefresh(c, afterReboot)
 }
 
 func (s *snapmgrTestSuite) TestBackoffOnAutoRefreshWithNewRevision(c *C) {
