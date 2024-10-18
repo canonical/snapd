@@ -24,6 +24,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
@@ -38,30 +40,9 @@ var assertstateRegistry = assertstate.Registry
 // Set finds the view identified by the account, registry and view names and
 // sets the request fields to their respective values.
 func Set(st *state.State, account, registryName, viewName string, requests map[string]interface{}) error {
-	registryAssert, err := assertstateRegistry(st, account, registryName)
+	view, err := GetView(st, account, registryName, viewName)
 	if err != nil {
 		return err
-	}
-	reg := registryAssert.Registry()
-
-	view := reg.View(viewName)
-	if view == nil {
-		var keys []string
-		if len(requests) > 0 {
-			keys = make([]string, 0, len(requests))
-			for k := range requests {
-				keys = append(keys, k)
-			}
-		}
-
-		return &registry.NotFoundError{
-			Account:      account,
-			RegistryName: registryName,
-			View:         viewName,
-			Operation:    "set",
-			Requests:     keys,
-			Cause:        "not found",
-		}
 	}
 
 	tx, err := NewTransaction(st, account, registryName)
@@ -73,7 +54,7 @@ func Set(st *state.State, account, registryName, viewName string, requests map[s
 		return err
 	}
 
-	return tx.Commit(st, reg.Schema)
+	return tx.Commit(st, view.Registry().Schema)
 }
 
 // SetViaView uses the view to set the requests in the transaction's databag.
@@ -94,11 +75,8 @@ func SetViaView(bag registry.DataBag, view *registry.View, requests map[string]i
 	return nil
 }
 
-// Get finds the view identified by the account, registry and view names and
-// uses it to get the values for the specified fields. The results are returned
-// in a map of fields to their values, unless there are no fields in which case
-// case all views are returned.
-func Get(st *state.State, account, registryName, viewName string, fields []string) (interface{}, error) {
+// GetView returns the view identified by the account, registry and view name.
+func GetView(st *state.State, account, registryName, viewName string) (*registry.View, error) {
 	registryAssert, err := assertstateRegistry(st, account, registryName)
 	if err != nil {
 		if errors.Is(err, &asserts.NotFoundError{}) {
@@ -112,6 +90,20 @@ func Get(st *state.State, account, registryName, viewName string, fields []strin
 
 	view := reg.View(viewName)
 	if view == nil {
+		return nil, registry.NewNotFoundError(i18n.G("cannot find view %q in registry %s/%s"), viewName, account, registryName)
+	}
+
+	return view, nil
+}
+
+// Get finds the view identified by the account, registry and view names and
+// uses it to get the values for the specified fields. The results are returned
+// in a map of fields to their values, unless there are no fields in which case
+// case all views are returned.
+func Get(st *state.State, account, registryName, viewName string, fields []string) (interface{}, error) {
+	view, err := GetView(st, account, registryName, viewName)
+	if err != nil {
+		return nil, err
 	}
 
 	bag, err := readDatabag(st, account, registryName)
