@@ -72,7 +72,7 @@ slots:
   read-devices:
     - /dev/js*
   files:
-    write: [ /bar, /baz@qux ]
+    write: [ /bar, /baz@qux, /fizz\@buzz, /lorem\\@ipsum ]
     read:
       - /dev/input/by-id/*
       - /dev/dma_heap/qcom,qseecom
@@ -209,6 +209,10 @@ apps:
 		{
 			"devices: [/dev/foo**]",
 			`custom-device "devices" path contains invalid glob pattern "\*\*"`,
+		},
+		{
+			"devices: [/dev/@foo]",
+			`custom-device "devices" path must start with /dev/ and cannot contain special characters.*`,
 		},
 		{
 			"devices: [/dev/foo|bar]",
@@ -403,7 +407,18 @@ func (s *CustomDeviceInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(plugSnippet, testutil.Contains, `"/dev/input/mice" rwk,`)
 	c.Check(plugSnippet, testutil.Contains, `"/dev/js*" r,`)
 	c.Check(plugSnippet, testutil.Contains, `"/bar" rw,`)
+	c.Check(plugSnippet, testutil.Contains, `"/baz\@qux" rw,`)
+	c.Check(plugSnippet, Not(testutil.Contains), `"/baz@qux" rw,`)
+	c.Check(plugSnippet, testutil.Contains, `"/fizz\@buzz" rw,`)
+	c.Check(plugSnippet, Not(testutil.Contains), `"/fizz@buzz" rw,`)
+	c.Check(plugSnippet, Not(testutil.Contains), `"/fizz\\@buzz" rw,`)
+	c.Check(plugSnippet, testutil.Contains, `"/lorem\\\@ipsum" rw,`)
+	c.Check(plugSnippet, Not(testutil.Contains), `"/lorem\\@ipsum" rw,`)
+	c.Check(plugSnippet, Not(testutil.Contains), `"/lorem\\\\@ipsum" rw,`)
 	c.Check(plugSnippet, testutil.Contains, `"/dev/input/by-id/*" r,`)
+	c.Check(plugSnippet, testutil.Contains, `"/dev/dma_heap/qcom,qseecom" r,`)
+	c.Check(plugSnippet, testutil.Contains, `"/sys/devices/platform/soc\@0/soc\@0:bus\@30000000/30350000.ocotp-ctrl/imx-ocotp0/nvmem" r,`)
+	c.Check(plugSnippet, Not(testutil.Contains), `"/sys/devices/platform/soc@0/soc@0:bus@30000000/30350000.ocotp-ctrl/imx-ocotp0/nvmem" r,`)
 	c.Check(slotSnippet, HasLen, 0)
 }
 
