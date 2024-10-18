@@ -1507,7 +1507,8 @@ EOF
           --exclude /gopath/bin/govendor \
           --exclude /gopath/pkg/ \
           -f /mnt/run-mode-overlay-data.tar.gz \
-          /home/gopath /root/test-etc /var/lib/extrausers
+          /home/gopath/bin /home/gopath/src/github.com/snapcore/snapd/tests \
+          /root/test-etc /var/lib/extrausers
     fi
 
     # now modify the image writable partition - only possible on uc16 / uc18
