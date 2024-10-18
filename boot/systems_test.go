@@ -61,7 +61,7 @@ type systemsSuite struct {
 var _ = Suite(&systemsSuite{})
 
 func (s *systemsSuite) mockTrustedBootloaderWithAssetAndChains(c *C, runKernelBf, recoveryKernelBf bootloader.BootFile) *bootloadertest.MockTrustedAssetsBootloader {
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
@@ -102,7 +102,7 @@ func (s *systemsSuite) SetUpTest(c *C) {
 }
 
 func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
@@ -220,7 +220,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 }
 
 func (s *systemsSuite) TestSetTryRecoverySystemRemodelEncrypted(c *C) {
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
@@ -455,7 +455,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemSetBootVarsErr(c *C) {
 }
 
 func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) {
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
@@ -558,7 +558,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 }
 
 func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
@@ -673,7 +673,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 }
 
 func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
@@ -928,7 +928,7 @@ type clearRecoverySystemTestCase struct {
 }
 
 func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTrustedAssetsBootloader, tc clearRecoverySystemTestCase) {
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
@@ -1193,7 +1193,7 @@ func (s *systemsSuite) TestClearRecoverySystemReboot(c *C) {
 	err := mtbl.SetBootVars(setVars)
 	c.Assert(err, IsNil)
 
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
@@ -1315,7 +1315,7 @@ type recoverySystemGoodTestCase struct {
 
 func (s *systemsSuite) testPromoteTriedRecoverySystem(c *C, systemLabel string, tc recoverySystemGoodTestCase) {
 	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
@@ -1579,7 +1579,7 @@ type recoverySystemDropTestCase struct {
 
 func (s *systemsSuite) testDropRecoverySystem(c *C, systemLabel string, tc recoverySystemDropTestCase) {
 	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
-	mockAssetsCache(c, s.rootdir, "trusted", []string{
+	boottest.MockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
 
