@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func init() {
@@ -86,4 +87,25 @@ func doExportExperimentalFlags(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyCo
 
 func ExportExperimentalFlags(tr ConfGetter) error {
 	return doExportExperimentalFlags(nil, tr, nil)
+}
+
+// IsSupportedExperimentalFlag checks if passed flag is a supported experimental feature.
+func IsSupportedExperimentalFlag(flag string) bool {
+	return supportedConfigurations["core.experimental."+flag]
+}
+
+func MockSupportedExperimentalFlags(flags []string) (restore func()) {
+	restore = testutil.Backup(&supportedConfigurations)
+	// Remove all experimental flags
+	for k := range supportedConfigurations {
+		if !strings.HasPrefix(k, "core.experimental.") {
+			continue
+		}
+		delete(supportedConfigurations, k)
+	}
+	// Add supported flags
+	for _, flag := range flags {
+		supportedConfigurations["core.experimental."+flag] = true
+	}
+	return restore
 }
