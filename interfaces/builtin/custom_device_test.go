@@ -72,9 +72,11 @@ slots:
   read-devices:
     - /dev/js*
   files:
-    write: [ /bar ]
+    write: [ /bar, /baz@qux ]
     read:
       - /dev/input/by-id/*
+      - /dev/dma_heap/qcom,qseecom
+      - /sys/devices/platform/soc@0/soc@0:bus@30000000/30350000.ocotp-ctrl/imx-ocotp0/nvmem
   udev-tagging:
     - kernel: input/mice
       subsystem: input
@@ -207,10 +209,6 @@ apps:
 		{
 			"devices: [/dev/foo**]",
 			`custom-device "devices" path contains invalid glob pattern "\*\*"`,
-		},
-		{
-			"devices: [/dev/@foo]",
-			`custom-device "devices" path must start with / and cannot contain special characters.*`,
 		},
 		{
 			"devices: [/dev/foo|bar]",

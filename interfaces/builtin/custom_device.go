@@ -52,7 +52,7 @@ var (
 	customDeviceInternalError = errors.New(`custom-device interface internal error`)
 
 	// Validating regexp for filesystem paths
-	customDevicePathRegexp = regexp.MustCompile(`^/[^"@]*$`)
+	customDevicePathRegexp = regexp.MustCompile(`^/[^"]*$`)
 
 	// Validating regexp for udev device names.
 	// We forbid:
