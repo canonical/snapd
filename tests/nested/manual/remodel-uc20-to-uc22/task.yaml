@@ -4,7 +4,7 @@ details: |
   test-snapd brand. Both models use the same test-snapd-from device
   view store. The new model has new gadget using min-size.
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20-64]
 
 environment:
   # encrypted case

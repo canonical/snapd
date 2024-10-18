@@ -349,23 +349,23 @@ nested_is_core_lt() {
 }
 
 nested_is_core_24_system() {
-    os.query is-noble
+    [[ "$SPREAD_SYSTEM" =~ ubuntu-24* ]]
 }
 
 nested_is_core_22_system() {
-    os.query is-jammy
+    [[ "$SPREAD_SYSTEM" =~ ubuntu-22* ]]
 }
 
 nested_is_core_20_system() {
-    os.query is-focal
+    [[ "$SPREAD_SYSTEM" =~ ubuntu-20* ]]
 }
 
 nested_is_core_18_system() {
-    os.query is-bionic
+    [[ "$SPREAD_SYSTEM" =~ ubuntu-18* ]]
 }
 
 nested_is_core_16_system() {
-    os.query is-xenial
+    [[ "$SPREAD_SYSTEM" =~ ubuntu-16* ]]
 }
 
 nested_refresh_to_new_core() {
@@ -547,22 +547,22 @@ nested_get_model() {
         return
     fi
     case "$SPREAD_SYSTEM" in
-        ubuntu-16.04-64)
+        ubuntu-16*)
             echo "$TESTSLIB/assertions/nested-amd64.model"
             ;;
-        ubuntu-18.04-64)
+        ubuntu-18*)
             echo "$TESTSLIB/assertions/nested-18-amd64.model"
             ;;
-        ubuntu-20.04-64)
+        ubuntu-20*)
             echo "$TESTSLIB/assertions/nested-20-amd64.model"
             ;;
-        ubuntu-22.04-64)
+        ubuntu-22*)
             echo "$TESTSLIB/assertions/nested-22-amd64.model"
             ;;
-        ubuntu-22.04-arm-64)
+        ubuntu-22*)
             echo "$TESTSLIB/assertions/nested-22-arm64.model"
             ;;
-         ubuntu-24.04-64)
+        ubuntu-24*)
             echo "$TESTSLIB/assertions/nested-24-amd64.model"
             ;;
         *)

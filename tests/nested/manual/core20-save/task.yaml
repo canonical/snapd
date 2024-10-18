@@ -5,7 +5,7 @@ details: |
     device or that a device can boot when ubuntu-save is not required
 
 # this is a UC20 specific test
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20-64]
 
 environment:
   # ubuntu-save, TPM, secure boot

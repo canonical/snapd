@@ -7,7 +7,7 @@ details: |
   base, it does wait for its refresh (and a reboot) because the base must be
   refreshed before the kernel and gadget since those depend on it.
 
-systems: [ubuntu-22.04-64, ubuntu-24.04-64]
+systems: [ubuntu-22-64, ubuntu-24-64]
 
 environment:
     NESTED_ENABLE_TPM: false
