@@ -96,10 +96,12 @@ func (m *FDEManager) StartUp() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	// FIXME should we try to initialize the state in
-	// install/recover/factory-reset modes?
-	if err := initializeState(m.state); err != nil {
-		logger.Noticef("cannot initialize FDE state: %v", err)
+	if m.mode == "run" {
+		// TODO should we try to initialize the state in
+		// install/recover/factory-reset modes?
+		if err := initializeState(m.state); err != nil {
+			return fmt.Errorf("cannot initialize FDE state: %v", err)
+		}
 	}
 	return nil
 }
