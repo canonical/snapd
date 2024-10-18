@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/interfaces/prompting"
+	"github.com/snapcore/snapd/testutil"
 )
 
 const MaxOutstandingPromptsPerUser = maxOutstandingPromptsPerUser
@@ -50,4 +51,12 @@ func (pdb *PromptDB) PerUser() map[uint32]*userPromptDB {
 
 func (pdb *PromptDB) NextID() (prompting.IDType, error) {
 	return pdb.maxIDMmap.NextID()
+}
+
+func MockInitialTimeout(timeout time.Duration) (restore func()) {
+	return testutil.Mock(&initialTimeout, timeout)
+}
+
+func MockActivityTimeout(timeout time.Duration) (restore func()) {
+	return testutil.Mock(&activityTimeout, timeout)
 }
