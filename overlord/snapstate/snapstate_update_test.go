@@ -7499,6 +7499,16 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationAlread
 }
 
 func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWrongRevisionError(c *C) {
+	const instanceKey = ""
+	s.testUpdateToRevisionSnapRequiredByValidationWrongRevisionError(c, instanceKey)
+}
+
+func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWrongRevisionErrorParallelInstall(c *C) {
+	const instanceKey = "key"
+	s.testUpdateToRevisionSnapRequiredByValidationWrongRevisionError(c, instanceKey)
+}
+
+func (s *validationSetsSuite) testUpdateToRevisionSnapRequiredByValidationWrongRevisionError(c *C, instanceKey string) {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
 		someSnap := map[string]interface{}{
@@ -7516,6 +7526,12 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWrongR
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	if instanceKey != "" {
+		tr := config.NewTransaction(s.state)
+		tr.Set("core", "experimental.parallel-instances", true)
+		tr.Commit()
+	}
+
 	tr := assertstate.ValidationSetTracking{
 		AccountID: "foo",
 		Name:      "bar",
@@ -7524,16 +7540,26 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWrongR
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+	const snapName = "some-snap"
+	instanceName := snap.InstanceName(snapName, instanceKey)
+
+	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+			{RealName: snapName, SnapID: "some-snap-id", Revision: snap.R(1)},
 		}),
-		Current:  snap.R(1),
-		SnapType: "app",
+		Current:     snap.R(1),
+		SnapType:    "app",
+		InstanceKey: instanceKey,
 	})
-	_, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Revision: snap.R(11)}, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot update snap "some-snap" to revision 11 without --ignore-validation, revision 5 is required by validation sets: 16/foo/bar/2`)
+	_, err := snapstate.Update(s.state, instanceName, &snapstate.RevisionOptions{Revision: snap.R(11)}, 0, snapstate.Flags{})
+
+	// we ignore validation sets when installing snaps with parallel instances
+	if instanceKey == "" {
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot update snap %q to revision 11 without --ignore-validation, revision 5 is required by validation sets: 16/foo/bar/2`, instanceName))
+	} else {
+		c.Assert(err, IsNil)
+	}
 }
 
 // test that updating to a revision that is different than the revision required
@@ -15143,10 +15169,32 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughLoseComponentsUndo(
 	})
 }
 
+func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughAdditionalComponents(c *C) {
+	s.testUpdateWithComponentsRunThrough(c, updateWithComponentsOpts{
+		instanceKey:           "key",
+		components:            []string{"standard-component"},
+		postRefreshComponents: []string{"standard-component", "kernel-modules-component"},
+		additionalComponents:  []string{"kernel-modules-component"},
+		refreshAppAwarenessUX: true,
+	})
+}
+
+func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughAdditionalComponentsUndo(c *C) {
+	s.testUpdateWithComponentsRunThrough(c, updateWithComponentsOpts{
+		instanceKey:           "key",
+		components:            []string{"standard-component"},
+		postRefreshComponents: []string{"standard-component", "kernel-modules-component"},
+		additionalComponents:  []string{"kernel-modules-component"},
+		refreshAppAwarenessUX: true,
+		undo:                  true,
+	})
+}
+
 type updateWithComponentsOpts struct {
 	instanceKey           string
 	components            []string
 	postRefreshComponents []string
+	additionalComponents  []string
 	refreshAppAwarenessUX bool
 	undo                  bool
 	useSameSnapRev        bool
@@ -15301,13 +15349,21 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		InstanceKey:     opts.instanceKey,
 	})
 
-	var revOpts *snapstate.RevisionOptions
+	var revOpts snapstate.RevisionOptions
 	if opts.useSameSnapRev {
-		revOpts = &snapstate.RevisionOptions{Revision: currentSnapRev}
+		revOpts.Revision = currentSnapRev
 	}
 
-	ts, err := snapstate.Update(s.state, instanceName, revOpts, s.user.ID, snapstate.Flags{
-		NoReRefresh: true,
+	ts, err := snapstate.UpdateOne(context.Background(), s.state, snapstate.StoreUpdateGoal(snapstate.StoreUpdate{
+		InstanceName:         instanceName,
+		RevOpts:              revOpts,
+		AdditionalComponents: opts.additionalComponents,
+	}), nil, snapstate.Options{
+		Flags: snapstate.Flags{
+			NoReRefresh: true,
+			Transaction: client.TransactionPerSnap,
+		},
+		UserID: s.user.ID,
 	})
 	c.Assert(err, IsNil)
 

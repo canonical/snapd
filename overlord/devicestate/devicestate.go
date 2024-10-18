@@ -1745,14 +1745,14 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		}
 
 		if sn.Presence != "required" {
-			sets, _, err := valsets.CheckPresenceRequired(sn)
+			pres, err := valsets.Presence(sn)
 			if err != nil {
 				return nil, err
 			}
 
 			// snap isn't already installed, and it isn't required by model or
 			// any validation sets, so we should skip it
-			if len(sets) == 0 {
+			if pres.Presence != asserts.PresenceRequired {
 				continue
 			}
 		}

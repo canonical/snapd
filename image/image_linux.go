@@ -559,16 +559,18 @@ func (s *imageSeeder) validationSetKeysAndRevisionForSnap(snapName string) ([]sn
 		return nil, snap.Revision{}, err
 	}
 
-	// TODO: It's pointed out that here and some of the others uses of this
-	// may miss logic for optional snaps which have required revisions. This
-	// is not covered by the below check, and we may or may not have multiple places
-	// with a similar issue.
-	snapVsKeys, snapRev, err := allVss.CheckPresenceRequired(naming.Snap(snapName))
+	pres, err := allVss.Presence(naming.Snap(snapName))
 	if err != nil {
 		return nil, snap.Revision{}, err
 	}
-	if len(snapVsKeys) > 0 {
-		return snapVsKeys, snapRev, nil
+
+	// TODO: figure out if this is needed
+	if pres.Presence == asserts.PresenceInvalid {
+		return nil, snap.Revision{}, fmt.Errorf("snap %q is invalid in validation sets: %v", snapName, pres.Sets.CommaSeparated())
+	}
+
+	if pres.Constrained() {
+		return pres.Sets, pres.Revision, nil
 	}
 	return nil, s.w.Manifest().AllowedSnapRevision(snapName), nil
 }
