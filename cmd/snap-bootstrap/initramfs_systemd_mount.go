@@ -91,9 +91,6 @@ type systemdMountOptions struct {
 // forbiddenChars is a list of characters that are not allowed in any mount paths used in systemd-mount.
 const forbiddenChars = `\,:" `
 
-// colons are allowed for the lowerdir option of overlayfs in order to support multiple lowerdir paths.
-const forbiddenCharsForOverlayfsLowerDir = `\," `
-
 // doSystemdMount will mount "what" at "where" using systemd-mount(1) with
 // various options. Note that in some error cases, the mount unit may have
 // already been created and it will not be deleted here, if that is the case
@@ -188,18 +185,17 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 
 		var lowerDirs strings.Builder
 		for i, d := range opts.LowerDirs {
-			if i != 0 {
-				lowerDirs.WriteRune(':')
-			}
-
-			if strings.ContainsAny(d, forbiddenCharsForOverlayfsLowerDir) {
-				return fmt.Errorf("cannot mount %q at %q: lowerdir overlayfs mount option contains forbidden characters. %q contains one of \"%s\".", what, where, d, forbiddenCharsForOverlayfsLowerDir)
+			if strings.ContainsAny(d, forbiddenChars) {
+				return fmt.Errorf("cannot mount %q at %q: lowerdir overlayfs mount option contains forbidden characters. %q contains one of \"%s\".", what, where, d, forbiddenChars)
 			}
 
 			// This is used for splitting multiple lowerdirs as done in
 			// https://elixir.bootlin.com/linux/v6.10.9/C/ident/ovl_parse_param_split_lowerdirs
-			ed := strings.ReplaceAll(d, ":", `\:`)
-			lowerDirs.WriteString(ed)
+			if i != 0 {
+				lowerDirs.WriteRune(':')
+			}
+
+			lowerDirs.WriteString(d)
 		}
 		options = append(options, fmt.Sprintf("lowerdir=%s", lowerDirs.String()))
 		options = append(options, fmt.Sprintf("upperdir=%s", opts.UpperDir))
