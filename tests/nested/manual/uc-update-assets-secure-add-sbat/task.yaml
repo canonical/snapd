@@ -8,7 +8,7 @@ details: |
 # have an sbat, and it is unlikely any UC24 will boot without one.
 # Also it becomes difficult to build an old version on shim on newer
 # GCC.
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-20-64, ubuntu-22-64]
 
 environment:
   NESTED_ENABLE_SECURE_BOOT: true

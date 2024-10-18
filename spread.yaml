@@ -291,23 +291,23 @@ backends:
         halt-timeout: 2h
         cpu-family: "Intel Cascade Lake"
         systems:
-            - ubuntu-16.04-64:
-                  image: ubuntu-1604-64-virt-enabled
+            - ubuntu-16-64:
+                  image: ubuntu-2404-64-virt-enabled
                   storage: 20G
                   workers: 4
-            - ubuntu-18.04-64:
-                  image: ubuntu-1804-64-virt-enabled
+            - ubuntu-18-64:
+                  image: ubuntu-2404-64-virt-enabled
                   storage: 20G
                   workers: 4
-            - ubuntu-20.04-64:
-                  image: ubuntu-2004-64-virt-enabled
+            - ubuntu-20-64:
+                  image: ubuntu-2404-64-virt-enabled
                   storage: 20G
                   workers: 12
-            - ubuntu-22.04-64:
-                  image: ubuntu-2204-64-virt-enabled
+            - ubuntu-22-64:
+                  image: ubuntu-2404-64-virt-enabled
                   storage: 25G
                   workers: 14
-            - ubuntu-24.04-64:
+            - ubuntu-24-64:
                   image: ubuntu-2404-64-virt-enabled
                   storage: 25G
                   workers: 14
@@ -319,7 +319,7 @@ backends:
         plan: t2a-standard-2
         halt-timeout: 2h
         systems:
-            - ubuntu-22.04-arm-64:
+            - ubuntu-22-arm-64:
                   image: ubuntu-2204-arm-64-virt-enabled
                   storage: 25G
                   workers: 8
@@ -333,19 +333,19 @@ backends:
         cpu-family: "Intel Cascade Lake"
         systems:
             - ubuntu-16.04-64:
-                  image: ubuntu-1604-64-virt-enabled
+                  image: ubuntu-2404-64-virt-enabled
                   storage: 20G
                   workers: 3
             - ubuntu-18.04-64:
-                  image: ubuntu-1804-64-virt-enabled
+                  image: ubuntu-2404-64-virt-enabled
                   storage: 20G
                   workers: 3
             - ubuntu-20.04-64:
-                  image: ubuntu-2004-64-virt-enabled
+                  image: ubuntu-2404-64-virt-enabled
                   storage: 20G
                   workers: 8
             - ubuntu-22.04-64:
-                  image: ubuntu-2204-64-virt-enabled
+                  image: ubuntu-2404-64-virt-enabled
                   storage: 20G
                   workers: 8
             - ubuntu-24.04-64:
@@ -1191,27 +1191,14 @@ suites:
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m
-        prepare: |
-            #shellcheck source=tests/lib/pkgdb.sh
-            . "$TESTSLIB"/pkgdb.sh
-            #shellcheck source=tests/lib/image.sh
-            . "$TESTSLIB"/image.sh
-            distro_update_package_db
-            distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
-            if os.query is-xenial; then
-                # the new ubuntu-image expects mkfs to support -d option, which was not
-                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
-                # also ubuntu-image binary is not prebuilt for arm instances
-                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            elif os.query is-arm; then
-                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            else
-               get_ubuntu_image
-            fi
-
+        prepare: |            
             if os.query is-arm; then
+                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
                 export NESTED_ARCHITECTURE=arm64
             else
+                #shellcheck source=tests/lib/image.sh
+                . "$TESTSLIB"/image.sh
+                get_ubuntu_image
                 export NESTED_ARCHITECTURE=amd64
             fi
 
@@ -1253,26 +1240,13 @@ suites:
             SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
         manual: true
         prepare: |
-            #shellcheck source=tests/lib/pkgdb.sh
-            . "$TESTSLIB"/pkgdb.sh
-            #shellcheck source=tests/lib/image.sh
-            . "$TESTSLIB"/image.sh
-            distro_update_package_db
-            distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
-            if os.query is-xenial; then
-                # the new ubuntu-image expects mkfs to support -d option, which was not
-                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
-                # also ubuntu-image binary is not prebuilt for arm instances
-                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            elif os.query is-arm; then
-                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            else
-                get_ubuntu_image
-            fi
-
             if os.query is-arm; then
+                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
                 export NESTED_ARCHITECTURE=arm64
             else
+                #shellcheck source=tests/lib/image.sh
+                . "$TESTSLIB"/image.sh
+                get_ubuntu_image
                 export NESTED_ARCHITECTURE=amd64
             fi
 
@@ -1318,21 +1292,14 @@ suites:
             SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
         manual: true
         prepare: |
-            #shellcheck source=tests/lib/pkgdb.sh
-            . "$TESTSLIB"/pkgdb.sh
-            #shellcheck source=tests/lib/image.sh
-            . "$TESTSLIB"/image.sh
-            distro_update_package_db
-            distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
-            if os.query is-xenial; then
-                # the new ubuntu-image expects mkfs to support -d option, which was not
-                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
-                # also ubuntu-image binary is not prebuilt for arm instances
-                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            elif os.query is-arm; then
+            if os.query is-arm; then
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+                export NESTED_ARCHITECTURE=arm64
             else
+                #shellcheck source=tests/lib/image.sh
+                . "$TESTSLIB"/image.sh
                 get_ubuntu_image
+                export NESTED_ARCHITECTURE=amd64
             fi
 
             # Install the snapd built
@@ -1384,21 +1351,14 @@ suites:
         warn-timeout: 10m
         kill-timeout: 60m
         prepare: |
-            #shellcheck source=tests/lib/pkgdb.sh
-            . "$TESTSLIB"/pkgdb.sh
-            #shellcheck source=tests/lib/image.sh
-            . "$TESTSLIB"/image.sh
-            distro_update_package_db
-            distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
-            if os.query is-xenial; then
-                # the new ubuntu-image expects mkfs to support -d option, which was not
-                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
-                # also ubuntu-image binary is not prebuilt for arm instances
-                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            elif os.query is-arm; then
+            if os.query is-arm; then
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+                export NESTED_ARCHITECTURE=arm64
             else
+                #shellcheck source=tests/lib/image.sh
+                . "$TESTSLIB"/image.sh
                 get_ubuntu_image
+                export NESTED_ARCHITECTURE=amd64
             fi
   
             # Install the snapd built

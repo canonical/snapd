@@ -6,8 +6,8 @@ details: |
     target model uses test-snapd-remodel store. The new model requires additional
     snaps that are present in the test-snapd-remodel store.
 
-# ubuntu-22.04-64: enable when test-snapd-remodel-pc is release on 22/stable
-systems: [ubuntu-18.04-64, ubuntu-20.04-64]
+# ubuntu-22-64: enable when test-snapd-remodel-pc is release on 22/stable
+systems: [ubuntu-18-64, ubuntu-20-64]
 
 environment:
     NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/test-snapd-remodel-auto-import.assert

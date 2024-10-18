@@ -15,8 +15,8 @@ details: |
   the old snap-bootstrap/initrd in the stable kernel can still unlock the
   encrypted partitions
 
-# ubuntu-22.04-64: enable on uc22 once pc-kernel is on 22/candidate channel
-systems: [ubuntu-20.04-64]
+# ubuntu-22-64: enable on uc22 once pc-kernel is on 22/candidate channel
+systems: [ubuntu-20-64]
 
 
 environment:

@@ -4,8 +4,8 @@ details: |
   This test creates a classic image that looks like what the installer
   would create and we boot into it.
 
-# TODO: make this test work for ubuntu-24.04-64
-systems: [ubuntu-22.04-64]
+# TODO: make this test work for ubuntu-24-64
+systems: [ubuntu-22-64]
 
 environment:
   NESTED_ENABLE_SECURE_BOOT: false

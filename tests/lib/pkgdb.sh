@@ -658,6 +658,26 @@ pkg_dependencies_ubuntu_classic(){
     esac
 }
 
+pkg_dependencies_ubuntu_nested(){
+    echo "
+        build-essential
+        ca-certificates
+        cloud-image-utils
+        devscripts
+        gdebi-core
+        genisoimage
+        kpartx
+        mtools
+        ovmf
+        qemu-kvm
+        qemu-utils
+        snapd
+        sshpass
+        xdelta3
+        xz-utils
+    "
+}
+
 pkg_linux_image_extra (){
     if apt-cache show "linux-image-extra-$(uname -r)" > /dev/null 2>&1; then
         echo "linux-image-extra-$(uname -r)";
@@ -853,6 +873,12 @@ pkg_dependencies_arch(){
 }
 
 pkg_dependencies(){
+    # Nested hosts need a different set of dependencies
+    if tests.nested is-nested; then
+        pkg_dependencies_ubuntu_nested
+        return
+    fi
+
     case "$SPREAD_SYSTEM" in
         ubuntu-core-16-*)
             pkg_dependencies_ubuntu_generic

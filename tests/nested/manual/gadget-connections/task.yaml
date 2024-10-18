@@ -5,7 +5,7 @@ details: |
     snaps. The test verifies that a gadget snap can effectively connect
     interfaces on a system that is booted for the first time.
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20-64]
 
 environment:
   NESTED_SIGN_SNAPS_FAKESTORE: true
