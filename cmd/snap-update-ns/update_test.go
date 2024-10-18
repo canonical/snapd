@@ -60,7 +60,18 @@ func (s *updateSuite) TestUpdateFlow(c *C) {
 	// - the needed changes are performed (one by one)
 	// - the updated current profile is saved
 	var funcsCalled []string
-	var nChanges int
+	expectedChanges := []*update.Change{
+		{Action: update.Keep},
+		{Action: update.Unmount},
+		{Action: update.Mount}}
+	findChangeIdx := func(change *update.Change) int {
+		for i := range expectedChanges {
+			if change == expectedChanges[i] {
+				return i
+			}
+		}
+		return -1
+	}
 	upCtx := &testProfileUpdateContext{
 		loadCurrentProfile: func() (*osutil.MountProfile, error) {
 			funcsCalled = append(funcsCalled, "loaded-current")
@@ -72,12 +83,15 @@ func (s *updateSuite) TestUpdateFlow(c *C) {
 		},
 		neededChanges: func(old, new *osutil.MountProfile) []*update.Change {
 			funcsCalled = append(funcsCalled, "changes-computed")
-			return []*update.Change{{}, {}}
+			return expectedChanges
 		},
-		performChange: func(change *update.Change, as *update.Assumptions) ([]*update.Change, error) {
-			nChanges++
-			funcsCalled = append(funcsCalled, fmt.Sprintf("change-%d-performed", nChanges))
+		prepareToPerformChange: func(change *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+			funcsCalled = append(funcsCalled, fmt.Sprintf("change-%d-%s-prepared", findChangeIdx(change), change.Action))
 			return nil, nil
+		},
+		doPerformChange: func(change *update.Change, as *update.Assumptions) error {
+			funcsCalled = append(funcsCalled, fmt.Sprintf("change-%d-%s-performed", findChangeIdx(change), change.Action))
+			return nil
 		},
 		saveCurrentProfile: func(*osutil.MountProfile) error {
 			funcsCalled = append(funcsCalled, "saved-current")
@@ -87,8 +101,16 @@ func (s *updateSuite) TestUpdateFlow(c *C) {
 	restore := upCtx.MockRelatedFunctions()
 	defer restore()
 	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
-	c.Assert(funcsCalled, DeepEquals, []string{"loaded-desired", "loaded-current",
-		"changes-computed", "change-1-performed", "change-2-performed", "saved-current"})
+	c.Assert(funcsCalled, DeepEquals, []string{
+		"loaded-desired",
+		"loaded-current",
+		"changes-computed",
+		"change-0-keep-performed",
+		"change-1-unmount-performed",
+		"change-2-mount-prepared",
+		"change-2-mount-performed",
+		"saved-current",
+	})
 	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
 }
 
@@ -166,7 +188,7 @@ func (s *updateSuite) TestSyntheticChanges(c *C) {
 				{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/subdir/mount"}},
 			}
 		},
-		performChange: func(change *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+		prepareToPerformChange: func(change *update.Change, as *update.Assumptions) ([]*update.Change, error) {
 			// If we are trying to mount /subdir/mount then synthesize a change
 			// for making a tmpfs on /subdir.
 			if change.Action == update.Mount && change.Entry.Dir == "/subdir/mount" {
@@ -204,16 +226,16 @@ func (s *updateSuite) TestCannotPerformContentInterfaceChange(c *C) {
 				{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/dir-4"}},
 			}
 		},
-		performChange: func(change *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+		doPerformChange: func(change *update.Change, as *update.Assumptions) error {
 			// The change to /dir-2 cannot be made.
 			if change.Action == update.Mount && change.Entry.Dir == "/dir-2" {
-				return nil, errTesting
+				return errTesting
 			}
 			// The change to /dir-4 cannot be made either but with a special reason.
 			if change.Action == update.Mount && change.Entry.Dir == "/dir-4" {
-				return nil, update.ErrIgnoredMissingMount
+				return update.ErrIgnoredMissingMount
 			}
-			return nil, nil
+			return nil
 		},
 	}
 	restore := upCtx.MockRelatedFunctions()
@@ -243,7 +265,7 @@ func (s *updateSuite) TestCannotPerformLayoutChange(c *C) {
 				{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/dir-3"}},
 			}
 		},
-		performChange: func(change *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+		prepareToPerformChange: func(change *update.Change, as *update.Assumptions) ([]*update.Change, error) {
 			// The change to /dir-2 cannot be made.
 			if change.Action == update.Mount && change.Entry.Dir == "/dir-2" {
 				return nil, errTesting
@@ -273,7 +295,7 @@ func (s *updateSuite) TestCannotPerformOvermountChange(c *C) {
 				{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/dir-3"}},
 			}
 		},
-		performChange: func(change *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+		prepareToPerformChange: func(change *update.Change, as *update.Assumptions) ([]*update.Change, error) {
 			// The change to /dir-2 cannot be made.
 			if change.Action == update.Mount && change.Entry.Dir == "/dir-2" {
 				return nil, errTesting
@@ -438,8 +460,9 @@ type testProfileUpdateContext struct {
 
 	// The remaining functions are defined for consistency but are installed by
 	// calling their mock helpers. They are not a part of the interface.
-	neededChanges func(*osutil.MountProfile, *osutil.MountProfile) []*update.Change
-	performChange func(*update.Change, *update.Assumptions) ([]*update.Change, error)
+	neededChanges          func(*osutil.MountProfile, *osutil.MountProfile) []*update.Change
+	prepareToPerformChange func(*update.Change, *update.Assumptions) ([]*update.Change, error)
+	doPerformChange        func(*update.Change, *update.Assumptions) error
 }
 
 // MockRelatedFunctions mocks NeededChanges and Change.Perform for the purpose of testing.
@@ -450,11 +473,15 @@ func (upCtx *testProfileUpdateContext) MockRelatedFunctions() (restore func()) {
 	}
 	restore1 := update.MockNeededChanges(neededChanges)
 
-	performChange := func(*update.Change, *update.Assumptions) ([]*update.Change, error) { return nil, nil }
-	if upCtx.performChange != nil {
-		performChange = upCtx.performChange
+	prepareToPerformChange := func(*update.Change, *update.Assumptions) ([]*update.Change, error) { return nil, nil }
+	if upCtx.prepareToPerformChange != nil {
+		prepareToPerformChange = upCtx.prepareToPerformChange
 	}
-	restore2 := update.MockChangePerform(performChange)
+	doPerformChange := func(*update.Change, *update.Assumptions) error { return nil }
+	if upCtx.doPerformChange != nil {
+		doPerformChange = upCtx.doPerformChange
+	}
+	restore2 := update.MockChangePerform(prepareToPerformChange, doPerformChange)
 
 	return func() {
 		restore1()
