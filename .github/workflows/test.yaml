@@ -726,27 +726,27 @@ jobs:
             rules: 'main'
           - group: nested-ubuntu-16.04
             backend: google-nested
-            systems: 'ubuntu-16.04-64'
+            systems: 'ubuntu-16-64'
             tests: 'tests/nested/...'
             rules: 'nested'
           - group: nested-ubuntu-18.04
             backend: google-nested
-            systems: 'ubuntu-18.04-64'
+            systems: 'ubuntu-18-64'
             tests: 'tests/nested/...'
             rules: 'nested'
           - group: nested-ubuntu-20.04
             backend: google-nested
-            systems: 'ubuntu-20.04-64'
+            systems: 'ubuntu-20-64'
             tests: 'tests/nested/...'
             rules: 'nested'
           - group: nested-ubuntu-22.04
             backend: google-nested
-            systems: 'ubuntu-22.04-64'
+            systems: 'ubuntu-22-64'
             tests: 'tests/nested/...'
             rules: 'nested'
           - group: nested-ubuntu-24.04
             backend: google-nested
-            systems: 'ubuntu-24.04-64'
+            systems: 'ubuntu-24-64'
             tests: 'tests/nested/...'
             rules: 'nested'
     steps:
