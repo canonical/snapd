@@ -874,7 +874,7 @@ pkg_dependencies_arch(){
 
 pkg_dependencies(){
     # Nested hosts need a different set of dependencies
-    if tests.nested is-nested; then
+    if tests.nested is-nested >/dev/null 2>&1; then
         pkg_dependencies_ubuntu_nested
         return
     fi
