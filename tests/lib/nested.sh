@@ -330,42 +330,42 @@ nested_is_classic_system() {
 
 nested_is_core_ge() {
     local VERSION=$1
-    os.query is-ubuntu-ge "${VERSION}.04"
+    test "${VERSION}" -ge "$(nested_get_version)"
 }
 
 nested_is_core_gt() {
     local VERSION=$1
-    os.query is-ubuntu-gt "${VERSION}.04"
+    test "${VERSION}" -gt "$(nested_get_version)"
 }
 
 nested_is_core_le() {
     local VERSION=$1
-    os.query is-ubuntu-le "${VERSION}.04"
+    test "${VERSION}" -le "$(nested_get_version)"
 }
 
 nested_is_core_lt() {
     local VERSION=$1
-    os.query is-ubuntu-lt "${VERSION}.04"
+    test "${VERSION}" -lt "$(nested_get_version)"
 }
 
 nested_is_core_24_system() {
-    [[ "$SPREAD_SYSTEM" =~ ubuntu-24* ]]
+    [[ "$SPREAD_SYSTEM" =~ ubuntu-24 ]]
 }
 
 nested_is_core_22_system() {
-    [[ "$SPREAD_SYSTEM" =~ ubuntu-22* ]]
+    [[ "$SPREAD_SYSTEM" =~ ubuntu-22 ]]
 }
 
 nested_is_core_20_system() {
-    [[ "$SPREAD_SYSTEM" =~ ubuntu-20* ]]
+    [[ "$SPREAD_SYSTEM" =~ ubuntu-20 ]]
 }
 
 nested_is_core_18_system() {
-    [[ "$SPREAD_SYSTEM" =~ ubuntu-18* ]]
+    [[ "$SPREAD_SYSTEM" =~ ubuntu-18 ]]
 }
 
 nested_is_core_16_system() {
-    [[ "$SPREAD_SYSTEM" =~ ubuntu-16* ]]
+    [[ "$SPREAD_SYSTEM" =~ ubuntu-16 ]]
 }
 
 nested_refresh_to_new_core() {
