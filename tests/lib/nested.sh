@@ -330,22 +330,22 @@ nested_is_classic_system() {
 
 nested_is_core_ge() {
     local VERSION=$1
-    test "${VERSION}" -ge "$(nested_get_version)"
+    test "$(nested_get_version)" -ge "${VERSION}"
 }
 
 nested_is_core_gt() {
     local VERSION=$1
-    test "${VERSION}" -gt "$(nested_get_version)"
+    test "$(nested_get_version)" -gt "${VERSION}"
 }
 
 nested_is_core_le() {
     local VERSION=$1
-    test "${VERSION}" -le "$(nested_get_version)"
+    test "$(nested_get_version)" -le "${VERSION}"
 }
 
 nested_is_core_lt() {
     local VERSION=$1
-    test "${VERSION}" -lt "$(nested_get_version)"
+    test "$(nested_get_version)" -lt "${VERSION}"
 }
 
 nested_is_core_24_system() {
