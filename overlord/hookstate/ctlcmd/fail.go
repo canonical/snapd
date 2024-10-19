@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/registrystate"
 )
@@ -52,13 +51,12 @@ func init() {
 }
 
 func (c *failCommand) Execute(args []string) error {
-	if !features.Registries.IsEnabled() {
-		_, confName := features.Registries.ConfigOption()
-		return fmt.Errorf(`cannot use "snapctl fail" without enabling the %q feature`, confName)
-	}
-
 	ctx, err := c.ensureContext()
 	if err != nil {
+		return err
+	}
+
+	if err := validateRegistriesFeatureFlag(ctx.State()); err != nil {
 		return err
 	}
 
@@ -70,12 +68,12 @@ func (c *failCommand) Execute(args []string) error {
 	}
 
 	t, _ := ctx.Task()
-	tx, commitTask, err := registrystate.GetStoredTransaction(t)
+	tx, saveChanges, err := registrystate.GetStoredTransaction(t)
 	if err != nil {
 		return fmt.Errorf(i18n.G("internal error: cannot get registry transaction to fail: %v"), err)
 	}
 
 	tx.Abort(ctx.InstanceName(), c.Positional.Reason)
-	commitTask.Set("registry-transaction", tx)
+	saveChanges()
 	return nil
 }

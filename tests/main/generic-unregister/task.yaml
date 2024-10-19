@@ -6,8 +6,7 @@ details: |
    the unregister to be performed immediately and after snapd is
    restarted.
 
-# ubuntu-14.04: curl does not have --unix-socket option
-systems: [-ubuntu-core-*, -ubuntu-14.04-*]
+systems: [-ubuntu-core-*]
 
 environment:
   UNTIL_REBOOT/rereg: false
@@ -44,7 +43,7 @@ execute: |
     keyfile=(/var/lib/snapd/device/private-keys-v1/*)
     test -f "${keyfile[0]}"
 
-    curl --data '{"action":"forget","no-registration-until-reboot":'${UNTIL_REBOOT}'}' --unix-socket /run/snapd.socket http://localhost/v2/model/serial
+    echo "{\"action\":\"forget\",\"no-registration-until-reboot\":${UNTIL_REBOOT}}" | snap debug api -X POST -H 'Content-Type: application/json' /v2/model/serial
 
     snap model --serial 2>&1|MATCH "error: device not registered yet"
     not test -e "${keyfile[0]}"

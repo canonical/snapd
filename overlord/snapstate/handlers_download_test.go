@@ -21,10 +21,12 @@ package snapstate_test
 
 import (
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -32,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -118,6 +121,220 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatibility(c *C) {
 		Channel:  "some-channel",
 	})
 	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (s *downloadSnapSuite) TestDoDownloadSnapCompatibilityValidationSets(c *C) {
+	s.state.Lock()
+
+	headers := map[string]interface{}{
+		"type":         "validation-set",
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "bar",
+		"sequence":     "3",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "foo",
+				"id":       snaptest.AssertedSnapID("foo"),
+				"presence": "required",
+				"revision": "15",
+			},
+		},
+	}
+
+	signing := assertstest.NewStoreStack("can0nical", nil)
+	a, err := signing.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	vs := a.(*asserts.ValidationSet)
+
+	vsets := snapasserts.NewValidationSets()
+	err = vsets.Add(vs)
+	c.Assert(err, IsNil)
+	c.Assert(vsets.Conflict(), IsNil)
+
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		return vsets, nil
+	})
+	s.AddCleanup(restore)
+
+	t := s.state.NewTask("download-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
+		Channel: "some-channel",
+		// explicitly set to "nil", this ensures the compatibility
+		// code path in the task is hit and the store is queried
+		// in the task (instead of using the new
+		// SnapSetup.{SideInfo,DownloadInfo} that gets set in
+		// snapstate.{Install,Update} directly.
+		DownloadInfo: nil,
+	})
+	s.state.NewChange("sample", "...").AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	// the compat code called the store "Snap" endpoint
+	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op: "storesvc-snap-action",
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:         "install",
+				InstanceName:   "foo",
+				Revision:       snap.R(15),
+				ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/3"},
+				// channel is explicitly empty, since we're sending a revision
+				// from the validation sets
+				Channel: "",
+			},
+			revno: snap.R(15),
+		},
+		{
+			op:   "storesvc-download",
+			name: "foo",
+		},
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var snapsup snapstate.SnapSetup
+	t.Get("snap-setup", &snapsup)
+	c.Check(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: "foo",
+		SnapID:   "foo-id",
+		Revision: snap.R(15),
+	})
+	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (s *downloadSnapSuite) TestDoDownloadSnapCompatibilityValidationSetsInvalid(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	headers := map[string]interface{}{
+		"type":         "validation-set",
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "bar",
+		"sequence":     "3",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "foo",
+				"id":       snaptest.AssertedSnapID("foo"),
+				"presence": "invalid",
+			},
+		},
+	}
+
+	signing := assertstest.NewStoreStack("can0nical", nil)
+	a, err := signing.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	vs := a.(*asserts.ValidationSet)
+
+	vsets := snapasserts.NewValidationSets()
+	err = vsets.Add(vs)
+	c.Assert(err, IsNil)
+	c.Assert(vsets.Conflict(), IsNil)
+
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		return vsets, nil
+	})
+	s.AddCleanup(restore)
+
+	t := s.state.NewTask("download-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
+		Channel: "some-channel",
+		// explicitly set to "nil", this ensures the compatibility
+		// code path in the task is hit and the store is queried
+		// in the task (instead of using the new
+		// SnapSetup.{SideInfo,DownloadInfo} that gets set in
+		// snapstate.{Install,Update} directly.
+		DownloadInfo: nil,
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot install snap "foo" due to enforcing rules of validation set 16/foo/bar/3.*`)
+}
+
+func (s *downloadSnapSuite) TestDoDownloadSnapCompatibilityValidationSetsWrongRevision(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	headers := map[string]interface{}{
+		"type":         "validation-set",
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "bar",
+		"sequence":     "3",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "foo",
+				"id":       snaptest.AssertedSnapID("foo"),
+				"presence": "required",
+				"revision": "15",
+			},
+		},
+	}
+
+	signing := assertstest.NewStoreStack("can0nical", nil)
+	a, err := signing.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	vs := a.(*asserts.ValidationSet)
+
+	vsets := snapasserts.NewValidationSets()
+	err = vsets.Add(vs)
+	c.Assert(err, IsNil)
+	c.Assert(vsets.Conflict(), IsNil)
+
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		return vsets, nil
+	})
+	s.AddCleanup(restore)
+
+	t := s.state.NewTask("download-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(14),
+		},
+		Channel: "some-channel",
+		// explicitly set to "nil", this ensures the compatibility
+		// code path in the task is hit and the store is queried
+		// in the task (instead of using the new
+		// SnapSetup.{SideInfo,DownloadInfo} that gets set in
+		// snapstate.{Install,Update} directly.
+		DownloadInfo: nil,
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot install snap "foo" at revision 14 without --ignore-validation, revision 15 is required by validation sets: 16/foo/bar/3.*`)
 }
 
 func (s *downloadSnapSuite) TestDoDownloadSnapNormal(c *C) {

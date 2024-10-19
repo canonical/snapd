@@ -7,6 +7,8 @@ details: |
     removal no leftovers remain in the mounting area.
 
 execute: |
+    tests.exec is-skipped && exit 0
+
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"

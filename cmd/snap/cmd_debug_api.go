@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/jessevdk/go-flags"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -49,6 +50,8 @@ $ echo '{"action": "refresh"}' | snap debug api -X POST \
 type cmdDebugAPI struct {
 	clientMixin
 
+	SnapSocket bool `long:"snap-socket"`
+
 	Headers []string `short:"H" long:"header"`
 	Method  string   `short:"X" long:"request"`
 	Fail    bool     `long:"fail"`
@@ -67,13 +70,19 @@ func init() {
 		func() flags.Commander {
 			return &cmdDebugAPI{}
 		}, map[string]string{
-			"header":  "Set header (can be repeated multiple times), header kind and value are separated with ': '",
-			"request": "HTTP method to use (defaults to GET)",
-			"fail":    "Fail on request errors",
+			"header":      "Set header (can be repeated multiple times), header kind and value are separated with ': '",
+			"request":     "HTTP method to use (defaults to GET)",
+			"fail":        "Fail on request errors",
+			"snap-socket": "Use snap access socket",
 		}, nil)
 }
 
 func (x *cmdDebugAPI) Execute(args []string) error {
+	if x.SnapSocket {
+		ClientConfig.Socket = dirs.SnapSocket
+		x.setClient(mkClient())
+	}
+
 	method := x.Method
 	switch method {
 	case "GET", "POST", "PUT":

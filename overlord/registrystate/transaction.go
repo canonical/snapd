@@ -296,3 +296,7 @@ func (t *Transaction) aborted() bool {
 func (t *Transaction) AbortInfo() (snap, reason string) {
 	return t.abortingSnap, t.abortReason
 }
+
+func (t *Transaction) Pristine() registry.DataBag {
+	return t.pristine
+}

@@ -414,6 +414,8 @@ func (s *Store) collectSnaps() (map[string]string, error) {
 		if err != nil {
 			return nil, err
 		}
+		// TODO: Prefer newer file for the same snap instead of blindly
+		// overwriting
 		snaps[info.SnapName()] = fn
 		logger.Debugf("found snap %q at %v", info.SnapName(), fn)
 	}
@@ -680,6 +682,10 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 		}
 
 		if name == "" {
+			if isAutoRefreshRequest(req) {
+				// Skip auto-refresh for snap installed on the system not added to the fakestore
+				continue
+			}
 			http.Error(w, fmt.Sprintf("unknown snap-id: %q", snapID), 400)
 			return
 		}
@@ -727,6 +733,10 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	w.Write(out)
+}
+
+func isAutoRefreshRequest(req *http.Request) bool {
+	return req.Header.Get("Snap-Refresh-Reason") == "scheduled"
 }
 
 func (s *Store) retrieveAssertion(bs asserts.Backstore, assertType *asserts.AssertionType, primaryKey []string) (asserts.Assertion, error) {

@@ -9,6 +9,8 @@ details: |
     modified the code in unintended ways.
 
 execute: |
+    tests.exec is-skipped && exit 0
+
     # TODO: fix dirty version number on riscv
     echo "Ensure the version number is not 'dirty'"
     if not uname -m | MATCH riscv64; then

@@ -24,7 +24,14 @@ debug: |
 execute: |
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
+
+    # In essence we need to use the helper from snap, as it's the only location
+    # which is now carrying the potentially modified code (since snapd package
+    # is installed from distribution repos and so it contains older, already merged code).
     libexecdir=$(os.paths libexec-dir)
+    if tests.info is-snapd-from-archive; then
+        libexecdir="/snap/snapd/current$libexecdir"
+    fi
 
     echo "Given a snap is installed"
     "$TESTSTOOLS"/snaps-state install-local test-strict-cgroup-helper

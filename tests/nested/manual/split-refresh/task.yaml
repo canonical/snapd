@@ -25,7 +25,6 @@ prepare: |
       exit
   fi
   echo "Install used snaps"
-  snap install test-snapd-curl --devmode --edge
   snap install jq --devmode --edge
   if [ -d /var/lib/snapd/seed ]; then
     mv /var/lib/snapd/seed /var/lib/snapd/seed.orig
@@ -101,8 +100,8 @@ execute: |
   cp -a ./classic-seed/system-seed/ /var/lib/snapd/seed
 
   # do some light checking that the system is valid
-  test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems | jq '.result.systems[0].label' | MATCH "$LABEL"
-  test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems/"$LABEL" > system
+  snap debug api /v2/systems | jq '.result.systems[0].label' | MATCH "$LABEL"
+  snap debug api "/v2/systems/$LABEL" > system
   jq '.result.model.distribution' system | MATCH "ubuntu"
   # build muinstaller and put in place
   go build -o muinstaller "$TESTSLIB"/muinstaller/main.go

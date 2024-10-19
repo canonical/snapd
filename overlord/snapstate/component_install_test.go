@@ -917,10 +917,16 @@ func (s *snapmgrTestSuite) TestInstallComponents(c *C) {
 		chg.AddAll(ts)
 	}
 
+	snapsup, err := snapstate.TaskSnapSetup(prepareKmodComps)
+	c.Assert(err, IsNil)
+	c.Assert(snapsup, NotNil)
+
 	for _, ts := range tss[0 : len(tss)-1] {
 		task := ts.Tasks()[0]
-		compsup, _, err := snapstate.TaskComponentSetup(task)
+		compsup, snapsup, err := snapstate.TaskComponentSetup(task)
 		c.Assert(err, IsNil)
+		c.Assert(compsup, NotNil)
+		c.Assert(snapsup, NotNil)
 
 		opts := compOptMultiCompInstall
 		if compNameToType(compsup.ComponentName()) == snap.KernelModulesComponent {

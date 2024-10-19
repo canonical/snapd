@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/registry"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -164,52 +165,32 @@ func (s *unsetSuite) TestCommandWithoutContext(c *C) {
 
 func (s *registrySuite) TestRegistryUnsetManyViews(c *C) {
 	s.state.Lock()
-	err := registrystate.SetViaView(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{"ssid": "my-ssid", "password": "my-secret"})
+	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
 	s.state.Unlock()
 	c.Assert(err, IsNil)
+
+	err = tx.Set("wifi.ssid", "foo")
+	c.Assert(err, IsNil)
+
+	err = tx.Set("wifi.psk", "bar")
+	c.Assert(err, IsNil)
+
+	ctlcmd.MockRegistrystateGetTransaction(func(*registrystate.Context, *state.State, *registry.View) (*registrystate.Transaction, error) {
+		return tx, nil
+	})
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"unset", "--view", ":write-wifi", "ssid", "password"}, 0)
 	c.Assert(err, IsNil)
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
-	s.mockContext.Lock()
-	c.Assert(s.mockContext.Done(), IsNil)
-	s.mockContext.Unlock()
+
+	_, err = tx.Get("wifi.ssid")
+	c.Assert(err, ErrorMatches, `no value was found under path "wifi.ssid"`)
 
 	s.state.Lock()
-	_, err = registrystate.GetViaView(s.state, s.devAccID, "network", "write-wifi", []string{"ssid", "password"})
+	_, err = registrystate.Get(s.state, s.devAccID, "network", "write-wifi", []string{"ssid", "password"})
 	s.state.Unlock()
 	c.Assert(err, ErrorMatches, `cannot get "ssid", "password" .*: matching rules don't map to any values`)
-}
-
-func (s *registrySuite) TestRegistryUnsetHappensTransactionally(c *C) {
-	s.state.Lock()
-	err := registrystate.SetViaView(s.state, s.devAccID, "network", "write-wifi", map[string]interface{}{"ssid": "my-ssid"})
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"unset", "--view", ":write-wifi", "ssid"}, 0)
-	c.Assert(err, IsNil)
-	c.Check(stdout, IsNil)
-	c.Check(stderr, IsNil)
-
-	s.state.Lock()
-	val, err := registrystate.GetViaView(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-	c.Assert(val, DeepEquals, map[string]interface{}{
-		"ssid": "my-ssid",
-	})
-
-	// commit transaction
-	s.mockContext.Lock()
-	c.Assert(s.mockContext.Done(), IsNil)
-	s.mockContext.Unlock()
-
-	s.state.Lock()
-	_, err = registrystate.GetViaView(s.state, s.devAccID, "network", "read-wifi", []string{"ssid"})
-	s.state.Unlock()
-	c.Assert(err, ErrorMatches, `cannot get "ssid" .*: matching rules don't map to any values`)
 }
 
 func (s *registrySuite) TestRegistryUnsetInvalid(c *C) {

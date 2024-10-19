@@ -80,6 +80,7 @@ func InstallComponents(ctx context.Context, st *state.State, names []string, inf
 		kmodSetup = st.NewTask("prepare-kernel-modules-components", fmt.Sprintf(
 			i18n.G("Prepare kernel-modules components for %q%s"), info.InstanceName(), info.Revision,
 		))
+		kmodSetup.Set("snap-setup-task", setupSecurity.ID())
 	}
 
 	tss := make([]*state.TaskSet, 0, len(compsups))

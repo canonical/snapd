@@ -67,7 +67,7 @@ execute: |
     if [ "${VERSION_ID}" = "14.04" ]; then
         dpkg -i "$GOHOME"/snapd*.deb
     else
-        apt install -y "$GOHOME"/snapd_1337*.deb
+        apt install -y "$GOHOME"/snapd_*.deb
     fi
 
     echo "snapd listens to requests"

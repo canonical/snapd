@@ -376,6 +376,9 @@ type SnapState struct {
 	// their security profiles set up but are not active.
 	// It is managed by ifacestate.
 	PendingSecurity *PendingSecurityState `json:"pending-security,omitempty"`
+
+	// RefreshFailures tracks information about snap failed refreshes.
+	RefreshFailures *snap.RefreshFailuresInfo `json:"refresh-failures,omitempty"`
 }
 
 // PendingSecurityState holds information about snaps that have
@@ -875,9 +878,12 @@ func (m *SnapManager) StartUp() error {
 		return fmt.Errorf("failed to generate cookies: %q", err)
 	}
 
-	// register handler that records a refresh-inhibit notice when
-	// the set of inhibited snaps is changed.
-	m.changeCallbackID = m.state.AddChangeStatusChangedHandler(processInhibitedAutoRefresh)
+	m.changeCallbackID = m.state.AddChangeStatusChangedHandler(func(chg *state.Change, old, new state.Status) {
+		// This handler records a refresh-inhibit notice when the set of inhibited snaps is changed.
+		processInhibitedAutoRefresh(chg, old, new)
+		// This handler implements marks failed snaps auto-refresh attempts for backoff.
+		processFailedAutoRefresh(chg, old, new)
+	})
 
 	if CheckExpectedRestart(m.state) == ErrUnexpectedRuntimeRestart {
 		logger.Noticef("detected a restart at runtime without a corresponding snapd change")

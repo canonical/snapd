@@ -380,7 +380,7 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(mgr, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	snaps := []string{"snapd", "pc-kernel", "core20", "pc"}
+	snaps := []string{"snapd", "core20", "pc-kernel", "pc"}
 	allDevModeSnaps := stripSnapNamesWithChannels(opts.extraDevModeSnaps)
 	if len(opts.extraDevModeSnaps) != 0 {
 		snaps = append(snaps, allDevModeSnaps...)

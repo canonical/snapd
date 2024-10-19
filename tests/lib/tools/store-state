@@ -72,9 +72,13 @@ make_snap_installable(){
 
     if [ -n "$snap_id" ]; then
         if ! command -v yaml2json; then
+            # FIXME: When fakestore is setup this snap cannot be installed
+            # TODO: Install remarshal in setup_fake_store
             snap install remarshal
         fi
         if ! command -v jq; then
+            # FIXME: When fakestore is setup this snap cannot be installed
+            # TODO: Install jq in setup_fake_store or don't use snapped jq
             SUFFIX="$(snaps.name snap-suffix)"
             snap install "jq$SUFFIX"
         fi

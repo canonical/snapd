@@ -796,3 +796,71 @@ func (s *storeTestSuite) TestSnapActionEndpointSnapWithBase(c *C) {
 		},
 	})
 }
+
+func (s *storeTestSuite) TestSnapActionEndpointUnknownSnap(c *C) {
+	s.makeTestSnap(c, "name: test-snapd-tools\nversion: 1\nbase: core20")
+
+	req, err := http.NewRequest("POST", s.store.URL()+"/v2/snaps/refresh", bytes.NewReader([]byte(`{
+		"context": [{"instance-key":"foo","snap-id":"foo-id","tracking-channel":"stable","revision":1},{"instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","tracking-channel":"stable","revision":1}],
+		"actions": [{"action":"refresh","instance-key":"foo","snap-id":"foo-id"},{"action":"refresh","instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw"}]
+	}`)))
+	req.Header["Snap-Refresh-Reason"] = nil
+	c.Assert(err, IsNil)
+	resp, err := s.client.Do(req)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 400)
+	body, err := io.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(body), Equals, "unknown snap-id: \"foo-id\"\n")
+}
+
+func (s *storeTestSuite) TestSnapActionEndpointUnknownSnapAutoRefresh(c *C) {
+	snapFn := s.makeTestSnap(c, "name: test-snapd-tools\nversion: 1\nbase: core20")
+
+	req, err := http.NewRequest("POST", s.store.URL()+"/v2/snaps/refresh", bytes.NewReader([]byte(`{
+		"context": [{"instance-key":"foo","snap-id":"foo-id","tracking-channel":"stable","revision":1},{"instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","tracking-channel":"stable","revision":1}],
+		"actions": [{"action":"refresh","instance-key":"foo","snap-id":"foo-id"},{"action":"refresh","instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw"}]
+	}`)))
+	// Mark as auto-refresh
+	req.Header["Snap-Refresh-Reason"] = []string{"scheduled"}
+	c.Assert(err, IsNil)
+	resp, err := s.client.Do(req)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 200)
+	var body struct {
+		Results []map[string]interface{}
+	}
+	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
+	c.Check(body.Results, HasLen, 1)
+	sha3_384, size := getSha(snapFn)
+	// Ignore unknown snaps during auto-refresh
+	c.Check(body.Results[0], DeepEquals, map[string]interface{}{
+		"result":       "refresh",
+		"instance-key": "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+		"snap-id":      "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+		"name":         "test-snapd-tools",
+		"snap": map[string]interface{}{
+			"architectures": []interface{}{"all"},
+			"snap-id":       "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+			"name":          "test-snapd-tools",
+			"publisher": map[string]interface{}{
+				"username": "canonical",
+				"id":       "canonical",
+			},
+			"download": map[string]interface{}{
+				"url":      s.store.URL() + "/download/test-snapd-tools_1_all.snap",
+				"sha3-384": sha3_384,
+				"size":     float64(size),
+			},
+			"version":     "1",
+			"revision":    float64(424242),
+			"confinement": "strict",
+			"type":        "app",
+			"base":        "core20",
+		},
+	})
+}

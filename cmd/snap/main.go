@@ -76,7 +76,7 @@ type argDesc struct {
 
 var optionsData options
 
-// ErrExtraArgs is returned  if extra arguments to a command are found
+// ErrExtraArgs is returned if extra arguments to a command are found
 var ErrExtraArgs = errors.New(i18n.G("too many arguments for command"))
 
 // cmdInfo holds information needed to call parser.AddCommand(...).

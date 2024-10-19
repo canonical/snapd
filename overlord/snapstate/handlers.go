@@ -659,11 +659,10 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func installInfoUnlocked(st *state.State, snapsup *SnapSetup, deviceCtx DeviceContext) (store.SnapActionResult, error) {
+func sendOneInstallActionUnlocked(ctx context.Context, st *state.State, snaps StoreSnap, opts Options) (store.SnapActionResult, error) {
 	st.Lock()
 	defer st.Unlock()
-	opts := &RevisionOptions{Channel: snapsup.Channel, CohortKey: snapsup.CohortKey, Revision: snapsup.Revision()}
-	return installInfo(context.TODO(), st, snapsup.InstanceName(), opts, snapsup.UserID, Flags{}, deviceCtx)
+	return sendOneInstallAction(ctx, st, snaps, opts)
 }
 
 // autoRefreshRateLimited returns the rate limit of auto-refreshes or 0 if
@@ -733,18 +732,25 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		RateLimit: rate,
 	}
 	if snapsup.DownloadInfo == nil {
-		var storeInfo store.SnapActionResult
+		var result store.SnapActionResult
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
 		// yet. Therefore do not worry about DeviceContext.
-		storeInfo, err = installInfoUnlocked(st, snapsup, nil)
+		result, err = sendOneInstallActionUnlocked(context.TODO(), st, StoreSnap{
+			InstanceName: snapsup.InstanceName(),
+			RevOpts: RevisionOptions{
+				Channel:   snapsup.Channel,
+				CohortKey: snapsup.CohortKey,
+				Revision:  snapsup.Revision(),
+			},
+		}, Options{})
 		if err != nil {
 			return err
 		}
 		timings.Run(perfTimings, "download", fmt.Sprintf("download snap %q", snapsup.SnapName()), func(timings.Measurer) {
-			err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, &storeInfo.DownloadInfo, meter, user, dlOpts)
+			err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, &result.DownloadInfo, meter, user, dlOpts)
 		})
-		snapsup.SideInfo = &storeInfo.SideInfo
+		snapsup.SideInfo = &result.SideInfo
 	} else {
 		timings.Run(perfTimings, "download", fmt.Sprintf("download snap %q", snapsup.SnapName()), func(timings.Measurer) {
 			err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user, dlOpts)
@@ -3410,7 +3416,13 @@ func (m *SnapManager) doKillSnapApps(t *state.Task, _ *tomb.Tomb) (err error) {
 	defer st.Lock()
 
 	if err := m.backend.KillSnapApps(snapName, reason, perfTimings); err != nil {
-		return err
+		// Snap processes termination is best-effort and task should continue
+		// without returning an error. This is to avoid a maliciously crafted snap
+		// from causing remove changes to always fail causing the snap to never be
+		// removed.
+		st.Lock()
+		st.Warnf("cannot terminate running app processes for %q: %v", snapName, err)
+		st.Unlock()
 	}
 
 	currentInfo, err := snapst.CurrentInfo()

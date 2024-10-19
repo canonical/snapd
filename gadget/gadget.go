@@ -130,14 +130,7 @@ type Info struct {
 // HasRole returns true if any of the volume structures in this Info has the
 // given role.
 func (i *Info) HasRole(role string) bool {
-	for _, v := range i.Volumes {
-		for _, s := range v.Structure {
-			if s.Role == role {
-				return true
-			}
-		}
-	}
-	return false
+	return VolumesHaveRole(i.Volumes, role)
 }
 
 // PartialProperty is a gadget property that can be partially defined.
@@ -175,6 +168,19 @@ type Volume struct {
 	Name string `json:"-"`
 }
 
+// VolumesHaveRole checks if any of the volumes has a structure with the given
+// role.
+func VolumesHaveRole(volumes map[string]*Volume, role string) bool {
+	for _, v := range volumes {
+		for _, s := range v.Structure {
+			if s.Role == role {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // HasPartial checks if the volume has a partially defined part.
 func (v *Volume) HasPartial(pp PartialProperty) bool {
 	for _, vp := range v.Partial {
@@ -185,19 +191,33 @@ func (v *Volume) HasPartial(pp PartialProperty) bool {
 	return false
 }
 
-// MinSize returns the minimum size required by a volume, as implicitly
-// defined by the size structures. It assumes sorted structures.
-func (v *Volume) MinSize() quantity.Size {
+// size returns the size of the volume using the structureSizer function to calculate
+// structures size. It assumes sorted structures.
+func (v *Volume) size(structureSizer func(VolumeStructure) quantity.Size) quantity.Size {
 	endVol := quantity.Offset(0)
 	for _, s := range v.Structure {
 		if s.Offset != nil {
-			endVol = *s.Offset + quantity.Offset(s.MinSize)
+			endVol = *s.Offset + quantity.Offset(structureSizer(s))
 		} else {
-			endVol += quantity.Offset(s.MinSize)
+			endVol += quantity.Offset(structureSizer(s))
 		}
 	}
 
 	return quantity.Size(endVol)
+}
+
+// MinSize returns the minimum size required by a volume.
+func (v *Volume) MinSize() quantity.Size {
+	return v.size(func(s VolumeStructure) quantity.Size {
+		return s.MinSize
+	})
+}
+
+// Size returns the current size required by a volume.
+func (v *Volume) Size() quantity.Size {
+	return v.size(func(s VolumeStructure) quantity.Size {
+		return s.Size
+	})
 }
 
 // StructFromYamlIndex returns the structure defined at a given yaml index from

@@ -34,7 +34,7 @@ execute: |
     shift 2
 
     # shellcheck disable=SC2059
-    printf "${template}" "$@" | remote.exec "sudo test-snapd-curl.curl -X POST -H 'Content-Type: application/json' --unix-socket /run/snapd.socket -d @- http://localhost${route}" | jq .
+    printf "${template}" "$@" | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' ${route}" | jq .
   }
 
   #shellcheck source=tests/lib/core-config.sh
@@ -57,6 +57,7 @@ execute: |
     remote.exec "sudo ip r d default"
 
     if [ "${USE_FORM_API}" = 'true' ]; then
+      # Use curl to make the multipart/form-data HTML request since it is not supported by snap debug api
       response=$(remote.exec "sudo test-snapd-curl.curl -X POST --unix-socket /run/snapd.socket -F 'action=create' -F 'label=new-system' -F 'validation-sets=test-snapd/recovery-system-pinned' -F 'test-system=${TEST_SYSTEM}' -F 'mark-default=true' http://localhost/v2/systems")
     else
       response=$(post_json_data /v2/systems '{"action": "create", "label": "new-system", "validation-sets": ["test-snapd/recovery-system-pinned"], "mark-default": true, "offline": true, "test-system": %s}' "${TEST_SYSTEM}")
@@ -64,7 +65,7 @@ execute: |
   else
     remote.exec "sudo snap set system store.access=offline"
     remote.exec "sudo ip r d default"
-
+    # Use curl to make the multipart/form-data HTML request since it is not supported by snap debug api
     response=$(remote.exec "sudo test-snapd-curl.curl -X POST --unix-socket /run/snapd.socket -F 'action=create' -F 'label=new-system' -F 'validation-sets=test-snapd/recovery-system-pinned=1' -F 'assertion=<test-snapd-recovery-system-pinned.assert' -F 'assertion=<hello-world.assert' -F 'snap=@hello-world.snap' -F 'test-system=${TEST_SYSTEM}' -F 'mark-default=true' http://localhost/v2/systems")
   fi
 

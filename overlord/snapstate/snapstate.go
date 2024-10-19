@@ -2116,6 +2116,14 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 			continue
 		}
 
+		if err := checkSnapRefreshFailures(st, &up.SnapState, up.Setup.Revision(), opts); err != nil {
+			if errors.Is(err, errKnownBadRevision) {
+				// revision known to fail during refresh and backoff delay has not passed
+				continue
+			}
+			return nil, false, nil, err
+		}
+
 		// if any snaps actually get a revision change, we need to do a
 		// re-refresh check
 		needsRerefreshCheck = true
@@ -3980,11 +3988,17 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		return nil, err
 	}
 	if !newSnapst.IsInstalled() {
-		var userID int
-		newInfo, err := installInfo(context.TODO(), st, newName, &RevisionOptions{Channel: oldSnapst.TrackingChannel}, userID, Flags{}, nil)
+		result, err := sendOneInstallAction(context.TODO(), st, StoreSnap{
+			InstanceName: newName,
+			RevOpts: RevisionOptions{
+				Channel: oldSnapst.TrackingChannel,
+			},
+		}, Options{})
 		if err != nil {
 			return nil, err
 		}
+
+		newInfo := result.Info
 
 		// start by installing the new snap
 		tsInst, err := doInstall(st, &newSnapst, SnapSetup{
@@ -4138,8 +4152,9 @@ func InstalledSnaps(st *state.State) (snaps []*snapasserts.InstalledSnap, ignore
 		if err != nil {
 			return nil, nil, err
 		}
+		// TODO:COMPS: add components
 		snaps = append(snaps, snapasserts.NewInstalledSnap(snapState.InstanceName(),
-			snapState.CurrentSideInfo().SnapID, cur.Revision))
+			snapState.CurrentSideInfo().SnapID, cur.Revision, nil))
 		if snapState.IgnoreValidation {
 			ignoreValidation[snapState.InstanceName()] = true
 		}

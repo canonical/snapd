@@ -21,7 +21,9 @@ package snapasserts
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strconv"
 	"strings"
@@ -35,29 +37,57 @@ import (
 // check it against validation sets.
 type InstalledSnap struct {
 	naming.SnapRef
+	Revision   snap.Revision
+	Components []InstalledComponent
+}
+
+type InstalledComponent struct {
+	naming.ComponentRef
 	Revision snap.Revision
 }
 
 // NewInstalledSnap creates InstalledSnap.
-func NewInstalledSnap(name, snapID string, revision snap.Revision) *InstalledSnap {
+func NewInstalledSnap(name, snapID string, revision snap.Revision, components []InstalledComponent) *InstalledSnap {
 	return &InstalledSnap{
-		SnapRef:  naming.NewSnapRef(name, snapID),
-		Revision: revision,
+		SnapRef:    naming.NewSnapRef(name, snapID),
+		Revision:   revision,
+		Components: components,
 	}
 }
 
 // ValidationSetsConflictError describes an error where multiple
 // validation sets are in conflict about snaps.
 type ValidationSetsConflictError struct {
-	Sets  map[string]*asserts.ValidationSet
-	Snaps map[string]error
+	Sets       map[string]*asserts.ValidationSet
+	Snaps      map[string]error
+	Components map[string]map[string]error
 }
 
 func (e *ValidationSetsConflictError) Error() string {
 	buf := bytes.NewBufferString("validation sets are in conflict:")
-	for _, err := range e.Snaps {
+	seen := make(map[string]bool)
+	for id, err := range e.Snaps {
 		fmt.Fprintf(buf, "\n- %v", err)
+		seen[id] = true
+
+		// if we have any component errors, we should put them next to the snap
+		// errors
+		for _, err := range e.Components[id] {
+			fmt.Fprintf(buf, "\n- %v", err)
+		}
 	}
+
+	for id, errs := range e.Components {
+		// if we've already seen the snap, then we have already printed the
+		// component errors
+		if seen[id] {
+			continue
+		}
+		for _, err := range errs {
+			fmt.Fprintf(buf, "\n- %v", err)
+		}
+	}
+
 	return buf.String()
 }
 
@@ -80,6 +110,23 @@ type ValidationSetsValidationError struct {
 	// Sets maps validation set keys to all validation sets assertions considered
 	// in the failed check.
 	Sets map[string]*asserts.ValidationSet
+	// ComponentErrors is a map of snap names to ValidationSetsComponentValidationError values.
+	ComponentErrors map[string]*ValidationSetsComponentValidationError
+}
+
+// ValidationSetsComponentValidationError describes an error arising from
+// validation of components of snaps against ValidationSets.
+type ValidationSetsComponentValidationError struct {
+	// MissingComponents maps missing component names to the expected revisions
+	// and respective validation sets requiring them. Revisions may be unset if
+	// no specific revision is required
+	MissingComponents map[string]map[snap.Revision][]string
+	// InvalidComponents maps component names to the validation sets declaring
+	// them invalid.
+	InvalidComponents map[string][]string
+	// WronRevisionComponents maps component names to the expected revisions and
+	// respective validation sets that require them.
+	WrongRevisionComponents map[string]map[snap.Revision][]string
 }
 
 // ValidationSetKey is a string-backed primary key for a validation set assertion.
@@ -129,60 +176,118 @@ func (b byRevision) Less(i, j int) bool { return b[i].N < b[j].N }
 
 func (e *ValidationSetsValidationError) Error() string {
 	buf := bytes.NewBufferString("validation sets assertions are not met:")
-	printDetails := func(header string, details map[string][]string,
-		printSnap func(snapName string, keys []string) string) {
-		if len(details) == 0 {
-			return
-		}
-		fmt.Fprintf(buf, "\n- %s:", header)
-		for snapName, validationSetKeys := range details {
-			fmt.Fprintf(buf, "\n  - %s", printSnap(snapName, validationSetKeys))
-		}
-	}
 
 	if len(e.MissingSnaps) > 0 {
 		fmt.Fprintf(buf, "\n- missing required snaps:")
-		for snapName, revisions := range e.MissingSnaps {
-			revisionsSorted := make([]snap.Revision, 0, len(revisions))
-			for rev := range revisions {
-				revisionsSorted = append(revisionsSorted, rev)
-			}
-			sort.Sort(byRevision(revisionsSorted))
-			t := make([]string, 0, len(revisionsSorted))
-			for _, rev := range revisionsSorted {
-				keys := revisions[rev]
-				if rev.Unset() {
-					t = append(t, fmt.Sprintf("at any revision by sets %s", strings.Join(keys, ",")))
-				} else {
-					t = append(t, fmt.Sprintf("at revision %s by sets %s", rev, strings.Join(keys, ",")))
-				}
-			}
-			fmt.Fprintf(buf, "\n  - %s (required %s)", snapName, strings.Join(t, ", "))
+		for name, revisions := range e.MissingSnaps {
+			writeMissingError(buf, name, revisions)
 		}
 	}
 
-	printDetails("invalid snaps", e.InvalidSnaps, func(snapName string, validationSetKeys []string) string {
-		return fmt.Sprintf("%s (invalid for sets %s)", snapName, strings.Join(validationSetKeys, ","))
-	})
+	if len(e.InvalidSnaps) > 0 {
+		fmt.Fprintf(buf, "\n- invalid snaps:")
+		for snapName, validationSetKeys := range e.InvalidSnaps {
+			fmt.Fprintf(buf, "\n  - %s (invalid for sets %s)", snapName, strings.Join(validationSetKeys, ","))
+		}
+	}
 
 	if len(e.WrongRevisionSnaps) > 0 {
 		fmt.Fprint(buf, "\n- snaps at wrong revisions:")
 		for snapName, revisions := range e.WrongRevisionSnaps {
-			revisionsSorted := make([]snap.Revision, 0, len(revisions))
-			for rev := range revisions {
-				revisionsSorted = append(revisionsSorted, rev)
-			}
-			sort.Sort(byRevision(revisionsSorted))
-			t := make([]string, 0, len(revisionsSorted))
-			for _, rev := range revisionsSorted {
-				keys := revisions[rev]
-				t = append(t, fmt.Sprintf("at revision %s by sets %s", rev, strings.Join(keys, ",")))
-			}
-			fmt.Fprintf(buf, "\n  - %s (required %s)", snapName, strings.Join(t, ", "))
+			writeWrongRevisionError(buf, snapName, revisions)
 		}
 	}
 
+	// the data structure here isn't really conducive to creating a
+	// non-hierarchical error message, maybe worth reorganizing. however, it
+	// will probably be better for actually using the error to extract what we
+	// need when resolving validation set errors in snapstate. it is also more
+	// representative of how the contraints are represented in the actual
+	// assertion.
+
+	var missingComps, invalidComps, wrongRevComps strings.Builder
+	for snapName, vcerr := range e.ComponentErrors {
+		for _, compName := range sortedStringKeys(vcerr.MissingComponents) {
+			writeMissingError(
+				&missingComps,
+				naming.NewComponentRef(snapName, compName).String(),
+				vcerr.MissingComponents[compName],
+			)
+		}
+
+		for _, compName := range sortedStringKeys(vcerr.InvalidComponents) {
+			fmt.Fprintf(
+				&invalidComps,
+				"\n  - %s (invalid for sets %s)",
+				naming.NewComponentRef(snapName, compName).String(),
+				strings.Join(vcerr.InvalidComponents[compName], ","),
+			)
+		}
+
+		for _, compName := range sortedStringKeys(vcerr.WrongRevisionComponents) {
+			writeWrongRevisionError(
+				&wrongRevComps,
+				naming.NewComponentRef(snapName, compName).String(),
+				vcerr.WrongRevisionComponents[compName],
+			)
+		}
+	}
+
+	if missingComps.Len() > 0 {
+		buf.WriteString("\n- missing required components:")
+		buf.WriteString(missingComps.String())
+	}
+	if invalidComps.Len() > 0 {
+		buf.WriteString("\n- invalid components:")
+		buf.WriteString(invalidComps.String())
+	}
+	if wrongRevComps.Len() > 0 {
+		buf.WriteString("\n- components at wrong revisions:")
+		buf.WriteString(wrongRevComps.String())
+	}
+
 	return buf.String()
+}
+
+func sortedStringKeys[T any](m map[string]T) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func writeWrongRevisionError(w io.Writer, name string, revisions map[snap.Revision][]string) {
+	revisionsSorted := make([]snap.Revision, 0, len(revisions))
+	for rev := range revisions {
+		revisionsSorted = append(revisionsSorted, rev)
+	}
+	sort.Sort(byRevision(revisionsSorted))
+	t := make([]string, 0, len(revisionsSorted))
+	for _, rev := range revisionsSorted {
+		keys := revisions[rev]
+		t = append(t, fmt.Sprintf("at revision %s by sets %s", rev, strings.Join(keys, ",")))
+	}
+	fmt.Fprintf(w, "\n  - %s (required %s)", name, strings.Join(t, ", "))
+}
+
+func writeMissingError(w io.Writer, name string, revisions map[snap.Revision][]string) {
+	revisionsSorted := make([]snap.Revision, 0, len(revisions))
+	for rev := range revisions {
+		revisionsSorted = append(revisionsSorted, rev)
+	}
+	sort.Sort(byRevision(revisionsSorted))
+	t := make([]string, 0, len(revisionsSorted))
+	for _, rev := range revisionsSorted {
+		keys := revisions[rev]
+		if rev.Unset() {
+			t = append(t, fmt.Sprintf("at any revision by sets %s", strings.Join(keys, ",")))
+		} else {
+			t = append(t, fmt.Sprintf("at revision %s by sets %s", rev, strings.Join(keys, ",")))
+		}
+	}
+	fmt.Fprintf(w, "\n  - %s (required %s)", name, strings.Join(t, ", "))
 }
 
 // ValidationSets can hold a combination of validation-set assertions
@@ -191,7 +296,7 @@ type ValidationSets struct {
 	// sets maps sequence keys to validation-set in the combination
 	sets map[string]*asserts.ValidationSet
 	// snaps maps snap-ids to snap constraints
-	snaps map[string]*snapContraints
+	snaps map[string]*snapConstraints
 }
 
 const presConflict asserts.Presence = "conflict"
@@ -199,33 +304,51 @@ const presConflict asserts.Presence = "conflict"
 var unspecifiedRevision = snap.R(0)
 var invalidPresRevision = snap.R(-1)
 
-type snapContraints struct {
-	name     string
+type snapConstraints struct {
+	constraints
+	componentConstraints map[string]*componentConstraints
+}
+
+// TODO: this type isn't needed, maybe makes things a bit clearer though?
+type componentConstraints struct {
+	constraints
+}
+
+type constraints struct {
+	// name of the snap or component that is being constrained
+	name string
+	// presence of the snap or component, considering
+	// all of the constraints that impact it. if any of the constraints are in
+	// conflict, the presence is set to presConflict.
 	presence asserts.Presence
-	// revisions maps revisions to pairing of ValidationSetSnap
-	// and the originating validation-set key
-	// * unspecifiedRevision is used for constraints without a
-	//   revision
-	// * invalidPresRevision is used for constraints that mark
-	//   presence as invalid
-	revisions map[snap.Revision][]*revConstraint
+	// revisions maps revisions to pairs of that revision's allowed presence and
+	// the originating validation-set key that enforces that presence
+	// * unspecifiedRevision is used for constraints without a revision
+	// * invalidPresRevision is used for constraints that mark presence as
+	//   invalid
+	revisions map[snap.Revision][]revConstraint
+
+	// snapRef will always be present.
+	snapRef naming.SnapRef
+	// compRef will be nil if the constraint is for a snap.
+	compRef *naming.ComponentRef
 }
 
 type revConstraint struct {
 	validationSetKey string
-	asserts.ValidationSetSnap
+	presence         asserts.Presence
 }
 
-func (c *snapContraints) conflict() *snapConflictsError {
+func constraintsConflicts(c constraints) *conflictsError {
 	if c.presence != presConflict {
 		return nil
 	}
 
 	const dontCare asserts.Presence = ""
-	whichSets := func(rcs []*revConstraint, presence asserts.Presence) []string {
+	whichSets := func(rcs []revConstraint, presence asserts.Presence) []string {
 		which := make([]string, 0, len(rcs))
 		for _, rc := range rcs {
-			if presence != dontCare && rc.Presence != presence {
+			if presence != dontCare && rc.presence != presence {
 				continue
 			}
 			which = append(which, rc.validationSetKey)
@@ -252,14 +375,35 @@ func (c *snapContraints) conflict() *snapConflictsError {
 		}
 	}
 
-	return &snapConflictsError{
-		name:      c.name,
-		revisions: byRev,
+	containerType := "snap"
+	name := c.name
+	if c.compRef != nil {
+		containerType = "component"
+		name = c.compRef.String()
+	}
+
+	return &conflictsError{
+		name:          name,
+		containerType: containerType,
+		revisions:     byRev,
 	}
 }
 
-type snapConflictsError struct {
-	name string
+func (c *snapConstraints) conflicts() (snap *conflictsError, components map[string]*conflictsError) {
+	componentConflicts := make(map[string]*conflictsError)
+	for _, cstrs := range c.componentConstraints {
+		conflict := constraintsConflicts(cstrs.constraints)
+		if conflict != nil {
+			componentConflicts[cstrs.name] = conflict
+		}
+	}
+
+	return constraintsConflicts(c.constraints), componentConflicts
+}
+
+type conflictsError struct {
+	name          string
+	containerType string
 	// revisions maps revisions to validation-set keys of the sets
 	// that are in conflict over the revision.
 	// * unspecifiedRevision is used for validation-sets conflicting
@@ -270,12 +414,12 @@ type snapConflictsError struct {
 	revisions map[snap.Revision][]string
 }
 
-func (e *snapConflictsError) Error() string {
+func (e *conflictsError) Error() string {
 	whichSets := func(which []string) string {
 		return fmt.Sprintf("(%s)", strings.Join(which, ","))
 	}
 
-	msg := fmt.Sprintf("cannot constrain snap %q", e.name)
+	msg := fmt.Sprintf("cannot constrain %s %q", e.containerType, e.name)
 	invalid := false
 	if invalidOnes, ok := e.revisions[invalidPresRevision]; ok {
 		msg += fmt.Sprintf(" as both invalid %s and required", whichSets(invalidOnes))
@@ -319,7 +463,7 @@ func (e *snapConflictsError) Error() string {
 func NewValidationSets() *ValidationSets {
 	return &ValidationSets{
 		sets:  map[string]*asserts.ValidationSet{},
-		snaps: map[string]*snapContraints{},
+		snaps: map[string]*snapConstraints{},
 	}
 }
 
@@ -383,57 +527,117 @@ func (v *ValidationSets) Add(valset *asserts.ValidationSet) error {
 	return nil
 }
 
-func (v *ValidationSets) addSnap(sn *asserts.ValidationSetSnap, validationSetKey string) {
-	rev := snap.R(sn.Revision)
-	if sn.Presence == asserts.PresenceInvalid {
+func (sc *snapConstraints) addComponents(comps map[string]asserts.ValidationSetComponent, validationSetKey string) {
+	for name, comp := range comps {
+		sc.addComponent(name, comp, validationSetKey)
+	}
+}
+
+func (sc *snapConstraints) addComponent(compName string, comp asserts.ValidationSetComponent, validationSetKey string) {
+	rev := snap.R(comp.Revision)
+	if comp.Presence == asserts.PresenceInvalid {
 		rev = invalidPresRevision
 	}
 
-	rc := &revConstraint{
-		validationSetKey:  validationSetKey,
-		ValidationSetSnap: *sn,
+	rc := revConstraint{
+		validationSetKey: validationSetKey,
+		presence:         comp.Presence,
 	}
 
-	cs := v.snaps[sn.SnapID]
+	compRef := naming.NewComponentRef(sc.name, compName)
+
+	cs := sc.componentConstraints[compName]
 	if cs == nil {
-		v.snaps[sn.SnapID] = &snapContraints{
-			name:     sn.Name,
-			presence: sn.Presence,
-			revisions: map[snap.Revision][]*revConstraint{
-				rev: {rc},
+		sc.componentConstraints[compName] = &componentConstraints{
+			constraints: constraints{
+				name:     compName,
+				presence: comp.Presence,
+				revisions: map[snap.Revision][]revConstraint{
+					rev: {rc},
+				},
+				compRef: &compRef,
+				snapRef: sc.snapRef,
 			},
 		}
 		return
 	}
 
 	cs.revisions[rev] = append(cs.revisions[rev], rc)
-	if cs.presence == presConflict {
-		// nothing to check anymore
-		return
-	}
+
 	// this counts really different revisions or invalid
 	ndiff := len(cs.revisions)
 	if _, ok := cs.revisions[unspecifiedRevision]; ok {
 		ndiff--
 	}
-	switch {
-	case cs.presence == asserts.PresenceOptional:
-		cs.presence = sn.Presence
-		fallthrough
-	case cs.presence == sn.Presence || sn.Presence == asserts.PresenceOptional:
-		if ndiff > 1 {
-			if cs.presence == asserts.PresenceRequired {
-				// different revisions required/invalid
-				cs.presence = presConflict
-				return
-			}
-			// multiple optional at different revisions => invalid
-			cs.presence = asserts.PresenceInvalid
+
+	cs.presence = derivePresence(cs.presence, comp.Presence, ndiff)
+}
+
+func (v *ValidationSets) addSnap(sn *asserts.ValidationSetSnap, validationSetKey string) {
+	rev := snap.R(sn.Revision)
+	if sn.Presence == asserts.PresenceInvalid {
+		rev = invalidPresRevision
+	}
+
+	rc := revConstraint{
+		validationSetKey: validationSetKey,
+		presence:         sn.Presence,
+	}
+
+	sc := v.snaps[sn.SnapID]
+	if sc == nil {
+		v.snaps[sn.SnapID] = &snapConstraints{
+			constraints: constraints{
+				name:     sn.Name,
+				presence: sn.Presence,
+				revisions: map[snap.Revision][]revConstraint{
+					rev: {rc},
+				},
+				snapRef: sn,
+			},
+			componentConstraints: make(map[string]*componentConstraints),
 		}
+		v.snaps[sn.SnapID].addComponents(sn.Components, validationSetKey)
 		return
 	}
+
+	sc.addComponents(sn.Components, validationSetKey)
+
+	sc.revisions[rev] = append(sc.revisions[rev], rc)
+
+	// this counts really different revisions or invalid
+	ndiff := len(sc.revisions)
+	if _, ok := sc.revisions[unspecifiedRevision]; ok {
+		ndiff--
+	}
+
+	sc.presence = derivePresence(sc.presence, sn.Presence, ndiff)
+}
+
+func derivePresence(currentPresence, incomingPresence asserts.Presence, revisions int) asserts.Presence {
+	if currentPresence == presConflict {
+		// nothing to check anymore
+		return presConflict
+	}
+
+	if currentPresence == asserts.PresenceOptional {
+		currentPresence = incomingPresence
+	}
+
+	if currentPresence == incomingPresence || incomingPresence == asserts.PresenceOptional {
+		if revisions > 1 {
+			if currentPresence == asserts.PresenceRequired {
+				// different revisions required/invalid
+				return presConflict
+			}
+			// multiple optional at different revisions => invalid
+			return asserts.PresenceInvalid
+		}
+		return currentPresence
+	}
+
 	// we are left with a combo of required and invalid => conflict
-	cs.presence = presConflict
+	return presConflict
 }
 
 // Conflict returns a non-nil error if the combination is in conflict,
@@ -441,12 +645,26 @@ func (v *ValidationSets) addSnap(sn *asserts.ValidationSetSnap, validationSetKey
 func (v *ValidationSets) Conflict() error {
 	sets := make(map[string]*asserts.ValidationSet)
 	snaps := make(map[string]error)
+	components := make(map[string]map[string]error)
 
 	for snapID, snConstrs := range v.snaps {
-		snConflictsErr := snConstrs.conflict()
-		if snConflictsErr != nil {
-			snaps[snapID] = snConflictsErr
-			for _, valsetKeys := range snConflictsErr.revisions {
+		snapConflicts, componentConflicts := snConstrs.conflicts()
+		if snapConflicts != nil {
+			snaps[snapID] = snapConflicts
+			for _, valsetKeys := range snapConflicts.revisions {
+				for _, valsetKey := range valsetKeys {
+					sets[valsetKey] = v.sets[valsetKey]
+				}
+			}
+		}
+
+		if len(componentConflicts) != 0 {
+			components[snapID] = make(map[string]error)
+		}
+
+		for _, conflicts := range componentConflicts {
+			components[snapID][conflicts.name] = conflicts
+			for _, valsetKeys := range conflicts.revisions {
 				for _, valsetKey := range valsetKeys {
 					sets[valsetKey] = v.sets[valsetKey]
 				}
@@ -454,123 +672,270 @@ func (v *ValidationSets) Conflict() error {
 		}
 	}
 
-	if len(snaps) != 0 {
+	if len(snaps) != 0 || len(components) != 0 {
 		return &ValidationSetsConflictError{
-			Sets:  sets,
-			Snaps: snaps,
+			Sets:       sets,
+			Snaps:      snaps,
+			Components: components,
 		}
 	}
 	return nil
 }
 
-// CheckInstalledSnaps checks installed snaps against the validation sets.
-func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap, ignoreValidation map[string]bool) error {
-	installed := naming.NewSnapSet(nil)
-	for _, sn := range snaps {
-		installed.Add(sn)
+type constraintConformity int
+
+const (
+	constraintConformityValid constraintConformity = iota
+	constraintConformityInvalid
+	constraintConformityMissing
+	constraintConformityWrongRevision
+)
+
+// checkConstraintConformity checks that a given revision conforms with a given
+// required revision and presence. if installedRev is unset, we consider the
+// constraint target to not be installed.
+func checkConstraintConformity(installedRev, requiredRev snap.Revision, presence asserts.Presence) constraintConformity {
+	installed := !installedRev.Unset()
+	notRequired := presence == asserts.PresenceOptional || presence == asserts.PresenceInvalid
+	switch {
+	case !installed && notRequired:
+		// not installed, but optional or not required
+		return constraintConformityValid
+	case installed && presence == asserts.PresenceInvalid:
+		// installed but not expected to be present
+		return constraintConformityInvalid
+	case installed:
+		// presence is either optional or required
+		if requiredRev != unspecifiedRevision && requiredRev != installedRev {
+			return constraintConformityWrongRevision
+		}
+		return constraintConformityValid
+	default:
+		// not installed but required.
+		return constraintConformityMissing
 	}
+}
 
-	// snapName -> validationSet key -> validation set
-	invalid := make(map[string]map[string]bool)
-	missing := make(map[string]map[snap.Revision]map[string]bool)
-	wrongrev := make(map[string]map[snap.Revision]map[string]bool)
+// checkConstraints checks that all of the revision constraints contained
+// within the given constraints are satisfied by the installed revision of the
+// target of the constraint if installedRev is unset, we consider the constraint
+// target to be uninstalled.
+func checkConstraints(cs constraints, installedRev snap.Revision) (
+	// invalid validation set keys
+	invalid []string,
+	// required revision (could be unspecified) -> invalid validation set keys
+	missing map[snap.Revision][]string,
+	// required revision (should never be unspecified) -> invalid validation set keys
+	wrongrev map[snap.Revision][]string,
+	err error,
+) {
+	invalidSet := make(map[string]bool)
+	missingSets := make(map[snap.Revision]map[string]bool)
+	wrongrevSets := make(map[snap.Revision]map[string]bool)
 
-	for _, cstrs := range v.snaps {
-		for rev, revCstr := range cstrs.revisions {
-			for _, rc := range revCstr {
-				sn := installed.Lookup(rc)
-				isInstalled := sn != nil
-
-				if isInstalled && ignoreValidation[rc.Name] {
-					continue
+	for requiredRev, revCstr := range cs.revisions {
+		for _, rc := range revCstr {
+			conformity := checkConstraintConformity(installedRev, requiredRev, cs.presence)
+			switch conformity {
+			case constraintConformityInvalid:
+				invalidSet[rc.validationSetKey] = true
+			case constraintConformityMissing:
+				if missingSets[requiredRev] == nil {
+					missingSets[requiredRev] = make(map[string]bool)
 				}
-
-				switch {
-				case !isInstalled && (cstrs.presence == asserts.PresenceOptional || cstrs.presence == asserts.PresenceInvalid):
-					// not installed, but optional or not required
-				case isInstalled && cstrs.presence == asserts.PresenceInvalid:
-					// installed but not expected to be present
-					if invalid[rc.Name] == nil {
-						invalid[rc.Name] = make(map[string]bool)
-					}
-					invalid[rc.Name][rc.validationSetKey] = true
-				case isInstalled:
-					// presence is either optional or required
-					if rev != unspecifiedRevision && rev != sn.(*InstalledSnap).Revision {
-						// expected a different revision
-						if wrongrev[rc.Name] == nil {
-							wrongrev[rc.Name] = make(map[snap.Revision]map[string]bool)
-						}
-						if wrongrev[rc.Name][rev] == nil {
-							wrongrev[rc.Name][rev] = make(map[string]bool)
-						}
-						wrongrev[rc.Name][rev][rc.validationSetKey] = true
-					}
-				default:
-					// not installed but required.
-					// note, not checking ignoreValidation here because it's not a viable scenario (it's not
-					// possible to have enforced validation set while not having the required snap at all - it
-					// is only possible to have it with a wrong revision, or installed while invalid, in both
-					// cases through --ignore-validation flag).
-					if missing[rc.Name] == nil {
-						missing[rc.Name] = make(map[snap.Revision]map[string]bool)
-					}
-					if missing[rc.Name][rev] == nil {
-						missing[rc.Name][rev] = make(map[string]bool)
-					}
-					missing[rc.Name][rev][rc.validationSetKey] = true
+				missingSets[requiredRev][rc.validationSetKey] = true
+			case constraintConformityWrongRevision:
+				if wrongrevSets[requiredRev] == nil {
+					wrongrevSets[requiredRev] = make(map[string]bool)
 				}
+				wrongrevSets[requiredRev][rc.validationSetKey] = true
+			case constraintConformityValid:
+				continue
+			default:
+				return nil, nil, nil, fmt.Errorf("internal error: unknown conformity %d", conformity)
 			}
 		}
 	}
 
-	setsToLists := func(in map[string]map[string]bool) map[string][]string {
+	setToLists := func(in map[string]bool) []string {
 		if len(in) == 0 {
 			return nil
 		}
-		out := make(map[string][]string)
-		for snap, sets := range in {
-			out[snap] = make([]string, 0, len(sets))
-			for validationSetKey := range sets {
-				out[snap] = append(out[snap], validationSetKey)
-			}
-			sort.Strings(out[snap])
+		out := make([]string, 0, len(in))
+		for key := range in {
+			out = append(out, key)
 		}
+		sort.Strings(out)
 		return out
 	}
 
-	if len(invalid) > 0 || len(missing) > 0 || len(wrongrev) > 0 {
-		verr := &ValidationSetsValidationError{
-			InvalidSnaps: setsToLists(invalid),
-			Sets:         v.sets,
+	invalid = setToLists(invalidSet)
+	missing = make(map[snap.Revision][]string)
+	for rev, set := range missingSets {
+		missing[rev] = setToLists(set)
+	}
+
+	wrongrev = make(map[snap.Revision][]string)
+	for rev, set := range wrongrevSets {
+		wrongrev[rev] = setToLists(set)
+	}
+
+	return invalid, missing, wrongrev, nil
+}
+
+// CheckInstalledSnaps checks installed snaps against the validation sets.
+func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap, ignoreValidation map[string]bool) error {
+	installed := newInstalledSnapSet(snaps)
+	snapInstalled := func(cstrs constraints) (snap.Revision, error) {
+		if cstrs.snapRef == nil {
+			return snap.Revision{}, errors.New("internal error: snap constraint should have a snap ref")
 		}
-		if len(missing) > 0 {
-			verr.MissingSnaps = make(map[string]map[snap.Revision][]string)
-			for snapName, revs := range missing {
-				verr.MissingSnaps[snapName] = make(map[snap.Revision][]string)
-				for rev, keys := range revs {
-					for key := range keys {
-						verr.MissingSnaps[snapName][rev] = append(verr.MissingSnaps[snapName][rev], key)
-					}
-					sort.Strings(verr.MissingSnaps[snapName][rev])
-				}
-			}
+
+		sn := installed.Lookup(cstrs.snapRef)
+		if sn == nil {
+			return snap.R(0), nil
 		}
-		if len(wrongrev) > 0 {
-			verr.WrongRevisionSnaps = make(map[string]map[snap.Revision][]string)
-			for snapName, revs := range wrongrev {
-				verr.WrongRevisionSnaps[snapName] = make(map[snap.Revision][]string)
-				for rev, keys := range revs {
-					for key := range keys {
-						verr.WrongRevisionSnaps[snapName][rev] = append(verr.WrongRevisionSnaps[snapName][rev], key)
-					}
-					sort.Strings(verr.WrongRevisionSnaps[snapName][rev])
-				}
-			}
+		return sn.Revision, nil
+	}
+
+	snapConstraints := make([]constraints, 0, len(v.snaps))
+	for _, sc := range v.snaps {
+		snapConstraints = append(snapConstraints, sc.constraints)
+	}
+
+	invalid, missing, wrongrev, err := checkManyConstraints(snapConstraints, snapInstalled, ignoreValidation)
+	if err != nil {
+		return err
+	}
+
+	missingSnapNames := make(map[string]bool, len(missing))
+	for name := range missing {
+		missingSnapNames[name] = true
+	}
+
+	vcerrs, err := v.checkInstalledComponents(installed, ignoreValidation, missingSnapNames)
+	if err != nil {
+		return err
+	}
+
+	if len(invalid) > 0 || len(missing) > 0 || len(wrongrev) > 0 || len(vcerrs) > 0 {
+		return &ValidationSetsValidationError{
+			InvalidSnaps:       invalid,
+			MissingSnaps:       missing,
+			WrongRevisionSnaps: wrongrev,
+			Sets:               v.sets,
+			ComponentErrors:    vcerrs,
 		}
-		return verr
 	}
 	return nil
+}
+
+func (v *ValidationSets) checkInstalledComponents(installedSnaps installedSnapSet, ignore map[string]bool, missingSnaps map[string]bool) (map[string]*ValidationSetsComponentValidationError, error) {
+	componentInstalled := func(cstrs constraints) (snap.Revision, error) {
+		if cstrs.compRef == nil || cstrs.snapRef == nil {
+			return snap.Revision{}, errors.New("internal error: component constraint should have component and snap refs")
+		}
+
+		comp := installedSnaps.LookupComponent(cstrs.snapRef, *cstrs.compRef)
+		if comp == nil {
+			return snap.Revision{}, nil
+		}
+
+		return comp.Revision, nil
+	}
+
+	var vcerrs map[string]*ValidationSetsComponentValidationError
+	for _, sc := range v.snaps {
+		// if we're ignoring the snap, then we don't consider its components
+		//
+		// if the snap is not installed, then nothing can be wrong with the
+		// components, since none will be installed. however, for error
+		// reporting reasons, we consider components for snaps that are required
+		// by the validation sets.
+		//
+		// note that we consider "required" components to only be required if
+		// the snap itself is installed.
+		if ignore[sc.name] || (!installedSnaps.Contains(sc.snapRef) && !missingSnaps[sc.name]) {
+			continue
+		}
+
+		componentConstraints := make([]constraints, 0, len(sc.componentConstraints))
+		for _, cstrs := range sc.componentConstraints {
+			componentConstraints = append(componentConstraints, cstrs.constraints)
+		}
+
+		invalid, missing, wrongrev, err := checkManyConstraints(componentConstraints, componentInstalled, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(invalid) > 0 || len(missing) > 0 || len(wrongrev) > 0 {
+			if vcerrs == nil {
+				vcerrs = make(map[string]*ValidationSetsComponentValidationError)
+			}
+			vcerrs[sc.name] = &ValidationSetsComponentValidationError{
+				InvalidComponents:       invalid,
+				MissingComponents:       missing,
+				WrongRevisionComponents: wrongrev,
+			}
+		}
+	}
+	return vcerrs, nil
+}
+
+// checkManyConstraints checks the given constraints against the installed
+// revision of the target of the constraint. if installedRevision returns an
+// unset revision, we consider the constraint target to be uninstalled.
+func checkManyConstraints(scs []constraints, installedRevision func(constraints) (snap.Revision, error), ignore map[string]bool) (
+	// name of constrained -> invalid validation set keys
+	invalid map[string][]string,
+	// name of constrained -> required revision (could be unspecified) -> invalid validation set keys
+	missing map[string]map[snap.Revision][]string,
+	// name of constrained -> required revision (should never be unspecified) -> invalid validation set keys
+	wrongrev map[string]map[snap.Revision][]string,
+	err error,
+) {
+	if ignore == nil {
+		ignore = make(map[string]bool)
+	}
+
+	for _, cstrs := range scs {
+		installedRev, err := installedRevision(cstrs)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		isInstalled := !installedRev.Unset()
+		if isInstalled && ignore[cstrs.name] {
+			continue
+		}
+
+		// TODO: good names here?
+		i, m, w, err := checkConstraints(cstrs, installedRev)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		if len(i) > 0 {
+			if invalid == nil {
+				invalid = make(map[string][]string)
+			}
+			invalid[cstrs.name] = i
+		}
+		if len(m) > 0 {
+			if missing == nil {
+				missing = make(map[string]map[snap.Revision][]string)
+			}
+			missing[cstrs.name] = m
+		}
+		if len(w) > 0 {
+			if wrongrev == nil {
+				wrongrev = make(map[string]map[snap.Revision][]string)
+			}
+			wrongrev[cstrs.name] = w
+		}
+	}
+	return invalid, missing, wrongrev, nil
 }
 
 // PresenceConstraintError describes an error where presence of the given snap
@@ -584,7 +949,7 @@ func (e *PresenceConstraintError) Error() string {
 	return fmt.Sprintf("unexpected presence %q for snap %q", e.Presence, e.SnapName)
 }
 
-func (v *ValidationSets) constraintsForSnap(snapRef naming.SnapRef) *snapContraints {
+func (v *ValidationSets) constraintsForSnap(snapRef naming.SnapRef) *snapConstraints {
 	if snapRef.ID() != "" {
 		return v.snaps[snapRef.ID()]
 	}
@@ -681,7 +1046,7 @@ func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) ([]Validat
 	var keys []ValidationSetKey
 	for _, revCstr := range cstrs.revisions {
 		for _, rc := range revCstr {
-			if rc.Presence == asserts.PresenceInvalid {
+			if rc.presence == asserts.PresenceInvalid {
 				vs := v.sets[rc.validationSetKey]
 				if vs == nil {
 					return nil, fmt.Errorf("internal error: no validation set for %q", rc.validationSetKey)
@@ -727,4 +1092,41 @@ func ParseValidationSet(arg string) (account, name string, seq int, err error) {
 	}
 
 	return account, name, seq, nil
+}
+
+type installedSnapSet struct {
+	snaps *naming.SnapSet
+}
+
+func newInstalledSnapSet(snaps []*InstalledSnap) installedSnapSet {
+	set := naming.NewSnapSet(nil)
+	for _, sn := range snaps {
+		set.Add(sn)
+	}
+	return installedSnapSet{snaps: set}
+}
+
+func (s *installedSnapSet) Lookup(ref naming.SnapRef) *InstalledSnap {
+	found := s.snaps.Lookup(ref)
+	if found == nil {
+		return nil
+	}
+	return found.(*InstalledSnap)
+}
+
+func (s *installedSnapSet) Contains(ref naming.SnapRef) bool {
+	return s.snaps.Contains(ref)
+}
+
+func (s *installedSnapSet) LookupComponent(snapRef naming.SnapRef, compRef naming.ComponentRef) *InstalledComponent {
+	snap := s.Lookup(snapRef)
+	if snap == nil {
+		return nil
+	}
+	for _, comp := range snap.Components {
+		if comp.ComponentRef == compRef {
+			return &comp
+		}
+	}
+	return nil
 }

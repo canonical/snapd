@@ -81,9 +81,10 @@ environment:
     # set to 1 when the snapd memory limit has to be removed
     SNAPD_NO_MEMORY_LIMIT: '$(HOST: echo "${SPREAD_SNAPD_NO_MEMORY_LIMIT:-}")'
 
-    SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
-    # Build and use snapd from current branch
-    BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-true}")'
+    # Use the snapd package from the repository when possible
+    SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-true}")'
+    # Directory where the built snapd snaps and other assets are stored
+    SNAPD_WORK_DIR: '$(HOST: echo "${SPREAD_SNAPD_WORK_DIR:-/tmp/work-dir}")'
 
     # Directory where the nested images and test assets are stored
     NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
@@ -1185,6 +1186,8 @@ suites:
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
             # Define which tests to run in the nested vm in run-spread test
             NESTED_SPREAD_TESTS:  '$(HOST: echo "${NESTED_SPREAD_TESTS:-}")'
+            # Indicates that by default snapd pkg is built from current
+            SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m
@@ -1213,7 +1216,7 @@ suites:
             fi
 
             # Install the snapd built
-            dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+            dpkg -i "$GOHOME"/snapd_*.deb
 
             # Configure the ssh connection to the test vm
             remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
@@ -1246,6 +1249,8 @@ suites:
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
             # Configuration file used for remote tools
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
+            # Indicates that by default snapd pkg is built from current
+            SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
@@ -1272,7 +1277,7 @@ suites:
             fi
 
             # Install the snapd built
-            dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+            dpkg -i "$GOHOME"/snapd_*.deb
 
             # Configure the ssh connection to the test vm
             remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
@@ -1309,6 +1314,8 @@ suites:
             NESTED_EXTRA_CMDLINE:  '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
             # Configuration file used for remote tools
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
+            # Indicates that by default snapd pkg is built from current
+            SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
@@ -1329,7 +1336,7 @@ suites:
             fi
 
             # Install the snapd built
-            dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+            dpkg -i "$GOHOME"/snapd_*.deb
 
             # Configure the ssh connection to the test vm
             remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
@@ -1371,7 +1378,8 @@ suites:
             # Indicates the amount of memory in MB to use in the nested vm
             NESTED_MEM: '$(HOST: echo "${NESTED_MEM:-4096}")'
             SPREAD_URL: https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz
-
+            # Indicates that by default snapd pkg is built from current
+            SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m
@@ -1394,7 +1402,7 @@ suites:
             fi
   
             # Install the snapd built
-            dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+            dpkg -i "$GOHOME"/snapd_*.deb
 
             # Configure the ssh connection to the test vm
             remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
@@ -1430,6 +1438,10 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+            # When snapd.deb is from the repo, we just need to test when re-exec is enabled
+            if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-from-archive; then
+                tests.exec skip-test "When snapd.deb is from the repo, we just need to test when re-exec is enabled" && exit 0
+            fi
         restore-each: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |

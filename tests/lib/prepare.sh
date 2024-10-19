@@ -9,8 +9,6 @@ set -eux
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
-: "${WORK_DIR:=/tmp/work-dir}"
-
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
     echo "Turning off kernel rate-limiting"
@@ -154,6 +152,24 @@ setup_experimental_features() {
     fi
 }
 
+save_installed_core_snap() {
+    local target_dir="${1-}"
+
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    core="$(readlink -f "$SNAP_MOUNT_DIR"/core/current)"
+    snap="$(mount | awk -v core="$core" '{ if ($3 == core) print $1 }' | head -n1)"
+    snap_name="$(basename "$snap")"
+
+    # make a copy for later use
+    if [ -n "$target_dir" ]; then
+        mkdir -p "$target_dir"
+
+        cp -av "$snap" "${target_dir}/${snap_name}"
+        cp "$snap" "${target_dir}/${snap_name}.orig"
+    fi
+}
+
+
 # update_core_snap_for_classic_reexec modifies the core snap for snapd re-exec
 # by injecting binaries from the installed snapd deb built from our modified code.
 # $1: directory where updated core snap should be copied (optional)
@@ -175,8 +191,8 @@ update_core_snap_for_classic_reexec() {
     LIBEXEC_DIR="$(os.paths libexec-dir)"
 
     # First of all, unmount the core
-    core="$(readlink -f "$SNAP_MOUNT_DIR/core/current" || readlink -f "$SNAP_MOUNT_DIR/ubuntu-core/current")"
-    snap="$(mount | grep " $core" | head -n 1 | awk '{print $1}')"
+    core="$(readlink -f "$SNAP_MOUNT_DIR"/core/current)"
+    snap="$(mount | awk -v core="$core" '{ if ($3 == core) print $1 }' | head -n1)"
     umount --verbose "$core"
 
     # Now unpack the core, inject the new snap-exec/snapctl into it
@@ -401,15 +417,16 @@ prepare_classic() {
     # This also prevents snapd from automatically installing snapd snap as
     # prerequisite for installing any non-base snap introduced in PR#14173.
     if snap list snapd ; then
-	    snap info snapd
-	    echo "Error: not expecting snapd snap to be installed"
-	    exit 1
+        snap info snapd
+        echo "Error: not expecting snapd snap to be installed"
+        exit 1
     else
-	    build_dir="$WORK_DIR/snapd_snap_for_classic"
-	    rm -rf "$build_dir"
-	    mkdir -p "$build_dir"
-	    build_snapd_snap "$build_dir"
-	    snap install --dangerous "$build_dir/"snapd_*.snap
+        build_dir="$SNAPD_WORK_DIR/snapd_snap_for_classic"
+        rm -rf "$build_dir"
+        mkdir -p "$build_dir"
+        build_snapd_snap "$build_dir"
+        snap install --dangerous "$build_dir/"snapd_*.snap
+        snap wait system seed.loaded
     fi
     snap list snapd
 
@@ -450,10 +467,17 @@ prepare_classic() {
 
         snap list | grep core
 
-        systemctl stop snapd.{service,socket}
-        # repack and also make a side copy of the core snap
-        update_core_snap_for_classic_reexec "$TESTSTMP/core_snap"
-        systemctl start snapd.{service,socket}
+        # With reexec, and on classic, the snapd snap is preferred over the core snap for reexecution target,
+        # so to be as close as possible to the actual real life scenarios, we only update the snapd snap.
+        # The tests alreday ensure that snapd snap is installed.
+        if tests.info is-snapd-from-archive; then
+            save_installed_core_snap "$TESTSTMP/core_snap"
+        else
+            systemctl stop snapd.{service,socket}
+            # repack and also make a side copy of the core snap
+            update_core_snap_for_classic_reexec "$TESTSTMP/core_snap"
+            systemctl start snapd.{service,socket}
+        fi
 
         prepare_reexec_override
         prepare_memory_limit_override
@@ -523,7 +547,7 @@ build_snapd_snap() {
     local snapd_snap_cache
     TARGET="${1}"
 
-    snapd_snap_cache="$WORK_DIR/snapd_snap"
+    snapd_snap_cache="$SNAPD_WORK_DIR/snapd_snap"
     mkdir -p "${snapd_snap_cache}"
     for snap in "${snapd_snap_cache}"/snapd_*.snap; do
         if ! [ -f "${snap}" ]; then
@@ -547,6 +571,7 @@ build_snapd_snap() {
                         ;;
                 esac
                 [ -d "${TARGET}" ] || mkdir -p "${TARGET}"
+                touch "${PROJECT_PATH}"/test-build
                 chmod -R go+r "${PROJECT_PATH}/tests"
                 # TODO: run_snapcraft does not currently guarantee or check the required version for building snapd
                 run_snapcraft --use-lxd --verbosity quiet --output="snapd_from_snapcraft.snap"
@@ -565,7 +590,7 @@ build_snapd_snap_with_run_mode_firstboot_tweaks() {
 
     TARGET="${1}"
 
-    snapd_snap_cache="$WORK_DIR/snapd_snap_with_tweaks"
+    snapd_snap_cache="$SNAPD_WORK_DIR/snapd_snap_with_tweaks"
     mkdir -p "${snapd_snap_cache}"
     for snap in "${snapd_snap_cache}"/snapd_*.snap; do
         if [ -f "${snap}" ]; then
@@ -1192,7 +1217,7 @@ setup_reflash_magic() {
         # FIXME: install would be better but we don't have dpkg on
         #        the image
         # unpack our freshly build snapd into the new snapd snap
-        dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
+        dpkg-deb -x "$GOHOME"/snapd_*.deb "$UNPACK_DIR"
         # Debian packages don't carry permissions correctly and we use
         # post-inst hooks to fix that on classic systems. Here, as a special
         # case, fix the void directory we just unpacked.

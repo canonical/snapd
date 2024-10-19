@@ -12,7 +12,7 @@ systems:
    - -amazon-linux-2-* # no fish package for AMZN2
    - -amazon-linux-2023-* # no fish package for AL2023
    - -centos-9-* # no fish package
-
+   - -debian-11-* # not supposed to work as snapd is very old in the repository
 
 environment:
     TEST_ZSH_USER: test-zsh
@@ -54,13 +54,18 @@ execute: |
     su -c 'sh -c "exec env"' -l "$TEST_FISH_USER" > "${TEST_FISH_USER}-child-env"
 
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    LOCAL_PATH=
+    if tests.info is-snapd-from-archive; then
+        MOUNT_DIR="$(os.paths snap-mount-dir)"
+        LOCAL_PATH="$MOUNT_DIR/snapd/current"
+    fi
     for user in test "$TEST_ZSH_USER" "$TEST_FISH_USER" ; do
         echo "checking $user"
         if [ -e "${user}-session-env" ]; then
             # Even though there's user session support, systemd may be too old and
             # not support user-environment-generators (specifically systemd versions
             # earlier than 233).
-            if [ -d /usr/lib/systemd/user-environment-generators ]; then
+            if [ -d "$LOCAL_PATH"/usr/lib/systemd/user-environment-generators ]; then
                 MATCH 'XDG_DATA_DIRS=.*[:]?/var/lib/snapd/desktop[:]?.*' < "${user}-session-env"
                 MATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-session-env"
             fi

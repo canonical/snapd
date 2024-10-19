@@ -943,6 +943,9 @@ func (f *fakeSnappyBackend) maybeErrForLastOp() error {
 	if f.maybeInjectErr == nil {
 		return nil
 	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if len(f.ops) == 0 {
 		return nil
 	}
