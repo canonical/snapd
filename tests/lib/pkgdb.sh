@@ -873,20 +873,19 @@ pkg_dependencies_arch(){
 }
 
 pkg_dependencies(){
-    # Nested hosts need a different set of dependencies
-    if tests.nested is-nested >/dev/null 2>&1; then
-        pkg_dependencies_ubuntu_nested
-        return
-    fi
-
     case "$SPREAD_SYSTEM" in
         ubuntu-core-16-*)
             pkg_dependencies_ubuntu_generic
             pkg_dependencies_ubuntu_core
             ;;
         ubuntu-*|debian-*)
-            pkg_dependencies_ubuntu_generic
-            pkg_dependencies_ubuntu_classic
+            # Nested hosts need a different set of dependencies
+            if [ -n "$NESTED_TYPE" ]; then
+                pkg_dependencies_ubuntu_nested
+            else
+                pkg_dependencies_ubuntu_generic
+                pkg_dependencies_ubuntu_classic
+            fi
             ;;
         amazon-*)
             pkg_dependencies_amazon
