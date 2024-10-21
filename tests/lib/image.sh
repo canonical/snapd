@@ -47,7 +47,20 @@ get_ubuntu_image() {
 
 # shellcheck disable=SC2120
 get_google_image_url_for_vm() {
-    case "${1:-$SPREAD_SYSTEM}" in
+    local SYSTEM=$1
+    local ARCH="${2:-amd64}"
+
+    if [ -z "$SYSTEM" ]; then
+        echo "missing system"
+        exit 1
+    fi
+
+    if [ "$ARCH" != amd64 ] && [ "$ARCH" != arm64 ]; then
+        echo "architecture not supported"
+        exit 1
+    fi
+
+    case "$SYSTEM" in
         ubuntu-16.04-64*)
             echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/xenial-server-cloudimg-amd64-disk1.img"
             ;;
@@ -55,22 +68,25 @@ get_google_image_url_for_vm() {
             echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/bionic-server-cloudimg-amd64.img"
             ;;
         ubuntu-20.04-64*)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
-            ;;
-        ubuntu-20.04-arm-64*)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/focal-server-cloudimg-arm64.img"
+            if [ "$ARCH" = amd64 ]; then
+                echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
+            elif [ "$ARCH" = arm64 ]; then
+                echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/focal-server-cloudimg-arm64.img"
+            fi
             ;;
         ubuntu-22.04-64*)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/jammy-server-cloudimg-amd64.img"
-            ;;
-        ubuntu-22.04-arm-64*)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/jammy-server-cloudimg-arm64.img"
-            ;;
-        ubuntu-23.10-64*)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/mantic-server-cloudimg-amd64.img"
+            if [ "$ARCH" = amd64 ]; then
+                echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/jammy-server-cloudimg-amd64.img"
+            elif [ "$ARCH" = arm64 ]; then
+                echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/jammy-server-cloudimg-arm64.img"
+            fi
             ;;
         ubuntu-24.04-64*)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/noble-server-cloudimg-amd64.img"
+            if [ "$ARCH" = amd64 ]; then
+                echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/noble-server-cloudimg-amd64.img"
+            elif [ "$ARCH" = arm64 ]; then
+                echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/noble-server-cloudimg-arm64.img"
+            fi
             ;;
         *)
             echo "unsupported system"
@@ -81,30 +97,46 @@ get_google_image_url_for_vm() {
 
 # shellcheck disable=SC2120
 get_ubuntu_image_url_for_vm() {
-    case "${1:-$SPREAD_SYSTEM}" in
-        ubuntu-16.04-64*)
+    local SYSTEM=$1
+    local ARCH="${2:-amd64}"
+
+    if [ -z "$SYSTEM" ]; then
+        echo "missing system"
+        exit 1
+    fi
+
+    if [ "$ARCH" != amd64 ] && [ "$ARCH" != arm64 ]; then
+        echo "architecture not supported"
+        exit 1
+    fi
+
+    case "$SYSTEM" in
+        ubuntu-16*)
             echo "https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img"
             ;;
-        ubuntu-18.04-64*)
+        ubuntu-18*)
             echo "https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img"
             ;;
-        ubuntu-20.04-64*)
-            echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
+        ubuntu-20*)
+            if [ "$ARCH" = amd64 ]; then
+                echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
+            elif [ "$ARCH" = arm64 ]; then
+                echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-arm64.img"
+            fi
             ;;
-        ubuntu-20.04-arm-64*)
-            echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-arm64.img"
+        ubuntu-22*)
+            if [ "$ARCH" = amd64 ]; then
+                echo "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
+            elif [ "$ARCH" = arm64 ]; then
+                echo "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-arm64.img"
+            fi
             ;;
-        ubuntu-22.04-64*)
-            echo "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
-            ;;
-        ubuntu-22.04-arm-64*)
-            echo "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-arm64.img"
-            ;;
-        ubuntu-23.10-64*)
-            echo "https://cloud-images.ubuntu.com/mantic/current/mantic-server-cloudimg-amd64.img"
-            ;;
-        ubuntu-24.04-64*)
-            echo "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
+        ubuntu-24*)
+            if [ "$ARCH" = amd64 ]; then
+                echo "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
+            elif [ "$ARCH" = arm64 ]; then
+                echo "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-arm64.img"
+            fi
             ;;
         *)
             echo "unsupported system"

@@ -1169,7 +1169,7 @@ suites:
         summary: Tests for nested images controlled manually from the tests
         backends: [google-nested, google-nested-dev, qemu-nested, google-nested-arm]
         environment:
-            NESTED_TYPE: "classic"
+            NESTED_TYPE: "core"
             # Enable kvm in the qemu command line
             NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-true}")'
             # Enable tpm in the nested vm in case it is supported

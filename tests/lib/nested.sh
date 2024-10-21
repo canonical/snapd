@@ -861,8 +861,7 @@ nested_create_core_vm() {
         else
             # create the ubuntu-core image
             local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
-            if os.query is-xenial || os.query is-arm; then
-                # ubuntu-image on 16.04 needs to be installed from a snap
+            if os.query is-arm; then
                 UBUNTU_IMAGE=/snap/bin/ubuntu-image
             fi
 
@@ -1437,7 +1436,7 @@ nested_create_classic_vm() {
 
         # Get the cloud image
         local IMAGE_URL
-        IMAGE_URL="$(get_image_url_for_vm)"
+        IMAGE_URL="$(get_image_url_for_vm "$SPREAD_SYSTEM")"
         wget -q -P "$NESTED_IMAGES_DIR" "$IMAGE_URL"
         nested_download_image "$IMAGE_URL" "$IMAGE_NAME"
 

@@ -667,6 +667,8 @@ pkg_dependencies_ubuntu_nested(){
         gdebi-core
         genisoimage
         kpartx
+        lz4
+        lzop
         mtools
         ovmf
         qemu-kvm
