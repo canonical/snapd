@@ -550,6 +550,7 @@ func copyCoreUbuntuAuthData(srcUbuntuData, destUbuntuData string) error {
 // copied to <destUbuntuData>/system-data. User specific files are copied to
 // <destUbuntuData>/user-data.
 func copyHybridUbuntuDataAuth(srcUbuntuData, destUbuntuData string) error {
+	destSystemData := filepath.Join(destUbuntuData, "system-data")
 	for _, globEx := range []string{
 		"etc/ssh/*",
 		"etc/sudoers.d/*",
@@ -557,21 +558,23 @@ func copyHybridUbuntuDataAuth(srcUbuntuData, destUbuntuData string) error {
 	} {
 		if err := copyFromGlobHelper(
 			srcUbuntuData,
-			filepath.Join(destUbuntuData, "system-data"),
+			destSystemData,
 			globEx,
 		); err != nil {
 			return err
 		}
 	}
 
+	destHomeData := filepath.Join(srcUbuntuData, "home")
+	destUserData := filepath.Join(destUbuntuData, "user-data")
 	for _, globEx := range []string{
 		"*/.ssh/*",
 		"*/.snap/auth.json",
 		"*/.profile",
 	} {
 		if err := copyFromGlobHelper(
-			filepath.Join(srcUbuntuData, "home"),
-			filepath.Join(destUbuntuData, "user-data"),
+			destHomeData,
+			destUserData,
 			globEx,
 		); err != nil {
 			return err
