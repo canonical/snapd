@@ -280,6 +280,7 @@ func (udb *userPromptDB) remove(id prompting.IDType) (*Prompt, error) {
 func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 	pdb.mutex.Lock()
 	if pdb.maxIDMmap.IsClosed() {
+		pdb.mutex.Unlock()
 		return
 	}
 	// Restart expiration timer while holding the lock, so we don't
@@ -293,6 +294,7 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 		// function. So reset the timer to activityTimeout, and do not
 		// purge prompts.
 		udb.resetExpiration(activityTimeout)
+		pdb.mutex.Unlock()
 		return
 	}
 	expiredPrompts := udb.prompts
