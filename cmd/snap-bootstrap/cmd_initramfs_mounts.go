@@ -1480,6 +1480,8 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		hostSystemData := boot.InitramfsHostWritableDir(model)
 		recoverySystemData := boot.InitramfsWritableDir(model, false)
 		if hybrid {
+			// TODO: eventually, the base will be mounted directly on /sysroot.
+			// this will need to change once that happens.
 			if err := importHybridUserData(
 				hostSystemData,
 				filepath.Join(boot.InitramfsRunMntDir, "base"),
