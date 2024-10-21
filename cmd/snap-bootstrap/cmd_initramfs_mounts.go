@@ -1467,9 +1467,13 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// ubuntu-data, and as such we can proceed with copying files from there
 	// onto the tmpfs
 	// Proceed only if we trust ubuntu-data to be paired with ubuntu-save
-	hybrid := model.Classic() && model.KernelSnap() != nil
-
 	if machine.trustData() {
+		// on hybrid systems, we take special care to import the root user and
+		// users from the "admin" and "sudo" groups into the ephemeral system.
+		// this is our best-effort for allowing an owner of a hybrid system to
+		// login to the created recovery system.
+		hybrid := model.Classic() && model.KernelSnap() != nil
+
 		hostSystemData := boot.InitramfsHostWritableDir(model)
 		recoverySystemData := boot.InitramfsWritableDir(model, false)
 		if hybrid {
