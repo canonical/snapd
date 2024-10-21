@@ -1,3 +1,13 @@
+snapd (2.66.1-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2083490
+    - AppArmor prompting (experimental): Fix kernel prompting support
+      check
+    - Allow kernel snaps to have content slots
+    - Fix ignoring snaps in try mode when amending
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Fri, 11 Oct 2024 10:05:46 +0200
+
 snapd (2.66-1) unstable; urgency=medium
 
   * New upstream release, LP: #2083490
