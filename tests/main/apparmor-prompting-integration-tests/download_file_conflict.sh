@@ -20,11 +20,10 @@ if ! snap run --shell prompting-client.scripted -c "ls ${TEST_DIR}/Downloads" | 
 	exit 1
 fi
 
-echo "Attempt to write the file"
+echo "Attempt to write the file, to which the client should reply with a conflicting rule and exit with error"
 snap run --shell prompting-client.scripted -c "echo it is written > ${TEST_DIR}/Downloads/test.txt"
 
-echo "Attempt to chmod the file after it has been written"
-snap run --shell prompting-client.scripted -c "chmod 664 ${TEST_DIR}/Downloads/test.txt"
+echo "Don't attempt to chmod the file after it has been written, since the client should have exited"
 
 # Wait for the client to write its result and exit
 timeout "$TIMEOUT" sh -c "while pgrep -f 'prompting-client.scripted.*${TEST_DIR}' > /dev/null; do sleep 0.1; done"
@@ -34,7 +33,7 @@ CLIENT_OUTPUT="$(cat "${TEST_DIR}/result")"
 # We don't expect success, since there should be a rule conflict with the rule
 # we just added to grant read access forever
 if [ "$CLIENT_OUTPUT" = "success" ] ; then
-	echo "test unexpectedly succeeded, expected rule conflict error"
+	echo "client reply unexpectedly succeeded, expected rule conflict error"
 	echo "output='$CLIENT_OUTPUT'"
 	exit 1
 fi
