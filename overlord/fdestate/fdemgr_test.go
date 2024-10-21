@@ -292,10 +292,13 @@ func (s *fdeMgrSuite) testMountResolveError(c *C, tc mountResolveTestCase) {
 	manager, err := fdestate.Manager(s.st, s.runner)
 	c.Assert(err, IsNil)
 	err = manager.StartUp()
+	c.Check(err, IsNil)
+
+	functionalErr := manager.IsFunctional()
 	if tc.expectedError != "" {
-		c.Check(err, ErrorMatches, tc.expectedError)
+		c.Check(functionalErr, ErrorMatches, tc.expectedError)
 	} else {
-		c.Check(err, IsNil)
+		c.Check(functionalErr, IsNil)
 	}
 }
 

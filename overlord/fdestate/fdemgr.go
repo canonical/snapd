@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -40,7 +41,8 @@ var (
 
 // FDEManager is responsible for managing full disk encryption keys.
 type FDEManager struct {
-	state *state.State
+	state   *state.State
+	initErr error
 
 	preseed bool
 	mode    string
@@ -104,14 +106,28 @@ func (m *FDEManager) StartUp() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.mode == "run" {
-		// TODO should we try to initialize the state in
-		// install/recover/factory-reset modes?
-		if err := initializeState(m.state); err != nil {
-			return fmt.Errorf("cannot initialize FDE state: %v", err)
+	err := func() error {
+		if m.mode == "run" {
+			// TODO should we try to initialize the state in
+			// install/recover/factory-reset modes?
+			if err := initializeState(m.state); err != nil {
+				return fmt.Errorf("cannot initialize FDE state: %v", err)
+			}
 		}
+		return nil
+	}()
+	if err != nil {
+		logger.Noticef("cannot complete FDE state manager startup: %v", err)
+		// keep track of the error
+		m.initErr = err
 	}
+
 	return nil
+}
+
+func (m *FDEManager) isFunctional() error {
+	// TODO use more specific errors to capture different error states
+	return m.initErr
 }
 
 // ReloadModeenv is a helper function for forcing a reload of modeenv. Only
