@@ -23,7 +23,6 @@ package fdestate
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget/device"
@@ -51,13 +50,15 @@ type FDEManager struct {
 type fdeMgrKey struct{}
 
 func initModeFromModeenv(m *FDEManager) error {
-	modeenv, err := maybeReadModeenv()
+	mode, explicit, err := boot.SystemMode("")
 	if err != nil {
 		return err
 	}
 
-	if modeenv != nil {
-		m.mode = modeenv.Mode
+	if explicit {
+		// FDE manager is only relevant on systems where mode set explicitly,
+		// that is UC20
+		m.mode = mode
 	}
 	return nil
 }
@@ -86,14 +87,6 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 // Ensure implements StateManager.Ensure
 func (m *FDEManager) Ensure() error {
 	return nil
-}
-
-func maybeReadModeenv() (*boot.Modeenv, error) {
-	modeenv, err := boot.ReadModeenv("")
-	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("cannot read modeenv: %v", err)
-	}
-	return modeenv, nil
 }
 
 // StartUp implements StateStarterUp.Startup
