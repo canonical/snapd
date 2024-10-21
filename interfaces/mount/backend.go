@@ -89,7 +89,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 				return fmt.Errorf("cannot update mount namespace of snap %q, and cannot discard it because it contains an enduring daemon: %s", snapName, err)
 			}
 		}
-		logger.Debugf("cannot update mount namespace of snap %q; discarding namespace", snapName)
+		logger.Noticef("discarding mount namespace of snap %q due update failure: %v", snapName, err)
 		// In some snaps, if the layout change from a version to the next by replacing a bind by a symlink,
 		// the update can fail. Discarding the namespace allows to solve this.
 		if err = DiscardSnapNamespace(snapName); err != nil {
