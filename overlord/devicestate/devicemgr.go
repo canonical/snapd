@@ -145,13 +145,14 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	m.populateStateFromSeed = m.populateStateFromSeedImpl
 
 	if !m.preseed {
-		modeenv, err := maybeReadModeenv()
+		mode, explicit, err := boot.SystemMode("")
 		if err != nil {
 			return nil, err
 		}
-		if modeenv != nil {
-			logger.Debugf("modeenv for model %q found", modeenv.Model)
-			m.sysMode = modeenv.Mode
+
+		if explicit {
+			logger.Debugf("explicitly set system mode")
+			m.sysMode = mode
 		}
 	} else {
 		// cache system label for preseeding of core20; note, this will fail on
@@ -249,24 +250,19 @@ func newBasicHookStateHandler(context *hookstate.Context) hookstate.Handler {
 	return genericHook{}
 }
 
-func maybeReadModeenv() (*boot.Modeenv, error) {
-	modeenv, err := boot.ReadModeenv("")
-	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("cannot read modeenv: %v", err)
-	}
-	return modeenv, nil
-}
-
 // ReloadModeenv is only useful for integration testing
 func (m *DeviceManager) ReloadModeenv() error {
 	osutil.MustBeTestBinary("ReloadModeenv can only be called from tests")
-	modeenv, err := maybeReadModeenv()
+
+	mode, explicit, err := boot.SystemMode("")
 	if err != nil {
 		return err
 	}
-	if modeenv != nil {
-		m.sysMode = modeenv.Mode
+
+	if explicit {
+		m.sysMode = mode
 	}
+
 	return nil
 }
 
@@ -847,7 +843,7 @@ func (m *DeviceManager) seedLabelAndMode() (seedLabel, seedMode string, err erro
 			seedLabel = m.systemForPreseeding()
 		}
 	} else {
-		modeenv, err := maybeReadModeenv()
+		modeenv, err := boot.MaybeReadModeenv()
 		if err != nil {
 			return "", "", err
 		}
