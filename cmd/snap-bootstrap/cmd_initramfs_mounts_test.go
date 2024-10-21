@@ -8696,7 +8696,7 @@ sudo:*::imported
 `
 
 	passwdBase = `root:x:0:0:root:/root:/bin/bash
-dnsmasq:x:109:65534:Reserved:/var/lib/misc:/bin/false
+dnsmasq:x:109:109:Reserved:/var/lib/misc:/bin/false
 daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
 `
 	shadowBase = `root:*:16329:0:99999:7:::
@@ -8712,7 +8712,7 @@ daemon:*::
 sudo:*::
 `
 
-	passwdMerged = `dnsmasq:x:109:65534:Reserved:/var/lib/misc:/bin/false
+	passwdMerged = `dnsmasq:x:109:109:Reserved:/var/lib/misc:/bin/false
 daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
 root:x:0:0:root:/root:
 imported:x:1000:1001::/home/imported:
