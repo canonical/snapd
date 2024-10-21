@@ -92,14 +92,14 @@ func (s *changeSuite) TestContentLayout2InitiallyConnectedThenDisconnected(c *C)
 	// https://warthogs.atlassian.net/browse/SNAPDENG-31644
 	c.Assert(changes, DeepEquals, []*update.Change{
 		{Action: "keep", Entry: current.Entries[4]},
-		{Action: "keep", Entry: current.Entries[3]},
+		{Action: "unmount", Entry: withDetachOption(current.Entries[3])},
 		{Action: "keep", Entry: current.Entries[2]},
-		{Action: "unmount", Entry: withDetachOption(current.Entries[1])},
+		{Action: "keep", Entry: current.Entries[1]},
 		{Action: "keep", Entry: current.Entries[0]},
 	})
 
 	// The actual entry for clarity.
-	c.Assert(changes[3].Entry, DeepEquals, osutil.MountEntry{
+	c.Assert(changes[1].Entry, DeepEquals, osutil.MountEntry{
 		Name:    "/snap/test-snapd-content/x1",
 		Dir:     "/snap/test-snapd-layout/x2/attached-content",
 		Type:    "none",
@@ -191,9 +191,9 @@ func (s *changeSuite) TestContentLayout5InitiallyConnectedThenContentRefreshed(c
 	// This test shows similar behavior to -2- test - the layout stays propagated.
 	c.Assert(changes, DeepEquals, []*update.Change{
 		{Action: "keep", Entry: current.Entries[4]},
-		{Action: "keep", Entry: current.Entries[3]},
+		{Action: "unmount", Entry: withDetachOption(current.Entries[3])},
 		{Action: "keep", Entry: current.Entries[2]},
-		{Action: "unmount", Entry: withDetachOption(current.Entries[1])},
+		{Action: "keep", Entry: current.Entries[1]},
 		{Action: "keep", Entry: current.Entries[0]},
 		{Action: "mount", Entry: desired.Entries[1]},
 	})
@@ -211,9 +211,9 @@ func (s *changeSuite) TestContentLayout6InitiallyConnectedThenAppRefreshed(c *C)
 	// and both the layout and content are re-made.
 	c.Assert(changes, DeepEquals, []*update.Change{
 		{Action: "unmount", Entry: withDetachOption(current.Entries[4])},
-		{Action: "keep", Entry: current.Entries[3]},
+		{Action: "unmount", Entry: withDetachOption(current.Entries[3])},
 		{Action: "keep", Entry: current.Entries[2]},
-		{Action: "unmount", Entry: withDetachOption(current.Entries[1])},
+		{Action: "keep", Entry: current.Entries[1]},
 		{Action: "keep", Entry: current.Entries[0]},
 		// It is interesting to note that we first mount the content to $SNAP/attached-content
 		// and only then construct the layout from $SNAP/attached-content to /usr/share/secureboot/potato.
