@@ -500,14 +500,14 @@ func copyUbuntuDataMisc(src, dst string) error {
 	return nil
 }
 
-// copyUbuntuDataAuth copies the authentication files like
+// copyCoreUbuntuAuthData copies the authentication files like
 //   - extrausers passwd,shadow etc
 //   - sshd host configuration
 //   - user .ssh dir
 //
 // to the target directory. This is used to copy the authentication
 // data from a real uc20 ubuntu-data partition into a ephemeral one.
-func copyUbuntuDataAuth(srcUbuntuData, destUbuntuData string) error {
+func copyCoreUbuntuAuthData(srcUbuntuData, destUbuntuData string) error {
 	for _, globEx := range []string{
 		"system-data/var/lib/extrausers/*",
 		"system-data/etc/ssh/*",
@@ -1474,7 +1474,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		} else {
 			// TODO: erroring here should fallback to copySafeDefaultData and
 			// proceed on with degraded mode anyways
-			if err := copyUbuntuDataAuth(
+			if err := copyCoreUbuntuAuthData(
 				boot.InitramfsHostUbuntuDataDir,
 				boot.InitramfsDataDir,
 			); err != nil {
