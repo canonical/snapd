@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 var (
@@ -128,7 +129,7 @@ func remodelJSON(c *Command, r *http.Request) Response {
 	return AsyncResponse(nil, chg.ID())
 }
 
-func readOfflineRemodelForm(form *Form) (*asserts.Model, []*uploadedSnap, *asserts.Batch, *apiError) {
+func readOfflineRemodelForm(form *Form) (*asserts.Model, []*uploadedContainer, *asserts.Batch, *apiError) {
 	// New model
 	model := form.Values["new-model"]
 	if len(model) != 1 {
@@ -141,7 +142,7 @@ func readOfflineRemodelForm(form *Form) (*asserts.Model, []*uploadedSnap, *asser
 	}
 
 	// Snap files
-	var snapFiles []*uploadedSnap
+	var snapFiles []*uploadedContainer
 	if len(form.FileRefs["snap"]) > 0 {
 		snaps, errRsp := form.GetSnapFiles()
 		if errRsp != nil {
@@ -164,7 +165,7 @@ func readOfflineRemodelForm(form *Form) (*asserts.Model, []*uploadedSnap, *asser
 }
 
 func startOfflineRemodelChange(st *state.State, newModel *asserts.Model,
-	snapFiles []*uploadedSnap, batch *asserts.Batch, pathsToNotRemove *[]string) (
+	snapFiles []*uploadedContainer, batch *asserts.Batch, pathsToNotRemove *[]string) (
 	*state.Change, *apiError) {
 
 	st.Lock()
@@ -185,19 +186,23 @@ func startOfflineRemodelChange(st *state.State, newModel *asserts.Model,
 		return nil, apiErr
 	}
 
-	*pathsToNotRemove = make([]string, len(slInfo.sideInfos))
-	for i, psi := range slInfo.sideInfos {
+	*pathsToNotRemove = make([]string, 0, len(slInfo.snaps))
+	sideInfos := make([]*snap.SideInfo, 0, len(slInfo.snaps))
+	paths := make([]string, 0, len(slInfo.snaps))
+	for _, psi := range slInfo.snaps {
 		// Move file to the same name of what a downloaded one would have
 		dest := filepath.Join(dirs.SnapBlobDir,
-			fmt.Sprintf("%s_%s.snap", psi.RealName, psi.Revision))
-		os.Rename(slInfo.tmpPaths[i], dest)
+			fmt.Sprintf("%s_%s.snap", psi.sideInfo.RealName, psi.sideInfo.Revision))
+		os.Rename(psi.tmpPath, dest)
 		// Avoid trying to remove a file that does not exist anymore
-		(*pathsToNotRemove)[i] = slInfo.tmpPaths[i]
-		slInfo.tmpPaths[i] = dest
+		*pathsToNotRemove = append(*pathsToNotRemove, psi.tmpPath)
+
+		sideInfos = append(sideInfos, psi.sideInfo)
+		paths = append(paths, dest)
 	}
 
 	// Now create and start the remodel change
-	chg, err := devicestateRemodel(st, newModel, slInfo.sideInfos, slInfo.tmpPaths, devicestate.RemodelOptions{
+	chg, err := devicestateRemodel(st, newModel, sideInfos, paths, devicestate.RemodelOptions{
 		// since this is the codepath that parses the form, offline is implcit
 		// because local snaps are being provided.
 		Offline: true,
