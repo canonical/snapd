@@ -537,6 +537,10 @@ func copyCoreUbuntuAuthData(srcUbuntuData, destUbuntuData string) error {
 	return nil
 }
 
+// copyHybridUbuntuDataAuth copies the authentication files that are relevant on
+// a hybrid system to the ubuntu data directory. Non-user specific files are
+// copied to <destUbuntuData>/system-data. User specific files are copied to
+// <destUbuntuData>/user-data.
 func copyHybridUbuntuDataAuth(srcUbuntuData, destUbuntuData string) error {
 	for _, globEx := range []string{
 		"etc/ssh/*",
