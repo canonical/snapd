@@ -676,12 +676,12 @@ jobs:
             rules: 'main'
           - group: ubuntu-no-lts
             backend: google
-            systems: ''
+            systems: 'ubuntu-24.10-64'
             tests: 'tests/...'
             rules: 'main'
           - group: ubuntu-daily
             backend: google
-            systems: 'ubuntu-24.10-64'
+            systems: 'ubuntu-25.04-64'
             tests: 'tests/...'
             rules: 'main'
           - group: ubuntu-core-16
