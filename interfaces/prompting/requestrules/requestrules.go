@@ -88,15 +88,17 @@ func (rule *Rule) Expired(currentTime time.Time) bool {
 	return false
 }
 
-// variantEntry stores the variant struct and the ID of its corresponding rule.
+// variantEntry stores the actual pattern variant struct which can be used to
+// match paths, and the set of rule IDs whose path patterns render to this
+// variant. All rules in a particular entry must have the same outcome, and
+// that outcome is stored directly in the variant entry itself.
 //
-// This is necessary since multiple variants might render to the same string,
-// and it would be necessary to make a deep comparison of two variants to tell
-// that they are the same. Since we want to map from variant to rule ID, we need
-// to use the variant string as the key.
+// Use the rendered string as the key for this entry, since pattern variants
+// cannot otherwise be easily checked for equality.
 type variantEntry struct {
 	Variant patterns.PatternVariant
-	RuleID  prompting.IDType
+	Outcome prompting.OutcomeType
+	RuleIDs map[prompting.IDType]bool
 }
 
 // permissionDB stores a map from path pattern variant to the ID of the rule
@@ -435,13 +437,22 @@ func (rdb *RuleDB) addRuleToTree(rule *Rule) *prompting_errors.RuleConflictError
 // addRulePermissionToTree adds all the path pattern variants for the given
 // rule to the map for the given permission.
 //
-// If there are conflicting pattern variants from other non-expired rules,
-// all variants which were previously added during this function call are
-// removed from the path map, leaving it unchanged, and the list of conflicts
-// is returned. If there are no conflicts, returns nil.
+// If there are identical pattern variants from other non-expired rules and the
+// outcomes of all those rules match the outcome of the new rule, then the ID
+// of the new rule is added to the set of rule IDs in the existing variant
+// entry.
 //
-// Conflicts with expired rules, however, result in the expired rule being
-// immediately removed, and the new rule can continue to be added.
+// If there are identical pattern variants from other non-expired rules and the
+// outcomes of those rules differ from that of the new rule, then there is a
+// conflict, and all variants which were previously added during this function
+// call are removed from the variant map, leaving it unchanged, and the list of
+// conflicts is returned. If there are no conflicts, returns nil.
+//
+// Expired rules, whether their outcome conflicts with the new rule or not, are
+// ignored and never treated as conflicts. If there are no conflicts with non-
+// expired rules, then all expired rules are removed. If there is a conflict
+// with a non-expired rule, then nothing about the rule DB state is changed,
+// including expired rules.
 //
 // The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) []prompting_errors.RuleConflict {
@@ -452,36 +463,47 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) []prom
 	var conflicts []prompting_errors.RuleConflict
 
 	addVariant := func(index int, variant patterns.PatternVariant) {
+		variantStr := variant.String()
+		existingEntry, exists := permVariants.VariantEntries[variantStr]
+		if !exists {
+			newVariantEntries[variantStr] = variantEntry{
+				Variant: variant,
+				Outcome: rule.Outcome,
+				RuleIDs: map[prompting.IDType]bool{rule.ID: true},
+			}
+			return
+		}
 		newEntry := variantEntry{
 			Variant: variant,
-			RuleID:  rule.ID,
+			Outcome: rule.Outcome,
+			RuleIDs: make(map[prompting.IDType]bool, len(existingEntry.RuleIDs)+1),
 		}
-		variantStr := variant.String()
-		conflictingVariantEntry, exists := permVariants.VariantEntries[variantStr]
-		switch {
-		case !exists:
-			newVariantEntries[variantStr] = newEntry
-		case rdb.isRuleWithIDExpired(conflictingVariantEntry.RuleID, rule.Timestamp):
-			expiredRules[conflictingVariantEntry.RuleID] = true
-			newVariantEntries[variantStr] = newEntry
-		default:
-			// XXX: If we ever switch to adding variants directly to the real
-			// variant entries map instead of a new map, check that the
-			// "conflicting" entry does not belong to the same rule that we're
-			// in the process of adding, which is possible if the rule's path
-			// pattern can render to duplicate variants. Ignore self-conflicts.
-
-			// Exists and is not expired, so there's a conflict
+		newEntry.RuleIDs[rule.ID] = true
+		newVariantEntries[variantStr] = newEntry
+		for id := range existingEntry.RuleIDs {
+			if rdb.isRuleWithIDExpired(id, rule.Timestamp) {
+				// Don't preserve expired rules, and don't care if they conflict
+				expiredRules[id] = true
+				continue
+			}
+			if existingEntry.Outcome == rule.Outcome {
+				// Preserve non-expired rule which doesn't conflict
+				newEntry.RuleIDs[id] = true
+				continue
+			}
+			// Conflicting non-expired rule
 			conflicts = append(conflicts, prompting_errors.RuleConflict{
 				Permission:    permission,
 				Variant:       variantStr,
-				ConflictingID: conflictingVariantEntry.RuleID.String(),
+				ConflictingID: id.String(),
 			})
 		}
 	}
 	rule.Constraints.PathPattern.RenderAllVariants(addVariant)
 
 	if len(conflicts) > 0 {
+		// If there are any conflicts, discard all changes, and do nothing
+		// about any expired rules.
 		return conflicts
 	}
 
@@ -495,6 +517,9 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) []prom
 	}
 
 	for variantStr, entry := range newVariantEntries {
+		// Replace the old variant entries with the new ones.
+		// This removes any expired rules from the entries, since these were
+		// not preserved in the new variant entries.
 		permVariants.VariantEntries[variantStr] = entry
 	}
 
@@ -558,10 +583,9 @@ func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) [
 		if !exists {
 			// Database was left inconsistent, should not occur
 			errs = append(errs, fmt.Errorf(`internal error: path pattern variant not found in the rule tree: %q`, variant))
-		} else if variantEntry.RuleID != rule.ID {
-			// Database was left inconsistent, should not occur
-			errs = append(errs, fmt.Errorf(`internal error: path pattern variant maps to different rule ID: %q: %s`, variant, variantEntry.RuleID.String()))
-		} else {
+		}
+		delete(variantEntry.RuleIDs, rule.ID)
+		if len(variantEntry.RuleIDs) == 0 {
 			delete(permVariants.VariantEntries, variantStr)
 		}
 	}
@@ -762,22 +786,19 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 		return false, prompting_errors.ErrNoMatchingRule
 	}
 	variantMap := permissionMap.VariantEntries
-	matchingVariants := make([]patterns.PatternVariant, 0)
+	var matchingVariants []patterns.PatternVariant
 	// Make sure all rules use the same expiration timestamp, so a rule with
 	// an earlier expiration cannot outlive another rule with a later one.
 	currTime := time.Now()
 	for variantStr, variantEntry := range variantMap {
-		matchingRule, err := rdb.lookupRuleByID(variantEntry.RuleID)
-		if err != nil {
-			logger.Noticef("internal error: inconsistent DB when fetching rule %v", variantEntry.RuleID)
-			// Database was left inconsistent, should not occur
-			delete(variantMap, variantStr)
-			// Record a notice for the offending rule, just in case
-			rdb.notifyRule(user, variantEntry.RuleID, nil)
-			continue
+		nonExpired := false
+		for id := range variantEntry.RuleIDs {
+			if !rdb.isRuleWithIDExpired(id, currTime) {
+				nonExpired = true
+				break
+			}
 		}
-
-		if matchingRule.Expired(currTime) {
+		if !nonExpired {
 			continue
 		}
 
@@ -801,13 +822,7 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 		return false, err
 	}
 	matchingEntry := variantMap[highestPrecedenceVariant.String()]
-	matchingID := matchingEntry.RuleID
-	matchingRule, err := rdb.lookupRuleByID(matchingID)
-	if err != nil {
-		// Database was left inconsistent, should not occur
-		return false, fmt.Errorf("internal error: while looking for rule %v: %w", matchingID, prompting_errors.ErrRuleNotFound)
-	}
-	return matchingRule.Outcome.AsBool()
+	return matchingEntry.Outcome.AsBool()
 }
 
 // RuleWithID returns the rule with the given ID.
