@@ -455,7 +455,11 @@ func generateMountsModeInstall(mst *initramfsMountsState) error {
 // copyNetworkConfig copies the network configuration to the target
 // directory. This is used to copy the network configuration
 // data from a real uc20 ubuntu-data partition into a ephemeral one.
-func copyNetworkConfig(src, dst string) error {
+//
+// The given srcRoot should point to the directory that contains the writable
+// host system data. The given dstRoot should point to the directory that
+// contains the writable system data for the ephemeral recovery system.
+func copyNetworkConfig(srcRoot, dstRoot string) error {
 	for _, globEx := range []string{
 		// for network configuration setup by console-conf, etc.
 		// TODO:UC20: we want some way to "try" or "verify" the network
@@ -472,7 +476,7 @@ func copyNetworkConfig(src, dst string) error {
 		// also copy the machine-id across
 		"etc/machine-id",
 	} {
-		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
+		if err := copyFromGlobHelper(srcRoot, dstRoot, globEx); err != nil {
 			return err
 		}
 	}
@@ -482,7 +486,11 @@ func copyNetworkConfig(src, dst string) error {
 // copyUbuntuDataMisc copies miscellaneous other files from the run mode system
 // to the recover system such as:
 //   - timesync clock to keep the same time setting in recover as in run mode
-func copyUbuntuDataMisc(src, dst string) error {
+//
+// The given srcRoot should point to the directory that contains the writable
+// host system data. The given dstRoot should point to the directory that
+// contains the writable system data for the ephemeral recovery system.
+func copyUbuntuDataMisc(srcRoot, dstRoot string) error {
 	for _, globEx := range []string{
 		// systemd's timesync clock file so that the time in recover mode moves
 		// forward to what it was in run mode
@@ -492,7 +500,7 @@ func copyUbuntuDataMisc(src, dst string) error {
 		// problem to "lose" the time spent in recover mode
 		"var/lib/systemd/timesync/clock",
 	} {
-		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
+		if err := copyFromGlobHelper(srcRoot, dstRoot, globEx); err != nil {
 			return err
 		}
 	}
