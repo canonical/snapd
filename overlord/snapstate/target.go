@@ -144,7 +144,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		AlwaysUpdate: t.setup.AlwaysUpdate,
 
 		Base:               t.info.Base,
-		Prereq:             getKeys(providerContentAttrs),
+		Prereq:             keys(providerContentAttrs),
 		PrereqContentAttrs: providerContentAttrs,
 		UserID:             snapUserID,
 		Flags:              flags.ForSnapSetup(),
@@ -1073,6 +1073,9 @@ type StoreUpdate struct {
 	InstanceName string
 	// RevOpts contains options that apply to the update of this snap.
 	RevOpts RevisionOptions
+	// AdditionalComponents is a list of additional components to install during
+	// the refresh.
+	AdditionalComponents []string
 }
 
 // StoreUpdateGoal creates a new UpdateGoal to update snaps from the store.
@@ -1134,6 +1137,17 @@ func validateAndInitStoreUpdates(allSnaps map[string]*SnapState, updates map[str
 		if err := sn.RevOpts.resolveChannel(sn.InstanceName, snapst.TrackingChannel, opts.DeviceCtx); err != nil {
 			return err
 		}
+
+		additional := make([]string, 0, len(sn.AdditionalComponents))
+
+		// filter out additional components that are already installed
+		snapName, _ := snap.SplitInstanceName(sn.InstanceName)
+		for _, add := range sn.AdditionalComponents {
+			if snapst.CurrentComponentState(naming.NewComponentRef(snapName, add)) == nil {
+				additional = append(additional, add)
+			}
+		}
+		sn.AdditionalComponents = additional
 
 		updates[sn.InstanceName] = sn
 	}

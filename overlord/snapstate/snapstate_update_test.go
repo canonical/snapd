@@ -15112,6 +15112,328 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, seq.Revisions[0])
 }
 
+func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevisionAddComponents(c *C) {
+	const (
+		snapName    = "snap-with-components"
+		instanceKey = "key"
+		snapID      = "snap-with-components-id"
+		channel     = "channel-for-components-only-component-refresh"
+	)
+
+	currentSnapRev := snap.R(11)
+	prevSnapRev := snap.R(7)
+	instanceName := snap.InstanceName(snapName, instanceKey)
+
+	// we start without the auxiliary store info (or with an older one)
+	c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+
+	currentSI := snap.SideInfo{
+		RealName: snapName,
+		Revision: currentSnapRev,
+		SnapID:   snapID,
+		Channel:  channel,
+	}
+
+	snaptest.MockSnapInstance(c, instanceName, fmt.Sprintf("name: %s", snapName), &currentSI)
+
+	restore := snapstate.MockRevisionDate(nil)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	if instanceKey != "" {
+		tr := config.NewTransaction(s.state)
+		tr.Set("core", "experimental.parallel-instances", true)
+		tr.Commit()
+	}
+
+	prevSI := snap.SideInfo{
+		RealName: snapName,
+		Revision: prevSnapRev,
+		SnapID:   snapID,
+		Channel:  channel,
+	}
+
+	otherSI := snap.SideInfo{
+		RealName: snapName,
+		Revision: snap.R(99),
+		SnapID:   snapID,
+		Channel:  channel,
+	}
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&otherSI, &prevSI, &currentSI})
+
+	components := []string{"kernel-modules-component"}
+
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		c.Assert(info.InstanceName(), DeepEquals, instanceName)
+		var results []store.SnapResourceResult
+		for i, compName := range components {
+			results = append(results, store.SnapResourceResult{
+				DownloadInfo: snap.DownloadInfo{
+					DownloadURL: "http://example.com/" + compName,
+				},
+				Name:      compName,
+				Revision:  i + 2,
+				Type:      fmt.Sprintf("component/%s", componentNameToType(c, compName)),
+				Version:   "1.0",
+				CreatedAt: "2024-01-01T00:00:00Z",
+			})
+		}
+		return results
+	}
+
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(
+		compMntDir string, info *snap.Info, csi *snap.ComponentSideInfo,
+	) (*snap.ComponentInfo, error) {
+		return &snap.ComponentInfo{
+			Component:         csi.Component,
+			Type:              componentNameToType(c, csi.Component.ComponentName),
+			CompVersion:       "1.0",
+			ComponentSideInfo: *csi,
+		}, nil
+	}))
+
+	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
+		Active:          true,
+		Sequence:        seq,
+		Current:         currentSI.Revision,
+		SnapType:        "app",
+		TrackingChannel: channel,
+		InstanceKey:     instanceKey,
+	})
+
+	ts, err := snapstate.UpdateOne(context.Background(), s.state, snapstate.StoreUpdateGoal(snapstate.StoreUpdate{
+		InstanceName:         instanceName,
+		RevOpts:              snapstate.RevisionOptions{Revision: prevSnapRev},
+		AdditionalComponents: components,
+	}), nil, snapstate.Options{
+		UserID: s.user.ID,
+		Flags: snapstate.Flags{
+			Transaction: client.TransactionPerSnap,
+		},
+	})
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("refresh", "refresh a snap")
+	chg.AddAll(ts)
+
+	// check unlink-reason
+	unlinkTask := findLastTask(chg, "unlink-current-snap")
+	c.Assert(unlinkTask, NotNil)
+	var unlinkReason string
+	unlinkTask.Get("unlink-reason", &unlinkReason)
+	c.Check(unlinkReason, Equals, "refresh")
+
+	// local modifications, edge must be set
+	te := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(te, NotNil)
+	c.Assert(te.Kind(), Equals, "prepare-snap")
+
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
+
+	fi, err := os.Stat(snap.MountFile(instanceName, currentSnapRev))
+	c.Assert(err, IsNil)
+
+	expected := fakeOps{
+		{
+			op: "storesvc-snap-action",
+			curSnaps: []store.CurrentSnap{{
+				InstanceName:    instanceName,
+				SnapID:          snapID,
+				Revision:        currentSnapRev,
+				TrackingChannel: channel,
+				RefreshedDate:   fi.ModTime(),
+				Epoch:           snap.E("1*"),
+				Resources:       map[string]snap.Revision{},
+			}},
+			userID: 1,
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:          "refresh",
+				InstanceName:    instanceName,
+				Revision:        prevSnapRev,
+				SnapID:          snapID,
+				ResourceInstall: true,
+				// note that channel is empty here since we can't provide a
+				// channel in this case, since we don't know if the revision is
+				// a part of the channel
+				Channel: "",
+			},
+			revno:  prevSnapRev,
+			userID: 1,
+		},
+	}
+
+	for i, compName := range components {
+		csi := snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, compName),
+			Revision:  snap.R(i + 2),
+		}
+
+		containerName := fmt.Sprintf("%s+%s", instanceName, compName)
+		filename := fmt.Sprintf("%s_%v.comp", containerName, csi.Revision)
+
+		expected = append(expected, []fakeOp{{
+			op:   "storesvc-download",
+			name: csi.Component.String(),
+		}, {
+			op:                "validate-component:Doing",
+			name:              instanceName,
+			revno:             prevSnapRev,
+			componentName:     compName,
+			componentPath:     filepath.Join(dirs.SnapBlobDir, filename),
+			componentRev:      csi.Revision,
+			componentSideInfo: csi,
+		}, {
+			op:                "setup-component",
+			containerName:     containerName,
+			containerFileName: filename,
+		}}...)
+	}
+
+	expected = append(expected, fakeOp{
+		op:   "remove-snap-aliases",
+		name: instanceName,
+	})
+
+	expected = append(expected, fakeOps{
+		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        instanceName,
+			inhibitHint: "refresh",
+		},
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, instanceName, currentSnapRev.String()),
+		},
+		{
+			op:   "copy-data",
+			path: filepath.Join(dirs.SnapMountDir, instanceName, prevSnapRev.String()),
+			old:  filepath.Join(dirs.SnapMountDir, instanceName, currentSnapRev.String()),
+		},
+		{
+			op:   "setup-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, instanceName),
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  instanceName,
+			revno: prevSnapRev,
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				RealName: snapName,
+				SnapID:   snapID,
+				Channel:  channel,
+				Revision: prevSnapRev,
+			},
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, instanceName, prevSnapRev.String()),
+		},
+		{
+			op:   "link-component",
+			path: snap.ComponentMountDir("kernel-modules-component", snap.R(2), instanceName),
+		},
+	}...)
+
+	newKmodComps := []*snap.ComponentSideInfo{{
+		Component: naming.NewComponentRef(snapName, "kernel-modules-component"),
+		Revision:  snap.R(2),
+	}}
+
+	expected = append(expected, fakeOps{
+		{
+			op:    "auto-connect:Doing",
+			name:  instanceName,
+			revno: prevSnapRev,
+		},
+		{
+			op: "update-aliases",
+		},
+		{
+			op:           "prepare-kernel-modules-components",
+			currentComps: []*snap.ComponentSideInfo{},
+			finalComps:   newKmodComps,
+		},
+	}...)
+
+	expected = append(expected, fakeOp{
+		op:    "cleanup-trash",
+		name:  instanceName,
+		revno: prevSnapRev,
+	})
+
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	task := ts.Tasks()[1]
+
+	// verify snapSetup info
+	var snapsup snapstate.SnapSetup
+	err = task.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
+		Channel: channel,
+		UserID:  s.user.ID,
+
+		SnapPath:  filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", instanceName, prevSnapRev)),
+		SideInfo:  snapsup.SideInfo,
+		Type:      snap.TypeApp,
+		Version:   "snap-with-componentsVer",
+		PlugsOnly: true,
+		Flags: snapstate.Flags{
+			Transaction: client.TransactionPerSnap,
+		},
+		InstanceKey:                     instanceKey,
+		PreUpdateKernelModuleComponents: []*snap.ComponentSideInfo{},
+	})
+	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: snapName,
+		Revision: prevSnapRev,
+		Channel:  channel,
+		SnapID:   snapID,
+	})
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, instanceName, &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.LastRefreshTime, NotNil)
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Sequence.Revisions, HasLen, 3)
+
+	// the original revision's components should be replaced with the new
+	// components
+	seq.Revisions[1].Components = nil
+	for i, comp := range components {
+		err := seq.AddComponentForRevision(prevSnapRev, &sequence.ComponentState{
+			SideInfo: &snap.ComponentSideInfo{
+				Component: naming.NewComponentRef(snapName, comp),
+				Revision:  snap.R(i + 2),
+			},
+			CompType: componentNameToType(c, comp),
+		})
+		c.Assert(err, IsNil)
+	}
+
+	// link-snap should put the revision we refreshed to at the end of the
+	// sequence
+	c.Assert(snapst.Sequence.Revisions[2], DeepEquals, seq.Revisions[1])
+	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, seq.Revisions[2])
+	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, seq.Revisions[0])
+}
+
 func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThrough(c *C) {
 	s.testUpdateWithComponentsRunThrough(c, updateWithComponentsOpts{
 		components: []string{"standard-component", "kernel-modules-component"},
@@ -15181,10 +15503,42 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughLoseComponentsUndo(
 	})
 }
 
+func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughAdditionalComponents(c *C) {
+	s.testUpdateWithComponentsRunThrough(c, updateWithComponentsOpts{
+		instanceKey:           "key",
+		components:            []string{"standard-component"},
+		postRefreshComponents: []string{"standard-component", "kernel-modules-component"},
+		additionalComponents:  []string{"kernel-modules-component"},
+		refreshAppAwarenessUX: true,
+	})
+}
+
+func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughAdditionalComponentsAlreadyInstalled(c *C) {
+	s.testUpdateWithComponentsRunThrough(c, updateWithComponentsOpts{
+		instanceKey:           "key",
+		components:            []string{"standard-component"},
+		postRefreshComponents: []string{"standard-component"},
+		additionalComponents:  []string{"standard-component"},
+		refreshAppAwarenessUX: true,
+	})
+}
+
+func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughAdditionalComponentsUndo(c *C) {
+	s.testUpdateWithComponentsRunThrough(c, updateWithComponentsOpts{
+		instanceKey:           "key",
+		components:            []string{"standard-component"},
+		postRefreshComponents: []string{"standard-component", "kernel-modules-component"},
+		additionalComponents:  []string{"kernel-modules-component"},
+		refreshAppAwarenessUX: true,
+		undo:                  true,
+	})
+}
+
 type updateWithComponentsOpts struct {
 	instanceKey           string
 	components            []string
 	postRefreshComponents []string
+	additionalComponents  []string
 	refreshAppAwarenessUX bool
 	undo                  bool
 	useSameSnapRev        bool
@@ -15339,13 +15693,21 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		InstanceKey:     opts.instanceKey,
 	})
 
-	var revOpts *snapstate.RevisionOptions
+	var revOpts snapstate.RevisionOptions
 	if opts.useSameSnapRev {
-		revOpts = &snapstate.RevisionOptions{Revision: currentSnapRev}
+		revOpts.Revision = currentSnapRev
 	}
 
-	ts, err := snapstate.Update(s.state, instanceName, revOpts, s.user.ID, snapstate.Flags{
-		NoReRefresh: true,
+	ts, err := snapstate.UpdateOne(context.Background(), s.state, snapstate.StoreUpdateGoal(snapstate.StoreUpdate{
+		InstanceName:         instanceName,
+		RevOpts:              revOpts,
+		AdditionalComponents: opts.additionalComponents,
+	}), nil, snapstate.Options{
+		Flags: snapstate.Flags{
+			NoReRefresh: true,
+			Transaction: client.TransactionPerSnap,
+		},
+		UserID: s.user.ID,
 	})
 	c.Assert(err, IsNil)
 
