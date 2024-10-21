@@ -248,9 +248,9 @@ execute: |
 
   # Make sure we installed the new grub
   if os.query is-ubuntu-ge 24.04 && [ "$PARTIAL_GADGET" = false ]; then
-    remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-seed/EFI/ubuntu/grubx64.efi'
+      remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-seed/EFI/ubuntu/grubx64.efi'
   else
-    remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-seed/EFI/boot/grubx64.efi'
+      remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-seed/EFI/boot/grubx64.efi'
   fi
   remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi'
 
@@ -325,9 +325,9 @@ execute: |
 
   remote.exec "snap list" > snap-list
   for name in pc pc-kernel snapd core22; do
-    MATCH "${name}" < snap-list
+      MATCH "${name}" < snap-list
   done
 
   for name in passwd shadow group gshadow; do
-    remote.exec "findmnt -n /etc/${name}" | awk '{ print $2 }' | MATCH "tmpfs\[/snapd/hybrid-users/${name}\]"
+      remote.exec "findmnt -n /etc/${name}" | awk '{ print $2 }' | MATCH "tmpfs\[/snapd/hybrid-users/${name}\]"
   done
