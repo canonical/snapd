@@ -31,22 +31,17 @@ timeout "$TIMEOUT" sh -c "while pgrep -f 'prompting-client.scripted.*${TEST_DIR}
 
 CLIENT_OUTPUT="$(cat "${TEST_DIR}/result")"
 
-# We don't expect success, since there should be a rule conflict with the rule
-# we just added to grant read access forever
-if [ "$CLIENT_OUTPUT" = "success" ] ; then
-	echo "test unexpectedly succeeded, expected rule conflict error"
+# Now that two rules with the same pattern variant may coexist so long as their
+# outcomes do not conflict, we expect success.
+if [ "$CLIENT_OUTPUT" != "success" ] ; then
+	echo "test failed"
 	echo "output='$CLIENT_OUTPUT'"
 	exit 1
 fi
 
-if ! grep 'cannot add rule: a rule with conflicting path pattern and permission already exists in the rule database' "${TEST_DIR}/result" ; then
-	echo "test failed, expected rule conflict error"
-	echo "output='$CLIENT_OUTPUT'"
-	exit 1
-fi
+TEST_OUTPUT="$(cat "${TEST_DIR}/Downloads/test.txt")"
 
-if [ -f "$TEST_DIR/test.txt" ] ; then
-	echo "file creation unexpectedly succeeded for test.txt"
-	cat "${TEST_DIR}/test.txt"
+if [ "$TEST_OUTPUT" != "it is written" ] ; then
+	echo "write failed for test.txt"
 	exit 1
 fi

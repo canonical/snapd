@@ -14,7 +14,7 @@ fi
 mkdir -p "${TEST_DIR}/Downloads"
 touch "${TEST_DIR}/Downloads/existing.txt"
 
-echo "Attempt to list the contents of the parent directory"
+echo "Attempt to list the contents of the downloads directory"
 if ! snap run --shell prompting-client.scripted -c "ls ${TEST_DIR}/Downloads" | grep "existing.txt" ; then
 	echo "Failed to list contents of ${TEST_DIR}/Downloads"
 	exit 1
