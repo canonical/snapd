@@ -2090,6 +2090,13 @@ func RegistryPlugAttrs(plug *PlugInfo) (account, registry, view string, err erro
 	return account, registry, view, nil
 }
 
+type RefreshFailureSeverity string
+
+const (
+	RefreshFailureSeverityNone        RefreshFailureSeverity = ""
+	RefreshFailureSeverityAfterReboot RefreshFailureSeverity = "after-reboot"
+)
+
 // RefreshFailures holds information about snap failed refreshes.
 type RefreshFailuresInfo struct {
 	// Revision is the target revision that caused the refresh failure.
@@ -2098,7 +2105,7 @@ type RefreshFailuresInfo struct {
 	FailureCount int `json:"failure-count"`
 	// LastFailureTime is the time of the last failed refresh attempt for the revision.
 	LastFailureTime time.Time `json:"last-failure-time"`
-
-	// TODO: add RefreshFailureSeverity to allow for more aggressive
-	// delays for snaps that fail after rebooting.
+	// LastFailureSeverity identifies how severe the last failure was.
+	// This allows for more aggressive backoff delay for snaps that fail after a reboot.
+	LastFailureSeverity RefreshFailureSeverity `json:"last-failure-severity,omitempty"`
 }

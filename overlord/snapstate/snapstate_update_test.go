@@ -10833,17 +10833,33 @@ func (s *snapmgrTestSuite) TestAutoRefreshCreatePreDownload(c *C) {
 	c.Assert(tasks[0].Summary(), testutil.Contains, "Pre-download snap \"some-snap\" (2) from channel")
 }
 
-func (s *snapmgrTestSuite) TestAutoRefreshRecordsFailures(c *C) {
+func (s *snapmgrTestSuite) testAutoRefreshRecordsFailures(c *C, afterReboot bool) {
+	badSnap := "some-snap"
+	badSnapID := "some-snap-id"
+	badSnapType := snap.TypeApp
+	expectedMinDelay := 8
+	expectedMaxDelay := 336
+	expectedFailureSeverity := snap.RefreshFailureSeverityNone
+	if afterReboot {
+		badSnap = "kernel"
+		badSnapID = "kernel-id"
+		badSnapType = snap.TypeKernel
+		expectedFailureSeverity = snap.RefreshFailureSeverityAfterReboot
+		// backoff delay is more aggressive for snaps failing after reboot
+		expectedMinDelay = 16
+		expectedMaxDelay = 672
+	}
+
 	// Setup test snaps
 	s.state.Lock()
 	defer s.state.Unlock()
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+	snapstate.Set(s.state, badSnap, &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+			{RealName: badSnap, SnapID: badSnapID, Revision: snap.R(1)},
 		}),
 		Current:  snap.R(1),
-		SnapType: string(snap.TypeApp),
+		SnapType: string(badSnapType),
 	})
 	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
 		Active: true,
@@ -10860,10 +10876,9 @@ func (s *snapmgrTestSuite) TestAutoRefreshRecordsFailures(c *C) {
 	defer restore()
 
 	badSnapRevision := snap.R(12)
-	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/some-snap/"+badSnapRevision.String())
 	goodSnapRevision := snap.R(12)
 	// Specify retrieved revisions for snaps from fakestore
-	s.fakeStore.refreshRevnos["some-snap-id"] = badSnapRevision
+	s.fakeStore.refreshRevnos[badSnapID] = badSnapRevision
 	s.fakeStore.refreshRevnos["some-other-snap-id"] = goodSnapRevision
 
 	getRefreshFailures := func(name string) *snap.RefreshFailuresInfo {
@@ -10907,7 +10922,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshRecordsFailures(c *C) {
 	// Auto-refresh errors are not recorded until after unlink-current-snap as
 	// this indicates (with high probability) a real issue with the snap revision.
 	s.fakeBackend.maybeInjectErr = func(fo *fakeOp) error {
-		if fo.op == "unlink-snap" && strings.Contains(fo.path, "some-snap") {
+		if fo.op == "unlink-snap" && strings.Contains(fo.path, badSnap) {
 			return errors.New("error exactly at unlink-current-snap")
 		}
 		return nil
@@ -10917,19 +10932,27 @@ func (s *snapmgrTestSuite) TestAutoRefreshRecordsFailures(c *C) {
 	chgs := s.state.Changes()
 	c.Assert(chgs, HasLen, 1)
 	c.Check(chgs[0].Kind(), Equals, "auto-refresh")
-	c.Check(chgs[0].Err(), ErrorMatches, "cannot perform the following tasks:\n.*- Make current revision for snap \"some-snap\" unavailable \\(error exactly at unlink-current-snap\\)")
+	expectedUnlinkErrPattern := fmt.Sprintf("cannot perform the following tasks:\n.*- Make current revision for snap %q unavailable \\(error exactly at unlink-current-snap\\)", badSnap)
+	c.Check(chgs[0].Err(), ErrorMatches, expectedUnlinkErrPattern)
 	c.Check(chgs[0].Status(), Equals, state.ErrorStatus)
-	c.Check(buf.String(), Not(testutil.Contains), `snap "some-snap" auto-refresh to revision 12 has failed, next auto-refresh attempt will be in 8 hours`)
+	c.Check(buf.String(), Not(testutil.Contains), fmt.Sprintf("snap %q auto-refresh to revision 12 has failed, next auto-refresh attempt will be in %d hours", badSnap, expectedMinDelay))
 	c.Check(getRefreshFailed(chgs[0]), IsNil)
-	c.Check(getRefreshFailures("some-snap"), IsNil) // Refresh failures only count after unlink-current-snap
-	c.Check(getRevision("some-snap"), Equals, snap.R(1))
+	c.Check(getRefreshFailures(badSnap), IsNil) // Refresh failures only count after unlink-current-snap
+	c.Check(getRevision(badSnap), Equals, snap.R(1))
 	c.Check(getRefreshFailures("some-other-snap"), IsNil)
 	c.Check(getRevision("some-other-snap"), Equals, goodSnapRevision)
 
 	// Auto-refresh errors are recorded after unlink-current-snap
 	goodSnapRevision.N++
 	s.fakeStore.refreshRevnos["some-other-snap-id"] = goodSnapRevision
-	s.fakeBackend.maybeInjectErr = nil
+	// Inject error in auto-connect (i.e after link-snap) so we should have
+	// rebooted by now for essential snaps (e.g. kernel snap).
+	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+		if op.op == "auto-connect:Doing" && op.name == badSnap {
+			return fmt.Errorf("auto-connect mock error")
+		}
+		return nil
+	}
 	buf.Reset()
 	forceAutoRefresh()
 	chgs = s.state.Changes()
@@ -10938,13 +10961,15 @@ func (s *snapmgrTestSuite) TestAutoRefreshRecordsFailures(c *C) {
 	})
 	c.Assert(chgs, HasLen, 2)
 	c.Check(chgs[1].Kind(), Equals, "auto-refresh")
-	c.Check(chgs[1].Err(), ErrorMatches, "cannot perform the following tasks:\n.*- Make snap \"some-snap\" \\(12\\) available to the system \\(fail\\)")
+	expectedAutoConnectErrPattern := fmt.Sprintf("cannot perform the following tasks:\n.*- Automatically connect eligible plugs and slots of snap %q \\(auto-connect mock error\\)", badSnap)
+	c.Check(chgs[1].Err(), ErrorMatches, expectedAutoConnectErrPattern)
 	c.Check(chgs[1].Status(), Equals, state.ErrorStatus)
-	c.Check(buf.String(), testutil.Contains, `snap "some-snap" auto-refresh to revision 12 has failed, next auto-refresh attempt will be delayed by 8 hours`)
-	c.Check(getRefreshFailed(chgs[1]), DeepEquals, []interface{}{"some-snap"})
-	c.Check(getRefreshFailures("some-snap").Revision, Equals, badSnapRevision)
-	c.Check(getRefreshFailures("some-snap").FailureCount, Equals, 1)
-	c.Check(getRevision("some-snap"), Equals, snap.R(1))
+	c.Check(buf.String(), testutil.Contains, fmt.Sprintf("snap %q auto-refresh to revision 12 has failed, next auto-refresh attempt will be delayed by %d hours", badSnap, expectedMinDelay))
+	c.Check(getRefreshFailed(chgs[1]), DeepEquals, []interface{}{badSnap})
+	c.Check(getRefreshFailures(badSnap).Revision, Equals, badSnapRevision)
+	c.Check(getRefreshFailures(badSnap).FailureCount, Equals, 1)
+	c.Check(getRefreshFailures(badSnap).LastFailureSeverity, Equals, expectedFailureSeverity)
+	c.Check(getRevision(badSnap), Equals, snap.R(1))
 	c.Check(getRefreshFailures("some-other-snap"), IsNil)
 	c.Check(getRevision("some-other-snap"), Equals, goodSnapRevision)
 
@@ -10961,23 +10986,24 @@ func (s *snapmgrTestSuite) TestAutoRefreshRecordsFailures(c *C) {
 	c.Check(chgs[2].Kind(), Equals, "auto-refresh")
 	c.Check(chgs[2].Err(), IsNil)
 	c.Check(chgs[2].Status(), Equals, state.DoneStatus)
-	c.Check(buf.String(), Not(testutil.Contains), `snap "some-snap" auto-refresh to revision 12 has failed, next auto-refresh attempt will be delayed by 8 hours`)
+	c.Check(buf.String(), Not(testutil.Contains), "auto-refresh to revision 12 has failed")
 	c.Check(getRefreshFailed(chgs[2]), IsNil)
-	c.Check(getRefreshFailures("some-snap").Revision, Equals, badSnapRevision)
-	c.Check(getRefreshFailures("some-snap").FailureCount, Equals, 1) // Stays at 1
-	c.Check(getRevision("some-snap"), Equals, snap.R(1))
+	c.Check(getRefreshFailures(badSnap).Revision, Equals, badSnapRevision)
+	c.Check(getRefreshFailures(badSnap).FailureCount, Equals, 1) // Stays at 1
+	c.Check(getRefreshFailures(badSnap).LastFailureSeverity, Equals, expectedFailureSeverity)
+	c.Check(getRevision(badSnap), Equals, snap.R(1))
 	c.Check(getRefreshFailures("some-other-snap"), IsNil)
 	c.Check(getRevision("some-other-snap"), Equals, goodSnapRevision)
 
 	// Make sure backoff delay is capped to a reasonable value (~2 weeks)
 	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), IsNil)
+	c.Assert(snapstate.Get(s.state, badSnap, &snapst), IsNil)
 	snapst.RefreshFailures = &snap.RefreshFailuresInfo{
 		Revision:        badSnapRevision,
 		FailureCount:    100,
-		LastFailureTime: time.Now().Add(-2 * 7 * 24 * time.Hour),
+		LastFailureTime: time.Now().Add(-time.Duration(expectedMaxDelay) * time.Hour),
 	}
-	snapstate.Set(s.state, "some-snap", &snapst)
+	snapstate.Set(s.state, badSnap, &snapst)
 	buf.Reset()
 	forceAutoRefresh()
 	chgs = s.state.Changes()
@@ -10986,16 +11012,18 @@ func (s *snapmgrTestSuite) TestAutoRefreshRecordsFailures(c *C) {
 	})
 	c.Assert(chgs, HasLen, 4)
 	c.Check(chgs[3].Kind(), Equals, "auto-refresh")
-	c.Check(chgs[3].Err(), ErrorMatches, "cannot perform the following tasks:\n.*- Make snap \"some-snap\" \\(12\\) available to the system \\(fail\\)")
+	c.Check(chgs[3].Err(), ErrorMatches, expectedAutoConnectErrPattern)
 	c.Check(chgs[3].Status(), Equals, state.ErrorStatus)
-	c.Check(buf.String(), testutil.Contains, `snap "some-snap" auto-refresh to revision 12 has failed, next auto-refresh attempt will be delayed by 336 hours`)
-	c.Check(getRefreshFailed(chgs[3]), DeepEquals, []interface{}{"some-snap"})
-	c.Check(getRefreshFailures("some-snap").Revision, Equals, badSnapRevision)
-	c.Check(getRefreshFailures("some-snap").FailureCount, Equals, 101) // Backoff delay passed, increment for new failure
-	c.Check(getRevision("some-snap"), Equals, snap.R(1))
+	c.Check(buf.String(), testutil.Contains, fmt.Sprintf("snap %q auto-refresh to revision 12 has failed, next auto-refresh attempt will be delayed by %d hours", badSnap, expectedMaxDelay))
+	c.Check(getRefreshFailed(chgs[3]), DeepEquals, []interface{}{badSnap})
+	c.Check(getRefreshFailures(badSnap).Revision, Equals, badSnapRevision)
+	c.Check(getRefreshFailures(badSnap).FailureCount, Equals, 101) // Backoff delay passed, increment for new failure
+	c.Check(getRefreshFailures(badSnap).LastFailureSeverity, Equals, expectedFailureSeverity)
+	c.Check(getRevision(badSnap), Equals, snap.R(1))
 
 	// New revision resets RefreshFailures
-	s.fakeStore.refreshRevnos["some-snap-id"] = snap.R(13)
+	s.fakeStore.refreshRevnos[badSnapID] = snap.R(13)
+	s.fakeBackend.maybeInjectErr = nil
 	buf.Reset()
 	forceAutoRefresh()
 	chgs = s.state.Changes()
@@ -11007,8 +11035,18 @@ func (s *snapmgrTestSuite) TestAutoRefreshRecordsFailures(c *C) {
 	c.Check(chgs[4].Err(), IsNil)
 	c.Check(chgs[4].Status(), Equals, state.DoneStatus)
 	c.Check(getRefreshFailed(chgs[4]), IsNil)
-	c.Check(getRefreshFailures("some-snap"), IsNil)
-	c.Check(getRevision("some-snap"), Equals, snap.R(13))
+	c.Check(getRefreshFailures(badSnap), IsNil)
+	c.Check(getRevision(badSnap), Equals, snap.R(13))
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshRecordsFailures(c *C) {
+	const afterReboot = false
+	s.testAutoRefreshRecordsFailures(c, afterReboot)
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshRecordsFailuresAfterReboot(c *C) {
+	const afterReboot = true
+	s.testAutoRefreshRecordsFailures(c, afterReboot)
 }
 
 func (s *snapmgrTestSuite) testAutoRefreshRefreshInhibitNoticeRecorded(c *C, markerInterfaceConnected bool, warningFallback bool) {
