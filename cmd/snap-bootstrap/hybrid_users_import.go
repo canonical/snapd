@@ -86,17 +86,17 @@ func groupFilter(users map[string]user) func(group) bool {
 }
 
 // mergeAndWriteLoginFiles considers the etc/passwd, etc/shadow, etc/group, and
-// etc/gshadow files from the given importRoot and referenceRoot directories,
-// merges them together, and writes the merged files into the given outputDir.
+// etc/gshadow files from the given importRoot and baseRoot directories, merges
+// them together, and writes the merged files into the given outputDir.
 //
 // Only non-system (uid and gid < 1000) users that are members of any of the
 // groups in the targetGroups slice are imported from the importRoot directory.
-// All users and groups from the referenceRoot are imported. As a special case,
-// the root user is always imported from importRoot.
+// All users and groups from the baseRoot are imported. As a special case, the
+// root user is always imported from importRoot.
 //
 // If there are any conflicts between the users and groups in the importRoot and
-// referenceRoot directories, the importRoot users and groups are used.
-func mergeAndWriteLoginFiles(importRoot, referenceRoot string, targetGroups []string, outputDir string) error {
+// baseRoot directories, the importRoot users and groups are used.
+func mergeAndWriteLoginFiles(importRoot, baseRoot string, targetGroups []string, outputDir string) error {
 	users, err := parseUsers(importRoot, userFilter(targetGroups))
 	if err != nil {
 		return err
@@ -109,14 +109,14 @@ func mergeAndWriteLoginFiles(importRoot, referenceRoot string, targetGroups []st
 
 	// update the passwd and shadow files to contain the lines for the users
 	// that we're importing
-	err = mergeAndWriteUserFiles(referenceRoot, outputDir, users)
+	err = mergeAndWriteUserFiles(baseRoot, outputDir, users)
 	if err != nil {
 		return err
 	}
 
 	// update the group and gshadow files to add our users to any existing
 	// groups, and add any new primary groups that we're importing.
-	if err := mergeAndWriteGroupFiles(referenceRoot, outputDir, users, groups); err != nil {
+	if err := mergeAndWriteGroupFiles(baseRoot, outputDir, users, groups); err != nil {
 		return err
 	}
 
@@ -128,11 +128,11 @@ func mergeAndWriteLoginFiles(importRoot, referenceRoot string, targetGroups []st
 // ensure that the UIDs and GIDs of any of the given users do not conflict with
 // any of the existing users in the source etc/passwd and etc/shadow files. The
 // merged files are written into the given output directory.
-func mergeAndWriteUserFiles(originalRoot string, outputDir string, users map[string]user) error {
+func mergeAndWriteUserFiles(baseRoot string, outputDir string, importUsers map[string]user) error {
 	// only import users that are either root or have a uid < 1000 and gid <
 	// 1000. the base shouldn't contain anything that doesn't fit this criteria,
 	// but it is best to be safe.
-	sourceUsers, err := parseUsers(originalRoot, func(u user) bool {
+	sourceUsers, err := parseUsers(baseRoot, func(u user) bool {
 		return u.uid < 1000 && u.gid < 1000
 	})
 	if err != nil {
@@ -146,10 +146,10 @@ func mergeAndWriteUserFiles(originalRoot string, outputDir string, users map[str
 			return fmt.Errorf("internal error: user entry inconsistent with parsed data")
 		}
 
-		// if there is a conflict in the existing file, we will use the new
+		// if there is a conflict in the existing file, we will use the imported
 		// entry instead of the old one. this is consistent with how we handle
 		// groups, so any conflicting users will always be fully replaced.
-		if _, ok := users[name]; ok {
+		if _, ok := importUsers[name]; ok {
 			continue
 		}
 
@@ -159,7 +159,7 @@ func mergeAndWriteUserFiles(originalRoot string, outputDir string, users map[str
 		}
 	}
 
-	for _, user := range users {
+	for _, user := range importUsers {
 		parts := strings.Split(user.passwdEntry, ":")
 		if len(parts) != 7 {
 			return fmt.Errorf("internal error: passwd entry inconsistent with parsed data")
@@ -191,9 +191,9 @@ func mergeAndWriteUserFiles(originalRoot string, outputDir string, users map[str
 // not conflict with any of the existing groups and users in the source
 // etc/group and etc/gshadow files. The merged files are written into the given
 // output directory.
-func mergeAndWriteGroupFiles(originalRoot string, outputDir string, users map[string]user, groups map[string]group) error {
+func mergeAndWriteGroupFiles(baseRoot string, outputDir string, importUsers map[string]user, importGroups map[string]group) error {
 	groupsToNewUsers := make(map[string][]string)
-	for _, user := range users {
+	for _, user := range importUsers {
 		for _, group := range user.groups {
 			groupsToNewUsers[group] = append(groupsToNewUsers[group], user.name)
 		}
@@ -203,7 +203,7 @@ func mergeAndWriteGroupFiles(originalRoot string, outputDir string, users map[st
 	// since those have a chance of conflicting with users that we're importing.
 	// in practice, the base snap that we're importing from shouldn't have any
 	// users/groups with a GID > 1000.
-	sourceGroups, err := parseGroups(originalRoot, func(g group) bool {
+	sourceGroups, err := parseGroups(baseRoot, func(g group) bool {
 		return g.gid < 1000
 	})
 	if err != nil {
@@ -219,7 +219,7 @@ func mergeAndWriteGroupFiles(originalRoot string, outputDir string, users map[st
 
 		// if we're importing a group that already exists, we take the imported
 		// group.
-		if _, ok := groups[name]; ok {
+		if _, ok := importGroups[name]; ok {
 			continue
 		}
 
@@ -250,7 +250,7 @@ func mergeAndWriteGroupFiles(originalRoot string, outputDir string, users map[st
 	// add the group entries for the users that we're importing. note that we
 	// don't need to mess with the users in these groups, since they're coming
 	// directly from the system we're importing from
-	for _, g := range groups {
+	for _, g := range importGroups {
 		groupBuffer.WriteString(g.groupEntry + "\n")
 		if g.gshadowEntry != "" {
 			gshadowBuffer.WriteString(g.gshadowEntry + "\n")
