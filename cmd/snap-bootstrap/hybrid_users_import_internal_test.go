@@ -324,6 +324,18 @@ func (s *hybridUserImportSuite) TestFilterUsers(c *C) {
 			gid:    1002,
 			groups: []string{"lxd"},
 		},
+		"uid-conflicting": {
+			name:   "uid-conflicting",
+			uid:    2001,
+			gid:    2020,
+			groups: []string{"sudo"},
+		},
+		"gid-conflicting": {
+			name:   "uid-conflicting",
+			uid:    2020,
+			gid:    2002,
+			groups: []string{"sudo"},
+		},
 		"system-gid": {
 			name: "system-gid",
 			uid:  1002,
@@ -336,12 +348,38 @@ func (s *hybridUserImportSuite) TestFilterUsers(c *C) {
 		},
 	}
 
+	sourceUsers := map[string]user{
+		"root": {
+			name: "root",
+			uid:  0,
+			gid:  0,
+		},
+		"conflicting": {
+			name: "conflicting",
+			uid:  2001,
+			gid:  2001,
+		},
+	}
+
+	sourceGroups := map[string]group{
+		"root": {
+			name: "root",
+			gid:  0,
+		},
+		"conflicting": {
+			name: "conflicting",
+			gid:  2002,
+		},
+	}
+
 	targets := []string{"admin", "sudo"}
-	filter := userFilter(targets)
+	filter := userFilter(targets, sourceUsers, sourceGroups)
 	c.Assert(filter(users["root"]), Equals, true)
 	c.Assert(filter(users["user1"]), Equals, true)
 	c.Assert(filter(users["user2"]), Equals, true)
 	c.Assert(filter(users["user3"]), Equals, false)
+	c.Assert(filter(users["uid-conflicting"]), Equals, false)
+	c.Assert(filter(users["gid-conflicting"]), Equals, false)
 	c.Assert(filter(users["system-gid"]), Equals, false)
 	c.Assert(filter(users["lxd"]), Equals, false)
 }
@@ -399,29 +437,59 @@ func (s *hybridUserImportSuite) TestFilterGroups(c *C) {
 }
 
 func (s *hybridUserImportSuite) TestMergeAndWriteGroupFiles(c *C) {
-	dir := c.MkDir()
-	writeTempFile(c, filepath.Join(dir, "etc/group"), `
-root:x:0:
-ignored:x:1000:
-wheel:x:998:user1
-docker:x:968:
-lxd:x:964:
-sudo:x:959:
-user1:x:999:
-`)
+	sourceGroups := map[string]group{
+		"root": {
+			name:         "root",
+			gid:          0,
+			users:        nil,
+			groupEntry:   "root:x:0:",
+			gshadowEntry: "root:!::",
+		},
+		"wheel": {
+			name:         "wheel",
+			gid:          998,
+			users:        []string{"user1"},
+			groupEntry:   "wheel:x:998:user1",
+			gshadowEntry: "wheel:!::",
+		},
+		"docker": {
+			name:         "docker",
+			gid:          968,
+			users:        nil,
+			groupEntry:   "docker:x:968:",
+			gshadowEntry: "docker:!::",
+		},
+		"lxd": {
+			name:       "lxd",
+			gid:        964,
+			users:      nil,
+			groupEntry: "lxd:x:964:",
 
-	writeTempFile(c, filepath.Join(dir, "etc/gshadow"), `
-root:::
-ignored:!::
-wheel:!::user1
-docker:!::
-sudo:!::
-user1:!::
-`)
-
-	dest := filepath.Join(dir, "etc-merged")
-	err := os.MkdirAll(dest, 0755)
-	c.Assert(err, IsNil)
+			// note that this is intentionally empty
+			gshadowEntry: "",
+		},
+		"sudo": {
+			name:         "sudo",
+			gid:          959,
+			users:        nil,
+			groupEntry:   "sudo:x:959:",
+			gshadowEntry: "sudo:!::",
+		},
+		"user1": {
+			name:         "user1",
+			gid:          999,
+			users:        nil,
+			groupEntry:   "user1:x:999:",
+			gshadowEntry: "user1:!::",
+		},
+		"nobody": {
+			name:         "nobody",
+			gid:          65534,
+			users:        nil,
+			groupEntry:   "nobody:x:65534:",
+			gshadowEntry: "nobody:!::",
+		},
+	}
 
 	users := map[string]user{
 		"root": {
@@ -470,7 +538,8 @@ user1:!::
 		},
 	}
 
-	err = mergeAndWriteGroupFiles(dir, dest, users, groups)
+	dest := c.MkDir()
+	err := mergeAndWriteGroupFiles(sourceGroups, users, groups, dest)
 	c.Assert(err, IsNil)
 
 	assertLinesInFile(c, filepath.Join(dest, "group"), []string{
@@ -481,6 +550,7 @@ user1:!::
 		"sudo:x:959:user1,user2",
 		"user1:x:1000:",
 		"user2:x:1001:",
+		"nobody:x:65534:",
 	})
 	assertFileHasPermissions(c, filepath.Join(dest, "group"), 0644)
 
@@ -491,30 +561,51 @@ user1:!::
 		"sudo:!::user1,user2",
 		"user1:!::",
 		"user2:!::",
+		"nobody:!::",
 	})
 	assertFileHasPermissions(c, filepath.Join(dest, "gshadow"), 0600)
 }
 
 func (s *hybridUserImportSuite) TestMergeAndWriteGroupFilesSharedPrimary(c *C) {
-	dir := c.MkDir()
-	writeTempFile(c, filepath.Join(dir, "etc/group"), `
-root:x:0:
-wheel:x:998:
-docker:x:968:
-lxd:x:964:
-sudo:x:959:
-`)
+	sourceGroups := map[string]group{
+		"root": {
+			name:         "root",
+			gid:          0,
+			users:        nil,
+			groupEntry:   "root:x:0:",
+			gshadowEntry: "root:!::",
+		},
+		"wheel": {
+			name:         "wheel",
+			gid:          998,
+			users:        nil,
+			groupEntry:   "wheel:x:998:",
+			gshadowEntry: "wheel:!::",
+		},
+		"docker": {
+			name:         "docker",
+			gid:          968,
+			users:        nil,
+			groupEntry:   "docker:x:968:",
+			gshadowEntry: "docker:!::",
+		},
+		"lxd": {
+			name:       "lxd",
+			gid:        964,
+			users:      nil,
+			groupEntry: "lxd:x:964:",
 
-	writeTempFile(c, filepath.Join(dir, "etc/gshadow"), `
-root:::
-wheel:!::
-docker:!::
-sudo:!::
-`)
-
-	dest := filepath.Join(dir, "etc-merged")
-	err := os.MkdirAll(dest, 0755)
-	c.Assert(err, IsNil)
+			// note that this is intentionally empty
+			gshadowEntry: "",
+		},
+		"sudo": {
+			name:         "sudo",
+			gid:          959,
+			users:        nil,
+			groupEntry:   "sudo:x:959:",
+			gshadowEntry: "sudo:!::",
+		},
+	}
 
 	users := map[string]user{
 		"root": {
@@ -557,7 +648,8 @@ sudo:!::
 		},
 	}
 
-	err = mergeAndWriteGroupFiles(dir, dest, users, groups)
+	dest := c.MkDir()
+	err := mergeAndWriteGroupFiles(sourceGroups, users, groups, dest)
 	c.Assert(err, IsNil)
 
 	assertLinesInFile(c, filepath.Join(dest, "group"), []string{
@@ -581,37 +673,43 @@ sudo:!::
 }
 
 func (s *hybridUserImportSuite) TestMergeAndWriteUserFiles(c *C) {
-	dir := c.MkDir()
-	writeTempFile(c, filepath.Join(dir, "etc/passwd"), `
-root:x:0:0:root:/root:/bin/bash
-user1:x:1010:1010:user1:/home/user1:/bin/bash
-lxd:x:964:984::/var/snap/lxd/common/lxd:/bin/false
-user3:x:1011:1011:user3:/home/user3:/bin/bash
-`)
-
-	writeTempFile(c, filepath.Join(dir, "etc/group"), `
-root:x:0:
-wheel:x:998:
-docker:x:968:
-lxd:x:964:
-sudo:x:959:
-`)
-
-	writeTempFile(c, filepath.Join(dir, "etc/shadow"), `
-root:!:19836:0:99999:7:::
-user1:28n4517315osn7oqn8sqpso2s1s1q042:19837:0:99999:7:::
-lxd:!:19838:0:99999:7:::
-user3:dc9b7b7b631aadd960231f4880923d0f:19839:0:99999:7:::
-`)
-
-	dest := filepath.Join(dir, "etc-merged")
-	err := os.MkdirAll(dest, 0755)
-	c.Assert(err, IsNil)
+	sourceUsers := map[string]user{
+		"root": {
+			name:        "root",
+			uid:         0,
+			gid:         0,
+			groups:      nil,
+			passwdEntry: "root:x:0:0:root:/root:/bin/bash",
+			shadowEntry: "root:!:19836:0:99999:7:::",
+		},
+		"user1": {
+			name:        "user1",
+			uid:         1010,
+			gid:         1010,
+			groups:      nil,
+			passwdEntry: "user1:x:1010:1010:user1:/home/user1:/bin/bash",
+			shadowEntry: "user1:28n4517315osn7oqn8sqpso2s1s1q042:19837:0:99999:7:::",
+		},
+		"user3": {
+			name:        "user3",
+			uid:         1011,
+			gid:         1011,
+			groups:      nil,
+			passwdEntry: "user3:x:1011:1011:user3:/home/user3:/bin/bash",
+			shadowEntry: "user3:dc9b7b7b631aadd960231f4880923d0f:19839:0:99999:7:::",
+		},
+		"lxd": {
+			name:        "lxd",
+			uid:         964,
+			gid:         964,
+			groups:      nil,
+			passwdEntry: "lxd:x:964:984::/var/snap/lxd/common/lxd:/bin/false",
+			shadowEntry: "lxd:!:19838:0:99999:7:::",
+		},
+	}
 
 	// root will replace the original root, user1 will also replace the original
-	// user1. user2 will be directly imported. user3 will be dropped despite
-	// being in the original file, since we don't want to import non-system
-	// users.
+	// user1. user2 and noshell will be directly imported.
 	users := map[string]user{
 		"root": {
 			name:        "root",
@@ -649,7 +747,8 @@ user3:dc9b7b7b631aadd960231f4880923d0f:19839:0:99999:7:::
 		},
 	}
 
-	err = mergeAndWriteUserFiles(dir, dest, users)
+	dest := c.MkDir()
+	err := mergeAndWriteUserFiles(sourceUsers, users, dest)
 	c.Assert(err, IsNil)
 
 	// note that the imported users had their default shells changed to
@@ -660,6 +759,7 @@ user3:dc9b7b7b631aadd960231f4880923d0f:19839:0:99999:7:::
 		"lxd:x:964:984::/var/snap/lxd/common/lxd:/bin/false",
 		"user1:x:1000:1000:user1:/home/user1:/bin/bash",
 		"user2:x:1001:1001:user2:/home/user2:/bin/bash",
+		"user3:x:1011:1011:user3:/home/user3:/bin/bash",
 		"noshell:x:1002:1002:noshell:/home/noshell:/bin/bash",
 	})
 	assertFileHasPermissions(c, filepath.Join(dest, "passwd"), 0644)
@@ -669,6 +769,7 @@ user3:dc9b7b7b631aadd960231f4880923d0f:19839:0:99999:7:::
 		"lxd:!:19838:0:99999:7:::",
 		"user1:28a4517315bfa7bda8fdcfb2f1f1d042:19837:0:99999:7:::",
 		"user2:5177bcdd67b77a393852bb5ae47ee416:19838:0:99999:7:::",
+		"user3:dc9b7b7b631aadd960231f4880923d0f:19839:0:99999:7:::",
 		"noshell:1cc7b5ea6a765492910b611f5760929f:19839:0:99999:7:::",
 	})
 	assertFileHasPermissions(c, filepath.Join(dest, "shadow"), 0600)
@@ -679,6 +780,7 @@ func (s *hybridUserImportSuite) TestImportHybridUserData(c *C) {
 	writeTempFile(c, filepath.Join(base, "etc/passwd"), `
 root:x:0:0:root:/root:/bin/bash
 lxd:x:964:984::/var/snap/lxd/common/lxd:/bin/false
+conflict:x:2002:2002::/home/conflict:/bin/bash
 `)
 
 	writeTempFile(c, filepath.Join(base, "etc/group"), `
@@ -688,11 +790,13 @@ docker:x:968:
 lxd:x:964:
 sudo:x:959:
 admin:x:960:
+conflict:x:2002:
 `)
 
 	writeTempFile(c, filepath.Join(base, "etc/shadow"), `
 root:!:19836:0:99999:7:::
 lxd:!:19838:0:99999:7:::
+conflict:!:19839:0:99999:7:::
 `)
 
 	writeTempFile(c, filepath.Join(base, "etc/gshadow"), `
@@ -702,6 +806,7 @@ docker:!::
 lxd:!::
 sudo:!::
 admin:!::
+conflict:!::
 `)
 
 	hybrid := c.MkDir()
@@ -709,7 +814,10 @@ admin:!::
 root:x:0:0:root:/root:/bin/bash
 user1:x:1000:1000:user1:/home/user1:/bin/bash
 user2:x:1001:1001:user2:/home/user2:/usr/bin/fish
-user3:x:999:999:user3:/home/user3:/usr/bin/zsh
+user3:x:1002:1002:user3:/home/user3:/usr/bin/zsh
+conflict-uid:x:2002:2020:conflict-uid:/home/conflict-uid:/bin/bash
+conflict-gid:x:2020:2002:conflict-gid:/home/conflict-gid:/bin/bash
+system:x:999:999:system:/home/system:/bin/bash
 `)
 
 	writeTempFile(c, filepath.Join(hybrid, "etc/group"), `
@@ -721,7 +829,10 @@ sudo:x:859:user1
 admin:x:860:user2
 user1:x:1000:
 user2:x:1001:
-user3:x:999:
+user3:x:1002:
+conflict-uid:x:2020:
+conflict-gid:x:2002:
+system:x:999:
 `)
 
 	writeTempFile(c, filepath.Join(hybrid, "etc/shadow"), `
@@ -729,6 +840,9 @@ root:d41d8cd98f00b204e9800998ecf8427e:19836:0:99999:7:::
 user1:28a4517315bfa7bda8fdcfb2f1f1d042:19837:0:99999:7:::
 user2:5177bcdd67b77a393852bb5ae47ee416:19838:0:99999:7:::
 user3:028deb5e54d669e73be35cb5a96eb35b:19839:0:99999:7:::
+conflict-uid:d741dddf79cfc8677e3d0c8129e803f5:19840:0:99999:7:::
+conflict-gid:591713280c6992a20c64abb170ac175c:19841:0:99999:7:::
+system:bfcc9da4f2e1d313c63cd0a4ee7604e9:19850:0:99999:7:::
 `)
 
 	writeTempFile(c, filepath.Join(hybrid, "etc/gshadow"), `
@@ -741,6 +855,9 @@ admin:!::user2
 user1:!::
 user2:!::
 user3:!::
+conflict-uid:!::
+conflict-gid:!::
+system:!::
 `)
 
 	// user1 should be imported since it is in the sudo group. user1 should be
@@ -751,6 +868,11 @@ user3:!::
 	//
 	// user3 should not be imported, since it is not in either the sudo or admin
 	// groups.
+	//
+	// system should not be imported, since it has a uid/gid < 1000.
+	//
+	// conflict-uid and conflict-gid should not be imported, since they share a
+	// uid/gid with a user and group from the base.
 	err := importHybridUserData(hybrid, base)
 	c.Assert(err, IsNil)
 
@@ -761,6 +883,7 @@ user3:!::
 		"lxd:x:964:984::/var/snap/lxd/common/lxd:/bin/false",
 		"user1:x:1000:1000:user1:/home/user1:/bin/bash",
 		"user2:x:1001:1001:user2:/home/user2:/bin/bash",
+		"conflict:x:2002:2002::/home/conflict:/bin/bash",
 	})
 	assertFileHasPermissions(c, filepath.Join(output, "passwd"), 0644)
 
@@ -773,6 +896,7 @@ user3:!::
 		"admin:x:960:user2",
 		"user1:x:1000:",
 		"user2:x:1001:",
+		"conflict:x:2002:",
 	})
 	assertFileHasPermissions(c, filepath.Join(output, "group"), 0644)
 
@@ -781,6 +905,7 @@ user3:!::
 		"lxd:!:19838:0:99999:7:::",
 		"user1:28a4517315bfa7bda8fdcfb2f1f1d042:19837:0:99999:7:::",
 		"user2:5177bcdd67b77a393852bb5ae47ee416:19838:0:99999:7:::",
+		"conflict:!:19839:0:99999:7:::",
 	})
 	assertFileHasPermissions(c, filepath.Join(output, "shadow"), 0600)
 
@@ -793,6 +918,7 @@ user3:!::
 		"admin:!::user2",
 		"user1:!::",
 		"user2:!::",
+		"conflict:!::",
 	})
 	assertFileHasPermissions(c, filepath.Join(output, "gshadow"), 0600)
 
