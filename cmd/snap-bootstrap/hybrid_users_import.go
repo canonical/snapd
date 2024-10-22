@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -286,6 +287,7 @@ func parseUsers(root string, filter func(user) bool) (map[string]user, error) {
 	for name, entry := range passwdEntries {
 		parts := strings.Split(entry, ":")
 		if len(parts) != 7 {
+			logger.Noticef("skipping importing user with invalid entry: %v", entry)
 			continue
 		}
 
@@ -295,11 +297,13 @@ func parseUsers(root string, filter func(user) bool) (map[string]user, error) {
 
 		uid, err := strconv.Atoi(parts[2])
 		if err != nil {
+			logger.Noticef("skipping importing user %q with invalid uid: %v", name, err)
 			continue
 		}
 
 		gid, err := strconv.Atoi(parts[3])
 		if err != nil {
+			logger.Noticef("skipping importing user %q with invalid gid: %v", name, err)
 			continue
 		}
 
@@ -347,6 +351,7 @@ func parseGroups(root string, filter func(group) bool) (map[string]group, error)
 	for name, entry := range groupEntries {
 		parts := strings.Split(entry, ":")
 		if len(parts) != 4 {
+			logger.Noticef("skipping importing group with invalid entry: %s", entry)
 			continue
 		}
 
@@ -356,6 +361,7 @@ func parseGroups(root string, filter func(group) bool) (map[string]group, error)
 
 		gid, err := strconv.Atoi(parts[2])
 		if err != nil {
+			logger.Noticef("skipping importing group %q with invalid gid: %v", name, err)
 			continue
 		}
 
