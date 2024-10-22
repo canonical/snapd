@@ -113,7 +113,7 @@ func mergeAndWriteUserFiles(originalRoot string, outputDir string, users map[str
 	// 1000. the base shouldn't contain anything that doesn't fit this criteria,
 	// but it is best to be safe.
 	sourceUsers, err := parseUsers(originalRoot, func(u user) bool {
-		return (u.gid == 0 && u.uid == 0) || (u.uid < 1000 && u.gid < 1000)
+		return u.uid < 1000 && u.gid < 1000
 	})
 	if err != nil {
 		return err
