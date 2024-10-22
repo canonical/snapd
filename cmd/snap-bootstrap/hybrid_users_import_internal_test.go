@@ -199,6 +199,7 @@ root:x:0:0:root:/root:/bin/bash
 user1:x:1000:1000:user1:/home/user1:/bin/bash
 user2:x:1001:1001:user2:/home/user2:/usr/bin/fish
 user3:x:1002:1002:user3:/home/user3:/usr/bin/zsh
+noshell:x:1003:1003:noshell:/home/noshell
 
 invalid-line:
 invalid-line
@@ -209,10 +210,12 @@ user5:x:1004:invalid-gid:user5:/home/user5:/usr/bin/zsh
 	writeTempFile(c, filepath.Join(dir, "etc/group"), `
 user1:x:1000:
 user2:x:1001:
+user3:x:1002:
+noshell:x:1003:
 wheel:x:998:user1,user2
 docker:x:968:user2
 lxd:x:964:user1,user3
-sudo:x:959:user1,user2
+sudo:x:959:user1,user2,noshell
 
 invalid-line:
 invalid-line
@@ -223,6 +226,7 @@ root:d41d8cd98f00b204e9800998ecf8427e:19836:0:99999:7:::
 user1:28a4517315bfa7bda8fdcfb2f1f1d042:19837:0:99999:7:::
 user2:5177bcdd67b77a393852bb5ae47ee416:19838:0:99999:7:::
 user3:028deb5e54d669e73be35cb5a96eb35b:19839:0:99999:7:::
+noshell:1cc7b5ea6a765492910b611f5760929f:19840:0:99999:7:::
 
 invalid-line:
 invalid-line
@@ -265,6 +269,16 @@ invalid-line
 			groups:      []string{"lxd"},
 			passwdEntry: "user3:x:1002:1002:user3:/home/user3:/usr/bin/zsh",
 			shadowEntry: "user3:028deb5e54d669e73be35cb5a96eb35b:19839:0:99999:7:::",
+		},
+		// we handle importing users that omit the last colon in the passwd
+		// entry
+		"noshell": {
+			name:        "noshell",
+			uid:         1003,
+			gid:         1003,
+			groups:      []string{"sudo"},
+			passwdEntry: "noshell:x:1003:1003:noshell:/home/noshell",
+			shadowEntry: "noshell:1cc7b5ea6a765492910b611f5760929f:19840:0:99999:7:::",
 		},
 	})
 
@@ -623,6 +637,16 @@ user3:dc9b7b7b631aadd960231f4880923d0f:19839:0:99999:7:::
 			passwdEntry: "user2:x:1001:1001:user2:/home/user2:/usr/bin/fish",
 			shadowEntry: "user2:5177bcdd67b77a393852bb5ae47ee416:19838:0:99999:7:::",
 		},
+		// we handle importing users that omit the last colon in the passwd
+		// entry
+		"noshell": {
+			name:        "noshell",
+			uid:         1002,
+			gid:         1002,
+			groups:      []string{"sudo"},
+			passwdEntry: "noshell:x:1002:1002:noshell:/home/noshell",
+			shadowEntry: "noshell:1cc7b5ea6a765492910b611f5760929f:19839:0:99999:7:::",
+		},
 	}
 
 	err = mergeAndWriteUserFiles(dir, dest, users)
@@ -636,6 +660,7 @@ user3:dc9b7b7b631aadd960231f4880923d0f:19839:0:99999:7:::
 		"lxd:x:964:984::/var/snap/lxd/common/lxd:/bin/false",
 		"user1:x:1000:1000:user1:/home/user1:/bin/bash",
 		"user2:x:1001:1001:user2:/home/user2:/bin/bash",
+		"noshell:x:1002:1002:noshell:/home/noshell:/bin/bash",
 	})
 	assertFileHasPermissions(c, filepath.Join(dest, "passwd"), 0644)
 
@@ -644,6 +669,7 @@ user3:dc9b7b7b631aadd960231f4880923d0f:19839:0:99999:7:::
 		"lxd:!:19838:0:99999:7:::",
 		"user1:28a4517315bfa7bda8fdcfb2f1f1d042:19837:0:99999:7:::",
 		"user2:5177bcdd67b77a393852bb5ae47ee416:19838:0:99999:7:::",
+		"noshell:1cc7b5ea6a765492910b611f5760929f:19839:0:99999:7:::",
 	})
 	assertFileHasPermissions(c, filepath.Join(dest, "shadow"), 0600)
 }

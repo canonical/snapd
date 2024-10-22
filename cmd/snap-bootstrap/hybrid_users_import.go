@@ -161,14 +161,21 @@ func mergeAndWriteUserFiles(baseRoot string, outputDir string, importUsers map[s
 
 	for _, user := range importUsers {
 		parts := strings.Split(user.passwdEntry, ":")
-		if len(parts) != 7 {
-			return fmt.Errorf("internal error: passwd entry inconsistent with parsed data")
-		}
 
 		// we're going to ignore the user's shell, since it could be anything,
 		// we replace it with /bin/bash, since this should give a good default
 		// experience and should always be available in the base.
-		parts[6] = "/bin/bash"
+		//
+		// note that last field (the user's login shell) is optional, and the
+		// trailing colon might not be present
+		switch len(parts) {
+		case 6:
+			parts = append(parts, "/bin/bash")
+		case 7:
+			parts[6] = "/bin/bash"
+		default:
+			return fmt.Errorf("internal error: passwd entry inconsistent with parsed data")
+		}
 
 		passwdBuffer.WriteString(strings.Join(parts, ":") + "\n")
 		if user.shadowEntry != "" {
@@ -305,7 +312,7 @@ func parseUsers(root string, filter func(user) bool) (map[string]user, error) {
 	users := make(map[string]user)
 	for name, entry := range passwdEntries {
 		parts := strings.Split(entry, ":")
-		if len(parts) != 7 {
+		if len(parts) != 6 && len(parts) != 7 {
 			logger.Noticef("skipping importing user with invalid entry: %v", entry)
 			continue
 		}
