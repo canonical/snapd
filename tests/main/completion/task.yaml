@@ -31,6 +31,7 @@ prepare: |
     mkdir -p testdir
     touch testdir/foo.snap
     touch bar.snap
+    touch baz.comp
 
     snap install core
     snap install test-snapd-tools

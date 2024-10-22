@@ -46,6 +46,7 @@ case "$command" in
     install)
         # include *.snap files
         _path_files -g "*.snap"
+        _path_files -g "*.comp"
         ;;
     try)
         # limit matches to directories
