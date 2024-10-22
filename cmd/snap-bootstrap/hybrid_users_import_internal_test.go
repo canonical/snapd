@@ -242,6 +242,7 @@ invalid-line
 			name:        "root",
 			uid:         0,
 			gid:         0,
+			shell:       "/bin/bash",
 			groups:      nil,
 			passwdEntry: "root:x:0:0:root:/root:/bin/bash",
 			shadowEntry: "root:d41d8cd98f00b204e9800998ecf8427e:19836:0:99999:7:::",
@@ -250,6 +251,7 @@ invalid-line
 			name:        "user1",
 			uid:         1000,
 			gid:         1000,
+			shell:       "/bin/bash",
 			groups:      []string{"wheel", "lxd", "sudo"},
 			passwdEntry: "user1:x:1000:1000:user1:/home/user1:/bin/bash",
 			shadowEntry: "user1:28a4517315bfa7bda8fdcfb2f1f1d042:19837:0:99999:7:::",
@@ -258,6 +260,7 @@ invalid-line
 			name:        "user2",
 			uid:         1001,
 			gid:         1001,
+			shell:       "/usr/bin/fish",
 			groups:      []string{"wheel", "docker", "sudo"},
 			passwdEntry: "user2:x:1001:1001:user2:/home/user2:/usr/bin/fish",
 			shadowEntry: "user2:5177bcdd67b77a393852bb5ae47ee416:19838:0:99999:7:::",
@@ -266,6 +269,7 @@ invalid-line
 			name:        "user3",
 			uid:         1002,
 			gid:         1002,
+			shell:       "/usr/bin/zsh",
 			groups:      []string{"lxd"},
 			passwdEntry: "user3:x:1002:1002:user3:/home/user3:/usr/bin/zsh",
 			shadowEntry: "user3:028deb5e54d669e73be35cb5a96eb35b:19839:0:99999:7:::",
@@ -276,6 +280,7 @@ invalid-line
 			name:        "noshell",
 			uid:         1003,
 			gid:         1003,
+			shell:       "",
 			groups:      []string{"sudo"},
 			passwdEntry: "noshell:x:1003:1003:noshell:/home/noshell",
 			shadowEntry: "noshell:1cc7b5ea6a765492910b611f5760929f:19840:0:99999:7:::",
@@ -292,6 +297,7 @@ invalid-line
 			name:        "user1",
 			uid:         1000,
 			gid:         1000,
+			shell:       "/bin/bash",
 			groups:      []string{"wheel", "lxd", "sudo"},
 			passwdEntry: "user1:x:1000:1000:user1:/home/user1:/bin/bash",
 			shadowEntry: "user1:28a4517315bfa7bda8fdcfb2f1f1d042:19837:0:99999:7:::",
@@ -302,49 +308,70 @@ invalid-line
 func (s *hybridUserImportSuite) TestFilterUsers(c *C) {
 	users := map[string]user{
 		"root": {
-			name: "root",
-			uid:  0,
-			gid:  0,
+			name:  "root",
+			uid:   0,
+			gid:   0,
+			shell: "/bin/sh",
 		},
 		"user1": {
 			name:   "user1",
 			uid:    1000,
 			gid:    1000,
+			shell:  "/bin/bash",
 			groups: []string{"wheel", "lxd", "sudo"},
 		},
 		"user2": {
 			name:   "user2",
 			uid:    1001,
 			gid:    1001,
+			shell:  "/bin/bash",
 			groups: []string{"wheel", "docker", "admin"},
 		},
 		"user3": {
 			name:   "user3",
 			uid:    1002,
 			gid:    1002,
+			shell:  "/bin/bash",
 			groups: []string{"lxd"},
 		},
 		"uid-conflicting": {
 			name:   "uid-conflicting",
 			uid:    2001,
 			gid:    2020,
+			shell:  "/bin/bash",
 			groups: []string{"sudo"},
 		},
 		"gid-conflicting": {
 			name:   "uid-conflicting",
 			uid:    2020,
 			gid:    2002,
+			shell:  "/bin/bash",
 			groups: []string{"sudo"},
 		},
 		"system-gid": {
-			name: "system-gid",
-			uid:  1002,
-			gid:  998,
+			name:  "system-gid",
+			uid:   1002,
+			gid:   998,
+			shell: "/bin/bash",
 		},
 		"lxd": {
-			name: "lxd",
-			uid:  999,
-			gid:  999,
+			name:  "lxd",
+			uid:   999,
+			gid:   999,
+			shell: "/bin/bash",
+		},
+		"noshell": {
+			name:   "noshell",
+			uid:    1003,
+			gid:    1003,
+			groups: []string{"sudo"},
+		},
+		"nologin": {
+			name:   "nologin",
+			uid:    1004,
+			gid:    1004,
+			shell:  "/sbin/nologin",
+			groups: []string{"sudo"},
 		},
 	}
 
@@ -372,16 +399,21 @@ func (s *hybridUserImportSuite) TestFilterUsers(c *C) {
 		},
 	}
 
+	loginShells := []string{"/bin/bash", "/bin/sh"}
+
 	targets := []string{"admin", "sudo"}
-	filter := userFilter(targets, sourceUsers, sourceGroups)
+	filter := userFilter(targets, sourceUsers, sourceGroups, loginShells)
 	c.Assert(filter(users["root"]), Equals, true)
 	c.Assert(filter(users["user1"]), Equals, true)
 	c.Assert(filter(users["user2"]), Equals, true)
+	c.Assert(filter(users["noshell"]), Equals, true)
+
 	c.Assert(filter(users["user3"]), Equals, false)
 	c.Assert(filter(users["uid-conflicting"]), Equals, false)
 	c.Assert(filter(users["gid-conflicting"]), Equals, false)
 	c.Assert(filter(users["system-gid"]), Equals, false)
 	c.Assert(filter(users["lxd"]), Equals, false)
+	c.Assert(filter(users["nologin"]), Equals, false)
 }
 
 func (s *hybridUserImportSuite) TestFilterGroups(c *C) {
@@ -815,6 +847,7 @@ root:x:0:0:root:/root:/bin/bash
 user1:x:1000:1000:user1:/home/user1:/bin/bash
 user2:x:1001:1001:user2:/home/user2:/usr/bin/fish
 user3:x:1002:1002:user3:/home/user3:/usr/bin/zsh
+nologin:x:1003:1003:nologin:/home/nologin:/sbin/nologin
 conflict-uid:x:2002:2020:conflict-uid:/home/conflict-uid:/bin/bash
 conflict-gid:x:2020:2002:conflict-gid:/home/conflict-gid:/bin/bash
 system:x:999:999:system:/home/system:/bin/bash
@@ -825,11 +858,12 @@ root:x:0:
 wheel:x:898:user1,user2,user3
 docker:x:868:user2
 lxd:x:864:user1
-sudo:x:859:user1
+sudo:x:859:user1,nologin
 admin:x:860:user2
 user1:x:1000:
 user2:x:1001:
 user3:x:1002:
+nologin:x:1003:
 conflict-uid:x:2020:
 conflict-gid:x:2002:
 system:x:999:
@@ -840,6 +874,7 @@ root:d41d8cd98f00b204e9800998ecf8427e:19836:0:99999:7:::
 user1:28a4517315bfa7bda8fdcfb2f1f1d042:19837:0:99999:7:::
 user2:5177bcdd67b77a393852bb5ae47ee416:19838:0:99999:7:::
 user3:028deb5e54d669e73be35cb5a96eb35b:19839:0:99999:7:::
+nologin:7c9369afc7deaff45e8db9477718df7b:19840:0:99999:7:::
 conflict-uid:d741dddf79cfc8677e3d0c8129e803f5:19840:0:99999:7:::
 conflict-gid:591713280c6992a20c64abb170ac175c:19841:0:99999:7:::
 system:bfcc9da4f2e1d313c63cd0a4ee7604e9:19850:0:99999:7:::
@@ -850,14 +885,22 @@ wheel:!::user1,user2,user3
 root:!::
 docker:!::user2
 lxd:!::user1
-sudo:!::user1
+sudo:!::user1,nologin
 admin:!::user2
 user1:!::
 user2:!::
 user3:!::
+nologin:!::
 conflict-uid:!::
 conflict-gid:!::
 system:!::
+`)
+
+	writeTempFile(c, filepath.Join(hybrid, "etc/shells"), `# /etc/shells: valid login shells
+/bin/sh
+/bin/bash
+/usr/bin/fish
+/usr/bin/zsh
 `)
 
 	// user1 should be imported since it is in the sudo group. user1 should be
@@ -873,6 +916,10 @@ system:!::
 	//
 	// conflict-uid and conflict-gid should not be imported, since they share a
 	// uid/gid with a user and group from the base.
+	//
+	// nologin should not be imported, since it has a shell that is not in the
+	// list of valid login shells in the hybrid system. this is despite it being
+	// a non-system user that is in the sudo group.
 	err := importHybridUserData(hybrid, base)
 	c.Assert(err, IsNil)
 
@@ -922,4 +969,30 @@ system:!::
 	})
 	assertFileHasPermissions(c, filepath.Join(output, "gshadow"), 0600)
 
+}
+
+func (s *hybridUserImportSuite) TestParseShells(c *C) {
+	dir := c.MkDir()
+	writeTempFile(c, filepath.Join(dir, "etc/shells"), `
+# comment
+/bin/sh
+  # indented comment
+/bin/bash
+
+/usr/bin/zsh
+/usr/bin/fish#comment
+#/bin/dash#comment
+/bin/ksh # comment # comment
+#/bin/tcsh
+`)
+
+	shells, err := parseShells(dir)
+	c.Assert(err, IsNil)
+	c.Assert(shells, DeepEquals, []string{
+		"/bin/sh",
+		"/bin/bash",
+		"/usr/bin/zsh",
+		"/usr/bin/fish",
+		"/bin/ksh",
+	})
 }

@@ -21,6 +21,7 @@ type user struct {
 	uid    int
 	gid    int
 	groups []string
+	shell  string
 
 	// these are the original lines from their respective files
 	passwdEntry string
@@ -40,7 +41,12 @@ func importHybridUserData(hybridRoot, baseRoot string) error {
 	return mergeAndWriteLoginFiles(hybridRoot, baseRoot, []string{"sudo", "admin"}, outputDir)
 }
 
-func userFilter(targetGroups []string, baseUsers map[string]user, baseGroups map[string]group) func(user) bool {
+func userFilter(
+	targetGroups []string,
+	baseUsers map[string]user,
+	baseGroups map[string]group,
+	loginShells []string,
+) func(user) bool {
 	return func(u user) bool {
 		// we always want to import the root user
 		if u.uid == 0 {
@@ -60,6 +66,11 @@ func userFilter(targetGroups []string, baseUsers map[string]user, baseGroups map
 
 		if checkForGIDConflict(u.gid, baseGroups) {
 			logger.Noticef("skipping importing user %q with GID %d because it conflicts with an existing group", u.name, u.gid)
+			return false
+		}
+
+		if u.shell != "" && !strutil.ListContains(loginShells, u.shell) {
+			logger.Noticef("skipping importing user %q with shell %q because it is not in the list of valid login shells", u.name, u.shell)
 			return false
 		}
 
@@ -135,7 +146,17 @@ func mergeAndWriteLoginFiles(importRoot, baseRoot string, targetGroups []string,
 		return err
 	}
 
-	importUsers, err := parseUsers(importRoot, userFilter(targetGroups, baseUsers, baseGroups))
+	loginShells, err := parseShells(importRoot)
+	if err != nil {
+		return err
+	}
+
+	importUsers, err := parseUsers(importRoot, userFilter(
+		targetGroups,
+		baseUsers,
+		baseGroups,
+		loginShells,
+	))
 	if err != nil {
 		return err
 	}
@@ -352,11 +373,17 @@ func parseUsers(root string, filter func(user) bool) (map[string]user, error) {
 			continue
 		}
 
+		var shell string
+		if len(parts) == 7 {
+			shell = parts[6]
+		}
+
 		u := user{
 			name:   name,
 			uid:    uid,
 			gid:    gid,
 			groups: userToGroups[name],
+			shell:  shell,
 
 			passwdEntry: entry,
 			shadowEntry: shadowEntries[name],
@@ -480,6 +507,41 @@ func parseGroupsForUser(path string) (usersToGroups map[string][]string, err err
 	}
 
 	return usersToGroups, nil
+}
+
+// parseShells parses a file in the format of /etc/shells and returns a list of
+// the valid login shells.
+func parseShells(root string) ([]string, error) {
+	f, err := os.Open(filepath.Join(root, "etc/shells"))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+
+	var shells []string
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+
+		// split the line into the shell and the comment
+		shell, _, _ := strings.Cut(line, "#")
+		shell = strings.TrimSpace(shell)
+
+		// if the line was entirely a comment, then shell will be empty
+		if shell != "" {
+			shells = append(shells, shell)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return shells, nil
 }
 
 // entriesByName reads the contents of a file in the style of /etc/passwd and

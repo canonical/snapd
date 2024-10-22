@@ -8572,6 +8572,13 @@ func (s *initramfsClassicMountsSuite) testRecoverModeHappy(c *C) {
 	c.Assert(err, IsNil)
 
 	writeLoginFiles(c, hostUbuntuData, passwdHybrid, shadowHybrid, groupHybrid, gshadowHybrid)
+	err = os.WriteFile(filepath.Join(hostUbuntuData, "etc/shells"), []byte(`
+/bin/sh
+/bin/bash
+/usr/bin/zsh
+`), 0640)
+	c.Assert(err, IsNil)
+
 	writeLoginFiles(c, filepath.Join(boot.InitramfsRunMntDir, "base"), passwdBase, shadowBase, groupBase, gshadowBase)
 
 	mockCopiedFiles := []string{
