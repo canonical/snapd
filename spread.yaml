@@ -144,6 +144,9 @@ backends:
             - ubuntu-24.10-64:
                   storage: 15G
                   workers: 8
+            - ubuntu-25.04-64:
+                  storage: 15G
+                  workers: 8
 
     google-core:
         type: google
