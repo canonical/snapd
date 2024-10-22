@@ -140,12 +140,6 @@ func mergeAndWriteUserFiles(originalRoot string, outputDir string, users map[str
 	}
 
 	for _, user := range users {
-		// only allow importing users that are either root or have a uid < 1000
-		// and gid < 1000
-		if (user.uid != 0 || user.gid != 0) && (user.uid < 1000 || user.gid < 1000) {
-			return fmt.Errorf("internal error: cannot import system users: %s has uid %d and gid %d", user.name, user.uid, user.gid)
-		}
-
 		parts := strings.Split(user.passwdEntry, ":")
 		if len(parts) != 7 {
 			return fmt.Errorf("internal error: passwd entry inconsistent with parsed data")
@@ -231,10 +225,6 @@ func mergeAndWriteGroupFiles(originalRoot string, outputDir string, users map[st
 	// don't need to mess with the users in these groups, since they're coming
 	// directly from the system we're importing from
 	for _, g := range groups {
-		if g.gid != 0 && g.gid < 1000 {
-			return fmt.Errorf("internal error: cannot import system groups: %s has gid %d", g.name, g.gid)
-		}
-
 		groupBuffer.WriteString(g.groupEntry + "\n")
 		if g.gshadowEntry != "" {
 			gshadowBuffer.WriteString(g.gshadowEntry + "\n")

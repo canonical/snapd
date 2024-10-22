@@ -566,59 +566,6 @@ sudo:!::
 	assertFileHasPermissions(c, filepath.Join(dest, "gshadow"), 0600)
 }
 
-func (s *hybridUserImportSuite) TestMergeAndWriteGroupFilesFailToImportSystemGroup(c *C) {
-	dir := c.MkDir()
-	writeTempFile(c, filepath.Join(dir, "etc/group"), `
-root:x:0:
-sudo:x:959:
-`)
-
-	writeTempFile(c, filepath.Join(dir, "etc/gshadow"), `
-root:::
-sudo:!::
-`)
-
-	dest := filepath.Join(dir, "etc-merged")
-	err := os.MkdirAll(dest, 0755)
-	c.Assert(err, IsNil)
-
-	users := map[string]user{
-		"root": {
-			name:        "root",
-			uid:         0,
-			gid:         0,
-			passwdEntry: "root:x:0:0:root:/root:",
-			shadowEntry: "root:d41d8cd98f00b204e9800998ecf8427e:19836:0:99999:7:::",
-		},
-		"user1": {
-			name:        "user1",
-			uid:         1000,
-			gid:         999,
-			groups:      []string{"sudo"},
-			passwdEntry: "user1:x:1000:999:user1:/home/user1:",
-			shadowEntry: "user1:28a4517315bfa7bda8fdcfb2f1f1d042:19837:0:99999:7:::",
-		},
-	}
-
-	groups := map[string]group{
-		"root": {
-			name:         "root",
-			gid:          0,
-			groupEntry:   "root:x:0:",
-			gshadowEntry: "root:!::",
-		},
-		"user1": {
-			name:         "user1",
-			gid:          999,
-			groupEntry:   "user1:x:999:",
-			gshadowEntry: "user1:!::",
-		},
-	}
-
-	err = mergeAndWriteGroupFiles(dir, dest, users, groups)
-	c.Assert(err, ErrorMatches, "internal error: cannot import system groups: user1 has gid 999")
-}
-
 func (s *hybridUserImportSuite) TestMergeAndWriteUserFiles(c *C) {
 	dir := c.MkDir()
 	writeTempFile(c, filepath.Join(dir, "etc/passwd"), `
@@ -699,53 +646,6 @@ user3:dc9b7b7b631aadd960231f4880923d0f:19839:0:99999:7:::
 		"user2:5177bcdd67b77a393852bb5ae47ee416:19838:0:99999:7:::",
 	})
 	assertFileHasPermissions(c, filepath.Join(dest, "shadow"), 0600)
-}
-
-func (s *hybridUserImportSuite) TestMergeAndWriteUserFilesFailToImportSystemUser(c *C) {
-	dir := c.MkDir()
-	writeTempFile(c, filepath.Join(dir, "etc/passwd"), `
-root:x:0:0:root:/root:/bin/bash
-lxd:x:964:984::/var/snap/lxd/common/lxd:/bin/false
-`)
-
-	writeTempFile(c, filepath.Join(dir, "etc/group"), `
-root:x:0:
-wheel:x:998:
-docker:x:968:
-lxd:x:964:
-sudo:x:959:
-`)
-
-	writeTempFile(c, filepath.Join(dir, "etc/shadow"), `
-root:!:19836:0:99999:7:::
-lxd:!:19838:0:99999:7:::
-`)
-
-	dest := filepath.Join(dir, "etc-merged")
-	err := os.MkdirAll(dest, 0755)
-	c.Assert(err, IsNil)
-
-	users := map[string]user{
-		"root": {
-			name:        "root",
-			uid:         0,
-			gid:         0,
-			groups:      nil,
-			passwdEntry: "root:x:0:0:root:/root:/bin/bash",
-			shadowEntry: "root:d41d8cd98f00b204e9800998ecf8427e:19836:0:99999:7:::",
-		},
-		"user1": {
-			name:        "user1",
-			uid:         999,
-			gid:         999,
-			groups:      []string{"wheel", "lxd", "sudo"},
-			passwdEntry: "user1:x:999:999:user1:/home/user1:/bin/bash",
-			shadowEntry: "user1:28a4517315bfa7bda8fdcfb2f1f1d042:19837:0:99999:7:::",
-		},
-	}
-
-	err = mergeAndWriteUserFiles(dir, dest, users)
-	c.Assert(err, ErrorMatches, "internal error: cannot import system users: user1 has uid 999 and gid 999")
 }
 
 func (s *hybridUserImportSuite) TestImportHybridUserData(c *C) {
