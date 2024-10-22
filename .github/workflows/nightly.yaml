@@ -9,6 +9,13 @@ jobs:
 
   tics:
     runs-on: ubuntu-22.04
+
+    container:
+      image: ghcr.io/canonical/ticsimg:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.PKGTOKEN }}
+
     env:
       GOPATH: ${{ github.workspace }}
       # Set PATH to ignore the load of magic binaries from /usr/local/bin and
@@ -17,13 +24,8 @@ jobs:
       # version of go.
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
       GOROOT: ""
-    strategy:
-      matrix:
-        gochannel:
-          - 1.23
-        unit-scenario:
-          - normal
-
+      GOCHANNEL: "1.23"
+  
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -43,7 +45,7 @@ jobs:
     - name: Install the go version
       uses: actions/setup-go@v5
       with:
-        go-version: ${{ matrix.gochannel }}
+        go-version: "$GOCHANNEL"
 
     - name: Get deps
       run: |
