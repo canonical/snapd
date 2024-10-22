@@ -9,7 +9,7 @@ details: |
 # the model in question uses latest/edge of core22 and 22/edge of pc and
 # pc-kernel snaps
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20-64]
 
 environment:
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/valid-for-testing-pc-{VERSION}.model

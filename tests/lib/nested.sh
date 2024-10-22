@@ -330,42 +330,42 @@ nested_is_classic_system() {
 
 nested_is_core_ge() {
     local VERSION=$1
-    os.query is-ubuntu-ge "${VERSION}.04"
+    test "$(nested_get_version)" -ge "${VERSION}"
 }
 
 nested_is_core_gt() {
     local VERSION=$1
-    os.query is-ubuntu-gt "${VERSION}.04"
+    test "$(nested_get_version)" -gt "${VERSION}"
 }
 
 nested_is_core_le() {
     local VERSION=$1
-    os.query is-ubuntu-le "${VERSION}.04"
+    test "$(nested_get_version)" -le "${VERSION}"
 }
 
 nested_is_core_lt() {
     local VERSION=$1
-    os.query is-ubuntu-lt "${VERSION}.04"
+    test "$(nested_get_version)" -lt "${VERSION}"
 }
 
 nested_is_core_24_system() {
-    os.query is-noble
+    [[ "$SPREAD_SYSTEM" =~ ubuntu-24 ]]
 }
 
 nested_is_core_22_system() {
-    os.query is-jammy
+    [[ "$SPREAD_SYSTEM" =~ ubuntu-22 ]]
 }
 
 nested_is_core_20_system() {
-    os.query is-focal
+    [[ "$SPREAD_SYSTEM" =~ ubuntu-20 ]]
 }
 
 nested_is_core_18_system() {
-    os.query is-bionic
+    [[ "$SPREAD_SYSTEM" =~ ubuntu-18 ]]
 }
 
 nested_is_core_16_system() {
-    os.query is-xenial
+    [[ "$SPREAD_SYSTEM" =~ ubuntu-16 ]]
 }
 
 nested_refresh_to_new_core() {
@@ -547,22 +547,22 @@ nested_get_model() {
         return
     fi
     case "$SPREAD_SYSTEM" in
-        ubuntu-16.04-64)
+        ubuntu-16-64)
             echo "$TESTSLIB/assertions/nested-amd64.model"
             ;;
-        ubuntu-18.04-64)
+        ubuntu-18-64)
             echo "$TESTSLIB/assertions/nested-18-amd64.model"
             ;;
-        ubuntu-20.04-64)
+        ubuntu-20-64)
             echo "$TESTSLIB/assertions/nested-20-amd64.model"
             ;;
-        ubuntu-22.04-64)
+        ubuntu-22-64)
             echo "$TESTSLIB/assertions/nested-22-amd64.model"
             ;;
-        ubuntu-22.04-arm-64)
+        ubuntu-22-arm-64)
             echo "$TESTSLIB/assertions/nested-22-arm64.model"
             ;;
-         ubuntu-24.04-64)
+        ubuntu-24-64)
             echo "$TESTSLIB/assertions/nested-24-amd64.model"
             ;;
         *)
@@ -861,8 +861,7 @@ nested_create_core_vm() {
         else
             # create the ubuntu-core image
             local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
-            if os.query is-xenial || os.query is-arm; then
-                # ubuntu-image on 16.04 needs to be installed from a snap
+            if os.query is-arm; then
                 UBUNTU_IMAGE=/snap/bin/ubuntu-image
             fi
 
@@ -1437,7 +1436,7 @@ nested_create_classic_vm() {
 
         # Get the cloud image
         local IMAGE_URL
-        IMAGE_URL="$(get_image_url_for_vm)"
+        IMAGE_URL="$(get_image_url_for_vm "$SPREAD_SYSTEM")"
         wget -q -P "$NESTED_IMAGES_DIR" "$IMAGE_URL"
         nested_download_image "$IMAGE_URL" "$IMAGE_NAME"
 

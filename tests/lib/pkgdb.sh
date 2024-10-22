@@ -658,6 +658,28 @@ pkg_dependencies_ubuntu_classic(){
     esac
 }
 
+pkg_dependencies_ubuntu_nested(){
+    echo "
+        build-essential
+        ca-certificates
+        cloud-image-utils
+        devscripts
+        gdebi-core
+        genisoimage
+        kpartx
+        lz4
+        lzop
+        mtools
+        ovmf
+        qemu-kvm
+        qemu-utils
+        snapd
+        sshpass
+        xdelta3
+        xz-utils
+    "
+}
+
 pkg_linux_image_extra (){
     if apt-cache show "linux-image-extra-$(uname -r)" > /dev/null 2>&1; then
         echo "linux-image-extra-$(uname -r)";
@@ -859,8 +881,13 @@ pkg_dependencies(){
             pkg_dependencies_ubuntu_core
             ;;
         ubuntu-*|debian-*)
-            pkg_dependencies_ubuntu_generic
-            pkg_dependencies_ubuntu_classic
+            # Nested hosts need a different set of dependencies
+            if [ -n "$NESTED_TYPE" ]; then
+                pkg_dependencies_ubuntu_nested
+            else
+                pkg_dependencies_ubuntu_generic
+                pkg_dependencies_ubuntu_classic
+            fi
             ;;
         amazon-*)
             pkg_dependencies_amazon

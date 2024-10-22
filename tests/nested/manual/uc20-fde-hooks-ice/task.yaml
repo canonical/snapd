@@ -4,7 +4,7 @@ details: |
   Check that Ubuntu Core image boots properly and the system is encrypted
   when using fde-setup with feature "inline-cryto-engine"
 
-systems: [ubuntu-22.04-64, ubuntu-24.04-64]
+systems: [ubuntu-22-64, ubuntu-24-64]
 
 environment:
     NESTED_ENABLE_TPM: false

@@ -6,7 +6,7 @@ details: |
     system is known as validation sets. The test verifies that a validation set
     is effective immediately after seeding.
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20-64]
 
 environment:
     # use snapd from the spread run so that we have testkeys trusted in the
