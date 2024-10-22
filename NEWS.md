@@ -1,3 +1,9 @@
+# New in snapd 2.61.4:
+* Fix not checking file type when extracting a snap
+* Fix not checking destination of symbolic link when extracting a snap
+* Fix unexpected mount points in /var/lib/snapd/hostfs on the initial mount namespace
+* home interface: deny creation of $HOME/bin
+
 # New in snapd 2.61.3:
 * Install systemd files in correct location for 24.04
 

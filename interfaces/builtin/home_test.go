@@ -146,6 +146,7 @@ func (s *HomeInterfaceSuite) TestConnectedPlugAppArmorWithoutAttrib(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `owner @{HOME}/ r,`)
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `audit deny @{HOME}/bin/{,**} wl,`)
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `audit deny @{HOME}/bin wl,`)
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), Not(testutil.Contains), `# Allow non-owner read`)
 }
 
@@ -168,6 +169,7 @@ apps:
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.home-plug-snap.app2"})
 	c.Check(apparmorSpec.SnippetForTag("snap.home-plug-snap.app2"), testutil.Contains, `audit deny @{HOME}/bin/{,**} wl,`)
 	c.Check(apparmorSpec.SnippetForTag("snap.home-plug-snap.app2"), testutil.Contains, `owner @{HOME}/ r,`)
+	c.Check(apparmorSpec.SnippetForTag("snap.home-plug-snap.app2"), testutil.Contains, `audit deny @{HOME}/bin wl,`)
 	c.Check(apparmorSpec.SnippetForTag("snap.home-plug-snap.app2"), testutil.Contains, `# Allow non-owner read`)
 }
 

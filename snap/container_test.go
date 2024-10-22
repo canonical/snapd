@@ -20,6 +20,7 @@
 package snap_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -37,13 +39,34 @@ var _ = Suite(&FileSuite{})
 
 type validateSuite struct {
 	testutil.BaseTest
+
+	snapDirPath      string
+	snapSquashfsPath string
+	containerType    string
 }
 
-var _ = Suite(&validateSuite{})
+type dirContainerValidateSuite struct{ validateSuite }
+type squashfsContainerValidateSuite struct{ validateSuite }
+
+var _ = Suite(&dirContainerValidateSuite{validateSuite{containerType: "dir"}})
+var _ = Suite(&squashfsContainerValidateSuite{validateSuite{containerType: "squashfs"}})
 
 func discard(string, ...interface{}) {}
 
+func (s *validateSuite) container() snap.Container {
+	if s.containerType == "squashfs" {
+		snap := squashfs.New(s.snapSquashfsPath)
+		if err := snap.Build(s.snapDirPath, nil); err != nil {
+			panic(fmt.Sprintf("internal error: couldn't build snap: %s", err))
+		}
+		return snap
+	}
+	return snapdir.New(s.snapDirPath)
+}
+
 func (s *validateSuite) SetUpTest(c *C) {
+	s.snapDirPath = c.MkDir()
+	s.snapSquashfsPath = filepath.Join(c.MkDir(), "foo.snap")
 	s.BaseTest.SetUpTest(c)
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 }
@@ -56,13 +79,10 @@ func (s *validateSuite) TestValidateContainerReallyEmptyFails(c *C) {
 	const yaml = `name: empty-snap
 version: 1
 `
-	d := c.MkDir()
-	// the snap dir is a 0700 directory with nothing in it
-
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(snapdir.New(d), info, discard)
+	err = snap.ValidateContainer(s.container(), info, discard)
 	c.Check(err, Equals, snap.ErrMissingPaths)
 }
 
@@ -70,21 +90,19 @@ func (s *validateSuite) TestValidateContainerEmptyButBadPermFails(c *C) {
 	const yaml = `name: empty-snap
 version: 1
 `
-	d := c.MkDir()
-
-	stat, err := os.Stat(d)
+	stat, err := os.Stat(s.snapDirPath)
 	c.Assert(err, IsNil)
 	c.Check(stat.Mode().Perm(), Equals, os.FileMode(0700)) // just to be sure
 
-	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(d, "meta", "snap.yaml"), nil, 0444), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(s.snapDirPath, "meta"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(s.snapDirPath, "meta", "snap.yaml"), nil, 0444), IsNil)
 
 	// snapdir has /meta/snap.yaml, but / is 0700
 
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(snapdir.New(d), info, discard)
+	err = snap.ValidateContainer(s.container(), info, discard)
 	c.Check(err, Equals, snap.ErrBadModes)
 }
 
@@ -92,16 +110,15 @@ func (s *validateSuite) TestValidateContainerMissingSnapYamlFails(c *C) {
 	const yaml = `name: empty-snap
 version: 1
 `
-	d := c.MkDir()
-	c.Assert(os.Chmod(d, 0755), IsNil)
-	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
+	c.Assert(os.Chmod(s.snapDirPath, 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(s.snapDirPath, "meta"), 0755), IsNil)
 
 	// snapdir's / and /meta are 0755 (i.e. OK), but no /meta/snap.yaml
 
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(snapdir.New(d), info, discard)
+	err = snap.ValidateContainer(s.container(), info, discard)
 	c.Check(err, Equals, snap.ErrMissingPaths)
 }
 
@@ -109,10 +126,9 @@ func (s *validateSuite) TestValidateContainerSnapYamlBadPermsFails(c *C) {
 	const yaml = `name: empty-snap
 version: 1
 `
-	d := c.MkDir()
-	c.Assert(os.Chmod(d, 0755), IsNil)
-	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(d, "meta", "snap.yaml"), nil, 0), IsNil)
+	c.Assert(os.Chmod(s.snapDirPath, 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(s.snapDirPath, "meta"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(s.snapDirPath, "meta", "snap.yaml"), nil, 0), IsNil)
 
 	// snapdir's / and /meta are 0755 (i.e. OK),
 	// /meta/snap.yaml exists, but isn't readable
@@ -120,7 +136,7 @@ version: 1
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(snapdir.New(d), info, discard)
+	err = snap.ValidateContainer(s.container(), info, discard)
 	c.Check(err, Equals, snap.ErrBadModes)
 }
 
@@ -128,10 +144,9 @@ func (s *validateSuite) TestValidateContainerSnapYamlNonRegularFails(c *C) {
 	const yaml = `name: empty-snap
 version: 1
 `
-	d := c.MkDir()
-	c.Assert(os.Chmod(d, 0755), IsNil)
-	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
-	c.Assert(syscall.Mkfifo(filepath.Join(d, "meta", "snap.yaml"), 0444), IsNil)
+	c.Assert(os.Chmod(s.snapDirPath, 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(s.snapDirPath, "meta"), 0755), IsNil)
+	c.Assert(syscall.Mkfifo(filepath.Join(s.snapDirPath, "meta", "snap.yaml"), 0444), IsNil)
 
 	// snapdir's / and /meta are 0755 (i.e. OK),
 	// /meta/snap.yaml exists, is readable, but isn't a file
@@ -139,26 +154,24 @@ version: 1
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(snapdir.New(d), info, discard)
+	err = snap.ValidateContainer(s.container(), info, discard)
 	c.Check(err, Equals, snap.ErrBadModes)
 }
 
-// emptyContainer returns a minimal container that passes
-// ValidateContainer: / and /meta exist and are 0755, and
-// /meta/snap.yaml is a regular world-readable file.
-func emptyContainer(c *C) *snapdir.SnapDir {
-	d := c.MkDir()
-	c.Assert(os.Chmod(d, 0755), IsNil)
-	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(d, "meta", "snap.yaml"), nil, 0444), IsNil)
-	return snapdir.New(d)
+// bootstrapEmptyContainer creates a minimal container directory under
+// s.snapDirPath that passes ValidateContainer: / and /meta exist and
+// are 0755, and /meta/snap.yaml is a regular world-readable file.
+func (s *validateSuite) bootstrapEmptyContainer(c *C) {
+	c.Assert(os.Chmod(s.snapDirPath, 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(s.snapDirPath, "meta"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(s.snapDirPath, "meta", "snap.yaml"), nil, 0444), IsNil)
 }
 
 func (s *validateSuite) TestValidateContainerMinimalOKPermWorks(c *C) {
 	const yaml = `name: empty-snap
 version: 1
 `
-	d := emptyContainer(c)
+	s.bootstrapEmptyContainer(c)
 	// snapdir's / and /meta are 0755 (i.e. OK),
 	// /meta/snap.yaml exists, is readable regular file
 	// (this could be considered a test of emptyContainer)
@@ -166,7 +179,7 @@ version: 1
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(d, info, discard)
+	err = snap.ValidateContainer(s.container(), info, discard)
 	c.Check(err, IsNil)
 }
 
@@ -177,13 +190,13 @@ apps:
  foo:
   command: foo
 `
-	d := emptyContainer(c)
+	s.bootstrapEmptyContainer(c)
 	// snapdir is empty: no apps
 
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(d, info, discard)
+	err = snap.ValidateContainer(s.container(), info, discard)
 	c.Check(err, Equals, snap.ErrMissingPaths)
 }
 
@@ -194,15 +207,15 @@ apps:
  foo:
   command: foo
 `
-	d := emptyContainer(c)
-	c.Assert(os.WriteFile(filepath.Join(d.Path(), "foo"), nil, 0444), IsNil)
+	s.bootstrapEmptyContainer(c)
+	c.Assert(os.WriteFile(filepath.Join(s.snapDirPath, "foo"), nil, 0444), IsNil)
 
 	// snapdir contains the app, but the app is not executable
 
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(d, info, discard)
+	err = snap.ValidateContainer(s.container(), info, discard)
 	c.Check(err, Equals, snap.ErrBadModes)
 }
 
@@ -213,16 +226,16 @@ apps:
  foo:
   command: apps/foo
 `
-	d := emptyContainer(c)
-	c.Assert(os.Mkdir(filepath.Join(d.Path(), "apps"), 0700), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(d.Path(), "apps", "foo"), nil, 0555), IsNil)
+	s.bootstrapEmptyContainer(c)
+	c.Assert(os.Mkdir(filepath.Join(s.snapDirPath, "apps"), 0700), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(s.snapDirPath, "apps", "foo"), nil, 0555), IsNil)
 
 	// snapdir contains executable app, but path to executable isn't rx
 
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(d, info, discard)
+	err = snap.ValidateContainer(s.container(), info, discard)
 	c.Check(err, Equals, snap.ErrBadModes)
 }
 
@@ -234,16 +247,16 @@ apps:
   command: svcs/bar
   daemon: simple
 `
-	d := emptyContainer(c)
-	c.Assert(os.Mkdir(filepath.Join(d.Path(), "svcs"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(d.Path(), "svcs", "bar"), nil, 0), IsNil)
+	s.bootstrapEmptyContainer(c)
+	c.Assert(os.Mkdir(filepath.Join(s.snapDirPath, "svcs"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(s.snapDirPath, "svcs", "bar"), nil, 0), IsNil)
 
 	// snapdir contains service, but it isn't executable
 
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(d, info, discard)
+	err = snap.ValidateContainer(s.container(), info, discard)
 	c.Check(err, Equals, snap.ErrBadModes)
 }
 
@@ -255,10 +268,10 @@ apps:
   command: cmds/foo
   completer: comp/foo.sh
 `
-	d := emptyContainer(c)
-	c.Assert(os.Mkdir(filepath.Join(d.Path(), "cmds"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(d.Path(), "cmds", "foo"), nil, 0555), IsNil)
-	c.Assert(os.Mkdir(filepath.Join(d.Path(), "comp"), 0755), IsNil)
+	s.bootstrapEmptyContainer(c)
+	c.Assert(os.Mkdir(filepath.Join(s.snapDirPath, "cmds"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(s.snapDirPath, "cmds", "foo"), nil, 0555), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(s.snapDirPath, "comp"), 0755), IsNil)
 
 	// snapdir contains executable app, in a rx path, but refers
 	// to a completer that doesn't exist
@@ -266,7 +279,7 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(d, info, discard)
+	err = snap.ValidateContainer(s.container(), info, discard)
 	c.Check(err, Equals, snap.ErrMissingPaths)
 }
 
@@ -278,7 +291,7 @@ apps:
  foo:
   command: ../../../bin/echo
 `
-	d := emptyContainer(c)
+	s.bootstrapEmptyContainer(c)
 
 	// snapdir does not contain the app, but the command is
 	// "outside" so it might be OK
@@ -286,7 +299,7 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(d, info, discard)
+	err = snap.ValidateContainer(s.container(), info, discard)
 	c.Check(err, IsNil)
 }
 
@@ -298,8 +311,8 @@ apps:
  foo:
   command: foo
 `
-	d := emptyContainer(c)
-	fn := filepath.Join(d.Path(), "foo")
+	s.bootstrapEmptyContainer(c)
+	fn := filepath.Join(s.snapDirPath, "foo")
 	c.Assert(os.WriteFile(fn+".real", nil, 0444), IsNil)
 	c.Assert(os.Symlink(fn+".real", fn), IsNil)
 
@@ -308,7 +321,7 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(d, info, discard)
+	err = snap.ValidateContainer(s.container(), info, discard)
 	c.Check(err, Equals, snap.ErrBadModes)
 }
 
@@ -319,8 +332,8 @@ apps:
  foo:
   command: foo
 `
-	d := emptyContainer(c)
-	fn := filepath.Join(d.Path(), "foo")
+	s.bootstrapEmptyContainer(c)
+	fn := filepath.Join(s.snapDirPath, "foo")
 	c.Assert(os.WriteFile(fn+".real", nil, 0555), IsNil)
 	c.Assert(os.Symlink(fn+".real", fn), IsNil)
 
@@ -329,8 +342,147 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(d, info, discard)
+	err = snap.ValidateContainer(s.container(), info, discard)
 	c.Check(err, IsNil)
+}
+
+func (s *validateSuite) TestValidateContainerSymlinksMetaBadTargetMode(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+`
+	s.bootstrapEmptyContainer(c)
+	c.Assert(os.MkdirAll(filepath.Join(s.snapDirPath, "meta"), 0755), IsNil)
+	externalSymlink := filepath.Join(s.snapDirPath, "meta", "symlink")
+	// target is has bad mode
+	const mode = os.FileMode(0711)
+	c.Assert(os.WriteFile(filepath.Join(s.snapDirPath, "target"), nil, mode), IsNil)
+	c.Assert(os.Symlink("../target", externalSymlink), IsNil)
+
+	container := s.container()
+
+	symlinkInfo, err := snap.EvalAndValidateSymlink(container, "meta/symlink")
+	c.Check(err, IsNil)
+	c.Check(symlinkInfo.Mode(), Equals, mode)
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	err = snap.ValidateContainer(container, info, discard)
+	c.Check(err, ErrorMatches, "snap is unusable due to bad permissions")
+}
+
+func (s *validateSuite) TestValidateContainerSymlinksMetaBadTargetMode0000(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+`
+	s.bootstrapEmptyContainer(c)
+	c.Assert(os.MkdirAll(filepath.Join(s.snapDirPath, "meta"), 0755), IsNil)
+	externalSymlink := filepath.Join(s.snapDirPath, "meta", "symlink")
+	// target is has bad mode
+	const mode = os.FileMode(0000)
+	c.Assert(os.WriteFile(filepath.Join(s.snapDirPath, "target"), nil, mode), IsNil)
+	c.Assert(os.Symlink("../target", externalSymlink), IsNil)
+
+	container := s.container()
+
+	symlinkInfo, err := snap.EvalAndValidateSymlink(container, "meta/symlink")
+	c.Check(err, IsNil)
+	c.Check(symlinkInfo.Mode(), Equals, mode)
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	err = snap.ValidateContainer(container, info, discard)
+	c.Check(err, ErrorMatches, "snap is unusable due to bad permissions")
+}
+
+func (s *validateSuite) TestValidateContainerMetaExternalAbsSymlinksFails(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+`
+	s.bootstrapEmptyContainer(c)
+	c.Assert(os.MkdirAll(filepath.Join(s.snapDirPath, "meta", "gui", "icons"), 0755), IsNil)
+	externalSymlink := filepath.Join(s.snapDirPath, "meta", "gui", "icons", "snap.empty-snap.png")
+	c.Assert(os.Symlink("/etc/shadow", externalSymlink), IsNil)
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	mockLogf := func(format string, v ...interface{}) {
+		msg := fmt.Sprintf(format, v...)
+		c.Check(msg, Equals, "external symlink found: meta/gui/icons/snap.empty-snap.png -> /etc/shadow")
+	}
+
+	err = snap.ValidateContainer(s.container(), info, mockLogf)
+	c.Check(err, Equals, snap.ErrBadModes)
+}
+
+func (s *validateSuite) TestValidateContainerMetaExternalRelativeSymlinksFails(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+`
+	s.bootstrapEmptyContainer(c)
+	c.Assert(os.MkdirAll(filepath.Join(s.snapDirPath, "meta", "gui", "icons"), 0755), IsNil)
+	externalSymlink := filepath.Join(s.snapDirPath, "meta", "gui", "icons", "snap.empty-snap.png")
+	// target is cleaned and checked if it escapes beyond path root folder
+	c.Assert(os.Symlink("1/../../2/../../3/4/../../../../..", externalSymlink), IsNil)
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	mockLogf := func(format string, v ...interface{}) {
+		msg := fmt.Sprintf(format, v...)
+		c.Check(msg, Equals, "external symlink found: meta/gui/icons/snap.empty-snap.png -> 1/../../2/../../3/4/../../../../..")
+	}
+
+	err = snap.ValidateContainer(s.container(), info, mockLogf)
+	c.Check(err, Equals, snap.ErrBadModes)
+}
+
+func (s *validateSuite) TestValidateContainerMetaExternalRelativeSymlinksOk(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+`
+	s.bootstrapEmptyContainer(c)
+	c.Assert(os.MkdirAll(filepath.Join(s.snapDirPath, "meta", "gui", "icons"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(s.snapDirPath, "target"), nil, 0644), IsNil)
+	externalSymlink := filepath.Join(s.snapDirPath, "meta", "gui", "icons", "snap.empty-snap.png")
+	// target is cleaned and checked if it escapes beyond path root folder
+	c.Assert(os.Symlink("1/../2/../../3/4/../../../../target", externalSymlink), IsNil)
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	err = snap.ValidateContainer(s.container(), info, discard)
+	c.Check(err, IsNil)
+}
+
+func (s *validateSuite) TestValidateContainerMetaDirectorySymlinksFail(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+`
+	c.Assert(os.Chmod(s.snapDirPath, 0755), IsNil)
+	// no need to populate the symlink target with snap.yaml as the validator
+	// will fail with ErrMissingPaths even it was added.
+	c.Assert(os.Mkdir(filepath.Join(s.snapDirPath, "target"), 0755), IsNil)
+	c.Assert(os.Symlink("target", filepath.Join(s.snapDirPath, "meta")), IsNil)
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	metaDirSymlinkErrFound := false
+	mockLogf := func(format string, v ...interface{}) {
+		msg := fmt.Sprintf(format, v...)
+		if msg == "meta directory cannot be a symlink" {
+			metaDirSymlinkErrFound = true
+		}
+	}
+
+	err = snap.ValidateContainer(s.container(), info, mockLogf)
+	c.Check(metaDirSymlinkErrFound, Equals, true)
+	// the check for missing files precedes check for permission errors, so we
+	// check for it instead.
+	c.Check(err, Equals, snap.ErrMissingPaths)
 }
 
 func (s *validateSuite) TestValidateContainerAppsOK(c *C) {
@@ -352,18 +504,21 @@ apps:
   command: comp/foo.sh
   daemon: simple
 `
-	d := emptyContainer(c)
-	c.Assert(os.Mkdir(filepath.Join(d.Path(), "cmds"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(d.Path(), "cmds", "foo"), nil, 0555), IsNil)
-	c.Assert(os.Mkdir(filepath.Join(d.Path(), "comp"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(d.Path(), "comp", "foo.sh"), nil, 0555), IsNil)
+	if s.containerType == "squashfs" {
+		c.Skip("Cannot build snap squashfs with garbge/zero directory permissions")
+	}
+	s.bootstrapEmptyContainer(c)
+	c.Assert(os.Mkdir(filepath.Join(s.snapDirPath, "cmds"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(s.snapDirPath, "cmds", "foo"), nil, 0555), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(s.snapDirPath, "comp"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(s.snapDirPath, "comp", "foo.sh"), nil, 0555), IsNil)
 
-	c.Assert(os.Mkdir(filepath.Join(d.Path(), "svcs"), 0700), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(d.Path(), "svcs", "bar"), nil, 0500), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(s.snapDirPath, "svcs"), 0700), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(s.snapDirPath, "svcs", "bar"), nil, 0500), IsNil)
 
-	c.Assert(os.Mkdir(filepath.Join(d.Path(), "garbage"), 0755), IsNil)
-	c.Assert(os.Mkdir(filepath.Join(d.Path(), "garbage", "zero"), 0), IsNil)
-	defer os.Chmod(filepath.Join(d.Path(), "garbage", "zero"), 0755)
+	c.Assert(os.Mkdir(filepath.Join(s.snapDirPath, "garbage"), 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(s.snapDirPath, "garbage", "zero"), 0), IsNil)
+	defer os.Chmod(filepath.Join(s.snapDirPath, "garbage", "zero"), 0755)
 
 	// snapdir contains:
 	//  * a command that's world-rx, and its directory is
@@ -383,6 +538,145 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(d, info, discard)
+	err = snap.ValidateContainer(s.container(), info, discard)
 	c.Check(err, IsNil)
+}
+
+func (s *validateSuite) TestValidateSymlinkLoop(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+`
+	s.bootstrapEmptyContainer(c)
+	c.Assert(os.Symlink("1", filepath.Join(s.snapDirPath, "meta", "2")), IsNil)
+	c.Assert(os.Symlink("2", filepath.Join(s.snapDirPath, "meta", "3")), IsNil)
+	c.Assert(os.Symlink("3", filepath.Join(s.snapDirPath, "meta", "1")), IsNil)
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	loopFound := false
+	mockLogf := func(format string, v ...interface{}) {
+		msg := fmt.Sprintf(format, v...)
+		if msg == "too many levels of symbolic links" {
+			loopFound = true
+		}
+	}
+
+	err = snap.ValidateContainer(s.container(), info, mockLogf)
+	c.Check(err, Equals, snap.ErrBadModes)
+	c.Check(loopFound, Equals, true)
+}
+
+func (s *validateSuite) TestValidateSymlinkOk(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+`
+	s.bootstrapEmptyContainer(c)
+	c.Assert(os.MkdirAll(filepath.Join(s.snapDirPath, "media", "sub"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(s.snapDirPath, "media", "icon.png"), nil, 0644), IsNil)
+	c.Assert(os.Symlink("../icon.png", filepath.Join(s.snapDirPath, "media", "sub", "symlink-1.png")), IsNil)
+	c.Assert(os.Symlink("symlink-1.png", filepath.Join(s.snapDirPath, "media", "sub", "symlink-2.png")), IsNil)
+	c.Assert(os.Symlink("../media/sub/symlink-2.png", filepath.Join(s.snapDirPath, "meta", "icon.png")), IsNil)
+	// all symlinks outside meta directory are allowed
+	c.Assert(os.MkdirAll(filepath.Join(s.snapDirPath, "bin"), 0755), IsNil)
+	c.Assert(os.Symlink("/usr/bin/python3", filepath.Join(s.snapDirPath, "bin", "python3")), IsNil)
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	err = snap.ValidateContainer(s.container(), info, discard)
+	c.Check(err, IsNil)
+}
+
+func (s *validateSuite) TestValidateSymlinkExternal(c *C) {
+	type testcase struct {
+		path   string
+		target string
+	}
+
+	s.bootstrapEmptyContainer(c)
+	for _, t := range []testcase{
+		{"meta/snap.yaml", "../.."},
+		{"meta/snap.yaml", "../../"},
+		{"meta/snap.yaml", "../../rev2"},
+		{"meta/snap.yaml", "../../../core/current/meta/snap.yaml"},
+		{"meta/gui/icons/snap.png", "../1/../../2/../../3/4/../../../test"},
+		{"meta/gui/icons/snap.png", "/etc/shadow"},
+		{"meta/gui/icons/snap.png", "/var/snap/other-snap/current/sensitive"},
+	} {
+		c.Assert(os.MkdirAll(filepath.Join(s.snapDirPath, filepath.Dir(t.path)), 0755), IsNil)
+		c.Assert(os.RemoveAll(filepath.Join(s.snapDirPath, t.path)), IsNil)
+		c.Assert(os.Symlink(t.target, filepath.Join(s.snapDirPath, t.path)), IsNil)
+
+		cmt := Commentf(fmt.Sprintf("path: %s, target: %s", t.path, t.target))
+		expectedError := fmt.Sprintf("external symlink found: %s -> %s", t.path, t.target)
+		_, err := snap.EvalAndValidateSymlink(s.container(), t.path)
+		c.Check(err, ErrorMatches, expectedError, cmt)
+	}
+}
+
+func (s *validateSuite) TestValidateSymlinkSnapMount(c *C) {
+	type testcase struct {
+		path   string
+		target string
+	}
+
+	s.bootstrapEmptyContainer(c)
+	for _, t := range []testcase{
+		{"meta/snap.yaml", ".."},
+		{"meta/snap.yaml", "../"},
+		{"meta/gui/icons/snap.png", "../1/../../2/../../3/4/../.."},
+	} {
+		c.Assert(os.MkdirAll(filepath.Join(s.snapDirPath, filepath.Dir(t.path)), 0755), IsNil)
+		c.Assert(os.RemoveAll(filepath.Join(s.snapDirPath, t.path)), IsNil)
+		c.Assert(os.Symlink(t.target, filepath.Join(s.snapDirPath, t.path)), IsNil)
+
+		cmt := Commentf(fmt.Sprintf("path: %s, target: %s", t.path, t.target))
+		expectedError := fmt.Sprintf("bad symlink found: %s -> %s", t.path, t.target)
+		_, err := snap.EvalAndValidateSymlink(s.container(), t.path)
+		c.Check(err, ErrorMatches, expectedError, cmt)
+	}
+}
+
+func (s *validateSuite) TestValidateSymlinkMeta(c *C) {
+	type testcase struct {
+		path   string
+		target string
+	}
+
+	s.bootstrapEmptyContainer(c)
+	for _, t := range []testcase{
+		{"meta/snap.yaml", "."},
+		{"meta/snap.yaml", "../meta"},
+		{"meta/gui/icons/snap.png", "../1/../../2/../../3/4/../../meta"},
+	} {
+		c.Assert(os.MkdirAll(filepath.Join(s.snapDirPath, filepath.Dir(t.path)), 0755), IsNil)
+		c.Assert(os.RemoveAll(filepath.Join(s.snapDirPath, t.path)), IsNil)
+		c.Assert(os.Symlink(t.target, filepath.Join(s.snapDirPath, t.path)), IsNil)
+
+		cmt := Commentf(fmt.Sprintf("path: %s, target: %s", t.path, t.target))
+		expectedError := fmt.Sprintf("bad symlink found: %s -> %s", t.path, t.target)
+		_, err := snap.EvalAndValidateSymlink(s.container(), t.path)
+		c.Check(err, ErrorMatches, expectedError, cmt)
+	}
+}
+
+func (s *validateSuite) TestShouldValidateSymlink(c *C) {
+	type testcase struct {
+		path     string
+		expected bool
+	}
+
+	for _, t := range []testcase{
+		{"meta", true},
+		{"meta/snap.yaml", true},
+		{"meta/gui/icons/snap.png", true},
+		{"meta/gui/snap.desktop", true},
+		{"etc", false},
+		{"etc/test", false},
+		{"other", false},
+	} {
+		cmt := Commentf(fmt.Sprintf("path: %s, expected: %t", t.path, t.expected))
+		c.Check(snap.ShouldValidateSymlink(t.path), Equals, t.expected, cmt)
+	}
 }

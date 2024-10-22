@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.61.3
+Version:        2.61.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -991,6 +991,15 @@ fi
 
 
 %changelog
+* Wed Jun 05 2024 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.61.4
+ - Fix not checking file type when extracting a snap
+ - Fix not checking destination of symbolic link when extracting a
+   snap
+ - Fix unexpected mount points in /var/lib/snapd/hostfs on the
+   initial mount namespace
+ - home interface: deny creation of $HOME/bin
+
 * Wed Mar 06 2024 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.61.3
  - Install systemd files in correct location for 24.04

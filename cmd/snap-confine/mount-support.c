@@ -919,7 +919,8 @@ static struct sc_mount *sc_homedir_mounts(const struct sc_invocation *inv)
 	for (int i = 0; i < inv->num_homedirs; i++) {
 		debug("Adding homedir: %s", inv->homedirs[i]);
 		mounts[i].path = sc_strdup(inv->homedirs[i]);
-		mounts[i].is_bidirectional = true;
+		// Note that we are not setting bidirectional flag, so anything mounted
+		// here will not propagate to the host.
 	}
 	return mounts;
 }

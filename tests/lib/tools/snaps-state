@@ -171,7 +171,7 @@ repack_snapd_deb_into_snap() {
 }
 
 # This function will re-pack the current core snap as the snapd snap,
-# using the snapd snap from edge as the set of files to use from the core snap.
+# using the snapd snap from stable as the set of files to use from the core snap.
 # This is primarily meant to be used in UC16 tests that need to use the snapd
 # snap because neither the snapd snap, nor the snapd deb built for the spread
 # run are seeded on the image
@@ -184,7 +184,7 @@ repack_core_snap_into_snapd_snap() {
 
     # get the snap.yaml and a list of all the snapd snap files using edge
     # NOTE: this may break if a spread run adds files to the snapd snap that
-    # don't exist in the snapd snap on edge and those files are necessary
+    # don't exist in the snapd snap on stable and those files are necessary
     # for snapd to run or revert, etc.
     local core_snap current
     if [ $# -eq 0 ]; then
@@ -198,7 +198,7 @@ repack_core_snap_into_snapd_snap() {
         fi
     fi
 
-    snap download snapd --basename=snapd-upstream --edge
+    snap download snapd --basename=snapd-upstream --stable
     unsquashfs -d ./snapd-upstream snapd-upstream.snap
     rm snapd-upstream.snap
     (

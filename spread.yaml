@@ -52,7 +52,7 @@ environment:
     # Channel for kernel cannot be edge as that one is not signed with Canonical keys
     KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-beta}")'
     GADGET_CHANNEL: '$(HOST: echo "${SPREAD_GADGET_CHANNEL:-beta}")'
-    SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
+    SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-stable}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
     DELTA_REF: 2.52
