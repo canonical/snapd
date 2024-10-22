@@ -507,6 +507,51 @@ dbus (receive, send)
 /etc/xdg/user-dirs.conf r,
 /etc/xdg/user-dirs.defaults r,
 /run/udev/tags/seat{,/**} r,
+
+# KDE Plasma specific extension
+
+# Used by the KCrash handler
+@{PROC}/sys/kernel/core_pattern r,
+
+# So that KSplash disappears when appropriate
+dbus (receive, send)
+    bus=session
+    path=/KSplash
+    interface=org.kde.KSplash
+    member=setStage
+    peer=(label=unconfined),
+dbus (receive, send)
+    bus=session
+    path=/KSplash
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
+
+dbus (receive, send)
+    bus=session
+    path=/KSMServer
+    interface=org.kde.KSMServerInterface
+    member=restoreSession
+    peer=(label=unconfined),
+dbus (receive, send)
+    bus=session
+    path=/KSMServer
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
+
+dbus (receive, send)
+    bus=session
+    path=/kcminit
+    interface=org.kde.KCMInit
+    member=runPhase1
+    peer=(label=unconfined),
+dbus (receive, send)
+    bus=session
+    path=/kcminit
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
 `
 
 type desktopInterface struct {
