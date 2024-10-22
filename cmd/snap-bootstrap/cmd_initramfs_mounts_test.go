@@ -8672,8 +8672,8 @@ grade=signed
 const (
 	passwdHybrid = `root:x:0:0:root:/root:/bin/bash
 imported:x:1000:1001::/home/imported:/usr/bin/zsh
-system:x:10:10::/home/system:/bin/sh
-ignore:x:1002:1002::/home/ignore:/bin/sh
+system:x:10:10::/home/system:/bin/bash
+ignore:x:1002:1002::/home/ignore:/usr/bin/zsh
 shared:x:1003:1001::/home/shared:/bin/sh
 `
 	shadowHybrid = `root:$y$j9T$MWRKyDbOQcQR7X77eukIp0$SwBP/2CgMJ96ENp01Z2zDtbhp5ztYNXOmzov0J2iHUC:19836:0:99999:7:::
@@ -8714,9 +8714,9 @@ sudo:*::
 
 	passwdMerged = `dnsmasq:x:109:109:Reserved:/var/lib/misc:/bin/false
 daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
-root:x:0:0:root:/root:
-imported:x:1000:1001::/home/imported:
-shared:x:1003:1001::/home/shared:
+root:x:0:0:root:/root:/bin/bash
+imported:x:1000:1001::/home/imported:/bin/bash
+shared:x:1003:1001::/home/shared:/bin/bash
 `
 	shadowMerged = `daemon:*:16329:0:99999:7:::
 dnsmasq:*:16644:0:99999:7:::

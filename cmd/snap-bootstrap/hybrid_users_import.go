@@ -152,9 +152,9 @@ func mergeAndWriteUserFiles(originalRoot string, outputDir string, users map[str
 		}
 
 		// we're going to ignore the user's shell, since it could be anything,
-		// and that shell might not be installed in the system that we're
-		// importing this user into. if empty, /bin/sh will be used.
-		parts[6] = ""
+		// we replace it with /bin/bash, since this should give a good default
+		// experience and should always be available in the base.
+		parts[6] = "/bin/bash"
 
 		passwdBuffer.WriteString(strings.Join(parts, ":") + "\n")
 		if user.shadowEntry != "" {

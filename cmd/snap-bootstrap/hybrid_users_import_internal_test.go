@@ -681,13 +681,14 @@ user3:dc9b7b7b631aadd960231f4880923d0f:19839:0:99999:7:::
 	err = mergeAndWriteUserFiles(dir, dest, users)
 	c.Assert(err, IsNil)
 
-	// note that users lost their shells. we're not importing them since they
-	// might not be installed on the system that we're importing into.
+	// note that the imported users had their default shells changed to
+	// /bin/bash, since we can't guarantee that the original shells are
+	// installed on the system that we're importing into.
 	assertLinesInFile(c, filepath.Join(dest, "passwd"), []string{
-		"root:x:0:0:root:/root:",
+		"root:x:0:0:root:/root:/bin/bash",
 		"lxd:x:964:984::/var/snap/lxd/common/lxd:/bin/false",
-		"user1:x:1000:1000:user1:/home/user1:",
-		"user2:x:1001:1001:user2:/home/user2:",
+		"user1:x:1000:1000:user1:/home/user1:/bin/bash",
+		"user2:x:1001:1001:user2:/home/user2:/bin/bash",
 	})
 	assertFileHasPermissions(c, filepath.Join(dest, "passwd"), 0644)
 
@@ -830,10 +831,10 @@ user3:!::
 	output := filepath.Join(dirs.SnapRunDir, "hybrid-users")
 
 	assertLinesInFile(c, filepath.Join(output, "passwd"), []string{
-		"root:x:0:0:root:/root:",
+		"root:x:0:0:root:/root:/bin/bash",
 		"lxd:x:964:984::/var/snap/lxd/common/lxd:/bin/false",
-		"user1:x:1000:1000:user1:/home/user1:",
-		"user2:x:1001:1001:user2:/home/user2:",
+		"user1:x:1000:1000:user1:/home/user1:/bin/bash",
+		"user2:x:1001:1001:user2:/home/user2:/bin/bash",
 	})
 	assertFileHasPermissions(c, filepath.Join(output, "passwd"), 0644)
 
