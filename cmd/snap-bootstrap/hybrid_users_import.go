@@ -27,13 +27,17 @@ type user struct {
 	shadowEntry string
 }
 
-func importHybridUserData(rootToImport, referenceRoot string) error {
+// importHybridUserData merges users and groups from the hybrid rootfs with the
+// users and groups from the base snap. The merged login files are written into
+// [dirs.SnapRunDir]/hybrid-users. As an attempt to only import users that have
+// elevated privileges, only users from the sudo and admin groups are imported.
+func importHybridUserData(hybridRoot, baseRoot string) error {
 	outputDir := filepath.Join(dirs.SnapRunDir, "hybrid-users")
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return err
 	}
 
-	return mergeAndWriteLoginFiles(rootToImport, referenceRoot, []string{"sudo", "admin"}, outputDir)
+	return mergeAndWriteLoginFiles(hybridRoot, baseRoot, []string{"sudo", "admin"}, outputDir)
 }
 
 func userFilter(targetGroups []string) func(user) bool {
@@ -81,6 +85,17 @@ func groupFilter(users map[string]user) func(group) bool {
 	}
 }
 
+// mergeAndWriteLoginFiles considers the etc/passwd, etc/shadow, etc/group, and
+// etc/gshadow files from the given importRoot and referenceRoot directories,
+// merges them together, and writes the merged files into the given outputDir.
+//
+// Only non-system (uid and gid < 1000) users that are members of any of the
+// groups in the targetGroups slice are imported from the importRoot directory.
+// All users and groups from the referenceRoot are imported. As a special case,
+// the root user is always imported from importRoot.
+//
+// If there are any conflicts between the users and groups in the importRoot and
+// referenceRoot directories, the importRoot users and groups are used.
 func mergeAndWriteLoginFiles(importRoot, referenceRoot string, targetGroups []string, outputDir string) error {
 	users, err := parseUsers(importRoot, userFilter(targetGroups))
 	if err != nil {
@@ -108,6 +123,11 @@ func mergeAndWriteLoginFiles(importRoot, referenceRoot string, targetGroups []st
 	return nil
 }
 
+// mergeAndWriteUserFiles takes the etc/passwd and etc/shadow files from the
+// given root directory and merges them with the given users. The caller must
+// ensure that the UIDs and GIDs of any of the given users do not conflict with
+// any of the existing users in the source etc/passwd and etc/shadow files. The
+// merged files are written into the given output directory.
 func mergeAndWriteUserFiles(originalRoot string, outputDir string, users map[string]user) error {
 	// only import users that are either root or have a uid < 1000 and gid <
 	// 1000. the base shouldn't contain anything that doesn't fit this criteria,
@@ -165,6 +185,12 @@ func mergeAndWriteUserFiles(originalRoot string, outputDir string, users map[str
 	return os.WriteFile(destinationShadow, shadowBuffer.Bytes(), 0600)
 }
 
+// mergeAndWriteUserFiles takes the etc/group and etc/gshadow files from the
+// given root directory and merges them with the given groups and users. The
+// caller must ensure that UIDs and GIDs of any of the given groups and users do
+// not conflict with any of the existing groups and users in the source
+// etc/group and etc/gshadow files. The merged files are written into the given
+// output directory.
 func mergeAndWriteGroupFiles(originalRoot string, outputDir string, users map[string]user, groups map[string]group) error {
 	groupsToNewUsers := make(map[string][]string)
 	for _, user := range users {
@@ -257,6 +283,9 @@ func unique(slice []string) []string {
 	return slice[:current]
 }
 
+// parseUsers parses users from the given root directory, using the etc/passwd,
+// etc/shadow, and etc/group files. The caller can provide a filter to omit some
+// of the returned users by returning false from the given function.
 func parseUsers(root string, filter func(user) bool) (map[string]user, error) {
 	passwdEntries, err := entriesByName(filepath.Join(root, "etc/passwd"))
 	if err != nil {
@@ -326,6 +355,9 @@ type group struct {
 	gshadowEntry string
 }
 
+// parseGroups parses groups from the given root directory, using the etc/group
+// and etc/gshadow files. The caller can provide a filter to omit some of the
+// returned groups by returning false from the given function.
 func parseGroups(root string, filter func(group) bool) (map[string]group, error) {
 	groupEntries, err := entriesByName(filepath.Join(root, "etc/group"))
 	if err != nil {
