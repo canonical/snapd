@@ -61,6 +61,10 @@ prepare: |
     echo "test service is known to systemd and enabled"
     systemctl list-unit-files --type service --no-legend | MATCH 'snap.test-snapd-service\..*\.service\s+enabled'
 
+    # install a snap with some components to make sure that we properly clean
+    # those up too
+    snap install test-snap-with-components+one+two
+
     # expecting to find various files that snap installation produced
     test "$(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l)" -gt 0
     test "$(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l)" -gt 0

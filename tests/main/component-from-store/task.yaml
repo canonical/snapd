@@ -10,13 +10,6 @@ prepare: |
   snap set system experimental.parallel-instances=true
 
 restore: |
-  if snap list test-snap-with-components; then
-      snap remove test-snap-with-components
-  fi
-  if snap list test-snap-with-components_key; then
-      snap remove test-snap-with-components_key
-  fi
-  snap remove test-snap-with-components
   snap unset system experimental.parallel-instances
 
 execute: |
