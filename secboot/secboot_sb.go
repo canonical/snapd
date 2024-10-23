@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
+	"golang.org/x/sys/unix"
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/kernel/fde"
@@ -63,6 +64,37 @@ func LockSealedKeys() error {
 		return fde.LockSealedKeys()
 	}
 	return lockTPMSealedKeys()
+}
+
+func copyFDEKeyringKeysToLegacyPath(devPath, legacyDevPath string) error {
+	// The identifiers for keys changed from
+	// "ubuntu-fde:/dev/disk/by-partuuid/XXXX:type" to
+	// "ubuntu-fde:/dev/disk/by-uuid/XXXX:type" because the UUID
+	// of the LUKS2 makes more sense and is contained within the
+	// container.  There are 2 key types to copy. "aux" and
+	// "unlock". "aux" is the primary key. And "unlock" is the
+	// unlock key of the key slot.  We can removes this function
+	// once https://github.com/canonical/secboot/pull/331 is
+	// available
+	const keyringPrefix = "ubuntu-fde"
+	for _, purpose := range []string{"aux", "unlock"} {
+		id, err := unix.KeyctlSearch(unix.KEY_SPEC_USER_KEYRING, "user", fmt.Sprintf("%s:%s:%s", keyringPrefix, devPath, purpose), 0)
+		if err != nil {
+			return err
+		}
+		sz, err := unix.KeyctlBuffer(unix.KEYCTL_READ, id, nil, 0)
+		if err != nil {
+			return err
+		}
+		key := make([]byte, sz)
+		if _, err = unix.KeyctlBuffer(unix.KEYCTL_READ, id, key, 0); err != nil {
+			return err
+		}
+		if _, err := unix.AddKey("user", fmt.Sprintf("%s:%s:%s", keyringPrefix, legacyDevPath, purpose), key, unix.KEY_SPEC_USER_KEYRING); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // UnlockVolumeUsingSealedKeyIfEncrypted verifies whether an encrypted volume
@@ -172,6 +204,11 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	} else {
 		logger.Noticef("successfully activated encrypted device %q with TPM", sourceDevice)
 		res.UnlockMethod = UnlockedWithSealedKey
+	}
+
+	// FIXME: replace with https://github.com/canonical/secboot/pull/331 when available
+	if err := copyFDEKeyringKeysToLegacyPath(sourceDevice, partDevice); err != nil {
+		logger.Noticef("WARNING: could not copy keys in the user keyring: %v", err)
 	}
 
 	res.FsDevice = targetDevice
