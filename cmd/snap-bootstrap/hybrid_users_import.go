@@ -59,13 +59,18 @@ func userFilter(
 			return false
 		}
 
+		if _, ok := baseUsers[u.name]; ok {
+			logger.Noticef("skipping importing user %q because it shares a name with a user in the base", u.name)
+			return false
+		}
+
 		if checkForUIDConflict(u.uid, baseUsers) {
-			logger.Noticef("skipping importing user %q with UID %d because it conflicts with an existing user", u.name, u.uid)
+			logger.Noticef("skipping importing user %q with UID %d because it conflicts with a user in the base", u.name, u.uid)
 			return false
 		}
 
 		if checkForGIDConflict(u.gid, baseGroups) {
-			logger.Noticef("skipping importing user %q with GID %d because it conflicts with an existing group", u.name, u.gid)
+			logger.Noticef("skipping importing user %q with GID %d because it conflicts with a group in the base", u.name, u.gid)
 			return false
 		}
 
@@ -104,11 +109,16 @@ func checkForUIDConflict(uid int, users map[string]user) bool {
 	return false
 }
 
-func groupFilter(importUsers map[string]user) func(group) bool {
+func groupFilter(importUsers map[string]user, baseGroups map[string]group) func(group) bool {
 	return func(g group) bool {
 		// always import the root group
 		if g.gid == 0 {
 			return true
+		}
+
+		if _, ok := baseGroups[g.name]; ok {
+			logger.Noticef("skipping importing group %q because it shares a name with a group in the base", g.name)
+			return false
 		}
 
 		// in addition to importing the users that are in the given groups, we also
@@ -161,7 +171,7 @@ func mergeAndWriteLoginFiles(importRoot, baseRoot string, targetGroups []string,
 		return err
 	}
 
-	importGroups, err := parseGroups(importRoot, groupFilter(importUsers))
+	importGroups, err := parseGroups(importRoot, groupFilter(importUsers, baseGroups))
 	if err != nil {
 		return err
 	}
@@ -194,11 +204,14 @@ func mergeAndWriteUserFiles(baseUsers map[string]user, importUsers map[string]us
 			return fmt.Errorf("internal error: user entry inconsistent with parsed data")
 		}
 
-		// if there is a conflict in the existing file, we will use the imported
-		// entry instead of the base one. this is consistent with how we handle
-		// groups, so any conflicting users will always be fully replaced.
 		if _, ok := importUsers[name]; ok {
-			continue
+			// as a special case, we replace the root user in the base with the
+			// root user from the hybrid rootfs. all other conflicting users are
+			// disallowed.
+			if name == "root" {
+				continue
+			}
+			return fmt.Errorf("internal error: cannot import user %q that conflicts with a user in the base", name)
 		}
 
 		passwdBuffer.WriteString(user.passwdEntry + "\n")
@@ -260,10 +273,14 @@ func mergeAndWriteGroupFiles(baseGroups map[string]group, importUsers map[string
 			return errors.New("internal error: group entry inconsistent with parsed data")
 		}
 
-		// if we're importing a group that already exists, we take the imported
-		// group.
 		if _, ok := importGroups[name]; ok {
-			continue
+			// as a special case, we replace the root group in the base with the
+			// root user from the hybrid rootfs. all other conflicting groups
+			// are disallowed.
+			if name == "root" {
+				continue
+			}
+			return fmt.Errorf("internal error: cannot import group %q that conflicts with a group in the base", name)
 		}
 
 		// we combine the users that are already in the group with the new users

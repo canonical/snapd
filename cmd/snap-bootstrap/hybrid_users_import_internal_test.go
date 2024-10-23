@@ -373,6 +373,12 @@ func (s *hybridUserImportSuite) TestFilterUsers(c *C) {
 			shell:  "/sbin/nologin",
 			groups: []string{"sudo"},
 		},
+		"name-conflicting": {
+			name:   "name-conflicting",
+			uid:    1005,
+			gid:    1005,
+			groups: []string{"sudo"},
+		},
 	}
 
 	sourceUsers := map[string]user{
@@ -381,10 +387,15 @@ func (s *hybridUserImportSuite) TestFilterUsers(c *C) {
 			uid:  0,
 			gid:  0,
 		},
-		"conflicting": {
-			name: "conflicting",
+		"ids-conflicting": {
+			name: "ids-conflicting",
 			uid:  2001,
 			gid:  2001,
+		},
+		"name-conflicting": {
+			name: "name-conflicting",
+			uid:  2003,
+			gid:  2003,
 		},
 	}
 
@@ -393,8 +404,8 @@ func (s *hybridUserImportSuite) TestFilterUsers(c *C) {
 			name: "root",
 			gid:  0,
 		},
-		"conflicting": {
-			name: "conflicting",
+		"ids-conflicting": {
+			name: "ids-conflicting",
 			gid:  2002,
 		},
 	}
@@ -414,6 +425,7 @@ func (s *hybridUserImportSuite) TestFilterUsers(c *C) {
 	c.Assert(filter(users["system-gid"]), Equals, false)
 	c.Assert(filter(users["lxd"]), Equals, false)
 	c.Assert(filter(users["nologin"]), Equals, false)
+	c.Assert(filter(users["name-conflicting"]), Equals, false)
 }
 
 func (s *hybridUserImportSuite) TestFilterGroups(c *C) {
@@ -433,6 +445,10 @@ func (s *hybridUserImportSuite) TestFilterGroups(c *C) {
 		"user3": {
 			name: "user3",
 			gid:  1002,
+		},
+		"conflict": {
+			name: "conflict",
+			gid:  1003,
 		},
 		"docker": {
 			name: "docker",
@@ -459,12 +475,24 @@ func (s *hybridUserImportSuite) TestFilterGroups(c *C) {
 			groups: []string{"wheel", "docker", "admin"},
 		},
 	}
-	filter := groupFilter(users)
+
+	baseGroups := map[string]group{
+		"conflict": {
+			name:         "conflict",
+			gid:          2001,
+			users:        nil,
+			groupEntry:   "conflict:x:0:",
+			gshadowEntry: "conflict:!::",
+		},
+	}
+
+	filter := groupFilter(users, baseGroups)
 
 	c.Assert(filter(groups["root"]), Equals, true)
 	c.Assert(filter(groups["user1"]), Equals, true)
 	c.Assert(filter(groups["user2"]), Equals, true)
 	c.Assert(filter(groups["user3"]), Equals, false)
+	c.Assert(filter(groups["conflict"]), Equals, false)
 	c.Assert(filter(groups["docker"]), Equals, false)
 }
 
@@ -506,13 +534,6 @@ func (s *hybridUserImportSuite) TestMergeAndWriteGroupFiles(c *C) {
 			users:        nil,
 			groupEntry:   "sudo:x:959:",
 			gshadowEntry: "sudo:!::",
-		},
-		"user1": {
-			name:         "user1",
-			gid:          999,
-			users:        nil,
-			groupEntry:   "user1:x:999:",
-			gshadowEntry: "user1:!::",
 		},
 		"nobody": {
 			name:         "nobody",
@@ -714,14 +735,6 @@ func (s *hybridUserImportSuite) TestMergeAndWriteUserFiles(c *C) {
 			passwdEntry: "root:x:0:0:root:/root:/bin/bash",
 			shadowEntry: "root:!:19836:0:99999:7:::",
 		},
-		"user1": {
-			name:        "user1",
-			uid:         1010,
-			gid:         1010,
-			groups:      nil,
-			passwdEntry: "user1:x:1010:1010:user1:/home/user1:/bin/bash",
-			shadowEntry: "user1:28n4517315osn7oqn8sqpso2s1s1q042:19837:0:99999:7:::",
-		},
 		"user3": {
 			name:        "user3",
 			uid:         1011,
@@ -740,8 +753,8 @@ func (s *hybridUserImportSuite) TestMergeAndWriteUserFiles(c *C) {
 		},
 	}
 
-	// root will replace the original root, user1 will also replace the original
-	// user1. user2 and noshell will be directly imported.
+	// root will replace the original root. user2 and noshell will be directly
+	// imported.
 	users := map[string]user{
 		"root": {
 			name:        "root",
