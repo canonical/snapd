@@ -45,7 +45,7 @@ const (
 	// user since the previous timeout, or if the user prompt DB was just
 	// created.
 	initialTimeout = 10 * time.Second
-	// initialTimeout is the duration before which prompts for a given user
+	// activityTimeout is the duration before which prompts for a given user
 	// will expire after the most recent retrieval of prompt details for that
 	// user.
 	activityTimeout = 10 * time.Minute
@@ -150,9 +150,7 @@ func (p *Prompt) sendReplyWithPermission(allowedPermission any) error {
 	return nil
 }
 
-var sendReply = func(listenerReq *listener.Request, allowedPermission any) error {
-	return listenerReq.Reply(allowedPermission)
-}
+var sendReply = (*listener.Request).Reply
 
 // promptConstraints store the path which was requested, along with three
 // lists of permissions: the original permissions associated with the request,
