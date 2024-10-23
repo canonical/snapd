@@ -66,7 +66,16 @@ func LockSealedKeys() error {
 	return lockTPMSealedKeys()
 }
 
-func copyKeyring(devPath, legacyDevPath string) error {
+func copyFDEKeyringKeysToLegacyPath(devPath, legacyDevPath string) error {
+	// The identifiers for keys changed from
+	// "ubuntu-fde:/dev/disk/by-partuuid/XXXX:type" to
+	// "ubuntu-fde:/dev/disk/by-uuid/XXXX:type" because the UUID
+	// of the LUKS2 makes more sense and is contained within the
+	// container.  There are 2 key types to copy. "aux" and
+	// "unlock". "aux" is the primary key. And "unlock" is the
+	// unlock key of the key slot.  We can removes this function
+	// once https://github.com/canonical/secboot/pull/331 is
+	// available
 	const keyringPrefix = "ubuntu-fde"
 	for _, purpose := range []string{"aux", "unlock"} {
 		id, err := unix.KeyctlSearch(unix.KEY_SPEC_USER_KEYRING, "user", fmt.Sprintf("%s:%s:%s", keyringPrefix, devPath, purpose), 0)
@@ -198,7 +207,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	}
 
 	// FIXME: replace with https://github.com/canonical/secboot/pull/331 when available
-	if err := copyKeyring(sourceDevice, partDevice); err != nil {
+	if err := copyFDEKeyringKeysToLegacyPath(sourceDevice, partDevice); err != nil {
 		logger.Noticef("WARNING: could not copy keys in the user keyring: %v", err)
 	}
 
