@@ -7460,11 +7460,13 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	defer restore()
 
 	restore = fdestate.MockDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
-		if mountpoint == dirs.GlobalRootDir {
+		switch mountpoint {
+		case dirs.SnapdStateDir(dirs.GlobalRootDir):
 			return "root-uuid", nil
-		} else {
+		case dirs.SnapSaveDir:
 			return "save-uuid", nil
 		}
+		panic(fmt.Sprintf("unexpected mount point: %s", mountpoint))
 	})
 	defer restore()
 
@@ -7477,11 +7479,6 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 		return true, nil
 	})
 	defer restore()
-
-	fdemgr := s.o.FDEManager()
-	c.Assert(fdemgr, NotNil)
-	err := fdemgr.StartUp()
-	c.Assert(err, IsNil)
 
 	st := s.o.State()
 	st.Lock()
@@ -7499,7 +7496,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 		s.serveSnap(snapPath, "22")
 	}
 
-	err = assertstate.Add(st, s.devAcct)
+	err := assertstate.Add(st, s.devAcct)
 	c.Assert(err, IsNil)
 	// snaps in state
 	pcInfo := s.makeInstalledSnapInStateForRemodel(c, "pc", snap.R(1), "20/stable")
@@ -7629,6 +7626,24 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	})
 	defer restore()
 
+	// make sure FDE is initialized
+	fdemgr := s.o.FDEManager()
+	c.Assert(fdemgr, NotNil)
+	c.Assert(fdemgr.ReloadModeenv(), IsNil)
+	func() {
+		st.Unlock()
+		defer st.Lock()
+		err = fdemgr.StartUp()
+	}()
+	c.Assert(err, IsNil)
+
+	if encrypted {
+		// FDE state should have been initialized when the system uses encryption
+		var fdeState map[string]any
+		c.Assert(st.Get("fde", &fdeState), IsNil)
+		c.Check(fdeState, NotNil)
+	}
+
 	chg, err := devicestate.Remodel(st, newModel, nil, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 
@@ -7639,7 +7654,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	st.Lock()
 	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
 
-	dumpTasks(c, "after setteling", chg.Tasks())
+	dumpTasks(c, "after settling", chg.Tasks())
 
 	c.Check(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
 	c.Check(devicestate.RemodelingChange(st), NotNil)

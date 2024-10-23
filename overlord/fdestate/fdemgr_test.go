@@ -22,6 +22,7 @@ package fdestate_test
 import (
 	"crypto"
 	"fmt"
+	"os"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -30,10 +31,12 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -72,6 +75,12 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 	s.AddCleanup(fdestate.MockVerifyPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash, salt, digest []byte) (bool, error) {
 		panic("VerifyPrimaryKeyHMAC is not mocked")
 	}))
+
+	m := boot.Modeenv{
+		Mode: boot.ModeRun,
+	}
+	err := m.WriteTo(dirs.GlobalRootDir)
+	c.Assert(err, IsNil)
 }
 
 type instrumentedUnlocker struct {
@@ -116,7 +125,8 @@ func (s *fdeMgrSuite) startedManager(c *C) *fdestate.FDEManager {
 		return true, nil
 	})()
 
-	manager := fdestate.Manager(s.st, s.runner)
+	manager, err := fdestate.Manager(s.st, s.runner)
+	c.Assert(err, IsNil)
 	c.Assert(manager.StartUp(), IsNil)
 	return manager
 }
@@ -239,4 +249,145 @@ func (s *fdeMgrSuite) TestUpdateReseal(c *C) {
 	c.Check(containerRole.Models[0].Model(), Equals, "mock-model")
 	c.Check(containerRole.BootModes, DeepEquals, []string{"run"})
 	c.Check(containerRole.TPM2PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-profile"`))
+}
+
+type mountResolveTestCase struct {
+	dataResolveErr error
+	saveResolveErr error
+	expectedError  string
+}
+
+func (s *fdeMgrSuite) testMountResolveError(c *C, tc mountResolveTestCase) {
+	defer fdestate.MockDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
+		switch mountpoint {
+		case dirs.SnapdStateDir(dirs.GlobalRootDir):
+			// ubuntu-data
+			if tc.dataResolveErr != nil {
+				return "", tc.dataResolveErr
+			}
+			return "aaa", nil
+		case dirs.SnapSaveDir:
+			if tc.saveResolveErr != nil {
+				return "", tc.saveResolveErr
+			}
+			return "bbb", nil
+		}
+		panic(fmt.Sprintf("missing mocked mount point %q", mountpoint))
+	})()
+
+	defer fdestate.MockGetPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
+		if tc.expectedError == "" {
+			return nil, nil, fmt.Errorf("unexpected call to get primary key")
+		}
+		return []byte{1, 2, 3, 4}, []byte{5, 6, 7, 8}, nil
+	})()
+
+	defer fdestate.MockVerifyPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash, salt, digest []byte) (bool, error) {
+		if tc.expectedError == "" {
+			return false, fmt.Errorf("unexpected call to get primary key")
+		}
+		return true, nil
+	})()
+
+	manager, err := fdestate.Manager(s.st, s.runner)
+	c.Assert(err, IsNil)
+	err = manager.StartUp()
+	c.Check(err, IsNil)
+
+	functionalErr := manager.IsFunctional()
+	if tc.expectedError != "" {
+		c.Check(functionalErr, ErrorMatches, tc.expectedError)
+	} else {
+		c.Check(functionalErr, IsNil)
+	}
+}
+
+func (s *fdeMgrSuite) TestStateInitMountResolveError_StatePresentNoError(c *C) {
+	s.st.Lock()
+	s.st.Set("fde", fdestate.FdeState{})
+	s.st.Unlock()
+
+	// state initialization happens (and may fail) only when "fde" isn't yet set
+	// in the state
+
+	s.testMountResolveError(c, mountResolveTestCase{
+		dataResolveErr: fmt.Errorf("mock degraded mode"),
+	})
+}
+
+func (s *fdeMgrSuite) TestStateInitMountResolveError_NoDataNoSaveNoError(c *C) {
+	s.testMountResolveError(c, mountResolveTestCase{
+		dataResolveErr: disks.ErrNoDmUUID,
+		saveResolveErr: disks.ErrNoDmUUID,
+	})
+}
+
+func (s *fdeMgrSuite) TestStateInitMountResolveError_NoDataFails(c *C) {
+	s.testMountResolveError(c, mountResolveTestCase{
+		dataResolveErr: fmt.Errorf("mock error data"),
+		expectedError:  "cannot initialize FDE state: cannot resolve data partition mount: mock error data",
+	})
+}
+
+func (s *fdeMgrSuite) TestStatetInitMountResolveError_NoSaveFails(c *C) {
+	s.testMountResolveError(c, mountResolveTestCase{
+		saveResolveErr: fmt.Errorf("mock error save"),
+		expectedError:  "cannot initialize FDE state: cannot resolve save partition mount: mock error save",
+	})
+}
+
+func (s *fdeMgrSuite) TestStateInitMountResolveError_Recover(c *C) {
+	m := boot.Modeenv{
+		Mode:           boot.ModeRecover,
+		RecoverySystem: "1234",
+	}
+	err := m.WriteTo(dirs.GlobalRootDir)
+	c.Assert(err, IsNil)
+
+	// neither partition could be mounted
+	s.testMountResolveError(c, mountResolveTestCase{
+		dataResolveErr: disks.ErrNoDmUUID,
+		saveResolveErr: disks.ErrNoDmUUID,
+	})
+}
+
+func (s *fdeMgrSuite) TestMountResolveError_FactoryReset(c *C) {
+	m := boot.Modeenv{
+		Mode:           boot.ModeFactoryReset,
+		RecoverySystem: "1234",
+	}
+	err := m.WriteTo(dirs.GlobalRootDir)
+	c.Assert(err, IsNil)
+
+	// neither partition could be mounted
+	s.testMountResolveError(c, mountResolveTestCase{
+		dataResolveErr: disks.ErrNoDmUUID,
+		saveResolveErr: disks.ErrNoDmUUID,
+	})
+}
+
+func (s *fdeMgrSuite) TestManagerUC_16_18(c *C) {
+	// no modeenv
+	err := os.Remove(dirs.SnapModeenvFileUnder(s.rootdir))
+	c.Assert(err, IsNil)
+
+	manager, err := fdestate.Manager(s.st, s.runner)
+	c.Assert(err, IsNil)
+
+	// neither startup nor ensure fails
+	c.Assert(manager.StartUp(), IsNil)
+	c.Assert(manager.Ensure(), IsNil)
+}
+
+func (s *fdeMgrSuite) TestManagerPreseeding(c *C) {
+	defer snapdenv.MockPreseeding(true)()
+
+	manager, err := fdestate.Manager(s.st, s.runner)
+	c.Assert(err, IsNil)
+
+	// neither startup nor ensure fails
+	c.Assert(manager.StartUp(), IsNil)
+	c.Assert(manager.Ensure(), IsNil)
+	// but the manager is deemed non functional, so API calls will fail
+	c.Assert(manager.IsFunctional(), ErrorMatches, "internal error: FDE manager cannot be used in preseeding mode")
 }
