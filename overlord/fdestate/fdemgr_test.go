@@ -388,4 +388,6 @@ func (s *fdeMgrSuite) TestManagerPreseeding(c *C) {
 	// neither startup nor ensure fails
 	c.Assert(manager.StartUp(), IsNil)
 	c.Assert(manager.Ensure(), IsNil)
+	// but the manager is deemed non functional, so API calls will fail
+	c.Assert(manager.IsFunctional(), ErrorMatches, "internal error: FDE manager cannot be used in preseeding mode")
 }

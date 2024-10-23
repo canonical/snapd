@@ -92,7 +92,9 @@ func (m *FDEManager) Ensure() error {
 // StartUp implements StateStarterUp.Startup
 func (m *FDEManager) StartUp() error {
 	if m.preseed {
-		// nothing to do in preseeding mode
+		// nothing to do in preseeding mode, but set the init error so that
+		// attempts to use fdemgr will fail
+		m.initErr = fmt.Errorf("internal error: FDE manager cannot be used in preseeding mode")
 		return nil
 	}
 
