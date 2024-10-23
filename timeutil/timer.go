@@ -44,6 +44,7 @@ func FakeAfterFunc(d time.Duration, f func()) *FakeTimer {
 	return &FakeTimer{
 		currTime:   currTime,
 		expiration: currTime.Add(d),
+		active:     true,
 		callback:   f,
 	}
 }
@@ -59,6 +60,7 @@ func FakeNewTimer(d time.Duration) *FakeTimer {
 	return &FakeTimer{
 		currTime:   currTime,
 		expiration: currTime.Add(d),
+		active:     true,
 		c:          c,
 		C:          c,
 	}
@@ -70,8 +72,8 @@ type FakeTimer struct {
 	lock       sync.Mutex
 	currTime   time.Time
 	expiration time.Time
-	fired      bool
-	stopped    bool
+	active     bool
+	fireCount  int
 	callback   func()
 	c          chan<- time.Time // internally, c is write-only
 	C          <-chan time.Time // export c as read-only
@@ -89,9 +91,8 @@ type FakeTimer struct {
 func (t *FakeTimer) Reset(d time.Duration) bool {
 	t.lock.Lock()
 	defer t.lock.Unlock()
-	notYetFired := !t.fired
-	t.fired = false
-	t.stopped = false
+	active := t.active
+	t.active = true
 	t.expiration = t.currTime.Add(d)
 	if t.C != nil {
 		// Drain the channel, guaranteeing that a receive after Reset will
@@ -104,7 +105,7 @@ func (t *FakeTimer) Reset(d time.Duration) bool {
 		default:
 		}
 	}
-	return notYetFired
+	return active
 }
 
 // Stop prevents the timer from firing. It returns true if the call stops the
@@ -115,8 +116,8 @@ func (t *FakeTimer) Reset(d time.Duration) bool {
 func (t *FakeTimer) Stop() bool {
 	t.lock.Lock()
 	defer t.lock.Unlock()
-	notYetFired := !t.fired
-	t.stopped = true
+	wasActive := t.active
+	t.active = false
 	if t.C != nil {
 		// Drain the channel, guaranteeing that a receive after Stop will block
 		// and not receive a time value from the timer firing before the stop
@@ -127,7 +128,22 @@ func (t *FakeTimer) Stop() bool {
 		default:
 		}
 	}
-	return notYetFired
+	return wasActive
+}
+
+// isActive returns true if the timer is active, false if the timer has expired
+// or been stopped.
+func (t *FakeTimer) Active() bool {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+	return t.active
+}
+
+// FireCount returns the number of times the timer has fired.
+func (t *FakeTimer) FireCount() int {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+	return t.fireCount
 }
 
 // Elapse simulates the current time advancing by the given duration, which
@@ -152,11 +168,8 @@ func (t *FakeTimer) Elapse(duration time.Duration) {
 func (t *FakeTimer) Fire(currTime time.Time) error {
 	t.lock.Lock()
 	defer t.lock.Unlock()
-	if t.stopped {
-		return fmt.Errorf("cannot fire timer which has already been stopped")
-	}
-	if t.fired {
-		return fmt.Errorf("cannot fire timer which has already fired")
+	if !t.active {
+		return fmt.Errorf("cannot fire timer which is not active")
 	}
 	t.doFire(currTime)
 	return nil
@@ -164,10 +177,11 @@ func (t *FakeTimer) Fire(currTime time.Time) error {
 
 // doFire carries out the timer firing. The caller must hold the timer lock.
 func (t *FakeTimer) doFire(currTime time.Time) {
-	if t.stopped || t.fired {
+	if !t.active {
 		return
 	}
-	t.fired = true
+	t.active = false
+	t.fireCount++
 	// Either t.callback or t.C should be non-nil, and the other should be nil.
 	if t.callback != nil {
 		go t.callback()

@@ -43,6 +43,8 @@ func (s *timerSuite) TestFakeAfterFunc(c *C) {
 
 	c.Check(timer.C, IsNil)
 
+	c.Check(timer.Active(), Equals, true)
+	c.Check(timer.FireCount(), Equals, 0)
 	select {
 	case <-callbackChan:
 		c.Fatal("callback fired early")
@@ -52,6 +54,8 @@ func (s *timerSuite) TestFakeAfterFunc(c *C) {
 	// Manually advance the timer so that it will fire
 	timer.Elapse(time.Hour)
 
+	c.Check(timer.Active(), Equals, false)
+	c.Check(timer.FireCount(), Equals, 1)
 	select {
 	case msg := <-callbackChan:
 		c.Assert(msg, Equals, "called")
@@ -61,10 +65,13 @@ func (s *timerSuite) TestFakeAfterFunc(c *C) {
 	}
 
 	// Reset timer to check that if it fires again, the callback will be called again
-	timer.Reset(time.Nanosecond)
+	active := timer.Reset(time.Nanosecond)
+	c.Check(active, Equals, false)
 
 	c.Check(timer.C, IsNil)
 
+	c.Check(timer.Active(), Equals, true)
+	c.Check(timer.FireCount(), Equals, 1)
 	select {
 	case <-callbackChan:
 		c.Fatal("callback fired early")
@@ -75,6 +82,8 @@ func (s *timerSuite) TestFakeAfterFunc(c *C) {
 	err := timer.Fire(time.Now())
 	c.Check(err, IsNil)
 
+	c.Check(timer.Active(), Equals, false)
+	c.Check(timer.FireCount(), Equals, 2)
 	select {
 	case msg := <-callbackChan:
 		c.Assert(msg, Equals, "called")
@@ -87,6 +96,8 @@ func (s *timerSuite) TestFakeAfterFunc(c *C) {
 func (s *timerSuite) TestFakeNewTimer(c *C) {
 	timer := timeutil.FakeNewTimer(time.Second)
 
+	c.Check(timer.Active(), Equals, true)
+	c.Check(timer.FireCount(), Equals, 0)
 	select {
 	case <-timer.C:
 		c.Fatal("timer fired early")
@@ -96,6 +107,8 @@ func (s *timerSuite) TestFakeNewTimer(c *C) {
 	// Manually advance the timer so that it will fire
 	timer.Elapse(time.Second)
 
+	c.Check(timer.Active(), Equals, false)
+	c.Check(timer.FireCount(), Equals, 1)
 	select {
 	case <-timer.C:
 	default:
@@ -103,8 +116,11 @@ func (s *timerSuite) TestFakeNewTimer(c *C) {
 	}
 
 	// Reset timer to check that if it fires again, the callback will be called again
-	timer.Reset(time.Nanosecond)
+	active := timer.Reset(time.Nanosecond)
+	c.Check(active, Equals, false)
 
+	c.Check(timer.Active(), Equals, true)
+	c.Check(timer.FireCount(), Equals, 1)
 	select {
 	case <-timer.C:
 		c.Fatal("timer fired early")
@@ -116,6 +132,8 @@ func (s *timerSuite) TestFakeNewTimer(c *C) {
 	err := timer.Fire(currTime)
 	c.Check(err, IsNil)
 
+	c.Check(timer.Active(), Equals, false)
+	c.Check(timer.FireCount(), Equals, 2)
 	select {
 	case t := <-timer.C:
 		c.Assert(t.Equal(currTime), Equals, true)
@@ -128,22 +146,32 @@ func (s *timerSuite) TestTimerInterfaceCompatibility(c *C) {
 	var t timeutil.Timer
 
 	t = time.NewTimer(time.Second)
-	t.Reset(time.Second)
-	t.Stop()
+	active := t.Reset(time.Second)
+	c.Check(active, Equals, true)
+	active = t.Stop()
+	c.Check(active, Equals, true)
 	t = time.AfterFunc(time.Second, func() { return })
-	t.Reset(time.Second)
-	t.Stop()
+	active = t.Reset(time.Second)
+	c.Check(active, Equals, true)
+	active = t.Stop()
+	c.Check(active, Equals, true)
 	t = timeutil.FakeNewTimer(time.Second)
-	t.Reset(time.Second)
-	t.Stop()
+	active = t.Reset(time.Second)
+	c.Check(active, Equals, true)
+	active = t.Stop()
+	c.Check(active, Equals, true)
 	t = timeutil.FakeAfterFunc(time.Second, func() { return })
-	t.Reset(time.Second)
-	t.Stop()
+	active = t.Reset(time.Second)
+	c.Check(active, Equals, true)
+	active = t.Stop()
+	c.Check(active, Equals, true)
 }
 
 func (s *timerSuite) TestFakeTimerReset(c *C) {
 	timer := timeutil.FakeNewTimer(time.Millisecond)
 
+	c.Check(timer.Active(), Equals, true)
+	c.Check(timer.FireCount(), Equals, 0)
 	select {
 	case <-timer.C:
 		c.Fatal("timer fired early")
@@ -153,11 +181,16 @@ func (s *timerSuite) TestFakeTimerReset(c *C) {
 	err := timer.Fire(time.Now())
 	c.Check(err, IsNil)
 
-	notFired := timer.Reset(time.Millisecond)
-	c.Check(notFired, Equals, false)
+	c.Check(timer.Active(), Equals, false)
+	c.Check(timer.FireCount(), Equals, 1)
 
+	active := timer.Reset(time.Millisecond)
+	c.Check(active, Equals, false)
+
+	c.Check(timer.Active(), Equals, true)
+	c.Check(timer.FireCount(), Equals, 1)
 	// Check that receiving from the timer channel blocks after reset, even
-	// though the timer previously fired
+	// though the timer previously fired and write time to channel.
 	select {
 	case <-timer.C:
 		c.Fatal("timer fired after reset")
@@ -165,9 +198,11 @@ func (s *timerSuite) TestFakeTimerReset(c *C) {
 	}
 
 	// Reset the timer
-	notFired = timer.Reset(3 * time.Second)
-	c.Check(notFired, Equals, true)
+	active = timer.Reset(3 * time.Second)
+	c.Check(active, Equals, true)
 
+	c.Check(timer.Active(), Equals, true)
+	c.Check(timer.FireCount(), Equals, 1)
 	select {
 	case <-timer.C:
 		c.Fatal("timer fired early")
@@ -177,6 +212,8 @@ func (s *timerSuite) TestFakeTimerReset(c *C) {
 	// Elapse more than half the time
 	timer.Elapse(2 * time.Second)
 
+	c.Check(timer.Active(), Equals, true)
+	c.Check(timer.FireCount(), Equals, 1)
 	select {
 	case <-timer.C:
 		c.Fatal("timer fired early")
@@ -184,9 +221,11 @@ func (s *timerSuite) TestFakeTimerReset(c *C) {
 	}
 
 	// Reset the timer
-	notFired = timer.Reset(3 * time.Second)
-	c.Check(notFired, Equals, true)
+	active = timer.Reset(3 * time.Second)
+	c.Check(active, Equals, true)
 
+	c.Check(timer.Active(), Equals, true)
+	c.Check(timer.FireCount(), Equals, 1)
 	select {
 	case <-timer.C:
 		c.Fatal("timer fired after reset")
@@ -196,6 +235,8 @@ func (s *timerSuite) TestFakeTimerReset(c *C) {
 	// Elapse more than half the time again
 	timer.Elapse(2 * time.Second)
 
+	c.Check(timer.Active(), Equals, true)
+	c.Check(timer.FireCount(), Equals, 1)
 	select {
 	case <-timer.C:
 		c.Fatal("timer fired after time elapsed following reset")
@@ -205,28 +246,36 @@ func (s *timerSuite) TestFakeTimerReset(c *C) {
 	// Elapse the remaining time
 	timer.Elapse(time.Second)
 
+	c.Check(timer.Active(), Equals, false)
+	c.Check(timer.FireCount(), Equals, 2)
 	select {
 	case <-timer.C:
 	default:
 		c.Fatal("timer did not fire")
 	}
 
-	notFired = timer.Reset(time.Second)
-	c.Check(notFired, Equals, false)
+	active = timer.Reset(time.Second)
+	c.Check(active, Equals, false)
+	c.Check(timer.Active(), Equals, true)
+	c.Check(timer.FireCount(), Equals, 2)
 }
 
 func (s *timerSuite) TestFakeTimerStop(c *C) {
 	timer := timeutil.FakeNewTimer(time.Millisecond)
 
+	c.Check(timer.Active(), Equals, true)
+	c.Check(timer.FireCount(), Equals, 0)
 	select {
 	case <-timer.C:
 		c.Fatal("timer fired early")
 	default:
 	}
 
-	notFired := timer.Stop()
-	c.Check(notFired, Equals, true)
+	active := timer.Stop()
+	c.Check(active, Equals, true)
 
+	c.Check(timer.Active(), Equals, false)
+	c.Check(timer.FireCount(), Equals, 0)
 	select {
 	case <-timer.C:
 		c.Fatal("timer fired after Stop")
@@ -236,23 +285,31 @@ func (s *timerSuite) TestFakeTimerStop(c *C) {
 	// Elapse time so the timer would have fired if it were not stopped
 	timer.Elapse(time.Millisecond)
 
+	c.Check(timer.Active(), Equals, false)
+	c.Check(timer.FireCount(), Equals, 0)
 	select {
 	case <-timer.C:
 		c.Fatal("received from timer chan after Stop and Elapse")
 	default:
 	}
 
-	// Reset the timer, and check that the timer was not previously fired
-	notFired = timer.Reset(time.Second)
-	c.Check(notFired, Equals, true)
+	// Reset the timer, and check that the timer was not previously active
+	active = timer.Reset(time.Second)
+	c.Check(active, Equals, false)
+	c.Check(timer.Active(), Equals, true)
+	c.Check(timer.FireCount(), Equals, 0)
 
 	// Elapse time so that the timer fires
 	timer.Elapse(1500 * time.Millisecond)
 
-	// Stop the timer after it has fired
-	notFired = timer.Stop()
-	c.Check(notFired, Equals, false)
+	c.Check(active, Equals, false)
 
+	// Stop the timer after it has fired
+	active = timer.Stop()
+	c.Check(active, Equals, false)
+
+	c.Check(timer.Active(), Equals, false)
+	c.Check(timer.FireCount(), Equals, 1)
 	select {
 	case <-timer.C:
 		c.Fatal("received from timer chan after Stop called after firing")
@@ -262,28 +319,42 @@ func (s *timerSuite) TestFakeTimerStop(c *C) {
 
 func (s *timerSuite) TestFakeTimerFireErrors(c *C) {
 	timer := timeutil.FakeAfterFunc(time.Hour, func() { c.Fatal("should not have been called") })
+	c.Check(timer.Active(), Equals, true)
+	c.Check(timer.FireCount(), Equals, 0)
 
 	timer.Stop()
 
+	c.Check(timer.Active(), Equals, false)
+	c.Check(timer.FireCount(), Equals, 0)
 	currTime := time.Now()
 	err := timer.Fire(currTime)
-	c.Check(err, ErrorMatches, "cannot fire timer which has already been stopped")
+	c.Check(err, ErrorMatches, "cannot fire timer which is not active")
 
-	notFired := timer.Reset(time.Minute)
-	c.Check(notFired, Equals, true)
+	c.Check(timer.Active(), Equals, false)
+	c.Check(timer.FireCount(), Equals, 0)
 
 	// Re-declare timer with callback which doesn't cause error
 	timer = timeutil.FakeAfterFunc(time.Minute, func() {})
 
+	c.Check(timer.Active(), Equals, true)
+	c.Check(timer.FireCount(), Equals, 0)
+
 	timer.Elapse(time.Minute)
-	err = timer.Fire(currTime)
-	c.Check(err, ErrorMatches, "cannot fire timer which has already fired")
 
-	notFired = timer.Stop()
-	c.Check(notFired, Equals, false)
+	c.Check(timer.Active(), Equals, false)
+	c.Check(timer.FireCount(), Equals, 1)
 
-	// Check that the error from calling Fire on a stopped timer preempts the
-	// error for calling Fire on a timer which has already fired.
 	err = timer.Fire(currTime)
-	c.Check(err, ErrorMatches, "cannot fire timer which has already been stopped")
+	c.Check(err, ErrorMatches, "cannot fire timer which is not active")
+
+	c.Check(timer.Active(), Equals, false)
+	c.Check(timer.FireCount(), Equals, 1)
+
+	active := timer.Stop()
+	c.Check(active, Equals, false)
+
+	err = timer.Fire(currTime)
+	c.Check(err, ErrorMatches, "cannot fire timer which is not active")
+	c.Check(timer.Active(), Equals, false)
+	c.Check(timer.FireCount(), Equals, 1)
 }
