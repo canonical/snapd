@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"sync"
 	"testing"
 	"time"
 	"unsafe"
@@ -55,7 +54,6 @@ type requestpromptsSuite struct {
 	defaultNotifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
 	defaultUser         uint32
 	promptNotices       []*noticeInfo
-	promptTimers        []*testtime.TestTimer
 
 	tmpdir    string
 	maxIDPath string
@@ -75,57 +73,9 @@ func (s *requestpromptsSuite) SetUpTest(c *C) {
 		return nil
 	}
 	s.promptNotices = make([]*noticeInfo, 0)
-	s.promptTimers = make([]*testtime.TestTimer, 0)
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
 	s.maxIDPath = filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
-}
-
-func (s *requestpromptsSuite) mockTimeAfterFunc() (restore func()) {
-	return requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) testtime.Timer {
-		t := testtime.AfterFunc(d, f)
-		timer := t.(*testtime.TestTimer)
-		s.promptTimers = append(s.promptTimers, timer)
-		return timer
-	})
-}
-
-func (s *requestpromptsSuite) mockTimeAfterFuncButFirstResetOnce() (callbackFinished <-chan bool, restore func()) {
-	doneChan := make(chan bool, 1)
-	restore = requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) testtime.Timer {
-		var timer *testtime.TestTimer
-		var once sync.Once
-		afterFunc := func() {
-			once.Do(func() {
-				// Reset timer to half of initial timeout/2, as if activity
-				// occurred but so it's easier to check that the timeout was
-				// correctly reset to activityTimeout by the callback once it
-				// sees that the timer was active when initially reset.
-				//
-				// In the real world, what would have happened is that activity
-				// occurred just as the timer fired, thus resetting the timer to
-				// activityTimeout just before the timeout callback sets it to
-				// initialTimeout, and we want to ensure that the callback
-				// correctly notices that the activity had occurred (by the
-				// timer being active again) and overrides its own just-set
-				// timeout by resetting the timer back to activityTimeout.
-				timer.Reset(requestprompts.InitialTimeout / 2)
-			})
-			f()
-			doneChan <- true
-		}
-		t := testtime.AfterFunc(d, afterFunc)
-		timer = t.(*testtime.TestTimer)
-		s.promptTimers = append(s.promptTimers, timer)
-		return timer
-	})
-	return doneChan, restore
-}
-
-func (s *requestpromptsSuite) elapseTime(d time.Duration) {
-	for _, timer := range s.promptTimers {
-		timer.Elapse(d)
-	}
 }
 
 func (s *requestpromptsSuite) TestNew(c *C) {
@@ -1132,7 +1082,15 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 }
 
 func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
-	restore := s.mockTimeAfterFunc()
+	var timer *testtime.TestTimer
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) testtime.Timer {
+		if timer != nil {
+			c.Fatalf("created more than one timer")
+		}
+		t := testtime.AfterFunc(d, f)
+		timer = t.(*testtime.TestTimer)
+		return timer
+	})
 	defer restore()
 
 	replyChan := make(chan notify.FilePermission, 1)
@@ -1173,13 +1131,11 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	checkCurrentNotices(c, noticeChan, prompt.ID, nil)
 
 	// Check that prompt has not immediately expired
-	checkNoNotices(c, noticeChan)
-	checkNoReply(c, replyChan)
+	c.Assert(timer.FireCount(), Equals, 0)
 
 	// Prompt should *not* expire after half of initialTimeout
-	s.elapseTime(requestprompts.InitialTimeout / 2)
-	checkNoNotices(c, noticeChan)
-	checkNoReply(c, replyChan)
+	timer.Elapse(requestprompts.InitialTimeout / 2)
+	c.Assert(timer.FireCount(), Equals, 0)
 
 	// Add another prompt, check that it does not bump the activity timeout
 	listenerReq = &listener.Request{}
@@ -1190,11 +1146,12 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	checkCurrentNotices(c, noticeChan, prompt2.ID, nil)
 
 	// Prompt should expire after initialTimeout, but half already elapsed
-	s.elapseTime(requestprompts.InitialTimeout / 2)
+	timer.Elapse(requestprompts.InitialTimeout / 2)
 	checkCurrentNoticesMultiple(c, noticeChan, []prompting.IDType{prompt.ID, prompt2.ID}, map[string]string{"resolved": "expired"})
 	// Expect two replies, one for each prompt
 	waitForReply(c, replyChan)
 	waitForReply(c, replyChan)
+	c.Assert(timer.FireCount(), Equals, 1)
 
 	// Add prompt again
 	listenerReq = &listener.Request{}
@@ -1210,9 +1167,8 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	c.Check(prompts, DeepEquals, []*requestprompts.Prompt{prompt})
 
 	// Prompt should *not* expire after initialTimeout (or even double it)
-	s.elapseTime(2 * requestprompts.InitialTimeout)
-	checkNoNotices(c, noticeChan)
-	checkNoReply(c, replyChan)
+	timer.Elapse(2 * requestprompts.InitialTimeout)
+	c.Assert(timer.FireCount(), Equals, 1)
 
 	// Retrieve prompt by ID, and bump timeout
 	p, err := pdb.PromptWithID(s.defaultUser, prompt.ID, clientActivity)
@@ -1220,23 +1176,22 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	c.Check(p, Equals, prompt)
 
 	// Prompt should *not* expire after activityTimeout-1ns
-	s.elapseTime(requestprompts.ActivityTimeout - time.Nanosecond)
-	checkNoNotices(c, noticeChan)
-	checkNoReply(c, replyChan)
+	timer.Elapse(requestprompts.ActivityTimeout - time.Nanosecond)
+	c.Assert(timer.FireCount(), Equals, 1)
 
 	// Reply to fake prompt (and get error, but still bump timeout)
 	_, err = pdb.Reply(s.defaultUser, prompt.ID+1, prompting.OutcomeAllow, clientActivity)
 	c.Check(err, NotNil)
 
 	// Prompt should *not* expire after initialTimeout
-	s.elapseTime(requestprompts.InitialTimeout)
-	checkNoNotices(c, noticeChan)
-	checkNoReply(c, replyChan)
+	timer.Elapse(requestprompts.InitialTimeout)
+	c.Assert(timer.FireCount(), Equals, 1)
 
 	// Prompt should expire after activityTimeout
-	s.elapseTime(requestprompts.ActivityTimeout - requestprompts.InitialTimeout)
+	timer.Elapse(requestprompts.ActivityTimeout - requestprompts.InitialTimeout)
 	checkCurrentNotices(c, noticeChan, prompt.ID, map[string]string{"resolved": "expired"})
 	waitForReply(c, replyChan)
+	c.Assert(timer.FireCount(), Equals, 2)
 
 	// Add prompt again
 	listenerReq = &listener.Request{}
@@ -1246,12 +1201,10 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	checkCurrentNotices(c, noticeChan, prompt.ID, nil)
 
 	// Check that prompt has not immediately expired
-	checkNoNotices(c, noticeChan)
-	checkNoReply(c, replyChan)
+	c.Assert(timer.FireCount(), Equals, 2)
 	// Nor after initialTimeout-1ns
-	s.elapseTime(requestprompts.ActivityTimeout - time.Nanosecond)
-	checkNoNotices(c, noticeChan)
-	checkNoReply(c, replyChan)
+	timer.Elapse(requestprompts.InitialTimeout - time.Nanosecond)
+	c.Assert(timer.FireCount(), Equals, 2)
 
 	// Get prompts but do not bump timeout
 	clientActivity = false
@@ -1262,13 +1215,29 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	// After timing out, timer should be reset to initialTimeout, rather than
 	// activity timeout, so prompt should expire after initialTimeout (since we
 	// already elapsed initialTimeout-1ns, just wait 1ns more).
-	s.elapseTime(time.Nanosecond)
+	timer.Elapse(time.Nanosecond)
 	checkCurrentNotices(c, noticeChan, prompt.ID, map[string]string{"resolved": "expired"})
 	waitForReply(c, replyChan)
+	c.Assert(timer.FireCount(), Equals, 3)
 }
 
 func (s *requestpromptsSuite) TestPromptExpirationRace(c *C) {
-	callbackFinished, restore := s.mockTimeAfterFuncButFirstResetOnce()
+	callbackSignaller := make(chan bool, 0)
+	var timer *testtime.TestTimer
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) testtime.Timer {
+		if timer != nil {
+			c.Fatalf("created more than one timer")
+		}
+		callback := func() {
+			// Wait for a signal over startCallback
+			<-callbackSignaller
+			f()
+			callbackSignaller <- true
+		}
+		t := testtime.AfterFunc(d, callback)
+		timer = t.(*testtime.TestTimer)
+		return timer
+	})
 	defer restore()
 
 	replyChan := make(chan notify.FilePermission, 1)
@@ -1309,55 +1278,66 @@ func (s *requestpromptsSuite) TestPromptExpirationRace(c *C) {
 	checkCurrentNotices(c, noticeChan, prompt.ID, nil)
 
 	// Check that prompt has not immediately expired
-	checkNoNotices(c, noticeChan)
-	checkNoReply(c, replyChan)
+	c.Assert(timer.FireCount(), Equals, 0)
 
-	// Cause prompt to timeout, but the reset will occur before the callback,
-	// as if activity occurred just as the timer fired.
-	s.elapseTime(requestprompts.InitialTimeout)
+	// Cause prompt to timeout, but the callback will wait for a signal, so we
+	// can reset it, simulating activity occurring just as the timer fires.
+	timer.Elapse(requestprompts.InitialTimeout)
 
-	// Wait until the callback actually finishes. If we don't wait here in the
-	// tests, where time isn't real, then we may end up elapsing time before the
-	// callback carries out the reset, thus essentially throwing away that
-	// elapsed time instead of counting it against the new timeout.
-	<-callbackFinished
-	// An alternative would be to have a variant of FakeAfterFunc which calls
-	// the timeout callback synchronously. However, then if the callback
-	// attempts to acquire a lock on the timer itself, there is a deadlock, so
-	// it must release the lock before calling the callback, and even then be
-	// very careful. It's much simpler to just augment the mocked callback to
-	// include an independent indication that the callback has completed, as
-	// we do here with callbackFinished.
+	// Check that the timer fired
+	c.Assert(timer.FireCount(), Equals, 1)
+
+	// Reset timer to half of initial timeout, as if activity occurred, but it's
+	// easier to check that the timeout was correctly reset to activityTimeout
+	// if the preemptive reset was not also to activityTimeout.
+	//
+	// In the real world, what would have happened is that activity occurred
+	// just as the timer fired, thus resetting the timer to activityTimeout
+	// just before the timeout callback sets it to initialTimeout, and we want
+	// to ensure that the callback correctly detects that the activity had
+	// occurred (by the timer being active again) and overrides its own just-set
+	// initialTimeout by resetting the timer back to activityTimeout.
+	timer.Reset(requestprompts.InitialTimeout / 2)
+
+	// Start the actual callback
+	callbackSignaller <- true
+	// Wait for the callback to complete
+	<-callbackSignaller
 
 	// Check that prompt has not expired
-	checkNoNotices(c, noticeChan)
-	checkNoReply(c, replyChan)
+	clientActivity := false
+	retrieved, err := pdb.PromptWithID(s.defaultUser, prompt.ID, clientActivity)
+	c.Assert(err, IsNil)
+	c.Assert(retrieved, Equals, prompt)
+	c.Assert(timer.FireCount(), Equals, 1)
 
-	// Check that the callback did not override the activity timeout by
-	// resetting back to initialTimeout
-	s.elapseTime(requestprompts.InitialTimeout)
-	checkNoNotices(c, noticeChan)
-	checkNoReply(c, replyChan)
-	s.elapseTime(requestprompts.InitialTimeout)
-	checkNoNotices(c, noticeChan)
-	checkNoReply(c, replyChan)
+	// Check that the callback correctly identified that the timer had been
+	// reset prior to the callback doing so, and thus re-reset the timeout to
+	// activityTimeout instead of leaving it reset to initialTimeout.
+	// First, check that the prompt doesn't expire after the preemptively reset
+	// timeout (but before initialTimeout).
+	timer.Elapse(requestprompts.InitialTimeout / 4 * 3)
+	c.Assert(timer.FireCount(), Equals, 1)
+	// Next, check that the prompt doesn't expire after the full initialTimeout
+	// (but before activityTimeout).
+	timer.Elapse(requestprompts.InitialTimeout / 4)
+	c.Assert(timer.FireCount(), Equals, 1)
 
 	// Check that the prompt does expire after the total activityTimeout
 	// following a race while the timeout was firing
-	s.elapseTime(requestprompts.ActivityTimeout - (2 * requestprompts.InitialTimeout))
+	timer.Elapse(requestprompts.ActivityTimeout - requestprompts.InitialTimeout)
+	c.Assert(timer.FireCount(), Equals, 2)
 
-	<-callbackFinished
+	// Allow the callback to run
+	callbackSignaller <- true
+	// Wait for it to finish
+	<-callbackSignaller
 
 	checkCurrentNotices(c, noticeChan, prompt.ID, map[string]string{"resolved": "expired"})
 	waitForReply(c, replyChan)
-}
 
-func checkNoNotices(c *C, noticeChan chan noticeInfo) {
-	select {
-	case info := <-noticeChan:
-		c.Fatalf("unexpected notice: ID: %s; data: %+v", info.promptID, info.data)
-	default:
-	}
+	_, err = pdb.PromptWithID(s.defaultUser, prompt.ID, clientActivity)
+	c.Assert(err, Equals, prompting_errors.ErrPromptNotFound)
 }
 
 func checkCurrentNotices(c *C, noticeChan chan noticeInfo, expectedID prompting.IDType, expectedData map[string]string) {
@@ -1386,14 +1366,6 @@ func checkCurrentNoticesMultiple(c *C, noticeChan chan noticeInfo, expectedIDs [
 		}
 	}
 	c.Assert(seen, DeepEquals, expected)
-}
-
-func checkNoReply(c *C, replyChan chan notify.FilePermission) {
-	select {
-	case allowedPermission := <-replyChan:
-		c.Fatalf("unexpected reply: %v", allowedPermission)
-	default:
-	}
 }
 
 func waitForReply(c *C, replyChan chan notify.FilePermission) {
