@@ -55,7 +55,7 @@ func checkSystemRequestConflict(st *state.State, systemLabel string) error {
 	// holding the state lock so there is no race against mark-seeded
 	// clearing recovery system; recovery system is not cleared when seeding
 	// fails
-	modeEnv, err := maybeReadModeenv()
+	modeEnv, err := boot.MaybeReadModeenv()
 	if err != nil {
 		return err
 	}
@@ -182,7 +182,7 @@ func currentSeededSystem(st *state.State) (*seededSystem, error) {
 }
 
 func seededSystemFromModeenv() (*seededSystem, error) {
-	modeEnv, err := maybeReadModeenv()
+	modeEnv, err := boot.MaybeReadModeenv()
 	if err != nil {
 		return nil, err
 	}
