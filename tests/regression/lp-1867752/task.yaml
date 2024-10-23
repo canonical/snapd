@@ -14,9 +14,6 @@ details: |
     namespace updates was made aware of that corner-case and the error would
     not longer cause issues with snap package removal.
 
-    Historically this test also enabled the robust-mount-namespace-updates feature,
-    but it is now enabled by default.
-
 systems: [ubuntu-18.04-64] # tight coupling with container guest
 
 prepare: |
