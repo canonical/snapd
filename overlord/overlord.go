@@ -175,7 +175,11 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	}
 	o.addManager(ifaceMgr)
 
-	o.addManager(fdestate.Manager(s, o.runner))
+	fdeMgr, err := fdestate.Manager(s, o.runner)
+	if err != nil {
+		return nil, err
+	}
+	o.addManager(fdeMgr)
 
 	deviceMgr, err := devicestate.Manager(s, hookMgr, o.runner, o.newStore)
 	if err != nil {

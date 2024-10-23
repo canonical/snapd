@@ -245,6 +245,8 @@ func initializeState(st *state.State) error {
 		return err
 	}
 
+	// FIXME mount points will be different in recovery or factory-reset modes
+	// either inspect degraded.json, or use boot.HostUbuntuDataForMode()
 	dataUUID, dataErr := disksDMCryptUUIDFromMountPoint(dirs.SnapdStateDir(dirs.GlobalRootDir))
 	saveUUID, saveErr := disksDMCryptUUIDFromMountPoint(dirs.SnapSaveDir)
 	if errors.Is(saveErr, disks.ErrMountPointNotFound) {
@@ -257,11 +259,12 @@ func initializeState(st *state.State) error {
 		// TODO: we should verify the device "sealed key method"
 		return nil
 	}
+
 	if dataErr != nil {
-		return dataErr
+		return fmt.Errorf("cannot resolve data partition mount: %w", dataErr)
 	}
 	if saveErr != nil {
-		return saveErr
+		return fmt.Errorf("cannot resolve save partition mount: %w", saveErr)
 	}
 
 	devpData := fmt.Sprintf("/dev/disk/by-uuid/%s", dataUUID)

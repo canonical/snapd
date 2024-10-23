@@ -35,3 +35,5 @@ func MockBackendResealKeyForBootChains(f func(updateState backend.StateUpdater, 
 	backendResealKeyForBootChains = f
 	return restore
 }
+
+func (m *FDEManager) IsFunctional() error { return m.isFunctional() }
