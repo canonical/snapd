@@ -28,6 +28,16 @@ type user struct {
 	shadowEntry string
 }
 
+var (
+	// groupsToImport is the list of groups that will have their users imported
+	// from the hybrid system into the ephemeral recovery system.
+	groupsToImport = []string{"sudo", "admin"}
+
+	// defaultLoginShells is the list of shells that we will allow for logging
+	// into the system if the /etc/shells file is not readable.
+	defaultLoginShells = []string{"/bin/bash", "/bin/sh"}
+)
+
 // importHybridUserData merges users and groups from the hybrid rootfs with the
 // users and groups from the base snap. The merged login files are written into
 // [dirs.SnapRunDir]/hybrid-users. As an attempt to only import users that have
@@ -38,7 +48,7 @@ func importHybridUserData(hybridRoot, baseRoot string) error {
 		return err
 	}
 
-	return mergeAndWriteLoginFiles(hybridRoot, baseRoot, []string{"sudo", "admin"}, outputDir)
+	return mergeAndWriteLoginFiles(hybridRoot, baseRoot, groupsToImport, outputDir)
 }
 
 func userFilter(
@@ -156,16 +166,13 @@ func mergeAndWriteLoginFiles(importRoot, baseRoot string, targetGroups []string,
 		return err
 	}
 
-	loginShells, err := parseShells(importRoot)
-	if err != nil {
-		return err
-	}
+	allowedLoginShells := parseShellsWithDefaults(importRoot, defaultLoginShells)
 
 	importUsers, err := parseUsers(importRoot, userFilter(
 		targetGroups,
 		baseUsers,
 		baseGroups,
-		loginShells,
+		allowedLoginShells,
 	))
 	if err != nil {
 		return err
@@ -524,6 +531,15 @@ func parseGroupsForUser(path string) (usersToGroups map[string][]string, err err
 	}
 
 	return usersToGroups, nil
+}
+
+func parseShellsWithDefaults(root string, defaults []string) []string {
+	shells, err := parseShells(root)
+	if err != nil {
+		logger.Noticef("cannot parse %q, using default login shells: %v", filepath.Join(root, "etc/shells"), err)
+		return defaults
+	}
+	return shells
 }
 
 // parseShells parses a file in the format of /etc/shells and returns a list of

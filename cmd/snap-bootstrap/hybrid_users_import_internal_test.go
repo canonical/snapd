@@ -1009,3 +1009,9 @@ func (s *hybridUserImportSuite) TestParseShells(c *C) {
 		"/bin/ksh",
 	})
 }
+
+func (s *hybridUserImportSuite) TestParseShellsWithDefaults(c *C) {
+	defaults := []string{"/bin/dash", "/bin/bash"}
+	shells := parseShellsWithDefaults(c.MkDir(), defaults)
+	c.Assert(shells, DeepEquals, defaults)
+}
