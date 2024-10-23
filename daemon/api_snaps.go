@@ -475,29 +475,29 @@ func snapInstall(ctx context.Context, inst *snapInstruction, st *state.State) (*
 	}
 
 	return &snapInstructionResult{
-		Summary:            installRefreshMessage(inst.Snaps[0], inst.CompsForSnaps[inst.Snaps[0]], inst.Action, inst.Channel, inst.CohortKey),
+		Summary:            installRefreshMessage(inst.Snaps[0], inst),
 		Tasksets:           tss,
 		Affected:           installedSnaps,
 		AffectedComponents: installedComponents,
 	}, nil
 }
 
-func installRefreshMessage(snap string, comps []string, action, channel, cohort string) string {
+func installRefreshMessage(snapName string, inst *snapInstruction) string {
 	var b strings.Builder
-	if action == "install" {
-		fmt.Fprintf(&b, i18n.G("Install %q snap"), snap)
+	if inst.Action == "install" {
+		fmt.Fprintf(&b, i18n.G("Install %q snap"), snapName)
 	} else {
-		fmt.Fprintf(&b, i18n.G("Refresh %q snap"), snap)
+		fmt.Fprintf(&b, i18n.G("Refresh %q snap"), snapName)
 	}
 
-	if channel != "stable" && channel != "" {
-		fmt.Fprintf(&b, i18n.G(" from %q channel"), channel)
+	if inst.Channel != "stable" && inst.Channel != "" {
+		fmt.Fprintf(&b, i18n.G(" from %q channel"), inst.Channel)
 	}
-	if cohort != "" {
-		fmt.Fprintf(&b, i18n.G(" from %q cohort"), strutil.ElliptLeft(cohort, 10))
+	if inst.CohortKey != "" {
+		fmt.Fprintf(&b, i18n.G(" from %q cohort"), strutil.ElliptLeft(inst.CohortKey, 10))
 	}
 
-	if len(comps) > 0 {
+	if comps := inst.CompsForSnaps[snapName]; len(comps) > 0 {
 		if len(comps) > 1 {
 			fmt.Fprintf(&b, i18n.G(" with components %s"), strutil.Quoted(comps))
 		} else {
@@ -508,13 +508,13 @@ func installRefreshMessage(snap string, comps []string, action, channel, cohort 
 	return b.String()
 }
 
-func multiInstallRefreshMessage(action string, snaps []string, comps map[string][]string) string {
+func multiInstallRefreshMessage(snaps []string, inst *snapInstruction) string {
 	if len(snaps) == 1 {
-		return installRefreshMessage(snaps[0], comps[snaps[0]], action, "", "")
+		return installRefreshMessage(snaps[0], inst)
 	}
 
 	var b strings.Builder
-	if action == "install" {
+	if inst.Action == "install" {
 		fmt.Fprint(&b, i18n.G("Install snaps"))
 	} else {
 		fmt.Fprint(&b, i18n.G("Refresh snaps"))
@@ -523,7 +523,7 @@ func multiInstallRefreshMessage(action string, snaps []string, comps map[string]
 	for i, name := range snaps {
 		fmt.Fprintf(&b, " %q", name)
 
-		if comps := comps[name]; len(comps) > 0 {
+		if comps := inst.CompsForSnaps[name]; len(comps) > 0 {
 			b.WriteString(" (")
 			if len(comps) > 1 {
 				fmt.Fprintf(&b, i18n.G("with components %s"), strutil.Quoted(comps))
@@ -582,7 +582,7 @@ func snapUpdate(ctx context.Context, inst *snapInstruction, st *state.State) (*s
 	}
 
 	return &snapInstructionResult{
-		Summary:            installRefreshMessage(inst.Snaps[0], inst.CompsForSnaps[inst.Snaps[0]], inst.Action, inst.Channel, inst.CohortKey),
+		Summary:            installRefreshMessage(inst.Snaps[0], inst),
 		Tasksets:           []*state.TaskSet{ts},
 		Affected:           inst.Snaps,
 		AffectedComponents: inst.CompsForSnaps,
@@ -966,7 +966,7 @@ func snapInstallMany(ctx context.Context, inst *snapInstruction, st *state.State
 	}
 
 	return &snapInstructionResult{
-		Summary:            multiInstallRefreshMessage(inst.Action, inst.Snaps, inst.CompsForSnaps),
+		Summary:            multiInstallRefreshMessage(inst.Snaps, inst),
 		Affected:           installedSnaps,
 		AffectedComponents: installedComponents,
 		Tasksets:           tasksets,
@@ -1028,9 +1028,9 @@ func snapUpdateMany(ctx context.Context, inst *snapInstruction, st *state.State)
 			msg = i18n.G("Refresh all snaps: no updates")
 		}
 	case 1:
-		msg = installRefreshMessage(updated[0], inst.CompsForSnaps[updated[0]], inst.Action, inst.Channel, inst.CohortKey)
+		msg = installRefreshMessage(updated[0], inst)
 	default:
-		msg = multiInstallRefreshMessage(inst.Action, updated, inst.CompsForSnaps)
+		msg = multiInstallRefreshMessage(updated, inst)
 	}
 
 	return &snapInstructionResult{
