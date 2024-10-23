@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2023 Canonical Ltd
+ * Copyright (C) 2019-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -69,12 +69,12 @@ func modeenvUnlock() {
 	modeenvMu.Unlock()
 }
 
-func isModeeenvLocked() bool {
+func IsModeeenvLocked() bool {
 	return atomic.LoadInt32(&modeenvLocked) == 1
 }
 
 func loadModeenv() (*Modeenv, error) {
-	if !isModeeenvLocked() {
+	if !IsModeeenvLocked() {
 		return nil, fmt.Errorf("internal error: cannot read modeenv without the lock")
 	}
 	modeenv, err := ReadModeenv("")
@@ -184,7 +184,7 @@ func newBootStateUpdate20(m *Modeenv) (*bootStateUpdate20, error) {
 
 // commit will write out boot state persistently to disk.
 func (u20 *bootStateUpdate20) commit() error {
-	if !isModeeenvLocked() {
+	if !IsModeeenvLocked() {
 		return fmt.Errorf("internal error: cannot commit modeenv without the lock")
 	}
 
