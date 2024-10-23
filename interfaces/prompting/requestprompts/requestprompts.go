@@ -45,7 +45,7 @@ const (
 	// user since the previous timeout, or if the user prompt DB was just
 	// created.
 	initialTimeout = 10 * time.Second
-	// initialTimeout is the duration before which prompts for a given user
+	// activityTimeout is the duration before which prompts for a given user
 	// will expire after the most recent retrieval of prompt details for that
 	// user.
 	activityTimeout = 10 * time.Minute
