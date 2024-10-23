@@ -43,8 +43,9 @@ var sbSetKeyRevealer = sb_hooks.SetKeyRevealer
 const legacyFdeHooksPlatformName = "fde-hook-v2"
 
 func init() {
-	handler := &fdeHookV2DataHandler{}
-	sb.RegisterPlatformKeyDataHandler(legacyFdeHooksPlatformName, handler)
+	v2Handler := &fdeHookV2DataHandler{}
+	sb.RegisterPlatformKeyDataHandler(legacyFdeHooksPlatformName, v2Handler)
+
 }
 
 type hookKeyProtector struct {
@@ -113,6 +114,18 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 	}
 
 	return nil
+}
+
+func unlockDiskWithHookV1Key(mapperName, sourceDevice string, sealed []byte) error {
+	p := fde.RevealParams{
+		SealedKey: sealed,
+	}
+	options := sb.ActivateVolumeOptions{}
+	unlockKey, err := fde.Reveal(&p)
+	if err != nil {
+		return err
+	}
+	return sbActivateVolumeWithKey(mapperName, sourceDevice, unlockKey, &options)
 }
 
 type fdeHookV2DataHandler struct{}

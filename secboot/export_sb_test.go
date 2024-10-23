@@ -252,7 +252,9 @@ func MockSbSetKeyRevealer(f func(kr sb_hooks.KeyRevealer)) (restore func()) {
 	}
 }
 
-func MockReadKeyFile(f func(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, error)) (restore func()) {
+type KeyLoader = keyLoader
+
+func MockReadKeyFile(f func(keyfile string, kl keyLoader, hintExpectFDEHook bool) error) (restore func()) {
 	old := readKeyFile
 	readKeyFile = f
 	return func() {
@@ -349,3 +351,7 @@ func MockNewLUKS2KeyDataWriter(f func(devicePath string, name string) (KeyDataWr
 		newLUKS2KeyDataWriter = old
 	}
 }
+
+type DefaultKeyLoader = defaultKeyLoader
+
+var ReadKeyFile = readKeyFile

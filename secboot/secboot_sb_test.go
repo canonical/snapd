@@ -656,15 +656,15 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			defer restore()
 
 			if tc.noKeyFile || tc.errorReadKeyFile {
-				restore = secboot.MockReadKeyFile(func(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, error) {
+				restore = secboot.MockReadKeyFile(func(keyfile string, kl secboot.KeyLoader, hintExpectFDEHook bool) error {
 					if tc.noKeyFile {
-						return nil, nil, fs.ErrNotExist
+						return fs.ErrNotExist
 					}
 					if tc.errorReadKeyFile {
-						return nil, nil, fmt.Errorf("some other error")
+						return fmt.Errorf("some other error")
 					}
 					c.Errorf("unexpected call")
-					return nil, nil, fmt.Errorf("unexpected call")
+					return fmt.Errorf("unexpected call")
 				})
 				defer restore()
 			}
@@ -1268,13 +1268,16 @@ func (s *secbootSuite) TestResealKey(c *C) {
 
 		// mock ReadSealedKeyObject
 		readSealedKeyObjectCalls := 0
-		restore = secboot.MockReadKeyFile(func(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, error) {
+		restore = secboot.MockReadKeyFile(func(keyfile string, kl secboot.KeyLoader, hintExpectFDEHook bool) error {
 			readSealedKeyObjectCalls++
+			c.Check(hintExpectFDEHook, Equals, false)
 			c.Assert(keyfile, Equals, myParams.KeyFiles[readSealedKeyObjectCalls-1])
 			if tc.oldKeyFiles {
-				return nil, mockSealedKeyObjects[readSealedKeyObjectCalls-1], tc.readSealedKeyObjectErr
+				kl.LoadSealedKeyObject(mockSealedKeyObjects[readSealedKeyObjectCalls-1])
+				return tc.readSealedKeyObjectErr
 			} else {
-				return mockKeyDatas[readSealedKeyObjectCalls-1], nil, tc.readSealedKeyObjectErr
+				kl.LoadKeyData(mockKeyDatas[readSealedKeyObjectCalls-1])
+				return tc.readSealedKeyObjectErr
 			}
 		})
 		defer restore()
@@ -1568,9 +1571,12 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1An
 	mockKeyData, err := sb.ReadKeyData(reader)
 	c.Assert(err, IsNil)
 
-	restore = secboot.MockReadKeyFile(func(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, error) {
+	restore = secboot.MockReadKeyFile(func(keyfile string, kl secboot.KeyLoader, hintExpectFDEHook bool) error {
+		c.Check(hintExpectFDEHook, Equals, true)
 		c.Check(keyfile, Equals, "the-key-file")
-		return mockKeyData, mockSealedKeyObject, nil
+		kl.LoadKeyData(mockKeyData)
+		kl.LoadSealedKeyObject(mockSealedKeyObject)
+		return nil
 	})
 	defer restore()
 
@@ -1954,9 +1960,12 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c
 	mockKeyData, err := sb.ReadKeyData(reader)
 	c.Assert(err, IsNil)
 
-	restore = secboot.MockReadKeyFile(func(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, error) {
+	restore = secboot.MockReadKeyFile(func(keyfile string, kl secboot.KeyLoader, hintExpectFDEHook bool) error {
+		c.Check(hintExpectFDEHook, Equals, true)
 		c.Check(keyfile, Equals, "the-key-file")
-		return mockKeyData, mockSealedKeyObject, nil
+		kl.LoadKeyData(mockKeyData)
+		kl.LoadSealedKeyObject(mockSealedKeyObject)
+		return nil
 	})
 	defer restore()
 
@@ -2551,4 +2560,83 @@ func (s *secbootSuite) TestSerializedProfile(c *C) {
 		// binary blobk is serialized to base64 by default
 		"tpm2-pcr-profile": base64.StdEncoding.EncodeToString([]byte("serialized-profile")),
 	})
+}
+
+func (s *secbootSuite) TestReadKeyFileKeyData(c *C) {
+	keyLoader := &secboot.DefaultKeyLoader{}
+	const fdeHookHint = false
+	tmpDir := c.MkDir()
+	keyPath := filepath.Join(tmpDir, "key")
+	// KeyData is a json
+	err := os.WriteFile(keyPath, []byte(`{}`), 0644)
+	c.Assert(err, IsNil)
+
+	newFileKeyDataReaderCalls := 0
+	restore := secboot.MockSbNewFileKeyDataReader(func(kf string) (*sb.FileKeyDataReader, error) {
+		newFileKeyDataReaderCalls++
+		c.Check(kf, Equals, keyPath)
+		return sb.NewFileKeyDataReader(kf)
+	})
+	defer restore()
+
+	readKeyDataCalls := 0
+	restore = secboot.MockSbReadKeyData(func(reader sb.KeyDataReader) (*sb.KeyData, error) {
+		readKeyDataCalls++
+		return sb.ReadKeyData(reader)
+	})
+	defer restore()
+
+	err = secboot.ReadKeyFile(keyPath, keyLoader, fdeHookHint)
+	c.Assert(err, IsNil)
+	c.Check(newFileKeyDataReaderCalls, Equals, 1)
+	c.Check(readKeyDataCalls, Equals, 1)
+	c.Check(keyLoader.KeyData, NotNil)
+	c.Check(keyLoader.SealedKeyObject, IsNil)
+	c.Check(keyLoader.FDEHookKeyV1, IsNil)
+}
+
+func (s *secbootSuite) TestReadKeyFileSealedObject(c *C) {
+	keyLoader := &secboot.DefaultKeyLoader{}
+	const fdeHookHint = false
+	keyPath := filepath.Join("test-data", "keyfile")
+
+	readSealedKeyObjectFromFileCalls := 0
+	restore := secboot.MockSbReadSealedKeyObjectFromFile(func(path string) (*sb_tpm2.SealedKeyObject, error) {
+		readSealedKeyObjectFromFileCalls++
+		c.Check(path, Equals, keyPath)
+		return sb_tpm2.ReadSealedKeyObjectFromFile(path)
+	})
+	defer restore()
+
+	newKeyDataFromSealedKeyObjectFile := 0
+	restore = secboot.MockSbNewKeyDataFromSealedKeyObjectFile(func(path string) (*sb.KeyData, error) {
+		newKeyDataFromSealedKeyObjectFile++
+		c.Check(path, Equals, keyPath)
+		return sb_tpm2.NewKeyDataFromSealedKeyObjectFile(path)
+	})
+	defer restore()
+
+	err := secboot.ReadKeyFile(keyPath, keyLoader, fdeHookHint)
+	c.Assert(err, IsNil)
+	c.Check(readSealedKeyObjectFromFileCalls, Equals, 1)
+	c.Check(newKeyDataFromSealedKeyObjectFile, Equals, 1)
+	c.Check(keyLoader.KeyData, NotNil)
+	c.Check(keyLoader.SealedKeyObject, NotNil)
+	c.Check(keyLoader.FDEHookKeyV1, IsNil)
+}
+
+func (s *secbootSuite) TestReadKeyFileFDEHookV1(c *C) {
+	keyLoader := &secboot.DefaultKeyLoader{}
+	const fdeHookHint = true
+	tmpDir := c.MkDir()
+	keyPath := filepath.Join(tmpDir, "key")
+	// KeyData starts with USK$
+	err := os.WriteFile(keyPath, []byte(`USK$blahblah`), 0644)
+	c.Assert(err, IsNil)
+
+	err = secboot.ReadKeyFile(keyPath, keyLoader, fdeHookHint)
+	c.Assert(err, IsNil)
+	c.Check(keyLoader.KeyData, IsNil)
+	c.Check(keyLoader.SealedKeyObject, IsNil)
+	c.Check(keyLoader.FDEHookKeyV1, DeepEquals, []byte(`USK$blahblah`))
 }
