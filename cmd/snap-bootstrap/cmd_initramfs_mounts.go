@@ -570,7 +570,6 @@ func copyHybridUbuntuDataAuth(srcUbuntuData, destUbuntuData string) error {
 	for _, globEx := range []string{
 		"*/.ssh/*",
 		"*/.snap/auth.json",
-		"*/.profile",
 	} {
 		if err := copyFromGlobHelper(
 			destHomeData,
