@@ -36,9 +36,10 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/testtime"
 )
 
-var (
+const (
 	// initialTimeout is the duration before which prompts for a given user
 	// will expire if there has been no retrieval of prompt details for that
 	// user since the previous timeout, or if the user prompt DB was just
@@ -48,6 +49,9 @@ var (
 	// will expire after the most recent retrieval of prompt details for that
 	// user.
 	activityTimeout = 10 * time.Minute
+	// maxOutstandingPromptsPerUser is an arbitrary limit.
+	// TODO: review this limit after some usage.
+	maxOutstandingPromptsPerUser int = 1000
 )
 
 // Prompt contains information about a request for which a user should be
@@ -228,7 +232,7 @@ type userPromptDB struct {
 	// prompts is the list of prompts which apply to the given user.
 	prompts []*Prompt
 	// expirationTimer clears the prompts for the given user when it expires.
-	expirationTimer *time.Timer
+	expirationTimer testtime.Timer
 }
 
 // get returns the prompt with the given ID from the user prompt DB.
@@ -328,12 +332,6 @@ type PromptDB struct {
 	notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
 }
 
-const (
-	// maxOutstandingPromptsPerUser is an arbitrary limit.
-	// TODO: review this limit after some usage.
-	maxOutstandingPromptsPerUser int = 1000
-)
-
 // New creates and returns a new prompt database.
 //
 // The given notifyPrompt closure will be called when a prompt is added,
@@ -356,6 +354,8 @@ func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data map[st
 	}
 	return &pdb, nil
 }
+
+var timeAfterFunc = testtime.AfterFunc
 
 // AddOrMerge checks if the given prompt contents are identical to an existing
 // prompt and, if so, merges with it by adding the given listenerReq to it.
@@ -391,7 +391,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		userEntry = &userPromptDB{
 			ids: make(map[prompting.IDType]int),
 		}
-		userEntry.expirationTimer = time.AfterFunc(initialTimeout, func() {
+		userEntry.expirationTimer = timeAfterFunc(initialTimeout, func() {
 			userEntry.timeoutCallback(pdb, metadata.User)
 		})
 		pdb.perUser[metadata.User] = userEntry
