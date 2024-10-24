@@ -468,6 +468,9 @@ apps:
 	defer restore()
 
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app-1", "--arg1"})
+	// This is needed to avoid errors in notification flow goroutine that could still be
+	// trying to call the REST API after the test ends.
+	time.Sleep(50 * time.Millisecond)
 	c.Assert(err, check.ErrorMatches, `cannot find app "app-1" in "snapname"`)
 	c.Check(called, check.Equals, true)
 }
