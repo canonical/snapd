@@ -52,15 +52,19 @@ var (
 	customDeviceInternalError = errors.New(`custom-device interface internal error`)
 
 	// Validating regexp for filesystem paths
-	customDevicePathRegexp = regexp.MustCompile(`^/[^"@]*$`)
+	customDevicePathRegexp = regexp.MustCompile(`^/[^"]*$`)
+
+	// Regexp to escape unescaped `@` characters in filesystem paths
+	customDeviceAtEscaper = regexp.MustCompile(`([^\\](\\\\)*)@`)
 
 	// Validating regexp for udev device names.
 	// We forbid:
 	// - `|`: it's valid for udev, but more work for us
 	// - `{}`: have a special meaning for AppArmor
+	// - `@`: denotes a variable in AppArmor
 	// - `"`: it's just dangerous (both for udev and AppArmor)
 	// - `\`: also dangerous
-	customDeviceUDevDeviceRegexp = regexp.MustCompile(`^/dev/[^"|{}\\]+$`)
+	customDeviceUDevDeviceRegexp = regexp.MustCompile(`^/dev/[^"|{}@\\]+$`)
 
 	// Validating regexp for udev tag values (all but kernel devices)
 	customDeviceUDevValueRegexp = regexp.MustCompile(`^[^"{}\\]+$`)
@@ -334,11 +338,16 @@ func (iface *customDeviceInterface) BeforePreparePlug(plug *snap.PlugInfo) error
 	return nil
 }
 
+func (iface *customDeviceInterface) escapeAtSymbols(path string) string {
+	return customDeviceAtEscaper.ReplaceAllString(path, `${1}\@`)
+}
+
 func (iface *customDeviceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	snippet := &bytes.Buffer{}
 	emitRule := func(paths []string, permissions string) {
 		for _, path := range paths {
-			fmt.Fprintf(snippet, "\"%s\" %s,\n", path, permissions)
+			escapedPath := iface.escapeAtSymbols(path)
+			fmt.Fprintf(snippet, "\"%s\" %s,\n", escapedPath, permissions)
 		}
 	}
 
