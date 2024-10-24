@@ -1461,6 +1461,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 			// This task is only used for unlinking a snap during refreshes so we
 			// can safely hard-code this condition here.
 			RunInhibitHint:    runinhibit.HintInhibitedForRefresh,
+			StateUnlocker:     st.Unlocker(),
 			SkipBinaries:      skipBinaries,
 			HasOtherInstances: otherInstances,
 		}
@@ -3389,7 +3390,7 @@ func (m *SnapManager) doKillSnapApps(t *state.Task, _ *tomb.Tomb) (err error) {
 	defer lock.Unlock()
 
 	inhibitInfo := runinhibit.InhibitInfo{Previous: snapsup.Revision()}
-	if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedForRemove, inhibitInfo); err != nil {
+	if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedForRemove, inhibitInfo, st.Unlocker()); err != nil {
 		return err
 	}
 	// Note: The snap hint lock file is completely removed in “discard-snap”

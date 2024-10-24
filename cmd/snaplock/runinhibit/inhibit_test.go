@@ -61,7 +61,7 @@ func (s *runInhibitSuite) TestLockWithEmptyHint(c *C) {
 	_, err := os.Stat(runinhibit.InhibitDir)
 	c.Assert(os.IsNotExist(err), Equals, true)
 
-	err = runinhibit.LockWithHint("pkg", runinhibit.HintNotInhibited, s.inhibitInfo)
+	err = runinhibit.LockWithHint("pkg", runinhibit.HintNotInhibited, s.inhibitInfo, nil)
 	c.Assert(err, ErrorMatches, "lock hint cannot be empty")
 
 	_, err = os.Stat(runinhibit.InhibitDir)
@@ -73,7 +73,7 @@ func (s *runInhibitSuite) TestLockWithUnsetRevision(c *C) {
 	_, err := os.Stat(runinhibit.InhibitDir)
 	c.Assert(os.IsNotExist(err), Equals, true)
 
-	err = runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, runinhibit.InhibitInfo{Previous: snap.R(0)})
+	err = runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, runinhibit.InhibitInfo{Previous: snap.R(0)}, nil)
 	c.Assert(err, ErrorMatches, "snap revision cannot be unset")
 
 	_, err = os.Stat(runinhibit.InhibitDir)
@@ -95,9 +95,16 @@ func (s *runInhibitSuite) TestLockWithHint(c *C) {
 	_, err := os.Stat(runinhibit.InhibitDir)
 	c.Assert(os.IsNotExist(err), Equals, true)
 
+	var unlockerCalled, relockCalled int
+	fakeUnlocker := func() (relock func()) {
+		unlockerCalled++
+		return func() { relockCalled++ }
+	}
 	expectedInfo := runinhibit.InhibitInfo{Previous: snap.R(42)}
-	err = runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, expectedInfo)
+	err = runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, expectedInfo, fakeUnlocker)
 	c.Assert(err, IsNil)
+	c.Check(unlockerCalled, Equals, 1)
+	c.Check(relockCalled, Equals, 1)
 
 	fi, err := os.Stat(runinhibit.InhibitDir)
 	c.Assert(err, IsNil)
@@ -112,19 +119,19 @@ func (s *runInhibitSuite) TestLockWithHint(c *C) {
 // The lock can be re-acquired to present a different hint.
 func (s *runInhibitSuite) TestLockLocked(c *C) {
 	expectedInfo := runinhibit.InhibitInfo{Previous: snap.R(42)}
-	err := runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, expectedInfo)
+	err := runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, expectedInfo, nil)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "refresh")
 	testInhibitInfo(c, "pkg", "refresh", expectedInfo)
 
 	expectedInfo = runinhibit.InhibitInfo{Previous: snap.R(43)}
-	err = runinhibit.LockWithHint("pkg", runinhibit.Hint("just-testing"), expectedInfo)
+	err = runinhibit.LockWithHint("pkg", runinhibit.Hint("just-testing"), expectedInfo, nil)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "just-testing")
 	testInhibitInfo(c, "pkg", "just-testing", expectedInfo)
 
 	expectedInfo = runinhibit.InhibitInfo{Previous: snap.R(44)}
-	err = runinhibit.LockWithHint("pkg", runinhibit.Hint("short"), expectedInfo)
+	err = runinhibit.LockWithHint("pkg", runinhibit.Hint("short"), expectedInfo, nil)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "short")
 	testInhibitInfo(c, "pkg", "short", expectedInfo)
@@ -139,7 +146,7 @@ func (s *runInhibitSuite) TestUnlockUnlocked(c *C) {
 
 // Unlocking an locked lock truncates the hint and removes inhibit info file.
 func (s *runInhibitSuite) TestUnlockLocked(c *C) {
-	err := runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo)
+	err := runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo, nil)
 	c.Assert(err, IsNil)
 
 	err = runinhibit.Unlock("pkg")
@@ -170,7 +177,7 @@ func (s *runInhibitSuite) TestIsLockedMissing(c *C) {
 
 // IsLocked returns the previously set hint/info.
 func (s *runInhibitSuite) TestIsLockedLocked(c *C) {
-	err := runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo)
+	err := runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo, nil)
 	c.Assert(err, IsNil)
 
 	hint, info, err := runinhibit.IsLocked("pkg")
@@ -181,7 +188,7 @@ func (s *runInhibitSuite) TestIsLockedLocked(c *C) {
 
 // IsLocked returns not-inhibited after unlocking.
 func (s *runInhibitSuite) TestIsLockedUnlocked(c *C) {
-	err := runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo)
+	err := runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo, nil)
 	c.Assert(err, IsNil)
 	err = runinhibit.Unlock("pkg")
 	c.Assert(err, IsNil)
@@ -193,7 +200,7 @@ func (s *runInhibitSuite) TestIsLockedUnlocked(c *C) {
 }
 
 func (s *runInhibitSuite) TestRemoveLockFile(c *C) {
-	c.Assert(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo), IsNil)
+	c.Assert(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo, nil), IsNil)
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FilePresent)
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.refresh"), testutil.FilePresent)
 
@@ -219,7 +226,7 @@ func checkFileNotLocked(c *C, path string) {
 }
 
 func (s *runInhibitSuite) TestWaitWhileInhibitedWalkthrough(c *C) {
-	c.Assert(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo), IsNil)
+	c.Assert(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo, nil), IsNil)
 
 	notInhibitedCalled := 0
 	inhibitedCalled := 0
@@ -279,7 +286,7 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedWalkthrough(c *C) {
 }
 
 func (s *runInhibitSuite) TestWaitWhileInhibitedContextCancellation(c *C) {
-	c.Assert(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo), IsNil)
+	c.Assert(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo, nil), IsNil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -324,7 +331,7 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedContextCancellation(c *C) {
 }
 
 func (s *runInhibitSuite) TestWaitWhileInhibitedNilCallbacks(c *C) {
-	c.Assert(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo), IsNil)
+	c.Assert(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo, nil), IsNil)
 
 	waitCalled := 0
 	// closed channel returns immediately
@@ -366,7 +373,7 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedCallbackError(c *C) {
 	// lock must be released on error
 	checkFileNotLocked(c, runinhibit.HintFile("pkg"))
 
-	c.Assert(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo), IsNil)
+	c.Assert(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo, nil), IsNil)
 	inhibited := func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
 		return false, fmt.Errorf("inhibited error")
 	}
@@ -378,7 +385,7 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedCallbackError(c *C) {
 }
 
 func (s *runInhibitSuite) TestWaitWhileInhibitedCont(c *C) {
-	c.Assert(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo), IsNil)
+	c.Assert(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo, nil), IsNil)
 
 	notInhibitedCalled := 0
 	inhibitedCalled := 0

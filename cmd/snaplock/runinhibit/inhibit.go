@@ -124,6 +124,12 @@ func removeInhibitInfoFiles(snapName string) error {
 	return nil
 }
 
+// Unlocker functions are passed from code using runinhibit to indicate that global
+// state should be unlocked during file lock operations to avoid having deadlocks where
+// both inhibition hint file and state are locked and waiting for each other. Unlocker
+// being nil indicates not to do this.
+type Unlocker func() (relock func())
+
 // LockWithHint sets a persistent "snap run" inhibition lock, for the given snap, with a given hint
 // and saves given info that will be needed by "snap run" during inhibition (e.g. snap revision).
 //
@@ -132,7 +138,7 @@ func removeInhibitInfoFiles(snapName string) error {
 // start and will block, presenting a user interface if possible. Also
 // info.Previous corresponding to the snap revision that was installed must be
 // provided and cannot be unset.
-func LockWithHint(snapName string, hint Hint, info InhibitInfo) error {
+func LockWithHint(snapName string, hint Hint, info InhibitInfo, unlocker Unlocker) error {
 	if err := hint.validate(); err != nil {
 		return err
 	}
@@ -147,6 +153,12 @@ func LockWithHint(snapName string, hint Hint, info InhibitInfo) error {
 		return err
 	}
 	defer flock.Close()
+
+	if unlocker != nil {
+		// unlock/relock global state
+		relock := unlocker()
+		defer relock()
+	}
 
 	// The following order of execution is important to avoid race conditions.
 	// Take the lock

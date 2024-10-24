@@ -59,6 +59,9 @@ type LinkContext struct {
 	// establish run inhibition lock for refresh operations.
 	RunInhibitHint runinhibit.Hint
 
+	// StateUnlocker is passed to inhibition lock operations.
+	StateUnlocker runinhibit.Unlocker
+
 	// RequireMountedSnapdSnap indicates that the apps and services
 	// generated when linking need to use tooling from the snapd snap mount.
 	RequireMountedSnapdSnap bool
@@ -379,9 +382,14 @@ func removeGeneratedSnapdWrappers(s *snap.Info, firstInstall bool, meter progres
 func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress.Meter) error {
 	var err0 error
 	if hint := linkCtx.RunInhibitHint; hint != runinhibit.HintNotInhibited {
+		// explicitly prevent passing nil state unlocker to avoid internal errors of
+		// forgeting to pass the unlocker leading to deadlocks.
+		if linkCtx.StateUnlocker == nil {
+			return errors.New("internal error: LinkContext.StateUnlocker cannot be nil if LinkContext.RunInhibitHint is set")
+		}
 		// inhibit startup of new programs
 		inhibitInfo := runinhibit.InhibitInfo{Previous: info.SnapRevision()}
-		err0 = runinhibit.LockWithHint(info.InstanceName(), hint, inhibitInfo)
+		err0 = runinhibit.LockWithHint(info.InstanceName(), hint, inhibitInfo, linkCtx.StateUnlocker)
 	}
 
 	// remove generated services, binaries etc

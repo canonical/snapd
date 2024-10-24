@@ -48,7 +48,12 @@ func (s *lockingSuite) TestRunInhibitSnapForUnlinkPositiveDecision(c *C) {
 version: 1
 `
 	info := snaptest.MockInfo(c, yaml, &snap.SideInfo{Revision: snap.R(1)})
-	lock, err := s.be.RunInhibitSnapForUnlink(info, "hint", func() error {
+	var unlockerCalled, relockCalled int
+	fakeUnlocker := func() (relock func()) {
+		unlockerCalled++
+		return func() { relockCalled++ }
+	}
+	lock, err := s.be.RunInhibitSnapForUnlink(info, "hint", fakeUnlocker, func() error {
 		// This decision function returns nil so the lock is established and
 		// the inhibition hint is set.
 		return nil
@@ -60,6 +65,8 @@ version: 1
 	c.Assert(err, IsNil)
 	c.Check(string(hint), Equals, "hint")
 	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{Previous: snap.R(1)})
+	c.Check(unlockerCalled, Equals, 1)
+	c.Check(relockCalled, Equals, 1)
 }
 
 func (s *lockingSuite) TestRunInhibitSnapForUnlinkNegativeDecision(c *C) {
@@ -67,7 +74,12 @@ func (s *lockingSuite) TestRunInhibitSnapForUnlinkNegativeDecision(c *C) {
 version: 1
 `
 	info := snaptest.MockInfo(c, yaml, nil)
-	lock, err := s.be.RunInhibitSnapForUnlink(info, "hint", func() error {
+	var unlockerCalled, relockCalled int
+	fakeUnlocker := func() (relock func()) {
+		unlockerCalled++
+		return func() { relockCalled++ }
+	}
+	lock, err := s.be.RunInhibitSnapForUnlink(info, "hint", fakeUnlocker, func() error {
 		// This decision function returns an error so the lock is not
 		// established and the inhibition hint is not set.
 		return errors.New("propagated")
@@ -78,6 +90,8 @@ version: 1
 	c.Assert(err, IsNil)
 	c.Check(string(hint), Equals, "")
 	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{})
+	c.Check(unlockerCalled, Equals, 0)
+	c.Check(relockCalled, Equals, 0)
 }
 
 func (s *lockingSuite) TestWithSnapLock(c *C) {

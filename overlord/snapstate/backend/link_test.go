@@ -885,12 +885,20 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	// linked snaps do not have a run inhibition lock
 	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FileAbsent)
 
+	var unlockerCalled, relockCalled int
+	fakeUnlocker := func() (relock func()) {
+		unlockerCalled++
+		return func() { relockCalled++ }
+	}
 	linkCtx := backend.LinkContext{
 		FirstInstall:   true,
 		RunInhibitHint: runinhibit.HintInhibitedForRefresh,
+		StateUnlocker:  fakeUnlocker,
 	}
 	err = s.be.UnlinkSnap(info, linkCtx, nil)
 	c.Assert(err, IsNil)
+	c.Check(unlockerCalled, Equals, 1)
+	c.Check(relockCalled, Equals, 1)
 
 	// generated wrappers should be gone now
 	for _, entry := range generatedSnapdUnits {
@@ -903,6 +911,8 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	// unlink is idempotent
 	err = s.be.UnlinkSnap(info, linkCtx, nil)
 	c.Assert(err, IsNil)
+	c.Check(unlockerCalled, Equals, 2)
+	c.Check(relockCalled, Equals, 2)
 	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FilePresent)
 	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.refresh"), testutil.FilePresent)
 }
@@ -928,12 +938,20 @@ func (s *snapdOnCoreUnlinkSuite) TestUnlinkNonFirstSnapdOnCoreDoesNothing(c *C) 
 	}
 	// content list uses absolute paths already
 	snaptest.PopulateDir("/", units)
+	var unlockerCalled, relockCalled int
+	fakeUnlocker := func() (relock func()) {
+		unlockerCalled++
+		return func() { relockCalled++ }
+	}
 	linkCtx := backend.LinkContext{
 		FirstInstall:   false,
 		RunInhibitHint: runinhibit.HintInhibitedForRefresh,
+		StateUnlocker:  fakeUnlocker,
 	}
 	err = s.be.UnlinkSnap(info, linkCtx, nil)
 	c.Assert(err, IsNil)
+	c.Check(unlockerCalled, Equals, 1)
+	c.Check(relockCalled, Equals, 1)
 	for _, unit := range units {
 		c.Check(unit[0], testutil.FileEquals, "precious")
 	}
