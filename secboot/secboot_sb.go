@@ -341,7 +341,7 @@ func DeleteKeys(node string, matches map[string]bool) error {
 	return nil
 }
 
-func GetPrimaryKeyHMAC(devicePath string, alg crypto.Hash) (salt []byte, digest []byte, err error) {
+func GetPrimaryKeyDigest(devicePath string, alg crypto.Hash) (salt []byte, digest []byte, err error) {
 	const remove = false
 	p, err := sb.GetPrimaryKeyFromKernel(keyringPrefix, devicePath, remove)
 	if err != nil {
@@ -361,7 +361,7 @@ func GetPrimaryKeyHMAC(devicePath string, alg crypto.Hash) (salt []byte, digest 
 	return saltArray[:], h.Sum(nil), nil
 }
 
-func VerifyPrimaryKeyHMAC(devicePath string, alg crypto.Hash, salt []byte, digest []byte) (bool, error) {
+func VerifyPrimaryKeyDigest(devicePath string, alg crypto.Hash, salt []byte, digest []byte) (bool, error) {
 	const remove = false
 	p, err := sb.GetPrimaryKeyFromKernel(keyringPrefix, devicePath, remove)
 	if err != nil {
