@@ -71,7 +71,13 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 
 	boot.ResealKeyForBootChains = m.resealKeyForBootChains
 
-	if !m.preseed {
+	if !secboot.WithSecbootSupport {
+		m.initErr = fmt.Errorf("FDE manager is not operational in builds without secboot support")
+	} else if m.preseed {
+		// nothing to do in preseeding mode, but set the init error so that
+		// attempts to use fdemgr will fail
+		m.initErr = fmt.Errorf("internal error: FDE manager cannot be used in preseeding mode")
+	} else {
 		if err := initModeFromModeenv(m); err != nil {
 			return nil, err
 		}
@@ -91,10 +97,8 @@ func (m *FDEManager) Ensure() error {
 
 // StartUp implements StateStarterUp.Startup
 func (m *FDEManager) StartUp() error {
-	if m.preseed {
-		// nothing to do in preseeding mode, but set the init error so that
-		// attempts to use fdemgr will fail
-		m.initErr = fmt.Errorf("internal error: FDE manager cannot be used in preseeding mode")
+	if m.initErr != nil {
+		// FDE manager was already disabled in constructor
 		return nil
 	}
 
