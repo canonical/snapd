@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 
 	sb "github.com/snapcore/secboot"
 	sb_scope "github.com/snapcore/secboot/bootscope"
@@ -109,6 +110,58 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 	if primaryKey != nil && params.AuxKeyFile != "" {
 		if err := osutil.AtomicWriteFile(params.AuxKeyFile, primaryKey, 0600, 0); err != nil {
 			return fmt.Errorf("cannot write the policy auth key file: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func setAuthorizedSnapModelsOnHooksKeydataImpl(kd *sb_hooks.KeyData, rand io.Reader, key sb.PrimaryKey, models ...sb.SnapModel) error {
+	return kd.SetAuthorizedSnapModels(rand, key, models...)
+}
+
+var setAuthorizedSnapModelsOnHooksKeydata = setAuthorizedSnapModelsOnHooksKeydataImpl
+
+// ResealKeysWithFDESetupHook updates hook based keydatas for given
+// files with a specific list of models
+func ResealKeysWithFDESetupHook(keyFiles []string, primaryKeyFile string, models []ModelForSealing) error {
+	primaryKeyBuf, err := os.ReadFile(primaryKeyFile)
+	if err != nil {
+		return fmt.Errorf("cannot read primary key file: %v", err)
+	}
+	primaryKey := sb.PrimaryKey(primaryKeyBuf)
+
+	var sbModels []sb.SnapModel
+	for _, model := range models {
+		sbModels = append(sbModels, model)
+	}
+	for _, keyFile := range keyFiles {
+		reader, err := sb.NewFileKeyDataReader(keyFile)
+		if err != nil {
+			return fmt.Errorf("cannot open key data: %v", err)
+		}
+		keyData, err := sb.ReadKeyData(reader)
+		if err != nil {
+			return fmt.Errorf("cannot read key data: %v", err)
+		}
+		if keyData.Generation() == 1 {
+			if err := keyData.SetAuthorizedSnapModels(primaryKey, sbModels...); err != nil {
+				return err
+			}
+		} else {
+			// TODO: also set the run modes
+			hooksKeyData, err := sb_hooks.NewKeyData(keyData)
+			if err != nil {
+				return err
+			}
+			if err := setAuthorizedSnapModelsOnHooksKeydata(hooksKeyData, rand.Reader, primaryKey, sbModels...); err != nil {
+				return err
+			}
+		}
+
+		writer := sb.NewFileKeyDataWriter(keyFile)
+		if err := keyData.WriteAtomic(writer); err != nil {
+			return err
 		}
 	}
 

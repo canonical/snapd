@@ -21,6 +21,8 @@
 package secboot
 
 import (
+	"io"
+
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
@@ -347,5 +349,13 @@ func MockNewLUKS2KeyDataWriter(f func(devicePath string, name string) (KeyDataWr
 	newLUKS2KeyDataWriter = f
 	return func() {
 		newLUKS2KeyDataWriter = old
+	}
+}
+
+func MockSetAuthorizedSnapModelsOnHooksKeydata(f func(kd *sb_hooks.KeyData, rand io.Reader, key sb.PrimaryKey, models ...sb.SnapModel) error) (restore func()) {
+	old := setAuthorizedSnapModelsOnHooksKeydata
+	setAuthorizedSnapModelsOnHooksKeydata = f
+	return func() {
+		setAuthorizedSnapModelsOnHooksKeydata = old
 	}
 }

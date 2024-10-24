@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
@@ -34,8 +35,9 @@ import (
 )
 
 var (
-	secbootResealKeys                = secboot.ResealKeys
-	secbootBuildPCRProtectionProfile = secboot.BuildPCRProtectionProfile
+	secbootResealKeys                 = secboot.ResealKeys
+	secbootBuildPCRProtectionProfile  = secboot.BuildPCRProtectionProfile
+	secbootResealKeysWithFDESetupHook = secboot.ResealKeysWithFDESetupHook
 )
 
 // MockSecbootResealKeys is only useful in testing. Note that this is a very low
@@ -60,12 +62,74 @@ func MockSecbootBuildPCRProtectionProfile(f func(modelParams []*secboot.SealKeyM
 
 type StateUpdater func(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error
 
+// comparableModel is just a representation of secboot.ModelForSealing
+// that is comparable so we can use it as an index of a map.
+type comparableModel struct {
+	BrandID   string
+	SignKeyID string
+	Model     string
+	Classic   bool
+	Grade     asserts.ModelGrade
+	Series    string
+}
+
+func toComparable(m secboot.ModelForSealing) comparableModel {
+	return comparableModel{
+		BrandID:   m.BrandID(),
+		SignKeyID: m.SignKeyID(),
+		Model:     m.Model(),
+		Classic:   m.Classic(),
+		Grade:     m.Grade(),
+		Series:    m.Series(),
+	}
+}
+
+func getUniqueModels(bootChains []boot.BootChain) []secboot.ModelForSealing {
+	uniqueModels := make(map[comparableModel]secboot.ModelForSealing)
+
+	for _, bc := range bootChains {
+		m := bc.ModelForSealing()
+		uniqueModels[toComparable(m)] = m
+	}
+
+	var models []secboot.ModelForSealing
+	for _, m := range uniqueModels {
+		models = append(models, m)
+	}
+
+	return models
+}
+
+func resealKeyForBootChainsFDEHook(method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+	runKeys := []string{
+		device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir),
+	}
+	runModels := getUniqueModels(append(params.RunModeBootChains, params.RecoveryBootChainsForRunKey...))
+
+	recoveryKeys := []string{
+		device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
+		device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
+	}
+	recoveryModels := getUniqueModels(params.RecoveryBootChains)
+
+	primaryKeyFile := filepath.Join(boot.InstallHostFDESaveDir, "aux-key")
+
+	if err := secbootResealKeysWithFDESetupHook(runKeys, primaryKeyFile, runModels); err != nil {
+		return err
+	}
+
+	if err := secbootResealKeysWithFDESetupHook(recoveryKeys, primaryKeyFile, recoveryModels); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // ResealKeyForBootChains reseals disk encryption keys with the given bootchains.
 func ResealKeyForBootChains(updateState StateUpdater, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 	switch method {
 	case device.SealingMethodFDESetupHook:
-		// FIXME: do something
-		return nil
+		return resealKeyForBootChainsFDEHook(method, rootdir, params, expectReseal)
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
 	default:
 		return fmt.Errorf("unknown key sealing method: %q", method)
