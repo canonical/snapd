@@ -188,10 +188,26 @@ func MockRegistrystateGetTransaction(f func(*registrystate.Context, *state.State
 	}
 }
 
-func MockGetRegistryView(f func(ctx *hookstate.Context, account, registryName, viewName string) (*registry.View, error)) (restore func()) {
-	old := getRegistryView
-	getRegistryView = f
+func MockRegistrystateGetView(f func(st *state.State, account, registryName, viewName string) (*registry.View, error)) (restore func()) {
+	old := registrystateGetView
+	registrystateGetView = f
 	return func() {
-		getRegistryView = old
+		registrystateGetView = old
+	}
+}
+
+func MockRegistrystateNewTransaction(f func(*state.State, string, string) (*registrystate.Transaction, error)) (restore func()) {
+	old := registrystateNewTransaction
+	registrystateNewTransaction = f
+	return func() {
+		registrystateNewTransaction = old
+	}
+}
+
+func MockRegistrystateGetStoredTransaction(f func(*state.Task) (*registrystate.Transaction, func(), error)) (restore func()) {
+	old := registrystateGetStoredTransaction
+	registrystateGetStoredTransaction = f
+	return func() {
+		registrystateGetStoredTransaction = old
 	}
 }

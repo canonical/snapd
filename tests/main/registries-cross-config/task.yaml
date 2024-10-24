@@ -4,6 +4,9 @@ details: |
   Check that we can configure registries across snaps and that the appropriate
   hooks are invoked.
 
+# the test snaps have a core24 base
+systems: [ -ubuntu-16.04 ]
+
 prepare: |
   snap set system experimental.registries=true
   snap install --edge jq

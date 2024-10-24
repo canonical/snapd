@@ -190,7 +190,7 @@ func (s *registrySuite) TestRegistryUnsetManyViews(c *C) {
 	s.state.Lock()
 	_, err = registrystate.Get(s.state, s.devAccID, "network", "write-wifi", []string{"ssid", "password"})
 	s.state.Unlock()
-	c.Assert(err, ErrorMatches, `cannot get "ssid", "password" .*: matching rules don't map to any values`)
+	c.Assert(err, ErrorMatches, `cannot get "ssid", "password" .*: no view data`)
 }
 
 func (s *registrySuite) TestRegistryUnsetInvalid(c *C) {

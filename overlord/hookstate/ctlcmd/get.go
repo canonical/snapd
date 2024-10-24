@@ -25,11 +25,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -38,6 +36,12 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/registry"
 	"github.com/snapcore/snapd/snap"
+)
+
+var (
+	registrystateGetView              = registrystate.GetView
+	registrystateNewTransaction       = registrystate.NewTransaction
+	registrystateGetStoredTransaction = registrystate.GetStoredTransaction
 )
 
 type getCommand struct {
@@ -379,7 +383,7 @@ func (c *getCommand) getRegistryValues(ctx *hookstate.Context, plugName string, 
 		return err
 	}
 
-	view, err := getRegistryView(ctx, account, registryName, viewName)
+	view, err := registrystateGetView(ctx.State(), account, registryName, viewName)
 	if err != nil {
 		return err
 	}
@@ -405,7 +409,7 @@ func (c *getCommand) getDatabag(ctx *hookstate.Context, view *registry.View, pri
 		// running in the context of a transaction, so if the referenced registry
 		// doesn't match that tx, we only allow the caller to read the other registry
 		t, _ := ctx.Task()
-		tx, _, err = registrystate.GetStoredTransaction(t)
+		tx, _, err = registrystateGetStoredTransaction(t)
 		if err != nil {
 			return nil, fmt.Errorf("cannot access registry view %s/%s/%s: cannot get transaction: %v", account, registryName, view.Name, err)
 		}
@@ -419,7 +423,7 @@ func (c *getCommand) getDatabag(ctx *hookstate.Context, view *registry.View, pri
 	// reading a view but there's no ongoing transaction for it, make a temporary
 	// transaction just as a pass-through databag
 	if tx == nil {
-		tx, err = registrystate.NewTransaction(ctx.State(), account, registryName)
+		tx, err = registrystateNewTransaction(ctx.State(), account, registryName)
 		if err != nil {
 			return nil, err
 		}
@@ -449,24 +453,6 @@ func getRegistryViewID(ctx *hookstate.Context, plugName string) (account, regist
 	}
 
 	return account, registryName, viewName, nil
-}
-
-var getRegistryView = func(ctx *hookstate.Context, account, registryName, viewName string) (*registry.View, error) {
-	registryAssert, err := assertstate.Registry(ctx.State(), account, registryName)
-	if err != nil {
-		if errors.Is(err, &asserts.NotFoundError{}) {
-			return nil, fmt.Errorf(i18n.G("registry assertion %s/%s not found"), account, registryName)
-		}
-		return nil, err
-	}
-	reg := registryAssert.Registry()
-
-	view := reg.View(viewName)
-	if view == nil {
-		return nil, fmt.Errorf(i18n.G("view %q not found in registry %s/%s"), viewName, account, registryName)
-	}
-
-	return view, nil
 }
 
 // validateRegistriesFeatureFlag checks whether the registries experimental flag

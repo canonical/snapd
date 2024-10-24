@@ -166,14 +166,7 @@ func (s *registrySuite) TestGetViewNoFieldsFound(c *C) {
 		calls++
 		switch calls {
 		case 1:
-			return nil, &registry.NotFoundError{
-				Account:      "system",
-				RegistryName: "network",
-				View:         "wifi-setup",
-				Operation:    "get",
-				Requests:     []string{"ssid", "password"},
-				Cause:        "mocked",
-			}
+			return nil, registry.NewNotFoundError("not found")
 		default:
 			err := fmt.Errorf("expected 1 call to Get, now on %d", calls)
 			c.Error(err)
@@ -187,14 +180,14 @@ func (s *registrySuite) TestGetViewNoFieldsFound(c *C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 404)
-	c.Check(rspe.Error(), Equals, `cannot get "ssid", "password" in registry view system/network/wifi-setup: mocked (api 404)`)
+	c.Check(rspe.Error(), Equals, `not found (api 404)`)
 }
 
 func (s *registrySuite) TestViewGetDatabagNotFound(c *C) {
 	s.setFeatureFlag(c)
 
 	restore := daemon.MockRegistrystateGet(func(_ *state.State, _, _, _ string, _ []string) (interface{}, error) {
-		return nil, &registry.NotFoundError{Account: "foo", RegistryName: "network", View: "wifi-setup", Operation: "get", Requests: []string{"ssid"}, Cause: "mocked"}
+		return nil, registry.NewNotFoundError("not found")
 	})
 	defer restore()
 
@@ -203,7 +196,7 @@ func (s *registrySuite) TestViewGetDatabagNotFound(c *C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 404)
-	c.Check(rspe.Message, Equals, `cannot get "ssid" in registry view foo/network/wifi-setup: mocked`)
+	c.Check(rspe.Message, Equals, `not found`)
 }
 
 func (s *registrySuite) TestViewSetManyWithExistingState(c *C) {
