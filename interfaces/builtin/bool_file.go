@@ -95,7 +95,7 @@ func (iface *boolFileInterface) AppArmorPermanentSlot(spec *apparmor.Specificati
 	gpioSnippet := `
 /sys/class/gpio/export rw,
 /sys/class/gpio/unexport rw,
-/sys/class/gpio/gpio[0-9]+/direction rw,
+/sys/class/gpio/gpio[0-9]*/direction rw,
 `
 	if iface.isGPIO(slot) {
 		spec.AddSnippet(gpioSnippet)
