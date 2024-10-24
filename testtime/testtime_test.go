@@ -17,27 +17,30 @@
  *
  */
 
-package timeutil_test
+package testtime_test
 
 import (
+	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/timeutil"
+	"github.com/snapcore/snapd/testtime"
 )
 
-type timerSuite struct{}
+func Test(t *testing.T) { TestingT(t) }
 
-var _ = Suite(&timerSuite{})
+type testtimeSuite struct{}
 
-func (s *timerSuite) TestFakeAfterFunc(c *C) {
+var _ = Suite(&testtimeSuite{})
+
+func (s *testtimeSuite) TestAfterFunc(c *C) {
 	// Create a non-buffered channel on which a message will be sent when the
 	// callback is called. Use a non-buffered channel so that we ensure that
 	// the callback runs in its own goroutine.
 	callbackChan := make(chan string)
 
-	timer := timeutil.FakeAfterFunc(time.Hour, func() {
+	timer := testtime.AfterFunc(time.Hour, func() {
 		callbackChan <- "called"
 	})
 
@@ -93,8 +96,8 @@ func (s *timerSuite) TestFakeAfterFunc(c *C) {
 	}
 }
 
-func (s *timerSuite) TestFakeNewTimer(c *C) {
-	timer := timeutil.FakeNewTimer(time.Second)
+func (s *testtimeSuite) TestNewTimer(c *C) {
+	timer := testtime.NewTimer(time.Second)
 
 	c.Check(timer.Active(), Equals, true)
 	c.Check(timer.FireCount(), Equals, 0)
@@ -142,8 +145,8 @@ func (s *timerSuite) TestFakeNewTimer(c *C) {
 	}
 }
 
-func (s *timerSuite) TestTimerInterfaceCompatibility(c *C) {
-	var t timeutil.Timer
+func (s *testtimeSuite) TestTimerInterfaceCompatibility(c *C) {
+	var t testtime.Timer
 
 	t = time.NewTimer(time.Second)
 	active := t.Reset(time.Second)
@@ -155,20 +158,20 @@ func (s *timerSuite) TestTimerInterfaceCompatibility(c *C) {
 	c.Check(active, Equals, true)
 	active = t.Stop()
 	c.Check(active, Equals, true)
-	t = timeutil.FakeNewTimer(time.Second)
+	t = testtime.NewTimer(time.Second)
 	active = t.Reset(time.Second)
 	c.Check(active, Equals, true)
 	active = t.Stop()
 	c.Check(active, Equals, true)
-	t = timeutil.FakeAfterFunc(time.Second, func() { return })
+	t = testtime.AfterFunc(time.Second, func() { return })
 	active = t.Reset(time.Second)
 	c.Check(active, Equals, true)
 	active = t.Stop()
 	c.Check(active, Equals, true)
 }
 
-func (s *timerSuite) TestFakeTimerReset(c *C) {
-	timer := timeutil.FakeNewTimer(time.Millisecond)
+func (s *testtimeSuite) TestReset(c *C) {
+	timer := testtime.NewTimer(time.Millisecond)
 
 	c.Check(timer.Active(), Equals, true)
 	c.Check(timer.FireCount(), Equals, 0)
@@ -260,8 +263,8 @@ func (s *timerSuite) TestFakeTimerReset(c *C) {
 	c.Check(timer.FireCount(), Equals, 2)
 }
 
-func (s *timerSuite) TestFakeTimerStop(c *C) {
-	timer := timeutil.FakeNewTimer(time.Millisecond)
+func (s *testtimeSuite) TestStop(c *C) {
+	timer := testtime.NewTimer(time.Millisecond)
 
 	c.Check(timer.Active(), Equals, true)
 	c.Check(timer.FireCount(), Equals, 0)
@@ -317,8 +320,8 @@ func (s *timerSuite) TestFakeTimerStop(c *C) {
 	}
 }
 
-func (s *timerSuite) TestFakeTimerFireErrors(c *C) {
-	timer := timeutil.FakeAfterFunc(time.Hour, func() { c.Fatal("should not have been called") })
+func (s *testtimeSuite) TestFireErrors(c *C) {
+	timer := testtime.AfterFunc(time.Hour, func() { c.Fatal("should not have been called") })
 	c.Check(timer.Active(), Equals, true)
 	c.Check(timer.FireCount(), Equals, 0)
 
@@ -334,7 +337,7 @@ func (s *timerSuite) TestFakeTimerFireErrors(c *C) {
 	c.Check(timer.FireCount(), Equals, 0)
 
 	// Re-declare timer with callback which doesn't cause error
-	timer = timeutil.FakeAfterFunc(time.Minute, func() {})
+	timer = testtime.AfterFunc(time.Minute, func() {})
 
 	c.Check(timer.Active(), Equals, true)
 	c.Check(timer.FireCount(), Equals, 0)
