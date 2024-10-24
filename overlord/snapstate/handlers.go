@@ -1344,6 +1344,8 @@ func (m *SnapManager) restoreUnlinkOnError(t *state.Task, info *snap.Info, other
 		IsUndo:            true,
 		ServiceOptions:    opts,
 		HasOtherInstances: otherInstances,
+		// passed state must be locked
+		StateUnlocker: st.Unlocker(),
 	}
 	_, err = m.backend.LinkSnap(info, deviceCtx, linkCtx, tm)
 	return err
@@ -1461,6 +1463,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 			// This task is only used for unlinking a snap during refreshes so we
 			// can safely hard-code this condition here.
 			RunInhibitHint:    runinhibit.HintInhibitedForRefresh,
+			StateUnlocker:     st.Unlocker(),
 			SkipBinaries:      skipBinaries,
 			HasOtherInstances: otherInstances,
 		}
@@ -1607,6 +1610,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		IsUndo:            true,
 		ServiceOptions:    opts,
 		HasOtherInstances: otherInstances,
+		StateUnlocker:     st.Unlocker(),
 	}
 	reboot, err := m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
 	if err != nil {
@@ -2213,6 +2217,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		FirstInstall:      firstInstall,
 		ServiceOptions:    opts,
 		HasOtherInstances: otherInstances,
+		StateUnlocker:     st.Unlocker(),
 	}
 	// on UC18+, snap tooling comes from the snapd snap so we need generated
 	// mount units to depend on the snapd snap mount units
@@ -2839,6 +2844,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		FirstInstall:      firstInstall,
 		IsUndo:            true,
 		HasOtherInstances: otherInstances,
+		StateUnlocker:     st.Unlocker(),
 	}
 
 	var backendErr error
@@ -3388,20 +3394,6 @@ func (m *SnapManager) doKillSnapApps(t *state.Task, _ *tomb.Tomb) (err error) {
 	lock.Lock()
 	defer lock.Unlock()
 
-	inhibitInfo := runinhibit.InhibitInfo{Previous: snapsup.Revision()}
-	if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedForRemove, inhibitInfo); err != nil {
-		return err
-	}
-	// Note: The snap hint lock file is completely removed in “discard-snap”
-	// so we only need to unlock it in case of an error here or during undo.
-	defer func() {
-		// Unlock snap inhibition if anything goes wrong afterwards to
-		// avoid keeping the snap stuck at this inhibited state.
-		if err != nil {
-			runinhibit.Unlock(snapName)
-		}
-	}()
-
 	var reason snap.AppKillReason
 	if err := t.Get("kill-reason", &reason); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
@@ -3410,10 +3402,26 @@ func (m *SnapManager) doKillSnapApps(t *state.Task, _ *tomb.Tomb) (err error) {
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snapsup.Revision()}
+	if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedForRemove, inhibitInfo, st.Unlocker()); err != nil {
+		return err
+	}
+
 	// State lock is not needed for killing apps or stopping services and since those
 	// can take some time, let's unlock the state
 	st.Unlock()
 	defer st.Lock()
+
+	// Note: The snap hint lock file is completely removed in “discard-snap”
+	// so we only need to unlock it in case of an error here or during undo.
+	defer func() {
+		// Unlock snap inhibition if anything goes wrong afterwards to
+		// avoid keeping the snap stuck at this inhibited state.
+		if err != nil {
+			// state is unlocked, it is okay to pass nil here
+			runinhibit.Unlock(snapName, nil)
+		}
+	}()
 
 	if err := m.backend.KillSnapApps(snapName, reason, perfTimings); err != nil {
 		// Snap processes termination is best-effort and task should continue
@@ -3455,7 +3463,7 @@ func (m *SnapManager) undoKillSnapApps(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := runinhibit.Unlock(snapsup.InstanceName()); err != nil {
+	if err := runinhibit.Unlock(snapsup.InstanceName(), st.Unlocker()); err != nil {
 		return err
 	}
 
@@ -3568,6 +3576,7 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		IsUndo:            true,
 		ServiceOptions:    opts,
 		HasOtherInstances: otherInstances,
+		StateUnlocker:     st.Unlocker(),
 	}
 	reboot, err := m.backend.LinkSnap(info, deviceCtx, linkCtx, perfTimings)
 	if err != nil {
@@ -3720,7 +3729,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			t.Errorf("cannot discard snap namespace %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
 			return &state.Retry{After: 3 * time.Minute}
 		}
-		err = m.backend.RemoveSnapInhibitLock(snapsup.InstanceName())
+		err = m.backend.RemoveSnapInhibitLock(snapsup.InstanceName(), st.Unlocker())
 		if err != nil {
 			return err
 		}

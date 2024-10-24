@@ -20,6 +20,7 @@
 package backend
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -302,8 +303,11 @@ func (b Backend) UndoSetupComponent(cpi snap.ContainerPlaceInfo, installRecord *
 }
 
 // RemoveSnapInhibitLock removes the file controlling inhibition of "snap run".
-func (b Backend) RemoveSnapInhibitLock(instanceName string) error {
-	return runinhibit.RemoveLockFile(instanceName)
+func (b Backend) RemoveSnapInhibitLock(instanceName string, stateUnlocker runinhibit.Unlocker) error {
+	if stateUnlocker == nil {
+		return errors.New("internal error: stateUnlocker cannot be nil")
+	}
+	return runinhibit.RemoveLockFile(instanceName, stateUnlocker)
 }
 
 // SetupKernelModulesComponents changes kernel-modules configuration by

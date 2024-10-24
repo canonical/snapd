@@ -365,7 +365,7 @@ func (c *refreshCommand) printInhibitLockHint() error {
 	}
 	defer lock.Unlock()
 
-	hint, _, err := runinhibit.IsLocked(snapName)
+	hint, _, err := runinhibit.IsLocked(snapName, nil)
 	if err != nil {
 		return err
 	}
