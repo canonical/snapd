@@ -208,10 +208,10 @@ func (iface *screenInhibitControlInterface) AppArmorConnectedSlot(spec *apparmor
 func init() {
 	registerIface(&screenInhibitControlInterface{
 		commonInterface: commonInterface{
-	  	name:                  "screen-inhibit-control",
-		  summary:               screenInhibitControlSummary,
-		  implicitOnClassic:     true,
-		  baseDeclarationSlots:  screenInhibitBaseDeclarationSlots,
-	  },
+			name:                 "screen-inhibit-control",
+			summary:              screenInhibitControlSummary,
+			implicitOnClassic:    true,
+			baseDeclarationSlots: screenInhibitBaseDeclarationSlots,
+		},
 	})
 }

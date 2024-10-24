@@ -157,7 +157,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"snapd-control":          true,
 		"upower-observe":         true,
 		"empty":                  true,
-}
+	}
 
 	// these simply auto-connect, anything else doesn't
 	autoconnect := map[string]bool{
@@ -205,9 +205,9 @@ func (s *baseDeclSuite) TestAutoConnectionImplicitSlotOnly(c *C) {
 
 	// these auto-connect only with an implicit slot
 	autoconnect := map[string]bool{
-		"desktop":                 true,
-		"screen-inhibit-control":  true,
-		"upower-observe":          true,
+		"desktop":                true,
+		"screen-inhibit-control": true,
+		"upower-observe":         true,
 	}
 
 	for _, iface := range all {
@@ -1142,10 +1142,10 @@ func (s *baseDeclSuite) TestConnectionImplicitSlotOnly(c *C) {
 
 	// these allow connect only with an implicit slot
 	autoconnect := map[string]bool{
-		"desktop":                 true,
-		"qualcomm-ipc-router":     true,
-		"screen-inhibit-control":  true,
-		"upower-observe":          true,
+		"desktop":                true,
+		"qualcomm-ipc-router":    true,
+		"screen-inhibit-control": true,
+		"upower-observe":         true,
 	}
 
 	for _, iface := range all {
@@ -1921,4 +1921,3 @@ plugs:
 	_, err = cand.CheckAutoConnect()
 	c.Check(err, IsNil)
 }
-
