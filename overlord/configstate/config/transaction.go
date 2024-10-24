@@ -30,6 +30,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/jsonutil"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -565,4 +566,13 @@ func RegisterExternalConfig(snapName, key string, vf ExternalCfgFunc) error {
 	}
 	externalConfigMap[snapName][key] = vf
 	return nil
+}
+
+// ClearExternalConfigMap must only be used for testing
+func ClearExternalConfigMap() {
+	osutil.MustBeTestBinary("ClearExternalConfigMap only can be used in tests")
+
+	externalConfigMu.Lock()
+	defer externalConfigMu.Unlock()
+	externalConfigMap = nil
 }
