@@ -91,10 +91,10 @@ func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams) (SerializedPCR
 	return nil, errBuildWithoutSecboot
 }
 
-func GetPrimaryKeyHMAC(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
+func GetPrimaryKeyDigest(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
 	return nil, nil, errBuildWithoutSecboot
 }
 
-func VerifyPrimaryKeyHMAC(devicePath string, alg crypto.Hash, salt []byte, digest []byte) (bool, error) {
+func VerifyPrimaryKeyDigest(devicePath string, alg crypto.Hash, salt []byte, digest []byte) (bool, error) {
 	return false, errBuildWithoutSecboot
 }

@@ -69,11 +69,11 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 	s.AddCleanup(fdestate.MockDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
 		panic("MockDMCryptUUIDFromMountPoint is not mocked")
 	}))
-	s.AddCleanup(fdestate.MockGetPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
-		panic("GetPrimaryKeyHMAC is not mocked")
+	s.AddCleanup(fdestate.MockGetPrimaryKeyDigest(func(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
+		panic("GetPrimaryKeyDigest is not mocked")
 	}))
-	s.AddCleanup(fdestate.MockVerifyPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash, salt, digest []byte) (bool, error) {
-		panic("VerifyPrimaryKeyHMAC is not mocked")
+	s.AddCleanup(fdestate.MockVerifyPrimaryKeyDigest(func(devicePath string, alg crypto.Hash, salt, digest []byte) (bool, error) {
+		panic("VerifyPrimaryKeyDigest is not mocked")
 	}))
 
 	m := boot.Modeenv{
@@ -111,13 +111,13 @@ func (s *fdeMgrSuite) startedManager(c *C) *fdestate.FDEManager {
 		panic(fmt.Sprintf("missing mocked mount point %q", mountpoint))
 	})()
 
-	defer fdestate.MockGetPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
+	defer fdestate.MockGetPrimaryKeyDigest(func(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
 		c.Assert(devicePath, Equals, "/dev/disk/by-uuid/aaa")
 		c.Check(alg, Equals, crypto.Hash(crypto.SHA256))
 		return []byte{1, 2, 3, 4}, []byte{5, 6, 7, 8}, nil
 	})()
 
-	defer fdestate.MockVerifyPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash, salt, digest []byte) (bool, error) {
+	defer fdestate.MockVerifyPrimaryKeyDigest(func(devicePath string, alg crypto.Hash, salt, digest []byte) (bool, error) {
 		c.Assert(devicePath, Equals, "/dev/disk/by-uuid/bbb")
 		c.Check(alg, Equals, crypto.Hash(crypto.SHA256))
 		c.Check(salt, DeepEquals, []byte{1, 2, 3, 4})
@@ -275,14 +275,14 @@ func (s *fdeMgrSuite) testMountResolveError(c *C, tc mountResolveTestCase) {
 		panic(fmt.Sprintf("missing mocked mount point %q", mountpoint))
 	})()
 
-	defer fdestate.MockGetPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
+	defer fdestate.MockGetPrimaryKeyDigest(func(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
 		if tc.expectedError == "" {
 			return nil, nil, fmt.Errorf("unexpected call to get primary key")
 		}
 		return []byte{1, 2, 3, 4}, []byte{5, 6, 7, 8}, nil
 	})()
 
-	defer fdestate.MockVerifyPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash, salt, digest []byte) (bool, error) {
+	defer fdestate.MockVerifyPrimaryKeyDigest(func(devicePath string, alg crypto.Hash, salt, digest []byte) (bool, error) {
 		if tc.expectedError == "" {
 			return false, fmt.Errorf("unexpected call to get primary key")
 		}

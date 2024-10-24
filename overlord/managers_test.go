@@ -7470,12 +7470,12 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	})
 	defer restore()
 
-	restore = fdestate.MockGetPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
+	restore = fdestate.MockGetPrimaryKeyDigest(func(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
 		return []byte("aaaa"), []byte("bbbb"), nil
 	})
 	defer restore()
 
-	restore = fdestate.MockVerifyPrimaryKeyHMAC(func(devicePath string, alg crypto.Hash, salt []byte, digest []byte) (bool, error) {
+	restore = fdestate.MockVerifyPrimaryKeyDigest(func(devicePath string, alg crypto.Hash, salt []byte, digest []byte) (bool, error) {
 		return true, nil
 	})
 	defer restore()
