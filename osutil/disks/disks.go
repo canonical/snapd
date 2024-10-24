@@ -20,6 +20,7 @@
 package disks
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -236,4 +237,24 @@ func RegisterDeviceMapperBackResolver(name string, f func(dmUUID, dmName []byte)
 // mainly for tests to un-register and re-register handlers
 func unregisterDeviceMapperBackResolver(name string) {
 	delete(deviceMapperBackResolvers, name)
+}
+
+// ErrNoDmUUID is returned by DMCryptUUIDFromMountPoint when the device
+// at the mount point is not a device mapper device.
+var ErrNoDmUUID = errors.New("device has no DM_UUID")
+
+// ErrMountPointNotFound is returned by DMCryptUUIDFromMountPoint a path
+// is not a mount point.
+var ErrMountPointNotFound = errors.New("cannot find mount point")
+
+type errMountPointNotFoundImpl struct {
+	path string
+}
+
+func (e errMountPointNotFoundImpl) Error() string {
+	return fmt.Sprintf("cannot find mountpoint %q", e.path)
+}
+
+func (e errMountPointNotFoundImpl) Unwrap() error {
+	return ErrMountPointNotFound
 }

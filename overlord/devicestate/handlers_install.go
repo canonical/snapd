@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -65,6 +66,7 @@ var (
 	bootMakeRunnableAfterDataReset       = boot.MakeRunnableSystemAfterDataReset
 	bootEnsureNextBootToRunMode          = boot.EnsureNextBootToRunMode
 	bootMakeRecoverySystemBootable       = boot.MakeRecoverySystemBootable
+	disksDMCryptUUIDFromMountPoint       = disks.DMCryptUUIDFromMountPoint
 	installRun                           = install.Run
 	installFactoryReset                  = install.FactoryReset
 	installMountVolumes                  = install.MountVolumes
@@ -300,7 +302,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if useEncryption {
-		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.KeyForRole, trustedInstallObserver); err != nil {
+		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.BootstrappedContainerForRole, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
@@ -605,24 +607,24 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 			return fmt.Errorf("cannot remove recovery key: %v", err)
 		}
 
-		// new encryption key for save
-		saveEncryptionKey, err := keys.NewEncryptionKey()
-		if err != nil {
-			return fmt.Errorf("cannot create encryption key: %v", err)
-		}
-
 		saveNode := installedSystem.DeviceForRole[gadget.SystemSave]
 		if saveNode == "" {
 			return fmt.Errorf("internal error: no system-save device")
 		}
 
-		if err := secbootStageEncryptionKeyChange(saveNode, saveEncryptionKey); err != nil {
-			return fmt.Errorf("cannot change encryption keys: %v", err)
+		uuid, err := disks.FilesystemUUID(saveNode)
+		if err != nil {
+			return fmt.Errorf("cannot find uuid for partition %s: %v", saveNode, err)
 		}
-		// keep track of the new ubuntu-save encryption key
-		installedSystem.KeyForRole[gadget.SystemSave] = saveEncryptionKey
+		saveNode = fmt.Sprintf("/dev/disk/by-uuid/%s", uuid)
 
-		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.KeyForRole, trustedInstallObserver); err != nil {
+		saveBoostrapContainer, err := createSaveBootstrappedContainer(saveNode)
+		if err != nil {
+			return err
+		}
+		installedSystem.BootstrappedContainerForRole[gadget.SystemSave] = saveBoostrapContainer
+
+		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.BootstrappedContainerForRole, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
@@ -845,18 +847,6 @@ func verifyFactoryResetMarkerInRun(marker string, hasEncryption bool) error {
 		if frm.FallbackSaveKeyHash != "" {
 			return fmt.Errorf("unexpected non-empty fallback key digest")
 		}
-	}
-	return nil
-}
-
-func rotateEncryptionKeys() error {
-	kd, err := os.ReadFile(filepath.Join(dirs.SnapFDEDir, "ubuntu-save.key"))
-	if err != nil {
-		return fmt.Errorf("cannot open encryption key file: %v", err)
-	}
-	// does the right thing if the key has already been transitioned
-	if err := secbootTransitionEncryptionKeyChange(boot.InitramfsUbuntuSaveDir, keys.EncryptionKey(kd)); err != nil {
-		return fmt.Errorf("cannot transition the encryption key: %v", err)
 	}
 	return nil
 }
@@ -1102,7 +1092,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 
 	if useEncryption {
 		if trustedInstallObserver != nil {
-			if err := installLogic.PrepareEncryptedSystemData(systemAndSnaps.Model, install.KeysForRole(encryptSetupData), trustedInstallObserver); err != nil {
+			if err := installLogic.PrepareEncryptedSystemData(systemAndSnaps.Model, install.BootstrappedContainersForRole(encryptSetupData), trustedInstallObserver); err != nil {
 				return err
 			}
 		}
@@ -1233,4 +1223,74 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	st.Cache(encryptionSetupDataKey{systemLabel}, encryptionSetupData)
 
 	return nil
+}
+
+var (
+	secbootAddBootstrapKeyOnExistingDisk = secboot.AddBootstrapKeyOnExistingDisk
+	secbootRenameOrDeleteKeys            = secboot.RenameOrDeleteKeys
+	secbootCreateBootstrappedContainer   = secboot.CreateBootstrappedContainer
+	secbootDeleteKeys                    = secboot.DeleteKeys
+)
+
+func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedContainer, error) {
+	// new encryption key for save
+	saveEncryptionKey, err := keys.NewEncryptionKey()
+	if err != nil {
+		return nil, fmt.Errorf("cannot create encryption key: %v", err)
+	}
+
+	// In order to manipulate the LUKS2 container, we need a
+	// bootstrap key. This key will be removed with
+	// secboot.BootstrappedContainer.RemoveBootstrapKey at the end
+	// of secboot.SealKeyToModeenv
+	if err := secbootAddBootstrapKeyOnExistingDisk(saveNode, saveEncryptionKey); err != nil {
+		return nil, err
+	}
+
+	// We cannot remove keys until we have completed the factory
+	// reset. Otherwise if we lose power during the reset, we
+	// might not be able to unlock the save partitions anymore.
+	// However, we cannot have multiple keys with the same
+	// name. So we need to rename the existing keys that we are
+	// going to create.
+	//
+	// FIXME: If we crash and reboot, and re-run factory reset,
+	// there will be already some old key saved. In that case, we
+	// need to keep those old keys and remove the new ones.  But
+	// we should also verify what keys we used from the
+	//
+	// FIXME: Do we maybe need to only save the default-fallback
+	// key and delete the default key? The default key will not be
+	// able to be used since we re created the data disk.
+	renames := map[string]string{
+		"default":          "factory-reset-old",
+		"default-fallback": "factory-reset-old-fallback",
+	}
+	if err := secbootRenameOrDeleteKeys(saveNode, renames); err != nil {
+		return nil, err
+	}
+
+	return secbootCreateBootstrappedContainer(secboot.DiskUnlockKey(saveEncryptionKey), saveNode), nil
+}
+
+func deleteOldSaveKey(saveMntPnt string) error {
+	// During factory reset createSaveBootstrappedContainerImpl
+	// will save some old keys that need to stay until factory
+	// reset is finished. This is the function that removes those
+	// keys.
+
+	// FIXME: maybe there is better if we had a function returning the devname instead.
+	uuid, err := disksDMCryptUUIDFromMountPoint(saveMntPnt)
+	if err != nil {
+		return fmt.Errorf("cannot find save partition: %v", err)
+	}
+
+	diskPath := filepath.Join("/dev/disk/by-uuid", uuid)
+
+	toDelete := map[string]bool{
+		"factory-reset-old":          true,
+		"factory-reset-old-fallback": true,
+	}
+
+	return secbootDeleteKeys(diskPath, toDelete)
 }

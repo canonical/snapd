@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
+	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -218,7 +219,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	// wire FDE kernel hook support into boot
 	boot.HasFDESetupHook = m.hasFDESetupHook
-	boot.RunFDESetupHook = m.runFDESetupHook
+	fdeBackend.RunFDESetupHook = m.runFDESetupHook
 	hookManager.Register(regexp.MustCompile("^fde-setup$"), newFdeSetupHandler)
 
 	return m, nil
@@ -1712,8 +1713,8 @@ func (m *DeviceManager) ensurePostFactoryReset() error {
 	}
 
 	if encrypted {
-		if err := rotateEncryptionKeys(); err != nil {
-			return fmt.Errorf("cannot transition encryption keys: %v", err)
+		if err := deleteOldSaveKey(boot.InitramfsUbuntuSaveDir); err != nil {
+			return fmt.Errorf("cannot remove old encryption keys: %v", err)
 		}
 	}
 
