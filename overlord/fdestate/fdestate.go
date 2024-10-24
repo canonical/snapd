@@ -38,8 +38,8 @@ var errNotImplemented = errors.New("not implemented")
 
 var (
 	disksDMCryptUUIDFromMountPoint = disks.DMCryptUUIDFromMountPoint
-	secbootGetPrimaryKeyHMAC       = secboot.GetPrimaryKeyHMAC
-	secbootVerifyPrimaryKeyHMAC    = secboot.VerifyPrimaryKeyHMAC
+	secbootGetPrimaryKeyDigest     = secboot.GetPrimaryKeyDigest
+	secbootVerifyPrimaryKeyDigest  = secboot.VerifyPrimaryKeyDigest
 )
 
 // EFISecureBootDBManagerStartup indicates that the local EFI key database
@@ -185,21 +185,21 @@ func (h hashAlg) MarshalJSON() ([]byte, error) {
 	}
 }
 
-// KeyDigest stores a HMAC(key, salt) of a key
+// KeyDigest stores a Digest(key, salt) of a key
 // FIXME: take what is implemented in secboot
 type KeyDigest struct {
 	// Algorithm is the algorithm for
 	Algorithm hashAlg `json:"alg"`
-	// Salt is the salt for the HMAC digest
+	// Salt is the salt for the Digest digest
 	Salt []byte `json:"salt"`
-	// Digest is the result of `HMAC(key, salt)`
+	// Digest is the result of `Digest(key, salt)`
 	Digest []byte `json:"digest"`
 }
 
 const defaultHashAlg = crypto.SHA256
 
-func getPrimaryKeyHMAC(devicePath string) (KeyDigest, error) {
-	salt, digest, err := secbootGetPrimaryKeyHMAC(devicePath, crypto.Hash(defaultHashAlg))
+func getPrimaryKeyDigest(devicePath string) (KeyDigest, error) {
+	salt, digest, err := secbootGetPrimaryKeyDigest(devicePath, crypto.Hash(defaultHashAlg))
 	if err != nil {
 		return KeyDigest{}, err
 	}
@@ -211,8 +211,8 @@ func getPrimaryKeyHMAC(devicePath string) (KeyDigest, error) {
 	}, nil
 }
 
-func (kd *KeyDigest) verifyPrimaryKeyHMAC(devicePath string) (bool, error) {
-	return secbootVerifyPrimaryKeyHMAC(devicePath, crypto.Hash(kd.Algorithm), kd.Salt, kd.Digest)
+func (kd *KeyDigest) verifyPrimaryKeyDigest(devicePath string) (bool, error) {
+	return secbootVerifyPrimaryKeyDigest(devicePath, crypto.Hash(kd.Algorithm), kd.Salt, kd.Digest)
 }
 
 // PrimaryKeyInfo provides information about a primary key that is used to manage key slots
@@ -269,13 +269,13 @@ func initializeState(st *state.State) error {
 
 	devpData := fmt.Sprintf("/dev/disk/by-uuid/%s", dataUUID)
 	devpSave := fmt.Sprintf("/dev/disk/by-uuid/%s", saveUUID)
-	digest, err := getPrimaryKeyHMAC(devpData)
+	digest, err := getPrimaryKeyDigest(devpData)
 	if err != nil {
 		return fmt.Errorf("cannot obtain primary key digest for data device %s: %w", devpData, err)
 	}
 	// TODO: restore key verification once we know that it is always added to
 	// the keyring
-	sameDigest, err := digest.verifyPrimaryKeyHMAC(devpSave)
+	sameDigest, err := digest.verifyPrimaryKeyDigest(devpSave)
 	if err != nil {
 		if !errors.Is(err, secboot.ErrKernelKeyNotFound) {
 			return fmt.Errorf("cannot verify primary key digest for save device %s: %w", devpSave, err)
@@ -377,22 +377,22 @@ func MockDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error)) (r
 	}
 }
 
-func MockGetPrimaryKeyHMAC(f func(devicePath string, alg crypto.Hash) ([]byte, []byte, error)) (restore func()) {
-	osutil.MustBeTestBinary("mocking GetPrimaryKeyHMAC can be done only from tests")
+func MockGetPrimaryKeyDigest(f func(devicePath string, alg crypto.Hash) ([]byte, []byte, error)) (restore func()) {
+	osutil.MustBeTestBinary("mocking GetPrimaryKeyDigest can be done only from tests")
 
-	old := secbootGetPrimaryKeyHMAC
-	secbootGetPrimaryKeyHMAC = f
+	old := secbootGetPrimaryKeyDigest
+	secbootGetPrimaryKeyDigest = f
 	return func() {
-		secbootGetPrimaryKeyHMAC = old
+		secbootGetPrimaryKeyDigest = old
 	}
 }
 
-func MockVerifyPrimaryKeyHMAC(f func(devicePath string, alg crypto.Hash, salt []byte, digest []byte) (bool, error)) (restore func()) {
-	osutil.MustBeTestBinary("mocking VerifyPrimaryKeyHMAC can be done only from tests")
+func MockVerifyPrimaryKeyDigest(f func(devicePath string, alg crypto.Hash, salt []byte, digest []byte) (bool, error)) (restore func()) {
+	osutil.MustBeTestBinary("mocking VerifyPrimaryKeyDigest can be done only from tests")
 
-	old := secbootVerifyPrimaryKeyHMAC
-	secbootVerifyPrimaryKeyHMAC = f
+	old := secbootVerifyPrimaryKeyDigest
+	secbootVerifyPrimaryKeyDigest = f
 	return func() {
-		secbootVerifyPrimaryKeyHMAC = old
+		secbootVerifyPrimaryKeyDigest = old
 	}
 }
