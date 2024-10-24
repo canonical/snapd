@@ -265,7 +265,7 @@ func (e *MountEntry) XSnapdSynthetic() bool {
 //
 // There are four kinds of mount entries today: one for directories, one for
 // files, one for symlinks and one for ensuring directories exist. The values are
-// "", "file", "symlink" and "ensure-dir respectively.
+// "", "file", "symlink" and "ensure-dir", respectively.
 //
 // Directories use the empty string (in fact they don't need the option at
 // all) as this was the default and is retained for backwards compatibility.
@@ -306,7 +306,7 @@ func (e *MountEntry) XSnapdIgnoreMissing() bool {
 	return e.OptBool("x-snapd.ignore-missing")
 }
 
-// XSnapdMustExistDir returns the path that must exist as prequisite
+// XSnapdMustExistDir returns the path that must exist as prerequisite
 // to a mount operation.
 func (e *MountEntry) XSnapdMustExistDir() string {
 	val, _ := e.OptStr("x-snapd.must-exist-dir")
