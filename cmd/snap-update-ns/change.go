@@ -74,9 +74,6 @@ func (c Change) String() string {
 	return fmt.Sprintf("%s (%s)", c.Action, c.Entry)
 }
 
-// changePerform is Change.Perform that can be mocked for testing.
-var changePerform func(*Change, *Assumptions) ([]*Change, error)
-
 // mimicRequired provides information if an error warrants a writable mimic.
 //
 // The returned path is the location where a mimic should be constructed.
@@ -254,14 +251,33 @@ func (c *Change) ensureSource(as *Assumptions) ([]*Change, error) {
 	return changes, err
 }
 
-// changePerformImpl is the real implementation of Change.Perform
-func changePerformImpl(c *Change, as *Assumptions) (changes []*Change, err error) {
+// Perform performs the change having prepared the the source and target directories.
+func (c *Change) Perform(as *Assumptions) ([]*Change, error) {
+	changes, err := c.PrepareToPerform(as)
+	if err != nil {
+		return changes, err
+	}
+
+	return changes, c.DoPerform(as)
+}
+
+var prepareToPerformChangeOverride func(c *Change, as *Assumptions) (changes []*Change, err error)
+
+// PrepareToPerform prepares source and target inodes.
+//
+// This function may synthesize *additional* changes that were necessary to
+// perform this change (such as mounted tmpfs or overlayfs).
+func (c *Change) PrepareToPerform(as *Assumptions) (changes []*Change, err error) {
+	if prepareToPerformChangeOverride != nil {
+		return prepareToPerformChangeOverride(c, as)
+	}
+
 	if c.Action == Mount {
 		var changesSource, changesTarget []*Change
 		// We may be asked to bind mount a file, bind mount a directory, mount
 		// a filesystem over a directory, or create a symlink (which is abusing
 		// the "mount" concept slightly). That actual operation is performed in
-		// c.lowLevelPerform. Here we just set the stage to make that possible.
+		// DoPerform. Here we just set the stage to make that possible.
 		//
 		// As a result of this ensure call we may need to make the medium writable
 		// and that's why we may return more changes as a result of performing this
@@ -289,27 +305,19 @@ func changePerformImpl(c *Change, as *Assumptions) (changes []*Change, err error
 		}
 	}
 
-	// Perform the underlying mount / unmount / unlink call.
-	err = c.lowLevelPerform(as)
-	return changes, err
+	return changes, nil
 }
 
-func init() {
-	changePerform = changePerformImpl
-}
+var doPerformChangeOverride func(c *Change, as *Assumptions) error
 
-// Perform executes the desired mount or unmount change using system calls.
+// DoPerform executes the desired mount or unmount change using system calls.
 // Filesystems that depend on helper programs or multiple independent calls to
 // the kernel (--make-shared, for example) are unsupported.
-//
-// Perform may synthesize *additional* changes that were necessary to perform
-// this change (such as mounted tmpfs or overlayfs).
-func (c *Change) Perform(as *Assumptions) ([]*Change, error) {
-	return changePerform(c, as)
-}
+func (c *Change) DoPerform(as *Assumptions) error {
+	if doPerformChangeOverride != nil {
+		return doPerformChangeOverride(c, as)
+	}
 
-// lowLevelPerform is simple bridge from Change to mount / unmount syscall.
-func (c *Change) lowLevelPerform(as *Assumptions) error {
 	var err error
 
 	kind := c.Entry.XSnapdKind()
@@ -324,7 +332,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 		kind := c.Entry.XSnapdKind()
 		switch kind {
 		case "symlink":
-			// symlinks are handled in createInode directly, nothing to do here.
+			// symlinks are handled in ensureTarget directly, nothing to do here.
 		case "", "file":
 			flags, unparsed := osutil.MountOptsToCommonFlags(c.Entry.Options)
 			// Split the mount flags from the event propagation changes.
@@ -538,7 +546,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 // dir+fstype, being fstype either none or tmpfs.
 //
 // TODO Ideally we should have only one mount per mountpoint, but we
-// perform mounts as we create the changes in Change.Perform which
+// perform mounts as we create the changes in Change.DoPerform which
 // makes it difficult to create the full list of changes and then
 // clean-up repeated mountpoints. In any case using this is still
 // needed to handle mount namespaces created by older snapd versions.
