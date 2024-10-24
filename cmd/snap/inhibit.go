@@ -96,9 +96,21 @@ func waitWhileInhibited(ctx context.Context, cli *client.Client, snapName string
 				return false, nil
 			}
 			// Start notification flow.
-			if err := flow.StartInhibitionNotification(ctx); err != nil {
-				return true, err
-			}
+			// This must be done as best-effort in its own goroutine.
+			// This avoids the deadlock scenario:
+			// - snap run holds inhibition lock.
+			// - snapd holds state lock (link-snap).
+			// - snapd tries to hold inhibition lock but waits for snap run to release lock.
+			// - snap run calls the REST API (i.e. for notices, connections) which tries to
+			//   hold state lock.
+			// - snap run is now waiting for snapd to release state lock (to send the notice)
+			//   and snapd is waiting for snap run to release the inibition lock.
+			// - we have a deadlock and snapd state is locked.
+			go func() {
+				if err := flow.StartInhibitionNotification(ctx); err != nil {
+					logger.Noticef(i18n.G("failed to start inhibition notification: %v"), err)
+				}
+			}()
 			// Make sure we call notification flow only once.
 			notified = true
 		}
@@ -116,13 +128,15 @@ func waitWhileInhibited(ctx context.Context, cli *client.Client, snapName string
 	}
 
 	if notified {
-		if err := flow.FinishInhibitionNotification(ctx); err != nil {
-			hintFlock.Close()
-			return nil, nil, nil, err
-		}
+		go func() {
+			if err := flow.FinishInhibitionNotification(ctx); err != nil {
+				logger.Noticef(i18n.G("failed to finalize inhibition notification: %v"), err)
+			}
+		}()
 	}
 
 	if info == nil || app == nil {
+		hintFlock.Close()
 		return nil, nil, nil, fmt.Errorf("internal error: info and app cannot be nil")
 	}
 

@@ -414,6 +414,9 @@ func (s *RunSuite) TestSnapRunAppNewRevisionAfterInhibition(c *check.C) {
 	defer restore()
 
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
+	// This is needed to avoid errors in notification flow goroutine that could still be
+	// trying to call the REST API after the test ends.
+	time.Sleep(50 * time.Millisecond)
 	c.Assert(err, check.IsNil)
 	c.Check(called, check.Equals, true)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1"})
@@ -468,6 +471,9 @@ apps:
 	defer restore()
 
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app-1", "--arg1"})
+	// This is needed to avoid errors in notification flow goroutine that could still be
+	// trying to call the REST API after the test ends.
+	time.Sleep(50 * time.Millisecond)
 	c.Assert(err, check.ErrorMatches, `cannot find app "app-1" in "snapname"`)
 	c.Check(called, check.Equals, true)
 }
@@ -781,6 +787,7 @@ func (s *RunSuite) testSnapRunAppRetryNoInhibitHintFileThenOngoingRefresh(c *che
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--debug-log", "--", cmd})
 	c.Assert(err, check.IsNil)
 
+	time.Sleep(50 * time.Millisecond)
 	if svc {
 		// no retry, sinlge call
 		c.Check(waitWhileInhibitedCalled, check.Equals, 1)
@@ -1013,6 +1020,7 @@ func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingRefreshMissing
 	// Check snap-confine points to latest revision
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x3")
 	// notification flow started and finished
+	time.Sleep(50 * time.Millisecond)
 	c.Check(startCalled, check.Equals, 1)
 	c.Check(finishCalled, check.Equals, 1)
 	// check retry behavior is logged
