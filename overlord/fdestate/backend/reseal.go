@@ -82,10 +82,12 @@ func ResealKeyForBootChains(updateState StateUpdater, method device.SealingMetho
 		return err
 	}
 	if needed {
+		runOnlyPbc := boot.ToPredictableBootChains(params.RunModeBootChains)
+
 		pbcJSON, _ := json.Marshal(pbc)
 		logger.Debugf("resealing (%d) to boot chains: %s", nextCount, pbcJSON)
 
-		if err := resealRunObjectKeys(updateState, pbc, authKeyFile, params.RoleToBlName); err != nil {
+		if err := resealRunObjectKeys(updateState, runOnlyPbc, pbc, authKeyFile, params.RoleToBlName); err != nil {
 			return err
 		}
 
@@ -127,15 +129,19 @@ func ResealKeyForBootChains(updateState StateUpdater, method device.SealingMetho
 	return nil
 }
 
-func resealRunObjectKeys(updateState StateUpdater, pbc boot.PredictableBootChains, authKeyFile string, roleToBlName map[bootloader.Role]string) error {
+func resealRunObjectKeys(updateState StateUpdater, pbcRunOnly, pbcWithRecovery boot.PredictableBootChains, authKeyFile string, roleToBlName map[bootloader.Role]string) error {
 	// get model parameters from bootchains
-	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
+	modelParams, err := boot.SealKeyModelParams(pbcWithRecovery, roleToBlName)
 	if err != nil {
 		return fmt.Errorf("cannot prepare for key resealing: %v", err)
 	}
 
-	numModels := len(modelParams)
-	if numModels < 1 {
+	modelParamsRunOnly, err := boot.SealKeyModelParams(pbcRunOnly, roleToBlName)
+	if err != nil {
+		return fmt.Errorf("cannot prepare for key resealing: %v", err)
+	}
+
+	if len(modelParams) < 1 || len(modelParamsRunOnly) < 1 {
 		return fmt.Errorf("at least one set of model-specific parameters is required")
 	}
 
@@ -144,9 +150,19 @@ func resealRunObjectKeys(updateState StateUpdater, pbc boot.PredictableBootChain
 		return err
 	}
 
+	pcrProfileRunOnly, err := secbootBuildPCRProtectionProfile(modelParamsRunOnly)
+	if err != nil {
+		return err
+	}
+
 	var models []secboot.ModelForSealing
 	for _, m := range modelParams {
 		models = append(models, m.Model)
+	}
+
+	var modelsRunOnly []secboot.ModelForSealing
+	for _, m := range modelParamsRunOnly {
+		modelsRunOnly = append(modelsRunOnly, m.Model)
 	}
 
 	// list all the key files to reseal
@@ -161,10 +177,13 @@ func resealRunObjectKeys(updateState StateUpdater, pbc boot.PredictableBootChain
 		return fmt.Errorf("cannot reseal the encryption key: %v", err)
 	}
 
-	// FIXME: We should also update "run" keyslot role
-
 	// TODO: use constants for "run+recover" and "all"
 	if err := updateState("run+recover", "all", []string{"run", "recover"}, models, pcrProfile); err != nil {
+		return err
+	}
+
+	// TODO: use constants for "run+recover" and "all"
+	if err := updateState("run", "all", []string{"run"}, modelsRunOnly, pcrProfileRunOnly); err != nil {
 		return err
 	}
 
