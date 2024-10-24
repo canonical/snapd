@@ -23,9 +23,15 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/interfaces/prompting"
+	"github.com/snapcore/snapd/testtime"
+	"github.com/snapcore/snapd/testutil"
 )
 
-const MaxOutstandingPromptsPerUser = maxOutstandingPromptsPerUser
+const (
+	InitialTimeout               = initialTimeout
+	ActivityTimeout              = activityTimeout
+	MaxOutstandingPromptsPerUser = maxOutstandingPromptsPerUser
+)
 
 func NewPrompt(id prompting.IDType, timestamp time.Time, snap string, iface string, path string, remainingPermissions []string, availablePermissions []string, originalPermissions []string) *Prompt {
 	constraints := &promptConstraints{
@@ -50,4 +56,13 @@ func (pdb *PromptDB) PerUser() map[uint32]*userPromptDB {
 
 func (pdb *PromptDB) NextID() (prompting.IDType, error) {
 	return pdb.maxIDMmap.NextID()
+}
+
+func MockTimeAfterFunc(f func(d time.Duration, callback func()) testtime.Timer) (restore func()) {
+	restoreTimers := testtime.MockTimers()
+	restoreAfterFunc := testutil.Mock(&timeAfterFunc, f)
+	return func() {
+		restoreAfterFunc()
+		restoreTimers()
+	}
 }
