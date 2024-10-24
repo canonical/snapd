@@ -214,7 +214,7 @@ func (h *gateAutoRefreshHookHandler) Done() (err error) {
 		// invoking --hold/--proceed; this means proceed (except for respecting
 		// refresh inhibit).
 		if h.refreshAppAwareness {
-			if err := runinhibit.Unlock(snapName); err != nil {
+			if err := runinhibit.Unlock(snapName, st.Unlocker()); err != nil {
 				return fmt.Errorf("cannot unlock inhibit lock for snap %s: %v", snapName, err)
 			}
 		}
@@ -232,7 +232,7 @@ func (h *gateAutoRefreshHookHandler) Done() (err error) {
 	case snapstate.GateAutoRefreshHold:
 		// for action=hold the ctlcmd calls HoldRefresh; only unlock runinhibit.
 		if h.refreshAppAwareness {
-			if err := runinhibit.Unlock(snapName); err != nil {
+			if err := runinhibit.Unlock(snapName, st.Unlocker()); err != nil {
 				return fmt.Errorf("cannot unlock inhibit lock of snap %s: %v", snapName, err)
 			}
 		}
@@ -284,7 +284,7 @@ func (h *gateAutoRefreshHookHandler) Error(hookErr error) (ignoreHookErr bool, e
 		}
 		defer lock.Unlock()
 
-		if err := runinhibit.Unlock(snapName); err != nil {
+		if err := runinhibit.Unlock(snapName, st.Unlocker()); err != nil {
 			return false, fmt.Errorf("cannot release inhibit lock of snap %s: %v", snapName, err)
 		}
 	}

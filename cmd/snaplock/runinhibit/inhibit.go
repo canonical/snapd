@@ -139,6 +139,12 @@ type Unlocker func() (relock func())
 // info.Previous corresponding to the snap revision that was installed must be
 // provided and cannot be unset.
 func LockWithHint(snapName string, hint Hint, info InhibitInfo, unlocker Unlocker) error {
+	if unlocker != nil {
+		// unlock/relock global state
+		relock := unlocker()
+		defer relock()
+	}
+
 	if err := hint.validate(); err != nil {
 		return err
 	}
@@ -153,12 +159,6 @@ func LockWithHint(snapName string, hint Hint, info InhibitInfo, unlocker Unlocke
 		return err
 	}
 	defer flock.Close()
-
-	if unlocker != nil {
-		// unlock/relock global state
-		relock := unlocker()
-		defer relock()
-	}
 
 	// The following order of execution is important to avoid race conditions.
 	// Take the lock
@@ -191,7 +191,13 @@ func LockWithHint(snapName string, hint Hint, info InhibitInfo, unlocker Unlocke
 // Unlock truncates the run inhibition lock, for the given snap.
 //
 // An empty inhibition lock means uninhibited "snap run".
-func Unlock(snapName string) error {
+func Unlock(snapName string, unlocker Unlocker) error {
+	if unlocker != nil {
+		// unlock/relock global state
+		relock := unlocker()
+		defer relock()
+	}
+
 	flock, err := openHintFileLock(snapName)
 	if os.IsNotExist(err) {
 		return nil

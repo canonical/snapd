@@ -158,6 +158,12 @@ func updateCurrentSymlinks(info *snap.Info) (revert func(), e error) {
 
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
 func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext, tm timings.Measurer) (rebootRequired boot.RebootInfo, e error) {
+	// explicitly prevent passing nil state unlocker to avoid internal errors of
+	// forgeting to pass the unlocker leading to deadlocks.
+	if linkCtx.StateUnlocker == nil {
+		return boot.RebootInfo{}, errors.New("internal error: LinkContext.StateUnlocker cannot be nil")
+	}
+
 	if info.Revision.Unset() {
 		return boot.RebootInfo{}, fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
 	}
@@ -223,7 +229,7 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 	}
 
 	// Stop inhibiting application startup by removing the inhibitor file.
-	if err := runinhibit.Unlock(info.InstanceName()); err != nil {
+	if err := runinhibit.Unlock(info.InstanceName(), linkCtx.StateUnlocker); err != nil {
 		return boot.RebootInfo{}, err
 	}
 

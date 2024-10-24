@@ -139,7 +139,7 @@ func (s *runInhibitSuite) TestLockLocked(c *C) {
 
 // Unlocking an unlocked lock doesn't break anything.
 func (s *runInhibitSuite) TestUnlockUnlocked(c *C) {
-	err := runinhibit.Unlock("pkg")
+	err := runinhibit.Unlock("pkg", nil)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileAbsent)
 }
@@ -149,8 +149,15 @@ func (s *runInhibitSuite) TestUnlockLocked(c *C) {
 	err := runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo, nil)
 	c.Assert(err, IsNil)
 
-	err = runinhibit.Unlock("pkg")
+	var unlockerCalled, relockCalled int
+	fakeUnlocker := func() (relock func()) {
+		unlockerCalled++
+		return func() { relockCalled++ }
+	}
+	err = runinhibit.Unlock("pkg", fakeUnlocker)
 	c.Assert(err, IsNil)
+	c.Check(unlockerCalled, Equals, 1)
+	c.Check(relockCalled, Equals, 1)
 
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "")
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.refresh"), testutil.FileAbsent)
@@ -190,7 +197,7 @@ func (s *runInhibitSuite) TestIsLockedLocked(c *C) {
 func (s *runInhibitSuite) TestIsLockedUnlocked(c *C) {
 	err := runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo, nil)
 	c.Assert(err, IsNil)
-	err = runinhibit.Unlock("pkg")
+	err = runinhibit.Unlock("pkg", nil)
 	c.Assert(err, IsNil)
 
 	hint, info, err := runinhibit.IsLocked("pkg")
@@ -239,7 +246,7 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedWalkthrough(c *C) {
 
 		if inhibitedCalled == 3 {
 			// let's remove run inhibtion
-			c.Assert(runinhibit.Unlock("pkg"), IsNil)
+			c.Assert(runinhibit.Unlock("pkg", nil), IsNil)
 		}
 
 		return waitCh
@@ -342,7 +349,7 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedNilCallbacks(c *C) {
 		// lock should be released during wait interval
 		checkFileNotLocked(c, runinhibit.HintFile("pkg"))
 		// let's remove run inhibtion
-		c.Assert(runinhibit.Unlock("pkg"), IsNil)
+		c.Assert(runinhibit.Unlock("pkg", nil), IsNil)
 
 		return waitCh
 	}
