@@ -60,13 +60,15 @@ version: 1
 	})
 	c.Assert(err, IsNil)
 	c.Assert(lock, NotNil)
+	c.Check(unlockerCalled, Equals, 1)
+	c.Check(relockCalled, Equals, 1)
 	lock.Close()
-	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName())
+	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName(), fakeUnlocker)
 	c.Assert(err, IsNil)
 	c.Check(string(hint), Equals, "hint")
 	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{Previous: snap.R(1)})
-	c.Check(unlockerCalled, Equals, 1)
-	c.Check(relockCalled, Equals, 1)
+	c.Check(unlockerCalled, Equals, 2)
+	c.Check(relockCalled, Equals, 2)
 }
 
 func (s *lockingSuite) TestRunInhibitSnapForUnlinkNegativeDecision(c *C) {
@@ -86,12 +88,14 @@ version: 1
 	})
 	c.Assert(err, ErrorMatches, "propagated")
 	c.Assert(lock, IsNil)
-	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName())
+	c.Check(unlockerCalled, Equals, 0)
+	c.Check(relockCalled, Equals, 0)
+	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName(), fakeUnlocker)
 	c.Assert(err, IsNil)
 	c.Check(string(hint), Equals, "")
 	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{})
-	c.Check(unlockerCalled, Equals, 0)
-	c.Check(relockCalled, Equals, 0)
+	c.Check(unlockerCalled, Equals, 1)
+	c.Check(relockCalled, Equals, 1)
 }
 
 func (s *lockingSuite) TestWithSnapLock(c *C) {

@@ -2683,7 +2683,7 @@ func (s *linkSnapSuite) testDoKillSnapApps(c *C, svc bool) {
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 
-	hint, _, err := runinhibit.IsLocked("some-snap")
+	hint, _, err := runinhibit.IsLocked("some-snap", nil)
 	c.Assert(err, IsNil)
 	c.Check(hint, Equals, runinhibit.HintInhibitedForRemove)
 
@@ -2737,7 +2737,7 @@ func (s *linkSnapSuite) TestDoKillSnapAppsUnlocksOnError(c *C) {
 
 	c.Assert(task.Status(), Equals, state.ErrorStatus)
 
-	hint, _, err := runinhibit.IsLocked("some-snap")
+	hint, _, err := runinhibit.IsLocked("some-snap", nil)
 	c.Assert(err, IsNil)
 	// On error hint inhibition file is unlocked
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
@@ -2784,7 +2784,7 @@ func (s *linkSnapSuite) TestDoKillSnapAppsTerminateBestEffort(c *C) {
 
 	c.Assert(task.Status(), Equals, state.DoneStatus)
 
-	hint, _, err := runinhibit.IsLocked("some-snap")
+	hint, _, err := runinhibit.IsLocked("some-snap", nil)
 	c.Assert(err, IsNil)
 	// Error is ignored, inhibition lock is held
 	c.Check(hint, Equals, runinhibit.HintInhibitedForRemove)
@@ -2863,7 +2863,7 @@ func (s *linkSnapSuite) testDoUndoKillSnapApps(c *C, svc bool) {
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 
-	hint, _, err := runinhibit.IsLocked("some-snap")
+	hint, _, err := runinhibit.IsLocked("some-snap", nil)
 	c.Assert(err, IsNil)
 	// On undo hint inhibition file is unlocked
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)

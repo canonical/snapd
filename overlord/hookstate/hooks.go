@@ -246,7 +246,7 @@ func (h *gateAutoRefreshHookHandler) Done() (err error) {
 			// we have HintInhibitedGateRefresh lock already when running the hook, change
 			// it to HintInhibitedForRefresh.
 			// Also let's reuse inhibit info that was saved in Before().
-			_, inhibitInfo, err := runinhibit.IsLocked(snapName)
+			_, inhibitInfo, err := runinhibit.IsLocked(snapName, st.Unlocker())
 			if err != nil {
 				return err
 			}

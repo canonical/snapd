@@ -232,7 +232,13 @@ func Unlock(snapName string, unlocker Unlocker) error {
 //
 // It returns the current, non-empty hint if inhibition is in place. Otherwise
 // it returns an empty hint.
-func IsLocked(snapName string) (Hint, InhibitInfo, error) {
+func IsLocked(snapName string, unlocker Unlocker) (Hint, InhibitInfo, error) {
+	if unlocker != nil {
+		// unlock/relock global state
+		relock := unlocker()
+		defer relock()
+	}
+
 	hintFlock, err := osutil.OpenExistingLockForReading(HintFile(snapName))
 	if os.IsNotExist(err) {
 		return "", InhibitInfo{}, nil
