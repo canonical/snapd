@@ -289,6 +289,13 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shimBf,
 					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(runAssetBf,
+							secboot.NewLoadChain(runKernel)))),
+			})
+		case 3:
+			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
 						secboot.NewLoadChain(recoveryKernel))),
 			})
 		default:
@@ -541,6 +548,16 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 				}
 			}
 
+			checkRunOnlyParams := func() {
+				c.Check(modelParams[0].KernelCmdlines, DeepEquals, []string{
+					"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+				})
+
+				for _, chain := range possibleChains {
+					c.Check(modelParams[0].EFILoadChains, ContainsChain, chain)
+				}
+			}
+
 			checkRecoveryParams := func() {
 				c.Check(modelParams[0].KernelCmdlines, DeepEquals, []string{
 					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
@@ -560,6 +577,14 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 					c.Errorf("unexpected call to secboot.BuildPCRProtectionProfile (call # %d)", buildProfileCalls)
 				}
 			case 2:
+				if !tc.reuseRunPbc {
+					checkRunOnlyParams()
+				} else if !tc.reuseRecoveryPbc {
+					checkRecoveryParams()
+				} else {
+					c.Errorf("unexpected call to secboot.BuildPCRProtectionProfile (call # %d)", buildProfileCalls)
+				}
+			case 3:
 				if !tc.reuseRecoveryPbc {
 					checkRecoveryParams()
 				} else {
@@ -961,7 +986,13 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 			})
 			// load chains
 			c.Assert(modelParams[0].EFILoadChains, HasLen, 3)
-		case 2: // recovery keys
+		case 2: // run only key
+			c.Assert(modelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+			})
+			// load chains
+			c.Assert(modelParams[0].EFILoadChains, HasLen, 1)
+		case 3: // recovery keys
 			c.Assert(modelParams[0].KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
@@ -999,7 +1030,15 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 							secboot.NewLoadChain(runKernel)),
 					)),
 			})
-		case 2: // recovery load chains
+		case 2: // run load chain
+			c.Assert(modelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shim,
+					secboot.NewLoadChain(grub,
+						secboot.NewLoadChain(runGrub,
+							secboot.NewLoadChain(runKernel)),
+					)),
+			})
+		case 3: // recovery load chains
 			c.Assert(modelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shim,
 					secboot.NewLoadChain(grub,
@@ -1219,7 +1258,22 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 			})
 			// 2 load chains (bootloader + run kernel, bootloader + recovery kernel)
 			c.Assert(modelParams[1].EFILoadChains, HasLen, 2)
-		case 2: // recovery keys
+		case 2: // run only key
+			// 2 models, current and try
+			c.Assert(modelParams, HasLen, 2)
+			// shared parameters
+			c.Assert(modelParams[0].Model.Model(), Equals, "my-model-uc20")
+			c.Assert(modelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+			})
+			c.Assert(modelParams[0].EFILoadChains, HasLen, 1)
+
+			c.Assert(modelParams[1].Model.Model(), Equals, "try-my-model-uc20")
+			c.Assert(modelParams[1].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+			})
+			c.Assert(modelParams[1].EFILoadChains, HasLen, 1)
+		case 3: // recovery keys
 			// only the current model
 			c.Assert(modelParams, HasLen, 1)
 			// shared parameters
@@ -1275,7 +1329,23 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 							secboot.NewLoadChain(runKernel)),
 					)),
 			})
-		case 2: // recovery load chains, only for the current model
+		case 2: // run only load chain for 2 models, current and a try model
+			c.Assert(modelParams, HasLen, 2)
+			c.Assert(modelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shim,
+					secboot.NewLoadChain(grub,
+						secboot.NewLoadChain(runGrub,
+							secboot.NewLoadChain(runKernel)),
+					)),
+			})
+			c.Assert(modelParams[1].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shim,
+					secboot.NewLoadChain(grub,
+						secboot.NewLoadChain(runGrub,
+							secboot.NewLoadChain(runKernel)),
+					)),
+			})
+		case 3: // recovery load chains, only for the current model
 			c.Assert(modelParams, HasLen, 1)
 			// load chain with a kernel from a recovery system that
 			// matches the current model only
@@ -1503,6 +1573,10 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 				"snapd_recovery_mode=run static cmdline",
 			})
 		case 2:
+			c.Assert(modelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=run static cmdline",
+			})
+		case 3:
 			c.Assert(modelParams[0].KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
@@ -1852,8 +1926,8 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 	c.Assert(err, IsNil)
 
 	// reseal was called
-	c.Check(buildProfileCalls, Equals, 2)
+	c.Check(buildProfileCalls, Equals, 3)
 	c.Check(resealKeysCalls, Equals, 2)
 	// and the state was updated
-	c.Check(updateCalls, Equals, 2)
+	c.Check(updateCalls, Equals, 3)
 }
