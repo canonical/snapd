@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nosecboot
 
 /*
  * Copyright (C) 2024 Canonical Ltd
