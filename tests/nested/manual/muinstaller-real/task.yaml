@@ -86,6 +86,11 @@ execute: |
   tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
   snap pack --filename=pc.snap pc-gadget/
 
+  # TODO: remove this once this change to extra-paths has made it into a
+  # released kernel snap
+  mkdir -p ./extra-initrd/usr/lib/core
+  cp ./extra-paths ./extra-initrd/usr/lib/core/extra-paths
+
   # Retrieve kernel
   snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
   # the fakestore needs this assertion
@@ -243,9 +248,9 @@ execute: |
 
   # Make sure we installed the new grub
   if os.query is-ubuntu-ge 24.04 && [ "$PARTIAL_GADGET" = false ]; then
-    remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-seed/EFI/ubuntu/grubx64.efi'
+      remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-seed/EFI/ubuntu/grubx64.efi'
   else
-    remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-seed/EFI/boot/grubx64.efi'
+      remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-seed/EFI/boot/grubx64.efi'
   fi
   remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi'
 
@@ -287,7 +292,7 @@ execute: |
 
   # check that seed is properly installed
   remote.exec test -d /run/mnt/ubuntu-seed/systems/classic
-  remote.exec "sudo snap recovery" | MATCH 'classic\s+developer1\s+developer1-22-classic-dangerous\s+current'
+  remote.exec "sudo snap recovery" | MATCH "classic\s+developer1\s+developer1-${version}-classic-dangerous\s+current"
 
   echo "unasserted snaps"
   remote.exec "ls /run/mnt/ubuntu-seed/systems/classic/snaps"
@@ -297,13 +302,32 @@ execute: |
 
   # check for unasserted snaps
   for sn in pc pc-kernel snapd; do
-      version=$(remote.exec "snap list ${sn}" | awk 'NR != 1 { print $2 }' | sed 's/+fake1//')
-      remote.exec "test -f /run/mnt/ubuntu-seed/systems/classic/snaps/${sn}_${version}.snap"
+      sn_version=$(remote.exec "snap list ${sn}" | awk 'NR != 1 { print $2 }' | sed 's/+fake1//')
+      remote.exec "test -f /run/mnt/ubuntu-seed/systems/classic/snaps/${sn}_${sn_version}.snap"
   done
 
   # check for asserted snaps
-  core22_rev=$(remote.exec "snap list core22" | awk 'NR != 1 { print $3 }')
-  remote.exec "test -f /run/mnt/ubuntu-seed/snaps/core22_${core22_rev}.snap"
+  core_rev=$(remote.exec "snap list core${version}" | awk 'NR != 1 { print $3 }')
+  remote.exec "test -f /run/mnt/ubuntu-seed/snaps/core${version}_${core_rev}.snap"
 
   # model in the seed should match the one that was installed on the system
   remote.exec "diff <(snap model --assertion) /run/mnt/ubuntu-seed/systems/classic/model"
+
+  boot_id=$(remote.exec "cat /proc/sys/kernel/random/boot_id")
+  remote.exec "sudo snap reboot --recover classic"
+  remote.wait-for reboot "${boot_id}"
+
+  # we explicitly provide a password since the sudo group is not configured to
+  # allow passwordless sudo
+  timeout -v 300 remote.exec "echo ubuntu | sudo -S snap wait system seed.loaded"
+
+  remote.exec "groups" | tr ' ' '\n' | sort | xargs | MATCH 'sudo user1'
+
+  remote.exec "snap list" > snap-list
+  for name in "pc" "pc-kernel" "snapd" "core${version}"; do
+      MATCH "${name}" < snap-list
+  done
+
+  for name in passwd shadow group gshadow; do
+      remote.exec "findmnt -n /etc/${name}" | awk '{ print $2 }' | MATCH "tmpfs\[/snapd/hybrid-users/${name}\]"
+  done
