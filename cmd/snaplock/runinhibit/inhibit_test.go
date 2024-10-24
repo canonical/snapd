@@ -221,11 +221,21 @@ func (s *runInhibitSuite) TestRemoveLockFile(c *C) {
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FilePresent)
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.refresh"), testutil.FilePresent)
 
-	c.Assert(runinhibit.RemoveLockFile("pkg"), IsNil)
+	var unlockerCalled, relockCalled int
+	fakeUnlocker := func() (relock func()) {
+		unlockerCalled++
+		return func() { relockCalled++ }
+	}
+
+	c.Assert(runinhibit.RemoveLockFile("pkg", fakeUnlocker), IsNil)
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileAbsent)
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.refresh"), testutil.FileAbsent)
+	c.Check(unlockerCalled, Equals, 1)
+	c.Check(relockCalled, Equals, 1)
 	// Removing an absent lock file is not an error.
-	c.Assert(runinhibit.RemoveLockFile("pkg"), IsNil)
+	c.Assert(runinhibit.RemoveLockFile("pkg", fakeUnlocker), IsNil)
+	c.Check(unlockerCalled, Equals, 2)
+	c.Check(relockCalled, Equals, 2)
 }
 
 func checkFileLocked(c *C, path string) {

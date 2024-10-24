@@ -1551,7 +1551,7 @@ func (f *fakeSnappyBackend) RemoveAllSnapAppArmorProfiles() error {
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) RemoveSnapInhibitLock(snapName string) error {
+func (f *fakeSnappyBackend) RemoveSnapInhibitLock(snapName string, stateUnlocker runinhibit.Unlocker) error {
 	f.appendOp(&fakeOp{
 		op:   "remove-inhibit-lock",
 		name: snapName,

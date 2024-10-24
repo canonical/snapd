@@ -278,7 +278,13 @@ func IsLocked(snapName string, unlocker Unlocker) (Hint, InhibitInfo, error) {
 // it.
 //
 // The function does not fail if the inhibition lock does not exist.
-func RemoveLockFile(snapName string) error {
+func RemoveLockFile(snapName string, unlocker Unlocker) error {
+	if unlocker != nil {
+		// unlock/relock global state
+		relock := unlocker()
+		defer relock()
+	}
+
 	hintFlock, err := osutil.OpenExistingLockForReading(HintFile(snapName))
 	if os.IsNotExist(err) {
 		return nil

@@ -3729,7 +3729,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			t.Errorf("cannot discard snap namespace %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
 			return &state.Retry{After: 3 * time.Minute}
 		}
-		err = m.backend.RemoveSnapInhibitLock(snapsup.InstanceName())
+		err = m.backend.RemoveSnapInhibitLock(snapsup.InstanceName(), st.Unlocker())
 		if err != nil {
 			return err
 		}
