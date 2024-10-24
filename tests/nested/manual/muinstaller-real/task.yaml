@@ -292,7 +292,7 @@ execute: |
 
   # check that seed is properly installed
   remote.exec test -d /run/mnt/ubuntu-seed/systems/classic
-  remote.exec "sudo snap recovery" | MATCH 'classic\s+developer1\s+developer1-22-classic-dangerous\s+current'
+  remote.exec "sudo snap recovery" | MATCH "classic\s+developer1\s+developer1-${version}-classic-dangerous\s+current"
 
   echo "unasserted snaps"
   remote.exec "ls /run/mnt/ubuntu-seed/systems/classic/snaps"
@@ -302,13 +302,13 @@ execute: |
 
   # check for unasserted snaps
   for sn in pc pc-kernel snapd; do
-      version=$(remote.exec "snap list ${sn}" | awk 'NR != 1 { print $2 }' | sed 's/+fake1//')
-      remote.exec "test -f /run/mnt/ubuntu-seed/systems/classic/snaps/${sn}_${version}.snap"
+      sn_version=$(remote.exec "snap list ${sn}" | awk 'NR != 1 { print $2 }' | sed 's/+fake1//')
+      remote.exec "test -f /run/mnt/ubuntu-seed/systems/classic/snaps/${sn}_${sn_version}.snap"
   done
 
   # check for asserted snaps
-  core22_rev=$(remote.exec "snap list core22" | awk 'NR != 1 { print $3 }')
-  remote.exec "test -f /run/mnt/ubuntu-seed/snaps/core22_${core22_rev}.snap"
+  core_rev=$(remote.exec "snap list core${version}" | awk 'NR != 1 { print $3 }')
+  remote.exec "test -f /run/mnt/ubuntu-seed/snaps/core${version}_${core_rev}.snap"
 
   # model in the seed should match the one that was installed on the system
   remote.exec "diff <(snap model --assertion) /run/mnt/ubuntu-seed/systems/classic/model"
@@ -324,7 +324,7 @@ execute: |
   remote.exec "groups" | tr ' ' '\n' | sort | xargs | MATCH 'sudo user1'
 
   remote.exec "snap list" > snap-list
-  for name in pc pc-kernel snapd core22; do
+  for name in "pc" "pc-kernel" "snapd" "core${version}"; do
       MATCH "${name}" < snap-list
   done
 
