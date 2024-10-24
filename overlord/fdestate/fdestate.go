@@ -20,7 +20,6 @@ package fdestate
 
 import (
 	"crypto"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -157,39 +156,11 @@ type KeyslotRoleInfo struct {
 	TPM2PCRPolicyRevocationCounter uint32 `json:"tpm2-pcr-policy-revocation-counter,omitempty"`
 }
 
-type hashAlg crypto.Hash
-
-// UnmarshalJSON implements json.Unmarshaler.UnmarshalJSON
-func (h *hashAlg) UnmarshalJSON(b []byte) error {
-	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
-		return err
-	}
-	switch s {
-	case "sha256":
-		*h = hashAlg(crypto.SHA256)
-	default:
-		return fmt.Errorf("unknown algorithm %s", s)
-	}
-
-	return nil
-}
-
-// MarshalJSON implements json.Marshaler.MarshalJSON
-func (h hashAlg) MarshalJSON() ([]byte, error) {
-	switch crypto.Hash(h) {
-	case crypto.SHA256:
-		return json.Marshal("sha256")
-	default:
-		return nil, fmt.Errorf("unknown algorithm %v", h)
-	}
-}
-
 // KeyDigest stores a HMAC(key, salt) of a key
 // FIXME: take what is implemented in secboot
 type KeyDigest struct {
 	// Algorithm is the algorithm for
-	Algorithm hashAlg `json:"alg"`
+	Algorithm secboot.HashAlg `json:"alg"`
 	// Salt is the salt for the HMAC digest
 	Salt []byte `json:"salt"`
 	// Digest is the result of `HMAC(key, salt)`
@@ -205,7 +176,7 @@ func getPrimaryKeyHMAC(devicePath string) (KeyDigest, error) {
 	}
 
 	return KeyDigest{
-		Algorithm: hashAlg(defaultHashAlg),
+		Algorithm: secboot.HashAlg(defaultHashAlg),
 		Salt:      salt,
 		Digest:    digest,
 	}, nil

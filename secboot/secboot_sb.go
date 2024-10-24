@@ -375,3 +375,5 @@ func VerifyPrimaryKeyHMAC(devicePath string, alg crypto.Hash, salt []byte, diges
 	h.Write(p)
 	return hmac.Equal(h.Sum(nil), digest), nil
 }
+
+type HashAlg = sb.HashAlg

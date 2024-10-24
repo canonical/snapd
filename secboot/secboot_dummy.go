@@ -98,3 +98,5 @@ func GetPrimaryKeyHMAC(devicePath string, alg crypto.Hash) ([]byte, []byte, erro
 func VerifyPrimaryKeyHMAC(devicePath string, alg crypto.Hash, salt []byte, digest []byte) (bool, error) {
 	return false, errBuildWithoutSecboot
 }
+
+type HashAlg crypto.Hash
