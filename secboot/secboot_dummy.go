@@ -102,3 +102,13 @@ func VerifyPrimaryKeyDigest(devicePath string, alg crypto.Hash, salt []byte, dig
 func ResealKeysWithFDESetupHook(keyFiles []string, primaryKeyFile string, models []ModelForSealing) error {
 	return errBuildWithoutSecboot
 }
+
+type HashAlg crypto.Hash
+
+func (ha HashAlg) MarshalJSON() ([]byte, error) {
+	return nil, errBuildWithoutSecboot
+}
+
+func (ha *HashAlg) UnmarshalJSON([]byte) error {
+	return errBuildWithoutSecboot
+}
