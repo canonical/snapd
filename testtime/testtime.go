@@ -25,44 +25,103 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Timer is an interface which wraps time.Timer so that it may be mocked.
+//
+// Timer is fully compatible with time.Timer, except that since interfaces
+// cannot have instance variables, we must expose the C channel as a method.
+// Therefore, when replacing a time.Timer with testtime.Timer, any direct
+// accesses of C must be replaced with C().
+//
+// For more information about time.Timer, see: https://pkg.go.dev/time#Timer
 type Timer interface {
+	C() <-chan time.Time
 	Reset(d time.Duration) bool
 	Stop() bool
 }
 
-// AfterFunc creates a new timer which will call the given callback in its own
-// goroutine when the timer fires. The returned TestTimer's C field is not used
-// and will be nil.
+// useMockedTimers indicates whether AfterFunc and NewTimer should return
+// TestTimer instances instead of RealTimer instances.
+var useMockedTimers = false
+
+// MockTimers makes AfterFunc and NewTimer return TestTimers instead of
+// RealTimers. This can be reversed by calling the returned restore function.
+func MockTimers() (restore func()) {
+	return testutil.Mock(&useMockedTimers, true)
+}
+
+// AfterFunc waits for the timer to fire and then calls f in its own goroutine.
+// It returns a Timer that can be used to cancel the call using its Stop method.
+// The returned Timer's C field is not used and will be nil.
 //
-// This simulates the behavior of AfterFunc() from the time package.
-// See here for more details: https://pkg.go.dev/time#AfterFunc
-func AfterFunc(d time.Duration, f func()) *TestTimer {
-	currTime := time.Now()
-	return &TestTimer{
-		currTime:   currTime,
-		expiration: currTime.Add(d),
-		active:     true,
-		callback:   f,
+// By default, AfterFunc directly calls time.AfterFunc and returns a wrapper
+// around the result. If MockTimers has been called, AfterFunc returns a
+// TestTimer which simulates the behavior of a timer which was created via
+// time.AfterFunc. See here for more details: https://pkg.go.dev/time#AfterFunc
+func AfterFunc(d time.Duration, f func()) Timer {
+	if useMockedTimers {
+		return afterFuncTest(d, f)
+	}
+	return afterFuncReal(d, f)
+}
+
+// NewTimer creates a new Timer that will send the current time on its channel
+// after the timer fires.
+//
+// By default, NewTimer directly calls time.Newtimer and returns a wrapper
+// around the result. If MockTimers has been called, NewTimer returns a
+// TestTimer which simulates the behavior of a timer which was created via
+// time.NewTimer. See here for more details: https://pkg.go.dev/time#NewTimer
+func NewTimer(d time.Duration) Timer {
+	if useMockedTimers {
+		return newTimerTest(d)
+	}
+	return newTimerReal(d)
+}
+
+// RealTimer is a wrapper around time.Timer so that the C channel can be used
+// by instances of the interface, without needing to know the concrete type.
+type RealTimer struct {
+	timer *time.Timer
+}
+
+// C returns the underlying C channel of the timer.
+func (t *RealTimer) C() <-chan time.Time {
+	return t.timer.C
+}
+
+// Reset changes the timer to expire after duration d. It returns true if the
+// timer had been active, false if the timer had expired or been stopped.
+//
+// Reset directly invokes Timer.Reset from the time package.
+func (t *RealTimer) Reset(d time.Duration) bool {
+	return t.timer.Reset(d)
+}
+
+// Stop prevents the Timer from firing. It returns true if the call stops the
+// timer, false if the timer has already expired or been stopped.
+func (t *RealTimer) Stop() bool {
+	return t.timer.Stop()
+}
+
+var _ = Timer(&RealTimer{})
+
+// afterFuncReal calls time.AfterFunc and returns the result wrapped in a
+// RealTimer.
+func afterFuncReal(d time.Duration, f func()) *RealTimer {
+	return &RealTimer{
+		timer: time.AfterFunc(d, f),
 	}
 }
 
-// NewTimer creates a new timer which, when it fires, will send the time that
-// the timer fired over the C channel.
-//
-// This simulates the behavior of NewTimer() from the time package.
-// See here for more details: https://pkg.go.dev/time#NewTimer
-func NewTimer(d time.Duration) *TestTimer {
-	currTime := time.Now()
-	c := make(chan time.Time, 1)
-	return &TestTimer{
-		currTime:   currTime,
-		expiration: currTime.Add(d),
-		active:     true,
-		c:          c,
-		C:          c,
+// newTimerReal calls time.NewTimer and returns the result wrapped in a
+// RealTimer.
+func newTimerReal(d time.Duration) *RealTimer {
+	return &RealTimer{
+		timer: time.NewTimer(d),
 	}
 }
 
@@ -78,8 +137,46 @@ type TestTimer struct {
 	active     bool
 	fireCount  int
 	callback   func()
-	c          chan<- time.Time // internally, c is write-only
-	C          <-chan time.Time // export c as read-only
+	c          chan time.Time
+}
+
+var _ = Timer(&TestTimer{})
+
+// afterFuncTest creates a new timer which will call the given callback in its
+// own goroutine when the timer fires. The returned TestTimer's C field is not
+// used and will be nil.
+//
+// This simulates the behavior of AfterFunc() from the time package.
+// See here for more details: https://pkg.go.dev/time#AfterFunc
+func afterFuncTest(d time.Duration, f func()) *TestTimer {
+	currTime := time.Now()
+	return &TestTimer{
+		currTime:   currTime,
+		expiration: currTime.Add(d),
+		active:     true,
+		callback:   f,
+	}
+}
+
+// newTimerTest creates a new timer which, when it fires, will send the time
+// that the timer fired over the C channel.
+//
+// This simulates the behavior of NewTimer() from the time package.
+// See here for more details: https://pkg.go.dev/time#NewTimer
+func newTimerTest(d time.Duration) *TestTimer {
+	currTime := time.Now()
+	c := make(chan time.Time, 1)
+	return &TestTimer{
+		currTime:   currTime,
+		expiration: currTime.Add(d),
+		active:     true,
+		c:          c,
+	}
+}
+
+// C returns the underlying C channel of the timer.
+func (t *TestTimer) C() <-chan time.Time {
+	return t.c
 }
 
 // Reset changes the timer to expire after duration d. It returns true if the
@@ -97,14 +194,14 @@ func (t *TestTimer) Reset(d time.Duration) bool {
 	active := t.active
 	t.active = true
 	t.expiration = t.currTime.Add(d)
-	if t.C != nil {
+	if t.c != nil {
 		// Drain the channel, guaranteeing that a receive after Reset will
 		// block until the timer fires again, and not receive a time value
 		// from the timer firing before the reset occurred.
 		// This complies with the new behavior of Reset as of Go 1.23.
 		// See: https://pkg.go.dev/time#Timer.Reset
 		select {
-		case <-t.C:
+		case <-t.c:
 		default:
 		}
 	}
@@ -121,13 +218,13 @@ func (t *TestTimer) Stop() bool {
 	defer t.lock.Unlock()
 	wasActive := t.active
 	t.active = false
-	if t.C != nil {
+	if t.c != nil {
 		// Drain the channel, guaranteeing that a receive after Stop will block
 		// and not receive a time value from the timer firing before the stop
 		// occurred. This complies with the new behavior of Stop as of Go 1.23.
 		// See: https://pkg.go.dev/time#Timer.Stop
 		select {
-		case <-t.C:
+		case <-t.c:
 		default:
 		}
 	}
