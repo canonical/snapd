@@ -179,6 +179,10 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	return res, nil
 }
 
+// UnlockEncryptedVolumeUsingProtectorKey unlocks the provided device with a
+// given plain key. Depending on how then encrypted device was set up, the key
+// is either used to unlock the device directly, or it is used to decrypt the
+// encrypted unlock key stored in LUKS2 tokens in the device.
 func UnlockEncryptedVolumeUsingProtectorKey(disk disks.Disk, name string, key []byte) (UnlockResult, error) {
 	unlockRes := UnlockResult{
 		UnlockMethod: NotUnlocked,
@@ -213,11 +217,19 @@ func UnlockEncryptedVolumeUsingProtectorKey(disk disks.Disk, name string, key []
 		return unlockRes, fmt.Errorf("cannot list slots in partition save partition: %v", err)
 	}
 
+	// in the legacy setup, the key, is the exact plain key that unlocks the
+	// device, in the modern setup (indicated by presence of tokens carrying
+	// named key data), the plain key is used to decrypt the actual unlock key
+
 	if len(slots) != 0 {
 		const allowRecovery = false
 		options := activateVolOpts(allowRecovery)
+		// no passphrases
 		options.PassphraseTries = 0
 
+		// XXX secboot maintains a global object holding protector keys, there
+		// is no way to pass it through context or obtain the current set of
+		// protector keys, so instead simply set it to empty set once we're done
 		sb_plainkey.SetProtectorKeys(key)
 		defer sb_plainkey.SetProtectorKeys()
 
