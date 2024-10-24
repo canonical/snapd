@@ -7851,6 +7851,9 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 }
 
 func (s *mgrsSuiteCore) TestRemodelUC20WithRecoverySystemEncrypted(c *C) {
+	if !secboot.WithSecbootSupport {
+		c.Skip("secboot is not available")
+	}
 	const encrypted bool = true
 	s.testRemodelUC20WithRecoverySystem(c, encrypted)
 }
