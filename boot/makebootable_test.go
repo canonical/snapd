@@ -497,7 +497,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: cannot make pre-UC20 system runnable`)
 }
 
-func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, standalone, factoryReset, classic bool, fromInitrd bool) {
+func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, standalone, factoryReset, classic, fromInitrd, oldCryptsetup bool) {
 	restore := release.MockOnClassic(classic)
 	defer restore()
 	dirs.SetRootDir(dirs.GlobalRootDir)
@@ -698,6 +698,8 @@ version: 5.0
 			c.Check(params.InstallHostWritableDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data", "system-data"))
 		}
 
+		c.Check(params.UseTokens, Equals, !oldCryptsetup)
+
 		return nil
 	})
 	defer restore()
@@ -708,6 +710,9 @@ version: 5.0
 		hasFDESetupHookCalled = true
 		return false, nil
 	})
+	defer restore()
+
+	restore = boot.MockCryptsetupSupportsTokenReplace(!oldCryptsetup)
 	defer restore()
 
 	switch {
@@ -834,7 +839,8 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20Install(c *C) {
 	const factoryReset = false
 	const classic = false
 	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	const oldCryptesetup = false
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd, oldCryptesetup)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallOnClassic(c *C) {
@@ -842,7 +848,8 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallOnClassic(c *C) {
 	const factoryReset = false
 	const classic = true
 	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	const oldCryptesetup = false
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd, oldCryptesetup)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryReset(c *C) {
@@ -850,7 +857,8 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryReset(c *C) {
 	const factoryReset = true
 	const classic = false
 	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	const oldCryptesetup = false
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd, oldCryptesetup)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryResetOnClassic(c *C) {
@@ -858,7 +866,8 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryResetOnClassic(c *C
 	const factoryReset = true
 	const classic = true
 	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	const oldCryptesetup = false
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd, oldCryptesetup)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallFromInitrd(c *C) {
@@ -866,7 +875,17 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallFromInitrd(c *C) {
 	const factoryReset = false
 	const classic = false
 	const fromInitrd = true
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	const oldCryptesetup = false
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd, oldCryptesetup)
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallOldCryptsetup(c *C) {
+	const standalone = false
+	const factoryReset = false
+	const classic = false
+	const fromInitrd = false
+	const oldCryptesetup = true
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd, oldCryptesetup)
 }
 
 func (s *makeBootable20Suite) TestMakeRunnableSystem20ModeInstallBootConfigErr(c *C) {
@@ -2191,7 +2210,8 @@ func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20Install(c *C) {
 	const factoryReset = false
 	const classic = false
 	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	const oldCryptsetup = false
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd, oldCryptsetup)
 }
 
 func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20InstallOnClassic(c *C) {
@@ -2199,7 +2219,8 @@ func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20InstallOnClassic
 	const factoryReset = false
 	const classic = true
 	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	const oldCryptsetup = false
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd, oldCryptsetup)
 }
 
 func (s *makeBootable20Suite) testMakeBootableImageOptionalKernelArgs(c *C, model *asserts.Model, options map[string]string, expectedCmdline, errMsg string) {

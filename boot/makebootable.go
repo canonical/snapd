@@ -22,6 +22,7 @@ package boot
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
@@ -332,6 +333,7 @@ type makeRunnableOptions struct {
 	AfterDataReset bool
 	SeedDir        string
 	StateUnlocker  Unlocker
+	UseTokens      bool
 }
 
 func copyBootSnap(orig string, dstInfo *snap.Info, dstSnapBlobDir string) error {
@@ -356,6 +358,18 @@ func copyBootSnap(orig string, dstInfo *snap.Info, dstSnapBlobDir string) error 
 	}
 	return nil
 }
+
+func cryptsetupSupportsTokenReplaceImpl() bool {
+	cmd := exec.Command("cryptsetup", "--test-args", "token", "import", "--token-id", "0", "--token-replace", "/dev/null")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		logger.Noticef("WARNING: cryptsetup does not support option --token-replace: %v: %s", err, out)
+		return false
+	}
+	return true
+}
+
+var cryptsetupSupportsTokenReplace = cryptsetupSupportsTokenReplaceImpl
 
 func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer TrustedAssetsInstallObserver, makeOpts makeRunnableOptions) error {
 	if model.Grade() == asserts.ModelGradeUnset {
@@ -549,6 +563,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 			FactoryReset:    makeOpts.AfterDataReset,
 			SeedDir:         makeOpts.SeedDir,
 			StateUnlocker:   makeOpts.StateUnlocker,
+			UseTokens:       cryptsetupSupportsTokenReplace(),
 		}
 		if makeOpts.Standalone {
 			flags.SnapsDir = snapBlobDir

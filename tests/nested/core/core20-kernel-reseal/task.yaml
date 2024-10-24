@@ -36,7 +36,9 @@ prepare: |
   remote.push new-pc-kernel.snap
 
 execute: |
-  SEALED_KEY_MTIME_1="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+  if os.query is-ubuntu-lt 24.04; then
+    SEALED_KEY_MTIME_1="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+  fi
   RESEAL_COUNT_1="$(remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
 
   echo "Install new (unasserted) kernel and wait for reboot/change finishing"
@@ -54,8 +56,10 @@ execute: |
   fi
 
   echo "Check ubuntu-data.sealed-key mtime is newer"
-  SEALED_KEY_MTIME_2="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
-  test "$SEALED_KEY_MTIME_2" -gt "$SEALED_KEY_MTIME_1"
+  if os.query is-ubuntu-lt 24.04; then
+    SEALED_KEY_MTIME_2="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+    test "$SEALED_KEY_MTIME_2" -gt "$SEALED_KEY_MTIME_1"
+  fi
 
   echo "Check that we have boot chains"
   remote.exec sudo test -e /var/lib/snapd/device/fde/boot-chains

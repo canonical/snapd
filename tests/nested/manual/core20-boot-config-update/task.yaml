@@ -77,7 +77,9 @@ execute: |
   fi
 
   remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-before.json
-  SEALED_KEY_MTIME_1="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+  if os.query is-ubuntu-lt 24.04; then
+    SEALED_KEY_MTIME_1="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+  fi
   RESEAL_COUNT_1="$(jq -r '.["reseal-count"]' < boot-chains-before.json )"
   jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json | NOMATCH ' bootassetstesting'
   case "$VARIANT" in
@@ -123,16 +125,18 @@ execute: |
       ;;
   esac
 
-  echo "Check ubuntu-data.sealed-key mtime is newer or not depending on test variant"
-  SEALED_KEY_MTIME_2="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
-  case "$VARIANT" in
-    no-gadget|gadget-extra)
-      test "$SEALED_KEY_MTIME_2" -gt "$SEALED_KEY_MTIME_1"
-      ;;
-    gadget-full)
-      test "$SEALED_KEY_MTIME_2" -eq "$SEALED_KEY_MTIME_1"
-      ;;
-  esac
+  if os.query is-ubuntu-lt 24.04; then
+    echo "Check ubuntu-data.sealed-key mtime is newer or not depending on test variant"
+    SEALED_KEY_MTIME_2="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+    case "$VARIANT" in
+      no-gadget|gadget-extra)
+        test "$SEALED_KEY_MTIME_2" -gt "$SEALED_KEY_MTIME_1"
+        ;;
+      gadget-full)
+        test "$SEALED_KEY_MTIME_2" -eq "$SEALED_KEY_MTIME_1"
+        ;;
+    esac
+  fi
 
   remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-after.json
   RESEAL_COUNT_2="$(jq -r '.["reseal-count"]' < boot-chains-after.json )"

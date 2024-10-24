@@ -33,7 +33,7 @@ execute: |
     remote.exec sudo touch /writable/marker
 
     # grab the ubuntu-save key
-    if [ "${FDE}" = enabled ]; then
+    if [ "${FDE}" = enabled ] && os.query is-ubuntu-lt 24.04; then
       remote.exec cat /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key > pre-reset-save-fallback-key
     fi
 
@@ -118,7 +118,7 @@ execute: |
     # verify that the factory-reset log was collected
     remote.exec "zcat /var/log/factory-reset-mode.log.gz" | MATCH 'performing factory reset on an installed system'
 
-    if [ "${FDE}" = enabled ]; then
+    if [ "${FDE}" = enabled ] && os.query is-ubuntu-lt 24.04; then
       remote.exec cat /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key > post-reset-save-fallback-key
       # not a great check as the fallback key may have been resealed, but it
       # should be different nonetheless
@@ -142,7 +142,7 @@ execute: |
     # the markers are still there
     remote.exec test -e /run/mnt/ubuntu-save/marker
     remote.exec test -e /run/mnt/ubuntu-seed/marker
-    if [ "${FDE}" = enabled ]; then
+    if [ "${FDE}" = enabled ] && os.query is-ubuntu-lt 24.04; then
       # get the key
       remote.exec cat /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key > subsequent-reset-save-fallback-key
       # and the key is different again

@@ -901,6 +901,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		sealErr              error
 		sealCalls            int
 		expectedErr          string
+		saveToFile           bool
 	}{
 		{tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
 		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
@@ -911,6 +912,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot add snap model profile: some error"},
 		{tpmEnabled: true, sealErr: mockErr, sealCalls: 1, expectedErr: "some error"},
 		{tpmEnabled: true, sealCalls: 2, expectedErr: ""},
+		{tpmEnabled: true, sealCalls: 2, expectedErr: "", saveToFile: true},
 	} {
 		c.Logf("tc: %v", idx)
 		tmpDir := c.MkDir()
@@ -971,15 +973,22 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			PCRPolicyCounterHandle: 42,
 		}
 
+		containerA := secboot.CreateMockBootstrappedContainer()
+		containerB := secboot.CreateMockBootstrappedContainer()
 		myKeys := []secboot.SealKeyRequest{
 			{
-				BootstrappedContainer: secboot.CreateMockBootstrappedContainer(),
-				KeyFile:               filepath.Join(tmpDir, "keyfile"),
+				BootstrappedContainer: containerA,
+				SlotName:              "foo1",
 			},
 			{
-				BootstrappedContainer: secboot.CreateMockBootstrappedContainer(),
-				KeyFile:               filepath.Join(tmpDir, "keyfile2"),
+				BootstrappedContainer: containerB,
+				SlotName:              "foo2",
 			},
+		}
+
+		if tc.saveToFile {
+			myKeys[0].KeyFile = filepath.Join(tmpDir, "key-file-1")
+			myKeys[1].KeyFile = filepath.Join(tmpDir, "key-file-2")
 		}
 
 		// events for
@@ -1112,10 +1121,29 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			c.Assert(addPCRProfileCalls, Equals, 2)
 			c.Assert(addSnapModelCalls, Equals, 2)
 			c.Assert(osutil.FileExists(myParams.TPMPolicyAuthKeyFile), Equals, true)
+
+			_, aHasSlot := containerA.Slots["foo1"]
+			c.Check(aHasSlot, Equals, true)
+			_, bHasSlot := containerB.Slots["foo2"]
+			c.Check(bHasSlot, Equals, true)
+			if tc.saveToFile {
+				c.Check(containerA.Tokens, HasLen, 0)
+				c.Check(containerB.Tokens, HasLen, 0)
+				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-1")), Equals, true)
+				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-2")), Equals, true)
+			} else {
+				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-1")), Equals, false)
+				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-2")), Equals, false)
+				_, aHasToken := containerA.Tokens["foo1"]
+				c.Check(aHasToken, Equals, true)
+				_, bHasToken := containerB.Tokens["foo2"]
+				c.Check(bHasToken, Equals, true)
+			}
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr)
 		}
 		c.Assert(sealCalls, Equals, tc.sealCalls)
+
 	}
 }
 
@@ -1151,7 +1179,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		{tpmEnabled: true, addPCRProfileErr: mockErr, buildProfileErr: `cannot add EFI secure boot and boot manager policy profiles: some error`},
 		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, buildProfileErr: `cannot add systemd EFI stub profile: some error`},
 		{tpmEnabled: true, addSnapModelErr: mockErr, buildProfileErr: `cannot add snap model profile: some error`},
-		{tpmEnabled: true, readSealedKeyObjectErr: mockErr, expectedErr: "cannot read key file .*: some error"},
+		{tpmEnabled: true, readSealedKeyObjectErr: mockErr, expectedErr: `trying to load key data from .* returned "token does not work", and from .* returned "some error"`},
 		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "cannot update legacy PCR protection policy: some error", oldKeyFiles: true},
 		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "cannot update PCR protection policy: some error"},
 		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "cannot update legacy PCR protection policy: some error", oldKeyFiles: true},
@@ -1227,15 +1255,26 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		keyFile := filepath.Join(tmpdir, "keyfile")
 		keyFile2 := filepath.Join(tmpdir, "keyfile2")
 		myParams := &secboot.ResealKeysParams{
-			PCRProfile:           pcrProfile,
-			KeyFiles:             []string{keyFile, keyFile2},
+			PCRProfile: pcrProfile,
+			Keys: []secboot.KeyFileOrSlotName{
+				{
+					DevicePath: "/dev/somedevice",
+					SlotName:   "key1",
+					KeyFile:    keyFile,
+				},
+				{
+					DevicePath: "/dev/somedevice",
+					SlotName:   "key2",
+					KeyFile:    keyFile2,
+				},
+			},
 			TPMPolicyAuthKeyFile: mockTPMPolicyAuthKeyFile,
 		}
 
-		numMockSealedKeyObjects := len(myParams.KeyFiles)
+		numMockSealedKeyObjects := len(myParams.Keys)
 		mockSealedKeyObjects := make([]*sb_tpm2.SealedKeyObject, 0, numMockSealedKeyObjects)
 		mockKeyDatas := make([]*sb.KeyData, 0, numMockSealedKeyObjects)
-		for range myParams.KeyFiles {
+		for range myParams.Keys {
 			if tc.oldKeyFiles {
 				// Copy of
 				// https://github.com/snapcore/secboot/blob/master/internal/compattest/testdata/v1/key
@@ -1270,12 +1309,18 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		readSealedKeyObjectCalls := 0
 		restore = secboot.MockReadKeyFile(func(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, error) {
 			readSealedKeyObjectCalls++
-			c.Assert(keyfile, Equals, myParams.KeyFiles[readSealedKeyObjectCalls-1])
+			c.Assert(keyfile, Equals, myParams.Keys[readSealedKeyObjectCalls-1].KeyFile)
 			if tc.oldKeyFiles {
 				return nil, mockSealedKeyObjects[readSealedKeyObjectCalls-1], tc.readSealedKeyObjectErr
 			} else {
 				return mockKeyDatas[readSealedKeyObjectCalls-1], nil, tc.readSealedKeyObjectErr
 			}
+		})
+		defer restore()
+
+		restore = secboot.MockReadKeyToken(func(devicePath, slotName string) (*sb.KeyData, error) {
+			c.Check(devicePath, Equals, "/dev/somedevice")
+			return nil, fmt.Errorf("token does not work")
 		})
 		defer restore()
 
@@ -1338,7 +1383,6 @@ func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
 	myKeys := []secboot.SealKeyRequest{
 		{
 			BootstrappedContainer: secboot.CreateMockBootstrappedContainer(),
-			KeyFile:               "keyfile",
 		},
 	}
 	myParams := secboot.SealKeysParams{
@@ -1617,7 +1661,7 @@ func (s *secbootSuite) TestLockSealedKeysCallsFdeReveal(c *C) {
 	c.Check(ops, DeepEquals, []string{"lock"})
 }
 
-func (s *secbootSuite) TestSealKeysWithFDESetupHookHappy(c *C) {
+func (s *secbootSuite) testSealKeysWithFDESetupHookHappy(c *C, useKeyFiles bool) {
 	n := 0
 	sealedPrefix := []byte("SEALED:")
 	rawHandle1 := json.RawMessage(`{"handle-for":"key1"}`)
@@ -1637,19 +1681,21 @@ func (s *secbootSuite) TestSealKeysWithFDESetupHookHappy(c *C) {
 		return json.Marshal(res)
 	}
 
-	tmpdir := c.MkDir()
-	key1Fn := filepath.Join(tmpdir, "key1.key")
-	key2Fn := filepath.Join(tmpdir, "key2.key")
-	auxKeyFn := filepath.Join(tmpdir, "aux-key")
 	params := secboot.SealKeysWithFDESetupHookParams{
-		Model:      fakeModel,
-		AuxKeyFile: auxKeyFn,
+		Model: fakeModel,
 	}
-	err := secboot.SealKeysWithFDESetupHook(runFDESetupHook,
-		[]secboot.SealKeyRequest{
-			{BootstrappedContainer: secboot.CreateMockBootstrappedContainer(), KeyName: "key1", KeyFile: key1Fn},
-			{BootstrappedContainer: secboot.CreateMockBootstrappedContainer(), KeyName: "key2", KeyFile: key2Fn},
-		}, &params)
+	containerA := secboot.CreateMockBootstrappedContainer()
+	containerB := secboot.CreateMockBootstrappedContainer()
+	myKeys := []secboot.SealKeyRequest{
+		{BootstrappedContainer: containerA, KeyName: "key1", SlotName: "foo1"},
+		{BootstrappedContainer: containerB, KeyName: "key2", SlotName: "foo2"},
+	}
+	tmpDir := c.MkDir()
+	if useKeyFiles {
+		myKeys[0].KeyFile = filepath.Join(tmpDir, "key-file-1")
+		myKeys[1].KeyFile = filepath.Join(tmpDir, "key-file-2")
+	}
+	err := secboot.SealKeysWithFDESetupHook(runFDESetupHook, myKeys, &params)
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookReqs, HasLen, 2)
@@ -1657,6 +1703,33 @@ func (s *secbootSuite) TestSealKeysWithFDESetupHookHappy(c *C) {
 	c.Check(runFDESetupHookReqs[1].Op, Equals, "initial-setup")
 	c.Check(runFDESetupHookReqs[0].KeyName, Equals, "key1")
 	c.Check(runFDESetupHookReqs[1].KeyName, Equals, "key2")
+	_, aHasSlot := containerA.Slots["foo1"]
+	c.Check(aHasSlot, Equals, true)
+	_, bHasSlot := containerB.Slots["foo2"]
+	c.Check(bHasSlot, Equals, true)
+	if useKeyFiles {
+		c.Check(containerA.Tokens, HasLen, 0)
+		c.Check(containerB.Tokens, HasLen, 0)
+		c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-1")), Equals, true)
+		c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-2")), Equals, true)
+	} else {
+		c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-1")), Equals, false)
+		c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-2")), Equals, false)
+		_, aHasToken := containerA.Tokens["foo1"]
+		c.Check(aHasToken, Equals, true)
+		_, bHasToken := containerB.Tokens["foo2"]
+		c.Check(bHasToken, Equals, true)
+	}
+}
+
+func (s *secbootSuite) TestSealKeysWithFDESetupHookHappyKeyFiles(c *C) {
+	const useKeyFiles = true
+	s.testSealKeysWithFDESetupHookHappy(c, useKeyFiles)
+}
+
+func (s *secbootSuite) TestSealKeysWithFDESetupHookHappyTokens(c *C) {
+	const useKeyFiles = false
+	s.testSealKeysWithFDESetupHookHappy(c, useKeyFiles)
 }
 
 func makeMockDiskKey() keys.EncryptionKey {

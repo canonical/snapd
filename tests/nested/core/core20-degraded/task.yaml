@@ -42,7 +42,14 @@ execute: |
   remote.exec "sudo snap wait system seed.loaded"
 
   echo "Now move the run object key on ubuntu-boot out of the way so we use the fallback key to unlock ubuntu-data"
-  remote.exec "sudo mv /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key.bk"
+  if os.query is-ubuntu-ge 24.04; then
+    remote.exec "sudo cryptsetup luksDump --dump-json-metadata /dev/disk/by-label/ubuntu-data-enc" >data.json
+    default_token="$(jq -r '.tokens|map_values(select(.ubuntu_fde_name=="default"))|keys.[]' data.json)"
+    remote.exec "sudo cryptsetup token --token-id ${default_token} export /dev/disk/by-label/ubuntu-data-enc" >token.backupluksRemoveKey
+    remote.exec "sudo cryptsetup token --token-id ${default_token} remove /dev/disk/by-label/ubuntu-data-enc"
+  else
+    remote.exec "sudo mv /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key.bk"
+  fi
   tests.nested transition "$recoverySystem" recover
 
   remote.wait-for snap-command

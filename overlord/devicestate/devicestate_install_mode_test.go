@@ -1784,7 +1784,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		c.Check(recoveryKeysRemoved, Equals, true)
 		c.Assert(bootstrapContainer, NotNil)
 		saveKey, hasSaveKey := bootstrapContainer.Slots["default"]
-		c.Check(hasSaveKey, Equals, true)
+		c.Assert(hasSaveKey, Equals, true)
 		c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
 		c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"), testutil.FileEquals, "new-data")
 		// sha3-384 of the mocked ubuntu-save sealed key

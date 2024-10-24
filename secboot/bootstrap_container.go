@@ -43,9 +43,8 @@ type KeyDataWriter interface {
 type BootstrappedContainer interface {
 	//AddKey adds a key "newKey" to "slotName"
 	AddKey(slotName string, newKey []byte) error
-	//AddKeyAndGetTokenWriter adds a key "newKey" to "slotName"
-	// and returns the keydata writer that writes to the token.
-	AddKeyAndGetTokenWriter(slotName string, newKey []byte) (KeyDataWriter, error)
+	//GetTokenWriter returns a keydata writer that writes to the token.
+	GetTokenWriter(slotName string) (KeyDataWriter, error)
 	//RemoveBootstrapKey removes the bootstrap key
 	RemoveBootstrapKey() error
 }
@@ -96,12 +95,7 @@ func (m *MockBootstrappedContainer) AddKey(slotName string, newKey []byte) error
 	return nil
 }
 
-func (m *MockBootstrappedContainer) AddKeyAndGetTokenWriter(slotName string, newKey []byte) (KeyDataWriter, error) {
-	err := m.AddKey(slotName, newKey)
-	if err != nil {
-		return nil, err
-	}
-
+func (m *MockBootstrappedContainer) GetTokenWriter(slotName string) (KeyDataWriter, error) {
 	return &mockKeyDataWriter{m: m, slotName: slotName}, nil
 }
 
