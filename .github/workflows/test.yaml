@@ -11,9 +11,12 @@ concurrency:
 
 jobs:
   snap-builds:
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
+        runner:
+          - ubuntu-22.04
+          - [self-hosted, Linux, jammy, ARM64, large]
         toolchain:
           - default
           - FIPS
@@ -23,6 +26,12 @@ jobs:
           # are the build that should be installed by human users.
           - pristine
           - test
+        exclude:
+          - runner: [self-hosted, Linux, jammy, ARM64, large]
+            toolchain: FIPS
+          - runner: [self-hosted, Linux, jammy, ARM64, large]
+            version: pristine
+  
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -72,10 +81,20 @@ jobs:
           exit 1
         fi
 
+    - name: Set artifact name
+      id: set_artifact_name
+      run: |
+        postfix="${{ matrix.toolchain }}-${{ matrix.version }}"
+        if grep -iq "arm" <<<"${{ toJSON(matrix.runner) }}"; then
+          echo "artifact_name=snap-files-arm-${postfix}" >> $GITHUB_OUTPUT
+        else
+          echo "artifact_name=snap-files-amd-${postfix}" >> $GITHUB_OUTPUT
+        fi
+
     - name: Uploading snapd snap artifact
       uses: actions/upload-artifact@v4
       with:
-        name: snap-files-${{ matrix.toolchain }}-${{ matrix.version }}
+        name: ${{ steps.set_artifact_name.outputs.artifact_name }}
         path: "*.snap"
 
   cache-build-deps:
@@ -849,21 +868,30 @@ jobs:
           # Add start line to filtered log
           echo "GRAFANA START: pr ${CHANGE_ID} attempt ${{ github.run_attempt }} run ${{ github.run_id }} group ${{ matrix.group }}" > "$FILTERED_LOG_FILE"
 
-    - name: Download built snap
+    - name: Download built snap (amd)
+      if: "!endsWith(matrix.group, 'arm') && !endsWith(matrix.group, '-fips')"
       uses: actions/download-artifact@v4
-      if: "!endsWith(matrix.group, '-fips')"
       with:
-        name: snap-files-default-test
-        # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
+        name: snap-files-amd-default-test
         pattern: snapd_1337.*.snap
+        # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
         path: "${{ github.workspace }}/built-snap"
 
-    - name: Download built FIPS snap
+    - name: Download built snap (arm)
+      if: "endsWith(matrix.group, 'arm')"
+      uses: actions/download-artifact@v4
+      with:
+        name: snap-files-arm-default-test
+        pattern: snapd_1337.*.snap
+        # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
+        path: "${{ github.workspace }}/built-snap"
+
+    - name: Download built FIPS snap (amd)
       uses: actions/download-artifact@v4
       # eg. ubuntu-fips
       if: "endsWith(matrix.group, '-fips')"
       with:
-        name: snap-files-FIPS-test
+        name: snap-files-amd-FIPS-test
         # eg. snapd_1337.2.65.1+git97.gd35b459-fips_amd64.snap
         pattern: snapd_1337.*-fips_*.snap
         path: "${{ github.workspace }}/built-snap"
@@ -888,15 +916,7 @@ jobs:
             export NESTED_ENABLE_KVM=true
           fi
 
-          case "${{ matrix.systems }}" in
-            *-arm-*)
-              SPREAD_USE_PREBUILT_SNAPD_SNAP=false
-              ;;
-            *)
-              SPREAD_USE_PREBUILT_SNAPD_SNAP=true
-              ;;
-          esac
-          export SPREAD_USE_PREBUILT_SNAPD_SNAP
+          export SPREAD_USE_PREBUILT_SNAPD_SNAP=true
 
           if [[ "${{ matrix.systems }}" =~ amazon-linux-2023 ]]; then
               # Amazon Linux 2023 has no xdelta, however we cannot disable
