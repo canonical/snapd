@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
+	sb_plainkey "github.com/snapcore/secboot/plainkey"
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/kernel/fde"
@@ -176,6 +177,74 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 
 	res.FsDevice = targetDevice
 	return res, nil
+}
+
+// UnlockEncryptedVolumeUsingProtectorKey unlocks the provided device with a
+// given plain key. Depending on how then encrypted device was set up, the key
+// is either used to unlock the device directly, or it is used to decrypt the
+// encrypted unlock key stored in LUKS2 tokens in the device.
+func UnlockEncryptedVolumeUsingProtectorKey(disk disks.Disk, name string, key []byte) (UnlockResult, error) {
+	unlockRes := UnlockResult{
+		UnlockMethod: NotUnlocked,
+	}
+
+	// find the encrypted device using the disk we were provided - note that
+	// we do not specify IsDecryptedDevice in opts because here we are
+	// looking for the encrypted device to unlock, later on in the boot
+	// process we will look for the decrypted device to ensure it matches
+	// what we expected
+	part, err := disk.FindMatchingPartitionWithFsLabel(EncryptedPartitionName(name))
+	if err != nil {
+		return unlockRes, err
+	}
+	unlockRes.IsEncrypted = true
+	// we have a device
+	encdev := filepath.Join("/dev/disk/by-uuid", part.FilesystemUUID)
+	unlockRes.PartDevice = encdev
+
+	uuid, err := randutilRandomKernelUUID()
+	if err != nil {
+		// We failed before we could generate the filsystem device path for
+		// the encrypted partition device, so we return FsDevice empty.
+		return unlockRes, err
+	}
+
+	// make up a new name for the mapped device
+	mapperName := name + "-" + uuid
+
+	slots, err := sbListLUKS2ContainerUnlockKeyNames(encdev)
+	if err != nil {
+		return unlockRes, fmt.Errorf("cannot list slots in partition save partition: %v", err)
+	}
+
+	// in the legacy setup, the key, is the exact plain key that unlocks the
+	// device, in the modern setup (indicated by presence of tokens carrying
+	// named key data), the plain key is used to decrypt the actual unlock key
+
+	if len(slots) != 0 {
+		const allowRecovery = false
+		options := activateVolOpts(allowRecovery)
+		// no passphrases
+		options.PassphraseTries = 0
+
+		// XXX secboot maintains a global object holding protector keys, there
+		// is no way to pass it through context or obtain the current set of
+		// protector keys, so instead simply set it to empty set once we're done
+		sb_plainkey.SetProtectorKeys(key)
+		defer sb_plainkey.SetProtectorKeys()
+
+		if err := sbActivateVolumeWithKeyData(mapperName, encdev, nil, options); err != nil {
+			return unlockRes, err
+		}
+	} else {
+		if err := unlockEncryptedPartitionWithKey(mapperName, encdev, key); err != nil {
+			return unlockRes, err
+		}
+	}
+
+	unlockRes.FsDevice = filepath.Join("/dev/mapper/", mapperName)
+	unlockRes.UnlockMethod = UnlockedWithKey
+	return unlockRes, nil
 }
 
 // UnlockEncryptedVolumeUsingKey unlocks an existing volume using the provided key.
