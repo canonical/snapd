@@ -17,9 +17,9 @@
  *
  */
 
-// Package timer provides a wrapper around time.Timer and its associated
+// Package testtime provides a wrapper around time.Timer and its associated
 // functions so that timers can be mocked in tests.
-package timeutil
+package testtime
 
 import (
 	"fmt"
@@ -33,15 +33,15 @@ type Timer interface {
 	Stop() bool
 }
 
-// FakeAfterFunc creates a new fake timer which will call the given callback in
-// its own goroutine when the timer fires. The returned FakeTimer's C field is
-// not used and will be nil.
+// AfterFunc creates a new timer which will call the given callback in its own
+// goroutine when the timer fires. The returned TestTimer's C field is not used
+// and will be nil.
 //
 // This simulates the behavior of AfterFunc() from the time package.
 // See here for more details: https://pkg.go.dev/time#AfterFunc
-func FakeAfterFunc(d time.Duration, f func()) *FakeTimer {
+func AfterFunc(d time.Duration, f func()) *TestTimer {
 	currTime := time.Now()
-	return &FakeTimer{
+	return &TestTimer{
 		currTime:   currTime,
 		expiration: currTime.Add(d),
 		active:     true,
@@ -49,15 +49,15 @@ func FakeAfterFunc(d time.Duration, f func()) *FakeTimer {
 	}
 }
 
-// FakeNewTimer creates a new fake timer which, when it fires, will send the
-// time that the timer fires over the C channel.
+// NewTimer creates a new timer which, when it fires, will send the time that
+// the timer fired over the C channel.
 //
 // This simulates the behavior of NewTimer() from the time package.
 // See here for more details: https://pkg.go.dev/time#NewTimer
-func FakeNewTimer(d time.Duration) *FakeTimer {
+func NewTimer(d time.Duration) *TestTimer {
 	currTime := time.Now()
 	c := make(chan time.Time, 1)
-	return &FakeTimer{
+	return &TestTimer{
 		currTime:   currTime,
 		expiration: currTime.Add(d),
 		active:     true,
@@ -66,9 +66,12 @@ func FakeNewTimer(d time.Duration) *FakeTimer {
 	}
 }
 
-// FakeTimer is a mocked version of time.Timer for which the passage of time or
+// TestTimer is a mocked version of time.Timer for which the passage of time or
 // the direct expiration of the timer is controlled manually.
-type FakeTimer struct {
+//
+// TestTimer also provides methods to introspect whether the timer is active or
+// how many times it has fired.
+type TestTimer struct {
 	lock       sync.Mutex
 	currTime   time.Time
 	expiration time.Time
@@ -82,13 +85,13 @@ type FakeTimer struct {
 // Reset changes the timer to expire after duration d. It returns true if the
 // timer had been active, false if the timer had expired or been stopped.
 //
-// As the fake timer does not actually count down, Reset sets the timer's
+// As the test timer does not actually count down, Reset sets the timer's
 // expiration to be the given duration added to the timer's internal current
 // time. This internal time must be advanced manually using Elapse.
 //
 // This simulates the behavior of Timer.Reset() from the time package.
 // See here fore more details: https://pkg.go.dev/time#Timer.Reset
-func (t *FakeTimer) Reset(d time.Duration) bool {
+func (t *TestTimer) Reset(d time.Duration) bool {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 	active := t.active
@@ -113,7 +116,7 @@ func (t *FakeTimer) Reset(d time.Duration) bool {
 //
 // This simulates the behavior of Timer.Stop() from the time package.
 // See here for more details: https://pkg.go.dev/time#Timer.Stop
-func (t *FakeTimer) Stop() bool {
+func (t *TestTimer) Stop() bool {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 	wasActive := t.active
@@ -131,16 +134,16 @@ func (t *FakeTimer) Stop() bool {
 	return wasActive
 }
 
-// isActive returns true if the timer is active, false if the timer has expired
+// Active returns true if the timer is active, false if the timer has expired
 // or been stopped.
-func (t *FakeTimer) Active() bool {
+func (t *TestTimer) Active() bool {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 	return t.active
 }
 
 // FireCount returns the number of times the timer has fired.
-func (t *FakeTimer) FireCount() int {
+func (t *TestTimer) FireCount() int {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 	return t.fireCount
@@ -151,7 +154,7 @@ func (t *FakeTimer) FireCount() int {
 //
 // The timer will fire if the time after the elapsed duration is after the
 // expiration time and the timer has not yet fired.
-func (t *FakeTimer) Elapse(duration time.Duration) {
+func (t *TestTimer) Elapse(duration time.Duration) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 	t.currTime = t.currTime.Add(duration)
@@ -165,7 +168,7 @@ func (t *FakeTimer) Elapse(duration time.Duration) {
 //
 // To avoid accidental misuse, throw an error if the timer has already fired or
 // been stopped.
-func (t *FakeTimer) Fire(currTime time.Time) error {
+func (t *TestTimer) Fire(currTime time.Time) error {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 	if !t.active {
@@ -176,7 +179,7 @@ func (t *FakeTimer) Fire(currTime time.Time) error {
 }
 
 // doFire carries out the timer firing. The caller must hold the timer lock.
-func (t *FakeTimer) doFire(currTime time.Time) {
+func (t *TestTimer) doFire(currTime time.Time) {
 	if !t.active {
 		return
 	}
