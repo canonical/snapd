@@ -270,20 +270,18 @@ func GetTransactionToModify(ctx *Context, st *state.State, view *registry.View) 
 		}
 
 		taskReady := make(chan struct{})
-		var done bool
-		id := st.AddTaskStatusChangedHandler(func(t *state.Task, old, new state.Status) {
-			if !done && t.ID() == clearTxTask.ID() && new.Ready() {
-				done = true
+		st.AddTaskStatusChangedHandler(func(t *state.Task, old, new state.Status) (remove bool) {
+			if t.ID() == clearTxTask.ID() && new.Ready() {
 				taskReady <- struct{}{}
-				return
+				return true
 			}
+			return false
 		})
 
 		ensureNow(st)
 		st.Unlock()
 		<-taskReady
 		st.Lock()
-		st.RemoveTaskStatusChangedHandler(id)
 		return nil
 	})
 
