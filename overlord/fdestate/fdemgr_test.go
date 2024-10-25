@@ -68,7 +68,7 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 	s.runner = state.NewTaskRunner(s.st)
 
 	s.AddCleanup(fdestate.MockBackendResealKeyForBootChains(
-		func(updateState backend.StateUpdater, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+		func(manager backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 			panic("BackendResealKeyForBootChains not mocked")
 		}))
 	s.AddCleanup(fdestate.MockDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
@@ -173,6 +173,7 @@ func (s *fdeMgrSuite) TestGetManagerFromStateCore(c *C) {
 }
 
 type mockModel struct {
+	otherName string
 }
 
 func (m *mockModel) Series() string {
@@ -184,7 +185,11 @@ func (m *mockModel) BrandID() string {
 }
 
 func (m *mockModel) Model() string {
-	return "mock-model"
+	if m.otherName != "" {
+		return m.otherName
+	} else {
+		return "mock-model"
+	}
 }
 
 func (m *mockModel) Classic() bool {
@@ -199,7 +204,7 @@ func (m *mockModel) SignKeyID() string {
 	return "mock-key"
 }
 
-func (s *fdeMgrSuite) TestUpdateState(c *C) {
+func (s *fdeMgrSuite) TestUpdate(c *C) {
 	st := s.st
 	const onClassic = true
 	s.AddCleanup(release.MockOnClassic(onClassic))
@@ -249,14 +254,21 @@ func (s *fdeMgrSuite) TestUpdateReseal(c *C) {
 	params := &boot.ResealKeyForBootChainsParams{}
 	resealed := 0
 
-	defer fdestate.MockBackendResealKeyForBootChains(func(updateState backend.StateUpdater, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
-		c.Check(unlocker.unlocked, Equals, 1)
+	defer fdestate.MockBackendResealKeyForBootChains(func(manager backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+		c.Check(unlocker.unlocked, Equals, 0)
 		c.Check(unlocker.relocked, Equals, 0)
+		// Simulate the unlocking to calculate the profile
+		relock := manager.Unlock()
+		relock()
 		c.Check(method, Equals, device.SealingMethodFDESetupHook)
 		c.Check(rootdir, Equals, dirs.GlobalRootDir)
 		c.Check(params, Equals, params)
 		c.Check(expectReseal, Equals, expectReseal)
-		updateState("run+recover", "container-role", []string{"run"}, []secboot.ModelForSealing{&mockModel{}}, []byte(`"serialized-profile"`))
+		manager.Update("run+recover", "container-role", &backend.SealingParameters{
+			BootModes:     []string{"run"},
+			Models:        []secboot.ModelForSealing{&mockModel{}},
+			TpmPCRProfile: []byte(`"serialized-profile"`),
+		})
 		resealed += 1
 		return nil
 	})()
@@ -420,4 +432,61 @@ func (s *fdeMgrSuite) TestManagerPreseeding(c *C) {
 	c.Assert(manager.Ensure(), IsNil)
 	// but the manager is deemed non functional, so API calls will fail
 	c.Assert(manager.IsFunctional(), ErrorMatches, "internal error: FDE manager cannot be used in preseeding mode")
+}
+
+func (s *fdeMgrSuite) TestGetParameters(c *C) {
+	st := s.st
+	const onClassic = true
+	s.AddCleanup(release.MockOnClassic(onClassic))
+	dirs.SetRootDir(s.rootdir)
+
+	manager := s.startedManager(c, onClassic)
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Assert(manager.IsFunctional(), IsNil)
+
+	models := []secboot.ModelForSealing{
+		&mockModel{},
+		&mockModel{"other"},
+	}
+
+	err := manager.UpdateParameters("recover", "something", []string{"recover"}, models, secboot.SerializedPCRProfile(`serialized-profile-recover`))
+	c.Assert(err, IsNil)
+	err = manager.UpdateParameters("recover", "all", []string{"recover-all"}, models, secboot.SerializedPCRProfile(`serialized-profile-recover-all`))
+	c.Assert(err, IsNil)
+	err = manager.UpdateParameters("run", "something", []string{"run"}, models, secboot.SerializedPCRProfile(`serialized-profile-run`))
+	c.Assert(err, IsNil)
+
+	hasParameters, foundRunModes, foundModels, foundPCRProfile, err := manager.GetParameters("recover", "something")
+	c.Assert(err, IsNil)
+	c.Check(hasParameters, Equals, true)
+	c.Check(foundRunModes, DeepEquals, []string{"recover"})
+	c.Assert(foundModels, HasLen, 2)
+	c.Check(foundModels[0].Model(), Equals, "mock-model")
+	c.Check(foundModels[1].Model(), Equals, "other")
+	c.Check(foundPCRProfile, DeepEquals, []byte(`serialized-profile-recover`))
+
+	hasParameters, foundRunModes, foundModels, foundPCRProfile, err = manager.GetParameters("recover", "something-that-is-not-specific")
+	c.Assert(err, IsNil)
+	c.Check(hasParameters, Equals, true)
+	c.Check(foundRunModes, DeepEquals, []string{"recover-all"})
+	c.Assert(foundModels, HasLen, 2)
+	c.Check(foundModels[0].Model(), Equals, "mock-model")
+	c.Check(foundModels[1].Model(), Equals, "other")
+	c.Check(foundPCRProfile, DeepEquals, []byte(`serialized-profile-recover-all`))
+
+	hasParameters, foundRunModes, foundModels, foundPCRProfile, err = manager.GetParameters("run", "something")
+	c.Assert(err, IsNil)
+	c.Check(hasParameters, Equals, true)
+	c.Check(foundRunModes, DeepEquals, []string{"run"})
+	c.Assert(foundModels, HasLen, 2)
+	c.Check(foundModels[0].Model(), Equals, "mock-model")
+	c.Check(foundModels[1].Model(), Equals, "other")
+	c.Check(foundPCRProfile, DeepEquals, []byte(`serialized-profile-run`))
+
+	hasParameters, _, _, _, err = manager.GetParameters("run", "something-that-is-not-specific")
+	c.Assert(err, IsNil)
+	c.Check(hasParameters, Equals, false)
 }
