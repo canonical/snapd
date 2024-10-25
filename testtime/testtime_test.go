@@ -34,60 +34,32 @@ type testtimeSuite struct{}
 
 var _ = Suite(&testtimeSuite{})
 
-var (
-	_ = testtime.Timer(&testtime.RealTimer{})
-	_ = testtime.Timer(&testtime.TestTimer{})
-)
-
 func (s *testtimeSuite) TestTimerInterfaceCompatibility(c *C) {
-	var t testtime.Timer
-
-	t = testtime.NewTimer(time.Second)
+	t := testtime.NewTimer(time.Second)
 	active := t.Reset(time.Second)
 	c.Check(active, Equals, true)
 	active = t.Stop()
 	c.Check(active, Equals, true)
-	c.Check(t.C(), NotNil)
+	c.Check(t.ExpiredC(), NotNil)
 	t = testtime.AfterFunc(time.Second, func() { return })
 	active = t.Reset(time.Second)
 	c.Check(active, Equals, true)
 	active = t.Stop()
 	c.Check(active, Equals, true)
-	c.Check(t.C(), IsNil)
-
-	restore := testtime.MockTimers()
-	defer restore()
-
-	t = testtime.NewTimer(time.Second)
-	active = t.Reset(time.Second)
-	c.Check(active, Equals, true)
-	active = t.Stop()
-	c.Check(active, Equals, true)
-	c.Check(t.C(), NotNil)
-	t = testtime.AfterFunc(time.Second, func() { return })
-	active = t.Reset(time.Second)
-	c.Check(active, Equals, true)
-	active = t.Stop()
-	c.Check(active, Equals, true)
-	c.Check(t.C(), IsNil)
+	c.Check(t.ExpiredC(), IsNil)
 }
 
 func (s *testtimeSuite) TestAfterFunc(c *C) {
-	restore := testtime.MockTimers()
-	defer restore()
-
 	// Create a non-buffered channel on which a message will be sent when the
 	// callback is called. Use a non-buffered channel so that we ensure that
 	// the callback runs in its own goroutine.
 	callbackChan := make(chan string)
 
-	result := testtime.AfterFunc(time.Hour, func() {
+	timer := testtime.AfterFunc(time.Hour, func() {
 		callbackChan <- "called"
 	})
 
-	timer := result.(*testtime.TestTimer)
-
-	c.Check(timer.C(), IsNil)
+	c.Check(timer.ExpiredC(), IsNil)
 
 	c.Check(timer.Active(), Equals, true)
 	c.Check(timer.FireCount(), Equals, 0)
@@ -114,7 +86,7 @@ func (s *testtimeSuite) TestAfterFunc(c *C) {
 	active := timer.Reset(time.Nanosecond)
 	c.Check(active, Equals, false)
 
-	c.Check(timer.C(), IsNil)
+	c.Check(timer.ExpiredC(), IsNil)
 
 	c.Check(timer.Active(), Equals, true)
 	c.Check(timer.FireCount(), Equals, 1)
@@ -140,17 +112,12 @@ func (s *testtimeSuite) TestAfterFunc(c *C) {
 }
 
 func (s *testtimeSuite) TestNewTimer(c *C) {
-	restore := testtime.MockTimers()
-	defer restore()
-
-	result := testtime.NewTimer(time.Second)
-
-	timer := result.(*testtime.TestTimer)
+	timer := testtime.NewTimer(time.Second)
 
 	c.Check(timer.Active(), Equals, true)
 	c.Check(timer.FireCount(), Equals, 0)
 	select {
-	case <-timer.C():
+	case <-timer.ExpiredC():
 		c.Fatal("timer fired early")
 	default:
 	}
@@ -161,7 +128,7 @@ func (s *testtimeSuite) TestNewTimer(c *C) {
 	c.Check(timer.Active(), Equals, false)
 	c.Check(timer.FireCount(), Equals, 1)
 	select {
-	case <-timer.C():
+	case <-timer.ExpiredC():
 	default:
 		c.Fatal("timer did not fire")
 	}
@@ -173,7 +140,7 @@ func (s *testtimeSuite) TestNewTimer(c *C) {
 	c.Check(timer.Active(), Equals, true)
 	c.Check(timer.FireCount(), Equals, 1)
 	select {
-	case <-timer.C():
+	case <-timer.ExpiredC():
 		c.Fatal("timer fired early")
 	default:
 	}
@@ -186,7 +153,7 @@ func (s *testtimeSuite) TestNewTimer(c *C) {
 	c.Check(timer.Active(), Equals, false)
 	c.Check(timer.FireCount(), Equals, 2)
 	select {
-	case t := <-timer.C():
+	case t := <-timer.ExpiredC():
 		c.Assert(t.Equal(currTime), Equals, true)
 	default:
 		c.Fatal("timer did not fire")
@@ -194,17 +161,12 @@ func (s *testtimeSuite) TestNewTimer(c *C) {
 }
 
 func (s *testtimeSuite) TestReset(c *C) {
-	restore := testtime.MockTimers()
-	defer restore()
-
-	result := testtime.NewTimer(time.Millisecond)
-
-	timer := result.(*testtime.TestTimer)
+	timer := testtime.NewTimer(time.Millisecond)
 
 	c.Check(timer.Active(), Equals, true)
 	c.Check(timer.FireCount(), Equals, 0)
 	select {
-	case <-timer.C():
+	case <-timer.ExpiredC():
 		c.Fatal("timer fired early")
 	default:
 	}
@@ -223,7 +185,7 @@ func (s *testtimeSuite) TestReset(c *C) {
 	// Check that receiving from the timer channel blocks after reset, even
 	// though the timer previously fired and write time to channel.
 	select {
-	case <-timer.C():
+	case <-timer.ExpiredC():
 		c.Fatal("timer fired after reset")
 	default:
 	}
@@ -235,7 +197,7 @@ func (s *testtimeSuite) TestReset(c *C) {
 	c.Check(timer.Active(), Equals, true)
 	c.Check(timer.FireCount(), Equals, 1)
 	select {
-	case <-timer.C():
+	case <-timer.ExpiredC():
 		c.Fatal("timer fired early")
 	default:
 	}
@@ -246,7 +208,7 @@ func (s *testtimeSuite) TestReset(c *C) {
 	c.Check(timer.Active(), Equals, true)
 	c.Check(timer.FireCount(), Equals, 1)
 	select {
-	case <-timer.C():
+	case <-timer.ExpiredC():
 		c.Fatal("timer fired early")
 	default:
 	}
@@ -258,7 +220,7 @@ func (s *testtimeSuite) TestReset(c *C) {
 	c.Check(timer.Active(), Equals, true)
 	c.Check(timer.FireCount(), Equals, 1)
 	select {
-	case <-timer.C():
+	case <-timer.ExpiredC():
 		c.Fatal("timer fired after reset")
 	default:
 	}
@@ -269,7 +231,7 @@ func (s *testtimeSuite) TestReset(c *C) {
 	c.Check(timer.Active(), Equals, true)
 	c.Check(timer.FireCount(), Equals, 1)
 	select {
-	case <-timer.C():
+	case <-timer.ExpiredC():
 		c.Fatal("timer fired after time elapsed following reset")
 	default:
 	}
@@ -280,7 +242,7 @@ func (s *testtimeSuite) TestReset(c *C) {
 	c.Check(timer.Active(), Equals, false)
 	c.Check(timer.FireCount(), Equals, 2)
 	select {
-	case <-timer.C():
+	case <-timer.ExpiredC():
 	default:
 		c.Fatal("timer did not fire")
 	}
@@ -292,17 +254,12 @@ func (s *testtimeSuite) TestReset(c *C) {
 }
 
 func (s *testtimeSuite) TestStop(c *C) {
-	restore := testtime.MockTimers()
-	defer restore()
-
-	result := testtime.NewTimer(time.Millisecond)
-
-	timer := result.(*testtime.TestTimer)
+	timer := testtime.NewTimer(time.Millisecond)
 
 	c.Check(timer.Active(), Equals, true)
 	c.Check(timer.FireCount(), Equals, 0)
 	select {
-	case <-timer.C():
+	case <-timer.ExpiredC():
 		c.Fatal("timer fired early")
 	default:
 	}
@@ -313,7 +270,7 @@ func (s *testtimeSuite) TestStop(c *C) {
 	c.Check(timer.Active(), Equals, false)
 	c.Check(timer.FireCount(), Equals, 0)
 	select {
-	case <-timer.C():
+	case <-timer.ExpiredC():
 		c.Fatal("timer fired after Stop")
 	default:
 	}
@@ -324,7 +281,7 @@ func (s *testtimeSuite) TestStop(c *C) {
 	c.Check(timer.Active(), Equals, false)
 	c.Check(timer.FireCount(), Equals, 0)
 	select {
-	case <-timer.C():
+	case <-timer.ExpiredC():
 		c.Fatal("received from timer chan after Stop and Elapse")
 	default:
 	}
@@ -347,19 +304,14 @@ func (s *testtimeSuite) TestStop(c *C) {
 	c.Check(timer.Active(), Equals, false)
 	c.Check(timer.FireCount(), Equals, 1)
 	select {
-	case <-timer.C():
+	case <-timer.ExpiredC():
 		c.Fatal("received from timer chan after Stop called after firing")
 	default:
 	}
 }
 
 func (s *testtimeSuite) TestFireErrors(c *C) {
-	restore := testtime.MockTimers()
-	defer restore()
-
-	result := testtime.AfterFunc(time.Hour, func() { c.Fatal("should not have been called") })
-
-	timer := result.(*testtime.TestTimer)
+	timer := testtime.AfterFunc(time.Hour, func() { c.Fatal("should not have been called") })
 
 	c.Check(timer.Active(), Equals, true)
 	c.Check(timer.FireCount(), Equals, 0)
@@ -376,8 +328,7 @@ func (s *testtimeSuite) TestFireErrors(c *C) {
 	c.Check(timer.FireCount(), Equals, 0)
 
 	// Re-declare timer with callback which doesn't cause error
-	result = testtime.AfterFunc(time.Minute, func() {})
-	timer = result.(*testtime.TestTimer)
+	timer = testtime.AfterFunc(time.Minute, func() {})
 
 	c.Check(timer.Active(), Equals, true)
 	c.Check(timer.FireCount(), Equals, 0)
