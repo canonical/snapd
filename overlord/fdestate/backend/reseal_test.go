@@ -113,6 +113,42 @@ func (s *resealTestSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
+type fakeState struct {
+	state       map[string]*backend.SealingParameters
+	isUnlocked  bool
+	hasUnlocked int
+}
+
+func (fs *fakeState) Update(role string, containerRole string, params *backend.SealingParameters) error {
+	if fs.state == nil {
+		fs.state = make(map[string]*backend.SealingParameters)
+	}
+	fs.state[fmt.Sprintf("%s|%s", role, containerRole)] = params
+	return nil
+}
+
+func (fs *fakeState) Get(role string, containerRole string) (params *backend.SealingParameters, err error) {
+	if fs.state == nil {
+		fs.state = make(map[string]*backend.SealingParameters)
+	}
+	p, hasParameters := fs.state[fmt.Sprintf("%s|%s", role, containerRole)]
+	if !hasParameters {
+		p, hasParameters = fs.state[fmt.Sprintf("%s|all", role)]
+	}
+	if !hasParameters {
+		return nil, nil
+	}
+	return p, nil
+}
+
+func (fs *fakeState) Unlock() (relock func()) {
+	fs.isUnlocked = true
+	fs.hasUnlocked++
+	return func() {
+		fs.isUnlocked = false
+	}
+}
+
 func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 	bl := bootloadertest.Mock("trusted", "").WithTrustedAssets()
 	bootloader.Force(bl)
@@ -331,11 +367,9 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 	})
 	defer restore()
 
-	updateState := func(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
-		return nil
-	}
+	myState := &fakeState{}
 	const expectReseal = true
-	err := fdeBackend.ResealKeyForBootChains(updateState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
+	err := fdeBackend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
 
 	c.Check(resealCalls, Equals, 2)
@@ -354,6 +388,7 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 	var prevPbc boot.PredictableBootChains
 	var prevRecoveryPbc boot.PredictableBootChains
+	myState := &fakeState{}
 
 	for idx, tc := range []struct {
 		reuseRunPbc      bool
@@ -621,19 +656,9 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 
 			switch resealKeysCalls {
 			case 1:
-				if !tc.reuseRunPbc {
-					checkRunParams()
-				} else if !tc.reuseRecoveryPbc {
-					checkRecoveryParams()
-				} else {
-					c.Errorf("unexpected call to secboot.ResealKeys (call # %d)", resealKeysCalls)
-				}
+				checkRunParams()
 			case 2:
-				if !tc.reuseRecoveryPbc {
-					checkRecoveryParams()
-				} else {
-					c.Errorf("unexpected call to secboot.ResealKeys (call # %d)", resealKeysCalls)
-				}
+				checkRecoveryParams()
 			default:
 				c.Errorf("unexpected additional call to secboot.ResealKeys (call # %d)", resealKeysCalls)
 			}
@@ -907,17 +932,8 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 			},
 		}
 
-		updateState := func(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
-			return nil
-		}
 		const expectReseal = false
-		err := fdeBackend.ResealKeyForBootChains(updateState, device.SealingMethodTPM, rootdir, params, expectReseal)
-		if tc.reuseRunPbc && tc.reuseRecoveryPbc {
-			// did nothing
-			c.Assert(err, IsNil)
-			c.Assert(resealKeysCalls, Equals, 0)
-			continue
-		}
+		err := fdeBackend.ResealKeyForBootChains(myState, device.SealingMethodTPM, rootdir, params, expectReseal)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -926,13 +942,8 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 		if tc.resealErr != nil {
 			// mocked error is returned on first reseal
 			c.Assert(resealKeysCalls, Equals, 1)
-		} else if !tc.reuseRecoveryPbc && !tc.reuseRunPbc {
-			// none of the boot chains is reused, so 2 reseals are
-			// observed
-			c.Assert(resealKeysCalls, Equals, 2)
 		} else {
-			// one of the boot chains is reused, only one reseal
-			c.Assert(resealKeysCalls, Equals, 1)
+			c.Assert(resealKeysCalls, Equals, 2)
 		}
 		if tc.err != "" {
 			continue
@@ -1204,11 +1215,9 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 		},
 	}
 
-	updateState := func(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
-		return nil
-	}
+	myState := &fakeState{}
 	const expectReseal = false
-	err := fdeBackend.ResealKeyForBootChains(updateState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
+	err := fdeBackend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 2)
 
@@ -1504,11 +1513,9 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 		},
 	}
 
-	updateState := func(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
-		return nil
-	}
+	myState := &fakeState{}
 	const expectReseal = false
-	err := fdeBackend.ResealKeyForBootChains(updateState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
+	err := fdeBackend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 2)
 
@@ -1681,11 +1688,9 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 		},
 	}
 
-	updateState := func(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
-		return nil
-	}
+	myState := &fakeState{}
 	const expectReseal = false
-	err = fdeBackend.ResealKeyForBootChains(updateState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
+	err = fdeBackend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 2)
 
@@ -1769,12 +1774,9 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 
 	defer restore()
 
-	updateState := func(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
-		return nil
-	}
-
+	myState := &fakeState{}
 	const expectReseal = true
-	err := fdeBackend.ResealKeyForBootChains(updateState, device.SealingMethodFDESetupHook, s.rootdir, params, expectReseal)
+	err := fdeBackend.ResealKeyForBootChains(myState, device.SealingMethodFDESetupHook, s.rootdir, params, expectReseal)
 	c.Assert(err, IsNil)
 
 	c.Check(resealCalls, Equals, 2)
@@ -1912,22 +1914,13 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 	})
 	defer restore()
 
-	updateCalls := 0
-	up := func(
-		role string, containerRole string, bootModes []string,
-		models []secboot.ModelForSealing, tpmPCRProfile []byte,
-	) error {
-		updateCalls++
-		return nil
-	}
+	myState := &fakeState{}
 
-	err = backend.ResealKeysForSignaturesDBUpdate(up, device.SealingMethodTPM, dirs.GlobalRootDir,
+	err = backend.ResealKeysForSignaturesDBUpdate(myState, device.SealingMethodTPM, dirs.GlobalRootDir,
 		params, []byte("dbx-payload"))
 	c.Assert(err, IsNil)
 
 	// reseal was called
 	c.Check(buildProfileCalls, Equals, 3)
 	c.Check(resealKeysCalls, Equals, 2)
-	// and the state was updated
-	c.Check(updateCalls, Equals, 3)
 }
