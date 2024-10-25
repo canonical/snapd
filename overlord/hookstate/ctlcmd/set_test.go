@@ -411,8 +411,8 @@ func (s *registrySuite) TestRegistrySetSingleView(c *C) {
 	s.state.Unlock()
 	c.Assert(err, IsNil)
 
-	restore := ctlcmd.MockRegistrystateGetTransaction(func(*registrystate.Context, *state.State, *registry.View) (*registrystate.Transaction, error) {
-		return tx, nil
+	restore := ctlcmd.MockRegistrystateGetTransaction(func(*hookstate.Context, *state.State, *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error) {
+		return tx, nil, nil
 	})
 	defer restore()
 
@@ -429,14 +429,43 @@ func (s *registrySuite) TestRegistrySetSingleView(c *C) {
 	c.Assert(val, DeepEquals, "other-ssid")
 }
 
+func (s *registrySuite) TestRegistrySetSingleViewNewTransaction(c *C) {
+	s.state.Lock()
+	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+
+	var called bool
+	restore := ctlcmd.MockRegistrystateGetTransaction(func(*hookstate.Context, *state.State, *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error) {
+		return tx, func() (string, <-chan struct{}, error) {
+			called = true
+			waitChan := make(chan struct{})
+			close(waitChan)
+			return "123", waitChan, nil
+		}, nil
+	})
+	defer restore()
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=other-ssid"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+
+	c.Assert(called, Equals, true)
+
+	val, err := tx.Get("wifi.ssid")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, "other-ssid")
+}
+
 func (s *registrySuite) TestRegistrySetManyViews(c *C) {
 	s.state.Lock()
 	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
 	s.state.Unlock()
 	c.Assert(err, IsNil)
 
-	restore := ctlcmd.MockRegistrystateGetTransaction(func(*registrystate.Context, *state.State, *registry.View) (*registrystate.Transaction, error) {
-		return tx, nil
+	restore := ctlcmd.MockRegistrystateGetTransaction(func(*hookstate.Context, *state.State, *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error) {
+		return tx, nil, nil
 	})
 	defer restore()
 
@@ -491,8 +520,8 @@ func (s *registrySuite) TestRegistrySetExclamationMark(c *C) {
 	err = tx.Set("wifi.psk", "bar")
 	c.Assert(err, IsNil)
 
-	restore := ctlcmd.MockRegistrystateGetTransaction(func(*registrystate.Context, *state.State, *registry.View) (*registrystate.Transaction, error) {
-		return tx, nil
+	restore := ctlcmd.MockRegistrystateGetTransaction(func(*hookstate.Context, *state.State, *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error) {
+		return tx, nil, nil
 	})
 	defer restore()
 
@@ -521,8 +550,8 @@ func (s *registrySuite) TestRegistryOnlyChangeViewCanSet(c *C) {
 	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
-	restore := ctlcmd.MockRegistrystateGetTransaction(func(*registrystate.Context, *state.State, *registry.View) (*registrystate.Transaction, error) {
-		return tx, nil
+	restore := ctlcmd.MockRegistrystateGetTransaction(func(*hookstate.Context, *state.State, *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error) {
+		return tx, nil, nil
 	})
 	defer restore()
 

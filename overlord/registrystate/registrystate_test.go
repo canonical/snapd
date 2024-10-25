@@ -853,20 +853,31 @@ func (s *registryTestSuite) TestGetTransactionFromUserCreatesNewChange(c *C) {
 
 	view := s.registry.View("setup-wifi")
 
-	ctx := registrystate.NewContext(nil)
-	tx, err := registrystate.GetTransactionToModify(ctx, s.state, view)
+	tx, commitTxFunc, err := registrystate.GetTransactionToModify(nil, s.state, view)
 	c.Assert(err, IsNil)
 	c.Assert(tx, NotNil)
+	c.Assert(commitTxFunc, NotNil)
 
 	err = tx.Set("wifi.ssid", "foo")
 	c.Assert(err, IsNil)
 
-	// mock the daemon calling Done() in api_registry
-	ctx.Done()
+	// mock the daemon triggering the commit
+	changeID, waitChan, err := commitTxFunc()
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	select {
+	case <-waitChan:
+	case <-time.After(testutil.HostScaledTimeout(5 * time.Second)):
+		s.state.Lock()
+		c.Fatal("test timed out after 5s")
+	}
+	s.state.Lock()
 
 	c.Assert(s.state.Changes(), HasLen, 1)
 	chg := s.state.Changes()[0]
 	c.Assert(chg.Kind(), Equals, "modify-registry")
+	c.Assert(changeID, Equals, chg.ID())
 
 	s.checkModifyRegistryChange(c, chg, hooks)
 }
@@ -1124,13 +1135,13 @@ func (s *registryTestSuite) TestGetDifferentTransactionThanOngoing(c *C) {
 
 	mockHandler := hooktest.NewMockHandler()
 	setup := &hookstate.HookSetup{Snap: "test-snap", Hook: "change-view-setup"}
-	hookCtx, err := hookstate.NewContext(refTask, s.state, setup, mockHandler, "")
+	ctx, err := hookstate.NewContext(refTask, s.state, setup, mockHandler, "")
 	c.Assert(err, IsNil)
 
-	hookCtx.Lock()
-	ctx := registrystate.NewContext(hookCtx)
-	tx, err = registrystate.GetTransactionToModify(ctx, s.state, reg.View("foo"))
-	hookCtx.Unlock()
+	ctx.Lock()
+	tx, commitTxFunc, err := registrystate.GetTransactionToModify(ctx, s.state, reg.View("foo"))
+	ctx.Unlock()
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot access registry foo/bar: ongoing transaction for %s/network`, s.devAccID))
 	c.Assert(tx, IsNil)
+	c.Assert(commitTxFunc, IsNil)
 }

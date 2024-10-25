@@ -32,6 +32,8 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/registry"
 )
@@ -199,66 +201,46 @@ func (s *registrySuite) TestViewGetDatabagNotFound(c *C) {
 	c.Check(rspe.Message, Equals, `not found`)
 }
 
-func (s *registrySuite) TestViewSetManyWithExistingState(c *C) {
-	s.st.Lock()
-
-	databag := registry.NewJSONDataBag()
-	err := databag.Set("wifi.ssid", "foo")
-	c.Assert(err, IsNil)
-
-	databags := map[string]map[string]registry.JSONDataBag{
-		"system": {"network": databag},
-	}
-	s.st.Set("registry-databags", databags)
-	s.st.Unlock()
-
-	s.testViewSetMany(c)
-}
-
-func (s *registrySuite) TestViewSetManyWithExistingEmptyState(c *C) {
-	s.st.Lock()
-
-	databags := map[string]map[string]registry.JSONDataBag{
-		"system": {"network": registry.NewJSONDataBag()},
-	}
-	s.st.Set("registry-databags", databags)
-	s.st.Unlock()
-
-	s.testViewSetMany(c)
-}
-
 func (s *registrySuite) TestViewSetMany(c *C) {
-	s.testViewSetMany(c)
-}
-
-func (s *registrySuite) testViewSetMany(c *C) {
 	s.setFeatureFlag(c)
 
-	var calls int
-	restore := daemon.MockRegistrystateSet(func(st *state.State, account, registryName, viewName string, requests map[string]interface{}) error {
-		calls++
-		switch calls {
-		case 1:
-			c.Check(requests, DeepEquals, map[string]interface{}{"ssid": "foo", "password": nil})
-
-			bag := registry.NewJSONDataBag()
-			err := bag.Set("wifi.ssid", "foo")
-			c.Check(err, IsNil)
-			err = bag.Unset("wifi.psk")
-			c.Check(err, IsNil)
-
-			st.Set("registry-databags", map[string]map[string]registry.JSONDataBag{account: {registryName: bag}})
-		default:
-			err := fmt.Errorf("expected 1 call, now on %d", calls)
-			c.Error(err)
-			return err
+	restore := daemon.MockRegistrystateGetView(func(st *state.State, account, registryName, viewName string) (*registry.View, error) {
+		views := map[string]interface{}{
+			"wifi-setup": map[string]interface{}{
+				"rules": []interface{}{
+					map[string]interface{}{"request": "ssid", "storage": "wifi.ssid"},
+					map[string]interface{}{"request": "password", "storage": "wifi.psk"},
+				},
+			},
 		}
 
-		return nil
+		reg, err := registry.New("system", "network", views, registry.NewJSONSchema())
+		c.Assert(err, IsNil)
+
+		return reg.View(viewName), nil
 	})
 	defer restore()
 
-	buf := bytes.NewBufferString(`{"ssid": "foo", "password": null}`)
+	s.st.Lock()
+	tx, err := registrystate.NewTransaction(s.st, "system", "network")
+	s.st.Unlock()
+	c.Assert(err, IsNil)
+
+	var calls int
+	restore = daemon.MockRegistrystateGetTransaction(func(ctx *hookstate.Context, st *state.State, view *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error) {
+		calls++
+		c.Assert(ctx, IsNil)
+		c.Assert(view.Name, Equals, "wifi-setup")
+		c.Assert(view.Registry().Account, Equals, "system")
+		c.Assert(view.Registry().Name, Equals, "network")
+
+		c.Assert(err, IsNil)
+
+		return tx, func() (string, <-chan struct{}, error) { return "123", nil, nil }, nil
+	})
+	defer restore()
+
+	buf := bytes.NewBufferString(`{"ssid": "foo", "password": "bar"}`)
 	req, err := http.NewRequest("PUT", "/v2/registry/system/network/wifi-setup", buf)
 	c.Assert(err, IsNil)
 
@@ -269,22 +251,15 @@ func (s *registrySuite) testViewSetMany(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	chg := st.Change(rspe.Change)
-	c.Check(chg.Kind(), Equals, "set-registry-view")
-	c.Check(chg.Summary(), Equals, `Set registry view system/network/wifi-setup`)
-	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Assert(rspe.Change, Equals, "123")
 
-	var databags map[string]map[string]registry.JSONDataBag
-	err = st.Get("registry-databags", &databags)
+	val, err := tx.Get("wifi.ssid")
 	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "foo")
 
-	value, err := databags["system"]["network"].Get("wifi.ssid")
+	val, err = tx.Get("wifi.psk")
 	c.Assert(err, IsNil)
-	c.Assert(value, Equals, "foo")
-
-	value, err = databags["system"]["network"].Get("wifi.psk")
-	c.Assert(err, FitsTypeOf, registry.PathError(""))
-	c.Assert(value, IsNil)
+	c.Assert(val, Equals, "bar")
 }
 
 func (s *registrySuite) TestGetViewError(c *C) {
@@ -342,6 +317,22 @@ func (s *registrySuite) TestGetViewMisshapenQuery(c *C) {
 func (s *registrySuite) TestSetView(c *C) {
 	s.setFeatureFlag(c)
 
+	restore := daemon.MockRegistrystateGetView(func(st *state.State, account, registryName, viewName string) (*registry.View, error) {
+		views := map[string]interface{}{
+			"wifi-setup": map[string]interface{}{
+				"rules": []interface{}{
+					map[string]interface{}{"request": "ssid", "storage": "wifi.ssid"},
+				},
+			},
+		}
+
+		reg, err := registry.New("system", "network", views, registry.NewJSONSchema())
+		c.Assert(err, IsNil)
+
+		return reg.View(viewName), nil
+	})
+	defer restore()
+
 	type test struct {
 		name  string
 		value interface{}
@@ -354,19 +345,22 @@ func (s *registrySuite) TestSetView(c *C) {
 		{name: "map", value: map[string]interface{}{"foo": "bar"}},
 	} {
 		cmt := Commentf("%s test", t.name)
-		restore := daemon.MockRegistrystateSet(func(st *state.State, acc, registryName, view string, requests map[string]interface{}) error {
-			c.Check(acc, Equals, "system", cmt)
-			c.Check(registryName, Equals, "network", cmt)
-			c.Check(view, Equals, "wifi-setup", cmt)
-			c.Check(requests, DeepEquals, map[string]interface{}{"ssid": t.value}, cmt)
+		s.st.Lock()
+		tx, err := registrystate.NewTransaction(s.st, "system", "network")
+		s.st.Unlock()
+		c.Assert(err, IsNil, cmt)
 
-			bag := registry.NewJSONDataBag()
-			err := bag.Set("wifi.ssid", t.value)
-			c.Check(err, IsNil)
-			st.Set("registry-databags", map[string]map[string]registry.JSONDataBag{acc: {registryName: bag}})
+		var calls int
+		restore := daemon.MockRegistrystateGetTransaction(func(ctx *hookstate.Context, st *state.State, view *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error) {
+			calls++
+			c.Assert(ctx, IsNil, cmt)
+			c.Assert(view.Name, Equals, "wifi-setup", cmt)
+			c.Assert(view.Registry().Account, Equals, "system", cmt)
+			c.Assert(view.Registry().Name, Equals, "network", cmt)
 
-			return nil
+			return tx, func() (string, <-chan struct{}, error) { return "123", nil, nil }, nil
 		})
+
 		jsonVal, err := json.Marshal(t.value)
 		c.Check(err, IsNil, cmt)
 
@@ -378,25 +372,10 @@ func (s *registrySuite) TestSetView(c *C) {
 		rspe := s.asyncReq(c, req, nil)
 		c.Check(rspe.Status, Equals, 202, cmt)
 
-		st := s.d.Overlord().State()
-		st.Lock()
-		chg := st.Change(rspe.Change)
-		st.Unlock()
-
-		c.Check(chg.Kind(), Equals, "set-registry-view", cmt)
-		c.Check(chg.Summary(), Equals, `Set registry view system/network/wifi-setup`, cmt)
-
-		st.Lock()
-		c.Check(chg.Status(), Equals, state.DoneStatus)
-
-		var databags map[string]map[string]registry.JSONDataBag
-		err = st.Get("registry-databags", &databags)
-		st.Unlock()
-		c.Assert(err, IsNil)
-
-		value, err := databags["system"]["network"].Get("wifi.ssid")
-		c.Assert(err, IsNil)
-		c.Assert(value, DeepEquals, t.value)
+		c.Assert(rspe.Change, Equals, "123")
+		val, err := tx.Get("wifi.ssid")
+		c.Assert(err, IsNil, cmt)
+		c.Assert(val, DeepEquals, t.value, cmt)
 
 		restore()
 	}
@@ -405,35 +384,74 @@ func (s *registrySuite) TestSetView(c *C) {
 func (s *registrySuite) TestUnsetView(c *C) {
 	s.setFeatureFlag(c)
 
-	restore := daemon.MockRegistrystateSet(func(_ *state.State, acc, registryName, view string, requests map[string]interface{}) error {
-		c.Check(acc, Equals, "system")
-		c.Check(registryName, Equals, "network")
-		c.Check(view, Equals, "wifi-setup")
-		c.Check(requests, DeepEquals, map[string]interface{}{"ssid": nil})
-		return nil
+	restore := daemon.MockRegistrystateGetView(func(st *state.State, account, registryName, viewName string) (*registry.View, error) {
+		views := map[string]interface{}{
+			"wifi-setup": map[string]interface{}{
+				"rules": []interface{}{
+					map[string]interface{}{"request": "ssid", "storage": "wifi.ssid"},
+				},
+			},
+		}
+
+		reg, err := registry.New("system", "network", views, registry.NewJSONSchema())
+		c.Assert(err, IsNil)
+
+		return reg.View(viewName), nil
+	})
+	defer restore()
+
+	s.st.Lock()
+	tx, err := registrystate.NewTransaction(s.st, "system", "network")
+	s.st.Unlock()
+	c.Assert(err, IsNil)
+
+	err = tx.Set("wifi.ssid", "foo")
+	c.Assert(err, IsNil)
+
+	var calls int
+	restore = daemon.MockRegistrystateGetTransaction(func(ctx *hookstate.Context, st *state.State, view *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error) {
+		calls++
+		c.Assert(ctx, IsNil)
+		c.Assert(view.Name, Equals, "wifi-setup")
+		c.Assert(view.Registry().Account, Equals, "system")
+		c.Assert(view.Registry().Name, Equals, "network")
+
+		return tx, func() (string, <-chan struct{}, error) { return "123", nil, nil }, nil
 	})
 	defer restore()
 
 	buf := bytes.NewBufferString(`{"ssid": null}`)
 	req, err := http.NewRequest("PUT", "/v2/registry/system/network/wifi-setup", buf)
-	c.Assert(err, IsNil)
+	c.Check(err, IsNil)
 	req.Header.Set("Content-Type", "application/json")
 
 	rspe := s.asyncReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 202)
 
-	st := s.d.Overlord().State()
-	st.Lock()
-	chg := st.Change(rspe.Change)
-
-	c.Check(chg.Kind(), Equals, "set-registry-view")
-	c.Check(chg.Summary(), Equals, `Set registry view system/network/wifi-setup`)
-	c.Check(chg.Status(), Equals, state.DoneStatus)
-	st.Unlock()
+	c.Assert(rspe.Change, Equals, "123")
+	val, err := tx.Get("wifi.ssid")
+	c.Assert(err, FitsTypeOf, registry.PathError(""))
+	c.Assert(val, IsNil)
 }
 
 func (s *registrySuite) TestSetViewError(c *C) {
 	s.setFeatureFlag(c)
+
+	restore := daemon.MockRegistrystateGetView(func(st *state.State, account, registryName, viewName string) (*registry.View, error) {
+		views := map[string]interface{}{
+			"wifi-setup": map[string]interface{}{
+				"rules": []interface{}{
+					map[string]interface{}{"request": "ssid", "storage": "wifi.ssid"},
+				},
+			},
+		}
+
+		reg, err := registry.New("system", "network", views, registry.NewJSONSchema())
+		c.Assert(err, IsNil)
+
+		return reg.View(viewName), nil
+	})
+	defer restore()
 
 	type test struct {
 		name string
@@ -445,12 +463,12 @@ func (s *registrySuite) TestSetViewError(c *C) {
 		{name: "not found", err: &registry.NotFoundError{}, code: 404},
 		{name: "internal", err: errors.New("internal"), code: 500},
 	} {
-		restore := daemon.MockRegistrystateSet(func(*state.State, string, string, string, map[string]interface{}) error {
-			return t.err
+		restore := daemon.MockRegistrystateGetTransaction(func(ctx *hookstate.Context, st *state.State, view *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error) {
+			return nil, nil, t.err
 		})
 		cmt := Commentf("%s test", t.name)
 
-		buf := bytes.NewBufferString(`{"ssid": null}`)
+		buf := bytes.NewBufferString(`{"ssid": "foo"}`)
 		req, err := http.NewRequest("PUT", "/v2/registry/system/network/wifi-setup", buf)
 		c.Assert(err, IsNil, cmt)
 		req.Header.Set("Content-Type", "application/json")
@@ -461,34 +479,40 @@ func (s *registrySuite) TestSetViewError(c *C) {
 	}
 }
 
-func (s *registrySuite) TestSetViewEmptyBody(c *C) {
+func (s *registrySuite) TestSetViewBadRequests(c *C) {
 	s.setFeatureFlag(c)
 
-	restore := daemon.MockRegistrystateSet(func(*state.State, string, string, string, map[string]interface{}) error {
+	restore := daemon.MockRegistrystateGetTransaction(func(ctx *hookstate.Context, st *state.State, view *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error) {
 		err := errors.New("unexpected call to registrystate.Set")
 		c.Error(err)
-		return err
+		return nil, nil, err
 	})
 	defer restore()
 
-	req, err := http.NewRequest("PUT", "/v2/registry/system/network/wifi-setup", &bytes.Buffer{})
-	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
+	type testcase struct {
+		body   *bytes.Buffer
+		errMsg string
+	}
+	tcs := []testcase{
+		{
+			body:   &bytes.Buffer{},
+			errMsg: "cannot decode registry request body: EOF",
+		},
+		{
+			body:   bytes.NewBufferString("{"),
+			errMsg: "cannot decode registry request body: unexpected EOF",
+		},
+	}
 
-	rspe := s.errorReq(c, req, nil)
-	c.Check(rspe.Status, Equals, 400)
-}
+	for _, tc := range tcs {
+		req, err := http.NewRequest("PUT", "/v2/registry/system/network/wifi-setup", tc.body)
+		req.Header.Set("Content-Type", "application/json")
+		c.Assert(err, IsNil)
 
-func (s *registrySuite) TestSetViewBadRequest(c *C) {
-	s.setFeatureFlag(c)
-
-	buf := bytes.NewBufferString(`{`)
-	req, err := http.NewRequest("PUT", "/v2/registry/system/network/wifi-setup", buf)
-	c.Assert(err, IsNil)
-
-	rspe := s.errorReq(c, req, nil)
-	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, "cannot decode registry request body: unexpected EOF")
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, Equals, 400)
+		c.Check(rspe.Message, Equals, tc.errMsg)
+	}
 }
 
 func (s *registrySuite) TestGetBadRequest(c *C) {
@@ -518,8 +542,10 @@ func (s *registrySuite) TestGetBadRequest(c *C) {
 func (s *registrySuite) TestSetBadRequest(c *C) {
 	s.setFeatureFlag(c)
 
-	restore := daemon.MockRegistrystateSet(func(*state.State, string, string, string, map[string]interface{}) error {
-		return &registry.BadRequestError{
+	restore := daemon.MockRegistrystateGetView(func(st *state.State, account, registryName, viewName string) (*registry.View, error) {
+		// this could be returned when setting the databag, not getting the view
+		// but the error handling is the same so this shortens the test
+		return nil, &registry.BadRequestError{
 			Account:      "acc",
 			RegistryName: "reg",
 			View:         "foo",
@@ -542,10 +568,11 @@ func (s *registrySuite) TestSetBadRequest(c *C) {
 }
 
 func (s *registrySuite) TestSetFailUnsetFeatureFlag(c *C) {
-	restore := daemon.MockRegistrystateSet(func(*state.State, string, string, string, map[string]interface{}) error {
+
+	restore := daemon.MockRegistrystateGetView(func(st *state.State, account, registryName, viewName string) (*registry.View, error) {
 		err := fmt.Errorf("unexpected call to registrystate")
 		c.Error(err)
-		return err
+		return nil, err
 	})
 	defer restore()
 
@@ -561,10 +588,10 @@ func (s *registrySuite) TestSetFailUnsetFeatureFlag(c *C) {
 }
 
 func (s *registrySuite) TestGetFailUnsetFeatureFlag(c *C) {
-	restore := daemon.MockRegistrystateSet(func(*state.State, string, string, string, map[string]interface{}) error {
+	restore := daemon.MockRegistrystateGet(func(*state.State, string, string, string, []string) (interface{}, error) {
 		err := fmt.Errorf("unexpected call to registrystate")
 		c.Error(err)
-		return err
+		return nil, err
 	})
 	defer restore()
 

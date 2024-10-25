@@ -169,8 +169,10 @@ var (
 	assertstateRefreshSnapAssertions         = assertstate.RefreshSnapAssertions
 	assertstateRestoreValidationSetsTracking = assertstate.RestoreValidationSetsTracking
 
-	registrystateGet = registrystate.Get
-	registrystateSet = registrystate.Set
+	registrystateGetView        = registrystate.GetView
+	registrystateGetTransaction = registrystate.GetTransactionToModify
+	registrystateGet            = registrystate.Get
+	registrystateSetViaView     = registrystate.SetViaView
 )
 
 func ensureStateSoonImpl(st *state.State) {
