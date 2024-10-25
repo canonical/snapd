@@ -136,7 +136,7 @@ var _ secboot.ModelForSealing = (*Model)(nil)
 // KeyslotRoleParameters stores upgradeable parameters for a keyslot role
 type KeyslotRoleParameters struct {
 	// Models are the optional list of approved models
-	Models []Model `json:"models,omitempty"`
+	Models []*Model `json:"models,omitempty"`
 	// BootModes are the optional list of approved modes (run, recover, ...)
 	BootModes []string `json:"boot-modes,omitempty"`
 	// TPM2PCRProfile is an optional serialized PCR profile
@@ -305,21 +305,16 @@ func initializeState(st *state.State) error {
 	return nil
 }
 
-func updateParameters(st *state.State, role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
-	var s FdeState
-	err := st.Get(fdeStateKey, &s)
-	if err != nil {
-		return err
-	}
-
+func (s *FdeState) updateParameters(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
 	roleInfo, hasRole := s.KeyslotRoles[role]
 	if !hasRole {
 		return fmt.Errorf("cannot find keyslot role %s", role)
 	}
 
-	var convertedModels []Model
+	var convertedModels []*Model
 	for _, model := range models {
-		convertedModels = append(convertedModels, newModel(model))
+		m := newModel(model)
+		convertedModels = append(convertedModels, &m)
 	}
 
 	if roleInfo.Parameters == nil {
@@ -333,9 +328,47 @@ func updateParameters(st *state.State, role string, containerRole string, bootMo
 
 	s.KeyslotRoles[role] = roleInfo
 
+	return nil
+}
+
+func updateParameters(st *state.State, role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
+	var s FdeState
+	err := st.Get(fdeStateKey, &s)
+	if err != nil {
+		return err
+	}
+
+	if err := s.updateParameters(role, containerRole, bootModes, models, tpmPCRProfile); err != nil {
+		return err
+	}
+
 	st.Set(fdeStateKey, s)
 
 	return nil
+}
+
+func (s *FdeState) getParameters(role string, containerRole string) (hasParamters bool, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte, err error) {
+	roleInfo, hasRole := s.KeyslotRoles[role]
+	if !hasRole {
+		return false, nil, nil, nil, fmt.Errorf("cannot find keyslot role %s", role)
+	}
+
+	if roleInfo.Parameters == nil {
+		return false, nil, nil, nil, nil
+	}
+	parameters, hasContainerRole := roleInfo.Parameters[containerRole]
+	if !hasContainerRole {
+		parameters, hasContainerRole = roleInfo.Parameters["all"]
+	}
+	if !hasContainerRole {
+		return false, nil, nil, nil, nil
+	}
+
+	for _, model := range parameters.Models {
+		models = append(models, model)
+	}
+
+	return true, parameters.BootModes, models, parameters.TPM2PCRProfile, nil
 }
 
 func MockDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error)) (restore func()) {

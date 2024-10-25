@@ -30,7 +30,7 @@ var FdeMgr = fdeMgr
 
 var UpdateParameters = updateParameters
 
-func MockBackendResealKeyForBootChains(f func(updateState backend.StateUpdater, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error) (restore func()) {
+func MockBackendResealKeyForBootChains(f func(manager backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error) (restore func()) {
 	restore = testutil.Backup(&backendResealKeyForBootChains)
 	backendResealKeyForBootChains = f
 	return restore

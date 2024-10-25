@@ -136,19 +136,43 @@ func (m *FDEManager) ReloadModeenv() error {
 	return initModeFromModeenv(m)
 }
 
+type unlockedStateManager struct {
+	*FDEManager
+	unlocker boot.Unlocker
+}
+
+func (m *unlockedStateManager) Update(role string, containerRole string, parameters *backend.SealingParameters) error {
+	return m.UpdateParameters(role, containerRole, parameters.BootModes, parameters.Models, parameters.TpmPCRProfile)
+}
+
+func (m *unlockedStateManager) Get(role string, containerRole string) (parameters *backend.SealingParameters, err error) {
+	hasParamters, bootModes, models, tpmPCRProfile, err := m.GetParameters(role, containerRole)
+	if err != nil || !hasParamters {
+		return nil, err
+	}
+
+	return &backend.SealingParameters{
+		BootModes:     bootModes,
+		Models:        models,
+		TpmPCRProfile: tpmPCRProfile,
+	}, nil
+}
+
+func (m *unlockedStateManager) Unlock() (relock func()) {
+	if m.unlocker != nil {
+		return m.unlocker()
+	}
+	return func() {}
+}
+
+var _ backend.FDEStateManager = (*unlockedStateManager)(nil)
+
 func (m *FDEManager) resealKeyForBootChains(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
-	doUpdate := func(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
-		if unlocker != nil {
-			m.state.Lock()
-			defer m.state.Unlock()
-		}
-		return updateParameters(m.state, role, containerRole, bootModes, models, tpmPCRProfile)
+	wrapped := &unlockedStateManager{
+		FDEManager: m,
+		unlocker:   unlocker,
 	}
-	if unlocker != nil {
-		locker := unlocker()
-		defer locker()
-	}
-	return backendResealKeyForBootChains(doUpdate, method, rootdir, params, expectReseal)
+	return backendResealKeyForBootChains(wrapped, method, rootdir, params, expectReseal)
 }
 
 func fdeMgr(st *state.State) *FDEManager {
@@ -157,4 +181,18 @@ func fdeMgr(st *state.State) *FDEManager {
 		panic("internal error: FDE manager is not yet associated with state")
 	}
 	return c.(*FDEManager)
+}
+
+func (m *FDEManager) UpdateParameters(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
+	return updateParameters(m.state, role, containerRole, bootModes, models, tpmPCRProfile)
+}
+
+func (m *FDEManager) GetParameters(role string, containerRole string) (hasParameters bool, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte, err error) {
+	var s FdeState
+	err = m.state.Get(fdeStateKey, &s)
+	if err != nil {
+		return false, nil, nil, nil, err
+	}
+
+	return s.getParameters(role, containerRole)
 }
