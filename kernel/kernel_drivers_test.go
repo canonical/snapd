@@ -472,8 +472,10 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCompsNoKernelInstall(
 }
 
 func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCompsNoKernel(c *C) {
-	mockCmd := testutil.MockCommand(c, "depmod", "")
-	defer mockCmd.Restore()
+	mockDepmod := testutil.MockCommand(c, "depmod", "")
+	defer mockDepmod.Restore()
+	mockUdevadm := testutil.MockCommand(c, "udevadm", "")
+	defer mockUdevadm.Restore()
 
 	mountDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
 	kversion := "5.15.0-78-generic"
@@ -503,8 +505,10 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCompsNoKernel(c *C) {
 }
 
 func testBuildKernelDriversTreeWithComps(c *C, opts *kernel.KernelDriversTreeOptions) {
-	mockCmd := testutil.MockCommand(c, "depmod", "")
-	defer mockCmd.Restore()
+	mockDepmod := testutil.MockCommand(c, "depmod", "")
+	defer mockDepmod.Restore()
+	mockUdevadm := testutil.MockCommand(c, "udevadm", "")
+	defer mockUdevadm.Restore()
 
 	mountDir := filepath.Join(dirs.SnapMountDir, "pc-kernel/1")
 	kversion := "5.15.0-78-generic"
@@ -543,10 +547,13 @@ func testBuildKernelDriversTreeWithComps(c *C, opts *kernel.KernelDriversTreeOpt
 
 	if exists {
 		c.Assert(isDir, Equals, true)
-		c.Assert(mockCmd.Calls(), IsNil)
+		c.Assert(mockDepmod.Calls(), IsNil)
 	} else {
-		c.Assert(mockCmd.Calls(), DeepEquals, [][]string{
+		c.Assert(mockDepmod.Calls(), DeepEquals, [][]string{
 			{"depmod", "-b", treeRoot, kversion},
+		})
+		c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
+			{"udevadm", "trigger", "--action=add"},
 		})
 	}
 
@@ -619,8 +626,10 @@ func testBuildKernelDriversTreeWithComps(c *C, opts *kernel.KernelDriversTreeOpt
 }
 
 func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCompsWithTargetDir(c *C) {
-	mockCmd := testutil.MockCommand(c, "depmod", "")
-	defer mockCmd.Restore()
+	mockDepmod := testutil.MockCommand(c, "depmod", "")
+	defer mockDepmod.Restore()
+	mockUdevadm := testutil.MockCommand(c, "udevadm", "")
+	defer mockUdevadm.Restore()
 
 	// Kernel needs to have been installed first
 	testBuildKernelDriversTree(c, createKernelSnapFilesOpts{})

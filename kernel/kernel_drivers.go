@@ -217,9 +217,12 @@ func setupModsFromComp(kernelTree, kversion string, compsMntPts []ModulesCompMou
 	logger.Noticef("depmod output:\n%s\n", string(osutil.CombineStdOutErr(stdout, stderr)))
 
 	// Change symlinks to target ones when needed
+	inFinalSystem := false
 	for _, cmp := range compsMntPts {
 		if cmp.CurrentEqualsTarget() {
-			continue
+			inFinalSystem = true
+			// If this is true if will be true for all components
+			break
 		}
 		lname := filepath.Join(compsRoot, cmp.LinkName)
 		to := cmp.UnderTargetPath("modules", kversion)
@@ -227,6 +230,18 @@ func setupModsFromComp(kernelTree, kversion string, compsMntPts []ModulesCompMou
 		os.Remove(lname)
 		if err := osSymlink(to, lname); err != nil {
 			return err
+		}
+	}
+
+	if inFinalSystem {
+		// Re-play device add events so udev rules consider the new modules
+		stdout, stderr, err := osutil.RunSplitOutput("udevadm", "trigger", "--action=add")
+		if err != nil {
+			logger.Noticef("udevadm trigger error: %v\n%s\n", err,
+				string(osutil.CombineStdOutErr(stdout, stderr)))
+		} else {
+			logger.Noticef("udevadm trigger output:\n%s\n",
+				string(osutil.CombineStdOutErr(stdout, stderr)))
 		}
 	}
 
