@@ -11,5 +11,5 @@ note if one of those is not applicable):
 - [ ] unit tests are passing (./run-checks --unit)
 - [ ] static files tests are passing (./run-checks --static)
 - [ ] snapd snap build works with latest snapcraft (snapcraft --verbose)
-- [ ] the change needs an entry in the changelog
+- [ ] the change needs an entry in the NEWS.md file
 - [ ] the PR does needs a security review
