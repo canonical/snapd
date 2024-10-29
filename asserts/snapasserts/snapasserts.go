@@ -327,6 +327,38 @@ func DeriveSideInfo(snapPath string, model *asserts.Model, db Finder) (*snap.Sid
 	return DeriveSideInfoFromDigestAndSize(snapPath, snapSHA3_384, snapSize, model, db)
 }
 
+// DeriveComponentSideInfo constructs a ComponentSideInfo from the given path,
+// which should be the path to a component file. We also assert that the
+// resource-revision assertion and the snap-resource-pair for this given
+// component are present in the given database.
+func DeriveComponentSideInfo(name, path string, info *snap.Info, model *asserts.Model, db Finder) (*snap.ComponentSideInfo, error) {
+	digest, size, err := asserts.SnapFileSHA3_384(path)
+	if err != nil {
+		return nil, err
+	}
+
+	csi, err := DeriveComponentSideInfoFromDigestAndSize(name, info.SnapName(), info.ID(), path, digest, size, model, db)
+	if err != nil {
+		return nil, err
+	}
+
+	// we don't need to return this, but we should make sure that the assertion
+	// exists in the db so that callers can fail early if the required
+	// assertions aren't present
+	if _, err := findResourcePair(
+		csi.Component.ComponentName,
+		info.ID(),
+		csi.Revision.N,
+		info.Revision.N,
+		info.Provenance(),
+		db,
+	); err != nil {
+		return nil, err
+	}
+
+	return csi, nil
+}
+
 // DeriveSideInfoFromDigestAndSize tries to construct a SideInfo
 // using digest and size as provided for the snap to find the relevant
 // snap assertions with the information in the given database. It will

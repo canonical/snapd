@@ -896,6 +896,89 @@ func (s *snapassertsSuite) makeUC20Model(c *C, extraHeaders map[string]interface
 	return model.(*asserts.Model)
 }
 
+func (s *snapassertsSuite) TestDeriveComponentSideInfo(c *C) {
+	model := s.makeUC20Model(c, nil)
+
+	compPath := snaptest.MakeTestComponentWithFiles(c, "comp1", `component: snap+comp1
+type: standard
+version: 1.0.2
+`, nil)
+
+	info := snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "snap",
+			SnapID:   "snap-id-1",
+			Revision: snap.R(1),
+		},
+	}
+
+	// missing resource-revision assertion
+	_, err := snapasserts.DeriveComponentSideInfo("comp1", compPath, &info, model, s.localDB)
+	c.Assert(err, ErrorMatches, "snap-resource-revision assertion not found")
+
+	digest, size, err := asserts.SnapFileSHA3_384(compPath)
+	c.Assert(err, IsNil)
+
+	resRev, err := s.storeSigning.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+		"type":              "snap-resource-revision",
+		"authority-id":      "can0nical",
+		"snap-id":           "snap-id-1",
+		"resource-name":     "comp1",
+		"resource-sha3-384": digest,
+		"developer-id":      s.dev1Acct.AccountID(),
+		"provenance":        "global-upload",
+		"resource-revision": "22",
+		"resource-size":     fmt.Sprintf("%d", size),
+		"timestamp":         time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.localDB.Add(resRev)
+	c.Assert(err, IsNil)
+
+	// missing snap-resource-pair assertion
+	_, err = snapasserts.DeriveComponentSideInfo("comp1", compPath, &info, model, s.localDB)
+	c.Assert(err, ErrorMatches, "cannot find snap-resource-pair for comp1.*")
+
+	resPair, err := s.storeSigning.Sign(asserts.SnapResourcePairType, map[string]interface{}{
+		"snap-id":           "snap-id-1",
+		"resource-name":     "comp1",
+		"resource-revision": "22",
+		"snap-revision":     "1",
+		"developer-id":      s.dev1Acct.AccountID(),
+		"timestamp":         time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.localDB.Add(resPair)
+	c.Assert(err, IsNil)
+
+	// missing snap-resource-pair assertion
+	csi, err := snapasserts.DeriveComponentSideInfo("comp1", compPath, &info, model, s.localDB)
+	c.Assert(err, IsNil)
+	c.Check(csi, DeepEquals, &snap.ComponentSideInfo{
+		Component: naming.NewComponentRef("snap", "comp1"),
+		Revision:  snap.R(22),
+	})
+
+	// wrong component name
+	_, err = snapasserts.DeriveComponentSideInfo("comp2", compPath, &info, model, s.localDB)
+	c.Assert(err, ErrorMatches, "snap-resource-revision assertion not found")
+
+	// wrong snap ID
+	info.SnapID = "snap-id-2"
+	_, err = snapasserts.DeriveComponentSideInfo("comp1", compPath, &info, model, s.localDB)
+	c.Assert(err, ErrorMatches, "snap-resource-revision assertion not found")
+	info.SnapID = "snap-id-1"
+
+	wrongCompPath := snaptest.MakeTestComponentWithFiles(c, "comp1", `component: snap+comp1
+type: standard
+version: 1.0.3
+`, nil)
+
+	// wrong snap hash
+	_, err = snapasserts.DeriveComponentSideInfo("comp1", wrongCompPath, &info, model, s.localDB)
+	c.Assert(err, ErrorMatches, "snap-resource-revision assertion not found")
+}
+
 func (s *snapassertsSuite) TestDeriveComponentSideInfoFromDigestAndSize(c *C) {
 	model := s.makeUC20Model(c, nil)
 
