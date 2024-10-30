@@ -98,6 +98,11 @@ version: 1
 	c.Check(relockCalled, Equals, 1)
 }
 
+func (s *linkSuite) TestRunInhibitSnapForUnlinkNilStateUnlockerError(c *C) {
+	_, err := s.be.RunInhibitSnapForUnlink(nil, "not-nil", nil, nil)
+	c.Assert(err, ErrorMatches, "internal error: stateUnlocker cannot be nil")
+}
+
 func (s *lockingSuite) TestWithSnapLock(c *C) {
 	const yaml = `name: snap-name
 version: 1

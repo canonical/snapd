@@ -1243,3 +1243,13 @@ func (s *linkSuite) TestKillSnapApps(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, 1)
 }
+
+func (s *linkSuite) TestLinkSnapNilStateUnlockerError(c *C) {
+	_, err := s.be.LinkSnap(nil, nil, backend.LinkContext{}, nil)
+	c.Assert(err, ErrorMatches, "internal error: LinkContext.StateUnlocker cannot be nil")
+}
+
+func (s *linkSuite) TestUnlinkSnapNilStateUnlockerError(c *C) {
+	err := s.be.UnlinkSnap(nil, backend.LinkContext{RunInhibitHint: "not-nil"}, nil)
+	c.Assert(err, ErrorMatches, "internal error: LinkContext.StateUnlocker cannot be nil if LinkContext.RunInhibitHint is set")
+}
