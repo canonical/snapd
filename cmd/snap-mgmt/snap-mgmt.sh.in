@@ -42,8 +42,7 @@ systemctl_stop() {
 }
 
 is_component_mount_unit() {
-    where=$(systemctl show "$1" -p Where | sed 's#Where=##')
-    echo "$where" | grep -q "${SNAP_MOUNT_DIR}/"'[^/]*/components/mnt/[^/]*/[^/]*'
+    systemctl show "$1" -p Where | sed 's#Where=##' | grep -q "${SNAP_MOUNT_DIR}/"'[^/]*/components/mnt/[^/]*/[^/]*'
 }
 
 purge() {
