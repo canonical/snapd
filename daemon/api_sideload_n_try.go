@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -87,6 +88,10 @@ type uploadedContainer struct {
 	tmpPath string
 	// instanceName is optional and can only be set if only one snap was uploaded.
 	instanceName string
+	// componentRef is optional and can only be set if one component was
+	// uploaded. This should be used in the case that the component name cannot
+	// be derived from the filename.
+	componentRef *naming.ComponentRef
 }
 
 // GetSnapFiles returns the original name and temp path for each snap file in
@@ -107,6 +112,16 @@ func (f *Form) GetSnapFiles() ([]*uploadedContainer, *apiError) {
 		if len(f.Values["name"]) > 0 {
 			uploaded.instanceName = f.Values["name"][0]
 		}
+
+		if len(f.Values["component-ref"]) > 0 {
+			snapName, compName, err := naming.SplitFullComponentName(f.Values["component-ref"][0])
+			if err != nil {
+				return nil, BadRequest("cannot parse given component name: %v", err)
+			}
+			cref := naming.NewComponentRef(snapName, compName)
+			uploaded.componentRef = &cref
+		}
+
 		return []*uploadedContainer{uploaded}, nil
 	}
 
@@ -487,11 +502,11 @@ func multiPathInstallMessage(sli *sideloadedInfo) string {
 	return b.String()
 }
 
-func sideloadSnap(_ context.Context, st *state.State, snapFile *uploadedContainer, flags sideloadFlags) (*state.Change, *apiError) {
+func sideloadSnap(_ context.Context, st *state.State, upload *uploadedContainer, flags sideloadFlags) (*state.Change, *apiError) {
 	var instanceName string
-	if snapFile.instanceName != "" {
+	if upload.instanceName != "" {
 		// caller has specified desired instance name
-		instanceName = snapFile.instanceName
+		instanceName = upload.instanceName
 		if err := snap.ValidateInstanceName(instanceName); err != nil {
 			return nil, BadRequest(err.Error())
 		}
@@ -506,16 +521,14 @@ func sideloadSnap(_ context.Context, st *state.State, snapFile *uploadedContaine
 	var compInfo *snap.ComponentInfo
 	var snapInfo *snap.Info
 
-	sideInfo, apiErr := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags, deviceCtx.Model())
-	if apiErr != nil {
-		// TODO:COMPS: installation of local but asserted components
-		// needs to addressed yet. This will also help with deciding
-		// whether we are dealing with a snap or a component.
-		// Try to load as a component
+	model := deviceCtx.Model()
+
+	sideInfo, snapErr := readSideInfo(st, upload.tmpPath, upload.filename, flags, model)
+	if snapErr != nil {
 		var compErr *apiError
-		compInfo, snapInfo, compErr = readComponentInfo(st, snapFile.tmpPath, instanceName, flags)
+		compInfo, snapInfo, compErr = readComponentInfo(st, upload, flags, model)
 		if compErr != nil {
-			logger.Noticef("cannot sideload as a snap: %v", apiErr)
+			logger.Noticef("cannot sideload as a snap: %v", snapErr)
 			logger.Noticef("cannot sideload as a component: %v", compErr)
 			// If the snap owning the component was not found, we already read
 			// the component information, so this is a valid component and we
@@ -524,7 +537,7 @@ func sideloadSnap(_ context.Context, st *state.State, snapFile *uploadedContaine
 			if compErr.Kind == client.ErrorKindSnapNotInstalled {
 				return nil, compErr
 			}
-			return nil, apiErr
+			return nil, snapErr
 		}
 		sideInfo = &snapInfo.SideInfo
 	}
@@ -543,13 +556,13 @@ func sideloadSnap(_ context.Context, st *state.State, snapFile *uploadedContaine
 	message := fmt.Sprintf("%q snap", instanceName)
 	if compInfo == nil {
 		// TODO pass per request context
-		tset, _, err = snapstateInstallPath(st, sideInfo, snapFile.tmpPath, instanceName, "", flags.Flags, nil)
+		tset, _, err = snapstateInstallPath(st, sideInfo, upload.tmpPath, instanceName, "", flags.Flags, nil)
 	} else {
 		// It is a component
 		contType = "component"
 		message = fmt.Sprintf("%q component for %q snap",
 			compInfo.Component.ComponentName, instanceName)
-		tset, err = snapstateInstallComponentPath(st, snap.NewComponentSideInfo(compInfo.Component, snap.Revision{}), snapInfo, snapFile.tmpPath, snapstate.Options{
+		tset, err = snapstateInstallComponentPath(st, &compInfo.ComponentSideInfo, snapInfo, upload.tmpPath, snapstate.Options{
 			Flags: flags.Flags,
 		})
 	}
@@ -557,7 +570,7 @@ func sideloadSnap(_ context.Context, st *state.State, snapFile *uploadedContaine
 		return nil, errToResponse(err, []string{sideInfo.RealName}, InternalError, "cannot install %s file: %v", contType)
 	}
 
-	msg := fmt.Sprintf(i18n.G("Install %s from file %q"), message, snapFile.filename)
+	msg := fmt.Sprintf(i18n.G("Install %s from file %q"), message, upload.filename)
 	chg := newChange(st, "install-"+contType, msg, []*state.TaskSet{tset}, []string{instanceName})
 	apiData := map[string]interface{}{}
 	if compInfo == nil {
@@ -589,7 +602,7 @@ func readSideInfo(st *state.State, tempPath string, origPath string, flags sidel
 			// with devmode we try to find assertions but it's ok
 			// if they are not there (implies --dangerous)
 			if !flags.DevMode {
-				msg := "cannot find signatures with metadata for snap"
+				msg := "cannot find signatures with metadata for snap/component"
 				if origPath != "" {
 					msg = fmt.Sprintf("%s %q", msg, origPath)
 				}
@@ -625,37 +638,98 @@ func readComponentInfoFromContImpl(tempPath string, csi *snap.ComponentSideInfo)
 	return snap.ReadComponentInfoFromContainer(compf, nil, csi)
 }
 
-// readComponentInfo reads ComponentInfo from a snap component file and the
-// snap.Info of the matching installed snap. If instanceName is not empty, it
-// is used to find the right instance, otherwise the SnapName from the
-// component is used.
-func readComponentInfo(st *state.State, tempPath, instanceName string, flags sideloadFlags) (*snap.ComponentInfo, *snap.Info, *apiError) {
-	if !flags.dangerousOK {
-		// TODO:COMPS: read assertions for components
-		return nil, nil, BadRequest("only unasserted installation of local component with --dangerous is supported at the moment")
+func readComponentInfo(st *state.State, upload *uploadedContainer, flags sideloadFlags, model *asserts.Model) (*snap.ComponentInfo, *snap.Info, *apiError) {
+	if flags.dangerousOK {
+		compInfo, err := readComponentInfoFromCont(upload.tmpPath, nil)
+		if err != nil {
+			return nil, nil, BadRequest("cannot read component metadata: %v", err)
+		}
+
+		// unfortunately we must do this a bit out of order, since we cannot
+		// know the component name until opening the container
+		compInfo.ComponentSideInfo = snap.ComponentSideInfo{
+			Component: compInfo.Component,
+			Revision:  snap.R(0),
+		}
+
+		// if no instance was provided in the request we use the snap name from
+		// the component
+		instanceName := upload.instanceName
+		if instanceName == "" {
+			instanceName = compInfo.Component.SnapName
+		}
+
+		info, err := installedSnapInfo(st, instanceName)
+		if err != nil {
+			if errors.Is(err, state.ErrNoState) {
+				return nil, nil, SnapNotInstalled(instanceName, fmt.Errorf("snap owning %q not installed", compInfo.Component))
+			}
+			return nil, nil, BadRequest("cannot retrieve information for %q: %v", instanceName, err)
+		}
+
+		return compInfo, info, nil
 	}
 
-	// TODO:COMPS: will this need to take a non-nil snap.ComponentSideInfo?
-	// not sure where it would get it from, i guess whatever assertion we
-	// end up receiving
-	ci, err := readComponentInfoFromCont(tempPath, nil)
-	if err != nil {
-		return nil, nil, BadRequest("cannot read component metadata: %v", err)
+	// either use the component ref that is provided by the caller, or do our
+	// best to infer it from the filename of the assumed component file
+	var compRef naming.ComponentRef
+	if upload.componentRef == nil {
+		ref, err := naming.ComponentRefFromSnapPackFilename(filepath.Base(upload.filename))
+		if err != nil {
+			return nil, nil, BadRequest("cannot infer component name from filename: %v", upload.filename, err)
+		}
+		compRef = ref
+	} else {
+		compRef = *upload.componentRef
 	}
 
-	// If no instance was provided in the request we use the snap name from the component
+	// if no instance was provided (and this is not a --dangerous install), we
+	// use the snap name from the component ref we have either derived from the
+	// filename or that the caller provided
+	instanceName := upload.instanceName
 	if instanceName == "" {
-		instanceName = ci.Component.SnapName
+		instanceName = compRef.SnapName
 	}
-	si, err := installedSnapInfo(st, instanceName)
+
+	info, err := installedSnapInfo(st, instanceName)
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
-			return nil, nil, SnapNotInstalled(instanceName, fmt.Errorf("snap owning %q not installed", ci.Component))
+			return nil, nil, SnapNotInstalled(instanceName, fmt.Errorf("snap owning %q not installed", compRef.ComponentName))
 		}
 		return nil, nil, BadRequest("cannot retrieve information for %q: %v", instanceName, err)
 	}
 
-	return ci, si, nil
+	csi, err := snapasserts.DeriveComponentSideInfo(compRef.ComponentName, upload.tmpPath, info, model, assertstate.DB(st))
+	if err != nil {
+		if errors.Is(err, &asserts.NotFoundError{}) {
+			// with devmode we try to find assertions but it's ok if they
+			// are not there (implies --dangerous)
+			if !flags.DevMode {
+				msg := "cannot find signatures with metadata for snap/component"
+				if upload.filename != "" {
+					msg = fmt.Sprintf("%s %q", msg, upload.filename)
+				}
+				return nil, nil, BadRequest(msg)
+			}
+
+			csi = snap.NewComponentSideInfo(compRef, snap.Revision{})
+		} else {
+			return nil, nil, BadRequest(err.Error())
+		}
+	}
+
+	// this should be impossible since we're looking up the assertions based on
+	// the hash of the component file, but check just in case
+	if csi.Component != compRef {
+		return nil, nil, BadRequest("component name in filename does not match component name in metadata")
+	}
+
+	compInfo, err := readComponentInfoFromCont(upload.tmpPath, csi)
+	if err != nil {
+		return nil, nil, BadRequest("cannot read component metadata: %v", err)
+	}
+
+	return compInfo, info, nil
 }
 
 func installedSnapInfo(st *state.State, instanceName string) (*snap.Info, error) {
