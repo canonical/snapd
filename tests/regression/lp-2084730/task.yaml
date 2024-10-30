@@ -17,15 +17,17 @@ prepare: |
     mkdir -p /var/lib/snapd/inhibit
     touch "$INHIBITION_LOCK_FILE"
 
+    snap set core experimental.parallel-instances=true
+
 restore: |
     # release inhibition hint lock
     systemctl stop inhibition-file-locker.service
 
-    # Wait for refresh to finish to be able to remove the snap
-    snap debug ensure-state-soon
-    retry -n 10 sh -c "snap changes | NOMATCH Doing"
+    if [ -s locked-change-id ]; then
+        snap wait "$(cat locked-change-id)"
+    fi
 
-    snap remove --purge test-snapd-sh
+    snap set core experimental.parallel-instances!
 
 execute: |
     systemd-run --unit inhibition-file-locker.service flock "$INHIBITION_LOCK_FILE" --command "sleep 10000"
@@ -35,5 +37,25 @@ execute: |
     # This refresh will block because it tries to hold the inhibition file lock for test-snapd-sh
     snap refresh --no-wait --edge test-snapd-sh > locked-change-id
 
+    # wait until snapd is blocked in link-snap
+    # avoid using the API directly to not take the state lock
+    locked_id="$(cat locked-change-id)"
+    retry -n 50 --wait 1 sh -c "snap debug state /var/lib/snapd/state.json --change=$locked_id | MATCH 'Doing .* Make current revision for snap .* unavailable'"
+
+    # and still waiting
+    snap debug state /var/lib/snapd/state.json --change="$locked_id" | MATCH 'Doing .* Make current revision for snap .* unavailable'
+
+    # Check snapd has the inhibition hint lock file open
+    lsof "$INHIBITION_LOCK_FILE" | MATCH "snapd"
+
     # Check that snapd state is not locked when trying to hold the inhibition file lock above
     timeout 5 snap debug api /v2/snaps
+
+    # Check that operations changing the state of the snap (remove, or another refresh) fail the conflict check
+    snap refresh --beta test-snapd-sh 2>&1 | MATCH 'snap "test-snapd-sh" has "refresh-snap" change in progress'
+    snap remove test-snapd-sh 2>&1 | MATCH 'snap "test-snapd-sh" has "refresh-snap" change in progress'
+
+    # Check that parallel instance of the blocked snap is not affected
+    snap install --stable test-snapd-sh_instance
+    snap refresh --edge test-snapd-sh_instance
+    snap remove test-snapd-sh_instance
