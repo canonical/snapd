@@ -23,9 +23,9 @@ restore: |
     # release inhibition hint lock
     systemctl stop inhibition-file-locker.service
 
-    if [ -s locked-change-id ]; then
-        snap wait "$(cat locked-change-id)"
-    fi
+    # Wait for refresh to finish to be able to remove the snap
+    snap debug ensure-state-soon
+    retry -n 10 sh -c "snap changes | NOMATCH Doing"
 
     snap set core experimental.parallel-instances!
 
