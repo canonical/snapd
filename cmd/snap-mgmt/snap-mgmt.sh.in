@@ -41,6 +41,10 @@ systemctl_stop() {
     done
 }
 
+is_component_mount_unit() {
+    systemctl show "$1" -p Where | sed 's#Where=##' | grep -q "${SNAP_MOUNT_DIR}/"'[^/]*/components/mnt/[^/]*/[^/]*'
+}
+
 purge() {
     # shellcheck disable=SC1091
     distribution=$(. /etc/os-release; echo "${ID}-${VERSION_ID}")
@@ -51,13 +55,28 @@ purge() {
     fi
 
     units=$(systemctl list-unit-files --no-legend --full | grep -vF snap.mount.service || true)
-    # *.snap mount points
     mounts=$(echo "$units" | grep "^${SNAP_UNIT_PREFIX}[-.].*\\.mount" | cut -f1 -d ' ')
+
+    # *.snap and *.comp mount points
+    snap_mounts=""
+    components_mounts=""
+
+    for mount in $mounts; do
+        if is_component_mount_unit "$mount"; then
+            components_mounts="$components_mounts $mount"
+        else
+            snap_mounts="$snap_mounts $mount"
+        fi
+    done
+
     # services from snaps
     services=$(echo "$units" | grep '^snap\..*\.service' | cut -f1 -d ' ')
     # slices from snaps
     slices=$(echo "$units" | grep '^snap\..*\.slice' | cut -f1 -d ' ')
-    for unit in $services $mounts $slices; do
+
+    # component mounts must come first so that they are unmounted before we
+    # unmount the snap mounts
+    for unit in $services $components_mounts $snap_mounts $slices; do
         # ensure its really a snap mount unit or systemd unit
         if ! grep -q 'What=/var/lib/snapd/snaps/' "/etc/systemd/system/$unit" && ! grep -q 'X-Snappy=yes' "/etc/systemd/system/$unit"; then
             echo "Skipping non-snapd systemd unit $unit"
@@ -67,7 +86,7 @@ purge() {
         echo "Stopping $unit"
         systemctl_stop "$unit"
 
-        if echo "$unit" | grep -q '.*\.mount' ; then
+        if echo "$unit" | grep -q '.*\.mount' && ! is_component_mount_unit "$unit"; then
             # Transform ${STATIC_SNAP_MOUNT_DIR}/core/3440 -> core/3440 removing any
             # extra / preceding snap name, eg:
             #  /var/lib/snapd/snap/core/3440  -> core/3440
