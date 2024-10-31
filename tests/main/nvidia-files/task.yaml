@@ -64,7 +64,6 @@ prepare: |
     # https://bugs.launchpad.net/ubuntu/+source/nvidia-graphics-drivers-535-server/+bug/2080351
     skip["ubuntu-20.04-64/535-server"]="broken-packaging"
     skip["ubuntu-20.04-64/550"]="no-driver"
-    skip["ubuntu-20.04-64/550-server"]="broken-packaging"
     skip["ubuntu-22.04-64/390"]="broken-driver"
     skip["ubuntu-22.04-64/510"]="transitional-driver"
     skip["ubuntu-22.04-64/515"]="transitional-driver"
