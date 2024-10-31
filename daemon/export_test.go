@@ -32,9 +32,12 @@ import (
 	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/registry"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -380,19 +383,11 @@ var (
 )
 
 func MockRegistrystateGet(f func(_ *state.State, _, _, _ string, _ []string) (interface{}, error)) (restore func()) {
-	old := registrystateGet
-	registrystateGet = f
-	return func() {
-		registrystateGet = old
-	}
+	return testutil.Mock(&registrystateGet, f)
 }
 
-func MockRegistrystateSet(f func(_ *state.State, _, _, _ string, _ map[string]interface{}) error) (restore func()) {
-	old := registrystateSet
-	registrystateSet = f
-	return func() {
-		registrystateSet = old
-	}
+func MockRegistrystateGetTransaction(f func(*hookstate.Context, *state.State, *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error)) (restore func()) {
+	return testutil.Mock(&registrystateGetTransaction, f)
 }
 
 func MockRebootNoticeWait(d time.Duration) (restore func()) {
@@ -419,4 +414,12 @@ func MockNewStatusDecorator(f func(ctx context.Context, isGlobal bool, uid strin
 	restore = testutil.Backup(&newStatusDecorator)
 	newStatusDecorator = f
 	return restore
+}
+
+func MockRegistrystateGetView(f func(_ *state.State, _, _, _ string) (*registry.View, error)) (restore func()) {
+	return testutil.Mock(&registrystateGetView, f)
+}
+
+func MockRegistrystateSetViaView(f func(registry.DataBag, *registry.View, map[string]interface{}) error) (restore func()) {
+	return testutil.Mock(&registrystateSetViaView, f)
 }

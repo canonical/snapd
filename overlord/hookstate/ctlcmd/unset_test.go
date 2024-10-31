@@ -175,8 +175,8 @@ func (s *registrySuite) TestRegistryUnsetManyViews(c *C) {
 	err = tx.Set("wifi.psk", "bar")
 	c.Assert(err, IsNil)
 
-	ctlcmd.MockRegistrystateGetTransaction(func(*registrystate.Context, *state.State, *registry.View) (*registrystate.Transaction, error) {
-		return tx, nil
+	ctlcmd.MockRegistrystateGetTransaction(func(*hookstate.Context, *state.State, *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error) {
+		return tx, nil, nil
 	})
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"unset", "--view", ":write-wifi", "ssid", "password"}, 0)

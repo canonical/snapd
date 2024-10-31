@@ -4,6 +4,9 @@ details: |
   Verify the basic features of experimental configuration feature based on
   registries and views.
 
+# the test snaps have a core24 base
+systems: [ -ubuntu-16.04 ]
+
 prepare: |
   snap set system experimental.registries=true
   snap install --edge jq
@@ -15,10 +18,14 @@ execute: |
   fi
 
   snap ack "$TESTSLIB/assertions/developer1-network.registry"
+  "$TESTSTOOLS"/snaps-state install-local test-custodian-snap
+  snap connect test-custodian-snap:manage-wifi
 
   # check basic read, write and unset
   snap set developer1/network/wifi-setup ssid=canonical
   snap get developer1/network/wifi-setup ssid | MATCH "canonical"
+  # hook was called
+  MATCH "canonical" < /var/snap/test-custodian-snap/common/manage-wifi-view-changed-ran
   snap set developer1/network/wifi-setup ssid!
   snap get developer1/network/wifi-setup ssid 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH $'cannot get "ssid" through developer1/network/wifi-setup: no view data'
 

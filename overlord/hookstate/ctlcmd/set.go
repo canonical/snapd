@@ -250,11 +250,28 @@ func setRegistryValues(ctx *hookstate.Context, plugName string, requests map[str
 		return fmt.Errorf("cannot modify registry in %q hook", ctx.HookName())
 	}
 
-	regCtx := registrystate.NewContext(ctx)
-	tx, err := registrystateGetTransaction(regCtx, ctx.State(), view)
+	tx, commitTxFunc, err := registrystateGetTransaction(ctx, ctx.State(), view)
 	if err != nil {
 		return err
 	}
 
-	return registrystate.SetViaView(tx, view, requests)
+	err = registrystate.SetViaView(tx, view, requests)
+	if err != nil {
+		return err
+	}
+
+	// if a new transaction was created, commit it
+	if commitTxFunc != nil {
+		_, waitChan, err := commitTxFunc()
+		if err != nil {
+			return err
+		}
+
+		// wait for the transaction to be committed
+		ctx.Unlock()
+		<-waitChan
+		ctx.Lock()
+	}
+
+	return nil
 }
