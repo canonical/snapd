@@ -483,11 +483,6 @@ type remodelVariant struct {
 	localSnaps []LocalSnap
 }
 
-type pathSideInfo struct {
-	localSi *snap.SideInfo
-	path    string
-}
-
 func (ro *remodelVariant) UpdateWithDeviceContext(st *state.State, snapName string, snapID string, opts *snapstate.RevisionOptions,
 	userID int, snapStateFlags snapstate.Flags, tracker snapstate.PrereqTracker,
 	deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
@@ -502,12 +497,12 @@ func (ro *remodelVariant) UpdateWithDeviceContext(st *state.State, snapName stri
 			userID, snapStateFlags, tracker, deviceCtx, fromChange)
 	}
 
-	pathSI := ro.maybeSideInfoAndPathFromID(snapID)
+	localSnap := ro.maybeLocalSnapFromID(snapID)
 
 	// if we find the side info in the locally provided snaps, then we can
 	// directly call snapstate.UpdatePathWithDeviceContext on it
-	if pathSI != nil {
-		return snapstateUpdatePathWithDeviceContext(st, pathSI.localSi, pathSI.path, snapName, opts,
+	if localSnap != nil {
+		return snapstateUpdatePathWithDeviceContext(st, localSnap.SideInfo, localSnap.Path, snapName, opts,
 			userID, snapStateFlags, tracker, deviceCtx, fromChange)
 	}
 
@@ -575,33 +570,30 @@ func (ro *remodelVariant) InstallWithDeviceContext(ctx context.Context, st *stat
 		opts = &snapstate.RevisionOptions{}
 	}
 	if ro.offline {
-		pathSI := ro.maybeSideInfoAndPathFromID(snapID)
+		localSnap := ro.maybeLocalSnapFromID(snapID)
 
 		// if we can't find the snap as a locally provided snap, then there is
 		// nothing to do but return an error. that is because this method should
 		// only be called if the snap is not already installed.
-		if pathSI == nil {
+		if localSnap == nil {
 			return nil, fmt.Errorf("no snap file provided for %q", snapName)
 		}
 
-		return snapstateInstallPathWithDeviceContext(st, pathSI.localSi, pathSI.path, snapName, opts,
+		return snapstateInstallPathWithDeviceContext(st, localSnap.SideInfo, localSnap.Path, snapName, opts,
 			userID, snapStateFlags, tracker, deviceCtx, fromChange)
 	}
 	return snapstateInstallWithDeviceContext(ctx, st, snapName,
 		opts, userID, snapStateFlags, tracker, deviceCtx, fromChange)
 }
 
-// maybeSideInfoAndPathFromID returns the SideInfo/path for a given snap ID.
+// maybeLocalSnapFromID returns the SideInfo/path for a given snap ID.
 // Note that this will work only for asserted snaps, that is the only case we
 // support for remodeling at the moment. If the snap cannot be found, then nil
 // is returned.
-func (ro *remodelVariant) maybeSideInfoAndPathFromID(id string) *pathSideInfo {
+func (ro *remodelVariant) maybeLocalSnapFromID(id string) *LocalSnap {
 	for _, ls := range ro.localSnaps {
 		if ls.SideInfo.SnapID == id {
-			return &pathSideInfo{
-				localSi: ls.SideInfo,
-				path:    ls.Path,
-			}
+			return &ls
 		}
 	}
 	return nil
