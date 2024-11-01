@@ -133,7 +133,7 @@ func (s *modelSuite) testPostRemodel(c *check.C, offline bool) {
 	defer restore()
 
 	var devicestateRemodelGotModel *asserts.Model
-	defer daemon.MockDevicestateRemodel(func(st *state.State, nm *asserts.Model, localSnaps []*snap.SideInfo, paths []string, opts devicestate.RemodelOptions) (*state.Change, error) {
+	defer daemon.MockDevicestateRemodel(func(st *state.State, nm *asserts.Model, localSnaps []devicestate.LocalSnap, opts devicestate.RemodelOptions) (*state.Change, error) {
 		c.Check(opts.Offline, check.Equals, offline)
 		devicestateRemodelGotModel = nm
 		chg := st.NewChange("remodel", "...")
@@ -600,12 +600,12 @@ func (s *modelSuite) testPostOfflineRemodel(c *check.C, params *testPostOfflineR
 	snapRev := 1001
 	var devicestateRemodelGotModel *asserts.Model
 	defer daemon.MockDevicestateRemodel(func(st *state.State, nm *asserts.Model,
-		localSnaps []*snap.SideInfo, paths []string, opts devicestate.RemodelOptions) (*state.Change, error) {
+		localSnaps []devicestate.LocalSnap, opts devicestate.RemodelOptions) (*state.Change, error) {
 		c.Check(opts.Offline, check.Equals, true)
 		c.Check(len(localSnaps), check.Equals, 1)
-		c.Check(localSnaps[0].RealName, check.Equals, snapName)
-		c.Check(localSnaps[0].Revision, check.Equals, snap.Revision{N: snapRev})
-		c.Check(strings.HasSuffix(paths[0],
+		c.Check(localSnaps[0].SideInfo.RealName, check.Equals, snapName)
+		c.Check(localSnaps[0].SideInfo.Revision, check.Equals, snap.Revision{N: snapRev})
+		c.Check(strings.HasSuffix(localSnaps[0].Path,
 			"/var/lib/snapd/snaps/"+snapName+"_"+strconv.Itoa(snapRev)+".snap"),
 			check.Equals, true)
 
