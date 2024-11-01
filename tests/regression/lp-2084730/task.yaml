@@ -46,7 +46,9 @@ execute: |
     snap debug state /var/lib/snapd/state.json --change="$locked_id" | MATCH 'Doing .* Make current revision for snap .* unavailable'
 
     # Check snapd has the inhibition hint lock file open
-    lsof "$INHIBITION_LOCK_FILE" | MATCH "snapd"
+    if command -v lsof; then
+        lsof "$INHIBITION_LOCK_FILE" | MATCH "snapd"
+    fi
 
     # Check that snapd state is not locked when trying to hold the inhibition file lock above
     timeout 5 snap debug api /v2/snaps
