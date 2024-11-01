@@ -242,7 +242,7 @@ int sc_nonfatal_mkpath(const char *const path, mode_t mode)
 bool sc_is_expected_path(const char *path)
 {
 	const char *expected_path_re =
-	    "^(/snap/(snapd|core)/x?[0-9]+/usr/lib|/usr/lib(exec)?)/snapd/snap-confine$";
+	    "^((/var/lib/snapd)?/snap/(snapd|core)/x?[0-9]+/usr/lib|/usr/lib(exec)?)/snapd/snap-confine$";
 	regex_t re;
 	if (regcomp(&re, expected_path_re, REG_EXTENDED | REG_NOSUB) != 0)
 		die("can not compile regex %s", expected_path_re);
