@@ -380,7 +380,8 @@ func extractBeforeLocalModificationsEdgesTs(ts *state.TaskSet) (firstDl, lastDl,
 		return nil, nil, nil, nil, errNoBeforeLocalModificationsEdge
 	}
 	tasks := ts.Tasks()
-	// we know we always start with downloads
+	// we know we always start with downloads (or prepare-snap tasks, in the
+	// case of an offline remodel)
 	firstDl = tasks[0]
 	// and always end with installs
 	lastInst = tasks[len(tasks)-1]
@@ -478,9 +479,8 @@ func (ms *modelSnapsForRemodel) canHaveUC18PinnedTrack() bool {
 }
 
 type remodelVariant struct {
-	offline        bool
-	localSnaps     []*snap.SideInfo
-	localSnapPaths []string
+	offline    bool
+	localSnaps []LocalSnap
 }
 
 type pathSideInfo struct {
@@ -596,9 +596,12 @@ func (ro *remodelVariant) InstallWithDeviceContext(ctx context.Context, st *stat
 // support for remodeling at the moment. If the snap cannot be found, then nil
 // is returned.
 func (ro *remodelVariant) maybeSideInfoAndPathFromID(id string) *pathSideInfo {
-	for i, si := range ro.localSnaps {
-		if si.SnapID == id {
-			return &pathSideInfo{localSi: ro.localSnaps[i], path: ro.localSnapPaths[i]}
+	for _, ls := range ro.localSnaps {
+		if ls.SideInfo.SnapID == id {
+			return &pathSideInfo{
+				localSi: ls.SideInfo,
+				path:    ls.Path,
+			}
 		}
 	}
 	return nil
@@ -855,7 +858,7 @@ func sortNonEssentialRemodelTaskSetsBasesFirst(snaps []*asserts.ModelSnap) []*as
 }
 
 func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model,
-	deviceCtx snapstate.DeviceContext, fromChange string, localSnaps []*snap.SideInfo, paths []string, opts RemodelOptions) ([]*state.TaskSet, error) {
+	deviceCtx snapstate.DeviceContext, fromChange string, localSnaps []LocalSnap, opts RemodelOptions) ([]*state.TaskSet, error) {
 
 	logger.Debugf("creating remodeling tasks")
 	var tss []*state.TaskSet
@@ -866,9 +869,8 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	// provided. We check this flag whenever a snap installation/update is
 	// found needed for the remodel.
 	remodelVar := remodelVariant{
-		offline:        opts.Offline,
-		localSnaps:     localSnaps,
-		localSnapPaths: paths,
+		offline:    opts.Offline,
+		localSnaps: localSnaps,
 	}
 
 	validationSets, err := verifyModelValidationSets(st, new, opts.Offline, deviceCtx)
@@ -1012,9 +1014,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 
 			// we can know that the snap's revision was changed by checking for
 			// the presence of an edge on the task set that separates tasks that
-			// do and do not modify the system. if the edge is present, then the
-			// revision was changed, and we need to extract the snap's
-			// prerequisites from the task set. the absence of this edge,
+			// do and do not modify the system. the absence of this edge
 			// indicates that only the snap's channel was changed and the
 			// revision was unchanged. in this case, we treat the snap as if it
 			// were unchanged.
@@ -1297,7 +1297,7 @@ type RemodelOptions struct {
 //     (need to check that even unchanged snaps are accessible)
 //   - Make sure this works with Core 20 as well, in the Core 20 case
 //     we must enforce the default-channels from the model as well
-func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, paths []string, opts RemodelOptions) (*state.Change, error) {
+func Remodel(st *state.State, new *asserts.Model, localSnaps []LocalSnap, opts RemodelOptions) (*state.Change, error) {
 	var seeded bool
 	err := st.Get("seeded", &seeded)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -1435,7 +1435,7 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 		// the remodel are added to an existing and running change. this will
 		// allow us to avoid things like calling snapstate.CheckChangeConflictRunExclusively again.
 		var err error
-		tss, err = remodelTasks(context.TODO(), st, current, new, remodCtx, "", localSnaps, paths, opts)
+		tss, err = remodelTasks(context.TODO(), st, current, new, remodCtx, "", localSnaps, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -1605,11 +1605,28 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks, co
 // that is represented by the snap.SideInfo.
 type LocalSnap struct {
 	// SideInfo is the snap.SideInfo struct that represents a local snap that
-	// will be used to create a recovery system.
+	// will be used to create a recovery system or remodel the system.
 	SideInfo *snap.SideInfo
 
 	// Path is the path on disk to a snap that will be used to create a recovery
+	// system or remodel the system.
+	Path string
+
+	// Components is a slice of LocalComponent structs that represent the local
+	// components that are part of the snap.
+	Components []LocalComponent
+}
+
+// LocalComponent is a pair of a snap.ComponentSideInfo and a path to the
+// component file on disk that is represented by the snap.ComponentSideInfo.
+type LocalComponent struct {
+	// SideInfo is the snap.ComponentSideInfo struct that represents a local
+	// component that will be used to create a recovery system or remodel the
 	// system.
+	SideInfo *snap.ComponentSideInfo
+
+	// Path is the path on disk to a component that will be used to create a
+	// recovery system or remodel the system.
 	Path string
 }
 
