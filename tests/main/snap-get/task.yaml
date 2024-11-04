@@ -10,8 +10,6 @@ details: |
     the json output format and error scenarios.
 
 prepare: |
-    snap install --devmode jq
-
     echo "Build basic test package (without hooks)"
     snap pack "$TESTSLIB"/snaps/basic
     snap install --dangerous basic_1.0_all.snap
@@ -105,7 +103,7 @@ execute: |
     echo "$output" | MATCH ".*\"a\": 9876543210.*"
 
     echo "Ensure config value has correct format"
-    jq ".data[\"config\"][\"snapctl-hooks\"].intnumber" /var/lib/snapd/state.json | MATCH "1234567890"
+    gojq ".data[\"config\"][\"snapctl-hooks\"].intnumber" /var/lib/snapd/state.json | MATCH "1234567890"
 
     echo "Test unsetting of root.key2 with exclamation mark via snapctl"
     # precondition check
