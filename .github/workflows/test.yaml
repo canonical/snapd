@@ -517,7 +517,7 @@ jobs:
       matrix:
         distro:
           # TODO add arch?
-          - fedora:39
+          - fedora:latest
           - opensuse/tumbleweed
 
     runs-on: ubuntu-latest
