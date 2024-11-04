@@ -248,43 +248,6 @@ func UnlockEncryptedVolumeUsingProtectorKey(disk disks.Disk, name string, key []
 	return unlockRes, nil
 }
 
-// UnlockEncryptedVolumeUsingKey unlocks an existing volume using the provided key.
-func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (UnlockResult, error) {
-	unlockRes := UnlockResult{
-		UnlockMethod: NotUnlocked,
-	}
-	// find the encrypted device using the disk we were provided - note that
-	// we do not specify IsDecryptedDevice in opts because here we are
-	// looking for the encrypted device to unlock, later on in the boot
-	// process we will look for the decrypted device to ensure it matches
-	// what we expected
-	part, err := disk.FindMatchingPartitionWithFsLabel(EncryptedPartitionName(name))
-	if err != nil {
-		return unlockRes, err
-	}
-	unlockRes.IsEncrypted = true
-	// we have a device
-	encdev := filepath.Join("/dev/disk/by-uuid", part.FilesystemUUID)
-	unlockRes.PartDevice = encdev
-
-	uuid, err := randutilRandomKernelUUID()
-	if err != nil {
-		// We failed before we could generate the filsystem device path for
-		// the encrypted partition device, so we return FsDevice empty.
-		return unlockRes, err
-	}
-
-	// make up a new name for the mapped device
-	mapperName := name + "-" + uuid
-	if err := unlockEncryptedPartitionWithKey(mapperName, encdev, key); err != nil {
-		return unlockRes, err
-	}
-
-	unlockRes.FsDevice = filepath.Join("/dev/mapper/", mapperName)
-	unlockRes.UnlockMethod = UnlockedWithKey
-	return unlockRes, nil
-}
-
 // unlockEncryptedPartitionWithKey unlocks encrypted partition with the provided
 // key.
 func unlockEncryptedPartitionWithKey(name, device string, key []byte) error {

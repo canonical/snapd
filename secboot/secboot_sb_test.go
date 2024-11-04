@@ -1381,14 +1381,14 @@ func mockSbTPMConnection(c *C, tpmErr error) (*sb_tpm2.Connection, func()) {
 	return tpm, restore
 }
 
-func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyBadDisk(c *C) {
+func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyBadDisk(c *C) {
 	disk := &disks.MockDiskMapping{}
-	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	unlockRes, err := secboot.UnlockEncryptedVolumeUsingProtectorKey(disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, ErrorMatches, `filesystem label "ubuntu-save-enc" not found`)
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{})
 }
 
-func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyUUIDError(c *C) {
+func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyUUIDError(c *C) {
 	disk := &disks.MockDiskMapping{
 		Structure: []disks.Partition{
 			{
@@ -1403,7 +1403,7 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyUUIDError(c *C) {
 	})
 	defer restore()
 
-	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	unlockRes, err := secboot.UnlockEncryptedVolumeUsingProtectorKey(disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, ErrorMatches, "mocked uuid error")
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
 		PartDevice:  "/dev/disk/by-uuid/321-321-321",
@@ -1411,7 +1411,7 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyUUIDError(c *C) {
 	})
 }
 
-func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
+func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyHappy(c *C) {
 	disk := &disks.MockDiskMapping{
 		Structure: []disks.Partition{
 			{
@@ -1437,7 +1437,7 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
 		return nil
 	})
 	defer restore()
-	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	unlockRes, err := secboot.UnlockEncryptedVolumeUsingProtectorKey(disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, IsNil)
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
 		PartDevice:   "/dev/disk/by-uuid/321-321-321",
@@ -1447,7 +1447,7 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
 	})
 }
 
-func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
+func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyErr(c *C) {
 	disk := &disks.MockDiskMapping{
 		Structure: []disks.Partition{
 			{
@@ -1469,7 +1469,7 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
 		return fmt.Errorf("failed")
 	})
 	defer restore()
-	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	unlockRes, err := secboot.UnlockEncryptedVolumeUsingProtectorKey(disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, ErrorMatches, "failed")
 	// we would have at least identified that the device is a decrypted one
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
