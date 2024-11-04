@@ -1411,7 +1411,7 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyUUIDError(c *C)
 	})
 }
 
-func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyHappy(c *C) {
+func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyOldKeyHappy(c *C) {
 	disk := &disks.MockDiskMapping{
 		Structure: []disks.Partition{
 			{
@@ -1445,6 +1445,92 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyHappy(c *C) {
 		IsEncrypted:  true,
 		UnlockMethod: secboot.UnlockedWithKey,
 	})
+}
+
+type fakeKeyDataReader struct {
+	name string
+	*bytes.Reader
+}
+
+func newFakeKeyDataReader(name string, data []byte) *fakeKeyDataReader {
+	return &fakeKeyDataReader{
+		name:   name,
+		Reader: bytes.NewReader(data),
+	}
+}
+
+func (f *fakeKeyDataReader) ReadableName() string {
+	return f.name
+}
+
+func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyHappy(c *C) {
+	disk := &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "ubuntu-save-enc",
+				FilesystemUUID:  "321-321-321",
+				PartitionUUID:   "123-123-123",
+			},
+		},
+	}
+	restore := secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-123-123", nil
+	})
+	defer restore()
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		return []string{"some-key-without-data", "some-other-key", "the-plainkey"}, nil
+	})()
+	defer secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		switch slot {
+		case "the-plainkey":
+			return newFakeKeyDataReader(slot, []byte(`{"platform_name": "plainkey"}`)), nil
+		case "some-key-without-data":
+			return nil, fmt.Errorf("there is no key data")
+		case "some-other-key":
+			return newFakeKeyDataReader(slot, []byte(`{"platform_name": "foo"}`)), nil
+		default:
+			c.Errorf("unexpected call")
+			return nil, fmt.Errorf("unexpected")
+		}
+	})()
+
+	setProtectorKeysCalls := 0
+	secboot.MockSetProtectorKeys(func(keys ...[]byte) {
+		setProtectorKeysCalls++
+		switch setProtectorKeysCalls {
+		case 1:
+			c.Check(keys, HasLen, 1)
+			c.Check(keys[0], DeepEquals, []byte("fooo"))
+		case 2:
+			c.Check(keys, HasLen, 0)
+		default:
+			c.Errorf("unexpected call")
+		}
+	})
+
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName string, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
+		c.Check(setProtectorKeysCalls, Equals, 1)
+		c.Check(options, DeepEquals, &sb.ActivateVolumeOptions{KeyringPrefix: "ubuntu-fde"})
+		c.Check(volumeName, Matches, "ubuntu-save-random-uuid-123-123")
+		c.Check(sourceDevicePath, Equals, "/dev/disk/by-uuid/321-321-321")
+		return nil
+	})
+	defer restore()
+	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte,
+		options *sb.ActivateVolumeOptions) error {
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})
+	defer restore()
+	unlockRes, err := secboot.UnlockEncryptedVolumeUsingProtectorKey(disk, "ubuntu-save", []byte("fooo"))
+	c.Assert(err, IsNil)
+	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
+		PartDevice:   "/dev/disk/by-uuid/321-321-321",
+		FsDevice:     "/dev/mapper/ubuntu-save-random-uuid-123-123",
+		IsEncrypted:  true,
+		UnlockMethod: secboot.UnlockedWithKey,
+	})
+	c.Check(setProtectorKeysCalls, Equals, 2)
 }
 
 func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyErr(c *C) {

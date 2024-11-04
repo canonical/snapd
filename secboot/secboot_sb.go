@@ -39,6 +39,10 @@ import (
 	"github.com/snapcore/snapd/secboot/keys"
 )
 
+func sbNewLUKS2KeyDataReaderImpl(device, slot string) (sb.KeyDataReader, error) {
+	return sb.NewLUKS2KeyDataReader(device, slot)
+}
+
 var (
 	sbActivateVolumeWithKey         = sb.ActivateVolumeWithKey
 	sbActivateVolumeWithKeyData     = sb.ActivateVolumeWithKeyData
@@ -46,6 +50,8 @@ var (
 	sbDeactivateVolume              = sb.DeactivateVolume
 	sbAddLUKS2ContainerUnlockKey    = sb.AddLUKS2ContainerUnlockKey
 	sbRenameLUKS2ContainerKey       = sb.RenameLUKS2ContainerKey
+	sbNewLUKS2KeyDataReader         = sbNewLUKS2KeyDataReaderImpl
+	sbSetProtectorKeys              = sb_plainkey.SetProtectorKeys
 )
 
 func init() {
@@ -186,11 +192,11 @@ func deviceHasPlainKey(device string) (bool, error) {
 	}
 
 	for _, slot := range slots {
-		reader, err := sb.NewLUKS2KeyDataReader(device, slot)
+		reader, err := sbNewLUKS2KeyDataReader(device, slot)
 		if err != nil {
 			continue
 		}
-		keyData, err := sb.ReadKeyData(reader)
+		keyData, err := sbReadKeyData(reader)
 		if err != nil {
 			return false, fmt.Errorf("keyslot %s has an invalid key data: %w", slot, err)
 		}
@@ -253,8 +259,8 @@ func UnlockEncryptedVolumeUsingProtectorKey(disk disks.Disk, name string, key []
 		// XXX secboot maintains a global object holding protector keys, there
 		// is no way to pass it through context or obtain the current set of
 		// protector keys, so instead simply set it to empty set once we're done
-		sb_plainkey.SetProtectorKeys(key)
-		defer sb_plainkey.SetProtectorKeys()
+		sbSetProtectorKeys(key)
+		defer sbSetProtectorKeys()
 
 		var authRequestor sb.AuthRequestor = nil
 		if err := sbActivateVolumeWithKeyData(mapperName, encdev, authRequestor, options); err != nil {
