@@ -34,22 +34,20 @@ execute: |
     if [ "$SPREAD_REBOOT" == "0" ]; then
         echo "In run mode"
 
-        snap install --edge jq
-
         MATCH 'snapd_recovery_mode=run' < /proc/cmdline
         # verify we are in run mode via the API
         snap debug api '/v2/system-info' > system-info
-        jq -r '.result["system-mode"]' < system-info | MATCH 'run'
+        gojq -r '.result["system-mode"]' < system-info | MATCH 'run'
 
         echo "Obtain available systems"
         snap debug api '/v2/systems' > systems.json
         # TODO:UC20: there is only one system for now
-        jq .result.systems[0].current < systems.json | MATCH 'true'
-        label="$(jq -r .result.systems[0].label < systems.json)"
+        gojq .result.systems[0].current < systems.json | MATCH 'true'
+        label="$(gojq -r .result.systems[0].label < systems.json)"
         test -n "$label"
         # make sure that the seed exists
         test -d "/var/lib/snapd/seed/systems/$label"
-        jq -r .result.systems[0].actions[].mode < systems.json | sort | tr '\n' ' ' | MATCH 'install recover run'
+        gojq -r .result.systems[0].actions[].mode < systems.json | sort | tr '\n' ' ' | MATCH 'install recover run'
 
         # keep a copy of the systems dump for later reference
         cp systems.json /writable/systems.json.run
@@ -66,7 +64,7 @@ execute: |
         test -e /host/ubuntu-data/systems.json.run
 
         snap debug api '/v2/systems' > systems.json
-        jq -r .result.systems[0].actions[].mode < systems.json | sort | tr '\n' ' ' | MATCH 'install run'
+        gojq -r .result.systems[0].actions[].mode < systems.json | sort | tr '\n' ' ' | MATCH 'install run'
 
         label="$(cat /host/ubuntu-data/systems.label)"
         test -n "$label"
@@ -79,11 +77,11 @@ execute: |
     elif [ "$SPREAD_REBOOT" == "2" ]; then
         echo "In run mode again"
         snap debug api '/v2/system-info' > system-info
-        jq -r '.result["system-mode"]' < system-info | MATCH 'run'
+        gojq -r '.result["system-mode"]' < system-info | MATCH 'run'
 
         # now go back to recover mode so we can test that a simple reboot 
         # works to transition us back to run mode
-        label="$(jq -r .result.systems[0].label < systems.json)"
+        label="$(gojq -r .result.systems[0].label < systems.json)"
         transition_to_recover_mode "$label"
     elif [ "$SPREAD_REBOOT" == "3" ]; then
         echo "In recover mode again"
@@ -107,5 +105,5 @@ execute: |
     elif [ "$SPREAD_REBOOT" == "4" ]; then
         echo "In run mode again again"
         snap debug api '/v2/system-info' > system-info
-        jq -r '.result["system-mode"]' < system-info | MATCH 'run'
+        gojq -r '.result["system-mode"]' < system-info | MATCH 'run'
     fi
