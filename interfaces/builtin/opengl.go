@@ -193,6 +193,9 @@ unix (send, receive) type=dgram peer=(addr="@var/run/nvidia-xdriver-*"),
 /dev/nvgpu/igpu[0-9]*/ctrl rw,
 /dev/nvgpu/igpu[0-9]*/prof rw,
 /dev/host1x-fence rw,
+
+# Kernel Fusion Driver for AMD GPUs
+/dev/kfd rw,
 `
 
 type openglInterface struct {
