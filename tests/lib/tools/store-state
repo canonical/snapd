@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 STORE_CONFIG=/etc/systemd/system/snapd.service.d/store.conf
 
 show_help() {
