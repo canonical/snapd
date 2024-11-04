@@ -299,7 +299,7 @@ nested_get_snap_rev_for_channel() {
          -H "Content-Type: application/json" \
          --data "{\"context\": [], \"actions\": [{\"action\": \"install\", \"name\": \"$SNAP\", \"channel\": \"$CHANNEL\", \"instance-key\": \"1\"}]}" \
          https://api.snapcraft.io/v2/snaps/refresh | \
-        jq '.results[0].snap.revision'
+        gojq '.results[0].snap.revision'
 }
 
 nested_is_nested_system() {
