@@ -40,11 +40,8 @@ prepare: |
     }
 
     # install pre-reqs which we need to adjust various bits
-    snap install jq remarshal
     snap install test-snapd-swtpm --edge
     tests.cleanup defer snap remove test-snapd-swtpm
-    tests.cleanup defer snap remove remarshal
-    tests.cleanup defer snap remove jq
 
     # download snaps for the model
     snap download core
