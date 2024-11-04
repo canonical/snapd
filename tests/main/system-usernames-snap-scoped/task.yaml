@@ -46,6 +46,10 @@ prepare: |
 
     snap debug can-manage-refreshes | MATCH false
 
+    # install dependencies before switching to fake store
+    # TODO extract base from snap metadata when swithing to gojq
+    snap install core22
+
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
     "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
