@@ -11,8 +11,6 @@ environment:
     PRODUCER_DATA: /var/snap/basic-iface-hooks-producer/common
 
 prepare: |
-    snap install --devmode jq
-
     echo "Install test hooks snaps"
     "$TESTSTOOLS"/snaps-state install-local basic-iface-hooks-consumer
     "$TESTSTOOLS"/snaps-state install-local basic-iface-hooks-producer
@@ -36,13 +34,19 @@ execute: |
     }
     check_attributes(){
         # static values should have the values defined in snap's yaml
-        jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-static"]["consumer-attr-1"]' /var/lib/snapd/state.json | MATCH "consumer-value-1"
-        jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-static"]["consumer-attr-2"]' /var/lib/snapd/state.json | MATCH "consumer-value-2"
-        jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-static"]["producer-attr-1"]' /var/lib/snapd/state.json | MATCH "producer-value-1"
-        jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-static"]["producer-attr-2"]' /var/lib/snapd/state.json | MATCH "producer-value-2"
+        gojq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-static"]["consumer-attr-1"]' \
+            /var/lib/snapd/state.json | MATCH "consumer-value-1"
+        gojq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-static"]["consumer-attr-2"]' \
+            /var/lib/snapd/state.json | MATCH "consumer-value-2"
+        gojq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-static"]["producer-attr-1"]' \
+            /var/lib/snapd/state.json | MATCH "producer-value-1"
+        gojq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-static"]["producer-attr-2"]' \
+            /var/lib/snapd/state.json | MATCH "producer-value-2"
         # dynamic attributes have values created by the hooks, the "-validated" suffix is added by our test interface
-        jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-dynamic"]["before-connect"]' /var/lib/snapd/state.json | MATCH 'plug-changed\(consumer-value\)'
-        jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-dynamic"]["before-connect"]' /var/lib/snapd/state.json | MATCH 'slot-changed\(producer-value\)'
+        gojq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-dynamic"]["before-connect"]' \
+            /var/lib/snapd/state.json | MATCH 'plug-changed\(consumer-value\)'
+        gojq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-dynamic"]["before-connect"]' \
+            /var/lib/snapd/state.json | MATCH 'slot-changed\(producer-value\)'
     }
 
     check_hooks_were_run(){
