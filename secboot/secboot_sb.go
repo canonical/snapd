@@ -179,6 +179,29 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	return res, nil
 }
 
+func deviceHasPlainKey(device string) (bool, error) {
+	slots, err := sbListLUKS2ContainerUnlockKeyNames(device)
+	if err != nil {
+		return false, fmt.Errorf("cannot list slots in partition save partition: %w", err)
+	}
+
+	for _, slot := range slots {
+		reader, err := sb.NewLUKS2KeyDataReader(device, slot)
+		if err != nil {
+			continue
+		}
+		keyData, err := sb.ReadKeyData(reader)
+		if err != nil {
+			return false, fmt.Errorf("keyslot %s has an invalid key data: %w", slot, err)
+		}
+		if keyData.PlatformName() == "plainkey" {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 // UnlockEncryptedVolumeUsingProtectorKey unlocks the provided device with a
 // given plain key. Depending on how then encrypted device was set up, the key
 // is either used to unlock the device directly, or it is used to decrypt the
@@ -212,16 +235,16 @@ func UnlockEncryptedVolumeUsingProtectorKey(disk disks.Disk, name string, key []
 	// make up a new name for the mapped device
 	mapperName := name + "-" + uuid
 
-	slots, err := sbListLUKS2ContainerUnlockKeyNames(encdev)
+	foundPlainKey, err := deviceHasPlainKey(encdev)
 	if err != nil {
-		return unlockRes, fmt.Errorf("cannot list slots in partition save partition: %v", err)
+		return unlockRes, err
 	}
 
 	// in the legacy setup, the key, is the exact plain key that unlocks the
 	// device, in the modern setup (indicated by presence of tokens carrying
 	// named key data), the plain key is used to decrypt the actual unlock key
 
-	if len(slots) != 0 {
+	if foundPlainKey {
 		const allowRecovery = false
 		options := activateVolOpts(allowRecovery)
 		// no passphrases
