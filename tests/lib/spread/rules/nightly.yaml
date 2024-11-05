@@ -1,0 +1,9 @@
+rules:
+  tests:
+    from:
+      - tests/nightly/.*
+    to: [$SELF]
+  
+  rest:
+    from: [.*]
+    to: [tests/nightly/]

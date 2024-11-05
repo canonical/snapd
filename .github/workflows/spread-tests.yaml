@@ -25,6 +25,10 @@ on:
         description: 'The rule .yaml file to use (found under tests/lib/spread/rules) for test discovery'
         required: true
         type: string
+      use-master-snap:
+        required: false
+        type: boolean
+        default: false
 
 
 jobs:
@@ -98,6 +102,16 @@ jobs:
               fi
           fi
 
+    - name: Populate systems
+      run: |
+        SYSTEMS=""
+        if [[ "${{ inputs.systems }}" == "*" ]]; then
+          SYSTEMS=$(spread -list ${{ inputs.backend }} | cut -d':' -f2 | sort -u | while read line; do echo -n "$line "; done)
+        else
+          SYSTEMS="${{ inputs.systems }}"
+        fi
+        echo "SYSTEMS=$SYSTEMS" >> $GITHUB_ENV
+
     - name: Setup run tests variable
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       run: |
@@ -111,7 +125,7 @@ jobs:
               for CHANGE in $CHANGED_FILES; do
                   CHANGES_PARAM="$CHANGES_PARAM -c $CHANGE"
               done
-              for SYSTEM in ${{ inputs.systems }}; do
+              for SYSTEM in $SYSTEMS; do
                   # Configure parameters to run tests based on current changes
                   # The tests are just filtered when the change is a PR
                   # When 'Run Nested' label is added in a PR, all the nested tests have to be executed
@@ -149,7 +163,7 @@ jobs:
 
     - name: Download built snap (amd64)
       uses: actions/download-artifact@v4
-      if: "!contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips')"
+      if: "${{ !inputs.use-master-snap && !contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
       with:
         name: snap-files-amd64-default-test
         # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
@@ -168,7 +182,7 @@ jobs:
     - name: Download built FIPS snap (amd64)
       uses: actions/download-artifact@v4
       # eg. ubuntu-fips
-      if: "!contains(inputs.group, '-arm64') && endsWith(inputs.group, '-fips')"
+      if: "${{ !inputs.use-master-snap && !contains(inputs.group, '-arm64') && endsWith(inputs.group, '-fips') }}"
       with:
         name: snap-files-amd64-FIPS-test
         # eg. snapd_1337.2.65.1+git97.gd35b459-fips_amd64.snap
@@ -176,6 +190,7 @@ jobs:
         path: "${{ github.workspace }}/built-snap"
 
     - name: Rename imported snap
+      if: "${{ !inputs.use-master-snap }}"
       run: |
         for snap in built-snap/snapd_1337.*.snap; do
           mv -v "${snap}" "${snap}.keep"
@@ -196,8 +211,12 @@ jobs:
           fi
 
           export SPREAD_USE_PREBUILT_SNAPD_SNAP=true
+          
+          if [ "${{ inputs.use-master-snap }}" = true ]; then
+            export SPREAD_USE_SNAPD_SNAP_URL=https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64.snap
+          fi
 
-          if [[ "${{ inputs.systems }}" =~ amazon-linux-2023 ]]; then
+          if [[ "$SYSTEMS" =~ amazon-linux-2023 ]]; then
               # Amazon Linux 2023 has no xdelta, however we cannot disable
               # xdelta on a per-target basis as it's used in the repack section
               # of spread.yaml, which is shared by all targets, so all systems
@@ -234,7 +253,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: spread-logs-${{ inputs.systems }}
+        name: spread-logs-$SYSTEMS
         path: "spread-logs/*.log"
         if-no-files-found: ignore
 
