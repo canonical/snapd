@@ -273,6 +273,42 @@ dbus (send)
     member=Lookup
     peer=(label=unconfined),
 
+# dbusmenu
+dbus (send)
+    bus=session
+    path=/{MenuBar{,/[0-9A-F]*},com/canonical/{menu/[0-9A-F]*,dbusmenu}}
+    interface=com.canonical.dbusmenu
+    member="{LayoutUpdated,ItemsPropertiesUpdated}"
+    peer=(label="{plasmashell,unconfined}"),
+
+dbus (receive)
+    bus=session
+    path=/{MenuBar{,/[0-9A-F]*},com/canonical/{menu/[0-9A-F]*,dbusmenu}}
+    interface="{com.canonical.dbusmenu,org.freedesktop.DBus.Properties}"
+    member=Get*
+    peer=(label="{plasmashell,unconfined}"),
+
+dbus (receive)
+    bus=session
+    path=/{MenuBar{,/[0-9A-F]*},com/canonical/{menu/[0-9A-F]*,dbusmenu}}
+    interface=com.canonical.dbusmenu
+    member="{AboutTo*,Event*}"
+    peer=(label="{plasmashell,unconfined}"),
+
+dbus (receive)
+    bus=session
+    path=/{MenuBar{,/[0-9A-F]*},com/canonical/{menu/[0-9A-F]*,dbusmenu}}
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label="{plasmashell,unconfined}"),
+
+dbus (receive)
+    bus=session
+    path=/com/canonical/dbusmenu
+    interface=org.freedesktop.DBus.Properties
+    member=Get*
+    peer=(label="{plasmashell,unconfined}"),
+
 # app-indicators
 dbus (send)
     bus=session
