@@ -1,0 +1,140 @@
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        required: true
+        type: string
+      gochannel:
+        required: true
+        type: string
+      unit-scenario:
+        required: true
+        type: string
+
+jobs:
+  unit-tests:
+    runs-on: ${{ inputs.runs-on }}
+    env:
+      GOPATH: ${{ github.workspace }}
+      # Set PATH to ignore the load of magic binaries from /usr/local/bin And
+      # to use the go snap automatically. Note that we install go from the
+      # snap in a step below. Without this we get the GitHub-controlled latest
+      # version of go.
+      PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
+      GOROOT: ""
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        # needed for git commit history
+        fetch-depth: 0
+        # NOTE: checkout the code in a fixed location, even for forks, as this
+        # is relevant for go's import system.
+        path: ./src/github.com/snapcore/snapd
+
+    # Fetch base ref, needed for golangci-lint
+    - name: Fetching base ref ${{ github.base_ref }}
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd
+        git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
+
+    - name: Download Debian dependencies
+      uses: actions/download-artifact@v4
+      with:
+        name: debian-dependencies
+        path: ./debian-deps/
+
+    - name: Copy dependencies
+      run: |
+        test -f ./debian-deps/cached-apt.tar
+        sudo tar xvf ./debian-deps/cached-apt.tar -C /
+
+    - name: Install Debian dependencies
+      run: |
+          sudo apt update
+          sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+
+    # golang latest ensures things work on the edge
+    - name: Install the go snap
+      run: |
+          sudo snap install --classic --channel=${{ inputs.gochannel }} go
+
+    - name: Get deps
+      run: |
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/ && ./get-deps.sh
+
+    - name: Build C
+      run: |
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
+          ./autogen.sh
+          make -j$(nproc)
+
+    - name: Build Go
+      run: |
+          go build github.com/snapcore/snapd/...
+
+    - name: Test C
+      run: |
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make distcheck
+
+    - name: Reset code coverage data
+      run: |
+          rm -rf ${{ github.workspace }}/.coverage/
+          COVERAGE_OUT="${{ github.workspace }}/coverage/coverage-${{ inputs.unit-scenario}}.cov"
+          echo "COVERAGE_OUT=$COVERAGE_OUT" >> $GITHUB_ENV
+
+    - name: Test Go
+      if: ${{ inputs.unit-scenario == 'normal' }}
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        ./run-checks --unit
+
+    - name: Test Go (SNAPD_DEBUG=1)
+      if: ${{ inputs.unit-scenario == 'snapd_debug' }}
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        SKIP_DIRTY_CHECK=1 SNAPD_DEBUG=1 ./run-checks --unit
+
+    - name: Test Go (withbootassetstesting)
+      if: ${{ inputs.unit-scenario == 'withbootassetstesting' }}
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=withbootassetstesting ./run-checks --unit
+
+    - name: Test Go (nosecboot)
+      if: ${{ inputs.unit-scenario == 'nosecboot' }}
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        echo "Dropping github.com/snapcore/secboot"
+        # use govendor remove so that a subsequent govendor sync does not
+        # install secboot again
+        # ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
+        # ${{ github.workspace }}/bin/govendor remove +unused
+        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
+
+    - name: Test Go (faultinject)
+      if: ${{ inputs.unit-scenario == 'faultinject' }}
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=faultinject ./run-checks --unit
+
+    - name: Test Go (-race)
+      if: ${{ inputs.unit-scenario == 'race' }}
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        SKIP_DIRTY_CHECK=1 GO_TEST_RACE=1 SKIP_COVERAGE=1 ./run-checks --unit
+
+    - name: Test Go (snapdusergo)
+      if: ${{ inputs.unit-scenario == 'snapdusergo' }}
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=snapdusergo ./run-checks --unit
+
+    - name: Upload the coverage results
+      if: ${{ inputs.gochannel != 'latest/stable' && inputs.unit-scenario != 'race' }}
+      uses: actions/upload-artifact@v4
+      with:
+        include-hidden-files: true
+        name: "coverage-files-${{ inputs.unit-scenario }}"
+        path: "${{ github.workspace }}/coverage/coverage*.cov"
