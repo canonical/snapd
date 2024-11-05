@@ -227,6 +227,9 @@ var openglConnectedPlugUDev = []string{
 
 	// Nvidia dma barrier
 	`SUBSYSTEM=="host1x-fence"`,
+
+	// Kernel Fusion Driver
+	`SUBSYSTEM=="kfd", KERNEL=="kfd"`,
 }
 
 // Those two are the same, but in theory they are separate and can move (or
