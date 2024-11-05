@@ -150,7 +150,12 @@ func ResealKeysForSignaturesDBUpdate(
 		},
 		resealOptions{
 			ExpectReseal: true,
-			Force:        true,
+			// the boot chains are unchanged, which normally would result in
+			// no-reseal being done, but the content of DBX is being changed,
+			// either being part of the request or it has already been written
+			// to the relevant EFI variables (in which case this is a
+			// post-update reseal)
+			Force: true,
 		})
 }
 
