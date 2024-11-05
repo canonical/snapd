@@ -27,7 +27,6 @@ jobs:
           # are the build that should be installed by human users.
           - pristine
           - test
-    
 
   cache-build-deps:
     runs-on: ubuntu-20.04
@@ -80,7 +79,6 @@ jobs:
         gochannel:
           - 1.18
           - latest/stable
-    
 
   branch-static-checks:
     runs-on: ubuntu-latest
@@ -144,13 +142,11 @@ jobs:
           - snapdusergo
 
   unit-tests-cross-distro:
+    uses: ./.github/workflows/unit-tests-cross-distro.yaml
     needs: [static-checks]
-    env:
-      # Set PATH to ignore the load of magic binaries from /usr/local/bin And
-      # to use the go snap automatically. Note that we install go from the
-      # snap in a step below. Without this we get the GitHub-controlled latest
-      # version of go.
-      PATH: /usr/sbin:/usr/bin:/sbin:/bin
+    with:
+      runs-on: ubuntu-latest
+      distro: ${{ matrix.distro }}
 
     strategy:
       fail-fast: false
@@ -159,52 +155,6 @@ jobs:
           # TODO add arch?
           - fedora:latest
           - opensuse/tumbleweed
-
-    runs-on: ubuntu-latest
-    container: ${{ matrix.distro }}
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        # needed for git commit history
-        fetch-depth: 0
-
-    - name: Install dependencies
-      run: |
-        # approximation to handle both typical foo:bar (tagged) and foo/bar
-        # (with implicit :latest)
-        distroname="$(echo "${{ matrix.distro }}" | tr : - | tr / -)"
-        case "${{ matrix.distro }}" in
-        fedora:*)
-            dnf install -y rpmdevtools
-            dnf install -y $(rpmspec -q --buildrequires "./packaging/$distroname/snapd.spec")
-            # TODO these are needed only by cmd/snap-seccomp unit tests, and
-            # should be added to BuildRequires
-            dnf install -y glibc-devel.i686 glibc-static.i686
-            ;;
-        opensuse/*)
-            zypper --non-interactive install -y rpmdevtools rpm-build git
-            zypper --non-interactive install -y $(rpmspec -q --buildrequires "./packaging/$distroname/snapd.spec")
-            ;;
-        *)
-            echo "Unsupported distribution variant ${{ matrix.distro }}"
-            exit 1
-            ;;
-        esac
-    - name: Set up test user
-      run: |
-        useradd -U -m test-user
-        chown -R test-user:test-user $PWD
-
-    - name: Unit tests (Go)
-      run: |
-        su test-user sh -c "SKIP_DIRTY_CHECK=1 ./run-checks --unit"
-
-    - name: Unit tests (C)
-      run: |
-        su test-user sh -c "./mkversion.sh 1337-git && cd ./cmd && ./autogen.sh && make -j && make distcheck"
-
 
   code-coverage:
     needs: [unit-tests, unit-tests-special]
