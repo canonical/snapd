@@ -1,0 +1,134 @@
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        required: true
+        type: string
+      gochannel:
+        required: true
+        type: string
+
+jobs:
+  static-checks:
+    runs-on: ${{ inputs.runs-on }}
+    env:
+      GOPATH: ${{ github.workspace }}
+      # Set PATH to ignore the load of magic binaries from /usr/local/bin And
+      # to use the go snap automatically. Note that we install go from the
+      # snap in a step below. Without this we get the GitHub-controlled latest
+      # version of go.
+      PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
+      GOROOT: ""
+      GITHUB_PULL_REQUEST_TITLE: ${{ github.event.pull_request.title }}
+      BASE_REF: ${{ github.base_ref }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        # needed for git commit history
+        fetch-depth: 0
+        # NOTE: checkout the code in a fixed location, even for forks, as this
+        # is relevant for go's import system.
+        path: ./src/github.com/snapcore/snapd
+
+    # Fetch base ref, needed for golangci-lint
+    - name: Fetching base ref ${{ github.base_ref }}
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd
+        git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
+
+    - name: Download Debian dependencies
+      uses: actions/download-artifact@v4
+      with:
+        name: debian-dependencies
+        path: ./debian-deps/
+
+    - name: Copy dependencies
+      run: |
+        test -f ./debian-deps/cached-apt.tar
+        sudo tar xvf ./debian-deps/cached-apt.tar -C /
+
+    - name: Install Debian dependencies
+      run: |
+          sudo apt update
+          sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+
+    # golang latest ensures things work on the edge
+    - name: Install the go snap
+      run: |
+          sudo snap install --classic --channel=${{ inputs.gochannel }} go
+
+    - name: Install ShellCheck as a snap
+      run: |
+          sudo apt-get remove --purge shellcheck
+          sudo snap install shellcheck
+
+    - name: Get C vendoring
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd/c-vendor && ./vendor.sh
+
+    - name: Install golangci-lint snap
+      run: |
+          sudo snap install --classic golangci-lint
+
+    - name: Get changed files
+      id: changed-files
+      uses: tj-actions/changed-files@v41.0.0
+      with:
+        path: ./src/github.com/snapcore/snapd
+
+    - name: Save changes files
+      run: |
+          CHANGED_FILES="${{ steps.changed-files.outputs.all_changed_files }}"
+          echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
+          echo "The changed files found are: $CHANGED_FILES"
+
+    - name: Run static checks
+      run: |
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+          # run gofmt checks only with the latest stable Go
+          if [ "${{ matrix.gochannel }}" != "latest/stable" ]; then
+              export SKIP_GOFMT=1
+              echo "Formatting checks will be skipped due to the use of Go version ${{ inputs.gochannel }}"
+          fi
+          sudo apt-get install -y python3-yamlordereddictloader
+          ./run-checks --static
+
+    - name: Cache prebuilt indent
+      id: cache-indent-bin
+      uses: actions/cache@v4
+      with:
+        path: indent-bin
+        key: ${{ runner.os }}-indent-2.2.13
+
+    # build indent 2.2.13 which has this patch
+    # https://git.savannah.gnu.org/cgit/indent.git/commit/?id=22b83d68e9a8b429590f42920e9f473a236123cf
+    - name: Build indent 2.2.13
+      if: steps.cache-indent-bin.outputs.cache-hit != 'true'
+      run: |
+          sudo apt install texinfo autopoint
+          curl -O https://ftp.gnu.org/gnu/indent/indent-2.2.13.tar.xz
+          tar xvf indent-2.2.13.tar.xz
+          cd indent-2.2.13
+          autoreconf -if
+          # set prefix in case we want to pack to tar/extract into system
+          ./configure --prefix=/opt/indent
+          make -j
+          make install DESTDIR=${{ github.workspace }}/indent-bin
+          find ${{ github.workspace }}/indent-bin -ls
+
+    - name: Check C source code formatting
+      run: |
+          set -x
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
+          ./autogen.sh
+          # apply formatting
+          PATH=${{ github.workspace }}/indent-bin/opt/indent/bin:$PATH make fmt
+          set +x
+          if [ -n "$(git diff --stat)" ]; then
+              git diff
+              echo "C files are not fomratted correctly, run 'make fmt'"
+              echo "make sure to have clang-format and indent 2.2.13+ installed"
+              exit 1
+          fi
