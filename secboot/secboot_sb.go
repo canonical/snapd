@@ -162,7 +162,8 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	sbSetKeyRevealer(&keyRevealerV3{})
 	defer sbSetKeyRevealer(nil)
 
-	options := activateVolOpts(opts.AllowRecoveryKey)
+	const allowPassphrase = true
+	options := activateVolOpts(opts.AllowRecoveryKey, allowPassphrase)
 	authRequestor, err := newAuthRequestor()
 	if err != nil {
 		res.UnlockMethod = NotUnlocked
@@ -252,9 +253,10 @@ func UnlockEncryptedVolumeUsingProtectorKey(disk disks.Disk, name string, key []
 
 	if foundPlainKey {
 		const allowRecovery = false
-		options := activateVolOpts(allowRecovery)
-		// no passphrases
-		options.PassphraseTries = 0
+		// we should not allow passphrases as this action
+		// should not expect interaction with the user
+		const allowPassphrase = false
+		options := activateVolOpts(allowRecovery, allowPassphrase)
 
 		// XXX secboot maintains a global object holding protector keys, there
 		// is no way to pass it through context or obtain the current set of
