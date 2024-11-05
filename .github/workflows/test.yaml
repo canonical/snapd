@@ -11,7 +11,11 @@ concurrency:
 
 jobs:
   snap-builds:
-    runs-on: ubuntu-22.04
+    uses: ./.github/workflows/snap-builds.yaml
+    with:
+      runs-on: ubuntu-22.04
+      toolchain: ${{ matrix.toolchain }}
+      version: ${{ matrix.version }}
     strategy:
       matrix:
         toolchain:
@@ -23,60 +27,7 @@ jobs:
           # are the build that should be installed by human users.
           - pristine
           - test
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Select Go toolchain
-      run: |
-        case "${{ matrix.toolchain }}" in
-            default)
-                rm -f fips-build
-                ;;
-            FIPS)
-                touch fips-build
-                ;;
-            *)
-                echo "unknown toolchain ${{ matrix.toolchain }}"
-                exit 1
-                ;;
-        esac
-        case "${{ matrix.version }}" in
-            pristine)
-                rm -f test-build
-                ;;
-            test)
-                touch test-build
-                ;;
-        esac
-
-    - name: Build snapd snap
-      uses: snapcore/action-build@v1
-      with:
-        snapcraft-channel: 8.x/stable
-        snapcraft-args: --verbose
-
-    - name: Check built artifact
-      run: |
-        unsquashfs snapd*.snap meta/snap.yaml usr/lib/snapd/
-        if cat squashfs-root/meta/snap.yaml | grep -q "version:.*dirty.*"; then
-          echo "PR produces dirty snapd snap version"
-          cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
-          exit 1
-        elif cat squashfs-root/usr/lib/snapd/info | grep -q "VERSION=.*dirty.*"; then
-          echo "PR produces dirty internal snapd info version"
-          cat squashfs-root/usr/lib/snapd/info
-          cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
-          exit 1
-        fi
-
-    - name: Uploading snapd snap artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: snap-files-${{ matrix.toolchain }}-${{ matrix.version }}
-        path: "*.snap"
+    
 
   cache-build-deps:
     runs-on: ubuntu-20.04
