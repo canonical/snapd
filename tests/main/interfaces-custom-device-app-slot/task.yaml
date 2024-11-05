@@ -25,9 +25,22 @@ prepare: |
       snap install core
     fi
 
+    # Install store-state dependencies
+    echo "Ensure jq is installed"
+    if ! command -v jq; then
+        snap install --devmode jq
+    fi
+
+    echo "Ensure yaml2json is installed"
+    if ! command -v yaml2json; then
+        snap install --devmode remarshal
+    fi
+
     snap debug can-manage-refreshes | MATCH false
 
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
+    snap ack "$TESTSLIB/assertions/developer1.account"
+    snap ack "$TESTSLIB/assertions/developer1.account-key"
 
     "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 
