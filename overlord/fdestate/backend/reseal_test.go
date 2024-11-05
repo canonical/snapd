@@ -1839,7 +1839,10 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 	defer restore()
 
 	updateCalls := 0
-	up := func(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
+	up := func(
+		role string, containerRole string, bootModes []string,
+		models []secboot.ModelForSealing, tpmPCRProfile []byte,
+	) error {
 		updateCalls++
 		return nil
 	}
@@ -1851,4 +1854,6 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 	// reseal was called
 	c.Check(buildProfileCalls, Equals, 2)
 	c.Check(resealKeysCalls, Equals, 2)
+	// and the state was updated
+	c.Check(updateCalls, Equals, 2)
 }
