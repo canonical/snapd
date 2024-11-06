@@ -153,11 +153,12 @@ func (c *modelCommand) getSnapInfoWithPublisher(st *state.State, snapName string
 // checkPermissions verifies that the snap described by snapInfo is allowed to
 // read the model assertion of deviceCtx.
 // We allow the usage of this command if one of the following is true
-// 1. The requesting snap must be a gadget
+// 1. The requesting snap must be of gadget or kernel type
 // 2. Come from the same brand as the device model assertion
 // 3. Have the snapd-control plug
 func (c *modelCommand) checkPermissions(st *state.State, deviceCtx snapstate.DeviceContext, snapInfo *snap.Info) error {
-	if snapType := snapInfo.Type(); snapType == snap.TypeGadget {
+	switch snapInfo.Type() {
+	case snap.TypeGadget, snap.TypeKernel:
 		return nil
 	}
 	if snapInfo.Publisher.ID == deviceCtx.Model().BrandID() {
@@ -170,7 +171,7 @@ func (c *modelCommand) checkPermissions(st *state.State, deviceCtx snapstate.Dev
 	}
 
 	c.reportError("cannot get model assertion for snap %q: "+
-		"must be either a gadget snap, from the same publisher as the model "+
+		"must be either a gadget or a kernel snap, from the same publisher as the model "+
 		"or have the snapd-control interface\n", snapInfo.SnapName())
 	return fmt.Errorf("insufficient permissions to get model assertion for snap %q", snapInfo.SnapName())
 }

@@ -192,6 +192,11 @@ type: base
 version: 1
 `
 
+const snapKernelYaml = `name: kernel1
+type: kernel
+version: 1
+`
+
 const snapYaml = `name: snap1
 base: snap1-base
 version: 1
@@ -239,7 +244,7 @@ func (s *modelSuite) TestUnhappyModelCommandInsufficientPermissions(c *C) {
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0)
 	c.Check(err, ErrorMatches, "insufficient permissions to get model assertion for snap \"snap1\"")
 	c.Check(string(stdout), Equals, "")
-	c.Check(string(stderr), Equals, "cannot get model assertion for snap \"snap1\": must be either a gadget snap, from the same publisher as the model or have the snapd-control interface\n")
+	c.Check(string(stderr), Equals, "cannot get model assertion for snap \"snap1\": must be either a gadget or a kernel snap, from the same publisher as the model or have the snapd-control interface\n")
 }
 
 func (s *modelSuite) TestHappyModelCommandIdenticalPublisher(c *C) {
@@ -365,15 +370,23 @@ timestamp:     %s
 	c.Check(string(stderr), Equals, "")
 }
 
-func (s *modelSuite) TestHappyModelCommandGadgetYaml(c *C) {
+func (s *modelSuite) TestHappyModelCommandGadget(c *C) {
+	s.testHappyModelCommandForSnap(c, "gadget1", snapGadgetYaml)
+}
+
+func (s *modelSuite) TestHappyModelCommandKernel(c *C) {
+	s.testHappyModelCommandForSnap(c, "kernel1", snapKernelYaml)
+}
+
+func (s *modelSuite) testHappyModelCommandForSnap(c *C, snapName, snapYaml string) {
 	// This tests verifies that a snap that is a gadget can be used to
 	// get the model assertion, even if from a different publisher
-	s.addSnapDeclaration(c, "gadget1-id", "canonical", "gadget1")
+	s.addSnapDeclaration(c, snapName+"-id", "canonical", snapName)
 	s.setupBrands()
 
 	// set a model assertion
 	s.state.Lock()
-	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	current := s.brands.Model("my-brand", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -382,21 +395,21 @@ func (s *modelSuite) TestHappyModelCommandGadgetYaml(c *C) {
 	err := assertstate.Add(s.state, current)
 	c.Assert(err, IsNil)
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
+		Brand: "my-brand",
 		Model: "pc-model",
 	})
 
 	c.Assert(err, IsNil)
 	task := s.state.NewTask("test-task", "my test task")
-	setup := &hookstate.HookSetup{Snap: "gadget1", Revision: snap.R(1), Hook: "test-hook"}
+	setup := &hookstate.HookSetup{Snap: snapName, Revision: snap.R(1), Hook: "test-hook"}
 	mockContext, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
-	mockInstalledSnap(c, s.state, snapGadgetYaml, "")
+	mockInstalledSnap(c, s.state, snapYaml, "")
 	s.state.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0)
 	c.Check(err, IsNil)
-	c.Check(string(stdout), Equals, fmt.Sprintf(`brand-id:      canonical
+	c.Check(string(stdout), Equals, fmt.Sprintf(`brand-id:      my-brand
 model:         pc-model
 serial:        -- (device not registered yet)
 architecture:  amd64
