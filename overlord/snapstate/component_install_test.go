@@ -1069,3 +1069,48 @@ func (s *snapmgrTestSuite) TestInstallComponentsAlreadyInstalledError(c *C) {
 
 	c.Assert(err, testutil.ErrorIs, snap.AlreadyInstalledComponentError{Component: "one"})
 }
+
+func (s *snapmgrTestSuite) TestInstallComponentsInvalidFlagAndTransaction(c *C) {
+	const snapName = "some-snap"
+	snapRev := snap.R(1)
+	compNamesToType := map[string]string{
+		"one": "standard",
+		"two": "standard",
+	}
+
+	info := createTestSnapInfoForComponents(c, snapName, snapRev, compNamesToType)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := snapstate.InstallComponents(context.TODO(), s.state, []string{"one", "two"}, info, snapstate.Options{
+		Flags: snapstate.Flags{Lane: 1},
+	})
+	c.Assert(err, ErrorMatches, `cannot specify a lane without setting transaction to "all-snaps"`)
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentPathInvalidFlagAndTransaction(c *C) {
+	const snapName = "some-snap"
+	snapRev := snap.R(1)
+	compNamesToType := map[string]string{
+		"one": "standard",
+	}
+
+	info := createTestSnapInfoForComponents(c, snapName, snapRev, compNamesToType)
+	_, compPath := createTestComponentWithType(c, snapName, "one", "standard", info)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	setStateWithOneSnap(s.state, snapName, snapRev)
+
+	csi := snap.NewComponentSideInfo(naming.ComponentRef{
+		SnapName:      snapName,
+		ComponentName: "one",
+	}, snap.R(33))
+
+	_, err := snapstate.InstallComponentPath(s.state, csi, info, compPath, snapstate.Options{
+		Flags: snapstate.Flags{Lane: 1},
+	})
+	c.Assert(err, ErrorMatches, `cannot specify a lane without setting transaction to "all-snaps"`)
+}
