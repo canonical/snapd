@@ -89,6 +89,8 @@ func InstallComponents(ctx context.Context, st *state.State, names []string, inf
 		kmodSetup.Set("snap-setup-task", setupSecurity.ID())
 	}
 
+	lane := generateLane(st, opts)
+
 	tss := make([]*state.TaskSet, 0, len(compsups))
 	compSetupIDs := make([]string, 0, len(compsups))
 	for _, compsup := range compsups {
@@ -108,7 +110,7 @@ func InstallComponents(ctx context.Context, st *state.State, names []string, inf
 		compSetupIDs = append(compSetupIDs, componentTS.compSetupTaskID)
 
 		ts := componentTS.taskSet()
-		ts.JoinLane(generateLane(st, opts))
+		ts.JoinLane(lane)
 
 		tss = append(tss, ts)
 	}
@@ -121,7 +123,7 @@ func InstallComponents(ctx context.Context, st *state.State, names []string, inf
 	}
 
 	// note that this must come after all tasks are added to the task set
-	ts.JoinLane(generateLane(st, opts))
+	ts.JoinLane(lane)
 
 	return append(tss, ts), nil
 }
@@ -267,7 +269,6 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 	}
 
 	ts := componentTS.taskSet()
-
 	ts.JoinLane(generateLane(st, opts))
 
 	return ts, nil

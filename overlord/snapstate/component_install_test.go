@@ -278,9 +278,15 @@ func (s *snapmgrTestSuite) TestInstallComponentPathWithLane(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestInstallComponentPathWithJustTransaction(c *C) {
+func (s *snapmgrTestSuite) TestInstallComponentPathTransactionAllSnaps(c *C) {
 	s.testInstallComponentPath(c, testInstallComponentPathOpts{
 		transaction: client.TransactionAllSnaps,
+	})
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentPathTransactionPerSnap(c *C) {
+	s.testInstallComponentPath(c, testInstallComponentPathOpts{
+		transaction: client.TransactionPerSnap,
 	})
 }
 
@@ -316,7 +322,7 @@ func (s *snapmgrTestSuite) testInstallComponentPath(c *C, opts testInstallCompon
 	c.Assert(err, IsNil)
 
 	expectedLane := opts.lane
-	if opts.transaction == client.TransactionAllSnaps && opts.lane == 0 {
+	if opts.transaction != "" && opts.lane == 0 {
 		expectedLane = 1
 	}
 
@@ -896,9 +902,15 @@ func (s *snapmgrTestSuite) TestInstallComponentsWithLane(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestInstallComponentsWithJustTransaction(c *C) {
+func (s *snapmgrTestSuite) TestInstallComponentsTransactionAllSnaps(c *C) {
 	s.testInstallComponents(c, testInstallComponentsOpts{
 		transaction: client.TransactionAllSnaps,
+	})
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentsTransactionPerSnap(c *C) {
+	s.testInstallComponents(c, testInstallComponentsOpts{
+		transaction: client.TransactionPerSnap,
 	})
 }
 
@@ -981,7 +993,7 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 	c.Assert(prepareKmodComps.Kind(), Equals, "prepare-kernel-modules-components")
 
 	expectedLane := opts.lane
-	if opts.transaction == client.TransactionAllSnaps && opts.lane == 0 {
+	if opts.transaction != "" && opts.lane == 0 {
 		expectedLane = 1
 	}
 
