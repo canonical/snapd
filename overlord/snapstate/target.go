@@ -66,6 +66,18 @@ type Options struct {
 	ExpectOneSnap bool
 }
 
+func (opts *Options) setDefaultLane(st *state.State) error {
+	if opts.Flags.Transaction != client.TransactionAllSnaps && opts.Flags.Lane != 0 {
+		return errors.New("cannot specify a lane without setting transaction to \"all-snaps\"")
+	}
+
+	if opts.Flags.Transaction == client.TransactionAllSnaps && opts.Flags.Lane == 0 {
+		opts.Flags.Lane = st.NewLane()
+	}
+
+	return nil
+}
+
 // target represents the data needed to setup a snap for installation.
 type target struct {
 	// setup is a partially initialized SnapSetup that contains the data needed
@@ -565,13 +577,8 @@ func sortComponentsOnTargets(targets []target) {
 // TODO: rename this to Install once the API is settled, and we can rename or
 // remove the old Install function.
 func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opts Options) ([]*snap.Info, []*state.TaskSet, error) {
-	// can only specify a lane when running multiple operations transactionally
-	if opts.Flags.Transaction != client.TransactionAllSnaps && opts.Flags.Lane != 0 {
-		return nil, nil, errors.New("cannot specify a lane without setting transaction to \"all-snaps\"")
-	}
-
-	if opts.Flags.Transaction == client.TransactionAllSnaps && opts.Flags.Lane == 0 {
-		opts.Flags.Lane = st.NewLane()
+	if err := opts.setDefaultLane(st); err != nil {
+		return nil, nil, err
 	}
 
 	if err := setDefaultSnapstateOptions(st, &opts); err != nil {
@@ -953,6 +960,11 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 		return nil, nil, errors.New("internal error: auto-refresh is not supported when updating a single snap")
 	}
 
+	// TODO: note that we cannot use opts.setDefaultLane here, since there is an
+	// inconsistency between how the various functions in snapstate handle lanes
+	// and transactions (update is the unique case). consider fixing this once
+	// we remove the old snapstate.Install/Update functions
+	//
 	// can only specify a lane when running multiple operations transactionally
 	if opts.Flags.Transaction != client.TransactionAllSnaps && opts.Flags.Lane != 0 {
 		return nil, nil, errors.New("cannot specify a lane without setting transaction to \"all-snaps\"")

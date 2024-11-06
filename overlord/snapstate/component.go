@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
@@ -39,12 +38,8 @@ import (
 // snap represented by info must already be installed, and all of the components
 // in names should not be installed prior to calling this function.
 func InstallComponents(ctx context.Context, st *state.State, names []string, info *snap.Info, opts Options) ([]*state.TaskSet, error) {
-	if opts.Flags.Transaction != client.TransactionAllSnaps && opts.Flags.Lane != 0 {
-		return nil, errors.New("cannot specify a lane without setting transaction to \"all-snaps\"")
-	}
-
-	if opts.Flags.Transaction == client.TransactionAllSnaps && opts.Flags.Lane == 0 {
-		opts.Flags.Lane = st.NewLane()
+	if err := opts.setDefaultLane(st); err != nil {
+		return nil, err
 	}
 
 	if err := setDefaultSnapstateOptions(st, &opts); err != nil {
@@ -221,12 +216,8 @@ func installComponentAction(st *state.State, snapst SnapState, snapRev snap.Revi
 // store.
 func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info,
 	path string, opts Options) (*state.TaskSet, error) {
-	if opts.Flags.Transaction != client.TransactionAllSnaps && opts.Flags.Lane != 0 {
-		return nil, errors.New("cannot specify a lane without setting transaction to \"all-snaps\"")
-	}
-
-	if opts.Flags.Transaction == client.TransactionAllSnaps && opts.Flags.Lane == 0 {
-		opts.Flags.Lane = st.NewLane()
+	if err := opts.setDefaultLane(st); err != nil {
+		return nil, err
 	}
 
 	if err := setDefaultSnapstateOptions(st, &opts); err != nil {
