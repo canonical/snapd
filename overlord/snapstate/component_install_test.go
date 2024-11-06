@@ -1114,3 +1114,54 @@ func (s *snapmgrTestSuite) TestInstallComponentPathInvalidFlagAndTransaction(c *
 	})
 	c.Assert(err, ErrorMatches, `cannot specify a lane without setting transaction to "all-snaps"`)
 }
+
+func (s *snapmgrTestSuite) TestInstallComponentsTooEarly(c *C) {
+	const snapName = "some-snap"
+	snapRev := snap.R(1)
+	compNamesToType := map[string]string{
+		"one": "standard",
+		"two": "standard",
+	}
+
+	info := createTestSnapInfoForComponents(c, snapName, snapRev, compNamesToType)
+
+	restore := snapstatetest.MockDeviceModel(nil)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := snapstate.InstallComponents(context.TODO(), s.state, []string{"one", "two"}, info, snapstate.Options{
+		Seed: true,
+	})
+	c.Assert(err, ErrorMatches, `.*too early for operation, device model not yet acknowledged`)
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentPathTooEarly(c *C) {
+	const snapName = "some-snap"
+	snapRev := snap.R(1)
+	compNamesToType := map[string]string{
+		"one": "standard",
+	}
+
+	info := createTestSnapInfoForComponents(c, snapName, snapRev, compNamesToType)
+	_, compPath := createTestComponentWithType(c, snapName, "one", "standard", info)
+
+	restore := snapstatetest.MockDeviceModel(nil)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	setStateWithOneSnap(s.state, snapName, snapRev)
+
+	csi := snap.NewComponentSideInfo(naming.ComponentRef{
+		SnapName:      snapName,
+		ComponentName: "one",
+	}, snap.R(33))
+
+	_, err := snapstate.InstallComponentPath(s.state, csi, info, compPath, snapstate.Options{
+		Seed: true,
+	})
+	c.Assert(err, ErrorMatches, `.*too early for operation, device model not yet acknowledged`)
+}
