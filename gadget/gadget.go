@@ -570,7 +570,7 @@ type VolumeUpdate struct {
 // for cases like eMMC. Each assignment in this structure refers to a volume
 // and a device path (/dev/disk/** for now).
 type VolumeAssignment struct {
-	Name        string                       `yaml:"name"`
+	Name        string                       `yaml:"assignment-name"`
 	Assignments map[string]*DeviceAssignment `yaml:"assignment"`
 }
 

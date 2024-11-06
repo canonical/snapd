@@ -125,7 +125,7 @@ volumes:
       size: 1500M
       type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
 volume-assignments:
-  - name: raspi
+  - assignment-name: raspi
     assignment:
       pi:
         device: /dev/disk/by-path/pci-43:0
@@ -165,7 +165,7 @@ volumes:
       size: 127M
       type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
 volume-assignments:
-  - name: raspi
+  - assignment-name: raspi
     assignment:
       pi:
         device: /dev/disk/by-path/pci-42:0
@@ -202,7 +202,7 @@ volumes:
       size: 127M
       type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
 volume-assignments:
-  - name: raspi
+  - assignment-name: raspi
     assignment:
       pi:
         device: /dev/disk/by-path/pci-42:0

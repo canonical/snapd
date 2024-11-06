@@ -5368,11 +5368,11 @@ volumes:
 
 var mockVolumeAssignmentGadget0Yaml = string(mockVolumeAssignmentGadgetYamlBase) + `
 volume-assignments:
-- name: foo-device
+- assignment-name: foo-device
   assignment:
     lun-0:
       device: /dev/disk/by-path/pci-0000:02:00.1-ata-5
-- name: bar-device
+- assignment-name: bar-device
   assignment:
     lun-0:
       device: /dev/disk/by-diskseq/1
@@ -5381,32 +5381,32 @@ volume-assignments:
 `
 
 var mockInvalidAssignmentGadgetYaml = string(mockVolumeAssignmentGadget0Yaml) + `
-- name: baz-device
+- assignment-name: baz-device
   assignment:
     lun-1:
       device: /dev/by-sda
 `
 
 var mockNonExistingAssignmentGadgetYaml = string(mockVolumeAssignmentGadget0Yaml) + `
-- name: baz-device
+- assignment-name: baz-device
   assignment:
     lun-2:
       device: /dev/disk/by-diskseq/1
 `
 
 var mockNoAssignmentGadgetYaml = string(mockVolumeAssignmentGadget0Yaml) + `
-- name: baz-device
+- assignment-name: baz-device
 `
 
 var mockIdenticalAssignmentOkayGadgetYaml = string(mockVolumeAssignmentGadgetYamlBase) + `
 volume-assignments:
-- name: foo-device
+- assignment-name: foo-device
   assignment:
     lun-0:
       device: /dev/disk/by-diskseq/2
     lun-1:
       device: /dev/disk/by-path/pci-0000:06:00.1-ata-5
-- name: foo-device
+- assignment-name: foo-device
   assignment:
     lun-0:
       device: /dev/disk/by-diskseq/1
@@ -5416,13 +5416,13 @@ volume-assignments:
 
 var mockIdenticalAssignmentNotOkayGadgetYaml = string(mockVolumeAssignmentGadgetYamlBase) + `
 volume-assignments:
-- name: foo-device
+- assignment-name: foo-device
   assignment:
     lun-0:
       device: /dev/disk/by-diskseq/1
     lun-1:
       device: /dev/disk/by-path/pci-0000:02:00.1-ata-5
-- name: bar-device
+- assignment-name: bar-device
   assignment:
     lun-0:
       device: /dev/disk/by-diskseq/1
@@ -5432,11 +5432,11 @@ volume-assignments:
 
 var mockChangedAssignmentGadget1Yaml = string(mockVolumeAssignmentGadgetYamlBase) + `
 volume-assignments:
-- name: foo-device
+- assignment-name: foo-device
   assignment:
     lun-0:
       device: /dev/disk/by-id/foz1234
-- name: bar-device
+- assignment-name: bar-device
   assignment:
     lun-0:
       device: /dev/disk/by-diskseq/1
