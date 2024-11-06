@@ -480,11 +480,26 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		prev = tasks[len(tasks)-1]
 	}
 
+	compTaskSets, compSetupIDs, err := splitComponentTasksForInstall(
+		compsups, st, snapst, snapsup, prepare.ID(), fromChange,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	finalBeforeLocalMod := prepare
+
 	var checkAsserts *state.Task
 	if fromStore {
 		// fetch and check assertions
 		checkAsserts = st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(checkAsserts)
+		finalBeforeLocalMod = checkAsserts
+	}
+
+	for _, t := range compTaskSets.afterValidateTasks {
+		finalBeforeLocalMod = t
+		addTask(t)
 	}
 
 	// mount
@@ -513,16 +528,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		addTask(t)
 	}
 
-	tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard, compSetupIDs, err := splitComponentTasksForInstall(
-		compsups, st, snapst, snapsup, prepare.ID(), fromChange,
-	)
-	if err != nil {
-		return nil, err
-	}
+	compTaskSets.beforeDiscardTasks = append(compTaskSets.beforeDiscardTasks, discardExtraComps...)
 
-	tasksBeforeDiscard = append(tasksBeforeDiscard, discardExtraComps...)
-
-	for _, t := range tasksBeforePreRefreshHook {
+	for _, t := range compTaskSets.beforePreRefreshHookTasks {
 		addTask(t)
 	}
 
@@ -610,7 +618,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q%s available to the system"), snapsup.InstanceName(), revisionStr))
 	addTask(linkSnap)
 
-	for _, t := range tasksAfterLinkSnap {
+	for _, t := range compTaskSets.afterLinkSnapTasks {
 		addTask(t)
 	}
 
@@ -662,7 +670,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		addTask(installHook)
 	}
 
-	for _, t := range tasksAfterPostOpHook {
+	for _, t := range compTaskSets.afterPostOpHookTasks {
 		addTask(t)
 	}
 
@@ -707,7 +715,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q%s services"), snapsup.InstanceName(), revisionStr))
 	addTask(startSnapServices)
 
-	for _, t := range tasksBeforeDiscard {
+	for _, t := range compTaskSets.beforeDiscardTasks {
 		addTask(t)
 	}
 
@@ -809,14 +817,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	if installHook != nil {
 		installSet.MarkEdge(installHook, HooksEdge)
 	}
-	// if snap is being installed from the store, then the last task before
-	// any system modifications are done is check validate-snap, otherwise
-	// it's the prepare-snap
-	if checkAsserts != nil {
-		installSet.MarkEdge(checkAsserts, LastBeforeLocalModificationsEdge)
-	} else {
-		installSet.MarkEdge(prepare, LastBeforeLocalModificationsEdge)
-	}
+	installSet.MarkEdge(finalBeforeLocalMod, LastBeforeLocalModificationsEdge)
 	if flags&noRestartBoundaries == 0 {
 		if err := SetEssentialSnapsRestartBoundaries(st, nil, []*state.TaskSet{installSet}); err != nil {
 			return nil, err
@@ -860,6 +861,14 @@ func requiresKmodSetup(snapst *SnapState, compsups []ComponentSetup) bool {
 	return false
 }
 
+type componentTaskSetsForSnapInstall struct {
+	afterValidateTasks        []*state.Task
+	beforePreRefreshHookTasks []*state.Task
+	afterLinkSnapTasks        []*state.Task
+	afterPostOpHookTasks      []*state.Task
+	beforeDiscardTasks        []*state.Task
+}
+
 func splitComponentTasksForInstall(
 	compsups []ComponentSetup,
 	st *state.State,
@@ -868,28 +877,29 @@ func splitComponentTasksForInstall(
 	snapSetupTaskID string,
 	fromChange string,
 ) (
-	tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard []*state.Task,
-	compSetupIDs []string,
-	err error,
+	componentTaskSetsForSnapInstall, []string, error,
 ) {
+	var compTaskSets componentTaskSetsForSnapInstall
+	var compSetupIDs []string
 	for _, compsup := range compsups {
 		componentTS, err := doInstallComponent(st, snapst, compsup, snapsup, snapSetupTaskID, nil, nil, fromChange)
 		if err != nil {
-			return nil, nil, nil, nil, nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
+			return componentTaskSetsForSnapInstall{}, nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
 		}
 
 		compSetupIDs = append(compSetupIDs, componentTS.compSetupTaskID)
 
-		tasksBeforePreRefreshHook = append(tasksBeforePreRefreshHook, componentTS.beforeLinkTasks...)
+		compTaskSets.afterValidateTasks = append(compTaskSets.afterValidateTasks, componentTS.beforeLocalModificationsTasks...)
+		compTaskSets.beforePreRefreshHookTasks = append(compTaskSets.beforePreRefreshHookTasks, componentTS.beforeLinkTasks...)
 		if componentTS.maybeLinkTask != nil {
-			tasksAfterLinkSnap = append(tasksAfterLinkSnap, componentTS.maybeLinkTask)
+			compTaskSets.afterLinkSnapTasks = append(compTaskSets.afterLinkSnapTasks, componentTS.maybeLinkTask)
 		}
-		tasksAfterPostOpHook = append(tasksAfterPostOpHook, componentTS.postHookToDiscardTasks...)
+		compTaskSets.afterPostOpHookTasks = append(compTaskSets.afterPostOpHookTasks, componentTS.postHookToDiscardTasks...)
 		if componentTS.maybeDiscardTask != nil {
-			tasksBeforeDiscard = append(tasksBeforeDiscard, componentTS.maybeDiscardTask)
+			compTaskSets.beforeDiscardTasks = append(compTaskSets.beforeDiscardTasks, componentTS.maybeDiscardTask)
 		}
 	}
-	return tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard, compSetupIDs, nil
+	return compTaskSets, compSetupIDs, nil
 }
 
 func NeedsKernelSetup(model *asserts.Model) bool {

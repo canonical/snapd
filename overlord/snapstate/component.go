@@ -294,15 +294,17 @@ type ComponentInstallFlags struct {
 }
 
 type componentInstallTaskSet struct {
-	compSetupTaskID        string
-	beforeLinkTasks        []*state.Task
-	maybeLinkTask          *state.Task
-	postHookToDiscardTasks []*state.Task
-	maybeDiscardTask       *state.Task
+	compSetupTaskID               string
+	beforeLocalModificationsTasks []*state.Task
+	beforeLinkTasks               []*state.Task
+	maybeLinkTask                 *state.Task
+	postHookToDiscardTasks        []*state.Task
+	maybeDiscardTask              *state.Task
 }
 
 func (c *componentInstallTaskSet) taskSet() *state.TaskSet {
-	tasks := make([]*state.Task, 0, len(c.beforeLinkTasks)+1+len(c.postHookToDiscardTasks)+1)
+	tasks := make([]*state.Task, 0, len(c.beforeLocalModificationsTasks)+len(c.beforeLinkTasks)+1+len(c.postHookToDiscardTasks)+1)
+	tasks = append(tasks, c.beforeLocalModificationsTasks...)
 	tasks = append(tasks, c.beforeLinkTasks...)
 	if c.maybeLinkTask != nil {
 		tasks = append(tasks, c.maybeLinkTask)
@@ -403,7 +405,7 @@ func doInstallComponent(
 		compSetupTaskID: prepare.ID(),
 	}
 
-	componentTS.beforeLinkTasks = append(componentTS.beforeLinkTasks, prepare)
+	componentTS.beforeLocalModificationsTasks = append(componentTS.beforeLocalModificationsTasks, prepare)
 
 	// if the component we're installing has a revision from the store, then we
 	// need to validate it. note that we will still run this task even if we're
@@ -414,7 +416,7 @@ func doInstallComponent(
 		validate := st.NewTask("validate-component", fmt.Sprintf(
 			i18n.G("Fetch and check assertions for component %q%s"), compSetup.ComponentName(), revisionStr),
 		)
-		componentTS.beforeLinkTasks = append(componentTS.beforeLinkTasks, validate)
+		componentTS.beforeLocalModificationsTasks = append(componentTS.beforeLocalModificationsTasks, validate)
 		addTask(validate)
 	}
 

@@ -78,31 +78,8 @@ func expectedDoInstallTasks(typ snap.Type, opts, compOpts, discards int, startTa
 			opts |= updatesBootConfig
 		}
 	}
-	if startTasks == nil {
-		switch {
-		case opts&localSnap != 0:
-			startTasks = []string{
-				"prerequisites",
-				"prepare-snap",
-				"mount-snap",
-			}
-		case opts&localRevision != 0:
-			startTasks = []string{
-				"prerequisites",
-				"prepare-snap",
-			}
-		default:
-			startTasks = []string{
-				"prerequisites",
-				"download-snap",
-				"validate-snap",
-				"mount-snap",
-			}
-		}
-	}
-	expected := startTasks
 
-	var tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard []string
+	var tasksAfterDownload, tasksBeforePreRefreshHook, tasksAfterLinkSnap, tasksAfterPostOpHook, tasksBeforeDiscard []string
 	for range components {
 		compOpts |= compOptMultiCompInstall
 		if opts&localSnap != 0 {
@@ -112,13 +89,41 @@ func expectedDoInstallTasks(typ snap.Type, opts, compOpts, discards int, startTa
 			compOpts |= compOptIsActive | compOptDuringSnapRefresh
 		}
 
-		beforeLink, link, hooksAndAfter, discard := expectedComponentInstallTasksSplit(compOpts)
+		beforeMount, beforeLink, link, hooksAndAfter, discard := expectedComponentInstallTasksSplit(compOpts)
 
+		tasksAfterDownload = append(tasksAfterDownload, beforeMount...)
 		tasksBeforePreRefreshHook = append(tasksBeforePreRefreshHook, beforeLink...)
 		tasksAfterLinkSnap = append(tasksAfterLinkSnap, link...)
 		tasksAfterPostOpHook = append(tasksAfterPostOpHook, hooksAndAfter...)
 		tasksBeforeDiscard = append(tasksBeforeDiscard, discard...)
 	}
+
+	if startTasks == nil {
+		switch {
+		case opts&localSnap != 0:
+			startTasks = []string{
+				"prerequisites",
+				"prepare-snap",
+			}
+			startTasks = append(startTasks, tasksAfterDownload...)
+			startTasks = append(startTasks, "mount-snap")
+		case opts&localRevision != 0:
+			startTasks = []string{
+				"prerequisites",
+				"prepare-snap",
+			}
+			startTasks = append(startTasks, tasksAfterDownload...)
+		default:
+			startTasks = []string{
+				"prerequisites",
+				"download-snap",
+				"validate-snap",
+			}
+			startTasks = append(startTasks, tasksAfterDownload...)
+			startTasks = append(startTasks, "mount-snap")
+		}
+	}
+	expected := startTasks
 
 	expected = append(expected, tasksBeforePreRefreshHook...)
 
@@ -211,16 +216,24 @@ func verifyInstallTasksWithComponents(c *C, typ snap.Type, opts, discards int, c
 	kinds := taskKinds(ts.Tasks())
 
 	expected := expectedDoInstallTasks(typ, opts, 0, discards, nil, components, nil)
-
 	c.Assert(kinds, DeepEquals, expected)
 
 	if opts&noLastBeforeModificationsEdge == 0 {
 		te := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
 		c.Assert(te, NotNil)
-		if opts&localSnap != 0 {
-			c.Assert(te.Kind(), Equals, "prepare-snap")
+
+		if len(components) == 0 {
+			if opts&localSnap != 0 {
+				c.Assert(te.Kind(), Equals, "prepare-snap")
+			} else {
+				c.Assert(te.Kind(), Equals, "validate-snap")
+			}
 		} else {
-			c.Assert(te.Kind(), Equals, "validate-snap")
+			if opts&compOptIsUnasserted == 0 {
+				c.Assert(te.Kind(), Equals, "validate-component")
+			} else {
+				c.Assert(te.Kind(), Equals, "prepare-component")
+			}
 		}
 	}
 
@@ -6736,26 +6749,9 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 		op:    "validate-snap:Doing",
 		name:  instanceName,
 		revno: snapRevision,
-	}, {
-		op:  "current",
-		old: "<no-current>",
-	}, {
-		op:   "open-snap-file",
-		path: filepath.Join(dirs.SnapBlobDir, snapFileName),
-		sinfo: snap.SideInfo{
-			RealName: opts.snapName,
-			SnapID:   snapID,
-			Channel:  channel,
-			Revision: snapRevision,
-		},
-	}, {
-		op:    "setup-snap",
-		name:  instanceName,
-		path:  filepath.Join(dirs.SnapBlobDir, snapFileName),
-		revno: snapRevision,
 	}}
 
-	// ops for mounting a component (but not yet linking it)
+	// ops for downloading a component (but not yet mounting it)
 	for _, cs := range componentStates {
 		compName := cs.SideInfo.Component.ComponentName
 		compRev := cs.SideInfo.Revision
@@ -6773,11 +6769,39 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 			componentPath:     filepath.Join(dirs.SnapBlobDir, filename),
 			componentRev:      compRev,
 			componentSideInfo: *cs.SideInfo,
-		}, {
+		}}...)
+	}
+
+	expected = append(expected, []fakeOp{{
+		op:  "current",
+		old: "<no-current>",
+	}, {
+		op:   "open-snap-file",
+		path: filepath.Join(dirs.SnapBlobDir, snapFileName),
+		sinfo: snap.SideInfo{
+			RealName: opts.snapName,
+			SnapID:   snapID,
+			Channel:  channel,
+			Revision: snapRevision,
+		},
+	}, {
+		op:    "setup-snap",
+		name:  instanceName,
+		path:  filepath.Join(dirs.SnapBlobDir, snapFileName),
+		revno: snapRevision,
+	}}...)
+
+	// ops for mounting a component (but not yet linking it)
+	for _, cs := range componentStates {
+		compName := cs.SideInfo.Component.ComponentName
+		compRev := cs.SideInfo.Revision
+		containerName := fmt.Sprintf("%s+%s", instanceName, compName)
+
+		expected = append(expected, fakeOp{
 			op:                "setup-component",
 			containerName:     containerName,
-			containerFileName: filename,
-		}}...)
+			containerFileName: fmt.Sprintf("%s_%d.comp", containerName, compRev.N),
+		})
 	}
 
 	if opts.snapName == "some-kernel" {
@@ -7155,16 +7179,7 @@ components:
 		c.Assert(chg.Err(), IsNil, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
 	}
 
-	expected := fakeOps{{
-		op:  "current",
-		old: "<no-current>",
-	}, {
-		op:    "setup-snap",
-		name:  instanceName,
-		path:  snapPath,
-		revno: snapRevision,
-	}}
-
+	var expected fakeOps
 	for _, cs := range componentStates {
 		compName := cs.SideInfo.Component.ComponentName
 		if !opts.unasserted {
@@ -7179,7 +7194,20 @@ components:
 				componentSkipAssertionsDownload: true,
 			})
 		}
+	}
 
+	expected = append(expected, fakeOps{{
+		op:  "current",
+		old: "<no-current>",
+	}, {
+		op:    "setup-snap",
+		name:  instanceName,
+		path:  snapPath,
+		revno: snapRevision,
+	}}...)
+
+	for _, cs := range componentStates {
+		compName := cs.SideInfo.Component.ComponentName
 		containerName := fmt.Sprintf("%s+%s", instanceName, compName)
 		filename := fmt.Sprintf("%s_%s.comp", containerName, cs.SideInfo.Revision)
 		expected = append(expected, fakeOp{

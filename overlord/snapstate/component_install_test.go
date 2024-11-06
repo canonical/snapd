@@ -64,19 +64,19 @@ const (
 
 // opts is a bitset with compOpt* as possible values.
 func expectedComponentInstallTasks(opts int) []string {
-	beforeLink, link, postOpHooksAndAfter, discard := expectedComponentInstallTasksSplit(opts)
-	return append(append(append(beforeLink, link...), postOpHooksAndAfter...), discard...)
+	beforeMount, beforeLink, link, postOpHooksAndAfter, discard := expectedComponentInstallTasksSplit(opts)
+	return append(append(append(append(beforeMount, beforeLink...), link...), postOpHooksAndAfter...), discard...)
 }
 
-func expectedComponentInstallTasksSplit(opts int) (beforeLink, link, postOpHooksAndAfter, discard []string) {
+func expectedComponentInstallTasksSplit(opts int) (beforeMount, beforeLink, link, postOpHooksAndAfter, discard []string) {
 	if opts&compOptIsLocal != 0 || opts&compOptRevisionPresent != 0 {
-		beforeLink = []string{"prepare-component"}
+		beforeMount = []string{"prepare-component"}
 	} else {
-		beforeLink = []string{"download-component"}
+		beforeMount = []string{"download-component"}
 	}
 
 	if opts&compOptIsUnasserted == 0 {
-		beforeLink = append(beforeLink, "validate-component")
+		beforeMount = append(beforeMount, "validate-component")
 	}
 
 	// Revision is not the same as the current one installed
@@ -116,7 +116,7 @@ func expectedComponentInstallTasksSplit(opts int) (beforeLink, link, postOpHooks
 		discard = append(discard, "discard-component")
 	}
 
-	return beforeLink, link, postOpHooksAndAfter, discard
+	return beforeMount, beforeLink, link, postOpHooksAndAfter, discard
 }
 
 func checkSetupTasks(c *C, compOpts int, ts *state.TaskSet) {
