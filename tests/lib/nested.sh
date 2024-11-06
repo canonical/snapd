@@ -934,6 +934,11 @@ nested_create_core_vm() {
             BOOTVOLUME=pc
             if [ -e pc-gadget/meta/gadget.yaml ]; then
                 BOOTVOLUME="$(yq eval '.volumes[] | .structure.[] | select(.name == "ubuntu-boot") | parent(2) | key' pc-gadget/meta/gadget.yaml)"
+                if [ -n "$BOOTVOLUME" ]; then
+                    echo "was not able to deduce the ubuntu-boot partition from gadget.yaml in pc-gadget/meta/gadget.yaml"
+                    echo "please inspect it and make sure it looks as expected"
+                    exit 1
+                fi
             fi
             ln -s "$NESTED_IMAGES_DIR/$IMAGE_BASE_NAME-$BOOTVOLUME.img" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
 
