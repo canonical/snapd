@@ -78,6 +78,9 @@ plugs:
     where: $SNAP_COMMON/mnt/**
     type: [aufs]
     options: [br:/mnt/a, add:0:/mnt/b, dirwh=1, rw]
+  - type: [nfs]
+    where: /media/foo/**
+    options: [rw]
 apps:
  app:
   plugs: [mntctl]
@@ -307,6 +310,14 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 			"mount:\n  - what: diag\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw,uid=*]",
 			`cannot use mount-control "option" attribute: "uid=\*" contains a reserved apparmor char from.*`,
 		},
+		{
+			"mount:\n  - what: diag\n    where: /media/foo\n    type: [nfs]\n    options: [rw]",
+			`mount-control "what" attribute must not be specified for nfs mounts.*`,
+		},
+		{
+			"mount:\n  - where: /media/foo\n    type: [nfs, ext4]\n    options: [rw]",
+			`mount-control "type" cannot be more than one entry when using "nfs" type.*`,
+		},
 	}
 
 	for _, testData := range data {
@@ -376,6 +387,14 @@ func (s *MountControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine7)
 	expectedUmountLine7 := `umount "/var/snap/consumer/common/mnt/**{,/}",`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedUmountLine7)
+
+	expectedMountLine8 := `mount fstype=(nfs) options=(rw) ` +
+		`"*:**" -> "/media/foo/**{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine8)
+	expectedUmountLine8 := `umount "/media/foo/**{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedUmountLine8)
+	expectedExtraLine8 := ` /etc/rpc r,`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedExtraLine8)
 }
 
 func (s *MountControlInterfaceSuite) TestStaticInfo(c *C) {

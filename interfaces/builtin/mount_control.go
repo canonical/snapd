@@ -125,6 +125,7 @@ var allowedFilesystemSpecificMountOptions = map[string][]string{
 	"jfs":        {"iocharset=", "resize=", "nointegrity", "integrity", "errors=", "noquota", "quota", "usrquota", "grpquota"},
 	"msdos":      {"blocksize=", "uid=", "gid=", "umask=", "dmask=", "fmask=", "allow_utime=", "check=", "codepage=", "conv=", "cvf_format=", "cvf_option", "debug", "discard", "dos1xfloppy", "errors=", "fat=", "iocharset=", "nfs=", "tz=", "time_offset=", "quiet", "rodir", "showexec", "sys_immutable", "flush", "usefree", "dots", "nodots", "dotsOK="},
 	"nfs":        {"nfsvers=", "vers=", "soft", "hard", "softreval", "nosoftreval", "intr", "nointr", "timeo=", "retrans=", "rsize=", "wsize=", "ac", "noac", "acregmin=", "acregmax=", "acdirmin=", "acdirmax=", "actimeo=", "bg", "fg", "nconnect=", "max_connect=", "rdirplus", "nordirplus", "retry=", "sec=", "sharecache", "nosharecache", "revsport", "norevsport", "lookupcache=", "fsc", "nofsc", "sloppy", "proto=", "udp", "tcp", "rdma", "port=", "mountport=", "mountproto=", "mounthost=", "mountvers=", "namlen=", "lock", "nolock", "cto", "nocto", "acl", "noacl", "local_lock=", "minorversion=", "clientaddr=", "migration", "nomigration"},
+	// TODO: drop nfs4?
 	"nfs4":       {"nfsvers=", "vers=", "soft", "hard", "softreval", "nosoftreval", "intr", "nointr", "timeo=", "retrans=", "rsize=", "wsize=", "ac", "noac", "acregmin=", "acregmax=", "acdirmin=", "acdirmax=", "actimeo=", "bg", "fg", "nconnect=", "max_connect=", "rdirplus", "nordirplus", "retry=", "sec=", "sharecache", "nosharecache", "revsport", "norevsport", "lookupcache=", "fsc", "nofsc", "sloppy", "proto=", "minorversion=", "port=", "cto", "nocto", "clientaddr=", "migration", "nomigration"},
 	"ntfs":       {"iocharset=", "nls=", "utf8", "uni_xlate=", "posix=", "uid=", "gid=", "umask="},
 	"ntfs-3g":    {"acl", "allow_other", "big_writes", "compression", "debug", "delay_mtime", "delay_mtime=", "dmask=", "efs_raw", "fmask=", "force", "hide_dot_files", "hide_hid_files", "inherit", "locale=", "max_read=", "no_def_opts", "no_detach", "nocompression", "norecover", "permissions", "posix_nlink", "recover", "remove_hiberfile", "show_sys_files", "silent", "special_files=", "streams_interface=", "uid=", "gid=", "umask=", "usermapping=", "user_xattr", "windows_names"},
@@ -298,8 +299,22 @@ func enumerateMounts(plug interfaces.Attrer, fn func(mountInfo *MountInfo) error
 	}
 
 	for _, mount := range mounts {
+		types, err := parseStringList(mount, "type")
+		if err != nil {
+			return err
+		}
+
+		allowNoSource := false
+		if strutil.ListContains(types, "nfs") {
+			if len(types) > 1 {
+				return fmt.Errorf(`mount-control "type" cannot be more than one entry when using "nfs" type`)
+			}
+
+			allowNoSource = true
+		}
+
 		what, ok := mount["what"].(string)
-		if !ok {
+		if !ok && !allowNoSource {
 			return fmt.Errorf(`mount-control "what" must be a string`)
 		}
 
@@ -314,11 +329,6 @@ func enumerateMounts(plug interfaces.Attrer, fn func(mountInfo *MountInfo) error
 			if persistent, ok = persistentValue.(bool); !ok {
 				return fmt.Errorf(`mount-control "persistent" must be a boolean`)
 			}
-		}
-
-		types, err := parseStringList(mount, "type")
-		if err != nil {
-			return err
 		}
 
 		options, err := parseStringList(mount, "options")
@@ -358,6 +368,14 @@ func validateWhatAttr(mountInfo *MountInfo) error {
 	// https://www.kernel.org/doc/html/latest/usb/functionfs.html
 	if mountInfo.isType("functionfs") {
 		return validateNoAppArmorRegexpWithError(`cannot use mount-control "what" attribute`, what)
+	}
+
+	if mountInfo.isType("nfs") {
+		if what != "" {
+			return fmt.Errorf(`mount-control "what" attribute must not be specified for nfs mounts`)
+		}
+		// that's it for nfs
+		return nil
 	}
 
 	if !whatRegexp.MatchString(what) {
@@ -581,6 +599,15 @@ func (iface *mountControlInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 			variable := target[variableStart:variableEnd]
 			expanded := snapInfo.ExpandSnapVariables(variable)
 			target = expanded + target[variableEnd:]
+		}
+
+		if mountInfo.isType("nfs") {
+			// override NFS share source, also see 'nfs-mount' interface
+			source = "*:**"
+
+			// emit additional rule required by NFS
+			emit("  # Allow lookup of RPC program numbers (due to mount-control)\n")
+			emit("  /etc/rpc r,\n")
 		}
 
 		var typeRule string
