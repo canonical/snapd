@@ -499,10 +499,10 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 	for _, mp := range modelParams {
 		var updateDB []*sb_efi.SignatureDBUpdate
 
-		if len(mp.EFIForbiddenKeySignatureDBUpdate) > 0 {
+		if len(mp.EFISignatureDbxUpdate) > 0 {
 			updateDB = append(updateDB, &sb_efi.SignatureDBUpdate{
 				Name: sb_efi.Dbx,
-				Data: mp.EFIForbiddenKeySignatureDBUpdate,
+				Data: mp.EFISignatureDbxUpdate,
 			})
 		}
 

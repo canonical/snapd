@@ -89,7 +89,7 @@ type ModelForSealing interface {
 	SignKeyID() string
 }
 
-// TODO reame to SealKeyParams?
+// TODO rename and drop Model from the name?
 type SealKeyModelParams struct {
 	// The snap model
 	Model ModelForSealing
@@ -100,7 +100,7 @@ type SealKeyModelParams struct {
 	KernelCmdlines []string
 	// TODO move this somewhere else?
 	// The content of an update to EFI DBX
-	EFIForbiddenKeySignatureDBUpdate []byte
+	EFISignatureDbxUpdate []byte
 }
 
 type TPMProvisionMode int
