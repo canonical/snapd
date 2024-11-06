@@ -10696,3 +10696,136 @@ func (s *interfaceManagerSuite) TestOnSnapLinkageChanged(c *C) {
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&info.SideInfo}),
 	})
 }
+
+func (s *interfaceManagerSuite) TestSetupProfilesAffectedSnapRegenUsesMostRecentRevision(c *C) {
+	// this test checks a bug fix where a consumer and producer snap (content interface)
+	// were refreshed together and sometimes the producing snap lost access to its own
+	// file. The issue was that, if the slot (producer) was refreshed first, then,
+	// when the plugging snap was refreshed it would regenerate the slot's profile
+	// but with the previous revision, not the revision that the current change was
+	// updating to.
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+
+	const componentYaml = `
+component: producer2+comp1
+type: standard
+version: 1.0
+`
+	compProducerYaml := producer2Yaml +
+		`components:
+  comp1:
+    type: standard
+`
+
+	mgr := s.manager(c)
+	repo := mgr.Repository()
+
+	consumer := s.mockSnap(c, consumer2Yaml)
+	producer := s.mockSnap(c, compProducerYaml)
+
+	s.state.Lock()
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "producer2", &snapst), IsNil)
+
+	compInfo := snaptest.MockComponent(c, componentYaml, producer, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
+
+	err := snapst.Sequence.AddComponentForRevision(snap.R(1), &sequence.ComponentState{
+		SideInfo: &compInfo.ComponentSideInfo,
+		CompType: snap.StandardComponent,
+	})
+	c.Assert(err, IsNil)
+	snapstate.Set(s.state, "producer2", &snapst)
+
+	for _, info := range []*snap.Info{consumer, producer} {
+		appSet, err := interfaces.NewSnapAppSet(info, nil)
+		c.Assert(err, IsNil)
+
+		err = repo.AddAppSet(appSet)
+		c.Assert(err, IsNil)
+	}
+
+	connRef := &interfaces.ConnRef{PlugRef: interfaces.PlugRef{
+		Snap: "consumer2",
+		Name: "plug",
+	}, SlotRef: interfaces.SlotRef{
+		Snap: "producer2",
+		Name: "slot",
+	}}
+	_, err = repo.Connect(connRef, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	s.state.Set("conns", map[string]interface{}{"consumer2:plug producer2:slot": map[string]interface{}{"interface": "test"}})
+
+	// mock new snaps for the refresh
+	snaptest.MockSnap(c, consumer2Yaml, &snap.SideInfo{Revision: snap.R(2)})
+	snaptest.MockSnap(c, compProducerYaml, &snap.SideInfo{Revision: snap.R(2)})
+	snaptest.MockComponent(c, componentYaml, producer, snap.ComponentSideInfo{
+		Revision: snap.R(2),
+	})
+
+	// need to mark snap as inactive (which it would be during unlink)
+	for _, sn := range []string{"consumer2", "producer2"} {
+		var snapst snapstate.SnapState
+		err = snapstate.Get(s.state, sn, &snapst)
+		c.Assert(err, IsNil)
+
+		snapst.Active = false
+		snapstate.Set(s.state, sn, &snapst)
+	}
+
+	chg := s.state.NewChange("test", "")
+	slotTask := s.state.NewTask("setup-profiles", "")
+	slotTask.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "producer2",
+			Revision: snap.R(2),
+		}})
+	slotTask.Set("component-setup", &snapstate.ComponentSetup{
+		CompSideInfo: &snap.ComponentSideInfo{
+			Component: compInfo.Component,
+			Revision:  snap.R(2),
+		}})
+	chg.AddTask(slotTask)
+
+	plugTask := s.state.NewTask("setup-profiles", "")
+	plugTask.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer2",
+			Revision: snap.R(2),
+		}})
+	chg.AddTask(plugTask)
+	plugTask.WaitFor(slotTask)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// ensure that the task succeeded.
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+
+	calls := s.secBackend.SetupCalls
+	c.Assert(calls, HasLen, 4)
+
+	// we run setup-profiles for the slot first
+	c.Assert(calls[0].AppSet.InstanceName(), Equals, "producer2")
+	c.Assert(calls[0].AppSet.Info().Revision, Equals, snap.R(2))
+
+	// the connected plug is regenerated (but revision as we haven't setup its new profile yet)
+	c.Assert(calls[1].AppSet.InstanceName(), Equals, "consumer2")
+	c.Assert(calls[1].AppSet.Info().Revision, Equals, snap.R(1))
+
+	// then we run setup-profiles for the plug
+	c.Assert(calls[2].AppSet.InstanceName(), Equals, "consumer2")
+	c.Assert(calls[2].AppSet.Info().Revision, Equals, snap.R(2))
+
+	// the connected slot is also setup but we use the new revision
+	c.Assert(calls[3].AppSet.InstanceName(), Equals, "producer2")
+	c.Assert(calls[3].AppSet.Info().Revision, Equals, snap.R(2))
+	c.Assert(calls[3].AppSet.Components(), HasLen, 1)
+	c.Assert(calls[3].AppSet.Components()[0].Revision, Equals, snap.R(2))
+}

@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
+	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -314,7 +315,33 @@ func (m *InterfaceManager) setupProfilesForAppSet(task *state.Task, appSet *inte
 			return err
 		}
 
-		appSet, err := appSetForSnapRevision(st, snapInfo)
+		var appSet *interfaces.SnapAppSet
+		if snapst.PendingSecurity != nil {
+			// a content plug/slot may have already updated in this change, so the appSet
+			// should reflect in the revision (otherwise, we may regenerate the
+			// profile for the wrong revision)
+			snapInfo.SideInfo = *snapst.PendingSecurity.SideInfo
+
+			var comps []*snap.ComponentInfo
+			for _, compSi := range snapst.PendingSecurity.Components {
+				compName := compSi.Component.ComponentName
+				compRev := compSi.Revision
+
+				cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapInfo.InstanceName())
+				container := snapdir.New(cpi.MountDir())
+				comp, err := snap.ReadComponentInfoFromContainer(container, snapInfo, compSi)
+				if err != nil {
+					return fmt.Errorf("cannot read component info when building app set %q: %v", name, err)
+				}
+
+				comps = append(comps, comp)
+			}
+
+			appSet, err = interfaces.NewSnapAppSet(snapInfo, comps)
+		} else {
+			appSet, err = appSetForSnapRevision(st, snapInfo)
+		}
+
 		if err != nil {
 			return fmt.Errorf("building app set for snap %q: %v", name, err)
 		}
