@@ -1124,7 +1124,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 func (s *secbootSuite) TestResealKey(c *C) {
 	mockErr := errors.New("some error")
 
-	for _, tc := range []struct {
+	for idx, tc := range []struct {
 		tpmErr                 error
 		tpmEnabled             bool
 		missingFile            bool
@@ -1140,11 +1140,14 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		expectedErr            string
 		oldKeyFiles            bool
 		buildProfileErr        string
+		dbxUpdate              []byte
 	}{
 		// happy case
-		{tpmEnabled: true, resealCalls: 1, expectedErr: ""},
+		{tpmEnabled: true, resealCalls: 1},
+		// happy case with DBX update
+		{tpmEnabled: true, resealCalls: 1, dbxUpdate: []byte("dbx-update")},
 		// happy case, old keys
-		{tpmEnabled: true, resealCalls: 1, revokeCalls: 1, expectedErr: "", oldKeyFiles: true},
+		{tpmEnabled: true, resealCalls: 1, revokeCalls: 1, oldKeyFiles: true},
 
 		// unhappy cases
 		{tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
@@ -1159,6 +1162,8 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "cannot update legacy PCR protection policy: some error", oldKeyFiles: true},
 		{tpmEnabled: true, revokeErr: errors.New("revoke error"), resealCalls: 1, revokeCalls: 1, expectedErr: "cannot revoke old PCR protection policies: revoke error", oldKeyFiles: true},
 	} {
+		c.Logf("reseal tc[%v]: %+v", idx, tc)
+
 		mockTPMPolicyAuthKey := []byte{1, 3, 3, 7}
 		mockTPMPolicyAuthKeyFile := filepath.Join(c.MkDir(), "policy-auth-key-file")
 		err := os.WriteFile(mockTPMPolicyAuthKeyFile, mockTPMPolicyAuthKey, 0600)
@@ -1172,9 +1177,10 @@ func (s *secbootSuite) TestResealKey(c *C) {
 
 		modelParams := []*secboot.SealKeyModelParams{
 			{
-				EFILoadChains:  []*secboot.LoadChain{secboot.NewLoadChain(mockEFI)},
-				KernelCmdlines: []string{"cmdline"},
-				Model:          &asserts.Model{},
+				EFILoadChains:         []*secboot.LoadChain{secboot.NewLoadChain(mockEFI)},
+				KernelCmdlines:        []string{"cmdline"},
+				Model:                 &asserts.Model{},
+				EFISignatureDbxUpdate: tc.dbxUpdate,
 			},
 		}
 
@@ -1184,11 +1190,27 @@ func (s *secbootSuite) TestResealKey(c *C) {
 			),
 		)
 
+		var dbUpdateOption sb_efi.PCRProfileOption = sb_efi.WithSignatureDBUpdates()
+		if len(tc.dbxUpdate) > 0 {
+			dbUpdateOption = sb_efi.WithSignatureDBUpdates([]*sb_efi.SignatureDBUpdate{
+				{Name: sb_efi.Dbx, Data: tc.dbxUpdate},
+			}...)
+		}
+
 		addPCRProfileCalls := 0
 		restore := secboot.MockSbEfiAddPCRProfile(func(pcrAlg tpm2.HashAlgorithmId, branch *sb_tpm2.PCRProtectionProfileBranch, loadSequences *sb_efi.ImageLoadSequences, options ...sb_efi.PCRProfileOption) error {
 			addPCRProfileCalls++
 			c.Assert(pcrAlg, Equals, tpm2.HashAlgorithmSHA256)
 			c.Assert(loadSequences, DeepEquals, sequences)
+			c.Assert(options, HasLen, 3)
+			// TODO test other options
+
+			// options are passed as an interface, and the underlying types are
+			// not exported by secboot, so we simply assume that specific options
+			// appear at certain indices, in this case, DBX is added as a last
+			// option
+			c.Assert(options[len(options)-1], DeepEquals, dbUpdateOption)
+
 			return tc.addPCRProfileErr
 		})
 		defer restore()
