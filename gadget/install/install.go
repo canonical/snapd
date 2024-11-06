@@ -233,7 +233,7 @@ func resolveBootDevice(bootDevice string, bootVol *gadget.Volume) (string, error
 
 	// XXX: It makes no sense to handle bootVol.DeviceAssignment here and
 	// force the assignment there, as current constraints dictate the boot
-	// device must be on the same disk as ubuntu-seed. Therefor we should
+	// device must be on the same disk as ubuntu-seed. Therefore we should
 	// just ensure that the two disk paths don't differ if assigned
 	foundDisk, err := disks.DiskFromMountPoint("/run/mnt/ubuntu-seed", nil)
 	if err != nil {
@@ -446,15 +446,12 @@ func Run(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelSnapInfo, 
 
 	// after we have created all partitions, build up the mapping of volumes
 	// to disk device traits and save it to disk for later usage
-	optsPerVol := make(map[string]*gadget.DiskVolumeValidationOptions)
-	for name := range volumes {
-		if name == bootVolumeName {
-			// this assumes that the encrypted partitions above are always only on the
-			// system-boot volume, this assumption may change
-			optsPerVol[name] = &gadget.DiskVolumeValidationOptions{
-				ExpectedStructureEncryption: partsEncrypted,
-			}
-		}
+	optsPerVol := map[string]*gadget.DiskVolumeValidationOptions{
+		// this assumes that the encrypted partitions above are always only on the
+		// system-boot volume, this assumption may change
+		bootVolumeName: {
+			ExpectedStructureEncryption: partsEncrypted,
+		},
 	}
 
 	// save the traits to ubuntu-data host and optionally to ubuntu-save if it exists
@@ -857,15 +854,12 @@ func FactoryReset(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelS
 
 	// after we have created all partitions, build up the mapping of volumes
 	// to disk device traits and save it to disk for later usage
-	optsPerVol := make(map[string]*gadget.DiskVolumeValidationOptions)
-	for name := range volumes {
-		if name == bootVol.Name {
-			// this assumes that the encrypted partitions above are always only on the
-			// system-boot volume, this assumption may change
-			optsPerVol[name] = &gadget.DiskVolumeValidationOptions{
-				ExpectedStructureEncryption: volCompatOps.ExpectedStructureEncryption,
-			}
-		}
+	optsPerVol := map[string]*gadget.DiskVolumeValidationOptions{
+		// this assumes that the encrypted partitions above are always only on the
+		// system-boot volume, this assumption may change
+		bootVol.Name: {
+			ExpectedStructureEncryption: volCompatOps.ExpectedStructureEncryption,
+		},
 	}
 
 	// save the traits to ubuntu-data host and optionally to ubuntu-save if it exists
