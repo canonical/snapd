@@ -21,10 +21,10 @@
 package testtime
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/timeutil"
 )
 
@@ -56,6 +56,7 @@ var _ timeutil.Timer = (*TestTimer)(nil)
 //
 // See here for more details: https://pkg.go.dev/time#AfterFunc
 func AfterFunc(d time.Duration, f func()) *TestTimer {
+	osutil.MustBeTestBinary("testtime timers cannot be used outside of tests")
 	currTime := time.Now()
 	return &TestTimer{
 		currTime:   currTime,
@@ -73,6 +74,7 @@ func AfterFunc(d time.Duration, f func()) *TestTimer {
 //
 // See here for more details: https://pkg.go.dev/time#NewTimer
 func NewTimer(d time.Duration) *TestTimer {
+	osutil.MustBeTestBinary("testtime timers cannot be used outside of tests")
 	currTime := time.Now()
 	c := make(chan time.Time, 1)
 	return &TestTimer{
@@ -172,16 +174,15 @@ func (t *TestTimer) Elapse(duration time.Duration) {
 // Fire causes the timer to fire. If the timer was created via NewTimer, then
 // sends the given current time over the C channel.
 //
-// To avoid accidental misuse, throw an error if the timer has already fired or
-// been stopped.
-func (t *TestTimer) Fire(currTime time.Time) error {
+// To avoid accidental misuse, panics if the timer is not active (if it has
+// already fired or been stopped).
+func (t *TestTimer) Fire(currTime time.Time) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 	if !t.active {
-		return fmt.Errorf("cannot fire timer which is not active")
+		panic("cannot fire timer which is not active")
 	}
 	t.doFire(currTime)
-	return nil
 }
 
 // doFire carries out the timer firing. The caller must hold the timer lock.

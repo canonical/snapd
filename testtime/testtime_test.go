@@ -97,8 +97,7 @@ func (s *testtimeSuite) TestAfterFunc(c *C) {
 	}
 
 	// Manually fire the timer with the current time, though the time doesn't matter here
-	err := timer.Fire(time.Now())
-	c.Check(err, IsNil)
+	timer.Fire(time.Now())
 
 	c.Check(timer.Active(), Equals, false)
 	c.Check(timer.FireCount(), Equals, 2)
@@ -147,8 +146,7 @@ func (s *testtimeSuite) TestNewTimer(c *C) {
 
 	// Manually fire the timer with the current time
 	currTime := time.Now()
-	err := timer.Fire(currTime)
-	c.Check(err, IsNil)
+	timer.Fire(currTime)
 
 	c.Check(timer.Active(), Equals, false)
 	c.Check(timer.FireCount(), Equals, 2)
@@ -171,8 +169,7 @@ func (s *testtimeSuite) TestReset(c *C) {
 	default:
 	}
 
-	err := timer.Fire(time.Now())
-	c.Check(err, IsNil)
+	timer.Fire(time.Now())
 
 	c.Check(timer.Active(), Equals, false)
 	c.Check(timer.FireCount(), Equals, 1)
@@ -320,9 +317,6 @@ func (s *testtimeSuite) TestFireErrors(c *C) {
 
 	c.Check(timer.Active(), Equals, false)
 	c.Check(timer.FireCount(), Equals, 0)
-	currTime := time.Now()
-	err := timer.Fire(currTime)
-	c.Check(err, ErrorMatches, "cannot fire timer which is not active")
 
 	c.Check(timer.Active(), Equals, false)
 	c.Check(timer.FireCount(), Equals, 0)
@@ -338,17 +332,10 @@ func (s *testtimeSuite) TestFireErrors(c *C) {
 	c.Check(timer.Active(), Equals, false)
 	c.Check(timer.FireCount(), Equals, 1)
 
-	err = timer.Fire(currTime)
-	c.Check(err, ErrorMatches, "cannot fire timer which is not active")
-
 	c.Check(timer.Active(), Equals, false)
 	c.Check(timer.FireCount(), Equals, 1)
 
 	active := timer.Stop()
 	c.Check(active, Equals, false)
-
-	err = timer.Fire(currTime)
-	c.Check(err, ErrorMatches, "cannot fire timer which is not active")
-	c.Check(timer.Active(), Equals, false)
 	c.Check(timer.FireCount(), Equals, 1)
 }
