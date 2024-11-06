@@ -1820,7 +1820,7 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 
 		c.Assert(modelParams, HasLen, 1)
 		// same DBX update paylad is included for both run and recovery keys
-		c.Assert(modelParams[0].EFIForbiddenKeySignatureDBUpdate, DeepEquals, []byte("dbx-payload"))
+		c.Assert(modelParams[0].EFISignatureDbxUpdate, DeepEquals, []byte("dbx-payload"))
 
 		return []byte(`"serialized-pcr-profile-with-dbx"`), nil
 	})

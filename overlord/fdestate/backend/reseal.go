@@ -244,7 +244,7 @@ func resealKeys(
 
 func resealRunObjectKeys(
 	updateState StateUpdater, pbc boot.PredictableBootChains,
-	sigDBUpdate []byte,
+	sigDbxUpdate []byte,
 	authKeyFile string,
 	roleToBlName map[bootloader.Role]string,
 ) error {
@@ -259,9 +259,9 @@ func resealRunObjectKeys(
 		return fmt.Errorf("at least one set of model-specific parameters is required")
 	}
 
-	if len(sigDBUpdate) > 0 {
+	if len(sigDbxUpdate) > 0 {
 		logger.Debug("attaching DB update payload")
-		attachSignatureDBUPdate(modelParams, sigDBUpdate)
+		attachSignatureDbxUpdate(modelParams, sigDbxUpdate)
 	}
 
 	pcrProfile, err := secbootBuildPCRProtectionProfile(modelParams)
@@ -304,7 +304,7 @@ func resealRunObjectKeys(
 
 func resealFallbackObjectKeys(
 	updateState StateUpdater, pbc boot.PredictableBootChains,
-	sigDBUpdate []byte,
+	sigDbxUpdate []byte,
 	authKeyFile string,
 	roleToBlName map[bootloader.Role]string,
 ) error {
@@ -319,9 +319,9 @@ func resealFallbackObjectKeys(
 		return fmt.Errorf("at least one set of model-specific parameters is required")
 	}
 
-	if len(sigDBUpdate) > 0 {
+	if len(sigDbxUpdate) > 0 {
 		logger.Debug("attaching DB update payload for fallback keys")
-		attachSignatureDBUPdate(modelParams, sigDBUpdate)
+		attachSignatureDbxUpdate(modelParams, sigDbxUpdate)
 	}
 
 	pcrProfile, err := secbootBuildPCRProtectionProfile(modelParams)
@@ -365,12 +365,12 @@ func resealFallbackObjectKeys(
 	return nil
 }
 
-func attachSignatureDBUPdate(params []*secboot.SealKeyModelParams, update []byte) {
+func attachSignatureDbxUpdate(params []*secboot.SealKeyModelParams, update []byte) {
 	if len(update) == 0 {
 		return
 	}
 
 	for _, p := range params {
-		p.EFIForbiddenKeySignatureDBUpdate = update
+		p.EFISignatureDbxUpdate = update
 	}
 }
