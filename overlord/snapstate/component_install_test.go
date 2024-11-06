@@ -268,14 +268,28 @@ func setStateWithComponents(st *state.State, snapName string,
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentPath(c *C) {
-	s.testInstallComponentPath(c, 0)
+	s.testInstallComponentPath(c, testInstallComponentPathOpts{})
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentPathWithLane(c *C) {
-	s.testInstallComponentPath(c, 1)
+	s.testInstallComponentPath(c, testInstallComponentPathOpts{
+		lane:        1,
+		transaction: client.TransactionAllSnaps,
+	})
 }
 
-func (s *snapmgrTestSuite) testInstallComponentPath(c *C, lane int) {
+func (s *snapmgrTestSuite) TestInstallComponentPathWithJustTransaction(c *C) {
+	s.testInstallComponentPath(c, testInstallComponentPathOpts{
+		transaction: client.TransactionAllSnaps,
+	})
+}
+
+type testInstallComponentPathOpts struct {
+	lane        int
+	transaction client.TransactionType
+}
+
+func (s *snapmgrTestSuite) testInstallComponentPath(c *C, opts testInstallComponentPathOpts) {
 	const snapName = "mysnap"
 	const compName = "mycomp"
 	snapRev := snap.R(1)
@@ -290,19 +304,24 @@ func (s *snapmgrTestSuite) testInstallComponentPath(c *C, lane int) {
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
 		SnapName: snapName, ComponentName: compName}, snap.R(33))
 
-	opts := snapstate.Options{
-		Flags: snapstate.Flags{Lane: lane},
-	}
-	if lane != 0 {
-		opts.Flags.Transaction = client.TransactionAllSnaps
+	installOpts := snapstate.Options{
+		Flags: snapstate.Flags{
+			Lane:        opts.lane,
+			Transaction: opts.transaction,
+		},
 	}
 
-	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath, opts)
+	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath, installOpts)
 
 	c.Assert(err, IsNil)
 
+	expectedLane := opts.lane
+	if opts.transaction == client.TransactionAllSnaps && opts.lane == 0 {
+		expectedLane = 1
+	}
+
 	for _, t := range ts.Tasks() {
-		c.Assert(t.Lanes(), DeepEquals, []int{lane})
+		c.Assert(t.Lanes(), DeepEquals, []int{expectedLane})
 	}
 
 	verifyComponentInstallTasks(c, compOptIsLocal, ts)
@@ -867,14 +886,28 @@ func (s *snapmgrTestSuite) TestInstallComponentPathRun(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestInstallComponents(c *C) {
-	s.testInstallComponents(c, 0)
+	s.testInstallComponents(c, testInstallComponentsOpts{})
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentsWithLane(c *C) {
-	s.testInstallComponents(c, 1)
+	s.testInstallComponents(c, testInstallComponentsOpts{
+		lane:        1,
+		transaction: client.TransactionAllSnaps,
+	})
 }
 
-func (s *snapmgrTestSuite) testInstallComponents(c *C, lane int) {
+func (s *snapmgrTestSuite) TestInstallComponentsWithJustTransaction(c *C) {
+	s.testInstallComponents(c, testInstallComponentsOpts{
+		transaction: client.TransactionAllSnaps,
+	})
+}
+
+type testInstallComponentsOpts struct {
+	lane        int
+	transaction client.TransactionType
+}
+
+func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponentsOpts) {
 	const snapName = "some-snap"
 	snapRev := snap.R(1)
 
@@ -931,14 +964,14 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, lane int) {
 		return results
 	}
 
-	opts := snapstate.Options{
-		Flags: snapstate.Flags{Lane: lane},
-	}
-	if lane != 0 {
-		opts.Flags.Transaction = client.TransactionAllSnaps
+	installOpts := snapstate.Options{
+		Flags: snapstate.Flags{
+			Lane:        opts.lane,
+			Transaction: opts.transaction,
+		},
 	}
 
-	tss, err := snapstate.InstallComponents(context.Background(), s.state, components, info, opts)
+	tss, err := snapstate.InstallComponents(context.Background(), s.state, components, info, installOpts)
 	c.Assert(err, IsNil)
 
 	setupProfiles := tss[len(tss)-1].Tasks()[0]
@@ -947,13 +980,18 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, lane int) {
 	prepareKmodComps := tss[len(tss)-1].Tasks()[1]
 	c.Assert(prepareKmodComps.Kind(), Equals, "prepare-kernel-modules-components")
 
+	expectedLane := opts.lane
+	if opts.transaction == client.TransactionAllSnaps && opts.lane == 0 {
+		expectedLane = 1
+	}
+
 	// add to change so that we can use TaskComponentSetup
 	chg := s.state.NewChange("install", "...")
 	for _, ts := range tss {
 		chg.AddAll(ts)
 
 		for _, t := range ts.Tasks() {
-			c.Assert(t.Lanes(), DeepEquals, []int{lane})
+			c.Assert(t.Lanes(), DeepEquals, []int{expectedLane})
 		}
 	}
 
