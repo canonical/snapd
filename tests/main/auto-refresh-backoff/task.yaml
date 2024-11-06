@@ -50,7 +50,7 @@ restore: |
     rm -rf "$BLOB_DIR"
 
 debug: |
-    snap debug api /v2/changes?select=ready | jq "[.result[] | select(.kind == \"auto-refresh\")] | sort_by(.id)"
+    snap debug api /v2/changes?select=ready | jq "[.result[] | select(.kind == \"auto-refresh\")] | sort_by(.id|tonumber)"
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -94,7 +94,7 @@ execute: |
     }
 
     # Record last change id before we start to avoid flakiness due to auto-refreshes in other tests
-    LAST_CHANGE_ID=$(snap debug api /v2/changes?select=all | jq '.result | sort_by(.id) | .[-1].id')
+    LAST_CHANGE_ID=$(snap debug api /v2/changes?select=all | jq '.result | sort_by(.id|tonumber) | .[-1].id')
 
     # -------- FIRST AUTO REFRESH --------
 
@@ -162,7 +162,7 @@ execute: |
     readlink "$SNAP_MOUNT_DIR/$SNAP_TWO/current" | MATCH 33
 
     echo "Check auto-refresh behaviour matches expectations for backoff algorithm"
-    snap debug api /v2/changes?select=ready | jq "[.result[] | select(.kind == \"auto-refresh\" and (.id|tonumber) > ($LAST_CHANGE_ID|tonumber))] | sort_by(.id)" > changes.json
+    snap debug api /v2/changes?select=ready | jq "[.result[] | select(.kind == \"auto-refresh\" and (.id|tonumber) > ($LAST_CHANGE_ID|tonumber))] | sort_by(.id|tonumber)" > changes.json
 
     # 1st auto-refresh
     jq '.[0].status' < changes.json | MATCH "Error"
