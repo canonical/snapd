@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -5460,6 +5461,94 @@ func (s *gadgetYamlVolumeAssignmentSuite) SetUpTest(c *C) {
 
 func (s *gadgetYamlVolumeAssignmentSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
+}
+
+func (s *gadgetYamlVolumeAssignmentSuite) TestVolumesForCurrentDeviceAssignmentSimple(c *C) {
+	c.Assert(os.MkdirAll(path.Join(dirs.GlobalRootDir, "/dev/disk/by-diskseq"), 0755), IsNil)
+	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "/dev/disk/by-diskseq/1"), []byte(``), 0644), IsNil)
+
+	gi := &gadget.Info{
+		Volumes: map[string]*gadget.Volume{
+			"p1": {
+				Name: "p1",
+			},
+		},
+		VolumeAssignments: []*gadget.VolumeAssignment{
+			{
+				Name: "assign-0",
+				Assignments: map[string]*gadget.DeviceAssignment{
+					"p1": {
+						Device: "/dev/disk/by-diskseq/1",
+					},
+				},
+			},
+		},
+	}
+
+	vols, err := gadget.VolumesForCurrentDeviceAssignment(gi)
+	c.Check(err, IsNil)
+	c.Check(vols, DeepEquals, gi.Volumes)
+}
+
+func (s *gadgetYamlVolumeAssignmentSuite) TestVolumesForCurrentDeviceAssignmentNoAssignments(c *C) {
+	c.Assert(os.MkdirAll(path.Join(dirs.GlobalRootDir, "/dev/disk/by-diskseq"), 0755), IsNil)
+	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "/dev/disk/by-diskseq/1"), []byte(``), 0644), IsNil)
+
+	gi := &gadget.Info{
+		Volumes: map[string]*gadget.Volume{
+			"p1": {
+				Name: "p1",
+			},
+		},
+		VolumeAssignments: []*gadget.VolumeAssignment{
+			{
+				Name: "assign-0",
+				Assignments: map[string]*gadget.DeviceAssignment{
+					"p1": {
+						Device: "/dev/disk/by-diskseq/2",
+					},
+				},
+			},
+		},
+	}
+
+	_, err := gadget.VolumesForCurrentDeviceAssignment(gi)
+	c.Check(err, ErrorMatches, `no matching volume-assignment for current device`)
+}
+
+func (s *gadgetYamlVolumeAssignmentSuite) TestVolumesForCurrentDeviceAssignmentMultipleAssignments(c *C) {
+	c.Assert(os.MkdirAll(path.Join(dirs.GlobalRootDir, "/dev/disk/by-diskseq"), 0755), IsNil)
+	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "/dev/disk/by-diskseq/1"), []byte(``), 0644), IsNil)
+	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "/dev/disk/by-diskseq/2"), []byte(``), 0644), IsNil)
+
+	gi := &gadget.Info{
+		Volumes: map[string]*gadget.Volume{
+			"p1": {
+				Name: "p1",
+			},
+		},
+		VolumeAssignments: []*gadget.VolumeAssignment{
+			{
+				Name: "assign-0",
+				Assignments: map[string]*gadget.DeviceAssignment{
+					"p1": {
+						Device: "/dev/disk/by-diskseq/1",
+					},
+				},
+			},
+			{
+				Name: "assign-1",
+				Assignments: map[string]*gadget.DeviceAssignment{
+					"p1": {
+						Device: "/dev/disk/by-diskseq/2",
+					},
+				},
+			},
+		},
+	}
+
+	_, err := gadget.VolumesForCurrentDeviceAssignment(gi)
+	c.Check(err, ErrorMatches, `multiple matching volume-assignment for current device`)
 }
 
 func (s *gadgetYamlVolumeAssignmentSuite) TestReadGadgetYamlInvalidDevicePath(c *C) {

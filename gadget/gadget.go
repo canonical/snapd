@@ -121,7 +121,11 @@ type KernelCmdline struct {
 }
 
 type Info struct {
-	Volumes           map[string]*Volume  `yaml:"volumes,omitempty"`
+	// Volumes is the list of volumes defined by the gadget
+	Volumes map[string]*Volume `yaml:"volumes,omitempty"`
+	// VolumeAssingments carries a list of possible assignments of a volume to an
+	// actual device visible in the system. Can carry alternative assignments of the same
+	// volume to a device. Best match is selected at runtime.
 	VolumeAssignments []*VolumeAssignment `yaml:"volume-assignments,omitempty"`
 
 	// Default configuration for snaps (snap-id => key => value).
@@ -593,6 +597,8 @@ type DeviceAssignment struct {
 }
 
 func (da *DeviceAssignment) validate() error {
+	// TODO: Revise this in the future to maybe limit it even further
+	// as not all sub categories inside /dev/disk can be really useful.
 	if !strings.HasPrefix(da.Device, "/dev/disk/") {
 		return fmt.Errorf("unsupported device path %q, for now only paths under /dev/disk are valid", da.Device)
 	}
@@ -617,21 +623,32 @@ var VolumesForCurrentDeviceAssignment = volumesForCurrentDeviceAssignmentImpl
 // volumesForCurrentDeviceAssignmentImpl does a best effort match of the volume-assignments
 // against the current device. We find the first assignment that has all device paths matching
 func volumesForCurrentDeviceAssignmentImpl(gi *Info) (map[string]*Volume, error) {
+	var matched []*VolumeAssignment
 	for _, vas := range gi.VolumeAssignments {
 		if !areAssignmentsMatchingCurrentDevice(vas.Assignments) {
 			continue
 		}
-
-		// update volume assignments
-		logger.Noticef("found valid device-assignment: %s", vas.Name)
-		volumes := make(map[string]*Volume)
-		for vol := range vas.Assignments {
-			gi.Volumes[vol].DeviceAssignment = vas.Assignments[vol].Device
-			volumes[vol] = gi.Volumes[vol]
-		}
-		return volumes, nil
+		matched = append(matched, vas)
 	}
-	return nil, fmt.Errorf("no matching volume-assignment for current device")
+
+	// If we find nothing, throw an error about no assignments being matched
+	// for the current device. If we find more than one, error out on that too.
+	if len(matched) == 0 {
+		return nil, fmt.Errorf("no matching volume-assignment for current device")
+	} else if len(matched) > 1 {
+		return nil, fmt.Errorf("multiple matching volume-assignment for current device")
+	}
+
+	// update volume assignments, we can assume only one match
+	// in the list.
+	vas := matched[0]
+	logger.Noticef("found valid device-assignment: %s", vas.Name)
+	volumes := make(map[string]*Volume)
+	for vol := range vas.Assignments {
+		gi.Volumes[vol].DeviceAssignment = vas.Assignments[vol].Device
+		volumes[vol] = gi.Volumes[vol]
+	}
+	return volumes, nil
 }
 
 // DiskVolumeDeviceTraits is a set of traits about a disk that were measured at
