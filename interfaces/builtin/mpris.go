@@ -61,27 +61,27 @@ dbus (send)
     path=/org/freedesktop/DBus
     interface=org.freedesktop.DBus
     member="{Request,Release}Name"
-    peer=(name=org.freedesktop.DBus, label=unconfined),
+    peer=(name=org.freedesktop.DBus, label="{plasmashell,unconfined}"),
 
 dbus (send)
     bus=system
     path=/org/freedesktop/DBus
     interface=org.freedesktop.DBus
     member="GetConnectionUnix{ProcessID,User}"
-    peer=(name=org.freedesktop.DBus, label=unconfined),
+    peer=(name=org.freedesktop.DBus, label="{plasmashell,unconfined}"),
 
 dbus (send)
     bus=session
     path=/org/mpris/MediaPlayer2
     interface=org.freedesktop.DBus.Properties
     member="{GetAll,PropertiesChanged}"
-    peer=(name=org.freedesktop.DBus, label=unconfined),
+    peer=(name=org.freedesktop.DBus, label="{plasmashell,unconfined}"),
 
 dbus (send)
     bus=session
     path=/org/mpris/MediaPlayer2
     interface="org.mpris.MediaPlayer2{,.Player}"
-    peer=(name=org.freedesktop.DBus, label=unconfined),
+    peer=(name=org.freedesktop.DBus, label="{plasmashell,unconfined}"),
 
 # we can always connect to ourselves
 dbus (receive)
@@ -122,11 +122,11 @@ const mprisConnectedSlotAppArmorClassic = `
 dbus (receive)
     bus=session
     path=/org/mpris/MediaPlayer2
-    peer=(label=unconfined),
+    peer=(label="{plasmashell,unconfined}"),
 dbus (receive)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
-    peer=(label=unconfined),
+    peer=(label="{plasmashell,unconfined}"),
 `
 
 const mprisConnectedPlugAppArmor = `
@@ -139,19 +139,19 @@ dbus (send)
     bus=session
     path=/org/freedesktop/DBus
     interface=org.freedesktop.DBus.Introspectable
-    peer=(name="org.freedesktop.DBus", label="unconfined"),
+    peer=(name="org.freedesktop.DBus", label="{plasmashell,unconfined}"),
 dbus (send)
     bus=session
     path=/{,org,org/mpris,org/mpris/MediaPlayer2}
     interface=org.freedesktop.DBus.Introspectable
-    peer=(name="org.freedesktop.DBus", label="unconfined"),
+    peer=(name="org.freedesktop.DBus", label="{plasmashell,unconfined}"),
 # This reveals all names on the session bus
 dbus (send)
     bus=session
     path=/
     interface=org.freedesktop.DBus
     member=ListNames
-    peer=(name="org.freedesktop.DBus", label="unconfined"),
+    peer=(name="org.freedesktop.DBus", label="{plasmashell,unconfined}"),
 
 # Communicate with the mpris player
 dbus (send)
