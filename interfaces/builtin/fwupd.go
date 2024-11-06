@@ -154,6 +154,10 @@ const fwupdPermanentSlotAppArmor = `
   /sys/devices/**/psp_vbflash rw,
   /sys/devices/**/psp_vbflash_status r,
 
+  # Required by plugin thunderbolt
+  /sys/devices/**/nvm_non_active*/nvmem a,
+  /sys/devices/**/nvm_active*/nvmem r,
+
   # DBus accesses
   #include <abstractions/dbus-strict>
   dbus (send)
