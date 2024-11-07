@@ -32,22 +32,6 @@ execute: |
 
     echo "Test that snap run can call valid hooks"
 
-    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    if [ "$SNAP_REEXEC" = "1" ] && [ "$SNAP_MOUNT_DIR" != "/snap" ]; then
-        # with snap mount dir different than /snap, internal s-c checks will fail
-        if snap run --hook=configure basic-hooks > err.out 2>&1 ; then
-            echo "unexpected success"
-            cat err.out || true
-            exit 1
-        fi
-
-        # with no AA support, we fail on a simple check for s-c being executed
-        # from /snap/snapd/<rev>/, with AA we fail on an earlier check for AA
-        # confinement
-        MATCH "(running from unexpected location:|snap-confine has elevated permissions)" < err.out
-        exit 0
-    fi
-
     if ! output="$(snap run --hook=configure basic-hooks)"; then
         echo "Failed to run configure hook"
         exit 1
