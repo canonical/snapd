@@ -497,6 +497,15 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 	modelPCRProfiles := make([]*sb_tpm2.PCRProtectionProfile, 0, numModels)
 
 	for _, mp := range modelParams {
+		var updateDB []*sb_efi.SignatureDBUpdate
+
+		if len(mp.EFISignatureDbxUpdate) > 0 {
+			updateDB = append(updateDB, &sb_efi.SignatureDBUpdate{
+				Name: sb_efi.Dbx,
+				Data: mp.EFISignatureDbxUpdate,
+			})
+		}
+
 		modelProfile := sb_tpm2.NewPCRProtectionProfile()
 
 		loadSequences, err := buildLoadSequences(mp.EFILoadChains)
@@ -510,6 +519,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 			loadSequences,
 			sb_efi.WithSecureBootPolicyProfile(),
 			sb_efi.WithBootManagerCodeProfile(),
+			sb_efi.WithSignatureDBUpdates(updateDB...),
 		); err != nil {
 			return nil, fmt.Errorf("cannot add EFI secure boot and boot manager policy profiles: %v", err)
 		}
