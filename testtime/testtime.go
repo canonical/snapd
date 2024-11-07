@@ -58,12 +58,16 @@ var _ timeutil.Timer = (*TestTimer)(nil)
 func AfterFunc(d time.Duration, f func()) *TestTimer {
 	osutil.MustBeTestBinary("testtime timers cannot be used outside of tests")
 	currTime := time.Now()
-	return &TestTimer{
+	timer := &TestTimer{
 		currTime:   currTime,
 		expiration: currTime.Add(d),
 		active:     true,
 		callback:   f,
 	}
+	if d <= 0 {
+		defer timer.doFire(timer.currTime)
+	}
+	return timer
 }
 
 // NewTimer creates a new Timer that will send the current time on its channel
@@ -77,12 +81,16 @@ func NewTimer(d time.Duration) *TestTimer {
 	osutil.MustBeTestBinary("testtime timers cannot be used outside of tests")
 	currTime := time.Now()
 	c := make(chan time.Time, 1)
-	return &TestTimer{
+	timer := &TestTimer{
 		currTime:   currTime,
 		expiration: currTime.Add(d),
 		active:     true,
 		c:          c,
 	}
+	if d <= 0 {
+		defer timer.doFire(timer.currTime)
+	}
+	return timer
 }
 
 // ExpiredC returns the underlying C channel of the timer.
@@ -115,6 +123,10 @@ func (t *TestTimer) Reset(d time.Duration) bool {
 		case <-t.c:
 		default:
 		}
+	}
+	// If duration is 0 or negative, ensure timer fires
+	if d <= 0 {
+		defer t.doFire(t.currTime)
 	}
 	return active
 }
