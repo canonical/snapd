@@ -105,6 +105,10 @@ func (iface *commonFilesInterface) validateSinglePath(np string) error {
 		return fmt.Errorf(`%q cannot end with "/"`, np)
 	}
 	if strings.HasSuffix(np, "@") {
+		// Variables in AppArmor profiles have the form `@{FOO}`. Since we're
+		// going to add `{,/,/**}` to the end of the path, we cannot have a
+		// trailing '@', else we'll end up with a path which ends with
+		// `@{,/,/**}`, which looks problematically like an AppArmor variable.
 		return fmt.Errorf(`%q cannot end with "@"`, np)
 	}
 	p := filepath.Clean(np)
