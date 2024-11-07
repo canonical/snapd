@@ -157,6 +157,26 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "tmpfs",
 			where: "/run/mnt/data",
 			opts: &main.SystemdMountOptions{
+				NoDev: true,
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy nodev",
+		},
+		{
+			what:  "tmpfs",
+			where: "/run/mnt/data",
+			opts: &main.SystemdMountOptions{
+				NoExec: true,
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy noexec",
+		},
+		{
+			what:  "tmpfs",
+			where: "/run/mnt/data",
+			opts: &main.SystemdMountOptions{
 				Bind: true,
 			},
 			timeNowTimes:     []time.Time{testStart, testStart},
@@ -449,7 +469,9 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			foundFsckNo := false
 			foundNoBlock := false
 			foundBeforeInitrdfsTarget := false
+			foundNoDev := false
 			foundNoSuid := false
+			foundNoExec := false
 			foundBind := false
 			foundReadOnly := false
 			foundPrivate := false
@@ -474,8 +496,12 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 				case strings.HasPrefix(arg, "--options="):
 					for _, opt := range strings.Split(strings.TrimPrefix(arg, "--options="), ",") {
 						switch {
+						case opt == "nodev":
+							foundNoDev = true
 						case opt == "nosuid":
 							foundNoSuid = true
+						case opt == "noexec":
+							foundNoExec = true
 						case opt == "bind":
 							foundBind = true
 						case opt == "ro":
@@ -504,7 +530,9 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			c.Assert(foundFsckNo, Equals, !opts.NeedsFsck)
 			c.Assert(foundNoBlock, Equals, opts.NoWait)
 			c.Assert(foundBeforeInitrdfsTarget, Equals, !opts.Ephemeral)
+			c.Assert(foundNoDev, Equals, opts.NoDev)
 			c.Assert(foundNoSuid, Equals, opts.NoSuid)
+			c.Assert(foundNoExec, Equals, opts.NoExec)
 			c.Assert(foundBind, Equals, opts.Bind)
 			c.Assert(foundReadOnly, Equals, opts.ReadOnly)
 			c.Assert(foundPrivate, Equals, opts.Private)
