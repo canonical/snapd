@@ -57,6 +57,11 @@ type SeedSnaps struct {
 	snapRevs map[string]*asserts.SnapRevision
 	resRevs  map[string][]*asserts.SnapResourceRevision
 	resPairs map[string][]*asserts.SnapResourcePair
+
+	// TamperWithResourceRevisions can be set to modify resource revision
+	// assertions before they get committed to the database. Mostly useful for
+	// forcing some consistency check errors.
+	TamperWithResourceRevisions func(headers map[string]interface{})
 }
 
 // SetupAssertSigning initializes StoreSigning for storeBrandID and Brands.
@@ -85,18 +90,39 @@ func (ss *SeedSnaps) SetSnapAssertionNow(t time.Time) {
 }
 
 func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
-	return ss.makeAssertedSnap(c, snapYaml, files, revision, nil, developerID, ss.StoreSigning.SigningDB, "", nil, dbs...)
+	return ss.makeAssertedSnap(c, snapYaml, files, revision, nil, developerID, ss.StoreSigning.SigningDB, "", "", nil, dbs...)
 }
 
 func (ss *SeedSnaps) MakeAssertedSnapWithComps(c *C, snapYaml string, files [][]string, revision snap.Revision, compRevisions map[string]snap.Revision, developerID string, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
-	return ss.makeAssertedSnap(c, snapYaml, files, revision, compRevisions, developerID, ss.StoreSigning.SigningDB, "", nil, dbs...)
+	return ss.makeAssertedSnap(c, snapYaml, files, revision, compRevisions, developerID, ss.StoreSigning.SigningDB, "", "", nil, dbs...)
 }
 
-func (ss *SeedSnaps) MakeAssertedDelegatedSnapWithComps(c *C, snapYaml string, files [][]string, revision snap.Revision, compRevisions map[string]snap.Revision, developerID, delegateID, revProvenance string, revisionAuthority map[string]interface{}, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
-	return ss.makeAssertedSnap(c, snapYaml, files, revision, compRevisions, developerID, ss.Brands.Signing(delegateID), revProvenance, revisionAuthority, dbs...)
+func (ss *SeedSnaps) MakeAssertedDelegatedSnapWithComps(
+	c *C,
+	snapYaml string,
+	files [][]string,
+	revision snap.Revision,
+	compRevisions map[string]snap.Revision,
+	developerID, delegateID, revProvenance, resourceRevProvenance string,
+	revisionAuthority map[string]interface{},
+	dbs ...*asserts.Database,
+) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
+	return ss.makeAssertedSnap(c, snapYaml, files, revision, compRevisions, developerID, ss.Brands.Signing(delegateID), revProvenance, resourceRevProvenance, revisionAuthority, dbs...)
 }
 
-func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, compRevisions map[string]snap.Revision, developerID string, revSigning *assertstest.SigningDB, revProvenance string, revisionAuthority map[string]interface{}, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
+func (ss *SeedSnaps) makeAssertedSnap(
+	c *C,
+	snapYaml string,
+	files [][]string,
+	revision snap.Revision,
+	compRevisions map[string]snap.Revision,
+	developerID string,
+	revSigning *assertstest.SigningDB,
+	revProvenance string,
+	componentProvenance string,
+	revisionAuthority map[string]interface{},
+	dbs ...*asserts.Database,
+) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 	snapName := info.SnapName()
@@ -179,7 +205,13 @@ func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	resPairs := make([]*asserts.SnapResourcePair, 0, len(info.Components))
 	for _, comp := range info.Components {
 		cref := naming.NewComponentRef(snapName, comp.Name)
-		compFile := snaptest.MakeTestComponent(c, SampleSnapYaml[cref.String()])
+
+		compYaml := SampleSnapYaml[cref.String()]
+		if componentProvenance != "" {
+			compYaml += fmt.Sprintf("provenance: %s\n", componentProvenance)
+		}
+
+		compFile := snaptest.MakeTestComponent(c, compYaml)
 		ss.snaps[cref.String()] = compFile
 
 		sha3_384, size, err := asserts.SnapFileSHA3_384(compFile)
@@ -200,6 +232,11 @@ func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, r
 		if revProvenance != "" {
 			resRevHeads["provenance"] = revProvenance
 		}
+
+		if ss.TamperWithResourceRevisions != nil {
+			ss.TamperWithResourceRevisions(resRevHeads)
+		}
+
 		resRev, err := revSigning.Sign(asserts.SnapResourceRevisionType, resRevHeads, nil, "")
 		c.Assert(err, IsNil)
 		resRevs = append(resRevs, resRev.(*asserts.SnapResourceRevision))
@@ -238,7 +275,7 @@ func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, r
 			Revision: compRev.N,
 		})
 
-		cinfo, err := snap.InfoFromComponentYaml([]byte(SampleSnapYaml[cref.String()]))
+		cinfo, err := snap.InfoFromComponentYaml([]byte(compYaml))
 		c.Assert(err, IsNil)
 		cinfo.ComponentSideInfo = *snap.NewComponentSideInfo(cref, compRev)
 		cinfos = append(cinfos, cinfo)
@@ -251,8 +288,16 @@ func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	return snapDecl, snapRev
 }
 
-func (ss *SeedSnaps) MakeAssertedDelegatedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID, delegateID, revProvenance string, revisionAuthority map[string]interface{}, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
-	return ss.makeAssertedSnap(c, snapYaml, files, revision, nil, developerID, ss.Brands.Signing(delegateID), revProvenance, revisionAuthority, dbs...)
+func (ss *SeedSnaps) MakeAssertedDelegatedSnap(
+	c *C,
+	snapYaml string,
+	files [][]string,
+	revision snap.Revision,
+	developerID, delegateID, revProvenance, resourceProvenance string,
+	revisionAuthority map[string]interface{},
+	dbs ...*asserts.Database,
+) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
+	return ss.makeAssertedSnap(c, snapYaml, files, revision, nil, developerID, ss.Brands.Signing(delegateID), revProvenance, resourceProvenance, revisionAuthority, dbs...)
 }
 
 func (ss *SeedSnaps) AssertedSnap(snapName string) (snapFile string) {
