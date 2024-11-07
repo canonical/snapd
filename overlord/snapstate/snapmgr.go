@@ -665,10 +665,7 @@ func (snapst *SnapState) ComponentInfosForRevision(rev snap.Revision) ([]*snap.C
 
 	compInfos := make([]*snap.ComponentInfo, 0, len(revState.Components))
 	for _, comp := range revState.Components {
-		cpi := snap.MinimalComponentContainerPlaceInfo(comp.SideInfo.Component.ComponentName,
-			comp.SideInfo.Revision, si.InstanceName())
-
-		compInfo, err := readComponentInfo(cpi.MountDir(), si, comp.SideInfo)
+		compInfo, err := ReadComponentInfo(si, comp.SideInfo)
 		if err != nil {
 			return nil, err
 		}
@@ -693,9 +690,7 @@ func (snapst *SnapState) CurrentComponentInfo(cref naming.ComponentRef) (*snap.C
 		return nil, err
 	}
 
-	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
-		csi.Revision, si.InstanceName())
-	return readComponentInfo(cpi.MountDir(), si, csi)
+	return ReadComponentInfo(si, csi)
 }
 
 func (snapst *SnapState) InstanceName() string {

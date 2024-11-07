@@ -43,7 +43,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
-	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -323,18 +322,13 @@ func (m *InterfaceManager) setupProfilesForAppSet(task *state.Task, appSet *inte
 			snapInfo.SideInfo = *snapst.PendingSecurity.SideInfo
 
 			var comps []*snap.ComponentInfo
-			for _, compSi := range snapst.PendingSecurity.Components {
-				compName := compSi.Component.ComponentName
-				compRev := compSi.Revision
-
-				cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapInfo.InstanceName())
-				container := snapdir.New(cpi.MountDir())
-				comp, err := snap.ReadComponentInfoFromContainer(container, snapInfo, compSi)
+			for _, csi := range snapst.PendingSecurity.Components {
+				ci, err := snapstate.ReadComponentInfo(snapInfo, csi)
 				if err != nil {
 					return fmt.Errorf("cannot read component info when building app set %q: %v", name, err)
 				}
 
-				comps = append(comps, comp)
+				comps = append(comps, ci)
 			}
 
 			appSet, err = interfaces.NewSnapAppSet(snapInfo, comps)
