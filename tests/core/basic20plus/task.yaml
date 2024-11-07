@@ -117,6 +117,9 @@ execute: |
         losetup -O ro -n --raw "${loop}" | MATCH "1"
     done
 
+    # make sure that ubuntu-save is mounted with appropriate flags
+    findmnt -T /run/mnt/ubuntu-save | grep "nosuid" | grep "noexec" | grep "nodev"
+
     # ensure apparmor works, see LP: 2024637
     systemctl status apparmor.service
 
