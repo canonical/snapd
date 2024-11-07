@@ -67,6 +67,12 @@ type systemdMountOptions struct {
 	// NoSuid indicates that the partition should be mounted with nosuid set on
 	// it to prevent suid execution.
 	NoSuid bool
+	// NoDev indicates to not interpret character or block special devices on
+	// the file system.
+	NoDev bool
+	// NoExec indicates to not allow direct execution of any binaries on the
+	// mounted file system
+	NoExec bool
 	// Bind indicates a bind mount
 	Bind bool
 	// Read-only mount
@@ -159,8 +165,14 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	}
 
 	var options []string
+	if opts.NoDev {
+		options = append(options, "nodev")
+	}
 	if opts.NoSuid {
 		options = append(options, "nosuid")
+	}
+	if opts.NoExec {
+		options = append(options, "noexec")
 	}
 	if opts.Bind {
 		options = append(options, "bind")
