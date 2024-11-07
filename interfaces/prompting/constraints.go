@@ -415,7 +415,7 @@ type RulePermissionEntry struct {
 func (e *RulePermissionEntry) Expired(currTime time.Time) bool {
 	switch e.Lifespan {
 	case LifespanTimespan:
-		if currTime.After(e.Expiration) {
+		if !currTime.Before(e.Expiration) {
 			return true
 		}
 		// TODO: add lifespan session
