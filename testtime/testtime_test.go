@@ -108,6 +108,9 @@ func (s *testtimeSuite) TestAfterFunc(c *C) {
 		// Goroutine may not start immediately, so allow some grace period
 		c.Fatal("callback did not complete")
 	}
+
+	// Firing inactive timer panics
+	c.Check(func() { timer.Fire(time.Now()) }, PanicMatches, "cannot fire timer which is not active")
 }
 
 func (s *testtimeSuite) TestNewTimer(c *C) {
@@ -156,6 +159,9 @@ func (s *testtimeSuite) TestNewTimer(c *C) {
 	default:
 		c.Fatal("timer did not fire")
 	}
+
+	// Firing inactive timer panics
+	c.Check(func() { timer.Fire(currTime) }, PanicMatches, "cannot fire timer which is not active")
 }
 
 func (s *testtimeSuite) TestReset(c *C) {
@@ -305,37 +311,4 @@ func (s *testtimeSuite) TestStop(c *C) {
 		c.Fatal("received from timer chan after Stop called after firing")
 	default:
 	}
-}
-
-func (s *testtimeSuite) TestFireErrors(c *C) {
-	timer := testtime.AfterFunc(time.Hour, func() { c.Fatal("should not have been called") })
-
-	c.Check(timer.Active(), Equals, true)
-	c.Check(timer.FireCount(), Equals, 0)
-
-	timer.Stop()
-
-	c.Check(timer.Active(), Equals, false)
-	c.Check(timer.FireCount(), Equals, 0)
-
-	c.Check(timer.Active(), Equals, false)
-	c.Check(timer.FireCount(), Equals, 0)
-
-	// Re-declare timer with callback which doesn't cause error
-	timer = testtime.AfterFunc(time.Minute, func() {})
-
-	c.Check(timer.Active(), Equals, true)
-	c.Check(timer.FireCount(), Equals, 0)
-
-	timer.Elapse(time.Minute)
-
-	c.Check(timer.Active(), Equals, false)
-	c.Check(timer.FireCount(), Equals, 1)
-
-	c.Check(timer.Active(), Equals, false)
-	c.Check(timer.FireCount(), Equals, 1)
-
-	active := timer.Stop()
-	c.Check(active, Equals, false)
-	c.Check(timer.FireCount(), Equals, 1)
 }
