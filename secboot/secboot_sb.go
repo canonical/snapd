@@ -195,11 +195,17 @@ func deviceHasPlainKey(device string) (bool, error) {
 	for _, slot := range slots {
 		reader, err := sbNewLUKS2KeyDataReader(device, slot)
 		if err != nil {
+			// There can be multiple errors, including
+			// missing key data. So we just have to ignore
+			// them.
 			continue
 		}
 		keyData, err := sbReadKeyData(reader)
 		if err != nil {
-			return false, fmt.Errorf("keyslot %s has an invalid key data: %w", slot, err)
+			// Error should be unexpected here. So we
+			// should warn if we see any error.
+			logger.Noticef("WARNING: keyslot %s has an invalid key data: %v", slot, err)
+			continue
 		}
 		if keyData.PlatformName() == "plainkey" {
 			return true, nil
