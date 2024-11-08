@@ -375,27 +375,7 @@ func (s *testtimeSuite) TestStdlibConcurrentTimerResetStop(c *C) {
 // This makes it easy to test both paths.
 func newTimerFunc(d time.Duration) *testtime.TestTimer {
 	c := make(chan time.Time, 1)
-	// XXX: Unlike stdlib test, don't send time over C channel in callback
-	// function, with one exception: if the given duration was <= 0, then the
-	// timer will fire during AfterFunc, which occurs before the C channel is
-	// set, so it needs to be sent over the channel.
-	// Any time the timer expires in the future, it will send current time over
-	// the C channel automatically. If the duration is > 0, then if the
-	// callback tries to send the current time as well, it will block trying
-	// to write to the buffer which has already been filled. This problem can
-	// only occur in this test file, where there is an exported helper to set
-	// the C channel even when the timer was created via AfterFunc.
-	var once sync.Once
-	t := testtime.AfterFunc(d, func() {
-		if d <= 0 {
-			// AfterFunc will expire for the first time before the C channel is
-			// set, so send the current time just this once. If it's reset,
-			// future expirations will send the time over c automatically.
-			once.Do(func() {
-				c <- time.Now()
-			})
-		}
-	})
+	t := testtime.AfterFunc(d, func() { c <- time.Now() })
 	t.SetCChan(c)
 	return t
 }
@@ -596,6 +576,8 @@ func (s *testtimeSuite) TestStdlibTimerModifiedEarlier(c *C) {
 			timer.Reset(past)
 		}
 
+		deadline := time.NewTimer(10 * time.Second)
+		defer deadline.Stop()
 		now := time.Now()
 		select {
 		case <-timer.ExpiredC():
@@ -603,7 +585,7 @@ func (s *testtimeSuite) TestStdlibTimerModifiedEarlier(c *C) {
 				c.Errorf("timer took too long (%v)", since)
 				fail++
 			}
-		default:
+		case <-deadline.C:
 			c.Error("deadline expired")
 		}
 	}

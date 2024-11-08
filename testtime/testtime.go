@@ -207,8 +207,7 @@ func (t *TestTimer) doFire(currTime time.Time) {
 	// Either t.callback or t.C should be non-nil, and the other should be nil.
 	if t.callback != nil {
 		go t.callback()
-	}
-	if t.c != nil {
+	} else if t.c != nil {
 		t.c <- currTime
 	}
 }
