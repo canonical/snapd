@@ -174,8 +174,8 @@ func validateEMMCStructureName(vs *VolumeStructure) error {
 	if vs.EnclosingVolume.Schema != schemaEMMC {
 		return nil
 	}
-	if !strutil.ListContains(valideMMCVolumeNames, vs.Name) {
-		return fmt.Errorf("cannot use %q as emmc name, only %q is allowed", vs.Name, valideMMCVolumeNames)
+	if !strutil.ListContains(validEMMCVolumeNames, vs.Name) {
+		return fmt.Errorf("cannot use %q as emmc name, only %q is allowed", vs.Name, validEMMCVolumeNames)
 	}
 	return nil
 }
@@ -214,7 +214,7 @@ var (
 	}
 
 	// valid names for volumes under an eMMC schema
-	valideMMCVolumeNames = []string{"boot0", "boot1"}
+	validEMMCVolumeNames = []string{"boot0", "boot1"}
 )
 
 func validateReservedLabels(vs *VolumeStructure, reservedLabels []string) error {

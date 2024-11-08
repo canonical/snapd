@@ -1438,18 +1438,17 @@ func validateOffsetWrite(s, firstStruct *VolumeStructure, volSize quantity.Size)
 	return nil
 }
 
-func contentCheckerCreate(vs *VolumeStructure, vol *Volume) func(string, *VolumeContent) error {
-	if vol.Schema == schemaEMMC {
+func contentCheckerCreate(vs *VolumeStructure, vol *Volume) func(*VolumeContent) error {
+	switch {
+	case vol.Schema == schemaEMMC:
 		return validateEMMCContent
-	}
-
-	if vs.HasFilesystem() {
+	case vs.HasFilesystem():
 		return validateFilesystemContent
+	default:
+		// default to bare content checker if no filesystem
+		// is present
+		return validateBareContent
 	}
-
-	// default to bare content checker if no filesystem
-	// is present
-	return validateBareContent
 }
 
 func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
@@ -1480,7 +1479,7 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 
 	contentChecker := contentCheckerCreate(vs, vol)
 	for i, c := range vs.Content {
-		if err := contentChecker(vs.Name, &c); err != nil {
+		if err := contentChecker(&c); err != nil {
 			return fmt.Errorf("invalid content #%v: %v", i, err)
 		}
 	}
@@ -1618,7 +1617,7 @@ func validateRole(vs *VolumeStructure) error {
 	return nil
 }
 
-func validateBareContent(_ string, vc *VolumeContent) error {
+func validateBareContent(vc *VolumeContent) error {
 	if vc.UnresolvedSource != "" || vc.Target != "" {
 		return fmt.Errorf("cannot use non-image content for bare file system")
 	}
@@ -1628,9 +1627,9 @@ func validateBareContent(_ string, vc *VolumeContent) error {
 	return nil
 }
 
-func validateEMMCContent(name string, vc *VolumeContent) error {
+func validateEMMCContent(vc *VolumeContent) error {
 	if vc.Offset != nil || vc.Size != 0 {
-		return fmt.Errorf("cannot specify size or offset for content in %q", name)
+		return fmt.Errorf("cannot specify size or offset for content")
 	}
 
 	if vc.UnresolvedSource != "" || vc.Target != "" {
@@ -1642,7 +1641,7 @@ func validateEMMCContent(name string, vc *VolumeContent) error {
 	return nil
 }
 
-func validateFilesystemContent(_ string, vc *VolumeContent) error {
+func validateFilesystemContent(vc *VolumeContent) error {
 	if vc.Image != "" || vc.Offset != nil || vc.Size != 0 {
 		return fmt.Errorf("cannot use image content for non-bare file system")
 	}

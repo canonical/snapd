@@ -173,7 +173,7 @@ volumes:
 		c.Assert(err, IsNil)
 
 		_, err = gadget.ReadInfo(s.dir, coreMod)
-		c.Assert(err, ErrorMatches, fmt.Sprintf(`.*cannot specify size or offset for content in %q`, t))
+		c.Assert(err, ErrorMatches, `.*cannot specify size or offset for content`)
 	}
 }
 
