@@ -37,9 +37,15 @@ import (
 // InstallComponents installs all of the components in the given names list. The
 // snap represented by info must already be installed, and all of the components
 // in names should not be installed prior to calling this function.
-//
-// TODO:COMPS: respect the transaction that is passed to this function
 func InstallComponents(ctx context.Context, st *state.State, names []string, info *snap.Info, opts Options) ([]*state.TaskSet, error) {
+	if err := opts.setDefaultLane(st); err != nil {
+		return nil, err
+	}
+
+	if err := setDefaultSnapstateOptions(st, &opts); err != nil {
+		return nil, err
+	}
+
 	var snapst SnapState
 	err := Get(st, info.InstanceName(), &snapst)
 	if err != nil {
@@ -83,6 +89,8 @@ func InstallComponents(ctx context.Context, st *state.State, names []string, inf
 		kmodSetup.Set("snap-setup-task", setupSecurity.ID())
 	}
 
+	lane := generateLane(st, opts)
+
 	tss := make([]*state.TaskSet, 0, len(compsups))
 	compSetupIDs := make([]string, 0, len(compsups))
 	for _, compsup := range compsups {
@@ -100,7 +108,11 @@ func InstallComponents(ctx context.Context, st *state.State, names []string, inf
 		}
 
 		compSetupIDs = append(compSetupIDs, componentTS.compSetupTaskID)
-		tss = append(tss, componentTS.taskSet())
+
+		ts := componentTS.taskSet()
+		ts.JoinLane(lane)
+
+		tss = append(tss, ts)
 	}
 
 	setupSecurity.Set("component-setup-tasks", compSetupIDs)
@@ -109,6 +121,10 @@ func InstallComponents(ctx context.Context, st *state.State, names []string, inf
 	if kmodSetup != nil {
 		ts.AddTask(kmodSetup)
 	}
+
+	// note that this must come after all tasks are added to the task set
+	ts.JoinLane(lane)
+
 	return append(tss, ts), nil
 }
 
@@ -201,7 +217,15 @@ func installComponentAction(st *state.State, snapst SnapState, snapRev snap.Revi
 // full metadata in which case the component will appear as installed from the
 // store.
 func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info,
-	path string, flags Flags) (*state.TaskSet, error) {
+	path string, opts Options) (*state.TaskSet, error) {
+	if err := opts.setDefaultLane(st); err != nil {
+		return nil, err
+	}
+
+	if err := setDefaultSnapstateOptions(st, &opts); err != nil {
+		return nil, err
+	}
+
 	var snapst SnapState
 	// owner snap must be already installed
 	err := Get(st, info.InstanceName(), &snapst)
@@ -223,7 +247,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		Base:        info.Base,
 		SideInfo:    &info.SideInfo,
 		Channel:     info.Channel,
-		Flags:       flags.ForSnapSetup(),
+		Flags:       opts.Flags.ForSnapSetup(),
 		Type:        info.Type(),
 		Version:     info.Version,
 		PlugsOnly:   len(info.Slots) == 0,
@@ -244,7 +268,10 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		return nil, err
 	}
 
-	return componentTS.taskSet(), nil
+	ts := componentTS.taskSet()
+	ts.JoinLane(generateLane(st, opts))
+
+	return ts, nil
 }
 
 type ComponentInstallFlags struct {

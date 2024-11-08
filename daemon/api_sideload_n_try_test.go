@@ -453,9 +453,9 @@ func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
 	})()
 
 	defer daemon.MockSnapstateInstallComponentPath(func(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info,
-		path string, flags snapstate.Flags) (*state.TaskSet, error) {
+		path string, opts snapstate.Options) (*state.TaskSet, error) {
 		c.Check(csi, check.DeepEquals, expectedCompSideInfo)
-		c.Check(flags, check.DeepEquals, expectedFlags)
+		c.Check(opts.Flags, check.DeepEquals, expectedFlags)
 		c.Check(path, testutil.FileEquals, "xyzzy")
 
 		installQueue = append(installQueue, csi.Component.String()+"::"+path)
