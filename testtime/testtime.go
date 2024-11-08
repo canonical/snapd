@@ -36,7 +36,7 @@ import (
 // TestTimer also provides methods to introspect whether the timer is active or
 // how many times it has fired.
 type TestTimer struct {
-	lock       sync.Mutex
+	mu         sync.Mutex
 	currTime   time.Time
 	expiration time.Time
 	active     bool
@@ -108,8 +108,8 @@ func (t *TestTimer) ExpiredC() <-chan time.Time {
 // This simulates the behavior of Timer.Reset() from the time package.
 // See here fore more details: https://pkg.go.dev/time#Timer.Reset
 func (t *TestTimer) Reset(d time.Duration) bool {
-	t.lock.Lock()
-	defer t.lock.Unlock()
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	active := t.active
 	t.active = true
 	t.expiration = t.currTime.Add(d)
@@ -137,8 +137,8 @@ func (t *TestTimer) Reset(d time.Duration) bool {
 // This simulates the behavior of Timer.Stop() from the time package.
 // See here for more details: https://pkg.go.dev/time#Timer.Stop
 func (t *TestTimer) Stop() bool {
-	t.lock.Lock()
-	defer t.lock.Unlock()
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	wasActive := t.active
 	t.active = false
 	if t.c != nil {
@@ -157,15 +157,15 @@ func (t *TestTimer) Stop() bool {
 // Active returns true if the timer is active, false if the timer has expired
 // or been stopped.
 func (t *TestTimer) Active() bool {
-	t.lock.Lock()
-	defer t.lock.Unlock()
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	return t.active
 }
 
 // FireCount returns the number of times the timer has fired.
 func (t *TestTimer) FireCount() int {
-	t.lock.Lock()
-	defer t.lock.Unlock()
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	return t.fireCount
 }
 
@@ -175,8 +175,8 @@ func (t *TestTimer) FireCount() int {
 // The timer will fire if the time after the elapsed duration is after the
 // expiration time and the timer has not yet fired.
 func (t *TestTimer) Elapse(duration time.Duration) {
-	t.lock.Lock()
-	defer t.lock.Unlock()
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	t.currTime = t.currTime.Add(duration)
 	if !t.currTime.Before(t.expiration) {
 		t.doFire(t.expiration)
@@ -189,8 +189,8 @@ func (t *TestTimer) Elapse(duration time.Duration) {
 // To avoid accidental misuse, panics if the timer is not active (if it has
 // already fired or been stopped).
 func (t *TestTimer) Fire(currTime time.Time) {
-	t.lock.Lock()
-	defer t.lock.Unlock()
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	if !t.active {
 		panic("cannot fire timer which is not active")
 	}
