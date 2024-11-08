@@ -2,12 +2,15 @@ on:
   workflow_call:
     inputs:
       runs-on:
+        description: 'A tag to indicate which runner to use'
         required: true
         type: string
       toolchain:
+        description: 'The go toolchain to use {default, FIPS}'
         required: true
         type: string
       version:
+        description: 'The type of snapd build {pristine, test}'
         required: true
         type: string
 

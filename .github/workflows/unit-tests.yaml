@@ -2,12 +2,15 @@ on:
   workflow_call:
     inputs:
       runs-on:
+        description: 'A tag to indicate which runner to use'
         required: true
         type: string
       gochannel:
+        description: 'The snap store channel to use to install the go snap'
         required: true
         type: string
       unit-scenario:
+        description: 'The name of the scenario being tested: {normal, snapd-debug, withbootassetstesting, nosecboot, faultinject, race, snapdusergo}'
         required: true
         type: string
 

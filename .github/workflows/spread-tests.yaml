@@ -2,21 +2,27 @@ on:
   workflow_call:
     inputs:
       runs-on:
+        description: 'A json list of tags to indicate which runner to use'
         required: true
         type: string
       group:
+        description: 'The name of the group of backends, systems, tests, and rules'
         required: true
         type: string
       backend:
+        description: 'The spread backend to use (for possible values, check spread.yaml)'
         required: true
         type: string
       systems:
+        description: 'The spread system(s) to use (for possible values, check spread.yaml). If more than one, separate them with a space'
         required: true
         type: string
       tests:
+        description: 'The spread tests to run. It may be a space-separated list and may contain directories of many tests or individual ones'
         required: true
         type: string
       rules:
+        description: 'The rule .yaml file to use (found under tests/lib/spread/rules) for test discovery'
         required: true
         type: string
 

@@ -2,9 +2,11 @@ on:
   workflow_call:
     inputs:
       runs-on:
+        description: 'A tag to indicate which runner to use'
         required: true
         type: string
       distro:
+        description: 'The name of the github container image to use to run the unit tests'
         required: true
         type: string
 

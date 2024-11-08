@@ -2,9 +2,11 @@ on:
   workflow_call:
     inputs:
       runs-on:
+        description: 'A tag to indicate which runner to use'
         required: true
         type: string
       gochannel:
+        description: 'The snap store channel to use to install the go snap'
         required: true
         type: string
 
