@@ -282,6 +282,10 @@ func sideloadInfo(st *state.State, uploads []*uploadedContainer, flags sideloadF
 		})
 	}
 
+	// we use this function here to get a pointer to an element in the snaps
+	// slice so that we can modify it. we can't just create a mapping in the
+	// above loop since the pointers could get invalidated the snaps slice
+	// growing.
 	snapByName := func(name string) (*sideloadSnapInfo, bool) {
 		for i := range snaps {
 			if snaps[i].sideInfo.RealName == name {
