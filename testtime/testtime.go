@@ -36,13 +36,13 @@ import (
 // TestTimer also provides methods to introspect whether the timer is active or
 // how many times it has fired.
 type TestTimer struct {
-	mu         sync.Mutex
-	currTime   time.Time
-	expiration time.Time
-	active     bool
-	fireCount  int
-	callback   func()
-	c          chan time.Time
+	mu        sync.Mutex
+	duration  time.Duration
+	elapsed   time.Duration
+	active    bool
+	fireCount int
+	callback  func()
+	c         chan time.Time
 }
 
 var _ timeutil.Timer = (*TestTimer)(nil)
@@ -57,16 +57,13 @@ var _ timeutil.Timer = (*TestTimer)(nil)
 // See here for more details: https://pkg.go.dev/time#AfterFunc
 func AfterFunc(d time.Duration, f func()) *TestTimer {
 	osutil.MustBeTestBinary("testtime timers cannot be used outside of tests")
-	currTime := time.Now()
 	timer := &TestTimer{
-		currTime:   currTime,
-		expiration: currTime.Add(d),
-		active:     true,
-		callback:   f,
+		duration: d,
+		active:   true,
+		callback: f,
 	}
-	if d <= 0 {
-		defer timer.doFire(timer.currTime)
-	}
+	// If duration is 0 or negative, ensure timer fires
+	defer timer.maybeFire()
 	return timer
 }
 
@@ -79,17 +76,14 @@ func AfterFunc(d time.Duration, f func()) *TestTimer {
 // See here for more details: https://pkg.go.dev/time#NewTimer
 func NewTimer(d time.Duration) *TestTimer {
 	osutil.MustBeTestBinary("testtime timers cannot be used outside of tests")
-	currTime := time.Now()
 	c := make(chan time.Time, 1)
 	timer := &TestTimer{
-		currTime:   currTime,
-		expiration: currTime.Add(d),
-		active:     true,
-		c:          c,
+		duration: d,
+		active:   true,
+		c:        c,
 	}
-	if d <= 0 {
-		defer timer.doFire(timer.currTime)
-	}
+	// If duration is 0 or negative, ensure timer fires
+	defer timer.maybeFire()
 	return timer
 }
 
@@ -102,8 +96,8 @@ func (t *TestTimer) ExpiredC() <-chan time.Time {
 // timer had been active, false if the timer had expired or been stopped.
 //
 // As the test timer does not actually count down, Reset sets the timer's
-// expiration to be the given duration added to the timer's internal current
-// time. This internal time must be advanced manually using Elapse.
+// elapsed time to 0 and set its duration to the given duration. The elapsed
+// time must be advanced manually using Elapse.
 //
 // This simulates the behavior of Timer.Reset() from the time package.
 // See here fore more details: https://pkg.go.dev/time#Timer.Reset
@@ -112,7 +106,8 @@ func (t *TestTimer) Reset(d time.Duration) bool {
 	defer t.mu.Unlock()
 	active := t.active
 	t.active = true
-	t.expiration = t.currTime.Add(d)
+	t.duration = d
+	t.elapsed = 0
 	if t.c != nil {
 		// Drain the channel, guaranteeing that a receive after Reset will
 		// block until the timer fires again, and not receive a time value
@@ -125,9 +120,7 @@ func (t *TestTimer) Reset(d time.Duration) bool {
 		}
 	}
 	// If duration is 0 or negative, ensure timer fires
-	if d <= 0 {
-		defer t.doFire(t.currTime)
-	}
+	defer t.maybeFire()
 	return active
 }
 
@@ -169,17 +162,24 @@ func (t *TestTimer) FireCount() int {
 	return t.fireCount
 }
 
-// Elapse simulates the current time advancing by the given duration, which
-// potentially causes the timer to fire.
+// Elapse simulates time advancing by the given duration, which potentially
+// causes the timer to fire.
 //
-// The timer will fire if the time after the elapsed duration is after the
-// expiration time and the timer has not yet fired.
+// The timer will fire if the total elapsed time since the timer was created
+// or reset is greater than the timer's duration and the timer has not yet
+// fired.
 func (t *TestTimer) Elapse(duration time.Duration) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.currTime = t.currTime.Add(duration)
-	if !t.currTime.Before(t.expiration) {
-		t.doFire(t.expiration)
+	t.elapsed += duration
+	t.maybeFire()
+}
+
+// maybeFire fires the timer if the elapsed time is greater than the timer's
+// duration. The caller must hold the timer lock.
+func (t *TestTimer) maybeFire() {
+	if t.elapsed >= t.duration {
+		t.doFire(time.Now())
 	}
 }
 
