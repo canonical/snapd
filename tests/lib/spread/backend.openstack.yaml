@@ -22,6 +22,9 @@
             - fedora-40-64:
                 image: snapd-spread/fedora-40-64
                 workers: 6
+            - fedora-41-64:
+                image: snapd-spread/fedora-41-64
+                workers: 6
     
             - opensuse-15.5-64:
                 image: snapd-spread/opensuse-15.5-64

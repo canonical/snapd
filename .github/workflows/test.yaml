@@ -636,13 +636,8 @@ jobs:
             tests: 'tests/...'
             rules: 'main'
           - group: fedora
-            backend: google-distro-1
-            systems: 'fedora-38-64 fedora-39-64'
-            tests: 'tests/...'
-            rules: 'main'
-          - group: fedora-os
             backend: openstack
-            systems: 'fedora-40-64'
+            systems: 'fedora-40-64 fedora-41-64'
             tests: 'tests/...'
             rules: 'main'
           - group: opensuse
