@@ -328,6 +328,14 @@ func MockSbNewFileKeyDataReader(f func(path string) (*sb.FileKeyDataReader, erro
 	}
 }
 
+func MockSbNewLUKS2KeyDataReader(f func(device, slot string) (sb.KeyDataReader, error)) (restore func()) {
+	old := sbNewLUKS2KeyDataReader
+	sbNewLUKS2KeyDataReader = f
+	return func() {
+		sbNewLUKS2KeyDataReader = old
+	}
+}
+
 func MockSbReadKeyData(f func(reader sb.KeyDataReader) (*sb.KeyData, error)) (restore func()) {
 	old := sbReadKeyData
 	sbReadKeyData = f
@@ -357,5 +365,13 @@ func MockSetAuthorizedSnapModelsOnHooksKeydata(f func(kd *sb_hooks.KeyData, rand
 	setAuthorizedSnapModelsOnHooksKeydata = f
 	return func() {
 		setAuthorizedSnapModelsOnHooksKeydata = old
+	}
+}
+
+func MockSetProtectorKeys(f func(keys ...[]byte)) (restore func()) {
+	old := sbSetProtectorKeys
+	sbSetProtectorKeys = f
+	return func() {
+		sbSetProtectorKeys = old
 	}
 }
