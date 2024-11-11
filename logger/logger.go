@@ -76,7 +76,14 @@ func Panicf(format string, v ...interface{}) {
 // Noticef notifies the user of something
 func Noticef(format string, v ...interface{}) {
 	msg := fmt.Sprintf(format, v...)
+	lock.Lock()
+	defer lock.Unlock()
 
+	logger.Notice(msg)
+}
+
+// Notice notifies the user of something
+func Notice(msg string) {
 	lock.Lock()
 	defer lock.Unlock()
 
@@ -86,7 +93,14 @@ func Noticef(format string, v ...interface{}) {
 // Debugf records something in the debug log
 func Debugf(format string, v ...interface{}) {
 	msg := fmt.Sprintf(format, v...)
+	lock.Lock()
+	defer lock.Unlock()
 
+	logger.Debug(msg)
+}
+
+// Debug records something in the debug log
+func Debug(msg string) {
 	lock.Lock()
 	defer lock.Unlock()
 

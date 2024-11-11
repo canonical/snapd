@@ -1,0 +1,24 @@
+summary: Test snapctl install/remove
+
+details: |
+  Verifies that snactl install/remove works from snap apps and from snaps hooks.
+
+systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
+
+execute: |
+  SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+
+  snap install --edge test-snap-components-snapctl
+
+  # test command installs and removes components using snapctl (ephemeral context)
+  test-snap-components-snapctl
+
+  # run install from configure hook (non-ephemeral context)
+  snap set test-snap-components-snapctl command="install +one+two"
+
+  snap_rev=$(readlink "$SNAP_MOUNT_DIR"/test-snap-components-snapctl/current)
+  MATCH "First component" < "$SNAP_MOUNT_DIR/test-snap-components-snapctl/components/$snap_rev/one/meta/component.yaml"
+  MATCH "Second component" < "$SNAP_MOUNT_DIR/test-snap-components-snapctl/components/$snap_rev/two/meta/component.yaml"
+
+  snap set test-snap-components-snapctl command="remove +one+two"
+  test ! -d "$SNAP_MOUNT_DIR"/test-snap-components-snapctl/components/

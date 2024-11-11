@@ -43,11 +43,11 @@ hooks:
     plugs: [network, network-manager]
 components:
   comp1:
-    type: test
+    type: standard
     hooks:
       install:
   comp2:
-    type: test
+    type: standard
     hooks:
       pre-refresh:
 `
@@ -95,8 +95,8 @@ func (s *snapAppSetSuite) TestLabelExpr(c *C) {
 	info := snaptest.MockInfo(c, yaml, nil)
 
 	compYamls := []string{
-		"component: test-snap+comp1\ntype: test",
-		"component: test-snap+comp2\ntype: test",
+		"component: test-snap+comp1\ntype: standard",
+		"component: test-snap+comp2\ntype: standard",
 	}
 
 	compInfos := make([]*snap.ComponentInfo, 0, len(compYamls))
@@ -193,7 +193,7 @@ apps:
   app2:
 components:
   comp:
-    type: test
+    type: standard
     hooks:
       install:
 hooks:
@@ -204,7 +204,7 @@ slots:
   slot:`
 
 	set, connectedPlug := mockAppSetAndConnectedPlug(c, yaml, []string{
-		"component: name+comp\ntype: test\nversion: 1",
+		"component: name+comp\ntype: standard\nversion: 1",
 	}, nil, "plug")
 
 	tags, err := set.SecurityTagsForConnectedPlug(connectedPlug)
@@ -284,13 +284,13 @@ hooks:
   install:
 components:
   comp:
-    type: test
+    type: standard
     hooks:
       install:
 `
 	info := snaptest.MockInfo(c, yaml, nil)
 
-	compInfo := snaptest.MockComponent(c, "component: name+comp\ntype: test\nversion: 1.0", info, snap.ComponentSideInfo{
+	compInfo := snaptest.MockComponent(c, "component: name+comp\ntype: standard\nversion: 1.0", info, snap.ComponentSideInfo{
 		Revision: snap.R(1),
 	})
 
@@ -328,7 +328,7 @@ hooks:
     plugs: [hook-plug]
 components:
   comp:
-    type: test
+    type: standard
     hooks:
       install:
         plugs: [comp-plug]
@@ -340,7 +340,7 @@ plugs:
 `
 	info := snaptest.MockInfo(c, yaml, nil)
 
-	compInfo := snaptest.MockComponent(c, "component: name+comp\ntype: test\nversion: 1.0", info, snap.ComponentSideInfo{
+	compInfo := snaptest.MockComponent(c, "component: name+comp\ntype: standard\nversion: 1.0", info, snap.ComponentSideInfo{
 		Revision: snap.R(1),
 	})
 
@@ -416,7 +416,7 @@ hooks:
     slots: [hook-slot]
 components:
   comp:
-    type: test
+    type: standard
     hooks:
       install:
 slots:
@@ -426,7 +426,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, yaml, nil)
 
-	compInfo := snaptest.MockComponent(c, "component: name+comp\ntype: test\nversion: 1.0", info, snap.ComponentSideInfo{
+	compInfo := snaptest.MockComponent(c, "component: name+comp\ntype: standard\nversion: 1.0", info, snap.ComponentSideInfo{
 		Revision: snap.R(1),
 	})
 
@@ -497,7 +497,7 @@ func (s *snapAppSetSuite) TestInstanceName(c *C) {
 func (s *snapAppSetSuite) TestNewAppSetWithWrongComponent(c *C) {
 	info := snaptest.MockInfo(c, yaml, nil)
 	_, err := interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{
-		snap.NewComponentInfo(naming.NewComponentRef("other-name", "comp"), snap.TestComponent, "", "", "", "", nil),
+		snap.NewComponentInfo(naming.NewComponentRef("other-name", "comp"), snap.StandardComponent, "", "", "", "", nil),
 	})
 	c.Assert(err, ErrorMatches, `internal error: snap "test-snap" does not own component "other-name\+comp"`)
 }

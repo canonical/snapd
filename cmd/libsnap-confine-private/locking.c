@@ -206,3 +206,40 @@ void sc_unlock(int lock_fd)
 	}
 	close(lock_fd);
 }
+
+#define SC_INHIBIT_DIR "/var/lib/snapd/inhibit"
+
+static const char *sc_inhibit_dir = SC_INHIBIT_DIR;
+
+bool sc_snap_is_inhibited(const char *snap_name, sc_snap_inhibition_hint hint)
+{
+	char file_name[PATH_MAX] = { 0 };
+	switch (hint) {
+	case SC_SNAP_HINT_INHIBITED_FOR_REMOVE:
+		sc_must_snprintf(file_name, sizeof file_name, "%s.remove",
+				 snap_name);
+		break;
+	default:
+		die("unknown inhibition hint %d", hint);
+	}
+
+	int dirfd SC_CLEANUP(sc_cleanup_close) = -1;
+	dirfd =
+	    open(sc_inhibit_dir, O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW | O_PATH);
+	if (dirfd < 0 && errno == ENOENT) {
+		return false;
+	}
+	if (dirfd < 0) {
+		die("cannot open path %s", sc_inhibit_dir);
+	}
+
+	struct stat file_info;
+	if (fstatat(dirfd, file_name, &file_info, AT_SYMLINK_NOFOLLOW) < 0) {
+		if (errno == ENOENT) {
+			return false;
+		}
+		die("cannot inspect file %s/%s", sc_inhibit_dir, file_name);
+	}
+
+	return S_ISREG(file_info.st_mode);
+}

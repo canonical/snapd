@@ -18,6 +18,7 @@
 : "${NESTED_FAKESTORE_SNAP_DECL_PC_GADGET:=}"
 : "${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:=}"
 : "${NESTED_UBUNTU_IMAGE_PRESEED_KEY:=}"
+: "${NESTED_UBUNTU_SEED_SIZE:=}"
 
 : "${NESTED_DISK_PHYSICAL_BLOCK_SIZE:=512}"
 : "${NESTED_DISK_LOGICAL_BLOCK_SIZE:=512}"
@@ -281,8 +282,6 @@ nested_create_assertions_disk() {
 nested_qemu_name() {
     if os.query is-arm; then
         command -v qemu-system-aarch64
-    elif [ "$NESTED_ARCHITECTURE" = "i386" ]; then
-        command -v qemu-system-i386
     else
         command -v qemu-system-x86_64
     fi
@@ -730,6 +729,7 @@ EOF
                 # visibility what happens when a machine fails to boot
                 GADGET_EXTRA_CMDLINE="console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1"
             fi
+
             if [ -n "$NESTED_EXTRA_CMDLINE" ]; then
                 GADGET_EXTRA_CMDLINE="$GADGET_EXTRA_CMDLINE $NESTED_EXTRA_CMDLINE"
             fi
@@ -737,6 +737,10 @@ EOF
             if [ -n "$GADGET_EXTRA_CMDLINE" ]; then
                 echo "Configuring command line parameters in the gadget snap: \"console=ttyS0 $GADGET_EXTRA_CMDLINE\""
                 echo "$GADGET_EXTRA_CMDLINE" > pc-gadget/cmdline.extra
+            fi
+
+            if [ -n "$NESTED_UBUNTU_SEED_SIZE" ]; then
+                "$TESTSLIB"/manip_ubuntu_seed.py pc-gadget/meta/gadget.yaml "$NESTED_UBUNTU_SEED_SIZE"
             fi
 
             # pack the gadget

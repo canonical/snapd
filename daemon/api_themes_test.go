@@ -416,9 +416,13 @@ func (s *themesSuite) TestThemesCmdPost(c *C) {
 			},
 		},
 	}
-	restore := daemon.MockSnapstateInstallMany(func(s *state.State, names []string, _ []*snapstate.RevisionOptions, _ int, _ *snapstate.Flags) ([]string, []*state.TaskSet, error) {
-		t := s.NewTask("fake-theme-install", "Theme install")
-		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	restore := daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		goal, ok := g.(*storeInstallGoalRecorder)
+		c.Assert(ok, Equals, true, Commentf("unexpected InstallGoal type %T", g))
+		c.Assert(goal.snaps, HasLen, 3)
+
+		t := st.NewTask("fake-theme-install", "Theme install")
+		return storeSnapInfos(goal.snaps), []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})
 	defer restore()
 

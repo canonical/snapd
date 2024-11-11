@@ -68,7 +68,10 @@ func (r *failureSuite) SetUpTest(c *C) {
 
 	log, restore := logger.MockLogger()
 	r.log = log
-	r.AddCleanup(restore)
+	r.AddCleanup(func() {
+		c.Logf("logs:\n%s", log.String())
+		restore()
+	})
 
 	r.systemctlCmd = testutil.MockCommand(c, "systemctl", "")
 	r.AddCleanup(r.systemctlCmd.Restore)

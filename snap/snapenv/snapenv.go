@@ -22,7 +22,6 @@ package snapenv
 import (
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/arch"
@@ -31,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -88,7 +88,7 @@ func componentEnv(info *snap.Info, component *snap.ComponentInfo) osutil.Environ
 			component.Revision.String(),
 		),
 		"SNAP_COMPONENT_NAME":     component.FullName(),
-		"SNAP_COMPONENT_VERSION":  component.Version,
+		"SNAP_COMPONENT_VERSION":  component.Version(info.Version),
 		"SNAP_COMPONENT_REVISION": component.Revision.String(),
 	}
 

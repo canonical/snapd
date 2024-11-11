@@ -40,9 +40,9 @@ import (
 //	    int   mnt_passno;   /* pass number on parallel fsck */
 //	};
 type MountEntry struct {
-	Name    string
-	Dir     string
-	Type    string
+	Name    string // Device name, bind source, pseudo name
+	Dir     string // Directory name, bind target (including file)
+	Type    string // File system type
 	Options []string
 
 	DumpFrequency   int

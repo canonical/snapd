@@ -20,11 +20,9 @@
 package wrappers
 
 import (
-	"os/user"
 	"time"
 
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/testutil"
 )
 
 // some internal helper exposed for testing
@@ -33,13 +31,14 @@ var (
 	GenerateDBusActivationFile = generateDBusActivationFile
 
 	// desktop
-	SanitizeDesktopFile    = sanitizeDesktopFile
-	RewriteExecLine        = rewriteExecLine
-	RewriteIconLine        = rewriteIconLine
-	IsValidDesktopFileLine = isValidDesktopFileLine
+	SanitizeDesktopFile         = sanitizeDesktopFile
+	DetectAppAndRewriteExecLine = detectAppAndRewriteExecLine
+	RewriteIconLine             = rewriteIconLine
+	IsValidDesktopFileLine      = isValidDesktopFileLine
+	ForAllDesktopFiles          = forAllDesktopFiles
+	SnapdDesktopFileNames       = snapdDesktopFileNames
 
 	// daemons
-	UsersToUids               = usersToUids
 	NewUserServiceClientNames = newUserServiceClientNames
 
 	// icons
@@ -60,10 +59,4 @@ func MockEnsureDirState(f func(dir string, glob string, content map[string]osuti
 	return func() {
 		ensureDirState = oldEnsureDirState
 	}
-}
-
-func MockUserLookup(f func(username string) (*user.User, error)) (restore func()) {
-	restore = testutil.Backup(&userLookup)
-	userLookup = f
-	return restore
 }

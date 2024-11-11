@@ -1,0 +1,9 @@
+name: test-snapd-devmode-core24
+version: 1.0
+base: core24
+summary: Basic core24 snap with devmode confinement
+description: A basic buildable snap that asks for devmode confinement
+confinement: devmode
+apps:
+  test-snapd-devmode-core24:
+    command: true

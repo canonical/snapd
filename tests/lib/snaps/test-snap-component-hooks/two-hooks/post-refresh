@@ -1,0 +1,11 @@
+#!/bin/bash
+
+set -xe
+
+if nc -l 127.0.0.1 12345; then
+    echo "should not be able to bind to anything"
+fi
+
+nc -zv snapcraft.io 80
+
+snapctl set two-postrefreshed="${SNAP_COMPONENT_REVISION}"

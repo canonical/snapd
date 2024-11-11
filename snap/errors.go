@@ -31,6 +31,14 @@ func (e AlreadyInstalledError) Error() string {
 	return fmt.Sprintf("snap %q is already installed", e.Snap)
 }
 
+type AlreadyInstalledComponentError struct {
+	Component string
+}
+
+func (e AlreadyInstalledComponentError) Error() string {
+	return fmt.Sprintf("component %q is already installed", e.Component)
+}
+
 type NotInstalledError struct {
 	Snap string
 	Rev  Revision

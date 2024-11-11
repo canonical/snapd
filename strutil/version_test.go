@@ -96,6 +96,11 @@ func (s *VersionTestSuite) TestVersionCompare(c *C) {
 		{"1.002-1+b2", "1.00", 1, nil},               // whatever...
 		{"12-20220319-1ubuntu1", "13-1-1", -1, nil},  // two "-" are legal
 		{"0--0", "0", 1, nil},                        // also legal (urgh)
+
+		// more realistic example of what we deal with in spread tests
+		// where on the left is a version from CI built snapd snap, and
+		// on the right the distro package, where snap > package
+		{"1337.2.64+git81.g9b95e8c", "1337.2.64", 1, nil},
 	} {
 		res, err := strutil.VersionCompare(t.A, t.B)
 		if t.err != nil {

@@ -19,10 +19,11 @@ prepare: |
 
   # add wrapper around cryptsetup that filters "--inline-crypto-engine"
   # as qemu has no ICE driver
-  snap download --basename=core22 core22
-  unsquashfs -d core22 core22.snap
-  mv core22/sbin/cryptsetup core22/sbin/cryptsetup.real
-  cat >core22/sbin/cryptsetup <<'EOF'
+  VERSION="$(tests.nested show version)"
+  snap download --basename=corebase "core$VERSION"
+  unsquashfs -d corebase corebase.snap
+  mv corebase/sbin/cryptsetup corebase/sbin/cryptsetup.real
+  cat >corebase/sbin/cryptsetup <<'EOF'
   #!/usr/bin/python3
   import os,sys
   with open("/run/mnt/ubuntu-seed/cryptsetup.calls", "a") as fp:
@@ -32,11 +33,11 @@ prepare: |
     sys.argv.remove(needle)
   os.execv("/sbin/cryptsetup.real", sys.argv)
   EOF
-  chmod +x core22/sbin/cryptsetup
+  chmod +x corebase/sbin/cryptsetup
   # ensure the install-mode.log.gz contains all DEBUG messages
-  echo "SNAPD_DEBUG=1" >> core22/etc/environment
-  snap pack ./core22 --filename=core22-new.snap
-  mv core22-new.snap "$(tests.nested get extra-snaps-path)" 
+  echo "SNAPD_DEBUG=1" >> corebase/etc/environment
+  snap pack ./corebase --filename=corebase-new.snap
+  mv corebase-new.snap "$(tests.nested get extra-snaps-path)/core${VERSION}-new.snap" 
 
   # build fde-reveal-key hook into the "extra-initrd"
   # nested_create_core_vm picks this up

@@ -23,12 +23,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -234,7 +234,7 @@ func (b Backend) UndoHideSnapData(snapName string) error {
 		if firstErr == nil {
 			firstErr = err
 		} else {
-			logger.Noticef(err.Error())
+			logger.Notice(err.Error())
 		}
 	}
 
@@ -399,7 +399,7 @@ func (b Backend) UndoInitExposedSnapHome(snapName string, undoInfo *UndoInfo) er
 		if firstErr == nil {
 			firstErr = err
 		} else {
-			logger.Noticef(err.Error())
+			logger.Notice(err.Error())
 		}
 	}
 

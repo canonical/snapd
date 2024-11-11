@@ -25,25 +25,19 @@ prepare: |
             > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
     snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-18.snap
 
-    # Skip i386 because core20 is not available for pc-i386 architecture
-    if not os.query is-pc-i386; then
-        # use base: core20
-        sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" \
-            -e "s/base: %BASESNAP%/base: core20/" \
-            -e "s|%USRMERGE%|/usr|" \
-                > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
-        snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-20.snap
-    fi
+    # use base: core20
+    sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" \
+        -e "s/base: %BASESNAP%/base: core20/" \
+        -e "s|%USRMERGE%|/usr|" \
+            > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
+    snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-20.snap
+
 
     # TODO add core22 and 24?
 
 execute: |
     # test all base versions of netplan on all combos of core releases
     versions="16 18 20"
-    # Skip i386 because core20 is not available for pc-i386 architecture
-    if os.query is-pc-i386; then
-        versions="16 18"
-    fi
     for rel in $versions; do
         snap install --dangerous "netplan-snap-$rel.snap"
         echo "The interface is disconnected by default"

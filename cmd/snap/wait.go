@@ -69,7 +69,7 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 		}
 		_, err := wmx.client.Abort(id)
 		if err != nil {
-			fmt.Fprintf(Stderr, err.Error()+"\n")
+			fmt.Fprint(Stderr, err.Error()+"\n")
 		}
 	}()
 

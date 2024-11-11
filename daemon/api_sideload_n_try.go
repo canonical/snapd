@@ -293,10 +293,10 @@ func sideloadSnap(_ context.Context, st *state.State, snapFile *uploadedSnap, fl
 
 	sideInfo, apiErr := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags, deviceCtx.Model())
 	if apiErr != nil {
-		// TODO installation of local but asserted components
-		// needs to addressed yet. This will also help with
-		// deciding whether we are dealing with a snap or a
-		// component. try to load as a component
+		// TODO:COMPS: installation of local but asserted components
+		// needs to addressed yet. This will also help with deciding
+		// whether we are dealing with a snap or a component.
+		// Try to load as a component
 		var compErr *apiError
 		compInfo, snapInfo, compErr = readComponentInfo(st, snapFile.tmpPath, instanceName, flags)
 		if compErr != nil {
@@ -334,7 +334,9 @@ func sideloadSnap(_ context.Context, st *state.State, snapFile *uploadedSnap, fl
 		contType = "component"
 		message = fmt.Sprintf("%q component for %q snap",
 			compInfo.Component.ComponentName, instanceName)
-		tset, err = snapstateInstallComponentPath(st, snap.NewComponentSideInfo(compInfo.Component, snap.Revision{}), snapInfo, snapFile.tmpPath, flags.Flags)
+		tset, err = snapstateInstallComponentPath(st, snap.NewComponentSideInfo(compInfo.Component, snap.Revision{}), snapInfo, snapFile.tmpPath, snapstate.Options{
+			Flags: flags.Flags,
+		})
 	}
 	if err != nil {
 		return nil, errToResponse(err, []string{sideInfo.RealName}, InternalError, "cannot install %s file: %v", contType)
@@ -414,13 +416,13 @@ func readComponentInfoFromContImpl(tempPath string, csi *snap.ComponentSideInfo)
 // component is used.
 func readComponentInfo(st *state.State, tempPath, instanceName string, flags sideloadFlags) (*snap.ComponentInfo, *snap.Info, *apiError) {
 	if !flags.dangerousOK {
-		// TODO read assertions for components
+		// TODO:COMPS: read assertions for components
 		return nil, nil, BadRequest("only unasserted installation of local component with --dangerous is supported at the moment")
 	}
 
-	// TODO: will this need to take a non-nil snap.ComponentSideInfo? not sure
-	// where it would get it from, i guess whatever assertion we end up
-	// receiving
+	// TODO:COMPS: will this need to take a non-nil snap.ComponentSideInfo?
+	// not sure where it would get it from, i guess whatever assertion we
+	// end up receiving
 	ci, err := readComponentInfoFromCont(tempPath, nil)
 	if err != nil {
 		return nil, nil, BadRequest("cannot read component metadata: %v", err)

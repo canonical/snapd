@@ -44,7 +44,7 @@ func MockEnsureInterval(d time.Duration) (restore func()) {
 
 // MockPruneInterval sets the overlord prune interval for tests.
 func MockPruneInterval(prunei, prunew, abortw time.Duration) (restore func()) {
-	r := testutil.Backup(&pruneInterval, &pruneWait, &abortWait)
+	r := testutil.BackupMany(&pruneInterval, &pruneWait, &abortWait)
 	pruneInterval = prunei
 	pruneWait = prunew
 	abortWait = abortw

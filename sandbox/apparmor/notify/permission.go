@@ -32,9 +32,9 @@ const (
 	AA_MAY_OPEN
 	// AA_MAY_RENAME implies that a process may rename a file.
 	AA_MAY_RENAME
-	// AA_MAY_SETATTR is not checked by the kernel.
+	// AA_MAY_SETATTR implies that a process may modify file attributes.
 	AA_MAY_SETATTR
-	// AA_MAY_GETATTR is not checked by the kernel.
+	// AA_MAY_GETATTR implies that a process may read file attributes.
 	AA_MAY_GETATTR
 	// AA_MAY_SETCRED is not used in the kernel.
 	AA_MAY_SETCRED

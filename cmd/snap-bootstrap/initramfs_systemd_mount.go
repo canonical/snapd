@@ -67,6 +67,12 @@ type systemdMountOptions struct {
 	// NoSuid indicates that the partition should be mounted with nosuid set on
 	// it to prevent suid execution.
 	NoSuid bool
+	// NoDev indicates to not interpret character or block special devices on
+	// the file system.
+	NoDev bool
+	// NoExec indicates to not allow direct execution of any binaries on the
+	// mounted file system
+	NoExec bool
 	// Bind indicates a bind mount
 	Bind bool
 	// Read-only mount
@@ -75,6 +81,17 @@ type systemdMountOptions struct {
 	Private bool
 	// Umount the mountpoint
 	Umount bool
+	// Overlayfs indicates an overlay filesystem.
+	Overlayfs bool
+	// Directories to be used as lower layers of an overlay mount.
+	// It does not need to be on a writable filesystem.
+	LowerDirs []string
+	// A directory to be used as the upper layer of an overlay mount.
+	// This is normally on a writable filesystem.
+	UpperDir string
+	// A directory to be used as the workdir of an overlay mount.
+	// This needs to be an empty directory on the same filesystem as upperdir.
+	WorkDir string
 	// dm-verity hash device
 	VerityHashDevice string
 	// dm-verity root hash
@@ -105,6 +122,10 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	whereEscaped := systemd.EscapeUnitNamePath(where)
 	unitName := whereEscaped + ".mount"
 
+	if opts.Tmpfs && what == "" {
+		what = "tmpfs"
+	}
+
 	args := []string{what, where, "--no-pager", "--no-ask-password"}
 
 	if opts.Umount {
@@ -113,6 +134,10 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 
 	if opts.Tmpfs {
 		args = append(args, "--type=tmpfs")
+	}
+
+	if opts.Overlayfs {
+		args = append(args, "--type=overlay")
 	}
 
 	if opts.NeedsFsck {
@@ -147,8 +172,14 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	}
 
 	var options []string
+	if opts.NoDev {
+		options = append(options, "nodev")
+	}
 	if opts.NoSuid {
 		options = append(options, "nosuid")
+	}
+	if opts.NoExec {
+		options = append(options, "noexec")
 	}
 	if opts.Bind {
 		options = append(options, "bind")
@@ -158,6 +189,36 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	}
 	if opts.Private {
 		options = append(options, "private")
+	}
+	if opts.Overlayfs {
+		if len(opts.LowerDirs) <= 0 || len(opts.UpperDir) <= 0 || len(opts.WorkDir) <= 0 {
+			return fmt.Errorf("cannot mount %q at %q: missing arguments for overlayfs mount. lowerdir, upperdir, workdir are needed.", what, where)
+		}
+
+		if strings.ContainsAny(opts.UpperDir, forbiddenChars) {
+			return fmt.Errorf("cannot mount %q at %q: upperdir overlayfs mount option contains forbidden characters. %q contains one of %q.", what, where, opts.UpperDir, forbiddenChars)
+		}
+		if strings.ContainsAny(opts.WorkDir, forbiddenChars) {
+			return fmt.Errorf("cannot mount %q at %q: workdir overlayfs mount option contains forbidden characters. %q contains one of %q.", what, where, opts.WorkDir, forbiddenChars)
+		}
+
+		var lowerDirs strings.Builder
+		for i, d := range opts.LowerDirs {
+			if strings.ContainsAny(d, forbiddenChars) {
+				return fmt.Errorf("cannot mount %q at %q: lowerdir overlayfs mount option contains forbidden characters. %q contains one of %q.", what, where, d, forbiddenChars)
+			}
+
+			// This is used for splitting multiple lowerdirs as done in
+			// https://elixir.bootlin.com/linux/v6.10.9/C/ident/ovl_parse_param_split_lowerdirs
+			if i != 0 {
+				lowerDirs.WriteRune(':')
+			}
+
+			lowerDirs.WriteString(d)
+		}
+		options = append(options, fmt.Sprintf("lowerdir=%s", lowerDirs.String()))
+		options = append(options, fmt.Sprintf("upperdir=%s", opts.UpperDir))
+		options = append(options, fmt.Sprintf("workdir=%s", opts.WorkDir))
 	}
 	if opts.VerityHashDevice != "" && opts.VerityRootHash == "" {
 		return fmt.Errorf("cannot mount %q at %q: mount with dm-verity was requested but a root hash was not specified", what, where)

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -111,6 +111,12 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 
+		for _, regID := range snapsup.Registries {
+			if err := snapasserts.FetchRegistry(f, regID.Account, regID.Registry); err != nil {
+				return err
+			}
+		}
+
 		// fetch store assertion if available
 		if modelAs.Store() != "" {
 			err := snapasserts.FetchStore(f, modelAs.Store())
@@ -209,14 +215,10 @@ func doValidateComponent(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	db := DB(st)
-	err = snapasserts.CrossCheckResource(compsup.ComponentName(), sha3_384, expectedProv, compSize, compsup.CompSideInfo, snapsup.SideInfo, modelAs, db)
+	resRev, err := snapasserts.CrossCheckResource(compsup.ComponentName(), sha3_384, expectedProv, compSize, compsup.CompSideInfo, snapsup.SideInfo, modelAs, db)
 	if err != nil {
 		return err
 	}
 
-	// TODO:COMPS: check the provenance stored inside the component blob against
-	// what we expect from the assertion (similar to
-	// snapasserts.CheckProvenanceWithVerifiedRevision)
-
-	return nil
+	return snapasserts.CheckComponentProvenanceWithVerifiedRevision(compsup.CompPath, resRev)
 }

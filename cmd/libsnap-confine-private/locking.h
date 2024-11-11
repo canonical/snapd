@@ -25,6 +25,7 @@
 #endif
 
 #include <sys/types.h>
+#include <stdbool.h>
 
 /**
  * Obtain a flock-based, exclusive, globally scoped, lock.
@@ -103,5 +104,15 @@ void sc_enable_sanity_timeout(void);
  * description for more details.
  **/
 void sc_disable_sanity_timeout(void);
+
+typedef enum sc_snap_inhibition_hint {
+	SC_SNAP_HINT_INHIBITED_FOR_REMOVE = 1 << 0,
+} sc_snap_inhibition_hint;
+
+/**
+ * sc_snap_is_inhibited returns true if a given inhibition hint is set for given snap.
+ * This is determined by testing the presence of a file in /var/lib/snapd/inhibit/<snap_name>.<hint>.
+**/
+bool sc_snap_is_inhibited(const char *snap_name, sc_snap_inhibition_hint hint);
 
 #endif				// SNAP_CONFINE_LOCKING_H

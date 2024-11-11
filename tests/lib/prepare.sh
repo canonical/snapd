@@ -9,8 +9,6 @@ set -eux
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
-: "${WORK_DIR:=/tmp/work-dir}"
-
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
     echo "Turning off kernel rate-limiting"
@@ -125,6 +123,8 @@ setup_systemd_snapd_overrides() {
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecStartPre=/bin/touch /dev/iio:device0
+
+[Unit]
 # The default limit is usually 5, which can be easily hit in 
 # a fast system with few systemd units
 StartLimitBurst=10
@@ -154,7 +154,30 @@ setup_experimental_features() {
     fi
 }
 
+save_installed_core_snap() {
+    local target_dir="${1-}"
+
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    core="$(readlink -f "$SNAP_MOUNT_DIR"/core/current)"
+    snap="$(mount | awk -v core="$core" '{ if ($3 == core) print $1 }' | head -n1)"
+    snap_name="$(basename "$snap")"
+
+    # make a copy for later use
+    if [ -n "$target_dir" ]; then
+        mkdir -p "$target_dir"
+
+        cp -av "$snap" "${target_dir}/${snap_name}"
+        cp "$snap" "${target_dir}/${snap_name}.orig"
+    fi
+}
+
+
+# update_core_snap_for_classic_reexec modifies the core snap for snapd re-exec
+# by injecting binaries from the installed snapd deb built from our modified code.
+# $1: directory where updated core snap should be copied (optional)
 update_core_snap_for_classic_reexec() {
+    local target_dir="${1-}"
+
     # it is possible to disable this to test that snapd (the deb) works
     # fine with whatever is in the core snap
     if [ "$MODIFY_CORE_SNAP_FOR_REEXEC" != "1" ]; then
@@ -170,8 +193,8 @@ update_core_snap_for_classic_reexec() {
     LIBEXEC_DIR="$(os.paths libexec-dir)"
 
     # First of all, unmount the core
-    core="$(readlink -f "$SNAP_MOUNT_DIR/core/current" || readlink -f "$SNAP_MOUNT_DIR/ubuntu-core/current")"
-    snap="$(mount | grep " $core" | head -n 1 | awk '{print $1}')"
+    core="$(readlink -f "$SNAP_MOUNT_DIR"/core/current)"
+    snap="$(mount | awk -v core="$core" '{ if ($3 == core) print $1 }' | head -n1)"
     umount --verbose "$core"
 
     # Now unpack the core, inject the new snap-exec/snapctl into it
@@ -229,6 +252,12 @@ update_core_snap_for_classic_reexec() {
     mksnap_fast "squashfs-root" "$snap"
     chmod --reference="${snap}.orig" "$snap"
     rm -rf squashfs-root
+
+    # make a copy for later use
+    if [ -n "$target_dir" ]; then
+        mkdir -p "$target_dir"
+        cp -av "$snap" "$target_dir/"
+    fi
 
     # Now mount the new core snap, first discarding the old mount namespace
     snapd.tool exec snap-discard-ns core
@@ -386,6 +415,23 @@ prepare_classic() {
         fi
     done
 
+    # Install snapd snap to ensure re-exec to snapd snap instead of snapd in core.
+    # This also prevents snapd from automatically installing snapd snap as
+    # prerequisite for installing any non-base snap introduced in PR#14173.
+    if snap list snapd ; then
+        snap info snapd
+        echo "Error: not expecting snapd snap to be installed"
+        exit 1
+    else
+        build_dir="$SNAPD_WORK_DIR/snapd_snap_for_classic"
+        rm -rf "$build_dir"
+        mkdir -p "$build_dir"
+        build_snapd_snap "$build_dir"
+        snap install --dangerous "$build_dir/"snapd_*.snap
+        snap wait system seed.loaded
+    fi
+    snap list snapd
+
     setup_systemd_snapd_overrides
 
     if [ "$REMOTE_STORE" = staging ]; then
@@ -423,9 +469,17 @@ prepare_classic() {
 
         snap list | grep core
 
-        systemctl stop snapd.{service,socket}
-        update_core_snap_for_classic_reexec
-        systemctl start snapd.{service,socket}
+        # With reexec, and on classic, the snapd snap is preferred over the core snap for reexecution target,
+        # so to be as close as possible to the actual real life scenarios, we only update the snapd snap.
+        # The tests alreday ensure that snapd snap is installed.
+        if tests.info is-snapd-from-archive; then
+            save_installed_core_snap "$TESTSTMP/core_snap"
+        else
+            systemctl stop snapd.{service,socket}
+            # repack and also make a side copy of the core snap
+            update_core_snap_for_classic_reexec "$TESTSTMP/core_snap"
+            systemctl start snapd.{service,socket}
+        fi
 
         prepare_reexec_override
         prepare_memory_limit_override
@@ -472,6 +526,10 @@ cleanup_snapcraft() {
     snap remove --purge lxd || true
     "$TESTSTOOLS"/lxd-state undo-mount-changes
     snap remove --purge snapcraft || true
+    # TODO there should be some smarter cleanup helper which removes all snaps
+    # in the right order
+    # base snap of both lxd and snapcraft
+    snap remove --purge core22 || true
 }
 
 run_snapcraft() {
@@ -491,15 +549,33 @@ build_snapd_snap() {
     local snapd_snap_cache
     TARGET="${1}"
 
-    snapd_snap_cache="$WORK_DIR/snapd_snap"
+    snapd_snap_cache="$SNAPD_WORK_DIR/snapd_snap"
     mkdir -p "${snapd_snap_cache}"
     for snap in "${snapd_snap_cache}"/snapd_*.snap; do
         if ! [ -f "${snap}" ]; then
-            if [ "${TESTS_USE_PREBUILT_SNAPD_SNAP}" = true ]; then
-                cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "${snapd_snap_cache}/snapd_from_ci.snap"
+            if [ "${USE_PREBUILT_SNAPD_SNAP}" = true ]; then
+                if [ -n "${USE_SNAPD_SNAP_URL}" ]; then
+                    wget -q "$USE_SNAPD_SNAP_URL" -O "${snapd_snap_cache}/snapd_from_ci.snap"
+                else
+                    cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "${snapd_snap_cache}/snapd_from_ci.snap"
+                fi
             else
+                # This is not reliable across classic releases so only allow on
+                # ARM variants as a special case since we cannot cross build
+                # snapd snap for ARM right now
+                case "$SPREAD_SYSTEM" in
+                    *-arm-*)
+                        ;;
+                    *)
+                        echo "ERROR: system $SPREAD_SYSTEM should use a prebuilt snapd snapd"
+                        echo "see HACKING.md and use tests/build-test-snapd-snap to build one locally"
+                        exit 1
+                        ;;
+                esac
                 [ -d "${TARGET}" ] || mkdir -p "${TARGET}"
+                touch "${PROJECT_PATH}"/test-build
                 chmod -R go+r "${PROJECT_PATH}/tests"
+                # TODO: run_snapcraft does not currently guarantee or check the required version for building snapd
                 run_snapcraft --use-lxd --verbosity quiet --output="snapd_from_snapcraft.snap"
                 mv "${PROJECT_PATH}"/snapd_from_snapcraft.snap "${snapd_snap_cache}"
             fi
@@ -516,7 +592,7 @@ build_snapd_snap_with_run_mode_firstboot_tweaks() {
 
     TARGET="${1}"
 
-    snapd_snap_cache="$WORK_DIR/snapd_snap_with_tweaks"
+    snapd_snap_cache="$SNAPD_WORK_DIR/snapd_snap_with_tweaks"
     mkdir -p "${snapd_snap_cache}"
     for snap in "${snapd_snap_cache}"/snapd_*.snap; do
         if [ -f "${snap}" ]; then
@@ -525,8 +601,12 @@ build_snapd_snap_with_run_mode_firstboot_tweaks() {
         fi
     done
 
-    if [ "${TESTS_USE_PREBUILT_SNAPD_SNAP}" = true ]; then
-        cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "/tmp/snapd_from_snapcraft.snap"
+    if [ "${USE_PREBUILT_SNAPD_SNAP}" = true ]; then
+        if [ -n "${USE_SNAPD_SNAP_URL}" ]; then
+            wget -q "$USE_SNAPD_SNAP_URL" -O /tmp/snapd_from_snapcraft.snap
+        else
+            cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "/tmp/snapd_from_snapcraft.snap"
+        fi
     else
         chmod -R go+r "${PROJECT_PATH}/tests"
         run_snapcraft --use-lxd --verbosity quiet --output="snapd_from_snapcraft.snap"
@@ -555,7 +635,7 @@ EOF
     # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
     cat > "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh <<'EOF'
 #!/bin/sh
-set -e
+set -ex
 # ensure we don't enable ssh in install mode or spread will get confused
 if ! grep -E 'snapd_recovery_mode=(run|recover)' /proc/cmdline; then
     echo "not in run or recovery mode - script not running"
@@ -599,7 +679,9 @@ echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers.d/99-ubuntu-user
 sed -i 's/\#\?\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /etc/ssh/sshd_config
 echo "MaxAuthTries 120" >> /etc/ssh/sshd_config
 grep '^PermitRootLogin yes' /etc/ssh/sshd_config
-systemctl reload ssh
+if systemctl is-active ssh; then
+   systemctl reload ssh
+fi
 
 touch /root/spread-setup-done
 EOF
@@ -759,7 +841,7 @@ uc20_build_initramfs_kernel_snap() {
         # kernel and we don't want to test that, just test our snap-bootstrap
         cp -ar unpacked-initrd skeleton
         # all the skeleton edits go to a local copy of distro directory
-         skeletondir="$PWD/skeleton"
+        skeletondir="$PWD/skeleton"
         snap_bootstrap_file="$skeletondir/main/usr/lib/snapd/snap-bootstrap"
         clock_epoch_file="$skeletondir/main/usr/lib/clock-epoch"
         if os.query is-arm; then
@@ -793,7 +875,7 @@ EOF
 
         if [ "$injectKernelPanic" = "true" ]; then
             # add a kernel panic to the end of the-tool execution
-            echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$snap_bootstrap_file"
+            echo "echo 'forcibly panicking'; echo c > /proc/sysrq-trigger" >> "$snap_bootstrap_file"
         fi
 
         # bump the epoch time file timestamp, converting unix timestamp to 
@@ -866,6 +948,14 @@ EOF
 uc24_build_initramfs_kernel_snap() {
     local ORIG_SNAP="$1"
     local TARGET="$2"
+    local OPT_ARG="${3:-}"
+
+    injectKernelPanic=false
+    case "$OPT_ARG" in
+        --inject-kernel-panic-in-initramfs)
+            injectKernelPanic=true
+            ;;
+    esac    
 
     unsquashfs -d pc-kernel "$ORIG_SNAP"
     objcopy -O binary -j .initrd pc-kernel/kernel.efi initrd.img
@@ -882,11 +972,20 @@ uc24_build_initramfs_kernel_snap() {
 
     if [ -d ./initrd/early ]; then
         cp -a /usr/lib/snapd/snap-bootstrap ./initrd/main/usr/lib/snapd/snap-bootstrap
+        chmod +x ./initrd/main/usr/lib/snapd/snap-bootstrap
+        if [ "$injectKernelPanic" = "true" ]; then
+            # add a kernel panic to the end of the-tool execution
+            echo "echo 'forcibly panicking'; echo c > /proc/sysrq-trigger" >> ./initrd/main/usr/lib/snapd/snap-bootstrap
+        fi
 
         (cd ./initrd/early; find . | cpio --create --quiet --format=newc --owner=0:0) >initrd.img
         (cd ./initrd/main; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >>initrd.img
     else
         cp -a /usr/lib/snapd/snap-bootstrap ./initrd/usr/lib/snapd/snap-bootstrap
+        if [ "$injectKernelPanic" = "true" ]; then
+            # add a kernel panic to the end of the-tool execution
+            echo "echo 'forcibly panicking'; echo c > /proc/sysrq-trigger" >> ./initrd/usr/lib/snapd/snap-bootstrap
+        fi
 
         (cd ./initrd; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >initrd.img
     fi
@@ -912,7 +1011,9 @@ uc24_build_initramfs_kernel_snap() {
     fi
 
     snap pack pc-kernel
-    mv pc-kernel_*.snap "$TARGET"
+    if [ "$(pwd)" != "$TARGET" ]; then
+        mv pc-kernel_*.snap "$TARGET"
+    fi
     rm -rf pc-kernel
 }
 
@@ -1118,7 +1219,7 @@ setup_reflash_magic() {
         # FIXME: install would be better but we don't have dpkg on
         #        the image
         # unpack our freshly build snapd into the new snapd snap
-        dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
+        dpkg-deb -x "$GOHOME"/snapd_*.deb "$UNPACK_DIR"
         # Debian packages don't carry permissions correctly and we use
         # post-inst hooks to fix that on classic systems. Here, as a special
         # case, fix the void directory we just unpacked.
@@ -1424,12 +1525,19 @@ EOF
     umount /mnt
     kpartx -d "$IMAGE_HOME/$IMAGE"
 
-    gzip "${IMAGE_HOME}/${IMAGE}"
+    if command -v pigz 2>/dev/null; then
+        pigz "${IMAGE_HOME}/${IMAGE}"
+    else
+        gzip "${IMAGE_HOME}/${IMAGE}"
+    fi
+
     if is_test_target_core 16; then
         "${TESTSLIB}/uc16-reflash.sh" "${IMAGE_HOME}/${IMAGE}.gz"
     else
         "${TESTSLIB}/reflash.sh" "${IMAGE_HOME}/${IMAGE}.gz"
     fi
+
+    rm -rf "$UNPACK_DIR"
 }
 
 # prepare_ubuntu_core will prepare ubuntu-core 16+

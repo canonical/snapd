@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -xe
+
+nc -l 127.0.0.1 12345 &
+
+# wait a second to make sure that the listener has a chance to start
+sleep 1
+
+echo "hello, server" | nc -w 2 127.0.0.1 12345
+
+wait
+
+snapctl set one-installed="${SNAP_COMPONENT_REVISION}"

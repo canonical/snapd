@@ -20,12 +20,12 @@
 package snap
 
 import (
-	"os/user"
 	"path/filepath"
 	"strconv"
 	"syscall"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/snap/naming"
 )
 

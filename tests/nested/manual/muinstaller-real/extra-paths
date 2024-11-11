@@ -1,0 +1,36 @@
+#!/bin/sh
+
+set -eu
+
+cat <<'EOF' >>/sysroot/etc/fstab
+/run/mnt/data /writable none bind,x-initrd.mount 0 0
+EOF
+
+# Find out kernel name / revision
+kernelPath=$(cat /sys/dev/block/"$(mountpoint --fs-devno /run/mnt/kernel)"/loop/backing_file)
+kernelFile=$(basename "$kernelPath")
+kernelName=${kernelFile%%_*}
+rev=${kernelFile#*_}
+rev=${rev%%.*}
+
+# Mount /lib/{firmware,modules} only if there is no drivers tree created by snapd
+if [ ! -d /run/mnt/data/system-data/var/lib/snapd/kernel/"$kernelName"/"$rev" ]; then
+    cat <<'EOF' >>/sysroot/etc/fstab
+/run/mnt/kernel/firmware /usr/lib/firmware none bind,x-initrd.mount 0 0
+/run/mnt/kernel/modules /usr/lib/modules none bind,x-initrd.mount 0 0
+EOF
+fi
+
+# in recovery mode on hybrid systems, snap-bootstrap generates passwd, shadow,
+# group, and gshadow files in /run/snapd/hybrid-users. these files contain users
+# imported from the host system mixed with the default users from the base snap
+# that is used for recovery mode.
+mode="$(/usr/libexec/core/get-mode mode)" || mode="$(/usr/libexec/core/get-arg snapd_recovery_mode)" || mode="unknown"
+if [ -f /run/snapd/hybrid-users/passwd ] && [ "${mode}" = "recover" ]; then
+    cat <<'EOF' >>/sysroot/etc/fstab
+/run/snapd/hybrid-users/passwd /etc/passwd none bind 0 0
+/run/snapd/hybrid-users/shadow /etc/shadow none bind 0 0
+/run/snapd/hybrid-users/group /etc/group none bind 0 0
+/run/snapd/hybrid-users/gshadow /etc/gshadow none bind 0 0
+EOF
+fi

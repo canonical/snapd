@@ -90,7 +90,7 @@ fi
 # and append the git revno and commit hash. A simpler approach would be
 # to git tag all pre/rc releases.
 if [ -z "$version_from_user" ] && [ "$version_from_git" != "" ] && \
-       [ -n "$version_from_changelog" ] && [ "$version_from_git" != "$version_from_changelog" ]; then
+       [ -n "$version_from_changelog" ] && [ "$version_from_git" != "${version_from_changelog%+fips}" ]; then
     # if the changelog version has "git" in it and we also have a git version
     # directly, that is a bad changelog version, so fail, otherwise the below
     # code will produce a duplicated git info

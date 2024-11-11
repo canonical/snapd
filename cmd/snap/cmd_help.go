@@ -21,6 +21,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
@@ -158,7 +159,7 @@ func (cmd cmdHelp) Execute(args []string) error {
 	}
 	if cmd.All {
 		if len(cmd.Positional.Subs) > 0 {
-			return fmt.Errorf(i18n.G("help accepts a command, or '--all', but not both."))
+			return errors.New(i18n.G("help accepts a command, or '--all', but not both."))
 		}
 		printLongHelp(cmd.parser)
 		return nil
@@ -203,7 +204,7 @@ var helpCategories = []helpCategory{
 	{
 		Label:       i18n.G("Basics"),
 		Description: i18n.G("basic snap management"),
-		Commands:    []string{"find", "info", "install", "remove", "list"},
+		Commands:    []string{"find", "info", "install", "remove", "list", "components"},
 	}, {
 		Label:       i18n.G("...more"),
 		Description: i18n.G("slightly more advanced snap management"),

@@ -295,8 +295,16 @@ func mksquashfs(sourceDir, fName, snapType string, opts *Options) error {
 
 func componentPath(ci *snap.ComponentInfo, targetDir, compName string) string {
 	if compName == "" {
+		// Note that here we do not know the version of the snap, so if
+		// there is no version in component.yaml we will get names like
+		// "<snap>+<comap>_.comp"
 		// TODO should we consider architecture as with snaps?
-		compName = fmt.Sprintf("%s_%s.comp", ci.FullName(), ci.Version)
+		compVersion := ci.Version("")
+		if compVersion == "" {
+			compName = fmt.Sprintf("%s.comp", ci.FullName())
+		} else {
+			compName = fmt.Sprintf("%s_%s.comp", ci.FullName(), compVersion)
+		}
 	}
 	if targetDir != "" && !filepath.IsAbs(compName) {
 		compName = filepath.Join(targetDir, compName)

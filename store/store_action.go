@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -69,6 +70,9 @@ type CurrentSnap struct {
 	// HeldBy is an optional array of snaps with holds on the current snap's
 	// refreshes. The "system" snap represents a hold placed by the user.
 	HeldBy []string
+	// Resources is a map of resource names to the resource revision that is
+	// currently installed for the snap.
+	Resources map[string]snap.Revision
 }
 
 type AssertionQuery interface {
@@ -111,6 +115,11 @@ type SnapAction struct {
 	CohortKey    string
 	Flags        SnapActionFlags
 	Epoch        snap.Epoch
+	// ResourceInstall is a flag that indicates that this action is being used
+	// to fetch the list of resources that are available for a snap. This flag
+	// impacts how we decide to report an error if the snap has no updates
+	// available.
+	ResourceInstall bool
 	// ValidationSets is an optional array of validation set primary keys
 	// (relevant for install and refresh actions).
 	ValidationSets []snapasserts.ValidationSetKey
@@ -319,6 +328,24 @@ type SnapResourceResult struct {
 	CreatedAt    string
 }
 
+func (sar *SnapActionResult) ResourceResult(resName string) *SnapResourceResult {
+	for _, res := range sar.Resources {
+		if res.Name == resName {
+			return &res
+		}
+	}
+	return nil
+}
+
+// ResourceToComponentType returns a validated component type from a resource type.
+func ResourceToComponentType(resType string) (snap.ComponentType, error) {
+	compTp := strings.TrimPrefix(resType, "component/")
+	if len(compTp) == len(resType) {
+		return "", fmt.Errorf("%s is not a component resource", resType)
+	}
+	return snap.ComponentTypeFromString(compTp)
+}
+
 // AssertionResult encapsulates the non-error result for one assertion
 // grouping fetch action.
 type AssertionResult struct {
@@ -418,9 +445,6 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			CohortKey:        a.CohortKey,
 			ValidationSets:   valsetKeyComponents,
 			IgnoreValidation: ignoreValidation,
-		}
-		if !a.Revision.Unset() {
-			a.Channel = ""
 		}
 
 		if a.Action == "install" {
@@ -677,7 +701,18 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 				return nil, nil, fmt.Errorf("unexpected invalid install/refresh API result: unexpected refresh")
 			}
 			rrev := snap.R(res.Snap.Revision)
-			if rrev == cur.Revision || findRev(rrev, cur.Block) {
+
+			// here we check a few things to decide if the snap truly has no
+			// updates.
+			// * if the action is defined as a resource install, then the
+			//   caller is just interested in the list of components so we
+			//   do not return an error
+			// * then, we check if the snap exactly matches the snap that is
+			//   currently installed. this considers the revision of the snap and
+			//   its resources that are currently installed. if that isn't true,
+			//   then we check if the snap's revision is in the list of blocked
+			//   revisions.
+			if !refreshes[res.InstanceKey].ResourceInstall && (currentSnapMatchesStoreSnap(cur, res.Snap) || findRev(rrev, cur.Block)) {
 				refreshErrors[cur.InstanceName] = ErrNoUpdateAvailable
 				continue
 			}
@@ -739,6 +774,27 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	return sars, ars, nil
+}
+
+func currentSnapMatchesStoreSnap(cur *CurrentSnap, storeSnap storeSnap) bool {
+	if cur.Revision.N != storeSnap.Revision {
+		return false
+	}
+
+	for _, res := range storeSnap.Resources {
+		curRes, ok := cur.Resources[res.Name]
+		if !ok {
+			continue
+		}
+
+		// TODO:COMPS: should local resources be considered when deciding if the
+		// snap has an update available?
+		if !curRes.Local() && curRes.N != res.Revision {
+			return false
+		}
+	}
+
+	return true
 }
 
 func findRev(needle snap.Revision, haystack []snap.Revision) bool {

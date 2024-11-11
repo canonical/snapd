@@ -318,7 +318,26 @@ func setComponentsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) erro
 		snap.Components = make(map[string]*Component, len(y.Components))
 	}
 
+	// Some componen types are valid only for some snap types,
+	// check this with this table. If the component type is not in
+	// the table it is valid for any snap type.
+	compToValidSnapType := map[ComponentType][]Type{
+		KernelModulesComponent: {TypeKernel},
+	}
 	for name, data := range y.Components {
+		if validTypes, ok := compToValidSnapType[data.Type]; ok {
+			isValid := false
+			for _, tp := range validTypes {
+				if tp == snap.Type() {
+					isValid = true
+					break
+				}
+			}
+			if !isValid {
+				return fmt.Errorf("%s components can exist only for %s snaps",
+					KernelModulesComponent, TypeKernel)
+			}
+		}
 		component := Component{
 			Name:        name,
 			Type:        data.Type,

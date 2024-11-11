@@ -60,7 +60,7 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		fields = strutil.CommaSeparatedList(fieldStr)
 	}
 
-	results, err := registrystateGetViaView(st, account, registryName, view, fields)
+	results, err := registrystateGet(st, account, registryName, view, fields)
 	if err != nil {
 		return toAPIError(err)
 	}
@@ -78,7 +78,7 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	vars := muxVars(r)
-	account, registryName, view := vars["account"], vars["registry"], vars["view"]
+	account, registryName, viewName := vars["account"], vars["registry"], vars["view"]
 
 	decoder := json.NewDecoder(r.Body)
 	var values map[string]interface{}
@@ -86,18 +86,27 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return BadRequest("cannot decode registry request body: %v", err)
 	}
 
-	err := registrystateSetViaView(st, account, registryName, view, values)
+	view, err := registrystateGetView(st, account, registryName, viewName)
 	if err != nil {
 		return toAPIError(err)
 	}
 
-	// NOTE: could be sync but this is closer to the final version and the conf API
-	summary := fmt.Sprintf("Set registry view %s/%s/%s", account, registryName, view)
-	chg := newChange(st, "set-registry-view", summary, nil, nil)
-	chg.SetStatus(state.DoneStatus)
-	ensureStateSoon(st)
+	tx, commitTxFunc, err := registrystateGetTransaction(nil, st, view)
+	if err != nil {
+		return toAPIError(err)
+	}
 
-	return AsyncResponse(nil, chg.ID())
+	err = registrystateSetViaView(tx, view, values)
+	if err != nil {
+		return toAPIError(err)
+	}
+
+	changeID, _, err := commitTxFunc()
+	if err != nil {
+		return toAPIError(err)
+	}
+
+	return AsyncResponse(nil, changeID)
 }
 
 func toAPIError(err error) *apiError {

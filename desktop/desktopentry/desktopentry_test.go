@@ -39,9 +39,11 @@ var _ = Suite(&desktopentrySuite{})
 
 const browserDesktopEntry = `
 [Desktop Entry]
+X-SnapInstanceName=browser
 Version=1.0
 Type=Application
 Name=Web Browser
+X-SnapAppName=browser-app
 Exec=browser %u
 Icon = ${SNAP}/default256.png
 Actions=NewWindow;NewPrivateWindow;
@@ -53,10 +55,12 @@ Exec=not-the-executable
 # A comment
 [Desktop Action NewWindow]
 Name = Open a New Window
+X-SnapAppName=browser-app
 Exec=browser -new-window
 
 [Desktop Action NewPrivateWindow]
 Name=Open a New Private Window
+X-SnapAppName=browser-app
 Exec=browser -private-window
 Icon=${SNAP}/private.png
 `
@@ -69,17 +73,21 @@ func (s *desktopentrySuite) TestParse(c *C) {
 	c.Check(de.Name, Equals, "Web Browser")
 	c.Check(de.Icon, Equals, "${SNAP}/default256.png")
 	c.Check(de.Exec, Equals, "browser %u")
+	c.Check(de.SnapInstanceName, Equals, "browser")
+	c.Check(de.SnapAppName, Equals, "browser-app")
 	c.Check(de.Actions, HasLen, 2)
 
 	c.Assert(de.Actions["NewWindow"], NotNil)
 	c.Check(de.Actions["NewWindow"].Name, Equals, "Open a New Window")
 	c.Check(de.Actions["NewWindow"].Icon, Equals, "")
 	c.Check(de.Actions["NewWindow"].Exec, Equals, "browser -new-window")
+	c.Check(de.Actions["NewWindow"].SnapAppName, Equals, "browser-app")
 
 	c.Assert(de.Actions["NewPrivateWindow"], NotNil)
 	c.Check(de.Actions["NewPrivateWindow"].Name, Equals, "Open a New Private Window")
 	c.Check(de.Actions["NewPrivateWindow"].Icon, Equals, "${SNAP}/private.png")
 	c.Check(de.Actions["NewPrivateWindow"].Exec, Equals, "browser -private-window")
+	c.Check(de.Actions["NewPrivateWindow"].SnapAppName, Equals, "browser-app")
 }
 
 func (s *desktopentrySuite) TestParseBad(c *C) {

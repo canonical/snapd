@@ -469,16 +469,34 @@ func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
 	return checkEpochs(nil, info, cur, nil, Flags{}, nil)
 }
 
-func earlyChecks(st *state.State, snapst *SnapState, update *snap.Info, flags Flags) (Flags, error) {
+func earlyChecks(st *state.State, snapst *SnapState, update *snap.Info, comps []snap.ComponentSideInfo, flags Flags) (Flags, error) {
 	flags, err := ensureInstallPreconditions(st, update, flags, snapst)
 	if err != nil {
 		return flags, err
+	}
+
+	if err := ensureSnapAndComponentsAssertionStatus(update.SideInfo, comps); err != nil {
+		return Flags{}, err
 	}
 
 	if err := earlyEpochCheck(update, snapst); err != nil {
 		return flags, err
 	}
 	return flags, nil
+}
+
+func ensureSnapAndComponentsAssertionStatus(si snap.SideInfo, comps []snap.ComponentSideInfo) error {
+	snapAsserted := si.SnapID != ""
+	for _, comp := range comps {
+		compAsserted := comp.Revision.Store()
+		if snapAsserted && !compAsserted {
+			return errors.New("cannot mix asserted snap and unasserted components")
+		}
+		if !snapAsserted && compAsserted {
+			return errors.New("cannot mix unasserted snap and asserted components")
+		}
+	}
+	return nil
 }
 
 // check that the listed system users are valid
@@ -572,6 +590,43 @@ func checkConfigureHooks(_ *state.State, snapInfo, curInfo *snap.Info, _ snap.Co
 
 	if hasDefaultConfigureHook && !hasConfigureHook {
 		return fmt.Errorf(`cannot specify "default-configure" hook without "configure" hook`)
+	}
+	return nil
+}
+
+func checkDesktopFileIDsConflicts(st *state.State, info *snap.Info) error {
+	desktopFileIDs, err := info.DesktopPlugFileIDs()
+	if err != nil {
+		return err
+	}
+
+	if len(desktopFileIDs) == 0 {
+		return nil
+	}
+
+	stateMap, err := All(st)
+	if err != nil {
+		return err
+	}
+	for instanceName, snapst := range stateMap {
+		if instanceName == info.InstanceName() {
+			continue
+		}
+
+		otherInfo, err := snapst.CurrentInfo()
+		if err != nil {
+			return err
+		}
+
+		otherDesktopFileIDs, err := otherInfo.DesktopPlugFileIDs()
+		if err != nil {
+			return err
+		}
+		for _, desktopFileID := range desktopFileIDs {
+			if strutil.ListContains(otherDesktopFileIDs, desktopFileID) {
+				return fmt.Errorf("snap %q requesting desktop-file-id %q conflicts with snap %q use", info.InstanceName(), desktopFileID, instanceName)
+			}
+		}
 	}
 	return nil
 }

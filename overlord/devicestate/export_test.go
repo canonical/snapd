@@ -23,7 +23,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os/user"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -33,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
@@ -203,8 +203,8 @@ func EnsureSerialBoundSystemUserAssertionsProcessed(m *DeviceManager) error {
 	return m.ensureSerialBoundSystemUserAssertionsProcessed()
 }
 
-func ImportAssertionsFromSeed(m *DeviceManager, isCoreBoot bool) (seed.Seed, error) {
-	return m.importAssertionsFromSeed(isCoreBoot)
+func ImportAssertionsFromSeed(m *DeviceManager, mode string, isCoreBoot bool) (seed.Seed, error) {
+	return m.importAssertionsFromSeed(mode, isCoreBoot)
 }
 
 func PopulateStateFromSeedImpl(m *DeviceManager, tm timings.Measurer) ([]*state.TaskSet, error) {
@@ -360,6 +360,12 @@ func MockBootMakeSystemRunnable(f func(model *asserts.Model, bootWith *boot.Boot
 func MockBootMakeSystemRunnableAfterDataReset(f func(model *asserts.Model, bootWith *boot.BootableSet, obs boot.TrustedAssetsInstallObserver) error) (restore func()) {
 	restore = testutil.Backup(&bootMakeRunnableAfterDataReset)
 	bootMakeRunnableAfterDataReset = f
+	return restore
+}
+
+func MockBootMakeRecoverySystemBootable(f func(model *asserts.Model, rootdir string, relativeRecoverySystemDir string, bootWith *boot.RecoverySystemBootableSet) error) (restore func()) {
+	restore = testutil.Backup(&bootMakeRecoverySystemBootable)
+	bootMakeRecoverySystemBootable = f
 	return restore
 }
 

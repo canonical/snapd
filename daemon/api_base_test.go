@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/user"
 	"path/filepath"
 	"time"
 
@@ -41,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
@@ -257,6 +257,20 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 			HomeDir:  "",
 		}, nil
 	}))
+
+	s.AddCleanup(daemon.MockSnapstateStoreInstallGoal(newStoreInstallGoalRecorder))
+}
+
+type storeInstallGoalRecorder struct {
+	snapstate.InstallGoal
+	snaps []snapstate.StoreSnap
+}
+
+func newStoreInstallGoalRecorder(snaps ...snapstate.StoreSnap) snapstate.InstallGoal {
+	return &storeInstallGoalRecorder{
+		snaps:       snaps,
+		InstallGoal: snapstate.StoreInstallGoal(snaps...),
+	}
 }
 
 func (s *apiBaseSuite) mockModel(st *state.State, model *asserts.Model) {

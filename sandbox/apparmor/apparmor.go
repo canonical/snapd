@@ -28,12 +28,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -395,6 +397,8 @@ func ParserMtime() int64 {
 		if fi, err := os.Stat(cmd.Path); err == nil {
 			mtime = fi.ModTime().Unix()
 		}
+	} else {
+		logger.Debugf("apparmor parser err: %v", err)
 	}
 	return mtime
 }
@@ -426,7 +430,8 @@ func PromptingSupported() (bool, string) {
 }
 
 // PromptingSupportedByFeatures returns whether prompting is supported by the
-// given AppArmor kernel and parser features.
+// given AppArmor kernel and parser features, and by the presence of the kernel
+// notification socket.
 func PromptingSupportedByFeatures(apparmorFeatures *FeaturesSupported) (bool, string) {
 	if apparmorFeatures == nil {
 		return false, "no apparmor features provided"
@@ -437,9 +442,39 @@ func PromptingSupportedByFeatures(apparmorFeatures *FeaturesSupported) (bool, st
 	if !strutil.ListContains(apparmorFeatures.ParserFeatures, "prompt") {
 		return false, "apparmor parser does not support the prompt qualifier"
 	}
-	// TODO: return true once the prompting API is merged and ready
-	// return true, ""
-	return false, "requires newer version of snapd"
+	// In the future, the complain redirect will be added to apparmor in the
+	// kernel, and it will share the same notify framework as the listener, so
+	// the presence of the notification socket will no longer be sufficient to
+	// indicate that the system supports prompting (assuming the kernel and
+	// parser features checks above pass). When this lands, an additional
+	// directory will be added at featuresSysPath/policy/notify. At this point,
+	// there will be a file at featuresSysPath/policy/notify/user which contains
+	// a list of mediation classes for which prompting is supported. Thus:
+	// - If featuresSysPath/policy/notify does not exist, and the above checks
+	//   pass, then prompting is supported.
+	// - If featuresSysPath/policy/notify exists, but does not contain a file
+	//   called user, then prompting is not supported.
+	// - If featuresSysPath/policy/notify exists and includes a file called
+	//   user, then prompting is supported.
+	// The user file should contain a list of mediation classes which are
+	// supported, and this should at the bare minimum include "file", so check
+	// for its presence among the kernel features.
+	if strutil.ListContains(apparmorFeatures.KernelFeatures, "policy:notify") {
+		if !strutil.ListContains(apparmorFeatures.KernelFeatures, "policy:notify:user:file") {
+			return false, "apparmor kernel features do not support prompting for file access"
+		}
+	}
+	if !notify.SupportAvailable() {
+		return false, "apparmor kernel notification socket required by prompting listener is not present"
+	}
+	version, err := probeKernelFeaturesPermstable32Version()
+	if err != nil {
+		return false, "apparmor kernel permissions table version must be at least 2 for prompting to be supported, but version could not be read"
+	}
+	if version < 2 {
+		return false, fmt.Sprintf("apparmor kernel permissions table version must be at least 2 for prompting to be supported, but version is %d", version)
+	}
+	return true, ""
 }
 
 // probe related code
@@ -481,6 +516,7 @@ var (
 
 	// Filesystem root defined locally to avoid dependency on the
 	// 'dirs' package
+	// TODO: replace rootPath with dirs.GlobalRootDir, since dirs is used elsewhere
 	rootPath = "/"
 
 	// hostAbi30File is the path to the apparmor "3.0" ABI file and is typically
@@ -617,36 +653,58 @@ func (aap *appArmorProbe) ParserFeatures() ([]string, error) {
 }
 
 func probeKernelFeatures() ([]string, error) {
-	// note that os.ReadDir() is already sorted
-	dentries, err := os.ReadDir(filepath.Join(rootPath, featuresSysPath))
+	features, err := probeKernelFeaturesInDirRecursively(filepath.Join(rootPath, featuresSysPath), "")
+	if err != nil {
+		return []string{}, err
+	}
+	if data, err := os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "permstable32")); err == nil {
+		permstableFeatures := strings.Fields(string(data))
+		for _, feat := range permstableFeatures {
+			features = append(features, "policy:permstable32:"+feat)
+		}
+	}
+	if data, err := os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "notify", "user")); err == nil {
+		// XXX: there's no feature added for policy:notify:user, since user is
+		// a file rather than a directory.
+		notifyUserFeatures := strings.Fields(string(data))
+		for _, feat := range notifyUserFeatures {
+			features = append(features, "policy:notify:user:"+feat)
+		}
+	}
+	// Features must be sorted
+	sort.Strings(features)
+	return features, nil
+}
+
+func probeKernelFeaturesInDirRecursively(dir string, prefix string) ([]string, error) {
+	dentries, err := os.ReadDir(dir)
 	if err != nil {
 		return []string{}, err
 	}
 	features := make([]string, 0, len(dentries))
 	for _, fi := range dentries {
 		if fi.IsDir() {
-			features = append(features, fi.Name())
-			// also read any sub-features
-			subdenties, err := os.ReadDir(filepath.Join(rootPath, featuresSysPath, fi.Name()))
+			featureName := fi.Name()
+			if prefix != "" {
+				featureName = prefix + ":" + fi.Name()
+			}
+			features = append(features, featureName)
+			subFeatures, err := probeKernelFeaturesInDirRecursively(filepath.Join(dir, fi.Name()), featureName)
 			if err != nil {
 				return []string{}, err
 			}
-			for _, subfi := range subdenties {
-				if subfi.IsDir() {
-					features = append(features, fi.Name()+":"+subfi.Name())
-				}
-			}
+			features = append(features, subFeatures...)
 		}
 	}
-	if data, err := os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "permstable32")); err == nil {
-		permstableFeatures := strings.Fields(string(data))
-		for _, feat := range permstableFeatures {
-			features = append(features, fmt.Sprintf("policy:permstable32:%s", feat))
-		}
-	}
-	// Features must be sorted
-	sort.Strings(features)
 	return features, nil
+}
+
+func probeKernelFeaturesPermstable32Version() (int64, error) {
+	data, err := os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "permstable32_version"))
+	if err != nil {
+		return 0, err
+	}
+	return strconv.ParseInt(strings.TrimSpace(string(data)), 0, 64)
 }
 
 func probeParserFeatures() ([]string, error) {
@@ -672,6 +730,15 @@ func probeParserFeatures() ([]string, error) {
 			feature: "mqueue",
 			probe:   "mqueue,",
 			minVer:  "4.0.1",
+		},
+		{
+			feature: "allow-all",
+			probe:   "allow all,",
+			minVer:  "4.0.2",
+		},
+		{
+			feature: "io-uring",
+			probe:   "allow io_uring,",
 		},
 		{
 			feature: "cap-bpf",
@@ -781,6 +848,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	// installed snapd-apparmor support re-exec
 	if path, err := snapdtool.InternalToolPath("apparmor_parser"); err == nil {
 		if osutil.IsExecutable(path) && snapdAppArmorSupportsReexec() && !systemAppArmorLoadsSnapPolicy() {
+			logger.Debugf("checking internal apparmor_parser candidate at %v", path)
 			prefix := strings.TrimSuffix(path, "apparmor_parser")
 			snapdAbi30File := filepath.Join(prefix, "/apparmor.d/abi/3.0")
 			snapdAbi40File := filepath.Join(prefix, "/apparmor.d/abi/4.0")
@@ -819,6 +887,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	for _, dir := range filepath.SplitList(parserSearchPath) {
 		path := filepath.Join(dir, "apparmor_parser")
 		if _, err := os.Stat(path); err == nil {
+			logger.Debugf("checking distro apparmor_parser at %v", path)
 			// Detect but ignore apparmor 4.0 ABI support.
 			//
 			// At present this causes some bugs with mqueue mediation that can
@@ -971,7 +1040,6 @@ func MockFeatures(kernelFeatures []string, kernelError error, parserFeatures []s
 	return func() {
 		appArmorAssessment = oldAppArmorAssessment
 	}
-
 }
 
 func MockParserSearchPath(new string) (restore func()) {
@@ -979,5 +1047,13 @@ func MockParserSearchPath(new string) (restore func()) {
 	parserSearchPath = new
 	return func() {
 		parserSearchPath = oldAppArmorParserSearchPath
+	}
+}
+
+func MockFsRootPath(path string) (restorer func()) {
+	old := rootPath
+	rootPath = path
+	return func() {
+		rootPath = old
 	}
 }

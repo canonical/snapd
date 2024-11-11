@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
@@ -462,7 +463,7 @@ func (s *setupSuite) TestSetupComponentUndoIdempotent(c *C) {
 
 func (s *setupSuite) testSetupComponentDo(c *C, compName, snapName, instanceName string, compRev, snapRev snap.Revision) *backend.InstallRecord {
 	componentYaml := fmt.Sprintf(`component: %s+%s
-type: test
+type: standard
 version: 1.0
 `, snapName, compName)
 
@@ -521,7 +522,7 @@ func (s *setupSuite) TestSetupComponentCleanupAfterFail(c *C) {
 	compRev := snap.R(33)
 
 	componentYaml := fmt.Sprintf(`component: %s+%s
-type: test
+type: standard
 version: 1.0
 `, snapName, compName)
 
@@ -699,6 +700,45 @@ func (s *setupSuite) TestSetupAndRemoveKernelModulesComponents(c *C) {
 	s.testRemoveKernelModulesComponents(c, toInstall, nil, ksnap, kernRev, "")
 }
 
+func (s *setupSuite) TestSetupKernelModulesComponentsNoComps(c *C) {
+	ksnap := "kernel"
+	kernRev := snap.R(33)
+	toInstall := createKModsComps(c, 1, 1, ksnap, kernRev)
+
+	// But we remove the drivers
+	mntDir := filepath.Join(dirs.SnapMountDir, ksnap, "components", "mnt", "comp1", "11")
+	os.RemoveAll(filepath.Join(mntDir, "modules"))
+
+	depmod := testutil.MockCommand(c, "depmod", "")
+	defer depmod.Restore()
+
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+
+	// Files from the kernel snap
+	revStr := kernRev.String()
+	snapdir := filepath.Join(dirs.SnapMountDir, ksnap, revStr)
+	fwdir := filepath.Join(snapdir, "firmware")
+	c.Assert(os.MkdirAll(fwdir, 0755), IsNil)
+	modsdir := filepath.Join(snapdir, "modules/6.5.4-3-generic")
+	c.Assert(os.MkdirAll(modsdir, 0755), IsNil)
+
+	// Run kernel set-up
+	err := s.be.SetupKernelSnap(ksnap, kernRev, progress.Null)
+	c.Assert(err, IsNil)
+
+	// Run modules set-up
+	err = s.be.SetupKernelModulesComponents(nil, toInstall, ksnap, kernRev, progress.Null)
+	c.Assert(err, IsNil)
+
+	// No link has been created
+	treedir := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir),
+		"kernel", ksnap, kernRev.String(),
+		"lib/modules/6.5.4-3-generic/updates", "comp1")
+	_, err = os.Readlink(treedir)
+	c.Assert(err, ErrorMatches, `.*modules/6.5.4-3-generic/updates/comp1: no such file or directory`)
+}
+
 func (s *setupSuite) TestSetupAndRemoveKernelModulesComponentsWithInstalled(c *C) {
 	ksnap := "kernel"
 	kernRev := snap.R(33)
@@ -710,7 +750,7 @@ func (s *setupSuite) TestSetupAndRemoveKernelModulesComponentsWithInstalled(c *C
 	firstInstalled := createKModsComps(c, 1, 2, ksnap, kernRev)
 	s.testSetupKernelModulesComponents(c, firstInstalled, nil, ksnap, kernRev, "")
 	// Add components, with some overlap (comp2/3 - new rev for comp2 though, 22)
-	newComps := createKModsComps(c, 2, 2, ksnap, kernRev)
+	newComps := createKModsComps(c, 1, 3, ksnap, kernRev)
 	s.testSetupKernelModulesComponents(c, newComps, firstInstalled, ksnap, kernRev, "")
 	// twice to check it is idempotent
 	s.testSetupKernelModulesComponents(c, newComps, firstInstalled, ksnap, kernRev, "")
@@ -724,6 +764,80 @@ func (s *setupSuite) TestSetupAndRemoveKernelModulesComponentsWithInstalled(c *C
 	s.testRemoveKernelModulesComponents(c, newComps, firstInstalled, ksnap, kernRev, "")
 	// twice to check it is idempotent
 	s.testRemoveKernelModulesComponents(c, newComps, firstInstalled, ksnap, kernRev, "")
+}
+
+func (s *setupSuite) TestSetupAndRemoveKernelModulesComponentsWithModulesInSnapData(c *C) {
+	const withKernelYaml = true
+	s.testSetupAndRemoveKernelModulesComponentsWithModulesInSnapData(c, withKernelYaml)
+}
+
+func (s *setupSuite) TestSetupAndRemoveKernelModulesComponentsWithModulesInSnapDataNoKYaml(c *C) {
+	const withKernelYaml = false
+	s.testSetupAndRemoveKernelModulesComponentsWithModulesInSnapData(c, withKernelYaml)
+}
+
+func (s *setupSuite) testSetupAndRemoveKernelModulesComponentsWithModulesInSnapData(c *C, withKernelYaml bool) {
+	ksnap := "kernel"
+	kernRev := snap.R(33)
+	toInstall := createKModsComps(c, 1, 2, ksnap, kernRev)
+
+	if withKernelYaml {
+		metadir := filepath.Join(dirs.SnapMountDir, "kernel/33/meta")
+		c.Assert(os.MkdirAll(metadir, 0755), IsNil)
+		os.WriteFile(filepath.Join(metadir, "kernel.yaml"),
+			[]byte("dynamic-modules: $SNAP_DATA"), 0655)
+	}
+
+	// Create modules and fw in SNAP_DATA
+	modsDir := filepath.Join(snap.DataDir(ksnap, kernRev), "modules")
+	kernModsDir := filepath.Join(modsDir, "6.5.4-3-generic")
+	c.Assert(os.MkdirAll(kernModsDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(kernModsDir, "dynamic.ko"),
+		[]byte{}, 0644), IsNil)
+	fwDir := filepath.Join(snap.DataDir(ksnap, kernRev), "firmware")
+	c.Assert(os.MkdirAll(fwDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(fwDir, "somefw.bin"),
+		[]byte{}, 0644), IsNil)
+
+	depmod := testutil.MockCommand(c, "depmod", "")
+	defer depmod.Restore()
+
+	// Set-up
+	s.testSetupKernelModulesComponents(c, toInstall, nil, ksnap, kernRev, "")
+
+	// check that the links/files have been created
+	updates := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir),
+		"kernel", ksnap, kernRev.String(),
+		"lib/modules/6.5.4-3-generic/updates")
+	dataUpdates := filepath.Join(updates, ksnap+"_dyn")
+	dest, err := os.Readlink(dataUpdates)
+	if withKernelYaml {
+		c.Assert(err, IsNil)
+		expected := filepath.Join(snap.DataDir(ksnap, kernRev), "modules/6.5.4-3-generic")
+		c.Assert(dest, Equals, expected)
+		c.Assert(osutil.FileExists(filepath.Join(dataUpdates, "dynamic.ko")), Equals, true)
+		fwSymLink := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir),
+			"kernel", ksnap, kernRev.String(), "lib/firmware/updates", "somefw.bin")
+		dest, err = os.Readlink(fwSymLink)
+		c.Assert(err, IsNil)
+		expected = filepath.Join(snap.DataDir(ksnap, kernRev), "firmware", "somefw.bin")
+		c.Assert(dest, Equals, expected)
+		c.Assert(osutil.FileExists(expected), Equals, true)
+
+		// Simulate removal of dynamic modules/firmware by component hook
+		c.Assert(os.RemoveAll(modsDir), IsNil)
+		c.Assert(os.RemoveAll(fwDir), IsNil)
+
+		// now remove the component
+		s.testRemoveKernelModulesComponents(c, toInstall, nil, ksnap, kernRev, "")
+
+		// Link to drivers in SNAP_DATA should be gone
+		_, err = os.Readlink(dataUpdates)
+		c.Assert(err, ErrorMatches,
+			".*/modules/6.5.4-3-generic/updates/kernel_dyn: no such file or directory")
+	} else {
+		c.Assert(err, ErrorMatches, ".*kernel_dyn: no such file or directory")
+	}
 }
 
 func (s *setupSuite) testSetupKernelModulesComponents(c *C, toInstall, installed []*snap.ComponentSideInfo, ksnap string, kernRev snap.Revision, errRegex string) {
@@ -743,7 +857,7 @@ func (s *setupSuite) testSetupKernelModulesComponents(c *C, toInstall, installed
 	c.Assert(err, IsNil)
 
 	// Run modules set-up
-	err = s.be.SetupKernelModulesComponents(toInstall, installed, ksnap, kernRev, progress.Null)
+	err = s.be.SetupKernelModulesComponents(installed, toInstall, ksnap, kernRev, progress.Null)
 	if errRegex == "" {
 		c.Assert(err, IsNil)
 		// ensure new units and files are around
@@ -755,6 +869,105 @@ func (s *setupSuite) testSetupKernelModulesComponents(c *C, toInstall, installed
 		// New units have been cleaned up
 		checkRemoved(c, toInstall, ksnap, kernRev)
 	}
+}
+
+func (s *setupSuite) TestSetupKernelModulesComponentsRevert(c *C) {
+	ksnap := "mykernel"
+	kernRev := snap.R(33)
+
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+
+	// Files from the kernel snap
+	revStr := kernRev.String()
+	snapdir := filepath.Join(dirs.SnapMountDir, ksnap, revStr)
+	fwdir := filepath.Join(snapdir, "firmware")
+	c.Assert(os.MkdirAll(fwdir, 0755), IsNil)
+	modsdir := filepath.Join(snapdir, "modules/6.5.4-3-generic")
+	c.Assert(os.MkdirAll(modsdir, 0755), IsNil)
+
+	// Run kernel set-up
+	err := s.be.SetupKernelSnap(ksnap, kernRev, progress.Null)
+	c.Assert(err, IsNil)
+
+	// First call to EnsureKernelDriversTree will fail
+	n := 0
+	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (err error) {
+		n++
+		driversTree := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir),
+			"kernel", ksnap, kernRev.String())
+		c.Check(destDir, Equals, driversTree)
+		kernSnapDir := filepath.Join(dirs.SnapMountDir, ksnap, kernRev.String())
+		c.Check(kMntPts, DeepEquals, kernel.MountPoints{
+			Current: kernSnapDir,
+			Target:  kernSnapDir,
+		})
+		c.Check(opts, DeepEquals, &kernel.KernelDriversTreeOptions{KernelInstall: false})
+		compsMnt := filepath.Join(dirs.SnapMountDir, ksnap, "components/mnt")
+		switch n {
+		case 1, 3:
+			// Call in first call to SetupKernelModulesComponents
+			// and in the second call when restoring firstly
+			// installed components
+			c.Check(compsMntPts, DeepEquals, []kernel.ModulesCompMountPoints{
+				{
+					LinkName: "comp1",
+					MountPoints: kernel.MountPoints{
+						Current: filepath.Join(compsMnt, "comp1/11"),
+						Target:  filepath.Join(compsMnt, "comp1/11"),
+					},
+				},
+				{
+					LinkName: "comp2",
+					MountPoints: kernel.MountPoints{
+						Current: filepath.Join(compsMnt, "comp2/21"),
+						Target:  filepath.Join(compsMnt, "comp2/21"),
+					},
+				},
+			})
+			return nil
+		case 2:
+			c.Check(compsMntPts, DeepEquals, []kernel.ModulesCompMountPoints{
+				{
+					LinkName: "comp2",
+					MountPoints: kernel.MountPoints{
+						Current: filepath.Join(compsMnt, "comp2/22"),
+						Target:  filepath.Join(compsMnt, "comp2/22"),
+					},
+				},
+				{
+					LinkName: "comp3",
+					MountPoints: kernel.MountPoints{
+						Current: filepath.Join(compsMnt, "comp3/32"),
+						Target:  filepath.Join(compsMnt, "comp3/32"),
+					},
+				},
+				{
+					LinkName: "comp1",
+					MountPoints: kernel.MountPoints{
+						Current: filepath.Join(compsMnt, "comp1/11"),
+						Target:  filepath.Join(compsMnt, "comp1/11"),
+					},
+				},
+			})
+			return fmt.Errorf("depmod error")
+		default:
+			c.Error("unexpected call to EnsureKernelDriversTree")
+			return nil
+		}
+	})
+	defer r()
+
+	// Some initial modules, no failures
+	firstInstalled := createKModsComps(c, 1, 2, ksnap, kernRev)
+	err = s.be.SetupKernelModulesComponents(nil, firstInstalled, ksnap, kernRev, progress.Null)
+	c.Assert(err, IsNil)
+
+	// Add components, with some overlap (comp2/3 - new rev for comp2
+	// though, 22), and fail
+	newFinalComps := append(createKModsComps(c, 2, 2, ksnap, kernRev), firstInstalled[0])
+	err = s.be.SetupKernelModulesComponents(firstInstalled, newFinalComps, ksnap, kernRev, progress.Null)
+	c.Assert(err, ErrorMatches, "depmod error")
 }
 
 func checkInstalled(c *C, installed []*snap.ComponentSideInfo, ksnap string, kernRev snap.Revision) {
@@ -792,17 +1005,29 @@ func checkRemoved(c *C, removed []*snap.ComponentSideInfo, ksnap string, kernRev
 	}
 }
 
-func (s *setupSuite) testRemoveKernelModulesComponents(c *C, toRemove, finalComps []*snap.ComponentSideInfo, ksnap string, kernRev snap.Revision, errRegex string) {
-	err := s.be.RemoveKernelModulesComponentsSetup(toRemove, finalComps, ksnap, kernRev, progress.Null)
+func (s *setupSuite) testRemoveKernelModulesComponents(c *C, currentComps, finalComps []*snap.ComponentSideInfo, ksnap string, kernRev snap.Revision, errRegex string) {
+	final := make(map[snap.ComponentSideInfo]bool)
+	for _, csi := range finalComps {
+		final[*csi] = true
+	}
+
+	var removed []*snap.ComponentSideInfo
+	for _, csi := range currentComps {
+		if _, ok := final[*csi]; !ok {
+			removed = append(removed, csi)
+		}
+	}
+
+	err := s.be.SetupKernelModulesComponents(currentComps, finalComps, ksnap, kernRev, progress.Null)
 	if err == nil {
 		// No left-overs
-		checkRemoved(c, toRemove, ksnap, kernRev)
+		checkRemoved(c, removed, ksnap, kernRev)
 		// finalComps are installed
 		checkInstalled(c, finalComps, ksnap, kernRev)
 	} else {
 		c.Assert(err, ErrorMatches, errRegex)
 		// Not removed
-		checkInstalled(c, toRemove, ksnap, kernRev)
+		checkInstalled(c, currentComps, ksnap, kernRev)
 	}
 }
 

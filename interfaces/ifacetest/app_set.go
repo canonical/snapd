@@ -56,6 +56,30 @@ func MockConnectedSlot(c *check.C, yaml string, si *snap.SideInfo, slotName stri
 	return MockConnectedSlotWithAttrs(c, yaml, si, slotName, nil, nil)
 }
 
+func MockConnectedSlotWithComponents(c *check.C, yaml string, si *snap.SideInfo, compYamls []string, slotName string) (*interfaces.ConnectedSlot, *snap.SlotInfo) {
+	set := MockInfoAndAppSet(c, yaml, compYamls, si)
+	info := set.Info()
+
+	slotInfo, ok := info.Slots[slotName]
+	if !ok {
+		c.Fatalf("cannot find slot %q in snap %q", slotName, info.InstanceName())
+	}
+
+	return interfaces.NewConnectedSlot(slotInfo, set, nil, nil), slotInfo
+}
+
+func MockConnectedPlugWithComponents(c *check.C, yaml string, si *snap.SideInfo, compYamls []string, plugName string) (*interfaces.ConnectedPlug, *snap.PlugInfo) {
+	set := MockInfoAndAppSet(c, yaml, compYamls, si)
+	info := set.Info()
+
+	plugInfo, ok := info.Plugs[plugName]
+	if !ok {
+		c.Fatalf("cannot find plug %q in snap %q", plugName, info.InstanceName())
+	}
+
+	return interfaces.NewConnectedPlug(plugInfo, set, nil, nil), plugInfo
+}
+
 func MockConnectedSlotWithAttrs(c *check.C, yaml string, si *snap.SideInfo, slotName string, staticAttrs, dynamicAttrs map[string]interface{}) (*interfaces.ConnectedSlot, *snap.SlotInfo) {
 	info := snaptest.MockInfo(c, yaml, si)
 

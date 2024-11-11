@@ -1,0 +1,51 @@
+{
+    "type": "model",
+    "authority-id": "test-snapd",
+    "series": "16",
+    "brand-id": "test-snapd",
+    "model": "my-model",
+    "revision": "1",
+    "architecture": "amd64",
+    "timestamp": "2024-05-20T22:08:34+00:00",
+    "grade": "dangerous",
+    "base": "core24",
+    "serial-authority": ["generic"],
+    "snaps": [
+        {
+            "default-channel": "22/stable",
+            "id": "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH",
+            "name": "pc",
+            "type": "gadget"
+        },
+        {
+            "default-channel": "22/stable",
+            "id": "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza",
+            "name": "pc-kernel",
+            "type": "kernel"
+        },
+        {
+            "default-channel": "latest/stable",
+            "id": "dwTAh7MZZ01zyriOZErqd1JynQLiOGvM",
+            "name": "core24",
+            "type": "base"
+        },
+        {
+            "default-channel": "latest/stable",
+            "id": "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
+            "name": "snapd",
+            "type": "snapd"
+        },
+        {
+            "default-channel": "latest/stable",
+            "id": "99T7MUlRhtI3U0QFgl5mXXESAiSwt776",
+            "name": "core",
+            "type": "core"
+        },
+        {
+            "default-channel": "latest/stable",
+            "id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+            "name": "hello-world",
+            "type": "app"
+        }
+    ]
+}

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/registry"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -385,7 +386,68 @@ func AutoRefreshAssertions(s *state.State, userID int) error {
 	if err := RefreshSnapDeclarations(s, userID, opts); err != nil {
 		return err
 	}
-	return RefreshValidationSetAssertions(s, userID, opts)
+	if err := RefreshValidationSetAssertions(s, userID, opts); err != nil {
+		return err
+	}
+
+	return autoRefreshRegistryAssertions(s, userID, opts)
+}
+
+// autoRefreshRegistryAssertions fetches the newest revision of all stored
+// registry assertions.
+func autoRefreshRegistryAssertions(st *state.State, userID int, opts *RefreshAssertionsOptions) error {
+	db := cachedDB(st)
+	regAsserts, err := db.FindMany(asserts.RegistryType, nil)
+	if err != nil {
+		if errors.Is(err, &asserts.NotFoundError{}) {
+			return nil
+		}
+		return err
+	}
+
+	var registries []*registry.Registry
+	for _, regAs := range regAsserts {
+		reg := regAs.(*asserts.Registry).Registry()
+		registries = append(registries, reg)
+	}
+
+	return refreshRegistryAssertions(st, registries, userID, opts)
+}
+
+// refreshRegistryAssertions fetches new revisions for the registry assertions
+// referenced by the provided registries. It attempts a bulk refresh and if that
+// fails, it falls back to fetching the assertions one by one.
+func refreshRegistryAssertions(st *state.State, registries []*registry.Registry, userID int, opts *RefreshAssertionsOptions) error {
+	if opts == nil {
+		opts = &RefreshAssertionsOptions{}
+	}
+
+	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
+	if err != nil {
+		return err
+	}
+
+	err = bulkRefreshRegistries(st, registries, userID, deviceCtx, opts)
+	if err == nil {
+		return nil
+	}
+
+	if _, ok := err.(*bulkAssertionFallbackError); !ok {
+		// not an error that indicates the server rejecting/failing
+		// the bulk request itself
+		return err
+	}
+	logger.Noticef("bulk refresh of registry assertions failed, falling back to one-by-one assertion fetching: %v", err)
+
+	return doFetch(st, userID, deviceCtx, nil, func(f asserts.Fetcher) error {
+		for _, registry := range registries {
+			if err := snapasserts.FetchRegistry(f, registry.Account, registry.Name); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
 }
 
 // RefreshSnapAssertions tries to refresh all snap-centered assertions

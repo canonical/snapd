@@ -24,11 +24,11 @@
 static void test_sc_privs_drop(void)
 {
 	if (geteuid() != 0 || getuid() == 0) {
-		g_test_skip("run this test after chown root.root; chmod u+s");
+		g_test_skip("run this test after chown root:root; chmod u+s");
 		return;
 	}
 	if (getegid() != 0 || getgid() == 0) {
-		g_test_skip("run this test after chown root.root; chmod g+s");
+		g_test_skip("run this test after chown root:root; chmod g+s");
 		return;
 	}
 	if (g_test_subprocess()) {

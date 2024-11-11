@@ -196,6 +196,9 @@ var templateCommon = `
   /etc/os-release rk,
   /usr/lib/os-release k,
 
+  # Debian version of the host OS which might be required in AppArmor-secured Debian
+  /etc/debian_version r,
+
   # systemd native journal API (see sd_journal_print(4)). This should be in
   # AppArmor's base abstraction, but until it is, include here. We include
   # the base journal path as well as the journal namespace pattern path. Each
@@ -203,6 +206,7 @@ var templateCommon = `
   /run/systemd/journal{,.snap-*}/socket w,
   /run/systemd/journal{,.snap-*}/stdout rw, # 'r' shouldn't be needed, but journald
                                             # doesn't leak anything so allow
+  /run/systemd/journal{,.snap-*}/dev-log w,
 
   # snapctl and its requirements
   /usr/bin/snapctl ixr,
@@ -297,6 +301,7 @@ var templateCommon = `
   /sys/fs/cgroup/memory/{,user.slice/}memory.limit_in_bytes r,
   /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
   /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.stat r,
+  /sys/fs/cgroup/system.slice/snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.max r,
   /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.cfs_{period,quota}_us r,
   /sys/fs/cgroup/cpu,cpuacct/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/cpu.cfs_{period,quota}_us r,
   /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.shares r,
@@ -886,6 +891,9 @@ var classicJailmodeSnippet = `
 
   # For snappy reexec on 4.8+ kernels
   @{INSTALL_DIR}/core/*/usr/lib/snapd/snap-exec m,
+  # Same as above but accounting for the case when the
+  # snapd snap is installed and executes the snap application.
+  @{INSTALL_DIR}/snapd/*/usr/lib/snapd/snap-exec rm,
 `
 
 var ptraceTraceDenySnippet = `

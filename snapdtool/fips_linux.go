@@ -21,7 +21,9 @@
 package snapdtool
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -90,15 +92,6 @@ func MaybeSetupFIPS() error {
 		return nil
 	}
 
-	snapdRev, err := osReadlink(snapdSnap)
-	if err != nil {
-		return err
-	}
-
-	currentRevSnapdSnap := filepath.Join(dirs.SnapMountDir, "snapd", snapdRev)
-
-	logger.Debugf("snapd snap: %s", currentRevSnapdSnap)
-
 	rootDir, exe, err := exeAndRoot()
 	if err != nil {
 		return err
@@ -107,26 +100,41 @@ func MaybeSetupFIPS() error {
 	logger.Debugf("self exe: %s", exe)
 	logger.Debugf("exe root dir: %q", rootDir)
 
-	// on a classic system we need to be reexecuted from the snapd snap for
-	// the FIPS setup to be relevant, but on core we are not reexeced but
-	// running directly from the mount of the snapd snap under
-	// /usr/lib/snapd, yet we still want to set up the right environment
-	if release.OnClassic {
-		if rootDir != currentRevSnapdSnap {
-			// this is only supported for reexecing from the snapd snap
-			return nil
-		}
+	snapdRev, err := osReadlink(snapdSnap)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
 	}
 
-	lib, mod := findFIPSLibsAndModules(currentRevSnapdSnap)
+	var currentRevSnapdSnap string
+	if snapdRev != "" {
+		currentRevSnapdSnap = filepath.Join(dirs.SnapMountDir, "snapd", snapdRev)
+		logger.Debugf("snapd snap: %s", currentRevSnapdSnap)
+	}
 
 	env := append(os.Environ(), []string{
 		"SNAPD_FIPS_BOOTSTRAP=1",
-		// make FIPS mod required at runtime, if the module was not
-		// found or the setup is incorrect snapd will fail in a
-		// predictable way
+		// make FIPS mode required at runtime, if FIPS support in Go
+		// runtime cannot be completed successfully the startup will
+		// fail in a predictable manner
 		"GOFIPS=1",
 	}...)
+
+	// now we need to set up environment such that the FIPS library module
+	// will be picked up at startup, however this is only relevant in the
+	// following cases:
+	// - on classic, when reexecuted from the snapd snap
+	// - on core
+	// in all other cases (eg. a deb package), we've already determined that
+	// system wide FIPS mode is enabled, so simply attempt to reexecute
+	// ourselves, but this time with GO FIPS mode required, hoping that the
+	// Go crypto runtime will be able to complete FIPS setup successfully at
+	// startup
+	if release.OnClassic && rootDir != currentRevSnapdSnap {
+		// reexecute ourselves with Go FIPS support in required mode
+		panic(syscallExec(filepath.Join(rootDir, exe), os.Args, env))
+	}
+
+	lib, mod := findFIPSLibsAndModules(currentRevSnapdSnap)
 
 	if mod != "" {
 		// version override uses the version suffix right after *.so.
@@ -141,6 +149,5 @@ func MaybeSetupFIPS() error {
 	}
 
 	// TODO how to ensure that we only load the library from the snapd snap?
-
 	panic(syscallExec(filepath.Join(rootDir, exe), os.Args, env))
 }

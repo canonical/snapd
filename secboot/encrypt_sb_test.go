@@ -90,6 +90,7 @@ func (s *encryptSuite) TestFormatEncryptedDeviceInvalidEncType(c *C) {
 type keymgrSuite struct {
 	testutil.BaseTest
 
+	rootDir       string
 	d             string
 	keymgrCmd     *testutil.MockCmd
 	udevadmCmd    *testutil.MockCmd
@@ -100,6 +101,10 @@ var _ = Suite(&keymgrSuite{})
 
 func (s *keymgrSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
+	s.rootDir = c.MkDir()
+	s.AddCleanup(func() { dirs.SetRootDir(dirs.GlobalRootDir) })
+	dirs.SetRootDir(s.rootDir)
 
 	s.d = c.MkDir()
 	s.systemdRunCmd = testutil.MockCommand(c, "systemd-run", `
@@ -115,7 +120,7 @@ while true; do
 done
 `)
 	s.AddCleanup(s.systemdRunCmd.Restore)
-	s.keymgrCmd = testutil.MockCommand(c, "snap-fde-keymgr", fmt.Sprintf(`
+	s.keymgrCmd = testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-fde-keymgr"), fmt.Sprintf(`
 set -e
 if [ "$1" = "change-encryption-key" ]; then
     cat > %s/input
@@ -205,7 +210,7 @@ func (s *keymgrSuite) TestStageEncryptionKeyBadUdev(c *C) {
 }
 
 func (s *keymgrSuite) TestStageTransitionEncryptionKeyBadKeymgr(c *C) {
-	keymgrCmd := testutil.MockCommand(c, "snap-fde-keymgr", `echo keymgr very unhappy; exit 1`)
+	keymgrCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-fde-keymgr"), `echo keymgr very unhappy; exit 1`)
 	defer keymgrCmd.Restore()
 	// update where /proc/self/exe resolves to
 	restore := snapdtool.MockOsReadlink(func(string) (string, error) {
@@ -332,10 +337,7 @@ done
 `)
 	s.AddCleanup(udevadmCmd.Restore)
 
-	s.AddCleanup(func() { dirs.SetRootDir(dirs.GlobalRootDir) })
-	dirs.SetRootDir(s.d)
-
-	snaptest.PopulateDir(s.d, [][]string{
+	snaptest.PopulateDir(s.rootDir, [][]string{
 		{"/sys/dev/block/600:3/dm/uuid", "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-foo"},
 		{"/sys/dev/block/600:3/dm/name", "foo"},
 		{"/sys/dev/block/600:4/dm/uuid", "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1305-bar"},

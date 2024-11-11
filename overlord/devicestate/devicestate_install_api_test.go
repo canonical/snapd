@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
+	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -118,6 +119,8 @@ func (s *deviceMgrInstallAPISuite) setupSystemSeed(c *C, sysLabel, gadgetYaml st
 			{"shim.efi.signed", ""}, {"grub.conf", ""}},
 		snap.R(1), "my-brand", s.StoreSigning.Database)
 
+	s.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["optional22"], nil, snap.R(1), nil, "my-brand", s.StoreSigning.Database)
+
 	model := map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
@@ -146,6 +149,13 @@ func (s *deviceMgrInstallAPISuite) setupSystemSeed(c *C, sysLabel, gadgetYaml st
 				"id":   s.AssertedSnapID("core22"),
 				"type": "base",
 			},
+			map[string]interface{}{
+				"name": "optional22",
+				"id":   s.AssertedSnapID("optional22"),
+				"components": map[string]interface{}{
+					"comp1": "optional",
+				},
+			},
 		},
 	}
 	if isClassic {
@@ -153,20 +163,31 @@ func (s *deviceMgrInstallAPISuite) setupSystemSeed(c *C, sysLabel, gadgetYaml st
 		model["distribution"] = "ubuntu"
 	}
 
-	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", model, nil)
+	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", model, []*seedwriter.OptionsSnap{
+		{
+			Name:       "optional22",
+			Components: []seedwriter.OptionsComponent{{Name: "comp1"}},
+		},
+	})
 }
 
 type finishStepOpts struct {
-	encrypted      bool
-	installClassic bool
-	hasPartial     bool
+	encrypted          bool
+	installClassic     bool
+	hasPartial         bool
+	hasSystemSeed      bool
+	optionalContainers *seed.OptionalContainers
 }
 
-func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, isClassic, hasPartial bool, seedCopyFn func(string, string, timings.Measurer) error) (gadgetSnapPath, kernelSnapPath string, ginfo *gadget.Info, mountCmd *testutil.MockCmd) {
+func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, isClassic, hasSystemSeed, hasPartial bool, seedCopyFn func(string, seed.CopyOptions, timings.Measurer) error) (gadgetSnapPath, kernelSnapPath string, ginfo *gadget.Info, mountCmd *testutil.MockCmd) {
 	// Mock partitioned disk
 	gadgetYaml := gadgettest.SingleVolumeUC20GadgetYaml
 	if isClassic {
-		gadgetYaml = gadgettest.SingleVolumeClassicWithModesGadgetYaml
+		if hasSystemSeed {
+			gadgetYaml = gadgettest.SingleVolumeClassicWithModesAndSystemSeedGadgetYaml
+		} else {
+			gadgetYaml = gadgettest.SingleVolumeClassicWithModesGadgetYaml
+		}
 	}
 	seedGadget := gadgetYaml
 	if hasPartial {
@@ -194,6 +215,10 @@ func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, i
 	restore = devicestate.MockSeedOpen(func(seedDir, label string) (seed.Seed, error) {
 		return &fakeSeedCopier{
 			copyFn: seedCopyFn,
+			optionalContainers: seed.OptionalContainers{
+				Snaps:      []string{"optional22"},
+				Components: map[string][]string{"optional22": {"comp1"}},
+			},
 			fakeSeed: fakeSeed{
 				essentialSnaps: []*seed.Snap{
 					{
@@ -236,7 +261,12 @@ func mockDiskVolume(opts finishStepOpts) *gadget.OnDiskVolume {
 		labelPostfix = "-enc"
 		dataPartsFs = "crypto_LUKS"
 	}
-	var diskVolume = gadget.OnDiskVolume{
+
+	if opts.hasSystemSeed {
+		return mockClassicWithSystemSeedDiskVolume(dataPartsFs, labelPostfix)
+	}
+
+	return &gadget.OnDiskVolume{
 		Structure: []gadget.OnDiskStructure{
 			// Note that mbr is not a partition so it is not returned
 			{
@@ -286,7 +316,60 @@ func mockDiskVolume(opts finishStepOpts) *gadget.OnDiskVolume {
 		// 1 sector to get the exclusive end
 		UsableSectorsEnd: uint64((6*quantity.SizeGiB/512)-33) + 1,
 	}
-	return &diskVolume
+}
+
+func mockClassicWithSystemSeedDiskVolume(dataPartsFs string, labelPostfix string) *gadget.OnDiskVolume {
+	return &gadget.OnDiskVolume{
+		Structure: []gadget.OnDiskStructure{
+			// Note that mbr is not a partition so it is not returned
+			{
+				Node:        "/dev/vda1",
+				Name:        "BIOS Boot",
+				Size:        1 * quantity.SizeMiB,
+				StartOffset: 1 * quantity.OffsetMiB,
+			},
+			{
+				Node:            "/dev/vda2",
+				Name:            "ubuntu-seed",
+				Size:            1200 * quantity.SizeMiB,
+				StartOffset:     2 * quantity.OffsetMiB,
+				PartitionFSType: "vfat",
+			},
+			{
+				Node:            "/dev/vda3",
+				Name:            "ubuntu-boot",
+				Size:            750 * quantity.SizeMiB,
+				StartOffset:     1202 * quantity.OffsetMiB,
+				PartitionFSType: "ext4",
+			},
+			{
+				Node:             "/dev/vda4",
+				Name:             "ubuntu-save",
+				Size:             16 * quantity.SizeMiB,
+				StartOffset:      1952 * quantity.OffsetMiB,
+				PartitionFSType:  dataPartsFs,
+				PartitionFSLabel: "ubuntu-save" + labelPostfix,
+			},
+			{
+				Node:             "/dev/vda5",
+				Name:             "ubuntu-data",
+				Size:             4 * quantity.SizeGiB,
+				StartOffset:      1968 * quantity.OffsetMiB,
+				PartitionFSType:  dataPartsFs,
+				PartitionFSLabel: "ubuntu-data" + labelPostfix,
+			},
+		},
+		ID:         "anything",
+		Device:     "/dev/vda",
+		Schema:     "gpt",
+		Size:       6 * quantity.SizeGiB,
+		SectorSize: 512,
+
+		// ( 2 GB / 512 B sector size ) - 33 typical GPT header backup sectors +
+		// 1 sector to get the exclusive end
+		UsableSectorsEnd: uint64((6*quantity.SizeGiB/512)-33) + 1,
+	}
+
 }
 
 func mockCoreDiskVolume(opts finishStepOpts) *gadget.OnDiskVolume {
@@ -396,15 +479,24 @@ var mockFilledPartialDiskVolume = gadget.OnDiskVolume{
 
 type fakeSeedCopier struct {
 	fakeSeed
-	copyFn func(seedDir string, label string, tm timings.Measurer) error
+	optionalContainers seed.OptionalContainers
+	copyFn             func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error
 }
 
-func (s *fakeSeedCopier) Copy(seedDir string, label string, tm timings.Measurer) error {
-	return s.copyFn(seedDir, label, tm)
+func (s *fakeSeedCopier) Copy(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+	return s.copyFn(seedDir, opts, tm)
+}
+
+func (s *fakeSeedCopier) OptionalContainers() (seed.OptionalContainers, error) {
+	return s.optionalContainers, nil
 }
 
 // TODO encryption case for the finish step is not tested yet, it needs more mocking
 func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOpts) {
+	if opts.hasSystemSeed && !opts.installClassic {
+		c.Fatal("explicitly setting hasSystemSeed is only supported with installClassic")
+	}
+
 	// The installer API is used on classic images only for the moment
 	restore := release.MockOnClassic(true)
 	s.AddCleanup(restore)
@@ -420,18 +512,21 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		label = "classic"
 	}
 
-	seedCopyFn := func(seedDir, newLabel string, tm timings.Measurer) error { return fmt.Errorf("unexpected copy call") }
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+		return fmt.Errorf("unexpected copy call")
+	}
 	seedCopyCalled := false
-	if !opts.installClassic {
-		seedCopyFn = func(seedDir, newLabel string, tm timings.Measurer) error {
+	if !opts.installClassic || opts.hasSystemSeed {
+		seedCopyFn = func(seedDir string, copyOpts seed.CopyOptions, tm timings.Measurer) error {
 			c.Check(seedDir, Equals, filepath.Join(dirs.RunDir, "mnt/ubuntu-seed"))
-			c.Check(newLabel, Equals, label)
+			c.Check(copyOpts.Label, Equals, label)
+			c.Check(copyOpts.OptionalContainers, DeepEquals, opts.optionalContainers)
 			seedCopyCalled = true
 			return nil
 		}
 	}
 
-	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockSystemSeedWithLabel(c, label, opts.installClassic, opts.hasPartial, seedCopyFn)
+	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockSystemSeedWithLabel(c, label, opts.installClassic, opts.hasSystemSeed, opts.hasPartial, seedCopyFn)
 
 	// Unpack gadget snap from seed where it would have been mounted
 	gadgetDir := filepath.Join(dirs.SnapRunDir, "snap-content/gadget")
@@ -511,6 +606,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 			gadgetToDiskMap, err := gadget.EnsureVolumeCompatibility(
 				vol, diskVolume, volCompatOpts)
 			if err != nil {
+				fmt.Println("HERE", err)
 				return nil, err
 			}
 			volToGadgetToDiskStruct[name] = gadgetToDiskMap
@@ -566,6 +662,17 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		c.Assert(os.WriteFile(filepath.Join(bootDir, "grubx64.efi"), []byte{}, 0755), IsNil)
 	}
 
+	if opts.hasSystemSeed {
+		devicestate.MockBootMakeRecoverySystemBootable(func(model *asserts.Model, rootdir string, relativeRecoverySystemDir string, bootWith *boot.RecoverySystemBootableSet) error {
+			c.Check(model.Classic(), Equals, true)
+			c.Check(rootdir, Equals, filepath.Join(dirs.RunDir, "mnt/ubuntu-seed"))
+			c.Check(relativeRecoverySystemDir, Equals, filepath.Join("systems", label))
+			c.Check(bootWith.KernelPath, Equals, filepath.Join(dirs.RunDir, "mnt/ubuntu-seed/snaps/pc-kernel_1.snap"))
+			c.Check(bootWith.GadgetSnapOrDir, Equals, filepath.Join(s.SeedDir, "snaps/pc_1.snap"))
+			return nil
+		})
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -580,6 +687,9 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		}
 	}
 	finishTask.Set("on-volumes", ginfo.Volumes)
+	if opts.optionalContainers != nil {
+		finishTask.Set("optional-install", *opts.optionalContainers)
+	}
 
 	chg.AddTask(finishTask)
 
@@ -644,6 +754,14 @@ func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionHappy(c *C)
 	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: true})
 }
 
+func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionAndSystemSeedHappy(c *C) {
+	s.testInstallFinishStep(c, finishStepOpts{
+		encrypted:      true,
+		installClassic: true,
+		hasSystemSeed:  true,
+	})
+}
+
 func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionPartialHappy(c *C) {
 	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: true, hasPartial: true})
 }
@@ -654,6 +772,17 @@ func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishNoEncryptionHappy(c *C) 
 
 func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishEncryptionHappy(c *C) {
 	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: false})
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishWithOptionalContainers(c *C) {
+	s.testInstallFinishStep(c, finishStepOpts{
+		encrypted:      true,
+		installClassic: false,
+		optionalContainers: &seed.OptionalContainers{
+			Snaps:      []string{"optional22"},
+			Components: map[string][]string{"optional22": {"comp1"}},
+		},
+	})
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallFinishNoLabel(c *C) {
@@ -694,8 +823,10 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 	// Mock label
 	label := "classic"
 	isClassic := true
-	seedCopyFn := func(seedDir, newLabel string, tm timings.Measurer) error { return fmt.Errorf("unexpected copy call") }
-	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockSystemSeedWithLabel(c, label, isClassic, false, seedCopyFn)
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+		return fmt.Errorf("unexpected copy call")
+	}
+	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockSystemSeedWithLabel(c, label, isClassic, false, false, seedCopyFn)
 
 	// Simulate system with TPM
 	if hasTPM {

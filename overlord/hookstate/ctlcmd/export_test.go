@@ -21,15 +21,18 @@ package ctlcmd
 
 import (
 	"context"
-	"fmt"
-	"os/user"
+	"errors"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client/clientutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/registry"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -70,6 +73,18 @@ func MockServicestateControlFunc(f func(*state.State, []*snap.AppInfo, *services
 	old := servicestateControl
 	servicestateControl = f
 	return func() { servicestateControl = old }
+}
+
+func MockSnapstateInstallComponentsFunc(f func(ctx context.Context, st *state.State, names []string, info *snap.Info, opts snapstate.Options) ([]*state.TaskSet, error)) (restore func()) {
+	old := snapstateInstallComponents
+	snapstateInstallComponents = f
+	return func() { snapstateInstallComponents = old }
+}
+
+func MockSnapstateRemoveComponentsFunc(f func(st *state.State, snapName string, compName []string, opts snapstate.RemoveComponentsOpts) ([]*state.TaskSet, error)) (restore func()) {
+	old := snapstateRemoveComponents
+	snapstateRemoveComponents = f
+	return func() { snapstateRemoveComponents = old }
 }
 
 func MockDevicestateSystemModeInfoFromState(f func(*state.State) (*devicestate.SystemModeInfo, error)) (restore func()) {
@@ -129,15 +144,15 @@ func (c *MockCommand) Execute(args []string) error {
 	c.Args = args
 
 	if c.FakeStdout != "" {
-		c.printf(c.FakeStdout)
+		c.print(c.FakeStdout)
 	}
 
 	if c.FakeStderr != "" {
-		c.errorf(c.FakeStderr)
+		c.error(c.FakeStderr)
 	}
 
 	if c.ExecuteError {
-		return fmt.Errorf("failed at user request")
+		return errors.New("failed at user request")
 	}
 
 	return nil
@@ -163,4 +178,36 @@ func MockNewStatusDecorator(f func(ctx context.Context, isGlobal bool, uid strin
 	restore = testutil.Backup(&newStatusDecorator)
 	newStatusDecorator = f
 	return restore
+}
+
+func MockRegistrystateGetTransaction(f func(*hookstate.Context, *state.State, *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error)) (restore func()) {
+	old := registrystateGetTransaction
+	registrystateGetTransaction = f
+	return func() {
+		registrystateGetTransaction = old
+	}
+}
+
+func MockRegistrystateGetView(f func(st *state.State, account, registryName, viewName string) (*registry.View, error)) (restore func()) {
+	old := registrystateGetView
+	registrystateGetView = f
+	return func() {
+		registrystateGetView = old
+	}
+}
+
+func MockRegistrystateNewTransaction(f func(*state.State, string, string) (*registrystate.Transaction, error)) (restore func()) {
+	old := registrystateNewTransaction
+	registrystateNewTransaction = f
+	return func() {
+		registrystateNewTransaction = old
+	}
+}
+
+func MockRegistrystateGetStoredTransaction(f func(*state.Task) (*registrystate.Transaction, func(), error)) (restore func()) {
+	old := registrystateGetStoredTransaction
+	registrystateGetStoredTransaction = f
+	return func() {
+		registrystateGetStoredTransaction = old
+	}
 }

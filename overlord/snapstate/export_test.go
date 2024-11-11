@@ -38,8 +38,8 @@ type (
 	ManagerBackend managerBackend
 
 	MinimalInstallInfo  = minimalInstallInfo
+	SnapUpdate          = update
 	InstallSnapInfo     = installSnapInfo
-	ByType              = byType
 	DirMigrationOptions = dirMigrationOptions
 	Migration           = migration
 
@@ -169,6 +169,11 @@ var (
 // dbus
 var (
 	CheckDBusServiceConflicts = checkDBusServiceConflicts
+)
+
+// desktop-file-ids
+var (
+	CheckDesktopFileIDsConflicts = checkDesktopFileIDsConflicts
 )
 
 // readme files
@@ -336,6 +341,7 @@ var (
 )
 
 type AuxStoreInfo = auxStoreInfo
+type DisabledServices = disabledServices
 
 // link, misc handlers
 var (
@@ -574,7 +580,7 @@ func SetPreseed(snapmgr *SnapManager, value bool) {
 	snapmgr.preseed = value
 }
 
-func SplitEssentialUpdates(deviceCtx DeviceContext, updates []minimalInstallInfo) (essential, nonEssential []MinimalInstallInfo) {
+func SplitEssentialUpdates(deviceCtx DeviceContext, updates []SnapUpdate) (essential, nonEssential []SnapUpdate) {
 	return splitEssentialUpdates(deviceCtx, updates)
 }
 

@@ -22,7 +22,6 @@ package main
 import (
 	"context"
 	"os"
-	"os/user"
 	"time"
 
 	"github.com/jessevdk/go-flags"
@@ -31,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/seed/seedwriter"
@@ -97,7 +97,8 @@ var (
 
 	IsStopping = isStopping
 
-	GetSnapDirOptions = getSnapDirOptions
+	GetSnapDirOptions                   = getSnapDirOptions
+	SnapInstancesAndComponentsFromNames = snapInstancesAndComponentsFromNames
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {

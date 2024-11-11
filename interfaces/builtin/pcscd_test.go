@@ -77,6 +77,7 @@ func (s *pcscdInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(spec.SnippetForTag("snap.other.app"), testutil.Contains, "/{var/,}run/pcscd/pcscd.comm rw")
+	c.Assert(spec.SnippetForTag("snap.other.app"), testutil.Contains, "/etc/{opensc/,}opensc.conf r")
 }
 
 func (s *pcscdInterfaceSuite) TestInterfaces(c *C) {
@@ -87,7 +88,6 @@ func (s *pcscdInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows interacting with PCSD daemon
-(e.g. for the PS/SC API library).`)
+	c.Assert(si.Summary, Equals, `allows interacting with PCSD daemon (e.g. for the PS/SC API library).`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "pcscd")
 }

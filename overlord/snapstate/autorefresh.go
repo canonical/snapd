@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -79,6 +81,7 @@ var refreshRetryDelay = 20 * time.Minute
 // of auto-refresh.
 type refreshCandidate struct {
 	SnapSetup
+	Components []ComponentSetup `json:"components,omitempty"`
 	// Monitored signals whether this snap is currently being monitored for closure
 	// so its auto-refresh can be continued.
 	Monitored bool `json:"monitored,omitempty"`
@@ -104,7 +107,7 @@ func (rc *refreshCandidate) Prereq(*state.State, PrereqTracker) []string {
 	return rc.SnapSetup.Prereq
 }
 
-func (rc *refreshCandidate) SnapSetupForUpdate(st *state.State, _ updateParamsFunc, _ int, globalFlags *Flags, _ PrereqTracker) (*SnapSetup, *SnapState, error) {
+func (rc *refreshCandidate) SnapSetupForUpdate(st *state.State, globalFlags *Flags) (*SnapSetup, *SnapState, error) {
 	var snapst SnapState
 	if err := Get(st, rc.InstanceName(), &snapst); err != nil {
 		return nil, nil, err
@@ -118,9 +121,6 @@ func (rc *refreshCandidate) SnapSetupForUpdate(st *state.State, _ updateParamsFu
 
 	return snapsup, &snapst, nil
 }
-
-// soundness check
-var _ readyUpdateInfo = (*refreshCandidate)(nil)
 
 // autoRefresh will ensure that snaps are refreshed automatically
 // according to the refresh schedule.
@@ -648,7 +648,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 
 	msg := autoRefreshSummary(updated)
 	if msg == "" {
-		logger.Noticef(i18n.G("auto-refresh: all snaps are up-to-date"))
+		logger.Notice(i18n.G("auto-refresh: all snaps are up-to-date"))
 		return nil
 	}
 
@@ -975,4 +975,206 @@ func MockRefreshCandidate(snapSetup *SnapSetup) interface{} {
 	return &refreshCandidate{
 		SnapSetup: *snapSetup,
 	}
+}
+
+func incrementSnapRefreshFailures(st *state.State, snapsup *SnapSetup, severity snap.RefreshFailureSeverity) error {
+	var snapst SnapState
+	err := Get(st, snapsup.InstanceName(), &snapst)
+	if err != nil {
+		return err
+	}
+
+	// Update refresh failure information for snap revision
+	if snapst.RefreshFailures != nil && snapst.RefreshFailures.Revision == snapsup.Revision() {
+		snapst.RefreshFailures.FailureCount++
+		snapst.RefreshFailures.LastFailureTime = timeNow()
+	} else {
+		snapst.RefreshFailures = &snap.RefreshFailuresInfo{
+			Revision:        snapsup.Revision(),
+			FailureCount:    1,
+			LastFailureTime: timeNow(),
+		}
+	}
+	snapst.RefreshFailures.LastFailureSeverity = severity
+	Set(st, snapsup.InstanceName(), &snapst)
+
+	delay := computeSnapRefreshRemainingDelay(snapst.RefreshFailures).Round(time.Hour)
+	logger.Noticef("snap %q auto-refresh to revision %s has failed, next auto-refresh attempt will be delayed by %v hours", snapsup.InstanceName(), snapsup.Revision(), delay.Hours())
+	return nil
+}
+
+func computeSnapRefreshFailureSeverity(chg *state.Change, unlinkTask *state.Task, snapName string) snap.RefreshFailureSeverity {
+	// It is ok to pass nil for the DeviceContext as the situation here is auto-refresh and not remodel.
+	bootBase, err := deviceModelBootBase(chg.State(), nil)
+	if err != nil {
+		logger.Debugf("internal error: failed to get model boot base: %v", err)
+	}
+
+	laneTasks := chg.LaneTasks(unlinkTask.Lanes()...)
+	// Look for a tasks marked as a restart boundary.
+	for _, t := range laneTasks {
+		// If a task is found in an Undone state with its restart boundary in the "do"
+		// direction then this indicates that the auto-refresh failed after a reboot
+		// and we should be more aggressive with the backoff delay applied to it to
+		// decrease devices' downtime due to bad snap revisions.
+		if t.Status() != state.UndoneStatus || !restart.TaskIsRestartBoundary(t, restart.RestartBoundaryDirectionDo) {
+			continue
+		}
+		// let's double check task is for the guilty snap since the refresh
+		// change might be running in a transaction and have all snaps'
+		// refresh tasks in the same lane.
+		snapsup, err := TaskSnapSetup(t)
+		if err != nil {
+			logger.Debugf("internal error: failed to get snap associated with task %s: %v", t.ID(), err)
+			continue
+		}
+		if snapsup.InstanceName() != snapName {
+			continue
+		}
+
+		if isEssentialSnap(snapsup.InstanceName(), snapsup.Type, bootBase) {
+			// Refresh failure happened after a reboot
+			return snap.RefreshFailureSeverityAfterReboot
+		}
+	}
+
+	return snap.RefreshFailureSeverityNone
+}
+
+func processFailedAutoRefresh(chg *state.Change, _ state.Status, new state.Status) {
+	if chg.Kind() != "auto-refresh" || new != state.ErrorStatus {
+		return
+	}
+
+	var failedSnapNames []string
+	for _, t := range chg.Tasks() {
+		// We only care about snaps that failed after unlink-current-snap because
+		// this indicates (with high probability) that something related to the snap
+		// itself is broken.
+		if t.Kind() != "unlink-current-snap" || t.Status() != state.UndoneStatus {
+			continue
+		}
+
+		snapsup, err := TaskSnapSetup(t)
+		if err != nil {
+			logger.Debugf("internal error: failed to get snap associated with task %s: %v", t.ID(), err)
+			continue
+		}
+
+		failureSeverity := computeSnapRefreshFailureSeverity(chg, t, snapsup.InstanceName())
+		if err := incrementSnapRefreshFailures(t.State(), snapsup, failureSeverity); err != nil {
+			logger.Debugf("internal error: failed to increment failure count for snap %q: %v", snapsup.InstanceName(), err)
+			continue
+		}
+
+		failedSnapNames = append(failedSnapNames, snapsup.InstanceName())
+	}
+
+	if len(failedSnapNames) == 0 {
+		return
+	}
+
+	// Attach failed snaps to change api data. This intended to guide
+	// agents on devices that manage their own refresh cycle.
+	var data map[string]interface{}
+	err := chg.Get("api-data", &data)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		logger.Debugf("internal error: failed to get api-data for change %s: %v", chg.ID(), err)
+		return
+	}
+	if len(data) == 0 {
+		data = make(map[string]interface{})
+	}
+	sort.Strings(failedSnapNames)
+	data["refresh-failed"] = failedSnapNames
+	chg.Set("api-data", data)
+}
+
+// snapRefreshDelay maps from failure count to time to snap refresh delay capped at 2 weeks.
+//
+// Note: Those are heuristic values listed in the SD183 spec.
+var snapRefreshDelay = []time.Duration{
+	0,                        // FailureCount == 0 -> No delay
+	8 * time.Hour,            // FailureCount == 1 -> 8 hours delay
+	12 * time.Hour,           // FailureCount == 2 -> 12 hours delay
+	24 * time.Hour,           // FailureCount == 3 -> 1 day delay
+	2 * 24 * time.Hour,       // FailureCount == 4 -> 2 days delay
+	4 * 24 * time.Hour,       // FailureCount == 5 -> 4 days delay
+	7 * 24 * time.Hour,       // FailureCount == 6 -> 1 week delay
+	1.5 * 7 * 24 * time.Hour, // FailureCount == 7 -> 1.5 weeks delay
+	2 * 7 * 24 * time.Hour,   // FailureCount == 8 -> 2 weeks delay
+}
+
+func computeSnapRefreshRemainingDelay(refreshFailures *snap.RefreshFailuresInfo) time.Duration {
+	if refreshFailures == nil {
+		return 0
+	}
+	failureCount := refreshFailures.FailureCount
+	if failureCount > len(snapRefreshDelay)-1 {
+		// Cap failure count to max delay according to snapRefreshDelay
+		failureCount = len(snapRefreshDelay) - 1
+	}
+
+	delay := snapRefreshDelay[failureCount]
+	if refreshFailures.LastFailureSeverity == snap.RefreshFailureSeverityAfterReboot {
+		// More aggressive delay for snaps that failed after requesting a reboot. This is
+		// to reduce downtime of failed upgrade loops that fully reboots devices. This
+		// could be a bad kernel, gadget, ..etc.
+		delay = delay * 2
+	}
+
+	now := timeNow()
+	if refreshFailures.LastFailureTime.Add(delay).Before(now) {
+		// Backoff delay has passed since last failure
+		return 0
+	}
+
+	remaining := delay - now.Sub(refreshFailures.LastFailureTime)
+	return remaining
+}
+
+// shouldSkipSnapRefresh checks if a snap refresh to a target revision should be skipped or not.
+//
+// This helper implements a backoff algorithm that prevents failed upgrade loops
+// by introducing backoff delay based on snapst.RefreshFailures and snapRefreshDelay.
+func shouldSkipSnapRefresh(snapst *SnapState, targetRevision snap.Revision, opts Options) bool {
+	if !opts.Flags.IsAutoRefresh || snapst.RefreshFailures == nil || snapst.RefreshFailures.Revision != targetRevision {
+		// Don't skip if not an auto-refresh or if target revision has no history of failed refreshes.
+		return false
+	}
+
+	// Here we are certain that the attempted target revision refresh is known to fail.
+	// Let's compute delay according to RefreshFailures.
+	delay := computeSnapRefreshRemainingDelay(snapst.RefreshFailures)
+	if delay == 0 {
+		return false
+	}
+
+	// TODO: implement more aggressive backoff for snaps that failed after reboot
+	// Backoff delay duration since last failure has passed, let's continue refresh
+	remainingHours := delay.Round(time.Hour).Hours()
+	logger.Noticef("snap %q auto-refresh to revision %s was skipped due to previous failures, next auto-refresh attempt will be delayed by %v hours", snapst.InstanceName(), targetRevision, remainingHours)
+	return true
+}
+
+var errKnownBadRevision = errors.New("revision is known to fail during refresh and backoff delay has not passed")
+
+// checkSnapRefreshFailures checks if a snap refresh to a target revision should be skipped or not.
+//
+// In case refresh to target revision should be skipped errKnownBadRevision error is returned.
+// Also, If snap has a new target revision not known to fail, the state is modified to reset
+// the snap's RefreshFailures.
+func checkSnapRefreshFailures(st *state.State, snapst *SnapState, targetRevision snap.Revision, opts Options) error {
+	if snapst.RefreshFailures != nil {
+		// Check if snap revision is known to fail and if the current refresh needs to be skipped.
+		if snapst.RefreshFailures.Revision != targetRevision {
+			// Snap has new target revision not known to fail, let's reset RefreshFailures
+			// and continue refresh normally.
+			snapst.RefreshFailures = nil
+			Set(st, snapst.InstanceName(), snapst)
+		} else if shouldSkipSnapRefresh(snapst, targetRevision, opts) {
+			return errKnownBadRevision
+		}
+	}
+	return nil
 }

@@ -59,7 +59,7 @@ func (s *mountCompSnapSuite) TestDoMountComponent(c *C) {
 	t := s.state.NewTask("mount-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.TestComponent, compPath))
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, compPath))
 	t.Set("snap-setup", ssu)
 	chg := s.state.NewChange("test change", "change desc")
 	chg.AddTask(t)
@@ -85,6 +85,72 @@ func (s *mountCompSnapSuite) TestDoMountComponent(c *C) {
 	c.Assert(osutil.FileExists(compPath), Equals, true)
 }
 
+func (s *mountCompSnapSuite) TestDoMountComponentFailsUnassertedComponentAssertedSnap(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	compRev := snap.Revision{}
+	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	ci, compPath := createTestComponent(c, snapName, compName, si)
+	ssu := createTestSnapSetup(si, snapstate.Flags{})
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(
+		compMntDir string, snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		return ci, nil
+	}))
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	t := s.state.NewTask("mount-component", "task desc")
+	cref := naming.NewComponentRef(snapName, compName)
+	csi := snap.NewComponentSideInfo(cref, compRev)
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, compPath))
+	t.Set("snap-setup", ssu)
+	chg := s.state.NewChange("test change", "change desc")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Check(chg.Err().Error(), Equals, "cannot perform the following tasks:\n"+
+		"- task desc (cannot mix asserted snap and unasserted components)")
+}
+
+func (s *mountCompSnapSuite) TestDoMountComponentFailsAssertedComponentUnassertedSnap(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev := snap.R(-1)
+	compRev := snap.R(7)
+	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	ci, compPath := createTestComponent(c, snapName, compName, si)
+	ssu := createTestSnapSetup(si, snapstate.Flags{})
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(
+		compMntDir string, snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		return ci, nil
+	}))
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	t := s.state.NewTask("mount-component", "task desc")
+	cref := naming.NewComponentRef(snapName, compName)
+	csi := snap.NewComponentSideInfo(cref, compRev)
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, compPath))
+	t.Set("snap-setup", ssu)
+	chg := s.state.NewChange("test change", "change desc")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Check(chg.Err().Error(), Equals, "cannot perform the following tasks:\n"+
+		"- task desc (cannot mix unasserted snap and asserted components)")
+}
+
 func (s *mountCompSnapSuite) TestDoUndoMountComponent(c *C) {
 	const snapName = "mysnap"
 	const compName = "mycomp"
@@ -104,7 +170,7 @@ func (s *mountCompSnapSuite) TestDoUndoMountComponent(c *C) {
 	t := s.state.NewTask("mount-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.TestComponent, compPath))
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, compPath))
 	t.Set("snap-setup", ssu)
 
 	chg := s.state.NewChange("sample", "...")
@@ -166,7 +232,7 @@ func (s *mountCompSnapSuite) TestDoMountComponentSetupFails(c *C) {
 	t := s.state.NewTask("mount-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.TestComponent, compPath))
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, compPath))
 	t.Set("snap-setup", ssu)
 
 	chg := s.state.NewChange("sample", "...")
@@ -217,7 +283,7 @@ func (s *mountCompSnapSuite) TestDoUndoMountComponentFails(c *C) {
 	t := s.state.NewTask("mount-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.TestComponent, compPath))
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, compPath))
 	t.Set("snap-setup", ssu)
 
 	chg := s.state.NewChange("sample", "...")
@@ -274,7 +340,7 @@ func (s *mountCompSnapSuite) TestDoMountComponentMountFails(c *C) {
 	t := s.state.NewTask("mount-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.TestComponent, compPath))
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, compPath))
 	t.Set("snap-setup", ssu)
 
 	chg := s.state.NewChange("sample", "...")

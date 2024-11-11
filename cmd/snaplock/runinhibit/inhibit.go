@@ -61,6 +61,8 @@ const (
 	// HintInhibitedForPreDownload represents inhibition of a "snap run" while a
 	// pre-download is triggering a refresh.
 	HintInhibitedForPreDownload Hint = "pre-download"
+	// HintInhibitedForRemove represents inhibition of a "snap run" while a remove change is being performed.
+	HintInhibitedForRemove Hint = "remove"
 )
 
 const hintFilePostfix = "lock"

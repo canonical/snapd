@@ -29,11 +29,11 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -147,26 +147,18 @@ func (client *Client) uidIsValidAsTarget(uid int) bool {
 }
 
 func (client *Client) sessionTargets() ([]int, error) {
-	sockets, err := filepath.Glob(filepath.Join(dirs.XdgRuntimeDirGlob, "snapd-session-agent.socket"))
+	uids, err := clientutil.AvailableUserSessions()
 	if err != nil {
 		return nil, err
 	}
 
-	uids := make([]int, 0, len(client.uids))
-	for _, sock := range sockets {
-		uidStr := filepath.Base(filepath.Dir(sock))
-		uid, err := strconv.Atoi(uidStr)
-		if err != nil {
-			// Ignore directories that do not
-			// appear to be valid XDG runtime dirs
-			// (i.e. /run/user/NNNN).
-			continue
-		}
+	filtered := make([]int, 0, len(client.uids))
+	for _, uid := range uids {
 		if client.uidIsValidAsTarget(uid) {
-			uids = append(uids, uid)
+			filtered = append(filtered, uid)
 		}
 	}
-	return uids, nil
+	return filtered, nil
 }
 
 // doMany sends the given request to all active user sessions or a subset of them

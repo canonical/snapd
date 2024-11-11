@@ -36,7 +36,7 @@ execute: |
     shift 2
 
     # shellcheck disable=SC2059
-    response=$(printf "${template}" "$@" | remote.exec "sudo test-snapd-curl.curl -X POST -H 'Content-Type: application/json' --unix-socket /run/snapd.socket -d @- http://localhost${route}")
+    response=$(printf "${template}" "$@" | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' ${route}")
     if ! jq -e .change <<< "${response}"; then
       echo "could not get change id from response: ${response}"
       false
@@ -48,8 +48,6 @@ execute: |
 
   wait_for_first_boot_change
 
-  remote.exec sudo snap install --edge --devmode test-snapd-curl
-
   boot_id="$(tests.nested boot-id)"
 
   prev_system=$(remote.exec 'sudo snap recovery' | awk 'NR != 1 { print $1 }')
@@ -59,8 +57,15 @@ execute: |
   # validation set test-snapd-pinned-essential-snaps, we have to use a
   # new sequence number not to break other branches. The value of the
   # sequence number just corresponds to the generation of this test.
-  change_id=$(post_json_data /v2/systems '{"action": "create", "label": "new-system", "validation-sets": ["test-snapd/test-snapd-pinned-essential-snaps=2"], "mark-default": true, "test-system": true}')
 
+  if tests.nested is-nested uc22; then
+    change_id=$(post_json_data /v2/systems '{"action": "create", "label": "new-system", "validation-sets": ["test-snapd/test-snapd-pinned-essential-snaps-22=2"], "mark-default": true, "test-system": true}')
+  elif tests.nested is-nested uc24; then
+    change_id=$(post_json_data /v2/systems '{"action": "create", "label": "new-system", "validation-sets": ["test-snapd/test-snapd-pinned-essential-snaps-24=2"], "mark-default": true, "test-system": true}')
+  else
+    echo "System not supported"
+    exit 1
+  fi
   # wait for reboot since we tested the system
   remote.wait-for reboot "${boot_id}"
   boot_id="$(tests.nested boot-id)"
@@ -98,8 +103,6 @@ execute: |
 
     # new system should be the default recovery system and the current system
     remote.exec 'sudo snap recovery' | awk '$1 == "new-system" { print $4 }' | MATCH 'current,default-recovery'
-
-    remote.exec sudo snap install --edge --devmode test-snapd-curl
 
     # since out new system is now the default and the current recovery system,
     # we should be able to remove the old one
@@ -139,9 +142,12 @@ execute: |
     remote.exec "test -f /var/lib/snapd/seed/snaps/core22_1380.snap"
     remote.exec "test -f /var/lib/snapd/seed/snaps/pc-kernel_1606.snap"
     remote.exec "test -f /var/lib/snapd/seed/snaps/pc_145.snap"
-  else # uc24
+  elif tests.nested is-nested uc24; then
     # however, we can check that the seed contains the correct revisions
-    remote.exec "test -f /var/lib/snapd/seed/snaps/core24_1033.snap"
-    remote.exec "test -f /var/lib/snapd/seed/snaps/pc-kernel_1606.snap"
-    remote.exec "test -f /var/lib/snapd/seed/snaps/pc_145.snap"
+    remote.exec "test -f /var/lib/snapd/seed/snaps/core24_423.snap"
+    remote.exec "test -f /var/lib/snapd/seed/snaps/pc-kernel_1869.snap"
+    remote.exec "test -f /var/lib/snapd/seed/snaps/pc_178.snap"
+  else
+    echo "System not supported"    
+    exit 1
   fi

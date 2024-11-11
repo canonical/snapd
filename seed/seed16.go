@@ -125,7 +125,7 @@ func (s *seed16) SetParallelism(int) {
 	// ignored
 }
 
-func (s *seed16) addSnap(sn *internal.Snap16, essType snap.Type, pinnedTrack string, handler SnapHandler, cache map[string]*Snap, tm timings.Measurer) (*Snap, error) {
+func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, handler ContainerHandler, cache map[string]*Snap, tm timings.Measurer) (*Snap, error) {
 	path := filepath.Join(s.seedDir, "snaps", sn.File)
 
 	_, defaultHandler := handler.(defaultSnapHandler)
@@ -154,7 +154,8 @@ func (s *seed16) addSnap(sn *internal.Snap16, essType snap.Type, pinnedTrack str
 		var newPath string
 		if sn.Unasserted {
 			var err error
-			newPath, err = handler.HandleUnassertedSnap(sn.Name, path, tm)
+			pinfo := snap.MinimalSnapContainerPlaceInfo(sn.Name, snap.Revision{N: -1})
+			newPath, err = handler.HandleUnassertedContainer(pinfo, path, tm)
 			if err != nil {
 				return nil, err
 			}
@@ -176,7 +177,9 @@ func (s *seed16) addSnap(sn *internal.Snap16, essType snap.Type, pinnedTrack str
 			timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", sn.Name), func(nested timings.Measurer) {
 				var snapSHA3_384 string
 				var snapSize uint64
-				newPath, snapSHA3_384, snapSize, err = handler.HandleAndDigestAssertedSnap(sn.Name, path, essType, nil, deriveRev, tm)
+				// NOTE: this revision is not really correct
+				cpi := snap.MinimalSnapContainerPlaceInfo(sn.Name, snap.R(0))
+				newPath, snapSHA3_384, snapSize, err = handler.HandleAndDigestAssertedContainer(cpi, path, tm)
 				if err != nil {
 					return
 				}
@@ -248,7 +251,7 @@ func (s *seed16) resetSnaps() {
 	s.essentialSnapsNum = 0
 }
 
-func (s *seed16) loadEssentialMeta(essentialTypes []snap.Type, required *naming.SnapSet, handler SnapHandler, added map[string]bool, tm timings.Measurer) error {
+func (s *seed16) loadEssentialMeta(essentialTypes []snap.Type, required *naming.SnapSet, handler ContainerHandler, added map[string]bool, tm timings.Measurer) error {
 	model := s.Model()
 
 	seeding := make(map[string]*internal.Snap16, len(s.yamlSnaps))
@@ -299,7 +302,7 @@ func (s *seed16) loadEssentialMeta(essentialTypes []snap.Type, required *naming.
 			return nil, &essentialSnapMissingError{SnapName: snapName}
 		}
 
-		seedSnap, err := s.addSnap(yamlSnap, essType, pinnedTrack, handler, s.essCache, tm)
+		seedSnap, err := s.addSnap(yamlSnap, pinnedTrack, handler, s.essCache, tm)
 		if err != nil {
 			return nil, err
 		}
@@ -375,7 +378,7 @@ func (s *seed16) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measur
 	return s.LoadEssentialMetaWithSnapHandler(essentialTypes, nil, tm)
 }
 
-func (s *seed16) LoadEssentialMetaWithSnapHandler(essentialTypes []snap.Type, handler SnapHandler, tm timings.Measurer) error {
+func (s *seed16) LoadEssentialMetaWithSnapHandler(essentialTypes []snap.Type, handler ContainerHandler, tm timings.Measurer) error {
 	model := s.Model()
 
 	if err := s.loadYaml(); err != nil {
@@ -397,7 +400,7 @@ func (s *seed16) LoadEssentialMetaWithSnapHandler(essentialTypes []snap.Type, ha
 	return s.loadEssentialMeta(essentialTypes, required, handler, added, tm)
 }
 
-func (s *seed16) LoadMeta(mode string, handler SnapHandler, tm timings.Measurer) error {
+func (s *seed16) LoadMeta(mode string, handler ContainerHandler, tm timings.Measurer) error {
 	if mode != AllModes && mode != "run" {
 		return fmt.Errorf("internal error: Core 16/18 have only run mode, got: %s", mode)
 	}
@@ -426,7 +429,7 @@ func (s *seed16) LoadMeta(mode string, handler SnapHandler, tm timings.Measurer)
 		if added[sn.Name] {
 			continue
 		}
-		seedSnap, err := s.addSnap(sn, "", "", handler, nil, tm)
+		seedSnap, err := s.addSnap(sn, "", handler, nil, tm)
 		if err != nil {
 			return err
 		}

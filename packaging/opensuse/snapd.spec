@@ -82,7 +82,7 @@
 
 
 Name:           snapd
-Version:        2.63
+Version:        2.66.1
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -204,6 +204,8 @@ with_core_bits = 0
 with_alt_snap_mount_dir = %{!?with_alt_snap_mount_dir:0}%{?with_alt_snap_mount_dir:1}
 with_apparmor = %{with apparmor}
 with_testkeys = %{with_testkeys}
+# Disable DWARF and symbol table
+EXTRA_GO_LDFLAGS = -w -s
 __DEFINES__
 
 # Set the version that is compiled into the various executables/

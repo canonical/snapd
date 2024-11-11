@@ -90,5 +90,11 @@ cmd/test-driver
 # Snap files
 *.snap
 
+# Component files
+*.comp
+
 # Image files
 *.img
+
+# Directory that is used by the run-spread script
+/built-snap

@@ -33,6 +33,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -80,8 +81,9 @@ type fakeOp struct {
 	unlinkSkipBinaries     bool
 	skipKernelExtraction   bool
 
-	services         []string
-	disabledServices []string
+	services             []string
+	disabledServices     []string
+	disabledUserServices map[int][]string
 
 	vitalityRank int
 
@@ -92,11 +94,13 @@ type fakeOp struct {
 	dirOpts  *dirs.SnapDirOptions
 	undoInfo *backend.UndoInfo
 
-	compsToInstall, currentComps []*snap.ComponentSideInfo
-	compsToRemove, finalComps    []*snap.ComponentSideInfo
+	currentComps []*snap.ComponentSideInfo
+	finalComps   []*snap.ComponentSideInfo
 
 	containerName     string
 	containerFileName string
+
+	snapLocked bool
 }
 
 type fakeOps []fakeOp
@@ -261,7 +265,7 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 	switch spec.Name {
 	case "core", "core16", "ubuntu-core", "some-core":
 		typ = snap.TypeOS
-	case "some-base", "other-base", "some-other-base", "yet-another-base", "core18", "core22":
+	case "some-base", "other-base", "some-other-base", "yet-another-base", "core18", "core20", "core22", "core24", "bare":
 		typ = snap.TypeBase
 	case "some-kernel":
 		typ = snap.TypeKernel
@@ -279,6 +283,8 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 		snapID = "EI0D1KHjP8XiwMZKqSjuh6W8zvcowUVP"
 	case "snapd-desktop-integration":
 		snapID = "IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu"
+	case "prompting-client":
+		snapID = "aoc5lfC8aUd2VL8VpvynUJJhGXp5K6Dj"
 	}
 
 	if spec.Name == "snap-unknown" {
@@ -335,9 +341,9 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 		}
 	case "channel-for-components":
 		info.Components = map[string]*snap.Component{
-			"test-component": {
-				Type: snap.TestComponent,
-				Name: "test-component",
+			"standard-component": {
+				Type: snap.StandardComponent,
+				Name: "standard-component",
 			},
 			"kernel-modules-component": {
 				Type: snap.KernelModulesComponent,
@@ -368,6 +374,42 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 			},
 		}
 		slot.Apps["dbus-daemon"] = info.Apps["dbus-daemon"]
+	case "channel-for-registry":
+		info.Plugs = map[string]*snap.PlugInfo{
+			"my-plug": {
+				Snap:      info,
+				Interface: "registry",
+				Name:      "my-plug",
+				Attrs: map[string]interface{}{
+					"account": "my-publisher",
+					"view":    "my-reg/my-view",
+				},
+			},
+		}
+	case "channel-for-media":
+		info.Media = snap.MediaInfos{
+			snap.MediaInfo{
+				Type:   "icon",
+				URL:    "http://example.com/icon.png",
+				Width:  100,
+				Height: 100,
+			},
+			snap.MediaInfo{
+				Type: "website",
+				URL:  "http://example.com",
+			},
+		}
+	case "channel-for-desktop-file-ids":
+		info.Plugs = map[string]*snap.PlugInfo{
+			"desktop": {
+				Snap:      info,
+				Interface: "desktop",
+				Name:      "desktop",
+				Attrs: map[string]interface{}{
+					"desktop-file-ids": []interface{}{"org.example.Foo"},
+				},
+			},
+		}
 	}
 
 	if spec.Name == "provenance-snap" {
@@ -479,6 +521,8 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		base = "some-base"
 	case "provenance-snap-id":
 		name = "provenance-snap"
+	case "snap-with-components-id":
+		name = "snap-with-components"
 	default:
 		panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))
 	}
@@ -488,6 +532,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		revno = r
 	}
 	confinement := snap.StrictConfinement
+	var components map[string]*snap.Component
 	switch cand.channel {
 	case "channel-for-7/stable":
 		revno = snap.R(7)
@@ -495,6 +540,25 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		confinement = snap.ClassicConfinement
 	case "channel-for-devmode/stable":
 		confinement = snap.DevModeConfinement
+	case "channel-for-components", "channel-for-components-only-component-refresh":
+		components = map[string]*snap.Component{
+			"standard-component": {
+				Type: snap.StandardComponent,
+				Name: "standard-component",
+			},
+			"kernel-modules-component": {
+				Type: snap.KernelModulesComponent,
+				Name: "kernel-modules-component",
+			},
+			"standard-component-extra": {
+				Type: snap.StandardComponent,
+				Name: "standard-component-extra",
+			},
+			"standard-component-present-in-sequence": {
+				Type: snap.StandardComponent,
+				Name: "standard-component-present-in-sequence",
+			},
+		}
 	}
 	if name == "some-snap-now-classic" {
 		confinement = "classic"
@@ -516,6 +580,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		Architectures: []string{"all"},
 		Epoch:         epoch,
 		Base:          base,
+		Components:    components,
 	}
 
 	if strings.HasSuffix(cand.snapID, "-without-version-id") {
@@ -559,6 +624,18 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	case "channel-for-core22/stable":
 		info.Base = "core22"
 		info.Revision = snap.R(2)
+	case "channel-for-registry":
+		info.Plugs = map[string]*snap.PlugInfo{
+			"my-plug": {
+				Snap:      info,
+				Interface: "registry",
+				Name:      "my-plug",
+				Attrs: map[string]interface{}{
+					"account": "my-publisher",
+					"view":    "my-reg/my-view",
+				},
+			},
+		}
 	}
 
 	var hit snap.Revision
@@ -573,6 +650,12 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	}
 
 	if !hit.Unset() {
+		return info, nil
+	}
+
+	// this is a special case for testing the case where we only refresh
+	// component revisions
+	if cand.channel == "channel-for-components-only-component-refresh" {
 		return info, nil
 	}
 
@@ -670,9 +753,6 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 				revno:  info.Revision,
 				userID: userID,
 			})
-			if !a.Revision.Unset() {
-				info.Channel = ""
-			}
 			info.InstanceKey = instanceKey
 
 			sar := store.SnapActionResult{
@@ -848,7 +928,8 @@ type fakeSnappyBackend struct {
 	copySnapDataFailTrigger string
 	emptyContainer          snap.Container
 
-	servicesCurrentlyDisabled []string
+	servicesCurrentlyDisabled     []string
+	userServicesCurrentlyDisabled map[int][]string
 
 	lockDir string
 
@@ -862,6 +943,9 @@ func (f *fakeSnappyBackend) maybeErrForLastOp() error {
 	if f.maybeInjectErr == nil {
 		return nil
 	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if len(f.ops) == 0 {
 		return nil
 	}
@@ -993,30 +1077,14 @@ func (f *fakeSnappyBackend) SetupComponent(compFilePath string, compPi snap.Cont
 	return &backend.InstallRecord{}, nil
 }
 
-func (f *fakeSnappyBackend) SetupKernelModulesComponents(compsToInstall, currentComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error) {
-	meter.Notify("setup-kernel-modules-components")
+func (f *fakeSnappyBackend) SetupKernelModulesComponents(currentComps, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) error {
+	meter.Notify("prepare-kernel-modules-components")
 	f.appendOp(&fakeOp{
-		op:             "setup-kernel-modules-components",
-		compsToInstall: compsToInstall,
-		currentComps:   currentComps,
+		op:           "prepare-kernel-modules-components",
+		currentComps: currentComps,
+		finalComps:   finalComps,
 	})
-	if strings.HasSuffix(ksnapName, "+broken") {
-		return fmt.Errorf("cannot set-up kernel-modules for %s", ksnapName)
-	}
-	return nil
-}
-
-func (f *fakeSnappyBackend) RemoveKernelModulesComponentsSetup(compsToRemove, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error) {
-	meter.Notify("remove-kernel-modules-components-setup")
-	f.appendOp(&fakeOp{
-		op:            "remove-kernel-modules-components-setup",
-		compsToRemove: compsToRemove,
-		finalComps:    finalComps,
-	})
-	if strings.HasSuffix(ksnapName, "+reverterr") {
-		return fmt.Errorf("cannot remove set-up of kernel-modules for %s", ksnapName)
-	}
-	return nil
+	return f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) UndoSetupComponent(cpi snap.ContainerPlaceInfo, installRecord *backend.InstallRecord, dev snap.Device, meter progress.Meter) error {
@@ -1078,6 +1146,17 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		info.SnapType = snap.TypeOS
 	case "snapd":
 		info.SnapType = snap.TypeSnapd
+	case "snap-with-components":
+		info.Components = map[string]*snap.Component{
+			"standard-component": {
+				Type: snap.StandardComponent,
+				Name: "standard-component",
+			},
+			"kernel-modules-component": {
+				Type: snap.KernelModulesComponent,
+				Name: "kernel-modules-component",
+			},
+		}
 	case "services-snap":
 		var err error
 		// fix services after/before so that there is only one solution
@@ -1204,6 +1283,8 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx b
 
 		vitalityRank:        vitalityRank,
 		requireSnapdTooling: linkCtx.RequireMountedSnapdSnap,
+
+		otherInstances: linkCtx.HasOtherInstances,
 	}
 
 	if info.MountDir() == f.linkSnapFailTrigger {
@@ -1252,14 +1333,20 @@ func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, disabledSvcs *wr
 		services: services,
 	}
 	// only add the services to the op if there's something to add
-	if disabledSvcs != nil && len(disabledSvcs.SystemServices) != 0 {
-		op.disabledServices = disabledSvcs.SystemServices
+	if disabledSvcs != nil {
+		if len(disabledSvcs.SystemServices) != 0 {
+			op.disabledServices = disabledSvcs.SystemServices
+		}
+		if len(disabledSvcs.UserServices) != 0 {
+			op.disabledUserServices = disabledSvcs.UserServices
+		}
 	}
 	f.appendOp(&op)
 	return f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
+	meter.Notify("stop-services")
 	f.appendOp(&fakeOp{
 		op:   fmt.Sprintf("stop-snap-services:%s", reason),
 		path: svcSnapMountDir(svcs),
@@ -1267,28 +1354,61 @@ func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.Servi
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) QueryDisabledServices(info *snap.Info, meter progress.Meter) (*wrappers.DisabledServices, error) {
-	var l []string
+func (f *fakeSnappyBackend) KillSnapApps(snapName string, reason snap.AppKillReason, tm timings.Measurer) error {
+	testLock, err := snaplock.OpenLock(snapName)
+	if err != nil {
+		return err
+	}
+	defer testLock.Close()
 
+	f.appendOp(&fakeOp{
+		op:   fmt.Sprintf("kill-snap-apps:%s", reason),
+		name: snapName,
+		// Check if snap lock is held when terminating pids
+		snapLocked: testLock.TryLock() == osutil.ErrAlreadyLocked,
+	})
+	return f.maybeErrForLastOp()
+}
+
+func (f *fakeSnappyBackend) QueryDisabledServices(info *snap.Info, meter progress.Meter) (*wrappers.DisabledServices, error) {
 	// return the disabled services as disabled and nothing else
 	m := make(map[string]bool)
 	for _, svc := range f.servicesCurrentlyDisabled {
-		m[svc] = false
+		m[svc] = true
 	}
 
-	for name, enabled := range m {
-		if !enabled {
-			l = append(l, name)
+	um := make(map[int]map[string]bool)
+	for uid, svcs := range f.userServicesCurrentlyDisabled {
+		umi := make(map[string]bool)
+		for _, svc := range svcs {
+			umi[svc] = true
+		}
+		um[uid] = umi
+	}
+
+	var l []string
+	ul := make(map[int][]string)
+	for _, svc := range info.Services() {
+		if m[svc.Name] {
+			l = append(l, svc.Name)
+		} else {
+			for uid, umi := range um {
+				if umi[svc.Name] {
+					ul[uid] = append(ul[uid], svc.Name)
+				}
+			}
 		}
 	}
 
 	f.appendOp(&fakeOp{
-		op:               "current-snap-service-states",
-		disabledServices: f.servicesCurrentlyDisabled,
+		op:                   "current-snap-service-states",
+		disabledServices:     f.servicesCurrentlyDisabled,
+		disabledUserServices: f.userServicesCurrentlyDisabled,
 	})
 
 	return &wrappers.DisabledServices{
 		SystemServices: l,
+		UserServices:   ul,
 	}, f.maybeErrForLastOp()
 }
 
@@ -1341,6 +1461,7 @@ func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, linkCtx backend.LinkCont
 
 		unlinkFirstInstallUndo: linkCtx.FirstInstall,
 		unlinkSkipBinaries:     linkCtx.SkipBinaries,
+		otherInstances:         linkCtx.HasOtherInstances,
 	})
 	return f.maybeErrForLastOp()
 }

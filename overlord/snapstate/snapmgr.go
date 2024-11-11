@@ -149,6 +149,29 @@ type SnapSetup struct {
 	// DownloadBlobDir is the directory where the snap blob is downloaded to. If
 	// empty, dir.SnapBlobDir is used.
 	DownloadBlobDir string `json:"download-blob-dir,omitempty"`
+
+	// AlwaysUpdate is set if the snap should be put through the entire update
+	// process, even if the snap is already at the correct revision. Has an
+	// effect on which tasks get created to update the snap.
+	AlwaysUpdate bool `json:"-"`
+
+	// Registries is the set of registries that the snap plugs, identified by
+	// account and registry name pairs.
+	Registries []RegistryID `json:"registries,omitempty"`
+
+	// PreUpdateKernelModuleComponents is set if the kernel-modules component
+	// that are set up, prior to any changes to the state. This is used in the
+	// case of an undo. Note that this cannot be tagged as omitempty, since we
+	// need to distinguish between empty and nil.
+	PreUpdateKernelModuleComponents []*snap.ComponentSideInfo `json:"pre-update-kernel-module-components"`
+}
+
+// RegistryID identifies a registry.
+type RegistryID struct {
+	// Account is the name of the account that publishes the registry.
+	Account string
+	// Registry is the name of the registry within the account namespace.
+	Registry string
 }
 
 func (snapsup *SnapSetup) InstanceName() string {
@@ -202,9 +225,9 @@ type ComponentSetup struct {
 	// DownloadInfo contains information about how to download this component.
 	// Will be nil if the component should be sourced from a local file.
 	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
-	// componentInstallFlags is a set of flags that control the behavior of the
+	// ComponentInstallFlags is a set of flags that control the behavior of the
 	// component's installation/update.
-	componentInstallFlags
+	ComponentInstallFlags
 }
 
 func NewComponentSetup(csi *snap.ComponentSideInfo, compType snap.ComponentType, compPath string) *ComponentSetup {
@@ -235,9 +258,6 @@ func (compsu *ComponentSetup) Revision() snap.Revision {
 // * Installing/refreshing a snap with components
 // * Installing/refreshing a snap without any components
 func ComponentSetupsForTask(t *state.Task) ([]*ComponentSetup, error) {
-	// TODO:COMPS: handle remaining cases in this switch:
-	// * installing multiple components for an already installed snap
-	// * installing/refreshing a snap with components
 	switch {
 	case t.Has("component-setup") || t.Has("component-setup-task"):
 		// task comes from a singular component installation for an already
@@ -248,9 +268,9 @@ func ComponentSetupsForTask(t *state.Task) ([]*ComponentSetup, error) {
 		}
 		return []*ComponentSetup{compsup}, nil
 	default:
-		// task comes from a snap installation that doesn't contain any
+		// task comes from a snap install/refresh that might contain some
 		// components
-		return nil, nil
+		return TaskComponentSetups(t)
 	}
 }
 
@@ -301,10 +321,15 @@ type SnapState struct {
 	// remember services that were disabled in another revision and then renamed
 	// or otherwise removed from the snap in a future refresh.
 	LastActiveDisabledServices []string `json:"last-active-disabled-services,omitempty"`
+	// LastActiveDisabledUserServices, like LastActiveDisabledServices is a map of user-services
+	// that were disabled in the snap when it was last active. The same rules apply.
+	LastActiveDisabledUserServices map[int][]string `json:"last-active-disabled-user-services,omitempty"`
 
 	// tracking services enabled and disabled by hooks
-	ServicesEnabledByHooks  []string `json:"services-enabled-by-hooks,omitempty"`
-	ServicesDisabledByHooks []string `json:"services-disabled-by-hooks,omitempty"`
+	ServicesEnabledByHooks      []string         `json:"services-enabled-by-hooks,omitempty"`
+	UserServicesEnabledByHooks  map[int][]string `json:"user-services-enabled-by-hooks,omitempty"`
+	ServicesDisabledByHooks     []string         `json:"services-disabled-by-hooks,omitempty"`
+	UserServicesDisabledByHooks map[int][]string `json:"user-services-disabled-by-hooks,omitempty"`
 
 	// Current indicates the current active revision if Active is
 	// true or the last active revision if Active is false
@@ -335,8 +360,8 @@ type SnapState struct {
 	// LastRefreshTime records the time when the snap was last refreshed.
 	LastRefreshTime *time.Time `json:"last-refresh-time,omitempty"`
 
-	// LastRefreshTime is a map of component names to times that records
-	// the time when a component was last refreshed.
+	// LastCompRefreshTime is a map of component names to times that records the
+	// time when a component was last refreshed.
 	LastCompRefreshTime map[string]time.Time `json:"last-component-refresh-time,omitempty"`
 
 	// MigratedHidden is set if the user's snap dir has been migrated
@@ -351,6 +376,9 @@ type SnapState struct {
 	// their security profiles set up but are not active.
 	// It is managed by ifacestate.
 	PendingSecurity *PendingSecurityState `json:"pending-security,omitempty"`
+
+	// RefreshFailures tracks information about snap failed refreshes.
+	RefreshFailures *snap.RefreshFailuresInfo `json:"refresh-failures,omitempty"`
 }
 
 // PendingSecurityState holds information about snaps that have
@@ -358,7 +386,8 @@ type SnapState struct {
 type PendingSecurityState struct {
 	// SideInfo of the revision for which security profiles are or
 	// should be set up if any.
-	SideInfo *snap.SideInfo `json:"side-info,omitempty"`
+	SideInfo   *snap.SideInfo            `json:"side-info,omitempty"`
+	Components []*snap.ComponentSideInfo `json:"components,omitempty"`
 }
 
 func (snapst *SnapState) SetTrackingChannel(s string) error {
@@ -440,6 +469,21 @@ func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
 		return snapst.Sequence.Revisions[idx].Snap
 	}
 	panic("cannot find snapst.Current in the snapst.Sequence.Revisions")
+}
+
+// CurrentComponentSideInfos returns the component side infos for the revision
+// indicated by snapst.Current in the snap revision sequence, if there is one.
+func (snapst *SnapState) CurrentComponentSideInfos() []*snap.ComponentSideInfo {
+	if !snapst.IsInstalled() {
+		return nil
+	}
+
+	compStates := snapst.Sequence.ComponentsForRevision(snapst.Current)
+	comps := make([]*snap.ComponentSideInfo, 0, len(compStates))
+	for _, comp := range compStates {
+		comps = append(comps, comp.SideInfo)
+	}
+	return comps
 }
 
 // CurrentComponentSideInfo returns the component side info for the revision indicated by
@@ -588,6 +632,18 @@ func (snapst *SnapState) CurrentComponentInfos() ([]*snap.ComponentInfo, error) 
 	}
 
 	return snapst.ComponentInfosForRevision(snapst.Current)
+}
+
+// HasActiveComponents returns true if the current revision of this snap has
+// any components installed with it. Otherwise, false is returned if either the
+// snap isn't installed or the snap has no components installed with it.
+func (snapst *SnapState) HasActiveComponents() bool {
+	index := snapst.LastIndex(snapst.Current)
+	if index == -1 {
+		return false
+	}
+
+	return snapst.Sequence.HasComponents(index)
 }
 
 // CurrentComponentInfos return a snap.ComponentInfo slice that contains all of
@@ -758,8 +814,8 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("conditional-auto-refresh", m.doConditionalAutoRefresh, nil)
 
 	// specific set-up for the kernel snap
-	runner.AddHandler("prepare-kernel-snap", m.doSetupKernelSnap, m.undoSetupKernelSnap)
-	runner.AddHandler("discard-old-kernel-snap-setup", m.doCleanupOldKernelSnap, m.undoCleanupOldKernelSnap)
+	runner.AddHandler("prepare-kernel-snap", m.doPrepareKernelSnap, m.undoPrepareKernelSnap)
+	runner.AddHandler("discard-old-kernel-snap-setup", m.doDiscardOldKernelSnapSetup, m.undoDiscardOldKernelSnapSetup)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
@@ -767,6 +823,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 
 	// remove related
 	runner.AddHandler("stop-snap-services", m.stopSnapServices, m.undoStopSnapServices)
+	runner.AddHandler("kill-snap-apps", m.doKillSnapApps, m.undoKillSnapApps)
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, m.undoUnlinkSnap)
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
@@ -797,23 +854,11 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("mount-component", m.doMountComponent, m.undoMountComponent)
 	runner.AddHandler("unlink-current-component", m.doUnlinkCurrentComponent, m.undoUnlinkCurrentComponent)
 	runner.AddHandler("link-component", m.doLinkComponent, m.undoLinkComponent)
+	runner.AddHandler("unlink-component", m.doUnlinkComponent, m.undoUnlinkComponent)
 	// We cannot undo much after a component file is removed. And it is the
 	// last task anyway.
 	runner.AddHandler("discard-component", m.doDiscardComponent, nil)
-	setupKModsInDo := func(t *state.Task, _ *tomb.Tomb) error {
-		return m.doSetupKernelModules(t, state.DoneStatus)
-	}
-	setupKModsInUndo := func(t *state.Task, _ *tomb.Tomb) error {
-		return m.doSetupKernelModules(t, state.UndoneStatus)
-	}
-	removeKModsInUndo := func(t *state.Task, _ *tomb.Tomb) error {
-		return m.doRemoveKernelModulesSetup(t, state.UndoneStatus)
-	}
-	removeKModsInDo := func(t *state.Task, _ *tomb.Tomb) error {
-		return m.doRemoveKernelModulesSetup(t, state.DoneStatus)
-	}
-	runner.AddHandler("prepare-kernel-modules-components", setupKModsInDo, removeKModsInUndo)
-	runner.AddHandler("clear-kernel-modules-components", removeKModsInDo, setupKModsInUndo)
+	runner.AddHandler("prepare-kernel-modules-components", m.doPrepareKernelModulesComponents, m.undoPrepareKernelModulesComponents)
 
 	// control serialisation
 	runner.AddBlocked(m.blockedTask)
@@ -833,9 +878,12 @@ func (m *SnapManager) StartUp() error {
 		return fmt.Errorf("failed to generate cookies: %q", err)
 	}
 
-	// register handler that records a refresh-inhibit notice when
-	// the set of inhibited snaps is changed.
-	m.changeCallbackID = m.state.AddChangeStatusChangedHandler(processInhibitedAutoRefresh)
+	m.changeCallbackID = m.state.AddChangeStatusChangedHandler(func(chg *state.Change, old, new state.Status) {
+		// This handler records a refresh-inhibit notice when the set of inhibited snaps is changed.
+		processInhibitedAutoRefresh(chg, old, new)
+		// This handler implements marks failed snaps auto-refresh attempts for backoff.
+		processFailedAutoRefresh(chg, old, new)
+	})
 
 	if CheckExpectedRestart(m.state) == ErrUnexpectedRuntimeRestart {
 		logger.Noticef("detected a restart at runtime without a corresponding snapd change")

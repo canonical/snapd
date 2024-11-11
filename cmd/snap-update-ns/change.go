@@ -65,6 +65,10 @@ type Change struct {
 	Action Action
 }
 
+func (c *Change) GoString() string {
+	return fmt.Sprintf("%#+v", *c)
+}
+
 // String formats mount change to a human-readable line.
 func (c Change) String() string {
 	return fmt.Sprintf("%s (%s)", c.Action, c.Entry)
@@ -569,7 +573,7 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	copy(unsortedCurrent, current)
 
 	dumpMountEntries := func(entries []osutil.MountEntry, pfx string) {
-		logger.Debugf(pfx)
+		logger.Debug(pfx)
 		for _, en := range entries {
 			logger.Debugf("- %v", en)
 		}

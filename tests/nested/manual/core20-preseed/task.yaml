@@ -11,7 +11,7 @@ environment:
   NESTED_ENABLE_TPM: false
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
-  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-20-dangerous.model
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-20-components-dangerous.model
   # for the fake store
   STORE_ADDR: localhost:11028
   NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
@@ -60,5 +60,10 @@ execute: |
 
   echo "Check that no snaps are broken"
   remote.exec "snap list" | NOMATCH "broken"
-  remote.exec "snap list" | MATCH "core20"
-  remote.exec "snap list" | MATCH "snapd"
+  remote.exec "snap list core20"
+  remote.exec "snap list snapd"
+  remote.exec "snap list test-snap-with-components"
+
+  # both of these components should be installed, too
+  remote.exec "snap run test-snap-with-components one"
+  remote.exec "snap run test-snap-with-components two"

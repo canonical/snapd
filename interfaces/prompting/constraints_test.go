@@ -20,13 +20,13 @@
 package prompting_test
 
 import (
-	"fmt"
-
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces/prompting"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type constraintsSuite struct{}
@@ -54,17 +54,17 @@ func (s *constraintsSuite) TestConstraintsValidateForInterface(c *C) {
 		{
 			"foo",
 			[]string{"read"},
-			"invalid constraints: unsupported interface.*",
+			`invalid interface: "foo"`,
 		},
 		{
 			"home",
 			[]string{},
-			fmt.Sprintf("invalid constraints: %v", prompting.ErrPermissionsListEmpty),
+			"invalid permissions for home interface: permissions list empty",
 		},
 		{
 			"home",
 			[]string{"access"},
-			fmt.Sprintf("invalid constraints: unsupported permission for home interface.*"),
+			"invalid permissions for home interface.*",
 		},
 	}
 	for _, testCase := range cases {
@@ -81,7 +81,7 @@ func (s *constraintsSuite) TestConstraintsValidateForInterface(c *C) {
 		Permissions: []string{"read"},
 	}
 	err = constraints.ValidateForInterface("home")
-	c.Check(err, ErrorMatches, "invalid constraints: no path pattern")
+	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
 }
 
 func (s *constraintsSuite) TestValidatePermissionsHappy(c *C) {
@@ -125,22 +125,22 @@ func (s *constraintsSuite) TestValidatePermissionsUnhappy(c *C) {
 		{
 			"foo",
 			[]string{"read"},
-			"unsupported interface.*",
+			`invalid interface: "foo"`,
 		},
 		{
 			"home",
 			[]string{"access"},
-			"unsupported permission.*",
+			`invalid permissions for home interface: "access"`,
 		},
 		{
 			"home",
 			[]string{"read", "write", "access"},
-			"unsupported permission.*",
+			`invalid permissions for home interface: "access"`,
 		},
 		{
 			"home",
 			[]string{},
-			fmt.Sprintf("%v", prompting.ErrPermissionsListEmpty),
+			"invalid permissions for home interface: permissions list empty",
 		},
 	}
 	for _, testCase := range cases {
@@ -188,77 +188,8 @@ func (s *constraintsSuite) TestConstraintsMatchUnhappy(c *C) {
 		Permissions: []string{"read"},
 	}
 	matches, err := badConstraints.Match(badPath)
-	c.Check(err, ErrorMatches, "invalid constraints: no path pattern")
+	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
 	c.Check(matches, Equals, false)
-}
-
-func (s *constraintsSuite) TestConstraintsRemovePermission(c *C) {
-	cases := []struct {
-		initial []string
-		remove  string
-		final   []string
-		err     error
-	}{
-		{
-			[]string{"read", "write", "execute"},
-			"read",
-			[]string{"write", "execute"},
-			nil,
-		},
-		{
-			[]string{"read", "write", "execute"},
-			"write",
-			[]string{"read", "execute"},
-			nil,
-		},
-		{
-			[]string{"read", "write", "execute"},
-			"execute",
-			[]string{"read", "write"},
-			nil,
-		},
-		{
-			[]string{"read", "write", "read"},
-			"read",
-			[]string{"write"},
-			nil,
-		},
-		{
-			[]string{"read"},
-			"read",
-			[]string{},
-			nil,
-		},
-		{
-			[]string{"read", "read"},
-			"read",
-			[]string{},
-			nil,
-		},
-		{
-			[]string{"read", "write", "execute"},
-			"append",
-			[]string{"read", "write", "execute"},
-			prompting.ErrPermissionNotInList,
-		},
-		{
-			[]string{},
-			"read",
-			[]string{},
-			prompting.ErrPermissionNotInList,
-		},
-	}
-	for _, testCase := range cases {
-		pathPattern, err := patterns.ParsePathPattern("/path/to/foo")
-		c.Check(err, IsNil)
-		constraints := &prompting.Constraints{
-			PathPattern: pathPattern,
-			Permissions: testCase.initial,
-		}
-		err = constraints.RemovePermission(testCase.remove)
-		c.Check(err, Equals, testCase.err)
-		c.Check(constraints.Permissions, DeepEquals, testCase.final)
-	}
 }
 
 func (s *constraintsSuite) TestConstraintsContainPermissions(c *C) {
@@ -320,12 +251,12 @@ func (s *constraintsSuite) TestConstraintsContainPermissions(c *C) {
 	}
 }
 
-func constructPermissionsMaps() []map[string]map[string]interface{} {
-	var permissionsMaps []map[string]map[string]interface{}
+func constructPermissionsMaps() []map[string]map[string]any {
+	var permissionsMaps []map[string]map[string]any
 	// interfaceFilePermissionsMaps
-	filePermissionsMaps := make(map[string]map[string]interface{})
+	filePermissionsMaps := make(map[string]map[string]any)
 	for iface, permsMap := range prompting.InterfaceFilePermissionsMaps {
-		filePermissionsMaps[iface] = make(map[string]interface{}, len(permsMap))
+		filePermissionsMaps[iface] = make(map[string]any, len(permsMap))
 		for perm, val := range permsMap {
 			filePermissionsMaps[iface][perm] = val
 		}
@@ -337,8 +268,8 @@ func constructPermissionsMaps() []map[string]map[string]interface{} {
 
 func (s *constraintsSuite) TestInterfacesAndPermissionsCompleteness(c *C) {
 	permissionsMaps := constructPermissionsMaps()
-	// Check that every interface in interfacePriorities is also in
-	// interfacePermissionsAvailable and exactly one of the permissions maps.
+	// Check that every interface in interfacePermissionsAvailable is in
+	// exactly one of the permissions maps.
 	// Also, check that the permissions for a given interface in
 	// interfacePermissionsAvailable are identical to the permissions in the
 	// interface's permissions map.
@@ -396,7 +327,7 @@ func (s *constraintsSuite) TestAvailablePermissions(c *C) {
 func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsHappy(c *C) {
 	cases := []struct {
 		iface string
-		perms interface{}
+		perms any
 		list  []string
 	}{
 		{
@@ -438,9 +369,9 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsHappy(c
 }
 
 func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy(c *C) {
-	cases := []struct {
+	for _, testCase := range []struct {
 		iface  string
-		perms  interface{}
+		perms  any
 		errStr string
 	}{
 		{
@@ -458,21 +389,36 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy
 			notify.AA_MAY_READ,
 			"cannot map the given interface to list of available permissions.*",
 		},
-		{
-			"home",
-			notify.FilePermission(1 << 17),
-			"cannot map AppArmor permission to abstract permission for the home interface.*",
-		},
-		{
-			"home",
-			notify.AA_MAY_GETATTR | notify.AA_MAY_READ,
-			"cannot map AppArmor permission to abstract permission for the home interface.*",
-		},
-	}
-	for _, testCase := range cases {
+	} {
 		perms, err := prompting.AbstractPermissionsFromAppArmorPermissions(testCase.iface, testCase.perms)
 		c.Check(perms, IsNil, Commentf("received unexpected non-nil permissions list for test case: %+v", testCase))
 		c.Check(err, ErrorMatches, testCase.errStr)
+	}
+	for _, testCase := range []struct {
+		iface    string
+		perms    any
+		abstract []string
+		errStr   string
+	}{
+		{
+			"home",
+			notify.FilePermission(1 << 17),
+			[]string{},
+			` cannot map AppArmor permission to abstract permission for the home interface: "0x20000"`,
+		},
+		{
+			"home",
+			notify.AA_MAY_GETCRED | notify.AA_MAY_READ,
+			[]string{"read"},
+			` cannot map AppArmor permission to abstract permission for the home interface: "get-cred"`,
+		},
+	} {
+		logbuf, restore := logger.MockLogger()
+		defer restore()
+		perms, err := prompting.AbstractPermissionsFromAppArmorPermissions(testCase.iface, testCase.perms)
+		c.Check(err, IsNil)
+		c.Check(perms, DeepEquals, testCase.abstract)
+		c.Check(logbuf.String(), testutil.Contains, testCase.errStr)
 	}
 }
 
@@ -480,17 +426,17 @@ func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsHappy(c *
 	cases := []struct {
 		iface string
 		list  []string
-		perms interface{}
+		perms any
 	}{
 		{
 			"home",
 			[]string{"read"},
-			notify.AA_MAY_OPEN | notify.AA_MAY_READ,
+			notify.AA_MAY_OPEN | notify.AA_MAY_READ | notify.AA_MAY_GETATTR,
 		},
 		{
 			"home",
 			[]string{"write"},
-			notify.AA_MAY_OPEN | notify.AA_MAY_WRITE | notify.AA_MAY_APPEND | notify.AA_MAY_CREATE | notify.AA_MAY_DELETE | notify.AA_MAY_RENAME | notify.AA_MAY_CHMOD | notify.AA_MAY_LOCK | notify.AA_MAY_LINK,
+			notify.AA_MAY_OPEN | notify.AA_MAY_WRITE | notify.AA_MAY_APPEND | notify.AA_MAY_CREATE | notify.AA_MAY_DELETE | notify.AA_MAY_RENAME | notify.AA_MAY_SETATTR | notify.AA_MAY_CHMOD | notify.AA_MAY_LOCK | notify.AA_MAY_LINK,
 		},
 		{
 			"home",
@@ -500,12 +446,12 @@ func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsHappy(c *
 		{
 			"home",
 			[]string{"read", "execute"},
-			notify.AA_MAY_OPEN | notify.AA_MAY_READ | notify.AA_MAY_EXEC | notify.AA_EXEC_MMAP,
+			notify.AA_MAY_OPEN | notify.AA_MAY_READ | notify.AA_MAY_GETATTR | notify.AA_MAY_EXEC | notify.AA_EXEC_MMAP,
 		},
 		{
 			"home",
 			[]string{"execute", "write", "read"},
-			notify.AA_MAY_OPEN | notify.AA_MAY_READ | notify.AA_MAY_EXEC | notify.AA_EXEC_MMAP | notify.AA_MAY_WRITE | notify.AA_MAY_APPEND | notify.AA_MAY_CREATE | notify.AA_MAY_DELETE | notify.AA_MAY_RENAME | notify.AA_MAY_CHMOD | notify.AA_MAY_LOCK | notify.AA_MAY_LINK,
+			notify.AA_MAY_OPEN | notify.AA_MAY_READ | notify.AA_MAY_GETATTR | notify.AA_MAY_EXEC | notify.AA_EXEC_MMAP | notify.AA_MAY_WRITE | notify.AA_MAY_APPEND | notify.AA_MAY_CREATE | notify.AA_MAY_DELETE | notify.AA_MAY_RENAME | notify.AA_MAY_SETATTR | notify.AA_MAY_CHMOD | notify.AA_MAY_LOCK | notify.AA_MAY_LINK,
 		},
 	}
 	for _, testCase := range cases {
@@ -526,7 +472,7 @@ func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsUnhappy(c
 		{
 			"home",
 			[]string{},
-			fmt.Sprintf("%v", prompting.ErrPermissionsListEmpty),
+			"invalid permissions for home interface: permissions list empty",
 		},
 		{
 			"foo",

@@ -20,10 +20,13 @@
 package backend
 
 import (
+	"context"
 	"os"
 
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -57,4 +60,12 @@ func MockMkdirAllChown(f func(string, os.FileMode, sys.UserID, sys.GroupID) erro
 	return func() {
 		mkdirAllChown = old
 	}
+}
+
+func MockKernelEnsureKernelDriversTree(f func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (err error)) func() {
+	return testutil.Mock(&kernelEnsureKernelDriversTree, f)
+}
+
+func MockCgroupKillSnapProcesses(f func(ctx context.Context, snapName string) error) func() {
+	return testutil.Mock(&cgroupKillSnapProcesses, f)
 }

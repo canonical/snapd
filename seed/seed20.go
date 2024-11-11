@@ -33,10 +33,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
+	"sort"
 	"sync"
 
 	"github.com/snapcore/snapd/asserts"
@@ -49,18 +48,31 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
+// resourceKey is used in maps of resource assertions.
+type resourceKey struct {
+	// snapID is the snap ID
+	snapID string
+	// name is the resource name
+	name string
+}
+
 type seed20 struct {
 	systemDir string
+	seedDir   string
 
 	db       asserts.RODatabase
 	commitTo func(*asserts.Batch) error
 
-	model *asserts.Model
+	model      *asserts.Model
+	modelSnaps map[string]*asserts.ModelSnap
 
 	snapDeclsByID   map[string]*asserts.SnapDeclaration
 	snapDeclsByName map[string]*asserts.SnapDeclaration
 
 	snapRevsByID map[string]*asserts.SnapRevision
+
+	resPairByResKey map[resourceKey]*asserts.SnapResourcePair
+	resRevByResKey  map[resourceKey]*asserts.SnapResourceRevision
 
 	nLoadMetaJobs int
 
@@ -79,20 +91,180 @@ type seed20 struct {
 	mode string
 
 	snaps []*Snap
-	// modes holds a matching applicable modes set for each snap in snaps
-	modes             [][]string
+
 	essentialSnapsNum int
 }
 
-// Copy implement Copier interface.
-func (s *seed20) Copy(seedDir string, label string, tm timings.Measurer) (err error) {
+func shouldCopySnap(target *Snap, model *asserts.Model, modelSnaps map[string]*asserts.ModelSnap, oc *OptionalContainers) bool {
+	if oc == nil {
+		return true
+	}
+
+	if target.Essential {
+		return true
+	}
+
+	modelSnap, ok := modelSnaps[target.SnapName()]
+	if ok && modelSnap.Presence == "required" {
+		return true
+	}
+
+	// if the snap isn't in the model and the model isn't grade dangerous, then
+	// we shouldn't copy the snap. this situation should only happen if someone
+	// has tampered with the seed.
+	if !ok && model.Grade() != asserts.ModelDangerous {
+		return false
+	}
+
+	return strutil.ListContains(oc.Snaps, target.SnapName())
+}
+
+func shouldCopyComponent(target Component, snapName string, model *asserts.Model, modelSnaps map[string]*asserts.ModelSnap, oc *OptionalContainers) bool {
+	if oc == nil {
+		return true
+	}
+
+	var componentInModel bool
+	modelSnap, ok := modelSnaps[snapName]
+	if ok {
+		if modelComp, ok := modelSnap.Components[target.CompSideInfo.Component.ComponentName]; ok {
+			componentInModel = true
+			if modelComp.Presence == "required" {
+				return true
+			}
+		}
+	}
+
+	// if the component isn't in the model and the model isn't grade dangerous,
+	// then we shouldn't ever copy the component. this situation should only
+	// happen if someone has tampered with the seed.
+	if !componentInModel && model.Grade() != asserts.ModelDangerous {
+		return false
+	}
+
+	return strutil.ListContains(oc.Components[snapName], target.CompSideInfo.Component.ComponentName)
+}
+
+// OptionalContainers implements the Copier interface.
+func (s *seed20) OptionalContainers() (OptionalContainers, error) {
+	model := s.Model()
+
+	requiredSnapsInModel := make(map[string]bool)
+	requiredComponentsInModel := make(map[string]map[string]bool)
+	for _, snap := range model.AllSnaps() {
+		if snap.Presence == "required" {
+			requiredSnapsInModel[snap.Name] = true
+		}
+
+		requiredComps := make(map[string]bool)
+		for compName, comp := range snap.Components {
+			if comp.Presence == "required" {
+				requiredComps[compName] = true
+			}
+		}
+		requiredComponentsInModel[snap.Name] = requiredComps
+	}
+
+	// snapd is always required, but it might not be explicitly listed in the
+	// model
+	requiredSnapsInModel["snapd"] = true
+
+	availableSnaps, availableComponents, err := s.availableContainers()
+	if err != nil {
+		return OptionalContainers{}, err
+	}
+
+	optionalAndAvailable := OptionalContainers{
+		Components: make(map[string][]string),
+	}
+	for sn := range availableSnaps {
+		if !requiredSnapsInModel[sn] {
+			optionalAndAvailable.Snaps = append(optionalAndAvailable.Snaps, sn)
+		}
+	}
+
+	for sn, comps := range availableComponents {
+		requiredCompsForSnap := requiredComponentsInModel[sn]
+		for c := range comps {
+			if requiredCompsForSnap == nil || !requiredCompsForSnap[c] {
+				optionalAndAvailable.Components[sn] = append(optionalAndAvailable.Components[sn], c)
+			}
+		}
+	}
+
+	if len(optionalAndAvailable.Components) == 0 {
+		optionalAndAvailable.Components = nil
+	}
+
+	return optionalAndAvailable, nil
+}
+
+func (s *seed20) availableContainers() (map[string]bool, map[string]map[string]bool, error) {
+	availableSnapSet, availableCompSets := s.availableAssertedContainers()
+
+	optsPath := filepath.Join(s.systemDir, "options.yaml")
+	if s.model.Grade() == asserts.ModelDangerous && osutil.FileExists(optsPath) {
+		opts, err := internal.ReadOptions20(optsPath)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		for _, sn := range opts.Snaps {
+			availableSnapSet[sn.Name] = true
+			for _, comp := range sn.Components {
+				if availableCompSets[sn.Name] == nil {
+					availableCompSets[sn.Name] = make(map[string]bool)
+				}
+				availableCompSets[sn.Name][comp.Name] = true
+			}
+		}
+	}
+
+	return availableSnapSet, availableCompSets, nil
+}
+
+func (s *seed20) availableAssertedContainers() (map[string]bool, map[string]map[string]bool) {
+	assertedNames := make(map[string]bool)
+	assertedComps := make(map[string]map[string]bool)
+	snapIDToName := make(map[string]string)
+	for snapID, decl := range s.snapDeclsByID {
+		snapName := decl.SnapName()
+		snapIDToName[snapID] = snapName
+		assertedNames[snapName] = true
+	}
+
+	for _, pair := range s.resPairByResKey {
+		snapName := snapIDToName[pair.SnapID()]
+		if assertedComps[snapName] == nil {
+			assertedComps[snapName] = make(map[string]bool)
+		}
+		assertedComps[snapName][pair.ResourceName()] = true
+	}
+
+	return assertedNames, assertedComps
+}
+
+// Copy copies the system seed to the given seed directory.
+//
+// Note that while most files are copied directly, there are some exceptions
+// that are modified to contain only the information needed for the snaps and
+// components that are actually copied. These include assertions/snaps,
+// options.yaml, and aux-info.json.
+//
+// Note that the grubenv file is not copied at all, as it would not really be
+// possible within the confines of this interface to rewrite this file to
+// contain valid filepaths. This file should be regenerated by the caller with
+// boot.MakeRecoverySystemBootable.
+//
+// Copy implements the Copier interface.
+func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (err error) {
 	srcSystemDir, err := filepath.Abs(s.systemDir)
 	if err != nil {
 		return err
 	}
 
-	if label == "" {
-		label = filepath.Base(srcSystemDir)
+	if opts.Label == "" {
+		opts.Label = filepath.Base(srcSystemDir)
 	}
 
 	destSeedDir, err := filepath.Abs(seedDir)
@@ -100,16 +272,16 @@ func (s *seed20) Copy(seedDir string, label string, tm timings.Measurer) (err er
 		return err
 	}
 
-	if err := os.Mkdir(filepath.Join(destSeedDir, "systems"), 0755); err != nil && !errors.Is(err, fs.ErrExist) {
+	destSystemDir := filepath.Join(destSeedDir, "systems", opts.Label)
+	if osutil.FileExists(destSystemDir) {
+		return fmt.Errorf("cannot create system: system %q already exists at %q", opts.Label, destSystemDir)
+	}
+
+	if err := os.MkdirAll(destSystemDir, 0755); err != nil {
 		return err
 	}
 
-	destSystemDir := filepath.Join(destSeedDir, "systems", label)
-	if osutil.FileExists(destSystemDir) {
-		return fmt.Errorf("cannot create system: system %q already exists at %q", label, destSystemDir)
-	}
-
-	// note: we don't clean up asserted snaps that were copied over
+	// note: we don't clean up asserted snaps or components that were copied over
 	defer func() {
 		if err != nil {
 			os.RemoveAll(destSystemDir)
@@ -123,45 +295,273 @@ func (s *seed20) Copy(seedDir string, label string, tm timings.Measurer) (err er
 	span := tm.StartSpan("copy-recovery-system", fmt.Sprintf("copy recovery system from %s to %s", srcSystemDir, destSystemDir))
 	defer span.Stop()
 
-	// copy all files (including unasserted snaps) from the seed to the
-	// destination
-	err = filepath.Walk(srcSystemDir, func(path string, info fs.FileInfo, err error) error {
+	dirs := []string{"snaps", "assertions"}
+	for _, d := range dirs {
+		if err := os.Mkdir(filepath.Join(destSystemDir, d), 0755); err != nil {
+			return err
+		}
+	}
+
+	// these files are the files we can safely copy without an modifications. we
+	// don't copy the grubenv file that might be present, since it might contain
+	// paths that won't be valid in newly copied seed. callers should make the
+	// system bootable if that is needed.
+	for _, name := range []string{"assertions/model-etc", "model"} {
+		if err := osutil.CopyFile(
+			filepath.Join(srcSystemDir, name),
+			filepath.Join(destSystemDir, name),
+			osutil.CopyFlagDefault,
+		); err != nil {
+			return err
+		}
+	}
+
+	destAssertedSnapDir := filepath.Join(destSeedDir, "snaps")
+	if err := os.Mkdir(destAssertedSnapDir, 0755); err != nil {
+		return err
+	}
+
+	destUnassertedSnapDir := filepath.Join(destSystemDir, "snaps")
+
+	// while copying the snaps, we also collect the assertions and the fields in
+	// the aux-info.json file that we need to write
+	var assertions []asserts.Assertion
+	auxInfo := make(map[string]*internal.AuxInfo20)
+	optSnaps := make([]*internal.Snap20, 0)
+
+	// copy the snaps and components that the seed needs
+	for _, sn := range s.snaps {
+		// if we're not copying the snap, then we also don't need to copy the
+		// components for this snap
+		if !shouldCopySnap(sn, s.model, s.modelSnaps, opts.OptionalContainers) {
+			continue
+		}
+
+		// optSnap might be nil if it shouldn't have an entry in options.yaml
+		as, optSnap, err := s.copySnapAndComponents(sn, destSeedDir, opts)
 		if err != nil {
 			return err
 		}
 
-		destPath := filepath.Join(destSeedDir, "systems", label, strings.TrimPrefix(path, srcSystemDir))
-		if info.IsDir() {
-			return os.Mkdir(destPath, info.Mode())
+		if optSnap != nil {
+			optSnaps = append(optSnaps, optSnap)
 		}
 
-		return osutil.CopyFile(path, destPath, osutil.CopyFlagDefault)
-	})
-	if err != nil {
+		assertions = append(assertions, as...)
+		if sn.ID() != "" {
+			if a, ok := s.auxInfos[sn.ID()]; ok {
+				auxInfo[sn.ID()] = a
+			}
+		}
+	}
+
+	if len(optSnaps) > 0 {
+		opts := internal.Options20{Snaps: optSnaps}
+		if err := opts.Write(filepath.Join(destSystemDir, "options.yaml")); err != nil {
+			return err
+		}
+	}
+
+	if err := writeAuxInfo(filepath.Join(destUnassertedSnapDir, "aux-info.json"), auxInfo); err != nil {
 		return err
 	}
 
-	destAssertedSnapDir := filepath.Join(destSeedDir, "snaps")
-
-	if err := os.MkdirAll(destAssertedSnapDir, 0755); err != nil {
+	// copy the assertions that the seed needs. since we don't make any
+	// distinction between the assertions in "extra-snaps" and "snaps" files, we
+	// just write them all to the same "snaps" file.
+	if err := resolveAndSaveAssertions(assertions, s.db, filepath.Join(destSystemDir, "assertions", "snaps")); err != nil {
 		return err
-	}
-
-	// copy the asserted snaps that the seed needs
-	for _, sn := range s.snaps {
-		// unasserted snaps are already copied above, skip them
-		if sn.ID() == "" {
-			continue
-		}
-
-		destSnapPath := filepath.Join(destAssertedSnapDir, filepath.Base(sn.Path))
-
-		if err := osutil.CopyFile(sn.Path, destSnapPath, osutil.CopyFlagOverwrite); err != nil {
-			return fmt.Errorf("cannot copy asserted snap: %w", err)
-		}
 	}
 
 	return nil
+}
+
+func snapInModel(cref naming.SnapRef, modelSnaps map[string]*asserts.ModelSnap) bool {
+	// snapd is implicitly in the model
+	if cref.SnapName() == "snapd" {
+		return true
+	}
+
+	_, ok := modelSnaps[cref.SnapName()]
+	return ok
+}
+
+func componentInModel(cref naming.ComponentRef, modelSnaps map[string]*asserts.ModelSnap) bool {
+	sn, ok := modelSnaps[cref.SnapName]
+	if !ok {
+		return false
+	}
+
+	_, ok = sn.Components[cref.ComponentName]
+	return ok
+}
+
+func (s *seed20) copySnapAndComponents(sn *Snap, destSeedDir string, opts CopyOptions) ([]asserts.Assertion, *internal.Snap20, error) {
+	destination := func(filename string, asserted, inModel bool) string {
+		if asserted && inModel {
+			return filepath.Join(destSeedDir, "snaps", filename)
+		}
+		return filepath.Join(destSeedDir, "systems", opts.Label, "snaps", filename)
+	}
+
+	snapAsserted := sn.ID() != ""
+
+	var assertions []asserts.Assertion
+	if snapAsserted {
+		decl, ok := s.snapDeclsByID[sn.ID()]
+		if !ok {
+			return nil, nil, fmt.Errorf("internal error: missing snap-declaration for asserted snap: %s", sn.SnapName())
+		}
+		assertions = append(assertions, decl)
+
+		rev, ok := s.snapRevsByID[sn.ID()]
+		if !ok {
+			return nil, nil, fmt.Errorf("internal error: missing snap-revision for asserted snap: %s", sn.SnapName())
+		}
+		assertions = append(assertions, rev)
+	}
+
+	snapInModel := snapInModel(sn, s.modelSnaps)
+
+	snapDest := destination(filepath.Base(sn.Path), snapAsserted, snapInModel)
+	if err := osutil.CopyFile(sn.Path, snapDest, osutil.CopyFlagOverwrite); err != nil {
+		return nil, nil, fmt.Errorf("cannot copy snap: %w", err)
+	}
+
+	optComponentsByName := make(map[string]internal.Component20, len(s.optSnaps))
+
+	var optSnap *internal.Snap20
+	for _, os := range s.optSnaps {
+		if os.Name == sn.SnapName() {
+			cp := *os
+			optSnap = &cp
+
+			for _, comp := range cp.Components {
+				optComponentsByName[comp.Name] = comp
+			}
+
+			// clear out the components, since we're going to add back only the
+			// ones that we're copying to the new seed
+			optSnap.Components = nil
+		}
+	}
+
+	addOptionsComponent := func(name string) {
+		if optSnap == nil {
+			return
+		}
+
+		oc, ok := optComponentsByName[name]
+		if !ok {
+			return
+		}
+
+		optSnap.Components = append(optSnap.Components, oc)
+	}
+
+	for _, comp := range sn.Components {
+		if !shouldCopyComponent(comp, sn.SnapName(), s.model, s.modelSnaps, opts.OptionalContainers) {
+			continue
+		}
+
+		addOptionsComponent(comp.CompSideInfo.Component.ComponentName)
+
+		// an asserted snap implies that all components should also be asserted
+		if snapAsserted {
+			key := resourceKey{snapID: sn.ID(), name: comp.CompSideInfo.Component.ComponentName}
+			resPair, ok := s.resPairByResKey[key]
+			if !ok {
+				return nil, nil, fmt.Errorf("internal error: missing resource-pair for component of asserted snap: %s", comp.CompSideInfo.Component.String())
+			}
+			assertions = append(assertions, resPair)
+
+			resRev, ok := s.resRevByResKey[key]
+			if !ok {
+				return nil, nil, fmt.Errorf("internal error: missing resource-revision for component of asserted snap: %s", comp.CompSideInfo.Component.String())
+			}
+			assertions = append(assertions, resRev)
+		}
+
+		compInModel := componentInModel(comp.CompSideInfo.Component, s.modelSnaps)
+		destCompPath := destination(filepath.Base(comp.Path), snapAsserted, compInModel)
+		if err := osutil.CopyFile(comp.Path, destCompPath, osutil.CopyFlagOverwrite); err != nil {
+			return nil, nil, fmt.Errorf("cannot copy component: %w", err)
+		}
+	}
+
+	// snaps can have an entry in options.yaml any of the following reasons:
+	// * they aren't in the model
+	// * they are overriding a channel
+	// * they are pointing to unasserted local snap
+	// * they are adding components to the snap that is already present in the
+	//   model
+	//
+	// since we're potentially not copying all of the components, we check here
+	// to make sure that we really need to write this entry to the new options.yaml
+	if snapInModel && optSnap != nil && optSnap.Channel == "" && optSnap.Unasserted == "" && len(optSnap.Components) == 0 {
+		optSnap = nil
+	}
+
+	return assertions, optSnap, nil
+}
+
+func writeAuxInfo(path string, auxInfo map[string]*internal.AuxInfo20) error {
+	if len(auxInfo) == 0 {
+		return nil
+	}
+
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if err := json.NewEncoder(f).Encode(auxInfo); err != nil {
+		return err
+	}
+	return f.Close()
+}
+
+func resolveAndSaveAssertions(assertions []asserts.Assertion, db asserts.RODatabase, path string) error {
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		a, err := ref.Resolve(db.Find)
+		if err != nil {
+			return nil, fmt.Errorf("internal error: cannot resolve assertion from seed: %v", err)
+		}
+		return a, nil
+	}
+
+	fetched := make(map[string]asserts.Assertion, len(assertions))
+	save := func(a asserts.Assertion) error {
+		fetched[a.Ref().Unique()] = a
+		return nil
+	}
+
+	fetcher := asserts.NewFetcher(db, retrieve, save)
+	for _, a := range assertions {
+		if a == nil {
+			return fmt.Errorf("internal error: nil assertion")
+		}
+
+		if err := fetcher.Fetch(a.Ref()); err != nil {
+			return err
+		}
+	}
+
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	enc := asserts.NewEncoder(f)
+	for _, a := range fetched {
+		if err := enc.Encode(a); err != nil {
+			return err
+		}
+	}
+
+	return f.Close()
 }
 
 func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
@@ -176,8 +576,8 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 
 	assertsDir := filepath.Join(s.systemDir, "assertions")
 	// collect assertions that are not the model
-	var declRefs []*asserts.Ref
-	var revRefs []*asserts.Ref
+	var declRefs, revRefs []*asserts.Ref
+	var resRevRefs, resPairRefs []*asserts.Ref
 	checkAssertion := func(ref *asserts.Ref) error {
 		switch ref.Type {
 		case asserts.ModelType:
@@ -186,6 +586,10 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 			declRefs = append(declRefs, ref)
 		case asserts.SnapRevisionType:
 			revRefs = append(revRefs, ref)
+		case asserts.SnapResourceRevisionType:
+			resRevRefs = append(resRevRefs, ref)
+		case asserts.SnapResourcePairType:
+			resPairRefs = append(resPairRefs, ref)
 		}
 		return nil
 	}
@@ -206,6 +610,9 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 
 	if len(declRefs) != len(revRefs) {
 		return fmt.Errorf("system unexpectedly holds a different number of snap-declaration than snap-revision assertions")
+	}
+	if len(resRevRefs) != len(resPairRefs) {
+		return fmt.Errorf("system unexpectedly holds a different number of snap-snap-resource-revision than snap-resource-pair assertions")
 	}
 
 	// this also verifies the consistency of all of them
@@ -236,10 +643,10 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 			return err
 		}
 		snapDecl := a.(*asserts.SnapDeclaration)
-		snapDeclsByID[snapDecl.SnapID()] = snapDecl
 		if snapDecl1 := snapDeclsByName[snapDecl.SnapName()]; snapDecl1 != nil {
 			return fmt.Errorf("cannot have multiple snap-declarations for the same snap-name: %s", snapDecl.SnapName())
 		}
+		snapDeclsByID[snapDecl.SnapID()] = snapDecl
 		snapDeclsByName[snapDecl.SnapName()] = snapDecl
 	}
 
@@ -261,12 +668,71 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 		}
 	}
 
+	s.resRevByResKey = make(map[resourceKey]*asserts.SnapResourceRevision, len(resRevRefs))
+	for _, resRevRef := range resRevRefs {
+		a, err := find(resRevRef)
+		if err != nil {
+			return err
+		}
+		resRev := a.(*asserts.SnapResourceRevision)
+		snapID := resRev.SnapID()
+		if _, ok := snapDeclsByID[snapID]; !ok {
+			// Unidentified IDs are checked previously
+			return fmt.Errorf("internal error: snap ID %s in resource revision assertion for %s not in known snap declarations", snapID, resRev.ResourceName())
+		}
+		resKey := resourceKey{snapID: snapID, name: resRev.ResourceName()}
+		if _, ok := s.resRevByResKey[resKey]; ok {
+			return fmt.Errorf("cannot have multiple resource revisions for the same component %s (snap %s)", resRev.ResourceName(), snapID)
+		}
+		s.resRevByResKey[resKey] = resRev
+	}
+
+	s.resPairByResKey = make(map[resourceKey]*asserts.SnapResourcePair, len(resPairRefs))
+	for _, resPairRef := range resPairRefs {
+		a, err := find(resPairRef)
+		if err != nil {
+			return err
+		}
+		resPair := a.(*asserts.SnapResourcePair)
+		snapID := resPair.SnapID()
+		resKey := resourceKey{snapID: snapID, name: resPair.ResourceName()}
+		resRev, ok := s.resRevByResKey[resKey]
+		if !ok {
+			return fmt.Errorf("resource pair for %s (%s) does not have a matching resource revision", resPair.ResourceName(), resPair.SnapID())
+		}
+		snapRev, ok := snapRevsByID[snapID]
+		if !ok {
+			// This should have been detected by previous checks
+			return fmt.Errorf("internal error, no snap revision for %s",
+				snapID)
+		}
+		// Check that we have matching snap-resource revisions as specified
+		// by the resource pair.
+		if resRev.ResourceRevision() != resPair.ResourceRevision() ||
+			snapRev.SnapRevision() != resPair.SnapRevision() {
+			return fmt.Errorf("resource pair %s for %s does not match (snap revision, resource revision): (%d, %d)",
+				resPair.ResourceName(), snapRev.SnapID(), snapRev.SnapRevision(), resPair.ResourceRevision())
+		}
+
+		if _, ok := s.resPairByResKey[resKey]; ok {
+			// This should be detected in previous similar check for resource-revision
+			return fmt.Errorf("internal error: cannot have multiple resource pairs for the same component %s (snap %s)", resPair.ResourceName(), snapID)
+		}
+		s.resPairByResKey[resKey] = resPair
+	}
+
+	modelSnaps := make(map[string]*asserts.ModelSnap, len(modelAssertion.AllSnaps()))
+	for _, sn := range modelAssertion.AllSnaps() {
+		modelSnaps[sn.SnapName()] = sn
+	}
+
 	// remember db for later use
 	s.db = db
 	// remember commitTo for LoadPreseedAssertion
 	s.commitTo = commitTo
 	// remember
 	s.model = modelAssertion
+	s.modelSnaps = modelSnaps
 	s.snapDeclsByID = snapDeclsByID
 	s.snapDeclsByName = snapDeclsByName
 	s.snapRevsByID = snapRevsByID
@@ -353,7 +819,115 @@ func (e *noSnapDeclarationError) Error() string {
 	return fmt.Sprintf("cannot find snap-declaration for snap name: %s", e.snapRef.SnapName())
 }
 
-func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, essType snap.Type, handler SnapHandler, snapsDir string, tm timings.Measurer) (snapPath string, snapRev *asserts.SnapRevision, snapDecl *asserts.SnapDeclaration, err error) {
+type errorComponentNotInSeed struct {
+	error
+}
+
+func modelContainsComponent(modelSnaps map[string]*asserts.ModelSnap, cref naming.ComponentRef) bool {
+	sn, ok := modelSnaps[cref.SnapName]
+	if !ok {
+		return false
+	}
+
+	_, ok = sn.Components[cref.ComponentName]
+	return ok
+}
+
+func (s *seed20) assertedComponentDir(cref naming.ComponentRef) string {
+	if modelContainsComponent(s.modelSnaps, cref) {
+		return filepath.Join(s.seedDir, "snaps")
+	}
+	return filepath.Join(s.systemDir, "snaps")
+}
+
+func (s *seed20) lookupVerifiedComponent(cref naming.ComponentRef, snapRev snap.Revision, snapID, snapProvenance string, handler ContainerHandler, tm timings.Measurer) (Component, error) {
+	snapName := cref.SnapName
+	compName := cref.ComponentName
+
+	resKey := resourceKey{snapID: snapID, name: compName}
+	resRev, ok := s.resRevByResKey[resKey]
+	if !ok {
+		// No assertions might be ok if the component is optional, the
+		// caller should check for this error type in that case.
+		return Component{}, errorComponentNotInSeed{
+			fmt.Errorf("resource revision assertion not found for %s", compName)}
+	}
+	resPair, ok := s.resPairByResKey[resKey]
+	if !ok {
+		// should actually be catched by the previous check
+		return Component{},
+			fmt.Errorf("internal error: resource pair assertion not found for %s", compName)
+	}
+
+	// we know the component is asserted, but it might not be in the model. if
+	// it isn't in the model, then it could be in this system's snaps dir
+	compDir := s.assertedComponentDir(cref)
+
+	compPath := filepath.Join(compDir,
+		fmt.Sprintf("%s_%d.comp", cref.String(), resRev.ResourceRevision()))
+
+	_, err := os.Stat(compPath)
+	if err != nil {
+		// error should be of type *PathError
+		return Component{}, errorComponentNotInSeed{err}
+	}
+
+	// Checks
+
+	// Note that the check for matching revisions in resource-revision /
+	// resource-pair is already done in LoadAssertions
+	if resPair.SnapRevision() != snapRev.N {
+		return Component{}, fmt.Errorf(
+			"resource %s pair revision does not match snap revision: %d != %d",
+			compName, resPair.SnapRevision(), snapRev.N)
+	}
+
+	if resRev.Provenance() != snapProvenance {
+		return Component{}, fmt.Errorf(
+			"resource revision provenance for %s does not match snap provenance: %s != %s",
+			compName, resRev.Provenance(), snapProvenance)
+	}
+	if resPair.Provenance() != snapProvenance {
+		return Component{}, fmt.Errorf(
+			"resource pair provenance for %s does not match snap provenance: %s != %s",
+			compName, resPair.Provenance(), snapProvenance)
+	}
+
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, snap.R(resRev.ResourceRevision()), snapName)
+	newPath, snapSHA3_384, resSize, err := handler.HandleAndDigestAssertedContainer(
+		cpi, compPath, tm)
+	if err != nil {
+		return Component{}, err
+	}
+	if newPath != "" {
+		compPath = newPath
+	}
+	if resRev.ResourceSize() != resSize {
+		return Component{}, fmt.Errorf(
+			"resource %s size does not match size in resource revision: %d != %d",
+			compName, resSize, resRev.ResourceSize())
+	}
+	if snapSHA3_384 != resRev.ResourceSHA3_384() {
+		return Component{}, fmt.Errorf(
+			"cannot validate resource %s, hash mismatch with snap-resource-revision",
+			compName)
+	}
+
+	if err := snapasserts.CheckComponentProvenanceWithVerifiedRevision(compPath, resRev); err != nil {
+		return Component{}, err
+	}
+
+	csi := snap.ComponentSideInfo{
+		Component: cref,
+		Revision:  snap.R(resRev.ResourceRevision()),
+	}
+	return Component{
+		Path:         compPath,
+		CompSideInfo: csi,
+	}, nil
+}
+
+func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, handler ContainerHandler, snapsDir string, tm timings.Measurer) (snapPath string, snapRev *asserts.SnapRevision, snapDecl *asserts.SnapDeclaration, err error) {
 	snapID := snapRef.ID()
 	if snapID != "" {
 		snapDecl = s.snapDeclsByID[snapID]
@@ -378,7 +952,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, essType snap.Typ
 	}
 
 	snapName := snapDecl.SnapName()
-	snapPath = filepath.Join(s.systemDir, snapsDir, fmt.Sprintf("%s_%d.snap", snapName, snapRev.SnapRevision()))
+	snapPath = filepath.Join(snapsDir, fmt.Sprintf("%s_%d.snap", snapName, snapRev.SnapRevision()))
 
 	fi, err := os.Stat(snapPath)
 	if err != nil {
@@ -389,14 +963,14 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, essType snap.Typ
 		return "", nil, nil, fmt.Errorf("cannot validate %q for snap %q (snap-id %q), wrong size", snapPath, snapName, snapID)
 	}
 
-	newPath, snapSHA3_384, _, err := handler.HandleAndDigestAssertedSnap(snapName, snapPath, essType, snapRev, nil, tm)
+	cpi := snap.MinimalSnapContainerPlaceInfo(snapName, snap.R(snapRev.SnapRevision()))
+	newPath, snapSHA3_384, _, err := handler.HandleAndDigestAssertedContainer(cpi, snapPath, tm)
 	if err != nil {
 		return "", nil, nil, err
 	}
 
 	if snapSHA3_384 != snapRev.SnapSHA3_384() {
 		return "", nil, nil, fmt.Errorf("cannot validate %q for snap %q (snap-id %q), hash mismatch with snap-revision", snapPath, snapName, snapID)
-
 	}
 
 	if newPath != "" {
@@ -417,20 +991,116 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, essType snap.Typ
 	return snapPath, snapRev, snapDecl, nil
 }
 
-func (s *seed20) lookupSnap(snapRef naming.SnapRef, essType snap.Type, optSnap *internal.Snap20, channel string, handler SnapHandler, snapsDir string, tm timings.Measurer) (*Snap, error) {
+func (s *seed20) lookupUnassertedComponent(comp20 internal.Component20, info *snap.Info, handler ContainerHandler, tm timings.Measurer) (Component, error) {
+	compPath := filepath.Join(s.systemDir, "snaps", comp20.Unasserted)
+	cinfo, err := readComponentInfo(compPath, info, nil)
+	if err != nil {
+		return Component{}, fmt.Errorf("cannot read unasserted component: %v", err)
+	}
+	compName := cinfo.Component.ComponentName
+	cref := naming.NewComponentRef(info.SnapName(), compName)
+	csi := snap.NewComponentSideInfo(cref, snap.R(0))
+	cpi := snap.MinimalComponentContainerPlaceInfo(
+		compName, snap.R(-1), info.SnapName())
+	newCompPath, err := handler.HandleUnassertedContainer(cpi, compPath, tm)
+	if err != nil {
+		return Component{}, err
+	}
+	if newCompPath != "" {
+		compPath = newCompPath
+	}
+	return Component{
+		Path:         compPath,
+		CompSideInfo: *csi,
+	}, nil
+}
+
+func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap, optSnap *internal.Snap20, handler ContainerHandler, snapsDir string, tm timings.Measurer) (snapPath string, sideInfo *snap.SideInfo, seedComps []Component, err error) {
+	var snapRev *asserts.SnapRevision
+	var snapDecl *asserts.SnapDeclaration
+	snapPath, snapRev, snapDecl, err = s.lookupVerifiedRevision(snapRef, handler, snapsDir, tm)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	sideInfo = snapasserts.SideInfoFromSnapAssertions(snapDecl, snapRev)
+
+	if modelSnap != nil {
+		seedComps = make([]Component, 0, len(modelSnap.Components))
+		for comp, modelComp := range modelSnap.Components {
+			seedComp, err := s.lookupVerifiedComponent(
+				naming.NewComponentRef(snapDecl.SnapName(), comp),
+				snap.R(snapRev.SnapRevision()), snapDecl.SnapID(),
+				snapRev.Provenance(), handler, tm)
+			if err != nil {
+				var notInSeed errorComponentNotInSeed
+				if errors.As(err, &notInSeed) {
+					// component not in seed
+					if modelComp.Presence == "required" {
+						err = fmt.Errorf("component %s required in the model but is not in the seed: %v", comp, err)
+						return "", nil, nil, err
+					}
+					// ignore if optional and not in seed
+					continue
+				}
+				return "", nil, nil, err
+			}
+			seedComps = append(seedComps, seedComp)
+		}
+		// Order for test reproducibility
+		sort.Slice(seedComps, func(i, j int) bool {
+			return seedComps[i].CompSideInfo.Component.ComponentName <
+				seedComps[j].CompSideInfo.Component.ComponentName
+		})
+	}
+
+	// if we have an options snap for this asserted snap, then it should only
+	// contain asserted components that are not present in the model
+	if optSnap != nil {
+		for _, comp := range optSnap.Components {
+			if comp.Unasserted != "" {
+				return "", nil, nil, fmt.Errorf("internal error: unasserted component in options.yaml for asserted snap: %s", comp.Unasserted)
+			}
+
+			seedComp, err := s.lookupVerifiedComponent(
+				naming.NewComponentRef(snapDecl.SnapName(), comp.Name),
+				snap.R(snapRev.SnapRevision()), snapDecl.SnapID(),
+				snapRev.Provenance(), handler, tm)
+			if err != nil {
+				return "", nil, nil, err
+			}
+			seedComps = append(seedComps, seedComp)
+		}
+	}
+
+	return snapPath, sideInfo, seedComps, nil
+}
+
+func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap, optSnap *internal.Snap20, channel string, handler ContainerHandler, snapsDir string, tm timings.Measurer) (*Snap, error) {
 	if optSnap != nil && optSnap.Channel != "" {
 		channel = optSnap.Channel
 	}
 
 	var path string
 	var sideInfo *snap.SideInfo
+	var seedComps []Component
 	if optSnap != nil && optSnap.Unasserted != "" {
 		path = filepath.Join(s.systemDir, "snaps", optSnap.Unasserted)
 		info, err := readInfo(path, nil)
 		if err != nil {
 			return nil, fmt.Errorf("cannot read unasserted snap: %v", err)
 		}
-		newPath, err := handler.HandleUnassertedSnap(info.SnapName(), path, tm)
+		// Read unasserted components
+		seedComps = make([]Component, 0, len(optSnap.Components))
+		for _, comp20 := range optSnap.Components {
+			comp, err := s.lookupUnassertedComponent(comp20, info, handler, tm)
+			if err != nil {
+				return nil, err
+			}
+			seedComps = append(seedComps, comp)
+		}
+
+		pinfo := snap.MinimalSnapContainerPlaceInfo(info.SnapName(), snap.Revision{N: -1})
+		newPath, err := handler.HandleUnassertedContainer(pinfo, path, tm)
 		if err != nil {
 			return nil, err
 		}
@@ -443,12 +1113,8 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, essType snap.Type, optSnap *
 	} else {
 		var err error
 		timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", snapRef.SnapName()), func(nested timings.Measurer) {
-			var snapRev *asserts.SnapRevision
-			var snapDecl *asserts.SnapDeclaration
-			path, snapRev, snapDecl, err = s.lookupVerifiedRevision(snapRef, essType, handler, snapsDir, tm)
-			if err == nil {
-				sideInfo = snapasserts.SideInfoFromSnapAssertions(snapDecl, snapRev)
-			}
+			path, sideInfo, seedComps, err = s.deriveSideInfo(
+				snapRef, modelSnap, optSnap, handler, snapsDir, tm)
 		})
 		if err != nil {
 			return nil, err
@@ -463,12 +1129,16 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, essType snap.Type, optSnap *
 		sideInfo.LegacyEditedContact = auxInfo.Contact
 	}
 
+	// TODO this is to avoid changing tests, fix tests instead
+	var comps []Component
+	if len(seedComps) > 0 {
+		comps = seedComps
+	}
 	return &Snap{
-		Path: path,
-
-		SideInfo: sideInfo,
-
-		Channel: channel,
+		Path:       path,
+		SideInfo:   sideInfo,
+		Channel:    channel,
+		Components: comps,
 	}, nil
 }
 
@@ -484,7 +1154,7 @@ type snapToConsider struct {
 
 var errSkipped = errors.New("skipped optional snap")
 
-func (s *seed20) doLoadMetaOne(sntoc *snapToConsider, handler SnapHandler, tm timings.Measurer) (*Snap, error) {
+func (s *seed20) doLoadMetaOne(sntoc *snapToConsider, handler ContainerHandler, tm timings.Measurer) (*Snap, error) {
 	var snapRef naming.SnapRef
 	var channel string
 	var snapsDir string
@@ -501,13 +1171,13 @@ func (s *seed20) doLoadMetaOne(sntoc *snapToConsider, handler SnapHandler, tm ti
 		required = essential || sntoc.modelSnap.Presence == "required"
 		channel = sntoc.modelSnap.DefaultChannel
 		classic = sntoc.modelSnap.Classic
-		snapsDir = "../../snaps"
+		snapsDir = filepath.Join(s.seedDir, "snaps")
 	} else {
 		snapRef = sntoc.optSnap
 		channel = "latest/stable"
-		snapsDir = "snaps"
+		snapsDir = filepath.Join(s.systemDir, "snaps")
 	}
-	seedSnap, err := s.lookupSnap(snapRef, essType, sntoc.optSnap, channel, handler, snapsDir, tm)
+	seedSnap, err := s.lookupSnap(snapRef, sntoc.modelSnap, sntoc.optSnap, channel, handler, snapsDir, tm)
 	if err != nil {
 		if _, ok := err.(*noSnapDeclarationError); ok && !required {
 			// skipped optional snap is ok
@@ -537,7 +1207,7 @@ func (s *seed20) doLoadMetaOne(sntoc *snapToConsider, handler SnapHandler, tm ti
 	return seedSnap, nil
 }
 
-func (s *seed20) doLoadMeta(handler SnapHandler, tm timings.Measurer) error {
+func (s *seed20) doLoadMeta(handler ContainerHandler, tm timings.Measurer) error {
 	var cacheEssential func(snType string, essSnap *Snap)
 	var cachedEssential func(snType string) *Snap
 	if handler != nil {
@@ -564,14 +1234,12 @@ func (s *seed20) doLoadMeta(handler SnapHandler, tm timings.Measurer) error {
 			return s.essCache[snType]
 		}
 	}
-	runMode := []string{"run"}
 
 	// relevant snaps have now been queued in the channel
 	n := len(s.snapsToConsiderCh)
 	close(s.snapsToConsiderCh)
 	if n > 0 {
 		s.snaps = make([]*Snap, n)
-		s.modes = make([][]string, n)
 	}
 
 	njobs := s.nLoadMetaJobs
@@ -597,10 +1265,8 @@ func (s *seed20) doLoadMeta(handler SnapHandler, tm timings.Measurer) error {
 				default:
 				}
 				var seedSnap *Snap
-				modes := runMode
 				essential := false
 				if sntoc.modelSnap != nil {
-					modes = sntoc.modelSnap.Modes
 					essential = sntoc.essential
 				}
 				if essential {
@@ -622,7 +1288,6 @@ func (s *seed20) doLoadMeta(handler SnapHandler, tm timings.Measurer) error {
 				}
 				i := sntoc.index
 				s.snaps[i] = seedSnap
-				s.modes[i] = modes
 			}
 		}()
 	}
@@ -644,13 +1309,10 @@ func (s *seed20) doLoadMeta(handler SnapHandler, tm timings.Measurer) error {
 	}
 	// filter out nil values from skipped snaps
 	osnaps := s.snaps
-	omodes := s.modes
 	s.snaps = s.snaps[:0]
-	s.modes = s.modes[:0]
-	for i, sn := range osnaps {
+	for _, sn := range osnaps {
 		if sn != nil {
 			s.snaps = append(s.snaps, sn)
-			s.modes = append(s.modes, omodes[i])
 		}
 	}
 	return nil
@@ -678,7 +1340,7 @@ func (s *seed20) considerModelSnap(modelSnap *asserts.ModelSnap, essential bool,
 	}
 }
 
-func (s *seed20) LoadMeta(mode string, handler SnapHandler, tm timings.Measurer) error {
+func (s *seed20) LoadMeta(mode string, handler ContainerHandler, tm timings.Measurer) error {
 	const otherSnapsFollow = true
 	if err := s.queueEssentialMeta(nil, otherSnapsFollow, tm); err != nil {
 		return err
@@ -710,7 +1372,7 @@ func (s *seed20) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measur
 	return s.LoadEssentialMetaWithSnapHandler(essentialTypes, nil, tm)
 }
 
-func (s *seed20) LoadEssentialMetaWithSnapHandler(essentialTypes []snap.Type, handler SnapHandler, tm timings.Measurer) error {
+func (s *seed20) LoadEssentialMetaWithSnapHandler(essentialTypes []snap.Type, handler ContainerHandler, tm timings.Measurer) error {
 	var filterEssential func(*asserts.ModelSnap) bool
 	if len(essentialTypes) != 0 {
 		filterEssential = essentialSnapTypesToModelFilter(essentialTypes)
@@ -756,7 +1418,6 @@ func (s *seed20) resetSnaps() {
 	s.optSnapsIdx = 0
 	s.mode = AllModes
 	s.snaps = nil
-	s.modes = nil
 	s.essentialSnapsNum = 0
 }
 
@@ -837,20 +1498,53 @@ func (s *seed20) ModeSnaps(mode string) ([]*Snap, error) {
 	if s.mode != AllModes && mode != s.mode {
 		return nil, fmt.Errorf("metadata was loaded only for snaps for mode %s not %s", s.mode, mode)
 	}
-	snaps := s.snaps[s.essentialSnapsNum:]
-	modes := s.modes[s.essentialSnapsNum:]
-	nGuess := len(snaps)
-	ephemeral := mode != "run"
-	if ephemeral {
-		nGuess /= 2
-	}
-	res := make([]*Snap, 0, nGuess)
-	for i, snap := range snaps {
-		if snapModesInclude(modes[i], mode) {
-			res = append(res, snap)
+
+	snapsWithMode := make([]*Snap, 0)
+	for _, sn := range s.snaps[s.essentialSnapsNum:] {
+		// since we're handing out pointers here, we need to make a copy of the
+		// snap
+		copied := *sn
+
+		ms, ok := s.modelSnaps[sn.SnapName()]
+		if !ok {
+			// snaps not in the model will be considered as run mode, and so
+			// will all of its components
+			if mode == "run" {
+				// make a copy of the slice so that the caller can't mess with our
+				// internal state
+				copied.Components = append([]Component(nil), sn.Components...)
+				snapsWithMode = append(snapsWithMode, &copied)
+			}
+			continue
 		}
+
+		if !snapModesInclude(ms.Modes, mode) {
+			continue
+		}
+
+		// we'll rebuild the slice of components with only the components that
+		// are applicable to the requested mode
+		copied.Components = nil
+
+		for _, comp := range sn.Components {
+			modelComp, ok := ms.Components[comp.CompSideInfo.Component.ComponentName]
+			if !ok {
+				// components not in the model will be considered as run mode
+				if mode == "run" {
+					copied.Components = append(copied.Components, comp)
+				}
+				continue
+			}
+
+			if snapModesInclude(modelComp.Modes, mode) {
+				copied.Components = append(copied.Components, comp)
+			}
+		}
+
+		snapsWithMode = append(snapsWithMode, &copied)
 	}
-	return res, nil
+
+	return snapsWithMode, nil
 }
 
 func (s *seed20) NumSnaps() int {

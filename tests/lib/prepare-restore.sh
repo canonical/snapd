@@ -59,13 +59,21 @@ create_test_user(){
     echo >> /etc/sudoers
     echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-    chown test.test -R "$SPREAD_PATH"
-    chown test.test "$SPREAD_PATH/../"
+    chown test:test -R "$SPREAD_PATH"
+    chown test:test "$SPREAD_PATH/../"
 }
 
 build_deb(){
+    newver="$(dpkg-parsechangelog --show-field Version)"
+
+    case "$SPREAD_SYSTEM" in
+        ubuntu-fips-*)
+            newver="${newver}+fips"
+            FIPS_BUILD_OPTION=fips
+            ;;
+    esac
     # Use fake version to ensure we are always bigger than anything else
-    dch --newversion "1337.$(dpkg-parsechangelog --show-field Version)" "testing build"
+    dch --newversion "1337.$newver" "testing build"
 
     if os.query is-debian sid; then
         # ensure we really build without vendored packages
@@ -73,7 +81,7 @@ build_deb(){
     fi
 
     unshare -n -- \
-            su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip -uc -us" test
+            su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys ${FIPS_BUILD_OPTION}' dpkg-buildpackage -tc -b -Zgzip -uc -us" test
     # put our debs to a safe place
     cp ../*.deb "$GOHOME"
 
@@ -94,7 +102,6 @@ build_rpm() {
         distro=amzn
         release=2023
     fi
-    arch=x86_64
     base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
     version="1337.$base_version"
     packaging_path=packaging/$distro-$release
@@ -190,34 +197,6 @@ build_arch_pkg() {
     cp /tmp/pkg/snapd*.pkg.tar.* "${GOPATH%%:*}"
 }
 
-download_from_published(){
-    local published_version="$1"
-
-    curl -s -o pkg_page "https://launchpad.net/ubuntu/+source/snapd/$published_version"
-
-    arch=$(dpkg --print-architecture)
-    build_id=$(sed -n 's|<a href="/ubuntu/+source/snapd/'"$published_version"'/+build/\(.*\)">'"$arch"'</a>|\1|p' pkg_page | sed -e 's/^[[:space:]]*//')
-
-    # we need to download snap-confine and ubuntu-core-launcher for versions < 2.23
-    for pkg in snapd snap-confine ubuntu-core-launcher; do
-        file="${pkg}_${published_version}_${arch}.deb"
-        curl -L -o "$GOHOME/$file" "https://launchpad.net/ubuntu/+source/snapd/${published_version}/+build/${build_id}/+files/${file}"
-    done
-}
-
-download_from_gce_bucket(){
-    curl -o "${SPREAD_SYSTEM}.tar" "https://storage.googleapis.com/snapd-spread-tests/snapd-tests/packages/${SPREAD_SYSTEM}.tar"
-    tar -xf "${SPREAD_SYSTEM}.tar" -C "$PROJECT_PATH"/..
-}
-
-install_dependencies_from_published(){
-    local published_version="$1"
-
-    for dep in snap-confine ubuntu-core-launcher; do
-        dpkg -i "$GOHOME/${dep}_${published_version}_$(dpkg --print-architecture).deb"
-    done
-}
-
 install_snapd_rpm_dependencies(){
     SRC_PATH=$1
     deps=()
@@ -269,6 +248,8 @@ prepare_project() {
     # no need to modify anything further for autopkgtest
     # we want to run as pristine as possible
     if [ "$SPREAD_BACKEND" = autopkgtest ]; then
+        create_test_user
+        systemctl enable --now snapd.socket
         exit 0
     fi
 
@@ -288,7 +269,7 @@ prepare_project() {
     # declare the "quiet" wrapper
 
     if [ "$SPREAD_BACKEND" = "external" ]; then
-        chown test.test -R "$PROJECT_PATH"
+        chown test:test -R "$PROJECT_PATH"
         exit 0
     fi
 
@@ -300,7 +281,7 @@ prepare_project() {
         fi
         echo test:ubuntu | sudo chpasswd
         echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test
-        chown test.test -R "$PROJECT_PATH"
+        chown test:test -R "$PROJECT_PATH"
         exit 0
     fi
 
@@ -383,7 +364,7 @@ prepare_project() {
         rm -rf vendor/*/
 
         # and create a fake upstream tarball
-        tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version|cut -d- -f1)".orig.tar.gz --exclude=./debian --exclude=./.git .
+        tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version|cut -d- -f1)".orig.tar.gz --exclude=./debian --exclude=./.git --exclude='*.pyc' .
 
         # and build a source package - this will be used during the sbuild test
         dpkg-buildpackage -S -uc -us
@@ -546,6 +527,17 @@ prepare_project() {
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
             best_golang=golang-1.18
+            case "$SPREAD_SYSTEM" in
+                ubuntu-fips-*)
+                    # we are limited by the FIPS variants of go toolchain
+                    # available from the PPA, and we need to match the Go
+                    # version expected by during FIPS build of the deb, which
+                    # currently expects 1.21, see:
+                    # https://launchpad.net/~ubuntu-toolchain-r/+archive/ubuntu/golang-fips
+                    best_golang=golang-1.21
+                    quiet apt install -y golang-1.21
+                    ;;
+            esac
             # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
             gdebi --quiet --apt-line ./debian/control >deps.txt
             quiet xargs -r eatmydata apt-get install -y < deps.txt
@@ -559,24 +551,19 @@ prepare_project() {
     esac
 
     # Retry go mod vendor to minimize the number of connection errors during the sync
-    for _ in $(seq 10); do
-        if go mod vendor; then
-            break
-        fi
-        sleep 1
-    done
+    retry -n 10 go mod vendor
     # Update C dependencies
-    for _ in $(seq 10); do
-        if (cd c-vendor && ./vendor.sh); then
-            break
-        fi
-        sleep 1
-    done
+    ( cd c-vendor && retry -n 10 ./vendor.sh )
 
     # go mod runs as root and will leave strange permissions
-    chown test.test -R "$SPREAD_PATH"
+    chown test:test -R "$SPREAD_PATH"
 
-    if [ "$BUILD_SNAPD_FROM_CURRENT" = true ]; then
+    # We are testing snapd snap on top of snapd from the archive
+    # of the tested distribution. Download snapd and snap-confine
+    # as they exist in the archive for further use.
+    if tests.info is-snapd-from-archive; then
+        ( cd "${GOHOME}" && tests.pkgs download snapd snap-confine)
+    else
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 build_deb
@@ -592,12 +579,6 @@ prepare_project() {
                 exit 1
                 ;;
         esac
-    elif [ -n "$SNAPD_PUBLISHED_VERSION" ]; then
-        download_from_published "$SNAPD_PUBLISHED_VERSION"
-        install_dependencies_from_published "$SNAPD_PUBLISHED_VERSION"
-    else
-        download_from_gce_bucket
-        install_dependencies_gce_bucket
     fi
 
     # Build fakestore.
@@ -777,9 +758,13 @@ restore_suite_each() {
     done
 
     if [[ "$variant" = full ]]; then
-        # reset the failed status of snapd, snapd.socket, and snapd.failure.socket
-        # to prevent hitting the system restart rate-limit for these services
-        systemctl reset-failed snapd.service snapd.socket snapd.failure.service
+        # Reset the failed status of snapd, snapd.socket, and snapd.failure.socket
+        # to prevent hitting the system restart rate-limit for these services.
+        systemctl reset-failed snapd.service snapd.socket
+        # This unit may not be present, it is masked on some systems.
+        if systemctl status snapd.failure.service; then
+            systemctl reset-failed snapd.failure.service
+        fi
     fi
 
     if [[ "$variant" = full ]]; then

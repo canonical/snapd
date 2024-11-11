@@ -40,7 +40,7 @@ type policy20 struct {
 	warningf func(format string, a ...interface{})
 }
 
-var errNotAllowedExceptForDangerous = errors.New("cannot override channels, add devmode snaps, local snaps, or extra snaps with a model of grade higher than dangerous")
+var errNotAllowedExceptForDangerous = errors.New("cannot override channels, add devmode snaps, local snaps, or extra snaps/components with a model of grade higher than dangerous")
 
 func (pol *policy20) checkAllowedDangerous() error {
 	if pol.model.Grade() != asserts.ModelDangerous {
@@ -222,6 +222,16 @@ func (tr *tree20) snapDir(sn *SeedSnap) (string, error) {
 	return snapsDir, nil
 }
 
+func (tr *tree20) componentDir(sn *SeedSnap, sc *SeedComponent) (string, error) {
+	if ms := sn.modelSnap; ms != nil {
+		if _, ok := ms.Components[sc.ComponentName]; ok {
+			return tr.snapsDirPath, nil
+		}
+	}
+
+	return tr.ensureSystemSnapsDir()
+}
+
 func (tr *tree20) snapPath(sn *SeedSnap) (string, error) {
 	snapsDir, err := tr.snapDir(sn)
 	if err != nil {
@@ -231,13 +241,13 @@ func (tr *tree20) snapPath(sn *SeedSnap) (string, error) {
 }
 
 func (tr *tree20) componentPath(sn *SeedSnap, sc *SeedComponent) (string, error) {
-	snapsDir, err := tr.snapDir(sn)
+	componentsDir, err := tr.componentDir(sn, sc)
 	if err != nil {
 		return "", err
 	}
 
 	cpi := snap.MinimalComponentContainerPlaceInfo(sc.ComponentName, sc.Info.Revision, sc.SnapName)
-	return filepath.Join(snapsDir, cpi.Filename()), nil
+	return filepath.Join(componentsDir, cpi.Filename()), nil
 }
 
 func (tr *tree20) localSnapPath(sn *SeedSnap) (string, error) {
@@ -248,13 +258,13 @@ func (tr *tree20) localSnapPath(sn *SeedSnap) (string, error) {
 	return filepath.Join(sysSnapsDir, fmt.Sprintf("%s_%s.snap", sn.SnapName(), sn.Info.Version)), nil
 }
 
-func (tr *tree20) localComponentPath(sc *SeedComponent) (string, error) {
+func (tr *tree20) localComponentPath(sc *SeedComponent, snapVersion string) (string, error) {
 	sysSnapsDir, err := tr.ensureSystemSnapsDir()
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(sysSnapsDir, fmt.Sprintf("%s_%s.comp",
-		sc.ComponentRef.String(), sc.Info.Version)), nil
+		sc.ComponentRef.String(), sc.Info.Version(snapVersion))), nil
 }
 
 func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
@@ -346,6 +356,9 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 		}
 	}
 
+	// TODO: assertions for components that are not in the model (but their snap
+	// is in the model) still end up here, rather than extra-snaps. to be more
+	// consistent, they should go in extra-snaps
 	if err := writeByRefs("snaps", snapsRefGen(snapsFromModel)); err != nil {
 		return err
 	}
@@ -359,17 +372,26 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 	return nil
 }
 
-func (tr *tree20) seedSnapComponents(sn *SeedSnap) []internal.Component {
-	compOpts := make([]internal.Component, len(sn.Components))
-	for i, comp := range sn.Components {
+func seedSnapComponentsForOptions(sn *SeedSnap) []internal.Component20 {
+	compOpts := make([]internal.Component20, 0, len(sn.Components))
+	for _, comp := range sn.Components {
+		if sn.modelSnap != nil {
+			// if the component is in the model and asserted, then we don't want to write it
+			// to the options.yaml file
+			if _, ok := sn.modelSnap.Components[comp.ComponentName]; ok && sn.Info.ID() != "" {
+				continue
+			}
+		}
+
 		unassertedComp := ""
 		if sn.Info.ID() == "" {
 			unassertedComp = filepath.Base(comp.Path)
 		}
-		compOpts[i] = internal.Component{
+
+		compOpts = append(compOpts, internal.Component20{
 			Name:       comp.ComponentName,
 			Unasserted: unassertedComp,
-		}
+		})
 	}
 	return compOpts
 }
@@ -382,7 +404,16 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 		if sn.Channel != sn.modelSnap.DefaultChannel {
 			channelOverride = sn.Channel
 		}
-		if sn.Info.ID() != "" && channelOverride == "" {
+
+		extraComponents := false
+		for _, comp := range sn.Components {
+			if _, ok := sn.modelSnap.Components[comp.ComponentName]; !ok {
+				extraComponents = true
+				break
+			}
+		}
+
+		if sn.Info.ID() != "" && channelOverride == "" && !extraComponents {
 			continue
 		}
 		unasserted := ""
@@ -397,7 +428,7 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 			SnapID:     sn.modelSnap.ID(),
 			Unasserted: unasserted,
 			Channel:    channelOverride,
-			Components: tr.seedSnapComponents(sn),
+			Components: seedSnapComponentsForOptions(sn),
 		})
 	}
 
@@ -414,7 +445,7 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 			SnapID:     sn.Info.ID(),
 			Unasserted: unasserted,
 			Channel:    channel,
-			Components: tr.seedSnapComponents(sn),
+			Components: seedSnapComponentsForOptions(sn),
 		})
 	}
 

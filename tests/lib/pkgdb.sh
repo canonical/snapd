@@ -376,7 +376,7 @@ distro_install_build_snapd(){
         cp /etc/apt/sources.list sources.list.back
         echo "deb http://archive.ubuntu.com/ubuntu/ $(lsb_release -c -s)-proposed restricted main multiverse universe" | tee /etc/apt/sources.list -a
         apt update
-        if os.query is-ubuntu-ge 23.10; then
+        if os.query is-ubuntu-ge 24.04; then
             apt install -y --only-upgrade -t "$(lsb_release -c -s)-proposed" snapd
         else
             apt install -y --only-upgrade snapd
@@ -540,6 +540,7 @@ pkg_dependencies_ubuntu_generic(){
         udisks2
         upower
         uuid-runtime
+        pigz
         "
 }
 
@@ -584,17 +585,6 @@ pkg_dependencies_ubuntu_classic(){
                 "
                 pkg_linux_image_extra
             ;;
-        ubuntu-18.04-32)
-            echo "
-                dbus-user-session
-                gccgo-6
-                evolution-data-server
-                fwupd
-                gnome-online-accounts
-                packagekit
-                "
-                pkg_linux_image_extra
-            ;;
         ubuntu-18.04-64)
             echo "
                 dbus-user-session
@@ -633,6 +623,11 @@ pkg_dependencies_ubuntu_classic(){
                 qemu-kvm
                 qemu-utils
                 "
+            if os.query is-ubuntu 24.10; then
+                echo "
+                    systemd-dev
+                    "
+            fi
             ;;
         ubuntu-*)
             echo "

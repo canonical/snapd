@@ -24,11 +24,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"os/user"
 	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -72,13 +72,6 @@ func MockSyscallSettimeofday(f func(*syscall.Timeval) error) (restore func()) {
 	return func() {
 		syscallSettimeofday = old
 	}
-}
-
-func MockUserLookup(mock func(name string) (*user.User, error)) func() {
-	realUserLookup := userLookup
-	userLookup = mock
-
-	return func() { userLookup = realUserLookup }
 }
 
 func MockUserCurrent(mock func() (*user.User, error)) func() {

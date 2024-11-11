@@ -62,7 +62,7 @@ prepare: |
     lxc file push --quiet hello.py mycontainer/var/lib/test/hello.py
 
     # Copy our python script there.
-    lxc exec mycontainer -- chown ubuntu.ubuntu /var/lib/test
+    lxc exec mycontainer -- chown ubuntu:ubuntu /var/lib/test
 
 restore: |
     # Remove the container we may have set up.

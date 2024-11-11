@@ -570,7 +570,8 @@ func OnSnapLinkageChanged(st *state.State, snapsup *snapstate.SnapSetup) error {
 		// track the revision that was just unlinked that has
 		// still profiles
 		snapst.PendingSecurity = &snapstate.PendingSecurityState{
-			SideInfo: snapst.CurrentSideInfo(),
+			SideInfo:   snapst.CurrentSideInfo(),
+			Components: snapst.CurrentComponentSideInfos(),
 		}
 	}
 	snapstate.Set(st, instanceName, &snapst)

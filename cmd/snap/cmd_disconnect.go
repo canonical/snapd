@@ -87,8 +87,7 @@ func (x *cmdDisconnect) Execute(args []string) error {
 	id, err := x.client.Disconnect(offer.Snap, offer.Name, use.Snap, use.Name, opts)
 	if err != nil {
 		if client.IsInterfacesUnchangedError(err) {
-			fmt.Fprintf(Stdout, i18n.G("No connections to disconnect"))
-			fmt.Fprintf(Stdout, "\n")
+			fmt.Fprintln(Stdout, i18n.G("No connections to disconnect"))
 			return nil
 		}
 		return err

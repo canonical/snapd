@@ -27,11 +27,11 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"os/user"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/snap"
 )
 

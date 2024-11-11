@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/jessevdk/go-flags"
@@ -90,7 +91,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		return err
 	}
 	if len(ifaces.Plugs) == 0 && len(ifaces.Slots) == 0 {
-		return fmt.Errorf(i18n.G("no interfaces found"))
+		return errors.New(i18n.G("no interfaces found"))
 	}
 
 	defer fmt.Fprintln(Stderr, "\n"+fill(interfacesDeprecationNotice, 0))

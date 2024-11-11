@@ -1158,7 +1158,8 @@ func (s *interfacesSuite) TestInterfacesModern(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": []interface{}{
 			map[string]interface{}{
-				"name": "test",
+				"name":    "test",
+				"doc-url": "https://snapcraft.io/docs/test-interface",
 				"plugs": []interface{}{
 					map[string]interface{}{
 						"snap":  "consumer",
@@ -1184,4 +1185,29 @@ func (s *interfacesSuite) TestInterfacesModern(c *check.C) {
 		"status-code": 200.0,
 		"type":        "sync",
 	})
+}
+
+func (s *interfacesSuite) TestInterfacesAllDefaultDocURL(c *check.C) {
+	_ = s.daemon(c)
+
+	req, err := http.NewRequest("GET", "/v2/interfaces?select=all&doc=true", nil)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	s.req(c, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+
+	if result, ok := body["result"].([]interface{}); ok {
+		for _, content := range result {
+			if contentMap, ok := content.(map[string]interface{}); ok {
+				name := contentMap["name"].(string)
+				summary := contentMap["summary"].(string)
+				docURL := contentMap["doc-url"].(string)
+				c.Check(summary, check.Not(check.Equals), "", check.Commentf("interface: %s summary should not be empty", name))
+				c.Check(docURL, check.Equals, fmt.Sprintf("https://snapcraft.io/docs/%s-interface", name), check.Commentf("interface: %s should use default doc URL", name))
+			}
+		}
+	}
 }

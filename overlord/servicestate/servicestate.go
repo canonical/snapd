@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os/user"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -33,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"

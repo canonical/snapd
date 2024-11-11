@@ -1906,7 +1906,7 @@ func (s *RepositorySuite) TestInfo(c *C) {
 	// Add some test interfaces.
 	i1 := &ifacetest.TestInterface{InterfaceName: "i1", InterfaceStaticInfo: StaticInfo{Summary: "i1 summary", DocURL: "http://example.com/i1"}}
 	i2 := &ifacetest.TestInterface{InterfaceName: "i2", InterfaceStaticInfo: StaticInfo{Summary: "i2 summary", DocURL: "http://example.com/i2"}}
-	i3 := &ifacetest.TestInterface{InterfaceName: "i3", InterfaceStaticInfo: StaticInfo{Summary: "i3 summary", DocURL: "http://example.com/i3"}}
+	i3 := &ifacetest.TestInterface{InterfaceName: "i3", InterfaceStaticInfo: StaticInfo{Summary: "i3 summary", DocURL: ""}}
 	c.Assert(r.AddInterface(i1), IsNil)
 	c.Assert(r.AddInterface(i2), IsNil)
 	c.Assert(r.AddInterface(i3), IsNil)
@@ -1981,9 +1981,10 @@ apps:
 	})
 
 	// We can ask for documentation.
-	infos = r.Info(&InfoOptions{Names: []string{"i2"}, Doc: true})
+	infos = r.Info(&InfoOptions{Names: []string{"i2", "i3"}, Doc: true})
 	c.Assert(infos, DeepEquals, []*Info{
 		{Name: "i2", Summary: "i2 summary", DocURL: "http://example.com/i2"},
+		{Name: "i3", Summary: "i3 summary", DocURL: "https://snapcraft.io/docs/i3-interface"},
 	})
 
 	// We can ask for a list of plugs.

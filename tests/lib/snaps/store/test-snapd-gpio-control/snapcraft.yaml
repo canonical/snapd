@@ -1,0 +1,46 @@
+name: test-snapd-gpio-control
+version: "1.0"
+summary: Basic gpio-control snap
+description: A basic snap which access to gpiod device
+grade: stable
+confinement: strict
+base: core24
+
+apps:
+  gpiodetect:
+    command: usr/bin/gpiodetect
+    plugs: [gpio-control]
+
+  gpioinfo:
+    command: usr/bin/gpioinfo
+    plugs: [gpio-control]
+
+  cmd:
+    command: bin/cmd
+    plugs: [gpio-control]
+
+parts:
+  libgpiod:
+    source: https://git.kernel.org/pub/scm/libs/libgpiod/libgpiod.git/snapshot/libgpiod-2.1.2.tar.gz
+    plugin: autotools
+    autotools-configure-parameters:
+      - --prefix=/usr
+      - --enable-tools=yes
+    build-packages:
+      - build-essential
+      - autoconf-archive
+      - autoconf
+      - automake
+      - libtool
+      - pkg-config
+    stage:
+      - -usr/lib/libgpiod.a
+      - -usr/lib/libgpiod.la
+      - -usr/include
+      - -usr/lib/pkgconfig
+
+  cmd:
+    plugin: dump
+    source: .
+    override-build: |
+      install -D -m 755 -t "${CRAFT_PART_INSTALL}/bin" bin/cmd

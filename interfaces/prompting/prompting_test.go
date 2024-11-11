@@ -36,17 +36,40 @@ type promptingSuite struct{}
 
 var _ = Suite(&promptingSuite{})
 
-func (s *promptingSuite) TestOutcomeIsAllow(c *C) {
-	result, err := prompting.OutcomeAllow.IsAllow()
+func (s *promptingSuite) TestIDTypeStringMarshalUnmarshalJSON(c *C) {
+	for _, testCase := range []struct {
+		id         prompting.IDType
+		str        string
+		marshalled []byte
+	}{
+		{0, "0000000000000000", []byte(`"0000000000000000"`)},
+		{1, "0000000000000001", []byte(`"0000000000000001"`)},
+		{0x1000000000000000, "1000000000000000", []byte(`"1000000000000000"`)},
+		{0xDEADBEEFDEADBEEF, "DEADBEEFDEADBEEF", []byte(`"DEADBEEFDEADBEEF"`)},
+		{0xFFFFFFFFFFFFFFFF, "FFFFFFFFFFFFFFFF", []byte(`"FFFFFFFFFFFFFFFF"`)},
+	} {
+		c.Check(testCase.id.String(), Equals, testCase.str)
+		marshalled, err := testCase.id.MarshalJSON()
+		c.Check(err, IsNil)
+		c.Check(marshalled, DeepEquals, testCase.marshalled)
+		var id prompting.IDType
+		err = id.UnmarshalJSON(testCase.marshalled)
+		c.Check(err, IsNil)
+		c.Check(id, Equals, testCase.id)
+	}
+}
+
+func (s *promptingSuite) TestOutcomeAsBool(c *C) {
+	result, err := prompting.OutcomeAllow.AsBool()
 	c.Check(err, IsNil)
 	c.Check(result, Equals, true)
-	result, err = prompting.OutcomeDeny.IsAllow()
+	result, err = prompting.OutcomeDeny.AsBool()
 	c.Check(err, IsNil)
 	c.Check(result, Equals, false)
-	_, err = prompting.OutcomeUnset.IsAllow()
-	c.Check(err, ErrorMatches, `internal error: invalid outcome.*`)
-	_, err = prompting.OutcomeType("foo").IsAllow()
-	c.Check(err, ErrorMatches, `internal error: invalid outcome.*`)
+	_, err = prompting.OutcomeUnset.AsBool()
+	c.Check(err, ErrorMatches, `invalid outcome: ""`)
+	_, err = prompting.OutcomeType("foo").AsBool()
+	c.Check(err, ErrorMatches, `invalid outcome: "foo"`)
 }
 
 type fakeOutcomeWrapper struct {
@@ -83,12 +106,12 @@ func (s *promptingSuite) TestUnmarshalOutcomeUnhappy(c *C) {
 		var fow1 fakeOutcomeWrapper
 		data := []byte(fmt.Sprintf(`{"field1": "%s", "field2": "%s"}`, outcome, outcome))
 		err := json.Unmarshal(data, &fow1)
-		c.Check(err, ErrorMatches, `cannot have outcome other than.*`, Commentf("data: %v", string(data)))
+		c.Check(err, ErrorMatches, fmt.Sprintf(`invalid outcome: %q`, outcome), Commentf("data: %v", string(data)))
 
 		var fow2 fakeOutcomeWrapper
 		data = []byte(fmt.Sprintf(`{"field1": "%s", "field2": "%s"}`, prompting.OutcomeAllow, outcome))
 		err = json.Unmarshal(data, &fow2)
-		c.Check(err, ErrorMatches, `cannot have outcome other than.*`, Commentf("data: %v", string(data)))
+		c.Check(err, ErrorMatches, fmt.Sprintf(`invalid outcome: %q`, outcome), Commentf("data: %v", string(data)))
 	}
 }
 
@@ -127,12 +150,12 @@ func (s *promptingSuite) TestUnmarshalLifespanUnhappy(c *C) {
 		var flw1 fakeLifespanWrapper
 		data := []byte(fmt.Sprintf(`{"field1": "%s", "field2": "%s"}`, lifespan, lifespan))
 		err := json.Unmarshal(data, &flw1)
-		c.Check(err, ErrorMatches, `cannot have lifespan other than.*`, Commentf("data: %v", string(data)))
+		c.Check(err, ErrorMatches, fmt.Sprintf(`invalid lifespan: %q`, lifespan), Commentf("data: %v", string(data)))
 
 		var flw2 fakeLifespanWrapper
 		data = []byte(fmt.Sprintf(`{"field1": "%s", "field2": "%s"}`, prompting.LifespanForever, lifespan))
 		err = json.Unmarshal(data, &flw2)
-		c.Check(err, ErrorMatches, `cannot have lifespan other than.*`, Commentf("data: %v", string(data)))
+		c.Check(err, ErrorMatches, fmt.Sprintf(`invalid lifespan: %q`, lifespan), Commentf("data: %v", string(data)))
 	}
 }
 
@@ -150,12 +173,12 @@ func (s *promptingSuite) TestValidateExpiration(c *C) {
 		c.Check(err, IsNil)
 		for _, exp := range []time.Time{negativeExpiration, validExpiration} {
 			err = lifespan.ValidateExpiration(exp, currTime)
-			c.Check(err, ErrorMatches, `cannot have specified expiration when lifespan is.*`)
+			c.Check(err, ErrorMatches, `invalid expiration: cannot have specified expiration when lifespan is.*`)
 		}
 	}
 
 	err := prompting.LifespanTimespan.ValidateExpiration(unsetExpiration, currTime)
-	c.Check(err, ErrorMatches, `cannot have unspecified expiration when lifespan is.*`)
+	c.Check(err, ErrorMatches, `invalid expiration: cannot have unspecified expiration when lifespan is.*`)
 
 	err = prompting.LifespanTimespan.ValidateExpiration(negativeExpiration, currTime)
 	c.Check(err, ErrorMatches, `cannot have expiration time in the past.*`)
@@ -183,21 +206,21 @@ func (s *promptingSuite) TestParseDuration(c *C) {
 		for _, dur := range []string{invalidDuration, negativeDuration, validDuration} {
 			expiration, err = lifespan.ParseDuration(dur, currTime)
 			c.Check(expiration.IsZero(), Equals, true)
-			c.Check(err, ErrorMatches, `cannot have specified duration when lifespan is.*`)
+			c.Check(err, ErrorMatches, `invalid duration: cannot have specified duration when lifespan is.*`)
 		}
 	}
 
 	expiration, err := prompting.LifespanTimespan.ParseDuration(unsetDuration, currTime)
 	c.Check(expiration.IsZero(), Equals, true)
-	c.Check(err, ErrorMatches, `cannot have unspecified duration when lifespan is.*`)
+	c.Check(err, ErrorMatches, `invalid duration: cannot have unspecified duration when lifespan is.*`)
 
 	expiration, err = prompting.LifespanTimespan.ParseDuration(invalidDuration, currTime)
 	c.Check(expiration.IsZero(), Equals, true)
-	c.Check(err, ErrorMatches, `cannot parse duration.*`)
+	c.Check(err, ErrorMatches, `invalid duration: cannot parse duration.*`)
 
 	expiration, err = prompting.LifespanTimespan.ParseDuration(negativeDuration, currTime)
 	c.Check(expiration.IsZero(), Equals, true)
-	c.Check(err, ErrorMatches, `cannot have zero or negative duration.*`)
+	c.Check(err, ErrorMatches, `invalid duration: cannot have zero or negative duration.*`)
 
 	expiration, err = prompting.LifespanTimespan.ParseDuration(validDuration, currTime)
 	c.Check(err, IsNil)

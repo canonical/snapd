@@ -17,13 +17,60 @@
  *
  */
 
+// Package prompting provides common types and functions related to AppArmor
+// prompting.
 package prompting
 
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
+
+	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 )
+
+// Metadata stores information about the origin or applicability of a prompt or
+// rule.
+type Metadata struct {
+	// User is the UID of the subject (user) triggering the applicable requests.
+	User uint32
+	// Snap is the instance name of the snap for which the prompt or rule applies.
+	Snap string
+	// Interface is the interface for which the prompt or rule applies.
+	Interface string
+}
+
+type IDType uint64
+
+func IDFromString(idStr string) (IDType, error) {
+	value, err := strconv.ParseUint(idStr, 16, 64)
+	if err != nil {
+		return IDType(0), fmt.Errorf("%w: %v", prompting_errors.ErrInvalidID, err)
+	}
+	return IDType(value), nil
+}
+
+func (i IDType) String() string {
+	return fmt.Sprintf("%016X", uint64(i))
+}
+
+func (i *IDType) MarshalJSON() ([]byte, error) {
+	return json.Marshal(i.String())
+}
+
+func (i *IDType) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return fmt.Errorf("cannot read ID into string: %w", err)
+	}
+	id, err := IDFromString(s)
+	if err != nil {
+		return err
+	}
+	*i = id
+	return nil
+}
 
 // OutcomeType describes the outcome associated with a reply or rule.
 type OutcomeType string
@@ -38,6 +85,8 @@ const (
 	OutcomeDeny OutcomeType = "deny"
 )
 
+var supportedOutcomes = []string{string(OutcomeAllow), string(OutcomeDeny)}
+
 func (outcome *OutcomeType) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
@@ -48,21 +97,21 @@ func (outcome *OutcomeType) UnmarshalJSON(data []byte) error {
 	case OutcomeAllow, OutcomeDeny:
 		*outcome = value
 	default:
-		return fmt.Errorf(`cannot have outcome other than %q or %q: %q`, OutcomeAllow, OutcomeDeny, value)
+		return prompting_errors.NewInvalidOutcomeError(s, supportedOutcomes)
 	}
 	return nil
 }
 
-// IsAllow returns true if the outcome is OutcomeAllow, false if the outcome is
+// AsBool returns true if the outcome is OutcomeAllow, false if the outcome is
 // OutcomeDeny, or an error if it cannot be parsed.
-func (outcome OutcomeType) IsAllow() (bool, error) {
+func (outcome OutcomeType) AsBool() (bool, error) {
 	switch outcome {
 	case OutcomeAllow:
 		return true, nil
 	case OutcomeDeny:
 		return false, nil
 	default:
-		return false, fmt.Errorf(`internal error: invalid outcome: %q`, outcome)
+		return false, prompting_errors.NewInvalidOutcomeError(string(outcome), supportedOutcomes)
 	}
 }
 
@@ -85,6 +134,13 @@ const (
 	// LifespanSession  LifespanType = "session"
 )
 
+var (
+	supportedLifespans = []string{string(LifespanForever), string(LifespanSingle), string(LifespanTimespan)}
+	// SupportedRuleLifespans is exported so interfaces/promptin/requestrules
+	// can use it when constructing a ErrRuleLifespanSingle
+	SupportedRuleLifespans = []string{string(LifespanForever), string(LifespanTimespan)}
+)
+
 func (lifespan *LifespanType) UnmarshalJSON(data []byte) error {
 	var lifespanStr string
 	if err := json.Unmarshal(data, &lifespanStr); err != nil {
@@ -95,7 +151,7 @@ func (lifespan *LifespanType) UnmarshalJSON(data []byte) error {
 	case LifespanForever, LifespanSingle, LifespanTimespan:
 		*lifespan = value
 	default:
-		return fmt.Errorf(`cannot have lifespan other than %q, %q, or %q: %q`, LifespanForever, LifespanSingle, LifespanTimespan, value)
+		return prompting_errors.NewInvalidLifespanError(lifespanStr, supportedLifespans)
 	}
 	return nil
 }
@@ -110,18 +166,18 @@ func (lifespan LifespanType) ValidateExpiration(expiration time.Time, currTime t
 	switch lifespan {
 	case LifespanForever, LifespanSingle:
 		if !expiration.IsZero() {
-			return fmt.Errorf(`cannot have specified expiration when lifespan is %q: %q`, lifespan, expiration)
+			return prompting_errors.NewInvalidExpirationError(expiration, fmt.Sprintf("cannot have specified expiration when lifespan is %q", lifespan))
 		}
 	case LifespanTimespan:
 		if expiration.IsZero() {
-			return fmt.Errorf(`cannot have unspecified expiration when lifespan is %q`, lifespan)
+			return prompting_errors.NewInvalidExpirationError(expiration, fmt.Sprintf("cannot have unspecified expiration when lifespan is %q", lifespan))
 		}
 		if currTime.After(expiration) {
-			return fmt.Errorf("cannot have expiration time in the past: %q", expiration)
+			return fmt.Errorf("%w: %q", prompting_errors.ErrRuleExpirationInThePast, expiration)
 		}
 	default:
 		// Should not occur, since lifespan is validated when unmarshalled
-		return fmt.Errorf(`internal error: invalid lifespan: %q`, lifespan)
+		return prompting_errors.NewInvalidLifespanError(string(lifespan), supportedLifespans)
 	}
 	return nil
 }
@@ -139,23 +195,23 @@ func (lifespan LifespanType) ParseDuration(duration string, currTime time.Time) 
 	switch lifespan {
 	case LifespanForever, LifespanSingle:
 		if duration != "" {
-			return expiration, fmt.Errorf(`cannot have specified duration when lifespan is %q: %q`, lifespan, duration)
+			return expiration, prompting_errors.NewInvalidDurationError(duration, fmt.Sprintf("cannot have specified duration when lifespan is %q", lifespan))
 		}
 	case LifespanTimespan:
 		if duration == "" {
-			return expiration, fmt.Errorf(`cannot have unspecified duration when lifespan is %q`, lifespan)
+			return expiration, prompting_errors.NewInvalidDurationError(duration, fmt.Sprintf("cannot have unspecified duration when lifespan is %q", lifespan))
 		}
 		parsedDuration, err := time.ParseDuration(duration)
 		if err != nil {
-			return expiration, fmt.Errorf(`cannot parse duration: %w`, err)
+			return expiration, prompting_errors.NewInvalidDurationError(duration, fmt.Sprintf("cannot parse duration: %v", err))
 		}
 		if parsedDuration <= 0 {
-			return expiration, fmt.Errorf(`cannot have zero or negative duration: %q`, duration)
+			return expiration, prompting_errors.NewInvalidDurationError(duration, fmt.Sprintf("cannot have zero or negative duration: %q", duration))
 		}
 		expiration = currTime.Add(parsedDuration)
 	default:
 		// Should not occur, since lifespan is validated when unmarshalled
-		return expiration, fmt.Errorf(`internal error: invalid lifespan: %q`, lifespan)
+		return expiration, prompting_errors.NewInvalidLifespanError(string(lifespan), supportedLifespans)
 	}
 	return expiration, nil
 }

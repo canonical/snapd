@@ -25,13 +25,11 @@ prepare: |
       exit
   fi
   echo "Install used snaps"
-  snap install test-snapd-curl --devmode --edge
   snap install jq --devmode --edge
   if [ -d /var/lib/snapd/seed ]; then
     mv /var/lib/snapd/seed /var/lib/snapd/seed.orig
   fi
   "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
-
 
 restore: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -71,7 +69,11 @@ execute: |
   version="$(nested_get_version)"
 
   snap download --basename=pc-kernel --channel="$version/stable" pc-kernel
-  uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  if os.query is-ubuntu-ge 24.04; then
+    uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  else
+    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  fi
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
 
   # Prepare gadget with the right gadget.yaml
@@ -98,8 +100,8 @@ execute: |
   cp -a ./classic-seed/system-seed/ /var/lib/snapd/seed
 
   # do some light checking that the system is valid
-  test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems | jq '.result.systems[0].label' | MATCH "$LABEL"
-  test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems/"$LABEL" > system
+  snap debug api /v2/systems | jq '.result.systems[0].label' | MATCH "$LABEL"
+  snap debug api "/v2/systems/$LABEL" > system
   jq '.result.model.distribution' system | MATCH "ubuntu"
   # build muinstaller and put in place
   go build -o muinstaller "$TESTSLIB"/muinstaller/main.go
@@ -108,7 +110,7 @@ execute: |
   truncate --size=5G fake-disk.img
   loop_device=$(losetup --show -f ./fake-disk.img)
   # and "install" the current seed to the fake disk
-  ./muinstaller "$LABEL" "$loop_device" "$TESTSLIB"/muinstaller/mk-classic-rootfs.sh
+  ./muinstaller -label "$LABEL" -device "$loop_device" -rootfs-creator "$TESTSLIB"/muinstaller/mk-classic-rootfs.sh
   # validate that the fake installer created the expected partitions
   sfdisk -d "$loop_device" > fdisk_output
   MATCH "${loop_device}p1 .* name=\"BIOS Boot\""   < fdisk_output

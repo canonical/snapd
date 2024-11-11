@@ -55,11 +55,15 @@ func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags, prqt
 		flags.DevMode = true
 	}
 
-	// TODO:COMPS: this will need to account for components in the future
+	compsSideInfos := make(map[*snap.ComponentSideInfo]string, len(sn.Components))
+	for _, comp := range sn.Components {
+		// Prevent reusing loop variable
+		comp := comp
+		compsSideInfos[&comp.CompSideInfo] = comp.Path
+	}
 
-	goal := snapstate.PathInstallGoal("", sn.Path, sn.SideInfo, nil, snapstate.RevisionOptions{
-		Channel: sn.Channel,
-	})
+	goal := snapstate.PathInstallGoal("", sn.Path, sn.SideInfo, compsSideInfos,
+		snapstate.RevisionOptions{Channel: sn.Channel})
 	info, ts, err := snapstate.InstallOne(context.Background(), st, goal, snapstate.Options{
 		Flags:         flags,
 		PrereqTracker: prqt,
@@ -171,7 +175,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	// ack all initial assertions
 	timings.Run(tm, "import-assertions[finish]", "finish importing assertions from seed", func(nested timings.Measurer) {
 		isCoreBoot := hasModeenv || !release.OnClassic
-		deviceSeed, err = m.importAssertionsFromSeed(isCoreBoot)
+		deviceSeed, err = m.importAssertionsFromSeed(mode, isCoreBoot)
 	})
 	if err != nil && err != errNothingToDo {
 		return nil, err
@@ -260,7 +264,21 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	}
 
 	chainSorted := func(infos []*snap.Info, infoToTs map[*snap.Info]*state.TaskSet) {
-		sort.Stable(snap.ByType(infos))
+		// This is the order in which snaps will be installed in the
+		// system. We want the boot base to be installed before the
+		// kernel so any existing kernel hook can execute with the boot
+		// base as rootfs.
+		effectiveType := func(info *snap.Info) snap.Type {
+			typ := info.Type()
+			if info.RealName == model.Base() {
+				typ = snap.InternalTypeBootBase
+			}
+			return typ
+		}
+		sort.SliceStable(infos, func(i, j int) bool {
+			return effectiveType(infos[i]).SortsBefore(effectiveType(infos[j]))
+		})
+
 		for _, info := range infos {
 			ts := infoToTs[info]
 			tsAll = chainTs(tsAll, ts)
@@ -400,7 +418,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	return tsAll, nil
 }
 
-func (m *DeviceManager) importAssertionsFromSeed(isCoreBoot bool) (seed.Seed, error) {
+func (m *DeviceManager) importAssertionsFromSeed(mode string, isCoreBoot bool) (seed.Seed, error) {
 	st := m.state
 
 	// TODO: use some kind of context fo Device/SetDevice?
@@ -424,19 +442,15 @@ func (m *DeviceManager) importAssertionsFromSeed(isCoreBoot bool) (seed.Seed, er
 	if err != nil {
 		return nil, err
 	}
+
 	modelAssertion := deviceSeed.Model()
 
-	classicModel := modelAssertion.Classic()
-	// FIXME this will not be correct on classic with modes system when
-	// mode is not "run".
-	if release.OnClassic != classicModel {
-		var msg string
-		if classicModel {
-			msg = "cannot seed an all-snaps system with a classic model"
-		} else {
-			msg = "cannot seed a classic system with an all-snaps model"
-		}
-		return nil, fmt.Errorf(msg)
+	if release.OnClassic && !modelAssertion.Classic() {
+		return nil, errors.New("cannot seed a classic system with an all-snaps model")
+	}
+
+	if !release.OnClassic && modelAssertion.Classic() && mode != "recover" {
+		return nil, errors.New("can only seed an all-snaps system with a classic model in recovery mode")
 	}
 
 	// set device,model from the model assertion

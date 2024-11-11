@@ -87,10 +87,6 @@ func (s *DesktopLegacyInterfaceSuite) TestAppArmorSpec(c *C) {
 	// getDesktopFileRules() rules
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `# This leaks the names of snaps with desktop files`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/var/lib/snapd/desktop/applications/ r,`)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,`)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `deny /var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_DESKTOP}[^_.]*.desktop r,`)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `deny /var/lib/snapd/desktop/applications/[^c]* r,`)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `deny /var/lib/snapd/desktop/applications/consume[^r]* r,`)
 
 	// connected plug to core slot
 	appSet, err = interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil)
@@ -111,3 +107,9 @@ func (s *DesktopLegacyInterfaceSuite) TestStaticInfo(c *C) {
 func (s *DesktopLegacyInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
+
+// Test how desktop-legacy interface interacts desktop-file-ids attribute in desktop interface.
+var _ = Suite(&desktopFileRulesBaseSuite{
+	iface:    "desktop-legacy",
+	slotYaml: desktopLegacyCoreYaml,
+})

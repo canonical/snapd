@@ -139,7 +139,7 @@ execute: |
     local ASSERT="$1"
     if ! remote.exec "test -e /dev/ram0"; then
       remote.exec "sudo mknod -m 660 /dev/ram0 b 1 0"
-      remote.exec "sudo chown root.disk /dev/ram0"
+      remote.exec "sudo chown root:disk /dev/ram0"
     fi
     remote.exec "sudo mkfs.ext3 /dev/ram0"
     remote.exec "sudo mount /dev/ram0 /mnt"

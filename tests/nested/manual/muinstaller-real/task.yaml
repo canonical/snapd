@@ -8,6 +8,8 @@ environment:
   # No partial gadget by default
   PARTIAL_GADGET: false
 
+  NESTED_ENABLE_TPM: true
+
   # Test both encrypted and unencrypted install using the muinstaller
   NESTED_ENABLE_TPM/encrypted,partial: true
   NESTED_ENABLE_SECURE_BOOT/encrypted,partial: true
@@ -15,6 +17,9 @@ environment:
   # unencrypted case
   NESTED_ENABLE_TPM/plain: false
   NESTED_ENABLE_SECURE_BOOT/plain: false
+
+  SEED_PARTITION: false
+  SEED_PARTITION/seeded: true
 
   # Using partial case (TPM used, see above)
   PARTIAL_GADGET/partial: true
@@ -70,7 +75,7 @@ execute: |
   if [ "$PARTIAL_GADGET" = true ]; then
       # Change to a gadget.yaml where "partial" is being used
       cp gadget-partial.yaml pc-gadget/meta/gadget.yaml
-  else
+  elif [ "$SEED_PARTITION" != 'true' ]; then
       # use the system-seed-null classic role
       sed -i 's/role: system-seed/role: system-seed-null/' pc-gadget/meta/gadget.yaml
   fi
@@ -80,6 +85,11 @@ execute: |
   SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
   tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
   snap pack --filename=pc.snap pc-gadget/
+
+  # TODO: remove this once this change to extra-paths has made it into a
+  # released kernel snap
+  mkdir -p ./extra-initrd/usr/lib/core
+  cp ./extra-paths ./extra-initrd/usr/lib/core/extra-paths
 
   # Retrieve kernel
   snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
@@ -160,8 +170,7 @@ execute: |
       # check that on an already provisioned system the API will give a
       # sensible reason why the system cannot be installed without further
       # action.
-      remote.exec "sudo apt install -y curl"
-      remote.exec "sudo curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems/classic" > system
+      remote.exec "sudo snap debug api /v2/systems/classic" > system
       jq '.result."storage-encryption".support' < system | MATCH "unavailable"
       jq '.result."storage-encryption"."unavailable-reason"' < system | MATCH "not encrypting device storage as checking TPM gave: the TPM is in DA lockout mode"
   fi
@@ -224,14 +233,25 @@ execute: |
 
   # Make sure there is a change in assets to update
   sed -i 's/This program cannot be run in DOS mode/This program cannot be run in XXX mode/' pc-gadget/grubx64.efi
+
+  if [ "$SEED_PARTITION" = 'true' ]; then
+      role='system-seed'
+  else
+      role='system-seed-null'
+  fi
+
   # Bump edition of ubuntu-{seed,boot} content to get grub updated in both partitions
-  yq -i '(.volumes.pc.structure[] | select(.role == "system-seed-null") | .update.edition) |= . + 1' pc-gadget/meta/gadget.yaml
+  yq -i "(.volumes.pc.structure[] | select(.role == \"${role}\") | .update.edition) |= . + 1" pc-gadget/meta/gadget.yaml
   yq -i '(.volumes.pc.structure[] | select(.role == "system-boot") | .update.edition) |= . + 1' pc-gadget/meta/gadget.yaml
   nested_secboot_sign_file pc-gadget/grubx64.efi "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
   refresh_rebooting_snap pc pc.snap.orig ./pc-gadget
 
   # Make sure we installed the new grub
-  remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-seed/EFI/boot/grubx64.efi'
+  if os.query is-ubuntu-ge 24.04 && [ "$PARTIAL_GADGET" = false ]; then
+      remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-seed/EFI/ubuntu/grubx64.efi'
+  else
+      remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-seed/EFI/boot/grubx64.efi'
+  fi
   remote.exec 'grep "This program cannot be run in XXX mode" /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi'
 
   unsquashfs -d pc-kernel pc-kernel.snap
@@ -264,3 +284,50 @@ execute: |
       remote.exec 'test -e "/dev/disk/by-partlabel/BIOS\x20Boot"'
       remote.exec 'sudo fdisk -l /dev/vda' | MATCH '/dev/vda1\s+2048\s+4095\s+2048\s+1M\s+BIOS boot'
   fi
+
+  if [ "$SEED_PARTITION" = 'false' ]; then
+      remote.exec not test -e /run/mnt/ubuntu-seed/systems/classic
+      exit 0
+  fi
+
+  # check that seed is properly installed
+  remote.exec test -d /run/mnt/ubuntu-seed/systems/classic
+  remote.exec "sudo snap recovery" | MATCH "classic\s+developer1\s+developer1-${version}-classic-dangerous\s+current"
+
+  echo "unasserted snaps"
+  remote.exec "ls /run/mnt/ubuntu-seed/systems/classic/snaps"
+
+  echo "asserted snaps"
+  remote.exec "ls /run/mnt/ubuntu-seed/snaps"
+
+  # check for unasserted snaps
+  for sn in pc pc-kernel snapd; do
+      sn_version=$(remote.exec "snap list ${sn}" | awk 'NR != 1 { print $2 }' | sed 's/+fake1//')
+      remote.exec "test -f /run/mnt/ubuntu-seed/systems/classic/snaps/${sn}_${sn_version}.snap"
+  done
+
+  # check for asserted snaps
+  core_rev=$(remote.exec "snap list core${version}" | awk 'NR != 1 { print $3 }')
+  remote.exec "test -f /run/mnt/ubuntu-seed/snaps/core${version}_${core_rev}.snap"
+
+  # model in the seed should match the one that was installed on the system
+  remote.exec "diff <(snap model --assertion) /run/mnt/ubuntu-seed/systems/classic/model"
+
+  boot_id=$(remote.exec "cat /proc/sys/kernel/random/boot_id")
+  remote.exec "sudo snap reboot --recover classic"
+  remote.wait-for reboot "${boot_id}"
+
+  # we explicitly provide a password since the sudo group is not configured to
+  # allow passwordless sudo
+  timeout -v 300 remote.exec "echo ubuntu | sudo -S snap wait system seed.loaded"
+
+  remote.exec "groups" | tr ' ' '\n' | sort | xargs | MATCH 'sudo user1'
+
+  remote.exec "snap list" > snap-list
+  for name in "pc" "pc-kernel" "snapd" "core${version}"; do
+      MATCH "${name}" < snap-list
+  done
+
+  for name in passwd shadow group gshadow; do
+      remote.exec "findmnt -n /etc/${name}" | awk '{ print $2 }' | MATCH "tmpfs\[/snapd/hybrid-users/${name}\]"
+  done

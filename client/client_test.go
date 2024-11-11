@@ -533,7 +533,7 @@ func (cs *clientSuite) TestClientMaintenance(c *C) {
 func (cs *clientSuite) TestClientAsyncOpMaintenance(c *C) {
 	cs.status = 202
 	cs.rsp = `{"type":"async", "status-code": 202, "change": "42", "maintenance": {"kind": "system-restart", "message": "system is restarting"}}`
-	_, err := cs.cli.Install("foo", nil)
+	_, err := cs.cli.Install("foo", nil, nil)
 	c.Assert(err, IsNil)
 	c.Check(cs.cli.Maintenance().(*client.Error), DeepEquals, &client.Error{
 		Kind:    client.ErrorKindSystemRestart,
@@ -541,7 +541,7 @@ func (cs *clientSuite) TestClientAsyncOpMaintenance(c *C) {
 	})
 
 	cs.rsp = `{"type":"async", "status-code": 202, "change": "42"}`
-	_, err = cs.cli.Install("foo", nil)
+	_, err = cs.cli.Install("foo", nil, nil)
 	c.Assert(err, IsNil)
 	c.Check(cs.cli.Maintenance(), Equals, error(nil))
 }

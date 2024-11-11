@@ -701,6 +701,15 @@ var snapdDesktopFileNames = []string{
 	"snap-handle-link.desktop",
 }
 
+func isSnapdDesktopFile(desktopFile string) bool {
+	for _, df := range snapdDesktopFileNames {
+		if desktopFile == df {
+			return true
+		}
+	}
+	return false
+}
+
 func writeSnapdDesktopFilesOnCore(s *snap.Info) error {
 	// Ensure /var/lib/snapd/desktop/applications exists
 	if err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755); err != nil {

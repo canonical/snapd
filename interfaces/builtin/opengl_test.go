@@ -118,7 +118,7 @@ func (s *OpenglInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(err, IsNil)
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 15)
+	c.Assert(spec.Snippets(), HasLen, 19)
 	c.Assert(spec.Snippets(), testutil.Contains, `# opengl
 SUBSYSTEM=="drm", KERNEL=="card[0-9]*", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# opengl

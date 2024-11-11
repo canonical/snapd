@@ -22,9 +22,6 @@ environment:
     # amd64 normal build
     BUILD_MODE/normal: normal
     ARCH/normal: amd64
-    # i386 normal build
-    BUILD_MODE/i386: normal
-    ARCH/i386: i386
     # Only build arch:all
     BUILD_MODE/all: all
     ARCH/all: amd64

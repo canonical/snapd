@@ -22,6 +22,11 @@ execute: |
     snap install test-snapd-sh
     test-snapd-sh.sh -c 'echo hello' | MATCH hello
 
+    if tests.info is-snapd-from-archive; then
+        MOUNT_DIR="$(os.paths snap-mount-dir)"
+        SNAP_SECCOMP="$MOUNT_DIR/snapd/current$SNAP_SECCOMP"
+    fi
+
     # from the old test_complain
     echo "Test that the @complain keyword works"
     rm -f "${PROFILE}.bin2"

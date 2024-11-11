@@ -51,7 +51,12 @@ prepare: |
 
   # for images that are already preseeded, we need to undo the preseeding there
   echo "Running preseed --reset for already preseeded cloud images"
-  SNAPD_DEBUG=1 /usr/lib/snapd/snap-preseed --reset "$IMAGE_MOUNTPOINT"
+  SNAP_PRESEED=/usr/lib/snapd/snap-preseed
+  if tests.info is-snapd-from-archive; then
+      MOUNT_DIR="$(os.paths snap-mount-dir)"
+      SNAP_PRESEED="$MOUNT_DIR/snapd/current$SNAP_PRESEED"
+  fi
+  SNAPD_DEBUG=1 "$SNAP_PRESEED" --reset "$IMAGE_MOUNTPOINT"
 
 restore: |
   if [ -f remove-lxd ]; then
@@ -101,16 +106,45 @@ execute: |
   lxc config device add my-ubuntu mounted-ubuntu-image disk source="$IMAGE_MOUNTPOINT" path="$IMAGE_MOUNTPOINT"
   lxc restart my-ubuntu
 
-  echo "Make latest snap-preseed command available in the lxd container"
+  echo "Prepare container to run snap-preseed command"
   lxc exec my-ubuntu -- mkdir -p "$GOHOME"
-  lxc file push /usr/lib/snapd/snap-preseed "my-ubuntu/$GOHOME/"
   lxc file push cloudimg.img "my-ubuntu/$GOHOME/"
   lxc file push preseed-prepare.sh "my-ubuntu/$GOHOME/"
-
-  echo "Running preseeding in the lxd container"
   # mount /dev, /proc, /sys under mounted ubuntu image in the container.
   lxc exec my-ubuntu -- "$GOHOME"/preseed-prepare.sh "$IMAGE_MOUNTPOINT"
-  lxc exec my-ubuntu -- "$GOHOME"/snap-preseed "$IMAGE_MOUNTPOINT"
+
+  echo "Make latest snap-preseed command available in the lxd container"
+  echo "Running preseeding in the lxd container"
+  SNAP_PRESEED=/usr/lib/snapd/snap-preseed
+  if tests.info is-snapd-from-archive; then
+      # We use the snap preseed from the current snapd snap
+      # The current snapd snap is installed in the lxd container to make
+      # sure all the dependencies are in place, otherwise it fails to access to
+      # /snap/snapd/current/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+
+      CURRENT_SNAPD_SNAP="$(ls "$SNAPD_WORK_DIR"/snapd_snap/snapd_*.snap)"
+      CURRENT_SNAPD_SNAP_NAME="$(basename "$CURRENT_SNAPD_SNAP")"
+      if [ "$(wc -w <<< "$CURRENT_SNAPD_SNAP")" != 1 ]; then
+          echo "It is expected just 1 snapd snap in $SNAPD_WORK_DIR/snapd_snap"
+          exit 1
+      fi
+      lxc file push "$CURRENT_SNAPD_SNAP" "my-ubuntu/$GOHOME/"
+      for iter in $(seq 30); do
+          echo "checking snapd ready in container: iter $iter"
+          if lxc exec my-ubuntu -- sh -c 'snap changes' | MATCH "Done.*Initialize system state"; then
+              break
+          fi
+          sleep 1
+      done
+      lxc exec my-ubuntu -- snap install --dangerous "$GOHOME/$CURRENT_SNAPD_SNAP_NAME"
+
+      MOUNT_DIR="$(os.paths snap-mount-dir)"
+      SNAP_PRESEED="$MOUNT_DIR/snapd/current$SNAP_PRESEED"
+      lxc exec my-ubuntu -- "$SNAP_PRESEED" "$IMAGE_MOUNTPOINT"
+  else
+      lxc file push "$SNAP_PRESEED" "my-ubuntu/$GOHOME/"
+      lxc exec my-ubuntu -- "$GOHOME"/snap-preseed "$IMAGE_MOUNTPOINT"
+  fi    
 
   echo "Precondition check of mount units"
   # preseeded image is mounted on the host, so we can directly inspect

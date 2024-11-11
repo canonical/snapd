@@ -107,7 +107,8 @@ func (s *SnapSuite) TestPackPacksFailsForMissingPaths(c *check.C) {
 	snapDir := makeSnapDirForPack(c, packSnapYaml)
 
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", snapDir, snapDir})
-	c.Assert(err, check.ErrorMatches, ".* snap is unusable due to missing files")
+	// needed files/dirs are tracked in map so order of first error is not guaranteed
+	c.Assert(err, check.ErrorMatches, `.* snap is unusable due to missing files: path "(bin/hello|bin)" does not exist`)
 }
 
 func (s *SnapSuite) TestPackPacksASnap(c *check.C) {
@@ -201,7 +202,7 @@ esac
 func (s *SnapSuite) TestPackComponentHappy(c *check.C) {
 	const compYaml = `component: snap+comp
 version: 12a
-type: test
+type: standard
 `
 	_, r := logger.MockLogger()
 	defer r()
@@ -218,7 +219,7 @@ type: test
 func (s *SnapSuite) TestPackComponentBadName(c *check.C) {
 	const compYaml = `component: snapcomp
 version: 12a
-type: test
+type: standard
 `
 	_, r := logger.MockLogger()
 	defer r()

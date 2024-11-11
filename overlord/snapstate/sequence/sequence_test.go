@@ -65,16 +65,16 @@ func (s *sequenceTestSuite) TestSequenceSerialize(c *C) {
 	// With components
 	seq = snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
 		sequence.NewRevisionSideState(si1, []*sequence.ComponentState{
-			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("mysnap", "mycomp"), snap.R(7)), snap.TestComponent),
+			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("mysnap", "mycomp"), snap.R(7)), snap.StandardComponent),
 		}),
 		sequence.NewRevisionSideState(si2, []*sequence.ComponentState{
-			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("othersnap", "othercomp1"), snap.R(11)), snap.TestComponent),
-			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("othersnap", "othercomp2"), snap.R(14)), snap.TestComponent),
+			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("othersnap", "othercomp1"), snap.R(11)), snap.StandardComponent),
+			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("othersnap", "othercomp2"), snap.R(14)), snap.StandardComponent),
 		}),
 	})
 	marshaled, err = json.Marshal(seq)
 	c.Assert(err, IsNil)
-	c.Check(string(marshaled), Equals, `[{"name":"mysnap","snap-id":"snapid","revision":"7","components":[{"side-info":{"component":{"snap-name":"mysnap","component-name":"mycomp"},"revision":"7"},"type":"test"}]},{"name":"othersnap","snap-id":"otherid","revision":"11","components":[{"side-info":{"component":{"snap-name":"othersnap","component-name":"othercomp1"},"revision":"11"},"type":"test"},{"side-info":{"component":{"snap-name":"othersnap","component-name":"othercomp2"},"revision":"14"},"type":"test"}]}]`)
+	c.Check(string(marshaled), Equals, `[{"name":"mysnap","snap-id":"snapid","revision":"7","components":[{"side-info":{"component":{"snap-name":"mysnap","component-name":"mycomp"},"revision":"7"},"type":"standard"}]},{"name":"othersnap","snap-id":"otherid","revision":"11","components":[{"side-info":{"component":{"snap-name":"othersnap","component-name":"othercomp1"},"revision":"11"},"type":"standard"},{"side-info":{"component":{"snap-name":"othersnap","component-name":"othercomp2"},"revision":"14"},"type":"standard"}]}]`)
 
 	// Now check that unmarshaling is as expected
 	c.Check(json.Unmarshal(marshaled, &readSeq), IsNil)
@@ -87,7 +87,7 @@ func (s *sequenceTestSuite) TestSideInfos(c *C) {
 	ssi2 := &snap.SideInfo{RealName: "foo", Revision: snap.R(2),
 		SnapID: "some-snap-id"}
 	csi := snap.NewComponentSideInfo(naming.NewComponentRef("foo", "comp"), snap.R(11))
-	cs := sequence.NewComponentState(csi, snap.TestComponent)
+	cs := sequence.NewComponentState(csi, snap.StandardComponent)
 	seq := snapstatetest.NewSequenceFromRevisionSideInfos(
 		[]*sequence.RevisionSideState{
 			sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{cs}),
@@ -103,9 +103,9 @@ func (s *sequenceTestSuite) TestAddComponentForRevision(c *C) {
 	csi1 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName1), snap.R(2))
 	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName1), snap.R(3))
 	csi3 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, "other-comp"), snap.R(1))
-	cs1 := sequence.NewComponentState(csi1, snap.TestComponent)
-	cs2 := sequence.NewComponentState(csi2, snap.TestComponent)
-	cs3 := sequence.NewComponentState(csi3, snap.TestComponent)
+	cs1 := sequence.NewComponentState(csi1, snap.StandardComponent)
+	cs2 := sequence.NewComponentState(csi2, snap.StandardComponent)
+	cs3 := sequence.NewComponentState(csi3, snap.StandardComponent)
 
 	ssi := &snap.SideInfo{RealName: snapName,
 		Revision: snap.R(1), SnapID: "some-snap-id"}
@@ -133,8 +133,8 @@ func (s *sequenceTestSuite) TestRemoveComponentForRevision(c *C) {
 	const compName2 = "comp2"
 	csi1 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName1), snap.R(2))
 	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName2), snap.R(3))
-	cs1 := sequence.NewComponentState(csi1, snap.TestComponent)
-	cs2 := sequence.NewComponentState(csi2, snap.TestComponent)
+	cs1 := sequence.NewComponentState(csi1, snap.StandardComponent)
+	cs2 := sequence.NewComponentState(csi2, snap.StandardComponent)
 
 	ssi := &snap.SideInfo{RealName: snapName,
 		Revision: snap.R(1), SnapID: "some-snap-id"}
@@ -170,10 +170,10 @@ func (s *sequenceTestSuite) TestSequenceHelpers(c *C) {
 	ssi2 := &snap.SideInfo{RealName: snapName, Revision: snapRev2, SnapID: "some-snap-id"}
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	compSt := sequence.NewComponentState(csi, snap.TestComponent)
+	compSt := sequence.NewComponentState(csi, snap.StandardComponent)
 	cref2 := naming.NewComponentRef(snapName, compName2)
 	csi2 := snap.NewComponentSideInfo(cref2, compRev)
-	compSt2 := sequence.NewComponentState(csi2, snap.TestComponent)
+	compSt2 := sequence.NewComponentState(csi2, snap.StandardComponent)
 
 	rev1Comps := []*sequence.ComponentState{compSt2, compSt}
 	seq := snapstatetest.NewSequenceFromRevisionSideInfos(
@@ -186,9 +186,10 @@ func (s *sequenceTestSuite) TestSequenceHelpers(c *C) {
 	foundCst2 := seq.ComponentStateForRev(0, cref2)
 	c.Check(foundCst2, DeepEquals, compSt2)
 	c.Check(seq.ComponentsForRevision(snapRev), DeepEquals, rev1Comps)
+	c.Check(seq.HasComponents(0), Equals, true)
 
 	rev1Comps = []*sequence.ComponentState{
-		sequence.NewComponentState(csi, snap.TestComponent)}
+		sequence.NewComponentState(csi, snap.StandardComponent)}
 	seq = snapstatetest.NewSequenceFromRevisionSideInfos(
 		[]*sequence.RevisionSideState{
 			sequence.NewRevisionSideState(ssi2, nil),
@@ -202,6 +203,8 @@ func (s *sequenceTestSuite) TestSequenceHelpers(c *C) {
 	c.Check(foundCst, IsNil)
 	c.Check(seq.ComponentsForRevision(snapRev), DeepEquals, rev1Comps)
 	c.Check(seq.ComponentsForRevision(snapRev2), IsNil)
+	c.Check(seq.HasComponents(0), Equals, false)
+	c.Check(seq.HasComponents(1), Equals, true)
 
 	seq = snapstatetest.NewSequenceFromRevisionSideInfos(
 		[]*sequence.RevisionSideState{
@@ -212,6 +215,8 @@ func (s *sequenceTestSuite) TestSequenceHelpers(c *C) {
 	c.Check(seq.IsComponentRevPresent(csi), Equals, false)
 	c.Check(seq.ComponentStateForRev(0, cref), IsNil)
 	c.Check(seq.ComponentStateForRev(1, cref2), IsNil)
+	c.Check(seq.HasComponents(0), Equals, false)
+	c.Check(seq.HasComponents(1), Equals, false)
 }
 
 func (s *sequenceTestSuite) TestKernelModulesComponentsForRev(c *C) {
@@ -231,7 +236,7 @@ func (s *sequenceTestSuite) TestKernelModulesComponentsForRev(c *C) {
 
 	rev1Comps := []*sequence.ComponentState{
 		sequence.NewComponentState(csi2, snap.KernelModulesComponent),
-		sequence.NewComponentState(csi, snap.TestComponent)}
+		sequence.NewComponentState(csi, snap.StandardComponent)}
 	seq := snapstatetest.NewSequenceFromRevisionSideInfos(
 		[]*sequence.RevisionSideState{
 			sequence.NewRevisionSideState(ssi2, nil),
@@ -257,9 +262,9 @@ func (s *sequenceTestSuite) TestIsComponentRevInRefSeqPtInAnyOtherSeqPt(c *C) {
 	csi := snap.NewComponentSideInfo(cref, compRev)
 
 	rev1Comps := []*sequence.ComponentState{
-		sequence.NewComponentState(csi, snap.TestComponent)}
+		sequence.NewComponentState(csi, snap.StandardComponent)}
 	rev2Comps := []*sequence.ComponentState{
-		sequence.NewComponentState(csi, snap.TestComponent)}
+		sequence.NewComponentState(csi, snap.StandardComponent)}
 	seq := snapstatetest.NewSequenceFromRevisionSideInfos(
 		[]*sequence.RevisionSideState{
 			sequence.NewRevisionSideState(ssi, rev1Comps),
@@ -275,7 +280,7 @@ func (s *sequenceTestSuite) TestIsComponentRevInRefSeqPtInAnyOtherSeqPt(c *C) {
 
 	csi2 := snap.NewComponentSideInfo(cref, snap.R(5))
 	rev3Comps := []*sequence.ComponentState{
-		sequence.NewComponentState(csi2, snap.TestComponent)}
+		sequence.NewComponentState(csi2, snap.StandardComponent)}
 	seq = snapstatetest.NewSequenceFromRevisionSideInfos(
 		[]*sequence.RevisionSideState{
 			sequence.NewRevisionSideState(ssi, rev1Comps),
@@ -311,10 +316,10 @@ func (s *sequenceTestSuite) TestLocalRevision(c *C) {
 
 	rev1Comps := []*sequence.ComponentState{
 		sequence.NewComponentState(csi2, snap.KernelModulesComponent),
-		sequence.NewComponentState(csi, snap.TestComponent)}
+		sequence.NewComponentState(csi, snap.StandardComponent)}
 	rev2Comps := []*sequence.ComponentState{
-		sequence.NewComponentState(csi3, snap.TestComponent),
-		sequence.NewComponentState(csi4, snap.TestComponent)}
+		sequence.NewComponentState(csi3, snap.StandardComponent),
+		sequence.NewComponentState(csi4, snap.StandardComponent)}
 	seq := snapstatetest.NewSequenceFromRevisionSideInfos(
 		[]*sequence.RevisionSideState{
 			sequence.NewRevisionSideState(ssi2, rev2Comps),
@@ -347,10 +352,10 @@ func (s *sequenceTestSuite) TestNoLocalRevision(c *C) {
 
 	rev1Comps := []*sequence.ComponentState{
 		sequence.NewComponentState(csi2, snap.KernelModulesComponent),
-		sequence.NewComponentState(csi, snap.TestComponent)}
+		sequence.NewComponentState(csi, snap.StandardComponent)}
 	rev2Comps := []*sequence.ComponentState{
-		sequence.NewComponentState(csi3, snap.TestComponent),
-		sequence.NewComponentState(csi4, snap.TestComponent)}
+		sequence.NewComponentState(csi3, snap.StandardComponent),
+		sequence.NewComponentState(csi4, snap.StandardComponent)}
 	seq := snapstatetest.NewSequenceFromRevisionSideInfos(
 		[]*sequence.RevisionSideState{
 			sequence.NewRevisionSideState(ssi2, rev2Comps),

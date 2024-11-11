@@ -70,7 +70,6 @@ func (opts *Options) manifest() *Manifest {
 // E.g. a component passed to ubuntu-image via --comp <snap_name>+<comp_name>.
 type OptionsComponent struct {
 	Name string
-	// Path is set when a file is passed around.
 	Path string
 }
 
@@ -240,10 +239,6 @@ type Writer struct {
 	availableByMode map[string]*naming.SnapSet
 	byModeSnaps     map[string][]*SeedSnap
 
-	// map of paths to ComponentInfo, it is used after we know the snap
-	// Info data so we can find out where the component belongs to.
-	byPathLocalComps map[string]*snap.ComponentInfo
-
 	// toDownload tracks which set of snaps SnapsToDownload should compute
 	// next
 	toDownload              snapsToDownloadSet
@@ -295,7 +290,7 @@ type tree interface {
 	componentPath(*SeedSnap, *SeedComponent) (string, error)
 
 	localSnapPath(*SeedSnap) (string, error)
-	localComponentPath(*SeedComponent) (string, error)
+	localComponentPath(*SeedComponent, string) (string, error)
 
 	writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error
 
@@ -443,12 +438,10 @@ func validateComponent(optComp *OptionsComponent) error {
 }
 
 // SetOptionsSnaps accepts options-referred snaps represented as OptionsSnap.
-func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap, pathToLocalComp map[string]*snap.ComponentInfo) error {
+func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap) error {
 	if err := w.checkStep(setOptionsSnapsStep); err != nil {
 		return err
 	}
-
-	w.byPathLocalComps = pathToLocalComp
 
 	if len(optSnaps) == 0 {
 		return nil
@@ -673,22 +666,6 @@ func (w *Writer) InfoDerived() error {
 		return err
 	}
 
-	// Check first if there are local components that did not belong to one
-	// of the local snaps
-	errMsg := ""
-compsLoop:
-	for path, cinfo := range w.byPathLocalComps {
-		for _, sn := range w.localSnaps {
-			if cinfo.Component.SnapName == sn.SnapName() {
-				continue compsLoop
-			}
-		}
-		errMsg += fmt.Sprintf("\n%q local component does not have a matching local snap", path)
-	}
-	if errMsg != "" {
-		return fmt.Errorf("missing local snaps:%s", errMsg)
-	}
-
 	// loop this way to process for consistency in the same order
 	// as LocalSnaps result
 	for _, optSnap := range w.optionsSnaps {
@@ -738,9 +715,11 @@ compsLoop:
 	return nil
 }
 
-// SetInfo sets Info of the SeedSnap and possibly computes its
-// destination Path.
-func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info) error {
+// SetInfo sets info and seedComps (which is a map of component names
+// to SeedComponent) in the SeedSnap sn and computes destination paths
+// for all if coming from the store. If the components do not come
+// from the store, some additional checks are performed.
+func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info, seedComps map[string]*SeedComponent) error {
 	if info.NeedsDevMode() {
 		if err := w.policy.allowsDangerousFeatures(); err != nil {
 			return err
@@ -750,7 +729,22 @@ func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info) error {
 
 	if sn.local {
 		sn.SnapRef = info
-		return w.assignLocalComponents(sn)
+		return w.assignLocalComponents(sn, seedComps)
+	}
+
+	for i := range sn.Components {
+		seedComp, ok := seedComps[sn.Components[i].ComponentName]
+		if !ok {
+			return fmt.Errorf("store did not return information about %s",
+				sn.Components[i].ComponentName)
+		}
+		sn.Components[i] = *seedComp
+		// Fill the path as this is a non-local component
+		compPath, err := w.tree.componentPath(sn, &sn.Components[i])
+		if err != nil {
+			return err
+		}
+		sn.Components[i].Path = compPath
 	}
 
 	p, err := w.tree.snapPath(sn)
@@ -768,32 +762,23 @@ func (c byCompName) Len() int           { return len(c) }
 func (c byCompName) Less(i, j int) bool { return c[i].ComponentName < c[j].ComponentName }
 func (c byCompName) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
 
-func (w *Writer) assignLocalComponents(sn *SeedSnap) error {
-	// Add matching local components now that we know the snap name
-	for path, compInfo := range w.byPathLocalComps {
-		if compInfo.Component.SnapName != sn.SnapName() {
-			continue
-		}
-
+func (w *Writer) assignLocalComponents(sn *SeedSnap, seedComps map[string]*SeedComponent) error {
+	for _, seedComp := range seedComps {
 		// Check if the component is defined by the snap
-		compInSnap, ok := sn.Info.Components[compInfo.Component.ComponentName]
+		compInSnap, ok := sn.Info.Components[seedComp.ComponentName]
 		if !ok {
 			return fmt.Errorf("component %s is not defined by snap %s",
-				compInfo.Component.ComponentName, sn.SnapName())
+				seedComp.ComponentName, sn.SnapName())
 		}
 		// and if types match
-		if compInSnap.Type != compInfo.Type {
+		if compInSnap.Type != seedComp.Info.Type {
 			return fmt.Errorf("component %s has type %s while snap %s defines type %s for it",
-				compInfo.Component.ComponentName, compInfo.Type,
+				seedComp.ComponentName, seedComp.Info.Type,
 				sn.SnapName(), compInSnap.Type)
 		}
 
 		// now we can add to the snap
-		sn.Components = append(sn.Components, SeedComponent{
-			ComponentRef: compInfo.Component,
-			Path:         path,
-			Info:         compInfo,
-		})
+		sn.Components = append(sn.Components, *seedComp)
 	}
 
 	// Sort for deterministic download order and tests
@@ -852,15 +837,34 @@ func (w *Writer) modelSnapToSeed(modSnap *asserts.ModelSnap) (*SeedSnap, error) 
 			// by an OptionsSnap entry is skipped
 			return nil, errSkipOptional
 		}
-		seedComps := make([]SeedComponent, 0, len(modSnap.Components))
+		seedCompsMap := make(map[string]SeedComponent, len(modSnap.Components))
 		for comp, modComp := range modSnap.Components {
-			// optional snap not confirmed, skipping
-			if modComp.Presence == "optional" && optSnap != nil && !optSnap.HasComponent(comp) {
+			// optional snap not confirmed (no options or not in options), skipping
+			if modComp.Presence == "optional" &&
+				(optSnap == nil || !optSnap.HasComponent(comp)) {
 				continue
 			}
-			seedComps = append(seedComps, SeedComponent{
+			seedCompsMap[comp] = SeedComponent{
 				ComponentRef: naming.NewComponentRef(modSnap.Name, comp),
-			})
+			}
+		}
+		// We add also components in command options if the model allows it
+		if optSnap != nil {
+			for _, comp := range optSnap.Components {
+				if _, ok := seedCompsMap[comp.Name]; ok {
+					continue
+				}
+				if err := w.policy.allowsDangerousFeatures(); err != nil {
+					return nil, err
+				}
+				seedCompsMap[comp.Name] = SeedComponent{
+					ComponentRef: naming.NewComponentRef(modSnap.Name, comp.Name),
+				}
+			}
+		}
+		seedComps := make([]SeedComponent, 0, len(seedCompsMap))
+		for _, sc := range seedCompsMap {
+			seedComps = append(seedComps, sc)
 		}
 		sn = &SeedSnap{
 			SnapRef: modSnap,
@@ -962,11 +966,18 @@ func (w *Writer) extraSnapToSeed(optSnap *OptionsSnap) (*SeedSnap, error) {
 	sn := w.localSnaps[optSnap]
 	if sn == nil {
 		// not local, to download
+		seedComps := make([]SeedComponent, 0, len(optSnap.Components))
+		for _, optComp := range optSnap.Components {
+			seedComps = append(seedComps, SeedComponent{
+				ComponentRef: naming.NewComponentRef(optSnap.Name, optComp.Name),
+			})
+		}
 		sn = &SeedSnap{
 			SnapRef: optSnap,
 
 			local:      false,
 			optionSnap: optSnap,
+			Components: seedComps,
 		}
 	}
 	if sn.SnapName() == "" {
@@ -1523,8 +1534,10 @@ func (w *Writer) validationSets() (*snapasserts.ValidationSets, error) {
 
 func (w *Writer) installedSnaps() []*snapasserts.InstalledSnap {
 	installedSnap := func(snap *SeedSnap) *snapasserts.InstalledSnap {
-		return snapasserts.NewInstalledSnap(snap.SnapName(), snap.ID(), snap.Info.Revision)
+		return snapasserts.NewInstalledSnap(snap.SnapName(), snap.ID(), snap.Info.Revision, nil)
 	}
+
+	// TODO:COMPS: add components
 
 	var installedSnaps []*snapasserts.InstalledSnap
 	for _, sn := range w.snapsFromModel {
@@ -1593,11 +1606,11 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 				}
 			} else {
 				var snapPath func(*SeedSnap) (string, error)
-				var compPath func(*SeedComponent) (string, error)
+				var compPath func(*SeedComponent, string) (string, error)
 				if sn.Info.ID() != "" {
 					// actually asserted
 					snapPath = w.tree.snapPath
-					compPath = func(sc *SeedComponent) (string, error) {
+					compPath = func(sc *SeedComponent, snapVersion string) (string, error) {
 						return w.tree.componentPath(sn, sc)
 					}
 				} else {
@@ -1613,16 +1626,18 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 					return err
 				}
 				// copy components
-				for _, comp := range sn.Components {
-					compDst, err := compPath(&comp)
+				for i, comp := range sn.Components {
+					compDst, err := compPath(&comp, sn.Info.Version)
 					if err != nil {
 						return err
 					}
 					if err := copySnap(comp.ComponentRef.String(), comp.Path, compDst); err != nil {
 						return err
 					}
+					// record final destination path (for correct options.yaml)
+					sn.Components[i].Path = compDst
 				}
-				// record final destination path
+				// record final destination path (for correct options.yaml)
 				sn.Path = dst
 			}
 			if !info.Revision.Unset() {

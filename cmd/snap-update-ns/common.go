@@ -20,6 +20,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/snapcore/snapd/cmd/snaplock"
@@ -79,7 +80,8 @@ func (upCtx *CommonProfileUpdateContext) Lock() (func(), error) {
 	// introduce a symlink that would cause us to mount something other
 	// than what we expected).
 	logger.Debugf("freezing processes of snap %q", instanceName)
-	if err := cgroup.FreezeSnapProcesses(instanceName); err != nil {
+	// TODO: Ideally we should use signal.NotifyContext
+	if err := cgroup.FreezeSnapProcesses(context.TODO(), instanceName); err != nil {
 		// If we cannot freeze the processes we should drop the lock.
 		lock.Close()
 		return nil, err

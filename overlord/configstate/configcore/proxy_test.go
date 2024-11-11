@@ -81,6 +81,8 @@ PATH="/usr/bin"
 
 func (s *proxySuite) TestConfigureProxyUnhappy(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	r := configcore.MockEnvPath("/otherrootfs/etc/environment")
+	defer r()
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{

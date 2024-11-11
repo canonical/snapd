@@ -816,6 +816,136 @@ static void test_sc_strdup(void)
 	free(s);
 }
 
+static void test_sc_string_split_trailing_nil(void)
+{
+	if (g_test_subprocess()) {
+		char dest[3] = { 0 };
+		// pretend there is no place for trailing \0
+		sc_string_split("_", '_', NULL, 0, dest, 0);
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+}
+
+static void test_sc_string_split_short_instance_dest(void)
+{
+	if (g_test_subprocess()) {
+		char dest[10] = { 0 };
+		sc_string_split("foo_barbarbarbar", '_', NULL, 0,
+				dest, sizeof dest);
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+}
+
+static void test_sc_string_split_null_string(void)
+{
+	if (g_test_subprocess()) {
+		char dest[10] = { 0 };
+		sc_string_split(NULL, '_', NULL, 0, dest, sizeof dest);
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	g_test_trap_assert_stderr
+	    ("internal error: cannot split string when it is unset\n");
+}
+
+static void test_sc_string_split_null_prefix_and_suffix(void)
+{
+	if (g_test_subprocess()) {
+		char dest[10] = { 0 };
+		sc_string_split("some_string", '_', NULL, 0, NULL, 0);
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	g_test_trap_assert_stderr
+	    ("internal error: cannot split string when both prefix and suffix are unset\n");
+}
+
+static void test_sc_string_split_basic(void)
+{
+	char prefix[41] = { 0xff };
+	char suffix[20] = { 0xff };
+
+	sc_string_split("foo_bar", '_', prefix, sizeof prefix, suffix,
+			sizeof suffix);
+	g_assert_cmpstr(prefix, ==, "foo");
+	g_assert_cmpstr(suffix, ==, "bar");
+
+	memset(prefix, 0xff, sizeof prefix);
+	memset(suffix, 0xff, sizeof suffix);
+	sc_string_split("foo-bar_bar", '_', prefix, sizeof prefix, suffix,
+			sizeof suffix);
+	g_assert_cmpstr(prefix, ==, "foo-bar");
+	g_assert_cmpstr(suffix, ==, "bar");
+
+	memset(prefix, 0xff, sizeof prefix);
+	memset(suffix, 0xff, sizeof suffix);
+	sc_string_split("foo-bar_bar", '-', prefix, sizeof prefix, suffix,
+			sizeof suffix);
+	g_assert_cmpstr(prefix, ==, "foo");
+	g_assert_cmpstr(suffix, ==, "bar_bar");
+
+	memset(prefix, 0xff, sizeof prefix);
+	memset(suffix, 0xff, sizeof suffix);
+	sc_string_split("foo-bar", '_', prefix, sizeof prefix, suffix,
+			sizeof suffix);
+	g_assert_cmpstr(prefix, ==, "foo-bar");
+	g_assert_cmpstr(suffix, ==, "");
+
+	memset(prefix, 0xff, sizeof prefix);
+	memset(suffix, 0xff, sizeof suffix);
+	sc_string_split("_baz", '_', prefix, sizeof prefix, suffix,
+			sizeof suffix);
+	g_assert_cmpstr(prefix, ==, "");
+	g_assert_cmpstr(suffix, ==, "baz");
+
+	memset(prefix, 0xff, sizeof prefix);
+	memset(suffix, 0xff, sizeof suffix);
+	sc_string_split("foo", '_', prefix, sizeof prefix, suffix,
+			sizeof suffix);
+	g_assert_cmpstr(prefix, ==, "foo");
+	g_assert_cmpstr(suffix, ==, "");
+
+	memset(prefix, 0xff, sizeof prefix);
+	sc_string_split("foo_bar", '_', prefix, sizeof prefix, NULL, 0);
+	g_assert_cmpstr(prefix, ==, "foo");
+
+	memset(suffix, 0xff, sizeof suffix);
+	sc_string_split("foo_bar", '_', NULL, 0, suffix, sizeof suffix);
+	g_assert_cmpstr(suffix, ==, "bar");
+
+	memset(prefix, 0xff, sizeof prefix);
+	memset(suffix, 0xff, sizeof suffix);
+	sc_string_split("hello_world_surprise", '_', prefix, sizeof prefix,
+			suffix, sizeof suffix);
+	g_assert_cmpstr(prefix, ==, "hello");
+	g_assert_cmpstr(suffix, ==, "world_surprise");
+
+	memset(prefix, 0xff, sizeof prefix);
+	memset(suffix, 0xff, sizeof suffix);
+	sc_string_split("", '_', prefix, sizeof prefix, suffix, sizeof suffix);
+	g_assert_cmpstr(prefix, ==, "");
+	g_assert_cmpstr(suffix, ==, "");
+
+	memset(prefix, 0xff, sizeof prefix);
+	memset(suffix, 0xff, sizeof suffix);
+	sc_string_split("_", '_', prefix, sizeof prefix, suffix, sizeof suffix);
+	g_assert_cmpstr(prefix, ==, "");
+	g_assert_cmpstr(suffix, ==, "");
+
+	memset(prefix, 0xff, sizeof prefix);
+	memset(suffix, 0xff, sizeof suffix);
+	sc_string_split("foo_", '_', prefix, sizeof prefix, suffix,
+			sizeof suffix);
+	g_assert_cmpstr(prefix, ==, "foo");
+	g_assert_cmpstr(suffix, ==, "");
+}
+
 static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/string-utils/sc_streq", test_sc_streq);
@@ -874,4 +1004,14 @@ static void __attribute__((constructor)) init(void)
 	     test_sc_string_append_char_pair__uninitialized_buf);
 	g_test_add_func("/string-utils/sc_string_quote", test_sc_string_quote);
 	g_test_add_func("/string-utils/sc_strdup", test_sc_strdup);
+	g_test_add_func("/string-utils/sc_string_split/basic",
+			test_sc_string_split_basic);
+	g_test_add_func("/string-utils/sc_string_split/trailing_nil",
+			test_sc_string_split_trailing_nil);
+	g_test_add_func("/string-utils/sc_string_split/short_instance_dest",
+			test_sc_string_split_short_instance_dest);
+	g_test_add_func("/string-utils/sc_string_split/null_string",
+			test_sc_string_split_null_string);
+	g_test_add_func("/string-utils/sc_string_split/null_prefix_and_suffix",
+			test_sc_string_split_null_prefix_and_suffix);
 }

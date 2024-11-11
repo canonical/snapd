@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -295,6 +296,17 @@ slots:
 		// pretend the snapd.apparmor.service is enabled
 		return false
 	}))
+
+	s.BaseTest.AddCleanup(ifacestate.MockCreateInterfacesRequestsManager(fakeCreateInterfacesRequestsManager))
+	s.BaseTest.AddCleanup(ifacestate.MockInterfacesRequestsManagerStop(fakeInterfacesRequestsManagerStop))
+}
+
+var fakeCreateInterfacesRequestsManager = func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+	return nil, nil
+}
+
+var fakeInterfacesRequestsManagerStop = func(m *apparmorprompting.InterfacesRequestsManager) error {
+	return nil
 }
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
@@ -355,6 +367,70 @@ func (s *interfaceManagerSuite) TestSmoke(c *C) {
 	s.manager(c)
 	s.se.Ensure()
 	s.se.Wait()
+}
+
+func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingEnabled(c *C) {
+	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
+		return true
+	})
+	defer restore()
+	createCount := 0
+	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+		createCount++
+		// InterfacesRequestsManager may record notices during creation, so
+		// simulate it acquiring the state lock to do so.
+		s.Lock()
+		defer s.Unlock()
+		return fakeManager, nil
+	})
+	defer restore()
+	stopCount := 0
+	restore = ifacestate.MockInterfacesRequestsManagerStop(func(m *apparmorprompting.InterfacesRequestsManager) error {
+		stopCount++
+		// InterfacesRequestsManager may record notices while stopping, so
+		// simulate it acquiring the state lock to do so.
+		s.state.Lock()
+		defer s.state.Unlock()
+		return nil
+	})
+	defer restore()
+
+	mgr := s.manager(c)
+	c.Check(createCount, Equals, 1)
+	c.Check(mgr.AppArmorPromptingRunning(), Equals, true)
+	c.Check(mgr.InterfacesRequestsManager(), Equals, fakeManager)
+	c.Check(stopCount, Equals, 0)
+	mgr.Stop()
+	c.Check(stopCount, Equals, 1)
+	c.Check(mgr.InterfacesRequestsManager(), testutil.IsInterfaceNil)
+}
+
+func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingDisabled(c *C) {
+	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
+		return false
+	})
+	defer restore()
+	createCount := 0
+	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+		createCount++
+		return fakeManager, fmt.Errorf("should not have been called")
+	})
+	defer restore()
+	stopCount := 0
+	restore = ifacestate.MockInterfacesRequestsManagerStop(func(m *apparmorprompting.InterfacesRequestsManager) error {
+		stopCount++
+		return nil
+	})
+	defer restore()
+
+	mgr := s.manager(c)
+	c.Check(createCount, Equals, 0)
+	c.Check(mgr.AppArmorPromptingRunning(), Equals, false)
+	c.Check(mgr.InterfacesRequestsManager(), testutil.IsInterfaceNil)
+	mgr.Stop()
+	c.Check(stopCount, Equals, 0)
 }
 
 func (s *interfaceManagerSuite) TestRepoAvailable(c *C) {
@@ -1661,8 +1737,8 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 	consumer := s.mockSnap(c, consumerWithComponentYaml)
 	producer := s.mockSnap(c, producerWithComponentYaml)
 
-	s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: test", consumer)
-	s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: test", producer)
+	s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: standard", consumer)
+	s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: standard", producer)
 
 	// Put a connection in the state so that it automatically gets set up when
 	// we create the manager.
@@ -1744,11 +1820,11 @@ plugs:
   static: plug-static-value
 components:
  comp:
-  type: test
+  type: standard
   hooks:
    install:
  not-installed:
-  type: test
+  type: standard
   hooks:
    install:
 `
@@ -1761,19 +1837,19 @@ slots:
   static: slot-static-value
 components:
  comp:
-  type: test
+  type: standard
   hooks:
    install:
  not-installed:
-  type: test
+  type: standard
   hooks:
    install:
 `
 	consumer := s.mockSnap(c, consumerYaml)
 	producer := s.mockSnap(c, producerYaml)
 
-	s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: test", consumer)
-	s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: test", producer)
+	s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: standard", consumer)
+	s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: standard", producer)
 
 	connState := map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
@@ -2225,8 +2301,9 @@ func (s *interfaceManagerSuite) mockUpdatedSnap(c *C, yamlText string, revision 
 }
 
 type setupSnapSecurityChangeOptions struct {
-	active  bool
-	install bool
+	active     bool
+	install    bool
+	components []*snapstate.ComponentSetup
 }
 
 func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapsup *snapstate.SnapSetup) *state.Change {
@@ -2234,20 +2311,21 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapsup *snapst
 	return s.addSetupSnapSecurityChangeWithOptions(c, snapsup, setupSnapSecurityChangeOptions{active: false})
 }
 
-func (s *interfaceManagerSuite) addSetupSnapSecurityChangeFromComponent(c *C, snapsup *snapstate.SnapSetup, compsup *snapstate.ComponentSetup) *state.Change {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	// TODO:COMPS: we'll need to update this to handle refreshing components
-	// once that work is done
-
+func (s *interfaceManagerSuite) mockLinkComponent(c *C) {
 	s.o.TaskRunner().AddHandler("mock-link-component-n-witness", func(task *state.Task, tomb *tomb.Tomb) error { // do handler
 		s.state.Lock()
 		defer s.state.Unlock()
 
+		compsup, snapsup, err := snapstate.TaskComponentSetup(task)
+		if err != nil {
+			return err
+		}
+
+		// snap must be installed at this point, either just installed by a
+		// previous link-snap task, or it was already installed.
 		var snapst snapstate.SnapState
-		err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
-		if err != nil && !errors.Is(err, state.ErrNoState) {
+		err = snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+		if err != nil {
 			return err
 		}
 
@@ -2269,9 +2347,14 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeFromComponent(c *C, sn
 		s.state.Lock()
 		defer s.state.Unlock()
 
+		compsup, snapsup, err := snapstate.TaskComponentSetup(task)
+		if err != nil {
+			return err
+		}
+
 		var snapst snapstate.SnapState
-		err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
-		if err != nil && !errors.Is(err, state.ErrNoState) {
+		err = snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+		if err != nil {
 			return err
 		}
 
@@ -2290,6 +2373,14 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeFromComponent(c *C, sn
 
 		return nil
 	})
+
+}
+
+func (s *interfaceManagerSuite) addSetupSnapSecurityChangeFromComponent(c *C, snapsup *snapstate.SnapSetup, compsup *snapstate.ComponentSetup) *state.Change {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.mockLinkComponent(c)
 
 	// snap should already be installed if calling this function
 	var snapst snapstate.SnapState
@@ -2321,6 +2412,18 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	var csis []*snap.ComponentSideInfo
+	for _, comp := range opts.components {
+		csis = append(csis, comp.CompSideInfo)
+	}
+
+	if !opts.install {
+		var snapst snapstate.SnapState
+		err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+		c.Assert(err, IsNil)
+		csis = append(csis, snapst.CurrentComponentSideInfos()...)
+	}
+
 	s.o.TaskRunner().AddHandler("mock-link-snap-n-witness", func(task *state.Task, tomb *tomb.Tomb) error { // do handler
 		s.state.Lock()
 		defer s.state.Unlock()
@@ -2336,7 +2439,8 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 			snapst.Sequence = snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{snapsup.SideInfo})
 		} else {
 			c.Check(snapst.PendingSecurity, DeepEquals, &snapstate.PendingSecurityState{
-				SideInfo: snapsup.SideInfo,
+				SideInfo:   snapsup.SideInfo,
+				Components: csis,
 			})
 		}
 		snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
@@ -2372,6 +2476,8 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 		return nil
 	})
 
+	s.mockLinkComponent(c)
+
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -2384,18 +2490,30 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 
 	change := s.state.NewChange("test", "")
 
-	task1 := s.state.NewTask("setup-profiles", "")
-	task1.Set("snap-setup", snapsup)
-	change.AddTask(task1)
+	setupProfiles := s.state.NewTask("setup-profiles", "")
+	setupProfiles.Set("snap-setup", snapsup)
+	change.AddTask(setupProfiles)
 
-	task2 := s.state.NewTask("mock-link-snap-n-witness", "")
-	task2.Set("snap-setup", snapsup)
-	task2.WaitFor(task1)
-	change.AddTask(task2)
+	linkSnap := s.state.NewTask("mock-link-snap-n-witness", "")
+	linkSnap.Set("snap-setup-task", setupProfiles.ID())
+	linkSnap.WaitFor(setupProfiles)
+	change.AddTask(linkSnap)
+
+	compSetupIDs := make([]string, 0, len(opts.components))
+	for _, compsup := range opts.components {
+		linkComp := s.state.NewTask("mock-link-component-n-witness", "")
+		linkComp.Set("snap-setup-task", setupProfiles.ID())
+		linkComp.Set("component-setup", compsup)
+		linkComp.WaitFor(linkSnap)
+		change.AddTask(linkComp)
+		compSetupIDs = append(compSetupIDs, linkComp.ID())
+	}
+
+	setupProfiles.Set("component-setup-tasks", compSetupIDs)
 
 	task3 := s.state.NewTask("auto-connect", "")
 	task3.Set("snap-setup", snapsup)
-	task3.WaitFor(task2)
+	task3.WaitFor(linkSnap)
 	change.AddTask(task3)
 
 	return change
@@ -2444,7 +2562,7 @@ type: os
 var ubuntuCoreSnapWithComponentYaml = ubuntuCoreSnapYaml + `
 components:
   comp:
-    type: test
+    type: standard
     hooks:
       install:
 `
@@ -2484,20 +2602,30 @@ plugs:
 
 const sampleComponentYaml = `
 component: snap+comp1
-type: test
+type: standard
+version: 1.0
+`
+
+const sampleOtherComponentYaml = `
+component: snap+comp2
+type: standard
 version: 1.0
 `
 
 var sampleSnapWithComponentsYaml = sampleSnapYaml + `
 components:
   comp1:
-    type: test
+    type: standard
     hooks:
       install:
   comp2:
-    type: test
+    type: standard
     hooks:
       pre-refresh:
+  comp3:
+    type: standard
+    hooks:
+      post-refresh:
 `
 
 var sampleSnapYamlManyPlugs = `
@@ -2540,11 +2668,11 @@ hooks:
 var consumerWithComponentYaml = consumerYaml + `
 components:
   comp:
-    type: test
+    type: standard
     hooks:
       install:
   not-installed-comp:
-    type: test
+    type: standard
     hooks:
       install:
 `
@@ -2624,11 +2752,11 @@ hooks:
 var producerWithComponentYaml = producerYaml + `
 components:
   comp:
-    type: test
+    type: standard
     hooks:
       install:
   not-installed-comp:
-    type: test
+    type: standard
     hooks:
       install:
 `
@@ -4273,6 +4401,129 @@ func (s *interfaceManagerSuite) TestSetupProfilesOnInstall(c *C) {
 	c.Check(s.secBackend.SetupCalls[0].AppSet.Info().Revision, Equals, installSnapInfo.Revision)
 }
 
+func (s *interfaceManagerSuite) TestSetupProfilesInstallSnapAndComponents(c *C) {
+	s.MockModel(c, nil)
+
+	snapInfo := s.mockSnap(c, sampleSnapWithComponentsYaml)
+
+	var compsups []*snapstate.ComponentSetup
+	for _, yaml := range []string{sampleComponentYaml, sampleOtherComponentYaml} {
+		compInfo := snaptest.MockComponent(c, yaml, snapInfo, snap.ComponentSideInfo{
+			Revision: snap.R(1),
+		})
+		compsups = append(compsups, &snapstate.ComponentSetup{
+			CompSideInfo: &snap.ComponentSideInfo{
+				Component: compInfo.Component,
+				Revision:  snap.R(1),
+			},
+		})
+	}
+
+	s.manager(c)
+
+	change := s.addSetupSnapSecurityChangeWithOptions(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.SnapName(),
+			Revision: snapInfo.Revision,
+		},
+	}, setupSnapSecurityChangeOptions{components: compsups})
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
+
+	appSet := s.secBackend.SetupCalls[0].AppSet
+	c.Check(appSet.InstanceName(), Equals, snapInfo.InstanceName())
+	c.Check(appSet.Info().Revision, Equals, snapInfo.Revision)
+
+	// the snap defines another component, comp3. note that it is not listed
+	// here because it is not installed.
+	c.Check(appSet.Runnables(), testutil.DeepUnsortedMatches, []snap.Runnable{
+		{
+			CommandName: "app",
+			SecurityTag: "snap.snap.app",
+		},
+		{
+			CommandName: "snap+comp1.hook.install",
+			SecurityTag: "snap.snap+comp1.hook.install",
+		},
+		{
+			CommandName: "snap+comp2.hook.pre-refresh",
+			SecurityTag: "snap.snap+comp2.hook.pre-refresh",
+		},
+	})
+}
+
+func (s *interfaceManagerSuite) TestSetupProfilesInstallSnapAndComponentsPreexistingComponent(c *C) {
+	s.MockModel(c, nil)
+
+	snapInfo := s.mockSnap(c, sampleSnapWithComponentsYaml)
+	s.mockComponentForSnap(c, "comp3", "component: snap+comp3\ntype: standard", snapInfo)
+
+	var compsups []*snapstate.ComponentSetup
+	for _, yaml := range []string{sampleComponentYaml, sampleOtherComponentYaml} {
+		compInfo := snaptest.MockComponent(c, yaml, snapInfo, snap.ComponentSideInfo{
+			Revision: snap.R(1),
+		})
+		compsups = append(compsups, &snapstate.ComponentSetup{
+			CompSideInfo: &snap.ComponentSideInfo{
+				Component: compInfo.Component,
+				Revision:  snap.R(1),
+			},
+		})
+	}
+
+	s.manager(c)
+
+	change := s.addSetupSnapSecurityChangeWithOptions(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.SnapName(),
+			Revision: snapInfo.Revision,
+		},
+	}, setupSnapSecurityChangeOptions{components: compsups})
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
+
+	appSet := s.secBackend.SetupCalls[0].AppSet
+	c.Check(appSet.InstanceName(), Equals, snapInfo.InstanceName())
+	c.Check(appSet.Info().Revision, Equals, snapInfo.Revision)
+
+	// comp3 is preexisting component, so it should be listed here, even though
+	// it wasn't part of this installation
+	c.Check(appSet.Runnables(), testutil.DeepUnsortedMatches, []snap.Runnable{
+		{
+			CommandName: "app",
+			SecurityTag: "snap.snap.app",
+		},
+		{
+			CommandName: "snap+comp1.hook.install",
+			SecurityTag: "snap.snap+comp1.hook.install",
+		},
+		{
+			CommandName: "snap+comp2.hook.pre-refresh",
+			SecurityTag: "snap.snap+comp2.hook.pre-refresh",
+		},
+		{
+			CommandName: "snap+comp3.hook.post-refresh",
+			SecurityTag: "snap.snap+comp3.hook.post-refresh",
+		},
+	})
+}
+
 func (s *interfaceManagerSuite) TestSetupProfilesInstallComponent(c *C) {
 	s.MockModel(c, nil)
 
@@ -4340,7 +4591,7 @@ func (s *interfaceManagerSuite) mockComponentForSnap(c *C, compName string, comp
 			Component: naming.NewComponentRef(snapInfo.SnapName(), compName),
 			Revision:  snap.R(1),
 		},
-		CompType: snap.TestComponent,
+		CompType: snap.StandardComponent,
 	})
 
 	snapstate.Set(s.state, snapInfo.InstanceName(), &snapst)
@@ -4352,7 +4603,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesInstallComponentSnapHasPreexist
 	s.MockModel(c, nil)
 
 	snapInfo := s.mockSnap(c, sampleSnapWithComponentsYaml)
-	s.mockComponentForSnap(c, "comp2", "component: snap+comp2\ntype: test", snapInfo)
+	s.mockComponentForSnap(c, "comp2", "component: snap+comp2\ntype: standard", snapInfo)
 
 	compInfo := snaptest.MockComponent(c, sampleComponentYaml, snapInfo, snap.ComponentSideInfo{
 		Revision: snap.R(1),
@@ -4410,7 +4661,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesUpdateSnapWithComponents(c *C) 
 
 	snapInfo := s.mockSnap(c, sampleSnapWithComponentsYaml)
 
-	s.mockComponentForSnap(c, "comp2", "component: snap+comp2\ntype: test", snapInfo)
+	s.mockComponentForSnap(c, "comp2", "component: snap+comp2\ntype: standard", snapInfo)
 
 	compInfo := snaptest.MockComponent(c, sampleComponentYaml, snapInfo, snap.ComponentSideInfo{
 		Revision: snap.R(1),
@@ -4467,14 +4718,14 @@ func (s *interfaceManagerSuite) TestSetupProfilesOfAffectedSnapWithComponents(c 
 	s.MockModel(c, nil)
 
 	snapInfo := s.mockSnap(c, sampleSnapWithComponentsYaml)
-	snaptest.MockComponent(c, "component: snap+comp2\ntype: test", snapInfo, snap.ComponentSideInfo{
+	snaptest.MockComponent(c, "component: snap+comp2\ntype: standard", snapInfo, snap.ComponentSideInfo{
 		Revision: snap.R(1),
 	})
 
 	// core snap is here so that it appears as an affected snap when "snap" has
 	// its profiles setup
 	coreSnapInfo := s.mockSnap(c, ubuntuCoreSnapWithComponentYaml)
-	snaptest.MockComponent(c, "component: ubuntu-core+comp\ntype: test", coreSnapInfo, snap.ComponentSideInfo{
+	snaptest.MockComponent(c, "component: ubuntu-core+comp\ntype: standard", coreSnapInfo, snap.ComponentSideInfo{
 		Revision: snap.R(1),
 	})
 
@@ -4489,7 +4740,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesOfAffectedSnapWithComponents(c 
 			Component: naming.NewComponentRef(snapInfo.SnapName(), "comp2"),
 			Revision:  snap.R(1),
 		},
-		CompType: snap.TestComponent,
+		CompType: snap.StandardComponent,
 	})
 
 	// add a component to the affected snap, we should see this in the final
@@ -4501,7 +4752,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesOfAffectedSnapWithComponents(c 
 			Component: naming.NewComponentRef(snapInfo.SnapName(), "comp"),
 			Revision:  snap.R(1),
 		},
-		CompType: snap.TestComponent,
+		CompType: snap.StandardComponent,
 	})
 
 	snapstate.Set(s.state, snapInfo.InstanceName(), &snapst)
@@ -5065,8 +5316,8 @@ func (s *interfaceManagerSuite) TestConnectWithComponentsSetsUpSecurity(c *C) {
 
 	consumerInfo := s.mockSnap(c, consumerWithComponentYaml)
 	producerInfo := s.mockSnap(c, producerWithComponentYaml)
-	s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: test", consumerInfo)
-	s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: test", producerInfo)
+	s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: standard", consumerInfo)
+	s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: standard", producerInfo)
 
 	_ = s.manager(c)
 
@@ -6402,8 +6653,8 @@ func (s *interfaceManagerSuite) mockConnectForUndo(c *C, conns map[string]interf
 	producer := s.mockSnap(c, producerWithComponentYaml)
 	consumer := s.mockSnap(c, consumerWithComponentYaml)
 
-	consumerComp := s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: test", consumer)
-	producerComp := s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: test", producer)
+	consumerComp := s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: standard", consumer)
+	producerComp := s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: standard", producer)
 
 	producerAppSet, err := interfaces.NewSnapAppSet(producer, []*snap.ComponentInfo{producerComp})
 	c.Assert(err, IsNil)
@@ -6732,6 +6983,65 @@ func (s *interfaceManagerSuite) TestConnectHandlesAutoconnect(c *C) {
 			},
 		},
 	})
+}
+
+func (s *interfaceManagerSuite) TestInitInterfacesRequestsManagerError(c *C) {
+	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
+		return true
+	})
+	defer restore()
+
+	createError := fmt.Errorf("custom error")
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+		return nil, createError
+	})
+	defer restore()
+
+	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	err = mgr.StartUp()
+	c.Check(err, IsNil)
+
+	// Check that error caused AppArmorPromptingRunning() to now return false
+	running := mgr.AppArmorPromptingRunning()
+	c.Check(running, Equals, false)
+
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("%v", createError))
+	})
+}
+
+func (s *interfaceManagerSuite) TestStopInterfacesRequestsManagerError(c *C) {
+	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
+		return true
+	})
+	defer restore()
+	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+		return fakeManager, nil
+	})
+	defer restore()
+	fakeError := fmt.Errorf("custom error")
+	restore = ifacestate.MockInterfacesRequestsManagerStop(func(m *apparmorprompting.InterfacesRequestsManager) error {
+		return fakeError
+	})
+	defer restore()
+
+	mgr := s.manager(c)
+	c.Check(mgr.InterfacesRequestsManager(), Equals, fakeManager)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	mgr.Stop()
+
+	c.Check(logbuf.String(), testutil.Contains, " Cannot stop prompting: custom error")
+
+	c.Assert(mgr.InterfacesRequestsManager(), testutil.IsInterfaceNil)
 }
 
 func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKeyFile(c *C) {
@@ -7120,19 +7430,34 @@ func (s *interfaceManagerSuite) TestSnapsWithSecurityProfilesUsesPendingSecurity
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si0}),
 		Current:  si0.Revision,
 	})
-	si1 := &snap.SideInfo{
-		RealName: "snap1",
+	si := &snap.SideInfo{
+		RealName: "snap",
 		Revision: snap.R(1),
 	}
-	snaptest.MockSnap(c, `name: snap1`, si1)
-	snapstate.Set(s.state, "snap1", &snapstate.SnapState{
+
+	snapInfo := snaptest.MockSnap(c, sampleSnapWithComponentsYaml, si)
+	comps := []*snap.ComponentSideInfo{
+		{
+			Component: naming.NewComponentRef("snap", "comp1"),
+			Revision:  snap.R(7),
+		},
+		{
+			Component: naming.NewComponentRef("snap", "comp2"),
+			Revision:  snap.R(8),
+		},
+	}
+	snaptest.MockComponent(c, sampleComponentYaml, snapInfo, *comps[0])
+	snaptest.MockComponent(c, sampleOtherComponentYaml, snapInfo, *comps[1])
+	snapstate.Set(s.state, "snap", &snapstate.SnapState{
 		Active:   false,
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
-		Current:  si1.Revision,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
 		PendingSecurity: &snapstate.PendingSecurityState{
-			SideInfo: si1,
+			SideInfo:   si,
+			Components: comps,
 		},
 	})
+
 	si2 := &snap.SideInfo{
 		RealName: "snap2",
 		Revision: snap.R(2),
@@ -7153,10 +7478,15 @@ func (s *interfaceManagerSuite) TestSnapsWithSecurityProfilesUsesPendingSecurity
 	got := make(map[string]snap.Revision)
 	for _, set := range appSets {
 		got[set.InstanceName()] = set.Info().Revision
+		for _, comp := range set.Components() {
+			got[comp.Component.String()] = comp.Revision
+		}
 	}
 	c.Check(got, DeepEquals, map[string]snap.Revision{
-		"snap0": snap.R(10),
-		"snap1": snap.R(1),
+		"snap0":      snap.R(10),
+		"snap":       snap.R(1),
+		"snap+comp1": snap.R(7),
+		"snap+comp2": snap.R(8),
 	})
 }
 

@@ -3,7 +3,7 @@
 set -e
 set +x
 
-SNAP_MOUNT_DIR="@SNAP_MOUNT_DIR@"
+STATIC_SNAP_MOUNT_DIR="@STATIC_SNAP_MOUNT_DIR@"
 
 show_help() {
     exec cat <<'EOF'
@@ -12,13 +12,13 @@ Usage: snap-mgmt-selinux.sh [OPTIONS]
 A helper script to manage SELinux contexts used by snapd
 
 Arguments:
-  --snap-mount-dir=<path>                   Provide a path to be used as $SNAP_MOUNT_DIR
+  --snap-mount-dir=<path>                   Provide a path to be used as $STATIC_SNAP_MOUNT_DIR
   --patch-selinux-mount-context=<context>   Add SELinux context to mount units
   --remove-selinux-mount-context=<context>  Remove SELinux context from mount units
 EOF
 }
 
-SNAP_UNIT_PREFIX="$(systemd-escape -p ${SNAP_MOUNT_DIR})"
+SNAP_UNIT_PREFIX="$(systemd-escape -p ${STATIC_SNAP_MOUNT_DIR})"
 
 patch_selinux_mount_context() {
     if ! command -v selinuxenabled > /dev/null; then
@@ -92,8 +92,8 @@ while [ -n "$1" ]; do
             exit
             ;;
         --snap-mount-dir=*)
-            SNAP_MOUNT_DIR=${1#*=}
-            SNAP_UNIT_PREFIX=$(systemd-escape -p "$SNAP_MOUNT_DIR")
+            STATIC_SNAP_MOUNT_DIR=${1#*=}
+            SNAP_UNIT_PREFIX=$(systemd-escape -p "$STATIC_SNAP_MOUNT_DIR")
             shift
             ;;
         --patch-selinux-mount-context=*)

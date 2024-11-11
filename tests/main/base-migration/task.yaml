@@ -24,7 +24,7 @@ execute: |
       snap install --dangerous test-snapd-core-migration_1_all.snap
       su test -c 'snap run test-snapd-core-migration.sh -c "cat /usr/lib/os-release"' | MATCH 'VERSION_ID="16"'
 
-      # The mount namespace information file is owned by root.root and has mode 0644
+      # The mount namespace information file is owned by root:root and has mode 0644
       # even though the user invoking the snap command was non-root.
       MATCH 'base-snap-name=core' < /run/snapd/ns/snap.test-snapd-core-migration.info
       test "$(stat -c '%u.%g' /run/snapd/ns/snap.test-snapd-core-migration.info)" = 0.0
@@ -73,7 +73,7 @@ execute: |
       snap install --dangerous test-snapd-core-migration_2_all.snap
       su test -c 'snap run test-snapd-core-migration.sh -c "cat /usr/lib/os-release"' | MATCH 'VERSION_ID="18"'
 
-      # The mount namespace information file is owned by root.root and has mode 0644
+      # The mount namespace information file is owned by root:root and has mode 0644
       # even though the user invoking the snap command was non-root.
       MATCH 'base-snap-name=core18' < /run/snapd/ns/snap.test-snapd-core-migration.info
       test "$(stat -c '%u.%g' /run/snapd/ns/snap.test-snapd-core-migration.info)" = 0.0

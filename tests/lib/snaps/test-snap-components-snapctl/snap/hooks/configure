@@ -1,0 +1,14 @@
+#!/bin/bash -ex
+
+exec > "$SNAP_DATA"/configure.log 2>&1
+
+# read the command into an array, split by spaces
+# shellcheck disable=SC2207
+cmd=($(snapctl get command))
+
+if [ ${#cmd[@]} -eq 0 ]
+then exit 0
+fi
+
+snapctl "${cmd[@]}"
+snapctl unset command

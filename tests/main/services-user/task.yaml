@@ -6,8 +6,7 @@ details: |
     when performing these operations.
 
 # Only run on systems with polkit rules are supported
-# TODO: add 24 once stable
-systems: [ ubuntu-20.04-64, ubuntu-22.04-64 ]
+systems: [ ubuntu-20.04-64, ubuntu-22.04-64, ubuntu-24.04-64 ]
 
 prepare: |
     snap set system experimental.user-daemons=true
@@ -21,7 +20,9 @@ prepare: |
         useradd --extrausers -m -d /home/test2 test2
     fi
 
-    cat <<\EOF >/etc/polkit-1/localauthority/50-local.d/spread.pkla
+    # rules are only supported from 23.10+
+    if [ -d /etc/polkit-1/localauthority/50-local.d ]; then
+        cat <<\EOF >/etc/polkit-1/localauthority/50-local.d/spread.pkla
     [Normal Staff Permissions]
     Identity=unix-user:test;unix-user:test2
     Action=io.snapcraft.snapd.manage
@@ -29,6 +30,16 @@ prepare: |
     ResultInactive=no
     ResultActive=yes
     EOF
+    else
+        cat <<\EOF >/etc/polkit-1/rules.d/io.snapcraft.snapd.rules
+    polkit.addRule(function(action, subject) {
+        if (action.id == "io.snapcraft.snapd.manage" &&
+            (subject.user == "test" || subject.user == "test2")) {
+                return polkit.Result.YES;
+        }
+    });
+    EOF
+    fi
 
 restore: |
     tests.session -u test restore
@@ -37,7 +48,8 @@ restore: |
         userdel --extrausers -rf test2
     fi
     snap unset system experimental.user-daemons
-    rm -f /etc/polkit-1/localauthority/50-local.d/spread.pkla
+    rm -f /etc/polkit-1/localauthority/50-local.d/spread.pkla || true
+    rm -f /etc/polkit-1/rules.d/io.snapcraft.snapd.rules || true
 
 debug: |
     tests.session dump

@@ -16,9 +16,24 @@ export DH_GOPKG := github.com/snapcore/snapd
 export DH_GOLANG_EXCLUDES=tests
 export DH_GOLANG_GO_GENERATE=1
 
+VERSION := $(shell dpkg-parsechangelog -S Version)
+
+ifneq (,$(findstring +fips,$(VERSION))))
+	# the version has +fips tag, we're building a FIPS variant
+	FIPSBUILD = 1
+else
+	FIPSBUILD = 0
+endif
+
 export PATH:=${PATH}:${CURDIR}
 # make sure that correct go version is found on xenial
 export PATH:=/usr/lib/go-1.18/bin:${PATH}
+ifeq (${FIPSBUILD},1)
+	# when building with FIPS, use Go 1.21 which is also declared in build
+	# dependencies; during testing it is manually installed, but during LP builds
+	# it should be pulled in as a build dependency
+	export PATH:=/usr/lib/go-1.21/bin:${PATH}
+endif
 # GOCACHE is needed by go-1.13+
 export GOCACHE:=/tmp/go-build
 
@@ -83,16 +98,25 @@ endif
 # build with "tpm" support on ubuntu by default
 # TAGS are the go build tags for all binaries, SNAP_TAGS are for snap and
 # snap-bootstrap build only.
-TAGS=
-SNAP_TAGS=
+_TAGS=
+_SNAP_TAGS=
 # check if we need to include the testkeys in the binary
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
   # if enabled also enable bootloader assets testing and fault injection
-	TAGS=-tags "withtestkeys withbootassetstesting faultinject"
-	SNAP_TAGS=-tags "nomanagers withtestkeys faultinject"
+	_TAGS := withtestkeys,withbootassetstesting,faultinject
+	_SNAP_TAGS := nomanagers,withtestkeys,faultinject
 else
-	SNAP_TAGS=-tags nomanagers
+	_SNAP_TAGS=nomanagers
 endif
+
+ifeq (${FIPSBUILD},1)
+  # if enabled also enable bootloader assets testing and fault injection
+	_TAGS := $(_TAGS),goexperiment.opensslcrypto,snapdfips
+	_SNAP_TAGS := $(_SNAP_TAGS),goexperiment.opensslcrypto,snapdfips
+endif
+
+TAGS=-tags "$(_TAGS)"
+SNAP_TAGS=-tags "$(_SNAP_TAGS)"
 
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 
@@ -174,6 +198,15 @@ override_dh_clean:
 	(cd c-vendor/squashfuse && rm -f snapfuse && make distclean || true )
 
 override_dh_auto_build:
+	# very ugly test for FIPS variant of a toolchain
+	# see https://warthogs.atlassian.net/browse/FR-8860
+ifeq (${FIPSBUILD},1)
+	if ! test -f /usr/lib/go-1.21/src/crypto/internal/backend/openssl_linux.go; then \
+		echo "Go 1.21 FIPS toolchain not found"; \
+		exit 1; \
+	fi
+endif
+
 	# generate dh-golang does not copy modules.txt
 	cp -a vendor/modules.txt _build/src/$(DH_GOPKG)/vendor
 	# usually done via `go generate` but that is not supported on powerpc
@@ -221,7 +254,7 @@ endif
 
 	# Build C bits, sadly manually
 	cd cmd && ( autoreconf -i -f )
-	cd cmd && ( ./configure --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))
+	cd cmd && ( ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))
 	$(MAKE) -C cmd all
 
 	# Generate the real systemd/dbus/env config files
@@ -336,4 +369,4 @@ override_dh_systemd_start:
 	# Then service
 	dh_systemd_start $(DH_SYSTEMD_START_OPTS) snapd.service
 	# Then the rest
-	dh_systemd_start $(DH_SYSTEMD_START_OPTS) $(filter-out snapd.socket snapd.service, $(shell ls debian/snapd/lib/systemd/system/))
+	dh_systemd_start $(DH_SYSTEMD_START_OPTS) $(filter-out snapd.socket snapd.service snapd.mounts-pre.target, $(shell ls debian/snapd/lib/systemd/system/))

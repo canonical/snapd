@@ -32,7 +32,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"os/user"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -67,6 +66,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/kcmdline"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
@@ -465,6 +465,19 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 		},
 	})
 
+	// add snapd itself
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "snapd", SnapID: fakeSnapID("snapd"), Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: "snapd",
+		Flags: snapstate.Flags{
+			Required: true,
+		},
+	})
+
 	// commonly used core and snapd revisions in tests
 	defaultInfoFile := `
 VERSION=2.54.3+git1.g479e745-dirty
@@ -575,6 +588,13 @@ func (s *mgrsSuiteCore) SetUpTest(c *C) {
 	// it panicking.
 	restore := release.MockOnClassic(false)
 	s.baseMgrsSuite.SetUpTest(c)
+
+	// remove snapd snap added for baseMgrsSuite
+	st := s.o.State()
+	st.Lock()
+	snapstate.Set(st, "snapd", nil)
+	st.Unlock()
+
 	s.AddCleanup(restore)
 }
 
@@ -712,8 +732,10 @@ hooks:
 	// nothing in snaps
 	all, err := snapstate.All(st)
 	c.Assert(err, IsNil)
-	c.Check(all, HasLen, 1)
+	c.Check(all, HasLen, 2)
 	_, ok := all["core"]
+	c.Check(ok, Equals, true)
+	_, ok = all["snapd"]
 	c.Check(ok, Equals, true)
 
 	// nothing in config
@@ -2071,7 +2093,7 @@ apps:
 	c.Assert(err, IsNil)
 
 	_, _, err = snapstate.InstallPath(st, si, snapPath, "bar_instance", "", snapstate.Flags{DevMode: true}, nil)
-	c.Assert(err, ErrorMatches, `cannot install snap "bar_instance", the name does not match the metadata "foo"`)
+	c.Assert(err, ErrorMatches, `cannot install snap "bar_instance": instance name prefix does not match snap name: bar != foo`)
 }
 
 func (s *mgrsSuite) TestParallelInstanceLocalInstallInvalidInstanceName(c *C) {
@@ -4021,7 +4043,7 @@ assumes: [something-that-is-not-provided]
 	c.Check(tss, HasLen, 0)
 	c.Check(affected, HasLen, 0)
 	// the skipping is logged though
-	c.Check(s.logbuf.String(), testutil.Contains, `cannot update "some-snap": snap "some-snap" assumes unsupported features: something-that-is-not-provided (try`)
+	c.Check(s.logbuf.String(), testutil.Contains, `cannot refresh snap "some-snap": snap "some-snap" assumes unsupported features: something-that-is-not-provided (try`)
 }
 
 type storeCtxSetupSuite struct {
@@ -6061,6 +6083,9 @@ func (s *kernelSuite) SetUpTest(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	// remove snapd snap added for baseMgrsSuite
+	snapstate.Set(st, "snapd", nil)
+
 	// create/set custom model assertion
 	model := s.brands.Model("can0nical", "my-model", modelDefaults)
 	devicestatetest.SetDevice(st, &auth.DeviceState{
@@ -7483,7 +7508,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 		{Path: coreInfo.MountFile()},
 		{Path: snapdInfo.MountFile()},
 		{Path: bazInfo.MountFile()},
-	})
+	}, nil)
 
 	// create a new model
 	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
@@ -7876,7 +7901,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystemSimpleSetUp(c *C, model
 		{Path: pcKernelInfo.MountFile()},
 		{Path: coreInfo.MountFile()},
 		{Path: snapdInfo.MountFile()},
-	})
+	}, nil)
 
 	// mock the modeenv file
 	m := &boot.Modeenv{

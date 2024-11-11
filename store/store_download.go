@@ -214,10 +214,17 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		if len(downloadInfo.Deltas) == 1 {
 			err := s.downloadAndApplyDelta(name, targetPath, downloadInfo, pbar, user, dlOpts)
 			if err == nil {
-				return nil
+				// try to place the file in the cacher
+				if err = s.cacher.Put(downloadInfo.Sha3_384, targetPath); err == nil {
+					// file is in the cache now
+					return nil
+				} else {
+					logger.Noticef("Cannot place rebuilt blob for %s in cache: %v", name, err)
+				}
+			} else {
+				// We revert to normal downloads if there is any error.
+				logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
 			}
-			// We revert to normal downloads if there is any error.
-			logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
 		}
 	}
 

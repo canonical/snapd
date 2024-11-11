@@ -455,7 +455,11 @@ func generateMountsModeInstall(mst *initramfsMountsState) error {
 // copyNetworkConfig copies the network configuration to the target
 // directory. This is used to copy the network configuration
 // data from a real uc20 ubuntu-data partition into a ephemeral one.
-func copyNetworkConfig(src, dst string) error {
+//
+// The given srcRoot should point to the directory that contains the writable
+// host system data. The given dstRoot should point to the directory that
+// contains the writable system data for the ephemeral recovery system.
+func copyNetworkConfig(srcRoot, dstRoot string) error {
 	for _, globEx := range []string{
 		// for network configuration setup by console-conf, etc.
 		// TODO:UC20: we want some way to "try" or "verify" the network
@@ -465,14 +469,14 @@ func copyNetworkConfig(src, dst string) error {
 		//            have been what was broken so we don't want to break
 		//            network configuration for recover mode as well, but for
 		//            now this is fine
-		"system-data/etc/netplan/*",
+		"etc/netplan/*",
 		// etc/machine-id is part of what systemd-networkd uses to generate a
 		// DHCP clientid (the other part being the interface name), so to have
 		// the same IP addresses across run mode and recover mode, we need to
 		// also copy the machine-id across
-		"system-data/etc/machine-id",
+		"etc/machine-id",
 	} {
-		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
+		if err := copyFromGlobHelper(srcRoot, dstRoot, globEx); err != nil {
 			return err
 		}
 	}
@@ -482,7 +486,11 @@ func copyNetworkConfig(src, dst string) error {
 // copyUbuntuDataMisc copies miscellaneous other files from the run mode system
 // to the recover system such as:
 //   - timesync clock to keep the same time setting in recover as in run mode
-func copyUbuntuDataMisc(src, dst string) error {
+//
+// The given srcRoot should point to the directory that contains the writable
+// host system data. The given dstRoot should point to the directory that
+// contains the writable system data for the ephemeral recovery system.
+func copyUbuntuDataMisc(srcRoot, dstRoot string) error {
 	for _, globEx := range []string{
 		// systemd's timesync clock file so that the time in recover mode moves
 		// forward to what it was in run mode
@@ -490,9 +498,9 @@ func copyUbuntuDataMisc(src, dst string) error {
 		// mode currently, unclear how/when we could do this, but recover mode
 		// isn't meant to be long lasting and as such it's probably not a big
 		// problem to "lose" the time spent in recover mode
-		"system-data/var/lib/systemd/timesync/clock",
+		"var/lib/systemd/timesync/clock",
 	} {
-		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
+		if err := copyFromGlobHelper(srcRoot, dstRoot, globEx); err != nil {
 			return err
 		}
 	}
@@ -500,35 +508,81 @@ func copyUbuntuDataMisc(src, dst string) error {
 	return nil
 }
 
-// copyUbuntuDataAuth copies the authentication files like
+// copyCoreUbuntuAuthData copies the authentication files like
 //   - extrausers passwd,shadow etc
 //   - sshd host configuration
 //   - user .ssh dir
 //
 // to the target directory. This is used to copy the authentication
 // data from a real uc20 ubuntu-data partition into a ephemeral one.
-func copyUbuntuDataAuth(src, dst string) error {
+func copyCoreUbuntuAuthData(srcUbuntuData, destUbuntuData string) error {
 	for _, globEx := range []string{
 		"system-data/var/lib/extrausers/*",
 		"system-data/etc/ssh/*",
+		// so that users have proper perms, i.e. console-conf added users are
+		// sudoers
+		"system-data/etc/sudoers.d/*",
 		"user-data/*/.ssh/*",
 		// this ensures we get proper authentication to snapd from "snap"
 		// commands in recover mode
 		"user-data/*/.snap/auth.json",
 		// this ensures we also get non-ssh enabled accounts copied
 		"user-data/*/.profile",
-		// so that users have proper perms, i.e. console-conf added users are
-		// sudoers
-		"system-data/etc/sudoers.d/*",
 	} {
-		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
+		if err := copyFromGlobHelper(srcUbuntuData, destUbuntuData, globEx); err != nil {
 			return err
 		}
 	}
 
 	// ensure the user state is transferred as well
-	srcState := filepath.Join(src, "system-data/var/lib/snapd/state.json")
-	dstState := filepath.Join(dst, "system-data/var/lib/snapd/state.json")
+	srcState := filepath.Join(srcUbuntuData, "system-data/var/lib/snapd/state.json")
+	dstState := filepath.Join(destUbuntuData, "system-data/var/lib/snapd/state.json")
+	err := state.CopyState(srcState, dstState, []string{"auth.users", "auth.macaroon-key", "auth.last-id"})
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return fmt.Errorf("cannot copy user state: %v", err)
+	}
+
+	return nil
+}
+
+// copyHybridUbuntuDataAuth copies the authentication files that are relevant on
+// a hybrid system to the ubuntu data directory. Non-user specific files are
+// copied to <destUbuntuData>/system-data. User specific files are copied to
+// <destUbuntuData>/user-data.
+func copyHybridUbuntuDataAuth(srcUbuntuData, destUbuntuData string) error {
+	destSystemData := filepath.Join(destUbuntuData, "system-data")
+	for _, globEx := range []string{
+		"etc/ssh/*",
+		"etc/sudoers.d/*",
+		"root/.ssh/*",
+	} {
+		if err := copyFromGlobHelper(
+			srcUbuntuData,
+			destSystemData,
+			globEx,
+		); err != nil {
+			return err
+		}
+	}
+
+	destHomeData := filepath.Join(srcUbuntuData, "home")
+	destUserData := filepath.Join(destUbuntuData, "user-data")
+	for _, globEx := range []string{
+		"*/.ssh/*",
+		"*/.snap/auth.json",
+	} {
+		if err := copyFromGlobHelper(
+			destHomeData,
+			destUserData,
+			globEx,
+		); err != nil {
+			return err
+		}
+	}
+
+	// ensure the user state is transferred as well
+	srcState := filepath.Join(srcUbuntuData, "var/lib/snapd/state.json")
+	dstState := filepath.Join(destUbuntuData, "system-data/var/lib/snapd/state.json")
 	err := state.CopyState(srcState, dstState, []string{"auth.users", "auth.macaroon-key", "auth.last-id"})
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("cannot copy user state: %v", err)
@@ -674,7 +728,7 @@ func (r *recoverDegradedState) partition(part string) *partitionState {
 func (r *recoverDegradedState) LogErrorf(format string, v ...interface{}) {
 	msg := fmt.Sprintf(format, v...)
 	r.ErrorLog = append(r.ErrorLog, msg)
-	logger.Noticef(msg)
+	logger.Notice(msg)
 }
 
 func (r *recoverDegradedState) serializeTo(name string) error {
@@ -1416,15 +1470,41 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// onto the tmpfs
 	// Proceed only if we trust ubuntu-data to be paired with ubuntu-save
 	if machine.trustData() {
-		// TODO: erroring here should fallback to copySafeDefaultData and
-		// proceed on with degraded mode anyways
-		if err := copyUbuntuDataAuth(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
+		// on hybrid systems, we take special care to import the root user and
+		// users from the "admin" and "sudo" groups into the ephemeral system.
+		// this is our best-effort for allowing an owner of a hybrid system to
+		// login to the created recovery system.
+		hybrid := model.Classic() && model.KernelSnap() != nil
+
+		hostSystemData := boot.InitramfsHostWritableDir(model)
+		recoverySystemData := boot.InitramfsWritableDir(model, false)
+		if hybrid {
+			// TODO: eventually, the base will be mounted directly on /sysroot.
+			// this will need to change once that happens.
+			if err := importHybridUserData(
+				hostSystemData,
+				filepath.Join(boot.InitramfsRunMntDir, "base"),
+			); err != nil {
+				return err
+			}
+
+			if err := copyHybridUbuntuDataAuth(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
+				return err
+			}
+		} else {
+			// TODO: erroring here should fallback to copySafeDefaultData and
+			// proceed on with degraded mode anyways
+			if err := copyCoreUbuntuAuthData(
+				boot.InitramfsHostUbuntuDataDir,
+				boot.InitramfsDataDir,
+			); err != nil {
+				return err
+			}
+		}
+		if err := copyNetworkConfig(hostSystemData, recoverySystemData); err != nil {
 			return err
 		}
-		if err := copyNetworkConfig(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
-			return err
-		}
-		if err := copyUbuntuDataMisc(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
+		if err := copyUbuntuDataMisc(hostSystemData, recoverySystemData); err != nil {
 			return err
 		}
 	} else {

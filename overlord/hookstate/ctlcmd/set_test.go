@@ -31,7 +31,9 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
+	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/registry"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -68,7 +70,7 @@ func (s *setSuite) TestInvalidArguments(c *C) {
 	_, _, err := ctlcmd.Run(s.mockContext, []string{"set"}, 0)
 	c.Check(err, ErrorMatches, "set which option.*")
 	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", "foo", "bar"}, 0)
-	c.Check(err, ErrorMatches, ".*invalid parameter.*want key=value.*")
+	c.Check(err, ErrorMatches, ".*invalid configuration.*want key=value.*")
 	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", ":foo", "bar=baz"}, 0)
 	c.Check(err, ErrorMatches, ".*interface attributes can only be set during the execution of prepare hooks.*")
 }
@@ -401,4 +403,173 @@ func (s *setAttrSuite) TestSetCommandFailsOutsideOfValidContext(c *C) {
 	c.Check(err, ErrorMatches, `interface attributes can only be set during the execution of prepare hooks`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
+}
+
+func (s *registrySuite) TestRegistrySetSingleView(c *C) {
+	s.state.Lock()
+	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+
+	restore := ctlcmd.MockRegistrystateGetTransaction(func(*hookstate.Context, *state.State, *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error) {
+		return tx, nil, nil
+	})
+	defer restore()
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=other-ssid"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+	s.mockContext.Lock()
+	c.Assert(s.mockContext.Done(), IsNil)
+	s.mockContext.Unlock()
+
+	val, err := tx.Get("wifi.ssid")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, "other-ssid")
+}
+
+func (s *registrySuite) TestRegistrySetSingleViewNewTransaction(c *C) {
+	s.state.Lock()
+	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+
+	var called bool
+	restore := ctlcmd.MockRegistrystateGetTransaction(func(*hookstate.Context, *state.State, *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error) {
+		return tx, func() (string, <-chan struct{}, error) {
+			called = true
+			waitChan := make(chan struct{})
+			close(waitChan)
+			return "123", waitChan, nil
+		}, nil
+	})
+	defer restore()
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=other-ssid"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+
+	c.Assert(called, Equals, true)
+
+	val, err := tx.Get("wifi.ssid")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, "other-ssid")
+}
+
+func (s *registrySuite) TestRegistrySetManyViews(c *C) {
+	s.state.Lock()
+	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+
+	restore := ctlcmd.MockRegistrystateGetTransaction(func(*hookstate.Context, *state.State, *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error) {
+		return tx, nil, nil
+	})
+	defer restore()
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=other-ssid", "password=other-secret"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+
+	val, err := tx.Get("wifi.ssid")
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "other-ssid")
+
+	val, err = tx.Get("wifi.psk")
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "other-secret")
+}
+
+func (s *registrySuite) TestRegistrySetInvalid(c *C) {
+	type testcase struct {
+		args []string
+		err  string
+	}
+
+	tcs := []testcase{
+		{
+			args: []string{":non-existent", "ssid=my-ssid"},
+			err:  `cannot find plug :non-existent for snap "test-snap"`,
+		},
+		{
+			args: []string{":non-existent", "ssid"},
+			err:  `cannot set :non-existent plug: invalid configuration: "ssid" \(want key=value\)`,
+		},
+	}
+
+	for _, tc := range tcs {
+		stdout, stderr, err := ctlcmd.Run(s.mockContext, append([]string{"set", "--view"}, tc.args...), 0)
+		c.Assert(err, ErrorMatches, tc.err)
+		c.Check(stdout, IsNil)
+		c.Check(stderr, IsNil)
+	}
+}
+
+func (s *registrySuite) TestRegistrySetExclamationMark(c *C) {
+	s.state.Lock()
+	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+
+	err = tx.Set("wifi.ssid", "foo")
+	c.Assert(err, IsNil)
+
+	err = tx.Set("wifi.psk", "bar")
+	c.Assert(err, IsNil)
+
+	restore := ctlcmd.MockRegistrystateGetTransaction(func(*hookstate.Context, *state.State, *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error) {
+		return tx, nil, nil
+	})
+	defer restore()
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "password!"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+
+	_, err = tx.Get("wifi.psk")
+	c.Assert(err, ErrorMatches, "no value was found under path \"wifi.psk\"")
+
+	val, err := tx.Get("wifi.ssid")
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "foo")
+}
+
+func (s *registrySuite) TestRegistryOnlyChangeViewCanSet(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	task := s.state.NewTask("run-hook", "")
+
+	setup := &hookstate.HookSetup{Snap: "test-snap", Hook: "save-view-plug"}
+	ctx, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
+	c.Assert(err, IsNil)
+
+	tx, err := registrystate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	restore := ctlcmd.MockRegistrystateGetTransaction(func(*hookstate.Context, *state.State, *registry.View) (*registrystate.Transaction, registrystate.CommitTxFunc, error) {
+		return tx, nil, nil
+	})
+	defer restore()
+
+	s.state.Unlock()
+	stdout, stderr, err := ctlcmd.Run(ctx, []string{"set", "--view", ":write-wifi", "password=thing"}, 0)
+	s.state.Lock()
+	c.Assert(err, ErrorMatches, `cannot modify registry in "save-view-plug" hook`)
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+
+	setup.Hook = "change-view-plug"
+	ctx, err = hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	stdout, stderr, err = ctlcmd.Run(ctx, []string{"set", "--view", ":write-wifi", "password=thing"}, 0)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
 }

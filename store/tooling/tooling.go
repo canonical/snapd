@@ -129,6 +129,9 @@ type DownloadSnapOptions struct {
 	Basename  string
 
 	LeavePartialOnError bool
+	// OnlyComponents is set if we only want to download the
+	// specified components and not the snap
+	OnlyComponents bool
 }
 
 var (
@@ -172,12 +175,14 @@ type DownloadedSnap struct {
 	Path            string
 	Info            *snap.Info
 	RedirectChannel string
+	Components      []*DownloadedComponent
 }
 
-// DownloadSnap downloads the snap with the given name and options.
-// It returns the final full path of the snap and a snap.Info for it and
-// optionally a channel the snap got redirected to wrapped in DownloadedSnap.
-func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadSnapOptions) (downloadedSnap *DownloadedSnap, err error) {
+// DownloadSnap downloads the snap/components with the given names and options.
+// It returns the final full paths of the snap/components and infos for them
+// and optionally a channel the snap got redirected to wrapped in
+// DownloadedSnap.
+func (tsto *ToolingStore) DownloadSnap(name string, comps []string, opts DownloadSnapOptions) (downloadedSnap *DownloadedSnap, err error) {
 	if err := opts.validate(); err != nil {
 		return nil, err
 	}
@@ -191,12 +196,11 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadSnapOptions) (d
 		opts.TargetDir = pwd
 	}
 
-	if !opts.Revision.Unset() {
-		// XXX: is this really necessary (and, if it is, shoudn't we error out instead)
-		opts.Channel = ""
+	compsMsg := ""
+	if len(comps) > 0 {
+		compsMsg = fmt.Sprintf(" and component(s) %s", strutil.Quoted(comps))
 	}
-
-	logger.Debugf("Going to download snap %q %s.", name, &opts)
+	logger.Debugf("Going to download snap %q%s %s.", name, compsMsg, &opts)
 
 	actions := []*store.SnapAction{{
 		Action:       "download",
@@ -206,7 +210,8 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadSnapOptions) (d
 		Channel:      opts.Channel,
 	}}
 
-	sars, _, err := sto.SnapAction(context.TODO(), nil, actions, nil, nil, nil)
+	sars, _, err := sto.SnapAction(context.TODO(), nil, actions, nil, nil,
+		&store.RefreshOptions{IncludeResources: true})
 	if err != nil {
 		// err will be 'cannot download snap "foo": <reasons>'
 		return nil, err
@@ -221,7 +226,84 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadSnapOptions) (d
 	}
 	targetFn := filepath.Join(opts.TargetDir, baseName)
 
-	return tsto.snapDownload(targetFn, sar, opts)
+	if opts.OnlyComponents {
+		// No path, we use it to contain components information
+		downloadedSnap = &DownloadedSnap{
+			Path:            "",
+			Info:            sar.Info,
+			RedirectChannel: sar.RedirectChannel,
+		}
+	} else {
+		downloadedSnap, err = tsto.snapDownload(targetFn, sar, opts)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Download specified components
+	downloadedSnap.Components, err = tsto.downloadComponents(comps, sar, nil, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return downloadedSnap, err
+}
+
+func (tsto *ToolingStore) downloadComponents(comps []string, sar *store.SnapActionResult, downloadDirs map[string]string, snapOpts DownloadSnapOptions) ([]*DownloadedComponent, error) {
+	downloadedComps := make([]*DownloadedComponent, len(comps))
+	for i, comp := range comps {
+		srr := sar.ResourceResult(comp)
+		if srr == nil {
+			return nil, fmt.Errorf("%s component for %s not found in store",
+				comp, sar.SnapName())
+		}
+		baseName := snapOpts.Basename
+		if baseName == "" {
+			cpi := snap.MinimalComponentContainerPlaceInfo(
+				srr.Name, snap.R(srr.Revision), sar.SnapName())
+			baseName = cpi.Filename()
+		} else {
+			baseName += fmt.Sprintf("+%s.comp", srr.Name)
+		}
+
+		var targetDir string
+		if downloadDirs != nil {
+			targetDir = downloadDirs[comp]
+		}
+
+		// if the caller doesn't provide a specific target dir, use the one
+		// that the snap was downloaded to
+		if targetDir == "" {
+			targetDir = snapOpts.TargetDir
+		}
+
+		targetFn := filepath.Join(targetDir, baseName)
+
+		downloadedComp, err := tsto.componentDownload(targetFn, sar.SnapName(), srr, snapOpts)
+		if err != nil {
+			return nil, err
+		}
+		downloadedComps[i] = downloadedComp
+	}
+
+	return downloadedComps, nil
+}
+
+func (tsto *ToolingStore) downloadWithProgressBar(download func(progress.Meter) error) error {
+	pb := progress.MakeProgressBar(tsto.Stdout)
+	defer pb.Finished()
+
+	// Intercept sigint
+	c := make(chan os.Signal, 3)
+	signal.Notify(c, syscall.SIGINT)
+	defer signal.Reset(syscall.SIGINT)
+	go func() {
+		<-c
+		pb.Finished()
+		os.Exit(1)
+	}()
+
+	return download(pb)
 }
 
 func (tsto *ToolingStore) snapDownload(targetFn string, sar *store.SnapActionResult, opts DownloadSnapOptions) (downloadedSnap *DownloadedSnap, err error) {
@@ -242,24 +324,14 @@ func (tsto *ToolingStore) snapDownload(targetFn string, sar *store.SnapActionRes
 		logger.Debugf("File exists but has wrong hash, ignoring (here).")
 	}
 
-	pb := progress.MakeProgressBar(tsto.Stdout)
-	defer pb.Finished()
-
-	// Intercept sigint
-	c := make(chan os.Signal, 3)
-	signal.Notify(c, syscall.SIGINT)
-	go func() {
-		<-c
-		pb.Finished()
-		os.Exit(1)
-	}()
-
-	dlOpts := &store.DownloadOptions{LeavePartialOnError: opts.LeavePartialOnError}
-	if err = tsto.sto.Download(context.TODO(), snap.SnapName(), targetFn, &snap.DownloadInfo, pb, nil, dlOpts); err != nil {
+	download := func(pb progress.Meter) error {
+		dlOpts := &store.DownloadOptions{LeavePartialOnError: opts.LeavePartialOnError}
+		return tsto.sto.Download(context.TODO(), snap.SnapName(), targetFn,
+			&snap.DownloadInfo, pb, nil, dlOpts)
+	}
+	if err := tsto.downloadWithProgressBar(download); err != nil {
 		return nil, err
 	}
-
-	signal.Reset(syscall.SIGINT)
 
 	return &DownloadedSnap{
 		Path:            targetFn,
@@ -275,6 +347,8 @@ type SnapToDownload struct {
 	CohortKey string
 	// ValidationSets is an optional array of validation set primary keys.
 	ValidationSets []snapasserts.ValidationSetKey
+	// CompsToDownload has the names of components we wish to dowload.
+	CompsToDownload []string
 }
 
 type CurrentSnap struct {
@@ -286,7 +360,7 @@ type CurrentSnap struct {
 }
 
 type DownloadManyOptions struct {
-	BeforeDownloadFunc func(*snap.Info) (targetPath string, err error)
+	BeforeDownloadFunc func(*snap.Info, map[string]*snap.ComponentInfo) (targetPath string, compPaths map[string]string, err error)
 	EnforceValidation  bool
 }
 
@@ -309,7 +383,6 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 		actionFlag = store.SnapActionEnforceValidation
 	}
 
-	downloadedSnaps = make(map[string]*DownloadedSnap, len(toDownload))
 	current := make([]*store.CurrentSnap, 0, len(curSnaps))
 	for _, csnap := range curSnaps {
 		ch := "stable"
@@ -326,34 +399,54 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 		})
 	}
 
+	toDownloadByName := make(map[string]SnapToDownload, len(toDownload))
 	actions := make([]*store.SnapAction, 0, len(toDownload))
 	for _, sn := range toDownload {
-		// One cannot specify both a channel and specific revision. The store
-		// will return an error if do this.
-		channel := sn.Channel
-		if !sn.Revision.Unset() {
-			channel = ""
-		}
-
 		actions = append(actions, &store.SnapAction{
 			Action:         "download",
 			InstanceName:   sn.Snap.SnapName(), // XXX consider using snap-id first
-			Channel:        channel,
+			Channel:        sn.Channel,
 			Revision:       sn.Revision,
 			CohortKey:      sn.CohortKey,
 			Flags:          actionFlag,
 			ValidationSets: sn.ValidationSets,
 		})
+		toDownloadByName[sn.Snap.SnapName()] = sn
 	}
 
-	sars, _, err := tsto.sto.SnapAction(context.TODO(), current, actions, nil, nil, nil)
+	sars, _, err := tsto.sto.SnapAction(context.TODO(), current, actions, nil, nil,
+		&store.RefreshOptions{IncludeResources: true})
 	if err != nil {
 		// err will be 'cannot download snap "foo": <reasons>'
 		return nil, err
 	}
 
+	downloadedSnaps = make(map[string]*DownloadedSnap, len(toDownload))
 	for _, sar := range sars {
-		targetPath, err := opts.BeforeDownloadFunc(sar.Info)
+		snapToDownload, ok := toDownloadByName[sar.SnapName()]
+		if !ok {
+			return nil, fmt.Errorf("store returned unsolicited snap action: %s", sar.SnapName())
+		}
+
+		// Create component infos from resource data for the components we will download
+		cinfos := make(map[string]*snap.ComponentInfo, len(sar.Resources))
+		for _, res := range sar.Resources {
+			if !strutil.ListContains(snapToDownload.CompsToDownload, res.Name) {
+				continue
+			}
+
+			ctyp, err := store.ResourceToComponentType(res.Type)
+			if err != nil {
+				return nil, err
+			}
+
+			cref := naming.NewComponentRef(sar.SnapName(), res.Name)
+			csi := snap.NewComponentSideInfo(cref, snap.R(res.Revision))
+			cinfos[res.Name] = snap.NewComponentInfo(
+				cref, ctyp, res.Version, "", "", sar.Provenance(), csi)
+		}
+
+		targetPath, compPaths, err := opts.BeforeDownloadFunc(sar.Info, cinfos)
 		if err != nil {
 			return nil, err
 		}
@@ -362,6 +455,20 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 			return nil, err
 		}
 		downloadedSnaps[sar.SnapName()] = dlSnap
+
+		downloadDirs := make(map[string]string, len(compPaths))
+		for compName, compPath := range compPaths {
+			downloadDirs[compName] = filepath.Dir(compPath)
+		}
+
+		// Download components
+		downloadedSnapComps, err := tsto.downloadComponents(
+			snapToDownload.CompsToDownload, &sar, downloadDirs,
+			DownloadSnapOptions{TargetDir: filepath.Dir(targetPath)})
+		if err != nil {
+			return nil, err
+		}
+		downloadedSnaps[sar.SnapName()].Components = downloadedSnapComps
 	}
 
 	return downloadedSnaps, nil
@@ -436,4 +543,47 @@ func (tsto *ToolingStore) AssertionMaxFormats() map[string]int {
 // For testing.
 func MockToolingStore(sto StoreImpl) *ToolingStore {
 	return &ToolingStore{sto: sto}
+}
+
+type DownloadedComponent struct {
+	Path string
+	Info *snap.ComponentInfo
+}
+
+func (tsto *ToolingStore) componentDownload(targetFn string, snapName string, srr *store.SnapResourceResult, opts DownloadSnapOptions) (downloadedComp *DownloadedComponent, err error) {
+	// Check if this is a component we can handle
+	ctyp, err := store.ResourceToComponentType(srr.Type)
+	if err != nil {
+		return nil, err
+	}
+
+	// check if we already have the right file
+	if osutil.FileExists(targetFn) {
+		sha3_384Dgst, size, err := osutil.FileDigest(targetFn, crypto.SHA3_384)
+		if err == nil && size == uint64(srr.DownloadInfo.Size) &&
+			fmt.Sprintf("%x", sha3_384Dgst) == srr.DownloadInfo.Sha3_384 {
+
+			logger.Debugf("not downloading, using existing file %s", targetFn)
+			return &DownloadedComponent{
+				Path: targetFn,
+			}, nil
+		}
+		logger.Debugf("File exists but has wrong hash, ignoring (here).")
+	}
+
+	cref := naming.NewComponentRef(snapName, srr.Name)
+	download := func(pb progress.Meter) error {
+		dlOpts := &store.DownloadOptions{LeavePartialOnError: opts.LeavePartialOnError}
+		return tsto.sto.Download(context.TODO(), cref.String(), targetFn,
+			&srr.DownloadInfo, pb, nil, dlOpts)
+	}
+	if err := tsto.downloadWithProgressBar(download); err != nil {
+		return nil, err
+	}
+
+	return &DownloadedComponent{
+		Path: targetFn,
+		Info: snap.NewComponentInfo(cref, ctyp, srr.Version,
+			"", "", "", snap.NewComponentSideInfo(cref, snap.R(srr.Revision))),
+	}, nil
 }

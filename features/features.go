@@ -82,13 +82,17 @@ const (
 	lastFeature
 )
 
-// KnownFeatures returns the list of all known features.
-func KnownFeatures() []SnapdFeature {
+var knownFeaturesImpl = func() []SnapdFeature {
 	features := make([]SnapdFeature, int(lastFeature))
 	for i := range features {
 		features[i] = SnapdFeature(i)
 	}
 	return features
+}
+
+// KnownFeatures returns the list of all known features.
+func KnownFeatures() []SnapdFeature {
+	return knownFeaturesImpl()
 }
 
 // featureNames maps feature constant to stable string representation.
@@ -221,14 +225,17 @@ func (f SnapdFeature) ConfigOption() (snapName, confName string) {
 	return "core", "experimental." + f.String()
 }
 
-// IsSupported returns true if the feature's supported callback returns true,
-// or if it has no supportedCallback.
-func (f SnapdFeature) IsSupported() bool {
+// IsSupported returns true if the feature's supported callback returns true, or
+// if it has no supportedCallback. If the feature is unsupported, the returned
+// string details as to why.
+func (f SnapdFeature) IsSupported() (supported bool, whyNot string) {
 	if callback, exists := featuresSupportedCallbacks[f]; exists {
-		supported, _ := callback() // discard unsupported reason
-		return supported
+		supported, whyNot = callback()
+		if !supported {
+			return false, whyNot
+		}
 	}
-	return true
+	return true, ""
 }
 
 // IsEnabled checks if a given exported snapd feature is enabled.

@@ -11,7 +11,7 @@ systems: [ -ubuntu-14.04-* ]
 environment:
     # list of regular expressions that match systems where sudo is set up to use
     # secure_path without snap bindir
-    SECURE_PATH_SUDO_NO_SNAP: "centos-.* amazon-linux-2-64 opensuse-.* debian-.*"
+    SECURE_PATH_SUDO_NO_SNAP: "centos-.* amazon-linux-2-64 opensuse-.* debian-.* arch-linux-.*"
 
 prepare: |
     tests.session -u test prepare
@@ -47,3 +47,15 @@ execute: |
     fi
     # in either case, the location should be listed in a login shell
     MATCH ":${SNAP_MOUNT_DIR}/bin:" < sudo-login.path
+
+    if [ "$secure_path" = "yes" ]; then
+       # add a snippet we recommend using as a workaround
+       # https://wiki.archlinux.org/title/Snap#Sudo
+       echo "Defaults:test secure_path=\"/usr/local/sbin:/usr/local/bin:/usr/bin:${SNAP_MOUNT_DIR}/bin\"" > /etc/sudoers.d/90_snap
+       tests.cleanup defer rm -f /etc/sudoers.d/90_snap
+
+       # and try again
+       # shellcheck disable=SC2016
+       tests.session -u test exec sudo sh -c 'echo :$PATH:' > sudo.path
+       MATCH ":${SNAP_MOUNT_DIR}/bin:" < sudo.path
+    fi

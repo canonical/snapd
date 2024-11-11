@@ -247,14 +247,14 @@ func (s *ucrednetSuite) TestAttachInterfaceMultiple(c *check.C) {
 	remoteAddr := ucrednetAttachInterface("pid=100;uid=42;socket=/run/snap.socket;", "snap-refresh-observe")
 	c.Check(remoteAddr, check.Equals, "pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe;")
 
-	remoteAddr = ucrednetAttachInterface(remoteAddr, "snap-prompting-control")
-	c.Check(remoteAddr, check.Equals, "pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe&snap-prompting-control;")
+	remoteAddr = ucrednetAttachInterface(remoteAddr, "snap-interfaces-requests-control")
+	c.Check(remoteAddr, check.Equals, "pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe&snap-interfaces-requests-control;")
 
 	remoteAddr = ucrednetAttachInterface(remoteAddr, "snap-refresh-observe")
-	c.Check(remoteAddr, check.Equals, "pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe&snap-prompting-control;")
+	c.Check(remoteAddr, check.Equals, "pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe&snap-interfaces-requests-control;")
 
 	remoteAddr = ucrednetAttachInterface(remoteAddr, "foo")
-	c.Check(remoteAddr, check.Equals, "pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe&snap-prompting-control&foo;")
+	c.Check(remoteAddr, check.Equals, "pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe&snap-interfaces-requests-control&foo;")
 
 	u, ifaces, err := ucrednetGetWithInterfaces(remoteAddr)
 	c.Assert(err, check.IsNil)
@@ -263,7 +263,7 @@ func (s *ucrednetSuite) TestAttachInterfaceMultiple(c *check.C) {
 	c.Check(u.Socket, check.Equals, "/run/snap.socket")
 	c.Check(ifaces, check.DeepEquals, []string{
 		"snap-refresh-observe",
-		"snap-prompting-control",
+		"snap-interfaces-requests-control",
 		"foo",
 	})
 }

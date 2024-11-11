@@ -1,0 +1,15 @@
+name: api-client
+version: 1
+base: core18
+apps:
+  api-client:
+    command: bin/api-client.py
+
+  prompt-handler:
+    command: bin/start
+    daemon: simple
+    daemon-scope: user
+
+plugs:
+  snap-interfaces-requests-control:
+    handler-service: prompt-handler

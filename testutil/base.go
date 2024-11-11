@@ -62,8 +62,19 @@ func (s *BaseTest) AddCleanup(f func()) {
 	s.cleanupHandlers = append(s.cleanupHandlers, f)
 }
 
+// Backup a single element before further mocking.
+func Backup[T any](mockable *T) (restore func()) {
+	backup := *mockable
+
+	return func() {
+		*mockable = backup
+	}
+}
+
 // Backup the specified list of elements before further mocking.
-func Backup(mockablesByPtr ...interface{}) (restore func()) {
+func BackupMany(mockablesByPtr ...interface{}) (restore func()) {
+	// TODO find a type safe way of doing this when individual elements are
+	// of different type
 	backup := backupMockables(mockablesByPtr)
 
 	return func() {
@@ -89,4 +100,11 @@ func backupMockables(mockablesByPtr []interface{}) (backup []*reflect.Value) {
 		backup[i] = &saved
 	}
 	return backup
+}
+
+// Mock provides a type safe way of mocking a single thing.
+func Mock[T any](mockable *T, newVal T) (restore func()) {
+	restore = Backup(mockable)
+	*mockable = newVal
+	return restore
 }

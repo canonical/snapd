@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2023 Canonical Ltd
+ * Copyright (C) 2023-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,9 +29,15 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-func FakeRequestWithClassAndReplyChan(class notify.MediationClass, replyChan chan interface{}) *Request {
+func ExitOnError() (restore func()) {
+	restore = testutil.Backup(&exitOnError)
+	exitOnError = true
+	return restore
+}
+
+func FakeRequestWithClassAndReplyChan(class notify.MediationClass, replyChan chan any) *Request {
 	return &Request{
-		class:     class,
+		Class:     class,
 		replyChan: replyChan,
 	}
 }
@@ -122,6 +128,12 @@ func MockEpollWaitNotifyIoctl() (recvChan chan<- []byte, sendChan <-chan []byte,
 	return recvChanRW, sendChanRW, restore
 }
 
+func MockEncodeAndSendResponse(f func(l *Listener, resp *notify.MsgNotificationResponse) error) (restore func()) {
+	restore = testutil.Backup(&encodeAndSendResponse)
+	encodeAndSendResponse = f
+	return restore
+}
+
 func (l *Listener) Dead() <-chan struct{} {
 	return l.tomb.Dead()
 }
@@ -140,4 +152,8 @@ func (l *Listener) Kill(err error) {
 
 func (l *Listener) EpollIsClosed() bool {
 	return l.poll.IsClosed()
+}
+
+func (l *Listener) WaitAndRespondAaClassFile(req *Request, msg *notify.MsgNotificationFile) error {
+	return l.waitAndRespondAaClassFile(req, msg)
 }

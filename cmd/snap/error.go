@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"go/doc"
 	"os"
-	"os/user"
 	"strings"
 	"text/tabwriter"
 
@@ -35,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/strutil"
 )

@@ -8,7 +8,7 @@
 set -e
 set +x
 
-SNAP_MOUNT_DIR="@SNAP_MOUNT_DIR@"
+STATIC_SNAP_MOUNT_DIR="@STATIC_SNAP_MOUNT_DIR@"
 
 show_help() {
     exec cat <<'EOF'
@@ -18,12 +18,12 @@ A simple script to cleanup snap installations.
 
 optional arguments:
   --help                           Show this help message and exit
-  --snap-mount-dir=<path>          Provide a path to be used as $SNAP_MOUNT_DIR
-  --purge                          Purge all data from $SNAP_MOUNT_DIR
+  --snap-mount-dir=<path>          Provide a path to be used as $STATIC_SNAP_MOUNT_DIR
+  --purge                          Purge all data from $STATIC_SNAP_MOUNT_DIR
 EOF
 }
 
-SNAP_UNIT_PREFIX="$(systemd-escape -p ${SNAP_MOUNT_DIR})"
+SNAP_UNIT_PREFIX="$(systemd-escape -p ${STATIC_SNAP_MOUNT_DIR})"
 
 systemctl_stop() {
     unit="$1"
@@ -41,6 +41,10 @@ systemctl_stop() {
     done
 }
 
+is_component_mount_unit() {
+    systemctl show "$1" -p Where | sed 's#Where=##' | grep -q "${SNAP_MOUNT_DIR}/"'[^/]*/components/mnt/[^/]*/[^/]*'
+}
+
 purge() {
     # shellcheck disable=SC1091
     distribution=$(. /etc/os-release; echo "${ID}-${VERSION_ID}")
@@ -51,13 +55,28 @@ purge() {
     fi
 
     units=$(systemctl list-unit-files --no-legend --full | grep -vF snap.mount.service || true)
-    # *.snap mount points
     mounts=$(echo "$units" | grep "^${SNAP_UNIT_PREFIX}[-.].*\\.mount" | cut -f1 -d ' ')
+
+    # *.snap and *.comp mount points
+    snap_mounts=""
+    components_mounts=""
+
+    for mount in $mounts; do
+        if is_component_mount_unit "$mount"; then
+            components_mounts="$components_mounts $mount"
+        else
+            snap_mounts="$snap_mounts $mount"
+        fi
+    done
+
     # services from snaps
     services=$(echo "$units" | grep '^snap\..*\.service' | cut -f1 -d ' ')
     # slices from snaps
     slices=$(echo "$units" | grep '^snap\..*\.slice' | cut -f1 -d ' ')
-    for unit in $services $mounts $slices; do
+
+    # component mounts must come first so that they are unmounted before we
+    # unmount the snap mounts
+    for unit in $services $components_mounts $snap_mounts $slices; do
         # ensure its really a snap mount unit or systemd unit
         if ! grep -q 'What=/var/lib/snapd/snaps/' "/etc/systemd/system/$unit" && ! grep -q 'X-Snappy=yes' "/etc/systemd/system/$unit"; then
             echo "Skipping non-snapd systemd unit $unit"
@@ -67,37 +86,37 @@ purge() {
         echo "Stopping $unit"
         systemctl_stop "$unit"
 
-        if echo "$unit" | grep -q '.*\.mount' ; then
-            # Transform ${SNAP_MOUNT_DIR}/core/3440 -> core/3440 removing any
+        if echo "$unit" | grep -q '.*\.mount' && ! is_component_mount_unit "$unit"; then
+            # Transform ${STATIC_SNAP_MOUNT_DIR}/core/3440 -> core/3440 removing any
             # extra / preceding snap name, eg:
             #  /var/lib/snapd/snap/core/3440  -> core/3440
             #  /snap/core/3440                -> core/3440
             #  /snap/core//3440               -> core/3440
             # NOTE: we could have used `systemctl show $unit -p Where --value`
             # but systemd 204 shipped with Ubuntu 14.04 does not support this
-            snap_rev=$(systemctl show "$unit" -p Where | sed -e 's#Where=##' -e "s#$SNAP_MOUNT_DIR##" -e 's#^/*##')
+            snap_rev=$(systemctl show "$unit" -p Where | sed -e 's#Where=##' -e "s#$STATIC_SNAP_MOUNT_DIR##" -e 's#^/*##')
             snap=$(echo "$snap_rev" |cut -f1 -d/)
             rev=$(echo "$snap_rev" |cut -f2 -d/)
             if [ -n "$snap" ]; then
                 echo "Removing snap $snap"
                 # aliases
-                if [ -d "${SNAP_MOUNT_DIR}/bin" ]; then
-                    find "${SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap" -delete
-                    find "${SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap.*" -delete
+                if [ -d "${STATIC_SNAP_MOUNT_DIR}/bin" ]; then
+                    find "${STATIC_SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap" -delete
+                    find "${STATIC_SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap.*" -delete
                 fi
                 # generated binaries
-                rm -f "${SNAP_MOUNT_DIR}/bin/$snap"
-                rm -f "${SNAP_MOUNT_DIR}/bin/$snap".*
+                rm -f "${STATIC_SNAP_MOUNT_DIR}/bin/$snap"
+                rm -f "${STATIC_SNAP_MOUNT_DIR}/bin/$snap".*
                 # snap mount dir
-                umount -l "${SNAP_MOUNT_DIR}/$snap/$rev" 2> /dev/null || true
-                rm -rf "${SNAP_MOUNT_DIR:?}/$snap/$rev"
-                rm -f "${SNAP_MOUNT_DIR}/$snap/current"
+                umount -l "${STATIC_SNAP_MOUNT_DIR}/$snap/$rev" 2> /dev/null || true
+                rm -rf "${STATIC_SNAP_MOUNT_DIR:?}/$snap/$rev"
+                rm -f "${STATIC_SNAP_MOUNT_DIR}/$snap/current"
                 # snap data dir
                 rm -rf "/var/snap/$snap/$rev"
                 rm -rf "/var/snap/$snap/common"
                 rm -f "/var/snap/$snap/current"
                 # opportunistic remove (may fail if there are still revisions left)
-                for d in "${SNAP_MOUNT_DIR}/$snap" "/var/snap/$snap"; do
+                for d in "${STATIC_SNAP_MOUNT_DIR}/$snap" "/var/snap/$snap"; do
                     if [ -d "$d" ]; then
                         rmdir --ignore-fail-on-non-empty "$d"
                     fi
@@ -135,9 +154,9 @@ purge() {
     # Units may have been removed do a reload
     systemctl -q daemon-reload || true
 
-    # Undo any bind mounts to ${SNAP_MOUNT_DIR} or /var/snap done by parallel
+    # Undo any bind mounts to ${STATIC_SNAP_MOUNT_DIR} or /var/snap done by parallel
     # installs or LP:#1668659
-    for mp in "$SNAP_MOUNT_DIR" /var/snap; do
+    for mp in "$STATIC_SNAP_MOUNT_DIR" /var/snap; do
         # btrfs bind mounts actually include subvolume in the filesystem-path
         # https://www.mail-archive.com/linux-btrfs@vger.kernel.org/msg51810.html
         if grep -q " $mp $mp " /proc/self/mountinfo ||
@@ -181,7 +200,7 @@ purge() {
     rm -rf /var/lib/snapd/features
 
     echo "Final directory cleanup"
-    rm -rf "${SNAP_MOUNT_DIR}"
+    rm -rf "${STATIC_SNAP_MOUNT_DIR}"
     rm -rf /var/snap
 
     echo "Removing leftover snap shared state data"
@@ -220,8 +239,8 @@ while [ -n "$1" ]; do
             exit
             ;;
         --snap-mount-dir=*)
-            SNAP_MOUNT_DIR=${1#*=}
-            SNAP_UNIT_PREFIX=$(systemd-escape -p "$SNAP_MOUNT_DIR")
+            STATIC_SNAP_MOUNT_DIR=${1#*=}
+            SNAP_UNIT_PREFIX=$(systemd-escape -p "$STATIC_SNAP_MOUNT_DIR")
             shift
             ;;
         --purge)

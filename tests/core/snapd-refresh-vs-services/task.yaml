@@ -15,7 +15,9 @@ details: |
 # TODO: we should also run it on classic later
 
 systems:
-  - ubuntu-core-18-*
+  # snapd 2.49.2 doesn't support snap-declaration format 5, which is used by the
+  # kernel on core18 systems
+  # - ubuntu-core-18-*
   - ubuntu-core-20-*
   # TODO: 2.49.2 does not work on UC22 because of ABI breakage and missing
   # libgcc_s.so.1

@@ -39,6 +39,8 @@ import (
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/tooling"
 	"github.com/snapcore/snapd/testutil"
@@ -143,11 +145,39 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 					Revision: snap.R("1")}},
 			},
 			SnapsForMode: map[string][]*seed.Snap{
-				"run": {{
-					Path: "/some/path/foo.snap",
-					SideInfo: &snap.SideInfo{
-						RealName: "foo"},
-				}}},
+				"run": {
+					{
+						Path: "/some/path/bar.snap",
+						SideInfo: &snap.SideInfo{
+							RealName: "bar",
+							SnapID:   snaptest.AssertedSnapID("bar"),
+							Revision: snap.R(1),
+						},
+						Components: []seed.Component{
+							{
+								Path: "/some/path/bar+comp2.snap",
+								CompSideInfo: snap.ComponentSideInfo{
+									Component: naming.NewComponentRef("bar", "comp2"),
+									Revision:  snap.R(2),
+								},
+							},
+						},
+					},
+					{
+						Path: "/some/path/foo.snap",
+						SideInfo: &snap.SideInfo{
+							RealName: "foo",
+						},
+						Components: []seed.Component{
+							{
+								Path: "/some/path/foo+comp1.snap",
+								CompSideInfo: snap.ComponentSideInfo{
+									Component: naming.NewComponentRef("foo", "comp1"),
+								},
+							},
+						},
+					},
+				}},
 			loadAssertions: func(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
 				batch := asserts.NewBatch(nil)
 				c.Assert(batch.Add(ts.StoreSigning.StoreAccountKey("")), IsNil)
@@ -357,7 +387,18 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 				SnapID:   "snapdidididididididididididididd",
 				Revision: 1,
 			}, {
+				Name:     "bar",
+				SnapID:   snaptest.AssertedSnapID("bar"),
+				Revision: 1,
+				Components: []asserts.PreseedComponent{{
+					Name:     "comp2",
+					Revision: 2,
+				}},
+			}, {
 				Name: "foo",
+				Components: []asserts.PreseedComponent{{
+					Name: "comp1",
+				}},
 			}})
 		default:
 			c.Fatalf("unexpected assertion: %s", as.Type().Name)

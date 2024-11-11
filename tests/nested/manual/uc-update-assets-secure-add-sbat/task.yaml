@@ -4,7 +4,11 @@ details: |
   This will happen on UC20 and we need to make sure that it will
   continue to boot.
 
-systems: [ubuntu-2*]
+# There is no point to test this case on uc24 or later, we already
+# have an sbat, and it is unlikely any UC24 will boot without one.
+# Also it becomes difficult to build an old version on shim on newer
+# GCC.
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
   NESTED_ENABLE_SECURE_BOOT: true

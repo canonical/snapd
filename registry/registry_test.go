@@ -36,6 +36,22 @@ func Test(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&viewSuite{})
 
+type failingSchema struct {
+	err error
+}
+
+func (f *failingSchema) Validate([]byte) error {
+	return f.err
+}
+
+func (f *failingSchema) SchemaAt(path []string) ([]registry.Schema, error) {
+	return []registry.Schema{f}, nil
+}
+
+func (f *failingSchema) Type() registry.SchemaType {
+	return registry.Any
+}
+
 func (*viewSuite) TestNewRegistry(c *C) {
 	type testcase struct {
 		registry map[string]interface{}
@@ -170,8 +186,14 @@ func (s *viewSuite) TestBundleWithSample(c *C) {
 			},
 		},
 	}
-	_, err := registry.New("acc", "foo", views, registry.NewJSONSchema())
+	reg, err := registry.New("acc", "foo", views, registry.NewJSONSchema())
 	c.Assert(err, IsNil)
+
+	view := reg.View("other")
+	c.Assert(view, IsNil)
+	view = reg.View("wifi-setup")
+	c.Assert(view, NotNil)
+	c.Assert(view.Registry(), Equals, reg)
 }
 
 func (s *viewSuite) TestAccessTypes(c *C) {
@@ -307,23 +329,23 @@ func (s *viewSuite) TestRegistryNotFound(c *C) {
 
 	_, err = view.Get(databag, "missing")
 	c.Assert(err, testutil.ErrorIs, &registry.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot get "missing" in registry view acc/foo/bar: no matching read rule`)
+	c.Assert(err, ErrorMatches, `cannot get "missing" through acc/foo/bar: no matching rule`)
 
 	err = view.Set(databag, "missing", "thing")
 	c.Assert(err, testutil.ErrorIs, &registry.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot set "missing" in registry view acc/foo/bar: no matching write rule`)
+	c.Assert(err, ErrorMatches, `cannot set "missing" through acc/foo/bar: no matching rule`)
 
 	err = view.Unset(databag, "missing")
 	c.Assert(err, testutil.ErrorIs, &registry.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot unset "missing" in registry view acc/foo/bar: no matching write rule`)
+	c.Assert(err, ErrorMatches, `cannot unset "missing" through acc/foo/bar: no matching rule`)
 
 	_, err = view.Get(databag, "top-level")
 	c.Assert(err, testutil.ErrorIs, &registry.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot get "top-level" in registry view acc/foo/bar: matching rules don't map to any values`)
+	c.Assert(err, ErrorMatches, `cannot get "top-level" through acc/foo/bar: no view data`)
 
 	_, err = view.Get(databag, "")
 	c.Assert(err, testutil.ErrorIs, &registry.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot get registry view acc/foo/bar: matching rules don't map to any values`)
+	c.Assert(err, ErrorMatches, `cannot get acc/foo/bar: no view data`)
 
 	err = view.Set(databag, "nested", "thing")
 	c.Assert(err, IsNil)
@@ -333,7 +355,7 @@ func (s *viewSuite) TestRegistryNotFound(c *C) {
 
 	_, err = view.Get(databag, "other-nested")
 	c.Assert(err, testutil.ErrorIs, &registry.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot get "other-nested" in registry view acc/foo/bar: matching rules don't map to any values`)
+	c.Assert(err, ErrorMatches, `cannot get "other-nested" through acc/foo/bar: no view data`)
 }
 
 func (s *viewSuite) TestViewBadRead(c *C) {
@@ -372,12 +394,12 @@ func (s *viewSuite) TestViewAccessControl(c *C) {
 		{
 			access: "read",
 			// non-access control error, access ok
-			getErr: `cannot get "foo" in registry view acc/registry/foo: matching rules don't map to any values`,
-			setErr: `cannot set "foo" in registry view acc/registry/foo: no matching write rule`,
+			getErr: `cannot get "foo" through acc/registry/foo: no view data`,
+			setErr: `cannot set "foo" through acc/registry/foo: no matching rule`,
 		},
 		{
 			access: "write",
-			getErr: `cannot get "foo" in registry view acc/registry/foo: no matching read rule`,
+			getErr: `cannot get "foo" through acc/registry/foo: no matching rule`,
 		},
 	} {
 		cmt := Commentf("sub-test with %q access failed", t.access)
@@ -843,7 +865,7 @@ func (s *viewSuite) TestViewUnsetSkipsReadOnly(c *C) {
 
 	view := registry.View("test")
 	err = view.Unset(databag, "foo")
-	c.Assert(err, ErrorMatches, `cannot unset "foo" in registry view acc/registry/test: no matching write rule`)
+	c.Assert(err, ErrorMatches, `cannot unset "foo" through acc/registry/test: no matching rule`)
 }
 
 func (s *viewSuite) TestViewGetNoMatchRequestLongerThanPattern(c *C) {
@@ -1854,7 +1876,7 @@ func (s *viewSuite) TestUnsetUnmatchedPlaceholderLast(c *C) {
 
 	_, err = view.Get(databag, "foo")
 	c.Assert(err, testutil.ErrorIs, &registry.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot get "foo" in registry view acc/registry/foo: matching rules don't map to any values`)
+	c.Assert(err, ErrorMatches, `cannot get "foo" through acc/registry/foo: no view data`)
 }
 
 func (s *viewSuite) TestUnsetUnmatchedPlaceholderMid(c *C) {
@@ -2197,7 +2219,7 @@ func (*viewSuite) TestViewWriteContentRuleNestedInRead(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = view.Get(databag, "a.b")
-	c.Assert(err, ErrorMatches, `.*: no matching read rule`)
+	c.Assert(err, ErrorMatches, `.*: no matching rule`)
 
 	val, err := view.Get(databag, "a")
 	c.Assert(err, IsNil)
@@ -2480,4 +2502,146 @@ func (*viewSuite) TestSetEnforcesNestednessLimit(c *C) {
 		},
 	})
 	c.Assert(err, ErrorMatches, `cannot set "foo" in registry view acc/foo/bar: value cannot have more than 2 nested levels`)
+}
+
+func (*viewSuite) TestGetAffectedViews(c *C) {
+	type testcase struct {
+		views    map[string]interface{}
+		affected []string
+		modified string
+	}
+
+	tcs := []testcase{
+		{
+			// same path
+			views: map[string]interface{}{
+				"view-1": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "a", "storage": "a"},
+					},
+				},
+			},
+			affected: []string{"view-1"},
+			modified: "a",
+		},
+		{
+			// view path is more specific
+			views: map[string]interface{}{
+				"view-1": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "a", "storage": "a.b"},
+					},
+				},
+			},
+			affected: []string{"view-1"},
+			modified: "a",
+		},
+		{
+			// view path is more generic
+			views: map[string]interface{}{
+				"view-1": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "a", "storage": "a"},
+					},
+				},
+			},
+			affected: []string{"view-1"},
+			modified: "a.b",
+		},
+		{
+			// unrelated
+			views: map[string]interface{}{
+				"view-1": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "a", "storage": "a"},
+					},
+				},
+			},
+			modified: "b",
+		},
+		{
+			// partially shared path but diverges at the end
+			views: map[string]interface{}{
+				"view-1": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "a", "storage": "a.b"},
+					},
+				},
+			},
+			modified: "a.c",
+		},
+		{
+			// view path contains placeholder
+			views: map[string]interface{}{
+				"view-1": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "a.{x}", "storage": "a.{x}.c"},
+					},
+				},
+			},
+			affected: []string{"view-1"},
+			modified: "a.b",
+		},
+		{
+			// view path ends in placeholder
+			views: map[string]interface{}{
+				"view-1": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "a.{x}", "storage": "a.{x}"},
+					},
+				},
+			},
+			affected: []string{"view-1"},
+			modified: "a.b",
+		},
+		{
+			// path has placeholder but diverges after
+			views: map[string]interface{}{
+				"view-1": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "a.{x}", "storage": "a.{x}.b"},
+					},
+				},
+			},
+			modified: "a.b.c",
+		},
+		{
+			// several affected views
+			views: map[string]interface{}{
+				"view-1": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "d", "storage": "d"},
+					},
+				},
+				"view-2": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "{x}.b", "storage": "{x}.b"},
+						map[string]interface{}{"request": "{x}.c", "storage": "{x}.c"},
+					},
+				},
+				"view-3": map[string]interface{}{
+					"rules": []interface{}{
+						map[string]interface{}{"request": "a", "storage": "a"},
+					},
+				},
+			},
+			affected: []string{"view-2", "view-3"},
+			modified: "a.b",
+		},
+	}
+
+	for i, tc := range tcs {
+		cmt := Commentf("test %d out of %d failed (1-indexed)", (i + 1), len(tcs))
+		reg, err := registry.New("acc", "reg", tc.views, registry.NewJSONSchema())
+		c.Assert(err, IsNil, cmt)
+
+		affectedViews := reg.GetViewsAffectedByPath(tc.modified)
+		c.Assert(affectedViews, HasLen, len(tc.affected), cmt)
+
+		viewNames := make([]string, 0, len(affectedViews))
+		for _, v := range affectedViews {
+			viewNames = append(viewNames, v.Name)
+		}
+		c.Assert(viewNames, testutil.DeepUnsortedMatches, tc.affected, cmt)
+	}
 }

@@ -21,7 +21,7 @@ package strace_test
 
 import (
 	"os"
-	"os/user"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/strace"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -98,19 +99,36 @@ func (s *straceSuite) TestStraceCommandHappyFromSnap(c *C) {
 }
 
 func (s *straceSuite) TestStraceCommandNoSudo(c *C) {
+	tmp := c.MkDir()
+
+	if user.GetentBased {
+		getEntPath, err := exec.LookPath("getent")
+		c.Assert(err, IsNil)
+		err = os.Symlink(getEntPath, filepath.Join(tmp, "getent"))
+		c.Assert(err, IsNil)
+	}
+
 	origPath := os.Getenv("PATH")
 	defer func() { os.Setenv("PATH", origPath) }()
+	os.Setenv("PATH", tmp)
 
-	os.Setenv("PATH", "/not-exists")
 	_, err := strace.Command(nil, "foo")
 	c.Assert(err, ErrorMatches, `cannot use strace without sudo: exec: "sudo": executable file not found in \$PATH`)
 }
 
 func (s *straceSuite) TestStraceCommandNoStrace(c *C) {
+	tmp := c.MkDir()
+
+	if user.GetentBased {
+		getEntPath, err := exec.LookPath("getent")
+		c.Assert(err, IsNil)
+		err = os.Symlink(getEntPath, filepath.Join(tmp, "getent"))
+		c.Assert(err, IsNil)
+	}
+
 	origPath := os.Getenv("PATH")
 	defer func() { os.Setenv("PATH", origPath) }()
 
-	tmp := c.MkDir()
 	os.Setenv("PATH", tmp)
 	err := os.WriteFile(filepath.Join(tmp, "sudo"), nil, 0755)
 	c.Assert(err, IsNil)

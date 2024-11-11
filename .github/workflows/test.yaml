@@ -3,17 +3,7 @@ on:
   pull_request:
     branches: [ "master", "release/**", "core-snap-security-release/**", "security-release/**" ]
   push:
-    # we trigger runs on master branch, but we do not run spread on master 
-    # branch, the master branch runs are just for unit tests + codecov.io
     branches: [ "master", "release/**", "core-snap-security-release/**", "security-release/**" ]
-
-  # XXX we suspect that the whenever the labeler workflow executes successfully
-  # it will trigger another workflow of tests on master, temporarily disable to
-  # see if that improves the situation
-  # workflow_run:
-  #   workflows: ["Pull Request Labeler"]
-  #   types:
-  #     - completed
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
@@ -33,12 +23,9 @@ jobs:
           # are the build that should be installed by human users.
           - pristine
           - test
-    # only build the snap for pull requests, it's not needed on release branches
-    # or on master since we have launchpad build recipes which do this already
-    if: ${{ github.event_name == 'pull_request' }}
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
@@ -69,11 +56,7 @@ jobs:
       uses: snapcore/action-build@v1
       with:
         snapcraft-channel: 8.x/stable
-
-    - name: Build test snapd snap
-      uses: snapcore/action-build@v1
-      with:
-        snapcraft-channel: 8.x/stable
+        snapcraft-args: --verbose
 
     - name: Check built artifact
       run: |
@@ -90,7 +73,7 @@ jobs:
         fi
 
     - name: Uploading snapd snap artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: snap-files-${{ matrix.toolchain }}-${{ matrix.version }}
         path: "*.snap"
@@ -99,7 +82,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         # needed for git commit history
         fetch-depth: 0
@@ -127,7 +110,7 @@ jobs:
         sudo tar cvf cached-apt.tar /var/cache/apt
 
     - name: upload Debian dependencies
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: debian-dependencies
         path: ./cached-apt.tar
@@ -144,6 +127,7 @@ jobs:
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
       GOROOT: ""
       GITHUB_PULL_REQUEST_TITLE: ${{ github.event.pull_request.title }}
+      BASE_REF: ${{ github.base_ref }}
 
     strategy:
       # we cache successful runs so it's fine to keep going
@@ -155,7 +139,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         # needed for git commit history
         fetch-depth: 0
@@ -170,7 +154,7 @@ jobs:
         git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
 
     - name: Download Debian dependencies
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: debian-dependencies
         path: ./debian-deps/
@@ -199,22 +183,9 @@ jobs:
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd/c-vendor && ./vendor.sh
 
-    - name: golangci-lint
-      if: ${{ matrix.gochannel == 'latest/stable' }}
-      uses: golangci/golangci-lint-action@v3
-      with:
-        # version of golangci-lint to use in form of v1.2 or v1.2.3 or `latest`
-        # to use the latest version
-        version: v1.55.2
-        working-directory: ./src/github.com/snapcore/snapd
-        # show only new issues
-        # use empty path prefix to make annotations work
-        args: --new-from-rev=${{ github.base_ref }} --path-prefix=
-        # skip all additional steps
-        skip-pkg-cache: true
-        skip-build-cache: true
-        # XXX: does no work with working-directory
-        # only-new-issues: true
+    - name: Install golangci-lint snap
+      run: |
+          sudo snap install --classic golangci-lint
 
     - name: Get changed files
       id: changed-files
@@ -231,8 +202,8 @@ jobs:
     - name: Run static checks
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-          # run gofmt checks only with Go 1.18
-          if [ "${{ matrix.gochannel }}" != "1.18" ]; then
+          # run gofmt checks only with the latest stable Go
+          if [ "${{ matrix.gochannel }}" != "latest/stable" ]; then
               export SKIP_GOFMT=1
               echo "Formatting checks will be skipped due to the use of Go version ${{ matrix.gochannel }}"
           fi
@@ -241,7 +212,7 @@ jobs:
 
     - name: Cache prebuilt indent
       id: cache-indent-bin
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: indent-bin
         key: ${{ runner.os }}-indent-2.2.13
@@ -284,7 +255,7 @@ jobs:
     steps:
 
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         # needed for git commit history
         fetch-depth: 0
@@ -321,7 +292,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         # needed for git commit history
         fetch-depth: 0
@@ -336,7 +307,7 @@ jobs:
         git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
 
     - name: Download Debian dependencies
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: debian-dependencies
         path: ./debian-deps/
@@ -372,11 +343,13 @@ jobs:
 
     - name: Test C
       run: |
-          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make distcheck
 
     - name: Reset code coverage data
       run: |
           rm -rf ${{ github.workspace }}/.coverage/
+          COVERAGE_OUT="${{ github.workspace }}/coverage/coverage-${{ matrix.unit-scenario}}.cov"
+          echo "COVERAGE_OUT=$COVERAGE_OUT" >> $GITHUB_ENV
 
     - name: Test Go
       if: ${{ matrix.unit-scenario == 'normal' }}
@@ -386,10 +359,11 @@ jobs:
 
     - name: Upload the coverage results
       if: ${{ matrix.gochannel != 'latest/stable' }}
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: coverage-files
-        path: "${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage/coverage*.cov"
+        include-hidden-files: true
+        name: "coverage-files-${{ matrix.unit-scenario }}"
+        path: "${{ github.workspace }}/coverage/coverage*.cov"
 
   # TODO run unit tests of C code
   unit-tests-special:
@@ -416,10 +390,11 @@ jobs:
           - nosecboot
           - faultinject
           - race
+          - snapdusergo
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         # needed for git commit history
         fetch-depth: 0
@@ -434,7 +409,7 @@ jobs:
         git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
 
     - name: Download Debian dependencies
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: debian-dependencies
         path: ./debian-deps/
@@ -470,11 +445,13 @@ jobs:
 
     - name: Test C
       run: |
-          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make distcheck
 
     - name: Reset code coverage data
       run: |
           rm -rf ${{ github.workspace }}/.coverage/
+          COVERAGE_OUT="${{ github.workspace }}/coverage/coverage-${{ matrix.unit-scenario}}.cov"
+          echo "COVERAGE_OUT=$COVERAGE_OUT" >> $GITHUB_ENV
 
     - name: Test Go (SNAPD_DEBUG=1)
       if: ${{ matrix.unit-scenario == 'snapd_debug' }}
@@ -511,12 +488,19 @@ jobs:
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         SKIP_DIRTY_CHECK=1 GO_TEST_RACE=1 SKIP_COVERAGE=1 ./run-checks --unit
 
+    - name: Test Go (snapdusergo)
+      if: ${{ matrix.unit-scenario == 'snapdusergo' }}
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=snapdusergo ./run-checks --unit
+
     - name: Upload the coverage results
-      if: ${{ matrix.gochannel != 'latest/stable' }}
-      uses: actions/upload-artifact@v3
+      if: ${{ matrix.gochannel != 'latest/stable' && matrix.unit-scenario != 'race' }}
+      uses: actions/upload-artifact@v4
       with:
-        name: coverage-files
-        path: "${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage/coverage*.cov"
+        include-hidden-files: true
+        name: "coverage-files-${{ matrix.unit-scenario }}"
+        path: "${{ github.workspace }}/coverage/coverage*.cov"
 
 
   unit-tests-cross-distro:
@@ -533,7 +517,7 @@ jobs:
       matrix:
         distro:
           # TODO add arch?
-          - fedora:39
+          - fedora:latest
           - opensuse/tumbleweed
 
     runs-on: ubuntu-latest
@@ -579,7 +563,7 @@ jobs:
 
     - name: Unit tests (C)
       run: |
-        su test-user sh -c "./mkversion.sh 1337-git && cd ./cmd && ./autogen.sh && make -j && make check"
+        su test-user sh -c "./mkversion.sh 1337-git && cd ./cmd && ./autogen.sh && make -j && make distcheck"
 
 
   code-coverage:
@@ -595,13 +579,14 @@ jobs:
       GOROOT: ""
     steps:
     - name: Download the coverage files
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
-        name: coverage-files
+        pattern: coverage-files-*
         path: .coverage/
+        merge-multiple: true
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       # uploading to codecov occasionally fails, so continue running the test
       # workflow regardless of the upload
       continue-on-error: true
@@ -614,11 +599,8 @@ jobs:
 
   spread:
     needs: [unit-tests, snap-builds]
-    # have spread jobs run on master on PRs only, but on both PRs and pushes to
-    # release branches
-    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
     name: ${{ matrix.group }}
-    runs-on: self-hosted
+    runs-on: [self-hosted, spread-enabled]
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
       # Disable fail-fast mode as it doesn't function with spread. It seems
@@ -632,107 +614,137 @@ jobs:
             backend: google-distro-1
             systems: 'amazon-linux-2-64 amazon-linux-2023-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: arch-linux
             backend: google-distro-2
             systems: 'arch-linux-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: centos
             backend: google-distro-2
             systems: 'centos-9-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: debian-req
             backend: google-distro-1
             systems: 'debian-11-64'
             tests: 'tests/...'
-          - group: debian-no-req
+            rules: 'main'
+          - group: debian-not-req
             backend: google-distro-1
             systems: 'debian-12-64 debian-sid-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: fedora
             backend: google-distro-1
             systems: 'fedora-38-64 fedora-39-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: fedora-os
             backend: openstack
             systems: 'fedora-40-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: opensuse
             backend: google-distro-2
-            systems: 'opensuse-15.5-64 opensuse-tumbleweed-64'
+            systems: 'opensuse-15.5-64 opensuse-15.6-64 opensuse-tumbleweed-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-trusty
             backend: google
             systems: 'ubuntu-14.04-64'
             tests: 'tests/smoke/ tests/main/canonical-livepatch tests/main/canonical-livepatch-14.04'
+            rules: 'trusty'
           - group: ubuntu-xenial-bionic
             backend: google
-            systems: 'ubuntu-16.04-64 ubuntu-18.04-32 ubuntu-18.04-64'
+            systems: 'ubuntu-16.04-64 ubuntu-18.04-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-focal-jammy
             backend: google
             systems: 'ubuntu-20.04-64 ubuntu-22.04-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-noble
             backend: google
             systems: 'ubuntu-24.04-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-no-lts
             backend: google
-            systems: 'ubuntu-23.10-64'
+            systems: ''
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-daily
             backend: google
             systems: 'ubuntu-24.10-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-core-16
             backend: google-core
             systems: 'ubuntu-core-16-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-core-18
             backend: google-core
             systems: 'ubuntu-core-18-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-core-20
             backend: google-core
             systems: 'ubuntu-core-20-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-core-22
             backend: google-core
             systems: 'ubuntu-core-22-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-core-24
             backend: google-core
             systems: 'ubuntu-core-24-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-arm
             backend: google-arm
             systems: 'ubuntu-20.04-arm-64 ubuntu-core-22-arm-64'
             tests: 'tests/...'
+            rules: 'main'
           - group: ubuntu-secboot
             backend: google
             systems: 'ubuntu-secboot-20.04-64'
             tests: 'tests/...'
-
+            rules: 'main'
+          - group: ubuntu-fips
+            backend: google-pro
+            systems: 'ubuntu-fips-22.04-64'
+            tests: 'tests/fips/...'
+            rules: 'main'
           - group: nested-ubuntu-16.04
             backend: google-nested
             systems: 'ubuntu-16.04-64'
             tests: 'tests/nested/...'
+            rules: 'nested'
           - group: nested-ubuntu-18.04
             backend: google-nested
             systems: 'ubuntu-18.04-64'
             tests: 'tests/nested/...'
+            rules: 'nested'
           - group: nested-ubuntu-20.04
             backend: google-nested
             systems: 'ubuntu-20.04-64'
             tests: 'tests/nested/...'
+            rules: 'nested'
           - group: nested-ubuntu-22.04
             backend: google-nested
             systems: 'ubuntu-22.04-64'
             tests: 'tests/nested/...'
+            rules: 'nested'
           - group: nested-ubuntu-24.04
             backend: google-nested
             systems: 'ubuntu-24.04-64'
             tests: 'tests/nested/...'
+            rules: 'nested'
     steps:
     - name: Cleanup job workspace
       id: cleanup-job-workspace
@@ -741,7 +753,7 @@ jobs:
           mkdir "${{ github.workspace }}"
 
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         # spread uses tags as delta reference
         fetch-depth: 0
@@ -753,10 +765,11 @@ jobs:
       shell: bash
 
     - name: Get previous cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.group }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
+
 
     - name: Prepare test results env and vars
       id: prepare-test-results-env
@@ -771,6 +784,16 @@ jobs:
           # Make sure the test results dirs are created
           # This step has to be after the cache is restored
           mkdir -p "$TEST_RESULTS_DIR"        
+
+    - name: Get changed files
+      id: changed-files
+      uses: tj-actions/changed-files@v41.0.0
+
+    - name: Save changes files
+      run: |
+          CHANGED_FILES="${{ steps.changed-files.outputs.all_changed_files }}"
+          echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
+          echo "The changed files found are: $CHANGED_FILES"
 
     - name: Check failed tests to run
       if: "!contains(github.event.pull_request.labels.*.name, 'Run all')"
@@ -790,17 +813,25 @@ jobs:
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       run: |
           RUN_TESTS=""
+          SUGGESTED_TESTS=""
           # Save previous failed test results in FAILED_TESTS env var
           if [ -n "$FAILED_TESTS" ]; then
               RUN_TESTS="$FAILED_TESTS"
           else
               for SYSTEM in ${{ matrix.systems }}; do
                   for TESTS in ${{ matrix.tests }}; do
-                      RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:$TESTS"
+                    RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:$TESTS"
                   done
+                  CHANGES_PARAM=""
+                  for CHANGE in $CHANGED_FILES; do
+                    CHANGES_PARAM="$CHANGES_PARAM -c $CHANGE"
+                  done
+                  SUGGESTED_TESTS="$SUGGESTED_TESTS $(./tests/lib/external/snapd-testing-tools/utils/spread-filter -r ./tests/lib/spread/rules/${{ matrix.rules }}.yaml -p "${{ matrix.backend }}:$SYSTEM" $CHANGES_PARAM)"
               done
           fi
           echo RUN_TESTS="$RUN_TESTS"  >> $GITHUB_ENV
+          echo "Suggested tests by spread-filter tool"
+          echo "$SUGGESTED_TESTS"
 
     - name: Setup grafana parameters
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
@@ -810,21 +841,37 @@ jobs:
           if [ -z "$CHANGE_ID" ]; then
             CHANGE_ID="main"
           fi
-          CHANGE_ID="${CHANGE_ID}_n${{ github.run_attempt }}"
+          FILTERED_LOG_FILE="spread_${CHANGE_ID}_n${{ github.run_attempt }}.filtered.log"
           # The log-filter tool is used to filter the spread logs to be stored
-          echo FILTER_PARAMS="-o spread_$CHANGE_ID.filtered.log -e Debug -e WARNING: -f Failed=NO_LINES -f Error=NO_LINES"  >> $GITHUB_ENV
+          echo FILTER_PARAMS="-o $FILTERED_LOG_FILE -e Debug -e WARNING: -f Failed=NO_LINES -f Error=NO_LINES"  >> $GITHUB_ENV
+          echo FILTERED_LOG_FILE="$FILTERED_LOG_FILE"  >> $GITHUB_ENV
+
+          # Add start line to filtered log
+          echo "GRAFANA START: pr ${CHANGE_ID} attempt ${{ github.run_attempt }} run ${{ github.run_id }} group ${{ matrix.group }}" > "$FILTERED_LOG_FILE"
 
     - name: Download built snap
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
+      if: "!endsWith(matrix.group, '-fips')"
       with:
         name: snap-files-default-test
+        # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
         pattern: snapd_1337.*.snap
+        path: "${{ github.workspace }}/built-snap"
+
+    - name: Download built FIPS snap
+      uses: actions/download-artifact@v4
+      # eg. ubuntu-fips
+      if: "endsWith(matrix.group, '-fips')"
+      with:
+        name: snap-files-FIPS-test
+        # eg. snapd_1337.2.65.1+git97.gd35b459-fips_amd64.snap
+        pattern: snapd_1337.*-fips_*.snap
         path: "${{ github.workspace }}/built-snap"
 
     - name: Rename imported snap
       run: |
         for snap in built-snap/snapd_1337.*.snap; do
-          mv "${snap}" "${snap}.keep"
+          mv -v "${snap}" "${snap}.keep"
         done
 
     - name: Run spread tests
@@ -843,13 +890,13 @@ jobs:
 
           case "${{ matrix.systems }}" in
             *-arm-*)
-              TESTS_USE_PREBUILT_SNAPD_SNAP=false
+              SPREAD_USE_PREBUILT_SNAPD_SNAP=false
               ;;
             *)
-              TESTS_USE_PREBUILT_SNAPD_SNAP=true
+              SPREAD_USE_PREBUILT_SNAPD_SNAP=true
               ;;
           esac
-          export TESTS_USE_PREBUILT_SNAPD_SNAP
+          export SPREAD_USE_PREBUILT_SNAPD_SNAP
 
           if [[ "${{ matrix.systems }}" =~ amazon-linux-2023 ]]; then
               # Amazon Linux 2023 has no xdelta, however we cannot disable
@@ -865,20 +912,27 @@ jobs:
               ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
           fi
 
+          # This coud be the case when either there are not systems for a group or 
+          # the list of tests to run is empty
+          if [ -z "$RUN_TESTS" ]; then
+            echo "No tests to run, skiping..."
+            exit 0
+          fi
+
           # Run spread tests
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
           echo "Running command: $SPREAD $RUN_TESTS"
-          (set -o pipefail; $SPREAD -no-debug-output -logs .logs $RUN_TESTS | ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | tee spread.log)
-
+          (set -o pipefail; $SPREAD -no-debug-output -logs spread-logs $RUN_TESTS | PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | tee spread.log)
 
     - name: Uploading spread logs
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: spread-logs-${{ matrix.systems }}
-        path: ".logs/*.log"
+        path: "spread-logs/*.log"
+        if-no-files-found: ignore
 
     - name: Discard spread workers
       if: always()
@@ -888,29 +942,29 @@ jobs:
           spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done
 
-    - name: report spread errors
+    - name: Report spread errors
       if: always()
       run: |
         if [ -e spread.log ]; then
             echo "Running spread log analyzer"
-            issues_metadata='{"source_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}'
-            ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json --cut 100
+            ACTIONS_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"
+            PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json --cut 1 >/dev/null
             while IFS= read -r line; do
                 if [ ! -z "$line" ]; then
-                    echo "Reporting spread error..."
-                    ./tests/lib/tools/report-mongodb --db-name snapd --db-collection spread_errors --metadata "$issues_metadata" "$line"
+                    echo "Adding failed test line to filtered log"
+                    echo "GRAFANA FAILED: $line $ACTIONS_URL" | tee -a "$FILTERED_LOG_FILE"
                 fi
-            done <<< $(jq -cr '.[] | select( .type == "info") | select( (.info_type == "Error") or (.info_type == "Debug"))' spread-results.json)
+            done <<< $(jq -r '.[] | select( .type == "info" ) | select( .info_type == "Error" ) | "\(.verb) \(.task)"' spread-results.json)
         else
             echo "No spread log found, skipping errors reporting"
         fi
 
-    - name: analyze spread test results
+    - name: Analyze spread test results
       if: always()
       run: |
           if [ -f spread.log ]; then
               echo "Running spread log parser"
-              ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
+              PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
 
               # Add openstack backend definition to spread.yaml
               if [ "${{ matrix.backend }}" = openstack ]; then
@@ -918,7 +972,7 @@ jobs:
               fi
 
               echo "Running spread log analyzer"
-              ./tests/lib/external/snapd-testing-tools/utils/log-analyzer list-reexecute-tasks "$RUN_TESTS" spread-results.json > "$FAILED_TESTS_FILE"
+              PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-analyzer list-reexecute-tasks "$RUN_TESTS" spread-results.json > "$FAILED_TESTS_FILE"
 
               echo "List of failed tests saved"
               cat "$FAILED_TESTS_FILE"
@@ -927,9 +981,9 @@ jobs:
               touch "$FAILED_TESTS_FILE"
           fi
 
-    - name: save spread test results to cache
+    - name: Save spread test results to cache
       if: always()
-      uses: actions/cache/save@v3
+      uses: actions/cache/save@v4
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.group }}-${{ github.run_attempt }}"

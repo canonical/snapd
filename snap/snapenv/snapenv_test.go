@@ -22,7 +22,6 @@ package snapenv
 import (
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
 	"testing"
 
@@ -33,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
@@ -67,7 +67,16 @@ var mockComponentInfo = &snap.ComponentInfo{
 		SnapName:      "foo",
 		ComponentName: "comp",
 	},
-	Version: "1.0",
+	CompVersion: "1.1",
+	ComponentSideInfo: snap.ComponentSideInfo{
+		Revision: snap.R(5),
+	},
+}
+var mockComponentInfoNoVersion = &snap.ComponentInfo{
+	Component: naming.ComponentRef{
+		SnapName:      "foo",
+		ComponentName: "comp",
+	},
 	ComponentSideInfo: snap.ComponentSideInfo{
 		Revision: snap.R(5),
 	},
@@ -103,7 +112,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 		"SNAP_REVISION":      "17",
 		"SNAP_ARCH":          arch.DpkgArchitecture(),
 		"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
-		"SNAP_REEXEC":        "",
+		"SNAP_REEXEC":        os.Getenv("SNAP_REEXEC"),
 		"SNAP_UID":           fmt.Sprint(sys.Getuid()),
 		"SNAP_EUID":          fmt.Sprint(sys.Geteuid()),
 	})
@@ -197,7 +206,7 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 			"SNAP_REVISION":      "42",
 			"SNAP_ARCH":          arch.DpkgArchitecture(),
 			"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
-			"SNAP_REEXEC":        "",
+			"SNAP_REEXEC":        os.Getenv("SNAP_REEXEC"),
 			"SNAP_USER_COMMON":   fmt.Sprintf("%s/snap/snapname/common", usr.HomeDir),
 			"SNAP_USER_DATA":     fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
 			"HOME":               fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
@@ -242,7 +251,7 @@ func (s *HTestSuite) TestParallelInstallSnapRunSnapExecEnv(c *C) {
 			"SNAP_REVISION":      "42",
 			"SNAP_ARCH":          arch.DpkgArchitecture(),
 			"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
-			"SNAP_REEXEC":        "",
+			"SNAP_REEXEC":        os.Getenv("SNAP_REEXEC"),
 			// User's data directories are not mapped to
 			// snap-specific ones
 			"SNAP_USER_COMMON": fmt.Sprintf("%s/snap/snapname_foo/common", usr.HomeDir),
@@ -325,11 +334,7 @@ func (s *HTestSuite) TestExtendEnvForRunForClassic(c *C) {
 	c.Assert(env["TMPDIR"], Equals, "/var/tmp")
 }
 
-func (s *HTestSuite) TestExtendEnvForRunWithComponent(c *C) {
-	env := osutil.Environment{"TMPDIR": "/var/tmp"}
-
-	ExtendEnvForRun(env, mockSnapInfo, mockComponentInfo, nil)
-
+func checkEnvWithComp(c *C, env osutil.Environment, compVersion string) {
 	c.Assert(env["SNAP_NAME"], Equals, "foo")
 	c.Assert(env["SNAP_COMMON"], Equals, "/var/snap/foo/common")
 	c.Assert(env["SNAP_DATA"], Equals, "/var/snap/foo/17")
@@ -338,8 +343,25 @@ func (s *HTestSuite) TestExtendEnvForRunWithComponent(c *C) {
 
 	c.Assert(env["SNAP_COMPONENT"], Equals, filepath.Join(dirs.CoreSnapMountDir, "foo/components/mnt/comp/5"))
 	c.Assert(env["SNAP_COMPONENT_REVISION"], Equals, "5")
-	c.Assert(env["SNAP_COMPONENT_VERSION"], Equals, "1.0")
+	c.Assert(env["SNAP_COMPONENT_VERSION"], Equals, compVersion)
 	c.Assert(env["SNAP_COMPONENT_NAME"], Equals, "foo+comp")
+}
+
+func (s *HTestSuite) TestExtendEnvForRunWithComponent(c *C) {
+	env := osutil.Environment{"TMPDIR": "/var/tmp"}
+
+	ExtendEnvForRun(env, mockSnapInfo, mockComponentInfo, nil)
+	compVersion := "1.1"
+	checkEnvWithComp(c, env, compVersion)
+}
+
+func (s *HTestSuite) TestExtendEnvForRunWithComponentNoVersion(c *C) {
+	env := osutil.Environment{"TMPDIR": "/var/tmp"}
+
+	ExtendEnvForRun(env, mockSnapInfo, mockComponentInfoNoVersion, nil)
+	// Same as snap in this case
+	compVersion := "1.0"
+	checkEnvWithComp(c, env, compVersion)
 }
 
 func (s *HTestSuite) TestHiddenDirEnv(c *C) {

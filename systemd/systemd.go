@@ -330,6 +330,8 @@ type MountUnitOptions struct {
 	Fstype      string
 	Options     []string
 	Origin      string
+	// RootDir is the root of the filesystem where the unit will be created
+	RootDir string
 	// PreventRestartIfModified is set if we do not want to restart the
 	// mount unit if modified
 	PreventRestartIfModified bool
@@ -347,12 +349,12 @@ const (
 	EmulationModeBackend
 )
 
-type mountUpdateStatus int
+type MountUpdateStatus int
 
 const (
-	mountUnchanged mountUpdateStatus = iota
-	mountUpdated
-	mountCreated
+	MountUnchanged MountUpdateStatus = iota
+	MountUpdated
+	MountCreated
 )
 
 // EnsureMountUnitFlags contains flags that modify behavior of EnsureMountUnitFile
@@ -1375,16 +1377,20 @@ func MountUnitPath(baseDir string) string {
 	return filepath.Join(dirs.SnapServicesDir, escapedPath+".mount")
 }
 
-// MountUnitPathWithLifetime returns the path of a {,auto}mount unit
-// created in the systemd directory suitable for the given unit lifetime
-func MountUnitPathWithLifetime(lifetime UnitLifetime, mountPointDir string) string {
+// mountUnitPathWithLifetime returns the path of a {,auto}mount unit created in
+// the systemd directory suitable for the given unit lifetime. rootDir is the
+// directory for the root filesystem.
+func mountUnitPathWithLifetime(lifetime UnitLifetime, mountPointDir, rootDir string) string {
+	if rootDir == "" {
+		rootDir = dirs.GlobalRootDir
+	}
 	escapedPath := EscapeUnitNamePath(mountPointDir)
 	var servicesPath string
 	switch lifetime {
 	case Persistent:
-		servicesPath = dirs.SnapServicesDir
+		servicesPath = dirs.SnapServicesDirUnder(rootDir)
 	case Transient:
-		servicesPath = dirs.SnapRuntimeServicesDir
+		servicesPath = dirs.SnapRuntimeServicesDirUnder(rootDir)
 	default:
 		panic(fmt.Sprintf("unknown systemd unit lifetime %q", lifetime))
 	}
@@ -1395,7 +1401,7 @@ func MountUnitPathWithLifetime(lifetime UnitLifetime, mountPointDir string) stri
 func ExistingMountUnitPath(mountPointDir string) string {
 	lifetimes := []UnitLifetime{Persistent, Transient}
 	for _, lifetime := range lifetimes {
-		unit := MountUnitPathWithLifetime(lifetime, mountPointDir)
+		unit := mountUnitPathWithLifetime(lifetime, mountPointDir, "")
 		if osutil.FileExists(unit) {
 			return unit
 		}
@@ -1414,7 +1420,8 @@ const snapMountUnitTmpl = `[Unit]
 Description={{.Description}}
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target{{if isBeforeDrivers .MountUnitType}}
-Before=systemd-udevd.service systemd-modules-load.service{{end}}
+Before=systemd-udevd.service systemd-modules-load.service
+Before=usr-lib-modules.mount usr-lib-firmware.mount{{end}}
 
 [Mount]
 What={{.What}}
@@ -1443,25 +1450,26 @@ const (
 	snappyOriginModule = "X-SnapdOrigin"
 )
 
-func ensureMountUnitFile(u *MountUnitOptions) (mountUnitName string, modified mountUpdateStatus, err error) {
+// EnsureMountUnitFileContent creates a mount unit file.
+func EnsureMountUnitFileContent(u *MountUnitOptions) (mountUnitName string, modified MountUpdateStatus, err error) {
 	if u == nil {
-		return "", mountUnchanged, errors.New("ensureMountUnitFile() expects valid mount options")
+		return "", MountUnchanged, errors.New("ensureMountUnitFile() expects valid mount options")
 	}
 
-	mu := MountUnitPathWithLifetime(u.Lifetime, u.Where)
+	mu := mountUnitPathWithLifetime(u.Lifetime, u.Where, u.RootDir)
 	var unitContent bytes.Buffer
 	if err := parsedMountUnitTmpl.Execute(&unitContent, &u); err != nil {
-		return "", mountUnchanged, fmt.Errorf("cannot generate mount unit: %v", err)
+		return "", MountUnchanged, fmt.Errorf("cannot generate mount unit: %v", err)
 	}
 
 	if osutil.FileExists(mu) {
-		modified = mountUpdated
+		modified = MountUpdated
 	} else {
-		modified = mountCreated
+		modified = MountCreated
 	}
 
 	if err := os.MkdirAll(filepath.Dir(mu), 0755); err != nil {
-		return "", mountUnchanged, fmt.Errorf("cannot create directory %s: %v", filepath.Dir(mu), err)
+		return "", MountUnchanged, fmt.Errorf("cannot create directory %s: %v", filepath.Dir(mu), err)
 	}
 
 	stateErr := osutil.EnsureFileState(mu, &osutil.MemoryFileState{
@@ -1470,9 +1478,9 @@ func ensureMountUnitFile(u *MountUnitOptions) (mountUnitName string, modified mo
 	})
 
 	if stateErr == osutil.ErrSameState {
-		modified = mountUnchanged
+		modified = MountUnchanged
 	} else if stateErr != nil {
-		return "", mountUnchanged, stateErr
+		return "", MountUnchanged, stateErr
 	}
 
 	return filepath.Base(mu), modified, nil
@@ -1490,10 +1498,10 @@ func fsMountOptions(fstype string) []string {
 	return options
 }
 
-// hostFsTypeAndMountOptions returns filesystem type and options to actually
+// HostFsTypeAndMountOptions returns filesystem type and options to actually
 // mount the given fstype at runtime, i.e. it determines if fuse should be used
 // for squashfs.
-func hostFsTypeAndMountOptions(fstype string) (hostFsType string, options []string) {
+func HostFsTypeAndMountOptions(fstype string) (hostFsType string, options []string) {
 	options = fsMountOptions(fstype)
 	hostFsType = fstype
 	if fstype == "squashfs" {
@@ -1505,7 +1513,7 @@ func hostFsTypeAndMountOptions(fstype string) (hostFsType string, options []stri
 }
 
 func (s *systemd) EnsureMountUnitFile(description, what, where, fstype string, flags EnsureMountUnitFlags) (string, error) {
-	hostFsType, options := hostFsTypeAndMountOptions(fstype)
+	hostFsType, options := HostFsTypeAndMountOptions(fstype)
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
 		hostFsType = "none"
@@ -1529,11 +1537,11 @@ func (s *systemd) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) 
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	mountUnitName, modified, err := ensureMountUnitFile(unitOptions)
+	mountUnitName, modified, err := EnsureMountUnitFileContent(unitOptions)
 	if err != nil {
 		return "", err
 	}
-	if modified != mountUnchanged {
+	if modified != MountUnchanged {
 		// we need to do a daemon-reload here to ensure that systemd really
 		// knows about this new mount unit file
 		if err := s.daemonReloadNoLock(); err != nil {
@@ -1546,7 +1554,7 @@ func (s *systemd) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) 
 		}
 
 		// If just modified, some times it is not convenient to restart
-		if modified != mountUpdated || !unitOptions.PreventRestartIfModified {
+		if modified != MountUpdated || !unitOptions.PreventRestartIfModified {
 			// Start/restart the created or modified unit now
 			if err := s.RestartNoWaitForStop(units); err != nil {
 				return "", err

@@ -34,6 +34,9 @@ const (
 	TypeKernel Type = "kernel"
 	TypeBase   Type = "base"
 	TypeSnapd  Type = "snapd"
+	// This is used internally so we can install the boot base for
+	// a system before the kernel.
+	InternalTypeBootBase Type = "internal-boot-base"
 
 	// FIXME: this really should be TypeCore
 	TypeOS Type = "os"
@@ -43,12 +46,13 @@ const (
 // types. On e.g. firstboot this will be used to order the snaps this
 // way.
 var typeOrder = map[Type]int{
-	TypeApp:    50,
-	TypeGadget: 40,
-	TypeBase:   30,
-	TypeKernel: 20,
-	TypeOS:     10,
-	TypeSnapd:  0,
+	TypeApp:              50,
+	TypeGadget:           40,
+	TypeBase:             30,
+	TypeKernel:           20,
+	InternalTypeBootBase: 11,
+	TypeOS:               10,
+	TypeSnapd:            0,
 }
 
 func (m Type) SortsBefore(other Type) bool {
@@ -145,6 +149,15 @@ const (
 	StopReasonOther   ServiceStopReason = ""
 )
 
+// TODO: merge ServiceStopReason, AppKillReason and removeAliasesReason
+type AppKillReason string
+
+const (
+	KillReasonRemove      AppKillReason = "remove"
+	KillReasonForceRemove AppKillReason = "force-remove"
+	KillReasonOther       AppKillReason = ""
+)
+
 // DaemonScope represents the scope of the daemon running under systemd
 type DaemonScope string
 
@@ -188,12 +201,15 @@ type ComponentType string
 
 const (
 	// TestComponent is just for testing purposes.
+	// TO BE DEPRECATED, please do not use in tests
 	TestComponent ComponentType = "test"
+	// StandardComponent is for vanilla components with no special behavior.
+	StandardComponent ComponentType = "standard"
 	// KernelModulesComponent is for components containing modules/firmware
 	KernelModulesComponent ComponentType = "kernel-modules"
 )
 
-var validComponentTypes = [...]ComponentType{TestComponent, KernelModulesComponent}
+var validComponentTypes = [...]ComponentType{TestComponent, StandardComponent, KernelModulesComponent}
 
 // ComponentTypeFromString converts a string to a ComponentType. An error is
 // returned if the string is not a valid ComponentType.

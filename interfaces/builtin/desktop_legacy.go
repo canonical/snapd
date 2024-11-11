@@ -20,8 +20,6 @@
 package builtin
 
 import (
-	"strings"
-
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 )
@@ -158,6 +156,11 @@ unix (connect, receive, send)
      type=stream
      peer=(addr="@tmp/.mozc.*"),
 
+# gcin
+# allow communicating with gcin server
+unix (connect, receive, send)
+     type=stream
+     peer=(addr="@tmp/gcin-*/socket*"),
 
 # fcitx
 # allow communicating with fcitx dbus service
@@ -390,7 +393,10 @@ func (iface *desktopLegacyInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	// interfaces (like desktop-launch), so they are added here with the minimum
 	// priority, while those other, more privileged, interfaces will add an empty
 	// string with a bigger privilege value.
-	desktopSnippet := strings.Join(getDesktopFileRules(plug.Snap().DesktopPrefix()), "\n")
+	desktopSnippet, err := getDesktopFileRules(plug.Snap())
+	if err != nil {
+		return err
+	}
 	spec.AddPrioritizedSnippet(desktopSnippet, prioritizedSnippetDesktopFileAccess, desktopLegacyAndUnity7Priority)
 
 	return nil

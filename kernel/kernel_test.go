@@ -20,13 +20,16 @@
 package kernel_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/kernel"
+	"github.com/snapcore/snapd/snap"
 )
 
 func makeMockKernel(c *C, kernelYaml string, filesWithContent map[string]string) string {
@@ -135,4 +138,25 @@ func (s *kernelYamlTestSuite) TestReadKernelYamlHappy(c *C) {
 			},
 		},
 	})
+}
+
+func (s *kernelYamlTestSuite) TestDynamicModulesValues(c *C) {
+	const kernelYaml = "dynamic-modules: %s\n"
+
+	for _, val := range []string{"", "$SNAP_DATA", "${SNAP_DATA}"} {
+		ki, err := kernel.InfoFromKernelYaml([]byte(fmt.Sprintf(kernelYaml, val)))
+		c.Check(err, IsNil)
+		c.Check(ki, DeepEquals, &kernel.Info{DynamicModules: val})
+		dynDir := ""
+		if val != "" {
+			dynDir = filepath.Join(dirs.SnapDataDir, "mykernel/33")
+		}
+		c.Check(ki.DynamicModulesDir("mykernel", snap.R(33)), Equals, dynDir)
+	}
+
+	for _, val := range []string{"$SNAP_COMMON", "foo", "-xx-"} {
+		ki, err := kernel.InfoFromKernelYaml([]byte(fmt.Sprintf(kernelYaml, val)))
+		c.Check(ki, IsNil)
+		c.Check(err, ErrorMatches, fmt.Sprintf(`invalid value for dynamic-modules: .* \(only valid value is \$SNAP_DATA at the moment\)`))
+	}
 }

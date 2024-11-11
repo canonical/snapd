@@ -20,10 +20,10 @@
 package portal
 
 import (
-	"os/user"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil/user"
 )
 
 const (

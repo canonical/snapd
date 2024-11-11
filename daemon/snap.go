@@ -256,6 +256,7 @@ func mapLocal(about aboutSnap, sd clientutil.StatusDecorator) *client.Snap {
 	result.DevMode = snapst.DevMode
 	result.TryMode = snapst.TryMode
 	result.JailMode = snapst.JailMode
+	result.RefreshFailures = snapst.RefreshFailures
 	result.MountedFrom = localSnap.MountFile()
 	if result.TryMode {
 		// Readlink instead of EvalSymlinks because it's only expected
@@ -310,7 +311,7 @@ func fillComponentInfo(about aboutSnap) []client.Component {
 		comps = append(comps, client.Component{
 			Name:          comp.Component.ComponentName,
 			Type:          comp.Type,
-			Version:       comp.Version,
+			Version:       comp.Version(about.info.Version),
 			Summary:       comp.Summary,
 			Description:   comp.Description,
 			Revision:      csi.Revision,

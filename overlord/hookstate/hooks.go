@@ -35,6 +35,9 @@ import (
 func init() {
 	snapstate.SetupInstallHook = SetupInstallHook
 	snapstate.SetupInstallComponentHook = SetupInstallComponentHook
+	snapstate.SetupPreRefreshComponentHook = SetupPreRefreshComponentHook
+	snapstate.SetupPostRefreshComponentHook = SetupPostRefreshComponentHook
+	snapstate.SetupRemoveComponentHook = SetupRemoveComponentHook
 	snapstate.SetupPreRefreshHook = SetupPreRefreshHook
 	snapstate.SetupPostRefreshHook = SetupPostRefreshHook
 	snapstate.SetupRemoveHook = SetupRemoveHook
@@ -63,6 +66,49 @@ func SetupInstallComponentHook(st *state.State, snap, component string) *state.T
 	}
 
 	summary := fmt.Sprintf(i18n.G(`Run install hook of "%s+%s" component if present`), hooksup.Snap, hooksup.Component)
+	task := HookTask(st, summary, hooksup, nil)
+
+	return task
+}
+
+func SetupPreRefreshComponentHook(st *state.State, snap, component string) *state.Task {
+	hooksup := &HookSetup{
+		Snap:      snap,
+		Component: component,
+		Hook:      "pre-refresh",
+		Optional:  true,
+	}
+
+	summary := fmt.Sprintf(i18n.G(`Run pre-refresh hook of "%s+%s" component if present`), hooksup.Snap, hooksup.Component)
+	task := HookTask(st, summary, hooksup, nil)
+
+	return task
+}
+
+func SetupPostRefreshComponentHook(st *state.State, snap, component string) *state.Task {
+	hooksup := &HookSetup{
+		Snap:      snap,
+		Component: component,
+		Hook:      "post-refresh",
+		Optional:  true,
+	}
+
+	summary := fmt.Sprintf(i18n.G(`Run post-refresh hook of "%s+%s" component if present`), hooksup.Snap, hooksup.Component)
+	task := HookTask(st, summary, hooksup, nil)
+
+	return task
+}
+
+func SetupRemoveComponentHook(st *state.State, snap, component string) *state.Task {
+	hooksup := &HookSetup{
+		Snap:        snap,
+		Component:   component,
+		Hook:        "remove",
+		Optional:    true,
+		IgnoreError: true,
+	}
+
+	summary := fmt.Sprintf(i18n.G(`Run remove hook of "%s+%s" component if present`), hooksup.Snap, hooksup.Component)
 	task := HookTask(st, summary, hooksup, nil)
 
 	return task
@@ -303,20 +349,11 @@ func SetupGateAutoRefreshHook(st *state.State, snapName string) *state.Task {
 	return task
 }
 
-type snapHookHandler struct {
-}
+type SnapHookHandler struct{}
 
-func (h *snapHookHandler) Before() error {
-	return nil
-}
-
-func (h *snapHookHandler) Done() error {
-	return nil
-}
-
-func (h *snapHookHandler) Error(err error) (bool, error) {
-	return false, nil
-}
+func (h *SnapHookHandler) Before() error                 { return nil }
+func (h *SnapHookHandler) Done() error                   { return nil }
+func (h *SnapHookHandler) Error(err error) (bool, error) { return false, nil }
 
 func SetupRemoveHook(st *state.State, snapName string) *state.Task {
 	hooksup := &HookSetup{
@@ -334,7 +371,7 @@ func SetupRemoveHook(st *state.State, snapName string) *state.Task {
 
 func setupHooks(hookMgr *HookManager) {
 	handlerGenerator := func(context *Context) Handler {
-		return &snapHookHandler{}
+		return &SnapHookHandler{}
 	}
 	gateAutoRefreshHandlerGenerator := func(context *Context) Handler {
 		return NewGateAutoRefreshHookHandler(context)

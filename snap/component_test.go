@@ -53,7 +53,7 @@ func (s *componentSuite) TearDownTest(c *C) {
 
 func (s *componentSuite) TestReadComponentInfoFromFile(c *C) {
 	const componentYaml = `component: mysnap+test-info
-type: test
+type: standard
 version: 1.0
 summary: short description
 description: long description
@@ -69,7 +69,7 @@ provenance: prov
 	c.Assert(err, IsNil)
 	c.Assert(ci, DeepEquals, snap.NewComponentInfo(
 		naming.NewComponentRef("mysnap", "test-info"),
-		snap.ComponentType("test"),
+		snap.ComponentType("standard"),
 		"1.0",
 		"short description",
 		"long description",
@@ -88,7 +88,29 @@ provenance: prov
 
 func (s *componentSuite) TestReadComponentInfoMinimal(c *C) {
 	const componentYaml = `component: mysnap+test-info
-type: test
+type: standard
+`
+	compName := "mysnap+test-info"
+	testComp := snaptest.MakeTestComponentWithFiles(c, compName+".comp", componentYaml, nil)
+
+	compf, err := snapfile.Open(testComp)
+	c.Assert(err, IsNil)
+
+	ci, err := snap.ReadComponentInfoFromContainer(compf, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(ci, DeepEquals, snap.NewComponentInfo(
+		naming.NewComponentRef("mysnap", "test-info"),
+		snap.ComponentType("standard"),
+		"", "", "", "", nil,
+	))
+	c.Assert(ci.FullName(), Equals, compName)
+	c.Check(ci.Version("2.0"), Equals, "2.0")
+	c.Assert(ci.Provenance(), Equals, naming.DefaultProvenance)
+}
+
+func (s *componentSuite) TestReadComponentInfoWithVersion(c *C) {
+	const componentYaml = `component: mysnap+test-info
+type: standard
 version: 1.0.2
 `
 	compName := "mysnap+test-info"
@@ -101,17 +123,18 @@ version: 1.0.2
 	c.Assert(err, IsNil)
 	c.Assert(ci, DeepEquals, snap.NewComponentInfo(
 		naming.NewComponentRef("mysnap", "test-info"),
-		snap.ComponentType("test"),
+		snap.ComponentType("standard"),
 		"1.0.2",
 		"", "", "", nil,
 	))
 	c.Assert(ci.FullName(), Equals, compName)
+	c.Check(ci.Version("2.0"), Equals, "1.0.2")
 	c.Assert(ci.Provenance(), Equals, naming.DefaultProvenance)
 }
 
 func (s *componentSuite) TestReadComponentInfoFromFileBadName(c *C) {
 	const componentYaml = `component: mysnap-test-info
-type: test
+type: standard
 version: 1.0
 summary: short description
 description: long description
@@ -128,7 +151,7 @@ description: long description
 
 func (s *componentSuite) TestReadComponentUnexpectedField(c *C) {
 	const componentYaml = `component: mysnap+extra
-type: test
+type: standard
 version: 1.0
 foo: bar
 `
@@ -144,7 +167,7 @@ foo: bar
 
 func (s *componentSuite) TestReadComponentEmptyNames(c *C) {
 	const componentYamlTmpl = `component: %s
-type: test
+type: standard
 version: 1.0
 `
 
@@ -199,7 +222,7 @@ version: 1.0
 
 func (s *componentSuite) TestReadComponentBadProvenance(c *C) {
 	const componentYaml = `component: mysnap+extra
-type: test
+type: standard
 version: 1.0
 provenance: invalid-prov-
 `
@@ -214,7 +237,7 @@ provenance: invalid-prov-
 
 func (s *componentSuite) TestReadComponentVersion(c *C) {
 	const componentYamlTmpl = `component: snap+comp
-type: test
+type: standard
 version: %s
 `
 
@@ -241,14 +264,14 @@ version: %s
 			c.Check(ci, IsNil)
 		} else {
 			c.Check(err, IsNil)
-			c.Check(ci.Version, Equals, tc.version)
+			c.Check(ci.Version(""), Equals, tc.version)
 		}
 	}
 }
 
 func (s *componentSuite) TestReadComponentBadName(c *C) {
 	const componentYamlTmpl = `component: %s
-type: test
+type: standard
 version: 1.0
 `
 
@@ -272,7 +295,7 @@ version: 1.0
 
 func (s *componentSuite) TestReadComponentTooLongSummary(c *C) {
 	const componentYamlTmpl = `component: snap+comp
-type: test
+type: standard
 version: 2s.0b
 summary: %s
 description: 👹👺👻👽👾🤖
@@ -291,7 +314,7 @@ description: 👹👺👻👽👾🤖
 
 func (s *componentSuite) TestReadComponentTooLongDescription(c *C) {
 	const componentYamlTmpl = `component: snap+comp
-type: test
+type: standard
 version: 2s.0b
 description: %s
 `
@@ -340,6 +363,11 @@ func (s *componentSuite) TestComponentSideInfoEqual(c *C) {
 }
 
 func (s *componentSuite) TestReadComponentInfoFinishedWithSnapInfoAndComponentSideInfo(c *C) {
+	s.testReadComponentInfoFinishedWithSnapInfoAndComponentSideInfo(c, snap.TestComponent)
+	s.testReadComponentInfoFinishedWithSnapInfoAndComponentSideInfo(c, snap.StandardComponent)
+}
+
+func (s *componentSuite) testReadComponentInfoFinishedWithSnapInfoAndComponentSideInfo(c *C, ctype snap.ComponentType) {
 	restore := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {
 		// remove the "*-bad" interfaces, this helps us test that sanitized plugs
 		// do not end up in the plugs for any hooks in a ComponentInfo
@@ -354,12 +382,12 @@ func (s *componentSuite) TestReadComponentInfoFinishedWithSnapInfoAndComponentSi
 	})
 	defer restore()
 
-	const componentYaml = `component: snap+component
-type: test
+	componentYaml := fmt.Sprintf(`component: snap+component
+type: %s
 version: 1.0
 summary: short description
 description: long description
-`
+`, ctype)
 	const compName = "snap+component"
 	testComp := snaptest.MakeTestComponentWithFiles(c, compName+".comp", componentYaml, [][]string{
 		{"meta/hooks/install", "echo 'explicit hook'"},
@@ -369,11 +397,11 @@ description: long description
 	compf, err := snapfile.Open(testComp)
 	c.Assert(err, IsNil)
 
-	const snapYaml = `
+	snapYaml := fmt.Sprintf(`
 name: snap
 components:
   component:
-    type: test
+    type: %s
     hooks:
       install:
         plugs: [network, implicit-bad]
@@ -381,7 +409,7 @@ components:
 plugs:
   network-client:
   explicit-bad:
-`
+`, ctype)
 
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
@@ -394,8 +422,8 @@ plugs:
 
 	c.Check(ci.Component.ComponentName, Equals, "component")
 	c.Check(ci.Component.SnapName, Equals, "snap")
-	c.Check(ci.Type, Equals, snap.TestComponent)
-	c.Check(ci.Version, Equals, "1.0")
+	c.Check(ci.Type, Equals, ctype)
+	c.Check(ci.Version(""), Equals, "1.0")
 	c.Check(ci.Summary, Equals, "short description")
 	c.Check(ci.Description, Equals, "long description")
 	c.Check(ci.FullName(), Equals, compName)
@@ -433,9 +461,71 @@ plugs:
 	c.Check(removeHook.Plugs["network-client"], NotNil)
 }
 
+func (s *componentSuite) TestReadComponentInfoAllImplicitHooks(c *C) {
+	const componentYaml = `component: snap+component
+type: standard
+version: 1.0
+summary: short description
+description: long description
+`
+	const compName = "snap+component"
+	testComp := snaptest.MakeTestComponentWithFiles(c, compName+".comp", componentYaml, [][]string{
+		{"meta/hooks/install", "echo 'implicit hook'"},
+		{"meta/hooks/pre-refresh", "echo 'implicit hook'"},
+	})
+
+	compf, err := snapfile.Open(testComp)
+	c.Assert(err, IsNil)
+
+	const snapYaml = `
+name: snap
+components:
+  component:
+    type: standard
+plugs:
+  network-client:
+`
+
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	c.Assert(err, IsNil)
+
+	ci, err := snap.ReadComponentInfoFromContainer(compf, snapInfo, &snap.ComponentSideInfo{
+		Component: naming.NewComponentRef("snap", "component"),
+		Revision:  snap.R(1),
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(ci.Component.ComponentName, Equals, "component")
+	c.Check(ci.Component.SnapName, Equals, "snap")
+	c.Check(ci.Type, Equals, snap.StandardComponent)
+	c.Check(ci.Version(""), Equals, "1.0")
+	c.Check(ci.Summary, Equals, "short description")
+	c.Check(ci.Description, Equals, "long description")
+	c.Check(ci.FullName(), Equals, compName)
+	c.Check(ci.ComponentSideInfo.Component.ComponentName, Equals, "component")
+	c.Check(ci.ComponentSideInfo.Component.SnapName, Equals, "snap")
+	c.Check(ci.Revision, Equals, snap.R(1))
+
+	c.Check(ci.Hooks, HasLen, 2)
+
+	installHook := ci.Hooks["install"]
+	c.Assert(installHook, NotNil)
+	c.Check(installHook.Name, Equals, "install")
+	c.Check(installHook.Explicit, Equals, false)
+	c.Check(installHook.Plugs, HasLen, 1)
+	c.Check(installHook.Plugs["network-client"], NotNil)
+
+	preRefreshHook := ci.Hooks["pre-refresh"]
+	c.Assert(preRefreshHook, NotNil)
+	c.Check(preRefreshHook.Name, Equals, "pre-refresh")
+	c.Check(preRefreshHook.Explicit, Equals, false)
+	c.Check(preRefreshHook.Plugs, HasLen, 1)
+	c.Check(preRefreshHook.Plugs["network-client"], NotNil)
+}
+
 func (s *componentSuite) TestReadComponentInfoFinishedWithSnapInfoMissingComponentError(c *C) {
 	const componentYaml = `component: snap+component
-type: test
+type: standard
 version: 1.0
 summary: short description
 description: long description
@@ -450,7 +540,7 @@ description: long description
 name: snap
 components:
   other-component:
-    type: test
+    type: standard
 `
 
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
@@ -462,7 +552,7 @@ components:
 
 func (s *componentSuite) TestReadComponentInfoFinishedWithDifferentSnapInfoError(c *C) {
 	const componentYaml = `component: snap+component
-type: test
+type: standard
 version: 1.0
 summary: short description
 description: long description
@@ -477,7 +567,7 @@ description: long description
 name: other-snap
 components:
   component:
-    type: test
+    type: standard
 `
 
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
@@ -489,7 +579,7 @@ components:
 
 func (s *componentSuite) TestReadComponentInfoInconsistentTypes(c *C) {
 	const componentYaml = `component: snap+component
-type: test
+type: kernel-modules
 version: 1.0
 summary: short description
 description: long description
@@ -504,14 +594,27 @@ description: long description
 name: snap
 components:
   component:
-    type: kernel-modules
+    type: standard
 `
 
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadComponentInfoFromContainer(compf, snapInfo, nil)
-	c.Assert(err, ErrorMatches, `inconsistent component type \("kernel-modules" in snap, "test" in component\)`)
+	c.Assert(err, ErrorMatches, `inconsistent component type \("standard" in snap, "kernel-modules" in component\)`)
+}
+
+func (s *componentSuite) TestReadComponentInfoKernelModulesInNonKernelSnap(c *C) {
+	const snapYaml = `
+name: snap
+components:
+  component:
+    type: kernel-modules
+`
+
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	c.Assert(snapInfo, IsNil)
+	c.Assert(err, ErrorMatches, "kernel-modules components can exist only for kernel snaps")
 }
 
 func (s *componentSuite) TestHooksForPlug(c *C) {
@@ -524,7 +627,7 @@ apps:
    plugs: [app-plug]
 components:
   comp:
-    type: test
+    type: standard
     hooks:
       install:
         plugs: [scoped-plug]
@@ -535,7 +638,7 @@ plugs:
 `
 	const componentYaml = `
 component: snap+comp
-type: test
+type: standard
 version: 1
 `
 

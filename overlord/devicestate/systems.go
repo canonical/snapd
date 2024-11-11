@@ -96,12 +96,27 @@ func loadSeedAndSystem(label string, current *currentSystem, defaultRecoverySyst
 		return nil, nil, fmt.Errorf("cannot obtain brand: %v", err)
 	}
 
+	var optionalContainers OptionalContainers
+	if copier, ok := s.(seed.Copier); ok {
+		oc, err := copier.OptionalContainers()
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot list optional containers: %v", err)
+		}
+		optionalContainers = OptionalContainers{
+			Snaps:      oc.Snaps,
+			Components: oc.Components,
+		}
+	} else {
+		logger.Debugf("seed %q does not support copying", label)
+	}
+
 	system := &System{
-		Current: false,
-		Label:   label,
-		Model:   model,
-		Brand:   brand,
-		Actions: defaultSystemActions,
+		Current:            false,
+		Label:              label,
+		Model:              model,
+		Brand:              brand,
+		Actions:            defaultSystemActions,
+		OptionalContainers: optionalContainers,
 	}
 	system.DefaultRecoverySystem = defaultRecoverySystem.sameAs(system)
 	if current.sameAs(system) {
@@ -293,7 +308,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 			return "", err
 		}
 	}
-	if err := w.SetOptionsSnaps(optsSnaps, nil); err != nil {
+	if err := w.SetOptionsSnaps(optsSnaps); err != nil {
 		return "", err
 	}
 
@@ -322,6 +337,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 	}
 	// past this point the system directory is present
 
+	// TODO:COMPS: take into account local components
 	localSnaps, err := w.LocalSnaps()
 	if err != nil {
 		return recoverySystemDir, err
@@ -348,7 +364,8 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 				return recoverySystemDir, fmt.Errorf("internal error: no assertions for asserted snap with ID: %v", info.SnapID)
 			}
 		}
-		if err := w.SetInfo(sn, info); err != nil {
+		// TODO:COMPS: consider components
+		if err := w.SetInfo(sn, info, nil); err != nil {
 			return recoverySystemDir, err
 		}
 		localARefs[sn] = aRefs

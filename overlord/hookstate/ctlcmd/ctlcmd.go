@@ -62,8 +62,12 @@ func (c *baseCommand) setStdout(w io.Writer) {
 }
 
 func (c *baseCommand) printf(format string, a ...interface{}) {
+	c.print(fmt.Sprintf(format, a...))
+}
+
+func (c *baseCommand) print(msg string) {
 	if c.stdout != nil {
-		fmt.Fprintf(c.stdout, format, a...)
+		fmt.Fprint(c.stdout, msg)
 	}
 }
 
@@ -71,9 +75,9 @@ func (c *baseCommand) setStderr(w io.Writer) {
 	c.stderr = w
 }
 
-func (c *baseCommand) errorf(format string, a ...interface{}) {
+func (c *baseCommand) error(msg string) {
 	if c.stderr != nil {
-		fmt.Fprintf(c.stderr, format, a...)
+		fmt.Fprint(c.stderr, msg)
 	}
 }
 

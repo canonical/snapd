@@ -92,7 +92,7 @@ func (s *rosOptDataInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, testutil.Contains, `Allows read-only access`)
+	c.Assert(si.Summary, testutil.Contains, `allows read-only access`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "ros-opt-data")
 }
 

@@ -1,0 +1,62 @@
+summary: Ensure that the desktop-file-ids desktop interface attribute works
+
+details: |
+    Check that when the desktop-file-ids desktop interface attribute
+    is set, the names of the desktop files matching the ids are not
+    mangled (with the snap's desktop prefix).
+
+# Disabled on Ubuntu Core because it doesn't provide the "desktop" slot.
+# TODO: Enable for Ubuntu Core Desktop when it is available.
+systems:
+    - -ubuntu-core-*
+
+environment:
+    DIR: /var/lib/snapd/desktop/applications
+
+prepare: |
+    cat > "$TESTSLIB"/snaps/test-snapd-desktop-file-ids/meta/gui/'bad. ,?**[]{}^\$#.desktop' << EOF
+    [Desktop Entry]
+    Name=test-snapd-desktop.cmd
+    Comment=A desktop file for test-snapd-desktop.cmd
+    Exec=test-snapd-desktop.cmd
+    Terminal=true
+    Type=Application
+    EOF
+
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop-file-ids
+    touch "$DIR/test-confinement.desktop"
+    tests.session -u test prepare
+
+restore: |
+    rm -f "$DIR/test-confinement.desktop"
+    tests.session -u test restore
+
+execute: |
+    files="$DIR/org.example.desktop $DIR/test-snapd-desktop-file-ids_foo.desktop $DIR/test-snapd-desktop-file-ids_org.example.Foo.desktop $DIR/test-snapd-desktop-file-ids_bad._____________.desktop"
+
+    # Connect desktop-legacy interface to test generated desktop allow/deny rules
+    # only allows access to the snap's desktop files
+    snap connect test-snapd-desktop-file-ids:desktop-legacy
+
+    # Check that desktop files are installed with expected names and implicitly check
+    # that for confined systems the snap can access its own desktop files when
+    # desktop-legacy interface plug is connected
+    echo "Check that desktop files are installed as expected"
+    # shellcheck disable=SC2086
+    tests.session -u test exec test-snapd-desktop-file-ids.check-dirs $DIR
+    # shellcheck disable=SC2086
+    tests.session -u test exec test-snapd-desktop-file-ids.check-files $files
+    if [ "$(snap debug confinement)" == strict ]; then
+        # Check that snap cannot access other desktop files
+        not tests.session -u test exec test-snapd-desktop-file-ids.check-files "$DIR/test-confinement.desktop"
+    fi
+
+    snap remove --purge test-snapd-desktop-file-ids
+    echo "Check desktop files are removed"
+    for file in $files; do
+        not test -f "$file"
+    done
+    echo "But not other snaps' desktop files"
+    test -f "$DIR/test-confinement.desktop"
+
+    # TODO: Add check for parallel installs

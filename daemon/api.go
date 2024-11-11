@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2022 Canonical Ltd
+ * Copyright (C) 2015-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -85,6 +85,10 @@ var api = []*Command{
 	registryCmd,
 	noticesCmd,
 	noticeCmd,
+	requestsPromptsCmd,
+	requestsPromptCmd,
+	requestsRulesCmd,
+	requestsRuleCmd,
 }
 
 const (
@@ -138,15 +142,17 @@ func storeFrom(d *Daemon) snapstate.StoreService {
 }
 
 var (
-	snapstateInstall                        = snapstate.Install
+	snapstateStoreInstallGoal               = snapstate.StoreInstallGoal
+	snapstateInstallWithGoal                = snapstate.InstallWithGoal
 	snapstateInstallPath                    = snapstate.InstallPath
 	snapstateInstallPathMany                = snapstate.InstallPathMany
 	snapstateInstallComponentPath           = snapstate.InstallComponentPath
+	snapstateInstallComponents              = snapstate.InstallComponents
 	snapstateRefreshCandidates              = snapstate.RefreshCandidates
 	snapstateTryPath                        = snapstate.TryPath
 	snapstateUpdate                         = snapstate.Update
 	snapstateUpdateMany                     = snapstate.UpdateMany
-	snapstateInstallMany                    = snapstate.InstallMany
+	snapstateRemove                         = snapstate.Remove
 	snapstateRemoveMany                     = snapstate.RemoveMany
 	snapstateResolveValSetsEnforcementError = snapstate.ResolveValidationSetsEnforcementError
 	snapstateRevert                         = snapstate.Revert
@@ -163,8 +169,10 @@ var (
 	assertstateRefreshSnapAssertions         = assertstate.RefreshSnapAssertions
 	assertstateRestoreValidationSetsTracking = assertstate.RestoreValidationSetsTracking
 
-	registrystateGetViaView = registrystate.GetViaView
-	registrystateSetViaView = registrystate.SetViaView
+	registrystateGetView        = registrystate.GetView
+	registrystateGetTransaction = registrystate.GetTransactionToModify
+	registrystateGet            = registrystate.Get
+	registrystateSetViaView     = registrystate.SetViaView
 )
 
 func ensureStateSoonImpl(st *state.State) {

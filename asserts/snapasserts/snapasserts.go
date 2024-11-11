@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2022-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 )
 
@@ -137,7 +138,7 @@ func CrossCheck(instanceName, snapSHA3_384, provenance string, snapSize uint64, 
 // provenance, and metadata of a snap resource with the relevant assertions
 // (snap-resource-revision and snap-resource-pair) in a database that should be
 // pre-populated with them.
-func CrossCheckResource(name, hash, provenance string, size uint64, csi *snap.ComponentSideInfo, si *snap.SideInfo, model *asserts.Model, db Finder) error {
+func CrossCheckResource(name, hash, provenance string, size uint64, csi *snap.ComponentSideInfo, si *snap.SideInfo, model *asserts.Model, db Finder) (*asserts.SnapResourceRevision, error) {
 	headers := map[string]string{
 		"resource-sha3-384": hash,
 		"resource-name":     name,
@@ -153,20 +154,20 @@ func CrossCheckResource(name, hash, provenance string, size uint64, csi *snap.Co
 		if provenance != "" {
 			provInf = fmt.Sprintf(" provenance: %s", provenance)
 		}
-		return fmt.Errorf("internal error: cannot find pre-populated snap-resource-revision assertion for %q: %s%s", name, hash, provInf)
+		return nil, fmt.Errorf("internal error: cannot find pre-populated snap-resource-revision assertion for %q: %s%s", name, hash, provInf)
 	}
 
 	resrev := a.(*asserts.SnapResourceRevision)
 
 	if resrev.ResourceSize() != size {
-		return fmt.Errorf(
+		return nil, fmt.Errorf(
 			"resource %q file does not have expected size according to signatures (download is broken or tampered): %d != %d",
 			name, size, resrev.ResourceSize(),
 		)
 	}
 
 	if resrev.ResourceRevision() != csi.Revision.N {
-		return fmt.Errorf(
+		return nil, fmt.Errorf(
 			"resource %q does not have expected revision according to assertions (metadata is broken or tampered): %s != %d",
 			name, csi.Revision, resrev.ResourceRevision(),
 		)
@@ -177,21 +178,21 @@ func CrossCheckResource(name, hash, provenance string, size uint64, csi *snap.Co
 	// it exists
 	_, err = findResourcePair(name, si.SnapID, csi.Revision.N, si.Revision.N, provenance, db)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if provenance != "" {
 		snapDecl, err := findSnapDeclaration(si.SnapID, si.RealName, db)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		if err := crossCheckResourceProvenance(resrev, snapDecl, model, db); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return nil
+	return resrev, nil
 }
 
 // crossCheckResourceProvenance tries to cross check the given
@@ -290,6 +291,27 @@ func CheckProvenanceWithVerifiedRevision(snapPath string, verifiedRev *asserts.S
 	return nil
 }
 
+// CheckComponentProvenanceWithVerifiedRevision checks that the given component
+// has the same provenance as of the provided resource-revision. It is intended
+// to be called safely on components for which a matching and authorized
+// resource-revision has been already found. Its purpose is to check that a
+// blob has not been re-signed under an inappropriate provenance.
+func CheckComponentProvenanceWithVerifiedRevision(compPath string, verifiedRev *asserts.SnapResourceRevision) error {
+
+	compf, err := snapfile.Open(compPath)
+	if err != nil {
+		return err
+	}
+	ci, err := snap.ReadComponentInfoFromContainer(compf, nil, nil)
+	if err != nil {
+		return err
+	}
+	if verifiedRev.Provenance() != ci.Provenance() {
+		return fmt.Errorf("component %q has been signed under provenance %q different from the metadata one: %q", compPath, verifiedRev.Provenance(), ci.Provenance())
+	}
+	return nil
+}
+
 // DeriveSideInfo tries to construct a SideInfo for the given snap
 // using its digest to find the relevant snap assertions with the
 // information in the given database. It will fail with an
@@ -365,6 +387,58 @@ func SideInfoFromSnapAssertions(snapDecl *asserts.SnapDeclaration, snapRev *asse
 	}
 }
 
+// DeriveComponentSideInfoFromDigestAndSize tries to construct a
+// ComponentSideInfo using digest and size for a component and ID/name for the
+// snap to find the relevant assertions with the information in the given
+// database. It will fail with an asserts.NotFoundError if it cannot find them.
+func DeriveComponentSideInfoFromDigestAndSize(resName, snapName, snapID string, compPath, snapSHA3_384 string, resSize uint64, model *asserts.Model, db Finder) (*snap.ComponentSideInfo, error) {
+	// get relevant assertions and reconstruct metadata
+	headers := map[string]string{
+		"snap-id":           snapID,
+		"resource-name":     resName,
+		"resource-sha3-384": snapSHA3_384,
+	}
+	a, err := db.Find(asserts.SnapResourceRevisionType, headers)
+	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
+		return nil, err
+	}
+	if a == nil {
+		// non-default provenance?
+		cands, err := db.FindMany(asserts.SnapResourceRevisionType, headers)
+		if err != nil {
+			return nil, err
+		}
+		if len(cands) != 1 {
+			return nil, fmt.Errorf("safely handling resources with different provenance but same hash not yet supported")
+		}
+		a = cands[0]
+	}
+
+	resRev := a.(*asserts.SnapResourceRevision)
+
+	if resRev.ResourceSize() != resSize {
+		return nil, fmt.Errorf("resource %q does not have the expected size according to signatures (broken or tampered): %d != %d", resName, resSize, resRev.ResourceSize())
+	}
+
+	snapDecl, err := findSnapDeclaration(snapID, snapName, db)
+	if err != nil {
+		return nil, err
+	}
+	err = crossCheckResourceProvenance(resRev, snapDecl, model, db)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := CheckComponentProvenanceWithVerifiedRevision(compPath, resRev); err != nil {
+		return nil, err
+	}
+
+	return &snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, resName),
+		Revision:  snap.R(resRev.ResourceRevision()),
+	}, nil
+}
+
 // FetchSnapAssertions fetches the assertions matching the snap file digest and optional provenance using the given fetcher.
 func FetchSnapAssertions(f asserts.Fetcher, snapSHA3_384, provenance string) error {
 	// for now starting from the snap-revision will get us all other relevant assertions
@@ -379,34 +453,40 @@ func FetchSnapAssertions(f asserts.Fetcher, snapSHA3_384, provenance string) err
 	return f.Fetch(ref)
 }
 
+func FetchResourceRevisionAssertion(f asserts.Fetcher, si *snap.SideInfo, resName, hash, provenance string) error {
+	ref := &asserts.Ref{
+		Type:       asserts.SnapResourceRevisionType,
+		PrimaryKey: []string{si.SnapID, resName, hash},
+	}
+	if provenance != "" {
+		ref.PrimaryKey = append(ref.PrimaryKey, provenance)
+	}
+	return f.Fetch(ref)
+}
+
+func FetchResourcePairAssertion(f asserts.Fetcher, si *snap.SideInfo, resName string, resRev snap.Revision, provenance string) error {
+	ref := &asserts.Ref{
+		Type:       asserts.SnapResourcePairType,
+		PrimaryKey: []string{si.SnapID, resName, resRev.String(), si.Revision.String()},
+	}
+	if provenance != "" {
+		ref.PrimaryKey = append(ref.PrimaryKey, provenance)
+	}
+	return f.Fetch(ref)
+}
+
 // FetchComponentAssertions fetches the assertions matching the information
 // described in the given SideInfo and ComponentSideInfo using the given
 // fetcher.
 func FetchComponentAssertions(f asserts.Fetcher, si *snap.SideInfo, csi *snap.ComponentSideInfo, hash, provenance string) error {
 	// for now starting from the snap-resource-revision will get us all other relevant assertions
-	ref := &asserts.Ref{
-		Type:       asserts.SnapResourceRevisionType,
-		PrimaryKey: []string{si.SnapID, csi.Component.ComponentName, hash},
-	}
-	if provenance != "" {
-		ref.PrimaryKey = append(ref.PrimaryKey, provenance)
-	}
-
-	if err := f.Fetch(ref); err != nil {
+	if err := FetchResourceRevisionAssertion(
+		f, si, csi.Component.ComponentName, hash, provenance); err != nil {
 		return err
 	}
 
 	// fetch the snap-resource-pair as well
-	ref = &asserts.Ref{
-		Type:       asserts.SnapResourcePairType,
-		PrimaryKey: []string{si.SnapID, csi.Component.ComponentName, csi.Revision.String(), si.Revision.String()},
-	}
-
-	if provenance != "" {
-		ref.PrimaryKey = append(ref.PrimaryKey, provenance)
-	}
-
-	return f.Fetch(ref)
+	return FetchResourcePairAssertion(f, si, csi.Component.ComponentName, csi.Revision, provenance)
 }
 
 // FetchSnapDeclaration fetches the snap declaration and its prerequisites for the given snap id using the given fetcher.
@@ -424,6 +504,17 @@ func FetchStore(f asserts.Fetcher, storeID string) error {
 	ref := &asserts.Ref{
 		Type:       asserts.StoreType,
 		PrimaryKey: []string{storeID},
+	}
+
+	return f.Fetch(ref)
+}
+
+// FetchRegistry fetches a registry assertion described by account and registry
+// name using the given fetcher.
+func FetchRegistry(f asserts.Fetcher, account, registryName string) error {
+	ref := &asserts.Ref{
+		Type:       asserts.RegistryType,
+		PrimaryKey: []string{account, registryName},
 	}
 
 	return f.Fetch(ref)

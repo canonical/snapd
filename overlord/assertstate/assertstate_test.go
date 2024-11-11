@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -585,34 +585,51 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, provenance string, revisions
 	return paths, digests
 }
 
-func (s *assertMgrSuite) prereqComponentAssertions(c *C, provenance string, snapRev, compRev snap.Revision) (compPath string, digest string) {
+type prereqComponentAssertionsOpts struct {
+	provenance                 string
+	blobProvenance             string
+	invalidateResourceRevision bool
+	snapRev                    snap.Revision
+	compRev                    snap.Revision
+}
+
+func (s *assertMgrSuite) prereqComponentAssertions(c *C, opts prereqComponentAssertionsOpts) (compPath string, digest string) {
 	const (
-		resourceName  = "test-component"
-		snapID        = "snap-id-1"
-		componentYaml = `component: snap+test-component
-type: test
+		resourceName = "standard-component"
+		snapID       = "snap-id-1"
+	)
+
+	componentYaml := `component: snap+standard-component
+type: standard
 version: 1.0.2
 `
-	)
+	if opts.blobProvenance != "" {
+		componentYaml += fmt.Sprintf("provenance: %s\n", opts.blobProvenance)
+	}
 
 	compPath = snaptest.MakeTestComponentWithFiles(c, resourceName+".comp", componentYaml, nil)
 
 	digest, size, err := asserts.SnapFileSHA3_384(compPath)
 	c.Assert(err, IsNil)
 
+	resourceRevivion := opts.compRev
+	if opts.invalidateResourceRevision {
+		resourceRevivion.N += 1
+	}
+
 	revHeaders := map[string]interface{}{
 		"snap-id":           snapID,
 		"resource-name":     resourceName,
 		"resource-sha3-384": digest,
-		"resource-revision": compRev.String(),
+		"resource-revision": resourceRevivion.String(),
 		"resource-size":     strconv.Itoa(int(size)),
 		"developer-id":      s.dev1Acct.AccountID(),
 		"timestamp":         time.Now().Format(time.RFC3339),
 	}
 
 	signer := assertstest.SignerDB(s.storeSigning)
-	if provenance != "" {
-		revHeaders["provenance"] = provenance
+	if opts.provenance != "" {
+		revHeaders["provenance"] = opts.provenance
 		signer = s.dev1Signing
 	}
 
@@ -624,13 +641,13 @@ version: 1.0.2
 	pairHeaders := map[string]interface{}{
 		"snap-id":           snapID,
 		"resource-name":     resourceName,
-		"resource-revision": compRev.String(),
-		"snap-revision":     snapRev.String(),
+		"resource-revision": opts.compRev.String(),
+		"snap-revision":     opts.snapRev.String(),
 		"developer-id":      s.dev1Acct.AccountID(),
 		"timestamp":         time.Now().Format(time.RFC3339),
 	}
-	if provenance != "" {
-		pairHeaders["provenance"] = provenance
+	if opts.provenance != "" {
+		pairHeaders["provenance"] = opts.provenance
 	}
 
 	resourcePair, err := signer.Sign(asserts.SnapResourcePairType, pairHeaders, nil, "")
@@ -3351,8 +3368,8 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedHappy(c *C
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
-		snapasserts.NewInstalledSnap("other", "ididididid", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
+		snapasserts.NewInstalledSnap("other", "ididididid", snap.Revision{N: 1}, nil),
 	}
 
 	sequence := 0
@@ -3389,7 +3406,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforcePinnedHappy(c *C) {
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 
 	sequence := 2
@@ -3518,7 +3535,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedAfterForge
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 
 	sequence := 0
@@ -3569,7 +3586,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedAfterMonit
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 
 	sequence := 0
@@ -3685,7 +3702,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertion(c *C) {
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 
 	sequence := 2
@@ -3746,7 +3763,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionUpdate(c *C) {
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 
 	sequence := 2
@@ -3823,7 +3840,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionPinToOlderSequence(c *
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 
 	sequence := 2
@@ -3894,7 +3911,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionAfterMonitor(c *C) {
 	assertstate.UpdateValidationSet(st, &monitor)
 
 	snaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 
 	// add a newer sequence to the store
@@ -3946,7 +3963,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionIgnoreValidation(c *C)
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 3}),
+		snapasserts.NewInstalledSnap("foo", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 3}, nil),
 	}
 
 	sequence := 2
@@ -4038,8 +4055,8 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsValidationError(c
 	// try to enforce extra validation sets bar and baz. some-snap is present (and required by foo at any revision),
 	// but needs to be at revision 3 to satisfy bar. invalid-snap is present but is invalid for baz.
 	installedSnaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
-		snapasserts.NewInstalledSnap("invalid-snap", "cccchntON3vR7kwEbVPsILm7bUViPDcc", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
+		snapasserts.NewInstalledSnap("invalid-snap", "cccchntON3vR7kwEbVPsILm7bUViPDcc", snap.Revision{N: 1}, nil),
 	}
 	err := assertstate.TryEnforcedValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()), fmt.Sprintf("%s/baz", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
 	verr, ok := err.(*snapasserts.ValidationSetsValidationError)
@@ -4122,7 +4139,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsOK(c *C) {
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	installedSnaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 3}),
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 3}, nil),
 	}
 	err := assertstate.TryEnforcedValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()), fmt.Sprintf("%s/baz=1", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
 	c.Assert(err, IsNil)
@@ -4231,7 +4248,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsAlreadyTrackedUpd
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	installedSnaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 3}),
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 3}, nil),
 	}
 	err := assertstate.TryEnforcedValidationSets(st, []string{fmt.Sprintf("%s/foo", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
 	c.Assert(err, IsNil)
@@ -4312,7 +4329,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsConflictError(c *
 	// try to enforce extra validation sets bar and baz. some-snap is present (and required by foo at any revision),
 	// but needs to be at revision 3 to satisfy bar. invalid-snap is present but is invalid for baz.
 	installedSnaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 	err := assertstate.TryEnforcedValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
 	_, ok := err.(*snapasserts.ValidationSetsConflictError)
@@ -4523,7 +4540,7 @@ func (s *assertMgrSuite) testEnforceValidationSets(c *C, pinnedSeq int) {
 		requestedValSet: localVs,
 	}
 	installedSnaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 	err := assertstate.ApplyEnforcedValidationSets(st, valSets, pinnedSeqs, installedSnaps, nil, 0)
 	c.Assert(err, IsNil)
@@ -4586,7 +4603,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithNoLocalAssertions(c *C) {
 	}
 	pinnedSeqs := map[string]int{fmt.Sprintf("%s/foo", s.dev1Acct.AccountID()): 1}
 	installedSnaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 
 	err := assertstate.ApplyEnforcedValidationSets(st, valSets, pinnedSeqs, installedSnaps, nil, 0)
@@ -4673,7 +4690,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithUnmetConstraints(c *C) {
 	}
 
 	installedSnaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 2}),
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 2}, nil),
 	}
 
 	err := assertstate.ApplyEnforcedValidationSets(st, valSets, nil, installedSnaps, nil, 0)
@@ -4723,7 +4740,7 @@ func (s *assertMgrSuite) testApplyLocalEnforcedValidationSets(c *C, pinnedSeq in
 		vsKey: {release.Series, s.dev1Acct.AccountID(), "foo", "1"},
 	}
 	installedSnaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 	err := assertstate.ApplyLocalEnforcedValidationSets(st, valSets, pinnedSeqs, installedSnaps, nil)
 	c.Assert(err, IsNil)
@@ -4801,7 +4818,7 @@ func (s *assertMgrSuite) TestApplyLocalEnforcedValidationSetsWithUnmetConstraint
 	}
 
 	installedSnaps := []*snapasserts.InstalledSnap{
-		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 2}),
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 2}, nil),
 	}
 
 	err := assertstate.ApplyLocalEnforcedValidationSets(st, valSets, nil, installedSnaps, nil)
@@ -5293,22 +5310,52 @@ func (s *assertMgrSuite) TestRegistry(c *C) {
 }
 
 func (s *assertMgrSuite) TestValidateComponent(c *C) {
-	const provenance = ""
-	s.testValidateComponent(c, provenance)
+	s.testValidateComponent(c, testValidateComponentOpts{})
 }
 
 func (s *assertMgrSuite) TestValidateComponentProvenance(c *C) {
-	const provenance = "provenance"
-	s.testValidateComponent(c, provenance)
+	s.testValidateComponent(c, testValidateComponentOpts{
+		provenance: "provenance",
+	})
 }
 
-func (s *assertMgrSuite) testValidateComponent(c *C, provenance string) {
+func (s *assertMgrSuite) TestValidateComponentProvenanceInvalidBlob(c *C) {
+	s.testValidateComponent(c, testValidateComponentOpts{
+		provenance:               "provenance",
+		failCrosscheckProvenance: true,
+	})
+}
+
+func (s *assertMgrSuite) TestValidateComponentProvenanceInvalidResourceRevision(c *C) {
+	s.testValidateComponent(c, testValidateComponentOpts{
+		failCrosscheckResourceRevision: true,
+	})
+}
+
+type testValidateComponentOpts struct {
+	provenance                     string
+	failCrosscheckProvenance       bool
+	failCrosscheckResourceRevision bool
+}
+
+func (s *assertMgrSuite) testValidateComponent(c *C, opts testValidateComponentOpts) {
 	snapRev, compRev := snap.R(10), snap.R(20)
 
-	paths, _ := s.prereqSnapAssertions(c, provenance, 10)
+	paths, _ := s.prereqSnapAssertions(c, opts.provenance, 10)
 	snapPath := paths[10]
 
-	compPath, compDigest := s.prereqComponentAssertions(c, provenance, snapRev, compRev)
+	blobProvenance := opts.provenance
+	if opts.failCrosscheckProvenance {
+		blobProvenance = "invalid"
+	}
+
+	compPath, compDigest := s.prereqComponentAssertions(c, prereqComponentAssertionsOpts{
+		provenance:                 opts.provenance,
+		blobProvenance:             blobProvenance,
+		snapRev:                    snapRev,
+		compRev:                    compRev,
+		invalidateResourceRevision: opts.failCrosscheckResourceRevision,
+	})
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -5323,7 +5370,7 @@ func (s *assertMgrSuite) testValidateComponent(c *C, provenance string) {
 	snapsup := snapstate.SnapSetup{
 		SnapPath:           snapPath,
 		UserID:             0,
-		ExpectedProvenance: provenance,
+		ExpectedProvenance: opts.provenance,
 		SideInfo: &snap.SideInfo{
 			RealName: "foo",
 			SnapID:   "snap-id-1",
@@ -5333,7 +5380,7 @@ func (s *assertMgrSuite) testValidateComponent(c *C, provenance string) {
 	compsup := snapstate.ComponentSetup{
 		CompPath: compPath,
 		CompSideInfo: &snap.ComponentSideInfo{
-			Component: naming.NewComponentRef("foo", "test-component"),
+			Component: naming.NewComponentRef("foo", "standard-component"),
 			Revision:  compRev,
 		},
 	}
@@ -5346,17 +5393,27 @@ func (s *assertMgrSuite) testValidateComponent(c *C, provenance string) {
 	s.settle(c)
 	s.state.Lock()
 
+	if opts.failCrosscheckProvenance {
+		c.Assert(chg.Err(), ErrorMatches, `(?s).*component .* has been signed under provenance "provenance" different from the metadata one: "invalid".*`)
+		return
+	}
+
+	if opts.failCrosscheckResourceRevision {
+		c.Assert(chg.Err(), ErrorMatches, `(?s).*resource "standard-component" does not have expected revision according to assertions \(metadata is broken or tampered\): 20 != 21.*`)
+		return
+	}
+
 	c.Assert(chg.Err(), IsNil)
 
 	db := assertstate.DB(s.state)
 
 	headers := map[string]string{
 		"resource-sha3-384": compDigest,
-		"resource-name":     "test-component",
+		"resource-name":     "standard-component",
 		"snap-id":           "snap-id-1",
 	}
-	if provenance != "" {
-		headers["provenance"] = provenance
+	if opts.provenance != "" {
+		headers["provenance"] = opts.provenance
 	}
 
 	a, err := db.Find(asserts.SnapResourceRevisionType, headers)
@@ -5369,4 +5426,170 @@ func (s *assertMgrSuite) testValidateComponent(c *C, provenance string) {
 		"store": "my-brand-store",
 	})
 	c.Assert(err, IsNil)
+}
+
+func (s *assertMgrSuite) setupRegistry(c *C) *snap.SideInfo {
+	extraHeaders := map[string]interface{}{
+		"revision": "1",
+		"views": map[string]interface{}{
+			"my-view": map[string]interface{}{
+				"rules": []interface{}{
+					map[string]interface{}{"request": "foo", "storage": "foo"},
+				},
+			},
+		},
+		"body-length": "60",
+	}
+	schema := `{
+  "storage": {
+    "schema": {
+      "foo": "any"
+    }
+  }
+}`
+	regAs := s.registry(c, "my-registry", extraHeaders, schema)
+	err := s.storeSigning.Add(regAs)
+	c.Assert(err, IsNil)
+
+	si := &snap.SideInfo{
+		RealName: "foo",
+		SnapID:   "snap-id-1",
+		Revision: snap.R(10),
+	}
+
+	return si
+}
+
+func (s *assertMgrSuite) TestFetchRegistryAssertion(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	paths, _ := s.prereqSnapAssertions(c, "", 10)
+	snapPath := paths[10]
+	si := s.setupRegistry(c)
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	err := s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("install", "...")
+	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
+
+	snapsup := snapstate.SnapSetup{
+		SnapPath:   snapPath,
+		UserID:     0,
+		SideInfo:   si,
+		Registries: []snapstate.RegistryID{{Account: s.dev1Acct.AccountID(), Registry: "my-registry"}},
+	}
+
+	t.Set("snap-setup", snapsup)
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{snapsup.SideInfo}),
+		Current:         snapsup.Revision(),
+		TrackingChannel: "latest/stable",
+	})
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	reg, err := assertstate.DB(s.state).Find(asserts.RegistryType, map[string]string{
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "my-registry",
+	})
+	c.Assert(err, IsNil)
+	c.Check(reg, NotNil)
+
+	// store assertion was also fetched
+	_, err = assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
+		"store": "my-brand-store",
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *assertMgrSuite) TestRegistryAssertionsAutoRefreshBulkFetch(c *C) {
+	s.testRegistryAssertionsAutoRefresh(c)
+	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, true)
+}
+
+func (s *assertMgrSuite) TestRegistryAssertionsAutoRefreshSingleFetch(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	s.fakeStore.(*fakeStore).snapActionErr = &store.UnexpectedHTTPStatusError{StatusCode: 500}
+	s.testRegistryAssertionsAutoRefresh(c)
+
+	// get the last line (we call AutoRefresh more than once)
+	log := logbuf.String()
+	i := strings.LastIndex(log[:len(log)-2], "\n")
+	c.Check(log[i+1:], Matches, "(?m).*bulk refresh of registry assertions failed, falling back to one-by-one assertion fetching:.*HTTP status code 500.*")
+}
+
+func (s *assertMgrSuite) testRegistryAssertionsAutoRefresh(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	err := s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	extraHeaders := map[string]interface{}{
+		"revision": "1",
+		"views": map[string]interface{}{
+			"my-view": map[string]interface{}{
+				"rules": []interface{}{
+					map[string]interface{}{"request": "foo", "storage": "foo"},
+				},
+			},
+		},
+		"body-length": "60",
+	}
+	schema := `{
+  "storage": {
+    "schema": {
+      "foo": "any"
+    }
+  }
+}`
+	regAs := s.registry(c, "my-registry", extraHeaders, schema)
+	err = s.storeSigning.Add(regAs)
+	c.Assert(err, IsNil)
+
+	// store revision 1 of the registry assertion locally
+	for _, as := range []asserts.Assertion{s.storeSigning.StoreAccountKey(""), s.dev1Acct, s.dev1AcctKey, regAs} {
+		err = assertstate.Add(s.state, as)
+		c.Assert(err, IsNil)
+	}
+
+	// precondition check
+	c.Assert(assertstate.AutoRefreshAssertions(s.state, 0), IsNil)
+	db := assertstate.DB(s.state)
+	reg, err := db.Find(asserts.RegistryType, map[string]string{
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "my-registry",
+	})
+	c.Assert(err, IsNil)
+	c.Check(reg.Revision(), Equals, 1)
+
+	extraHeaders["revision"] = "2"
+	regAs = s.registry(c, "my-registry", extraHeaders, schema)
+	err = s.storeSigning.Add(regAs)
+	c.Assert(err, IsNil)
+
+	// auto-refresh should obtain revision 2
+	c.Assert(assertstate.AutoRefreshAssertions(s.state, 0), IsNil)
+
+	a, err := db.Find(asserts.RegistryType, map[string]string{
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "my-registry",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.Revision(), Equals, 2)
 }

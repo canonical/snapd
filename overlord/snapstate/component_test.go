@@ -37,7 +37,7 @@ func (s *snapmgrTestSuite) mockComponentInfos(c *C, snapName string, compNames [
 	cis := make([]*snap.ComponentInfo, len(compNames))
 	for i, comp := range compNames {
 		componentYaml := fmt.Sprintf(`component: %s+%s
-type: test
+type: standard
 version: 1.0
 `, snapName, comp)
 		ci, err := snap.InfoFromComponentYaml([]byte(componentYaml))
@@ -77,9 +77,9 @@ func (s *snapmgrTestSuite) TestComponentHelpers(c *C) {
 version: 1
 components:
   mycomp:
-    type: test
+    type: standard
   mycomp2:
-    type: test
+    type: standard
 `
 
 	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
@@ -98,7 +98,7 @@ components:
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
 				sequence.NewRevisionSideState(ssi,
-					[]*sequence.ComponentState{sequence.NewComponentState(csi2, snap.TestComponent), sequence.NewComponentState(csi, snap.TestComponent)})}),
+					[]*sequence.ComponentState{sequence.NewComponentState(csi2, snap.StandardComponent), sequence.NewComponentState(csi, snap.StandardComponent)})}),
 		Current: snapRev,
 	}
 	snaptest.MockSnap(c, snapYaml, ssi)
@@ -118,17 +118,19 @@ components:
 	foundCi2, err := snapSt.CurrentComponentInfo(cref2)
 	c.Check(err, IsNil)
 	c.Check(foundCi2, NotNil)
+	c.Check(snapSt.CurrentComponentSideInfos(), DeepEquals, []*snap.ComponentSideInfo{csi2, csi})
 
 	comps, err := snapSt.CurrentComponentInfos()
 	c.Assert(err, IsNil)
 	c.Check(comps, testutil.DeepUnsortedMatches, []*snap.ComponentInfo{foundCi, foundCi2})
+	c.Check(snapSt.HasActiveComponents(), Equals, true)
 
 	snapSt = &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
 				sequence.NewRevisionSideState(ssi2, nil),
-				sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)}),
+				sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)}),
 			}),
 		Current: snapRev2,
 	}
@@ -146,10 +148,12 @@ components:
 	comps, err = snapSt.CurrentComponentInfos()
 	c.Assert(err, IsNil)
 	c.Check(comps, HasLen, 0)
+	c.Check(snapSt.CurrentComponentSideInfos(), HasLen, 0)
 
 	comps, err = snapSt.ComponentInfosForRevision(ssi2.Revision)
 	c.Assert(err, IsNil)
 	c.Check(comps, HasLen, 0)
+	c.Check(snapSt.HasActiveComponents(), Equals, false)
 
 	snapSt = &snapstate.SnapState{
 		Active: true,
@@ -171,13 +175,14 @@ components:
 	comps, err = snapSt.CurrentComponentInfos()
 	c.Assert(err, IsNil)
 	c.Check(comps, HasLen, 0)
+	c.Check(snapSt.CurrentComponentSideInfos(), HasLen, 0)
 
 	snapSt = &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
-				sequence.NewRevisionSideState(ssi2, []*sequence.ComponentState{sequence.NewComponentState(csi2, snap.TestComponent)}),
-				sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)}),
+				sequence.NewRevisionSideState(ssi2, []*sequence.ComponentState{sequence.NewComponentState(csi2, snap.StandardComponent)}),
+				sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)}),
 			}),
 		Current: snapRev,
 	}
@@ -197,6 +202,7 @@ components:
 	comps, err = snapSt.CurrentComponentInfos()
 	c.Assert(err, IsNil)
 	c.Check(comps, testutil.DeepUnsortedMatches, []*snap.ComponentInfo{foundCi})
+	c.Check(snapSt.CurrentComponentSideInfos(), DeepEquals, []*snap.ComponentSideInfo{csi})
 
 	comps, err = snapSt.ComponentInfosForRevision(snapRev2)
 	c.Assert(err, IsNil)
@@ -211,8 +217,8 @@ components:
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
-				sequence.NewRevisionSideState(ssi2, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)}),
-				sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)}),
+				sequence.NewRevisionSideState(ssi2, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)}),
+				sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)}),
 			}),
 		Current: snapRev,
 	}

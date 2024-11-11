@@ -17,16 +17,22 @@
  *
  */
 
+// Package patterns provides types and functions for working with path patterns
+// for request rules related to AppArmor Prompting.
 package patterns
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 
 	doublestar "github.com/bmatcuk/doublestar/v4"
+
+	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 )
+
+var ErrNoPatterns = errors.New("cannot establish precedence: no patterns given")
 
 // Limit the number of expanded path patterns for a particular pattern.
 // When fully expanded, the number of patterns for a given unexpanded pattern
@@ -52,17 +58,16 @@ func ParsePathPattern(pattern string) (*PathPattern, error) {
 // parse validates the given pattern and parses it into a PathPattern from
 // which expanded path patterns can be iterated, overwriting the receiver.
 func (p *PathPattern) parse(pattern string) error {
-	prefix := fmt.Sprintf("cannot parse path pattern %q", pattern)
 	tokens, err := scan(pattern)
 	if err != nil {
-		return fmt.Errorf("%s: %w", prefix, err)
+		return prompting_errors.NewInvalidPathPatternError(pattern, err.Error())
 	}
 	tree, err := parse(tokens)
 	if err != nil {
-		return fmt.Errorf("%s: %w", prefix, err)
+		return prompting_errors.NewInvalidPathPatternError(pattern, err.Error())
 	}
 	if count := tree.NumVariants(); count > maxExpandedPatterns {
-		return fmt.Errorf("%s: exceeded maximum number of expanded path patterns (%d): %d", prefix, maxExpandedPatterns, count)
+		return prompting_errors.NewInvalidPathPatternError(pattern, fmt.Sprintf("exceeded maximum number of expanded path patterns (%d): %d", maxExpandedPatterns, count))
 	}
 	p.original = pattern
 	p.renderTree = tree
@@ -74,9 +79,13 @@ func (p *PathPattern) Match(path string) (bool, error) {
 	return PathPatternMatches(p.original, path)
 }
 
+func (p *PathPattern) String() string {
+	return p.original
+}
+
 // MarshalJSON implements json.Marshaller for PathPattern.
 func (p *PathPattern) MarshalJSON() ([]byte, error) {
-	return []byte(p.original), nil
+	return json.Marshal(p.original)
 }
 
 // UnmarshalJSON implements json.Unmarshaller for PathPattern.
@@ -95,46 +104,13 @@ func (p *PathPattern) NumVariants() int {
 }
 
 // RenderAllVariants enumerates every alternative for each group in the path
-// pattern and renders each one into a string which is then passed into the
-// given observe closure, along with the index of the variant.
+// pattern and renders each one into a PatternVariant which is then passed into
+// the given observe closure, along with the index of the variant.
 //
 // The given observe closure should perform some action with the rendered
 // variant, such as adding it to a data structure.
-func (p *PathPattern) RenderAllVariants(observe func(index int, variant string)) {
-	cleanThenObserve := func(i int, variant string) {
-		cleaned := cleanPattern(variant)
-		observe(i, cleaned)
-	}
-	renderAllVariants(p.renderTree, cleanThenObserve)
-}
-
-var (
-	duplicateSlashes    = regexp.MustCompile(`(^|[^\\])/+`)
-	charsDoublestar     = regexp.MustCompile(`([^/\\])\*\*+`)
-	doublestarChars     = regexp.MustCompile(`([^\\])\*\*+([^/])`)
-	duplicateDoublestar = regexp.MustCompile(`/\*\*(/\*\*)+`) // relies on charsDoublestar running first
-	starsAnyMaybeStars  = regexp.MustCompile(`([^\\])\*+(\?\**)+`)
-)
-
-func cleanPattern(pattern string) string {
-	pattern = duplicateSlashes.ReplaceAllString(pattern, `${1}/`)
-	pattern = charsDoublestar.ReplaceAllString(pattern, `${1}*`)
-	pattern = doublestarChars.ReplaceAllString(pattern, `${1}*${2}`)
-	pattern = duplicateDoublestar.ReplaceAllString(pattern, `/**`)
-	pattern = starsAnyMaybeStars.ReplaceAllStringFunc(pattern, func(s string) string {
-		deleteStars := func(r rune) rune {
-			if r == '*' {
-				return -1
-			}
-			return r
-		}
-		return strings.Map(deleteStars, s) + "*"
-	})
-	if strings.HasSuffix(pattern, "/**/*") {
-		// Strip trailing "/*" from suffix
-		return pattern[:len(pattern)-len("/*")]
-	}
-	return pattern
+func (p *PathPattern) RenderAllVariants(observe func(index int, variant PatternVariant)) {
+	renderAllVariants(p.renderTree, observe)
 }
 
 // PathPatternMatches returns true if the given pattern matches the given path.
@@ -172,4 +148,31 @@ func PathPatternMatches(pattern string, path string) (bool, error) {
 	// Try again with a '/' appended to the pattern, so patterns like `/foo`
 	// match paths like `/foo/`.
 	return doublestar.Match(pattern+"/", path)
+}
+
+// HighestPrecedencePattern determines which of the given path patterns is the
+// most specific, and thus has the highest precedence.
+//
+// Precedence is only defined between patterns which match the same path.
+// Precedence is determined according to which pattern places the earliest and
+// greatest restriction on the path.
+func HighestPrecedencePattern(patterns []PatternVariant, matchingPath string) (PatternVariant, error) {
+	switch len(patterns) {
+	case 0:
+		return PatternVariant{}, ErrNoPatterns
+	case 1:
+		return patterns[0], nil
+	}
+
+	currHighest := patterns[0]
+	for _, contender := range patterns[1:] {
+		result, err := currHighest.Compare(contender, matchingPath)
+		if err != nil {
+			return PatternVariant{}, err
+		}
+		if result < 0 {
+			currHighest = contender
+		}
+	}
+	return currHighest, nil
 }

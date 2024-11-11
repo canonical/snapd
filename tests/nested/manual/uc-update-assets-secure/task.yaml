@@ -74,19 +74,24 @@ prepare: |
 
   snap pack pc --filename=pc_2.snap
 
+  grubx64_dir=boot
+  if os.query is-ubuntu-ge 24.04; then
+    grubx64_dir=ubuntu
+  fi
+
   cat <<EOF >>expected-before
   ${old_shim_sha} */boot/efi/EFI/boot/bootx64.efi
-  ${old_grub_sha} */boot/efi/EFI/boot/grubx64.efi
+  ${old_grub_sha} */boot/efi/EFI/${grubx64_dir}/grubx64.efi
   EOF
   if [ "${UPDATE_SEED}" = true ]; then
     cat <<EOF >>expected-after
   ${new_shim_sha} */boot/efi/EFI/boot/bootx64.efi
-  ${new_grub_sha} */boot/efi/EFI/boot/grubx64.efi
+  ${new_grub_sha} */boot/efi/EFI/${grubx64_dir}/grubx64.efi
   EOF
   else
     cat <<EOF >>expected-after
   ${old_shim_sha} */boot/efi/EFI/boot/bootx64.efi
-  ${old_grub_sha} */boot/efi/EFI/boot/grubx64.efi
+  ${old_grub_sha} */boot/efi/EFI/${grubx64_dir}/grubx64.efi
   EOF
   fi
 

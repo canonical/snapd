@@ -3,7 +3,7 @@ name: Nightly static code analysis
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 0 * * *'
+    - cron: '30 0 * * 0'
 
 jobs:
 
@@ -20,13 +20,13 @@ jobs:
     strategy:
       matrix:
         gochannel:
-          - 1.18
+          - 1.23
         unit-scenario:
           - normal
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         # needed for git commit history
         fetch-depth: 0
@@ -40,9 +40,10 @@ jobs:
           sudo apt update
           sudo apt build-dep -y "${{ github.workspace }}/src/github.com/snapcore/snapd"
 
-    - name: Install the go snap
-      run: |
-          sudo snap install --classic --channel="${{ matrix.gochannel }}" go
+    - name: Install the go version
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.gochannel }}
 
     - name: Get deps
       run: |
@@ -62,7 +63,7 @@ jobs:
     - name: Test C
       run: |
           cd "${{ github.workspace }}/src/github.com/snapcore/snapd/cmd"
-          make check
+          make distcheck
 
     - name: Reset code coverage data
       run: |
@@ -78,7 +79,6 @@ jobs:
 
     - name: Install TICS dependencies
       run: |
-          sudo snap refresh --channel=latest/stable go
           go install honnef.co/go/tools/cmd/staticcheck@latest
           sudo apt install -y pylint
 
@@ -92,10 +92,3 @@ jobs:
         . ./install_tics.sh
 
         TICSQServer -project snapd -tmpdir /tmp/tics -branchdir "${{ github.workspace }}/src/github.com/snapcore/snapd"
-        tar -cvzf tics-logs.tar.gz /tmp/tics
-
-    - name: Uploading TICS logs
-      uses: actions/upload-artifact@v4
-      with:
-        name: tics-logs.tar.gz
-        path: tics-logs.tar.gz

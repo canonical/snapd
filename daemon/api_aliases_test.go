@@ -590,11 +590,11 @@ func (s *aliasesSuite) TestAliases(c *check.C) {
 func (s *aliasesSuite) TestInstallUnaliased(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	defer daemon.MockSnapstateInstall(func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		calledFlags = flags
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		calledFlags = opts.Flags
 
-		t := s.NewTask("fake-install-snap", "Doing a fake install")
-		return state.NewTaskSet(t), nil
+		t := st.NewTask("fake-install-snap", "Doing a fake install")
+		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemon(c)
@@ -608,7 +608,7 @@ func (s *aliasesSuite) TestInstallUnaliased(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	_, _, err := inst.Dispatch()(context.Background(), inst, st)
+	_, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Check(err, check.IsNil)
 
 	c.Check(calledFlags.Unaliased, check.Equals, true)
@@ -617,11 +617,11 @@ func (s *aliasesSuite) TestInstallUnaliased(c *check.C) {
 func (s *aliasesSuite) TestInstallIgnoreRunning(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	defer daemon.MockSnapstateInstall(func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		calledFlags = flags
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		calledFlags = opts.Flags
 
-		t := s.NewTask("fake-install-snap", "Doing a fake install")
-		return state.NewTaskSet(t), nil
+		t := st.NewTask("fake-install-snap", "Doing a fake install")
+		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemon(c)
@@ -635,7 +635,7 @@ func (s *aliasesSuite) TestInstallIgnoreRunning(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	_, _, err := inst.Dispatch()(context.Background(), inst, st)
+	_, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Check(err, check.IsNil)
 
 	c.Check(calledFlags.IgnoreRunning, check.Equals, true)
@@ -644,11 +644,11 @@ func (s *aliasesSuite) TestInstallIgnoreRunning(c *check.C) {
 func (s *aliasesSuite) TestInstallPrefer(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	defer daemon.MockSnapstateInstall(func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		calledFlags = flags
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		calledFlags = opts.Flags
 
-		t := s.NewTask("fake-install-snap", "Doing a fake install")
-		return state.NewTaskSet(t), nil
+		t := st.NewTask("fake-install-snap", "Doing a fake install")
+		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemon(c)
@@ -661,7 +661,7 @@ func (s *aliasesSuite) TestInstallPrefer(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	_, _, err := inst.Dispatch()(context.Background(), inst, st)
+	_, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Check(err, check.IsNil)
 
 	c.Check(calledFlags.Prefer, check.Equals, true)

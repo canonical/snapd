@@ -9,9 +9,10 @@ details: |
 systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
-  # Test both encrypted and unencrypted install using the muinstaller
-  NESTED_ENABLE_TPM/encrypted: true
-  NESTED_ENABLE_SECURE_BOOT/encrypted: true
+  # default (encrypted) case. all of the install_optional_* variants exercise
+  # the encrypted case
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
 
   # unencrypted case
   NESTED_ENABLE_TPM/plain: false
@@ -23,6 +24,23 @@ environment:
   NESTED_ENABLE_OVMF: true
   # image
   IMAGE_MOUNTPOINT: /mnt/cloudimg
+
+  # by default, we don't specify any optional installs. this means we should
+  # install all snaps and components
+  INSTALL_OPTIONAL_SNAP: false
+  INSTALL_OPTIONAL_COMPONENT: false
+  INSTALL_OPTIONAL_ALL: false
+  INSTALL_OPTIONAL_EXPECT_ALL: true
+
+  INSTALL_OPTIONAL_SNAP/install_optional_snap: true
+  INSTALL_OPTIONAL_EXPECT_ALL/install_optional_snap: false
+
+  INSTALL_OPTIONAL_SNAP/install_optional_snap_and_comp: true
+  INSTALL_OPTIONAL_COMPONENT/install_optional_snap_and_comp: true
+  INSTALL_OPTIONAL_EXPECT_ALL/install_optional_snap_and_comp: true
+
+  INSTALL_OPTIONAL_ALL/install_optional_all: true
+  INSTALL_OPTIONAL_EXPECT_ALL/install_optional_all: true
 
 prepare: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -82,6 +100,10 @@ execute: |
   fi
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
 
+  sed -i "s/\$BASE/core${version}/" ./snap-with-comps/meta/snap.yaml
+  snap pack ./snap-with-comps --filename=snap-with-comps.snap
+  snap pack ./comp1 --filename=snap-with-comps+comp1.comp
+
   # prepare a core seed
   # TODO:
   # - repacked snapd snap
@@ -92,6 +114,8 @@ execute: |
       --channel=edge \
       --snap ./pc-kernel.snap \
       --snap ./pc.snap \
+      --snap ./snap-with-comps.snap \
+      --comp ./snap-with-comps+comp1.comp \
       my.model \
       ./"$SEED_DIR"
 
@@ -178,7 +202,34 @@ execute: |
   remote.exec "sudo snap install --classic --dangerous $(basename "$MUINSTALLER_SNAP")"
   # Run installation
   install_disk=$(remote.exec "readlink -f /dev/disk/by-id/virtio-target")
-  remote.exec "sudo muinstaller $LABEL $install_disk"
+
+  if [ "$INSTALL_OPTIONAL_ALL" = "true" ]; then
+    echo '{"all": true}' > optional-install.json
+  elif [ "$INSTALL_OPTIONAL_COMPONENT" = "true" ]; then
+    echo '{"snaps": ["snap-with-comps"], "components": {"snap-with-comps": ["comp1"]}}' > optional-install.json
+  elif [ "$INSTALL_OPTIONAL_SNAP" = "true" ]; then
+    echo '{"snaps": ["snap-with-comps"]}' > optional-install.json
+  fi
+
+  # make sure that the system reports the expected available optional snaps
+  remote.exec "sudo snap debug api /v2/systems/$LABEL" > available.json
+  cat <<EOF > expected-available.json
+  {
+    "snaps": ["snap-with-comps"],
+    "components": {
+      "snap-with-comps": ["comp1"];
+    }
+  }
+  EOF
+  diff -u <(jq --sort-keys . available.json) <(jq --sort-keys . expected-available.json)
+
+  muinstaller_args="-label $LABEL -device $install_disk"
+  if [ -f optional-install.json ]; then
+    remote.push optional-install.json
+    muinstaller_args="$muinstaller_args -optional ./optional-install.json"
+  fi
+
+  remote.exec "sudo muinstaller $muinstaller_args"
 
   remote.exec "sudo sync"
 
@@ -231,6 +282,22 @@ execute: |
       sn_version=$(remote.exec "snap list ${sn}" | awk 'NR != 1 { print $2 }')
       remote.exec "test -f /run/mnt/ubuntu-seed/systems/${LABEL}/snaps/${sn}_${sn_version}.snap"
   done
+
+  if [ "$INSTALL_OPTIONAL_SNAP" = "true" ] || [ "$INSTALL_OPTIONAL_EXPECT_ALL" = "true" ]; then
+      sn_version=$(remote.exec "snap list snap-with-comps" | awk 'NR != 1 { print $2 }')
+
+      # snap isn't asserted, but it is not in the model so it should end up here
+      remote.exec "test -f /run/mnt/ubuntu-seed/systems/${LABEL}/snaps/snap-with-comps_${sn_version}.snap"
+
+      if [ "$INSTALL_OPTIONAL_EXPECT_ALL" = "true" ]; then
+          # make sure our component is there too
+          remote.exec "snap run snap-with-comps.test comp1"
+      else
+          not remote.exec "snap run snap-with-comps.test comp1"
+      fi
+  else
+      not remote.exec "snap list snap-with-comps"
+  fi
 
   # check for asserted snaps
   for sn in snapd core"$version"; do
