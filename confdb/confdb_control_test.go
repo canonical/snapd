@@ -59,7 +59,7 @@ func (s *confdbCtrlSuite) TestAddGroupOK(c *C) {
 
 	g := operator.Groups[0]
 	c.Assert(g.Views, DeepEquals, views)
-	expectedAuth := []confdb.AuthenticationMethod{"operator-key", "store"}
+	expectedAuth := []confdb.AuthenticationMethod{confdb.OperatorKey, confdb.Store}
 	c.Assert(g.Authentication, DeepEquals, expectedAuth)
 }
 
@@ -71,7 +71,6 @@ func (s *confdbCtrlSuite) TestAddGroupFail(c *C) {
 		auth  []string
 		err   string
 	}
-
 	tcs := []testcase{
 		{err: `"authentication" must be a non-empty list`},
 		{auth: []string{"magic"}, err: "invalid authentication method: magic"},
