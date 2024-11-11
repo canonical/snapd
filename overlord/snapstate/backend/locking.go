@@ -87,6 +87,7 @@ func (b Backend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, 
 // Note that this is not a method of the Backend type, so that it can be
 // invoked from doInstall, which does not have access to a backend object.
 func WithSnapLock(info *snap.Info, action func() error) error {
+	// XXX: Should we unlock state while holding snap lock? (ie. pass runinhibit.Unlocker)
 	lock, err := snaplock.OpenLock(info.InstanceName())
 	if err != nil {
 		return err
