@@ -63,6 +63,7 @@ func (*featureSuite) TestName(c *C) {
 	check(features.QuotaGroups, "quota-groups")
 	check(features.RefreshAppAwarenessUX, "refresh-app-awareness-ux")
 	check(features.Confdbs, "confdbs")
+	check(features.ConfdbControl, "confdb-control")
 	check(features.AppArmorPrompting, "apparmor-prompting")
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
@@ -103,6 +104,7 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.QuotaGroups, false)
 	check(features.RefreshAppAwarenessUX, true)
 	check(features.Confdbs, true)
+	check(features.ConfdbControl, true)
 	check(features.AppArmorPrompting, true)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
@@ -229,6 +231,7 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	check(features.RefreshAppAwarenessUX, false)
 	check(features.Confdbs, false)
 	check(features.AppArmorPrompting, false)
+	check(features.ConfdbControl, false)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 }
