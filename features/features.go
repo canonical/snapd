@@ -73,6 +73,8 @@ const (
 	RefreshAppAwarenessUX
 	// Confdbs enables experimental configuration based on confdbs and views.
 	Confdbs
+	// ConfdbControl enables experimental remote management of confdbs
+	ConfdbControl
 	// AppArmorPrompting enables AppArmor to prompt the user for permission when apps perform certain operations.
 	AppArmorPrompting
 
@@ -120,7 +122,9 @@ var featureNames = map[SnapdFeature]string{
 	QuotaGroups: "quota-groups",
 
 	RefreshAppAwarenessUX: "refresh-app-awareness-ux",
-	Confdbs:               "confdbs",
+
+	Confdbs:       "confdbs",
+	ConfdbControl: "confdb-control",
 
 	AppArmorPrompting: "apparmor-prompting",
 }
@@ -147,6 +151,7 @@ var featuresExported = map[SnapdFeature]bool{
 
 	RefreshAppAwarenessUX: true,
 	Confdbs:               true,
+	ConfdbControl:         true,
 	AppArmorPrompting:     true,
 }
 
