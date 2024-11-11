@@ -190,7 +190,7 @@ jobs:
   spread:
     uses: ./.github/workflows/spread-tests.yaml
     needs: [unit-tests, snap-builds]
-    name: "Spread tests ${{ matrix.group }}"
+    name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
       # Instead here we create a json array and pass it as a string.
