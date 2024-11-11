@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
+	sb_plainkey "github.com/snapcore/secboot/plainkey"
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/kernel/fde"
@@ -38,6 +39,10 @@ import (
 	"github.com/snapcore/snapd/secboot/keys"
 )
 
+func sbNewLUKS2KeyDataReaderImpl(device, slot string) (sb.KeyDataReader, error) {
+	return sb.NewLUKS2KeyDataReader(device, slot)
+}
+
 var (
 	sbActivateVolumeWithKey         = sb.ActivateVolumeWithKey
 	sbActivateVolumeWithKeyData     = sb.ActivateVolumeWithKeyData
@@ -45,6 +50,8 @@ var (
 	sbDeactivateVolume              = sb.DeactivateVolume
 	sbAddLUKS2ContainerUnlockKey    = sb.AddLUKS2ContainerUnlockKey
 	sbRenameLUKS2ContainerKey       = sb.RenameLUKS2ContainerKey
+	sbNewLUKS2KeyDataReader         = sbNewLUKS2KeyDataReaderImpl
+	sbSetProtectorKeys              = sb_plainkey.SetProtectorKeys
 )
 
 func init() {
@@ -155,7 +162,8 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	sbSetKeyRevealer(&keyRevealerV3{})
 	defer sbSetKeyRevealer(nil)
 
-	options := activateVolOpts(opts.AllowRecoveryKey)
+	const allowPassphrase = true
+	options := activateVolOpts(opts.AllowRecoveryKey, allowPassphrase)
 	authRequestor, err := newAuthRequestor()
 	if err != nil {
 		res.UnlockMethod = NotUnlocked
@@ -178,11 +186,44 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	return res, nil
 }
 
-// UnlockEncryptedVolumeUsingKey unlocks an existing volume using the provided key.
-func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (UnlockResult, error) {
+func deviceHasPlainKey(device string) (bool, error) {
+	slots, err := sbListLUKS2ContainerUnlockKeyNames(device)
+	if err != nil {
+		return false, fmt.Errorf("cannot list slots in partition save partition: %w", err)
+	}
+
+	for _, slot := range slots {
+		reader, err := sbNewLUKS2KeyDataReader(device, slot)
+		if err != nil {
+			// There can be multiple errors, including
+			// missing key data. So we just have to ignore
+			// them.
+			continue
+		}
+		keyData, err := sbReadKeyData(reader)
+		if err != nil {
+			// Error should be unexpected here. So we
+			// should warn if we see any error.
+			logger.Noticef("WARNING: keyslot %s has an invalid key data: %v", slot, err)
+			continue
+		}
+		if keyData.PlatformName() == "plainkey" {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// UnlockEncryptedVolumeUsingProtectorKey unlocks the provided device with a
+// given plain key. Depending on how then encrypted device was set up, the key
+// is either used to unlock the device directly, or it is used to decrypt the
+// encrypted unlock key stored in LUKS2 tokens in the device.
+func UnlockEncryptedVolumeUsingProtectorKey(disk disks.Disk, name string, key []byte) (UnlockResult, error) {
 	unlockRes := UnlockResult{
 		UnlockMethod: NotUnlocked,
 	}
+
 	// find the encrypted device using the disk we were provided - note that
 	// we do not specify IsDecryptedDevice in opts because here we are
 	// looking for the encrypted device to unlock, later on in the boot
@@ -206,8 +247,37 @@ func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (Un
 
 	// make up a new name for the mapped device
 	mapperName := name + "-" + uuid
-	if err := unlockEncryptedPartitionWithKey(mapperName, encdev, key); err != nil {
+
+	foundPlainKey, err := deviceHasPlainKey(encdev)
+	if err != nil {
 		return unlockRes, err
+	}
+
+	// in the legacy setup, the key, is the exact plain key that unlocks the
+	// device, in the modern setup (indicated by presence of tokens carrying
+	// named key data), the plain key is used to decrypt the actual unlock key
+
+	if foundPlainKey {
+		const allowRecovery = false
+		// we should not allow passphrases as this action
+		// should not expect interaction with the user
+		const allowPassphrase = false
+		options := activateVolOpts(allowRecovery, allowPassphrase)
+
+		// XXX secboot maintains a global object holding protector keys, there
+		// is no way to pass it through context or obtain the current set of
+		// protector keys, so instead simply set it to empty set once we're done
+		sbSetProtectorKeys(key)
+		defer sbSetProtectorKeys()
+
+		var authRequestor sb.AuthRequestor = nil
+		if err := sbActivateVolumeWithKeyData(mapperName, encdev, authRequestor, options); err != nil {
+			return unlockRes, err
+		}
+	} else {
+		if err := unlockEncryptedPartitionWithKey(mapperName, encdev, key); err != nil {
+			return unlockRes, err
+		}
 	}
 
 	unlockRes.FsDevice = filepath.Join("/dev/mapper/", mapperName)
