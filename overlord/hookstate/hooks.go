@@ -243,14 +243,18 @@ func (h *gateAutoRefreshHookHandler) Done() (err error) {
 			return err
 		}
 		if h.refreshAppAwareness {
+			// Unlock global state once for IsLocked and LockWithHint instead
+			// of unlocking/locking state twice quickly.
+			st.Unlock()
+			defer st.Lock()
 			// we have HintInhibitedGateRefresh lock already when running the hook, change
 			// it to HintInhibitedForRefresh.
 			// Also let's reuse inhibit info that was saved in Before().
-			_, inhibitInfo, err := runinhibit.IsLocked(snapName, st.Unlocker())
+			_, inhibitInfo, err := runinhibit.IsLocked(snapName, nil)
 			if err != nil {
 				return err
 			}
-			if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedForRefresh, inhibitInfo, st.Unlocker()); err != nil {
+			if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedForRefresh, inhibitInfo, nil); err != nil {
 				return fmt.Errorf("cannot set inhibit lock for snap %s: %v", snapName, err)
 			}
 		}
