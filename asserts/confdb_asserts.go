@@ -53,14 +53,12 @@ func (cc *ConfdbControl) Serial() string {
 // assembleConfdbControl creates a new confdb-control assertion after validating
 // all required fields and constraints.
 func assembleConfdbControl(assert assertionBase) (Assertion, error) {
-	// Validate headers
 	_, err := checkStringMatches(assert.headers, "brand-id", validAccountID)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = checkModel(assert.headers)
-	if err != nil {
+	if _, err := checkModel(assert.headers); err != nil {
 		return nil, err
 	}
 
@@ -72,15 +70,11 @@ func assembleConfdbControl(assert assertionBase) (Assertion, error) {
 		return nil, fmt.Errorf(`"groups" stanza is mandatory`)
 	}
 
-	// Create the confdb-control assertion
 	cc := &ConfdbControl{
 		assertionBase: assert,
 		operators:     make(map[string]*confdb.Operator),
 	}
-
-	// Parse the groups in the assertion
-	err = parseConfdbControlGroups(cc, groups)
-	if err != nil {
+	if err := parseConfdbControlGroups(cc, groups); err != nil {
 		return nil, err
 	}
 
@@ -128,8 +122,7 @@ func parseConfdbControlGroups(cc *ConfdbControl, rawGroups []interface{}) error 
 			return fmt.Errorf(`%s: "views" must be provided`, errPrefix)
 		}
 
-		err = operator.AddGroup(views, auth)
-		if err != nil {
+		if err := operator.AddGroup(views, auth); err != nil {
 			return fmt.Errorf(`%s: %w`, errPrefix, err)
 		}
 	}
