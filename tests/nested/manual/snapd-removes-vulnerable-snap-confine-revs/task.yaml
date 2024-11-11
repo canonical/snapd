@@ -73,6 +73,7 @@ prepare: |
   # unmount the image and start the VM
   umount_ubuntu_image "$IMAGE_MOUNTPOINT"
   tests.nested create-vm classic
+  remote.exec "sudo snap wait system seed.loaded"
 
 execute: |
   # check the current snapd snap is vulnerable
