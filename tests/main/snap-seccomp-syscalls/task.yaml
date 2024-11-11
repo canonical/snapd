@@ -8,7 +8,7 @@ details: |
   more details.
 
 # one system is enough
-systems: [ubuntu-18.04-64]
+systems: [ubuntu-24.04-64]
 
 # Start early as it takes a long time.
 priority: 100
