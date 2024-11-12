@@ -49,7 +49,7 @@ func (c *Constraints) ToRuleConstraints(iface string, currTime time.Time) (*Rule
 	if c.PathPattern == nil {
 		return nil, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
 	}
-	rulePermissions, err := c.Permissions.ToRulePermissionMap(iface, currTime)
+	rulePermissions, err := c.Permissions.toRulePermissionMap(iface, currTime)
 	if err != nil {
 		return nil, err
 	}
@@ -259,11 +259,11 @@ func (c *PatchConstraints) PatchRuleConstraints(existing *RuleConstraints, iface
 // permissions.
 type PermissionMap map[string]*PermissionEntry
 
-// ToRulePermissionMap validates the receiving PermissionMap and converts it
+// toRulePermissionMap validates the receiving PermissionMap and converts it
 // to a RulePermissionMap, using the given current time to convert any included
 // durations to expirations. If the permission map is not valid with respect to
 // the given interface, returns an error.
-func (pm PermissionMap) ToRulePermissionMap(iface string, currTime time.Time) (RulePermissionMap, error) {
+func (pm PermissionMap) toRulePermissionMap(iface string, currTime time.Time) (RulePermissionMap, error) {
 	availablePerms, ok := interfacePermissionsAvailable[iface]
 	if !ok {
 		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
