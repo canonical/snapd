@@ -102,6 +102,9 @@ execute: |
     echo "No output on stderr when running without a session bus"
     # NOTE: lack of session bus is emulated by unsetting DBUS_SESSION_BUS address
     # and stopping dbus.socket
-    tests.session -u test exec systemctl --user stop dbus.socket
-    tests.session -u test exec sh -c "DBUS_SESSION_BUS_ADDRESS= test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current" 2>stderr.log
-    check_stderr stderr.log
+    # In opensuse tumbleweed the dbus.socket is configured to refuse manual start/stop
+    if ! os.query is-opensuse tumbleweed; then
+        tests.session -u test exec systemctl --user stop dbus.socket
+        tests.session -u test exec sh -c "DBUS_SESSION_BUS_ADDRESS= test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current" 2>stderr.log
+        check_stderr stderr.log
+    fi
