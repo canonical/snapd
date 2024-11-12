@@ -616,7 +616,7 @@ build_snapd_snap_with_run_mode_firstboot_tweaks() {
     # TODO set up a trap to clean this up properly?
     local UNPACK_DIR
     UNPACK_DIR="$(mktemp -d /tmp/snapd-unpack.XXXXXXXX)"
-    unsquashfs -no-progress -d "$UNPACK_DIR" /tmp/snapd_from_snapcraft.snap
+    unsquashfs -no-progress -f -d "$UNPACK_DIR" /tmp/snapd_from_snapcraft.snap
 
     # now install a unit that sets up enough so that we can connect
     cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
@@ -701,7 +701,7 @@ repack_core_snap_with_tweaks() {
     local UNPACK_DIR
     # TODO set up a trap to clean this up properly?
     UNPACK_DIR="$(mktemp -d /tmp/core-unpack.XXXXXXXX)"
-    unsquashfs -no-progress -d "$UNPACK_DIR" "$CORESNAP"
+    unsquashfs -no-progress -f -d "$UNPACK_DIR" "$CORESNAP"
 
     mkdir -p "$UNPACK_DIR"/etc/systemd/journald.conf.d
     cat <<EOF > "$UNPACK_DIR"/etc/systemd/journald.conf.d/to-console.conf
@@ -742,7 +742,7 @@ repack_kernel_snap() {
     # TODO set up a trap to clean this up properly?
     UNPACK_DIR="$(mktemp -d /tmp/kernel-unpack.XXXXXXXX)"
     snap download --basename=pc-kernel --channel="$CHANNEL/${KERNEL_CHANNEL}" pc-kernel
-    unsquashfs -no-progress -d "$UNPACK_DIR" pc-kernel.snap
+    unsquashfs -no-progress -f -d "$UNPACK_DIR" pc-kernel.snap
     snap pack --filename="$TARGET" "$UNPACK_DIR"
 
     rm -rf pc-kernel.snap "$UNPACK_DIR"
@@ -1177,7 +1177,7 @@ setup_reflash_magic() {
     # TODO set up a trap to clean this up properly?
     local UNPACK_DIR
     UNPACK_DIR="$(mktemp -d "/tmp/$core_name-unpack.XXXXXXXX")"
-    unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
+    unsquashfs -no-progress -f -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
 
     if os.query is-arm; then
         snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
