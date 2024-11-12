@@ -33,6 +33,8 @@ import (
 )
 
 var (
+	osReadFile = os.ReadFile
+
 	secbootProvisionForCVM func(initramfsUbuntuSeedDir string) error
 )
 
@@ -70,7 +72,7 @@ func (e *ManifestError) Error() string {
 }
 
 func parseImageManifest(imageManifestFilePath string) (ImageManifest, error) {
-	imageManifestFile, err := os.ReadFile(imageManifestFilePath)
+	imageManifestFile, err := osReadFile(imageManifestFilePath)
 	if err != nil {
 		return ImageManifest{}, err
 	}
@@ -92,6 +94,16 @@ func parseImageManifest(imageManifestFilePath string) (ImageManifest, error) {
 	return im, nil
 }
 
+// generateMountsFromManifest is used to parse a manifest file which contains information about which
+// partitions should be used to compose the rootfs of the system using overlayfs.
+//
+// Only a single overlayfs lowerdir and a single overlayfs upperdir are supported. For the lowerdir, a dm-verity
+// root hash can be supplied which will be used during mounting. The writable layer can be encrypted as in CVMv1.
+//
+// If a writable layer is not specified in the manifest, a tmpfs-based layer is mounted as the upperdir of the
+// overlayfs. This is relevant in ephemeral confidential VM scenarios where the confidentiality of the writable
+// data is achieved through hardware memory encryption and not disk encryption (the writable data/system state
+// should never touch the disk).
 func generateMountsFromManifest(im ImageManifest, disk disks.Disk) ([]partitionMount, error) {
 	foundReadOnlyPartition := ""
 	foundWritablePartition := ""
@@ -180,9 +192,32 @@ func generateMountsFromManifest(im ImageManifest, disk disks.Disk) ([]partitionM
 	return partitionMounts, nil
 }
 
+var createOverlayDirs = func(path string) error {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if err := os.Mkdir(path, fi.Mode()); err != nil && !os.IsExist(err) {
+		return err
+	}
+	if err := os.Mkdir(filepath.Join(path, "upper"), fi.Mode()); err != nil && !os.IsExist(err) {
+		return err
+	}
+	if err := os.Mkdir(filepath.Join(path, "work"), fi.Mode()); err != nil && !os.IsExist(err) {
+		return err
+	}
+
+	return nil
+}
+
 // generateMountsModeRunCVM is used to generate mounts for the special "cloudimg-rootfs" mode which
 // mounts the rootfs from a partition on the disk rather than a base snap. It supports TPM-backed FDE
 // for the rootfs partition using a sealed key from the seed partition.
+//
+// It also supports retrieving partition information using a manifest from the seed partition. If a
+// manifest file is found under the specified path, it will parse the manifest for mount information,
+// otherwise it will follow the default behaviour of auto-discovering a disk with the "cloudimg-rootfs"
+// label.
 func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 	// Mount ESP as UbuntuSeedDir which has UEFI label
 	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "UEFI"); err != nil {
@@ -256,14 +291,7 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 
 		// Create overlayfs' upperdir and workdir in the writable tmpfs layer.
 		if pm.Opts.Tmpfs {
-			fi, err := os.Stat(pm.Where)
-			if err != nil {
-				return err
-			}
-			if err := os.Mkdir(filepath.Join(pm.Where, "upper"), fi.Mode()); err != nil && !os.IsExist(err) {
-				return err
-			}
-			if err := os.Mkdir(filepath.Join(pm.Where, "work"), fi.Mode()); err != nil && !os.IsExist(err) {
+			if err := createOverlayDirs(pm.Where); err != nil {
 				return err
 			}
 		}
