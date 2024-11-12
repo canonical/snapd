@@ -316,7 +316,7 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 		},
 		{
 			"mount:\n  - where: /media/foo\n    type: [nfs, ext4]\n    options: [rw]",
-			`mount-control "type" cannot be more than one entry when using "nfs" type.*`,
+			`mount-control filesystem type "nfs" cannot be listed with other types`,
 		},
 	}
 

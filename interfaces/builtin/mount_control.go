@@ -245,6 +245,11 @@ type mountControlInterface struct {
 // nearly any path, and due to the super-privileged nature of this interface it
 // is expected that sensible values of what are enforced by the store manual
 // review queue and security teams.
+//
+// Certain filesystem types impose additional restrictions on the allowed values
+// for "what" attribute:
+// - "tmpfs" - "what" must be set to "none"
+// - "nfs" - "what" must be unset
 var (
 	whatRegexp  = regexp.MustCompile(`^(none|/[^"@]*)$`)
 	whereRegexp = regexp.MustCompile(`^(\$SNAP_COMMON|\$SNAP_DATA)?/[^\$"@]+$`)
@@ -254,7 +259,15 @@ var (
 // malicious string like
 //
 //	auto) options=() /malicious/content /var/lib/snapd/hostfs/...,\n mount fstype=(
+//
+// The "type" attribute is an optional list of expected filesystem types. It
+// most useful in situations when it is known upfront that only a handful of
+// types are accepted for a given mount.
 var typeRegexp = regexp.MustCompile(`^[a-z0-9]+$`)
+
+// Because of additional rules imposed on mount attributes, some filesystems can
+// only be specified as a single "type" entry.
+var exclusiveFsTypes = []string{"tmpfs", "nfs"}
 
 type MountInfo struct {
 	what       string
@@ -306,10 +319,6 @@ func enumerateMounts(plug interfaces.Attrer, fn func(mountInfo *MountInfo) error
 
 		allowNoSource := false
 		if strutil.ListContains(types, "nfs") {
-			if len(types) > 1 {
-				return fmt.Errorf(`mount-control "type" cannot be more than one entry when using "nfs" type`)
-			}
-
 			allowNoSource = true
 		}
 
@@ -422,22 +431,29 @@ func validateWhereAttr(where string) error {
 }
 
 func validateMountTypes(types []string) error {
-	includesTmpfs := false
+	exclusiveFsType := ""
+
+	// multiple types specified in "type" are useful when the accepted
+	// filesystem type is known upfront or the mount uses one of the special
+	// types, such as "nfs" or "tmpfs"
 	for _, t := range types {
 		if !typeRegexp.MatchString(t) {
 			return fmt.Errorf(`mount-control filesystem type invalid: %q`, t)
 		}
+
 		if strutil.ListContains(disallowedFSTypes, t) {
 			return fmt.Errorf(`mount-control forbidden filesystem type: %q`, t)
 		}
-		if t == "tmpfs" {
-			includesTmpfs = true
+
+		if strutil.ListContains(exclusiveFsTypes, t) {
+			exclusiveFsType = t
 		}
 	}
 
-	if includesTmpfs && len(types) > 1 {
-		return errors.New(`mount-control filesystem type "tmpfs" cannot be listed with other types`)
+	if exclusiveFsType != "" && len(types) > 1 {
+		return fmt.Errorf(`mount-control filesystem type %q cannot be listed with other types`, exclusiveFsType)
 	}
+
 	return nil
 }
 
@@ -498,15 +514,15 @@ func isAllowedFilesystemSpecificMountOption(types []string, optionName string) b
 }
 
 func validateMountInfo(mountInfo *MountInfo) error {
+	if err := validateMountTypes(mountInfo.types); err != nil {
+		return err
+	}
+
 	if err := validateWhatAttr(mountInfo); err != nil {
 		return err
 	}
 
 	if err := validateWhereAttr(mountInfo.where); err != nil {
-		return err
-	}
-
-	if err := validateMountTypes(mountInfo.types); err != nil {
 		return err
 	}
 
