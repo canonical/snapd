@@ -36,6 +36,11 @@ func lockFileName(snapName string) string {
 }
 
 // OpenLock creates and opens a lock file associated with a particular snap.
+//
+// NOTE: The snap lock is only accessible to root and is only intended to
+// synchronize operations between snapd and snap-confine (and snap-update-ns
+// in some cases). Any process holding the snap lock must not do any
+// interactions with snapd to avoid deadlocks due to locked snap state.
 func OpenLock(snapName string) (*osutil.FileLock, error) {
 	if err := os.MkdirAll(dirs.SnapRunLockDir, 0700); err != nil {
 		return nil, fmt.Errorf("cannot create lock directory: %s", err)

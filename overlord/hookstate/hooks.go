@@ -177,7 +177,7 @@ func (h *gateAutoRefreshHookHandler) Before() error {
 	defer lock.Unlock()
 
 	inhibitInfo := runinhibit.InhibitInfo{Previous: snapRev}
-	if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedGateRefresh, inhibitInfo); err != nil {
+	if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedGateRefresh, inhibitInfo, st.Unlocker()); err != nil {
 		return err
 	}
 
@@ -214,7 +214,7 @@ func (h *gateAutoRefreshHookHandler) Done() (err error) {
 		// invoking --hold/--proceed; this means proceed (except for respecting
 		// refresh inhibit).
 		if h.refreshAppAwareness {
-			if err := runinhibit.Unlock(snapName); err != nil {
+			if err := runinhibit.Unlock(snapName, st.Unlocker()); err != nil {
 				return fmt.Errorf("cannot unlock inhibit lock for snap %s: %v", snapName, err)
 			}
 		}
@@ -232,7 +232,7 @@ func (h *gateAutoRefreshHookHandler) Done() (err error) {
 	case snapstate.GateAutoRefreshHold:
 		// for action=hold the ctlcmd calls HoldRefresh; only unlock runinhibit.
 		if h.refreshAppAwareness {
-			if err := runinhibit.Unlock(snapName); err != nil {
+			if err := runinhibit.Unlock(snapName, st.Unlocker()); err != nil {
 				return fmt.Errorf("cannot unlock inhibit lock of snap %s: %v", snapName, err)
 			}
 		}
@@ -243,14 +243,18 @@ func (h *gateAutoRefreshHookHandler) Done() (err error) {
 			return err
 		}
 		if h.refreshAppAwareness {
+			// Unlock global state once for IsLocked and LockWithHint instead
+			// of unlocking/locking state twice quickly.
+			st.Unlock()
+			defer st.Lock()
 			// we have HintInhibitedGateRefresh lock already when running the hook, change
 			// it to HintInhibitedForRefresh.
 			// Also let's reuse inhibit info that was saved in Before().
-			_, inhibitInfo, err := runinhibit.IsLocked(snapName)
+			_, inhibitInfo, err := runinhibit.IsLocked(snapName, nil)
 			if err != nil {
 				return err
 			}
-			if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedForRefresh, inhibitInfo); err != nil {
+			if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedForRefresh, inhibitInfo, nil); err != nil {
 				return fmt.Errorf("cannot set inhibit lock for snap %s: %v", snapName, err)
 			}
 		}
@@ -284,7 +288,7 @@ func (h *gateAutoRefreshHookHandler) Error(hookErr error) (ignoreHookErr bool, e
 		}
 		defer lock.Unlock()
 
-		if err := runinhibit.Unlock(snapName); err != nil {
+		if err := runinhibit.Unlock(snapName, st.Unlocker()); err != nil {
 			return false, fmt.Errorf("cannot release inhibit lock of snap %s: %v", snapName, err)
 		}
 	}
