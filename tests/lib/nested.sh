@@ -980,7 +980,7 @@ nested_create_core_vm() {
             BOOTVOLUME=pc
             if [ -e pc-gadget/meta/gadget.yaml ]; then
                 # shellcheck disable=SC2016
-                BOOTVOLUME="$(gojq --yaml-input '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml | tr -d '"')"
+                BOOTVOLUME="$(gojq --yaml-input --raw-output '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml)"
                 if [ -z "$BOOTVOLUME" ]; then
                     echo "was not able to deduce the ubuntu-boot partition from gadget.yaml in pc-gadget/meta/gadget.yaml"
                     echo "please inspect it and make sure it looks as expected"
