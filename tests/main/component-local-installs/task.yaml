@@ -72,7 +72,9 @@ execute: |
 
   snap remove test-snap-one test-snap-two
 
-  # fail to install a component for a snap that isn't installed
+  # fail to install a component for a snap that isn't installed. note that this
+  # isn't impacted by the separate lanes that the snaps are installed in, since
+  # the failure here doesn't occur from inside of a task.
   not snap install --dangerous \
     ./test-snap-one_1.0_all.snap \
     ./test-snap-one+comp-one_1.0.comp \
