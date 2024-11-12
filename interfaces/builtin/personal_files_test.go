@@ -244,6 +244,7 @@ plugs:
 		{`read: [ "$HOME/home/$HOME/foo" ]`, `\$HOME must only be used at the start of the path of "\$HOME/home/\$HOME/foo"`},
 		{`read: [ "$HOME/sweet/$HOME" ]`, `\$HOME must only be used at the start of the path of "\$HOME/sweet/\$HOME"`},
 		{`read: [ "/@{FOO}" ]`, `"/@{FOO}" contains a reserved apparmor char from .*`},
+		{`read: [ "/foo/bar@" ]`, `"/foo/bar@" cannot end with "@"`},
 		{`read: [ "/home/@{HOME}/foo" ]`, `"/home/@{HOME}/foo" contains a reserved apparmor char from .*`},
 		{`read: [ "${HOME}/foo" ]`, `"\${HOME}/foo" contains a reserved apparmor char from .*`},
 		{`read: [ "$HOME" ]`, `"\$HOME" must start with "\$HOME/"`},

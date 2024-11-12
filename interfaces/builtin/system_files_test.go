@@ -50,7 +50,7 @@ version: 1.0
 plugs:
  system-files:
   read: [/etc/read-dir2, /etc/read-file2]
-  write:  [/etc/write-dir2, /etc/write-file2]
+  write:  [/etc/write-dir2, /etc/write-file2, /dev/foo@bar]
 apps:
  app:
   command: foo
@@ -83,6 +83,7 @@ func (s *systemFilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
 "/etc/read-file2{,/,/**}" rk,
 "/etc/write-dir2{,/,/**}" rwkl,
 "/etc/write-file2{,/,/**}" rwkl,
+"/dev/foo@bar{,/,/**}" rwkl,
 `)
 }
 
@@ -133,6 +134,7 @@ plugs:
 		{`read: [ "$HOME/sweet/$HOME" ]`, `"\$HOME/sweet/\$HOME" must start with "/"`},
 		{`read: [ "/@{FOO}" ]`, `"/@{FOO}" contains a reserved apparmor char from .*`},
 		{`read: [ "/home/@{HOME}/foo" ]`, `"/home/@{HOME}/foo" contains a reserved apparmor char from .*`},
+		{`read: [ "/foo/bar@" ]`, `"/foo/bar@" cannot end with "@"`},
 	}
 
 	for _, t := range testCases {
