@@ -4251,7 +4251,7 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsWithDeviceSetHappy(c 
 	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil)
 	c.Assert(err, IsNil)
 
-	vol.DeviceAssignment = "/dev/disk/by-path/42:0"
+	vol.AssignedDevice = "/dev/disk/by-path/42:0"
 	m := map[string]*gadget.Volume{
 		"foo": vol.Volume,
 	}
@@ -5375,7 +5375,7 @@ volume-assignments:
 - assignment-name: bar-device
   assignment:
     lun-0:
-      device: /dev/disk/by-diskseq/1
+      device: /dev/disk/by-id/1
     lun-1:
       device: /dev/disk/by-id/wwm1234
 `
@@ -5391,7 +5391,7 @@ var mockNonExistingAssignmentGadgetYaml = string(mockVolumeAssignmentGadget0Yaml
 - assignment-name: baz-device
   assignment:
     lun-2:
-      device: /dev/disk/by-diskseq/1
+      device: /dev/disk/by-id/1
 `
 
 var mockNoAssignmentGadgetYaml = string(mockVolumeAssignmentGadget0Yaml) + `
@@ -5403,13 +5403,13 @@ volume-assignments:
 - assignment-name: foo-device
   assignment:
     lun-0:
-      device: /dev/disk/by-diskseq/2
+      device: /dev/disk/by-id/2
     lun-1:
       device: /dev/disk/by-path/pci-0000:06:00.1-ata-5
 - assignment-name: foo-device
   assignment:
     lun-0:
-      device: /dev/disk/by-diskseq/1
+      device: /dev/disk/by-id/1
     lun-1:
       device: /dev/disk/by-path/pci-0000:02:00.1-ata-5
 `
@@ -5419,13 +5419,13 @@ volume-assignments:
 - assignment-name: foo-device
   assignment:
     lun-0:
-      device: /dev/disk/by-diskseq/1
+      device: /dev/disk/by-id/1
     lun-1:
       device: /dev/disk/by-path/pci-0000:02:00.1-ata-5
 - assignment-name: bar-device
   assignment:
     lun-0:
-      device: /dev/disk/by-diskseq/1
+      device: /dev/disk/by-id/1
     lun-1:
       device: /dev/disk/by-path/pci-0000:02:00.1-ata-5
 `
@@ -5439,7 +5439,7 @@ volume-assignments:
 - assignment-name: bar-device
   assignment:
     lun-0:
-      device: /dev/disk/by-diskseq/1
+      device: /dev/disk/by-id/1
     lun-1:
       device: /dev/disk/by-path/pci-0000:02:00.1-ata-5
 `
@@ -5464,8 +5464,8 @@ func (s *gadgetYamlVolumeAssignmentSuite) TearDownTest(c *C) {
 }
 
 func (s *gadgetYamlVolumeAssignmentSuite) TestVolumesForCurrentDeviceAssignmentSimple(c *C) {
-	c.Assert(os.MkdirAll(path.Join(dirs.GlobalRootDir, "/dev/disk/by-diskseq"), 0755), IsNil)
-	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "/dev/disk/by-diskseq/1"), []byte(``), 0644), IsNil)
+	c.Assert(os.MkdirAll(path.Join(dirs.GlobalRootDir, "/dev/disk/by-id"), 0755), IsNil)
+	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "/dev/disk/by-id/1"), []byte(``), 0644), IsNil)
 
 	gi := &gadget.Info{
 		Volumes: map[string]*gadget.Volume{
@@ -5478,7 +5478,7 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestVolumesForCurrentDeviceAssignmentS
 				Name: "assign-0",
 				Assignments: map[string]*gadget.DeviceAssignment{
 					"p1": {
-						Device: "/dev/disk/by-diskseq/1",
+						Device: "/dev/disk/by-id/1",
 					},
 				},
 			},
@@ -5491,8 +5491,8 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestVolumesForCurrentDeviceAssignmentS
 }
 
 func (s *gadgetYamlVolumeAssignmentSuite) TestVolumesForCurrentDeviceAssignmentNoAssignments(c *C) {
-	c.Assert(os.MkdirAll(path.Join(dirs.GlobalRootDir, "/dev/disk/by-diskseq"), 0755), IsNil)
-	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "/dev/disk/by-diskseq/1"), []byte(``), 0644), IsNil)
+	c.Assert(os.MkdirAll(path.Join(dirs.GlobalRootDir, "/dev/disk/by-id"), 0755), IsNil)
+	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "/dev/disk/by-id/1"), []byte(``), 0644), IsNil)
 
 	gi := &gadget.Info{
 		Volumes: map[string]*gadget.Volume{
@@ -5505,7 +5505,7 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestVolumesForCurrentDeviceAssignmentN
 				Name: "assign-0",
 				Assignments: map[string]*gadget.DeviceAssignment{
 					"p1": {
-						Device: "/dev/disk/by-diskseq/2",
+						Device: "/dev/disk/by-id/2",
 					},
 				},
 			},
@@ -5517,9 +5517,9 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestVolumesForCurrentDeviceAssignmentN
 }
 
 func (s *gadgetYamlVolumeAssignmentSuite) TestVolumesForCurrentDeviceAssignmentMultipleAssignments(c *C) {
-	c.Assert(os.MkdirAll(path.Join(dirs.GlobalRootDir, "/dev/disk/by-diskseq"), 0755), IsNil)
-	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "/dev/disk/by-diskseq/1"), []byte(``), 0644), IsNil)
-	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "/dev/disk/by-diskseq/2"), []byte(``), 0644), IsNil)
+	c.Assert(os.MkdirAll(path.Join(dirs.GlobalRootDir, "/dev/disk/by-id"), 0755), IsNil)
+	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "/dev/disk/by-id/1"), []byte(``), 0644), IsNil)
+	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "/dev/disk/by-id/2"), []byte(``), 0644), IsNil)
 
 	gi := &gadget.Info{
 		Volumes: map[string]*gadget.Volume{
@@ -5532,7 +5532,7 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestVolumesForCurrentDeviceAssignmentM
 				Name: "assign-0",
 				Assignments: map[string]*gadget.DeviceAssignment{
 					"p1": {
-						Device: "/dev/disk/by-diskseq/1",
+						Device: "/dev/disk/by-id/1",
 					},
 				},
 			},
@@ -5540,7 +5540,7 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestVolumesForCurrentDeviceAssignmentM
 				Name: "assign-1",
 				Assignments: map[string]*gadget.DeviceAssignment{
 					"p1": {
-						Device: "/dev/disk/by-diskseq/2",
+						Device: "/dev/disk/by-id/2",
 					},
 				},
 			},
@@ -5556,7 +5556,7 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestReadGadgetYamlInvalidDevicePath(c 
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir0, coreMod)
-	c.Assert(err, ErrorMatches, `volume-assignment variant \"baz-device\": \"lun-1\": unsupported device path \"/dev/by-sda\", for now only paths under /dev/disk are valid`)
+	c.Assert(err, ErrorMatches, `volume-assignment variant "baz-device": "lun-1": unsupported device path "/dev/by-sda", for now only paths under /dev/disk/{by-path,by-id} are valid`)
 }
 
 func (s *gadgetYamlVolumeAssignmentSuite) TestReadGadgetYamlInvalidVolume(c *C) {
@@ -5659,7 +5659,7 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestReadGadgetYamlHappy(c *C) {
 				Name: "bar-device",
 				Assignments: map[string]*gadget.DeviceAssignment{
 					"lun-0": {
-						Device: "/dev/disk/by-diskseq/1",
+						Device: "/dev/disk/by-id/1",
 					},
 					"lun-1": {
 						Device: "/dev/disk/by-id/wwm1234",
@@ -5714,8 +5714,8 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestUpdateApplyAssignmentChanged(c *C)
 	// Create matchings - but now let us say that the once provided in the gadget
 	// has changed in an update, this must fail
 	restore := gadget.MockFindVolumesMatchingDeviceAssignment(func(gi *gadget.Info) (map[string]*gadget.Volume, error) {
-		gi.Volumes["lun-0"].DeviceAssignment = gi.VolumeAssignments[1].Assignments["lun-0"].Device
-		gi.Volumes["lun-1"].DeviceAssignment = gi.VolumeAssignments[1].Assignments["lun-1"].Device
+		gi.Volumes["lun-0"].AssignedDevice = gi.VolumeAssignments[1].Assignments["lun-0"].Device
+		gi.Volumes["lun-1"].AssignedDevice = gi.VolumeAssignments[1].Assignments["lun-1"].Device
 		return map[string]*gadget.Volume{
 			"lun-0": gi.Volumes["lun-0"],
 			"lun-1": gi.Volumes["lun-1"],
@@ -5779,8 +5779,8 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestUpdateApplyHappy(c *C) {
 	rollbackDir := c.MkDir()
 
 	restore := gadget.MockFindVolumesMatchingDeviceAssignment(func(gi *gadget.Info) (map[string]*gadget.Volume, error) {
-		gi.Volumes["lun-0"].DeviceAssignment = "/dev/disk/by-diskseq/1"
-		gi.Volumes["lun-1"].DeviceAssignment = "/dev/disk/by-id/wwm1234"
+		gi.Volumes["lun-0"].AssignedDevice = "/dev/disk/by-id/1"
+		gi.Volumes["lun-1"].AssignedDevice = "/dev/disk/by-id/wwm1234"
 		return map[string]*gadget.Volume{
 			"lun-0": gi.Volumes["lun-0"],
 			"lun-1": gi.Volumes["lun-1"],
@@ -5792,14 +5792,14 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestUpdateApplyHappy(c *C) {
 		return map[string]map[int]gadget.StructureLocation{
 				"lun-0": {
 					0: {
-						Device:         oldVolumes["lun-0"].DeviceAssignment,
+						Device:         oldVolumes["lun-0"].AssignedDevice,
 						Offset:         quantity.OffsetMiB,
 						RootMountPoint: "/run/mnt/ubuntu-boot",
 					},
 				},
 				"lun-1": {
 					0: {
-						Device:         oldVolumes["lun-1"].DeviceAssignment,
+						Device:         oldVolumes["lun-1"].AssignedDevice,
 						Offset:         quantity.OffsetMiB,
 						RootMountPoint: "/run/mnt/ubuntu-test",
 					},

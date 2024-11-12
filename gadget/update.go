@@ -1207,7 +1207,7 @@ func validateVolumesMatch(old, new map[string]*Volume) error {
 	for name, cvol := range old {
 		// the new one must match
 		nvol := new[name]
-		if cvol.DeviceAssignment != nvol.DeviceAssignment {
+		if cvol.AssignedDevice != nvol.AssignedDevice {
 			return fmt.Errorf("cannot update gadget assets: device assignment is not identical for %q", name)
 		}
 	}
@@ -1249,21 +1249,13 @@ func validateVolumesMatch(old, new map[string]*Volume) error {
 // d. After step (c) is completed the kernel refresh will now also work (no more
 // violation of rule 1)
 func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePolicyFunc, observer ContentUpdateObserver) error {
-	volumesForGadget := func(gd GadgetData) (map[string]*Volume, error) {
-		if len(gd.Info.VolumeAssignments) != 0 {
-			return VolumesForCurrentDeviceAssignment(gd.Info)
-		} else {
-			return gd.Info.Volumes, nil
-		}
-	}
-
 	// The gadget can only match if they have identical volumes assigned for the
 	// (currently) matching device
-	oldVolumes, err := volumesForGadget(old)
+	oldVolumes, _, err := VolumesForCurrentDevice(old.Info)
 	if err != nil {
 		return fmt.Errorf("cannot update gadget assets: %v", err)
 	}
-	newVolumes, err := volumesForGadget(new)
+	newVolumes, _, err := VolumesForCurrentDevice(new.Info)
 	if err != nil {
 		return fmt.Errorf("cannot update gadget assets: %v", err)
 	}

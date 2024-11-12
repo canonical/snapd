@@ -245,10 +245,10 @@ func resolveBootDevice(bootDevice string, bootVol *gadget.Volume) (string, error
 	if err != nil {
 		return "", fmt.Errorf("cannot find device to create partitions on: %v", err)
 	}
-	if bootVol.DeviceAssignment != "" {
+	if bootVol.AssignedDevice != "" {
 		// disk is assigned for this volume, then it must match the one
 		// that is assigned to system-seed
-		bootDisk, err := disks.DiskFromDeviceName(bootVol.DeviceAssignment)
+		bootDisk, err := disks.DiskFromDeviceName(bootVol.AssignedDevice)
 		if err != nil {
 			return "", err
 		}
@@ -339,24 +339,6 @@ func onDiskStructsSortedIdx(vss map[int]*gadget.OnDiskStructure) []int {
 	return yamlIdxSl
 }
 
-func determineDeviceVolumes(gi *gadget.Info) (map[string]*gadget.Volume, error) {
-	if len(gi.VolumeAssignments) != 0 {
-		devVols, err := gadget.VolumesForCurrentDeviceAssignment(gi)
-		if err != nil {
-			return nil, err
-		}
-
-		// in case of volume assignments let us list those for
-		// information
-		logger.Noticef("volume assignments:")
-		for name, vol := range devVols {
-			logger.Noticef("        %s => %s", name, vol.DeviceAssignment)
-		}
-		return devVols, nil
-	}
-	return gi.Volumes, nil
-}
-
 // Run creates partitions, encrypts them when expected, creates
 // filesystems, and finally writes content on them.
 func Run(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelSnapInfo, bootDevice string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
@@ -376,9 +358,17 @@ func Run(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelSnapInfo, 
 		return nil, err
 	}
 
-	volumes, err := determineDeviceVolumes(info)
+	volumes, explicitAssignment, err := gadget.VolumesForCurrentDevice(info)
 	if err != nil {
 		return nil, err
+	}
+	if explicitAssignment {
+		// in case of volume assignments let us list those for
+		// information
+		logger.Noticef("volume assignments:")
+		for name, vol := range volumes {
+			logger.Noticef("        %s => %s", name, vol.AssignedDevice)
+		}
 	}
 
 	// Step 1: create partitions
@@ -753,9 +743,17 @@ func FactoryReset(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelS
 		return nil, err
 	}
 
-	volumes, err := determineDeviceVolumes(info)
+	volumes, explicitAssignment, err := gadget.VolumesForCurrentDevice(info)
 	if err != nil {
 		return nil, err
+	}
+	if explicitAssignment {
+		// in case of volume assignments let us list those for
+		// information
+		logger.Noticef("volume assignments:")
+		for name, vol := range volumes {
+			logger.Noticef("        %s => %s", name, vol.AssignedDevice)
+		}
 	}
 
 	bootVol, err := gadget.FindBootVolume(volumes)

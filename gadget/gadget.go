@@ -29,6 +29,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -175,10 +176,10 @@ type Volume struct {
 	Structure []VolumeStructure `yaml:"structure" json:"structure"`
 	// Name is the name of the volume from the gadget.yaml
 	Name string `json:"-"`
-	// DeviceAssignment is set during runtime to assign a specific gadget
-	// volume to a device. This is only set optionally if matched against
-	// the volume-assignments.
-	DeviceAssignment string `json:"-"`
+	// AssignedDevice is set during runtime to assign a specific gadget
+	// volume to a device, eg. /dev/disk/by-path/pci-42:0. This is only
+	// set optionally if matched against the volume-assignments.
+	AssignedDevice string `json:"-"`
 }
 
 // VolumesHaveRole checks if any of the volumes has a structure with the given
@@ -570,7 +571,9 @@ type VolumeUpdate struct {
 // for cases like eMMC. Each assignment in this structure refers to a volume
 // and a device path (/dev/disk/** for now).
 type VolumeAssignment struct {
-	Name        string                       `yaml:"assignment-name"`
+	// Name is the assignment variant name
+	Name string `yaml:"assignment-name"`
+	// Assignments maps a volume name to an actual device assignment
 	Assignments map[string]*DeviceAssignment `yaml:"assignment"`
 }
 
@@ -593,24 +596,27 @@ func (va *VolumeAssignment) validate(volumes map[string]*Volume) error {
 // DeviceAssignment is the device data for each volume assignment. Currently
 // just keeps the device the volume should be assigned to.
 type DeviceAssignment struct {
+	// Device is the actual block device avaialble in the system,
+	// eg. /dev/disk/by-path/pci-42:0
 	Device string `yaml:"device"`
 }
 
 func (da *DeviceAssignment) validate() error {
-	// TODO: Revise this in the future to maybe limit it even further
-	// as not all sub categories inside /dev/disk can be really useful.
-	if !strings.HasPrefix(da.Device, "/dev/disk/") {
-		return fmt.Errorf("unsupported device path %q, for now only paths under /dev/disk are valid", da.Device)
+	// Device disk paths must be either under by-path or by-id
+	// as those are the only sensible ones that can be predefined
+	if !(strings.HasPrefix(da.Device, "/dev/disk/by-path") || strings.HasPrefix(da.Device, "/dev/disk/by-id")) {
+		return fmt.Errorf("unsupported device path %q, for now only paths under /dev/disk/{by-path,by-id} are valid", da.Device)
 	}
 	return nil
 }
 
-func areAssignmentsMatchingCurrentDevice(assignments map[string]*DeviceAssignment) bool {
+func areAssignmentsMatchingCurrentDevice(name string, assignments map[string]*DeviceAssignment) bool {
 	for _, va := range assignments {
 		if _, err := os.Stat(path.Join(dirs.GlobalRootDir, va.Device)); err != nil {
 			// XXX: expect this to mean no path, consider actually
 			// ensuring the error is not-exists
-			logger.Debugf("failed to stat device %s: %v", va.Device, err)
+			logger.Debugf("cannot stat device %s for volume assignment %q: %v",
+				va.Device, name, err)
 			return false
 		}
 	}
@@ -620,12 +626,13 @@ func areAssignmentsMatchingCurrentDevice(assignments map[string]*DeviceAssignmen
 // Indirection here for mocking
 var VolumesForCurrentDeviceAssignment = volumesForCurrentDeviceAssignmentImpl
 
-// volumesForCurrentDeviceAssignmentImpl does a best effort match of the volume-assignments
-// against the current device. We find the first assignment that has all device paths matching
+// volumesForCurrentDeviceAssignmentImpl finds a matching assignment based on
+// the available /dev/disk environment. If none, or multiple matching are found,
+// an error is returned.
 func volumesForCurrentDeviceAssignmentImpl(gi *Info) (map[string]*Volume, error) {
 	var matched []*VolumeAssignment
 	for _, vas := range gi.VolumeAssignments {
-		if !areAssignmentsMatchingCurrentDevice(vas.Assignments) {
+		if !areAssignmentsMatchingCurrentDevice(vas.Name, vas.Assignments) {
 			continue
 		}
 		matched = append(matched, vas)
@@ -633,22 +640,40 @@ func volumesForCurrentDeviceAssignmentImpl(gi *Info) (map[string]*Volume, error)
 
 	// If we find nothing, throw an error about no assignments being matched
 	// for the current device. If we find more than one, error out on that too.
-	if len(matched) == 0 {
+	switch {
+	case len(matched) == 0:
 		return nil, fmt.Errorf("no matching volume-assignment for current device")
-	} else if len(matched) > 1 {
+	case len(matched) == 1:
+		// update volume assignments, we can assume only one match
+		// in the list.
+		vas := matched[0]
+		logger.Noticef("found valid device-assignment: %s", vas.Name)
+		volumes := make(map[string]*Volume)
+		for vol := range vas.Assignments {
+			gi.Volumes[vol].AssignedDevice = vas.Assignments[vol].Device
+			volumes[vol] = gi.Volumes[vol]
+		}
+		return volumes, nil
+	default:
 		return nil, fmt.Errorf("multiple matching volume-assignment for current device")
 	}
+}
 
-	// update volume assignments, we can assume only one match
-	// in the list.
-	vas := matched[0]
-	logger.Noticef("found valid device-assignment: %s", vas.Name)
-	volumes := make(map[string]*Volume)
-	for vol := range vas.Assignments {
-		gi.Volumes[vol].DeviceAssignment = vas.Assignments[vol].Device
-		volumes[vol] = gi.Volumes[vol]
+// VolumesForCurrentDevice returns the correct list of volumes for the currently
+// running device. If there is an active assignment, then those volumes are returned
+// together with `assigned` being true.
+func VolumesForCurrentDevice(gi *Info) (vols map[string]*Volume, assigned bool, err error) {
+	if len(gi.VolumeAssignments) != 0 {
+		vols, err = VolumesForCurrentDeviceAssignment(gi)
+		if err != nil {
+			return nil, false, err
+		}
+		assigned = true
+	} else {
+		vols = gi.Volumes
+		assigned = false
 	}
-	return volumes, nil
+	return vols, assigned, nil
 }
 
 // DiskVolumeDeviceTraits is a set of traits about a disk that were measured at
@@ -842,8 +867,8 @@ func MaybeDeviceForStructure(vs *VolumeStructure) (string, error) {
 // that should be resolved instead of finding a matching device for one
 // of the volume structures.
 func MaybeDeviceForVolume(volume *Volume) (string, error) {
-	if volume.DeviceAssignment != "" {
-		disk, err := disks.DiskFromDeviceName(volume.DeviceAssignment)
+	if volume.AssignedDevice != "" {
+		disk, err := disks.DiskFromDeviceName(volume.AssignedDevice)
 		if err != nil {
 			return "", err
 		}
@@ -870,7 +895,8 @@ func MaybeDeviceForVolume(volume *Volume) (string, error) {
 		devNode, err := MaybeDeviceForStructure(&vs)
 		if err != nil {
 			return "", err
-		} else if devNode != "" {
+		}
+		if devNode != "" {
 			return devNode, nil
 		}
 	}
@@ -894,8 +920,9 @@ func AllDiskVolumeDeviceTraits(allVols map[string]*Volume, optsPerVolume map[str
 		// device symlinks that FindDeviceForStructure uses
 		dev, err := MaybeDeviceForVolume(vol)
 		if err != nil {
-			return nil, err
-		} else if dev == "" {
+			return nil, fmt.Errorf("cannot find disk for volume %s from gadget: %v", name, err)
+		}
+		if dev == "" {
 			return nil, fmt.Errorf("cannot find disk for volume %s from gadget", name)
 		}
 
@@ -1109,12 +1136,12 @@ func validateVolumeAssignments(volassigns []*VolumeAssignment, volumes map[strin
 
 	// ensure no two variants are identical in terms of contents, as we
 	// can only do matching based on the first correct we find.
-	checker := make(map[string]string)
+	checker := make(map[string][]*VolumeAssignment, len(volassigns))
 	for _, vavariant := range volassigns {
 		var keys []string
 
 		// include the device path to ensure that the assignments
-		// atleast differ, as the same volumes may be reused for multiple
+		// at least differ, as the same volumes may be reused for multiple
 		// devices
 		for name, da := range vavariant.Assignments {
 			keys = append(keys, name+da.Device)
@@ -1122,10 +1149,18 @@ func validateVolumeAssignments(volassigns []*VolumeAssignment, volumes map[strin
 		sort.Strings(keys)
 
 		key := strings.Join(keys, " ")
-		if name, ok := checker[key]; ok {
-			return fmt.Errorf("volume-assignment variant %q: identical to %q", vavariant.Name, name)
+		if matches, ok := checker[key]; ok {
+			// In case the user has done something weird where the keys
+			// end up matching (possible edge-case), we double check the
+			// maps here - this is a highly unlikely situation, so the
+			// performance implications should be non-existent
+			for _, match := range matches {
+				if reflect.DeepEqual(vavariant.Assignments, match.Assignments) {
+					return fmt.Errorf("volume-assignment variant %q: identical to %q", vavariant.Name, match.Name)
+				}
+			}
 		}
-		checker[key] = vavariant.Name
+		checker[key] = append(checker[key], vavariant)
 	}
 	return nil
 }
