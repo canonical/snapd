@@ -72,17 +72,29 @@ func matchMountPathAttribute(path string, attribute interface{}, snapInfo *snap.
 	return err == nil && pp.Matches(path)
 }
 
+func matchMountSourceAttribute(path string, attribute interface{}, fsType string, snapInfo *snap.Info) bool {
+	if fsType == "nfs" {
+		// NFS mount source AppArmor profiles expects a match for "*:**", so
+		// make sure that the attribute is unset, and the path matches the
+		// format
+		if _, ok := attribute.(string); ok {
+			return false
+		}
+
+		host, share, found := strings.Cut(path, ":")
+		if !found || host == "" || strings.Contains(host, "/") || share == "" {
+			return false
+		}
+
+		return true
+	}
+
+	return matchMountPathAttribute(path, attribute, snapInfo)
+}
+
 // matchConnection checks whether the given mount connection attributes give
 // the snap permission to execute the mount command
 func (m *mountCommand) matchConnection(attributes map[string]interface{}) bool {
-	if !matchMountPathAttribute(m.Positional.What, attributes["what"], m.snapInfo) {
-		return false
-	}
-
-	if !matchMountPathAttribute(m.Positional.Where, attributes["where"], m.snapInfo) {
-		return false
-	}
-
 	if m.Type != "" {
 		if types, ok := attributes["type"].([]interface{}); ok {
 			found := false
@@ -104,6 +116,14 @@ func (m *mountCommand) matchConnection(attributes map[string]interface{}) bool {
 		if _, typeIsSet := attributes["type"]; typeIsSet {
 			return false
 		}
+	}
+
+	if !matchMountSourceAttribute(m.Positional.What, attributes["what"], m.Type, m.snapInfo) {
+		return false
+	}
+
+	if !matchMountPathAttribute(m.Positional.Where, attributes["where"], m.snapInfo) {
+		return false
 	}
 
 	if optionsIfaces, ok := attributes["options"].([]interface{}); ok {
