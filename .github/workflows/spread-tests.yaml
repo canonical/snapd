@@ -17,8 +17,8 @@ on:
         description: 'The spread system(s) to use (for possible values, check spread.yaml). If more than one, separate them with a space'
         required: true
         type: string
-      tests:
-        description: 'The spread tests to run. It may be a space-separated list and may contain directories of many tests or individual ones'
+      tasks:
+        description: 'The spread tasks to run. It may be a space-separated list and may contain directories of many tasks or individual ones'
         required: true
         type: string
       rules:
@@ -104,7 +104,7 @@ jobs:
               RUN_TESTS="$FAILED_TESTS"
           else
               for SYSTEM in ${{ inputs.systems }}; do
-                  for TESTS in ${{ inputs.tests }}; do
+                  for TESTS in ${{ inputs.tasks }}; do
                     RUN_TESTS="$RUN_TESTS ${{ inputs.backend }}:$SYSTEM:$TESTS"
                   done
                   CHANGES_PARAM=""
@@ -211,7 +211,7 @@ jobs:
           echo "Running command: $SPREAD $RUN_TESTS"
           (set -o pipefail; $SPREAD -no-debug-output -logs spread-logs $RUN_TESTS | PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | tee spread.log)
 
-    - name: Uploading spread logs
+    - name: Upload spread logs
       if: always()
       uses: actions/upload-artifact@v4
       with:

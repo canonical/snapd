@@ -15,13 +15,13 @@ jobs:
     with:
       runs-on: ubuntu-22.04
       toolchain: ${{ matrix.toolchain }}
-      version: ${{ matrix.version }}
+      variant: ${{ matrix.variant }}
     strategy:
       matrix:
         toolchain:
           - default
           - FIPS
-        version:
+        variant:
           # test version is a build of snapd with test keys and should
           # only be installed by test runners. The pristine versions
           # are the build that should be installed by human users.
@@ -200,7 +200,7 @@ jobs:
       group: ${{ matrix.group }}
       backend: ${{ matrix.backend }}
       systems: ${{ matrix.systems }}
-      tests: ${{ matrix.tests }}
+      tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
@@ -214,130 +214,130 @@ jobs:
           - group: amazon-linux
             backend: google-distro-1
             systems: 'amazon-linux-2-64 amazon-linux-2023-64'
-            tests: 'tests/...'
+            tasks: 'tests/...'
             rules: 'main'
           - group: arch-linux
             backend: google-distro-2
             systems: 'arch-linux-64'
-            tests: 'tests/...'
+            tasks: 'tests/...'
             rules: 'main'
           - group: centos
             backend: google-distro-2
             systems: 'centos-9-64'
-            tests: 'tests/...'
+            tasks: 'tests/...'
             rules: 'main'
           - group: debian-req
             backend: google-distro-1
             systems: 'debian-11-64'
-            tests: 'tests/...'
+            tasks: 'tests/...'
             rules: 'main'
           - group: debian-not-req
             backend: google-distro-1
             systems: 'debian-12-64 debian-sid-64'
-            tests: 'tests/...'
+            tasks: 'tests/...'
             rules: 'main'
           - group: fedora
             backend: openstack
             systems: 'fedora-40-64 fedora-41-64'
-            tests: 'tests/...'
+            tasks: 'tests/...'
             rules: 'main'
           - group: opensuse
             backend: google-distro-2
             systems: 'opensuse-15.5-64 opensuse-15.6-64 opensuse-tumbleweed-64'
-            tests: 'tests/...'
+            tasks: 'tests/...'
             rules: 'main'
           - group: ubuntu-trusty
             backend: google
             systems: 'ubuntu-14.04-64'
-            tests: 'tests/smoke/ tests/main/canonical-livepatch tests/main/canonical-livepatch-14.04'
+            tasks: 'tests/smoke/ tests/main/canonical-livepatch tests/main/canonical-livepatch-14.04'
             rules: 'trusty'
           - group: ubuntu-xenial-bionic
             backend: google
             systems: 'ubuntu-16.04-64 ubuntu-18.04-64'
-            tests: 'tests/...'
+            tasks: 'tests/...'
             rules: 'main'
           - group: ubuntu-focal-jammy
             backend: google
             systems: 'ubuntu-20.04-64 ubuntu-22.04-64'
-            tests: 'tests/...'
+            tasks: 'tests/...'
             rules: 'main'
           - group: ubuntu-noble
             backend: google
             systems: 'ubuntu-24.04-64'
-            tests: 'tests/...'
+            tasks: 'tests/...'
             rules: 'main'
           - group: ubuntu-no-lts
             backend: google
             systems: ''
-            tests: 'tests/...'
+            tasks: 'tests/...'
             rules: 'main'
           - group: ubuntu-daily
             backend: google
             systems: 'ubuntu-24.10-64'
-            tests: 'tests/...'
+            tasks: 'tests/...'
             rules: 'main'
           - group: ubuntu-core-16
             backend: google-core
             systems: 'ubuntu-core-16-64'
-            tests: 'tests/...'
+            tasks: 'tests/...'
             rules: 'main'
           - group: ubuntu-core-18
             backend: google-core
             systems: 'ubuntu-core-18-64'
-            tests: 'tests/...'
+            tasks: 'tests/...'
             rules: 'main'
           - group: ubuntu-core-20
             backend: google-core
             systems: 'ubuntu-core-20-64'
-            tests: 'tests/...'
+            tasks: 'tests/...'
             rules: 'main'
           - group: ubuntu-core-22
             backend: google-core
             systems: 'ubuntu-core-22-64'
-            tests: 'tests/...'
+            tasks: 'tests/...'
             rules: 'main'
           - group: ubuntu-core-24
             backend: google-core
             systems: 'ubuntu-core-24-64'
-            tests: 'tests/...'
+            tasks: 'tests/...'
             rules: 'main'
           - group: ubuntu-arm
             backend: google-arm
             systems: 'ubuntu-20.04-arm-64 ubuntu-core-22-arm-64'
-            tests: 'tests/...'
+            tasks: 'tests/...'
             rules: 'main'
           - group: ubuntu-secboot
             backend: google
             systems: 'ubuntu-secboot-20.04-64'
-            tests: 'tests/...'
+            tasks: 'tests/...'
             rules: 'main'
           - group: ubuntu-fips
             backend: google-pro
             systems: 'ubuntu-fips-22.04-64'
-            tests: 'tests/fips/...'
+            tasks: 'tests/fips/...'
             rules: 'main'
           - group: nested-ubuntu-16.04
             backend: google-nested
             systems: 'ubuntu-16.04-64'
-            tests: 'tests/nested/...'
+            tasks: 'tests/nested/...'
             rules: 'nested'
           - group: nested-ubuntu-18.04
             backend: google-nested
             systems: 'ubuntu-18.04-64'
-            tests: 'tests/nested/...'
+            tasks: 'tests/nested/...'
             rules: 'nested'
           - group: nested-ubuntu-20.04
             backend: google-nested
             systems: 'ubuntu-20.04-64'
-            tests: 'tests/nested/...'
+            tasks: 'tests/nested/...'
             rules: 'nested'
           - group: nested-ubuntu-22.04
             backend: google-nested
             systems: 'ubuntu-22.04-64'
-            tests: 'tests/nested/...'
+            tasks: 'tests/nested/...'
             rules: 'nested'
           - group: nested-ubuntu-24.04
             backend: google-nested
             systems: 'ubuntu-24.04-64'
-            tests: 'tests/nested/...'
+            tasks: 'tests/nested/...'
             rules: 'nested'
