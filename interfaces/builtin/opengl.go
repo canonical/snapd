@@ -193,6 +193,9 @@ unix (send, receive) type=dgram peer=(addr="@var/run/nvidia-xdriver-*"),
 /dev/nvgpu/igpu[0-9]*/ctrl rw,
 /dev/nvgpu/igpu[0-9]*/prof rw,
 /dev/host1x-fence rw,
+
+# Kernel Fusion Driver for AMD GPUs
+/dev/kfd rw,
 `
 
 type openglInterface struct {
@@ -224,6 +227,9 @@ var openglConnectedPlugUDev = []string{
 
 	// Nvidia dma barrier
 	`SUBSYSTEM=="host1x-fence"`,
+
+	// Kernel Fusion Driver
+	`SUBSYSTEM=="kfd", KERNEL=="kfd"`,
 }
 
 // Those two are the same, but in theory they are separate and can move (or
