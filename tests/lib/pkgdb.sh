@@ -589,7 +589,6 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                 dbus-user-session
                 gccgo-8
-                gperf
                 evolution-data-server
                 fwupd
                 packagekit
@@ -617,6 +616,7 @@ pkg_dependencies_ubuntu_classic(){
                 dbus-user-session
                 fwupd
                 golang
+                gperf
                 libvirt-daemon-system
                 linux-tools-$(uname -r)
                 lz4
