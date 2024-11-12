@@ -975,7 +975,7 @@ uc24_build_initramfs_kernel_snap() {
         chmod +x ./initrd/main/usr/lib/snapd/snap-bootstrap
         if [ "$injectKernelPanic" = "true" ]; then
             # add a kernel panic to the end of the-tool execution
-            echo "echo 'forcibly panicking'; echo c > /proc/sysrq-trigger" >> ./initrd/main/usr/lib/snapd/snap-bootstrap
+            echo "echo 'forcibly panicking'; echo c > /proc/sysrq-trigger" > ./initrd/main/usr/lib/snapd/snap-bootstrap
         fi
 
         (cd ./initrd/early; find . | cpio --create --quiet --format=newc --owner=0:0) >initrd.img
