@@ -219,7 +219,13 @@ func sideloadOrTrySnap(ctx context.Context, c *Command, body io.ReadCloser, boun
 
 // sideloadedInfo contains information from a bunch of sideloaded snaps
 type sideloadedInfo struct {
-	snaps      []sideloadSnapInfo
+	// snaps contains the set of snaps that should be sideloaded. Any components
+	// associated with these snaps that are being sideloaded will be inside of
+	// the sideloadSnapInfo for that snap.
+	snaps []sideloadSnapInfo
+	// components contains the set of components that should be sideloaded, but
+	// their associated snaps are not being sideloaded (they must already be
+	// installed).
 	components []sideloadComponentInfo
 }
 
