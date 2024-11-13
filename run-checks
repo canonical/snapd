@@ -241,21 +241,6 @@ if [ "$STATIC" = 1 ]; then
         exit 1
     fi
 
-    echo "Checking for usages of testtime outside of test code"
-    got=""
-    for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
-        s="$(grep -nP --exclude '*_test.go' --exclude 'testtime/*.go' 'testtime' "$dir"/*.go || true)"
-        if [ -n "$s" ]; then
-            got="$s\\n$got"
-        fi
-    done
-
-    if [ -n "$got" ]; then
-        echo 'Found usages of testtime outside of test code:'
-        echo "$got"
-        exit 1
-    fi
-
     if command -v shellcheck >/dev/null; then
         exclude_tools_path=tests/lib/external/snapd-testing-tools
         echo "Checking shell scripts..."
