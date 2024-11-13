@@ -189,6 +189,7 @@ linters:
     # disabling until https://github.com/daixiang0/gci/issues/54 is fixed
     # - gci
     - testpackage
+    - depguard
   # disable everything else
   disable-all: true
 
