@@ -1,0 +1,273 @@
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: 'A json list of tags to indicate which runner to use'
+        required: true
+        type: string
+      group:
+        description: 'The name of the group of backends, systems, tests, and rules'
+        required: true
+        type: string
+      backend:
+        description: 'The spread backend to use (for possible values, check spread.yaml)'
+        required: true
+        type: string
+      systems:
+        description: 'The spread system(s) to use (for possible values, check spread.yaml). If more than one, separate them with a space'
+        required: true
+        type: string
+      tasks:
+        description: 'The spread tasks to run. It may be a space-separated list and may contain directories of many tasks or individual ones'
+        required: true
+        type: string
+      rules:
+        description: 'The rule .yaml file to use (found under tests/lib/spread/rules) for test discovery'
+        required: true
+        type: string
+
+
+jobs:
+  run-spread:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+    - name: Cleanup job workspace
+      id: cleanup-job-workspace
+      run: |
+          rm -rf "${{ github.workspace }}"
+          mkdir "${{ github.workspace }}"
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        # spread uses tags as delta reference
+        fetch-depth: 0
+
+    - name: Get previous attempt
+      id: get-previous-attempt
+      run: |
+        echo "previous_attempt=$(( ${{ github.run_attempt }} - 1 ))" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Get previous cache
+      uses: actions/cache@v4
+      with:
+        path: "${{ github.workspace }}/.test-results"
+        key: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
+
+    - name: Prepare test results env and vars
+      id: prepare-test-results-env
+      run: |
+          # Create test results directories and save vars
+          TEST_RESULTS_DIR="${{ github.workspace }}/.test-results"
+          echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
+
+          # Save the var with the failed tests file
+          echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/failed-tests" >> $GITHUB_ENV
+
+          # Make sure the test results dirs are created
+          # This step has to be after the cache is restored
+          mkdir -p "$TEST_RESULTS_DIR"        
+
+    - name: Get changed files
+      id: changed-files
+      uses: tj-actions/changed-files@v41.0.0
+
+    - name: Save changes files
+      run: |
+          CHANGED_FILES="${{ steps.changed-files.outputs.all_changed_files }}"
+          echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
+          echo "The changed files found are: $CHANGED_FILES"
+
+    - name: Check failed tests to run
+      if: "!contains(github.event.pull_request.labels.*.name, 'Run all')"
+      run: |
+          # Save previous failed test results in FAILED_TESTS env var
+          FAILED_TESTS=""
+          if [ -f "$FAILED_TESTS_FILE" ]; then
+              echo "Failed tests file found"
+              FAILED_TESTS="$(cat $FAILED_TESTS_FILE)"
+              if [ -n "$FAILED_TESTS" ]; then
+                  echo "Failed tests to run: $FAILED_TESTS"
+                  echo "FAILED_TESTS=$FAILED_TESTS" >> $GITHUB_ENV
+              fi
+          fi
+
+    - name: Setup run tests variable
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+      run: |
+          RUN_TESTS=""
+          SUGGESTED_TESTS=""
+          # Save previous failed test results in FAILED_TESTS env var
+          if [ -n "$FAILED_TESTS" ]; then
+              RUN_TESTS="$FAILED_TESTS"
+          else
+              for SYSTEM in ${{ inputs.systems }}; do
+                  for TESTS in ${{ inputs.tasks }}; do
+                    RUN_TESTS="$RUN_TESTS ${{ inputs.backend }}:$SYSTEM:$TESTS"
+                  done
+                  CHANGES_PARAM=""
+                  for CHANGE in $CHANGED_FILES; do
+                    CHANGES_PARAM="$CHANGES_PARAM -c $CHANGE"
+                  done
+                  SUGGESTED_TESTS="$SUGGESTED_TESTS $(./tests/lib/external/snapd-testing-tools/utils/spread-filter -r ./tests/lib/spread/rules/${{ inputs.rules }}.yaml -p "${{ inputs.backend }}:$SYSTEM" $CHANGES_PARAM)"
+              done
+          fi
+          echo RUN_TESTS="$RUN_TESTS"  >> $GITHUB_ENV
+          echo "Suggested tests by spread-filter tool"
+          echo "$SUGGESTED_TESTS"
+
+    - name: Setup grafana parameters
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+      run: |
+          # Configure parameters to filter logs (these logs are sent read by grafana agent)
+          CHANGE_ID="${{ github.event.number }}"
+          if [ -z "$CHANGE_ID" ]; then
+            CHANGE_ID="main"
+          fi
+          FILTERED_LOG_FILE="spread_${CHANGE_ID}_n${{ github.run_attempt }}.filtered.log"
+          # The log-filter tool is used to filter the spread logs to be stored
+          echo FILTER_PARAMS="-o $FILTERED_LOG_FILE -e Debug -e WARNING: -f Failed=NO_LINES -f Error=NO_LINES"  >> $GITHUB_ENV
+          echo FILTERED_LOG_FILE="$FILTERED_LOG_FILE"  >> $GITHUB_ENV
+
+          # Add start line to filtered log
+          echo "GRAFANA START: pr ${CHANGE_ID} attempt ${{ github.run_attempt }} run ${{ github.run_id }} group ${{ inputs.group }}" > "$FILTERED_LOG_FILE"
+
+    - name: Download built snap
+      uses: actions/download-artifact@v4
+      if: "!endsWith(inputs.group, '-fips')"
+      with:
+        name: snap-files-default-test
+        # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
+        pattern: snapd_1337.*.snap
+        path: "${{ github.workspace }}/built-snap"
+
+    - name: Download built FIPS snap
+      uses: actions/download-artifact@v4
+      # eg. ubuntu-fips
+      if: "endsWith(inputs.group, '-fips')"
+      with:
+        name: snap-files-FIPS-test
+        # eg. snapd_1337.2.65.1+git97.gd35b459-fips_amd64.snap
+        pattern: snapd_1337.*-fips_*.snap
+        path: "${{ github.workspace }}/built-snap"
+
+    - name: Rename imported snap
+      run: |
+        for snap in built-snap/snapd_1337.*.snap; do
+          mv -v "${snap}" "${snap}.keep"
+        done
+
+    - name: Run spread tests
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && ( !startsWith(inputs.group, 'nested-') || contains(github.event.pull_request.labels.*.name, 'Run nested') )"
+      env:
+          SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
+      run: |
+          # Register a problem matcher to highlight spread failures
+          echo "::add-matcher::.github/spread-problem-matcher.json"
+          set -x
+          SPREAD=spread
+          if [[ "${{ inputs.group }}" =~ nested- ]]; then
+            export NESTED_BUILD_SNAPD_FROM_CURRENT=true
+            export NESTED_ENABLE_KVM=true
+          fi
+
+          case "${{ inputs.systems }}" in
+            *-arm-*)
+              SPREAD_USE_PREBUILT_SNAPD_SNAP=false
+              ;;
+            *)
+              SPREAD_USE_PREBUILT_SNAPD_SNAP=true
+              ;;
+          esac
+          export SPREAD_USE_PREBUILT_SNAPD_SNAP
+
+          if [[ "${{ inputs.systems }}" =~ amazon-linux-2023 ]]; then
+              # Amazon Linux 2023 has no xdelta, however we cannot disable
+              # xdelta on a per-target basis as it's used in the repack section
+              # of spread.yaml, which is shared by all targets, so all systems
+              # in this batch will not use delta for transferring project data
+              echo "Disabling xdelta support"
+              export NO_DELTA=1
+          fi
+
+          # Add openstack backend definition to spread.yaml
+          if [ "${{ inputs.backend }}" = openstack ]; then
+              ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
+          fi
+
+          # This coud be the case when either there are not systems for a group or 
+          # the list of tests to run is empty
+          if [ -z "$RUN_TESTS" ]; then
+            echo "No tests to run, skiping..."
+            exit 0
+          fi
+
+          # Run spread tests
+          # "pipefail" ensures that a non-zero status from the spread is
+          # propagated; and we use a subshell as this option could trigger
+          # undesired changes elsewhere
+          echo "Running command: $SPREAD $RUN_TESTS"
+          (set -o pipefail; $SPREAD -no-debug-output -logs spread-logs $RUN_TESTS | PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | tee spread.log)
+
+    - name: Upload spread logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: spread-logs-${{ inputs.systems }}
+        path: "spread-logs/*.log"
+        if-no-files-found: ignore
+
+    - name: Discard spread workers
+      if: always()
+      run: |
+        shopt -s nullglob;
+        for r in .spread-reuse.*.yaml; do
+          spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+        done
+
+    - name: Report spread errors
+      if: always()
+      run: |
+        if [ -e spread.log ]; then
+            echo "Running spread log analyzer"
+            ACTIONS_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"
+            PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json --cut 1 >/dev/null
+            while IFS= read -r line; do
+                if [ ! -z "$line" ]; then
+                    echo "Adding failed test line to filtered log"
+                    echo "GRAFANA FAILED: $line $ACTIONS_URL" | tee -a "$FILTERED_LOG_FILE"
+                fi
+            done <<< $(jq -r '.[] | select( .type == "info" ) | select( .info_type == "Error" ) | "\(.verb) \(.task)"' spread-results.json)
+        else
+            echo "No spread log found, skipping errors reporting"
+        fi
+
+    - name: Analyze spread test results
+      if: always()
+      run: |
+          if [ -f spread.log ]; then
+              echo "Running spread log parser"
+              PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
+
+              # Add openstack backend definition to spread.yaml
+              if [ "${{ inputs.backend }}" = openstack ]; then
+                  ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
+              fi
+
+              echo "Running spread log analyzer"
+              PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-analyzer list-reexecute-tasks "$RUN_TESTS" spread-results.json > "$FAILED_TESTS_FILE"
+
+              echo "List of failed tests saved"
+              cat "$FAILED_TESTS_FILE"
+          else
+              echo "No spread log found, saving empty list of failed tests"
+              touch "$FAILED_TESTS_FILE"
+          fi
+
+    - name: Save spread test results to cache
+      if: always()
+      uses: actions/cache/save@v4
+      with:
+        path: "${{ github.workspace }}/.test-results"
+        key: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ github.run_attempt }}"
