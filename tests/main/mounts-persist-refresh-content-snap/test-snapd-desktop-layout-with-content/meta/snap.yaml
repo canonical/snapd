@@ -4,6 +4,8 @@ version: 0.1
 apps:
   sh:
     command: bin/sh
+  crash-foo-font:
+    command: bin/crash-foo-font
 
 plugs:
   desktop:
