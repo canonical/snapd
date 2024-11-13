@@ -416,7 +416,7 @@ func (inst *snapInstruction) validate() error {
 
 	if len(inst.CompsRaw) > 0 {
 		switch inst.Action {
-		case "remove", "install":
+		case "remove", "install", "refresh":
 		default:
 			return fmt.Errorf("%q action is not supported for components", inst.Action)
 		}
@@ -463,12 +463,10 @@ func snapInstall(ctx context.Context, inst *snapInstruction, st *state.State) (*
 		return nil, errors.New(i18n.G("cannot install snap with empty name"))
 	}
 
-	var ckey string
 	if inst.CohortKey == "" {
 		logger.Noticef("Installing snap %q revision %s", inst.Snaps[0], inst.Revision)
 	} else {
-		ckey = strutil.ElliptLeft(inst.CohortKey, 10)
-		logger.Noticef("Installing snap %q from cohort %q", inst.Snaps[0], ckey)
+		logger.Noticef("Installing snap %q from cohort %q", inst.Snaps[0], strutil.ElliptLeft(inst.CohortKey, 10))
 	}
 
 	installedSnaps, installedComponents, tss, err := installationTaskSets(ctx, st, inst)
@@ -477,24 +475,29 @@ func snapInstall(ctx context.Context, inst *snapInstruction, st *state.State) (*
 	}
 
 	return &snapInstructionResult{
-		Summary:            installMessage(inst, ckey),
+		Summary:            installRefreshMessage(inst.Snaps[0], inst),
 		Tasksets:           tss,
 		Affected:           installedSnaps,
 		AffectedComponents: installedComponents,
 	}, nil
 }
 
-func installMessage(inst *snapInstruction, cohort string) string {
+func installRefreshMessage(snapName string, inst *snapInstruction) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, i18n.G("Install %q snap"), inst.Snaps[0])
+	if inst.Action == "install" {
+		fmt.Fprintf(&b, i18n.G("Install %q snap"), snapName)
+	} else {
+		fmt.Fprintf(&b, i18n.G("Refresh %q snap"), snapName)
+	}
+
 	if inst.Channel != "stable" && inst.Channel != "" {
 		fmt.Fprintf(&b, i18n.G(" from %q channel"), inst.Channel)
 	}
 	if inst.CohortKey != "" {
-		fmt.Fprintf(&b, i18n.G(" from %q cohort"), cohort)
+		fmt.Fprintf(&b, i18n.G(" from %q cohort"), strutil.ElliptLeft(inst.CohortKey, 10))
 	}
 
-	if comps := inst.CompsForSnaps[inst.Snaps[0]]; len(comps) > 0 {
+	if comps := inst.CompsForSnaps[snapName]; len(comps) > 0 {
 		if len(comps) > 1 {
 			fmt.Fprintf(&b, i18n.G(" with components %s"), strutil.Quoted(comps))
 		} else {
@@ -505,15 +508,19 @@ func installMessage(inst *snapInstruction, cohort string) string {
 	return b.String()
 }
 
-func multiInstallMessage(inst *snapInstruction) string {
-	if len(inst.Snaps) == 1 {
-		return installMessage(inst, "")
+func multiInstallRefreshMessage(snaps []string, inst *snapInstruction) string {
+	if len(snaps) == 1 {
+		return installRefreshMessage(snaps[0], inst)
 	}
 
 	var b strings.Builder
-	fmt.Fprint(&b, i18n.G("Install snaps"))
+	if inst.Action == "install" {
+		fmt.Fprint(&b, i18n.G("Install snaps"))
+	} else {
+		fmt.Fprint(&b, i18n.G("Refresh snaps"))
+	}
 
-	for i, name := range inst.Snaps {
+	for i, name := range snaps {
 		fmt.Fprintf(&b, " %q", name)
 
 		if comps := inst.CompsForSnaps[name]; len(comps) > 0 {
@@ -526,14 +533,14 @@ func multiInstallMessage(inst *snapInstruction) string {
 			b.WriteRune(')')
 		}
 
-		if i < len(inst.Snaps)-1 {
+		if i < len(snaps)-1 {
 			b.WriteRune(',')
 		}
 	}
 	return b.String()
 }
 
-func snapUpdate(_ context.Context, inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+func snapUpdate(ctx context.Context, inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
 	// TODO: bail if revision is given (and != current?), *or* behave as with install --revision?
 	flags, err := inst.modeFlags()
 	if err != nil {
@@ -554,18 +561,28 @@ func snapUpdate(_ context.Context, inst *snapInstruction, st *state.State) (*sna
 		return nil, err
 	}
 
-	ts, err := snapstateUpdate(st, inst.Snaps[0], inst.revnoOpts(), inst.userID, flags)
+	// TODO: once we completely move away from the old snapstate API, this
+	// backwards compatibility bit should be removed
+	if flags.Transaction == "" {
+		flags.Transaction = client.TransactionPerSnap
+	}
+
+	goal := snapstateStoreUpdateGoal(snapstate.StoreUpdate{
+		InstanceName:         inst.Snaps[0],
+		RevOpts:              *inst.revnoOpts(),
+		AdditionalComponents: inst.CompsForSnaps[inst.Snaps[0]],
+	})
+
+	ts, err := snapstateUpdateOne(ctx, st, goal, nil, snapstate.Options{
+		Flags:  flags,
+		UserID: inst.userID,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	msg := fmt.Sprintf(i18n.G("Refresh %q snap"), inst.Snaps[0])
-	if inst.Channel != "stable" && inst.Channel != "" {
-		msg = fmt.Sprintf(i18n.G("Refresh %q snap from %q channel"), inst.Snaps[0], inst.Channel)
-	}
-
 	return &snapInstructionResult{
-		Summary:            msg,
+		Summary:            installRefreshMessage(inst.Snaps[0], inst),
 		Tasksets:           []*state.TaskSet{ts},
 		Affected:           inst.Snaps,
 		AffectedComponents: inst.CompsForSnaps,
@@ -949,7 +966,7 @@ func snapInstallMany(ctx context.Context, inst *snapInstruction, st *state.State
 	}
 
 	return &snapInstructionResult{
-		Summary:            multiInstallMessage(inst),
+		Summary:            multiInstallRefreshMessage(inst.Snaps, inst),
 		Affected:           installedSnaps,
 		AffectedComponents: installedComponents,
 		Tasksets:           tasksets,
@@ -968,10 +985,28 @@ func snapUpdateMany(ctx context.Context, inst *snapInstruction, st *state.State)
 		return nil, err
 	}
 
-	transaction := inst.Transaction
-	updated, tasksets, err := snapstateUpdateMany(ctx, st, inst.Snaps, nil, inst.userID, &snapstate.Flags{
+	updates := make([]snapstate.StoreUpdate, 0, len(inst.Snaps))
+	for _, name := range inst.Snaps {
+		updates = append(updates, snapstate.StoreUpdate{
+			InstanceName:         name,
+			AdditionalComponents: inst.CompsForSnaps[name],
+		})
+	}
+
+	flags := snapstate.Flags{
 		IgnoreRunning: inst.IgnoreRunning,
-		Transaction:   transaction,
+		Transaction:   inst.Transaction,
+	}
+
+	// TODO: once we completely move away from the old snapstate API, this
+	// backwards compatibility bit should be removed
+	if flags.Transaction == "" {
+		flags.Transaction = client.TransactionPerSnap
+	}
+
+	goal := snapstateStoreUpdateGoal(updates...)
+	updated, uts, err := snapstateUpdateWithGoal(ctx, st, goal, nil, snapstate.Options{
+		Flags: flags,
 	})
 	if err != nil {
 		if opts.IsRefreshOfAllSnaps {
@@ -981,6 +1016,7 @@ func snapUpdateMany(ctx context.Context, inst *snapInstruction, st *state.State)
 		}
 		return nil, err
 	}
+	tasksets := uts.Refresh
 
 	var msg string
 	switch len(updated) {
@@ -992,11 +1028,9 @@ func snapUpdateMany(ctx context.Context, inst *snapInstruction, st *state.State)
 			msg = i18n.G("Refresh all snaps: no updates")
 		}
 	case 1:
-		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), updated[0])
+		msg = installRefreshMessage(updated[0], inst)
 	default:
-		quoted := strutil.Quoted(updated)
-		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		msg = fmt.Sprintf(i18n.G("Refresh snaps %s"), quoted)
+		msg = multiInstallRefreshMessage(updated, inst)
 	}
 
 	return &snapInstructionResult{
