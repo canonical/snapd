@@ -55,7 +55,6 @@ jobs:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
 
-
     - name: Prepare test results env and vars
       id: prepare-test-results-env
       run: |
