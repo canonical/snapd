@@ -482,7 +482,7 @@ SKIP_UNCLEAN=${SKIP_UNCLEAN=}
 if [ -n "$UNCLEAN" ] && [ -z "$SKIP_UNCLEAN" ]; then
     cat <<EOF
 
-There are files left in the git tree after the tests:
+There are files left in the git tree after the tests (or rerun with SKIP_UNCLEAN=1):
 
 $UNCLEAN
 EOF
