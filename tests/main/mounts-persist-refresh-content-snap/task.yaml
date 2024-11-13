@@ -39,13 +39,13 @@ execute: |
   # Construct the mount namespace once so that we are not racing construction
   # from background job of snap run --shell with update with snap install of
   # the test-snapd-content-slot below.
-  snap run --shell test-snapd-desktop-layout-with-content.cmd -c 'true'
+  test-snapd-desktop-layout-with-content.sh -c 'true'
   touch /run/keep-running
   # Read a file continuously in the background until it fails - note that the
   # while loop here has to be inside the snap run shell, since the process must
   # persist during the refresh, if it is on the outside the mount namespace will
   # be rebuilt and the crash will not be reproduced.
-  tests.session -u test exec snap run --shell test-snapd-desktop-layout-with-content.cmd -c \
+  tests.session -u test exec test-snapd-desktop-layout-with-content.sh -c \
     'while test -f /run/keep-running && test -d /usr/share/fonts/foo-font; do true; done; ls -ld /usr/share/fonts/foo-font' &
   pid=$!
 
