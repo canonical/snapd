@@ -596,7 +596,7 @@ func (va *VolumeAssignment) validate(volumes map[string]*Volume) error {
 // DeviceAssignment is the device data for each volume assignment. Currently
 // just keeps the device the volume should be assigned to.
 type DeviceAssignment struct {
-	// Device is the actual block device avaialble in the system,
+	// Device is the actual block device available in the system,
 	// eg. /dev/disk/by-path/pci-42:0
 	Device string `yaml:"device"`
 }

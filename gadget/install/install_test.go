@@ -77,6 +77,56 @@ func (s *installSuite) TestInstallRunError(c *C) {
 	c.Check(sys, IsNil)
 }
 
+func (s *installSuite) TestVolumeAssignmentDeviceNameMissing(c *C) {
+	uc20Mod := &gadgettest.ModelCharacteristics{
+		HasModes: true,
+	}
+
+	// mock the ubuntu seed device
+	s.setupMockUdevSymlinks(c, mockUdevDeviceSetup{
+		name: "fakedevice0",
+		parts: map[string]string{
+			"fakedevice0p1": "ubuntu-seed",
+		},
+	})
+
+	// mock the one we are assigning
+	s.setupMockUdevSymlinks(c, mockUdevDeviceSetup{
+		name: "fakedevice1",
+		path: "43:0",
+	})
+
+	m := map[string]*disks.MockDiskMapping{
+		filepath.Join(s.dir, "/dev/fakedevice0p1"): {
+			DevNum:  "42:0",
+			DevNode: "/dev/fakedevice0",
+			DevPath: "/sys/block/fakedevice0",
+		},
+		filepath.Join(s.dir, "/dev/fakedevice1p1"): {
+			DevNum:  "43:0",
+			DevNode: "/dev/fakedevice1",
+			DevPath: "/sys/block/fakedevice1",
+		},
+	}
+
+	restore := disks.MockPartitionDeviceNodeToDiskMapping(m)
+	defer restore()
+
+	restoreMountInfo := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/ubuntu-seed rw,relatime shared:54 - vfat /dev/mmcblk0p1 rw
+	`)
+	defer restoreMountInfo()
+
+	gadgetRoot, err := gadgettest.WriteGadgetYaml(c.MkDir(), gadgettest.RaspiSimplifiedVolumeAssignmentYaml)
+	c.Assert(err, IsNil)
+
+	_, err = install.Run(uc20Mod, gadgetRoot, &install.KernelSnapInfo{}, "", install.Options{}, nil, timings.New(nil))
+	c.Assert(err, ErrorMatches, `
+-----
+stderr:
+Unknown device "/dev/disk/by-path/pci-43:0": No such file or directory
+-----`)
+}
+
 func (s *installSuite) TestInstallSeedDiskDoesNotMatchAssignedDisk(c *C) {
 	uc20Mod := &gadgettest.ModelCharacteristics{
 		HasModes: true,
