@@ -11,6 +11,10 @@ backends: [-external]
 # ubuntu-14.04: systemd-run not supported
 systems: [-ubuntu-14.04-64]
 
+prepare: |
+    # acquire session macaroon
+    snap find core
+
 execute: |
     # Check help
     "$TESTSTOOLS"/store-state | MATCH "usage: store-state setup-fake-store <DIR>"
