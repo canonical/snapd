@@ -18,7 +18,8 @@ kill-timeout: 10m
 prepare: |
   # make a font directory and restart snapd so it will see it when it goes to
   # connect the desktop interface for the snap
-  mkdir /usr/share/fonts/foo-font
+  mkdir -p /usr/share/fonts/foo-font
+  tests.cleanup defer rmdir /usr/share/fonts/foo-font
   systemctl restart snapd
 
   # install a snap which exposes some files via a content slot
