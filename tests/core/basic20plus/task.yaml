@@ -118,7 +118,13 @@ execute: |
     done
 
     # make sure that ubuntu-save is mounted with appropriate flags
-    findmnt -T /run/mnt/ubuntu-save | grep "nosuid" | grep "noexec" | grep "nodev"
+    findmnt -T /run/mnt/ubuntu-save > save-mount.info
+
+    # print it for debug purposes before we match flags
+    cat save-mount.info
+    MATCH nosuid < save-mount.info
+    MATCH noexec < save-mount.info
+    MATCH nodev < save-mount.info
 
     # ensure apparmor works, see LP: 2024637
     systemctl status apparmor.service
