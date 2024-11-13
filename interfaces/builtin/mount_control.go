@@ -445,7 +445,7 @@ func validateMountTypes(types []string) error {
 			return fmt.Errorf(`mount-control forbidden filesystem type: %q`, t)
 		}
 
-		if strutil.ListContains(exclusiveFsTypes, t) {
+		if exclusiveFsType == "" && strutil.ListContains(exclusiveFsTypes, t) {
 			exclusiveFsType = t
 		}
 	}

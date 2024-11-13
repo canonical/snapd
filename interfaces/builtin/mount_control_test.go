@@ -318,6 +318,10 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 			"mount:\n  - where: /media/foo\n    type: [nfs, ext4]\n    options: [rw]",
 			`mount-control filesystem type "nfs" cannot be listed with other types`,
 		},
+		{
+			"mount:\n  - where: /media/foo\n    type: [tmpfs, nfs, ext4]\n    options: [rw]",
+			`mount-control filesystem type "tmpfs" cannot be listed with other types`,
+		},
 	}
 
 	for _, testData := range data {
