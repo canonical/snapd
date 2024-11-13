@@ -112,11 +112,11 @@ jobs:
                   # The tests are just filtered when the change is a PR
                   # When 'Run Nested' label is added in a PR, all the nested tests have to be executed
                   if [ -z "${{ github.event.number }}" ] || [ "$RUN_NESTED" = 'true' ]; then
-                      for TESTS in ${{ matrix.tests }}; do
-                          RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:$TESTS"
+                      for TESTS in ${{ inputs.tasks }}; do
+                          RUN_TESTS="$RUN_TESTS ${{ inputs.backend }}:$SYSTEM:$TESTS"
                       done
                   else
-                      RUN_TESTS="$RUN_TESTS $(./tests/lib/external/snapd-testing-tools/utils/spread-filter -r ./tests/lib/spread/rules/${{ matrix.rules }}.yaml -p "${{ matrix.backend }}:$SYSTEM" $CHANGES_PARAM)"
+                      RUN_TESTS="$RUN_TESTS $(./tests/lib/external/snapd-testing-tools/utils/spread-filter -r ./tests/lib/spread/rules/${{ inputs.rules }}.yaml -p "${{ inputs.backend }}:$SYSTEM" $CHANGES_PARAM)"
                   fi
               done
           fi
