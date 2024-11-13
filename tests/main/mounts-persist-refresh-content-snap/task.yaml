@@ -41,26 +41,25 @@ execute: |
   # the test-snapd-content-slot below.
   snap run --shell test-snapd-desktop-layout-with-content.cmd -c 'true'
   touch /run/keep-running
-  # read a file continuously in the background until it fails - note that the
+  # Read a file continuously in the background until it fails - note that the
   # while loop here has to be inside the snap run shell, since the process must
   # persist during the refresh, if it is on the outside the mount namespace will
-  # be rebuilt and the crash will not be reproduced
+  # be rebuilt and the crash will not be reproduced.
   tests.session -u test exec snap run --shell test-snapd-desktop-layout-with-content.cmd -c \
     'while test -f /run/keep-running && test -d /usr/share/fonts/foo-font; do true; done; ls -ld /usr/share/fonts/foo-font' &
   pid=$!
 
-  # refresh the content slot snap
+  # Refresh the content slot snap.
   # TODO: when refresh app awareness is enabled, this will need to ignore running processes to
   # check the behavior
   "$TESTSTOOLS"/snaps-state install-local test-snapd-content-slot
 
-  # ensure the process is still running
+  # Ensure the process is still running
   if not ps -p "$pid"; then
     echo "process died, test failed"
     exit 1
   fi
 
-  # signal to kill the loop
+  # Signal to kill the loop
   rm /run/keep-running
-
   wait "$pid" || true
