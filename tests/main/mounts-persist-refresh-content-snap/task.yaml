@@ -36,6 +36,10 @@ prepare: |
   tests.cleanup defer tests.session -u test restore
 
 execute: |
+  # Construct the mount namespace once so that we are not racing construction
+  # from background job of snap run --shell with update with snap install of
+  # the test-snapd-content-slot below.
+  snap run --shell test-snapd-desktop-layout-with-content.cmd -c 'true'
   touch /run/keep-running
   # read a file continuously in the background until it fails - note that the
   # while loop here has to be inside the snap run shell, since the process must
