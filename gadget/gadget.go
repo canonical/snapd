@@ -55,6 +55,8 @@ const (
 	schemaMBR = "mbr"
 	// schemaGPT identifies a GUID Partition Table partitioning schema
 	schemaGPT = "gpt"
+	// schemaEMMC identifies a schema for eMMC
+	schemaEMMC = "emmc"
 
 	SystemBoot     = "system-boot"
 	SystemData     = "system-data"
@@ -1108,6 +1110,24 @@ func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
 	return &offs
 }
 
+func setVolumeStructureOffset(vs *VolumeStructure, startPtr *quantity.Offset) (next *quantity.Offset) {
+	if vs.Offset == nil && startPtr != nil {
+		var start quantity.Offset
+		if vs.Role != schemaMBR && *startPtr < NonMBRStartOffset {
+			start = NonMBRStartOffset
+		} else {
+			start = *startPtr
+		}
+		vs.Offset = &start
+	}
+	// We know the end of the structure only if we could define an offset
+	// and the size is fixed.
+	if vs.Offset != nil && vs.isFixedSize() {
+		return asOffsetPtr(*vs.Offset + quantity.Offset(vs.Size))
+	}
+	return nil
+}
+
 func setImplicitForVolume(vol *Volume, model Model) error {
 	rs := whichVolRuleset(model)
 	if vol.HasPartial(PartialSchema) {
@@ -1132,41 +1152,34 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 
 	previousEnd := asOffsetPtr(0)
 	for i := range vol.Structure {
+		vs := &vol.Structure[i]
+
 		// set the VolumeName for the structure from the volume itself
-		vol.Structure[i].VolumeName = vol.Name
+		vs.VolumeName = vol.Name
 		// Store index as we will reorder later
-		vol.Structure[i].YamlIndex = i
+		vs.YamlIndex = i
 		// MinSize is Size if not explicitly set
-		if vol.Structure[i].MinSize == 0 {
-			vol.Structure[i].MinSize = vol.Structure[i].Size
+		if vs.MinSize == 0 {
+			vs.MinSize = vs.Size
 		}
 		// Set the pointer to the volume
-		vol.Structure[i].EnclosingVolume = vol
+		vs.EnclosingVolume = vol
 
 		// set other implicit data for the structure
-		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels, knownVfatFsLabels); err != nil {
+		if err := setImplicitForVolumeStructure(vs, rs, knownFsLabels, knownVfatFsLabels); err != nil {
 			return err
 		}
 
 		// Set offset if it was not set (must be after setImplicitForVolumeStructure
 		// so roles are good). This is possible only if the previous structure had
 		// a well-defined end.
-		if vol.Structure[i].Offset == nil && previousEnd != nil {
-			var start quantity.Offset
-			if vol.Structure[i].Role != schemaMBR && *previousEnd < NonMBRStartOffset {
-				start = NonMBRStartOffset
-			} else {
-				start = *previousEnd
-			}
-			vol.Structure[i].Offset = &start
-		}
-		// We know the end of the structure only if we could define an offset
-		// and the size is fixed.
-		if vol.Structure[i].Offset != nil && vol.Structure[i].isFixedSize() {
-			previousEnd = asOffsetPtr(*vol.Structure[i].Offset +
-				quantity.Offset(vol.Structure[i].Size))
-		} else {
-			previousEnd = nil
+		switch vol.Schema {
+		case schemaEMMC:
+			// For eMMC, we do not support partition offsets. The partitions
+			// are hardware partitions that act more like traditional disks.
+			vs.Offset = asOffsetPtr(0)
+		default:
+			previousEnd = setVolumeStructureOffset(vs, previousEnd)
 		}
 	}
 
@@ -1287,11 +1300,17 @@ func fmtIndexAndName(idx int, name string) string {
 	return fmt.Sprintf("#%v", idx)
 }
 
+var validSchemaNames = []string{schemaMBR, schemaGPT, schemaEMMC}
+
+func isValidSchema(schema string) bool {
+	return strutil.ListContains(validSchemaNames, schema)
+}
+
 func validateVolume(vol *Volume) error {
 	if !validVolumeName.MatchString(vol.Name) {
 		return errors.New("invalid name")
 	}
-	if !vol.HasPartial(PartialSchema) && vol.Schema != schemaGPT && vol.Schema != schemaMBR {
+	if !vol.HasPartial(PartialSchema) && !isValidSchema(vol.Schema) {
 		return fmt.Errorf("invalid schema %q", vol.Schema)
 	}
 
@@ -1358,6 +1377,12 @@ func isMBR(vs *VolumeStructure) bool {
 }
 
 func validateCrossVolumeStructure(vol *Volume) error {
+	// eMMC have no traditional volumes, instead eMMC has the concept
+	// of hardware partitions that act like separate disks.
+	if vol.Schema == schemaEMMC {
+		return nil
+	}
+
 	previousEnd := quantity.Offset(0)
 	// cross structure validation:
 	// - relative offsets that reference other structures by name
@@ -1413,6 +1438,19 @@ func validateOffsetWrite(s, firstStruct *VolumeStructure, volSize quantity.Size)
 	return nil
 }
 
+func contentCheckerCreate(vs *VolumeStructure, vol *Volume) func(*VolumeContent) error {
+	switch {
+	case vol.Schema == schemaEMMC:
+		return validateEMMCContent
+	case vs.HasFilesystem():
+		return validateFilesystemContent
+	default:
+		// default to bare content checker if no filesystem
+		// is present
+		return validateBareContent
+	}
+}
+
 func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 	if !vs.hasPartialSize() {
 		if vs.Size == 0 {
@@ -1439,26 +1477,28 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 		return fmt.Errorf("invalid filesystem %q", vs.Filesystem)
 	}
 
-	var contentChecker func(*VolumeContent) error
-
-	if vs.HasFilesystem() {
-		contentChecker = validateFilesystemContent
-	} else {
-		contentChecker = validateBareContent
-	}
+	contentChecker := contentCheckerCreate(vs, vol)
 	for i, c := range vs.Content {
 		if err := contentChecker(&c); err != nil {
 			return fmt.Errorf("invalid content #%v: %v", i, err)
 		}
 	}
 
-	if err := validateStructureUpdate(vs, vol); err != nil {
+	if err := validateStructureUpdate(vs); err != nil {
 		return err
 	}
 
 	// TODO: validate structure size against sector-size; ubuntu-image uses
 	// a tmp file to find out the default sector size of the device the tmp
 	// file is created on
+	return nil
+}
+
+func validateStructureTypeEMMC(s string) error {
+	// for eMMC we don't support the type being set
+	if s != "" {
+		return errors.New(`type is not supported for "emmc" schema`)
+	}
 	return nil
 }
 
@@ -1472,6 +1512,11 @@ func validateStructureType(s string, vol *Volume) error {
 	//
 	// Hybrid ID is 2 hex digits of MBR type, followed by 36 GUUID
 	// example: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+
+	// eMMC volumes we treat differently
+	if vol.Schema == schemaEMMC {
+		return validateStructureTypeEMMC(s)
+	}
 
 	if s == "" {
 		return errors.New(`type is not specified`)
@@ -1582,6 +1627,20 @@ func validateBareContent(vc *VolumeContent) error {
 	return nil
 }
 
+func validateEMMCContent(vc *VolumeContent) error {
+	if vc.Offset != nil || vc.Size != 0 {
+		return fmt.Errorf("cannot specify size or offset for content")
+	}
+
+	if vc.UnresolvedSource != "" || vc.Target != "" {
+		return fmt.Errorf("cannot use non-image content for hardware partitions")
+	}
+	if vc.Image == "" {
+		return fmt.Errorf("missing image file name")
+	}
+	return nil
+}
+
 func validateFilesystemContent(vc *VolumeContent) error {
 	if vc.Image != "" || vc.Offset != nil || vc.Size != 0 {
 		return fmt.Errorf("cannot use image content for non-bare file system")
@@ -1595,7 +1654,7 @@ func validateFilesystemContent(vc *VolumeContent) error {
 	return nil
 }
 
-func validateStructureUpdate(vs *VolumeStructure, v *Volume) error {
+func validateStructureUpdate(vs *VolumeStructure) error {
 	if !vs.HasFilesystem() && len(vs.Update.Preserve) > 0 {
 		return errors.New("preserving files during update is not supported for non-filesystem structures")
 	}
