@@ -204,15 +204,16 @@ func (pc *promptConstraints) equals(other *promptConstraints) bool {
 // applyRuleConstraints modifies the prompt constraints, removing any remaining
 // permissions which are matched by the given rule constraints.
 //
-// If the path pattern does not match the prompt path, or the rule constraints
-// do not include any of the remaining prompt permissions, then returns false,
-// and no changes are made. If any permissions are denied by the rule
-// constraints, then those permissions are explicitly returned as denied
-// permissions.
+// Returns whether the prompt constraints were modified, whether the prompt
+// requires a response (either because all permissions were allowed or at least
+// one permission was denied), and the list of any permissions which were
+// denied. If an error occurs, it is returned, and the other parameters can be
+// ignored.
 //
-// Assumes the outcomes in the permission entries in the rule constraints have
-// already been validated.
-func (pc *promptConstraints) applyRuleConstraints(constraints *prompting.RuleConstraints) (matched, satisfied bool, denied []string, err error) {
+// If the path pattern does not match the prompt path, or the rule constraints
+// do not include any of the remaining prompt permissions, then modified is
+// false, and no changes are made to the prompt constraints.
+func (pc *promptConstraints) applyRuleConstraints(constraints *prompting.RuleConstraints) (modified, respond bool, denied []string, err error) {
 	pathMatched, err := constraints.Match(pc.path)
 	if err != nil {
 		// Should not occur, only error is if path pattern is malformed,
@@ -225,7 +226,6 @@ func (pc *promptConstraints) applyRuleConstraints(constraints *prompting.RuleCon
 
 	// Path pattern matched, now check if any permissions match
 
-	var permissionMatched bool
 	newRemainingPermissions := make([]string, 0, len(pc.remainingPermissions))
 	for _, perm := range pc.remainingPermissions {
 		entry, exists := constraints.Permissions[perm]
@@ -235,7 +235,7 @@ func (pc *promptConstraints) applyRuleConstraints(constraints *prompting.RuleCon
 			newRemainingPermissions = append(newRemainingPermissions, perm)
 			continue
 		}
-		permissionMatched = true
+		modified = true
 		allow, err := entry.Outcome.AsBool()
 		if err != nil {
 			// This should not occur, as rule constraints are built internally
@@ -245,19 +245,21 @@ func (pc *promptConstraints) applyRuleConstraints(constraints *prompting.RuleCon
 			denied = append(denied, perm)
 		}
 	}
-	if !permissionMatched {
-		// No permissions matched, so nothing changes
+	if !modified {
+		// No permissions matched, so nothing changes, no need to record a
+		// notice or send a response.
 		return false, false, nil, nil
 	}
 
 	pc.remainingPermissions = newRemainingPermissions
 
-	if len(pc.remainingPermissions) == 0 {
-		// All permissions satisfied
-		return true, true, denied, nil
+	if len(pc.remainingPermissions) == 0 || len(denied) > 0 {
+		// All permissions allowed or at least one permission denied, so tell
+		// the caller to send a response back to the kernel.
+		respond = true
 	}
 
-	return true, false, denied, nil
+	return modified, respond, denied, nil
 }
 
 // Path returns the path associated with the request to which the receiving
@@ -625,34 +627,45 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 			continue
 		}
 
-		matched, satisfied, denied, err := prompt.Constraints.applyRuleConstraints(constraints)
+		modified, respond, denied, err := prompt.Constraints.applyRuleConstraints(constraints)
 		if err != nil {
 			// Should not occur, only error is if path pattern is malformed,
 			// which would have thrown an error while parsing, not now.
 			return nil, err
 		}
-		if !matched {
+		if !modified {
 			continue
 		}
-		// Matched, so at least one permission was satisfied
-		if !satisfied && len(denied) == 0 {
-			// Not all permissions were satisfied, and no permissions were
-			// denied, so re-record a notice and move on.
+		if !respond {
+			// No response necessary, though the prompt constraints were
+			// modified, so just record a notice for the prompt.
 			pdb.notifyPrompt(metadata.User, prompt.ID, nil)
 			continue
 		}
 
-		// Either all permissions satisfied or at least one permission denied.
-		// Construct a response and send it back to the kernel, and record a
-		// notice that the prompt was satisfied.
+		// A response is necessary, so either all permissions were allowed or
+		// at least one permission was denied. Construct a response and send it
+		// back to the kernel, and record a notice that the prompt was satisfied.
 		if len(denied) > 0 {
-			// At least one permission denied by new rule, and want to send a
-			// response immediately, so include any remaining permissions as
-			// denied as well.
+			// At least one permission was denied by new rule, and we want to
+			// send a response immediately, so include any remaining
+			// permissions as denied as well.
+			//
+			// This could be done as part of applyRuleConstraints instead, but
+			// it seems semantically clearer to only return the permissions
+			// which were explicitly denied by the rule, rather than all
+			// remaining permissions because at least one was denied. It's the
+			// prorogative of the caller (this function) to treat the remaining
+			// permissions as denied since we want to send a response without
+			// waiting for future rules to satisfy the remaining permissions.
 			denied = append(denied, prompt.Constraints.remainingPermissions...)
 		}
+		// Build and send a response with any permissions which were allowed,
+		// either by this new rule or by previous rules.
 		allowedPermission := buildResponse(metadata.Interface, prompt.Constraints, denied)
 		prompt.sendReplyWithPermission(allowedPermission)
+		// Now that a response has been sent, remove the rule from the rule DB
+		// and record a notice indicating that it has been satisfied.
 		userEntry.remove(prompt.ID)
 		satisfiedPromptIDs = append(satisfiedPromptIDs, prompt.ID)
 		data := map[string]string{"resolved": "satisfied"}
