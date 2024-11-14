@@ -40,6 +40,10 @@ execute: |
         snap info core | MATCH "store-url:.*https://snapcraft.io"
     fi
 
+    # install test snap dependency before switching to fake store
+    # TODO: extract base name when switching to gojq
+    snap install core22
+
     # Setup fakestore
     STORE_DIR="$(pwd)/fake-store-blobdir"
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
