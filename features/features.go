@@ -139,6 +139,7 @@ var featuresEnabledWhenUnset = map[SnapdFeature]bool{
 	RobustMountNamespaceUpdates:   true,
 	ClassicPreservesXdgRuntimeDir: true,
 	DbusActivation:                true,
+	EphemeralMountNamespace:       true,
 }
 
 // featuresExported contains a set of features that are exported outside of snapd.

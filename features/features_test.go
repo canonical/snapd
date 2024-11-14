@@ -235,7 +235,7 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	check(features.RefreshAppAwarenessUX, false)
 	check(features.Registries, false)
 	check(features.AppArmorPrompting, false)
-	check(features.EphemeralMountNamespace, false)
+	check(features.EphemeralMountNamespace, true)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 }
