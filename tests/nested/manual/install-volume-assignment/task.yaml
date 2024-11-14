@@ -27,10 +27,11 @@ prepare: |
     backup:
       schema: mbr
       structure:
-      - filesystem: ext4
-        name: system-backup
-        size: 127M
-        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+      - name: system-backup
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 32M
+        content:
+          - image: content.img
   volume-assignments:
   - assignment-name: do-not-match-device
     assignment:
@@ -43,7 +44,16 @@ prepare: |
       backup:
         device: /dev/disk/by-path/pci-0000:00:06.0
   EOF
-  
+
+  # build the test image
+  truncate -s 31M pc-gadget/content.img
+  mkfs.ext4 pc-gadget/content.img
+  mkdir -p /mnt/pc-cnt
+  mount -oloop pc-gadget/content.img /mnt/pc-cnt
+  echo "test file that we want to read later" > /mnt/pc-cnt/test.txt
+  sync
+  umount /mnt/pc-cnt
+
   # enable debug
   cat <<EOF >> pc-gadget/cmdline.extra
   snapd.debug=1
@@ -86,6 +96,13 @@ execute: |
   remote.exec "ls /dev/disk/by-path | grep 'pci-0000:00:05.0'"
   remote.exec "ls /dev/disk/by-path | grep 'pci-0000:00:06.0'"
 
+  # verify contents are looking good
+  remote.exec "sudo mkdir -p /run/mnt/test"
+  remote.exec "sudo mount -t ext4 /dev/vdb1 /run/mnt/test"
+  remote.exec "ls /run/mnt/test" | MATCH "test.txt"
+  remote.exec "cat /run/mnt/test/test.txt" | MATCH "test file that we want to read later"
+  remote.exec "sudo umount /run/mnt/test"
+
   boot_id=$(tests.nested boot-id)
 
   # Install new gadget
@@ -96,3 +113,13 @@ execute: |
   # Check that asset has been updated
   remote.exec sudo grep -i -a '"This program cannot be run in XXX mode"' \
       /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
+
+  # test a gadget update with no matching assignment
+  yq -i 'del(.volume-assignments[] | select(.assignment-name == "do-not-match-device"))' \
+      pc-gadget/meta/gadget.yaml
+  
+  snap pack --filename=pc-bad.snap pc-gadget
+  remote.push pc-bad.snap
+
+  # Install new gadget with no correct device assignment
+  remote.exec "sudo snap install --dangerous pc-bad.snap"
