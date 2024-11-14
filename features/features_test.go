@@ -65,6 +65,7 @@ func (*featureSuite) TestName(c *C) {
 	check(features.RefreshAppAwarenessUX, "refresh-app-awareness-ux")
 	check(features.Registries, "registries")
 	check(features.AppArmorPrompting, "apparmor-prompting")
+	check(features.EphemeralMountNamespace, "ephemeral-mount-namespace")
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 	c.Check(func() { _ = features.SnapdFeature(1000).String() }, PanicMatches, "unknown feature flag code 1000")
@@ -107,6 +108,7 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.RefreshAppAwarenessUX, true)
 	check(features.Registries, true)
 	check(features.AppArmorPrompting, true)
+	check(features.EphemeralMountNamespace, true)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 }
@@ -233,6 +235,7 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	check(features.RefreshAppAwarenessUX, false)
 	check(features.Registries, false)
 	check(features.AppArmorPrompting, false)
+	check(features.EphemeralMountNamespace, false)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 }
@@ -247,6 +250,7 @@ func (*featureSuite) TestControlFile(c *C) {
 	c.Check(features.RefreshAppAwarenessUX.ControlFile(), Equals, "/var/lib/snapd/features/refresh-app-awareness-ux")
 	c.Check(features.Registries.ControlFile(), Equals, "/var/lib/snapd/features/registries")
 	c.Check(features.AppArmorPrompting.ControlFile(), Equals, "/var/lib/snapd/features/apparmor-prompting")
+	c.Check(features.EphemeralMountNamespace.ControlFile(), Equals, "/var/lib/snapd/features/ephemeral-mount-namespace")
 	// Features that are not exported don't have a control file.
 	c.Check(features.Layouts.ControlFile, PanicMatches, `cannot compute the control file of feature "layouts" because that feature is not exported`)
 }

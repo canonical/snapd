@@ -46,6 +46,9 @@ bool sc_feature_enabled(sc_feature_flag flag)
 	case SC_FEATURE_HIDDEN_SNAP_FOLDER:
 		file_name = "hidden-snap-folder";
 		break;
+	case SC_FEATURE_EPHEMERAL_MOUNT_NAMESPACE:
+		file_name = "ephemeral-mount-namespace";
+		break;
 	default:
 		die("unknown feature flag code %d", flag);
 	}

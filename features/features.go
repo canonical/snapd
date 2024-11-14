@@ -77,6 +77,8 @@ const (
 	Registries
 	// AppArmorPrompting enables AppArmor to prompt the user for permission when apps perform certain operations.
 	AppArmorPrompting
+	// EphemeralMountNamespace enables non-persistent mount namespaces.
+	EphemeralMountNamespace
 
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
@@ -126,6 +128,8 @@ var featureNames = map[SnapdFeature]string{
 	Registries:            "registries",
 
 	AppArmorPrompting: "apparmor-prompting",
+
+	EphemeralMountNamespace: "ephemeral-mount-namespace",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
@@ -151,6 +155,8 @@ var featuresExported = map[SnapdFeature]bool{
 	RefreshAppAwarenessUX: true,
 	Registries:            true,
 	AppArmorPrompting:     true,
+
+	EphemeralMountNamespace: true,
 }
 
 var (
