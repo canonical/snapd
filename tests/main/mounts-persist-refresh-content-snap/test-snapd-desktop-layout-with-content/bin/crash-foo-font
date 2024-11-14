@@ -5,7 +5,7 @@ echo "started" > "$SNAP_USER_COMMON"/status
 while test -f "$SNAP_USER_COMMON"/keep-running; do
     if ! [ -d /usr/share/fonts/foo-font ] ; then 
         echo "foo-font missing" >> "$SNAP_USER_COMMON"/status
-        exit 1
+        break
     fi
 done
 echo "exited" >> "$SNAP_USER_COMMON"/status
