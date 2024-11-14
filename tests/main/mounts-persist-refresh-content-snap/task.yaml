@@ -55,7 +55,7 @@ execute: |
   "$TESTSTOOLS"/snaps-state install-local test-snapd-content-slot
 
   # Signal to kill the loop
-  rm ~test/snap/test-snapd-desktop-layout-with-content/common/keep-running
+  rm -f ~test/snap/test-snapd-desktop-layout-with-content/common/keep-running
   wait "$pid"
 
   # Ensure that /usr/share/fonts/foo-font was never missing.
