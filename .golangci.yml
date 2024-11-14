@@ -129,6 +129,20 @@ linters-settings:
         deny:
           - pkg: "os/user"
             desc: "Please use osutil/user instead. See https://github.com/canonical/snapd/pull/13776"
+      mathrand:
+        files:
+          - "!**/randutil/*.go"
+          - "!**/vendor/**"
+          - "!$test"
+        deny:
+          - pkg: "math/rand"
+            desc: "Direct usage of math/rand, we prefer randutil"
+      ioioutil:
+        files:
+          - "!**/vendor/**"
+        deny:
+          - pkg: "io/ioutil"
+            desc: "Found usage of deprecated io/ioutil, please use \"io\" or \"os\" equivalents"
 
   misspell:
     # Correct spellings using locale preferences for US or UK.
@@ -140,8 +154,6 @@ linters-settings:
       - auther
       - PROCES
       - PROCESSS
-      - proces
-      - processs
       - exportfs
   lll:
     # max line length, lines longer will be reported. Default is 120.
@@ -183,8 +195,7 @@ linters:
     # gosimple may suggest patterns that work only with more recent Go versions
     # - gosimple
     - nakedret
-    # formatting is disabled until we move to Go 1.13
-    # - gofmt
+    - gofmt
     - ineffassign
     # disabling until https://github.com/daixiang0/gci/issues/54 is fixed
     # - gci
