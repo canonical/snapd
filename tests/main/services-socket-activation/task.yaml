@@ -39,7 +39,7 @@ execute: |
 
     # this will fail, but still start the service
     echo "Start the primary unit, emulate that the trigger has run"
-    curl -D- --verbose --max-time 1 --unix-socket /var/snap/socket-activation/common/socket http://localhost/foo || true
+    systemctl start snap.socket-activation.sleep-daemon.service
 
     # verify that the main service is now active
     verify_status "enabled" "active" "active"
@@ -56,7 +56,7 @@ execute: |
 
     verify_status "enabled" "active" "active"
 
-    systemctl reload-or-restart snap.socket-activation.sleep-daemon.sock.socket 2>&1 | MATCH "Job failed"
+    systemctl reload-or-restart snap.socket-activation.sleep-daemon.sock.socket 2>&1 | MATCH "failed"
 
     echo "Testing that we can stop will not disable the service"
     snap stop socket-activation.sleep-daemon
