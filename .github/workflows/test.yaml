@@ -20,6 +20,9 @@ jobs:
       matrix:
         runs-on:
           - '["ubuntu-22.04"]'
+          # Tags to identify the self-hosted runners to use from
+          # internal runner collection. See internal self-hosted
+          # runners doc for the complete list of options.
           - '["self-hosted", "Linux", "jammy", "ARM64", "large"]'
         toolchain:
           - default
@@ -30,6 +33,9 @@ jobs:
           # are the build that should be installed by human users.
           - pristine
           - test
+        # Exclude building everything for ARM but the version for testing
+        # to keep the number of builds down as we currently don't have a
+        # clear need for these excluded builds.
         exclude:
           - runs-on: '["self-hosted", "Linux", "jammy", "ARM64", "large"]'
             toolchain: FIPS

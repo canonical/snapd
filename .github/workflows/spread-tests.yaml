@@ -133,30 +133,30 @@ jobs:
           # Add start line to filtered log
           echo "GRAFANA START: pr ${CHANGE_ID} attempt ${{ github.run_attempt }} run ${{ github.run_id }} group ${{ inputs.group }}" > "$FILTERED_LOG_FILE"
 
-    - name: Download built snap (amd)
+    - name: Download built snap (amd64)
       uses: actions/download-artifact@v4
-      if: "!endsWith(inputs.group, 'arm') && !endsWith(inputs.group, '-fips')"
+      if: "!contains(inputs.group, '-arm') && !endsWith(inputs.group, '-fips')"
       with:
-        name: snap-files-amd-default-test
+        name: snap-files-amd64-default-test
         # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
         pattern: snapd_1337.*.snap
         path: "${{ github.workspace }}/built-snap"
 
-    - name: Download built snap (arm)
-      if: "endsWith(inputs.group, 'arm')"
+    - name: Download built snap (arm64)
+      if: "contains(inputs.group, '-arm') && !endsWith(inputs.group, '-fips')"
       uses: actions/download-artifact@v4
       with:
-        name: snap-files-arm-default-test
+        name: snap-files-arm64-default-test
         pattern: snapd_1337.*.snap
         # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
         path: "${{ github.workspace }}/built-snap"
 
-    - name: Download built FIPS snap (amd)
+    - name: Download built FIPS snap (amd64)
       uses: actions/download-artifact@v4
       # eg. ubuntu-fips
-      if: "endsWith(inputs.group, '-fips')"
+      if: "!contains(inputs.group, '-arm') && endsWith(inputs.group, '-fips')"
       with:
-        name: snap-files-amd-FIPS-test
+        name: snap-files-amd64-FIPS-test
         # eg. snapd_1337.2.65.1+git97.gd35b459-fips_amd64.snap
         pattern: snapd_1337.*-fips_*.snap
         path: "${{ github.workspace }}/built-snap"
