@@ -40,6 +40,7 @@ execute: |
   # from background job of snap run with update with snap install of the
   # test-snapd-content-slot below.
   test-snapd-desktop-layout-with-content.sh -c 'true'
+  test-snapd-desktop-layout-with-content.sh -c 'stat /usr/share/fonts/foo-font' | tee before
   # Read a file continuously in the background until it fails. Note that we are
   # not using a service but a regular app running in the background since the
   # process must persist during the refresh.
@@ -60,4 +61,5 @@ execute: |
 
   # Ensure that /usr/share/fonts/foo-font was never missing.
   MATCH 'exited' <~test/snap/test-snapd-desktop-layout-with-content/common/status
+  test-snapd-desktop-layout-with-content.sh -c 'stat /usr/share/fonts/foo-font' | tee after
   NOMATCH 'foo-font missing' <~test/snap/test-snapd-desktop-layout-with-content/common/status
