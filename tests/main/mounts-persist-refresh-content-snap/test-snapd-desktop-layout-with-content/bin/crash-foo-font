@@ -3,10 +3,13 @@ set -eu
 touch "$SNAP_USER_COMMON"/keep-running
 echo "started" > "$SNAP_USER_COMMON"/status
 while test -f "$SNAP_USER_COMMON"/keep-running; do
-    if ! [ -d /usr/share/fonts/foo-font ] ; then 
-        echo "foo-font missing" >> "$SNAP_USER_COMMON"/status
-        break
-    fi
+        set +e
+        if ! foo="$(stat /usr /usr/share /usr/share/fonts /usr/share/fonts/foo-font 2>&1)"; then
+                echo "$foo" >> "$SNAP_USER_COMMON"/status
+                echo "foo-font missing" >>"$SNAP_USER_COMMON"/status
+                break
+        fi
+        set -e
 done
 echo "exited" >> "$SNAP_USER_COMMON"/status
 
