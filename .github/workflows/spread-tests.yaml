@@ -120,7 +120,12 @@ jobs:
                           RUN_TESTS="$RUN_TESTS ${{ inputs.backend }}:$SYSTEM:$TESTS"
                       done
                   else
-                      RUN_TESTS="$RUN_TESTS $(./tests/lib/external/snapd-testing-tools/utils/spread-filter -r ./tests/lib/spread/rules/${{ inputs.rules }}.yaml -p "${{ inputs.backend }}:$SYSTEM" $CHANGES_PARAM)"
+                      NEW_TESTS="$(./tests/lib/external/snapd-testing-tools/utils/spread-filter -r ./tests/lib/spread/rules/${{ inputs.rules }}.yaml -p "${{ inputs.backend }}:$SYSTEM" $CHANGES_PARAM)"
+                      if [ -z "$RUN_TESTS" ]; then
+                          RUN_TESTS="$NEW_TESTS"
+                      else
+                          RUN_TESTS="$RUN_TESTS $NEW_TESTS"
+                      fi
                   fi
               done
           fi
