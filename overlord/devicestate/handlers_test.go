@@ -499,10 +499,13 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 
 	var testStore snapstate.StoreService
 
-	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
-		c.Check(flags.Required, Equals, true)
-		c.Check(deviceCtx, NotNil)
-		c.Check(deviceCtx.ForRemodeling(), Equals, true)
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+		g := goal.(*storeInstallGoalRecorder)
+		name := g.snaps[0].InstanceName
+
+		c.Check(opts.Flags.Required, Equals, true)
+		c.Check(opts.DeviceCtx, NotNil)
+		c.Check(opts.DeviceCtx.ForRemodeling(), Equals, true)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
 		tDownload.Set("snap-setup", &snapstate.SnapSetup{
@@ -516,7 +519,7 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return ts, nil
+		return nil, ts, nil
 	})
 	defer restore()
 
