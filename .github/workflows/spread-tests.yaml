@@ -135,7 +135,7 @@ jobs:
 
     - name: Download built snap (amd64)
       uses: actions/download-artifact@v4
-      if: "!contains(inputs.group, '-arm') && !endsWith(inputs.group, '-fips')"
+      if: "!contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips')"
       with:
         name: snap-files-amd64-default-test
         # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
@@ -143,7 +143,7 @@ jobs:
         path: "${{ github.workspace }}/built-snap"
 
     - name: Download built snap (arm64)
-      if: "contains(inputs.group, '-arm') && !endsWith(inputs.group, '-fips')"
+      if: "contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips')"
       uses: actions/download-artifact@v4
       with:
         name: snap-files-arm64-default-test
@@ -154,7 +154,7 @@ jobs:
     - name: Download built FIPS snap (amd64)
       uses: actions/download-artifact@v4
       # eg. ubuntu-fips
-      if: "!contains(inputs.group, '-arm') && endsWith(inputs.group, '-fips')"
+      if: "!contains(inputs.group, '-arm64') && endsWith(inputs.group, '-fips')"
       with:
         name: snap-files-amd64-FIPS-test
         # eg. snapd_1337.2.65.1+git97.gd35b459-fips_amd64.snap

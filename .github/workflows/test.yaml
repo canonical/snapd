@@ -315,7 +315,7 @@ jobs:
             systems: 'ubuntu-core-24-64'
             tasks: 'tests/...'
             rules: 'main'
-          - group: ubuntu-arm
+          - group: ubuntu-arm64
             backend: google-arm
             systems: 'ubuntu-20.04-arm-64 ubuntu-core-22-arm-64'
             tasks: 'tests/...'
