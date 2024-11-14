@@ -322,6 +322,19 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 			"mount:\n  - where: /media/foo\n    type: [tmpfs, nfs, ext4]\n    options: [rw]",
 			`mount-control filesystem type "tmpfs" cannot be listed with other types`,
 		},
+		// the deprecated nfs4 isn't explicitly forbidden, but it is not
+		// possible construct a valid and useful specification using this
+		// type
+		{
+			// deprecated nfs4
+			"mount:\n  - where: /media/foo\n    type: [nfs4]\n    options: [rw]",
+			`mount-control "what" must be a string`,
+		},
+		{
+			// deprecated nfs4
+			"mount:\n  - where: /media/foo\n    type: [nfs4]\n    options: [rw]\n    what: 127.0.0.1:/share",
+			`mount-control "what" attribute is invalid: must start with / and not contain special characters`,
+		},
 	}
 
 	for _, testData := range data {
