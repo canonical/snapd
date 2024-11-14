@@ -322,6 +322,10 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 			"mount:\n  - where: /media/foo\n    type: [tmpfs, nfs, ext4]\n    options: [rw]",
 			`mount-control filesystem type "tmpfs" cannot be listed with other types`,
 		},
+		{
+			"mount:\n  - what: 123\n    where: /media/foo\n    type: [ext4]\n    options: [rw]",
+			`mount-control "what" must be a string`,
+		},
 		// the deprecated nfs4 isn't explicitly forbidden, but it is not
 		// possible construct a valid and useful specification using this
 		// type
