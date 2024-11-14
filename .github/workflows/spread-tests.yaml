@@ -107,6 +107,10 @@ jobs:
           if [ -n "$FAILED_TESTS" ]; then
               RUN_TESTS="$FAILED_TESTS"
           else
+              CHANGES_PARAM=""
+              for CHANGE in $CHANGED_FILES; do
+                  CHANGES_PARAM="$CHANGES_PARAM -c $CHANGE"
+              done
               for SYSTEM in ${{ inputs.systems }}; do
                   # Configure parameters to run tests based on current changes
                   # The tests are just filtered when the change is a PR
