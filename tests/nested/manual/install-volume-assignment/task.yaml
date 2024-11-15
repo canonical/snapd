@@ -115,11 +115,13 @@ execute: |
       /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
 
   # test a gadget update with no matching assignment
-  yq -i 'del(.volume-assignments[] | select(.assignment-name == "do-not-match-device"))' \
+  yq -i 'del(.volume-assignments[] | select(.assignment-name == "test-device"))' \
+      pc-gadget/meta/gadget.yaml
+  yq -i '(.volumes.pc.structure[] | select(.name == "ubuntu-boot") | .update.edition) |= . + 1' \
       pc-gadget/meta/gadget.yaml
   
   snap pack --filename=pc-bad.snap pc-gadget
   remote.push pc-bad.snap
 
   # Install new gadget with no correct device assignment
-  remote.exec "sudo snap install --dangerous pc-bad.snap"
+  remote.exec "sudo snap install --dangerous pc-bad.snap" 2>&1 | MATCH "no matching volume-assignment for current device"
