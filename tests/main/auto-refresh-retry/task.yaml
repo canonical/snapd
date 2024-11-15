@@ -6,9 +6,6 @@ details: |
 
 systems: [-ubuntu-14.04-*]
 
-prepare: |
-    snap install --devmode jq
-
 restore: |
     rm -f /etc/systemd/system/snapd.service.d/override.conf
     ip netns delete testns || true
