@@ -37,7 +37,7 @@ execute: |
 
     # shellcheck disable=SC2059
     response=$(printf "${template}" "$@" | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' ${route}")
-    if ! jq -e .change <<< "${response}"; then
+    if ! gojq -e .change <<< "${response}"; then
       echo "could not get change id from response: ${response}"
       false
     fi
