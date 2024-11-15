@@ -4,6 +4,7 @@ details: |
     Verify the AppStream ID is included in the search API response and also validate
     that the AppStream ID is included in the installed snaps and apps API response.
 
+# TODO we have goja, so try enabling on ubuntu-core
 # ubuntu-core: no jq
 systems: [-ubuntu-core*]
 
