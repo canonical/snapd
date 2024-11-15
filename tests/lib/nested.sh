@@ -1247,10 +1247,14 @@ nested_start_core_vm_unit() {
         if nested_is_secure_boot_enabled; then
             OVMF_CODE="secboot"
             if os.query is-arm; then
-                cp -f "/usr/share/AAVMF/AAVMF_VARS.fd" "$NESTED_ASSETS_DIR/AAVMF_VARS.fd"
+                if [ -z "$NESTED_KEEP_FIRMWARE_STATE" ] || ! [ -e "$NESTED_ASSETS_DIR/AAVMF_VARS.fd" ]; then
+                    cp -f "/usr/share/AAVMF/AAVMF_VARS.fd" "$NESTED_ASSETS_DIR/AAVMF_VARS.fd"
+                fi
                 PARAM_BIOS="-drive file=/usr/share/AAVMF/AAVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/AAVMF_VARS.fd,if=pflash,format=raw"
             else
-                cp -f "/usr/share/OVMF/OVMF_VARS.${OVMF_VARS}.fd" "$NESTED_ASSETS_DIR/OVMF_VARS.${OVMF_VARS}.fd"
+                if [ -z "$NESTED_KEEP_FIRMWARE_STATE" ] || ! [ -e "$NESTED_ASSETS_DIR/OVMF_VARS.${OVMF_VARS}.fd" ]; then
+                    cp -f "/usr/share/OVMF/OVMF_VARS.${OVMF_VARS}.fd" "$NESTED_ASSETS_DIR/OVMF_VARS.${OVMF_VARS}.fd"
+                fi
                 PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.${OVMF_CODE}.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/OVMF_VARS.${OVMF_VARS}.fd,if=pflash,format=raw"
                 PARAM_MACHINE="-machine q35${ATTR_KVM} -global ICH9-LPC.disable_s3=1"
             fi
@@ -1258,7 +1262,7 @@ nested_start_core_vm_unit() {
 
         if nested_is_tpm_enabled; then
             if snap list test-snapd-swtpm >/dev/null; then
-                if [ -z "$NESTED_TPM_NO_RESTART" ]; then
+                if [ -z "$NESTED_KEEP_FIRMWARE_STATE" ]; then
                     # reset the tpm state
                     snap stop test-snapd-swtpm > /dev/null
                     rm /var/snap/test-snapd-swtpm/current/tpm2-00.permall || true
