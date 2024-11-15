@@ -202,14 +202,6 @@ func MockWriteSystemKey(fn func(extraData interfaces.SystemKeyExtraData) error) 
 	return func() { writeSystemKey = old }
 }
 
-func MockSnapstateFinishRestart(f func(task *state.Task, snapsup *snapstate.SnapSetup) error) (restore func()) {
-	old := snapstateFinishRestart
-	snapstateFinishRestart = f
-	return func() {
-		snapstateFinishRestart = old
-	}
-}
-
 func (m *InterfaceManager) TransitionConnectionsCoreMigration(st *state.State, oldName, newName string) error {
 	return m.transitionConnectionsCoreMigration(st, oldName, newName)
 }

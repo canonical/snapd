@@ -2282,18 +2282,31 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	if err != nil {
 		return err
 	}
-	// Prepare for rebooting when needed
-	// TODO we have to revert changes in bootloader config/modeenv if an
-	// error happens later in this method. This is not likely as possible
-	// errors after this would happen only due to internal errors or not
-	// being able to write to the filesystem, but still. There is also the
-	// question of what would happen if a restart happens when the boot
-	// configuration has been already written but DoneStatus in the state
-	// has not.
-	isUndo := false
-	rebootInfo, err := m.backend.MaybeSetNextBoot(newInfo, deviceCtx, isUndo)
-	if err != nil {
+
+	// Set next boot for snaps that need it. Note that if we have
+	// kernel-modules components this gets delayed as it happens in the
+	// "prepare-kernel-modules-components" task. The default is set to
+	// true for compatibility with older snapd (case of joint refresh of
+	// snapd and kernel).
+	var rebootInfo boot.RebootInfo
+	setNextBoot := true
+	if err := t.Get("set-next-boot", &setNextBoot); err != nil &&
+		!errors.Is(err, state.ErrNoState) {
 		return err
+	}
+	if setNextBoot {
+		// TODO we have to revert changes in bootloader config/modeenv if an
+		// error happens later in this method. This is not likely as possible
+		// errors after this would happen only due to internal errors or not
+		// being able to write to the filesystem, but still. There is also the
+		// question of what would happen if a restart happens when the boot
+		// configuration has been already written but DoneStatus in the state
+		// has not.
+		isUndo := false
+		rebootInfo, err = m.backend.MaybeSetNextBoot(newInfo, deviceCtx, isUndo)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Restore configuration of the target revision (if available) on revert
@@ -2407,9 +2420,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// Notify link snap participants about link changes.
 	notifyLinkParticipants(t, snapsup)
 
-	// Make sure if state commits and snapst is mutated we won't be rerun
-	finalStatus := state.DoneStatus
-
 	// Unfortunately this is needed to make sure we actually request a reboot as a part
 	// of link-snap for the gadget (which is the task that has a restart-boundary set).
 	// The gadget does not by default set `rebootInfo.RebootRequired` as its difficult for
@@ -2445,6 +2455,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 			t.Logf("reboot postponed to later tasks")
 		}
 	}
+	// Make sure if state commits and snapst is mutated we won't be rerun
+	finalStatus := state.DoneStatus
 	// XXX: This logic looks a bit confusing, and can be replaced once we decide
 	// to get rid of the "cannot-reboot" handling. It's still here for backwards
 	// compatibility, with previous snapd versions that were using "cannot-reboot"
@@ -5253,7 +5265,7 @@ func (m *SnapManager) doDiscardOldKernelSnapSetup(t *state.Task, _ *tomb.Tomb) e
 	defer st.Unlock()
 
 	perfTimings := state.TimingsForTask(t)
-	_, snapst, err := snapSetupAndState(t)
+	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
 		return err
 	}
@@ -5269,6 +5281,15 @@ func (m *SnapManager) doDiscardOldKernelSnapSetup(t *state.Task, _ *tomb.Tomb) e
 	if err != nil {
 		return err
 	}
+
+	// Set the default to false for compatibility with older snapd (case of
+	// joint refresh of snapd and kernel).
+	logger.Debugf("finish restart from doDiscardOldKernelSnapSetup")
+	if err := FinishRestart(t, snapsup,
+		FinishRestartOptions{FinishRestartDefault: false}); err != nil {
+		return err
+	}
+
 	var prevKernelRev snap.Revision
 	err = setupTask.Get("previous-kernel-rev", &prevKernelRev)
 	if err != nil && !errors.Is(err, state.ErrNoState) {

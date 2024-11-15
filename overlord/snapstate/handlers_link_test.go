@@ -907,6 +907,7 @@ func (s *linkSnapSuite) TestDoLinkSnapWithVitalityScore(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 	})
+	t.Set("set-next-boot", true)
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
@@ -1093,6 +1094,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBase(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 	})
+	t.Set("set-next-boot", true)
 
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
@@ -1143,6 +1145,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForKernelClassicWithModes(c *
 		SideInfo: si,
 		Type:     snap.TypeKernel,
 	})
+	t.Set("set-next-boot", true)
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
@@ -1185,6 +1188,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBaseSystemRestartImmed
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 	})
+	t.Set("set-next-boot", true)
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 	chg.Set("system-restart-immediate", true)
@@ -1324,6 +1328,7 @@ func (s *linkSnapSuite) TestDoLinkSnapFailGadgetDoesRequestsRestart(c *C) {
 		SideInfo: si,
 		Type:     snap.TypeGadget,
 	})
+	t.Set("set-next-boot", true)
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
@@ -1579,6 +1584,7 @@ func (s *linkSnapSuite) TestDoLinkSnapdDiscardsNsOnDowngrade(c *C) {
 		SideInfo: si,
 		Channel:  "beta",
 	})
+	t.Set("set-next-boot", true)
 
 	s.state.NewChange("sample", "...").AddTask(t)
 	s.state.Unlock()
@@ -1658,6 +1664,7 @@ func (s *linkSnapSuite) TestDoLinkSnapdRemovesAppArmorProfilesOnSnapdDowngrade(c
 		SideInfo: si,
 		Channel:  "beta",
 	})
+	t.Set("set-next-boot", true)
 
 	// set seeded so that AppArmor profile cleanup should occur - however
 	// since we now appear to be seeded this would trigger the mount units
@@ -2315,6 +2322,7 @@ func (s *linkSnapSuite) TestUndoLinkSnapdFirstInstall(c *C) {
 		SideInfo: si,
 		Type:     snap.TypeSnapd,
 	})
+	t.Set("set-next-boot", true)
 	chg.AddTask(t)
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
 	terr.WaitFor(t)
@@ -2395,6 +2403,7 @@ func (s *linkSnapSuite) TestUndoLinkSnapdNthInstall(c *C) {
 		SideInfo: si,
 		Type:     snap.TypeSnapd,
 	})
+	t.Set("set-next-boot", true)
 	chg.AddTask(t)
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
 	terr.WaitFor(t)
@@ -2660,6 +2669,7 @@ func (s *linkSnapSuite) testDoLinkSnapWithToolingDependency(c *C, classicOrBase 
 		SideInfo: si,
 		Type:     snap.TypeApp,
 	})
+	t.Set("set-next-boot", true)
 	s.state.NewChange("sample", "...").AddTask(t)
 
 	s.state.Unlock()
