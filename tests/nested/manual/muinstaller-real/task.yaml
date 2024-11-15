@@ -246,7 +246,7 @@ execute: |
 
   # nested vm needs to restart for fake-store
   tests.nested vm stop
-  tests.nested create-vm core --tpm-no-restart
+  tests.nested create-vm core --keep-firmware-state
 
   # test gadget/kernel refresh
 
