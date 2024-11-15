@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -139,6 +140,14 @@ func validateCore20Seed(c *C, name string, expectedModel *asserts.Model, trusted
 	c.Assert(sd.Model(), DeepEquals, expectedModel)
 }
 
+type testInfoGetter struct {
+	snapInfoFn func(st *state.State, name string) (info *snap.Info, path string, present bool, err error)
+}
+
+func (ig *testInfoGetter) SnapInfo(st *state.State, name string) (info *snap.Info, path string, present bool, err error) {
+	return ig.snapInfoFn(st, name)
+}
+
 func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 	bl := bootloadertest.Mock("trusted", c.MkDir()).WithRecoveryAwareTrustedAssets()
 	// make it simple for now, no assets
@@ -211,7 +220,7 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 	})
 	expectedDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234")
 
-	infoGetter := func(name string) (*snap.Info, string, bool, error) {
+	snapInfoFn := func(st *state.State, name string) (*snap.Info, string, bool, error) {
 		c.Logf("called for: %q", name)
 		info, present := infos[name]
 		if !present {
@@ -219,6 +228,8 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 		}
 		return info, info.MountFile(), true, nil
 	}
+	infoGetter := testInfoGetter{snapInfoFn: snapInfoFn}
+
 	var newFiles []string
 	snapWriteObserver := func(dir, where string) error {
 		c.Check(dir, Equals, expectedDir)
@@ -227,7 +238,7 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 		return nil
 	}
 
-	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db, infoGetter, snapWriteObserver)
+	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(s.state, model, "1234", s.db, &infoGetter, snapWriteObserver)
 	c.Assert(err, IsNil)
 	c.Check(newFiles, DeepEquals, []string{
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/snapd_4.snap"),
@@ -304,7 +315,7 @@ func (s *createSystemSuite) TestCreateSystemFromUnassertedSnaps(c *C) {
 	})
 	expectedDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234")
 
-	infoGetter := func(name string) (*snap.Info, string, bool, error) {
+	snapInfoFn := func(st *state.State, name string) (*snap.Info, string, bool, error) {
 		c.Logf("called for: %q", name)
 		info, present := infos[name]
 		if !present {
@@ -312,6 +323,8 @@ func (s *createSystemSuite) TestCreateSystemFromUnassertedSnaps(c *C) {
 		}
 		return info, info.MountFile(), true, nil
 	}
+	infoGetter := testInfoGetter{snapInfoFn: snapInfoFn}
+
 	var newFiles []string
 	snapWriteObserver := func(dir, where string) error {
 		c.Check(dir, Equals, expectedDir)
@@ -320,7 +333,7 @@ func (s *createSystemSuite) TestCreateSystemFromUnassertedSnaps(c *C) {
 		return nil
 	}
 
-	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db, infoGetter, snapWriteObserver)
+	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(s.state, model, "1234", s.db, &infoGetter, snapWriteObserver)
 	c.Assert(err, IsNil)
 	c.Check(newFiles, DeepEquals, []string{
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/snapd_4.snap"),
@@ -384,7 +397,7 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 	})
 	expectedDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234")
 
-	infoGetter := func(name string) (*snap.Info, string, bool, error) {
+	snapInfoFn := func(st *state.State, name string) (*snap.Info, string, bool, error) {
 		c.Logf("called for: %q", name)
 		info, present := infos[name]
 		if !present {
@@ -392,6 +405,7 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 		}
 		return info, info.MountFile(), true, nil
 	}
+	infoGetter := testInfoGetter{snapInfoFn: snapInfoFn}
 	var newFiles []string
 	snapWriteObserver := func(dir, where string) error {
 		c.Check(dir, Equals, expectedDir)
@@ -409,7 +423,7 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 
 	// when a given snap in asserted snaps directory already exists, it is
 	// not copied over
-	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db, infoGetter, snapWriteObserver)
+	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(s.state, model, "1234", s.db, &infoGetter, snapWriteObserver)
 	c.Assert(err, IsNil)
 	c.Check(newFiles, DeepEquals, []string{
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/snapd_4.snap"),
@@ -475,8 +489,8 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 	// the unasserted snap goes into the snaps directory under the system
 	// directory, which triggers the error in creating the directory by
 	// seed writer
-	dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(modelWithUnasserted, "1234unasserted", s.db,
-		infoGetter, snapWriteObserver)
+	dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(s.state, modelWithUnasserted, "1234unasserted", s.db,
+		&infoGetter, snapWriteObserver)
 
 	c.Assert(err, ErrorMatches, `system "1234unasserted" already exists`)
 	// we failed early, no files were written yet
@@ -527,7 +541,7 @@ func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
 		},
 	})
 
-	infoGetter := func(name string) (*snap.Info, string, bool, error) {
+	snapInfoFn := func(st *state.State, name string) (*snap.Info, string, bool, error) {
 		c.Logf("called for: %q", name)
 		info, present := infos[name]
 		if !present {
@@ -535,6 +549,7 @@ func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
 		}
 		return info, info.MountFile(), true, nil
 	}
+	infoGetter := testInfoGetter{snapInfoFn: snapInfoFn}
 	var observerCalls int
 	snapWriteObserver := func(dir, where string) error {
 		observerCalls++
@@ -545,8 +560,8 @@ func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
 
 	// when a given snap in asserted snaps directory already exists, it is
 	// not copied over
-	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
-		infoGetter, snapWriteObserver)
+	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(s.state, model, "1234", s.db,
+		&infoGetter, snapWriteObserver)
 	c.Assert(err, ErrorMatches, `internal error: essential snap "pc" not present`)
 	c.Check(dir, Equals, "")
 	c.Check(observerCalls, Equals, 0)
@@ -558,8 +573,8 @@ func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
 	infos["pc"] = s.makeSnap(c, "pc", snap.R(2))
 
 	// and try with with a non essential snap
-	dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
-		infoGetter, snapWriteObserver)
+	dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(s.state, model, "1234", s.db,
+		&infoGetter, snapWriteObserver)
 	c.Assert(err, ErrorMatches, `internal error: non-essential but required snap "other-required" not present`)
 	c.Check(dir, Equals, "")
 	c.Check(observerCalls, Equals, 0)
@@ -573,8 +588,8 @@ func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
 	randomSnap := snaptest.MakeTestSnapWithFiles(c, `name: random
 version: 1`, nil)
 	c.Assert(osutil.CopyFile(randomSnap, infos["pc"].MountFile(), osutil.CopyFlagOverwrite), IsNil)
-	dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
-		infoGetter, snapWriteObserver)
+	dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(s.state, model, "1234", s.db,
+		&infoGetter, snapWriteObserver)
 	c.Assert(err, ErrorMatches, `internal error: no assertions for asserted snap with ID: pcididididididididididididididid`)
 	// we're past the start, so the system directory is there
 	c.Check(dir, Equals, systemDir)
@@ -626,7 +641,7 @@ func (s *createSystemSuite) TestCreateSystemGetInfoErr(c *C) {
 
 	failOn := map[string]bool{}
 
-	infoGetter := func(name string) (*snap.Info, string, bool, error) {
+	snapInfoFn := func(st *state.State, name string) (*snap.Info, string, bool, error) {
 		c.Logf("called for: %q", name)
 		if failOn[name] {
 			return nil, "", false, fmt.Errorf("mock failure for snap %q", name)
@@ -637,6 +652,7 @@ func (s *createSystemSuite) TestCreateSystemGetInfoErr(c *C) {
 		}
 		return info, info.MountFile(), true, nil
 	}
+	infoGetter := testInfoGetter{snapInfoFn: snapInfoFn}
 	var observerCalls int
 	snapWriteObserver := func(dir, where string) error {
 		observerCalls++
@@ -649,8 +665,8 @@ func (s *createSystemSuite) TestCreateSystemGetInfoErr(c *C) {
 	// not copied over
 
 	failOn["pc"] = true
-	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
-		infoGetter, snapWriteObserver)
+	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(s.state, model, "1234", s.db,
+		&infoGetter, snapWriteObserver)
 	c.Assert(err, ErrorMatches, `cannot obtain essential snap information: mock failure for snap "pc"`)
 	c.Check(dir, Equals, "")
 	c.Check(observerCalls, Equals, 0)
@@ -658,8 +674,8 @@ func (s *createSystemSuite) TestCreateSystemGetInfoErr(c *C) {
 
 	failOn["pc"] = false
 	failOn["other-required"] = true
-	dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
-		infoGetter, snapWriteObserver)
+	dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(s.state, model, "1234", s.db,
+		&infoGetter, snapWriteObserver)
 	c.Assert(err, ErrorMatches, `cannot obtain non-essential but required snap information: mock failure for snap "other-required"`)
 	c.Check(dir, Equals, "")
 	c.Check(observerCalls, Equals, 0)
@@ -680,16 +696,17 @@ func (s *createSystemSuite) TestCreateSystemNonUC20(c *C) {
 		"gadget":       "pc",
 	})
 
-	infoGetter := func(name string) (*snap.Info, string, bool, error) {
+	snapInfoFn := func(st *state.State, name string) (*snap.Info, string, bool, error) {
 		c.Fatalf("unexpected call")
 		return nil, "", false, fmt.Errorf("unexpected call")
 	}
+	infoGetter := testInfoGetter{snapInfoFn: snapInfoFn}
 	snapWriteObserver := func(dir, where string) error {
 		c.Fatalf("unexpected call")
 		return fmt.Errorf("unexpected call")
 	}
-	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
-		infoGetter, snapWriteObserver)
+	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(s.state, model, "1234", s.db,
+		&infoGetter, snapWriteObserver)
 	c.Assert(err, ErrorMatches, `cannot create a system for pre-UC20 model`)
 	c.Check(dir, Equals, "")
 }
@@ -726,7 +743,7 @@ func (s *createSystemSuite) TestCreateSystemImplicitSnaps(c *C) {
 	})
 	expectedDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234")
 
-	infoGetter := func(name string) (*snap.Info, string, bool, error) {
+	snapInfoFn := func(st *state.State, name string) (*snap.Info, string, bool, error) {
 		c.Logf("called for: %q", name)
 		info, present := infos[name]
 		if !present {
@@ -734,6 +751,7 @@ func (s *createSystemSuite) TestCreateSystemImplicitSnaps(c *C) {
 		}
 		return info, info.MountFile(), true, nil
 	}
+	infoGetter := testInfoGetter{snapInfoFn: snapInfoFn}
 	var newFiles []string
 	snapWriteObserver := func(dir, where string) error {
 		c.Check(dir, Equals, expectedDir)
@@ -741,8 +759,8 @@ func (s *createSystemSuite) TestCreateSystemImplicitSnaps(c *C) {
 		return nil
 	}
 
-	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
-		infoGetter, snapWriteObserver)
+	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(s.state, model, "1234", s.db,
+		&infoGetter, snapWriteObserver)
 	c.Assert(err, IsNil)
 	c.Check(newFiles, DeepEquals, []string{
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/snapd_4.snap"),
@@ -786,13 +804,14 @@ func (s *createSystemSuite) TestCreateSystemObserverErr(c *C) {
 		},
 	})
 
-	infoGetter := func(name string) (*snap.Info, string, bool, error) {
+	snapInfoFn := func(st *state.State, name string) (*snap.Info, string, bool, error) {
 		info, present := infos[name]
 		if !present {
 			return info, "", false, nil
 		}
 		return info, info.MountFile(), true, nil
 	}
+	infoGetter := testInfoGetter{snapInfoFn: snapInfoFn}
 	var newFiles []string
 	snapWriteObserver := func(dir, where string) error {
 		newFiles = append(newFiles, where)
@@ -802,8 +821,8 @@ func (s *createSystemSuite) TestCreateSystemObserverErr(c *C) {
 		return nil
 	}
 
-	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
-		infoGetter, snapWriteObserver)
+	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(s.state, model, "1234", s.db,
+		&infoGetter, snapWriteObserver)
 	c.Assert(err, ErrorMatches, "mocked observer failure")
 	c.Check(newFiles, DeepEquals, []string{
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/snapd_4.snap"),

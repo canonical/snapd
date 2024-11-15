@@ -35,6 +35,8 @@ import (
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -208,12 +210,96 @@ func seededSystemFromModeenv() (*seededSystem, error) {
 	return seededSys, nil
 }
 
-// getInfoFunc is expected to return for a given snap name a snap.Info for that
-// snap, a path on disk where the snap file can be found, and whether the snap
-// is present. The last bit is relevant for non-essential snaps mentioned in the
-// model, which if present and having an 'optional' presence in the model, will
-// be added to the recovery system.
-type getSnapInfoFunc func(name string) (info *snap.Info, path string, snapIsPresent bool, err error)
+// infoGetter is an interface that helps us get information about snaps and
+// components that are being installed in a new recovery system.
+type infoGetter interface {
+	// SnapInfo is expected to return for a given snap name a snap.Info for that
+	// snap, a path on disk where the snap file can be found, and whether the
+	// snap is present. The last bit is relevant for non-essential snaps
+	// mentioned in the model, which if present and having an 'optional'
+	// presence in the model, will be added to the recovery system.
+	SnapInfo(st *state.State, name string) (info *snap.Info, path string, snapIsPresent bool, err error)
+}
+
+// setupInfoGetter is an infoGetter that uses a recoverySystemSetup to get
+// information about snaps and components that are being installed in a new
+// recovery system.
+type setupInfoGetter struct {
+	setup *recoverySystemSetup
+}
+
+func (ig *setupInfoGetter) SnapInfo(st *state.State, name string) (info *snap.Info, path string, present bool, err error) {
+	// snaps will come from one of these places:
+	//   * passed into the task via a list of side infos (these would have
+	//     come from a user posting snaps via the API)
+	//   * have just been downloaded by a task in setup.SnapSetupTasks
+	//   * already installed on the system
+
+	for _, l := range ig.setup.LocalSnaps {
+		if l.SideInfo.RealName != name {
+			continue
+		}
+
+		snapf, err := snapfile.Open(l.Path)
+		if err != nil {
+			return nil, "", false, err
+		}
+
+		info, err := snap.ReadInfoFromSnapFile(snapf, l.SideInfo)
+		if err != nil {
+			return nil, "", false, err
+		}
+
+		return info, l.Path, true, nil
+	}
+
+	// in a remodel scenario, the snaps may need to be fetched and thus
+	// their content can be different from what we have in already installed
+	// snaps, so we should first check the download tasks before consulting
+	// snapstate
+	logger.Debugf("requested info for snap %q being installed during remodel", name)
+	for _, tskID := range ig.setup.SnapSetupTasks {
+		taskWithSnapSetup := st.Task(tskID)
+		snapsup, err := snapstate.TaskSnapSetup(taskWithSnapSetup)
+		if err != nil {
+			return nil, "", false, err
+		}
+		if snapsup.SnapName() != name {
+			continue
+		}
+		// by the time this task runs, the file has already been
+		// downloaded and validated
+		snapFile, err := snapfile.Open(snapsup.MountFile())
+		if err != nil {
+			return nil, "", false, err
+		}
+		info, err = snap.ReadInfoFromSnapFile(snapFile, snapsup.SideInfo)
+		if err != nil {
+			return nil, "", false, err
+		}
+
+		return info, info.MountFile(), true, nil
+	}
+
+	// either a remodel scenario, in which case the snap is not
+	// among the ones being fetched, or just creating a recovery
+	// system, in which case we use the snaps that are already
+	// installed
+
+	info, err = snapstate.CurrentInfo(st, name)
+	if err == nil {
+		hash, _, err := asserts.SnapFileSHA3_384(info.MountFile())
+		if err != nil {
+			return nil, "", true, fmt.Errorf("cannot compute SHA3 of snap file: %v", err)
+		}
+		info.Sha3_384 = hash
+		return info, info.MountFile(), true, nil
+	}
+	if _, ok := err.(*snap.NotInstalledError); !ok {
+		return nil, "", false, err
+	}
+	return nil, "", false, nil
+}
 
 // snapWriteObserveFunc is called with the recovery system directory and the
 // path to a snap file being written. The snap file may be written to a location
@@ -229,7 +315,14 @@ type snapWriteObserveFunc func(systemDir, where string) error
 // recovery system - some snaps may be in the recovery system directory while
 // others may be in the common snaps directory shared between multiple recovery
 // systems on ubuntu-seed.
-func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, db asserts.RODatabase, getInfo getSnapInfoFunc, observeWrite snapWriteObserveFunc) (dir string, err error) {
+func createSystemForModelFromValidatedSnaps(
+	st *state.State,
+	model *asserts.Model,
+	label string,
+	db asserts.RODatabase,
+	getInfo infoGetter,
+	observeWrite snapWriteObserveFunc,
+) (dir string, err error) {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return "", fmt.Errorf("cannot create a system for pre-UC20 model")
 	}
@@ -263,7 +356,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 				kind = fmt.Sprintf("non-essential but %v", nonEssentialPresence)
 			}
 		}
-		info, snapPath, present, err := getInfo(name)
+		info, snapPath, present, err := getInfo.SnapInfo(st, name)
 		if err != nil {
 			return fmt.Errorf("cannot obtain %v snap information: %v", kind, err)
 		}
