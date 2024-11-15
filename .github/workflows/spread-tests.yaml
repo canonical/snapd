@@ -92,10 +92,8 @@ jobs:
           if [ -f "$FAILED_TESTS_FILE" ]; then
               echo "Failed tests file found"
               FAILED_TESTS="$(cat $FAILED_TESTS_FILE)"
-              if [ -n "$FAILED_TESTS" ]; then
-                  echo "Failed tests to run: $FAILED_TESTS"
-                  echo "FAILED_TESTS=$FAILED_TESTS" >> $GITHUB_ENV
-              fi
+              echo "Failed tests to run: $FAILED_TESTS"
+              echo "FAILED_TESTS=$FAILED_TESTS" >> $GITHUB_ENV
           fi
 
     - name: Setup run tests variable
@@ -228,7 +226,12 @@ jobs:
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
           echo "Running command: $SPREAD $RUN_TESTS"
-          (set -o pipefail; $SPREAD -no-debug-output -logs spread-logs $RUN_TESTS | PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | tee spread.log)
+          (
+            set -o pipefail 
+            $SPREAD -no-debug-output -logs spread-logs $RUN_TESTS | \
+            ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | \
+            tee spread.log
+          )
 
     - name: Upload spread logs
       if: always()
@@ -252,7 +255,7 @@ jobs:
         if [ -e spread.log ]; then
             echo "Running spread log analyzer"
             ACTIONS_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"
-            PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json --cut 1 >/dev/null
+            ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json --cut 1 >/dev/null
             while IFS= read -r line; do
                 if [ ! -z "$line" ]; then
                     echo "Adding failed test line to filtered log"
@@ -268,7 +271,7 @@ jobs:
       run: |
           if [ -f spread.log ]; then
               echo "Running spread log parser"
-              PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
+              ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
 
               # Add openstack backend definition to spread.yaml
               if [ "${{ inputs.backend }}" = openstack ]; then
@@ -276,7 +279,7 @@ jobs:
               fi
 
               echo "Running spread log analyzer"
-              PYTHONDONTWRITEBYTECODE=1 ./tests/lib/external/snapd-testing-tools/utils/log-analyzer list-reexecute-tasks "$RUN_TESTS" spread-results.json > "$FAILED_TESTS_FILE"
+              ./tests/lib/external/snapd-testing-tools/utils/log-analyzer list-reexecute-tasks "$RUN_TESTS" spread-results.json > "$FAILED_TESTS_FILE"
 
               echo "List of failed tests saved"
               cat "$FAILED_TESTS_FILE"
