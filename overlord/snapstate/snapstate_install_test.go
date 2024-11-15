@@ -148,9 +148,6 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 	expected = append(expected, "setup-profiles", "link-snap")
 	expected = append(expected, tasksAfterLinkSnap...)
 	expected = append(expected, "auto-connect")
-	if opts&updatesGadgetAssets != 0 && opts&needsKernelSetup != 0 {
-		expected = append(expected, "discard-old-kernel-snap-setup")
-	}
 	expected = append(expected,
 		"set-auto-aliases",
 		"setup-aliases")
@@ -164,6 +161,9 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 		expected = append(expected, "run-hook[post-refresh]")
 	} else {
 		expected = append(expected, "run-hook[install]")
+	}
+	if opts&updatesGadgetAssets != 0 && opts&needsKernelSetup != 0 {
+		expected = append(expected, "discard-old-kernel-snap-setup")
 	}
 
 	expected = append(expected, tasksAfterPostOpHook...)
@@ -6328,7 +6328,7 @@ func (s *snapmgrTestSuite) TestInstallZeroComponentsRunThrough(c *C) {
 		snapName    = "test-snap"
 		instanceKey = ""
 	)
-	s.testInstallComponentsRunThrough(c, snapName, instanceKey, nil, undo)
+	s.testInstallComponentsRunThrough(c, snapName, instanceKey, snap.TypeApp, nil, undo)
 }
 
 func (s *snapmgrTestSuite) TestInstallOneComponentsRunThrough(c *C) {
@@ -6337,16 +6337,25 @@ func (s *snapmgrTestSuite) TestInstallOneComponentsRunThrough(c *C) {
 		snapName    = "test-snap"
 		instanceKey = ""
 	)
-	s.testInstallComponentsRunThrough(c, snapName, instanceKey, []string{"standard-component"}, undo)
+	s.testInstallComponentsRunThrough(c, snapName, instanceKey, snap.TypeApp, []string{"standard-component"}, undo)
 }
 
 func (s *snapmgrTestSuite) TestInstallManyComponentsRunThrough(c *C) {
 	const (
 		undo        = false
-		snapName    = "test-snap"
+		snapName    = "some-kernel"
 		instanceKey = ""
 	)
-	s.testInstallComponentsRunThrough(c, snapName, instanceKey, []string{"standard-component", "kernel-modules-component"}, undo)
+	s.testInstallComponentsRunThrough(c, snapName, instanceKey, snap.TypeKernel, []string{"standard-component", "kernel-modules-component"}, undo)
+}
+
+func (s *snapmgrTestSuite) TestInstallManyComponentsUndoRunThrough(c *C) {
+	const (
+		undo        = true
+		snapName    = "some-kernel"
+		instanceKey = ""
+	)
+	s.testInstallComponentsRunThrough(c, snapName, instanceKey, snap.TypeKernel, []string{"standard-component", "kernel-modules-component"}, undo)
 }
 
 func (s *snapmgrTestSuite) TestInstallInstanceManyComponentsRunThrough(c *C) {
@@ -6355,16 +6364,8 @@ func (s *snapmgrTestSuite) TestInstallInstanceManyComponentsRunThrough(c *C) {
 		snapName    = "test-snap"
 		instanceKey = "key"
 	)
-	s.testInstallComponentsRunThrough(c, snapName, instanceKey, []string{"standard-component", "kernel-modules-component"}, undo)
-}
-
-func (s *snapmgrTestSuite) TestInstallManyComponentsUndoRunThrough(c *C) {
-	const (
-		undo        = false
-		snapName    = "test-snap"
-		instanceKey = ""
-	)
-	s.testInstallComponentsRunThrough(c, snapName, instanceKey, []string{"standard-component", "kernel-modules-component"}, undo)
+	s.testInstallComponentsRunThrough(c, snapName, instanceKey, snap.TypeApp,
+		[]string{"standard-component", "standard-component-extra"}, undo)
 }
 
 func (s *snapmgrTestSuite) TestInstallInstanceManyComponentsUndoRunThrough(c *C) {
@@ -6373,10 +6374,11 @@ func (s *snapmgrTestSuite) TestInstallInstanceManyComponentsUndoRunThrough(c *C)
 		snapName    = "test-snap"
 		instanceKey = "key"
 	)
-	s.testInstallComponentsRunThrough(c, snapName, instanceKey, []string{"standard-component", "kernel-modules-component"}, undo)
+	s.testInstallComponentsRunThrough(c, snapName, instanceKey, snap.TypeApp,
+		[]string{"standard-component", "standard-component-extra"}, undo)
 }
 
-func undoOps(instanceName string, newSequence, prevSequence *sequence.RevisionSideState) []fakeOp {
+func undoOps(instanceName string, snapType snap.Type, newSequence, prevSequence *sequence.RevisionSideState) []fakeOp {
 	forRefresh := prevSequence != nil
 
 	newComponents := newSequence.Components
@@ -6470,7 +6472,17 @@ func undoOps(instanceName string, newSequence, prevSequence *sequence.RevisionSi
 			name: instanceName,
 			path: filepath.Join(dirs.SnapDataDir, instanceName),
 		})
+		if snapType == snap.TypeKernel {
+			ops = append(ops, fakeOp{
+				op: "remove-kernel-snap-setup",
+			})
+		}
 	} else {
+		if snapType == snap.TypeKernel {
+			ops = append(ops, fakeOp{
+				op: "remove-kernel-snap-setup",
+			})
+		}
 		ops = append(ops,
 			fakeOp{
 				op:   "link-snap",
@@ -6530,9 +6542,12 @@ func undoOps(instanceName string, newSequence, prevSequence *sequence.RevisionSi
 	return ops
 }
 
-func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, instanceKey string, components []string, undo bool) {
+func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, instanceKey string, snapType snap.Type, components []string, undo bool) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]interface{}{"base": "core24"}))
+	defer r()
 
 	// sort these so that we can predict the order of the ops
 	sort.Strings(components)
@@ -6543,8 +6558,8 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, insta
 		tr.Commit()
 	}
 
+	snapID := snapName + "-id"
 	const (
-		snapID  = "test-snap-id"
 		channel = "channel-for-components"
 	)
 	snapRevision := snap.R(11)
@@ -6556,20 +6571,12 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, insta
 	// we start without the auxiliary store info
 	c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 
-	compNameToType := func(name string) snap.ComponentType {
-		typ := strings.TrimSuffix(name, "-component")
-		if typ == name {
-			c.Fatalf("unexpected component name %q", name)
-		}
-		return snap.ComponentType(typ)
-	}
-
 	var componentStates []*sequence.ComponentState
 	for i, compName := range components {
 		componentStates = append(componentStates, sequence.NewComponentState(&snap.ComponentSideInfo{
 			Component: naming.NewComponentRef(snapName, compName),
 			Revision:  snap.R(i + 1),
-		}, compNameToType(compName)))
+		}, componentNameToType(c, compName)))
 	}
 
 	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
@@ -6721,6 +6728,16 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, insta
 		}}...)
 	}
 
+	if snapName == "some-kernel" {
+		expected = append(expected, fakeOp{
+			op: "prepare-kernel-snap",
+		}, fakeOp{
+			op:    "update-gadget-assets:Doing",
+			name:  instanceName,
+			revno: snapRevision,
+		})
+	}
+
 	expected = append(expected, []fakeOp{{
 		op:   "copy-data",
 		path: filepath.Join(dirs.SnapMountDir, filepath.Join(instanceName, snapRevision.String())),
@@ -6741,11 +6758,27 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, insta
 			Revision: snapRevision,
 		},
 	}, {
-		op:   "link-snap",
-		path: filepath.Join(dirs.SnapMountDir, filepath.Join(instanceName, snapRevision.String())),
-	}, {
-		op: "maybe-set-next-boot",
+		op:                  "link-snap",
+		path:                filepath.Join(dirs.SnapMountDir, filepath.Join(instanceName, snapRevision.String())),
+		requireSnapdTooling: true,
 	}}...)
+
+	kmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
+	for i, compName := range components {
+		csi := snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, compName),
+			Revision:  snap.R(i + 1),
+		}
+		if strings.HasPrefix(components[i], string(snap.KernelModulesComponent)) {
+			kmodComps = append(kmodComps, &csi)
+		}
+	}
+
+	if len(kmodComps) == 0 {
+		expected = append(expected, fakeOp{
+			op: "maybe-set-next-boot",
+		})
+	}
 
 	// ops for linking components
 	for _, cs := range componentStates {
@@ -6766,22 +6799,13 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, insta
 		op: "update-aliases",
 	}}...)
 
-	kmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
-	for i, compName := range components {
-		csi := snap.ComponentSideInfo{
-			Component: naming.NewComponentRef(snapName, compName),
-			Revision:  snap.R(i + 1),
-		}
-		if strings.HasPrefix(components[i], string(snap.KernelModulesComponent)) {
-			kmodComps = append(kmodComps, &csi)
-		}
-	}
-
 	if len(kmodComps) > 0 {
 		expected = append(expected, fakeOp{
 			op:           "prepare-kernel-modules-components",
 			currentComps: []*snap.ComponentSideInfo{},
 			finalComps:   kmodComps,
+		}, fakeOp{
+			op: "maybe-set-next-boot",
 		})
 	}
 
@@ -6793,7 +6817,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, insta
 	}, componentStates)
 
 	if undo {
-		expected = append(expected, undoOps(instanceName, expectedSeq, nil)...)
+		expected = append(expected, undoOps(instanceName, snapType, expectedSeq, nil)...)
 	} else {
 		expected = append(expected, fakeOp{
 			op:    "cleanup-trash",
@@ -6872,8 +6896,10 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathNoneRunThrough(c *C) {
 		snapName    = "test-snap"
 		instanceKey = ""
 		removePaths = false
+		snapType    = snap.TypeApp
 	)
-	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, nil, undo, removePaths)
+	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, snapType,
+		nil, undo, removePaths)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentsFromPathOneRunThrough(c *C) {
@@ -6882,53 +6908,66 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathOneRunThrough(c *C) {
 		snapName    = "test-snap"
 		instanceKey = ""
 		removePaths = false
+		snapType    = snap.TypeApp
 	)
-	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"standard-component"}, undo, removePaths)
+	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, snapType,
+		[]string{"standard-component"}, undo, removePaths)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentsFromPathManyRunThrough(c *C) {
 	const (
 		undo        = false
-		snapName    = "test-snap"
+		snapName    = "some-kernel"
 		instanceKey = ""
 		removePaths = false
+		snapType    = snap.TypeKernel
 	)
-	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"standard-component", "kernel-modules-component"}, undo, removePaths)
+	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, snapType,
+		[]string{"standard-component", "kernel-modules-component"}, undo, removePaths)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentsFromPathManyInstanceRunThrough(c *C) {
 	const (
 		undo        = false
 		snapName    = "test-snap"
-		instanceKey = ""
+		instanceKey = "key"
 		removePaths = false
+		snapType    = snap.TypeApp
 	)
-	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"standard-component", "kernel-modules-component"}, undo, removePaths)
+	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, snapType,
+		[]string{"standard-component", "standard-component-extra"}, undo, removePaths)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentsFromPathInstanceRunThroughUndo(c *C) {
 	const (
 		undo        = true
-		snapName    = "some-kernel"
-		instanceKey = ""
+		snapName    = "test-snap"
+		instanceKey = "key"
 		removePaths = false
+		snapType    = snap.TypeApp
 	)
-	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"standard-component", "kernel-modules-component"}, undo, removePaths)
+	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, snapType,
+		[]string{"standard-component", "standard-component-extra"}, undo, removePaths)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentsFromPathManyRemovePaths(c *C) {
 	const (
 		undo        = false
-		snapName    = "test-snap"
+		snapName    = "some-kernel"
 		instanceKey = ""
 		removePaths = true
+		snapType    = snap.TypeKernel
 	)
-	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, []string{"standard-component", "kernel-modules-component"}, undo, removePaths)
+	s.testInstallComponentsFromPathRunThrough(c, snapName, instanceKey, snapType,
+		[]string{"standard-component", "kernel-modules-component"}, undo, removePaths)
 }
 
-func (s *snapmgrTestSuite) testInstallComponentsFromPathRunThrough(c *C, snapName, instanceKey string, compNames []string, undo bool, removePaths bool) {
+func (s *snapmgrTestSuite) testInstallComponentsFromPathRunThrough(c *C, snapName, instanceKey string, snapType snap.Type, compNames []string, undo bool, removePaths bool) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]interface{}{"base": "core24"}))
+	defer r()
 
 	// make sure that the store is never hit
 	snapstate.ReplaceStore(s.state, &storetest.Store{})
@@ -6984,7 +7023,10 @@ version: 1.0
 		return nil, fmt.Errorf("unexpected component mount dir %q", compMntDir)
 	}))
 
-	snapPath := makeTestSnap(c, `name: test-snap
+	var snapPath string
+	switch snapType {
+	case snap.TypeKernel:
+		snapPath = makeTestSnap(c, `name: some-kernel
 version: 1.0
 type: kernel
 components:
@@ -6993,6 +7035,18 @@ components:
   kernel-modules-component:
     type: kernel-modules
 `)
+	case snap.TypeApp:
+		snapPath = makeTestSnap(c, `name: test-snap
+version: 1.0
+type: app
+components:
+  standard-component:
+    type: standard
+  standard-component-extra:
+    type: standard
+`)
+	}
+
 	chg := s.state.NewChange("install", "install a local snap")
 
 	si := &snap.SideInfo{
@@ -7052,11 +7106,16 @@ components:
 		})
 	}
 
+	if snapType == snap.TypeKernel {
+		expected = append(expected, fakeOp{
+			op: "prepare-kernel-snap",
+		}, fakeOp{
+			op:    "update-gadget-assets:Doing",
+			name:  instanceName,
+			revno: snapRevision,
+		})
+	}
 	expected = append(expected, []fakeOp{{
-		op:    "update-gadget-assets:Doing",
-		name:  instanceName,
-		revno: snapRevision,
-	}, {
 		op:   "copy-data",
 		path: filepath.Join(dirs.SnapMountDir, filepath.Join(instanceName, snapRevision.String())),
 		old:  "<no-old>",
@@ -7071,11 +7130,23 @@ components:
 		op:    "candidate",
 		sinfo: *si,
 	}, {
-		op:   "link-snap",
-		path: filepath.Join(dirs.SnapMountDir, filepath.Join(instanceName, snapRevision.String())),
-	}, {
-		op: "maybe-set-next-boot",
+		op:                  "link-snap",
+		path:                filepath.Join(dirs.SnapMountDir, filepath.Join(instanceName, snapRevision.String())),
+		requireSnapdTooling: true,
 	}}...)
+
+	kmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
+	for _, cs := range componentStates {
+		if cs.CompType == snap.KernelModulesComponent {
+			kmodComps = append(kmodComps, cs.SideInfo)
+		}
+	}
+
+	if len(kmodComps) == 0 {
+		expected = append(expected, fakeOp{
+			op: "maybe-set-next-boot",
+		})
+	}
 
 	for _, compName := range compNames {
 		expected = append(expected, fakeOp{
@@ -7092,25 +7163,20 @@ components:
 		op: "update-aliases",
 	}}...)
 
-	kmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
-	for _, cs := range componentStates {
-		if cs.CompType == snap.KernelModulesComponent {
-			kmodComps = append(kmodComps, cs.SideInfo)
-		}
-	}
-
 	if len(kmodComps) > 0 {
 		expected = append(expected, fakeOp{
 			op:           "prepare-kernel-modules-components",
 			currentComps: []*snap.ComponentSideInfo{},
 			finalComps:   kmodComps,
+		}, fakeOp{
+			op: "maybe-set-next-boot",
 		})
 	}
 
 	expectedSeq := sequence.NewRevisionSideState(si, componentStates)
 
 	if undo {
-		expected = append(expected, undoOps(instanceName, expectedSeq, nil)...)
+		expected = append(expected, undoOps(instanceName, snapType, expectedSeq, nil)...)
 	} else {
 		expected = append(expected, fakeOp{
 			op:    "cleanup-trash",
