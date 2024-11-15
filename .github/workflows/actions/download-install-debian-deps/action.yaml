@@ -26,3 +26,4 @@ runs:
     run: |
         sudo apt update
         sudo apt build-dep -y "${{ inputs.snapd-src-dir }}"
+        rm -rf ./debian-deps

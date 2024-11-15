@@ -14,7 +14,6 @@ jobs:
   static-checks:
     runs-on: ${{ inputs.runs-on }}
     env:
-      GOPATH: ${{ github.workspace }}
       # Set PATH to ignore the load of magic binaries from /usr/local/bin And
       # to use the go snap automatically. Note that we install go from the
       # snap in a step below. Without this we get the GitHub-controlled latest
@@ -30,21 +29,17 @@ jobs:
       with:
         # needed for git commit history
         fetch-depth: 0
-        # NOTE: checkout the code in a fixed location, even for forks, as this
-        # is relevant for go's import system.
-        path: ./src/github.com/snapcore/snapd
 
     # Fetch base ref, needed for golangci-lint
     - name: Fetching base ref ${{ github.base_ref }}
       run: |
-        cd ${{ github.workspace }}/src/github.com/snapcore/snapd
         git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
 
     - name: Download and install Debian dependencies
       # Github does not allow variables in "uses"; this has to be a hard-coded path
-      uses: ./src/github.com/snapcore/snapd/.github/workflows/actions/download-install-debian-deps
+      uses: ./.github/workflows/actions/download-install-debian-deps
       with:
-        snapd-src-dir: "${{ github.workspace }}/src/github.com/snapcore/snapd"
+        snapd-src-dir: "${{ github.workspace }}"
 
     # golang latest ensures things work on the edge
     - name: Install the go snap
@@ -58,7 +53,7 @@ jobs:
 
     - name: Get C vendoring
       run: |
-        cd ${{ github.workspace }}/src/github.com/snapcore/snapd/c-vendor && ./vendor.sh
+        cd c-vendor && ./vendor.sh
 
     - name: Install golangci-lint snap
       run: |
@@ -68,7 +63,7 @@ jobs:
       id: changed-files
       uses: tj-actions/changed-files@v41.0.0
       with:
-        path: ./src/github.com/snapcore/snapd
+        path: ./
 
     - name: Save changes files
       run: |
@@ -78,7 +73,6 @@ jobs:
 
     - name: Run static checks
       run: |
-          cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
           # run gofmt checks only with the latest stable Go
           if [ "${{ matrix.gochannel }}" != "latest/stable" ]; then
               export SKIP_GOFMT=1
@@ -113,7 +107,7 @@ jobs:
     - name: Check C source code formatting
       run: |
           set -x
-          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
+          cd cmd/
           ./autogen.sh
           # apply formatting
           PATH=${{ github.workspace }}/indent-bin/opt/indent/bin:$PATH make fmt

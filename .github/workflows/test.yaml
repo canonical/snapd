@@ -50,22 +50,12 @@ jobs:
       with:
         # needed for git commit history
         fetch-depth: 0
-        # NOTE: checkout the code in a fixed location, even for forks, as this
-        # is relevant for go's import system.
-        path: ./src/github.com/snapcore/snapd
-
-    # Fetch base ref, needed for golangci-lint
-    - name: Fetching base ref ${{ github.base_ref }}
-      run: |
-        cd ${{ github.workspace }}/src/github.com/snapcore/snapd
-        git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
-        # golang latest ensures things work on the edge
 
     - name: Download Debian dependencies
       run: |
           sudo apt clean
           sudo apt update
-          sudo apt build-dep -d -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+          sudo apt build-dep -d -y ${{ github.workspace }}
           # for indent
           sudo apt install texinfo autopoint
 
@@ -121,7 +111,6 @@ jobs:
     with:
       runs-on: ubuntu-22.04
       gochannel: ${{ matrix.gochannel }}
-      unit-scenario: ${{ matrix.unit-scenario }}
     strategy:
       # we cache successful runs so it's fine to keep going
       fail-fast: false      
@@ -129,8 +118,6 @@ jobs:
         gochannel:
           - 1.18
           - latest/stable
-        unit-scenario:
-          - normal
 
   # TODO run unit tests of C code
   unit-tests-special:
@@ -139,7 +126,10 @@ jobs:
     with:
       runs-on: ubuntu-22.04
       gochannel: ${{ matrix.gochannel }}
-      unit-scenario: ${{ matrix.unit-scenario }}
+      skip-coverage: ${{ matrix.test-case.skip-coverage }}
+      go-build-tags: ${{ matrix.test-case.go-build-tags }}
+      go-test-race: ${{ matrix.test-case.go-test-race }}
+      snapd-debug: ${{ matrix.test-case.snapd-debug }}
     strategy:
       # we cache successful runs so it's fine to keep going
       fail-fast: false
@@ -147,13 +137,13 @@ jobs:
         gochannel:
           - 1.18
           - latest/stable
-        unit-scenario:
-          - snapd_debug
-          - withbootassetstesting
-          - nosecboot
-          - faultinject
-          - race
-          - snapdusergo
+        test-case:
+          - { go-build-tags: snapd_debug,           skip-coverage: false, snapd-debug: true,  go-test-race: false}
+          - { go-build-tags: withbootassetstesting, skip-coverage: false, snapd-debug: false, go-test-race: false}
+          - { go-build-tags: nosecboot,             skip-coverage: false, snapd-debug: false, go-test-race: false}
+          - { go-build-tags: faultinject,           skip-coverage: false, snapd-debug: false, go-test-race: false}
+          - { go-build-tags: snapdusergo,           skip-coverage: false, snapd-debug: false, go-test-race: false}
+          - { go-build-tags: "",                    skip-coverage: true,  snapd-debug: false, go-test-race: true,}
 
   unit-tests-cross-distro:
     uses: ./.github/workflows/unit-tests-cross-distro.yaml
