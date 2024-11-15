@@ -48,8 +48,6 @@ prepare: |
       exit
   fi
   apt install dosfstools
-  snap install jq
-  snap install yq
 
 restore: |
   rm -rf ./classic-root
@@ -221,7 +219,8 @@ execute: |
     }
   }
   EOF
-  diff -u <(jq --sort-keys . available.json) <(jq --sort-keys . expected-available.json)
+  # gojq sorts keys by default
+  diff -u <(gojq  . available.json) <(gojq . expected-available.json)
 
   muinstaller_args="-label $LABEL -device $install_disk"
   if [ -f optional-install.json ]; then
@@ -262,14 +261,13 @@ execute: |
       MATCH 'recovery:\s+[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}' < show-keys.out
 
       # check disk mappings
-      remote.exec "sudo snap install jq"
       DISK_MAPPINGS=(/run/mnt/ubuntu-save/device/disk-mapping.json
                      /run/mnt/data/system-data/var/lib/snapd/device/disk-mapping.json)
       for DM in "${DISK_MAPPINGS[@]}"; do
-          remote.exec "sudo cat $DM |
-              jq '.pc.\"structure-encryption\".\"ubuntu-save\".method'" | MATCH '"LUKS"'
-          remote.exec "sudo cat $DM |
-              jq '.pc.\"structure-encryption\".\"ubuntu-data\".method'" | MATCH '"LUKS"'
+          remote.exec "sudo cat $DM" | \
+              gojq '.pc."structure-encryption"."ubuntu-save".method' | MATCH '"LUKS"'
+          remote.exec "sudo cat $DM" | \
+              gojq '.pc."structure-encryption"."ubuntu-data".method' | MATCH '"LUKS"'
       done
   fi
 
