@@ -26,6 +26,7 @@ on:
         required: true
         type: string
       use-master-snap:
+        description: 'If true, will use the snapd snap built on master'
         required: false
         type: boolean
         default: false
