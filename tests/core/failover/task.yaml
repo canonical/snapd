@@ -46,8 +46,6 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    snap install jq
-    snap install remarshal
 
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
     snap ack "$TESTSLIB/assertions/developer1.account"
