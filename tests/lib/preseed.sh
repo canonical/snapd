@@ -94,7 +94,7 @@ inject_snap_into_seed() {
 
     # now add the desired snap as an unasserted snap with some jq magic™
     # shellcheck disable=SC2016
-    gojq --arg FILE "$SNAP_FILE" --arg NAME "$SNAP_NAME" \
+    gojq --yaml-input --yaml-output --arg FILE "$SNAP_FILE" --arg NAME "$SNAP_NAME" \
         '.snaps[.snaps| length] |= .  + {"channel":"stable","unasserted":true,"name":$NAME,"file":$FILE}' < "$SEED_YAML" > "$SEED_YAML.tmp"
     mv "$SEED_YAML.tmp" "$SEED_YAML"
 
