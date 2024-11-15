@@ -11,13 +11,7 @@ details: |
 systems:
   - ubuntu-core-2*
 
-prepare: |
-    snap install jq
-    snap install yq
-
 restore: |
-    snap remove jq
-    snap remove yq
     ip link del br54 || true
 
 execute: |
@@ -25,7 +19,7 @@ execute: |
     snap get system system.network.netplan.network.version | MATCH "^2$"
 
     echo "Getting the full document works and it is valid json"
-    snap get -d system system.network.netplan | jq .
+    snap get -d system system.network.netplan | gojq .
 
     echo "Check that setting adding a br54 interface via netplan works"
     # set dhcp4=false avoids that networkd waits for a valid dhcp record
