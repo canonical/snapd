@@ -20,49 +20,6 @@ jobs:
       rules: 'nightly'
       use-master-snap: true
 
-  spread-nested-core:
-    if: github.event.schedule == '0 2 * * *'
-    uses: ./.github/workflows/spread-tests.yaml
-    with:
-      runs-on: '["self-hosted", "spread-enabled"]'
-      group: ${{ matrix.group }}
-      backend: ${{ matrix.backend }}
-      systems: ${{ matrix.systems }}
-      tasks: 'tests/nested/core/... tests/nested/manual/...'
-      rules: 'nested'
-      use-master-snap: true
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - group: nested-ubuntu-16.04
-            backend: google-nested
-            systems: 'ubuntu-16.04-64'
-          - group: nested-ubuntu-18.04
-            backend: google-nested
-            systems: 'ubuntu-18.04-64'
-          - group: nested-ubuntu-20.04
-            backend: google-nested
-            systems: 'ubuntu-20.04-64'
-          - group: nested-ubuntu-22.04
-            backend: google-nested
-            systems: 'ubuntu-22.04-64'
-          - group: nested-ubuntu-24.04
-            backend: google-nested
-            systems: 'ubuntu-24.04-64'
-
-  spread-nested-classic:
-    if: github.event.schedule == '0 2 * * *'
-    uses: ./.github/workflows/spread-tests.yaml
-    with:
-      runs-on: '["self-hosted", "spread-enabled"]'
-      group: google
-      backend: google-nested
-      systems: '*'
-      tasks: 'tests/nested/classic/...'
-      rules: 'nested'
-      use-master-snap: true
-
   spread-test-build-from-current:
     if: github.event.schedule == '0 6 * * *'
     uses: ./.github/workflows/spread-tests.yaml
