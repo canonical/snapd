@@ -31,6 +31,7 @@ jobs:
       tasks: 'tests/...'
       rules: 'main'
       use-master-snap: true
+      spread-snapd-deb-from-repo: false
     strategy:
       fail-fast: false
       matrix:
@@ -53,6 +54,7 @@ jobs:
       tasks: 'tests/...'
       rules: 'main'
       use-master-snap: true
+      spread-experimental-features: gate-auto-refresh-hook
 
   spread-test-openstack:
     if: github.event.schedule == '0 3 * * *'

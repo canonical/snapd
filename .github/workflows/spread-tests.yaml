@@ -30,10 +30,23 @@ on:
         required: false
         type: boolean
         default: false
+      spread-snapd-deb-from-repo:
+        description: 'If true, will use the snapd package from the repository when possible'
+        required: false
+        type: boolean
+        default: true
+      spread-experimental-features:
+        description: 'Experimental snapd features to enable'
+        required: false
+        type: string
 
 
 jobs:
   run-spread:
+    env:
+      SPREAD_SNAPD_DEB_FROM_REPO: ${{ inputs.spread-snapd-deb-from-repo }}
+      SPREAD_EXPERIMENTAL_FEATURES: ${{ inputs.spread-experimental-features }}
+      
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     steps:
     - name: Cleanup job workspace
