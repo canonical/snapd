@@ -12,9 +12,6 @@ details: |
     It also checks that a snap app and a snap hook (other than check-health) can
     run 'snapctl set-health' and change the health value and message.
 
-prepare: |
-    snap install --edge jq
-
 execute: |
     echo "Test that 'try'ing a snap with a set-health hook sets health in state:"
     "$TESTSTOOLS"/snapd-state check-state '.data.health."test-snapd-health"' = "null"
