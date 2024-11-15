@@ -133,7 +133,7 @@ create_vm() {
             ;;
     esac
 
-    local NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_TPM_NO_RESTART
+    local NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE
     while [ $# -gt 0 ]; do
         case "$1" in
             --param-cdrom)
@@ -152,8 +152,8 @@ create_vm() {
                 NESTED_PARAM_EXTRA="$2"
                 shift 2
                 ;;
-            --tpm-no-restart)
-                NESTED_TPM_NO_RESTART=1
+            --keep-firmware-state)
+                NESTED_KEEP_FIRMWARE_STATE=1
                 shift
                 ;;
             *)
@@ -163,9 +163,9 @@ create_vm() {
         esac
     done
 
-    export NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_TPM_NO_RESTART
+    export NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE
     "$action"
-    unset NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_TPM_NO_RESTART
+    unset NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE
 }
 
 is_nested() {
