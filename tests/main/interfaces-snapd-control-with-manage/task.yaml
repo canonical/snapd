@@ -29,6 +29,10 @@ prepare: |
 
     snap debug can-manage-refreshes | MATCH false
 
+    # Install test snap dependencies before switching to fake store
+    # TODO use core22 or core24
+    snap install core
+
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
     "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
