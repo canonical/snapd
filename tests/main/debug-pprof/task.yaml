@@ -12,7 +12,7 @@ systems: [-ubuntu-core-*]
 execute: |
     # endpoints are accessible only for the root user
     su -c 'snap debug api /v2/debug/pprof/cmdline' test > unauthorized
-    MATCH "login-required" <<<"$(jq '.result.kind' unauthorized)"
+    MATCH "login-required" <<<"$(gojq '.result.kind' unauthorized)"
 
     # one of pprof endpoints exposes a cmdline of the process
     snap debug api /v2/debug/pprof/cmdline > reported-cmdline
