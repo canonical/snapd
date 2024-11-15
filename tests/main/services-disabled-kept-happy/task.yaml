@@ -72,8 +72,7 @@ details: |
 #     => the new service is disabled
 
 prepare: |
-  snap install --edge jq
-  # keep more revisions to simplify switching around between revisions in the 
+  # keep more revisions to simplify switching around between revisions in the
   # test
   snap set system refresh.retain=5
   rm -rf disabled-svcs-kept*
