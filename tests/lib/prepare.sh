@@ -74,28 +74,6 @@ is_test_target_core_le() {
     [ "$CURR_VERSION" -le "${VERSION}" ]
 }
 
-ensure_jq() {
-    if command -v jq; then
-        return
-    fi
-
-    if os.query is-core18; then
-        snap install --devmode jq-core18
-        snap alias jq-core18.jq jq
-    elif os.query is-core20; then
-        snap install --devmode --edge jq-core20
-        snap alias jq-core20.jq jq
-    elif os.query is-core22; then
-        snap install --devmode --edge jq-core22
-        snap alias jq-core22.jq jq
-    elif os.query is-core24; then
-        snap install --devmode --edge test-snapd-jq-core24
-        snap alias test-snapd-jq-core24.jq jq
-    else
-        snap install --devmode jq
-    fi
-}
-
 disable_refreshes() {
     echo "Modify state to make it look like the last refresh just happened"
     systemctl stop snapd.socket snapd.service
