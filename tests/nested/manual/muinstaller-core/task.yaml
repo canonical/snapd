@@ -246,7 +246,7 @@ execute: |
   mv fake-disk.img "$NESTED_IMAGES_DIR/$IMAGE_NAME"
 
   # Start installed image
-  tests.nested create-vm core --tpm-no-restart
+  tests.nested create-vm core --keep-firmware-state
 
   # things look fine
   remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu Core"'

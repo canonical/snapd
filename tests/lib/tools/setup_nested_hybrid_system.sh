@@ -172,7 +172,7 @@ run_muinstaller() {
     fi
 
     # Start installed image
-    tests.nested create-vm core --tpm-no-restart
+    tests.nested create-vm core --keep-firmware-state
 }
 
 main() {
