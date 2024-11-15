@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 STORE_CONFIG=/etc/systemd/system/snapd.service.d/store.conf
 
 show_help() {
@@ -141,8 +143,9 @@ setup_fake_store(){
         return 1
     fi
 
-    # before switching make sure we have a session macaroon
-    snap find test-snapd-tools
+    # before switching make sure we have a session macaroon, but keep it best
+    # effort
+    snap find test-snapd-tools || true
     mkdir -p "$top_dir/asserts"
 
     # debugging
