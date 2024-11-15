@@ -210,10 +210,15 @@ jobs:
               ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
           fi
 
-          # This coud be the case when either there are not systems for a group or 
+          # This could be the case when either there are not systems for a group or
           # the list of tests to run is empty
           if [ -z "$RUN_TESTS" ]; then
-            echo "No tests to run, skiping..."
+            echo "No tests to run, exiting..."
+            exit 0
+          fi
+
+          if "$SPREAD" -list $RUN_TESTS 2>&1 | grep -q "nothing matches provider filter"; then
+            echo "No tests to run, exiting..."
             exit 0
           fi
 
