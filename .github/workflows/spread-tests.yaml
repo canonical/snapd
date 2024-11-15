@@ -147,21 +147,30 @@ jobs:
           # Add start line to filtered log
           echo "GRAFANA START: pr ${CHANGE_ID} attempt ${{ github.run_attempt }} run ${{ github.run_id }} group ${{ inputs.group }}" > "$FILTERED_LOG_FILE"
 
-    - name: Download built snap
+    - name: Download built snap (amd64)
       uses: actions/download-artifact@v4
-      if: "!endsWith(inputs.group, '-fips')"
+      if: "!contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips')"
       with:
-        name: snap-files-default-test
+        name: snap-files-amd64-default-test
         # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
         pattern: snapd_1337.*.snap
         path: "${{ github.workspace }}/built-snap"
 
-    - name: Download built FIPS snap
+    - name: Download built snap (arm64)
+      if: "contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips')"
+      uses: actions/download-artifact@v4
+      with:
+        name: snap-files-arm64-default-test
+        pattern: snapd_1337.*.snap
+        # eg. snapd_1337.2.65.1+git97.gd35b459_amd64.snap
+        path: "${{ github.workspace }}/built-snap"
+
+    - name: Download built FIPS snap (amd64)
       uses: actions/download-artifact@v4
       # eg. ubuntu-fips
-      if: "endsWith(inputs.group, '-fips')"
+      if: "!contains(inputs.group, '-arm64') && endsWith(inputs.group, '-fips')"
       with:
-        name: snap-files-FIPS-test
+        name: snap-files-amd64-FIPS-test
         # eg. snapd_1337.2.65.1+git97.gd35b459-fips_amd64.snap
         pattern: snapd_1337.*-fips_*.snap
         path: "${{ github.workspace }}/built-snap"
@@ -186,15 +195,7 @@ jobs:
             export NESTED_ENABLE_KVM=true
           fi
 
-          case "${{ inputs.systems }}" in
-            *-arm-*)
-              SPREAD_USE_PREBUILT_SNAPD_SNAP=false
-              ;;
-            *)
-              SPREAD_USE_PREBUILT_SNAPD_SNAP=true
-              ;;
-          esac
-          export SPREAD_USE_PREBUILT_SNAPD_SNAP
+          export SPREAD_USE_PREBUILT_SNAPD_SNAP=true
 
           if [[ "${{ inputs.systems }}" =~ amazon-linux-2023 ]]; then
               # Amazon Linux 2023 has no xdelta, however we cannot disable

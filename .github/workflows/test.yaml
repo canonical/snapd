@@ -13,11 +13,17 @@ jobs:
   snap-builds:
     uses: ./.github/workflows/snap-builds.yaml
     with:
-      runs-on: ubuntu-22.04
+      runs-on: ${{ matrix.runs-on }}
       toolchain: ${{ matrix.toolchain }}
       variant: ${{ matrix.variant }}
     strategy:
       matrix:
+        runs-on:
+          - '["ubuntu-22.04"]'
+          # Tags to identify the self-hosted runners to use from
+          # internal runner collection. See internal self-hosted
+          # runners doc for the complete list of options.
+          - '["self-hosted", "Linux", "jammy", "ARM64", "large"]'
         toolchain:
           - default
           - FIPS
@@ -27,6 +33,14 @@ jobs:
           # are the build that should be installed by human users.
           - pristine
           - test
+        # Exclude building everything for ARM but the version for testing
+        # to keep the number of builds down as we currently don't have a
+        # clear need for these excluded builds.
+        exclude:
+          - runs-on: '["self-hosted", "Linux", "jammy", "ARM64", "large"]'
+            toolchain: FIPS
+          - runs-on: '["self-hosted", "Linux", "jammy", "ARM64", "large"]'
+            variant: pristine
 
   cache-build-deps:
     runs-on: ubuntu-20.04
@@ -301,7 +315,7 @@ jobs:
             systems: 'ubuntu-core-24-64'
             tasks: 'tests/...'
             rules: 'main'
-          - group: ubuntu-arm
+          - group: ubuntu-arm64
             backend: google-arm
             systems: 'ubuntu-20.04-arm-64 ubuntu-core-22-arm-64'
             tasks: 'tests/...'
