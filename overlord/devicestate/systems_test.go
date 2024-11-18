@@ -588,11 +588,10 @@ func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
 	randomSnap := snaptest.MakeTestSnapWithFiles(c, `name: random
 version: 1`, nil)
 	c.Assert(osutil.CopyFile(randomSnap, infos["pc"].MountFile(), osutil.CopyFlagOverwrite), IsNil)
-	dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(s.state, model, "1234", s.db,
+	_, err = devicestate.CreateSystemForModelFromValidatedSnaps(s.state, model, "1234", s.db,
 		&infoGetter, snapWriteObserver)
 	c.Assert(err, ErrorMatches, `internal error: no assertions for asserted snap with ID: pcididididididididididididididid`)
 	// we're past the start, so the system directory is there
-	c.Check(dir, Equals, systemDir)
 	c.Check(osutil.IsDirectory(systemDir), Equals, true)
 	// but no files were copied
 	c.Check(observerCalls, Equals, 0)
@@ -821,7 +820,7 @@ func (s *createSystemSuite) TestCreateSystemObserverErr(c *C) {
 		return nil
 	}
 
-	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(s.state, model, "1234", s.db,
+	_, err := devicestate.CreateSystemForModelFromValidatedSnaps(s.state, model, "1234", s.db,
 		&infoGetter, snapWriteObserver)
 	c.Assert(err, ErrorMatches, "mocked observer failure")
 	c.Check(newFiles, DeepEquals, []string{
@@ -830,5 +829,4 @@ func (s *createSystemSuite) TestCreateSystemObserverErr(c *C) {
 		// we failed on this one
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/core20_3.snap"),
 	})
-	c.Check(dir, Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"))
 }

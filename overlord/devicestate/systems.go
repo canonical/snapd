@@ -428,20 +428,22 @@ func createSystemForModelFromValidatedSnaps(
 	if err := w.Start(db, sf); err != nil {
 		return "", err
 	}
+
 	// past this point the system directory is present
 
 	// TODO:COMPS: take into account local components
 	localSnaps, err := w.LocalSnaps()
 	if err != nil {
-		return recoverySystemDir, err
+		return "", err
 	}
 
 	localARefs := make(map[*seedwriter.SeedSnap][]*asserts.Ref)
 	for _, sn := range localSnaps {
 		info, ok := modelSnaps[sn.Path]
 		if !ok {
-			return recoverySystemDir, fmt.Errorf("internal error: no snap info for %q", sn.Path)
+			return "", fmt.Errorf("internal error: no snap info for %q", sn.Path)
 		}
+
 		// TODO: the side info derived here can be different from what
 		// we have in snap.Info, but getting it this way can be
 		// expensive as we need to compute the hash, try to find a
@@ -449,23 +451,23 @@ func createSystemForModelFromValidatedSnaps(
 		_, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, sf, db)
 		if err != nil {
 			if !errors.Is(err, &asserts.NotFoundError{}) {
-				return recoverySystemDir, err
+				return "", err
 			} else if info.SnapID != "" {
 				// snap info from state must have come
 				// from the store, so it is unexpected
 				// if no assertions for it were found
-				return recoverySystemDir, fmt.Errorf("internal error: no assertions for asserted snap with ID: %v", info.SnapID)
+				return "", fmt.Errorf("internal error: no assertions for asserted snap with ID: %v", info.SnapID)
 			}
 		}
 		// TODO:COMPS: consider components
 		if err := w.SetInfo(sn, info, nil); err != nil {
-			return recoverySystemDir, err
+			return "", err
 		}
 		localARefs[sn] = aRefs
 	}
 
 	if err := w.InfoDerived(); err != nil {
-		return recoverySystemDir, err
+		return "", err
 	}
 
 	retrieveAsserts := func(sn, _, _ *seedwriter.SeedSnap) ([]*asserts.Ref, error) {
@@ -476,7 +478,7 @@ func createSystemForModelFromValidatedSnaps(
 		// get the list of snaps we need in this iteration
 		toDownload, err := w.SnapsToDownload()
 		if err != nil {
-			return recoverySystemDir, err
+			return "", err
 		}
 		// which should be empty as all snaps should be accounted for
 		// already
@@ -485,12 +487,12 @@ func createSystemForModelFromValidatedSnaps(
 			for _, sn := range toDownload {
 				which = append(which, sn.SnapName())
 			}
-			return recoverySystemDir, fmt.Errorf("internal error: need to download snaps: %v", strings.Join(which, ", "))
+			return "", fmt.Errorf("internal error: need to download snaps: %v", strings.Join(which, ", "))
 		}
 
 		complete, err := w.Downloaded(retrieveAsserts)
 		if err != nil {
-			return recoverySystemDir, err
+			return "", err
 		}
 		if complete {
 			logger.Debugf("snap processing for creating %q complete", label)
@@ -504,7 +506,7 @@ func createSystemForModelFromValidatedSnaps(
 
 	unassertedSnaps, err := w.UnassertedSnaps()
 	if err != nil {
-		return recoverySystemDir, err
+		return "", err
 	}
 	if len(unassertedSnaps) > 0 {
 		locals := make([]string, len(unassertedSnaps))
@@ -532,15 +534,15 @@ func createSystemForModelFromValidatedSnaps(
 		return osutil.CopyFile(src, dst, 0)
 	}
 	if err := w.SeedSnaps(copySnap); err != nil {
-		return recoverySystemDir, err
+		return "", err
 	}
 	if err := w.WriteMeta(); err != nil {
-		return recoverySystemDir, err
+		return "", err
 	}
 
 	bootSnaps, err := w.BootSnaps()
 	if err != nil {
-		return recoverySystemDir, err
+		return "", err
 	}
 	bootWith := &boot.RecoverySystemBootableSet{}
 	for _, sn := range bootSnaps {
@@ -553,7 +555,7 @@ func createSystemForModelFromValidatedSnaps(
 		}
 	}
 	if err := boot.MakeRecoverySystemBootable(model, boot.InitramfsUbuntuSeedDir, recoverySystemDirInRootDir, bootWith); err != nil {
-		return recoverySystemDir, fmt.Errorf("cannot make candidate recovery system %q bootable: %v", label, err)
+		return "", fmt.Errorf("cannot make candidate recovery system %q bootable: %v", label, err)
 	}
 	logger.Noticef("created recovery system %q", label)
 
