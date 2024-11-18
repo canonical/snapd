@@ -100,6 +100,13 @@ func getUserID(r *http.Request) (uint32, Response) {
 	return uint32(userIDInt), nil
 }
 
+// isClientActivity returns true if the request comes a prompting handler
+// service.
+func isClientActivity(c *Command, r *http.Request) bool {
+	// TODO: check that it's a handler service client making the API request
+	return true
+}
+
 type invalidReason string
 
 const (
@@ -331,8 +338,7 @@ func getPrompts(c *Command, r *http.Request, user *auth.UserState) Response {
 		return promptingNotRunningError()
 	}
 
-	// TODO: check that it's a handler service client making the API request
-	clientActivity := true
+	clientActivity := isClientActivity(c, r)
 
 	prompts, err := getInterfaceManager(c).InterfacesRequestsManager().Prompts(userID, clientActivity)
 	if err != nil {
@@ -363,8 +369,7 @@ func getPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 		return promptingNotRunningError()
 	}
 
-	// TODO: check that it's a handler service client making the API request
-	clientActivity := true
+	clientActivity := isClientActivity(c, r)
 
 	prompt, err := getInterfaceManager(c).InterfacesRequestsManager().PromptWithID(userID, promptID, clientActivity)
 	if err != nil {
@@ -398,8 +403,7 @@ func postPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 		return promptingError(fmt.Errorf("cannot decode request body into prompt reply: %w", err))
 	}
 
-	// TODO: check that it's a handler service client making the API request
-	clientActivity := true
+	clientActivity := isClientActivity(c, r)
 
 	satisfiedPromptIDs, err := getInterfaceManager(c).InterfacesRequestsManager().HandleReply(userID, promptID, reply.Constraints, reply.Outcome, reply.Lifespan, reply.Duration, clientActivity)
 	if err != nil {
@@ -450,7 +454,7 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		return promptingNotRunningError()
 	}
 
-	// TODO: check if it's a handler service client making the API request
+	// Do not treat activity on the rules endpoints as prompt client activity.
 	clientActivity := false
 
 	var postBody postRulesRequestBody
@@ -530,7 +534,7 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 		return promptingNotRunningError()
 	}
 
-	// TODO: check if it's a handler service client making the API request
+	// Do not treat activity on the rules endpoints as prompt client activity.
 	clientActivity := false
 
 	var postBody postRuleRequestBody
