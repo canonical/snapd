@@ -76,8 +76,8 @@ prepare: |
     # slurp our two yaml files together into one document, then convert write
     # out to the snap.yaml in the unpacked gadget snap
     gojq -s --yaml-input --yaml-output '.[0] * .[1]' <(cat snap-yaml-extras.yaml) <(cat pc-gadget/meta/snap.yaml) | \
-        tee pc-gadget/meta/snap.yaml.tmp
-    mv pc-gadget/meta/snap.yaml.tmp pc-gadget/meta/snap.yaml
+        tee snap.yaml.tmp
+    cp -v snap.yaml.tmp pc-gadget/meta/snap.yaml
 
     # delay all refreshes for a week from now, as otherwise refreshes for our 
     # snaps (which are asserted by the testrootorg authority-id) may happen, which
