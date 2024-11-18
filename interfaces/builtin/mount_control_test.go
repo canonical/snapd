@@ -332,12 +332,7 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 		{
 			// deprecated nfs4
 			"mount:\n  - where: /media/foo\n    type: [nfs4]\n    options: [rw]",
-			`mount-control "what" must be a string`,
-		},
-		{
-			// deprecated nfs4
-			"mount:\n  - where: /media/foo\n    type: [nfs4]\n    options: [rw]\n    what: 127.0.0.1:/share",
-			`mount-control "what" attribute is invalid: must start with / and not contain special characters`,
+			`mount-control deprecated filesystem type: "nfs4"`,
 		},
 	}
 

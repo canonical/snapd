@@ -211,6 +211,13 @@ var disallowedFSTypes = []string{
 	"tracefs",
 }
 
+// THe filesystems which are considered deprecated and for which a better
+// alternative exists.
+var deprecatedFSTypes = []string{
+	// use "nfs"
+	"nfs4",
+}
+
 // mountControlInterface allows creating transient and persistent mounts
 type mountControlInterface struct {
 	commonInterface
@@ -316,7 +323,7 @@ func enumerateMounts(plug interfaces.Attrer, fn func(mountInfo *MountInfo) error
 		}
 
 		disallowSource := false
-		if strutil.ListContains(types, "nfs") {
+		if strutil.ListContains(types, "nfs") || strutil.ListContains(types, "nfs4") {
 			disallowSource = true
 		}
 
@@ -441,6 +448,10 @@ func validateMountTypes(types []string) error {
 
 		if strutil.ListContains(disallowedFSTypes, t) {
 			return fmt.Errorf(`mount-control forbidden filesystem type: %q`, t)
+		}
+
+		if strutil.ListContains(deprecatedFSTypes, t) {
+			return fmt.Errorf(`mount-control deprecated filesystem type: %q`, t)
 		}
 
 		if exclusiveFsType == "" && strutil.ListContains(exclusiveFsTypes, t) {
