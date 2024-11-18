@@ -45,9 +45,6 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        # needed for git commit history
-        fetch-depth: 0
 
     - name: Download and install Debian dependencies
       # Github does not allow variables in "uses"; this has to be a hard-coded path

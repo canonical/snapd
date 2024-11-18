@@ -47,9 +47,6 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        # needed for git commit history
-        fetch-depth: 0
 
     - name: Download Debian dependencies
       run: |
@@ -143,7 +140,7 @@ jobs:
           - { go-build-tags: nosecboot,             skip-coverage: false, snapd-debug: false, go-test-race: false}
           - { go-build-tags: faultinject,           skip-coverage: false, snapd-debug: false, go-test-race: false}
           - { go-build-tags: snapdusergo,           skip-coverage: false, snapd-debug: false, go-test-race: false}
-          - { go-build-tags: "",                    skip-coverage: true,  snapd-debug: false, go-test-race: true,}
+          - { go-build-tags: "",                    skip-coverage: true,  snapd-debug: false, go-test-race: true }
 
   unit-tests-cross-distro:
     uses: ./.github/workflows/unit-tests-cross-distro.yaml
