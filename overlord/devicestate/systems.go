@@ -219,6 +219,13 @@ type infoGetter interface {
 	// mentioned in the model, which if present and having an 'optional'
 	// presence in the model, will be added to the recovery system.
 	SnapInfo(st *state.State, name string) (info *snap.Info, path string, snapIsPresent bool, err error)
+	// ComponentInfo is expected to return for a given component ref a
+	// snap.ComponentInfo for that component, a path on disk where the component
+	// file can be found, and whether the component is present. The last bit is
+	// relevant for non-essential components mentioned in the model, which if
+	// present and having an 'optional' presence in the model, will be added to
+	// the recovery system.
+	ComponentInfo(st *state.State, cref naming.ComponentRef, snapInfo *snap.Info) (info *snap.ComponentInfo, path string, present bool, err error)
 }
 
 // setupInfoGetter is an infoGetter that uses a recoverySystemSetup to get
@@ -226,6 +233,10 @@ type infoGetter interface {
 // recovery system.
 type setupInfoGetter struct {
 	setup *recoverySystemSetup
+}
+
+func (ig *setupInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentRef, snapInfo *snap.Info) (info *snap.ComponentInfo, path string, present bool, err error) {
+	return nil, "", false, fmt.Errorf("internal error: creating a recovery system with components from recoverySystemSetup not yet supported")
 }
 
 func (ig *setupInfoGetter) SnapInfo(st *state.State, name string) (info *snap.Info, path string, present bool, err error) {
@@ -347,57 +358,85 @@ func createSystemForModelFromValidatedSnaps(
 	optsSnaps := make([]*seedwriter.OptionsSnap, 0, len(model.RequiredWithEssentialSnaps()))
 	// collect all snaps that are present
 	modelSnaps := make(map[string]*snap.Info)
+	// mapping of snap names to map of component names to component infos.
+	modelComponents := make(map[string]map[string]*snap.ComponentInfo)
 
-	getModelSnap := func(name string, essential bool, nonEssentialPresence string) error {
+	getModelSnap := func(sn *asserts.ModelSnap, essential bool) error {
 		kind := "essential"
 		if !essential {
 			kind = "non-essential"
-			if nonEssentialPresence != "" {
-				kind = fmt.Sprintf("non-essential but %v", nonEssentialPresence)
+			if sn.Presence != "" {
+				kind = fmt.Sprintf("non-essential but %v", sn.Presence)
 			}
 		}
-		info, snapPath, present, err := getInfo.SnapInfo(st, name)
+		snapInfo, snapPath, present, err := getInfo.SnapInfo(st, sn.Name)
 		if err != nil {
 			return fmt.Errorf("cannot obtain %v snap information: %v", kind, err)
 		}
-		if !essential && !present && nonEssentialPresence == "optional" {
+		if !essential && !present && sn.Presence == "optional" {
 			// non-essential snap which is declared as optionally
 			// present in the model
 			return nil
 		}
 		// grab those
-		logger.Debugf("%v snap: %v", kind, name)
+		logger.Debugf("%v snap: %v", kind, sn.Name)
 		if !present {
-			return fmt.Errorf("internal error: %v snap %q not present", kind, name)
+			return fmt.Errorf("internal error: %v snap %q not present", kind, sn.Name)
 		}
 		if _, ok := modelSnaps[snapPath]; ok {
 			// we've already seen this snap
 			return nil
 		}
+
+		var comps []seedwriter.OptionsComponent
+		modelComponents[sn.Name] = make(map[string]*snap.ComponentInfo)
+		for compName, comp := range sn.Components {
+			cref := naming.NewComponentRef(sn.Name, compName)
+			compInfo, compPath, present, err := getInfo.ComponentInfo(st, cref, snapInfo)
+			if err != nil {
+				return fmt.Errorf("cannot obtain component %q information: %v", cref, err)
+			}
+
+			if !present {
+				if comp.Presence == "optional" {
+					continue
+				}
+				return fmt.Errorf("internal error: required component %q not present", cref)
+			}
+
+			// since everything here is done by path, we omit the component
+			// names. this is what the seedwriter code wants.
+			comps = append(comps, seedwriter.OptionsComponent{
+				Path: compPath,
+			})
+			modelComponents[sn.Name][compPath] = compInfo
+		}
+
 		// present locally
 		// TODO: for grade dangerous we could have a channel here which is not
 		//       the model channel, handle that here
 		optsSnaps = append(optsSnaps, &seedwriter.OptionsSnap{
-			Path: snapPath,
+			Path:       snapPath,
+			Components: comps,
 		})
-		modelSnaps[snapPath] = info
+		modelSnaps[snapPath] = snapInfo
 		return nil
 	}
 
 	for _, sn := range model.EssentialSnaps() {
 		const essential = true
-		if err := getModelSnap(sn.SnapName(), essential, ""); err != nil {
+		if err := getModelSnap(sn, essential); err != nil {
 			return "", err
 		}
 	}
 	// snapd is implicitly needed
 	const snapdIsEssential = true
-	if err := getModelSnap("snapd", snapdIsEssential, ""); err != nil {
+	if err := getModelSnap(&asserts.ModelSnap{Name: "snapd"}, snapdIsEssential); err != nil {
 		return "", err
 	}
 	for _, sn := range model.SnapsWithoutEssential() {
 		const essential = false
-		if err := getModelSnap(sn.SnapName(), essential, sn.Presence); err != nil {
+		if err := getModelSnap(sn, essential); err != nil {
 			return "", err
 		}
 	}
@@ -444,26 +483,47 @@ func createSystemForModelFromValidatedSnaps(
 			return "", fmt.Errorf("internal error: no snap info for %q", sn.Path)
 		}
 
+		asserted := info.ID() != ""
+
 		// TODO: the side info derived here can be different from what
 		// we have in snap.Info, but getting it this way can be
 		// expensive as we need to compute the hash, try to find a
 		// better way
-		_, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, sf, db)
+		_, assertions, err := seedwriter.DeriveSideInfo(sn.Path, model, sf, db)
 		if err != nil {
 			if !errors.Is(err, &asserts.NotFoundError{}) {
 				return "", err
-			} else if info.SnapID != "" {
-				// snap info from state must have come
-				// from the store, so it is unexpected
-				// if no assertions for it were found
+			}
+
+			// snap info from state must have come from the store, so it is
+			// unexpected if no assertions for it were found
+			if asserted {
 				return "", fmt.Errorf("internal error: no assertions for asserted snap with ID: %v", info.SnapID)
 			}
 		}
-		// TODO:COMPS: consider components
-		if err := w.SetInfo(sn, info, nil); err != nil {
+
+		seedComps := make(map[string]*seedwriter.SeedComponent, len(sn.Components))
+		for compPath, comp := range modelComponents[info.SnapName()] {
+			if asserted {
+				_, compAssertions, err := seedwriter.DeriveComponentSideInfo(compPath, comp, info, model, sf, db)
+				if err != nil {
+					return "", err
+				}
+
+				assertions = append(assertions, compAssertions...)
+			}
+
+			seedComps[comp.Component.ComponentName] = &seedwriter.SeedComponent{
+				ComponentRef: comp.Component,
+				Path:         compPath,
+				Info:         comp,
+			}
+		}
+
+		if err := w.SetInfo(sn, info, seedComps); err != nil {
 			return "", err
 		}
-		localARefs[sn] = aRefs
+		localARefs[sn] = assertions
 	}
 
 	if err := w.InfoDerived(); err != nil {

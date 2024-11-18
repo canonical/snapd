@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -383,6 +384,36 @@ func (s *deviceMgrBaseSuite) setupSnapDeclForNameAndID(c *C, name, snapID, publi
 	}, nil, "")
 	c.Assert(err, IsNil)
 	assertstatetest.AddMany(s.state, snapDecl)
+}
+
+func (s *deviceMgrBaseSuite) setupSnapResourcePair(c *C, comp, snapID, publisherID string, resRev, snapRev snap.Revision) {
+	assertion, err := s.storeSigning.Sign(asserts.SnapResourcePairType, map[string]interface{}{
+		"snap-id":           snapID,
+		"resource-name":     comp,
+		"resource-revision": strconv.Itoa(resRev.N),
+		"snap-revision":     strconv.Itoa(snapRev.N),
+		"developer-id":      publisherID,
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	assertstatetest.AddMany(s.state, assertion)
+}
+
+func (s *deviceMgrBaseSuite) setupSnapResourceRevision(c *C, file string, comp, snapID, publisherID string, rev snap.Revision) {
+	sha, size, err := asserts.SnapFileSHA3_384(file)
+	c.Assert(err, IsNil)
+
+	assertion, err := s.storeSigning.Sign(asserts.SnapResourceRevisionType, map[string]interface{}{
+		"snap-id":           snapID,
+		"resource-name":     comp,
+		"resource-sha3-384": sha,
+		"resource-size":     fmt.Sprint(size),
+		"resource-revision": strconv.Itoa(rev.N),
+		"developer-id":      publisherID,
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	assertstatetest.AddMany(s.state, assertion)
 }
 
 func (s *deviceMgrBaseSuite) setupSnapDecl(c *C, info *snap.Info, publisherID string) {
