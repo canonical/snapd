@@ -290,3 +290,17 @@ func (s *DirsTestSuite) TestLibexecdirOpenSUSEFlavors(c *C) {
 	dirs.SetRootDir("/")
 	c.Check(dirs.DistroLibExecDir, Equals, "/usr/libexec/snapd")
 }
+
+func (s *DirsTestSuite) TestWritableMountPath(c *C) {
+	release.MockOnClassic(true)
+	dirs.SetRootDir("/")
+
+	c.Check(dirs.WritableMountPath, Equals, "/")
+}
+
+func (s *DirsTestSuite) TestWritableMountPathCore(c *C) {
+	release.MockOnClassic(false)
+	dirs.SetRootDir("/")
+
+	c.Check(dirs.WritableMountPath, Equals, "/writable")
+}
