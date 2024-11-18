@@ -3,8 +3,10 @@ summary: Test that with mount-control NFS shares can be mounted
 details: |
     Verify that NFS mounts can be performed with mount-control
 
-# limit to systems where we know NFS works without much hassle
+# limit to systems where we know NFS works without problems
+# ubuntu-core: no required dependencies to export NFS shares
 systems:
+  - ubuntu-22.04-*
   - ubuntu-24.04-*
 
 prepare: |
@@ -43,10 +45,10 @@ prepare: |
     mkdir -p /etc/exports.d/
     echo '/var/nfs-share localhost(rw,no_subtree_check)' > /etc/exports.d/test.exports
     tests.cleanup defer rm -f /etc/exports.d/test.exports
-    retry exportfs -r
+    retry -n 10 exportfs -r
 
     # Later on remove the exports file and reload exported filesystems.
-    tests.cleanup defer exportfs -r
+    tests.cleanup defer retry -n 10 exportfs -r
 
 restore: |
     # Run cleanup handlers registered earlier.
