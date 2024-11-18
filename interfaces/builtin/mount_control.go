@@ -315,13 +315,13 @@ func enumerateMounts(plug interfaces.Attrer, fn func(mountInfo *MountInfo) error
 			return err
 		}
 
-		allowNoSource := false
+		disallowSource := false
 		if strutil.ListContains(types, "nfs") {
-			allowNoSource = true
+			disallowSource = true
 		}
 
 		what, ok := mount["what"].(string)
-		if !ok && !allowNoSource {
+		if !ok && !disallowSource {
 			return fmt.Errorf(`mount-control "what" must be a string`)
 		}
 
