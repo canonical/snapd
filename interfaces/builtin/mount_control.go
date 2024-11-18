@@ -258,7 +258,7 @@ var (
 //
 //	auto) options=() /malicious/content /var/lib/snapd/hostfs/...,\n mount fstype=(
 //
-// The "type" attribute is an optional list of expected filesystem types. It
+// The "type" attribute is an optional list of expected filesystem types. It is
 // most useful in situations when it is known upfront that only a handful of
 // types are accepted for a given mount.
 var typeRegexp = regexp.MustCompile(`^[a-z0-9]+$`)
