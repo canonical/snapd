@@ -7461,7 +7461,9 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 
 	restore = fdestate.MockDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
 		switch mountpoint {
-		case dirs.SnapdStateDir(dirs.GlobalRootDir):
+		case filepath.Join(dirs.GlobalRootDir, "writable"):
+			return "root-uuid", nil
+		case dirs.GlobalRootDir:
 			return "root-uuid", nil
 		case dirs.SnapSaveDir:
 			return "save-uuid", nil
