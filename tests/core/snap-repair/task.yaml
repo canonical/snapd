@@ -8,10 +8,6 @@ environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
     STORE_ADDR: localhost:11028
 
-prepare: |
-    snap install jq
-    tests.cleanup defer snap remove jq
-
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -93,7 +89,7 @@ execute: |
 
         # note that the value "2" here _must_ be a string, otherwise we can't 
         # sign it as all values must be strings or lists of strings, etc. 
-        jq '."repair-id" = "2"' < "$PWD/$REPAIR_JSON" > "$PWD/$REPAIR_JSON.tmp"
+        gojq '."repair-id" = "2"' < "$PWD/$REPAIR_JSON" > "$PWD/$REPAIR_JSON.tmp"
         mv "$PWD/$REPAIR_JSON.tmp" "$PWD/2-$REPAIR_JSON"
 
         fakestore new-repair --dir "$BLOB_DIR" retry.sh --repair-json="$PWD/2-$REPAIR_JSON"
@@ -108,7 +104,7 @@ execute: |
 
         echo "Add a new repair ID 2 revision that completes successfully"
 
-        jq '."revision" = "1"' < "$PWD/2-$REPAIR_JSON" > "$PWD/2-$REPAIR_JSON.tmp"
+        gojq '."revision" = "1"' < "$PWD/2-$REPAIR_JSON" > "$PWD/2-$REPAIR_JSON.tmp"
         mv "$PWD/2-$REPAIR_JSON.tmp" "$PWD/2-$REPAIR_JSON"
 
         fakestore new-repair --dir "$BLOB_DIR" "$REPAIR_SCRIPT" --repair-json="$PWD/2-$REPAIR_JSON"

@@ -97,9 +97,6 @@ ensure_jq() {
 }
 
 disable_refreshes() {
-    echo "Ensure jq is available"
-    ensure_jq
-
     echo "Modify state to make it look like the last refresh just happened"
     systemctl stop snapd.socket snapd.service
     "$TESTSTOOLS"/snapd-state prevent-autorefresh
@@ -108,13 +105,6 @@ disable_refreshes() {
     echo "Minimize risk of hitting refresh schedule"
     snap set core refresh.schedule=00:00-23:59
     snap refresh --time --abs-time | MATCH "last: 2[0-9]{3}"
-
-    echo "Ensure jq is gone"
-    snap remove --purge jq
-    snap remove --purge jq-core18
-    snap remove --purge jq-core20
-    snap remove --purge jq-core22
-    snap remove --purge test-snapd-jq-core24
 }
 
 setup_systemd_snapd_overrides() {

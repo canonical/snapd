@@ -13,13 +13,12 @@ prepare: |
     echo "Install a test snap"
     snap pack "$TESTSLIB"/snaps/home-consumer
     snap install --dangerous "$SNAP_FILE"
-    snap install --edge jq
 
 execute: |
     inspect_connection() {
       CONN="$1"
-      # shellcheck disable=SC2002
-      cat /var/lib/snapd/state.json | jq --arg CONN "$CONN" -r '.data["conns"] | has($CONN)'
+      # shellcheck disable=SC2002,SC2016
+      cat /var/lib/snapd/state.json | gojq --arg CONN "$CONN" -r '.data["conns"] | has($CONN)'
     }
 
     DISCONNECTED_PATTERN='-\s+home-consumer:home'

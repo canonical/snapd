@@ -19,7 +19,7 @@ print_state() {
         echo "snapd-state: jq-filter is a required parameter"
         exit 1
     fi
-    jq -r "$JQ_FILTER" < /var/lib/snapd/state.json
+    gojq -r "$JQ_FILTER" < /var/lib/snapd/state.json
 }
 
 check_state() {
@@ -56,17 +56,17 @@ change_snap_channel() {
         echo "snapd-state: snap and channel are required parameters"
         exit 1
     fi
-    jq ".data.snaps[\"$SNAP\"].channel = \"$CHANNEL\"" < /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    gojq ".data.snaps[\"$SNAP\"].channel = \"$CHANNEL\"" < /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
 }
 
 force_autorefresh() {
-    jq ".data[\"last-refresh\"] = \"2007-08-22T09:30:44.449455783+01:00\"" < /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    gojq ".data[\"last-refresh\"] = \"2007-08-22T09:30:44.449455783+01:00\"" < /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
 }
 
 prevent_autorefresh() {
-    jq ".data[\"last-refresh\"] = \"$(date +%Y-%m-%dT%H:%M:%S%:z)\"" < /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    gojq ".data[\"last-refresh\"] = \"$(date +%Y-%m-%dT%H:%M:%S%:z)\"" < /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
 }
 

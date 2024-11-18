@@ -16,7 +16,6 @@ environment:
 
 prepare: | 
     "$TESTSTOOLS"/snaps-state install-local test-snap
-    snap install jq
 
 debug: |
     snap saved || true
@@ -52,9 +51,9 @@ execute: |
     # Create snapshot that will apply dynamic exclusions, and grab the set ID
     #shellcheck disable=SC2016
     RESPONSE=$( echo '{"action": "snapshot", "snaps": ["test-snap"], "snapshot-options": {"test-snap":{"exclude":["$SNAP_DATA/dynamic-exclude.txt", "$SNAP_COMMON/dynamic-exclude.txt", "$SNAP_USER_COMMON/dynamic-exclude.txt", "$SNAP_USER_DATA/dynamic-exclude.txt"]}}}' | timeout 5 snap debug api -X POST -H 'Content-Type: application/json' /v2/snaps )
-    SET_ID=$( echo "$RESPONSE" | jq '.result."set-id"' )
+    SET_ID=$( echo "$RESPONSE" | gojq '.result."set-id"' )
     echo "$SET_ID" | MATCH "^[0-9]+$"
-    CHANGE=$( echo "$RESPONSE" | jq ".change" | grep -o "[0-9]*" )
+    CHANGE=$( echo "$RESPONSE" | gojq ".change" | grep -o "[0-9]*" )
 
     # Wait for completion of async change
     retry -n 20 sh -c "snap change \"$CHANGE\" | tail -n2 | MATCH \"Done\".*"
@@ -78,7 +77,7 @@ execute: |
     "\$SNAP_USER_COMMON/dynamic-exclude.txt"
     "\$SNAP_USER_DATA/dynamic-exclude.txt"
     EOF
-    timeout 5 snap debug api /v2/snapshots?set="$SET_ID" | jq .result[0].snapshots[0].options.exclude[] > actual_options_entry
+    timeout 5 snap debug api /v2/snapshots?set="$SET_ID" | gojq .result[0].snapshots[0].options.exclude[] > actual_options_entry
     diff -u expected_options_entry actual_options_entry
 
     # Remove the canaries to test restore

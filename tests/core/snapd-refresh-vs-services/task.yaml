@@ -42,11 +42,8 @@ environment:
   SNAPD_2_49_2_ARMHF: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.49.2_11586.snap
 
 prepare: |
-  # install http snap to download files, jq + remarshal to simplify the check if
-  # stable == 2.49.2 so we can skip that case automatically until a new version
-  # is released to stable
+  # install http snap to download files
   snap install test-snapd-curl --edge --devmode # devmode so it can save to any dir
-  snap install jq remarshal
   # save the current version of snapd for later
   INITIAL_REV=$(snap list snapd | tail -n +2 | awk '{print $3}')
   cp "/var/lib/snapd/snaps/snapd_$INITIAL_REV.snap" snapd-pr.snap
@@ -62,7 +59,7 @@ prepare: |
 execute: |
   # check if snapd 2.49.2 is the current latest/stable release as it simplifies
   # some of the logic below
-  if snap info snapd | yaml2json | jq -r '.channels."latest/stable"'  | grep -q -Po '2.49.2\s+'; then
+  if snap info snapd | gojq --yaml-input -r '.channels."latest/stable"'  | grep -q -Po '2.49.2\s+'; then
     # skip the stable variant of the test
     if [ "${SNAPD_VERSION_UNDER_TEST}" = "stable" ]; then
       echo "Skipping duplicated test case"
