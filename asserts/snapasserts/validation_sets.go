@@ -990,17 +990,23 @@ func (v *ValidationSets) SnapConstrained(snapRef naming.SnapRef) bool {
 	return v.constraintsForSnap(snapRef) != nil
 }
 
-type presence struct {
+// ContainerPresence represents the allowed presence of a snap or component with
+// respect to a set of validation sets that it was derived from.
+type ContainerPresence struct {
+	// Presence is the required presence of the snap or component.
 	Presence asserts.Presence
+	// Revision is the revision that the snap or component must be at if the
+	// presence is not invalid.
 	Revision snap.Revision
-	Sets     ValidationSetKeySlice
+	// Sets is a list of validation sets that the presence is derived from.
+	Sets ValidationSetKeySlice
 }
 
 // SnapPresence contains information about a snap's allowed presence with
 // respect to a set of validation sets.
 type SnapPresence struct {
-	presence
-	components map[string]presence
+	ContainerPresence
+	components map[string]ContainerPresence
 }
 
 // Constrained returns true if the snap is constrained in any way by the
@@ -1022,23 +1028,23 @@ func (s *SnapPresence) Constrained() bool {
 	return false
 }
 
-func (p *presence) constrained() bool {
+func (p *ContainerPresence) constrained() bool {
 	return p.Presence != asserts.PresenceOptional || !p.Revision.Unset()
 }
 
 // Component returns the presence of the given component of the snap. If this
 // SnapPresence doesn't know about the component, the component will be
 // considered optional and allowed to have any revision.
-func (s *SnapPresence) Component(name string) presence {
+func (s *SnapPresence) Component(name string) ContainerPresence {
 	if s.components == nil {
-		return presence{
+		return ContainerPresence{
 			Presence: asserts.PresenceOptional,
 		}
 	}
 
 	cp, ok := s.components[name]
 	if !ok {
-		return presence{
+		return ContainerPresence{
 			Presence: asserts.PresenceOptional,
 		}
 	}
@@ -1047,8 +1053,8 @@ func (s *SnapPresence) Component(name string) presence {
 
 // RequiredComponents returns a set of all of the components that are required
 // to be installed when this snap is installed.
-func (s *SnapPresence) RequiredComponents() map[string]presence {
-	required := make(map[string]presence)
+func (s *SnapPresence) RequiredComponents() map[string]ContainerPresence {
+	required := make(map[string]ContainerPresence)
 	for name, pres := range s.components {
 		if pres.Presence != asserts.PresenceRequired {
 			continue
@@ -1071,7 +1077,7 @@ func (v *ValidationSets) Presence(sn naming.SnapRef) (SnapPresence, error) {
 	cstrs := v.constraintsForSnap(sn)
 	if cstrs == nil {
 		return SnapPresence{
-			presence: presence{Presence: asserts.PresenceOptional},
+			ContainerPresence: ContainerPresence{Presence: asserts.PresenceOptional},
 		}, nil
 	}
 
@@ -1080,7 +1086,7 @@ func (v *ValidationSets) Presence(sn naming.SnapRef) (SnapPresence, error) {
 		return SnapPresence{}, err
 	}
 
-	comps := make(map[string]presence, len(cstrs.componentConstraints))
+	comps := make(map[string]ContainerPresence, len(cstrs.componentConstraints))
 	for _, cstrs := range cstrs.componentConstraints {
 		compPresence, err := presenceFromConstraints(cstrs.constraints, v.sets)
 		if err != nil {
@@ -1090,20 +1096,20 @@ func (v *ValidationSets) Presence(sn naming.SnapRef) (SnapPresence, error) {
 	}
 
 	return SnapPresence{
-		presence:   snapPresence,
-		components: comps,
+		ContainerPresence: snapPresence,
+		components:        comps,
 	}, nil
 }
 
-func presenceFromConstraints(cstrs constraints, vsets map[string]*asserts.ValidationSet) (presence, error) {
-	p := presence{
+func presenceFromConstraints(cstrs constraints, vsets map[string]*asserts.ValidationSet) (ContainerPresence, error) {
+	p := ContainerPresence{
 		Presence: asserts.PresenceOptional,
 	}
 	for rev, revCstr := range cstrs.revisions {
 		for _, rc := range revCstr {
 			vs := vsets[rc.validationSetKey]
 			if vs == nil {
-				return presence{}, fmt.Errorf("internal error: no validation set for %q", rc.validationSetKey)
+				return ContainerPresence{}, fmt.Errorf("internal error: no validation set for %q", rc.validationSetKey)
 			}
 
 			p.Sets = append(p.Sets, NewValidationSetKey(vs))

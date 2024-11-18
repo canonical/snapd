@@ -19,11 +19,10 @@
 package snapasserts
 
 type ByRevision = byRevision
-type ContainerPresence = presence
 
 func NewSnapPresence(p ContainerPresence, comps map[string]ContainerPresence) SnapPresence {
 	return SnapPresence{
-		presence:   p,
-		components: comps,
+		ContainerPresence: p,
+		components:        comps,
 	}
 }
