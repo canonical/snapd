@@ -3486,7 +3486,7 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	}
 
 	// rev is set at this point (otherwise we would hit removeAll case)
-	if pres.Revision.N == rev.N {
+	if pres.Revision == rev {
 		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), rev, pres.Sets.CommaSeparated())
 	} // else - it's ok to remove a revision different than the required
 	return nil
