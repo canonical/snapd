@@ -1073,7 +1073,7 @@ func (s *SnapPresence) RequiredComponents() map[string]ContainerPresence {
 // Check with ValidationSets.Conflict() before calling this method.
 func (v *ValidationSets) Presence(sn naming.SnapRef) (SnapPresence, error) {
 	// if this is true, then calling code has a bug
-	if snapName := sn.SnapName(); strings.Contains(sn.SnapName(), "_") {
+	if snapName := sn.SnapName(); strings.Contains(snapName, "_") {
 		return SnapPresence{}, fmt.Errorf("internal error: cannot check snap against validation sets with instance name: %q", snapName)
 	}
 
