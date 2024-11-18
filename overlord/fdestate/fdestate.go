@@ -218,7 +218,7 @@ func initializeState(st *state.State) error {
 
 	// FIXME mount points will be different in recovery or factory-reset modes
 	// either inspect degraded.json, or use boot.HostUbuntuDataForMode()
-	dataUUID, dataErr := disksDMCryptUUIDFromMountPoint(dirs.SnapdStateDir(dirs.GlobalRootDir))
+	dataUUID, dataErr := disksDMCryptUUIDFromMountPoint(dirs.WritableMountPath)
 	saveUUID, saveErr := disksDMCryptUUIDFromMountPoint(dirs.SnapSaveDir)
 	if errors.Is(saveErr, disks.ErrMountPointNotFound) {
 		// TODO: do we need to care about old cases where there is no save partition?

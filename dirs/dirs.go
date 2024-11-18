@@ -141,6 +141,11 @@ var (
 	SysfsDir string
 
 	FeaturesDir string
+
+	// WritableMountPath is a path where writable root data is
+	// mounted. For Classic it is /, but Ubuntu Core it is
+	// /writable.
+	WritableMountPath string
 )
 
 // User defined home directory variables
@@ -633,6 +638,14 @@ func SetRootDir(rootdir string) {
 	// global vars if they want, instead of using the new rootdir directly
 	for _, c := range callbacks {
 		c(rootdir)
+	}
+
+	if release.OnClassic {
+		// On Classic, the data disk is mounted as /
+		WritableMountPath = rootdir
+	} else {
+		// If on Core /writable is a bind mount from data dir
+		WritableMountPath = filepath.Join(rootdir, "writable")
 	}
 
 }

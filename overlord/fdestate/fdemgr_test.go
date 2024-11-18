@@ -24,6 +24,7 @@ import (
 	"crypto"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -36,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
@@ -55,6 +57,8 @@ var _ = Suite(&fdeMgrSuite{})
 
 func (s *fdeMgrSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
+	s.AddCleanup(release.MockOnClassic(true))
 
 	s.rootdir = c.MkDir()
 	dirs.SetRootDir(s.rootdir)
@@ -101,10 +105,14 @@ func (u *instrumentedUnlocker) Relock() {
 	u.relocked += 1
 }
 
-func (s *fdeMgrSuite) startedManager(c *C) *fdestate.FDEManager {
+func (s *fdeMgrSuite) startedManager(c *C, onClassic bool) *fdestate.FDEManager {
 	defer fdestate.MockDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
 		switch mountpoint {
-		case dirs.SnapdStateDir(dirs.GlobalRootDir):
+		case dirs.GlobalRootDir:
+			c.Check(onClassic, Equals, true)
+			return "aaa", nil
+		case filepath.Join(dirs.GlobalRootDir, "writable"):
+			c.Check(onClassic, Equals, false)
 			return "aaa", nil
 		case dirs.SnapSaveDir:
 			return "bbb", nil
@@ -132,9 +140,12 @@ func (s *fdeMgrSuite) startedManager(c *C) *fdestate.FDEManager {
 	return manager
 }
 
-func (s *fdeMgrSuite) TestGetManagerFromState(c *C) {
+func (s *fdeMgrSuite) testGetManagerFromState(c *C, onClassic bool) {
 	st := s.st
-	manager := s.startedManager(c)
+	s.AddCleanup(release.MockOnClassic(onClassic))
+	dirs.SetRootDir(s.rootdir)
+
+	manager := s.startedManager(c, onClassic)
 
 	st.Lock()
 	defer st.Unlock()
@@ -149,6 +160,16 @@ func (s *fdeMgrSuite) TestGetManagerFromState(c *C) {
 	c.Check(crypto.Hash(primaryKey.Digest.Algorithm), Equals, crypto.Hash(crypto.SHA256))
 	c.Check(primaryKey.Digest.Salt, DeepEquals, []byte{1, 2, 3, 4})
 	c.Check(primaryKey.Digest.Digest, DeepEquals, []byte{5, 6, 7, 8})
+}
+
+func (s *fdeMgrSuite) TestGetManagerFromStateClassic(c *C) {
+	const onClassic = true
+	s.testGetManagerFromState(c, onClassic)
+}
+
+func (s *fdeMgrSuite) TestGetManagerFromStateCore(c *C) {
+	const onClassic = false
+	s.testGetManagerFromState(c, onClassic)
 }
 
 type mockModel struct {
@@ -180,7 +201,11 @@ func (m *mockModel) SignKeyID() string {
 
 func (s *fdeMgrSuite) TestUpdateState(c *C) {
 	st := s.st
-	manager := s.startedManager(c)
+	const onClassic = true
+	s.AddCleanup(release.MockOnClassic(onClassic))
+	dirs.SetRootDir(s.rootdir)
+
+	manager := s.startedManager(c, onClassic)
 
 	st.Lock()
 	defer st.Unlock()
@@ -209,7 +234,11 @@ func (s *fdeMgrSuite) TestUpdateState(c *C) {
 
 func (s *fdeMgrSuite) TestUpdateReseal(c *C) {
 	st := s.st
-	manager := s.startedManager(c)
+	const onClassic = true
+	s.AddCleanup(release.MockOnClassic(onClassic))
+	dirs.SetRootDir(s.rootdir)
+
+	manager := s.startedManager(c, onClassic)
 
 	st.Lock()
 	defer st.Unlock()
@@ -261,7 +290,7 @@ type mountResolveTestCase struct {
 func (s *fdeMgrSuite) testMountResolveError(c *C, tc mountResolveTestCase) {
 	defer fdestate.MockDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
 		switch mountpoint {
-		case dirs.SnapdStateDir(dirs.GlobalRootDir):
+		case dirs.GlobalRootDir:
 			// ubuntu-data
 			if tc.dataResolveErr != nil {
 				return "", tc.dataResolveErr
