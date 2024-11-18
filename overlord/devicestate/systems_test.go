@@ -217,6 +217,37 @@ func validateCore20Seed(c *C, name string, expectedModel *asserts.Model, trusted
 	c.Assert(sd.Model(), DeepEquals, expectedModel)
 }
 
+func infoGetterFromMaps(c *C, snaps map[string]*snap.Info, comps map[string]*snap.ComponentInfo) testInfoGetter {
+	snapInfoFn := func(st *state.State, name string) (info *snap.Info, path string, present bool, err error) {
+		c.Logf("called for: %q", name)
+		info, present = snaps[name]
+		if !present {
+			return info, "", false, nil
+		}
+		return info, info.MountFile(), true, nil
+	}
+
+	componentInfoFn := func(st *state.State, cref naming.ComponentRef, snapInfo *snap.Info) (info *snap.ComponentInfo, path string, present bool, err error) {
+		c.Logf("called for: %q", cref)
+		info, present = comps[cref.String()]
+		if !present {
+			return info, "", false, nil
+		}
+		cpi := snap.MinimalComponentContainerPlaceInfo(
+			cref.ComponentName,
+			info.Revision,
+			snapInfo.SnapName(),
+		)
+
+		return info, cpi.MountFile(), true, nil
+	}
+
+	return testInfoGetter{
+		snapInfoFn:      snapInfoFn,
+		componentInfoFn: componentInfoFn,
+	}
+}
+
 type testInfoGetter struct {
 	snapInfoFn      func(st *state.State, name string) (info *snap.Info, path string, present bool, err error)
 	componentInfoFn func(st *state.State, cref naming.ComponentRef, snapInfo *snap.Info) (info *snap.ComponentInfo, path string, present bool, err error)
@@ -302,18 +333,7 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 	})
 	expectedDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234")
 
-	snapInfoFn := func(st *state.State, name string) (*snap.Info, string, bool, error) {
-		c.Logf("called for: %q", name)
-		info, present := infos[name]
-		if !present {
-			return info, "", false, nil
-		}
-		return info, info.MountFile(), true, nil
-	}
-
-	infoGetter := testInfoGetter{
-		snapInfoFn: snapInfoFn,
-	}
+	infoGetter := infoGetterFromMaps(c, infos, nil)
 
 	var newFiles []string
 	snapWriteObserver := func(dir, where string) error {
@@ -468,35 +488,7 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnapsComponents(c *C) {
 	})
 	expectedDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234")
 
-	snapInfoFn := func(st *state.State, name string) (*snap.Info, string, bool, error) {
-		c.Logf("called for: %q", name)
-		info, present := infos[name]
-		if !present {
-			return info, "", false, nil
-		}
-		return info, info.MountFile(), true, nil
-	}
-
-	componentInfoFn := func(st *state.State, cref naming.ComponentRef, snapInfo *snap.Info) (*snap.ComponentInfo, string, bool, error) {
-		c.Logf("called for: %q", cref)
-		compInfo, ok := compInfos[cref.String()]
-		if !ok {
-			return nil, "", false, nil
-		}
-
-		cpi := snap.MinimalComponentContainerPlaceInfo(
-			cref.ComponentName,
-			compInfo.Revision,
-			snapInfo.SnapName(),
-		)
-
-		return compInfo, cpi.MountFile(), true, nil
-	}
-
-	infoGetter := testInfoGetter{
-		snapInfoFn:      snapInfoFn,
-		componentInfoFn: componentInfoFn,
-	}
+	infoGetter := infoGetterFromMaps(c, infos, compInfos)
 
 	var newFiles []string
 	snapWriteObserver := func(dir, where string) error {
@@ -599,18 +591,7 @@ func (s *createSystemSuite) TestCreateSystemFromUnassertedSnaps(c *C) {
 	})
 	expectedDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234")
 
-	snapInfoFn := func(st *state.State, name string) (*snap.Info, string, bool, error) {
-		c.Logf("called for: %q", name)
-		info, present := infos[name]
-		if !present {
-			return info, "", false, nil
-		}
-		return info, info.MountFile(), true, nil
-	}
-
-	infoGetter := testInfoGetter{
-		snapInfoFn: snapInfoFn,
-	}
+	infoGetter := infoGetterFromMaps(c, infos, nil)
 
 	var newFiles []string
 	snapWriteObserver := func(dir, where string) error {
@@ -704,33 +685,7 @@ func (s *createSystemSuite) TestCreateSystemFromUnassertedSnapsComponents(c *C) 
 	})
 	expectedDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234")
 
-	snapInfoFn := func(st *state.State, name string) (*snap.Info, string, bool, error) {
-		c.Logf("called for: %q", name)
-		info, present := infos[name]
-		if !present {
-			return info, "", false, nil
-		}
-		return info, info.MountFile(), true, nil
-	}
-	componentInfoFn := func(st *state.State, cref naming.ComponentRef, snapInfo *snap.Info) (*snap.ComponentInfo, string, bool, error) {
-		c.Logf("called for: %q", cref)
-		compInfo, ok := compInfos[cref.String()]
-		if !ok {
-			return nil, "", false, nil
-		}
-
-		cpi := snap.MinimalComponentContainerPlaceInfo(
-			cref.ComponentName,
-			compInfo.Revision,
-			snapInfo.SnapName(),
-		)
-
-		return compInfo, cpi.MountFile(), true, nil
-	}
-	infoGetter := testInfoGetter{
-		snapInfoFn:      snapInfoFn,
-		componentInfoFn: componentInfoFn,
-	}
+	infoGetter := infoGetterFromMaps(c, infos, compInfos)
 
 	var newFiles []string
 	snapWriteObserver := func(dir, where string) error {
@@ -824,15 +779,8 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 	})
 	expectedDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234")
 
-	snapInfoFn := func(st *state.State, name string) (*snap.Info, string, bool, error) {
-		c.Logf("called for: %q", name)
-		info, present := infos[name]
-		if !present {
-			return info, "", false, nil
-		}
-		return info, info.MountFile(), true, nil
-	}
-	infoGetter := testInfoGetter{snapInfoFn: snapInfoFn}
+	infoGetter := infoGetterFromMaps(c, infos, nil)
+
 	var newFiles []string
 	snapWriteObserver := func(dir, where string) error {
 		c.Check(dir, Equals, expectedDir)
@@ -979,33 +927,8 @@ func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
 		},
 	})
 
-	snapInfoFn := func(st *state.State, name string) (*snap.Info, string, bool, error) {
-		c.Logf("called for: %q", name)
-		info, present := infos[name]
-		if !present {
-			return info, "", false, nil
-		}
-		return info, info.MountFile(), true, nil
-	}
 	compInfos := make(map[string]*snap.ComponentInfo)
-	componentInfoFn := func(st *state.State, cref naming.ComponentRef, snapInfo *snap.Info) (*snap.ComponentInfo, string, bool, error) {
-		c.Logf("called for: %q", cref)
-		compInfo, ok := compInfos[cref.String()]
-		if !ok {
-			return nil, "", false, nil
-		}
-		cpi := snap.MinimalComponentContainerPlaceInfo(
-			cref.ComponentName,
-			compInfo.Revision,
-			snapInfo.SnapName(),
-		)
-
-		return compInfo, cpi.MountFile(), true, nil
-	}
-	infoGetter := testInfoGetter{
-		snapInfoFn:      snapInfoFn,
-		componentInfoFn: componentInfoFn,
-	}
+	infoGetter := infoGetterFromMaps(c, infos, compInfos)
 
 	var observerCalls int
 	snapWriteObserver := func(dir, where string) error {
@@ -1209,15 +1132,7 @@ func (s *createSystemSuite) TestCreateSystemImplicitSnaps(c *C) {
 	})
 	expectedDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234")
 
-	snapInfoFn := func(st *state.State, name string) (*snap.Info, string, bool, error) {
-		c.Logf("called for: %q", name)
-		info, present := infos[name]
-		if !present {
-			return info, "", false, nil
-		}
-		return info, info.MountFile(), true, nil
-	}
-	infoGetter := testInfoGetter{snapInfoFn: snapInfoFn}
+	infoGetter := infoGetterFromMaps(c, infos, nil)
 	var newFiles []string
 	snapWriteObserver := func(dir, where string) error {
 		c.Check(dir, Equals, expectedDir)
@@ -1270,14 +1185,7 @@ func (s *createSystemSuite) TestCreateSystemObserverErr(c *C) {
 		},
 	})
 
-	snapInfoFn := func(st *state.State, name string) (*snap.Info, string, bool, error) {
-		info, present := infos[name]
-		if !present {
-			return info, "", false, nil
-		}
-		return info, info.MountFile(), true, nil
-	}
-	infoGetter := testInfoGetter{snapInfoFn: snapInfoFn}
+	infoGetter := infoGetterFromMaps(c, infos, nil)
 	var newFiles []string
 	snapWriteObserver := func(dir, where string) error {
 		newFiles = append(newFiles, where)
