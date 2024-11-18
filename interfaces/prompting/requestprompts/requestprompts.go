@@ -110,7 +110,7 @@ func responseForInterfaceConstraintsOutcome(iface string, constraints *promptCon
 	if err != nil {
 		// This should not occur, but if so, default to deny
 		allow = false
-		logger.Debugf("%v", err)
+		logger.Noticef("internal error: failed to compute prompting outcome: %v", err)
 	}
 	allowedPerms := constraints.originalPermissions
 	if !allow {
@@ -128,7 +128,7 @@ func responseForInterfaceConstraintsOutcome(iface string, constraints *promptCon
 	if err != nil {
 		// This should not occur, but if so, permission should be set to the
 		// empty value for its corresponding permission type.
-		logger.Debugf("internal error: cannot convert abstract permissions to AppArmor permissions: %v", err)
+		logger.Noticef("internal error: cannot convert abstract permissions to AppArmor permissions: %v", err)
 	}
 	return allowedPermission
 }
@@ -146,9 +146,7 @@ func (p *Prompt) sendReplyWithPermission(allowedPermission any) error {
 	return nil
 }
 
-var sendReply = func(listenerReq *listener.Request, allowedPermission any) error {
-	return listenerReq.Reply(allowedPermission)
-}
+var sendReply = (*listener.Request).Reply
 
 // promptConstraints store the path which was requested, along with three
 // lists of permissions: the original permissions associated with the request,
