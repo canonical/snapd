@@ -44,8 +44,8 @@ var sbSetKeyRevealer = sb_hooks.SetKeyRevealer
 const legacyFdeHooksPlatformName = "fde-hook-v2"
 
 func init() {
-	handler := &fdeHookV2DataHandler{}
-	sb.RegisterPlatformKeyDataHandler(legacyFdeHooksPlatformName, handler)
+	v2Handler := &fdeHookV2DataHandler{}
+	sb.RegisterPlatformKeyDataHandler(legacyFdeHooksPlatformName, v2Handler)
 }
 
 type hookKeyProtector struct {
@@ -136,21 +136,29 @@ func ResealKeysWithFDESetupHook(keyFiles []string, primaryKeyFile string, models
 		sbModels = append(sbModels, model)
 	}
 	for _, keyFile := range keyFiles {
-		reader, err := sb.NewFileKeyDataReader(keyFile)
-		if err != nil {
-			return fmt.Errorf("cannot open key data: %v", err)
+		loadedKey := &defaultKeyLoader{}
+		const hintExpectFDEHook = true
+		if err := readKeyFile(keyFile, loadedKey, hintExpectFDEHook); err != nil {
+			return err
 		}
-		keyData, err := sb.ReadKeyData(reader)
-		if err != nil {
-			return fmt.Errorf("cannot read key data: %v", err)
+
+		// Non-nil FDEHookKeyV1 indicates that V1 hook key is used
+		if loadedKey.FDEHookKeyV1 != nil {
+			// V1 keys do not need resealing
+			continue
 		}
-		if keyData.Generation() == 1 {
-			if err := keyData.SetAuthorizedSnapModels(primaryKey, sbModels...); err != nil {
+
+		if loadedKey.KeyData == nil {
+			return fmt.Errorf("internal error: keydata was expected, but none found")
+		}
+
+		if loadedKey.KeyData.Generation() == 1 {
+			if err := loadedKey.KeyData.SetAuthorizedSnapModels(primaryKey, sbModels...); err != nil {
 				return err
 			}
 		} else {
 			// TODO: also set the run modes
-			hooksKeyData, err := sb_hooks.NewKeyData(keyData)
+			hooksKeyData, err := sb_hooks.NewKeyData(loadedKey.KeyData)
 			if err != nil {
 				return err
 			}
@@ -160,12 +168,24 @@ func ResealKeysWithFDESetupHook(keyFiles []string, primaryKeyFile string, models
 		}
 
 		writer := sb.NewFileKeyDataWriter(keyFile)
-		if err := keyData.WriteAtomic(writer); err != nil {
+		if err := loadedKey.KeyData.WriteAtomic(writer); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func unlockDiskWithHookV1Key(mapperName, sourceDevice string, sealed []byte) error {
+	p := fde.RevealParams{
+		SealedKey: sealed,
+	}
+	options := sb.ActivateVolumeOptions{}
+	unlockKey, err := fde.Reveal(&p)
+	if err != nil {
+		return err
+	}
+	return sbActivateVolumeWithKey(mapperName, sourceDevice, unlockKey, &options)
 }
 
 type fdeHookV2DataHandler struct{}

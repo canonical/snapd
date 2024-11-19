@@ -135,16 +135,18 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 
 	res.PartDevice = partDevice
 
-	var keys []*sb.KeyData
+	hintExpectFDEHook := fdeHasRevealKey()
 
-	if keyData, _, err := readKeyFile(sealedEncryptionKeyFile); err == nil {
-		if keyData != nil {
-			keys = append(keys, keyData)
-		}
-	} else {
+	loadedKey := &defaultKeyLoader{}
+	if err := readKeyFile(sealedEncryptionKeyFile, loadedKey, hintExpectFDEHook); err != nil {
 		if !os.IsNotExist(err) {
 			logger.Noticef("WARNING: there was an error loading key %s: %v", sealedEncryptionKeyFile, err)
 		}
+	}
+
+	var keys []*sb.KeyData
+	if loadedKey.KeyData != nil {
+		keys = append(keys, loadedKey.KeyData)
 	}
 
 	if opts.WhichModel != nil {
@@ -168,6 +170,23 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	if err != nil {
 		res.UnlockMethod = NotUnlocked
 		return res, fmt.Errorf("internal error: cannot build an auth requestor: %v", err)
+	}
+
+	// Non-nil FDEHookKeyV1 indicates that V1 hook key is used
+	if loadedKey.FDEHookKeyV1 != nil {
+		// Special case for hook keys v1. They do not have
+		// primary keys. So we cannot wrap them in KeyData
+		err := unlockDiskWithHookV1Key(mapperName, sourceDevice, loadedKey.FDEHookKeyV1)
+		if err == nil {
+			res.FsDevice = targetDevice
+			res.UnlockMethod = UnlockedWithSealedKey
+			return res, nil
+		}
+		// If we did not manage we should still try unlocking
+		// with key data if there are some on the tokens.
+		// Also the request for recovery key will happen in
+		// ActivateVolumeWithKeyData
+		logger.Noticef("WARNING: attempting opening device %s  with key file %s failed: %v", sourceDevice, sealedEncryptionKeyFile, err)
 	}
 
 	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, authRequestor, options, keys...)
