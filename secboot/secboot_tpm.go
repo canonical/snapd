@@ -217,7 +217,7 @@ func lockTPMSealedKeys() error {
 	return sbBlockPCRProtectionPolicies(tpm, []int{initramfsPCR})
 }
 
-func activateVolOpts(allowRecoveryKey bool, allowPassphrase bool) *sb.ActivateVolumeOptions {
+func activateVolOpts(allowRecoveryKey bool, allowPassphrase bool, legacyPaths ...string) *sb.ActivateVolumeOptions {
 	passphraseTry := 0
 	if allowPassphrase {
 		passphraseTry = 1
@@ -225,8 +225,9 @@ func activateVolOpts(allowRecoveryKey bool, allowPassphrase bool) *sb.ActivateVo
 	options := sb.ActivateVolumeOptions{
 		PassphraseTries: passphraseTry,
 		// disable recovery key by default
-		RecoveryKeyTries: 0,
-		KeyringPrefix:    keyringPrefix,
+		RecoveryKeyTries:  0,
+		KeyringPrefix:     keyringPrefix,
+		LegacyDevicePaths: legacyPaths,
 	}
 	if allowRecoveryKey {
 		// enable recovery key only when explicitly allowed

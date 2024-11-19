@@ -701,16 +701,18 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 
 				if tc.rkAllow {
 					c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
-						PassphraseTries:  1,
-						RecoveryKeyTries: 3,
-						KeyringPrefix:    "ubuntu-fde",
+						PassphraseTries:   1,
+						RecoveryKeyTries:  3,
+						KeyringPrefix:     "ubuntu-fde",
+						LegacyDevicePaths: []string{"/dev/disk/by-partuuid/enc-dev-partuuid"},
 					})
 				} else {
 					c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
 						PassphraseTries: 1,
 						// activation with recovery key was disabled
-						RecoveryKeyTries: 0,
-						KeyringPrefix:    "ubuntu-fde",
+						RecoveryKeyTries:  0,
+						KeyringPrefix:     "ubuntu-fde",
+						LegacyDevicePaths: []string{"/dev/disk/by-partuuid/enc-dev-partuuid"},
 					})
 				}
 				return tc.activateErr

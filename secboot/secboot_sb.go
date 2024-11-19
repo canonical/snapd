@@ -165,7 +165,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	defer sbSetKeyRevealer(nil)
 
 	const allowPassphrase = true
-	options := activateVolOpts(opts.AllowRecoveryKey, allowPassphrase)
+	options := activateVolOpts(opts.AllowRecoveryKey, allowPassphrase, partDevice)
 	authRequestor, err := newAuthRequestor()
 	if err != nil {
 		res.UnlockMethod = NotUnlocked
@@ -314,26 +314,6 @@ func unlockEncryptedPartitionWithKey(name, device string, key []byte) error {
 		logger.Noticef("successfully activated encrypted device %v using a key", device)
 	}
 	return err
-}
-
-// UnlockEncryptedVolumeWithRecoveryKey prompts for the recovery key and uses it
-// to open an encrypted device.
-func UnlockEncryptedVolumeWithRecoveryKey(name, device string) error {
-	options := sb.ActivateVolumeOptions{
-		RecoveryKeyTries: 3,
-		KeyringPrefix:    keyringPrefix,
-	}
-
-	authRequestor, err := newAuthRequestor()
-	if err != nil {
-		return fmt.Errorf("internal error: cannot build an auth requestor: %v", err)
-	}
-
-	if err := sbActivateVolumeWithRecoveryKey(name, device, authRequestor, &options); err != nil {
-		return fmt.Errorf("cannot unlock encrypted device %q: %v", device, err)
-	}
-
-	return nil
 }
 
 // ActivateVolumeWithKey is a wrapper for secboot.ActivateVolumeWithKey
