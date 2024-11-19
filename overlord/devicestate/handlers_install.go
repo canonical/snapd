@@ -205,6 +205,32 @@ func (m *DeviceManager) doSetupUbuntuSave(t *state.Task, _ *tomb.Tomb) error {
 	return m.setupUbuntuSave(deviceCtx)
 }
 
+func kernelModulesComps(st *state.State, kernelName string) ([]*snap.ComponentInfo, error) {
+	var stateMap map[string]*snapstate.SnapState
+	if err := st.Get("snaps", &stateMap); err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+
+	kernel, ok := stateMap[kernelName]
+	if !ok {
+		return nil, fmt.Errorf("internal error: %s is not installed", kernelName)
+	}
+
+	allComps, err := kernel.CurrentComponentInfos()
+	if err != nil {
+		return nil, err
+	}
+
+	kernModsComps := make([]*snap.ComponentInfo, 0, len(allComps))
+	for _, c := range allComps {
+		if c.Type == snap.KernelModulesComponent {
+			kernModsComps = append(kernModsComps, c)
+		}
+	}
+
+	return kernModsComps, nil
+}
+
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -274,11 +300,36 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	var installedSystem *install.InstalledSystemSideData
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
+
+	// Find out installed components in the temporary system, which will be
+	// the same as those snapd will install in the final system.
+	kModComps, err := kernelModulesComps(st, kernelInfo.SnapName())
+	if err != nil {
+		return err
+	}
+	bootKMods := make([]boot.BootableKModsComponents, 0, len(kModComps))
+	modulesComps := make([]install.KernelModulesComponentInfo, 0, len(kModComps))
+	for _, compInfo := range kModComps {
+		cpi := snap.MinimalComponentContainerPlaceInfo(compInfo.Component.ComponentName,
+			compInfo.Revision, kernelInfo.SnapName())
+		ci := install.KernelModulesComponentInfo{
+			Name:       compInfo.Component.ComponentName,
+			Revision:   compInfo.Revision,
+			MountPoint: cpi.MountDir(),
+		}
+		modulesComps = append(modulesComps, ci)
+		bootKMods = append(bootKMods, boot.BootableKModsComponents{
+			CompPlaceInfo: cpi,
+			CompPath:      cpi.MountFile(),
+		})
+	}
+
 	kSnapInfo := &install.KernelSnapInfo{
-		Name:       kernelInfo.SnapName(),
-		MountPoint: kernelDir,
-		Revision:   kernelInfo.Revision,
-		IsCore:     !deviceCtx.Classic(),
+		Name:         kernelInfo.SnapName(),
+		MountPoint:   kernelDir,
+		Revision:     kernelInfo.Revision,
+		IsCore:       !deviceCtx.Classic(),
+		ModulesComps: modulesComps,
 	}
 	if snapstate.NeedsKernelSetup(deviceCtx.Model()) {
 		kSnapInfo.NeedsDriversTree = true
@@ -326,6 +377,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		UnpackedGadgetDir: gadgetDir,
 
 		RecoverySystemLabel: modeEnv.RecoverySystem,
+		KernelMods:          bootKMods,
 	}
 	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
 		err = bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver)

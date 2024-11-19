@@ -49,6 +49,7 @@ import (
 	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -56,6 +57,7 @@ import (
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
@@ -136,6 +138,7 @@ const (
 	pcSnapID       = "pcididididididididididididididid"
 	pcKernelSnapID = "pckernelidididididididididididid"
 	core20SnapID   = "core20ididididididididididididid"
+	core24SnapID   = "core24ididididididididididididid"
 )
 
 func (s *deviceMgrInstallModeSuite) makeMockInstalledPcKernelAndGadget(c *C, installDeviceHook string, gadgetDefaultsYaml string) {
@@ -167,6 +170,73 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcKernelAndGadget(c *C, ins
 		Active:   true,
 	})
 	snaptest.MockSnapWithFiles(c, "name: core20\ntype: base", si, nil)
+
+	s.makeMockInstalledPcGadget(c, installDeviceHook, gadgetDefaultsYaml)
+}
+
+func (s *deviceMgrInstallModeSuite) makeMockInstalledPcKernelAndGadgetWithKMods(c *C, installDeviceHook string, gadgetDefaultsYaml string) {
+	compData := []struct {
+		name string
+		rev  snap.Revision
+	}{
+		{"kcomp1", snap.Revision{N: 7}},
+		{"kcomp2", snap.Revision{N: 14}},
+	}
+
+	si := &snap.SideInfo{
+		RealName: "pc-kernel",
+		Revision: snap.R(1),
+		SnapID:   pcKernelSnapID,
+	}
+
+	kernYaml := fmt.Sprintf(`name: pc-kernel
+type: kernel
+version: 1.0
+components:
+  %s:
+    type: kernel-modules
+  %s:
+    type: kernel-modules
+`, compData[0].name, compData[1].name)
+	kernelInfo := snaptest.MockSnapWithFiles(c, kernYaml, si, nil)
+	kernelFn := snaptest.MakeTestSnapWithFiles(c, kernYaml, nil)
+	err := os.Rename(kernelFn, kernelInfo.MountFile())
+	c.Assert(err, IsNil)
+
+	compsState := []*sequence.ComponentState{}
+	for _, comp := range compData {
+		compYaml := fmt.Sprintf(
+			"component: pc-kernel+%s\ntype: kernel-modules\n", comp.name)
+		csi := snap.NewComponentSideInfo(naming.NewComponentRef("pc-kernel", comp.name), comp.rev)
+		compsState = append(compsState,
+			sequence.NewComponentState(csi, snap.KernelModulesComponent))
+		snaptest.MockComponent(c, compYaml, kernelInfo, *csi)
+		compFn := snaptest.MakeTestComponentWithFiles(c, comp.name, compYaml, nil)
+		cpi := snap.MinimalComponentContainerPlaceInfo(comp.name, comp.rev, kernelInfo.SnapName())
+		err := os.Rename(compFn, cpi.MountFile())
+		c.Assert(err, IsNil)
+	}
+
+	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
+		SnapType: "kernel",
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+			sequence.NewRevisionSideState(si, compsState)}),
+		Current: si.Revision,
+		Active:  true,
+	})
+
+	si = &snap.SideInfo{
+		RealName: "core24",
+		Revision: snap.R(2),
+		SnapID:   core24SnapID,
+	}
+	snapstate.Set(s.state, "core24", &snapstate.SnapState{
+		SnapType: "base",
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		Active:   true,
+	})
+	snaptest.MockSnapWithFiles(c, "name: core24\ntype: base", si, nil)
 
 	s.makeMockInstalledPcGadget(c, installDeviceHook, gadgetDefaultsYaml)
 }
@@ -211,6 +281,39 @@ func (s *deviceMgrInstallModeSuite) makeMockInstallModel(c *C, grade string) *as
 				"id":              pcSnapID,
 				"type":            "gadget",
 				"default-channel": "20",
+			}},
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "my-model",
+		// no serial in install mode
+	})
+
+	return mockModel
+}
+
+func (s *deviceMgrInstallModeSuite) makeMockInstallModelWithKMods(c *C, grade string) *asserts.Model {
+	mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core24",
+		"grade":        grade,
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              pcKernelSnapID,
+				"type":            "kernel",
+				"default-channel": "24",
+				"components": map[string]interface{}{
+					"kmod1": "required",
+					"kmod2": "required",
+				},
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              pcSnapID,
+				"type":            "gadget",
+				"default-channel": "24",
 			}},
 	})
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -458,6 +561,78 @@ func (s *deviceMgrInstallModeSuite) TestInstallExpTasks(c *C) {
 
 	// we did request a restart through restartSystemToRunModeTask
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallExpTasksWithKMods(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+		c.Check(kernelSnapInfo, DeepEquals, &install.KernelSnapInfo{
+			Name:             "pc-kernel",
+			Revision:         snap.R(1),
+			MountPoint:       filepath.Join(dirs.SnapMountDir, "pc-kernel/1"),
+			NeedsDriversTree: true,
+			IsCore:           true,
+			ModulesComps: []install.KernelModulesComponentInfo{{
+				Name:     "kcomp1",
+				Revision: snap.R(7),
+				MountPoint: filepath.Join(dirs.SnapMountDir,
+					"pc-kernel/components/mnt/kcomp1/7"),
+			}, {
+				Name:     "kcomp2",
+				Revision: snap.R(14),
+				MountPoint: filepath.Join(dirs.SnapMountDir,
+					"pc-kernel/components/mnt/kcomp2/14"),
+			}},
+		})
+		return nil, nil
+	})
+	defer restore()
+
+	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+		[]byte("mode=install\n"), 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	s.makeMockInstallModelWithKMods(c, "dangerous")
+	s.makeMockInstalledPcKernelAndGadgetWithKMods(c, "", "")
+	devicestate.SetSystemMode(s.mgr, "install")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Check(installSystem.Err(), IsNil)
+
+	tasks := installSystem.Tasks()
+	c.Assert(tasks, HasLen, 2)
+	setupRunSystemTask := tasks[0]
+	restartSystemToRunModeTask := tasks[1]
+
+	c.Assert(setupRunSystemTask.Kind(), Equals, "setup-run-system")
+	c.Assert(restartSystemToRunModeTask.Kind(), Equals, "restart-system-to-run-mode")
+
+	// setup-run-system has no pre-reqs
+	c.Assert(setupRunSystemTask.WaitTasks(), HasLen, 0)
+
+	// restart-system-to-run-mode has a pre-req of setup-run-system
+	waitTasks := restartSystemToRunModeTask.WaitTasks()
+	c.Assert(waitTasks, HasLen, 1)
+	c.Assert(waitTasks[0].ID(), Equals, setupRunSystemTask.ID())
+
+	// we did request a restart through restartSystemToRunModeTask
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+
+	// Check that snaps and kernel-modules components have been copied over
+	for _, file := range []string{"core24_2.snap", "pc_1.snap", "pc-kernel_1.snap",
+		"pc-kernel+kcomp1_7.comp", "pc-kernel+kcomp2_14.comp"} {
+		c.Check(filepath.Join(dirs.GlobalRootDir,
+			"run/mnt/ubuntu-data/system-data/var/lib/snapd/snaps", file), testutil.FilePresent)
+	}
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallRestoresPreseedArtifact(c *C) {
