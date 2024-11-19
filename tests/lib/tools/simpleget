@@ -4,6 +4,7 @@ import os.path
 import argparse
 import logging
 import datetime
+import tempfile
 from urllib import request
 from urllib.parse import urlparse
 
@@ -30,20 +31,22 @@ def main() -> None:
         raise RuntimeError(f"output path {output} already exists")
 
     total = 0
-    now = datetime.datetime.now()
-    with request.urlopen(opts.URL) as f:
-        with open(output, "wb") as outf:
-            while True:
-                data = f.read(128 * 1024)
-                logging.debug("got %s bytes", len(data))
-                if len(data) == 0:
-                    logging.debug("done")
-                    break
 
-                total += len(data)
-                outf.write(data)
+    def _report(blocks: int, bsize: int, tot: int):
+        nonlocal total
+        total = tot
+        logging.debug("got %d/%d kB", blocks * bsize / 1024.0, total / 1024.0)
 
-    after = datetime.datetime.now()
+    # create a temp in the same directory as output
+    outdir = os.path.dirname(output)
+
+    with tempfile.NamedTemporaryFile(mode="wb", dir=outdir) as outf:
+        now = datetime.datetime.now()
+        fn, _ = request.urlretrieve(opts.URL, filename=outf.name, reporthook=_report)
+        after = datetime.datetime.now()
+
+        os.rename(fn, output)
+
     speed = float(total) / (after - now).total_seconds() / 1024.0
     logging.info("wrote %d bytes to %s, speed %.02f kB/s", total, output, speed)
 
