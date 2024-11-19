@@ -2,8 +2,10 @@ name: test-snapd-desktop-layout-with-content
 version: 0.1
 
 apps:
-  cmd:
-    cmd: bin.sh
+  sh:
+    command: bin/sh
+  crash-foo-font:
+    command: bin/crash-foo-font
 
 plugs:
   desktop:

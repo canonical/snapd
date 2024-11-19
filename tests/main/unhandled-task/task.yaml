@@ -8,23 +8,20 @@ details: |
     unknown handler name in order to check that such tasks do not cause snapd to
     malfunction entirely, which would make rollback impossible.
 
-prepare: |
-    snap install --devmode jq
-
 execute: |
     echo "Stop snapd"
     systemctl stop snapd.{service,socket}
 
-    LAST_LANE_ID=$(jq ".[\"last-lane-id\"]" /var/lib/snapd/state.json)
+    LAST_LANE_ID=$(gojq ".[\"last-lane-id\"]" /var/lib/snapd/state.json)
 
     TASK_SNIPPET="{\"id\":\"90999\",\"kind\":\"alien-task\",\"summary\":\"alien task\",\"status\":0,\"data\":{},\"wait-tasks\":[],\"lanes\":[$LAST_LANE_ID],\"change\":\"80999\",\"spawn-time\":\"2010-11-09T22:04:10.320985653Z\"}"
 
     CHANGE_SNIPPET="{\"id\":\"80999\",\"kind\":\"some-change\",\"summary\":\"...\",\"status\":0,\"clean\":true,\"data\":{},\"task-ids\":[\"90999\"],\"spawn-time\":\"2010-11-09T22:04:10.320985653Z\"}"
 
     echo "Add unknown task to the state"
-    jq ".changes[\"80999\"]=$CHANGE_SNIPPET" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    gojq ".changes[\"80999\"]=$CHANGE_SNIPPET" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
-    jq ".tasks[\"90999\"]=$TASK_SNIPPET" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    gojq ".tasks[\"90999\"]=$TASK_SNIPPET" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
 
     systemctl start snapd.{service,socket}

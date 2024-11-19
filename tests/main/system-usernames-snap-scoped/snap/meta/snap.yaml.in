@@ -1,6 +1,7 @@
 name: SNAPNAME
 summary: Snap requesting snap-scoped system users
 version: '1.0'
+base: core22
 
 apps:
   test-app:

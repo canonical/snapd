@@ -29,6 +29,7 @@ import (
 )
 
 type MkfsParams = mkfsParams
+type MntfsParams = mntfsParams
 
 var (
 	MakeFilesystem         = makeFilesystem

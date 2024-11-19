@@ -14,11 +14,10 @@ environment:
   DEBUG_LOG_FILE: /var/snap/test-snapd-refresh-control/common/debug.log
 
 prepare: |
-  snap install --devmode jq
   snap set system experimental.gate-auto-refresh-hook=true
 
 debug: |
-  jq -r '.data["snaps-hold"]' < /var/lib/snapd/state.json || true
+  gojq -r '.data["snaps-hold"]' < /var/lib/snapd/state.json || true
   snap changes || true
   snap refresh --time || true
 

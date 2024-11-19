@@ -245,6 +245,7 @@ backends:
                   workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
+                  storage: 12G
 
     google-arm:
         type: google

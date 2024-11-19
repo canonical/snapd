@@ -12,13 +12,12 @@ environment:
     SNAP/wcore18: snapctl-from-snap-core18
 
 prepare: |
-    snap install --devmode jq
     echo "Build basic test package"
     snap pack snapctl-from-snap
 
 execute: |
     check_single_cookie() {
-        cnt=$(jq -r '.data["snap-cookies"]' /var/lib/snapd/state.json | grep -c "$1" || true)
+        cnt=$(gojq -r '.data["snap-cookies"]' /var/lib/snapd/state.json | grep -c "$1" || true)
         if [ "$cnt" -ne 1 ]; then
             echo "Expected single cookie for snap $1, found $cnt"
             exit 1
@@ -61,7 +60,7 @@ execute: |
     echo "Simulate upgrade from old snapd with no cookie support"
     systemctl stop snapd.{service,socket}
     rm -f "$COOKIE_FILE"
-    jq -c 'del(.data["snap-cookies"])' /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    gojq -c 'del(.data["snap-cookies"])' /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
     systemctl start snapd.{service,socket}
 

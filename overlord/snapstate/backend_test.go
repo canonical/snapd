@@ -101,6 +101,7 @@ type fakeOp struct {
 	containerFileName string
 
 	snapLocked bool
+	isUndo     bool
 }
 
 type fakeOps []fakeOp
@@ -1266,7 +1267,25 @@ func (f *fakeSnappyBackend) SetupSnapSaveData(info *snap.Info, _ snap.Device, me
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx backend.LinkContext, tm timings.Measurer) (rebootInfo boot.RebootInfo, err error) {
+func (f *fakeSnappyBackend) MaybeSetNextBoot(
+	info *snap.Info, dev snap.Device, isUndo bool) (boot.RebootInfo, error) {
+
+	op := &fakeOp{
+		op:     "maybe-set-next-boot",
+		isUndo: isUndo,
+	}
+	f.appendOp(op)
+
+	reboot := false
+	if f.linkSnapMaybeReboot {
+		reboot = info.InstanceName() == dev.Base() ||
+			(f.linkSnapRebootFor != nil && f.linkSnapRebootFor[info.InstanceName()])
+	}
+
+	return boot.RebootInfo{RebootRequired: reboot}, nil
+}
+
+func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx backend.LinkContext, tm timings.Measurer) (err error) {
 	if info.MountDir() == f.linkSnapWaitTrigger {
 		f.linkSnapWaitCh <- 1
 		<-f.linkSnapWaitCh
@@ -1290,18 +1309,12 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx b
 	if info.MountDir() == f.linkSnapFailTrigger {
 		op.op = "link-snap.failed"
 		f.appendOp(op)
-		return boot.RebootInfo{RebootRequired: false}, errors.New("fail")
+		return errors.New("fail")
 	}
 
 	f.appendOp(op)
 
-	reboot := false
-	if f.linkSnapMaybeReboot {
-		reboot = info.InstanceName() == dev.Base() ||
-			(f.linkSnapRebootFor != nil && f.linkSnapRebootFor[info.InstanceName()])
-	}
-
-	return boot.RebootInfo{RebootRequired: reboot}, nil
+	return nil
 }
 
 func (f *fakeSnappyBackend) LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error {
@@ -1551,7 +1564,7 @@ func (f *fakeSnappyBackend) RemoveAllSnapAppArmorProfiles() error {
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) RemoveSnapInhibitLock(snapName string) error {
+func (f *fakeSnappyBackend) RemoveSnapInhibitLock(snapName string, stateUnlocker runinhibit.Unlocker) error {
 	f.appendOp(&fakeOp{
 		op:   "remove-inhibit-lock",
 		name: snapName,
@@ -1632,7 +1645,7 @@ func (f *fakeSnappyBackend) RemoveSnapAliases(snapName string) error {
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, decision func() error) (lock *osutil.FileLock, err error) {
+func (f *fakeSnappyBackend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, stateUnlocker runinhibit.Unlocker, decision func() error) (lock *osutil.FileLock, err error) {
 	f.appendOp(&fakeOp{
 		op:          "run-inhibit-snap-for-unlink",
 		name:        info.InstanceName(),

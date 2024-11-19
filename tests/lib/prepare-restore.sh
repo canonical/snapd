@@ -608,6 +608,15 @@ prepare_project() {
         disable_journald_rate_limiting
         disable_journald_start_limiting
     fi
+
+    # native jq replacement, but still with some incompatibilies, see
+    # https://github.com/itchyny/gojq
+    # major differences:
+    # - map keys are sorted by default
+    # - with --yaml-input, can parse YAML
+    GOBIN=$PROJECT_PATH/tests/bin \
+    CGO_ENABLED=0 \
+        go install github.com/itchyny/gojq/cmd/gojq@v0.12.16
 }
 
 prepare_project_each() {
@@ -770,6 +779,16 @@ restore_suite_each() {
     if [[ "$variant" = full ]]; then
         # shellcheck source=tests/lib/reset.sh
         "$TESTSLIB"/reset.sh --reuse-core
+    fi
+
+    # The ntp service randomly fails to create a socket on virbr0-nic,
+    # generating issues in actions like the auto-refresh (in Xenial).
+    # The errror lines are:
+    # ntpd: bind(23) AF_INET6 ... flags 0x11 failed: Cannot assign requested address
+    # ntpd: unable to create socket on virbr0-nic
+    # ntpd: kernel reports TIME_ERROR: 0x41: Clock Unsynchronized
+    if os.query is-xenial && systemctl status ntp | MATCH TIME_ERROR; then
+        systemctl restart ntp
     fi
 
     # Check for invariants late, in order to detect any bugs in the code above.

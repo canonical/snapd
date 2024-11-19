@@ -4,6 +4,12 @@ rules:
       - tests/nested/.*
     to: [$SELF]
 
-  rest:
-    from: [.*]
+  nestedlib:
+    from:
+      - tests/lib/nested.sh
+    to: [tests/nested/]
+
+  assertions:
+    from:
+      - tests/lib/assertions/.*
     to: [tests/nested/]

@@ -3,7 +3,7 @@ summary: Ensure that the gpio physical memory control interface works.
 details: |
     The gpio-memory-control interface allows read/write access to all gpio memory.
 
-systems: [ubuntu-core-16-arm-*]
+systems: [ubuntu-core-18-arm-32*]
 
 prepare: |
     echo "Given the test-snapd-gpio-memory-control snap is installed"

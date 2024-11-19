@@ -18,7 +18,8 @@ kill-timeout: 10m
 prepare: |
   # make a font directory and restart snapd so it will see it when it goes to
   # connect the desktop interface for the snap
-  mkdir /usr/share/fonts/foo-font
+  mkdir -p /usr/share/fonts/foo-font
+  tests.cleanup defer rmdir /usr/share/fonts/foo-font
   systemctl restart snapd
 
   # install a snap which exposes some files via a content slot
@@ -35,26 +36,28 @@ prepare: |
   tests.cleanup defer tests.session -u test restore
 
 execute: |
-  touch /run/keep-running
-  # read a file continuously in the background until it fails - note that the
-  # while loop here has to be inside the snap run shell, since the process must
-  # persist during the refresh, if it is on the outside the mount namespace will
-  # be rebuilt and the crash will not be reproduced
-  tests.session -u test exec snap run --shell test-snapd-desktop-layout-with-content.cmd -c 'while test -f /run/keep-running && test -d /usr/share/fonts/foo-font; do true; done' &
+  # Construct the mount namespace once so that we are not racing construction
+  # from background job of snap run with update with snap install of the
+  # test-snapd-content-slot below.
+  test-snapd-desktop-layout-with-content.sh -c 'true'
+  # Read a file continuously in the background until it fails. Note that we are
+  # not using a service but a regular app running in the background since the
+  # process must persist during the refresh.
+  tests.session -u test exec test-snapd-desktop-layout-with-content.crash-foo-font &
   pid=$!
 
-  # refresh the content slot snap
+  # Wait for the script to start.
+  retry grep -xF 'started' ~test/snap/test-snapd-desktop-layout-with-content/common/status
+
+  # Refresh the content slot snap.
   # TODO: when refresh app awareness is enabled, this will need to ignore running processes to
   # check the behavior
   "$TESTSTOOLS"/snaps-state install-local test-snapd-content-slot
 
-  # ensure the process is still running
-  if not ps -p "$pid"; then
-    echo "process died, test failed"
-    exit 1
-  fi
+  # Signal to kill the loop
+  rm ~test/snap/test-snapd-desktop-layout-with-content/common/keep-running
+  wait "$pid"
 
-  # signal to kill the loop
-  rm /run/keep-running
-
-  wait "$pid" || true
+  # Ensure that /usr/share/fonts/foo-font was never missing.
+  MATCH 'exited' ~test/snap/test-snapd-desktop-layout-with-content/common/status
+  NOMATCH 'foo-font missing' ~test/snap/test-snapd-desktop-layout-with-content/common/status

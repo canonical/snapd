@@ -32,7 +32,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
-var longDebugAPIHelp = `
+const longDebugAPIHelp = `
 Execute a raw query to snapd API. Complex input can be read from stdin, while
 output is printed to stdout. See examples below:
 

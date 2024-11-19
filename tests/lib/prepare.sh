@@ -97,9 +97,6 @@ ensure_jq() {
 }
 
 disable_refreshes() {
-    echo "Ensure jq is available"
-    ensure_jq
-
     echo "Modify state to make it look like the last refresh just happened"
     systemctl stop snapd.socket snapd.service
     "$TESTSTOOLS"/snapd-state prevent-autorefresh
@@ -108,13 +105,6 @@ disable_refreshes() {
     echo "Minimize risk of hitting refresh schedule"
     snap set core refresh.schedule=00:00-23:59
     snap refresh --time --abs-time | MATCH "last: 2[0-9]{3}"
-
-    echo "Ensure jq is gone"
-    snap remove --purge jq
-    snap remove --purge jq-core18
-    snap remove --purge jq-core20
-    snap remove --purge jq-core22
-    snap remove --purge test-snapd-jq-core24
 }
 
 setup_systemd_snapd_overrides() {
@@ -613,9 +603,10 @@ build_snapd_snap_with_run_mode_firstboot_tweaks() {
         mv "${PROJECT_PATH}/snapd_from_snapcraft.snap" "/tmp/snapd_from_snapcraft.snap"
     fi
 
-    local UNPACK_DIR="/tmp/snapd-unpack"
-    rm -rf "${UNPACK_DIR}"
-    unsquashfs -no-progress -d "$UNPACK_DIR" /tmp/snapd_from_snapcraft.snap
+    # TODO set up a trap to clean this up properly?
+    local UNPACK_DIR
+    UNPACK_DIR="$(mktemp -d /tmp/snapd-unpack.XXXXXXXX)"
+    unsquashfs -no-progress -f -d "$UNPACK_DIR" /tmp/snapd_from_snapcraft.snap
 
     # now install a unit that sets up enough so that we can connect
     cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
@@ -697,8 +688,10 @@ repack_core_snap_with_tweaks() {
     local CORESNAP="$1"
     local TARGET="$2"
 
-    local UNPACK_DIR="/tmp/core-unpack"
-    unsquashfs -no-progress -d "$UNPACK_DIR" "$CORESNAP"
+    local UNPACK_DIR
+    # TODO set up a trap to clean this up properly?
+    UNPACK_DIR="$(mktemp -d /tmp/core-unpack.XXXXXXXX)"
+    unsquashfs -no-progress -f -d "$UNPACK_DIR" "$CORESNAP"
 
     mkdir -p "$UNPACK_DIR"/etc/systemd/journald.conf.d
     cat <<EOF > "$UNPACK_DIR"/etc/systemd/journald.conf.d/to-console.conf
@@ -736,9 +729,10 @@ repack_kernel_snap() {
     fi
 
     echo "Repacking kernel snap"
-    UNPACK_DIR=/tmp/kernel-unpack
+    # TODO set up a trap to clean this up properly?
+    UNPACK_DIR="$(mktemp -d /tmp/kernel-unpack.XXXXXXXX)"
     snap download --basename=pc-kernel --channel="$CHANNEL/${KERNEL_CHANNEL}" pc-kernel
-    unsquashfs -no-progress -d "$UNPACK_DIR" pc-kernel.snap
+    unsquashfs -no-progress -f -d "$UNPACK_DIR" pc-kernel.snap
     snap pack --filename="$TARGET" "$UNPACK_DIR"
 
     rm -rf pc-kernel.snap "$UNPACK_DIR"
@@ -975,7 +969,7 @@ uc24_build_initramfs_kernel_snap() {
         chmod +x ./initrd/main/usr/lib/snapd/snap-bootstrap
         if [ "$injectKernelPanic" = "true" ]; then
             # add a kernel panic to the end of the-tool execution
-            echo "echo 'forcibly panicking'; echo c > /proc/sysrq-trigger" >> ./initrd/main/usr/lib/snapd/snap-bootstrap
+            echo "echo 'forcibly panicking'; echo c > /proc/sysrq-trigger" > ./initrd/main/usr/lib/snapd/snap-bootstrap
         fi
 
         (cd ./initrd/early; find . | cpio --create --quiet --format=newc --owner=0:0) >initrd.img
@@ -1170,8 +1164,10 @@ setup_reflash_magic() {
     snap model --verbose
     # remove the above debug lines once the mentioned bug is fixed
     snap install "--channel=${CORE_CHANNEL}" "$core_name"
-    UNPACK_DIR="/tmp/$core_name-snap"
-    unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
+    # TODO set up a trap to clean this up properly?
+    local UNPACK_DIR
+    UNPACK_DIR="$(mktemp -d "/tmp/$core_name-unpack.XXXXXXXX")"
+    unsquashfs -no-progress -f -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
 
     if os.query is-arm; then
         snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
@@ -1242,7 +1238,7 @@ EOF
         # Make /var/lib/systemd writable so that we can get linger enabled.
         # This only applies to Ubuntu Core 16 where individual directories were
         # writable. In Core 18 and beyond all of /var/lib/systemd is writable.
-        mkdir -p $UNPACK_DIR/var/lib/systemd/{catalog,coredump,deb-systemd-helper-enabled,rfkill,linger}
+        mkdir -p "$UNPACK_DIR"/var/lib/systemd/{catalog,coredump,deb-systemd-helper-enabled,rfkill,linger}
         touch "$UNPACK_DIR"/var/lib/systemd/random-seed
 
         # build new core snap for the image

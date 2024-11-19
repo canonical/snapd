@@ -22,11 +22,9 @@ environment:
 prepare: |
   # ensure no other refreshes interfere with the test
   snap refresh
-  snap install --devmode jq
   snap install test-snapd-sh
 
 restore: |
-  snap remove --purge jq || true
   snap remove --purge test-snapd-sh || true
 
 debug: |

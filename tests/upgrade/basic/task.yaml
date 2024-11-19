@@ -173,7 +173,7 @@ execute: |
     snap aliases|MATCH "test-snapd-auto-aliases.wellknown2 +test_snapd_wellknown2 +-"
 
     echo "Check migrating to types in state"
-    coreType=$(jq -r '.data.snaps["core"].type' /var/lib/snapd/state.json)
-    testSnapType=$(jq -r '.data.snaps["test-snapd-sh"].type' /var/lib/snapd/state.json)
+    coreType=$(gojq -r '.data.snaps["core"].type' /var/lib/snapd/state.json)
+    testSnapType=$(gojq -r '.data.snaps["test-snapd-sh"].type' /var/lib/snapd/state.json)
     [ "$coreType" = "os" ]
     [ "$testSnapType" = "app" ]

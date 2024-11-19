@@ -1,6 +1,6 @@
     openstack:
         key: '$(HOST: echo "$SPREAD_OPENSTACK_ENV")'
-        plan: staging-cpu2-ram4-disk50
+        plan: staging-cpu2-ram4-disk20
         halt-timeout: 2h
         groups: [default]        
         environment:
@@ -21,6 +21,9 @@
 
             - fedora-40-64:
                 image: snapd-spread/fedora-40-64
+                workers: 6
+            - fedora-41-64:
+                image: snapd-spread/fedora-41-64
                 workers: 6
     
             - opensuse-15.5-64:

@@ -65,10 +65,10 @@ execute: |
 
     systemctl stop snapd snapd.socket
 
-    jq '.data.auth.device."session-macaroon"' /var/lib/snapd/state.json|MATCH null
+    gojq '.data.auth.device."session-macaroon"' /var/lib/snapd/state.json|MATCH null
 
     # XXX the fakestore currently does not support faking session creation
-    jq '.data.auth.device."session-macaroon"="fake-session"' /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    gojq '.data.auth.device."session-macaroon"="fake-session"' /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
     systemctl start snapd.socket
 
@@ -81,14 +81,14 @@ execute: |
     snap refresh --list | not grep -Pzq "$expected"
 
     echo "Ensure changing the proxy.store will clear out the session-macaroon"
-    jq '.data.auth.device."session-macaroon"' /var/lib/snapd/state.json|NOMATCH  fake-session
+    gojq '.data.auth.device."session-macaroon"' /var/lib/snapd/state.json|NOMATCH  fake-session
 
     echo "Configure back to use fakestore"
     snap set core proxy.store=fake
 
     # XXX the fakestore currently does not support faking session creation
     systemctl stop snapd snapd.socket
-    jq '.data.auth.device."session-macaroon"="fake-session"' /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    gojq '.data.auth.device."session-macaroon"="fake-session"' /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
     systemctl start snapd.socket
 

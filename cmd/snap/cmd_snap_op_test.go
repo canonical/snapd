@@ -144,6 +144,83 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 	t.n++
 }
 
+func multiHandler(c *check.C, snaps []string, snapToComps map[string][]string, checker func(*http.Request), calls int) http.HandlerFunc {
+	var n int
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			checker(r)
+			method := "POST"
+			c.Check(r.Method, check.Equals, method)
+			w.WriteHeader(202)
+			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
+		case 2:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			var data struct {
+				SnapNames  []string            `json:"snap-names,omitempty"`
+				Components map[string][]string `json:"components,omitempty"`
+			}
+
+			data.Components = snapToComps
+			data.SnapNames = snaps
+
+			encoded, err := json.Marshal(data)
+			c.Assert(err, check.IsNil)
+
+			fmt.Fprintf(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": %s}}\n`, string(encoded))
+		case 3:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+
+			var results []interface{}
+			for _, snap := range snaps {
+				result := map[string]interface{}{
+					"name":      snap,
+					"status":    "active",
+					"version":   "1.0",
+					"developer": "bar",
+					"publisher": map[string]interface{}{
+						"id":           "bar-id",
+						"username":     "bar",
+						"display-name": "Bar",
+						"validation":   "unproven",
+					},
+					"revision":         42,
+					"channel":          "latest/stable",
+					"tracking-channel": "latest/stable",
+					"confinement":      "strict",
+				}
+
+				comps := make([]map[string]string, 0, len(snapToComps[snap]))
+				for _, comp := range snapToComps[snap] {
+					comps = append(comps, map[string]string{"name": comp, "version": "3.2"})
+				}
+
+				if len(comps) > 0 {
+					result["components"] = comps
+				}
+
+				results = append(results, result)
+			}
+
+			err := json.NewEncoder(w).Encode(map[string]interface{}{
+				"type":   "sync",
+				"result": results,
+			})
+			c.Assert(err, check.IsNil)
+		default:
+			c.Fatalf("expected to get %d requests, now on %d", calls, n+1)
+		}
+
+		n++
+	}
+}
+
 type SnapOpSuite struct {
 	BaseSnapSuite
 
@@ -2260,7 +2337,51 @@ func (s *SnapOpSuite) TestRefreshOne(c *check.C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar refreshed`)
+}
 
+func (s *SnapOpSuite) TestRefreshOneAdditionalComponents(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":      "refresh",
+			"transaction": string(client.TransactionPerSnap),
+			"components":  []interface{}{"comp1", "comp2"},
+		})
+	}
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "foo+comp1+comp2"})
+	c.Assert(err, check.IsNil)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar refreshed`)
+}
+
+func (s *SnapOpSuite) TestRefreshManyAdditionalComponents(c *check.C) {
+	checker := func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":      "refresh",
+			"transaction": string(client.TransactionPerSnap),
+			"snaps":       []interface{}{"foo", "bar"},
+			"components": map[string]interface{}{
+				"foo": []interface{}{"comp1", "comp2"},
+				"bar": []interface{}{"comp3", "comp4"},
+			},
+		})
+	}
+
+	s.RedirectClientToTestServer(multiHandler(c, []string{"foo", "bar"}, map[string][]string{
+		"foo": {"comp1", "comp2"},
+		"bar": {"comp3", "comp4"},
+	}, checker, 3))
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "foo+comp1+comp2", "bar+comp3+comp4"})
+	c.Assert(err, check.IsNil)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar refreshed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*bar 1.0 from Bar refreshed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*component comp1 3.2 for foo 1.0 refreshed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*component comp2 3.2 for foo 1.0 refreshed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*component comp3 3.2 for bar 1.0 refreshed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*component comp4 3.2 for bar 1.0 refreshed`)
 }
 
 func (s *SnapOpSuite) TestRefreshOneSwitchChannel(c *check.C) {

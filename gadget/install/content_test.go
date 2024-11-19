@@ -49,8 +49,11 @@ type contentTestSuite struct {
 
 	gadgetRoot string
 
-	mockMountPoint   string
-	mockMountCalls   []struct{ source, target, fstype string }
+	mockMountPoint string
+	mockMountCalls []struct {
+		source, target, fstype string
+		flags                  uintptr
+	}
 	mockUnmountCalls []string
 
 	mockMountErr error
@@ -76,7 +79,10 @@ func (s *contentTestSuite) SetUpTest(c *C) {
 	s.mockMountPoint = c.MkDir()
 
 	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
-		s.mockMountCalls = append(s.mockMountCalls, struct{ source, target, fstype string }{source, target, fstype})
+		s.mockMountCalls = append(s.mockMountCalls, struct {
+			source, target, fstype string
+			flags                  uintptr
+		}{source, target, fstype, flags})
 		return s.mockMountErr
 	})
 	s.AddCleanup(restore)
@@ -498,17 +504,52 @@ func (s *contentTestSuite) TestMountFilesystem(c *C) {
 	defer dirs.SetRootDir("")
 
 	// mount a filesystem...
-	err := install.MountFilesystem("/dev/node2", "vfat", filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
+	err := install.MountFilesystem("/dev/node2", "vfat", filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"), install.MntfsParams{})
 	c.Assert(err, IsNil)
 
 	// ...and check if it was mounted at the right mount point
 	c.Check(s.mockMountCalls, HasLen, 1)
-	c.Check(s.mockMountCalls, DeepEquals, []struct{ source, target, fstype string }{
-		{"/dev/node2", boot.InitramfsUbuntuSeedDir, "vfat"},
+	c.Check(s.mockMountCalls, DeepEquals, []struct {
+		source, target, fstype string
+		flags                  uintptr
+	}{
+		{"/dev/node2", boot.InitramfsUbuntuSeedDir, "vfat", 0},
 	})
 
 	// try again with mocked error
 	s.mockMountErr = fmt.Errorf("mock mount error")
-	err = install.MountFilesystem("/dev/node2", "vfat", filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
+	err = install.MountFilesystem("/dev/node2", "vfat", filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"), install.MntfsParams{})
 	c.Assert(err, ErrorMatches, `cannot mount filesystem "/dev/node2" at ".*/run/mnt/ubuntu-seed": mock mount error`)
+}
+
+func (s *contentTestSuite) TestMountFilesystemOptions(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	tests := []struct {
+		params        install.MntfsParams
+		expectedFlags uintptr
+	}{
+		{install.MntfsParams{}, 0},
+		{install.MntfsParams{NoExec: true}, syscall.MS_NOEXEC},
+		{install.MntfsParams{NoDev: true}, syscall.MS_NODEV},
+		{install.MntfsParams{NoSuid: true}, syscall.MS_NOSUID},
+	}
+
+	for _, t := range tests {
+		// reset calls
+		s.mockMountCalls = nil
+
+		err := install.MountFilesystem("/dev/node2", "vfat", filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"), t.params)
+		c.Assert(err, IsNil)
+
+		// .. verify flags
+		c.Check(s.mockMountCalls, HasLen, 1)
+		c.Check(s.mockMountCalls, DeepEquals, []struct {
+			source, target, fstype string
+			flags                  uintptr
+		}{
+			{"/dev/node2", boot.InitramfsUbuntuSeedDir, "vfat", t.expectedFlags},
+		})
+	}
 }

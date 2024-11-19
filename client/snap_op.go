@@ -162,12 +162,12 @@ func (client *Client) RemoveMany(names []string, components map[string][]string,
 
 // Refresh refreshes the snap with the given name (switching it to track
 // the given channel if given).
-func (client *Client) Refresh(name string, options *SnapOptions) (changeID string, err error) {
-	return client.doSnapAction("refresh", name, nil, options)
+func (client *Client) Refresh(name string, components []string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("refresh", name, components, options)
 }
 
-func (client *Client) RefreshMany(names []string, options *SnapOptions) (changeID string, err error) {
-	return client.doMultiSnapAction("refresh", names, nil, options)
+func (client *Client) RefreshMany(names []string, components map[string][]string, options *SnapOptions) (changeID string, err error) {
+	return client.doMultiSnapAction("refresh", names, components, options)
 }
 
 func (client *Client) HoldRefreshes(name string, options *SnapOptions) (changeID string, err error) {

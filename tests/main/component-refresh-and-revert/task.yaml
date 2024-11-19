@@ -70,3 +70,15 @@ execute: |
   snap revert test-snap-component-refreshes --revision=5
   test-snap-component-refreshes one | MATCH '.*revision 7$'
   test-snap-component-refreshes two | MATCH '.*revision 6$'
+
+  snap remove test-snap-component-refreshes
+
+  snap install test-snap-component-refreshes+one --revision=3 --edge
+  test-snap-component-refreshes one | MATCH '.*revision 3$'
+  not test-snap-component-refreshes two
+
+  # this should refresh the snap to the latest in the edge channel, update the
+  # "one" component, and install the "two" component
+  snap refresh test-snap-component-refreshes+two
+  test-snap-component-refreshes one | MATCH '.*revision 5$'
+  test-snap-component-refreshes two | MATCH '.*revision 5$'

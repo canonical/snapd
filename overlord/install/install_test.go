@@ -568,6 +568,7 @@ func (s *installSuite) TestEncryptionSupportInfoGadgetIncompatibleWithEncryption
 			"storage-safety": tc.storageSafety,
 		})
 
+		gadget.SetEnclosingVolumeInStructs(tc.gadgetInfo.Volumes)
 		res, err := install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, tc.gadgetInfo, nil)
 		c.Assert(err, IsNil)
 		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))

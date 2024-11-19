@@ -1057,3 +1057,20 @@ func (s *setupSuite) TestRemoveKernelModulesComponentsFails(c *C) {
 	s.testRemoveKernelModulesComponents(c, newComps, firstInstalled, ksnap, kernRev,
 		"cannot remove mount in .*: cannot disable comp3-32")
 }
+
+func (s *linkSuite) TestRemoveSnapInhibitLock(c *C) {
+	var unlockerCalled, relockCalled int
+	fakeUnlocker := func() (relock func()) {
+		unlockerCalled++
+		return func() { relockCalled++ }
+	}
+	err := s.be.RemoveSnapInhibitLock("some-snap", fakeUnlocker)
+	c.Assert(err, IsNil)
+	c.Check(unlockerCalled, Equals, 1)
+	c.Check(relockCalled, Equals, 1)
+}
+
+func (s *linkSuite) TestRemoveSnapInhibitLockNilStateUnlockerError(c *C) {
+	err := s.be.RemoveSnapInhibitLock("some-snap", nil)
+	c.Assert(err, ErrorMatches, "internal error: stateUnlocker cannot be nil")
+}

@@ -175,7 +175,7 @@ func (err BusySnapError) Pids() []int {
 // the refresh change and continue running existing app processes.
 func hardEnsureNothingRunningDuringRefresh(backend managerBackend, st *state.State, snapst *SnapState, snapsup *SnapSetup, info *snap.Info) (bool, *osutil.FileLock, error) {
 	var inhibitionTimeout bool
-	lock, err := backend.RunInhibitSnapForUnlink(info, runinhibit.HintInhibitedForRefresh, func() error {
+	lock, err := backend.RunInhibitSnapForUnlink(info, runinhibit.HintInhibitedForRefresh, st.Unlocker(), func() error {
 		// In case of successful refresh inhibition the snap state is modified
 		// to indicate when the refresh was first inhibited. If the first
 		// refresh inhibition is outside of a grace period then refresh

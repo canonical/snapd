@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2022-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -51,8 +51,14 @@ var (
 	// A cryptic, uninformative error message that we use only on impossible code paths
 	customDeviceInternalError = errors.New(`custom-device interface internal error`)
 
-	// Validating regexp for filesystem paths
-	customDevicePathRegexp = regexp.MustCompile(`^/[^"@]*$`)
+	// Validating regexp for filesystem paths. @ can appear in paths under
+	// /sys/devices for devices that are defined in the device tree (of the
+	// form device@address), so we need to support @ characters in paths.
+	// However, @{foo} is the format for variables in AppArmor, so we must
+	// disallow `@{`. For completeness, we allow paths with a trailing @ as
+	// well. This is not the case for common-files-derived interfaces, since
+	// these append {,/,/**} pattern to the end of filepath.
+	customDevicePathRegexp = regexp.MustCompile(`^/([^"@]|@[^{])*@?$`)
 
 	// Validating regexp for udev device names.
 	// We forbid:

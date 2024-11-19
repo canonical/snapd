@@ -14,7 +14,6 @@ systems:
   - ubuntu-core-*
 
 prepare: |
-    snap install jq
     # prerequisite for having a prompts handler service
     snap set system experimental.user-daemons=true
     "$TESTSTOOLS"/snaps-state install-local test-snapd-prompt-handler
@@ -93,9 +92,9 @@ execute: |
         echo "Check that snap CLI reports prompting flag set correctly"
         snap get system experimental.apparmor-prompting | MATCH "$1"
         echo "Check that /v2/snaps/system/conf reports prompting flag set correctly"
-        snap debug api /v2/snaps/system/conf | jq -r '.result.experimental."apparmor-prompting"' | MATCH "$1"
+        snap debug api /v2/snaps/system/conf | gojq -r '.result.experimental."apparmor-prompting"' | MATCH "$1"
         echo "Check that /v2/system-info reports prompting correctly"
-        snap debug api /v2/system-info | jq -r '.result.features."apparmor-prompting".enabled' | MATCH "$1"
+        snap debug api /v2/system-info | gojq -r '.result.features."apparmor-prompting".enabled' | MATCH "$1"
     }
 
     echo "Precondition check that snapd is active"
@@ -140,14 +139,18 @@ execute: |
 
     echo "Enable prompting via API request"
 
-    echo '{"experimental.apparmor-prompting": true}' | snap debug api -X PUT -H 'Content-Type: application/json' /v2/snaps/system/conf | jq -r '.status' | MATCH "Accepted" || reset_start_limit
+    echo '{"experimental.apparmor-prompting": true}' | \
+        snap debug api -X PUT -H 'Content-Type: application/json' /v2/snaps/system/conf | \
+        gojq -r '.status' | MATCH "Accepted" || reset_start_limit
 
     echo "Check that snapd restarted after prompting set to true via api"
     check_snapd_restarted
     check_prompting_setting "true"
 
     echo "Disable prompting via API request"
-    echo '{"experimental.apparmor-prompting": false}' | snap debug api -X PUT -H 'Content-Type: application/json' /v2/snaps/system/conf | jq -r '.status' | MATCH "Accepted" || reset_start_limit
+    echo '{"experimental.apparmor-prompting": false}' | \
+        snap debug api -X PUT -H 'Content-Type: application/json' /v2/snaps/system/conf | \
+        gojq -r '.status' | MATCH "Accepted" || reset_start_limit
 
     echo "Check that snapd restarted after prompting set to false via api"
     check_snapd_restarted

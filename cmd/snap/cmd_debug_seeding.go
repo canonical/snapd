@@ -36,13 +36,12 @@ type cmdSeeding struct {
 }
 
 func init() {
-	cmd := addDebugCommand("seeding",
-		"(internal) obtain seeding and preseeding details",
-		"(internal) obtain seeding and preseeding details",
+	addDebugCommand("seeding",
+		"Obtain seeding and preseeding details",
+		"Obtain seeding and preseeding details",
 		func() flags.Commander {
 			return &cmdSeeding{}
 		}, nil, nil)
-	cmd.hidden = true
 }
 
 func (x *cmdSeeding) Execute(args []string) error {

@@ -97,6 +97,19 @@ var (
 		NoSuid:  true,
 		Private: true,
 	}
+	needsNoSuidNoDevNoExecMountOpts = &main.SystemdMountOptions{
+		Private: true,
+		NoSuid:  true,
+		NoExec:  true,
+		NoDev:   true,
+	}
+	needsFsckAndNoSuidNoDevNoExecMountOpts = &main.SystemdMountOptions{
+		Private:   true,
+		NeedsFsck: true,
+		NoSuid:    true,
+		NoExec:    true,
+		NoDev:     true,
+	}
 	needsFsckNoPrivateDiskMountOpts = &main.SystemdMountOptions{
 		NeedsFsck: true,
 	}
@@ -116,9 +129,6 @@ var (
 	snapMountOpts = &main.SystemdMountOptions{
 		ReadOnly: true,
 		Private:  true,
-	}
-	mountOpts = &main.SystemdMountOptions{
-		Private: true,
 	}
 	bindOpts = &main.SystemdMountOptions{
 		Bind: true,
@@ -615,6 +625,11 @@ func (s *baseInitramfsMountsSuite) ubuntuPartUUIDMount(partuuid string, mode str
 		}
 	case strings.Contains(partuuid, "ubuntu-save"):
 		mnt.where = boot.InitramfsUbuntuSaveDir
+		if mode == "run" {
+			mnt.opts = needsFsckAndNoSuidNoDevNoExecMountOpts
+		} else {
+			mnt.opts = needsNoSuidNoDevNoExecMountOpts
+		}
 	}
 
 	return mnt
@@ -1879,7 +1894,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=private",
+			"--options=nodev,nosuid,noexec,private",
 			"--property=Before=initrd-fs.target",
 		},
 	})
@@ -2159,7 +2174,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--options=private",
+			"--options=nodev,nosuid,noexec,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -2331,7 +2346,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			needsFsckDiskMountOpts,
+			needsFsckAndNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
@@ -3373,7 +3388,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
-			mountOpts,
+			needsNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 	}, nil)
@@ -3462,7 +3477,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeTimeMovesForwardHap
 			{
 				"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 				boot.InitramfsUbuntuSaveDir,
-				mountOpts,
+				needsNoSuidNoDevNoExecMountOpts,
 				nil,
 			},
 		}, nil)
@@ -3546,7 +3561,7 @@ defaults:
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
-			mountOpts,
+			needsNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 	}, nil)
@@ -3631,7 +3646,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
-			mountOpts,
+			needsNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 	}, nil)
@@ -3751,7 +3766,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			mountOpts,
+			needsNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 	}, nil)
@@ -3910,7 +3925,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			mountOpts,
+			needsNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 	}, nil)
@@ -4088,7 +4103,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedSa
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			mountOpts,
+			needsNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 	}, nil)
@@ -4253,7 +4268,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			mountOpts,
+			needsNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 	}, nil)
@@ -4416,7 +4431,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			mountOpts,
+			needsNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 	}, nil)
@@ -4584,7 +4599,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			mountOpts,
+			needsNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 	}, nil)
@@ -4774,7 +4789,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataU
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
-			mountOpts,
+			needsNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 	}, nil)
@@ -5234,7 +5249,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeUnencryptedDataUnen
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
-			mountOpts,
+			needsNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 	}, nil)
@@ -5374,7 +5389,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			mountOpts,
+			needsNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 	}, nil)
@@ -5755,7 +5770,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedMismatched
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			mountOpts,
+			needsNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 	}, nil)
@@ -5967,7 +5982,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			mountOpts,
+			needsNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 	}, nil)
@@ -6033,7 +6048,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 			systemdMount{
 				"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 				boot.InitramfsUbuntuSaveDir,
-				mountOpts,
+				needsNoSuidNoDevNoExecMountOpts,
 				nil,
 			})
 
@@ -6157,7 +6172,7 @@ func (s *baseInitramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
-			mountOpts,
+			needsNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 	}, nil)
@@ -6802,7 +6817,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyEncrypted
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			mountOpts,
+			needsNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 	}, nil)
@@ -6911,7 +6926,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
-			mountOpts,
+			needsNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 	}, nil)
@@ -7203,7 +7218,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeUnhappyMountEn
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			mountOpts,
+			needsNoSuidNoDevNoExecMountOpts,
 			fmt.Errorf("mount failed"),
 		},
 	}, nil)
@@ -7598,7 +7613,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeEncryptedDataHap
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			needsFsckDiskMountOpts,
+			needsFsckAndNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
@@ -8536,7 +8551,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRecoveryModeHybridSyste
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
-			mountOpts,
+			needsNoSuidNoDevNoExecMountOpts,
 			nil,
 		},
 	}, nil)

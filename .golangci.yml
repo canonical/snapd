@@ -129,6 +129,14 @@ linters-settings:
         deny:
           - pkg: "os/user"
             desc: "Please use osutil/user instead. See https://github.com/canonical/snapd/pull/13776"
+      testtime:
+        files:
+          - "!$test"
+        deny:
+          - pkg: "github.com/snapcore/snapd/testtime"
+            desc: "Cannot use testtime outside of test code"
+          - pkg: "github.com/canonical/snapd/testtime"
+            desc: "Cannot use testtime outside of test code"
 
   misspell:
     # Correct spellings using locale preferences for US or UK.
@@ -189,6 +197,7 @@ linters:
     # disabling until https://github.com/daixiang0/gci/issues/54 is fixed
     # - gci
     - testpackage
+    - depguard
   # disable everything else
   disable-all: true
 

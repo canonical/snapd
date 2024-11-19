@@ -19,13 +19,19 @@
 package backend
 
 import (
+	"errors"
+
 	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
-func (b Backend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, decision func() error) (lock *osutil.FileLock, err error) {
+func (b Backend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, stateUnlocker runinhibit.Unlocker, decision func() error) (lock *osutil.FileLock, err error) {
+	if stateUnlocker == nil {
+		return nil, errors.New("internal error: stateUnlocker cannot be nil")
+	}
+
 	// A process may be created after the soft refresh done upon
 	// the request to refresh a snap. If such process is alive by
 	// the time this code is reached the refresh process is stopped.
@@ -65,7 +71,7 @@ func (b Backend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, 
 	// and hard checks, as it would effectively make hard check a no-op,
 	// but it might provide a nicer user experience.
 	inhibitInfo := runinhibit.InhibitInfo{Previous: info.SnapRevision()}
-	if err := runinhibit.LockWithHint(info.InstanceName(), hint, inhibitInfo); err != nil {
+	if err := runinhibit.LockWithHint(info.InstanceName(), hint, inhibitInfo, stateUnlocker); err != nil {
 		return nil, err
 	}
 	return lock, nil
@@ -81,6 +87,7 @@ func (b Backend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, 
 // Note that this is not a method of the Backend type, so that it can be
 // invoked from doInstall, which does not have access to a backend object.
 func WithSnapLock(info *snap.Info, action func() error) error {
+	// XXX: Should we unlock state while holding snap lock? (ie. pass runinhibit.Unlocker)
 	lock, err := snaplock.OpenLock(info.InstanceName())
 	if err != nil {
 		return err

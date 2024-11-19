@@ -296,7 +296,7 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) (err error) 
 	var readInfoErr error
 	for i := 0; i < 10; i++ {
 		compMntDir := cpi.MountDir()
-		_, readInfoErr = readComponentInfo(compMntDir, nil, csi)
+		_, readInfoErr = readComponentInfoAt(compMntDir, nil, csi)
 		if readInfoErr == nil {
 			logger.Debugf("component %q (%v) available at %q",
 				csi.Component, compSetup.Revision(), compMntDir)
@@ -342,8 +342,15 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) (err error) 
 	return nil
 }
 
+// ReadComponentInfo reads the snap's component and returns a ComponentInfo.
+func ReadComponentInfo(snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+	compName, compRev := csi.Component.ComponentName, csi.Revision
+	mountDir := snap.ComponentMountDir(compName, compRev, snapInfo.InstanceName())
+	return readComponentInfoAt(mountDir, snapInfo, csi)
+}
+
 // Maybe we will need flags as in readInfo
-var readComponentInfo = func(compMntDir string, snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+var readComponentInfoAt = func(compMntDir string, snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
 	cont := snapdir.New(compMntDir)
 	return snap.ReadComponentInfoFromContainer(cont, snapInfo, csi)
 }

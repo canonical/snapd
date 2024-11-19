@@ -59,7 +59,7 @@ execute: |
     dump_cgroup_device_progs() {
         # dump all progs but those that are assigned to systemd, in which case
         # they have the pids list non empty
-        bpftool prog list -j | jq -r '.[] | select(.type == "cgroup_device") | select(.pids == null) | .id'
+        bpftool prog list -j | gojq -r '.[] | select(.type == "cgroup_device") | select(.pids == null) | .id'
     }
     echo "Dump BPF programs that are of type cgroup_device"
     dump_cgroup_device_progs > cgroup_device.progs-1

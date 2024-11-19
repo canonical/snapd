@@ -12,15 +12,8 @@ backends: [-external]
 systems: [-ubuntu-14.04-64]
 
 prepare: |
-    echo "Ensure jq is installed"
-    if ! command -v jq; then
-        snap install --devmode jq
-    fi
-
-    echo "Ensure yaml2json is installed"
-    if ! command -v yaml2json; then
-        snap install --devmode remarshal
-    fi
+    # acquire session macaroon
+    snap find core
 
 execute: |
     # Check help
@@ -40,6 +33,10 @@ execute: |
         snap info core | MATCH "store-url:.*https://snapcraft.io"
     fi
 
+    # install test snap dependency before switching to fake store
+    base_dep="$(gojq -r --yaml-input '.base' < snap/meta/snap.yaml.in)"
+    snap install "$base_dep"
+
     # Setup fakestore
     STORE_DIR="$(pwd)/fake-store-blobdir"
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
@@ -50,8 +47,8 @@ execute: |
 
     # Check make-snap-installable command with snap-id
     create_snap() {
-        yaml2json -i snap/meta/snap.yaml.in > snap/meta/snap.json
-        jq ".name = \"$1\"" snap/meta/snap.json | json2yaml -o snap/meta/snap.yaml
+        gojq --yaml-input --yaml-output \
+            ".name = \"$1\"" snap/meta/snap.yaml.in > snap/meta/snap.yaml
         "$TESTSTOOLS"/snaps-state pack-local snap
     }
 

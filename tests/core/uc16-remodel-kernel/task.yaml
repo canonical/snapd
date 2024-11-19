@@ -7,8 +7,6 @@ details: |
     the new kernel snap. Finally check it is possible to remodel
     back to the initial model.
 
-# FIXME: add core18 test as well
-# TODO:UC20: enable for UC20
 systems: [ubuntu-core-16-64]
 
 environment:

@@ -33,7 +33,8 @@ execute: |
 
     echo "Write two rules to disk, one of which is expired"
     mkdir -p "$(dirname $RULES_PATH)"
-    echo '{"rules":[{"id":"0000000000000002","timestamp":"2004-10-20T14:05:08.901174186-05:00","user":1000,"snap":"shellcheck","interface":"home","constraints":{"path-pattern":"/home/test/Projects/**","permissions":["read"]},"outcome":"allow","lifespan":"forever","expiration":"0001-01-01T00:00:00Z"},{"id":"0000000000000003","timestamp":"2004-10-20T16:47:32.138415627-05:00","user":1000,"snap":"firefox","interface":"home","constraints":{"path-pattern":"/home/test/Downloads/**","permissions":["read","write"]},"outcome":"allow","lifespan":"timespan","expiration":"2005-04-08T00:00:00Z"}]}' | tee "$RULES_PATH"
+    echo '{"rules":[{"id":"0000000000000002","timestamp":"2004-10-20T14:05:08.901174186-05:00","user":1000,"snap":"shellcheck","interface":"home","constraints":{"path-pattern":"/home/test/Projects/**","permissions":["read"]},"outcome":"allow","lifespan":"forever","expiration":"0001-01-01T00:00:00Z"},{"id":"0000000000000003","timestamp":"2004-10-20T16:47:32.138415627-05:00","user":1000,"snap":"firefox","interface":"home","constraints":{"path-pattern":"/home/test/Downloads/**","permissions":["read","write"]},"outcome":"allow","lifespan":"timespan","expiration":"2005-04-08T00:00:00Z"}]}' | \
+        tee "$RULES_PATH"
 
     # Prompting is unsupported everywhere but the Ubuntu non-core systems with
     # kernels which support apparmor prompting
@@ -65,25 +66,28 @@ execute: |
     retry --wait 1 -n 60 systemctl is-active snapd
 
     echo "Check that apparmor prompting is supported and enabled"
-    snap debug api "/v2/system-info" | jq '.result.features."apparmor-prompting".supported' | MATCH true
-    snap debug api "/v2/system-info" | jq '.result.features."apparmor-prompting".enabled' | MATCH true
+    snap debug api "/v2/system-info" | gojq '.result.features."apparmor-prompting".supported' | MATCH true
+    snap debug api "/v2/system-info" | gojq '.result.features."apparmor-prompting".enabled' | MATCH true
 
     # Write expected rules after the expired rule has been removed
-    echo '{"rules":[{"id":"0000000000000002","timestamp":"2004-10-20T14:05:08.901174186-05:00","user":1000,"snap":"shellcheck","interface":"home","constraints":{"path-pattern":"/home/test/Projects/**","permissions":["read"]},"outcome":"allow","lifespan":"forever","expiration":"0001-01-01T00:00:00Z"}]}' | jq | tee expected.json
-    # Parse existing rules through jq so they can be compared
-    jq < "$RULES_PATH" > current.json
+    echo '{"rules":[{"id":"0000000000000002","timestamp":"2004-10-20T14:05:08.901174186-05:00","user":1000,"snap":"shellcheck","interface":"home","constraints":{"path-pattern":"/home/test/Projects/**","permissions":["read"]},"outcome":"allow","lifespan":"forever","expiration":"0001-01-01T00:00:00Z"}]}' | \
+        gojq | tee expected.json
+    # Parse existing rules through (go)jq so they can be compared
+    gojq < "$RULES_PATH" > current.json
 
     echo "Check that rules on disk match what is expected"
     diff expected.json current.json
 
     echo "Check that we received two notices"
-    snap debug api --fail "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | jq
-    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | jq '.result | length' | MATCH 2
-    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | jq '.result' | grep -c '"removed": "expired"' | MATCH 1
+    snap debug api --fail "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | gojq
+    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | \
+        gojq '.result | length' | MATCH 2
+    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | \
+        gojq '.result' | grep -c '"removed": "expired"' | MATCH 1
 
     echo "Check that only the former rule is still valid (must be done with UID 1000)"
-    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result | length' | MATCH 1
-    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result[0].id' | MATCH "0000000000000002"
+    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | gojq '.result | length' | MATCH 1
+    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | gojq '.result[0].id' | MATCH "0000000000000002"
 
     echo "Stop snapd and ensure it is not in failure mode"
     systemctl stop snapd.service snapd.socket
@@ -98,20 +102,22 @@ execute: |
     retry --wait 1 -n 60 systemctl is-active snapd.service snapd.socket
 
     echo "Check that apparmor prompting is supported and enabled"
-    snap debug api "/v2/system-info" | jq '.result.features."apparmor-prompting".supported' | MATCH true
-    snap debug api "/v2/system-info" | jq '.result.features."apparmor-prompting".enabled' | MATCH true
+    snap debug api "/v2/system-info" | gojq '.result.features."apparmor-prompting".supported' | MATCH true
+    snap debug api "/v2/system-info" | gojq '.result.features."apparmor-prompting".enabled' | MATCH true
 
     echo "Check that rules on disk still match what is expected"
     diff expected.json current.json
 
     echo "Check that we received one notices for the non-expired rule"
-    snap debug api --fail "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | jq
-    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | jq '.result | length' | MATCH 1
-    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | jq '.result[0].key' | MATCH "0000000000000002"
+    snap debug api --fail "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | gojq
+    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | \
+        gojq '.result | length' | MATCH 1
+    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | \
+        gojq '.result[0].key' | MATCH "0000000000000002"
 
     echo "Check that only the non-expired rule is still valid (must be done with UID 1000)"
-    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result | length' | MATCH 1
-    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result[0].id' | MATCH "0000000000000002"
+    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | gojq '.result | length' | MATCH 1
+    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | gojq '.result[0].id' | MATCH "0000000000000002"
 
     echo '### Simulate failure to open interfaces requests manager ###'
 
@@ -134,15 +140,16 @@ execute: |
     echo "Check that apparmor prompting is supported and enabled"
     # XXX: in the future, we should set enabled to be false if m.AppArmorPromptingRunning() is false,
     # such as because creating the interfaces requests manager failed.
-    snap debug api "/v2/system-info" | jq '.result.features."apparmor-prompting".supported' | MATCH true
-    snap debug api "/v2/system-info" | jq '.result.features."apparmor-prompting".enabled' | MATCH true
+    snap debug api "/v2/system-info" | gojq '.result.features."apparmor-prompting".supported' | MATCH true
+    snap debug api "/v2/system-info" | gojq '.result.features."apparmor-prompting".enabled' | MATCH true
 
     echo "Check that rules on disk still match what is expected"
     diff expected.json current.json
 
     echo "Check that accessing a prompting endpoint results in an expected error"
-    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '."status-code"' | MATCH 500
-    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result.message' | MATCH -i "Apparmor Prompting is not running"
+    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | gojq '."status-code"' | MATCH 500
+    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | \
+        gojq '.result.message' | MATCH -i "Apparmor Prompting is not running"
 
     echo '### Remove the corrupted max prompt ID file and check that prompting backends can start again ###'
 
@@ -162,17 +169,19 @@ execute: |
     retry --wait 1 -n 60 systemctl is-active snapd.service snapd.socket
 
     echo "Check that apparmor prompting is supported and enabled"
-    snap debug api "/v2/system-info" | jq '.result.features."apparmor-prompting".supported' | MATCH true
-    snap debug api "/v2/system-info" | jq '.result.features."apparmor-prompting".enabled' | MATCH true
+    snap debug api "/v2/system-info" | gojq '.result.features."apparmor-prompting".supported' | MATCH true
+    snap debug api "/v2/system-info" | gojq '.result.features."apparmor-prompting".enabled' | MATCH true
 
     echo "Check that rules on disk still match what is expected"
     diff expected.json current.json
 
     echo "Check that we received one notices for the non-expired rule"
-    snap debug api --fail "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | jq
-    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | jq '.result | length' | MATCH 1
-    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | jq '.result[0].key' | MATCH "0000000000000002"
+    snap debug api --fail "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | gojq
+    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | \
+        gojq '.result | length' | MATCH 1
+    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | \
+        gojq '.result[0].key' | MATCH "0000000000000002"
 
     echo "Check that the non-expired rule is still valid (must be done with UID 1000)"
-    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result | length' | MATCH 1
-    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | jq '.result[0].id' | MATCH "0000000000000002"
+    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | gojq '.result | length' | MATCH 1
+    sudo -iu '#1000' snap debug api /v2/interfaces/requests/rules | gojq '.result[0].id' | MATCH "0000000000000002"

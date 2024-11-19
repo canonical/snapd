@@ -1,0 +1,83 @@
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: 'A json list of tags to indicate which runner to use'
+        required: true
+        type: string
+      toolchain:
+        description: 'The go toolchain to use {default, FIPS}'
+        required: true
+        type: string
+      variant:
+        description: 'The type of snapd build {pristine, test}'
+        required: true
+        type: string
+
+jobs:
+  snap-builds:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set artifact name
+      id: set_artifact_name
+      run: |
+        postfix="${{ inputs.toolchain }}-${{ inputs.variant }}"
+        if grep -iq "arm64" <<<"${{ inputs.runs-on }}"; then
+          echo "artifact_name=snap-files-arm64-${postfix}" >> $GITHUB_OUTPUT
+        else
+          echo "artifact_name=snap-files-amd64-${postfix}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Select Go toolchain
+      run: |
+        case "${{ inputs.toolchain }}" in
+            default)
+                rm -f fips-build
+                ;;
+            FIPS)
+                touch fips-build
+                ;;
+            *)
+                echo "unknown toolchain ${{ inputs.toolchain }}"
+                exit 1
+                ;;
+        esac
+        case "${{ inputs.variant }}" in
+            pristine)
+                rm -f test-build
+                ;;
+            test)
+                touch test-build
+                ;;
+        esac
+
+    - name: Build snapd snap
+      uses: snapcore/action-build@v1
+      with:
+        snapcraft-channel: 8.x/stable
+        snapcraft-args: --verbose
+
+    - name: Check built artifact
+      run: |
+        unsquashfs snapd*.snap meta/snap.yaml usr/lib/snapd/
+        if cat squashfs-root/meta/snap.yaml | grep -q "version:.*dirty.*"; then
+          echo "PR produces dirty snapd snap version"
+          cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
+          exit 1
+        elif cat squashfs-root/usr/lib/snapd/info | grep -q "VERSION=.*dirty.*"; then
+          echo "PR produces dirty internal snapd info version"
+          cat squashfs-root/usr/lib/snapd/info
+          cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
+          exit 1
+        fi
+
+    - name: Uploading snapd snap artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.set_artifact_name.outputs.artifact_name }}
+        path: "*.snap"

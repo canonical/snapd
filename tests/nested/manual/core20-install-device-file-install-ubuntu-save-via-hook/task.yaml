@@ -41,11 +41,6 @@ prepare: |
         exit
     fi
 
-    # install pre-reqs which we need to adjust various bits
-    snap install jq remarshal
-    tests.cleanup defer snap remove remarshal
-    tests.cleanup defer snap remove jq
-
     # Setup the fake-store for ubuntu-image to use when creating our core image.
     # We immediately tear down the staging store, to make sure snapd is not pointed
     # towards this once we invoke ubuntu-image. 
@@ -78,12 +73,11 @@ prepare: |
     cp prepare-device pc-gadget/meta/hooks/prepare-device
 
     echo "Add the extra hooks definition to the snap.yaml"
-    # convert our yaml files to json (yaml is easier to write and maintain in VCS)
-    yaml2json < pc-gadget/meta/snap.yaml | tee pc-gadget/meta/snap.json > /dev/null
-    yaml2json < snap-yaml-extras.yaml | tee snap-yaml-extras.json > /dev/null
-    # slurp our two json files together into one json document, then convert 
-    # back to yaml and write out to the snap.yaml in the unpacked gadget snap
-    jq -s '.[0] * .[1]' <(cat snap-yaml-extras.json) <(cat pc-gadget/meta/snap.json) | json2yaml | tee pc-gadget/meta/snap.yaml
+    # slurp our two yaml files together into one document, then convert write
+    # out to the snap.yaml in the unpacked gadget snap
+    gojq -s --yaml-input --yaml-output '.[0] * .[1]' <(cat snap-yaml-extras.yaml) <(cat pc-gadget/meta/snap.yaml) | \
+        tee snap.yaml.tmp
+    cp -v snap.yaml.tmp pc-gadget/meta/snap.yaml
 
     # delay all refreshes for a week from now, as otherwise refreshes for our 
     # snaps (which are asserted by the testrootorg authority-id) may happen, which
