@@ -215,7 +215,7 @@ execute: |
   {
     "snaps": ["snap-with-comps"],
     "components": {
-      "snap-with-comps": ["comp1"];
+      "snap-with-comps": ["comp1"]
     }
   }
   EOF
