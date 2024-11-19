@@ -939,9 +939,10 @@ prepare: |
         "$TESTSTOOLS"/simpleget -o /tmp/gojq.tar.gz \
             https://github.com/itchyny/gojq/releases/download/v0.12.16/gojq_v0.12.16_linux_arm64.tar.gz
     elif os.query is-arm; then
-        # build and provide gojq for armhf?
-        echo "no gojq for this platform?"
-        exit 1
+        # upstream does not provide prebuilt binaries for armhf
+        # built with: GOARCH=arm GOARM=7
+        "$TESTSTOOLS"/simpleget -o /tmp/gojq.tar.gz \
+            https://storage.googleapis.com/snapd-spread-tests/dependencies/gojq_v0.12.16_linux_armhf.tar.gz
     else
         # must be amd64
         "$TESTSTOOLS"/simpleget -o /tmp/gojq.tar.gz \
