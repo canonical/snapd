@@ -929,7 +929,33 @@ prepare: |
             exit 1
         fi
     fi
-    
+
+    # native jq replacement, but still with some incompatibilies, see
+    # https://github.com/itchyny/gojq
+    # major differences:
+    # - map keys are sorted by default
+    # - with --yaml-input, can parse YAML
+    if os.query is-arm64; then
+        "$TESTSTOOLS"/simpleget -o /tmp/gojq.tar.gz \
+            https://github.com/itchyny/gojq/releases/download/v0.12.16/gojq_v0.12.16_linux_arm64.tar.gz
+    elif os.query is-arm; then
+        # build and provide gojq for armhf?
+        echo "no gojq for this platform?"
+        exit 1
+    else
+        # must be amd64
+        "$TESTSTOOLS"/simpleget -o /tmp/gojq.tar.gz \
+            https://github.com/itchyny/gojq/releases/download/v0.12.16/gojq_v0.12.16_linux_amd64.tar.gz
+    fi
+
+    (
+        cd "$PROJECT_PATH/tests/bin"
+        # only extract gojq, typically under a path:
+        # -rwxr-xr-x runner/docker 4165784 2024-06-01 16:43 gojq_v0.12.16_linux_amd64/gojq
+        tar -xvf /tmp/gojq.tar.gz --strip-components=1 --wildcards "*/gojq"
+        test -x gojq
+    )
+
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.
     "$TESTSLIB"/prepare-restore.sh --prepare-project
