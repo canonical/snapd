@@ -10,11 +10,11 @@ on:
         required: true
         type: string
       backend:
-        description: 'The spread backend to use (for possible values, check spread.yaml)'
+        description: 'The spread backend to use (for possible values, check spread.yaml). This cannot be empty'
         required: true
         type: string
       systems:
-        description: 'The spread system(s) to use (for possible values, check spread.yaml). If more than one, separate them with a space'
+        description: 'The spread system(s) to use (for possible values, check spread.yaml). If more than one, separate them with a space. To run all, write ALL. To run none, write NONE'
         required: true
         type: string
       tasks:
@@ -49,6 +49,18 @@ jobs:
       
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     steps:
+
+    - name: Verify inputs
+      run: |
+          if [ "${{ inputs.backend }}" == "" ]; then
+            echo "You must specify a backend."
+            exit 1
+          fi
+          if [ "${{ inputs.systems }}" == "" ]; then
+            echo "You must specify a value for systems. If you want to run all, specify ALL. If you want to run none, specify NONE."
+            exit 1
+          fi
+
     - name: Cleanup job workspace
       id: cleanup-job-workspace
       run: |
@@ -116,45 +128,42 @@ jobs:
               fi
           fi
 
-    - name: Populate systems
-      run: |
-        SYSTEMS=""
-        if [[ "${{ inputs.systems }}" == "*" ]]; then
-          SYSTEMS=$(spread -list ${{ inputs.backend }} | cut -d':' -f2 | sort -u | while read line; do echo -n "$line "; done)
-        else
-          SYSTEMS="${{ inputs.systems }}"
-        fi
-        echo "SYSTEMS=$SYSTEMS" >> $GITHUB_ENV
-
     - name: Setup run tests variable
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       run: |
+          get_new_tests() {
+            # The tests are just filtered when the change is a PR
+            # When 'Run Nested' label is added in a PR, all the nested tests have to be executed
+            TESTS_TO_RUN=""
+            if [ -z "${{ github.event.number }}" ] || [ "$RUN_NESTED" = 'true' ]; then
+                for TESTS in ${{ inputs.tasks }}; do
+                    TESTS_TO_RUN="$TESTS_TO_RUN ${{ inputs.backend }}$1:$TESTS"
+                done
+            else
+                NEW_TESTS="$(./tests/lib/external/snapd-testing-tools/utils/spread-filter -r ./tests/lib/spread/rules/${{ inputs.rules }}.yaml -p "${{ inputs.backend }}$1" $2)"
+                TESTS_TO_RUN="$NEW_TESTS"
+            fi
+            echo "$TESTS_TO_RUN"
+          }
+
+          CHANGES_PARAM=""
+          for CHANGE in $CHANGED_FILES; do
+              CHANGES_PARAM="$CHANGES_PARAM -c $CHANGE"
+          done
           RUN_TESTS=""
-          SUGGESTED_TESTS=""
           # Save previous failed test results in FAILED_TESTS env var
           if [ -n "$FAILED_TESTS" ]; then
               RUN_TESTS="$FAILED_TESTS"
-          else
-              CHANGES_PARAM=""
-              for CHANGE in $CHANGED_FILES; do
-                  CHANGES_PARAM="$CHANGES_PARAM -c $CHANGE"
-              done
-              for SYSTEM in $SYSTEMS; do
-                  # Configure parameters to run tests based on current changes
-                  # The tests are just filtered when the change is a PR
-                  # When 'Run Nested' label is added in a PR, all the nested tests have to be executed
-                  if [ -z "${{ github.event.number }}" ] || [ "$RUN_NESTED" = 'true' ]; then
-                      for TESTS in ${{ inputs.tasks }}; do
-                          RUN_TESTS="$RUN_TESTS ${{ inputs.backend }}:$SYSTEM:$TESTS"
-                      done
-                  else
-                      NEW_TESTS="$(./tests/lib/external/snapd-testing-tools/utils/spread-filter -r ./tests/lib/spread/rules/${{ inputs.rules }}.yaml -p "${{ inputs.backend }}:$SYSTEM" $CHANGES_PARAM)"
-                      if [ -z "$RUN_TESTS" ]; then
-                          RUN_TESTS="$NEW_TESTS"
-                      else
-                          RUN_TESTS="$RUN_TESTS $NEW_TESTS"
-                      fi
-                  fi
+          elif [ "${{ inputs.systems }}" == "ALL" ]; then
+              RUN_TESTS=$(get_new_tests "" "$CHANGES_PARAM")
+          elif [ "${{ inputs.systems }}" != "NONE" ]; then
+              for SYSTEM in ${{ inputs.systems }}; do
+                NEW_TESTS="$(get_new_tests ":$SYSTEM" "$CHANGES_PARAM")"
+                if [ -z "$RUN_TESTS" ]; then
+                    RUN_TESTS="$NEW_TESTS"
+                else
+                    RUN_TESTS="$RUN_TESTS $NEW_TESTS"
+                fi
               done
           fi
           echo RUN_TESTS="$RUN_TESTS"  >> $GITHUB_ENV
@@ -230,7 +239,21 @@ jobs:
             export SPREAD_USE_SNAPD_SNAP_URL=https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64.snap
           fi
 
-          if [[ "$SYSTEMS" =~ amazon-linux-2023 ]]; then
+          # This could be the case when either there are not systems for a group or
+          # the list of tests to run is empty
+          if [ -z "$RUN_TESTS" ]; then
+            echo "No tests to run, exiting..."
+            exit 0
+          fi
+
+          # Add openstack backend definition to spread.yaml
+          if [ "${{ inputs.backend }}" = openstack ]; then
+              ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
+          fi
+
+          spread_list=$($SPREAD -list $RUN_TESTS 2>&1)
+
+          if [[ "$spread_list" =~ amazon-linux-2023 ]]; then
               # Amazon Linux 2023 has no xdelta, however we cannot disable
               # xdelta on a per-target basis as it's used in the repack section
               # of spread.yaml, which is shared by all targets, so all systems
@@ -239,19 +262,7 @@ jobs:
               export NO_DELTA=1
           fi
 
-          # Add openstack backend definition to spread.yaml
-          if [ "${{ inputs.backend }}" = openstack ]; then
-              ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
-          fi
-
-          # This could be the case when either there are not systems for a group or
-          # the list of tests to run is empty
-          if [ -z "$RUN_TESTS" ]; then
-            echo "No tests to run, exiting..."
-            exit 0
-          fi
-
-          if "$SPREAD" -list $RUN_TESTS 2>&1 | grep -q "nothing matches provider filter"; then
+          if "$spread_list" | grep -q "nothing matches provider filter"; then
             echo "No tests to run, exiting..."
             exit 0
           fi
@@ -267,7 +278,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: "spread-logs-${{ env.SYSTEMS }}"
+        name: "spread-logs-${{ inputs.group }}-${{ inputs.systems }}"
         path: "spread-logs/*.log"
         if-no-files-found: ignore
 

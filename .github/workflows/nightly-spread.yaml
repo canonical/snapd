@@ -15,7 +15,7 @@ jobs:
       runs-on: '["self-hosted", "spread-enabled"]'
       group: google
       backend: google
-      systems: '*'
+      systems: 'ALL'
       tasks: 'tests/nightly/...'
       rules: 'nightly'
       use-master-snap: true
@@ -63,7 +63,7 @@ jobs:
       runs-on: '["self-hosted", "spread-enabled"]'
       group: 'openstack'
       backend: 'openstack'
-      systems: '*'
+      systems: 'ALL'
       tasks: 'tests/main/...'
       rules: 'main'
       use-master-snap: true
