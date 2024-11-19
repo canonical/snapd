@@ -2101,6 +2101,9 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1Fa
 		c.Check(options, DeepEquals, &sb.ActivateVolumeOptions{
 			PassphraseTries: 1,
 			KeyringPrefix:   "ubuntu-fde",
+			LegacyDevicePaths: []string{
+				"/dev/disk/by-partuuid/enc-dev-partuuid",
+			},
 		})
 		c.Check(keys, HasLen, 0)
 		return nil
