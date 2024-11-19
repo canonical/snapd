@@ -5352,6 +5352,19 @@ apps:
 		{"show", "--property=ActiveState", srvFile2Sock2},
 		{"start", srvFile2Sock1, srvFile2Sock2},
 	})
+
+	// Restart but also reload. When reloading we expect to see different behaviour.
+	// Reloading activated units is not supported by systemd, and for that reason they must
+	// not appear in the list of systemctl calls.
+	// The only call we expect to appear here is the primary service of svc1 as
+	// that one is the only one reported as active here.
+	s.sysdLog = nil
+	c.Assert(wrappers.RestartServices(services, nil, &wrappers.RestartServicesOptions{Reload: true}, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile1, srvFile2},
+		{"show", "--property=Id,ActiveState,UnitFileState,Names", srvFile2Sock1, srvFile2Sock2},
+		{"reload-or-restart", srvFile1},
+	})
 }
 
 func (s *servicesTestSuite) TestRestartWithActivatedServicesActive(c *C) {
@@ -5427,6 +5440,17 @@ apps:
 		{"show", "--property=ActiveState", srvFile2Sock1},
 		{"show", "--property=ActiveState", srvFile2Sock2},
 		{"start", srvFile2Sock1, srvFile2Sock2},
+	})
+
+	// Restart but also reload. We do not expect any services to be restarted here as
+	// both the primary units are reported inactive. (Only the activation units are
+	// reported active). The reason we don't expect to see the activation units restarted
+	// when reloading, is that these units do not support reloading by systemd.
+	s.sysdLog = nil
+	c.Assert(wrappers.RestartServices(services, nil, &wrappers.RestartServicesOptions{Reload: true}, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile1, srvFile2},
+		{"show", "--property=Id,ActiveState,UnitFileState,Names", srvFile2Sock1, srvFile2Sock2},
 	})
 }
 
