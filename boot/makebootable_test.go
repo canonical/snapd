@@ -497,8 +497,16 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: cannot make pre-UC20 system runnable`)
 }
 
-func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, standalone, factoryReset, classic bool, fromInitrd bool) {
-	restore := release.MockOnClassic(classic)
+type testMakeSystemRunnable20Opts struct {
+	standalone   bool
+	factoryReset bool
+	classic      bool
+	fromInitrd   bool
+	withKComps   bool
+}
+
+func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, opts testMakeSystemRunnable20Opts) {
+	restore := release.MockOnClassic(opts.classic)
 	defer restore()
 	dirs.SetRootDir(dirs.GlobalRootDir)
 
@@ -512,7 +520,7 @@ func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, standalone, factory
 	})()
 
 	var model *asserts.Model
-	if classic {
+	if opts.classic {
 		model = boottest.MakeMockUC20Model(map[string]interface{}{
 			"classic":      "true",
 			"distribution": "ubuntu",
@@ -588,6 +596,16 @@ version: 5.0
 	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
 	err = os.Symlink(gadgetFn, gadgetInSeed)
 	c.Assert(err, IsNil)
+	kModsComps := []boot.BootableKModsComponents{}
+	if opts.withKComps {
+		for _, compName := range []string{"kcomp1", "kcomp2"} {
+			compFn := snaptest.MakeTestComponentWithFiles(c, compName,
+				"component: pc-kernel+kcomp1\ntype: kernel-modules\n", nil)
+			cpi := snap.MinimalComponentContainerPlaceInfo(compName,
+				snap.R(33), "pc-kernel")
+			kModsComps = append(kModsComps, boot.BootableKModsComponents{cpi, compFn})
+		}
+	}
 	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
 type: kernel
 version: 5.0
@@ -610,6 +628,7 @@ version: 5.0
 		Kernel:              kernelInfo,
 		Recovery:            false,
 		UnpackedGadgetDir:   unpackedGadgetDir,
+		KernelMods:          kModsComps,
 	}
 
 	// set up observer state
@@ -639,7 +658,7 @@ version: 5.0
 	// set a mock recovery kernel
 	readSystemEssentialCalls := 0
 	restore = boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
-		if fromInitrd {
+		if opts.fromInitrd {
 			c.Assert(seedDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
 		} else {
 			c.Assert(seedDir, Equals, dirs.SnapSeedDir)
@@ -653,7 +672,7 @@ version: 5.0
 	restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
 		provisionCalls++
 		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
-		if factoryReset {
+		if opts.factoryReset {
 			c.Check(mode, Equals, secboot.TPMPartialReprovision)
 		} else {
 			c.Check(mode, Equals, secboot.TPMProvisionFull)
@@ -666,7 +685,7 @@ version: 5.0
 	restore = boot.MockSecbootPCRHandleOfSealedKey(func(p string) (uint32, error) {
 		pcrHandleOfKeyCalls++
 		c.Check(provisionCalls, Equals, 0)
-		if !factoryReset {
+		if !opts.factoryReset {
 			c.Errorf("unexpected call in non-factory-reset scenario")
 			return 0, fmt.Errorf("unexpected call")
 		}
@@ -679,7 +698,7 @@ version: 5.0
 
 	releasePCRHandleCalls := 0
 	restore = boot.MockSecbootReleasePCRResourceHandles(func(handles ...uint32) error {
-		c.Check(factoryReset, Equals, true)
+		c.Check(opts.factoryReset, Equals, true)
 		releasePCRHandleCalls++
 		c.Check(handles, DeepEquals, []uint32{
 			secboot.AltRunObjectPCRPolicyCounterHandle,
@@ -708,7 +727,7 @@ version: 5.0
 			c.Check(keys[0].Key, DeepEquals, myKey)
 			c.Check(keys[0].KeyFile, Equals,
 				filepath.Join(s.rootdir, "/run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
-			if factoryReset {
+			if opts.factoryReset {
 				c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltRunObjectPCRPolicyCounterHandle)
 			} else {
 				c.Check(params.PCRPolicyCounterHandle, Equals, secboot.RunObjectPCRPolicyCounterHandle)
@@ -720,7 +739,7 @@ version: 5.0
 			c.Check(keys[0].KeyFile, Equals,
 				filepath.Join(s.rootdir,
 					"/run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"))
-			if factoryReset {
+			if opts.factoryReset {
 				c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltFallbackObjectPCRPolicyCounterHandle)
 				c.Check(keys[1].KeyFile, Equals,
 					filepath.Join(s.rootdir,
@@ -750,11 +769,11 @@ version: 5.0
 		var runKernelPath string
 		var runKernel bootloader.BootFile
 		switch {
-		case !standalone:
+		case !opts.standalone:
 			runKernelPath = "/var/lib/snapd/snaps/pc-kernel_5.snap"
-		case classic:
+		case opts.classic:
 			runKernelPath = "/run/mnt/ubuntu-data/var/lib/snapd/snaps/pc-kernel_5.snap"
-		case !classic:
+		case !opts.classic:
 			runKernelPath = "/run/mnt/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_5.snap"
 		}
 		runKernel = bootloader.NewBootFile(filepath.Join(s.rootdir, runKernelPath), "kernel.efi", bootloader.RoleRunMode)
@@ -788,13 +807,13 @@ version: 5.0
 	defer restore()
 
 	switch {
-	case standalone && fromInitrd:
+	case opts.standalone && opts.fromInitrd:
 		err = boot.MakeRunnableStandaloneSystemFromInitrd(model, bootWith, obs)
-	case standalone && !fromInitrd:
+	case opts.standalone && !opts.fromInitrd:
 		u := mockUnlocker{}
 		err = boot.MakeRunnableStandaloneSystem(model, bootWith, obs, u.unlocker)
 		c.Check(u.unlocked, Equals, 1)
-	case factoryReset && !fromInitrd:
+	case opts.factoryReset && !opts.fromInitrd:
 		err = boot.MakeRunnableSystemAfterDataReset(model, bootWith, obs)
 	default:
 		err = boot.MakeRunnableSystem(model, bootWith, obs)
@@ -811,7 +830,7 @@ version: 5.0
 	c.Check(mockBootGrubCfg, testutil.FileEquals, string(grubCfgAsset))
 
 	var installHostWritableDir string
-	if classic {
+	if opts.classic {
 		installHostWritableDir = filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data")
 	} else {
 		installHostWritableDir = filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")
@@ -826,6 +845,13 @@ version: 5.0
 	c.Check(pcKernelSnap, testutil.FilePresent)
 	c.Check(osutil.IsSymlink(core20Snap), Equals, false)
 	c.Check(osutil.IsSymlink(pcKernelSnap), Equals, false)
+	if opts.withKComps {
+		for _, compName := range []string{"kcomp1", "kcomp2"} {
+			comp := filepath.Join(dirs.SnapBlobDirUnder(installHostWritableDir),
+				"pc-kernel+"+compName+"_33.comp")
+			c.Check(comp, testutil.FilePresent)
+		}
+	}
 
 	// ensure the bootvars got updated the right way
 	mockSeedGrubenv := filepath.Join(mockSeedGrubDir, "grubenv")
@@ -852,7 +878,7 @@ version: 5.0
 
 	// ensure modeenv looks correct
 	var ubuntuDataModeEnvPath, classicLine, base string
-	if classic {
+	if opts.classic {
 		base = ""
 		ubuntuDataModeEnvPath = filepath.Join(s.rootdir, "/run/mnt/ubuntu-data/var/lib/snapd/modeenv")
 		classicLine = "\nclassic=true"
@@ -908,7 +934,7 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 	// make sure SealKey was called for the run object and the fallback object
 	c.Check(sealKeysCalls, Equals, 2)
 	// PCR handle checks
-	if factoryReset {
+	if opts.factoryReset {
 		c.Check(pcrHandleOfKeyCalls, Equals, 1)
 		c.Check(releasePCRHandleCalls, Equals, 1)
 	} else {
@@ -924,43 +950,63 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20Install(c *C) {
-	const standalone = false
-	const factoryReset = false
-	const classic = false
-	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
+		standalone:   false,
+		factoryReset: false,
+		classic:      false,
+		fromInitrd:   false,
+		withKComps:   false,
+	})
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallWithKComps(c *C) {
+	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
+		standalone:   false,
+		factoryReset: false,
+		classic:      false,
+		fromInitrd:   false,
+		withKComps:   true,
+	})
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallOnClassic(c *C) {
-	const standalone = false
-	const factoryReset = false
-	const classic = true
-	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
+		standalone:   false,
+		factoryReset: false,
+		classic:      true,
+		fromInitrd:   false,
+		withKComps:   true,
+	})
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryReset(c *C) {
-	const standalone = false
-	const factoryReset = true
-	const classic = false
-	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
+		standalone:   false,
+		factoryReset: true,
+		classic:      false,
+		fromInitrd:   false,
+		withKComps:   true,
+	})
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryResetOnClassic(c *C) {
-	const standalone = false
-	const factoryReset = true
-	const classic = true
-	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
+		standalone:   false,
+		factoryReset: true,
+		classic:      true,
+		fromInitrd:   false,
+		withKComps:   true,
+	})
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallFromInitrd(c *C) {
-	const standalone = true
-	const factoryReset = false
-	const classic = false
-	const fromInitrd = true
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
+		standalone:   true,
+		factoryReset: false,
+		classic:      false,
+		fromInitrd:   true,
+		withKComps:   true,
+	})
 }
 
 func (s *makeBootable20Suite) TestMakeRunnableSystem20ModeInstallBootConfigErr(c *C) {
@@ -2276,19 +2322,23 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 }
 
 func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20Install(c *C) {
-	const standalone = true
-	const factoryReset = false
-	const classic = false
-	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
+		standalone:   true,
+		factoryReset: false,
+		classic:      false,
+		fromInitrd:   false,
+		withKComps:   true,
+	})
 }
 
 func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20InstallOnClassic(c *C) {
-	const standalone = true
-	const factoryReset = false
-	const classic = true
-	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
+		standalone:   true,
+		factoryReset: false,
+		classic:      true,
+		fromInitrd:   false,
+		withKComps:   true,
+	})
 }
 
 func (s *makeBootable20Suite) testMakeBootableImageOptionalKernelArgs(c *C, model *asserts.Model, options map[string]string, expectedCmdline, errMsg string) {
