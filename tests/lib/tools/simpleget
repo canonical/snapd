@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+
+import os.path
+import argparse
+import logging
+import datetime
+from urllib import request
+from urllib.parse import urlparse
+
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="simple file getter")
+    parser.add_argument("-o", "--output", help="output file name")
+    parser.add_argument("URL", help="download URL")
+    return parser.parse_args()
+
+
+def main() -> None:
+    logging.basicConfig(
+        format="%(asctime)s - %(levelname)s - %(message)s", level=logging.DEBUG
+    )
+    opts = parse_arguments()
+
+    fromurl = urlparse(opts.URL).path
+    output = os.path.basename(fromurl)
+    if opts.output:
+        output = opts.output
+
+    if os.path.exists(output):
+        raise RuntimeError(f"output path {output} already exists")
+
+    total = 0
+    now = datetime.datetime.now()
+    with request.urlopen(opts.URL) as f:
+        with open(output, "wb") as outf:
+            while True:
+                data = f.read(128 * 1024)
+                logging.debug("got %s bytes", len(data))
+                if len(data) == 0:
+                    logging.debug("done")
+                    break
+
+                total += len(data)
+                outf.write(data)
+
+    after = datetime.datetime.now()
+    speed = float(total) / (after - now).total_seconds() / 1024.0
+    logging.info("wrote %d bytes to %s, speed %.02f kB/s", total, output, speed)
+
+
+if __name__ == "__main__":
+    main()
