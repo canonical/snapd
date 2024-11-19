@@ -55,25 +55,25 @@ check_slot_present() {
 # Check that given slot has hotplug-gone=true, meaning the device was unplugged but there are connections remembered for it
 check_slot_gone() {
     SLOT_NAME="$1"
-    remote.exec 'sudo jq -r ".data[\"hotplug-slots\"][\"'"$SLOT_NAME"'\"][\"hotplug-gone\"]" /var/lib/snapd/state.json' | MATCH "true"
+    remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq -r ".data[\"hotplug-slots\"][\"$SLOT_NAME\"][\"hotplug-gone\"]" | MATCH "true"
 }
 
 # Check that given slot has hotplug-gone=false, meaning the device is plugged
 check_slot_not_gone() {
     SLOT_NAME="$1"
-    remote.exec 'sudo jq -r ".data[\"hotplug-slots\"][\"'"$SLOT_NAME"'\"][\"hotplug-gone\"]" /var/lib/snapd/state.json' | MATCH "false"
+    remote.exec 'sudo  cat /var/lib/snapd/state.json' | gojq -r ".data[\"hotplug-slots\"][\"$SLOT_NAME\"][\"hotplug-gone\"]" | MATCH "false"
 }
 
 # Check that given slot has no record in "hotplug-slots" map in the state
 check_slot_not_present_in_state() {
     SLOT_NAME="$1"
-    remote.exec 'sudo jq -r ".data[\"hotplug-slots\"][\"'"$SLOT_NAME"'\"] // \"missing\"" /var/lib/snapd/state.json' | MATCH "missing"
+    remote.exec 'sudo  cat /var/lib/snapd/state.json' | gojq -r ".data[\"hotplug-slots\"][\"$SLOT_NAME\"] // \"missing\"" | MATCH "missing"
 }
 
 check_slot_device_path() {
     SLOT_NAME="$1"
     DEVICE_PATH="$2"
-    remote.exec 'sudo jq -r ".data[\"hotplug-slots\"][\"'"$SLOT_NAME"'\"][\"static-attrs\"].path" /var/lib/snapd/state.json' | MATCH "$DEVICE_PATH"
+    remote.exec 'sudo  cat /var/lib/snapd/state.json' | gojq -r ".data[\"hotplug-slots\"][\"$SLOT_NAME\"][\"static-attrs\"].path" | MATCH "$DEVICE_PATH"
 }
 
 # Check that given slot is connected to the serial-port-hotplug snap, per 'snap connections' output
