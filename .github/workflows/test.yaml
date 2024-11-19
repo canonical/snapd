@@ -236,7 +236,7 @@ jobs:
             tasks: 'tests/...'
             rules: 'main'
           - group: centos
-            backend: google-distro-2
+            backend: openstack
             systems: 'centos-9-64'
             tasks: 'tests/...'
             rules: 'main'
