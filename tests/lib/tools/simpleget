@@ -40,12 +40,20 @@ def main() -> None:
     # create a temp in the same directory as output
     outdir = os.path.dirname(output)
 
-    with tempfile.NamedTemporaryFile(mode="wb", dir=outdir) as outf:
-        now = datetime.datetime.now()
-        fn, _ = request.urlretrieve(opts.URL, filename=outf.name, reporthook=_report)
-        after = datetime.datetime.now()
+    with tempfile.NamedTemporaryFile(mode="wb", dir=outdir, delete=False) as outf:
+        name = outf.name
+        outf.close()
+        try:
+            now = datetime.datetime.now()
+            fn, _ = request.urlretrieve(
+                opts.URL, filename=outf.name, reporthook=_report
+            )
+            after = datetime.datetime.now()
 
-        os.rename(fn, output)
+            os.rename(fn, output)
+        except:
+            os.unlink(name)
+            raise
 
     speed = float(total) / (after - now).total_seconds() / 1024.0
     logging.info("wrote %d bytes to %s, speed %.02f kB/s", total, output, speed)
