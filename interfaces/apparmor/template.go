@@ -640,6 +640,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/unzip ixr,
   /{,usr/}bin/uptime ixr,
   /{,usr/}bin/vdir ixr,
+  /{,usr/}bin/vim.tiny ixr,
   /{,usr/}bin/wc ixr,
   /{,usr/}bin/which{,.debianutils} ixr,
   /{,usr/}bin/xargs ixr,
