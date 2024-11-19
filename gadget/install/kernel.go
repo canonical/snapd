@@ -31,8 +31,21 @@ type KernelSnapInfo struct {
 	// MountPoint is the root of the files from the kernel snap
 	MountPoint string
 	// NeedsDriversTree will be set if a drivers tree needs to be
-	// build on installation
+	// built on installation
 	NeedsDriversTree bool
 	// IsCore is set if this is UC
 	IsCore bool
+	// ModulesComps has the information for installed
+	// kernel-modules components from the snap
+	ModulesComps []KernelModulesComponentInfo
+}
+
+// KernelModulesComponentInfo includes information for kernel-modules
+// components that is needed to build a drivers tree.
+// TODO:COMPS support modules created by hooks in $SNAP_DATA.
+type KernelModulesComponentInfo struct {
+	Name     string
+	Revision snap.Revision
+	// MountPoint is the root of the files from the component
+	MountPoint string
 }
