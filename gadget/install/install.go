@@ -400,7 +400,7 @@ func Run(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelSnapInfo, 
 		if options.Mount && vs.Label != "" && vs.HasFilesystem() {
 			// fs is taken from gadget, as on disk one might be displayed as
 			// crypto_LUKS, which is not useful for formatting.
-			if err := mountFilesystem(fsDevice, vs.LinuxFilesystem(), getMntPointForPart(vs)); err != nil {
+			if err := mountFilesystem(fsDevice, vs.LinuxFilesystem(), getMntPointForPart(vs), mntfsParams{}); err != nil {
 				return nil, err
 			}
 		}
@@ -592,7 +592,7 @@ func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionS
 			// Device might have been encrypted
 			device := deviceForMaybeEncryptedVolume(&part, encSetupData)
 
-			if err := mountFilesystem(device, part.LinuxFilesystem(), mntPt); err != nil {
+			if err := mountFilesystem(device, part.LinuxFilesystem(), mntPt, mntfsParams{}); err != nil {
 				defer unmount()
 				return "", nil, fmt.Errorf("cannot mount %q at %q: %v", device, mntPt, err)
 			}
@@ -788,7 +788,7 @@ func FactoryReset(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelS
 		if options.Mount && vs.Label != "" && vs.HasFilesystem() {
 			// fs is taken from gadget, as on disk one might be displayed as
 			// crypto_LUKS, which is not useful for formatting.
-			if err := mountFilesystem(fsDevice, vs.LinuxFilesystem(), getMntPointForPart(vs)); err != nil {
+			if err := mountFilesystem(fsDevice, vs.LinuxFilesystem(), getMntPointForPart(vs), mntfsParams{}); err != nil {
 				return nil, err
 			}
 		}
