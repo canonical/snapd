@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+# note this script needs to run on Python as old as 3.6
 import os.path
 import argparse
 import logging
@@ -28,7 +29,7 @@ def main() -> None:
         output = opts.output
 
     if os.path.exists(output):
-        raise RuntimeError(f"output path {output} already exists")
+        raise RuntimeError("output path {} already exists".format(output))
 
     total = 0
 
