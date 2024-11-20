@@ -608,15 +608,6 @@ prepare_project() {
         disable_journald_rate_limiting
         disable_journald_start_limiting
     fi
-
-    # native jq replacement, but still with some incompatibilies, see
-    # https://github.com/itchyny/gojq
-    # major differences:
-    # - map keys are sorted by default
-    # - with --yaml-input, can parse YAML
-    GOBIN=$PROJECT_PATH/tests/bin \
-    CGO_ENABLED=0 \
-        go install github.com/itchyny/gojq/cmd/gojq@v0.12.16
 }
 
 prepare_project_each() {
