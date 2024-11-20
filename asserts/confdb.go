@@ -21,6 +21,7 @@ package asserts
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -151,7 +152,7 @@ func assembleConfdbControl(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 	if groups == nil {
-		return nil, fmt.Errorf(`"groups" stanza is mandatory`)
+		return nil, errors.New(`"groups" stanza is mandatory`)
 	}
 
 	operators, err := parseConfdbControlGroups(groups)

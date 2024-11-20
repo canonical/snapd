@@ -325,12 +325,12 @@ func (s *confdbCtrlSuite) TestDecodeInvalid(c *C) {
 		{
 			"      - operator-key",
 			"      - foo-bar",
-			"cannot parse group at position 1: invalid authentication method: foo-bar",
+			"cannot parse group at position 1: cannot add group: invalid authentication method: foo-bar",
 		},
 		{
 			"canonical/network/control-interfaces",
 			"canonical",
-			`cannot parse group at position 2: "canonical" must be in the format account/confdb/view`,
+			`cannot parse group at position 2: view "canonical" must be in the format account/confdb/view`,
 		},
 	}
 
