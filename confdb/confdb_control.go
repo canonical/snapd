@@ -121,6 +121,8 @@ func (op *Operator) AddGroup(views []string, auth []string) error {
 	return nil
 }
 
+// compact replaces consecutive runs of equal elements with a single copy.
+// The provided slice s should be sorted.
 func compact[T comparable](s []T) []T {
 	if len(s) < 2 {
 		return s

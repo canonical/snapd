@@ -104,7 +104,7 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.QuotaGroups, false)
 	check(features.RefreshAppAwarenessUX, true)
 	check(features.Confdbs, true)
-	check(features.ConfdbControl, true)
+	check(features.ConfdbControl, false)
 	check(features.AppArmorPrompting, true)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
