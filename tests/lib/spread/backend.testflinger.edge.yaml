@@ -39,7 +39,7 @@
                   password: ubuntu
             - ubuntu-core-24-arm-64-rpi4:
                   queue: rpi4b8g
-                  image: https://storage.googleapis.com/snapd-spread-tests/images/pi4-24-edge-core24_edge/pi.img.xz
+                  image: https://storage.googleapis.com/snapd-spread-tests/images/pi4-24-stable-core24_edge/pi.img.xz
                   workers: 1
                   username: ubuntu
                   password: ubuntu
