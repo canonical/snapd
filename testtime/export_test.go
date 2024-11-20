@@ -26,3 +26,9 @@ import (
 func (t *TestTimer) SetCChan(c chan time.Time) {
 	t.c = c
 }
+
+// isValidAuthenticationMethod exposed for tests
+var IsValidAuthenticationMethod = isValidAuthenticationMethod
+
+// convertToAuthenticationMethod exposed for tests
+var ConvertToAuthenticationMethod = convertToAuthenticationMethod
